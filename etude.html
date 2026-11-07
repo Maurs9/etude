@@ -4118,7 +4118,7 @@ function bindKeyA11y(b,m){ b.addEventListener('keydown',e=>{ if(e.key===' '||e.k
    Falling notes draw their own keyboard, so that view shows neither the dock nor the rail and leaves the choice untouched. */
 const DOCK={pref:null,auto:null,animT:0};
 function dockWanted(v=view0()){ return v==='today'||v==='explore'||v==='accompany'||v==='transcribe'||v==='learn'||v==='read'||v==='sing'||(v===sesHome()&&SES.active)||(v==='analysis'&&anDockWanted()); }
-function dockOpen(v=view0()){ if(DOCK.pref!=null) return DOCK.pref; if(v!=='analysis') return true; if(DOCK.auto==null) DOCK.auto=window.innerWidth>=900&&window.innerHeight>=620; return DOCK.auto; }
+function dockOpen(v=view0()){ if(DOCK.pref!=null) return DOCK.pref; return false; }
 function dockShown(){ return document.body.classList.contains('kb')&&!$('dock').classList.contains('is-rail'); }
 // The dock's own button names the action it takes (Hide / Show keyboard).
 function dockLabels(){ const open=dockOpen(), act=t(open?'kb_hide':'kb_show'), dk=$('dock-kb-toggle');
