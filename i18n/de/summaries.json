@@ -1,0 +1,446 @@
+{
+  "keys": [
+    [
+      "Oktave",
+      "12 Halbtöne; Muster aus 2 + 3 schwarzen Tasten wiederholt sich"
+    ],
+    [
+      "C / Do",
+      "Links neben den 2 schwarzen Tasten; mittleres C = C4"
+    ],
+    [
+      "Natürliche Halbtöne",
+      "E–F und H–C (im Englischen B–C)"
+    ],
+    [
+      "Ganzton",
+      "2 Halbtöne (eine Taste überspringen)"
+    ]
+  ],
+  "how": [
+    [
+      "Täglich",
+      "10–20 Min. sind wirksamer als eine lange Einheit"
+    ],
+    [
+      "Intervall-Wiederholung",
+      "Wiederholen nach 3, 7, 16, 35 Tagen"
+    ],
+    [
+      "Verschränken",
+      "Notenlesen, Gehörbildung und Theorie abwechseln"
+    ],
+    [
+      "Aktiver Abruf",
+      "Erst selbst testen, dann die Lösung prüfen"
+    ]
+  ],
+  "notation": [
+    [
+      "Violinschlüssel Linien",
+      "E G H D F (international: E G B D F)"
+    ],
+    [
+      "Violinschlüssel Zwischenräume",
+      "F A C E"
+    ],
+    [
+      "Bassschlüssel Linien",
+      "G H D F A (international: G B D F A)"
+    ],
+    [
+      "Bassschlüssel Zwischenräume",
+      "A C E G"
+    ],
+    [
+      "Versetzungszeichen",
+      "♯ +1 · ♭ −1 · ♮ Auflösung; gelten bis zum Taktstrich"
+    ]
+  ],
+  "symbols": [
+    [
+      "Wiederholungen",
+      "𝄆 … 𝄇 · 1./2. Endung (Klammern)"
+    ],
+    [
+      "D.C. / D.S.",
+      "von Beginn an / ab dem Zeichen 𝄋"
+    ],
+    [
+      "Fine · Coda",
+      "hier aufhören · zum Coda-Zeichen 𝄌 springen"
+    ],
+    [
+      "Artikulation",
+      "Staccato · Tenuto > Akzent · 𝄐 Fermate"
+    ],
+    [
+      "Haltebogen vs. Bindebogen",
+      "gleiche Tonhöhe = Werte addieren · verschieden = legato"
+    ],
+    [
+      "Fingersatz",
+      "1 Daumen … 5 kleiner Finger"
+    ],
+    [
+      "Pedal",
+      "Ped. … ✱"
+    ]
+  ],
+  "dyn": [
+    [
+      "Leise → laut",
+      "pp p mp mf f ff"
+    ],
+    [
+      "Stufenlos",
+      "cresc. < · dim./decresc. >"
+    ],
+    [
+      "Plötzlich",
+      "sfz · fp · subito"
+    ]
+  ],
+  "rh": [
+    [
+      "Notenwerte (4/4)",
+      "𝅝 4 · 𝅗𝅥 2 · ♩ 1 · ♪ ½ · 𝅘𝅥𝅯 ¼"
+    ],
+    [
+      "Punkt",
+      "verlängert um die Hälfte des Wertes"
+    ],
+    [
+      "Taktart",
+      "obere Zahl = Schläge · untere Zahl = Grundschlag"
+    ],
+    [
+      "Betonte Zählzeiten",
+      "4/4: 1 (3) · 3/4: 1 · 6/8: 1 und 4"
+    ]
+  ],
+  "rh2": [
+    [
+      "Pausen",
+      "entsprechen den Notenwerten"
+    ],
+    [
+      "Triole",
+      "3 Noten in der Zeit von 2"
+    ],
+    [
+      "Zusammengesetzt",
+      "6/8, 9/8, 12/8 — Grundschlag = punktierte ♩"
+    ],
+    [
+      "Synkope",
+      "Betonung gegen das Metrum (Offbeat)"
+    ],
+    [
+      "Tempo",
+      "Largo < Adagio < Andante < Moderato < Allegro < Presto"
+    ],
+    [
+      "Tempoänderung",
+      "rit./rall. langsamer · accel. schneller · a tempo"
+    ]
+  ],
+  "iv": [
+    [
+      "Halbtöne",
+      "k2 1 · g2 2 · k3 3 · g3 4 · r4 5 · TT 6"
+    ],
+    [
+      "",
+      "r5 7 · k6 8 · g6 9 · k7 10 · g7 11 · r8 12"
+    ],
+    [
+      "Zählen",
+      "Stammtöne einschließlich beider Ränder zählen"
+    ]
+  ],
+  "iv2": [
+    [
+      "Qualitäten",
+      "verm < klein < GROSS · verm < REIN < überm"
+    ],
+    [
+      "Umkehrung",
+      "Ziffernsumme 9 · g↔k · überm↔verm · r bleibt r"
+    ],
+    [
+      "Zusammengesetzt",
+      "None = Sekunde + Oktave · Dezime = Terz + Oktave"
+    ],
+    [
+      "Enharmonisch",
+      "gleiche Tasten, verschiedene Notenschreibweise"
+    ]
+  ],
+  "sc": [
+    [
+      "Dur",
+      "GT GT HT GT GT GT HT"
+    ],
+    [
+      "Natürliches Moll",
+      "GT HT GT GT HT GT GT"
+    ],
+    [
+      "Pentatonik",
+      "Dur-Tonleiter ohne 4. und 7. Stufe"
+    ],
+    [
+      "Parallele",
+      "Moll-Grundton = 6. Stufe der Dur-Tonleiter"
+    ]
+  ],
+  "minor": [
+    [
+      "Natürlich",
+      "1 2 ♭3 4 5 ♭6 ♭7"
+    ],
+    [
+      "Harmonisch",
+      "1 2 ♭3 4 5 ♭6 7"
+    ],
+    [
+      "Melodisch ↑",
+      "1 2 ♭3 4 5 6 7 (↓ = natürlich)"
+    ],
+    [
+      "Stufen",
+      "Tonika · Supertonika · Mediante · Subdominante · Dominante · Submediante · Leitton"
+    ],
+    [
+      "Kreuze (♯)",
+      "Fis Cis Gis Dis Ais Eis His"
+    ],
+    [
+      "Be (♭)",
+      "B Es As Des Ges Ces Fes"
+    ]
+  ],
+  "cof": [
+    [
+      "Im Uhrzeigersinn",
+      "+1 ♯ pro Schritt (reine Quinte aufwärts)"
+    ],
+    [
+      "Gegen Uhrzeigersinn",
+      "+1 ♭ pro Schritt (reine Quarte aufwärts)"
+    ],
+    [
+      "Kreuz-Tonarten",
+      "G D A E H Fis"
+    ],
+    [
+      "Be-Tonarten",
+      "F B Es As Des Ges"
+    ],
+    [
+      "Merkregel",
+      "letztes ♯ + Halbton = Dur-Grundton · vorletztes ♭ = Dur-Grundton"
+    ]
+  ],
+  "modes": [
+    [
+      "Ionisch",
+      "Dur"
+    ],
+    [
+      "Dorisch",
+      "Moll, ♮6 (große Sexte)"
+    ],
+    [
+      "Phrygisch",
+      "Moll, ♭2 (kleine Sekunde)"
+    ],
+    [
+      "Lydisch",
+      "Dur, ♯4 (übermäßige Quarte)"
+    ],
+    [
+      "Mixolydisch",
+      "Dur, ♭7 (kleine Septime)"
+    ],
+    [
+      "Äolisch · Lokrisch",
+      "Natürliches Moll · ♭2 ♭5"
+    ]
+  ],
+  "ch": [
+    [
+      "Dur",
+      "1 3 5 (g3 + k3)"
+    ],
+    [
+      "Moll",
+      "1 ♭3 5 (k3 + g3)"
+    ],
+    [
+      "Vermindert",
+      "1 ♭3 ♭5"
+    ],
+    [
+      "Übermäßig",
+      "1 3 ♯5"
+    ],
+    [
+      "Umkehrungen",
+      "Grundstellung · 1. (Terz im Bass) · 2. (Quinte im Bass)"
+    ]
+  ],
+  "ch7": [
+    [
+      "maj7",
+      "1 3 5 7"
+    ],
+    [
+      "7",
+      "1 3 5 ♭7 (Dominante)"
+    ],
+    [
+      "m7",
+      "1 ♭3 5 ♭7"
+    ],
+    [
+      "m7♭5 ø",
+      "1 ♭3 ♭5 ♭7 (halbvermindert)"
+    ],
+    [
+      "dim7 °7",
+      "1 ♭3 ♭5 𝄫7 (ganzvermindert)"
+    ],
+    [
+      "sus2 · sus4",
+      "1 2 5 · 1 4 5"
+    ],
+    [
+      "6 · add9",
+      "1 3 5 6 · 1 3 5 9"
+    ],
+    [
+      "Slash",
+      "C/E = C-Dur-Akkord, E im Bass"
+    ]
+  ],
+  "pr": [
+    [
+      "Dur-Tonart",
+      "I ii iii IV V vi vii°"
+    ],
+    [
+      "Typisch",
+      "I–V–vi–IV · ii–V–I · I–vi–IV–V"
+    ],
+    [
+      "12-Takt-Blues",
+      "I I I I | IV IV I I | V IV I V"
+    ]
+  ],
+  "cad": [
+    [
+      "Ganzschluss",
+      "V → I (authentische Kadenz)"
+    ],
+    [
+      "Plagalschluss",
+      "IV → I"
+    ],
+    [
+      "Halbschluss",
+      "… → V"
+    ],
+    [
+      "Trugschluss",
+      "V → vi"
+    ]
+  ],
+  "minorh": [
+    [
+      "Moll-Tonart",
+      "i ii° III iv V VI vii°"
+    ],
+    [
+      "Warum Dur-V?",
+      "harmonisches Moll erhöht 7 → Dur-Dominante V"
+    ],
+    [
+      "Typisch",
+      "i–iv–V–i · i–VI–III–VII · i–VII–VI–V"
+    ]
+  ],
+  "nct": [
+    [
+      "Durchgangsnote",
+      "stufenweise in gleicher Richtung"
+    ],
+    [
+      "Wechselnote",
+      "Schritt weg, Schritt zurück"
+    ],
+    [
+      "Vorhalt",
+      "gehalten, löst sich stufenweise abwärts auf"
+    ],
+    [
+      "Appoggiatura",
+      "Sprung auf betonte Dissonanz, stufenweise Auflösung"
+    ]
+  ],
+  "secdom": [
+    [
+      "V/x",
+      "Dur-(Sept-)Akkord eine Quinte über x"
+    ],
+    [
+      "In C-Dur",
+      "V/ii A7 · V/iii H7 · V/IV C7 · V/V D7 · V/vi E7"
+    ],
+    [
+      "Modulation",
+      "Drehklang (Pivot) → neue V–I Kadenz"
+    ],
+    [
+      "Stimmführung",
+      "Liegetöne halten · stufenweise führen · keine Parallelen (5/8)"
+    ]
+  ],
+  "form": [
+    [
+      "Motiv → Phrase",
+      "2–4 Noten → ca. 4 Takte"
+    ],
+    [
+      "Periode",
+      "Vordersatz (Halbschluss) + Nachsatz (Ganzschluss)"
+    ],
+    [
+      "Formen",
+      "AB zweiteilig · ABA dreiteilig · ABACA Rondo"
+    ]
+  ],
+  "accomp": [
+    [
+      "Blockakkorde",
+      "voller Akkord auf den Schlag"
+    ],
+    [
+      "Alberti-Bass",
+      "1-5-3-5 Begleitmuster"
+    ],
+    [
+      "Walzer",
+      "Bass – Akkord – Akkord (3/4)"
+    ],
+    [
+      "Ballade",
+      "1-5-8-10 gebrochen"
+    ],
+    [
+      "Lead Sheet",
+      "RH Melodie · LH Akkordsymbole umsetzen"
+    ]
+  ]
+}

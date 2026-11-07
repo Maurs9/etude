@@ -1,0 +1,231 @@
+{
+  "intervals": {
+    "1": "Seconde mineure",
+    "2": "Seconde majeure",
+    "3": "Tierce mineure",
+    "4": "Tierce majeure",
+    "5": "Quarte juste",
+    "6": "Triton",
+    "7": "Quinte juste",
+    "8": "Sixte mineure",
+    "9": "Sixte majeure",
+    "10": "Septième mineure",
+    "11": "Septième majeure",
+    "12": "Octave",
+    "13": "Neuvième mineure",
+    "14": "Neuvième majeure",
+    "15": "Dixième mineure",
+    "16": "Dixième majeure",
+    "17": "Onzième juste",
+    "18": "Onzième augmentée",
+    "19": "Douzième juste",
+    "20": "Treizième mineure",
+    "21": "Treizième majeure",
+    "22": "Quatorzième mineure",
+    "23": "Quatorzième majeure",
+    "24": "Deux octaves"
+  },
+  "scales": {
+    "Major (Ionian)": "Majeure (ionien)",
+    "Dorian": "Dorien",
+    "Phrygian": "Phrygien",
+    "Lydian": "Lydien",
+    "Mixolydian": "Mixolydien",
+    "Aeolian (Natural minor)": "Éolien (mineure naturelle)",
+    "Locrian": "Locrien",
+    "Harmonic minor": "Mineure harmonique",
+    "Melodic minor": "Mineure mélodique",
+    "Harmonic major": "Majeure harmonique",
+    "Major pentatonic": "Pentatonique majeure",
+    "Minor pentatonic": "Pentatonique mineure",
+    "Blues": "Blues",
+    "Whole tone": "Par tons",
+    "Diminished (W-H)": "Diminuée (ton–demi-ton)",
+    "Diminished (H-W)": "Diminuée (demi-ton–ton)",
+    "Phrygian dominant": "Phrygien dominant",
+    "Hungarian minor": "Mineure hongroise",
+    "Chromatic": "Chromatique"
+  },
+  "chords": {
+    "6": "Sixte majeure",
+    "7": "Septième de dominante",
+    "9": "Neuvième de dominante",
+    "11": "Onzième (sans tierce)",
+    "13": "Treizième",
+    "maj9": "Neuvième majeure",
+    "m9": "Neuvième mineure",
+    "7♭9": "Septième de dominante avec neuvième bémol",
+    "7♯9": "Septième de dominante avec neuvième dièse",
+    "maj7♯11": "Septième majeure avec onzième dièse",
+    "maj7": "Septième majeure",
+    "m7": "Septième mineure",
+    "mMaj7": "Mineur avec septième majeure",
+    "m7♭5": "Septième demi-diminuée",
+    "dim7": "Septième diminuée",
+    "7♯5": "Septième avec quinte augmentée",
+    "7♭5": "Septième de dominante avec quinte bémol",
+    "m6": "Sixte mineure",
+    "add9": "Neuvième ajoutée",
+    "maj": "Majeur",
+    "m": "Mineur",
+    "dim": "Diminué",
+    "aug": "Augmenté",
+    "sus2": "Seconde suspendue",
+    "sus4": "Quarte suspendue"
+  },
+  "categories": {
+    "interval": "Intervalles",
+    "chord": "Accords",
+    "scale": "Gammes",
+    "prog": "Progressions"
+  },
+  "inversions": {
+    "0": "état fondamental",
+    "1": "1er renversement",
+    "2": "2e renversement",
+    "3": "3e renversement",
+    "4": "4e renversement",
+    "5": "5e renversement"
+  },
+  "feels": {
+    "6": "doux, rétro",
+    "7": "bluesy, appelle une résolution",
+    "9": "funky",
+    "maj": "lumineux, résolu",
+    "m": "plus sombre, mélancolique",
+    "dim": "tendu, instable",
+    "aug": "onirique",
+    "sus2": "ouvert, aérien",
+    "sus4": "suspendu",
+    "maj7": "riche, jazzy",
+    "m7": "doux, velouté",
+    "m7♭5": "sombre, cinématographique",
+    "dim7": "très tendu",
+    "mMaj7": "noir",
+    "m6": "nostalgique",
+    "maj9": "rêveur",
+    "m9": "plein d’âme"
+  },
+  "songs": {
+    "1": {
+      "asc": [
+        "Les Dents de la mer (thème)",
+        "Stormy Weather"
+      ],
+      "desc": [
+        "Lettre à Élise"
+      ]
+    },
+    "2": {
+      "asc": [
+        "Joyeux Anniversaire",
+        "Frère Jacques",
+        "Douce Nuit"
+      ],
+      "desc": [
+        "Mary Had a Little Lamb",
+        "Trois souris aveugles",
+        "Yesterday"
+      ]
+    },
+    "3": {
+      "asc": [
+        "Greensleeves",
+        "Smoke on the Water"
+      ],
+      "desc": [
+        "Hey Jude",
+        "This Old Man",
+        "Star-Spangled Banner"
+      ]
+    },
+    "4": {
+      "asc": [
+        "Oh When the Saints",
+        "Kumbaya",
+        "Le Beau Danube bleu"
+      ],
+      "desc": [
+        "5e Symphonie de Beethoven",
+        "Swing Low, Sweet Chariot"
+      ]
+    },
+    "5": {
+      "asc": [
+        "Marche nuptiale",
+        "Amazing Grace",
+        "Ce n’est qu’un au revoir (Auld Lang Syne)"
+      ],
+      "desc": [
+        "Born Free",
+        "Adeste Fideles"
+      ]
+    },
+    "6": {
+      "asc": [
+        "Les Simpson (thème)",
+        "Maria (West Side Story)"
+      ],
+      "desc": [
+        "(rare)"
+      ]
+    },
+    "7": {
+      "asc": [
+        "Ah ! vous dirai-je, maman",
+        "Star Wars (thème)",
+        "2001, l’Odyssée de l’espace (Zarathoustra)"
+      ],
+      "desc": [
+        "Les Pierrafeu (thème)",
+        "Feelings"
+      ]
+    },
+    "8": {
+      "asc": [
+        "Love Story (thème)",
+        "Orfeu Negro",
+        "We’ve Only Just Begun"
+      ],
+      "desc": [
+        "The Music of the Night"
+      ]
+    },
+    "9": {
+      "asc": [
+        "My Bonnie Lies Over the Ocean",
+        "Vive le vent (Jingle Bells)"
+      ],
+      "desc": [
+        "Nobody Knows the Trouble I’ve Seen"
+      ]
+    },
+    "10": {
+      "asc": [
+        "Somewhere (West Side Story)",
+        "Star Trek (générique)"
+      ],
+      "desc": [
+        "(rare)"
+      ]
+    },
+    "11": {
+      "asc": [
+        "Take On Me (refrain)",
+        "Bali Ha’i"
+      ],
+      "desc": [
+        "(très rare)"
+      ]
+    },
+    "12": {
+      "asc": [
+        "Over the Rainbow",
+        "Singin’ in the Rain"
+      ],
+      "desc": [
+        "Willow Weep for Me"
+      ]
+    }
+  }
+}

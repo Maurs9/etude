@@ -1,0 +1,3256 @@
+{
+  "strings": {
+    "rc_ahead": "Olhe para a frente: enquanto uma nota soa, seus olhos já devem estar na próxima.",
+    "rc_anchor": "Encontre a primeira nota a partir de uma referência (Dó central ou a linha da clave) e leia o resto pela direção: sobe, desce ou repete.",
+    "rc_chord": "Notas sobrepostas: leia primeiro o baixo e verifique se as notas acima estão a uma terça ou uma quinta.",
+    "rc_dir": "Não nomeie cada nota. Observe primeiro se sobe, desce ou se repete; depois leia a distância.",
+    "rc_e_chord": "Nos acordes, leia primeiro o baixo e depois as notas sobrepostas acima dele, e toque-as juntas.",
+    "rc_e_dir": "Atenção à direção: antes de cada nota, decida se sobe, desce ou se mantém.",
+    "rc_e_dist": "Direção correta, distância errada: conte linhas e espaços — de linha a espaço é um passo; de linha a linha, uma terça.",
+    "rc_e_key": "Você tocou %a em vez de %b: verifique a armadura e os acidentes antes de tocar.",
+    "rc_e_oct": "Nota correta, oitava errada: verifique a distância em relação ao Dó central (Z / X deslocam o teclado uma oitava).",
+    "rc_hands": "Duas pautas: leia cada tempo de baixo para cima — primeiro a nota da mão esquerda, depois a melodia acima.",
+    "rc_iv": "Após a primeira nota, leia a seguinte como um passo, uma terça ou uma quinta sem recomeçar do zero: de linha a linha é uma terça.",
+    "rc_key": "Verifique primeiro a armadura (%a): ela vale para cada compasso, a não ser que um bequadro a anule.",
+    "rc_rhythm": "O ritmo antes da altura: sinta o compasso de contagem, veja onde cada nota cai no tempo e continue mesmo após errar.",
+    "rd_best": "Recorde: %s%",
+    "rd_both": "Ambas as mãos",
+    "rd_count": "Prepare-se…",
+    "rd_done_learn": "Concluído — %s erro(s). Toque novamente para uma passagem perfeita.",
+    "rd_excerpt": "%a · %b",
+    "rd_excerpt_from": "Trecho de «%s»",
+    "rd_excerpt_group": "Trecho de prática",
+    "rd_excerpt_ready": "Trecho carregado em Passo a passo. Pressione Iniciar quando estiver pronto.",
+    "rd_excerpt_simpl": "ritmo simplificado para leitura",
+    "rd_extra": "%s nota(s) errada(s) a mais",
+    "rd_eyebrow": "Partituras",
+    "rd_learn_go": "Toque a nota destacada — as teclas abaixo mostram o alvo.",
+    "rd_learned": "aprendida",
+    "rd_lede": "Aprenda a ler partituras com fluência: exercícios curtos de notas, intervalos, acordes, armaduras e ritmo, e depois leia peças reais à primeira vista. Use MIDI, as teclas na tela ou A–K.",
+    "rd_level": "Nível",
+    "rd_lh": "Mão esquerda",
+    "rd_listen": "▶ Ouvir",
+    "rd_m_assess": "Avaliação",
+    "rd_m_learn": "Passo a passo",
+    "rd_maj": "maior",
+    "rd_min": "menor",
+    "rd_names": "Nomes das notas",
+    "rd_perfect": "Perfeito — uma leitura impecável do início ao fim! ✦",
+    "rd_piece": "Peça",
+    "rd_play": "Toque!",
+    "rd_rh": "Mão direita",
+    "rd_score": "Pontuação: %s%",
+    "rd_start": "● Iniciar",
+    "rd_stop": "■ Parar",
+    "rd_tempo": "Andamento",
+    "rd_title": "Ler e tocar",
+    "rdc_acc": "Leia o acidente antes da nota: ♯ é a próxima tecla acima, ♭ a próxima abaixo, ♮ cancela.",
+    "rdc_ba": "Leia a partir de uma referência: o %a na linha da clave (4ª linha), o Dó central %b logo acima da pauta e o %c na primeira linha.",
+    "rdc_cc": "O centro da clave de dó indica o Dó central %a: leia cada nota a partir dali.",
+    "rdc_ch": "Leia do baixo para cima: nomeie a nota mais grave e veja se as outras estão sobrepostas em terças (todas em linhas ou todas em espaços).",
+    "rdc_chinv": "Inversões: se as notas não estiverem todas em linhas ou todas em espaços, procure o intervalo de quarta — a fundamental é sua nota superior.",
+    "rdc_gr": "O Dó central %a fica entre as pautas: uma linha suplementar abaixo da clave de sol, uma acima da clave de fá.",
+    "rdc_iv": "Leia a primeira nota e meça a segunda a partir dela (um passo, uma terça ou uma quinta) em vez de nomeá-la do zero.",
+    "rdc_k2s": "Nomeie primeiro a tecla e depois procure sua linha ou espaço junto à referência mais próxima.",
+    "rdc_keys": "Olhe primeiro a armadura: seus sustenidos ou bemóis valem para cada nota com o mesmo nome.",
+    "rdc_ks": "Leia a armadura como um padrão visual: conte os sustenidos ou bemóis e aplique a regra — sem precisar nomear um por um.",
+    "rdc_land": "Memorize estas referências: qualquer outra nota é lida a um ou dois passos da mais próxima.",
+    "rdc_ledger": "Linhas suplementares prolongam a pauta: conte por terças a partir da linha mais próxima — linha, linha, linha.",
+    "rdc_lines": "As linhas, de baixo para cima: %a.",
+    "rdc_mix": "Verifique a clave antes de cada nota: a mesma linha é uma nota diferente em cada clave.",
+    "rdc_play": "Encontre a nota a partir de uma referência na pauta, vá para essa referência no teclado e mova-se a partir dali.",
+    "rdc_rh": "Conte um compasso inteiro antes de começar e veja onde cada nota cai no tempo antes de tocar.",
+    "rdc_spaces": "Os espaços, de baixo para cima: %a.",
+    "rdc_tr": "Leia a partir de uma referência: o %a na linha da clave (2ª linha), o Dó central %b logo abaixo da pauta e o %c na linha superior.",
+    "rdn_act_hints": "Praticar com dicas",
+    "rdn_act_practice": "Praticar",
+    "rdn_act_rush": "Corrida de notas",
+    "rdn_act_test": "Fazer o teste",
+    "rdn_hints": "Precisão primeiro: pratique com dicas automáticas e depois refaça o teste.",
+    "rdn_next": "Fluente — avance para %a.",
+    "rdn_ok": "Boa sessão. Volte amanhã: a prática curta e espaçada é a que melhor se fixa.",
+    "rdn_rh_drag": "Você tende a atrasar (≈%a ms tarde): olhe a próxima nota antes que seu tempo chegue.",
+    "rdn_rh_low": "Primeiro ouça, depois toque: pressione Ouvir antes de cada novo ritmo e conte junto.",
+    "rdn_rh_ok": "Ritmo firme — experimente um novo ritmo ou o próximo nível.",
+    "rdn_rh_rush": "Você tende a adiantar (≈%a ms cedo): conte os tempos em voz alta e toque neles, não antes.",
+    "rdn_rush": "Na Corrida de notas um erro custa 2 segundos: a precisão é o caminho mais rápido para subir.",
+    "rdn_speed": "Preciso mas lento (%a s por resposta; meta: %b s): a Corrida de notas treina a velocidade de leitura.",
+    "rdn_star": "Para a próxima estrela: pelo menos %a% de acertos, abaixo de %b s por resposta.",
+    "rdn_test": "Pronto para o teste: 20 perguntas para conquistar até três estrelas.",
+    "rdn_weak": "Mais erros em: %a. Pratique mais uma vez — notas erradas retornam com mais frequência.",
+    "st_acc": "Precisão geral",
+    "st_bar": "Compasso %s",
+    "st_beat": "Tempo %s",
+    "st_best": "Melhor sequência",
+    "st_label": "Status da partitura",
+    "st_mastered": "Dominadas",
+    "st_msel": "Seleção: %a · %b notas",
+    "st_reviews": "Total de revisões",
+    "st_sel": "%s notas selecionadas",
+    "st_sel1": "1 nota selecionada",
+    "st_streak": "Dias seguidos",
+    "rdx_acc-1": "bemóis",
+    "rdx_acc0": "Nenhum",
+    "rdx_acc1": "sustenidos",
+    "rdx_acc2": "sustenidos e bemóis",
+    "rdx_acc_t-1": "Bemol (tecla -)",
+    "rdx_acc_t0": "Bequadro (tecla 0)",
+    "rdx_acc_t1": "Sustenido (tecla =)",
+    "rdx_accl": "Acidente",
+    "rdx_again": "Tentar novamente",
+    "rdx_again_same": "Mesmo ritmo novamente",
+    "rdx_answers": "Respostas",
+    "rdx_back": "← Níveis",
+    "rdx_begin": "Começar aqui",
+    "rdx_best_acc": "Melhor precisão %s%",
+    "rdx_best_rush": "Recorde de corrida %s",
+    "rdx_best_t": "Melhor tempo %s s",
+    "rdx_c_acc": "Acidentes",
+    "rdx_c_clef": "Clave",
+    "rdx_c_from": "De",
+    "rdx_c_go": "Abrir exercício",
+    "rdx_c_keys": "Armaduras de clave",
+    "rdx_c_land": "Apenas notas de referência",
+    "rdx_c_to": "Até",
+    "rdx_c_type": "Exercício",
+    "rdx_clef_alto": "Clave de dó (alto)",
+    "rdx_clef_bass": "Clave de fá",
+    "rdx_clef_grand": "Pauta dupla (sistema)",
+    "rdx_clef_tenor": "Clave de dó (tenor)",
+    "rdx_clef_treble": "Clave de sol",
+    "rdx_continue": "Continuar",
+    "rdx_custom": "Exercício personalizado",
+    "rdx_custom_d": "Escolha sua própria clave, tessitura, acidentes e armaduras",
+    "rdx_d_ch": "Um acorde de três notas aparece — nomeie sua fundamental e qualidade. Você também pode tocá-lo.",
+    "rdx_d_iv": "Duas notas aparecem — nomeie o intervalo entre elas (da 2ª à oitava). Leia o padrão: linha-linha ou espaço-espaço significa intervalo ímpar.",
+    "rdx_d_k2s": "Uma tecla acende no teclado — encontre a nota correspondente na pauta entre as opções.",
+    "rdx_d_ks": "Uma armadura aparece — nomeie a tonalidade maior (sua relativa menor aparece sob cada resposta).",
+    "rdx_d_name": "Uma nota aparece na pauta — escolha seu nome o mais rápido que puder. A precisão conta primeiro, depois a velocidade.",
+    "rdx_d_play": "Uma nota aparece na pauta — toque-a no teclado MIDI, nas teclas da tela ou no teclado do computador (A–K). A oitava exata conta com MIDI e com as teclas exibidas aqui.",
+    "rdx_d_rh": "Leia um ritmo de dois compassos, ouça a contagem e toque cada nota no tempo (Espaço, botão TOCAR ou qualquer tecla MIDI).",
+    "rdx_d_sr": "Uma nova melodia é gerada para você. Toque-a passo a passo (a partitura espera por você) ou no tempo com o metrônomo para pontuar.",
+    "rdx_end": "Terminar",
+    "rdx_gen": "🎲 Nova melodia à primeira vista",
+    "rdx_hands_aria": "Mãos",
+    "rdx_harm": "harmônicos",
+    "rdx_harmmix": "melódicos e harmônicos",
+    "rdx_hear": "Ouça",
+    "rdx_heat": "Mapa de notas",
+    "rdx_heat_aria": "Mapa de precisão para %s",
+    "rdx_heat_d": "Cada nota colorida por precisão (verde = sólida, vermelho = precisa praticar); a etiqueta mostra seu tempo médio.",
+    "rdx_hero_stars": "estrelas conquistadas",
+    "rdx_hint": "Dica",
+    "rdx_hint_ch": "A fundamental é %s",
+    "rdx_hint_dn": "%a passos abaixo da referência %b",
+    "rdx_hint_even": "Uma na linha, uma no espaço → intervalo par (2ª, 4ª, 6ª, oitava)",
+    "rdx_hint_k2s": "Procure %s",
+    "rdx_hint_ks_0": "Sem sustenidos nem bemóis",
+    "rdx_hint_ks_f": "Bemóis: o penúltimo bemol dá nome à tonalidade (um bemol = Fá maior)",
+    "rdx_hint_ks_s": "Sustenidos: a tonalidade maior está meio tom acima do último sustenido",
+    "rdx_hint_odd": "Ambas em linhas ou ambas em espaços → intervalo ímpar (3ª, 5ª, 7ª)",
+    "rdx_hint_same": "Esta é uma nota de referência: %s",
+    "rdx_hint_up": "%a passos acima da referência %b",
+    "rdx_hints": "Dicas automáticas na prática",
+    "rdx_hud_q": "%a / %b",
+    "rdx_inkeys": "armaduras até %s ♯/♭",
+    "rdx_inv": "com inversões",
+    "rdx_iv2": "2ª",
+    "rdx_iv3": "3ª",
+    "rdx_iv4": "4ª",
+    "rdx_iv5": "5ª",
+    "rdx_iv6": "6ª",
+    "rdx_iv7": "7ª",
+    "rdx_iv8": "Oitava",
+    "rdx_keys0": "Nenhuma (Dó maior)",
+    "rdx_keys_acc": " · ♭ - · ♮ 0 · ♯ =",
+    "rdx_keys_ch": "Teclas: 1–6, ou toque o acorde",
+    "rdx_keys_iv": "Teclas: dígitos = número do intervalo",
+    "rdx_keys_k2s": "Teclas: 1–4",
+    "rdx_keys_ks": "Teclas: 1–6",
+    "rdx_keys_name": "Teclas: 1–7",
+    "rdx_keys_play": "Toque em MIDI, pressione uma tecla ou use A–K (Z/X oitava)",
+    "rdx_kmax": "até %s ♯/♭",
+    "rdx_levels": "Todos os níveis",
+    "rdx_locked": "bloqueado",
+    "rdx_locked_msg": "Consiga pelo menos uma estrela no nível anterior para desbloquear este.",
+    "rdx_m_practice": "Prática",
+    "rdx_m_rush": "Corrida de notas",
+    "rdx_m_test": "Teste",
+    "rdx_md_practice": "Sem limite de tempo e infinita, com dicas e som. Seus erros retornam com mais frequência.",
+    "rdx_md_practice_rh": "Ouça e repita cada ritmo quantas vezes quiser.",
+    "rdx_md_practice_sr": "Passo a passo: a partitura aguarda a nota correta.",
+    "rdx_md_rush": "60 segundos: o máximo de respostas certas que puder. Erros custam 2 segundos.",
+    "rdx_md_test": "20 perguntas. Conquiste até 3 estrelas por precisão e velocidade e desbloqueie o próximo nível.",
+    "rdx_md_test_rh": "4 ritmos avaliados pela precisão temporal. Ganhe estrelas para desbloquear o próximo nível.",
+    "rdx_md_test_sr": "Avaliação: toque no tempo com o metrônomo para ganhar estrelas.",
+    "rdx_mode_aria": "Modo de prática",
+    "rdx_new_rh": "Novo ritmo",
+    "rdx_newbest": "Novo recorde!",
+    "rdx_next_ex": "Próximo exercício",
+    "rdx_next_lv": "Próximo nível",
+    "rdx_nodata": "Ainda sem respostas — termine um exercício para ver suas estatísticas aqui.",
+    "rdx_ok": "Correto",
+    "rdx_p_ch": "Qual é este acorde?",
+    "rdx_p_iv": "Qual é este intervalo?",
+    "rdx_p_k2s": "Qual nota é a tecla destacada?",
+    "rdx_p_ks": "Qual tonalidade maior tem esta armadura?",
+    "rdx_p_name": "Que nota é esta?",
+    "rdx_p_play": "Toque esta nota",
+    "rdx_p_rh": "Toque este ritmo",
+    "rdx_played": "Você tocou %s",
+    "rdx_q_aug": "aumentado",
+    "rdx_q_dim": "diminuto",
+    "rdx_q_maj": "maior",
+    "rdx_q_min": "menor",
+    "rdx_quit": "Sair",
+    "rdx_reset": "Redefinir estatísticas de leitura",
+    "rdx_reset_q": "Excluir todo o progresso e estatísticas dos exercícios de leitura?",
+    "rdx_review": "Revisar:",
+    "rdx_rh_att": "ataques %s",
+    "rdx_rh_bpm": "%s BPM · 4/4",
+    "rdx_rh_count": "Contagem… 1 2 3 4",
+    "rdx_rh_drag": "≈%s ms tarde (atrasando)",
+    "rdx_rh_dur": "Avaliar duração das notas",
+    "rdx_rh_dur_hint": "Mantenha cada nota por sua duração completa e levante no tempo. Apenas o dedo conta — o pedal de sustentação é ignorado.",
+    "rdx_rh_early": "%s levantadas antes do tempo",
+    "rdx_rh_extra": "%s toques a mais",
+    "rdx_rh_hand": "%a: %b%",
+    "rdx_rh_hand_l": "Mão esquerda",
+    "rdx_rh_hand_r": "Mão direita",
+    "rdx_rh_hands": "Mãos",
+    "rdx_rh_late": "%s sustentadas tempo demais",
+    "rdx_rh_len": "durações %s",
+    "rdx_rh_listening": "Ouça…",
+    "rdx_rh_n_early": "levantada %s ms antes",
+    "rdx_rh_n_late": "sustentada %s ms a mais",
+    "rdx_rh_n_long": "um pouco longa",
+    "rdx_rh_n_miss": "perdida",
+    "rdx_rh_n_short": "um pouco curta",
+    "rdx_rh_one": "Uma mão",
+    "rdx_rh_ontime": "exatamente no tempo",
+    "rdx_rh_opts": "Opções de ritmo",
+    "rdx_rh_res": "%a% no tempo (%b)",
+    "rdx_rh_rush": "≈%s ms cedo (adiantando)",
+    "rdx_rh_score": "%s% geral",
+    "rdx_rh_start": "▶ Iniciar",
+    "rdx_rh_tapnow": "Toque agora!",
+    "rdx_rh_two": "Duas mãos",
+    "rdx_rh_two_hint": "Mão esquerda (pauta inferior): qualquer tecla abaixo do Dó central (C3 marcado) ou F. Mão direita (pauta superior): Dó central para cima (C5 marcado), J ou Espaço.",
+    "rdx_rh_yourturn": "Sua vez — pressione Iniciar e toque no ritmo.",
+    "rdx_rhu_1": "semibreves",
+    "rdx_rhu_16": "semicolcheias",
+    "rdx_rhu_2": "mínimas",
+    "rdx_rhu_4": "semínimas",
+    "rdx_rhu_8": "colcheias",
+    "rdx_rhu_d": "semínimas pontuadas",
+    "rdx_rhu_r4": "pausas",
+    "rdx_rush_score": "%s corretas",
+    "rdx_s0": "Continue — você precisa de 80% para uma estrela.",
+    "rdx_s1": "Uma estrela! Mire 90% e um ritmo mais rápido.",
+    "rdx_s2": "Duas estrelas — ótima leitura!",
+    "rdx_s3": "Três estrelas — leitura fluente!",
+    "rdx_sheet_aria": "Partitura",
+    "rdx_sound": "Tocar som",
+    "rdx_sr_meta": "Melodia gerada · %a · %b BPM",
+    "rdx_sr_ready": "Uma nova melodia está pronta — pressione Iniciar.",
+    "rdx_sr_title": "Leitura à primeira vista · %s",
+    "rdx_st_acc": "precisão",
+    "rdx_st_ans": "respostas",
+    "rdx_st_ex": "exercícios",
+    "rdx_st_lv": "níveis concluídos",
+    "rdx_st_rh": "precisão rítmica",
+    "rdx_st_rush": "certas",
+    "rdx_st_sess": "sessões",
+    "rdx_st_streak": "melhor sequência",
+    "rdx_st_time": "tempo médio",
+    "rdx_stars_n": "%s de 3 estrelas",
+    "rdx_sum_practice": "Resumo da prática",
+    "rdx_sum_title": "Resultados",
+    "rdx_tab_drills": "Exercícios de leitura",
+    "rdx_tab_pieces": "Peças e primeira vista",
+    "rdx_tab_stats": "Estatísticas",
+    "rdx_tabs_aria": "Seções de prática de leitura",
+    "rdx_tag_full": "tessitura completa",
+    "rdx_tag_land": "notas de referência",
+    "rdx_tag_leddn": "linhas suplementares inferiores",
+    "rdx_tag_ledup": "linhas suplementares superiores",
+    "rdx_tag_lines": "linhas",
+    "rdx_tag_mix": "claves combinadas",
+    "rdx_tag_spaces": "espaços",
+    "rdx_tap": "TOCAR",
+    "rdx_tap_k": "Espaço / qualquer tecla",
+    "rdx_tap_l": "Esquerda",
+    "rdx_tap_lk": "tecla F",
+    "rdx_tap_r": "Direita",
+    "rdx_tap_rk": "J / Espaço",
+    "rdx_ty_ch": "Nomeie o acorde",
+    "rdx_ty_iv": "Nomeie o intervalo",
+    "rdx_ty_k2s": "Tecla → pauta",
+    "rdx_ty_ks": "Nomeie a tonalidade",
+    "rdx_ty_name": "Nomeie a nota",
+    "rdx_ty_play": "Toque a nota",
+    "rdx_ty_rh": "Toque o ritmo",
+    "rdx_ty_sr": "Primeira vista",
+    "rdx_u_ac": "Acidentes",
+    "rdx_u_ba": "Clave de fá",
+    "rdx_u_cc": "Claves de dó",
+    "rdx_u_ch": "Acordes",
+    "rdx_u_gr": "Pauta dupla (sistema)",
+    "rdx_u_iv": "Intervalos",
+    "rdx_u_ks": "Armaduras de clave",
+    "rdx_u_rh": "Ritmo",
+    "rdx_u_sr": "Leitura à primeira vista",
+    "rdx_u_tr": "Clave de sol",
+    "rdx_ud_ac": "Sustenidos, bemóis e bequadros na pauta, e depois notas dentro de armaduras.",
+    "rdx_ud_ba": "A pauta da mão esquerda, passo a passo: referências, linhas, espaços e linhas suplementares.",
+    "rdx_ud_cc": "Claves de dó em alto e tenor, para partes de viola, violoncelo e trombone.",
+    "rdx_ud_ch": "Reconheça tríades e sua qualidade, e depois suas inversões.",
+    "rdx_ud_gr": "Ambas as pautas juntas cruzando o Dó central — como a música de piano é escrita.",
+    "rdx_ud_iv": "Leia a distância entre duas notas pelo padrão visual, sem nomear cada nota.",
+    "rdx_ud_ks": "Reconheça tonalidades maiores e relativas menores pela armadura em um relance.",
+    "rdx_ud_rh": "Toque ritmos no tempo com o metrônomo; a precisão temporal é medida ao milissegundo.",
+    "rdx_ud_sr": "Melodias recém-geradas para ler à primeira vista, no seu próprio ritmo ou no tempo.",
+    "rdx_ud_tr": "Das notas de referência às linhas suplementares: nomeie, toque e encontre cada nota da clave de sol.",
+    "rdx_unlocked": "Desbloqueado: %s",
+    "rdx_weakest": "Praticar a seguir:",
+    "rdx_wrong": "Era %s",
+    "rn_a_acc": "A maioria dos erros foi em notas alteradas: verifique a armadura e os acidentes antes de começar.",
+    "rn_a_chords": "A maioria dos erros foi nos acordes: leia-os do baixo para cima e mantenha a pulsação.",
+    "rn_a_clean": "%a% — limpo. Tente a %b BPM.",
+    "rn_a_extra": "Notas a mais (%a): toque cada nota apenas quando o cursor chegar até ela.",
+    "rn_a_good": "Quase lá: o mesmo andamento novamente, com os olhos uma nota à frente do cursor.",
+    "rn_a_leaps": "A maioria dos erros foi nos saltos: leia-os como terças e quintas, não nota por nota, e tente novamente.",
+    "rn_a_learn": "Aprenda primeiro as notas em Passo a passo e depois volte para a Avaliação.",
+    "rn_a_slow": "Reduza para %a BPM e mantenha a pulsação mesmo após errar.",
+    "rn_a_top": "Limpo em andamento vivo: escolha a próxima peça.",
+    "rn_act_assess": "Mudar para Avaliação",
+    "rn_act_bpm": "Ajustar %a BPM",
+    "rn_act_learn": "Mudar para Passo a passo",
+    "rn_again": "Repita mais uma vez em Passo a passo buscando zero erros, e depois passe para Avaliação.",
+    "rn_chord": "A maioria dos erros foi nos acordes: leia cada um do baixo para cima e repita.",
+    "rn_clean": "Leitura limpa. Agora experimente a Avaliação: as notas não esperam mais por você.",
+    "rn_dir": "Erros de direção (%a×): repita e diga «sobe», «desce» ou «igual» antes de cada nota.",
+    "rn_dist": "Erros de distância (%a×): repita e conte as linhas e espaços a cada movimento.",
+    "rn_key": "%a em vez de %b: nomeie os sustenidos ou bemóis da armadura antes de começar e repita.",
+    "rn_oct": "Erros de oitava (%a×): localize cada nota em relação ao Dó central antes de tocar.",
+    "sym_accent": "Acento (>) — toque esta nota mais forte que as vizinhas",
+    "sym_arpeggio": "Arpejo (linha ondulada) — toque o acorde rapidamente da nota mais grave para a mais aguda",
+    "sym_chord": "Cifra de acorde — a harmonia neste ponto: fundamental, qualidade e, após a barra, a nota do baixo",
+    "sym_clef_c": "Clave de dó — seu centro indica o Dó central",
+    "sym_clef_f": "Clave de fá — os dois pontos indicam o Fá abaixo do Dó central na quarta linha; normalmente a mão esquerda",
+    "sym_clef_g": "Clave de sol — a espiral envolve o Sol acima do Dó central na segunda linha; normalmente a mão direita",
+    "sym_cresc": "Crescendo (regulador <) — o volume aumenta gradualmente ao longo do sinal",
+    "sym_dim": "Diminuendo / decrescendo (regulador >) — o volume diminui gradualmente ao longo do sinal",
+    "sym_dyn_f": "forte — forte; toque com energia",
+    "sym_dyn_ff": "fortissimo — muito forte; bem mais forte que f",
+    "sym_dyn_fff": "fortississimo — o mais forte possível; o nível máximo",
+    "sym_dyn_fp": "forte-piano — ataque forte e passe imediatamente para suave",
+    "sym_dyn_fz": "forzando — um acento forçado e repentino apenas nesta nota",
+    "sym_dyn_mf": "mezzo forte — moderadamente forte; um pouco mais que mp, mais suave que f",
+    "sym_dyn_mp": "mezzo piano — moderadamente suave; um pouco mais que p, mais suave que mf",
+    "sym_dyn_p": "piano — suave; toque com delicadeza",
+    "sym_dyn_pp": "pianissimo — muito suave; bem mais suave que p",
+    "sym_dyn_ppp": "pianississimo — o mais suave possível; o nível mais sutil",
+    "sym_dyn_rfz": "rinforzando — reforço repentino: esta nota ou pequeno trecho soa de repente mais forte",
+    "sym_dyn_sfz": "sforzando — um acento súbito e forte nesta nota, retornando à dinâmica anterior",
+    "sym_f1": "polegar",
+    "sym_f2": "indicador",
+    "sym_f3": "médio",
+    "sym_f4": "anelar",
+    "sym_f5": "mínimo",
+    "sym_fermata": "Fermata — sustente a nota ou pausa além do tempo escrito e continue",
+    "sym_finger": "Dedilhado — toque esta nota com o dedo %s, o %b (1 polegar … 5 mínimo)",
+    "sym_finger_sub": "Dedilhado — substituição de dedo nesta nota (%s): %b; comece com o primeiro dedo e troque mantendo a tecla pressionada",
+    "sym_gliss": "Glissando — deslize da primeira nota até a segunda passando pelas notas intermediárias",
+    "sym_key": "Armadura de clave — sustenidos ou bemóis válidos para cada nota desse nome até nova indicação; aqui %s",
+    "sym_line": "Linha de condução de vozes — acompanhe a melodia quando ela passa de uma mão para a outra",
+    "sym_marcato": "Marcato / acento forte (^) — um acento firme e enfático",
+    "sym_metro": "Indicação metronômica — %s batimentos por minuto",
+    "sym_mordent": "Mordente — uma alternância rápida com a nota vizinha, sustentando depois a nota principal",
+    "sym_ped": "Ped. — pressione o pedal de sustentação (direito); as notas continuam soando",
+    "sym_pedup": "* — solte o pedal de sustentação; os abafadores interrompem o som",
+    "sym_rehearsal": "Letra de ensaio — letra de referência para localizar e começar deste ponto",
+    "sym_slur": "Ligadura de expressão — toque as notas sob a curva de forma suave e conectada (legato), como uma frase só",
+    "sym_staccatissimo": "Staccatissimo (cunha) — muito curto e nitidamente destacado",
+    "sym_staccato": "Staccato (ponto) — toque a nota curta e destacada",
+    "sym_t_accelerando": "accelerando (accel.) — acelerar gradualmente",
+    "sym_t_adagio": "Adagio — lento e tranquilo",
+    "sym_t_allegretto": "Allegretto — moderadamente rápido, mais leve que Allegro",
+    "sym_t_allegro": "Allegro — rápido e animado",
+    "sym_t_andante": "Andante — no passo, tranquilo",
+    "sym_t_andantino": "Andantino — um pouco mais rápido que Andante",
+    "sym_t_atempo": "a tempo — voltar ao andamento principal",
+    "sym_t_cantabile": "cantabile — em estilo cantábile; deixe a melodia cantar sobre o acompanhamento",
+    "sym_t_crescendo": "crescendo (cresc.) — gradualmente mais forte",
+    "sym_t_diminuendo": "diminuendo (dim.) — gradualmente mais suave",
+    "sym_t_dolce": "dolce — doce, suave, com timbre cálido e delicado",
+    "sym_t_dolcissimo": "dolcissimo — com extrema doçura e ternura",
+    "sym_t_espressivo": "espressivo — expressivo, com sentimento",
+    "sym_t_grave": "Grave — muito lento e solene",
+    "sym_t_larghetto": "Larghetto — lento, um pouco mais rápido que Largo",
+    "sym_t_largo": "Largo — muito lento e amplo",
+    "sym_t_legato": "legato — suave e conectado, sem pausas entre as notas",
+    "sym_t_leggiero": "leggiero — leve, com toque delicado",
+    "sym_t_lento": "Lento — lento",
+    "sym_t_moderato": "Moderato — em andamento moderado",
+    "sym_t_molto": "molto — muito",
+    "sym_t_piu": "più — mais",
+    "sym_t_poco": "poco — um pouco",
+    "sym_t_presto": "Presto — muito rápido",
+    "sym_t_rallentando": "rallentando (rall.) — desacelerar gradualmente, relaxando o andamento",
+    "sym_t_ritardando": "ritardando (rit.) — desacelerar gradualmente o andamento",
+    "sym_t_rubato": "rubato — andamento flexível: esticar e apressar o tempo para dar expressividade",
+    "sym_t_sempre": "sempre — sempre, continuamente",
+    "sym_t_sim": "simile (sim.) — continuar do mesmo modo (mesmo pedal, articulação ou padrão)",
+    "sym_t_sostenuto": "sostenuto — sustentado; mantenha as notas por sua duração completa, muitas vezes um pouco mais lento",
+    "sym_t_vivace": "Vivace — vivo e rápido",
+    "sym_tenuto": "Tenuto (–) — sustente a nota por sua duração completa, levemente apoiada",
+    "sym_tie": "Ligadura de prolongamento — une duas notas da mesma altura: toque uma vez e sustente as duas durações",
+    "sym_time": "Fórmula de compasso — %s tempos por compasso; o número inferior (%b) indica a figura do tempo",
+    "sym_trill": "Trinado (tr) — alternância rápida entre esta nota e a superior",
+    "sym_turn": "Grupeto — ornamento ao redor da nota: nota superior, principal, inferior, principal",
+    "an_about": "Sobre importação e análise",
+    "an_alts": "Alternativas: %s",
+    "an_at_speed": "a 100% da velocidade",
+    "an_bar": "Compasso",
+    "an_bar1": "compasso %s",
+    "an_bars": "compassos %a–%b",
+    "an_bass": "baixo %s",
+    "an_beat": "tempo %s",
+    "an_beat_unit": "um tempo = %s",
+    "an_beats": "tempos %s",
+    "an_cad_auth": "cadência autêntica",
+    "an_cad_decept": "cadência deceptiva ou de engano",
+    "an_cad_half": "meia cadência",
+    "an_cad_plagal": "cadência plagal",
+    "an_cad_title": "Possível cadência; verifique o final da frase",
+    "an_chord": "Acorde",
+    "an_clear": "Limpar seleção",
+    "an_clear_k": "Limpar seleção (Esc)",
+    "an_conf_high": "correspondência forte",
+    "an_conf_low": "correspondência fraca; a tonalidade é ambígua",
+    "an_conf_medium": "correspondência plausível",
+    "an_dens_1": "figuras longas",
+    "an_dens_2": "uma pulsação constante",
+    "an_dens_3": "predomínio de colcheias",
+    "an_dens_4": "semicolcheias contínuas",
+    "an_dens_5": "muito denso",
+    "an_desc": "Abra um arquivo MIDI ou MusicXML, ou comece com um exemplo. Selecione notas para estudar tonalidades, acordes e harmonia. Tudo permanece neste dispositivo.",
+    "an_det_exact": "exato",
+    "an_det_likely": "provável",
+    "an_det_suggested": "sugerido",
+    "an_drop_over": "Solte para abrir o arquivo",
+    "an_drop_s": ".mid, .midi, .xml, .musicxml ou .mxl · até 2 MB · processado apenas neste dispositivo",
+    "an_drop_t": "Arraste um arquivo MIDI ou MusicXML aqui",
+    "an_err_empty": "«%s» está vazio.",
+    "an_err_long": "Esta partitura é longa demais para ser exibida aqui.",
+    "an_err_many": "Arraste um arquivo por vez.",
+    "an_err_meter": "As fórmulas de compasso deste arquivo não coincidem com as notas.",
+    "an_err_midi": "Não foi possível ler este arquivo MIDI. Apenas os tipos padrão 0 e 1 são suportados, e o arquivo pode estar corrompido.",
+    "an_err_mxl": "Não foi possível descompactar este arquivo .mxl.",
+    "an_err_mxlbig": "Esta partitura comprimida ultrapassa 32 MB ao descompactar. Experimente uma peça mais curta ou um movimento individual.",
+    "an_err_nonotes": "Nenhuma nota executável foi encontrada neste arquivo.",
+    "an_err_notes": "Esta partitura tem mais de 5.000 notas. Abra um trecho mais curto.",
+    "an_err_rebuild": "Não foi possível reconstruir a partitura com esta configuração, mantendo a anterior.",
+    "an_err_render": "Não foi possível renderizar a partitura a partir deste arquivo.",
+    "an_err_size": "«%s» ultrapassa 2 MB. Experimente uma peça mais curta ou um movimento individual.",
+    "an_err_type": "«%s» não é um arquivo MIDI ou MusicXML. Use .mid, .midi, .xml, .musicxml ou .mxl.",
+    "an_err_xml": "Este arquivo não é um MusicXML legível (score-partwise). Exporte-o novamente pelo seu aplicativo de partituras.",
+    "an_est": "Estimada: %a (r = %b)",
+    "an_example_label": "Exemplo",
+    "an_example_pick": "Escolher…",
+    "an_examples": "Ou comece com um exemplo",
+    "an_eyebrow": "Estudo de partitura",
+    "an_f_duration": "Duração",
+    "an_f_hands": "Mãos",
+    "an_f_meter": "Fórmula de compasso",
+    "an_f_notes": "Notas",
+    "an_f_npb": "Notas por tempo",
+    "an_f_opb": "Ataques por tempo",
+    "an_f_poly": "Notas simultâneas",
+    "an_f_range": "Tessitura",
+    "an_f_register": "Registro",
+    "an_f_tempo": "Andamento",
+    "an_file": "Abrir arquivo",
+    "an_fn_D": "Dominante",
+    "an_fn_S": "Subdominante",
+    "an_fn_T": "Tônica",
+    "an_fn_chr": "Cromático",
+    "an_fn_sec": "Dominante secundária (→ %s)",
+    "an_from_piece": "da peça",
+    "an_grid": "Grade rítmica",
+    "an_h_bars": "Compassos %a–%b",
+    "an_hands": "Mãos",
+    "an_hands_auto": "Automático",
+    "an_hands_split": "Dividir em %s",
+    "an_hands_tracks": "Pistas MIDI",
+    "an_harm_h": "Harmonia",
+    "an_harm_implied": "Este trecho é uma única linha melódica, portanto os acordes são implícitos e não tocados. São estimados por compasso ou meio compasso e são apenas sugestões.",
+    "an_harm_none": "Nenhum acorde claro neste trecho.",
+    "an_harm_note": "Cada acorde dura o compasso inteiro a menos que as notas mudem claramente de harmonia num tempo, e é identificado a partir de todas as notas que soam, ponderadas por duração e posição métrica. Exato: todas as notas do acorde soam e nenhuma outra leitura se aproxima. Provável: o melhor encaixe, embora falte uma nota, soem outras notas ou outra leitura seja próxima. Sugerido: ambíguo; alternativas são exibidas. Notas estranhas são classificadas por aproximação, resolução e sobreposição harmônica.",
+    "an_hint": "Clique numa nota ou espaço vazio no compasso · Shift amplia · arraste para selecionar",
+    "an_hsrc_est": "MD/ME estimadas por registro (divisão em %s)",
+    "an_hsrc_piece": "MD/ME conforme escrito na peça",
+    "an_hsrc_split": "MD/ME por registro, divisão em %s",
+    "an_hsrc_staves": "MD/ME a partir das duas pautas",
+    "an_hsrc_tracks": "MD/ME a partir das pistas MIDI",
+    "an_implied": "implícito",
+    "an_interval": "Intervalo",
+    "an_kb": "Teclado",
+    "an_kb_fall": "As notas em cascata têm seu próprio teclado",
+    "an_key_auto": "Automático",
+    "an_key_differs": "A tonalidade escrita e a estimada diferem; o trecho pode modular ou pedir acordes emprestados.",
+    "an_key_h": "Tonalidade",
+    "an_key_used": "Usada para numerais romanos · %s",
+    "an_keys_major": "Tonalidades maiores",
+    "an_keys_minor": "Tonalidades menores",
+    "an_keysel": "Tonalidade",
+    "an_lh": "ME",
+    "an_limits": "MusicXML (.musicxml, .xml ou .mxl compactado) mantém a notação de origem. MIDI é reconstruído como partitura na grade rítmica escolhida (1/16 por padrão); as mãos seguem as pistas MIDI quando separadas nitidamente, senão uma divisão por altura. A armadura do arquivo é mantida; sem ela a tonalidade é estimada e você pode ajustá-la. Compasso ausente assume 4/4 por padrão. Mudanças de andamento são usadas na reprodução; repetições não são expandidas. Sem suporte a PDF.",
+    "an_listen": "Ouvir",
+    "an_loaded_example": "Exemplo integrado, reconstruído como arquivo MIDI · grade %s",
+    "an_loaded_midi": "MIDI · %a · partitura reconstruída sobre grade %b",
+    "an_loaded_xml": "MusicXML · notação mantida como escrita",
+    "an_loading": "Abrindo %s…",
+    "an_loop": "⟲ Loop na seleção",
+    "an_loop_b": "Loop",
+    "an_loop_k": "Tocar a seleção em loop",
+    "an_lower": "grave",
+    "an_major": "maior",
+    "an_metro_t": "Metrônomo (M)",
+    "an_minor": "menor",
+    "an_more": "+%s mais",
+    "an_motif_none": "Nenhum motivo de quatro notas se repete na voz superior.",
+    "an_motif_title": "Passos de %s semitons; selecionar todas as ocorrências",
+    "an_motifs_h": "Motivos melódicos",
+    "an_nct_anticipation": "antecipação",
+    "an_nct_label": "Notas estranhas à harmonia",
+    "an_nct_neighbor": "bordadura",
+    "an_nct_other": "não classificada",
+    "an_nct_passing": "passagem",
+    "an_nct_suspension": "suspensão",
+    "an_none": "Sem correspondência exata",
+    "an_note1": "1 nota",
+    "an_now_empty": "Nenhuma nota começa neste compasso.",
+    "an_now_est": "Tonalidade do trecho: %a (%b)",
+    "an_now_follow": "Seguindo a reprodução. Pare para retornar à seleção.",
+    "an_now_hint": "Clique num compasso da partitura para estudá-lo; Shift-clique em outro compasso analisa o trecho inteiro.",
+    "an_now_hint_fall": "Escolha compassos na visualização Página para analisar um trecho; clicar num acorde aqui retorna à partitura.",
+    "an_now_hint_touch": "Toque num compasso da partitura para estudá-lo.",
+    "an_now_none": "Nenhum acorde claro neste compasso.",
+    "an_now_passage": "Análise do trecho: %s",
+    "an_open": "Abrir arquivo…",
+    "an_or": "ou %s",
+    "an_origin_auto": "estimada, o arquivo não tem armadura",
+    "an_origin_file": "armadura do arquivo",
+    "an_origin_manual": "escolhida manualmente",
+    "an_origin_mode": "armadura do arquivo, modo estimado",
+    "an_origin_piece": "armadura da peça",
+    "an_overview": "Visão geral",
+    "an_pitches": "%s alturas distintas",
+    "an_play": "Tocar seleção",
+    "an_poly": "média %a · até %b",
+    "an_practice": "Praticar este trecho em Ler e tocar",
+    "an_practice_b": "Praticar",
+    "an_practice_hint": "Abre uma cópia temporária no modo Passo a passo; sua lista de peças não se altera.",
+    "an_practice_long": "Selecione no máximo %s compassos para praticá-los em Ler e tocar.",
+    "an_practice_range": "Algumas notas ficam fora da tessitura suportada por Ler e tocar.",
+    "an_prog_hint": "O acorde azul segue a reprodução. Clique num acorde para pular até ele na partitura; setas navegam entre os acordes.",
+    "an_prog_label": "Acordes por compasso",
+    "an_recon": "Reconstruir partitura",
+    "an_recon_k": "Configurações da partitura: mãos, grade rítmica e tonalidade",
+    "an_rh": "MD",
+    "an_rn_hands_fallback": "As faixas se sobrepõem no registro, portanto as mãos são divididas em %s.",
+    "an_rn_hands_one": "Apenas uma faixa, portanto as mãos são divididas em %s.",
+    "an_rn_hands_piece": "As mãos seguem as partes escritas da peça.",
+    "an_rn_hands_split": "As mãos são divididas em %s.",
+    "an_rn_hands_tracks": "As mãos seguem %s faixas MIDI; a faixa mais aguda é a mão direita.",
+    "an_rn_key": "Tonalidade: %a — %b.",
+    "an_scope_all": "Peça inteira · %s notas",
+    "an_score_label": "Partitura",
+    "an_sel_h": "Seleção",
+    "an_sel_notes": "%s notas",
+    "an_semis": "%a semitons · %b oitavas",
+    "an_side_btn": "Análise",
+    "an_side_hide": "Ocultar painel de análise",
+    "an_side_label": "Análise",
+    "an_side_resize": "Redimensionar painel de análise",
+    "an_side_show": "Mostrar painel de análise",
+    "an_split_at": "divisão em %s",
+    "an_staff_hands": "a partir das duas pautas",
+    "an_tab_now": "Agora",
+    "an_tab_piece": "Peça",
+    "an_tab_practice": "Praticar",
+    "an_tempo_changes": "%s mudanças de andamento",
+    "an_tempo_default": "não consta no arquivo, assumido 120",
+    "an_tex_1": "uma única linha",
+    "an_tex_2": "duas vozes",
+    "an_tex_3": "três vozes",
+    "an_tex_4": "acordes completos",
+    "an_tip": "As tonalidades são estimadas com perfis Krumhansl–Kessler ponderados pela duração, distinguindo entre tom maior e sua relativa menor; o valor r mostra o quão claro é o encaixe. Os acordes são comparados tempo a tempo com modelos ponderados pela duração, de modo que notas de passagem diminuem a confiança em vez de anular o acorde. Numerais romanos seguem a tonalidade escrita ou escolhida. Clique num acorde ou motivo para selecionar suas notas.",
+    "an_title": "Partitura e análise",
+    "an_track1": "1 faixa",
+    "an_tracks": "%s faixas",
+    "an_unit_dq": "uma semínima pontuada",
+    "an_unit_e": "uma colcheia",
+    "an_unit_h": "uma mínima",
+    "an_unit_q": "uma semínima",
+    "an_upper": "agudo",
+    "an_view": "Visualização",
+    "learn_done_aria": "lido",
+    "learn_is_read": "✓ Lido",
+    "learn_mark": "Marcar como lido e continuar →",
+    "learn_mark_last": "Marcar como lido ✓",
+    "learn_next": "Próximo →",
+    "learn_prev": "← Anterior",
+    "learn_read_n": "%a de %b capítulos lidos",
+    "learn_unmark": "Marcar como não lido",
+    "lu_an_btn": "Ver em Partitura e análise",
+    "lu_beat_say": "Contando em %a",
+    "lu_complete": "Concluído",
+    "lu_complete_rev": "Concluído · próxima revisão em %a dias",
+    "lu_done_n": "%a/%b",
+    "lu_due": "Para revisar",
+    "lu_due_now": "Hora de revisar — refaça a verificação para refrescar a memória.",
+    "lu_gloss": "Glossário",
+    "lu_goto": "Ir para %a",
+    "lu_locked": "Bloqueado",
+    "lu_locked_d": "Termine «%a» (ou passe qualquer lição desta unidade) para desbloqueá-la. Você também pode abri-la agora se já conhece o básico.",
+    "lu_locked_t": "Esta unidade está bloqueada",
+    "lu_mark_manual": "Marcar como concluída sem verificação",
+    "lu_note_aria": "%a, tempo %b — tocar",
+    "lu_now": "%a",
+    "lu_pick": "Capítulo",
+    "lu_play_ex": "Tocar trecho",
+    "lu_practise": "Praticar leitura: %a",
+    "lu_practise_aria": "Abrir o exercício de leitura correspondente",
+    "lu_q_fail": "%a — você precisa de %b acertos para passar. Revise o capítulo e tente novamente.",
+    "lu_q_finish": "Ver resultado",
+    "lu_q_got": "%a de %b notas",
+    "lu_q_hear": "Ouça",
+    "lu_q_n": "Pergunta %a de %b",
+    "lu_q_next": "Próxima pergunta",
+    "lu_q_no": "Não exatamente — a resposta é %a.",
+    "lu_q_ok": "Correto!",
+    "lu_q_pass": "Aprovado — %a. Capítulo concluído!",
+    "lu_q_play": "Toque no teclado (tela, teclas do computador ou MIDI).",
+    "lu_q_retry": "Tentar novamente",
+    "lu_q_review": "Revisão concluída — %a. Próxima revisão em %b dias.",
+    "lu_q_score": "Melhor pontuação: %a%",
+    "lu_q_show": "Mostrar resposta",
+    "lu_q_start": "Iniciar a verificação",
+    "lu_q_wrongnote": "%a não faz parte — comece de novo.",
+    "lu_quiz": "Teste seus conhecimentos",
+    "lu_quiz_d": "%a perguntas — acerte %b para concluir o capítulo.",
+    "lu_staff_hint": "Toque numa nota para ouvi-la.",
+    "lu_stop": "Parar",
+    "lu_sum": "Resumo",
+    "lu_unit": "Unidade %a de %b",
+    "lu_unlock": "Desbloquear mesmo assim",
+    "lw_bass": "Baixo (barra /)",
+    "lw_blues": "Blues de 12 compassos em Dó",
+    "lw_bpm": "%a BPM",
+    "lw_chord": "Construtor de acordes",
+    "lw_clear": "Limpar",
+    "lw_cof": "Círculo de quintas",
+    "lw_cof_d": "Escolha uma tonalidade para ver sua armadura e relativa menor.",
+    "lw_complete": "Oitava alcançada!",
+    "lw_formula": "Fórmula",
+    "lw_h": "S (semitom)",
+    "lw_inv": "Inversão",
+    "lw_inv0": "Estado fundamental",
+    "lw_inv1": "1ª inversão",
+    "lw_inv2": "2ª inversão",
+    "lw_inv3": "3ª inversão",
+    "lw_meter": "Métrica",
+    "lw_metro": "Metrônomo",
+    "lw_name": "Isto é: %a",
+    "lw_name_none": "Ainda sem nome padrão — continue construindo.",
+    "lw_none": "—",
+    "lw_notes": "Notas",
+    "lw_over": "Esse passo ultrapassa a oitava.",
+    "lw_play": "Tocar",
+    "lw_presets": "Modelos",
+    "lw_quality": "Qualidade",
+    "lw_rel": "Relativa menor: %a",
+    "lw_root": "Fundamental",
+    "lw_scale": "Construtor de escalas",
+    "lw_sig": "%a",
+    "lw_sig0": "Sem sustenidos nem bemóis",
+    "lw_sig_f": "%a bemol(is): %b",
+    "lw_sig_s": "%a sustenido(s): %b",
+    "lw_start": "Iniciar",
+    "lw_steps": "Passos",
+    "lw_stop": "Parar",
+    "lw_symbol": "Símbolo",
+    "lw_tempo": "Andamento",
+    "lw_total": "%a de 12 semitons",
+    "lw_undo": "Desfazer",
+    "lw_w": "T (tom)",
+    "lw_wh": "T+S (3 semitons)",
+    "m1a": "cada conceito traz sua própria data de revisão. «Hoje» mostra o que está pendente; o intervalo se expande ao acertar e encurta ao errar.",
+    "m1d": "Você memoriza melhor algo quando revisa exatamente no instante em que está prestes a esquecer. Cada lembrança bem-sucedida permite espaçar mais a próxima revisão.",
+    "m1n": "Repetição espaçada",
+    "m2a": "você sempre produz a resposta — toque o intervalo, monte o acorde, nomeie o que ouve — nunca apenas olhe passivamente para uma tabela.",
+    "m2d": "Extrair uma resposta da memória a fortalece muito mais do que reler passivamente. É o «efeito da testagem».",
+    "m2n": "Prática de recuperação ativa",
+    "m3a": "uma sessão mistura intervalos, acordes, escalas e progressões juntos, nunca dois do mesmo tipo consecutivos.",
+    "m3d": "Misturar diferentes tipos de exercícios numa mesma sessão parece mais difícil do que em blocos — e é exatamente por isso que constrói uma memória mais duradoura e flexível.",
+    "m3n": "Intercalação",
+    "m4a": "assim que você consegue tocar um conceito, ele passa para de ouvido — e a tonalidade muda toda vez para você aprender a ideia, e não um dedilhado fixo.",
+    "m4d": "Um leve esforço é o sinal de que o aprendizado está acontecendo. A revisão sem esforço quase não gera resultado.",
+    "m4n": "Dificuldade desejável",
+    "m5a": "cada resposta é seguida pela fórmula, por uma canção conhecida e pela sensação sonora — para fixar no contexto.",
+    "m5d": "A correção imediata impede que erros se fixem, e uma breve explicação conecta a novidade ao que você já conhece.",
+    "m5n": "Feedback imediato e elaboração",
+    "m6a": "uma meta diária e a sequência mantêm o hábito em cinco minutos, e as revisões de amanhã estão sempre à sua espera.",
+    "m6d": "O efeito do espaçamento: a mesma prática total distribuída em vários dias supera uma maratona exaustiva. Sessões curtas e frequentes vencem.",
+    "m6n": "Pouco e frequente",
+    "method_close": "«Somos o que fazemos repetidamente». O difícil da teoria não é entender uma vez — é lembrá-la na ponta dos dedos meses depois. É para isso que o Étude existe.",
+    "method_cta": "Iniciar a sessão de hoje →",
+    "method_eyebrow": "Por que funciona",
+    "method_intro": "O Étude não é um quiz — ele é construído sobre o que a ciência cognitiva ensina sobre o aprendizado de uma habilidade. Seis ideias realizam o trabalho pesado. Nenhuma delas exige estudar mais duro; exigem estudar com mais inteligência.",
+    "method_title": "O método por trás do Étude",
+    "plan_continue": "Continuar: %s →",
+    "plan_ear": "Checagem de ouvido",
+    "plan_ear_d": "Identifique 5 intervalos de ouvido no cancioneiro.",
+    "plan_ear_dn": "%s/5 intervalos identificados hoje",
+    "plan_learn": "Ler um capítulo",
+    "plan_learn_all": "Todos os capítulos lidos — revisite quando quiser.",
+    "plan_learn_d": "A seguir: %s",
+    "plan_lrev": "Revisar um capítulo",
+    "plan_lrev_d": "Revisar: %a (lido há %b dias)",
+    "plan_lrev_done": "Revisão feita hoje — muito bem.",
+    "plan_lrev_more": " · +%a mais",
+    "plan_read": "Leitura de notas",
+    "plan_read_d": "Toque uma peça curta pela partitura.",
+    "plan_review": "Sessão de revisão",
+    "plan_review_d": "%a de %b respostas para sua meta diária",
+    "plan_review_done": "Meta diária alcançada — ótimo trabalho.",
+    "plan_sub": "%a de %b concluídos",
+    "plan_title": "Plano de hoje",
+    "ac_both": "Ambas as mãos",
+    "ac_click": "Metrônomo",
+    "ac_eyebrow": "Acompanhamento",
+    "ac_hint": "Use o teclado abaixo para tocar junto. Altere a oitava com os botões ◀ Oct / Oct ▶ se as teclas acesas ficarem fora da tela.",
+    "ac_key": "Tonalidade",
+    "ac_lede": "Escolha uma progressão e um padrão de acompanhamento e toque em loop no seu andamento. As teclas se iluminam no ritmo — azul para a mão esquerda, roxo para a direita. Em Mãos você pode silenciar uma parte para tocar você mesmo.",
+    "ac_lh": "Apenas esquerda",
+    "ac_pattern": "Padrão",
+    "ac_play": "Tocar loop",
+    "ac_prog": "Progressão",
+    "ac_rh": "Apenas direita",
+    "ac_stop": "Parar",
+    "ac_tempo": "Andamento",
+    "ac_title": "Toque com padrões",
+    "ble_adapter": "O Bluetooth está desativado ou indisponível neste dispositivo",
+    "ble_blocked": "O Bluetooth está bloqueado para esta página",
+    "ble_cancel": "Nenhum piano escolhido — pressione Conectar para tentar novamente",
+    "ble_cancel_btn": "Cancelar",
+    "ble_choose": "Escolha seu piano na lista Bluetooth…",
+    "ble_connect": "Conectar",
+    "ble_connecting": "Conectando a %s…",
+    "ble_denied": "Permissão de Bluetooth negada",
+    "ble_dev": "Piano Bluetooth",
+    "ble_disconnect": "Desconectar",
+    "ble_failed": "Não foi possível conectar (%s)",
+    "ble_gone": "%s desconectado — pressione Reconectar",
+    "ble_insecure": "Requer https ou localhost",
+    "ble_known": "%s · pressione Reconectar",
+    "ble_lost": "%s desconectou — reconectando…",
+    "ble_nomidi": "%s não possui serviço Bluetooth MIDI",
+    "ble_off": "Não conectado",
+    "ble_on": "%s · Bluetooth",
+    "ble_reconnect": "Reconectar",
+    "ble_unreach": "O piano está ligado e por perto? %s não responde",
+    "ble_unsupported": "Web Bluetooth não está disponível aqui — use Chrome ou Edge no Android",
+    "cn_D": "Dominante (%a): tensão que busca resolver na tônica — ouça a sensível.",
+    "cn_S": "Subdominante (%a): a música se afasta do repouso, frequentemente a caminho da dominante.",
+    "cn_T": "Tônica (%a): repouso. Observe quais notas da melodia pertencem ao acorde e quais passam entre elas.",
+    "cn_amb": "A harmonia é ambígua aqui (%a): confie no baixo e nas notas longas antes das rápidas.",
+    "cn_bass": "Acompanhe a linha do baixo: onde ele se move, a harmonia costuma mudar.",
+    "cn_cad_auth": "Cadência autêntica (%a): a frase chega ao repouso aqui — ouça a resolução.",
+    "cn_cad_decept": "Cadência deceptiva (%a): a dominante resolve inesperadamente — a frase não acabou.",
+    "cn_cad_half": "Meia cadência (%a): a frase repousa na dominante e pede continuação.",
+    "cn_cad_plagal": "Cadência plagal (%a): o fechamento suave «amém», da subdominante para a tônica.",
+    "cn_chr": "Acorde cromático (%a): uma nota de fora da tonalidade colore este momento.",
+    "cn_fall": "Olhe um tempo à frente para as notas descendo, não para o teclado.",
+    "cn_implied": "Uma única linha melódica: o acorde (%a) é sugerido pelas notas nos tempos fortes.",
+    "cn_inv": "O baixo é %a, não a fundamental: leia o acorde de baixo para cima — %b.",
+    "cn_key": "Estes compassos inclinam-se para %a (a peça está em %b): procure os acidentes que levam até lá.",
+    "cn_nct": "Notas estranhas aqui: %a (%b). Elas enfeitam a linha; a harmonia vem do baixo e das notas sustentadas.",
+    "cn_nct_pass": "Notas estranhas nestes compassos: %a. Leia a harmonia a partir do baixo e das notas sustentadas, não de cada nota rápida.",
+    "cn_sec": "%a é uma dominante secundária (%b): sua nota alterada apoia-se no próximo acorde.",
+    "cof_4th": "↺ 4ª justa",
+    "cof_5st": "5 semitons",
+    "cof_5th": "↻ 5ª justa",
+    "cof_7st": "7 semitons",
+    "cof_aria_maj": "%s maior",
+    "cof_aria_min": "%s menor",
+    "cof_fing_chord": "Dedilhado",
+    "cof_fing_chord_s": "tríade em posição fundamental",
+    "cof_fing_scale": "Dedilhado",
+    "cof_fing_scale_s": "uma oitava, ascendente",
+    "cof_flats": "BEMÓIS",
+    "cof_flavor_aria": "Tipo de escala menor",
+    "cof_harmonic": "Harmônica",
+    "cof_kb_aria": "Dedilhado no teclado. %s",
+    "cof_lh": "Mão esquerda (abaixo das teclas)",
+    "cof_lh_s": "ME",
+    "cof_melodic": "Melódica",
+    "cof_mode_aria": "Exibir escala ou acorde",
+    "cof_natural": "Natural",
+    "cof_note_chord": "Tríade em posição fundamental: mão direita 1-3-5, mão esquerda 5-3-1.",
+    "cof_note_mel": "Menor melódica exibida na subida (graus 6 e 7 elevados); na tradição clássica desce como menor natural.",
+    "cof_note_scale": "Dedilhado padrão (ABRSM / pianoscales.org). Na descida, leia os mesmos números da direita para a esquerda.",
+    "cof_rel_maj": "Relativa maior: %s",
+    "cof_rel_min": "Relativa menor: %s",
+    "cof_rh": "Mão direita (acima das teclas)",
+    "cof_rh_s": "MD",
+    "cof_sharps": "SUSTENIDOS",
+    "cof_sig0": "Sem sustenidos nem bemóis",
+    "cof_sig_f": "%a bemol(is): %b",
+    "cof_sig_s": "%a sustenido(s): %b",
+    "ek_again": "Ouça novamente (R) e tente de novo.",
+    "ek_aria": "Responder com",
+    "ek_buttons": "Escolher na tela",
+    "ek_cat_mel": "Melodia",
+    "ek_el_ch": "%a · %b",
+    "ek_el_iv": "Você tocou a partir de %s.",
+    "ek_el_mel": "Melodia: %s",
+    "ek_go": "Sua vez — toque de volta.",
+    "ek_high": "agudo",
+    "ek_hint_ch": "Mantenha as notas juntas (um breve arpejo é válido). Qualquer oitava serve, mas a nota mais grave define a inversão.",
+    "ek_hint_iv": "Toque as duas notas sucessivamente ou juntas. Qualquer oitava serve; a distância deve ser exata.",
+    "ek_hint_mel": "Toque as notas em ordem a partir da primeira nota dada. Qualquer oitava serve, desde que a melodia mantenha sua forma.",
+    "ek_hold": "Mantenha todas as notas juntas.",
+    "ek_keep": "Continue — %a de %b notas.",
+    "ek_keys": "Responder no teclado",
+    "ek_last": "Última tentativa — ouça novamente (R).",
+    "ek_listen": "Ouça…",
+    "ek_low": "grave",
+    "ek_mode": "ouça e depois toque de volta no teclado",
+    "ek_p_ch": "Toque de volta o acorde",
+    "ek_p_iv": "Toque de volta o intervalo",
+    "ek_p_mel": "Toque de volta a melodia",
+    "ek_progress": "%a / %b ✓",
+    "ek_reset": "↺ Recomeçar",
+    "ek_reset_msg": "Recomeçando — toque a partir da primeira nota.",
+    "ek_retry_ok": "Acertou na tentativa %s.",
+    "ek_start_on": "Comece em %s.",
+    "ek_sub_bass": "nota mais grave %a · %b notas",
+    "ek_sub_mel": "%a · %b notas",
+    "ek_sub_start": "começa em %s",
+    "ek_wait": "Primeiro ouça — responda assim que o exemplo terminar.",
+    "ek_wrong_ch": "Não são essas notas.",
+    "ek_wrong_down": "Você desceu — este intervalo sobe.",
+    "ek_wrong_inv": "Notas corretas, mas a nota mais grave deve ser %s.",
+    "ek_wrong_iv": "Você tocou: %s.",
+    "ek_wrong_mel": "A nota %a ficou muito %b.",
+    "fall_disp": "Exibição",
+    "fall_disp_h": "Exibição de notas em cascata",
+    "fall_disp_t": "Exibição de notas em cascata: nomes, cores, antecipação, teclado",
+    "fall_finger_none": "Esta partitura não possui dedilhado; os nomes das notas são exibidos no lugar.",
+    "fall_finger_note": "O dedilhado vem dos arquivos MusicXML que o incluem.",
+    "fall_fx": "Brilho e faíscas",
+    "fall_hint": "Clique numa barra para selecionar sua nota · toque junto no teclado na tela ou por MIDI",
+    "fall_l_finger": "Dedilhado",
+    "fall_l_letter": "Letras (C D E)",
+    "fall_l_none": "Nenhum",
+    "fall_l_solfege": "Solfejo (Dó Ré Mi)",
+    "fall_label": "Notas em cascata e teclado de piano",
+    "fall_labels": "Nomes das notas",
+    "fall_look": "Antecipação",
+    "fall_mode": "Notas em cascata",
+    "fall_mode_t": "Notas em cascata sobre um teclado de piano",
+    "fall_p_classic": "Verde e azul",
+    "fall_p_contrast": "Alto contraste",
+    "fall_p_etude": "Coral e turquesa",
+    "fall_pal": "Cores",
+    "fall_pos": "Posição da reprodução",
+    "fall_r_fit": "Ajustada à peça",
+    "fall_r_full": "Todas as 88 teclas",
+    "fall_range": "Teclado",
+    "fall_valtext": "%a de %b",
+    "fall_zoom_t": "Zoom %s: menos segundos na tela, mais detalhes — redefinir para 100%",
+    "hk_black": "Toque as teclas pretas intermediárias",
+    "hk_ble": "Pianos MIDI Bluetooth conectam-se em Configurações (Chrome / Edge no Android)",
+    "hk_digits": "Escolha uma resposta numa sessão",
+    "hk_esc": "Fechar janelas e painéis",
+    "hk_fj": "Exercícios de ritmo a duas mãos: mão esquerda / direita (Espaço = direita)",
+    "hk_help": "Abrir esta ajuda",
+    "hk_keys": "Toque teclas brancas pelo teclado do computador",
+    "hk_midi": "Compatível com pedal de sustentação, pitch bend e mod wheel",
+    "hk_mouse": "Toque nas teclas da tela; arraste para glissando",
+    "hk_mouse_k": "Clique / arrastar",
+    "hk_n": "Próxima pergunta",
+    "hk_oct": "Desloca a oitava de digitação para baixo / cima",
+    "hk_r": "Ouvir a pergunta novamente",
+    "hk_score": "Partitura: reproduzir/pausa · início · compasso a compasso · loop · me espere · limpar seleção · zoom",
+    "hk_score_k": "Espaço · Home · ← → · L · P · Esc · + / −",
+    "ks_ab": "Ajustar início A / fim B do loop aqui",
+    "ks_arrows": "Compasso anterior / seguinte",
+    "ks_btn": "Atalhos",
+    "ks_esc": "Fechar um painel ou limpar a seleção",
+    "ks_h": "Atalhos de teclado",
+    "ks_hands": "Ambas as mãos · direita · esquerda",
+    "ks_home": "Início / fim",
+    "ks_loop": "Tocar em loop a seleção ou A–B",
+    "ks_metro": "Metrônomo · contagem",
+    "ks_play": "Tocar notas",
+    "ks_space": "Reproduzir / pausa",
+    "ks_wait": "Ativar / desativar «Me espere»",
+    "ks_zoom": "Zoom na partitura ou na antecipação",
+    "lg_close": "Voltar aos capítulos",
+    "lg_lh": "Mão esquerda",
+    "lg_n": "%a termos",
+    "lg_none": "Nenhum termo coincide com «%a».",
+    "lg_open": "Abrir capítulo",
+    "lg_ph": "ex. cadência, legato, tríade…",
+    "lg_playing": "Tocando",
+    "lg_rh": "Mão direita",
+    "lg_right": "Correto",
+    "lg_search": "Buscar termos",
+    "lg_target": "Alvo",
+    "lg_title": "Glossário",
+    "lg_wrong": "Incorreto",
+    "pn_act_faster": "Tentar %a",
+    "pn_act_loop": "Loop %a",
+    "pn_act_time": "Tocar no tempo",
+    "pn_bars": "A maioria dos erros ocorreu em %a: toque esse trecho em loop até ficar limpo.",
+    "pn_clean": "Passagem perfeita! Mais uma vez sem olhar para as mãos, com os olhos um tempo à frente.",
+    "pn_clean_hands": "Limpo com uma mão. Próximo passo: ambas as mãos juntas.",
+    "pn_clean_tempo": "Limpo a %a. Próximo passo: um ponto mais rápido.",
+    "pn_clean_wait": "Limpo com «Me espere». Próximo passo: toque no tempo.",
+    "pn_loose": "Muitas notas ficaram um pouco fora do tempo: mantenha os olhos um tempo à frente da linha azul.",
+    "pn_loose_fall": "Muitas notas ficaram um pouco fora do tempo: olhe um tempo à frente para as notas em cascata, não para o teclado.",
+    "pn_ok": "Boa passagem: repita neste andamento até ficar perfeito e depois acelere.",
+    "pn_slower": "Tente mais devagar: precisão primeiro, velocidade depois.",
+    "pn_wait": "Notas perdidas (%a): ative «Me espere» e tome o tempo necessário para ler cada uma.",
+    "pn_wrong": "Teclas erradas (%a): pratique primeiro com uma mão só e depois junte as duas.",
+    "pt_ab_none": "Defina A e B na posição de reprodução; eles se alinham às barras de compasso.",
+    "pt_ab_v": "A–B: %s",
+    "pt_metro": "Metrônomo",
+    "pt_scope_ab": "Loop A–B · %s",
+    "pt_scope_all": "Peça inteira",
+    "pt_start": "Iniciar prática",
+    "pt_stop": "Parar prática",
+    "pt_sub_ab": "Iniciar toca em loop o trecho A–B com os ajustes abaixo.",
+    "pt_sub_all": "Iniciar toca a partir do cursor. Selecione compassos na partitura para criar um loop.",
+    "pt_sub_loop": "Iniciar toca este trecho em loop com os ajustes abaixo.",
+    "sc_hl": "Destacar notas soando",
+    "sc_hl_short": "Destacar",
+    "sc_hl_t": "Destacar notas soando: colore as notas em dourado enquanto tocam (a linha azul mostra sempre a posição)",
+    "sc_look": "Aparência da partitura",
+    "sc_night": "Noite",
+    "sc_night_t": "Noite: tinta clara sobre páginas escuras",
+    "sc_paper": "Papel",
+    "sc_paper_t": "Papel: tinta preta sobre páginas brancas",
+    "sc_part": "Piano",
+    "sc_pause_k": "Pausa (Espaço)",
+    "sc_play_k": "Reproduzir (Espaço)",
+    "sc_press_start": "Pressione Espaço ou ▶ para iniciar",
+    "sc_start_k": "Ir para o início (Home)",
+    "sc_state_ab": "Loop A–B",
+    "sc_state_loop": "Loop %s",
+    "sc_state_paused": "Em pausa",
+    "sc_state_play": "Reproduzindo",
+    "sc_state_sel": "Reproduzindo seleção",
+    "sc_state_wait": "Esperando por você",
+    "sc_stop_k": "Parar e voltar ao início da seleção",
+    "sc_tempo": "Andamento",
+    "sc_v_cont": "Contínuo",
+    "sc_v_cont_t": "Visualização contínua: uma única linha longa, rolagem lateral",
+    "sc_v_page": "Página",
+    "sc_v_page_t": "Visualização em página: páginas A4, rolagem vertical",
+    "sc_zoom": "Zoom",
+    "sc_zoom_in": "Aproximar (+)",
+    "sc_zoom_out": "Afastar (−)",
+    "sc_zoom_reset": "Zoom %s — redefinir para 100%",
+    "set_about": "Sobre",
+    "set_about_txt": "O Étude usa métodos com base científica: repetição espaçada, recuperação ativa, intercalação e feedback imediato. Pratique pouco, frequentemente.",
+    "set_allowinv": "Aceitar inversões de acordes",
+    "set_app": "Aplicativo e tela",
+    "set_backup": "Backup",
+    "set_backup_s": "progresso, configurações e histórico num arquivo",
+    "set_ble": "Bluetooth MIDI (direto)",
+    "set_ble_hint": "Para pianos e teclados Bluetooth MIDI compatíveis no Chrome ou Edge no Android: o aplicativo conecta-se diretamente ao instrumento via Web Bluetooth, sem aplicativos intermediários. Ative primeiro o Bluetooth MIDI do instrumento e desconecte-o de outros apps. A entrada MIDI acima continua ativa em conjunto.",
+    "set_cards": "cartões",
+    "set_connect": "Conectar",
+    "set_data": "Seus dados",
+    "set_device": "Dispositivo",
+    "set_drone": "Bordão na prática de escalas",
+    "set_export": "Exportar",
+    "set_full": "Tela cheia",
+    "set_full_s": "ocultar barras do navegador no tablet",
+    "set_import": "Importar",
+    "set_input": "Entrada",
+    "set_install": "Instalar como aplicativo",
+    "set_keylabels": "Rótulos nas teclas",
+    "set_lang": "Idioma",
+    "set_learning": "Aprendizado",
+    "set_lede": "Tudo é salvo neste navegador.",
+    "set_localsynth": "Reproduzir som neste aplicativo",
+    "set_metronome": "Metrônomo na prática de escalas",
+    "set_metrotempo": "Andamento do metrônomo",
+    "set_midi": "Teclado MIDI",
+    "set_midi_hint": "No Arturia MicroLab Mk3 mantenha Chord e Hold em OFF. Sem teclado? Use a tela, o mouse ou A–K / W–U (Z/X = oitava).",
+    "set_newperday": "Novos por dia",
+    "set_newperday_s": "novos conceitos introduzidos por dia",
+    "set_notation": "Notação",
+    "set_notenames": "Nomes das notas",
+    "set_reverb": "Acústica da sala",
+    "set_reverb_s": "um toque de ressonância de sala de concerto",
+    "set_sessionlen": "Duração da sessão",
+    "set_sound": "Som",
+    "set_theme": "Tema",
+    "set_tone": "Timbre",
+    "set_volume": "Volume",
+    "set_wake": "Manter a tela acesa",
+    "si_bass": "Fá",
+    "si_clef": "Clave",
+    "si_count": "Prepare-se…",
+    "si_done": "Concluído! %s / %s",
+    "si_dronelbl": "Bordão",
+    "si_eyebrow": "Leitura cantada",
+    "si_freehint": "Acompanhando — cante junto com a linha em movimento",
+    "si_hi_down": "Um pouco mais grave ↓",
+    "si_hi_syl": "É «%s» — tente novamente",
+    "si_hi_up": "Um pouco mais agudo ↑",
+    "si_hint_foot": "Dica: pressione «Tônica» para ouvir a referência antes de começar. O comparador de afinação ignora a oitava, servindo tanto para baixos quanto para sopranos.",
+    "si_lede": "Cante a melodia da pauta no microfone — ou toque no teclado / MIDI se não puder cantar em voz alta. Comece com duas notas e avance a partir daí.",
+    "si_level": "Nível",
+    "si_listen": "● Ouvir e cantar",
+    "si_m_free": "Livre",
+    "si_m_note": "Nota por nota",
+    "si_m_phrase": "Frase",
+    "si_new": "↺ Nova melodia",
+    "si_nicetry": "Muito bem — %s / %s. Pressione «Nova melodia» para ir de novo.",
+    "si_nomic": "Microfone indisponível — permita o acesso ao microfone ou toque as notas no teclado ou via MIDI.",
+    "si_perfect": "Perfeito — todas as notas afinadas! ✦",
+    "si_play": "▶ Reproduzir",
+    "si_playit": "▶ Tocar para mim",
+    "si_sing_now": "Cante!",
+    "si_singit": "Cante ou toque cada nota destacada",
+    "si_solfege": "Solfejo",
+    "si_stop": "■ Parar",
+    "si_tempo": "Andamento",
+    "si_title": "Leia e cante",
+    "si_tonic": "♪ Tônica",
+    "si_treble": "Sol",
+    "sq_answers": "Respostas",
+    "sq_bad": "Não exatamente — era %s.",
+    "sq_eyebrow": "Checagem de ouvido",
+    "sq_good": "Correto — %s.",
+    "sq_hook": "Pense em: %s",
+    "sq_next": "▶ Próximo intervalo",
+    "sq_score": "%a / %b certos",
+    "sq_start": "▶ Tocar um intervalo aleatório",
+    "sq_title": "Qual é este intervalo?",
+    "tr_clear": "Limpar",
+    "tr_eyebrow": "Do cantarolar às notas",
+    "tr_grid": "Grade",
+    "tr_hint": "Dica: um cantarolar costuma soar cerca de uma oitava abaixo do piano. Desative «Alinhar à tonalidade» para ver as alturas originais, ou escolha a tonalidade para corrigir notas acidentais. «Alinhar ao tempo» arredonda o ritmo pelo andamento para valores precisos.",
+    "tr_key": "Tonalidade",
+    "tr_lede": "Cantarole ou cante uma nota clara de cada vez no microfone. Funciona para uma linha melódica única — não para acordes. Um «lá-lá-lá» ou «dá-dá» sustentado funciona melhor do que palavras.",
+    "tr_micfail": "Não foi possível acessar o microfone — permita o acesso e tente novamente.",
+    "tr_midi": "⬇ MIDI",
+    "tr_none": "Nenhuma nota clara detectada. Cantarole um pouco mais alto e sustente cada nota.",
+    "tr_play": "▶ Reproduzir",
+    "tr_quant": "Alinhar ao tempo",
+    "tr_rec": "● Gravar",
+    "tr_scale": "Escala",
+    "tr_snap": "Alinhar à tonalidade",
+    "tr_stop": "■ Parar",
+    "tr_tempo": "Andamento",
+    "tr_title": "Cante uma melodia, obtenha as notas",
+    "tr_txt": "⬇ Notas (texto)",
+    "brand_tag": "ouvido e mãos",
+    "nav_today": "Hoje",
+    "nav_practice": "Praticar",
+    "nav_accompany": "Acompanhar",
+    "nav_transcribe": "Transcrever",
+    "nav_sing": "Cantar",
+    "nav_explore": "Explorar",
+    "nav_songs": "Canções",
+    "nav_progress": "Progresso",
+    "nav_method": "Método",
+    "midi_connect": "Conectar MIDI",
+    "settings": "Configurações",
+    "g_morning": "Bom dia",
+    "g_afternoon": "Boa tarde",
+    "g_evening": "Boa noite",
+    "g_late": "Ainda acordado?",
+    "today_eyebrow": "Prática de hoje",
+    "greet_lede": "Sessões curtas e espaçadas são melhores que estudar tudo de uma vez. Alguns minutos por dia bastam.",
+    "streak_label": "dias seguidos",
+    "hero_session": "Sua sessão",
+    "hero_caught": "Tudo em dia",
+    "c_due": "Para revisar",
+    "c_new": "Novos hoje",
+    "c_mastered": "Dominados",
+    "nextup": "A seguir:",
+    "nextup_none": "Nada programado — explore livremente ou pratique um tema.",
+    "of": "de",
+    "started": "iniciado",
+    "start": "Iniciar sessão",
+    "start_caught": "Praticar mesmo assim",
+    "place": "Avaliação rápida · 2 min",
+    "skip_content": "Ir para o conteúdo principal",
+    "why_link": "Por que funciona →",
+    "why_due": "A repetição espaçada programa cada ideia pouco antes de você esquecê-la — é quando a revisão é mais eficaz.",
+    "why_caught": "Volte amanhã e suas revisões estarão esperando — o espaçamento transforma prática em memória.",
+    "drill_eyebrow": "Ou pratique um tema",
+    "mastered_lc": "dominados",
+    "ses_end": "Encerrar",
+    "listen_answer": "ouça e depois responda",
+    "play_interval": "toque no teclado",
+    "play_chord": "toque o acorde",
+    "play_scale": "toque em ordem ascendente",
+    "play_prog": "toque os acordes em ordem",
+    "listen": "🔊 Ouvir…",
+    "above": "acima",
+    "ascending": "ascendente",
+    "in_key": "em",
+    "hear_again": "▶ Ouvir novamente",
+    "show_answer": "Mostrar resposta",
+    "next": "Próximo →",
+    "correct1": "Correto!",
+    "correct2": "Muito bem.",
+    "correct3": "Sim — é isso.",
+    "correct4": "Exatamente.",
+    "notquite": "Não foi dessa vez.",
+    "just_two": "Toque apenas as duas notas.",
+    "keep_building": "Continue montando…",
+    "release_extra": "Solte a(s) nota(s) extra(s).",
+    "root_pos": "Notas certas — toque em posição fundamental (%s no baixo).",
+    "start_on": "Comece em %s.",
+    "el_semitones": "semitons",
+    "el_soundslike": "soa como",
+    "el_degrees": "graus",
+    "sum_complete": "Sessão concluída",
+    "sum_welldone": "Muito bem.",
+    "sum_place": "Avaliação concluída.",
+    "sum_acc": "Precisão",
+    "sum_rev": "Revisados",
+    "sum_streakL": "Dias seguidos",
+    "sum_more": "Você ainda tem %s para revisar — mais uma rodada?",
+    "sum_caught": "Tudo em dia. Suas próximas revisões estão programadas — até amanhã.",
+    "sum_placenote": "Você já conhecia %a de %b de ouvido — esses itens foram programados para revisão. O restante ensinaremos desde o começo.",
+    "again": "Outra sessão",
+    "donefor": "Encerrar por enquanto",
+    "pr_eyebrow": "Prática específica",
+    "pr_title": "Praticar um único tópico",
+    "pr_lede": "Prática livre sobre um único tema — não altera seu cronograma de revisão, meta diária ou sequência; pratique o quanto desejar.",
+    "pr_topic": "Tópico",
+    "pr_playit": "Toque",
+    "pr_byear": "De ouvido",
+    "pr_key": "Tonalidade",
+    "pr_start": "Começar treino",
+    "pr_hint": "Uma sessão focada é aberta aqui e usa o teclado abaixo para responder.",
+    "ex_staff_hint": "As mesmas notas em ambas as claves — clave de fá à esquerda, clave de sol à direita, como no teclado. Notas muito agudas ou muito graves para o pentagrama são indicadas ao lado de uma seta.",
+    "ex_staff_empty": "Toque uma nota ou acorde para vê-lo aqui.",
+    "ex_staff_label": "Notação nas claves de sol e fá",
+    "ex_eyebrow": "Tocar livremente",
+    "ex_title": "Explorar",
+    "ex_lede": "Toque o que quiser — o Étude identifica em tempo real o que você toca. Abra a aba Círculo das quintas para ouvir a escala ou o acorde de qualquer tonalidade com o dedilhado para ambas as mãos.",
+    "ro_notes": "Notas pressionadas",
+    "ro_name": "Intervalo / acorde",
+    "ro_roman": "Algarismo romano / grau",
+    "ex_ref": "Referência",
+    "ex_hear": "▶ Ouvir",
+    "ex_show": "Mostrar no teclado",
+    "ex_keyctx": "Contexto tonal",
+    "ex_circle": "Círculo externo: tonalidades maiores · círculo interno: suas relativas menores. Clique em uma tonalidade para ouvi-la e ver o dedilhado.",
+    "songs_eyebrow": "Treinamento auditivo",
+    "songs_title": "Cancioneiro de intervalos",
+    "songs_lede": "Cada intervalo com canções famosas que começam com ele. Cantarole uma melodia conhecida para fixar a sonoridade. Clique em qualquer título para ouvir o intervalo.",
+    "songs_from": "De",
+    "dir_asc": "Ascendente",
+    "dir_desc": "Descendente",
+    "prog_eyebrow": "Seu aprendizado",
+    "prog_title": "Progresso",
+    "reset": "Redefinir progresso",
+    "mastery_head": "Domínio por tema",
+    "mastered_of": "dominados",
+    "forecast_head": "Revisões pendentes — próximos 7 dias",
+    "fc_today": "Hoje",
+    "items_head": "Cada conceito",
+    "items_sub": "mais quente = memória mais consolidada",
+    "applied_in": "No Étude:",
+    "footer": "Étude · ferramenta de estudo em arquivo único · Web MIDI + Web Audio · seu progresso nunca sai deste navegador",
+    "foot_method": "o método",
+    "foot_browser": "melhor no Chrome / Edge",
+    "cat_interval": "Intervalos",
+    "cat_chord": "Acordes",
+    "cat_scale": "Escalas",
+    "cat_prog": "Progressões",
+    "opt_chord": "Acorde",
+    "opt_scale": "Escala",
+    "midi_off": "Não conectado",
+    "all_keys": "Todas as tonalidades",
+    "none_ctx": "nenhum",
+    "tone_piano": "Piano de cauda real",
+    "tone_piano_synth": "Piano sintetizado",
+    "piano_info": "Gravações estéreo de piano incluídas neste arquivo. Funciona offline.",
+    "piano_loading": "Carregando piano…",
+    "piano_ready": "Exemplos: piano de cauda real · gravações estéreo",
+    "piano_error": "Não foi possível carregar as gravações de piano. Recarregue a página para tentar novamente.",
+    "piano_adapted": "Gravações integradas; altura, dinâmica e release adaptados durante a reprodução.",
+    "audio_locked": "O áudio está desativado: o navegador mantém o som bloqueado até que você clique ou pressione uma tecla nesta página. Notas de um teclado MIDI ou Bluetooth não o desbloqueiam.",
+    "audio_unlock": "Ativar som",
+    "sync_replaced": "O progresso foi redefinido ou restaurado em outra aba, portanto esta aba agora usa esse registro. O que você estiver fazendo aqui continuará.",
+    "sync_ok": "OK",
+    "tone_soft": "Suave",
+    "tone_bright": "Brilhante",
+    "tone_organ": "Órgão",
+    "tone_mellow": "Aveludado",
+    "tone_glass": "Cristal",
+    "panic": "Silenciar",
+    "midi_unsupported": "Não suportado — use o teclado na tela ou as teclas A–K",
+    "midi_insecure": "Requer https ou localhost",
+    "midi_blocked": "Bloqueado (contexto não seguro)",
+    "midi_denied": "Permissão negada — clique em Conectar para tentar novamente",
+    "midi_unavail": "MIDI indisponível",
+    "midi_noinputs": "Nenhuma entrada MIDI",
+    "theme_auto": "Automático",
+    "theme_light": "Claro",
+    "theme_dark": "Escuro",
+    "import_confirm": "Substituir seu progresso atual por este backup?",
+    "import_bad": "Esse arquivo não parece ser um backup do Étude.",
+    "reset_confirm": "Redefinir todo o progresso de aprendizado? Isso não pode ser desfeito.",
+    "heat_head": "Histórico de prática — últimas 12 semanas",
+    "reviews_word": "revisões",
+    "grid_new": "não iniciado",
+    "grid_box": "caixa",
+    "menu": "Menu",
+    "close": "Fechar",
+    "ses_keys_hint": "Atalhos: 1–9 escolha uma resposta · R ouvir novamente · N próximo",
+    "nav_analysis": "Partitura e análise",
+    "tb_label": "Controles da partitura",
+    "tb_transport": "Reprodução",
+    "tb_selection": "Seleção",
+    "pr_group": "Prática",
+    "pr_hands": "Mãos para praticar",
+    "pr_both": "Ambas",
+    "pr_both_t": "Praticar com ambas as mãos (1)",
+    "pr_rh": "MD",
+    "pr_rh_t": "Praticar a mão direita; a mão esquerda fica esmaecida (2)",
+    "pr_lh": "ME",
+    "pr_lh_t": "Praticar a mão esquerda; a mão direita fica esmaecida (3)",
+    "pr_wait": "Espere por mim",
+    "pr_wait_t": "Espere por mim: a reprodução pausa em cada uma das suas notas até que você as toque (P)",
+    "pr_opt_t": "Opções de prática: contagem prévia, acompanhamento, loop A–B",
+    "pr_countin": "Compasso de contagem prévia antes de tocar (C)",
+    "pr_acc": "Tocar a outra mão para mim",
+    "pr_hear": "Ouvir minha parte (quando não estiver esperando)",
+    "pr_ramp": "Loop: acelerar após cada repetição correta (≥ 80%)",
+    "pr_ab": "Loop A–B",
+    "pr_seta": "Definir A ([)",
+    "pr_setb": "Definir B (])",
+    "pr_clrab": "Limpar",
+    "pr_note": "Toque junto em um teclado MIDI, nas teclas da tela ou no teclado do computador (A W S E D … K, oitava Z / X). Espere por mim pausa a cada nota sua até você tocá-la.",
+    "pr_accuracy": "Precisão",
+    "pr_streak": "Sequência",
+    "pr_pass": "Repetição",
+    "pr_sum_h": "Rodada concluída",
+    "pr_perfect": "Perfeito",
+    "pr_good": "Bom",
+    "pr_miss": "Perdidas",
+    "pr_wrong": "Erradas",
+    "pr_again": "Novamente",
+    "pr_slower": "Mais devagar",
+    "pr_close": "Fechar",
+    "pr_sum_note": "Melhor sequência %a · andamento %b",
+    "pr_waiting": "Toque %s",
+    "tl_bar": "Compasso %a / %b",
+    "pr_loop_ab_k": "Loop A–B (L)",
+    "pr_count_k": "Contagem prévia",
+    "nav_sections": "Seções",
+    "nav_drills": "Exercícios",
+    "nav_learn": "Aprender",
+    "ln_eyebrow": "Manual de teoria",
+    "ln_title": "Aprenda a linguagem",
+    "ln_lede": "Capítulos curtos e em linguagem simples — cada exemplo traz um botão de reprodução, e o teclado abaixo se ilumina para que você veja tudo sob seus dedos.",
+    "lbl_all": "Todos",
+    "lbl_none": "Nenhum",
+    "help": "Ajuda",
+    "help_title": "Atalhos e entrada",
+    "help_sub": "Tudo funciona com mouse, toque, teclado do computador ou um teclado MIDI.",
+    "nav_read": "Leitura",
+    "kb_deg": "nota do acorde %s",
+    "today_tools": "Outras formas de praticar",
+    "tool_analysis_d": "Abra um arquivo MIDI ou MusicXML e estude suas tonalidades, acordes e harmonia.",
+    "tool_read_d": "Aprenda peças curtas pela partitura, passo a passo.",
+    "tool_sing_d": "Cante uma melodia à primeira vista com retorno de afinação em tempo real.",
+    "tool_accompany_d": "Repita uma progressão com um padrão de acompanhamento e toque junto.",
+    "tool_transcribe_d": "Cantarole uma melodia e obtenha as notas.",
+    "kb_hide": "Ocultar teclado",
+    "kb_show": "Mostrar teclado",
+    "kb_rail_note": "Teclado oculto · MIDI e teclas do computador (A–K) continuam tocando",
+    "aria_chapters": "Capítulos",
+    "aria_mode": "Modo",
+    "aria_hands": "Mãos",
+    "aria_tempo": "Andamento",
+    "aria_staff": "Pentagrama",
+    "aria_exstaff": "Notação nas claves de sol e fá",
+    "aria_refroot": "Fundamental de referência",
+    "aria_refname": "Acorde ou escala",
+    "aria_dir": "Direção",
+    "aria_octdown": "Abaixar o teclado uma oitava",
+    "aria_octup": "Subir o teclado uma oitava",
+    "aria_kbpan": "Rolar o teclado horizontalmente",
+    "panic_t": "Interromper todo o som",
+    "aria_keys": "Teclado de piano na tela",
+    "aria_lang": "Idioma",
+    "aria_theme": "Tema",
+    "aria_notation": "Nomes das notas",
+    "aria_keylabels": "Rótulos das teclas",
+    "aria_circle": "Círculo das quintas — escolha uma tonalidade",
+    "osmd_lic": "licença",
+    "key_major": "%s maior",
+    "goal_aria": "Meta diária: %a de %b respostas",
+    "goal_txt": "%a / %b hoje",
+    "done_today": "feito hoje",
+    "pr_last": "Último treino · %s",
+    "pr_last_res": "%a / %b corretos",
+    "exp_btn": "⬇ Exportar progresso",
+    "imp_btn": "⬆ Importar",
+    "prog_empty": "Nenhuma resposta de revisão ainda. Suas estatísticas, consolidação de memória e calendário de prática serão preenchidos conforme você responder às perguntas.",
+    "prog_empty_cta": "Iniciar sessão de hoje →",
+    "weak_head": "Precisa de reforço",
+    "weak_acc": "%a% acertos · %b tentativas",
+    "cat_acc_line": "%a% respondidas corretamente · %b respostas",
+    "cat_acc_none": "Ainda não iniciado",
+    "fc_none": "Nada programado por enquanto — as revisões aparecerão aqui assim que você começar a aprender os conceitos.",
+    "heat_meta": "Dias ativos: %a · respostas: %b (12 semanas)",
+    "heat_less": "Menos",
+    "heat_more": "Mais",
+    "heat_aria": "Calendário de prática, últimas 12 semanas",
+    "coach_focus": "Foco de leitura:",
+    "coach_next": "Próximo passo:",
+    "coach_bar": "O que observar neste compasso",
+    "coach_pass": "O que observar nesta passagem",
+    "coach_sel": "O que observar na sua seleção",
+    "cat_melody": "Melodias (no teclado)",
+    "pr_onkeys": "De ouvido, no teclado",
+    "wake_on": "Ativado — a tela permanece acesa enquanto você pratica; desativa após 30 minutos inativo",
+    "wake_off": "Desativado",
+    "wake_wait": "Ativa enquanto esta página estiver em primeiro plano",
+    "wake_idle": "Pausado após 30 minutos inativo — toque ou clique para retomar",
+    "wake_unsupported": "Não suportado neste navegador",
+    "wake_denied": "Não permitido no momento — toque em qualquer lugar para tentar novamente",
+    "wake_err": "Não foi possível manter a tela acesa (%s)",
+    "full_enter": "Tela cheia",
+    "full_exit": "Sair",
+    "install_btn": "Instalar",
+    "pwa_ready": "Disponível offline · instale por aqui ou pelo menu do navegador",
+    "pwa_installed": "Executando como aplicativo instalado · disponível offline",
+    "pwa_pending": "Preparando a cópia offline…",
+    "pwa_file": "Aberto como arquivo local — sirva-o via https (ou localhost) para instalá-lo e usá-lo offline",
+    "pwa_unsupported": "O uso offline não é suportado neste navegador",
+    "pwa_err": "Cópia offline indisponível (%s)",
+    "ex_tabs_aria": "Visualizações do Explorar",
+    "ex_tab_free": "Tocar livremente",
+    "ex_tab_circle": "Círculo das quintas",
+    "key_minor": "%s menor",
+    "kb_deg_r": "fundamental do acorde",
+    "lg_chord_deg": "Nota do acorde",
+    "lg_chord_deg_tip": "Notas do acorde: R = fundamental, 3 = terça, 5 = quinta, 6 = sexta etc. (mostra a estrutura do acorde, não o dedilhado)",
+    "sym_rest_whole": "pausa de semibreve",
+    "sym_rest_half": "pausa de mínima",
+    "sym_rest_quarter": "pausa de semínima",
+    "sym_rest_eighth": "pausa de colcheia",
+    "sym_rest_16th": "pausa de semicolcheia",
+    "sym_rest_32nd": "pausa de fusa",
+    "sym_rest_64th": "pausa de semifusa",
+    "sym_rest_128th": "pausa de 1/128",
+    "sym_rest_256th": "pausa de 1/256",
+    "sym_rest_breve": "pausa de breve",
+    "sym_rest_other": "pausa",
+    "sym_rest_measure": "pausa de compasso inteiro",
+    "sym_rest_dotted": "%s pontuada",
+    "sym_rest_dots": "%s com %b pontos",
+    "sym_rest_body": "Não toque durante esta figura; as outras vozes podem continuar.",
+    "sym_rest_measure_body": "Não toque durante o compasso inteiro nesta voz; as outras vozes podem continuar."
+  },
+  "lessons": {
+    "keys": {
+      "t": "O teclado e os nomes das notas",
+      "b": "\n<p>A música usa apenas <b>12 notas diferentes</b>. Após a décima segunda, o padrão recomeça — a mesma nota, mais aguda. Essa distância é uma <b>oitava</b>, e o piano é simplesmente o mesmo padrão de 12 teclas repetido continuamente.</p>\n<p>As teclas brancas chamam-se <b>C D E F G A B</b> (Dó Ré Mi Fá Sol Lá Si). As teclas pretas ficam entre elas e emprestam seus nomes: a tecla preta acima de C é <b>C♯</b> (“Dó sustenido”); a mesma tecla vista a partir de D é <b>D♭</b> (“Ré bemol”). Uma tecla, dois nomes — isso se chama escrita <i>enarmônica</i>.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:60\">Dó central</button><button class=\"demo\" data-demo=\"n:61\">C♯ / D♭</button><button class=\"demo\" data-demo=\"iv:60:12\">Uma oitava: de Dó a Dó</button></div>\n<h4>Semitons e tons inteiros</h4>\n<p>De qualquer tecla para sua vizinha mais próxima (preta ou branca) há um <b>semitom</b> (meio tom) — a menor distância que usamos. Dois semitons formam um <b>tom inteiro</b>. Observe que <b>E–F (Mi–Fá)</b> e <b>B–C (Si–Dó)</b> não têm tecla preta entre si: são semitons naturais, e são eles que dão forma a cada escala.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:64:1\">Semitom: E→F</button><button class=\"demo\" data-demo=\"iv:60:2\">Tom inteiro: C→D</button></div>\n<p class=\"learn-note\">Para encontrar qualquer Dó: procure o grupo de duas teclas pretas — o Dó é a tecla branca imediatamente à esquerda. O Dó central (C4) é o que fica mais próximo do centro do piano.</p>"
+    },
+    "iv": {
+      "t": "Os intervalos",
+      "b": "\n<p>Um <b>intervalo</b> é a distância entre duas notas, contada em semitons. Toda melodia e todo acorde são construídos a partir deles — aprenda a ouvir intervalos e você poderá tirar músicas de ouvido.</p>\n<p>Cada intervalo tem um tamanho (2ª, 3ª, 5ª…) e uma qualidade (maior, menor, justa). Toque todos eles a partir de Dó (C):</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:1\">2ªm · 1</button><button class=\"demo\" data-demo=\"iv:60:2\">2ªM · 2</button><button class=\"demo\" data-demo=\"iv:60:3\">3ªm · 3</button><button class=\"demo\" data-demo=\"iv:60:4\">3ªM · 4</button><button class=\"demo\" data-demo=\"iv:60:5\">4ªJ · 5</button><button class=\"demo\" data-demo=\"iv:60:6\">Trítono · 6</button><button class=\"demo\" data-demo=\"iv:60:7\">5ªJ · 7</button><button class=\"demo\" data-demo=\"iv:60:8\">6ªm · 8</button><button class=\"demo\" data-demo=\"iv:60:9\">6ªM · 9</button><button class=\"demo\" data-demo=\"iv:60:10\">7ªm · 10</button><button class=\"demo\" data-demo=\"iv:60:11\">7ªM · 11</button><button class=\"demo\" data-demo=\"iv:60:12\">Oitava · 12</button></div>\n<div data-staff=\"iv1\"></div>\n<h4>Consonância e dissonância</h4>\n<p>Oitavas, 5ªs, 4ªs, 3ªs e 6ªs soam <b>estáveis</b> (consonantes). 2ªs, 7ªs e o trítono soam <b>tensos</b> (dissonantes) — pedem resolução. A música respira movendo-se entre os dois.</p>\n<p class=\"learn-note\">A forma mais rápida de memorizar intervalos é associar cada um a uma canção conhecida — uma 6ª maior é o início de “My Bonnie”. Explore o <a href=\"#\" data-go=\"songs\">repertório de canções por intervalo</a>, e depois <a href=\"#\" data-go=\"practice\" data-cat=\"interval\">treine o ouvido</a>.</p>"
+    },
+    "sc": {
+      "t": "Escalas e tonalidades",
+      "b": "\n<p>Uma <b>escala</b> é uma escada de tons (T) e semitons (S). O padrão é o que importa: comece em qualquer nota e terá a mesma cor sonora, apenas mais aguda ou mais grave. A <b>escala maior</b> é o som familiar de “Dó Ré Mi”:</p>\n<p><span class=\"fm\">T · T · S · T · T · T · S</span></p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Major (Ionian)\">Dó maior (C)</button><button class=\"demo\" data-demo=\"sc:67:Major (Ionian)\">Sol maior (G) — estrutura idêntica</button></div>\n<p>A escala <b>menor natural</b> reorganiza essas mesmas distâncias para criar um tom mais melancólico: <span class=\"fm\">T · S · T · T · S · T · T</span>. Toda escala maior esconde uma menor que usa exatamente as mesmas notas, começando do seu 6º grau: <b>Lá menor (Am)</b> é a <i>relativa menor</i> de Dó maior.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:57:Aeolian (Natural minor)\">Lá menor (Am)</button><button class=\"demo\" data-demo=\"sc:60:Major pentatonic\">Pentatônica maior de Dó</button><button class=\"demo\" data-demo=\"sc:60:Blues\">Blues em Dó</button></div>\n<div data-widget=\"scale\"></div>\n<h4>O que é uma “tonalidade”?</h4>\n<p>Dizer que uma música está “em Dó maior” significa que a escala de Dó maior é seu centro de repouso: suas notas soam naturais e a nota Dó transmite a sensação de <b>chegar em casa</b>. Os acidentes que essa escala precisa são escritos uma única vez no início da pauta: a <b>armadura de clave</b>.</p>\n<p class=\"learn-note\">As escalas pentatônicas omitem os dois graus mais instáveis (4 e 7): cinco notas que soam bem em praticamente qualquer ordem, por isso aparecem em toda parte, do folk aos solos de rock. <a href=\"#\" data-go=\"practice\" data-cat=\"scale\">Praticar escalas →</a></p>"
+    },
+    "ch": {
+      "t": "Os acordes",
+      "b": "\n<p>Um <b>acorde</b> é formado por três ou mais notas que soam juntas. A unidade básica é a <b>tríade</b>: fundamental, terça e quinta, construída pulando notas alternadas da escala. Seus dois blocos fundamentais são simplesmente intervalos sobrepostos:</p>\n<ul>\n<li><b>Maior</b> — 4 + 3 semitons · brilhante, resolvida</li>\n<li><b>Menor</b> — 3 + 4 · mais escura, melancólica</li>\n<li><b>Diminuta</b> — 3 + 3 · tensa, instável</li>\n<li><b>Aumentada</b> — 4 + 4 · misteriosa, flutuante</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj\">Dó maior (C)</button><button class=\"demo\" data-demo=\"ch:60:m\">Dó menor (Cm)</button><button class=\"demo\" data-demo=\"ch:60:dim\">Dó diminuto (Cdim)</button><button class=\"demo\" data-demo=\"ch:60:aug\">Dó aumentado (Caug)</button></div>\n<h4>Além da tríade</h4>\n<p>Adicione mais uma terça e você terá os <b>acordes de 7ª</b> — o som do jazz, do soul e do gospel. Troque a terça por sua vizinha e obtenha os acordes suspensos <b>sus</b>.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Cmaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">C7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Cm7</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Csus4</button></div>\n<h4>Inversões</h4>\n<p>As mesmas notas em ordem diferente continuam formando o mesmo acorde. Coloque E ou G na nota mais grave de Dó maior e você terá uma <b>inversão</b>: mais fácil de dedilhar, com a mesma identidade harmônica.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ms:60.64.67\">C — estado fundamental</button><button class=\"demo\" data-demo=\"ms:64.67.72\">C/E — 1ª inversão</button><button class=\"demo\" data-demo=\"ms:67.72.76\">C/G — 2ª inversão</button></div>\n<div data-staff=\"ch_inv\"></div>\n<div data-widget=\"chord\"></div>\n<p class=\"learn-note\">Mantenha pressionado qualquer acorde em <a href=\"#\" data-go=\"explore\">Explorar</a> e o Étude o identificará em tempo real, incluindo inversões. <a href=\"#\" data-go=\"practice\" data-cat=\"chord\">Praticar acordes →</a></p>"
+    },
+    "cof": {
+      "t": "O círculo de quintas",
+      "b": "\n<p>Organize as 12 tonalidades de modo que cada passo seja uma <b>quinta justa</b> e elas se fecharão num círculo: C → G → D → A… até voltar a C. Este é o <b>círculo de quintas</b>: o mapa do metrô da harmonia.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:48.55.62.69\">C → G → D → A</button></div>\n<div data-widget=\"cof\"></div>\n<p>Por que ele é tão importante:</p>\n<ul>\n<li><b>Armaduras de clave:</b> cada passo no sentido horário adiciona um sustenido (G tem 1, D tem 2…); cada passo no sentido anti-horário adiciona um bemol.</li>\n<li><b>Escalas diatônicas vizinhas (maiores ou menores naturais) compartilham 6 de suas 7 notas</b>. As escalas menores harmônica e melódica alteram notas e podem variar essa contagem; modular um passo geralmente é a transição mais suave.</li>\n<li><b>O movimento de acordes por quintas soa inevitável e natural</b> — a cadência V → I, o ii–V–I do jazz e as progressões eternas por quintas percorrem esta roda.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:Circle of 5ths vi–ii–V–I\">Progressão circular: vi–ii–V–I</button></div>\n<p class=\"learn-note\">O círculo interativo está disponível em <a href=\"#\" data-go=\"explore\" data-extab=\"circle\">Explorar › Círculo de quintas</a>: toque em qualquer tonalidade para ouvir sua escala ou acorde, ver o dedilhado para ambas as mãos e ativar o contexto em numerais romanos.</p>"
+    },
+    "pr": {
+      "t": "Progressões e numerais romanos",
+      "b": "\n<p>Construa uma tríade sobre cada grau da escala maior, usando apenas notas da escala, e você terá os <b>acordes diatônicos</b>: a paleta harmônica de uma tonalidade. Usamos numerais romanos para que o padrão funcione em qualquer tom: maiúsculas = maior, minúsculas = menor, ° = diminuto.</p>\n<p><span class=\"fm\">I</span><span class=\"fm\">ii</span><span class=\"fm\">iii</span><span class=\"fm\">IV</span><span class=\"fm\">V</span><span class=\"fm\">vi</span><span class=\"fm\">vii°</span></p>\n<h4>Os acordes têm funções</h4>\n<ul>\n<li><b>Repouso (tônica):</b> I e vi — descanso, chegada.</li>\n<li><b>Movimento (subdominante):</b> IV e ii — impulso, partida.</li>\n<li><b>Tensão (dominante):</b> V e vii° — puxam com força de volta para I. O movimento V→I é a <b>cadência</b>, o ponto final da frase musical.</li>\n</ul>\n<p>Uma <b>progressão</b> é uma sequência através dessas funções. Um punhado delas sustenta a maioria das músicas que você conhece:</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:I–IV–V\">I–IV–V</button><button class=\"demo\" data-demo=\"pr:0:I–V–vi–IV (pop)\">I–V–vi–IV (pop)</button><button class=\"demo\" data-demo=\"pr:0:ii–V–I (jazz)\">ii–V–I (jazz)</button><button class=\"demo\" data-demo=\"blues:0\">Blues de 12 compassos</button></div>\n<div data-bars=\"blues\"></div>\n<div data-staff=\"pr1\"></div>\n<p class=\"learn-note\">Repita qualquer uma dessas progressões com padrões de mão esquerda em <a href=\"#\" data-go=\"accompany\">Acompanhar</a>, ou <a href=\"#\" data-go=\"practice\" data-cat=\"prog\">pratique-as →</a></p>"
+    },
+    "rh": {
+      "t": "Ritmo e compasso",
+      "b": "\n<p>O ritmo tem dois planos: uma <b>pulsação</b> constante (aquela que você marca com o pé) e o padrão de notas longas e curtas que cavalga sobre ela. As pulsações agrupam-se em <b>compassos</b>; esse agrupamento é a <b>métrica</b>, expressa pela fórmula de compasso.</p>\n<ul>\n<li><span class=\"fm\">4/4</span> quatro tempos por compasso: pop, rock, quase tudo. <b>UM</b> dois três quatro…</li>\n<li><span class=\"fm\">3/4</span> três tempos por compasso: a valsa. <b>UM</b> dois três…</li>\n<li><span class=\"fm\">6/8</span> seis colcheias rápidas sentidas como dois grandes tempos: um balanço ondulante.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"beat:4\">Sentir 4/4</button><button class=\"demo\" data-demo=\"beat:3\">Sentir 3/4</button><button class=\"demo\" data-demo=\"beat:68\">Sentir 6/8</button></div>\n<div data-staff=\"rh1\"></div>\n<h4>Valores das figuras</h4>\n<p>Cada figura musical vale metade da anterior: <b>semibreve</b> (4 tempos) → <b>mínima</b> (2) → <b>semínima</b> (1) → <b>colcheia</b> (½) → <b>semicolcheia</b> (¼). Um <b>ponto de aumento</b> adiciona metade do valor da nota: uma mínima pontuada = 3 tempos.</p>\n<p><b>O andamento (tempo)</b> é a velocidade da pulsação, medida em batimentos por minuto (BPM): 60 = uma batida por segundo; 120 = duas vezes mais rápido.</p>\n<div data-widget=\"metro\"></div>\n<p class=\"learn-note\">Os exercícios de <a href=\"#\" data-go=\"sing\">leitura cantada</a> começam com notas longas e vão introduzindo figuras mais rápidas nível a nível.</p>"
+    },
+    "notation": {
+      "t": "Leitura de partitura",
+      "b": "\n<p>Uma partitura é um gráfico: <b>o tempo avança da esquerda para a direita, a altura sobe e desce</b>. As notas assentam-se sobre uma grade de cinco linhas: a <b>pauta (pentagrama)</b>. Cada linha e cada espaço representa um nome de nota; suba uma posição e o nome avançará uma letra.</p>\n<h4>Duas claves, um teclado</h4>\n<p>A <b>clave de sol</b> (𝄞) indica a pauta para as notas mais agudas, normalmente a mão direita. Sua espiral envolve a linha de <b>Sol4 (G4)</b>. A <b>clave de fá</b> (𝄢) é para as notas mais graves (mão esquerda), e seus dois pontos abraçam a linha de <b>Fá3 (F3)</b>. <b>O Dó central fica exatamente entre as duas pautas</b>, sobre sua própria linha suplementar pequena.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:67\">Sol4 — linha da clave de sol</button><button class=\"demo\" data-demo=\"n:53\">Fá3 — linha da clave de fá</button><button class=\"demo\" data-demo=\"n:60\">Dó central — bem no meio</button></div>\n<div data-staff=\"n_clefs\"></div>\n<h4>Leia padrões, não letras isoladas</h4>\n<p>Bons leitores à primeira vista não soletram nota por nota: leem <b>intervalos na página</b>: de linha para a linha seguinte (ou de espaço para espaço) há uma 3ª; de linha para o espaço adjacente há uma 2ª. Memorize algumas notas de referência e oriente-se a partir delas.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:60.62.64.65.67\">Graus conjuntos: C D E F G</button><button class=\"demo\" data-demo=\"run:60.64.67.72\">Saltos: C E G C</button></div>\n<div data-staff=\"n_steps\"></div>\n<h4>Linhas suplementares, acidentes e armadura</h4>\n<p>Notas acima ou abaixo da pauta repousam sobre pequenas <b>linhas suplementares</b>. Um <b>♯ ou ♭ escrito antes de uma nota</b> mantém seu efeito até o final do compasso. O grupo de sustenidos ou bemóis no início da pauta (a <b>armadura de clave</b>) aplica-se a toda a peça e define sua tonalidade.</p>\n<div data-staff=\"n_acc\"></div>\n<p class=\"learn-note\">Coloque em prática em <a href=\"#\" data-go=\"read\">Ler e tocar</a>: o modo passo a passo aguarda você tocar a tecla certa, e a Avaliação mede sua precisão no ritmo da pulsação.</p>"
+    },
+    "dyn": {
+      "t": "Dinâmica e articulação",
+      "b": "\n<p>As notas indicam <b>o que</b> tocar; as indicações ao redor mostram <b>como</b> tocar. São elas que transformam apertar teclas em música de verdade.</p>\n<h4>Dinâmica: o volume</h4>\n<ul>\n<li><span class=\"fm\">pp</span> pianissimo — muito suave · <span class=\"fm\">p</span> piano — suave · <span class=\"fm\">mp</span> mezzo-piano — moderadamente suave</li>\n<li><span class=\"fm\">mf</span> mezzo-forte — moderadamente forte · <span class=\"fm\">f</span> forte — forte · <span class=\"fm\">ff</span> fortissimo — muito forte</li>\n<li><b>crescendo</b> (regulador &lt;) — gradualmente mais forte · <b>diminuendo</b> (&gt;) — gradualmente mais suave</li>\n</ul>\n<div data-staff=\"dyn1\"></div>\n<h4>Articulação: como tocar cada nota</h4>\n<ul>\n<li><b>Legato</b> (uma ligadura curva sobre as notas): suave e conectado; um dedo solta a tecla no exato instante em que o próximo apoia.</li>\n<li><b>Staccato</b> (um ponto acima ou abaixo da nota): curto e destacado; rebote com agilidade na tecla.</li>\n<li><b>Acento</b> (&gt;): destaca com peso a nota. <b>Tenuto</b> (–): sustente a nota por sua duração total com leve apoio expressivo.</li>\n<li>Uma <b>ligadura de prolongamento</b> une duas notas da mesma altura num único som contínuo; um <b>fermata</b> (𝄐) prolonga a nota além do tempo regular.</li>\n</ul>\n<div data-staff=\"dyn2\"></div>\n<p class=\"learn-note\">No piano, a dinâmica nasce da velocidade com que a tecla é pressionada. O sintetizador do Étude responde à velocidade MIDI: experimente o mesmo acorde suave e forte em <a href=\"#\" data-go=\"explore\">Explorar</a> e ouça como o timbre muda, não apenas o volume.</p>"
+    },
+    "modes": {
+      "t": "Os modos",
+      "b": "\n<p>Comece o padrão da escala maior a partir de um degrau diferente e você terá um <b>modo</b>: as mesmas notas com um centro de repouso distinto e uma cor emocional completamente diferente. Dois deles você já conhece: o <b>jônio</b> é a escala maior e o <b>eólio</b> é a escala menor natural.</p>\n<ul>\n<li><b>Dórico</b> — menor com um 6º grau brilhante; folk e jazz, «Scarborough Fair».</li>\n<li><b>Frígio</b> — menor com um 2º grau sombrio (♭2); flamenco, temas de suspense, metal.</li>\n<li><b>Lídio</b> — maior com um 4º grau flutuante (♯4); atmosferas oníricas e trilhas de cinema.</li>\n<li><b>Mixolídio</b> — maior com um 7º grau relaxado (♭7); rock, blues, gaitas tradicionais.</li>\n<li><b>Lócrio</b> — construído sobre uma ♭5, extremamente instável; raro e tenso.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Dorian\">Dó dórico</button><button class=\"demo\" data-demo=\"sc:60:Phrygian\">Dó frígio</button><button class=\"demo\" data-demo=\"sc:60:Lydian\">Dó lídio</button><button class=\"demo\" data-demo=\"sc:60:Mixolydian\">Dó mixolídio</button><button class=\"demo\" data-demo=\"sc:60:Locrian\">Dó lócrio</button></div>\n<p>Ouça-os sobre a mesma nota fundamental e as cores ganharão vida: mixolídio versus maior: só muda a 7ª. Dórico versus menor: só muda a 6ª.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Major (Ionian)\">Dó maior (jônio)</button><button class=\"demo\" data-demo=\"sc:60:Aeolian (Natural minor)\">Dó menor (eólio)</button></div>\n<p class=\"learn-note\"><a href=\"#\" data-go=\"practice\" data-cat=\"scale\">Treinar modos de ouvido →</a></p>"
+    },
+    "how": {
+      "t": "Como aprender qualquer coisa",
+      "b": "\n<p>A teoria se consolida quando passa pelos seus <b>ouvidos e mãos</b>, não apenas pelos seus olhos. Toda a arquitetura do Étude segue princípios que você pode aplicar em qualquer lugar:</p>\n<ul>\n<li><b>Pratique a evocação ativa, não fique apenas relendo.</b> Tente sempre produzir a resposta (tocar, cantar, nomear) antes de espiar.</li>\n<li><b>Associe sons a canções.</b> Cada intervalo esconde-se no início de uma melodia que você já conhece.</li>\n<li><b>Cante tudo.</b> Se você consegue cantar uma terça, você realmente a domina. Cantarolar conta.</li>\n<li><b>Em todos os tons, em pequenas doses.</b> Aprenda conceitos, não digitações fixas: um acorde que você só conhece em Dó é apenas um quarto de acorde.</li>\n<li><b>Prática diária supera sessões semanais longas.</b> Cinco minutos por dia rendem muito mais que uma hora no domingo: é o efeito do espaçamento.</li>\n</ul>\n<p class=\"learn-note\">A base científica por trás disso está detalhada em <a href=\"#\" data-go=\"method\">Método</a>. Quando estiver pronto: <a href=\"#\" data-go=\"today\">sessão de hoje →</a></p>"
+    },
+    "symbols": {
+      "t": "Sinais de navegação: repetições, codas, pedal e ornamentos",
+      "b": "\n<p>Os compositores economizam espaço com <b>sinais de navegação</b>: indicam para onde pular em vez de escrever a música duas vezes. Leia-os antes de começar a tocar, como quem consulta um mapa.</p>\n<div data-staff=\"sym1\"></div>\n<h4>Repetições e saltos</h4>\n<ul>\n<li><span class=\"fm\">𝄆 … 𝄇</span> <b>Barras de repetição</b>: toque duas vezes a seção entre elas. Se não houver barra inicial, volte ao começo. As <b>casas de 1ª e 2ª vez</b> (chaves sobre os compassos) alteram apenas o compasso final da repetição.</li>\n<li><b>D.C.</b> (<i>da capo</i>, «do início»): volta ao princípio de tudo. <b>D.S.</b> (<i>dal segno</i>): retorna ao sinal <span class=\"fm\">𝄋</span>.</li>\n<li><b>al Fine</b>: encerre a execução onde estiver a palavra <i>Fine</i> («fim»). <b>al Coda</b>: toque até a indicação «Al Coda» e salte direto para a coda <span class=\"fm\">𝄌</span>, a seção de encerramento.</li>\n</ul>\n<h4>Pedal, dedilhado e ornamentos</h4>\n<ul>\n<li><b>Ped. … ✱</b> ou uma linha com entalhes: pressione o pedal de sustentação (direito) e solte. Troque o pedal a cada mudança de harmonia para não embolar os acordes.</li>\n<li><b>Números de dedilhado</b>: 1 é o polegar e 5 é o mindinho em ambas as mãos. Os números pequenos sobre ou sob as notas são sugestões para não faltar dedo no meio da frase.</li>\n<li><b>Os ornamentos</b> enfeitam uma nota: <b>tr</b> trinado (alternância rápida com a nota superior), <b>mordente</b> (toque rápido na nota vizinha e volta), <b>grupeto</b> (𝆗: superior, nota, inferior, nota), <b>apojatura ou aciaccatura</b> (uma nota pequena executada imediatamente antes ou sobre o tempo).</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:72.74.72.74.72.74.72.74.72\">Trinado em Dó</button><button class=\"demo\" data-demo=\"run:72.74.72\">Mordente</button><button class=\"demo\" data-demo=\"run:74.72.71.72\">Grupeto</button></div>\n<p class=\"learn-note\">Antes de tocar uma peça nova, trace seu mapa com o dedo: onde estão as repetições, para onde o D.C. te manda, onde fica o <i>Fine</i>… A maioria dos «erros de notas» na primeira leitura são apenas desvios no caminho.</p>"
+    },
+    "rh2": {
+      "t": "Pausas, ligaduras, tercinas e síncope",
+      "b": "\n<p>O silêncio faz parte do ritmo. Cada figura de nota tem uma <b>pausa</b> correspondente de mesma duração: conte as pausas com a mesma precisão com que conta as notas.</p>\n<div data-staff=\"rh2a\"></div>\n<h4>Pontos e ligaduras</h4>\n<p>Um <b>ponto de aumento</b> acrescenta metade do valor: uma semínima pontuada = 1½ tempos, normalmente seguida de uma colcheia para completar o tempo. Uma <b>ligadura de prolongamento</b> (linha curva unindo duas notas da <i>mesma</i> altura) funde-as num único som sustentado: é a única forma de manter uma nota através de uma barra de compasso. Não confunda com a <b>ligadura de expressão</b>, que une notas de alturas <i>diferentes</i> indicando legato.</p>\n<h4>Tercinas e síncope</h4>\n<p>Uma <b>tercina</b> encaixa três notas no tempo de duas, indicada com um «3» sobre o grupo. A <b>síncope</b> desloca o acento para onde não é esperado: num contratempo, frequentemente iniciando entre os tempos e prolongando-se sobre o tempo forte seguinte. É a alma do ragtime, jazz, samba, funk e pop.</p>\n<div data-staff=\"rh2b\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"beat:3t\">Sentir tercinas</button></div>\n<h4>Compassos compostos</h4>\n<p>Em <span class=\"fm\">6/8</span>, <span class=\"fm\">9/8</span> e <span class=\"fm\">12/8</span>, o pulso é uma <b>semínima pontuada</b> dividida em <b>três</b> colcheias: UM-e-a DOIS-e-a. Já os compassos simples (2/4, 3/4, 4/4) dividem cada tempo em duas partes iguais.</p>\n<div data-staff=\"rh2c\"></div>\n<h4>Termos de andamento</h4>\n<p><b>Largo</b> (muito lento) · <b>Adagio</b> (lento) · <b>Andante</b> (no passo, moderado) · <b>Moderato</b> · <b>Allegro</b> (rápido, alegre) · <b>Presto</b> (muito rápido). Mudanças: <b>rit.</b>/<b>rall.</b> desacelerar gradualmente, <b>accel.</b> acelerar, <b>a tempo</b> voltar à velocidade original, <i>rubato</i> tempo flexível e expressivo.</p>\n<p class=\"learn-note\">Conte em voz alta («um-e-dois-e», «um-ter-ci-na dois-ter-ci-na») enquanto marca o pulso. Articular a subdivisão é o segredo para fazer a síncope soar com máxima precisão.</p>"
+    },
+    "iv2": {
+      "t": "Qualidades, inversões e intervalos compostos",
+      "b": "\n<p>Um intervalo tem dois nomes: o <b>número</b> (conte os nomes das notas, incluindo os extremos: Dó subindo até Mi = Dó-Ré-Mi = uma 3ª) e a <b>qualidade</b> (conte os semitons). O número você lê na pauta; a qualidade, no teclado.</p>\n<ul>\n<li><b>Intervalos justos</b>: uníssono, 4ª, 5ª e oitava. Aumentados em um semitom → <b>aumentados</b>; diminuídos em um semitom → <b>diminutos</b>.</li>\n<li><b>Intervalos maiores/menores</b>: 2ª, 3ª, 6ª e 7ª. Maior menos um semitom = menor; menor menos outro = diminuto; maior mais um = aumentado.</li>\n</ul>\n<p>Assim, a mesma distância física nas teclas pode ter duas grafias: Fá–Si é uma <b>4ª aumentada</b>; Si–Fá é uma <b>5ª diminuta</b>: ambos são o <i>trítono</i> de 6 semitons. Dó–Mi♭ (3ª menor) e Dó–Ré♯ (2ª aumentada) soam idênticos nas teclas, mas têm papéis bem diferentes numa tonalidade.</p>\n<div data-staff=\"iv2a\"></div>\n<h4>Inversão: virando o intervalo</h4>\n<p>Leve a nota inferior uma oitava para cima e o intervalo se inverterá. Os números sempre somam <b>9</b>, e as qualidades se trocam: maior ↔ menor, aumentado ↔ diminuto, e justo permanece justo. Uma 3ª maior (C–E) inverte para uma 6ª menor (E–C).</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:4\">3ªM: C–E</button><button class=\"demo\" data-demo=\"iv:64:8\">6ªm: E–C</button><button class=\"demo\" data-demo=\"iv:60:7\">5ªJ: C–G</button><button class=\"demo\" data-demo=\"iv:67:5\">4ªJ: G–C</button></div>\n<h4>Intervalos compostos</h4>\n<p>Intervalos maiores que uma oitava são <b>compostos</b>: subtraia 7 para saber o intervalo simples equivalente. Uma 9ª é uma oitava + uma 2ª; uma 10ª é uma oitava + uma 3ª. As extensões de acordes no jazz (9, 11, 13) usam esses números.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:14\">9ª: C–D'</button><button class=\"demo\" data-demo=\"iv:60:16\">10ª: C–E'</button></div>\n<p class=\"learn-note\">Dica rápida para qualquer intervalo: conte as letras para saber o número e compare com a escala maior da nota de baixo: se a nota de cima estiver nessa escala, o intervalo é maior ou justo.</p>"
+    },
+    "minor": {
+      "t": "Escalas menores e graus da escala",
+      "b": "\n<p>Cada grau da escala tem um nome e uma função. Aprenda seus nomes e você poderá conversar sobre qualquer tonalidade com precisão:</p>\n<p><span class=\"fm\">1 tônica</span><span class=\"fm\">2 supertônica</span><span class=\"fm\">3 mediante</span><span class=\"fm\">4 subdominante</span><span class=\"fm\">5 dominante</span><span class=\"fm\">6 sobredominante</span><span class=\"fm\">7 sensível</span></p>\n<p>A <b>sensível</b> fica a meio tom da tônica e puxa com força em direção a ela. Quando o 7º grau fica a um tom <i>inteiro</i> abaixo (como na menor natural), chama-se <b>subtônica</b>, e essa atração de resolução desaparece.</p>\n<h4>Três variações da escala menor</h4>\n<ul>\n<li><b>Menor natural</b> <span class=\"fm\">T S T T S T T</span>: a relativa menor, com as mesmas notas de sua correspondente maior.</li>\n<li><b>Menor harmônica</b>: eleva o 7º grau (Sol → Sol♯ em Lá menor). Agora o acorde V é maior e ganha uma sensível verdadeira. O salto entre o 6º e o 7º grau é uma exótica <b>segunda aumentada</b> (T+S).</li>\n<li><b>Menor melódica</b>: eleva o 6º <i>e o</i> 7º grau ao subir para suavizar o salto; a tradição clássica retorna à menor natural ao descer.</li>\n</ul>\n<div data-staff=\"minor1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:57:Aeolian (Natural minor)\">Lá menor natural</button><button class=\"demo\" data-demo=\"sc:57:Harmonic minor\">Lá menor harmônica</button><button class=\"demo\" data-demo=\"sc:57:Melodic minor\">Lá menor melódica</button></div>\n<h4>Relativas e homônimas</h4>\n<p><b>Relativas</b>: compartilham a mesma armadura de clave (Dó maior / Lá menor: a tônica menor fica 3 semitons abaixo). <b>Homônimas (ou paralelas)</b>: compartilham a mesma nota tônica (Dó maior / Dó menor). Músicas modernas emprestam acordes de ambas livremente.</p>\n<p class=\"learn-note\">Construa qualquer uma delas no construtor de escalas em <i>Escalas e tonalidades</i>: comece da menor natural e ajuste os últimos degraus.</p>"
+    },
+    "ch7": {
+      "t": "Acordes com 7ª, acordes com cor e acordes invertidos com barra",
+      "b": "\n<p>Adicione uma quarta nota (uma 7ª acima da fundamental) e o acorde ganhará cor e direção harmônica. Cinco acordes de sétima cobrem quase toda a música:</p>\n<ul>\n<li><b>maj7 (7M)</b> (tríade maior + sétima maior): aveludado e sofisticado; o acorde I e IV no jazz e na bossa nova.</li>\n<li><b>7</b> (tríade maior + sétima menor): a <b>sétima da dominante</b>, carregada de tensão buscando resolver: V7.</li>\n<li><b>m7</b> (tríade menor + sétima menor): suave e aconchegante: ii7, vi7.</li>\n<li><b>m7♭5</b> (tríade diminuta + sétima menor), «meio-diminuto» ø: o acorde ii natural em tonalidades menores.</li>\n<li><b>dim7</b> (tríade diminuta + sétima diminuta): composto apenas por terças menores, máxima tensão dramática: vii°7 em tonalidades menores.</li>\n</ul>\n<div data-staff=\"ch7a\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Cmaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">C7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Cm7</button><button class=\"demo\" data-demo=\"ch:60:m7♭5\">Cm7♭5</button><button class=\"demo\" data-demo=\"ch:59:dim7\">Bdim7</button></div>\n<h4>Acordes com cor</h4>\n<p><b>sus2 / sus4</b> substituem a terça pela 2ª ou 4ª: nem maiores nem menores, abertos e flutuantes. <b>6</b> adiciona a sexta a uma tríade maior (um final clássico e acolhedor). <b>add9</b> adiciona a nona <i>sem</i> a sétima: o brilho característico de inúmeras baladas pop.</p>\n<div data-staff=\"ch7b\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:sus2\">Csus2</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Csus4</button><button class=\"demo\" data-demo=\"ch:60:6\">C6</button><button class=\"demo\" data-demo=\"ch:60:add9\">Cadd9</button></div>\n<h4>Slash chords (acordes com barra)</h4>\n<p><b>C/E</b> significa «acorde de Dó com Mi no baixo». Pode ser uma inversão (Mi faz parte do acorde) ou um baixo diferente, como <b>C/B♭</b> ou <b>F/G</b> (uma dominante suave). Acordes com barra deixam a linha do baixo caminhar suavemente: C – C/B – Am – Am/G – F.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|47.64.67.72|45.64.69.72|43.64.69.72|41.65.69.72\">C – C/B – Am – Am/G – F</button></div>\n<p class=\"learn-note\">Experimente cada qualidade e nota do baixo no construtor de acordes em <i>Acordes</i>. Partituras e lead sheets escrevem exatamente essas cifras sobre a melodia.</p>"
+    },
+    "cad": {
+      "t": "Cadências: pontuação musical",
+      "b": "\n<p>Uma <b>cadência</b> é o movimento harmônico que encerra uma frase. Assim como sinais de pontuação, algumas concluem a frase e outras a deixam em suspenso:</p>\n<ul>\n<li><b>Autêntica perfeita (CAP)</b>: V(7) → I, ambos em estado fundamental com a melodia repousando na tônica. Um ponto final definitivo.</li>\n<li><b>Autêntica imperfeita (CAI)</b>: V → I, mas mais suave: com inversões, ou com a melodia terminando na 3ª ou 5ª. Um ponto e vírgula.</li>\n<li><b>Meia cadência (MC)</b>: qualquer acorde → V. Uma vírgula ou ponto de interrogação: a frase continua.</li>\n<li><b>Plagal (CP)</b>: IV → I, o tradicional fechamento «Amém» dos hinos.</li>\n<li><b>Deceptiva ou de engano (CD)</b>: V → vi. Você espera chegar em casa e recebe uma surpresa menor; a frase precisa prosseguir.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.60.67.72\">CAP: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">MC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Engano: V → vi</button></div>\n<h4>Encontre-as em obras reais</h4>\n<p>O Minueto em Sol encerra sua primeira metade com uma meia cadência e a segunda com uma cadência autêntica perfeita: abra Partitura e análise para ver os numerais romanos sob cada compasso.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Ver em Partitura e análise: Minueto em Sol →</button></div>\n<p class=\"learn-note\">Fique atento às cadências em qualquer canção: cantarole o último acorde de cada verso. Ele parece concluído (autêntica), em suspenso (meia cadência) ou surpreendente (engano)?</p>"
+    },
+    "minorh": {
+      "t": "Harmonia em tonalidades menores",
+      "b": "\n<p>Construa tríades sobre a escala menor natural e você terá <span class=\"fm\">i</span><span class=\"fm\">ii°</span><span class=\"fm\">III</span><span class=\"fm\">iv</span><span class=\"fm\">v</span><span class=\"fm\">VI</span><span class=\"fm\">VII</span>. Mas um acorde menor <b>v</b> não tem sensível, por isso compositores quase sempre emprestam o 7º grau elevado da <b>menor harmônica</b>: a dominante torna-se maior: <b>V</b> (Mi maior em Lá menor), e o vii° recupera sua força resolutiva em direção à tônica.</p>\n<div data-staff=\"minh1\"></div>\n<h4>Progressões comuns em modo menor</h4>\n<ul>\n<li><b>i – iv – V – i</b>: a espinha dorsal clássica.</li>\n<li><b>i – VI – III – VII</b>: o ciclo épico do pop e do cinema (Am – F – C – G).</li>\n<li><b>i – VII – VI – V</b>: a «cadência andaluza», uma descida por graus que ecoa do flamenco ao rock.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:45.60.64.69|50.62.65.69|52.59.64.68|45.60.64.69\">i – iv – V – i</button><button class=\"demo\" data-demo=\"vc:45.60.64.69|41.60.65.69|48.60.64.67|43.59.62.67\">i – VI – III – VII</button><button class=\"demo\" data-demo=\"vc:45.60.64.69|43.59.62.67|41.57.60.65|40.56.59.64\">Andaluza: i – VII – VI – V</button></div>\n<h4>Para Elise (Für Elise)</h4>\n<p>O famoso início de Beethoven é puro Lá menor: a mão direita oscila entre <b>i</b> (A–C–E) e <b>V</b> (E–G♯–B): ouça com atenção o Sol♯, a sensível emprestada.</p>\n<div data-staff=\"elise1\"></div>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"elise\">Ver em Partitura e análise: Para Elise →</button></div>\n<p class=\"learn-note\">Escreva numerais romanos em menor usando minúsculas para acordes menores (i, iv) e maiúsculas para maiores (III, V, VI, VII): a tipografia revela os acordes emprestados instantaneamente.</p>"
+    },
+    "nct": {
+      "t": "Notas estranhas à harmonia",
+      "b": "\n<p>As melodias não usam apenas as notas dos acordes. Notas que entram em conflito momentâneo com a harmonia (as <b>notas estranhas à harmonia</b>) criam movimento e expressividade. Elas são classificadas por como são alcançadas e resolvidas:</p>\n<ul>\n<li><b>Nota de passagem (P)</b>: preenche o espaço entre duas notas do acorde por graus conjuntos na mesma direção.</li>\n<li><b>Bordadura (N)</b>: afasta-se um grau da nota do acorde e volta imediatamente à mesma nota.</li>\n<li><b>Suspensão (S)</b>: uma nota do acorde anterior é mantida sobre o novo acorde criando tensão, e resolve descendo um grau: o clássico 4–3.</li>\n<li><b>Apojatura (App)</b>: atinge uma dissonância por salto num tempo forte e resolve por grau conjunto: o «suspiro» expressivo.</li>\n<li><b>Antecipação (A)</b>: chega antes da hora: a nota do acorde seguinte soa uma fração antes da mudança harmônica.</li>\n</ul>\n<div data-staff=\"nct1\"></div>\n<h4>Em Para Elise (Für Elise)</h4>\n<p>O início <b>E–D♯–E (Mi–Ré♯–Mi)</b> é uma bordadura inferior: o Ré♯ não pertence à harmonia básica, apenas enfeita o Mi. Procure pelas etiquetas P e N na visualização de análise.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:76.75.76.75.76\">Bordadura E–D♯–E</button><button type=\"button\" class=\"btn ghost sm\" data-an=\"elise\">Ver em Partitura e análise: Para Elise →</button></div>\n<p class=\"learn-note\">Para analisar uma nota melódica: ela faz parte do acorde? Se não fizer, observe o contexto: como ela chegou (por passo ou por salto) e para onde resolveu?</p>"
+    },
+    "secdom": {
+      "t": "Dominantes secundárias, modulação e condução de vozes",
+      "b": "\n<p>Qualquer acorde maior ou menor de uma tonalidade pode receber sua <b>própria dominante</b>. Em Dó maior, o acorde V de Sol é Ré maior (D–F♯–A): escrevemos como <b>V/V</b>, «cinco do cinco». O Fá♯ emprestado atua como uma sensível passageira que puxa em direção a Sol: uma pincelada de cor sem sair da tonalidade.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulação</h4>\n<p>Quando o novo centro tonal se estabelece (confirmado por uma cadência na nova tonalidade), ocorreu uma <b>modulação</b>. A forma mais natural é através de um <b>acorde pivô</b> que pertence a ambas as tonalidades: Am é vi em Dó e ii em Sol, de modo que C – Am – D7 – G conduz perfeitamente até Sol maior. A maioria das peças clássicas modula para a dominante (em tom maior) ou para a relativa maior (em tom menor) e retorna no final.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G através do pivô Am</button></div>\n<h4>Condução de vozes</h4>\n<p>Pense em cada acorde como um coro de 3 a 4 cantores. Uma boa condução de vozes move cada cantor o mínimo possível:</p>\n<ul>\n<li>Mantenha as <b>notas comuns</b> na mesma voz; mova as outras por graus conjuntos.</li>\n<li>Resolva as notas de tendência: a sensível (7) sobe <b>para cima</b> para a tônica (1); a 7ª do acorde desce <b>para baixo</b> por grau conjunto.</li>\n<li>Evite <b>quintas e oitavas paralelas</b> consecutivas entre duas vozes: elas fazem as vozes se fundirem, perdendo independência.</li>\n<li>O baixo pode dar saltos; as vozes superiores preferem movimentos por graus conjuntos.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|48.60.65.69|47.59.62.67|48.60.64.67\">Fluido: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Áspero: mesmos acordes, todos em estado fundamental</button></div>\n<p class=\"learn-note\">No piano, a condução de vozes também é uma dica técnica valiosa: inversões mantêm sua mão numa posição estável. Compare os dois exemplos acima: mesmos acordes, esforço muscular bem diferente.</p>"
+    },
+    "form": {
+      "t": "Forma: motivos, frases e seções",
+      "b": "\n<p>A música se organiza de forma semelhante à linguagem: pequenas ideias se combinam em frases, e frases formam parágrafos inteiros.</p>\n<ul>\n<li><b>Motivo</b>: a menor ideia reconhecível, apenas algumas notas (como o início da Quinta de Beethoven: curto-curto-curto-longo). Ele retorna, é transposto e se desenvolve.</li>\n<li><b>Frase</b>: uma oração musical com sentido completo, habitualmente de 4 compassos, terminando numa cadência.</li>\n<li><b>Período</b>: duas frases em diálogo de pergunta e resposta: o <b>antecedente</b> termina aberto (meia cadência); o <b>consequente</b> começa de forma parecida e termina fechado (cadência autêntica).</li>\n</ul>\n<div data-staff=\"form1\"></div>\n<h4>Estruturas formais maiores</h4>\n<p>Identificamos seções com letras; uma seção repetida mantém a letra e uma com variações recebe uma linha (A′).</p>\n<ul>\n<li><b>Forma binária (AB)</b>: duas metades, frequentemente repetidas. Típica de danças barrocas como o Minueto em Sol.</li>\n<li><b>Forma ternária (ABA)</b>: exposição, contraste e retorno. Minueto + Trio + Minueto; incontáveis canções e noturnos.</li>\n<li><b>Rondó (ABACA…)</b>: um tema principal que retorna entre diferentes episódios; Para Elise é um pequeno rondó (A B A C A).</li>\n<li><b>Verso–refrão</b>: a versão moderna da música pop para essa mesma ideia, frequentemente com introdução, ponte e finalização (outro).</li>\n</ul>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Ver em Partitura e análise: Minueto em Sol →</button></div>\n<p class=\"learn-note\">Ao estudar uma peça nova, mapeie suas seções primeiro. Saber que os compassos 9–16 são apenas o tema A novamente pode reduzir seu tempo de estudo pela metade.</p>"
+    },
+    "accomp": {
+      "t": "Padrões de acompanhamento e lead sheets",
+      "b": "\n<p>Uma <b>lead sheet (folha de cifras)</b> fornece apenas a melodia e as cifras dos acordes (C, Am7, G/B…). Transformá-la em música de piano significa escolher um <b>padrão para a mão esquerda</b>: os mesmos acordes podem soar como uma valsa, uma balada ou uma marcha.</p>\n<ul>\n<li><b>Acordes em bloco</b>: o acorde inteiro tocado de uma vez: direto e firme.</li>\n<li><b>Acorde quebrado / arpejo</b>: as notas do acorde tocadas em sequência: fluido e cantábile.</li>\n<li><b>Baixo Alberti</b>: grave–agudo–médio–agudo (C–G–E–G): o som inconfundível de Mozart e Clementi.</li>\n<li><b>Valsa</b>: baixo no tempo 1, acorde nos tempos 2 e 3. <b>Pum-tchá (Boom-chick)</b>: baixo em 1 e 3, acorde em 2 e 4 (ragtime, stride, sertanejo/country).</li>\n<li><b>Balada pop</b>: baixo seguido de acorde arpejado suavemente, com pedal sustentado a cada mudança harmônica.</li>\n</ul>\n<div data-staff=\"acc1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"acc:alberti\">Alberti</button><button class=\"demo\" data-demo=\"acc:waltz\">Valsa</button><button class=\"demo\" data-demo=\"acc:boomchick\">Pum-tchá</button><button class=\"demo\" data-demo=\"acc:ballad\">Balada</button><button class=\"demo\" data-demo=\"acc:arp\">Arpejo</button></div>\n<h4>Da lead sheet ao piano</h4>\n<ol>\n<li>Toque as fundamentais dos acordes com a mão esquerda enquanto canta ou toca a melodia.</li>\n<li>Acrescente acordes completos na mão esquerda, usando inversões para manter as notas próximas (condução de vozes!).</li>\n<li>Escolha um padrão rítmico adequado ao estilo e ao compasso; mantenha a melodia destacada na mão direita.</li>\n<li>Leia os acordes com barra ao pé da letra: a nota após a barra «/» vai no baixo.</li>\n</ol>\n<p class=\"learn-note\">Todos esses padrões (em qualquer progressão e andamento) podem ser tocados em loop em <a href=\"#\" data-go=\"accompany\">Acompanhar</a>.</p>"
+    }
+  },
+  "units": {
+    "fund": "Fundamentos",
+    "read": "Leitura",
+    "rhythm": "Ritmo",
+    "ivs": "Intervalos",
+    "scales": "Escalas e tonalidades",
+    "chords": "Acordes",
+    "harmony": "Harmonia",
+    "form": "Forma e estilo"
+  },
+  "glossary": {
+    "0": {
+      "term": "Semitom",
+      "definition": "A menor distância no piano: de uma tecla para a imediatamente vizinha, preta ou branca."
+    },
+    "1": {
+      "term": "Tom",
+      "definition": "Dois semitons, por ex. C–D (Dó–Ré)."
+    },
+    "2": {
+      "term": "Oitava",
+      "definition": "O mesmo nome de nota 12 semitons acima ou abaixo; a frequência dobra."
+    },
+    "3": {
+      "term": "Enarmonia",
+      "definition": "Dois nomes para a mesma tecla, por ex. F♯ = G♭ (Fá♯ = Sol♭)."
+    },
+    "4": {
+      "term": "Pauta dupla (sistema)",
+      "definition": "Pautas nas claves de sol e fá unidas por uma chave; o dó central fica entre elas."
+    },
+    "5": {
+      "term": "Clave",
+      "definition": "Sinal que define qual nota fica em cada linha (clave de sol = Sol, clave de fá = Fá)."
+    },
+    "6": {
+      "term": "Linha suplementar",
+      "definition": "Linha curta adicional para notas acima ou abaixo da pauta."
+    },
+    "7": {
+      "term": "Acidente",
+      "definition": "♯, ♭ ou ♮ colocado antes de uma nota; tem efeito até a barra de compasso."
+    },
+    "8": {
+      "term": "Armadura de clave",
+      "definition": "Sustenidos ou bemóis no início de cada linha, válidos por toda a peça."
+    },
+    "9": {
+      "term": "Fórmula de compasso",
+      "definition": "Número superior = tempos por compasso; inferior = figura que vale um tempo."
+    },
+    "10": {
+      "term": "Nota pontuada",
+      "definition": "O ponto acrescenta metade do valor da nota: semibreve pontuada = 3 tempos."
+    },
+    "11": {
+      "term": "Ligadura de prolongamento",
+      "definition": "Linha curva unindo duas notas da mesma altura: sustenta-se o som sem repetir o ataque."
+    },
+    "12": {
+      "term": "Tercina",
+      "definition": "Três notas no tempo de duas, indicada pelo número 3."
+    },
+    "13": {
+      "term": "Síncope",
+      "definition": "Acento em um tempo fraco ou contratempo."
+    },
+    "14": {
+      "term": "Compasso composto",
+      "definition": "Tempos subdivididos em três partes (6/8, 9/8, 12/8)."
+    },
+    "15": {
+      "term": "Andamento",
+      "definition": "Velocidade da pulsação, em BPM ou termos italianos (Adagio, Allegro…)."
+    },
+    "16": {
+      "term": "Dinâmica",
+      "definition": "Indicações de intensidade: pp, p, mp, mf, f, ff."
+    },
+    "17": {
+      "term": "Crescendo / diminuendo",
+      "definition": "Gradualmente mais forte / gradualmente mais suave (reguladores)."
+    },
+    "18": {
+      "term": "Staccato",
+      "definition": "Ponto acima ou abaixo da nota: som curto e destacado."
+    },
+    "19": {
+      "term": "Legato",
+      "definition": "Toque suave e conectado, indicado por uma ligadura de expressão."
+    },
+    "20": {
+      "term": "Ritornelo (barra de repetição)",
+      "definition": "Barra dupla com pontos: repete-se a seção."
+    },
+    "21": {
+      "term": "D.C. al Fine",
+      "definition": "Voltar ao início e parar na indicação Fine."
+    },
+    "22": {
+      "term": "D.S. al Coda",
+      "definition": "Voltar ao sinal 𝄋 e saltar para a coda 𝄌 quando indicado."
+    },
+    "23": {
+      "term": "Fermata",
+      "definition": "𝄐 Sustentar a nota por mais tempo do que a duração escrita."
+    },
+    "24": {
+      "term": "Pedal de sustentação",
+      "definition": "Ped. … ✱: abaixar o pedal direito e depois soltar."
+    },
+    "25": {
+      "term": "Ornamento",
+      "definition": "Elemento decorativo como trinado (tr), mordente ou apogiatura."
+    },
+    "26": {
+      "term": "Intervalo",
+      "definition": "Distância entre duas notas, medida em graus e semitons."
+    },
+    "27": {
+      "term": "Quinta justa",
+      "definition": "7 semitons (C–G); o intervalo mais estável depois da oitava."
+    },
+    "28": {
+      "term": "Trítono",
+      "definition": "6 semitons: quarta aumentada ou quinta diminuta (C–F♯)."
+    },
+    "29": {
+      "term": "Inversão (intervalo)",
+      "definition": "Subir a nota mais grave uma oitava; a soma dos números é 9, maior torna-se menor."
+    },
+    "30": {
+      "term": "Intervalo composto",
+      "definition": "Maior que uma oitava: nona = segunda + oitava."
+    },
+    "31": {
+      "term": "Escala maior",
+      "definition": "Padrão de tons e semitons: T T S T T T S."
+    },
+    "32": {
+      "term": "Grau da escala",
+      "definition": "Posição na escala: tônica, supertônica, mediante, subdominante, dominante, superdominante, sensível."
+    },
+    "33": {
+      "term": "Relativa menor",
+      "definition": "Escala menor com a mesma armadura de clave, uma terça menor abaixo (C → A menor)."
+    },
+    "34": {
+      "term": "Menor harmônica",
+      "definition": "Menor natural com o 7º grau elevado (sensível)."
+    },
+    "35": {
+      "term": "Menor melódica",
+      "definition": "6º e 7º graus elevados na subida; menor natural na descida (forma clássica)."
+    },
+    "36": {
+      "term": "Círculo das quintas",
+      "definition": "Tonalidades dispostas por quintas justas; cada passo acrescenta um sustenido ou bemol."
+    },
+    "37": {
+      "term": "Modo",
+      "definition": "Escala construída iniciando o padrão maior a partir de outro grau (dórico, frígio…)."
+    },
+    "38": {
+      "term": "Tríade",
+      "definition": "Acorde de três notas sobrepostas em terças: fundamental, terça e quinta."
+    },
+    "39": {
+      "term": "Inversão de acorde",
+      "definition": "Acorde com uma nota diferente da fundamental no baixo."
+    },
+    "40": {
+      "term": "Acorde com sétima",
+      "definition": "Tríade acompanhada de uma sétima: maj7, 7, m7, m7♭5, dim7."
+    },
+    "41": {
+      "term": "Acorde com baixo invertido",
+      "definition": "Acorde/nota no baixo, por ex. C/E = acorde de C com E no baixo."
+    },
+    "42": {
+      "term": "Acorde suspenso",
+      "definition": "A terça é substituída por uma segunda (sus2) ou quarta (sus4)."
+    },
+    "43": {
+      "term": "Graus em algarismos romanos",
+      "definition": "Acordes nomeados pelo grau da escala: I, ii, iii, IV, V, vi, vii°."
+    },
+    "44": {
+      "term": "Blues de 12 compassos",
+      "definition": "I-I-I-I / IV-IV-I-I / V-IV-I-V, usualmente com acordes com sétima."
+    },
+    "45": {
+      "term": "Cadência",
+      "definition": "Par de acordes que conclui uma frase: autêntica, plagal, meia-cadência, de engano."
+    },
+    "46": {
+      "term": "Condução de vozes",
+      "definition": "Movimento suave de cada voz, por graus conjuntos ou notas comuns mantidas."
+    },
+    "47": {
+      "term": "Nota estranha ao acorde",
+      "definition": "Nota melódica que não pertence ao acorde: nota de passagem, bordadura, retardo, apogiatura."
+    },
+    "48": {
+      "term": "Dominante secundária",
+      "definition": "V de um acorde diferente de I, por ex. V/V (D7 em C)."
+    },
+    "49": {
+      "term": "Modulação",
+      "definition": "Transição para uma nova tonalidade confirmada por uma cadência."
+    },
+    "50": {
+      "term": "Motivo",
+      "definition": "Ideia musical curta repetida e variada."
+    },
+    "51": {
+      "term": "Frase / período",
+      "definition": "Frase = oração musical terminada em cadência; período = par de frases pergunta e resposta."
+    },
+    "52": {
+      "term": "Forma binária / ternária / rondó",
+      "definition": "Estruturas AB, ABA e ABACA."
+    },
+    "53": {
+      "term": "Baixo de Alberti",
+      "definition": "Arpejo no padrão grave–agudo–médio–agudo."
+    },
+    "54": {
+      "term": "Lead sheet",
+      "definition": "Melodia acompanhada de cifras de acordes; o acompanhamento é improvisado."
+    }
+  },
+  "quizzes": {
+    "keys": [
+      {
+        "q": "Qual tecla branca fica imediatamente à esquerda do grupo de duas teclas pretas?",
+        "o": [
+          "Dó (C)",
+          "Fá (F)",
+          "Ré (D)",
+          "Si (B)"
+        ]
+      },
+      {
+        "q": "Quantos semitons há em uma oitava?",
+        "o": [
+          "12",
+          "8",
+          "7",
+          "10"
+        ]
+      },
+      {
+        "q": "Qual par forma um semitom natural sem tecla preta intermediária?",
+        "o": [
+          "Mi–Fá (E–F)",
+          "Dó–Ré (C–D)",
+          "Fá–Sol (F–G)",
+          "Lá–Si (A–B)"
+        ]
+      },
+      {
+        "q": "Toque o dó central (C4)."
+      },
+      {
+        "q": "Toque Mi (E) e depois Fá (F) — o semitom natural."
+      }
+    ],
+    "how": [
+      {
+        "q": "O que funciona melhor para a retenção na memória de longo prazo?",
+        "o": [
+          "Sessões curtas diárias com revisão espaçada",
+          "Uma única sessão longa por semana",
+          "Reler o material até parecer familiar",
+          "Apenas ouvir sem praticar"
+        ]
+      },
+      {
+        "q": "Por que misturar diferentes tipos de exercícios em uma mesma sessão?",
+        "o": [
+          "Intercalar exige escolher a estratégia correta: a fixação é maior",
+          "É um método mais rápido",
+          "Evita cometer qualquer erro",
+          "Não produz nenhum efeito"
+        ]
+      },
+      {
+        "q": "Errar uma resposta e ver a correção logo em seguida é…",
+        "o": [
+          "muito útil: evocação ativa acompanhada de feedback",
+          "perda de tempo",
+          "prejudicial à memória",
+          "útil apenas para iniciantes"
+        ]
+      }
+    ],
+    "notation": [
+      {
+        "q": "Na clave de sol, a primeira linha de baixo é…",
+        "o": [
+          "Mi4 (E4)",
+          "Sol4 (G4)",
+          "Fá4 (F4)",
+          "Dó4 (C4)"
+        ],
+        "why": "Linhas da clave de sol: Mi Sol Si Ré Fá (E G B D F)."
+      },
+      {
+        "q": "Na clave de fá, a quinta linha de cima é…",
+        "o": [
+          "Lá3 (A3)",
+          "Sol3 (G3)",
+          "Fá3 (F3)",
+          "Dó4 (C4)"
+        ],
+        "why": "Linhas da clave de fá: Sol Si Ré Fá Lá (G B D F A)."
+      },
+      {
+        "q": "Um sustenido (♯) colocado antes de uma nota…",
+        "o": [
+          "eleva a nota em um semitom",
+          "abaixa a nota em um semitom",
+          "apenas anula um bemol",
+          "aumenta o volume do som"
+        ]
+      },
+      {
+        "q": "Até quando dura o efeito de um acidente ocorrente?",
+        "o": [
+          "Até o fim do compasso",
+          "Apenas para aquela nota",
+          "Por toda a peça musical",
+          "Até a linha seguinte"
+        ]
+      },
+      {
+        "q": "Toque a nota situada na segunda linha da clave de sol: Sol4 (G4)."
+      }
+    ],
+    "symbols": [
+      {
+        "q": "O que significa a indicação D.C. al Fine?",
+        "o": [
+          "Voltar ao início e parar na indicação Fine",
+          "Saltar diretamente para a coda",
+          "Repetir o último compasso",
+          "Tocar mais forte até o final"
+        ]
+      },
+      {
+        "q": "Uma linha curva que une duas notas da mesma altura é uma…",
+        "o": [
+          "ligadura de valor (prolongamento)",
+          "ligadura de expressão (fraseado)",
+          "indicação de crescendo",
+          "fermata"
+        ]
+      },
+      {
+        "q": "Um ponto acima ou abaixo de uma nota (staccato) indica…",
+        "o": [
+          "som curto e destacado",
+          "sustentar a nota por mais tempo",
+          "tocar com maior volume",
+          "tocar uma oitava acima"
+        ]
+      },
+      {
+        "q": "A indicação “Ped.” seguida de ✱ orienta…",
+        "o": [
+          "abaixar e soltar o pedal de sustentação",
+          "fazer uma pausa prolongada",
+          "uma repetição de trecho",
+          "o dedo a ser utilizado"
+        ]
+      },
+      {
+        "q": "O dedo número 1 corresponde ao…",
+        "o": [
+          "polegar",
+          "indicador",
+          "mínimo",
+          "médio"
+        ]
+      }
+    ],
+    "dyn": [
+      {
+        "q": "Ordene estas dinâmicas da mais suave para a mais forte.",
+        "o": [
+          "pp · p · mp · mf · f · ff",
+          "p · pp · mf · mp · f · ff",
+          "mp · p · pp · f · mf · ff",
+          "pp · mp · p · f · mf · ff"
+        ]
+      },
+      {
+        "q": "“Crescendo” significa…",
+        "o": [
+          "gradualmente mais forte",
+          "gradualmente mais suave",
+          "gradualmente mais rápido",
+          "subitamente forte"
+        ]
+      },
+      {
+        "q": "“sfz” (sforzando) indica…",
+        "o": [
+          "um acento súbito e vigoroso",
+          "muito suave",
+          "reduzir o andamento",
+          "sustentar a nota"
+        ]
+      },
+      {
+        "q": "“mf” significa…",
+        "o": [
+          "mezzo forte — moderadamente forte",
+          "molto forte — muito forte",
+          "meno forte — menos forte",
+          "andamento moderadamente rápido"
+        ]
+      }
+    ],
+    "rh": [
+      {
+        "q": "Quantas semínimas preenchem um compasso 4/4?",
+        "o": [
+          "4",
+          "2",
+          "3",
+          "8"
+        ]
+      },
+      {
+        "q": "Uma mínima pontuada dura…",
+        "o": [
+          "3 tempos",
+          "2 tempos",
+          "2½ tempos",
+          "4 tempos"
+        ]
+      },
+      {
+        "q": "Ouça com atenção: qual é a fórmula de compasso?",
+        "o": [
+          "3/4 (valsa)",
+          "4/4",
+          "2/4",
+          "6/8"
+        ]
+      },
+      {
+        "q": "Em 4/4, quais tempos costumam ser os mais fortes?",
+        "o": [
+          "1 (e 3)",
+          "2 e 4",
+          "apenas o 4",
+          "todos iguais"
+        ]
+      }
+    ],
+    "rh2": [
+      {
+        "q": "Uma tercina acomoda três notas no tempo equivalente a…",
+        "o": [
+          "duas figuras de mesmo valor",
+          "quatro",
+          "uma figura pontuada",
+          "três"
+        ]
+      },
+      {
+        "q": "O compasso 6/8 é normalmente sentido em…",
+        "o": [
+          "2 pulsos de semínima pontuada",
+          "6 pulsos iguais de semínima",
+          "3 tempos",
+          "4 tempos"
+        ]
+      },
+      {
+        "q": "Síncope significa…",
+        "o": [
+          "acentuar um tempo fraco ou contratempo",
+          "tocar mais rápido",
+          "uma pausa longa",
+          "mudança de tonalidade"
+        ]
+      },
+      {
+        "q": "Qual destes andamentos é o mais lento?",
+        "o": [
+          "Largo",
+          "Andante",
+          "Allegro",
+          "Presto"
+        ]
+      },
+      {
+        "q": "“Ritardando” significa…",
+        "o": [
+          "reduzir gradualmente a velocidade",
+          "acelerar gradualmente",
+          "retornar ao andamento inicial",
+          "muito rápido"
+        ]
+      }
+    ],
+    "iv": [
+      {
+        "q": "Ouça com atenção: identifique o intervalo.",
+        "o": [
+          "Quinta justa",
+          "Terça maior",
+          "Quarta justa",
+          "Oitava"
+        ]
+      },
+      {
+        "q": "Quantos semitons existem em uma terça maior?",
+        "o": [
+          "4",
+          "3",
+          "5",
+          "2"
+        ]
+      },
+      {
+        "q": "De Dó (C) subindo até Lá (A) temos uma…",
+        "o": [
+          "sexta maior",
+          "sexta menor",
+          "quinta justa",
+          "sétima maior"
+        ]
+      },
+      {
+        "q": "Ouça com atenção: identifique o intervalo.",
+        "o": [
+          "Terça menor",
+          "Terça maior",
+          "Segunda maior",
+          "Quarta justa"
+        ]
+      },
+      {
+        "q": "Toque uma quinta justa ascendente a partir de Ré (D): Ré e depois Lá."
+      }
+    ],
+    "iv2": [
+      {
+        "q": "De Dó a Fá♯ (6 semitons) temos uma…",
+        "o": [
+          "quarta aumentada (trítono)",
+          "quarta justa",
+          "sexta menor",
+          "terça maior"
+        ]
+      },
+      {
+        "q": "Ao inverter uma terça maior obtemos uma…",
+        "o": [
+          "sexta menor",
+          "sexta maior",
+          "quinta justa",
+          "terça menor"
+        ],
+        "why": "A soma dos números é 9; maior ↔ menor."
+      },
+      {
+        "q": "De Dó4 subindo até Ré5 temos uma…",
+        "o": [
+          "nona maior",
+          "segunda maior",
+          "nona menor",
+          "décima maior"
+        ]
+      },
+      {
+        "q": "Dó–Mi♭ em relação a Dó–Ré♯: mesmas teclas no piano, porém são…",
+        "o": [
+          "terça menor vs segunda aumentada",
+          "exatamente o mesmo intervalo",
+          "terça maior vs terça menor",
+          "quarta vs quinta"
+        ]
+      },
+      {
+        "q": "Toque um trítono: Fá e depois Si (F e depois B)."
+      }
+    ],
+    "sc": [
+      {
+        "q": "O padrão de passos da escala maior é…",
+        "o": [
+          "T T S T T T S",
+          "T S T T S T T",
+          "T T T S T T S",
+          "S T T T S T T"
+        ]
+      },
+      {
+        "q": "Quantos sustenidos tem a escala de Sol maior (G)?",
+        "o": [
+          "1",
+          "0",
+          "2",
+          "3"
+        ]
+      },
+      {
+        "q": "Qual nota é a sensível em Dó maior?",
+        "o": [
+          "Si (B)",
+          "Sol (G)",
+          "Fá (F)",
+          "Ré (D)"
+        ]
+      },
+      {
+        "q": "Ouça com atenção: é maior ou menor?",
+        "o": [
+          "Menor",
+          "Maior"
+        ]
+      },
+      {
+        "q": "Toque os graus 1, 3 e 5 de Sol maior: Sol, Si e Ré (G, B, D)."
+      }
+    ],
+    "minor": [
+      {
+        "q": "Qual grau é elevado na escala menor harmônica?",
+        "o": [
+          "o 7º grau",
+          "o 6º grau",
+          "o 3º grau",
+          "o 2º grau"
+        ]
+      },
+      {
+        "q": "A escala de Lá menor melódica ascendente é…",
+        "o": [
+          "Lá Si Dó Ré Mi Fá♯ Sol♯ Lá",
+          "Lá Si Dó Ré Mi Fá Sol Lá",
+          "Lá Si Dó Ré Mi Fá Sol♯ Lá",
+          "Lá Si Dó♯ Ré Mi Fá♯ Sol♯ Lá"
+        ]
+      },
+      {
+        "q": "O 5º grau de uma escala é chamado de…",
+        "o": [
+          "dominante",
+          "subdominante",
+          "mediante",
+          "tônica"
+        ]
+      },
+      {
+        "q": "A ordem dos sustenidos começa com…",
+        "o": [
+          "Fá Dó Sol Ré (F C G D)",
+          "Si Mi Lá Ré (B E A D)",
+          "Dó Sol Ré Lá (C G D A)",
+          "Fá Si Mi Lá (F B E A)"
+        ]
+      },
+      {
+        "q": "Ouça com atenção: qual tipo de escala menor é?",
+        "o": [
+          "Menor harmônica",
+          "Menor natural",
+          "Menor melódica"
+        ]
+      },
+      {
+        "q": "Toque a tríade de Lá menor: Lá, Dó e Mi (A, C, E)."
+      }
+    ],
+    "cof": [
+      {
+        "q": "No sentido horário do círculo das quintas, cada passo acrescenta um…",
+        "o": [
+          "sustenido",
+          "bemol",
+          "oitava",
+          "tempo"
+        ]
+      },
+      {
+        "q": "Qual tonalidade maior possui 3 bemóis na armadura?",
+        "o": [
+          "Mi♭ maior (E♭)",
+          "Lá♭ maior (A♭)",
+          "Si♭ maior (B♭)",
+          "Lá maior (A)"
+        ]
+      },
+      {
+        "q": "Qual é a relativa menor de Fá maior (F)?",
+        "o": [
+          "Ré menor (Dm)",
+          "Lá menor (Am)",
+          "Fá menor (Fm)",
+          "Sol menor (Gm)"
+        ]
+      },
+      {
+        "q": "O último sustenido da armadura fica sempre um semitom abaixo de…",
+        "o": [
+          "a tônica maior",
+          "a dominante",
+          "a relativa menor",
+          "o 4º grau"
+        ]
+      },
+      {
+        "q": "Toque a tríade da tônica de Ré maior: Ré, Fá♯ e Lá (D, F♯, A)."
+      }
+    ],
+    "modes": [
+      {
+        "q": "O modo dórico é uma escala menor com o grau elevado…",
+        "o": [
+          "6º",
+          "7º",
+          "2º",
+          "4º"
+        ]
+      },
+      {
+        "q": "Qual modo é uma escala maior com o 7º grau rebaixado (♭7)?",
+        "o": [
+          "Mixolídio",
+          "Lídio",
+          "Frígio",
+          "Lócrio"
+        ]
+      },
+      {
+        "q": "A nota característica do modo lídio é…",
+        "o": [
+          "♯4",
+          "♭2",
+          "♭7",
+          "♭3"
+        ]
+      },
+      {
+        "q": "Ré dórico utiliza as teclas brancas de…",
+        "o": [
+          "Ré a Ré (D a D)",
+          "Dó a Dó (C a C)",
+          "Mi a Mi (E a E)",
+          "Lá a Lá (A a A)"
+        ]
+      }
+    ],
+    "ch": [
+      {
+        "q": "Uma tríade maior é formada por…",
+        "o": [
+          "terça maior + terça menor",
+          "terça menor + terça maior",
+          "duas terças maiores",
+          "duas terças menores"
+        ]
+      },
+      {
+        "q": "Ouça com atenção: qual é a qualidade deste acorde?",
+        "o": [
+          "Menor",
+          "Maior",
+          "Diminuto",
+          "Aumentado"
+        ]
+      },
+      {
+        "q": "As notas Mi–Sol–Dó formam o acorde de Dó maior em…",
+        "o": [
+          "1ª inversão",
+          "posição fundamental",
+          "2ª inversão",
+          "outra tonalidade"
+        ]
+      },
+      {
+        "q": "Toque o acorde de Lá menor (Lá, Dó, Mi) — em qualquer oitava ou inversão."
+      },
+      {
+        "q": "Toque o acorde de Fá maior (Fá, Lá, Dó)."
+      }
+    ],
+    "ch7": [
+      {
+        "q": "O acorde C7 (Dó com sétima da dominante) contém as notas…",
+        "o": [
+          "Dó Mi Sol Si♭ (C E G B♭)",
+          "Dó Mi Sol Si (C E G B)",
+          "Dó Mi♭ Sol Si♭ (C E♭ G B♭)",
+          "Dó Mi♭ Sol♭ Lá (C E♭ G♭ A)"
+        ]
+      },
+      {
+        "q": "Ouça com atenção: qual acorde com sétima está soando?",
+        "o": [
+          "Sétima maior (maj7)",
+          "Sétima dominante (7)",
+          "Sétima menor (m7)",
+          "Sétima diminuta (dim7)"
+        ]
+      },
+      {
+        "q": "Bm7♭5 (Si meio-diminuto) é o acorde sobre qual grau de Dó maior?",
+        "o": [
+          "vii°",
+          "ii",
+          "V",
+          "iii"
+        ]
+      },
+      {
+        "q": "A cifra C/E significa…",
+        "o": [
+          "um acorde de Dó com Mi no baixo",
+          "tocar Dó e depois Mi",
+          "acorde de Dó ou Mi maior",
+          "acorde de Dó menor"
+        ]
+      },
+      {
+        "q": "O acorde Csus4 substitui a terça por…",
+        "o": [
+          "a quarta (Fá / F)",
+          "a segunda (Ré / D)",
+          "a sexta (Lá / A)",
+          "a sétima (Si♭ / B♭)"
+        ]
+      },
+      {
+        "q": "Toque G7: Sol, Si, Ré e Fá (G, B, D, F)."
+      }
+    ],
+    "pr": [
+      {
+        "q": "Em Dó maior, o acorde V é…",
+        "o": [
+          "Sol maior (G)",
+          "Fá maior (F)",
+          "Lá menor (Am)",
+          "Mi menor (Em)"
+        ]
+      },
+      {
+        "q": "Quais acordes são menores em uma tonalidade maior?",
+        "o": [
+          "ii, iii, vi",
+          "I, IV, V",
+          "ii, V, vii°",
+          "iii, IV, vi"
+        ]
+      },
+      {
+        "q": "Quantos compassos tem uma forma padrão de blues?",
+        "o": [
+          "12",
+          "8",
+          "16",
+          "4"
+        ]
+      },
+      {
+        "q": "Em um blues de 12 compassos, o compasso 5 vai para…",
+        "o": [
+          "IV",
+          "V",
+          "I",
+          "vi"
+        ]
+      },
+      {
+        "q": "Toque o acorde IV em Dó: Fá, Lá e Dó (F, A, C)."
+      }
+    ],
+    "cad": [
+      {
+        "q": "A progressão V → I é uma cadência…",
+        "o": [
+          "autêntica (perfeita)",
+          "plagal",
+          "meia-cadência",
+          "de engano (interrompida)"
+        ]
+      },
+      {
+        "q": "Uma frase que repousa sobre o acorde V é uma…",
+        "o": [
+          "meia-cadência",
+          "cadência perfeita",
+          "cadência plagal",
+          "cadência de engano"
+        ]
+      },
+      {
+        "q": "Ouça com atenção: qual cadência está soando?",
+        "o": [
+          "De engano (V → vi)",
+          "Perfeita (V → I)",
+          "Plagal (IV → I)",
+          "Meia-cadência (I → V)"
+        ]
+      },
+      {
+        "q": "A clássica cadência do “Amém” corresponde a…",
+        "o": [
+          "IV → I (plagal)",
+          "V → I",
+          "I → V",
+          "V → vi"
+        ]
+      }
+    ],
+    "minorh": [
+      {
+        "q": "Em Lá menor, o acorde V se torna maior devido a…",
+        "o": [
+          "a elevação do 7º grau (Sol♯)",
+          "a elevação do 6º grau",
+          "o rebaixamento da terça",
+          "uma modulação tonal"
+        ]
+      },
+      {
+        "q": "Em Lá menor, a progressão i – iv – V – i é…",
+        "o": [
+          "Am – Dm – E – Am",
+          "Am – D – Em – Am",
+          "A – D – E – A",
+          "Am – F – G – Am"
+        ]
+      },
+      {
+        "q": "Nos algarismos romanos em modo menor, letras minúsculas indicam…",
+        "o": [
+          "acorde menor (ou diminuto)",
+          "acorde tocado suavemente",
+          "uma inversão",
+          "acorde com sétima"
+        ]
+      },
+      {
+        "q": "Toque Mi maior — o V de Lá menor (Mi, Sol♯, Si / E, G♯, B)."
+      }
+    ],
+    "nct": [
+      {
+        "q": "Uma nota de passagem move-se…",
+        "o": [
+          "por grau conjunto entre duas notas do acorde",
+          "por salto afastando-se do acorde",
+          "sustentando a mesma nota",
+          "apenas na voz do baixo"
+        ]
+      },
+      {
+        "q": "Uma bordadura (nota vizinha)…",
+        "o": [
+          "afasta-se por grau e retorna à mesma nota",
+          "salta uma oitava inteira",
+          "é sempre nota do acorde",
+          "equivale a uma pausa"
+        ]
+      },
+      {
+        "q": "Um retardo resolve normalmente…",
+        "o": [
+          "descendo por grau conjunto",
+          "subindo por salto",
+          "nunca resolve",
+          "na nota do baixo"
+        ]
+      },
+      {
+        "q": "Uma apogiatura é…",
+        "o": [
+          "uma dissonância acentuada atingida por salto e resolvida por grau",
+          "uma nota suave do acorde",
+          "um tipo de pausa musical",
+          "uma nota repetida"
+        ]
+      }
+    ],
+    "secdom": [
+      {
+        "q": "Em Dó maior, o acorde V/V é…",
+        "o": [
+          "Ré maior (D7 / Ré7)",
+          "Sol maior (G)",
+          "Lá menor (Am)",
+          "Fá maior (F)"
+        ]
+      },
+      {
+        "q": "Uma dominante secundária é…",
+        "o": [
+          "o V de um acorde diferente de I",
+          "qualquer acorde menor",
+          "o segundo acorde de uma peça",
+          "um acorde sem terça"
+        ]
+      },
+      {
+        "q": "De Dó maior para Sol maior: a nova tonalidade é a…",
+        "o": [
+          "tonalidade da dominante",
+          "relativa menor",
+          "tonalidade da subdominante",
+          "homônima menor"
+        ]
+      },
+      {
+        "q": "Uma boa condução de vozes prioriza…",
+        "o": [
+          "manter notas comuns e avançar por graus conjuntos",
+          "todas as vozes saltando simultaneamente",
+          "quintas paralelas consecutivas",
+          "dobrar a sensível"
+        ]
+      },
+      {
+        "q": "Toque A7: V/ii em Dó (Lá, Dó♯, Mi, Sol / A, C♯, E, G)."
+      }
+    ],
+    "form": [
+      {
+        "q": "Uma ideia musical curta que é repetida e desenvolvida é um…",
+        "o": [
+          "motivo",
+          "cadência",
+          "coda",
+          "compasso"
+        ]
+      },
+      {
+        "q": "A–B–A–C–A corresponde à forma…",
+        "o": [
+          "rondó",
+          "forma binária",
+          "forma ternária",
+          "um período"
+        ]
+      },
+      {
+        "q": "Um período musical é formado por…",
+        "o": [
+          "frases antecedente e consequente",
+          "um único compasso",
+          "uma sonata completa",
+          "uma barra de repetição"
+        ]
+      },
+      {
+        "q": "A frase antecedente conclui normalmente com uma…",
+        "o": [
+          "meia-cadência",
+          "cadência perfeita",
+          "modulação",
+          "fermata"
+        ]
+      }
+    ],
+    "accomp": [
+      {
+        "q": "O baixo de Alberti toca as notas do acorde na ordem…",
+        "o": [
+          "grave – aguda – média – aguda",
+          "grave – média – aguda",
+          "todas juntas em bloco",
+          "aguda – grave"
+        ]
+      },
+      {
+        "q": "Ouça com atenção: qual padrão de acompanhamento está soando?",
+        "o": [
+          "Valsa (baixo – acorde – acorde)",
+          "Alberti",
+          "Acordes em bloco",
+          "Arpejo de balada"
+        ]
+      },
+      {
+        "q": "Uma lead sheet (partitura guia) traz…",
+        "o": [
+          "a melodia acompanhada das cifras de acordes",
+          "cada nota escrita para ambas as mãos",
+          "apenas a letra da canção",
+          "somente a fórmula de compasso"
+        ]
+      },
+      {
+        "q": "Na lead sheet, a mão esquerda normalmente toca…",
+        "o": [
+          "a fundamental do acorde ou um padrão a partir da cifra",
+          "a melodia principal",
+          "nada",
+          "notas aleatórias"
+        ]
+      }
+    ]
+  },
+  "summaries": {
+    "keys": [
+      [
+        "Oitava",
+        "12 semitons; o padrão de 2 + 3 teclas pretas se repete"
+      ],
+      [
+        "Dó / C",
+        "à esquerda das 2 teclas pretas; dó central = C4"
+      ],
+      [
+        "Semitons naturais",
+        "E–F (Mi–Fá) e B–C (Si–Dó)"
+      ],
+      [
+        "Tom",
+        "2 semitons (pula uma tecla)"
+      ]
+    ],
+    "how": [
+      [
+        "Diariamente",
+        "10–20 min superam uma sessão longa isolada"
+      ],
+      [
+        "Espaçamento",
+        "revisar após 3, 7, 16 e 35 dias"
+      ],
+      [
+        "Intercalar",
+        "misturar leitura, percepção e teoria"
+      ],
+      [
+        "Evocação",
+        "teste a si mesmo e confira em seguida"
+      ]
+    ],
+    "notation": [
+      [
+        "Linhas na clave de sol",
+        "Mi Sol Si Ré Fá (E G B D F)"
+      ],
+      [
+        "Espaços na clave de sol",
+        "Fá Lá Dó Mi (F A C E)"
+      ],
+      [
+        "Linhas na clave de fá",
+        "Sol Si Ré Fá Lá (G B D F A)"
+      ],
+      [
+        "Espaços na clave de fá",
+        "Lá Dó Mi Sol (A C E G)"
+      ],
+      [
+        "Acidentes",
+        "♯ +1 · ♭ −1 · ♮ anula; duram até a barra de compasso"
+      ]
+    ],
+    "symbols": [
+      [
+        "Repetições",
+        "𝄆 … 𝄇 · 1ª e 2ª casas"
+      ],
+      [
+        "D.C. / D.S.",
+        "do início / a partir de 𝄋"
+      ],
+      [
+        "Fine · Coda",
+        "parar aqui · saltar para 𝄌"
+      ],
+      [
+        "Articulação",
+        "staccato · tenuto > acento · 𝄐 fermata"
+      ],
+      [
+        "Ligadura de valor vs expressão",
+        "mesma altura = soma durações · alturas diferentes = legato"
+      ],
+      [
+        "Dedos",
+        "1 polegar … 5 mínimo"
+      ],
+      [
+        "Pedal",
+        "Ped. … ✱"
+      ]
+    ],
+    "dyn": [
+      [
+        "Suave → forte",
+        "pp p mp mf f ff"
+      ],
+      [
+        "Gradual",
+        "cresc. < · dim./decresc. >"
+      ],
+      [
+        "Súbito",
+        "sfz · fp · subito"
+      ]
+    ],
+    "rh": [
+      [
+        "Valores (4/4)",
+        "𝅝 4 · 𝅗𝅥 2 · ♩ 1 · ♪ ½ · 𝅘𝅥𝅯 ¼"
+      ],
+      [
+        "Ponto",
+        "acrescenta metade do valor da figura"
+      ],
+      [
+        "Fórmula de compasso",
+        "superior = tempos por compasso · inferior = unidade de tempo"
+      ],
+      [
+        "Tempos fortes",
+        "4/4: 1 (3) · 3/4: 1 · 6/8: 1 e 4"
+      ]
+    ],
+    "rh2": [
+      [
+        "Pausas",
+        "mesmos valores de duração das notas"
+      ],
+      [
+        "Tercina",
+        "3 figuras no tempo de 2"
+      ],
+      [
+        "Composto",
+        "6/8, 9/8, 12/8 — pulso = ♩ pontuada"
+      ],
+      [
+        "Síncope",
+        "acento fora do pulso"
+      ],
+      [
+        "Andamento",
+        "Largo < Adagio < Andante < Moderato < Allegro < Presto"
+      ],
+      [
+        "Mudanças",
+        "rit./rall. mais lento · accel. mais rápido · a tempo"
+      ]
+    ],
+    "iv": [
+      [
+        "Semitons",
+        "2ªm 1 · 2ªM 2 · 3ªm 3 · 3ªM 4 · 4ªJ 5 · TT 6"
+      ],
+      [
+        "",
+        "5ªJ 7 · 6ªm 8 · 6ªM 9 · 7ªm 10 · 7ªM 11 · 8ªJ 12"
+      ],
+      [
+        "Contagem",
+        "conte as notas incluindo ambos os extremos"
+      ]
+    ],
+    "iv2": [
+      [
+        "Qualidades",
+        "dim. < menor < MAIOR · dim. < JUSTA < aum."
+      ],
+      [
+        "Inversão",
+        "números somam 9 · M↔m · aum.↔dim. · J permanece J"
+      ],
+      [
+        "Compostos",
+        "9ª = 2ª + oitava · 10ª = 3ª + oitava"
+      ],
+      [
+        "Enarmonia",
+        "mesmas teclas, grafias diferentes"
+      ]
+    ],
+    "sc": [
+      [
+        "Maior",
+        "T T S T T T S"
+      ],
+      [
+        "Menor natural",
+        "T S T T S T T"
+      ],
+      [
+        "Pentatônica",
+        "escala maior sem os graus 4 e 7"
+      ],
+      [
+        "Relativa",
+        "tônica menor = 6º grau da escala maior"
+      ]
+    ],
+    "minor": [
+      [
+        "Natural",
+        "1 2 ♭3 4 5 ♭6 ♭7"
+      ],
+      [
+        "Harmônica",
+        "1 2 ♭3 4 5 ♭6 7"
+      ],
+      [
+        "Melódica ↑",
+        "1 2 ♭3 4 5 6 7 (↓ = natural)"
+      ],
+      [
+        "Graus",
+        "tônica · supertônica · mediante · subdominante · dominante · superdominante · sensível"
+      ],
+      [
+        "Sustenidos",
+        "Fá Dó Sol Ré Lá Mi Si (F C G D A E B)"
+      ],
+      [
+        "Bemóis",
+        "Si Mi Lá Ré Sol Dó Fá (B E A D G C F)"
+      ]
+    ],
+    "cof": [
+      [
+        "Sentido horário",
+        "+1 ♯ a cada passo (quinta acima)"
+      ],
+      [
+        "Sentido anti-horário",
+        "+1 ♭ a cada passo (quarta acima)"
+      ],
+      [
+        "Tonalidades com sustenidos",
+        "Sol Ré Lá Mi Si Fá♯ (G D A E B F♯)"
+      ],
+      [
+        "Tonalidades com bemóis",
+        "Fá Si♭ Mi♭ Lá♭ Ré♭ Sol♭ (F B♭ E♭ A♭ D♭ G♭)"
+      ],
+      [
+        "Dica",
+        "último ♯ + semitom = tônica · penúltimo ♭ = tônica"
+      ]
+    ],
+    "modes": [
+      [
+        "Jônico",
+        "maior"
+      ],
+      [
+        "Dórico",
+        "menor, ♮6"
+      ],
+      [
+        "Frígio",
+        "menor, ♭2"
+      ],
+      [
+        "Lídio",
+        "maior, ♯4"
+      ],
+      [
+        "Mixolídio",
+        "maior, ♭7"
+      ],
+      [
+        "Eólio · Lócrio",
+        "menor natural · ♭2 ♭5"
+      ]
+    ],
+    "ch": [
+      [
+        "Maior",
+        "1 3 5 (3ªM + 3ªm)"
+      ],
+      [
+        "Menor",
+        "1 ♭3 5 (3ªm + 3ªM)"
+      ],
+      [
+        "Diminuto",
+        "1 ♭3 ♭5"
+      ],
+      [
+        "Aumentado",
+        "1 3 ♯5"
+      ],
+      [
+        "Inversões",
+        "fundamental · 1ª (3ª no baixo) · 2ª (5ª no baixo)"
+      ]
+    ],
+    "ch7": [
+      [
+        "maj7",
+        "1 3 5 7"
+      ],
+      [
+        "7",
+        "1 3 5 ♭7 (de dominante)"
+      ],
+      [
+        "m7",
+        "1 ♭3 5 ♭7"
+      ],
+      [
+        "m7♭5 ø",
+        "1 ♭3 ♭5 ♭7"
+      ],
+      [
+        "dim7 °7",
+        "1 ♭3 ♭5 𝄫7"
+      ],
+      [
+        "sus2 · sus4",
+        "1 2 5 · 1 4 5"
+      ],
+      [
+        "6 · add9",
+        "1 3 5 6 · 1 3 5 9"
+      ],
+      [
+        "Acorde com barra",
+        "C/E = acorde de C com E no baixo"
+      ]
+    ],
+    "pr": [
+      [
+        "Tonalidade maior",
+        "I ii iii IV V vi vii°"
+      ],
+      [
+        "Comuns",
+        "I–V–vi–IV · ii–V–I · I–vi–IV–V"
+      ],
+      [
+        "Blues de 12 compassos",
+        "I I I I | IV IV I I | V IV I V"
+      ]
+    ],
+    "cad": [
+      [
+        "Autêntica",
+        "V → I"
+      ],
+      [
+        "Plagal",
+        "IV → I"
+      ],
+      [
+        "Meia-cadência",
+        "… → V"
+      ],
+      [
+        "De engano",
+        "V → vi"
+      ]
+    ],
+    "minorh": [
+      [
+        "Tonalidade menor",
+        "i ii° III iv V VI vii°"
+      ],
+      [
+        "Por que V?",
+        "a menor harmônica eleva o 7º grau → V maior"
+      ],
+      [
+        "Comuns",
+        "i–iv–V–i · i–VI–III–VII · i–VII–VI–V"
+      ]
+    ],
+    "nct": [
+      [
+        "Nota de passagem",
+        "passo a passo, mesma direção"
+      ],
+      [
+        "Bordadura",
+        "um passo ao lado, retorno à nota"
+      ],
+      [
+        "Retardo",
+        "nota sustentada que resolve descendo"
+      ],
+      [
+        "Apogiatura",
+        "salto, acentuada, resolução por grau"
+      ]
+    ],
+    "secdom": [
+      [
+        "V/x",
+        "acorde maior (7) uma quinta acima de x"
+      ],
+      [
+        "Em C",
+        "V/ii A7 · V/iii B7 · V/IV C7 · V/V D7 · V/vi E7"
+      ],
+      [
+        "Modulação",
+        "acorde pivô → novo V–I"
+      ],
+      [
+        "Condução de vozes",
+        "mantenha notas comuns · mova-se por graus · sem 5ªs/8ªs paralelas"
+      ]
+    ],
+    "form": [
+      [
+        "Motivo → frase",
+        "2–4 notas → ~4 compassos"
+      ],
+      [
+        "Período",
+        "antecedente (meia-cadência) + consequente (cadência perfeita)"
+      ],
+      [
+        "Formas",
+        "AB binária · ABA ternária · ABACA rondó"
+      ]
+    ],
+    "accomp": [
+      [
+        "Em bloco",
+        "acorde inteiro tocado no tempo"
+      ],
+      [
+        "Alberti",
+        "1-5-3-5"
+      ],
+      [
+        "Valsa",
+        "baixo – acorde – acorde (3/4)"
+      ],
+      [
+        "Balada",
+        "1-5-8-10 dedilhado"
+      ],
+      [
+        "Lead sheet",
+        "MD melodia · ME pelas cifras dos acordes"
+      ]
+    ]
+  },
+  "music": {
+    "intervals": {
+      "1": "Segunda menor",
+      "2": "Segunda maior",
+      "3": "Terça menor",
+      "4": "Terça maior",
+      "5": "Quarta justa",
+      "6": "Trítono",
+      "7": "Quinta justa",
+      "8": "Sexta menor",
+      "9": "Sexta maior",
+      "10": "Sétima menor",
+      "11": "Sétima maior",
+      "12": "Oitava",
+      "13": "Nona menor",
+      "14": "Nona maior",
+      "15": "Décima menor",
+      "16": "Décima maior",
+      "17": "Décima primeira justa",
+      "18": "Décima primeira aumentada",
+      "19": "Décima segunda justa",
+      "20": "Décima terceira menor",
+      "21": "Décima terceira maior",
+      "22": "Décima quarta menor",
+      "23": "Décima quarta maior",
+      "24": "Duas oitavas"
+    },
+    "scales": {
+      "Major (Ionian)": "Maior (jônica)",
+      "Dorian": "Dórica",
+      "Phrygian": "Frígia",
+      "Lydian": "Lídia",
+      "Mixolydian": "Mixolídia",
+      "Aeolian (Natural minor)": "Eólia (menor natural)",
+      "Locrian": "Lócria",
+      "Harmonic minor": "Menor harmônica",
+      "Melodic minor": "Menor melódica",
+      "Harmonic major": "Maior harmônica",
+      "Major pentatonic": "Pentatônica maior",
+      "Minor pentatonic": "Pentatônica menor",
+      "Blues": "Blues",
+      "Whole tone": "Tons inteiros",
+      "Diminished (W-H)": "Diminuta (tom–semitom)",
+      "Diminished (H-W)": "Diminuta (semitom–tom)",
+      "Phrygian dominant": "Frígia dominante",
+      "Hungarian minor": "Menor húngara",
+      "Chromatic": "Cromática"
+    },
+    "chords": {
+      "6": "Sexta maior",
+      "7": "Sétima dominante",
+      "9": "Nona dominante",
+      "11": "Décima primeira (sem terça)",
+      "13": "Décima terceira",
+      "maj9": "Nona maior",
+      "m9": "Nona menor",
+      "7♭9": "Sétima dominante com nona bemol",
+      "7♯9": "Sétima dominante com nona sustenida",
+      "maj7♯11": "Sétima maior com décima primeira sustenida",
+      "maj7": "Sétima maior",
+      "m7": "Sétima menor",
+      "mMaj7": "Menor com sétima maior",
+      "m7♭5": "Meio-diminuto com sétima",
+      "dim7": "Sétima diminuta",
+      "7♯5": "Sétima aumentada",
+      "7♭5": "Sétima dominante com quinta bemol",
+      "m6": "Sexta menor",
+      "add9": "Com nona adicionada",
+      "maj": "Maior",
+      "m": "Menor",
+      "dim": "Diminuto",
+      "aug": "Aumentado",
+      "sus2": "Segunda suspensa",
+      "sus4": "Quarta suspensa"
+    },
+    "categories": {
+      "interval": "Intervalos",
+      "chord": "Acordes",
+      "scale": "Escalas",
+      "prog": "Progressões"
+    },
+    "inversions": {
+      "0": "posição fundamental",
+      "1": "primeira inversão",
+      "2": "segunda inversão",
+      "3": "terceira inversão",
+      "4": "quarta inversão",
+      "5": "quinta inversão"
+    },
+    "feels": {
+      "6": "doce, retrô",
+      "7": "bluesy, pede resolução",
+      "9": "funky",
+      "maj": "brilhante, resolvido",
+      "m": "mais escuro, melancólico",
+      "dim": "tenso, instável",
+      "aug": "onírico, flutuante",
+      "sus2": "aberto, arejado",
+      "sus4": "suspenso",
+      "maj7": "aveludado, sofisticado",
+      "m7": "suave, caloroso",
+      "m7♭5": "sombrio, cinematográfico",
+      "dim7": "muito tenso",
+      "mMaj7": "noir, misterioso",
+      "m6": "nostálgico, agridoce",
+      "maj9": "sonhador",
+      "m9": "expressivo, profundo"
+    },
+    "songs": {
+      "1": {
+        "asc": [
+          "Tubarão (tema)",
+          "Stormy Weather"
+        ],
+        "desc": [
+          "Para Elise"
+        ]
+      },
+      "2": {
+        "asc": [
+          "Parabéns a Você",
+          "Frère Jacques",
+          "Noite Feliz"
+        ],
+        "desc": [
+          "Mary Had a Little Lamb",
+          "Três Ratos Cegos",
+          "Yesterday"
+        ]
+      },
+      "3": {
+        "asc": [
+          "Greensleeves",
+          "Smoke on the Water"
+        ],
+        "desc": [
+          "Hey Jude",
+          "This Old Man",
+          "Hino dos EUA"
+        ]
+      },
+      "4": {
+        "asc": [
+          "Oh When the Saints",
+          "Kumbaya",
+          "Danúbio Azul"
+        ],
+        "desc": [
+          "5ª Sinfonia de Beethoven",
+          "Swing Low, Sweet Chariot"
+        ]
+      },
+      "5": {
+        "asc": [
+          "Marcha Nupcial",
+          "Amazing Grace",
+          "Auld Lang Syne"
+        ],
+        "desc": [
+          "Born Free",
+          "Adeste Fideles"
+        ]
+      },
+      "6": {
+        "asc": [
+          "Os Simpsons (tema)",
+          "Maria (West Side Story)"
+        ],
+        "desc": [
+          "(incomum)"
+        ]
+      },
+      "7": {
+        "asc": [
+          "Brilha, Brilha, Estrelinha",
+          "Star Wars (tema)",
+          "2001: Uma Odisseia no Espaço"
+        ],
+        "desc": [
+          "Os Flintstones",
+          "Feelings"
+        ]
+      },
+      "8": {
+        "asc": [
+          "Love Story (tema)",
+          "Orfeu Negro (Manhã de Carnaval)",
+          "We’ve Only Just Begun"
+        ],
+        "desc": [
+          "Music of the Night"
+        ]
+      },
+      "9": {
+        "asc": [
+          "My Bonnie Lies Over the Ocean",
+          "Bate o Sino (Jingle Bells)"
+        ],
+        "desc": [
+          "Nobody Knows the Trouble I’ve Seen"
+        ]
+      },
+      "10": {
+        "asc": [
+          "Somewhere (West Side Story)",
+          "Star Trek (tema clássico)"
+        ],
+        "desc": [
+          "(incomum)"
+        ]
+      },
+      "11": {
+        "asc": [
+          "Take On Me (refrão)",
+          "Bali Ha’i"
+        ],
+        "desc": [
+          "(raro)"
+        ]
+      },
+      "12": {
+        "asc": [
+          "Over the Rainbow",
+          "Cantando na Chuva (Singin’ in the Rain)"
+        ],
+        "desc": [
+          "Willow Weep for Me"
+        ]
+      }
+    }
+  }
+}

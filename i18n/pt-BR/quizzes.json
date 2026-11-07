@@ -1,0 +1,880 @@
+{
+  "keys": [
+    {
+      "q": "Qual tecla branca fica imediatamente à esquerda do grupo de duas teclas pretas?",
+      "o": [
+        "Dó (C)",
+        "Fá (F)",
+        "Ré (D)",
+        "Si (B)"
+      ]
+    },
+    {
+      "q": "Quantos semitons há em uma oitava?",
+      "o": [
+        "12",
+        "8",
+        "7",
+        "10"
+      ]
+    },
+    {
+      "q": "Qual par forma um semitom natural sem tecla preta intermediária?",
+      "o": [
+        "Mi–Fá (E–F)",
+        "Dó–Ré (C–D)",
+        "Fá–Sol (F–G)",
+        "Lá–Si (A–B)"
+      ]
+    },
+    {
+      "q": "Toque o dó central (C4)."
+    },
+    {
+      "q": "Toque Mi (E) e depois Fá (F) — o semitom natural."
+    }
+  ],
+  "how": [
+    {
+      "q": "O que funciona melhor para a retenção na memória de longo prazo?",
+      "o": [
+        "Sessões curtas diárias com revisão espaçada",
+        "Uma única sessão longa por semana",
+        "Reler o material até parecer familiar",
+        "Apenas ouvir sem praticar"
+      ]
+    },
+    {
+      "q": "Por que misturar diferentes tipos de exercícios em uma mesma sessão?",
+      "o": [
+        "Intercalar exige escolher a estratégia correta: a fixação é maior",
+        "É um método mais rápido",
+        "Evita cometer qualquer erro",
+        "Não produz nenhum efeito"
+      ]
+    },
+    {
+      "q": "Errar uma resposta e ver a correção logo em seguida é…",
+      "o": [
+        "muito útil: evocação ativa acompanhada de feedback",
+        "perda de tempo",
+        "prejudicial à memória",
+        "útil apenas para iniciantes"
+      ]
+    }
+  ],
+  "notation": [
+    {
+      "q": "Na clave de sol, a primeira linha de baixo é…",
+      "o": [
+        "Mi4 (E4)",
+        "Sol4 (G4)",
+        "Fá4 (F4)",
+        "Dó4 (C4)"
+      ],
+      "why": "Linhas da clave de sol: Mi Sol Si Ré Fá (E G B D F)."
+    },
+    {
+      "q": "Na clave de fá, a quinta linha de cima é…",
+      "o": [
+        "Lá3 (A3)",
+        "Sol3 (G3)",
+        "Fá3 (F3)",
+        "Dó4 (C4)"
+      ],
+      "why": "Linhas da clave de fá: Sol Si Ré Fá Lá (G B D F A)."
+    },
+    {
+      "q": "Um sustenido (♯) colocado antes de uma nota…",
+      "o": [
+        "eleva a nota em um semitom",
+        "abaixa a nota em um semitom",
+        "apenas anula um bemol",
+        "aumenta o volume do som"
+      ]
+    },
+    {
+      "q": "Até quando dura o efeito de um acidente ocorrente?",
+      "o": [
+        "Até o fim do compasso",
+        "Apenas para aquela nota",
+        "Por toda a peça musical",
+        "Até a linha seguinte"
+      ]
+    },
+    {
+      "q": "Toque a nota situada na segunda linha da clave de sol: Sol4 (G4)."
+    }
+  ],
+  "symbols": [
+    {
+      "q": "O que significa a indicação D.C. al Fine?",
+      "o": [
+        "Voltar ao início e parar na indicação Fine",
+        "Saltar diretamente para a coda",
+        "Repetir o último compasso",
+        "Tocar mais forte até o final"
+      ]
+    },
+    {
+      "q": "Uma linha curva que une duas notas da mesma altura é uma…",
+      "o": [
+        "ligadura de valor (prolongamento)",
+        "ligadura de expressão (fraseado)",
+        "indicação de crescendo",
+        "fermata"
+      ]
+    },
+    {
+      "q": "Um ponto acima ou abaixo de uma nota (staccato) indica…",
+      "o": [
+        "som curto e destacado",
+        "sustentar a nota por mais tempo",
+        "tocar com maior volume",
+        "tocar uma oitava acima"
+      ]
+    },
+    {
+      "q": "A indicação “Ped.” seguida de ✱ orienta…",
+      "o": [
+        "abaixar e soltar o pedal de sustentação",
+        "fazer uma pausa prolongada",
+        "uma repetição de trecho",
+        "o dedo a ser utilizado"
+      ]
+    },
+    {
+      "q": "O dedo número 1 corresponde ao…",
+      "o": [
+        "polegar",
+        "indicador",
+        "mínimo",
+        "médio"
+      ]
+    }
+  ],
+  "dyn": [
+    {
+      "q": "Ordene estas dinâmicas da mais suave para a mais forte.",
+      "o": [
+        "pp · p · mp · mf · f · ff",
+        "p · pp · mf · mp · f · ff",
+        "mp · p · pp · f · mf · ff",
+        "pp · mp · p · f · mf · ff"
+      ]
+    },
+    {
+      "q": "“Crescendo” significa…",
+      "o": [
+        "gradualmente mais forte",
+        "gradualmente mais suave",
+        "gradualmente mais rápido",
+        "subitamente forte"
+      ]
+    },
+    {
+      "q": "“sfz” (sforzando) indica…",
+      "o": [
+        "um acento súbito e vigoroso",
+        "muito suave",
+        "reduzir o andamento",
+        "sustentar a nota"
+      ]
+    },
+    {
+      "q": "“mf” significa…",
+      "o": [
+        "mezzo forte — moderadamente forte",
+        "molto forte — muito forte",
+        "meno forte — menos forte",
+        "andamento moderadamente rápido"
+      ]
+    }
+  ],
+  "rh": [
+    {
+      "q": "Quantas semínimas preenchem um compasso 4/4?",
+      "o": [
+        "4",
+        "2",
+        "3",
+        "8"
+      ]
+    },
+    {
+      "q": "Uma mínima pontuada dura…",
+      "o": [
+        "3 tempos",
+        "2 tempos",
+        "2½ tempos",
+        "4 tempos"
+      ]
+    },
+    {
+      "q": "Ouça com atenção: qual é a fórmula de compasso?",
+      "o": [
+        "3/4 (valsa)",
+        "4/4",
+        "2/4",
+        "6/8"
+      ]
+    },
+    {
+      "q": "Em 4/4, quais tempos costumam ser os mais fortes?",
+      "o": [
+        "1 (e 3)",
+        "2 e 4",
+        "apenas o 4",
+        "todos iguais"
+      ]
+    }
+  ],
+  "rh2": [
+    {
+      "q": "Uma tercina acomoda três notas no tempo equivalente a…",
+      "o": [
+        "duas figuras de mesmo valor",
+        "quatro",
+        "uma figura pontuada",
+        "três"
+      ]
+    },
+    {
+      "q": "O compasso 6/8 é normalmente sentido em…",
+      "o": [
+        "2 pulsos de semínima pontuada",
+        "6 pulsos iguais de semínima",
+        "3 tempos",
+        "4 tempos"
+      ]
+    },
+    {
+      "q": "Síncope significa…",
+      "o": [
+        "acentuar um tempo fraco ou contratempo",
+        "tocar mais rápido",
+        "uma pausa longa",
+        "mudança de tonalidade"
+      ]
+    },
+    {
+      "q": "Qual destes andamentos é o mais lento?",
+      "o": [
+        "Largo",
+        "Andante",
+        "Allegro",
+        "Presto"
+      ]
+    },
+    {
+      "q": "“Ritardando” significa…",
+      "o": [
+        "reduzir gradualmente a velocidade",
+        "acelerar gradualmente",
+        "retornar ao andamento inicial",
+        "muito rápido"
+      ]
+    }
+  ],
+  "iv": [
+    {
+      "q": "Ouça com atenção: identifique o intervalo.",
+      "o": [
+        "Quinta justa",
+        "Terça maior",
+        "Quarta justa",
+        "Oitava"
+      ]
+    },
+    {
+      "q": "Quantos semitons existem em uma terça maior?",
+      "o": [
+        "4",
+        "3",
+        "5",
+        "2"
+      ]
+    },
+    {
+      "q": "De Dó (C) subindo até Lá (A) temos uma…",
+      "o": [
+        "sexta maior",
+        "sexta menor",
+        "quinta justa",
+        "sétima maior"
+      ]
+    },
+    {
+      "q": "Ouça com atenção: identifique o intervalo.",
+      "o": [
+        "Terça menor",
+        "Terça maior",
+        "Segunda maior",
+        "Quarta justa"
+      ]
+    },
+    {
+      "q": "Toque uma quinta justa ascendente a partir de Ré (D): Ré e depois Lá."
+    }
+  ],
+  "iv2": [
+    {
+      "q": "De Dó a Fá♯ (6 semitons) temos uma…",
+      "o": [
+        "quarta aumentada (trítono)",
+        "quarta justa",
+        "sexta menor",
+        "terça maior"
+      ]
+    },
+    {
+      "q": "Ao inverter uma terça maior obtemos uma…",
+      "o": [
+        "sexta menor",
+        "sexta maior",
+        "quinta justa",
+        "terça menor"
+      ],
+      "why": "A soma dos números é 9; maior ↔ menor."
+    },
+    {
+      "q": "De Dó4 subindo até Ré5 temos uma…",
+      "o": [
+        "nona maior",
+        "segunda maior",
+        "nona menor",
+        "décima maior"
+      ]
+    },
+    {
+      "q": "Dó–Mi♭ em relação a Dó–Ré♯: mesmas teclas no piano, porém são…",
+      "o": [
+        "terça menor vs segunda aumentada",
+        "exatamente o mesmo intervalo",
+        "terça maior vs terça menor",
+        "quarta vs quinta"
+      ]
+    },
+    {
+      "q": "Toque um trítono: Fá e depois Si (F e depois B)."
+    }
+  ],
+  "sc": [
+    {
+      "q": "O padrão de passos da escala maior é…",
+      "o": [
+        "T T S T T T S",
+        "T S T T S T T",
+        "T T T S T T S",
+        "S T T T S T T"
+      ]
+    },
+    {
+      "q": "Quantos sustenidos tem a escala de Sol maior (G)?",
+      "o": [
+        "1",
+        "0",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "q": "Qual nota é a sensível em Dó maior?",
+      "o": [
+        "Si (B)",
+        "Sol (G)",
+        "Fá (F)",
+        "Ré (D)"
+      ]
+    },
+    {
+      "q": "Ouça com atenção: é maior ou menor?",
+      "o": [
+        "Menor",
+        "Maior"
+      ]
+    },
+    {
+      "q": "Toque os graus 1, 3 e 5 de Sol maior: Sol, Si e Ré (G, B, D)."
+    }
+  ],
+  "minor": [
+    {
+      "q": "Qual grau é elevado na escala menor harmônica?",
+      "o": [
+        "o 7º grau",
+        "o 6º grau",
+        "o 3º grau",
+        "o 2º grau"
+      ]
+    },
+    {
+      "q": "A escala de Lá menor melódica ascendente é…",
+      "o": [
+        "Lá Si Dó Ré Mi Fá♯ Sol♯ Lá",
+        "Lá Si Dó Ré Mi Fá Sol Lá",
+        "Lá Si Dó Ré Mi Fá Sol♯ Lá",
+        "Lá Si Dó♯ Ré Mi Fá♯ Sol♯ Lá"
+      ]
+    },
+    {
+      "q": "O 5º grau de uma escala é chamado de…",
+      "o": [
+        "dominante",
+        "subdominante",
+        "mediante",
+        "tônica"
+      ]
+    },
+    {
+      "q": "A ordem dos sustenidos começa com…",
+      "o": [
+        "Fá Dó Sol Ré (F C G D)",
+        "Si Mi Lá Ré (B E A D)",
+        "Dó Sol Ré Lá (C G D A)",
+        "Fá Si Mi Lá (F B E A)"
+      ]
+    },
+    {
+      "q": "Ouça com atenção: qual tipo de escala menor é?",
+      "o": [
+        "Menor harmônica",
+        "Menor natural",
+        "Menor melódica"
+      ]
+    },
+    {
+      "q": "Toque a tríade de Lá menor: Lá, Dó e Mi (A, C, E)."
+    }
+  ],
+  "cof": [
+    {
+      "q": "No sentido horário do círculo das quintas, cada passo acrescenta um…",
+      "o": [
+        "sustenido",
+        "bemol",
+        "oitava",
+        "tempo"
+      ]
+    },
+    {
+      "q": "Qual tonalidade maior possui 3 bemóis na armadura?",
+      "o": [
+        "Mi♭ maior (E♭)",
+        "Lá♭ maior (A♭)",
+        "Si♭ maior (B♭)",
+        "Lá maior (A)"
+      ]
+    },
+    {
+      "q": "Qual é a relativa menor de Fá maior (F)?",
+      "o": [
+        "Ré menor (Dm)",
+        "Lá menor (Am)",
+        "Fá menor (Fm)",
+        "Sol menor (Gm)"
+      ]
+    },
+    {
+      "q": "O último sustenido da armadura fica sempre um semitom abaixo de…",
+      "o": [
+        "a tônica maior",
+        "a dominante",
+        "a relativa menor",
+        "o 4º grau"
+      ]
+    },
+    {
+      "q": "Toque a tríade da tônica de Ré maior: Ré, Fá♯ e Lá (D, F♯, A)."
+    }
+  ],
+  "modes": [
+    {
+      "q": "O modo dórico é uma escala menor com o grau elevado…",
+      "o": [
+        "6º",
+        "7º",
+        "2º",
+        "4º"
+      ]
+    },
+    {
+      "q": "Qual modo é uma escala maior com o 7º grau rebaixado (♭7)?",
+      "o": [
+        "Mixolídio",
+        "Lídio",
+        "Frígio",
+        "Lócrio"
+      ]
+    },
+    {
+      "q": "A nota característica do modo lídio é…",
+      "o": [
+        "♯4",
+        "♭2",
+        "♭7",
+        "♭3"
+      ]
+    },
+    {
+      "q": "Ré dórico utiliza as teclas brancas de…",
+      "o": [
+        "Ré a Ré (D a D)",
+        "Dó a Dó (C a C)",
+        "Mi a Mi (E a E)",
+        "Lá a Lá (A a A)"
+      ]
+    }
+  ],
+  "ch": [
+    {
+      "q": "Uma tríade maior é formada por…",
+      "o": [
+        "terça maior + terça menor",
+        "terça menor + terça maior",
+        "duas terças maiores",
+        "duas terças menores"
+      ]
+    },
+    {
+      "q": "Ouça com atenção: qual é a qualidade deste acorde?",
+      "o": [
+        "Menor",
+        "Maior",
+        "Diminuto",
+        "Aumentado"
+      ]
+    },
+    {
+      "q": "As notas Mi–Sol–Dó formam o acorde de Dó maior em…",
+      "o": [
+        "1ª inversão",
+        "posição fundamental",
+        "2ª inversão",
+        "outra tonalidade"
+      ]
+    },
+    {
+      "q": "Toque o acorde de Lá menor (Lá, Dó, Mi) — em qualquer oitava ou inversão."
+    },
+    {
+      "q": "Toque o acorde de Fá maior (Fá, Lá, Dó)."
+    }
+  ],
+  "ch7": [
+    {
+      "q": "O acorde C7 (Dó com sétima da dominante) contém as notas…",
+      "o": [
+        "Dó Mi Sol Si♭ (C E G B♭)",
+        "Dó Mi Sol Si (C E G B)",
+        "Dó Mi♭ Sol Si♭ (C E♭ G B♭)",
+        "Dó Mi♭ Sol♭ Lá (C E♭ G♭ A)"
+      ]
+    },
+    {
+      "q": "Ouça com atenção: qual acorde com sétima está soando?",
+      "o": [
+        "Sétima maior (maj7)",
+        "Sétima dominante (7)",
+        "Sétima menor (m7)",
+        "Sétima diminuta (dim7)"
+      ]
+    },
+    {
+      "q": "Bm7♭5 (Si meio-diminuto) é o acorde sobre qual grau de Dó maior?",
+      "o": [
+        "vii°",
+        "ii",
+        "V",
+        "iii"
+      ]
+    },
+    {
+      "q": "A cifra C/E significa…",
+      "o": [
+        "um acorde de Dó com Mi no baixo",
+        "tocar Dó e depois Mi",
+        "acorde de Dó ou Mi maior",
+        "acorde de Dó menor"
+      ]
+    },
+    {
+      "q": "O acorde Csus4 substitui a terça por…",
+      "o": [
+        "a quarta (Fá / F)",
+        "a segunda (Ré / D)",
+        "a sexta (Lá / A)",
+        "a sétima (Si♭ / B♭)"
+      ]
+    },
+    {
+      "q": "Toque G7: Sol, Si, Ré e Fá (G, B, D, F)."
+    }
+  ],
+  "pr": [
+    {
+      "q": "Em Dó maior, o acorde V é…",
+      "o": [
+        "Sol maior (G)",
+        "Fá maior (F)",
+        "Lá menor (Am)",
+        "Mi menor (Em)"
+      ]
+    },
+    {
+      "q": "Quais acordes são menores em uma tonalidade maior?",
+      "o": [
+        "ii, iii, vi",
+        "I, IV, V",
+        "ii, V, vii°",
+        "iii, IV, vi"
+      ]
+    },
+    {
+      "q": "Quantos compassos tem uma forma padrão de blues?",
+      "o": [
+        "12",
+        "8",
+        "16",
+        "4"
+      ]
+    },
+    {
+      "q": "Em um blues de 12 compassos, o compasso 5 vai para…",
+      "o": [
+        "IV",
+        "V",
+        "I",
+        "vi"
+      ]
+    },
+    {
+      "q": "Toque o acorde IV em Dó: Fá, Lá e Dó (F, A, C)."
+    }
+  ],
+  "cad": [
+    {
+      "q": "A progressão V → I é uma cadência…",
+      "o": [
+        "autêntica (perfeita)",
+        "plagal",
+        "meia-cadência",
+        "de engano (interrompida)"
+      ]
+    },
+    {
+      "q": "Uma frase que repousa sobre o acorde V é uma…",
+      "o": [
+        "meia-cadência",
+        "cadência perfeita",
+        "cadência plagal",
+        "cadência de engano"
+      ]
+    },
+    {
+      "q": "Ouça com atenção: qual cadência está soando?",
+      "o": [
+        "De engano (V → vi)",
+        "Perfeita (V → I)",
+        "Plagal (IV → I)",
+        "Meia-cadência (I → V)"
+      ]
+    },
+    {
+      "q": "A clássica cadência do “Amém” corresponde a…",
+      "o": [
+        "IV → I (plagal)",
+        "V → I",
+        "I → V",
+        "V → vi"
+      ]
+    }
+  ],
+  "minorh": [
+    {
+      "q": "Em Lá menor, o acorde V se torna maior devido a…",
+      "o": [
+        "a elevação do 7º grau (Sol♯)",
+        "a elevação do 6º grau",
+        "o rebaixamento da terça",
+        "uma modulação tonal"
+      ]
+    },
+    {
+      "q": "Em Lá menor, a progressão i – iv – V – i é…",
+      "o": [
+        "Am – Dm – E – Am",
+        "Am – D – Em – Am",
+        "A – D – E – A",
+        "Am – F – G – Am"
+      ]
+    },
+    {
+      "q": "Nos algarismos romanos em modo menor, letras minúsculas indicam…",
+      "o": [
+        "acorde menor (ou diminuto)",
+        "acorde tocado suavemente",
+        "uma inversão",
+        "acorde com sétima"
+      ]
+    },
+    {
+      "q": "Toque Mi maior — o V de Lá menor (Mi, Sol♯, Si / E, G♯, B)."
+    }
+  ],
+  "nct": [
+    {
+      "q": "Uma nota de passagem move-se…",
+      "o": [
+        "por grau conjunto entre duas notas do acorde",
+        "por salto afastando-se do acorde",
+        "sustentando a mesma nota",
+        "apenas na voz do baixo"
+      ]
+    },
+    {
+      "q": "Uma bordadura (nota vizinha)…",
+      "o": [
+        "afasta-se por grau e retorna à mesma nota",
+        "salta uma oitava inteira",
+        "é sempre nota do acorde",
+        "equivale a uma pausa"
+      ]
+    },
+    {
+      "q": "Um retardo resolve normalmente…",
+      "o": [
+        "descendo por grau conjunto",
+        "subindo por salto",
+        "nunca resolve",
+        "na nota do baixo"
+      ]
+    },
+    {
+      "q": "Uma apogiatura é…",
+      "o": [
+        "uma dissonância acentuada atingida por salto e resolvida por grau",
+        "uma nota suave do acorde",
+        "um tipo de pausa musical",
+        "uma nota repetida"
+      ]
+    }
+  ],
+  "secdom": [
+    {
+      "q": "Em Dó maior, o acorde V/V é…",
+      "o": [
+        "Ré maior (D7 / Ré7)",
+        "Sol maior (G)",
+        "Lá menor (Am)",
+        "Fá maior (F)"
+      ]
+    },
+    {
+      "q": "Uma dominante secundária é…",
+      "o": [
+        "o V de um acorde diferente de I",
+        "qualquer acorde menor",
+        "o segundo acorde de uma peça",
+        "um acorde sem terça"
+      ]
+    },
+    {
+      "q": "De Dó maior para Sol maior: a nova tonalidade é a…",
+      "o": [
+        "tonalidade da dominante",
+        "relativa menor",
+        "tonalidade da subdominante",
+        "homônima menor"
+      ]
+    },
+    {
+      "q": "Uma boa condução de vozes prioriza…",
+      "o": [
+        "manter notas comuns e avançar por graus conjuntos",
+        "todas as vozes saltando simultaneamente",
+        "quintas paralelas consecutivas",
+        "dobrar a sensível"
+      ]
+    },
+    {
+      "q": "Toque A7: V/ii em Dó (Lá, Dó♯, Mi, Sol / A, C♯, E, G)."
+    }
+  ],
+  "form": [
+    {
+      "q": "Uma ideia musical curta que é repetida e desenvolvida é um…",
+      "o": [
+        "motivo",
+        "cadência",
+        "coda",
+        "compasso"
+      ]
+    },
+    {
+      "q": "A–B–A–C–A corresponde à forma…",
+      "o": [
+        "rondó",
+        "forma binária",
+        "forma ternária",
+        "um período"
+      ]
+    },
+    {
+      "q": "Um período musical é formado por…",
+      "o": [
+        "frases antecedente e consequente",
+        "um único compasso",
+        "uma sonata completa",
+        "uma barra de repetição"
+      ]
+    },
+    {
+      "q": "A frase antecedente conclui normalmente com uma…",
+      "o": [
+        "meia-cadência",
+        "cadência perfeita",
+        "modulação",
+        "fermata"
+      ]
+    }
+  ],
+  "accomp": [
+    {
+      "q": "O baixo de Alberti toca as notas do acorde na ordem…",
+      "o": [
+        "grave – aguda – média – aguda",
+        "grave – média – aguda",
+        "todas juntas em bloco",
+        "aguda – grave"
+      ]
+    },
+    {
+      "q": "Ouça com atenção: qual padrão de acompanhamento está soando?",
+      "o": [
+        "Valsa (baixo – acorde – acorde)",
+        "Alberti",
+        "Acordes em bloco",
+        "Arpejo de balada"
+      ]
+    },
+    {
+      "q": "Uma lead sheet (partitura guia) traz…",
+      "o": [
+        "a melodia acompanhada das cifras de acordes",
+        "cada nota escrita para ambas as mãos",
+        "apenas a letra da canção",
+        "somente a fórmula de compasso"
+      ]
+    },
+    {
+      "q": "Na lead sheet, a mão esquerda normalmente toca…",
+      "o": [
+        "a fundamental do acorde ou um padrão a partir da cifra",
+        "a melodia principal",
+        "nada",
+        "notas aleatórias"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,231 @@
+{
+  "intervals": {
+    "1": "Kleine Sekunde",
+    "2": "Große Sekunde",
+    "3": "Kleine Terz",
+    "4": "Große Terz",
+    "5": "Reine Quarte",
+    "6": "Tritonus",
+    "7": "Reine Quinte",
+    "8": "Kleine Sexte",
+    "9": "Große Sexte",
+    "10": "Kleine Septime",
+    "11": "Große Septime",
+    "12": "Oktave",
+    "13": "Kleine None",
+    "14": "Große None",
+    "15": "Kleine Dezime",
+    "16": "Große Dezime",
+    "17": "Reine Undezime",
+    "18": "Übermäßige Undezime",
+    "19": "Reine Duodezime",
+    "20": "Kleine Tredezime",
+    "21": "Große Tredezime",
+    "22": "Kleine Quartdezime",
+    "23": "Große Quartdezime",
+    "24": "Zwei Oktaven"
+  },
+  "scales": {
+    "Major (Ionian)": "Dur (Ionisch)",
+    "Dorian": "Dorisch",
+    "Phrygian": "Phrygisch",
+    "Lydian": "Lydisch",
+    "Mixolydian": "Mixolydisch",
+    "Aeolian (Natural minor)": "Äolisch (Natürliches Moll)",
+    "Locrian": "Lokrisch",
+    "Harmonic minor": "Harmonisches Moll",
+    "Melodic minor": "Melodisches Moll",
+    "Harmonic major": "Harmonisches Dur",
+    "Major pentatonic": "Dur-Pentatonik",
+    "Minor pentatonic": "Moll-Pentatonik",
+    "Blues": "Blues",
+    "Whole tone": "Ganztonleiter",
+    "Diminished (W-H)": "Vermindert (GT-HT)",
+    "Diminished (H-W)": "Vermindert (HT-GT)",
+    "Phrygian dominant": "Phrygisch-dominant",
+    "Hungarian minor": "Ungarisches Moll",
+    "Chromatic": "Chromatisch"
+  },
+  "chords": {
+    "6": "Dur-Sextakkord",
+    "7": "Dominantseptakkord",
+    "9": "Dominantseptnonenakkord",
+    "11": "Undezimakkord (ohne Terz)",
+    "13": "Tredezimakkord",
+    "maj9": "Major-9-Akkord",
+    "m9": "Moll-9-Akkord",
+    "7♭9": "Dominantseptakkord mit kleiner None (7♭9)",
+    "7♯9": "Dominantseptakkord mit übermäßiger None (7♯9)",
+    "maj7♯11": "Major-Septakkord ♯11",
+    "maj7": "Major-Septakkord",
+    "m7": "Moll-Septakkord",
+    "mMaj7": "Moll-Major-Septakkord",
+    "m7♭5": "Halbverminderter Septakkord",
+    "dim7": "Verminderter Septakkord",
+    "7♯5": "Übermäßiger Septakkord (7♯5)",
+    "7♭5": "Dominantseptakkord mit verminderter Quinte (7♭5)",
+    "m6": "Moll-Sextakkord",
+    "add9": "Dur mit zugefügter None (add9)",
+    "maj": "Dur",
+    "m": "Moll",
+    "dim": "Vermindert",
+    "aug": "Übermäßig",
+    "sus2": "Vorhaltsakkord mit Sekunde (sus2)",
+    "sus4": "Vorhaltsakkord mit Quarte (sus4)"
+  },
+  "categories": {
+    "interval": "Intervalle",
+    "chord": "Akkorde",
+    "scale": "Tonleitern",
+    "prog": "Akkordfolgen"
+  },
+  "inversions": {
+    "0": "Grundstellung",
+    "1": "1. Umkehrung",
+    "2": "2. Umkehrung",
+    "3": "3. Umkehrung",
+    "4": "4. Umkehrung",
+    "5": "5. Umkehrung"
+  },
+  "feels": {
+    "6": "süß, nostalgisch",
+    "7": "bluesig, strebt nach Auflösung",
+    "9": "funky",
+    "maj": "hell, aufgelöst",
+    "m": "dunkler, melancholisch",
+    "dim": "gespannt, instabil",
+    "aug": "traumhaft",
+    "sus2": "offen, luftig",
+    "sus4": "schwebend",
+    "maj7": "üppig, jazzig",
+    "m7": "weich, sanft",
+    "m7♭5": "düster, filmisch",
+    "dim7": "sehr spannungsreich",
+    "mMaj7": "noir, geheimnisvoll",
+    "m6": "wehmütig",
+    "maj9": "verträumt",
+    "m9": "ausdrucksvoll"
+  },
+  "songs": {
+    "1": {
+      "asc": [
+        "Der weiße Hai (Jaws-Thema)",
+        "Stormy Weather"
+      ],
+      "desc": [
+        "Für Elise"
+      ]
+    },
+    "2": {
+      "asc": [
+        "Happy Birthday",
+        "Frère Jacques",
+        "Stille Nacht"
+      ],
+      "desc": [
+        "Mary Had a Little Lamb",
+        "Alle meine Entchen",
+        "Yesterday"
+      ]
+    },
+    "3": {
+      "asc": [
+        "Greensleeves",
+        "Smoke on the Water"
+      ],
+      "desc": [
+        "Hey Jude",
+        "Ein Männlein steht im Walde",
+        "Star-Spangled Banner"
+      ]
+    },
+    "4": {
+      "asc": [
+        "Oh When the Saints",
+        "Kumbaya",
+        "An der schönen blauen Donau"
+      ],
+      "desc": [
+        "Beethovens 5. Sinfonie",
+        "Swing Low, Sweet Chariot"
+      ]
+    },
+    "5": {
+      "asc": [
+        "Brautchor (Treulich geführt)",
+        "Amazing Grace",
+        "Auld Lang Syne"
+      ],
+      "desc": [
+        "Born Free",
+        "Herbei, o ihr Gläub’gen (Adeste Fideles)"
+      ]
+    },
+    "6": {
+      "asc": [
+        "Die Simpsons",
+        "Maria (West Side Story)"
+      ],
+      "desc": [
+        "(selten)"
+      ]
+    },
+    "7": {
+      "asc": [
+        "Morgen kommt der Weihnachtsmann (Twinkle Twinkle)",
+        "Star Wars",
+        "Also sprach Zarathustra"
+      ],
+      "desc": [
+        "Familie Feuerstein (The Flintstones)",
+        "Feelings"
+      ]
+    },
+    "8": {
+      "asc": [
+        "Love Story (Thema)",
+        "Black Orpheus",
+        "We’ve Only Just Begun"
+      ],
+      "desc": [
+        "Music of the Night"
+      ]
+    },
+    "9": {
+      "asc": [
+        "My Bonnie Lies Over the Ocean",
+        "Kling, Glöckchen (Jingle Bells)"
+      ],
+      "desc": [
+        "Nobody Knows the Trouble I’ve Seen"
+      ]
+    },
+    "10": {
+      "asc": [
+        "Somewhere (West Side Story)",
+        "Star Trek (Raumschiff Enterprise)"
+      ],
+      "desc": [
+        "(selten)"
+      ]
+    },
+    "11": {
+      "asc": [
+        "Take On Me (Refrain)",
+        "Bali Ha’i"
+      ],
+      "desc": [
+        "(sehr selten)"
+      ]
+    },
+    "12": {
+      "asc": [
+        "Over the Rainbow",
+        "Singin’ in the Rain"
+      ],
+      "desc": [
+        "Willow Weep for Me"
+      ]
+    }
+  }
+}

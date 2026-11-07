@@ -1,0 +1,880 @@
+{
+  "keys": [
+    {
+      "q": "Welche weiße Taste liegt unmittelbar links neben der Zweiergruppe schwarzer Tasten?",
+      "o": [
+        "C",
+        "F",
+        "D",
+        "H"
+      ]
+    },
+    {
+      "q": "Wie viele Halbtöne umfasst eine Oktave?",
+      "o": [
+        "12",
+        "8",
+        "7",
+        "10"
+      ]
+    },
+    {
+      "q": "Welches Tastenpaar bildet einen natürlichen Halbtonschritt ohne schwarze Taste dazwischen?",
+      "o": [
+        "E–F",
+        "C–D",
+        "F–G",
+        "A–H"
+      ]
+    },
+    {
+      "q": "Spiele das mittlere C (C4)."
+    },
+    {
+      "q": "Spiele E und danach F – den natürlichen Halbtonschritt."
+    }
+  ],
+  "how": [
+    {
+      "q": "Was fördert das langfristige Behalten am meisten?",
+      "o": [
+        "Kurze tägliche Einheiten mit verteilter Wiederholung",
+        "Eine einzige lange Lerneinheit pro Woche",
+        "Wiederholtes Durchlesen, bis es vertraut wirkt",
+        "Reines passives Zuhören"
+      ]
+    },
+    {
+      "q": "Warum lohnt es sich, verschiedene Übungstypen in einer Einheit zu mischen?",
+      "o": [
+        "Das Wechseln zwingt zum Auswählen der richtigen Strategie – das Wissen verankert sich tiefer",
+        "Es spart Zeit",
+        "Fehler werden vollständig vermieden",
+        "Es hat keinen nachweisbaren Einfluss"
+      ]
+    },
+    {
+      "q": "Ein Fehler beim Beantworten mit anschließender Korrektur ist …",
+      "o": [
+        "äußerst wertvoll – aktiver Abruf gepaart mit Rückmeldung",
+        "reine Zeitverschwendung",
+        "schädlich für das Gedächtnis",
+        "nur für Anfänger geeignet"
+      ]
+    }
+  ],
+  "notation": [
+    {
+      "q": "Welcher Ton liegt im Violinschlüssel auf der untersten Linie?",
+      "o": [
+        "E4",
+        "G4",
+        "F4",
+        "C4"
+      ],
+      "why": "Linien im Violinschlüssel von unten nach oben: E G H D F (international E G B D F)."
+    },
+    {
+      "q": "Welcher Ton liegt im Bassschlüssel auf der obersten Linie?",
+      "o": [
+        "A3",
+        "G3",
+        "F3",
+        "C4"
+      ],
+      "why": "Linien im Bassschlüssel von unten nach oben: G H D F A (international G B D F A)."
+    },
+    {
+      "q": "Ein Kreuz (♯) vor einer Note bewirkt Folgendes:",
+      "o": [
+        "Es erhöht den Ton um einen Halbtonschritt",
+        "Es erniedrigt den Ton um einen Halbtonschritt",
+        "Es löst ausschließlich ein Be auf",
+        "Es macht den Ton lauter"
+      ]
+    },
+    {
+      "q": "Wie lange gilt ein Versetzungszeichen vor einer Note?",
+      "o": [
+        "Bis zum Ende des aktuellen Takts",
+        "Nur für diese einzelne Note",
+        "Für das gesamte restliche Musikstück",
+        "Bis zur nächsten Notenzeile"
+      ]
+    },
+    {
+      "q": "Spiele den Ton auf der zweiten Linie im Violinschlüssel (G4)."
+    }
+  ],
+  "symbols": [
+    {
+      "q": "Was bedeutet die Spielanweisung D.C. al Fine?",
+      "o": [
+        "Von vorne beginnen (Da Capo) und beim Wort Fine aufhören",
+        "Direkt zur Coda springen",
+        "Den letzten Takt wiederholen",
+        "Bis zum Ende immer lauter spielen"
+      ]
+    },
+    {
+      "q": "Eine gebogene Linie, die zwei Noten derselben Tonhöhe verbindet, heißt …",
+      "o": [
+        "Haltebogen",
+        "Bindebogen (Legato)",
+        "Crescendo-Gabel",
+        "Fermate"
+      ]
+    },
+    {
+      "q": "Ein Punkt direkt über oder unter einem Notenkopf (Staccato) bedeutet:",
+      "o": [
+        "kurz und abgesetzt spielen",
+        "den Ton länger aushalten",
+        "den Ton lauter anschlagen",
+        "eine Oktave höher spielen"
+      ]
+    },
+    {
+      "q": "Die Bezeichnung „Ped.“ gefolgt von ✱ zeigt Folgendes an:",
+      "o": [
+        "das Haltepedal treten und an der Markierung loslassen",
+        "eine Pause einlegen",
+        "eine Wiederholung beginnen",
+        "den zu verwendenden Finger"
+      ]
+    },
+    {
+      "q": "Die Fingerbezeichnung 1 steht für den …",
+      "o": [
+        "Daumen",
+        "Zeigefinger",
+        "kleinen Finger",
+        "Mittelfinger"
+      ]
+    }
+  ],
+  "dyn": [
+    {
+      "q": "Bringe diese Dynamikstufen in die richtige Reihenfolge von leisester zu lautester:",
+      "o": [
+        "pp · p · mp · mf · f · ff",
+        "p · pp · mf · mp · f · ff",
+        "mp · p · pp · f · mf · ff",
+        "pp · mp · p · f · mf · ff"
+      ]
+    },
+    {
+      "q": "Was bedeutet der Begriff „Crescendo“?",
+      "o": [
+        "allmählich lauter werdend",
+        "allmählich leiser werdend",
+        "allmählich schneller werdend",
+        "plötzlich laut"
+      ]
+    },
+    {
+      "q": "Was bedeutet die Bezeichnung „sfz“ (Sforzando)?",
+      "o": [
+        "ein plötzlicher, kräftiger Akzent",
+        "sehr leise spielen",
+        "das Tempo verlangsamen",
+        "den Ton lange halten"
+      ]
+    },
+    {
+      "q": "Wofür steht die Abkürzung „mf“?",
+      "o": [
+        "mezzoforte — mittellaut",
+        "molto forte — sehr laut",
+        "meno forte — weniger laut",
+        "mäßig schnell"
+      ]
+    }
+  ],
+  "rh": [
+    {
+      "q": "Wie viele Viertelnoten füllen einen vollen 4/4-Takt?",
+      "o": [
+        "4",
+        "2",
+        "3",
+        "8"
+      ]
+    },
+    {
+      "q": "Wie viele Schläge dauert eine punktierte halbe Note im 4/4-Takt?",
+      "o": [
+        "3 Schläge",
+        "2 Schläge",
+        "2½ Schläge",
+        "4 Schläge"
+      ]
+    },
+    {
+      "q": "Höre genau hin: Welche Taktart erklingt hier?",
+      "o": [
+        "3/4 (Walzer)",
+        "4/4",
+        "2/4",
+        "6/8"
+      ]
+    },
+    {
+      "q": "Welche Zählzeiten sind im 4/4-Takt üblicherweise am stärksten betont?",
+      "o": [
+        "1 (und etwas schwächer 3)",
+        "2 und 4",
+        "ausschließlich 4",
+        "alle Schläge vollkommen gleich"
+      ]
+    }
+  ],
+  "rh2": [
+    {
+      "q": "Eine Triole verteilt drei Noten auf die Zeitdauer von …",
+      "o": [
+        "zwei Noten desselben Wertes",
+        "vier Noten",
+        "einer punktierten Note",
+        "drei Noten"
+      ]
+    },
+    {
+      "q": "Ein 6/8-Takt wird im Regelfall empfunden als …",
+      "o": [
+        "2 Schläge im Wert punktierter Viertel",
+        "6 gleichförmige Viertelschläge",
+        "3 Schläge",
+        "4 Schläge"
+      ]
+    },
+    {
+      "q": "Was versteht man unter einer Synkope?",
+      "o": [
+        "die Betonung eines schwachen Taktteils oder Offbeats",
+        "ein rasches Beschleunigen",
+        "eine ausgedehnte Generalpause",
+        "einen Tonartwechsel"
+      ]
+    },
+    {
+      "q": "Welche dieser Tempoangaben bezeichnet das langsamste Tempo?",
+      "o": [
+        "Largo",
+        "Andante",
+        "Allegro",
+        "Presto"
+      ]
+    },
+    {
+      "q": "Was bedeutet die Angabe „Ritardando“?",
+      "o": [
+        "allmählich langsamer werdend",
+        "allmählich schneller werdend",
+        "zurück zum Anfangstempo",
+        "sehr rasch"
+      ]
+    }
+  ],
+  "iv": [
+    {
+      "q": "Höre hin: Welches Intervall erklingt?",
+      "o": [
+        "Reine Quinte",
+        "Große Terz",
+        "Reine Quarte",
+        "Oktave"
+      ]
+    },
+    {
+      "q": "Wie viele Halbtöne umfasst eine große Terz?",
+      "o": [
+        "4",
+        "3",
+        "5",
+        "2"
+      ]
+    },
+    {
+      "q": "Der Abstand von C aufwärts nach A ist eine …",
+      "o": [
+        "große Sexte",
+        "kleine Sexte",
+        "reine Quinte",
+        "große Septime"
+      ]
+    },
+    {
+      "q": "Höre hin: Welches Intervall erklingt?",
+      "o": [
+        "Kleine Terz",
+        "Große Terz",
+        "Große Sekunde",
+        "Reine Quarte"
+      ]
+    },
+    {
+      "q": "Spiele eine reine Quinte aufwärts von C (C und G)."
+    }
+  ],
+  "iv2": [
+    {
+      "q": "C bis F♯ (6 Halbtöne) ist eine …",
+      "o": [
+        "übermäßige Quarte (Tritonus)",
+        "reine Quarte",
+        "kleine Sexte",
+        "große Terz"
+      ]
+    },
+    {
+      "q": "Wird eine große Terz umgekehrt, entsteht eine …",
+      "o": [
+        "kleine Sexte",
+        "große Sexte",
+        "reine Quinte",
+        "kleine Terz"
+      ],
+      "why": "Ziffernsumme ergibt 9 (3 + 6 = 9); aus groß wird klein."
+    },
+    {
+      "q": "Eine None entspricht Folgendem:",
+      "o": [
+        "einer Sekunde plus einer Oktave (14 Halbtöne)",
+        "zwei Oktaven",
+        "einer Terz plus Quinte",
+        "7 Halbtönen"
+      ]
+    },
+    {
+      "q": "Ein vermindertes Intervall ist um einen Halbton enger als ein …",
+      "o": [
+        "kleines oder reines Intervall",
+        "großes Intervall",
+        "übermäßiges Intervall",
+        "zusammengesetztes Intervall"
+      ]
+    },
+    {
+      "q": "Spiele einen Tritonus: erst F, dann H (international B)."
+    }
+  ],
+  "sc": [
+    {
+      "q": "Aus welcher Schrittfolge setzt sich eine Dur-Tonleiter zusammen?",
+      "o": [
+        "GT GT HT GT GT GT HT",
+        "GT HT GT GT HT GT GT",
+        "HT GT GT HT GT GT GT",
+        "GT GT GT HT GT GT HT"
+      ]
+    },
+    {
+      "q": "Wie viele Vorzeichen besitzt die G-Dur-Tonleiter?",
+      "o": [
+        "1 Kreuz (Fis)",
+        "2 Kreuze",
+        "1 Be",
+        "keine Vorzeichen"
+      ]
+    },
+    {
+      "q": "Welche Molltonart ist die Parallele zu C-Dur?",
+      "o": [
+        "a-Moll",
+        "d-Moll",
+        "e-Moll",
+        "c-Moll"
+      ]
+    },
+    {
+      "q": "Höre hin: Dur oder Moll?",
+      "o": [
+        "Moll",
+        "Dur"
+      ]
+    },
+    {
+      "q": "Spiele die ersten fünf Töne der C-Dur-Tonleiter (C, D, E, F, G)."
+    }
+  ],
+  "minor": [
+    {
+      "q": "Wie unterscheidet sich harmonisches Moll von natürlichem Moll?",
+      "o": [
+        "Die 7. Stufe wird um einen Halbton erhöht (Leitton)",
+        "Die 6. Stufe wird erniedrigt",
+        "Die 3. Stufe wird erhöht",
+        "Es hat keine Halbtöne"
+      ]
+    },
+    {
+      "q": "Welche Stufen werden im klassischen melodischen Moll aufwärts erhöht?",
+      "o": [
+        "die 6. und 7. Stufe",
+        "nur die 7. Stufe",
+        "die 3. und 7. Stufe",
+        "die 4. und 5. Stufe"
+      ]
+    },
+    {
+      "q": "Welche Bezeichnung trägt die 5. Stufe einer Tonleiter?",
+      "o": [
+        "Dominante",
+        "Subdominante",
+        "Mediante",
+        "Tonika"
+      ]
+    },
+    {
+      "q": "Welche Tonart besitzt zwei Be-Vorzeichen (B♭ und E♭)?",
+      "o": [
+        "B-Dur (international Bb major)",
+        "F-Dur",
+        "Es-Dur",
+        "g-Moll"
+      ]
+    },
+    {
+      "q": "Höre hin: Welches Moll ist es?",
+      "o": [
+        "Harmonisches Moll",
+        "Natürliches Moll",
+        "Melodisches Moll"
+      ]
+    },
+    {
+      "q": "Spiele a-Moll harmonisch aufwärts (A, H, C, D, E, F, Gis, A)."
+    }
+  ],
+  "cof": [
+    {
+      "q": "Jeder Schritt im Uhrzeigersinn auf dem Quintenzirkel ergänzt …",
+      "o": [
+        "ein Kreuz (♯)",
+        "ein Be (♭)",
+        "ein Auflösungszeichen",
+        "zwei Kreuze"
+      ]
+    },
+    {
+      "q": "Welche Tonart liegt im Quintenzirkel eine Quinte über C-Dur?",
+      "o": [
+        "G-Dur",
+        "F-Dur",
+        "D-Dur",
+        "A-Dur"
+      ]
+    },
+    {
+      "q": "Welche Tonart hat vier Kreuze als Generalvorzeichen?",
+      "o": [
+        "E-Dur",
+        "A-Dur",
+        "H-Dur",
+        "D-Dur"
+      ]
+    },
+    {
+      "q": "Wie ermittelt man bei Kreuz-Tonarten rasch die Dur-Tonart?",
+      "o": [
+        "Einen Halbtonschritt über das letzte Kreuz gehen",
+        "Das letzte Kreuz ist der Grundton",
+        "Das vorletzte Kreuz ablesen",
+        "Die Kreuze zählen und verdoppeln"
+      ]
+    },
+    {
+      "q": "Spiele den Tonika-Dreiklang von D-Dur (D, Fis, A)."
+    }
+  ],
+  "modes": [
+    {
+      "q": "Welche Kirchentonart entsteht auf der 2. Stufe von C-Dur (D nach D)?",
+      "o": [
+        "Dorisch",
+        "Phrygisch",
+        "Lydisch",
+        "Mixolydisch"
+      ]
+    },
+    {
+      "q": "Der lydische Modus ist eine Dur-Tonleiter mit welcher charakteristischen Veränderung?",
+      "o": [
+        "übermäßiger 4. Stufe (♯4)",
+        "kleiner 7. Stufe (♭7)",
+        "kleiner 2. Stufe (♭2)",
+        "übermäßiger 5. Stufe (♯5)"
+      ]
+    },
+    {
+      "q": "Mixolydisch klingt wie Dur, besitzt jedoch …",
+      "o": [
+        "eine kleine Septime (♭7)",
+        "eine kleine Terz",
+        "eine verminderte Quinte",
+        "zwei Leittöne"
+      ]
+    },
+    {
+      "q": "Welcher Modus besitzt eine kleine 2. und eine verminderte 5. Stufe?",
+      "o": [
+        "Lokrisch",
+        "Phrygisch",
+        "Äolisch",
+        "Dorisch"
+      ]
+    }
+  ],
+  "ch": [
+    {
+      "q": "Aus welchen Intervallen setzt sich ein Dur-Dreiklang über dem Grundton zusammen?",
+      "o": [
+        "große Terz + reine Quinte (g3 + k3)",
+        "kleine Terz + reine Quinte",
+        "zwei große Terzen",
+        "zwei kleine Terzen"
+      ]
+    },
+    {
+      "q": "Ein Dreiklang aus zwei geschichteten kleinen Terzen ist …",
+      "o": [
+        "vermindert",
+        "übermäßig",
+        "Moll",
+        "Dur"
+      ]
+    },
+    {
+      "q": "Liegt die Terz des Akkords im Bass, handelt es sich um die …",
+      "o": [
+        "1. Umkehrung (Sextakkord)",
+        "Grundstellung",
+        "2. Umkehrung (Quartsextakkord)",
+        "3. Umkehrung"
+      ]
+    },
+    {
+      "q": "Spiele a-Moll (A, C, E) — in beliebiger Oktave oder Umkehrung."
+    },
+    {
+      "q": "Spiele den a-Moll-Dreiklang in Grundstellung (A, C, E)."
+    }
+  ],
+  "ch7": [
+    {
+      "q": "Welcher Septakkord besteht aus Dur-Dreiklang plus kleiner Septime (1 3 5 ♭7)?",
+      "o": [
+        "Dominantseptakkord (7)",
+        "Major-Septakkord (maj7)",
+        "Moll-Septakkord (m7)",
+        "Verminderter Septakkord (dim7)"
+      ]
+    },
+    {
+      "q": "Welcher Akkord erklingt hier?",
+      "o": [
+        "Major-Septakkord (maj7)",
+        "Dominantseptakkord (7)",
+        "Moll-Septakkord (m7)",
+        "Verminderter Septakkord (dim7)"
+      ]
+    },
+    {
+      "q": "Auf welcher Stufe von C-Dur bildet sich der halbverminderte Akkord (m7♭5)?",
+      "o": [
+        "vii",
+        "ii",
+        "V",
+        "iii"
+      ]
+    },
+    {
+      "q": "Was bedeutet das Akkordsymbol C/E?",
+      "o": [
+        "Ein C-Dur-Akkord mit dem Ton E im Bass",
+        "C gefolgt von E",
+        "C-Dur oder E-Dur wahlweise",
+        "C-Moll"
+      ]
+    },
+    {
+      "q": "Ein Csus4-Akkord ersetzt die Terz durch …",
+      "o": [
+        "die Quarte (F)",
+        "die Sekunde (D)",
+        "die Sexte (A)",
+        "die Septime (B)"
+      ]
+    },
+    {
+      "q": "Spiele G7 (G, H, D, F)."
+    }
+  ],
+  "pr": [
+    {
+      "q": "Welcher Akkord ist die Dominante (V) in C-Dur?",
+      "o": [
+        "G-Dur",
+        "F-Dur",
+        "a-Moll",
+        "e-Moll"
+      ]
+    },
+    {
+      "q": "Welche Stufenakkorde sind in einer Dur-Tonart Moll-Akkorde?",
+      "o": [
+        "ii, iii, vi",
+        "I, IV, V",
+        "ii, V, vii°",
+        "iii, IV, vi"
+      ]
+    },
+    {
+      "q": "Wie viele Takte umfasst das klassische Blues-Schema?",
+      "o": [
+        "12",
+        "8",
+        "16",
+        "4"
+      ]
+    },
+    {
+      "q": "Zu welcher Stufe wechselt das 12-Takt-Blues-Schema typischerweise in Takt 5?",
+      "o": [
+        "IV",
+        "V",
+        "I",
+        "vi"
+      ]
+    },
+    {
+      "q": "Spiele die Subdominante (IV) in C-Dur (F, A, C)."
+    }
+  ],
+  "cad": [
+    {
+      "q": "Die Akkordfolge V → I bezeichnet man als …",
+      "o": [
+        "Ganzschluss (authentische Kadenz)",
+        "Plagalschluss",
+        "Halbschluss",
+        "Trugschluss"
+      ]
+    },
+    {
+      "q": "Eine Phrase, die auf der Dominante (V) abbricht bzw. endet, bildet einen …",
+      "o": [
+        "Halbschluss",
+        "Ganzschluss",
+        "Plagalschluss",
+        "Trugschluss"
+      ]
+    },
+    {
+      "q": "Höre hin: Welche Kadenzart erklingt?",
+      "o": [
+        "Trugschluss (V → vi)",
+        "Ganzschluss (V → I)",
+        "Plagalschluss (IV → I)",
+        "Halbschluss (I → V)"
+      ]
+    },
+    {
+      "q": "Die sogenannte „Amen-Kadenz“ ist ein …",
+      "o": [
+        "Plagalschluss (IV → I)",
+        "Ganzschluss (V → I)",
+        "Halbschluss (I → V)",
+        "Trugschluss (V → vi)"
+      ]
+    }
+  ],
+  "minorh": [
+    {
+      "q": "Warum wird der Dominantakkord (V) in a-Moll zu einem Dur-Akkord?",
+      "o": [
+        "Wegen des künstlich erhöhten Leittons (Gis im harmonischen Moll)",
+        "Weil die 6. Stufe erhöht wird",
+        "Wegen der erniedrigten Terz",
+        "Wegen eines dauerhaften Tonartwechsels"
+      ]
+    },
+    {
+      "q": "Wie lautet die Stufenfolge i – iv – V – i in a-Moll?",
+      "o": [
+        "Am – Dm – E – Am",
+        "Am – D – Em – Am",
+        "A – D – E – A",
+        "Am – F – G – Am"
+      ]
+    },
+    {
+      "q": "Was signalisieren Kleinbuchstaben bei römischen Stufenziffern in Moll?",
+      "o": [
+        "einen Moll- oder verminderten Akkord",
+        "einen leise zu spielenden Akkord",
+        "eine Umkehrung",
+        "einen Septakkord"
+      ]
+    },
+    {
+      "q": "Spiele E-Dur — die Dominante V von a-Moll (E, Gis, H)."
+    }
+  ],
+  "nct": [
+    {
+      "q": "Wie bewegt sich ein Durchgangston (Passing Tone)?",
+      "o": [
+        "stufenweise in gleichbleibender Richtung zwischen zwei Akkordtönen",
+        "durch einen Sprung weg vom Akkord",
+        "er verharrt auf demselben Ton",
+        "nur in der Bassstimme"
+      ]
+    },
+    {
+      "q": "Eine Wechselnote (Neighbour Tone) …",
+      "o": [
+        "weicht stufenweise ab und kehrt zum Ausgangston zurück",
+        "springt eine Oktave weit",
+        "ist stets ein echter Akkordton",
+        "ist eine kurze Pause"
+      ]
+    },
+    {
+      "q": "Ein harmonischer Vorhalt (Suspension) löst sich typischerweise wie auf?",
+      "o": [
+        "stufenweise nach unten",
+        "sprunghaft nach oben",
+        "gar nicht",
+        "immer in den Basston"
+      ]
+    },
+    {
+      "q": "Was versteht man unter einer Appoggiatura (unvorbereiteter Vorhalt)?",
+      "o": [
+        "eine betonte Dissonanz: mit Sprung erreicht, stufenweise aufgelöst",
+        "einen leisen Begleitton",
+        "eine besondere Notenpause",
+        "einen wiederholten Ton"
+      ]
+    }
+  ],
+  "secdom": [
+    {
+      "q": "Welcher Akkord ist die Zwischendominante V/V in C-Dur?",
+      "o": [
+        "D-Dur (D7)",
+        "G-Dur",
+        "a-Moll",
+        "F-Dur"
+      ]
+    },
+    {
+      "q": "Was ist eine Zwischendominante?",
+      "o": [
+        "die Dominante (V) zu einer anderen Stufe als der Tonika (I)",
+        "jeder beliebige Moll-Akkord",
+        "der zweite Akkord eines Werkes",
+        "ein Akkord ohne Terz"
+      ]
+    },
+    {
+      "q": "Bei der Modulation von C-Dur nach G-Dur ist das Ziel die …",
+      "o": [
+        "Dominanttonart",
+        "parallele Molltonart",
+        "Subdominanttonart",
+        "variantische Molltonart"
+      ]
+    },
+    {
+      "q": "Was zeichnet eine vorbildliche Stimmführung aus?",
+      "o": [
+        "gemeinsame Liegetöne beibehalten und enge Schritte bevorzugen",
+        "alle Stimmen sprunghaft führen",
+        "parallele Quinten und Oktaven",
+        "Verdopplung des Leittons"
+      ]
+    },
+    {
+      "q": "Spiele A7 — die Zwischendominante V/ii in C-Dur (A, Cis, E, G)."
+    }
+  ],
+  "form": [
+    {
+      "q": "Ein prägnanter, kurzer musikalischer Leitgedanke heißt …",
+      "o": [
+        "Motiv",
+        "Kadenz",
+        "Coda",
+        "Taktart"
+      ]
+    },
+    {
+      "q": "Die Form A–B–A–C–A entspricht einem …",
+      "o": [
+        "Rondo",
+        "zweiteiligen Liedform (AB)",
+        "dreiteiligen Form (ABA)",
+        "einer Periode"
+      ]
+    },
+    {
+      "q": "Eine klassische musikalische Periode besteht aus …",
+      "o": [
+        "Vordersatz und Nachsatz",
+        "einem einzelnen Takt",
+        "einer gesamten Klaviersonate",
+        "einem Wiederholungszeichen"
+      ]
+    },
+    {
+      "q": "Der Vordersatz einer Periode endet typischerweise mit einem …",
+      "o": [
+        "Halbschluss (auf V)",
+        "Ganzschluss (auf I)",
+        "Tonartwechsel",
+        "einer Fermate"
+      ]
+    }
+  ],
+  "accomp": [
+    {
+      "q": "In welcher Reihenfolge schlägt ein Alberti-Bass die Töne des Dreiklangs an?",
+      "o": [
+        "tief – hoch – mittel – hoch",
+        "tief – mittel – hoch",
+        "alle Noten gleichzeitig",
+        "hoch – tief"
+      ]
+    },
+    {
+      "q": "Höre hin: Welches Begleitmuster erklingt?",
+      "o": [
+        "Walzer (Bass – Akkord – Akkord)",
+        "Alberti-Bass",
+        "Blockakkorde",
+        "Balladen-Arpeggio"
+      ]
+    },
+    {
+      "q": "Was enthält ein klassisches Lead Sheet?",
+      "o": [
+        "die notierte Melodie nebst Akkordsymbolen",
+        "jede einzelne Note für beide Hände",
+        "ausschließlich Liedtext",
+        "nur Rhythmusangaben"
+      ]
+    },
+    {
+      "q": "Was spielt die linke Hand beim Begleiten nach einem Lead Sheet in der Regel?",
+      "o": [
+        "den Basston bzw. ein passendes Begleitmuster zum Akkordsymbol",
+        "die Melodielinie unisono",
+        "gar nichts",
+        "zufällige Töne"
+      ]
+    }
+  ]
+}

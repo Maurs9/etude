@@ -1,0 +1,222 @@
+{
+  "0": {
+    "term": "Semitono",
+    "definition": "La distanza più piccola sul pianoforte: da un tasto a quello immediatamente successivo, bianco o nero."
+  },
+  "1": {
+    "term": "Tono",
+    "definition": "Due semitoni, ad esempio da C a D."
+  },
+  "2": {
+    "term": "Ottava",
+    "definition": "Lo stesso nome di nota 12 semitoni più in alto o più in basso; la frequenza raddoppia."
+  },
+  "3": {
+    "term": "Enarmonia",
+    "definition": "Due nomi diversi per lo stesso tasto, ad esempio F♯ = G♭."
+  },
+  "4": {
+    "term": "Doppio pentagramma",
+    "definition": "Pentagramma in chiave di violino e di basso uniti da una graffa; il do centrale si trova nel mezzo."
+  },
+  "5": {
+    "term": "Chiave",
+    "definition": "Il segno all'inizio del pentagramma che fissa l'altezza delle note sulle linee (chiave di violino = Sol, chiave di basso = Fa)."
+  },
+  "6": {
+    "term": "Taglio addizionale",
+    "definition": "Breve linea aggiuntiva per le note che superano i limiti superiori o inferiori del pentagramma."
+  },
+  "7": {
+    "term": "Alterazione",
+    "definition": "♯, ♭ o ♮ posto davanti a una nota; ha valore fino alla stanghetta successiva."
+  },
+  "8": {
+    "term": "Armatura di chiave",
+    "definition": "Diesis o bemolli all'inizio di ogni rigo che valgono per l'intero brano."
+  },
+  "9": {
+    "term": "Indicazione di tempo (metro)",
+    "definition": "Numero superiore = battiti per misura; numero inferiore = valore della nota che forma il battito."
+  },
+  "10": {
+    "term": "Punto di valore",
+    "definition": "Allunga la durata della nota della metà del suo valore: minima col punto = 3 battiti."
+  },
+  "11": {
+    "term": "Legatura di valore",
+    "definition": "Linea curva che unisce due note della stessa altezza: si suona una sola volta e si tiene per entrambe le durate."
+  },
+  "12": {
+    "term": "Terzina",
+    "definition": "Tre note eseguite nel tempo normalmente occupato da due dello stesso valore, indicate con un 3."
+  },
+  "13": {
+    "term": "Sincope",
+    "definition": "Accento ritmico spostato su un tempo debole o su una frazione debole del battito (levare)."
+  },
+  "14": {
+    "term": "Metro composto",
+    "definition": "I battiti principali si suddividono in gruppi ternari (ad es. 6/8, 9/8, 12/8)."
+  },
+  "15": {
+    "term": "Tempo",
+    "definition": "La velocità del battito in BPM o indicata con termini italiani (Adagio, Allegro …)."
+  },
+  "16": {
+    "term": "Dinamica",
+    "definition": "Indicazioni di volume sulla partitura: pp, p, mp, mf, f, ff."
+  },
+  "17": {
+    "term": "Crescendo / Diminuendo",
+    "definition": "Gradualmente più forte / gradualmente più piano (forcelle)."
+  },
+  "18": {
+    "term": "Staccato",
+    "definition": "Punto sopra o sotto la nota: suonata breve e staccata."
+  },
+  "19": {
+    "term": "Legato",
+    "definition": "Legatura di portamento: note eseguite fluidamente collegate, senza pause intermedie."
+  },
+  "20": {
+    "term": "Corona (fermata)",
+    "definition": "Prolunga la nota o la pausa oltre il valore scritto a discrezione dell'esecutore."
+  },
+  "21": {
+    "term": "Intervallo",
+    "definition": "La distanza tra due note misurata in semitoni e in gradi della scala."
+  },
+  "22": {
+    "term": "Semitoni per intervallo",
+    "definition": "2ª min = 1, 2ª magg = 2, 3ª min = 3, 3ª magg = 4, 4ª giusta = 5, Tritono = 6, 5ª giusta = 7, 6ª min = 8, 6ª magg = 9, 7ª min = 10, 7ª magg = 11, Ottava = 12."
+  },
+  "23": {
+    "term": "Consonanza & Dissonanza",
+    "definition": "Consonanze = stabili, riposanti (3ª, 4ª, 5ª, 6ª, 8ª); Dissonanze = tese, che chiedono risoluzione (2ª, 7ª, Tritono)."
+  },
+  "24": {
+    "term": "Tonalità relativa",
+    "definition": "Una scala maggiore e una minore che condividono la stessa armatura di chiave (ad es. Do maggiore e La minore)."
+  },
+  "25": {
+    "term": "Scala pentatonica",
+    "definition": "Scala a 5 note senza semitoni; molto usata nel folk, blues e rock."
+  },
+  "26": {
+    "term": "Scala blues",
+    "definition": "Pentatonica minore con aggiunta della blue note (quinta diminuita)."
+  },
+  "27": {
+    "term": "Modi (greci)",
+    "definition": "Scale a 7 note ottenute iniziando sui diversi tasti bianchi: Ionico, Dorico, Frigio, Lidio, Misolidio, Eolio, Locrio."
+  },
+  "28": {
+    "term": "Accordo di settima",
+    "definition": "Triade con una settima aggiunta: maj7, 7, m7, m7♭5, dim7."
+  },
+  "29": {
+    "term": "Rivolto",
+    "definition": "Disposizione dell'accordo in cui una nota diversa dalla fondamentale è al basso."
+  },
+  "30": {
+    "term": "Triade",
+    "definition": "Accordo di tre note formato sovrapponendo due terze: fondamentale, terza e quinta."
+  },
+  "31": {
+    "term": "Scala maggiore",
+    "definition": "Successione di intervalli: T–T–S–T–T–T–S."
+  },
+  "32": {
+    "term": "Grado della scala",
+    "definition": "Posizione di una nota nella scala: Tonica, Sopratonica, Mediante, Sottodominante, Dominante, Sopradominante, Sensibile."
+  },
+  "33": {
+    "term": "Relativa minore",
+    "definition": "Tonalità minore con la stessa armatura di chiave, una terza minore sotto la maggiore (C maggiore → A minore)."
+  },
+  "34": {
+    "term": "Minore armonica",
+    "definition": "Scala minore naturale con 7° grado alzato (sensibile)."
+  },
+  "35": {
+    "term": "Minore melodica",
+    "definition": "6° e 7° grado alzati salendo; scala minore naturale scendendo."
+  },
+  "36": {
+    "term": "Circolo delle quinte",
+    "definition": "Disposizione circolare delle 12 tonalità per quinte giuste; ogni passo aggiunge un diesis o un bemolle."
+  },
+  "37": {
+    "term": "Modo",
+    "definition": "Scala che si ottiene iniziando lo schema della scala maggiore su un grado differente."
+  },
+  "38": {
+    "term": "Triade",
+    "definition": "Accordo a tre voci per terze: fondamentale, terza, quinta."
+  },
+  "39": {
+    "term": "Rivolto di accordo",
+    "definition": "Un accordo in cui una voce diversa dalla fondamentale costituisce il basso."
+  },
+  "40": {
+    "term": "Accordo di settima",
+    "definition": "Triade con aggiunta della settima: maj7, 7, m7, m7♭5, dim7."
+  },
+  "41": {
+    "term": "Accordo slash (con basso specificato)",
+    "definition": "Accordo con basso specifico, ad es. C/E = accordo di Do maggiore con Mi al basso."
+  },
+  "42": {
+    "term": "Accordo sospeso (sus)",
+    "definition": "La terza è sostituita da una seconda (sus2) o da una quarta (sus4)."
+  },
+  "43": {
+    "term": "Numeri romani",
+    "definition": "Notazione degli accordi secondo i gradi della scala: I, ii, iii, IV, V, vi, vii°."
+  },
+  "44": {
+    "term": "Blues a 12 battute",
+    "definition": "I-I-I-I / IV-IV-I-I / V-IV-I-V, tipicamente con accordi di settima di dominante."
+  },
+  "45": {
+    "term": "Cadenza",
+    "definition": "Successione armonica a conclusione di una frase: perfetta (V-I), plagale (IV-I), sospesa (…-V), d'inganno (V-vi)."
+  },
+  "46": {
+    "term": "Condotta delle voci",
+    "definition": "Movimento melodico fluido delle singole parti, preferibilmente per gradi congiunti o note comuni."
+  },
+  "47": {
+    "term": "Nota estranea all'accordo",
+    "definition": "Nota melodica che non fa parte dell'accordo armonico: nota di passaggio, volta, ritardo."
+  },
+  "48": {
+    "term": "Dominante secondaria",
+    "definition": "Accordo di dominante che introduce un grado diverso dalla tonica (ad es. V/V)."
+  },
+  "49": {
+    "term": "Modulazione",
+    "definition": "Passaggio da una tonalità a un'altra, consolidato da una cadenza."
+  },
+  "50": {
+    "term": "Motivo",
+    "definition": "La più piccola cellula musicale significativa, suscettibile di sviluppo e variazione."
+  },
+  "51": {
+    "term": "Frase / Periodo",
+    "definition": "Frase = idea musicale conclusa da una cadenza; Periodo = proposta (domanda) + risposta."
+  },
+  "52": {
+    "term": "Forma binaria / ternaria / rondò",
+    "definition": "Modelli formali classici: AB, ABA e ABACA."
+  },
+  "53": {
+    "term": "Basso albertino",
+    "definition": "Schema di accompagnamento arpeggiato: basso–acuto–medio–acuto."
+  },
+  "54": {
+    "term": "Lead sheet",
+    "definition": "Spartito sintetico con melodia notata e sigle degli accordi."
+  }
+}

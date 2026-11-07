@@ -15,7 +15,7 @@ test('all source keys have nonempty Spanish translations', () => {
 });
 test('all lesson titles and bodies have nonempty Spanish translations', () => {
   const missing = original.lessons.flatMap(l => ['t','b'].filter(field => !target.lessons[l.id]?.[field]?.trim()).map(field => `${l.id}.${field}`));
-  assert.deepEqual(missing, [], `${missing.length} lesson fields missing`);
+  assert.deepEqual([...missing], [], `${missing.length} lesson fields missing`);
 });
 test('translated strings preserve every interpolation and HTML tag', () => {
   for (const [key, value] of Object.entries(target.strings)) {

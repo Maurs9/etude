@@ -1,0 +1,222 @@
+{
+  "0": {
+    "term": "Demi-ton",
+    "definition": "Le plus petit intervalle au piano : d’une touche à la voisine immédiate, noire ou blanche."
+  },
+  "1": {
+    "term": "Ton",
+    "definition": "Deux demi-tons, par ex. do–ré."
+  },
+  "2": {
+    "term": "Octave",
+    "definition": "Même nom de note 12 demi-tons plus haut ou plus bas ; la fréquence est doublée."
+  },
+  "3": {
+    "term": "Enharmonie",
+    "definition": "Deux noms pour une même touche, par ex. fa♯ = sol♭."
+  },
+  "4": {
+    "term": "Portée double (système)",
+    "definition": "Portées en clé de sol et clé de fa réunies par une accolade ; le do central se place entre les deux."
+  },
+  "5": {
+    "term": "Clé",
+    "definition": "Signe fixant le nom des notes sur chaque ligne (clé de sol = sol, clé de fa = fa)."
+  },
+  "6": {
+    "term": "Ligne supplémentaire",
+    "definition": "Petite ligne d’appoint pour les notes situées au-dessus ou au-dessous de la portée."
+  },
+  "7": {
+    "term": "Altération",
+    "definition": "♯, ♭ ou ♮ placé devant une note ; son effet dure jusqu’à la barre de mesure."
+  },
+  "8": {
+    "term": "Armure (armature)",
+    "definition": "Dièses ou bémols placés au début de chaque portée, valables pour tout le morceau."
+  },
+  "9": {
+    "term": "Chiffrage de la mesure",
+    "definition": "Chiffre du haut = nombre de temps par mesure ; chiffre du bas = unité de temps."
+  },
+  "10": {
+    "term": "Note pointée",
+    "definition": "Le point prolonge la note de la moitié de sa durée : une blanche pointée = 3 temps."
+  },
+  "11": {
+    "term": "Liaison de prolongation",
+    "definition": "Ligne courbe reliant deux notes de même hauteur : on tient le son sans rejouer."
+  },
+  "12": {
+    "term": "Triolet",
+    "definition": "Trois notes jouées dans le temps de deux, signalé par un 3."
+  },
+  "13": {
+    "term": "Syncope",
+    "definition": "Accent placé sur un temps faible ou un contretemps."
+  },
+  "14": {
+    "term": "Mesure composée",
+    "definition": "Les temps se divisent en trois (6/8, 9/8, 12/8)."
+  },
+  "15": {
+    "term": "Tempo",
+    "definition": "Vitesse de la pulsation, exprimée en BPM ou par des termes italiens (Adagio, Allegro…)."
+  },
+  "16": {
+    "term": "Nuances",
+    "definition": "Indications d’intensité : pp, p, mp, mf, f, ff."
+  },
+  "17": {
+    "term": "Crescendo / diminuendo",
+    "definition": "De plus en plus fort / de plus en plus doux (soufflets)."
+  },
+  "18": {
+    "term": "Staccato",
+    "definition": "Point placé au-dessus ou au-dessous : note brève et détachée."
+  },
+  "19": {
+    "term": "Legato",
+    "definition": "Jeu lié et fluide, indiqué par une liaison d’expression."
+  },
+  "20": {
+    "term": "Barre de reprise",
+    "definition": "Double barre munie de points : répéter la section."
+  },
+  "21": {
+    "term": "D.C. al Fine",
+    "definition": "Reprendre depuis le début et s’arrêter au mot Fine."
+  },
+  "22": {
+    "term": "D.S. al Coda",
+    "definition": "Revenir au signe 𝄋, puis sauter à la coda 𝄌 dès l’indication."
+  },
+  "23": {
+    "term": "Point d’orgue",
+    "definition": "𝄐 Prolonger la note au-delà de sa valeur écrite."
+  },
+  "24": {
+    "term": "Pédale forte",
+    "definition": "Ped. … ✱ : enfoncer la pédale droite, puis la relâcher."
+  },
+  "25": {
+    "term": "Ornement",
+    "definition": "Décoration telle que le trille (tr), le mordant ou l’appoggiature."
+  },
+  "26": {
+    "term": "Intervalle",
+    "definition": "Distance entre deux notes, mesurée en degrés et demi-tons."
+  },
+  "27": {
+    "term": "Quinte juste",
+    "definition": "7 demi-tons (do–sol) ; l’intervalle le plus stable après l’octave."
+  },
+  "28": {
+    "term": "Triton",
+    "definition": "6 demi-tons : quarte augmentée / quinte diminuée (do–fa♯)."
+  },
+  "29": {
+    "term": "Renversement (intervalle)",
+    "definition": "Transposer la note grave à l’octave supérieure ; la somme des chiffres donne 9, majeur devient mineur."
+  },
+  "30": {
+    "term": "Intervalle redoublé",
+    "definition": "Supérieur à l’octave : la neuvième = seconde + octave."
+  },
+  "31": {
+    "term": "Gamme majeure",
+    "definition": "Succession d’intervalles : T T S T T T S."
+  },
+  "32": {
+    "term": "Degré de la gamme",
+    "definition": "Position dans la gamme : tonique, sus-tonique, médiante, sous-dominante, dominante, sus-dominante, sensible."
+  },
+  "33": {
+    "term": "Relative mineure",
+    "definition": "Tonalité mineure partageant la même armure, située une tierce mineure plus bas (do → la mineur)."
+  },
+  "34": {
+    "term": "Mineure harmonique",
+    "definition": "Mineure naturelle avec un 7e degré haussé (sensible)."
+  },
+  "35": {
+    "term": "Mineure mélodique",
+    "definition": "6e et 7e degrés haussés en montant ; mineure naturelle en descendant (tradition classique)."
+  },
+  "36": {
+    "term": "Cycle des quintes",
+    "definition": "Tonalités ordonnées par quintes justes ; chaque pas ajoute un dièse ou un bémol."
+  },
+  "37": {
+    "term": "Mode",
+    "definition": "Gamme obtenue en démarrant la structure majeure sur un autre degré (dorien, lydien…)."
+  },
+  "38": {
+    "term": "Triade (accord parfait)",
+    "definition": "Accord de trois notes empilées par tierces : fondamentale, tierce, quinte."
+  },
+  "39": {
+    "term": "Renversement d’accord",
+    "definition": "Accord dont la note la plus grave n’est pas la fondamentale."
+  },
+  "40": {
+    "term": "Accord de septième",
+    "definition": "Accord de trois sons enrichi d’une septième : maj7, 7, m7, m7♭5, dim7."
+  },
+  "41": {
+    "term": "Accord avec basse spécifiée",
+    "definition": "Accord/note de basse, par ex. C/E = accord de do avec mi à la basse."
+  },
+  "42": {
+    "term": "Accord suspendu",
+    "definition": "La tierce est remplacée par une seconde (sus2) ou une quarte (sus4)."
+  },
+  "43": {
+    "term": "Chiffres romains",
+    "definition": "Accords désignés par leur degré dans la gamme : I, ii, iii, IV, V, vi, vii°."
+  },
+  "44": {
+    "term": "Blues en 12 mesures",
+    "definition": "I-I-I-I / IV-IV-I-I / V-IV-I-V, généralement avec des accords de 7e."
+  },
+  "45": {
+    "term": "Cadence",
+    "definition": "Enchaînement de deux accords clôturant une phrase : parfaite, plagale, demi-cadence, rompue."
+  },
+  "46": {
+    "term": "Conduite des voix",
+    "definition": "Mouvement fluide de chaque voix, par degré conjoint ou note commune."
+  },
+  "47": {
+    "term": "Note étrangère",
+    "definition": "Note mélodique extérieure à l’accord : note de passage, broderie, retard, appoggiature."
+  },
+  "48": {
+    "term": "Dominante secondaire",
+    "definition": "V d’un autre degré que le I, par ex. V/V (ré7 en do)."
+  },
+  "49": {
+    "term": "Modulation",
+    "definition": "Changement de tonalité confirmé par une cadence."
+  },
+  "50": {
+    "term": "Motif",
+    "definition": "Courte idée musicale reprise et variée au fil du morceau."
+  },
+  "51": {
+    "term": "Phrase / période",
+    "definition": "Phrase = énoncé musical aboutissant à une cadence ; période = ensemble antécédent et conséquent."
+  },
+  "52": {
+    "term": "Forme binaire / ternaire / rondo",
+    "definition": "Structures AB, ABA et ABACA."
+  },
+  "53": {
+    "term": "Basse d’Alberti",
+    "definition": "Accord arpégé selon la formule basse–aigu–médium–aigu."
+  },
+  "54": {
+    "term": "Lead sheet",
+    "definition": "Partition résumée avec mélodie et chiffrage d’accords ; l’accompagnement est improvisé."
+  }
+}

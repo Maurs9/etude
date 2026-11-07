@@ -1,0 +1,222 @@
+{
+  "0": {
+    "term": "Halbton (Halbtonschritt)",
+    "definition": "Der kleinste Abstand auf dem Klavier: von einer Taste zur unmittelbar nächsten, egal ob schwarz oder weiß."
+  },
+  "1": {
+    "term": "Ganzton (Ganztonschritt)",
+    "definition": "Zwei Halbtöne, z. B. C–D."
+  },
+  "2": {
+    "term": "Oktave",
+    "definition": "Gleicher Notenname 12 Halbtöne höher oder tiefer; die Frequenz verdoppelt sich."
+  },
+  "3": {
+    "term": "Enharmonische Verwechslung",
+    "definition": "Zwei verschiedene Namen für dieselbe Taste, z. B. F♯ = G♭ (Fis = Ges)."
+  },
+  "4": {
+    "term": "Akkolade (Klaviersystem)",
+    "definition": "Violin- und Bass-System, durch eine Klammer verbunden; das mittlere C liegt dazwischen."
+  },
+  "5": {
+    "term": "Notenschlüssel",
+    "definition": "Zeichen am Zeilenanfang, das festlegt, welche Linie welchem Ton entspricht (Violinschlüssel = G, Bassschlüssel = F)."
+  },
+  "6": {
+    "term": "Hilfslinie",
+    "definition": "Kurze Zusatzlinie für Noten über oder unter dem Notensystem."
+  },
+  "7": {
+    "term": "Versetzungszeichen",
+    "definition": "♯, ♭ oder ♮ vor einer Note; gilt bis zum nächsten Taktstrich."
+  },
+  "8": {
+    "term": "Generalvorzeichen",
+    "definition": "Kreuze oder Be-Zeichen am Anfang jeder Zeile, die für das gesamte Stück gelten."
+  },
+  "9": {
+    "term": "Taktart",
+    "definition": "Obere Zahl = Schläge pro Takt; untere Zahl = Notenwert, der den Grundschlag bildet."
+  },
+  "10": {
+    "term": "Punktierte Note",
+    "definition": "Ein Punkt verlängert die Note um die Hälfte ihres Wertes: punktierte Halbe = 3 Schläge."
+  },
+  "11": {
+    "term": "Haltebogen",
+    "definition": "Gebogene Linie, die zwei Noten gleicher Tonhöhe verbindet: Ton halten, nicht erneut anschlagen."
+  },
+  "12": {
+    "term": "Triole",
+    "definition": "Drei Noten in der Zeit von zwei gewöhnlichen desselben Wertes, gekennzeichnet durch eine 3."
+  },
+  "13": {
+    "term": "Synkope",
+    "definition": "Betonung auf einem unbetonten Taktteil oder zwischen den Zählzeiten (Offbeat)."
+  },
+  "14": {
+    "term": "Zusammengesetzte Taktart",
+    "definition": "Die Grundschläge unterteilen sich in Dreiergruppen (z. B. 6/8, 9/8, 12/8)."
+  },
+  "15": {
+    "term": "Tempo",
+    "definition": "Geschwindigkeit des Grundschlags in BPM oder mit italienischen Begriffen (Adagio, Allegro …)."
+  },
+  "16": {
+    "term": "Dynamik",
+    "definition": "Lautstärkeangaben in der Partitur: pp, p, mp, mf, f, ff."
+  },
+  "17": {
+    "term": "Crescendo / Diminuendo",
+    "definition": "Allmählich lauter / allmählich leiser werdend (Gabeln)."
+  },
+  "18": {
+    "term": "Staccato",
+    "definition": "Punkt über oder unter der Note: kurz und abgesetzt gespielt."
+  },
+  "19": {
+    "term": "Legato",
+    "definition": "Gebunden und nahtlos verbunden gespielt, angezeigt durch einen Bindebogen."
+  },
+  "20": {
+    "term": "Wiederholungszeichen",
+    "definition": "Doppelter Taktstrich mit zwei Punkten: den eingeschlossenen Abschnitt wiederholen."
+  },
+  "21": {
+    "term": "D.C. al Fine",
+    "definition": "Vom Anfang wiederholen (Da Capo) und beim Wort Fine aufhören."
+  },
+  "22": {
+    "term": "D.S. al Coda",
+    "definition": "Zum Zeichen 𝄋 zurückspringen (Dal Segno) und beim Coda-Zeichen 𝄌 zur Coda springen."
+  },
+  "23": {
+    "term": "Fermate",
+    "definition": "𝄐 Den Ton oder die Pause länger aushalten als notiert."
+  },
+  "24": {
+    "term": "Haltepedal (Sustain)",
+    "definition": "Ped. … ✱: rechtes Klavierpedal niedertreten, dann loslassen."
+  },
+  "25": {
+    "term": "Verzierung (Ornament)",
+    "definition": "Melodische Ausschmückung wie Triller (tr), Mordent oder Vorschlag."
+  },
+  "26": {
+    "term": "Intervall",
+    "definition": "Abstand zwischen zwei Tönen, gemessen in Tonleiterstufen und Halbtönen."
+  },
+  "27": {
+    "term": "Reine Quinte",
+    "definition": "7 Halbtöne (C–G); das stabilste Intervall nach der Oktave."
+  },
+  "28": {
+    "term": "Tritonus",
+    "definition": "6 Halbtöne: übermäßige Quarte oder verminderte Quinte (C–F♯)."
+  },
+  "29": {
+    "term": "Intervallumkehrung",
+    "definition": "Den unteren Ton um eine Oktave nach oben versetzen; Ziffernsumme ergibt 9, Dur↔Moll."
+  },
+  "30": {
+    "term": "Zusammengesetztes Intervall",
+    "definition": "Intervall größer als eine Oktave: None = Sekunde + Oktave."
+  },
+  "31": {
+    "term": "Dur-Tonleiter",
+    "definition": "Schrittfolge: Ganzton Ganzton Halbton Ganzton Ganzton Ganzton Halbton."
+  },
+  "32": {
+    "term": "Tonleiterstufe",
+    "definition": "Stellung in der Tonleiter: Tonika, Supertonika, Mediante, Subdominante, Dominante, Submediante, Leitton."
+  },
+  "33": {
+    "term": "Parallele Molltonart",
+    "definition": "Molltonart mit denselben Vorzeichen, eine kleine Terz tiefer (C-Dur → a-Moll)."
+  },
+  "34": {
+    "term": "Harmonisches Moll",
+    "definition": "Natürliches Moll mit erhöhter 7. Stufe (Leitton)."
+  },
+  "35": {
+    "term": "Melodisches Moll",
+    "definition": "Aufwärts erhöhte 6. und 7. Stufe; abwärts wie natürliches Moll gespielt (klassisch)."
+  },
+  "36": {
+    "term": "Quintenzirkel",
+    "definition": "Kreisförmige Anordnung der Tonarten in reinen Quinten; jeder Schritt ergänzt ein Kreuz oder Be."
+  },
+  "37": {
+    "term": "Kirchentonart (Modus)",
+    "definition": "Tonleiter, die entsteht, wenn das Dur-Muster auf einer anderen Stufe beginnt."
+  },
+  "38": {
+    "term": "Dreiklang",
+    "definition": "Dreistimmiger Akkord in Terzschichtung: Grundton, Terz, Quinte."
+  },
+  "39": {
+    "term": "Akkordumkehrung",
+    "definition": "Ein Akkord, bei dem ein anderer Ton als der Grundton die tiefste Stimme (Bass) bildet."
+  },
+  "40": {
+    "term": "Septakkord",
+    "definition": "Dreiklang mit hinzugefügter Septime: maj7, 7, m7, m7♭5, dim7."
+  },
+  "41": {
+    "term": "Slash-Akkord (Bruchakkord)",
+    "definition": "Akkord über Basston, z. B. C/E = C-Dur-Akkord mit E im Bass."
+  },
+  "42": {
+    "term": "Vorhaltsakkord (Sus)",
+    "definition": "Die Terz wird durch eine Sekunde (sus2) oder Quarte (sus4) ersetzt."
+  },
+  "43": {
+    "term": "Römische Stufenziffern",
+    "definition": "Akkordbezeichnung nach Tonleiterstufen: I, ii, iii, IV, V, vi, vii°."
+  },
+  "44": {
+    "term": "12-Takt-Blues",
+    "definition": "I-I-I-I / IV-IV-I-I / V-IV-I-V, typischerweise mit Dominantseptakkorden gespielt."
+  },
+  "45": {
+    "term": "Kadenz",
+    "definition": "Akkordfolge am Ende einer musikalischen Phrase: ganzschlüssig, plagal, Halbschluss, Trugschluss."
+  },
+  "46": {
+    "term": "Stimmführung",
+    "definition": "Geschmeidige Stimmbewegung: möglichst stufenweise oder mit Liegetönen."
+  },
+  "47": {
+    "term": "Akkordfremder Ton",
+    "definition": "Melodieton außerhalb des aktuellen Akkords: Durchgang, Wechselnote, Vorhalt."
+  },
+  "48": {
+    "term": "Zwischendominante",
+    "definition": "Dominante zu einer anderen Stufe als der Tonika (I), z. B. V/V (D7 in C-Dur)."
+  },
+  "49": {
+    "term": "Modulation",
+    "definition": "Übergang in eine neue Tonart, gefestigt durch eine Kadenz."
+  },
+  "50": {
+    "term": "Motiv",
+    "definition": "Kürzester musikalischer Baustein, der wiederholt und variiert wird."
+  },
+  "51": {
+    "term": "Phrase / Periode",
+    "definition": "Phrase = musikalischer Gedanke mit Kadenzschluss; Periode = Vordersatz (Frage) + Nachsatz (Antwort)."
+  },
+  "52": {
+    "term": "Zweiteilig / Dreiteilig / Rondo",
+    "definition": "Musikalische Formmodelle: AB, ABA und ABACA."
+  },
+  "53": {
+    "term": "Alberti-Bass",
+    "definition": "Zerlegtes Begleitmuster: tief–hoch–mittel–hoch."
+  },
+  "54": {
+    "term": "Lead Sheet",
+    "definition": "Notierte Melodie mit Akkordsymbolen; die Begleitung wird frei improvisiert."
+  }
+}

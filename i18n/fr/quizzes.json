@@ -1,0 +1,880 @@
+{
+  "keys": [
+    {
+      "q": "Quelle touche blanche se situe juste à gauche du groupe de deux touches noires ?",
+      "o": [
+        "Do (C)",
+        "Fa (F)",
+        "Ré (D)",
+        "Si (B)"
+      ]
+    },
+    {
+      "q": "Combien de demi-tons compte une octave ?",
+      "o": [
+        "12",
+        "8",
+        "7",
+        "10"
+      ]
+    },
+    {
+      "q": "Quelle paire forme un demi-ton naturel sans touche noire entre elles ?",
+      "o": [
+        "Mi–Fa (E–F)",
+        "Do–Ré (C–D)",
+        "Fa–Sol (F–G)",
+        "La–Si (A–B)"
+      ]
+    },
+    {
+      "q": "Jouez le do central (C4)."
+    },
+    {
+      "q": "Jouez mi puis fa — le demi-ton naturel."
+    }
+  ],
+  "how": [
+    {
+      "q": "Quelle méthode est la plus efficace pour la mémorisation à long terme ?",
+      "o": [
+        "De courtes séances quotidiennes avec répétition espacée",
+        "Une seule longue séance par semaine",
+        "Relire jusqu’à ce que cela semble familier",
+        "Écouter seulement sans pratiquer"
+      ]
+    },
+    {
+      "q": "Pourquoi mélanger différents types d’exercices au sein d’une même séance ?",
+      "o": [
+        "L’entrelacement oblige à choisir la bonne stratégie : on retient mieux",
+        "C’est plus rapide",
+        "Cela évite de faire des erreurs",
+        "Cela n’a aucun effet"
+      ]
+    },
+    {
+      "q": "Donner une mauvaise réponse puis voir immédiatement la correction est…",
+      "o": [
+        "très utile : rappel actif et retour immédiat",
+        "une perte de temps",
+        "néfaste pour la mémoire",
+        "bon uniquement pour les débutants"
+      ]
+    }
+  ],
+  "notation": [
+    {
+      "q": "En clé de sol, la première ligne du bas est…",
+      "o": [
+        "Mi4 (E4)",
+        "Sol4 (G4)",
+        "Fa4 (F4)",
+        "Do4 (C4)"
+      ],
+      "why": "Lignes de la clé de sol : Mi Sol Si Ré Fa (E G B D F)."
+    },
+    {
+      "q": "En clé de fa, la cinquième ligne du haut est…",
+      "o": [
+        "La3 (A3)",
+        "Sol3 (G3)",
+        "Fa3 (F3)",
+        "Do4 (C4)"
+      ],
+      "why": "Lignes de la clé de fa : Sol Si Ré Fa La (G B D F A)."
+    },
+    {
+      "q": "Un dièse (♯) placé devant une note…",
+      "o": [
+        "la hausse d’un demi-ton",
+        "la baisse d’un demi-ton",
+        "annule seulement un bémol",
+        "la rend plus forte"
+      ]
+    },
+    {
+      "q": "Combien de temps l’effet d’une altération accidentelle dure-t-il ?",
+      "o": [
+        "Jusqu’à la fin de la mesure",
+        "Pour cette seule note",
+        "Pendant tout le morceau",
+        "Jusqu’à la ligne suivante"
+      ]
+    },
+    {
+      "q": "Jouez la note située sur la deuxième ligne de la clé de sol (Sol4 / G4)."
+    }
+  ],
+  "symbols": [
+    {
+      "q": "Que signifie l’indication D.C. al Fine ?",
+      "o": [
+        "Reprendre depuis le début et s’arrêter au mot Fine",
+        "Sauter directement à la coda",
+        "Répéter la dernière mesure",
+        "Jouer plus fort jusqu’au bout"
+      ]
+    },
+    {
+      "q": "Une ligne courbe reliant deux notes de même hauteur est une…",
+      "o": [
+        "liaison de prolongation (tenue)",
+        "liaison de phrasé",
+        "indication de crescendo",
+        "point d’orgue (fermata)"
+      ]
+    },
+    {
+      "q": "Un point placé au-dessus d’une note (staccato) signifie…",
+      "o": [
+        "brève et détachée",
+        "tenue plus longtemps",
+        "plus forte",
+        "jouée une octave plus haut"
+      ]
+    },
+    {
+      "q": "L’indication « Ped. » suivie de ✱ signale…",
+      "o": [
+        "enfoncer puis relâcher la pédale forte",
+        "une pause prolongée",
+        "une reprise",
+        "le doigt à utiliser"
+      ]
+    },
+    {
+      "q": "Le doigt numéro 1 désigne le…",
+      "o": [
+        "pouce",
+        "index",
+        "auriculaire",
+        "majeur"
+      ]
+    }
+  ],
+  "dyn": [
+    {
+      "q": "Classez ces nuances de la plus douce à la plus forte.",
+      "o": [
+        "pp · p · mp · mf · f · ff",
+        "p · pp · mf · mp · f · ff",
+        "mp · p · pp · f · mf · ff",
+        "pp · mp · p · f · mf · ff"
+      ]
+    },
+    {
+      "q": "« Crescendo » signifie…",
+      "o": [
+        "de plus en plus fort",
+        "de plus en plus doux",
+        "de plus en plus rapide",
+        "brusquement fort"
+      ]
+    },
+    {
+      "q": "« sfz » (sforzando) indique…",
+      "o": [
+        "un accent soudain et énergique",
+        "très doux",
+        "ralentir le tempo",
+        "tenir la note"
+      ]
+    },
+    {
+      "q": "« mf » correspond à…",
+      "o": [
+        "mezzo forte — modérément fort",
+        "molto forte — très fort",
+        "meno forte — moins fort",
+        "tempo modérément rapide"
+      ]
+    }
+  ],
+  "rh": [
+    {
+      "q": "Combien de noires remplissent une mesure à 4/4 ?",
+      "o": [
+        "4",
+        "2",
+        "3",
+        "8"
+      ]
+    },
+    {
+      "q": "Une blanche pointée dure…",
+      "o": [
+        "3 temps",
+        "2 temps",
+        "2½ temps",
+        "4 temps"
+      ]
+    },
+    {
+      "q": "Écoutez attentivement : de quelle mesure s’agit-il ?",
+      "o": [
+        "3/4 (valse)",
+        "4/4",
+        "2/4",
+        "6/8"
+      ]
+    },
+    {
+      "q": "En 4/4, quels temps sont généralement les plus forts ?",
+      "o": [
+        "1 (et 3)",
+        "2 et 4",
+        "uniquement le 4",
+        "tous égaux"
+      ]
+    }
+  ],
+  "rh2": [
+    {
+      "q": "Un triolet fait entrer trois notes dans la durée de…",
+      "o": [
+        "deux notes de même valeur",
+        "quatre",
+        "une note pointée",
+        "trois"
+      ]
+    },
+    {
+      "q": "La mesure à 6/8 est habituellement ressentie à…",
+      "o": [
+        "2 pulsations de noire pointée",
+        "6 pulsations égales de noire",
+        "3 temps",
+        "4 temps"
+      ]
+    },
+    {
+      "q": "Une syncope consiste à…",
+      "o": [
+        "accentuer un temps faible ou un contretemps",
+        "jouer plus vite",
+        "observer un long silence",
+        "changer de tonalité"
+      ]
+    },
+    {
+      "q": "Quel tempo est le plus lent ?",
+      "o": [
+        "Largo",
+        "Andante",
+        "Allegro",
+        "Presto"
+      ]
+    },
+    {
+      "q": "« Ritardando » signifie…",
+      "o": [
+        "ralentir progressivement le tempo",
+        "accélérer progressivement",
+        "revenir au premier tempo",
+        "très rapide"
+      ]
+    }
+  ],
+  "iv": [
+    {
+      "q": "Écoutez attentivement : nommez cet intervalle.",
+      "o": [
+        "Quinte juste",
+        "Tierce majeure",
+        "Quarte juste",
+        "Octave"
+      ]
+    },
+    {
+      "q": "Combien de demi-tons compte une tierce majeure ?",
+      "o": [
+        "4",
+        "3",
+        "5",
+        "2"
+      ]
+    },
+    {
+      "q": "De do en montant jusqu’à la, il s’agit d’une…",
+      "o": [
+        "sixte majeure",
+        "sixte mineure",
+        "quinte juste",
+        "septième majeure"
+      ]
+    },
+    {
+      "q": "Écoutez attentivement : nommez cet intervalle.",
+      "o": [
+        "Tierce mineure",
+        "Tierce majeure",
+        "Seconde majeure",
+        "Quarte juste"
+      ]
+    },
+    {
+      "q": "Jouez une quinte juste ascendante à partir de ré : ré puis la."
+    }
+  ],
+  "iv2": [
+    {
+      "q": "De do à fa♯ (6 demi-tons), il s’agit d’une…",
+      "o": [
+        "quarte augmentée (triton)",
+        "quarte juste",
+        "sixte mineure",
+        "tierce majeure"
+      ]
+    },
+    {
+      "q": "En renversant une tierce majeure, on obtient une…",
+      "o": [
+        "sixte mineure",
+        "sixte majeure",
+        "quinte juste",
+        "tierce mineure"
+      ],
+      "why": "La somme des chiffres donne 9 ; majeur ↔ mineur."
+    },
+    {
+      "q": "De Do4 en montant jusqu’à Ré5, il s’agit d’une…",
+      "o": [
+        "neuvième majeure",
+        "seconde majeure",
+        "neuvième mineure",
+        "dixième majeure"
+      ]
+    },
+    {
+      "q": "Do–Mi♭ comparé à Do–Ré♯ : mêmes touches au piano, mais ce sont…",
+      "o": [
+        "une tierce mineure et une seconde augmentée",
+        "exactement le même intervalle",
+        "une tierce majeure et une tierce mineure",
+        "une quarte et une quinte"
+      ]
+    },
+    {
+      "q": "Jouez un triton : fa puis si."
+    }
+  ],
+  "sc": [
+    {
+      "q": "La structure par tons et demi-tons de la gamme majeure est…",
+      "o": [
+        "T T S T T T S",
+        "T S T T S T T",
+        "T T T S T T S",
+        "S T T T S T T"
+      ]
+    },
+    {
+      "q": "Combien de dièses compte la gamme de sol majeur ?",
+      "o": [
+        "1",
+        "0",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "q": "Quelle note est la sensible en do majeur ?",
+      "o": [
+        "Si",
+        "Sol",
+        "Fa",
+        "Ré"
+      ]
+    },
+    {
+      "q": "Écoutez attentivement : est-ce majeur ou mineur ?",
+      "o": [
+        "Mineur",
+        "Majeur"
+      ]
+    },
+    {
+      "q": "Jouez les degrés 1, 3 et 5 de sol majeur (sol, si, ré)."
+    }
+  ],
+  "minor": [
+    {
+      "q": "Quel degré la gamme mineure harmonique hausse-t-elle ?",
+      "o": [
+        "le 7e degré",
+        "le 6e degré",
+        "le 3e degré",
+        "le 2e degré"
+      ]
+    },
+    {
+      "q": "La gamme de la mineur mélodique ascendante est…",
+      "o": [
+        "La Si Do Ré Mi Fa♯ Sol♯ La",
+        "La Si Do Ré Mi Fa Sol La",
+        "La Si Do Ré Mi Fa Sol♯ La",
+        "La Si Do♯ Ré Mi Fa♯ Sol♯ La"
+      ]
+    },
+    {
+      "q": "Le 5e degré d’une gamme est appelé la…",
+      "o": [
+        "dominante",
+        "sous-dominante",
+        "médiante",
+        "tonique"
+      ]
+    },
+    {
+      "q": "L’ordre des dièses commence par…",
+      "o": [
+        "Fa Do Sol Ré",
+        "Si Mi La Ré",
+        "Do Sol Ré La",
+        "Fa Si Mi La"
+      ]
+    },
+    {
+      "q": "Écoutez attentivement : quel type de gamme mineure entendez-vous ?",
+      "o": [
+        "Mineure harmonique",
+        "Mineure naturelle",
+        "Mineure mélodique"
+      ]
+    },
+    {
+      "q": "Jouez la triade de la mineur (la, do, mi)."
+    }
+  ],
+  "cof": [
+    {
+      "q": "En tournant dans le sens horaire sur le cycle des quintes, chaque pas ajoute…",
+      "o": [
+        "un dièse",
+        "un bémol",
+        "une octave",
+        "un temps"
+      ]
+    },
+    {
+      "q": "Quelle tonalité majeure comporte 3 bémols à la clé ?",
+      "o": [
+        "Mi♭ majeur",
+        "La♭ majeur",
+        "Si♭ majeur",
+        "La majeur"
+      ]
+    },
+    {
+      "q": "Quelle est la relative mineure de fa majeur ?",
+      "o": [
+        "Ré mineur",
+        "La mineur",
+        "Fa mineur",
+        "Sol mineur"
+      ]
+    },
+    {
+      "q": "Le dernier dièse à l’armure est toujours un demi-ton en dessous de…",
+      "o": [
+        "la tonique majeure",
+        "la dominante",
+        "la relative mineure",
+        "le 4e degré"
+      ]
+    },
+    {
+      "q": "Jouez la triade de tonique de ré majeur (ré, fa♯, la)."
+    }
+  ],
+  "modes": [
+    {
+      "q": "Le mode dorien est une gamme mineure avec un degré haussé :",
+      "o": [
+        "le 6e",
+        "le 7e",
+        "le 2e",
+        "le 4e"
+      ]
+    },
+    {
+      "q": "Quel mode correspond à une gamme majeure avec un ♭7 ?",
+      "o": [
+        "Mixolydien",
+        "Lydien",
+        "Phrygien",
+        "Locrien"
+      ]
+    },
+    {
+      "q": "La note caractéristique du mode lydien est…",
+      "o": [
+        "♯4",
+        "♭2",
+        "♭7",
+        "♭3"
+      ]
+    },
+    {
+      "q": "Ré dorien utilise les touches blanches de…",
+      "o": [
+        "ré à ré",
+        "do à do",
+        "mi à mi",
+        "la à la"
+      ]
+    }
+  ],
+  "ch": [
+    {
+      "q": "Un accord parfait majeur est constitué de…",
+      "o": [
+        "tierce majeure + tierce mineure",
+        "tierce mineure + tierce majeure",
+        "deux tierces majeures",
+        "deux tierces mineures"
+      ]
+    },
+    {
+      "q": "Écoutez attentivement : quelle est la qualité de cet accord ?",
+      "o": [
+        "Mineur",
+        "Majeur",
+        "Diminué",
+        "Augmenté"
+      ]
+    },
+    {
+      "q": "Mi–Sol–Do correspond à l’accord de do majeur en…",
+      "o": [
+        "1er renversement",
+        "état fondamental",
+        "2e renversement",
+        "une autre tonalité"
+      ]
+    },
+    {
+      "q": "Jouez la mineur (la, do, mi) — n’importe quelle octave ou renversement."
+    },
+    {
+      "q": "Jouez fa majeur (fa, la, do)."
+    }
+  ],
+  "ch7": [
+    {
+      "q": "L’accord C7 (do 7e de dominante) est composé de…",
+      "o": [
+        "Do Mi Sol Si♭ (C E G B♭)",
+        "Do Mi Sol Si (C E G B)",
+        "Do Mi♭ Sol Si♭ (C E♭ G B♭)",
+        "Do Mi♭ Sol♭ La (C E♭ G♭ A)"
+      ]
+    },
+    {
+      "q": "Écoutez attentivement : quel accord de septième entendez-vous ?",
+      "o": [
+        "Septième majeure (maj7)",
+        "Septième de dominante (7)",
+        "Septième mineure (m7)",
+        "Septième diminuée (dim7)"
+      ]
+    },
+    {
+      "q": "Bm7♭5 (si demi-diminué) est l’accord bâti sur quel degré de do majeur ?",
+      "o": [
+        "vii°",
+        "ii",
+        "V",
+        "iii"
+      ]
+    },
+    {
+      "q": "La notation C/E désigne…",
+      "o": [
+        "un accord de do avec mi à la basse",
+        "do puis mi successivement",
+        "do majeur ou mi majeur",
+        "un accord de do mineur"
+      ]
+    },
+    {
+      "q": "L’accord Csus4 remplace la tierce par…",
+      "o": [
+        "la quarte (fa)",
+        "la seconde (ré)",
+        "la sixte (la)",
+        "la septième (si♭)"
+      ]
+    },
+    {
+      "q": "Jouez G7 (sol, si, ré, fa)."
+    }
+  ],
+  "pr": [
+    {
+      "q": "En do majeur, l’accord V est…",
+      "o": [
+        "Sol majeur",
+        "Fa majeur",
+        "La mineur",
+        "Mi mineur"
+      ]
+    },
+    {
+      "q": "Quels accords sont mineurs dans une tonalité majeure ?",
+      "o": [
+        "ii, iii, vi",
+        "I, IV, V",
+        "ii, V, vii°",
+        "iii, IV, vi"
+      ]
+    },
+    {
+      "q": "Combien de mesures comporte une grille de blues standard ?",
+      "o": [
+        "12",
+        "8",
+        "16",
+        "4"
+      ]
+    },
+    {
+      "q": "Dans un blues en 12 mesures, la mesure 5 va sur…",
+      "o": [
+        "IV",
+        "V",
+        "I",
+        "vi"
+      ]
+    },
+    {
+      "q": "Jouez l’accord IV en do (fa, la, do)."
+    }
+  ],
+  "cad": [
+    {
+      "q": "L’enchaînement V → I forme une cadence…",
+      "o": [
+        "parfaite (authentique)",
+        "plagale",
+        "demi-cadence",
+        "rompue (évitée)"
+      ]
+    },
+    {
+      "q": "Une phrase musicale qui s’achève sur l’accord V forme une…",
+      "o": [
+        "demi-cadence",
+        "cadence parfaite",
+        "cadence plagale",
+        "cadence rompue"
+      ]
+    },
+    {
+      "q": "Écoutez attentivement : de quelle cadence s’agit-il ?",
+      "o": [
+        "Rompue (V → vi)",
+        "Parfaite (V → I)",
+        "Plagale (IV → I)",
+        "Demi-cadence (I → V)"
+      ]
+    },
+    {
+      "q": "La cadence traditionnellement associée au mot « Amen » est…",
+      "o": [
+        "IV → I (plagale)",
+        "V → I",
+        "I → V",
+        "V → vi"
+      ]
+    }
+  ],
+  "minorh": [
+    {
+      "q": "En la mineur, le degré V devient un accord majeur en raison de…",
+      "o": [
+        "la sensible haussée (sol♯)",
+        "le 6e degré haussé",
+        "la tierce abaissée",
+        "une modulation"
+      ]
+    },
+    {
+      "q": "En la mineur, la progression i – iv – V – i correspond à…",
+      "o": [
+        "Lam – Rém – Mi – Lam",
+        "Lam – Ré – Mim – Lam",
+        "La – Ré – Mi – La",
+        "Lam – Fa – Sol – Lam"
+      ]
+    },
+    {
+      "q": "Dans le chiffrage romain en mineur, les minuscules désignent…",
+      "o": [
+        "un accord mineur (ou diminué)",
+        "un accord joué doucement",
+        "un renversement",
+        "un accord de septième"
+      ]
+    },
+    {
+      "q": "Jouez mi majeur — le V de la mineur (mi, sol♯, si)."
+    }
+  ],
+  "nct": [
+    {
+      "q": "Une note de passage se déplace…",
+      "o": [
+        "par mouvement conjoint entre deux notes réelles",
+        "par saut à l’écart de l’accord",
+        "en restant sur la même note",
+        "uniquement à la basse"
+      ]
+    },
+    {
+      "q": "Une broderie…",
+      "o": [
+        "s’éloigne d’un degré puis revient sur la même note",
+        "saute d’une octave",
+        "fait toujours partie de l’accord",
+        "désigne un silence"
+      ]
+    },
+    {
+      "q": "Un retard se résout habituellement…",
+      "o": [
+        "en descendant par degré conjoint",
+        "en montant par saut",
+        "ne se résout jamais",
+        "sur la note de basse"
+      ]
+    },
+    {
+      "q": "Une appoggiature est…",
+      "o": [
+        "une dissonance accentuée abordée par saut et résolue conjointement",
+        "une note réelle jouée doucement",
+        "une variété de silence",
+        "une note répétée"
+      ]
+    }
+  ],
+  "secdom": [
+    {
+      "q": "En do majeur, l’accord V/V est…",
+      "o": [
+        "Ré majeur (D7 / Ré7)",
+        "Sol majeur",
+        "La mineur",
+        "Fa majeur"
+      ]
+    },
+    {
+      "q": "Une dominante secondaire est…",
+      "o": [
+        "le V d’un autre degré que le I",
+        "n’importe quel accord mineur",
+        "le deuxième accord d’un morceau",
+        "un accord privé de tierce"
+      ]
+    },
+    {
+      "q": "De do majeur à sol majeur : la nouvelle tonalité est la…",
+      "o": [
+        "tonalité de la dominante",
+        "relative mineure",
+        "tonalité de la sous-dominante",
+        "homonyme mineure"
+      ]
+    },
+    {
+      "q": "Une bonne conduite des voix privilégie…",
+      "o": [
+        "les notes communes tenues et les petits intervalles",
+        "le déplacement de toutes les voix par grands sauts",
+        "les quintes parallèles consécutives",
+        "le redoublement de la sensible"
+      ]
+    },
+    {
+      "q": "Jouez A7 : V/ii en do (la, do♯, mi, sol)."
+    }
+  ],
+  "form": [
+    {
+      "q": "Une courte idée musicale répétée et développée est un…",
+      "o": [
+        "motif",
+        "cadence",
+        "coda",
+        "mesure"
+      ]
+    },
+    {
+      "q": "La structure A–B–A–C–A est une forme…",
+      "o": [
+        "rondo",
+        "forme binaire",
+        "forme ternaire",
+        "une période"
+      ]
+    },
+    {
+      "q": "Une période musicale est constituée de…",
+      "o": [
+        "phrases antécédente et conséquente",
+        "une seule mesure",
+        "une sonate entière",
+        "une barre de reprise"
+      ]
+    },
+    {
+      "q": "La phrase antécédente se termine le plus souvent par une…",
+      "o": [
+        "demi-cadence",
+        "cadence parfaite",
+        "modulation",
+        "point d’orgue"
+      ]
+    }
+  ],
+  "accomp": [
+    {
+      "q": "La basse d’Alberti joue les notes de l’accord dans l’ordre…",
+      "o": [
+        "basse – aiguë – médium – aiguë",
+        "basse – médium – aiguë",
+        "toutes ensemble en plaqué",
+        "aiguë – basse"
+      ]
+    },
+    {
+      "q": "Écoutez attentivement : quel patron d’accompagnement entendez-vous ?",
+      "o": [
+        "Valse (basse – accord – accord)",
+        "Alberti",
+        "Accords plaqués",
+        "Arpège de ballade"
+      ]
+    },
+    {
+      "q": "Un lead sheet (grille) fournit…",
+      "o": [
+        "la mélodie avec les chiffrages d’accords",
+        "toutes les notes écrites pour les deux mains",
+        "uniquement les paroles",
+        "seulement le rythme"
+      ]
+    },
+    {
+      "q": "Sur un lead sheet, la main gauche joue généralement…",
+      "o": [
+        "la fondamentale ou un motif guidé par le chiffrage",
+        "la mélodie principale",
+        "rien",
+        "des notes au hasard"
+      ]
+    }
+  ]
+}

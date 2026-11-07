@@ -1,0 +1,880 @@
+{
+  "keys": [
+    {
+      "q": "Quale tasto bianco si trova subito a sinistra del gruppo di due tasti neri?",
+      "o": [
+        "C",
+        "F",
+        "D",
+        "B"
+      ]
+    },
+    {
+      "q": "Quanti semitoni comprende un'ottava?",
+      "o": [
+        "12",
+        "8",
+        "7",
+        "10"
+      ]
+    },
+    {
+      "q": "Quale coppia di tasti forma un semitono naturale senza alcun tasto nero intermedio?",
+      "o": [
+        "E–F",
+        "C–D",
+        "F–G",
+        "A–B"
+      ]
+    },
+    {
+      "q": "Suona il do centrale (C4)."
+    },
+    {
+      "q": "Suona E e poi F: il semitono naturale."
+    }
+  ],
+  "how": [
+    {
+      "q": "Cosa favorisce maggiormente la memorizzazione duratura?",
+      "o": [
+        "Brevi sessioni quotidiane con ripetizione spaziata",
+        "Una singola lunga sessione settimanale",
+        "Rileggere passivamente finché non sembra familiare",
+        "Il solo ascolto passivo"
+      ]
+    },
+    {
+      "q": "Perché è utile alternare diversi tipi di esercizio in una stessa sessione?",
+      "o": [
+        "Il cambio continuo costringe a scegliere la strategia giusta, fissando il ricordo più a fondo",
+        "Fa solo risparmiare tempo",
+        "Evita qualsiasi tipo di errore",
+        "Non ha alcun effetto comprovato"
+      ]
+    },
+    {
+      "q": "Commettere un errore durante il richiamo attivo seguito da immediata correzione è…",
+      "o": [
+        "estremamente prezioso per consolidare l'apprendimento",
+        "una perdita di tempo",
+        "dannoso per la memoria",
+        "utile solo per i principianti"
+      ]
+    }
+  ],
+  "notation": [
+    {
+      "q": "Quale nota si trova sulla prima linea dal basso in chiave di violino?",
+      "o": [
+        "E4",
+        "G4",
+        "F4",
+        "C4"
+      ],
+      "why": "Le linee in chiave di violino dal basso sono: E G B D F (Mi Sol Si Re Fa)."
+    },
+    {
+      "q": "Quale nota si trova sull'ultima linea in alto in chiave di basso?",
+      "o": [
+        "A3",
+        "G3",
+        "F3",
+        "C4"
+      ],
+      "why": "Le linee in chiave di basso dal basso verso l'alto sono: G B D F A (Sol Si Re Fa La)."
+    },
+    {
+      "q": "Un diesis (♯) posto davanti a una nota…",
+      "o": [
+        "alza la nota di un semitono",
+        "abbassa la nota di un semitono",
+        "annulla solo i bemolli",
+        "aumenta il volume della nota"
+      ]
+    },
+    {
+      "q": "Fino a quando rimane valida un'alterazione transitoria?",
+      "o": [
+        "Fino al termine della misura corrente",
+        "Solo per la singola nota",
+        "Per l'intero brano musicale",
+        "Fino al rigo successivo"
+      ]
+    },
+    {
+      "q": "Suona la nota indicata sul pentagramma."
+    }
+  ],
+  "symbols": [
+    {
+      "q": "Cosa indica l'abbreviazione «D.C.» (Da Capo)?",
+      "o": [
+        "Ripetere dall'inizio del brano",
+        "Terminare immediatamente il brano",
+        "Saltare alla sezione Coda",
+        "Suonare il doppio più veloce"
+      ]
+    },
+    {
+      "q": "Cosa prescrive un punto di staccato posto sopra o sotto una nota?",
+      "o": [
+        "Suonare la nota breve e nettamente staccata",
+        "Tenere la nota per l'intera durata",
+        "Suonare con forza raddoppiata",
+        "Aggiungere un semitono"
+      ]
+    },
+    {
+      "q": "Quale numero indica il pollice nella diteggiatura per pianoforte?",
+      "o": [
+        "1",
+        "5",
+        "3",
+        "0"
+      ]
+    },
+    {
+      "q": "Cosa indica il simbolo di corona (fermata 𝄐)?",
+      "o": [
+        "Prolungare la nota o la pausa oltre il valore scritto",
+        "Riprendere il tempo originario",
+        "Suonare pianissimo",
+        "Cambiare tonalità"
+      ]
+    },
+    {
+      "q": "Come si distingue una legatura di valore da una di portamento?",
+      "o": [
+        "La legatura di valore unisce note della stessa altezza sommandone i valori",
+        "La legatura di valore riguarda sempre note diverse",
+        "Non c'è alcuna differenza",
+        "La legatura di valore si usa solo nei brani vocali"
+      ]
+    }
+  ],
+  "dyn": [
+    {
+      "q": "Qual è l'ordine corretto delle dinamiche dal più piano al più forte?",
+      "o": [
+        "pp < p < mp < mf < f < ff",
+        "p < pp < mf < mp < ff < f",
+        "mp < p < pp < mf < f < ff",
+        "pp < mp < p < mf < ff < f"
+      ]
+    },
+    {
+      "q": "Cosa significa il termine «crescendo» (<)?",
+      "o": [
+        "Aumentare gradualmente il volume del suono",
+        "Diminuire gradualmente il volume",
+        "Accelerare il tempo",
+        "Rallentare il battito"
+      ]
+    },
+    {
+      "q": "Cosa indica l'abbreviazione «sfz» (sforzando)?",
+      "o": [
+        "Un accento improvviso e marcato su una singola nota",
+        "Una sfumatura graduale nel silenzio",
+        "Un rallentamento del tempo",
+        "Una pausa prolungata"
+      ]
+    },
+    {
+      "q": "Cosa prescrive l'indicazione «mezzo forte» (mf)?",
+      "o": [
+        "Moderatamente forte",
+        "Il massimo volume possibile",
+        "Estremamente piano",
+        "Esattamente come il piano"
+      ]
+    }
+  ],
+  "rh": [
+    {
+      "q": "Quanti battiti dura una semiminima (quarto) in un metro di 4/4?",
+      "o": [
+        "1",
+        "2",
+        "4",
+        "½"
+      ]
+    },
+    {
+      "q": "Di quanto prolunga la durata della nota un punto di valore?",
+      "o": [
+        "Della metà del suo valore originario",
+        "Del doppio del valore",
+        "Di un quarto fisso",
+        "Di un'intera battuta"
+      ]
+    },
+    {
+      "q": "Quanti battiti dura una minima col punto in 4/4?",
+      "o": [
+        "3",
+        "2,5",
+        "4",
+        "2"
+      ]
+    },
+    {
+      "q": "Quale battito riceve l'accento metrico principale in una misura di 3/4?",
+      "o": [
+        "Il 1° battito",
+        "Il 2° battito",
+        "Il 3° battito",
+        "Tutti uguali"
+      ]
+    }
+  ],
+  "rh2": [
+    {
+      "q": "Cosa indica una pausa musicale?",
+      "o": [
+        "Un momento di silenzio equivalente alla durata della figura corrispondente",
+        "Un rallentamento del tempo",
+        "La fine definitiva del brano",
+        "Un accordo arpeggiato"
+      ]
+    },
+    {
+      "q": "Quante note vengono eseguite in una terzina al posto di due del medesimo valore?",
+      "o": [
+        "3",
+        "4",
+        "2",
+        "6"
+      ]
+    },
+    {
+      "q": "Qual è l'unità di pulsazione principale in una misura di 6/8?",
+      "o": [
+        "La semiminima col punto (3 crome)",
+        "La semiminima semplice",
+        "La minima",
+        "La croma"
+      ]
+    },
+    {
+      "q": "Che cos'è una sincope?",
+      "o": [
+        "Uno spostamento dell'accento metrico su un tempo o una frazione debole",
+        "Una scala eseguita velocissima",
+        "Un ritardo della mano sinistra",
+        "Una battuta vuota"
+      ]
+    },
+    {
+      "q": "Quale termine indica un andamento moderatamente calmo, «a passo di cammino»?",
+      "o": [
+        "Andante",
+        "Presto",
+        "Largo",
+        "Vivace"
+      ]
+    }
+  ],
+  "iv": [
+    {
+      "q": "Quanti semitoni misura una terza minore?",
+      "o": [
+        "3",
+        "4",
+        "2",
+        "5"
+      ]
+    },
+    {
+      "q": "Quanti semitoni misura una quinta giusta?",
+      "o": [
+        "7",
+        "6",
+        "8",
+        "5"
+      ]
+    },
+    {
+      "q": "Quale intervallo separa C e G?",
+      "o": [
+        "Quinta giusta",
+        "Quarta giusta",
+        "Terza maggiore",
+        "Sesta maggiore"
+      ]
+    },
+    {
+      "q": "Come si contano i gradi di un intervallo tra due note?",
+      "o": [
+        "Contando tutti i gradi della scala includendo entrambe le note estreme",
+        "Contando solo i tasti neri",
+        "Escludendo sempre la nota di partenza",
+        "Misurando solo in millimetri"
+      ]
+    },
+    {
+      "q": "Suona l'intervallo richiesto."
+    }
+  ],
+  "iv2": [
+    {
+      "q": "Quanti semitoni misura il tritono?",
+      "o": [
+        "6",
+        "5",
+        "7",
+        "8"
+      ]
+    },
+    {
+      "q": "Rivoltando una terza maggiore, quale intervallo si ottiene?",
+      "o": [
+        "Sesta minore",
+        "Sesta maggiore",
+        "Quarta giusta",
+        "Quinta diminuita"
+      ],
+      "why": "La regola del 9: 9 − 3 = 6; un intervallo maggiore diventa minore nel rivolto."
+    },
+    {
+      "q": "Quale intervallo composto corrisponde a un'ottava più una seconda maggiore?",
+      "o": [
+        "Nona maggiore",
+        "Decima minore",
+        "Undicesima giusta",
+        "Settima maggiore"
+      ]
+    },
+    {
+      "q": "Cosa accade agli intervalli giusti (quarta, quinta, ottava) quando vengono rivoltati?",
+      "o": [
+        "Rimangono giusti",
+        "Diventano maggiori",
+        "Diventano minori",
+        "Diventano aumentati"
+      ]
+    },
+    {
+      "q": "Suona il rivolto dell'intervallo mostrato."
+    }
+  ],
+  "sc": [
+    {
+      "q": "Qual è la sequenza esatta di toni (T) e semitoni (S) nella scala maggiore?",
+      "o": [
+        "T–T–S–T–T–T–S",
+        "T–S–T–T–S–T–T",
+        "T–T–T–S–T–T–S",
+        "S–T–T–S–T–T–T"
+      ]
+    },
+    {
+      "q": "Quali gradi della scala maggiore sono separati da un semitono naturale?",
+      "o": [
+        "3°–4° e 7°–8°",
+        "1°–2° e 4°–5°",
+        "2°–3° e 6°–7°",
+        "5°–6° e 7°–8°"
+      ]
+    },
+    {
+      "q": "Da quante note è formata una scala pentatonica maggiore?",
+      "o": [
+        "5",
+        "7",
+        "6",
+        "8"
+      ]
+    },
+    {
+      "q": "Ascolta: maggiore o minore?",
+      "o": [
+        "Minore",
+        "Maggiore"
+      ]
+    },
+    {
+      "q": "Suona la scala maggiore richiesta a partire dalla tonica indicata."
+    }
+  ],
+  "minor": [
+    {
+      "q": "Qual è la formula intervallare della scala minore naturale?",
+      "o": [
+        "1 2 ♭3 4 5 ♭6 ♭7",
+        "1 2 3 4 5 6 7",
+        "1 2 ♭3 4 5 ♭6 7",
+        "1 ♭2 ♭3 4 5 ♭6 ♭7"
+      ]
+    },
+    {
+      "q": "Qual è la relativa minore di Do maggiore (C)?",
+      "o": [
+        "La minore (Am)",
+        "Mi minore (Em)",
+        "Re minore (Dm)",
+        "Sol minore (Gm)"
+      ]
+    },
+    {
+      "q": "Quale grado viene alzato nella scala minore armonica per creare la sensibile?",
+      "o": [
+        "Il 7° grado",
+        "Il 6° grado",
+        "Il 3° grado",
+        "Il 4° grado"
+      ]
+    },
+    {
+      "q": "Come si chiama il 5° grado di qualsiasi scala?",
+      "o": [
+        "Dominante",
+        "Sottodominante",
+        "Mediante",
+        "Sensibile"
+      ]
+    },
+    {
+      "q": "Ascolta: quale scala minore è?",
+      "o": [
+        "Minore armonica",
+        "Minore naturale",
+        "Minore melodica"
+      ]
+    },
+    {
+      "q": "Suona la scala minore naturale richiesta."
+    }
+  ],
+  "cof": [
+    {
+      "q": "Cosa accade procedendo di un passo in senso orario sul circolo delle quinte?",
+      "o": [
+        "Si sale di una quinta giusta e si aggiunge un diesis (♯)",
+        "Si scende di una quarta e si aggiunge un bemolle",
+        "La tonalità diventa minore",
+        "Si raddoppia il tempo"
+      ]
+    },
+    {
+      "q": "Quanti diesis ha in chiave la tonalità di Sol maggiore (G)?",
+      "o": [
+        "1 (F♯)",
+        "2 (F♯, C♯)",
+        "Nessuno",
+        "3 (F♯, C♯, G♯)"
+      ]
+    },
+    {
+      "q": "Quale tonalità maggiore ha un solo bemolle in chiave (B♭)?",
+      "o": [
+        "Fa maggiore (F)",
+        "Si bemolle maggiore (B♭)",
+        "Re maggiore (D)",
+        "Mi bemolle maggiore (E♭)"
+      ]
+    },
+    {
+      "q": "Qual è la regola per riconoscere la tonalità maggiore da un'armatura con più bemolli?",
+      "o": [
+        "Il penultimo bemolle dà il nome alla tonalità maggiore",
+        "L'ultimo bemolle più un semitono",
+        "Si contano i bemolli e si moltiplica per due",
+        "Non c'è una regola fissa"
+      ]
+    },
+    {
+      "q": "Suona la tonica della tonalità indicata dall'armatura di chiave."
+    }
+  ],
+  "modes": [
+    {
+      "q": "Quale modo corrisponde integralmente alla scala maggiore naturale?",
+      "o": [
+        "Modo Ionico",
+        "Modo Dorico",
+        "Modo Eolio",
+        "Modo Lidio"
+      ]
+    },
+    {
+      "q": "Cosa caratterizza il modo Dorico rispetto alla scala minore naturale?",
+      "o": [
+        "Presenta una 6ª maggiore anziché minore",
+        "Ha la 2ª minore",
+        "Ha la 5ª diminuita",
+        "Non ha la terza"
+      ]
+    },
+    {
+      "q": "Quale caratteristica intervallare rende unico il modo Lidio?",
+      "o": [
+        "La 4ª aumentata (tritono sopra la tonica)",
+        "La 3ª minore",
+        "La 7ª diminuita",
+        "La 6ª minore"
+      ]
+    },
+    {
+      "q": "Quale modo è una scala maggiore dotata di 7ª minore?",
+      "o": [
+        "Misolidio",
+        "Frigio",
+        "Locrio",
+        "Dorico"
+      ]
+    }
+  ],
+  "ch": [
+    {
+      "q": "Da quali intervalli sopra la fondamentale è costituita una triade maggiore?",
+      "o": [
+        "Terza maggiore (4 st) e quinta giusta (7 st)",
+        "Terza minore (3 st) e quinta giusta (7 st)",
+        "Terza maggiore e quinta aumentata",
+        "Due terze minori sovrapposte"
+      ]
+    },
+    {
+      "q": "Cosa distingue una triade minore da una maggiore?",
+      "o": [
+        "La terza è minore (3 semitoni) anziché maggiore",
+        "La quinta è diminuita",
+        "La fondamentale è assente",
+        "Ha una nota in più"
+      ]
+    },
+    {
+      "q": "Quali intervalli formano una triade diminuita?",
+      "o": [
+        "Terza minore + quinta diminuita (due terze minori a 3 semitoni)",
+        "Terza maggiore + quinta giusta",
+        "Due terze maggiori",
+        "Terza minore + quinta giusta"
+      ]
+    },
+    {
+      "q": "Suona la triade maggiore richiesta."
+    },
+    {
+      "q": "Suona la triade minore richiesta."
+    }
+  ],
+  "ch7": [
+    {
+      "q": "Quale formula descrive l'accordo di settima di dominante (7)?",
+      "o": [
+        "Triade maggiore + 7ª minore (1 3 5 ♭7)",
+        "Triade maggiore + 7ª maggiore (1 3 5 7)",
+        "Triade minore + 7ª minore (1 ♭3 5 ♭7)",
+        "Triade diminuita + 7ª minore"
+      ]
+    },
+    {
+      "q": "Cosa contraddistingue un accordo di settima maggiore (maj7)?",
+      "o": [
+        "Triade maggiore con 7ª maggiore (un semitono sotto l'ottava)",
+        "Accordo minore con settima",
+        "Ha la quinta alterata",
+        "È un accordo sospeso"
+      ]
+    },
+    {
+      "q": "Qual è la struttura di un accordo semidiminuito (m7♭5)?",
+      "o": [
+        "Triade diminuita + 7ª minore",
+        "Triade minore + 7ª maggiore",
+        "Triade maggiore + 7ª aumentata",
+        "Triade diminuita + 7ª diminuita"
+      ]
+    },
+    {
+      "q": "Cosa significa una sigla di accordo con barra obliqua come C/E?",
+      "o": [
+        "Accordo di Do maggiore con Mi al basso (primo rivolto)",
+        "Suonare due accordi insieme",
+        "L'accordo è opzionale",
+        "Il tempo è in levare"
+      ]
+    },
+    {
+      "q": "Quali note compongono un accordo sospeso sus4?",
+      "o": [
+        "Fondamentale, quarta giusta e quinta giusta (la 3ª è sostituita dalla 4ª)",
+        "Fondamentale, terza e quinta",
+        "Fondamentale, seconda e quarta",
+        "Solo note alterate"
+      ]
+    },
+    {
+      "q": "Suona l'accordo di settima richiesto."
+    }
+  ],
+  "pr": [
+    {
+      "q": "Quali sono i gradi fondamentali (maggiori) in una tonalità maggiore?",
+      "o": [
+        "I, IV e V",
+        "ii, iii e vi",
+        "I, iii e vi",
+        "IV, vi e vii°"
+      ]
+    },
+    {
+      "q": "Quale grado ospita l'unico accordo diminuito nella tonalità maggiore?",
+      "o": [
+        "Il vii° grado",
+        "Il ii grado",
+        "Il iii grado",
+        "Il vi grado"
+      ]
+    },
+    {
+      "q": "Quale progressione rappresenta la classica formula cadenzale del jazz?",
+      "o": [
+        "ii – V – I",
+        "I – IV – V",
+        "I – vi – IV – V",
+        "vi – ii – V – I"
+      ]
+    },
+    {
+      "q": "Qual è lo schema dei gradi nelle prime quattro battute di un classico blues a 12 battute?",
+      "o": [
+        "I – I – I – I (o I – IV – I – I)",
+        "IV – IV – I – I",
+        "V – IV – I – V",
+        "ii – V – I – I"
+      ]
+    },
+    {
+      "q": "Suona la progressione di accordi richiesta."
+    }
+  ],
+  "cad": [
+    {
+      "q": "Quale passaggio armonico definisce la cadenza perfetta (autentica)?",
+      "o": [
+        "V → I",
+        "IV → I",
+        "V → vi",
+        "ii → V"
+      ]
+    },
+    {
+      "q": "Quale formula caratterizza la cadenza plagale («amen»)?",
+      "o": [
+        "IV → I",
+        "V → I",
+        "V → vi",
+        "I → V"
+      ]
+    },
+    {
+      "q": "Come si chiama la cadenza che si conclude sospesa sull'accordo di dominante (V)?",
+      "o": [
+        "Cadenza sospesa (semicadenza)",
+        "Cadenza perfetta",
+        "Cadenza d'inganno",
+        "Cadenza imperfetta"
+      ]
+    },
+    {
+      "q": "Cosa accade nella cadenza d'inganno?",
+      "o": [
+        "Il V grado risolve inaspettatamente sul vi anziché sulla tonica I",
+        "L'accordo V si ripete all'infinito",
+        "Il brano termina senza accordo",
+        "La tonica diventa diminuita"
+      ]
+    }
+  ],
+  "minorh": [
+    {
+      "q": "Quale grado armonico è l'accordo di dominante (V) nella tonalità minore classica?",
+      "o": [
+        "Un accordo maggiore (grazie alla sensibile della minore armonica)",
+        "Un accordo minore",
+        "Un accordo diminuito",
+        "Un accordo sospeso"
+      ]
+    },
+    {
+      "q": "Qual è la qualità dell'accordo costruito sul 2° grado in una tonalità minore (ii°)?",
+      "o": [
+        "Accordo diminuito",
+        "Accordo maggiore",
+        "Accordo minore",
+        "Accordo aumentato"
+      ]
+    },
+    {
+      "q": "Quale progressione è tipica per concludere una frase in tonalità minore?",
+      "o": [
+        "iv – V – i",
+        "IV – V – I",
+        "ii – IV – I",
+        "vi – V – I"
+      ]
+    },
+    {
+      "q": "Suona la cadenza minore richiesta."
+    }
+  ],
+  "nct": [
+    {
+      "q": "Come si muove una tipica nota di passaggio?",
+      "o": [
+        "Per grado congiunto nella stessa direzione tra due note dell'accordo",
+        "Con un salto di quinta",
+        "Rimanendo ferma",
+        "Cambiando ottava"
+      ]
+    },
+    {
+      "q": "Cosa caratterizza una nota di volta (ausiliare)?",
+      "o": [
+        "Parte da una nota reale, fa un passo sopra o sotto e torna alla nota di partenza",
+        "Salta di un'ottava",
+        "Viene tenuta attraverso il cambio di accordo",
+        "Non risolve mai"
+      ]
+    },
+    {
+      "q": "Che cos'è un ritardo nell'armonia?",
+      "o": [
+        "Una nota dell'accordo precedente tenuta legata che crea dissonanza e risolve scendendo di grado",
+        "Suonare fuori tempo con il metronomo",
+        "Un arpeggio suonato lentamente",
+        "Una pausa inaspettata"
+      ]
+    },
+    {
+      "q": "Che cos'è un'appoggiatura?",
+      "o": [
+        "Una nota estranea accentata su tempo forte che risolve per grado congiunto su una nota dell'accordo",
+        "Una nota di passaggio rapida",
+        "Un accordo arpeggiato",
+        "Una legatura di valore"
+      ]
+    }
+  ],
+  "secdom": [
+    {
+      "q": "Che cos'è una dominante secondaria?",
+      "o": [
+        "Un accordo maggiore/settima che funge da dominante verso un grado diverso dalla tonica (ad es. V/V)",
+        "Il secondo rivolto della dominante",
+        "La dominante della relativa minore",
+        "Un accordo diminuito ausiliario"
+      ]
+    },
+    {
+      "q": "In tonalità di Do maggiore, qual è la dominante secondaria del quinto grado (V/V)?",
+      "o": [
+        "Re maggiore / D7 (dominante di Sol)",
+        "La maggiore / A7",
+        "Mi maggiore / E7",
+        "Fa diesis diminuito"
+      ]
+    },
+    {
+      "q": "Come si chiama l'accordo che appartiene sia alla tonalità di partenza sia alla nuova tonalità in una modulazione?",
+      "o": [
+        "Accordo perno (pivot chord)",
+        "Accordo estraneo",
+        "Accordo di volta",
+        "Accordo d'inganno"
+      ]
+    },
+    {
+      "q": "Quale regola fondamentale della condotta classica delle voci evita movimenti vuoti?",
+      "o": [
+        "Evitare quinte e ottave parallele tra le stesse parti",
+        "Non usare mai accordi maggiori",
+        "Suonare sempre e solo per salti",
+        "Raddoppiare sempre la sensibile"
+      ]
+    },
+    {
+      "q": "Suona la dominante secondaria indicata."
+    }
+  ],
+  "form": [
+    {
+      "q": "Che cos'è una «frase» nel discorso musicale?",
+      "o": [
+        "Un'unità musicale compiuta di senso (spesso di circa 4 battute) chiusa da una cadenza",
+        "Una singola battuta",
+        "Una sequenza infinita di note",
+        "La velocità del brano"
+      ]
+    },
+    {
+      "q": "Qual è la struttura caratteristica della forma ternaria?",
+      "o": [
+        "A – B – A",
+        "A – B",
+        "A – B – A – C – A",
+        "A – A – B – B"
+      ]
+    },
+    {
+      "q": "Quali sono le tre sezioni canoniche della forma sonata classica?",
+      "o": [
+        "Esposizione, Sviluppo e Ripresa",
+        "Strofa, Ritornello e Finale",
+        "Preludio, Toccata e Fuga",
+        "Tema, Variazione e Coda"
+      ]
+    },
+    {
+      "q": "In un periodo classico, come si chiamano le due frasi che lo compongono?",
+      "o": [
+        "Proposta (antecedente) e Risposta (conseguente)",
+        "Maggiore e Minore",
+        "Staccato e Legato",
+        "Veloce e Lento"
+      ]
+    }
+  ],
+  "accomp": [
+    {
+      "q": "In cosa consiste il celebre accompagnamento a «Basso albertino»?",
+      "o": [
+        "Un arpeggio a quattro note nello schema: basso – acuto – medio – acuto (1-5-3-5)",
+        "Accordi ribattuti a mani unite",
+        "Una scala rapida discendente",
+        "Soltanto note lunghe al basso"
+      ]
+    },
+    {
+      "q": "Qual è lo schema ritmico tipico dell'accompagnamento del valzer (in 3/4)?",
+      "o": [
+        "Basso sul battito 1, accordi leggeri sui battiti 2 e 3",
+        "Accordi solo sul levare",
+        "Tutti e tre i battiti al basso",
+        "Arpeggio continuo a semicrome"
+      ]
+    },
+    {
+      "q": "Che cos'è un «lead sheet»?",
+      "o": [
+        "Uno spartito che riporta la sola linea melodica accompagnata dalle sigle degli accordi",
+        "La parte stampata per il direttore",
+        "Un testo poetico senza note",
+        "Un manuale di sola teoria"
+      ]
+    },
+    {
+      "q": "Cosa caratterizza l'esecuzione a «block chords» (accordi pieni)?",
+      "o": [
+        "Suonare tutte le note dell'accordo contemporaneamente sul battito",
+        "Sgranare le note molto lentamente",
+        "Suonare solo la fondamentale",
+        "Alternare destra e sinistra a caso"
+      ]
+    }
+  ]
+}

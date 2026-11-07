@@ -1,0 +1,222 @@
+{
+  "0": {
+    "term": "Semitono",
+    "definition": "La distancia más pequeña en el piano: de una tecla a la inmediatamente siguiente, blanca o negra."
+  },
+  "1": {
+    "term": "Tono",
+    "definition": "Dos semitonos, p. ej. C–D (Do–Re)."
+  },
+  "2": {
+    "term": "Octava",
+    "definition": "El mismo nombre de nota 12 semitonos más aguda o más grave; la frecuencia se duplica."
+  },
+  "3": {
+    "term": "Enarmonía",
+    "definition": "Dos nombres para la misma tecla, p. ej. F♯ = G♭ (Fa♯ = Sol♭)."
+  },
+  "4": {
+    "term": "Gran pentagrama",
+    "definition": "Pentagramas en clave de sol y clave de fa unidos por una llave; el do central queda entre ellos."
+  },
+  "5": {
+    "term": "Clave",
+    "definition": "Signo que determina qué nota corresponde a cada línea (clave de sol = Sol, clave de fa = Fa)."
+  },
+  "6": {
+    "term": "Línea adicional",
+    "definition": "Línea corta para notas situadas por encima o por debajo del pentagrama."
+  },
+  "7": {
+    "term": "Alteración",
+    "definition": "♯, ♭ o ♮ situado delante de una nota; tiene efecto hasta la barra de compás."
+  },
+  "8": {
+    "term": "Armadura de clave",
+    "definition": "Sostenidos o bemoles al principio de cada pentagrama que se aplican a toda la obra."
+  },
+  "9": {
+    "term": "Indicación de compás",
+    "definition": "Número superior = pulsos por compás; inferior = figura que recibe el pulso."
+  },
+  "10": {
+    "term": "Nota con puntillo",
+    "definition": "El puntillo añade la mitad del valor de la figura: una blanca con puntillo = 3 pulsos."
+  },
+  "11": {
+    "term": "Ligadura de prolongación",
+    "definition": "Línea curva que une dos notas de la misma altura: se mantiene el sonido sin volver a pulsar."
+  },
+  "12": {
+    "term": "Tresillo",
+    "definition": "Tres notas en el tiempo de dos, indicado con un 3."
+  },
+  "13": {
+    "term": "Síncopa",
+    "definition": "Acento en un pulso débil o a contratiempo."
+  },
+  "14": {
+    "term": "Compás compuesto",
+    "definition": "Los pulsos se subdividen en tres partes (6/8, 9/8, 12/8)."
+  },
+  "15": {
+    "term": "Tempo",
+    "definition": "Velocidad del pulso, expresada en BPM o mediante términos italianos (Adagio, Allegro…)."
+  },
+  "16": {
+    "term": "Dinámica",
+    "definition": "Indicaciones de volumen: pp, p, mp, mf, f, ff."
+  },
+  "17": {
+    "term": "Crescendo / diminuendo",
+    "definition": "Gradualmente más fuerte / gradualmente más suave (reguladores)."
+  },
+  "18": {
+    "term": "Staccato",
+    "definition": "Punto sobre o bajo la nota: corta y separada."
+  },
+  "19": {
+    "term": "Legato",
+    "definition": "Sonido suave y continuo, indicado con una ligadura de expresión."
+  },
+  "20": {
+    "term": "Signo de repetición",
+    "definition": "Doble barra con dos puntos: se vuelve a tocar la sección."
+  },
+  "21": {
+    "term": "D.C. al Fine",
+    "definition": "Volver al principio y terminar en la palabra Fine."
+  },
+  "22": {
+    "term": "D.S. al Coda",
+    "definition": "Volver al signo 𝄋 y saltar a la coda 𝄌 al llegar a la indicación."
+  },
+  "23": {
+    "term": "Calderón",
+    "definition": "𝄐 Mantener la nota más tiempo del valor escrito."
+  },
+  "24": {
+    "term": "Pedal de resonancia",
+    "definition": "Ped. … ✱: pisar el pedal derecho y luego soltarlo."
+  },
+  "25": {
+    "term": "Ornamento",
+    "definition": "Decoración musical como el trino (tr), mordente o nota de adorno."
+  },
+  "26": {
+    "term": "Intervalo",
+    "definition": "Distancia entre dos notas, medida en grados y semitonos."
+  },
+  "27": {
+    "term": "Quinta justa",
+    "definition": "7 semitonos (C–G); el intervalo más estable después de la octava."
+  },
+  "28": {
+    "term": "Tritono",
+    "definition": "6 semitonos: cuarta aumentada o quinta disminuida (C–F♯)."
+  },
+  "29": {
+    "term": "Inversión (intervalo)",
+    "definition": "Mover la nota inferior una octava arriba; los números suman 9 y mayor cambia a menor."
+  },
+  "30": {
+    "term": "Intervalo compuesto",
+    "definition": "Mayor que una octava: la novena = segunda + octava."
+  },
+  "31": {
+    "term": "Escala mayor",
+    "definition": "Estructura de tonos y semitonos: T T S T T T S."
+  },
+  "32": {
+    "term": "Grado de la escala",
+    "definition": "Posición en la escala: tónica, supertónica, mediante, subdominante, dominante, submediante, sensible."
+  },
+  "33": {
+    "term": "Relativa menor",
+    "definition": "Escala menor que comparte la misma armadura, situada una tercera menor por debajo (C → A menor)."
+  },
+  "34": {
+    "term": "Menor armónica",
+    "definition": "Menor natural con el 7.º grado elevado (sensible)."
+  },
+  "35": {
+    "term": "Menor melódica",
+    "definition": "6.º y 7.º grados elevados al ascender; menor natural al descender (forma clásica)."
+  },
+  "36": {
+    "term": "Círculo de quintas",
+    "definition": "Tonalidades ordenadas por quintas justas; cada paso añade un sostenido o un bemol."
+  },
+  "37": {
+    "term": "Modo",
+    "definition": "Escala construida comenzando el patrón mayor en otro grado (dórico, frigio…)."
+  },
+  "38": {
+    "term": "Tríada",
+    "definition": "Acorde de tres notas superpuestas por terceras: fundamental, tercera y quinta."
+  },
+  "39": {
+    "term": "Inversión de acorde",
+    "definition": "Acorde con una nota distinta de la fundamental en el bajo."
+  },
+  "40": {
+    "term": "Acorde de séptima",
+    "definition": "Tríada más una séptima: maj7, 7, m7, m7♭5, dim7."
+  },
+  "41": {
+    "term": "Acorde invertido con barra",
+    "definition": "Acorde/nota en el bajo, p. ej. C/E = acorde de C con E en el bajo."
+  },
+  "42": {
+    "term": "Acorde suspendido",
+    "definition": "La tercera se sustituye por una segunda (sus2) o una cuarta (sus4)."
+  },
+  "43": {
+    "term": "Números romanos",
+    "definition": "Acordes identificados por el grado de la escala: I, ii, iii, IV, V, vi, vii°."
+  },
+  "44": {
+    "term": "Blues de 12 compases",
+    "definition": "I-I-I-I / IV-IV-I-I / V-IV-I-V, habitualmente con acordes de séptima."
+  },
+  "45": {
+    "term": "Cadencia",
+    "definition": "Pareja de acordes que cierra una frase: auténtica, plagal, semicadencia, rota o engañosa."
+  },
+  "46": {
+    "term": "Conducción de voces",
+    "definition": "Movimiento suave de cada voz, por grados conjuntos o manteniendo notas comunes."
+  },
+  "47": {
+    "term": "Nota extraña a la armonía",
+    "definition": "Nota melódica que no forma parte del acorde: nota de paso, floreo o bordadura, retardo, apoyatura."
+  },
+  "48": {
+    "term": "Dominante secundaria",
+    "definition": "V de un acorde distinto de I, p. ej. V/V (D7 en C)."
+  },
+  "49": {
+    "term": "Modulación",
+    "definition": "Transición a una nueva tonalidad que se afianza con una cadencia."
+  },
+  "50": {
+    "term": "Motivo",
+    "definition": "Idea musical breve que se repite y varía."
+  },
+  "51": {
+    "term": "Frase / período",
+    "definition": "Frase = oración musical que termina en una cadencia; período = frase de pregunta y respuesta."
+  },
+  "52": {
+    "term": "Binaria / ternaria / rondó",
+    "definition": "Estructuras formales AB, ABA y ABACA."
+  },
+  "53": {
+    "term": "Bajo Alberti",
+    "definition": "Acorde arpegiado con el patrón grave–agudo–medio–agudo."
+  },
+  "54": {
+    "term": "Lead sheet",
+    "definition": "Melodía con cifrado armónico; el intérprete improvisa el acompañamiento."
+  }
+}

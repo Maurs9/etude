@@ -6,6 +6,7 @@ export default defineConfig({
   testDir: 'tests',
   timeout: 60_000,
   fullyParallel: true,
+  workers: process.env.CI ? 2 : (process.platform === 'win32' ? 4 : undefined),
   reporter: 'list',
   use: {
     baseURL: `http://127.0.0.1:${PORT}/`,

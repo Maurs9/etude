@@ -1,0 +1,446 @@
+{
+  "keys": [
+    [
+      "Ottava",
+      "12 semitoni; lo schema di 2 + 3 tasti neri si ripete"
+    ],
+    [
+      "C / Do",
+      "a sinistra dei 2 tasti neri; do centrale = C4"
+    ],
+    [
+      "Semitoni naturali",
+      "E–F e B–C (Mi–Fa e Si–Do)"
+    ],
+    [
+      "Tono",
+      "2 semitoni (salta un tasto)"
+    ]
+  ],
+  "how": [
+    [
+      "Quotidianamente",
+      "10–20 min al giorno sono più efficaci di una maratona settimanale"
+    ],
+    [
+      "Ripetizione spaziata",
+      "Ripassa dopo 3, 7, 16, 35 giorni"
+    ],
+    [
+      "Variare",
+      "Alterna lettura, orecchio e teoria nella stessa sessione"
+    ],
+    [
+      "Richiamo attivo",
+      "Mettiti alla prova prima di controllare la soluzione"
+    ]
+  ],
+  "notation": [
+    [
+      "Linee chiave di violino",
+      "E G B D F (Mi Sol Si Re Fa)"
+    ],
+    [
+      "Spazi chiave di violino",
+      "F A C E (Fa La Do Mi)"
+    ],
+    [
+      "Linee chiave di basso",
+      "G B D F A (Sol Si Re Fa La)"
+    ],
+    [
+      "Spazi chiave di basso",
+      "A C E G (La Do Mi Sol)"
+    ],
+    [
+      "Alterazioni",
+      "♯ +1 · ♭ −1 · ♮ annulla; valgono fino alla stanghetta"
+    ]
+  ],
+  "symbols": [
+    [
+      "Ritornelli",
+      "𝄆 … 𝄇 · 1ª/2ª volta"
+    ],
+    [
+      "D.C. / D.S.",
+      "da capo / dal segno 𝄋"
+    ],
+    [
+      "Fine · Coda",
+      "termine qui · salta al segno di Coda 𝄌"
+    ],
+    [
+      "Articolazione",
+      "staccato · tenuto > accento · 𝄐 corona"
+    ],
+    [
+      "Legatura valore vs portamento",
+      "stessa altezza = somma valori · altezze diverse = legato"
+    ],
+    [
+      "Diteggiatura",
+      "1 pollice … 5 mignolo"
+    ],
+    [
+      "Pedale",
+      "Ped. … ✱"
+    ]
+  ],
+  "dyn": [
+    [
+      "Piano → forte",
+      "pp p mp mf f ff"
+    ],
+    [
+      "Graduale",
+      "cresc. < · dim./decresc. >"
+    ],
+    [
+      "Improvviso",
+      "sfz · fp · subito"
+    ]
+  ],
+  "rh": [
+    [
+      "Valori (4/4)",
+      "𝅝 4 · 𝅗𝅥 2 · ♩ 1 · ♪ ½ · 𝅘𝅥𝅯 ¼"
+    ],
+    [
+      "Punto",
+      "allunga del 50% il valore della nota"
+    ],
+    [
+      "Metro",
+      "numero superiore = battiti · numero inferiore = valore del battito"
+    ],
+    [
+      "Accenti metrici",
+      "4/4: 1 (3) · 3/4: 1 · 6/8: 1 e 4"
+    ]
+  ],
+  "rh2": [
+    [
+      "Pause",
+      "corrispondono esattamente ai valori delle note"
+    ],
+    [
+      "Terzina",
+      "3 note nel tempo normalmente occupato da 2"
+    ],
+    [
+      "Tempi composti",
+      "6/8, 9/8, 12/8 — pulsazione = semiminima col punto"
+    ],
+    [
+      "Sincope",
+      "accento spostato sul levare contro il metro"
+    ],
+    [
+      "Tempo",
+      "Largo < Adagio < Andante < Moderato < Allegro < Presto"
+    ],
+    [
+      "Variazioni tempo",
+      "rit./rall. più lento · accel. più veloce · a tempo"
+    ]
+  ],
+  "iv": [
+    [
+      "Semitoni",
+      "2m 1 · 2M 2 · 3m 3 · 3M 4 · 4G 5 · TT 6"
+    ],
+    [
+      "",
+      "5G 7 · 6m 8 · 6M 9 · 7m 10 · 7M 11 · 8G 12"
+    ],
+    [
+      "Conteggio",
+      "conta tutti i gradi includendo entrambe le note estreme"
+    ]
+  ],
+  "iv2": [
+    [
+      "Specie",
+      "dim < min < MAGG · dim < GIUSTO < aum"
+    ],
+    [
+      "Rivolto",
+      "somma delle cifre 9 · M↔m · aum↔dim · giusto resta giusto"
+    ],
+    [
+      "Composti",
+      "nona = seconda + ottava · decima = terza + ottava"
+    ],
+    [
+      "Enarmonia",
+      "stesso tasto fisico, diversa scrittura sul pentagramma"
+    ]
+  ],
+  "sc": [
+    [
+      "Maggiore",
+      "T T S T T T S"
+    ],
+    [
+      "Minore naturale",
+      "T S T T S T T"
+    ],
+    [
+      "Pentatonica",
+      "scala maggiore senza il 4° e il 7° grado"
+    ],
+    [
+      "Relativa",
+      "la tonica minore è il 6° grado della scala maggiore"
+    ]
+  ],
+  "minor": [
+    [
+      "Naturale",
+      "1 2 ♭3 4 5 ♭6 ♭7"
+    ],
+    [
+      "Armonica",
+      "1 2 ♭3 4 5 ♭6 7"
+    ],
+    [
+      "Melodica ↑",
+      "1 2 ♭3 4 5 6 7 (↓ = naturale)"
+    ],
+    [
+      "Gradi",
+      "Tonica · Sopratonica · Mediante · Sottodominante · Dominante · Sopradominante · Sensibile"
+    ],
+    [
+      "Diesis (♯)",
+      "Fa Do Sol Re La Mi Si (F C G D A E B)"
+    ],
+    [
+      "Bemolli (♭)",
+      "Si Mi La Re Sol Do Fa (B E A D G C F)"
+    ]
+  ],
+  "cof": [
+    [
+      "Senso orario",
+      "+1 ♯ per passo (quinta giusta ascendente)"
+    ],
+    [
+      "Senso antiorario",
+      "+1 ♭ per passo (quarta giusta ascendente)"
+    ],
+    [
+      "Tonalità con diesis",
+      "G D A E B F♯ (Sol Re La Mi Si Fa♯)"
+    ],
+    [
+      "Tonalità con bemolli",
+      "F B♭ E♭ A♭ D♭ G♭ (Fa Si♭ Mi♭ La♭ Re♭ Sol♭)"
+    ],
+    [
+      "Regola pratica",
+      "ultimo ♯ + semitono = tonica maggiore · penultimo ♭ = tonica maggiore"
+    ]
+  ],
+  "modes": [
+    [
+      "Ionico",
+      "Maggiore"
+    ],
+    [
+      "Dorico",
+      "Minore con 6ª maggiore"
+    ],
+    [
+      "Frigio",
+      "Minore con 2ª minore"
+    ],
+    [
+      "Lidio",
+      "Maggiore con 4ª aumentata"
+    ],
+    [
+      "Misolidio",
+      "Maggiore con 7ª minore"
+    ],
+    [
+      "Eolio / Locrio",
+      "Minore naturale / Minore con ♭2 e ♭5"
+    ]
+  ],
+  "ch": [
+    [
+      "Triade",
+      "Fondamentale + 3ª + 5ª"
+    ],
+    [
+      "Maggiore",
+      "3ª magg + 3ª min (4 + 3 semitoni)"
+    ],
+    [
+      "Minore",
+      "3ª min + 3ª magg (3 + 4 semitoni)"
+    ],
+    [
+      "Diminuito",
+      "3ª min + 3ª min (3 + 3 semitoni)"
+    ],
+    [
+      "Aumentato",
+      "3ª magg + 3ª magg (4 + 4 semitoni)"
+    ]
+  ],
+  "ch7": [
+    [
+      "Settima dominante (7)",
+      "Maggiore + 7ª minore (1 3 5 ♭7)"
+    ],
+    [
+      "Settima maggiore (maj7)",
+      "Maggiore + 7ª maggiore (1 3 5 7)"
+    ],
+    [
+      "Settima minore (m7)",
+      "Minore + 7ª minore (1 ♭3 5 ♭7)"
+    ],
+    [
+      "Semidiminuito (m7♭5)",
+      "Diminuito + 7ª minore (1 ♭3 ♭5 ♭7)"
+    ],
+    [
+      "Diminuito (dim7)",
+      "Diminuito + 7ª diminuita (1 ♭3 ♭5 𝄫7)"
+    ],
+    [
+      "sus2 · sus4",
+      "1 2 5 · 1 4 5"
+    ],
+    [
+      "6 · add9",
+      "1 3 5 6 · 1 3 5 9"
+    ],
+    [
+      "Slash",
+      "C/E = accordo di Do maggiore con Mi al basso"
+    ]
+  ],
+  "pr": [
+    [
+      "Tonalità maggiore",
+      "I ii iii IV V vi vii°"
+    ],
+    [
+      "Tipiche",
+      "I–V–vi–IV · ii–V–I · I–vi–IV–V"
+    ],
+    [
+      "Blues a 12 battute",
+      "I I I I | IV IV I I | V IV I V"
+    ]
+  ],
+  "cad": [
+    [
+      "Perfetta (autentica)",
+      "V → I"
+    ],
+    [
+      "Plagale",
+      "IV → I"
+    ],
+    [
+      "Sospesa",
+      "… → V"
+    ],
+    [
+      "D'inganno",
+      "V → vi"
+    ]
+  ],
+  "minorh": [
+    [
+      "Tonalità minore",
+      "i ii° III iv V VI vii°"
+    ],
+    [
+      "Perché V maggiore?",
+      "la minore armonica alza il 7° grado → dominante V maggiore"
+    ],
+    [
+      "Tipiche",
+      "i–iv–V–i · i–VI–III–VII · i–VII–VI–V"
+    ]
+  ],
+  "nct": [
+    [
+      "Nota di passaggio",
+      "per grado congiunto nella stessa direzione"
+    ],
+    [
+      "Volta",
+      "passo in allontanamento, ritorno alla nota iniziale"
+    ],
+    [
+      "Ritardo",
+      "nota tenuta dall'accordo prima, risolve scendendo di grado"
+    ],
+    [
+      "Appoggiatura",
+      "salto su una dissonanza in battere, risoluzione per grado congiunto"
+    ]
+  ],
+  "secdom": [
+    [
+      "V/x",
+      "accordo maggiore (con settima) una quinta sopra x"
+    ],
+    [
+      "In Do maggiore",
+      "V/ii A7 · V/iii B7 · V/IV C7 · V/V D7 · V/vi E7"
+    ],
+    [
+      "Modulazione",
+      "accordo perno → nuova cadenza V–I"
+    ],
+    [
+      "Condotta voci",
+      "tieni le note comuni · muoviti per gradi congiunti · evita quinte e ottave parallele"
+    ]
+  ],
+  "form": [
+    [
+      "Motivo → Frase",
+      "2–4 note → circa 4 battute"
+    ],
+    [
+      "Periodo",
+      "proposta (cadenza sospesa) + risposta (cadenza perfetta)"
+    ],
+    [
+      "Forme",
+      "AB binaria · ABA ternaria · ABACA rondò"
+    ]
+  ],
+  "accomp": [
+    [
+      "Accordi pieni",
+      "accordo completo sul battito"
+    ],
+    [
+      "Basso albertino",
+      "schema di accompagnamento 1-5-3-5"
+    ],
+    [
+      "Valzer",
+      "basso – accordo – accordo (3/4)"
+    ],
+    [
+      "Ballata",
+      "arpeggio 1-5-8-10"
+    ],
+    [
+      "Lead sheet",
+      "mano destra melodia · mano sinistra realizza le sigle degli accordi"
+    ]
+  ]
+}
