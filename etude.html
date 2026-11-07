@@ -134,25 +134,27 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .goaldots i{width:9px; height:9px; border-radius:50%; border:1.5px solid var(--gold)}
   .goaldots i.on{background:var(--gold)}
 
-  .hero{margin-top:24px; border:1px solid var(--line); border-radius:16px; background:var(--card); box-shadow:var(--shadow); overflow:hidden}
-  .today-overview{display:grid; gap:22px; margin-top:24px}
+  .hero{margin-top:24px; border:1px solid var(--line); border-radius:16px; background:var(--card); box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column; justify-content:space-between}
+  .today-overview{display:grid; gap:16px; margin-top:18px}
   .today-overview .hero,.today-overview .plan{margin-top:0; min-width:0}
   @media (min-width:960px){
     .today-overview{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); align-items:stretch}
-    .today-overview .plan-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .today-overview .plan-list{grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
+    .today-overview .plan-list > li:first-child:nth-last-child(5){grid-column:1 / -1}
   }
-  .hero-top{padding:26px 28px; position:relative}
-  .hero-top::before{content:""; position:absolute; inset:0 0 auto 0; height:9px; background:
+  .hero-top{padding:16px 20px 14px; position:relative}
+  .hero-top::before{content:""; position:absolute; inset:0 0 auto 0; height:7px; background:
      linear-gradient(var(--line),var(--line)) 0 2px/100% 1px,
-     linear-gradient(var(--line),var(--line)) 0 6px/100% 1px; background-repeat:no-repeat; opacity:.5}
-  .hero h2{font-size:22px; margin:0 0 4px}
-  .counts{display:flex; gap:28px; margin:18px 0 22px; flex-wrap:wrap}
-  .count b{font-family:var(--serif); font-size:38px; font-weight:900; line-height:1; display:block}
+     linear-gradient(var(--line),var(--line)) 0 5px/100% 1px; background-repeat:no-repeat; opacity:.4}
+  .hero h2{font-size:18px; margin:0 0 2px}
+  .counts{display:flex; gap:22px; margin:8px 0 10px; flex-wrap:wrap}
+  .count b{font-family:var(--serif); font-size:28px; font-weight:900; line-height:1; display:block}
   .count.due b{color:var(--accent)} .count.new b{color:var(--gold)} .count.mastered b{color:var(--good)}
-  .count span{font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
-  .nextup{font-size:13.5px; color:var(--muted)}
+  .count span{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .nextup{font-size:12.5px; color:var(--muted); margin:0 0 10px}
   .nextup b{color:var(--ink); font-weight:700}
-  .hero-actions{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:8px}
+  .hero-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:0}
+  .hero-actions .btn.lg{padding:9px 18px; font-size:14.5px}
   .why{font-size:12.5px; color:var(--muted); font-style:italic; font-family:var(--serif); line-height:1.55}
   #whyLink{white-space:nowrap}
 
@@ -912,18 +914,39 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   /* ---------- V3: pages polish ---------- */
   .midi-chip{white-space:nowrap}
   .goal-txt{display:block; font-size:11px; color:var(--muted); margin-top:5px; text-align:right; letter-spacing:.04em}
-  .plan{margin-top:22px; border:1px solid var(--line); border-radius:16px; background:var(--card); box-shadow:var(--shadow); padding:18px 22px 20px}
-  .plan-head{display:flex; justify-content:space-between; align-items:center; gap:10px 14px; flex-wrap:wrap; margin-bottom:12px}
-  .plan-head h2{font-size:19px; margin:0}
-  .plan-head .sub{font-size:12.5px; color:var(--muted)}
-  .plan-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:10px}
-  .plan-item{display:grid; grid-template-columns:auto 1fr; gap:2px 11px; align-items:start; text-align:left; width:100%; height:100%; border:1px solid var(--line); border-radius:12px; background:var(--paper); padding:12px 14px; color:var(--ink); font:inherit; cursor:pointer; transition:border-color .15s, transform .15s}
+  .plan{margin-top:22px; border:1px solid var(--line); border-radius:16px; background:var(--card); box-shadow:var(--shadow); padding:16px 20px 14px; display:flex; flex-direction:column}
+  .plan-head{display:flex; justify-content:space-between; align-items:center; gap:8px 12px; flex-wrap:wrap; margin-bottom:9px}
+  .plan-head h2{font-size:18px; margin:0}
+  .plan-head .sub{font-size:12px; color:var(--muted)}
+  .plan-meta{display:flex; align-items:center; gap:8px; margin-top:2px; flex-wrap:wrap}
+  .plan-segs{display:inline-flex; gap:3px; align-items:center}
+  .plan-segs i{width:18px; height:4px; border-radius:99px; background:var(--line2); transition:background .2s}
+  .plan-segs i[data-state="done"]{background:var(--good)}
+  .plan-segs i[data-state="partial"]{background:var(--gold)}
+  .plan-segs i[data-state="next"]{background:var(--accent); opacity:.75}
+  .plan-list{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:1fr; gap:7px; flex:1}
+  .plan-item{position:relative; overflow:hidden; display:grid; grid-template-columns:auto 1fr auto; gap:1px 10px; align-items:center; text-align:left; width:100%; height:100%; border:1px solid var(--line); border-radius:10px; background:var(--paper); padding:8px 11px; color:var(--ink); font:inherit; cursor:pointer; transition:border-color .15s, transform .15s, box-shadow .15s, opacity .15s}
   .plan-item:hover{border-color:var(--accent); transform:translateY(-1px)}
-  .plan-item .ck{grid-row:1 / span 2; width:22px; height:22px; border-radius:50%; border:2px solid var(--line2); display:grid; place-items:center; font-size:12px; font-weight:900; color:transparent; margin-top:1px}
-  .plan-item[data-done="true"] .ck{background:var(--good); border-color:var(--good); color:var(--paper)}
-  .plan-item .pt{font-weight:700; font-size:14.5px}
-  .plan-item .pd{font-size:12.5px; color:var(--muted); line-height:1.4}
+  .plan-item[data-next="true"]{border-color:var(--accent); box-shadow:0 6px 18px -12px rgba(140,43,43,.55)}
+  .plan-item[data-partial="true"]:not([data-next="true"]){border-color:var(--gold)}
+  .plan-item[data-done="true"]{opacity:.72}
+  .plan-item[data-done="true"]:hover{opacity:1}
+  .plan-item .ck{grid-column:1; grid-row:1 / span 2; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line2); display:grid; place-items:center; font-size:11px; font-weight:800; color:var(--muted); font-variant-numeric:tabular-nums}
+  .plan-item[data-next="true"] .ck{border-color:var(--accent); color:var(--accent)}
+  .plan-item[data-partial="true"] .ck{border-color:var(--gold); color:var(--gold)}
+  .plan-item[data-done="true"] .ck{background:var(--good); border-color:var(--good); color:var(--paper); font-weight:900}
+  .plan-item .pt{grid-column:2; grid-row:1; font-weight:700; font-size:13.5px; line-height:1.2}
+  .plan-item .pd{grid-column:2; grid-row:2; font-size:11.5px; color:var(--muted); line-height:1.25}
   .plan-item[data-done="true"] .pt{color:var(--muted)}
+  .plan-end{grid-column:3; grid-row:1 / span 2; display:inline-flex; align-items:center; gap:6px; padding-left:2px}
+  .plan-pill{font-size:10.5px; font-weight:700; color:var(--muted); background:var(--card); border:1px solid var(--line); border-radius:99px; padding:1px 6px; white-space:nowrap; font-variant-numeric:tabular-nums}
+  .plan-item[data-partial="true"] .plan-pill{color:var(--gold); border-color:var(--gold)}
+  .plan-item[data-done="true"] .plan-pill{color:var(--good); border-color:var(--good)}
+  .plan-go{font-size:13px; color:var(--muted); opacity:.45; transition:transform .15s, opacity .15s, color .15s}
+  .plan-item:hover .plan-go,.plan-item[data-next="true"] .plan-go{color:var(--accent); opacity:1; transform:translateX(2px); font-weight:700}
+  .plan-item[data-done="true"] .plan-go{opacity:.25}
+  .plan-bar{position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--line); pointer-events:none}
+  .plan-bar i{display:block; height:100%; background:var(--gold); transition:width .25s}
   .learn-meta{font-size:12px; color:var(--muted); margin:0 12px 4px; font-weight:600}
   .learn-prog{height:4px; background:var(--line); border-radius:3px; overflow:hidden; margin:0 12px 10px}
   .learn-prog i{display:block; height:100%; background:var(--good)}
@@ -1390,13 +1413,13 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
             <button class="btn ghost" id="placeBtn" data-i18n="place" hidden>Quick placement · 2 min</button>
           </div>
         </div>
-        <div style="padding:14px 28px; border-top:1px solid var(--line); background:var(--paper)">
+        <div style="padding:9px 20px; border-top:1px solid var(--line); background:var(--paper)">
           <span class="why">✦ <span id="why-text">Spaced repetition schedules each idea just before you’d forget it — that’s when review sticks best.</span> <a href="#method" id="whyLink" data-i18n="why_link">Why this works →</a></span>
         </div>
       </div>
 
       <section class="plan" id="today-plan" aria-labelledby="plan-h">
-        <div class="plan-head"><div><h2 id="plan-h" data-i18n="plan_title">Today’s plan</h2><span class="sub" id="plan-sub"></span></div><button type="button" class="btn sm" id="plan-continue" hidden></button></div>
+        <div class="plan-head"><div><h2 id="plan-h" data-i18n="plan_title">Today’s plan</h2><div class="plan-meta"><span class="sub" id="plan-sub"></span><div class="plan-segs" id="plan-segs" aria-hidden="true"></div></div></div><button type="button" class="btn sm" id="plan-continue" hidden></button></div>
         <ul class="plan-list" id="plan-list"></ul>
       </section>
       </div>
@@ -9943,18 +9966,27 @@ function renderPlan(){ const list=$('plan-list'); if(!list) return; const tn=tod
   const goal=data.settings.goal, done=data.todayDay===tn?(data.todayCount||0):0;
   const td=data.toolDay||{}, ear=data.earDay===tn?(data.earToday||0):0;
   const items=[
-    {id:'review', done:done>=goal, t:t('plan_review'), d:done>=goal?t('plan_review_done'):t('plan_review_d',done,goal), go:()=>{ if(!SES.active) startSession(null); }},
+    {id:'review', done:done>=goal, partial:done>0&&done<goal, prog:goal?Math.min(1,done/goal):0, pill:Math.min(done,goal)+'/'+goal, t:t('plan_review'), d:done>=goal?t('plan_review_done'):t('plan_review_d',done,goal), go:()=>{ if(!SES.active) startSession(null); }},
     ...learnPlanItems(tn),
     {id:'read', done:td.read===tn, t:t('plan_read'), d:t('plan_read_d'), go:()=>show('read')},
-    {id:'ear', done:ear>=5, t:t('plan_ear'), d:ear?t('plan_ear_dn',Math.min(ear,5)):t('plan_ear_d'), go:()=>{ show('songs'); $('sq-go').focus(); }},
+    {id:'ear', done:ear>=5, partial:ear>0&&ear<5, prog:Math.min(1,ear/5), pill:Math.min(ear,5)+'/5', t:t('plan_ear'), d:ear?t('plan_ear_dn',Math.min(ear,5)):t('plan_ear_d'), go:()=>{ show('songs'); $('sq-go').focus(); }},
   ];
+  const nextIdx=items.findIndex(i=>!i.done);
   list.innerHTML='';
-  items.forEach(it=>{ const li=document.createElement('li'), b=document.createElement('button'); b.type='button'; b.className='plan-item'; b.dataset.plan=it.id; b.dataset.done=it.done?'true':'false';
-    b.innerHTML='<span class="ck" aria-hidden="true">✓</span><span class="pt">'+it.t+(it.done?'<span class="visually-hidden"> — '+t('done_today')+'</span>':'')+'</span><span class="pd">'+it.d+'</span>';
+  items.forEach((it,idx)=>{ const li=document.createElement('li'), b=document.createElement('button'), isNext=idx===nextIdx, isPart=!it.done&&!!it.partial;
+    b.type='button'; b.className='plan-item'; b.dataset.plan=it.id; b.dataset.done=it.done?'true':'false';
+    if(isNext) b.dataset.next='true'; if(isPart) b.dataset.partial='true';
+    const ckTxt=it.done?'✓':String(idx+1);
+    const pillHtml=it.pill?'<span class="plan-pill">'+it.pill+'</span>':'';
+    const barHtml=(isPart&&it.prog>0)?'<span class="plan-bar" aria-hidden="true"><i style="width:'+Math.round(it.prog*100)+'%"></i></span>':'';
+    b.innerHTML='<span class="ck" aria-hidden="true">'+ckTxt+'</span><span class="pt">'+it.t+(it.done?'<span class="visually-hidden"> — '+t('done_today')+'</span>':'')+'</span><span class="pd">'+it.d+'</span><span class="plan-end" aria-hidden="true">'+pillHtml+'<span class="plan-go">→</span></span>'+barHtml;
     b.addEventListener('click',it.go); li.appendChild(b); list.appendChild(li); });
   $('plan-sub').textContent=t('plan_sub',items.filter(i=>i.done).length,items.length);
-  const lt=data.lastTool, cb=$('plan-continue');
-  if(lt && lt!=='today' && navGroup(lt)){ cb.hidden=false; cb.textContent=t('plan_continue',toolName(lt)); cb.onclick=()=>show(lt); } else cb.hidden=true;
+  const segs=$('plan-segs');
+  if(segs){ segs.innerHTML=items.map((it,idx)=>'<i data-state="'+(it.done?'done':it.partial?'partial':idx===nextIdx?'next':'todo')+'"></i>').join(''); }
+  const nextIt=nextIdx>=0?items[nextIdx]:null, lt=data.lastTool, cb=$('plan-continue');
+  if(nextIt){ cb.hidden=false; cb.textContent=t('plan_continue',nextIt.t); cb.onclick=nextIt.go; }
+  else if(lt && lt!=='today' && navGroup(lt)){ cb.hidden=false; cb.textContent=t('plan_continue',toolName(lt)); cb.onclick=()=>show(lt); } else cb.hidden=true;
 }
 /* ---------- PRACTICE: last drill result ---------- */
 function prRecordDrill(){ if(!SES.targeted||!SES.total) return; const tg=SES.targeted; data.lastDrill={cat:tg.cat, mode:tg.mode, keys:tg.mode==='ear'&&(tg.cat==='melody'||!!data.settings.earKeys), key:tg.key, c:SES.correct, n:SES.total, day:todayN()}; saveAll(); }
