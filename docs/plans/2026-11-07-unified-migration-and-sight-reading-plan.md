@@ -25,11 +25,11 @@ flowchart LR
 | **Faza 0** | Igienă Git, rezolvare `stash@{0}`, `.gitignore`, curățare `.pyc` urmărite, captură baseline | ~0.5 zile |
 | **Faza 1** | Introducere Vite + TypeScript + `vite-plugin-pwa` (`injectManifest`) + Playwright pe `vite preview` | ~0.5–1 zi |
 | **Faza 2** | Extragere 30 sample-uri `.mp3` și bundle OSMD 1.9.9 (`loadOsmd` idempotent) din `etude.html` | ~1–2 zile |
-| **Faza 3** | Mutare script în modul ES (`src/legacy/app.js`), punte `expose.js` (getter/setter), ESLint, Vitest | ~1–2 zile |
+| **Faza 3** | Mutare script în modul ES (`src/legacy/app.js`), punte `installWindowBridge` (getter/setter în același scope), ESLint, Vitest | ~1–2 zile |
 | **Faza 4** | Separare `locales/` și lecții HTML, eliminare ramuri `lang === 'ro'`, tipizare `t()`, adaptare validator | ~3–4 zile |
 | **Faza 5** | **Sight-Reading Adaptiv v3 — MVP complet (`M0`–`M10`)** implementat modular în `src/sight-reading/` | ~5–8 zile |
 | **Faza 6** | Modularizare completă în TypeScript pe domenii (`theory`, `core`, `midi`, `audio`, `notation`, `modes`) + Store | ~2–4 săptămâni |
-| **Faza 7** | Înlocuire `expose.js` cu `window.__etude`, bugete de dimensiune, pipeline CI/CD GitHub Actions | ~2–3 zile |
+| **Faza 7** | Înlocuire punte cu API dedicat `window.__etude`, bugete de dimensiune, pipeline CI/CD GitHub Actions | ~2–3 zile |
 | **Faza 8** | **Sight-Reading V2 (fragmente, 2 mâini) & V3 (estimare adaptivă P3–P6)** + reevaluare framework UI | Iterativ |
 
 ---

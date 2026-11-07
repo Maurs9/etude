@@ -1623,6 +1623,83 @@ test('the computer-keyboard piano follows physical key positions, whatever the l
   expect(r).toEqual({ qwertzZ: [68], released: [], octave: 48, azertyQ: [48], azertyA: [], typingInField: [], restored: 60 });
 });
 
+test('computer keyboard keys A and K always light up distinct keys and never collide into the same key', async ({ app }) => {
+  const page = await app.open({ hash: 'explore' });
+  const check = await page.evaluate(async () => {
+    const send = (type, code) => document.dispatchEvent(new KeyboardEvent(type, { code, key: code.replace('Key', '').toLowerCase(), bubbles: true }));
+    const results = [];
+
+    for (const shift of [-3, -2, -1, 0, 1, 2, 3]) {
+      releaseLiveInput();
+      if (shift < 0) {
+        for (let i = 0; i < -shift; i++) { send('keydown', 'KeyZ'); send('keyup', 'KeyZ'); }
+      } else if (shift > 0) {
+        for (let i = 0; i < shift; i++) { send('keydown', 'KeyX'); send('keyup', 'KeyX'); }
+      }
+
+      send('keydown', 'KeyA');
+      const midiA = typingDown.get('KeyA');
+      const elA = document.querySelector('.key.pressed[data-midi="' + midiA + '"]');
+      const pressedAfterA = [...document.querySelectorAll('.key.pressed')].map(k => +k.dataset.midi);
+
+      send('keydown', 'KeyK');
+      const midiK = typingDown.get('KeyK');
+      const elK = document.querySelector('.key.pressed[data-midi="' + midiK + '"]');
+      const pressedAfterBoth = [...document.querySelectorAll('.key.pressed')].map(k => +k.dataset.midi);
+
+      send('keyup', 'KeyA');
+      const pressedAfterRelA = [...document.querySelectorAll('.key.pressed')].map(k => +k.dataset.midi);
+
+      send('keyup', 'KeyK');
+      const pressedAfterRelBoth = [...document.querySelectorAll('.key.pressed')].map(k => +k.dataset.midi);
+
+      results.push({
+        shift,
+        viewLow: view.low,
+        typeOctave,
+        midiA,
+        midiK,
+        diff: midiK - midiA,
+        distinctElements: elA !== elK && !!elA && !!elK,
+        pressedAfterA,
+        pressedAfterBoth,
+        pressedAfterRelA,
+        pressedAfterRelBoth,
+      });
+    }
+
+    $('oct-down').click();
+    send('keydown', 'KeyA'); send('keydown', 'KeyK');
+    const dockDownA = typingDown.get('KeyA'), dockDownK = typingDown.get('KeyK');
+    const elDownA = document.querySelector('.key.pressed[data-midi="' + dockDownA + '"]');
+    const elDownK = document.querySelector('.key.pressed[data-midi="' + dockDownK + '"]');
+    const dockDownDistinct = dockDownA !== dockDownK && elDownA !== elDownK && !!elDownA && !!elDownK;
+    send('keyup', 'KeyA'); send('keyup', 'KeyK');
+
+    $('oct-up').click(); $('oct-up').click();
+    send('keydown', 'KeyA'); send('keydown', 'KeyK');
+    const dockUpA = typingDown.get('KeyA'), dockUpK = typingDown.get('KeyK');
+    const elUpA = document.querySelector('.key.pressed[data-midi="' + dockUpA + '"]');
+    const elUpK = document.querySelector('.key.pressed[data-midi="' + dockUpK + '"]');
+    const dockUpDistinct = dockUpA !== dockUpK && elUpA !== elUpK && !!elUpA && !!elUpK;
+    send('keyup', 'KeyA'); send('keyup', 'KeyK');
+
+    releaseLiveInput();
+    return { results, dockDownDistinct, dockUpDistinct };
+  });
+
+  expect(check.dockDownDistinct).toBe(true);
+  expect(check.dockUpDistinct).toBe(true);
+  for (const r of check.results) {
+    expect(r.diff).toBe(12);
+    expect(r.distinctElements).toBe(true);
+    expect(r.pressedAfterA).toEqual([r.midiA]);
+    expect(r.pressedAfterBoth.sort((a, b) => a - b)).toEqual([r.midiA, r.midiK].sort((a, b) => a - b));
+    expect(r.pressedAfterRelA).toEqual([r.midiK]);
+    expect(r.pressedAfterRelBoth).toEqual([]);
+  }
+});
+
 test('shortcut hints name the octave keys as the layout prints them', async ({ app, page }) => {
   await page.addInitScript(() => {
     const qwertz = new Map([['KeyA', 'a'], ['KeyK', 'k'], ['KeyY', 'z'], ['KeyZ', 'y'], ['KeyX', 'x']]);

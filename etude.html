@@ -4018,11 +4018,13 @@ function ssBumpProgress(good,tot){ if(sing.mode!=='free' && good===tot && tot>0)
 
 /* ---------- KEYBOARD ---------- */
 const BASE_LOW=24, BASE_HIGH=96; const view={low:48,oct:4}; let labelMode='c';
+let typeOctave=60;
+function clampTypeOctave(){ const lo=view.low, maxLo=Math.max(lo,viewHigh()-12); typeOctave=Math.max(lo,Math.min(maxLo,Math.round(typeOctave/12)*12)); }
 const whiteEl=new Map(), blackEl=new Map(), keyEl=new Map();
 const BLACK_NUDGE={1:-.28,3:.28,6:-.30,8:0,10:.30};
 function viewHigh(){ return view.low+view.oct*12; }
-function chooseView(){ const w=window.innerWidth; view.oct=w<560?2:w<900?3:4; view.low=Math.max(BASE_LOW,Math.min(view.low,BASE_HIGH-view.oct*12)); }
-function buildKeyboard(){
+function chooseView(){ const w=window.innerWidth; view.oct=w<560?2:w<900?3:4; view.low=Math.max(BASE_LOW,Math.min(view.low,BASE_HIGH-view.oct*12)); clampTypeOctave(); }
+function buildKeyboard(){ clampTypeOctave();
   const keys=$('keys'); if(!keys) return; const active=document.activeElement, focused=keys.contains(active)?Number(active.dataset.midi):null;
   keys.innerHTML=''; whiteEl.clear(); blackEl.clear(); keyEl.clear();
   const lo=view.low, hi=viewHigh(), WHITE=new Set([0,2,4,5,7,9,11]);
@@ -4362,7 +4364,8 @@ function wakeInit(){
   if(WAKE.want){ wakePing(); wakeGet(); } wakeUi(); }
 /* computer keyboard */
 // Notes and Z / X follow physical key positions (KeyboardEvent.code), so QWERTZ, AZERTY… keep the piano shape; shortcuts stay on letters.
-const KEYMAP={KeyA:0,KeyW:1,KeyS:2,KeyE:3,KeyD:4,KeyF:5,KeyT:6,KeyG:7,KeyY:8,KeyH:9,KeyU:10,KeyJ:11,KeyK:12}; let typeOctave=60; const typingDown=new Map();
+const KEYMAP={KeyA:0,KeyW:1,KeyS:2,KeyE:3,KeyD:4,KeyF:5,KeyT:6,KeyG:7,KeyY:8,KeyH:9,KeyU:10,KeyJ:11,KeyK:12}; const typingDown=new Map();
+function shiftTypeOctave(dir){ releaseTypingKeys(); const next=typeOctave+dir*12, minLow=BASE_LOW, maxLow=Math.max(BASE_LOW,BASE_HIGH-view.oct*12); if(dir<0){ if(next<view.low&&view.low>minLow){ view.low=Math.max(minLow,view.low-12); buildKeyboard(); repaintHeld(); } } else if(dir>0){ if(next+12>viewHigh()&&view.low<maxLow){ view.low=Math.min(maxLow,view.low+12); buildKeyboard(); repaintHeld(); } } typeOctave=next; clampTypeOctave(); }
 function physKey(e){ return e.code||(/^[a-z]$/i.test(e.key||'')?'Key'+e.key.toUpperCase():''); }   // some synthetic and virtual-keyboard events carry no code
 // Name those physical keys as the user's layout prints them (Keyboard Map API, Chromium); elsewhere the QWERTY names stay.
 function kbdLayoutLabels(){ const kb=navigator.keyboard; if(!kb||typeof kb.getLayoutMap!=='function') return;
@@ -4380,7 +4383,7 @@ document.addEventListener('keydown',e=>{ if(e.metaKey||e.ctrlKey||e.altKey||e.ke
   }
   if(view0()==='analysis'&&AN.notes.length&&/^[lpmc]$/.test(k)) return;   // score shortcuts keep their letters wherever the layout puts them
   const c=physKey(e);
-  if(c==='KeyZ'){ typeOctave=Math.max(36,typeOctave-12); return; } if(c==='KeyX'){ typeOctave=Math.min(84,typeOctave+12); return; } if(c in KEYMAP){ const m=typeOctave+KEYMAP[c]; if(!typingDown.has(c)){ e.preventDefault(); typingDown.set(c,m); handleNoteOn(m,100,'typing:'+c); } } });
+  if(c==='KeyZ'){ e.preventDefault(); shiftTypeOctave(-1); return; } if(c==='KeyX'){ e.preventDefault(); shiftTypeOctave(1); return; } if(c in KEYMAP){ const m=typeOctave+KEYMAP[c]; if(!typingDown.has(c)){ e.preventDefault(); typingDown.set(c,m); handleNoteOn(m,100,'typing:'+c); } } });
 document.addEventListener('keyup',e=>{ const c=physKey(e); if(typingDown.has(c)){ const m=typingDown.get(c); typingDown.delete(c); handleNoteOff(m,'typing:'+c); } });
 
 /* ---------- GRADING CORE ---------- */
@@ -10259,8 +10262,8 @@ function initControls(){
   $('prog-start').addEventListener('click',()=>{ show('today'); startSession(null); });
   $('resetBtn').addEventListener('click',()=>{ if(confirm(t('reset_confirm'))){ data={ srs:{}, streak:0, bestStreak:0, lastActive:0, todayDay:0, todayCount:0, newToday:0, totalReviews:0, totalCorrect:0, placed:false, history:{}, singCleared:{}, sheet:{}, learnDone:{}, learnSel:0, settings:data.settings }; renderLearn._init=false; learnSel=0; SYNC.gen=syncGen(); syncWrite(); renderProgress(); refreshToday(); } });   // a new generation: other tabs adopt the reset instead of merging their copy back
   // keyboard dock
-  $('oct-down').addEventListener('click',()=>{ view.low=Math.max(BASE_LOW,view.low-12); buildKeyboard(); repaintHeld(); });
-  $('oct-up').addEventListener('click',()=>{ view.low=Math.min(BASE_HIGH-view.oct*12,view.low+12); buildKeyboard(); repaintHeld(); });
+  $('oct-down').addEventListener('click',()=>{ releaseTypingKeys(); view.low=Math.max(BASE_LOW,view.low-12); buildKeyboard(); repaintHeld(); });
+  $('oct-up').addEventListener('click',()=>{ releaseTypingKeys(); view.low=Math.min(BASE_HIGH-view.oct*12,view.low+12); buildKeyboard(); repaintHeld(); });
   $('panicBtn').addEventListener('click',panic);
   $('dock-kb-toggle').addEventListener('click',()=>dockSet(!dockOpen()));
   $('kb-pan').addEventListener('input',e=>{ $('dock-keys').scrollLeft=+e.target.value; });
