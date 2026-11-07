@@ -9572,11 +9572,12 @@ function fallMode(mode){ FALL.mode=mode==='fall'?'fall':'score';
  else if(SCORE.engine){ if(SCORE.stale) scoreLayout(); else scorePaint(); scoreCursorUpdate(true); }
  if(SCORE.playing&&!SCORE.followRaf) scoreFollow(); }
 function fallReset(){ cancelAnimationFrame(FALL.raf); FALL.raf=0; FALL.position=0; FALL.particles=[]; FALL.flashes=[]; FALL.lastT=null; FALL.geo=null; fallDraw(); scoreCursorUpdate(false); anStatusPos(); }
-// Keyboard range: the piece ±2 semitones, whole octaves from C to C, at least two octaves, never beyond the 88 keys.
-function fallRange(){ const ns=AN.notes; if(!ns.length) return [48,84];
+// Keyboard range: the piece ±2 semitones, whole octaves from C to C, responsive minimum width (4 octaves desktop, 3 tablet, 2 mobile), never beyond the 88 keys.
+function fallRange(W){ const ns=AN.notes; if(!ns.length) return (!W||W>=900)?[48,96]:W>=600?[48,84]:[48,72];
  let lo=Infinity, hi=-Infinity; ns.forEach(n=>{ if(n.midi<lo) lo=n.midi; if(n.midi>hi) hi=n.midi; });
  const mid=(lo+hi)/2; lo=Math.max(21,lo-2); hi=Math.min(108,hi+2); lo-=pc(lo); hi+=(12-pc(hi))%12;
- while(hi-lo<24){ if((mid-lo<=hi-mid&&lo>=24)||hi+12>108) lo-=12; else hi+=12; }
+ const minSpan=(!W||W>=900)?48:W>=600?36:24;
+ while(hi-lo<minSpan){ if((mid-lo<=hi-mid&&lo>=24)||hi+12>108) lo-=12; else hi+=12; }
  return [Math.max(21,lo),hi]; }
 function fallKeys(lo,hi,W){ const whites=[], keys=new Map(); for(let m=lo;m<=hi;m++) if(!FALL_BLACK.has(pc(m))) whites.push(m);
  const kw=W/whites.length, bw=kw*.6; whites.forEach((m,i)=>keys.set(m,{x:i*kw,w:kw,black:false}));
@@ -9596,7 +9597,7 @@ function fallDraw(){
  const ctx=canvas.getContext('2d'), dpr=window.devicePixelRatio||1, bw=Math.round(W*dpr), bh=Math.round(H*dpr);
  if(canvas.width!==bw||canvas.height!==bh){ canvas.width=bw; canvas.height=bh; }
  ctx.setTransform(dpr,0,0,dpr,0,0);
- const [lo,hi]=PRAC.range==='full'?[21,108]:fallRange(); let G=FALL.geo; if(!G||G.lo!==lo||G.hi!==hi||G.W!==W) G=FALL.geo=fallKeys(lo,hi,W);
+ const [lo,hi]=PRAC.range==='full'?[21,108]:fallRange(W); let G=FALL.geo; if(!G||G.lo!==lo||G.hi!==hi||G.W!==W) G=FALL.geo=fallKeys(lo,hi,W);
  const kh=Math.round(Math.min(H*.24,Math.max(56,G.kw*4.4))), hitY=H-kh, span=FALL_SEC/FALL.zoom, pps=hitY/span; G.hitY=hitY; G.kh=kh;
  const time=fallTime(), rm=reduceMotion(), fx=PRAC.fx&&!rm, P=FALL_PAL[PRAC.pal]||FALL_COL, solo=PRAC.hands!=='both';
  const ms=performance.now(), dt=FALL.lastFrame?Math.min(.05,(ms-FALL.lastFrame)/1000):0; FALL.lastFrame=ms;

@@ -2060,3 +2060,23 @@ test.describe('reduced motion', () => {
     });
   }
 });
+
+
+test('falling notes keyboard range adapts responsively to screen width with a balanced minimum span', async ({ app, page }) => {
+  await app.open({ hash: 'score' });
+  const res = await page.evaluate(() => {
+    AN.notes = [{ midi: 60, start: 0, end: 1 }, { midi: 67, start: 1, end: 2 }];
+    const desktopRange = fallRange(1200);
+    const tabletRange = fallRange(768);
+    const mobileRange = fallRange(400);
+    const defaultRange = fallRange();
+    return { desktopRange, tabletRange, mobileRange, defaultRange };
+  });
+
+  expect(res.desktopRange[1] - res.desktopRange[0]).toBeGreaterThanOrEqual(48);
+  expect(res.defaultRange[1] - res.defaultRange[0]).toBeGreaterThanOrEqual(48);
+  expect(res.tabletRange[1] - res.tabletRange[0]).toBeGreaterThanOrEqual(36);
+  expect(res.mobileRange[1] - res.mobileRange[0]).toBeGreaterThanOrEqual(24);
+  expect(res.desktopRange[0] % 12).toBe(0);
+  expect(res.desktopRange[1] % 12).toBe(0);
+});
