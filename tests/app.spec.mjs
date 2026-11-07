@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import zlib from 'node:zlib';
 import { test, expect, todayN, APP } from './fixtures.mjs';
+import { scorePedalCollisions } from './score-audit-helpers.mjs';
 
 const VIEWS = ['today', 'learn', 'songs', 'method', 'practice', 'read', 'sing', 'analysis', 'explore', 'accompany', 'transcribe', 'progress'];
 
@@ -279,6 +280,56 @@ test.describe('MusicXML import', () => {
   });
 });
 
+test('MusicXML unisons in different voices retain separate selectable noteheads', async ({ app }) => {
+  const page = await app.open({ hash: 'analysis' });
+  const note = (staff, voice) => `<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>${voice}</voice><type>whole</type><staff>${staff}</staff></note>`;
+  const src = '<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes>' + note(1, 1) + '<backup><duration>4</duration></backup>' + note(2, 5) + '</measure></part></score-partwise>';
+  await page.locator('#an-file').setInputFiles({ name: 'unisons.musicxml', mimeType: 'application/xml', buffer: Buffer.from(src) });
+  await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+  expect(await page.evaluate(() => ({ notes: AN.notes.length, bindings: SCORE.heads.size, distinct: new Set([...SCORE.heads.values()].flat()).size }))).toEqual({ notes: 2, bindings: 2, distinct: 2 });
+});
+
+test('MusicXML tied continuation keeps its voice identity beside a new unison onset', async ({ app }) => {
+  const page = await app.open({ hash: 'analysis' });
+  const half = (voice, tie = '') => `<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration>${tie ? `<tie type="${tie}"/>` : ''}<voice>${voice}</voice><type>half</type><stem>${voice === 1 ? 'up' : 'down'}</stem>${tie ? `<notations><tied type="${tie}"/></notations>` : ''}</note>`;
+  const src = '<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>' +
+    half(1, 'start') + half(1, 'stop') + '<backup><duration>4</duration></backup><note><rest/><duration>2</duration><voice>2</voice><type>half</type></note>' + half(2) + '</measure></part></score-partwise>';
+  await page.locator('#an-file').setInputFiles({ name: 'voice-continuation.musicxml', mimeType: 'application/xml', buffer: Buffer.from(src) });
+  await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+  const rows = await page.evaluate(() => {
+    const engine = SCORE.engine, rows = [];
+    engine.cursor.reset();
+    const it = engine.cursor.Iterator;
+    while (!it.EndReached) {
+      for (const entry of it.CurrentVoiceEntries || []) for (const note of entry.Notes) {
+        if (note.isRest() || !note.Pitch) continue;
+        const graphical = engine.EngravingRules.GNote(note), vf = graphical && graphical.vfnote;
+        const heads = graphical && graphical.getNoteheadSVGs ? graphical.getNoteheadSVGs() : [];
+        const g = vf && (heads[vf[1]] || graphical.getSVGGElement());
+        const staff = note.ParentStaffEntry.ParentStaff;
+        const source = { part: engine.Sheet.Instruments.indexOf(staff.ParentInstrument), staff: staff.Id, voice: note.ParentVoiceEntry.ParentVoice.VoiceId,
+          midi: Math.round(69 + 12 * Math.log2(note.Pitch.Frequency / 440)), beat: note.getAbsoluteTimestamp().RealValue * 4 };
+        const index = g && g.dataset.i !== undefined ? Number(g.dataset.i) : null, n = AN.notes[index];
+        rows.push({ source, index, bound: n ? { part: n.part, staff: n.staff, voice: n.voice, midi: n.midi, start: n.start, end: n.end } : null });
+      }
+      it.moveToNext();
+    }
+    return rows;
+  });
+  expect(rows.map(r => r.source)).toEqual([
+    { part: 0, staff: 1, voice: 1, midi: 60, beat: 0 },
+    { part: 0, staff: 1, voice: 1, midi: 60, beat: 2 },
+    { part: 0, staff: 1, voice: 2, midi: 60, beat: 2 }
+  ]);
+  for (const { source, index, bound } of rows) {
+    expect(bound, `source graphical note ${JSON.stringify(source)}`).toEqual({ part: source.part, staff: source.staff, voice: source.voice, midi: source.midi,
+      start: source.voice === 1 ? 0 : 2, end: 4 });
+    expect(index).toBe(source.voice - 1);
+    expect(bound.start).toBeLessThanOrEqual(source.beat);
+    expect(bound.end).toBeGreaterThan(source.beat);
+  }
+});
+
 test.describe('MusicXML rest explanations', () => {
   const rest = (type, duration, extra = '', attrs = '') => `<note ${attrs}><rest${type === 'measure' ? ' measure="yes"' : ''}/><duration>${duration}</duration><voice>1</voice>${type === 'measure' ? '' : `<type>${type}</type>`}${extra}</note>`;
   const xml = '<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">' +
@@ -305,6 +356,176 @@ test.describe('MusicXML rest explanations', () => {
       expect(await page.evaluate(() => SCORE.syms.filter(s => s.kind === 'rest').length)).toBe(5);
     });
   }
+});
+
+test.describe('MusicXML pedal collision regression', () => {
+  test('pedals search note-side slots without migrating from their musical owner', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const result = await page.evaluate(() => {
+      const box = $('an-roll');
+      box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400"><rect class="vf-notehead" x="100" y="70" width="20" height="180"/><g class="vf-sc-pedal"><path d="M100 80 h20 v12 h-20 Z"/></g></svg>';
+      const sys = { PositionAndShape: { AbsolutePosition: { x: 0, y: 2 } }, StaffLines: [] };
+      const next = { PositionAndShape: { AbsolutePosition: { x: 0, y: 18 } } };
+      sys.Parent = { MusicSystems: [sys, next] };
+      const line = { ParentMusicSystem: sys, PositionAndShape: { AbsolutePosition: { x: 0, y: 2 } } };
+      sys.StaffLines.push(line);
+      box.querySelector('g').scPedalOwner = { staffLine: line, pedal: {} };
+      scoreFixPedals(box);
+      const svg = box.querySelector('svg'), r = box.querySelector('path').getBoundingClientRect(), point = scoreToUser(svg, r.left, r.top);
+      return { x: point.x, y: point.y };
+    });
+    expect(result.y).toBeLessThan(180);
+    expect(Math.abs(result.y - 80)).toBeLessThanOrEqual(40);
+    expect(result.x).not.toBe(100);
+  });
+  test('a pedal remains near its source measure rather than taking a distant side slot', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const x = await page.evaluate(() => {
+      const box = $('an-roll');
+      box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect class="vf-notehead" x="80" y="70" width="100" height="30"/><g class="vf-sc-pedal"><path d="M145 80 h20 v12 h-20 Z"/></g></svg>';
+      const sys = { PositionAndShape: { AbsolutePosition: { x: 0, y: 2 } } }, line = { ParentMusicSystem: sys };
+      const m = { ParentStaffLine: line, PositionAndShape: { AbsolutePosition: { x: 10, y: 2 }, Size: { width: 4 } } };
+      box.querySelector('g').scPedalOwner = { staffLine: line, pedal: { startVfVoiceEntry: { parentStaffEntry: { parentMeasure: m } } } };
+      scoreFixPedals(box);
+      const svg = box.querySelector('svg'), r = box.querySelector('.vf-sc-pedal path').getBoundingClientRect();
+      return scoreToUser(svg, r.left, r.top).x;
+    });
+    expect(x).toBeLessThanOrEqual(180);
+  });
+  test('a fully occupied page explicitly fails instead of retaining an overflowing pedal', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const warnings = [];
+    page.on('console', m => { if (m.type() === 'warning') warnings.push(m.text()); });
+    const result = await page.evaluate(() => {
+      const box = $('an-roll');
+      box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect class="vf-notehead" width="200" height="100"/><g class="vf-sc-pedal"><path d="M100 90 h20 v12 h-20 Z"/></g></svg>';
+      const status = scoreFixPedals(box);
+      return { status, unresolved: box.dataset.pedalUnresolved, hidden: box.querySelector('path').style.visibility, reason: box.querySelector('path').dataset.pedalUnresolved };
+    });
+    expect(result).toEqual({ status: false, unresolved: '1', hidden: 'hidden', reason: 'no-safe-slot' });
+    expect(warnings.some(w => w.includes('pedal') && w.includes('no-safe-slot'))).toBe(true);
+  });
+  test('an unresolved pedal makes rendering fail explicitly with the existing score error', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    await page.locator('#an-file').setInputFiles({ name: 'bach-pedal.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: readFileSync(new URL('./fixtures/bach-pedal.mxl', import.meta.url)) });
+    await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+    const result = await page.evaluate(async () => {
+      const repair = scoreFixPedals;
+      scoreFixPedals = box => {
+        for (const svg of box.querySelectorAll('svg')) {
+          const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          r.setAttribute('class', 'vf-notehead'); r.setAttribute('width', '100000'); r.setAttribute('height', '100000'); svg.appendChild(r);
+        }
+        return repair(box);
+      };
+      try { return { ok: await scoreRender(), error: AN.error?.k, loading: AN.loading, unresolved: +$('an-roll').dataset.pedalUnresolved }; }
+      finally { scoreFixPedals = repair; }
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('an_err_render');
+    expect(result.loading).toBe(false);
+    expect(result.unresolved).toBeGreaterThan(0);
+  });
+  test('pedal audit detects beam and zero-height ledger ink, page/system escape and missing glyphs', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const kinds = [];
+    for (const fixture of ['beam', 'ledgers', 'page', 'system', 'missing']) {
+      await page.evaluate(kind => {
+        const box = $('an-roll');
+        SCORE.xml = '<score-partwise><pedal type="start"/></score-partwise>';
+        const ink = kind === 'beam' ? '<rect class="vf-beam" x="100" y="80" width="20" height="8"/>' : kind === 'ledgers' ? '<g class="vf-ledgers"><path d="M95 85 H125" stroke="black" stroke-width="1"/></g>' : '';
+        const y = kind === 'page' ? 395 : kind === 'system' ? 250 : 80;
+        box.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400">${ink}${kind === 'missing' ? '' : `<g class="vf-sc-pedal"><path d="M100 ${y} h20 v12 h-20 Z"/></g>`}</svg>`;
+        if (kind !== 'missing') {
+          const sys = { PositionAndShape: { AbsolutePosition: { x: 0, y: 2 } } }, next = { PositionAndShape: { AbsolutePosition: { x: 0, y: 18 } } };
+          sys.Parent = { MusicSystems: [sys, next] };
+          box.querySelector('g.vf-sc-pedal').scPedalOwner = { staffLine: { ParentMusicSystem: sys }, pedal: {} };
+        }
+      }, fixture);
+      kinds.push((await page.evaluate(scorePedalCollisions)).map(x => x.kind));
+    }
+    expect(kinds[0]).toContain('vf-beam');
+    expect(kinds[1]).toContain('vf-ledgers');
+    expect(kinds[2]).toContain('page');
+    expect(kinds[3]).toContain('system');
+    expect(kinds[4]).toContain('missing-pedals');
+  });
+  test('pedal audit rejects in-system drift and a wrong source-measure fragment', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    await page.evaluate(() => {
+      const box = $('an-roll');
+      box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><g class="vf-sc-pedal"><path data-pedal-base-transform="" transform="translate(0 50)" d="M200 80 h20 v12 h-20 Z"/></g></svg>';
+      const sys = { PositionAndShape: { AbsolutePosition: { x: 0, y: 2 } } }, line = { ParentMusicSystem: sys };
+      const m = { ParentStaffLine: line, PositionAndShape: { AbsolutePosition: { x: 2, y: 2 }, Size: { width: 4 } } };
+      line.Measures = [m];
+      // Endpoint belongs to a different system: the visible fragment must still be checked.
+      box.querySelector('g').scPedalOwner = { staffLine: line, pedal: { startVfVoiceEntry: { parentStaffEntry: { parentMeasure: { ParentStaffLine: { ParentMusicSystem: {} } } } } } };
+    });
+    const kinds = (await page.evaluate(scorePedalCollisions)).map(x => x.kind);
+    expect(kinds).toContain('migration');
+    expect(kinds).toContain('measure');
+  });
+  test('a distant curved tie does not occupy its empty bounding-box interior', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    await page.evaluate(() => {
+      const box = $('an-roll');
+      SCORE.xml = '<score-partwise><pedal type="start"/></score-partwise>';
+      box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="180"><path class="sc-xline" d="M0 0 Q100 320 200 0 Q100 310 0 0 Z"/><g class="vf-sc-pedal"><path d="M100 80 h20 v12 h-20 Z"/></g></svg>';
+      scoreFixPedals(box);
+    });
+    expect(await page.locator('.vf-sc-pedal path').evaluate(p => p.dataset.pedalUnresolved || p.getAttribute('transform'))).toBeNull();
+    expect((await page.evaluate(scorePedalCollisions)).filter(x => x.kind === 'sc-xline')).toEqual([]);
+  });
+  test('pedal repair clears zero-height ledger strokes', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const dy = await page.evaluate(() => {
+      const box = $('an-roll');
+      box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="160"><g class="vf-ledgers"><path d="M60 85 H160" stroke="black" stroke-width="1"/></g><g class="vf-sc-pedal"><path d="M100 80 h20 v12 h-20 Z"/></g></svg>';
+      scoreFixPedals(box);
+      return box.querySelector('.vf-sc-pedal path').getAttribute('transform');
+    });
+    expect(dy).not.toBeNull();
+  });
+  test('pedal collision repair stays inside the page using nearby side or upper free slots', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const result = await page.evaluate(() => [ [100, 20], [60, 100] ].map(([x, width]) => { const box = $('an-roll'); box.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><rect class="vf-notehead" x="${x}" y="75" width="${width}" height="20"/><g class="vf-sc-pedal"><path d="M100 76 h20 v12 h-20 Z"/></g></svg>`; scoreFixPedals(box); const svg = box.querySelector('svg').getBoundingClientRect(), pedal = box.querySelector('path').getBoundingClientRect(), note = box.querySelector('rect').getBoundingClientRect(); return { inside: pedal.bottom <= svg.bottom && pedal.top >= svg.top, overlap: Math.min(pedal.right, note.right) > Math.max(pedal.left, note.left) && Math.min(pedal.bottom, note.bottom) > Math.max(pedal.top, note.top) }; }));
+    expect(result).toEqual([{ inside: true, overlap: false }, { inside: true, overlap: false }]);
+  });
+  test('Moonlight overlapping text and line gestures retain all source events without collisions', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    await page.locator('#an-file').setInputFiles({ name: 'moonlight-pedal.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: readFileSync(new URL('./fixtures/moonlight-pedal.mxl', import.meta.url)) });
+    await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+    const events = await page.evaluate(() => [...new DOMParser().parseFromString(SCORE.xml, 'application/xml').querySelectorAll('pedal')].map(p => [p.closest('direction').querySelector('staff').textContent, p.getAttribute('type')]));
+    expect(events).toEqual([['1', 'start'], ['1', 'stop'], ['2', 'start'], ['2', 'stop']]);
+    expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
+    const collisionCount = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll('#an-roll .vf-sc-pedal path')].map(p => p.getBoundingClientRect());
+      return boxes.flatMap((r, i) => boxes.slice(i + 1).filter(q => Math.min(r.right, q.right) - Math.max(r.left, q.left) > .8 && Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top) > .8)).length;
+    });
+    expect(collisionCount).toBe(0);
+  });
+  test('Bach pedal signs clear low ledger notes on every layout', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    await page.locator('#an-file').setInputFiles({ name: 'bach-pedal.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: readFileSync(new URL('./fixtures/bach-pedal.mxl', import.meta.url)) });
+    await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+    expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
+    const stable = await page.evaluate(() => { const values = () => [...document.querySelectorAll('#an-roll .vf-sc-pedal path')].map(p => p.getAttribute('transform')); const before = values(); scoreFixPedals($('an-roll')); return { before, after: values() }; });
+    expect(stable.after).toEqual(stable.before);
+    for (const layout of ['cont', 'page']) {
+      await page.evaluate(layout => { SCORE.layout = layout; SCORE.look = 'night'; scoreLayout(); }, layout);
+      expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
+    }
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.evaluate(() => scoreLayout());
+    expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
+    const label = page.locator('#an-roll [data-sym]').and(page.getByLabel(/^Ped\./)).first();
+    await label.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    const rect = await label.boundingBox();
+    await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    await expect(page.locator('#an-hover')).toContainText('press the sustain');
+    await label.focus();
+    await expect(page.locator('#an-hover')).toContainText('press the sustain');
+  });
 });
 
 test.describe('MusicXML source layout fidelity', () => {
@@ -387,6 +608,13 @@ test.describe('MusicXML source layout fidelity', () => {
     await page.evaluate(() => { SCORE.look = 'night'; scoreLayout(); });
     expect(await typography()).toEqual(before);
   });
+  test('varying source spacing supplies a minimum instead of imposing the first system on every page', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const print = (staff, system) => `<print><staff-layout number="2"><staff-distance>${staff}</staff-distance></staff-layout><system-layout><system-distance>${system}</system-distance></system-layout></print>`;
+    const xml = wrap(measure(1, print(100, 180)) + measure(2, print(65, 85)), defaults);
+    const hints = await page.evaluate(xml => { const hints = scoreXmlLayout(new DOMParser().parseFromString(xml, 'application/xml')); return { staff: hints.staffGap, system: hints.systemGap }; }, xml);
+    expect(hints).toEqual({ staff: 6.5, system: 8.5 });
+  });
   test('page view respects source staff size, margins, and staff gap across resize', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     const print = '<print><staff-layout number="2"><staff-distance>41.9</staff-distance></staff-layout></print>';
@@ -456,6 +684,30 @@ test.describe('MusicXML expression and engraving', () => {
     expect(r.c5.dur).toBeCloseTo(r.bar, 3);   // the pedal sustains the first quarter to the end of the bar
   });
 
+  test('a grace tied into the principal sounds once and sustains through the principal value', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const pitch = (step, alter = '') => `<pitch><step>${step}</step>${alter}<octave>4</octave></pitch>`;
+    const src = '<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes><note><grace/>' + pitch('C') + '<voice>1</voice><type>16th</type></note><note><grace/>' + pitch('F', '<alter>1</alter>') + '<tie type="start"/><voice>1</voice><type>16th</type></note><note>' + pitch('F', '<alter>1</alter>') + '<duration>4</duration><tie type="stop"/><voice>1</voice><type>whole</type></note></measure></part></score-partwise>';
+    await page.locator('#an-file').setInputFiles({ name: 'grace-tie.musicxml', mimeType: 'application/xml', buffer: Buffer.from(src) });
+    await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+    await page.evaluate(() => { const real = previewNote; window.played = []; previewNote = (m, when, dur, ...rest) => { played.push({ m, when, dur }); return real(m, when, dur, ...rest); }; scoreToggle(); });
+    await expect.poll(() => page.evaluate(() => played.length)).toBeGreaterThanOrEqual(2);
+    const result = await page.evaluate(() => { scoreStop(); return { played, principal: AN.notes[0].midi, count: AN.notes.length, duration: scoreSeconds(4) - scoreSeconds(0) }; });
+    expect(result.played.map(p => p.m)).toEqual([60, 66]);
+    expect(result.played[1].dur).toBeGreaterThan(result.duration);
+    expect(result).toMatchObject({ principal: 66, count: 1 });
+  });
+  test('private-font piano and forte words render readable dynamics without requiring MScore Text', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const src = '<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes><direction placement="below"><direction-type><words font-family="MScore Text" font-style="italic">\uE522\uE520</words></direction-type></direction>' + q('C', 5) + q('D', 5) + q('E', 5) + q('F', 5) + '</measure></part></score-partwise>';
+    await page.locator('#an-file').setInputFiles({ name: 'font-dynamics.musicxml', mimeType: 'application/xml', buffer: Buffer.from(src) });
+    await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+    const result = await page.evaluate(() => { const doc = new DOMParser().parseFromString(SCORE.xml, 'application/xml'), word = doc.querySelector('words'); return { word: word.textContent, font: word.getAttribute('font-family'), svg: [...document.querySelectorAll('#an-roll svg text')].map(n => n.textContent).join('|') }; });
+    expect(result.word).toBe('fp');
+    expect(result.font).not.toBe('MScore Text');
+    expect(result.svg).toContain('fp');
+    expect(result.svg).not.toMatch(/[\uE520\uE522]/);
+  });
   test('an imported score shows its own title and composer, text pedal marks and readable tempo glyphs; generated scores keep fixed bars', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     const pedal = type => `<direction placement="below"><direction-type><pedal type="${type}" line="yes"/></direction-type></direction>`;
