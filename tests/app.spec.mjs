@@ -279,6 +279,132 @@ test.describe('MusicXML import', () => {
   });
 });
 
+test.describe('MusicXML rest explanations', () => {
+  const rest = (type, duration, extra = '', attrs = '') => `<note ${attrs}><rest${type === 'measure' ? ' measure="yes"' : ''}/><duration>${duration}</duration><voice>1</voice>${type === 'measure' ? '' : `<type>${type}</type>`}${extra}</note>`;
+  const xml = '<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">' +
+    '<measure number="1"><attributes><divisions>8</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>' +
+    rest('quarter', 8) + rest('eighth', 4) + rest('16th', 2) + rest('eighth', 6, '<dot/>') + rest('quarter', 8, '', 'print-object="no"') +
+    '<note><pitch><step>C</step><octave>5</octave></pitch><duration>4</duration><type>eighth</type></note></measure>' +
+    '<measure number="2">' + rest('measure', 32) + '</measure></part></score-partwise>';
+  for (const [lang, names] of [['en', ['Quarter rest', 'Eighth rest', 'Sixteenth rest', 'Dotted eighth rest', 'Whole-measure rest']], ['ro', ['Pauză de pătrime', 'Pauză de optime', 'Pauză de șaisprezecime', 'Pauză de optime cu punct', 'Pauză de măsură']]]) {
+    test(`visible rests have accessible hover and keyboard explanations (${lang})`, async ({ app }) => {
+      const page = await app.open({ hash: 'analysis', lang });
+      await page.locator('#an-file').setInputFiles({ name: 'rests.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
+      await page.waitForFunction(() => !AN.loading && !!SCORE.engine && !!SCORE.geo);
+      const labels = await page.evaluate(() => SCORE.syms.filter(s => s.kind === 'rest').map(s => s.el.getAttribute('aria-label')));
+      expect(labels).toHaveLength(5); // hidden rests must not be announced
+      for (const name of names) expect(labels.some(s => s.startsWith(name))).toBe(true);
+      const pause = page.locator('#an-roll [data-sym]').filter({ has: page.locator('path') }).and(page.getByLabel(new RegExp('^' + names[2])));
+      await pause.hover();
+      await expect(page.locator('#an-hover')).toContainText(names[2]);
+      await expect(page.locator('#an-roll .sc-tip')).toContainText(names[2]);
+      await pause.focus();
+      await expect(page.locator('#an-hover')).toContainText(names[2]);
+      expect(await page.evaluate(() => AN.notes.map(n => n.midi))).toEqual([72]); // rests never enter playback or chord analysis
+      await page.evaluate(() => { SCORE.look = 'night'; scoreLayout(); });
+      expect(await page.evaluate(() => SCORE.syms.filter(s => s.kind === 'rest').length)).toBe(5);
+    });
+  }
+});
+
+test.describe('MusicXML source layout fidelity', () => {
+  const header = '<work><work-title>Source layout</work-title></work><identification><creator type="composer">Test Composer(1770–1827)</creator></identification>' +
+    '<credit page="1"><credit-type>composer</credit-type><credit-words justify="right">Test Composer\n</credit-words><credit-words>(1770–1827)\n</credit-words></credit>';
+  const defaults = '<defaults><scaling><millimeters>7</millimeters><tenths>40</tenths></scaling><page-layout><page-height>1697</page-height><page-width>1200</page-width><page-margins type="both"><left-margin>85</left-margin><right-margin>85</right-margin><top-margin>85</top-margin><bottom-margin>85</bottom-margin></page-margins></page-layout></defaults>';
+  const q = '<note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>';
+  const measure = (n, print = '', bars = '') => `<measure number="${n}">${print}${n === 1 ? '<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes>' : ''}${q.repeat(4)}<backup><duration>4</duration></backup><note><rest measure="yes"/><duration>4</duration><voice>2</voice><staff>2</staff></note>${bars}</measure>`;
+  const wrap = (bars, meta = '') => `<?xml version="1.0"?><score-partwise>${meta}<part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">${bars}</part></score-partwise>`;
+  const load = async (page, xml) => {
+    await page.locator('#an-file').setInputFiles({ name: 'layout.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
+    await page.waitForFunction(() => !AN.loading && !!SCORE.engine && !!SCORE.geo);
+  };
+  test('composer credits retain their original line breaks without duplicate metadata', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    await load(page, wrap(measure(1), header));
+    const lines = await page.evaluate(() => SCORE.engine.GraphicSheet.composer.SVGNode.textContent);
+    expect(lines).toContain('Test Composer');
+    expect(await page.locator('#an-roll svg text').allTextContents()).toEqual(expect.arrayContaining(['Test Composer', '(1770–1827)']));
+    expect((await page.locator('#an-roll svg text').allTextContents()).filter(s => s === 'Test Composer')).toHaveLength(1);
+  });
+  test('an unclosed ending stops before a new repeated section, without changing explicit endings', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const start = '<barline location="left"><ending number="2" type="start"/></barline>', next = '<barline location="left"><repeat direction="forward"/></barline>';
+    const tidy = src => page.evaluate(src => { const doc = new DOMParser().parseFromString(src, 'application/xml'); anXmlTidy(doc, 'Test'); return [...doc.querySelectorAll('ending')].map(e => [e.closest('measure').getAttribute('number'), e.getAttribute('number'), e.getAttribute('type')]); }, src);
+    expect(await tidy(wrap(measure(1, '', start) + measure(2, '', next)))).toEqual([['1', '2', 'start'], ['1', '2', 'discontinue']]);
+    const stop = '<barline location="right"><ending number="2" type="discontinue"/></barline>';
+    expect(await tidy(wrap(measure(1, '', start) + measure(2, '', next + stop)))).toEqual([['1', '2', 'start'], ['2', '2', 'discontinue']]);
+    expect(await tidy(wrap(measure(1, '', start) + measure(2, '', stop)))).toEqual([['1', '2', 'start'], ['2', '2', 'discontinue']]);
+  });
+  test('ending repair reuses implicit and explicit right barlines before backward repeats', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const start = '<barline location="left"><ending number="2" type="start"/></barline>', next = '<barline location="left"><repeat direction="forward"/></barline>';
+    for (const location of [' location="right"', '']) {
+      const src = wrap(measure(1, '', start + `<barline${location}><bar-style>light-heavy</bar-style><repeat direction="backward" times="2"/></barline>`) + measure(2, '', next));
+      const bars = await page.evaluate(src => {
+        const doc = new DOMParser().parseFromString(src, 'application/xml');
+        anXmlTidy(doc, 'Test');
+        return [...doc.querySelector('measure').querySelectorAll(':scope > barline[location="right"], :scope > barline:not([location])')].map(bar => ({
+          location: bar.getAttribute('location'),
+          children: [...bar.children].map(el => ({ name: el.localName, text: el.textContent, attrs: [...el.attributes].map(a => [a.name, a.value]) })),
+        }));
+      }, src);
+      expect(bars).toEqual([{
+        location: location ? 'right' : null,
+        children: [
+          { name: 'bar-style', text: 'light-heavy', attrs: [] },
+          { name: 'ending', text: '', attrs: [['number', '2'], ['type', 'discontinue']] },
+          { name: 'repeat', text: '', attrs: [['direction', 'backward'], ['times', '2']] },
+        ],
+      }]);
+    }
+  });
+  test('Für Elise keeps the source page boundaries instead of creating orphan pages', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis', lang: 'ro' });
+    await page.locator('#an-file').setInputFiles({ name: 'fur-elise-beethoven.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: readFileSync(new URL('./fixtures/fur-elise-beethoven.mxl', import.meta.url)) });
+    await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+    const result = await page.evaluate(() => ({
+      pages: SCORE.engine.GraphicSheet.MusicPages.map(p => p.MusicSystems.map(s => s.GraphicalMeasures[0][0].parentSourceMeasure.MeasureNumberXML)),
+      rests: SCORE.syms.filter(s => s.kind === 'rest').length,
+      ending: new DOMParser().parseFromString(SCORE.xml, 'application/xml').querySelector('measure[number="9"] ending[type="discontinue"]')?.getAttribute('number'),
+    }));
+    expect(result.pages).toEqual([[0, 7, 14, 20, 26, 32], [36, 42, 48, 54, 60, 66, 72], [79, 83, 88, 95, 101]]);
+    expect(result.rests).toBe(202);
+    expect(result.ending).toBe('2');
+  });
+  test('source title typography keeps printed sizes and mixed italic runs', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    await page.locator('#an-file').setInputFiles({ name: 'fur-elise-beethoven.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: readFileSync(new URL('./fixtures/fur-elise-beethoven.mxl', import.meta.url)) });
+    await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
+    const typography = () => page.evaluate(() => {
+      const gs = SCORE.engine.GraphicSheet, text = node => node.localName === 'text' ? node : node.querySelector('text');
+      const title = text(gs.title.SVGNode), subtitle = text(gs.subtitle.SVGNode);
+      return { titlePx: parseFloat(getComputedStyle(title).fontSize) * title.getScreenCTM().d, subtitlePx: parseFloat(getComputedStyle(subtitle).fontSize) * subtitle.getScreenCTM().d, runs: [...title.querySelectorAll('tspan')].map(s => [s.textContent, s.getAttribute('font-style')]) };
+    });
+    const before = await typography();
+    expect(before.titlePx).toBeCloseTo(22 * 96 / 72, 1);
+    expect(before.subtitlePx).toBeCloseTo(16 * 96 / 72, 1);
+    expect(before.runs).toEqual([['Für Elise', 'italic'], [' in A Minor', 'normal']]);
+    await page.evaluate(() => { SCORE.look = 'night'; scoreLayout(); });
+    expect(await typography()).toEqual(before);
+  });
+  test('page view respects source staff size, margins, and staff gap across resize', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const print = '<print><staff-layout number="2"><staff-distance>41.9</staff-distance></staff-layout></print>';
+    await load(page, wrap(measure(1, print) + measure(2, '<print new-system="yes"/>'), defaults));
+    const geometry = () => page.evaluate(() => { const e = SCORE.engine, s = e.GraphicSheet.MusicPages[0].MusicSystems[0]; return { zoom: e.Zoom, width: $('an-roll').querySelector('.an-sheet').clientWidth, margin: e.EngravingRules.PageLeftMargin, staffGap: s.StaffLines[1].PositionAndShape.AbsolutePosition.y - s.StaffLines[0].PositionAndShape.AbsolutePosition.y - 4, systems: e.GraphicSheet.MusicPages.flatMap(p => p.MusicSystems.map(s => s.GraphicalMeasures.map(m => m[0].parentSourceMeasure.MeasureNumberXML))) }; });
+    const before = await geometry();
+    expect(before.zoom / before.width).toBeCloseTo(1 / 1200, 6);
+    expect(before.margin).toBeCloseTo(8.5, 3);
+    expect(before.staffGap).toBeLessThan(4.7);
+    expect(before.systems).toEqual([[1], [2]]);
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.evaluate(() => scoreLayout());
+    const after = await geometry();
+    expect(after.zoom / after.width).toBeCloseTo(before.zoom / before.width, 6);
+    expect(after.systems).toEqual(before.systems);
+  });
+});
+
 test.describe('MusicXML expression and engraving', () => {
   const q = (step, octave, extra = '') => `<note><pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff>${extra}</note>`;
   const whole = (step, chord = '') => `<note>${chord}<pitch><step>${step}</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice><type>whole</type><staff>2</staff><notations><arpeggiate/></notations></note>`;
@@ -438,6 +564,7 @@ test.describe('Score Study engraving and symbol explanations', () => {
       const hover = async (kind, val, phrase) => {
         const pt = await page.evaluate(([kind, val]) => {
           const s = SCORE.syms.find(x => x.kind === kind && (val == null || x.val === val));
+          s.el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
           const b = s.el.getBoundingClientRect();
           return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
         }, [kind, val]);
