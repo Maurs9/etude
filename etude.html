@@ -7967,7 +7967,7 @@ function scoreXmlNotes(doc){
       const step=child(pitch,'step')?.textContent,oct=number(child(pitch,'octave')),alter=number(child(pitch,'alter')),midi=(oct+1)*12+({C:0,D:2,E:4,F:5,G:7,A:9,B:11}[step])+alter;
       if(Number.isFinite(midi)){
        if(grace){
-        const list=gracePending.get(key)||[]; list.push({midi,vel:84}); gracePending.set(key,list);
+        const list=gracePending.get(key)||[], g={midi,vel:84}; if([...node.querySelectorAll('tie')].some(t=>t.getAttribute('type')==='start')) g.tieStart=true; list.push(g); gracePending.set(key,list);
        }else{
         const hand=staves>=2?(staff===1?'rh':'lh'):null, stop=[...node.querySelectorAll('tie')].some(t=>t.getAttribute('type')==='stop');
         const prev=stop&&notes.findLast(n=>n.part===pi&&n.staff===staff&&n.voice===voice&&n.midi===midi&&Math.abs(n.end-start)<.001);
@@ -7982,7 +7982,7 @@ function scoreXmlNotes(doc){
          if(fg>0&&fg<6) n.finger=fg;
          if(nd?.value!=null) n.explicitVel=nd.value; else if(attr!=null) n.explicitVel=attr;
          if(nd?.hit!=null) n.dynamicHit=nd.hit;
-         if(!chord&&gracePending.has(key)){ n.graces=gracePending.get(key); gracePending.delete(key); }
+         if(!chord&&gracePending.has(key)){ n.graces=gracePending.get(key); gracePending.delete(key); const last=n.graces[n.graces.length-1]; if(stop&&last.tieStart&&last.midi===midi) last.tiedToPrincipal=true; }
          notes.push(n); own=n;
         }
         if(own) node.querySelectorAll('notations > slur, notations > glissando, notations > slide').forEach(l=>{ const type=(l.getAttribute('type')||'').toLowerCase(), key=pi+':'+l.localName+':'+(l.getAttribute('number')||'1');
@@ -8192,7 +8192,7 @@ async function scoreRender(){
  const source=SCORE.xml.trim();
  await engine.load(source.startsWith('<?xml')?source:'<?xml version="1.0" encoding="utf-8"?>'+source);
  if(version!==SCORE.version) return false;
- SCORE.engine=engine; scoreLayout(); return true;
+ SCORE.engine=engine; return scoreLayout()!==false;
 }
 // View, zoom and appearance only need a new layout, not a new load; selection, cursor and highlights are repainted afterwards.
 // Page view: A4 sheets on the desk, as wide as 794 px × zoom but never wider than the desk (the music reflows instead of panning).
@@ -8218,9 +8218,10 @@ function scoreLayout(){
  if(SCORE.look==='night') scoreNightSweep(box,look.ink);
  SCORE.stale=false; SCORE.layoutWidth=box.clientWidth;
  box.classList.remove('is-loading','is-empty'); box.setAttribute('aria-busy','false'); box.dataset.look=SCORE.look;
- scoreBind(engine); scoreXLines(); scoreGeo(engine); scoreSyms(engine);
+ scoreBind(engine); scoreXLines(); const pedalsOk=scoreFixPedals(box); scoreGeo(engine); scoreSyms(engine);
  box.hidden=FALL.mode!=='score';
  scorePaint();
+ if(!pedalsOk){ anSetLoading(false); anShowError('an_err_render'); } return pedalsOk;
 }
 // OSMD's title label is plain text. Restore safe MusicXML italic/bold runs after each layout (never inject markup).
 function scoreStyleHeader(engine,layout){
@@ -8257,14 +8258,19 @@ function scoreBind(engine){
  const grid=SCORE.midiGrid||0, startOf=n=>grid?Math.round(n.start*grid)/grid:n.start, endOf=n=>grid?Math.max(startOf(n)+1/grid,Math.round(n.end*grid)/grid):n.end;
  const byMidi=new Map(); AN.notes.forEach((n,i)=>{ if(!byMidi.has(n.midi)) byMidi.set(n.midi,[]); byMidi.get(n.midi).push(i); });
  engine.cursor.reset(); const it=engine.cursor.Iterator; let guard=0;
- while(!it.EndReached&&guard++<40000){ const beat=it.CurrentSourceTimestamp.RealValue*4;
+ while(!it.EndReached&&guard++<40000){ const beat=it.CurrentSourceTimestamp.RealValue*4, bound=new Set();
   for(const entry of it.CurrentVoiceEntries||[]) for(const note of entry.Notes){
    if(note.isRest()||!note.Pitch) continue;
    const midi=Math.round(69+12*Math.log2(note.Pitch.Frequency/440)), cands=byMidi.get(midi); if(!cands) continue;
-   let i=cands.find(j=>Math.abs(startOf(AN.notes[j])-beat)<.01); if(i==null) i=cands.find(j=>startOf(AN.notes[j])<=beat+.001&&endOf(AN.notes[j])>beat+.001); if(i==null) continue;
+   const staff=note.ParentStaffEntry&&note.ParentStaffEntry.ParentStaff, voice=note.ParentVoiceEntry&&note.ParentVoiceEntry.ParentVoice.VoiceId, part=staff?engine.Sheet.Instruments.indexOf(staff.ParentInstrument):-1;
+   const same=j=>{ const n=AN.notes[j]; return (n.part==null||n.part===part)&&(n.staff==null||n.staff===staff?.Id)&&(n.voice==null||n.voice===voice); };
+   const match=pred=>{ const a=cands.filter(pred); return a.find(j=>same(j)&&!bound.has(j))??a.find(j=>!bound.has(j))??a.find(same)??a[0]; };
+   const exact=j=>Math.abs(startOf(AN.notes[j])-beat)<.01, sustained=j=>startOf(AN.notes[j])<=beat+.001&&endOf(AN.notes[j])>beat+.001;
+   // A tied continuation belongs to its own voice, even when another voice starts the same pitch here.
+   let i=match(j=>same(j)&&exact(j))??match(j=>same(j)&&sustained(j))??match(exact)??match(sustained); if(i==null) continue;
    const graphical=engine.EngravingRules.GNote(note), vf=graphical&&graphical.vfnote; if(!vf) continue;
    const heads=graphical.getNoteheadSVGs?graphical.getNoteheadSVGs():[], g=heads[vf[1]]||graphical.getSVGGElement(); if(!g) continue;
-   g.dataset.i=i; g.style.cursor='pointer'; g.style.pointerEvents='all'; g.setAttribute('tabindex','-1'); g.setAttribute('role','button'); g.setAttribute('aria-label',spellName(AN.notes[i].midi,anKeyAt(AN.notes[i].start),true));
+   bound.add(i); g.dataset.i=i; g.style.cursor='pointer'; g.style.pointerEvents='all'; g.setAttribute('tabindex','-1'); g.setAttribute('role','button'); g.setAttribute('aria-label',spellName(AN.notes[i].midi,anKeyAt(AN.notes[i].start),true));
    if(!SCORE.heads.has(i)) SCORE.heads.set(i,[]); SCORE.heads.get(i).push(g); if(!first) first=g; }
   it.moveToNext(); }
  if(first) first.setAttribute('tabindex','0');
@@ -8276,8 +8282,45 @@ function scorePaint(){ SCORE.heads.forEach(list=>list.forEach(scorePaintEl)); sc
 function scorePatchOsmd(){ const D=opensheetmusicdisplay.VexFlowMusicSheetDrawer, P=D&&D.prototype; if(!P||P.scPedalGroups||typeof P.drawPedals!=='function') return;
  const draw=P.drawPedals; P.drawPedals=function(line){ const ctx=this.backend&&this.backend.getContext&&this.backend.getContext();
   if(!ctx||!ctx.openGroup||!line||!line.Pedals) return draw.call(this,line);
-  for(const p of line.Pedals){ ctx.openGroup('sc-pedal'); try{ draw.call(this,{Pedals:[p]}); } finally{ ctx.closeGroup(); } } };
+  for(const p of line.Pedals){ const group=ctx.openGroup('sc-pedal'); if(group) group.scPedalOwner={staffLine:line,pedal:p}; try{ draw.call(this,{Pedals:[p]}); } finally{ ctx.closeGroup(); } } };
  P.scPedalGroups=true; }
+// Text-pedal skylines can miss ledger notes, and a release with no staff entry can land on its press glyph.
+// Place actual glyph ink without changing event timing. Recompute from native positions on every call.
+function scoreFixPedals(box){ let unresolved=0;
+ box.querySelectorAll('svg').forEach(svg=>{ const marks=[...svg.querySelectorAll('.vf-sc-pedal path')], ctm=svg.getScreenCTM(); if(!marks.length||!ctm||!ctm.d) return;
+  marks.forEach(p=>{ if(p.dataset.pedalUnresolved){ p.style.visibility=''; delete p.dataset.pedalUnresolved; } if(!p.hasAttribute('data-pedal-base-transform')) p.dataset.pedalBaseTransform=p.getAttribute('transform')||'';
+   const base=p.dataset.pedalBaseTransform; if(base) p.setAttribute('transform',base); else p.removeAttribute('transform'); });
+  const gap=Math.max(1,Math.abs(ctm.d)*2.5), limit=Math.abs(ctm.a)*40, page=svg.getBoundingClientRect(), placed=[];
+  const cross=(a,b,pad=gap)=>a.right+pad>b.left&&a.left-pad<b.right&&a.bottom+pad>b.top&&a.top-pad<b.bottom;
+  const obstacles=[...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,text')].filter(n=>!n.closest('.vf-sc-pedal')).flatMap(n=>{ const r=n.getBoundingClientRect(), s=getComputedStyle(n), pad=s.stroke!=='none'?Math.max(.5,parseFloat(s.strokeWidth)*Math.abs(ctm.d)/2||.5):0;
+   if(n.matches('.sc-xline,.vf-stavetie path,path.vf-stavetie')&&n.getTotalLength){ const len=n.getTotalLength(), m=n.getScreenCTM(), out=[]; let a=n.getPointAtLength(0); a=new DOMPoint(a.x,a.y).matrixTransform(m);
+    for(let i=1,count=Math.max(1,Math.ceil(len/2));i<=count;i++){ const q=n.getPointAtLength(len*i/count), z=new DOMPoint(q.x,q.y).matrixTransform(m); out.push({left:Math.min(a.x,z.x)-pad,right:Math.max(a.x,z.x)+pad,top:Math.min(a.y,z.y)-pad,bottom:Math.max(a.y,z.y)+pad}); a=z; } return out; }
+   return [{left:r.left-pad,right:r.right+pad,top:r.top-pad,bottom:r.bottom+pad}]; });
+  marks.forEach(p=>{ const r=p.getBoundingClientRect(); if(r.width<.1) return;
+   const group=p.closest('.vf-sc-pedal'), release=r.width<r.height*1.3, rect=(x,y)=>({left:r.left+x,right:r.right+x,top:r.top+y,bottom:r.bottom+y}); let dx=0,dy=0;
+   const owner=group.scPedalOwner, sys=owner&&owner.staffLine.ParentMusicSystem, pos=s=>s&&s.PositionAndShape&&s.PositionAndShape.AbsolutePosition;
+   const systems=sys&&sys.Parent&&sys.Parent.MusicSystems||[], next=systems[systems.indexOf(sys)+1];
+   const pedal=owner&&owner.pedal, endpoint=pedal&&(release?pedal.endMeasure||pedal.endVfVoiceEntry?.parentStaffEntry.parentMeasure:pedal.startVfVoiceEntry?.parentStaffEntry.parentMeasure);
+   const measures=owner&&owner.staffLine.Measures||[], measure=endpoint&&endpoint.ParentStaffLine?.ParentMusicSystem===sys?endpoint:(release?measures[measures.length-1]:measures[0]);
+   const ml=pos(measure)?ctm.e+pos(measure).x*10*ctm.a-limit:-Infinity, mr=pos(measure)?ctm.e+(pos(measure).x+measure.PositionAndShape.Size.width)*10*ctm.a+limit:Infinity;
+   const minY=Math.max(page.top+gap-r.top,-Math.abs(ctm.d)*40,pos(sys)?ctm.f+pos(sys).y*10*ctm.d-r.top:-Infinity);
+   const maxY=Math.min(page.bottom-gap-r.bottom,Math.abs(ctm.d)*40,pos(next)?ctm.f+pos(next).y*10*ctm.d-gap-r.bottom:Infinity);
+   const all=obstacles.concat(placed), ys=[...new Set([0,minY,maxY,...all.flatMap(o=>[o.bottom+gap-r.top,o.top-gap-r.bottom])])].filter(y=>y>=minY&&y<=maxY).sort((a,b)=>Math.abs(a)-Math.abs(b));
+   let found=false;
+   for(const y of ys){ const row=all.filter(o=>r.bottom+y+gap>o.top&&r.top+y-gap<o.bottom), afterPress=release&&row.some(o=>o.group===group&&o.press);
+    const xs=[...new Set([0,...row.flatMap(o=>[o.right+gap-r.left,o.left-gap-r.right])])].filter(x=>Math.abs(x)<=limit&&r.left+x>=page.left+gap&&r.right+x<=page.right-gap&&r.right+x>=ml&&r.left+x<=mr&&!row.some(o=>cross(rect(x,y),o)));
+    xs.sort((a,b)=>(Math.abs(a)+(afterPress&&a<0?limit+1:0))-(Math.abs(b)+(afterPress&&b<0?limit+1:0)));
+    if(xs.length){ dx=xs[0]; dy=y; found=true; break; }
+   }
+
+   // Fail closed: no clipped/colliding ink or invented musical location. A fresh layout retries natively.
+   if(!found){ unresolved++; p.dataset.pedalUnresolved='no-safe-slot'; p.style.visibility='hidden'; console.warn('Score pedal: no-safe-slot',owner); return; }
+   const base=p.dataset.pedalBaseTransform; if(Math.abs(dx)>.1||Math.abs(dy)>.1) p.setAttribute('transform',(base?base+' ':'')+'translate('+(dx/ctm.a).toFixed(3)+' '+(dy/ctm.d).toFixed(3)+')');
+   placed.push({...rect(dx,dy),group,press:!release});
+  });
+ });
+ box.dataset.pedalUnresolved=String(unresolved); return unresolved===0;
+}
 // SVG user units of the page a node sits on, from screen pixels (OSMD draws 10 units per staff space).
 function scoreToUser(svg,x,y){ const m=svg.getScreenCTM(); if(!m) return null; const p=svg.createSVGPoint(); p.x=x; p.y=y; return p.matrixTransform(m.inverse()); }
 // Lines between the hands that OSMD leaves out: cross-staff slurs, glissandi and slides, dashed voice-leading lines.
@@ -8631,9 +8674,11 @@ function pracTick(){
    if(d.start<s.t0-1e-6&&(!s.first||sound<=s.t0+.05)) continue;   // a note already sounding when playback starts plays its remainder
    if(!pracSounds(d.n)) continue;
    const st=Math.max(d.start,s.t0), en=R.loop?Math.min(sound,s.t1):sound, roll=d.n.roll||0, onset=at(st)+roll;
-   const opt={warm:!!d.n.warm,hold:!!d.n.pedalEnd&&d.n.soundEnd>d.n.end+.001}, graces=d.n.graces||[];
-   graces.forEach((g,i)=>{ const when=onset-(graces.length-i)*.07; if(when+.065>now-.01) previewNote(g.midi,Math.max(now,when),.065,g.vel??Math.max(1,d.n.vel-8),opt); });
-   previewNote(d.n.midi,onset,Math.max(.05,(en-st)/s.f-roll),d.n.vel,opt); }
+   const opt={warm:!!d.n.warm,hold:!!d.n.pedalEnd&&d.n.soundEnd>d.n.end+.001}, graces=st>d.start+1e-6?[]:(d.n.graces||[]), duration=Math.max(.05,(en-st)/s.f-roll); let carried=false;
+   graces.forEach((g,i)=>{ const when=onset-(graces.length-i)*.07, start=Math.max(now,when), carry=i===graces.length-1&&g.tiedToPrincipal&&g.midi===d.n.midi;
+    if(carry){ previewNote(g.midi,start,Math.max(.05,onset+duration-start),g.vel??d.n.vel,opt); carried=true; }
+    else if(when+.065>now-.01) previewNote(g.midi,start,.065,g.vel??Math.max(1,d.n.vel-8),opt); });
+   if(!carried) previewNote(d.n.midi,onset,duration,d.n.vel,opt); }
   while(R.bi<R.beats.length&&R.beats[R.bi].t<lim){ const b=R.beats[R.bi++]; if(PRAC.metro&&b.t>=s.t0-1e-6&&b.t<s.t1-1e-6) metroClick(Math.max(now,at(b.t)),b.acc); }
   if(R.loop&&!B&&horizon>=s.t1){ const next={a0:at(s.t1),t0:R.a,t1:R.b,f:pracRamp(R,s),first:false}; R.segs.push(next); if(SCORE.loop) SCORE.loop.next=next.a0+(R.b-R.a)/next.f; R.ni=0; R.bi=R.beat0; R.wt=R.a; continue; }
   break; }
@@ -9267,8 +9312,10 @@ function scoreXmlLayout(doc){
  for(const kind of ['title','subtitle','composer']){ const credit=[...root.querySelectorAll(':scope > credit')].find(c=>c.querySelector('credit-type')?.textContent.trim()===kind&&(c.getAttribute('page')||'1')==='1');
   const words=credit&&[...credit.querySelectorAll('credit-words')], size=words&&words[0]&&parseFloat(words[0].getAttribute('font-size')); if(Number.isFinite(size)&&size>=6&&size<=48) out[kind+'Size']=size;
   if(kind==='title'&&words){ let style='normal',weight='normal'; out.titleRuns=words.map(w=>{ if(['normal','italic'].includes(w.getAttribute('font-style'))) style=w.getAttribute('font-style'); if(['normal','bold'].includes(w.getAttribute('font-weight'))) weight=w.getAttribute('font-weight'); return {text:w.textContent,style,weight}; }); } }
- out.staffGap=number(root,'part > measure > print > staff-layout > staff-distance',10,200); if(out.staffGap!=null) out.staffGap/=10;
- out.systemGap=number(root,'part > measure > print > system-layout > system-distance',10,400); if(out.systemGap!=null) out.systemGap/=10;
+ // These rules are global minima, not a command to repeat the first system's (often unusually large) spacing.
+ const minimum=(selector,max)=>{ const values=[...root.querySelectorAll(selector)].map(n=>Number(n.textContent)).filter(v=>Number.isFinite(v)&&v>=10&&v<=max); return values.length?Math.min(...values)/10:null; };
+ out.staffGap=minimum('part > measure > print > staff-layout > staff-distance',200);
+ out.systemGap=minimum('part > measure > print > system-layout > system-distance',400);
  return out;
 }
 async function anReadXml(file,title){
@@ -9288,7 +9335,7 @@ async function anReadXml(file,title){
 // label and "Ped. … *" marks instead of pedal lines that collide with the left hand's fingering.
 const AN_SMUFL_NOTES={'\uE1D2':'\uD834\uDD5D','\uECA2':'\uD834\uDD5D','\uE1D3':'\uD834\uDD5E','\uECA3':'\uD834\uDD5E','\uE1D5':'\u2669','\uECA5':'\u2669',
  '\uE1D4':'\uD834\uDD5E','\uECA4':'\uD834\uDD5E','\uE1D6':'\u2669','\uECA6':'\u2669',
- '\uE1D7':'\u266A','\uECA7':'\u266A','\uE1D8':'\u266A','\uECA8':'\u266A','\uE1D9':'\u266C','\uECA9':'\u266C','\uE1DA':'\u266C','\uECAA':'\u266C','\uE1E7':'.','\uECB7':'.'};
+ '\uE1D7':'\u266A','\uECA7':'\u266A','\uE1D8':'\u266A','\uECA8':'\u266A','\uE1D9':'\u266C','\uECA9':'\u266C','\uE1DA':'\u266C','\uECAA':'\u266C','\uE1E7':'.','\uECB7':'.','\uE520':'p','\uE522':'f'};
 // Some exports leave an open last ending before the next forward repeat. Do not let it span the next section.
 // Explicit stop/discontinue pairs always win, including multi-measure endings crossing a repeat boundary.
 function scoreXmlEndings(doc){
@@ -9311,11 +9358,11 @@ function anXmlTidy(doc,fallback){
  doc.querySelectorAll('direction').forEach(dir=>{ const dts=kids(dir).filter(c=>c.localName==='direction-type');
   if(dts.length<2||!dts.every(dt=>dt.children.length&&kids(dt).every(c=>c.localName==='words'))) return;
   const ws=dts.flatMap(dt=>kids(dt)), first=ws[0]; first.textContent=ws.map(w=>w.textContent).reduce((t,u)=>t+(/[^\s(\uE000-\uF8FF\u2669\u266A\u266C]$/.test(t)&&/^[\p{L}\d]/u.test(u)?' ':'')+u); dts.slice(1).forEach(dt=>dt.remove()); kids(dts[0]).slice(1).forEach(w=>w.remove()); });
- doc.querySelectorAll('words,credit-words,rehearsal').forEach(w=>{ let t=w.textContent, u=t.replace(/[\uE1D2-\uE1E7\uECA2-\uECB7]/g,c=>AN_SMUFL_NOTES[c]??'');
+ doc.querySelectorAll('words,credit-words,rehearsal').forEach(w=>{ let t=w.textContent, u=t.replace(/[\uE1D2-\uE1E7\uECA2-\uECB7\uE520\uE522]/g,c=>AN_SMUFL_NOTES[c]??'');
   u=u.replace(/\(\s*=\s*(\d)/g,'(\u2669 = $1');
   if(/^\s*=\s*\d/.test(u)){ const prev=w.closest('direction-type')?.previousElementSibling, pt=prev?.querySelector('words')?.textContent||'';
    if(!/[\u2669\u266A\u266C\uDD5D\uDD5E]\s*$/.test(pt)&&!(prev&&prev.querySelector('metronome'))) u=u.replace(/^(\s*)=/,'$1\u2669 ='); }
-  if(u!==t) w.textContent=u; });
+  if(u!==t){ w.textContent=u; if(/MScore\s*Text/i.test(w.getAttribute('font-family')||'')) w.removeAttribute('font-family'); } });
  // 2. Title and composer from the header, the credits, or (last) the file name.
  const credits=kids(root).filter(c=>c.localName==='credit'), ctype=c=>text(one(c,'credit-type')).toLowerCase(), cwords=c=>[...c.querySelectorAll('credit-words')].map(text).filter(Boolean).join(' ');
  const workEl=one(root,'work'), workTitle=workEl&&one(workEl,'work-title'), mvt=one(root,'movement-title');
