@@ -2521,6 +2521,8 @@ const STRINGS={
     sym_t_andante:'Andante — at a walking pace', sym_t_moderato:'Moderato — at a moderate speed', sym_t_allegretto:'Allegretto — fairly fast, lighter than Allegro', sym_t_allegro:'Allegro — fast and lively',
     sym_t_vivace:'Vivace — lively and quick', sym_t_presto:'Presto — very fast', sym_metro:'Metronome mark — %s beats per minute',
     sym_rehearsal:'Rehearsal mark — a landmark letter for finding and starting from this place',
+    sym_rest_whole:'whole rest', sym_rest_half:'half rest', sym_rest_quarter:'quarter rest', sym_rest_eighth:'eighth rest', sym_rest_16th:'sixteenth rest', sym_rest_32nd:'thirty-second rest', sym_rest_64th:'sixty-fourth rest', sym_rest_128th:'128th rest', sym_rest_256th:'256th rest', sym_rest_breve:'double whole rest', sym_rest_other:'rest', sym_rest_measure:'whole-measure rest',
+    sym_rest_dotted:'dotted %s', sym_rest_dots:'%s with %b dots', sym_rest_body:'Do not play for this note value; the other voices may continue.', sym_rest_measure_body:'Do not play for the entire measure in this voice; the other voices may continue.',
     sym_ped:'Ped. — press the sustain (damper) pedal; the notes keep sounding', sym_pedup:'* — release the sustain pedal; the dampers stop the sound',
     sym_f1:'thumb', sym_f2:'index finger', sym_f3:'middle finger', sym_f4:'ring finger', sym_f5:'little finger',
     sym_finger:'Fingering — play this note with finger %s, the %b (1 thumb … 5 little finger)', sym_finger_sub:'Fingering — finger change on this note (%s): %b; start with the first finger, then switch while holding the key',
@@ -2894,6 +2896,8 @@ const STRINGS={
     sym_t_andante:'Andante — în pas de mers', sym_t_moderato:'Moderato — într-un tempo moderat', sym_t_allegretto:'Allegretto — destul de repede, mai ușor decât Allegro', sym_t_allegro:'Allegro — repede și vioi',
     sym_t_vivace:'Vivace — vioi și iute', sym_t_presto:'Presto — foarte repede', sym_metro:'Indicație de metronom — %s bătăi pe minut',
     sym_rehearsal:'Reper de studiu — literă-reper pentru a găsi locul și a începe de aici',
+    sym_rest_whole:'pauză de notă întreagă', sym_rest_half:'pauză de doime', sym_rest_quarter:'pauză de pătrime', sym_rest_eighth:'pauză de optime', sym_rest_16th:'pauză de șaisprezecime', sym_rest_32nd:'pauză de treizecidoime', sym_rest_64th:'pauză de șaizecipătrime', sym_rest_128th:'pauză de 1/128', sym_rest_256th:'pauză de 1/256', sym_rest_breve:'pauză de brevis', sym_rest_other:'pauză', sym_rest_measure:'pauză de măsură',
+    sym_rest_dotted:'%s cu punct', sym_rest_dots:'%s cu %b puncte', sym_rest_body:'Nu cânți pe durata acestei valori; celelalte voci pot continua.', sym_rest_measure_body:'Nu cânți întreaga măsură în această voce; celelalte voci pot continua.',
     sym_ped:'Ped. — apasă pedala de rezonanță (dreapta); notele continuă să sune', sym_pedup:'* — ridică pedala de rezonanță; amortizoarele opresc sunetul',
     sym_f1:'degetul mare', sym_f2:'arătătorul', sym_f3:'degetul mijlociu', sym_f4:'inelarul', sym_f5:'degetul mic',
     sym_finger:'Digitație — cânți nota cu degetul %s, %b (1 degetul mare … 5 degetul mic)', sym_finger_sub:'Digitație — schimbare de deget pe această notă (%s): %b; începi cu primul deget, apoi schimbi ținând clapa apăsată',
@@ -8023,6 +8027,11 @@ async function scoreRender(){
  // Chord symbols clear the treble clef and top line; fingering keeps a little air above / below the staff it labels.
  // Stacked chord fingerings stay compact (smaller digits, tighter rows); scoreFixFingerings clears what still touches.
  if(isXml){ R.ChordSymbolYOffset=.8; R.FingeringOffsetY=.3; R.FingeringTextSize=1.35; R.FingeringPaddingY=-.35; }
+ const layout=isXml&&AN.source.layout;
+ if(layout){ for(const kind of ['title','subtitle','composer']) if(layout[kind+'Size']) R[{title:'SheetTitleHeight',subtitle:'SheetSubtitleHeight',composer:'SheetComposerHeight'}[kind]]=layout[kind+'Size']*96/72/(10*layout.base);
+  for(const side of ['Left','Right','Top','Bottom']) if(layout[side.toLowerCase()]!=null) R['Page'+side+'Margin']=layout[side.toLowerCase()];
+  if(layout.staffGap!=null){ R.StaffDistance=R.BetweenStaffDistance=layout.staffGap; R.MinSkyBottomDistBetweenStaves=.5; }
+  if(layout.systemGap!=null){ R.MinimumDistanceBetweenSystems=layout.systemGap; R.MinSkyBottomDistBetweenSystems=1; } }
  const source=SCORE.xml.trim();
  await engine.load(source.startsWith('<?xml')?source:'<?xml version="1.0" encoding="utf-8"?>'+source);
  if(version!==SCORE.version) return false;
@@ -8037,14 +8046,17 @@ function scoreLayout(){
  const look=SCORE_LOOK[SCORE.look], cont=SCORE.layout==='cont', R=engine.EngravingRules, sheet=box.querySelector('.an-sheet'), cs=getComputedStyle(box);
  box.dataset.layout=SCORE.layout;
  const avail=box.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
- const sheetW=Math.max(240,Math.round(Math.min(SC_PAGE_W*SCORE.zoom,avail)));
+ const sourceLayout=AN.source&&AN.source.kind==='xml'&&AN.source.layout, pageW=sourceLayout?sourceLayout.width:SC_PAGE_W, base=sourceLayout?sourceLayout.base:SC_BASE;
+ const sheetW=Math.max(240,Math.round(Math.min(pageW*SCORE.zoom,avail)));
  sheet.style.width=cont?'':sheetW+'px';
  engine.setOptions({defaultColorMusic:look.ink,pageBackgroundColor:look.bg,pageFormat:cont?'Endless':'A4_P',renderSingleHorizontalStaffline:cont,drawTitle:!cont,drawSubtitle:!cont,drawComposer:!cont,drawLyricist:!cont});
+ if(!cont&&sourceLayout) engine.setCustomPageFormat(sourceLayout.pageWidth,sourceLayout.pageHeight);
  R.StaffLineColor=look.staff; R.RenderMeasureNumbersOnlyAtSystemStart=!cont; R.MeasureNumberLabelOffset=cont?1:2;
  // A page narrower than A4 × zoom is the same A4 page scaled down: the staff space shrinks with it, so every
  // system keeps its bars and every page its systems whatever the panel width.
- engine.Zoom=cont?SCORE.zoom*SC_BASE:sheetW/SC_PAGE_W*SC_BASE; scoreRingFit(engine.Zoom);
+ engine.Zoom=cont?SCORE.zoom*base:sheetW/pageW*base; scoreRingFit(engine.Zoom);
  scoreFitRender(engine,!cont&&!SCORE.fixedWidth&&/new-(system|page)="yes"/.test(SCORE.xml),SCORE.zoom+'|'+avail);
+ scoreStyleHeader(engine,sourceLayout);
  scoreFixFingerings(box,engine);
  if(SCORE.look==='night') scoreNightSweep(box,look.ink);
  SCORE.stale=false; SCORE.layoutWidth=box.clientWidth;
@@ -8052,6 +8064,12 @@ function scoreLayout(){
  scoreBind(engine); scoreXLines(); scoreGeo(engine); scoreSyms(engine);
  box.hidden=FALL.mode!=='score';
  scorePaint();
+}
+// OSMD's title label is plain text. Restore safe MusicXML italic/bold runs after each layout (never inject markup).
+function scoreStyleHeader(engine,layout){
+ const node=engine.GraphicSheet.title&&engine.GraphicSheet.title.SVGNode, runs=layout&&layout.titleRuns; if(!node||!runs||!runs.length) return;
+ const text=node.localName==='text'?node:node.querySelector('text'); if(!text||text.textContent.trim()!==runs.map(r=>r.text).join('').trim()) return;
+ const spans=runs.map(r=>{ const span=document.createElementNS('http://www.w3.org/2000/svg','tspan'); span.textContent=r.text; span.setAttribute('font-style',r.style); span.setAttribute('font-weight',r.weight); return span; }); text.replaceChildren(...spans);
 }
 // Page view of an imported file keeps its own <print new-system / new-page> breaks (MuseScore's 3–4 bars a line).
 // Those breaks only help while the bars fit: note spacing tightens a step at a time until the engraver needs no
@@ -8188,7 +8206,13 @@ function scoreSyms(engine){
   sl.Measures.forEach(gm=>(gm.staffEntries||[]).forEach(gse=>{
    (gse.FingeringEntries||[]).forEach(f=>{ const n=f.SVGNode; if(!n) return; n.querySelectorAll('text').forEach(x=>seen.add(x)); add(n,'finger',(f.Label&&f.Label.text||n.textContent||'').trim()); });
    (gse.graphicalChordContainers||[]).forEach(c=>{ const lb=c.GraphicalLabel, n=lb&&lb.SVGNode; if(!n) return; n.querySelectorAll('text').forEach(x=>seen.add(x)); if(n.localName==='text') seen.add(n); add(n,'chord',(lb.Label&&lb.Label.text||n.textContent||'').trim()); });
-   (gse.graphicalVoiceEntries||[]).forEach(gve=>{ const vf=gve.vfStaveNote||gve.mVexFlowStaveNote, el=vf&&vf.getAttribute&&vf.getAttribute('el'), mg=el&&el.querySelector&&el.querySelector('.vf-modifiers'); if(!mg||!vf.modifiers) return;
+   (gse.graphicalVoiceEntries||[]).forEach(gve=>{ const vf=gve.vfStaveNote||gve.mVexFlowStaveNote, el=vf&&vf.getAttribute&&vf.getAttribute('el');
+    // Rests are notation, not playable notes: bind their glyphs here, never in AN.notes or scoreBind.
+    (gve.notes||[]).forEach(n=>{ const src=n.sourceNote; if(!src||!src.isRest()||src.PrintObject===false) return;
+     const heads=n.getNoteheadSVGs?n.getNoteheadSVGs():[], g=heads[0]||(n.getSVGGElement&&n.getSVGGElement()); if(!g) return;
+     const type=src.TypeLength&&src.TypeLength.RealValue===0?'measure':({w:'whole',h:'half',q:'quarter',8:'eighth',16:'16th',32:'32nd',64:'64th',128:'128th',256:'256th',b:'breve'}[vf&&vf.duration]||'other');
+     add(g,'rest',{type,dots:src.DotsXml||0}); });
+    const mg=el&&el.querySelector&&el.querySelector('.vf-modifiers'); if(!mg||!vf.modifiers) return;
     const paths=[...mg.children], mods=vf.modifiers, shown=paths.length===mods.length?mods:mods.filter(m=>/articulation|ornament/i.test(m.getCategory?m.getCategory():''));
     if(paths.length!==shown.length) return;
     shown.forEach((m,k)=>{ const kind=SC_ARTS[m.type]; if(kind) add(paths[k],kind,''); }); });
@@ -8221,6 +8245,8 @@ function scoreTermParts(s){
 function scoreSymText(sym){
  const split=s=>{ const i=s.indexOf(' — '); return i<0?[s,'']:[s.slice(0,i),s.slice(i+3)]; };
  const k=sym.kind, v=sym.val;
+ if(k==='rest'){ const name=t('sym_rest_'+v.type), raw=v.dots===1?t('sym_rest_dotted',name):v.dots>1?t('sym_rest_dots',name,v.dots):name, head=raw[0].toLocaleUpperCase(lang)+raw.slice(1);
+  const body=t(v.type==='measure'?'sym_rest_measure_body':'sym_rest_body'); return {head,body,line:head+' — '+body}; }
  if(k==='text'){ const parts=scoreTermParts(v); return {head:v,body:parts.join(' · '),line:v+' · '+parts.join(' · ')}; }
  let full;
  if(k==='dyn') full=t('sym_dyn_'+(v==='sf'?'sfz':v==='sfp'?'fp':v));
@@ -9069,6 +9095,25 @@ async function anInflatedSize(bytes,limit){
  catch(_){ stop=true; }   // corrupt data or junk after the end: the count so far decides
  return n;
 }
+// MusicXML distances are tenths of a staff space; OSMD distances are staff spaces.
+// Keep physical page/staff sizing when supplied, with bounded fallbacks for incomplete or malformed layout hints.
+function scoreXmlLayout(doc){
+ const root=doc.documentElement, defaults=root.querySelector(':scope > defaults'); if(!defaults) return null;
+ const number=(el,selector,min,max)=>{ const node=el&&el.querySelector(selector), value=node&&parseFloat(node.textContent); return Number.isFinite(value)&&value>=min&&value<=max?value:null; };
+ const mm=number(defaults,'scaling > millimeters',.1,100), tenths=number(defaults,'scaling > tenths',1,1000), unit=mm&&tenths?mm/tenths:null;
+ const base=unit&&unit*96/25.4>=.3&&unit*96/25.4<=1.5?unit*96/25.4:SC_BASE;
+ const pw=number(defaults,'page-layout > page-width',100,10000), ph=number(defaults,'page-layout > page-height',100,20000);
+ const width=unit&&pw?pw*unit:210, height=unit&&ph?ph*unit:297;
+ const pageWidth=width>=50&&width<=600?width:210, pageHeight=height>=50&&height<=1200?height:297;
+ const margins=defaults.querySelector('page-margins[type="both"],page-margins[type="odd"]')||defaults.querySelector('page-margins'), out={base,width:pageWidth*96/25.4,pageWidth,pageHeight};
+ for(const side of ['Left','Right','Top','Bottom']){ const value=number(margins,side.toLowerCase()+'-margin',0,400); if(value!=null&&value<(side==='Left'||side==='Right'?pw:ph)/3) out[side.toLowerCase()]=value/10; }
+ for(const kind of ['title','subtitle','composer']){ const credit=[...root.querySelectorAll(':scope > credit')].find(c=>c.querySelector('credit-type')?.textContent.trim()===kind&&(c.getAttribute('page')||'1')==='1');
+  const words=credit&&[...credit.querySelectorAll('credit-words')], size=words&&words[0]&&parseFloat(words[0].getAttribute('font-size')); if(Number.isFinite(size)&&size>=6&&size<=48) out[kind+'Size']=size;
+  if(kind==='title'&&words){ let style='normal',weight='normal'; out.titleRuns=words.map(w=>{ if(['normal','italic'].includes(w.getAttribute('font-style'))) style=w.getAttribute('font-style'); if(['normal','bold'].includes(w.getAttribute('font-weight'))) weight=w.getAttribute('font-weight'); return {text:w.textContent,style,weight}; }); } }
+ out.staffGap=number(root,'part > measure > print > staff-layout > staff-distance',10,200); if(out.staffGap!=null) out.staffGap/=10;
+ out.systemGap=number(root,'part > measure > print > system-layout > system-distance',10,400); if(out.systemGap!=null) out.systemGap/=10;
+ return out;
+}
 async function anReadXml(file,title){
  let xml;
  if(/\.mxl$/i.test(file.name)){ const buf=await file.arrayBuffer(); await anMxlPreflight(buf);
@@ -9077,9 +9122,9 @@ async function anReadXml(file,title){
  else xml=await file.text();
  const doc=new DOMParser().parseFromString(xml,'application/xml');
  if(doc.querySelector('parsererror')||doc.documentElement.localName!=='score-partwise'||doc.querySelector('script')) throw anError('xml');
- const clean=anXmlTidy(doc,title); xml=new XMLSerializer().serializeToString(doc);
+ const layout=scoreXmlLayout(doc), clean=anXmlTidy(doc,title); xml=new XMLSerializer().serializeToString(doc);
  const r=scoreXmlNotes(doc); if(!r.notes.length) throw anError('nonotes'); if(r.notes.length>AN_MAX_NOTES) throw anError('notes');
- return {kind:'xml',title:clean||title,label:file.name,xml,...r};
+ return {kind:'xml',title:clean||title,label:file.name,xml,layout,...r};
 }
 // MuseScore exports read cleanly in the engraver: real title and composer in the header (not the file name),
 // no editorial footnotes over the first staff, SMuFL note glyphs readable in web fonts, no generic "Instr. P1"
@@ -9087,6 +9132,20 @@ async function anReadXml(file,title){
 const AN_SMUFL_NOTES={'\uE1D2':'\uD834\uDD5D','\uECA2':'\uD834\uDD5D','\uE1D3':'\uD834\uDD5E','\uECA3':'\uD834\uDD5E','\uE1D5':'\u2669','\uECA5':'\u2669',
  '\uE1D4':'\uD834\uDD5E','\uECA4':'\uD834\uDD5E','\uE1D6':'\u2669','\uECA6':'\u2669',
  '\uE1D7':'\u266A','\uECA7':'\u266A','\uE1D8':'\u266A','\uECA8':'\u266A','\uE1D9':'\u266C','\uECA9':'\u266C','\uE1DA':'\u266C','\uECAA':'\u266C','\uE1E7':'.','\uECB7':'.'};
+// Some exports leave an open last ending before the next forward repeat. Do not let it span the next section.
+// Explicit stop/discontinue pairs always win, including multi-measure endings crossing a repeat boundary.
+function scoreXmlEndings(doc){
+ doc.querySelectorAll('score-partwise > part').forEach(part=>{ const endings=[...part.querySelectorAll('barline > ending')], open=new Map(), unclosed=new Set();
+  endings.forEach(e=>{ const key=e.getAttribute('number')||'1'; if(e.getAttribute('type')==='start'){ open.set(key,e); unclosed.add(e); }
+   else if(open.has(key)){ unclosed.delete(open.get(key)); open.delete(key); } });
+  open.clear(); const measures=[...part.children].filter(e=>e.localName==='measure');
+  measures.forEach((m,i)=>{ if(i&&m.querySelector(':scope > barline[location="left"] > repeat[direction="forward"]')){
+    open.forEach((e,key)=>{ const prev=measures[i-1]; let bar=prev.querySelector(':scope > barline[location="right"], :scope > barline:not([location])');
+     if(!bar){ bar=doc.createElementNS(part.namespaceURI,'barline'); bar.setAttribute('location','right'); prev.appendChild(bar); }
+     const stop=doc.createElementNS(part.namespaceURI,'ending'); stop.setAttribute('number',key); stop.setAttribute('type','discontinue'); bar.insertBefore(stop,bar.querySelector('repeat')); }); open.clear(); }
+   m.querySelectorAll(':scope > barline > ending').forEach(e=>{ if(unclosed.has(e)) open.set(e.getAttribute('number')||'1',e); }); });
+ });
+}
 function anXmlTidy(doc,fallback){
  const root=doc.documentElement, kids=el=>[...el.children], one=(el,name)=>kids(el).find(c=>c.localName===name);
  const text=el=>(el&&el.textContent||'').replace(/\s+/g,' ').trim(), same=(a,b)=>!!a&&!!b&&a.toLowerCase()===b.toLowerCase();
@@ -9112,6 +9171,9 @@ function anXmlTidy(doc,fallback){
  if(!title) title=fallback;
  const ident=one(root,'identification'), creator=ident&&[...ident.children].find(c=>c.localName==='creator'&&c.getAttribute('type')==='composer');
  let composer=text(creator), composerFromSubtitle=false;
+ // Identification often flattens a printed two-line composer credit. Prefer its line structure when the text agrees.
+ const composerCredit=credits.find(c=>ctype(c)==='composer'), printedComposer=composerCredit&&[...composerCredit.querySelectorAll('credit-words')].map(w=>w.textContent.trim()).filter(Boolean).join('\n');
+ if(printedComposer&&(!composer||printedComposer.replace(/\s/g,'').toLowerCase()===composer.replace(/\s/g,'').toLowerCase())) composer=printedComposer;
  if(!composer){ const typed=credits.find(c=>ctype(c)==='composer'); if(typed) composer=cwords(typed); }
  if(!composer){ const sub=credits.find(c=>ctype(c)==='subtitle'); if(sub&&/\b(m[uú]si(c|k|que|ca)|music|by|von|de|di|composed|compos)/i.test(cwords(sub))){ composer=cwords(sub); composerFromSubtitle=true; } }
  const before=names=>kids(root).find(c=>names.includes(c.localName))||null;
@@ -9130,7 +9192,7 @@ function anXmlTidy(doc,fallback){
  const yOf=el=>{ for(const a of ['default-y','relative-y']){ const v=parseFloat(el&&el.getAttribute(a)); if(!isNaN(v)) return v; } return NaN; };
  const footnote=(t,low)=>versionNote.test(t)&&(t.length>=24||low);
  credits.forEach(c=>{ const ty=ctype(c), t=cwords(c), raw=[...c.querySelectorAll('credit-words')].map(w=>w.textContent).join('\n'), cy=yOf(c.querySelector('credit-words'));
-  if(ty==='title'||ty==='composer'||same(t,title)||same(t,composer)||(composerFromSubtitle&&ty==='subtitle')||editorial(t)||footnote(t,cy<200)||raw.split('\n').filter(s=>s.trim()).length>=3) c.remove(); });
+  if(ty==='title'||(ty!=='composer'&&(same(t,title)||same(t,composer)))||(composerFromSubtitle&&ty==='subtitle')||editorial(t)||footnote(t,cy<200)||raw.split('\n').filter(s=>s.trim()).length>=3) c.remove(); });
  doc.querySelectorAll('direction > direction-type > words').forEach(w=>{ const t=text(w), y=yOf(w);
   if(!t||!(t.length>=60||editorial(t)||footnote(t,y<=-80)||(t.length>=20&&y<=-90)||w.textContent.split('\n').filter(s=>s.trim()).length>=3)) return;
   const dt=w.parentElement, dir=dt.parentElement; w.remove(); if(dt.children.length) return;
@@ -9149,6 +9211,7 @@ function anXmlTidy(doc,fallback){
   if(ty==='change'){ p.setAttribute('type','stop'); const dt=p.parentElement, dir=dt.parentElement, again=dir.cloneNode(false);
    [...dir.children].forEach(c=>{ if(c===dt) again.appendChild(c.cloneNode(true)); else if(['offset','voice','staff'].includes(c.localName)) again.appendChild(c.cloneNode(true)); });
    again.querySelector('pedal').setAttribute('type','start'); dir.after(again); } });
+ scoreXmlEndings(doc);
  return title;
 }
 // The single entry point for the file input and drag & drop.
