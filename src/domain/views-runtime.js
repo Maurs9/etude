@@ -5577,16 +5577,9 @@ function srTargets() {
             kbState(n.midi, 'target', true); });
 }
 function srClick(t, acc) {
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.frequency.value = acc ? 2100 : 1350;
-    o.connect(g).connect(master);
-    const pk = acc ? .3 : .16;
-    g.gain.setValueAtTime(.0001, t);
-    g.gain.exponentialRampToValueAtTime(pk, t + .001);
-    g.gain.exponentialRampToValueAtTime(.0001, t + .05);
-    o.start(t);
-    o.stop(t + .06);
-    SR.nodes.push(o);
+    const click = audioEngine.scheduleClick(t, acc);
+    if (click?.oscs)
+        SR.nodes.push(...click.oscs);
 }
 function srStopAll(keep) {
     SR.active = false;
@@ -6591,15 +6584,9 @@ function rdRhGrade(on, taps, bs) {
     return { res, extra, good, near, pct: Math.max(0, Math.round(100 * (good + 0.5 * near) / Math.max(1, on.length) - extra * 5)), mean: Math.round(mean) };
 }
 function rdClick(tm, acc) {
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.frequency.value = acc ? 2100 : 1350;
-    o.connect(g).connect(master);
-    g.gain.setValueAtTime(.0001, tm);
-    g.gain.exponentialRampToValueAtTime(acc ? .3 : .16, tm + .001);
-    g.gain.exponentialRampToValueAtTime(.0001, tm + .05);
-    o.start(tm);
-    o.stop(tm + .06);
-    (RD.nodes = RD.nodes || []).push(o);
+    const click = audioEngine.scheduleClick(tm, acc);
+    if (click?.oscs)
+        (RD.nodes = RD.nodes || []).push(...click.oscs);
 }
 function rdBeatX(r, beat) { const p = r.beatX; for (let i = 0; i < p.length - 1; i++) {
     if (beat >= p[i].b && beat <= p[i + 1].b) {

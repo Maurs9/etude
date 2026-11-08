@@ -705,6 +705,33 @@ export class AudioEngine {
     oscillator.stop(when + 0.06);
   }
 
+  /**
+   * Schedule the short click used by rhythm and sight-reading views.
+   * Keeping this alias on the audio boundary prevents view code from
+   * constructing Web Audio nodes or depending on the master graph.
+   */
+  scheduleClick(when: number, accent: boolean): AudioVoice | null {
+    const context = this.context;
+    if (!context || !this.master) return null;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.value = accent ? 2100 : 1350;
+    oscillator.connect(gain).connect(this.master);
+    const peak = accent ? 0.3 : 0.16;
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(peak, when + 0.001);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
+    oscillator.start(when);
+    oscillator.stop(when + 0.06);
+    return {
+      oscs: [oscillator],
+      stop: (at?: number) => {
+        try { oscillator.stop(at ?? context.currentTime); } catch { /* already stopped */ }
+      },
+      setBend: () => {},
+    };
+  }
+
   startDrone(rootPitchClass: number): void {
     this.ensureAudio();
     this.stopDrone();
