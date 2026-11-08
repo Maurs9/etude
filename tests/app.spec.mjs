@@ -985,16 +985,6 @@ test('a stale live decode error cannot mark a replacement audio context as faile
 });
 
 test('an aborted piano warm-up can recover before Learn playback', async ({ app, page }) => {
-  let armed = false;
-  let aborted = false;
-  await page.route('**/*.mp3*', async route => {
-    if (armed && !aborted) {
-      aborted = true;
-      await route.abort('failed');
-    } else {
-      await route.continue();
-    }
-  });
   await app.open();
   await page.evaluate(() => {
     window.__etude.ensureAudio();
@@ -1003,8 +993,26 @@ test('an aborted piano warm-up can recover before Learn playback', async ({ app,
     window.__etude.pianoBank.buffers = new Map();
     window.__etude.pianoBank.pending = new Map();
     window.__etude.pianoBank.ctx = window.__etude.actx;
+    const fetchImpl = window.fetch;
+    let aborted = false;
+    window.__abortFirstPianoFetch = () => {
+      window.fetch = (input, init) => {
+        if (!aborted && String(input).includes('.mp3')) {
+          aborted = true;
+          const controller = new AbortController();
+          controller.abort();
+          return fetchImpl(input, { ...(init || {}), signal: controller.signal });
+        }
+        return fetchImpl(input, init);
+      };
+    };
+    window.__restorePianoFetch = () => {
+      window.fetch = fetchImpl;
+      delete window.__abortFirstPianoFetch;
+      delete window.__restorePianoFetch;
+    };
+    window.__abortFirstPianoFetch();
   });
-  armed = true;
   const first = await page.evaluate(async () => {
     window.__etude.pianoBank.promise = null;
     window.__etude.pianoBank.status = 'idle';
@@ -1012,6 +1020,7 @@ test('an aborted piano warm-up can recover before Learn playback', async ({ app,
     window.__etude.pianoBank.pending = new Map();
     return window.__etude.preparePiano();
   });
+  await page.evaluate(() => window.__restorePianoFetch?.());
   const second = await page.evaluate(async () => {
     const ready = await window.__etude.preparePiano();
     window.__etude.startSession(null);
@@ -1019,7 +1028,6 @@ test('an aborted piano warm-up can recover before Learn playback', async ({ app,
     window.__etude.playQuestionSound(question);
     return { ready, active: window.__etude.SES.active, hasQuestion: !!question, voices: window.__etude.previewVoices.length, status: window.__etude.pianoBank.status };
   });
-  await page.unroute('**/*.mp3*');
   expect(first).toBe(false);
   expect(second).toMatchObject({ ready: true, active: true, hasQuestion: true, status: 'ready' });
   expect(second.voices).toBeGreaterThan(0);
