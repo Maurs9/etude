@@ -61,6 +61,21 @@ export default [
       'no-restricted-globals': [
         'error',
         { name: 'event', message: 'Use an explicitly typed event parameter.' },
+        { name: 'eval', message: 'Dynamic application-code execution is forbidden.' },
+        { name: 'Function', message: 'Dynamic application-code compilation is forbidden.' },
+        { name: 'atob', message: 'Encoded application runtime payloads are forbidden.' },
+        { name: 'btoa', message: 'Encoded application runtime payloads are forbidden.' },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Function']",
+          message: 'Dynamic application-code compilation is forbidden.',
+        },
+        {
+          selector: "CallExpression[callee.name='eval']",
+          message: 'Dynamic application-code execution is forbidden.',
+        },
       ],
       'no-restricted-properties': [
         'error',

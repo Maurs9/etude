@@ -71,11 +71,12 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `package.json`, `package-lock.json` — test tooling and locked dependencies
 
 `npm run typecheck` runs the full `strict` compiler gate. The suppression guard
-rejects `@ts-nocheck` and `@ts-ignore` in application TypeScript, allows only a
-small, reasoned set of `@ts-expect-error` boundary exceptions, and rejects
-explicit `any`, and rejects unchecked application JavaScript under `src/domain/`. The typed view entry point defines the DOM, state, locale,
-event, callback and view-data contracts used by new view code; the existing
-behaviour-preserving runtime is loaded behind that boundary so the migration
-does not change user-visible behaviour. Storage, theory, audio, notation, and
-routing remain separate typed modules. Keep browser-only DOM wiring in the view
-domain and keep the other behavior behind those typed module boundaries.
+rejects `@ts-nocheck`, `@ts-ignore`, unexplained or excessive
+`@ts-expect-error`, explicit `any`, unchecked application JavaScript, and
+encoded or dynamically compiled application runtime payloads. The complete
+view implementation is ordinary TypeScript in `src/domain/views-runtime.ts`;
+its DOM, state, locale, event, callback, and view-data contracts are parsed by
+the compiler rather than decoded or passed to `new Function`. Storage, theory,
+audio, notation, and routing remain separate typed modules. Keep browser-only
+DOM wiring in the view domain and keep the other behaviour behind those typed
+module boundaries.

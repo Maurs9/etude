@@ -110,4 +110,24 @@ describe('domain boundaries', () => {
       await rm(sourceRoot, { recursive: true, force: true });
     }
   });
+
+  it('rejects dynamic execution and the encoded runtime bypass', async () => {
+    const probeRoot = fileURLToPath(new URL('../test-results/', import.meta.url));
+    const probes = [
+      'const RUNTIME_SOURCE = "ZnVuY3Rpb24gYmFkKCkge30=";\nconst decoded = atob(RUNTIME_SOURCE);\nnew Function(decoded)();\n',
+      'const source = "return 1";\neval(source);\n',
+    ];
+    for (const [index, source] of probes.entries()) {
+      const sourceRoot = await mkdtemp(join(probeRoot, `etude-runtime-gate-${index}-`));
+      try {
+        await writeFile(join(sourceRoot, 'probe.ts'), source);
+        await expect(execFileAsync('node', ['scripts/check-ts-suppressions.mjs'], {
+          cwd: fileURLToPath(new URL('..', import.meta.url)),
+          env: { ...process.env, TS_SOURCE_ROOT: sourceRoot },
+        })).rejects.toMatchObject({ code: 1 });
+      } finally {
+        await rm(sourceRoot, { recursive: true, force: true });
+      }
+    }
+  });
 });

@@ -9,6 +9,14 @@ const failures = [];
 const MAX_EXPECTED_ERRORS = 8;
 let expectedErrorCount = 0;
 let explicitAnyCount = 0;
+const FORBIDDEN_RUNTIME_PATTERNS = [
+  [/\bnew\s+Function\b/, 'dynamic Function compilation is forbidden in application TypeScript'],
+  [/\beval\s*\(/, 'eval is forbidden in application TypeScript'],
+  [/\batob\s*\(/, 'encoded runtime payloads are forbidden in application TypeScript'],
+  [/\bbtoa\s*\(/, 'encoded runtime payloads are forbidden in application TypeScript'],
+  [/\bRUNTIME_SOURCE\b/, 'encoded runtime source payloads are forbidden in application TypeScript'],
+  [/\b(?:base64|encodedRuntime|generatedRuntime)\b/i, 'encoded/generated runtime payloads are forbidden in application TypeScript'],
+];
 
 async function visit(url) {
   const entries = await readdir(url, { withFileTypes: true });
@@ -26,6 +34,11 @@ async function visit(url) {
     }
     const lines = source.split('\n');
     lines.forEach((line, index) => {
+      for (const [pattern, message] of FORBIDDEN_RUNTIME_PATTERNS) {
+        if (pattern.test(line)) {
+          failures.push(`${child.pathname}:${index + 1}: ${message}`);
+        }
+      }
       if (/@ts-nocheck\b/.test(line)) {
         failures.push(`${child.pathname}:${index + 1}: file-wide @ts-nocheck is forbidden`);
       }
