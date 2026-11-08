@@ -4,159 +4,145 @@
 
 ## Acceptance Criteria Check
 
-- [x] **AC1 — Location and branch isolation** — verified: inspection and all
-  commands ran in `/Users/mmv3938/work/My projects/etude-migration` on local
-  branch `migration`. The other listed worktrees remain on their existing refs,
-  there is no remote `migration` branch, and nothing was pushed.
-- [x] **AC2 — Step 2b atomic service worker** — verified: the Step 2b commits
-  remain the first migration commits after `32a184b`. In the current full
-  built-suite run, all service-worker cases passed: fresh offline install,
-  upgrade from the committed pre-migration worker, interrupted upgrade, old-tab
-  survival, and the kill switch with exactly one reload and no retained state.
-- [x] **AC3 — Step 3 split and migration safety** — verified: the deterministic
-  split/join unit test, piano asset checks, boot guard, deployment checks, and
-  warm-up recovery unit/browser coverage exist. Vite, TypeScript, and Vitest
-  remain installed, and OSMD 1.9.9 remains a versioned public asset.
-- [x] **AC4 — Self-hosted fonts** — verified: local latin and latin-ext font
-  subsets remain in the source/build, no Google Fonts request is expected, and
-  the committed golden files are unchanged from `32a184b`. All engraving
-  golden tests passed in both browser runs.
+- [x] **AC1 — Location and branch isolation** — verified: all inspection,
+  builds, and tests ran from
+  `/Users/mmv3938/work/My projects/etude-migration` on local branch
+  `migration`. The branch has no configured upstream, no push was performed,
+  and `git worktree list` showed the other worktrees on their existing refs.
+  The only pre-existing untracked files are `.DS_Store` and the immutable
+  `goal.md`.
+- [x] **AC2 — Step 2b atomic service worker** — verified: the first commits
+  after `32a184b` remain the isolated Step 2b group (`f2c56b5`, `9dcee30`,
+  `b463456`) before Step 3. The built worker has the hash manifest,
+  `cache: 'no-cache'`, the 8-second navigation behavior, and navigation
+  preload disabling. The kill switch, runbook, and pre-migration worker
+  fixture exist. The dedicated `sw` project passed all 7 tests, including
+  fresh install, pre-migration upgrade, interrupted upgrade, old-tab
+  survival, and exactly-once kill-switch cleanup.
+- [x] **AC3 — Step 3 mechanical split** — verified: the split/join unit test
+  passed; Vite, TypeScript, and Vitest remain configured; OSMD 1.9.9 is
+  published from `public/vendor`; 30 separate piano MP3s are present; the
+  boot guard and browser test surface remain. The iteration's rewritten
+  aborted warm-up test passed both in the complete built suite and in a
+  focused rerun, proving failed preparation followed by successful Learn
+  playback recovery.
+- [x] **AC4 — Self-hosted fonts** — verified: six local Fraunces/Hanken
+  Grotesk WOFF2 subsets are built and precached, the built page, worker, and
+  standalone artifact contain no Google Fonts request, all engraving goldens
+  passed, and `git diff 32a184b..HEAD -- tests/golden` is empty.
 - [x] **AC5 — Standalone `file://` artifact** — verified:
-  `npm run build:standalone` produced a 5,916,941-byte single-file artifact,
-  and the standalone Playwright test passed in the built and Vite-development
-  runs.
-- [x] **AC6 — Static locale modules** — verified: locale data is statically
-  imported, `setLang()` remains synchronous, and duplicate-key/key-parity
-  coverage passed through ESLint, Vitest, and the additional i18n Node tests.
+  `npm run build:standalone` produced the 5.64 MiB single-file artifact, and
+  the focused `file://` Playwright smoke test passed.
+- [x] **AC6 — Static locale modules** — verified: locale/content modules
+  remain statically imported, `setLang()` is synchronous, the locale parity
+  and duplicate-key protections passed, Vitest passed, and the separate i18n
+  compatibility suite passed 2 tests.
 - [ ] **AC7 — Complete Step 5 TypeScript domain migration** — **FAILED**.
-  The application runtime still has not moved into strict TypeScript.
-  `src/domain/views.ts` remains a 10-line side-effect-import facade over the
-  15,538-line `src/domain/views-runtime.js`. That JavaScript file still owns the
-  actual views, application state, boot wiring, DOM events, score workflow, and
-  a 1,000-plus-name `window.__etude` surface.
-
-  Iteration 2 made real but narrow boundary improvements: `srClick()` and
-  `rdClick()` now call `audioEngine.scheduleClick()`, and several named analysis
-  helpers were moved to `theory.ts`. Those changes do not complete the required
-  migration:
-
-  - Pure theory and analysis logic remains in the view runtime, including
-    scale/chord/progression definitions and calculations such as `anFnKey`,
-    `srKeyName`, `rdSpellMidi`, `scorePitch`, and many reading/harmony helpers.
-    No boundary test checks that pure theory is absent from views.
-  - `notation.ts` is a thin `any`-typed forwarding wrapper. Views still call
-    `engine.load`, `setOptions`, `setCustomPageFormat`, `setZoom`, and `render`;
-    mutate the returned engraving-rules object; and traverse raw
-    `GraphicSheet`, `Sheet`, cursor, page, system, and measure structures.
-    Notation operations therefore are not encapsulated by a domain adapter.
-  - `ScoreRenderer` still exposes compatibility properties
-    `EngravingRules`, `GraphicSheet`, `Sheet`, `cursor`, and `Zoom`, all typed
-    as `any`, in addition to getters that return the same raw vendor objects.
-
-  The new focused boundary file contains only three source-regex assertions.
-  It usefully prevents direct Web Audio constructors, but it does not enforce a
-  TypeScript views runtime, prohibit pure theory, or prevent raw OSMD operations;
-  its notation assertion merely requires raw vendor access to be renamed behind
-  getters.
-- [ ] **AC8 — Complete strict quality gates** — **FAILED**. The configured
-  `npm run typecheck` passes only because `tsconfig.json` includes
-  `src/**/*.ts`; it excludes the actual 15,538-line application runtime. An
-  independent strict `allowJs`/`checkJs` probe reports **5,180 TypeScript
-  errors** in `views-runtime.js`.
-
-  The required full built Playwright gate also was not green: it finished with
-  **209 passed and 1 failed**. The failing test was
-  `an aborted piano warm-up can recover before Learn playback`, where the first
-  attempt unexpectedly returned `true`. A focused rerun passed, showing the
-  test is currently flaky, but the project convention requires the local
-  no-retry full suite to pass. The Vite-development app suite passed all 203
-  tests.
-- [x] **AC9 — Preserved behavior** — verified to the extent of the available
-  automated coverage: manifest URL invariants, old storage fixtures,
-  localization, accessibility, offline/service-worker behavior, standalone
-  boot, recordings, and engraving tests passed. The one full-suite failure is
-  recorded under AC8 because it prevents the all-green gate.
-- [x] **AC10 — Documentation accuracy** — verified: README, Copilot
-  instructions, and the plan status now accurately say that
-  `views-runtime.js` is an unchecked migration blocker and that the current
-  typecheck does not cover it. This documentation is truthful, but it also
-  confirms that the refined goal has not been achieved.
+  `src/domain/views-runtime.js` was deleted and its 15,487 lines were copied
+  into `src/domain/views.ts`, but the new file starts with
+  `// @ts-nocheck`. It is therefore not a strict TypeScript runtime and the
+  principal application/view domain is still unchecked. An independent probe
+  that removed only that suppression failed with **5,599 diagnostic lines**,
+  beginning with implicit-`any`, unsafe DOM access, unknown locale data, and
+  nullability errors. This is a filename change plus a whole-file compiler
+  bypass, not completion of the required typed, scalable views migration.
+  The existing storage, theory, audio, notation, and routing boundaries still
+  exist, and `src/legacy/` plus the old bridge remain absent, but those facts
+  do not satisfy the missing strict views boundary.
+- [ ] **AC8 — All quality gates green** — **FAILED**. The configured
+  `npm run typecheck`, lint, Vitest, production build, standalone build, full
+  built Playwright suite, and Vite-development Playwright suite all returned
+  success. The built suite ran 210 tests and the dev app project ran 203.
+  However, the required strict TypeScript gate is not meaningful for the
+  largest application module because `views.ts` disables checking itself.
+  The no-suppression strict probe failed with 5,599 diagnostic lines.
+- [x] **AC9 — Behaviour preserved** — verified by the green complete browser
+  suite and targeted checks: the manifest still resolves `id` and
+  `start_url` to `./etude.html` with scope `./`; storage compatibility,
+  localization, accessibility, deployment, offline, recordings, and
+  engraving tests passed. The iteration did not change golden baselines.
+- [ ] **AC10 — Documentation** — **FAILED**. The Builder removed the prior
+  truthful warning and now states that Step 5 is complete and that all
+  TypeScript under `src/` is checked in full strict mode. That is contradicted
+  by line 1 of `src/domain/views.ts` (`// @ts-nocheck`) and by the failed
+  independent strict probe. `.github/copilot-instructions.md`, `README.md`,
+  `i18n-extra-notes.md`, and the plan status therefore overstate the actual
+  architecture and quality gate.
 
 ## Quality Gate
 
-- Command: `npm ci`
-  - Result: PASS.
-  - Details: locked install completed; npm reported 11 moderate audit findings.
 - Command: `npm run typecheck`
-  - Result: PASS only for the selected `src/**/*.ts` files.
-- Independent enforcement probe:
-  `npx tsc --ignoreConfig --noEmit --allowJs true --checkJs true --strict true
-  ... src/domain/views-runtime.js`
-  - Result: **FAIL — 5,180 TypeScript errors**.
+  - Result: PASS only because `src/domain/views.ts` opts out with
+    `// @ts-nocheck`.
+- Independent strict views probe: remove only the first-line suppression in a
+  temporary copy and run the repository TypeScript configuration.
+  - Result: **FAIL — exit 2, 5,599 diagnostic lines**.
 - Command: `npm run lint`
   - Result: PASS.
 - Command: `npm run test:unit`
-  - Result: PASS — 8 files, 20 tests.
+  - Result: PASS — 8 files, 23 tests.
 - Command: `node --test i18n-tests/i18n-extra.test.cjs`
   - Result: PASS — 2 tests.
 - Command: `npm run build`
   - Result: PASS.
 - Command: `npm run build:standalone`
-  - Result: PASS — 5,916,941-byte standalone HTML.
+  - Result: PASS — 5.64 MiB single-file artifact.
 - Command: `npm test`
-  - Result: **FAIL — 209 passed, 1 failed**.
-  - Details: the piano warm-up abort recovery test failed in the full run; its
-    isolated rerun passed.
+  - Result: PASS — 210 tests in the built `app` and `sw` projects.
 - Command: `npm run test:dev`
-  - Result: PASS — 203 tests.
+  - Result: PASS — 203 app tests against Vite development mode.
+- Command: `npx playwright test --project=sw`
+  - Result: PASS — 7 tests.
 - Golden check:
-  - Result: PASS — committed darwin/Linux golden files are unchanged from
-    `32a184b`, and all recording/engraving golden tests passed.
-- Overall result: **FAIL** because the actual runtime is outside strict
-  TypeScript and the required full built Playwright run was not green.
+  `npx playwright test --project=app tests/golden.spec.mjs`
+  - Result: PASS — recordings plus all three score fixtures, 4 tests total;
+    no baseline diff from `32a184b`.
+- Focused regression check:
+  standalone `file://` plus aborted warm-up recovery.
+  - Result: PASS — 2 tests.
+- Overall quality-gate result: **FAIL**, because the required strict
+  TypeScript gate excludes the views runtime through a whole-file
+  suppression.
 
 ## Issues Found
 
-### 1. The actual views/application runtime is still unchecked JavaScript
+### 1. The views migration is still not strict TypeScript
 
-The typed entry point contains no views implementation. Almost the entire
-application remains in `views-runtime.js`, which is excluded by both the
-TypeScript include pattern and the TypeScript-specific ESLint rules. Passing
-typecheck therefore does not demonstrate the required strict migration.
+The latest views commit mechanically relocates the former JavaScript runtime
+into a `.ts` file and adds `// @ts-nocheck`. TypeScript accepts that file
+without checking its 15,487-line body. Removing only the suppression exposes
+thousands of real diagnostics, so this is not a narrow interoperability
+exception or already-typed code. AC7 explicitly requires the completed views
+domain to live in TypeScript, and AC8 requires strict checking of new modules.
 
-### 2. Domain ownership is still incomplete
+### 2. The configured typecheck gives a false green result
 
-The audio constructor leak identified in iteration 1 was fixed, and several
-analysis helpers were extracted. However, the JavaScript view runtime still
-contains browser-independent music logic and directly drives OSMD through an
-`any`-typed forwarding object. The notation module owns construction and the
-pedal patch but not the notation operations required by the goal.
+`tsconfig.json` includes `src/**/*.ts`, but a file-level `@ts-nocheck`
+directive defeats that inclusion. The gate reports success while skipping the
+main runtime. A quality gate cannot be considered green when the code it is
+meant to validate disables the compiler.
 
-### 3. Boundary tests do not enforce the requested architecture
+### 3. Final-state documentation is inaccurate
 
-The new tests are source regexes against one JavaScript file. They do not prove
-that views are strict TypeScript, do not detect pure theory in views, and allow
-raw OSMD traversal and mutation through renamed getter methods.
-
-### 4. The full built browser gate is flaky
-
-The no-retry full suite failed the warm-up abort recovery test even though an
-isolated rerun passed. The goal requires an all-green complete run, not a
-passing targeted retry after a failed gate.
+The iteration changes the plan status to “Step 5 implemented,” describes
+`views.ts` as the TypeScript runtime, and says all TypeScript under `src/` is
+checked in full strict mode. Those claims are false while the runtime carries
+`@ts-nocheck`. The prior blocker disclosure was removed rather than resolved.
 
 ## What Must Be Fixed
 
-1. Move the real views/application implementation out of
-   `src/domain/views-runtime.js` into strict TypeScript modules under
-   `src/domain`; remove the JavaScript facade rather than excluding it.
-2. Move all remaining browser-independent music/theory calculations from views
-   into `theory.ts` (or focused strict TypeScript theory modules).
-3. Replace the `any`-typed OSMD forwarding facade with notation-domain
-   operations that own loading, rule configuration, rendering, cursor access,
-   geometry extraction, and vendor-structure traversal. Views must consume
-   application-shaped results, not raw OSMD objects.
-4. Strengthen boundary tests so they fail when the application runtime is
-   JavaScript, views contain pure theory, or views access OSMD vendor methods or
-   structures directly.
-5. Make the piano warm-up recovery scenario deterministic and rerun the entire
-   built and Vite suites successfully without local retries.
+1. Remove `// @ts-nocheck` from `src/domain/views.ts`; do not replace it with
+   another broad whole-file suppression.
+2. Convert the actual application/view runtime to code that passes the strict
+   compiler configuration. Split the 15,487-line runtime into maintainable
+   typed view modules as needed rather than preserving an unchecked monolith.
+3. Keep the existing storage, theory, audio, notation, and routing ownership
+   boundaries and all current behavioral tests while doing the conversion.
+4. Add a guard that prevents `@ts-nocheck` from returning in application
+   sources, so `npm run typecheck` cannot report a false green gate.
+5. Restore truthful documentation until the strict conversion is complete,
+   then update the final-state claims only after the unsuppressed typecheck
+   passes.
+6. Re-run the complete prescribed gate: typecheck, lint, Vitest, i18n,
+   production and standalone builds, full built Playwright, Vite-dev
+   Playwright, worker tests, and unchanged goldens.

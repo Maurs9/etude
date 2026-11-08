@@ -41,6 +41,11 @@
       "iteration": 1,
       "verdict": "FAIL",
       "summary": "The complete views runtime remains unchecked JavaScript, and the full built Playwright gate failed the aborted piano warm-up recovery test."
+    },
+    {
+      "iteration": 2,
+      "verdict": "FAIL",
+      "summary": "The views runtime was renamed to TypeScript but disables checking with @ts-nocheck; strict verification and final-state documentation remain incomplete."
     }
   ]
 }
