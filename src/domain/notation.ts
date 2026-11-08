@@ -79,6 +79,7 @@ export interface OsmdModule {
 
 export interface ScoreRenderer {
   updateRules(updates: Readonly<Record<string, unknown>>): void;
+  readRules(): Readonly<Record<string, unknown>>;
   load(xml: string): Promise<void>;
   setOptions(options: Record<string, unknown>): void;
   setCustomPageFormat(width: number, height: number): void;
@@ -98,6 +99,7 @@ class OsmdScoreRenderer implements ScoreRenderer {
   updateRules(updates: Readonly<Record<string, unknown>>): void {
     Object.assign(this.vendor.EngravingRules, updates);
   }
+  readRules(): Readonly<Record<string, unknown>> { return this.vendor.EngravingRules; }
   load(xml: string): Promise<void> { return this.vendor.load(xml); }
   setOptions(options: Record<string, unknown>): void { this.vendor.setOptions(options); }
   setCustomPageFormat(width: number, height: number): void { this.vendor.setCustomPageFormat(width, height); }

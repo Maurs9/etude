@@ -303,23 +303,12 @@ test('MusicXML tied continuation keeps its voice identity beside a new unison on
   await page.locator('#an-file').setInputFiles({ name: 'voice-continuation.musicxml', mimeType: 'application/xml', buffer: Buffer.from(src) });
   await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
   const rows = await page.evaluate(() => {
-    const engine = window.__etude.SCORE.engine, rows = [];
-    engine.cursor.reset();
-    const it = engine.cursor.Iterator;
-    while (!it.EndReached) {
-      for (const entry of it.CurrentVoiceEntries || []) for (const note of entry.Notes) {
-        if (note.isRest() || !note.Pitch) continue;
-        const graphical = engine.EngravingRules.GNote(note), vf = graphical && graphical.vfnote;
-        const heads = graphical && graphical.getNoteheadSVGs ? graphical.getNoteheadSVGs() : [];
-        const g = vf && (heads[vf[1]] || graphical.getSVGGElement());
-        const staff = note.ParentStaffEntry.ParentStaff;
-        const source = { part: engine.Sheet.Instruments.indexOf(staff.ParentInstrument), staff: staff.Id, voice: note.ParentVoiceEntry.ParentVoice.VoiceId,
-          midi: Math.round(69 + 12 * Math.log2(note.Pitch.Frequency / 440)), beat: note.getAbsoluteTimestamp().RealValue * 4 };
-        const index = g && g.dataset.i !== undefined ? Number(g.dataset.i) : null, n = window.__etude.AN.notes[index];
-        rows.push({ source, index, bound: n ? { part: n.part, staff: n.staff, voice: n.voice, midi: n.midi, start: n.start, end: n.end } : null });
-      }
-      it.moveToNext();
-    }
+    const rows = [];
+    window.__etude.SCORE.engine.forEachRenderedNote(({ part, staff, voice, midi, beat, element }) => {
+      const source = { part, staff, voice, midi, beat };
+      const index = element.dataset.i !== undefined ? Number(element.dataset.i) : null, n = window.__etude.AN.notes[index];
+      rows.push({ source, index, bound: n ? { part: n.part, staff: n.staff, voice: n.voice, midi: n.midi, start: n.start, end: n.end } : null });
+    });
     return rows;
   });
   expect(rows.map(r => r.source)).toEqual([
@@ -553,7 +542,7 @@ test.describe('MusicXML source layout fidelity', () => {
   test('composer credits retain their original line breaks without duplicate metadata', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     await load(page, wrap(measure(1), header));
-    const lines = await page.evaluate(() => window.__etude.SCORE.engine.GraphicSheet.composer.SVGNode.textContent);
+    const lines = await page.evaluate(() => window.__etude.SCORE.engine.readLayout().graphicSheet.composer.SVGNode.textContent);
     expect(lines).toContain('Test Composer');
     expect(await page.locator('#an-roll svg text').allTextContents()).toEqual(expect.arrayContaining(['Test Composer', '(1770–1827)']));
     expect((await page.locator('#an-roll svg text').allTextContents()).filter(s => s === 'Test Composer')).toHaveLength(1);
@@ -595,7 +584,7 @@ test.describe('MusicXML source layout fidelity', () => {
     await page.locator('#an-file').setInputFiles({ name: 'fur-elise-beethoven.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: readFileSync(new URL('./fixtures/fur-elise-beethoven.mxl', import.meta.url)) });
     await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
     const result = await page.evaluate(() => ({
-      pages: window.__etude.SCORE.engine.GraphicSheet.MusicPages.map(p => p.MusicSystems.map(s => s.GraphicalMeasures[0][0].parentSourceMeasure.MeasureNumberXML)),
+      pages: window.__etude.SCORE.engine.readLayout().graphicSheet.MusicPages.map(p => p.MusicSystems.map(s => s.GraphicalMeasures[0][0].parentSourceMeasure.MeasureNumberXML)),
       rests: window.__etude.SCORE.syms.filter(s => s.kind === 'rest').length,
       ending: new DOMParser().parseFromString(window.__etude.SCORE.xml, 'application/xml').querySelector('measure[number="9"] ending[type="discontinue"]')?.getAttribute('number'),
     }));
@@ -608,7 +597,7 @@ test.describe('MusicXML source layout fidelity', () => {
     await page.locator('#an-file').setInputFiles({ name: 'fur-elise-beethoven.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: readFileSync(new URL('./fixtures/fur-elise-beethoven.mxl', import.meta.url)) });
     await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
     const typography = () => page.evaluate(() => {
-      const gs = window.__etude.SCORE.engine.GraphicSheet, text = node => node.localName === 'text' ? node : node.querySelector('text');
+      const gs = window.__etude.SCORE.engine.readLayout().graphicSheet, text = node => node.localName === 'text' ? node : node.querySelector('text');
       const title = text(gs.title.SVGNode), subtitle = text(gs.subtitle.SVGNode);
       return { titlePx: parseFloat(getComputedStyle(title).fontSize) * title.getScreenCTM().d, subtitlePx: parseFloat(getComputedStyle(subtitle).fontSize) * subtitle.getScreenCTM().d, runs: [...title.querySelectorAll('tspan')].map(s => [s.textContent, s.getAttribute('font-style')]) };
     });
@@ -630,7 +619,7 @@ test.describe('MusicXML source layout fidelity', () => {
     const page = await app.open({ hash: 'analysis' });
     const print = '<print><staff-layout number="2"><staff-distance>41.9</staff-distance></staff-layout></print>';
     await load(page, wrap(measure(1, print) + measure(2, '<print new-system="yes"/>'), defaults));
-    const geometry = () => page.evaluate(() => { const e = window.__etude.SCORE.engine, s = e.GraphicSheet.MusicPages[0].MusicSystems[0]; return { zoom: e.Zoom, width: window.__etude.$('an-roll').querySelector('.an-sheet').clientWidth, margin: e.EngravingRules.PageLeftMargin, staffGap: s.StaffLines[1].PositionAndShape.AbsolutePosition.y - s.StaffLines[0].PositionAndShape.AbsolutePosition.y - 4, systems: e.GraphicSheet.MusicPages.flatMap(p => p.MusicSystems.map(s => s.GraphicalMeasures.map(m => m[0].parentSourceMeasure.MeasureNumberXML))) }; });
+    const geometry = () => page.evaluate(() => { const e = window.__etude.SCORE.engine, layout = e.readLayout(), s = layout.graphicSheet.MusicPages[0].MusicSystems[0]; return { zoom: e.getZoom(), width: window.__etude.$('an-roll').querySelector('.an-sheet').clientWidth, margin: e.readRules().PageLeftMargin, staffGap: s.StaffLines[1].PositionAndShape.AbsolutePosition.y - s.StaffLines[0].PositionAndShape.AbsolutePosition.y - 4, systems: layout.graphicSheet.MusicPages.flatMap(p => p.MusicSystems.map(s => s.GraphicalMeasures.map(m => m[0].parentSourceMeasure.MeasureNumberXML))) }; });
     const before = await geometry();
     expect(before.zoom / before.width).toBeCloseTo(1 / 1200, 6);
     expect(before.margin).toBeCloseTo(8.5, 3);
