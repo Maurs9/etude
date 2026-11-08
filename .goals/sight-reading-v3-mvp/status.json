@@ -26,6 +26,11 @@
       "iteration": 4,
       "verdict": "FAIL",
       "summary": "Generator profiles allow fourths instead of thirds; newer ledgers are overwritten; result semantics/contrast and mandatory recorder, ledger, backup, UI, and full offline browser suites remain incomplete."
+    },
+    {
+      "iteration": 5,
+      "verdict": "PASS",
+      "summary": "All MVP acceptance criteria pass, including the iteration-4 regressions, complete browser/offline coverage, unchanged goldens, and a headed-Chrome first-attempt reload journey."
     }
   ]
 }
