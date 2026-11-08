@@ -47,4 +47,9 @@ PW_CHANNEL= npm test  # use bundled Chromium instead (after `npx playwright inst
 - `playwright.config.mjs` serves on port **8787** with `reuseExistingServer` outside CI. If another worktree already serves 8787, `npm test` silently tests *that* worktree's `etude.html`. In that case, use a temporary, untracked config that imports `./playwright.config.mjs` and overrides `use.baseURL` and `webServer` to a free port. Run it with `npx playwright test -c <file>`, then delete the file.
 - Never stop servers you didn't start; they may belong to the owner's other sessions.
 - Add regression tests to `tests/app.spec.mjs`, following its existing style, and leave the full suite green.
-- `node_modules/` and `test-results/` are not gitignored; never commit them.
+- `tests/golden.spec.mjs` pins what must not change by accident: the piano recordings (byte hashes) and the engraving of the fixture scores (notes, systems, pages). When a change is meant to move a baseline, run `UPDATE_GOLDEN=1 npx playwright test golden`, review the JSON diff and commit it on its own, saying why. Layout baselines are per platform; a platform without one (e.g. Linux CI) is reported, not failed.
+- Tests that need a real service worker are tagged `@sw` and run in the `sw` project; all others run with service workers blocked.
+- The keyboard dock starts hidden on a first visit, so tests that press on-screen piano keys open the app with `app.open({ dock: true })`.
+- CI (`.github/workflows/test.yml`) runs the suite with Playwright's Chromium on every pushed branch and on pull requests. Merge a branch only when its run is green.
+- The architecture migration follows `docs/plans/2026-11-08-safe-migration-plan.md`. Keep migration work and feature work in separate PRs.
+- `node_modules/` and `test-results/` are gitignored; never force-add them.
