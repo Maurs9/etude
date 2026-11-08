@@ -4141,12 +4141,47 @@ function sqAnswer(n: number) {
    ============================================================================ */
 /* ---- Learn V4: new chapters (bilingual). Units, cheat sheets, quizzes & staves follow below. ---- */
 /* ---------- LEARN v4: units, progress, review, quizzes, staves, widgets, glossary ---------- */
-const LT = (a: any[]) => Array.isArray(a) ? (lang === 'ro' ? a[1] : a[0]) : a;
+/** Learn copy that is either already localised or an `[en, ro]` pair. */
+type LearnText = string | string[];
+const LT = (a: LearnText) => Array.isArray(a) ? (lang === 'ro' ? a[1] : a[0]) : a;
 const LEARN_OLD_ORDER = ['keys', 'iv', 'sc', 'ch', 'cof', 'pr', 'rh', 'notation', 'dyn', 'modes', 'how'];
 const LEARN_GAPS = [3, 7, 16, 35, 90];
-let learnSel = 0, LGEN = 0, LQ: { id: any; done: any; qs: any; score: any; rev?: any; i: any; }|null = null, learnGloss = false;
-function learnTitle(L: { [x: string]: { t: any; }; id?: string; icon?: string; en: any; ro?: LessonCopy; }) { return (L[lang] && L[lang].t) || L.en.t; }
-function learnData() {
+/** A quiz question already translated into one language. */
+interface LearnQuizCopy { q?: string; o?: string[]; why?: string }
+/** One lesson-quiz question as written in the content (`LQZ`). */
+interface LearnQuizSpec {
+    q: LearnText;
+    o?: LearnText[];
+    a?: number;
+    hear?: string;
+    pcs?: number[];
+    seq?: number[];
+    why?: LearnText;
+    i18n?: Partial<Record<AppLanguage, LearnQuizCopy>>;
+}
+/** A quiz question while it is being answered. */
+interface LearnQuizRunQuestion extends LearnQuizSpec {
+    opts?: { x: LearnText; ok: boolean }[];
+    got: number[];
+    ans: boolean;
+    ok: boolean;
+    pick?: number;
+    fb?: string;
+}
+interface LearnQuizRun { id: string; qs: LearnQuizRunQuestion[]; i: number; score: number; done: boolean; rev?: boolean }
+let learnSel = 0, LGEN = 0, LQ: LearnQuizRun|null = null, learnGloss = false;
+function learnTitle(L: Lesson) { return (L[lang] && L[lang].t) || L.en.t; }
+/** Spaced review of one finished lesson. */
+interface LearnReview { last: number; n: number; best?: number; rv?: number }
+/** The Learn fields of the saved progress that `learnData()` guarantees. */
+interface LearnProgressStore {
+    learnDone: Record<string, number>;
+    learnRev: Record<string, LearnReview>;
+    learnUnlock: Record<string, number>;
+    learnSelId?: string;
+    learnSel?: number;
+}
+function learnData(): LearnProgressStore {
     if (!data.learnDone || typeof data.learnDone !== 'object')
         data.learnDone = {};
     if (!data.learnRev || typeof data.learnRev !== 'object') {
@@ -4159,7 +4194,7 @@ function learnData() {
 }
 function learnUnitOf(id: string) { return LEARN_UNITS.findIndex((u) => u.ls.includes(id)); }
 function learnUnitDone(i: number) { const u = LEARN_UNITS[i], d = learnData().learnDone; return u ? u.ls.filter((id) => d[id]).length : 0; }
-function learnUnitOpen(i: number) {
+function learnUnitOpen(i: number): boolean {
     if (i <= 0)
         return true;
     const u = LEARN_UNITS[i], D = learnData();
@@ -4170,7 +4205,7 @@ function learnUnitOpen(i: number) {
     const p = LEARN_UNITS[i - 1];
     return learnUnitOpen(i - 1) && p.ls.every((id) => D.learnDone[id]);
 }
-function learnLessonOpen(L: { id: any; icon?: string; en?: LessonCopy; ro?: LessonCopy; }) { return learnUnitOpen(learnUnitOf(L.id)); }
+function learnLessonOpen(L: Lesson) { return learnUnitOpen(learnUnitOf(L.id)); }
 function learnGap(id: string) { const r = learnData().learnRev[id]; return LEARN_GAPS[Math.min(r ? (r.n | 0) : 0, LEARN_GAPS.length - 1)]; }
 function learnDueDays(id: string) {
     const D = learnData();
@@ -4180,8 +4215,8 @@ function learnDueDays(id: string) {
     const age = todayN() - (r.last | 0);
     return age >= learnGap(id) ? age : null;
 }
-function learnDueList() { return LESSONS.filter((L) => learnDueDays(L.id) != null).sort((a, b) => learnDueDays(b.id) - learnDueDays(a.id)); }
-function learnComplete(L: { id: any; icon?: string; en?: LessonCopy; ro?: LessonCopy; }, score: number|null) {
+function learnDueList() { return LESSONS.filter((L) => learnDueDays(L.id) != null).sort((a, b) => (learnDueDays(b.id) ?? 0) - (learnDueDays(a.id) ?? 0)); }
+function learnComplete(L: Lesson, score: number|null) {
     const D = learnData(), tn = todayN(), was = D.learnDone[L.id], due = learnDueDays(L.id) != null;
     const r = D.learnRev[L.id] || (D.learnRev[L.id] = { last: tn, n: 0 });
     if (score != null)
@@ -4215,7 +4250,7 @@ function learnInitSel() {
     renderLearn._init = true;
     const D = learnData();
     let id = D.learnSelId;
-    if (!id && Number.isInteger(D.learnSel))
+    if (!id && D.learnSel !== undefined && Number.isInteger(D.learnSel))
         id = LEARN_OLD_ORDER[D.learnSel];
     const i = LESSONS.findIndex((L) => L.id === id);
     learnSel = i >= 0 ? i : 0;
@@ -4257,18 +4292,19 @@ function learnHalt() {
     stopPreviews();
     kbClear('target');
     lmStop();
-    (document).querySelectorAll('#learnBody [data-s="now"]').forEach((e) => delete e.dataset.s);
+    queryAllHtml(document, '#learnBody [data-s="now"]').forEach((e) => delete e.dataset.s);
     (document).querySelectorAll('#learnBody .lbars .on, #learnBody .lbeat .on').forEach((e) => e.classList.remove('on'));
     (document).querySelectorAll('#learnBody [data-lplay][aria-pressed="true"]').forEach((b) => { b.setAttribute('aria-pressed', 'false'); b.textContent = t('lu_play_ex'); });
 }
-function learnTimer(fn: { (): void; (): void; (): void; (): void; (): void; (): void; (): void; (): void; (): void; (): void; }, ms: number|undefined) { const g = LGEN; setTimeout(() => { if (g !== LGEN || view0() !== 'learn')
+function learnTimer(fn: () => void, ms: number) { const g = LGEN; setTimeout(() => { if (g !== LGEN || view0() !== 'learn')
     return; fn(); }, ms); }
-function learnLight(ms: any[], dur: number|undefined) {
+let learnLightTimer: ReturnType<typeof setTimeout> | undefined;
+function learnLight(ms: number[], dur: number) {
     const g = LGEN;
     kbClear('target');
-    ms.forEach((m: any) => kbState(m, 'target', true));
-    clearTimeout((learnLight )._t);
-    (learnLight )._t = setTimeout(() => { if (g === LGEN)
+    ms.forEach((m) => kbState(m, 'target', true));
+    clearTimeout(learnLightTimer);
+    learnLightTimer = setTimeout(() => { if (g === LGEN)
         kbClear('target'); }, dur);
 }
 function learnPlanItems(tn: number) {
@@ -4283,7 +4319,7 @@ function learnPlanItems(tn: number) {
     if (due.length) {
         const L = due[0];
         out.push({ id: 'learnrev', done: false, t: t('plan_lrev'),
-            d: t('plan_lrev_d', learnTitle(L), learnDueDays(L.id)) + (due.length > 1 ? t('plan_lrev_more', due.length - 1) : ''), go: () => learnGoId(L.id) });
+            d: t('plan_lrev_d', learnTitle(L), learnDueDays(L.id) ?? 0) + (due.length > 1 ? t('plan_lrev_more', due.length - 1) : ''), go: () => learnGoId(L.id) });
     }
     else if (Object.keys(D.learnRev).some((k) => D.learnRev[k].rv === tn))
         out.push({ id: 'learnrev', done: true, t: t('plan_lrev'), d: t('plan_lrev_done'), go: () => show('learn') });
@@ -4292,9 +4328,26 @@ function learnPlanItems(tn: number) {
 /* quiz: o = options (first listed = correct unless a is given); hear = demo spec; pcs = play these pitch classes (any octave, any order); seq = play these pitch classes in order */
 /* cheat sheets: rows of [label, value]; each may be a string or [en,ro] */
 /* staff excerpts: compact note strings "C4q E4+G4h Rq" (w h q e s, d=dotted, t=triplet eighth) */
-const LDUR = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
-function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !== '|').map((tok: string) => { const m = tok.match(/^(.+?)(d?[whqest])$/); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
-const LSTAVES = {
+const LDUR: Record<string, number> = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
+/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`. */
+type SrToken = [string | string[], number];
+function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !== '|').map((tok: string): SrToken => { const m = tok.match(/^(.+?)(d?[whqest])$/); if (!m)
+    throw new Error('Étude: bad staff token ' + tok); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
+/** What the grand-staff engraver (`srRender`) needs to draw a passage. */
+interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; perc?: boolean }
+type SrHand = 'rh' | 'lh';
+/** An annotation drawn over a Learn staff: kind, beat, then kind-specific values. */
+type LStaffMark =
+    | ['dyn', number, string]
+    | ['cr' | 'dim' | 'tri' | 'ped', number, number]
+    | ['acc' | 'stac' | 'ten' | 'fer' | 'tr', number, SrHand?]
+    | ['fing', number, string, SrHand?]
+    | ['slur' | 'tie', number, number, SrHand?]
+    | ['txt', number, LearnText]
+    | ['rn', number, string]
+    | ['rs' | 're', number];
+interface LStaffSpec { p: SrScore; bpm: number; cap: string[]; marks?: LStaffMark[]; click?: boolean; seq?: [number, number][] }
+const LSTAVES: Record<string, LStaffSpec> = {
     n_clefs: { p: { rh: LP('C4h G4h C5w'), lh: LP('C4h F3h C3w'), ts: [4, 4] }, bpm: 84, cap: ['Treble clef for the right hand, bass clef for the left. Middle C sits on a ledger line between them.', 'Cheia Sol pentru mâna dreaptă, cheia Fa pentru stânga. Do central stă pe o linie suplimentară între ele.'] },
     n_steps: { p: { rh: LP('C4q D4q E4q F4q G4q A4q B4q C5q'), ts: [4, 4] }, bpm: 96, cap: ['Line, space, line, space: each step up the staff is the next letter.', 'Linie, spațiu, linie, spațiu: fiecare treaptă în sus pe portativ e nota următoare.'] },
     n_acc: { p: { rh: LP('C4q C#4q D4q Eb4q E4h F#4h'), ts: [4, 4] }, bpm: 84, cap: ['Sharps raise, flats lower — C, C♯, D, E♭, E, F♯.', 'Diezii urcă, bemolii coboară — Do, Do♯, Re, Mi♭, Mi, Fa♯.'] },
@@ -4326,8 +4379,8 @@ const LSTAVES = {
         marks: [['txt', 0, ['Antecedent', 'Antecedent']], ['txt', 16, ['Consequent', 'Consecvent']], ['slur', 0, 14], ['slur', 16, 28], ['rn', 12, 'V'], ['rn', 28, 'I']], cap: ['An 8-bar period: question (ends on V, half cadence) and answer (ends on I).', 'O perioadă de 8 măsuri: întrebare (se termină pe V, semicadență) și răspuns (se termină pe I).'] },
     acc1: { p: { rh: LP('E5h D5h C5w'), lh: LP('C3e G3e E3e G3e B2e G3e D3e G3e C3e G3e E3e G3e C3e G3e E3e G3e'), ts: [4, 4] }, bpm: 96, marks: [['txt', 0, ['Alberti bass: 1-5-3-5', 'Bas Alberti: 1-5-3-5']]], cap: ['A simple melody over an Alberti bass — the left hand breaks each chord low-high-middle-high.', 'O melodie simplă peste un bas Alberti — mâna stângă desface acordul jos-sus-mijloc-sus.'] },
 };
-const LSR = {};
-function lStaffSvg(key: string|number) {
+const LSR: Record<string, SrRenderResult> = {};
+function lStaffSvg(key: string) {
     const S = LSTAVES[key];
     const P = Object.assign({ noNames: true }, S.p);
     const r = srRender(P);
@@ -4340,11 +4393,11 @@ function lStaffSvg(key: string|number) {
             return pts[i].x + Math.min(1, Math.max(0, f)) * (pts[i + 1].x - pts[i].x);
         }
     } return pts[pts.length - 1].x; };
-    const nAt = (b: number, h: any) => { const c = r.notes.filter((n) => Math.abs(n.beat - b) < 0.02 && (!h || n.hand === h)); return c.length ? c.reduce((a, n) => n.y < a.y ? n : a) : null; };
+    const nAt = (b: number, h: SrHand|undefined) => { const c = r.notes.filter((n) => Math.abs(n.beat - b) < 0.02 && (!h || n.hand === h)); return c.length ? c.reduce((a, n) => n.y < a.y ? n : a) : null; };
     const many = (b: number) => r.notes.filter((n) => Math.abs(n.beat - b) < 0.02).length > 1;
-    const T = (x: number, y: number, s: string, c: string, anc: string|undefined) => '<text class="lm ' + (c || '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '"' + (anc ? ' text-anchor="' + anc + '"' : '') + '>' + s + '</text>';
+    const T = (x: number, y: number, s: string, c: string, anc?: string) => '<text class="lm ' + (c || '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '"' + (anc ? ' text-anchor="' + anc + '"' : '') + '>' + s + '</text>';
     let out = '', needH = 0;
-    (S.marks || []).forEach((mk: any[]) => {
+    (S.marks || []).forEach((mk) => {
         const k = mk[0], b = mk[1];
         if (k === 'dyn')
             out += T(bx(b) - 6, dynY, mk[2], 'lm-dyn');
@@ -4408,37 +4461,46 @@ function lStaffSvg(key: string|number) {
     });
     let svg = r.svg;
     if (needH)
-        svg = svg.replace(/viewBox="0 0 ([\d.]+) ([\d.]+)" width="([\d.]+)" height="([\d.]+)"/, (m, w, h) => { const H = Math.max(+h, needH); return 'viewBox="0 0 ' + w + ' ' + H + '" width="' + w + '" height="' + H + '"'; });
-    svg = svg.replace(/<g class="ss-n" data-nid="(\d+)">/g, (m, id) => { const n = r.notes[+id]; return '<g class="ss-n" data-nid="' + id + '" tabindex="0" role="button" aria-label="' + t('lu_note_aria', noteName(n.midi, (P.keyN || 0) < 0), Math.floor(n.beat - (P.pickup || 0) + 1e-3) + 1) + '">'; });
+        svg = svg.replace(/viewBox="0 0 ([\d.]+) ([\d.]+)" width="([\d.]+)" height="([\d.]+)"/, (m: string, w: string, h: string) => { const H = Math.max(+h, needH); return 'viewBox="0 0 ' + w + ' ' + H + '" width="' + w + '" height="' + H + '"'; });
+    svg = svg.replace(/<g class="ss-n" data-nid="(\d+)">/g, (m: string, id: string) => { const n = r.notes[+id]; return '<g class="ss-n" data-nid="' + id + '" tabindex="0" role="button" aria-label="' + t('lu_note_aria', noteName(n.midi, (P.keyN || 0) < 0), Math.floor(n.beat - (P.pickup || 0) + 1e-3) + 1) + '">'; });
     svg = svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="group" aria-label="' + LT(S.cap).replace(/"/g, '&quot;') + '"');
     return svg.replace('</svg>', out + '</svg>');
 }
-function lStaffHTML(key: string|undefined) {
+function lStaffHTML(key: string) {
     const S = LSTAVES[key];
     if (!S)
         return '';
     return '<figure class="lstaff" data-lstaff="' + key + '"><div class="ss-wrap lstaff-svg">' + lStaffSvg(key) + '</div><figcaption><button type="button" class="btn ghost sm" data-lplay="' + key + '" aria-pressed="false">' + t('lu_play_ex') + '</button><span>' + LT(S.cap) + ' <em class="lstaff-hint">' + t('lu_staff_hint') + '</em></span></figcaption></figure>';
 }
-const LVEL = { pp: 40, p: 55, mp: 70, mf: 84, f: 100, ff: 112 };
-function lVel(S: { marks: never[]; }, b: number) {
+const LVEL: Record<string, number> = { pp: 40, p: 55, mp: 70, mf: 84, f: 100, ff: 112 };
+type LDynMark = ['dyn', number, string];
+function lVel(S: LStaffSpec, b: number) {
     const M = S.marks || [];
     let base = 80, bb = -1;
-    M.forEach((m: number[]) => { if (m[0] === 'dyn' && LVEL[m[2]] && m[1] <= b + 1e-3 && m[1] >= bb) {
+    M.forEach((m) => { if (m[0] === 'dyn' && LVEL[m[2]] && m[1] <= b + 1e-3 && m[1] >= bb) {
         base = LVEL[m[2]];
         bb = m[1];
     } });
-    M.forEach((m: number[]) => { if ((m[0] === 'cr' || m[0] === 'dim') && b >= m[1] && b <= m[2]) {
-        const nx = M.filter((x: number[]) => x[0] === 'dyn' && LVEL[x[2]] && x[1] >= m[2] - 0.5).sort((a: number[], c: number[]) => a[1] - c[1])[0];
+    M.forEach((m) => { if ((m[0] === 'cr' || m[0] === 'dim') && b >= m[1] && b <= m[2]) {
+        const end = m[2];
+        const nx = M.filter((x): x is LDynMark => x[0] === 'dyn' && !!LVEL[x[2]] && x[1] >= end - 0.5).sort((a, c) => a[1] - c[1])[0];
         if (nx)
             base = base + (LVEL[nx[2]] - base) * (b - m[1]) / Math.max(0.5, nx[1] - m[1]);
     } });
-    if (M.some((m: number[]) => m[0] === 'dyn' && m[2] === 'sfz' && Math.abs(m[1] - b) < 0.02))
+    if (M.some((m) => m[0] === 'dyn' && m[2] === 'sfz' && Math.abs(m[1] - b) < 0.02))
         base = 118;
-    if (M.some((m: number[]) => m[0] === 'acc' && Math.abs(m[1] - b) < 0.02))
+    if (M.some((m) => m[0] === 'acc' && Math.abs(m[1] - b) < 0.02))
         base = Math.min(124, base + 24);
     return Math.round(base);
 }
-async function lStaffPlay(key: string|number, btn: { getAttribute: (arg0: string) => string; setAttribute: (arg0: string,arg1: string) => void; textContent: string; closest: (arg0: string) => any; })  {
+/** The audio clock, for scheduling; Learn only plays after `ensureAudio()`, so a missing context is a bug. */
+function learnCtxTime(): number {
+    if (!actx)
+        throw new TypeError('Étude: audio context unavailable');
+    return actx.currentTime;
+}
+type LTieMark = ['slur' | 'tie', number, number, SrHand?];
+async function lStaffPlay(key: string, btn: HTMLElement) {
     const was = btn.getAttribute('aria-pressed') === 'true';
     learnHalt();
     if (was)
@@ -4451,19 +4513,25 @@ async function lStaffPlay(key: string|number, btn: { getAttribute: (arg0: string
     const g = LGEN;
     btn.setAttribute('aria-pressed', 'true');
     btn.textContent = t('lu_stop');
-    const S = LSTAVES[key], r = LSR[key], spb = 60 / (S.bpm || 90), fig = btn.closest('.lstaff'), svg = fig.querySelector('svg'), wrap = fig.querySelector('.lstaff-svg');
-    const M = S.marks || [], has = (k: string, b: number) => M.some((m: number[]) => m[0] === k && Math.abs(m[1] - b) < 0.02), ties = M.filter((m: string[]) => m[0] === 'tie');
+    const S = LSTAVES[key], r = LSR[key], spb = 60 / (S.bpm || 90), fig = btn.closest('.lstaff');
+    if (!fig)
+        throw new TypeError('Étude: play button outside its staff');
+    const svg = fig.querySelector('svg'), wrap = fig.querySelector('.lstaff-svg');
+    if (!svg || !wrap)
+        throw new TypeError('Étude: staff figure is incomplete');
+    const M = S.marks || [], has = (k: string, b: number) => M.some((m) => m[0] === k && Math.abs(m[1] - b) < 0.02), ties = M.filter((m): m is LTieMark => m[0] === 'tie');
     const cap = S.p.ts[1] === 8 ? S.p.ts[0] * 0.5 : S.p.ts[0], pk = S.p.pickup || 0, step = S.p.ts[1] === 8 ? 1.5 : 1;
-    const t0 = actx.currentTime + 0.15;
+    const t0 = learnCtxTime() + 0.15;
     let off = 0;
-    (S.seq || [[0, r.total]]).forEach(([a, z] = []) => {
-        r.notes.filter((n: { beat: number; }) => n.beat >= a - 1e-3 && n.beat < z - 1e-3).forEach((n: { beat: number; midi: number; dur: any; nid: string; x: number; }) => {
-            if (ties.some((m: number[]) => Math.abs(m[2] - n.beat) < 0.02 && r.notes.some((o: { midi: any; beat: number; }) => o.midi === n.midi && Math.abs(o.beat - m[1]) < 0.02)))
+    const segs: [number, number][] = S.seq || [[0, r.total]];
+    segs.forEach(([a, z]) => {
+        r.notes.filter((n) => n.beat >= a - 1e-3 && n.beat < z - 1e-3).forEach((n) => {
+            if (ties.some((m) => Math.abs(m[2] - n.beat) < 0.02 && r.notes.some((o) => o.midi === n.midi && Math.abs(o.beat - m[1]) < 0.02)))
                 return;
             let dur = n.dur;
-            const tie = ties.find((m: number[]) => Math.abs(m[1] - n.beat) < 0.02);
+            const tie = ties.find((m) => Math.abs(m[1] - n.beat) < 0.02);
             if (tie) {
-                const o = r.notes.find((x: { midi: any; beat: number; }) => x.midi === n.midi && Math.abs(x.beat - tie[2]) < 0.02);
+                const o = r.notes.find((x) => x.midi === n.midi && Math.abs(x.beat - tie[2]) < 0.02);
                 if (o)
                     dur += o.dur;
             }
@@ -4477,7 +4545,7 @@ async function lStaffPlay(key: string|number, btn: { getAttribute: (arg0: string
             }
             else
                 previewNote(n.midi, t0 + at * spb, snd * spb, vel);
-            const el = svg.querySelector('.ss-n[data-nid="' + n.nid + '"]');
+            const found = svg.querySelector('.ss-n[data-nid="' + n.nid + '"]'), el = found instanceof SVGElement ? found : null;
             learnTimer(() => { if (el)
                 el.dataset.s = 'now'; kbState(n.midi, 'target', true); if (wrap.scrollWidth > wrap.clientWidth + 4)
                 wrap.scrollLeft = Math.max(0, n.x - wrap.clientWidth * 0.4); }, at * spb * 1000 + 150);
@@ -4493,18 +4561,18 @@ async function lStaffPlay(key: string|number, btn: { getAttribute: (arg0: string
     learnTimer(() => { if (g !== LGEN)
         return; btn.setAttribute('aria-pressed', 'false'); btn.textContent = t('lu_play_ex'); kbClear('target'); }, off * spb * 1000 + 700);
 }
-async function lStaffNote(gEl: { closest: (arg0: string) => any; dataset: { nid: string|number; s: string; }; })  {
+async function lStaffNote(gEl: HTMLElement | SVGElement) {
     const fig = gEl.closest('.lstaff');
-    if (!fig)
+    if (!(fig instanceof HTMLElement))
         return;
-    const key = fig.dataset.lstaff, n = LSR[key] && LSR[key].notes[+gEl.dataset.nid];
+    const key = fig.dataset.lstaff ?? '', n = LSR[key] && LSR[key].notes[Number(gEl.dataset.nid)];
     if (!n)
         return;
     learnHalt();
     ensureAudio();
     if (!await preparePiano())
         return;
-    previewNote(n.midi, actx.currentTime + 0.02, 0.9, 92);
+    previewNote(n.midi, learnCtxTime() + 0.02, 0.9, 92);
     gEl.dataset.s = 'now';
     learnLight([n.midi], 1100);
     const g = LGEN;
@@ -4512,34 +4580,33 @@ async function lStaffNote(gEl: { closest: (arg0: string) => any; dataset: { nid:
         delete gEl.dataset.s; }, 700);
     learnSay(noteName(n.midi, (LSTAVES[key].p.keyN || 0) < 0));
 }
-function lqLabel(o: any) { return LT(o); }
-function lqStart(L: { id: any; icon?: string; en?: LessonCopy; ro?: LessonCopy; }) {
-    const qs = (LQZ[L.id] || []).map((q) => {
-        const c = Object.assign({}, q);
-        const locOpts = (q.i18n && q.i18n[lang] && q.i18n[lang].o) || null;
+function lqLabel(o: LearnText) { return LT(o); }
+function lqStart(L: Lesson) {
+    const specs: LearnQuizSpec[] = LQZ[L.id] || [];
+    const qs = specs.map((q) => {
+        const c: LearnQuizRunQuestion = Object.assign({}, q, { got: [], ans: false, ok: false });
+        const loc = q.i18n && q.i18n[lang], locOpts = (loc && loc.o) || null;
         if (q.o) {
-            c.opts = shuffle(q.o.map((x: any, i: string|number|string[]) => ({ x: (locOpts && locOpts[i]) || x, ok: i === (q.a || 0) })));
+            c.opts = shuffle(q.o.map((x, i) => ({ x: (locOpts && locOpts[i]) || x, ok: i === (q.a || 0) })));
         }
-        c.got = [];
-        c.ans = false;
-        c.ok = false;
         return c;
     });
     LQ = { id: L.id, qs, i: 0, score: 0, done: false };
     lqRender();
 }
 function lqNeed(n: number) { return Math.max(1, Math.round(n * 0.7)); }
-function lqMidis(q: { pcs: any; seq: any; }) { return (q.pcs || q.seq).map((p: number) => 60 + p); }
+function lqMidis(q: LearnQuizSpec) { const ps = q.pcs || q.seq; if (!ps)
+    throw new TypeError('Étude: quiz question has nothing to play'); return ps.map((p) => 60 + p); }
 function lqRender() {
     const box = maybeById('lq');
     if (!box)
         return;
-    const L = LESSONS[learnSel], qz = LQZ[L.id] || [], D = learnData(), done = !!D.learnDone[L.id], rv = D.learnRev[L.id] || {};
+    const L = LESSONS[learnSel], qz = LQZ[L.id] || [], D = learnData(), done = !!D.learnDone[L.id], rv: Partial<LearnReview> = D.learnRev[L.id] || {};
     let h = '<h4 id="lq-h">✎ ' + t('lu_quiz') + '</h4>';
     if (!LQ || LQ.id !== L.id) {
         h += '<p class="lq-d">' + t('lu_quiz_d', qz.length, lqNeed(qz.length)) + '</p>';
         if (done)
-            h += '<p class="lq-st">' + (learnDueDays(L.id) != null ? '<span class="lq-due">↻ ' + t('lu_due_now') + '</span>' : '<span class="read-ok">' + t('lu_complete_rev', Math.max(0, learnGap(L.id) - (todayN() - (rv.last | 0)))) + '</span>') + (rv.best != null ? ' · ' + t('lu_q_score', rv.best) : '') + '</p>';
+            h += '<p class="lq-st">' + (learnDueDays(L.id) != null ? '<span class="lq-due">↻ ' + t('lu_due_now') + '</span>' : '<span class="read-ok">' + t('lu_complete_rev', Math.max(0, learnGap(L.id) - (todayN() - ((rv.last ?? 0) | 0)))) + '</span>') + (rv.best != null ? ' · ' + t('lu_q_score', rv.best) : '') + '</p>';
         h += '<div class="lq-act"><button type="button" class="btn primary" data-lq="start">' + t('lu_q_start') + '</button>' + (done ? '' : '<button type="button" class="btn ghost sm" data-ln="mark">' + t('lu_mark_manual') + '</button>') + '</div>';
     }
     else if (LQ.done) {
@@ -4548,44 +4615,49 @@ function lqRender() {
         h += '<div class="lq-act"><button type="button" class="btn ghost sm" data-lq="start">' + t('lu_q_retry') + '</button>' + (pass && learnSel < LESSONS.length - 1 ? '<button type="button" class="btn primary" data-ln="next">' + t('learn_next') + '</button>' : '') + '</div>';
     }
     else {
-        const q = LQ.qs[LQ.i], play = !!(q.pcs || q.seq);
-        h += '<p class="lq-n">' + t('lu_q_n', LQ.i + 1, LQ.qs.length) + '</p><p class="lq-q" id="lq-q">' + ((q.i18n && q.i18n[lang] && q.i18n[lang].q) || LT(q.q)) + '</p>';
+        const q = LQ.qs[LQ.i], ps = q.pcs || q.seq, loc = q.i18n && q.i18n[lang];
+        h += '<p class="lq-n">' + t('lu_q_n', LQ.i + 1, LQ.qs.length) + '</p><p class="lq-q" id="lq-q">' + ((loc && loc.q) || LT(q.q)) + '</p>';
         if (q.hear)
             h += '<p><button type="button" class="btn ghost sm demo" data-demo="' + q.hear + '">' + t('lu_q_hear') + '</button></p>';
-        if (play) {
-            const tot = (q.pcs || q.seq).length;
+        if (ps) {
+            const tot = ps.length;
             h += '<p class="lq-play">🎹 ' + t('lu_q_play') + '</p><p class="lq-got" aria-hidden="true">' + Array.from({ length: tot }, (_, i) => '<i' + (i < q.got.length ? ' class="on"' : '') + '></i>').join('') + ' <span>' + t('lu_q_got', q.got.length, tot) + '</span></p>';
             if (!q.ans)
                 h += '<div class="lq-act"><button type="button" class="btn ghost sm" data-lq="show">' + t('lu_q_show') + '</button></div>';
         }
+        else if (!q.opts)
+            throw new TypeError('Étude: quiz question has no options');
         else
-            h += '<div class="lq-opts" role="group" aria-labelledby="lq-q">' + q.opts.map((o: { ok: any; x: any; }, i: string) => '<button type="button" class="lq-o" data-lqo="' + i + '"' + (q.ans ? ' disabled' + (o.ok ? ' data-r="good"' : (q.pick === i ? ' data-r="bad"' : '')) : '') + '>' + lqLabel(o.x) + '</button>').join('') + '</div>';
+            h += '<div class="lq-opts" role="group" aria-labelledby="lq-q">' + q.opts.map((o, i) => '<button type="button" class="lq-o" data-lqo="' + i + '"' + (q.ans ? ' disabled' + (o.ok ? ' data-r="good"' : (q.pick === i ? ' data-r="bad"' : '')) : '') + '>' + lqLabel(o.x) + '</button>').join('') + '</div>';
         if (q.ans) {
             h += '<p class="lq-fb" data-r="' + (q.ok ? 'good' : 'bad') + '">' + q.fb + '</p><div class="lq-act"><button type="button" class="btn primary" data-lq="next">' + t(LQ.i < LQ.qs.length - 1 ? 'lu_q_next' : 'lu_q_finish') + '</button></div>';
         }
     }
     box.innerHTML = h;
 }
-function learnReveal(el: { getBoundingClientRect: () => any; }) {
+function learnReveal(el: Element) {
     const d = byId('dock'), dh = d && getComputedStyle(d).display !== 'none' ? d.getBoundingClientRect().height : 0, r = el.getBoundingClientRect(), lim = innerHeight - dh - 16;
     if (r.bottom > lim)
         scrollBy(0, r.bottom - lim);
     else if (r.top < 80)
         scrollBy(0, r.top - 80);
 }
-function lqFocus(sel: string) { const el = maybeById('lq') && maybeById('lq').querySelector(sel); if (el) {
+function lqFocus(sel: string) { const lq = maybeById('lq'), el = lq && lq.querySelector(sel); if (el instanceof HTMLElement) {
     el.focus({ preventScroll: true });
     learnReveal(el);
 } }
-function lqAnswer(ok: boolean, fb: string) { const q = LQ.qs[LQ.i]; q.ans = true; q.ok = ok; if (ok)
+function lqAnswer(ok: boolean, fb: string) { if (!LQ)
+    return; const q = LQ.qs[LQ.i]; q.ans = true; q.ok = ok; if (ok)
     LQ.score++; q.fb = fb; lqRender(); learnSay(fb); lqFocus('[data-lq="next"]'); }
 function lqPick(i: number) {
     const q = LQ && LQ.qs[LQ.i];
     if (!q || q.ans || !q.opts)
         return;
     q.pick = i;
-    const o = q.opts[i], right = q.opts.find((x: { ok: any; }) => x.ok);
-    lqAnswer(o.ok, (o.ok ? t('lu_q_ok') : t('lu_q_no', lqLabel(right.x))) + ((q.i18n && q.i18n[lang] && q.i18n[lang].why) ? ' ' + q.i18n[lang].why : (q.why ? ' ' + LT(q.why) : '')));
+    const o = q.opts[i], right = q.opts.find((x) => x.ok), loc = q.i18n && q.i18n[lang];
+    if (!o.ok && !right)
+        throw new TypeError('Étude: quiz question has no right answer');
+    lqAnswer(o.ok, (o.ok || !right ? t('lu_q_ok') : t('lu_q_no', lqLabel(right.x))) + ((loc && loc.why) ? ' ' + loc.why : (q.why ? ' ' + LT(q.why) : '')));
 }
 function lqNext() {
     if (!LQ)
@@ -4607,7 +4679,7 @@ function lqNext() {
         learnNavRender();
     }
     lqRender();
-    learnSay(maybeById('lq').querySelector('.lq-res')?.textContent || '');
+    learnSay(byId('lq').querySelector('.lq-res')?.textContent || '');
     lqFocus('.lq-act button');
 }
 function lqShow() {
@@ -4618,17 +4690,17 @@ function lqShow() {
     learnLight(ms, 4000);
     ensureAudio();
     preparePiano().then((ok) => { if (ok)
-        ms.forEach((m: any, i: number) => previewNote(m, actx.currentTime + 0.05 + (q.seq ? i * 0.45 : 0), 0.9, 90)); });
-    lqAnswer(false, t('lu_q_no', ms.map((m: number) => pcName(pc(m), false)).join(' – ')));
+        ms.forEach((m, i) => previewNote(m, learnCtxTime() + 0.05 + (q.seq ? i * 0.45 : 0), 0.9, 90)); });
+    lqAnswer(false, t('lu_q_no', ms.map((m) => pcName(pc(m), false)).join(' – ')));
 }
 function learnInput() {
-    const m = heldOrder[heldOrder.length - 1];
+    const m: number | undefined = heldOrder[heldOrder.length - 1];
     if (m == null || !LQ || LQ.done)
         return;
     const q = LQ.qs[LQ.i];
     if (!q || q.ans || !(q.pcs || q.seq))
         return;
-    const p = pc(m), tot = (q.pcs || q.seq).length;
+    const p = pc(m), tot = (q.pcs || q.seq || []).length;
     if (q.pcs) {
         if (q.pcs.includes(p)) {
             if (!q.got.includes(p))
@@ -4642,10 +4714,11 @@ function learnInput() {
         }
     }
     else {
-        if (q.seq[q.got.length] === p)
+        const seq = q.seq || [];
+        if (seq[q.got.length] === p)
             q.got.push(p);
         else {
-            q.got = q.seq[0] === p ? [p] : [];
+            q.got = seq[0] === p ? [p] : [];
             lqRender();
             learnSay(t('lu_q_wrongnote', pcName(p, false)));
             return;
@@ -4658,7 +4731,7 @@ function learnInput() {
         learnSay(t('lu_q_got', q.got.length, tot));
     }
 }
-function learnRdLevel(u: { icon?: string; ls?: string[]; en?: string; ro?: string; rd?: any; }) {
+function learnRdLevel(u: LearnUnit) {
     const units = RD_UNITS.filter((x) => u.rd.includes(x.u));
     let pick = null;
     units.some((x) => x.lv.some((L: { id: string|number; }) => { if (rdUnlocked(L) && ((rdData().lv[L.id] || {}).s || 0) < 1) {
@@ -4695,7 +4768,7 @@ function learnSide() {
         opt += '</optgroup>';
     });
     toc.innerHTML = h;
-    maybeById('learnExtra').innerHTML = '<label class="learn-pick"><span>' + t('lu_pick') + '</span><select id="learnPick">' + opt + '</select></label><button type="button" class="btn ghost sm" id="learnGlossBtn" aria-pressed="' + learnGloss + '">📖 ' + t('lu_gloss') + '</button>';
+    byId('learnExtra').innerHTML = '<label class="learn-pick"><span>' + t('lu_pick') + '</span><select id="learnPick">' + opt + '</select></label><button type="button" class="btn ghost sm" id="learnGlossBtn" aria-pressed="' + learnGloss + '">📖 ' + t('lu_gloss') + '</button>';
 }
 function learnNavRender() {
     const nav = byId('learnBody').querySelector('.learn-nav');
@@ -4706,10 +4779,11 @@ function learnNavRender() {
         '<div class="mid">' + (isRead ? '<span class="read-ok">✓ ' + t('lu_complete') + '</span><button type="button" class="btn ghost sm" data-ln="unmark">' + t('learn_unmark') + '</button>' : '') + '</div>' +
         '<button type="button" class="btn ghost sm" data-ln="next"' + (last ? ' disabled' : '') + '>' + t('learn_next') + '</button>';
 }
+let learnWired = false;
 function learnWire() {
-    if ((learnWire )._ok)
+    if (learnWired)
         return;
-    (learnWire )._ok = true;
+    learnWired = true;
     const side = (document).querySelector('#view-learn .learn-side'), toc = byId('learnToc');
     const ex = (document).createElement('div');
     ex.id = 'learnExtra';
@@ -4720,11 +4794,11 @@ function learnWire() {
     live.className = 'visually-hidden';
     live.setAttribute('aria-live', 'polite');
     side?.appendChild(live);
-    toc.addEventListener('click', (e) => { const b = e.target.closest('[data-li]'); if (b)
-        learnGo(+b.dataset.li); });
-    ex.addEventListener('change', (e) => { if (e.target.id === 'learnPick')
-        learnGo(+e.target.value); });
-    ex.addEventListener('click', (e) => { if (e.target.closest('#learnGlossBtn')) {
+    toc.addEventListener('click', (e) => { const b = eventClosest(e, '[data-li]'); if (b)
+        learnGo(Number(b.dataset.li)); });
+    ex.addEventListener('change', (e) => { const pick = e.target; if (pick instanceof HTMLSelectElement && pick.id === 'learnPick')
+        learnGo(+pick.value); });
+    ex.addEventListener('click', (e) => { if (eventClosest(e, '#learnGlossBtn')) {
         learnGloss = !learnGloss;
         LQ = null;
         renderLearn();
@@ -4733,18 +4807,20 @@ function learnWire() {
             s.focus();
     } });
     const body = byId('learnBody');
-    body.addEventListener('keydown', (e) => { const g = e.target.closest && e.target.closest('.lstaff .ss-n'); if (g && (e.key === 'Enter' || e.key === ' ')) {
+    body.addEventListener('keydown', (e) => { const tg = eventElement(e), g = tg && tg.closest('.lstaff .ss-n'); if (g instanceof SVGElement && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
         lStaffNote(g);
     } });
-    body.addEventListener('input', (e) => { if (e.target.id === 'lg-q')
+    body.addEventListener('input', (e) => { const tg = eventElement(e); if (tg && tg.id === 'lg-q')
         lgFilter();
     else
         lwInput(e); });
     body.addEventListener('change', (e) => lwInput(e));
 }
-function learnBodyHTML(L: { [x: string]: { b: any; }; id?: string; icon?: string; en: any; ro?: LessonCopy; }) { return (L[lang] && L[lang].b) || L.en.b; }
-let renderLearn = function renderLearn() {
+function learnBodyHTML(L: Lesson) { return (L[lang] && L[lang].b) || L.en.b; }
+/** One cheat-sheet row (`LSUM`): term and meaning, optionally pre-translated per language. */
+type LearnSummaryRow = [LearnText, LearnText] & { i18n?: Partial<Record<AppLanguage, [string, string]>> };
+let renderLearn: { (): void; _init?: boolean } = function renderLearn() {
     const body = byId('learnBody');
     if (!body || !byId('learnToc'))
         return;
@@ -4770,15 +4846,15 @@ let renderLearn = function renderLearn() {
         return;
     }
     h += '<div class="learn-content">' + learnBodyHTML(L) + '</div>';
-    const sum = LSUM[L.id];
+    const sum: LearnSummaryRow[] | undefined = LSUM[L.id];
     if (sum)
-        h += '<section class="lsum" aria-labelledby="lsum-h"><h4 id="lsum-h">📋 ' + t('lu_sum') + '</h4><dl>' + sum.map((r: any[]) => { const sRow = (r.i18n && r.i18n[lang]) || [LT(r[0]), LT(r[1])]; return '<div><dt>' + sRow[0] + '</dt><dd>' + sRow[1] + '</dd></div>'; }).join('') + '</dl></section>';
+        h += '<section class="lsum" aria-labelledby="lsum-h"><h4 id="lsum-h">📋 ' + t('lu_sum') + '</h4><dl>' + sum.map((r) => { const sRow = (r.i18n && r.i18n[lang]) || [LT(r[0]), LT(r[1])]; return '<div><dt>' + sRow[0] + '</dt><dd>' + sRow[1] + '</dd></div>'; }).join('') + '</dl></section>';
     if (LQZ[L.id])
         h += '<section class="lq" id="lq" aria-labelledby="lq-h"></section>';
     h += '<div class="learn-nav"></div>';
     body.innerHTML = h;
-    body.querySelectorAll('[data-staff]').forEach((el) => { el.outerHTML = lStaffHTML(el.dataset.staff); });
-    body.querySelectorAll('[data-widget]').forEach((el) => lwMount(el));
+    queryAllHtml(body, '[data-staff]').forEach((el) => { el.outerHTML = lStaffHTML(el.dataset.staff ?? ''); });
+    queryAllHtml(body, '[data-widget]').forEach((el) => lwMount(el));
     body.querySelectorAll('[data-bars]').forEach((el) => { el.outerHTML = lBarsHTML(); });
     body.querySelectorAll('[data-an]').forEach((el) => { if (!el.textContent.trim())
         el.textContent = t('lu_an_btn'); });
@@ -4791,8 +4867,8 @@ let renderLearn = function renderLearn() {
     if (cur && toc.scrollHeight > toc.clientHeight)
         cur.scrollIntoView({ block: 'nearest' });
 };
-function learnClick(e: PointerEvent) {
-    const g = e.target.closest('[data-go]');
+function learnClick(e: Event) {
+    const g = eventClosest(e, '[data-go]');
     if (g) {
         e.preventDefault();
         const c = g.dataset.cat;
@@ -4803,24 +4879,24 @@ function learnClick(e: PointerEvent) {
             selectById('pr-cat').value = c;
         return;
     }
-    if (e.target.closest('[data-lgback]')) {
+    if (eventClosest(e, '[data-lgback]')) {
         learnGloss = false;
         renderLearn();
         return;
     }
-    const lg = e.target.closest('[data-lgo]');
+    const lg = eventClosest(e, '[data-lgo]');
     if (lg) {
         e.preventDefault();
         learnGloss = false;
-        learnGoId(lg.dataset.lgo);
+        learnGoId(lg.dataset.lgo ?? '');
         return;
     }
-    const li = e.target.closest('[data-li]');
+    const li = eventClosest(e, '[data-li]');
     if (li) {
-        learnGo(+li.dataset.li);
+        learnGo(Number(li.dataset.li));
         return;
     }
-    const ln = e.target.closest('[data-ln]');
+    const ln = eventClosest(e, '[data-ln]');
     if (ln) {
         const a = ln.dataset.ln, L = LESSONS[learnSel];
         if (a === 'prev')
@@ -4849,7 +4925,7 @@ function learnClick(e: PointerEvent) {
         }
         return;
     }
-    const lq = e.target.closest('[data-lq]');
+    const lq = eventClosest(e, '[data-lq]');
     if (lq) {
         const a = lq.dataset.lq;
         if (a === 'start') {
@@ -4862,22 +4938,22 @@ function learnClick(e: PointerEvent) {
             lqShow();
         return;
     }
-    const lo = e.target.closest('[data-lqo]');
+    const lo = eventClosest(e, '[data-lqo]');
     if (lo) {
-        lqPick(+lo.dataset.lqo);
+        lqPick(Number(lo.dataset.lqo));
         return;
     }
-    const lp = e.target.closest('[data-lplay]');
+    const lp = eventClosest(e, '[data-lplay]');
     if (lp) {
-        lStaffPlay(lp.dataset.lplay, lp);
+        lStaffPlay(lp.dataset.lplay ?? '', lp);
         return;
     }
-    const sn = e.target.closest('.lstaff .ss-n');
-    if (sn) {
+    const snFrom = eventElement(e), sn = snFrom && snFrom.closest('.lstaff .ss-n');
+    if (sn instanceof SVGElement) {
         lStaffNote(sn);
         return;
     }
-    const rd = e.target.closest('[data-rd]');
+    const rd = eventClosest(e, '[data-rd]');
     if (rd) {
         const L = RD_LV[rd.dataset.rd];
         show('read');
@@ -4886,41 +4962,43 @@ function learnClick(e: PointerEvent) {
             rdOpen(L);
         return;
     }
-    const an = e.target.closest('[data-an]');
+    const an = eventClosest(e, '[data-an]');
     if (an) {
         show('analysis');
-        anLoadExample(an.dataset.an);
+        anLoadExample(an.dataset.an ?? '');
         return;
     }
-    const w = e.target.closest('[data-w]');
+    const w = eventClosest(e, '[data-w]');
     if (w) {
         lwClick(w);
         return;
     }
-    const d = e.target.closest('.demo');
+    const d = eventClosest(e, '.demo');
     if (d)
         runDemo(d.dataset.demo, d);
 }
-function lSeqLight(chords: any[], stepMs: number, holdMs: number) {
-    chords.forEach((ms: any[], i: number) => learnTimer(() => { kbClear('target'); ms.forEach((m: any) => kbState(m, 'target', true)); }, i * stepMs));
+function lSeqLight(chords: number[][], stepMs: number, holdMs: number) {
+    chords.forEach((ms, i) => learnTimer(() => { kbClear('target'); ms.forEach((m) => kbState(m, 'target', true)); }, i * stepMs));
     learnTimer(() => kbClear('target'), (chords.length - 1) * stepMs + (holdMs || stepMs));
 }
 const LBLUES = [0, 0, 0, 0, 5, 5, 0, 0, 7, 5, 0, 7];
 function lBarsHTML() {
-    const rn = { 0: 'I7', 5: 'IV7', 7: 'V7' };
+    const rn: Record<number, string> = { 0: 'I7', 5: 'IV7', 7: 'V7' };
     return '<div class="lbars" role="list" aria-label="' + t('lw_blues') + '">' + LBLUES.map((d, i) => '<span role="listitem" data-bar="' + i + '"><b>' + rn[d] + '</b><small>' + pcName(d, d === 5) + '7</small></span>').join('') + '</div>';
 }
 const LACC_CH = [{ bass: 48, right: [60, 64, 67], fifth: 55 }, { bass: 45, right: [60, 64, 69], fifth: 52 }, { bass: 41, right: [60, 65, 69], fifth: 48 }, { bass: 43, right: [59, 62, 67], fifth: 50 }];
-async function runDemo(spec: string, btn: any)  {
+async function runDemo(spec: string|undefined, btn: HTMLElement) {
     ensureAudio();
     learnHalt();
     const g = LGEN;
+    if (spec === undefined)
+        throw new TypeError('Étude: demo button without data-demo');
     const p = spec.split(':'), kind = p[0];
     if (kind !== 'beat' && !await preparePiano())
         return;
     if (g !== LGEN || view0() !== 'learn')
         return;
-    const T0 = actx.currentTime + 0.06;
+    const T0 = learnCtxTime() + 0.06;
     if (kind === 'n') {
         const m = +p[1];
         previewNote(m, T0, 0.9, 96);
@@ -4928,8 +5006,8 @@ async function runDemo(spec: string, btn: any)  {
     }
     else if (kind === 'run') {
         const ms = p[1].split('.').map(Number);
-        ms.forEach((m: any, i: number) => previewNote(m, T0 + i * 0.4, 0.38, 92));
-        lSeqLight(ms.map((m: any) => [m]), 400, 700);
+        ms.forEach((m, i) => previewNote(m, T0 + i * 0.4, 0.38, 92));
+        lSeqLight(ms.map((m) => [m]), 400, 700);
     }
     else if (kind === 'ms') {
         const ms = p[1].split('.').map(Number);
@@ -4981,15 +5059,15 @@ async function runDemo(spec: string, btn: any)  {
         learnTimer(() => bars.forEach((b) => b.classList.remove('on')), 48 * spb * 1000 + 1500);
     }
     else if (kind === 'vc') {
-        const chs = p[1].split('|').map((s: string) => s.split('.').map(Number));
-        chs.forEach((ms: any[], i: number) => ms.forEach((m: number) => previewNote(m, T0 + i * 1.1, 1.05, m < 55 ? 80 : 88)));
+        const chs = p[1].split('|').map((s) => s.split('.').map(Number));
+        chs.forEach((ms, i) => ms.forEach((m) => previewNote(m, T0 + i * 1.1, 1.05, m < 55 ? 80 : 88)));
         lSeqLight(chs, 1100, 1200);
     }
     else if (kind === 'acc') {
         const P = ACCOMP_PATTERNS[p[1]];
         if (!P)
             return;
-        const spb = P.beats === 3 ? 0.45 : 0.55, ev: any[] = [];
+        const spb = P.beats === 3 ? 0.45 : 0.55, ev: AccompanimentEvent[] = [];
         LACC_CH.forEach((c, i) => P.gen(ev, i * P.beats, c));
         previewNote(48, T0 + 4 * P.beats * spb, 1.6, 80);
         [60, 64, 67].forEach((m) => previewNote(m, T0 + 4 * P.beats * spb, 1.6, 80));
@@ -4999,7 +5077,7 @@ async function runDemo(spec: string, btn: any)  {
     else if (kind === 'beat')
         demoBeat(p[1], btn);
 }
-function lDots(btn: { closest: (arg0: string) => any; }, n: number, strong: { (i: any): 1|0|2; (arg0: number): number; }) {
+function lDots(btn: HTMLElement, n: number, strong: (i: number) => number) {
     const row = btn && btn.closest('.demo-row');
     if (!row)
         return [];
@@ -5013,9 +5091,9 @@ function lDots(btn: { closest: (arg0: string) => any; }, n: number, strong: { (i
     bd.innerHTML = Array.from({ length: n }, (_, i) => '<span' + (strong(i) === 2 ? ' class="s"' : strong(i) === 1 ? ' class="m"' : '') + '>' + (i + 1) + '</span>').join('');
     return [...bd.children];
 }
-function demoBeat(kind: string, btn: any) {
-    const t0 = actx.currentTime + 0.1;
-    let n, step, total, lvl, lab;
+function demoBeat(kind: string, btn: HTMLElement) {
+    const t0 = learnCtxTime() + 0.1;
+    let n: number, step: number, total: number, lvl: (i: number) => number, lab: string;
     if (kind === '68') {
         n = 6;
         step = 0.21;
@@ -5048,10 +5126,37 @@ function demoBeat(kind: string, btn: any) {
     learnTimer(() => dots.forEach((d) => d.classList.remove('on')), (total * step + 0.4) * 1000);
     learnSay(t('lu_beat_say', lab));
 }
-const LM = { el: null, timer: 0, next: 0, i: 0 };
-const LTEMPO = [[60, 'Largo'], [76, 'Adagio'], [108, 'Andante'], [120, 'Moderato'], [168, 'Allegro'], [999, 'Presto']];
-function lmTerm(b: number) { return LTEMPO.find((x) => b < x[0])[1]; }
-function lmMeter(m: string|(string|number)[]) { return m === '6/8' ? { n: 6, div: 3, lvl: (i: number) => i === 0 ? 2 : i === 3 ? 1 : 0 } : { n: +m[0], div: 1, lvl: (i: number) => i === 0 ? 2 : 0 }; }
+/** Settings of each Learn widget, kept on its element as `_s`. */
+interface LwScaleState { root: number; st: number[] }
+interface LwChordState { root: number; q: string; inv: number; bass: number }
+interface LwCofState { i: number }
+interface LwMetroState { bpm: number; meter: string }
+type LwState = LwScaleState | LwChordState | LwCofState | LwMetroState;
+/** A mounted `[data-widget]` element. */
+type LearnWidgetEl = HTMLElement & { _s?: LwState };
+const lwIsScale = (s: LwState | undefined): s is LwScaleState => !!s && 'st' in s;
+const lwIsChord = (s: LwState | undefined): s is LwChordState => !!s && 'q' in s;
+const lwIsCof = (s: LwState | undefined): s is LwCofState => !!s && 'i' in s;
+const lwIsMetro = (s: LwState | undefined): s is LwMetroState => !!s && 'bpm' in s;
+function lwStateError(el: LearnWidgetEl): TypeError { return new TypeError('Étude: widget ' + el.dataset.widget + ' has no settings'); }
+function lwScaleState(el: LearnWidgetEl): LwScaleState { const s = el._s; if (!lwIsScale(s))
+    throw lwStateError(el); return s; }
+function lwChordState(el: LearnWidgetEl): LwChordState { const s = el._s; if (!lwIsChord(s))
+    throw lwStateError(el); return s; }
+function lwCofState(el: LearnWidgetEl): LwCofState { const s = el._s; if (!lwIsCof(s))
+    throw lwStateError(el); return s; }
+function lwMetroState(el: LearnWidgetEl): LwMetroState { const s = el._s; if (!lwIsMetro(s))
+    throw lwStateError(el); return s; }
+/** A part a widget rendered into itself, e.g. its start button. */
+function lwPart(el: Element, sel: string): Element { const f = el.querySelector(sel); if (!f)
+    throw new TypeError('Étude: widget part missing: ' + sel); return f; }
+/** The running Learn metronome widget, if any. */
+interface LearnMetronome { el: LearnWidgetEl | null; timer: ReturnType<typeof setInterval> | 0; next: number; i: number }
+const LM: LearnMetronome = { el: null, timer: 0, next: 0, i: 0 };
+const LTEMPO: [number, string][] = [[60, 'Largo'], [76, 'Adagio'], [108, 'Andante'], [120, 'Moderato'], [168, 'Allegro'], [999, 'Presto']];
+function lmTerm(b: number) { const x = LTEMPO.find((y) => b < y[0]); if (!x)
+    throw new RangeError('Étude: tempo out of range'); return x[1]; }
+function lmMeter(m: string) { return m === '6/8' ? { n: 6, div: 3, lvl: (i: number) => i === 0 ? 2 : i === 3 ? 1 : 0 } : { n: +m[0], div: 1, lvl: (i: number) => i === 0 ? 2 : 0 }; }
 function lmStop() {
     if (LM.timer) {
         clearInterval(LM.timer);
@@ -5066,15 +5171,15 @@ function lmStop() {
         b.setAttribute('aria-pressed', 'false');
         b.textContent = '▶ ' + t('lw_start');
     }
-    el.querySelectorAll('.lbeat .on').forEach((d: { classList: { remove: (arg0: string) => any; }; }) => d.classList.remove('on'));
+    el.querySelectorAll('.lbeat .on').forEach((d) => d.classList.remove('on'));
 }
-function lmDots(el: { _s: any; querySelector: (arg0: string) => { (): any; new(): any; innerHTML: string; }; }) { const s = el._s, M = lmMeter(s.meter); el.querySelector('.lbeat').innerHTML = Array.from({ length: M.n }, (_, i) => '<span' + (M.lvl(i) === 2 ? ' class="s"' : M.lvl(i) === 1 ? ' class="m"' : '') + '>' + (i + 1) + '</span>').join(''); }
-function lmStart(el: Node|null) {
+function lmDots(el: LearnWidgetEl) { const s = lwMetroState(el), M = lmMeter(s.meter); lwPart(el, '.lbeat').innerHTML = Array.from({ length: M.n }, (_, i) => '<span' + (M.lvl(i) === 2 ? ' class="s"' : M.lvl(i) === 1 ? ' class="m"' : '') + '>' + (i + 1) + '</span>').join(''); }
+function lmStart(el: LearnWidgetEl) {
     ensureAudio();
     LM.el = el;
-    LM.next = actx.currentTime + 0.1;
+    LM.next = learnCtxTime() + 0.1;
     LM.i = 0;
-    const b = el.querySelector('[data-w="mstart"]');
+    const b = lwPart(el, '[data-w="mstart"]');
     b.setAttribute('aria-pressed', 'true');
     b.textContent = '■ ' + t('lw_stop');
     LM.timer = setInterval(() => {
@@ -5082,19 +5187,19 @@ function lmStart(el: Node|null) {
             lmStop();
             return;
         }
-        const s = el._s, M = lmMeter(s.meter), dt = 60 / s.bpm / M.div, dots = el.querySelectorAll('.lbeat span');
-        while (LM.next < actx.currentTime + 0.12) {
+        const s = lwMetroState(el), M = lmMeter(s.meter), dt = 60 / s.bpm / M.div, dots = el.querySelectorAll('.lbeat span');
+        while (LM.next < learnCtxTime() + 0.12) {
             const k = LM.i % M.n, lv = M.lvl(k);
             metroClick(LM.next, lv > 0);
             setTimeout(() => { if (LM.el === el)
-                dots.forEach((d: { classList: { toggle: (arg0: string,arg1: boolean) => any; }; }, j: number) => d.classList.toggle('on', j === k)); }, Math.max(0, (LM.next - actx.currentTime) * 1000));
+                dots.forEach((d, j) => d.classList.toggle('on', j === k)); }, Math.max(0, (LM.next - learnCtxTime()) * 1000));
             LM.i++;
             LM.next += dt;
         }
     }, 25);
 }
-function lwMetro(el: { _s: { bpm: number; meter: string; }; innerHTML: string; }) {
-    const s = el._s || (el._s = { bpm: 90, meter: '4/4' });
+function lwMetro(el: LearnWidgetEl) {
+    const s = lwIsMetro(el._s) ? el._s : (el._s = { bpm: 90, meter: '4/4' });
     el.innerHTML = '<h4>⏱ ' + t('lw_metro') + '</h4><div class="lw-row"><label class="lw-range"><span>' + t('lw_tempo') + '</span><input type="range" min="40" max="208" step="1" value="' + s.bpm + '" data-wi="bpm" aria-valuetext="' + t('lw_bpm', s.bpm) + ', ' + lmTerm(s.bpm) + '"></label>' +
         '<output class="lw-bpm" aria-live="polite"><b>' + s.bpm + '</b> BPM · <i>' + lmTerm(s.bpm) + '</i></output></div>' +
         '<div class="lw-row"><label><span>' + t('lw_meter') + '</span><select data-wi="meter">' + ['2/4', '3/4', '4/4', '6/8'].map((m) => '<option' + (m === s.meter ? ' selected' : '') + '>' + m + '</option>').join('') + '</select></label>' +
@@ -5105,16 +5210,16 @@ const LLET = 'CDEFGAB', LNAT = [0, 2, 4, 5, 7, 9, 11];
 const LSPF = [[0, 0], [1, -1], [1, 0], [2, -1], [2, 0], [3, 0], [3, 1], [4, 0], [5, -1], [5, 0], [6, -1], [6, 0]], LSPS = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [3, 0], [3, 1], [4, 0], [4, 1], [5, 0], [5, 1], [6, 0]];
 function lSp(li: number, acc: number) { return spelledName(notation, li, acc); }
 function lPitch(li: number, acc: number, midi: number) { return LLET[li] + (acc > 0 ? '#' : acc < 0 ? 'b' : '') + (Math.floor((midi - acc) / 12) - 1); }
-function lStaffSmall(piece: { rh: (number|string[])[][]; lh?: (string|number)[][]; keyN?: any; }, label: string) {
+function lStaffSmall(piece: { rh: SrToken[]; lh?: SrToken[]; keyN?: number }, label: string) {
     const r = srRender(Object.assign({ ts: [4, 4], keyN: 0, noNames: true }, piece));
     return '<div class="ss-wrap lw-staff">' + r.svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="img" aria-label="' + label.replace(/"/g, '&quot;') + '"') + '</div>';
 }
-function lSel(wi: string, opts: any[], cur: string|number, lab: string) { return '<label><span>' + lab + '</span><select data-wi="' + wi + '">' + opts.map((o: string[]) => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>'; }
+function lSel(wi: string, opts: (string|number)[][], cur: string|number, lab: string) { return '<label><span>' + lab + '</span><select data-wi="' + wi + '">' + opts.map((o) => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>'; }
 const LW_PRESETS = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor', 'Dorian', 'Major pentatonic', 'Minor pentatonic', 'Blues'];
 function lwStepLab(s: number) { const d = STEP_LABELS[lang] || { 2: 'T', 1: 'S', 3: 'T+S' }; return d[s] || (s === 2 ? d[2] : s === 1 ? d[1] : d[3]); }
-function lwScale(el: { _s: { root: number; st: number[]; }; innerHTML: string; }) {
-    const s = el._s || (el._s = { root: 0, st: [2, 2, 1] }), cum = [0];
-    s.st.forEach((x: number) => cum.push(cum[cum.length - 1] + x));
+function lwScale(el: LearnWidgetEl) {
+    const s = lwIsScale(el._s) ? el._s : (el._s = { root: 0, st: [2, 2, 1] }), cum = [0];
+    s.st.forEach((x) => cum.push(cum[cum.length - 1] + x));
     const tot = cum[cum.length - 1], flat = [5, 10, 3, 8, 1].includes(s.root), offs = tot === 12 ? cum.slice(0, -1) : cum;
     const nm = tot === 12 ? Object.keys(SCALES).find((k) => SCALES[k].join() === offs.join()) : null;
     el.innerHTML = '<h4>🪜 ' + t('lw_scale') + '</h4><div class="lw-row">' + lSel('root', LSPF.map((x, i) => [i, lSp(x[0], x[1])]), s.root, t('lw_root')) +
@@ -5122,14 +5227,16 @@ function lwScale(el: { _s: { root: number; st: number[]; }; innerHTML: string; }
         '<div class="lw-row" role="group" aria-label="' + t('lw_steps') + '">' + [['w', t('lw_w')], ['h', t('lw_h')], ['wh', t('lw_wh')]].map((b) => '<button type="button" class="btn sm" data-w="' + b[0] + '"' + (tot >= 12 ? ' disabled' : '') + '>+ ' + b[1] + '</button>').join('') +
         '<button type="button" class="btn ghost sm" data-w="undo"' + (s.st.length ? '' : ' disabled') + '>↶ ' + t('lw_undo') + '</button><button type="button" class="btn ghost sm" data-w="clear">' + t('lw_clear') + '</button>' +
         '<button type="button" class="btn primary sm" data-w="splay">▶ ' + t('lw_play') + '</button></div>' +
-        '<div class="lw-steps" aria-label="' + t('lw_steps') + '">' + (s.st.length ? s.st.map((x: string) => '<span class="lw-st s' + x + '">' + lwStepLab(x) + '</span>').join('') : '<span class="lw-st">—</span>') + '</div>' +
+        '<div class="lw-steps" aria-label="' + t('lw_steps') + '">' + (s.st.length ? s.st.map((x) => '<span class="lw-st s' + x + '">' + lwStepLab(x) + '</span>').join('') : '<span class="lw-st">—</span>') + '</div>' +
         '<div class="lw-notes">' + cum.map((o, i) => '<span class="lw-chip' + (i === 0 || o === 12 ? ' t' : '') + '">' + pcName(s.root + o, flat) + '</span>').join('') + '</div>' +
         '<p class="lw-out" aria-live="polite">' + t('lw_total', tot) + ' · ' + (tot === 12 ? (nm ? t('lw_name', '<b>' + scaleDisp(nm) + '</b>') : t('lw_complete') + ' ' + t('lw_name_none')) : t('lw_name_none')) + '</p>';
 }
 const LW_Q = ['maj', 'm', 'dim', 'aug', 'sus2', 'sus4', '7', 'maj7', 'm7', 'm7♭5', 'dim7', '6', 'add9'];
-const LW_STEP = { 0: 0, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 11: 6, 14: 1 };
-function lwChordData(s: { q: string; root: number; inv: number; bass: number; }) {
+const LW_STEP: Record<number, number> = { 0: 0, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 11: 6, 14: 1 };
+function lwChordData(s: LwChordState) {
     const c = CHORDS.find((x) => x.symbol === s.q), rs = LSPF[s.root], base = 60 + s.root - (s.root > 6 ? 12 : 0);
+    if (!c)
+        throw new TypeError('Étude: unknown chord quality ' + s.q);
     let tones = c.intervals.map((iv) => {
         let li = (rs[0] + (s.q === 'dim7' && iv === 9 ? 6 : LW_STEP[iv] || 0)) % 7, pcT = (s.root + iv) % 12, acc = ((pcT - LNAT[li]) % 12 + 18) % 12 - 6;
         if (Math.abs(acc) > 1) {
@@ -5142,7 +5249,7 @@ function lwChordData(s: { q: string; root: number; inv: number; bass: number; })
     for (let k = 0; k < inv; k++)
         tones[k].midi += 12;
     tones.sort((a, b) => a.midi - b.midi);
-    let b = tones[0];
+    let b: { li: number; acc: number; midi: number } = tones[0];
     if (s.bass >= 0 && s.bass !== b.midi % 12) {
         const sp = (tones.find((x) => x.midi % 12 === s.bass)) || { li: LSPF[s.bass][0], acc: LSPF[s.bass][1] };
         b = { li: sp.li, acc: sp.acc, midi: 0 };
@@ -5151,11 +5258,14 @@ function lwChordData(s: { q: string; root: number; inv: number; bass: number; })
     let bm = 36 + bpc;
     if (bm < 40)
         bm += 12;
-    const root = tones.find((x) => x.iv === 0), sym = lSp(root.li, root.acc) + (s.q === 'maj' ? '' : s.q), slash = bpc !== s.root;
+    const root = tones.find((x) => x.iv === 0);
+    if (!root)
+        throw new TypeError('Étude: chord has no root');
+    const sym = lSp(root.li, root.acc) + (s.q === 'maj' ? '' : s.q), slash = bpc !== s.root;
     return { c, tones, inv, bass: { li: b.li, acc: b.acc, midi: bm }, symbol: sym + (slash ? '/' + lSp(b.li, b.acc) : '') };
 }
-function lwChord(el: { _s: { root: number; q: string; inv: number; bass: number; }; innerHTML: string; }) {
-    const s = el._s || (el._s = { root: 0, q: 'maj', inv: 0, bass: -1 }), D = lwChordData(s);
+function lwChord(el: LearnWidgetEl) {
+    const s = lwIsChord(el._s) ? el._s : (el._s = { root: 0, q: 'maj', inv: 0, bass: -1 }), D = lwChordData(s);
     el.innerHTML = '<h4>🧱 ' + t('lw_chord') + '</h4><div class="lw-row">' + lSel('root', LSPF.map((x, i) => [i, lSp(x[0], x[1])]), s.root, t('lw_root')) +
         lSel('q', LW_Q.map((q) => { const c = CHORDS.find((x) => x.symbol === q); return [q, (q === 'maj' ? '—' : q) + ' · ' + chordDisp(c)]; }), s.q, t('lw_quality')) +
         lSel('inv', Array.from({ length: D.tones.length }, (_, i) => [i, t('lw_inv' + i)]), D.inv, t('lw_inv')) +
@@ -5166,8 +5276,8 @@ function lwChord(el: { _s: { root: number; q: string; inv: number; bass: number;
         '<div class="lw-row"><button type="button" class="btn primary sm" data-w="cplay">▶ ' + t('lw_play') + '</button></div>';
 }
 function lCofKey(i: number) { const n = i <= 6 ? i : i - 12, ka = ssKeyAcc(n), li = n >= 0 ? (4 * n) % 7 : (3 * -n) % 7, mli = (li + 5) % 7; return { n, li, acc: ka[li], mli, macc: ka[mli], ka }; }
-function lwCof(el: { _s: { i: number; }; innerHTML: string; }) {
-    const s = el._s || (el._s = { i: 0 }), K = lCofKey(s.i), cnt = Math.abs(K.n), ord = (K.n >= 0 ? SS_SHARP_ORDER : SS_FLAT_ORDER).slice(0, cnt).map((li) => lSp(li, K.n > 0 ? 1 : -1));
+function lwCof(el: LearnWidgetEl) {
+    const s = lwIsCof(el._s) ? el._s : (el._s = { i: 0 }), K = lCofKey(s.i), cnt = Math.abs(K.n), ord = (K.n >= 0 ? SS_SHARP_ORDER : SS_FLAT_ORDER).slice(0, cnt).map((li) => lSp(li, K.n > 0 ? 1 : -1));
     const tri = [0, 2, 4].map((d) => { const li = (K.li + d) % 7, acc = K.ka[li], midi = 60 + LNAT[li] + acc + (li < K.li ? 12 : 0) + (K.li >= 5 ? -12 : 0); return lPitch(li, acc, midi); });
     let btns = '';
     for (let i = 0; i < 12; i++) {
@@ -5179,28 +5289,31 @@ function lwCof(el: { _s: { i: number; }; innerHTML: string; }) {
         '<div class="lw-cof-info" aria-live="polite"><p><b>' + key + '</b></p><p>' + sig + '</p><p>' + t('lw_rel', '<b>' + lSp(K.mli, K.macc) + ' minor</b>') + '</p>' +
         lStaffSmall({ rh: [[tri, 4]], keyN: K.n }, key + '. ' + sig) + '<button type="button" class="btn primary sm" data-w="cofplay">▶ ' + t('lw_play') + '</button></div></div>';
 }
-const LW_R = { scale: lwScale, chord: lwChord, cof: lwCof, metro: lwMetro };
-function lwMount(el: Element) { el.classList.add('lw'); const f = LW_R[el.dataset.widget]; if (f)
+const LW_R: Record<string, ((el: LearnWidgetEl) => void) | undefined> = { scale: lwScale, chord: lwChord, cof: lwCof, metro: lwMetro };
+function lwMount(el: LearnWidgetEl) { el.classList.add('lw'); const f = LW_R[el.dataset.widget ?? '']; if (f)
     f(el); }
-function lwRefocus(el: { dataset: { widget: string|number; }; querySelector: (arg0: string) => any; }, sel: string) { (LW_R[el.dataset.widget] || (() => { }))(el); const f = el.querySelector(sel); const g = f && !f.disabled ? f : el.querySelector('[data-w="splay"],[data-w="clear"]'); if (g) {
+function lwRefocus(el: LearnWidgetEl, sel: string) { (LW_R[el.dataset.widget ?? ''] || (() => { }))(el); const f = queryHtml(el, sel); const g = f && !('disabled' in f && f.disabled) ? f : queryHtml(el, '[data-w="splay"],[data-w="clear"]'); if (g) {
     g.focus({ preventScroll: true });
     learnReveal(g);
 } }
 function lwInput(e: Event) {
-    const x = e.target, wi = x.dataset && x.dataset.wi, el = x.closest && x.closest('[data-widget]');
+    const x = e.target;
+    if (!(x instanceof HTMLInputElement || x instanceof HTMLSelectElement))
+        return;
+    const wi = x.dataset.wi, box = x.closest('[data-widget]'), el: LearnWidgetEl | null = box instanceof HTMLElement ? box : null;
     if (!wi || !el)
         return;
-    const s = el._s;
     if (wi === 'bpm') {
+        const s = lwMetroState(el);
         s.bpm = +x.value;
         x.setAttribute('aria-valuetext', t('lw_bpm', s.bpm) + ', ' + lmTerm(s.bpm));
-        el.querySelector('.lw-bpm').innerHTML = '<b>' + s.bpm + '</b> BPM · <i>' + lmTerm(s.bpm) + '</i>';
+        lwPart(el, '.lw-bpm').innerHTML = '<b>' + s.bpm + '</b> BPM · <i>' + lmTerm(s.bpm) + '</i>';
         return;
     }
     if (e.type !== 'change')
         return;
     if (wi === 'meter') {
-        s.meter = x.value;
+        lwMetroState(el).meter = x.value;
         LM.i = 0;
         lmDots(el);
         return;
@@ -5209,20 +5322,24 @@ function lwInput(e: Event) {
         if (!x.value)
             return;
         const o = SCALES[x.value].concat([12]);
-        s.st = o.slice(1).map((v, i) => v - o[i]);
+        lwScaleState(el).st = o.slice(1).map((v, i) => v - o[i]);
     }
     else if (wi === 'root') {
+        const s = el._s;
+        if (!lwIsScale(s) && !lwIsChord(s))
+            throw lwStateError(el);
         s.root = +x.value;
     }
     else if (wi === 'q') {
+        const s = lwChordState(el);
         s.q = x.value;
         s.inv = 0;
     }
     else if (wi === 'inv') {
-        s.inv = +x.value;
+        lwChordState(el).inv = +x.value;
     }
     else if (wi === 'bass') {
-        s.bass = +x.value;
+        lwChordState(el).bass = +x.value;
     }
     lwRefocus(el, '[data-wi="' + wi + '"]');
     if (el.dataset.widget === 'chord')
@@ -5230,37 +5347,37 @@ function lwInput(e: Event) {
     else if (wi === 'preset')
         lwScalePlay(el);
 }
-async function lwScalePlay(el: { _s: any; querySelector: (arg0: string) => any; })  {
-    const s = el._s, cum = [0];
-    s.st.forEach((x: number) => cum.push(cum[cum.length - 1] + x));
+async function lwScalePlay(el: LearnWidgetEl) {
+    const s = lwScaleState(el), cum = [0];
+    s.st.forEach((x) => cum.push(cum[cum.length - 1] + x));
     learnHalt();
     ensureAudio();
     if (!await preparePiano())
         return;
-    const r = 60 + s.root - (s.root > 6 ? 12 : 0), T0 = actx.currentTime + 0.05;
+    const r = 60 + s.root - (s.root > 6 ? 12 : 0), T0 = learnCtxTime() + 0.05;
     cum.forEach((o, i) => previewNote(r + o, T0 + i * 0.3, 0.3, 90));
     lSeqLight(cum.map((o) => [r + o]), 300, 600);
     const nm = el.querySelector('.lw-out');
     if (nm)
         learnSay(nm.textContent);
 }
-async function lwChordPlay(el: { _s: any; })  {
-    const D = lwChordData(el._s), ms = [D.bass.midi].concat(D.tones.map((x) => x.midi));
+async function lwChordPlay(el: LearnWidgetEl) {
+    const D = lwChordData(lwChordState(el)), ms = [D.bass.midi].concat(D.tones.map((x) => x.midi));
     learnHalt();
     ensureAudio();
     if (!await preparePiano())
         return;
-    const T0 = actx.currentTime + 0.05;
+    const T0 = learnCtxTime() + 0.05;
     ms.forEach((m, i) => previewNote(m, T0 + i * 0.14, 0.4, 86));
     ms.forEach((m) => previewNote(m, T0 + ms.length * 0.14 + 0.1, 1.3, 84));
     learnLight(ms, ms.length * 140 + 1600);
     learnSay(D.symbol);
 }
-async function lwClick(w: { closest: (arg0: string) => any; dataset: { w: any; k: string|number; }; })  {
-    const el = w.closest('[data-widget]');
+async function lwClick(w: HTMLElement) {
+    const box = w.closest('[data-widget]'), el: LearnWidgetEl | null = box instanceof HTMLElement ? box : null;
     if (!el)
         return;
-    const s = el._s, a = w.dataset.w;
+    const a = w.dataset.w;
     if (a === 'mstart') {
         if (LM.el === el)
             lmStop();
@@ -5275,8 +5392,9 @@ async function lwClick(w: { closest: (arg0: string) => any; dataset: { w: any; k
     if (a === 'cplay')
         return lwChordPlay(el);
     if (a === 'cofplay' || a === 'cof') {
+        const s = lwCofState(el);
         if (a === 'cof') {
-            s.i = +w.dataset.k;
+            s.i = Number(w.dataset.k);
             lwRefocus(el, '[data-w="cof"][data-k="' + s.i + '"]');
         }
         const K = lCofKey(s.i), r = 48 + ((K.n * 7) % 12 + 12) % 12;
@@ -5289,7 +5407,7 @@ async function lwClick(w: { closest: (arg0: string) => any; dataset: { w: any; k
         return;
     }
     if (a === 'w' || a === 'h' || a === 'wh') {
-        const st = ({ w: 2, h: 1, wh: 3 } )[a], tot = s.st.reduce((x: any, y: any) => x + y, 0);
+        const s = lwScaleState(el), st = ({ w: 2, h: 1, wh: 3 })[a], tot = s.st.reduce((x, y) => x + y, 0);
         if (tot + st > 12) {
             learnSay(t('lw_over'));
             return;
@@ -5299,20 +5417,20 @@ async function lwClick(w: { closest: (arg0: string) => any; dataset: { w: any; k
         const m = 60 + s.root - (s.root > 6 ? 12 : 0) + tot + st;
         ensureAudio();
         if (await preparePiano()) {
-            previewNote(m, actx.currentTime + 0.02, 0.5, 90);
+            previewNote(m, learnCtxTime() + 0.02, 0.5, 90);
             learnLight([m], 700);
         }
         if (tot + st === 12)
-            learnSay(el.querySelector('.lw-out').textContent);
+            learnSay(lwPart(el, '.lw-out').textContent);
         return;
     }
     if (a === 'undo') {
-        s.st.pop();
+        lwScaleState(el).st.pop();
         lwRefocus(el, '[data-w="undo"]');
         return;
     }
     if (a === 'clear') {
-        s.st = [];
+        lwScaleState(el).st = [];
         lwRefocus(el, '[data-w="clear"]');
     }
 }
@@ -5328,21 +5446,25 @@ function lgHTML() {
         '<div class="learn-nav"><button type="button" class="btn ghost sm" data-lgback="1">' + t('lg_close') + '</button></div>';
 }
 function lgFilter() {
-    const q = maybeById('lg-q'), v = q ? lgNorm(q.value.trim()) : '';
+    const qEl = maybeById('lg-q'), q = qEl instanceof HTMLInputElement ? qEl : null, v = q ? lgNorm(q.value.trim()) : '';
     let n = 0;
-    (document).querySelectorAll('#learnBody .lg-it').forEach((it) => { const on = !v || it.dataset.k.includes(v); it.hidden = !on; if (on)
+    queryAllHtml(document, '#learnBody .lg-it').forEach((it) => { const on = !v || (it.dataset.k ?? '').includes(v); it.hidden = !on; if (on)
         n++; });
     const o = maybeById('lg-n');
     if (o)
-        o.textContent = n ? t('lg_n', n) : t('lg_none', q.value.trim());
+        o.textContent = n ? t('lg_n', n) : t('lg_none', q ? q.value.trim() : '');
 }
 /* ============================================================================
    READ & PLAY — sheet-music trainer. Grand staff engraver (reuses the ss glyphs)
    + graded repertoire + step-by-step / assessment / listen modes.
    ============================================================================ */
 const SR_LET = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-function srPitch(s: string) { const m = /^([A-G])([#b]?)(\d)$/.exec(s); if (!m) return null; const li = SR_LET.indexOf(m[1]), acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, oct = +m[3]; return { li, oct, acc, midi: ssMidiOf(li, oct, acc) }; }
-const PIECES = [
+/** A spelled pitch: letter index (C = 0), octave, accidental (-1, 0, 1) and MIDI number. */
+interface SrPitch { li: number; oct: number; acc: number; midi: number }
+function srPitch(s: string): SrPitch | null { const m = /^([A-G])([#b]?)(\d)$/.exec(s); if (!m) return null; const li = SR_LET.indexOf(m[1]), acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, oct = +m[3]; return { li, oct, acc, midi: ssMidiOf(li, oct, acc) }; }
+/** A Read & Play piece: a score plus its catalogue details. */
+interface SrPiece extends SrScore { id: string; t: { en: string; ro: string }; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string }
+const PIECES: SrPiece[] = [
     { id: 'w5rh', t: { en: 'Five-finger warm-up (right hand)', ro: 'Încălzire pe cinci note (dreapta)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
         rh: [['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['E4', 1], ['G4', 1], ['E4', 1], ['C4', 4]] },
     { id: 'w5lh', t: { en: 'Five-finger warm-up (left hand)', ro: 'Încălzire pe cinci note (stânga)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
@@ -5379,15 +5501,38 @@ const PIECES = [
         rh: [['G3', 1], ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['C4', 2], ['A3', 1], ['G3', 2], ['G3', 1],
             ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['G4', 3]] },
 ];
-const SR = { piece: null, hands: 'both', modeSel: 'learn', names: false, active: false, assessOn: false,
-    notes: [], steps: [], stepIdx: 0, hit: new Set(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
+/** One engraved note head, with the beat it falls on and where it was drawn. */
+interface SrStaffNote { nid: number; hand: SrHand; midi: number; beat: number; dur: number; x: number; y: number; li: number; oct: number; acc: number }
+interface SrBeatX { b: number; x: number }
+interface SrRenderResult { svg: string; notes: SrStaffNote[]; beatX: SrBeatX[]; total: number; W: number; yTop: number; yBot: number }
+/** The notes that sound together at one beat (one Learn-mode step). */
+interface SrStep { beat: number; notes: SrStaffNote[] }
+/** A coaching suggestion: a string key, its arguments, and an optional action. */
+interface SrCoachTip { k: string; args?: () => Array<string | number>; act?: { k: string; args?: () => Array<string | number>; run: () => void } }
+/** A wrong key in Learn mode, classified (`k`) against the expected note `n`. */
+interface SrSlip { k: string; n: SrStaffNote; m: number }
+interface SrState {
+    piece: SrPiece | null; hands: string; modeSel: string; names: boolean; active: boolean; assessOn: boolean;
+    notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; hit: Set<number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
+    beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
+    bpm: number; t0: number; next: SrCoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
+    excerpt?: SrPiece | null; gen?: SrPiece | null; listening?: boolean;
+}
+const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, active: false, assessOn: false,
+    notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null };
-function srEvents(list: any) { const ev: { rest?: boolean; beat: number; dur: any; chord?: boolean; }[] = []; let beat = 0; (list || []).forEach((x: any[]) => { const d = x[1]; if (x[0] === 'R')
+interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
+/** A note to engrave; beamed eighths also record their stem position once drawn. */
+interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
+type SrEvent = SrRestEvent | SrNoteEvent;
+function srPitchStrict(s: string): SrPitch { const p = srPitch(s); if (!p)
+    throw new TypeError('Étude: unreadable pitch ' + s); return p; }
+function srEvents(list: SrToken[]|undefined) { const ev: SrEvent[] = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
     ev.push({ rest: true, beat, dur: d });
 else if (Array.isArray(x[0]))
-    x[0].forEach((n) => ev.push(Object.assign(srPitch(n), { beat, dur: d, chord: x[0].length > 1 })));
+    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 })));
 else
-    ev.push(Object.assign(srPitch(x[0]), { beat, dur: d })); beat += d; }); return { ev, total: beat }; }
+    ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d })); beat += d; }); return { ev, total: beat }; }
 function srClef(clef: string, x: number, top: number) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
 function srKeySigG(clef: string, keyN: number, x: number, top: number) {
     const refStep = clef === 'bass' ? 18 : 30, bot = top + 48, yOf = (li: number, oct: number) => bot + (refStep - ssStepOf(li, oct)) * 6;
@@ -5402,10 +5547,10 @@ function srKeySigG(clef: string, keyN: number, x: number, top: number) {
     }
     return { svg, w: cnt ? cnt * 9 + 6 : 6 };
 }
-function srTimeSigG(ts: any[], x: number, top: number) { return `<text class="ss-num" x="${x + 9}" y="${top + 18}">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="${top + 44}">${ts[1]}</text>`; }
+function srTimeSigG(ts: number[], x: number, top: number) { return `<text class="ss-num" x="${x + 9}" y="${top + 18}">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="${top + 44}">${ts[1]}</text>`; }
 function srStem2(x: number, y: number, dur: number, mid: number) { if (dur >= 4)
     return ''; const up = y > mid, sx = up ? x + 5.6 : x - 5.6, ey = up ? y - 32 : y + 32; return srStemLine(sx, y, ey, dur, up); }
-function srStemLine(sx: number, y: any, ey: number, dur: number, up: boolean) {
+function srStemLine(sx: number, y: number, ey: number, dur: number, up: boolean) {
     if (dur >= 4)
         return '';
     const base = [0.375, 0.75, 1.5, 3].includes(dur) ? dur / 1.5 : dur, flags = base <= 0.125 ? 3 : base <= 0.25 ? 2 : base <= 0.5 ? 1 : 0;
@@ -5436,12 +5581,16 @@ function srRest(x: number, top: number, dur: number) {
         return `<rect class="ss-glyph" x="${x - 6}" y="${top + 19}" width="12" height="5"/>`;
     return `<text class="ss-clef" x="${x - 6}" y="${top + 34}" style="font-size:30px">${dur <= 0.125 ? '\u{1D140}' : dur <= 0.25 ? '\u{1D13F}' : dur <= 0.5 ? '\u{1D13E}' : '\u{1D13D}'}</text>`;
 }
-function srRender(piece: never) {
-    const staves: { top: number; }[]|{ hand: any; clef: any; refStep: any; top: any; }[] = [];
+/** One staff of the system; `data` is filled from the hand's tokens right after the staves are laid out. */
+interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; data: { ev: SrEvent[]; total: number } }
+/** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
+interface SrChordItem { e: SrNoteEvent; step: number; y: number; dx: number; ax?: number }
+function srRender(piece: SrScore): SrRenderResult {
+    const staves: SrStave[] = [];
     if (piece.rh)
-        staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46 });
+        staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46, data: { ev: [], total: 0 } });
     if (piece.lh)
-        staves.push({ hand: 'lh', clef: 'bass', refStep: 18, top: piece.rh ? 150 : 46 });
+        staves.push({ hand: 'lh', clef: 'bass', refStep: 18, top: piece.rh ? 150 : 46, data: { ev: [], total: 0 } });
     staves.forEach((st) => { st.data = srEvents(piece[st.hand]); });
     const keyAcc = ssKeyAcc(piece.keyN || 0);
     const cap = piece.ts[1] === 8 ? piece.ts[0] * 0.5 : piece.ts[0], pickup = piece.pickup || 0;
@@ -5455,7 +5604,7 @@ function srRender(piece: never) {
     x += ksw;
     staves.forEach((st) => { head += srTimeSigG(piece.ts, x, st.top); });
     x += 26;
-    const bounds: any[] = [];
+    const bounds: number[] = [];
     {
         let b = pickup > 0 ? pickup : cap;
         while (b < total - 1e-4) {
@@ -5463,10 +5612,10 @@ function srRender(piece: never) {
             b += cap;
         }
     }
-    const beatSet = new Set();
-    staves.forEach((st) => st.data.ev.forEach((e: { beat: number; }) => beatSet.add(+e.beat.toFixed(4))));
+    const beatSet = new Set<number>();
+    staves.forEach((st) => st.data.ev.forEach((e) => beatSet.add(+e.beat.toFixed(4))));
     const beats = [...beatSet].sort((a, b) => a - b);
-    const notes: { nid: number; hand: any; midi: any; beat: any; dur: any; x: number; y: any; li: any; oct: any; acc: any; }[] = [], beatX = [];
+    const notes: SrStaffNote[] = [], beatX: SrBeatX[] = [];
     let body = '', nid = 0;
     // Beam pairs of eighths that start on a beat (simple meters only).
     if (piece.ts[1] === 4)
@@ -5490,18 +5639,18 @@ function srRender(piece: never) {
         const nx = x + 10;
         let minDur = 4;
         staves.forEach((st) => {
-            const here = st.data.ev.filter((e: { beat: number; }) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e: { rest: any; chord: any; }) => !e.rest && e.chord);
+            const here = st.data.ev.filter((e) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e): e is SrNoteEvent => !e.rest && !!e.chord);
             if (chord.length) {
-                const items = chord.map((e: { li: any; oct: any; }) => ({ e, step: ssStepOf(e.li, e.oct) })).sort((p: { step: number; }, q: { step: number; }) => p.step - q.step);
-                items.forEach((it: { y: any; step: number; }) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
-                const up = items.reduce((sum: any, it: { y: any; }) => sum + it.y, 0) / items.length > st.top + 24, dur = items[0].e.dur;
-                let prev: { step: number; dx: number; }|null = null;
-                (up ? items : items.slice().reverse()).forEach((it: { dx: number; step: number; }) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
-                const lanes: any[][] = [];
-                items.slice().reverse().forEach((it: { e: { acc: number; li: string|number; }; y: number; ax: number; dx: number; }) => {
+                const items = chord.map((e): SrChordItem => ({ e, step: ssStepOf(e.li, e.oct), y: 0, dx: 0 })).sort((p, q) => p.step - q.step);
+                items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
+                const up = items.reduce((sum, it) => sum + it.y, 0) / items.length > st.top + 24, dur = items[0].e.dur;
+                let prev: SrChordItem|null = null;
+                (up ? items : items.slice().reverse()).forEach((it) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
+                const lanes: number[][] = [];
+                items.slice().reverse().forEach((it) => {
                     if (it.e.acc === keyAcc[it.e.li])
                         return;
-                    let a = lanes.findIndex((l) => l.every((y: number) => Math.abs(y - it.y) >= 14));
+                    let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
                     if (a < 0) {
                         a = lanes.length;
                         lanes.push([]);
@@ -5510,8 +5659,8 @@ function srRender(piece: never) {
                     it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
                 });
                 const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
-                const names = (SR.names && !piece.noNames) ? items.map((it: { e: { midi: number; }; }) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
-                items.forEach((it: { e: any; ax: null; y: any; dx: number; step: number; }, k: number) => {
+                const names = (SR.names && !piece.noNames) ? items.map((it) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
+                items.forEach((it, k) => {
                     const e = it.e;
                     let g = k === 0 ? `<rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>` : '';
                     if (it.ax != null)
@@ -5526,7 +5675,7 @@ function srRender(piece: never) {
                     nid++;
                 });
             }
-            here.forEach((e: { dur: number; rest: any; chord: any; li: string|number; oct: any; acc: number; beam: any; midi: number; beat: any; }) => {
+            here.forEach((e) => {
                 minDur = Math.min(minDur, e.dur);
                 if (e.rest) {
                     body += srRest(nx, st.top, e.dur);
@@ -5550,10 +5699,13 @@ function srRender(piece: never) {
         beatX.push({ b, x: nx });
         x += 26 + Math.min(minDur, 4) * 14;
     });
-    staves.forEach((st) => st.data.ev.forEach((a: { beam: { first: any; mate: any; }; by: number; mid: number; bx: number; nid: any; }) => {
+    staves.forEach((st) => st.data.ev.forEach((a) => {
         if (!a.beam || !a.beam.first)
             return;
-        const b = a.beam.mate, up = (a.by + b.by) / 2 > a.mid;
+        const b = a.beam.mate;
+        if (a.by === undefined || a.bx === undefined || a.mid === undefined || b.by === undefined || b.bx === undefined)
+            return;
+        const up = (a.by + b.by) / 2 > a.mid;
         let e1 = up ? a.by - 32 : a.by + 32, e2 = up ? b.by - 32 : b.by + 32;
         const d = e2 - e1;
         if (up) {
@@ -5568,7 +5720,7 @@ function srRender(piece: never) {
             else if (d < -6)
                 e2 = e1 - 6;
         } // limit the slope by lengthening stems only
-        const s1 = up ? a.bx + 5.6 : a.bx - 5.6, s2 = up ? b.bx + 5.6 : b.bx - 5.6, th = up ? 5 : -5, stem = (sx: any, y: any, ey: any) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
+        const s1 = up ? a.bx + 5.6 : a.bx - 5.6, s2 = up ? b.bx + 5.6 : b.bx - 5.6, th = up ? 5 : -5, stem = (sx: number, y: number, ey: number) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
         body = body.replace(`@@B${a.nid}@@`, stem(s1, a.by, e1)).replace(`@@B${b.nid}@@`, stem(s2, b.by, e2) + `<path class="ss-beam" d="M ${s1},${e1} L ${s2},${e2} L ${s2},${e2 + th} L ${s1},${e1 + th} Z"/>`);
     }));
     x += 8;
