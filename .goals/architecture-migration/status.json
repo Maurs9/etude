@@ -26,6 +26,11 @@
       "iteration": 4,
       "verdict": "FAIL",
       "summary": "The strict gate excludes a renamed JavaScript runtime; real views, audio, theory, and notation ownership and matching docs remain incomplete."
+    },
+    {
+      "iteration": 2,
+      "verdict": "FAIL",
+      "summary": "The actual views runtime remains unchecked JavaScript, pure theory and raw OSMD operations remain in views, boundary tests are insufficient, and the full built suite failed."
     }
   ]
 }
