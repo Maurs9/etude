@@ -23,30 +23,55 @@ function runtimeErrorMessage(value: unknown): string {
   return value instanceof Error ? value.message : String(value);
 }
 
+/** The parts of Web Bluetooth the BLE-MIDI link uses (not yet in TypeScript's DOM library). */
+interface BleValueEvent { readonly target: BleMidiCharacteristic }
+interface BleMidiCharacteristic {
+  readonly value?: DataView;
+  startNotifications(): Promise<unknown>;
+  stopNotifications(): Promise<unknown>;
+  addEventListener(type: 'characteristicvaluechanged', listener: (event: BleValueEvent) => void): void;
+  removeEventListener(type: 'characteristicvaluechanged', listener: (event: BleValueEvent) => void): void;
+}
+interface BleGattServer {
+  getPrimaryService(uuid: string): Promise<{ getCharacteristic(uuid: string): Promise<BleMidiCharacteristic> }>;
+}
+interface BleDisconnectEvent { readonly target: BleMidiDevice | null }
+interface BleMidiDevice {
+  readonly id: string;
+  readonly name?: string;
+  readonly gatt?: { readonly connected: boolean; connect(): Promise<BleGattServer>; disconnect(): void };
+  addEventListener(type: 'gattserverdisconnected', listener: (event: BleDisconnectEvent) => void): void;
+  removeEventListener(type: 'gattserverdisconnected', listener: (event: BleDisconnectEvent) => void): void;
+}
+/** Chromium's install prompt event (not in TypeScript's DOM library). */
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<unknown>;
+  readonly userChoice: Promise<{ outcome: string }>;
+}
+
 declare global {
   interface Navigator {
     bluetooth?: {
-      requestDevice(options?: Record<string, unknown>): Promise<{
-        gatt?: {
-          connect(): Promise<{
-            getPrimaryService(uuid: string): Promise<{
-              getCharacteristic(uuid: string): Promise<{
-                startNotifications(): Promise<void>;
-                addEventListener(type: 'characteristicvaluechanged', listener: (event: Event & { target: EventTarget & { value?: DataView } }) => void): void;
-                writeValue(value: ArrayBuffer): Promise<void>;
-              }>;
-            }>;
-          }>;
-        };
-        name?: string;
-        addEventListener(type: string, listener: (event: Event) => void): void;
-      }>;
+      requestDevice(options?: Record<string, unknown>): Promise<BleMidiDevice>;
+      getDevices?(): Promise<BleMidiDevice[]>;
     };
     keyboard?: {
       lock?(keys?: string[]): Promise<void>;
       unlock?(): void;
+      getLayoutMap?(): Promise<{ get(code: string): string | undefined }>;
     };
     standalone?: boolean;
+  }
+  interface WindowEventMap {
+    beforeinstallprompt: InstallPromptEvent;
+  }
+  interface HTMLSelectElement {
+    /** Set once the runtime has filled a lazily populated `<select>`. */
+    _filled?: boolean;
+  }
+  interface HTMLButtonElement {
+    /** A piano key held down with Space or Enter. */
+    _kd?: boolean;
   }
 }
 
@@ -63,15 +88,19 @@ const pianoUrls: Record<number, string> = Object.fromEntries(
     url,
   ]),
 ) as Record<number, string>;
-type LocaleStrings = Record<AppLanguage, Record<string, string>>;
+/** Every interface language the shell offers; `AppLanguage` names only the two with full lesson content. */
+type RuntimeLanguage = AppLanguage | 'es' | 'fr' | 'de' | 'it' | 'pt-BR';
+const RUNTIME_LANGUAGES: readonly RuntimeLanguage[] = ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'];
+function isRuntimeLanguage(value: unknown): value is RuntimeLanguage { return RUNTIME_LANGUAGES.some((l) => l === value); }
+type LocaleStrings = Record<string, Record<string, string>>;
 type MusicTranslations = {
-  intervals: Record<AppLanguage, Record<string, string>>;
-  scales: Record<AppLanguage, Record<string, string>>;
-  chords: Record<AppLanguage, Record<string, string>>;
-  categories: Record<AppLanguage, Record<string, string>>;
-  inversions: Record<AppLanguage, Record<string, string>>;
-  feels: Record<AppLanguage, Record<string, string>>;
-  songs: Record<AppLanguage, Record<string, Record<string, string[]>>>;
+  intervals: Record<string, Record<string, string>>;
+  scales: Record<string, Record<string, string>>;
+  chords: Record<string, Record<string, string>>;
+  categories: Record<string, Record<string, string>>;
+  inversions: Record<string, Record<string, string>>;
+  feels: Record<string, Record<string, string>>;
+  songs: Record<string, Record<string, Record<string, string[]>>>;
 };
 type LessonCopy = { t: string; b: string };
 type Lesson = { id: string; icon: string; en: LessonCopy; ro: LessonCopy };
@@ -86,8 +115,12 @@ type AccompanimentPattern = {
   beats: number;
   en: string;
   ro: string;
+  es?: string;
+  fr?: string;
+  de?: string;
+  it?: string;
+  'pt-BR'?: string;
   gen(events: AccompanimentEvent[], beat: number, chord: AccompanimentChord): void;
-  [language: string]: string | number | ((events: AccompanimentEvent[], beat: number, chord: AccompanimentChord) => void);
 };
 /**
  * Behaviour-preserving browser runtime for the typed view boundary in
@@ -95,10 +128,10 @@ type AccompanimentPattern = {
  * browser-only compatibility remains local to this module.
  */
 "use strict";
-const STRINGS = locale.STRINGS as LocaleStrings;
+const STRINGS: LocaleStrings = locale.STRINGS;
 const I18N_MUSIC = locale.I18N_MUSIC as MusicTranslations;
-const STEP_LABELS = locale.STEP_LABELS as Record<AppLanguage, Record<string, string>>;
-const LOCALE_TAGS = locale.LOCALE_TAGS as Record<AppLanguage, string>;
+const STEP_LABELS = locale.STEP_LABELS as Record<string, Record<string, string>>;
+const LOCALE_TAGS: Record<string, string> = locale.LOCALE_TAGS;
 const LESSONS = content.LESSONS as unknown as Lesson[];
 const LEARN_UNITS = content.LEARN_UNITS as unknown as LearnUnit[];
 const LQZ = content.LQZ as unknown as Record<string, QuizQuestion[]>;
@@ -142,7 +175,7 @@ function applyTheme() {
     const dark = theme === 'dark' || (theme === 'auto' && themeMQ && themeMQ.matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     (document).querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', dark ? '#171412' : '#f7f3ec')); // browser/app bar follows the chosen theme
-    (document).querySelectorAll('#set-theme button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === theme ? 'true' : 'false'));
+    queryAllHtml(document, '#set-theme button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === theme ? 'true' : 'false'));
 }
 if (themeMQ && themeMQ.addEventListener)
     themeMQ.addEventListener('change', () => { if (theme === 'auto')
@@ -153,9 +186,9 @@ const INTERVALS: IntervalDefinition[] = [
     { semi: 7, name: 'Perfect 5th', short: 'P5' }, { semi: 8, name: 'Minor 6th', short: 'm6' }, { semi: 9, name: 'Major 6th', short: 'M6' },
     { semi: 10, name: 'Minor 7th', short: 'm7' }, { semi: 11, name: 'Major 7th', short: 'M7' }, { semi: 12, name: 'Octave', short: 'P8' },
 ];
-const COMPOUND = { 1: 'Minor 2nd', 2: 'Major 2nd', 3: 'Minor 3rd', 4: 'Major 3rd', 5: 'Perfect 4th', 6: 'Tritone', 7: 'Perfect 5th', 8: 'Minor 6th', 9: 'Major 6th', 10: 'Minor 7th', 11: 'Major 7th', 12: 'Octave', 13: 'Minor 9th', 14: 'Major 9th', 15: 'Minor 10th', 16: 'Major 10th', 17: 'Perfect 11th', 18: 'Augmented 11th', 19: 'Perfect 12th', 20: 'Minor 13th', 21: 'Major 13th', 22: 'Minor 14th', 23: 'Major 14th', 24: 'Two octaves' };
+const COMPOUND: Record<number, string> = { 1: 'Minor 2nd', 2: 'Major 2nd', 3: 'Minor 3rd', 4: 'Major 3rd', 5: 'Perfect 4th', 6: 'Tritone', 7: 'Perfect 5th', 8: 'Minor 6th', 9: 'Major 6th', 10: 'Minor 7th', 11: 'Major 7th', 12: 'Octave', 13: 'Minor 9th', 14: 'Major 9th', 15: 'Minor 10th', 16: 'Major 10th', 17: 'Perfect 11th', 18: 'Augmented 11th', 19: 'Perfect 12th', 20: 'Minor 13th', 21: 'Major 13th', 22: 'Minor 14th', 23: 'Major 14th', 24: 'Two octaves' };
 const RO_IV = COMPOUND;
-const SONGS = {
+const SONGS: Record<number, Record<string, string[]>> = {
     1: { asc: ['Jaws (theme)', 'Stormy Weather'], desc: ['Für Elise'] },
     2: { asc: ['Happy Birthday', 'Frère Jacques', 'Silent Night'], desc: ['Mary Had a Little Lamb', 'Three Blind Mice', 'Yesterday'] },
     3: { asc: ['Greensleeves', 'Smoke on the Water'], desc: ['Hey Jude', 'This Old Man', 'Star-Spangled Banner'] },
@@ -171,7 +204,7 @@ const SONGS = {
 };
 const SCALES = SCALE_DEFINITIONS;
 const CHORDS = CHORD_TEMPLATES;
-const CHORD_FEEL = { maj: 'bright, resolved', m: 'darker, melancholy', dim: 'tense, unstable', aug: 'dreamlike', sus2: 'open, airy', sus4: 'suspended', maj7: 'lush, jazzy', '7': 'bluesy, wants to resolve', m7: 'smooth, mellow', 'm7♭5': 'dark, cinematic', dim7: 'very tense', mMaj7: 'noir', 6: 'sweet, vintage', m6: 'wistful', '9': 'funky', maj9: 'dreamy', m9: 'soulful' };
+const CHORD_FEEL: Record<string, string> = { maj: 'bright, resolved', m: 'darker, melancholy', dim: 'tense, unstable', aug: 'dreamlike', sus2: 'open, airy', sus4: 'suspended', maj7: 'lush, jazzy', '7': 'bluesy, wants to resolve', m7: 'smooth, mellow', 'm7♭5': 'dark, cinematic', dim7: 'very tense', mMaj7: 'noir', 6: 'sweet, vintage', m6: 'wistful', '9': 'funky', maj9: 'dreamy', m9: 'soulful' };
 const INV_NAMES = ['root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion'];
 const SCALE_DEG = SCALE_DEGREE_LABELS;
 const CHORD_DEG = CHORD_DEGREE_LABELS;
@@ -212,23 +245,30 @@ for (const [k, obj] of Object.entries(ACCOMP_I18N)) {
 }
 const CIRCLE = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
 /* ---------- i18n ---------- */
-let lang: AppLanguage = 'en';
+let lang: RuntimeLanguage = 'en';
 function ivName(semi: number) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
     return d[semi]; return (INTERVALS.find((x) => x.semi === semi) || {}).name || COMPOUND[semi] || '?'; }
 function scaleDisp(n: string) { const d = I18N_MUSIC.scales[lang]; return (d && d[n]) || n; }
-function chordDisp(c: theory.ChordTemplate|undefined) { const sym = typeof c === 'string' ? c : c.symbol, name = typeof c === 'string' ? c : c.name, d = I18N_MUSIC.chords[lang]; return (d && d[sym]) || name; }
-function catLabel(cat: string) { const d = I18N_MUSIC.categories[lang]; return (d && d[cat]) || (CATS[cat] && CATS[cat].label) || cat; }
+function chordDisp(c: theory.ChordTemplate|string|undefined) { if (c === undefined)
+    throw new TypeError('chordDisp: missing chord'); const sym = typeof c === 'string' ? c : c.symbol, name = typeof c === 'string' ? c : c.name, d = I18N_MUSIC.chords[lang]; return (d && d[sym]) || name; }
+function isCatKey(cat: string): cat is keyof typeof CATS { return cat in CATS; }
+function catLabel(cat: string) { const d = I18N_MUSIC.categories[lang]; return (d && d[cat]) || (isCatKey(cat) && CATS[cat] && CATS[cat].label) || cat; }
 function invName(i: number) { const d = I18N_MUSIC.inversions[lang]; return (d && d[i]) || INV_NAMES[i] || ''; }
 function feelDisp(sym: string|number) { const d = I18N_MUSIC.feels[lang]; return (d && d[sym]) || CHORD_FEEL[sym] || ''; }
-function itemLabel(it: { cat: string; semi: any; ref: { name: any; }; name: any; }) { return it.cat === 'interval' ? ivName(it.semi) : it.cat === 'chord' ? chordDisp(it.ref) : it.cat === 'scale' ? scaleDisp(it.name) : it.ref.name; }
+type TrainingItemLabelSource = { cat: string; semi?: number; ref?: theory.ChordTemplate | theory.ProgressionTemplate; name?: string };
+function itemLabel(it: TrainingItemLabelSource) { if (it.cat === 'interval')
+    return ivName(Number(it.semi)); if (it.cat === 'chord')
+    return chordDisp(it.ref && 'symbol' in it.ref ? it.ref : undefined); if (it.cat === 'scale')
+    return scaleDisp(String(it.name)); if (!it.ref)
+    throw new TypeError('itemLabel: item has no reference'); return it.ref.name; }
 function songsFor(semi: number, dir: string) { const src = (I18N_MUSIC.songs && I18N_MUSIC.songs[lang]) || SONGS; return (src[semi] || {})[dir] || []; }
 /* V3 pages: strings for Today plan, Learn progress, Songs ear check, Progress, a11y labels */
 /* V5: highlight toggle and contextual coaching (Reading focus · What to notice · Next step). %a %b %c are filled by tf(). */
 /* Bluetooth MIDI, answering by ear on the keys, rhythm lengths & two hands, installed app & screen */
 function applyI18n() {
-    (document).querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
-    (document).querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
-    (document).querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+    queryAllHtml(document, '[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n ?? ''); });
+    queryAllHtml(document, '[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria ?? '')); });
+    queryAllHtml(document, '[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle ?? ''); });
     if (!activeInputId) {
         midiMsg = null;
         const ss = byId('set-midi-status');
@@ -245,9 +285,11 @@ function applyI18n() {
     fsUi();
 }
 function setLang(l: string|undefined) {
+    if (!isRuntimeLanguage(l))
+        return;
     lang = l;
     viewState.language = lang;
-    (document).querySelectorAll('#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === l ? 'true' : 'false'));
+    queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === l ? 'true' : 'false'));
     applyI18n();
     const rr = selectById('refRoot').value, kc = selectById('keyCtx').value, sr = selectById('song-root').value, pk = selectById('pr-key').value, rn = selectById('refName').value; // re-fill selects so "All keys"/"none"/scale names re-localise
     fillRoots(byId('refRoot'), false);
@@ -261,14 +303,14 @@ function setLang(l: string|undefined) {
     selectById('keyCtx').value = String(kc || '-1');
     if (rn)
         selectById('refName').value = rn;
-    const ssc = byId('tr-sscale');
+    const ssc = selectById('tr-sscale');
     if (ssc && ssc._filled) {
         const v = ssc.value;
         ssc.innerHTML = '';
         Object.keys(SCALES).forEach((nm) => { const o = (document).createElement('option'); o.value = nm; o.textContent = scaleDisp(nm); ssc.appendChild(o); });
         ssc.value = v || 'Major (Ionian)';
     }
-    const ap = byId('ac-pat');
+    const ap = selectById('ac-pat');
     if (ap && ap._filled) {
         const v = ap.value;
         ap.innerHTML = '';
@@ -305,14 +347,14 @@ const pc = pitchClass;
 const isFlatKey = (p: number) => [3, 5, 8, 10].includes(((p % 12) + 12) % 12);
 const rootName = (p: number) => NOTE_SYS[notation].root[((p % 12) + 12) % 12];
 function pcName(p: number, flat: boolean) { return (flat ? NOTE_SYS[notation].flat : NOTE_SYS[notation].sharp)[((p % 12) + 12) % 12]; }
-function noteName(m: unknown, flat: boolean) { return pcName(pc(m), flat) + (Math.floor(m / 12) - 1); }
-function setEq(a: string|any[], b: string|any[]) { if (a.length !== b.length)
+function noteName(m: number, flat: boolean) { return pcName(pc(m), flat) + (Math.floor(m / 12) - 1); }
+function setEq<T>(a: ArrayLike<T>, b: ArrayLike<T>) { if (a.length !== b.length)
     return false; for (let i = 0; i < a.length; i++)
     if (a[i] !== b[i])
         return false; return true; }
-function isSubset(a: any[], b: string|any[]) { return a.every((x: any) => b.includes(x)); }
-function randItem(a: string|any[]) { return a[Math.floor(Math.random() * a.length)]; }
-function shuffle(a: string|any[]) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) {
+function isSubset<T>(a: readonly T[], b: readonly T[]) { return a.every((x) => b.includes(x)); }
+function randItem<T>(a: ArrayLike<T>) { return a[Math.floor(Math.random() * a.length)]; }
+function shuffle<T>(src: readonly T[]) { const a = src.slice(); for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
 } return a; }
@@ -326,7 +368,7 @@ const todayN = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFul
 // Web Audio construction and voice ownership live in the typed audio domain.
 const PIANO_KEYS = [21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96, 99, 102, 105, 108];
 const PIANO_URLS = pianoUrls;
-const PIANO_WARM = [48, 84];
+const PIANO_WARM: readonly [number, number] = [48, 84];
 const audioEngine = new AudioEngine({ pianoKeys: PIANO_KEYS, pianoUrls: PIANO_URLS, warmRange: PIANO_WARM, onPianoStatus: () => pianoStatus() });
 let actx: AudioContext|null = null;
 let master: GainNode|null = null;
@@ -371,7 +413,8 @@ function registerViewEvent<Name extends ViewEventName>(
 const liveVoices = audioEngine.liveVoices;
 let previewVoices = audioEngine.previewVoices;
 const pianoBank = audioEngine.pianoBank;
-const metro = { on: false, bpm: 90, next: 0, beat: 0, timer: null };
+interface MetronomeState { on: boolean; bpm: number; next: number; beat: number; timer: boolean | null }
+const metro: MetronomeState = { on: false, bpm: 90, next: 0, beat: 0, timer: null };
 function syncAudioState() {
     actx = audioEngine.context;
     master = audioEngine.master;
@@ -402,7 +445,7 @@ function pianoKeys() { return pianoBank.keys; }
 function pianoNearest(midi: number) { return pianoBank.keys.reduce((best, key) => Math.abs(key - midi) < Math.abs(best - midi) ? key : best, pianoBank.keys[0] ?? 60); }
 function pianoFail(error: unknown) { pianoBank.fail(error); }
 let pianoDecode = (key: number) => pianoBank.decode(key);
-function pianoEnsure(midis: unknown[]|readonly number[]) { return audioEngine.pianoEnsure(midis); }
+function pianoEnsure(midis: readonly number[]) { return audioEngine.pianoEnsure(midis); }
 function pianoIdleWarm() { pianoBank.warmIdle(); }
 let preparePiano = () => pianoBank.prepare(PIANO_WARM);
 let makePianoVoice = (frequency: number, velocity: number, when: number|undefined, duration: number|undefined) => audioEngine.makePianoVoice(frequency, velocity, when, duration);
@@ -424,6 +467,12 @@ function ensureAudio() {
     if (context) void preparePiano();
     return context;
 }
+/** The live audio context; callers run only after `ensureAudio()` has created it. */
+function requireAudioContext(): AudioContext {
+    if (!actx)
+        throw new Error('Étude: audio context is not ready');
+    return actx;
+}
 let audioLockT = 0;
 function audioLockSync() {
     if (!actx || actx.state !== 'running') return;
@@ -432,11 +481,11 @@ function audioLockSync() {
 }
 function audioLockCheck() {
     if (!localSynth || !actx || actx.state === 'running' || audioLockT) return;
-    audioLockT = setTimeout(() => { audioLockT = 0; const el = byId('audioLock'); if (el && localSynth && actx && actx.state !== 'running') el.hidden = false; }, 300);
+    audioLockT = window.setTimeout(() => { audioLockT = 0; const el = byId('audioLock'); if (el && localSynth && actx && actx.state !== 'running') el.hidden = false; }, 300);
 }
 function audioUnlock() { ensureAudio(); const context = actx; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
-function audioNoteOn(midi: number, velocity: any) { syncAudioState(); audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); syncAudioState(); }
-function audioNoteOff(midi: unknown) { audioEngine.noteOff(midi); syncAudioState(); }
+function audioNoteOn(midi: number, velocity: number|undefined) { syncAudioState(); audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); syncAudioState(); }
+function audioNoteOff(midi: number) { audioEngine.noteOff(midi); syncAudioState(); }
 function stopPreviews() { clearExplorePreview(); audioEngine.stopPreviews(); syncAudioState(); }
 function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); bendSemitones = audioEngine.bendSemitones; }
 function masterRamp(value: number) { audioEngine.masterRamp(value); syncAudioState(); }
@@ -446,22 +495,22 @@ function startMetro() { audioEngine.startMetro(metro.bpm); metro.on = true; metr
 function stopMetro() { audioEngine.stopMetro(); metro.on = false; metro.timer = null; }
 function metroSched() { audioEngine.startMetro(metro.bpm); }
 function metroClick(when: number, accent: boolean) { audioEngine.metroClick(when, accent); }
-let previewNote = function previewNote(midi: number, when: number|undefined, duration: number|undefined, velocity: number|undefined, options = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); syncAudioState(); }
-let playInterval = (rootMidi: number, semitones: number, style: string) => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); syncAudioState(); };
+let previewNote = function previewNote(midi: number, when?: number, duration?: number, velocity?: number, options: { warm?: boolean; hold?: boolean } = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); syncAudioState(); }
+let playInterval = (rootMidi: number, semitones: number, style: 'both' | 'harmonic' | 'melodic') => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); syncAudioState(); };
 function playIvDir(root: number, semitones: number, direction: string) { if (direction === 'desc') playInterval(root + semitones, -semitones, 'both'); else playInterval(root, semitones, 'both'); }
-function playChordMidis(midis: any[], arpeggio: boolean) {
+function playChordMidis(midis: number[], arpeggio: boolean) {
     ensureAudio(); stopPreviews();
-    exploreSequence(arpeggio ? midis.map((midi: any, index: number) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
+    exploreSequence(arpeggio ? midis.map((midi, index) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
     const start = actx?.currentTime ?? 0;
-    if (arpeggio) { midis.forEach((midi: any, index: number) => previewNote(midi, start + index * 0.16, 0.4)); midis.forEach((midi: any) => previewNote(midi, start + midis.length * 0.16 + 0.1, 1.1)); }
-    else midis.forEach((midi: any) => previewNote(midi, start, 1.2));
+    if (arpeggio) { midis.forEach((midi, index) => previewNote(midi, start + index * 0.16, 0.4)); midis.forEach((midi) => previewNote(midi, start + midis.length * 0.16 + 0.1, 1.1)); }
+    else midis.forEach((midi) => previewNote(midi, start, 1.2));
 }
-function playScaleNotes(rootMidi: number, offsets: any[]|readonly number[], ascending: boolean) {
+function playScaleNotes(rootMidi: number, offsets: readonly number[], ascending: boolean) {
     ensureAudio(); stopPreviews();
     const start = actx?.currentTime ?? 0; let sequence = offsets.concat([12]);
     if (!ascending) sequence = sequence.slice().reverse();
-    exploreSequence(sequence.map((offset: any, index: number) => ({ at: index * 270, notes: [rootMidi + offset] })).concat([{ at: sequence.length * 270, notes: [] }]));
-    sequence.forEach((offset: any, index: number) => previewNote(rootMidi + offset, start + index * 0.27, 0.26));
+    exploreSequence(sequence.map((offset, index) => ({ at: index * 270, notes: [rootMidi + offset] })).concat([{ at: sequence.length * 270, notes: [] }]));
+    sequence.forEach((offset, index) => previewNote(rootMidi + offset, start + index * 0.27, 0.26));
 }
 const droneVoices = audioEngine.droneVoices;
 const TONES = { soft: { w: ['triangle', 'sawtooth', 'sawtooth'], cut: 6 }, bright: { w: ['sawtooth', 'sawtooth', 'square'], cut: 9 }, organ: { w: ['sine', 'sine', 'sine'], cut: 14, oct: [0, 1200, 1902] }, mellow: { w: ['sine', 'triangle', 'sine'], cut: 3.2 }, glass: { w: ['sine', 'triangle', 'square'], cut: 11 } };
@@ -469,10 +518,14 @@ let _noiseBuf: null = null;
 function noiseBuffer() { return _noiseBuf; }
 function makeIR() { return null; }
 /* ---------- ACCOMPANIMENT LOOP ---------- */
-const accomp = { on: false, progIdx: 0, key: 0, pattern: 'block', bpm: 90, hands: 'both', click: false, timer: null, hlTimers: [], built: null, beatSec: .5, loopDur: 0, nextLoop: 0 };
-function accompVoicing(ch: any[]|readonly [number,string,string]) {
+interface AccompanimentBuild { events: AccompanimentEvent[]; beatsTotal: number }
+interface AccompanimentState { on: boolean; progIdx: number; key: number; pattern: string; bpm: number; hands: string; click: boolean; timer: number | null; hlTimers: number[]; built: AccompanimentBuild | null; beatSec: number; loopDur: number; nextLoop: number }
+const accomp: AccompanimentState = { on: false, progIdx: 0, key: 0, pattern: 'block', bpm: 90, hands: 'both', click: false, timer: null, hlTimers: [], built: null, beatSec: .5, loopDur: 0, nextLoop: 0 };
+function accompVoicing(ch: readonly [number, string, string]) {
     const rootPc = (((accomp.key + ch[0]) % 12) + 12) % 12;
     const tpl = progChordTpl(ch[1]) || progChordTpl('maj');
+    if (!tpl)
+        throw new Error('Étude: no major chord template');
     const ivs = tpl.intervals.filter((i) => i < 24);
     let rRoot = 60 + rootPc;
     if (rRoot > 71)
@@ -488,12 +541,12 @@ function buildAccomp() {
     prog.chords.forEach((ch) => { pat.gen(ev, beat, accompVoicing(ch)); beat += pat.beats; });
     return { events: ev, beatsTotal: beat };
 }
-function accompTimer(fn: { (): void; (): void; (): void; (): void; }, ms: number) {
-    const id = setTimeout(() => { const i = accomp.hlTimers.indexOf(id); if (i >= 0)
+function accompTimer(fn: () => void, ms: number) {
+    const id = window.setTimeout(() => { const i = accomp.hlTimers.indexOf(id); if (i >= 0)
         accomp.hlTimers.splice(i, 1); fn(); }, Math.max(0, ms));
     accomp.hlTimers.push(id);
 }
-function accompHL(midi: any, st: string, onMs: number, offMs: number) {
+function accompHL(midi: number, st: string, onMs: number, offMs: number) {
     accompTimer(() => { if (accomp.on)
         kbState(midi, st, true); }, onMs);
     accompTimer(() => { if (!accomp.on)
@@ -501,19 +554,21 @@ function accompHL(midi: any, st: string, onMs: number, offMs: number) {
         kbState(midi, null, true); }, offMs);
 }
 function scheduleAccompAt(t0: number) {
-    const bs = accomp.beatSec;
-    accomp.built.events.forEach((e: { hand: string; beat: number; durB: number; midi: any; }) => {
+    const bs = accomp.beatSec, built = accomp.built;
+    if (!built)
+        return;
+    built.events.forEach((e) => {
         if (accomp.hands !== 'both' && e.hand !== (accomp.hands === 'left' ? 'L' : 'R'))
             return;
         const when = t0 + e.beat * bs, dur = Math.max(.12, e.durB * bs * 0.95);
         previewNote(e.midi, when, dur, e.hand === 'L' ? 78 : 98);
-        const onMs = (when - actx.currentTime) * 1000;
+        const onMs = (when - requireAudioContext().currentTime) * 1000;
         accompHL(e.midi, e.hand === 'L' ? 'lh' : 'rh', onMs, onMs + Math.min(dur, 1.05) * 1000);
     });
-    const n = (ACCOMP_PROGS[accomp.progIdx] || ACCOMP_PROGS[0]).chords.length, per = accomp.built.beatsTotal / Math.max(1, n);
+    const n = (ACCOMP_PROGS[accomp.progIdx] || ACCOMP_PROGS[0]).chords.length, per = built.beatsTotal / Math.max(1, n);
     for (let i = 0; i < n; i++)
         accompTimer(() => { if (accomp.on)
-            acChainHL(i); }, (t0 + i * per * bs - actx.currentTime) * 1000);
+            acChainHL(i); }, (t0 + i * per * bs - requireAudioContext().currentTime) * 1000);
 }
 function acChainHL(i: number) { (document).querySelectorAll('#ac-chain .ch').forEach((el, k) => el.classList.toggle('on', k === i)); }
 function accompTick() { if (!accomp.on || !actx)
@@ -525,22 +580,22 @@ function accompStart() {
     ensureAudio();
     accompStop(true);
     accomp.on = true;
-    accomp.built = buildAccomp();
+    const built = accomp.built = buildAccomp();
     accomp.beatSec = 60 / accomp.bpm;
-    accomp.loopDur = accomp.built.beatsTotal * accomp.beatSec;
+    accomp.loopDur = built.beatsTotal * accomp.beatSec;
     if (accomp.loopDur <= 0) {
         accomp.on = false;
         return;
     }
-    accomp.nextLoop = actx.currentTime + 0.18;
+    accomp.nextLoop = requireAudioContext().currentTime + 0.18;
     if (accomp.click) {
         metro.bpm = accomp.bpm;
         startMetro();
     }
-    accomp.timer = setInterval(accompTick, 40);
+    accomp.timer = window.setInterval(accompTick, 40);
     accompTick();
 }
-function accompStop(silent: boolean|undefined) {
+function accompStop(silent?: boolean) {
     accomp.on = false;
     if (accomp.timer) {
         clearInterval(accomp.timer);
@@ -558,9 +613,12 @@ function accompStop(silent: boolean|undefined) {
         pb.textContent = t('ac_play');
 }
 /* ---------- TRANSCRIBE (hum → notes) ---------- */
-const trx = { on: false, pending: false, micRequest: 0, stream: null, src: null, analyser: null, buf: null, raf: 0, notes: [], display: null, curMidi: null, curStart: 0, lastVoice: 0, ring: [], hlTimers: [] };
+interface TranscribeNote { midi: number; start: number; dur: number }
+interface TranscribeDisplayNote { midi: number; sb: number; db: number; label: string }
+interface TranscribeState { on: boolean; pending: boolean; micRequest: number; stream: MediaStream | null; src: MediaStreamAudioSourceNode | null; analyser: AnalyserNode | null; buf: Float32Array<ArrayBuffer> | null; raf: number; notes: TranscribeNote[]; display: TranscribeDisplayNote[] | null; curMidi: number | null; curStart: number; lastVoice: number; ring: number[]; hlTimers: number[]; bpm?: number }
+const trx: TranscribeState = { on: false, pending: false, micRequest: 0, stream: null, src: null, analyser: null, buf: null, raf: 0, notes: [], display: null, curMidi: null, curStart: 0, lastVoice: 0, ring: [], hlTimers: [] };
 function trxFreqToMidi(f: number) { return Math.round(69 + 12 * Math.log2(f / 440)); }
-function trxAutoCorrelate(buf: number[]|null, sr: number) {
+function trxAutoCorrelate(buf: Float32Array, sr: number) {
     let SIZE = buf.length, rms = 0;
     for (let i = 0; i < SIZE; i++)
         rms += buf[i] * buf[i];
@@ -640,8 +698,8 @@ async function trxStart()  {
         return;
     }
     byId('tr-msg').textContent = '';
-    trx.src = actx.createMediaStreamSource(trx.stream);
-    trx.analyser = actx.createAnalyser();
+    trx.src = requireAudioContext().createMediaStreamSource(trx.stream);
+    trx.analyser = requireAudioContext().createAnalyser();
     trx.analyser.fftSize = 2048;
     trx.buf = new Float32Array(trx.analyser.fftSize);
     trx.src.connect(trx.analyser); // not connected to destination → no feedback
@@ -650,7 +708,7 @@ async function trxStart()  {
     trx.display = null;
     trx.curMidi = null;
     trx.ring = [];
-    trx.lastVoice = actx.currentTime;
+    trx.lastVoice = requireAudioContext().currentTime;
     byId('tr-rec').classList.add('rec-on');
     byId('tr-rec').textContent = t('tr_stop');
     byId('tr-live').classList.add('rec');
@@ -665,8 +723,10 @@ function trxCloseNote(tEnd: number) { if (trx.curMidi == null)
 function trxLoop() {
     if (!trx.on)
         return;
+    if (!trx.analyser || !trx.buf)
+        return;
     trx.analyser.getFloatTimeDomainData(trx.buf);
-    const f = trxAutoCorrelate(trx.buf, actx.sampleRate), now = actx.currentTime;
+    const f = trxAutoCorrelate(trx.buf, requireAudioContext().sampleRate), now = requireAudioContext().currentTime;
     if (f < 0) {
         if (trx.curMidi != null && now - trx.lastVoice > 0.12) {
             trxCloseNote(now);
@@ -714,7 +774,7 @@ function trxStop() {
         trx.src = null;
     }
     if (trx.stream) {
-        trx.stream.getTracks().forEach((t: { stop: () => any; }) => t.stop());
+        trx.stream.getTracks().forEach((t) => t.stop());
         trx.stream = null;
     }
     byId('tr-rec').classList.remove('rec-on');
@@ -761,8 +821,8 @@ function trxRender() {
         }
         return { midi: trxSnap(n.midi), sb, db, label: quant ? trxDurLabel(db) : '' };
     });
-    const maxDb = Math.max(...trx.display.map((n: { db: any; }) => n.db));
-    trx.display.forEach((n: { db: number; midi: any; label: string; }) => {
+    const maxDb = Math.max(...trx.display.map((n) => n.db));
+    trx.display.forEach((n) => {
         const w = Math.max(16, Math.round(120 * n.db / maxDb));
         const el = (document).createElement('div');
         el.className = 'tr-note';
@@ -778,25 +838,27 @@ function trxPlay() {
     stopPreviews();
     trx.hlTimers.forEach(clearTimeout);
     trx.hlTimers = [];
-    const beatSec = 60 / (trx.bpm || 90), t0 = actx.currentTime + 0.12;
-    trx.display.forEach((n: { sb: number; db: number; midi: any; }) => {
-        const when = t0 + n.sb * beatSec, dur = Math.max(0.12, n.db * beatSec * 0.95), onMs = (when - actx.currentTime) * 1000;
+    const beatSec = 60 / (trx.bpm || 90), t0 = requireAudioContext().currentTime + 0.12;
+    trx.display.forEach((n) => {
+        const when = t0 + n.sb * beatSec, dur = Math.max(0.12, n.db * beatSec * 0.95), onMs = (when - requireAudioContext().currentTime) * 1000;
         previewNote(n.midi, when, dur, 100);
-        trx.hlTimers.push(setTimeout(() => kbState(n.midi, 'rh', true), Math.max(0, onMs)));
-        trx.hlTimers.push(setTimeout(() => { const el = keyEl.get(foldToView(n.midi)); if (el && el.dataset.s === 'rh')
+        trx.hlTimers.push(window.setTimeout(() => kbState(n.midi, 'rh', true), Math.max(0, onMs)));
+        trx.hlTimers.push(window.setTimeout(() => { const el = keyEl.get(foldToView(n.midi)); if (el && el.dataset.s === 'rh')
             kbState(n.midi, null, true); }, Math.max(0, onMs + Math.min(dur, 1.0) * 1000)));
     });
 }
 /* MIDI / text export */
-function trxPushVar(arr: any[], v: number) { v = Math.max(0, Math.round(v)); const b = [v & 0x7F]; v >>= 7; while (v > 0) {
+function trxPushVar(arr: number[], v: number) { v = Math.max(0, Math.round(v)); const b = [v & 0x7F]; v >>= 7; while (v > 0) {
     b.unshift((v & 0x7F) | 0x80);
     v >>= 7;
 } b.forEach((x) => arr.push(x)); }
 function trxBuildMidi() {
-    const TPQN = 480, bpm = trx.bpm || 90, ev: { t: number; k: number; m: any; }[] = [];
-    trx.display.forEach((n: { sb: number; db: number; midi: any; }) => { const on = Math.round(n.sb * TPQN), off = on + Math.max(1, Math.round(n.db * TPQN)); ev.push({ t: on, k: 1, m: n.midi }); ev.push({ t: off, k: 0, m: n.midi }); });
+    const TPQN = 480, bpm = trx.bpm || 90, ev: { t: number; k: number; m: number; }[] = [];
+    if (!trx.display)
+        throw new Error('Étude: no transcription to export');
+    trx.display.forEach((n) => { const on = Math.round(n.sb * TPQN), off = on + Math.max(1, Math.round(n.db * TPQN)); ev.push({ t: on, k: 1, m: n.midi }); ev.push({ t: off, k: 0, m: n.midi }); });
     ev.sort((a, b) => a.t - b.t || a.k - b.k);
-    const trk: ArrayLike<number> = [], mpqn = Math.round(60000000 / bpm);
+    const trk: number[] = [], mpqn = Math.round(60000000 / bpm);
     trxPushVar(trk, 0);
     trk.push(0xFF, 0x51, 0x03, (mpqn >> 16) & 255, (mpqn >> 8) & 255, mpqn & 255);
     let last = 0;
@@ -815,16 +877,16 @@ function trxDownload(name: string, blob: Blob|MediaSource) { const url = URL.cre
 function trxExportMidi() { if (!trx.display || !trx.display.length)
     return; trxDownload('etude-melody.mid', new Blob([trxBuildMidi()], { type: 'audio/midi' })); }
 function trxExportTxt() { if (!trx.display || !trx.display.length)
-    return; const txt = 'Étude — melody\nTempo: ' + (trx.bpm || 90) + ' BPM\n\nNote\tValue\n' + trx.display.map((n: { midi: any; label: any; }) => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
+    return; const txt = 'Étude — melody\nTempo: ' + (trx.bpm || 90) + ' BPM\n\nNote\tValue\n' + trx.display.map((n) => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
 function trxClear() { trxStop(); trx.notes = []; trx.display = null; trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; kbClear('rh'); byId('tr-out').innerHTML = ''; byId('tr-actions').style.display = 'none'; byId('tr-msg').textContent = ''; }
 function renderTranscribe() {
-    const ks = byId('tr-skey');
+    const ks = selectById('tr-skey');
     if (ks) {
         const v = ks.value;
         fillRoots(ks, false);
         ks.value = String(v || 0);
     }
-    const ss = byId('tr-sscale');
+    const ss = selectById('tr-sscale');
     if (ss && !ss._filled) {
         Object.keys(SCALES).forEach((nm) => { const o = (document).createElement('option'); o.value = nm; o.textContent = scaleDisp(nm); ss.appendChild(o); });
         ss._filled = true;
@@ -836,8 +898,8 @@ function renderTranscribe() {
    ============================================================================ */
 const SS_LETSEMI = [0, 2, 4, 5, 7, 9, 11];
 const SS_SYL_MAJ = ['do', 're', 'mi', 'fa', 'sol', 'la', 'ti'], SS_SYL_MIN = ['la', 'ti', 'do', 're', 'mi', 'fa', 'sol'];
-const SS_MAJ = { 0: { r: 0, n: 0 }, 7: { r: 4, n: 1 }, 2: { r: 1, n: 2 }, 9: { r: 5, n: 3 }, 4: { r: 2, n: 4 }, 11: { r: 6, n: 5 }, 5: { r: 3, n: -1 }, 10: { r: 6, n: -2 }, 3: { r: 2, n: -3 }, 8: { r: 5, n: -4 }, 1: { r: 1, n: -5 } };
-const SS_MIN = { 9: 5, 4: 2, 2: 1, 11: 6, 7: 4, 0: 0, 5: 3 }; // minor tonic pc -> tonic letter index
+const SS_MAJ: Record<number, { r: number; n: number }> = { 0: { r: 0, n: 0 }, 7: { r: 4, n: 1 }, 2: { r: 1, n: 2 }, 9: { r: 5, n: 3 }, 4: { r: 2, n: 4 }, 11: { r: 6, n: 5 }, 5: { r: 3, n: -1 }, 10: { r: 6, n: -2 }, 3: { r: 2, n: -3 }, 8: { r: 5, n: -4 }, 1: { r: 1, n: -5 } };
+const SS_MIN: Record<number, number> = { 9: 5, 4: 2, 2: 1, 11: 6, 7: 4, 0: 0, 5: 3 }; // minor tonic pc -> tonic letter index
 const SS_SHARP_ORDER = [3, 0, 4, 1, 5, 2, 6], SS_FLAT_ORDER = [6, 2, 5, 1, 4, 0, 3];
 function ssKeyAcc(n: number) { const a = [0, 0, 0, 0, 0, 0, 0]; if (n > 0)
     for (let i = 0; i < n; i++)
@@ -847,7 +909,10 @@ else
         a[SS_FLAT_ORDER[i]] = -1; return a; }
 function ssStepOf(li: number, oct: number) { return oct * 7 + li; }
 function ssMidiOf(li: number, oct: number, acc: number) { return (oct + 1) * 12 + SS_LETSEMI[li] + (acc || 0); }
-const SS_LEVELS = [
+interface SightSingLevel { name: string; degs: number[]; durs: number[]; ts: number[][]; bars: number; keys: number[]; step: number; bpm: number; octaveUp?: boolean; minor?: boolean; raise7?: number }
+interface SightSingNote { li: number; oct: number; acc: number; dur: number; p: number; midi: number; tBeat: number }
+interface SightSingExercise { clef: string; keyPc: number; minor: boolean; keyN: number; ts: number[]; cap: number; measures: SightSingNote[][]; bpm: number; level: number; totalBeats: number; syl: string[]; tonicMidi: number }
+const SS_LEVELS: SightSingLevel[] = [
     { name: 'sol–mi', degs: [2, 4], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.85, bpm: 72 },
     { name: '+ la', degs: [2, 4, 5], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.8, bpm: 74 },
     { name: 'pentatonic', degs: [0, 1, 2, 4, 5], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7], step: 0.78, bpm: 76 },
@@ -856,10 +921,10 @@ const SS_LEVELS = [
     { name: 'minor keys', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [9, 4, 2], step: 0.7, bpm: 80, minor: true, raise7: 0.5, octaveUp: true },
     { name: 'rhythm & meter', degs: [0, 1, 2, 3, 4, 5, 6], durs: [2, 1.5, 1, 0.5], ts: [[4, 4], [3, 4], [6, 8]], bars: 4, keys: [0, 7, 5, 2, 10], step: 0.62, bpm: 84, octaveUp: true },
 ];
-function ssPick(a: string|any[]) { return a[Math.floor(Math.random() * a.length)]; }
-function ssNextDeg(prev: number, allowed: any[], step: number) {
-    const w = allowed.map((p: number) => { const d = Math.abs(p - prev); return (d === 0 ? 0.12 : d <= 1 ? step : d <= 2 ? (1 - step) * 0.6 : (1 - step) * 0.3) + 0.01; });
-    let tot = w.reduce((a: any, b: any) => a + b, 0), r = Math.random() * tot;
+function ssPick<T>(a: ArrayLike<T>) { return a[Math.floor(Math.random() * a.length)]; }
+function ssNextDeg(prev: number, allowed: number[], step: number) {
+    const w = allowed.map((p) => { const d = Math.abs(p - prev); return (d === 0 ? 0.12 : d <= 1 ? step : d <= 2 ? (1 - step) * 0.6 : (1 - step) * 0.3) + 0.01; });
+    let tot = w.reduce((a, b) => a + b, 0), r = Math.random() * tot;
     for (let i = 0; i < allowed.length; i++) {
         r -= w[i];
         if (r <= 0)
@@ -867,14 +932,14 @@ function ssNextDeg(prev: number, allowed: any[], step: number) {
     }
     return allowed[0];
 }
-function ssMakeNote(p: number, tonicLi: any, baseOct: number, acc: any[], minor: boolean, dur: any, raise7: number|undefined) {
+function ssMakeNote(p: number, tonicLi: number, baseOct: number, acc: number[], minor: boolean, dur: number, raise7: number|undefined) {
     const li = ((tonicLi + p) % 7 + 7) % 7, oct = baseOct + Math.floor((tonicLi + p) / 7);
     let a = acc[li];
     if (minor && (((p % 7) + 7) % 7) === 6 && Math.random() < (raise7 || 0))
         a = a + 1; // harmonic-minor raised 7th
     return { li, oct, acc: a, dur, p, midi: ssMidiOf(li, oct, a) };
 }
-function ssGen(level: number, clef: string, rangeShift: number) {
+function ssGen(level: number, clef: string, rangeShift: number): SightSingExercise {
     const L = SS_LEVELS[Math.max(0, Math.min(SS_LEVELS.length - 1, level))], minor = !!L.minor;
     const keyPc = ssPick(L.keys), tonicLi = minor ? SS_MIN[keyPc] : SS_MAJ[keyPc].r, n = minor ? SS_MAJ[(keyPc + 3) % 12].n : SS_MAJ[keyPc].n, acc = ssKeyAcc(n);
     const ts = ssPick(L.ts), cap = ts[1] === 8 ? ts[0] * 0.5 : ts[0];
@@ -882,18 +947,17 @@ function ssGen(level: number, clef: string, rangeShift: number) {
     if (L.octaveUp)
         allowed.push(7);
     let baseOct = (clef === 'bass' ? 3 : 4) + (rangeShift || 0);
-    const measures = [];
+    const measures: SightSingNote[][] = [];
     let prev = 0, beat = 0;
     for (let m = 0; m < L.bars; m++) {
-        const notes = [];
+        const notes: SightSingNote[] = [];
         let rem = cap;
         while (rem > 1e-6) {
             const choices = L.durs.filter((d) => d <= rem + 1e-6);
             const dur = ssPick(choices.length ? choices : [rem]);
             const p = (m === 0 && !notes.length) ? 0 : ssNextDeg(prev, allowed, L.step);
             prev = p;
-            const note = ssMakeNote(p, tonicLi, baseOct, acc, minor, dur, L.raise7);
-            note.tBeat = beat;
+            const note = Object.assign(ssMakeNote(p, tonicLi, baseOct, acc, minor, dur, L.raise7), { tBeat: beat });
             beat += dur;
             notes.push(note);
             rem -= dur;
@@ -901,8 +965,7 @@ function ssGen(level: number, clef: string, rangeShift: number) {
         measures.push(notes);
     }
     const lm = measures[measures.length - 1], lastN = lm[lm.length - 1];
-    const repl = ssMakeNote(0, tonicLi, baseOct, acc, minor, lastN.dur, 0);
-    repl.tBeat = lastN.tBeat;
+    const repl = Object.assign(ssMakeNote(0, tonicLi, baseOct, acc, minor, lastN.dur, 0), { tBeat: lastN.tBeat });
     lm[lm.length - 1] = repl;
     return { clef, keyPc, minor, keyN: n, ts, cap, measures, bpm: L.bpm, level, totalBeats: beat, syl: minor ? SS_SYL_MIN : SS_SYL_MAJ, tonicMidi: ssMidiOf(tonicLi, baseOct, acc[tonicLi]) };
 }
@@ -918,7 +981,7 @@ function ssSharp(x: number, y: number) { return `<g class="ss-glyph"><line x1="$
 function ssFlat(x: number, y: number) { return `<path class="ss-glyph" fill="none" stroke="#1a1714" stroke-width="1.4" stroke-linecap="round" d="M ${x - 1},${y - 9} L ${x - 1},${y + 4} C ${x + 5},${y - 1} ${x + 4},${y - 5} ${x - 1},${y - 1.5}"/>`; }
 function ssNatural(x: number, y: number) { return `<g class="ss-glyph"><line x1="${x}" y1="${y - 7}" x2="${x}" y2="${y + 4}" stroke="#1a1714" stroke-width="1"/><line x1="${x + 4}" y1="${y - 4}" x2="${x + 4}" y2="${y + 7}" stroke="#1a1714" stroke-width="1"/><line x1="${x}" y1="${y - 3.5}" x2="${x + 4}" y2="${y - 4.7}" stroke="#1a1714" stroke-width="1.5"/><line x1="${x}" y1="${y + 2.2}" x2="${x + 4}" y2="${y + 1}" stroke="#1a1714" stroke-width="1.5"/></g>`; }
 function ssAccGlyph(a: number, k: number, x: number, y: number) { return a > 0 ? ssSharp(x, y) : a < 0 ? ssFlat(x, y) : ssNatural(x, y); }
-function ssNotehead(x: number, y: number, dur: number, onLine: boolean|undefined) {
+function ssNotehead(x: number, y: number, dur: number, onLine?: boolean) {
     const filled = dur < 2, rot = `rotate(-20 ${x} ${y})`;
     const e = `<ellipse class="ss-head${filled ? '' : ' ss-hollow'}" cx="${x}" cy="${y}" rx="6" ry="4.4" transform="${rot}"/>`;
     const dot = [0.375, 0.75, 1.5, 3].includes(dur) ? `<circle class="ss-head" cx="${x + 10}" cy="${onLine ? y - 6 : y - 1}" r="1.7"/>` : '';
@@ -940,7 +1003,7 @@ function ssLedger(x: number, y: number) { let s = ''; if (y > 94) {
     for (let ly = 34; ly >= y - 1; ly -= 12)
         s += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
 } return s; }
-function ssKeySig(ex: { clef: string; keyN: any; }, x: number) {
+function ssKeySig(ex: { clef: string; keyN: number; }, x: number) {
     const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: number, oct: number) => 94 + (refStep - ssStepOf(li, oct)) * 6;
     const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]];
     const sB = [[3, 3], [0, 3], [4, 3], [1, 3], [5, 2], [2, 3], [6, 2]], fB = [[6, 2], [2, 3], [5, 2], [1, 3], [4, 2], [0, 3], [3, 2]];
@@ -953,10 +1016,12 @@ function ssKeySig(ex: { clef: string; keyN: any; }, x: number) {
     }
     return { svg, w: cnt ? cnt * 9 + 6 : 6 };
 }
-function ssTimeSig(ts: any[], x: number) { return `<text class="ss-num" x="${x + 9}" y="64">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="90">${ts[1]}</text>`; }
-function ssRender(ex: never) {
-    const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: any, oct: any) => 94 + (refStep - ssStepOf(li, oct)) * 6, keyAcc = ssKeyAcc(ex.keyN);
-    let x = 10, body = '', noteX: { x: number; y: number; note: any; idx: number; }[] = [], idx = 0;
+function ssTimeSig(ts: readonly number[], x: number) { return `<text class="ss-num" x="${x + 9}" y="64">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="90">${ts[1]}</text>`; }
+interface SightSingNotePosition { x: number; y: number; note: SightSingNote; idx: number }
+interface SightSingRender { svg: string; W: number; noteX: SightSingNotePosition[] }
+function ssRender(ex: SightSingExercise): SightSingRender {
+    const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: number, oct: number) => 94 + (refStep - ssStepOf(li, oct)) * 6, keyAcc = ssKeyAcc(ex.keyN);
+    let x = 10, body = '', noteX: SightSingNotePosition[] = [], idx = 0;
     body += ex.clef === 'bass' ? ssBassClef(x) : ssTrebleClef(x);
     x += 30;
     const ks = ssKeySig(ex, x);
@@ -964,8 +1029,8 @@ function ssRender(ex: never) {
     x += ks.w;
     body += ssTimeSig(ex.ts, x);
     x += 26;
-    ex.measures.forEach((meas: any[]) => {
-        meas.forEach((note: { li: string|number; oct: any; acc: number; dur: number; p: number; }) => {
+    ex.measures.forEach((meas) => {
+        meas.forEach((note) => {
             const y = yOf(note.li, note.oct), nx = x + 10;
             let g = '';
             if (note.acc !== keyAcc[note.li])
@@ -988,23 +1053,45 @@ function ssRender(ex: never) {
     return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} 150" width="${W}" height="150" xmlns="http://www.w3.org/2000/svg">${staff}${body}</svg>`, W, noteX };
 }
 /* ---- state + draw ---- */
-const sing = { ex: null, render: null, level: 0, clef: 'treble', mode: 'note', idx: 0, active: false, results: [], bpm: 80,
+interface SightSingState {
+    ex: SightSingExercise | null; render: SightSingRender | null; level: number; clef: string; mode: string; idx: number; active: boolean; results: string[]; bpm: number;
+    runId: number; micRequest: number; analyser: AnalyserNode | null; stream: MediaStream | null; src: MediaStreamAudioSourceNode | null; buf: Float32Array<ArrayBuffer> | null; raf: number; ring: number[]; stable: number; hint: number;
+    samples: { t: number; pc: number; cents: number }[]; keyEvents: { t: number; midi: number }[];
+    hlTimers: number[]; playRaf: number; playStart: number; loopA: number | null; loopB: number | null;
+    flat: SightSingNote[] | null; holdT: number; wrongT: number; countInMs: number; phraseStartPN: number; phraseSingPN: number; freePN: number; trail: [number, number][];
+}
+// flat…trail are filled in by the modes before they are read; phraseSingPN starts as NaN so key presses before the count-in never match a note.
+const sing: SightSingState = { ex: null, render: null, level: 0, clef: 'treble', mode: 'note', idx: 0, active: false, results: [], bpm: 80,
     runId: 0, micRequest: 0, analyser: null, stream: null, src: null, buf: null, raf: 0, ring: [], stable: 0, hint: 0, samples: [], keyEvents: [],
-    hlTimers: [], playRaf: 0, playStart: 0, loopA: null, loopB: null };
-function ssFillLevels() { const sel = byId('si-level'); if (!sel || sel._filled)
-    return; SS_LEVELS.forEach((L, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = (i + 1) + ' · ' + L.name; sel.appendChild(o); }); sel._filled = true; }
+    hlTimers: [], playRaf: 0, playStart: 0, loopA: null, loopB: null,
+    flat: null, holdT: 0, wrongT: 0, countInMs: 0, phraseStartPN: 0, phraseSingPN: NaN, freePN: 0, trail: [] };
+/** The exercise on the staff; every caller runs after `ssNewExercise()`. */
+function requireSingExercise(): SightSingExercise {
+    if (!sing.ex)
+        throw new Error('Étude: no sight-singing exercise');
+    return sing.ex;
+}
+/** The exercise's notes in order, filled in by `ssDraw()`. */
+function requireSingFlat(): SightSingNote[] {
+    if (!sing.flat)
+        throw new Error('Étude: sight-singing exercise is not drawn');
+    return sing.flat;
+}
+function ssFillLevels() { const sel = selectById('si-level'); if (!sel || sel._filled)
+    return; SS_LEVELS.forEach((L, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = (i + 1) + ' · ' + L.name; sel.appendChild(o); }); sel._filled = true; }
 function ssDraw() { if (!sing.ex)
     return; const r = ssRender(sing.ex); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssPaint(); }
 function ssPaint() { const svg = byId('si-staff').querySelector('svg'); if (!svg)
-    return; svg.querySelectorAll('.ss-n').forEach((g) => { const i = +g.dataset.i, res = sing.results[i]; if ((sing.mode === 'note') && sing.active && i === sing.idx)
+    return; svg.querySelectorAll('.ss-n').forEach((g) => { if (!(g instanceof SVGElement))
+    return; const i = Number(g.dataset.i), res = sing.results[i]; if ((sing.mode === 'note') && sing.active && i === sing.idx)
     g.dataset.s = 'now';
 else if (res)
     g.dataset.s = res;
 else
     g.removeAttribute('data-s'); }); }
-function ssNewExercise() { sing.ex = ssGen(sing.level, sing.clef, 0); sing.idx = 0; sing.results = []; sing.active = false; sing.bpm = sing.ex.bpm; const bp = byId('si-bpm'); if (bp) {
-    bp.value = sing.ex.bpm;
-    byId('si-bpmLbl').textContent = sing.ex.bpm;
+function ssNewExercise() { sing.ex = ssGen(sing.level, sing.clef, 0); sing.idx = 0; sing.results = []; sing.active = false; sing.bpm = sing.ex.bpm; const bp = inputById('si-bpm'); if (bp) {
+    bp.value = String(sing.ex.bpm);
+    byId('si-bpmLbl').textContent = String(sing.ex.bpm);
 } ssDraw(); }
 function renderSing() { ssFillLevels(); if (!sing.ex || sing.ex.clef !== sing.clef || sing.ex.level !== sing.level)
     ssNewExercise();
@@ -1046,7 +1133,7 @@ function ssMicStart() {
         .then((st) => { if (request !== sing.micRequest || !sing.active || view0() !== 'sing') {
         st.getTracks().forEach((t) => t.stop());
         return false;
-    } sing.stream = st; sing.src = actx.createMediaStreamSource(st); sing.analyser = actx.createAnalyser(); sing.analyser.fftSize = 2048; sing.buf = new Float32Array(sing.analyser.fftSize); sing.src.connect(sing.analyser); return true; }).catch(() => false);
+    } sing.stream = st; sing.src = requireAudioContext().createMediaStreamSource(st); sing.analyser = requireAudioContext().createAnalyser(); sing.analyser.fftSize = 2048; sing.buf = new Float32Array(sing.analyser.fftSize); sing.src.connect(sing.analyser); return true; }).catch(() => false);
 }
 function ssMicMaybe() { return sing.analyser ? Promise.resolve(true) : ssMicStart(); }
 function ssMicStop() { sing.runId++; sing.micRequest++; if (sing.src) {
@@ -1056,11 +1143,11 @@ function ssMicStop() { sing.runId++; sing.micRequest++; if (sing.src) {
     catch (_) { }
     sing.src = null;
 } if (sing.stream) {
-    sing.stream.getTracks().forEach((t: { stop: () => any; }) => t.stop());
+    sing.stream.getTracks().forEach((t) => t.stop());
     sing.stream = null;
 } sing.analyser = null; }
-function ssReadPitch() { if (!sing.analyser)
-    return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, actx.sampleRate); if (f < 0)
+function ssReadPitch() { if (!sing.analyser || !sing.buf)
+    return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, requireAudioContext().sampleRate); if (f < 0)
     return null; const midi = Math.round(69 + 12 * Math.log2(f / 440)), cents = Math.round(1200 * Math.log2(f / (440 * Math.pow(2, (midi - 69) / 12)))); return { f, midi, cents }; }
 function ssNeed(targetPc: number, sungPc: number) { let d = ((targetPc - sungPc) % 12 + 12) % 12; if (d > 6)
     d -= 12; return d; } // + → sing higher
@@ -1075,9 +1162,9 @@ function ssCursorEl() { const svg = ssSvg(); if (!svg)
     c.setAttribute('y2', '102');
     svg.appendChild(c);
 } return c; }
-function ssMoveCursor(x: string) { const c = ssCursorEl(); if (c) {
-    c.setAttribute('x1', x);
-    c.setAttribute('x2', x);
+function ssMoveCursor(x: number) { const c = ssCursorEl(); if (c) {
+    c.setAttribute('x1', String(x));
+    c.setAttribute('x2', String(x));
 } ssScrollToX(x); }
 function ssRemoveCursor() { const svg = ssSvg(), c = svg && svg.querySelector('.ss-playhead'); if (c)
     c.remove(); }
@@ -1085,7 +1172,7 @@ function ssScrollToX(x: number) { const w = byId('si-staff'); if (w.scrollWidth 
     w.scrollLeft = Math.max(0, x - w.clientWidth * 0.4); }
 function ssScrollToCur() { const o = sing.render && sing.render.noteX[sing.idx]; if (o)
     ssScrollToX(o.x); }
-function ssPitchY(f: number) { const bottomMidi = sing.ex.clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
+function ssPitchY(f: number) { const bottomMidi = requireSingExercise().clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
     y -= 42; while (y < 4)
     y += 42; return y; }
 function ssDrawTrail() { const svg = ssSvg(); if (!svg)
@@ -1093,15 +1180,17 @@ function ssDrawTrail() { const svg = ssSvg(); if (!svg)
     pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     pl.setAttribute('class', 'ss-trail');
     svg.appendChild(pl);
-} pl.setAttribute('points', sing.trail.map((p: number[]) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')); }
+} pl.setAttribute('points', sing.trail.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')); }
 function ssClearTrail() { const svg = ssSvg(), pl = svg && svg.querySelector('.ss-trail'); if (pl)
     pl.remove(); }
 function ssBeatToX(beat: number) {
-    const ns = sing.render && sing.render.noteX;
+    if (!sing.render)
+        return 10;
+    const ns = sing.render.noteX;
     if (!ns || !ns.length)
         return 10;
-    const pts = ns.map((o: { note: { tBeat: any; }; x: any; }) => ({ b: o.note.tBeat, x: o.x }));
-    pts.push({ b: sing.ex.totalBeats, x: sing.render.W - 12 });
+    const pts = ns.map((o) => ({ b: o.note.tBeat, x: o.x }));
+    pts.push({ b: requireSingExercise().totalBeats, x: sing.render.W - 12 });
     for (let i = 0; i < pts.length - 1; i++) {
         if (beat >= pts[i].b && beat <= pts[i + 1].b) {
             const f = (beat - pts[i].b) / Math.max(1e-3, pts[i + 1].b - pts[i].b);
@@ -1112,12 +1201,12 @@ function ssBeatToX(beat: number) {
 }
 /* ---- reference cues ---- */
 function ssTonic() { if (!sing.ex)
-    return; ensureAudio(); previewNote(sing.ex.tonicMidi, actx.currentTime + 0.02, 0.85, 92); }
+    return; ensureAudio(); previewNote(sing.ex.tonicMidi, requireAudioContext().currentTime + 0.02, 0.85, 92); }
 // A pulse running along the staff while the melody plays; with reduced motion the notes simply stay as they are.
-function ssFlash(i: string) { if (reduceMotion())
+function ssFlash(i: number) { if (reduceMotion())
     return; const svg = ssSvg(); if (!svg)
-    return; const g = svg.querySelector('.ss-n[data-i="' + i + '"]'); if (!g)
-    return; const prev = g.getAttribute('data-s'); g.dataset.s = 'now'; sing.hlTimers.push(setTimeout(() => { if (g.dataset.s === 'now') {
+    return; const g = svg.querySelector('.ss-n[data-i="' + i + '"]'); if (!(g instanceof SVGElement))
+    return; const prev = g.getAttribute('data-s'); g.dataset.s = 'now'; sing.hlTimers.push(window.setTimeout(() => { if (g.dataset.s === 'now') {
     if (prev && prev !== 'now')
         g.dataset.s = prev;
     else
@@ -1130,8 +1219,8 @@ function ssPlayIt() {
     stopPreviews();
     sing.hlTimers.forEach(clearTimeout);
     sing.hlTimers = [];
-    const beatSec = 60 / (sing.bpm || sing.ex.bpm), t0 = actx.currentTime + 0.12;
-    sing.flat.forEach((n: { tBeat: number; dur: number; midi: any; }, i: any) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); previewNote(n.midi, when, dur, 92); sing.hlTimers.push(setTimeout(() => ssFlash(i), Math.max(0, (when - actx.currentTime) * 1000))); });
+    const beatSec = 60 / (sing.bpm || sing.ex.bpm), t0 = requireAudioContext().currentTime + 0.12;
+    sing.flat.forEach((n, i) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); previewNote(n.midi, when, dur, 92); sing.hlTimers.push(window.setTimeout(() => ssFlash(i), Math.max(0, (when - requireAudioContext().currentTime) * 1000))); });
 }
 function ssDrone() { if (inputById('si-drone').checked) {
     if (sing.ex) {
@@ -1154,7 +1243,7 @@ function ssNoteStart() {
     byId('si-verdict').className = 'verdict neutral';
     byId('si-verdict').textContent = t('si_singit');
     ensureAudio();
-    previewNote(sing.ex.tonicMidi, actx.currentTime + 0.02, 0.6, 85);
+    previewNote(requireSingExercise().tonicMidi, requireAudioContext().currentTime + 0.02, 0.6, 85);
     const run = sing.runId;
     ssMicMaybe().then((ok) => { if (run === sing.runId && sing.active && sing.mode === 'note') {
         if (!ok)
@@ -1204,7 +1293,7 @@ function ssNoteCorrect() {
     sing.idx++;
     ssPaint();
     ssScrollToCur();
-    if (sing.idx >= sing.flat.length)
+    if (sing.idx >= requireSingFlat().length)
         ssNoteFinish();
 }
 function ssHintBump(am: number) {
@@ -1212,13 +1301,13 @@ function ssHintBump(am: number) {
     if (!cur)
         return;
     sing.hint++;
-    const need = ssNeed(pc(cur.midi), pc(am)), syl = sing.ex.syl[((cur.p % 7) + 7) % 7];
+    const need = ssNeed(pc(cur.midi), pc(am)), syl = requireSingExercise().syl[((cur.p % 7) + 7) % 7];
     if (sing.hint === 1)
         byId('si-hint').textContent = need > 0 ? t('si_hi_up') : t('si_hi_down');
     else {
         byId('si-hint').textContent = t('si_hi_syl', syl);
         ensureAudio();
-        previewNote(cur.midi, actx.currentTime + 0.02, 0.6, 80);
+        previewNote(cur.midi, requireAudioContext().currentTime + 0.02, 0.6, 80);
     }
 }
 function ssNoteFinish() {
@@ -1228,7 +1317,7 @@ function ssNoteFinish() {
     sing.raf = 0;
     ssMicStop();
     ssPaint();
-    const tot = sing.flat.length;
+    const tot = requireSingFlat().length;
     const v = byId('si-verdict');
     v.className = 'verdict good';
     v.textContent = t('si_perfect');
@@ -1252,11 +1341,11 @@ function ssPhraseStart() {
             return;
         if (!ok)
             byId('si-hint').textContent = t('si_nomic');
-        const beatSec = 60 / sing.bpm, ci = sing.ex.ts[0];
+        const beatSec = 60 / sing.bpm, ci = requireSingExercise().ts[0];
         sing.countInMs = ci * beatSec * 1000;
         sing.phraseStartPN = performance.now() + 150;
         sing.phraseSingPN = sing.phraseStartPN + sing.countInMs;
-        const t0 = actx.currentTime + 0.15 + (sing.phraseStartPN - performance.now()) / 1000;
+        const t0 = requireAudioContext().currentTime + 0.15 + (sing.phraseStartPN - performance.now()) / 1000;
         for (let b = 0; b < ci; b++)
             metroClick(t0 + b * beatSec, b === 0); // audible count-in (best-effort)
         byId('si-verdict').className = 'verdict neutral';
@@ -1267,7 +1356,7 @@ function ssPhraseStart() {
 function ssPhraseLoop(ts: number) {
     if (!sing.active || sing.mode !== 'phrase')
         return;
-    const beatSec = 60 / sing.bpm, dur = sing.ex.totalBeats * beatSec;
+    const beatSec = 60 / sing.bpm, dur = requireSingExercise().totalBeats * beatSec;
     if (ts < sing.phraseSingPN) {
         byId('si-verdict').textContent = t('si_count');
         ssMoveCursor(ssBeatToX(0));
@@ -1301,7 +1390,7 @@ function ssPhraseGrade() {
     ssMicStop();
     ssRemoveCursor();
     const beatSec = 60 / sing.bpm;
-    sing.flat.forEach((n: { tBeat: number; dur: any; midi: number; }, i: string|number) => {
+    requireSingFlat().forEach((n, i) => {
         const s = n.tBeat * beatSec, e = (n.tBeat + n.dur) * beatSec, tpc = pc(n.midi);
         const win = sing.samples.filter((x) => x.t >= s - 0.05 && x.t <= e), onp = win.filter((x) => x.pc === tpc), frac = win.length ? onp.length / win.length : 0;
         let verdict = frac > 0.55 ? 'good' : frac > 0.18 ? 'near' : 'bad';
@@ -1310,7 +1399,7 @@ function ssPhraseGrade() {
         sing.results[i] = verdict;
     });
     ssPaint();
-    const good = sing.results.filter((r) => r === 'good').length, tot = sing.flat.length;
+    const good = sing.results.filter((r) => r === 'good').length, tot = requireSingFlat().length;
     const v = byId('si-verdict');
     v.className = 'verdict ' + (good === tot ? 'good' : 'neutral');
     v.textContent = good === tot ? t('si_perfect') : t('si_nicetry', good, tot);
@@ -1334,12 +1423,12 @@ function ssFreeStart() {
         v.textContent = t('tr_micfail');
         return;
     } if (inputById('si-drone').checked)
-        startDrone(pc(sing.ex.tonicMidi)); sing.freePN = performance.now() + 100; byId('si-verdict').className = 'verdict neutral'; byId('si-verdict').textContent = t('si_freehint'); sing.raf = requestAnimationFrame(ssFreeLoop); });
+        startDrone(pc(requireSingExercise().tonicMidi)); sing.freePN = performance.now() + 100; byId('si-verdict').className = 'verdict neutral'; byId('si-verdict').textContent = t('si_freehint'); sing.raf = requestAnimationFrame(ssFreeLoop); });
 }
 function ssFreeLoop(ts: number) {
     if (!sing.active || sing.mode !== 'free')
         return;
-    const beatSec = 60 / sing.bpm, dur = sing.ex.totalBeats * beatSec;
+    const beatSec = 60 / sing.bpm, dur = requireSingExercise().totalBeats * beatSec;
     let tt = (ts - sing.freePN) / 1000;
     if (tt > dur + 0.4) {
         sing.freePN = ts;
@@ -1406,8 +1495,8 @@ const view = { low: 48, oct: 4 };
 let labelMode = 'c';
 let typeOctave = 60;
 function clampTypeOctave() { const lo = view.low, maxLo = Math.max(lo, viewHigh() - 12); typeOctave = Math.max(lo, Math.min(maxLo, Math.round(typeOctave / 12) * 12)); }
-const whiteEl = new Map(), blackEl = new Map(), keyEl = new Map();
-const BLACK_NUDGE = { 1: -.28, 3: .28, 6: -.30, 8: 0, 10: .30 };
+const whiteEl = new Map<number, HTMLButtonElement>(), blackEl = new Map<number, HTMLButtonElement>(), keyEl = new Map<number, HTMLButtonElement>();
+const BLACK_NUDGE: Record<number, number> = { 1: -.28, 3: .28, 6: -.30, 8: 0, 10: .30 };
 function viewHigh() { return view.low + view.oct * 12; }
 function chooseView() { const w = window.innerWidth; view.oct = w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
 function buildKeyboard() {
@@ -1429,7 +1518,7 @@ function buildKeyboard() {
             continue;
         const b = (document).createElement('button');
         b.className = 'key white';
-        b.dataset.midi = m;
+        b.dataset.midi = String(m);
         b.type = 'button';
         b.tabIndex = 0;
         b.setAttribute('aria-label', noteName(m, false));
@@ -1458,7 +1547,7 @@ function buildKeyboard() {
             continue;
         const b = (document).createElement('button');
         b.className = 'key black';
-        b.dataset.midi = m;
+        b.dataset.midi = String(m);
         b.type = 'button';
         b.tabIndex = 0;
         b.setAttribute('aria-label', noteName(m, false));
@@ -1495,14 +1584,14 @@ function buildKeyboard() {
     cofPaintDock();
 }
 // Chord-member numbers (1 3 5 7 …) shown on keys; `src` maps sounding MIDI notes to labels and is folded into view.
-let kbDegSrc: any[]|null = null;
+let kbDegSrc: Map<number, string>|null = null;
 function kbDegrees(src: Map<number,string>|null) {
     kbDegSrc = src && src.size ? src : null;
-    const folded = new Map();
+    const folded = new Map<number, string>();
     if (kbDegSrc)
-        kbDegSrc.forEach((label: any, m: any) => folded.set(foldToView(m), label));
+        kbDegSrc.forEach((label, m) => folded.set(foldToView(m), label));
     keyEl.forEach((el, m) => {
-        const label = folded.get(m) || '', d = el.querySelector('.dg');
+        const label = folded.get(m) || '', d = queryHtml(el, '.dg');
         const degDesc = label ? (label === 'R' ? t('kb_deg_r') : t('kb_deg', label)) : '';
         if (d) {
             d.textContent = label;
@@ -1520,12 +1609,12 @@ function kbDegrees(src: Map<number,string>|null) {
 }
 function positionBlacks() { blackEl.forEach((el, bm) => { const w = whiteEl.get(bm - 1); if (!w || !w.offsetWidth)
     return; const bw = w.offsetWidth * .62, seam = w.offsetLeft + w.offsetWidth, n = (BLACK_NUDGE[pc(bm)] || 0) * bw; el.style.width = bw + 'px'; el.style.left = (seam - bw / 2 + n) + 'px'; }); syncKeyboardPan(); }
-function syncKeyboardPan() { const scroll = byId('dock-keys'), pan = byId('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
+function syncKeyboardPan() { const scroll = byId('dock-keys'), pan = inputById('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
 function reflowKeys() { requestAnimationFrame(() => requestAnimationFrame(positionBlacks)); setTimeout(positionBlacks, 90); } // wait for the dock to lay out before measuring
-function foldToView(m: unknown) { const lo = view.low, hi = viewHigh(); let x = m; while (x < lo)
+function foldToView(m: number) { const lo = view.low, hi = viewHigh(); let x = m; while (x < lo)
     x += 12; while (x > hi)
     x -= 12; return x; }
-function kbState(midi: unknown, s: string|null, fold: boolean) { const m = fold ? foldToView(midi) : midi, el = keyEl.get(m); if (!el)
+function kbState(midi: number, s: string|null, fold: boolean) { const m = fold ? foldToView(midi) : midi, el = keyEl.get(m); if (!el)
     return; if (s)
     el.dataset.s = s;
 else
@@ -1536,7 +1625,7 @@ function kbClear(s: string) { keyEl.forEach((el) => { if (el.dataset.s === s)
     mk.textContent = ''; }); }
 function kbClearAll() { keyEl.forEach((el) => { delete el.dataset.s; const mk = el.querySelector('.mk'); if (mk)
     mk.textContent = ''; }); }
-function kbPress(midi: unknown, on: boolean) { const m = foldToView(midi), el = keyEl.get(m); if (!el)
+function kbPress(midi: number, on: boolean) { const m = foldToView(midi), el = keyEl.get(m); if (!el)
     return; if (!on && [...held].some((n) => foldToView(n) === m))
     return; el.classList.toggle('pressed', on); if (on) {
     if (!el.dataset.s)
@@ -1545,10 +1634,10 @@ function kbPress(midi: unknown, on: boolean) { const m = foldToView(midi), el = 
 else if (el.dataset.s === 'active')
     delete el.dataset.s; }
 function repaintHeld() { held.forEach((m) => kbPress(m, true)); }
-const pointerKey = new Map();
+const pointerKey = new Map<number, number|null>();
 function keyAt(x: number, y: number) { const el = document.elementFromPoint(x, y); if (el) {
     const k = el.closest('.key');
-    if (k)
+    if (k instanceof HTMLElement)
         return +(k.dataset.midi ?? 0);
 } return null; }
 function initPointer() {
@@ -1566,7 +1655,7 @@ function initPointer() {
         if (m != null)
             handleNoteOn(m, 100, 'pointer:' + e.pointerId);
     } });
-    const end = (e: { pointerId: string; }) => { if (pointerKey.has(e.pointerId)) {
+    const end = (e: PointerEvent) => { if (pointerKey.has(e.pointerId)) {
         const m = pointerKey.get(e.pointerId);
         if (m != null)
             handleNoteOff(m, 'pointer:' + e.pointerId);
@@ -1576,13 +1665,13 @@ function initPointer() {
     kb.addEventListener('pointercancel', end);
     kb.addEventListener('lostpointercapture', end);
 }
-function bindKeyA11y(b: HTMLButtonElement, m: string|number) { b.addEventListener('keydown', (e: { key: string; preventDefault: () => void; }) => { if (e.key === ' ' || e.key === 'Enter') {
+function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault();
     if (!b._kd) {
         b._kd = true;
         handleNoteOn(m, 100, 'button:' + m);
     }
-} }); b.addEventListener('keyup', (e: { key: string; preventDefault: () => void; }) => { if (e.key === ' ' || e.key === 'Enter') {
+} }); b.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault();
     b._kd = false;
     handleNoteOff(m, 'button:' + m);
@@ -1595,7 +1684,8 @@ function bindKeyA11y(b: HTMLButtonElement, m: string|number) { b.addEventListene
    Without a choice the keys are open, except in Score & analysis on small screens, where the score needs the room; that default
    is settled once per visit, so resizing the window never flips the keyboard (or what its buttons do) behind the user's back.
    Falling notes draw their own keyboard, so that view shows neither the dock nor the rail and leaves the choice untouched. */
-const DOCK = { pref: null, auto: null, animT: 0 };
+interface KeyboardDockState { pref: boolean|null; auto: null; animT: number }
+const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0 };
 function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
 function dockOpen(v = view0()) { if (DOCK.pref != null)
     return DOCK.pref; return false; }
@@ -1636,7 +1726,7 @@ function dockSync() {
 }
 // Expanding from the rail, the keys rise out of it (not with reduced motion); transform and opacity only, so the layout is settled from the first frame.
 function dockReveal() { if (reduceMotion())
-    return; const dock = byId('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = setTimeout(() => dock.classList.remove('is-opening'), 300); }
+    return; const dock = byId('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = window.setTimeout(() => dock.classList.remove('is-opening'), 300); }
 function dockSet(open: boolean) {
     const keep = view0() === 'analysis' ? anKeepPlace() : dockKeepEnd(open);
     DOCK.pref = !!open;
@@ -1648,19 +1738,19 @@ function dockSet(open: boolean) {
     keep();
 }
 // Other pages scroll under the dock: whoever is reading the end of a long page still sees it when the keys come back.
-function dockKeepEnd(open: any) {
+function dockKeepEnd(open: boolean) {
     const root = document.scrollingElement || document.documentElement, end = open && root.scrollHeight > innerHeight + 2 && root.scrollTop > 0 && root.scrollTop + innerHeight >= root.scrollHeight - 2;
     return () => { if (end)
         window.scrollTo(0, root.scrollHeight); };
 }
 /* ---------- INPUT ROUTING ---------- */
-const held = new Set(), heldOrder: any[] = [], sustained = new Set(), inputOwners = new Map();
-let pedalDown = false, evalTimer: string|number|NodeJS.Timeout|null|undefined = null;
-function handleNoteOn(midi: unknown, vel: number, source = 'midi') {
+const held = new Set<number>(), heldOrder: number[] = [], sustained = new Set<number>(), inputOwners = new Map<number, Set<string>>();
+let pedalDown = false, evalTimer: number|null = null;
+function handleNoteOn(midi: number, vel: number, source = 'midi') {
     if (!Number.isInteger(midi) || midi < 0 || midi > 127)
         return;
     ensureAudio();
-    const owners = inputOwners.get(midi) || new Set();
+    const owners = inputOwners.get(midi) || new Set<string>();
     owners.add(source);
     inputOwners.set(midi, owners);
     if (held.has(midi))
@@ -1673,7 +1763,7 @@ function handleNoteOn(midi: unknown, vel: number, source = 'midi') {
     wakePing();
     onInputChange('on', midi);
 }
-function handleNoteOff(midi: unknown, source = 'midi') {
+function handleNoteOff(midi: number, source = 'midi') {
     const owners = inputOwners.get(midi);
     if (!owners || !owners.delete(source))
         return;
@@ -1714,7 +1804,7 @@ function releaseLiveInput() {
 // lifted (drills see an ordinary release). MIDI and Bluetooth go on reporting, so keys and pedal held on the instrument stay as they are.
 function releaseFocusInput() {
     let fell = false;
-    [...inputOwners.entries()].forEach(([m, o] = []) => [...o].forEach((s) => { if (s === 'midi' || s === 'ble')
+    [...inputOwners.entries()].forEach(([m, o]) => [...o].forEach((s) => { if (s === 'midi' || s === 'ble')
         return; if (s.startsWith('fall:'))
         fell = true; handleNoteOff(m, s); }));
     pointerKey.clear();
@@ -1734,7 +1824,7 @@ function panic() { scorePause(); releaseLiveInput(); trxStop(); accompStop(); tr
     delete el.dataset.s; }); if (view0() === 'explore')
     updateExplore(); }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
-function onInputChange(kind: string, midi: null) {
+function onInputChange(kind: 'on'|'off', midi: number) {
     if (view0() === 'analysis') {
         pracInput(kind);
         return;
@@ -1777,9 +1867,9 @@ function onInputChange(kind: string, midi: null) {
             ekOff(SES.q, midi);
     }
 }
-function scheduleEval(fn: { (): void; (): void; (): void; (): void; (): void; }, ms: number|undefined) { clearTimeout(evalTimer); evalTimer = setTimeout(fn, ms); }
+function scheduleEval(fn: () => void, ms: number) { clearTimeout(evalTimer ?? undefined); evalTimer = window.setTimeout(fn, ms); }
 /* ---------- WEB MIDI ---------- */
-let midiAccess: MIDIAccess|null = null, activeInputId: null = null, savedDevice: {}|null = null, midiMsg: { cls: any; text: any; }|null = null;
+let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; }|null = null;
 function setMidi(text: string|null, cls: string) { midiMsg = { text, cls }; const s = byId('set-midi-status'); if (s)
     s.textContent = text; midiChipSync(); }
 // The header chip names the Web MIDI input when one is live, else a live Bluetooth MIDI piano, else the Web MIDI status.
@@ -1815,10 +1905,10 @@ async function connectMidi()  {
     }
 }
 function listInputs() { return midiAccess ? [...midiAccess.inputs.values()] : []; }
-function pickArturia(ins: any[]) { const c = ins.filter((i: { name: string; }) => /microlab|arturia/i.test(i.name)); if (!c.length)
-    return null; const g = c.filter((i: { name: string; }) => !/daw|midiin2|control|thru/i.test(i.name)); return g[0] || c[0]; }
+function pickArturia(ins: MIDIInput[]) { const c = ins.filter((i) => /microlab|arturia/i.test(i.name ?? '')); if (!c.length)
+    return null; const g = c.filter((i) => !/daw|midiin2|control|thru/i.test(i.name ?? '')); return g[0] || c[0]; }
 function refreshDeviceList(autoPick: boolean) {
-    const sel = byId('deviceSelect'), ins = listInputs();
+    const sel = selectById('deviceSelect'), ins = listInputs();
     sel.innerHTML = '';
     if (!ins.length) {
         sel.innerHTML = '<option>—</option>';
@@ -1828,19 +1918,22 @@ function refreshDeviceList(autoPick: boolean) {
     }
     ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
     const still = activeInputId && ins.some((i) => i.id === activeInputId);
-    const remembered = !still && savedDevice && ins.find((i) => i.id === savedDevice); // reconnect the device used last time
-    let chosen = still ? ins.find((i) => i.id === activeInputId) : (remembered || ((autoPick || !activeInputId) ? (pickArturia(ins) || ins[0]) : ins[0]));
+    const remembered = !still && savedDevice ? ins.find((i) => i.id === savedDevice) : undefined; // reconnect the device used last time
+    const chosen = (still ? ins.find((i) => i.id === activeInputId) : undefined) || remembered || ((autoPick || !activeInputId) ? (pickArturia(ins) || ins[0]) : ins[0]);
+    if (!chosen)
+        return;
     sel.value = chosen.id;
     attachInput(chosen.id);
 }
-function attachInput(id: any) { if (activeInputId && activeInputId !== id)
+function attachInput(id: string) { if (activeInputId && activeInputId !== id)
     releaseLiveInput(); listInputs().forEach((i) => i.onmidimessage = null); const inp = listInputs().find((i) => i.id === id); if (!inp)
     return; inp.onmidimessage = onMidiMessage; activeInputId = id; savedDevice = id; setMidi(inp.name, 'on'); saveAll(); }
 function autoReconnectMidi() {
     if (!navigator.permissions || !navigator.requestMIDIAccess)
         return;
     try {
-        (navigator.permissions).query({ name: 'midi', sysex: false } ).then((p) => { if (p.state === 'granted')
+        const midiPermission: PermissionDescriptor & { sysex: boolean } = { name: 'midi', sysex: false };
+        (navigator.permissions).query(midiPermission).then((p) => { if (p.state === 'granted')
             connectMidi(); }).catch(() => { });
     }
     catch (_) { }
@@ -1849,9 +1942,11 @@ function onStateChange() { const was = activeInputId, ins = listInputs(), presen
     panic();
     activeInputId = null;
 } refreshDeviceList(false); }
-function onMidiMessage(e: { data: [any,any,any]; }) { const [st, d1, d2] = e.data; midiIn(st, d1, d2, 'midi'); }
+// A short message leaves the missing bytes NaN, which no comparison below matches (as `undefined` did).
+function onMidiMessage(e: MIDIMessageEvent) { if (!e.data)
+    return; const [st = NaN, d1 = NaN, d2 = NaN] = e.data; midiIn(st, d1, d2, 'midi'); }
 // One decoder for every transport (Web MIDI, Bluetooth MIDI): notes, sustain (CC64), mod wheel (CC1) and pitch bend.
-function midiIn(st: number, d1: number, d2: number, src: string|undefined) {
+function midiIn(st: number, d1: number, d2: number, src: string) {
     const cmd = st & 0xf0;
     if (cmd === 0x90 && d2 > 0) {
         handleNoteOn(d1, d2, src);
@@ -1877,15 +1972,20 @@ function midiIn(st: number, d1: number, d2: number, src: string|undefined) {
    sound. The chooser only opens from the Connect button; Reconnect (and the silent start-up reconnect) reuse a device the site was
    already allowed to use, without a chooser. */
 const BLE_MIDI_SVC = '03b80e5a-ede8-4b33-a751-6ce34ec4c700', BLE_MIDI_CHR = '7772e5db-3868-4112-a1a9-f2669d106bf3';
-const BLE = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, retryT: 0, guardT: 0, timedOut: 0, msg: null, cls: '', arg: null, saved: null,
+interface BleMidiState {
+    dev: BleMidiDevice|null; chr: BleMidiCharacteristic|null; busy: boolean; want: boolean; gen: number; tries: number; retryT: number; guardT: number; timedOut: number;
+    msg: string|null; cls: string; arg: string|null; saved: { id: string; name: string; auto: boolean }|null;
+    run: number; need: number; n: number; d1: number; skip: number; sysex: boolean; pedal: boolean; bend: boolean; mod: boolean;
+}
+const BLE: BleMidiState = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, retryT: 0, guardT: 0, timedOut: 0, msg: null, cls: '', arg: null, saved: null,
     run: 0, need: 0, n: 0, d1: 0, skip: 0, sysex: false, pedal: false, bend: false, mod: false };
 function bleCan() { return !!((navigator).bluetooth && (navigator).bluetooth.requestDevice); }
 function bleLive() { return !!(BLE.chr && BLE.dev && BLE.dev.gatt && BLE.dev.gatt.connected); }
 function bleName() { return (BLE.dev && BLE.dev.name) || (BLE.saved && BLE.saved.name) || t('ble_dev'); }
-function bleSet(key: string|null, cls: string|undefined, arg: null|undefined) { BLE.msg = key; BLE.cls = cls || ''; BLE.arg = arg == null ? null : arg; bleUi(); }
+function bleSet(key: string|null, cls?: string, arg?: string|null) { BLE.msg = key; BLE.cls = cls || ''; BLE.arg = arg == null ? null : arg; bleUi(); }
 function bleUi() {
     midiChipSync();
-    const st = byId('set-ble-status'), b = byId('set-ble'), re = byId('set-ble-re');
+    const st = byId('set-ble-status'), b = buttonById('set-ble'), re = byId('set-ble-re');
     if (!st || !b)
         return;
     const live = bleLive(), key = BLE.msg || (bleCan() ? (BLE.dev && !live ? 'ble_known' : 'ble_off') : 'ble_unsupported');
@@ -1900,7 +2000,8 @@ function bleClick() { if (bleLive() || BLE.busy) {
     return;
 } bleChoose(); }
 async function bleChoose()  {
-    if (!bleCan()) {
+    const bluetooth = navigator.bluetooth;
+    if (!bleCan() || !bluetooth) {
         bleSet('ble_unsupported', 'err');
         return;
     }
@@ -1910,7 +2011,7 @@ async function bleChoose()  {
     }
     let req;
     try {
-        req = (navigator).bluetooth.requestDevice({ filters: [{ services: [BLE_MIDI_SVC] }, ...['ES120', 'ES110', 'ES520', 'ES920', 'KAWAI', 'Kawai'].map((namePrefix) => ({ namePrefix }))], optionalServices: [BLE_MIDI_SVC] });
+        req = bluetooth.requestDevice({ filters: [{ services: [BLE_MIDI_SVC] }, ...['ES120', 'ES110', 'ES520', 'ES920', 'KAWAI', 'Kawai'].map((namePrefix) => ({ namePrefix }))], optionalServices: [BLE_MIDI_SVC] });
     }
     catch (err) {
         bleErr(err);
@@ -1929,8 +2030,8 @@ async function bleChoose()  {
     BLE.tries = 0;
     bleOpen(dev, false);
 }
-function bleErr(err: unknown, quiet: undefined) {
-    const n = err && err.name, m = String((err && err.message) || '');
+function bleErr(err: unknown, quiet?: boolean) {
+    const n = runtimeErrorName(err), m = err instanceof Error ? err.message : '';
     console.warn('Bluetooth MIDI:', err);
     if (n === 'NotFoundError' && /cancel/i.test(m))
         bleSet('ble_cancel');
@@ -1950,15 +2051,15 @@ function bleErr(err: unknown, quiet: undefined) {
         bleSet('ble_failed', 'err', n || m || '?');
 }
 // A superseded attempt (user pressed Disconnect, or picked another piano) closes the link it opened unless it is wanted again.
-function bleStale(gen: number, dev: { gatt: { disconnect: () => void; }; }|null) { if (gen === BLE.gen)
+function bleStale(gen: number, dev: BleMidiDevice) { if (gen === BLE.gen)
     return false; if (!BLE.want || BLE.dev !== dev) {
     try {
-        dev.gatt.disconnect();
+        dev.gatt?.disconnect();
     }
     catch (_) { }
 } return true; }
 // retrying: an automatic reconnect after the link dropped; quiet: the silent start-up attempt (no red errors if the piano is off).
-async function bleOpen(dev: null, retrying: boolean, quiet: boolean|undefined)  {
+async function bleOpen(dev: BleMidiDevice, retrying: boolean, quiet?: boolean)  {
     if (BLE.busy && BLE.dev === dev)
         return;
     if (BLE.dev && BLE.dev !== dev)
@@ -1976,14 +2077,16 @@ async function bleOpen(dev: null, retrying: boolean, quiet: boolean|undefined)  
         bleUi();
     // gatt.connect() can wait a long time for a piano that is off; give up after 15 s so the button never hangs.
     clearTimeout(BLE.guardT);
-    BLE.guardT = setTimeout(() => { if (BLE.busy && BLE.gen === gen) {
+    BLE.guardT = window.setTimeout(() => { if (BLE.busy && BLE.gen === gen) {
         BLE.timedOut = gen;
         try {
-            dev.gatt.disconnect();
+            dev.gatt?.disconnect();
         }
         catch (_) { }
     } }, 15000);
     try {
+        if (!dev.gatt)
+            throw new TypeError('Bluetooth device has no GATT server');
         const server = await dev.gatt.connect();
         if (bleStale(gen, dev))
             return;
@@ -2015,7 +2118,7 @@ async function bleOpen(dev: null, retrying: boolean, quiet: boolean|undefined)  
         if (runtimeErrorName(err) === 'NotFoundError' && /service|characteristic/i.test(runtimeErrorMessage(err))) {
             BLE.want = false;
             try {
-                dev.gatt.disconnect();
+                dev.gatt?.disconnect();
             }
             catch (_) { }
             bleSet('ble_nomidi', 'err');
@@ -2034,7 +2137,7 @@ async function bleOpen(dev: null, retrying: boolean, quiet: boolean|undefined)  
 }
 function bleUnhook() { if (BLE.chr)
     BLE.chr.removeEventListener('characteristicvaluechanged', bleOnValue); BLE.chr = null; }
-function bleOnGone(e: { target: null; }) {
+function bleOnGone(e: BleDisconnectEvent) {
     if (e.target !== BLE.dev)
         return;
     const was = !!BLE.chr;
@@ -2062,12 +2165,12 @@ function bleRetry() {
     const wait = [500, 2000, 5000][BLE.tries++];
     bleSet('ble_lost', 'err');
     clearTimeout(BLE.retryT);
-    BLE.retryT = setTimeout(() => { if (BLE.want && BLE.dev === dev && !bleLive())
+    BLE.retryT = window.setTimeout(() => { if (BLE.want && BLE.dev === dev && !bleLive())
         bleOpen(dev, true); }, wait);
 }
 function bleReconnect() { const dev = BLE.dev; if (!dev || bleLive() || BLE.busy)
     return; ensureAudio(); BLE.tries = 0; bleOpen(dev, false); }
-function bleDisconnect(keepMsg: boolean|undefined) {
+function bleDisconnect(keepMsg?: boolean) {
     const chr = BLE.chr, dev = BLE.dev;
     BLE.want = false;
     BLE.gen++;
@@ -2093,7 +2196,7 @@ function bleDisconnect(keepMsg: boolean|undefined) {
 }
 // Nothing may stay stuck when the link goes: keys held over Bluetooth, its sustain pedal, bend and mod wheel are let go.
 function bleReleaseInput() {
-    [...inputOwners.entries()].forEach(([m, o] = []) => { if (o.has('ble'))
+    [...inputOwners.entries()].forEach(([m, o]) => { if (o.has('ble'))
         handleNoteOff(m, 'ble'); });
     if (BLE.pedal && pedalDown) {
         pedalDown = false;
@@ -2108,10 +2211,11 @@ function bleReleaseInput() {
 }
 async function bleAutoReconnect()  {
     const s = BLE.saved;
-    if (!s || !bleCan() || !window.isSecureContext || !(navigator).bluetooth.getDevices)
+    const bluetooth = navigator.bluetooth;
+    if (!s || !bleCan() || !window.isSecureContext || !bluetooth || !bluetooth.getDevices)
         return;
     try {
-        const dev = (await (navigator).bluetooth.getDevices()).find((d: { id: any; }) => d.id === s.id);
+        const dev = (await bluetooth.getDevices()).find((d) => d.id === s.id);
         if (!dev || BLE.dev)
             return;
         BLE.dev = dev;
@@ -2124,14 +2228,14 @@ async function bleAutoReconnect()  {
     }
 }
 function bleParserReset() { BLE.run = 0; BLE.need = 0; BLE.n = 0; BLE.skip = 0; BLE.sysex = false; }
-function bleOnValue(e: { target: { value: any; }; }) { const v = e.target.value; if (v && v.byteLength > 1)
+function bleOnValue(e: BleValueEvent) { const v = e.target.value; if (v && v.byteLength > 1)
     bleParse(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); }
 /* BLE-MIDI packet: [header 10hhhhhh] then messages, each normally led by a timestamp byte [1lllllll]. A byte with bit 7 set that
    directly follows a timestamp is a status byte; any other byte with bit 7 set is the next timestamp. Within a packet a message may
    drop its status (running status) and then also its timestamp, so several notes can share one notification. SysEx may span
    packets (continuation packets carry only data after the header). Messages are dispatched as soon as their last byte is read;
    the timestamps carry no information we need, because the packet is played the moment it arrives. */
-function bleParse(p: string|any[]|Uint8Array<any>) {
+function bleParse(p: Uint8Array) {
     if ((p[0] & 0xC0) !== 0x80)
         return;
     let ts = false;
@@ -2208,7 +2312,8 @@ function bleMsg(st: number, d1: number, d2: number) {
     midiIn(st, d1, d2, 'ble');
 }
 /* ---------- INSTALLED APP: offline copy, install prompt, full screen and screen wake lock ---------- */
-const PWA = { sw: '', err: '', prompt: null, installed: false };
+interface InstalledAppState { sw: string; err: string; prompt: InstallPromptEvent|null; installed: boolean }
+const PWA: InstalledAppState = { sw: '', err: '', prompt: null, installed: false };
 function pwaStandalone() {
     return !!(window.matchMedia('(display-mode: standalone)').matches ||
         window.matchMedia('(display-mode: fullscreen)').matches ||
@@ -2236,7 +2341,7 @@ function pwaInit() {
         PWA.sw = 'pending';
         const reg = () => navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
             .then(() => navigator.serviceWorker.ready).then(() => { PWA.sw = 'ready'; pwaUi(); })
-            .catch((err) => { PWA.sw = 'error'; PWA.err = (err && (err.name || err.message)) || '?'; console.warn('Service worker:', err); pwaUi(); });
+            .catch((err: unknown) => { PWA.sw = 'error'; PWA.err = (err instanceof Error && (err.name || err.message)) || '?'; console.warn('Service worker:', err); pwaUi(); });
         if (document.readyState === 'complete')
             reg();
         else
@@ -2280,7 +2385,7 @@ async function pwaInstall()  {
 }
 function fsCan() { return !!(document.fullscreenEnabled && document.documentElement.requestFullscreen); }
 function fsUi() { const b = byId('set-full'); if (!b)
-    return; const row = b.closest('.set-row'); if (row)
+    return; const row = b.closest('.set-row'); if (row instanceof HTMLElement)
     row.hidden = !fsCan(); b.textContent = t(document.fullscreenElement ? 'full_exit' : 'full_enter'); }
 function fsToggle() {
     if (document.fullscreenElement) {
@@ -2291,7 +2396,8 @@ function fsToggle() {
 }
 // Screen Wake Lock: a remembered choice, held while the page is in front, given back after 30 minutes without playing or touching,
 // taken again on the next note or tap. The browser drops the lock whenever the page is hidden; it is re-requested on return.
-const WAKE = { want: false, lock: null, busy: false, err: '', fails: 0, idle: false, last: 0, idleT: 0, gest: false }, WAKE_IDLE_MS = 30 * 60 * 1000;
+interface WakeLockState { want: boolean; lock: WakeLockSentinel|null; busy: boolean; err: string; fails: number; idle: boolean; last: number; idleT: number; gest: boolean }
+const WAKE: WakeLockState = { want: false, lock: null, busy: false, err: '', fails: 0, idle: false, last: 0, idleT: 0, gest: false }, WAKE_IDLE_MS = 30 * 60 * 1000;
 function wakeCan() { return !!(navigator.wakeLock && navigator.wakeLock.request); }
 async function wakeGet()  {
     if (!WAKE.want || WAKE.idle || WAKE.lock || WAKE.busy || !wakeCan() || document.visibilityState !== 'visible')
@@ -2331,7 +2437,7 @@ function wakeOnGesture() {
 }
 function wakeDrop() { const s = WAKE.lock; WAKE.lock = null; if (s)
     s.release().catch(() => { }); }
-function wakeSet(on: any) {
+function wakeSet(on: boolean) {
     WAKE.want = !!on;
     WAKE.idle = false;
     WAKE.err = '';
@@ -2360,8 +2466,8 @@ function wakePing() {
     if (!WAKE.idleT)
         wakeArm(WAKE_IDLE_MS);
 }
-function wakeArm(ms: number|undefined) {
-    WAKE.idleT = setTimeout(() => {
+function wakeArm(ms: number) {
+    WAKE.idleT = window.setTimeout(() => {
         WAKE.idleT = 0;
         if (!WAKE.want)
             return;
@@ -2376,7 +2482,7 @@ function wakeArm(ms: number|undefined) {
     }, ms);
 }
 function wakeUi() {
-    const cb = byId('set-wake'), st = byId('set-wake-status');
+    const cb = inputById('set-wake'), st = byId('set-wake-status');
     if (!cb || !st)
         return;
     const can = wakeCan();
@@ -2400,8 +2506,8 @@ function wakeInit() {
 }
 /* computer keyboard */
 // Notes and Z / X follow physical key positions (KeyboardEvent.code), so QWERTZ, AZERTY… keep the piano shape; shortcuts stay on letters.
-const KEYMAP = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12 };
-const typingDown = new Map();
+const KEYMAP: Record<string, number> = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12 };
+const typingDown = new Map<string, number>();
 function shiftTypeOctave(dir: number) { releaseTypingKeys(); const next = typeOctave + dir * 12, minLow = BASE_LOW, maxLow = Math.max(BASE_LOW, BASE_HIGH - view.oct * 12); if (dir < 0) {
     if (next < view.low && view.low > minLow) {
         view.low = Math.max(minLow, view.low - 12);
@@ -2423,16 +2529,16 @@ function kbdLayoutLabels() {
     if (!kb || typeof kb.getLayoutMap !== 'function')
         return;
     try {
-        kb.getLayoutMap().then((map: { get: (arg0: string) => any; }) => (document).querySelectorAll('kbd[data-codes]').forEach((el) => {
-            const ks = el.dataset.codes.split(' ').map((c) => map.get(c));
+        kb.getLayoutMap().then((map) => queryAllHtml(document, 'kbd[data-codes]').forEach((el) => {
+            const ks = (el.dataset.codes ?? '').split(' ').map((c) => map.get(c));
             if (ks.every((x) => typeof x === 'string' && x.trim()))
-                el.textContent = ks.map((x) => x.toUpperCase()).join(el.dataset.sep || ' ');
+                el.textContent = ks.map((x) => String(x).toUpperCase()).join(el.dataset.sep || ' ');
         })).catch(() => { });
     }
     catch (_) { }
 }
 function releaseTypingKeys() { typingDown.forEach((m, k) => handleNoteOff(m, 'typing:' + k)); typingDown.clear(); }
-function inField() { const a = document.activeElement; return a && (/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) || a.isContentEditable); }
+function inField() { const a = document.activeElement; return a && (/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) || (a instanceof HTMLElement && a.isContentEditable)); }
 document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.key === 'Meta' || e.key === 'Control' || e.key === 'Alt') {
         releaseTypingKeys();
@@ -2451,7 +2557,7 @@ document.addEventListener('keydown', (e) => {
     if (SES.active && SES.q) { // session shortcuts: digits pick an answer, R replays, N advances
         if (/^[1-9]$/.test(k) && !SES.answered && SES.q.mode === 'ear') {
             const b = byId('q-answers').children[+k - 1];
-            if (b) {
+            if (b instanceof HTMLElement) {
                 e.preventDefault();
                 b.click();
                 return;
@@ -2490,8 +2596,7 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
-document.addEventListener('keyup', (e) => { const c = physKey(e); if (typingDown.has(c)) {
-    const m = typingDown.get(c);
+document.addEventListener('keyup', (e) => { const c = physKey(e), m = typingDown.get(c); if (m !== undefined) {
     typingDown.delete(c);
     handleNoteOff(m, 'typing:' + c);
 } });
