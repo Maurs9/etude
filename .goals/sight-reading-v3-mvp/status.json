@@ -11,6 +11,11 @@
       "iteration": 1,
       "verdict": "FAIL",
       "summary": "First-sight UI/flow, the two-lock ledger and safe import, required accessibility/offline behavior, and mandatory Playwright coverage are missing; assess still colours greedily during play."
+    },
+    {
+      "iteration": 2,
+      "verdict": "FAIL",
+      "summary": "A fresh ledger always rejects the first claim as stale_generation; practice switching, result painting, input release metadata, repertoire isolation, backup edge cases, accessibility, and mandatory Playwright/offline coverage remain incorrect or missing."
     }
   ]
 }
