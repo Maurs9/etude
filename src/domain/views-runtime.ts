@@ -11912,10 +11912,22 @@ function anAnalyze() {
 }
 /* analysis panel: Now follows the bar or passage in focus, Piece is the whole-piece workspace, Practice holds the settings.
    Beside the score from 1000 px, a bottom sheet behind the floating Analysis button below that. */
-const SIDE = { open: true, tab: 'now', w: 340, sheet: false, drag: false, nowSig: '', ptSig: '', liveT: 0, handScroll: 0, deferred: false };
+interface AnPanelSide {
+    open: boolean;
+    tab: string;
+    w: number;
+    sheet: boolean;
+    drag: boolean;
+    nowSig: string;
+    ptSig: string;
+    liveT: ReturnType<typeof setTimeout> | number;
+    handScroll: number;
+    deferred: boolean;
+}
+const SIDE: AnPanelSide = { open: true, tab: 'now', w: 340, sheet: false, drag: false, nowSig: '', ptSig: '', liveT: 0, handScroll: 0, deferred: false };
 const AN_TABS = ['now', 'piece', 'practice'];
 function anNarrow() { return (window).matchMedia('(max-width: 999px)').matches; }
-function anSideVisible(tab: string) { const side = byId('an-side'); return !!side && !side.hidden && (anNarrow() ? SIDE.sheet : SIDE.open) && (!tab || SIDE.tab === tab); }
+function anSideVisible(tab?: string) { const side = byId('an-side'); return !!side && !side.hidden && (anNarrow() ? SIDE.sheet : SIDE.open) && (!tab || SIDE.tab === tab); }
 function anSideSync() {
     const side = byId('an-side'), work = byId('an-work'), btn = byId('an-side-btn'), fab = byId('an-fab'), has = AN.notes.length > 0, narrow = anNarrow(), open = has && (narrow ? SIDE.sheet : SIDE.open);
     side.hidden = !has || (!narrow && !SIDE.open);
@@ -11935,7 +11947,7 @@ function anSideSync() {
 function anSideSet(open: boolean) { SIDE.open = !!open; saveAll(); anSideSync(); }
 // The sheet is not modal: the score above it stays live. Opening moves focus to the active tab; closing returns it to the button.
 // While it is open the score viewport ends where the sheet begins, so everything in the score can still be scrolled to.
-function anSheet(open: boolean, quiet: boolean|undefined) {
+function anSheet(open: boolean, quiet?: boolean) {
     const want = !!open && AN.notes.length > 0;
     if (want === SIDE.sheet)
         return;
@@ -11947,16 +11959,16 @@ function anSheet(open: boolean, quiet: boolean|undefined) {
     if (want)
         anFocusStage();
     if (want) {
-        const tab = (document).querySelector('#an-tabs [aria-selected="true"]');
+        const tab = queryHtml(document, '#an-tabs [aria-selected="true"]');
         if (tab)
             tab.focus({ preventScroll: true });
     }
     else if (byId('an-side').contains(document.activeElement) && !byId('an-fab').hidden)
         byId('an-fab').focus({ preventScroll: true });
 }
-function anTab(tab: string, focus: boolean|undefined) {
+function anTab(tab: string, focus?: boolean) {
     SIDE.tab = AN_TABS.includes(tab) ? tab : 'now';
-    (document).querySelectorAll('#an-tabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === SIDE.tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus)
+    queryAllHtml(document, '#an-tabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === SIDE.tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus)
         b.focus({ preventScroll: true }); });
     byId('an-now').hidden = SIDE.tab !== 'now';
     byId('an-ws').hidden = SIDE.tab !== 'piece';
@@ -11976,12 +11988,19 @@ function anOpenTab(tab: string) {
     else if (!SIDE.open)
         anSideSet(true);
     anSideSync();
-    const panel = maybeById(tab === 'practice' ? 'an-pt' : tab === 'piece' ? 'an-ws' : 'an-now'), first = panel.querySelector('button:not([disabled]):not([hidden]),input,select');
+    const panel = byId(tab === 'practice' ? 'an-pt' : tab === 'piece' ? 'an-ws' : 'an-now'), first = queryHtml(panel, 'button:not([disabled]):not([hidden]),input,select');
     (first || panel).focus({ preventScroll: true });
 }
 // What Now is about: the bar being played (while playing), else the selected bars, else the bars of the selected notes, else
 // the bar under the cursor. a/b index anMeasures(); lo/hi are beats.
-function anFocus(follow = true) {
+interface AnPanelFocus {
+    kind: 'play' | 'bars' | 'sel' | 'cursor';
+    a: number;
+    b: number;
+    lo: number;
+    hi: number;
+}
+function anFocus(follow = true): AnPanelFocus | null {
     const ms = anMeasures();
     if (!AN.notes.length || !ms.length)
         return null;
@@ -11991,7 +12010,7 @@ function anFocus(follow = true) {
         else
             break;
     } return i; };
-    const span = (a: number, b: number, kind: string) => ({ kind, a, b, lo: ms[a].start, hi: ms[b].end });
+    const span = (a: number, b: number, kind: AnPanelFocus['kind']): AnPanelFocus => ({ kind, a, b, lo: ms[a].start, hi: ms[b].end });
     if (follow && SCORE.playing) {
         const i = at(scoreBeatAt(fallTime()));
         return span(i, i, 'play');
@@ -12007,12 +12026,12 @@ function anFocus(follow = true) {
     const i = at(scoreBeatAt(FALL.position));
     return span(i, i, 'cursor');
 }
-function anFocusNotes(f: { kind: any; a?: any; b?: any; lo: any; hi: any; }) {
+function anFocusNotes(f: AnPanelFocus | null) {
     if (!f)
         return [];
     if (f.kind === 'sel')
         return [...AN.selected].sort((a, b) => a - b).map((i) => AN.notes[i]).filter(Boolean);
-    const grid = SCORE.midiGrid || 0, q = (n: never) => grid ? Math.round(n.start * grid) / grid : n.start;
+    const grid = SCORE.midiGrid || 0, q = (n: { start: number }) => grid ? Math.round(n.start * grid) / grid : n.start;
     return AN.notes.filter((n) => { const s = q(n); return s >= f.lo - 1e-6 && s < f.hi - 1e-6; });
 }
 // Listen, Loop and Practice play exactly what the coral band shows: whole bars (or the selected notes), which become the selection.
@@ -12034,27 +12053,65 @@ function anCommitFocus() {
     return AN.selected.size > 0;
 }
 // Harmonic function from the scale degree (Riemann-style T / S / D); secondary dominants name their target.
-function anFunctionOf(key: { root: any; minor: any; fifths?: number; }, seg: { ch: { root: number; }; }, rn: string) {
+function anFunctionOf(key: theory.KeySignature, seg: { ch: { root: number; }; }, rn: string) {
     if (rn.includes('/'))
         return t('an_fn_sec', rn.slice(rn.indexOf('/') + 1));
-    const rel = ((seg.ch.root - key.root) % 12 + 12) % 12, f = (key.minor ? ({ 0: 'T', 3: 'T', 8: 'T', 2: 'S', 5: 'S', 7: 'D', 10: 'D', 11: 'D' } ) : ({ 0: 'T', 4: 'T', 9: 'T', 2: 'S', 5: 'S', 7: 'D', 11: 'D' } ))[rel];
+    const fns: Partial<Record<number, string>> = key.minor ? ({ 0: 'T', 3: 'T', 8: 'T', 2: 'S', 5: 'S', 7: 'D', 10: 'D', 11: 'D' } ) : ({ 0: 'T', 4: 'T', 9: 'T', 2: 'S', 5: 'S', 7: 'D', 11: 'D' } );
+    const rel = ((seg.ch.root - key.root) % 12 + 12) % 12, f = fns[rel];
     return t(f ? 'an_fn_' + f : 'an_fn_chr');
+}
+// A note, bar and chord reading as the analysis panel shows them (see anHarmony, anCadences and anClassifyNonChord).
+interface AnPanelNote {
+    midi: number;
+    start: number;
+    end: number;
+    hand?: string;
+    track?: number;
+}
+interface AnPanelMeasure {
+    number: string;
+    start: number;
+    end: number;
+    num: number;
+    den: number;
+}
+interface AnPanelChordReading {
+    root: number;
+    c: { s: string; q: string; p: number[]; x?: number };
+    conf: string;
+    det: string;
+    alts: { root: number; c: { s: string } }[];
+}
+interface AnPanelChordSpan {
+    start: number;
+    end: number;
+    measure: AnPanelMeasure;
+    unit: number;
+    bass: number;
+    ch: AnPanelChordReading;
+    notes: AnPanelNote[];
+    nct: { note: AnPanelNote; type: string }[];
+    cad?: string;
+}
+interface AnPanelSpanRow {
+    s: AnPanelChordSpan;
+    k: number;
 }
 // One chord of the progression: symbol, Roman numeral, beats and how sure the reading is; the full reading, with what each hand
 // plays, is its accessible name.
-function anChipHTML(s: { start: any; ch: { conf: any; alts: any[]; }; cad: string; measure: { number: string; }; end: any; }, i: any, rove: boolean|null) {
+function anChipHTML(s: AnPanelChordSpan, i: number, rove: boolean|null) {
     const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), beats = anBeatText(s), conf = s.ch.conf;
-    const alts = s.ch.alts.map((a: { root: number; c: { s: string; }; }) => spellName(60 + a.root, key) + a.c.s).join(', '), cad = s.cad ? t('an_cad_' + s.cad) : '', det = anDetText(s.ch), nct = anNctText(s, key);
+    const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), cad = s.cad ? t('an_cad_' + s.cad) : '', det = anDetText(s.ch), nct = anNctText(s, key);
     const label = [t('an_bar') + ' ' + s.measure.number, beats, lab, rn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), anHandsText(s, key), nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
     const time = anClock(scoreSeconds(s.start)) + '–' + anClock(scoreSeconds(s.end));
     return `<button type="button" class="an-ch" data-k="${i}" data-conf="${conf}"${rove == null ? '' : ` tabindex="${rove ? 0 : -1}"`} aria-pressed="false" aria-label="${esc(label)}" title="${esc(label + ' · ' + time)}"><span class="an-ch-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-ch-rn">${esc(rn)}</span><span class="an-ch-t">${esc(beats + ' · ' + det)}</span>${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>`
         + (cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : '');
 }
 // Chords grouped by bar; each row carries its bar index so the selected bars can be marked.
-function anRowsHTML(list: {}[], rove: number|null|undefined) {
+function anRowsHTML(list: AnPanelSpanRow[], rove?: number|null) {
     const ms = anMeasures();
-    let html = '', bar: null = null;
-    list.forEach(({ s, k } = {}) => {
+    let html = '', bar: AnPanelMeasure | null = null;
+    list.forEach(({ s, k }) => {
         if (s.measure !== bar) {
             if (bar)
                 html += '</div></div>';
@@ -12067,11 +12124,11 @@ function anRowsHTML(list: {}[], rove: number|null|undefined) {
 }
 // A chord of the bar in focus, in full: symbol and numeral, function, inversion and bass, beats, how sure the reading is, what
 // each hand plays, non-chord tones.
-function anNowCard({ s, k } = {}, implied: any) {
+function anNowCard({ s, k }: AnPanelSpanRow, implied: boolean) {
     const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
     const inv = implied ? 0 : anInv(s), slash = !implied && s.bass !== s.ch.root;
     const fn = [anFunctionOf(key, s, rn), implied ? t('an_implied') : open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + s.bass, key)) : ''].filter(Boolean).join(' · ');
-    const alts = s.ch.alts.map((a: { root: number; c: { s: string; }; }) => spellName(60 + a.root, key) + a.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
+    const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
     const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, key), cad = s.cad ? t('an_cad_' + s.cad) : '';
     const label = [t('an_bar') + ' ' + s.measure.number, anBeatText(s), lab, rn, fn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), hands, nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
     return `<li><button type="button" class="an-ch an-nc" data-k="${k}" data-conf="${conf}" aria-pressed="false" aria-label="${esc(label)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>${cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : ''}</li>`;
@@ -12082,7 +12139,7 @@ function anRenderNow() {
     const body = byId('an-now-body');
     if (!body)
         return;
-    const f = AN.view ? anFocus() : null, h = byId('an-now-h'), sub = byId('an-now-sub'), acts = [byId('an-now-listen'), byId('an-now-loop'), ...byId('an-now-hands').children];
+    const f = AN.view ? anFocus() : null, h = byId('an-now-h'), sub = byId('an-now-sub'), acts = [byId('an-now-listen'), byId('an-now-loop'), ...byId('an-now-hands').children].filter((b): b is HTMLButtonElement => b instanceof HTMLButtonElement);
     if (!f) {
         SIDE.nowSig = '';
         h.textContent = '';
@@ -12103,7 +12160,7 @@ function anRenderNow() {
         return;
     }
     SIDE.deferred = false;
-    const esc = xmlEsc, v = AN.view, ms = anMeasures(), num = (i: string|number) => ms[i].number, one = f.a === f.b, notes = anFocusNotes(f), key = anKeyAt(f.lo);
+    const esc = xmlEsc, v = AN.view, ms = anMeasures(), num = (i: number) => ms[i].number, one = f.a === f.b, notes = anFocusNotes(f), key = anKeyAt(f.lo);
     const count = notes.length === 1 ? t('an_note1') : t('an_sel_notes', notes.length), bars = one ? t('an_bar1', num(f.a)) : t('an_bars', num(f.a), num(f.b));
     const head = f.kind === 'sel' ? t('an_sel_h') : one ? t('st_bar', num(f.a)) : t('an_now_passage', bars);
     h.textContent = head;
@@ -12111,7 +12168,7 @@ function anRenderNow() {
     byId('an-now-mark').hidden = !(f.kind === 'bars' || (f.kind === 'play' && SCORE.loop));
     byId('an-now-pill').hidden = f.kind !== 'play';
     byId('an-now-hint').textContent = t(f.kind === 'play' ? 'an_now_follow' : FALL.mode === 'fall' ? 'an_now_hint_fall' : (window).matchMedia('(pointer: coarse)').matches ? 'an_now_hint_touch' : 'an_now_hint');
-    const segs = v.segs.map((s: any, k: any) => ({ s, k })).filter(({ s } = {}) => s.end > f.lo + 1e-6 && s.start < f.hi - 1e-6);
+    const segs = v.segs.map((s: AnPanelChordSpan, k: number): AnPanelSpanRow => ({ s, k })).filter(({ s }: AnPanelSpanRow) => s.end > f.lo + 1e-6 && s.start < f.hi - 1e-6);
     let html = '';
     if (!one) {
         const info = anKeyInfo(notes);
@@ -12121,24 +12178,25 @@ function anRenderNow() {
     if (!segs.length)
         html += `<p class="an-small">${esc(t(!notes.length ? 'an_now_empty' : one ? 'an_now_none' : 'an_harm_none'))}</p>`;
     else if (one)
-        html += `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${segs.map((x: {}|undefined) => anNowCard(x, v.implied)).join('')}</ul><p class="an-small an-hsrc">${esc(anHandsSource())}</p>`;
+        html += `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${segs.map((x: AnPanelSpanRow) => anNowCard(x, v.implied)).join('')}</ul><p class="an-small an-hsrc">${esc(anHandsSource())}</p>`;
     else
         html += `<div class="an-prog" role="group" aria-label="${esc(t('an_prog_label'))}">${anRowsHTML(segs)}</div>`;
     const fe = document.activeElement;
-    const k = fe instanceof Element && body.contains(fe) ? fe.dataset.k : null;
+    const k = (fe instanceof HTMLElement || fe instanceof SVGElement) && body.contains(fe) ? fe.dataset.k : null;
     body.innerHTML = html;
     SIDE.nowSig = sig;
     AN.playSig = '';
-    const coach = anCoach(f, segs.map((x: { s: any; }) => x.s), notes), cb = byId('an-coach');
+    const coach = anCoach(f, segs.map((x: AnPanelSpanRow) => x.s), notes), cb = byId('an-coach');
     cb.hidden = !coach;
     cb.innerHTML = coach ? `<span class="coach-k">${esc(coach.h)}</span><span class="coach-t">${esc(coach.text)}</span>` : '';
     if (k) {
-        const el = body.querySelector('.an-ch[data-k="' + k + '"]');
+        const el = queryHtml(body, '.an-ch[data-k="' + k + '"]');
         (el || byId('an-now')).focus({ preventScroll: true });
     }
     const both = new Set(notes.map(anHandOf)).size > 1, hb = byId('an-now-hands').children;
     acts.forEach((b) => { b.disabled = !notes.length; });
-    [...hb].forEach((b) => { b.hidden = !both && b.dataset.h !== 'both'; });
+    [...hb].forEach((b) => { if (b instanceof HTMLElement)
+        b.hidden = !both && b.dataset.h !== 'both'; });
     hb[0].textContent = t(both ? 'pr_both' : 'an_practice_b');
     byId('an-now-pr-l').hidden = !both;
     anMarkActive();
@@ -12146,12 +12204,16 @@ function anRenderNow() {
     anNowAnnounce(f, head, segs);
 }
 // Spoken once, a moment after the user picks bars or a chord; never while playing, so playback makes no announcements.
-function anNowAnnounce(f: { kind: any; a?: any; b?: any; lo?: number; hi?: number; }, head: string, segs: string|any[]) {
+function anNowAnnounce(f: AnPanelFocus, head: string, segs: AnPanelSpanRow[]) {
     clearTimeout(SIDE.liveT);
     if (SCORE.playing || f.kind === 'play' || f.kind === 'cursor' || !anSideVisible('now'))
         return;
-    const s = segs.length ? segs[0].s : null, key = s && anKeyAt(s.start), rn = s && anRoman(key, s);
-    const txt = head + (s ? ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ') + (segs.length > 1 ? ' …' : '') : '');
+    const s = segs.length ? segs[0].s : null;
+    let txt = head;
+    if (s) {
+        const key = anKeyAt(s.start), rn = anRoman(key, s);
+        txt += ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ') + (segs.length > 1 ? ' …' : '');
+    }
     SIDE.liveT = setTimeout(() => { byId('an-now-live').textContent = txt; }, 900);
 }
 // Practice: what Start will play, the A–B range and whether the passage fits Read & Play.
@@ -12165,18 +12227,17 @@ function anRenderPractice() {
         else
             break;
     } return i; };
-    const range = (a: number, b: string|number|undefined) => a === b ? t('an_bar1', ms[a].number) : t('an_bars', ms[a].number, ms[b].number), Range = (a: string|number, b: string|number) => a === b ? t('st_bar', ms[a].number) : t('an_h_bars', ms[a].number, ms[b].number);
-    const abBars = ab ? [at(scoreBeatAt(PRAC.A)), at(scoreBeatAt(PRAC.B) - 1e-4)] : null;
-    const bars = abBars || [];
-    byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : ab ? t('pt_scope_ab', range(...bars)) : t('pt_scope_all');
+    const range = (a: number, b: number) => a === b ? t('an_bar1', ms[a].number) : t('an_bars', ms[a].number, ms[b].number), Range = (a: number, b: number) => a === b ? t('st_bar', ms[a].number) : t('an_h_bars', ms[a].number, ms[b].number);
+    const abBars: [number, number] | null = ab ? [at(scoreBeatAt(PRAC.A)), at(scoreBeatAt(PRAC.B) - 1e-4)] : null;
+    byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : abBars ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
     byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
-    byId('pt-abv').textContent = ab ? t('pt_ab_v', range(...bars)) : t('pt_ab_none');
+    byId('pt-abv').textContent = abBars ? t('pt_ab_v', range(...abBars)) : t('pt_ab_none');
     const ns = anScopeNotes(), sig = [AN.version, lang, ns.length, AN.index.get(ns[0]), AN.index.get(ns[ns.length - 1])].join('|');
     if (SIDE.ptSig !== sig) {
         SIDE.ptSig = sig;
         const chk = anPracticeCheck(ns);
         buttonById('an-practice').disabled = !chk.ok;
-        byId('an-practice-note').textContent = chk.ok ? t('an_practice_hint') : chk.msg;
+        byId('an-practice-note').textContent = chk.ok ? t('an_practice_hint') : chk.msg ?? null;
     }
 }
 // Start in the Practice tab: the selection (or A–B) loops with the practice settings; otherwise the piece plays from the cursor.
@@ -12200,9 +12261,28 @@ function anRevealPieceRow(smooth = true) {
         ws.scrollTo({ top: ws.scrollTop + (r.top - p.top) - p.height * .25, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
     }
 }
-function anRenderWorkspace(v: { key: any; mainKey: any; ns: string|any[]; ms: any[]; tempos: string|any[]; seconds: any; pitches: string|any[]; beats: number; onsets: number; poly: { avg: number; max: string|number; }; hands: string; rh: any; lh: any; segs: any[]; implied: any; motifs: any[]; }|null) {
+// The whole-piece model anCompute builds for the Piece tab.
+interface AnPanelWorkspace {
+    key: { best: theory.KeyRank; alts: theory.KeyRank[]; conf: string };
+    mainKey: theory.KeySignature;
+    ns: AnPanelNote[];
+    ms: AnPanelMeasure[];
+    tempos: number[];
+    seconds: number;
+    pitches: number[];
+    beats: number;
+    onsets: number;
+    poly: { avg: number; max: number };
+    hands: string;
+    rh: number;
+    lh: number;
+    segs: AnPanelChordSpan[];
+    implied: boolean;
+    motifs: { iv: number[]; count: number }[];
+}
+function anRenderWorkspace(v: AnPanelWorkspace) {
     const ws = byId('an-ws'), esc = xmlEsc, k = v.key, main = v.mainKey;
-    const focused = ws.contains(document.activeElement) ? document.activeElement : null, refocus = focused && (focused.dataset.k != null ? '[data-k="' + focused.dataset.k + '"]' : focused.dataset.motif != null ? '[data-motif="' + focused.dataset.motif + '"]' : null);
+    const fe = document.activeElement, focused = (fe instanceof HTMLElement || fe instanceof SVGElement) && ws.contains(fe) ? fe : null, refocus = focused && (focused.dataset.k != null ? '[data-k="' + focused.dataset.k + '"]' : focused.dataset.motif != null ? '[data-motif="' + focused.dataset.motif + '"]' : null);
     // key
     const origin = anOriginText();
     const differs = (main.root !== k.best.root || main.minor !== k.best.minor) && k.conf !== 'low';
@@ -12211,10 +12291,10 @@ function anRenderWorkspace(v: { key: any; mainKey: any; ns: string|any[]; ms: an
   <h3 id="an-h-key">${esc(t('an_key_h'))}</h3><p class="an-keybig">${esc(anKeyName(main))}</p>
   <p class="an-small">${esc(t('an_key_used', origin))}</p>
   <p class="an-small">${esc(t('an_est', anKeyName(k.best) + ' — ' + t('an_conf_' + k.conf), anNum(k.best.score, 2)))}</p>
-  <p class="an-small">${esc(t('an_alts', k.alts.map((a: { score: any; }) => anKeyName(a) + ' ' + anNum(a.score, 2)).join(' · ')))}</p>${differs ? `<p class="an-small an-warn">${esc(t('an_key_differs'))}</p>` : ''}</section>`;
+  <p class="an-small">${esc(t('an_alts', k.alts.map((a) => anKeyName(a) + ' ' + anNum(a.score, 2)).join(' · ')))}</p>${differs ? `<p class="an-small an-warn">${esc(t('an_key_differs'))}</p>` : ''}</section>`;
     let facts = `<section class="an-over" aria-labelledby="an-h-over"><h3 id="an-h-over">${esc(t('an_overview'))}</h3><dl class="an-dl">`;
-    const row = (dt: string, dd: string, sub: string|undefined) => { facts += `<div><dt>${esc(dt)}</dt><dd>${esc(dd)}${sub ? `<small>${esc(sub)}</small>` : ''}</dd></div>`; };
-    const metersSet = [...new Set(v.ms.map((m: { num: string; den: string; }) => m.num + '/' + m.den))], unit = anBeatUnit(v.ms[0] || { num: 4, den: 4 });
+    const row = (dt: string, dd: string, sub?: string) => { facts += `<div><dt>${esc(dt)}</dt><dd>${esc(dd)}${sub ? `<small>${esc(sub)}</small>` : ''}</dd></div>`; };
+    const metersSet = [...new Set(v.ms.map((m) => m.num + '/' + m.den))], unit = anBeatUnit(v.ms[0] || { num: 4, den: 4 });
     const tMin = Math.min(...v.tempos), tMax = Math.max(...v.tempos), changes = v.tempos.length - 1;
     row(t('an_f_duration'), anClock(v.seconds), t('an_at_speed'));
     row(t('an_f_meter'), metersSet.join(', '), t('an_beat_unit', t(unit === 1.5 ? 'an_unit_dq' : unit === 2 ? 'an_unit_h' : unit === 0.5 ? 'an_unit_e' : 'an_unit_q')));
@@ -12236,8 +12316,8 @@ function anRenderWorkspace(v: { key: any; mainKey: any; ns: string|any[]; ms: an
     facts += '</dl></section>';
     html += `<section class="an-harm" aria-labelledby="an-h-harm"><h3 id="an-h-harm">${esc(t('an_harm_h'))}</h3>`;
     // progression summary: consecutive repeats merged
-    const seq: any[] = [];
-    v.segs.forEach((s: { start: any; }, i: any) => { const key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), last = seq[seq.length - 1]; if (!last || last.lab !== lab)
+    const seq: { lab: string; rn: string; i: number }[] = [];
+    v.segs.forEach((s, i) => { const key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), last = seq[seq.length - 1]; if (!last || last.lab !== lab)
         seq.push({ lab, rn, i }); });
     if (seq.length) {
         const shown = seq.slice(0, 14), more = seq.length - shown.length;
@@ -12246,11 +12326,11 @@ function anRenderWorkspace(v: { key: any; mainKey: any; ns: string|any[]; ms: an
     html += `<p class="an-small">${esc(seq.length ? t(v.implied ? 'an_harm_implied' : 'an_harm_note') : t('an_harm_none'))}</p>`;
     if (v.segs.length) {
         AN.rove = Math.min(AN.rove, v.segs.length - 1);
-        html += `<div class="an-prog" role="toolbar" aria-orientation="vertical" aria-label="${esc(t('an_prog_label'))}" aria-describedby="an-prog-hint">${anRowsHTML(v.segs.map((s: any, i: any) => ({ s, k: i })), AN.rove)}</div><p class="an-legend" id="an-prog-hint">${esc(t('an_prog_hint'))}</p>`;
+        html += `<div class="an-prog" role="toolbar" aria-orientation="vertical" aria-label="${esc(t('an_prog_label'))}" aria-describedby="an-prog-hint">${anRowsHTML(v.segs.map((s, i) => ({ s, k: i })), AN.rove)}</div><p class="an-legend" id="an-prog-hint">${esc(t('an_prog_hint'))}</p>`;
     }
     html += `<h3 style="margin-top:18px">${esc(t('an_motifs_h'))}</h3>`;
     if (v.motifs.length)
-        html += `<div class="an-chips">${v.motifs.map((m: { iv: any[]; count: any; }, i: any) => { const steps = m.iv.map((n: number) => (n > 0 ? '+' : '') + n).join(' '); return `<button type="button" class="an-chip" data-motif="${i}" aria-pressed="false" title="${esc(t('an_motif_title', steps))}"><span>${esc(steps)}</span><small>× ${m.count}</small></button>`; }).join('')}</div>`;
+        html += `<div class="an-chips">${v.motifs.map((m, i) => { const steps = m.iv.map((n) => (n > 0 ? '+' : '') + n).join(' '); return `<button type="button" class="an-chip" data-motif="${i}" aria-pressed="false" title="${esc(t('an_motif_title', steps))}"><span>${esc(steps)}</span><small>× ${m.count}</small></button>`; }).join('')}</div>`;
     else
         html += `<p class="an-small">${esc(t('an_motif_none'))}</p>`;
     html += '</section>' + facts + '</div>';
@@ -12258,7 +12338,7 @@ function anRenderWorkspace(v: { key: any; mainKey: any; ns: string|any[]; ms: an
     AN.playSig = '';
     anSyncTimeline(fallTime(), false);
     if (refocus) {
-        const el = ws.querySelector(refocus);
+        const el = queryHtml(ws, refocus);
         if (el)
             el.focus({ preventScroll: true });
     }
@@ -12274,7 +12354,7 @@ function anRenderSelection() {
         box.innerHTML = '';
         return;
     } // whole bars: the chord cards above say it all
-    const key = anKeyAt(sel[0].start), pitches = [...new Set(sel.map((n) => n.midi))].sort((a, b) => a - b), esc = xmlEsc, parts = [];
+    const key = anKeyAt(sel[0].start), pitches = [...new Set(sel.map((n) => n.midi))].sort((a, b) => a - b), esc = xmlEsc, parts: string[] = [];
     parts.push(`<span><b>${esc(t('an_sel_h'))}</b> · ${esc(sel.length === 1 ? t('an_note1') : t('an_sel_notes', sel.length))} · ${esc(anBarsLabel(sel))}</span>`);
     parts.push(`<span>${esc(pitches.slice(0, 16).map((m) => spellName(m, key, true)).join(' · '))}${pitches.length > 16 ? ' …' : ''}</span>`);
     const seg = AN.active && AN.active.kind === 'chord' && AN.view ? AN.view.segs[AN.active.k] : null;
@@ -12299,13 +12379,13 @@ function anMarkActive() {
     const a = AN.active, side = byId('an-side');
     if (!side)
         return;
-    side.querySelectorAll('.an-ch').forEach((b) => b.setAttribute('aria-pressed', a && a.kind === 'chord' && +b.dataset.k === a.k ? 'true' : 'false'));
-    side.querySelectorAll('.an-chip[data-motif]').forEach((b) => b.setAttribute('aria-pressed', a && a.kind === 'motif' && +b.dataset.motif === a.k ? 'true' : 'false'));
+    queryAllHtml(side, '.an-ch').forEach((b) => b.setAttribute('aria-pressed', a && a.kind === 'chord' && Number(b.dataset.k) === a.k ? 'true' : 'false'));
+    queryAllHtml(side, '.an-chip[data-motif]').forEach((b) => b.setAttribute('aria-pressed', a && a.kind === 'motif' && Number(b.dataset.motif) === a.k ? 'true' : 'false'));
     const f = AN.notes.length ? anFocus(false) : null, on = !!f && f.kind !== 'cursor';
-    byId('an-ws').querySelectorAll('.an-prog-row[data-bar]').forEach((r) => { const i = +r.dataset.bar; r.classList.toggle('is-sel', on && i >= f.a && i <= f.b); });
+    queryAllHtml(byId('an-ws'), '.an-prog-row[data-bar]').forEach((r) => { const i = Number(r.dataset.bar); r.classList.toggle('is-sel', on && i >= f.a && i <= f.b); });
 }
 /* opening files and examples */
-function anStatus(msg: string, isError: boolean|undefined) { const el = byId('an-msg'); el.textContent = msg || ''; el.classList.toggle('is-error', !!isError); }
+function anStatus(msg?: string, isError?: boolean) { const el = byId('an-msg'); el.textContent = msg || ''; el.classList.toggle('is-error', !!isError); }
 function anLoadedText() {
     const src = AN.source;
     if (!src)
@@ -12315,19 +12395,20 @@ function anLoadedText() {
         return t('an_loaded_xml');
     if (src.kind === 'example')
         return t('an_loaded_example', g);
-    const tracks = new Set(src.parsed.notes.map((n: { track: any; }) => n.track)).size;
+    const tracks = new Set(src.parsed.notes.map((n: { track: number; }) => n.track)).size;
     return t('an_loaded_midi', tracks === 1 ? t('an_track1') : t('an_tracks', tracks), g);
 }
-function anShowError(k: string, a: string|number|undefined) { AN.error = { k, a }; anStatus(t(k, a), true); if (!SCORE.xml)
+function anShowError(k: string, a?: string|number) { AN.error = { k, a }; anStatus(a === undefined ? t(k) : t(k, a), true); if (!SCORE.xml)
     anRenderEmpty(); }
-function anSetLoading(on: boolean, msg: string|undefined) { AN.loading = on; if (on) {
+function anSetLoading(on: boolean, msg?: string) { AN.loading = on; if (on) {
     scoreStop();
     AN.error = null;
     anStatus(msg);
 } anUpdateControls(); }
-function anErrorKey(err: unknown, fallback: string) { if (!err || !err.code)
-    console.error(err); const code = err && err.code; return 'an_err_' + (code && STRINGS.en['an_err_' + code] ? code : fallback); }
-function anPieceMeta(p: { id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; lh: (string|number)[][]; rh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh: (string|number)[][]; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; pickup: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; }|undefined) {
+function anErrorKey(err: unknown, fallback: string) { const code: unknown = typeof err === 'object' && err !== null && 'code' in err ? err.code : undefined; if (!err || !code)
+    console.error(err); return 'an_err_' + (code && STRINGS.en['an_err_' + String(code)] ? String(code) : fallback); }
+type AnExamplePiece = (typeof PIECES)[number];
+function anPieceMeta(p: AnExamplePiece) {
     const n = p.keyN || 0, keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n);
     return [p.comp, anKeyName({ root: keyPc, minor: !!p.minor, fifths: n }), p.ts[0] + '/' + p.ts[1]].filter(Boolean).join(' · ');
 }
@@ -12337,15 +12418,15 @@ function anRenderEmpty() {
     box.classList.remove('is-loading', 'is-over');
     box.setAttribute('aria-busy', 'false');
     box.hidden = FALL.mode !== 'score' && AN.notes.length > 0;
-    const esc = xmlEsc, ex = AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter(Boolean);
+    const esc = xmlEsc, ex = AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter((p): p is AnExamplePiece => Boolean(p));
     box.innerHTML = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${esc(t('an_drop_t'))}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
   <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div>
   <div class="an-exlist"><h2>${esc(t('an_examples'))}</h2><ul>${(ex).map((p) => `<li><button type="button" class="an-ex" data-piece="${p.id}"><span class="an-ex-t">${esc(srPieceTitle(p))}</span><span class="an-ex-m">${esc(anPieceMeta(p))}</span></button></li>`).join('')}</ul></div></div>`;
     anUpdateControls();
 }
 function anFillExamples() {
-    const sel = byId('an-example'), cur = AN.source && AN.source.kind === 'example' ? AN.source.id : '';
-    sel.innerHTML = `<option value="">${xmlEsc(t('an_example_pick'))}</option>` + AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter(Boolean).map((p) => `<option value="${p.id}">${xmlEsc(srPieceTitle(p))}</option>`).join('');
+    const sel = selectById('an-example'), cur = AN.source && AN.source.kind === 'example' ? AN.source.id : '';
+    sel.innerHTML = `<option value="">${xmlEsc(t('an_example_pick'))}</option>` + AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter((p): p is AnExamplePiece => Boolean(p)).map((p) => `<option value="${p.id}">${xmlEsc(srPieceTitle(p))}</option>`).join('');
     sel.value = cur;
 }
 function anReconUI() {
@@ -12362,7 +12443,7 @@ function anReconUI() {
     const keys = (minor: boolean) => [...Array(12).keys()].map((r) => { const f = keyFifths(r, minor); return opt(f + ':' + (minor ? 1 : 0), anKeyName({ root: r, minor, fifths: f })); }).join('');
     byId('an-keysel').innerHTML = opt('auto', t('an_key_auto')) + `<optgroup label="${xmlEsc(t('an_keys_major'))}">${keys(false)}</optgroup><optgroup label="${xmlEsc(t('an_keys_minor'))}">${keys(true)}</optgroup>`;
     selectById('an-keysel').value = AN.recon.key;
-    const h = AN.hands, k = AN.keyMap[0], parts = [];
+    const h = AN.hands, k = AN.keyMap[0], parts: string[] = [];
     if (h)
         parts.push(h.how === 'tracks' ? t('an_rn_hands_tracks', h.groups) : h.how === 'piece' ? t('an_rn_hands_piece') : t(h.how === 'fallback' ? 'an_rn_hands_fallback' : h.how === 'one' ? 'an_rn_hands_one' : 'an_rn_hands_split', noteName(h.split, false)));
     if (k)
@@ -12402,7 +12483,9 @@ function anReset() {
 // Walk the directory the way it will (last end-of-directory record, signed 32-bit fields, the same record and local-header
 // reads), refuse anything it could not unpack anyway, and cap what every entry declares. Entries big enough to expand
 // past the cap (deflate tops out near 1032:1) are inflated once as a counted stream, so a lying header fails here.
-async function anMxlPreflight(buf: any)  {
+interface AnZipEntry { method: number; C: number; U: number; off: number; }
+interface AnZipEntryData extends AnZipEntry { data: Uint8Array<ArrayBuffer>; }
+async function anMxlPreflight(buf: ArrayBuffer)  {
     const u = new Uint8Array(buf), N = u.length, CAP = AN_MAX_XML_CHARS, bad = () => anError('mxl');
     let zero = 0;
     const fits = (i: number, n: number) => i >= 0 && n >= 0 && zero + i + n <= N;
@@ -12448,7 +12531,7 @@ async function anMxlPreflight(buf: any)  {
         throw bad();
     if (extra > 0)
         zero = extra; // bytes prepended to the archive shift every offset
-    const ents = [];
+    const heads: AnZipEntry[] = [];
     let p = cdOff;
     if (!fits(p, 0))
         throw bad();
@@ -12458,7 +12541,7 @@ async function anMxlPreflight(buf: any)  {
         if (!sig(p, 1, 2))
             break;
         const flag = int(p + 8, 2), method = int(p + 10, 2), nl = int(p + 28, 2), xl = int(p + 30, 2), cl = int(p + 32, 2);
-        let C = int(p + 20, 4), U = int(p + 24, 4), off = int(p + 42, 4), i = p + 46 + nl, z64 = null;
+        let C = int(p + 20, 4), U = int(p + 24, 4), off = int(p + 42, 4), i = p + 46 + nl, z64: { i: number; end: number } | null = null;
         if (flag & 1 || !fits(i, 0))
             throw bad();
         const xend = i + xl;
@@ -12475,8 +12558,9 @@ async function anMxlPreflight(buf: any)  {
             throw bad();
         i = xend;
         if (z64) {
-            const r8 = () => { if (z64.i + 8 > z64.end)
-                throw bad(); const v = int8(z64.i); z64.i += 8; return v; };
+            const z = z64;
+            const r8 = () => { if (z.i + 8 > z.end)
+                throw bad(); const v = int8(z.i); z.i += 8; return v; };
             if (U === -1)
                 U = r8();
             if (C === -1)
@@ -12487,18 +12571,18 @@ async function anMxlPreflight(buf: any)  {
         if (!fits(i, cl))
             throw bad();
         p = i + cl;
-        ents.push({ method, C, U, off });
+        heads.push({ method, C, U, off });
     }
-    if (!ents.length)
+    if (!heads.length)
         throw bad();
-    for (const e of ents) {
+    const ents: AnZipEntryData[] = heads.map((e) => {
         if (!sig(e.off, 3, 4) || e.C < 0 || e.U < 0 || (e.method !== 0 && e.method !== 8))
             throw bad();
         const nl = int(e.off + 26, 2), start = e.off + 30 + nl + int(e.off + 28, 2);
         if (!fits(e.off + 30, nl) || !fits(start, e.C))
             throw bad();
-        e.data = u.subarray(zero + start, zero + start + e.C);
-    }
+        return { ...e, data: u.subarray(zero + start, zero + start + e.C) };
+    });
     const TOTAL_CAP = 4 * CAP;
     let declared = 0, possible = 0;
     for (const e of ents) {
@@ -12534,8 +12618,8 @@ async function anMxlPreflight(buf: any)  {
 }
 // Inflates raw-deflate bytes as a stream, counting and discarding the output; stops as soon as it passes `limit`.
 // Resolves to the byte count (limit+something when over), or null when this browser has no raw-deflate stream.
-let anInflatedSize = async function anInflatedSize(bytes: { length: number; subarray: (arg0: number,arg1: number) => BufferSource|undefined; }, limit: number)  {
-    let ds;
+let anInflatedSize = async function anInflatedSize(bytes: Uint8Array<ArrayBuffer>, limit: number): Promise<number | null> {
+    let ds: DecompressionStream;
     try {
         ds = new DecompressionStream('deflate-raw');
     }
@@ -12567,32 +12651,40 @@ let anInflatedSize = async function anInflatedSize(bytes: { length: number; suba
 };
 // MusicXML distances are tenths of a staff space; OSMD distances are staff spaces.
 // Keep physical page/staff sizing when supplied, with bounded fallbacks for incomplete or malformed layout hints.
-function scoreXmlLayout(doc: Document) {
+interface AnXmlTitleRun { text: string; style: string; weight: string; }
+interface AnXmlPageLayout {
+    base: number; width: number; pageWidth: number; pageHeight: number;
+    left?: number; right?: number; top?: number; bottom?: number;
+    titleSize?: number; subtitleSize?: number; composerSize?: number;
+    titleRuns?: AnXmlTitleRun[];
+    staffGap?: number | null; systemGap?: number | null;
+}
+function scoreXmlLayout(doc: Document): AnXmlPageLayout | null {
     const root = doc.documentElement, defaults = root.querySelector(':scope > defaults');
     if (!defaults)
         return null;
-    const number = (el: { querySelector: (arg0: any) => any; }, selector: string, min: number, max: number) => { const node = el && el.querySelector(selector), value = node && parseFloat(node.textContent); return Number.isFinite(value) && value >= min && value <= max ? value : null; };
+    const number = (el: Element | null, selector: string, min: number, max: number) => { const node = el && el.querySelector(selector), value = node ? parseFloat(node.textContent) : NaN; return Number.isFinite(value) && value >= min && value <= max ? value : null; };
     const mm = number(defaults, 'scaling > millimeters', .1, 100), tenths = number(defaults, 'scaling > tenths', 1, 1000), unit = mm && tenths ? mm / tenths : null;
     const base = unit && unit * 96 / 25.4 >= .3 && unit * 96 / 25.4 <= 1.5 ? unit * 96 / 25.4 : SC_BASE;
     const pw = number(defaults, 'page-layout > page-width', 100, 10000), ph = number(defaults, 'page-layout > page-height', 100, 20000);
     const width = unit && pw ? pw * unit : 210, height = unit && ph ? ph * unit : 297;
     const pageWidth = width >= 50 && width <= 600 ? width : 210, pageHeight = height >= 50 && height <= 1200 ? height : 297;
-    const margins = defaults.querySelector('page-margins[type="both"],page-margins[type="odd"]') || defaults.querySelector('page-margins'), out = { base, width: pageWidth * 96 / 25.4, pageWidth, pageHeight };
-    for (const side of ['Left', 'Right', 'Top', 'Bottom']) {
-        const value = number(margins, side.toLowerCase() + '-margin', 0, 400);
-        if (value != null && value < (side === 'Left' || side === 'Right' ? pw : ph) / 3)
-            out[side.toLowerCase()] = value / 10;
+    const margins = defaults.querySelector('page-margins[type="both"],page-margins[type="odd"]') || defaults.querySelector('page-margins'), out: AnXmlPageLayout = { base, width: pageWidth * 96 / 25.4, pageWidth, pageHeight };
+    for (const [side, prop] of [['Left', 'left'], ['Right', 'right'], ['Top', 'top'], ['Bottom', 'bottom']] as const) {
+        const value = number(margins, prop + '-margin', 0, 400);
+        if (value != null && value < ((side === 'Left' || side === 'Right' ? pw : ph) ?? 0) / 3)
+            out[prop] = value / 10;
     }
-    for (const kind of ['title', 'subtitle', 'composer']) {
+    for (const [kind, prop] of [['title', 'titleSize'], ['subtitle', 'subtitleSize'], ['composer', 'composerSize']] as const) {
         const credit = [...root.querySelectorAll(':scope > credit')].find((c) => c.querySelector('credit-type')?.textContent.trim() === kind && (c.getAttribute('page') || '1') === '1');
-        const words = credit && [...credit.querySelectorAll('credit-words')], size = words && words[0] && parseFloat(words[0].getAttribute('font-size'));
+        const words = credit && [...credit.querySelectorAll('credit-words')], size = words && words[0] ? parseFloat(words[0].getAttribute('font-size') ?? '') : NaN;
         if (Number.isFinite(size) && size >= 6 && size <= 48)
-            out[kind + 'Size'] = size;
+            out[prop] = size;
         if (kind === 'title' && words) {
             let style = 'normal', weight = 'normal';
-            out.titleRuns = words.map((w: { getAttribute: (arg0: string) => string; textContent: any; }) => { if (['normal', 'italic'].includes(w.getAttribute('font-style')))
-                style = w.getAttribute('font-style'); if (['normal', 'bold'].includes(w.getAttribute('font-weight')))
-                weight = w.getAttribute('font-weight'); return { text: w.textContent, style, weight }; });
+            out.titleRuns = words.map((w) => { const fs = w.getAttribute('font-style'), fw = w.getAttribute('font-weight'); if (fs === 'normal' || fs === 'italic')
+                style = fs; if (fw === 'normal' || fw === 'bold')
+                weight = fw; return { text: w.textContent, style, weight }; });
         }
     }
     // These rules are global minima, not a command to repeat the first system's (often unusually large) spacing.
@@ -12601,8 +12693,8 @@ function scoreXmlLayout(doc: Document) {
     out.systemGap = minimum('part > measure > print > system-layout > system-distance', 400);
     return out;
 }
-async function anReadXml(file: { name: string; arrayBuffer: () => any; text: () => any; }, title: any)  {
-    let xml;
+async function anReadXml(file: File, title: string)  {
+    let xml: string;
     if (/\.mxl$/i.test(file.name)) {
         const buf = await file.arrayBuffer();
         await anMxlPreflight(buf);
@@ -12629,7 +12721,7 @@ async function anReadXml(file: { name: string; arrayBuffer: () => any; text: () 
         throw anError('nonotes');
     if (r.notes.length > AN_MAX_NOTES)
         throw anError('notes');
-    return { kind: 'xml', title: clean || title, label: file.name, xml, layout, ...r };
+    return { kind: 'xml' as const, title: clean || title, label: file.name, xml, layout, ...r };
 }
 // MuseScore exports read cleanly in the engraver: real title and composer in the header (not the file name),
 // no editorial footnotes over the first staff, SMuFL note glyphs readable in web fonts, no generic "Instr. P1"
@@ -12639,18 +12731,21 @@ const AN_SMUFL_NOTES = { '\uE1D2': '\uD834\uDD5D', '\uECA2': '\uD834\uDD5D', '\u
     '\uE1D7': '\u266A', '\uECA7': '\u266A', '\uE1D8': '\u266A', '\uECA8': '\u266A', '\uE1D9': '\u266C', '\uECA9': '\u266C', '\uE1DA': '\u266C', '\uECAA': '\u266C', '\uE1E7': '.', '\uECB7': '.', '\uE520': 'p', '\uE522': 'f' };
 // Some exports leave an open last ending before the next forward repeat. Do not let it span the next section.
 // Explicit stop/discontinue pairs always win, including multi-measure endings crossing a repeat boundary.
-function scoreXmlEndings(doc: { querySelectorAll: (arg0: string) => any[]; createElementNS: (arg0: any,arg1: string) => any; }) {
-    doc.querySelectorAll('score-partwise > part').forEach((part: { querySelectorAll: (arg0: string) => any; children: any; namespaceURI: any; }) => {
-        const endings = [...part.querySelectorAll('barline > ending')], open = new Map(), unclosed = new Set();
+function scoreXmlEndings(doc: Document) {
+    doc.querySelectorAll('score-partwise > part').forEach((part) => {
+        const endings = [...part.querySelectorAll('barline > ending')], open = new Map<string, Element>(), unclosed = new Set<Element>();
         endings.forEach((e) => {
             const key = e.getAttribute('number') || '1';
             if (e.getAttribute('type') === 'start') {
                 open.set(key, e);
                 unclosed.add(e);
             }
-            else if (open.has(key)) {
-                unclosed.delete(open.get(key));
-                open.delete(key);
+            else {
+                const started = open.get(key);
+                if (started) {
+                    unclosed.delete(started);
+                    open.delete(key);
+                }
             }
         });
         open.clear();
@@ -12672,17 +12767,18 @@ function scoreXmlEndings(doc: { querySelectorAll: (arg0: string) => any[]; creat
                 });
                 open.clear();
             }
-            m.querySelectorAll(':scope > barline > ending').forEach((e: unknown) => { if (unclosed.has(e))
+            m.querySelectorAll(':scope > barline > ending').forEach((e) => { if (unclosed.has(e))
                 open.set(e.getAttribute('number') || '1', e); });
         });
     });
 }
-function anXmlTidy(doc: Document, fallback: any) {
-    const root = doc.documentElement, kids = (el: { children: any; }) => [...el.children], one = (el: any, name: string) => kids(el).find((c) => c.localName === name);
-    const text = (el: { textContent: any; }) => (el && el.textContent || '').replace(/\s+/g, ' ').trim(), same = (a: string, b: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+function anXmlTidy(doc: Document, fallback: string) {
+    const root = doc.documentElement, kids = (el: Element) => [...el.children], one = (el: Element, name: string) => kids(el).find((c) => c.localName === name);
+    const smufl = new Map(Object.entries(AN_SMUFL_NOTES));
+    const text = (el: Element | null | undefined) => (el && el.textContent || '').replace(/\s+/g, ' ').trim(), same = (a: string, b: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
     // 1. Note glyphs in tempo and credit text; "Lento ( = 60 bpm)" gains its missing quarter note.
     //    A text split over several <words> ("Lento (", glyph, " = 60 bpm)") is one line in MuseScore, not a stack.
-    doc.querySelectorAll('direction').forEach((dir: any) => {
+    doc.querySelectorAll('direction').forEach((dir) => {
         const dts = kids(dir).filter((c) => c.localName === 'direction-type');
         if (dts.length < 2 || !dts.every((dt) => dt.children.length && kids(dt).every((c) => c.localName === 'words')))
             return;
@@ -12691,8 +12787,9 @@ function anXmlTidy(doc: Document, fallback: any) {
         dts.slice(1).forEach((dt) => dt.remove());
         kids(dts[0]).slice(1).forEach((w) => w.remove());
     });
-    doc.querySelectorAll('words,credit-words,rehearsal').forEach((w: { textContent: any; closest: (arg0: string) => { (): any; new(): any; previousElementSibling: any; }; getAttribute: (arg0: string) => any; removeAttribute: (arg0: string) => void; }) => {
-        let t = w.textContent, u = t.replace(/[\uE1D2-\uE1E7\uECA2-\uECB7\uE520\uE522]/g, (c: string|number) => AN_SMUFL_NOTES[c] ?? '');
+    doc.querySelectorAll('words,credit-words,rehearsal').forEach((w) => {
+        const t = w.textContent;
+        let u = t.replace(/[\uE1D2-\uE1E7\uECA2-\uECB7\uE520\uE522]/g, (c) => smufl.get(c) ?? '');
         u = u.replace(/\(\s*=\s*(\d)/g, '(\u2669 = $1');
         if (/^\s*=\s*\d/.test(u)) {
             const prev = w.closest('direction-type')?.previousElementSibling, pt = prev?.querySelector('words')?.textContent || '';
@@ -12706,7 +12803,7 @@ function anXmlTidy(doc: Document, fallback: any) {
         }
     });
     // 2. Title and composer from the header, the credits, or (last) the file name.
-    const credits = kids(root).filter((c) => c.localName === 'credit'), ctype = (c: any) => text(one(c, 'credit-type')).toLowerCase(), cwords = (c: { querySelectorAll: (arg0: string) => any; }) => [...c.querySelectorAll('credit-words')].map(text).filter(Boolean).join(' ');
+    const credits = kids(root).filter((c) => c.localName === 'credit'), ctype = (c: Element) => text(one(c, 'credit-type')).toLowerCase(), cwords = (c: Element) => [...c.querySelectorAll('credit-words')].map(text).filter(Boolean).join(' ');
     const workEl = one(root, 'work'), workTitle = workEl && one(workEl, 'work-title'), mvt = one(root, 'movement-title');
     let title = text(workTitle) || text(mvt);
     if (!title) {
@@ -12715,7 +12812,7 @@ function anXmlTidy(doc: Document, fallback: any) {
             title = cwords(typed);
     }
     if (!title) {
-        let best = null, size = -1, y = -1;
+        let best: string | null = null, size = -1, y = -1;
         credits.filter((c) => (c.getAttribute('page') || '1') === '1' && !ctype(c)).forEach((c) => {
             const w = c.querySelector('credit-words');
             if (!w)
@@ -12723,7 +12820,7 @@ function anXmlTidy(doc: Document, fallback: any) {
             const t = text(w);
             if (!t || t.length > 80)
                 return;
-            const fs = parseFloat(w.getAttribute('font-size')) || 0, dy = parseFloat(w.getAttribute('default-y')) || 0;
+            const fs = parseFloat(w.getAttribute('font-size') ?? '') || 0, dy = parseFloat(w.getAttribute('default-y') ?? '') || 0;
             if (fs > size || (fs === size && dy > y)) {
                 best = t;
                 size = fs;
@@ -12753,7 +12850,7 @@ function anXmlTidy(doc: Document, fallback: any) {
             composerFromSubtitle = true;
         }
     }
-    const before = (names: string|any[]) => kids(root).find((c) => names.includes(c.localName)) || null;
+    const before = (names: string[]) => kids(root).find((c) => names.includes(c.localName)) || null;
     let work = workEl;
     if (!work) {
         work = doc.createElement('work');
@@ -12782,27 +12879,29 @@ function anXmlTidy(doc: Document, fallback: any) {
         cr.textContent = composer;
     }
     // 3. Credits the header already shows, and long editorial notes, leave the page; so do long words over the staves.
-    const editorial = (t: string|any[]) => t.length >= 90 || /(^|\s)(edi[cç][aã]o|edici[oó]n|edition|correc[cç]|correction|nota(s)? d[aoe]|editor'?s note|note de l'[ée]diteur)/i.test(t);
+    const editorial = (t: string) => t.length >= 90 || /(^|\s)(edi[cç][aã]o|edici[oó]n|edition|correc[cç]|correction|nota(s)? d[aoe]|editor'?s note|note de l'[ée]diteur)/i.test(t);
     //    Version, arrangement and transcription notes ("Versão revista…", "arr. de…") go too when they read as a
     //    footnote: a sentence rather than a label, or set low on the page / far under the bass staff, where they
     //    would push the "Ped. … *" marks down.
     const versionNote = /(^|(?:\s|\(|\[))(vers[aã]o|versi[oó]n|version|vers\.|arr\.|arranj|arranged by|arrangement|transcr|adapt\.|adapta[cç]|adapted|revis[aã]o|revisi[oó]n|revised|revision)/i;
-    const yOf = (el: { getAttribute: (arg0: string) => any; }) => { for (const a of ['default-y', 'relative-y']) {
-        const v = parseFloat(el && el.getAttribute(a));
+    const yOf = (el: Element | null) => { for (const a of ['default-y', 'relative-y']) {
+        const v = el ? parseFloat(el.getAttribute(a) ?? '') : NaN;
         if (!isNaN(v))
             return v;
     } return NaN; };
-    const footnote = (t: string|any[], low: boolean) => versionNote.test(t) && (t.length >= 24 || low);
+    const footnote = (t: string, low: boolean) => versionNote.test(t) && (t.length >= 24 || low);
     credits.forEach((c) => {
         const ty = ctype(c), t = cwords(c), raw = [...c.querySelectorAll('credit-words')].map((w) => w.textContent).join('\n'), cy = yOf(c.querySelector('credit-words'));
         if (ty === 'title' || (ty !== 'composer' && (same(t, title) || same(t, composer))) || (composerFromSubtitle && ty === 'subtitle') || editorial(t) || footnote(t, cy < 200) || raw.split('\n').filter((s) => s.trim()).length >= 3)
             c.remove();
     });
-    doc.querySelectorAll('direction > direction-type > words').forEach((w: { textContent: { split: (arg0: string) => { (): any; new(): any; filter: { (arg0: (s: any) => any): { (): any; new(): any; length: number; }; new(): any; }; }; }; parentElement: any; remove: () => void; }) => {
+    doc.querySelectorAll('direction > direction-type > words').forEach((w) => {
         const t = text(w), y = yOf(w);
         if (!t || !(t.length >= 60 || editorial(t) || footnote(t, y <= -80) || (t.length >= 20 && y <= -90) || w.textContent.split('\n').filter((s: string) => s.trim()).length >= 3))
             return;
-        const dt = w.parentElement, dir = dt.parentElement;
+        const dt = w.parentElement, dir = dt && dt.parentElement;
+        if (!dt || !dir)
+            return;
         w.remove();
         if (dt.children.length)
             return;
@@ -12815,7 +12914,7 @@ function anXmlTidy(doc: Document, fallback: any) {
     });
     // 4. Chord symbols sit above the upper staff: a <harmony> tied to the left hand would print between the staves,
     //    on top of the dynamics and hairpins.
-    doc.querySelectorAll('harmony > staff').forEach((st: { textContent: string; }) => { if ((parseInt(text(st)) || 1) > 1)
+    doc.querySelectorAll('harmony > staff').forEach((st) => { if ((parseInt(text(st)) || 1) > 1)
         st.textContent = '1'; });
     // 5. A lone piano part, or a generic label, needs no instrument name at the left of the system.
     const parts = [...root.querySelectorAll('part-list > score-part')], generic = /^(p\s*\d*|instr\.?\s*p?\s*\d*|piano(forte)?|pian|pianoforte|klavier|grand piano|acoustic grand piano)$/i;
@@ -12829,7 +12928,7 @@ function anXmlTidy(doc: Document, fallback: any) {
     });
     // 6. Pedal marks as "Ped. … *": OSMD draws line="yes" as a bracket under the bass staff, where fingering lives.
     //    It drops type="change" on text pedals, so a change becomes a release and a new press at the same moment.
-    doc.querySelectorAll('direction-type > pedal').forEach((p: { getAttribute: (arg0: string) => any; setAttribute: (arg0: string,arg1: string) => void; parentElement: any; }) => {
+    doc.querySelectorAll('direction-type > pedal').forEach((p) => {
         const ty = p.getAttribute('type');
         if (ty === 'continue')
             return;
@@ -12837,12 +12936,17 @@ function anXmlTidy(doc: Document, fallback: any) {
         p.setAttribute('sign', 'yes');
         if (ty === 'change') {
             p.setAttribute('type', 'stop');
-            const dt = p.parentElement, dir = dt.parentElement, again = dir.cloneNode(false);
+            const dt = p.parentElement, dir = dt && dt.parentElement;
+            if (!dt || !dir)
+                return;
+            const again = dir.cloneNode(false);
+            if (!(again instanceof Element))
+                return;
             [...dir.children].forEach((c) => { if (c === dt)
                 again.appendChild(c.cloneNode(true));
             else if (['offset', 'voice', 'staff'].includes(c.localName))
                 again.appendChild(c.cloneNode(true)); });
-            again.querySelector('pedal').setAttribute('type', 'start');
+            again.querySelector('pedal')?.setAttribute('type', 'start');
             dir.after(again);
         }
     });
@@ -12862,7 +12966,7 @@ async function anOpenFile(file: File)  {
         return anShowError('an_err_empty', name);
     const token = ++AN.loadToken, title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
     anSetLoading(true, t('an_loading', name));
-    let src;
+    let src: AnLoadSource;
     try {
         src = kind === 'midi' ? { kind: 'midi', title, label: name, parsed: anParse(await file.arrayBuffer()) } : await anReadXml(file, title);
     }
@@ -12885,7 +12989,10 @@ async function anLoadExample(id: string)  {
     anSetLoading(true, t('an_loading', srPieceTitle(p)));
     await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
 }
-async function anCommit(src: { notes: any[]; tempos: any[]; measures: any[]; keys: any[]; links: { kind: any; a: number; b: number; style: any; }[]; kind: string; title: any; label: any; xml: string; layout: { base: number; width: number; pageWidth: number; pageHeight: number; }|null; }|{ kind: string; title: any; label: any; parsed: { ppq: number; format: number; tracks: number; names: string[]; meta: ({ type: string; beat: number; bpm: number; num?: undefined; den?: undefined; fifths?: undefined; minor?: undefined; }|{ type: string; beat: number; num: number; den: number; bpm?: undefined; fifths?: undefined; minor?: undefined; }|{ type: string; beat: number; fifths: number; minor: boolean; bpm?: undefined; num?: undefined; den?: undefined; })[]; notes: { midi: any; start: number; end: number; vel: any; track: number; channel: number; }[]; }; }|null, token: number)  {
+type AnXmlLoadSource = Awaited<ReturnType<typeof anReadXml>>;
+interface AnParsedLoadSource { kind: 'midi' | 'example'; title: string; label: string; parsed: ReturnType<typeof anParse> | ReturnType<typeof anPieceToParsed>; id?: string; comp?: string; }
+type AnLoadSource = AnXmlLoadSource | AnParsedLoadSource;
+async function anCommit(src: AnLoadSource, token: number)  {
     scoreStop();
     AN.source = src;
     AN.error = null;
