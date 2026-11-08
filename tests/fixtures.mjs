@@ -1,7 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 
 // APP_FILE lets the suite run against another copy of the app (e.g. an older revision, to confirm a test catches a bug).
-export const APP = process.env.APP_FILE || 'etude.html?__etude_test_surface=1';
+export const APP = process.env.APP_FILE || 'etude.html';
 
 // Opens the app with an optional saved state (the `ptt-v3` localStorage record) and records uncaught page errors.
 // The keyboard dock starts hidden on a first visit; pass `dock: true` (or false) to seed the saved choice (`kbDock`).

@@ -48,7 +48,7 @@ test.describe('Adversarial Stress Test: Rapid Language Switching', () => {
         await page.locator(`#set-lang button[data-v="${code}"]`).click();
       } else {
         // Programmatic setLang call to stress synchronous microtask timing
-        await page.evaluate((c) => setLang(c), code);
+        await page.evaluate((c) => window.__etude.setLang(c), code);
       }
     }
 
@@ -100,15 +100,15 @@ test.describe('Adversarial Stress Test: Rapid Language Switching', () => {
       const targetLang = ALL_LOCALES[i % ALL_LOCALES.length];
 
       await page.evaluate(({ v, l }) => {
-        show(v);
-        setLang(l);
+        window.__etude.show(v);
+        window.__etude.setLang(l);
       }, { v: targetView, l: targetLang });
     }
 
     // Verify current state is coherent
     const state = await page.evaluate(() => ({
-      activeView: view0(),
-      activeLang: lang,
+      activeView: window.__etude.view0(),
+      activeLang: window.__etude.lang,
       hasKeys: !!document.querySelector('#keys .key'),
     }));
 
@@ -125,24 +125,24 @@ test.describe('Adversarial Stress Test: Note Notation & Language Decoupling', ()
     for (const not of NOTATIONS) {
       // Set notation
       await page.evaluate((n) => {
-        notation = n;
-        applyNotation();
-        saveAll();
+        window.__etude.notation = n;
+        window.__etude.applyNotation();
+        window.__etude.saveAll();
       }, not);
 
       for (const loc of ALL_LOCALES) {
         // Set language
-        await page.evaluate((l) => setLang(l), loc);
+        await page.evaluate((l) => window.__etude.setLang(l), loc);
 
         const checks = await page.evaluate(() => {
           return {
-            currentLang: lang,
-            currentNotation: notation,
-            root0: rootName(0),     // C or Do
-            pc10Flat: pcName(10, true),  // Bb or Sib or B
-            pc10Sharp: pcName(10, false), // A# or La#
-            pc11: pcName(11, false),      // B or Si or H
-            note71: noteName(71, false),  // B4 or Si4 or H4
+            currentLang: window.__etude.lang,
+            currentNotation: window.__etude.notation,
+            root0: window.__etude.rootName(0),     // C or Do
+            pc10Flat: window.__etude.pcName(10, true),  // Bb or Sib or B
+            pc10Sharp: window.__etude.pcName(10, false), // A# or La#
+            pc11: window.__etude.pcName(11, false),      // B or Si or H
+            note71: window.__etude.noteName(71, false),  // B4 or Si4 or H4
           };
         });
 
@@ -200,12 +200,12 @@ test.describe('Adversarial Stress Test: Note Notation & Language Decoupling', ()
 
     // Reload page to confirm survival
     await page.reload();
-    await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+    await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
     const reloaded = await page.evaluate(() => ({
-      lang,
-      notation,
-      h4: noteName(71, false),
+    lang: window.__etude.lang,
+    notation: window.__etude.notation,
+      h4: window.__etude.noteName(71, false),
     }));
 
     expect(reloaded.lang).toBe('fr');
@@ -217,7 +217,7 @@ test.describe('Adversarial Stress Test: Note Notation & Language Decoupling', ()
     const page1 = await app.open();
     const page2 = await context.newPage();
     await page2.goto(APP);
-    await page2.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+    await page2.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
     // Initial state: en + letter
     await page1.locator('#settingsBtn').click();
@@ -230,15 +230,15 @@ test.describe('Adversarial Stress Test: Note Notation & Language Decoupling', ()
     await page2.locator('#set-notation button[data-v="german"]').click();
 
     // Wait for cross-tab storage sync
-    await expect.poll(() => page1.evaluate(() => notation)).toBe('german');
-    await expect.poll(() => page1.evaluate(() => lang)).toBe('it');
+    await expect.poll(() => page1.evaluate(() => window.__etude.notation)).toBe('german');
+    await expect.poll(() => page1.evaluate(() => window.__etude.lang)).toBe('it');
 
-    await expect.poll(() => page2.evaluate(() => lang)).toBe('it');
-    await expect.poll(() => page2.evaluate(() => notation)).toBe('german');
+    await expect.poll(() => page2.evaluate(() => window.__etude.lang)).toBe('it');
+    await expect.poll(() => page2.evaluate(() => window.__etude.notation)).toBe('german');
 
     // Check pitch names in both tabs
-    expect(await page1.evaluate(() => noteName(71, false))).toBe('H4');
-    expect(await page2.evaluate(() => noteName(71, false))).toBe('H4');
+    expect(await page1.evaluate(() => window.__etude.noteName(71, false))).toBe('H4');
+    expect(await page2.evaluate(() => window.__etude.noteName(71, false))).toBe('H4');
 
     await page2.close();
   });
@@ -249,12 +249,12 @@ test.describe('Adversarial Stress Test: Extreme Viewports & Mobile Boundary', ()
     test(`viewport ${width}px: no horizontal document overflow in all 7 locales and Settings buttons wrap`, async ({ page }) => {
       await page.setViewportSize({ width, height: 720 });
       await page.goto(APP);
-      await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
       // Test across locales
       const localeOverflows = [];
       for (const loc of ALL_LOCALES) {
-        await page.evaluate((l) => setLang(l), loc);
+        await page.evaluate((l) => window.__etude.setLang(l), loc);
         await page.waitForTimeout(200); // allow layout / resize handlers to settle
 
         // Verify document scrollWidth does not exceed viewport width (with drawer closed)
@@ -329,18 +329,18 @@ test.describe('Adversarial Stress Test: Corrupted localStorage Payloads', () => 
       }, c.payload);
 
       await page.goto(APP);
-      await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
       // App must boot without uncaught fatal errors
       expect(errors.map((e) => e.message)).toEqual([]);
 
       // Check fallback state
       const state = await page.evaluate(() => ({
-        lang,
-        notation,
+    lang: window.__etude.lang,
+    notation: window.__etude.notation,
         polluted: Object.prototype.polluted !== undefined,
-        masterVol,
-        metroBpm: metro.bpm,
+    masterVol: window.__etude.masterVol,
+        metroBpm: window.__etude.metro.bpm,
       }));
 
       expect(ALL_LOCALES).toContain(state.lang);
@@ -355,7 +355,7 @@ test.describe('Adversarial Stress Test: Corrupted localStorage Payloads', () => 
       await page.locator('#settingsBtn').click();
       await page.locator('#set-lang button[data-v="es"]').click();
       await expect(page.locator('#set-lang button[data-v="es"]')).toHaveAttribute('aria-pressed', 'true');
-      expect(await page.evaluate(() => lang)).toBe('es');
+      expect(await page.evaluate(() => window.__etude.lang)).toBe('es');
     });
   }
 });
@@ -363,7 +363,7 @@ test.describe('Adversarial Stress Test: Corrupted localStorage Payloads', () => 
 test.describe('Adversarial Stress Test: Network Offline Mode & Zero Network Dependencies', () => {
   test('complete offline mode functions with zero network requests', async ({ page, context }) => {
     await page.goto(APP);
-    await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+    await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
     // Abort and track any subsequent external requests (excluding optional CDN webfonts)
     const appExternalRequests = [];
@@ -383,21 +383,21 @@ test.describe('Adversarial Stress Test: Network Offline Mode & Zero Network Depe
 
     // 1. Switch across all 7 languages offline
     for (const loc of ALL_LOCALES) {
-      await page.evaluate((l) => setLang(l), loc);
-      const activeLang = await page.evaluate(() => lang);
+      await page.evaluate((l) => window.__etude.setLang(l), loc);
+      const activeLang = await page.evaluate(() => window.__etude.lang);
       expect(activeLang).toBe(loc);
     }
 
     // 2. Navigate through all major views offline
     const views = ['today', 'learn', 'practice', 'explore', 'songs', 'analysis'];
     for (const v of views) {
-      await page.evaluate((viewName) => show(viewName), v);
-      expect(await page.evaluate(() => view0())).toBe(v);
+      await page.evaluate((viewName) => window.__etude.show(viewName), v);
+      expect(await page.evaluate(() => window.__etude.view0())).toBe(v);
     }
 
     // 3. Audio synthesis offline test
     await page.evaluate(() => {
-      ensureAudio();
+      window.__etude.ensureAudio();
       // Test piano voice creation
       if (typeof noteOn === 'function') {
         noteOn(60, 0.8);
@@ -407,8 +407,8 @@ test.describe('Adversarial Stress Test: Network Offline Mode & Zero Network Depe
 
     // 4. Theory handbook offline lesson reading
     await page.evaluate(() => {
-      show('learn');
-      if (typeof renderLearn === 'function') renderLearn();
+      window.__etude.show('learn');
+      if (typeof window.__etude.renderLearn === 'function') window.__etude.renderLearn();
     });
 
     const learnBody = await page.locator('#learnBody').textContent();

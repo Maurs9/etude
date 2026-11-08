@@ -41,6 +41,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test:unit
+      - run: node --test i18n-tests/i18n-extra.test.cjs
       - run: npx playwright test
       - run: npm run test:dev
       # Failure traces, and the score-layout results for platforms without a golden baseline yet (see tests/golden.spec.mjs).

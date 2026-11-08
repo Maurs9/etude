@@ -20,8 +20,13 @@ export function loadOsmd(): Promise<unknown> {
   if (osmdPromise) return osmdPromise;
   osmdPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = new URL('vendor/osmd-1.9.9.min.js', document.baseURI).href;
-    script.async = true;
+    const inline = document.querySelector<HTMLScriptElement>('#etude-osmd-source');
+    if (inline?.textContent) {
+      script.textContent = inline.textContent;
+    } else {
+      script.src = new URL('vendor/osmd-1.9.9.min.js', document.baseURI).href;
+      script.async = true;
+    }
     script.onload = () => {
       const loaded = (globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
       if (loaded) resolve(loaded);
@@ -29,6 +34,13 @@ export function loadOsmd(): Promise<unknown> {
     };
     script.onerror = () => reject(new Error('OSMD could not be loaded'));
     document.head.append(script);
+    if (inline?.textContent) {
+      queueMicrotask(() => {
+        const loaded = (globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+        if (loaded) resolve(loaded);
+        else reject(new Error('OSMD loaded without an API'));
+      });
+    }
   }).catch(error => {
     osmdPromise = null;
     throw error;
@@ -59,4 +71,13 @@ export function patchOsmdPedals(osmd: unknown): void {
     }
   };
   drawer.scPedalGroups = true;
+}
+
+/**
+ * Apply the Étude-specific OSMD patches after the score adapter has loaded OSMD.
+ * Keeping this operation in the notation domain prevents view code from reaching
+ * into the vendor object or owning a notation concern.
+ */
+export function scorePatchOsmd(): void {
+  patchOsmdPedals((globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay);
 }

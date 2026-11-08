@@ -61,9 +61,10 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `src/domain/theory.ts` — typed, pure pitch-class, scale, chord, interval, and chord-identification helpers
 - `src/domain/audio.ts` — checked piano-sample fetch/decode and retry-safe piano bank
 - `src/domain/notation.ts` — lazy OSMD loader and typed adapter for grouped pedal rendering
-- `scripts/generate-surface.mjs` — generated `window.__etude` test surface (test-only aliases require an explicit query)
+- `window.__etude` — deliberate browser test/import surface, exposed by the views runtime without raw window aliases
 - `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed recordings
 - `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
-- `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker; imports and `public/` determine the published files
+- `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker; add a source import or a file under `public/` and the published manifest updates automatically
+- `scripts/sw-kill-switch.js`, `docs/sw-kill-switch.md` — emergency worker rollback and runbook
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
 - `package.json`, `package-lock.json` — test tooling and locked dependencies

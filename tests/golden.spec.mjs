@@ -44,7 +44,7 @@ test.describe('golden: piano recordings', () => {
 // Evaluated in the page after an import. `music` must not depend on the layout or the platform; `layout` is checked
 // against a baseline for the current platform, since text metrics may differ between operating systems.
 function scoreFingerprint() {
-  const g = SCORE.geo, box = document.getElementById('an-roll');
+  const g = window.__etude.SCORE.geo, box = document.getElementById('an-roll');
   const bars = g.measures.map((m, i) => m && { n: i + 1, sys: m.sys, b1: m.b1 }).filter(Boolean);
   const count = sel => [...box.querySelectorAll(sel)].filter(el => el.getBoundingClientRect().width > .1).length;
   return {
@@ -81,12 +81,12 @@ test.describe('golden: score engraving', () => {
       await page.evaluate(() => document.fonts.ready);
       const mimeType = /\.mxl$/i.test(score.name) ? 'application/vnd.recordare.musicxml' : 'application/xml';
       await page.locator('#an-file').setInputFiles({ name: score.name, mimeType, buffer: readFileSync(score.path) });
-      await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
-      expect(await page.evaluate(() => AN.error)).toBeNull();
-      expect(await page.evaluate(() => SCORE.layout)).toBe('page');
+      await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+      expect(await page.evaluate(() => window.__etude.AN.error)).toBeNull();
+      expect(await page.evaluate(() => window.__etude.SCORE.layout)).toBe('page');
       const paged = await page.evaluate(scoreFingerprint);
       expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
-      await page.evaluate(() => { SCORE.layout = 'cont'; scoreLayout(); });
+      await page.evaluate(() => { window.__etude.SCORE.layout = 'cont'; window.__etude.scoreLayout(); });
       const cont = await page.evaluate(scoreFingerprint);
       expect(cont.music, 'the continuous view engraves the same music').toEqual(paged.music);
       expect(await page.evaluate(scorePedalCollisions)).toEqual([]);

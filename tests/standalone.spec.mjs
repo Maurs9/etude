@@ -12,6 +12,9 @@ test('the single-file build boots over file://', async ({ page }) => {
   await page.goto(pathToFileURL('dist/etude-standalone.html').href);
   await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
   await expect(page.locator('#view-today')).toBeVisible();
+  expect(await page.evaluate(() => typeof window.opensheetmusicdisplay)).toBe('undefined');
+  await page.evaluate(() => window.__etude.loadOsmd());
+  expect(await page.evaluate(() => typeof window.opensheetmusicdisplay)).toBe('object');
   expect(errors).toEqual([]);
   expect(external).toEqual([]);
 });

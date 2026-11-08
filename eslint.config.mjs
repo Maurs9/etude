@@ -1,5 +1,7 @@
 import js from '@eslint/js';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
+import importX from 'eslint-plugin-import-x';
 
 export default [
   {
@@ -29,6 +31,112 @@ export default [
       'no-dupe-keys': 'error',
       'no-restricted-properties': ['error',
         { object: 'window', property: 'anLayoutVars', message: 'Use the local typed layout function, not an app global.' },
+      ],
+    },
+  },
+  {
+    files: ['src/**/*.ts'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    plugins: {
+      'import-x': importX,
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      'no-empty': 'off',
+      'no-useless-assignment': 'off',
+      'no-dupe-keys': 'error',
+      'no-restricted-globals': [
+        'error',
+        { name: 'event', message: 'Use an explicitly typed event parameter.' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'window',
+          property: 'anLayoutVars',
+          message: 'Use the local typed layout function, not an app global.',
+        },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['**/legacy/**'], message: 'Legacy runtime modules are not allowed.' },
+            { group: ['./views', './views.*'], message: 'Domain modules must not depend on the view runtime.' },
+          ],
+        },
+      ],
+      'import-x/no-cycle': ['error', { maxDepth: Infinity }],
+    },
+  },
+  {
+    files: ['src/**/*.js'],
+    plugins: {
+      'import-x': importX,
+    },
+    rules: {
+      'no-dupe-keys': 'error',
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['**/legacy/**'], message: 'Legacy runtime modules are not allowed.' },
+            { group: ['../domain/views', '../domain/views.*'], message: 'Locale modules cannot depend on views.' },
+          ],
+        },
+      ],
+      'import-x/no-cycle': ['error', { maxDepth: Infinity }],
+    },
+  },
+  {
+    files: ['src/domain/theory.ts', 'src/domain/router.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['./audio', './audio.*', './storage', './storage.*', './notation', './notation.*', './views', './views.*'], message: 'Pure domain modules must not depend on browser or view domains.' },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'window', message: 'Pure domain code must be browser-independent.' },
+        { name: 'document', message: 'Pure domain code must be browser-independent.' },
+        { name: 'localStorage', message: 'Pure domain code must be browser-independent.' },
+      ],
+    },
+  },
+  {
+    files: ['src/domain/storage.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'window', message: 'Storage receives an explicit storage adapter.' },
+        { name: 'document', message: 'Storage receives an explicit storage adapter.' },
+      ],
+    },
+  },
+  {
+    files: ['src/domain/audio.ts', 'src/domain/notation.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['./views', './views.*'], message: 'Infrastructure domains must not depend on the view runtime.' },
+          ],
+        },
       ],
     },
   },
