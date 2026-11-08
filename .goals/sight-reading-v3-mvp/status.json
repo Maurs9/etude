@@ -16,6 +16,11 @@
       "iteration": 2,
       "verdict": "FAIL",
       "summary": "A fresh ledger always rejects the first claim as stale_generation; practice switching, result painting, input release metadata, repertoire isolation, backup edge cases, accessibility, and mandatory Playwright/offline coverage remain incorrect or missing."
+    },
+    {
+      "iteration": 3,
+      "verdict": "FAIL",
+      "summary": "Core first-sight flow now runs, but ledger idempotency and stale-import generation checks fail; practice/pending-save lifecycle, visible result symbols, responsive focus, exact unit proofs, and mandatory browser/offline suites remain incomplete."
     }
   ]
 }
