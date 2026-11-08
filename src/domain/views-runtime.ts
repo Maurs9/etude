@@ -13138,8 +13138,10 @@ function anSelectionChanged() {
 }
 // Selections made from the analysis panel: a chord also selects its bar (`bars`, score measure indices), so the coral band
 // and the Now tab follow it.
-function anSelectNotes(list: any[], active: { kind: string; k: any; }|null|undefined, bars: { a: any; b: any; }|null|undefined) {
-    AN.selected = new Set(list.map((n: any) => AN.index.get(n)).filter((i: null) => i != null));
+interface AnScoreNote { midi: number; start: number; end: number; soundEnd?: number; vel?: number; finger?: number | string; hand?: string; }
+interface AnSelectionFocus { kind: 'chord' | 'motif'; k: number; }
+function anSelectNotes(list: readonly AnScoreNote[], active?: AnSelectionFocus | null, bars?: { a: number; b: number; } | null) {
+    AN.selected = new Set(list.map((n) => AN.index.get(n)).filter((i) => i != null));
     AN.active = active || null;
     SCORE.mrange = bars && AN.selected.size ? { anchor: bars.a, a: bars.a, b: bars.b, sig: [...AN.selected].sort((x, y) => x - y).join() } : null;
     if (!SCORE.playing && AN.selected.size) {
@@ -13178,9 +13180,12 @@ else
     scorePaint(); if (FALL.mode === 'fall')
     fallDraw(); anUpdateControls(); anLayoutVars(); }
 // Hover (or focus) explains what is under the pointer: a note with its chord, or any other marking on the page.
-function anHover(e: { target: { closest: (arg0: string) => any; }; }) {
-    const g = e.target.closest && e.target.closest('#an-roll [data-i]');
-    if (!g) {
+function anIsDataEl(el: Element | null | undefined): el is HTMLElement | SVGElement {
+    return el instanceof HTMLElement || el instanceof SVGElement;
+}
+function anHover(e: PointerEvent | FocusEvent) {
+    const g = eventElement(e)?.closest('#an-roll [data-i]');
+    if (!anIsDataEl(g)) {
         const sym = scoreSymAt(e);
         if (!sym) {
             byId('an-hover').textContent = '';
@@ -13193,24 +13198,24 @@ function anHover(e: { target: { closest: (arg0: string) => any; }; }) {
         return;
     }
     scoreTip(null);
-    const n = AN.notes[+g.dataset.i];
+    const n = AN.notes[Number(g.dataset.i)];
     if (!n)
         return;
-    const key = anKeyAt(n.start), group = AN.notes.filter((a) => a.start <= n.start + 0.001 && a.end > n.start + 0.001), chord = identifyChord(group.map((a) => a.midi)), seg = anSegAt(n.start), nct = seg && seg.nct && seg.nct.find((x: { note: any; }) => x.note === n);
+    const key = anKeyAt(n.start), group = AN.notes.filter((a) => a.start <= n.start + 0.001 && a.end > n.start + 0.001), chord = identifyChord(group.map((a) => a.midi)), seg = anSegAt(n.start), nct = seg && seg.nct && seg.nct.find((x: { note: unknown; type: string; }) => x.note === n);
     byId('an-hover').textContent = spellName(n.midi, key, true) + ' · ' + t('an_bar') + ' ' + anMeasureAt(n.start).number + ' · ' + group.map((a) => spellName(a.midi, key, true)).join(' ') + ' · ' + (chord ? spellName(60 + chord.rootPc, key) + chord.chord.symbol + (chord.inversion > 0 ? '/' + spellName(60 + chord.bassPc, key) : '') : t('an_none')) + (nct ? ' · ' + t('an_nct_' + nct.type) : '');
 }
 // Click a notehead to select it (Shift/Ctrl adds), click empty space in a bar to select the bar (Shift extends the range),
 // drag for a marquee; a click outside every bar clears the selection.
-function scorePointer(e: { button: number; target: RuntimeElement; offsetX: number; offsetY: number; clientX: any; clientY: any; shiftKey: any; ctrlKey: any; metaKey: any; preventDefault: () => void; }) {
-    const box = byId('an-roll');
-    if (e.button !== 0 || !SCORE.xml || !box.querySelector('svg') || e.target.closest('.an-empty'))
+function scorePointer(e: PointerEvent) {
+    const box = byId('an-roll'), el = eventElement(e);
+    if (e.button !== 0 || !SCORE.xml || !box.querySelector('svg') || !el || el.closest('.an-empty'))
         return;
     if (e.target === box && (e.offsetX >= box.clientWidth || e.offsetY >= box.clientHeight))
         return; // scrollbar
-    const target = e.target.closest('[data-i]'), x = e.clientX, y = e.clientY, add = e.shiftKey || e.ctrlKey || e.metaKey;
+    const hit = el.closest('[data-i]'), target = anIsDataEl(hit) ? hit : null, x = e.clientX, y = e.clientY, add = e.shiftKey || e.ctrlKey || e.metaKey;
     e.preventDefault();
     let marquee: HTMLDivElement|null = null;
-    const move = (ev: { clientX: number; clientY: number; }) => { if (!marquee && Math.hypot(ev.clientX - x, ev.clientY - y) < 5)
+    const move = (ev: PointerEvent) => { if (!marquee && Math.hypot(ev.clientX - x, ev.clientY - y) < 5)
         return; if (!marquee) {
         marquee = (document).createElement('div');
         marquee.className = 'an-marquee';
@@ -13218,11 +13223,11 @@ function scorePointer(e: { button: number; target: RuntimeElement; offsetX: numb
     } Object.assign(marquee.style, { left: Math.min(x, ev.clientX) + 'px', top: Math.min(y, ev.clientY) + 'px', width: Math.abs(ev.clientX - x) + 'px', height: Math.abs(ev.clientY - y) + 'px' }); };
     const done = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', finish); window.removeEventListener('pointercancel', done); if (marquee)
         marquee.remove(); };
-    const finish = (ev: { clientX: number; clientY: number; }) => {
+    const finish = (ev: PointerEvent) => {
         done();
         if (Math.hypot(ev.clientX - x, ev.clientY - y) < 5) {
             if (target) {
-                const i = +target.dataset.i;
+                const i = Number(target.dataset.i);
                 if (!add)
                     AN.selected.clear();
                 if (AN.selected.has(i))
@@ -13244,7 +13249,7 @@ function scorePointer(e: { button: number; target: RuntimeElement; offsetX: numb
         }
         if (!add)
             AN.selected.clear();
-        SCORE.heads.forEach((list, i) => list.forEach((g: { getBoundingClientRect: () => any; }) => { const r = g.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2; if (cx >= Math.min(x, ev.clientX) && cx <= Math.max(x, ev.clientX) && cy >= Math.min(y, ev.clientY) && cy <= Math.max(y, ev.clientY))
+        SCORE.heads.forEach((list, i) => list.forEach((g: Element) => { const r = g.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2; if (cx >= Math.min(x, ev.clientX) && cx <= Math.max(x, ev.clientX) && cy >= Math.min(y, ev.clientY) && cy <= Math.max(y, ev.clientY))
             AN.selected.add(i); }));
         anSelectionChanged();
     };
@@ -13252,12 +13257,16 @@ function scorePointer(e: { button: number; target: RuntimeElement; offsetX: numb
     window.addEventListener('pointerup', finish);
     window.addEventListener('pointercancel', done);
 }
-function anRove(g: { setAttribute: (arg0: string,arg1: string) => void; }) { byId('an-roll').querySelectorAll('[data-i][tabindex="0"]').forEach((x) => x.setAttribute('tabindex', '-1')); g.setAttribute('tabindex', '0'); }
+function anRove(g: Element) { byId('an-roll').querySelectorAll('[data-i][tabindex="0"]').forEach((x) => x.setAttribute('tabindex', '-1')); g.setAttribute('tabindex', '0'); }
 /* practice transfer: an ephemeral Read & Play piece (one line or chord stack per hand, bars kept, rhythm on a 16th grid) */
-function anToReadPiece(ns: any[]) {
+type AnReadToken = [string | null | (string | null)[], number];
+interface AnExcerptPiece { id: string; ephemeral: boolean; t: Record<AppLanguage, string>; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number;
+    from: { title: string; bars: string; }; pickup?: number; rh?: AnReadToken[]; lh?: AnReadToken[]; }
+type AnReadPieceResult = { piece: AnExcerptPiece; error?: undefined; } | { error: 'none' | 'long' | 'range'; piece?: undefined; };
+function anToReadPiece(ns: readonly AnScoreNote[]): AnReadPieceResult {
     if (!ns.length)
         return { error: 'none' };
-    const notes = ns.slice().sort((a: { start: number; midi: number; }, b: { start: number; midi: number; }) => a.start - b.start || a.midi - b.midi), meas = anMeasures(), A = notes[0].start;
+    const notes = ns.slice().sort((a, b) => a.start - b.start || a.midi - b.midi), meas = anMeasures(), A = notes[0].start;
     const m0 = anMeasureAt(A), m1 = anMeasureAt(notes[notes.length - 1].start), i0 = meas.indexOf(m0), i1 = meas.indexOf(m1);
     if (i1 - i0 + 1 > AN_PRACTICE_BARS || notes.length > 600)
         return { error: 'long' };
@@ -13274,21 +13283,22 @@ function anToReadPiece(ns: any[]) {
     const VAL = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9), RVAL = [4, 2, 1, 0.5, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9);
     const nextBar = (p: number) => { let b = pickup > 0 ? pickup : cap; while (b <= p + 1e-6)
         b += cap; return b; };
-    const rests = (list: any[], from: number, to: number) => { let p = from; while (p < to - 1e-6) {
+    const rests = (list: AnReadToken[], from: number, to: number) => { let p = from; while (p < to - 1e-6) {
         const len = Math.min(to, nextBar(p)) - p, v = RVAL.find((x) => x <= len + 1e-6) || 1 / grid;
         list.push(['R', v]);
         p = q(p + v);
     } };
     let bad = false;
     const build = (hand: string) => {
-        const own = notes.filter((n: any) => anHandOf(n) === hand);
+        const own = notes.filter((n) => anHandOf(n) === hand);
         if (!own.length)
             return null;
-        const on = new Map();
-        own.forEach((n: { start: number; midi: any; end: number; }) => { const s = q(n.start - origin); if (s < 0 || s >= total - 1e-6)
+        const on = new Map<string, { s: number; ms: Set<number>; end: number; }>();
+        own.forEach((n) => { const s = q(n.start - origin); if (s < 0 || s >= total - 1e-6)
             return; const k = s.toFixed(4); if (!on.has(k))
-            on.set(k, { s, ms: new Set(), end: 0 }); const o = on.get(k); o.ms.add(n.midi); o.end = Math.max(o.end, Math.min(total, Math.max(s + 1 / grid, q(n.end - origin)))); });
-        const list: (string|number|(string|null)[]|null)[][] = [], os = [...on.values()].sort((a, b) => a.s - b.s);
+            on.set(k, { s, ms: new Set(), end: 0 }); const o = on.get(k); if (!o)
+            return; o.ms.add(n.midi); o.end = Math.max(o.end, Math.min(total, Math.max(s + 1 / grid, q(n.end - origin)))); });
+        const list: AnReadToken[] = [], os = [...on.values()].sort((a, b) => a.s - b.s);
         let p = 0;
         os.forEach((o, i) => {
             if (o.s > p + 1e-6)
@@ -13309,9 +13319,12 @@ function anToReadPiece(ns: any[]) {
         return { error: 'range' };
     if (!rh && !lh)
         return { error: 'none' };
-    const src = AN.source, titles = { en: src.kind === 'example' ? PIECES.find((p) => p.id === src.id).t.en : src.title, ro: src.kind === 'example' ? PIECES.find((p) => p.id === src.id).t.ro : src.title, [lang]: src.kind === 'example' ? srPieceTitle(PIECES.find((p) => p.id === src.id)) : src.title };
+    const src = AN.source, ex = src.kind === 'example' ? PIECES.find((p) => p.id === src.id) : undefined;
+    if (src.kind === 'example' && !ex)
+        throw new Error(`Étude: missing example piece ${src.id}`);
+    const titles = { en: ex ? ex.t.en : src.title, ro: ex ? ex.t.ro : src.title, [lang]: ex ? srPieceTitle(ex) : src.title };
     const bars = { en: anBarsLabel(notes, 'en'), ro: anBarsLabel(notes, 'ro'), [lang]: anBarsLabel(notes, lang) }, tempoAt = SCORE.tempoList.filter((e) => e.beat <= A + 1e-6).pop() || SCORE.tempoList[0];
-    const piece = { id: 'excerpt', ephemeral: true, t: { en: tl('en', 'rd_excerpt', titles.en, bars.en), ro: tl('ro', 'rd_excerpt', titles.ro, bars.ro), [lang]: tl(lang, 'rd_excerpt', titles[lang] || titles.en, bars[lang] || bars.en) }, comp: '', level: 0, keyN: key.fifths, minor: key.minor, ts,
+    const piece: AnExcerptPiece = { id: 'excerpt', ephemeral: true, t: { en: tl('en', 'rd_excerpt', titles.en, bars.en), ro: tl('ro', 'rd_excerpt', titles.ro, bars.ro), [lang]: tl(lang, 'rd_excerpt', titles[lang] || titles.en, bars[lang] || bars.en) }, comp: '', level: 0, keyN: key.fifths, minor: key.minor, ts,
         bpm: Math.max(40, Math.min(160, Math.round(tempoAt.bpm))), from: { title: titles[lang] || titles.en, bars: bars[lang] || bars.en } };
     if (pickup)
         piece.pickup = pickup;
@@ -13321,7 +13334,7 @@ function anToReadPiece(ns: any[]) {
         piece.lh = lh;
     return { piece };
 }
-function anPracticeCheck(ns: any[]) {
+function anPracticeCheck(ns: readonly AnScoreNote[]): { ok: true; piece: AnExcerptPiece; } | { ok: false; msg: string; } {
     const r = anToReadPiece(ns);
     if (r.piece)
         return { ok: true, piece: r.piece };
@@ -13339,7 +13352,7 @@ function anPractice() {
     SR.excerpt = chk.piece;
     SR.modeSel = 'learn';
     SR.hands = 'both';
-    [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === 'learn' ? 'true' : 'false'));
+    [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.getAttribute('data-v') === 'learn' ? 'true' : 'false'));
     show('read');
     fillPieces();
     srSelectPiece(SR.excerpt.id);
@@ -13350,10 +13363,23 @@ function anPractice() {
     window.scrollTo({ top: Math.max(0, byId('rd-meta').getBoundingClientRect().top + window.scrollY - 80), behavior: 'auto' });
 }
 /* falling notes: a dark stage with lanes, bar lines and an integrated keyboard; notes coloured by hand */
-const FALL = { mode: 'score', raf: 0, position: 0, origin: 0, audioStart: 0, factor: 1, notes: [], hits: [], zoom: 1, geo: null, particles: [], flashes: [], lastT: null, lastFrame: 0, resume: null };
-const FALL_SEC = 3.2, FALL_FONT = '"Hanken Grotesk",system-ui,sans-serif', FALL_SEL = '#6aa8ff', FALL_BLACK = new Set([1, 3, 6, 8, 10]), FALL_NUDGE = { 1: -.12, 3: .12, 6: -.16, 8: 0, 10: .16 };
+interface FallTimedNote { n: AnScoreNote; i: number; start: number; finish: number; sound: number; }
+interface FallKeyRect { x: number; w: number; black: boolean; }
+interface FallGeo { lo: number; hi: number; W: number; keys: Map<number, FallKeyRect>; whites: number[]; kw: number; bw: number; hitY?: number; kh?: number; }
+interface FallHit { i: number; x: number; y: number; w: number; h: number; hand: string; }
+interface FallFlash { x: number; y: number; w: number; rgb: string; life: number; max: number; }
+interface FallParticle { x: number; y: number; vx: number; vy: number; r: number; life: number; max: number; col: string; }
+interface FallState { mode: 'score' | 'fall'; raf: number; position: number; origin: number; audioStart: number; factor: number; notes: FallTimedNote[]; hits: FallHit[]; zoom: number;
+    geo: FallGeo | null; particles: FallParticle[]; flashes: FallFlash[]; lastT: number | null; lastFrame: number; resume: { sel: boolean; } | null;
+    fingerSrc?: readonly AnScoreNote[]; hasFinger?: boolean; source?: readonly AnScoreNote[]; tempoSource?: readonly { beat: number; bpm: number; }[]; end: number;
+    laneSrc?: readonly AnScoreNote[]; lanes: Set<number>; tickSrc?: FallTimedNote[]; tickTempo?: readonly { beat: number; bpm: number; }[]; tickEnd?: number;
+    beatSrc?: FallTimedNote[]; beatTempo?: readonly { beat: number; bpm: number; }[]; beats?: { t: number; acc: boolean; }[]; press?: Map<number, number>; }
+const FALL: FallState = { mode: 'score', raf: 0, position: 0, origin: 0, audioStart: 0, factor: 1, notes: [], hits: [], zoom: 1, geo: null, particles: [], flashes: [], lastT: null, lastFrame: 0, resume: null, end: 0, lanes: new Set() };
+const FALL_SEC = 3.2, FALL_FONT = '"Hanken Grotesk",system-ui,sans-serif', FALL_SEL = '#6aa8ff', FALL_BLACK = new Set([1, 3, 6, 8, 10]), FALL_NUDGE: Readonly<Record<number, number>> = { 1: -.12, 3: .12, 6: -.16, 8: 0, 10: .16 };
 // Right hand: warm coral from the app's accent family; left hand: cool teal. lit = sounding.
-const FALL_COL = { rh: { a: '#ffb38f', b: '#e65f3c', lit: ['#ffdccb', '#ff8257'], rgb: '255,128,92', key: ['#ffd0b8', '#f2774e'], ink: 'rgba(72,20,6,.8)' },
+interface FallHandColours { a: string; b: string; lit: string[]; rgb: string; key: string[]; ink: string; }
+interface FallPalette { rh: FallHandColours; lh: FallHandColours; }
+const FALL_COL: FallPalette = { rh: { a: '#ffb38f', b: '#e65f3c', lit: ['#ffdccb', '#ff8257'], rgb: '255,128,92', key: ['#ffd0b8', '#f2774e'], ink: 'rgba(72,20,6,.8)' },
     lh: { a: '#8de5f2', b: '#2a96d2', lit: ['#cdf7fd', '#46c2ef'], rgb: '72,196,240', key: ['#c0f1f9', '#3caee1'], ink: 'rgba(4,36,58,.8)' } };
 // Colour palettes for the two hands (RH first). "classic" is the familiar green/blue; "contrast" stays distinct for most colour-vision types.
 const FALL_PAL = { etude: FALL_COL,
@@ -13362,6 +13388,7 @@ const FALL_PAL = { etude: FALL_COL,
     contrast: { rh: { a: '#ffe27a', b: '#f2b400', lit: ['#fff4c4', '#ffcf33'], rgb: '255,205,40', key: ['#ffeaa0', '#f5c020'], ink: 'rgba(66,42,0,.85)' },
         lh: { a: '#c9a2ff', b: '#7f3ff0', lit: ['#e8d8ff', '#a173ff'], rgb: '160,110,255', key: ['#dcc5ff', '#9460f5'], ink: 'rgba(40,6,86,.85)' } } };
 const FALL_YOU = ['#ffe9a8', '#f5bd3c'];
+function fallPalette(name: string): FallPalette { return name === 'etude' || name === 'classic' || name === 'contrast' ? FALL_PAL[name] : FALL_COL; }
 function anHasFinger() { if (FALL.fingerSrc !== AN.notes) {
     FALL.fingerSrc = AN.notes;
     FALL.hasFinger = AN.notes.some((n) => n.finger);
@@ -13426,7 +13453,7 @@ function fallRange(W: number) {
     return [Math.max(21, lo), hi];
 }
 function fallKeys(lo: number, hi: number, W: number) {
-    const whites = [], keys = new Map();
+    const whites: number[] = [], keys = new Map<number, FallKeyRect>();
     for (let m = lo; m <= hi; m++)
         if (!FALL_BLACK.has(pc(m)))
             whites.push(m);
@@ -13440,10 +13467,10 @@ function fallKeys(lo: number, hi: number, W: number) {
         }
     return { lo, hi, W, keys, whites, kw, bw };
 }
-function fallRR(ctx: { beginPath: () => void; moveTo: (arg0: any,arg1: any) => void; arcTo: (arg0: any,arg1: any,arg2: any,arg3: any,arg4: any) => void; closePath: () => void; }, x: number, y: number, w: number, h: number, r: number) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-function fallKeyPath(ctx: { beginPath: () => void; moveTo: (arg0: any,arg1: any) => void; lineTo: (arg0: any,arg1: number) => void; arcTo: (arg0: any,arg1: any,arg2: number,arg3: number,arg4: any) => void; closePath: () => void; }, x: number, y: any, w: number, h: number, r: number) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r); ctx.closePath(); }
+function fallRR(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function fallKeyPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r); ctx.closePath(); }
 // Crisp at any devicePixelRatio; animates only while playing (or while a burst fades), otherwise redraws on demand.
-function fallName(n: { finger: any; start: any; midi: number; }) {
+function fallName(n: AnScoreNote) {
     const mode = PRAC.labels;
     if (mode === 'none')
         return '';
@@ -13458,9 +13485,12 @@ function fallDraw() {
     if (FALL.mode !== 'fall' || !AN.notes.length)
         return;
     const canvas = byId('fall-canvas'), W = canvas.clientWidth, H = canvas.clientHeight;
-    if (!W || !H)
+    if (!W || !H || !(canvas instanceof HTMLCanvasElement))
         return;
-    const ctx = canvas.getContext('2d'), dpr = window.devicePixelRatio || 1, bw = Math.round(W * dpr), bh = Math.round(H * dpr);
+    const ctx = canvas.getContext('2d');
+    if (!ctx)
+        return;
+    const dpr = window.devicePixelRatio || 1, bw = Math.round(W * dpr), bh = Math.round(H * dpr);
     if (canvas.width !== bw || canvas.height !== bh) {
         canvas.width = bw;
         canvas.height = bh;
@@ -13473,7 +13503,7 @@ function fallDraw() {
     const kh = Math.round(Math.min(H * .24, Math.max(56, G.kw * 4.4))), hitY = H - kh, span = FALL_SEC / FALL.zoom, pps = hitY / span;
     G.hitY = hitY;
     G.kh = kh;
-    const time = fallTime(), rm = reduceMotion(), fx = PRAC.fx && !rm, P = FALL_PAL[PRAC.pal] || FALL_COL, solo = PRAC.hands !== 'both';
+    const time = fallTime(), rm = reduceMotion(), fx = PRAC.fx && !rm, P = fallPalette(PRAC.pal), solo = PRAC.hands !== 'both';
     const ms = performance.now(), dt = FALL.lastFrame ? Math.min(.05, (ms - FALL.lastFrame) / 1000) : 0;
     FALL.lastFrame = ms;
     // stage: deep gradient, lanes for the pitches this piece uses, brighter guides at every C, bar lines with numbered pills, faint beats
@@ -13484,19 +13514,19 @@ function fallDraw() {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, hitY);
     ctx.fillStyle = 'rgba(0,0,0,.26)';
-    G.keys.forEach((k: { black: any; x: any; w: any; }) => { if (k.black)
+    G.keys.forEach((k) => { if (k.black)
         ctx.fillRect(k.x, 0, k.w, hitY); });
     if (FALL.laneSrc !== AN.notes) {
         FALL.laneSrc = AN.notes;
         FALL.lanes = new Set(AN.notes.map((n) => n.midi));
     }
     ctx.fillStyle = 'rgba(140,170,255,.035)';
-    FALL.lanes.forEach((m: any) => { const k = G.keys.get(m); if (k)
+    FALL.lanes.forEach((m) => { const k = G.keys.get(m); if (k)
         ctx.fillRect(k.x, 0, k.w, hitY); });
     ctx.fillStyle = 'rgba(150,175,235,.17)';
-    G.keys.forEach((k: { black: any; x: number; }, m: number) => { if (!k.black && pc(m) === 0)
+    G.keys.forEach((k, m) => { if (!k.black && pc(m) === 0)
         ctx.fillRect(Math.round(k.x), 0, 1, hitY); });
-    const bars = [];
+    const bars: [string, number][] = [];
     for (const m of anMeasures()) {
         const s0 = scoreSeconds(m.start);
         if (s0 > time + span)
@@ -13530,7 +13560,7 @@ function fallDraw() {
             ctx.fillRect(0, Math.round(y) - 1, W, 2); });
     }
     // notes: rounded bars with a gap above each, so repeated notes stay apart; the practised hand is bright, the other dimmed
-    const sel = SCORE.playing && SCORE.sel ? AN.selected : null, active = new Map(), soon = new Map();
+    const sel = SCORE.playing && SCORE.sel ? AN.selected : null, active = new Map<number, 'rh' | 'lh'>(), soon = new Map<number, { k: FallKeyRect; c: FallHandColours; a: number; }>();
     let from = FALL.lastT;
     if (from != null && from > time)
         from = SCORE.loop ? SCORE.loop.a - 1e-3 : null; // the loop wrapped around
@@ -13543,7 +13573,7 @@ function fallDraw() {
         const k = G.keys.get(d.n.midi);
         if (!k)
             continue;
-        const hand = anHandOf(d.n), c = P[hand], mine = !solo || hand === PRAC.hands, on = time >= d.start && (!sel || sel.has(d.i));
+        const hand = anHandOf(d.n), c = hand === 'lh' ? P.lh : P.rh, mine = !solo || hand === PRAC.hands, on = time >= d.start && (!sel || sel.has(d.i));
         if (on) {
             active.set(d.n.midi, hand);
             if (from != null && d.start > from && fx)
@@ -13622,7 +13652,7 @@ function fallDraw() {
     }
     // approaching notes light their lane just above the hit line
     if (fx)
-        soon.forEach(({ k, c, a } = {}) => { const lg = ctx.createLinearGradient(0, hitY - 70, 0, hitY); lg.addColorStop(0, 'rgba(' + c.rgb + ',0)'); lg.addColorStop(1, 'rgba(' + c.rgb + ',' + (.28 * Math.max(0, Math.min(1, a))).toFixed(3) + ')'); ctx.fillStyle = lg; ctx.fillRect(k.x, hitY - 70, k.w, 70); });
+        soon.forEach(({ k, c, a }) => { const lg = ctx.createLinearGradient(0, hitY - 70, 0, hitY); lg.addColorStop(0, 'rgba(' + c.rgb + ',0)'); lg.addColorStop(1, 'rgba(' + c.rgb + ',' + (.28 * Math.max(0, Math.min(1, a))).toFixed(3) + ')'); ctx.fillStyle = lg; ctx.fillRect(k.x, hitY - 70, k.w, 70); });
     // hit line: soft glow band, note-on bursts, the keyboard, then the bright line on top
     const hg = ctx.createLinearGradient(0, hitY - 34, 0, hitY);
     hg.addColorStop(0, 'rgba(120,160,255,0)');
@@ -13643,7 +13673,7 @@ function fallDraw() {
     ctx.restore();
     // wait-for-me prompt, or how to start
     let msg = '';
-    if (need.length)
+    if (need.length && B)
         msg = t('pr_waiting', need.slice().sort((a, b) => a - b).map((m) => spellName(m, anKeyAt(B.group[0].n.start), true)).join(' '));
     else if (!SCORE.playing && time <= .01)
         msg = t('sc_press_start');
@@ -13663,7 +13693,7 @@ function fallDraw() {
     else
         FALL.lastFrame = 0;
 }
-function fallBurst(k: { x: number; w: number; }, y: number, c: { rgb: any; lit: any[]; }) {
+function fallBurst(k: FallKeyRect, y: number, c: FallHandColours) {
     const x = k.x + k.w / 2;
     FALL.flashes.push({ x, y, w: k.w, rgb: c.rgb, life: .3, max: .3 });
     for (let i = 0; i < 8; i++) {
@@ -13673,7 +13703,7 @@ function fallBurst(k: { x: number; w: number; }, y: number, c: { rgb: any; lit: 
     if (FALL.particles.length > 300)
         FALL.particles.splice(0, FALL.particles.length - 300);
 }
-function fallParticles(ctx: { save: () => void; globalCompositeOperation: string; createRadialGradient: (arg0: any,arg1: any,arg2: number,arg3: any,arg4: any,arg5: number) => any; fillStyle: any; fillRect: (arg0: number,arg1: number,arg2: number,arg3: number) => void; globalAlpha: number; beginPath: () => void; arc: (arg0: any,arg1: any,arg2: any,arg3: number,arg4: number) => void; fill: () => void; restore: () => void; }, dt: number) {
+function fallParticles(ctx: CanvasRenderingContext2D, dt: number) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     FALL.flashes = FALL.flashes.filter((f) => (f.life -= dt) > 0);
@@ -13699,17 +13729,20 @@ function fallParticles(ctx: { save: () => void; globalCompositeOperation: string
 }
 // Realistic keys: white keys with a soft gradient and front lip, glossy black keys; pressed keys light up in the hand colour and dip.
 // Keys you hold yourself show in gold; keys "Wait for me" is waiting for pulse.
-function fallKeyboard(ctx: { fillStyle: string; fillRect: (arg0: number,arg1: number,arg2: number,arg3: number) => void; createLinearGradient: (arg0: number,arg1: number,arg2: number,arg3: any) => any; fill: () => void; strokeStyle: string; lineWidth: number; stroke: () => void; font: string; textAlign: string; textBaseline: string; fillText: (arg0: string,arg1: any,arg2: number,arg3: number) => void; save: () => void; shadowColor: string; shadowBlur: number; shadowOffsetY: number; restore: () => void; beginPath: () => void; moveTo: (arg0: any,arg1: number) => void; lineTo: (arg0: number,arg1: any) => void; }, G: { kw: number; whites: any; keys: { get: (arg0: any) => any; }; }|null, y: number, kh: number, W: number, active: Map<any,any>, P: { [x: string]: { key: any; }; rh?: { a: string; b: string; lit: string[]; rgb: string; key: string[]; ink: string; }; lh?: { a: string; b: string; lit: string[]; rgb: string; key: string[]; ink: string; }; }, need: any[], ms: number) {
+function fallKeyboard(ctx: CanvasRenderingContext2D, G: FallGeo, y: number, kh: number, W: number, active: Map<number, 'rh' | 'lh'>, P: FallPalette, need: number[], ms: number) {
     P = P || FALL_COL;
     const mineHeld = new Set(held.keys ? held.keys() : held), pulse = .55 + .45 * Math.sin((ms || 0) / 170), wait = new Set(need || []);
-    const tint = (m: unknown) => { const h = active.get(m); if (h)
+    const tint = (m: number) => { const h = active.get(m); if (h)
         return P[h].key; if (mineHeld.has(m))
         return FALL_YOU; return null; };
     ctx.fillStyle = '#110e0c';
     ctx.fillRect(0, y, W, kh);
     const r = Math.min(4, G.kw * .12), lab = labelMode !== 'none', dark = document.documentElement.getAttribute('data-theme') === 'dark';
     for (const m of G.whites) {
-        const k = G.keys.get(m), c = tint(m), dip = c ? 3.5 : 0, x = k.x + .75, w = k.w - 1.5, h = kh - 1 - dip, g = ctx.createLinearGradient(0, y + dip, 0, y + dip + h);
+        const k = G.keys.get(m);
+        if (!k)
+            continue;
+        const c = tint(m), dip = c ? 3.5 : 0, x = k.x + .75, w = k.w - 1.5, h = kh - 1 - dip, g = ctx.createLinearGradient(0, y + dip, 0, y + dip + h);
         if (c) {
             if (c === FALL_YOU) {
                 g.addColorStop(0, '#fff8e2');
@@ -13827,11 +13860,11 @@ function fallKeyboard(ctx: { fillStyle: string; fillRect: (arg0: number,arg1: nu
     ctx.fillRect(0, y + 3.5, W, 4);
 }
 // Timeline under the stage: clock, bar ticks, loop region, A/B markers, seek slider and the current bar.
-function anTlUpdate(time: number|null|undefined) {
+function anTlUpdate(time?: number | null) {
     const tl = byId('an-tl');
     if (!tl || tl.hidden || !AN.notes.length)
         return;
-    const end = fallEnd(), pos = Math.max(0, Math.min(end, time != null ? time : fallTime())), seek = byId('fall-seek'), pct = (x: string|number) => (end > 0 ? Math.max(0, Math.min(1, x / end)) * 100 : 0).toFixed(3) + '%';
+    const end = fallEnd(), pos = Math.max(0, Math.min(end, time != null ? time : fallTime())), seek = inputById('fall-seek'), pct = (x: number) => (end > 0 ? Math.max(0, Math.min(1, x / end)) * 100 : 0).toFixed(3) + '%';
     const mx = String(Math.max(.1, end));
     if (seek.max !== mx)
         seek.max = mx;
@@ -13839,7 +13872,7 @@ function anTlUpdate(time: number|null|undefined) {
         seek.value = String(pos);
     seek.style.setProperty('--p', pct(pos));
     seek.setAttribute('aria-valuetext', t('fall_valtext', anClock(pos), anClock(end)));
-    const set = (id: string, v: string|null) => { const el = maybeById(id); if (el.textContent !== v)
+    const set = (id: string, v: string) => { const el = byId(id); if (el.textContent !== v)
         el.textContent = v; };
     set('fall-clock', anClock(pos));
     set('fall-total', anClock(end));
@@ -13858,7 +13891,7 @@ function anTlUpdate(time: number|null|undefined) {
         lp.style.left = pct(la);
         lp.style.width = (end > 0 ? (lb - la) / end * 100 : 0).toFixed(3) + '%';
     }
-    [['tl-a', A], ['tl-b', B]].forEach(([id, v] = []) => { const el = maybeById(id); el.hidden = v == null; if (v != null)
+    ([['tl-a', A], ['tl-b', B]] as const).forEach(([id, v]) => { const el = byId(id); el.hidden = v == null; if (v != null)
         el.style.left = pct(v); });
 }
 // Seeking pauses while the slider moves and resumes on release if it was playing.
@@ -13868,11 +13901,12 @@ function fallSeek() { const pos = +inputById('fall-seek').value; if (SCORE.playi
 } SCORE.resume = null; FALL.position = pos; scoreIdle(); }
 function fallSeekEnd() { const r = FALL.resume; FALL.resume = null; if (r)
     scorePlay(r.sel, FALL.position); }
-function fallHit(e: { currentTarget: { getBoundingClientRect: () => any; }; clientX: number; clientY: number; }) { const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; return FALL.hits.findLast((h: { x: number; w: any; y: number; h: any; }) => x >= h.x - 2 && x <= h.x + h.w + 2 && y >= h.y && y <= h.y + h.h); }
+function fallHit(e: MouseEvent) { if (!(e.currentTarget instanceof Element))
+    return undefined; const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; return [...FALL.hits].reverse().find((h) => x >= h.x - 2 && x <= h.x + h.w + 2 && y >= h.y && y <= h.y + h.h); }
 // The integrated keyboard is playable by mouse or touch.
-function fallKeyAt(e: { currentTarget: { getBoundingClientRect: () => any; }; clientX: number; clientY: number; }) {
+function fallKeyAt(e: MouseEvent) {
     const G = FALL.geo;
-    if (!G || !G.hitY)
+    if (!G || !G.hitY || G.kh == null || !(e.currentTarget instanceof Element))
         return null;
     const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     if (y < G.hitY)
@@ -13884,12 +13918,12 @@ function fallKeyAt(e: { currentTarget: { getBoundingClientRect: () => any; }; cl
                 return m;
     for (const m of G.whites) {
         const k = G.keys.get(m);
-        if (x >= k.x && x < k.x + k.w)
+        if (k && x >= k.x && x < k.x + k.w)
             return m;
     }
     return null;
 }
-function fallKeyDown(e: { preventDefault: () => void; pointerId: string; currentTarget: { setPointerCapture: (arg0: any) => void; }; }) {
+function fallKeyDown(e: PointerEvent) {
     const m = fallKeyAt(e);
     if (m == null)
         return;
@@ -13898,17 +13932,18 @@ function fallKeyDown(e: { preventDefault: () => void; pointerId: string; current
     FALL.press = FALL.press || new Map();
     FALL.press.set(e.pointerId, m);
     try {
-        e.currentTarget.setPointerCapture(e.pointerId);
+        if (e.currentTarget instanceof Element)
+            e.currentTarget.setPointerCapture(e.pointerId);
     }
     catch (_) { }
     handleNoteOn(m, 96, 'fall:' + e.pointerId);
     if (!FALL.raf)
         fallDraw();
 }
-function fallKeyUp(e: { pointerId: string; }) { const P = FALL.press, m = P && P.get(e.pointerId); if (m == null)
+function fallKeyUp(e: PointerEvent) { const P = FALL.press, m = P && P.get(e.pointerId); if (!P || m == null)
     return; P.delete(e.pointerId); handleNoteOff(m, 'fall:' + e.pointerId); if (!FALL.raf)
     fallDraw(); }
-function fallSelect(e: { shiftKey: any; ctrlKey: any; metaKey: any; }) {
+function fallSelect(e: MouseEvent) {
     if (fallKeyAt(e) != null)
         return;
     const hit = fallHit(e), add = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -13925,11 +13960,12 @@ function fallSelect(e: { shiftKey: any; ctrlKey: any; metaKey: any; }) {
         AN.selected.add(hit.i);
     anSelectionChanged();
 }
-function fallHover(e: { currentTarget: { style: { cursor: string; }; }; }) { e.currentTarget.style.cursor = fallHit(e) || fallKeyAt(e) != null ? 'pointer' : ''; }
+function fallHover(e: PointerEvent) { if (e.currentTarget instanceof HTMLElement)
+    e.currentTarget.style.cursor = fallHit(e) || fallKeyAt(e) != null ? 'pointer' : ''; }
 /* wiring */
 // Score shortcuts, only in this view and never while typing or choosing in a form field:
 // Space play/pause, Home go to start, Esc close the settings or clear the selection, + / − zoom.
-function anShortcut(e: { defaultPrevented: any; metaKey: any; ctrlKey: any; altKey: any; key: any; preventDefault: () => void; repeat: any; target: { closest: (arg0: string) => any; }; }) {
+function anShortcut(e: KeyboardEvent) {
     if (view0() !== 'analysis' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || inField() || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on'))
         return;
     const k = e.key;
@@ -13940,10 +13976,10 @@ function anShortcut(e: { defaultPrevented: any; metaKey: any; ctrlKey: any; altK
             return;
         }
         for (const [p, b] of AN_POPS)
-            if (!maybeById(p).hidden) {
+            if (!byId(p).hidden) {
                 e.preventDefault();
                 anPop(p, false);
-                maybeById(b).focus();
+                byId(b).focus();
                 return;
             }
         if (!byId('an-recon').hidden) {
@@ -13964,7 +14000,7 @@ function anShortcut(e: { defaultPrevented: any; metaKey: any; ctrlKey: any; altK
     if (!AN.notes.length || AN.loading || e.repeat)
         return;
     if (k === ' ') {
-        if (e.target.closest && e.target.closest('button,a[href],summary,[role="button"],input,select,textarea'))
+        if (eventElement(e)?.closest('button,a[href],summary,[role="button"],input,select,textarea'))
             return;
         e.preventDefault();
         scoreToggle();
@@ -13991,7 +14027,7 @@ function anShortcut(e: { defaultPrevented: any; metaKey: any; ctrlKey: any; altK
         return;
     }
     if (k === 'ArrowLeft' || k === 'ArrowRight') {
-        if (e.target.closest && e.target.closest('[data-i],.an-ch,input,select'))
+        if (eventElement(e)?.closest('[data-i],.an-ch,input,select'))
             return;
         e.preventDefault();
         scoreSeekBar(k === 'ArrowRight' ? 1 : -1);
@@ -14036,7 +14072,7 @@ function anShortcut(e: { defaultPrevented: any; metaKey: any; ctrlKey: any; altK
     }
 }
 // Seek to a time (keeps playing if it was playing) and step bar by bar.
-function scoreSeekTo(x: number|null|undefined) {
+function scoreSeekTo(x: number) {
     x = Math.max(0, Math.min(fallEnd(), x));
     if (SCORE.playing && !SCORE.loop) {
         scorePlay(SCORE.sel, x);
@@ -14066,7 +14102,7 @@ function scoreSeekBar(d: number) {
 const AN_POPS = [['fall-pop', 'fall-opt'], ['an-keys-pop', 'an-keys-btn']];
 function anPop(id: string, open: boolean) {
     const pair = AN_POPS.find((x) => x[0] === id) || [id, id];
-    const p = maybeById(id), b = maybeById(pair[1]);
+    const p = byId(id), b = byId(pair[1]);
     open = !!open && !b.hidden;
     if (open) {
         AN_POPS.forEach(([q] = []) => { if (q !== id)
@@ -14081,7 +14117,7 @@ function anPop(id: string, open: boolean) {
         p.style.right = 'auto';
     }
     if (open) {
-        const f = p.querySelector('input,select,button');
+        const f = queryHtml(p, 'input,select,button');
         if (f)
             f.focus({ preventScroll: true });
     }
@@ -14094,7 +14130,7 @@ function anStageFit() {
         fallDraw();
         return;
     }
-    const box = byId('an-roll'), sheet = box.querySelector('.an-sheet');
+    const box = byId('an-roll'), sheet = queryHtml(box, '.an-sheet');
     if (!SCORE.engine || !box.clientWidth || !sheet)
         return;
     if (SCORE.layout === 'cont') {
@@ -14120,14 +14156,14 @@ function anSideResizer() {
         h.setPointerCapture(e.pointerId);
         SIDE.drag = true;
         h.classList.add('is-drag');
-        const right = work.getBoundingClientRect().right, move = (ev: { clientX: number; }) => apply(right - ev.clientX, false);
+        const right = work.getBoundingClientRect().right, move = (ev: PointerEvent) => apply(right - ev.clientX, false);
         const up = () => { h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); SIDE.drag = false; h.classList.remove('is-drag'); apply(SIDE.w, true); };
         h.addEventListener('pointermove', move);
         h.addEventListener('pointerup', up);
         h.addEventListener('pointercancel', up);
     });
     h.addEventListener('keydown', (e) => {
-        const d = ({ ArrowLeft: 16, ArrowRight: -16 } )[e.key];
+        const d = e.key === 'ArrowLeft' ? 16 : e.key === 'ArrowRight' ? -16 : undefined;
         if (d) {
             e.preventDefault();
             apply(SIDE.w + d, true);
@@ -14139,34 +14175,41 @@ function anSideResizer() {
     });
 }
 function anInitControls() {
-    byId('an-file').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f)
+    byId('an-file').addEventListener('change', (e) => { if (!(e.target instanceof HTMLInputElement) || !e.target.files)
+        return; const f = e.target.files[0]; e.target.value = ''; if (f)
         anOpenFile(f); });
-    byId('an-roll').addEventListener('click', (e) => { if (e.target.closest('[data-an-open]')) {
+    byId('an-roll').addEventListener('click', (e) => { const el = eventElement(e); if (!el)
+        return; if (el.closest('[data-an-open]')) {
         byId('an-file').click();
         return;
-    } const ex = e.target.closest('.an-ex'); if (ex && !ex.disabled)
+    } const ex = el.closest('.an-ex'); if (ex instanceof HTMLButtonElement && !ex.disabled && ex.dataset.piece != null)
         anLoadExample(ex.dataset.piece); });
-    byId('an-example').addEventListener('change', (e) => { if (e.target.value)
+    byId('an-example').addEventListener('change', (e) => { if (e.target instanceof HTMLSelectElement && e.target.value)
         anLoadExample(e.target.value); });
-    ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => maybeById(id).addEventListener('change', anReconChange));
-    byId('an-recon-btn').addEventListener('click', () => anReconOpen(byId('an-recon').hidden));
+    ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => byId(id).addEventListener('change', anReconChange));
+    byId('an-recon-btn').addEventListener('click', () => anReconOpen(!!byId('an-recon').hidden));
     document.addEventListener('pointerdown', (e) => {
-        if (!byId('an-recon').hidden && !e.target.closest('#an-recon,#an-recon-btn'))
+        const el = eventElement(e);
+        if (!el)
+            return;
+        if (!byId('an-recon').hidden && !el.closest('#an-recon,#an-recon-btn'))
             anReconOpen(false);
-        AN_POPS.forEach(([p, b] = []) => { if (!maybeById(p).hidden && !e.target.closest('#' + p + ',#' + b))
+        AN_POPS.forEach(([p, b] = []) => { if (!byId(p).hidden && !el.closest('#' + p + ',#' + b))
             anPop(p, false); });
     });
     byId('an-recon-btn').addEventListener('click', () => AN_POPS.forEach(([p] = []) => anPop(p, false)));
-    AN_POPS.forEach(([p, b] = []) => maybeById(b).addEventListener('click', () => anPop(p, maybeById(p).hidden)));
+    AN_POPS.forEach(([p, b] = []) => byId(b).addEventListener('click', () => anPop(p, !!byId(p).hidden)));
     pracLoad();
-    const ck = { 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-ramp': 'ramp', 'fall-fx': 'fx' };
-    Object.entries(ck).forEach(([id, k] = []) => { maybeById(id).checked = PRAC[k]; maybeById(id).addEventListener('change', (e) => pracSet(k, e.target.checked)); });
-    [['fall-labels', 'labels'], ['fall-pal', 'pal'], ['fall-range', 'range']].forEach(([id, k] = []) => { maybeById(id).value = PRAC[k]; maybeById(id).addEventListener('change', (e) => pracSet(k, e.target.value)); });
-    const look = byId('fall-look'), lookOut = () => { byId('fall-look-v').textContent = (+look.value).toFixed(1) + ' s'; };
+    const ck = { 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-ramp': 'ramp', 'fall-fx': 'fx' } as const;
+    Object.entries(ck).forEach(([id, k]) => { inputById(id).checked = PRAC[k]; inputById(id).addEventListener('change', (e) => { if (e.target instanceof HTMLInputElement)
+        pracSet(k, e.target.checked); }); });
+    ([['fall-labels', 'labels'], ['fall-pal', 'pal'], ['fall-range', 'range']] as const).forEach(([id, k]) => { selectById(id).value = PRAC[k]; selectById(id).addEventListener('change', (e) => { if (e.target instanceof HTMLSelectElement)
+        pracSet(k, e.target.value); }); });
+    const look = inputById('fall-look'), lookOut = () => { byId('fall-look-v').textContent = (+look.value).toFixed(1) + ' s'; };
     look.value = String(Math.round(FALL_SEC / FALL.zoom * 5) / 5);
     lookOut();
     look.addEventListener('input', () => { FALL.zoom = FALL_SEC / +look.value; lookOut(); pracSave(); anUpdateControls(); fallDraw(); });
-    byId('pr-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (b)
+    byId('pr-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-h]'); if (b && b.dataset.h != null)
         pracSet('hands', b.dataset.h); });
     byId('pr-wait').addEventListener('click', () => pracSet('wait', !PRAC.wait));
     byId('an-metro').addEventListener('click', () => pracSet('metro', !PRAC.metro));
@@ -14174,10 +14217,10 @@ function anInitControls() {
     byId('pr-setb').addEventListener('click', () => pracSetAB('B'));
     byId('pr-clrab').addEventListener('click', pracClearAB);
     byId('pr-again').addEventListener('click', () => { pracSumClose(); scorePlay(false, 0); });
-    byId('pr-slower').addEventListener('click', () => { pracSumClose(); const sel = byId('score-speed'), o = [...sel.options].map((x) => +x.value), cur = +sel.value, v = o.filter((x) => x < cur).pop(); if (v)
+    byId('pr-slower').addEventListener('click', () => { pracSumClose(); const sel = selectById('score-speed'), o = [...sel.options].map((x) => +x.value), cur = +sel.value, v = o.filter((x) => x < cur).pop(); if (v)
         sel.value = String(v); pracHud(); scorePlay(false, 0); });
     byId('pr-close').addEventListener('click', pracSumClose);
-    byId('pr-sum-next').addEventListener('click', (e) => { if (e.target.closest('#pr-next-act') && PRAC.next && PRAC.next.act)
+    byId('pr-sum-next').addEventListener('click', (e) => { if (eventClosest(e, '#pr-next-act') && PRAC.next && PRAC.next.act)
         PRAC.next.act.run(); });
     byId('pr-sum').addEventListener('pointerdown', (e) => { if (e.target === e.currentTarget)
         pracSumClose(); });
@@ -14196,12 +14239,12 @@ function anInitControls() {
     else
         scorePlay(SCORE.sel, fallTime()); };
     byId('score-speed').addEventListener('change', speed);
-    (document).querySelectorAll('[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!b.disabled)
+    queryAllHtml(document, '[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!(b instanceof HTMLButtonElement && b.disabled))
         scoreSetView(b.dataset.scoreMode); }));
     byId('sc-zoom-out').addEventListener('click', () => scoreZoom(anZoomNow() - 0.1));
     byId('sc-zoom-in').addEventListener('click', () => scoreZoom(anZoomNow() + 0.1));
     byId('sc-zoom-reset').addEventListener('click', () => scoreZoom(1));
-    byId('sc-look').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b && !b.disabled)
+    byId('sc-look').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.v != null)
         scoreSetLook(b.dataset.v); });
     byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
     byId('an-kb').addEventListener('click', () => dockSet(!dockOpen()));
@@ -14212,7 +14255,7 @@ function anInitControls() {
     fc.addEventListener('click', fallSelect);
     fc.addEventListener('pointermove', fallHover);
     fc.addEventListener('pointerdown', fallKeyDown);
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => fc.addEventListener(ev, fallKeyUp));
+    (['pointerup', 'pointercancel', 'pointerleave'] as const).forEach((ev) => fc.addEventListener(ev, fallKeyUp));
     const roll = byId('an-roll');
     roll.addEventListener('pointerdown', scorePointer);
     roll.addEventListener('pointerover', anHover);
@@ -14224,12 +14267,12 @@ function anInitControls() {
             anHover(hoverEv); }); });
     roll.addEventListener('focusin', anHover);
     roll.addEventListener('keydown', (e) => {
-        const g = e.target.closest('[data-i]');
-        if (!g)
+        const g = eventElement(e)?.closest('[data-i]');
+        if (!anIsDataEl(g))
             return;
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            const i = +g.dataset.i, add = e.shiftKey || e.ctrlKey || e.metaKey;
+            const i = Number(g.dataset.i), add = e.shiftKey || e.ctrlKey || e.metaKey;
             if (!add)
                 AN.selected.clear();
             if (add && AN.selected.has(i))
@@ -14241,9 +14284,9 @@ function anInitControls() {
         }
         if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
             const d = e.key === 'ArrowRight' ? 1 : -1;
-            for (let j = +g.dataset.i + d; j >= 0 && j < AN.notes.length; j += d) {
+            for (let j = Number(g.dataset.i) + d; j >= 0 && j < AN.notes.length; j += d) {
                 const n = (SCORE.heads.get(j) || [])[0];
-                if (n) {
+                if (anIsDataEl(n)) {
                     e.preventDefault();
                     anRove(n);
                     n.focus();
@@ -14257,12 +14300,12 @@ function anInitControls() {
     // analysis panel: a chord (in Now or Piece) selects its notes and its bar and moves the cursor there
     const side = byId('an-side'), ws = byId('an-ws');
     side.addEventListener('click', (e) => {
-        const ch = e.target.closest('.an-ch');
+        const ch = eventClosest(e, '.an-ch');
         if (ch && AN.view) {
-            const k = +ch.dataset.k, seg = AN.view.segs[k];
+            const k = Number(ch.dataset.k), seg = AN.view.segs[k];
             if (ws.contains(ch)) {
                 AN.rove = k;
-                ws.querySelectorAll('.an-ch').forEach((b) => b.tabIndex = b === ch ? 0 : -1);
+                queryAllHtml(ws, '.an-ch').forEach((b) => b.tabIndex = b === ch ? 0 : -1);
             }
             if (seg) {
                 scoreHalt();
@@ -14277,32 +14320,32 @@ function anInitControls() {
             }
             return;
         }
-        const mo = e.target.closest('.an-chip[data-motif]');
+        const mo = eventClosest(e, '.an-chip[data-motif]');
         if (mo && AN.view) {
-            const k = +mo.dataset.motif, m = AN.view.motifs[k];
+            const k = Number(mo.dataset.motif), m = AN.view.motifs[k];
             if (m)
                 anSelectNotes(m.notes, { kind: 'motif', k });
         }
     });
     ws.addEventListener('keydown', (e) => {
-        const ch = e.target.closest('.an-ch');
+        const ch = eventClosest(e, '.an-ch');
         if (!ch)
             return;
-        const all = [...ws.querySelectorAll('.an-ch')], i = all.indexOf(ch);
+        const all = queryAllHtml(ws, '.an-ch'), i = all.indexOf(ch);
         const j = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? i + 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : null;
         if (j == null)
             return;
         e.preventDefault();
         const n = all[Math.max(0, Math.min(all.length - 1, j))];
         all.forEach((b) => b.tabIndex = b === n ? 0 : -1);
-        AN.rove = +n.dataset.k;
+        AN.rove = Number(n.dataset.k);
         n.focus();
     });
     ['wheel', 'touchmove'].forEach((ev) => ws.addEventListener(ev, () => { SIDE.handScroll = performance.now(); }, { passive: true }));
     ws.addEventListener('keydown', (e) => { if (/^(Page|Arrow|Home|End)/.test(e.key))
         SIDE.handScroll = performance.now(); });
     // tabs: click, or Left/Right/Home/End with automatic activation; the choice is remembered
-    byId('an-tabs').addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (b)
+    byId('an-tabs').addEventListener('click', (e) => { const b = eventClosest(e, '[role="tab"]'); if (b)
         anTab(b.dataset.tab); });
     byId('an-tabs').addEventListener('keydown', (e) => {
         const i = AN_TABS.indexOf(SIDE.tab), j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? AN_TABS.length - 1 : null;
@@ -14321,7 +14364,7 @@ function anInitControls() {
     } anSideSet(false); byId('an-side-btn').focus({ preventScroll: true }); });
     byId('an-fab').addEventListener('click', () => anSheet(true));
     byId('pr-opt').addEventListener('click', () => anOpenTab('practice'));
-    byId('an-now').addEventListener('focusout', (e) => { if (SIDE.deferred && !byId('an-now-body').contains(e.relatedTarget))
+    byId('an-now').addEventListener('focusout', (e) => { if (SIDE.deferred && !byId('an-now-body').contains(e.relatedTarget instanceof Node ? e.relatedTarget : null))
         requestAnimationFrame(anRenderNow); });
     // Now: the passage actions
     byId('an-now-listen').addEventListener('click', () => { if (anCommitFocus())
@@ -14331,18 +14374,21 @@ function anInitControls() {
         return;
     } if (anCommitFocus())
         scoreLoopStart(); });
-    byId('an-now-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (!b || b.disabled)
+    byId('an-now-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-h]'); if (!(b instanceof HTMLButtonElement) || b.disabled || b.dataset.h == null)
         return; if (PRAC.hands !== b.dataset.h)
         pracSet('hands', b.dataset.h); if (anCommitFocus())
         scoreLoopStart(); });
     // Practice: the same settings as the toolbar
     byId('pt-speed').innerHTML = byId('score-speed').innerHTML;
     selectById('pt-speed').value = selectById('score-speed').value;
-    byId('pt-speed').addEventListener('change', (e) => { selectById('score-speed').value = e.target.value; speed(); });
-    byId('pt-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (b && !b.disabled)
+    byId('pt-speed').addEventListener('change', (e) => { if (!(e.target instanceof HTMLSelectElement))
+        return; selectById('score-speed').value = e.target.value; speed(); });
+    byId('pt-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-h]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.h != null)
         pracSet('hands', b.dataset.h); });
-    byId('pt-wait').addEventListener('change', (e) => pracSet('wait', e.target.checked));
-    byId('pt-metro').addEventListener('change', (e) => pracSet('metro', e.target.checked));
+    byId('pt-wait').addEventListener('change', (e) => { if (e.target instanceof HTMLInputElement)
+        pracSet('wait', e.target.checked); });
+    byId('pt-metro').addEventListener('change', (e) => { if (e.target instanceof HTMLInputElement)
+        pracSet('metro', e.target.checked); });
     byId('pt-start').addEventListener('click', anPracticeStart);
     byId('an-practice').addEventListener('click', anPractice);
     anSideResizer();
@@ -14350,8 +14396,8 @@ function anInitControls() {
     (window).matchMedia('(max-width: 999px)').addEventListener('change', () => { SIDE.sheet = false; anSideSync(); anLayoutVars(); });
     // drag & dropwhere on the analysis view; the drop zone (or the score) shows the target state
     let depth = 0;
-    const files = (e: DragEvent) => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
-    const over = (on: boolean|undefined) => { const drop = maybeById('an-drop'), tt = maybeById('an-drop-t'); byId('an-roll').classList.toggle('is-over', on && !!SCORE.xml); if (drop)
+    const files = (e: DragEvent): e is DragEvent & { dataTransfer: DataTransfer } => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+    const over = (on: boolean) => { const drop = maybeById('an-drop'), tt = maybeById('an-drop-t'); byId('an-roll').classList.toggle('is-over', on && !!SCORE.xml); if (drop)
         drop.classList.toggle('is-over', on); if (tt)
         tt.textContent = t(on ? 'an_drop_over' : 'an_drop_t'); };
     window.addEventListener('dragenter', (e) => { if (view0() !== 'analysis' || !files(e))
@@ -14371,7 +14417,8 @@ function anInitControls() {
     const vars = () => { cancelAnimationFrame(rq); rq = requestAnimationFrame(anLayoutVars); };
     // border-box: a safe-area inset only changes padding, which a content-box observer would miss
     const ro = new ResizeObserver(vars);
-    [(document).querySelector('header'), byId('dock'), byId('an-tbwrap'), byId('an-status')].forEach((el) => ro.observe(el, { box: 'border-box' }));
+    [(document).querySelector('header'), byId('dock'), byId('an-tbwrap'), byId('an-status')].forEach((el) => { if (el)
+        ro.observe(el, { box: 'border-box' }); });
     let lastW = 0, lastH = 0;
     new ResizeObserver((entries) => { const r = entries[0].contentRect, w = Math.round(r.width), h = Math.round(r.height); if (w === lastW && h === lastH)
         return; lastW = w; lastH = h; anStageFit(); }).observe(byId('an-stage'));
