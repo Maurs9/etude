@@ -62,6 +62,23 @@ test.describe('Sight-Reading recorder integration', () => {
     });
   });
 
+  test('persists mixedInput after keyboard and MIDI are used in one first-sight attempt', async ({ app }) => {
+    const page = await openRecorder(app, true);
+    await page.keyboard.down('a');
+    await page.clock.runFor(20);
+    await page.keyboard.up('a');
+    await page.evaluate(() => {
+      window.__etude.midiIn(0x90, 62, 100, 'midi');
+      window.__etude.midiIn(0x80, 62, 0, 'midi');
+      window.__etude.srAssessFinish();
+    });
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('saved');
+    const attempt = await page.evaluate(() =>
+      Object.values(window.__etude.srtReadLedger(localStorage).attempts)
+        .find(entry => entry.status === 'completed'));
+    expect(attempt.mixedInput).toBe(true);
+  });
+
   test('panic closes every remaining recorder note with a reset release', async ({ app }) => {
     const page = await openRecorder(app);
     const inputs = await page.evaluate(() => {

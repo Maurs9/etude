@@ -1,5 +1,6 @@
 export type SightReadingInputKind = 'on' | 'off';
 export type SightReadingInputSource = string;
+export type SightReadingInputFamily = 'midi' | 'ble' | 'keyboard' | 'pointer';
 export type SightReadingReleaseKind = 'physical' | 'focus' | 'reset' | null;
 export type SightReadingRecordedInput = {
   readonly id: string;
@@ -16,10 +17,19 @@ export type SightReadingRecorderOptions = {
 
 const EXCLUDED_SOURCES: readonly SightReadingInputSource[] = ['srClick', 'previewNote', 'srListen', 'srPlayGap'];
 
+export function srtInputFamily(source: SightReadingInputSource): SightReadingInputFamily | null {
+  if (source === 'midi' || source.startsWith('midi:')) return 'midi';
+  if (source === 'ble' || source.startsWith('ble:')) return 'ble';
+  if (source === 'keyboard' || source.startsWith('typing:') || source === 'rdk' || source.startsWith('rdk:') || source.startsWith('fall:')) return 'keyboard';
+  if (source === 'pointer' || source.startsWith('pointer:') || source === 'button' || source.startsWith('button:')) return 'pointer';
+  return null;
+}
+
 export class SightReadingRecorder {
   readonly inputs: SightReadingRecordedInput[] = [];
   private readonly held = new Map<number, SightReadingRecordedInput>();
   private readonly ignored = new Set<number>();
+  private readonly families = new Set<SightReadingInputFamily>();
   private nextId = 1;
   private readonly durationMs: number;
   private readonly onChange?: (inputs: readonly SightReadingRecordedInput[]) => void;
@@ -29,9 +39,24 @@ export class SightReadingRecorder {
     this.onChange = options.onChange;
   }
 
+  public trackSource(source: SightReadingInputSource, timestampMs: number): void {
+    if (timestampMs < -250 || timestampMs > this.durationMs + 250 || EXCLUDED_SOURCES.includes(source)) return;
+    const family = srtInputFamily(source);
+    if (family) this.families.add(family);
+  }
+
+  public get sourceFamilies(): readonly SightReadingInputFamily[] {
+    return [...this.families];
+  }
+
+  public get mixedInput(): boolean {
+    return this.families.size > 1;
+  }
+
   public record(kind: SightReadingInputKind, midi: number, source: SightReadingInputSource, releaseKind: SightReadingReleaseKind, timestampMs: number): void {
     if (EXCLUDED_SOURCES.includes(source)) return;
     if (kind === 'on') {
+      this.trackSource(source, timestampMs);
       if (this.held.has(midi) || this.ignored.has(midi)) return;
       if (timestampMs < -250) {
         this.ignored.add(midi);

@@ -247,9 +247,97 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
 
   test('does not greedily color notes while assessment is playing', async ({ app }) => {
     const page = await startPracticeAssess(app);
-    await page.clock.runFor(1000);
+    const recorded = await page.evaluate(() => {
+      const api = window.__etude;
+      const expected = api.srtBuildExpected(api.SR.srtPiece, { bpm: api.SR.bpm, hand: 'rh' });
+      api.handleNoteOn(expected[0].midi, 100, 'midi');
+      return api.srtRecorder.finish().some(input => input.midi === expected[0].midi);
+    });
+    expect(recorded).toBe(true);
     expect(await page.locator('#rd-staff .ss-n[data-s]').count()).toBe(0);
     expect(await page.locator('#rd-staff .ss-result-symbol:not([style*="display: none"])').count()).toBe(0);
+    await page.evaluate(() => {
+      const api = window.__etude;
+      const expected = api.srtBuildExpected(api.SR.srtPiece, { bpm: api.SR.bpm, hand: 'rh' });
+      api.handleNoteOff(expected[0].midi, 'midi', 'physical');
+      api.srAssessFinish();
+    });
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('completed');
+    expect(await page.locator('#rd-staff .ss-n[data-s]').count()).toBeGreaterThan(0);
+    expect(await page.locator('#rd-staff .ss-result-symbol:not([style*="display: none"])').count()).toBeGreaterThan(0);
+  });
+
+  test('interrupts first sight when audio is suspended and releases its claim and lock', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    await page.clock.install();
+    await page.locator('#rd-go').click();
+    await page.locator('#rd-srt-start').click();
+    await page.clock.runFor(5000);
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('playing');
+    await page.evaluate(() => window.__etude.actx.suspend());
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('interrupted');
+    await expect.poll(() => page.evaluate(() => {
+      const ledger = window.__etude.srtReadLedger(localStorage);
+      return Object.values(ledger.attempts).some(attempt => attempt.status === 'interrupted') &&
+        Object.values(ledger.exposures).every(exposure => !exposure.claim);
+    })).toBe(true);
+    expect(await page.evaluate(async () =>
+      (await navigator.locks.query()).held.every(lock => !lock.name.startsWith('etude-sight-attempt-')))).toBe(true);
+  });
+
+  test('interrupts first sight when a live BLE-MIDI connection is disconnected', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    await page.clock.install();
+    await page.locator('#rd-go').click();
+    await page.locator('#rd-srt-start').click();
+    await page.clock.runFor(5000);
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('playing');
+    await page.evaluate(() => {
+      window.__etude.BLE.chr = {
+        removeEventListener() {},
+        stopNotifications() { return Promise.resolve(); },
+      };
+      window.__etude.bleDisconnect();
+    });
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('interrupted');
+    await expect.poll(() => page.evaluate(() =>
+      Object.values(window.__etude.srtReadLedger(localStorage).attempts)
+        .some(attempt => attempt.status === 'interrupted'))).toBe(true);
+  });
+
+  test('hides saved note-name assistance during first sight and restores it for practice', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    await page.locator('#rd-names').check();
+    await page.locator('#rd-gen').click();
+    expect(await page.locator('.ss-syl').count()).toBeGreaterThan(0);
+    await page.locator('#rd-go').click();
+    await expect(page.locator('#rd-srt-preview')).toBeVisible();
+    expect(await page.locator('.ss-syl').count()).toBe(0);
+    await page.locator('#rd-srt-practice').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.mode)).toBe('practice');
+    expect(await page.locator('.ss-syl').count()).toBeGreaterThan(0);
+    await expect(page.locator('#rd-names')).toBeChecked();
+  });
+
+  test('localizes a blocked ledger quota instead of exposing the reason code', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    await page.evaluate(() => {
+      const api = window.__etude;
+      api.setLang('ro');
+      const ledger = api.srtReadLedger(localStorage);
+      const exposures = Object.fromEntries(Array.from({ length: 4096 }, (_, index) => [
+        `v1:quota-${index}`, { firstSeenAt: index, reason: 'listen' },
+      ]));
+      localStorage.setItem('etude-sight-v1', JSON.stringify({ ...ledger, exposures }));
+    });
+    await page.locator('#rd-go').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('blocked');
+    const result = await page.evaluate(() => ({
+      text: document.querySelector('#rd-verdict')?.textContent,
+      expected: window.__etude.t('rd_srt_error_quota'),
+    }));
+    expect(result.text).toBe(result.expected);
+    expect(result.text).not.toBe('quota');
   });
 
   test('records aria-live verdict mutations only after a state transition', async ({ app }) => {

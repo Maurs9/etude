@@ -18,6 +18,7 @@ export type SightReadingAttempt = Omit<SightReadingEvaluation, 'status'> & {
   readonly generation: string;
   readonly status: 'completed' | 'abandoned' | 'interrupted';
   readonly finishedAt: number;
+  readonly mixedInput: boolean;
 };
 export type SightReadingLedger = {
   readonly schemaVersion: 1;
@@ -34,7 +35,7 @@ export type SightReadingLedgerResult =
 export type SightReadingLedgerOperation =
   | { readonly type: 'claimExposure'; readonly fingerprint: string; readonly attemptId: string; readonly ownerTabId: string; readonly generation: string }
   | { readonly type: 'finishAttempt'; readonly attempt: SightReadingAttempt; readonly generation: string }
-  | { readonly type: 'abandonAttempt'; readonly attemptId: string; readonly ownerTabId: string; readonly generation: string; readonly status?: 'abandoned' | 'interrupted' }
+  | { readonly type: 'abandonAttempt'; readonly attemptId: string; readonly ownerTabId: string; readonly generation: string; readonly status?: 'abandoned' | 'interrupted'; readonly mixedInput?: boolean }
   | { readonly type: 'recordExposure'; readonly fingerprint: string; readonly reason: string; readonly generation: string }
   | { readonly type: 'recordListen'; readonly fingerprint: string; readonly generation: string }
   | { readonly type: 'recoverOrphanClaims'; readonly generation: string }
@@ -100,6 +101,7 @@ function isAttempt(value: unknown): value is SightReadingAttempt {
     (value.score === null || isFiniteNumber(value.score)) &&
     typeof value.stars === 'number' && Number.isInteger(value.stars) && value.stars >= 0 && value.stars <= 3 &&
     typeof value.perfect === 'boolean' &&
+    (value.mixedInput === undefined || typeof value.mixedInput === 'boolean') &&
     (value.meanOffsetMs === null || isFiniteNumber(value.meanOffsetMs)) &&
     (value.meanAbsoluteOffsetMs === null || isFiniteNumber(value.meanAbsoluteOffsetMs)) &&
     Array.isArray(noteResults) && noteResults.every((result) => {
@@ -205,7 +207,7 @@ export function srtLedgerReadStatus(storage: SightReadingStorage): SightReadingL
 
 export function srtReadLedger(storage: SightReadingStorage): SightReadingLedger {
   const parsed = readRaw(storage);
-  if (isLedger(parsed)) return parsed;
+  if (isLedger(parsed)) return normalizeLedger(parsed);
   if (isRecord(parsed) && typeof parsed.schemaVersion === 'number' && parsed.schemaVersion > SRT_LEDGER_SCHEMA) {
     return srtCreateLedger();
   }
@@ -216,6 +218,17 @@ export function srtReadLedger(storage: SightReadingStorage): SightReadingLedger 
     // A read must remain usable even when storage is unavailable or full.
   }
   return created;
+}
+
+function normalizeAttempt(attempt: SightReadingAttempt): SightReadingAttempt {
+  return { ...attempt, mixedInput: attempt.mixedInput === true };
+}
+
+function normalizeLedger(ledger: SightReadingLedger): SightReadingLedger {
+  return {
+    ...ledger,
+    attempts: Object.fromEntries(Object.entries(ledger.attempts).map(([attemptId, attempt]) => [attemptId, normalizeAttempt(attempt)])),
+  };
 }
 
 function saveLedger(storage: SightReadingStorage, ledger: SightReadingLedger): SightReadingLedgerResult {
@@ -283,7 +296,7 @@ function mergeImported(local: SightReadingLedger, imported: SightReadingLedger):
   const localAttemptIds = new Set(Object.keys(local.attempts));
   for (const [attemptId, attempt] of Object.entries(imported.attempts)) {
     const existing = attempts[attemptId];
-    const normalized = { ...attempt, generation: local.generation };
+    const normalized = { ...normalizeAttempt(attempt), generation: local.generation };
     if (existing && !structurallyEqual(existing, normalized)) return { ok: false, reason: 'conflict' };
     if (!existing) attempts[attemptId] = normalized;
   }
@@ -322,6 +335,7 @@ function mergeImported(local: SightReadingLedger, imported: SightReadingLedger):
           meanAbsoluteOffsetMs: null,
           noteResults: [],
           extraInputs: [],
+          mixedInput: false,
         };
       }
     }
@@ -371,7 +385,7 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures });
     }
     if (operation.type === 'finishAttempt') {
-      const attempt = operation.attempt;
+      const attempt = normalizeAttempt(operation.attempt);
       const existing = ledger.attempts[attempt.attemptId];
       if (existing && JSON.stringify(existing) !== JSON.stringify(attempt)) return { ok: false, reason: 'conflict' };
       if (existing) return { ok: true, ledger };
@@ -394,6 +408,7 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
         status: operation.status ?? 'abandoned', finishedAt: Date.now(), scoringVersion: 1, N: 0, TP: 0, FP: 0, FN: 0, G: 0, Q: 0,
         lateOrEarlyCount: 0, restViolations: 0, pitchPrecision: null, pitchRecall: null, pitchF1: null, rhythmAcc: null, score: null,
         stars: 0, perfect: false, meanOffsetMs: null, meanAbsoluteOffsetMs: null, noteResults: [], extraInputs: [],
+        mixedInput: operation.mixedInput === true,
       };
       const exposures = { ...ledger.exposures, [fingerprint]: { firstSeenAt: ledger.exposures[fingerprint].firstSeenAt, reason: ledger.exposures[fingerprint].reason } };
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures, attempts: trimAttempts({ ...ledger.attempts, [operation.attemptId]: attempt }) });
@@ -410,7 +425,7 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
           attemptId: claim.attemptId, fingerprint, ownerTabId: claim.ownerTabId, generation: ledger.generation, status: 'abandoned', finishedAt: Date.now(),
           scoringVersion: 1, N: 0, TP: 0, FP: 0, FN: 0, G: 0, Q: 0, lateOrEarlyCount: 0, restViolations: 0,
           pitchPrecision: null, pitchRecall: null, pitchF1: null, rhythmAcc: null, score: null, stars: 0, perfect: false,
-          meanOffsetMs: null, meanAbsoluteOffsetMs: null, noteResults: [], extraInputs: [],
+          meanOffsetMs: null, meanAbsoluteOffsetMs: null, noteResults: [], extraInputs: [], mixedInput: false,
         };
         exposures[fingerprint] = { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason };
       }
@@ -430,5 +445,5 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
 }
 
 export function srtLedgerExport(ledger: SightReadingLedger): SightReadingLedger {
-  return ledger;
+  return normalizeLedger(ledger);
 }

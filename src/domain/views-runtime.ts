@@ -454,7 +454,10 @@ function makeVoice(frequency: number, velocity: number, when: number|undefined, 
 function ensureAudio() {
     const context = audioEngine.ensureAudio();
     syncAudioState();
-    if (context) void preparePiano();
+    if (context) {
+        srtWatchAudioContext(context);
+        void preparePiano();
+    }
     return context;
 }
 /** The live audio context; callers run only after `ensureAudio()` has created it. */
@@ -1743,8 +1746,11 @@ function handleNoteOn(midi: number, vel: number, source = 'midi') {
     const owners = inputOwners.get(midi) || new Set<string>();
     owners.add(source);
     inputOwners.set(midi, owners);
-    if (held.has(midi))
+    if (held.has(midi)) {
+        if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder)
+            srtRecorder.trackSource(source, performance.now() - SR.t0);
         return;
+    }
     sustained.delete(midi);
     held.add(midi);
     heldOrder.push(midi);
@@ -1817,8 +1823,9 @@ function panic() { scorePause(); if (SR.srtState && (SR.srtState.name === 'previ
     updateExplore(); }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
 function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
-    if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder)
+    if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder) {
         srtRecorder.record(kind, midi, source, releaseKind, performance.now() - SR.t0);
+    }
     if (view0() === 'analysis') {
         pracInput(kind);
         return;
@@ -2136,6 +2143,8 @@ function bleOnGone(e: BleDisconnectEvent) {
         return;
     const was = !!BLE.chr;
     bleUnhook();
+    if (was && srtEligibleFirstSightActive())
+        panic();
     bleReleaseInput();
     if (BLE.busy)
         return; // a connect in flight reports its own failure
@@ -2166,6 +2175,8 @@ function bleReconnect() { const dev = BLE.dev; if (!dev || bleLive() || BLE.busy
     return; ensureAudio(); BLE.tries = 0; bleOpen(dev, false); }
 function bleDisconnect(keepMsg?: boolean) {
     const chr = BLE.chr, dev = BLE.dev;
+    if (chr && srtEligibleFirstSightActive())
+        panic();
     BLE.want = false;
     BLE.gen++;
     BLE.busy = false;
@@ -5866,7 +5877,7 @@ function srRender(piece: SrScore): SrRenderResult {
                     it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
                 });
                 const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
-                const names = (SR.names && !piece.noNames) ? items.map((it) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
+                const names = srNamesVisible(piece) ? items.map((it) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
                 items.forEach((it, k) => {
                     const e = it.e;
                     let g = k === 0 ? `<rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>` : '';
@@ -5897,7 +5908,7 @@ function srRender(piece: SrScore): SrRenderResult {
                 g += srLedger2(nx, y, st.top) + ssNotehead(nx, y, e.dur, (st.refStep - ssStepOf(e.li, e.oct)) % 2 === 0) + (e.beam ? `@@B${nid}@@` : srStem2(nx, y, e.dur, st.top + 24));
                 if (e.beam)
                     Object.assign(e, { nid, bx: nx, by: y, mid: st.top + 24 });
-                const nm = (SR.names && !piece.noNames) ? `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${pcName(pc(e.midi), (piece.keyN || 0) < 0)}</text>` : '';
+                const nm = srNamesVisible(piece) ? `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${pcName(pc(e.midi), (piece.keyN || 0) < 0)}</text>` : '';
                 body += `<g class="ss-n" data-nid="${nid}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}</g>`;
                 notes.push({ nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc });
                 nid++;
@@ -5934,7 +5945,7 @@ function srRender(piece: SrScore): SrRenderResult {
     body += `<line class="ss-line" x1="${x}" y1="${topY}" x2="${x}" y2="${botY}" stroke="#1a1714" stroke-width="3"/>`;
     x += 6;
     beatX.push({ b: total, x });
-    const W = Math.max(x + 6, 420), H = Math.max(botY + ((SR.names && !piece.noNames) ? 38 : 22), 150);
+    const W = Math.max(x + 6, 420), H = Math.max(botY + (srNamesVisible(piece) ? 38 : 22), 150);
     let staff = '';
     staves.forEach((st) => { for (let k = 0; k < 5; k++) {
         const ly = st.top + k * 12;
@@ -5968,6 +5979,25 @@ function srDraw() {
     srStepsBuild();
     srPaintAll();
     srCoach();
+}
+function srtEligibleFirstSightActive() {
+    return SR.srtState?.mode === 'firstSight' &&
+        ['preview', 'countIn', 'playing'].includes(SR.srtState.name);
+}
+let srtWatchedAudioContext: AudioContext | null = null;
+function srtWatchAudioContext(context: AudioContext) {
+    if (srtWatchedAudioContext === context)
+        return;
+    srtWatchedAudioContext = context;
+    if (typeof context.addEventListener !== 'function')
+        return;
+    context.addEventListener('statechange', () => {
+        if (context === actx && context.state === 'suspended' && srtEligibleFirstSightActive())
+            panic();
+    });
+}
+function srNamesVisible(piece: SrScore) {
+    return SR.names && !piece.noNames && !srtEligibleFirstSightActive() && SR.srtState?.name !== 'claiming';
 }
 function srPaintAll() {
     const svg = srSvg();
@@ -6155,7 +6185,11 @@ function srLearnFinish() {
     fillPieces();
 }
 function srtSetState(event: Parameters<typeof srtTransition>[1]) {
-    SR.srtState = srtTransition(SR.srtState || SRT_INITIAL_STATE, event);
+    const previous = SR.srtState || SRT_INITIAL_STATE;
+    const next = srtTransition(previous, event);
+    SR.srtState = next;
+    if (SR.piece && (previous.name !== next.name || previous.mode !== next.mode))
+        srDraw();
 }
 function srtPreviewUi(show: boolean) {
     const panel = maybeById('rd-srt-preview');
@@ -6182,6 +6216,9 @@ function srtNotice(text: string | null) {
         return;
     notice.hidden = !text;
     notice.textContent = text ?? '';
+}
+function srtLedgerFailureMessage(reason: 'stale_generation' | 'owner_mismatch' | 'already_exposed' | 'conflict' | 'quota' | 'unsupported') {
+    return t('rd_srt_error_' + reason);
 }
 async function srtRetryPendingSave() {
     const attempt = SR.srtPendingAttempt;
@@ -6214,6 +6251,7 @@ function srtAttemptId() {
 }
 async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned') {
     const state = SR.srtState;
+    const mixedInput = SR.srtPendingAttempt?.mixedInput ?? srtRecorder?.mixedInput ?? false;
     if (state?.attemptId && SR.srtOwnerTabId && SR.srtPiece && SR.srtFingerprint) {
         await srtLedgerUpdate(localStorage, {
             type: 'abandonAttempt',
@@ -6221,6 +6259,7 @@ async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned'
             ownerTabId: SR.srtOwnerTabId,
             generation: srtReadLedger(localStorage).generation,
             status,
+            mixedInput,
         });
     }
     SR.srtLease?.release();
@@ -6281,10 +6320,11 @@ async function srtStartFirstSight() {
         lease.release();
         SR.srtLease = null;
         srtSetState({ type: 'blocked', reason: result.reason });
-        byId('rd-verdict').textContent = result.reason === 'already_exposed' ? t('rd_srt_practice_badge') : result.reason;
+        byId('rd-verdict').textContent = srtLedgerFailureMessage(result.reason);
         return;
     }
     srtSetState({ type: 'claimed' });
+    srDraw();
     srtPreviewUi(true);
     SR.srtCountdown = 20;
     byId('rd-srt-countdown').textContent = t('rd_srt_countdown', SR.srtCountdown);
@@ -6321,6 +6361,7 @@ async function srtSwitchToPractice() {
     SR.srtLease = null;
     srtSetState({ type: 'switchToPractice' });
     srtSetState({ type: 'startPreview' });
+    srDraw();
     srAssessStart();
 }
 function srAssessStart() {
@@ -6434,6 +6475,7 @@ function srAssessFinish() {
             ownerTabId: SR.srtOwnerTabId,
             generation: srtReadLedger(localStorage).generation,
             finishedAt: Date.now(),
+            mixedInput: srtRecorder?.mixedInput ?? false,
         };
         SR.srtPendingAttempt = attempt;
         void srtLedgerUpdate(localStorage, { type: 'finishAttempt', attempt, generation: attempt.generation }).then((result) => {
