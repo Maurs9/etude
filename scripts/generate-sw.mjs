@@ -89,7 +89,12 @@ self.addEventListener('fetch', event => {
     return;
   }
   const bare = url.origin + url.pathname;
-  if (PRECACHE_URLS.has(bare)) event.respondWith(asset(request, bare));
+  // Route static requests through every retained version. A tab from the
+  // previous release can still request a hashed asset that is absent from the
+  // current manifest, and the previous cache is intentionally kept for it.
+  if (PRECACHE_URLS.has(bare) || request.destination !== '') {
+    event.respondWith(asset(request, bare, PRECACHE_URLS.get(bare)));
+  }
 });
 
 function timeout(ms) {
@@ -106,8 +111,8 @@ async function navigation(event) {
   return (await findActiveCached(SHELL_URL)) || Response.error();
 }
 
-async function asset(request, url) {
-  const hit = await findCached(url);
+async function asset(request, url, expectedHash) {
+  const hit = await findCached(url, expectedHash);
   if (hit) return hit;
   return fetch(request);
 }
