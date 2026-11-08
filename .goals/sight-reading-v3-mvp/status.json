@@ -21,6 +21,11 @@
       "iteration": 3,
       "verdict": "FAIL",
       "summary": "Core first-sight flow now runs, but ledger idempotency and stale-import generation checks fail; practice/pending-save lifecycle, visible result symbols, responsive focus, exact unit proofs, and mandatory browser/offline suites remain incomplete."
+    },
+    {
+      "iteration": 4,
+      "verdict": "FAIL",
+      "summary": "Generator profiles allow fourths instead of thirds; newer ledgers are overwritten; result semantics/contrast and mandatory recorder, ledger, backup, UI, and full offline browser suites remain incomplete."
     }
   ]
 }
