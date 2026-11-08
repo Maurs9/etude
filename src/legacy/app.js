@@ -4,6 +4,7 @@ import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, restoreSettings } from '../domain/storage.ts';
 import { chordPitches, samePitchSet } from '../domain/theory.ts';
 import { patchOsmdPedals } from '../domain/notation.ts';
+import { NAV_GROUPS, navGroup, viewFromHash } from '../domain/views.ts';
 function t(k,...args){ const s=STRINGS[lang]||STRINGS.en; let v=(s[k]!=null?s[k]:(STRINGS.en?STRINGS.en[k]:null)); if(v==null) return k; if(!args.length) return v; if(args[0]!=null) v=v.replace('%a',args[0]); if(args[1]!=null) v=v.replace('%b',args[1]); for(let i=0;i<args.length;i++){ if(args[i]!=null) v=v.replace('%s',args[i]); } return v; }
 /* ============================================================================
    ÉTUDE — V3.  Reuses the verified V2 theory/audio/MIDI engine; adds a
@@ -1514,8 +1515,6 @@ function showElaboration(q){ const it=q.it, e=$('q-elab'); let html='';
    ============================================================================ */
 let _view='today';
 function view0(){ return _view; }
-const NAV_GROUPS={today:['today'],learn:['learn','songs','method'],practice:['practice','read','sing','analysis'],explore:['explore','accompany','transcribe'],progress:['progress']};
-function navGroup(v){ return Object.keys(NAV_GROUPS).find(g=>NAV_GROUPS[g].includes(v)); }
 const _modalStack=[]; let _modalBackPending=false, _modalAfterBack=null;
 function pushModalState(id){
   if(_modalBackPending){ _modalAfterBack=id; _modalStack.length=0; _modalStack.push(id); return; }
@@ -6130,7 +6129,7 @@ loadAll();
 applyTheme();
 fillRoots($('refRoot'),false); fillRoots($('song-root'),false); fillRoots($('pr-key'),true); fillRefNames(); fillKeyCtx();
 chooseView(); buildKeyboard(); initPointer(); initControls(); initExploreTabs(); reflectSettingsUI(); renderCircle(); applyI18n(); anLocalize();
-show(navGroup(location.hash.slice(1))?location.hash.slice(1):'today',false);
+show(viewFromHash(location.hash),false);
 if(history.state && history.state.modal) window.dispatchEvent(new PopStateEvent('popstate',{state:history.state}));
 saveAll(); // Persist the one-time migration from legacy synthetic timbres.
 autoReconnectMidi();

@@ -1,7 +1,7 @@
 # Étude: safe, incremental migration plan
 
 **Date:** 8 November 2026
-**Status:** This plan sets the order, safety rules and exit gates for the architecture migration. Step 0 is done and merged into `main` (PR #4). Step 2a, publishing the site from Actions, is ready on `feat/migration-step-2a-deploy`; Steps 2b, 3, 3b and 4 plus the Step 5 storage, theory, audio and notation domains are implemented on `migration`, pending the owner's live rollout and freeze checks. Step 5 views follows.
+**Status:** This plan sets the order, safety rules and exit gates for the architecture migration. Step 0 is done and merged into `main` (PR #4). Step 2a, publishing the site from Actions, is ready on `feat/migration-step-2a-deploy`; Steps 2b, 3, 3b and 4 plus the Step 5 storage, theory, audio, notation and view-router domains are implemented on `migration`, pending the owner's live rollout and freeze checks. The remaining Step 5 work is moving the legacy view implementations out of `src/legacy/app.js`.
 
 ## 1. Summary
 

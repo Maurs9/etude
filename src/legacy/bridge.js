@@ -442,7 +442,6 @@ Object.defineProperty(window, "midiChipSync", { configurable: true, get: () => m
 Object.defineProperty(window, "midiIn", { configurable: true, get: () => midiIn, set: value => { midiIn = value; } });
 Object.defineProperty(window, "midiMsg", { configurable: true, get: () => midiMsg, set: value => { midiMsg = value; } });
 Object.defineProperty(window, "muted", { configurable: true, get: () => muted, set: value => { muted = value; } });
-Object.defineProperty(window, "navGroup", { configurable: true, get: () => navGroup, set: value => { navGroup = value; } });
 Object.defineProperty(window, "neutral", { configurable: true, get: () => neutral, set: value => { neutral = value; } });
 Object.defineProperty(window, "newItemsAvail", { configurable: true, get: () => newItemsAvail, set: value => { newItemsAvail = value; } });
 Object.defineProperty(window, "newQuotaLeft", { configurable: true, get: () => newQuotaLeft, set: value => { newQuotaLeft = value; } });
@@ -1011,7 +1010,6 @@ Object.defineProperty(window, "LW_Q", { configurable: true, get: () => LW_Q });
 Object.defineProperty(window, "LW_R", { configurable: true, get: () => LW_R });
 Object.defineProperty(window, "LW_STEP", { configurable: true, get: () => LW_STEP });
 Object.defineProperty(window, "MAJOR", { configurable: true, get: () => MAJOR });
-Object.defineProperty(window, "NAV_GROUPS", { configurable: true, get: () => NAV_GROUPS });
 Object.defineProperty(window, "NOTE_SYS", { configurable: true, get: () => NOTE_SYS });
 Object.defineProperty(window, "PC_FLAT", { configurable: true, get: () => PC_FLAT });
 Object.defineProperty(window, "PC_SHARP", { configurable: true, get: () => PC_SHARP });

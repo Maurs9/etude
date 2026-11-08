@@ -60,6 +60,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `src/domain/theory.ts` — typed, pure pitch-class, scale, chord, and interval helpers
 - `src/domain/audio.ts` — checked piano-sample fetch/decode helper with retry-safe failures
 - `src/domain/notation.ts` — typed OSMD adapter for grouped pedal rendering
+- `src/domain/views.ts` — typed hash-router groups and safe view fallback
 - `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed recordings
 - `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
 - `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker
