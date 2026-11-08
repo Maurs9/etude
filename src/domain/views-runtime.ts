@@ -13,7 +13,7 @@ import type {
   ViewEventHandler,
   ViewEventName,
 } from './views.js';
-import type { AppLanguage } from '../types/architecture.js';
+import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 
 function runtimeErrorName(value: unknown): string {
   return value instanceof Error ? value.name : '';
@@ -88,8 +88,8 @@ const pianoUrls: Record<number, string> = Object.fromEntries(
     url,
   ]),
 ) as Record<number, string>;
-/** Every interface language the shell offers; `AppLanguage` names only the two with full lesson content. */
-type RuntimeLanguage = AppLanguage | 'es' | 'fr' | 'de' | 'it' | 'pt-BR';
+/** Every interface language the shell offers. */
+type RuntimeLanguage = InterfaceLanguage;
 const RUNTIME_LANGUAGES: readonly RuntimeLanguage[] = ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'];
 function isRuntimeLanguage(value: unknown): value is RuntimeLanguage { return RUNTIME_LANGUAGES.some((l) => l === value); }
 type LocaleStrings = Record<string, Record<string, string>>;
@@ -102,12 +102,12 @@ type MusicTranslations = {
   feels: Record<string, Record<string, string>>;
   songs: Record<string, Record<string, Record<string, string[]>>>;
 };
+/** Content written in English and translated into some (in practice all) other interface languages; readers fall back to `en`. */
+type Localised<T> = { en: T } & Partial<Record<RuntimeLanguage, T>>;
 type LessonCopy = { t: string; b: string };
-type Lesson = { id: string; icon: string; en: LessonCopy; ro: LessonCopy };
-type LearnUnit = { icon: string; ls: string[]; en: string; ro: string };
-type QuizQuestion = { q: string; a: string[]; ok: number };
-type LessonSummary = Record<string, string>;
-type GlossaryEntry = { l: string; en: string[]; ro: string[] };
+type Lesson = { id: string; icon: string } & Localised<LessonCopy>;
+type LearnUnit = { id: string; icon: string; ls: string[]; rd: string[] } & Localised<string>;
+type GlossaryEntry = { l: string } & Localised<[string, string]>;
 type IntervalDefinition = { semi: number; name: string; short: string };
 type AccompanimentChord = { bass: number; fifth: number; right: number[] };
 type AccompanimentEvent = { beat: number; midi: number; durB: number; hand: 'L' | 'R' };
@@ -134,15 +134,15 @@ const STEP_LABELS = locale.STEP_LABELS as Record<string, Record<string, string>>
 const LOCALE_TAGS: Record<string, string> = locale.LOCALE_TAGS;
 const LESSONS = content.LESSONS as unknown as Lesson[];
 const LEARN_UNITS = content.LEARN_UNITS as unknown as LearnUnit[];
-const LQZ = content.LQZ as unknown as Record<string, QuizQuestion[]>;
-const LSUM = content.LSUM as unknown as Record<string, LessonSummary>;
+const LQZ = content.LQZ as unknown as Record<string, LearnQuizSpec[]>;
+const LSUM = content.LSUM as unknown as Record<string, LearnSummaryRow[]>;
 const GLOSS = content.GLOSS as unknown as GlossaryEntry[];
 const KEY = storage.PTT_KEY, isBackupPayload = storage.isBackupPayload, isRecord = storage.isRecord, legacySettings = storage.legacySettings, parsePttV3 = storage.parsePttV3, readPttV3 = storage.readPttV3, restoreSettings = storage.restoreSettings, writePttV3 = storage.writePttV3;
 const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = theory.SCALE_DEGREE_LABELS, anFnKey = theory.analysisFunction, anDiatonic = theory.anDiatonic, anIntervalName = theory.anIntervalName, anKeyRank = theory.anKeyRank, anPcWeights = theory.anPcWeights, anResolveKey = theory.anResolveKey, CHORD_TEMPLATES = theory.CHORD_TEMPLATES, chordDegreeMap = theory.chordDegreeMap, chordInversion = theory.chordInversion, chordPitches = theory.chordPitches, srKeyName = theory.circleKeyPitchClass, formatChordFormula = theory.formatChordFormula, formatScaleFormula = theory.formatScaleFormula, identifyChordDomain = theory.identifyChord, keyFifths = theory.keyFifths, keyFromFifths = theory.keyFromFifths, midiToFrequency = theory.midiToFrequency, pitchClass = theory.pitchClass, PROGRESSION_TEMPLATES = theory.PROGRESSION_TEMPLATES, rdSpellMidi = theory.readingSpelling, romanFor = theory.romanFor, SCALE_DEFINITIONS = theory.SCALE_DEFINITIONS, scorePitch = theory.scorePitchXml, spellMidi = theory.spellMidi;
 const AudioEngine = audio.AudioEngine;
 const createScoreRenderer = notationApi.createScoreRenderer, loadOsmd = notationApi.loadOsmd, mxlToXml = notationApi.mxlToXml, notationReloadMessage = notationApi.notationReloadMessage, scorePatchOsmd = notationApi.scorePatchOsmd;
 const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView;
-function t(k: string, ...args: Array<string | number>): string { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
+function t(k: string, ...args: Array<string | number | null | undefined>): string { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
     return k; if (!args.length)
     return v; if (args[0] != null)
     v = v.replace('%a', String(args[0])); if (args[1] != null)
@@ -1932,7 +1932,7 @@ function autoReconnectMidi() {
     if (!navigator.permissions || !navigator.requestMIDIAccess)
         return;
     try {
-        const midiPermission: PermissionDescriptor & { sysex: boolean } = { name: 'midi', sysex: false };
+        const midiPermission: Parameters<Permissions['query']>[0] & { sysex: boolean } = { name: 'midi', sysex: false };
         (navigator.permissions).query(midiPermission).then((p) => { if (p.state === 'granted')
             connectMidi(); }).catch(() => { });
     }
@@ -2639,13 +2639,7 @@ type StoredTrainerSettings = Omit<storage.AppSettings, 'earKeys'> & { earKeys?: 
 interface StoredSheetRecord { best?: number; learned?: boolean; }
 interface StoredLastDrill { cat: string; mode: string; keys: boolean; key: string; c: number; n: number; day: number; }
 interface StoredLessonReview { last: number; n: number; best?: number; rv?: number; }
-interface StoredReadingLevel { s: number; acc: number; t: number; n: number; rush: number; }
-interface StoredReadingNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
-interface StoredReadingTotals { n: number; ok: number; ms: number; sess: number; }
-interface StoredReadingCustomDrill { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
-interface StoredReadingPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: StoredReadingCustomDrill | null; rhDur: boolean; rhHands: number; srLv?: string; }
-interface StoredReadingProgress { lv: Record<string, StoredReadingLevel>; nt: Record<string, StoredReadingNoteStat>; tot: StoredReadingTotals; prefs: StoredReadingPrefs; }
-interface StoredTrainerData {
+type StoredTrainerData = {
     srs: Record<string, StoredSrsEntry>;
     streak: number;
     bestStreak: number;
@@ -2670,8 +2664,8 @@ interface StoredTrainerData {
     learnUnlock?: Record<string, number>;
     learnSel?: number;
     learnSelId?: string;
-    reading?: StoredReadingProgress;
-}
+    reading?: Partial<ReadDrillData>;
+};
 function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false } }; }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
@@ -4373,7 +4367,7 @@ const LT = (a: LearnText) => Array.isArray(a) ? (lang === 'ro' ? a[1] : a[0]) : 
 const LEARN_OLD_ORDER = ['keys', 'iv', 'sc', 'ch', 'cof', 'pr', 'rh', 'notation', 'dyn', 'modes', 'how'];
 const LEARN_GAPS = [3, 7, 16, 35, 90];
 /** A quiz question already translated into one language. */
-interface LearnQuizCopy { q?: string; o?: string[]; why?: string }
+interface LearnQuizCopy { q?: string; o?: string[] | null; why?: string }
 /** One lesson-quiz question as written in the content (`LQZ`). */
 interface LearnQuizSpec {
     q: LearnText;
@@ -4383,7 +4377,7 @@ interface LearnQuizSpec {
     pcs?: number[];
     seq?: number[];
     why?: LearnText;
-    i18n?: Partial<Record<AppLanguage, LearnQuizCopy>>;
+    i18n?: Partial<Record<RuntimeLanguage, LearnQuizCopy>>;
 }
 /** A quiz question while it is being answered. */
 interface LearnQuizRunQuestion extends LearnQuizSpec {
@@ -4396,7 +4390,7 @@ interface LearnQuizRunQuestion extends LearnQuizSpec {
 }
 interface LearnQuizRun { id: string; qs: LearnQuizRunQuestion[]; i: number; score: number; done: boolean; rev?: boolean }
 let learnSel = 0, LGEN = 0, LQ: LearnQuizRun|null = null, learnGloss = false;
-function learnTitle(L: Lesson) { return (L[lang] && L[lang].t) || L.en.t; }
+function learnTitle(L: Lesson) { return L[lang]?.t || L.en.t; }
 /** Spaced review of one finished lesson. */
 interface LearnReview { last: number; n: number; best?: number; rv?: number }
 /** The Learn fields of the saved progress that `learnData()` guarantees. */
@@ -4407,16 +4401,21 @@ interface LearnProgressStore {
     learnSelId?: string;
     learnSel?: number;
 }
+function hasLearnProgress(d: StoredTrainerData): d is StoredTrainerData & LearnProgressStore { return !!d.learnDone && !!d.learnRev && !!d.learnUnlock; }
 function learnData(): LearnProgressStore {
-    if (!data.learnDone || typeof data.learnDone !== 'object')
-        data.learnDone = {};
-    if (!data.learnRev || typeof data.learnRev !== 'object') {
-        data.learnRev = {};
-        Object.keys(data.learnDone).forEach((id) => { data.learnRev[id] = { last: data.learnDone[id], n: 0 }; });
+    const d = data;
+    if (!d.learnDone || typeof d.learnDone !== 'object')
+        d.learnDone = {};
+    if (!d.learnRev || typeof d.learnRev !== 'object') {
+        const rev: Record<string, LearnReview> = {}, done = d.learnDone;
+        d.learnRev = rev;
+        Object.keys(done).forEach((id) => { rev[id] = { last: done[id], n: 0 }; });
     }
-    if (!data.learnUnlock || typeof data.learnUnlock !== 'object')
-        data.learnUnlock = {};
-    return data;
+    if (!d.learnUnlock || typeof d.learnUnlock !== 'object')
+        d.learnUnlock = {};
+    if (!hasLearnProgress(d))
+        throw new Error('Étude: Learn progress could not be initialised');
+    return d;
 }
 function learnUnitOf(id: string) { return LEARN_UNITS.findIndex((u) => u.ls.includes(id)); }
 function learnUnitDone(i: number) { const u = LEARN_UNITS[i], d = learnData().learnDone; return u ? u.ls.filter((id) => d[id]).length : 0; }
@@ -4959,8 +4958,8 @@ function learnInput() {
 }
 function learnRdLevel(u: LearnUnit) {
     const units = RD_UNITS.filter((x) => u.rd.includes(x.u));
-    let pick = null;
-    units.some((x) => x.lv.some((L: { id: string|number; }) => { if (rdUnlocked(L) && ((rdData().lv[L.id] || {}).s || 0) < 1) {
+    let pick: ReadDrillLevel | null = null;
+    units.some((x) => x.lv.some((L) => { if (rdUnlocked(L) && (rdData().lv[L.id]?.s || 0) < 1) {
         pick = L;
         return true;
     } return false; }));
@@ -5043,9 +5042,9 @@ function learnWire() {
         lwInput(e); });
     body.addEventListener('change', (e) => lwInput(e));
 }
-function learnBodyHTML(L: Lesson) { return (L[lang] && L[lang].b) || L.en.b; }
+function learnBodyHTML(L: Lesson) { return L[lang]?.b || L.en.b; }
 /** One cheat-sheet row (`LSUM`): term and meaning, optionally pre-translated per language. */
-type LearnSummaryRow = [LearnText, LearnText] & { i18n?: Partial<Record<AppLanguage, [string, string]>> };
+type LearnSummaryRow = [LearnText, LearnText] & { i18n?: Partial<Record<RuntimeLanguage, [string, string]>> };
 let renderLearn: { (): void; _init?: boolean } = function renderLearn() {
     const body = byId('learnBody');
     if (!body || !byId('learnToc'))
@@ -5181,7 +5180,7 @@ function learnClick(e: Event) {
     }
     const rd = eventClosest(e, '[data-rd]');
     if (rd) {
-        const L = RD_LV[rd.dataset.rd];
+        const L = RD_LV[rd.dataset.rd ?? ''];
         show('read');
         rdTab('drills');
         if (L && rdUnlocked(L))
@@ -5689,7 +5688,7 @@ const SR_LET = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 interface SrPitch { li: number; oct: number; acc: number; midi: number }
 function srPitch(s: string): SrPitch | null { const m = /^([A-G])([#b]?)(\d)$/.exec(s); if (!m) return null; const li = SR_LET.indexOf(m[1]), acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, oct = +m[3]; return { li, oct, acc, midi: ssMidiOf(li, oct, acc) }; }
 /** A Read & Play piece: a score plus its catalogue details. */
-interface SrPiece extends SrScore { id: string; t: { en: string; ro: string }; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string }
+interface SrPiece extends SrScore { id: string; t: Localised<string>; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string; from?: { title: string; bars: string } }
 const PIECES: SrPiece[] = [
     { id: 'w5rh', t: { en: 'Five-finger warm-up (right hand)', ro: 'Încălzire pe cinci note (dreapta)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
         rh: [['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['E4', 1], ['G4', 1], ['E4', 1], ['C4', 4]] },
@@ -5732,16 +5731,14 @@ interface SrStaffNote { nid: number; hand: SrHand; midi: number; beat: number; d
 interface SrBeatX { b: number; x: number }
 interface SrRenderResult { svg: string; notes: SrStaffNote[]; beatX: SrBeatX[]; total: number; W: number; yTop: number; yBot: number }
 /** The notes that sound together at one beat (one Learn-mode step). */
-interface SrStep { beat: number; notes: SrStaffNote[] }
-/** A coaching suggestion: a string key, its arguments, and an optional action. */
-interface SrCoachTip { k: string; args?: () => Array<string | number>; act?: { k: string; args?: () => Array<string | number>; run: () => void } }
+interface SrStep { beat: number; notes: SrStaffNote[]; closed?: boolean }
 /** A wrong key in Learn mode, classified (`k`) against the expected note `n`. */
 interface SrSlip { k: string; n: SrStaffNote; m: number }
 interface SrState {
     piece: SrPiece | null; hands: string; modeSel: string; names: boolean; active: boolean; assessOn: boolean;
     notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; hit: Set<number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
     beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
-    bpm: number; t0: number; next: SrCoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
+    bpm: number; t0: number; next: CoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
     excerpt?: SrPiece | null; gen?: SrPiece | null; listening?: boolean;
 }
 const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, active: false, assessOn: false,
@@ -6341,12 +6338,15 @@ function srMeta() {
         return;
     }
     if (p.ephemeral) {
-        byId('rd-meta').textContent = t('rd_excerpt_from', p.from.title) + ' · ' + p.from.bars + ' · ' + key + ' · ' + p.ts[0] + '/' + p.ts[1] + ' · ' + t('rd_excerpt_simpl');
+        const from = p.from;
+        if (!from)
+            throw new TypeError('Étude: excerpt piece has no source');
+        byId('rd-meta').textContent = t('rd_excerpt_from', from.title) + ' · ' + from.bars + ' · ' + key + ' · ' + p.ts[0] + '/' + p.ts[1] + ' · ' + t('rd_excerpt_simpl');
         return;
     }
     byId('rd-meta').textContent = t('rd_level') + ' ' + p.level + ' · ' + rootName(keyPc) + ' ' + (p.minor ? t('rd_min') : t('rd_maj')) + ' · ' + p.ts[0] + '/' + p.ts[1] + (p.comp ? (' · ' + p.comp) : '');
 }
-function srPieceTitle(p: { t?: { en: string; ro: string; }; }) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
+function srPieceTitle(p: { t?: Localised<string>; }) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
 function srBest() { const rec = SR.piece && !SR.piece.ephemeral && data.sheet[SR.piece.id]; byId('rd-best').textContent = rec && rec.best ? (t('rd_best', rec.best) + (rec.learned ? ' · ✓ ' + t('rd_learned') : '')) : (rec && rec.learned ? ('✓ ' + t('rd_learned')) : ''); }
 function fillPieces() {
     const sel = selectById('rd-piece');
@@ -6428,6 +6428,10 @@ type ReadClefStaff = 'treble' | 'bass' | 'alto' | 'tenor';
 type ReadClefDraw = ReadClefStaff | 'grand';
 type ReadClef = ReadClefDraw | 'mix';
 type ReadDrillType = 'name' | 'play' | 'k2s' | 'ks' | 'iv' | 'ch' | 'rh' | 'sr';
+const READ_DRILL_TYPES: readonly ReadDrillType[] = ['name', 'play', 'k2s', 'ks', 'iv', 'ch', 'rh', 'sr'];
+const READ_CLEFS: readonly ReadClef[] = ['treble', 'bass', 'alto', 'tenor', 'grand', 'mix'];
+function isReadDrillType(v: string): v is ReadDrillType { return READ_DRILL_TYPES.some((x) => x === v); }
+function isReadClef(v: string): v is ReadClef { return READ_CLEFS.some((x) => x === v); }
 type ReadDrillChordQuality = 'maj' | 'min' | 'dim' | 'aug';
 const RD_REF: Record<ReadClefStaff, number> = { treble: 30, bass: 18, alto: 24, tenor: 22 };
 const RD_CLEFC: Record<ReadClefStaff, string> = { treble: 't', bass: 'b', alto: 'a', tenor: 'n' };
@@ -6443,13 +6447,16 @@ interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { 
 function rdData(): ReadDrillData {
     if (!data.reading || typeof data.reading !== 'object')
         data.reading = {};
-    const r: ReadDrillData = data.reading;
+    const r = data.reading;
     r.lv = r.lv || {};
     r.nt = r.nt || {};
     r.tot = Object.assign({ n: 0, ok: 0, ms: 0, sess: 0 }, r.tot || {});
     r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1 }, r.prefs || {});
+    if (!isReadDrillData(r))
+        throw new Error('Étude: reading progress could not be initialised');
     return r;
 }
+function isReadDrillData(r: Partial<ReadDrillData>): r is ReadDrillData { return !!r.lv && !!r.nt && !!r.tot && !!r.prefs; }
 interface ReadDrillPitch { li: number; oct: number; acc: number; }
 function rdP(s: string | undefined): ReadDrillPitch { const p = s === undefined ? null : srPitch(s); if (!p)
     throw new Error('Étude: bad pitch ' + s); return { li: p.li, oct: p.oct, acc: p.acc }; }
@@ -6570,7 +6577,7 @@ function rdKsSvg(clef: ReadClefStaff, keyN: number, x: number, top: number) {
     return { svg: s, w: keyN ? Math.abs(keyN) * 9 + 8 : 4 };
 }
 interface ReadDrillStaffNote { li: number; oct: number; acc?: number; s?: string | null; hc?: string | null; tip?: string; staff?: ReadClefStaff; }
-interface ReadDrillSvgOptions { clef: ReadClefDraw; keyN?: number; cols: ReadDrillStaffNote[][]; minW?: number; aria?: string; colW?: number; lbl?: (string | null | undefined)[] | null; scale?: number; dur?: number; lblCls?: (string | null | undefined)[]; }
+interface ReadDrillSvgOptions { clef: ReadClefDraw; keyN?: number; cols: ReadDrillStaffNote[][]; minW?: number; aria?: string; colW?: number; lbl?: (string | number | null | undefined)[] | null; scale?: number; dur?: number; lblCls?: (string | null | undefined)[]; }
 interface ReadDrillSvgItem { n: ReadDrillStaffNote; ii: number; c: ReadClefStaff; top: number; step: number; y: number; dx: number; ax?: number; }
 function rdSvg(o: ReadDrillSvgOptions) {
     const grand = o.clef === 'grand', clefs: ReadClefStaff[] = o.clef === 'grand' ? ['treble', 'bass'] : [o.clef], tops = grand ? [40, 136] : [40];
@@ -6631,12 +6638,8 @@ function rdSvg(o: ReadDrillSvgOptions) {
 }
 /* ---- drill engine ---- */
 const RD_TESTN = 20, RD_RUSH = 60;
-interface ReadDrillPress { src: string; hand: string; on: number; off: number | null; }
-interface ReadDrillRhythmEvent { beat: number; dur: number; rest: boolean; u?: string; }
-interface ReadDrillRhythmRender { svg: string; notes: { nid: number; hand: string; midi: number; beat: number; dur: number; x: number; y: number; }[]; beatX: { b: number; x: number; }[]; total: number; W: number; yTop: number; yBot: number; }
-interface ReadDrillRhythm { ev: ReadDrillRhythmEvent[]; lh: ReadDrillRhythmEvent[] | null; r: ReadDrillRhythmRender; dur: boolean; two: boolean; on: number[]; taps: number[]; presses: ReadDrillPress[]; open: Map<string, ReadDrillPress>; playing: boolean; graded: ReturnType<typeof rdRhGrade> | ReturnType<typeof rdRhGradeAll> | null; raf: number; listen: boolean; t0: number; }
 type ReadDrillMode = 'practice' | 'test' | 'rush';
-interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; kbDown: number | null; rh: ReadDrillRhythm | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; }
+interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; kbDown: number | null; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; }
 const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, kbDown: null, rh: null, rhP: [], rhM: [], next: null, nodes: [] };
 function rdLvPrev(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
 function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
@@ -7109,20 +7112,26 @@ const RD_RHU: Record<RdRhythmUnit, number[][]> = { '4': [[1]], '2': [[2]], '1': 
 function isRdRhythmUnit(u: string): u is RdRhythmUnit { return Object.hasOwn(RD_RHU, u); }
 // One written note or rest of a rhythm exercise, in beats from the start of the first bar.
 interface RdRhythmEvent { beat: number; dur: number; rest: boolean; u?: RdRhythmUnit; }
-function rdRhGen(L: { units: readonly string[]; }) {
+/** The tempo of a rhythm or sight-reading level; every such level in the curriculum sets one. */
+function rdLevelBpm(L: ReadDrillLevel): number { if (L.bpm === undefined)
+    throw new TypeError('Étude: level ' + L.id + ' has no tempo'); return L.bpm; }
+function rdRhGen(L: { units?: readonly string[]; }) {
+    const units = L.units;
+    if (!units)
+        throw new TypeError('Étude: rhythm level has no note values');
     let ev: RdRhythmEvent[] = [];
     for (let tries = 0; tries < 12; tries++) {
         ev = [];
         for (let bar = 0; bar < 2; bar++) {
             let pos = 0;
             while (pos < 4 - 1e-6) {
-                const c = L.units.filter((u): u is RdRhythmUnit => { if (!isRdRhythmUnit(u))
+                const c = units.filter((u): u is RdRhythmUnit => { if (!isRdRhythmUnit(u))
                     return false; const len = RD_RHU[u].reduce((a: number, x: number[]) => a + x[0], 0); return len <= 4 - pos + 1e-6 && !(u === '1' && pos > 0) && !(u === 'r4' && bar === 0 && pos === 0) && !(u === 'd' && pos % 2); });
                 const u: RdRhythmUnit = c.length ? ssPick(c) : '4';
                 RD_RHU[u].forEach((x: number[]) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1], u }); pos += x[0]; });
             }
         }
-        const last = L.units[L.units.length - 1];
+        const last = units[units.length - 1];
         if (ev.some((e) => e.u === last) && ev.filter((e) => !e.rest).length >= 4)
             break;
     }
@@ -7197,7 +7206,7 @@ function rdRhNew(keep?: boolean) {
     if (!L)
         return;
     const ev = old ? old.ev : rdRhGen(L), lh = pr.two ? ((old && old.lh) || rdRhGenLH(L)) : null;
-    const piece: RdRhythmPiece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: L.bpm, rh: ev.map((e: RdRhythmEvent): [string, number] => [e.rest ? 'R' : 'B4', e.dur]) };
+    const piece: RdRhythmPiece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: rdLevelBpm(L), rh: ev.map((e: RdRhythmEvent): [string, number] => [e.rest ? 'R' : 'B4', e.dur]) };
     if (lh)
         piece.lh = lh.map((e: RdRhythmEvent): [string, number] => [e.rest ? 'R' : 'D3', e.dur]);
     const r: RdRhythmRender = srRender(piece);
@@ -7210,7 +7219,7 @@ function rdRhNew(keep?: boolean) {
     <div class="rdx-rhopts" id="rdx-rhopts" role="group" aria-label="${t('rdx_rh_opts')}"><label class="switch-inline"><input type="checkbox" id="rdx-rhdur"${pr.dur ? ' checked' : ''}> <span>${t('rdx_rh_dur')}</span></label>
       <div class="seg" id="rdx-rhhands" role="group" aria-label="${t('rdx_rh_hands')}"><button type="button" data-hands="1" aria-pressed="${!pr.two}">${t('rdx_rh_one')}</button><button type="button" data-hands="2" aria-pressed="${pr.two}">${t('rdx_rh_two')}</button></div></div>
     <p class="rdx-rhhint" id="rdx-rhhint">${rdEsc(hint)}</p>
-    <div class="rdx-staff ss-wrap" id="rdx-staff">${r.svg}</div><div class="rdx-fb" id="rdx-fb">${t('rdx_rh_bpm', (L)?.bpm)}</div><div class="rdx-rhdet" id="rdx-rhdet"></div>
+    <div class="rdx-staff ss-wrap" id="rdx-staff">${r.svg}</div><div class="rdx-fb" id="rdx-fb">${t('rdx_rh_bpm', rdLevelBpm(L))}</div><div class="rdx-rhdet" id="rdx-rhdet"></div>
     <div class="rdx-rhbar"><button class="btn primary" id="rdx-rhgo">● ${t('rdx_rh_start')}</button>${tst ? '' : `<button class="btn ghost" id="rdx-rhlisten">▶ ${t('rd_listen')}</button>`}${pads}</div>
     <div class="rdx-tools" id="rdx-rhnext"></div></div>`;
     rdRhMarks(pr.two);
@@ -7225,7 +7234,7 @@ function rdRhRun(listen: boolean) {
     ensureAudio();
     if (!actx)
         return;
-    const bs = 60 / L.bpm;
+    const bs = 60 / rdLevelBpm(L);
     R.taps = [];
     R.presses = [];
     R.open.clear();
@@ -7294,7 +7303,7 @@ function rdRhPress(src: string, hand: string) {
         return;
     if (R.open.has(src))
         rdRhRelease(src);
-    const b = (performance.now() - R.t0) / 1000 / (60 / L.bpm);
+    const b = (performance.now() - R.t0) / 1000 / (60 / rdLevelBpm(L));
     const p: RdRhythmPress = { src, hand: R.two && hand === 'L' ? 'L' : 'R', on: b, off: null };
     R.presses.push(p);
     R.open.set(src, p);
@@ -7309,7 +7318,7 @@ function rdRhPress(src: string, hand: string) {
 function rdRhRelease(src: string) { const R = RD.rh; if (!R)
     return; const p = R.open.get(src); if (!p)
     return; R.open.delete(src); const L = RD.L; if (R.playing && L)
-    p.off = (performance.now() - R.t0) / 1000 / (60 / L.bpm); }
+    p.off = (performance.now() - R.t0) / 1000 / (60 / rdLevelBpm(L)); }
 function rdRhKey(kind: string, m: number) { if (kind === 'on')
     rdRhPress('m' + m, m < 60 ? 'L' : 'R');
 else
@@ -7410,7 +7419,7 @@ function rdRhDone(endBeat: number) {
     const R = RD.rh, L = RD.L;
     if (!R || !L)
         return;
-    const bs = 60 / L.bpm, plain = !R.dur && !R.two;
+    const bs = 60 / rdLevelBpm(L), plain = !R.dur && !R.two;
     let g: RdRhythmGrade, msg: string;
     const det = maybeById('rdx-rhdet');
     if (plain) {
@@ -7475,6 +7484,7 @@ function rdRhDone(endBeat: number) {
 interface RdSightLevel { keys: number[]; lo: string; hi: string; durs: number[]; id: string; n: number; bpm: number; clef?: string; }
 // A generated melody, shaped like a Read & play piece; rh/lh hold [pitch name, beats] pairs.
 interface RdSightPiece { id: string; ephemeral: boolean; gen: string; comp: string; level: number; keyN: number; ts: number[]; bpm: number; t: { en: string; ro: string; }; rh?: [string, number][]; lh?: [string, number][]; }
+function isRdSightLevel(L: ReadDrillLevel): L is ReadDrillLevel & RdSightLevel { return Array.isArray(L.keys) && L.lo !== undefined && L.hi !== undefined && Array.isArray(L.durs) && L.bpm !== undefined; }
 function rdSightGen(L: RdSightLevel) {
     const keyN: number = ssPick(L.keys), kA = ssKeyAcc(keyN), lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi));
     const tonLi = SR_LET.indexOf(RD_MAJ[keyN + 7][0]);
@@ -7540,6 +7550,8 @@ function rdSightStart(mode: string) {
     if (!L)
         return;
     rdData().prefs.srLv = L.id;
+    if (!isRdSightLevel(L))
+        throw new TypeError('Étude: ' + L.id + ' is not a sight-reading level');
     SR.gen = rdSightGen(L);
     RD.on = false;
     rdTab('pieces');
@@ -7554,7 +7566,7 @@ function rdSightStart(mode: string) {
     if (g)
         g.focus();
 }
-function rdGenMelody() { const L = RD_LV[rdData().prefs.srLv] || RD_LV.sr1; RD.L = L; rdSightStart(SR.modeSel === 'assess' ? 'test' : 'practice'); }
+function rdGenMelody() { const L = RD_LV[rdData().prefs.srLv ?? ''] || RD_LV.sr1; RD.L = L; rdSightStart(SR.modeSel === 'assess' ? 'test' : 'practice'); }
 function rdSightDone(kind: string, val: number) {
     const p = SR.piece;
     if (!p || !p.gen)
@@ -7572,13 +7584,11 @@ function rdSightDone(kind: string, val: number) {
     return (kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars)) + (nx && !was && rdUnlocked(nx) ? ' · 🔓 ' + t('rdx_unlocked', rdLvName(nx)) : '');
 }
 /* ---- sessions: intro → questions → summary ---- */
-// A reading level as these views use it: a curriculum level from rdU, or the custom drill (custom: true, n 0).
-interface RdDrillLevel { id: string; u: string; n: number; ty: string; custom?: boolean; clef?: string; lo?: string; hi?: string; set?: readonly string[]; tag?: string; acc?: number; keys?: number | readonly number[]; kmax?: number; ivs?: readonly number[]; harm?: number; q?: readonly string[]; inv?: number; units?: readonly string[]; bpm?: number; durs?: readonly number[]; }
-function rdLvName(L: RdDrillLevel) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
+function rdLvName(L: ReadDrillLevel) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
 function rdRangeTxt(L: { set?: readonly string[]; lo?: string; hi?: string; }) { if (L.set)
     return L.set.map((s) => rdName(rdP(s), true)).join(' · '); if (L.lo && L.hi)
     return rdName(rdP(L.lo), true) + '–' + rdName(rdP(L.hi), true); return ''; }
-function rdLvDetail(L: RdDrillLevel) {
+function rdLvDetail(L: ReadDrillLevel) {
     const p = [t('rdx_ty_' + L.ty)];
     if (L.ty === 'rh')
         p.push((L.units ?? []).map((u) => t('rdx_rhu_' + u)).join(', '));
@@ -7612,7 +7622,7 @@ function rdLvDetail(L: RdDrillLevel) {
         p.push(L.bpm + ' BPM');
     return p.join(' · ');
 }
-function rdLvSub(L: RdDrillLevel) { return rdLvDetail(L).split(' · ').slice(1).join(' · '); }
+function rdLvSub(L: ReadDrillLevel) { return rdLvDetail(L).split(' · ').slice(1).join(' · '); }
 function rdStars(s: number) { return `<span class="rdx-stars" role="img" aria-label="${t('rdx_stars_n', s)}">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span>`; }
 function rdKeyText(k: string) {
     const clefOf: Record<string, string> = { t: 'treble', b: 'bass', a: 'alto', n: 'tenor' };
@@ -7632,14 +7642,14 @@ function rdKeyText(k: string) {
 function rdScroll() { const tb = byId('rd-tabs'); if (!tb)
     return; const hd = (document).querySelector('header'), y = tb.getBoundingClientRect().top + window.scrollY - (hd ? hd.offsetHeight : 0) - 10; if (window.scrollY > y + 4 || tb.getBoundingClientRect().top > window.innerHeight * 0.3)
     window.scrollTo({ top: Math.max(0, y), behavior: 'auto' }); }
-function rdOpen(L: RdDrillLevel) { rdAbort(); RD.L = L; if (!L.custom)
+function rdOpen(L: ReadDrillLevel) { rdAbort(); RD.L = L; if (!L.custom)
     rdData().prefs.last = L.id; byId('rdx-home').hidden = true; byId('rdx-stage').hidden = false; rdIntro(); rdScroll(); const b = byId('rdx-back'); if (b)
     b.focus({ preventScroll: true }); }
 function rdIntro() {
     const L = RD.L;
     if (!L)
         return;
-    const r = L.custom ? {} : (rdData().lv[L.id] || {});
+    const r: Partial<ReadDrillLevelStat> = L.custom ? {} : (rdData().lv[L.id] || {});
     RD.on = false;
     byId('rdx-title').textContent = rdLvName(L);
     byId('rdx-sub').textContent = rdLvDetail(L);
@@ -7648,9 +7658,10 @@ function rdIntro() {
     byId('rdx-end').hidden = true;
     const modes: ('practice' | 'test' | 'rush')[] = (L.ty === 'rh' || L.ty === 'sr') ? ['practice', 'test'] : ['practice', 'test', 'rush'], ic = { practice: '🎯', test: '📝', rush: '⚡' };
     let prev = '';
-    if (['name', 'play', 'k2s'].includes(L.ty) && L.clef !== 'mix') {
+    const clef = L.clef;
+    if (['name', 'play', 'k2s'].includes(L.ty) && clef !== 'mix' && clef !== undefined) {
         const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
-        prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef: L.clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
+        prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
     }
     const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}</div>`;
     const sfx = (L.ty === 'rh' || L.ty === 'sr') ? '_' + L.ty : '';
@@ -7740,7 +7751,7 @@ function rdFinish() {
     }
     const d = rdData();
     d.tot.sess++;
-    let unl: RdDrillLevel | null = null, newBest = false;
+    let unl: ReadDrillLevel | null = null, newBest = false;
     if (!L.custom) {
         const nx = rdLvNext(L), was = rdUnlocked(nx), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
         rec.n++;
@@ -7781,7 +7792,7 @@ function rdFinish() {
 }
 /* ---- home: progress hero, level ladder, custom drill ---- */
 function rdSuggest() {
-    const d = rdData(), last = RD_LV[d.prefs.last];
+    const d = rdData(), last = RD_LV[d.prefs.last ?? ''];
     if (last && rdUnlocked(last) && ((d.lv[last.id] || {}).s || 0) < 2)
         return last;
     return RD_ALL.find((L) => rdUnlocked(L) && !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
@@ -7793,8 +7804,8 @@ function rdRenderHome() {
     <div class="rdx-hero-r"><button class="btn primary" data-lv="${cont.id}" id="rdx-cont">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}<small>${rdEsc(rdLvName(cont) + ' · ' + t('rdx_ty_' + cont.ty))}</small></button>
       <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label></div>`;
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
-        const done = u.lv.filter((L: RdDrillLevel) => ((d.lv[L.id] || {}).s || 0) > 0).length;
-        return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: RdDrillLevel) => {
+        const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
+        return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
             const r = d.lv[L.id] || {}, ok = rdUnlocked(L), s = r.s || 0;
             return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}"${ok ? '' : ' aria-disabled="true"'} title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (ok ? '' : ' — ' + t('rdx_locked')) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${ok ? L.n : '🔒'}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
         }).join('')}</div></section>`;
@@ -7836,7 +7847,10 @@ function rdCustomRead() {
 function rdCustomGo() {
     const c = rdCustomRead();
     saveAll();
-    const L: RdDrillLevel = { custom: true, id: 'custom', u: 'custom', n: 0, ty: c.ty, clef: c.clef, lo: c.lo, hi: c.hi, acc: c.keys ? 0 : c.acc, keys: c.keys || 0 };
+    const ty = c.ty, clef = c.clef;
+    if (!isReadDrillType(ty) || !isReadClef(clef))
+        throw new TypeError('Étude: unknown custom drill ' + ty + ' / ' + clef);
+    const L: ReadDrillLevel = { custom: true, id: 'custom', u: 'custom', n: 0, ty, clef, lo: c.lo, hi: c.hi, acc: c.keys ? 0 : c.acc, keys: c.keys || 0 };
     if (c.land) {
         const a = rdStep(rdP(c.lo)), b = rdStep(rdP(c.hi)), set = RD_LM.filter((s) => s >= a && s <= b).map((s) => { const n = rdFromStep(s); return SR_LET[n.li] + n.oct; });
         if (set.length >= 2)
@@ -7878,7 +7892,7 @@ function rdRenderStats() {
     for (let k = -7; k <= 7; k++)
         if (g('ks:' + k).n)
             ks.push({ l: rdKeyLabel(k), ...g('ks:' + k) });
-    const rh = (RD_UNITS.find((u) => u.u === 'rh')?.lv ?? []).filter((L: RdDrillLevel) => g('rh:' + L.id).n).map((L: RdDrillLevel) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
+    const rh = (RD_UNITS.find((u) => u.u === 'rh')?.lv ?? []).filter((L: ReadDrillLevel) => g('rh:' + L.id).n).map((L: ReadDrillLevel) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
     const extra = (['alto', 'tenor'] as const).filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
     byId('rdx-stats').innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     <div class="panel rdx-stat-p"><h3>${t('rdx_heat')}</h3><p class="rdx-desc">${t('rdx_heat_d')}</p>
@@ -8060,7 +8074,7 @@ function rdOnLocale() {
             if (k === 'again')
                 rdStart(RD.mode);
             else if (k === 'next') {
-                const nx = rdLvNext(RD.L);
+                const nx = RD.L && rdLvNext(RD.L);
                 if (nx)
                     rdOpen(nx);
             }
@@ -8191,22 +8205,20 @@ function coachHTML(lead: string, c: CoachTip, actId?: string) {
 /* Read & play */
 const srStepNo = (n: { oct: number; li: number; }) => n.oct * 7 + n.li;
 function srKeyNames(keyN: number) { return (keyN > 0 ? [3, 0, 4, 1, 5, 2, 6] : [6, 2, 5, 1, 4, 0, 3]).slice(0, Math.abs(keyN)).map((li) => spelledName(notation, li, keyN > 0 ? 1 : -1)); }
-// A note of the Read & play piece as the coaching reads it (from srRender: hand 'rh' or 'lh', beats, spelled pitch).
-interface SrCoachNote { nid: number; hand: string; midi: number; beat: number; dur: number; li: number; oct: number; acc: number; }
 // The active hands as onsets per hand: melodic moves, leaps (a third or wider), chords, and whether the rhythm goes beyond whole beats.
 function srShape() {
     const sel = srActiveHands(), f = { moves: 0, leaps: 0, chords: 0, hands: 0, rhythm: false };
     ['rh', 'lh'].forEach((h) => {
         if (sel !== 'both' && sel !== h)
             return;
-        const by = new Map<string, SrCoachNote[]>();
-        SR.notes.forEach((n: SrCoachNote) => { if (n.hand !== h)
+        const by = new Map<string, SrStaffNote[]>();
+        SR.notes.forEach((n: SrStaffNote) => { if (n.hand !== h)
             return; const k = n.beat.toFixed(3); if (!by.has(k))
             by.set(k, []); by.get(k)?.push(n); });
         if (!by.size)
             return;
         f.hands++;
-        let prev: SrCoachNote[] | null = null;
+        let prev: SrStaffNote[] | null = null;
         [...by.values()].sort((a, b) => a[0].beat - b[0].beat).forEach((g) => {
             if (g.length > 1)
                 f.chords++;
@@ -8225,8 +8237,7 @@ function srShape() {
 // A wrong key in Step by step: the right note in another octave, the natural instead of a sharp or flat, a slip inside a chord,
 // the wrong way from the previous note, or the right way but the wrong distance.
 // What kind of slip it was (oct, key, chord, other, dir or dist), the note that was wanted and the key played.
-interface SrSlipInfo { k: string; n: SrCoachNote; m: number; }
-function srSlip(st: { notes: readonly SrCoachNote[]; }, m: number): SrSlipInfo | null {
+function srSlip(st: { notes: readonly SrStaffNote[]; }, m: number): SrSlip | null {
     const want = st.notes.filter((n) => !SR.hit.has(n.nid));
     if (!want.length)
         return null;
@@ -8237,20 +8248,20 @@ function srSlip(st: { notes: readonly SrCoachNote[]; }, m: number): SrSlipInfo |
         return { k: 'key', n, m };
     if (st.notes.filter((x) => x.hand === n.hand).length > 1)
         return { k: 'chord', n, m };
-    const prev: SrCoachNote[] = (SR.steps[SR.stepIdx - 1] || { notes: [] }).notes.filter((x: SrCoachNote) => x.hand === n.hand);
+    const prev: SrStaffNote[] = (SR.steps[SR.stepIdx - 1] || { notes: [] }).notes.filter((x: SrStaffNote) => x.hand === n.hand);
     if (!prev.length)
         return { k: 'other', n, m };
-    const p = prev.reduce((a: SrCoachNote, b: SrCoachNote) => Math.abs(b.midi - n.midi) < Math.abs(a.midi - n.midi) ? b : a);
+    const p = prev.reduce((a: SrStaffNote, b: SrStaffNote) => Math.abs(b.midi - n.midi) < Math.abs(a.midi - n.midi) ? b : a);
     return { k: Math.sign(n.midi - p.midi) !== Math.sign(m - p.midi) ? 'dir' : 'dist', n, m };
 }
-function srSlipNote(st: { notes: readonly SrCoachNote[]; }, m: number) { const s = srSlip(st, m); if (!s)
+function srSlipNote(st: { notes: readonly SrStaffNote[]; }, m: number) { const s = srSlip(st, m); if (!s)
     return; const E = SR.errs || (SR.errs = {}); E[s.k] = (E[s.k] || 0) + 1; if (s.k === 'key')
     SR.slipKey = s; srCoach(); }
 function srTopSlip() { const E = SR.errs || {}; let top: string|null = null; for (const k of ['key', 'oct', 'chord', 'dir', 'dist']) {
     if ((E[k] || 0) >= 2 && (!top || E[k] > E[top]))
         top = k;
 } return top; }
-const srSlipNames = (s: SrSlipInfo) => [rdLetter(s.n.li), spelledName(notation, s.n.li, s.n.acc)]; // what was played (the natural), what is written
+const srSlipNames = (s: SrSlip) => [rdLetter(s.n.li), spelledName(notation, s.n.li, s.n.acc)]; // what was played (the natural), what is written
 // Reading focus: the slip being repeated right now, else what this piece asks for in this mode.
 function srFocus(): CoachTip | null {
     const p = SR.piece;
@@ -8296,12 +8307,12 @@ function srNextAssess(pct: number): CoachTip | null {
     const p = SR.piece;
     if (!p)
         return null;
-    const bpm = SR.bpm, rec = p.ephemeral ? null : data.sheet[p.id], bad = (n: SrCoachNote) => SR.results[n.nid] !== 'good';
+    const bpm = SR.bpm, rec = p.ephemeral ? null : data.sheet[p.id], bad = (n: SrStaffNote) => SR.results[n.nid] !== 'good';
     if (pct >= 95)
         return bpm <= 150 ? { k: 'rn_a_clean', args: () => [pct, bpm + 10], act: { k: 'rn_act_bpm', args: () => [bpm + 10], run: () => srSetBpm(bpm + 10) } } : { k: 'rn_a_top' };
-    const cat = { leaps: [0, 0], chords: [0, 0], acc: [0, 0] }, last: { rh?: SrCoachNote[]; lh?: SrCoachNote[]; } = {};
+    const cat = { leaps: [0, 0], chords: [0, 0], acc: [0, 0] }, last: { rh?: SrStaffNote[]; lh?: SrStaffNote[]; } = {};
     let all = 0, miss = 0;
-    SR.steps.forEach((st: { notes: readonly SrCoachNote[]; }) => (['rh', 'lh'] as const).forEach((h) => {
+    SR.steps.forEach((st: { notes: readonly SrStaffNote[]; }) => (['rh', 'lh'] as const).forEach((h) => {
         const g = st.notes.filter((n) => n.hand === h);
         if (!g.length)
             return;
@@ -8364,7 +8375,7 @@ function srCoach() {
     }
 }
 /* Reading drills */
-function rdFocus(L: RdDrillLevel | null): CoachTip | null {
+function rdFocus(L: ReadDrillLevel | null): CoachTip | null {
     if (!L)
         return null;
     const x = rdLetter, c = L.clef;
@@ -8403,7 +8414,7 @@ function rdFocus(L: RdDrillLevel | null): CoachTip | null {
 function rdCoach(show: boolean) { const box = byId('rdx-coach'); if (!box)
     return; const c = show ? rdFocus(RD.L) : null; box.hidden = !c; box.innerHTML = c ? coachHTML(t('coach_focus'), c) : ''; }
 // The session's next step: accuracy first, then the notes missed most, then speed; rhythm drills look at the average timing.
-function rdNextStep(L: RdDrillLevel, mode: string, acc: number, avg: number, stars: number, weak: readonly [string, number][]): CoachTip | null {
+function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, stars: number, weak: readonly [string, number][]): CoachTip | null {
     if (L.ty === 'rh') {
         const m: number[] = RD.rhM || [], mean = m.length ? m.reduce((a, b) => a + b, 0) / m.length : 0;
         if (acc < 60)
@@ -8437,14 +8448,12 @@ function rdNextStep(L: RdDrillLevel, mode: string, acc: number, avg: number, sta
 function rdNextRender() { const box = maybeById('rdx-next'); if (box && RD.next)
     box.innerHTML = coachHTML(t('coach_next'), RD.next, 'rdx-next-act'); }
 /* Score & analysis · Now: one thing worth noticing in the bar (or passage, or selection) on show, from its own analysis */
-// The parts of an analysed segment the Now tip reads: its start beat, bass, chord (with alternatives), cadence and non-chord tones.
-interface AnCoachSeg { start: number; bass: number; cad?: string; nct?: { type: string; note: { midi: number; }; }[]; ch: { root: number; conf: string; c: { s: string; q: string; p: number[]; }; alts: { root: number; c: { s: string; }; }[]; }; }
-function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: number; }, segs: readonly AnCoachSeg[], notes: readonly theory.TheoryNote[]) {
+function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: number; }, segs: readonly AnHarmonySeg[], notes: readonly theory.TheoryNote[]) {
     if (!f || !AN.view || !notes.length)
         return null;
-    const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s: AnCoachSeg) => anKeyAt(s.start), lab = (s: AnCoachSeg) => anChordLabel(s, K(s)), rn = (s: AnCoachSeg) => anRoman(K(s), s);
+    const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s: AnHarmonySeg) => anKeyAt(s.start), lab = (s: AnHarmonySeg) => anChordLabel(s, K(s)), rn = (s: AnHarmonySeg) => anRoman(K(s), s);
     const tip = (k: string, ...a: unknown[]) => ({ h: t(f.kind === 'sel' ? 'coach_sel' : one ? 'coach_bar' : 'coach_pass'), text: tf(k, ...a) });
-    const cadTip = (s: AnCoachSeg) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
+    const cadTip = (s: AnHarmonySeg) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
     const nct = segs.flatMap((s) => (s.nct || []).filter((x) => x.type !== 'other').map((x) => ({ x, s }))), nctNames = () => [...new Set(nct.map(({ x, s }) => spellName(x.note.midi, K(s), true)))];
     if (!segs.length)
         return fall ? tip('cn_fall') : null;
@@ -8472,7 +8481,7 @@ function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: numb
     const inv = !v.implied && segs.find((s) => anInv(s) > 0);
     if (inv) {
         const k = K(inv);
-        return tip('cn_inv', spellName(60 + inv.bass, k), spellName(60 + inv.ch.root, k) + inv.ch.c.s + ', ' + invName(anInv(inv)));
+        return tip('cn_inv', spellName(60 + (inv.bass ?? 0), k), spellName(60 + inv.ch.root, k) + inv.ch.c.s + ', ' + invName(anInv(inv)));
     }
     const amb = segs.find((s) => s.ch.conf === 'low');
     if (amb)
@@ -8482,7 +8491,7 @@ function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: numb
     if (fall)
         return tip('cn_fall');
     const s = segs[0];
-    return tip('cn_' + anFnKey(K(s), s, rn(s)), lab(s));
+    return tip('cn_' + anFnKey(K(s), s.ch.root, rn(s)), lab(s));
 }
 /* Score & analysis · practice summary: the next step from how the run went — clean, slips bunched in a bar or two, missed notes,
    wrong keys, or loose timing — with a button that sets it up and plays the same passage again. */
@@ -8492,7 +8501,7 @@ function pracWeakHand() { let rh = 0, lh = 0; PRAC.res.forEach((r, i) => { if (r
 else
     rh++; }); return lh > rh ? 'lh' : 'rh'; }
 function pracLoopBars(i: number, j: number) {
-    const ms = anMeasures(), lo = ms[i].start, hi = ms[j].end, g = SCORE.geo, gi = (b: number) => g ? g.measures.findIndex((m: { b0: number; b1: number; }) => m && b >= m.b0 - 1e-6 && b < m.b1 - 1e-6) : -1, a = gi(lo + 1e-4), b = gi(hi - 1e-4);
+    const ms = anMeasures(), lo = ms[i].start, hi = ms[j].end, g = SCORE.geo, gi = (b: number) => g ? g.measures.findIndex((m) => m && b >= m.b0 - 1e-6 && b < m.b1 - 1e-6) : -1, a = gi(lo + 1e-4), b = gi(hi - 1e-4);
     if (a >= 0 && b >= 0)
         scoreSelectRange(a, b);
     else
@@ -9254,25 +9263,12 @@ function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
     return model;
 }
 /* notation import / generation */
-interface ScorePlayNote { n: AnNote; i: number; start: number; finish: number; sound?: number; }
-interface ScoreLoop { a: number; b: number; bars?: string; ab: boolean; pass: number; notes: ScorePlayNote[]; next: number; }
-interface ScorePracticeRun {
-    notes: ScorePlayNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string;
-    segs: { a0: number; t0: number; t1: number; f: number; first: boolean; }[]; ni: number; beats: { t: number; acc: boolean; }[]; bi: number; beat0: number; wt: number; pass: number;
-    mine: ScorePlayNote[]; mi: number; judged: Map<number, string>; gen: number; ci: { t: number; n: number; sec: number; } | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean;
-}
-interface ScoreGeoMeasure { sys: number; x0: number; xn: number; x1: number; b0: number; b1: number; xs?: number; cx?: number; }
-interface ScoreGeometry {
-    scale: number; pages: (HTMLElement | null)[]; systems: { page: number; top: number; bottom: number; }[]; measures: (ScoreGeoMeasure | undefined)[];
-    anchors: { beat: number; x: number; sys: number; end?: boolean; }[];
-}
-interface ScoreSymbol { kind: string | undefined; val: string | { type: string; dots: number; } | undefined; el: HTMLElement | SVGElement | null; loose: boolean; page: Element; x0: number; y0: number; x1: number; y1: number; }
 interface ScoreState {
-    xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoop | null;
+    xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoopState | null;
     tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
     heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
     geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
-    followSys: number; panAt: number; hl: boolean; run?: ScorePracticeRun | null; syms?: ScoreSymbol[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
+    followSys: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
     markGeo?: ScoreGeometry | null; markSig?: string;
 }
 const SCORE: ScoreState = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playing: false, sel: false, loop: null, tempos: [{ beat: 0, bpm: 120 }], tempoList: [{ beat: 0, bpm: 120 }], tempoFromFile: false,
@@ -10124,7 +10120,7 @@ function scorePaintIdx(i: number) { (SCORE.heads.get(i) || []).forEach(scorePain
 function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
-    const copy = notationReloadMessage(lang), box = (document).createElement('div');
+    const copy = notationReloadMessage(lang === 'ro' ? 'ro' : 'en'), box = (document).createElement('div');
     box.setAttribute('role', 'alert');
     box.className = 'notation-reload';
     box.innerHTML = '<p></p><button type="button"></button>';
@@ -10235,7 +10231,7 @@ interface ScoreCrossLink { a: number; b: number; kind: string; style?: string }
 function scoreXLines() {
     if (!scoreHasKey(SCORE_LOOK, SCORE.look))
         return;
-    const links: ScoreCrossLink[] = (AN.source && AN.source.links) || [], ink = SCORE_LOOK[SCORE.look].ink, NS = 'http://www.w3.org/2000/svg';
+    const links: ScoreCrossLink[] = (AN.source && AN.source.kind === 'xml' && AN.source.links) || [], ink = SCORE_LOOK[SCORE.look].ink, NS = 'http://www.w3.org/2000/svg';
     links.forEach((l) => {
         const ha: SVGElement[] = SCORE.heads.get(l.a) || [], hb: SVGElement[] = SCORE.heads.get(l.b) || [], ga = ha[0], gb = hb[0];
         if (!ga || !gb)
@@ -11004,10 +11000,8 @@ function scoreHome() {
 // Judgements counted in a practice run, and the share of notes hit in the current and the last loop pass.
 interface PracticeStats { perfect: number; good: number; miss: number; wrong: number; streak: number; best: number; passHit: number; passAll: number; lastPass: number | null }
 // The parts of an analysed note that practice playback reads.
-interface PracticeGrace { midi: number; vel?: number; tiedToPrincipal?: boolean }
-interface PracticeNoteFacts { midi: number; vel: number; start: number; end: number; soundEnd?: number; graces?: PracticeGrace[]; roll?: number; warm?: boolean; pedalEnd?: boolean }
 // A note on the playback clock: its index i in AN.notes and its start, written end and sounding end in score seconds.
-interface PracticeTimedNote { n: PracticeNoteFacts; i: number; start: number; finish: number; sound?: number }
+interface PracticeTimedNote { n: AnNote; i: number; start: number; finish: number; sound?: number }
 // One stretch of the audio clock: score time t = t0 + (now − a0)·f, until t1.
 interface PracticeSegment { a0: number; t0: number; t1: number; f: number; first: boolean }
 // "Wait for me": the clock stops at t until every key in need has been played.
@@ -11059,16 +11053,16 @@ function pracLoad() {
     }
     catch (e) { }
 }
-const pracMine = (n: PracticeNoteFacts) => PRAC.hands === 'both' || anHandOf(n) === PRAC.hands;
+const pracMine = (n: AnNote) => PRAC.hands === 'both' || anHandOf(n) === PRAC.hands;
 // My part sounds only when I am not being waited for; the other hand is the accompaniment (or muted).
-const pracSounds = (n: PracticeNoteFacts) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
+const pracSounds = (n: AnNote) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
 const pracFactor = () => +(selectById('score-speed').value || 100) / 100;
 function pracSegAt(R: { segs: PracticeSegment[] }, now: number) { let s = R.segs[0]; for (const x of R.segs)
     if (x.a0 <= now + 1e-9)
         s = x; return s; }
 function pracRaw(R: { segs: PracticeSegment[] }, now: number) { const s = pracSegAt(R, now); return { s, t: s.t0 + Math.max(0, now - s.a0) * s.f }; }
 function pracBeats() {
-    if (FALL.beatSrc === fallData() && FALL.beatTempo === SCORE.tempoList)
+    if (FALL.beatSrc === fallData() && FALL.beatTempo === SCORE.tempoList && FALL.beats)
         return FALL.beats;
     const out: PracticeBeat[] = [];
     for (const m of anMeasures()) {
@@ -11134,7 +11128,7 @@ async function pracStart(o: PracticeStartOptions)  {
     scoreFollow();
 }
 function pracTick() {
-    const R: PracticeRun | null = SCORE.run;
+    const R = SCORE.run;
     if (!R || !SCORE.playing || !actx || R.gen !== SCORE.playGen)
         return;
     const now = actx.currentTime, H = now + .3;
@@ -11288,7 +11282,7 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
 }
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
 function pracInput(kind: string) {
-    const R: PracticeRun | null = SCORE.run;
+    const R = SCORE.run;
     if (kind === 'on' && R && SCORE.playing && actx) {
         const m = heldOrder[heldOrder.length - 1], now = actx.currentTime;
         if (m != null && now >= R.segs[0].a0 - .05) {
@@ -11329,7 +11323,7 @@ function pracHud() {
     hud.hidden = !show;
     if (!show)
         return;
-    const acc = st && pracAcc(st), R: PracticeRun | null = SCORE.run;
+    const acc = st && pracAcc(st), R = SCORE.run;
     byId('pr-acc-v').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
     byId('pr-streak').textContent = String(st ? st.streak : 0);
     byId('pr-pass').textContent = String(R ? R.pass : 1);
@@ -11373,7 +11367,7 @@ function pracSummary(R: PracticeRun) {
 function pracSumClose() { byId('pr-sum').hidden = true; PRAC.next = null; anSideSync(); }
 // Count-in digits, the waiting state and the HUD's fading judgement follow the animation frame.
 function pracFrame() {
-    const R: PracticeRun | null = SCORE.run, c = byId('pr-count');
+    const R = SCORE.run, c = byId('pr-count');
     if (!R || !actx) {
         if (!c.hidden)
             c.hidden = true;
@@ -11403,7 +11397,7 @@ function pracSet(k: string, v: string|boolean) {
         PRAC[k] = v;
     pracSave();
     if (k === 'hands') {
-        SCORE.heads.forEach((l: Element[]) => l.forEach(scorePaintEl));
+        SCORE.heads.forEach((l) => l.forEach(scorePaintEl));
         anKeysPaint();
     }
     if (SCORE.playing && ['hands', 'wait', 'acc', 'hear'].includes(k)) {
@@ -11533,7 +11527,7 @@ function scoreZoom(z: number) {
 function scoreSetLook(v: string) { SCORE.look = v === 'night' ? 'night' : 'paper'; byId('an-roll').dataset.look = SCORE.look; anUpdateControls(); if (SCORE.engine)
     scoreLayout(); saveAll(); }
 // "Highlight sounding notes": off by default, so the notes stay black while the blue line plays through them.
-function scoreSetHl(on: boolean) { SCORE.hl = !!on; SCORE.heads.forEach((l: Element[]) => l.forEach(scorePaintEl)); anUpdateControls(); saveAll(); }
+function scoreSetHl(on: boolean) { SCORE.hl = !!on; SCORE.heads.forEach((l) => l.forEach(scorePaintEl)); anUpdateControls(); saveAll(); }
 // Page | Continuous | Falling notes; the choice is remembered like the appearance.
 function scoreSetView(v: string|undefined) {
     if (v === 'fall') {
@@ -11731,11 +11725,11 @@ function anBarsLabel(ns: { start: number }[], L?: string) {
 function anNum(x: number, d: number) { return (Math.round(x * Math.pow(10, d)) / Math.pow(10, d)).toLocaleString(LOCALE_TAGS[lang] || lang); }
 function anClock(sec: number) { const s = Math.max(0, sec); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
 // The parts of a chord span (one segment of the harmonic analysis) that its descriptions read.
-interface AnSpanChordFacts { ch: { root: number; c: { s: string } }; bass: number }
+interface AnSpanChordFacts { ch: { root: number; c: { s: string } }; bass: number | null }
 interface AnSpanBeatFacts { measure: { start: number }; unit: number; start: number; end: number }
-interface AnSpanNoteFacts { midi: number; hand?: string }
+interface AnSpanNoteFacts { midi: number; hand?: AnHand | null }
 interface AnSpanNctFacts { type: string; note: { midi: number } }
-function anChordLabel(seg: AnSpanChordFacts, key: theory.KeySignature) { const ch = seg.ch; return spellName(60 + ch.root, key) + ch.c.s + (seg.bass !== ch.root ? '/' + spellName(60 + seg.bass, key) : ''); }
+function anChordLabel(seg: AnSpanChordFacts, key: theory.KeySignature) { const ch = seg.ch; return spellName(60 + ch.root, key) + ch.c.s + (seg.bass !== ch.root ? '/' + spellName(60 + (seg.bass ?? 0), key) : ''); }
 function anBeatText(seg: AnSpanBeatFacts) {
     const m = seg.measure, u = seg.unit, b1 = 1 + (seg.start - m.start) / u, b2 = (seg.end - m.start) / u, f = (x: number) => anNum(x, 1);
     return b2 - b1 < 1e-6 ? t('an_beat', f(b1)) : t('an_beats', f(b1) + '–' + f(b2));
@@ -12015,9 +12009,9 @@ function anFocus(follow = true): AnPanelFocus | null {
         const i = at(scoreBeatAt(fallTime()));
         return span(i, i, 'play');
     }
-    const R = SCORE.mrange, g = SCORE.geo;
-    if (R && g && g.measures[R.a])
-        return span(at(g.measures[R.a].b0 + 1e-4), at((g.measures[R.b] || g.measures[R.a]).b1 - 1e-4), 'bars');
+    const R = SCORE.mrange, g = SCORE.geo, gm = R && g ? g.measures[R.a] : undefined;
+    if (R && g && gm)
+        return span(at(gm.b0 + 1e-4), at((g.measures[R.b] || gm).b1 - 1e-4), 'bars');
     const sel = [...AN.selected].map((i) => AN.notes[i]).filter(Boolean);
     if (sel.length) {
         const s = sel.map((n) => n.start);
@@ -12044,7 +12038,7 @@ function anCommitFocus() {
     const g = SCORE.geo;
     if (!g)
         return false;
-    const gi = (beat: number) => g.measures.findIndex((m: { b0: number; b1: number; }) => m && beat >= m.b0 - 1e-6 && beat < m.b1 - 1e-6), a = gi(f.lo), b = gi(f.hi - 1e-4);
+    const gi = (beat: number) => g.measures.findIndex((m) => m && beat >= m.b0 - 1e-6 && beat < m.b1 - 1e-6), a = gi(f.lo), b = gi(f.hi - 1e-4);
     if (a < 0 || b < 0)
         return false;
     const R = SCORE.mrange;
@@ -12060,46 +12054,13 @@ function anFunctionOf(key: theory.KeySignature, seg: { ch: { root: number; }; },
     const rel = ((seg.ch.root - key.root) % 12 + 12) % 12, f = fns[rel];
     return t(f ? 'an_fn_' + f : 'an_fn_chr');
 }
-// A note, bar and chord reading as the analysis panel shows them (see anHarmony, anCadences and anClassifyNonChord).
-interface AnPanelNote {
-    midi: number;
-    start: number;
-    end: number;
-    hand?: string;
-    track?: number;
-}
-interface AnPanelMeasure {
-    number: string;
-    start: number;
-    end: number;
-    num: number;
-    den: number;
-}
-interface AnPanelChordReading {
-    root: number;
-    c: { s: string; q: string; p: number[]; x?: number };
-    conf: string;
-    det: string;
-    alts: { root: number; c: { s: string } }[];
-}
-interface AnPanelChordSpan {
-    start: number;
-    end: number;
-    measure: AnPanelMeasure;
-    unit: number;
-    bass: number;
-    ch: AnPanelChordReading;
-    notes: AnPanelNote[];
-    nct: { note: AnPanelNote; type: string }[];
-    cad?: string;
-}
 interface AnPanelSpanRow {
-    s: AnPanelChordSpan;
+    s: AnHarmonySeg;
     k: number;
 }
 // One chord of the progression: symbol, Roman numeral, beats and how sure the reading is; the full reading, with what each hand
 // plays, is its accessible name.
-function anChipHTML(s: AnPanelChordSpan, i: number, rove: boolean|null) {
+function anChipHTML(s: AnHarmonySeg, i: number, rove: boolean|null) {
     const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), beats = anBeatText(s), conf = s.ch.conf;
     const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), cad = s.cad ? t('an_cad_' + s.cad) : '', det = anDetText(s.ch), nct = anNctText(s, key);
     const label = [t('an_bar') + ' ' + s.measure.number, beats, lab, rn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), anHandsText(s, key), nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
@@ -12110,7 +12071,7 @@ function anChipHTML(s: AnPanelChordSpan, i: number, rove: boolean|null) {
 // Chords grouped by bar; each row carries its bar index so the selected bars can be marked.
 function anRowsHTML(list: AnPanelSpanRow[], rove?: number|null) {
     const ms = anMeasures();
-    let html = '', bar: AnPanelMeasure | null = null;
+    let html = '', bar: ScoreMeasure | null = null;
     list.forEach(({ s, k }) => {
         if (s.measure !== bar) {
             if (bar)
@@ -12127,7 +12088,7 @@ function anRowsHTML(list: AnPanelSpanRow[], rove?: number|null) {
 function anNowCard({ s, k }: AnPanelSpanRow, implied: boolean) {
     const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
     const inv = implied ? 0 : anInv(s), slash = !implied && s.bass !== s.ch.root;
-    const fn = [anFunctionOf(key, s, rn), implied ? t('an_implied') : open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + s.bass, key)) : ''].filter(Boolean).join(' · ');
+    const fn = [anFunctionOf(key, s, rn), implied ? t('an_implied') : open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + (s.bass ?? 0), key)) : ''].filter(Boolean).join(' · ');
     const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
     const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, key), cad = s.cad ? t('an_cad_' + s.cad) : '';
     const label = [t('an_bar') + ' ' + s.measure.number, anBeatText(s), lab, rn, fn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), hands, nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
@@ -12161,6 +12122,8 @@ function anRenderNow() {
     }
     SIDE.deferred = false;
     const esc = xmlEsc, v = AN.view, ms = anMeasures(), num = (i: number) => ms[i].number, one = f.a === f.b, notes = anFocusNotes(f), key = anKeyAt(f.lo);
+    if (!v)
+        return;
     const count = notes.length === 1 ? t('an_note1') : t('an_sel_notes', notes.length), bars = one ? t('an_bar1', num(f.a)) : t('an_bars', num(f.a), num(f.b));
     const head = f.kind === 'sel' ? t('an_sel_h') : one ? t('st_bar', num(f.a)) : t('an_now_passage', bars);
     h.textContent = head;
@@ -12168,7 +12131,7 @@ function anRenderNow() {
     byId('an-now-mark').hidden = !(f.kind === 'bars' || (f.kind === 'play' && SCORE.loop));
     byId('an-now-pill').hidden = f.kind !== 'play';
     byId('an-now-hint').textContent = t(f.kind === 'play' ? 'an_now_follow' : FALL.mode === 'fall' ? 'an_now_hint_fall' : (window).matchMedia('(pointer: coarse)').matches ? 'an_now_hint_touch' : 'an_now_hint');
-    const segs = v.segs.map((s: AnPanelChordSpan, k: number): AnPanelSpanRow => ({ s, k })).filter(({ s }: AnPanelSpanRow) => s.end > f.lo + 1e-6 && s.start < f.hi - 1e-6);
+    const segs = v.segs.map((s: AnHarmonySeg, k: number): AnPanelSpanRow => ({ s, k })).filter(({ s }: AnPanelSpanRow) => s.end > f.lo + 1e-6 && s.start < f.hi - 1e-6);
     let html = '';
     if (!one) {
         const info = anKeyInfo(notes);
@@ -12228,7 +12191,7 @@ function anRenderPractice() {
             break;
     } return i; };
     const range = (a: number, b: number) => a === b ? t('an_bar1', ms[a].number) : t('an_bars', ms[a].number, ms[b].number), Range = (a: number, b: number) => a === b ? t('st_bar', ms[a].number) : t('an_h_bars', ms[a].number, ms[b].number);
-    const abBars: [number, number] | null = ab ? [at(scoreBeatAt(PRAC.A)), at(scoreBeatAt(PRAC.B) - 1e-4)] : null;
+    const abBars: [number, number] | null = ab && PRAC.A != null && PRAC.B != null ? [at(scoreBeatAt(PRAC.A)), at(scoreBeatAt(PRAC.B) - 1e-4)] : null;
     byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : abBars ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
     byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
     byId('pt-abv').textContent = abBars ? t('pt_ab_v', range(...abBars)) : t('pt_ab_none');
@@ -12261,26 +12224,7 @@ function anRevealPieceRow(smooth = true) {
         ws.scrollTo({ top: ws.scrollTop + (r.top - p.top) - p.height * .25, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
     }
 }
-// The whole-piece model anCompute builds for the Piece tab.
-interface AnPanelWorkspace {
-    key: { best: theory.KeyRank; alts: theory.KeyRank[]; conf: string };
-    mainKey: theory.KeySignature;
-    ns: AnPanelNote[];
-    ms: AnPanelMeasure[];
-    tempos: number[];
-    seconds: number;
-    pitches: number[];
-    beats: number;
-    onsets: number;
-    poly: { avg: number; max: number };
-    hands: string;
-    rh: number;
-    lh: number;
-    segs: AnPanelChordSpan[];
-    implied: boolean;
-    motifs: { iv: number[]; count: number }[];
-}
-function anRenderWorkspace(v: AnPanelWorkspace) {
+function anRenderWorkspace(v: AnAnalysisModel) {
     const ws = byId('an-ws'), esc = xmlEsc, k = v.key, main = v.mainKey;
     const fe = document.activeElement, focused = (fe instanceof HTMLElement || fe instanceof SVGElement) && ws.contains(fe) ? fe : null, refocus = focused && (focused.dataset.k != null ? '[data-k="' + focused.dataset.k + '"]' : focused.dataset.motif != null ? '[data-motif="' + focused.dataset.motif + '"]' : null);
     // key
@@ -12966,7 +12910,7 @@ async function anOpenFile(file: File)  {
         return anShowError('an_err_empty', name);
     const token = ++AN.loadToken, title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
     anSetLoading(true, t('an_loading', name));
-    let src: AnLoadSource;
+    let src: AnSource;
     try {
         src = kind === 'midi' ? { kind: 'midi', title, label: name, parsed: anParse(await file.arrayBuffer()) } : await anReadXml(file, title);
     }
@@ -12989,10 +12933,7 @@ async function anLoadExample(id: string)  {
     anSetLoading(true, t('an_loading', srPieceTitle(p)));
     await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
 }
-type AnXmlLoadSource = Awaited<ReturnType<typeof anReadXml>>;
-interface AnParsedLoadSource { kind: 'midi' | 'example'; title: string; label: string; parsed: ReturnType<typeof anParse> | ReturnType<typeof anPieceToParsed>; id?: string; comp?: string; }
-type AnLoadSource = AnXmlLoadSource | AnParsedLoadSource;
-async function anCommit(src: AnLoadSource, token: number)  {
+async function anCommit(src: AnSource, token: number)  {
     scoreStop();
     AN.source = src;
     AN.error = null;
@@ -13138,9 +13079,8 @@ function anSelectionChanged() {
 }
 // Selections made from the analysis panel: a chord also selects its bar (`bars`, score measure indices), so the coral band
 // and the Now tab follow it.
-interface AnScoreNote { midi: number; start: number; end: number; soundEnd?: number; vel?: number; finger?: number | string; hand?: string; }
 interface AnSelectionFocus { kind: 'chord' | 'motif'; k: number; }
-function anSelectNotes(list: readonly AnScoreNote[], active?: AnSelectionFocus | null, bars?: { a: number; b: number; } | null) {
+function anSelectNotes(list: readonly AnNote[], active?: AnSelectionFocus | null, bars?: { a: number; b: number; } | null) {
     AN.selected = new Set(list.map((n) => AN.index.get(n)).filter((i) => i != null));
     AN.active = active || null;
     SCORE.mrange = bars && AN.selected.size ? { anchor: bars.a, a: bars.a, b: bars.b, sig: [...AN.selected].sort((x, y) => x - y).join() } : null;
@@ -13167,7 +13107,7 @@ function anSelectChord(k: number) {
     const seg = AN.view && AN.view.segs[k];
     if (!seg)
         return;
-    const g = SCORE.geo, mi = g ? g.measures.findIndex((m: { b0: number; }) => m && Math.abs(m.b0 - seg.measure.start) < 1e-3) : -1;
+    const g = SCORE.geo, mi = g ? g.measures.findIndex((m) => m && Math.abs(m.b0 - seg.measure.start) < 1e-3) : -1;
     anSelectNotes(seg.notes, { kind: 'chord', k }, mi >= 0 ? { a: mi, b: mi } : null);
 }
 function anClearSelection() { if (!AN.selected.size && !SCORE.mrange)
@@ -13259,11 +13199,10 @@ function scorePointer(e: PointerEvent) {
 }
 function anRove(g: Element) { byId('an-roll').querySelectorAll('[data-i][tabindex="0"]').forEach((x) => x.setAttribute('tabindex', '-1')); g.setAttribute('tabindex', '0'); }
 /* practice transfer: an ephemeral Read & Play piece (one line or chord stack per hand, bars kept, rhythm on a 16th grid) */
-type AnReadToken = [string | null | (string | null)[], number];
-interface AnExcerptPiece { id: string; ephemeral: boolean; t: Record<AppLanguage, string>; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number;
-    from: { title: string; bars: string; }; pickup?: number; rh?: AnReadToken[]; lh?: AnReadToken[]; }
+interface AnExcerptPiece { id: string; ephemeral: boolean; t: Localised<string>; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number;
+    from: { title: string; bars: string; }; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; }
 type AnReadPieceResult = { piece: AnExcerptPiece; error?: undefined; } | { error: 'none' | 'long' | 'range'; piece?: undefined; };
-function anToReadPiece(ns: readonly AnScoreNote[]): AnReadPieceResult {
+function anToReadPiece(ns: readonly AnNote[]): AnReadPieceResult {
     if (!ns.length)
         return { error: 'none' };
     const notes = ns.slice().sort((a, b) => a.start - b.start || a.midi - b.midi), meas = anMeasures(), A = notes[0].start;
@@ -13283,7 +13222,7 @@ function anToReadPiece(ns: readonly AnScoreNote[]): AnReadPieceResult {
     const VAL = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9), RVAL = [4, 2, 1, 0.5, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9);
     const nextBar = (p: number) => { let b = pickup > 0 ? pickup : cap; while (b <= p + 1e-6)
         b += cap; return b; };
-    const rests = (list: AnReadToken[], from: number, to: number) => { let p = from; while (p < to - 1e-6) {
+    const rests = (list: SrToken[], from: number, to: number) => { let p = from; while (p < to - 1e-6) {
         const len = Math.min(to, nextBar(p)) - p, v = RVAL.find((x) => x <= len + 1e-6) || 1 / grid;
         list.push(['R', v]);
         p = q(p + v);
@@ -13298,16 +13237,16 @@ function anToReadPiece(ns: readonly AnScoreNote[]): AnReadPieceResult {
             return; const k = s.toFixed(4); if (!on.has(k))
             on.set(k, { s, ms: new Set(), end: 0 }); const o = on.get(k); if (!o)
             return; o.ms.add(n.midi); o.end = Math.max(o.end, Math.min(total, Math.max(s + 1 / grid, q(n.end - origin)))); });
-        const list: AnReadToken[] = [], os = [...on.values()].sort((a, b) => a.s - b.s);
+        const list: SrToken[] = [], os = [...on.values()].sort((a, b) => a.s - b.s);
         let p = 0;
         os.forEach((o, i) => {
             if (o.s > p + 1e-6)
                 rests(list, p, o.s);
             const len = Math.min(o.end, i + 1 < os.length ? os[i + 1].s : total, nextBar(o.s)) - o.s, v = VAL.find((x) => x <= len + 1e-6) || 1 / grid;
-            const ps = [...o.ms].sort((a, b) => a - b).map(spellSR);
-            if (ps.some((x) => !x))
+            const ps = [...o.ms].sort((a, b) => a - b).map(spellSR), names = ps.filter((x): x is string => !!x);
+            if (names.length !== ps.length)
                 bad = true;
-            list.push([ps.length === 1 ? ps[0] : ps, v]);
+            list.push([names.length === 1 ? names[0] : names, v]);
             p = q(o.s + v);
         });
         if (p < total - 1e-6)
@@ -13319,7 +13258,10 @@ function anToReadPiece(ns: readonly AnScoreNote[]): AnReadPieceResult {
         return { error: 'range' };
     if (!rh && !lh)
         return { error: 'none' };
-    const src = AN.source, ex = src.kind === 'example' ? PIECES.find((p) => p.id === src.id) : undefined;
+    const src = AN.source;
+    if (!src)
+        throw new TypeError('Étude: no piece is loaded');
+    const ex = src.kind === 'example' ? PIECES.find((p) => p.id === src.id) : undefined;
     if (src.kind === 'example' && !ex)
         throw new Error(`Étude: missing example piece ${src.id}`);
     const titles = { en: ex ? ex.t.en : src.title, ro: ex ? ex.t.ro : src.title, [lang]: ex ? srPieceTitle(ex) : src.title };
@@ -13334,7 +13276,7 @@ function anToReadPiece(ns: readonly AnScoreNote[]): AnReadPieceResult {
         piece.lh = lh;
     return { piece };
 }
-function anPracticeCheck(ns: readonly AnScoreNote[]): { ok: true; piece: AnExcerptPiece; } | { ok: false; msg: string; } {
+function anPracticeCheck(ns: readonly AnNote[]): { ok: true; piece: AnExcerptPiece; } | { ok: false; msg: string; } {
     const r = anToReadPiece(ns);
     if (r.piece)
         return { ok: true, piece: r.piece };
@@ -13355,7 +13297,7 @@ function anPractice() {
     [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.getAttribute('data-v') === 'learn' ? 'true' : 'false'));
     show('read');
     fillPieces();
-    srSelectPiece(SR.excerpt.id);
+    srSelectPiece(chk.piece.id);
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rd_excerpt_ready');
@@ -13363,7 +13305,7 @@ function anPractice() {
     window.scrollTo({ top: Math.max(0, byId('rd-meta').getBoundingClientRect().top + window.scrollY - 80), behavior: 'auto' });
 }
 /* falling notes: a dark stage with lanes, bar lines and an integrated keyboard; notes coloured by hand */
-interface FallTimedNote { n: AnScoreNote; i: number; start: number; finish: number; sound: number; }
+interface FallTimedNote { n: AnNote; i: number; start: number; finish: number; sound: number; }
 interface FallKeyRect { x: number; w: number; black: boolean; }
 interface FallGeo { lo: number; hi: number; W: number; keys: Map<number, FallKeyRect>; whites: number[]; kw: number; bw: number; hitY?: number; kh?: number; }
 interface FallHit { i: number; x: number; y: number; w: number; h: number; hand: string; }
@@ -13371,8 +13313,8 @@ interface FallFlash { x: number; y: number; w: number; rgb: string; life: number
 interface FallParticle { x: number; y: number; vx: number; vy: number; r: number; life: number; max: number; col: string; }
 interface FallState { mode: 'score' | 'fall'; raf: number; position: number; origin: number; audioStart: number; factor: number; notes: FallTimedNote[]; hits: FallHit[]; zoom: number;
     geo: FallGeo | null; particles: FallParticle[]; flashes: FallFlash[]; lastT: number | null; lastFrame: number; resume: { sel: boolean; } | null;
-    fingerSrc?: readonly AnScoreNote[]; hasFinger?: boolean; source?: readonly AnScoreNote[]; tempoSource?: readonly { beat: number; bpm: number; }[]; end: number;
-    laneSrc?: readonly AnScoreNote[]; lanes: Set<number>; tickSrc?: FallTimedNote[]; tickTempo?: readonly { beat: number; bpm: number; }[]; tickEnd?: number;
+    fingerSrc?: readonly AnNote[]; hasFinger?: boolean; source?: readonly AnNote[]; tempoSource?: readonly { beat: number; bpm: number; }[]; end: number;
+    laneSrc?: readonly AnNote[]; lanes: Set<number>; tickSrc?: FallTimedNote[]; tickTempo?: readonly { beat: number; bpm: number; }[]; tickEnd?: number;
     beatSrc?: FallTimedNote[]; beatTempo?: readonly { beat: number; bpm: number; }[]; beats?: { t: number; acc: boolean; }[]; press?: Map<number, number>; }
 const FALL: FallState = { mode: 'score', raf: 0, position: 0, origin: 0, audioStart: 0, factor: 1, notes: [], hits: [], zoom: 1, geo: null, particles: [], flashes: [], lastT: null, lastFrame: 0, resume: null, end: 0, lanes: new Set() };
 const FALL_SEC = 3.2, FALL_FONT = '"Hanken Grotesk",system-ui,sans-serif', FALL_SEL = '#6aa8ff', FALL_BLACK = new Set([1, 3, 6, 8, 10]), FALL_NUDGE: Readonly<Record<number, number>> = { 1: -.12, 3: .12, 6: -.16, 8: 0, 10: .16 };
@@ -13470,7 +13412,7 @@ function fallKeys(lo: number, hi: number, W: number) {
 function fallRR(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 function fallKeyPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r); ctx.closePath(); }
 // Crisp at any devicePixelRatio; animates only while playing (or while a burst fades), otherwise redraws on demand.
-function fallName(n: AnScoreNote) {
+function fallName(n: AnNote) {
     const mode = PRAC.labels;
     if (mode === 'none')
         return '';
@@ -13887,7 +13829,7 @@ function anTlUpdate(time?: number | null) {
     }
     const L = SCORE.loop, lp = byId('tl-loop'), A = PRAC.A, B = PRAC.B, la = L ? L.a : A != null && B != null ? A : null, lb = L ? L.b : A != null && B != null ? B : null;
     lp.hidden = la == null;
-    if (la != null) {
+    if (la != null && lb != null) {
         lp.style.left = pct(la);
         lp.style.width = (end > 0 ? (lb - la) / end * 100 : 0).toFixed(3) + '%';
     }
@@ -14346,7 +14288,7 @@ function anInitControls() {
         SIDE.handScroll = performance.now(); });
     // tabs: click, or Left/Right/Home/End with automatic activation; the choice is remembered
     byId('an-tabs').addEventListener('click', (e) => { const b = eventClosest(e, '[role="tab"]'); if (b)
-        anTab(b.dataset.tab); });
+        anTab(b.dataset.tab ?? ''); });
     byId('an-tabs').addEventListener('keydown', (e) => {
         const i = AN_TABS.indexOf(SIDE.tab), j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? AN_TABS.length - 1 : null;
         if (j == null)
@@ -14522,7 +14464,7 @@ function renderProgress() {
             const b = boxOf(it.id);
             const c = (document).createElement('div');
             c.className = 'cell';
-            c.dataset.b = b;
+            c.dataset.b = String(b);
             const lbl = itemLabel(it);
             const st = isNew(it.id) ? t('grid_new') : (t('grid_box') + ' ' + b);
             c.title = lbl + ' — ' + st;
@@ -14600,7 +14542,7 @@ function renderPracticeLast() {
     if (!el)
         return;
     const d = data.lastDrill;
-    if (!d || !d.n || (!CATS[d.cat] && d.cat !== 'melody')) {
+    if (!d || !d.n || (!(isCatKey(d.cat) && CATS[d.cat]) && d.cat !== 'melody')) {
         el.hidden = true;
         return;
     }
@@ -14667,7 +14609,7 @@ const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|
 const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
 const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
 function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }
-function syncIsLang(v: unknown): v is AppLanguage { return typeof v === 'string' && Object.prototype.hasOwnProperty.call(STRINGS, v); }
+function syncIsLang(v: unknown): v is RuntimeLanguage { return typeof v === 'string' && Object.prototype.hasOwnProperty.call(STRINGS, v); }
 // Every non-null object, arrays included, reads as string keys holding JSON values.
 function syncIsObject(v: unknown): v is Record<string, unknown> { return !!v && typeof v === 'object'; }
 function syncHasBase<T extends object>(x: T | SyncNoBase): x is T { return x !== SYNC_NONE; }
@@ -14941,7 +14883,8 @@ function loadAll() {
             if (raw.data) {
                 data = Object.assign(data, raw.data);
                 data.settings = restoreSettings(raw.data.settings);
-                data.srs = raw.data.srs || {};
+                if (!raw.data.srs)
+                    data.srs = {};
             }
             if (raw.lang && syncIsLang(raw.lang))
                 lang = raw.lang;
@@ -14959,7 +14902,7 @@ function loadAll() {
             if (raw.labels && typeof raw.labels === 'string')
                 labelMode = raw.labels;
             metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
-            if (raw.device)
+            if (raw.device && typeof raw.device === 'string')
                 savedDevice = raw.device;
             if (raw.scoreLook === 'paper' || raw.scoreLook === 'night')
                 SCORE.look = raw.scoreLook;
@@ -15004,7 +14947,7 @@ function loadAll() {
             Object.keys(map).forEach((mode) => { const found = syncIsObject(v2items) ? v2items[mode] : undefined, it: Record<string, unknown> = syncIsObject(found) ? found : {}; Object.keys(it).forEach((k) => { const rec = it[k]; const id = (mode === 'iv' ? 'iv:' : mode === 'ch' ? 'ch:' : mode === 'sc' ? 'sc:' : 'pr:') + k; if (ITEM_BY_ID[id] && syncIsObject(rec) && Number(rec.seen) >= 2) {
                 const acc = 1 - (Number(rec.miss) / Number(rec.seen));
                 const box = acc > .85 ? 3 : acc > .6 ? 2 : 1;
-                data.srs[id] = { box, ease: 2.3, reps: rec.seen, lapses: rec.miss, due: todayN() + (box >= 3 ? 4 : 1), last: todayN() };
+                data.srs[id] = { box, ease: 2.3, reps: Number(rec.seen), lapses: Number(rec.miss), due: todayN() + (box >= 3 ? 4 : 1), last: todayN() };
             } }); });
         }
         if (navigator.language && /^ro/i.test(navigator.language))
@@ -15417,7 +15360,8 @@ function initControls() {
     byId('si-bpm').addEventListener('input', (e) => { byId('si-bpmLbl').textContent = wiringField(e).value; sing.bpm = +wiringField(e).value; });
     // explore
     anInitControls();
-    byId('refType').addEventListener('change', () => { fillRefNames(); cof.mode = selectById('refType').value; cofInfo(); cofPaintDock(); });
+    byId('refType').addEventListener('change', () => { fillRefNames(); const m = selectById('refType').value; if (isCofMode(m))
+        cof.mode = m; cofInfo(); cofPaintDock(); });
     byId('refPlay').addEventListener('click', () => { if (selectById('refType').value === 'chord')
         playChordMidis(refMidis(), true);
     else

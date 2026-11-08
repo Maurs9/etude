@@ -61,12 +61,9 @@ export const SCALE_DEFINITIONS: Readonly<Record<string, readonly number[]>> = {
   Chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
 };
 
-export interface ChordTemplate {
-  symbol: string;
+export interface ChordTemplate extends ChordDefinition {
   name: string;
   intervals: readonly number[];
-  idx?: number;
-  pcset?: readonly number[];
 }
 
 export const CHORD_TEMPLATES: readonly ChordTemplate[] = [

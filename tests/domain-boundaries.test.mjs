@@ -52,6 +52,13 @@ describe('domain boundaries', () => {
     }
   });
 
+  it('names the coach tip function from the chord root, not the segment', async () => {
+    const runtime = await readFile(runtimeImplementationPath, 'utf8');
+    const calls = [...runtime.matchAll(/anFnKey\([^,]+,\s*([^,]+),/g)].map(m => m[1].trim());
+    expect(calls.length).toBeGreaterThan(0);
+    for (const root of calls) expect(root).toMatch(/\.ch\.root$/);
+  });
+
   it('keeps the notation adapter free of untyped compatibility surfaces', async () => {
     const notation = await readFile(notationPath, 'utf8');
     expect(notation).not.toMatch(/\bany\b/);

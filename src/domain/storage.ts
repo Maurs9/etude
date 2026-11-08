@@ -67,10 +67,12 @@ export function isBackupPayload(value: unknown): value is PttV3Payload {
     (value.data.srs === undefined || isRecord(value.data.srs));
 }
 
+const parseJson: (text: string) => unknown = JSON.parse;
+
 export function parsePttV3(raw: string | null): PttV3Payload | null {
   if (!raw) return null;
   try {
-    const parsed: unknown = JSON.parse(raw);
+    const parsed = parseJson(raw);
     return isBackupPayload(parsed) ? parsed : null;
   } catch {
     return null;
@@ -93,7 +95,7 @@ export function legacySettings(storage: StorageLike, key = 'ptt-settings-v2'): R
   const raw = storage.getItem(key);
   if (!raw) return null;
   try {
-    const value: unknown = JSON.parse(raw);
+    const value = parseJson(raw);
     return isRecord(value) ? value : null;
   } catch {
     return null;

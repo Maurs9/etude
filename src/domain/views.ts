@@ -1,4 +1,4 @@
-import type { AppLanguage } from '../types/architecture.js';
+import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import type { AppSettings } from './storage.js';
 import type { AudioTone, PianoStatus } from './audio.js';
 import type { AppView } from './router.js';
@@ -40,7 +40,7 @@ export interface ViewSessionState {
 }
 
 export interface ViewApplicationState {
-  language: AppLanguage;
+  language: InterfaceLanguage;
   view: AppView;
   theme: 'auto' | 'light' | 'dark';
   notation: 'letter' | 'german' | 'solfege';

@@ -1,4 +1,6 @@
 export type AppLanguage = 'en' | 'ro';
+/** Every interface language the shell offers; `AppLanguage` names the original two. */
+export type InterfaceLanguage = AppLanguage | 'es' | 'fr' | 'de' | 'it' | 'pt-BR';
 
 export interface BootState {
   language: AppLanguage;

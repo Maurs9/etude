@@ -40,13 +40,16 @@ export function eventClosest(event: Event, selector: string): HTMLElement | null
   return found instanceof HTMLElement ? found : null;
 }
 
+/** A document, fragment or element that can be searched with a selector. */
+type QueryRoot = Document | DocumentFragment | Element;
+
 /** An element's own HTML child or descendant matching a selector, if any. */
-export function queryHtml(root: ParentNode, selector: string): HTMLElement | null {
+export function queryHtml(root: QueryRoot, selector: string): HTMLElement | null {
   const found = root.querySelector(selector);
   return found instanceof HTMLElement ? found : null;
 }
 
 /** Every HTML element under a root matching a selector. */
-export function queryAllHtml(root: ParentNode, selector: string): HTMLElement[] {
+export function queryAllHtml(root: QueryRoot, selector: string): HTMLElement[] {
   return [...root.querySelectorAll(selector)].filter((el): el is HTMLElement => el instanceof HTMLElement);
 }
