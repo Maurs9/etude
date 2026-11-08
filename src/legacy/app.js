@@ -2,7 +2,7 @@
 import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.js';
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, readPttV3, restoreSettings, writePttV3 } from '../domain/storage.ts';
-import { chordPitches, samePitchSet } from '../domain/theory.ts';
+import { chordInversion, chordPitches, identifyChord as identifyChordDomain, samePitchSet } from '../domain/theory.ts';
 import { patchOsmdPedals } from '../domain/notation.ts';
 import { NAV_GROUPS, navGroup, viewFromHash } from '../domain/views.ts';
 function t(k,...args){ const s=STRINGS[lang]||STRINGS.en; let v=(s[k]!=null?s[k]:(STRINGS.en?STRINGS.en[k]:null)); if(v==null) return k; if(!args.length) return v; if(args[0]!=null) v=v.replace('%a',args[0]); if(args[1]!=null) v=v.replace('%b',args[1]); for(let i=0;i<args.length;i++){ if(args[i]!=null) v=v.replace('%s',args[i]); } return v; }
@@ -1165,12 +1165,8 @@ document.addEventListener('keyup',e=>{ const c=physKey(e); if(typingDown.has(c))
 
 /* ---------- GRADING CORE ---------- */
 function chordTargetPcs(rootPc,tpl){ return chordPitches(rootPc,tpl.intervals); }
-function inversionOf(rootPc,tpl,bassMidi){ const bi=((pc(bassMidi)-rootPc)%12+12)%12, i=tpl.pcset.indexOf(bi); return i<0?0:i; }
-function identifyChord(notes,expected){ const pcs=[...new Set(notes.map(pc))].sort((a,b)=>a-b); if(pcs.length<3) return null; const bassPc=pc(Math.min(...notes)), cands=[];
-  for(const c of CHORDS){ if(c.pcset.length!==pcs.length) continue; for(let r=0;r<12;r++){ const cand=pcs.map(p=>p-r); if(samePitchSet(cand,c.pcset)){ const inv=c.pcset.indexOf(((bassPc-r)%12+12)%12); cands.push({rootPc:r,chord:c,inversion:inv<0?0:inv,bassPc}); } } }
-  if(!cands.length) return null;
-  cands.sort((a,b)=>{ if(expected!=null){ const ae=a.rootPc===expected?0:1,be=b.rootPc===expected?0:1; if(ae!==be) return ae-be; } const ar=a.inversion===0?0:1,br=b.inversion===0?0:1; if(ar!==br) return ar-br; if(a.inversion!==b.inversion) return a.inversion-b.inversion; return a.chord.idx-b.chord.idx; });
-  return cands[0]; }
+function inversionOf(rootPc,tpl,bassMidi){ return chordInversion(rootPc,tpl,bassMidi); }
+function identifyChord(notes,expected){ return identifyChordDomain(notes,CHORDS,expected); }
 function slashLabel(id){ return rootName(id.rootPc)+id.chord.symbol+(id.inversion>0?'/'+rootName(id.bassPc):''); }
 function romanFor(keyRoot,id){ if(!id||keyRoot<0) return ''; const rel=((id.rootPc-keyRoot)%12+12)%12; let deg=MAJOR.indexOf(rel),acc=''; if(deg<0){ deg=MAJOR.indexOf((rel+11)%12); if(deg>=0)acc='♯'; else { deg=MAJOR.indexOf((rel+1)%12); if(deg>=0)acc='♭'; } } if(deg<0) return ''; let num=ROMAN[deg]; const s=id.chord.symbol; if(/^m(?!aj)/.test(s)||s.startsWith('dim')) num=num.toLowerCase(); let suf=''; if(/dim/.test(s)||s==='m7♭5') suf='°'; else if(/aug|♯5/.test(s)) suf='+'; if(id.chord.pcset.includes(10)||id.chord.pcset.includes(11)) suf+='⁷'; return acc+num+suf; }
 
