@@ -13475,7 +13475,7 @@ function renderProgress() {
     byId('weak-wrap').hidden = !weak.length;
     const wl = byId('weakList');
     wl.innerHTML = '';
-    weak.forEach(({ it, r } = {}) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); selectById('pr-cat').value = it.cat; byId('pr-start').focus(); }); wl.appendChild(b); });
+    weak.forEach(({ it, r }) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); selectById('pr-cat').value = it.cat; byId('pr-start').focus(); }); wl.appendChild(b); });
     // forecast next 7 days
     const fc = byId('forecast');
     fc.innerHTML = '';
@@ -13497,7 +13497,7 @@ function renderProgress() {
     const hm = byId('heatmap');
     if (hm) {
         hm.innerHTML = '';
-        const h = data.history || {};
+        const h: Record<number, number> = data.history || {};
         const days = 84, start = tn - days + 1;
         let active = 0, sum = 0;
         const pad = new Date(start * 86400000).getUTCDay(); // day numbers are UTC-based
@@ -13551,6 +13551,7 @@ function renderProgress() {
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
 function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : 'nav_' + v); }
+interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
 function renderPlan() {
     const list = byId('plan-list');
     if (!list)
@@ -13558,7 +13559,7 @@ function renderPlan() {
     const tn = todayN();
     const goal = data.settings.goal, done = data.todayDay === tn ? (data.todayCount || 0) : 0;
     const td = data.toolDay || {}, ear = data.earDay === tn ? (data.earToday || 0) : 0;
-    const items = [
+    const items: DailyPlanTask[] = [
         { id: 'review', done: done >= goal, partial: done > 0 && done < goal, prog: goal ? Math.min(1, done / goal) : 0, pill: Math.min(done, goal) + '/' + goal, t: t('plan_review'), d: done >= goal ? t('plan_review_done') : t('plan_review_d', done, goal), go: () => { if (!SES.active)
                 startSession(null); } },
         ...learnPlanItems(tn),
@@ -13579,7 +13580,7 @@ function renderPlan() {
             b.dataset.partial = 'true';
         const ckTxt = it.done ? '✓' : String(idx + 1);
         const pillHtml = it.pill ? '<span class="plan-pill">' + it.pill + '</span>' : '';
-        const barHtml = (isPart && it.prog > 0) ? '<span class="plan-bar" aria-hidden="true"><i style="width:' + Math.round(it.prog * 100) + '%"></i></span>' : '';
+        const barHtml = (isPart && it.prog !== undefined && it.prog > 0) ? '<span class="plan-bar" aria-hidden="true"><i style="width:' + Math.round(it.prog * 100) + '%"></i></span>' : '';
         b.innerHTML = '<span class="ck" aria-hidden="true">' + ckTxt + '</span><span class="pt">' + it.t + (it.done ? '<span class="visually-hidden"> — ' + t('done_today') + '</span>' : '') + '</span><span class="pd">' + it.d + '</span><span class="plan-end" aria-hidden="true">' + pillHtml + '<span class="plan-go">→</span></span>' + barHtml;
         b.addEventListener('click', it.go);
         li.appendChild(b);
@@ -13627,8 +13628,8 @@ function showSummary(..._args: unknown[]) {
     byId('today-home').style.display = 'none';
     const acc = SES.total ? Math.round(100 * SES.correct / SES.total) : 0;
     byId('sum-acc').textContent = acc + '%';
-    byId('sum-rev').textContent = SES.total;
-    byId('sum-streak').textContent = currentStreak();
+    byId('sum-rev').textContent = String(SES.total);
+    byId('sum-streak').textContent = String(currentStreak());
     const r = byId('sum-ring');
     const C = 2 * Math.PI * 52;
     r.innerHTML = '<circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" stroke-width="9"/><circle cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - acc / 100)) + '" transform="rotate(-90 60 60)"/><text x="60" y="60" text-anchor="middle" dy=".35em" font-family="var(--serif)" font-weight="900" font-size="26" fill="var(--ink)">' + acc + '%</text>';
@@ -13660,31 +13661,54 @@ function clampPersistedNumber(v: unknown, min: number, max: number, fallback: nu
    stopped or rebuilt: it carries on and saves into the merged record. Theme, language, note names and key labels follow the
    latest change made in any tab; the last three re-render the page and keyboard, so they wait while a drill, reading run or
    playback is going. Sound, device and panel choices stay with each tab (whichever saved last is what loads next time). */
-const SYNC = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_NONE = {}, SYNC_ID = /^[a-z0-9_-]{1,48}$/i; // SYNC_NONE: no shared base, so counters keep the larger side instead of adding
+type SyncPrefName = 'theme' | 'lang' | 'notation' | 'labels';
+interface SyncPendingPref { v: unknown; from: string }
+interface SyncState {
+    raw: string | null;
+    gen: string;
+    id: string;
+    known: Map<string, storage.PttV3Payload>;
+    merge: { into: string; id: string } | null;
+    pend: Partial<Record<SyncPrefName, SyncPendingPref>>;
+    t: number | ReturnType<typeof setTimeout>;
+    w: number | ReturnType<typeof setTimeout>;
+}
+interface SyncNoBase { readonly syncNoBase?: undefined }
+const SYNC: SyncState = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_NONE: SyncNoBase = {}, SYNC_ID = /^[a-z0-9_-]{1,48}$/i; // SYNC_NONE: no shared base, so counters keep the larger side instead of adding
 const SYNC_ADD = /^(totalReviews|totalCorrect|history\.\d+|reading\.tot\.\w+|reading\.nt\..+\.(n|ok|ms)|reading\.lv\..+\.n|learnRev\..+\.n)$/;
 const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush))$/;
-const SYNC_PREFS = { theme: [() => theme, (v: string) => { if (['auto', 'light', 'dark'].includes(v)) {
+const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
+const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
+function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }
+function syncIsLang(v: unknown): v is AppLanguage { return typeof v === 'string' && Object.prototype.hasOwnProperty.call(STRINGS, v); }
+// Every non-null object, arrays included, reads as string keys holding JSON values.
+function syncIsObject(v: unknown): v is Record<string, unknown> { return !!v && typeof v === 'object'; }
+function syncHasBase<T extends object>(x: T | SyncNoBase): x is T { return x !== SYNC_NONE; }
+const syncParseJson: (text: string) => unknown = JSON.parse;
+type SyncPrefEntry = readonly [get: () => string, set: (v: unknown) => void, later?: 1];
+const SYNC_PREFS: Record<SyncPrefName, SyncPrefEntry> = { theme: [() => theme, (v: unknown) => { if (syncOneOf(SYNC_THEMES, v)) {
             theme = v;
             applyTheme();
         } }],
-    lang: [() => lang, (v: string|number) => { if (STRINGS[v]) {
+    lang: [() => lang, (v: unknown) => { if (syncIsLang(v)) {
             setLang(v);
             setTimeout(rdOnLocale, 0);
         } }, 1],
-    notation: [() => notation, (v: string) => { if (['letter', 'solfege', 'german'].includes(v)) {
+    notation: [() => notation, (v: unknown) => { if (syncOneOf(SYNC_NOTATIONS, v)) {
             notation = v;
             applyNotation();
             refreshToday();
             setTimeout(rdOnLocale, 0);
         } }, 1],
-    labels: [() => labelMode, (v: string) => { if (['c', 'all', 'none'].includes(v)) {
+    labels: [() => labelMode, (v: unknown) => { if (syncOneOf(SYNC_LABELS, v)) {
             labelMode = v;
             buildKeyboard();
             repaintHeld();
         } }, 1] };
+function syncIsPrefName(k: string): k is SyncPrefName { return Object.prototype.hasOwnProperty.call(SYNC_PREFS, k); }
 function syncGen() { return Date.now().toString(36).padStart(9, '0') + Math.random().toString(36).slice(2, 8); } // sorts by time
-function syncId(p: { [x: string]: unknown; v?: 3; data?: Record<string,unknown>&{ settings?: Record<string,unknown>; srs?: Record<string,unknown>; }; syncId?: any; }, raw: string|null) {
-    if (p && typeof p.syncId === 'string' && SYNC_ID.test(p.syncId))
+function syncId(p: unknown, raw: string|null) {
+    if (syncIsObject(p) && typeof p.syncId === 'string' && SYNC_ID.test(p.syncId))
         return p.syncId;
     const s = typeof raw === 'string' ? raw : JSON.stringify(p || {});
     let h = 2166136261;
@@ -13697,21 +13721,27 @@ function syncRemember(id: string, p: unknown) {
         return;
     SYNC.known.delete(id);
     SYNC.known.set(id, p);
-    while (SYNC.known.size > 16)
-        SYNC.known.delete(SYNC.known.keys().next().value);
+    while (SYNC.known.size > 16) {
+        const oldest = SYNC.known.keys().next();
+        if (oldest.done)
+            break;
+        SYNC.known.delete(oldest.value);
+    }
 }
-function syncCurrent(raw: string|null) { const p = JSON.parse(raw); SYNC.raw = raw; SYNC.id = syncId(p, raw); syncRemember(SYNC.id, p); } // its own copy: data may share objects with the record it was read from
+function syncCurrent(raw: string) { const p = syncParseJson(raw); SYNC.raw = raw; SYNC.id = syncId(p, raw); syncRemember(SYNC.id, p); } // its own copy: data may share objects with the record it was read from
 function syncPair(a: string, b: string) { return 'merge:' + [a, b].sort().join('+'); }
+// A JSON round trip of a record is again a record, so the fallback never runs.
+function syncCloneData(d: Record<string, unknown>) { const copy = syncParseJson(JSON.stringify(d)); return isRecord(copy) ? copy : {}; }
 function syncInitial() {
-    const p = { v: 3, gen: SYNC.gen, data: JSON.parse(JSON.stringify(data)) };
+    const p = { v: 3, gen: SYNC.gen, data: syncCloneData(data) };
     SYNC.id = 'init';
     SYNC.raw = null;
     syncRemember(SYNC.id, p);
 }
-function syncSame(a: { [x: string]: any; srs?: {}; streak?: number; bestStreak?: number; lastActive?: number; todayDay?: number; todayCount?: number; newToday?: number; totalReviews?: number; totalCorrect?: number; placed?: boolean; history?: {}; singCleared?: {}; sheet?: {}; settings?: { goal: number; newPerDay: number; allowInv: boolean; metronome: boolean; drone: boolean; }; }, b: Record<string,unknown>&{ settings?: Record<string,unknown>; srs?: Record<string,unknown>; }) {
+function syncSame(a: unknown, b: unknown): boolean {
     if (a === b)
         return true;
-    if (!a || !b || typeof a !== 'object' || typeof b !== 'object')
+    if (!a || !b || !syncIsObject(a) || !syncIsObject(b))
         return false;
     const k = Object.keys(a);
     const right = b;
@@ -13722,21 +13752,22 @@ function syncSrsPair(b: unknown, l: unknown, r: unknown) {
         return null;
     const base = isRecord(b) ? b : { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 };
     const left = l, right = r;
-    const reps = (x: Record<string,unknown>) => Math.max(0, Math.floor(+x.reps || 0)), lapses = (x: Record<string,unknown>) => Math.max(0, Math.floor(+x.lapses || 0));
+    const reps = (x: Record<string,unknown>) => Math.max(0, Math.floor(Number(x.reps) || 0)), lapses = (x: Record<string,unknown>) => Math.max(0, Math.floor(Number(x.lapses) || 0));
     const br = reps(base), bl = lapses(base), lr = reps(left), rr = reps(right), wrong = (x: Record<string,unknown>) => lapses(x) === bl ? false : lapses(x) === bl + 1 ? true : null, lw = wrong(left), rw = wrong(right);
     if (lr !== br + 1 || rr !== br + 1 || lw === null || rw === null)
         return null;
-    return { base: { ...base, box: Math.max(0, Math.min(7, Math.round(+base.box || 0))), ease: Math.max(1.6, Math.min(2.9, +base.ease || 2.3)), reps: br, lapses: bl }, baseReps: br, wrong: [lw, rw], day: Math.max(+base.last || 0, +left.last || 0, +right.last || 0) || todayN() };
+    return { base: { ...base, box: Math.max(0, Math.min(7, Math.round(Number(base.box) || 0))), ease: Math.max(1.6, Math.min(2.9, Number(base.ease) || 2.3)), reps: br, lapses: bl }, baseReps: br, wrong: [lw, rw], day: Math.max(Number(base.last) || 0, Number(left.last) || 0, Number(right.last) || 0) || todayN() };
 }
-function syncSrs(b: any, l: unknown, r: unknown) {
+interface SyncSrsCard { box: number; ease: number; reps: number; lapses: number; due?: number; last?: number }
+function syncSrs(b: unknown, l: unknown, r: unknown) {
     const pair = syncSrsPair(b, l, r);
     if (!pair) {
         if (!isRecord(l) || !isRecord(r))
             return isRecord(l) ? l : r;
         const left = l, right = r;
-        return (+right.reps || 0) > (+left.reps || 0) || (+right.reps || 0) === (+left.reps || 0) && (+right.last || 0) > (+left.last || 0) ? right : left;
+        return (Number(right.reps) || 0) > (Number(left.reps) || 0) || (Number(right.reps) || 0) === (Number(left.reps) || 0) && (Number(right.last) || 0) > (Number(left.last) || 0) ? right : left;
     }
-    const out = { ...pair.base };
+    const out: SyncSrsCard = { ...pair.base };
     pair.wrong.sort((a, b) => Number(b) - Number(a)).forEach((wrong) => { out.reps++; if (!wrong) {
         out.box = Math.min(7, out.box + 1);
         out.ease = Math.min(2.9, out.ease + .05);
@@ -13748,19 +13779,19 @@ function syncSrs(b: any, l: unknown, r: unknown) {
     } const days = IVL[out.box] !== undefined ? IVL[out.box] : 120; out.due = pair.day + Math.max(0, Math.round(days * (out.ease / 2.3))); out.last = pair.day; });
     return out;
 }
-function syncNewCollisions(b: { srs?: any; }, l: unknown, r: unknown) {
-    if (b === SYNC_NONE || !isRecord(l) || !isRecord(r))
+function syncNewCollisions(b: Record<string, unknown> | SyncNoBase, l: unknown, r: unknown) {
+    if (!syncHasBase(b) || !isRecord(l) || !isRecord(r))
         return [];
-    const bs = isRecord(b.srs) ? b.srs : {}, ls = isRecord(l.srs) ? l.srs : {}, rs = isRecord(r.srs) ? r.srs : {};
+    const bs: Record<string, unknown> = isRecord(b.srs) ? b.srs : {}, ls: Record<string, unknown> = isRecord(l.srs) ? l.srs : {}, rs: Record<string, unknown> = isRecord(r.srs) ? r.srs : {};
     return [...new Set([...Object.keys(ls), ...Object.keys(rs)])].flatMap((k) => { const pair = syncSrsPair(bs[k], ls[k], rs[k]); return pair && pair.baseReps === 0 ? [pair.day] : []; });
 }
-function syncPick(b: {}, l: number|undefined, r: number|undefined, p: string) {
+function syncPick(b: unknown, l: unknown, r: unknown, p: string) {
     if (l === undefined || r === undefined)
         return l === undefined ? r : l; // one tab deleted what the other changed: keep the data
     if (p.startsWith('srs.'))
         return syncSrs(b, l, r);
     if (p === 'lastDrill')
-        return (+r.day || 0) > (+l.day || 0) ? r : l;
+        return (Number(syncIsObject(r) ? r.day : undefined) || 0) > (Number(syncIsObject(l) ? l.day : undefined) || 0) ? r : l;
     if (typeof l === 'number' && typeof r === 'number') {
         if (SYNC_ADD.test(p))
             return b === SYNC_NONE ? Math.max(l, r) : Math.max(0, l + r - (typeof b === 'number' ? b : 0));
@@ -13789,27 +13820,27 @@ function syncInto(l: Record<string,unknown>, b: unknown, r: Record<string,unknow
     });
 }
 // todayCount/newToday count the day in todayDay (earToday the day in earDay): only the later day's counts survive, and same-day counts add up.
-function syncData(b: {}, l: { srs?: {}; streak?: number; bestStreak?: number; lastActive: any; todayDay?: number; todayCount?: number; newToday?: number; totalReviews?: number; totalCorrect?: number; placed?: boolean; history?: {}; singCleared?: {}; sheet?: {}; settings?: { goal: number; newPerDay: number; allowInv: boolean; metronome: boolean; drone: boolean; }; }, r: Record<string,unknown>&{ settings?: Record<string,unknown>; srs?: Record<string,unknown>; }) {
-    const day = {}, left = l, right = r, repeatedNew = syncNewCollisions(b, l, r);
-    [['todayDay', 'todayCount', 'newToday'], ['earDay', 'earToday']].forEach(([dk, ...ks] = []) => {
+function syncData(b: Record<string, unknown> | SyncNoBase, l: Record<string, unknown>, r: Record<string, unknown>) {
+    const day: Record<string, number> = {}, left = l, right = r, repeatedNew = syncNewCollisions(b, l, r);
+    [['todayDay', 'todayCount', 'newToday'], ['earDay', 'earToday']].forEach(([dk, ...ks]) => {
         if (left[dk] === undefined && right[dk] === undefined)
             return;
-        const d = Math.max(+left[dk] || 0, +right[dk] || 0), on = (x: unknown) => x !== SYNC_NONE && isRecord(x) && (+(x )[dk] || 0) === d;
+        const d = Math.max(Number(left[dk]) || 0, Number(right[dk]) || 0), on = (x: unknown): x is Record<string, unknown> => x !== SYNC_NONE && isRecord(x) && (Number(x[dk]) || 0) === d;
         day[dk] = d;
-        ks.forEach((k) => { const n = (x: { [x: string]: string|number; }) => on(x) ? (+x[k] || 0) : 0; day[k] = b === SYNC_NONE ? Math.max(n(l), n(r)) : Math.max(0, n(l) + n(r) - n(b)); });
+        ks.forEach((k) => { const n = (x: unknown) => on(x) ? (Number(x[k]) || 0) : 0; day[k] = b === SYNC_NONE ? Math.max(n(l), n(r)) : Math.max(0, n(l) + n(r) - n(b)); });
     });
     if (repeatedNew.length && day.todayDay !== undefined)
-        day.newToday = Math.max(0, (+day.newToday || 0) - repeatedNew.filter((d) => d === day.todayDay).length);
-    day.streak = Math.max(0, ...[l, r].filter((x) => (+x.todayDay || 0) === day.todayDay).map((x) => +x.streak || 0));
-    day.lastActive = Math.max(+l.lastActive || 0, +r.lastActive || 0);
+        day.newToday = Math.max(0, (Number(day.newToday) || 0) - repeatedNew.filter((d) => d === day.todayDay).length);
+    day.streak = Math.max(0, ...[l, r].filter((x) => (Number(x.todayDay) || 0) === day.todayDay).map((x) => Number(x.streak) || 0));
+    day.lastActive = Math.max(Number(l.lastActive) || 0, Number(r.lastActive) || 0);
     syncInto(l, b, r, '');
     Object.assign(l, day);
 }
-function syncPref(f: string, v: string) { const p = SYNC.pend[f]; return p && p.from === v ? p.v : v; } // another tab's choice that is still waiting here is what gets saved
+function syncPref(f: SyncPrefName, v: string) { const p = SYNC.pend[f]; return p && p.from === v ? p.v : v; } // another tab's choice that is still waiting here is what gets saved
 // Folds in what another tab stored since SYNC.raw. Returns '' (nothing new), 'merge', 'merge-save' (the merged state must
 // be persisted), 'swap' (that tab reset or imported the record) or 'old' (it saved over this tab's newer reset or import).
 let syncPull = function syncPull() {
-    let stored = null;
+    let stored: storage.ReadPttResult | null = null;
     try {
         stored = readPttV3(localStorage, KEY);
     }
@@ -13817,7 +13848,7 @@ let syncPull = function syncPull() {
     const cur = stored?.raw || null;
     if (cur === null || cur === SYNC.raw)
         return '';
-    let rp = null, bp = SYNC_NONE, lp = null;
+    let rp: storage.PttV3Payload | null = null, bp: storage.PttV3Payload | SyncNoBase = SYNC_NONE, lp: storage.PttV3Payload | null = null;
     rp = stored?.payload || null;
     if (!isBackupPayload(rp))
         return '';
@@ -13841,12 +13872,12 @@ let syncPull = function syncPull() {
         SYNC.merge = null;
     }
     else if (!sameData)
-        syncData(bp === SYNC_NONE ? bp : bp.data, data, rp.data);
+        syncData(!syncHasBase(bp) ? bp : bp.data, data, rp.data);
     data.settings = restoreSettings(data.settings);
     if (!isRecord(data.srs))
         data.srs = {};
-    if (bp !== SYNC_NONE)
-        Object.keys(SYNC_PREFS).forEach((f) => {
+    if (syncHasBase(bp))
+        Object.keys(SYNC_PREFS).filter(syncIsPrefName).forEach((f) => {
             const [get, set, later] = SYNC_PREFS[f], v = rp[f];
             if (v === undefined || v === bp[f] || syncPref(f, get()) !== bp[f])
                 return; // the other tab did not change it, or this tab changed it too
@@ -13859,10 +13890,10 @@ let syncPull = function syncPull() {
         });
     const needsWrite = !swap && !syncSame(data, rp.data);
     syncCurrent(cur);
-    if (needsWrite && isBackupPayload(lp) && parent !== lid) { // theirs lacks this tab's record: keep the plain merge of the two for the save that follows
-        const merged = { v: 3, gen, data: JSON.parse(JSON.stringify(lp.data)) };
+    if (needsWrite && isBackupPayload(lp) && parent !== lid && syncHasBase(bp)) { // theirs lacks this tab's record: keep the plain merge of the two for the save that follows
+        const merged: Record<string, unknown> & { data: Record<string, unknown> } = { v: 3, gen, data: syncCloneData(lp.data) };
         syncData(bp.data, merged.data, rp.data);
-        Object.keys(SYNC_PREFS).forEach((f) => { merged[f] = syncPref(f, SYNC_PREFS[f][0]()); });
+        Object.keys(SYNC_PREFS).filter(syncIsPrefName).forEach((f) => { merged[f] = syncPref(f, SYNC_PREFS[f][0]()); });
         syncRemember(syncPair(SYNC.id, lid), merged);
         SYNC.merge = { into: SYNC.id, id: lid };
     }
@@ -13879,7 +13910,7 @@ function syncIdle() {
         SYNC.w = setTimeout(syncIdle, 1500);
         return;
     }
-    Object.keys(SYNC.pend).forEach((f) => { const p = SYNC.pend[f]; if (!p)
+    Object.keys(SYNC.pend).filter(syncIsPrefName).forEach((f) => { const p = SYNC.pend[f]; if (!p)
         return; delete SYNC.pend[f]; if (SYNC_PREFS[f][0]() === p.from)
         SYNC_PREFS[f][1](p.v); });
 }
@@ -13901,7 +13932,7 @@ function syncRefresh() {
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
 function syncWrite() { try {
-    const p = { v: 3, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: activeInputId || savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved };
+    const p: storage.PttV3Payload = { v: 3, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: activeInputId || savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved };
     const s = writePttV3(localStorage, p);
     SYNC.merge = null;
     syncCurrent(s);
@@ -13909,8 +13940,8 @@ function syncWrite() { try {
 catch (e) {
     console.warn('save failed', e);
 } }
-let _saveT: string|number|NodeJS.Timeout|null|undefined = null;
-function saveSoon() { clearTimeout(_saveT); _saveT = setTimeout(saveAll, 400); } // for sliders — avoid a localStorage write per pixel
+let _saveT: ReturnType<typeof setTimeout> | null = null;
+function saveSoon() { clearTimeout(_saveT ?? undefined); _saveT = setTimeout(saveAll, 400); } // for sliders — avoid a localStorage write per pixel
 function loadAll() {
     try {
         SYNC.known.clear();
@@ -13925,20 +13956,20 @@ function loadAll() {
                 data.settings = restoreSettings(raw.data.settings);
                 data.srs = raw.data.srs || {};
             }
-            if (raw.lang && STRINGS[raw.lang])
+            if (raw.lang && syncIsLang(raw.lang))
                 lang = raw.lang;
-            if (raw.theme)
+            if (raw.theme && syncOneOf(SYNC_THEMES, raw.theme))
                 theme = raw.theme;
-            if (['letter', 'solfege', 'german'].includes(raw.notation))
+            if (syncOneOf(SYNC_NOTATIONS, raw.notation))
                 notation = raw.notation;
-            tone = raw.audioEngine === 'recorded-piano-v2' && raw.tone ? raw.tone : 'piano';
+            tone = raw.audioEngine === 'recorded-piano-v2' && raw.tone && syncOneOf(SYNC_TONES, raw.tone) ? raw.tone : 'piano';
             masterVol = clampPersistedNumber(raw.masterVol, 0, 1, masterVol);
             if (raw.muted === true)
                 muted = true;
             if (typeof raw.localSynth === 'boolean')
                 localSynth = raw.localSynth;
             reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, reverbWet);
-            if (raw.labels)
+            if (raw.labels && typeof raw.labels === 'string')
                 labelMode = raw.labels;
             metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
             if (raw.device)
@@ -13958,15 +13989,15 @@ function loadAll() {
             if (typeof raw.wake === 'boolean')
                 WAKE.want = raw.wake;
             const bl = raw.ble;
-            if (bl && typeof bl.id === 'string' && bl.id)
+            if (isRecord(bl) && typeof bl.id === 'string' && bl.id)
                 BLE.saved = { id: bl.id, name: typeof bl.name === 'string' ? bl.name : '', auto: bl.auto !== false };
             const sd = raw.anSide;
-            if (sd && typeof sd === 'object') {
+            if (isRecord(sd)) {
                 if (typeof sd.open === 'boolean')
                     SIDE.open = sd.open;
-                if (AN_TABS.includes(sd.tab))
+                if (typeof sd.tab === 'string' && AN_TABS.includes(sd.tab))
                     SIDE.tab = sd.tab;
-                if (Number.isFinite(sd.w))
+                if (typeof sd.w === 'number' && Number.isFinite(sd.w))
                     SIDE.w = Math.max(280, Math.min(560, Math.round(sd.w)));
             }
             return;
@@ -13974,16 +14005,17 @@ function loadAll() {
         // migrate from V2 settings (notation/tone) if present
         const v2s = legacySettings(localStorage);
         if (v2s) {
-            if (['letter', 'solfege', 'german'].includes(String(v2s.noteSys)))
-                notation = v2s.noteSys;
+            const noteSys = String(v2s.noteSys);
+            if (syncOneOf(SYNC_NOTATIONS, noteSys))
+                notation = noteSys;
             tone = 'piano';
             masterVol = clampPersistedNumber(v2s.vol, 0, 1, masterVol);
         }
-        const v2st = JSON.parse(localStorage.getItem('ptt-stats-v2') || 'null');
-        if (v2st && v2st.items) { // seed SRS boxes from V2 per-item accuracy
-            const map = { iv: 'iv', ch: 'ch', sc: 'sc', pr: 'pr' };
-            Object.keys(map).forEach((mode) => { const it = v2st.items[mode] || {}; Object.keys(it).forEach((k) => { const rec = it[k]; const id = (mode === 'iv' ? 'iv:' : mode === 'ch' ? 'ch:' : mode === 'sc' ? 'sc:' : 'pr:') + k; if (ITEM_BY_ID[id] && rec.seen >= 2) {
-                const acc = 1 - (rec.miss / rec.seen);
+        const v2st = syncParseJson(localStorage.getItem('ptt-stats-v2') || 'null');
+        if (isRecord(v2st) && v2st.items) { // seed SRS boxes from V2 per-item accuracy
+            const map = { iv: 'iv', ch: 'ch', sc: 'sc', pr: 'pr' }, v2items = v2st.items;
+            Object.keys(map).forEach((mode) => { const found = syncIsObject(v2items) ? v2items[mode] : undefined, it: Record<string, unknown> = syncIsObject(found) ? found : {}; Object.keys(it).forEach((k) => { const rec = it[k]; const id = (mode === 'iv' ? 'iv:' : mode === 'ch' ? 'ch:' : mode === 'sc' ? 'sc:' : 'pr:') + k; if (ITEM_BY_ID[id] && syncIsObject(rec) && Number(rec.seen) >= 2) {
+                const acc = 1 - (Number(rec.miss) / Number(rec.seen));
                 const box = acc > .85 ? 3 : acc > .6 ? 2 : 1;
                 data.srs[id] = { box, ease: 2.3, reps: rec.seen, lapses: rec.miss, due: todayN() + (box >= 3 ? 4 : 1), last: todayN() };
             } }); });
@@ -14013,10 +14045,11 @@ function labelSettingsControl(controlId: string, labelKey: string|undefined, hel
         }
     }
 }
+type SettingsControlLabel = [controlId: string, labelKey: string, helpKey?: string];
 function labelSettingsControls() {
-    [['deviceSelect', 'set_input'], ['toneSel', 'set_tone'], ['set-goal', 'set_sessionlen'], ['set-new', 'set_newperday', 'set_newperday_s'],
-        ['set-wake', 'set_wake'], ['set-synth', 'set_localsynth'], ['set-drone', 'set_drone'], ['set-metronome', 'set_metronome'], ['set-inv', 'set_allowinv']]
-        .forEach((args) => labelSettingsControl(...args));
+    const controls: SettingsControlLabel[] = [['deviceSelect', 'set_input'], ['toneSel', 'set_tone'], ['set-goal', 'set_sessionlen'], ['set-new', 'set_newperday', 'set_newperday_s'],
+        ['set-wake', 'set_wake'], ['set-synth', 'set_localsynth'], ['set-drone', 'set_drone'], ['set-metronome', 'set_metronome'], ['set-inv', 'set_allowinv']];
+    controls.forEach(([controlId, labelKey, helpKey]) => labelSettingsControl(controlId, labelKey, helpKey));
 }
 function reflectSettingsUI() {
     inputById('volume').value = String(Math.round(masterVol * 100));
@@ -14024,26 +14057,26 @@ function reflectSettingsUI() {
     inputById('bpm').value = String(metro.bpm);
     byId('bpmLbl').textContent = String(metro.bpm);
     inputById('reverb').value = String(Math.round(reverbWet / 0.5 * 100));
-    (document).querySelectorAll('#set-labels button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === labelMode ? 'true' : 'false'));
+    queryAllHtml(document, '#set-labels button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === labelMode ? 'true' : 'false'));
     inputById('set-synth').checked = localSynth;
     inputById('set-drone').checked = !!data.settings.drone;
     inputById('set-inv').checked = !!data.settings.allowInv;
     inputById('set-metronome').checked = !!data.settings.metronome;
     selectById('set-goal').value = String(data.settings.goal);
     selectById('set-new').value = String(data.settings.newPerDay);
-    (document).querySelectorAll('#set-notation button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === notation ? 'true' : 'false'));
-    (document).querySelectorAll('#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === lang ? 'true' : 'false'));
+    queryAllHtml(document, '#set-notation button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === notation ? 'true' : 'false'));
+    queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === lang ? 'true' : 'false'));
 }
 function overlaysOpen() { return byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on'); }
 function syncScrim() {
     const open = overlaysOpen();
     byId('scrim').classList.toggle('on', open);
-    (document).querySelectorAll('body > #skipLink, body > header, body > main, body > #dock, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
+    queryAllHtml(document, 'body > #skipLink, body > header, body > main, body > #dock, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
 }
 // Closed overlays are only moved/faded out by CSS, so `inert` keeps their controls out of the Tab order;
 // opening moves focus inside, closing returns it to whatever opened the overlay.
-const overlayReturn = new Map();
-function setOverlay(el: RuntimeElement, o: any, firstId: string) {
+const overlayReturn = new Map<HTMLElement, Element | null>();
+function setOverlay(el: HTMLElement, o: boolean, firstId: string) {
     const was = el.classList.contains('on'), hadFocus = el.contains(document.activeElement);
     el.classList.toggle('on', o);
     el.setAttribute('aria-hidden', o ? 'false' : 'true');
@@ -14051,21 +14084,21 @@ function setOverlay(el: RuntimeElement, o: any, firstId: string) {
     syncScrim();
     if (o && !was) {
         overlayReturn.set(el, document.activeElement);
-        maybeById(firstId).focus();
+        byId(firstId).focus();
         requestAnimationFrame(() => { if (el.classList.contains('on'))
-            maybeById(firstId).focus(); });
+            byId(firstId).focus(); });
     }
     else if (!o && was) {
         const r = overlayReturn.get(el);
         overlayReturn.delete(el);
-        if (!overlaysOpen() && hadFocus && r && r.isConnected && typeof r.focus === 'function')
+        if (!overlaysOpen() && hadFocus && r && r.isConnected && (r instanceof HTMLElement || r instanceof SVGElement))
             r.focus();
     }
 }
-function trapFocus(e: { key: string; currentTarget: { querySelectorAll: (arg0: string) => any; }; shiftKey: any; preventDefault: () => void; }) {
-    if (e.key !== 'Tab')
+function trapFocus(e: KeyboardEvent) {
+    if (e.key !== 'Tab' || !(e.currentTarget instanceof Element))
         return;
-    const f = [...e.currentTarget.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled && x.getClientRects().length);
+    const f = [...e.currentTarget.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x): x is HTMLElement | SVGElement => (x instanceof HTMLElement || x instanceof SVGElement) && !('disabled' in x && x.disabled) && x.getClientRects().length > 0);
     if (!f.length)
         return;
     const a = f[0], z = f[f.length - 1];
@@ -14111,11 +14144,11 @@ function applyNotation() {
     selectById('song-root').value = String(sr || 0);
     selectById('pr-key').value = pk || 'all';
     selectById('keyCtx').value = kc || '-1';
-    const ak = byId('ac-key');
+    const ak = selectById('ac-key');
     if (ak) {
         const av = ak.value;
         fillRoots(ak, false);
-        ak.value = av || accomp.key || 0;
+        ak.value = String(av || accomp.key || 0);
     }
     renderCircle();
     buildKeyboard();
@@ -14137,40 +14170,61 @@ function applyNotation() {
     coachRefresh();
 }
 /* ---------- ACCOMPANIMENT UI ---------- */
+/** A `<select>` whose options are built once; `_filled` marks it as built. */
+type AccompFilledSelect = HTMLSelectElement & { _filled?: boolean };
 function renderAccompany() {
-    const ps = byId('ac-prog');
+    const ps: AccompFilledSelect = selectById('ac-prog');
     if (ps && !ps._filled) {
-        ACCOMP_PROGS.forEach((p, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = p.name; ps.appendChild(o); });
+        ACCOMP_PROGS.forEach((p, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = p.name; ps.appendChild(o); });
         ps._filled = true;
     }
-    const pt = byId('ac-pat');
+    const pt: AccompFilledSelect = selectById('ac-pat');
     if (pt && !pt._filled) {
         Object.keys(ACCOMP_PATTERNS).forEach((k) => { const o = (document).createElement('option'); o.value = k; o.textContent = ACCOMP_PATTERNS[k][lang] || ACCOMP_PATTERNS[k].en; pt.appendChild(o); });
         pt._filled = true;
     }
-    const ak = byId('ac-key');
+    const ak = selectById('ac-key');
     if (ak && !ak.options.length) {
         fillRoots(ak, false);
-        ak.value = accomp.key || 0;
+        ak.value = String(accomp.key || 0);
     }
     updateAccompChain();
 }
 function updateAccompChain() { const el = byId('ac-chain'); if (!el)
     return; const prog = ACCOMP_PROGS[+(selectById('ac-prog').value || 0)]; if (!prog)
     return; const key = +(selectById('ac-key').value || 0); el.innerHTML = prog.chords.map((ch) => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
-function accompSync() { accomp.progIdx = +(selectById('ac-prog').value || 0); accomp.key = +(selectById('ac-key').value || 0); accomp.pattern = selectById('ac-pat').value || 'block'; accomp.bpm = +(inputById('ac-bpm').value || 90); const hb = byId('ac-hands').querySelector('[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v : 'both'; accomp.click = inputById('ac-click').checked; }
+function accompSync() { accomp.progIdx = +(selectById('ac-prog').value || 0); accomp.key = +(selectById('ac-key').value || 0); accomp.pattern = selectById('ac-pat').value || 'block'; accomp.bpm = +(inputById('ac-bpm').value || 90); const hb = queryHtml(byId('ac-hands'), '[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v ?? accomp.hands : 'both'; accomp.click = inputById('ac-click').checked; }
 function acPlayLabel() { byId('ac-play').textContent = accomp.on ? t('ac_stop') : t('ac_play'); }
 function accompRestartIfPlaying() { if (accomp.on) {
     accompSync();
     accompStart();
 } }
+/** The text field, slider or select an input/change event fired on. */
+function wiringField(e: Event): HTMLInputElement | HTMLSelectElement {
+    const el = e.target;
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement)
+        return el;
+    throw new Error('Étude: expected an <input> or <select> event target');
+}
+/** The checkbox or file `<input>` a change event fired on. */
+function wiringInput(e: Event): HTMLInputElement {
+    const el = e.target;
+    if (el instanceof HTMLInputElement)
+        return el;
+    throw new Error('Étude: expected an <input> event target');
+}
+/** The buttons of the segmented control a click was delegated to. */
+function wiringSegment(e: Event): HTMLElement[] {
+    return e.currentTarget instanceof Element ? wiringSegment(e).filter((x): x is HTMLElement => x instanceof HTMLElement) : [];
+}
+function wiringDisabled(b: HTMLElement): boolean { return b instanceof HTMLButtonElement && b.disabled; }
 function initControls() {
     labelSettingsControls();
     byId('skipLink').addEventListener('click', (e) => { e.preventDefault(); byId('main').focus({ preventScroll: true }); });
     // nav
-    byId('nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b)
+    byId('nav').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
         show(b.dataset.view); });
-    byId('modeNav').addEventListener('click', (e) => { const b = e.target.closest('button[data-view]'); if (b)
+    byId('modeNav').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
         show(b.dataset.view); });
     document.querySelector('.brand')?.addEventListener('click', (e) => { e.preventDefault(); show('today'); });
     // midi chip + settings
@@ -14178,11 +14232,11 @@ function initControls() {
     byId('audioLockBtn').addEventListener('click', audioUnlock);
     byId('syncNoteBtn').addEventListener('click', () => syncNote(false));
     byId('set-connect').addEventListener('click', connectMidi);
-    byId('deviceSelect').addEventListener('change', (e) => attachInput(e.target.value));
+    byId('deviceSelect').addEventListener('change', (e) => attachInput(wiringField(e).value));
     byId('set-ble').addEventListener('click', bleClick);
     byId('set-ble-re').addEventListener('click', bleReconnect);
     // installed app & screen
-    byId('set-wake').addEventListener('change', (e) => wakeSet(e.target.checked));
+    byId('set-wake').addEventListener('change', (e) => wakeSet(wiringInput(e).checked));
     byId('set-full').addEventListener('click', fsToggle);
     byId('set-install').addEventListener('click', pwaInstall);
     document.addEventListener('fullscreenchange', fsUi);
@@ -14196,8 +14250,8 @@ function initControls() {
     // learn: demo buttons + cross-links
     byId('learnBody').addEventListener('click', (e) => learnClick(e));
     // theme
-    byId('set-theme').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
-        return; theme = b.dataset.v; applyTheme(); saveAll(); });
+    byId('set-theme').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_THEMES, v))
+        return; theme = v; applyTheme(); saveAll(); });
     // mobile menu
     byId('menuBtn').addEventListener('click', () => {
         const mm = byId('mobileMenu');
@@ -14207,7 +14261,7 @@ function initControls() {
         else
             closeMobileMenu(true);
     });
-    document.addEventListener('click', (e) => { const mm = byId('mobileMenu'); if (mm && !mm.hidden && !e.target.closest('#mobileMenu') && !e.target.closest('#menuBtn'))
+    document.addEventListener('click', (e) => { const mm = byId('mobileMenu'), el = eventElement(e); if (mm && !mm.hidden && el && !el.closest('#mobileMenu') && !el.closest('#menuBtn'))
         closeMobileMenu(); });
     // backup export / import
     byId('exportBtn').addEventListener('click', () => {
@@ -14218,13 +14272,13 @@ function initControls() {
     });
     byId('importBtn').addEventListener('click', () => byId('importFile').click());
     byId('importFile').addEventListener('change', (e) => {
-        const f = e.target.files[0];
-        e.target.value = '';
+        const fi = wiringInput(e), f = fi.files?.[0];
+        fi.value = '';
         if (!f)
             return;
         const rd = new FileReader();
         rd.onload = () => { try {
-            const p = JSON.parse(String(rd.result));
+            const p = syncParseJson(String(rd.result));
             if (!isBackupPayload(p))
                 throw 0;
             if (!confirm(t('import_confirm')))
@@ -14239,11 +14293,11 @@ function initControls() {
         rd.readAsText(f);
     });
     // session
-    byId('tools').addEventListener('click', (e) => { const b = e.target.closest('button[data-view]'); if (b)
+    byId('tools').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
         show(b.dataset.view); });
     byId('startBtn').addEventListener('click', () => startSession(null));
     byId('placeBtn').addEventListener('click', startPlacement);
-    const goMethod = (e: { preventDefault: () => void; }) => { e.preventDefault(); show('method'); };
+    const goMethod = (e: Event) => { e.preventDefault(); show('method'); };
     byId('whyLink').addEventListener('click', goMethod);
     byId('footMethod').addEventListener('click', goMethod);
     byId('method-start').addEventListener('click', () => { show('today'); startSession(null); });
@@ -14257,7 +14311,7 @@ function initControls() {
         playQuestionSound(q); });
     byId('q-ekreset').addEventListener('click', ekReset);
     byId('q-ansmode').addEventListener('click', (e) => {
-        const b = e.target.closest('button[data-v]'), q = SES.q;
+        const b = eventClosest(e, 'button[data-v]'), q = SES.q;
         if (!b)
             return;
         const on = b.dataset.v === 'keys';
@@ -14282,19 +14336,20 @@ function initControls() {
     byId('sum-again').addEventListener('click', () => { byId('summary').style.display = 'none'; startSession(null); });
     byId('sum-done').addEventListener('click', () => { byId('summary').style.display = 'none'; show('today'); });
     // practice
-    byId('pr-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.disabled)
-        return; [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); });
+    byId('pr-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b || wiringDisabled(b))
+        return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); });
     // Melodies are only ever answered on the keys: that topic locks the mode to "By ear, on keys".
     byId('pr-cat').addEventListener('change', (e) => {
-        const mel = e.target.value === 'melody', pm = byId('pr-mode');
-        [...pm.children].forEach((x) => { x.disabled = mel && x.dataset.v !== 'keys'; if (mel)
+        const mel = wiringField(e).value === 'melody', pm = byId('pr-mode');
+        queryAllHtml(pm, ':scope > *').forEach((x) => { if (x instanceof HTMLButtonElement)
+            x.disabled = mel && x.dataset.v !== 'keys'; if (mel)
             x.setAttribute('aria-pressed', x.dataset.v === 'keys' ? 'true' : 'false'); });
         if (!mel && !pm.querySelector('[aria-pressed="true"]'))
             pm.children[0].setAttribute('aria-pressed', 'true');
     });
     byId('pr-start').addEventListener('click', () => {
         const cat = selectById('pr-cat').value;
-        const mb = byId('pr-mode').querySelector('[aria-pressed="true"]');
+        const mb = queryHtml(byId('pr-mode'), '[aria-pressed="true"]');
         const v = cat === 'melody' ? 'keys' : (mb ? mb.dataset.v : 'play');
         const key = selectById('pr-key').value;
         if (v !== 'play' && cat !== 'melody') {
@@ -14305,10 +14360,10 @@ function initControls() {
         startSession({ cat, mode: v === 'play' ? 'play' : 'ear', key });
     });
     // accompaniment
-    byId('ac-hands').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
-        return; [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
-    ['ac-prog', 'ac-pat', 'ac-key'].forEach((id) => maybeById(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
-    byId('ac-bpm').addEventListener('input', (e) => { byId('ac-bpmLbl').textContent = e.target.value; });
+    byId('ac-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
+        return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
+    ['ac-prog', 'ac-pat', 'ac-key'].forEach((id) => byId(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
+    byId('ac-bpm').addEventListener('input', (e) => { byId('ac-bpmLbl').textContent = wiringField(e).value; });
     byId('ac-bpm').addEventListener('change', accompRestartIfPlaying);
     byId('ac-click').addEventListener('change', accompRestartIfPlaying);
     byId('ac-play').addEventListener('click', () => { if (accomp.on) {
@@ -14319,34 +14374,34 @@ function initControls() {
         accompStart();
     } acPlayLabel(); });
     // read & play (sheet music)
-    byId('rd-piece').addEventListener('change', (e) => srSelectPiece(e.target.value));
+    byId('rd-piece').addEventListener('change', (e) => srSelectPiece(wiringField(e).value));
     byId('rd-hands').addEventListener('click', (e) => {
-        const b = e.target.closest('button');
-        if (!b || b.disabled)
+        const b = eventClosest(e, 'button');
+        if (!b || wiringDisabled(b))
             return;
-        SR.hands = b.dataset.v;
-        [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+        SR.hands = b.dataset.v ?? SR.hands;
+        wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
         srStopAll();
         srStepsBuild();
         srPaintAll();
         byId('rd-verdict').textContent = '';
     });
     byId('rd-mode').addEventListener('click', (e) => {
-        const b = e.target.closest('button');
+        const b = eventClosest(e, 'button');
         if (!b)
             return;
-        SR.modeSel = b.dataset.v;
-        [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+        SR.modeSel = b.dataset.v ?? SR.modeSel;
+        wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
         srStopAll();
         byId('rd-verdict').textContent = '';
     });
-    byId('rd-names').addEventListener('change', (e) => { SR.names = e.target.checked; srStopAll(); srDraw(); });
+    byId('rd-names').addEventListener('change', (e) => { SR.names = wiringInput(e).checked; srStopAll(); srDraw(); });
     byId('rd-bpm').addEventListener('input', (e) => { if (SR.active || SR.listening) {
-        e.target.value = SR.bpm;
+        wiringField(e).value = String(SR.bpm);
         return;
-    } byId('rd-bpmLbl').textContent = e.target.value; SR.bpm = +e.target.value; });
+    } byId('rd-bpmLbl').textContent = wiringField(e).value; SR.bpm = +wiringField(e).value; });
     byId('rd-go').addEventListener('click', srGo);
-    byId('rd-coach').addEventListener('click', (e) => { if (e.target.closest('#rd-coach-act') && SR.next && SR.next.act)
+    byId('rd-coach').addEventListener('click', (e) => { if (eventClosest(e, '#rd-coach-act') && SR.next && SR.next.act)
         SR.next.act.run(); });
     byId('rd-listen').addEventListener('click', srListen);
     // transcribe
@@ -14358,21 +14413,21 @@ function initControls() {
     byId('tr-clear').addEventListener('click', trxClear);
     byId('tr-midi').addEventListener('click', trxExportMidi);
     byId('tr-txt').addEventListener('click', trxExportTxt);
-    byId('tr-bpm').addEventListener('input', (e) => { byId('tr-bpmLbl').textContent = e.target.value; });
-    ['tr-snap', 'tr-skey', 'tr-sscale', 'tr-quant', 'tr-bpm', 'tr-gridSel'].forEach((id) => maybeById(id).addEventListener('change', () => { if (trx.notes && trx.notes.length)
+    byId('tr-bpm').addEventListener('input', (e) => { byId('tr-bpmLbl').textContent = wiringField(e).value; });
+    ['tr-snap', 'tr-skey', 'tr-sscale', 'tr-quant', 'tr-bpm', 'tr-gridSel'].forEach((id) => byId(id).addEventListener('change', () => { if (trx.notes && trx.notes.length)
         trxRender(); }));
     // sight-singing
-    byId('si-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
-        return; singStopAll(); [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); sing.mode = b.dataset.v; ssModeUI(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; ssPaint(); });
-    byId('si-level').addEventListener('change', (e) => { singStopAll(); sing.level = +e.target.value; ssNewExercise(); });
-    byId('si-clef').addEventListener('change', (e) => { singStopAll(); sing.clef = e.target.value; ssNewExercise(); });
+    byId('si-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
+        return; singStopAll(); wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); sing.mode = b.dataset.v ?? sing.mode; ssModeUI(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; ssPaint(); });
+    byId('si-level').addEventListener('change', (e) => { singStopAll(); sing.level = +wiringField(e).value; ssNewExercise(); });
+    byId('si-clef').addEventListener('change', (e) => { singStopAll(); sing.clef = wiringField(e).value; ssNewExercise(); });
     byId('si-solf').addEventListener('change', () => { byId('si-staff').classList.toggle('nosolf', !inputById('si-solf').checked); });
     byId('si-new').addEventListener('click', () => { singStopAll(); ssNewExercise(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; });
     byId('si-go').addEventListener('click', singGo);
     byId('si-tonic').addEventListener('click', ssTonic);
     byId('si-playit').addEventListener('click', ssPlayIt);
     byId('si-drone').addEventListener('change', ssDrone);
-    byId('si-bpm').addEventListener('input', (e) => { byId('si-bpmLbl').textContent = e.target.value; sing.bpm = +e.target.value; });
+    byId('si-bpm').addEventListener('input', (e) => { byId('si-bpmLbl').textContent = wiringField(e).value; sing.bpm = +wiringField(e).value; });
     // explore
     anInitControls();
     byId('refType').addEventListener('change', () => { fillRefNames(); cof.mode = selectById('refType').value; cofInfo(); cofPaintDock(); });
@@ -14387,10 +14442,10 @@ function initControls() {
     byId('sq-go').addEventListener('click', sqNew);
     byId('sq-again').addEventListener('click', () => { if (SQ.started)
         sqPlay(); });
-    byId('sq-ans').addEventListener('click', (e) => { const b = e.target.closest('button[data-semi]'); if (b)
-        sqAnswer(+b.dataset.semi); });
-    byId('song-dir').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
-        return; songDir = b.dataset.v; [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderSongs(); });
+    byId('sq-ans').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-semi]'); if (b)
+        sqAnswer(Number(b.dataset.semi)); });
+    byId('song-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
+        return; songDir = b.dataset.v ?? songDir; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderSongs(); });
     // progress
     byId('prog-export').addEventListener('click', () => byId('exportBtn').click());
     byId('prog-import').addEventListener('click', () => byId('importBtn').click());
@@ -14409,29 +14464,30 @@ function initControls() {
     byId('oct-up').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.min(BASE_HIGH - view.oct * 12, view.low + 12); buildKeyboard(); repaintHeld(); });
     byId('panicBtn').addEventListener('click', panic);
     byId('dock-kb-toggle').addEventListener('click', () => dockSet(!dockOpen()));
-    byId('kb-pan').addEventListener('input', (e) => { byId('dock-keys').scrollLeft = +e.target.value; });
+    byId('kb-pan').addEventListener('input', (e) => { byId('dock-keys').scrollLeft = +wiringField(e).value; });
     byId('dock-keys').addEventListener('scroll', () => { inputById('kb-pan').value = String(byId('dock-keys').scrollLeft); });
     // settings: notation/tone/audio/learning
-    byId('set-notation').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
-        return; notation = b.dataset.v; (document).querySelectorAll('#set-notation button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); applyNotation(); refreshToday(); saveAll(); });
-    byId('set-lang').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b)
+    byId('set-notation').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_NOTATIONS, v))
+        return; notation = v; (document).querySelectorAll('#set-notation button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); applyNotation(); refreshToday(); saveAll(); });
+    byId('set-lang').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
         setLang(b.dataset.v); });
-    byId('toneSel').addEventListener('change', (e) => { releaseLiveInput(); stopPreviews(); stopDrone(); tone = e.target.value; ensureAudio(); pianoStatus(); saveAll(); });
-    byId('volume').addEventListener('input', (e) => { masterVol = e.target.value / 100; muted = false; masterRamp(masterVol); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
-    byId('set-synth').addEventListener('change', (e) => { localSynth = e.target.checked; if (!localSynth) {
+    byId('toneSel').addEventListener('change', (e) => { releaseLiveInput(); stopPreviews(); stopDrone(); const v = wiringField(e).value; if (syncOneOf(SYNC_TONES, v))
+        tone = v; ensureAudio(); pianoStatus(); saveAll(); });
+    byId('volume').addEventListener('input', (e) => { masterVol = Number(wiringField(e).value) / 100; muted = false; masterRamp(masterVol); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
+    byId('set-synth').addEventListener('change', (e) => { localSynth = wiringInput(e).checked; if (!localSynth) {
         liveVoices.forEach((v) => v.stop());
         liveVoices.clear();
     } saveAll(); });
-    byId('reverb').addEventListener('input', (e) => { reverbWet = e.target.value / 100 * 0.5; if (reverbGain && actx)
+    byId('reverb').addEventListener('input', (e) => { reverbWet = Number(wiringField(e).value) / 100 * 0.5; if (reverbGain && actx)
         reverbGain.gain.setTargetAtTime(reverbWet, actx.currentTime, 0.05); saveSoon(); });
-    byId('set-labels').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
-        return; labelMode = b.dataset.v; (document).querySelectorAll('#set-labels button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); buildKeyboard(); repaintHeld(); saveAll(); });
-    byId('bpm').addEventListener('input', (e) => { metro.bpm = +e.target.value; byId('bpmLbl').textContent = e.target.value; saveSoon(); });
-    byId('set-drone').addEventListener('change', (e) => { data.settings.drone = e.target.checked; saveAll(); });
-    byId('set-metronome').addEventListener('change', (e) => { data.settings.metronome = e.target.checked; saveAll(); });
-    byId('set-inv').addEventListener('change', (e) => { data.settings.allowInv = e.target.checked; saveAll(); });
-    byId('set-goal').addEventListener('change', (e) => { data.settings.goal = +e.target.value; saveAll(); refreshToday(); });
-    byId('set-new').addEventListener('change', (e) => { data.settings.newPerDay = +e.target.value; saveAll(); refreshToday(); });
+    byId('set-labels').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
+        return; labelMode = b.dataset.v ?? labelMode; (document).querySelectorAll('#set-labels button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); buildKeyboard(); repaintHeld(); saveAll(); });
+    byId('bpm').addEventListener('input', (e) => { metro.bpm = +wiringField(e).value; byId('bpmLbl').textContent = wiringField(e).value; saveSoon(); });
+    byId('set-drone').addEventListener('change', (e) => { data.settings.drone = wiringInput(e).checked; saveAll(); });
+    byId('set-metronome').addEventListener('change', (e) => { data.settings.metronome = wiringInput(e).checked; saveAll(); });
+    byId('set-inv').addEventListener('change', (e) => { data.settings.allowInv = wiringInput(e).checked; saveAll(); });
+    byId('set-goal').addEventListener('change', (e) => { data.settings.goal = +wiringField(e).value; saveAll(); refreshToday(); });
+    byId('set-new').addEventListener('change', (e) => { data.settings.newPerDay = +wiringField(e).value; saveAll(); refreshToday(); });
     // global
     ['pointerdown', 'keydown', 'touchstart'].forEach((ev) => window.addEventListener(ev, function u() { ensureAudio(); }, { once: true }));
     // keyup/pointerup never reach an unfocused window, so focus loss only lets go of what the computer keyboard and pointer hold;
@@ -14452,15 +14508,15 @@ function initControls() {
         openDrawer(false);
         openHelp(false);
     } });
-    let rz: string|number|NodeJS.Timeout|null|undefined = null;
+    let rz: ReturnType<typeof setTimeout> | null = null;
     function handleScreenChange() {
-        clearTimeout(rz);
+        clearTimeout(rz ?? undefined);
         rz = setTimeout(() => {
             if (!byId('mobileMenu').hidden && getComputedStyle(byId('menuBtn')).display === 'none') {
                 const hadFocus = byId('mobileMenu').contains(document.activeElement);
                 closeMobileMenu();
                 if (hadFocus) {
-                    const current = byId('nav').querySelector('[aria-current="page"]');
+                    const current = queryHtml(byId('nav'), '[aria-current="page"]');
                     if (current)
                         current.focus({ preventScroll: true });
                 }
@@ -14513,7 +14569,8 @@ renderCircle();
 applyI18n();
 anLocalize();
 show(viewFromHash(location.hash), false);
-if (history.state && history.state.modal)
+const bootHistoryState: unknown = history.state;
+if (isRecord(bootHistoryState) && bootHistoryState.modal)
     window.dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
 saveAll(); // Persist the one-time migration from legacy synthetic timbres.
 autoReconnectMidi();
@@ -15458,7 +15515,7 @@ Object.defineProperty(__etude, "wakePing", { configurable: true, get: () => wake
 Object.defineProperty(__etude, "wakeSet", { configurable: true, get: () => wakeSet });
 Object.defineProperty(__etude, "wakeUi", { configurable: true, get: () => wakeUi });
 Object.defineProperty(__etude, "xmlEsc", { configurable: true, get: () => xmlEsc });
-Object.defineProperty(__etude, "$", { configurable: true, get: () => $ });
+Object.defineProperty(__etude, "$", { configurable: true, get: () => maybeById });
 Object.defineProperty(__etude, "ACCOMP_I18N", { configurable: true, get: () => ACCOMP_I18N });
 Object.defineProperty(__etude, "ACCOMP_PATTERNS", { configurable: true, get: () => ACCOMP_PATTERNS });
 Object.defineProperty(__etude, "ACCOMP_PROGS", { configurable: true, get: () => ACCOMP_PROGS });
