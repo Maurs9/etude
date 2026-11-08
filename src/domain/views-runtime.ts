@@ -15,6 +15,10 @@ import type {
   ViewEventName,
 } from './views.js';
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
+import { srtEvaluate, type SightReadingPerformed } from '../sight-reading/evaluate.js';
+import type { SightReadingExpected } from '../sight-reading/model.js';
+import { SightReadingRecorder } from '../sight-reading/recorder.js';
+import { SRT_LEDGER_KEY, srtReadLedger } from '../sight-reading/ledger.js';
 
 function runtimeErrorName(value: unknown): string {
   return value instanceof Error ? value.name : '';
@@ -1741,7 +1745,7 @@ function handleNoteOn(midi: number, vel: number, source = 'midi') {
     audioNoteOn(midi, vel);
     kbPress(midi, true);
     wakePing();
-    onInputChange('on', midi);
+    onInputChange('on', midi, source, null);
 }
 function handleNoteOff(midi: number, source = 'midi') {
     const owners = inputOwners.get(midi);
@@ -1761,7 +1765,7 @@ function handleNoteOff(midi: number, source = 'midi') {
         sustained.add(midi);
     else
         audioNoteOff(midi);
-    onInputChange('off', midi);
+    onInputChange('off', midi, source, 'physical');
 }
 function pedalUp() { sustained.forEach((m) => { if (!held.has(m))
     audioNoteOff(m); }); sustained.clear(); }
@@ -1787,6 +1791,8 @@ function releaseFocusInput() {
     [...inputOwners.entries()].forEach(([m, o]) => [...o].forEach((s) => { if (s === 'midi' || s === 'ble')
         return; if (s.startsWith('fall:'))
         fell = true; handleNoteOff(m, s); }));
+    if (srtRecorder)
+        srtRecorder.releaseAll('focus', performance.now() - SR.t0);
     pointerKey.clear();
     typingDown.clear();
     if (FALL.press)
@@ -1799,12 +1805,15 @@ function releaseFocusInput() {
     if (fell && !FALL.raf)
         fallDraw();
 }
-function panic() { scorePause(); releaseLiveInput(); trxStop(); accompStop(); trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; singStopAll(); srStopAll(true); held.forEach((m) => audioNoteOff(m)); held.clear(); heldOrder.length = 0; sustained.forEach((m) => audioNoteOff(m)); sustained.clear(); liveVoices.forEach((v) => v.stop()); liveVoices.clear(); stopPreviews(); stopDrone(); pointerKey.clear(); typingDown.clear(); pedalDown = false; bendSemitones = 0; if (lfoGain && actx)
+function panic() { scorePause(); if (srtRecorder)
+    srtRecorder.releaseAll('reset', performance.now() - SR.t0); releaseLiveInput(); trxStop(); accompStop(); trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; singStopAll(); srStopAll(true); held.forEach((m) => audioNoteOff(m)); held.clear(); heldOrder.length = 0; sustained.forEach((m) => audioNoteOff(m)); sustained.clear(); liveVoices.forEach((v) => v.stop()); liveVoices.clear(); stopPreviews(); stopDrone(); pointerKey.clear(); typingDown.clear(); pedalDown = false; bendSemitones = 0; if (lfoGain && actx)
     lfoGain.gain.setTargetAtTime(0, actx.currentTime, .02); keyEl.forEach((el) => { el.classList.remove('pressed'); if (el.dataset.s === 'active')
     delete el.dataset.s; }); if (view0() === 'explore')
     updateExplore(); }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
-function onInputChange(kind: 'on'|'off', midi: number) {
+function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
+    if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder)
+        srtRecorder.record(kind, midi, source, releaseKind, performance.now() - SR.t0);
     if (view0() === 'analysis') {
         pracInput(kind);
         return;
@@ -5707,6 +5716,7 @@ interface SrState {
 const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null };
+let srtRecorder: SightReadingRecorder | null = null;
 interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
 /** A note to engrave; beamed eighths also record their stem position once drawn. */
 interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
@@ -5963,6 +5973,15 @@ function srPaintAll() {
             g.dataset.s = r;
         else
             g.removeAttribute('data-s');
+        const title = g.querySelector('title') || document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        if (!title.parentNode)
+            g.appendChild(title);
+        const symbol = r === 'good' ? '✓' : r === 'near' ? '≈' : r === 'bad' ? '✗' : r === 'extra' ? '+' : '';
+        title.textContent = symbol;
+        if (symbol)
+            g.setAttribute('aria-label', symbol);
+        else
+            g.removeAttribute('aria-label');
     });
 }
 function srScrollX(x: number) { const w = byId('rd-staff'); if (w && w.scrollWidth > w.clientWidth + 4)
@@ -6124,6 +6143,7 @@ function srAssessStart() {
     if (sel !== 'both' && srHandsAvail() === 'both')
         SR.notes.filter((n) => n.hand !== sel).forEach((n) => previewNote(n.midi, act0 + (ci + n.beat) * bs, Math.max(.15, n.dur * bs * .9), 78));
     SR.t0 = perf0 + ci * bs * 1000;
+    srtRecorder = new SightReadingRecorder({ durationMs: SR.totalBeats * bs * 1000 });
     SR.assessOn = false;
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
@@ -6158,14 +6178,42 @@ function srAssessLoop(ts: number) {
     SR.raf = requestAnimationFrame(srAssessLoop);
 }
 function srAssessFinish() {
+    const evaluated = srtRecorder ? srtEvaluate(
+        SR.notes.map((note): SightReadingExpected => ({
+            id: String(note.nid),
+            midi: note.midi,
+            hand: note.hand,
+            onMs: note.beat * (60000 / SR.bpm),
+            offMs: (note.beat + note.dur) * (60000 / SR.bpm),
+            restBeforeMs: 0,
+            restAfterMs: 0,
+        })),
+        srtRecorder.finish().map((input): SightReadingPerformed => ({
+            id: input.id,
+            midi: input.midi,
+            onMs: input.onMs,
+            offMs: input.offMs,
+        })),
+    ) : null;
+    if (evaluated) {
+        evaluated.noteResults.forEach((result) => {
+            const nid = Number(result.expectedId);
+            SR.results[nid] = result.classification === 'good' ? 'good' : result.classification === 'missed' ? 'bad' : 'near';
+        });
+        SR.wrongExtra = evaluated.FP;
+    }
     const totalN = SR.steps.reduce((s, st) => s + st.notes.length, 0);
-    const good = Object.values(SR.results).filter((r) => r === 'good').length;
-    const pct = totalN ? Math.round(100 * good / totalN) : 0, stars = pct >= 95 ? 3 : pct >= 80 ? 2 : pct >= 60 ? 1 : 0;
+    const good = evaluated ? evaluated.G : Object.values(SR.results).filter((r) => r === 'good').length;
+    const pct = evaluated?.score == null ? (totalN ? Math.round(100 * good / totalN) : 0) : Math.round(evaluated.score);
+    const stars = evaluated?.stars ?? (pct >= 95 ? 3 : pct >= 80 ? 2 : pct >= 60 ? 1 : 0);
     SR.next = srNextAssess(pct);
     srStopAll(true);
     const v = byId('rd-verdict');
     v.className = 'verdict ' + (stars >= 2 ? 'good' : stars ? 'neutral' : 'bad');
-    v.textContent = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + (SR.wrongExtra ? '  ·  ' + t('rd_extra', SR.wrongExtra) : '') + rdSightDone('assess', pct);
+    v.textContent = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) +
+        (evaluated ? ` · F1 ${Math.round(evaluated.pitchF1 ?? 0)}% · TP ${evaluated.TP}/${evaluated.N} · FP ${evaluated.FP} · Rhythm ${Math.round(evaluated.rhythmAcc ?? 0)}%` : '') +
+        (SR.wrongExtra ? '  ·  ' + t('rd_extra', SR.wrongExtra) : '') + rdSightDone('assess', pct);
+    srtRecorder = null;
     if (!SR.piece)
         throw new Error('Étude: no piece selected');
     if (!SR.piece.ephemeral) {
@@ -15159,7 +15207,8 @@ function initControls() {
     // backup export / import
     byId('exportBtn').addEventListener('click', () => {
         saveAll();
-        const raw = readPttV3(localStorage, KEY)?.raw || '{}';
+        const current = readPttV3(localStorage, KEY);
+        const raw = current ? JSON.stringify({ ...current.payload, data: { ...current.payload.data, sightLedger: srtReadLedger(localStorage) } }) : '{}';
         const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0');
         trxDownload('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', new Blob([raw], { type: 'application/json' }));
     });
@@ -15178,6 +15227,8 @@ function initControls() {
                 return;
             p.gen = syncGen();
             writePttV3(localStorage, p, KEY);
+            if (p.data.sightLedger)
+                localStorage.setItem(SRT_LEDGER_KEY, JSON.stringify(p.data.sightLedger));
             location.reload();
         }
         catch (_) {
@@ -16609,5 +16660,7 @@ Object.defineProperty(__etude, "notation", { configurable: true, get: () => nota
 Object.defineProperty(__etude, "renderLearn", { configurable: true, get: () => renderLearn, set: (value) => { renderLearn = value; } });
 Object.defineProperty(__etude, "show", { configurable: true, get: () => show, set: (value) => { show = value; } });
 Object.defineProperty(__etude, "theme", { configurable: true, get: () => theme, set: (value) => { theme = value; } });
+Object.defineProperty(__etude, "srtEvaluate", { configurable: true, value: srtEvaluate });
+Object.defineProperty(__etude, "srtRecorder", { configurable: true, get: () => srtRecorder });
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;

@@ -23,7 +23,7 @@ export type AppSettings = {
 
 export type PttV3Payload = {
   v: 3;
-  data: Record<string, unknown> & { settings?: Record<string, unknown>; srs?: Record<string, unknown> };
+  data: Record<string, unknown> & { settings?: Record<string, unknown>; srs?: Record<string, unknown>; sightLedger?: Record<string, unknown> };
   [key: string]: unknown;
 };
 
@@ -64,7 +64,8 @@ export function isBackupPayload(value: unknown): value is PttV3Payload {
     value.v === 3 &&
     isRecord(value.data) &&
     (value.data.settings === undefined || isRecord(value.data.settings)) &&
-    (value.data.srs === undefined || isRecord(value.data.srs));
+    (value.data.srs === undefined || isRecord(value.data.srs)) &&
+    (value.data.sightLedger === undefined || isRecord(value.data.sightLedger));
 }
 
 const parseJson: (text: string) => unknown = JSON.parse;
