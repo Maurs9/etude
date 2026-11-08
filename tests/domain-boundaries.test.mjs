@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const runtimePath = new URL('../src/domain/views.ts', import.meta.url);
-const runtimeImplementationPath = new URL('../src/domain/views-runtime.js', import.meta.url);
+const runtimeImplementationPath = new URL('../src/domain/views-runtime.ts', import.meta.url);
 const theoryPath = new URL('../src/domain/theory.ts', import.meta.url);
 const notationPath = new URL('../src/domain/notation.ts', import.meta.url);
 const execFileAsync = promisify(execFile);
@@ -75,6 +75,12 @@ describe('domain boundaries', () => {
     expect(implementation).not.toMatch(explicitAny);
   });
 
+  it('does not permit an unchecked application JavaScript module', async () => {
+    const domainDir = fileURLToPath(new URL('../src/domain/', import.meta.url));
+    const entries = await readdir(domainDir, { withFileTypes: true });
+    expect(entries.filter(entry => entry.isFile() && entry.name.endsWith('.js'))).toEqual([]);
+  });
+
   it('rejects a blanket explicit-any conversion through the migration gate', async () => {
     const probeRoot = fileURLToPath(new URL('../test-results/', import.meta.url));
     await mkdir(probeRoot, { recursive: true });
@@ -87,6 +93,21 @@ describe('domain boundaries', () => {
       })).rejects.toMatchObject({ code: 1 });
     } finally {
       await rm(probe, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a new unchecked application JavaScript module', async () => {
+    const probeRoot = fileURLToPath(new URL('../test-results/', import.meta.url));
+    const sourceRoot = await mkdtemp(join(probeRoot, 'etude-js-gate-'));
+    const probe = join(sourceRoot, 'unchecked-probe.js');
+    try {
+      await writeFile(probe, 'export const unchecked = window.appState;\n');
+      await expect(execFileAsync('node', ['scripts/check-ts-suppressions.mjs'], {
+        cwd: fileURLToPath(new URL('..', import.meta.url)),
+        env: { ...process.env, TS_SOURCE_ROOT: sourceRoot },
+      })).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await rm(sourceRoot, { recursive: true, force: true });
     }
   });
 });

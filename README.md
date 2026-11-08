@@ -54,8 +54,8 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 ## Project structure
 
 - `etude.html` — stable application shell
-- `src/domain/views.ts` — typed application/view boundary and browser test surface
-- `src/domain/views-runtime.js` — behaviour-preserving browser runtime loaded by the typed boundary
+- `src/domain/views.ts` — typed application/view entry point and browser test surface
+- `src/domain/views-runtime.ts` — checked TypeScript runtime bootstrap with explicit domain dependencies
 - `src/domain/router.ts` — hash-route groups and safe fallback
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
 - `src/domain/storage.ts` — typed `ptt-v3` reader, writer, and settings normalization
@@ -73,7 +73,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 `npm run typecheck` runs the full `strict` compiler gate. The suppression guard
 rejects `@ts-nocheck` and `@ts-ignore` in application TypeScript, allows only a
 small, reasoned set of `@ts-expect-error` boundary exceptions, and rejects
-explicit `any`. The typed view entry point defines the DOM, state, locale,
+explicit `any`, and rejects unchecked application JavaScript under `src/domain/`. The typed view entry point defines the DOM, state, locale,
 event, callback and view-data contracts used by new view code; the existing
 behaviour-preserving runtime is loaded behind that boundary so the migration
 does not change user-visible behaviour. Storage, theory, audio, notation, and

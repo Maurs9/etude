@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 const root = process.env.TS_SOURCE_ROOT
   ? pathToFileURL(`${process.env.TS_SOURCE_ROOT.replace(/\/?$/, '/')}`)
   : new URL('../src/', import.meta.url);
+const scanAllJavaScript = Boolean(process.env.TS_SOURCE_ROOT);
 const failures = [];
 const MAX_EXPECTED_ERRORS = 8;
 let expectedErrorCount = 0;
@@ -17,8 +18,12 @@ async function visit(url) {
       await visit(child);
       continue;
     }
-    if (!entry.name.endsWith('.ts')) continue;
+    if (!entry.name.endsWith('.ts') && !(scanAllJavaScript || url.pathname.includes('/domain/'))) continue;
     const source = await readFile(child, 'utf8');
+    if (entry.name.endsWith('.js')) {
+      failures.push(`${child.pathname}: unchecked application JavaScript is forbidden; move the implementation into a checked TypeScript domain module`);
+      continue;
+    }
     const lines = source.split('\n');
     lines.forEach((line, index) => {
       if (/@ts-nocheck\b/.test(line)) {
