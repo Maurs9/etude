@@ -3,7 +3,7 @@
 import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.js';
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, parsePttV3, readPttV3, restoreSettings, writePttV3 } from './storage.js';
-import { CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord as identifyChordDomain, midiToFrequency, pitchClass } from './theory.js';
+import { CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS, anDiatonic, anIntervalName, anKeyRank, anPcWeights, anResolveKey, chordDegreeMap, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord as identifyChordDomain, keyFifths, keyFromFifths, midiToFrequency, pitchClass, romanFor, spellMidi } from './theory.js';
 import { AudioEngine } from './audio.js';
 import { createScoreRenderer, loadOsmd, mxlToXml, notationReloadMessage, scorePatchOsmd } from './notation.js';
 import { NAV_GROUPS, navGroup, viewFromHash } from './router.js';
@@ -1407,30 +1407,6 @@ function kbDegrees(src) {
         el.setAttribute('aria-label', noteName(m, false) + (degDesc ? ', ' + degDesc : ''));
     });
 }
-// Generic chord-member label for a pitch class `rel` semitones above the root of a chord with relative pitch classes `pcs`.
-function chordToneLabel(rel, pcs) {
-    const has = x => pcs.includes(x), third = has(3) || has(4);
-    switch (rel) {
-        case 0: return 'R';
-        case 3:
-        case 4: return third && has(3) && has(4) && rel === 3 ? '♯9' : '3';
-        case 7: return '5';
-        case 6: return has(7) ? '♯11' : '5';
-        case 8: return has(7) ? '♭13' : '5';
-        case 10:
-        case 11: return '7';
-        case 9: return has(3) && has(6) && !has(10) && !has(11) ? '7' : (has(10) || has(11)) ? '13' : '6';
-        case 1: return '♭9';
-        case 2: return third ? '9' : '2';
-        case 5: return third ? '11' : '4';
-    }
-    return '';
-}
-function chordDegreeMap(midis, rootPc, pcs) { const map = new Map(); midis.forEach(m => { const rel = ((pc(m) - rootPc) % 12 + 12) % 12; if (pcs.includes(rel)) {
-    const l = chordToneLabel(rel, pcs);
-    if (l)
-        map.set(m, l);
-} }); return map; }
 function positionBlacks() { blackEl.forEach((el, bm) => { const w = whiteEl.get(bm - 1); if (!w || !w.offsetWidth)
     return; const bw = w.offsetWidth * .62, seam = w.offsetLeft + w.offsetWidth, n = (BLACK_NUDGE[pc(bm)] || 0) * bw; el.style.width = bw + 'px'; el.style.left = (seam - bw / 2 + n) + 'px'; }); syncKeyboardPan(); }
 function syncKeyboardPan() { const scroll = $('dock-keys'), pan = $('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
@@ -2399,23 +2375,6 @@ function chordTargetPcs(rootPc, tpl) { return chordPitches(rootPc, tpl.intervals
 function inversionOf(rootPc, tpl, bassMidi) { return chordInversion(rootPc, tpl, bassMidi); }
 function identifyChord(notes, expected) { return identifyChordDomain(notes, CHORDS, expected); }
 function slashLabel(id) { return rootName(id.rootPc) + id.chord.symbol + (id.inversion > 0 ? '/' + rootName(id.bassPc) : ''); }
-function romanFor(keyRoot, id) { if (!id || keyRoot < 0)
-    return ''; const rel = ((id.rootPc - keyRoot) % 12 + 12) % 12; let deg = MAJOR.indexOf(rel), acc = ''; if (deg < 0) {
-    deg = MAJOR.indexOf((rel + 11) % 12);
-    if (deg >= 0)
-        acc = '♯';
-    else {
-        deg = MAJOR.indexOf((rel + 1) % 12);
-        if (deg >= 0)
-            acc = '♭';
-    }
-} if (deg < 0)
-    return ''; let num = ROMAN[deg]; const s = id.chord.symbol; if (/^m(?!aj)/.test(s) || s.startsWith('dim'))
-    num = num.toLowerCase(); let suf = ''; if (/dim/.test(s) || s === 'm7♭5')
-    suf = '°';
-else if (/aug|♯5/.test(s))
-    suf = '+'; if (id.chord.pcset.includes(10) || id.chord.pcset.includes(11))
-    suf += '⁷'; return acc + num + suf; }
 /* ============================================================================
    ITEM MODEL + SPACED REPETITION
    ============================================================================ */
@@ -8051,30 +8010,8 @@ const LETTERS = { letter: ['C', 'D', 'E', 'F', 'G', 'A', 'B'], solfege: ['Do', '
 // B-flat is B in German; B-natural and other alterations use H.
 function spelledName(sys, li, acc, ascii = false) { if (sys === 'german' && li === 6 && acc === -1)
     return 'B'; const symbols = ascii ? ['bb', 'b', '', '#', '##'] : ['𝄫', '♭', '', '♯', '𝄪']; return LETTERS[sys][li] + (symbols[acc + 2] || ''); }
-function keyFifths(root, minor) { return minor && root === 3 ? -6 : KEY_MAJ_FIFTHS[minor ? (root + 3) % 12 : root]; }
-function keyFromFifths(fifths, minor) { const maj = ((fifths * 7) % 12 + 12) % 12; return { root: minor ? (maj + 9) % 12 : maj, minor: !!minor, fifths }; }
 function anKeyName(k) { const f = k.fifths != null ? k.fifths : keyFifths(k.root, k.minor), s = spellMidi(60 + k.root, f, k.minor); return spelledName(notation, s.li, s.acc, true) + ' ' + t(k.minor ? 'an_minor' : 'an_major'); }
 // Key-aware spelling: diatonic notes follow the signature, minor keys raise 6/7 on their own letters, other notes take the key's accidental direction.
-function spellMidi(m, fifths, minor) {
-    fifths = fifths || 0;
-    const p = pc(m), sig = ssKeyAcc(fifths), mk = (li, acc) => ({ li, acc, oct: Math.floor((m - acc - LETTER_PC[li]) / 12) - 1 });
-    for (let li = 0; li < 7; li++)
-        if (((LETTER_PC[li] + sig[li]) % 12 + 12) % 12 === p)
-            return mk(li, sig[li]);
-    const tli = (((fifths * 4) % 7 + 7) % 7 + (minor ? 5 : 0)) % 7, rel = ((p - keyFromFifths(fifths, minor).root) % 12 + 12) % 12;
-    const deg = (minor ? { 11: 6, 9: 5, 1: 1, 4: 2, 6: 3 } : { 1: 0, 3: 2, 6: 3, 8: 4, 10: 6 })[rel]; // raised 7/6 in minor; ♯1 ♭3 ♯4 ♯5 ♭7 in major; ♭2 ♯3 ♯4 in minor
-    if (deg != null) {
-        const li = (tli + deg) % 7, acc = ((p - LETTER_PC[li] + 18) % 12) - 6;
-        if (Math.abs(acc) <= 1)
-            return mk(li, acc);
-    }
-    for (let li = 0; li < 7; li++)
-        if (LETTER_PC[li] === p)
-            return mk(li, 0);
-    if (fifths < 0 || (fifths === 0 && (p === 3 || p === 10)))
-        return mk(LETTER_PC.indexOf((p + 1) % 12), -1);
-    return mk(LETTER_PC.indexOf((p + 11) % 12), 1);
-}
 function anKeyAt(beat) { const ks = AN.keyMap; if (!ks.length)
     return { root: 0, minor: false, fifths: 0 }; let k = ks[0]; for (const x of ks)
     if (x.beat <= beat + 1e-6)
@@ -8082,21 +8019,6 @@ function anKeyAt(beat) { const ks = AN.keyMap; if (!ks.length)
 function spellName(m, key, withOct) { const k = key || anKeyAt(0), s = spellMidi(m, k.fifths, k.minor); return spelledName(notation, s.li, s.acc, true) + (withOct ? s.oct : ''); }
 // Krumhansl–Kessler key profiles: unlike plain scale coverage, they tell a major key from its relative minor.
 const AN_PROFILE = { maj: [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88], min: [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17] };
-function anPcWeights(ns, from = -Infinity, to = Infinity) { const w = Array(12).fill(0); for (const n of ns) {
-    const d = Math.min(n.end, to) - Math.max(n.start, from);
-    if (d > 0)
-        w[pc(n.midi)] += Math.min(4, d);
-} return w; }
-function anCorr(a, b) { const ma = a.reduce((s, x) => s + x, 0) / 12, mb = b.reduce((s, x) => s + x, 0) / 12; let n = 0, da = 0, db = 0; for (let i = 0; i < 12; i++) {
-    n += (a[i] - ma) * (b[i] - mb);
-    da += (a[i] - ma) ** 2;
-    db += (b[i] - mb) ** 2;
-} return da && db ? n / Math.sqrt(da * db) : 0; }
-function anKeyRank(ns) { const w = anPcWeights(ns), out = []; for (let root = 0; root < 12; root++)
-    for (const minor of [false, true]) {
-        const rot = w.map((_, i) => w[(i + root) % 12]);
-        out.push({ root, minor, fifths: keyFifths(root, minor), score: anCorr(rot, minor ? AN_PROFILE.min : AN_PROFILE.maj) });
-    } return out.sort((a, b) => b.score - a.score); }
 function anKeyInfo(ns) {
     const ranks = anKeyRank(ns), best = ranks[0], margin = best.score - ranks[1].score;
     const conf = ns.length < 12 ? 'low' : best.score >= 0.75 && margin >= 0.08 ? 'high' : best.score >= 0.6 && margin >= 0.03 ? 'medium' : 'low';
@@ -8120,19 +8042,6 @@ const anDomQ = c => !!c.dom || c.q === 'M' && !/maj|6/.test(c.s); // can act as 
 // The chord member in the bass: 1 third, 2 fifth, 3 seventh; suspended and power chords, and an added tone in the bass, count as 0.
 function anInv(seg) { const c = seg.ch.c, iv = ((seg.bass - seg.ch.root) % 12 + 12) % 12; return c.q === 'S' || c.q === 'P' ? 0 : iv === c.p[1] ? 1 : iv === c.p[2] ? 2 : c.x && iv === c.p[3] ? 3 : 0; }
 // The key's diatonic triads (with V and vii° in minor) and V7.
-function anDiatonic(key) {
-    const sc = key.minor ? [0, 2, 3, 5, 7, 8, 10] : MAJOR, out = [];
-    for (let i = 0; i < 7; i++) {
-        const r = sc[i];
-        out.push({ root: (key.root + r) % 12, p: [0, (sc[(i + 2) % 7] - r + 12) % 12, (sc[(i + 4) % 7] - r + 12) % 12] });
-    }
-    if (key.minor) {
-        out.push({ root: (key.root + 7) % 12, p: [0, 4, 7], pref: 0.012 });
-        out.push({ root: (key.root + 11) % 12, p: [0, 3, 6] });
-    }
-    out.push({ root: (key.root + 7) % 12, p: [0, 4, 7, 10] });
-    return out.map(d => ({ ...d, c: AN_CHORDS.find(c => c.p.join() === d.p.join()) })).filter(d => d.c);
-}
 function anMeasures() { if (SCORE.measures && SCORE.measures.length)
     return SCORE.measures; const end = AN.notes.length ? Math.max(...AN.notes.map(n => n.end)) : 0, out = []; for (let s = 0, i = 1; s < end; s += 4, i++)
     out.push({ number: String(i), start: s, end: s + 4, num: 4, den: 4 }); return out; }
@@ -8330,7 +8239,7 @@ function anFitImplied(S, key) {
     const out = [];
     if (!(S.T > 0))
         return out;
-    for (const d of anDiatonic(key)) {
+    for (const d of anDiatonic(key, AN_CHORDS)) {
         const tones = d.c.p.map(i => (d.root + i) % 12);
         if (!(S.w[d.root] > 0) || tones.filter(p => S.w[p] > 0).length < 2 || d.c.x && !(S.w[tones[3]] > 0))
             continue;
@@ -8347,7 +8256,7 @@ function anCands(S, implied) {
     const key = anKeyAt(S.s);
     if (implied)
         return anFitImplied(S, key);
-    const dia = new Set(anDiatonic(key).map(d => d.root + ':' + d.c.s)), out = [];
+    const dia = new Set(anDiatonic(key, AN_CHORDS).map(d => d.root + ':' + d.c.s)), out = [];
     if (S.T > 0)
         for (let r = 0; r < 12; r++)
             if (S.w[r] > 0)
@@ -8560,7 +8469,6 @@ function anMotifs(ns) {
     }
     return [...map.values()].filter(v => v.count >= 2).sort((x, y) => y.count - x.count).slice(0, 4);
 }
-function anIntervalName(semi) { const n = ivName(semi); return n !== '?' ? n : ivName(semi % 12 || 12) + ' (+' + Math.floor((semi - 1) / 12) + ' oct)'; }
 function anHandOf(n) { return n.hand || (n.midi >= 60 ? 'rh' : 'lh'); }
 // Everything the workspace shows for one scope; strings are produced at render time so language and notation can change.
 function anCompute(ns, scopeKey) {
@@ -9109,17 +9017,6 @@ function anAssignHands(notes, mode) {
     if (mode === 'auto' && !(gap >= 5 && share >= 0.05 && share <= 0.95))
         return { of: split(60), how: 'fallback', split: 60 };
     return { of: notes.map(n => upper.has(n[field]) ? 'rh' : 'lh'), how: 'tracks', groups: list.length };
-}
-function anResolveKey(parsed, sel, notes) {
-    if (sel && sel !== 'auto') {
-        const [f, m] = sel.split(':').map(Number);
-        return { events: [{ beat: 0, fifths: f, minor: !!m }], origin: 'manual' };
-    }
-    const ev = (parsed.meta || []).filter(e => e.type === 'key');
-    if (ev.length)
-        return { events: ev.map(e => ({ beat: e.beat, fifths: e.fifths, minor: !!e.minor })), origin: 'file' };
-    const best = anKeyRank(notes)[0];
-    return { events: [{ beat: 0, fifths: keyFifths(best.root, best.minor), minor: best.minor }], origin: 'auto' };
 }
 // Rebuild notes + notation from the stored MIDI/example source; analysis timing stays the unquantized source timing.
 function anRebuild() {
@@ -14549,7 +14446,6 @@ Object.defineProperty(__etude, "anCoach", { configurable: true, get: () => anCoa
 Object.defineProperty(__etude, "anCommit", { configurable: true, get: () => anCommit });
 Object.defineProperty(__etude, "anCommitFocus", { configurable: true, get: () => anCommitFocus });
 Object.defineProperty(__etude, "anCompute", { configurable: true, get: () => anCompute });
-Object.defineProperty(__etude, "anCorr", { configurable: true, get: () => anCorr });
 Object.defineProperty(__etude, "anDetText", { configurable: true, get: () => anDetText });
 Object.defineProperty(__etude, "anDiatonic", { configurable: true, get: () => anDiatonic });
 Object.defineProperty(__etude, "anDockWanted", { configurable: true, get: () => anDockWanted });
@@ -14713,7 +14609,6 @@ Object.defineProperty(__etude, "chordDisp", { configurable: true, get: () => cho
 Object.defineProperty(__etude, "chordEarOptions", { configurable: true, get: () => chordEarOptions });
 Object.defineProperty(__etude, "chordFormula", { configurable: true, get: () => chordFormula });
 Object.defineProperty(__etude, "chordTargetPcs", { configurable: true, get: () => chordTargetPcs });
-Object.defineProperty(__etude, "chordToneLabel", { configurable: true, get: () => chordToneLabel });
 Object.defineProperty(__etude, "circleSel", { configurable: true, get: () => circleSel });
 Object.defineProperty(__etude, "clampPersistedNumber", { configurable: true, get: () => clampPersistedNumber });
 Object.defineProperty(__etude, "clampTypeOctave", { configurable: true, get: () => clampTypeOctave });
@@ -15640,4 +15535,4 @@ Object.defineProperty(__etude, "show", { configurable: true, get: () => show, se
 Object.defineProperty(__etude, "theme", { configurable: true, get: () => theme, set: value => { theme = value; } });
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;
-export { LGEN, LP, LQ, _modalAfterBack, _modalBackPending, _noiseBuf, _routed, _saveT, _view, acChainHL, acPlayLabel, accompHL, accompRestartIfPlaying, accompStart, accompStop, accompSync, accompTick, accompTimer, accompVoicing, activeInputId, actx, anAccent, anActiveChord, anAnalyze, anAssignHands, anBarsLabel, anBeatText, anBeatUnit, anCadences, anCands, anChipHTML, anChordLabel, anClassifyNonChord, anClearSelection, anClock, anCoach, anCommit, anCommitFocus, anCompute, anCorr, anDetText, anDiatonic, anDockWanted, anDraw, anError, anErrorKey, anFillExamples, anFit, anFitImplied, anFnKey, anFocus, anFocusNotes, anFocusStage, anFunctionOf, anGrid, anHandOf, anHandsSource, anHandsText, anHarmony, anHasFinger, anHover, anInView, anIndex, anInflatedSize, anInitControls, anIntervalName, anInv, anKeepPlace, anKeepVisible, anKeyAt, anKeyInfo, anKeyName, anKeyRank, anKeysCenter, anKeysClear, anKeysPaint, anKeysShown, anLayoutVars, anLoadExample, anLoadedText, anLocalize, anMarkActive, anMeasureAt, anMeasures, anMotifs, anMxlPreflight, anNarrow, anNctText, anNoteInfo, anNowAnnounce, anNowCard, anNum, anOpenFile, anOpenTab, anOriginText, anParse, anPcWeights, anPieceMeta, anPieceToParsed, anPinToolbar, anPinToolbarLater, anPoly, anPop, anPractice, anPracticeCheck, anPracticeStart, anRate, anReadXml, anRebuild, anReconChange, anReconOpen, anReconUI, anRenderEmpty, anRenderNow, anRenderPractice, anRenderSelection, anRenderWorkspace, anReset, anResolveKey, anRevealPieceRow, anRoman, anRove, anRowsHTML, anScopeNotes, anSegAt, anSegIndexAt, anSelStart, anSelectChord, anSelectNotes, anSelectionChanged, anSetLoading, anSheet, anShortcut, anShowError, anSideResizer, anSideSet, anSideSync, anSideVisible, anSpan, anStageFit, anStatus, anStatusPos, anStatusSel, anSyncTimeline, anTab, anTempoAt, anTlUpdate, anToReadPiece, anUnion, anUnits, anUpdateControls, anVoiceNeighbors, anXmlKeyMap, anXmlTidy, anZoomNow, answerEar, applyI18n, applyNotation, applyTheme, attachInput, audioLockCheck, audioLockSync, audioLockT, audioNoteOff, audioNoteOn, audioUnlock, autoReconnectMidi, bendSemitones, bindKeyA11y, bleAutoReconnect, bleCan, bleChoose, bleClick, bleData, bleDisconnect, bleErr, bleLive, bleMsg, bleName, bleOnGone, bleOnValue, bleOpen, bleParse, bleParserReset, bleReconnect, bleReleaseInput, bleRetry, bleSet, bleStale, bleStatus, bleUi, bleUnhook, boxOf, buildAccomp, buildKeyboard, buildQueue, catLabel, chooseView, chordDegreeMap, chordDisp, chordEarOptions, chordFormula, chordTargetPcs, chordToneLabel, circleSel, clampPersistedNumber, clampTypeOctave, clearExplorePreview, closeMobileMenu, coachHTML, coachList, coachRefresh, cofData, cofDiagram, cofInfo, cofKeyLabel, cofName, cofNow, cofPaintDock, cofParse, cofPick, cofPlay, cofPt, cofRevealFingering, cofSector, cofSel, cofSigList, cofSpell, cofSpellDegrees, cofSyncRef, cofText, cofTint, cofTonicPc, comp, connectMidi, currentStreak, data, demoBeat, dispSym, dockKeepEnd, dockLabels, dockOpen, dockReveal, dockSet, dockShown, dockSync, dockWanted, drawExploreStaff, droneVoices, dueItems, earRoot, ekBuild, ekCh, ekElab, ekFlash, ekFlat, ekForced, ekIv, ekMel, ekMiss, ekName, ekOff, ekOn, ekPlay, ekProg, ekReset, ekSound, ekStop, ekToggleSync, ekUiReset, ekWanted, ekWin, endSession, ensureAudio, evalTimer, exTab, exTabCur, explorePreview, exploreSequence, exploreTimers, fallBurst, fallData, fallDraw, fallEnd, fallHit, fallHover, fallKeyAt, fallKeyDown, fallKeyPath, fallKeyUp, fallKeyboard, fallKeys, fallMode, fallName, fallParticles, fallRR, fallRange, fallReset, fallSeek, fallSeekEnd, fallSelect, fallTime, feelDisp, fillKeyCtx, fillPieces, fillRefNames, fillRoots, focusView, foldToView, freshData, fsCan, fsToggle, fsUi, gradeChord, gradeInterval, gradeProgChord, gradeScaleNote, greeting, handleNoteOff, handleNoteOn, heldMidis, heldPcs, identifyChord, inField, initControls, initExploreTabs, initPointer, intervalLabel, invName, inversionOf, isDue, isNew, isSubset, itemLabel, ivName, kbClear, kbClearAll, kbDegSrc, kbDegrees, kbPress, kbState, kbdLayoutLabels, keyAt, keyFifths, keyFromFifths, lBarsHTML, lCofKey, lDots, lPitch, lSel, lSeqLight, lSp, lStaffHTML, lStaffNote, lStaffPlay, lStaffSmall, lStaffSvg, lVel, labelMode, labelSettingsControl, labelSettingsControls, lang, learnBodyHTML, learnClick, learnComplete, learnData, learnDueDays, learnDueList, learnGap, learnGloss, learnGo, learnGoId, learnHalt, learnInitSel, learnInput, learnLessonOpen, learnLight, learnMark, learnNavRender, learnPlanItems, learnRdLevel, learnReveal, learnSay, learnSel, learnSide, learnTimer, learnTitle, learnUnitDone, learnUnitOf, learnUnitOpen, learnWire, lfo, lfoGain, lgFilter, lgHTML, lgNorm, listInputs, lmDots, lmMeter, lmStart, lmStop, lmTerm, loadAll, localSynth, lqAnswer, lqFocus, lqLabel, lqMidis, lqNeed, lqNext, lqPick, lqRender, lqShow, lqStart, lwChord, lwChordData, lwChordPlay, lwClick, lwCof, lwInput, lwMetro, lwMount, lwRefocus, lwScale, lwScalePlay, lwStepLab, makeIR, makePianoVoice, makeQuestion, makeVoice, markEarCorrect, master, masterFilter, masterRamp, masterVol, masteredCount, metroClick, metroSched, midiAccess, midiChipSync, midiIn, midiMsg, muted, neutral, newItemsAvail, newQuotaLeft, nextQuestion, noiseBuffer, notation, noteName, onInputChange, onMidiMessage, onStateChange, openDrawer, openHelp, openMobileMenu, openSessionUI, overlaysOpen, panic, pcName, pedalDown, pedalUp, physKey, pianoDecode, pianoEnsure, pianoFail, pianoIdleWarm, pianoKeys, pianoNearest, pianoStatus, pickArturia, pickTargetedItem, playChordMidis, playInterval, playIvDir, playProg, playQuestionSound, playScaleNotes, popModalState, positionBlacks, prRecordDrill, pracAcc, pracBeats, pracClearAB, pracFinish, pracFrame, pracHud, pracInput, pracJudge, pracLoad, pracLoopBars, pracMisses, pracNextBar, pracNextRender, pracNextStep, pracPassEnd, pracRamp, pracRaw, pracRelease, pracSave, pracSegAt, pracSet, pracSetAB, pracStart, pracStatsReset, pracSumClose, pracSummary, pracTick, pracWeakHand, preparePiano, presentEar, presentEarKeys, presentPlay, presentQuestion, previewNote, previewVoices, progChordTpl, pushModalState, pwaInit, pwaInstall, pwaStandalone, pwaUi, randItem, rdAbort, rdAccSym, rdAgg, rdAnsText, rdAnswer, rdBack, rdBars, rdBeatX, rdBtn, rdCClef, rdChLabel, rdClear, rdClick, rdClickAns, rdCoach, rdCustomFill, rdCustomGo, rdCustomRead, rdData, rdEndClick, rdEsc, rdFeedback, rdFinish, rdFocus, rdFromStep, rdGen, rdGenMelody, rdHeat, rdHint, rdHud, rdInput, rdIntro, rdIvName, rdKbMark, rdKbRange, rdKey, rdKeyLabel, rdKeyMinor, rdKeyText, rdKsSvg, rdLetter, rdLvDetail, rdLvName, rdLvNext, rdLvPrev, rdLvSub, rdMidi, rdMiniKb, rdName, rdNext, rdNextRender, rdNextStep, rdNk, rdOnLocale, rdOpen, rdP, rdPercClef, rdPickFrom, rdPickW, rdPool, rdQSvg, rdRangeTxt, rdRender, rdRenderHome, rdRenderStats, rdRhDone, rdRhGen, rdRhGenLH, rdRhGrade, rdRhGradeAll, rdRhGradeHand, rdRhHandLine, rdRhKey, rdRhMarks, rdRhNew, rdRhNoteTip, rdRhOptsLock, rdRhPrefs, rdRhPress, rdRhRelease, rdRhRun, rdRhStrokes, rdScroll, rdSightDone, rdSightGen, rdSightStart, rdSound, rdSpell, rdSpellMidi, rdStars, rdStart, rdStat, rdStep, rdSuggest, rdSvg, rdTab, rdTap, rdTarget, rdU, rdUnlocked, rdWeight, refMidis, reflectSettingsUI, reflowKeys, refreshDeviceList, refreshToday, releaseFocusInput, releaseLiveInput, releaseTypingKeys, renderAccompany, renderCircle, renderLearn, renderModeNav, renderPlan, renderPracticeLast, renderProgress, renderRead, renderSing, renderSongs, renderTranscribe, repaintHeld, resolve, revealAnswerKeys, reverbGain, reverbNode, reverbWet, reviewItem, romanFor, runDemo, sampledPianoVoice, saveAll, saveSoon, savedDevice, scaleDisp, scaleEarOptions, scaleFormula, scheduleAccompAt, scheduleEval, scoreAnchorAt, scoreBeamGroups, scoreBeams, scoreBeatAt, scoreBind, scoreCoralBars, scoreCursorAt, scoreCursorEl, scoreCursorFollow, scoreCursorUpdate, scoreExtraBreaks, scoreFitRender, scoreFixFingerings, scoreFixPedals, scoreFollow, scoreFromMidi, scoreGeo, scoreHalt, scoreHome, scoreIdle, scoreLayout, scoreLoopStart, scoreMarks, scoreMeasureAt, scoreNightSweep, scorePaint, scorePaintEl, scorePaintIdx, scorePause, scorePitch, scorePlay, scorePointer, scoreRender, scoreRingFit, scoreSeconds, scoreSeekBar, scoreSeekTo, scoreSelectMeasures, scoreSelectRange, scoreSetHl, scoreSetLook, scoreSetTempos, scoreSetView, scoreShiftY, scoreStateText, scoreStop, scoreStyleHeader, scoreSymAt, scoreSymText, scoreSyms, scoreTermParts, scoreTip, scoreToUser, scoreToggle, scoreUnlight, scoreXLines, scoreXmlEndings, scoreXmlLayout, scoreXmlNotes, scoreZoom, seedPlacement, sesHome, sesInput, sesPrompt, sesStopPrompt, setBendFromValue, setEq, setLang, setMidi, setOverlay, shiftTypeOctave, show, showElaboration, showNotationReloadPrompt, showProgTarget, showSummary, shuffle, singGo, singKeyInput, singStopAll, slashLabel, songDir, songsFor, spellMidi, spellName, spelledName, sqAnswer, sqNew, sqPlay, sqRender, srActiveHands, srAssessFinish, srAssessLoop, srAssessStart, srBeatToX, srBest, srClef, srClick, srCoach, srCount, srCursor, srDraw, srEvents, srFocus, srGo, srHandsAvail, srKeyInput, srKeyName, srKeyNames, srKeySigG, srLearnFinish, srLearnStart, srLedger2, srListen, srMeta, srNextAssess, srNextLearn, srPaintAll, srPieceTitle, srPitch, srPlayGap, srRender, srRest, srScrollStep, srScrollX, srSelectPiece, srSetBpm, srSetMode, srShape, srSlip, srSlipNote, srStem2, srStemLine, srStepsBuild, srStopAll, srSvg, srTargets, srTimeSigG, srTol, srTopSlip, srsOf, ssAccGlyph, ssBassClef, ssBeatToX, ssBumpProgress, ssClearTrail, ssCurNote, ssCursorEl, ssDraw, ssDrawTrail, ssDrone, ssFillLevels, ssFlash, ssFlat, ssFreeLoop, ssFreeStart, ssGen, ssHintBump, ssKeyAcc, ssKeySig, ssLedger, ssMakeNote, ssMicMaybe, ssMicStart, ssMicStop, ssMidiOf, ssModeUI, ssMoveCursor, ssNatural, ssNeed, ssNewExercise, ssNextDeg, ssNoteCorrect, ssNoteFinish, ssNoteLoop, ssNoteStart, ssNotehead, ssPaint, ssPhraseGrade, ssPhraseLoop, ssPhraseStart, ssPick, ssPitchY, ssPlayIt, ssReadPitch, ssRemoveCursor, ssRender, ssScrollToCur, ssScrollToX, ssSharp, ssStem, ssStepOf, ssSvg, ssTimeSig, ssTonic, ssTrebleClef, startDrone, startMetro, startPlacement, startSession, statHTML, stopDrone, stopMetro, stopPreviews, syncAfter, syncBusy, syncCurrent, syncData, syncGen, syncId, syncIdle, syncInitial, syncInto, syncKeyboardPan, syncNewCollisions, syncNote, syncPair, syncPick, syncPref, syncPull, syncRefresh, syncRemember, syncSame, syncScrim, syncSrs, syncSrsPair, syncWrite, t, tf, theme, tl, tone, toolName, touchDay, trapFocus, trxAutoCorrelate, trxBuildMidi, trxClear, trxCloseNote, trxDownload, trxDurLabel, trxExportMidi, trxExportTxt, trxFreqToMidi, trxLoop, trxMedian, trxPlay, trxPushVar, trxRender, trxSnap, trxStart, trxStop, typeOctave, updateAccompChain, updateExplore, view0, viewHigh, wakeArm, wakeCan, wakeDrop, wakeGet, wakeInit, wakeOnGesture, wakePing, wakeSet, wakeUi, xmlEsc, $, ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, AN, AN_CHORDS, AN_DIA, AN_EXAMPLES, AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, AN_POPS, AN_PRACTICE_BARS, AN_PROFILE, AN_SMUFL_NOTES, AN_TABS, BASE_HIGH, BASE_LOW, BLACK_NUDGE, BLE, BLE_MIDI_CHR, BLE_MIDI_SVC, CATS, CHORDS, CHORD_DEG, CHORD_FEEL, CIRCLE, CLEF_F, CLEF_G, CLEF_SCALE, COF_COL, COF_FING, COF_MAJ, COF_MIN, COF_SCALE, COF_SOL, COMPOUND, DOCK, EK_CHORD_GAP, EK_MEL_SCALES, EK_TRIES, EX_LEDGERS, FALL, FALL_BLACK, FALL_COL, FALL_FONT, FALL_NUDGE, FALL_PAL, FALL_SEC, FALL_SEL, FALL_YOU, INTERVALS, INTRO_CH, INTRO_IV, INTRO_SC, INV_NAMES, ITEMS, ITEM_BY_ID, IVL, KEYMAP, KEY_MAJ_FIFTHS, LACC_CH, LBLUES, LDUR, LEARN_GAPS, LEARN_OLD_ORDER, LETTERS, LETTER_PC, LLET, LM, LNAT, LSPF, LSPS, LSR, LSTAVES, LT, LTEMPO, LVEL, LW_PRESETS, LW_Q, LW_R, LW_STEP, MAJOR, NOTE_SYS, PC_FLAT, PC_SHARP, PIANO_KEYS, PIANO_URLS, PIANO_WARM, PIECES, PLACEMENT, PRAC, PRAC_KEY, PROGS, PWA, RD, RD_ALL, RD_ALLIV, RD_CDEF, RD_CHQ, RD_CLEFC, RD_LH_PAT, RD_LM, RD_LV, RD_MAJ, RD_MIN, RD_REF, RD_RHU, RD_RUSH, RD_TARGET, RD_TESTN, RD_UNITS, ROMAN, ROOT_NAMES, SCALES, SCALE_DEG, SCALE_EAR_POOL, SCORE, SCORE_LOOK, SC_ARTS, SC_BASE, SC_DYN, SC_FIT, SC_PAGE_W, SC_TERMS, SES, SIDE, SONGS, SQ, SR, SR_LET, SS_FLAT_ORDER, SS_LETSEMI, SS_LEVELS, SS_MAJ, SS_MIN, SS_SHARP_ORDER, SS_SYL_MAJ, SS_SYL_MIN, SYNC, SYNC_ADD, SYNC_ID, SYNC_MAX, SYNC_NONE, SYNC_PREFS, TONES, TRX_VALS, WAKE, WAKE_IDLE_MS, _modalStack, accomp, anDomQ, blackEl, coachText, cof, cofMQ, held, heldOrder, inputOwners, isFlatKey, keyEl, liveVoices, metro, midiToFreq, overlayReturn, pc, pianoBank, pointerKey, pracFactor, pracMine, pracSounds, rdS, reduceMotion, rootName, sing, srSlipNames, srStepNo, sustained, themeMQ, todayN, trx, typingDown, view, whiteEl };
+export { LGEN, LP, LQ, _modalAfterBack, _modalBackPending, _noiseBuf, _routed, _saveT, _view, acChainHL, acPlayLabel, accompHL, accompRestartIfPlaying, accompStart, accompStop, accompSync, accompTick, accompTimer, accompVoicing, activeInputId, actx, anAccent, anActiveChord, anAnalyze, anAssignHands, anBarsLabel, anBeatText, anBeatUnit, anCadences, anCands, anChipHTML, anChordLabel, anClassifyNonChord, anClearSelection, anClock, anCoach, anCommit, anCommitFocus, anCompute, anDetText, anDiatonic, anDockWanted, anDraw, anError, anErrorKey, anFillExamples, anFit, anFitImplied, anFnKey, anFocus, anFocusNotes, anFocusStage, anFunctionOf, anGrid, anHandOf, anHandsSource, anHandsText, anHarmony, anHasFinger, anHover, anInView, anIndex, anInflatedSize, anInitControls, anIntervalName, anInv, anKeepPlace, anKeepVisible, anKeyAt, anKeyInfo, anKeyName, anKeyRank, anKeysCenter, anKeysClear, anKeysPaint, anKeysShown, anLayoutVars, anLoadExample, anLoadedText, anLocalize, anMarkActive, anMeasureAt, anMeasures, anMotifs, anMxlPreflight, anNarrow, anNctText, anNoteInfo, anNowAnnounce, anNowCard, anNum, anOpenFile, anOpenTab, anOriginText, anParse, anPcWeights, anPieceMeta, anPieceToParsed, anPinToolbar, anPinToolbarLater, anPoly, anPop, anPractice, anPracticeCheck, anPracticeStart, anRate, anReadXml, anRebuild, anReconChange, anReconOpen, anReconUI, anRenderEmpty, anRenderNow, anRenderPractice, anRenderSelection, anRenderWorkspace, anReset, anResolveKey, anRevealPieceRow, anRoman, anRove, anRowsHTML, anScopeNotes, anSegAt, anSegIndexAt, anSelStart, anSelectChord, anSelectNotes, anSelectionChanged, anSetLoading, anSheet, anShortcut, anShowError, anSideResizer, anSideSet, anSideSync, anSideVisible, anSpan, anStageFit, anStatus, anStatusPos, anStatusSel, anSyncTimeline, anTab, anTempoAt, anTlUpdate, anToReadPiece, anUnion, anUnits, anUpdateControls, anVoiceNeighbors, anXmlKeyMap, anXmlTidy, anZoomNow, answerEar, applyI18n, applyNotation, applyTheme, attachInput, audioLockCheck, audioLockSync, audioLockT, audioNoteOff, audioNoteOn, audioUnlock, autoReconnectMidi, bendSemitones, bindKeyA11y, bleAutoReconnect, bleCan, bleChoose, bleClick, bleData, bleDisconnect, bleErr, bleLive, bleMsg, bleName, bleOnGone, bleOnValue, bleOpen, bleParse, bleParserReset, bleReconnect, bleReleaseInput, bleRetry, bleSet, bleStale, bleStatus, bleUi, bleUnhook, boxOf, buildAccomp, buildKeyboard, buildQueue, catLabel, chooseView, chordDegreeMap, chordDisp, chordEarOptions, chordFormula, chordTargetPcs, circleSel, clampPersistedNumber, clampTypeOctave, clearExplorePreview, closeMobileMenu, coachHTML, coachList, coachRefresh, cofData, cofDiagram, cofInfo, cofKeyLabel, cofName, cofNow, cofPaintDock, cofParse, cofPick, cofPlay, cofPt, cofRevealFingering, cofSector, cofSel, cofSigList, cofSpell, cofSpellDegrees, cofSyncRef, cofText, cofTint, cofTonicPc, comp, connectMidi, currentStreak, data, demoBeat, dispSym, dockKeepEnd, dockLabels, dockOpen, dockReveal, dockSet, dockShown, dockSync, dockWanted, drawExploreStaff, droneVoices, dueItems, earRoot, ekBuild, ekCh, ekElab, ekFlash, ekFlat, ekForced, ekIv, ekMel, ekMiss, ekName, ekOff, ekOn, ekPlay, ekProg, ekReset, ekSound, ekStop, ekToggleSync, ekUiReset, ekWanted, ekWin, endSession, ensureAudio, evalTimer, exTab, exTabCur, explorePreview, exploreSequence, exploreTimers, fallBurst, fallData, fallDraw, fallEnd, fallHit, fallHover, fallKeyAt, fallKeyDown, fallKeyPath, fallKeyUp, fallKeyboard, fallKeys, fallMode, fallName, fallParticles, fallRR, fallRange, fallReset, fallSeek, fallSeekEnd, fallSelect, fallTime, feelDisp, fillKeyCtx, fillPieces, fillRefNames, fillRoots, focusView, foldToView, freshData, fsCan, fsToggle, fsUi, gradeChord, gradeInterval, gradeProgChord, gradeScaleNote, greeting, handleNoteOff, handleNoteOn, heldMidis, heldPcs, identifyChord, inField, initControls, initExploreTabs, initPointer, intervalLabel, invName, inversionOf, isDue, isNew, isSubset, itemLabel, ivName, kbClear, kbClearAll, kbDegSrc, kbDegrees, kbPress, kbState, kbdLayoutLabels, keyAt, keyFifths, keyFromFifths, lBarsHTML, lCofKey, lDots, lPitch, lSel, lSeqLight, lSp, lStaffHTML, lStaffNote, lStaffPlay, lStaffSmall, lStaffSvg, lVel, labelMode, labelSettingsControl, labelSettingsControls, lang, learnBodyHTML, learnClick, learnComplete, learnData, learnDueDays, learnDueList, learnGap, learnGloss, learnGo, learnGoId, learnHalt, learnInitSel, learnInput, learnLessonOpen, learnLight, learnMark, learnNavRender, learnPlanItems, learnRdLevel, learnReveal, learnSay, learnSel, learnSide, learnTimer, learnTitle, learnUnitDone, learnUnitOf, learnUnitOpen, learnWire, lfo, lfoGain, lgFilter, lgHTML, lgNorm, listInputs, lmDots, lmMeter, lmStart, lmStop, lmTerm, loadAll, localSynth, lqAnswer, lqFocus, lqLabel, lqMidis, lqNeed, lqNext, lqPick, lqRender, lqShow, lqStart, lwChord, lwChordData, lwChordPlay, lwClick, lwCof, lwInput, lwMetro, lwMount, lwRefocus, lwScale, lwScalePlay, lwStepLab, makeIR, makePianoVoice, makeQuestion, makeVoice, markEarCorrect, master, masterFilter, masterRamp, masterVol, masteredCount, metroClick, metroSched, midiAccess, midiChipSync, midiIn, midiMsg, muted, neutral, newItemsAvail, newQuotaLeft, nextQuestion, noiseBuffer, notation, noteName, onInputChange, onMidiMessage, onStateChange, openDrawer, openHelp, openMobileMenu, openSessionUI, overlaysOpen, panic, pcName, pedalDown, pedalUp, physKey, pianoDecode, pianoEnsure, pianoFail, pianoIdleWarm, pianoKeys, pianoNearest, pianoStatus, pickArturia, pickTargetedItem, playChordMidis, playInterval, playIvDir, playProg, playQuestionSound, playScaleNotes, popModalState, positionBlacks, prRecordDrill, pracAcc, pracBeats, pracClearAB, pracFinish, pracFrame, pracHud, pracInput, pracJudge, pracLoad, pracLoopBars, pracMisses, pracNextBar, pracNextRender, pracNextStep, pracPassEnd, pracRamp, pracRaw, pracRelease, pracSave, pracSegAt, pracSet, pracSetAB, pracStart, pracStatsReset, pracSumClose, pracSummary, pracTick, pracWeakHand, preparePiano, presentEar, presentEarKeys, presentPlay, presentQuestion, previewNote, previewVoices, progChordTpl, pushModalState, pwaInit, pwaInstall, pwaStandalone, pwaUi, randItem, rdAbort, rdAccSym, rdAgg, rdAnsText, rdAnswer, rdBack, rdBars, rdBeatX, rdBtn, rdCClef, rdChLabel, rdClear, rdClick, rdClickAns, rdCoach, rdCustomFill, rdCustomGo, rdCustomRead, rdData, rdEndClick, rdEsc, rdFeedback, rdFinish, rdFocus, rdFromStep, rdGen, rdGenMelody, rdHeat, rdHint, rdHud, rdInput, rdIntro, rdIvName, rdKbMark, rdKbRange, rdKey, rdKeyLabel, rdKeyMinor, rdKeyText, rdKsSvg, rdLetter, rdLvDetail, rdLvName, rdLvNext, rdLvPrev, rdLvSub, rdMidi, rdMiniKb, rdName, rdNext, rdNextRender, rdNextStep, rdNk, rdOnLocale, rdOpen, rdP, rdPercClef, rdPickFrom, rdPickW, rdPool, rdQSvg, rdRangeTxt, rdRender, rdRenderHome, rdRenderStats, rdRhDone, rdRhGen, rdRhGenLH, rdRhGrade, rdRhGradeAll, rdRhGradeHand, rdRhHandLine, rdRhKey, rdRhMarks, rdRhNew, rdRhNoteTip, rdRhOptsLock, rdRhPrefs, rdRhPress, rdRhRelease, rdRhRun, rdRhStrokes, rdScroll, rdSightDone, rdSightGen, rdSightStart, rdSound, rdSpell, rdSpellMidi, rdStars, rdStart, rdStat, rdStep, rdSuggest, rdSvg, rdTab, rdTap, rdTarget, rdU, rdUnlocked, rdWeight, refMidis, reflectSettingsUI, reflowKeys, refreshDeviceList, refreshToday, releaseFocusInput, releaseLiveInput, releaseTypingKeys, renderAccompany, renderCircle, renderLearn, renderModeNav, renderPlan, renderPracticeLast, renderProgress, renderRead, renderSing, renderSongs, renderTranscribe, repaintHeld, resolve, revealAnswerKeys, reverbGain, reverbNode, reverbWet, reviewItem, romanFor, runDemo, sampledPianoVoice, saveAll, saveSoon, savedDevice, scaleDisp, scaleEarOptions, scaleFormula, scheduleAccompAt, scheduleEval, scoreAnchorAt, scoreBeamGroups, scoreBeams, scoreBeatAt, scoreBind, scoreCoralBars, scoreCursorAt, scoreCursorEl, scoreCursorFollow, scoreCursorUpdate, scoreExtraBreaks, scoreFitRender, scoreFixFingerings, scoreFixPedals, scoreFollow, scoreFromMidi, scoreGeo, scoreHalt, scoreHome, scoreIdle, scoreLayout, scoreLoopStart, scoreMarks, scoreMeasureAt, scoreNightSweep, scorePaint, scorePaintEl, scorePaintIdx, scorePause, scorePitch, scorePlay, scorePointer, scoreRender, scoreRingFit, scoreSeconds, scoreSeekBar, scoreSeekTo, scoreSelectMeasures, scoreSelectRange, scoreSetHl, scoreSetLook, scoreSetTempos, scoreSetView, scoreShiftY, scoreStateText, scoreStop, scoreStyleHeader, scoreSymAt, scoreSymText, scoreSyms, scoreTermParts, scoreTip, scoreToUser, scoreToggle, scoreUnlight, scoreXLines, scoreXmlEndings, scoreXmlLayout, scoreXmlNotes, scoreZoom, seedPlacement, sesHome, sesInput, sesPrompt, sesStopPrompt, setBendFromValue, setEq, setLang, setMidi, setOverlay, shiftTypeOctave, show, showElaboration, showNotationReloadPrompt, showProgTarget, showSummary, shuffle, singGo, singKeyInput, singStopAll, slashLabel, songDir, songsFor, spellMidi, spellName, spelledName, sqAnswer, sqNew, sqPlay, sqRender, srActiveHands, srAssessFinish, srAssessLoop, srAssessStart, srBeatToX, srBest, srClef, srClick, srCoach, srCount, srCursor, srDraw, srEvents, srFocus, srGo, srHandsAvail, srKeyInput, srKeyName, srKeyNames, srKeySigG, srLearnFinish, srLearnStart, srLedger2, srListen, srMeta, srNextAssess, srNextLearn, srPaintAll, srPieceTitle, srPitch, srPlayGap, srRender, srRest, srScrollStep, srScrollX, srSelectPiece, srSetBpm, srSetMode, srShape, srSlip, srSlipNote, srStem2, srStemLine, srStepsBuild, srStopAll, srSvg, srTargets, srTimeSigG, srTol, srTopSlip, srsOf, ssAccGlyph, ssBassClef, ssBeatToX, ssBumpProgress, ssClearTrail, ssCurNote, ssCursorEl, ssDraw, ssDrawTrail, ssDrone, ssFillLevels, ssFlash, ssFlat, ssFreeLoop, ssFreeStart, ssGen, ssHintBump, ssKeyAcc, ssKeySig, ssLedger, ssMakeNote, ssMicMaybe, ssMicStart, ssMicStop, ssMidiOf, ssModeUI, ssMoveCursor, ssNatural, ssNeed, ssNewExercise, ssNextDeg, ssNoteCorrect, ssNoteFinish, ssNoteLoop, ssNoteStart, ssNotehead, ssPaint, ssPhraseGrade, ssPhraseLoop, ssPhraseStart, ssPick, ssPitchY, ssPlayIt, ssReadPitch, ssRemoveCursor, ssRender, ssScrollToCur, ssScrollToX, ssSharp, ssStem, ssStepOf, ssSvg, ssTimeSig, ssTonic, ssTrebleClef, startDrone, startMetro, startPlacement, startSession, statHTML, stopDrone, stopMetro, stopPreviews, syncAfter, syncBusy, syncCurrent, syncData, syncGen, syncId, syncIdle, syncInitial, syncInto, syncKeyboardPan, syncNewCollisions, syncNote, syncPair, syncPick, syncPref, syncPull, syncRefresh, syncRemember, syncSame, syncScrim, syncSrs, syncSrsPair, syncWrite, t, tf, theme, tl, tone, toolName, touchDay, trapFocus, trxAutoCorrelate, trxBuildMidi, trxClear, trxCloseNote, trxDownload, trxDurLabel, trxExportMidi, trxExportTxt, trxFreqToMidi, trxLoop, trxMedian, trxPlay, trxPushVar, trxRender, trxSnap, trxStart, trxStop, typeOctave, updateAccompChain, updateExplore, view0, viewHigh, wakeArm, wakeCan, wakeDrop, wakeGet, wakeInit, wakeOnGesture, wakePing, wakeSet, wakeUi, xmlEsc, $, ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, AN, AN_CHORDS, AN_DIA, AN_EXAMPLES, AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, AN_POPS, AN_PRACTICE_BARS, AN_PROFILE, AN_SMUFL_NOTES, AN_TABS, BASE_HIGH, BASE_LOW, BLACK_NUDGE, BLE, BLE_MIDI_CHR, BLE_MIDI_SVC, CATS, CHORDS, CHORD_DEG, CHORD_FEEL, CIRCLE, CLEF_F, CLEF_G, CLEF_SCALE, COF_COL, COF_FING, COF_MAJ, COF_MIN, COF_SCALE, COF_SOL, COMPOUND, DOCK, EK_CHORD_GAP, EK_MEL_SCALES, EK_TRIES, EX_LEDGERS, FALL, FALL_BLACK, FALL_COL, FALL_FONT, FALL_NUDGE, FALL_PAL, FALL_SEC, FALL_SEL, FALL_YOU, INTERVALS, INTRO_CH, INTRO_IV, INTRO_SC, INV_NAMES, ITEMS, ITEM_BY_ID, IVL, KEYMAP, KEY_MAJ_FIFTHS, LACC_CH, LBLUES, LDUR, LEARN_GAPS, LEARN_OLD_ORDER, LETTERS, LETTER_PC, LLET, LM, LNAT, LSPF, LSPS, LSR, LSTAVES, LT, LTEMPO, LVEL, LW_PRESETS, LW_Q, LW_R, LW_STEP, MAJOR, NOTE_SYS, PC_FLAT, PC_SHARP, PIANO_KEYS, PIANO_URLS, PIANO_WARM, PIECES, PLACEMENT, PRAC, PRAC_KEY, PROGS, PWA, RD, RD_ALL, RD_ALLIV, RD_CDEF, RD_CHQ, RD_CLEFC, RD_LH_PAT, RD_LM, RD_LV, RD_MAJ, RD_MIN, RD_REF, RD_RHU, RD_RUSH, RD_TARGET, RD_TESTN, RD_UNITS, ROMAN, ROOT_NAMES, SCALES, SCALE_DEG, SCALE_EAR_POOL, SCORE, SCORE_LOOK, SC_ARTS, SC_BASE, SC_DYN, SC_FIT, SC_PAGE_W, SC_TERMS, SES, SIDE, SONGS, SQ, SR, SR_LET, SS_FLAT_ORDER, SS_LETSEMI, SS_LEVELS, SS_MAJ, SS_MIN, SS_SHARP_ORDER, SS_SYL_MAJ, SS_SYL_MIN, SYNC, SYNC_ADD, SYNC_ID, SYNC_MAX, SYNC_NONE, SYNC_PREFS, TONES, TRX_VALS, WAKE, WAKE_IDLE_MS, _modalStack, accomp, anDomQ, blackEl, coachText, cof, cofMQ, held, heldOrder, inputOwners, isFlatKey, keyEl, liveVoices, metro, midiToFreq, overlayReturn, pc, pianoBank, pointerKey, pracFactor, pracMine, pracSounds, rdS, reduceMotion, rootName, sing, srSlipNames, srStepNo, sustained, themeMQ, todayN, trx, typingDown, view, whiteEl };
