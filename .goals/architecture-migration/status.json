@@ -61,6 +61,11 @@
       "iteration": 5,
       "verdict": "FAIL",
       "summary": "The complete 15,498-line view runtime was moved to unchecked JavaScript behind a 117-line typed facade; strict Step 5 migration and final-state docs remain incomplete."
+    },
+    {
+      "iteration": 6,
+      "verdict": "FAIL",
+      "summary": "The view runtime is base64-encoded JavaScript executed through new Function; strict TypeScript and migration gates do not check it, and final-state docs overstate completion."
     }
   ]
 }
