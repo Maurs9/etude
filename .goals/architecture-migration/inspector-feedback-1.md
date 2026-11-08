@@ -4,159 +4,141 @@
 
 ## Acceptance Criteria Check
 
-- [x] **AC1 — Location and branch isolation** — verified: `HEAD` is on local branch
-  `migration` in `/Users/mmv3938/work/My projects/etude-migration`, its merge base is
-  `32a184b`, and the 11 Builder commits exist only after that base. No remote branch
-  contains `HEAD`; `main` and `feat/migration-step-2a-deploy` remain at their existing
-  tracked revisions. The Builder left no staged or unstaged product-code changes.
-  (`.DS_Store` and the goal-process directory were untracked before this review.)
-- [ ] **AC2 — Step 2b atomic service worker** — FAILED. The two Step 2b commits are
-  correctly first, directly after `32a184b`, contain the required trailers, and do not
-  include later Vite/domain work. The generated manifest does list all 48 published
-  files and the hashes match, and the pre-migration worker fixture is byte-identical to
-  `32a184b:sw.js`. However, only one new worker test exists (fresh install/offline).
-  There are no tests for upgrade from the old worker, interrupted upgrade, old-tab
-  survival, or the kill switch. The old-tab requirement is also not implemented:
-  the fetch handler calls `asset()` only when the URL is in the **current**
-  `PRECACHE_URLS`; an old tab requesting a previous version's hashed URL therefore
-  never reaches the retained previous cache. The kill-switch's exact-one-reload
-  behavior is unverified, and its activation-time
-  `clients.matchAll({ includeUncontrolled: false })` does not demonstrate that it can
-  find pages still controlled by the replaced worker.
-- [ ] **AC3 — Step 3 mechanical split and safety coverage** — FAILED. Vite uses
-  `base: './'`; TypeScript/Vitest are installed; OSMD 1.9.9 is a deferred classic
-  public script; 30 hashed MP3s are emitted; fetch checks `res.ok`; the piano failure
-  path resets the promise/status; the bilingual boot guard exists; and the recording
-  golden passes. But `tests/split-etude.test.mjs` compares `joinSplit()` only with a
-  second call to itself, not with the pre-split `etude.html`, so it does not prove
-  byte-for-byte reconstruction. No bridge completeness or write-through test exists.
-  No test aborts a warm-up sample request and then proves Learn playback recovers.
-- [x] **AC4 — Step 3b self-hosted fonts** — verified: Fraunces and Hanken Grotesk
-  latin/latin-ext subsets are local assets, emitted and precached; the built app makes
-  no Google Fonts request; no golden baseline file changed; all three engraving
-  goldens pass locally.
-- [ ] **AC5 — Standalone `file://` build** — FAILED. The smoke test boots, and the
-  generated file inlines JS, CSS, OSMD, all 30 MP3s, and six font files. It is not
-  actually single-file: `etude-standalone.html` still contains
-  `<link rel="apple-touch-icon" href="./assets/apple-touch-icon-....png">`. The test
-  records only `pageerror`, not failed requests, so it misses this external dependency.
-- [x] **AC6 — Step 4 locale modules** — verified: strings and lesson content are
-  statically imported from `src/locales/`; `setLang()` remains synchronous; locale
-  parity passes; ESLint's `no-dupe-keys` passes; existing localization behavior passes
-  in the browser suite. No `data-i18n*` migration was introduced.
-- [ ] **AC7 — Step 5 complete** — FAILED. The migration is explicitly incomplete.
-  `src/legacy/app.js` still has 6,138 lines and `src/legacy/bridge.js` still has 1,111
-  lines; both are loaded by the app/build. The five TypeScript files contain only
-  small helper slices while storage loading/saving, most theory/audio/notation logic,
-  the piano bank, and view implementations remain in legacy JavaScript. OSMD is loaded
-  on every page, not only where needed. Tests still use raw globals extensively
-  (259 direct `page.evaluate`/`waitForFunction` references and zero
-  `window.__etude` references). App code still reads its own binding through
-  `window.anLayoutVars`. There is no lazy-module load failure path with an en/ro reload
-  prompt. Although the domain commits are separated and have the required trailers,
-  they do not complete the domains required by the goal.
-- [ ] **AC8 — Complete quality gates and architecture tests** — FAILED despite the
-  commands being green. The current ESLint configuration has `no-dupe-keys` but no
-  boundary rules or rule against `window.<appGlobal>`, and it explicitly ignores the
-  legacy app and bridge. CI still runs only Playwright plus build; it does not run
-  typecheck, lint, or Vitest. The full suite reports 204 passing built tests and 202
-  passing dev tests, with 9 passing Vitest tests and unchanged goldens, but the
-  plan-required worker, split, bridge, warm-up recovery, and true standalone coverage
-  is absent, so a green result does not cover the acceptance criteria. Test count did
-  not drop from the documented 196-test baseline.
-- [x] **AC9 — Preserved current behavior and URLs** — verified for the behavior the
-  existing suite exercises: the manifest resolves `id`, `start_url`, and `scope` to
-  the same `/etude/` URLs; `ptt-v3` and older fixtures load; en/ro key parity passes;
-  the complete built and dev Playwright suites, accessibility regressions, localization
-  journeys, recordings golden, and engraving goldens pass.
-- [ ] **AC10 — Final architecture documentation** — FAILED. The plan status correctly
-  admits that legacy view migration remains. README and Copilot instructions still
-  describe `src/legacy/app.js` as the current implementation rather than the completed
-  target. `.github/copilot-instructions.md` also retains stale Step 2a guidance saying
-  `scripts/build.mjs` publishes `SITE_FILES` and that new files must be added there,
-  contradicting the Vite/import-based build and `i18n-extra-notes.md`.
+- [x] **AC1 — Location and branch isolation** — verified: all inspection and
+  test commands ran from
+  `/Users/mmv3938/work/My projects/etude-migration` on local branch
+  `migration`. `git worktree list` shows the other worktrees on their existing
+  refs, `migration` has no configured remote-tracking branch, and no push was
+  performed. Product changes are committed. The pre-existing untracked
+  `.DS_Store` and immutable goal input were left untouched.
+- [x] **AC2 — Step 2b atomic service worker** — verified: the first commits
+  after `32a184b` are the isolated Step 2b group (`f2c56b5`, `9dcee30`,
+  `b463456`) before Step 3. The generated worker contains a SHA-256 manifest,
+  checks every precache response, uses `cache: 'no-cache'`, has an 8-second
+  navigation timeout, does not cache network navigation responses, reuses
+  unchanged hashed responses, retains the previous active cache, and disables
+  navigation preload. The committed pre-migration worker, kill switch and
+  runbook exist. All seven `sw` project tests passed, including the five
+  required migration/kill-switch scenarios.
+- [ ] **AC3 — Step 3 mechanical split** — **FAILED**. The deterministic
+  split/join Vitest passed; Vite, TypeScript and Vitest are installed; OSMD
+  1.9.9 is published under `public/vendor`; the piano recordings are separate
+  hashed MP3s; and the boot guard, bridge-era coverage and recording checks
+  exist. However, the required aborted warm-up recovery test failed in the
+  prescribed full built Playwright run:
+  `Expected: false; Received: true` at `tests/app.spec.mjs:1023`.
+  An isolated rerun passed, which makes the current test race-dependent rather
+  than reliably green.
+- [x] **AC4 — Self-hosted fonts** — verified: Fraunces and Hanken Grotesk
+  latin/latin-ext WOFF2 assets are local and precached; the built and
+  standalone artifacts contain no Google Fonts dependency; all three engraving
+  goldens passed; and `git diff 32a184b..HEAD -- tests/golden` is empty.
+- [x] **AC5 — Standalone `file://` artifact** — verified:
+  `npm run build:standalone` produced a 5.64 MiB single-file
+  `dist/etude-standalone.html`. The `file://` Playwright smoke test passed,
+  including lazy OSMD loading, no page errors, and no external file requests.
+- [x] **AC6 — Static locale modules** — verified: `STRINGS` and lesson
+  content are statically imported from `src/locales/`; `setLang()` remains
+  synchronous; `applyI18n()` and the `data-i18n*` attributes remain in use;
+  ESLint's duplicate-key rule passed; and locale parity/unit checks passed.
+- [ ] **AC7 — Complete Step 5 TypeScript domain migration** — **FAILED**.
+  The application/views implementation is still a 15,488-line unchecked
+  JavaScript monolith in `src/domain/views-runtime.js`.
+  `src/domain/views.ts` is only a 10-line TypeScript facade that side-effect
+  imports that file. This does not satisfy the refined goal that the complete
+  application, including views, live in TypeScript domain modules.
+
+  The extracted storage, theory, audio, notation and router modules are real
+  typed boundaries, `src/legacy/app.js` and the old bridge are gone, browser
+  tests use `window.__etude`, Web Audio construction is now owned by
+  `audio.ts`, and notation access is substantially adapter-based. Those are
+  meaningful partial migrations, but the principal runtime itself remains
+  outside TypeScript. A direct strict `allowJs`/`checkJs` probe produced 5,159
+  TypeScript error lines.
+- [ ] **AC8 — All quality gates green** — **FAILED**. The configured
+  typecheck, lint, Vitest, i18n, production build and Vite-development
+  Playwright suite passed. The required full built Playwright suite did not:
+  **209 passed, 1 failed**. In addition, the configured `tsconfig.json`
+  includes only `src/**/*.ts`, excluding the principal JavaScript runtime from
+  strict checking. Therefore neither the full test gate nor the intended
+  complete strict architecture gate is green.
+- [x] **AC9 — Behaviour preserved** — verified to the strongest available
+  extent: manifest `id`, `start_url` and `scope` remain
+  `./etude.html`, `./etude.html` and `./`; storage compatibility, locale,
+  accessibility, deployment, offline worker, recordings and engraving checks
+  passed. The one full-suite failure is a race in the test's attempt to force
+  the first warm-up request to abort; its isolated rerun passed and did not
+  demonstrate a user-visible regression.
+- [x] **AC10 — Documentation** — verified: `.github/copilot-instructions.md`,
+  `README.md`, `i18n-extra-notes.md` and the plan status describe the Vite
+  build, generated worker, commands, source structure, file-addition process,
+  standalone build and domain locations. They also accurately disclose that
+  `views-runtime.js` remains an unchecked migration blocker.
 
 ## Quality Gate
 
 - Command: `npm run typecheck`
-  - Result: PASS
+  - Result: PASS for the files selected by `tsconfig.json`.
+- Independent strict-runtime probe:
+  `npx tsc --ignoreConfig --noEmit --allowJs true --checkJs true --strict true
+  ... src/domain/views-runtime.js`
+  - Result: **FAIL — 5,159 TypeScript error lines**.
 - Command: `npm run lint`
-  - Result: PASS (configuration is incomplete: no required boundary/global rules)
+  - Result: PASS.
 - Command: `npm run test:unit`
-  - Result: PASS — 6 files, 9 tests
-- Command: `PW_CHANNEL= npm test`
-  - Result: PASS — 204 tests against built `dist/etude/`, including 2 `@sw` tests
-- Command: `PW_CHANNEL= npm run test:dev`
-  - Result: PASS — 202 app tests against Vite dev
+  - Result: PASS — 8 files, 23 tests.
 - Command: `node --test i18n-tests/i18n-extra.test.cjs`
-  - Result: PASS — 2 tests
-- Generated worker verification:
-  - Result: PASS — 48/48 published files listed; all SHA-256 values match
-- Overall quality gate result: **FAIL** because mandatory lint rules and required
-  migration regression tests are missing even though the configured commands pass.
+  - Result: PASS — 2 tests.
+- Command: `npm run build`
+  - Result: PASS.
+- Command: `npm run build:standalone`
+  - Result: PASS — generated a 5.64 MiB self-contained artifact.
+- Command: `npm test`
+  - Result: **FAIL — 209 passed, 1 failed**.
+  - Failure: `an aborted piano warm-up can recover before Learn playback`
+    expected the forced first preparation to return `false`, but it returned
+    `true`.
+- Command: isolated rerun of the failed warm-up test
+  - Result: PASS — 1 test. This confirms nondeterminism, not a green full gate.
+- Command: `npm run test:dev`
+  - Result: PASS — 203 tests.
+- Golden check:
+  - Result: PASS — recordings and all three score goldens passed, with no
+    committed baseline changes from `32a184b`.
+- Commit convention:
+  - Result: PASS — all 39 post-anchor commits have subjects at most 72
+    characters, a `[B]` or `[I]` marker, and both required trailers.
+- Overall quality-gate result: **FAIL**.
 
 ## Issues Found
 
-### 1. Step 5 is not the requested completed architecture
+### 1. The views/application runtime is not TypeScript
 
-This is the primary blocker. The goal explicitly requires removal of the legacy app
-and bridge, with all storage, theory, audio/piano, notation, and view code living in
-TypeScript domain modules. The current commits add helper facades but leave the
-application monolith, global bridge, raw-global tests, eager OSMD load, and a known
-`window.anLayoutVars` self-global read in place. The plan status line itself confirms
-that the view implementation migration remains.
+`src/domain/views.ts` does not implement the views domain. It only imports
+`views-runtime.js`, which contains nearly the whole DOM/event application and
+the large `window.__etude` exposure surface. Because `tsconfig.json` includes
+only `.ts` files, the configured strict gate passes without checking the
+principal runtime. The independent 5,159-error probe demonstrates that this is
+not a narrow, already-type-safe JavaScript boundary.
 
-### 2. Step 2b has neither the required test matrix nor old-tab cache routing
+### 2. The full built Playwright gate is flaky and failed
 
-The branch has only a fresh-install offline worker test. The four other required
-scenarios are absent. Retaining a previous cache is insufficient because requests for
-old hashed assets are ignored unless their URL also appears in the current manifest.
-The kill switch is likewise untested for registration/cache cleanup and exactly one
-reload.
-
-### 3. Several tests assert only that code exists or boots, not the plan invariant
-
-- The split test proves only that `joinSplit()` is deterministic relative to itself;
-  it never compares with the original pre-split bytes.
-- There are no bridge completeness/write-through tests.
-- There is no aborted warm-up followed by Learn playback recovery test.
-- The standalone test ignores failed resource requests and therefore passes while an
-  external apple-touch icon remains.
-
-### 4. Architecture enforcement is not present
-
-ESLint does not implement the required domain-boundary rules or the app-global access
-rule. It excludes the largest remaining architecture risks (`src/legacy/app.js` and
-the bridge). CI does not run the newly added TypeScript, ESLint, or Vitest gates.
-
-### 5. Documentation describes an intermediate and partly contradictory state
-
-The docs accurately acknowledge incomplete Step 5, but that is not the requested end
-state. The Copilot deployment instructions also still tell contributors to maintain
-the removed `SITE_FILES` mechanism.
+The latest Builder commit attempted to stabilize the aborted piano warm-up
+scenario, but the complete built suite still allowed the first preparation to
+succeed before the route abort was observed. The same test passed alone. A
+required gate must pass as part of the full suite, not only in isolation.
 
 ## What Must Be Fixed
 
-1. **Finish Step 5 before polishing around it.** Move the actual implementations—not
-   only helper functions—into typed storage, theory, audio/piano-bank, notation, and
-   view modules. Remove `src/legacy/app.js`, `src/legacy/bridge.js`, the Vite bridge
-   injection, and raw app-global test access. Add a deliberate typed/imported test
-   surface such as `window.__etude`. Load OSMD only for notation/analysis and add an
-   en/ro reload prompt for failed lazy imports.
-2. **Implement and run all five Step 2b tests.** Fix old-version asset routing so the
-   retained previous cache is usable by an old tab after activation. Test old-worker
-   upgrade, interrupted install, old-tab survival, and kill-switch cleanup with exactly
-   one reload, not just fresh-install offline.
-3. **Replace weak Step 3 tests with invariant tests.** Preserve a trusted pre-split
-   input/fixture and compare joined bytes exactly; add generated-bridge completeness
-   and write-through coverage; abort a real warm-up MP3 request and prove Learn
-   playback retries successfully.
-4. **Make the standalone artifact truly self-contained.** Inline or remove the
-   apple-touch icon reference and make the `file://` test fail on any non-data resource
-   request or request failure.
-5. **Add and enforce architecture lint rules.** Include domain boundaries and
-   `window.<appGlobal>` restrictions, and run typecheck, lint, Vitest, built Playwright,
-   and the relevant dev suite in CI.
-6. **Update final-state documentation only after the code reaches it.** Remove legacy
-   architecture guidance and the stale `SITE_FILES` instructions; describe where every
-   final domain lives and how imported/public files enter the generated worker.
+1. Move the actual views/application runtime into TypeScript modules covered by
+   the strict compiler configuration. Do not satisfy the gate with a small
+   TypeScript facade around a 15,488-line unchecked JavaScript file.
+2. Keep the existing typed storage, theory, audio, notation and routing
+   boundaries while splitting the views runtime into maintainable TypeScript
+   modules.
+3. Make the warm-up abort test deterministic in the full parallel built suite;
+   prove that the intended request is actually aborted before asserting the
+   failed first preparation and successful retry.
+4. Re-run and pass `npm run typecheck`, `npm run lint`,
+   `npm run test:unit`, `npm test`, and `npm run test:dev`, preserving the
+   current goldens and standalone/file behavior.

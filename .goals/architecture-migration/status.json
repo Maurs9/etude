@@ -36,6 +36,11 @@
       "iteration": 3,
       "verdict": "FAIL",
       "summary": "The actual runtime remains unchecked JavaScript; strict typechecking excludes it, domain ownership tests are incomplete, and documentation overstates the notation boundary."
+    },
+    {
+      "iteration": 1,
+      "verdict": "FAIL",
+      "summary": "The complete views runtime remains unchecked JavaScript, and the full built Playwright gate failed the aborted piano warm-up recovery test."
     }
   ]
 }
