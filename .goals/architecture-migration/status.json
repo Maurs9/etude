@@ -31,6 +31,11 @@
       "iteration": 2,
       "verdict": "FAIL",
       "summary": "The actual views runtime remains unchecked JavaScript, pure theory and raw OSMD operations remain in views, boundary tests are insufficient, and the full built suite failed."
+    },
+    {
+      "iteration": 3,
+      "verdict": "FAIL",
+      "summary": "The actual runtime remains unchecked JavaScript; strict typechecking excludes it, domain ownership tests are incomplete, and documentation overstates the notation boundary."
     }
   ]
 }
