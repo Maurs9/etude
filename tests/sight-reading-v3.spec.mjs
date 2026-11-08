@@ -115,4 +115,31 @@ test.describe('Sight-Reading v3 MVP', () => {
     expect(after.finish).toBe(true);
     expect(after.savedStatus).toBe('completed');
   });
+
+  test('completes the actual first-attempt UI offline with keyboard input and a saved result @sw', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    await page.waitForFunction(() => !!navigator.serviceWorker?.controller);
+    await page.context().setOffline(true);
+    await page.clock.install();
+    await page.reload();
+    await page.waitForFunction(() => typeof window.__etude?.show === 'function');
+    await page.evaluate(() => window.__etude.show('read'));
+    await page.locator('#rdt-pieces').click();
+    await page.locator('#rd-mode button[data-v="assess"]').click();
+    await page.locator('#rd-gen').click();
+    await page.locator('#rd-go').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('preview');
+    await page.locator('#rd-srt-start').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('countIn');
+    await page.clock.runFor(5000);
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('playing');
+    await page.keyboard.press('a');
+    await page.clock.runFor(18000);
+    await page.evaluate(() => {
+      if (window.__etude.SR.srtState.name === 'playing')
+        window.__etude.srAssessFinish();
+    });
+    await expect.poll(() => page.evaluate(() => ['completed', 'saved'].includes(window.__etude.SR.srtState.name))).toBe(true);
+    expect(await page.evaluate(() => Object.values(window.__etude.srtReadLedger(localStorage).attempts).some(attempt => attempt.status === 'completed'))).toBe(true);
+  });
 });

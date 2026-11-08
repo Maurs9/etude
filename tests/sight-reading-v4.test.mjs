@@ -96,6 +96,10 @@ describe('sight-reading iteration 4 acceptance vectors', () => {
     const ledger = srtCreateLedger();
     expect(isBackupPayload({ v: 3, data: { sightLedger: ledger } })).toBe(true);
     expect(isBackupPayload({ v: 3, data: { sightLedger: { ...ledger, generation: 42 } } })).toBe(false);
+    expect(isBackupPayload({ v: 3, data: { sightLedger: { ...ledger, prefs: [] } } })).toBe(false);
+    expect(isBackupPayload({ v: 3, data: { sightLedger: { ...ledger, sessions: [] } } })).toBe(false);
+    expect(isBackupPayload({ v: 3, data: { sightLedger: { ...ledger, attempts: [] } } })).toBe(false);
+    expect(isBackupPayload({ v: 3, data: { sightLedger: { ...ledger, exposures: [] } } })).toBe(false);
     expect(isBackupPayload({ v: 3, data: { sightLedger: { ...ledger, attempts: { bad: { status: 'completed' } } } } })).toBe(false);
     expect(isBackupPayload({ v: 3, data: { sightLedger: { ...ledger, exposures: { bad: { firstSeenAt: 'now', reason: 'listen' } } } } })).toBe(false);
   });
@@ -104,11 +108,11 @@ describe('sight-reading iteration 4 acceptance vectors', () => {
 describe('sight-reading iteration 4 generator invariants', () => {
   const profiles = {
     'P1.a': { meter: 4, min: 60, max: 67, leap: 1, rests: false, repeat: false },
-    'P1.b': { meter: 4, min: 60, max: 67, leap: 3, rests: false, repeat: false },
-    'P1.c': { meter: 4, min: 60, max: 67, leap: 3, rests: false, repeat: true },
-    'P2.a': { meter: 4, min: 60, max: 67, leap: 3, rests: true, repeat: false },
-    'P2.b': { meter: 3, min: 60, max: 67, leap: 3, rests: true, repeat: false },
-    'P2.c': { meter: 4, min: 60, max: 72, leap: 3, rests: true, repeat: false },
+    'P1.b': { meter: 4, min: 60, max: 67, leap: 2, rests: false, repeat: false },
+    'P1.c': { meter: 4, min: 60, max: 67, leap: 2, rests: false, repeat: true },
+    'P2.a': { meter: 4, min: 60, max: 67, leap: 2, rests: true, repeat: false },
+    'P2.b': { meter: 3, min: 60, max: 67, leap: 2, rests: true, repeat: false },
+    'P2.c': { meter: 4, min: 60, max: 72, leap: 2, rests: true, repeat: false },
   };
   const scale = [0, 2, 4, 5, 7, 9, 11];
   const scaleIndex = (midi) => Math.floor(midi / 12) * 7 + scale.indexOf(((midi % 12) + 12) % 12);

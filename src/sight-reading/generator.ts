@@ -11,11 +11,11 @@ import {
 type ProfileConfig = { readonly meter: 3 | 4; readonly min: number; readonly max: number; readonly leap: number; readonly rests: boolean; readonly repeat: boolean };
 const configs: Record<SightReadingProfile, ProfileConfig> = {
   'P1.a': { meter: 4, min: 60, max: 67, leap: 1, rests: false, repeat: false },
-  'P1.b': { meter: 4, min: 60, max: 67, leap: 3, rests: false, repeat: false },
-  'P1.c': { meter: 4, min: 60, max: 67, leap: 3, rests: false, repeat: true },
-  'P2.a': { meter: 4, min: 60, max: 67, leap: 3, rests: true, repeat: false },
-  'P2.b': { meter: 3, min: 60, max: 67, leap: 3, rests: true, repeat: false },
-  'P2.c': { meter: 4, min: 60, max: 72, leap: 3, rests: true, repeat: false },
+  'P1.b': { meter: 4, min: 60, max: 67, leap: 2, rests: false, repeat: false },
+  'P1.c': { meter: 4, min: 60, max: 67, leap: 2, rests: false, repeat: true },
+  'P2.a': { meter: 4, min: 60, max: 67, leap: 2, rests: true, repeat: false },
+  'P2.b': { meter: 3, min: 60, max: 67, leap: 2, rests: true, repeat: false },
+  'P2.c': { meter: 4, min: 60, max: 72, leap: 2, rests: true, repeat: false },
 };
 const SCALE = [0, 2, 4, 5, 7, 9, 11] as const;
 

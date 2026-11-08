@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   SRT_LEDGER_KEY,
   srtCreateLedger,
+  srtLedgerReadStatus,
   srtLedgerUpdate,
   srtReadLedger,
 } from '../src/sight-reading/ledger.ts';
@@ -60,6 +61,41 @@ function claimedLedger() {
 }
 
 describe('sight-reading ledger lifecycle', () => {
+  it('preserves newer ledger bytes and disables only unsupported operations', async () => {
+    const newer = JSON.stringify({ schemaVersion: 2, marker: 'keep-me', exposures: { future: true } });
+    const storage = storageWith(JSON.parse(newer));
+    const read = srtReadLedger(storage);
+    expect(read.schemaVersion).toBe(1);
+    expect(srtLedgerReadStatus(storage)).toBe('unsupported');
+    expect(storage.getItem(SRT_LEDGER_KEY)).toBe(newer);
+    expect(await srtLedgerUpdate(storage, {
+      type: 'claimExposure',
+      fingerprint: 'v1:test',
+      attemptId: 'attempt-1',
+      ownerTabId: 'tab-1',
+      generation: read.generation,
+    })).toMatchObject({ ok: false, reason: 'unsupported' });
+  });
+
+  it('rejects array-shaped ledger records and invalid nested values', () => {
+    const ledger = srtCreateLedger();
+    const cases = [
+      { ...ledger, prefs: [] },
+      { ...ledger, sessions: [] },
+      { ...ledger, exposures: [] },
+      { ...ledger, attempts: [] },
+      { ...ledger, prefs: { practiceHints: 'yes', lookAhead: false } },
+      { ...ledger, sessions: { current: [] } },
+      { ...ledger, exposures: { 'v1:test': { firstSeenAt: -1, reason: 'listen' } } },
+      { ...ledger, attempts: { bad: { ...attempt({ attemptId: 'other', generation: ledger.generation }), N: 1.5 } } },
+    ];
+    for (const value of cases) {
+      const storage = storageWith(value);
+      expect(srtLedgerReadStatus(storage)).not.toBe('supported');
+      expect(srtReadLedger(storage).schemaVersion).toBe(1);
+    }
+  });
+
   it('accepts an identical terminal retry after the claim was cleared', async () => {
     const initial = claimedLedger();
     const storage = storageWith(initial);

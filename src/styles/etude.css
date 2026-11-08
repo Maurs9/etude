@@ -423,14 +423,23 @@
   .ss-n .ss-stem,.ss-n .ss-flag,.ss-ledger{stroke:var(--staffink)}
   .ss-n[data-s=now] .ss-head{fill:var(--gold)} .ss-n[data-s=now] .ss-stem,.ss-n[data-s=now] .ss-flag{stroke:var(--gold)}
   .ss-n[data-s=now] .ss-head.ss-hollow{fill:none; stroke:var(--gold)}
-  .ss-n[data-s=good] .ss-head.ss-hollow{fill:none; stroke:#3c8f57}
-  .ss-n[data-s=near] .ss-head.ss-hollow{fill:none; stroke:#c79a2e}
-  .ss-n[data-s=bad] .ss-head.ss-hollow{fill:none; stroke:#b5532f}
-  .ss-n[data-s=good] .ss-head{fill:#3c8f57} .ss-n[data-s=good] .ss-stem,.ss-n[data-s=good] .ss-flag{stroke:#3c8f57}
-  .ss-n[data-s=near] .ss-head{fill:#c79a2e} .ss-n[data-s=near] .ss-stem,.ss-n[data-s=near] .ss-flag{stroke:#c79a2e}
-  .ss-n[data-s=bad] .ss-head{fill:#b5532f} .ss-n[data-s=bad] .ss-stem,.ss-n[data-s=bad] .ss-flag{stroke:#b5532f}
+  .ss-n[data-s=good] .ss-head.ss-hollow{fill:none; stroke:#0d5a28}
+  .ss-n[data-s=near] .ss-head.ss-hollow{fill:none; stroke:#5b3b00}
+  .ss-n[data-s=bad] .ss-head.ss-hollow{fill:none; stroke:#8f2512}
+  .ss-n[data-s=good] .ss-head{fill:#0d5a28} .ss-n[data-s=good] .ss-stem,.ss-n[data-s=good] .ss-flag{stroke:#0d5a28}
+  .ss-n[data-s=near] .ss-head{fill:#5b3b00} .ss-n[data-s=near] .ss-stem,.ss-n[data-s=near] .ss-flag{stroke:#5b3b00}
+  .ss-n[data-s=bad] .ss-head{fill:#8f2512} .ss-n[data-s=bad] .ss-stem,.ss-n[data-s=bad] .ss-flag{stroke:#8f2512}
   .ss-result-symbol{fill:var(--staffink); font-family:var(--sans); font-size:11px; font-weight:900; text-anchor:middle; pointer-events:none}
-  .ss-n[data-s=good] .ss-result-symbol{fill:#3c8f57} .ss-n[data-s=near] .ss-result-symbol{fill:#c79a2e} .ss-n[data-s=bad] .ss-result-symbol{fill:#b5532f}
+  .ss-n[data-s=good] .ss-result-symbol{fill:#0d5a28} .ss-n[data-s=near] .ss-result-symbol{fill:#5b3b00} .ss-n[data-s=bad] .ss-result-symbol{fill:#8f2512}
+  :root[data-theme=dark] .ss-n[data-s=good] .ss-head,:root[data-theme=dark] .ss-n[data-s=good] .ss-result-symbol{fill:#b8f5c2}
+  :root[data-theme=dark] .ss-n[data-s=good] .ss-head.ss-hollow{stroke:#b8f5c2}
+  :root[data-theme=dark] .ss-n[data-s=good] .ss-stem,:root[data-theme=dark] .ss-n[data-s=good] .ss-flag{stroke:#b8f5c2}
+  :root[data-theme=dark] .ss-n[data-s=near] .ss-head,:root[data-theme=dark] .ss-n[data-s=near] .ss-result-symbol{fill:#f4d57b}
+  :root[data-theme=dark] .ss-n[data-s=near] .ss-head.ss-hollow{stroke:#f4d57b}
+  :root[data-theme=dark] .ss-n[data-s=near] .ss-stem,:root[data-theme=dark] .ss-n[data-s=near] .ss-flag{stroke:#f4d57b}
+  :root[data-theme=dark] .ss-n[data-s=bad] .ss-head,:root[data-theme=dark] .ss-n[data-s=bad] .ss-result-symbol{fill:#ffb29a}
+  :root[data-theme=dark] .ss-n[data-s=bad] .ss-head.ss-hollow{stroke:#ffb29a}
+  :root[data-theme=dark] .ss-n[data-s=bad] .ss-stem,:root[data-theme=dark] .ss-n[data-s=bad] .ss-flag{stroke:#ffb29a}
   .ss-extra-symbol text{fill:var(--staffink); font-family:var(--sans); font-size:14px; font-weight:900}
   .ss-syl{fill:var(--muted); font-size:11px; font-weight:700; text-anchor:middle}
   .ss-wrap.nosolf .ss-syl{display:none}

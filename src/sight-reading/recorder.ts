@@ -61,6 +61,14 @@ export class SightReadingRecorder {
     this.ignored.clear();
   }
 
+  public releaseFocus(timestampMs: number): void {
+    for (const [midi, input] of [...this.held.entries()]) {
+      if (input.source === 'midi' || input.source === 'ble') continue;
+      this.record('off', midi, input.source, 'focus', timestampMs);
+    }
+    this.ignored.clear();
+  }
+
   public finish(): readonly SightReadingRecordedInput[] {
     return this.inputs.slice().sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
   }

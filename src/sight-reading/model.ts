@@ -55,11 +55,11 @@ export function srtProfileLimits(profile: SightReadingProfile, hand: SightReadin
   readonly meter: 3 | 4;
 } {
   const offset = hand === 'lh' ? -12 : 0;
-  if (profile === 'P2.c') return { min: 60 + offset, max: 72 + offset, leap: 3, rests: true, repeat: false, meter: 4 };
+  if (profile === 'P2.c') return { min: 60 + offset, max: 72 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
   return {
     min: 60 + offset,
     max: 67 + offset,
-    leap: profile === 'P1.a' ? 1 : 3,
+    leap: profile === 'P1.a' ? 1 : 2,
     rests: profile.startsWith('P2'),
     repeat: profile === 'P1.c',
     meter: profile === 'P2.b' ? 3 : 4,

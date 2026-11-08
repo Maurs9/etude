@@ -78,21 +78,21 @@ function isAttempt(value: unknown): value is SightReadingAttempt {
   if (!isRecord(value)) return false;
   const noteResults = value.noteResults;
   const extraInputs = value.extraInputs;
-  return typeof value.attemptId === 'string' && value.attemptId.length > 0 &&
-    typeof value.fingerprint === 'string' &&
-    typeof value.ownerTabId === 'string' &&
-    typeof value.generation === 'string' &&
+  return isNonEmptyString(value.attemptId) &&
+    isNonEmptyString(value.fingerprint) &&
+    isNonEmptyString(value.ownerTabId) &&
+    isNonEmptyString(value.generation) &&
     ['completed', 'abandoned', 'interrupted'].includes(String(value.status)) &&
     isFiniteNumber(value.finishedAt) &&
     value.scoringVersion === 1 &&
-    isFiniteNumber(value.N) && value.N >= 0 &&
-    isFiniteNumber(value.TP) && value.TP >= 0 &&
-    isFiniteNumber(value.FP) && value.FP >= 0 &&
-    isFiniteNumber(value.FN) && value.FN >= 0 &&
-    isFiniteNumber(value.G) && value.G >= 0 &&
-    isFiniteNumber(value.Q) && value.Q >= 0 &&
-    isFiniteNumber(value.lateOrEarlyCount) && value.lateOrEarlyCount >= 0 &&
-    isFiniteNumber(value.restViolations) && value.restViolations >= 0 &&
+    isFiniteNumber(value.N) && Number.isInteger(value.N) && value.N >= 0 &&
+    isFiniteNumber(value.TP) && Number.isInteger(value.TP) && value.TP >= 0 &&
+    isFiniteNumber(value.FP) && Number.isInteger(value.FP) && value.FP >= 0 &&
+    isFiniteNumber(value.FN) && Number.isInteger(value.FN) && value.FN >= 0 &&
+    isFiniteNumber(value.G) && Number.isInteger(value.G) && value.G >= 0 &&
+    isFiniteNumber(value.Q) && Number.isInteger(value.Q) && value.Q >= 0 &&
+    isFiniteNumber(value.lateOrEarlyCount) && Number.isInteger(value.lateOrEarlyCount) && value.lateOrEarlyCount >= 0 &&
+    isFiniteNumber(value.restViolations) && Number.isInteger(value.restViolations) && value.restViolations >= 0 &&
     (value.pitchPrecision === null || isFiniteNumber(value.pitchPrecision)) &&
     (value.pitchRecall === null || isFiniteNumber(value.pitchRecall)) &&
     (value.pitchF1 === null || isFiniteNumber(value.pitchF1)) &&
@@ -124,29 +124,57 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+type JsonValue = null | boolean | number | string | JsonValue[] | { readonly [key: string]: JsonValue };
+
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+}
+
+function isBooleanRecord(value: unknown): value is Readonly<Record<string, boolean>> {
+  return isRecord(value) && Object.values(value).every((entry) => typeof entry === 'boolean');
+}
+
+function isSessionRecord(value: unknown): value is Readonly<Record<string, JsonValue>> {
+  return isRecord(value) && Object.values(value).every(isJsonValue);
+}
+
+function isExposure(value: unknown): value is SightReadingExposure {
+  if (!isRecord(value) || !isFiniteNumber(value.firstSeenAt) || value.firstSeenAt < 0 || !isNonEmptyString(value.reason))
+    return false;
+  if (value.claim === undefined) return true;
+  if (!isRecord(value.claim)) return false;
+  return isNonEmptyString(value.claim.attemptId) &&
+    isNonEmptyString(value.claim.ownerTabId) &&
+    isNonEmptyString(value.claim.generation);
+}
+
 function isLedger(value: unknown): value is SightReadingLedger {
   if (!isRecord(value)) return false;
   const record = value;
   return record.schemaVersion === 1 &&
-    typeof record.generation === 'string' &&
-    record.generation.length > 0 &&
+    isNonEmptyString(record.generation) &&
     isFiniteNumber(record.revision) && Number.isInteger(record.revision) && record.revision >= 0 &&
-    typeof record.exposures === 'object' && record.exposures !== null &&
-    typeof record.attempts === 'object' && record.attempts !== null &&
-    typeof record.prefs === 'object' && record.prefs !== null &&
-    typeof record.sessions === 'object' && record.sessions !== null &&
+    isRecord(record.exposures) &&
+    isRecord(record.attempts) &&
+    isBooleanRecord(record.prefs) &&
+    record.prefs.practiceHints !== undefined &&
+    record.prefs.lookAhead !== undefined &&
+    isRecord(record.sessions) &&
     Object.keys(record.exposures).length <= SRT_MAX_EXPOSURES &&
     Object.keys(record.attempts).length <= SRT_MAX_ATTEMPTS &&
-    Object.values(record.exposures).every((exposure) => {
-      if (!isRecord(exposure)) return false;
-      if (!isFiniteNumber(exposure.firstSeenAt) || typeof exposure.reason !== 'string') return false;
-      if (exposure.claim === undefined) return true;
-      if (!isRecord(exposure.claim)) return false;
-      return typeof exposure.claim.attemptId === 'string' &&
-        typeof exposure.claim.ownerTabId === 'string' &&
-        typeof exposure.claim.generation === 'string';
-    }) &&
-    Object.values(record.attempts).every(isAttempt);
+    Object.values(record.exposures).every(isExposure) &&
+    Object.entries(record.exposures).every(([fingerprint]) => isNonEmptyString(fingerprint)) &&
+    Object.values(record.attempts).every(isAttempt) &&
+    Object.entries(record.attempts).every(([attemptId, attempt]) => isAttempt(attempt) && attemptId === attempt.attemptId) &&
+    Object.values(record.sessions).every(isSessionRecord);
 }
 
 export function isSightReadingLedger(value: unknown): value is SightReadingLedger {
@@ -165,9 +193,22 @@ function readRaw(storage: SightReadingStorage): unknown {
   }
 }
 
+export type SightReadingLedgerReadStatus = 'missing' | 'supported' | 'unsupported';
+
+export function srtLedgerReadStatus(storage: SightReadingStorage): SightReadingLedgerReadStatus {
+  const raw = readRaw(storage);
+  if (raw === null) return storage.getItem(SRT_LEDGER_KEY) === null ? 'missing' : 'unsupported';
+  if (isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA)
+    return 'unsupported';
+  return isLedger(raw) ? 'supported' : 'missing';
+}
+
 export function srtReadLedger(storage: SightReadingStorage): SightReadingLedger {
   const parsed = readRaw(storage);
   if (isLedger(parsed)) return parsed;
+  if (isRecord(parsed) && typeof parsed.schemaVersion === 'number' && parsed.schemaVersion > SRT_LEDGER_SCHEMA) {
+    return srtCreateLedger();
+  }
   const created = srtCreateLedger();
   try {
     storage.setItem(SRT_LEDGER_KEY, JSON.stringify(created));
@@ -215,18 +256,6 @@ function trimAttempts(attempts: Readonly<Record<string, SightReadingAttempt>>): 
   return Object.fromEntries(Object.entries(attempts)
     .sort((a, b) => a[1].finishedAt - b[1].finishedAt || a[0].localeCompare(b[0]))
     .slice(-SRT_MAX_ATTEMPTS));
-}
-
-function clearClaimsForMissingAttempts(
-  exposures: Readonly<Record<string, SightReadingExposure>>,
-  attempts: Readonly<Record<string, SightReadingAttempt>>,
-): Readonly<Record<string, SightReadingExposure>> {
-  return Object.fromEntries(Object.entries(exposures).map(([fingerprint, exposure]) => {
-    if (exposure.claim && !attempts[exposure.claim.attemptId]) {
-      return [fingerprint, { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason }];
-    }
-    return [fingerprint, exposure];
-  }));
 }
 
 function hasAttemptOwner(ledger: SightReadingLedger, attemptId: string, ownerTabId: string): boolean {
@@ -292,7 +321,7 @@ function mergeImported(local: SightReadingLedger, imported: SightReadingLedger):
       ...local,
       revision: local.revision + 1,
       attempts: trimmedAttempts,
-      exposures: clearClaimsForMissingAttempts(exposures, trimmedAttempts),
+      exposures,
     },
   };
 }
@@ -301,7 +330,8 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
   if ((operation.type === 'claimExposure' || operation.type === 'recoverOrphanClaims') && !hasWebLocks()) return { ok: false, reason: 'unsupported' };
   return withLedgerLock(async () => {
     const raw = readRaw(storage);
-    if (isRecord(raw) && raw.schemaVersion !== undefined && raw.schemaVersion !== 1) return { ok: false, reason: 'unsupported' };
+    if (isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA)
+      return { ok: false, reason: 'unsupported' };
     let ledger = srtReadLedger(storage);
     if (operation.type === 'resetLedger') return saveLedger(storage, srtCreateLedger());
     if (operation.generation !== ledger.generation && operation.type !== 'importLedger') return { ok: false, reason: 'stale_generation' };

@@ -20,7 +20,7 @@ import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, ty
 import { srtFingerprint } from '../sight-reading/fingerprint.js';
 import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder } from '../sight-reading/recorder.js';
-import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease } from '../sight-reading/ledger.js';
+import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 
 function runtimeErrorName(value: unknown): string {
@@ -1795,7 +1795,7 @@ function releaseFocusInput() {
         return; if (s.startsWith('fall:'))
         fell = true; handleNoteOff(m, s, 'focus'); }));
     if (srtRecorder)
-        srtRecorder.releaseAll('focus', performance.now() - SR.t0);
+        srtRecorder.releaseFocus(performance.now() - SR.t0);
     pointerKey.clear();
     typingDown.clear();
     if (FALL.press)
@@ -6173,6 +6173,13 @@ function srtPendingUi(show: boolean) {
     if (panel)
         panel.hidden = !show;
 }
+function srtNotice(text: string | null) {
+    const notice = maybeById('rd-srt-notice');
+    if (!notice)
+        return;
+    notice.hidden = !text;
+    notice.textContent = text ?? '';
+}
 async function srtRetryPendingSave() {
     const attempt = SR.srtPendingAttempt;
     if (!attempt)
@@ -6222,23 +6229,33 @@ async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned'
 function srtStartPractice() {
     if (!SR.srtFingerprint)
         return;
-    srtSetState({ type: 'prepare', mode: 'practice', fingerprint: SR.srtFingerprint });
+    const fingerprint = SR.srtFingerprint;
+    SR.srtState = SRT_INITIAL_STATE;
+    srtSetState({ type: 'prepare', mode: 'practice', fingerprint });
     srtSetState({ type: 'startPreview' });
     srAssessStart();
 }
 async function srtStartFirstSight() {
     if (!SR.srtPiece || !SR.srtFingerprint)
         return;
+    const ledgerStatus = srtLedgerReadStatus(localStorage);
+    if (ledgerStatus === 'unsupported') {
+        srtNotice(t('rd_srt_ledger_unsupported'));
+        srtStartPractice();
+        return;
+    }
     const ledger = srtReadLedger(localStorage);
     if (ledger.exposures[SR.srtFingerprint]) {
+        srtNotice(null);
         srtStartPractice();
         return;
     }
     if (!navigator.locks || typeof navigator.locks.request !== 'function') {
-        byId('rd-verdict').textContent = t('rd_srt_no_locks');
+        srtNotice(t('rd_srt_no_locks'));
         srtStartPractice();
         return;
     }
+    srtNotice(null);
     srtSetState({ type: 'prepare', mode: 'firstSight', fingerprint: SR.srtFingerprint, attemptId: srtAttemptId() });
     srtSetState({ type: 'claim' });
     const attemptId = SR.srtState?.attemptId;
@@ -6381,7 +6398,9 @@ function srAssessFinish() {
         const renderedNotes = SR.notes.filter((note) => srActiveHands() === 'both' || note.hand === srActiveHands());
         evaluated.noteResults.forEach((result, index) => {
             const nid = renderedNotes[index]?.nid ?? Number(result.expectedId);
-            SR.results[nid] = result.classification === 'good' ? 'good' : result.classification === 'missed' ? 'bad' : 'near';
+            SR.results[nid] = result.classification === 'good' || result.classification === 'near'
+                ? result.classification
+                : 'bad';
         });
         SR.wrongExtra = evaluated.FP;
     }
@@ -6534,6 +6553,16 @@ function srGo() {
         srLearnStart();
     else if (SR.srtPiece && SR.srtState?.mode === 'firstSight' && SR.srtState.name === 'idle')
         void srtStartFirstSight();
+    else if (SR.srtPiece) {
+        const state = SR.srtState;
+        if (state?.name === 'pendingSave' || state?.name === 'preview' || state?.name === 'claiming')
+            return;
+        if (state?.mode === 'practice' || state?.name === 'completed' || state?.name === 'saved' ||
+            state?.name === 'abandoned' || state?.name === 'interrupted' || state?.name === 'blocked')
+            srtStartPractice();
+        else
+            srAssessStart();
+    }
     else
         srAssessStart();
 }
@@ -7817,6 +7846,7 @@ function rdSightStart(mode: string) {
     SR.srtPendingAttempt = null;
     srtPreviewUi(false);
     srtPendingUi(false);
+    srtNotice(null);
     void srtLedgerUpdate(localStorage, { type: 'recoverOrphanClaims', generation: srtReadLedger(localStorage).generation });
     SR.gen = srtLegacyPiece(srtPiece, L);
     RD.on = false;
@@ -16554,6 +16584,11 @@ Object.defineProperty(__etude, "srActiveHands", { configurable: true, get: () =>
 Object.defineProperty(__etude, "srAssessFinish", { configurable: true, get: () => srAssessFinish });
 Object.defineProperty(__etude, "srAssessLoop", { configurable: true, get: () => srAssessLoop });
 Object.defineProperty(__etude, "srAssessStart", { configurable: true, get: () => srAssessStart });
+Object.defineProperty(__etude, "srtSetState", { configurable: true, get: () => srtSetState });
+Object.defineProperty(__etude, "srtStartFirstSight", { configurable: true, get: () => srtStartFirstSight });
+Object.defineProperty(__etude, "srtStartPractice", { configurable: true, get: () => srtStartPractice });
+Object.defineProperty(__etude, "srtStartClaimedAttempt", { configurable: true, get: () => srtStartClaimedAttempt });
+Object.defineProperty(__etude, "srtSwitchToPractice", { configurable: true, get: () => srtSwitchToPractice });
 Object.defineProperty(__etude, "srBeatToX", { configurable: true, get: () => srBeatToX });
 Object.defineProperty(__etude, "srBest", { configurable: true, get: () => srBest });
 Object.defineProperty(__etude, "srClef", { configurable: true, get: () => srClef });
@@ -16933,6 +16968,10 @@ Object.defineProperty(__etude, "srtFingerprint", { configurable: true, value: sr
 Object.defineProperty(__etude, "srtBuildExpected", { configurable: true, value: srtBuildExpected });
 Object.defineProperty(__etude, "srtLedgerUpdate", { configurable: true, value: srtLedgerUpdate });
 Object.defineProperty(__etude, "srtReadLedger", { configurable: true, value: srtReadLedger });
+Object.defineProperty(__etude, "srtCreateLedger", { configurable: true, value: srtCreateLedger });
+Object.defineProperty(__etude, "srtAcquireAttemptLease", { configurable: true, value: srtAcquireAttemptLease });
+Object.defineProperty(__etude, "srtLedgerReadStatus", { configurable: true, value: srtLedgerReadStatus });
+Object.defineProperty(__etude, "isBackupPayload", { configurable: true, value: isBackupPayload });
 Object.defineProperty(__etude, "srtRecorder", { configurable: true, get: () => srtRecorder });
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;
