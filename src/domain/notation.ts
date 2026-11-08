@@ -11,14 +11,29 @@ type Drawer = {
 
 export type AppLanguage = 'en' | 'ro';
 
-let osmdPromise: Promise<unknown> | null = null;
+let osmdPromise: Promise<OsmdModule> | null = null;
 
-export function loadOsmd(): Promise<unknown> {
-  const existing = (globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
-  if (existing) return Promise.resolve(existing);
+export interface OsmdModule {
+  OpenSheetMusicDisplay: new (container: Element, options: Record<string, unknown>) => unknown;
+  MXLHelper: {
+    MXLtoXMLstring(data: ArrayBuffer): string;
+  };
+}
+
+function isOsmdModule(value: unknown): value is OsmdModule {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { OpenSheetMusicDisplay?: unknown; MXLHelper?: unknown };
+  return typeof candidate.OpenSheetMusicDisplay === 'function' &&
+    !!candidate.MXLHelper &&
+    typeof (candidate.MXLHelper as { MXLtoXMLstring?: unknown }).MXLtoXMLstring === 'function';
+}
+
+export function loadOsmd(): Promise<OsmdModule> {
+  const existing = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+  if (isOsmdModule(existing)) return Promise.resolve(existing);
   if (typeof document === 'undefined') return Promise.reject(new Error('OSMD requires a document'));
   if (osmdPromise) return osmdPromise;
-  osmdPromise = new Promise((resolve, reject) => {
+  osmdPromise = new Promise<OsmdModule>((resolve, reject) => {
     const script = document.createElement('script');
     const inline = document.querySelector<HTMLScriptElement>('#etude-osmd-source');
     if (inline?.textContent) {
@@ -28,16 +43,16 @@ export function loadOsmd(): Promise<unknown> {
       script.async = true;
     }
     script.onload = () => {
-      const loaded = (globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
-      if (loaded) resolve(loaded);
+      const loaded = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+      if (isOsmdModule(loaded)) resolve(loaded);
       else reject(new Error('OSMD loaded without an API'));
     };
     script.onerror = () => reject(new Error('OSMD could not be loaded'));
     document.head.append(script);
     if (inline?.textContent) {
       queueMicrotask(() => {
-        const loaded = (globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
-        if (loaded) resolve(loaded);
+        const loaded = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+        if (isOsmdModule(loaded)) resolve(loaded);
         else reject(new Error('OSMD loaded without an API'));
       });
     }
@@ -46,6 +61,20 @@ export function loadOsmd(): Promise<unknown> {
     throw error;
   });
   return osmdPromise;
+}
+
+export async function createScoreRenderer(
+  container: Element,
+  options: Record<string, unknown>,
+): Promise<unknown> {
+  const osmd = await loadOsmd();
+  patchOsmdPedals(osmd);
+  return new osmd.OpenSheetMusicDisplay(container, options);
+}
+
+export async function mxlToXml(data: ArrayBuffer): Promise<string> {
+  const osmd = await loadOsmd();
+  return osmd.MXLHelper.MXLtoXMLstring(data);
 }
 
 export function notationReloadMessage(language: AppLanguage): { message: string; button: string } {
@@ -79,5 +108,6 @@ export function patchOsmdPedals(osmd: unknown): void {
  * into the vendor object or owning a notation concern.
  */
 export function scorePatchOsmd(): void {
-  patchOsmdPedals((globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay);
+  const loaded = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+  if (isOsmdModule(loaded)) patchOsmdPedals(loaded);
 }

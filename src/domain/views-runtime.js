@@ -7,7 +7,7 @@ import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, parsePttV3, readPttV3, restoreSettings, writePttV3 } from './storage.js';
 import { CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord as identifyChordDomain, midiToFrequency, pitchClass } from './theory.js';
 import { AudioEngine } from './audio.js';
-import { loadOsmd, notationReloadMessage, scorePatchOsmd } from './notation.js';
+import { createScoreRenderer, loadOsmd, mxlToXml, notationReloadMessage, scorePatchOsmd } from './notation.js';
 import { NAV_GROUPS, navGroup, viewFromHash } from './router.js';
 function t(k, ...args) { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
     return k; if (!args.length)
@@ -9472,8 +9472,7 @@ async function scoreRender() {
     }
     const isXml = !!AN.source && AN.source.kind === 'xml', autoBeam = isXml && !/<beam[\s>]/.test(SCORE.xml); // generated scores already carry <beam> groups per voice
     const oneStaffPart = (SCORE.xml.match(/<score-part[\s>]/g) || []).length <= 1; // a lone piano needs no "Instr. P1" at the left
-    scorePatchOsmd();
-    const engine = new globalThis.opensheetmusicdisplay.OpenSheetMusicDisplay(box.firstElementChild, { autoResize: false, backend: 'svg', drawTitle: true, drawComposer: true, drawPartNames: !oneStaffPart, drawPartAbbreviations: false, drawMeasureNumbers: true,
+    const engine = await createScoreRenderer(box.firstElementChild, { autoResize: false, backend: 'svg', drawTitle: true, drawComposer: true, drawPartNames: !oneStaffPart, drawPartAbbreviations: false, drawMeasureNumbers: true,
         autoBeam, autoBeamOptions: { beam_rests: false, beam_middle_rests_only: false, maintain_stem_directions: true, groups: scoreBeamGroups() } });
     const R = engine.EngravingRules; // MuseScore-like page: wider margins, title block, measure numbers only at system starts
     R.PageLeftMargin = R.PageRightMargin = 7;
@@ -12128,7 +12127,7 @@ async function anReadXml(file, title) {
         await loadOsmd();
         // @ts-expect-error -- audited dynamic view runtime boundary
         try {
-            xml = await globalThis.opensheetmusicdisplay.MXLHelper.MXLtoXMLstring(buf);
+            xml = await mxlToXml(buf);
         }
         catch (err) {
             console.error(err);
