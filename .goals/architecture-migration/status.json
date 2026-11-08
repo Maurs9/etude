@@ -51,6 +51,11 @@
       "iteration": 3,
       "verdict": "FAIL",
       "summary": "The views runtime replaces file-wide suppression with 3,412 @ts-ignore directives; unsuppressed strict compilation and final-state documentation remain incomplete."
+    },
+    {
+      "iteration": 4,
+      "verdict": "FAIL",
+      "summary": "The view runtime replaces suppression comments with 7,899 explicit any tokens; strict scalable typing and truthful final-state docs remain incomplete."
     }
   ]
 }

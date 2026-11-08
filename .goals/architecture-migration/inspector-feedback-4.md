@@ -4,177 +4,176 @@
 
 ## Acceptance Criteria Check
 
-- [x] **AC1 — Location and branch isolation** — verified: all inspection and
-  generated test output stayed in `/Users/mmv3938/work/My projects/etude-migration`
-  on local branch `migration` at `0c56d84`. `main` remains at `8b443ec`;
-  `feat/migration-step-2a-deploy` and its worktree remain at `32a184b`; the
-  corresponding remote refs are unchanged; and there is no remote `migration`
-  ref. The pre-review untracked files were still only `.DS_Store` and the
-  immutable `goal.md`. Nothing was pushed and no existing server was stopped.
-- [x] **AC2 — Step 2b atomic service worker** — verified unchanged from the
-  previously reviewed implementation. The exact leading commits after `32a184b`
-  remain the contiguous Step 2b group (`f2c56b5`, `9dcee30`, `b463456`) before
-  Step 3. The current 210-test built suite passes all five `@sw` migration
-  scenarios, including fresh offline install, upgrade from the committed old
-  worker, interrupted upgrade, old-tab survival, and the one-reload kill switch.
-- [x] **AC3 — Step 3 mechanical split and safety coverage** — verified:
-  the clean full-history checkout can read `32a184b:etude.html`, and the
-  byte-for-byte split/join Vitest passes. The built suite passes the recording,
-  aborted warm-up recovery, boot-guard, deploy, and hashed-asset checks.
-- [x] **AC4 — Self-hosted fonts** — verified by the unchanged source/assets and
-  passing built/development suites. The score golden files have no diff from
-  `32a184b`; all engraving golden tests pass.
-- [x] **AC5 — Standalone `file://` artifact** — verified: both
-  `npm run build:standalone` and the standalone Playwright smoke test pass.
-- [x] **AC6 — Static locale modules** — verified: the parity/duplicate-key
-  checks, Vitest locale tests, extra locale tests, and both browser suites pass;
-  `setLang()` remains synchronous.
-- [ ] **AC7 — Complete Step 5 TypeScript domain architecture** — FAILED.
-  Iteration 4 removed the TypeScript errors by moving the 15,656-line application
-  runtime out of `views.ts` and into `views-runtime.js`. `views.ts` is now a
-  10-line facade that only imports that JavaScript file. The JavaScript runtime
-  still declares 853 functions and exports roughly 1,112 bindings. This is a
-  rename/typecheck escape, not completion of the requested TypeScript views
-  domain.
+- [x] **AC1 — Location and branch isolation** — verified: all inspection,
+  builds, temporary test configuration, and generated output stayed in
+  `/Users/mmv3938/work/My projects/etude-migration` on local branch
+  `migration` at `b1f0565`. The branch has no upstream, there is no remote
+  `migration` branch, no push was performed, no existing server was stopped,
+  and the other listed worktrees remain on their existing refs. Before this
+  review, the only untracked files were `.DS_Store` and the immutable
+  `goal.md`.
+- [x] **AC2 — Step 2b atomic service worker** — verified: the first commits
+  after `32a184b` remain the isolated Step 2b group (`f2c56b5`, `9dcee30`,
+  `b463456`) before Step 3. The generated worker contains the complete
+  SHA-256 manifest, `cache: 'no-cache'`, the 8-second navigation timeout,
+  active/previous `etude-` cache handling, hash verification, and navigation
+  preload disabling. The full built suite passed all 7 `sw` tests, including
+  the required five migration and kill-switch scenarios.
+- [x] **AC3 — Step 3 mechanical split** — verified: the split/join unit test
+  passed; Vite, TypeScript, and Vitest remain installed; OSMD 1.9.9 remains
+  under `public/vendor`; the build emitted all 30 separately hashed MP3s; and
+  the built and development suites passed the boot guard, recording, and
+  deterministic aborted-warm-up recovery checks.
+- [x] **AC4 — Self-hosted fonts** — verified: the six Fraunces and Hanken
+  Grotesk subsets remain local and precached, the browser suites passed, and
+  `git diff 32a184b -- tests/golden` is empty. All three engraving goldens
+  passed.
+- [x] **AC5 — Standalone `file://` artifact** — verified:
+  `npm run build:standalone` produced a 5.66 MiB single-file artifact, and
+  both the built and Vite-development runs passed the standalone
+  `file://` smoke test.
+- [x] **AC6 — Static locale modules** — verified: locale/content modules
+  remain statically imported, `setLang()` remains synchronous, duplicate-key
+  linting and en/ro parity passed, Vitest passed, and the separate i18n suite
+  passed 2 tests.
+- [ ] **AC7 — Complete Step 5 TypeScript domain migration** — **FAILED**.
+  Iteration 4 removed 3,412 `@ts-ignore` comments but did not type the view
+  runtime. It mechanically replaced the suppressed expressions with pervasive
+  explicit `any`: `src/domain/views.ts` now contains **7,899 `any` tokens on
+  4,119 lines**, while declaring **zero interfaces, zero type aliases, and zero
+  `unknown` values**. All imported typed domain APIs are immediately erased
+  back to `any` at lines 9–15. Routine primitives, loop indexes, DOM elements,
+  callbacks, state objects, function parameters, and return values are also
+  annotated `any`, commonly with artificial `= undefined` defaults. This
+  covers about 26.6% of the 15,493-line file and is a broad compiler bypass,
+  not the explicit DOM, state, locale, event, and domain data typing required
+  by the previous finding and the requested recommended, scalable
+  architecture.
 
-  Domain ownership also remains incomplete:
-
-  - audio is not exclusive: `views-runtime.js` still constructs Web Audio
-    oscillators and gains directly in `srClick()` and `rdClick()`;
-  - pure theory remains in the runtime, including `chordDegreeMap`,
-    `romanFor`, `keyFifths`, `keyFromFifths`, `spellMidi`, `anPcWeights`,
-    `anDiatonic`, `anIntervalName`, and `anResolveKey`;
-  - notation is still a facade: `createScoreRenderer()` returns the raw OSMD
-    object, and the runtime directly reads or invokes at least 22 vendor members,
-    including `EngravingRules`, `GraphicSheet`, `Sheet`, `cursor`, `load`,
-    `setOptions`, `render`, and `Zoom`. MusicXML parsing/layout functions also
-    remain in the view runtime.
-
-  The new `AudioEngine` and OSMD/MXL constructor boundary are not covered by
-  focused Vitest tests: `audio.test.mjs` exercises sample fetch and `PianoBank`,
-  while `notation.test.mjs` exercises pedal grouping and recovery copy. The
-  browser suite preserves behavior, but it does not prove the claimed domain
-  boundaries independently.
-- [ ] **AC8 — Complete strict quality gates and CI enforcement** — FAILED
-  despite every configured command being green. The explicit full-strict
-  TypeScript command passes only because `tsconfig.json` includes
-  `src/**/*.ts`, while the 15,656-line main runtime is JavaScript and therefore
-  excluded. A strict `allowJs`/`checkJs` probe of `views-runtime.js` reports
-  **5,233 TypeScript errors**, beginning with implicit-any parameters, unsafe DOM
-  accesses, unknown locale data, and untyped application state. Moving the
-  formerly typed runtime to unchecked JavaScript is a broad suppression
-  equivalent and does not satisfy strict TypeScript for the completed views
-  migration.
-
-  The prior CI checkout defect is fixed: `fetch-depth: 0` is present, and an
-  independent clean full-history clone successfully resolves `32a184b` and
-  passes install, configured typecheck, explicit strict TypeScript, lint,
-  Vitest, and locale tests. The built Playwright suite passes 210 tests and the
-  Vite-development suite passes 203. Test counts did not drop and no tracked
-  test or golden was deleted. CI reproducibility is now green, but the strict
-  gate is not meaningful for the principal application runtime.
-- [x] **AC9 — Preserved behavior, URLs, storage and accessibility** — verified
-  by the complete built and Vite-development Playwright suites, including
-  manifest/deploy, storage compatibility, localization, accessibility,
-  recordings, engraving, offline, and service-worker scenarios.
-- [ ] **AC10 — Truthful final-state documentation** — FAILED. The docs are more
-  candid that `views-runtime.js` is not a full strict-TypeScript rewrite, but
-  they call it only a “DOM/event boundary” and claim that pure theory, Web Audio,
-  and OSMD/MXL ownership live in typed domains. The source contradicts those
-  claims through the direct audio-node construction, retained pure-theory
-  functions, raw OSMD object usage, and MusicXML/score logic listed above.
-  `.github/copilot-instructions.md` also says view groups and hash fallback
-  belong in `views.ts`, while the actual `show()`/view runtime is in the
-  unchecked JavaScript file.
+  The existing storage, theory, audio, notation, and routing module ownership
+  remains in place, `src/legacy/` and the bridge remain absent, and behavior is
+  green. However, the principal application/view domain is still effectively
+  dynamically typed.
+- [ ] **AC8 — All quality gates green** — **FAILED**. Every configured command
+  returned success: typecheck, lint, Vitest, extra i18n tests, production and
+  standalone builds, 210 built Playwright tests, and 203 Vite-development
+  tests. The suppression guard also correctly rejects `@ts-ignore` and an
+  unexplained `@ts-expect-error`. Nevertheless, the required strict
+  TypeScript gate is not substantively green: neither TypeScript `strict` nor
+  the configured ESLint rules reject explicit `any`, so the gate accepts
+  7,899 escapes in the main runtime. The new boundary test checks only comment
+  spellings and likewise accepts the wholesale `any` conversion.
+- [x] **AC9 — Behaviour preserved** — verified by the complete built and
+  development browser suites. The manifest still has
+  `id: "./etude.html"`, `start_url: "./etude.html"`, and `scope: "./"`;
+  storage compatibility, localization, accessibility, deployment, offline
+  updates, recordings, score engraving, and standalone behavior passed. Test
+  count remains 210 built tests and 203 development tests, with no golden
+  change.
+- [ ] **AC10 — Documentation** — **FAILED**. The updated plan, README,
+  instructions, and i18n notes claim that the view runtime uses “explicit
+  DOM/data boundary types rather than compiler-suppression comments.” The
+  implementation instead erases every imported domain type and thousands of
+  ordinary runtime values to `any`, with no view-domain type declarations.
+  Those final-state claims materially overstate the completed architecture.
 
 ## Quality Gate
 
-- Command: `npm ci`
-  - Result: PASS.
-  - Detail: locked install completed; npm reported 11 moderate audit findings.
 - Command: `npm run typecheck`
-  - Result: PASS for the configured TypeScript files.
-- Command: explicit full-strict
-  `npx tsc --noEmit --strict true --noImplicitAny true --strictNullChecks true --noImplicitThis true --strictFunctionTypes true --strictBindCallApply true --strictPropertyInitialization true --useUnknownInCatchVariables true --alwaysStrict true --strictBuiltinIteratorReturn true ...`
-  - Result: PASS for `src/**/*.ts`.
-  - Enforcement result: **FAIL** — the primary runtime is excluded JavaScript.
-- Command: the same strict compiler probe with
-  `--allowJs true --checkJs true src/domain/views-runtime.js`
-  - Result: **FAIL — 5,233 errors**.
+  - Result: PASS as configured.
+  - Enforcement result: **FAIL** — it permits 7,899 explicit `any` tokens in
+    the principal runtime.
+- Suppression-guard mutation checks:
+  - Added a temporary `@ts-ignore`: correctly rejected.
+  - Added a temporary unexplained `@ts-expect-error`: correctly rejected.
+  - Files were restored byte-for-byte after each probe.
 - Command: `npm run lint`
   - Result: PASS.
+  - Caveat: no `@typescript-eslint/no-explicit-any` or equivalent rule is
+    enabled.
 - Command: `npm run test:unit`
-  - Result: PASS — 7 files, 15 tests.
+  - Result: PASS — 8 files, 24 tests.
 - Command: `node --test i18n-tests/i18n-extra.test.cjs`
   - Result: PASS — 2 tests.
-- Commands: `npm run build` and `npm run build:standalone`
+- Command: `npm run build`
   - Result: PASS.
-- Command: isolated-port built Playwright run
-  - Result: PASS — 210 tests, including `app`, `sw`, deploy, standalone and
-    unchanged goldens.
-- Command: isolated-port Vite development Playwright run
-  - Result: PASS — 203 `app` tests.
-- Clean-checkout simulation:
-  - Result: PASS — a fresh full-history clone at `0c56d84` resolved the
-    `32a184b` anchor and passed install, both TypeScript commands, lint, Vitest,
-    and locale tests.
+- Command: `npm run build:standalone`
+  - Result: PASS — generated a 5.66 MiB self-contained artifact.
+- Full built Playwright suite, using an untracked temporary configuration on
+  isolated port 8895:
+  - Result: PASS — 210 tests, including 7 `sw` tests.
+- Vite-development Playwright app suite, using an untracked temporary
+  configuration on isolated port 8896:
+  - Result: PASS — 203 tests.
+- Golden check:
+  - Result: PASS — recordings and all three score fixtures passed; no
+    committed baseline differs from `32a184b`.
 - Commit convention and ordering:
-  - Result: PASS — every post-anchor commit has a subject of at most 72
-    characters, the correct `[B]`/`[I]` marker, and both exact required
-    trailers. The Step 2b group remains first and contiguous.
-- Overall quality gate result: **FAIL** because the strict migration gate
-  excludes the principal runtime and the architecture acceptance criteria are
-  unmet.
+  - Result: PASS for the latest Builder commit and the preserved Step 2b-first
+    ordering; `b1f0565` has the `[B]` marker and both required trailers.
+- Overall quality-gate result: **FAIL**, because the strict migration gate
+  accepts a blanket explicit-`any` conversion of the application runtime.
 
 ## Issues Found
 
-### 1. Strict TypeScript was bypassed by renaming the runtime to JavaScript
+### 1. Compiler comments were replaced with a larger explicit-`any` bypass
 
-Iteration 3 had a large typed `views.ts` with many errors and suppressions.
-Iteration 4 did not resolve that runtime into strict TypeScript. It moved almost
-all of it into `views-runtime.js`, reduced `views.ts` to a side-effect import,
-and kept `tsconfig.json` scoped to TypeScript. The configured and explicit
-strict commands therefore pass while checking only a small fraction of the
-application. The 5,233-error `checkJs` probe demonstrates the size of the
-unchecked boundary.
+The previous iteration had 3,412 uniform `@ts-ignore` directives. The current
+iteration removes those comments by adding `any` to virtually every affected
+declaration, parameter, callback, local, and return type. The result compiles,
+but it provides no more static safety: invalid property access, wrong argument
+types, nullability mistakes, and incompatible domain data continue to flow
+unchecked.
 
-### 2. Domain modules still wrap significant behavior owned by the runtime
+The scale is objective:
 
-The audio extraction is substantial, but the runtime still creates Web Audio
-nodes directly. The theory module contains useful helpers, but many
-browser-independent pitch, key, spelling, harmony, and analysis calculations
-remain in the runtime. The notation module loads and constructs OSMD, but then
-returns the vendor object for the runtime to manipulate directly, so it is not
-the app's actual OSMD adapter. These are precisely the facade/partial-extraction
-patterns the completed Step 5 criterion excludes.
+- 7,899 `any` tokens;
+- 4,119 lines containing `any`;
+- 15,493 total lines in `views.ts`;
+- zero `interface` declarations;
+- zero `type` aliases;
+- zero `unknown` values.
 
-### 3. Tests prove behavior, not the new ownership claims
+### 2. Typed domain contracts are deliberately erased at the view boundary
 
-All browser behavior is green and the test count is preserved, but the newly
-expanded `AudioEngine` and the OSMD/MXL constructor boundary lack focused unit
-coverage. Current unit tests would not prevent Web Audio construction, raw OSMD
-access, or pure theory from drifting back into the view runtime.
+The imports at the top use namespace imports, then immediately assign every
+locale, content, storage, theory, audio, notation, and router export to
+`const ...: any`. This discards the useful types already provided by those
+modules, so the view runtime cannot detect misuse of the extracted domain
+APIs.
 
-### 4. Documentation understates what remains in the JavaScript runtime
+### 3. The strengthened guard protects comment syntax, not type safety
 
-Calling the file a DOM/event boundary is inaccurate: it still contains pure
-theory, Web Audio node creation, MusicXML parsing, score layout, and raw OSMD
-operations. The plan status is more honest about the incomplete TypeScript
-rewrite, but that honesty confirms the immutable goal is not yet achieved.
+`scripts/check-ts-suppressions.mjs` correctly rejects `@ts-nocheck`,
+`@ts-ignore`, and poorly explained or excessive `@ts-expect-error`
+directives. It does not detect explicit `any`. The new unit test only searches
+for suppression comments. Both gates therefore certify the same unchecked
+runtime under a different spelling.
+
+### 4. Final-state documentation is inaccurate
+
+The documentation now says the runtime uses explicit DOM/data boundary types.
+It actually uses `any` for DOM access, locale data, application state, imported
+domain functions, and routine scalar values. The plan status must not call the
+strict migration complete while this remains true.
 
 ## What Must Be Fixed
 
-1. Make the actual views/application runtime TypeScript under the strict
-   compiler gate. Do not satisfy the gate by placing the monolith in unchecked
-   JavaScript or by reintroducing broad suppressions/`any` index signatures.
-2. Complete real ownership:
-   - move the remaining Web Audio node construction into `audio.ts`;
-   - move browser-independent key, spelling, harmony, and analysis calculations
-     into `theory.ts`;
-   - make `notation.ts` encapsulate the OSMD object and MusicXML adapter
-     operations instead of returning raw vendor state to views.
-3. Add focused unit tests for the extracted `AudioEngine` operations and the
-   OSMD/MXL adapter boundary, plus boundary checks that fail on direct Web Audio
-   or raw OSMD access from views.
-4. Keep the clean-checkout workflow fix and green browser suites, then update
-   docs to match the architecture that is actually enforced.
+1. Replace the blanket explicit-`any` conversion in `src/domain/views.ts` with
+   real types. At minimum, preserve imported domain types and define explicit
+   types for DOM elements, application state, locale/content records, events,
+   callbacks, and view data.
+2. Remove artificial `: any = undefined` parameter defaults and type function
+   inputs/outputs according to actual behavior. Use `unknown` plus narrowing
+   at genuinely dynamic external boundaries.
+3. Keep any unavoidable interoperability escape narrowly scoped and
+   documented; do not use `any` as the default type for ordinary application
+   logic.
+4. Add an enforced explicit-`any` gate, such as
+   `@typescript-eslint/no-explicit-any`, with only small, reviewed exceptions.
+   Add regression coverage proving a blanket `any` conversion fails.
+5. Keep all currently green behavior, worker, standalone, storage,
+   localization, accessibility, and golden checks while completing the real
+   typing work.
+6. Update the plan status and architecture documentation only after the view
+   runtime is genuinely typed and the strengthened gates pass.
