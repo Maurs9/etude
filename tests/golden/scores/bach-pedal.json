@@ -1,0 +1,18 @@
+{
+  "music": {
+    "measures": 4,
+    "beats": 16,
+    "onsets": 56,
+    "noteheads": 226
+  },
+  "layout": {
+    "darwin": {
+      "pages": 1,
+      "systemsPerPage": [2],
+      "systemStarts": [1, 4],
+      "pedalMarks": 16,
+      "curves": 0,
+      "crossLines": 0
+    }
+  }
+}
