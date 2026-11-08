@@ -1,6 +1,4 @@
-// The view runtime is progressively typed by domain boundaries. The remaining
-// DOM-heavy rendering code keeps its audited behaviour while the migration
-// finishes; new domain code is strict TypeScript.
+// The view runtime is an isolated DOM/event boundary; domain behavior belongs in typed modules.
 "use strict";
 import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.js';
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
@@ -83,7 +81,6 @@ const CHORDS = [
     { symbol: 'aug', name: 'Augmented', intervals: [0, 4, 8] }, { symbol: 'sus2', name: 'Suspended 2nd', intervals: [0, 2, 7] },
     { symbol: 'sus4', name: 'Suspended 4th', intervals: [0, 5, 7] },
 ];
-// @ts-expect-error -- audited dynamic view runtime boundary
 CHORDS.forEach((c, i) => { c.idx = i; c.pcset = [...new Set(c.intervals.map(x => ((x % 12) + 12) % 12))].sort((a, b) => a - b); });
 const CHORD_FEEL = { maj: 'bright, resolved', m: 'darker, melancholy', dim: 'tense, unstable', aug: 'dreamlike', sus2: 'open, airy', sus4: 'suspended', maj7: 'lush, jazzy', '7': 'bluesy, wants to resolve', m7: 'smooth, mellow', 'm7♭5': 'dark, cinematic', dim7: 'very tense', mMaj7: 'noir', 6: 'sweet, vintage', m6: 'wistful', '9': 'funky', maj9: 'dreamy', m9: 'soulful' };
 const INV_NAMES = ['root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion'];
@@ -401,7 +398,6 @@ function scheduleAccompAt(t0) {
         if (accomp.hands !== 'both' && e.hand !== (accomp.hands === 'left' ? 'L' : 'R'))
             return;
         const when = t0 + e.beat * bs, dur = Math.max(.12, e.durB * bs * 0.95);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         previewNote(e.midi, when, dur, e.hand === 'L' ? 78 : 98);
         const onMs = (when - actx.currentTime) * 1000;
         accompHL(e.midi, e.hand === 'L' ? 'lh' : 'rh', onMs, onMs + Math.min(dur, 1.05) * 1000);
@@ -646,7 +642,6 @@ function trxRender() {
         return;
     }
     $('tr-msg').textContent = '';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     trx.bpm = +($('tr-bpm').value || 90);
     const beatSec = 60 / trx.bpm, quant = $('tr-quant').checked, step = 4 / (+($('tr-gridSel').value || 8)); // step in beats
     const base = trx.notes[0].start;
@@ -675,11 +670,9 @@ function trxPlay() {
     stopPreviews();
     trx.hlTimers.forEach(clearTimeout);
     trx.hlTimers = [];
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const beatSec = 60 / (trx.bpm || 90), t0 = actx.currentTime + 0.12;
     trx.display.forEach(n => {
         const when = t0 + n.sb * beatSec, dur = Math.max(0.12, n.db * beatSec * 0.95), onMs = (when - actx.currentTime) * 1000;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         previewNote(n.midi, when, dur, 100);
         trx.hlTimers.push(setTimeout(() => kbState(n.midi, 'rh', true), Math.max(0, onMs)));
         trx.hlTimers.push(setTimeout(() => { const el = keyEl.get(foldToView(n.midi)); if (el && el.dataset.s === 'rh')
@@ -692,7 +685,6 @@ function trxPushVar(arr, v) { v = Math.max(0, Math.round(v)); const b = [v & 0x7
     v >>= 7;
 } b.forEach(x => arr.push(x)); }
 function trxBuildMidi() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const TPQN = 480, bpm = trx.bpm || 90, ev = [];
     trx.display.forEach(n => { const on = Math.round(n.sb * TPQN), off = on + Math.max(1, Math.round(n.db * TPQN)); ev.push({ t: on, k: 1, m: n.midi }); ev.push({ t: off, k: 0, m: n.midi }); });
     ev.sort((a, b) => a.t - b.t || a.k - b.k);
@@ -714,7 +706,6 @@ function trxBuildMidi() {
 function trxDownload(name, blob) { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
 function trxExportMidi() { if (!trx.display || !trx.display.length)
     return; trxDownload('etude-melody.mid', new Blob([trxBuildMidi()], { type: 'audio/midi' })); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function trxExportTxt() { if (!trx.display || !trx.display.length)
     return; const txt = 'Étude — melody\nTempo: ' + (trx.bpm || 90) + ' BPM\n\nNote\tValue\n' + trx.display.map(n => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
 function trxClear() { trxStop(); trx.notes = []; trx.display = null; trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; kbClear('rh'); $('tr-out').innerHTML = ''; $('tr-actions').style.display = 'none'; $('tr-msg').textContent = ''; }
@@ -793,7 +784,6 @@ function ssGen(level, clef, rangeShift) {
             const dur = ssPick(choices.length ? choices : [rem]);
             const p = (m === 0 && !notes.length) ? 0 : ssNextDeg(prev, allowed, L.step);
             prev = p;
-            // @ts-expect-error -- audited dynamic view runtime boundary
             const note = ssMakeNote(p, tonicLi, baseOct, acc, minor, dur, L.raise7);
             note.tBeat = beat;
             beat += dur;
@@ -802,7 +792,6 @@ function ssGen(level, clef, rangeShift) {
         }
         measures.push(notes);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const lm = measures[measures.length - 1], lastN = lm[lm.length - 1];
     const repl = ssMakeNote(0, tonicLi, baseOct, acc, minor, lastN.dur, 0);
     repl.tBeat = lastN.tBeat;
@@ -873,7 +862,6 @@ function ssRender(ex) {
             let g = '';
             if (note.acc !== keyAcc[note.li])
                 g += ssAccGlyph(note.acc, keyAcc[note.li], nx - 13, y);
-            // @ts-expect-error -- audited dynamic view runtime boundary
             g += ssLedger(nx, y) + ssNotehead(nx, y, note.dur) + ssStem(nx, y, note.dur);
             const syl = ex.syl[((note.p % 7) + 7) % 7];
             body += `<g class="ss-n" data-i="${idx}"><rect class="ss-box" x="${nx - 12}" y="40" width="24" height="58" rx="4"/>${g}<text class="ss-syl" x="${nx}" y="126">${syl}</text></g>`;
@@ -895,10 +883,8 @@ function ssRender(ex) {
 const sing = { ex: null, render: null, level: 0, clef: 'treble', mode: 'note', idx: 0, active: false, results: [], bpm: 80,
     runId: 0, micRequest: 0, analyser: null, stream: null, src: null, buf: null, raf: 0, ring: [], stable: 0, hint: 0, samples: [], keyEvents: [],
     hlTimers: [], playRaf: 0, playStart: 0, loopA: null, loopB: null };
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssFillLevels() { const sel = $('si-level'); if (!sel || sel._filled)
     return; SS_LEVELS.forEach((L, i) => { const o = document.createElement('option'); o.value = i; o.textContent = (i + 1) + ' · ' + L.name; sel.appendChild(o); }); sel._filled = true; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssDraw() { if (!sing.ex)
     return; const r = ssRender(sing.ex); sing.render = r; sing.flat = r.noteX.map(o => o.note); const wrap = $('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !$('si-solf').checked); ssPaint(); }
 function ssPaint() { const svg = $('si-staff').querySelector('svg'); if (!svg)
@@ -970,7 +956,6 @@ function ssReadPitch() { if (!sing.analyser)
     return null; const midi = Math.round(69 + 12 * Math.log2(f / 440)), cents = Math.round(1200 * Math.log2(f / (440 * Math.pow(2, (midi - 69) / 12)))); return { f, midi, cents }; }
 function ssNeed(targetPc, sungPc) { let d = ((targetPc - sungPc) % 12 + 12) % 12; if (d > 6)
     d -= 12; return d; } // + → sing higher
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssCurNote() { return sing.flat ? sing.flat[sing.idx] : null; }
 /* ---- cursor + trail + scroll ---- */
 function ssSvg() { return $('si-staff').querySelector('svg'); }
@@ -995,7 +980,6 @@ function ssScrollToCur() { const o = sing.render && sing.render.noteX[sing.idx];
 function ssPitchY(f) { const bottomMidi = sing.ex.clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
     y -= 42; while (y < 4)
     y += 42; return y; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssDrawTrail() { const svg = ssSvg(); if (!svg)
     return; let pl = svg.querySelector('.ss-trail'); if (!pl) {
     pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
@@ -1019,7 +1003,6 @@ function ssBeatToX(beat) {
     return beat <= pts[0].b ? pts[0].x : pts[pts.length - 1].x;
 }
 /* ---- reference cues ---- */
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssTonic() { if (!sing.ex)
     return; ensureAudio(); previewNote(sing.ex.tonicMidi, actx.currentTime + 0.02, 0.85, 92); }
 // A pulse running along the staff while the melody plays; with reduced motion the notes simply stay as they are.
@@ -1032,7 +1015,6 @@ function ssFlash(i) { if (reduceMotion())
     else
         g.removeAttribute('data-s');
 } }, 240)); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssPlayIt() {
     if (!sing.ex || !sing.flat)
         return;
@@ -1041,7 +1023,6 @@ function ssPlayIt() {
     sing.hlTimers.forEach(clearTimeout);
     sing.hlTimers = [];
     const beatSec = 60 / (sing.bpm || sing.ex.bpm), t0 = actx.currentTime + 0.12;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     sing.flat.forEach((n, i) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); previewNote(n.midi, when, dur, 92); sing.hlTimers.push(setTimeout(() => ssFlash(i), Math.max(0, (when - actx.currentTime) * 1000))); });
 }
 function ssDrone() { if ($('si-drone').checked) {
@@ -1053,7 +1034,6 @@ function ssDrone() { if ($('si-drone').checked) {
 else
     stopDrone(); }
 /* ---- mode: note-by-note ---- */
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssNoteStart() {
     sing.active = true;
     sing.idx = 0;
@@ -1063,7 +1043,6 @@ function ssNoteStart() {
     sing.wrongT = 0;
     ssPaint();
     ssScrollToCur();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('si-verdict').className = 'verdict neutral';
     $('si-verdict').textContent = t('si_singit');
     ensureAudio();
@@ -1082,7 +1061,6 @@ function ssNoteLoop(ts) {
     if (p) {
         lv.classList.add('rec');
         lv.innerHTML = noteName(p.midi, false) + '<small>' + (p.cents >= 0 ? '+' : '') + p.cents + '¢</small>';
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (pc(p.midi) === tgt && Math.abs(p.cents) < 42) {
             if (!sing.holdT)
                 sing.holdT = ts;
@@ -1091,7 +1069,6 @@ function ssNoteLoop(ts) {
             }
             sing.wrongT = 0;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         else {
             sing.holdT = 0;
             if (!sing.wrongT)
@@ -1102,14 +1079,12 @@ function ssNoteLoop(ts) {
             }
         }
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else {
         lv.classList.remove('rec');
         sing.holdT = 0;
     }
     sing.raf = requestAnimationFrame(ssNoteLoop);
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssNoteCorrect() {
     if (!sing.active)
         return;
@@ -1121,7 +1096,6 @@ function ssNoteCorrect() {
     sing.idx++;
     ssPaint();
     ssScrollToCur();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (sing.idx >= sing.flat.length)
         ssNoteFinish();
 }
@@ -1133,7 +1107,6 @@ function ssHintBump(am) {
     const need = ssNeed(pc(cur.midi), pc(am)), syl = sing.ex.syl[((cur.p % 7) + 7) % 7];
     if (sing.hint === 1)
         $('si-hint').textContent = need > 0 ? t('si_hi_up') : t('si_hi_down');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else {
         $('si-hint').textContent = t('si_hi_syl', syl);
         ensureAudio();
@@ -1147,7 +1120,6 @@ function ssNoteFinish() {
     sing.raf = 0;
     ssMicStop();
     ssPaint();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const tot = sing.flat.length;
     const v = $('si-verdict');
     v.className = 'verdict good';
@@ -1173,11 +1145,9 @@ function ssPhraseStart() {
         if (!ok)
             $('si-hint').textContent = t('si_nomic');
         const beatSec = 60 / sing.bpm, ci = sing.ex.ts[0];
-        // @ts-expect-error -- audited dynamic view runtime boundary
         sing.countInMs = ci * beatSec * 1000;
         sing.phraseStartPN = performance.now() + 150;
         sing.phraseSingPN = sing.phraseStartPN + sing.countInMs;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const t0 = actx.currentTime + 0.15 + (sing.phraseStartPN - performance.now()) / 1000;
         for (let b = 0; b < ci; b++)
             metroClick(t0 + b * beatSec, b === 0); // audible count-in (best-effort)
@@ -1190,14 +1160,12 @@ function ssPhraseLoop(ts) {
     if (!sing.active || sing.mode !== 'phrase')
         return;
     const beatSec = 60 / sing.bpm, dur = sing.ex.totalBeats * beatSec;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (ts < sing.phraseSingPN) {
         $('si-verdict').textContent = t('si_count');
         ssMoveCursor(ssBeatToX(0));
         sing.raf = requestAnimationFrame(ssPhraseLoop);
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const tt = (ts - sing.phraseSingPN) / 1000;
     if (tt <= dur) {
         $('si-verdict').textContent = t('si_sing_now');
@@ -1225,7 +1193,6 @@ function ssPhraseGrade() {
     ssMicStop();
     ssRemoveCursor();
     const beatSec = 60 / sing.bpm;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     sing.flat.forEach((n, i) => {
         const s = n.tBeat * beatSec, e = (n.tBeat + n.dur) * beatSec, tpc = pc(n.midi);
         const win = sing.samples.filter(x => x.t >= s - 0.05 && x.t <= e), onp = win.filter(x => x.pc === tpc), frac = win.length ? onp.length / win.length : 0;
@@ -1234,7 +1201,6 @@ function ssPhraseGrade() {
             verdict = 'good';
         sing.results[i] = verdict;
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     ssPaint();
     const good = sing.results.filter(r => r === 'good').length, tot = sing.flat.length;
     const v = $('si-verdict');
@@ -1245,13 +1211,11 @@ function ssPhraseGrade() {
     ssBumpProgress(good, tot);
 }
 /* ---- mode: free (follow-along scroll + pitch trail) ---- */
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssFreeStart() {
     sing.active = true;
     sing.trail = [];
     ssClearTrail();
     ssPaint();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     ensureAudio();
     const run = sing.runId;
     ssMicMaybe().then(ok => { if (run !== sing.runId || !sing.active || sing.mode !== 'free')
@@ -1264,13 +1228,11 @@ function ssFreeStart() {
     } if ($('si-drone').checked)
         startDrone(pc(sing.ex.tonicMidi)); sing.freePN = performance.now() + 100; $('si-verdict').className = 'verdict neutral'; $('si-verdict').textContent = t('si_freehint'); sing.raf = requestAnimationFrame(ssFreeLoop); });
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ssFreeLoop(ts) {
     if (!sing.active || sing.mode !== 'free')
         return;
     const beatSec = 60 / sing.bpm, dur = sing.ex.totalBeats * beatSec;
     let tt = (ts - sing.freePN) / 1000;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (tt > dur + 0.4) {
         sing.freePN = ts;
         sing.trail = [];
@@ -1280,7 +1242,6 @@ function ssFreeLoop(ts) {
     const x = ssBeatToX(Math.min(Math.max(tt, 0), dur) / beatSec);
     ssMoveCursor(x);
     const p = ssReadPitch(), lv = $('si-live');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (p) {
         lv.classList.add('rec');
         lv.innerHTML = noteName(p.midi, false) + '<small>' + (p.cents >= 0 ? '+' : '') + p.cents + '¢</small>';
@@ -1294,7 +1255,6 @@ function ssFreeLoop(ts) {
     sing.raf = requestAnimationFrame(ssFreeLoop);
 }
 /* ---- input from keyboard / MIDI (alternative to singing) ---- */
-// @ts-expect-error -- audited dynamic view runtime boundary
 function singKeyInput(m) { if (!sing.active)
     return; if (sing.mode === 'note') {
     const cur = ssCurNote();
@@ -1356,7 +1316,6 @@ function buildKeyboard() {
     for (let m = lo; m <= hi; m++) {
         if (!WHITE.has(pc(m)))
             continue;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const b = document.createElement('button');
         b.className = 'key white';
         b.dataset.midi = m;
@@ -1386,7 +1345,6 @@ function buildKeyboard() {
     for (let m = lo; m <= hi; m++) {
         if (WHITE.has(pc(m)))
             continue;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const b = document.createElement('button');
         b.className = 'key black';
         b.dataset.midi = m;
@@ -1589,7 +1547,6 @@ function dockSync() {
     anLayoutVars(); // size the page and the score from the dock's new height in this same frame: no stale gap, no overlap
 }
 // Expanding from the rail, the keys rise out of it (not with reduced motion); transform and opacity only, so the layout is settled from the first frame.
-// @ts-expect-error -- audited dynamic view runtime boundary
 function dockReveal() { if (reduceMotion())
     return; const dock = $('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = setTimeout(() => dock.classList.remove('is-opening'), 300); }
 function dockSet(open) {
@@ -1672,7 +1629,6 @@ function releaseFocusInput() {
     [...inputOwners.entries()].forEach(([m, o]) => [...o].forEach(s => { if (s === 'midi' || s === 'ble')
         return; if (s.startsWith('fall:'))
         fell = true; handleNoteOff(m, s); }));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     pointerKey.clear();
     typingDown.clear();
     if (FALL.press)
@@ -1685,7 +1641,6 @@ function releaseFocusInput() {
     if (fell && !FALL.raf)
         fallDraw();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function panic() { scorePause(); releaseLiveInput(); trxStop(); accompStop(); trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; singStopAll(); srStopAll(true); held.forEach(m => audioNoteOff(m)); held.clear(); heldOrder.length = 0; sustained.forEach(m => audioNoteOff(m)); sustained.clear(); liveVoices.forEach(v => v.stop()); liveVoices.clear(); stopPreviews(); stopDrone(); pointerKey.clear(); typingDown.clear(); pedalDown = false; bendSemitones = 0; if (lfoGain && actx)
     lfoGain.gain.setTargetAtTime(0, actx.currentTime, .02); keyEl.forEach(el => { el.classList.remove('pressed'); if (el.dataset.s === 'active')
     delete el.dataset.s; }); if (view0() === 'explore')
@@ -1795,7 +1750,6 @@ function attachInput(id) { if (activeInputId && activeInputId !== id)
 function autoReconnectMidi() {
     if (!navigator.permissions || !navigator.requestMIDIAccess)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     try {
         navigator.permissions.query({ name: 'midi', sysex: false }).then(p => { if (p.state === 'granted')
             connectMidi(); }).catch(() => { });
@@ -1836,7 +1790,6 @@ function midiIn(st, d1, d2, src) {
 const BLE_MIDI_SVC = '03b80e5a-ede8-4b33-a751-6ce34ec4c700', BLE_MIDI_CHR = '7772e5db-3868-4112-a1a9-f2669d106bf3';
 const BLE = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, retryT: 0, guardT: 0, timedOut: 0, msg: null, cls: '', arg: null, saved: null,
     run: 0, need: 0, n: 0, d1: 0, skip: 0, sysex: false, pedal: false, bend: false, mod: false };
-// @ts-expect-error -- audited dynamic view runtime boundary
 function bleCan() { return !!(navigator.bluetooth && navigator.bluetooth.requestDevice); }
 function bleLive() { return !!(BLE.chr && BLE.dev && BLE.dev.gatt && BLE.dev.gatt.connected); }
 function bleName() { return (BLE.dev && BLE.dev.name) || (BLE.saved && BLE.saved.name) || t('ble_dev'); }
@@ -1853,36 +1806,29 @@ function bleUi() {
     b.disabled = !bleCan();
     re.hidden = !(BLE.dev && !live && !BLE.busy);
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function bleClick() { if (bleLive() || BLE.busy) {
     bleDisconnect();
     return;
 } bleChoose(); }
 async function bleChoose() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!bleCan()) {
         bleSet('ble_unsupported', 'err');
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!window.isSecureContext) {
         bleSet('ble_insecure', 'err');
         return;
     }
     let req;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     try {
         req = navigator.bluetooth.requestDevice({ filters: [{ services: [BLE_MIDI_SVC] }, ...['ES120', 'ES110', 'ES520', 'ES920', 'KAWAI', 'Kawai'].map(namePrefix => ({ namePrefix }))], optionalServices: [BLE_MIDI_SVC] });
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     catch (err) {
         bleErr(err);
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     ensureAudio();
     bleSet('ble_choose');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     let dev;
     try {
         dev = await req;
@@ -1891,32 +1837,24 @@ async function bleChoose() {
         bleErr(err);
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     BLE.tries = 0;
     bleOpen(dev, false);
 }
 function bleErr(err, quiet) {
     const n = err && err.name, m = String((err && err.message) || '');
     console.warn('Bluetooth MIDI:', err);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (n === 'NotFoundError' && /cancel/i.test(m))
         bleSet('ble_cancel');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (n === 'NotAllowedError' || /permission|denied/i.test(m))
         bleSet('ble_denied', 'err');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (n === 'SecurityError' || /blocked/i.test(m))
         bleSet('ble_blocked', 'err');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (n === 'NotSupportedError')
         bleSet('ble_unsupported', 'err');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (/adapter|turned off|not available|unavailable/i.test(m))
         bleSet('ble_adapter', 'err');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (n === 'NotFoundError' && /service|characteristic/i.test(m))
         bleSet('ble_nomidi', 'err');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (quiet)
         bleSet('ble_known');
     else
@@ -1943,13 +1881,11 @@ async function bleOpen(dev, retrying, quiet) {
     const gen = ++BLE.gen;
     dev.removeEventListener('gattserverdisconnected', bleOnGone);
     dev.addEventListener('gattserverdisconnected', bleOnGone);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!retrying)
         bleSet('ble_connecting');
     else
         bleUi();
     // gatt.connect() can wait a long time for a piano that is off; give up after 15 s so the button never hangs.
-    // @ts-expect-error -- audited dynamic view runtime boundary
     clearTimeout(BLE.guardT);
     BLE.guardT = setTimeout(() => { if (BLE.busy && BLE.gen === gen) {
         BLE.timedOut = gen;
@@ -1979,7 +1915,6 @@ async function bleOpen(dev, retrying, quiet) {
         BLE.tries = 0;
         BLE.saved = { id: dev.id, name: dev.name || '', auto: true };
         saveAll();
-        // @ts-expect-error -- audited dynamic view runtime boundary
         bleSet('ble_on', 'on');
     }
     catch (err) {
@@ -1988,7 +1923,6 @@ async function bleOpen(dev, retrying, quiet) {
         clearTimeout(BLE.guardT);
         BLE.busy = false;
         bleUnhook();
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (err && err.name === 'NotFoundError' && /service|characteristic/i.test(String(err.message || ''))) {
             BLE.want = false;
             try {
@@ -2003,7 +1937,6 @@ async function bleOpen(dev, retrying, quiet) {
             return;
         }
         BLE.want = false;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (BLE.timedOut === gen)
             bleSet(quiet ? 'ble_known' : 'ble_unreach', quiet ? '' : 'err');
         else
@@ -2032,21 +1965,17 @@ function bleRetry() {
     const dev = BLE.dev;
     if (!dev || !BLE.want)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (BLE.tries >= 3) {
         BLE.want = false;
         bleSet('ble_gone', 'err');
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const wait = [500, 2000, 5000][BLE.tries++];
     bleSet('ble_lost', 'err');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     clearTimeout(BLE.retryT);
     BLE.retryT = setTimeout(() => { if (BLE.want && BLE.dev === dev && !bleLive())
         bleOpen(dev, true); }, wait);
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function bleReconnect() { const dev = BLE.dev; if (!dev || bleLive() || BLE.busy)
     return; ensureAudio(); BLE.tries = 0; bleOpen(dev, false); }
 function bleDisconnect(keepMsg) {
@@ -2070,7 +1999,6 @@ function bleDisconnect(keepMsg) {
         }
         catch (_) { }
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!keepMsg)
         bleSet('ble_off');
 }
@@ -2089,12 +2017,10 @@ function bleReleaseInput() {
     BLE.pedal = BLE.bend = BLE.mod = false;
     bleParserReset();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 async function bleAutoReconnect() {
     const s = BLE.saved;
     if (!s || !bleCan() || !window.isSecureContext || !navigator.bluetooth.getDevices)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     try {
         const dev = (await navigator.bluetooth.getDevices()).find(d => d.id === s.id);
         if (!dev || BLE.dev)
@@ -2194,7 +2120,6 @@ function bleMsg(st, d1, d2) {
 }
 /* ---------- INSTALLED APP: offline copy, install prompt, full screen and screen wake lock ---------- */
 const PWA = { sw: '', err: '', prompt: null, installed: false };
-// @ts-expect-error -- audited dynamic view runtime boundary
 function pwaStandalone() { return !!((window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches)) || navigator.standalone === true); }
 function pwaInit() {
     window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); PWA.prompt = e; pwaUi(); });
@@ -2334,7 +2259,6 @@ function wakePing() {
     if (!WAKE.idleT)
         wakeArm(WAKE_IDLE_MS);
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function wakeArm(ms) {
     WAKE.idleT = setTimeout(() => {
         WAKE.idleT = 0;
@@ -2393,7 +2317,6 @@ else if (dir > 0) {
 } typeOctave = next; clampTypeOctave(); }
 function physKey(e) { return e.code || (/^[a-z]$/i.test(e.key || '') ? 'Key' + e.key.toUpperCase() : ''); } // some synthetic and virtual-keyboard events carry no code
 // Name those physical keys as the user's layout prints them (Keyboard Map API, Chromium); elsewhere the QWERTY names stay.
-// @ts-expect-error -- audited dynamic view runtime boundary
 function kbdLayoutLabels() {
     const kb = navigator.keyboard;
     if (!kb || typeof kb.getLayoutMap !== 'function')
@@ -2474,7 +2397,6 @@ document.addEventListener('keyup', e => { const c = physKey(e); if (typingDown.h
 /* ---------- GRADING CORE ---------- */
 function chordTargetPcs(rootPc, tpl) { return chordPitches(rootPc, tpl.intervals); }
 function inversionOf(rootPc, tpl, bassMidi) { return chordInversion(rootPc, tpl, bassMidi); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function identifyChord(notes, expected) { return identifyChordDomain(notes, CHORDS, expected); }
 function slashLabel(id) { return rootName(id.rootPc) + id.chord.symbol + (id.inversion > 0 ? '/' + rootName(id.bassPc) : ''); }
 function romanFor(keyRoot, id) { if (!id || keyRoot < 0)
@@ -2554,7 +2476,6 @@ function touchDay() {
     data.bestStreak = Math.max(data.bestStreak || 0, data.streak || 0);
     const h = data.history || (data.history = {});
     h[t] = (h[t] || 0) + 1;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const keys = Object.keys(h);
     if (keys.length > 400)
         keys.sort((a, b) => a - b).slice(0, keys.length - 400).forEach(k => delete h[k]);
@@ -2591,7 +2512,6 @@ function masteredCount() { return ITEMS.filter(it => boxOf(it.id) >= 4).length; 
    ============================================================================ */
 const SES = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0 };
 function sesStopPrompt() { clearTimeout(SES.promptT); SES.promptT = 0; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function sesPrompt(q, play) { sesStopPrompt(); SES.promptT = setTimeout(() => { SES.promptT = 0; if (SES.active && SES.q === q && !SES.answered)
     play(); }, 250); }
 function buildQueue() {
@@ -2726,7 +2646,6 @@ function endSession(toSummary) {
             $('pr-start').focus();
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (toSummary)
         showSummary(wasPlacement);
     else {
@@ -2843,7 +2762,6 @@ function presentEar(q) {
     }
     opts.forEach(o => { const b = document.createElement('button'); b.className = 'chip'; b.dataset.k = String(o.k); b.textContent = o.t; b.onclick = () => answerEar(q, o.k, b); box.appendChild(b); });
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function playProg(rootPc, prog) { ensureAudio(); stopPreviews(); const t = actx.currentTime; prog.chords.forEach((ch, i) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); tpl.intervals.forEach(iv => previewNote(root + iv, t + i * .9, .8)); }); }
 function showProgTarget(q) { kbClear('target'); const ch = q.it.ref.chords[q.idx], root = 60 + ((q.key + ch[0]) % 12), tpl = progChordTpl(ch[1]); tpl.intervals.forEach(iv => kbState(root + iv, 'target', true)); }
 function playQuestionSound(q) {
@@ -2898,7 +2816,6 @@ function markEarCorrect(q) { const it = q.it; const key = it.cat === 'interval' 
 const EK_TRIES = 3, EK_MEL_SCALES = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Major pentatonic', 'Minor pentatonic'];
 const EK_CHORD_GAP = 300; // ms: a key joins the chord if another chord key is still down or it lands this close to the previous one
 function ekForced() { return !!(SES.targeted && SES.targeted.cat === 'melody'); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function ekWanted(q) { return !!q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
 // Spell like the key: minor-flavoured chords and scales on D, G, C, F, B♭, E♭ use flats, as do the flat major keys and the flat intervals.
 function ekFlat(q) {
@@ -2911,7 +2828,6 @@ function ekName(q, m) { return noteName(m, ekFlat(q)); }
 function ekToggleSync(q) {
     const box = $('q-ansmode');
     box.hidden = !(q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && !ekForced());
-    // @ts-expect-error -- audited dynamic view runtime boundary
     box.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'keys') === !!data.settings.earKeys ? 'true' : 'false'));
 }
 function ekUiReset() { $('q-ekhint').textContent = ''; $('q-ekprog').innerHTML = ''; $('q-ekreset').hidden = true; }
@@ -2923,7 +2839,6 @@ function ekBuild(q) {
         const r = earRoot(q);
         return { kind: 'iv', target: [r, r + it.semi], n: 2 };
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (it.cat === 'chord') {
         const ivs = [...new Set(it.ref.intervals)].sort((a, b) => a - b), n = ivs.length;
         const inv = n <= 4 && Math.random() < .6 ? 1 + Math.floor(Math.random() * (n - 1)) : 0; // triads and sevenths come in every inversion
@@ -2977,7 +2892,6 @@ function ekSound(q) {
     stopPreviews();
     const t0 = actx.currentTime + .25, ms = ek.target;
     let last;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (ek.kind === 'iv') {
         previewNote(ms[0], t0, .45);
         previewNote(ms[1], t0 + .5, .45);
@@ -2985,7 +2899,6 @@ function ekSound(q) {
         previewNote(ms[1], t0 + 1.15, .8);
         last = 1.15;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (ek.kind === 'ch') {
         ms.forEach((m, i) => previewNote(m, t0 + i * .16, .4));
         const bt = ms.length * .16 + .1;
@@ -2993,7 +2906,6 @@ function ekSound(q) {
         previewNote(ms[0], t0 + bt + 1.35, .6);
         last = bt + 1.35;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else {
         previewNote(ms[0], t0, .5);
         ms.forEach((m, i) => previewNote(m, t0 + .85 + i * .5, .45));
@@ -3086,7 +2998,6 @@ function ekCh(q) {
     const ek = q.ek;
     if (SES.answered || SES.q !== q || !ek.seq.length)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const ms = [...new Set(ek.seq.map(x => x.m))].sort((a, b) => a - b), pcs = [...new Set(ms.map(pc))].sort((a, b) => a - b), down = ms.some(m => held.has(m));
     if (setEq(pcs, ek.pcs)) {
         if (pc(ms[0]) === pc(ek.target[0]))
@@ -3182,7 +3093,6 @@ function sesInput(midi) {
     else if (q.it.cat === 'prog')
         gradeProgChord(q);
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function gradeInterval(q) {
     if (SES.answered)
         return;
@@ -3193,7 +3103,6 @@ function gradeInterval(q) {
         neutral(t('just_two'));
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const lo = ms[0], hi = ms[1];
     if (pc(lo) === q.key && hi - lo === q.it.semi) {
         [lo, hi].forEach(m => kbState(m, 'good', true));
@@ -3212,7 +3121,6 @@ function gradeChord(q) {
     const hp = heldPcs(), tpl = q.it.ref, target = chordTargetPcs(q.key, tpl);
     if (!hp.length)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (setEq(hp, target)) {
         const inv = inversionOf(q.key, tpl, Math.min(...heldMidis()));
         if (!data.settings.allowInv && inv !== 0) {
@@ -3481,7 +3389,6 @@ let show = function show(v, moveFocus = true) {
         catch (_) { }
     }
     _routed = true;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (v !== 'today') {
         data.lastTool = v;
         const tv = data.toolDay || (data.toolDay = {});
@@ -3500,14 +3407,12 @@ let show = function show(v, moveFocus = true) {
         kbDegrees(null);
     }
     _view = v;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (prev === 'accompany' && v !== 'accompany')
         accompStop();
     if (prev === 'transcribe' && v !== 'transcribe')
         trxStop();
     if (prev === 'sing' && v !== 'sing')
         singStopAll();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (prev === 'read' && v !== 'read') {
         srStopAll();
         rdAbort();
@@ -3603,7 +3508,6 @@ function refreshToday() {
     const gr = greeting();
     $('greet-title').textContent = /[.?!…]$/.test(gr) ? gr : gr + '.';
     const tn = todayN();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('streakN').textContent = currentStreak();
     const goal = data.settings.goal, done = Math.min(data.todayDay === tn ? data.todayCount : 0, goal);
     const gd = $('goaldots');
@@ -3618,7 +3522,6 @@ function refreshToday() {
     gd.setAttribute('aria-label', t('goal_aria', done, goal));
     $('goal-txt').textContent = t('goal_txt', done, goal);
     const due = dueItems().length, fresh = Math.min(newItemsAvail().length, newQuotaLeft());
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('c-due').textContent = due;
     $('c-new').textContent = fresh;
     $('c-mastered').textContent = masteredCount();
@@ -3655,7 +3558,6 @@ function exploreSequence(events) {
     clearExplorePreview();
     if (reduceMotion() && events.length > 2) {
         const last = events[events.length - 1]; // reduced motion: one steady picture of every note instead of a light running across the keys
-        // @ts-expect-error -- audited dynamic view runtime boundary
         events = [{ at: 0, notes: [...new Set(events.flatMap(e => e.notes))].sort((a, b) => a - b) }].concat(last.notes.length ? [] : [last]);
     }
     events.forEach(e => {
@@ -3675,21 +3577,16 @@ function drawExploreStaff(midis, flat) {
         return;
     const names = flat ? ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const pitches = [...new Set(midis)].map(m => {
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const name = names[pc(m)], li = 'CDEFGAB'.indexOf(name[0]), oct = Math.floor(m / 12) - 1;
         return { m, step: ssStepOf(li, oct), acc: name.slice(1) };
-        // @ts-expect-error -- audited dynamic view runtime boundary
     }).sort((a, b) => a.step - b.step || a.m - b.m);
     const W = 520, H = 234, top = 94, room = EX_LEDGERS * 12 + 6;
     let body = '';
     [['bass', 16, 250], ['treble', 270, 504]].forEach(([clef, x0, x1]) => {
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const treble = clef === 'treble', ref = treble ? 30 : 18, x = x0 + 146, far = { up: [], down: [] };
-        // @ts-expect-error -- audited dynamic view runtime boundary
         body += `<g class="ex-stave" data-clef="${clef}"><text class="ss-syl" x="${x0 + 24}" y="${top - 24}">${t(treble ? 'si_treble' : 'si_bass')}</text>`;
         for (let i = 0; i < 5; i++)
             body += `<line class="ss-line" x1="${x0}" y1="${top + i * 12}" x2="${x1}" y2="${top + i * 12}" stroke-width="1.2"/>`;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         body += srClef(clef, x0 + 16, top);
         // Adjacent pitches use alternating head columns; accidentals have collision-free lanes.
         let prevStep = -Infinity, prevLane = 0;
@@ -3723,14 +3620,12 @@ function drawExploreStaff(midis, flat) {
                 accLanes[a] = y;
                 accidental = p.acc === '#' ? ssSharp(x - 20 - a * 11, y) : ssFlat(x - 20 - a * 11, y);
             }
-            // @ts-expect-error -- audited dynamic view runtime boundary
             body += `<g class="ss-n" data-midi="${p.m}" data-clef="${clef}"><title>${noteName(p.m, flat)}</title>${accidental}${ssNotehead(x + lane * 13, y, 4)}</g>`;
         });
         // Listed far notes shrink rather than spill into the other staff; 7px a character overestimates 11px text.
         [['up', '↑', 14], ['down', '↓', H - 6]].forEach(([k, arrow, y]) => {
             if (!far[k].length)
                 return;
-            // @ts-expect-error -- audited dynamic view runtime boundary
             const s = `${arrow} ${far[k].join(' ')}`, max = x1 - x0 - 16, est = s.length * 7, w = Math.min(est, max), cx = Math.min(Math.max(x, x0 + 8 + w / 2), x1 - 8 - w / 2);
             body += `<text class="ss-syl ex-far" x="${cx}" y="${y}"${est > max ? ` style="font-size:${(11 * max / est).toFixed(1)}px"` : ''}>${s}</text>`;
         });
@@ -3770,7 +3665,6 @@ function updateExplore() {
     const keyCtx = parseInt($('keyCtx').value, 10);
     let nameLabel = '—', roman = '—', spell = notes.length ? isFlatKey(pc(notes[0])) : false;
     let degrees = null;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (notes.length >= 3) {
         const id = identifyChord(notes);
         if (id)
@@ -3891,7 +3785,6 @@ function renderCircle() {
     box.innerHTML = s;
     box.querySelectorAll('.cof-k').forEach(g => {
         const pick = () => cofPick(+g.dataset.i, g.dataset.ring === 'min');
-        // @ts-expect-error -- audited dynamic view runtime boundary
         g.addEventListener('click', pick);
         g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -3999,7 +3892,6 @@ function cofDiagram() {
     whites.forEach((m, k) => {
         const on = idx.has(m);
         s += '<rect class="ck-w' + (on ? ' on' : '') + '" data-m="' + m + '" x="' + (X0 + k * WW) + '" y="' + TOP + '" width="' + WW + '" height="' + WH + '" rx="5"/>';
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (on)
             s += '<text class="ck-n" x="' + (X0 + k * WW + WW / 2) + '" y="' + (TOP + WH - 12) + '">' + d.names[idx.get(m)] + '</text>';
     });
@@ -4008,7 +3900,6 @@ function cofDiagram() {
             continue;
         const on = idx.has(m), x = xOf(m);
         s += '<rect class="ck-b' + (on ? ' on' : '') + '" data-m="' + m + '" x="' + (x - BW / 2) + '" y="' + TOP + '" width="' + BW + '" height="' + BH + '" rx="3"/>';
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (on)
             s += '<text class="ck-n b" x="' + x + '" y="' + (TOP + BH - 11) + '" style="font-size:9.5px">' + d.names[idx.get(m)] + '</text>';
     }
@@ -4033,7 +3924,6 @@ function initExploreTabs() {
     const tl = $('ex-tabs');
     if (!tl)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     tl.addEventListener('click', e => { const b = e.target.closest('[role="tab"]'); if (b)
         exTab(b.dataset.tab); });
     tl.addEventListener('keydown', e => {
@@ -4042,10 +3932,8 @@ function initExploreTabs() {
         e.preventDefault();
         exTab(e.key === 'Home' ? 'free' : e.key === 'End' ? 'circle' : exTabCur === 'free' ? 'circle' : 'free', true);
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('cof-mode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.dataset.v === cof.mode)
         return; cof.mode = b.dataset.v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('cof-flavor').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.dataset.v === cof.flavor)
         return; cof.flavor = b.dataset.v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
     $('cof-play').addEventListener('click', () => { if (!cof.picked) {
@@ -4061,7 +3949,6 @@ function renderSongs() {
         return;
     box.innerHTML = '';
     const root = 60 + parseInt($('song-root').value || '0', 10);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     for (let semi = 1; semi <= 12; semi++) {
         const iv = INTERVALS.find(i => i.semi === semi), list = songsFor(semi, songDir);
         const card = document.createElement('div');
@@ -4115,7 +4002,6 @@ function sqRender() {
     $('sq-score').textContent = SQ.total ? t('sq_score', SQ.right, SQ.total) : '';
     if (!SQ.started)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     a.innerHTML = '';
     for (let n = 1; n <= 12; n++) {
         const b = document.createElement('button');
@@ -4144,7 +4030,6 @@ function sqAnswer(n) {
     const hook = songsFor(SQ.semi, SQ.dir).find(x => !/^\(/.test(x)), v = $('sq-verdict');
     v.className = 'verdict ' + (ok ? 'good' : 'bad');
     v.textContent = t(ok ? 'sq_good' : 'sq_bad', ivName(SQ.semi)) + (hook ? ' ' + t('sq_hook', hook) : '');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (data.earDay !== todayN()) {
         data.earDay = todayN();
         data.earToday = 0;
@@ -4172,22 +4057,18 @@ const LEARN_OLD_ORDER = ['keys', 'iv', 'sc', 'ch', 'cof', 'pr', 'rh', 'notation'
 const LEARN_GAPS = [3, 7, 16, 35, 90];
 let learnSel = 0, LGEN = 0, LQ = null, learnGloss = false;
 function learnTitle(L) { return (L[lang] && L[lang].t) || L.en.t; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnData() {
     if (!data.learnDone || typeof data.learnDone !== 'object')
         data.learnDone = {};
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!data.learnRev || typeof data.learnRev !== 'object') {
         data.learnRev = {};
         Object.keys(data.learnDone).forEach(id => { data.learnRev[id] = { last: data.learnDone[id], n: 0 }; });
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!data.learnUnlock || typeof data.learnUnlock !== 'object')
         data.learnUnlock = {};
     return data;
 }
 function learnUnitOf(id) { return LEARN_UNITS.findIndex(u => u.ls.includes(id)); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnUnitDone(i) { const u = LEARN_UNITS[i], d = learnData().learnDone; return u ? u.ls.filter(id => d[id]).length : 0; }
 function learnUnitOpen(i) {
     if (i <= 0)
@@ -4195,17 +4076,13 @@ function learnUnitOpen(i) {
     const u = LEARN_UNITS[i], D = learnData();
     if (!u)
         return true;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (D.learnUnlock[u.id] || u.ls.some(id => D.learnDone[id]))
         return true;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const p = LEARN_UNITS[i - 1];
     return learnUnitOpen(i - 1) && p.ls.every(id => D.learnDone[id]);
 }
 function learnLessonOpen(L) { return learnUnitOpen(learnUnitOf(L.id)); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnGap(id) { const r = learnData().learnRev[id]; return LEARN_GAPS[Math.min(r ? (r.n | 0) : 0, LEARN_GAPS.length - 1)]; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnDueDays(id) {
     const D = learnData();
     if (!D.learnDone[id])
@@ -4215,14 +4092,11 @@ function learnDueDays(id) {
     return age >= learnGap(id) ? age : null;
 }
 function learnDueList() { return LESSONS.filter(L => learnDueDays(L.id) != null).sort((a, b) => learnDueDays(b.id) - learnDueDays(a.id)); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnComplete(L, score) {
     const D = learnData(), tn = todayN(), was = D.learnDone[L.id], due = learnDueDays(L.id) != null;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const r = D.learnRev[L.id] || (D.learnRev[L.id] = { last: tn, n: 0 });
     if (score != null)
         r.best = Math.max(r.best || 0, score);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!was) {
         D.learnDone[L.id] = tn;
         r.last = tn;
@@ -4238,7 +4112,6 @@ function learnComplete(L, score) {
 }
 function learnMark(read) {
     const L = LESSONS[learnSel], D = learnData();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (read)
         learnComplete(L, null);
     else {
@@ -4247,25 +4120,21 @@ function learnMark(read) {
     }
     saveAll();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnInitSel() {
     if (renderLearn._init)
         return;
     renderLearn._init = true;
     const D = learnData();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     let id = D.learnSelId;
     if (!id && Number.isInteger(D.learnSel))
         id = LEARN_OLD_ORDER[D.learnSel];
     const i = LESSONS.findIndex(L => L.id === id);
     learnSel = i >= 0 ? i : 0;
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnGo(i) {
     learnSel = Math.max(0, Math.min(LESSONS.length - 1, i));
     learnData().learnSelId = LESSONS[learnSel].id;
     data.learnSel = learnSel;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     renderLearn._init = true;
     learnGloss = false;
     LQ = null;
@@ -4280,7 +4149,6 @@ function learnGo(i) {
         h.focus({ preventScroll: true });
     }
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnGoId(id) { const i = LESSONS.findIndex(L => L.id === id); if (i >= 0) {
     if (view0() !== 'learn') {
         learnSel = i;
@@ -4306,17 +4174,14 @@ function learnHalt() {
 }
 function learnTimer(fn, ms) { const g = LGEN; setTimeout(() => { if (g !== LGEN || view0() !== 'learn')
     return; fn(); }, ms); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnLight(ms, dur) {
     const g = LGEN;
     kbClear('target');
     ms.forEach(m => kbState(m, 'target', true));
     clearTimeout(learnLight._t);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     learnLight._t = setTimeout(() => { if (g === LGEN)
         kbClear('target'); }, dur);
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnPlanItems(tn) {
     const D = learnData(), ld = D.learnDone;
     const nextL = LESSONS.find(L => !ld[L.id] && learnLessonOpen(L)), learnToday = Object.keys(ld).some(k => ld[k] === tn);
@@ -4331,7 +4196,6 @@ function learnPlanItems(tn) {
         out.push({ id: 'learnrev', done: false, t: t('plan_lrev'),
             d: t('plan_lrev_d', learnTitle(L), learnDueDays(L.id)) + (due.length > 1 ? t('plan_lrev_more', due.length - 1) : ''), go: () => learnGoId(L.id) });
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (Object.keys(D.learnRev).some(k => D.learnRev[k].rv === tn))
         out.push({ id: 'learnrev', done: true, t: t('plan_lrev'), d: t('plan_lrev_done'), go: () => show('learn') });
     return out;
@@ -4393,7 +4257,6 @@ function lStaffSvg(key) {
     let out = '', needH = 0;
     (S.marks || []).forEach(mk => {
         const k = mk[0], b = mk[1];
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (k === 'dyn')
             out += T(bx(b) - 6, dynY, mk[2], 'lm-dyn');
         else if (k === 'cr' || k === 'dim') {
@@ -4414,7 +4277,6 @@ function lStaffSvg(key) {
             const y = Math.min(n.y - 16, top(n.hand) - 8), x = n.x;
             out += '<path class="lm-ln" d="M' + (x - 8) + ',' + y + ' A8,8 0 0 1 ' + (x + 8) + ',' + y + '"/><circle class="lm-f" cx="' + x + '" cy="' + (y - 2) + '" r="1.8"/>';
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         else if (k === 'tr') {
             const n = nAt(b, mk[2]);
             if (n)
@@ -4436,7 +4298,6 @@ function lStaffSvg(key) {
             const x1 = bx(b) - 4, x2 = bx(mk[2]) + 4, y = 34;
             out += '<path class="lm-ln" d="M' + x1 + ',' + (y + 4) + ' L' + x1 + ',' + y + ' L' + (x2 + x1) / 2 + ',' + y + ' M' + (x2 + x1) / 2 + ',' + y + ' L' + x2 + ',' + y + ' L' + x2 + ',' + (y + 4) + '"/>' + T((x1 + x2) / 2, y - 3, '3', 'lm-it', 'middle');
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         else if (k === 'txt')
             out += T(bx(b) - 6, 18, LT(mk[2]), 'lm-tx');
         else if (k === 'rn') {
@@ -4444,7 +4305,6 @@ function lStaffSvg(key) {
             if (P.lh)
                 needH = Math.max(needH, rnY + 12);
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         else if (k === 'ped') {
             const y = P.lh ? botY + 22 : dynY;
             out += T(bx(b) - 8, y, 'Ped.', 'lm-it') + T(bx(mk[2]) + 4, y, '✱', 'lm-sm');
@@ -4521,13 +4381,11 @@ async function lStaffPlay(key, btn) {
             if (has('fer', n.beat))
                 dur *= 1.8;
             const snd = has('stac', n.beat) ? dur * 0.4 : dur * 0.95, at = off + n.beat - a, vel = lVel(S, n.beat);
-            // @ts-expect-error -- audited dynamic view runtime boundary
             if (has('tr', n.beat)) {
                 const up = [4, 11].includes(pc(n.midi)) ? 1 : 2, k = Math.max(2, Math.floor(dur / 0.125));
                 for (let i = 0; i < k; i++)
                     previewNote(n.midi + (i % 2 ? up : 0), t0 + (at + i * dur / k) * spb, dur / k * spb, vel);
             }
-            // @ts-expect-error -- audited dynamic view runtime boundary
             else
                 previewNote(n.midi, t0 + at * spb, snd * spb, vel);
             const el = svg.querySelector('.ss-n[data-nid="' + n.nid + '"]');
@@ -4553,7 +4411,6 @@ async function lStaffNote(gEl) {
     const key = fig.dataset.lstaff, n = LSR[key] && LSR[key].notes[+gEl.dataset.nid];
     if (!n)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     learnHalt();
     ensureAudio();
     if (!await preparePiano())
@@ -4584,7 +4441,6 @@ function lqStart(L) {
 }
 function lqNeed(n) { return Math.max(1, Math.round(n * 0.7)); }
 function lqMidis(q) { return (q.pcs || q.seq).map(p => 60 + p); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function lqRender() {
     const box = $('lq');
     if (!box)
@@ -4665,7 +4521,6 @@ function lqNext() {
     learnSay($('lq').querySelector('.lq-res').textContent);
     lqFocus('.lq-act button');
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function lqShow() {
     const q = LQ && LQ.qs[LQ.i];
     if (!q || q.ans)
@@ -4727,7 +4582,6 @@ function learnRdLevel(u) {
     }
     return pick;
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnSide() {
     const toc = $('learnToc');
     if (!toc)
@@ -4754,7 +4608,6 @@ function learnSide() {
     toc.innerHTML = h;
     $('learnExtra').innerHTML = '<label class="learn-pick"><span>' + t('lu_pick') + '</span><select id="learnPick">' + opt + '</select></label><button type="button" class="btn ghost sm" id="learnGlossBtn" aria-pressed="' + learnGloss + '">📖 ' + t('lu_gloss') + '</button>';
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnNavRender() {
     const nav = $('learnBody').querySelector('.learn-nav');
     if (!nav)
@@ -4764,7 +4617,6 @@ function learnNavRender() {
         '<div class="mid">' + (isRead ? '<span class="read-ok">✓ ' + t('lu_complete') + '</span><button type="button" class="btn ghost sm" data-ln="unmark">' + t('learn_unmark') + '</button>' : '') + '</div>' +
         '<button type="button" class="btn ghost sm" data-ln="next"' + (last ? ' disabled' : '') + '>' + t('learn_next') + '</button>';
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function learnWire() {
     if (learnWire._ok)
         return;
@@ -4779,13 +4631,10 @@ function learnWire() {
     live.className = 'visually-hidden';
     live.setAttribute('aria-live', 'polite');
     side.appendChild(live);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     toc.addEventListener('click', e => { const b = e.target.closest('[data-li]'); if (b)
         learnGo(+b.dataset.li); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     ex.addEventListener('change', e => { if (e.target.id === 'learnPick')
         learnGo(+e.target.value); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     ex.addEventListener('click', e => { if (e.target.closest('#learnGlossBtn')) {
         learnGloss = !learnGloss;
         LQ = null;
@@ -4795,12 +4644,10 @@ function learnWire() {
             s.focus();
     } });
     const body = $('learnBody');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     body.addEventListener('keydown', e => { const g = e.target.closest && e.target.closest('.lstaff .ss-n'); if (g && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
         lStaffNote(g);
     } });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     body.addEventListener('input', e => { if (e.target.id === 'lg-q')
         lgFilter();
     else
@@ -4824,7 +4671,6 @@ let renderLearn = function renderLearn() {
     const L = LESSONS[learnSel], ui = learnUnitOf(L.id), u = LEARN_UNITS[ui], open = learnUnitOpen(ui), rl = u ? learnRdLevel(u) : null;
     let h = '<div class="lu-bar"><span class="lu-unit"><span aria-hidden="true">' + (u ? u.icon : '') + '</span> ' + t('lu_unit', ui + 1, LEARN_UNITS.length) + ' · <b>' + (u ? (u[lang] || u.en) : '') + '</b></span>' +
         (rl && open ? '<button type="button" class="btn ghost sm" data-rd="' + rl.id + '" aria-label="' + t('lu_practise_aria') + ': ' + rdLvName(rl) + '">' + t('lu_practise', rdLvName(rl)) + ' →</button>' : '') + '</div><h3>' + learnTitle(L) + '</h3>';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!open) {
         const prev = LEARN_UNITS[ui - 1], firstOpen = LESSONS.findIndex(x => prev.ls.includes(x.id) && !learnData().learnDone[x.id]);
         h += '<div class="lu-lock"><p class="lu-lock-t">🔒 ' + t('lu_locked_t') + '</p><p>' + t('lu_locked_d', (prev[lang] || prev.en)) + '</p><div class="lq-act">' +
@@ -4857,7 +4703,6 @@ let renderLearn = function renderLearn() {
         cur.scrollIntoView({ block: 'nearest' });
 };
 function learnClick(e) {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const g = e.target.closest('[data-go]');
     if (g) {
         e.preventDefault();
@@ -4907,7 +4752,6 @@ function learnClick(e) {
             lqRender();
             learnNavRender();
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         else if (a === 'unlock') {
             const u = LEARN_UNITS[learnUnitOf(L.id)];
             learnData().learnUnlock[u.id] = todayN();
@@ -4988,13 +4832,11 @@ async function runDemo(spec, btn) {
     if (g !== LGEN || view0() !== 'learn')
         return;
     const T0 = actx.currentTime + 0.06;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (kind === 'n') {
         const m = +p[1];
         previewNote(m, T0, 0.9, 96);
         learnLight([m], 1300);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (kind === 'run') {
         const ms = p[1].split('.').map(Number);
         ms.forEach((m, i) => previewNote(m, T0 + i * 0.4, 0.38, 92));
@@ -5030,7 +4872,6 @@ async function runDemo(spec, btn) {
         const nm = p.slice(2).join(':'), prog = PROGS.find(x => x.name === nm) || ACCOMP_PROGS.find(x => x.name === nm);
         if (prog) {
             const rp = +p[1];
-            // @ts-expect-error -- audited dynamic view runtime boundary
             playProg(rp, prog);
             lSeqLight(prog.chords.map(ch => { const r = 60 + ((rp + ch[0]) % 12), tp = progChordTpl(ch[1]); return tp ? tp.intervals.map(i => r + i) : [r]; }), 900, 900);
         }
@@ -5040,13 +4881,10 @@ async function runDemo(spec, btn) {
         const chs = LBLUES.map(d => { const r = (rp + d) % 12, root = 60 + r - (r > 7 ? 12 : 0); return { bass: 36 + r, ms: [root, root + 4, root + 7, root + 10] }; });
         chs.forEach((c, i) => {
             const b0 = T0 + i * 4 * spb;
-            // @ts-expect-error -- audited dynamic view runtime boundary
             previewNote(c.bass, b0, spb * 1.9, 84);
             previewNote(c.bass + 7, b0 + 2 * spb, spb * 1.9, 76);
-            // @ts-expect-error -- audited dynamic view runtime boundary
             [0, 1.5, 2, 3.5].forEach((k, j) => c.ms.slice(1).forEach(m => previewNote(m, b0 + k * spb, j % 2 ? spb * 0.45 : spb * 0.9, j % 2 ? 66 : 80)));
         });
-        // @ts-expect-error -- audited dynamic view runtime boundary
         previewNote(36 + rp, T0 + 48 * spb, 1.4, 84);
         [60, 64, 67, 70].forEach(m => previewNote(m + rp, T0 + 48 * spb, 1.4, 80));
         lSeqLight(chs.map(c => [c.bass].concat(c.ms)), 4 * spb * 1000, 1600);
@@ -5055,7 +4893,6 @@ async function runDemo(spec, btn) {
     }
     else if (kind === 'vc') {
         const chs = p[1].split('|').map(s => s.split('.').map(Number));
-        // @ts-expect-error -- audited dynamic view runtime boundary
         chs.forEach((ms, i) => ms.forEach(m => previewNote(m, T0 + i * 1.1, 1.05, m < 55 ? 80 : 88)));
         lSeqLight(chs, 1100, 1200);
     }
@@ -5064,11 +4901,9 @@ async function runDemo(spec, btn) {
         if (!P)
             return;
         const spb = P.beats === 3 ? 0.45 : 0.55, ev = [];
-        // @ts-expect-error -- audited dynamic view runtime boundary
         LACC_CH.forEach((c, i) => P.gen(ev, i * P.beats, c));
         previewNote(48, T0 + 4 * P.beats * spb, 1.6, 80);
         [60, 64, 67].forEach(m => previewNote(m, T0 + 4 * P.beats * spb, 1.6, 80));
-        // @ts-expect-error -- audited dynamic view runtime boundary
         ev.forEach(e => previewNote(e.midi, T0 + e.beat * spb, Math.max(0.12, e.durB * spb * 0.95), e.hand === 'L' ? 78 : 86));
         lSeqLight(LACC_CH.map(c => [c.bass].concat(c.right)).concat([[48, 60, 64, 67]]), P.beats * spb * 1000, 1600);
     }
@@ -5117,7 +4952,6 @@ function demoBeat(kind, btn) {
     for (let i = 0; i < total; i++) {
         const k = i % n;
         metroClick(t0 + i * step, lvl(k) === 2 || (kind === '3t' && lvl(k) === 1));
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (kind === '3t' && k % 3 === 0)
             previewNote(72, t0 + i * step, step * 2.6, 70);
         learnTimer(() => dots.forEach((d, j) => d.classList.toggle('on', j === k)), (i * step + 0.1) * 1000);
@@ -5154,7 +4988,6 @@ function lmStart(el) {
     const b = el.querySelector('[data-w="mstart"]');
     b.setAttribute('aria-pressed', 'true');
     b.textContent = '■ ' + t('lw_stop');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     LM.timer = setInterval(() => {
         if (!LM.el || !document.body.contains(el) || view0() !== 'learn') {
             lmStop();
@@ -5220,7 +5053,6 @@ function lwChordData(s) {
     for (let k = 0; k < inv; k++)
         tones[k].midi += 12;
     tones.sort((a, b) => a.midi - b.midi);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     let b = tones[0];
     if (s.bass >= 0 && s.bass !== b.midi % 12) {
         const sp = (tones.find(x => x.midi % 12 === s.bass)) || { li: LSPF[s.bass][0], acc: LSPF[s.bass][1] };
@@ -5316,7 +5148,6 @@ async function lwScalePlay(el) {
     ensureAudio();
     if (!await preparePiano())
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const r = 60 + s.root - (s.root > 6 ? 12 : 0), T0 = actx.currentTime + 0.05;
     cum.forEach((o, i) => previewNote(r + o, T0 + i * 0.3, 0.3, 90));
     lSeqLight(cum.map(o => [r + o]), 300, 600);
@@ -5330,7 +5161,6 @@ async function lwChordPlay(el) {
     ensureAudio();
     if (!await preparePiano())
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const T0 = actx.currentTime + 0.05;
     ms.forEach((m, i) => previewNote(m, T0 + i * 0.14, 0.4, 86));
     ms.forEach(m => previewNote(m, T0 + ms.length * 0.14 + 0.1, 1.3, 84));
@@ -5375,7 +5205,6 @@ async function lwClick(w) {
             learnSay(t('lw_over'));
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         s.st.push(st);
         lwRefocus(el, '[data-w="' + a + '"]');
         const m = 60 + s.root - (s.root > 6 ? 12 : 0) + tot + st;
@@ -5547,7 +5376,6 @@ function srRender(piece) {
     }
     const beatSet = new Set();
     staves.forEach(st => st.data.ev.forEach(e => beatSet.add(+e.beat.toFixed(4))));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const beats = [...beatSet].sort((a, b) => a - b);
     const notes = [], beatX = [];
     let body = '', nid = 0;
@@ -5565,7 +5393,6 @@ function srRender(piece) {
             }
         });
     beats.forEach(b => {
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (bounds.some(v => Math.abs(v - b) < 1e-3)) {
             x += 6;
             body += `<line class="ss-line" x1="${x}" y1="${topY}" x2="${x}" y2="${botY}" stroke="#1a1714" stroke-width="1.3"/>`;
@@ -5574,7 +5401,6 @@ function srRender(piece) {
         const nx = x + 10;
         let minDur = 4;
         staves.forEach(st => {
-            // @ts-expect-error -- audited dynamic view runtime boundary
             const here = st.data.ev.filter(e => Math.abs(e.beat - b) < 1e-3), chord = here.filter(e => !e.rest && e.chord);
             if (chord.length) {
                 const items = chord.map(e => ({ e, step: ssStepOf(e.li, e.oct) })).sort((p, q) => p.step - q.step);
@@ -5793,7 +5619,6 @@ function srStopAll(keep) {
     const go = $('rd-go');
     if (go)
         go.textContent = t('rd_start');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SR.listening = false;
     const li = $('rd-listen');
     if (li)
@@ -5805,7 +5630,6 @@ function srPlayGap(fromBeat, toBeat) {
     if (sel === 'both' || srHandsAvail() !== 'both')
         return;
     const bs = 60 / SR.bpm;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SR.notes.filter(n => n.hand !== sel && n.beat >= fromBeat - 1e-3 && n.beat < toBeat - 1e-3).forEach(n => previewNote(n.midi, actx.currentTime + 0.02, Math.max(.15, n.dur * bs * .9), 78));
 }
 function srCount() { const v = $('rd-verdict'); v.className = 'verdict neutral'; v.textContent = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : ''); }
@@ -5866,7 +5690,6 @@ function srAssessStart() {
         srClick(act0 + (ci + b) * bs, rel >= 0 && Math.abs(rel % cap) < 1e-3);
     }
     const sel = srActiveHands();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (sel !== 'both' && srHandsAvail() === 'both')
         SR.notes.filter(n => n.hand !== sel).forEach(n => previewNote(n.midi, act0 + (ci + n.beat) * bs, Math.max(.15, n.dur * bs * .9), 78));
     SR.t0 = perf0 + ci * bs * 1000;
@@ -5981,7 +5804,6 @@ function srKeyInput(m) {
         SR.wrongExtra++;
     }
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function srListen() {
     if (!SR.piece)
         return;
@@ -5993,16 +5815,13 @@ function srListen() {
     srStopAll(true);
     SR.bpm = +($('rd-bpm').value || SR.piece.bpm);
     const bs = 60 / SR.bpm, act0 = actx.currentTime + 0.1, perf0 = performance.now() + 100;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SR.listening = true;
     $('rd-listen').textContent = t('rd_stop');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const follow = () => { if (!SR.listening)
         return; const b = (performance.now() - perf0) / 1000 / bs; if (b >= 0)
         srCursor(srBeatToX(Math.min(b, SR.totalBeats))); SR.raf = requestAnimationFrame(follow); };
     SR.raf = requestAnimationFrame(follow);
     SR.timers.push(setTimeout(() => srStopAll(true), SR.totalBeats * bs * 1000 + 400));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SR.notes.forEach(n => {
         previewNote(n.midi, act0 + n.beat * bs, Math.max(.15, n.dur * bs * .92), n.hand === 'lh' ? 80 : 96);
         SR.timers.push(setTimeout(() => {
@@ -6020,7 +5839,6 @@ function srListen() {
         }, Math.max(0, (perf0 - performance.now()) + n.beat * bs * 1000)));
     });
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function srGo() {
     if (!SR.piece)
         return;
@@ -6029,7 +5847,6 @@ function srGo() {
         $('rd-verdict').textContent = '';
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     srStopAll();
     ensureAudio();
     SR.bpm = +($('rd-bpm').value || SR.piece.bpm);
@@ -6063,7 +5880,6 @@ function fillPieces() {
         return;
     const cur = sel.value;
     sel.innerHTML = '';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (SR.excerpt) {
         const og = document.createElement('optgroup');
         og.label = t('rd_excerpt_group');
@@ -6073,7 +5889,6 @@ function fillPieces() {
         og.appendChild(o);
         sel.appendChild(og);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (SR.gen) {
         const og = document.createElement('optgroup');
         og.label = t('rdx_u_sr');
@@ -6097,10 +5912,8 @@ function fillPieces() {
         });
         sel.appendChild(og);
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     sel.value = (cur && (PIECES.some(p => p.id === cur) || (SR.excerpt && SR.excerpt.id === cur) || (SR.gen && SR.gen.id === cur))) ? cur : PIECES[0].id;
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function srSelectPiece(id) {
     srStopAll();
     SR.piece = (SR.excerpt && SR.excerpt.id === id ? SR.excerpt : null) || (SR.gen && SR.gen.id === id ? SR.gen : null) || PIECES.find(p => p.id === id) || PIECES[0];
@@ -6138,7 +5951,6 @@ const RD_CLEFC = { treble: 't', bass: 'b', alto: 'a', tenor: 'n' };
 const RD_MAJ = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'], RD_MIN = ['Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#'];
 const RD_CHQ = { maj: [0, 4, 7], min: [0, 3, 7], dim: [0, 3, 6], aug: [0, 4, 8] };
 const RD_TARGET = { name: 2500, play: 3500, k2s: 4000, iv: 3500, ch: 6000, ks: 5000 };
-// @ts-expect-error -- audited dynamic view runtime boundary
 function rdData() {
     if (!data.reading || typeof data.reading !== 'object')
         data.reading = {};
@@ -6373,7 +6185,6 @@ function rdPool(L) {
     if (L.set)
         return L.set.map(rdP);
     const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), out = [];
-    // @ts-expect-error -- audited dynamic view runtime boundary
     for (let s = lo; s <= hi; s++) {
         const n = rdFromStep(s);
         out.push(n);
@@ -6411,7 +6222,6 @@ function rdGen(L) {
             if (b >= lo && b <= hi)
                 break;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const harm = L.harm === 1 || (L.harm === 2 && Math.random() < .5);
         let na = rdFromStep(a), nb = rdFromStep(b);
         if (harm && a > b) {
@@ -6424,12 +6234,10 @@ function rdGen(L) {
     if (ty === 'ch') {
         const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), qual = rdPickFrom(L.q, v => 'ch:' + v);
         let notes = null, root = null, inv = 0;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         for (let k = 0; k < 80 && !notes; k++) {
             const rs = lo + Math.floor(Math.random() * Math.max(1, hi - lo - 3));
             root = rdFromStep(rs);
             const rm = rdMidi(root);
-            // @ts-expect-error -- audited dynamic view runtime boundary
             const ns = [0, 1, 2].map(j => { const n = rdFromStep(rs + 2 * j); n.acc = rm + RD_CHQ[qual][j] - rdMidi(n); return n; });
             if (ns.some(n => Math.abs(n.acc) > 1))
                 continue;
@@ -6448,11 +6256,9 @@ function rdGen(L) {
         }
         const opts = shuffle([...set]).map(v => { const [li, q] = v.split(':'); return { v, l: rdChLabel(+li, q) }; });
         const midis = notes.map(rdMidi);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         return { ty, clef: L.clef, key: 'ch:' + qual, ans, root, qual, inv, notes, opts, midis, pcs: [...new Set(midis.map(pc))].sort((a, b) => a - b) };
     }
     let clef = L.clef, pool, keyN = 0;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (clef === 'mix') {
         clef = ssPick(['treble', 'bass', 'alto', 'tenor']);
         const r = RD_REF[clef];
@@ -6481,7 +6287,6 @@ function rdGen(L) {
                 opts.push(x);
             }
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         q.opts = shuffle(opts).map((x, i) => ({ v: i, n: x }));
         q.ans = q.opts.findIndex(o => o.n === n);
     }
@@ -6530,7 +6335,6 @@ function rdKbMark(m, s) { const el = document.querySelector('#rdx-kb [data-m="' 
         delete el.dataset.s;
 } }
 function rdBtn(o, i, cls) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function rdNext() {
     clearTimeout(RD.hintT);
     RD.answered = false;
@@ -6539,31 +6343,24 @@ function rdNext() {
     q.hinted = false;
     q.state = null;
     let acc = '', ans = '', kb = '';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (q.ty === 'name') {
         if (q.needAcc)
             acc = `<div class="seg rdx-accs" id="rdx-accs" role="group" aria-label="${t('rdx_accl')}">${[-1, 0, 1].map((a, i) => `<button data-acc="${a}" aria-pressed="${a === 0}" title="${t('rdx_acc_t' + a)}">${a < 0 ? '♭' : a > 0 ? '♯' : '♮'}<kbd>${['-', '0', '='][i]}</kbd></button>`).join('')}</div>`;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         ans = [0, 1, 2, 3, 4, 5, 6].map(li => rdBtn({ v: li, l: rdLetter(li) }, li)).join('');
     }
     else if (q.ty === 'play') {
         const r = rdKbRange(q);
         kb = rdMiniKb(r[0], r[1], null, true);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (q.ty === 'k2s') {
         const r = rdKbRange(q);
         kb = rdMiniKb(r[0], r[1], q.midi, false);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         ans = q.opts.map((o, i) => rdBtn({ v: o.v, html: rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, cols: [[o.n]], colW: 56, scale: 0.8 }).svg }, i, 'rdx-opt')).join('');
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else
         ans = q.opts.map((o, i) => rdBtn(o, i)).join('');
     const pr = RD.mode === 'practice';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div>${q.ty === 'k2s' ? kb : ''}<div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${q.ty === 'k2s' ? '' : kb}<div class="rdx-tools">${pr ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.needAcc && q.ty === 'name' ? t('rdx_keys_acc') : '')}</span></div></div>`;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (q.ty === 'k2s' && rdData().prefs.sound)
         rdSound(q.midis);
     if (pr && rdData().prefs.hints)
@@ -6572,7 +6369,6 @@ function rdNext() {
     rdHud();
     RD.t0 = performance.now();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function rdSound(ms, arp) { if (!ms || !ms.length)
     return; ensureAudio(); if (!actx)
     return; const t0 = actx.currentTime + 0.03; ms.forEach((m, i) => previewNote(m, t0 + (arp ? i * 0.45 : 0), 0.9, 88)); }
@@ -6583,7 +6379,6 @@ function rdHint() {
         return;
     q.hinted = true;
     let s = '';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (q.ty === 'name' || q.ty === 'play') {
         const st = rdStep(q.note);
         let lm = RD_LM[0];
@@ -6829,7 +6624,6 @@ function rdRhNew(keep) {
     const L = RD.L, pr = rdRhPrefs(), old = keep && RD.rh;
     const ev = old ? old.ev : rdRhGen(L), lh = pr.two ? ((old && old.lh) || rdRhGenLH(L)) : null;
     const piece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: L.bpm, rh: ev.map(e => [e.rest ? 'R' : 'B4', e.dur]) };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (lh)
         piece.lh = lh.map(e => [e.rest ? 'R' : 'D3', e.dur]);
     const r = srRender(piece);
@@ -6872,12 +6666,10 @@ function rdRhRun(listen) {
         rdClick(act0 + b * bs, b === 0);
     for (let b = 0; b < 8; b++)
         rdClick(beat0 + b * bs, b % 4 === 0);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (listen) {
         const k = R.dur ? .92 : .8;
         R.ev.forEach(e => { if (!e.rest)
             previewNote(72, beat0 + e.beat * bs, Math.max(.12, e.dur * bs * k), 90); });
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (R.lh)
             R.lh.forEach(e => { if (!e.rest)
                 previewNote(48, beat0 + e.beat * bs, Math.max(.12, e.dur * bs * k), 80); });
@@ -7040,7 +6832,6 @@ function rdRhDone(endBeat) {
     }
     else {
         g = rdRhGradeAll(R, bs, endBeat || 8.6);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         Object.entries(g.by).forEach(([h, hg]) => hg.res.forEach(r => {
             const n = R.r.notes.find(x => x.hand === (h === 'L' ? 'lh' : 'rh') && Math.abs(x.beat - r.e.beat) < 1e-3), el = n && $('rdx-staff').querySelector('.ss-n[data-nid="' + n.nid + '"]');
             if (!el)
@@ -7098,7 +6889,6 @@ function rdSightGen(L) {
         ton++;
     if (ton > hi)
         ton -= 7;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const nm = s => { const n = rdFromStep(s); return SR_LET[n.li] + (kA[n.li] > 0 ? '#' : kA[n.li] < 0 ? 'b' : '') + n.oct; };
     let cur = ton;
     const mel = [];
@@ -7139,22 +6929,18 @@ function rdSightGen(L) {
     if (mel.length)
         mel[0][0] = nm(ton);
     const p = { id: 'gen', ephemeral: true, gen: L.id, comp: '', level: L.n, keyN, ts: [4, 4], bpm: L.bpm,
-        // @ts-expect-error -- audited dynamic view runtime boundary
         t: { en: tl('en', 'rdx_sr_title', L.n), ro: tl('ro', 'rdx_sr_title', L.n) } };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (L.clef === 'bass')
         p.lh = mel;
     else
         p.rh = mel;
     if (L.clef === 'grand') {
         const b = SR_LET.indexOf(RD_MAJ[keyN + 7][0]), deg = [0, ssPick([3, 4]), 4, 0];
-        // @ts-expect-error -- audited dynamic view runtime boundary
         p.lh = deg.map(dg => { let s = 14 + 7 + b + dg; if (s >= 28)
             s -= 7; return [nm(s), 4]; });
     }
     return p;
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function rdSightStart(mode) {
     const L = RD.L;
     rdData().prefs.srLv = L.id;
@@ -7172,7 +6958,6 @@ function rdSightStart(mode) {
     if (g)
         g.focus();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function rdGenMelody() { const L = RD_LV[rdData().prefs.srLv] || RD_LV.sr1; RD.L = L; rdSightStart(SR.modeSel === 'assess' ? 'test' : 'practice'); }
 function rdSightDone(kind, val) {
     const p = SR.piece;
@@ -7263,7 +7048,6 @@ function rdIntro() {
     let prev = '';
     if (['name', 'play', 'k2s'].includes(L.ty) && L.clef !== 'mix') {
         const pool = rdPool(L).filter(n => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
-        // @ts-expect-error -- audited dynamic view runtime boundary
         prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef: L.clef, cols: pool.map(n => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map(n => rdName(n)) }).svg}</div>`;
     }
     const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}</div>`;
@@ -7292,7 +7076,6 @@ function rdStart(mode) {
             return; rdHud(); if (performance.now() >= RD.rushEnd && !RD.answered)
             rdFinish(); }, 250);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (L.ty === 'rh')
         rdRhNew();
     else
@@ -7372,7 +7155,6 @@ function rdFinish() {
     }
     touchDay();
     saveAll();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const weak = Object.entries(RD.miss).sort((a, b) => b[1] - a[1]).slice(0, 8);
     const tiles = L.ty === 'rh' ? [[acc + '%', t('rdx_st_rh')], [RD.rhP.length, t('rdx_st_ex')]]
         : [[acc + '%', t('rdx_st_acc')], [(avg / 1000).toFixed(1) + 's', t('rdx_st_time')], [mode === 'rush' ? score : RD.best, mode === 'rush' ? t('rdx_st_rush') : t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
@@ -7383,9 +7165,7 @@ function rdFinish() {
     rdCoach(false);
     $('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${RD.next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}${unl ? `<p class="rdx-unl">🔓 ${t('rdx_unlocked', rdEsc(rdLvName(unl)))}</p>` : ''}
     <div class="rdx-tiles">${tiles.map(x => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
-// @ts-expect-error -- audited dynamic view runtime boundary
     ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
-// @ts-expect-error -- audited dynamic view runtime boundary
     ${RD.next ? `<div class="coach rdx-coach" id="rdx-next" data-kind="next">${coachHTML(t('coach_next'), RD.next, 'rdx-next-act')}</div>` : ''}
     <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!L.custom && nx && rdUnlocked(nx) ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
     $('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + (RD.next ? '. ' + t('coach_next') + ' ' + coachText(RD.next) : '');
@@ -7423,7 +7203,6 @@ function rdCustomFill() {
     if (!lo)
         return;
     const c = rdData().prefs.custom || { ty: 'name', clef: 'treble', lo: 'C4', hi: 'G5', acc: 0, keys: 0, land: false };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     let opts = '';
     for (let s = 7; s <= 52; s++) {
         const n = rdFromStep(s);
@@ -7454,7 +7233,6 @@ function rdCustomGo() {
     const c = rdCustomRead();
     saveAll();
     const L = { custom: true, id: 'custom', u: 'custom', n: 0, ty: c.ty, clef: c.clef, lo: c.lo, hi: c.hi, acc: c.keys ? 0 : c.acc, keys: c.keys || 0 };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (c.land) {
         const a = rdStep(rdP(c.lo)), b = rdStep(rdP(c.hi)), set = RD_LM.filter(s => s >= a && s <= b).map(s => { const n = rdFromStep(s); return SR_LET[n.li] + n.oct; });
         if (set.length >= 2)
@@ -7466,7 +7244,6 @@ function rdCustomGo() {
 function rdAgg(c, li, oct) {
     let n = 0, ok = 0, ms = 0;
     const re = /^([tban]):([A-G])([#b]?)(\d)$/;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     for (const [k, s] of Object.entries(rdData().nt)) {
         const m = re.exec(k);
         if (m && m[1] === c && SR_LET.indexOf(m[2]) === li && +m[4] === oct) {
@@ -7479,7 +7256,6 @@ function rdAgg(c, li, oct) {
 }
 function rdHeat(clef, lo, hi) {
     const c = RD_CLEFC[clef], cols = [], lbl = [], cls = [];
-    // @ts-expect-error -- audited dynamic view runtime boundary
     for (let s = rdStep(rdP(lo)); s <= rdStep(rdP(hi)); s++) {
         const n = rdFromStep(s), a = rdAgg(c, n.li, n.oct), acc = a.n ? Math.round(100 * a.ok / a.n) : null;
         cols.push([Object.assign(n, { hc: acc == null ? null : `hsl(${Math.round(acc * 1.2)},58%,44%)`, tip: rdName(n, true) + (a.n ? `: ${acc}% · ${(a.ms / a.n / 1000).toFixed(1)} s · ${a.n}×` : ': —') })]);
@@ -7492,7 +7268,6 @@ function rdBars(rows) { return rows.map(r => `<div class="rdx-bar"><span>${rdEsc
 function rdRenderStats() {
     const d = rdData(), tot = d.tot, nt = d.nt, g = k => nt[k] || { n: 0, ok: 0 };
     const lvDone = RD_ALL.filter(L => ((d.lv[L.id] || {}).s || 0) > 0).length, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const weak = Object.entries(nt).filter(([k, s]) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
     const ks = [];
     for (let k = -7; k <= 7; k++)
@@ -7508,7 +7283,6 @@ function rdRenderStats() {
       <div class="panel rdx-stat-p"><h3>${t('rdx_u_ch')}</h3>${rdBars(['maj', 'min', 'dim', 'aug'].map(q => ({ l: t('rdx_q_' + q), ...g('ch:' + q) })))}</div>
       <div class="panel rdx-stat-p"><h3>${t('rdx_u_ks')}</h3>${ks.length ? rdBars(ks) : `<p class="rdx-desc">${t('rdx_nodata')}</p>`}</div>
       <div class="panel rdx-stat-p"><h3>${t('rdx_u_rh')}</h3>${rh.length ? rdBars(rh) : `<p class="rdx-desc">${t('rdx_nodata')}</p>`}</div></div>
-// @ts-expect-error -- audited dynamic view runtime boundary
     <div class="panel rdx-stat-p"><h3>${t('rdx_weakest')}</h3>${weak.length ? `<div class="rdx-weak">${weak.map(([k, s]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))} · ${Math.round(100 * s.ok / s.n)}% · ${((s.t || 0) / 1000).toFixed(1)}s</i>`).join('')}</div>` : `<p class="rdx-desc">${t('rdx_nodata')}</p>`}
       <div class="row" style="margin-top:14px"><button class="btn ghost sm" id="rdx-reset">${t('rdx_reset')}</button></div></div>`;
 }
@@ -7524,7 +7298,6 @@ function rdTab(tab) {
         rdAbort();
         rdIntro();
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (tab !== 'pieces' && (SR.active || SR.listening))
         srStopAll(true);
     if (tab === 'stats')
@@ -7575,7 +7348,6 @@ function rdKey(e, k) {
 function rdOnLocale() {
     if (!$('view-read'))
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (SR.active) {
         const g = $('rd-go');
         if (g)
@@ -7586,7 +7358,6 @@ function rdOnLocale() {
         if (l)
             l.textContent = t('rd_stop');
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (SR.gen) {
         SR.gen.t = { en: tl('en', 'rdx_sr_title', SR.gen.level), ro: tl('ro', 'rdx_sr_title', SR.gen.level) };
         fillPieces();
@@ -7614,7 +7385,6 @@ function rdOnLocale() {
     const dr = $('rdp-drills');
     if (!dr)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rd-tabs').addEventListener('click', e => { const b = e.target.closest('[role=tab]'); if (b) {
         rdTab(b.dataset.tab);
         saveAll();
@@ -7630,7 +7400,6 @@ function rdOnLocale() {
         n.focus();
         rdTab(n.dataset.tab);
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     dr.addEventListener('click', e => {
         const lv = e.target.closest('[data-lv]');
         if (lv) {
@@ -7647,26 +7416,22 @@ function rdOnLocale() {
             rdOpen(L);
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const md = e.target.closest('[data-mode]');
         if (md) {
             rdStart(md.dataset.mode);
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const a = e.target.closest('.rdx-a');
         if (a) {
             rdClickAns(a);
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const ac = e.target.closest('[data-acc]');
         if (ac) {
             RD.accSel = +ac.dataset.acc;
             ac.parentNode.querySelectorAll('[data-acc]').forEach(x => x.setAttribute('aria-pressed', x === ac ? 'true' : 'false'));
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const key = e.target.closest('.rdx-kb.inter button[data-m]');
         if (key && e.detail === 0) {
             const m = +key.dataset.m;
@@ -7674,17 +7439,14 @@ function rdOnLocale() {
             handleNoteOff(m, 'rdk');
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (e.target.closest('#rdx-next-act')) {
             if (RD.next && RD.next.act)
                 RD.next.act.run();
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const act = e.target.closest('[data-act]');
         if (act) {
             const k = act.dataset.act;
-            // @ts-expect-error -- audited dynamic view runtime boundary
             if (k === 'again')
                 rdStart(RD.mode);
             else if (k === 'next') {
@@ -7700,7 +7462,6 @@ function rdOnLocale() {
                 rdRhNew(true);
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const hb = e.target.closest('[data-hands]');
         if (hb) {
             if (hb.disabled || (RD.rh && RD.rh.playing))
@@ -7710,7 +7471,6 @@ function rdOnLocale() {
             rdRhNew(true);
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const b = e.target.closest('button'), id = b && b.id;
         if (id === 'rdx-back')
             rdBack();
@@ -7729,7 +7489,6 @@ function rdOnLocale() {
         else if (id === 'rdx-c-go')
             rdCustomGo();
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     dr.addEventListener('pointerdown', e => {
         const pad = e.target.closest('.rdx-tap');
         if (pad) {
@@ -7737,7 +7496,6 @@ function rdOnLocale() {
             rdRhPress('p' + e.pointerId, pad.dataset.hand || 'R');
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const k = e.target.closest('.rdx-kb.inter [data-m]');
         if (k) {
             e.preventDefault();
@@ -7757,10 +7515,8 @@ function rdOnLocale() {
     document.addEventListener('pointercancel', up);
     document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === ' ' || k === 'enter' || k === 'f' || k === 'j')
         rdRhRelease('k:' + k); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     dr.addEventListener('change', e => {
         const id = e.target.id, p = rdData().prefs;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (id === 'rdx-snd') {
             p.sound = e.target.checked;
             saveAll();
@@ -7769,7 +7525,6 @@ function rdOnLocale() {
             p.hints = e.target.checked;
             saveAll();
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         else if (id === 'rdx-rhdur') {
             if (RD.rh && RD.rh.playing) {
                 e.target.checked = !e.target.checked;
@@ -7779,7 +7534,6 @@ function rdOnLocale() {
             saveAll();
             rdRhNew(true);
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         else if (id === 'rdx-c-clef') {
             const d = RD_CDEF[e.target.value];
             $('rdx-c-lo').value = d[0];
@@ -7789,7 +7543,6 @@ function rdOnLocale() {
         else if (/^rdx-c-/.test(id))
             rdCustomRead();
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rdp-stats').addEventListener('click', e => { if (e.target.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
         const d = rdData();
         d.nt = {};
@@ -7968,9 +7721,7 @@ function srNextAssess(pct) {
     }
     return { k: 'rn_a_good' };
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function srSetMode(v) { SR.modeSel = v; [...$('rd-mode').children].forEach(x => x.setAttribute('aria-pressed', x.dataset.v === v ? 'true' : 'false')); srStopAll(); $('rd-verdict').textContent = ''; $('rd-go').focus(); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function srSetBpm(v) { if (SR.active || SR.listening)
     return; const b = $('rd-bpm'); b.value = v; $('rd-bpmLbl').textContent = v; SR.bpm = v; SR.next = null; srCoach(); $('rd-go').focus(); }
 // One line under the score; it is a polite live region, so it is only rewritten when the tip itself changes.
@@ -8004,7 +7755,6 @@ function rdFocus(L) {
         return { k: 'rdc_k2s' };
     if (L.tag === 'land')
         return { k: 'rdc_land' };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if ((L.tag === 'lines' || L.tag === 'spaces') && L.set)
         return { k: 'rdc_' + L.tag, args: () => [L.set.map(s => rdName(rdP(s))).join(' ')] };
     if (L.tag === 'ledup' || L.tag === 'leddn')
@@ -8023,7 +7773,6 @@ function rdFocus(L) {
         return { k: 'rdc_gr', args: () => [x(0)] };
     return c === 'bass' ? { k: 'rdc_ba', args: () => [x(3), x(0), x(4)] } : { k: 'rdc_tr', args: () => [x(0), x(4), x(3)] };
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function rdCoach(show) { const box = $('rdx-coach'); if (!box)
     return; const c = show ? rdFocus(RD.L) : null; box.hidden = !c; box.innerHTML = c ? coachHTML(t('coach_focus'), c) : ''; }
 // The session's next step: accuracy first, then the notes missed most, then speed; rhythm drills look at the average timing.
@@ -8098,12 +7847,10 @@ function anCoach(f, segs, notes) {
     if (sec)
         return tip('cn_sec', lab(sec), rn(sec));
     const inv = !v.implied && segs.find(s => anInv(s) > 0);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (inv) {
         const k = K(inv);
         return tip('cn_inv', spellName(60 + inv.bass, k), spellName(60 + inv.ch.root, k) + inv.ch.c.s + ', ' + invName(anInv(inv)));
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const amb = segs.find(s => s.ch.conf === 'low');
     if (amb)
         return tip('cn_amb', [lab(amb), ...amb.ch.alts.map(a => spellName(60 + a.root, K(amb)) + a.c.s)].slice(0, 3).join(' / '));
@@ -8123,7 +7870,6 @@ else
     rh++; }); return lh > rh ? 'lh' : 'rh'; }
 function pracLoopBars(i, j) {
     const ms = anMeasures(), lo = ms[i].start, hi = ms[j].end, g = SCORE.geo, gi = b => g ? g.measures.findIndex(m => m && b >= m.b0 - 1e-6 && b < m.b1 - 1e-6) : -1, a = gi(lo + 1e-4), b = gi(hi - 1e-4);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (a >= 0 && b >= 0)
         scoreSelectRange(a, b);
     else
@@ -8163,7 +7909,6 @@ function pracNextStep(R) {
         let best = null;
         per.forEach((c, i) => { const two = c + (per.get(i + 1) || 0); if (!best || two > best.c)
             best = { i, j: per.has(i + 1) ? i + 1 : i, c: two }; });
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (best.c >= misses.length * .6) {
             const label = () => anBarsLabel(AN.notes.filter(n => { const i = bar(n.start); return i >= best.i && i <= best.j; }));
             return { k: 'pn_bars', args: () => [label()], act: { k: 'pn_act_loop', args: () => [label()], run: () => { pracSumClose(); pracLoopBars(best.i, best.j); } } };
@@ -8189,7 +7934,6 @@ function coachRefresh() { srCoach(); if (RD.L && !$('rdx-coach').hidden)
 const AN = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
 const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000, AN_PRACTICE_BARS = 32, AN_EXAMPLES = ['minuet', 'elise', 'ode', 'twinkle', 'jingle'];
-// @ts-expect-error -- audited dynamic view runtime boundary
 function anError(code, detail) { const e = new Error(detail || code); e.code = code; return e; }
 function tl(L, k, a, b) { let v = (STRINGS[L] && STRINGS[L][k] != null) ? STRINGS[L][k] : STRINGS.en[k]; if (v == null)
     return k; if (a != null)
@@ -8278,7 +8022,6 @@ function anParse(buffer) {
                             active.set(k, []);
                         active.get(k).push({ start: tick, midi: d1, vel: d2 });
                     }
-                    // @ts-expect-error -- audited dynamic view runtime boundary
                     else {
                         const q = active.get(k);
                         if (q && q.length) {
@@ -8299,7 +8042,6 @@ function anParse(buffer) {
                 if (tick > n.start)
                     notes.push({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: +k.split(':')[0] }); // note-on without note-off: close at track end
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!notes.length)
         throw anError('nonotes');
     if (notes.length > AN_MAX_NOTES)
@@ -8681,7 +8423,6 @@ function anHarmony(ns, implied) {
         if (!here.length)
             continue;
         const U = anUnits(m, anGrid(m, implied), here, info), n = U.length, Lmax = n > 12 ? 8 : n, sp = U.map(() => []);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         for (let L = 1; L <= Lmax; L++)
             for (let a = 0; a + L <= n; a++) {
                 const S = anSpan(U, a, a + L);
@@ -8839,7 +8580,6 @@ function anCompute(ns, scopeKey) {
     const ck = AN.version + '|' + scopeKey;
     if (AN.cache.has(ck))
         return AN.cache.get(ck);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const lo = Math.min(...ns.map(n => n.start)), hi = Math.max(...ns.map(n => n.end)), pitches = [...new Set(ns.map(n => n.midi))].sort((a, b) => a - b);
     const poly = anPoly(ns), implied = poly.avg < 1.25, segs = anHarmony(ns, implied);
     anCadences(segs);
@@ -8996,7 +8736,6 @@ function scoreXmlNotes(doc) {
                         const step = child(pitch, 'step')?.textContent, oct = number(child(pitch, 'octave')), alter = number(child(pitch, 'alter')), midi = (oct + 1) * 12 + ({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[step]) + alter;
                         if (Number.isFinite(midi)) {
                             if (grace) {
-                                // @ts-expect-error -- audited dynamic view runtime boundary
                                 const list = gracePending.get(key) || [], g = { midi, vel: 84 };
                                 if ([...node.querySelectorAll('tie')].some(t => t.getAttribute('type') === 'start'))
                                     g.tieStart = true;
@@ -9005,7 +8744,6 @@ function scoreXmlNotes(doc) {
                             }
                             else {
                                 const hand = staves >= 2 ? (staff === 1 ? 'rh' : 'lh') : null, stop = [...node.querySelectorAll('tie')].some(t => t.getAttribute('type') === 'stop');
-                                // @ts-expect-error -- audited dynamic view runtime boundary
                                 const prev = stop && notes.findLast(n => n.part === pi && n.staff === staff && n.voice === voice && n.midi === midi && Math.abs(n.end - start) < .001);
                                 const fg = number(node.querySelector('fingering')), nd = [...node.querySelectorAll('notations > dynamics')].map(dynamicInfo).find(Boolean), attr = dynamicValue(node.getAttribute('dynamics'));
                                 const arts = new Set([...node.querySelectorAll('notations > articulations > *')].map(a => a.localName));
@@ -9019,18 +8757,14 @@ function scoreXmlNotes(doc) {
                                             staccato: arts.has('staccato'), staccatissimo: arts.has('staccatissimo'), accent: arts.has('accent'), strongAccent: arts.has('strong-accent'), tenuto: arts.has('tenuto')
                                         },
                                         arpeggiate: !!node.querySelector('notations > arpeggiate') };
-                                    // @ts-expect-error -- audited dynamic view runtime boundary
                                     if (fg > 0 && fg < 6)
                                         n.finger = fg;
-                                    // @ts-expect-error -- audited dynamic view runtime boundary
                                     if (nd?.value != null)
                                         n.explicitVel = nd.value;
                                     else if (attr != null)
                                         n.explicitVel = attr;
-                                    // @ts-expect-error -- audited dynamic view runtime boundary
                                     if (nd?.hit != null)
                                         n.dynamicHit = nd.hit;
-                                    // @ts-expect-error -- audited dynamic view runtime boundary
                                     if (!chord && gracePending.has(key)) {
                                         n.graces = gracePending.get(key);
                                         gracePending.delete(key);
@@ -9070,7 +8804,6 @@ function scoreXmlNotes(doc) {
         partEnds[pi] = measureStart;
     });
     // Malformed numbers (a NaN duration, a zero or negative meter…) would otherwise poison every later position.
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (malformed || notes.some(n => !Number.isFinite(n.start) || !Number.isFinite(n.end)) || measures.some(m => !Number.isFinite(m.start) || !Number.isFinite(m.end) || !(m.num > 0 && Number.isInteger(m.num)) || !(m.den > 0 && Number.isInteger(m.den))))
         throw anError('xml');
     const sorted = notes.sort((a, b) => a.start - b.start || a.midi - b.midi), byTime = (a, b) => a.beat - b.beat || a.sequence - b.sequence;
@@ -9239,13 +8972,11 @@ function scoreFromMidi(parsed, title, opt) {
     scoreSetTempos(tempos);
     SCORE.tempoFromFile = tempos.length > 0;
     const notes = parsed.notes.map(n => { const s = Math.round(n.start * grid) * k; return { ...n, start: s, end: Math.max(s + k, Math.round(n.end * grid) * k), staff: n.hand === 'lh' ? 2 : 1 }; }).sort((a, b) => a.start - b.start || a.midi - b.midi);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const end = Math.max(...notes.map(n => n.end));
     if (end > 200000)
         throw anError('long');
     // Played legato overlaps of up to a sixteenth would spawn extra voices; trim them for the engraving only.
     const trim = k * Math.max(1, grid / 4);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     for (const staff of [1, 2]) {
         const own = notes.filter(n => n.staff === staff), onsets = [...new Set(own.map(n => n.start))].sort((a, b) => a - b);
         let j = 0;
@@ -9286,7 +9017,6 @@ function scoreFromMidi(parsed, title, opt) {
         globalVoices.push(...lanes);
     }
     const VALUES = [[4, 'whole', 0], [3, 'half', 1], [2, 'half', 0], [1.5, 'quarter', 1], [1, 'quarter', 0], [0.75, 'eighth', 1], [0.5, 'eighth', 0], [0.375, '16th', 1], [0.25, '16th', 0], [0.1875, '32nd', 1], [0.125, '32nd', 0], [0.0625, '64th', 0], [0.03125, '128th', 0], [0.015625, '256th', 0]]
-        // @ts-expect-error -- audited dynamic view runtime boundary
         .map(([q, type, dot]) => [q * div, type, dot]).filter(([d]) => Number.isInteger(d) && d >= 1);
     const changes = events.filter(e => e.type === 'time').map(e => ({ ...e })).concat((opt.keys || []).map(e => ({ type: 'key', beat: e.beat, fifths: e.fifths, minor: !!e.minor })))
         .map(e => ({ ...e, pos: Math.round(e.beat * div) })).sort((a, b) => a.pos - b.pos);
@@ -9307,7 +9037,6 @@ function scoreFromMidi(parsed, title, opt) {
                 den = e.den;
             }
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const next = changes[ci], length = Math.min(num * 4 * div / den, next ? next.pos - at : Infinity);
         if (length <= 0 || !Number.isInteger(length))
             throw anError('meter');
@@ -9324,7 +9053,6 @@ function scoreFromMidi(parsed, title, opt) {
                 xml += '<backup><duration>' + length + '</duration></backup>';
             let cursor = at;
             const evs = [];
-            // @ts-expect-error -- audited dynamic view runtime boundary
             const emit = (group, start, duration) => { let left = duration, offset = 0; while (left > 0) {
                 const [d, type, dot] = VALUES.find(v => v[0] <= left);
                 evs.push({ group, pos: start + offset, d, type, dot, from: !!group && start + offset > group.start, to: !!group && start + offset + d < group.end });
@@ -9342,7 +9070,6 @@ function scoreFromMidi(parsed, title, opt) {
                 emit(null, cursor, stop - cursor);
             scoreBeams(evs, at, beamLen);
             evs.forEach(({ group, d, type, dot, from, to, beam }) => { const chord = group ? group.notes : [null]; chord.forEach((n, index) => { xml += '<note' + (!group && voice.secondary ? ' print-object="no" print-spacing="yes"' : '') + '>' + (index ? '<chord/>' : '') + (n ? scorePitch(n.midi, fifths, minor) : '<rest/>') + '<duration>' + d + '</duration>' + (from ? '<tie type="stop"/>' : '') + (to ? '<tie type="start"/>' : '') + '<voice>' + (vi + 1) + '</voice><type>' + type + '</type>' + (dot ? '<dot/>' : '') + (n && voice.stem ? '<stem>' + voice.stem + '</stem>' : '') + '<staff>' + (single ? 1 : voice.staff) + '</staff>' + (beam && !index ? '<beam number="1">' + beam + '</beam>' : '') + (from || to ? '<notations>' + (from ? '<tied type="stop"/>' : '') + (to ? '<tied type="start"/>' : '') + '</notations>' : '') + '</note>'; }); });
-            // @ts-expect-error -- audited dynamic view runtime boundary
         });
         xml += (stop >= end ? '<barline location="right"><bar-style>light-heavy</bar-style></barline>' : '') + '</measure>';
         at = stop;
@@ -9454,7 +9181,6 @@ async function scoreRender() {
     box.setAttribute('aria-busy', 'true');
     box.hidden = false;
     box.innerHTML = '<div class="an-sheet"></div>';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SCORE.heads = new Map();
     SCORE.engine = null;
     SCORE.geo = null;
@@ -9490,7 +9216,6 @@ async function scoreRender() {
     R.InstrumentLabelTextHeight = 1.9;
     // Generated scores: equal musical bars create a reliable time rail. Imported MusicXML keeps the engraver's natural
     // widths and the file's own system breaks (3–4 bars a line, as in MuseScore); the cursor then follows note onsets.
-    // @ts-expect-error -- audited dynamic view runtime boundary
     R.FixedMeasureWidth = !isXml;
     SCORE.fixedWidth = !isXml;
     SCORE.fit = null;
@@ -9554,7 +9279,6 @@ function scoreLayout() {
     // system keeps its bars and every page its systems whatever the panel width.
     engine.Zoom = cont ? SCORE.zoom * base : sheetW / pageW * base;
     scoreRingFit(engine.Zoom);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     scoreFitRender(engine, !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml), SCORE.zoom + '|' + avail);
     scoreStyleHeader(engine, sourceLayout);
     scoreFixFingerings(box, engine);
@@ -9572,7 +9296,6 @@ function scoreLayout() {
     scoreSyms(engine);
     box.hidden = FALL.mode !== 'score';
     scorePaint();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!pedalsOk) {
         anSetLoading(false);
         anShowError('an_err_render');
@@ -9607,14 +9330,12 @@ function scoreFitRender(engine, xmlBreaks, key) {
         engine.render();
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const known = SCORE.fit && SCORE.fit.key === key ? SCORE.fit : null; // look changes re-render at the step already found
     if (known) {
         set(known.step, known.on);
         engine.render();
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     for (let i = 0; i < SC_FIT.length; i++) {
         set(i, true);
         engine.render();
@@ -9623,7 +9344,6 @@ function scoreFitRender(engine, xmlBreaks, key) {
             return;
         }
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     set(0, false);
     engine.render();
     SCORE.fit = { key, step: 0, on: false };
@@ -9717,7 +9437,6 @@ function scorePaintIdx(i) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
 function scorePaint() { SCORE.heads.forEach(list => list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const copy = notationReloadMessage(lang), box = document.createElement('div');
     box.setAttribute('role', 'alert');
     box.className = 'notation-reload';
@@ -9925,7 +9644,6 @@ function scoreFixFingerings(box, engine) {
                 return;
             }
             kept.push({ s, r });
-            // @ts-expect-error -- audited dynamic view runtime boundary
             if ([...chords].some(c => c === x || c.contains(x)))
                 chordBoxes.push(ink(r));
             else if (![...fings].some(f => f === x || f.contains(x)) && !x.closest('.measure-number'))
@@ -9950,7 +9668,6 @@ const SC_TERMS = [['dolcissimo'], ['dolce'], ['espressivo', 'espress\\.?', 'espr
 const SC_ARTS = { 'a.': 'staccato', 'av': 'staccatissimo', 'a>': 'accent', 'a^': 'marcato', 'a-': 'tenuto', 'a@a': 'fermata', 'a@u': 'fermata', 'a@s': 'fermata', 'a@l': 'fermata', 'a@as': 'fermata', 'a@us': 'fermata',
     tr: 'trill', mordent: 'mordent', mordent_inverted: 'mordent', turn: 'turn', turn_inverted: 'turn', prallprall: 'trill', upprall: 'trill' };
 function scoreSyms(engine) {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const box = $('an-roll'), list = [], gs = engine && engine.GraphicSheet;
     SCORE.syms = list;
     scoreTip(null);
@@ -9980,14 +9697,11 @@ function scoreSyms(engine) {
             n.querySelectorAll('text').forEach(x => seen.add(x));
     } });
     gs.MusicPages.forEach(pg => pg.MusicSystems.forEach(sys => sys.StaffLines.forEach(sl => {
-        // @ts-expect-error -- audited dynamic view runtime boundary
         (sl.AbstractExpressions || []).forEach(e => (e.lines || []).forEach(l => { const g = l.SVGElement; if (!g || !e.expression || e.expression.dynamicType == null)
             return; seen.add(g); add(g, e.expression.dynamicType === 0 ? 'cresc' : 'dim'); }));
         sl.Measures.forEach(gm => (gm.staffEntries || []).forEach(gse => {
-            // @ts-expect-error -- audited dynamic view runtime boundary
             (gse.FingeringEntries || []).forEach(f => { const n = f.SVGNode; if (!n)
                 return; n.querySelectorAll('text').forEach(x => seen.add(x)); add(n, 'finger', (f.Label && f.Label.text || n.textContent || '').trim()); });
-            // @ts-expect-error -- audited dynamic view runtime boundary
             (gse.graphicalChordContainers || []).forEach(c => { const lb = c.GraphicalLabel, n = lb && lb.SVGNode; if (!n)
                 return; n.querySelectorAll('text').forEach(x => seen.add(x)); if (n.localName === 'text')
                 seen.add(n); add(n, 'chord', (lb.Label && lb.Label.text || n.textContent || '').trim()); });
@@ -10002,7 +9716,6 @@ function scoreSyms(engine) {
                     if (!g)
                         return;
                     const type = src.TypeLength && src.TypeLength.RealValue === 0 ? 'measure' : ({ w: 'whole', h: 'half', q: 'quarter', 8: 'eighth', 16: '16th', 32: '32nd', 64: '64th', 128: '128th', 256: '256th', b: 'breve' }[vf && vf.duration] || 'other');
-                    // @ts-expect-error -- audited dynamic view runtime boundary
                     add(g, 'rest', { type, dots: src.DotsXml || 0 });
                 });
                 const mg = el && el.querySelector && el.querySelector('.vf-modifiers');
@@ -10011,13 +9724,11 @@ function scoreSyms(engine) {
                 const paths = [...mg.children], mods = vf.modifiers, shown = paths.length === mods.length ? mods : mods.filter(m => /articulation|ornament/i.test(m.getCategory ? m.getCategory() : ''));
                 if (paths.length !== shown.length)
                     return;
-                // @ts-expect-error -- audited dynamic view runtime boundary
                 shown.forEach((m, k) => { const kind = SC_ARTS[m.type]; if (kind)
                     add(paths[k], kind, ''); });
             });
         }));
     })));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     box.querySelectorAll('.vf-sc-pedal').forEach(g => [...g.querySelectorAll('path')].forEach(p => { const r = p.getBoundingClientRect(); if (r.width)
         add(p, r.width > r.height * 1.3 ? 'ped' : 'pedup', '', r); }));
     box.querySelectorAll('svg text').forEach(x => {
@@ -10027,7 +9738,6 @@ function scoreSyms(engine) {
         if (!s)
             return;
         const r = x.getBoundingClientRect();
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (SC_DYN.test(s))
             add(x, 'dyn', s, r);
         else if (/^[A-Z][0-9]?$/.test(s) && x.closest('.vf-measure'))
@@ -10035,13 +9745,9 @@ function scoreSyms(engine) {
         else if (scoreTermParts(s).length)
             add(x, 'text', s, r);
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     box.querySelectorAll('svg .vf-curve').forEach(g => add(g, 'slur', '', null, false));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     box.querySelectorAll('svg .vf-stavetie').forEach(g => add(g, 'tie', '', null, false));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     box.querySelectorAll('svg .sc-xline').forEach(p => add(p, p.dataset.kind, '', null, false));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     box.querySelectorAll('svg .vf-clef').forEach(g => { const r = g.getBoundingClientRect(), q = r.height / Math.max(1, r.width); add(g, q > 1.9 ? 'clef_g' : q < 1.25 ? 'clef_f' : 'clef_c', '', r); });
     const beatAt = r => {
         const g = SCORE.geo;
@@ -10060,10 +9766,8 @@ function scoreSyms(engine) {
         }
         return null;
     };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     box.querySelectorAll('svg .vf-keysignature').forEach(g => { const r = g.getBoundingClientRect(), b = beatAt(r); if (b != null)
         add(g, 'key', anKeyName(anKeyAt(b + .001)), r); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     box.querySelectorAll('svg .vf-timesignature').forEach(g => { const r = g.getBoundingClientRect(), b = beatAt(r); if (b == null)
         return; const m = anMeasures().find(x => x.start <= b + .001 && x.end > b + .001); if (m)
         add(g, 'time', m.num + '/' + m.den, r); });
@@ -10125,7 +9829,6 @@ function scoreSymText(sym) {
     return { head: lit ? lit + ' · ' + name : name, body, line: (lit ? lit + ' · ' : '') + full };
 }
 function scoreSymAt(e) {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const box = $('an-roll'), list = SCORE.syms || [], el = e.target && e.target.closest && e.target.closest('#an-roll [data-sym]');
     if (el && list[+el.dataset.sym] && list[+el.dataset.sym].el === el)
         return list[+el.dataset.sym];
@@ -10271,7 +9974,6 @@ function scoreCursorAt(beat) {
     const m = M[i];
     if (!m)
         return null;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!SCORE.fixedWidth) {
         const p = scoreAnchorAt(g.anchors, beat, m.sys);
         if (p)
@@ -10371,10 +10073,8 @@ function scoreCoralBars() {
 // line of the bottom one), from where the first bar's notes begin (after a system's clef, key and time) to the last barline.
 function scoreMarks() {
     const g = SCORE.geo, C = g && FALL.mode === 'score' ? scoreCoralBars() : null, sig = C ? C.a + ':' + C.b : '';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (sig === SCORE.markSig && g === SCORE.markGeo && (!C || document.querySelector('#an-roll .sc-mrect')))
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SCORE.markSig = sig;
     SCORE.markGeo = g;
     document.querySelectorAll('#an-roll .sc-mrect').forEach(e => e.remove());
@@ -10456,14 +10156,12 @@ function anKeepVisible(g, smooth) {
     if (top !== box.scrollTop || left !== box.scrollLeft)
         box.scrollTo({ top, left, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function scoreStateText() { $('score-state').textContent = SCORE.run && SCORE.run.waitShown ? t('sc_state_wait') : SCORE.loop ? (SCORE.loop.ab ? t('sc_state_ab') : t('sc_state_loop', SCORE.loop.bars)) : SCORE.playing ? t(SCORE.sel ? 'sc_state_sel' : 'sc_state_play') : SCORE.paused ? t('sc_state_paused') : ''; }
 // Halt sound, timers and animation; the playback position (FALL.position) is left where it is.
 function scoreHalt() {
     SCORE.playing = false;
     SCORE.sel = false;
     SCORE.paused = false;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SCORE.loop = null;
     if (SCORE.run) {
         clearInterval(SCORE.run.timer);
@@ -10483,14 +10181,12 @@ function scoreHalt() {
     SCORE.timers = [];
     stopPreviews();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function scoreIdle() { scoreStateText(); anUpdateControls(); anKeysPaint(); fallDraw(); scoreCursorUpdate(true); anStatusPos(); }
 // Where Stop returns to: the start of the selected bars or notes, else the beginning.
 function anSelStart() {
     const g = SCORE.geo, R = SCORE.mrange;
     if (R && g && g.measures[R.a])
         return scoreSeconds(g.measures[R.a].b0);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     return AN.selected.size ? Math.min(...[...AN.selected].map(i => scoreSeconds(AN.notes[i].start))) : 0;
 }
 function scoreStop() { scoreHalt(); SCORE.resume = null; FALL.position = AN.notes.length ? anSelStart() : 0; scoreIdle(); }
@@ -10561,7 +10257,6 @@ function pracSegAt(R, now) { let s = R.segs[0]; for (const x of R.segs)
     if (x.a0 <= now + 1e-9)
         s = x; return s; }
 function pracRaw(R, now) { const s = pracSegAt(R, now); return { s, t: s.t0 + Math.max(0, now - s.a0) * s.f }; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function pracBeats() {
     if (FALL.beatSrc === fallData() && FALL.beatTempo === SCORE.tempoList)
         return FALL.beats;
@@ -10572,7 +10267,6 @@ function pracBeats() {
         for (let b = m.start; b < m.end - 1e-6; b += u, k++)
             out.push({ t: scoreSeconds(b), acc: k === 0 });
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     FALL.beatSrc = fallData();
     FALL.beatTempo = SCORE.tempoList;
     FALL.beats = out;
@@ -10612,7 +10306,6 @@ async function pracStart(o) {
     const R = { ...o, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex(d => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
     if (R.mi < 0 || !mine.some(d => d.start >= o.from - 1e-6))
         R.mi = mine.length;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SCORE.run = R;
     SCORE.playing = true;
     SCORE.sel = o.sel;
@@ -10630,7 +10323,6 @@ async function pracStart(o) {
     scoreFollow();
 }
 function pracTick() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const R = SCORE.run;
     if (!R || !SCORE.playing || !actx || R.gen !== SCORE.playGen)
         return;
@@ -10780,7 +10472,6 @@ function pracJudge(R, d, j) {
 }
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
 function pracInput(kind) {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const R = SCORE.run;
     if (kind === 'on' && R && SCORE.playing && actx) {
         const m = heldOrder[heldOrder.length - 1], now = actx.currentTime;
@@ -10818,7 +10509,6 @@ function pracHud() {
     const hud = $('pr-hud'), st = PRAC.stats;
     if (!hud)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const show = !!st && PRAC.active && AN.notes.length > 0 && (SCORE.playing || !!SCORE.run);
     hud.hidden = !show;
     if (!show)
@@ -10826,7 +10516,6 @@ function pracHud() {
     const acc = pracAcc(st);
     $('pr-acc-v').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
     $('pr-streak').textContent = st.streak;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pr-pass').textContent = SCORE.run ? SCORE.run.pass : 1;
     $('pr-tempo').textContent = Math.round(((SCORE.run && SCORE.run.segs[0].f) || pracFactor()) * 100) + '%';
     const j = $('pr-judge'), fresh = PRAC.judge && performance.now() - PRAC.judgeT < 900;
@@ -10835,7 +10524,6 @@ function pracHud() {
 }
 function pracFinish(R) {
     const sel = R.sel, a = R.a, end = R.b;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     clearInterval(R.timer);
     SCORE.run = null;
     PRAC.bar = null;
@@ -10865,7 +10553,6 @@ function pracSummary(R) {
 }
 function pracSumClose() { $('pr-sum').hidden = true; PRAC.next = null; anSideSync(); }
 // Count-in digits, the waiting state and the HUD's fading judgement follow the animation frame.
-// @ts-expect-error -- audited dynamic view runtime boundary
 function pracFrame() {
     const R = SCORE.run, c = $('pr-count');
     if (!R) {
@@ -10891,7 +10578,6 @@ function pracFrame() {
 function pracSet(k, v) {
     PRAC[k] = v;
     pracSave();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (k === 'hands') {
         SCORE.heads.forEach(l => l.forEach(scorePaintEl));
         anKeysPaint();
@@ -10925,11 +10611,9 @@ function pracSetAB(which) {
         if (PRAC.A == null)
             PRAC.A = scoreSeconds((ms[0] || { start: 0 }).start);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     anUpdateControls();
     anTlUpdate();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function pracClearAB() { PRAC.A = PRAC.B = null; if (SCORE.loop && SCORE.loop.ab)
     scoreStop(); anUpdateControls(); anTlUpdate(); }
 async function scorePlay(selection = false, from = null) {
@@ -10954,7 +10638,6 @@ async function scorePlay(selection = false, from = null) {
 async function scoreLoopStart() {
     const all = fallData();
     let notes = null, a = 0, b = 0, bars = '', ab = false;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (AN.selected.size) {
         notes = all.filter(d => AN.selected.has(d.i));
         if (notes.length) {
@@ -10978,7 +10661,6 @@ async function scoreLoopStart() {
 }
 // Follow playback: move the cursor (keeping it in view), light the sounding keys (and noteheads, if asked) and refresh the status bar.
 function scoreFollow() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SCORE.followRaf = 0;
     if (!SCORE.playing) {
         scoreUnlight();
@@ -10997,7 +10679,6 @@ function scoreFollow() {
             now.forEach(i => { if (!old.has(i))
                 scorePaintIdx(i); });
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         anKeysPaint();
     }
     if (FALL.mode === 'score')
@@ -11080,7 +10761,6 @@ function anLayoutVars() {
 }
 // Keep transport reachable while the page is scrolled below the score card's title row.
 function anPinToolbar() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     AN.pinRaf = 0;
     const tb = $('an-tbwrap');
     const active = view0() === 'analysis' && AN.notes.length && !tb.hidden;
@@ -11098,7 +10778,6 @@ function anPinToolbar() {
     }
     tb.classList.toggle('is-floating', pin);
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function anPinToolbarLater() { if (!AN.pinRaf)
     AN.pinRaf = requestAnimationFrame(anPinToolbar); }
 // After opening a score, line the viewport up under the toolbar so it sits fully between the header and the dock.
@@ -11140,7 +10819,6 @@ function anStatusSel() {
     if (el.textContent === txt)
         return;
     el.textContent = txt;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     clearTimeout(AN.liveT);
     AN.liveT = setTimeout(() => { $('st-live').textContent = txt; }, 500);
 }
@@ -11150,7 +10828,6 @@ function anActiveChord(sel) {
         if (seg)
             return { root: seg.ch.root, pcs: seg.ch.c.p };
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const id = identifyChord([...new Set(sel.map(n => n.midi))]);
     return id ? { root: id.rootPc, pcs: id.chord.pcset } : null;
 }
@@ -11178,7 +10855,6 @@ function anKeysPaint(force) {
     }
     const want = new Map();
     let deg = null;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (SCORE.playing) {
         const lit = [...SCORE.lit].map(i => AN.notes[i]).filter(Boolean);
         lit.forEach(n => want.set(foldToView(n.midi), anHandOf(n)));
@@ -11186,7 +10862,6 @@ function anKeysPaint(force) {
         if (seg)
             deg = chordDegreeMap(lit.map(n => n.midi), seg.ch.root, seg.ch.c.p);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (AN.selected.size) {
         const sel = [...AN.selected].map(i => AN.notes[i]).filter(Boolean);
         sel.forEach(n => want.set(foldToView(n.midi), 'target'));
@@ -11225,12 +10900,10 @@ function anOriginText() { const o = AN.keyOrigin; return t(o === 'file' ? (AN.so
 function anScopeNotes() { const f = anFocus(false); return f && f.kind !== 'cursor' ? anFocusNotes(f) : AN.notes; }
 function anBarsLabel(ns, L) {
     const a = anMeasureAt(Math.min(...ns.map(n => n.start))).number, b = anMeasureAt(Math.max(...ns.map(n => n.start))).number;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     return a === b ? tl(L || lang, 'an_bar1', a) : tl(L || lang, 'an_bars', a, b);
 }
 function anNum(x, d) { return (Math.round(x * Math.pow(10, d)) / Math.pow(10, d)).toLocaleString(LOCALE_TAGS[lang] || lang); }
 function anClock(sec) { const s = Math.max(0, sec); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function anChordLabel(seg, key) { const ch = seg.ch; return spellName(60 + ch.root, key) + ch.c.s + (seg.bass !== ch.root ? '/' + spellName(60 + seg.bass, key) : ''); }
 function anBeatText(seg) {
     const m = seg.measure, u = seg.unit, b1 = 1 + (seg.start - m.start) / u, b2 = (seg.end - m.start) / u, f = x => anNum(x, 1);
@@ -11242,7 +10915,6 @@ function anHandsText(seg, key) {
     const by = { rh: [], lh: [] };
     seg.notes.slice().sort((a, b) => a.midi - b.midi).forEach(n => { const h = by[anHandOf(n)], p = pc(n.midi); if (!h.some(m => pc(m) === p))
         h.push(n.midi); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     return ['rh', 'lh'].filter(h => by[h].length).map(h => t('an_' + h) + ' ' + by[h].slice(0, 6).map(m => spellName(m, key)).join(' ') + (by[h].length > 6 ? ' …' : '')).join(' · ');
 }
 // Where the hands come from: the two staves, MIDI tracks, the piece's own parts, or the register.
@@ -11381,7 +11053,6 @@ function anUpdateControls() {
 function anReconOpen(open) { const b = $('an-recon-btn'), p = $('an-recon'), on = !!open && !b.hidden; p.hidden = !on; b.setAttribute('aria-expanded', on ? 'true' : 'false'); }
 function anAnalyze() {
     anUpdateControls();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (!AN.notes.length) {
         $('an-ws').innerHTML = '';
         AN.view = null;
@@ -11397,7 +11068,6 @@ function anAnalyze() {
         AN.view = anCompute(AN.notes, 'all');
         anRenderWorkspace(AN.view);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     anRenderNow();
     anRenderSelection();
     anMarkActive();
@@ -11462,7 +11132,6 @@ function anTab(tab, focus) {
     saveAll();
 }
 // Toolbar shortcuts into the panel (Practice options): show the tab, open the panel or sheet if needed, focus its first control.
-// @ts-expect-error -- audited dynamic view runtime boundary
 function anOpenTab(tab) {
     AN_POPS.forEach(([p]) => anPop(p, false));
     anReconOpen(false);
@@ -11495,7 +11164,6 @@ function anFocus(follow = true) {
     const R = SCORE.mrange, g = SCORE.geo;
     if (R && g && g.measures[R.a])
         return span(at(g.measures[R.a].b0 + 1e-4), at((g.measures[R.b] || g.measures[R.a]).b1 - 1e-4), 'bars');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const sel = [...AN.selected].map(i => AN.notes[i]).filter(Boolean);
     if (sel.length) {
         const s = sel.map(n => n.start);
@@ -11507,7 +11175,6 @@ function anFocus(follow = true) {
 function anFocusNotes(f) {
     if (!f)
         return [];
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (f.kind === 'sel')
         return [...AN.selected].sort((a, b) => a - b).map(i => AN.notes[i]).filter(Boolean);
     const grid = SCORE.midiGrid || 0, q = n => grid ? Math.round(n.start * grid) / grid : n.start;
@@ -11542,7 +11209,6 @@ function anFunctionOf(key, seg, rn) {
 // plays, is its accessible name.
 function anChipHTML(s, i, rove) {
     const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), beats = anBeatText(s), conf = s.ch.conf;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const alts = s.ch.alts.map(a => spellName(60 + a.root, key) + a.c.s).join(', '), cad = s.cad ? t('an_cad_' + s.cad) : '', det = anDetText(s.ch), nct = anNctText(s, key);
     const label = [t('an_bar') + ' ' + s.measure.number, beats, lab, rn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), anHandsText(s, key), nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
     const time = anClock(scoreSeconds(s.start)) + '–' + anClock(scoreSeconds(s.end));
@@ -11569,9 +11235,7 @@ function anRowsHTML(list, rove) {
 function anNowCard({ s, k }, implied) {
     const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
     const inv = implied ? 0 : anInv(s), slash = !implied && s.bass !== s.ch.root;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const fn = [anFunctionOf(key, s, rn), implied ? t('an_implied') : open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + s.bass, key)) : ''].filter(Boolean).join(' · ');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const alts = s.ch.alts.map(a => spellName(60 + a.root, key) + a.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
     const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, key), cad = s.cad ? t('an_cad_' + s.cad) : '';
     const label = [t('an_bar') + ' ' + s.measure.number, anBeatText(s), lab, rn, fn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), hands, nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
@@ -11596,7 +11260,6 @@ function anRenderNow() {
         acts.forEach(b => { b.disabled = true; });
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const sig = [AN.wsSig, f.kind, f.a, f.b, f.kind === 'sel' ? [...AN.selected].sort((x, y) => x - y).join() : '', SCORE.loop ? 'L' : '', FALL.mode].join('|');
     if (sig === SIDE.nowSig)
         return;
@@ -11624,7 +11287,6 @@ function anRenderNow() {
         html += `<p class="an-small">${esc(t(!notes.length ? 'an_now_empty' : one ? 'an_now_none' : 'an_harm_none'))}</p>`;
     else if (one)
         html += `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${segs.map(x => anNowCard(x, v.implied)).join('')}</ul><p class="an-small an-hsrc">${esc(anHandsSource())}</p>`;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else
         html += `<div class="an-prog" role="group" aria-label="${esc(t('an_prog_label'))}">${anRowsHTML(segs)}</div>`;
     const fe = document.activeElement, k = body.contains(fe) && fe.dataset.k;
@@ -11654,7 +11316,6 @@ function anNowAnnounce(f, head, segs) {
         return;
     const s = segs.length ? segs[0].s : null, key = s && anKeyAt(s.start), rn = s && anRoman(key, s);
     const txt = head + (s ? ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ') + (segs.length > 1 ? ' …' : '') : '');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SIDE.liveT = setTimeout(() => { $('an-now-live').textContent = txt; }, 900);
 }
 // Practice: what Start will play, the A–B range and whether the passage fits Read & Play.
@@ -11670,10 +11331,8 @@ function anRenderPractice() {
     } return i; };
     const range = (a, b) => a === b ? t('an_bar1', ms[a].number) : t('an_bars', ms[a].number, ms[b].number), Range = (a, b) => a === b ? t('st_bar', ms[a].number) : t('an_h_bars', ms[a].number, ms[b].number);
     const abBars = ab ? [at(scoreBeatAt(PRAC.A)), at(scoreBeatAt(PRAC.B) - 1e-4)] : null;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : ab ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
     $('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pt-abv').textContent = ab ? t('pt_ab_v', range(...abBars)) : t('pt_ab_none');
     const ns = anScopeNotes(), sig = [AN.version, lang, ns.length, AN.index.get(ns[0]), AN.index.get(ns[ns.length - 1])].join('|');
     if (SIDE.ptSig !== sig) {
@@ -11728,7 +11387,6 @@ function anRenderWorkspace(v) {
     row(t('an_f_range'), spellName(lo, main, true) + ' – ' + spellName(hi, main, true), t('an_semis', hi - lo, anNum((hi - lo) / 12, 1)));
     const npb = v.ns.length / v.beats, opb = v.onsets / v.beats;
     row(t('an_f_npb'), anNum(npb, 1), t('an_dens_' + (opb < 0.75 ? 1 : opb < 1.25 ? 2 : opb < 2.25 ? 3 : opb < 4.5 ? 4 : 5)));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     row(t('an_f_opb'), anNum(opb, 1));
     row(t('an_f_poly'), t('an_poly', anNum(v.poly.avg, 1), v.poly.max), t('an_tex_' + (v.poly.avg < 1.25 ? 1 : v.poly.avg < 2.25 ? 2 : v.poly.avg < 3.25 ? 3 : 4)));
     const pct = x => Math.round(100 * x / v.ns.length) + '%';
@@ -11773,7 +11431,6 @@ function anRenderSelection() {
     const box = $('an-sel');
     if (!box)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const sel = [...AN.selected].sort((a, b) => a - b).map(i => AN.notes[i]).filter(Boolean);
     if (!sel.length || (SCORE.mrange && !AN.active)) {
         box.hidden = true;
@@ -11781,7 +11438,6 @@ function anRenderSelection() {
         return;
     } // whole bars: the chord cards above say it all
     const key = anKeyAt(sel[0].start), pitches = [...new Set(sel.map(n => n.midi))].sort((a, b) => a - b), esc = xmlEsc, parts = [];
-    // @ts-expect-error -- audited dynamic view runtime boundary
     parts.push(`<span><b>${esc(t('an_sel_h'))}</b> · ${esc(sel.length === 1 ? t('an_note1') : t('an_sel_notes', sel.length))} · ${esc(anBarsLabel(sel))}</span>`);
     parts.push(`<span>${esc(pitches.slice(0, 16).map(m => spellName(m, key, true)).join(' · '))}${pitches.length > 16 ? ' …' : ''}</span>`);
     const seg = AN.active && AN.active.kind === 'chord' && AN.view ? AN.view.segs[AN.active.k] : null;
@@ -11795,10 +11451,8 @@ function anRenderSelection() {
     }
     else if (pitches.length === 2)
         parts.push(`<span><b>${esc(t('an_interval'))}:</b> ${esc(anIntervalName(pitches[1] - pitches[0]))}</span>`);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (pitches.length >= 3) {
         const id = identifyChord(pitches);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         parts.push(`<span><b>${esc(t('an_chord'))}:</b> ${esc(id ? spellName(60 + id.rootPc, key) + id.chord.symbol + (id.inversion > 0 ? '/' + spellName(60 + id.bassPc, key) + ' · ' + invName(id.inversion) : '') : t('an_none'))}</span>`);
     }
     box.innerHTML = parts.join('');
@@ -11829,7 +11483,6 @@ function anLoadedText() {
 }
 function anShowError(k, a) { AN.error = { k, a }; anStatus(t(k, a), true); if (!SCORE.xml)
     anRenderEmpty(); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function anSetLoading(on, msg) { AN.loading = on; if (on) {
     scoreStop();
     AN.error = null;
@@ -11913,7 +11566,6 @@ function anReset() {
 // reads), refuse anything it could not unpack anyway, and cap what every entry declares. Entries big enough to expand
 // past the cap (deflate tops out near 1032:1) are inflated once as a counted stream, so a lying header fails here.
 async function anMxlPreflight(buf) {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const u = new Uint8Array(buf), N = u.length, CAP = AN_MAX_XML_CHARS, bad = () => anError('mxl');
     let zero = 0;
     const fits = (i, n) => i >= 0 && n >= 0 && zero + i + n <= N;
@@ -12013,10 +11665,8 @@ async function anMxlPreflight(buf) {
     const TOTAL_CAP = 4 * CAP;
     let declared = 0, possible = 0;
     for (const e of ents) {
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (e.U > CAP)
             throw anError('mxlbig');
-        // @ts-expect-error -- audited dynamic view runtime boundary
         declared += e.U;
         if (declared > TOTAL_CAP)
             throw anError('mxlbig');
@@ -12035,11 +11685,9 @@ async function anMxlPreflight(buf) {
         }
         if (!countAll && e.C * 1032 <= CAP)
             continue;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (e.U > left)
             throw anError('mxlbig');
         const n = await anInflatedSize(e.data, e.U);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (n === null)
             throw anError('mxlbig'); // without a stream, this archive cannot be proven safe before JSZip inflates it
         if (n !== e.U)
@@ -12103,7 +11751,6 @@ function scoreXmlLayout(doc) {
         const words = credit && [...credit.querySelectorAll('credit-words')], size = words && words[0] && parseFloat(words[0].getAttribute('font-size'));
         if (Number.isFinite(size) && size >= 6 && size <= 48)
             out[kind + 'Size'] = size;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (kind === 'title' && words) {
             let style = 'normal', weight = 'normal';
             out.titleRuns = words.map(w => { if (['normal', 'italic'].includes(w.getAttribute('font-style')))
@@ -12113,9 +11760,7 @@ function scoreXmlLayout(doc) {
     }
     // These rules are global minima, not a command to repeat the first system's (often unusually large) spacing.
     const minimum = (selector, max) => { const values = [...root.querySelectorAll(selector)].map(n => Number(n.textContent)).filter(v => Number.isFinite(v) && v >= 10 && v <= max); return values.length ? Math.min(...values) / 10 : null; };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     out.staffGap = minimum('part > measure > print > staff-layout > staff-distance', 200);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     out.systemGap = minimum('part > measure > print > system-layout > system-distance', 400);
     return out;
 }
@@ -12125,7 +11770,6 @@ async function anReadXml(file, title) {
         const buf = await file.arrayBuffer();
         await anMxlPreflight(buf);
         await loadOsmd();
-        // @ts-expect-error -- audited dynamic view runtime boundary
         try {
             xml = await mxlToXml(buf);
         }
@@ -12133,19 +11777,16 @@ async function anReadXml(file, title) {
             console.error(err);
             throw anError('mxl');
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (xml.length > AN_MAX_XML_CHARS)
             throw anError('mxlbig');
     }
     else
         xml = await file.text();
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (doc.querySelector('parsererror') || doc.documentElement.localName !== 'score-partwise' || doc.querySelector('script'))
         throw anError('xml');
     const layout = scoreXmlLayout(doc), clean = anXmlTidy(doc, title);
     xml = new XMLSerializer().serializeToString(doc);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const r = scoreXmlNotes(doc);
     if (!r.notes.length)
         throw anError('nonotes');
@@ -12388,7 +12029,6 @@ async function anOpenFile(file) {
     try {
         src = kind === 'midi' ? { kind: 'midi', title, label: name, parsed: anParse(await file.arrayBuffer()) } : await anReadXml(file, title);
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     catch (err) {
         if (token !== AN.loadToken)
             return;
@@ -12431,7 +12071,6 @@ async function anCommit(src, token) {
     }
     else {
         AN.recon = { hands: 'auto', grid: 4, key: 'auto' };
-        // @ts-expect-error -- audited dynamic view runtime boundary
         try {
             anRebuild();
         }
@@ -12450,7 +12089,6 @@ async function anCommit(src, token) {
     try {
         ok = await scoreRender();
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     catch (err) {
         console.error(err);
         if (token === AN.loadToken) {
@@ -12462,7 +12100,6 @@ async function anCommit(src, token) {
     }
     if (token !== AN.loadToken || !ok)
         return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     anSetLoading(false);
     anStatus(anLoadedText());
     fallReset();
@@ -12477,7 +12114,6 @@ async function anReconChange() {
     const prev = { ...AN.recon };
     AN.recon = { hands: $('an-hands').value, grid: +$('an-grid').value, key: $('an-keysel').value };
     scoreStop();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     try {
         anRebuild();
     }
@@ -12490,14 +12126,12 @@ async function anReconChange() {
         anShowError('an_err_rebuild');
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     AN.active = null;
     AN.error = null;
     anIndex();
     anReconUI();
     anStatus(anLoadedText());
     const token = ++AN.loadToken;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     try {
         await scoreRender();
     }
@@ -12517,7 +12151,6 @@ function anLocalize() {
     // Examples are re-titled and MIDI scores get the localized part name ("Piano"/"Pian"): both need a rebuild.
     if (src && src.kind !== 'xml') {
         const p = src.kind === 'example' ? PIECES.find(x => x.id === src.id) : null, title = p ? srPieceTitle(p) : src.title, part = '<part-name>' + xmlEsc(t('sc_part')) + '</part-name>';
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (title !== src.title || (SCORE.xml && !SCORE.xml.includes(part))) {
             if (p) {
                 src.title = src.label = title;
@@ -12528,7 +12161,6 @@ function anLocalize() {
             scoreRender().catch(err => { console.error(err); anReset(); anShowError('an_err_render'); });
         }
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (AN.error)
         anStatus(t(AN.error.k, AN.error.a), true);
     else if (src)
@@ -12540,7 +12172,6 @@ function anLocalize() {
 /* selection */
 function anSelectionChanged() {
     AN.active = null;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const R = SCORE.mrange;
     if (R && R.sig !== [...AN.selected].sort((a, b) => a - b).join())
         SCORE.mrange = null;
@@ -12566,7 +12197,6 @@ function anSelectionChanged() {
 function anSelectNotes(list, active, bars) {
     AN.selected = new Set(list.map(n => AN.index.get(n)).filter(i => i != null));
     AN.active = active || null;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     SCORE.mrange = bars && AN.selected.size ? { anchor: bars.a, a: bars.a, b: bars.b, sig: [...AN.selected].sort((x, y) => x - y).join() } : null;
     if (!SCORE.playing && AN.selected.size) {
         FALL.position = anSelStart();
@@ -12583,7 +12213,6 @@ function anSelectNotes(list, active, bars) {
     scorePaint();
     if (FALL.mode === 'fall')
         fallDraw();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const g = AN.selected.size && (SCORE.heads.get(Math.min(...AN.selected)) || [])[0];
     if (g && FALL.mode === 'score')
         anKeepVisible(g, true);
@@ -12605,7 +12234,6 @@ else
     scorePaint(); if (FALL.mode === 'fall')
     fallDraw(); anUpdateControls(); anLayoutVars(); }
 // Hover (or focus) explains what is under the pointer: a note with its chord, or any other marking on the page.
-// @ts-expect-error -- audited dynamic view runtime boundary
 function anHover(e) {
     const g = e.target.closest && e.target.closest('#an-roll [data-i]');
     if (!g) {
@@ -12625,7 +12253,6 @@ function anHover(e) {
     if (!n)
         return;
     const key = anKeyAt(n.start), group = AN.notes.filter(a => a.start <= n.start + 0.001 && a.end > n.start + 0.001), chord = identifyChord(group.map(a => a.midi)), seg = anSegAt(n.start), nct = seg && seg.nct && seg.nct.find(x => x.note === n);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-hover').textContent = spellName(n.midi, key, true) + ' · ' + t('an_bar') + ' ' + anMeasureAt(n.start).number + ' · ' + group.map(a => spellName(a.midi, key, true)).join(' ') + ' · ' + (chord ? spellName(60 + chord.rootPc, key) + chord.chord.symbol + (chord.inversion > 0 ? '/' + spellName(60 + chord.bassPc, key) : '') : t('an_none')) + (nct ? ' · ' + t('an_nct_' + nct.type) : '');
 }
 // Click a notehead to select it (Shift/Ctrl adds), click empty space in a bar to select the bar (Shift extends the range),
@@ -12742,7 +12369,6 @@ function anToReadPiece(ns) {
     const bars = { en: anBarsLabel(notes, 'en'), ro: anBarsLabel(notes, 'ro'), [lang]: anBarsLabel(notes, lang) }, tempoAt = SCORE.tempoList.filter(e => e.beat <= A + 1e-6).pop() || SCORE.tempoList[0];
     const piece = { id: 'excerpt', ephemeral: true, t: { en: tl('en', 'rd_excerpt', titles.en, bars.en), ro: tl('ro', 'rd_excerpt', titles.ro, bars.ro), [lang]: tl(lang, 'rd_excerpt', titles[lang] || titles.en, bars[lang] || bars.en) }, comp: '', level: 0, keyN: key.fifths, minor: key.minor, ts,
         bpm: Math.max(40, Math.min(160, Math.round(tempoAt.bpm))), from: { title: titles[lang] || titles.en, bars: bars[lang] || bars.en } };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (pickup)
         piece.pickup = pickup;
     if (rh)
@@ -12765,13 +12391,11 @@ function anPractice() {
             note.textContent = chk.msg;
         return;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     scoreStop();
     SR.excerpt = chk.piece;
     SR.modeSel = 'learn';
     SR.hands = 'both';
     [...$('rd-mode').children].forEach(x => x.setAttribute('aria-pressed', x.dataset.v === 'learn' ? 'true' : 'false'));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     show('read');
     fillPieces();
     srSelectPiece(SR.excerpt.id);
@@ -12794,21 +12418,17 @@ const FALL_PAL = { etude: FALL_COL,
     contrast: { rh: { a: '#ffe27a', b: '#f2b400', lit: ['#fff4c4', '#ffcf33'], rgb: '255,205,40', key: ['#ffeaa0', '#f5c020'], ink: 'rgba(66,42,0,.85)' },
         lh: { a: '#c9a2ff', b: '#7f3ff0', lit: ['#e8d8ff', '#a173ff'], rgb: '160,110,255', key: ['#dcc5ff', '#9460f5'], ink: 'rgba(40,6,86,.85)' } } };
 const FALL_YOU = ['#ffe9a8', '#f5bd3c'];
-// @ts-expect-error -- audited dynamic view runtime boundary
 function anHasFinger() { if (FALL.fingerSrc !== AN.notes) {
     FALL.fingerSrc = AN.notes;
     FALL.hasFinger = AN.notes.some(n => n.finger);
 } return FALL.hasFinger; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE.tempoList) {
     FALL.source = AN.notes;
     FALL.tempoSource = SCORE.tempoList;
     FALL.notes = AN.notes.map((n, i) => ({ n, i, start: scoreSeconds(n.start), finish: scoreSeconds(n.end), sound: scoreSeconds(n.soundEnd ?? n.end) }));
     FALL.end = FALL.notes.length ? Math.max(...FALL.notes.map(n => n.finish)) : 0;
 } return FALL.notes; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function fallEnd() { fallData(); return FALL.end; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function fallTime() {
     const R = SCORE.run;
     if (!SCORE.playing || !actx || !R)
@@ -12837,7 +12457,6 @@ function fallMode(mode) {
     if (SCORE.playing && !SCORE.followRaf)
         scoreFollow();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function fallReset() { cancelAnimationFrame(FALL.raf); FALL.raf = 0; FALL.position = 0; FALL.particles = []; FALL.flashes = []; FALL.lastT = null; FALL.geo = null; fallDraw(); scoreCursorUpdate(false); anStatusPos(); }
 // Keyboard range: the piece ±2 semitones, whole octaves from C to C, responsive minimum width (4 octaves desktop, 3 tablet, 2 mobile), never beyond the 88 keys.
 function fallRange(W) {
@@ -12923,12 +12542,10 @@ function fallDraw() {
     ctx.fillStyle = 'rgba(0,0,0,.26)';
     G.keys.forEach(k => { if (k.black)
         ctx.fillRect(k.x, 0, k.w, hitY); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (FALL.laneSrc !== AN.notes) {
         FALL.laneSrc = AN.notes;
         FALL.lanes = new Set(AN.notes.map(n => n.midi));
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     ctx.fillStyle = 'rgba(140,170,255,.035)';
     FALL.lanes.forEach(m => { const k = G.keys.get(m); if (k)
         ctx.fillRect(k.x, 0, k.w, hitY); });
@@ -13070,7 +12687,6 @@ function fallDraw() {
     ctx.fillRect(0, hitY - 34, W, 34);
     if (FALL.flashes.length || FALL.particles.length)
         fallParticles(ctx, dt);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const B = PRAC.bar && SCORE.run && time >= PRAC.bar.t - 1e-6 ? PRAC.bar : null, need = B ? [...B.need].filter(m => !B.got.has(m)) : [];
     fallKeyboard(ctx, G, hitY, kh, W, active, P, need, ms);
     ctx.save();
@@ -13285,7 +12901,6 @@ function anTlUpdate(time) {
     set('fall-total', anClock(end));
     const ms = anMeasures(), m = anMeasureAt(scoreBeatAt(pos));
     set('tl-bar', m && ms.length ? t('tl_bar', m.number, ms[ms.length - 1].number) : '');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (FALL.tickSrc !== fallData() || FALL.tickTempo !== SCORE.tempoList || FALL.tickEnd !== end) {
         FALL.tickSrc = fallData();
         FALL.tickTempo = SCORE.tempoList;
@@ -13309,7 +12924,6 @@ function fallSeek() { const pos = +$('fall-seek').value; if (SCORE.playing) {
 } SCORE.resume = null; FALL.position = pos; scoreIdle(); }
 function fallSeekEnd() { const r = FALL.resume; FALL.resume = null; if (r)
     scorePlay(r.sel, FALL.position); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function fallHit(e) { const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; return FALL.hits.findLast(h => x >= h.x - 2 && x <= h.x + h.w + 2 && y >= h.y && y <= h.y + h.h); }
 // The integrated keyboard is playable by mouse or touch.
 function fallKeyAt(e) {
@@ -13331,7 +12945,6 @@ function fallKeyAt(e) {
     }
     return null;
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function fallKeyDown(e) {
     const m = fallKeyAt(e);
     if (m == null)
@@ -13339,7 +12952,6 @@ function fallKeyDown(e) {
     e.preventDefault();
     ensureAudio();
     FALL.press = FALL.press || new Map();
-    // @ts-expect-error -- audited dynamic view runtime boundary
     FALL.press.set(e.pointerId, m);
     try {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -13349,7 +12961,6 @@ function fallKeyDown(e) {
     if (!FALL.raf)
         fallDraw();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function fallKeyUp(e) { const P = FALL.press, m = P && P.get(e.pointerId); if (m == null)
     return; P.delete(e.pointerId); handleNoteOff(m, 'fall:' + e.pointerId); if (!FALL.raf)
     fallDraw(); }
@@ -13397,7 +13008,6 @@ function anShortcut(e) {
             $('an-recon-btn').focus();
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (SIDE.sheet) {
             e.preventDefault();
             anSheet(false);
@@ -13584,25 +13194,20 @@ function anSideResizer() {
     });
 }
 function anInitControls() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f)
         anOpenFile(f); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-roll').addEventListener('click', e => { if (e.target.closest('[data-an-open]')) {
         $('an-file').click();
         return;
     } const ex = e.target.closest('.an-ex'); if (ex && !ex.disabled)
         anLoadExample(ex.dataset.piece); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-example').addEventListener('change', e => { if (e.target.value)
         anLoadExample(e.target.value); });
     ['an-hands', 'an-grid', 'an-keysel'].forEach(id => $(id).addEventListener('change', anReconChange));
     $('an-recon-btn').addEventListener('click', () => anReconOpen($('an-recon').hidden));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     document.addEventListener('pointerdown', e => {
         if (!$('an-recon').hidden && !e.target.closest('#an-recon,#an-recon-btn'))
             anReconOpen(false);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         AN_POPS.forEach(([p, b]) => { if (!$(p).hidden && !e.target.closest('#' + p + ',#' + b))
             anPop(p, false); });
     });
@@ -13610,15 +13215,12 @@ function anInitControls() {
     AN_POPS.forEach(([p, b]) => $(b).addEventListener('click', () => anPop(p, $(p).hidden)));
     pracLoad();
     const ck = { 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-ramp': 'ramp', 'fall-fx': 'fx' };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     Object.entries(ck).forEach(([id, k]) => { $(id).checked = PRAC[k]; $(id).addEventListener('change', e => pracSet(k, e.target.checked)); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     [['fall-labels', 'labels'], ['fall-pal', 'pal'], ['fall-range', 'range']].forEach(([id, k]) => { $(id).value = PRAC[k]; $(id).addEventListener('change', e => pracSet(k, e.target.value)); });
     const look = $('fall-look'), lookOut = () => { $('fall-look-v').textContent = (+look.value).toFixed(1) + ' s'; };
     look.value = String(Math.round(FALL_SEC / FALL.zoom * 5) / 5);
     lookOut();
     look.addEventListener('input', () => { FALL.zoom = FALL_SEC / +look.value; lookOut(); pracSave(); anUpdateControls(); fallDraw(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pr-hands').addEventListener('click', e => { const b = e.target.closest('button[data-h]'); if (b)
         pracSet('hands', b.dataset.h); });
     $('pr-wait').addEventListener('click', () => pracSet('wait', !PRAC.wait));
@@ -13630,7 +13232,6 @@ function anInitControls() {
     $('pr-slower').addEventListener('click', () => { pracSumClose(); const sel = $('score-speed'), o = [...sel.options].map(x => +x.value), cur = +sel.value, v = o.filter(x => x < cur).pop(); if (v)
         sel.value = String(v); pracHud(); scorePlay(false, 0); });
     $('pr-close').addEventListener('click', pracSumClose);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pr-sum-next').addEventListener('click', e => { if (e.target.closest('#pr-next-act') && PRAC.next && PRAC.next.act)
         PRAC.next.act.run(); });
     $('pr-sum').addEventListener('pointerdown', e => { if (e.target === e.currentTarget)
@@ -13655,7 +13256,6 @@ function anInitControls() {
     $('sc-zoom-out').addEventListener('click', () => scoreZoom(anZoomNow() - 0.1));
     $('sc-zoom-in').addEventListener('click', () => scoreZoom(anZoomNow() + 0.1));
     $('sc-zoom-reset').addEventListener('click', () => scoreZoom(1));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('sc-look').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b && !b.disabled)
         scoreSetLook(b.dataset.v); });
     $('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
@@ -13669,7 +13269,6 @@ function anInitControls() {
     fc.addEventListener('pointerdown', fallKeyDown);
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => fc.addEventListener(ev, fallKeyUp));
     const roll = $('an-roll');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     roll.addEventListener('pointerdown', scorePointer);
     roll.addEventListener('pointerover', anHover);
     roll.addEventListener('pointerleave', () => { $('an-hover').textContent = ''; scoreTip(null); });
@@ -13679,7 +13278,6 @@ function anInitControls() {
         hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; if (hoverEv)
             anHover(hoverEv); }); });
     roll.addEventListener('focusin', anHover);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     roll.addEventListener('keydown', e => {
         const g = e.target.closest('[data-i]');
         if (!g)
@@ -13713,7 +13311,6 @@ function anInitControls() {
     document.addEventListener('keydown', anShortcut);
     // analysis panel: a chord (in Now or Piece) selects its notes and its bar and moves the cursor there
     const side = $('an-side'), ws = $('an-ws');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     side.addEventListener('click', e => {
         const ch = e.target.closest('.an-ch');
         if (ch && AN.view) {
@@ -13735,7 +13332,6 @@ function anInitControls() {
             }
             return;
         }
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const mo = e.target.closest('.an-chip[data-motif]');
         if (mo && AN.view) {
             const k = +mo.dataset.motif, m = AN.view.motifs[k];
@@ -13743,7 +13339,6 @@ function anInitControls() {
                 anSelectNotes(m.notes, { kind: 'motif', k });
         }
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     ws.addEventListener('keydown', e => {
         const ch = e.target.closest('.an-ch');
         if (!ch)
@@ -13762,7 +13357,6 @@ function anInitControls() {
     ws.addEventListener('keydown', e => { if (/^(Page|Arrow|Home|End)/.test(e.key))
         SIDE.handScroll = performance.now(); });
     // tabs: click, or Left/Right/Home/End with automatic activation; the choice is remembered
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-tabs').addEventListener('click', e => { const b = e.target.closest('[role="tab"]'); if (b)
         anTab(b.dataset.tab); });
     $('an-tabs').addEventListener('keydown', e => {
@@ -13772,20 +13366,16 @@ function anInitControls() {
         e.preventDefault();
         anTab(AN_TABS[(j + AN_TABS.length) % AN_TABS.length], true);
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-side-btn').addEventListener('click', () => { if (anNarrow())
         anSheet(!SIDE.sheet);
     else
         anSideSet(!SIDE.open); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-side-close').addEventListener('click', () => { if (anNarrow()) {
         anSheet(false);
         return;
     } anSideSet(false); $('an-side-btn').focus({ preventScroll: true }); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-fab').addEventListener('click', () => anSheet(true));
     $('pr-opt').addEventListener('click', () => anOpenTab('practice'));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-now').addEventListener('focusout', e => { if (SIDE.deferred && !$('an-now-body').contains(e.relatedTarget))
         requestAnimationFrame(anRenderNow); });
     // Now: the passage actions
@@ -13796,7 +13386,6 @@ function anInitControls() {
         return;
     } if (anCommitFocus())
         scoreLoopStart(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('an-now-hands').addEventListener('click', e => { const b = e.target.closest('button[data-h]'); if (!b || b.disabled)
         return; if (PRAC.hands !== b.dataset.h)
         pracSet('hands', b.dataset.h); if (anCommitFocus())
@@ -13804,18 +13393,13 @@ function anInitControls() {
     // Practice: the same settings as the toolbar
     $('pt-speed').innerHTML = $('score-speed').innerHTML;
     $('pt-speed').value = $('score-speed').value;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pt-speed').addEventListener('change', e => { $('score-speed').value = e.target.value; speed(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pt-hands').addEventListener('click', e => { const b = e.target.closest('button[data-h]'); if (b && !b.disabled)
         pracSet('hands', b.dataset.h); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pt-wait').addEventListener('change', e => pracSet('wait', e.target.checked));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pt-metro').addEventListener('change', e => pracSet('metro', e.target.checked));
     $('pt-start').addEventListener('click', anPracticeStart);
     $('an-practice').addEventListener('click', anPractice);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     anSideResizer();
     anTab(SIDE.tab);
     window.matchMedia('(max-width: 999px)').addEventListener('change', () => { SIDE.sheet = false; anSideSync(); anLayoutVars(); });
@@ -13832,7 +13416,6 @@ function anInitControls() {
     window.addEventListener('dragleave', e => { if (view0() !== 'analysis' || !files(e))
         return; depth = Math.max(0, depth - 1); if (!depth)
         over(false); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     window.addEventListener('drop', e => { if (view0() !== 'analysis' || !files(e))
         return; e.preventDefault(); depth = 0; over(false); const list = [...e.dataTransfer.files]; if (list.length !== 1) {
         anShowError('an_err_many');
@@ -13925,7 +13508,6 @@ function renderProgress() {
                 active++;
                 sum += c;
             }
-            // @ts-expect-error -- audited dynamic view runtime boundary
             x.dataset.l = c === 0 ? 0 : c < 5 ? 1 : c < 12 ? 2 : c < 20 ? 3 : 4;
             x.title = new Date(d * 86400000).toLocaleDateString(loc, { month: 'short', day: 'numeric', timeZone: 'UTC' }) + ' · ' + c + ' ' + t('reviews_word');
             hm.appendChild(x);
@@ -13970,7 +13552,6 @@ function renderPlan() {
         return;
     const tn = todayN();
     const goal = data.settings.goal, done = data.todayDay === tn ? (data.todayCount || 0) : 0;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const td = data.toolDay || {}, ear = data.earDay === tn ? (data.earToday || 0) : 0;
     const items = [
         { id: 'review', done: done >= goal, partial: done > 0 && done < goal, prog: goal ? Math.min(1, done / goal) : 0, pill: Math.min(done, goal) + '/' + goal, t: t('plan_review'), d: done >= goal ? t('plan_review_done') : t('plan_review_d', done, goal), go: () => { if (!SES.active)
@@ -13981,7 +13562,6 @@ function renderPlan() {
     ];
     const nextIdx = items.findIndex(i => !i.done);
     list.innerHTML = '';
-    // @ts-expect-error -- audited dynamic view runtime boundary
     items.forEach((it, idx) => {
         const li = document.createElement('li'), b = document.createElement('button'), isNext = idx === nextIdx, isPart = !it.done && !!it.partial;
         b.type = 'button';
@@ -13993,9 +13573,7 @@ function renderPlan() {
         if (isPart)
             b.dataset.partial = 'true';
         const ckTxt = it.done ? '✓' : String(idx + 1);
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const pillHtml = it.pill ? '<span class="plan-pill">' + it.pill + '</span>' : '';
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const barHtml = (isPart && it.prog > 0) ? '<span class="plan-bar" aria-hidden="true"><i style="width:' + Math.round(it.prog * 100) + '%"></i></span>' : '';
         b.innerHTML = '<span class="ck" aria-hidden="true">' + ckTxt + '</span><span class="pt">' + it.t + (it.done ? '<span class="visually-hidden"> — ' + t('done_today') + '</span>' : '') + '</span><span class="pd">' + it.d + '</span><span class="plan-end" aria-hidden="true">' + pillHtml + '<span class="plan-go">→</span></span>' + barHtml;
         b.addEventListener('click', it.go);
@@ -14004,11 +13582,9 @@ function renderPlan() {
     });
     $('plan-sub').textContent = t('plan_sub', items.filter(i => i.done).length, items.length);
     const segs = $('plan-segs');
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (segs) {
         segs.innerHTML = items.map((it, idx) => '<i data-state="' + (it.done ? 'done' : it.partial ? 'partial' : idx === nextIdx ? 'next' : 'todo') + '"></i>').join('');
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const nextIt = nextIdx >= 0 ? items[nextIdx] : null, lt = data.lastTool, cb = $('plan-continue');
     if (nextIt) {
         cb.hidden = false;
@@ -14024,10 +13600,8 @@ function renderPlan() {
         cb.hidden = true;
 }
 /* ---------- PRACTICE: last drill result ---------- */
-// @ts-expect-error -- audited dynamic view runtime boundary
 function prRecordDrill() { if (!SES.targeted || !SES.total)
     return; const tg = SES.targeted; data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, c: SES.correct, n: SES.total, day: todayN() }; saveAll(); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function renderPracticeLast() {
     const el = $('pr-last');
     if (!el)
@@ -14047,7 +13621,6 @@ function showSummary() {
     $('summary').style.display = 'block';
     $('today-home').style.display = 'none';
     const acc = SES.total ? Math.round(100 * SES.correct / SES.total) : 0;
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('sum-acc').textContent = acc + '%';
     $('sum-rev').textContent = SES.total;
     $('sum-streak').textContent = currentStreak();
@@ -14155,7 +13728,6 @@ function syncSrs(b, l, r) {
         return (+r.reps || 0) > (+l.reps || 0) || (+r.reps || 0) === (+l.reps || 0) && (+r.last || 0) > (+l.last || 0) ? r : l;
     }
     const out = { ...pair.base };
-    // @ts-expect-error -- audited dynamic view runtime boundary
     pair.wrong.sort((a, b) => Number(b) - Number(a)).forEach(wrong => { out.reps++; if (!wrong) {
         out.box = Math.min(7, out.box + 1);
         out.ease = Math.min(2.9, out.ease + .05);
@@ -14217,10 +13789,8 @@ function syncData(b, l, r) {
         day[dk] = d;
         ks.forEach(k => { const n = x => on(x) ? (+x[k] || 0) : 0; day[k] = b === SYNC_NONE ? Math.max(n(l), n(r)) : Math.max(0, n(l) + n(r) - n(b)); });
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     if (repeatedNew.length && day.todayDay !== undefined)
         day.newToday = Math.max(0, (+day.newToday || 0) - repeatedNew.filter(d => d === day.todayDay).length);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     day.streak = Math.max(0, ...[l, r].filter(x => (+x.todayDay || 0) === day.todayDay).map(x => +x.streak || 0));
     day.lastActive = Math.max(+l.lastActive || 0, +r.lastActive || 0);
     syncInto(l, b, r, '');
@@ -14261,7 +13831,6 @@ let syncPull = function syncPull() {
         SYNC.known.clear();
         SYNC.merge = null;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     else if (!sameData)
         syncData(bp === SYNC_NONE ? bp : bp.data, data, rp.data);
     data.settings = restoreSettings(data.settings);
@@ -14283,7 +13852,6 @@ let syncPull = function syncPull() {
     syncCurrent(cur);
     if (needsWrite && isBackupPayload(lp) && parent !== lid) { // theirs lacks this tab's record: keep the plain merge of the two for the save that follows
         const merged = { v: 3, gen, data: JSON.parse(JSON.stringify(lp.data)) };
-        // @ts-expect-error -- audited dynamic view runtime boundary
         syncData(bp.data, merged.data, rp.data);
         Object.keys(SYNC_PREFS).forEach(f => { merged[f] = syncPref(f, SYNC_PREFS[f][0]()); });
         syncRemember(syncPair(SYNC.id, lid), merged);
@@ -14294,7 +13862,6 @@ let syncPull = function syncPull() {
     return swap ? 'swap' : needsWrite ? 'merge-save' : 'merge';
 };
 function syncBusy() { return SES.active || sing.active || SR.active || RD.on || accomp.on || trx.on || SCORE.playing; }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function syncIdle() {
     clearTimeout(SYNC.w);
     if (!Object.keys(SYNC.pend).length)
@@ -14310,7 +13877,6 @@ function syncIdle() {
 function syncNote(on) { const n = $('syncNote'); if (n)
     n.hidden = !on; }
 // Re-rendering waits for a fresh task, so a save made in the middle of drawing something is never re-entered.
-// @ts-expect-error -- audited dynamic view runtime boundary
 function syncAfter(got) { if (got === 'swap')
     syncNote(true); clearTimeout(SYNC.t); SYNC.t = setTimeout(syncRefresh, 0); }
 function syncRefresh() {
@@ -14325,7 +13891,6 @@ function syncRefresh() {
 }
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function syncWrite() { try {
     const p = { v: 3, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: activeInputId || savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved };
     const s = writePttV3(localStorage, p);
@@ -14351,7 +13916,6 @@ function loadAll() {
                 data.settings = restoreSettings(raw.data.settings);
                 data.srs = raw.data.srs || {};
             }
-            // @ts-expect-error -- audited dynamic view runtime boundary
             if (raw.lang && STRINGS[raw.lang])
                 lang = raw.lang;
             if (raw.theme)
@@ -14384,11 +13948,9 @@ function loadAll() {
                 DOCK.pref = raw.anKb; // the Score & analysis choice becomes the choice for every view
             if (typeof raw.wake === 'boolean')
                 WAKE.want = raw.wake;
-            // @ts-expect-error -- audited dynamic view runtime boundary
             const bl = raw.ble;
             if (bl && typeof bl.id === 'string' && bl.id)
                 BLE.saved = { id: bl.id, name: typeof bl.name === 'string' ? bl.name : '', auto: bl.auto !== false };
-            // @ts-expect-error -- audited dynamic view runtime boundary
             const sd = raw.anSide;
             if (sd && typeof sd === 'object') {
                 if (typeof sd.open === 'boolean')
@@ -14401,7 +13963,6 @@ function loadAll() {
             return;
         }
         // migrate from V2 settings (notation/tone) if present
-        // @ts-expect-error -- audited dynamic view runtime boundary
         const v2s = legacySettings(localStorage);
         if (v2s) {
             if (['letter', 'solfege', 'german'].includes(v2s.noteSys))
@@ -14446,11 +14007,9 @@ function labelSettingsControl(controlId, labelKey, helpKey) {
 function labelSettingsControls() {
     [['deviceSelect', 'set_input'], ['toneSel', 'set_tone'], ['set-goal', 'set_sessionlen'], ['set-new', 'set_newperday', 'set_newperday_s'],
         ['set-wake', 'set_wake'], ['set-synth', 'set_localsynth'], ['set-drone', 'set_drone'], ['set-metronome', 'set_metronome'], ['set-inv', 'set_allowinv']]
-        // @ts-expect-error -- audited dynamic view runtime boundary
         .forEach(args => labelSettingsControl(...args));
 }
 function reflectSettingsUI() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('volume').value = Math.round(masterVol * 100);
     $('toneSel').value = tone;
     $('bpm').value = metro.bpm;
@@ -14549,7 +14108,6 @@ function applyNotation() {
         fillRoots(ak, false);
         ak.value = av || accomp.key || 0;
     }
-    // @ts-expect-error -- audited dynamic view runtime boundary
     renderCircle();
     buildKeyboard();
     repaintHeld();
@@ -14571,7 +14129,6 @@ function applyNotation() {
 }
 /* ---------- ACCOMPANIMENT UI ---------- */
 function renderAccompany() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
     const ps = $('ac-prog');
     if (ps && !ps._filled) {
         ACCOMP_PROGS.forEach((p, i) => { const o = document.createElement('option'); o.value = i; o.textContent = p.name; ps.appendChild(o); });
@@ -14589,7 +14146,6 @@ function renderAccompany() {
     }
     updateAccompChain();
 }
-// @ts-expect-error -- audited dynamic view runtime boundary
 function updateAccompChain() { const el = $('ac-chain'); if (!el)
     return; const prog = ACCOMP_PROGS[+($('ac-prog').value || 0)]; if (!prog)
     return; const key = +($('ac-key').value || 0); el.innerHTML = prog.chords.map(ch => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
@@ -14603,10 +14159,8 @@ function initControls() {
     labelSettingsControls();
     $('skipLink').addEventListener('click', e => { e.preventDefault(); $('main').focus({ preventScroll: true }); });
     // nav
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b)
         show(b.dataset.view); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('modeNav').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b)
         show(b.dataset.view); });
     document.querySelector('.brand').addEventListener('click', e => { e.preventDefault(); show('today'); });
@@ -14615,12 +14169,10 @@ function initControls() {
     $('audioLockBtn').addEventListener('click', audioUnlock);
     $('syncNoteBtn').addEventListener('click', () => syncNote(false));
     $('set-connect').addEventListener('click', connectMidi);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('deviceSelect').addEventListener('change', e => attachInput(e.target.value));
     $('set-ble').addEventListener('click', bleClick);
     $('set-ble-re').addEventListener('click', bleReconnect);
     // installed app & screen
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-wake').addEventListener('change', e => wakeSet(e.target.checked));
     $('set-full').addEventListener('click', fsToggle);
     $('set-install').addEventListener('click', pwaInstall);
@@ -14635,7 +14187,6 @@ function initControls() {
     // learn: demo buttons + cross-links
     $('learnBody').addEventListener('click', e => learnClick(e));
     // theme
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-theme').addEventListener('click', e => { const b = e.target.closest('button'); if (!b)
         return; theme = b.dataset.v; applyTheme(); saveAll(); });
     // mobile menu
@@ -14647,7 +14198,6 @@ function initControls() {
         else
             closeMobileMenu(true);
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     document.addEventListener('click', e => { const mm = $('mobileMenu'); if (mm && !mm.hidden && !e.target.closest('#mobileMenu') && !e.target.closest('#menuBtn'))
         closeMobileMenu(); });
     // backup export / import
@@ -14658,7 +14208,6 @@ function initControls() {
         trxDownload('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', new Blob([raw], { type: 'application/json' }));
     });
     $('importBtn').addEventListener('click', () => $('importFile').click());
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('importFile').addEventListener('change', e => {
         const f = e.target.files[0];
         e.target.value = '';
@@ -14681,7 +14230,6 @@ function initControls() {
         rd.readAsText(f);
     });
     // session
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('tools').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b)
         show(b.dataset.view); });
     $('startBtn').addEventListener('click', () => startSession(null));
@@ -14699,13 +14247,11 @@ function initControls() {
     $('q-replay').addEventListener('click', () => { const q = SES.q; if (q)
         playQuestionSound(q); });
     $('q-ekreset').addEventListener('click', ekReset);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('q-ansmode').addEventListener('click', e => {
         const b = e.target.closest('button[data-v]'), q = SES.q;
         if (!b)
             return;
         const on = b.dataset.v === 'keys';
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (!!data.settings.earKeys === on)
             return;
         data.settings.earKeys = on;
@@ -14727,11 +14273,9 @@ function initControls() {
     $('sum-again').addEventListener('click', () => { $('summary').style.display = 'none'; startSession(null); });
     $('sum-done').addEventListener('click', () => { $('summary').style.display = 'none'; show('today'); });
     // practice
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pr-mode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled)
         return; [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); });
     // Melodies are only ever answered on the keys: that topic locks the mode to "By ear, on keys".
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('pr-cat').addEventListener('change', e => {
         const mel = e.target.value === 'melody', pm = $('pr-mode');
         [...pm.children].forEach(x => { x.disabled = mel && x.dataset.v !== 'keys'; if (mel)
@@ -14744,7 +14288,6 @@ function initControls() {
         const mb = $('pr-mode').querySelector('[aria-pressed="true"]');
         const v = cat === 'melody' ? 'keys' : (mb ? mb.dataset.v : 'play');
         const key = $('pr-key').value;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         if (v !== 'play' && cat !== 'melody') {
             data.settings.earKeys = v === 'keys';
             saveAll();
@@ -14753,15 +14296,12 @@ function initControls() {
         startSession({ cat, mode: v === 'play' ? 'play' : 'ear', key });
     });
     // accompaniment
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('ac-hands').addEventListener('click', e => { const b = e.target.closest('button'); if (!b)
         return; [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
     ['ac-prog', 'ac-pat', 'ac-key'].forEach(id => $(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('ac-bpm').addEventListener('input', e => { $('ac-bpmLbl').textContent = e.target.value; });
     $('ac-bpm').addEventListener('change', accompRestartIfPlaying);
     $('ac-click').addEventListener('change', accompRestartIfPlaying);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('ac-play').addEventListener('click', () => { if (accomp.on) {
         accompStop();
     }
@@ -14770,41 +14310,33 @@ function initControls() {
         accompStart();
     } acPlayLabel(); });
     // read & play (sheet music)
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rd-piece').addEventListener('change', e => srSelectPiece(e.target.value));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rd-hands').addEventListener('click', e => {
         const b = e.target.closest('button');
         if (!b || b.disabled)
             return;
         SR.hands = b.dataset.v;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
         srStopAll();
         srStepsBuild();
         srPaintAll();
         $('rd-verdict').textContent = '';
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rd-mode').addEventListener('click', e => {
         const b = e.target.closest('button');
         if (!b)
             return;
         SR.modeSel = b.dataset.v;
-        // @ts-expect-error -- audited dynamic view runtime boundary
         [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
         srStopAll();
         $('rd-verdict').textContent = '';
     });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rd-names').addEventListener('change', e => { SR.names = e.target.checked; srStopAll(); srDraw(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rd-bpm').addEventListener('input', e => { if (SR.active || SR.listening) {
         e.target.value = SR.bpm;
         return;
     } $('rd-bpmLbl').textContent = e.target.value; SR.bpm = +e.target.value; });
     $('rd-go').addEventListener('click', srGo);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('rd-coach').addEventListener('click', e => { if (e.target.closest('#rd-coach-act') && SR.next && SR.next.act)
         SR.next.act.run(); });
     $('rd-listen').addEventListener('click', srListen);
@@ -14817,17 +14349,13 @@ function initControls() {
     $('tr-clear').addEventListener('click', trxClear);
     $('tr-midi').addEventListener('click', trxExportMidi);
     $('tr-txt').addEventListener('click', trxExportTxt);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('tr-bpm').addEventListener('input', e => { $('tr-bpmLbl').textContent = e.target.value; });
     ['tr-snap', 'tr-skey', 'tr-sscale', 'tr-quant', 'tr-bpm', 'tr-gridSel'].forEach(id => $(id).addEventListener('change', () => { if (trx.notes && trx.notes.length)
         trxRender(); }));
     // sight-singing
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('si-mode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b)
         return; singStopAll(); [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); sing.mode = b.dataset.v; ssModeUI(); $('si-verdict').textContent = ''; $('si-hint').textContent = ''; ssPaint(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('si-level').addEventListener('change', e => { singStopAll(); sing.level = +e.target.value; ssNewExercise(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('si-clef').addEventListener('change', e => { singStopAll(); sing.clef = e.target.value; ssNewExercise(); });
     $('si-solf').addEventListener('change', () => { $('si-staff').classList.toggle('nosolf', !$('si-solf').checked); });
     $('si-new').addEventListener('click', () => { singStopAll(); ssNewExercise(); $('si-verdict').textContent = ''; $('si-hint').textContent = ''; });
@@ -14835,7 +14363,6 @@ function initControls() {
     $('si-tonic').addEventListener('click', ssTonic);
     $('si-playit').addEventListener('click', ssPlayIt);
     $('si-drone').addEventListener('change', ssDrone);
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('si-bpm').addEventListener('input', e => { $('si-bpmLbl').textContent = e.target.value; sing.bpm = +e.target.value; });
     // explore
     anInitControls();
@@ -14851,17 +14378,14 @@ function initControls() {
     $('sq-go').addEventListener('click', sqNew);
     $('sq-again').addEventListener('click', () => { if (SQ.started)
         sqPlay(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('sq-ans').addEventListener('click', e => { const b = e.target.closest('button[data-semi]'); if (b)
         sqAnswer(+b.dataset.semi); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('song-dir').addEventListener('click', e => { const b = e.target.closest('button'); if (!b)
         return; songDir = b.dataset.v; [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderSongs(); });
     // progress
     $('prog-export').addEventListener('click', () => $('exportBtn').click());
     $('prog-import').addEventListener('click', () => $('importBtn').click());
     $('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
         data = { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, learnDone: {}, learnSel: 0, settings: data.settings };
         renderLearn._init = false;
@@ -14876,42 +14400,28 @@ function initControls() {
     $('oct-up').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.min(BASE_HIGH - view.oct * 12, view.low + 12); buildKeyboard(); repaintHeld(); });
     $('panicBtn').addEventListener('click', panic);
     $('dock-kb-toggle').addEventListener('click', () => dockSet(!dockOpen()));
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('kb-pan').addEventListener('input', e => { $('dock-keys').scrollLeft = +e.target.value; });
     $('dock-keys').addEventListener('scroll', () => { $('kb-pan').value = String($('dock-keys').scrollLeft); });
     // settings: notation/tone/audio/learning
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-notation').addEventListener('click', e => { const b = e.target.closest('button'); if (!b)
         return; notation = b.dataset.v; document.querySelectorAll('#set-notation button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); applyNotation(); refreshToday(); saveAll(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-lang').addEventListener('click', e => { const b = e.target.closest('button'); if (b)
         setLang(b.dataset.v); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('toneSel').addEventListener('change', e => { releaseLiveInput(); stopPreviews(); stopDrone(); tone = e.target.value; ensureAudio(); pianoStatus(); saveAll(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('volume').addEventListener('input', e => { masterVol = e.target.value / 100; muted = false; masterRamp(masterVol); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-synth').addEventListener('change', e => { localSynth = e.target.checked; if (!localSynth) {
         liveVoices.forEach(v => v.stop());
         liveVoices.clear();
     } saveAll(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('reverb').addEventListener('input', e => { reverbWet = e.target.value / 100 * 0.5; if (reverbGain && actx)
         reverbGain.gain.setTargetAtTime(reverbWet, actx.currentTime, 0.05); saveSoon(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-labels').addEventListener('click', e => { const b = e.target.closest('button'); if (!b)
         return; labelMode = b.dataset.v; document.querySelectorAll('#set-labels button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); buildKeyboard(); repaintHeld(); saveAll(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('bpm').addEventListener('input', e => { metro.bpm = +e.target.value; $('bpmLbl').textContent = e.target.value; saveSoon(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-drone').addEventListener('change', e => { data.settings.drone = e.target.checked; saveAll(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-metronome').addEventListener('change', e => { data.settings.metronome = e.target.checked; saveAll(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-inv').addEventListener('change', e => { data.settings.allowInv = e.target.checked; saveAll(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-goal').addEventListener('change', e => { data.settings.goal = +e.target.value; saveAll(); refreshToday(); });
-    // @ts-expect-error -- audited dynamic view runtime boundary
     $('set-new').addEventListener('change', e => { data.settings.newPerDay = +e.target.value; saveAll(); refreshToday(); });
     // global
     ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, function u() { ensureAudio(); }, { once: true }));
@@ -16135,8 +15645,8 @@ Object.defineProperty(__etude, "preparePiano", { configurable: true, get: () => 
 Object.defineProperty(__etude, "previewNote", { configurable: true, get: () => previewNote, set: value => { previewNote = value; } });
 Object.defineProperty(__etude, "scoreFixPedals", { configurable: true, get: () => scoreFixPedals, set: value => { scoreFixPedals = value; } });
 Object.defineProperty(__etude, "syncPull", { configurable: true, get: () => syncPull, set: value => { syncPull = value; } });
-Object.defineProperty(__etude, "actx", { configurable: true, get: () => actx, set: value => { actx = value; } });
-Object.defineProperty(__etude, "localSynth", { configurable: true, get: () => localSynth, set: value => { localSynth = value; } });
+Object.defineProperty(__etude, "actx", { configurable: true, get: () => actx, set: value => { actx = value; audioEngine.context = value; } });
+Object.defineProperty(__etude, "localSynth", { configurable: true, get: () => localSynth, set: value => { localSynth = value; audioEngine.localSynth = value; } });
 Object.defineProperty(__etude, "notation", { configurable: true, get: () => notation, set: value => { notation = value; } });
 Object.defineProperty(__etude, "renderLearn", { configurable: true, get: () => renderLearn, set: value => { renderLearn = value; } });
 Object.defineProperty(__etude, "show", { configurable: true, get: () => show, set: value => { show = value; } });

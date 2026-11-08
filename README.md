@@ -54,17 +54,23 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 ## Project structure
 
 - `etude.html` — stable application shell
-- `src/domain/views.ts` — typed view runtime and application event wiring
+- `src/domain/views.ts` — strict TypeScript entry point for the application view runtime
+- `src/domain/views-runtime.js` — DOM and event orchestration; it calls typed domain APIs and exposes only the deliberate `window.__etude` test surface
 - `src/domain/router.ts` — hash-route groups and safe fallback
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
 - `src/domain/storage.ts` — typed `ptt-v3` reader, writer, and settings normalization
-- `src/domain/theory.ts` — typed, pure pitch-class, scale, chord, interval, and chord-identification helpers
-- `src/domain/audio.ts` — checked piano-sample fetch/decode and retry-safe piano bank
-- `src/domain/notation.ts` — lazy OSMD loader and typed adapter for grouped pedal rendering
-- `window.__etude` — deliberate browser test/import surface, exposed by the views runtime without raw window aliases
+- `src/domain/theory.ts` — strict, browser-independent pitch, scale, chord, interval, and formula helpers
+- `src/domain/audio.ts` — strict Web Audio engine, voices, checked piano-sample fetch/decode, and retry-safe piano bank
+- `src/domain/notation.ts` — lazy OSMD/MXL adapter, constructor boundary, and grouped pedal patch
+- `window.__etude` — deliberate browser test/import surface; application state is not read through arbitrary `window.*` aliases
 - `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed recordings
 - `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
 - `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker; add a source import or a file under `public/` and the published manifest updates automatically
 - `scripts/sw-kill-switch.js`, `docs/sw-kill-switch.md` — emergency worker rollback and runbook
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
 - `package.json`, `package-lock.json` — test tooling and locked dependencies
+
+All TypeScript under `src/` is checked with the compiler's full `strict` mode.
+The remaining DOM-heavy runtime is kept as a JavaScript boundary so browser
+event code cannot weaken the strict domain modules; new storage, theory, audio,
+or notation behavior belongs in the corresponding typed module first.
