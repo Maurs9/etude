@@ -7104,16 +7104,21 @@ function rdHud() {
         progress.style.transform = 'scaleX(' + Math.max(0, Math.min(1, f)).toFixed(3) + ')';
 }
 /* ---- rhythm reading: tap the rhythm against a metronome ---- */
-const RD_RHU = { '4': [[1]], '2': [[2]], '1': [[4]], '8': [[.5], [.5]], 'r4': [[1, 1]], 'd': [[1.5], [.5]], '16': [[.25], [.25], [.25], [.25]] };
-function rdRhGen(L: { units: any[]; }|null) {
-    let ev: never[] = [];
+type RdRhythmUnit = '4' | '2' | '1' | '8' | 'r4' | 'd' | '16';
+const RD_RHU: Record<RdRhythmUnit, number[][]> = { '4': [[1]], '2': [[2]], '1': [[4]], '8': [[.5], [.5]], 'r4': [[1, 1]], 'd': [[1.5], [.5]], '16': [[.25], [.25], [.25], [.25]] };
+function isRdRhythmUnit(u: string): u is RdRhythmUnit { return Object.hasOwn(RD_RHU, u); }
+// One written note or rest of a rhythm exercise, in beats from the start of the first bar.
+interface RdRhythmEvent { beat: number; dur: number; rest: boolean; u?: RdRhythmUnit; }
+function rdRhGen(L: { units: readonly string[]; }) {
+    let ev: RdRhythmEvent[] = [];
     for (let tries = 0; tries < 12; tries++) {
         ev = [];
         for (let bar = 0; bar < 2; bar++) {
             let pos = 0;
             while (pos < 4 - 1e-6) {
-                const c = L.units.filter((u: string) => { const len = RD_RHU[u].reduce((a: any, x: any[]) => a + x[0], 0); return len <= 4 - pos + 1e-6 && !(u === '1' && pos > 0) && !(u === 'r4' && bar === 0 && pos === 0) && !(u === 'd' && pos % 2); });
-                const u = c.length ? ssPick(c) : '4';
+                const c = L.units.filter((u): u is RdRhythmUnit => { if (!isRdRhythmUnit(u))
+                    return false; const len = RD_RHU[u].reduce((a: number, x: number[]) => a + x[0], 0); return len <= 4 - pos + 1e-6 && !(u === '1' && pos > 0) && !(u === 'r4' && bar === 0 && pos === 0) && !(u === 'd' && pos % 2); });
+                const u: RdRhythmUnit = c.length ? ssPick(c) : '4';
                 RD_RHU[u].forEach((x: number[]) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1], u }); pos += x[0]; });
             }
         }
@@ -7123,15 +7128,19 @@ function rdRhGen(L: { units: any[]; }|null) {
     }
     return ev;
 }
-function rdRhGrade(on: any[], taps: any[], bs: number) {
-    const used = new Set(), res: never[] = [];
+// How one written onset was met: good/near/bad, and how far off the matched tap was in ms (null when nothing matched).
+interface RdRhythmTapResult { s: string; off: number | null; }
+// Tap-only grading: per-onset results, the count of extra taps, the score in % and the mean offset in ms.
+interface RdRhythmTapGrade { res: RdRhythmTapResult[]; extra: number; good: number; near: number; pct: number; mean: number; }
+function rdRhGrade(on: readonly number[], taps: readonly number[], bs: number): RdRhythmTapGrade {
+    const used = new Set<number>(), res: RdRhythmTapResult[] = [];
     let minI = 4;
     for (let i = 1; i < on.length; i++)
         minI = Math.min(minI, on[i] - on[i - 1]);
     const win = Math.min(0.25, 0.5 * minI * bs);
     on.forEach((b: number) => {
         let bi = -1, bd = Infinity;
-        taps.forEach((tb: number, j: unknown) => { if (used.has(j))
+        taps.forEach((tb: number, j: number) => { if (used.has(j))
             return; const d = (tb - b) * bs; if (Math.abs(d) <= win && Math.abs(d) < Math.abs(bd)) {
             bd = d;
             bi = j;
@@ -7145,7 +7154,7 @@ function rdRhGrade(on: any[], taps: any[], bs: number) {
             res.push({ s: 'bad', off: null });
     });
     const extra = taps.length - used.size, good = res.filter((r) => r.s === 'good').length, near = res.filter((r) => r.s === 'near').length;
-    const offs = res.filter((r) => r.off != null).map((r) => r.off), mean = offs.length ? offs.reduce((a, b) => a + b, 0) / offs.length : 0;
+    const offs = res.filter((r): r is RdRhythmTapResult & { off: number; } => r.off != null).map((r) => r.off), mean = offs.length ? offs.reduce((a, b) => a + b, 0) / offs.length : 0;
     return { res, extra, good, near, pct: Math.max(0, Math.round(100 * (good + 0.5 * near) / Math.max(1, on.length) - extra * 5)), mean: Math.round(mean) };
 }
 function rdClick(tm: number, acc: boolean) {
@@ -7153,7 +7162,7 @@ function rdClick(tm: number, acc: boolean) {
     if (click?.oscs)
         (RD.nodes = RD.nodes || []).push(...click.oscs);
 }
-function rdBeatX(r: { beatX: any; }, beat: number) { const p = r.beatX; for (let i = 0; i < p.length - 1; i++) {
+function rdBeatX(r: { beatX: readonly { b: number; x: number; }[]; }, beat: number) { const p = r.beatX; for (let i = 0; i < p.length - 1; i++) {
     if (beat >= p[i].b && beat <= p[i + 1].b) {
         const f = (beat - p[i].b) / Math.max(1e-3, p[i + 1].b - p[i].b);
         return p[i].x + f * (p[i + 1].x - p[i].x);
@@ -7161,25 +7170,39 @@ function rdBeatX(r: { beatX: any; }, beat: number) { const p = r.beatX; for (let
 } return beat <= p[0].b ? p[0].x : p[p.length - 1].x; }
 // Options (remembered): grade how long each note is held, and/or a left-hand part on a second staff.
 function rdRhPrefs() { const p = rdData().prefs; return { dur: !!p.rhDur, two: p.rhHands === 2 }; }
-const RD_LH_PAT = { whole: [[4]], half: [[2], [2]], pulse: [[1], [1], [1], [1]], onethree: [[1], [1, 1], [1], [1, 1]], twofour: [[1, 1], [1], [1, 1], [1]] };
-function rdRhGenLH(L: { n: number; }|null) {
-    const pool = L.n <= 2 ? ['whole', 'half'] : L.n === 3 ? ['whole', 'half', 'pulse'] : ['half', 'pulse', 'onethree', 'twofour'], ev: { beat: number; dur: any; rest: boolean; }[] = [];
+type RdLeftHandPattern = 'whole' | 'half' | 'pulse' | 'onethree' | 'twofour';
+const RD_LH_PAT: Record<RdLeftHandPattern, number[][]> = { whole: [[4]], half: [[2], [2]], pulse: [[1], [1], [1], [1]], onethree: [[1], [1, 1], [1], [1, 1]], twofour: [[1, 1], [1], [1, 1], [1]] };
+function rdRhGenLH(L: { n: number; }) {
+    const pool: RdLeftHandPattern[] = L.n <= 2 ? ['whole', 'half'] : L.n === 3 ? ['whole', 'half', 'pulse'] : ['half', 'pulse', 'onethree', 'twofour'], ev: RdRhythmEvent[] = [];
     for (let bar = 0; bar < 2; bar++) {
         let pos = 0;
-        RD_LH_PAT[ssPick(pool)].forEach((x: number[]) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1] }); pos += x[0]; });
+        const pat: RdLeftHandPattern = ssPick(pool);
+        RD_LH_PAT[pat].forEach((x: number[]) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1] }); pos += x[0]; });
     }
     return ev;
 }
 // The anchors on the dock keyboard: C3 for the left hand, C5 for the right (any key below / from middle C counts for that hand).
 function rdRhMarks(on: boolean) { [48, 72].forEach((m) => kbState(m, on ? 'target' : null, false)); }
-function rdRhNew(keep: boolean|undefined) {
+// What srRender returns that a rhythm exercise reads back: the staff, its vertical extent, beat → x anchors and the drawn notes.
+interface RdRhythmRender { svg: string; yTop: number; yBot: number; beatX: { b: number; x: number; }[]; notes: { nid: number; hand: string; beat: number; }[]; }
+// The piece handed to srRender for a rhythm exercise: percussion notes on B4 (right hand) and D3 (left hand), or rests.
+interface RdRhythmPiece { id: string; perc: boolean; noNames: boolean; ts: number[]; keyN: number; bpm: number; rh: [string, number][]; lh?: [string, number][]; }
+// One key press (or pad tap) in beats from the downbeat; off stays null until it is released.
+interface RdRhythmPress { src: string; hand: 'L' | 'R'; on: number; off: number | null; }
+type RdRhythmGrade = RdRhythmTapGrade | RdRhythmAllGrade;
+// The rhythm exercise on show (RD.rh): what is written, how it was drawn, and the presses of the current run.
+interface RdRhythmState { ev: RdRhythmEvent[]; lh: RdRhythmEvent[] | null; r: RdRhythmRender; dur: boolean; two: boolean; on: number[]; taps: number[]; presses: RdRhythmPress[]; open: Map<string, RdRhythmPress>; playing: boolean; graded: RdRhythmGrade | null; raf: number; listen: boolean; t0: number; }
+function rdRhNew(keep?: boolean) {
     const L = RD.L, pr = rdRhPrefs(), old = keep && RD.rh;
+    if (!L)
+        return;
     const ev = old ? old.ev : rdRhGen(L), lh = pr.two ? ((old && old.lh) || rdRhGenLH(L)) : null;
-    const piece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: L.bpm, rh: ev.map((e: { rest: any; dur: any; }) => [e.rest ? 'R' : 'B4', e.dur]) };
+    const piece: RdRhythmPiece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: L.bpm, rh: ev.map((e: RdRhythmEvent): [string, number] => [e.rest ? 'R' : 'B4', e.dur]) };
     if (lh)
-        piece.lh = lh.map((e: { rest: any; dur: any; }) => [e.rest ? 'R' : 'D3', e.dur]);
-    const r = srRender(piece);
-    RD.rh = { ev, lh, r, dur: pr.dur, two: pr.two, on: ev.filter((e: { rest: any; }) => !e.rest).map((e: { beat: any; }) => e.beat), taps: [], presses: [], open: new Map(), playing: false, graded: null, raf: 0 };
+        piece.lh = lh.map((e: RdRhythmEvent): [string, number] => [e.rest ? 'R' : 'D3', e.dur]);
+    const r: RdRhythmRender = srRender(piece);
+    const rh: RdRhythmState = { ev, lh, r, dur: pr.dur, two: pr.two, on: ev.filter((e: RdRhythmEvent) => !e.rest).map((e: RdRhythmEvent) => e.beat), taps: [], presses: [], open: new Map(), playing: false, graded: null, raf: 0, listen: false, t0: 0 };
+    RD.rh = rh;
     const tst = RD.mode === 'test', pad = (h: string, lbl: string, k: string) => `<button class="rdx-tap" id="rdx-tap${h === 'L' ? 'L' : ''}" data-hand="${h}" aria-label="${rdEsc(lbl)}" aria-describedby="rdx-coach">${rdEsc(lbl)}<small>${rdEsc(k)}</small></button>`;
     const pads = pr.two ? pad('L', t('rdx_tap') + ' · ' + t('rdx_tap_l'), t('rdx_tap_lk')) + pad('R', t('rdx_tap') + ' · ' + t('rdx_tap_r'), t('rdx_tap_rk')) : pad('R', t('rdx_tap'), t('rdx_tap_k'));
     const hint = [pr.two ? t('rdx_rh_two_hint') : '', pr.dur ? t('rdx_rh_dur_hint') : ''].filter(Boolean).join(' ');
@@ -7193,15 +7216,16 @@ function rdRhNew(keep: boolean|undefined) {
     rdRhMarks(pr.two);
     rdHud();
 }
-function rdRhOptsLock(on: boolean) { (document).querySelectorAll('#rdx-rhopts input,#rdx-rhopts button').forEach((x) => { x.disabled = on; }); }
+function rdRhOptsLock(on: boolean) { (document).querySelectorAll('#rdx-rhopts input,#rdx-rhopts button').forEach((x) => { if (x instanceof HTMLInputElement || x instanceof HTMLButtonElement)
+    x.disabled = on; }); }
 function rdRhRun(listen: boolean) {
-    const R = RD.rh;
-    if (!R || R.playing)
+    const R = RD.rh, L = RD.L;
+    if (!R || !L || R.playing)
         return;
     ensureAudio();
     if (!actx)
         return;
-    const bs = 60 / RD.L.bpm;
+    const bs = 60 / L.bpm;
     R.taps = [];
     R.presses = [];
     R.open.clear();
@@ -7209,8 +7233,8 @@ function rdRhRun(listen: boolean) {
     R.playing = true;
     R.listen = !!listen;
     rdRhOptsLock(true);
-    maybeById('rdx-rhdet').innerHTML = '';
-    maybeById('rdx-staff').querySelectorAll('.ss-n').forEach((g) => { g.removeAttribute('data-s'); g.removeAttribute('data-d'); const tt = g.querySelector('title.rdx-tt'); if (tt)
+    byId('rdx-rhdet').innerHTML = '';
+    byId('rdx-staff').querySelectorAll('.ss-n').forEach((g) => { g.removeAttribute('data-s'); g.removeAttribute('data-d'); const tt = g.querySelector('title.rdx-tt'); if (tt)
         tt.remove(); });
     const act0 = actx.currentTime + 0.2, beat0 = act0 + 4 * bs;
     R.t0 = performance.now() + 200 + 4 * bs * 1000;
@@ -7220,23 +7244,23 @@ function rdRhRun(listen: boolean) {
         rdClick(beat0 + b * bs, b % 4 === 0);
     if (listen) {
         const k = R.dur ? .92 : .8;
-        R.ev.forEach((e: { rest: any; beat: number; dur: number; }) => { if (!e.rest)
+        R.ev.forEach((e: RdRhythmEvent) => { if (!e.rest)
             previewNote(72, beat0 + e.beat * bs, Math.max(.12, e.dur * bs * k), 90); });
         if (R.lh)
-            R.lh.forEach((e: { rest: any; beat: number; dur: number; }) => { if (!e.rest)
+            R.lh.forEach((e: RdRhythmEvent) => { if (!e.rest)
                 previewNote(48, beat0 + e.beat * bs, Math.max(.12, e.dur * bs * k), 80); });
     }
-    const f = maybeById('rdx-fb');
+    const f = byId('rdx-fb');
     f.className = 'rdx-fb';
     f.textContent = t('rdx_rh_count');
-    const svg = maybeById('rdx-staff').querySelector('svg');
+    const svg = byId('rdx-staff').querySelector('svg');
     if (!svg) return;
     let c = svg.querySelector('.ss-playhead');
     if (!c) {
         c = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         c.setAttribute('class', 'ss-playhead');
-        c.setAttribute('y1', R.r.yTop);
-        c.setAttribute('y2', R.r.yBot);
+        c.setAttribute('y1', String(R.r.yTop));
+        c.setAttribute('y2', String(R.r.yBot));
         svg.appendChild(c);
     }
     const loop = () => {
@@ -7246,8 +7270,8 @@ function rdRhRun(listen: boolean) {
         if (b >= 0 && f.textContent === t('rdx_rh_count'))
             f.textContent = listen ? t('rdx_rh_listening') : t('rdx_rh_tapnow');
         const x = rdBeatX(R.r, Math.max(0, Math.min(8, b)));
-        c.setAttribute('x1', x);
-        c.setAttribute('x2', x);
+        c.setAttribute('x1', String(x));
+        c.setAttribute('x2', String(x));
         if (b > 8.6) {
             R.playing = false;
             c.remove();
@@ -7265,17 +7289,17 @@ function rdRhRun(listen: boolean) {
 }
 // Every press is kept with its release: src names the key (MIDI note, computer key, pointer on a pad), hand is 'L' or 'R'.
 function rdRhPress(src: string, hand: string) {
-    const R = RD.rh;
-    if (!R || !R.playing || R.listen)
+    const R = RD.rh, L = RD.L;
+    if (!R || !L || !R.playing || R.listen)
         return;
     if (R.open.has(src))
         rdRhRelease(src);
-    const b = (performance.now() - R.t0) / 1000 / (60 / RD.L.bpm);
-    const p = { src, hand: R.two && hand === 'L' ? 'L' : 'R', on: b, off: null };
+    const b = (performance.now() - R.t0) / 1000 / (60 / L.bpm);
+    const p: RdRhythmPress = { src, hand: R.two && hand === 'L' ? 'L' : 'R', on: b, off: null };
     R.presses.push(p);
     R.open.set(src, p);
     R.taps.push(b);
-    const el = (document).querySelector('#rdx-body .rdx-tap[data-hand="' + p.hand + '"]');
+    const el = queryHtml(document, '#rdx-body .rdx-tap[data-hand="' + p.hand + '"]');
     if (el) {
         el.classList.remove('hit');
         void el.offsetWidth;
@@ -7284,20 +7308,20 @@ function rdRhPress(src: string, hand: string) {
 }
 function rdRhRelease(src: string) { const R = RD.rh; if (!R)
     return; const p = R.open.get(src); if (!p)
-    return; R.open.delete(src); if (R.playing)
-    p.off = (performance.now() - R.t0) / 1000 / (60 / RD.L.bpm); }
-function rdRhKey(kind: string, m: string|number) { if (kind === 'on')
+    return; R.open.delete(src); const L = RD.L; if (R.playing && L)
+    p.off = (performance.now() - R.t0) / 1000 / (60 / L.bpm); }
+function rdRhKey(kind: string, m: number) { if (kind === 'on')
     rdRhPress('m' + m, m < 60 ? 'L' : 'R');
 else
     rdRhRelease('m' + m); }
-function rdTap(hand: string) { const src = 'tap' + performance.now(); rdRhPress(src, hand || 'R'); rdRhRelease(src); } // a click without press/release (assistive tech)
+function rdTap(hand: string | undefined) { const src = 'tap' + performance.now(); rdRhPress(src, hand || 'R'); rdRhRelease(src); } // a click without press/release (assistive tech)
 /* Lengths: each written note is paired with one stroke of its hand (keys struck within 70 ms are one stroke, e.g. a held chord, and it
    ends when its last key lifts). The release is compared with the written end of the note; the windows scale with the note's length
    and are clamped to practical limits, so at any tempo a held half note and a quarter followed by a rest are told apart, while normal
    articulation stays "good". Keys still down when the exercise ends count as released at that moment. */
-function rdRhStrokes(ps: any[], end: any, gap: number) {
-    const out: any[] = [];
-    ps.slice().sort((a: { on: number; }, b: { on: number; }) => a.on - b.on).forEach((p: { off: null; on: number; }) => {
+function rdRhStrokes(ps: readonly RdRhythmPress[], end: number, gap: number) {
+    const out: { on: number; off: number; }[] = [];
+    ps.slice().sort((a: RdRhythmPress, b: RdRhythmPress) => a.on - b.on).forEach((p: RdRhythmPress) => {
         const off = p.off == null ? end : p.off, l = out[out.length - 1];
         if (l && p.on - l.on <= gap)
             l.off = Math.max(l.off, off);
@@ -7306,20 +7330,24 @@ function rdRhStrokes(ps: any[], end: any, gap: number) {
     });
     return out;
 }
-function rdRhGradeHand(ev: any[], ps: any[], bs: number, dur: any, end: any) {
-    const tg = ev.filter((e: { rest: any; }) => !e.rest), st = rdRhStrokes(ps.filter((p: { on: number; }) => p.on > -0.5), end, 0.07 / bs), used = new Set(), res: never[] = [];
+// One written note of a hand: its onset grade and offset in ms, and (when lengths are graded) its release grade and offset.
+interface RdRhythmNoteResult { e: RdRhythmEvent; s: string; off: number | null; rs: string | null; roff: number | null; }
+// One hand's grading: onsets and (with dur) lengths, as counts, a weighted score, the % and the mean onset offset in ms.
+interface RdRhythmHandGrade { res: RdRhythmNoteResult[]; N: number; good: number; near: number; extra: number; score: number; dur: boolean; lenOk: number; early: number; late: number; mean: number; pct: number; }
+function rdRhGradeHand(ev: readonly RdRhythmEvent[], ps: readonly RdRhythmPress[], bs: number, dur: boolean, end: number): RdRhythmHandGrade {
+    const tg = ev.filter((e: RdRhythmEvent) => !e.rest), st = rdRhStrokes(ps.filter((p: RdRhythmPress) => p.on > -0.5), end, 0.07 / bs), used = new Set<number>(), res: RdRhythmNoteResult[] = [];
     let minI = 4;
     for (let i = 1; i < tg.length; i++)
         minI = Math.min(minI, tg[i].beat - tg[i - 1].beat);
     const win = Math.min(0.25, 0.5 * minI * bs), cl = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
-    tg.forEach((e: { beat: number; dur: number; }) => {
+    tg.forEach((e: RdRhythmEvent) => {
         let bi = -1, bd = Infinity;
         st.forEach((s, j) => { if (used.has(j))
             return; const d = (s.on - e.beat) * bs; if (Math.abs(d) <= win && Math.abs(d) < Math.abs(bd)) {
             bd = d;
             bi = j;
         } });
-        const r = { e, s: 'bad', off: null, rs: null, roff: null };
+        const r: RdRhythmNoteResult = { e, s: 'bad', off: null, rs: null, roff: null };
         if (bi >= 0) {
             used.add(bi);
             const a = Math.abs(bd) * 1000;
@@ -7335,32 +7363,37 @@ function rdRhGradeHand(ev: any[], ps: any[], bs: number, dur: any, end: any) {
     });
     const N = tg.length, good = res.filter((r) => r.s === 'good').length, near = res.filter((r) => r.s === 'near').length, extra = st.length - used.size;
     const att = good + 0.5 * near, len = res.reduce((a, r) => a + (r.rs === 'good' ? 1 : r.rs === 'near' ? .5 : 0), 0), score = dur ? (att + len) / 2 : att;
-    const offs = res.filter((r) => r.off != null).map((r) => r.off);
+    const offs = res.filter((r): r is RdRhythmNoteResult & { off: number; } => r.off != null).map((r) => r.off);
     return { res, N, good, near, extra, score, dur, lenOk: res.filter((r) => r.rs === 'good' || r.rs === 'near').length, early: res.filter((r) => r.rs === 'early').length, late: res.filter((r) => r.rs === 'late').length,
         mean: offs.length ? Math.round(offs.reduce((a, b) => a + b, 0) / offs.length) : 0, pct: Math.max(0, Math.round(100 * score / Math.max(1, N) - extra * 5)) };
 }
-function rdRhGradeAll(R: { two: any; ev: any; lh: any; presses: any[]; dur: any; }|null, bs: number, end: any) {
-    const hands = R.two ? ['R', 'L'] : ['R'], by = {};
-    hands.forEach((h) => { by[h] = rdRhGradeHand(h === 'R' ? R.ev : R.lh, R.presses.filter((p: { hand: string; }) => p.hand === h), bs, R.dur, end); });
-    const all = hands.map((h) => by[h]), sum = (k: string) => all.reduce((a, g) => a + g[k], 0), N = sum('N'), offs = all.flatMap((g) => g.res.filter((r: { off: null; }) => r.off != null).map((r: { off: any; }) => r.off));
+type RdRhythmCountKey = 'N' | 'good' | 'near' | 'extra' | 'lenOk' | 'early' | 'late' | 'score';
+// Grading with lengths and/or both hands: the per-hand grades and their totals.
+interface RdRhythmAllGrade { by: { R?: RdRhythmHandGrade; L?: RdRhythmHandGrade; }; N: number; good: number; near: number; extra: number; lenOk: number; early: number; late: number; res: RdRhythmNoteResult[]; mean: number; pct: number; }
+function rdRhGradeAll(R: RdRhythmState, bs: number, end: number): RdRhythmAllGrade {
+    const hands: ('R' | 'L')[] = R.two ? ['R', 'L'] : ['R'], by: { R?: RdRhythmHandGrade; L?: RdRhythmHandGrade; } = {};
+    hands.forEach((h) => { by[h] = rdRhGradeHand(h === 'R' ? R.ev : R.lh || [], R.presses.filter((p: RdRhythmPress) => p.hand === h), bs, R.dur, end); });
+    const all = hands.map((h) => by[h]).filter((g): g is RdRhythmHandGrade => !!g), sum = (k: RdRhythmCountKey) => all.reduce((a, g) => a + g[k], 0), N = sum('N'), offs = all.flatMap((g) => g.res.filter((r): r is RdRhythmNoteResult & { off: number; } => r.off != null).map((r) => r.off));
     return { by, N, good: sum('good'), near: sum('near'), extra: sum('extra'), lenOk: sum('lenOk'), early: sum('early'), late: sum('late'), res: all.flatMap((g) => g.res),
         mean: offs.length ? Math.round(offs.reduce((a, b) => a + b, 0) / offs.length) : 0, pct: Math.max(0, Math.round(100 * sum('score') / Math.max(1, N) - sum('extra') * 5)) };
 }
-function rdRhNoteTip(r: { off: number|null; rs: string; roff: number; }) {
+function rdRhNoteTip(r: RdRhythmNoteResult) {
     if (r.off == null)
         return t('rdx_rh_n_miss');
-    const p = [];
+    const p: string[] = [], roff = r.roff ?? 0; // roff is set whenever rs is
     if (r.rs === 'early')
-        p.push(t('rdx_rh_n_early', -r.roff));
+        p.push(t('rdx_rh_n_early', -roff));
     else if (r.rs === 'late')
-        p.push(t('rdx_rh_n_late', r.roff));
+        p.push(t('rdx_rh_n_late', roff));
     else if (r.rs === 'near')
-        p.push(t(r.roff < 0 ? 'rdx_rh_n_short' : 'rdx_rh_n_long'));
+        p.push(t(roff < 0 ? 'rdx_rh_n_short' : 'rdx_rh_n_long'));
     if (Math.abs(r.off) > 100)
         p.push(Math.round(r.off) + ' ms');
     return p.join(' · ');
 }
-function rdRhHandLine(name: string, g: { good: any; near: any; N: string; dur: any; lenOk: string; early: string|number; late: string|number; extra: string|number; pct: string|number; }) {
+function rdRhHandLine(name: string, g: RdRhythmHandGrade | undefined) {
+    if (!g)
+        return '';
     const p = [t('rdx_rh_att', (g.good + g.near) + '/' + g.N)];
     if (g.dur) {
         p.push(t('rdx_rh_len', g.lenOk + '/' + g.N));
@@ -7374,20 +7407,24 @@ function rdRhHandLine(name: string, g: { good: any; near: any; N: string; dur: a
     return (name ? t('rdx_rh_hand', name, g.pct) + ' — ' : '') + p.join(' · ');
 }
 function rdRhDone(endBeat: number) {
-    const R = RD.rh, bs = 60 / RD.L.bpm, plain = !R.dur && !R.two;
-    let g, msg;
+    const R = RD.rh, L = RD.L;
+    if (!R || !L)
+        return;
+    const bs = 60 / L.bpm, plain = !R.dur && !R.two;
+    let g: RdRhythmGrade, msg: string;
     const det = maybeById('rdx-rhdet');
     if (plain) {
         g = rdRhGrade(R.on, R.taps.filter((x: number) => x > -0.5), bs); // the original tap-only grading
-        const gs = maybeById('rdx-staff').querySelectorAll('.ss-n');
-        g.res.forEach((r, i) => { if (gs[i])
-            gs[i].dataset.s = r.s; });
+        const gs = byId('rdx-staff').querySelectorAll('.ss-n');
+        g.res.forEach((r, i) => { const n = gs[i]; if (n instanceof SVGElement)
+            n.dataset.s = r.s; });
     }
     else {
-        g = rdRhGradeAll(R, bs, endBeat || 8.6);
-        Object.entries(g.by).forEach(([h, hg] = []) => hg.res.forEach((r: { e: { beat: number; }; s: any; rs: string; }) => {
-            const n = R.r.notes.find((x: { hand: string; beat: number; }) => x.hand === (h === 'L' ? 'lh' : 'rh') && Math.abs(x.beat - r.e.beat) < 1e-3), el = n && maybeById('rdx-staff').querySelector('.ss-n[data-nid="' + n.nid + '"]');
-            if (!el)
+        const ga = rdRhGradeAll(R, bs, endBeat || 8.6);
+        g = ga;
+        Object.entries(ga.by).forEach(([h, hg]) => hg?.res.forEach((r: RdRhythmNoteResult) => {
+            const n = R.r.notes.find((x: RdRhythmRender['notes'][number]) => x.hand === (h === 'L' ? 'lh' : 'rh') && Math.abs(x.beat - r.e.beat) < 1e-3), el = n && byId('rdx-staff').querySelector('.ss-n[data-nid="' + n.nid + '"]');
+            if (!(el instanceof SVGElement))
                 return;
             el.dataset.s = r.s;
             if (r.rs && r.rs !== 'good')
@@ -7411,42 +7448,46 @@ function rdRhDone(endBeat: number) {
     if (plain)
         msg = t('rdx_rh_res', g.pct, (g.good + g.near) + '/' + R.on.length) + ' · ' + tm + (g.extra ? ' · ' + t('rdx_rh_extra', g.extra) : '');
     else if (!R.two)
-        msg = t('rdx_rh_score', g.pct) + ' · ' + rdRhHandLine('', g.by.R) + ' · ' + tm;
+        msg = t('rdx_rh_score', g.pct) + ' · ' + rdRhHandLine('', 'by' in g ? g.by.R : undefined) + ' · ' + tm;
     else
         msg = t('rdx_rh_score', g.pct) + ' · ' + tm;
     if (det)
-        det.innerHTML = R.two ? ['R', 'L'].map((h) => `<div>${rdEsc(rdRhHandLine(t(h === 'R' ? 'rdx_rh_hand_r' : 'rdx_rh_hand_l'), g.by[h]))}</div>`).join('') : '';
-    const f = maybeById('rdx-fb');
+        det.innerHTML = R.two ? (['R', 'L'] as const).map((h) => `<div>${rdEsc(rdRhHandLine(t(h === 'R' ? 'rdx_rh_hand_r' : 'rdx_rh_hand_l'), 'by' in g ? g.by[h] : undefined))}</div>`).join('') : '';
+    const f = byId('rdx-fb');
     f.className = 'rdx-fb ' + (g.pct >= 75 ? 'good' : g.pct >= 50 ? '' : 'bad');
     f.textContent = msg;
-    byId('rdx-live').textContent = [msg].concat(det ? [...det.children].map((x) => x.textContent) : []).join('. ');
-    rdStat('rh:' + RD.L.id, g.pct >= 75, 0);
+    byId('rdx-live').textContent = [msg].concat(det ? [...det.children].map((x) => x.textContent ?? '') : []).join('. ');
+    rdStat('rh:' + L.id, g.pct >= 75, 0);
     if (RD.mode === 'test') {
         if (RD.rhP.length >= 4) {
             RD.timers.push(setTimeout(() => { if (RD.on)
                 rdFinish(); }, 1600));
         }
         else
-            maybeById('rdx-rhnext').innerHTML = `<button class="btn primary" data-act="rhnew">${t('rdx_next_ex')} →</button>`;
+            byId('rdx-rhnext').innerHTML = `<button class="btn primary" data-act="rhnew">${t('rdx_next_ex')} →</button>`;
     }
     else
-        maybeById('rdx-rhnext').innerHTML = `<button class="btn ghost" data-act="rhagain">↺ ${t('rdx_again_same')}</button><button class="btn primary" data-act="rhnew">🎲 ${t('rdx_new_rh')}</button>`;
+        byId('rdx-rhnext').innerHTML = `<button class="btn ghost" data-act="rhagain">↺ ${t('rdx_again_same')}</button><button class="btn primary" data-act="rhnew">🎲 ${t('rdx_new_rh')}</button>`;
     rdHud();
 }
 /* ---- generated sight-reading melodies (played in the Read & play engine) ---- */
-function rdSightGen(L: { keys: any; lo: any; hi: any; durs: any[]; id: any; n: any; bpm: any; clef: string; }|null) {
-    const keyN = ssPick(L.keys), kA = ssKeyAcc(keyN), lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi));
+// A sight-reading level: its keys (as signature counts), range, note lengths in beats and tempo.
+interface RdSightLevel { keys: number[]; lo: string; hi: string; durs: number[]; id: string; n: number; bpm: number; clef?: string; }
+// A generated melody, shaped like a Read & play piece; rh/lh hold [pitch name, beats] pairs.
+interface RdSightPiece { id: string; ephemeral: boolean; gen: string; comp: string; level: number; keyN: number; ts: number[]; bpm: number; t: { en: string; ro: string; }; rh?: [string, number][]; lh?: [string, number][]; }
+function rdSightGen(L: RdSightLevel) {
+    const keyN: number = ssPick(L.keys), kA = ssKeyAcc(keyN), lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi));
     const tonLi = SR_LET.indexOf(RD_MAJ[keyN + 7][0]);
     let ton = lo;
     while (((ton % 7) + 7) % 7 !== tonLi)
         ton++;
     if (ton > hi)
         ton -= 7;
-    const nm = (s: any) => { const n = rdFromStep(s); return SR_LET[n.li] + (kA[n.li] > 0 ? '#' : kA[n.li] < 0 ? 'b' : '') + n.oct; };
+    const nm = (s: number) => { const n = rdFromStep(s); return SR_LET[n.li] + (kA[n.li] > 0 ? '#' : kA[n.li] < 0 ? 'b' : '') + n.oct; };
     let cur = ton;
-    const mel = [];
+    const mel: [string, number][] = [];
     const mv = () => { const near = [-2, -1, -1, 1, 1, 2, 0], far = [3, -3, 4, -4]; for (let k = 0; k < 24; k++) {
-        const s = cur + ssPick(k < 12 && Math.random() < .8 ? near : far);
+        const s: number = cur + ssPick(k < 12 && Math.random() < .8 ? near : far);
         if (s >= Math.max(lo, ton - 4) && s <= hi)
             return s;
     } return ton; };
@@ -7455,7 +7496,7 @@ function rdSightGen(L: { keys: any; lo: any; hi: any; durs: any[]; id: any; n: a
         const end = bar === 3 ? 2 : 4;
         while (pos < end - 1e-6) {
             const c = L.durs.filter((d: number) => (d === 1.5 ? 2 : d === 0.5 ? 1 : d) <= end - pos + 1e-6 && !(d === 1.5 && pos % 1));
-            const d = c.length ? ssPick(c) : end - pos;
+            const d: number = c.length ? ssPick(c) : end - pos;
             if (d === 1.5) {
                 cur = mv();
                 mel.push([nm(cur), 1.5]);
@@ -7481,28 +7522,30 @@ function rdSightGen(L: { keys: any; lo: any; hi: any; durs: any[]; id: any; n: a
     }
     if (mel.length)
         mel[0][0] = nm(ton);
-    const p = { id: 'gen', ephemeral: true, gen: L.id, comp: '', level: L.n, keyN, ts: [4, 4], bpm: L.bpm,
+    const p: RdSightPiece = { id: 'gen', ephemeral: true, gen: L.id, comp: '', level: L.n, keyN, ts: [4, 4], bpm: L.bpm,
         t: { en: tl('en', 'rdx_sr_title', L.n), ro: tl('ro', 'rdx_sr_title', L.n) } };
     if (L.clef === 'bass')
         p.lh = mel;
     else
         p.rh = mel;
     if (L.clef === 'grand') {
-        const b = SR_LET.indexOf(RD_MAJ[keyN + 7][0]), deg = [0, ssPick([3, 4]), 4, 0];
-        p.lh = deg.map((dg) => { let s = 14 + 7 + b + dg; if (s >= 28)
+        const b = SR_LET.indexOf(RD_MAJ[keyN + 7][0]), deg: number[] = [0, ssPick([3, 4]), 4, 0];
+        p.lh = deg.map((dg): [string, number] => { let s = 14 + 7 + b + dg; if (s >= 28)
             s -= 7; return [nm(s), 4]; });
     }
     return p;
 }
 function rdSightStart(mode: string) {
     const L = RD.L;
+    if (!L)
+        return;
     rdData().prefs.srLv = L.id;
     SR.gen = rdSightGen(L);
     RD.on = false;
     rdTab('pieces');
     fillPieces();
     SR.modeSel = mode === 'test' ? 'assess' : 'learn';
-    [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === SR.modeSel ? 'true' : 'false'));
+    [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
     srSelectPiece('gen');
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
@@ -7529,16 +7572,18 @@ function rdSightDone(kind: string, val: number) {
     return (kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars)) + (nx && !was && rdUnlocked(nx) ? ' · 🔓 ' + t('rdx_unlocked', rdLvName(nx)) : '');
 }
 /* ---- sessions: intro → questions → summary ---- */
-function rdLvName(L: null) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
-function rdRangeTxt(L: { set: any[]; lo: any; hi: any; }) { if (L.set)
-    return L.set.map((s: any) => rdName(rdP(s), true)).join(' · '); if (L.lo)
+// A reading level as these views use it: a curriculum level from rdU, or the custom drill (custom: true, n 0).
+interface RdDrillLevel { id: string; u: string; n: number; ty: string; custom?: boolean; clef?: string; lo?: string; hi?: string; set?: readonly string[]; tag?: string; acc?: number; keys?: number | readonly number[]; kmax?: number; ivs?: readonly number[]; harm?: number; q?: readonly string[]; inv?: number; units?: readonly string[]; bpm?: number; durs?: readonly number[]; }
+function rdLvName(L: RdDrillLevel) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
+function rdRangeTxt(L: { set?: readonly string[]; lo?: string; hi?: string; }) { if (L.set)
+    return L.set.map((s) => rdName(rdP(s), true)).join(' · '); if (L.lo && L.hi)
     return rdName(rdP(L.lo), true) + '–' + rdName(rdP(L.hi), true); return ''; }
-function rdLvDetail(L: null) {
+function rdLvDetail(L: RdDrillLevel) {
     const p = [t('rdx_ty_' + L.ty)];
     if (L.ty === 'rh')
-        p.push(L.units.map((u: string) => t('rdx_rhu_' + u)).join(', '));
+        p.push((L.units ?? []).map((u) => t('rdx_rhu_' + u)).join(', '));
     else if (L.ty === 'ks') {
-        p.push(t('rdx_kmax', L.kmax));
+        p.push(t('rdx_kmax', ...(L.kmax != null ? [L.kmax] : [])));
         if (L.clef === 'grand')
             p.push(t('rdx_clef_grand'));
     }
@@ -7554,25 +7599,26 @@ function rdLvDetail(L: null) {
     if (L.acc)
         p.push(t('rdx_acc' + L.acc));
     if (L.keys)
-        p.push(t('rdx_inkeys', L.keys));
+        p.push(t('rdx_inkeys', String(L.keys)));
     if (L.harm)
         p.push(t(L.harm === 1 ? 'rdx_harm' : 'rdx_harmmix'));
-    if (L.ty === 'iv' && L.ivs.length < 7)
+    if (L.ty === 'iv' && L.ivs && L.ivs.length < 7)
         p.push(rdIvName(L.ivs[0]) + '–' + rdIvName(L.ivs[L.ivs.length - 1]));
     if (L.q)
-        p.push(L.q.map((q: string) => t('rdx_q_' + q)).join(' / '));
+        p.push(L.q.map((q) => t('rdx_q_' + q)).join(' / '));
     if (L.inv)
         p.push(t('rdx_inv'));
     if (L.ty === 'sr' || L.ty === 'rh')
         p.push(L.bpm + ' BPM');
     return p.join(' · ');
 }
-function rdLvSub(L: any) { return rdLvDetail(L).split(' · ').slice(1).join(' · '); }
+function rdLvSub(L: RdDrillLevel) { return rdLvDetail(L).split(' · ').slice(1).join(' · '); }
 function rdStars(s: number) { return `<span class="rdx-stars" role="img" aria-label="${t('rdx_stars_n', s)}">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span>`; }
 function rdKeyText(k: string) {
+    const clefOf: Record<string, string> = { t: 'treble', b: 'bass', a: 'alto', n: 'tenor' };
     let m = /^([tban]):([A-G])([#b]?)(\d)$/.exec(k);
     if (m)
-        return rdName({ li: SR_LET.indexOf(m[2]), acc: m[3] === '#' ? 1 : m[3] === 'b' ? -1 : 0, oct: +m[4] }, true) + ' (' + t('rdx_clef_' + ({ t: 'treble', b: 'bass', a: 'alto', n: 'tenor' })[m[1]]) + ')';
+        return rdName({ li: SR_LET.indexOf(m[2]), acc: m[3] === '#' ? 1 : m[3] === 'b' ? -1 : 0, oct: +m[4] }, true) + ' (' + t('rdx_clef_' + clefOf[m[1]]) + ')';
     if ((m = /^iv:(\d)$/.exec(k)))
         return rdIvName(+m[1]);
     if ((m = /^ch:(\w+)$/.exec(k)))
@@ -7586,22 +7632,25 @@ function rdKeyText(k: string) {
 function rdScroll() { const tb = byId('rd-tabs'); if (!tb)
     return; const hd = (document).querySelector('header'), y = tb.getBoundingClientRect().top + window.scrollY - (hd ? hd.offsetHeight : 0) - 10; if (window.scrollY > y + 4 || tb.getBoundingClientRect().top > window.innerHeight * 0.3)
     window.scrollTo({ top: Math.max(0, y), behavior: 'auto' }); }
-function rdOpen(L: { custom: any; id: any; u?: string; n?: number; ty?: string; clef?: string; lo?: string; hi?: string; acc?: number; keys?: number; }|null) { rdAbort(); RD.L = L; if (!L.custom)
+function rdOpen(L: RdDrillLevel) { rdAbort(); RD.L = L; if (!L.custom)
     rdData().prefs.last = L.id; byId('rdx-home').hidden = true; byId('rdx-stage').hidden = false; rdIntro(); rdScroll(); const b = byId('rdx-back'); if (b)
     b.focus({ preventScroll: true }); }
 function rdIntro() {
-    const L = RD.L, r = L.custom ? {} : (rdData().lv[L.id] || {});
+    const L = RD.L;
+    if (!L)
+        return;
+    const r = L.custom ? {} : (rdData().lv[L.id] || {});
     RD.on = false;
     byId('rdx-title').textContent = rdLvName(L);
     byId('rdx-sub').textContent = rdLvDetail(L);
     byId('rdx-hud').textContent = '';
     byId('rdx-meter').hidden = true;
     byId('rdx-end').hidden = true;
-    const modes = (L.ty === 'rh' || L.ty === 'sr') ? ['practice', 'test'] : ['practice', 'test', 'rush'], ic = { practice: '🎯', test: '📝', rush: '⚡' };
+    const modes: ('practice' | 'test' | 'rush')[] = (L.ty === 'rh' || L.ty === 'sr') ? ['practice', 'test'] : ['practice', 'test', 'rush'], ic = { practice: '🎯', test: '📝', rush: '⚡' };
     let prev = '';
     if (['name', 'play', 'k2s'].includes(L.ty) && L.clef !== 'mix') {
-        const pool = rdPool(L).filter((n: { acc: any; }) => !n.acc).sort((a: any, b: any) => rdStep(a) - rdStep(b));
-        prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef: L.clef, cols: pool.map((n: any) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n: any) => rdName(n)) }).svg}</div>`;
+        const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
+        prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef: L.clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
     }
     const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}</div>`;
     const sfx = (L.ty === 'rh' || L.ty === 'sr') ? '_' + L.ty : '';
@@ -7625,7 +7674,7 @@ function rdStart(mode: string) {
     e.textContent = t(mode === 'practice' ? 'rdx_end' : 'rdx_quit');
     if (mode === 'rush') {
         RD.rushEnd = performance.now() + RD_RUSH * 1000;
-        RD.rushIv = setInterval(() => { if (!RD.on)
+        RD.rushIv = window.setInterval(() => { if (!RD.on)
             return; rdHud(); if (performance.now() >= RD.rushEnd && !RD.answered)
             rdFinish(); }, 250);
     }
@@ -7675,8 +7724,10 @@ function rdFinish() {
     byId('rdx-meter').hidden = true;
     let acc = 0, avg = 0, stars = 0;
     const score = RD.ok;
+    if (!L)
+        return;
     if (L.ty === 'rh') {
-        acc = RD.rhP.length ? Math.round(RD.rhP.reduce((a: any, b: any) => a + b, 0) / RD.rhP.length) : 0;
+        acc = RD.rhP.length ? Math.round(RD.rhP.reduce((a: number, b: number) => a + b, 0) / RD.rhP.length) : 0;
         if (mode === 'test')
             stars = acc >= 90 ? 3 : acc >= 75 ? 2 : acc >= 60 ? 1 : 0;
     }
@@ -7689,7 +7740,7 @@ function rdFinish() {
     }
     const d = rdData();
     d.tot.sess++;
-    let unl = null, newBest = false;
+    let unl: RdDrillLevel | null = null, newBest = false;
     if (!L.custom) {
         const nx = rdLvNext(L), was = rdUnlocked(nx), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
         rec.n++;
@@ -7718,7 +7769,7 @@ function rdFinish() {
     rdCoach(false);
     byId('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}${unl ? `<p class="rdx-unl">🔓 ${t('rdx_unlocked', rdEsc(rdLvName(unl)))}</p>` : ''}
     <div class="rdx-tiles">${tiles.map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
-    ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c] = []) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
+    ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
     ${(RD).next ? `<div class="coach rdx-coach" id="rdx-next" data-kind="next">${coachHTML(t('coach_next'), (RD).next, 'rdx-next-act')}</div>` : ''}
     <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!(L)?.custom && nx && rdUnlocked(nx) ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
     byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
@@ -7742,17 +7793,17 @@ function rdRenderHome() {
     <div class="rdx-hero-r"><button class="btn primary" data-lv="${cont.id}" id="rdx-cont">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}<small>${rdEsc(rdLvName(cont) + ' · ' + t('rdx_ty_' + cont.ty))}</small></button>
       <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label></div>`;
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
-        const done = u.lv.filter((L: { id: string|number; }) => ((d.lv[L.id] || {}).s || 0) > 0).length;
-        return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: { id: string|number; n: any; ty: string; }) => {
+        const done = u.lv.filter((L: RdDrillLevel) => ((d.lv[L.id] || {}).s || 0) > 0).length;
+        return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: RdDrillLevel) => {
             const r = d.lv[L.id] || {}, ok = rdUnlocked(L), s = r.s || 0;
             return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}"${ok ? '' : ' aria-disabled="true"'} title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (ok ? '' : ' — ' + t('rdx_locked')) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${ok ? L.n : '🔒'}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
         }).join('')}</div></section>`;
     }).join('');
     rdCustomFill();
 }
-const RD_CDEF = { treble: ['C4', 'G5'], bass: ['F2', 'C4'], grand: ['C3', 'C5'], alto: ['D3', 'B4'], tenor: ['A2', 'G4'] };
+const RD_CDEF: Record<string, [string, string]> = { treble: ['C4', 'G5'], bass: ['F2', 'C4'], grand: ['C3', 'C5'], alto: ['D3', 'B4'], tenor: ['A2', 'G4'] };
 function rdCustomFill() {
-    const lo = byId('rdx-c-lo'), hi = byId('rdx-c-hi');
+    const lo = selectById('rdx-c-lo'), hi = selectById('rdx-c-hi');
     if (!lo)
         return;
     const c = rdData().prefs.custom || { ty: 'name', clef: 'treble', lo: 'C4', hi: 'G5', acc: 0, keys: 0, land: false };
@@ -7785,7 +7836,7 @@ function rdCustomRead() {
 function rdCustomGo() {
     const c = rdCustomRead();
     saveAll();
-    const L = { custom: true, id: 'custom', u: 'custom', n: 0, ty: c.ty, clef: c.clef, lo: c.lo, hi: c.hi, acc: c.keys ? 0 : c.acc, keys: c.keys || 0 };
+    const L: RdDrillLevel = { custom: true, id: 'custom', u: 'custom', n: 0, ty: c.ty, clef: c.clef, lo: c.lo, hi: c.hi, acc: c.keys ? 0 : c.acc, keys: c.keys || 0 };
     if (c.land) {
         const a = rdStep(rdP(c.lo)), b = rdStep(rdP(c.hi)), set = RD_LM.filter((s) => s >= a && s <= b).map((s) => { const n = rdFromStep(s); return SR_LET[n.li] + n.oct; });
         if (set.length >= 2)
@@ -7808,8 +7859,8 @@ function rdAgg(c: string, li: number, oct: number) {
     }
     return { n, ok, ms };
 }
-function rdHeat(clef: string, lo: string, hi: string) {
-    const c = RD_CLEFC[clef], cols = [], lbl = [], cls = [];
+function rdHeat(clef: 'treble' | 'bass' | 'alto' | 'tenor', lo: string, hi: string) {
+    const c = RD_CLEFC[clef], cols: (ReturnType<typeof rdFromStep> & { hc: string | null; tip: string; })[][] = [], lbl: (string | number)[] = [], cls: string[] = [];
     for (let s = rdStep(rdP(lo)); s <= rdStep(rdP(hi)); s++) {
         const n = rdFromStep(s), a = rdAgg(c, n.li, n.oct), acc = a.n ? Math.round(100 * a.ok / a.n) : null;
         cols.push([Object.assign(n, { hc: acc == null ? null : `hsl(${Math.round(acc * 1.2)},58%,44%)`, tip: rdName(n, true) + (a.n ? `: ${acc}% · ${(a.ms / a.n / 1000).toFixed(1)} s · ${a.n}×` : ': —') })]);
@@ -7818,17 +7869,17 @@ function rdHeat(clef: string, lo: string, hi: string) {
     }
     return rdSvg({ clef, cols, colW: 24, dur: 1, scale: 1.2, lbl, lblCls: cls, aria: t('rdx_heat_aria', t('rdx_clef_' + clef)) }).svg;
 }
-function rdBars(rows: any[]) { return rows.map((r: { l: any; n: string|number; ok: number; }) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + r.n + '×' : '—'}</em></div>`).join(''); }
+function rdBars(rows: readonly { l: string; n: number; ok: number; }[]) { return rows.map((r) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + r.n + '×' : '—'}</em></div>`).join(''); }
 function rdRenderStats() {
     const d = rdData(), tot = d.tot, nt = d.nt, g = (k: string) => nt[k] || { n: 0, ok: 0 };
     const lvDone = RD_ALL.filter((L) => ((d.lv[L.id] || {}).s || 0) > 0).length, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0);
-    const weak = Object.entries(nt).filter(([k, s] = []) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
-    const ks = [];
+    const weak = Object.entries(nt).filter(([k, s]) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
+    const ks: { l: string; n: number; ok: number; }[] = [];
     for (let k = -7; k <= 7; k++)
         if (g('ks:' + k).n)
             ks.push({ l: rdKeyLabel(k), ...g('ks:' + k) });
-    const rh = RD_UNITS.find((u) => u.u === 'rh').lv.filter((L: { id: string; }) => g('rh:' + L.id).n).map((L: { id: string; }) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
-    const extra = ['alto', 'tenor'].filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
+    const rh = (RD_UNITS.find((u) => u.u === 'rh')?.lv ?? []).filter((L: RdDrillLevel) => g('rh:' + L.id).n).map((L: RdDrillLevel) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
+    const extra = (['alto', 'tenor'] as const).filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
     byId('rdx-stats').innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     <div class="panel rdx-stat-p"><h3>${t('rdx_heat')}</h3><p class="rdx-desc">${t('rdx_heat_d')}</p>
       <div class="rdx-staff rdx-heat">${rdHeat('treble', 'A3', 'C6')}</div><div class="rdx-staff rdx-heat">${rdHeat('bass', 'C2', 'E4')}</div>
@@ -7837,15 +7888,15 @@ function rdRenderStats() {
       <div class="panel rdx-stat-p"><h3>${t('rdx_u_ch')}</h3>${rdBars(['maj', 'min', 'dim', 'aug'].map((q) => ({ l: t('rdx_q_' + q), ...g('ch:' + q) })))}</div>
       <div class="panel rdx-stat-p"><h3>${t('rdx_u_ks')}</h3>${ks.length ? rdBars(ks) : `<p class="rdx-desc">${t('rdx_nodata')}</p>`}</div>
       <div class="panel rdx-stat-p"><h3>${t('rdx_u_rh')}</h3>${rh.length ? rdBars(rh) : `<p class="rdx-desc">${t('rdx_nodata')}</p>`}</div></div>
-    <div class="panel rdx-stat-p"><h3>${t('rdx_weakest')}</h3>${weak.length ? `<div class="rdx-weak">${weak.map(([k, s] = []) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))} · ${Math.round(100 * s.ok / s.n)}% · ${((s.t || 0) / 1000).toFixed(1)}s</i>`).join('')}</div>` : `<p class="rdx-desc">${t('rdx_nodata')}</p>`}
+    <div class="panel rdx-stat-p"><h3>${t('rdx_weakest')}</h3>${weak.length ? `<div class="rdx-weak">${weak.map(([k, s]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))} · ${Math.round(100 * s.ok / s.n)}% · ${((s.t || 0) / 1000).toFixed(1)}s</i>`).join('')}</div>` : `<p class="rdx-desc">${t('rdx_nodata')}</p>`}
       <div class="row" style="margin-top:14px"><button class="btn ghost sm" id="rdx-reset">${t('rdx_reset')}</button></div></div>`;
 }
 /* ---- tabs, wiring, locale ---- */
 function rdTab(tab: string|undefined) {
-    if (!['drills', 'pieces', 'stats'].includes(tab))
+    if (tab === undefined || !['drills', 'pieces', 'stats'].includes(tab))
         tab = 'drills';
     rdData().prefs.tab = tab;
-    (document).querySelectorAll('#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
+    queryAllHtml(document, '#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
     ['drills', 'pieces', 'stats'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
         p.hidden = x !== tab; });
     if (tab !== 'drills' && RD.on) {
@@ -7863,7 +7914,10 @@ function rdRender() { rdTab(rdData().prefs.tab); }
 function rdKey(e: KeyboardEvent, k: string) {
     if (view0() !== 'read' || byId('rdp-drills').hidden || !RD.on)
         return false;
-    if (RD.L.ty === 'rh') {
+    const L = RD.L;
+    if (!L)
+        return false;
+    if (L.ty === 'rh') {
         const R = RD.rh;
         if (e.key === ' ' || e.key === 'Enter') {
             if (document.activeElement && document.activeElement.closest && document.activeElement.closest('[data-act],#rdx-rhgo,#rdx-rhlisten,#rdx-end,#rdx-back,#rdx-rhopts') && !(R && R.playing))
@@ -7883,14 +7937,15 @@ function rdKey(e: KeyboardEvent, k: string) {
         return false;
     if (/^[1-9]$/.test(k)) {
         const b = (document).querySelector('#rdx-ans .rdx-a[data-k="' + k + '"]');
-        if (b && !b.disabled) {
+        if (b instanceof HTMLButtonElement && !b.disabled) {
             e.preventDefault();
             b.click();
             return true;
         }
     }
     if (k === '-' || k === '0' || k === '=') {
-        const b = (document).querySelector('#rdx-accs [data-acc="' + (({ '-': -1, '0': 0, '=': 1 } )[k]) + '"]');
+        const accOf: Record<string, number> = { '-': -1, '0': 0, '=': 1 };
+        const b = queryHtml(document, '#rdx-accs [data-acc="' + accOf[k] + '"]');
         if (b) {
             e.preventDefault();
             b.click();
@@ -7924,7 +7979,8 @@ function rdOnLocale() {
         if (!RD.on && !byId('rdx-body').querySelector('.rdx-sum'))
             rdIntro();
         else if (RD.on && RD.q && RD.q.ty === 'name')
-            maybeById('rdx-ans').querySelectorAll('.rdx-a').forEach((b) => { b.firstChild.textContent = rdLetter(+b.dataset.a); });
+            queryAllHtml(byId('rdx-ans'), '.rdx-a').forEach((b) => { if (b.firstChild)
+                b.firstChild.textContent = rdLetter(Number(b.dataset.a)); });
         if (RD.on) {
             byId('rdx-end').textContent = t(RD.mode === 'practice' ? 'rdx_end' : 'rdx_quit');
             rdHud();
@@ -7939,14 +7995,14 @@ function rdOnLocale() {
     const dr = byId('rdp-drills');
     if (!dr)
         return;
-    byId('rd-tabs').addEventListener('click', (e) => { const b = e.target.closest('[role=tab]'); if (b) {
+    byId('rd-tabs').addEventListener('click', (e) => { const b = eventClosest(e, '[role=tab]'); if (b) {
         rdTab(b.dataset.tab);
         saveAll();
     } });
     byId('rd-tabs').addEventListener('keydown', (e) => {
         if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End')
             return;
-        const tabs = [...byId('rd-tabs').querySelectorAll('[role=tab]')], i = tabs.indexOf(document.activeElement);
+        const tabs = queryAllHtml(byId('rd-tabs'), '[role=tab]'), fe = document.activeElement, i = fe instanceof HTMLElement ? tabs.indexOf(fe) : -1;
         if (i < 0)
             return;
         e.preventDefault();
@@ -7955,9 +8011,9 @@ function rdOnLocale() {
         rdTab(n.dataset.tab);
     });
     dr.addEventListener('click', (e) => {
-        const lv = e.target.closest('[data-lv]');
+        const lv = eventClosest(e, '[data-lv]');
         if (lv) {
-            const L = RD_LV[lv.dataset.lv];
+            const L = RD_LV[lv.dataset.lv ?? ''];
             if (!L)
                 return;
             if (lv.getAttribute('aria-disabled') === 'true') {
@@ -7970,35 +8026,35 @@ function rdOnLocale() {
             rdOpen(L);
             return;
         }
-        const md = e.target.closest('[data-mode]');
+        const md = eventClosest(e, '[data-mode]');
         if (md) {
-            rdStart(md.dataset.mode);
+            rdStart(md.dataset.mode ?? '');
             return;
         }
-        const a = e.target.closest('.rdx-a');
+        const a = eventClosest(e, '.rdx-a');
         if (a) {
             rdClickAns(a);
             return;
         }
-        const ac = e.target.closest('[data-acc]');
+        const ac = eventClosest(e, '[data-acc]');
         if (ac) {
-            RD.accSel = +ac.dataset.acc;
-            ac.parentNode.querySelectorAll('[data-acc]').forEach((x: { setAttribute: (arg0: string,arg1: string) => any; }) => x.setAttribute('aria-pressed', x === ac ? 'true' : 'false'));
+            RD.accSel = Number(ac.dataset.acc);
+            ac.parentNode?.querySelectorAll('[data-acc]').forEach((x) => x.setAttribute('aria-pressed', x === ac ? 'true' : 'false'));
             return;
         }
-        const key = e.target.closest('.rdx-kb.inter button[data-m]');
+        const key = eventClosest(e, '.rdx-kb.inter button[data-m]');
         if (key && e.detail === 0) {
-            const m = +key.dataset.m;
+            const m = Number(key.dataset.m);
             handleNoteOn(m, 96, 'rdk');
             handleNoteOff(m, 'rdk');
             return;
         }
-        if (e.target.closest('#rdx-next-act')) {
+        if (eventClosest(e, '#rdx-next-act')) {
             if (RD.next && RD.next.act)
                 RD.next.act.run();
             return;
         }
-        const act = e.target.closest('[data-act]');
+        const act = eventClosest(e, '[data-act]');
         if (act) {
             const k = act.dataset.act;
             if (k === 'again')
@@ -8016,16 +8072,16 @@ function rdOnLocale() {
                 rdRhNew(true);
             return;
         }
-        const hb = e.target.closest('[data-hands]');
+        const hb = eventClosest(e, '[data-hands]');
         if (hb) {
-            if (hb.disabled || (RD.rh && RD.rh.playing))
+            if ((hb instanceof HTMLButtonElement && hb.disabled) || (RD.rh && RD.rh.playing))
                 return;
-            rdData().prefs.rhHands = +hb.dataset.hands === 2 ? 2 : 1;
+            rdData().prefs.rhHands = Number(hb.dataset.hands) === 2 ? 2 : 1;
             saveAll();
             rdRhNew(true);
             return;
         }
-        const b = e.target.closest('button'), id = b && b.id;
+        const b = eventClosest(e, 'button'), id = b && b.id;
         if (id === 'rdx-back')
             rdBack();
         else if (id === 'rdx-end')
@@ -8044,23 +8100,23 @@ function rdOnLocale() {
             rdCustomGo();
     });
     dr.addEventListener('pointerdown', (e) => {
-        const pad = e.target.closest('.rdx-tap');
+        const pad = eventClosest(e, '.rdx-tap');
         if (pad) {
             e.preventDefault();
             rdRhPress('p' + e.pointerId, pad.dataset.hand || 'R');
             return;
         }
-        const k = e.target.closest('.rdx-kb.inter [data-m]');
+        const k = eventClosest(e, '.rdx-kb.inter [data-m]');
         if (k) {
             e.preventDefault();
             if (RD.kbDown != null)
                 handleNoteOff(RD.kbDown, 'rdk');
-            const m = +k.dataset.m;
+            const m = Number(k.dataset.m);
             RD.kbDown = m;
             handleNoteOn(m, 96, 'rdk');
         }
     });
-    const up = (e: { pointerId: string; }) => { rdRhRelease('p' + e.pointerId); if (RD.kbDown != null) {
+    const up = (e: PointerEvent) => { rdRhRelease('p' + e.pointerId); if (RD.kbDown != null) {
         const m = RD.kbDown;
         RD.kbDown = null;
         handleNoteOff(m, 'rdk');
@@ -8070,26 +8126,27 @@ function rdOnLocale() {
     document.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if (k === ' ' || k === 'enter' || k === 'f' || k === 'j')
         rdRhRelease('k:' + k); });
     dr.addEventListener('change', (e) => {
-        const id = e.target.id, p = rdData().prefs;
+        const el = e.target, id = el instanceof HTMLElement ? el.id : '', checked = el instanceof HTMLInputElement && el.checked, p = rdData().prefs;
         if (id === 'rdx-snd') {
-            p.sound = e.target.checked;
+            p.sound = checked;
             saveAll();
         }
         else if (id === 'rdx-hints') {
-            p.hints = e.target.checked;
+            p.hints = checked;
             saveAll();
         }
         else if (id === 'rdx-rhdur') {
             if (RD.rh && RD.rh.playing) {
-                e.target.checked = !e.target.checked;
+                if (el instanceof HTMLInputElement)
+                    el.checked = !checked;
                 return;
             }
-            p.rhDur = e.target.checked;
+            p.rhDur = checked;
             saveAll();
             rdRhNew(true);
         }
         else if (id === 'rdx-c-clef') {
-            const d = RD_CDEF[e.target.value];
+            const d = RD_CDEF[el instanceof HTMLSelectElement ? el.value : ''];
             selectById('rdx-c-lo').value = d[0];
             selectById('rdx-c-hi').value = d[1];
             rdCustomRead();
@@ -8097,7 +8154,7 @@ function rdOnLocale() {
         else if (/^rdx-c-/.test(id))
             rdCustomRead();
     });
-    byId('rdp-stats').addEventListener('click', (e) => { if (e.target.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
+    byId('rdp-stats').addEventListener('click', (e) => { if (eventElement(e)?.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
         const d = rdData();
         d.nt = {};
         d.tot = { n: 0, ok: 0, ms: 0, sess: 0 };
@@ -8117,35 +8174,39 @@ function rdOnLocale() {
    and is re-worded after a language or notation change. */
 function tf(k: string, ...a: unknown[]) { let s = t(k); ['%a', '%b', '%c'].forEach((p, i) => { if (a[i] != null)
     s = s.split(p).join(String(a[i])); }); return s; }
-function coachList(xs: any[]|Iterable<string>) { try {
+function coachList(xs: string[]) { try {
     return new Intl.ListFormat(lang, { type: 'conjunction' }).format(xs);
 }
 catch (e) {
     return xs.join(', ');
 } }
-const coachText = (c: { k: any; args: () => any; }) => tf(c.k, ...(c.args ? c.args() : []));
+// A coaching tip: a string key with what fills it in, and optionally an action (a button label and what it does).
+interface CoachTip { k: string; args?: () => (string | number)[]; act?: { k: string; args?: () => (string | number)[]; run: () => void; } | null; }
+const coachText = (c: CoachTip) => tf(c.k, ...(c.args ? c.args() : []));
 // The lead ("Reading focus:", "Next step:"), the tip, and an optional button that does what the tip suggests.
-function coachHTML(lead: string, c: { k: string; args?: undefined; }|{ k: string; args: () => any[]; }, actId: string|undefined) {
+function coachHTML(lead: string, c: CoachTip, actId?: string) {
     const e = xmlEsc, act = c.act ? tf(c.act.k, ...(c.act.args ? c.act.args() : [])) : '';
     return `<span class="coach-k">${e(lead)}</span> <span class="coach-t">${e(coachText(c))}</span>` + (act ? `<span class="coach-act"><button type="button" class="btn sm" id="${actId}">${e(act)}</button></span>` : '');
 }
 /* Read & play */
 const srStepNo = (n: { oct: number; li: number; }) => n.oct * 7 + n.li;
 function srKeyNames(keyN: number) { return (keyN > 0 ? [3, 0, 4, 1, 5, 2, 6] : [6, 2, 5, 1, 4, 0, 3]).slice(0, Math.abs(keyN)).map((li) => spelledName(notation, li, keyN > 0 ? 1 : -1)); }
+// A note of the Read & play piece as the coaching reads it (from srRender: hand 'rh' or 'lh', beats, spelled pitch).
+interface SrCoachNote { nid: number; hand: string; midi: number; beat: number; dur: number; li: number; oct: number; acc: number; }
 // The active hands as onsets per hand: melodic moves, leaps (a third or wider), chords, and whether the rhythm goes beyond whole beats.
 function srShape() {
     const sel = srActiveHands(), f = { moves: 0, leaps: 0, chords: 0, hands: 0, rhythm: false };
     ['rh', 'lh'].forEach((h) => {
         if (sel !== 'both' && sel !== h)
             return;
-        const by = new Map();
-        SR.notes.forEach((n) => { if (n.hand !== h)
+        const by = new Map<string, SrCoachNote[]>();
+        SR.notes.forEach((n: SrCoachNote) => { if (n.hand !== h)
             return; const k = n.beat.toFixed(3); if (!by.has(k))
-            by.set(k, []); by.get(k).push(n); });
+            by.set(k, []); by.get(k)?.push(n); });
         if (!by.size)
             return;
         f.hands++;
-        let prev: string|any[]|null = null;
+        let prev: SrCoachNote[] | null = null;
         [...by.values()].sort((a, b) => a[0].beat - b[0].beat).forEach((g) => {
             if (g.length > 1)
                 f.chords++;
@@ -8154,7 +8215,7 @@ function srShape() {
                 if (Math.abs(srStepNo(g[0]) - srStepNo(prev[0])) >= 2)
                     f.leaps++;
             }
-            if (g.some((n: { dur: number; }) => n.dur % 1))
+            if (g.some((n) => n.dur % 1))
                 f.rhythm = true;
             prev = g;
         });
@@ -8163,31 +8224,35 @@ function srShape() {
 }
 // A wrong key in Step by step: the right note in another octave, the natural instead of a sharp or flat, a slip inside a chord,
 // the wrong way from the previous note, or the right way but the wrong distance.
-function srSlip(st: { notes: { filter: (arg0: { (n: any): boolean; (x: any): boolean; }) => { (): any; new(): any; length: number; }; }; }, m: number) {
-    const want = st.notes.filter((n: { nid: unknown; }) => !SR.hit.has(n.nid));
+// What kind of slip it was (oct, key, chord, other, dir or dist), the note that was wanted and the key played.
+interface SrSlipInfo { k: string; n: SrCoachNote; m: number; }
+function srSlip(st: { notes: readonly SrCoachNote[]; }, m: number): SrSlipInfo | null {
+    const want = st.notes.filter((n) => !SR.hit.has(n.nid));
     if (!want.length)
         return null;
-    const n = want.reduce((a: { midi: number; }, b: { midi: number; }) => Math.abs(b.midi - m) < Math.abs(a.midi - m) ? b : a);
+    const n = want.reduce((a, b) => Math.abs(b.midi - m) < Math.abs(a.midi - m) ? b : a);
     if (pc(n.midi) === pc(m))
         return { k: 'oct', n, m };
     if (n.acc && m === n.midi - n.acc)
         return { k: 'key', n, m };
-    if (st.notes.filter((x: { hand: any; }) => x.hand === n.hand).length > 1)
+    if (st.notes.filter((x) => x.hand === n.hand).length > 1)
         return { k: 'chord', n, m };
-    const prev = (SR.steps[SR.stepIdx - 1] || { notes: [] }).notes.filter((x: { hand: any; }) => x.hand === n.hand);
+    const prev: SrCoachNote[] = (SR.steps[SR.stepIdx - 1] || { notes: [] }).notes.filter((x: SrCoachNote) => x.hand === n.hand);
     if (!prev.length)
         return { k: 'other', n, m };
-    const p = prev.reduce((a: { midi: number; }, b: { midi: number; }) => Math.abs(b.midi - n.midi) < Math.abs(a.midi - n.midi) ? b : a);
+    const p = prev.reduce((a: SrCoachNote, b: SrCoachNote) => Math.abs(b.midi - n.midi) < Math.abs(a.midi - n.midi) ? b : a);
     return { k: Math.sign(n.midi - p.midi) !== Math.sign(m - p.midi) ? 'dir' : 'dist', n, m };
 }
-function srSlipNote(st: never, m: any) { const s = srSlip(st, m); if (!s)
+function srSlipNote(st: { notes: readonly SrCoachNote[]; }, m: number) { const s = srSlip(st, m); if (!s)
     return; const E = SR.errs || (SR.errs = {}); E[s.k] = (E[s.k] || 0) + 1; if (s.k === 'key')
     SR.slipKey = s; srCoach(); }
-function srTopSlip() { const E = SR.errs || {}; let top: string|null = null; ['key', 'oct', 'chord', 'dir', 'dist'].forEach((k) => { if ((E[k] || 0) >= 2 && (!top || E[k] > E[top]))
-    top = k; }); return top; }
-const srSlipNames = (s: never) => [rdLetter(s.n.li), spelledName(notation, s.n.li, s.n.acc)]; // what was played (the natural), what is written
+function srTopSlip() { const E = SR.errs || {}; let top: string|null = null; for (const k of ['key', 'oct', 'chord', 'dir', 'dist']) {
+    if ((E[k] || 0) >= 2 && (!top || E[k] > E[top]))
+        top = k;
+} return top; }
+const srSlipNames = (s: SrSlipInfo) => [rdLetter(s.n.li), spelledName(notation, s.n.li, s.n.acc)]; // what was played (the natural), what is written
 // Reading focus: the slip being repeated right now, else what this piece asks for in this mode.
-function srFocus() {
+function srFocus(): CoachTip | null {
     const p = SR.piece;
     if (!p)
         return null;
@@ -8214,7 +8279,7 @@ function srFocus() {
         return { k: 'rc_iv' };
     return { k: 'rc_dir' };
 }
-function srNextLearn() {
+function srNextLearn(): CoachTip {
     const E = SR.errs || {}, top = srTopSlip();
     if (!SR.mistakes)
         return { k: 'rn_clean', act: { k: 'rn_act_assess', run: () => srSetMode('assess') } };
@@ -8227,19 +8292,22 @@ function srNextLearn() {
     return { k: 'rn_again' };
 }
 // After Assessment: the score, extra notes, and where the misses were — leaps, chords or altered notes — compared with the rest.
-function srNextAssess(pct: number) {
-    const p = SR.piece, bpm = SR.bpm, rec = p.ephemeral ? null : data.sheet[p.id], bad = (n: { nid: string|number; }) => SR.results[n.nid] !== 'good';
+function srNextAssess(pct: number): CoachTip | null {
+    const p = SR.piece;
+    if (!p)
+        return null;
+    const bpm = SR.bpm, rec = p.ephemeral ? null : data.sheet[p.id], bad = (n: SrCoachNote) => SR.results[n.nid] !== 'good';
     if (pct >= 95)
         return bpm <= 150 ? { k: 'rn_a_clean', args: () => [pct, bpm + 10], act: { k: 'rn_act_bpm', args: () => [bpm + 10], run: () => srSetBpm(bpm + 10) } } : { k: 'rn_a_top' };
-    const cat = { leaps: [0, 0], chords: [0, 0], acc: [0, 0] }, last = {};
+    const cat = { leaps: [0, 0], chords: [0, 0], acc: [0, 0] }, last: { rh?: SrCoachNote[]; lh?: SrCoachNote[]; } = {};
     let all = 0, miss = 0;
-    SR.steps.forEach((st) => ['rh', 'lh'].forEach((h) => {
-        const g = st.notes.filter((n: { hand: string; }) => n.hand === h);
+    SR.steps.forEach((st: { notes: readonly SrCoachNote[]; }) => (['rh', 'lh'] as const).forEach((h) => {
+        const g = st.notes.filter((n) => n.hand === h);
         if (!g.length)
             return;
         const prev = last[h];
         last[h] = g;
-        g.forEach((n: { acc: any; }) => {
+        g.forEach((n) => {
             const b = bad(n) ? 1 : 0;
             all++;
             miss += b;
@@ -8262,11 +8330,14 @@ function srNextAssess(pct: number) {
     if (pct < 60 && !(rec && rec.learned) && !p.gen)
         return { k: 'rn_a_learn', act: { k: 'rn_act_learn', run: () => srSetMode('learn') } };
     const rate = miss / Math.max(1, all);
-    let top = null, best = 0;
-    Object.entries(cat).forEach(([k, [b, n]] = []) => { const r = n ? b / n : 0; if (b >= 2 && r >= Math.max(.34, rate * 1.5) && r > best) {
-        top = k;
-        best = r;
-    } });
+    let top: string | null = null, best = 0;
+    for (const [k, [b, n]] of Object.entries(cat)) {
+        const r = n ? b / n : 0;
+        if (b >= 2 && r >= Math.max(.34, rate * 1.5) && r > best) {
+            top = k;
+            best = r;
+        }
+    }
     if (top)
         return { k: 'rn_a_' + top };
     if (pct < 80) {
@@ -8275,9 +8346,11 @@ function srNextAssess(pct: number) {
     }
     return { k: 'rn_a_good' };
 }
-function srSetMode(v: string|undefined) { SR.modeSel = v; [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === v ? 'true' : 'false')); srStopAll(); byId('rd-verdict').textContent = ''; byId('rd-go').focus(); }
-function srSetBpm(v: string|number|null) { if (SR.active || SR.listening)
-    return; const b = byId('rd-bpm'); b.value = v; byId('rd-bpmLbl').textContent = v; SR.bpm = v; SR.next = null; srCoach(); byId('rd-go').focus(); }
+function srSetMode(v: string) { SR.modeSel = v; [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x instanceof HTMLElement && x.dataset.v === v ? 'true' : 'false')); srStopAll(); byId('rd-verdict').textContent = ''; byId('rd-go').focus(); }
+function srSetBpm(v: number) { if (SR.active || SR.listening)
+    return; const b = inputById('rd-bpm'); b.value = String(v); byId('rd-bpmLbl').textContent = String(v); SR.bpm = v; SR.next = null; srCoach(); byId('rd-go').focus(); }
+// The HTML each coach box last showed.
+const srCoachShown = new WeakMap<HTMLElement, string>();
 // One line under the score; it is a polite live region, so it is only rewritten when the tip itself changes.
 function srCoach() {
     const box = byId('rd-coach');
@@ -8285,13 +8358,13 @@ function srCoach() {
         return;
     const c = SR.piece ? (SR.next || srFocus()) : null, html = c ? coachHTML(t(SR.next ? 'coach_next' : 'coach_focus'), c, 'rd-coach-act') : '';
     box.dataset.kind = SR.next ? 'next' : 'focus';
-    if (box._html !== html) {
-        box._html = html;
+    if (srCoachShown.get(box) !== html) {
+        srCoachShown.set(box, html);
         box.innerHTML = html;
     }
 }
 /* Reading drills */
-function rdFocus(L: { clef: any; ty: string; inv: any; tag: string; set: any[]; keys: any; acc: any; }|null) {
+function rdFocus(L: RdDrillLevel | null): CoachTip | null {
     if (!L)
         return null;
     const x = rdLetter, c = L.clef;
@@ -8310,7 +8383,7 @@ function rdFocus(L: { clef: any; ty: string; inv: any; tag: string; set: any[]; 
     if (L.tag === 'land')
         return { k: 'rdc_land' };
     if ((L.tag === 'lines' || L.tag === 'spaces') && L.set)
-        return { k: 'rdc_' + L.tag, args: () => [L.set.map((s: any) => rdName(rdP(s))).join(' ')] };
+        return { k: 'rdc_' + L.tag, args: () => [(L.set ?? []).map((s) => rdName(rdP(s))).join(' ')] };
     if (L.tag === 'ledup' || L.tag === 'leddn')
         return { k: 'rdc_ledger' };
     if (L.keys)
@@ -8330,9 +8403,9 @@ function rdFocus(L: { clef: any; ty: string; inv: any; tag: string; set: any[]; 
 function rdCoach(show: boolean) { const box = byId('rdx-coach'); if (!box)
     return; const c = show ? rdFocus(RD.L) : null; box.hidden = !c; box.innerHTML = c ? coachHTML(t('coach_focus'), c) : ''; }
 // The session's next step: accuracy first, then the notes missed most, then speed; rhythm drills look at the average timing.
-function rdNextStep(L: { ty: string; custom: any; }|null, mode: string, acc: number, avg: number, stars: number, weak: [string,unknown][]|[any?][]) {
+function rdNextStep(L: RdDrillLevel, mode: string, acc: number, avg: number, stars: number, weak: readonly [string, number][]): CoachTip | null {
     if (L.ty === 'rh') {
-        const m = RD.rhM || [], mean = m.length ? m.reduce((a: any, b: any) => a + b, 0) / m.length : 0;
+        const m: number[] = RD.rhM || [], mean = m.length ? m.reduce((a, b) => a + b, 0) / m.length : 0;
         if (acc < 60)
             return { k: 'rdn_rh_low' };
         if (mean < -35)
@@ -8349,7 +8422,7 @@ function rdNextStep(L: { ty: string; custom: any; }|null, mode: string, acc: num
     if (acc < 80)
         return { k: 'rdn_hints', act: { k: 'rdn_act_hints', run: () => { rdData().prefs.hints = true; saveAll(); rdStart('practice'); } } };
     if (weak.length && acc < 95)
-        return { k: 'rdn_weak', args: () => [weak.slice(0, 3).map(([k] = []) => rdKeyText(k)).join(', ')], act: mode === 'practice' ? null : { k: 'rdn_act_practice', run: () => rdStart('practice') } };
+        return { k: 'rdn_weak', args: () => [weak.slice(0, 3).map(([k]) => rdKeyText(k)).join(', ')], act: mode === 'practice' ? null : { k: 'rdn_act_practice', run: () => rdStart('practice') } };
     if (sec > tg)
         return { k: 'rdn_speed', args: () => [anNum(sec, 1), anNum(tg, 1)], act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
     if (mode === 'practice')
@@ -8364,20 +8437,22 @@ function rdNextStep(L: { ty: string; custom: any; }|null, mode: string, acc: num
 function rdNextRender() { const box = maybeById('rdx-next'); if (box && RD.next)
     box.innerHTML = coachHTML(t('coach_next'), RD.next, 'rdx-next-act'); }
 /* Score & analysis · Now: one thing worth noticing in the bar (or passage, or selection) on show, from its own analysis */
-function anCoach(f: { kind: any; a: any; b: any; lo?: number; hi?: number; }, segs: any[], notes: string|any[]) {
+// The parts of an analysed segment the Now tip reads: its start beat, bass, chord (with alternatives), cadence and non-chord tones.
+interface AnCoachSeg { start: number; bass: number; cad?: string; nct?: { type: string; note: { midi: number; }; }[]; ch: { root: number; conf: string; c: { s: string; q: string; p: number[]; }; alts: { root: number; c: { s: string; }; }[]; }; }
+function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: number; }, segs: readonly AnCoachSeg[], notes: readonly theory.TheoryNote[]) {
     if (!f || !AN.view || !notes.length)
         return null;
-    const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s: { start: any; }) => anKeyAt(s.start), lab = (s: any) => anChordLabel(s, K(s)), rn = (s: any) => anRoman(K(s), s);
+    const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s: AnCoachSeg) => anKeyAt(s.start), lab = (s: AnCoachSeg) => anChordLabel(s, K(s)), rn = (s: AnCoachSeg) => anRoman(K(s), s);
     const tip = (k: string, ...a: unknown[]) => ({ h: t(f.kind === 'sel' ? 'coach_sel' : one ? 'coach_bar' : 'coach_pass'), text: tf(k, ...a) });
-    const cadTip = (s: { cad: string; }) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
-    const nct = segs.flatMap((s: { nct: any; }) => (s.nct || []).filter((x: { type: string; }) => x.type !== 'other').map((x: any) => ({ x, s }))), nctNames = () => [...new Set(nct.map(({ x, s } = {}) => spellName(x.note.midi, K(s), true)))];
+    const cadTip = (s: AnCoachSeg) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
+    const nct = segs.flatMap((s) => (s.nct || []).filter((x) => x.type !== 'other').map((x) => ({ x, s }))), nctNames = () => [...new Set(nct.map(({ x, s }) => spellName(x.note.midi, K(s), true)))];
     if (!segs.length)
         return fall ? tip('cn_fall') : null;
     if (!one) {
         const info = anKeyInfo(notes), main = v.mainKey;
         if (info.conf !== 'low' && (info.best.root !== main.root || !!info.best.minor !== !!main.minor))
             return tip('cn_key', anKeyName(info.best), anKeyName(main));
-        const cad = segs.filter((s: { cad: any; }) => s.cad).pop();
+        const cad = segs.filter((s) => s.cad).pop();
         if (cad)
             return cadTip(cad);
         if (nct.length >= 2) {
@@ -8386,22 +8461,22 @@ function anCoach(f: { kind: any; a: any; b: any; lo?: number; hi?: number; }, se
         }
         return tip(fall ? 'cn_fall' : 'cn_bass');
     }
-    const cad = segs.find((s: { cad: any; }) => s.cad);
+    const cad = segs.find((s) => s.cad);
     if (cad)
         return cadTip(cad);
     if (nct.length)
-        return tip('cn_nct', coachList(nctNames().slice(0, 3)), [...new Set(nct.map(({ x } = {}) => t('an_nct_' + x.type)))].join(', '));
-    const sec = segs.find((s: any) => rn(s).includes('/'));
+        return tip('cn_nct', coachList(nctNames().slice(0, 3)), [...new Set(nct.map(({ x }) => t('an_nct_' + x.type)))].join(', '));
+    const sec = segs.find((s) => rn(s).includes('/'));
     if (sec)
         return tip('cn_sec', lab(sec), rn(sec));
-    const inv = !v.implied && segs.find((s: any) => anInv(s) > 0);
+    const inv = !v.implied && segs.find((s) => anInv(s) > 0);
     if (inv) {
         const k = K(inv);
         return tip('cn_inv', spellName(60 + inv.bass, k), spellName(60 + inv.ch.root, k) + inv.ch.c.s + ', ' + invName(anInv(inv)));
     }
-    const amb = segs.find((s: { ch: { conf: string; }; }) => s.ch.conf === 'low');
+    const amb = segs.find((s) => s.ch.conf === 'low');
     if (amb)
-        return tip('cn_amb', [lab(amb), ...amb.ch.alts.map((a: { root: number; c: { s: string; }; }) => spellName(60 + a.root, K(amb)) + a.c.s)].slice(0, 3).join(' / '));
+        return tip('cn_amb', [lab(amb), ...amb.ch.alts.map((a) => spellName(60 + a.root, K(amb)) + a.c.s)].slice(0, 3).join(' / '));
     if (v.implied)
         return tip('cn_implied', lab(segs[0]));
     if (fall)
@@ -8416,7 +8491,7 @@ function pracWeakHand() { let rh = 0, lh = 0; PRAC.res.forEach((r, i) => { if (r
     lh++;
 else
     rh++; }); return lh > rh ? 'lh' : 'rh'; }
-function pracLoopBars(i: string|number, j: string|number) {
+function pracLoopBars(i: number, j: number) {
     const ms = anMeasures(), lo = ms[i].start, hi = ms[j].end, g = SCORE.geo, gi = (b: number) => g ? g.measures.findIndex((m: { b0: number; b1: number; }) => m && b >= m.b0 - 1e-6 && b < m.b1 - 1e-6) : -1, a = gi(lo + 1e-4), b = gi(hi - 1e-4);
     if (a >= 0 && b >= 0)
         scoreSelectRange(a, b);
@@ -8425,9 +8500,9 @@ function pracLoopBars(i: string|number, j: string|number) {
     if (AN.selected.size)
         scoreLoopStart();
 }
-function pracNextStep(R: { segs: { f: any; }[]; sel: any; from: null|undefined; b: any; a: any; }) {
+function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number | null; a: number; b: number; }): CoachTip | null {
     const st = PRAC.stats, acc = st && pracAcc(st);
-    if (acc == null)
+    if (acc == null || !st)
         return null;
     const f = (R.segs && R.segs[0] && R.segs[0].f) || pracFactor(), both = new Set(AN.notes.map(anHandOf)).size > 1;
     const again = () => { pracSumClose(); if (R.sel && AN.selected.size)
@@ -8435,7 +8510,7 @@ function pracNextStep(R: { segs: { f: any; }[]; sel: any; from: null|undefined; 
     else
         scorePlay(false, R.from); };
     if (acc >= .95 && st.wrong <= 1) {
-        const sel = byId('score-speed'), next = [...sel.options].map((o) => +o.value).find((v) => v > Math.round(f * 100) && v <= 100);
+        const sel = selectById('score-speed'), next = [...sel.options].map((o) => +o.value).find((v) => v > Math.round(f * 100) && v <= 100);
         if (next)
             return { k: 'pn_clean_tempo', args: () => [Math.round(f * 100) + '%'], act: { k: 'pn_act_faster', args: () => [next + '%'], run: () => { sel.value = String(next); pracHud(); anUpdateControls(); again(); } } };
         if (PRAC.hands !== 'both' && both)
@@ -8450,16 +8525,20 @@ function pracNextStep(R: { segs: { f: any; }[]; sel: any; from: null|undefined; 
         else
             break;
     } return i; };
-    const misses = [...PRAC.res].filter(([, r] = []) => r === 'miss').map(([i] = []) => AN.notes[i]).filter(Boolean);
+    const misses = [...PRAC.res].filter(([, r]) => r === 'miss').map(([i]) => AN.notes[i]).filter(Boolean);
     if (misses.length >= 3 && bar(scoreBeatAt(R.b) - 1e-4) - bar(scoreBeatAt(R.a)) >= 3) {
-        const per = new Map();
-        misses.forEach((n) => { const i = bar(n.start); per.set(i, (per.get(i) || 0) + 1); });
-        let best: { c: any; i: any; j: any; }|null = null;
-        per.forEach((c, i) => { const two = c + (per.get(i + 1) || 0); if (!best || two > best.c)
-            best = { i, j: per.has(i + 1) ? i + 1 : i, c: two }; });
-        if (best.c >= misses.length * .6) {
-            const label = () => anBarsLabel(AN.notes.filter((n) => { const i = bar(n.start); return i >= best.i && i <= best.j; }));
-            return { k: 'pn_bars', args: () => [label()], act: { k: 'pn_act_loop', args: () => [label()], run: () => { pracSumClose(); pracLoopBars(best.i, best.j); } } };
+        const per = new Map<number, number>();
+        misses.forEach((n: { start: number; }) => { const i = bar(n.start); per.set(i, (per.get(i) || 0) + 1); });
+        let best: { c: number; i: number; j: number; } | null = null;
+        for (const [i, c] of per) {
+            const two = c + (per.get(i + 1) || 0);
+            if (!best || two > best.c)
+                best = { i, j: per.has(i + 1) ? i + 1 : i, c: two };
+        }
+        if (best && best.c >= misses.length * .6) {
+            const { i: bi, j: bj } = best;
+            const label = () => anBarsLabel(AN.notes.filter((n: { start: number; }) => { const i = bar(n.start); return i >= bi && i <= bj; }));
+            return { k: 'pn_bars', args: () => [label()], act: { k: 'pn_act_loop', args: () => [label()], run: () => { pracSumClose(); pracLoopBars(bi, bj); } } };
         }
     }
     if (st.miss >= 3 && st.miss >= st.wrong && !PRAC.wait)
