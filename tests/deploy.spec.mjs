@@ -4,6 +4,7 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { build, ROOT, SITE_FILES } from '../scripts/build.mjs';
+import { publishedManifest } from '../scripts/generate-sw.mjs';
 import { serve } from '../scripts/serve.mjs';
 
 // The published site: what scripts/build.mjs puts in dist/etude/, served under /etude/ as on
@@ -35,8 +36,15 @@ test.afterAll(async () => {
 
 test('the build publishes exactly the files the app loads, byte for byte', async () => {
   const expected = { 'index.html': expect.any(String) };
-  for (const file of SITE_FILES) expected[file] = sha256(await readFile(join(ROOT, file)));
-  expect(await hashes(join(tmp, 'etude'))).toEqual(expected);
+  for (const file of SITE_FILES) {
+    expected[file] = file === 'sw.js' ? expect.any(String) : sha256(await readFile(join(ROOT, file)));
+  }
+  const actual = await hashes(join(tmp, 'etude'));
+  expect(actual).toEqual(expected);
+  const worker = await readFile(join(tmp, 'etude', 'sw.js'), 'utf8');
+  const match = worker.match(/const PRECACHE = (\[[\s\S]*?\]);/);
+  expect(match, 'generated worker has a precache manifest').toBeTruthy();
+  expect(JSON.parse(match[1])).toEqual(await publishedManifest(join(tmp, 'etude')));
 });
 
 test('building twice gives the same site', async () => {

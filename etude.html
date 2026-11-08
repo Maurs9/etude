@@ -4339,7 +4339,10 @@ function pwaInit(){
   if(location.protocol==='file:') PWA.sw='file';
   else if(!('serviceWorker' in navigator)) PWA.sw='unsupported';
   else if(!window.isSecureContext) PWA.sw='file';
-  else { PWA.sw='pending';
+  else {
+    const killed = new URL(location.href).searchParams.get('sw-kill-switch')==='done';
+    if(killed){ const clean=new URL(location.href); clean.searchParams.delete('sw-kill-switch'); history.replaceState(null,'',clean.href); PWA.sw='unsupported'; pwaUi(); return; }
+    PWA.sw='pending';
     const reg=()=>navigator.serviceWorker.register('sw.js',{scope:'./',updateViaCache:'none'})
       .then(()=>navigator.serviceWorker.ready).then(()=>{ PWA.sw='ready'; pwaUi(); })
       .catch(err=>{ PWA.sw='error'; PWA.err=(err&&(err.name||err.message))||'?'; console.warn('Service worker:',err); pwaUi(); });

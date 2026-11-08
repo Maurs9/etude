@@ -1,6 +1,6 @@
 # Copilot instructions for Étude
 
-Étude is a piano theory trainer. The whole app is one static file, `etude.html`, with no build step. `sw.js`, `manifest.webmanifest` and `icons/` provide the installable, offline PWA shell. Node tooling exists only for the Playwright tests and for `npm run build`, which copies the files the site serves into `dist/etude/` for GitHub Pages.
+Étude is a piano theory trainer. The migration keeps `etude.html` as the stable shell URL while the app moves into Vite-built TypeScript modules. `sw.js`, `manifest.webmanifest` and `icons/` provide the installable, offline PWA shell. Node tooling builds the tested site into `dist/etude/` for GitHub Pages.
 
 ## Git, pushing and releases
 
@@ -24,12 +24,13 @@ git push origin v1.0.1
 gh release create v1.0.1 --generate-notes
 ```
 
-If a release changes the service worker's caching rules, bump `VERSION` in `sw.js`.
+If a release changes the service worker's caching rules, change `scripts/generate-sw.mjs` and run the worker tests. The generated worker changes automatically when published bytes change.
 
 ## Deployment
 
 - GitHub Pages publishes from the Tests workflow (`.github/workflows/test.yml`), with the Pages source set to "GitHub Actions". When a push to `main` passes the tests, the `deploy` job publishes `dist/etude/` at https://maurs9.github.io/etude/. It fails if the Pages source is a branch, and skips publishing (with a warning) if `main` has moved on. To publish again, re-run the latest `main` run within a day, or use "Run workflow" on `main`. Don't add one of the Pages workflows GitHub suggests; it would publish the whole repo over this one.
-- `scripts/build.mjs` publishes only the files listed in its `SITE_FILES`, byte for byte, plus an `index.html` that forwards `/etude/` to `etude.html`. If the app starts loading another file, add it to `SITE_FILES`, or the live site won't have it. `tests/deploy.spec.mjs` checks the published site under `/etude/`. Pages matches paths case-sensitively, unlike macOS, so a file name's letter case must match exactly; Linux CI catches a mismatch only in files the tests load.
+- `scripts/build.mjs` publishes only the files listed in its `SITE_FILES`, byte for byte, plus an `index.html` that forwards `/etude/` to `etude.html`, then generates `sw.js` from that output. If the app starts loading another file, add it to `SITE_FILES`, or the live site and its hash-checked precache will be incomplete. `tests/deploy.spec.mjs` checks the published site under `/etude/`. Pages matches paths case-sensitively, unlike macOS, so a file name's letter case must match exactly; Linux CI catches a mismatch only in files the tests load.
+- The generated worker installs atomically with `cache: 'no-cache'`, verifies SHA-256 hashes, keeps the previous active cache for one activation, and never caches a network navigation response. For an emergency rollback, follow `docs/sw-kill-switch.md` and deploy `scripts/sw-kill-switch.js` as `sw.js`; do not maintain a hand-written `VERSION` or `ASSETS` list.
 - `npm run preview` builds the site and serves it at http://127.0.0.1:8778/etude/, the same paths as on Pages.
 
 ## Conventions in `etude.html`

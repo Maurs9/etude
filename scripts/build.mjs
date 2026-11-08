@@ -5,6 +5,7 @@ import { realpathSync } from 'node:fs';
 import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { generateWorker } from './generate-sw.mjs';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const OUT_DIR = join(ROOT, 'dist', 'etude');
@@ -55,6 +56,7 @@ export async function build(outDir = OUT_DIR) {
     await copyFile(join(ROOT, file), join(outDir, file));
   }
   await writeFile(join(outDir, 'index.html'), INDEX_HTML);
+  await generateWorker(outDir, join(outDir, 'sw.js'));
   return outDir;
 }
 
