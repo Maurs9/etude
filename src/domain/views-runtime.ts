@@ -5586,14 +5586,15 @@ function srRender(piece: never) {
 }
 /* ---- state, drawing, grading ---- */
 function srSvg() { return byId('rd-staff') ? byId('rd-staff').querySelector('svg') : null; }
-function srHandsAvail() { const p = SR.piece; return p.rh && p.lh ? 'both' : (p.rh ? 'rh' : 'lh'); }
+function srHandsAvail() { const p = SR.piece; if (!p)
+    throw new Error('Étude: no piece selected'); return p.rh && p.lh ? 'both' : (p.rh ? 'rh' : 'lh'); }
 function srActiveHands() { const a = srHandsAvail(); return a === 'both' ? SR.hands : a; }
 function srStepsBuild() {
     const sel = srActiveHands();
     const ns = SR.notes.filter((n) => sel === 'both' || n.hand === sel);
-    const map = new Map();
-    ns.forEach((n) => { const k = n.beat.toFixed(3); if (!map.has(k))
-        map.set(k, { beat: n.beat, notes: [] }); map.get(k).notes.push(n); });
+    const map = new Map<string, { beat: number; notes: typeof ns; }>();
+    ns.forEach((n) => { const k = n.beat.toFixed(3); let step = map.get(k); if (!step)
+        map.set(k, step = { beat: n.beat, notes: [] }); step.notes.push(n); });
     SR.steps = [...map.values()].sort((a, b) => a.beat - b.beat);
 }
 function srDraw() {
@@ -5615,7 +5616,9 @@ function srPaintAll() {
         return;
     const st = (SR.active && SR.modeSel === 'learn') ? SR.steps[SR.stepIdx] : null;
     svg.querySelectorAll('.ss-n').forEach((g) => {
-        const id = +g.dataset.nid, r = SR.results[id];
+        if (!(g instanceof SVGElement))
+            return;
+        const id = Number(g.dataset.nid), r = SR.results[id];
         if (st && st.notes.some((n: { nid: number; }) => n.nid === id) && !SR.hit.has(id))
             g.dataset.s = 'now';
         else if (r)
@@ -5640,7 +5643,7 @@ function srBeatToX(beat: number) {
     }
     return beat <= pts[0].b ? pts[0].x : pts[pts.length - 1].x;
 }
-function srCursor(x: string) {
+function srCursor(x: number) {
     const svg = srSvg();
     if (!svg)
         return;
@@ -5648,12 +5651,12 @@ function srCursor(x: string) {
     if (!c) {
         c = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         c.setAttribute('class', 'ss-playhead');
-        c.setAttribute('y1', SR.render ? SR.render.yTop : 38);
-        c.setAttribute('y2', SR.render ? SR.render.yBot : 102);
+        c.setAttribute('y1', String(SR.render ? SR.render.yTop : 38));
+        c.setAttribute('y2', String(SR.render ? SR.render.yBot : 102));
         svg.appendChild(c);
     }
-    c.setAttribute('x1', x);
-    c.setAttribute('x2', x);
+    c.setAttribute('x1', String(x));
+    c.setAttribute('x2', String(x));
     srScrollX(x);
 }
 function srTargets() {
@@ -5662,7 +5665,7 @@ function srTargets() {
         return;
     const st = SR.steps[SR.stepIdx];
     if (st)
-        st.notes.forEach((n: { nid: unknown; midi: any; }) => { if (!SR.hit.has(n.nid))
+        st.notes.forEach((n: { nid: number; midi: number; }) => { if (!SR.hit.has(n.nid))
             kbState(n.midi, 'target', true); });
 }
 function srClick(t: number, acc: boolean) {
@@ -5670,7 +5673,7 @@ function srClick(t: number, acc: boolean) {
     if (click?.oscs)
         SR.nodes.push(...click.oscs);
 }
-function srStopAll(keep: boolean|undefined) {
+function srStopAll(keep?: boolean) {
     SR.active = false;
     SR.assessOn = false;
     if (SR.raf)
@@ -5711,8 +5714,10 @@ function srPlayGap(fromBeat: number, toBeat: number) {
     const sel = srActiveHands();
     if (sel === 'both' || srHandsAvail() !== 'both')
         return;
-    const bs = 60 / SR.bpm;
-    SR.notes.filter((n) => n.hand !== sel && n.beat >= fromBeat - 1e-3 && n.beat < toBeat - 1e-3).forEach((n) => previewNote(n.midi, actx.currentTime + 0.02, Math.max(.15, n.dur * bs * .9), 78));
+    const bs = 60 / SR.bpm, ctx = actx;
+    if (!ctx)
+        return;
+    SR.notes.filter((n) => n.hand !== sel && n.beat >= fromBeat - 1e-3 && n.beat < toBeat - 1e-3).forEach((n) => previewNote(n.midi, ctx.currentTime + 0.02, Math.max(.15, n.dur * bs * .9), 78));
 }
 function srCount() { const v = byId('rd-verdict'); v.className = 'verdict neutral'; v.textContent = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : ''); }
 function srLearnStart() {
@@ -5746,6 +5751,8 @@ function srLearnFinish() {
         v.textContent = t('rd_done_learn', SR.mistakes);
     }
     v.textContent += rdSightDone('learn', SR.mistakes);
+    if (!SR.piece)
+        throw new Error('Étude: no piece selected');
     if (!SR.piece.ephemeral) {
         const rec = data.sheet[SR.piece.id] || (data.sheet[SR.piece.id] = {});
         rec.learned = true;
@@ -5763,7 +5770,11 @@ function srAssessStart() {
     srCoach();
     SR.steps.forEach((s) => s.closed = false);
     srPaintAll();
+    if (!SR.piece)
+        throw new Error('Étude: no piece selected');
     const bs = 60 / SR.bpm, cap = SR.piece.ts[1] === 8 ? SR.piece.ts[0] * 0.5 : SR.piece.ts[0], ci = cap, pk = SR.piece.pickup || 0;
+    if (!actx)
+        return;
     const act0 = actx.currentTime + 0.15, perf0 = performance.now() + 150;
     for (let b = 0; b < ci; b++)
         srClick(act0 + b * bs, b === 0);
@@ -5795,7 +5806,7 @@ function srAssessLoop(ts: number) {
     let dirty = false;
     SR.steps.forEach((st) => { if (!st.closed && bNow > st.beat + srTol() + 0.05) {
         st.closed = true;
-        st.notes.forEach((n: { nid: string|number; }) => { if (!SR.results[n.nid]) {
+        st.notes.forEach((n: { nid: number; }) => { if (!SR.results[n.nid]) {
             SR.results[n.nid] = 'bad';
             dirty = true;
         } });
@@ -5817,6 +5828,8 @@ function srAssessFinish() {
     const v = byId('rd-verdict');
     v.className = 'verdict ' + (stars >= 2 ? 'good' : stars ? 'neutral' : 'bad');
     v.textContent = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + (SR.wrongExtra ? '  ·  ' + t('rd_extra', SR.wrongExtra) : '') + rdSightDone('assess', pct);
+    if (!SR.piece)
+        throw new Error('Étude: no piece selected');
     if (!SR.piece.ephemeral) {
         const rec = data.sheet[SR.piece.id] || (data.sheet[SR.piece.id] = {});
         if (!rec.best || pct > rec.best)
@@ -5827,18 +5840,18 @@ function srAssessFinish() {
     srBest();
     fillPieces();
 }
-function srKeyInput(m: any) {
+function srKeyInput(m: number) {
     if (!SR.active)
         return;
     if (SR.modeSel === 'learn') {
         const st = SR.steps[SR.stepIdx];
         if (!st)
             return;
-        const need = st.notes.find((n: { nid: unknown; midi: any; }) => !SR.hit.has(n.nid) && n.midi === m);
+        const need = st.notes.find((n: { nid: number; midi: number; }) => !SR.hit.has(n.nid) && n.midi === m);
         if (need) {
             SR.hit.add(need.nid);
             SR.results[need.nid] = 'good';
-            if (st.notes.every((n: { nid: unknown; }) => SR.hit.has(n.nid))) {
+            if (st.notes.every((n: { nid: number; }) => SR.hit.has(n.nid))) {
                 const next = SR.steps[SR.stepIdx + 1];
                 srPlayGap(st.beat, next ? next.beat : 1e9);
                 SR.stepIdx++;
@@ -5865,13 +5878,13 @@ function srKeyInput(m: any) {
     }
     else if (SR.modeSel === 'assess' && SR.assessOn) {
         const bs = 60 / SR.bpm, bNow = (performance.now() - SR.t0) / 1000 / bs;
-        let best = null, bestD = Infinity;
+        let best: { nid: number; } | null = null, bestD = Infinity;
         for (const st of SR.steps) {
             if (st.closed)
                 continue;
             const dd = Math.abs(bNow - st.beat);
             if (dd <= srTol() && dd < bestD) {
-                const cand = st.notes.find((n: { nid: string|number; midi: any; }) => !SR.results[n.nid] && n.midi === m);
+                const cand = st.notes.find((n: { nid: number; midi: number; }) => !SR.results[n.nid] && n.midi === m);
                 if (cand) {
                     best = cand;
                     bestD = dd;
@@ -5896,6 +5909,8 @@ function srListen() {
     ensureAudio();
     srStopAll(true);
     SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
+    if (!actx)
+        return;
     const bs = 60 / SR.bpm, act0 = actx.currentTime + 0.1, perf0 = performance.now() + 100;
     SR.listening = true;
     byId('rd-listen').textContent = t('rd_stop');
@@ -5908,7 +5923,7 @@ function srListen() {
         previewNote(n.midi, act0 + n.beat * bs, Math.max(.15, n.dur * bs * .92), n.hand === 'lh' ? 80 : 96);
         SR.timers.push(setTimeout(() => {
             const svg = srSvg(), g = svg && svg.querySelector('.ss-n[data-nid="' + n.nid + '"]');
-            if (!g)
+            if (!(g instanceof SVGElement))
                 return;
             const prev = g.getAttribute('data-s');
             g.dataset.s = 'now';
@@ -5953,10 +5968,10 @@ function srMeta() {
     }
     byId('rd-meta').textContent = t('rd_level') + ' ' + p.level + ' · ' + rootName(keyPc) + ' ' + (p.minor ? t('rd_min') : t('rd_maj')) + ' · ' + p.ts[0] + '/' + p.ts[1] + (p.comp ? (' · ' + p.comp) : '');
 }
-function srPieceTitle(p: { id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; lh: (string|number)[][]; rh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh: (string|number)[][]; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; pickup: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; }|undefined) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
+function srPieceTitle(p: { t?: { en: string; ro: string; }; }) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
 function srBest() { const rec = SR.piece && !SR.piece.ephemeral && data.sheet[SR.piece.id]; byId('rd-best').textContent = rec && rec.best ? (t('rd_best', rec.best) + (rec.learned ? ' · ✓ ' + t('rd_learned') : '')) : (rec && rec.learned ? ('✓ ' + t('rd_learned')) : ''); }
 function fillPieces() {
-    const sel = byId('rd-piece');
+    const sel = selectById('rd-piece');
     if (!sel)
         return;
     const cur = sel.value;
@@ -5979,12 +5994,12 @@ function fillPieces() {
         og.appendChild(o);
         sel.appendChild(og);
     }
-    const lv = {};
+    const lv: { [level: string]: (typeof PIECES)[number][]; } = {};
     PIECES.forEach((p) => { (lv[p.level] = lv[p.level] || []).push(p); });
     Object.keys(lv).sort().forEach((L) => {
         const og = (document).createElement('optgroup');
         og.label = t('rd_level') + ' ' + L;
-        lv[L].forEach((p: { id: string; }) => {
+        lv[L].forEach((p) => {
             const o = (document).createElement('option');
             o.value = p.id;
             const rec = data.sheet[p.id];
@@ -6000,11 +6015,13 @@ function srSelectPiece(id: string) {
     SR.piece = (SR.excerpt && SR.excerpt.id === id ? SR.excerpt : null) || (SR.gen && SR.gen.id === id ? SR.gen : null) || PIECES.find((p) => p.id === id) || PIECES[0];
     SR.bpm = SR.piece.bpm;
     selectById('rd-piece').value = SR.piece.id;
-    const bp = byId('rd-bpm');
-    bp.value = SR.piece.bpm;
-    byId('rd-bpmLbl').textContent = SR.piece.bpm;
+    const bp = inputById('rd-bpm');
+    bp.value = String(SR.piece.bpm);
+    byId('rd-bpmLbl').textContent = String(SR.piece.bpm);
     const avail = srHandsAvail();
     [...byId('rd-hands').children].forEach((b) => {
+        if (!(b instanceof HTMLButtonElement))
+            return;
         b.disabled = avail !== 'both';
         b.setAttribute('aria-pressed', (avail === 'both' ? b.dataset.v === SR.hands : b.dataset.v === avail) ? 'true' : 'false');
     });
@@ -6012,6 +6029,8 @@ function srSelectPiece(id: string) {
     srMeta();
     srBest();
     byId('rd-verdict').textContent = '';
+    if (!SR.piece)
+        throw new Error('Étude: no piece selected');
     if (SR.piece.ephemeral && typeof rdTab === 'function')
         rdTab('pieces');
 }
@@ -6027,36 +6046,52 @@ else {
    note naming / playing, key→staff, intervals, chords, key signatures, rhythm,
    C clefs and generated sight-reading, with adaptive weighting, stars & stats.
    ============================================================================ */
-const RD_REF = { treble: 30, bass: 18, alto: 24, tenor: 22 };
-const RD_CLEFC = { treble: 't', bass: 'b', alto: 'a', tenor: 'n' };
+type ReadClefStaff = 'treble' | 'bass' | 'alto' | 'tenor';
+type ReadClefDraw = ReadClefStaff | 'grand';
+type ReadClef = ReadClefDraw | 'mix';
+type ReadDrillType = 'name' | 'play' | 'k2s' | 'ks' | 'iv' | 'ch' | 'rh' | 'sr';
+type ReadDrillChordQuality = 'maj' | 'min' | 'dim' | 'aug';
+const RD_REF: Record<ReadClefStaff, number> = { treble: 30, bass: 18, alto: 24, tenor: 22 };
+const RD_CLEFC: Record<ReadClefStaff, string> = { treble: 't', bass: 'b', alto: 'a', tenor: 'n' };
 const RD_MAJ = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'], RD_MIN = ['Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#'];
-const RD_CHQ = { maj: [0, 4, 7], min: [0, 3, 7], dim: [0, 3, 6], aug: [0, 4, 8] };
-const RD_TARGET = { name: 2500, play: 3500, k2s: 4000, iv: 3500, ch: 6000, ks: 5000 };
-function rdData() {
+const RD_CHQ: Record<ReadDrillChordQuality, number[]> = { maj: [0, 4, 7], min: [0, 3, 7], dim: [0, 3, 6], aug: [0, 4, 8] };
+const RD_TARGET: Partial<Record<ReadDrillType, number>> = { name: 2500, play: 3500, k2s: 4000, iv: 3500, ch: 6000, ks: 5000 };
+interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rush: number; }
+interface ReadDrillNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
+interface ReadDrillTotals { n: number; ok: number; ms: number; sess: number; }
+interface ReadDrillCustom { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
+interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; }
+interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { [noteKey: string]: ReadDrillNoteStat; }; tot: ReadDrillTotals; prefs: ReadDrillPrefs; }
+function rdData(): ReadDrillData {
     if (!data.reading || typeof data.reading !== 'object')
         data.reading = {};
-    const r = data.reading;
+    const r: ReadDrillData = data.reading;
     r.lv = r.lv || {};
     r.nt = r.nt || {};
     r.tot = Object.assign({ n: 0, ok: 0, ms: 0, sess: 0 }, r.tot || {});
     r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1 }, r.prefs || {});
     return r;
 }
-function rdP(s: string) { const p = srPitch(s); return { li: p.li, oct: p.oct, acc: p.acc }; }
-function rdStep(n: { li: any; oct: any; acc?: number; }) { return n.oct * 7 + n.li; }
-function rdMidi(n: { li: any; oct: any; acc: any; }) { return ssMidiOf(n.li, n.oct, n.acc || 0); }
-function rdFromStep(s: number, acc: number|undefined) { return { li: ((s % 7) + 7) % 7, oct: Math.floor(s / 7), acc: acc || 0 }; }
+interface ReadDrillPitch { li: number; oct: number; acc: number; }
+function rdP(s: string | undefined): ReadDrillPitch { const p = s === undefined ? null : srPitch(s); if (!p)
+    throw new Error('Étude: bad pitch ' + s); return { li: p.li, oct: p.oct, acc: p.acc }; }
+function rdStep(n: { li: number; oct: number; }) { return n.oct * 7 + n.li; }
+function rdMidi(n: { li: number; oct: number; acc?: number; }) { return ssMidiOf(n.li, n.oct, n.acc || 0); }
+function rdFromStep(s: number, acc?: number): ReadDrillPitch { return { li: ((s % 7) + 7) % 7, oct: Math.floor(s / 7), acc: acc || 0 }; }
 function rdAccSym(a: number) { return a > 0 ? '♯' : a < 0 ? '♭' : ''; }
 function rdLetter(li: number) { return (LETTERS[notation] || LETTERS.letter)[li]; }
-function rdName(n: theory.SpelledMidi&{ s: string; }, oct: boolean|undefined) { return spelledName(notation, n.li, n.acc || 0) + (oct ? n.oct : ''); }
+function rdName(n: { li: number; oct: number; acc?: number; }, oct?: boolean) { return spelledName(notation, n.li, n.acc || 0) + (oct ? n.oct : ''); }
 function rdSpell(s: string) { const m = /^([A-G])([#b]?)$/.exec(s); return m ? spelledName(notation, SR_LET.indexOf(m[1]), m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) : ''; }
 function rdKeyLabel(k: number) { return rdSpell(RD_MAJ[k + 7]) + ' ' + t('rd_maj'); }
 function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min'); }
-function rdNk(clef: string|number, n: { li: string|number; acc: any; oct: string; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
-function rdEsc(s: string) { return String(s).replace(/[&<>"]/g, (c) => ( { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } )[c]); }
+function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
+function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
-const RD_UNITS: { u: any; icon: any; lv: any; }[] = [], RD_LV = {};
-function rdU(u: string, icon: string, list: any[]) { const lv = list.map((o: any, i: number) => Object.assign({ u, n: i + 1, id: u + (i + 1) }, o)); RD_UNITS.push({ u, icon, lv }); lv.forEach((L: { id: string|number; }) => { RD_LV[L.id] = L; }); }
+interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
+interface ReadDrillLevel extends ReadDrillLevelSpec { u: string; n: number; id: string; custom?: boolean; }
+interface ReadDrillUnit { u: string; icon: string; lv: ReadDrillLevel[]; }
+const RD_UNITS: ReadDrillUnit[] = [], RD_LV: { [levelId: string]: ReadDrillLevel; } = {};
+function rdU(u: string, icon: string, list: ReadDrillLevelSpec[]) { const lv = list.map((o, i) => Object.assign({ u, n: i + 1, id: u + (i + 1) }, o)); RD_UNITS.push({ u, icon, lv }); lv.forEach((L) => { RD_LV[L.id] = L; }); }
 const rdS = (a: string) => a.split(' '), RD_ALLIV = [2, 3, 4, 5, 6, 7, 8];
 rdU('tr', '𝄞', [
     { ty: 'name', clef: 'treble', set: rdS('C4 G4 C5'), tag: 'land' },
@@ -6144,7 +6179,7 @@ function rdCClef(x: number, cy: number) {
     return `<g class="rdx-cclef"><rect x="${x}" y="${cy - 24}" width="4.5" height="48"/><rect x="${x + 6.5}" y="${cy - 24}" width="1.6" height="48"/>${p(1)}${p(-1)}</g>`;
 }
 function rdPercClef(x: number, top: number) { return `<g class="rdx-cclef"><rect x="${x}" y="${top + 12}" width="4" height="24"/><rect x="${x + 8}" y="${top + 12}" width="4" height="24"/></g>`; }
-function rdKsSvg(clef: string, keyN: number, x: number, top: number) {
+function rdKsSvg(clef: ReadClefStaff, keyN: number, x: number, top: number) {
     const bot = top + 48, ref = RD_REF[clef], off = ({ treble: 0, bass: -2, alto: -1, tenor: -1 } )[clef];
     const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]], sTn = [[3, 4], [0, 5], [4, 4], [1, 5], [5, 4], [2, 5], [6, 4]];
     const list = keyN > 0 ? (clef === 'tenor' ? sTn : sT) : fT;
@@ -6156,8 +6191,11 @@ function rdKsSvg(clef: string, keyN: number, x: number, top: number) {
     }
     return { svg: s, w: keyN ? Math.abs(keyN) * 9 + 8 : 4 };
 }
-function rdSvg(o: { clef: any; keyN?: any; cols: any; minW?: any; aria?: any; colW?: any; lbl?: any; scale?: any; dur?: any; lblCls?: any; }) {
-    const grand = o.clef === 'grand', clefs = grand ? ['treble', 'bass'] : [o.clef], tops = grand ? [40, 136] : [40];
+interface ReadDrillStaffNote { li: number; oct: number; acc?: number; s?: string | null; hc?: string | null; tip?: string; staff?: ReadClefStaff; }
+interface ReadDrillSvgOptions { clef: ReadClefDraw; keyN?: number; cols: ReadDrillStaffNote[][]; minW?: number; aria?: string; colW?: number; lbl?: (string | null | undefined)[] | null; scale?: number; dur?: number; lblCls?: (string | null | undefined)[]; }
+interface ReadDrillSvgItem { n: ReadDrillStaffNote; ii: number; c: ReadClefStaff; top: number; step: number; y: number; dx: number; ax?: number; }
+function rdSvg(o: ReadDrillSvgOptions) {
+    const grand = o.clef === 'grand', clefs: ReadClefStaff[] = o.clef === 'grand' ? ['treble', 'bass'] : [o.clef], tops = grand ? [40, 136] : [40];
     const keyN = o.keyN || 0, kA = ssKeyAcc(keyN), colW = o.colW || 64, L0 = grand ? 18 : 8;
     let head = '', x = L0 + 4;
     clefs.forEach((c, i) => { head += (c === 'treble' || c === 'bass') ? srClef(c, x + 4, tops[i]) : rdCClef(x + 6, tops[i] + (c === 'alto' ? 24 : 12)); });
@@ -6165,18 +6203,18 @@ function rdSvg(o: { clef: any; keyN?: any; cols: any; minW?: any; aria?: any; co
     let ksw = 4;
     clefs.forEach((c, i) => { const k = rdKsSvg(c, keyN, x, tops[i]); head += k.svg; ksw = Math.max(ksw, k.w); });
     x += ksw + (o.cols.length ? 10 : 0);
-    const x0 = x, body: string[] = [], heads: { c: any; i: any; x: any; y: any; }[] = [];
+    const x0 = x, body: string[] = [], heads: { c: number; i: number; x: number; y: number; }[] = [];
     let minY = tops[0], maxY = tops[tops.length - 1] + 48;
-    o.cols.forEach((col: any[], ci: number) => {
+    o.cols.forEach((col, ci) => {
         const nx = x0 + ci * colW + colW / 2;
-        const items = col.map((n: { staff: any; }, ii: any) => {
-            const c = grand ? (n.staff || (rdStep(n) >= 28 ? 'treble' : 'bass')) : o.clef, top = tops[clefs.indexOf(c)], st = rdStep(n);
-            return { n, ii, c, top, step: st, y: top + 48 + (RD_REF[c] - st) * 6 };
-        }).sort((a: { step: number; }, b: { step: number; }) => a.step - b.step);
-        let prev: { c: any; step: number; dx: number; }|null = null;
-        items.forEach((it: { dx: number; c: any; step: number; }) => { it.dx = (prev && prev.c === it.c && it.step - prev.step === 1 && prev.dx === 0) ? 12 : 0; prev = it; });
-        const lanes: any[][] = [];
-        items.slice().reverse().forEach((it: { n: { acc: any; li: string|number; }; y: number; ax: number; }) => {
+        const items = col.map((n, ii): ReadDrillSvgItem => {
+            const c: ReadClefStaff = grand ? (n.staff || (rdStep(n) >= 28 ? 'treble' : 'bass')) : clefs[0], top = tops[clefs.indexOf(c)], st = rdStep(n);
+            return { n, ii, c, top, step: st, y: top + 48 + (RD_REF[c] - st) * 6, dx: 0 };
+        }).sort((a, b) => a.step - b.step);
+        let prev: ReadDrillSvgItem | null = null;
+        items.forEach((it) => { it.dx = (prev && prev.c === it.c && it.step - prev.step === 1 && prev.dx === 0) ? 12 : 0; prev = it; });
+        const lanes: number[][] = [];
+        items.slice().reverse().forEach((it) => {
             if ((it.n.acc || 0) === kA[it.n.li])
                 return;
             let a = lanes.findIndex((l) => l.every((y: number) => Math.abs(y - it.y) >= 14));
@@ -6187,7 +6225,7 @@ function rdSvg(o: { clef: any; keyN?: any; cols: any; minW?: any; aria?: any; co
             lanes[a].push(it.y);
             it.ax = nx - 15 - a * 10;
         });
-        items.forEach((it: { ax: null; n: { acc: any; li: string|number; s: any; hc: any; tip: any; }; y: number; dx: number; top: any; c: string|number; step: number; ii: any; }) => {
+        items.forEach((it) => {
             let g = '';
             if (it.ax != null)
                 g += ssAccGlyph(it.n.acc || 0, kA[it.n.li], it.ax, it.y);
@@ -6199,9 +6237,10 @@ function rdSvg(o: { clef: any; keyN?: any; cols: any; minW?: any; aria?: any; co
         });
     });
     const W = Math.max(o.minW || 0, x0 + o.cols.length * colW + 10), lblY = maxY + 24;
-    if (o.lbl)
-        o.cols.forEach((_: any, ci: number) => { if (o.lbl[ci] != null)
-            body.push(`<text class="rdx-lbl${o.lblCls && o.lblCls[ci] ? ' ' + o.lblCls[ci] : ''}" x="${x0 + ci * colW + colW / 2}" y="${lblY}">${rdEsc(o.lbl[ci])}</text>`); });
+    const lbl = o.lbl;
+    if (lbl)
+        o.cols.forEach((_, ci) => { const l = lbl[ci]; if (l != null)
+            body.push(`<text class="rdx-lbl${o.lblCls && o.lblCls[ci] ? ' ' + o.lblCls[ci] : ''}" x="${x0 + ci * colW + colW / 2}" y="${lblY}">${rdEsc(l)}</text>`); });
     const yA = Math.min(tops[0] - 10, minY - 14), yB = (o.lbl ? lblY + 10 : maxY + 14);
     let staff = '';
     tops.forEach((tp) => { for (let k = 0; k < 5; k++)
@@ -6214,12 +6253,19 @@ function rdSvg(o: { clef: any; keyN?: any; cols: any; minW?: any; aria?: any; co
 }
 /* ---- drill engine ---- */
 const RD_TESTN = 20, RD_RUSH = 60;
-const RD = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, kbDown: null, rh: null };
-function rdLvPrev(L: { u: any; n: number; }) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
-function rdLvNext(L: { u: any; n: string|number; }|null) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
-function rdUnlocked(L: any) { if (!L)
-    return false; const p = rdLvPrev(L); return !p || ((rdData().lv[p.id] || {}).s || 0) >= 1; }
-function rdTarget(L: { ty: string|number; clef: string; acc: any; keys: any; }|null) { return (RD_TARGET[L.ty] || 3000) + ((L.clef === 'grand' || L.clef === 'mix') ? 800 : 0) + ((L.acc || L.keys) ? 1000 : 0); }
+interface ReadDrillPress { src: string; hand: string; on: number; off: number | null; }
+interface ReadDrillRhythmEvent { beat: number; dur: number; rest: boolean; u?: string; }
+interface ReadDrillRhythmRender { svg: string; notes: { nid: number; hand: string; midi: number; beat: number; dur: number; x: number; y: number; }[]; beatX: { b: number; x: number; }[]; total: number; W: number; yTop: number; yBot: number; }
+interface ReadDrillRhythm { ev: ReadDrillRhythmEvent[]; lh: ReadDrillRhythmEvent[] | null; r: ReadDrillRhythmRender; dur: boolean; two: boolean; on: number[]; taps: number[]; presses: ReadDrillPress[]; open: Map<string, ReadDrillPress>; playing: boolean; graded: ReturnType<typeof rdRhGrade> | ReturnType<typeof rdRhGradeAll> | null; raf: number; listen: boolean; t0: number; }
+type ReadDrillMode = 'practice' | 'test' | 'rush';
+interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; kbDown: number | null; rh: ReadDrillRhythm | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; }
+const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, kbDown: null, rh: null, rhP: [], rhM: [], next: null, nodes: [] };
+function rdLvPrev(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
+function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
+function rdUnlocked(L: ReadDrillLevel | null | undefined) { if (!L)
+    return false; const p = rdLvPrev(L); return !p || (rdData().lv[p.id]?.s || 0) >= 1; }
+function rdTarget(L: ReadDrillLevel | null) { if (!L)
+    throw new Error('Étude: no reading level'); return (RD_TARGET[L.ty] || 3000) + ((L.clef === 'grand' || L.clef === 'mix') ? 800 : 0) + ((L.acc || L.keys) ? 1000 : 0); }
 function rdStat(k: string, ok: boolean, ms: number) {
     const d = rdData(), s = d.nt[k] || (d.nt[k] = { n: 0, ok: 0, ms: 0, e: 0, t: 0 });
     s.e = s.n ? s.e * 0.7 + (ok ? 0 : 0.3) : (ok ? 0.1 : 1);
@@ -6229,14 +6275,14 @@ function rdStat(k: string, ok: boolean, ms: number) {
         s.ok++;
     s.ms += ms;
 }
-function rdWeight(k: string|number) { const s = rdData().nt[k]; if (!s || !s.n)
+function rdWeight(k: string) { const s = rdData().nt[k]; if (!s || !s.n)
     return 2.2; const slow = Math.min(2, Math.max(0, (s.t || 0) / rdTarget(RD.L) - 1)); return 1 + 6 * (s.e || 0) + 1.5 * slow + (s.n < 3 ? 0.8 : 0); }
-function rdPickW(items: any[], keyOf: (arg0: any) => any, avoid: null) {
-    let c = items.filter((x: any) => keyOf(x) !== avoid);
+function rdPickW<T>(items: T[], keyOf: (x: T) => string, avoid: string | null) {
+    let c = items.filter((x) => keyOf(x) !== avoid);
     if (!c.length)
         c = items;
-    const w = c.map((x: any) => rdWeight(keyOf(x)));
-    let r = Math.random() * w.reduce((a: any, b: any) => a + b, 0);
+    const w = c.map((x) => rdWeight(keyOf(x)));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0);
     for (let i = 0; i < c.length; i++) {
         r -= w[i];
         if (r <= 0)
@@ -6244,28 +6290,29 @@ function rdPickW(items: any[], keyOf: (arg0: any) => any, avoid: null) {
     }
     return c[c.length - 1];
 }
-function rdPickFrom(items: any[], keyOf: { (v: any): string; (v: any): string; (v: any): string; (x: any): string; (arg0: never): null; }) {
-    let r;
+// In test mode the bag holds shuffled indices into items; the same signature means the same keys in the same order.
+function rdPickFrom<T>(items: T[], keyOf: (x: T) => string) {
+    let r: T;
     if (RD.mode === 'test') {
-        const sig = items.map(keyOf).join('|');
+        const sig = items.map((x) => keyOf(x)).join('|');
         if (RD.bagSig !== sig || !RD.bag.length) {
             RD.bagSig = sig;
-            RD.bag = shuffle(items);
+            RD.bag = rdShuffle(items.map((_, j) => j));
         }
-        let i = RD.bag.findIndex((x) => keyOf(x) !== RD.lastK);
+        let i = RD.bag.findIndex((j) => keyOf(items[j]) !== RD.lastK);
         if (i < 0)
             i = 0;
-        r = RD.bag.splice(i, 1)[0];
+        r = items[RD.bag.splice(i, 1)[0]];
     }
     else
         r = rdPickW(items, keyOf, RD.lastK);
     RD.lastK = keyOf(r);
     return r;
 }
-function rdPool(L: { set: any[]; lo: any; hi: any; acc: number; }|null) {
+function rdPool(L: ReadDrillLevel): ReadDrillPitch[] {
     if (L.set)
-        return L.set.map(rdP);
-    const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), out = [];
+        return L.set.map((x) => rdP(x));
+    const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), out: ReadDrillPitch[] = [];
     for (let s = lo; s <= hi; s++) {
         const n = rdFromStep(s);
         out.push(n);
@@ -6282,18 +6329,36 @@ function rdPool(L: { set: any[]; lo: any; hi: any; acc: number; }|null) {
 }
 function rdIvName(n: string|number) { return t('rdx_iv' + n); }
 function rdChLabel(li: number, q: string) { return rdLetter(li) + ' ' + t('rdx_q_' + q); }
-function rdGen(L: { ty: any; kmax: number; clef: any; lo: any; hi: any; ivs: any[]; harm: number; q: any[]; inv: any; keys: number; acc: any; }|null) {
+function rdShuffle<T>(a: T[]): T[] { const r = shuffle(a); if (typeof r === 'string')
+    throw new Error('Étude: shuffle needs an array'); return r; }
+function rdStaffClef(c: ReadClef | undefined): ReadClefStaff { if (c === 'treble' || c === 'bass' || c === 'alto' || c === 'tenor')
+    return c; throw new Error('Étude: this drill needs a single staff, not ' + c); }
+interface ReadQuestionBase { key: string; hinted?: boolean; state?: 'good' | 'bad' | null; lbl?: string; }
+interface ReadQuestionKs extends ReadQuestionBase { ty: 'ks'; clef: ReadClefDraw; keyN: number; ans: number; opts: { v: number; l: string; s: string; }[]; midis?: undefined; }
+interface ReadQuestionIv extends ReadQuestionBase { ty: 'iv'; clef: ReadClefStaff; ans: number; a: ReadDrillPitch; b: ReadDrillPitch; harm: boolean; opts: { v: number; l: string; k: string; }[]; midis: number[]; }
+interface ReadQuestionCh extends ReadQuestionBase { ty: 'ch'; clef: ReadClefStaff; ans: string; root: ReadDrillPitch; qual: ReadDrillChordQuality; inv: number; notes: ReadDrillPitch[]; opts: { v: string; l: string; }[]; midis: number[]; pcs: number[]; }
+interface ReadQuestionNote extends ReadQuestionBase { ty: Exclude<ReadDrillType, 'ks' | 'iv' | 'ch'>; clef: ReadClefDraw; keyN: number; note: ReadDrillPitch; sclef: ReadClefStaff; midi: number; midis: number[]; needAcc: boolean; opts?: { v: number; n: ReadDrillPitch; }[]; ans?: number; }
+type ReadQuestion = ReadQuestionKs | ReadQuestionIv | ReadQuestionCh | ReadQuestionNote;
+function rdGen(L: ReadDrillLevel): ReadQuestion {
     const ty = L.ty;
     if (ty === 'ks') {
-        const ks = [];
+        const ks: number[] = [];
+        if (L.kmax === undefined)
+            throw new Error('Étude: key-signature level without kmax');
         for (let k = -L.kmax; k <= L.kmax; k++)
             ks.push(k);
-        const k = rdPickFrom(ks, (v: string) => 'ks:' + v);
-        const opts = shuffle(ks.filter((v) => v !== k)).slice(0, 5).concat([k]).sort((a: number, b: number) => a - b);
-        return { ty, clef: L.clef, keyN: k, key: 'ks:' + k, ans: k, opts: opts.map((v: any) => ({ v, l: rdKeyLabel(v), s: rdKeyMinor(v) })) };
+        const k = rdPickFrom(ks, (v) => 'ks:' + v);
+        const opts = rdShuffle(ks.filter((v) => v !== k)).slice(0, 5).concat([k]).sort((a, b) => a - b);
+        const clef = L.clef;
+        if (clef === undefined || clef === 'mix')
+            throw new Error('Étude: key-signature level without a staff');
+        return { ty, clef, keyN: k, key: 'ks:' + k, ans: k, opts: opts.map((v) => ({ v, l: rdKeyLabel(v), s: rdKeyMinor(v) })) };
     }
     if (ty === 'iv') {
-        const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), iv = rdPickFrom(L.ivs, (v: string) => 'iv:' + v);
+        const ivs = L.ivs;
+        if (!ivs)
+            throw new Error('Étude: interval level without intervals');
+        const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), iv = rdPickFrom(ivs, (v) => 'iv:' + v);
         let a = lo, b = lo + iv - 1;
         for (let k = 0; k < 40; k++) {
             a = lo + Math.floor(Math.random() * (hi - lo + 1));
@@ -6310,11 +6375,14 @@ function rdGen(L: { ty: any; kmax: number; clef: any; lo: any; hi: any; ivs: any
             na = nb;
             nb = x;
         }
-        return { ty, clef: L.clef, key: 'iv:' + iv, ans: iv, a: na, b: nb, harm, opts: L.ivs.map((v: any) => ({ v, l: rdIvName(v), k: String(v) })), midis: [rdMidi(na), rdMidi(nb)] };
+        return { ty, clef: rdStaffClef(L.clef), key: 'iv:' + iv, ans: iv, a: na, b: nb, harm, opts: ivs.map((v) => ({ v, l: rdIvName(v), k: String(v) })), midis: [rdMidi(na), rdMidi(nb)] };
     }
     if (ty === 'ch') {
-        const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), qual = rdPickFrom(L.q, (v: string) => 'ch:' + v);
-        let notes = null, root = null, inv = 0;
+        const quals = L.q;
+        if (!quals)
+            throw new Error('Étude: chord level without qualities');
+        const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), qual = rdPickFrom(quals, (v) => 'ch:' + v);
+        let notes: ReadDrillPitch[] | null = null, root: ReadDrillPitch | null = null, inv = 0;
         for (let k = 0; k < 80 && !notes; k++) {
             const rs = lo + Math.floor(Math.random() * Math.max(1, hi - lo - 3));
             root = rdFromStep(rs);
@@ -6325,24 +6393,31 @@ function rdGen(L: { ty: any; kmax: number; clef: any; lo: any; hi: any; ivs: any
             inv = L.inv ? Math.floor(Math.random() * 3) : 0;
             for (let i = 0; i < inv; i++) {
                 const x = ns.shift();
+                if (!x)
+                    throw new Error('Étude: empty chord');
                 x.oct++;
                 ns.push(x);
             }
             notes = ns;
         }
-        const ans = root.li + ':' + qual, set = new Set([ans]);
-        L.q.forEach((q: string) => set.add(root.li + ':' + q));
+        if (!root)
+            throw new Error('Étude: no chord root');
+        const r0 = root, ans = r0.li + ':' + qual, set = new Set([ans]);
+        quals.forEach((q) => set.add(r0.li + ':' + q));
         while (set.size < 6) {
-            set.add(Math.floor(Math.random() * 7) + ':' + ssPick(L.q));
+            set.add(Math.floor(Math.random() * 7) + ':' + ssPick(quals));
         }
-        const opts = shuffle([...set]).map((v: { split: (arg0: string) => [any,any]; }) => { const [li, q] = v.split(':'); return { v, l: rdChLabel(+li, q) }; });
-        const midis = notes.map(rdMidi);
-        return { ty, clef: L.clef, key: 'ch:' + qual, ans, root, qual, inv, notes, opts, midis, pcs: [...new Set(midis.map(pc))].sort((a, b) => a - b) };
+        const opts = rdShuffle([...set]).map((v) => { const [li, q] = v.split(':'); return { v, l: rdChLabel(+li, q) }; });
+        if (!notes)
+            throw new Error('Étude: no chord found');
+        const midis = notes.map((n) => rdMidi(n));
+        return { ty, clef: rdStaffClef(L.clef), key: 'ch:' + qual, ans, root: r0, qual, inv, notes, opts, midis, pcs: [...new Set(midis.map(pc))].sort((a, b) => a - b) };
     }
-    let clef = L.clef, pool, keyN = 0;
+    let clef = L.clef, pool: ReadDrillPitch[], keyN = 0;
     if (clef === 'mix') {
-        clef = ssPick(['treble', 'bass', 'alto', 'tenor']);
-        const r = RD_REF[clef];
+        const mc: ReadClefStaff = ssPick(['treble', 'bass', 'alto', 'tenor']);
+        clef = mc;
+        const r = RD_REF[mc];
         pool = [];
         for (let s = r - 2; s <= r + 10; s++)
             pool.push(rdFromStep(s));
@@ -6350,16 +6425,22 @@ function rdGen(L: { ty: any; kmax: number; clef: any; lo: any; hi: any; ivs: any
     else
         pool = rdPool(L);
     if (L.keys) {
-        keyN = Math.floor(Math.random() * (2 * L.keys + 1)) - L.keys;
+        const keys = L.keys;
+        if (typeof keys !== 'number')
+            throw new Error('Étude: note drills take a key-signature range, not a list');
+        keyN = Math.floor(Math.random() * (2 * keys + 1)) - keys;
         const kA = ssKeyAcc(keyN);
-        pool = pool.map((n: { li: string|number; }) => Object.assign({}, n, { acc: kA[n.li] }));
+        pool = pool.map((n) => Object.assign({}, n, { acc: kA[n.li] }));
     }
-    const sc = (n: any) => clef === 'grand' ? (rdStep(n) >= 28 ? 'treble' : 'bass') : clef;
-    const n = rdPickFrom(pool, (x: any) => rdNk(sc(x), x));
-    const q = { ty, clef, keyN, note: n, sclef: sc(n), key: rdNk(sc(n), n), midi: rdMidi(n), midis: [rdMidi(n)], needAcc: !!(L.acc || L.keys) };
+    if (clef === undefined)
+        throw new Error('Étude: note drill without a clef');
+    const dc = clef;
+    const sc = (n: ReadDrillPitch): ReadClefStaff => dc === 'grand' ? (rdStep(n) >= 28 ? 'treble' : 'bass') : dc;
+    const n = rdPickFrom(pool, (x) => rdNk(sc(x), x));
+    const q: ReadQuestionNote = { ty, clef: dc, keyN, note: n, sclef: sc(n), key: rdNk(sc(n), n), midi: rdMidi(n), midis: [rdMidi(n)], needAcc: !!(L.acc || L.keys) };
     if (ty === 'k2s') {
         const seen = new Set([q.midi]), opts = [n];
-        for (const x of shuffle(pool)) {
+        for (const x of rdShuffle(pool)) {
             if (opts.length >= 4)
                 break;
             const m = rdMidi(x);
@@ -6368,12 +6449,13 @@ function rdGen(L: { ty: any; kmax: number; clef: any; lo: any; hi: any; ivs: any
                 opts.push(x);
             }
         }
-        q.opts = shuffle(opts).map((x: any, i: any) => ({ v: i, n: x }));
-        q.ans = q.opts.findIndex((o: { n: any; }) => o.n === n);
+        const qo = rdShuffle(opts).map((x, i) => ({ v: i, n: x }));
+        q.opts = qo;
+        q.ans = qo.findIndex((o) => o.n === n);
     }
     return q;
 }
-function rdQSvg(q: { ty: any; clef: any; keyN: number; note: any; sclef: any; key: string; midi: any; midis: any[]; needAcc: boolean; }|{ ty: any; clef: any; keyN: any; key: string; ans: any; opts: any; a?: undefined; b?: undefined; harm?: undefined; midis?: undefined; root?: undefined; qual?: undefined; inv?: undefined; notes?: undefined; pcs?: undefined; }|{ ty: any; clef: any; key: string; ans: any; a: { li: number; oct: number; acc: any; }; b: { li: number; oct: number; acc: any; }; harm: boolean; opts: any; midis: any[]; keyN?: undefined; root?: undefined; qual?: undefined; inv?: undefined; notes?: undefined; pcs?: undefined; }|{ ty: any; clef: any; key: string; ans: string; root: { li: number; oct: number; acc: any; }|null; qual: any; inv: number; notes: { li: number; oct: number; acc: any; }[]|null; opts: any; midis: any[]; pcs: number[]; keyN?: undefined; a?: undefined; b?: undefined; harm?: undefined; }|null, extra: (theory.SpelledMidi&{ s: string; })|null|undefined) {
+function rdQSvg(q: ReadQuestion, extra?: ReadDrillStaffNote | null) {
     const st = q.state;
     if (q.ty === 'ks')
         return rdSvg({ clef: q.clef, keyN: q.keyN, cols: [], minW: 150, aria: t('rdx_p_ks') }).svg;
@@ -6382,25 +6464,27 @@ function rdQSvg(q: { ty: any; clef: any; keyN: number; note: any; sclef: any; ke
         return rdSvg({ clef: q.clef, cols: q.harm ? [[a, b]] : [[a], [b]], colW: q.harm ? 96 : 72 }).svg;
     }
     if (q.ty === 'ch')
-        return rdSvg({ clef: q.clef, cols: [q.notes.map((n: any) => Object.assign({ s: st }, n))], colW: 100 }).svg;
-    const col = [Object.assign({ s: q.ty === 'k2s' ? null : st }, q.note)];
+        return rdSvg({ clef: q.clef, cols: [q.notes.map((n) => Object.assign({ s: st }, n))], colW: 100 }).svg;
+    const col: ReadDrillStaffNote[] = [Object.assign({ s: q.ty === 'k2s' ? null : st }, q.note)];
     if (extra)
         col.push(extra);
     return rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, keyN: q.keyN, cols: [col], colW: 100, lbl: q.lbl ? [q.lbl] : null }).svg;
 }
-function rdKbRange(q: { ty: any; clef: any; keyN: number; note: any; sclef: any; key: string; midi: any; midis: any[]; needAcc: boolean; }|{ ty: any; clef: any; keyN: any; key: string; ans: any; opts: any; a?: undefined; b?: undefined; harm?: undefined; midis?: undefined; root?: undefined; qual?: undefined; inv?: undefined; notes?: undefined; pcs?: undefined; }|{ ty: any; clef: any; key: string; ans: any; a: { li: number; oct: number; acc: any; }; b: { li: number; oct: number; acc: any; }; harm: boolean; opts: any; midis: any[]; keyN?: undefined; root?: undefined; qual?: undefined; inv?: undefined; notes?: undefined; pcs?: undefined; }|{ ty: any; clef: any; key: string; ans: string; root: { li: number; oct: number; acc: any; }|null; qual: any; inv: number; notes: { li: number; oct: number; acc: any; }[]|null; opts: any; midis: any[]; pcs: number[]; keyN?: undefined; a?: undefined; b?: undefined; harm?: undefined; }) {
+function rdKbRange(q: ReadQuestionNote) {
     const L = RD.L;
+    if (!L)
+        throw new Error('Étude: no reading level');
     let lo = L.lo ? rdMidi(rdP(L.lo)) : 48, hi = L.hi ? rdMidi(rdP(L.hi)) : 71;
     lo = Math.min(lo, q.midi);
     hi = Math.max(hi, q.midi);
     return [lo - pc(lo), hi + (11 - pc(hi))];
 }
-function rdMiniKb(lo: any, hi: number, mark: null, inter: boolean) {
-    const whites = [];
+function rdMiniKb(lo: number, hi: number, mark: number | null, inter: boolean) {
+    const whites: number[] = [];
     for (let m = lo; m <= hi; m++)
         if (![1, 3, 6, 8, 10].includes(pc(m)))
             whites.push(m);
-    const ww = 100 / whites.length, tag = inter ? 'button' : 'span', keyAttrs = (m: any) => inter ? ` type="button" aria-label="${rdEsc(noteName(m, false))}"` : '';
+    const ww = 100 / whites.length, tag = inter ? 'button' : 'span', keyAttrs = (m: number) => inter ? ` type="button" aria-label="${rdEsc(noteName(m, false))}"` : '';
     let w = '', bk = '';
     whites.forEach((m, i) => {
         w += `<${tag} class="rdx-w" data-m="${m}" style="left:${(i * ww).toFixed(3)}%;width:${ww.toFixed(3)}%"${keyAttrs(m)}${m === mark ? ' data-s="target"' : ''}>${pc(m) === 0 ? `<i>${rdLetter(0)}${Math.floor(m / 12) - 1}</i>` : ''}</${tag}>`;
@@ -6409,17 +6493,20 @@ function rdMiniKb(lo: any, hi: number, mark: null, inter: boolean) {
     });
     return `<div class="rdx-kb${inter ? ' inter' : ''}" id="rdx-kb"${inter ? ` role="group" aria-label="${rdEsc(t('rdx_p_play'))}"` : ' aria-hidden="true"'}>${w}${bk}</div>`;
 }
-function rdKbMark(m: string, s: string|undefined) { const el = (document).querySelector('#rdx-kb [data-m="' + m + '"]'); if (el) {
+function rdKbMark(m: number, s?: string) { const el = (document).querySelector('#rdx-kb [data-m="' + m + '"]'); if (el instanceof HTMLElement) {
     if (s)
         el.dataset.s = s;
     else
         delete el.dataset.s;
 } }
-function rdBtn(o: { v: any; l?: any; html?: any; k?: any; s?: any; }, i: number, cls: string|undefined) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
+interface ReadDrillButton { v: number | string; l?: string; html?: string; k?: string; s?: string; }
+function rdBtn(o: ReadDrillButton, i: number, cls?: string) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
 function rdNext() {
     clearTimeout(RD.hintT);
     RD.answered = false;
     RD.accSel = 0;
+    if (!RD.L)
+        throw new Error('Étude: no reading level');
     const q = RD.q = rdGen(RD.L);
     q.hinted = false;
     q.state = null;
@@ -6436,12 +6523,20 @@ function rdNext() {
     else if (q.ty === 'k2s') {
         const r = rdKbRange(q);
         kb = rdMiniKb(r[0], r[1], q.midi, false);
-        ans = q.opts.map((o: { v: any; n: any; }, i: any) => rdBtn({ v: o.v, html: rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, cols: [[o.n]], colW: 56, scale: 0.8 }).svg }, i, 'rdx-opt')).join('');
+        const opts = q.opts;
+        if (!opts)
+            throw new Error('Étude: key-to-staff question without options');
+        ans = opts.map((o, i) => rdBtn({ v: o.v, html: rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, cols: [[o.n]], colW: 56, scale: 0.8 }).svg }, i, 'rdx-opt')).join('');
     }
-    else
-        ans = q.opts.map((o: any, i: any) => rdBtn(o, i)).join('');
+    else {
+        const opts = q.opts;
+        if (!opts)
+            throw new Error('Étude: question without options');
+        const btns: ReadDrillButton[] = opts.map((o) => 'n' in o ? { v: o.v } : o);
+        ans = btns.map((o, i) => rdBtn(o, i)).join('');
+    }
     const pr = RD.mode === 'practice';
-    byId('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div>${q.ty === 'k2s' ? kb : ''}<div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${q.ty === 'k2s' ? '' : kb}<div class="rdx-tools">${pr ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.needAcc && q.ty === 'name' ? t('rdx_keys_acc') : '')}</span></div></div>`;
+    byId('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div>${q.ty === 'k2s' ? kb : ''}<div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${q.ty === 'k2s' ? '' : kb}<div class="rdx-tools">${pr ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.ty === 'name' && q.needAcc ? t('rdx_keys_acc') : '')}</span></div></div>`;
     if (q.ty === 'k2s' && rdData().prefs.sound)
         rdSound(q.midis);
     if (pr && rdData().prefs.hints)
@@ -6450,9 +6545,9 @@ function rdNext() {
     rdHud();
     RD.t0 = performance.now();
 }
-function rdSound(ms: any[]|undefined, arp: boolean|undefined) { if (!ms || !ms.length)
+function rdSound(ms?: number[], arp?: boolean) { if (!ms || !ms.length)
     return; ensureAudio(); if (!actx)
-    return; const t0 = actx.currentTime + 0.03; ms.forEach((m: any, i: number) => previewNote(m, t0 + (arp ? i * 0.45 : 0), 0.9, 88)); }
+    return; const t0 = actx.currentTime + 0.03; ms.forEach((m, i) => previewNote(m, t0 + (arp ? i * 0.45 : 0), 0.9, 88)); }
 const RD_LM = [14, 18, 21, 24, 28, 32, 35, 38, 42];
 function rdHint() {
     const q = RD.q;
@@ -6486,11 +6581,12 @@ function rdHint() {
         f.textContent = '💡 ' + s;
     }
 }
-function rdAnsText(q: { ty: string; ans: any; root: { li: any; }; qual: any; note: any; }|null) { if (q.ty === 'iv')
+function rdAnsText(q: ReadQuestion) { if (q.ty === 'iv')
     return rdIvName(q.ans); if (q.ty === 'ch')
     return rdChLabel(q.root.li, q.qual); if (q.ty === 'ks')
     return rdKeyLabel(q.ans) + ' / ' + rdKeyMinor(q.ans); return rdName(q.note, true); }
-function rdAnswer(ok: boolean, given: { btn?: any; midi?: any; }) {
+interface ReadDrillGiven { btn?: Element; midi?: number; }
+function rdAnswer(ok: boolean, given?: ReadDrillGiven) {
     const q = RD.q;
     if (!q || RD.answered || !RD.on)
         return;
@@ -6525,8 +6621,10 @@ function rdAnswer(ok: boolean, given: { btn?: any; midi?: any; }) {
     else
         rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'rush' ? 800 : 1500)));
 }
-function rdFeedback(ok: any, g: { midi: number|null; btn: Element; }) {
+function rdFeedback(ok: boolean, g: ReadDrillGiven) {
     const q = RD.q;
+    if (!q)
+        throw new Error('Étude: no reading question');
     q.state = ok ? 'good' : 'bad';
     if (q.ty === 'name' && !ok)
         q.lbl = rdName(q.note, true);
@@ -6534,12 +6632,13 @@ function rdFeedback(ok: any, g: { midi: number|null; btn: Element; }) {
     if (extra)
         q.state = null;
     if (q.ty !== 'k2s')
-        maybeById('rdx-staff').innerHTML = rdQSvg(q, extra);
-    const sv = maybeById('rdx-staff');
+        byId('rdx-staff').innerHTML = rdQSvg(q, extra);
+    const sv = byId('rdx-staff');
     sv.classList.remove('flash-ok', 'flash-bad');
     void sv.offsetWidth;
     sv.classList.add(ok ? 'flash-ok' : 'flash-bad');
-    maybeById('rdx-ans').querySelectorAll('.rdx-a').forEach((b) => { b.disabled = true; if (b.dataset.a === String(q.ans) || (q.ty === 'name' && +b.dataset.a === q.note.li))
+    byId('rdx-ans').querySelectorAll('.rdx-a').forEach((b) => { if (!(b instanceof HTMLButtonElement))
+        return; b.disabled = true; if (b.dataset.a === String(q.ans) || (q.ty === 'name' && Number(b.dataset.a) === q.note.li))
         b.classList.add('correct');
     else if (g.btn === b)
         b.classList.add('wrong'); });
@@ -6548,27 +6647,29 @@ function rdFeedback(ok: any, g: { midi: number|null; btn: Element; }) {
         if (g.midi != null && g.midi !== q.midi)
             rdKbMark(g.midi, 'bad');
     }
-    const f = maybeById('rdx-fb'), msg = ok ? (t('rdx_ok') + (RD.streak >= 3 ? '  🔥 ' + RD.streak : '')) : t('rdx_wrong', rdAnsText(q)) + (extra ? ' · ' + t('rdx_played', rdName(extra, true)) : '');
+    const f = byId('rdx-fb'), msg = ok ? (t('rdx_ok') + (RD.streak >= 3 ? '  🔥 ' + RD.streak : '')) : t('rdx_wrong', rdAnsText(q)) + (extra ? ' · ' + t('rdx_played', rdName(extra, true)) : '');
     f.className = 'rdx-fb ' + (ok ? 'good' : 'bad');
     f.textContent = (ok ? '✓ ' : '✗ ') + msg;
     byId('rdx-live').textContent = msg;
     if (rdData().prefs.sound && q.ty !== 'play' && !(q.ty === 'k2s') && q.midis)
         rdSound(q.midis, q.ty === 'iv' && !q.harm);
 }
-function rdClickAns(b: { dataset: { a: any; }; }) {
+function rdClickAns(b: HTMLElement) {
     const q = RD.q;
     if (!q || RD.answered || !RD.on)
         return;
     const v = b.dataset.a;
     if (q.ty === 'name')
-        return rdAnswer(+v === q.note.li && (!q.needAcc || RD.accSel === (q.note.acc || 0)), { btn: b });
+        return rdAnswer(Number(v) === q.note.li && (!q.needAcc || RD.accSel === (q.note.acc || 0)), { btn: b });
     if (q.ty === 'k2s')
-        return rdAnswer(+v === q.ans, { btn: b });
+        return rdAnswer(Number(v) === q.ans, { btn: b });
     rdAnswer(v === String(q.ans), { btn: b });
 }
 function rdInput(m: number) {
     if (!RD.on)
         return;
+    if (!RD.L)
+        throw new Error('Étude: no reading level');
     if (RD.L.ty === 'rh') {
         rdTap(m < 60 ? 'L' : 'R');
         return;
@@ -6582,9 +6683,12 @@ function rdInput(m: number) {
     if (q.ty === 'name')
         return rdAnswer(pc(m) === pc(q.midi), { midi: m });
     if (q.ty === 'k2s') {
-        const i = q.opts.findIndex((o: { n: any; }) => strict ? rdMidi(o.n) === m : pc(rdMidi(o.n)) === pc(m));
+        const opts = q.opts;
+        if (!opts)
+            throw new Error('Étude: key-to-staff question without options');
+        const i = opts.findIndex((o) => strict ? rdMidi(o.n) === m : pc(rdMidi(o.n)) === pc(m));
         if (i >= 0)
-            rdAnswer(i === q.ans, { btn: maybeById('rdx-ans').querySelectorAll('.rdx-a')[i], midi: m });
+            rdAnswer(i === q.ans, { btn: byId('rdx-ans').querySelectorAll('.rdx-a')[i], midi: m });
         return;
     }
     if (q.ty === 'ch') {
@@ -6597,10 +6701,10 @@ function rdHud() {
     const h = byId('rdx-hud'), mt = byId('rdx-meter');
     if (!h)
         return;
-    let s = '', f = null;
+    let s = '', f: number | null = null;
     if (RD.L && RD.L.ty === 'rh') {
-        const n = (RD.rhP || []).length;
-        s = n ? '⌀ ' + Math.round(RD.rhP.reduce((x: any, y: any) => x + y, 0) / n) + '% · ' + n + '×' : '';
+        const rp = RD.rhP || [], n = rp.length;
+        s = n ? '⌀ ' + Math.round(rp.reduce((x, y) => x + y, 0) / n) + '% · ' + n + '×' : '';
         if (RD.mode === 'test')
             f = n / 4;
     }
@@ -6618,7 +6722,7 @@ function rdHud() {
     h.textContent = s;
     mt.hidden = f == null;
     const progress = mt.firstElementChild;
-    if (f != null && progress)
+    if (f != null && progress instanceof HTMLElement)
         progress.style.transform = 'scaleX(' + Math.max(0, Math.min(1, f)).toFixed(3) + ')';
 }
 /* ---- rhythm reading: tap the rhythm against a metronome ---- */
