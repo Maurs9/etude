@@ -15,4 +15,10 @@ describe('domain boundaries', () => {
     expect(runtime).toMatch(/audioEngine\.scheduleClick/);
     expect(runtime).not.toMatch(/function\s+(?:srClick|rdClick)[\s\S]*?createOscillator/);
   });
+
+  it('does not reach into OSMD vendor members from the view runtime', async () => {
+    const runtime = await readFile(runtimePath, 'utf8');
+    expect(runtime).not.toMatch(/engine\.(?:EngravingRules|GraphicSheet|Sheet|cursor|Zoom)\b/);
+    expect(runtime).toMatch(/engine\.get(?:Rules|GraphicSheet|Sheet|Cursor|Zoom)\b/);
+  });
 });

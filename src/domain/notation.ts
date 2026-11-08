@@ -20,6 +20,47 @@ export interface OsmdModule {
   };
 }
 
+export interface ScoreRenderer {
+  getRules(): any;
+  load(xml: string): Promise<void>;
+  setOptions(options: Record<string, unknown>): void;
+  setCustomPageFormat(width: number, height: number): void;
+  getZoom(): number;
+  setZoom(value: number): void;
+  render(): void;
+  getGraphicSheet(): any;
+  getSheet(): any;
+  getCursor(): any;
+  getGraphicalNote(note: unknown): any;
+  readonly EngravingRules: any;
+  readonly GraphicSheet: any;
+  readonly Sheet: any;
+  readonly cursor: any;
+  Zoom: number;
+}
+
+class OsmdScoreRenderer implements ScoreRenderer {
+  constructor(private readonly vendor: any) {}
+
+  getRules(): any { return this.vendor.EngravingRules; }
+  load(xml: string): Promise<void> { return this.vendor.load(xml); }
+  setOptions(options: Record<string, unknown>): void { this.vendor.setOptions(options); }
+  setCustomPageFormat(width: number, height: number): void { this.vendor.setCustomPageFormat(width, height); }
+  getZoom(): number { return this.vendor.Zoom; }
+  setZoom(value: number): void { this.vendor.Zoom = value; }
+  render(): void { this.vendor.render(); }
+  getGraphicSheet(): any { return this.vendor.GraphicSheet; }
+  getSheet(): any { return this.vendor.Sheet; }
+  getCursor(): any { return this.vendor.cursor; }
+  getGraphicalNote(note: unknown): any { return this.vendor.EngravingRules.GNote(note); }
+  get EngravingRules(): any { return this.vendor.EngravingRules; }
+  get GraphicSheet(): any { return this.vendor.GraphicSheet; }
+  get Sheet(): any { return this.vendor.Sheet; }
+  get cursor(): any { return this.vendor.cursor; }
+  get Zoom(): number { return this.vendor.Zoom; }
+  set Zoom(value: number) { this.vendor.Zoom = value; }
+}
+
 function isOsmdModule(value: unknown): value is OsmdModule {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as { OpenSheetMusicDisplay?: unknown; MXLHelper?: unknown };
@@ -66,10 +107,10 @@ export function loadOsmd(): Promise<OsmdModule> {
 export async function createScoreRenderer(
   container: Element,
   options: Record<string, unknown>,
-): Promise<unknown> {
+): Promise<ScoreRenderer> {
   const osmd = await loadOsmd();
   patchOsmdPedals(osmd);
-  return new osmd.OpenSheetMusicDisplay(container, options);
+  return new OsmdScoreRenderer(new osmd.OpenSheetMusicDisplay(container, options));
 }
 
 export async function mxlToXml(data: ArrayBuffer): Promise<string> {

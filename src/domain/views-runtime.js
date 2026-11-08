@@ -9084,7 +9084,7 @@ async function scoreRender() {
     const oneStaffPart = (SCORE.xml.match(/<score-part[\s>]/g) || []).length <= 1; // a lone piano needs no "Instr. P1" at the left
     const engine = await createScoreRenderer(box.firstElementChild, { autoResize: false, backend: 'svg', drawTitle: true, drawComposer: true, drawPartNames: !oneStaffPart, drawPartAbbreviations: false, drawMeasureNumbers: true,
         autoBeam, autoBeamOptions: { beam_rests: false, beam_middle_rests_only: false, maintain_stem_directions: true, groups: scoreBeamGroups() } });
-    const R = engine.EngravingRules; // MuseScore-like page: wider margins, title block, measure numbers only at system starts
+    const R = engine.getRules(); // MuseScore-like page: wider margins, title block, measure numbers only at system starts
     R.PageLeftMargin = R.PageRightMargin = 7;
     R.PageTopMargin = 6;
     R.PageBottomMargin = 6;
@@ -9147,7 +9147,7 @@ function scoreLayout() {
         box.hidden = FALL.mode !== 'score';
         return;
     }
-    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R = engine.EngravingRules, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
+    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R = engine.getRules(), sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
     box.dataset.layout = SCORE.layout;
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const sourceLayout = AN.source && AN.source.kind === 'xml' && AN.source.layout, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
@@ -9161,8 +9161,8 @@ function scoreLayout() {
     R.MeasureNumberLabelOffset = cont ? 1 : 2;
     // A page narrower than A4 × zoom is the same A4 page scaled down: the staff space shrinks with it, so every
     // system keeps its bars and every page its systems whatever the panel width.
-    engine.Zoom = cont ? SCORE.zoom * base : sheetW / pageW * base;
-    scoreRingFit(engine.Zoom);
+    engine.setZoom(cont ? SCORE.zoom * base : sheetW / pageW * base);
+    scoreRingFit(engine.getZoom());
     scoreFitRender(engine, !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml), SCORE.zoom + '|' + avail);
     scoreStyleHeader(engine, sourceLayout);
     scoreFixFingerings(box, engine);
@@ -9188,7 +9188,7 @@ function scoreLayout() {
 }
 // OSMD's title label is plain text. Restore safe MusicXML italic/bold runs after each layout (never inject markup).
 function scoreStyleHeader(engine, layout) {
-    const node = engine.GraphicSheet.title && engine.GraphicSheet.title.SVGNode, runs = layout && layout.titleRuns;
+    const node = engine.getGraphicSheet().title && engine.getGraphicSheet().title.SVGNode, runs = layout && layout.titleRuns;
     if (!node || !runs || !runs.length)
         return;
     const text = node.localName === 'text' ? node : node.querySelector('text');
@@ -9202,7 +9202,7 @@ function scoreStyleHeader(engine, layout) {
 // extra break; past the last step it fills the lines itself rather than leave a lone bar after every forced break.
 const SC_FIT = [[.85, 3, 2], [.7, 2.2, 1.6], [.58, 1.6, 1.3], [.48, 1.2, 1.1]]; // VexFlow spacing multiplier, addend, min note distance
 function scoreFitRender(engine, xmlBreaks, key) {
-    const R = engine.EngravingRules, set = (i, on) => {
+    const R = engine.getRules(), set = (i, on) => {
         const f = SC_FIT[i];
         R.VoiceSpacingMultiplierVexflow = f[0];
         R.VoiceSpacingAddendVexflow = f[1];
@@ -9233,7 +9233,7 @@ function scoreFitRender(engine, xmlBreaks, key) {
     SCORE.fit = { key, step: 0, on: false };
 }
 function scoreExtraBreaks(engine) {
-    return engine.GraphicSheet.MusicPages.some((pg, pi) => pg.MusicSystems.some((sys, si) => {
+    return engine.getGraphicSheet().MusicPages.some((pg, pi) => pg.MusicSystems.some((sys, si) => {
         if (!pi && !si)
             return false;
         const col = sys.GraphicalMeasures && sys.GraphicalMeasures[0], gm = col && col.find(Boolean), sm = gm && gm.parentSourceMeasure;
@@ -9265,8 +9265,8 @@ function scoreBind(engine) {
     const byMidi = new Map();
     AN.notes.forEach((n, i) => { if (!byMidi.has(n.midi))
         byMidi.set(n.midi, []); byMidi.get(n.midi).push(i); });
-    engine.cursor.reset();
-    const it = engine.cursor.Iterator;
+    engine.getCursor().reset();
+    const it = engine.getCursor().Iterator;
     let guard = 0;
     while (!it.EndReached && guard++ < 40000) {
         const beat = it.CurrentSourceTimestamp.RealValue * 4, bound = new Set();
@@ -9277,7 +9277,7 @@ function scoreBind(engine) {
                 const midi = Math.round(69 + 12 * Math.log2(note.Pitch.Frequency / 440)), cands = byMidi.get(midi);
                 if (!cands)
                     continue;
-                const staff = note.ParentStaffEntry && note.ParentStaffEntry.ParentStaff, voice = note.ParentVoiceEntry && note.ParentVoiceEntry.ParentVoice.VoiceId, part = staff ? engine.Sheet.Instruments.indexOf(staff.ParentInstrument) : -1;
+                const staff = note.ParentStaffEntry && note.ParentStaffEntry.ParentStaff, voice = note.ParentVoiceEntry && note.ParentVoiceEntry.ParentVoice.VoiceId, part = staff ? engine.getSheet().Instruments.indexOf(staff.ParentInstrument) : -1;
                 const same = j => { const n = AN.notes[j]; return (n.part == null || n.part === part) && (n.staff == null || n.staff === staff?.Id) && (n.voice == null || n.voice === voice); };
                 const match = pred => { const a = cands.filter(pred); return a.find(j => same(j) && !bound.has(j)) ?? a.find(j => !bound.has(j)) ?? a.find(same) ?? a[0]; };
                 const exact = j => Math.abs(startOf(AN.notes[j]) - beat) < .01, sustained = j => startOf(AN.notes[j]) <= beat + .001 && endOf(AN.notes[j]) > beat + .001;
@@ -9285,7 +9285,7 @@ function scoreBind(engine) {
                 let i = match(j => same(j) && exact(j)) ?? match(j => same(j) && sustained(j)) ?? match(exact) ?? match(sustained);
                 if (i == null)
                     continue;
-                const graphical = engine.EngravingRules.GNote(note), vf = graphical && graphical.vfnote;
+                const graphical = engine.getGraphicalNote(note), vf = graphical && graphical.vfnote;
                 if (!vf)
                     continue;
                 const heads = graphical.getNoteheadSVGs ? graphical.getNoteheadSVGs() : [], g = heads[vf[1]] || graphical.getSVGGElement();
@@ -9459,7 +9459,7 @@ function scoreXLines() {
 // Chord fingerings stacked one above the other must never touch: each column is re-stacked from the notes outwards,
 // clear of its noteheads, stems and the digits already placed on that staff, above or below as OSMD chose.
 function scoreFixFingerings(box, engine) {
-    const gs = engine && engine.GraphicSheet;
+    const gs = engine && engine.getGraphicSheet();
     if (!gs || !box)
         return;
     const ink = r => ({ l: r.left + r.width * .08, r: r.right - r.width * .08, t: r.top + r.height * .18, b: r.bottom - r.height * .2 });
@@ -9552,7 +9552,7 @@ const SC_TERMS = [['dolcissimo'], ['dolce'], ['espressivo', 'espress\\.?', 'espr
 const SC_ARTS = { 'a.': 'staccato', 'av': 'staccatissimo', 'a>': 'accent', 'a^': 'marcato', 'a-': 'tenuto', 'a@a': 'fermata', 'a@u': 'fermata', 'a@s': 'fermata', 'a@l': 'fermata', 'a@as': 'fermata', 'a@us': 'fermata',
     tr: 'trill', mordent: 'mordent', mordent_inverted: 'mordent', turn: 'turn', turn_inverted: 'turn', prallprall: 'trill', upprall: 'trill' };
 function scoreSyms(engine) {
-    const box = $('an-roll'), list = [], gs = engine && engine.GraphicSheet;
+    const box = $('an-roll'), list = [], gs = engine && engine.getGraphicSheet();
     SCORE.syms = list;
     scoreTip(null);
     if (!gs)
@@ -9765,7 +9765,7 @@ function scoreTip(sym, txt) {
 }
 // Geometry in OSMD units (one staff space) relative to each page: systems, measures and the onset anchors the cursor moves between.
 function scoreGeo(engine) {
-    const gs = engine.GraphicSheet, geo = { scale: 10 * engine.Zoom, pages: [], systems: [], measures: [], anchors: [] }, sysIdx = new Map();
+    const gs = engine.getGraphicSheet(), geo = { scale: 10 * engine.getZoom(), pages: [], systems: [], measures: [], anchors: [] }, sysIdx = new Map();
     gs.MusicPages.forEach((pg, pi) => {
         geo.pages[pi] = document.getElementById('osmdCanvasPage' + pg.PageNumber);
         pg.MusicSystems.forEach(sys => {
@@ -9803,7 +9803,7 @@ function scoreGeo(engine) {
             end = Math.max(end, gl.r); });
         m.xs = end > -Infinity ? Math.min(m.xn, end + .6) : m.x0;
     });
-    const cur = engine.cursor;
+    const cur = engine.getCursor();
     if (cur) {
         cur.reset();
         const it = cur.Iterator;
