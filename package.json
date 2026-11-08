@@ -7,7 +7,7 @@
     "build": "node scripts/build.mjs",
     "build:standalone": "node scripts/build-standalone.mjs",
     "preview": "node scripts/build.mjs && node scripts/serve.mjs dist 8778",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node scripts/check-ts-suppressions.mjs && tsc --noEmit",
     "lint": "eslint . --no-warn-ignored",
     "test:unit": "vitest run",
     "test:dev": "ETUDE_DEV_SERVER=1 playwright test --project=app",

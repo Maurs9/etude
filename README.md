@@ -69,6 +69,9 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
 - `package.json`, `package-lock.json` — test tooling and locked dependencies
 
-All TypeScript under `src/` is checked with the compiler's full `strict` mode.
-Keep browser-only DOM wiring in the view domain and keep storage, theory,
-audio, notation, and routing behavior behind their typed module boundaries.
+`npm run typecheck` runs the full `strict` compiler gate and rejects
+file-wide `@ts-nocheck` directives. The large browser view runtime still has
+explicit, line-scoped compatibility annotations around legacy DOM-shaped data;
+new storage, theory, audio, notation, and routing code must remain fully typed.
+Keep browser-only DOM wiring in the view domain and keep the other behavior
+behind those typed module boundaries.
