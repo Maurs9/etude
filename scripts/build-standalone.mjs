@@ -32,8 +32,8 @@ for (const file of await readdir(join(OUT_DIR, 'assets'))) {
 }
 
 html = html
-  .replace(cssMatch[0], `<style>${standaloneCss}</style>`)
-  .replace(moduleMatch[0], `<script type="module">${app}</script>`)
-  .replace(/<script defer src="\.\/vendor\/osmd-1\.9\.9\.min\.js"><\/script>/, () => `<script>${osmd}</script>`);
+  .replace(cssMatch[0], () => `<style>${standaloneCss}</style>`)
+  .replace(moduleMatch[0], () => `<script>${osmd}</script><script type="module">${app}</script>`);
+  ;
 await writeFile(standalone, html);
 console.log(`Built ${standalone} (${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MiB)`);

@@ -9,6 +9,39 @@ type Drawer = {
   scPedalGroups?: boolean;
 };
 
+export type AppLanguage = 'en' | 'ro';
+
+let osmdPromise: Promise<unknown> | null = null;
+
+export function loadOsmd(): Promise<unknown> {
+  const existing = (globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+  if (existing) return Promise.resolve(existing);
+  if (typeof document === 'undefined') return Promise.reject(new Error('OSMD requires a document'));
+  if (osmdPromise) return osmdPromise;
+  osmdPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = new URL('vendor/osmd-1.9.9.min.js', document.baseURI).href;
+    script.async = true;
+    script.onload = () => {
+      const loaded = (globalThis as { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+      if (loaded) resolve(loaded);
+      else reject(new Error('OSMD loaded without an API'));
+    };
+    script.onerror = () => reject(new Error('OSMD could not be loaded'));
+    document.head.append(script);
+  }).catch(error => {
+    osmdPromise = null;
+    throw error;
+  });
+  return osmdPromise;
+}
+
+export function notationReloadMessage(language: AppLanguage): { message: string; button: string } {
+  return language === 'ro'
+    ? { message: 'Partitura nu s-a putut încărca. Reîncarcă pagina.', button: 'Reîncarcă' }
+    : { message: 'The score could not load. Reload the page.', button: 'Reload' };
+}
+
 export function patchOsmdPedals(osmd: unknown): void {
   const drawer = (osmd as { VexFlowMusicSheetDrawer?: { prototype?: Drawer } } | null)?.VexFlowMusicSheetDrawer?.prototype;
   if (!drawer || drawer.scPedalGroups || typeof drawer.drawPedals !== 'function') return;

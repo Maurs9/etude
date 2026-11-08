@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { patchOsmdPedals } from '../src/domain/notation.ts';
+import { notationReloadMessage, patchOsmdPedals } from '../src/domain/notation.ts';
 
 describe('OSMD notation adapter', () => {
   it('patches pedal drawing once and groups each pedal mark', () => {
@@ -21,5 +21,10 @@ describe('OSMD notation adapter', () => {
     expect(drawn).toEqual([{ Pedals: ['press'] }, { Pedals: ['release'] }]);
     expect(groups.map(group => group.name)).toEqual(['sc-pedal', 'sc-pedal']);
     expect(drawer.scPedalGroups).toBe(true);
+  });
+
+  it('provides bilingual recovery copy when a lazy score load fails', () => {
+    expect(notationReloadMessage('en')).toEqual({ message: 'The score could not load. Reload the page.', button: 'Reload' });
+    expect(notationReloadMessage('ro')).toEqual({ message: 'Partitura nu s-a putut încărca. Reîncarcă pagina.', button: 'Reîncarcă' });
   });
 });

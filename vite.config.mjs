@@ -11,10 +11,6 @@ function migrationPlugin() {
   return {
     name: 'etude-migration-runtime',
     enforce: 'pre',
-    transformIndexHtml(html) {
-      const osmd = '<script defer src="./vendor/osmd-1.9.9.min.js"></script>';
-      return html.replace(osmd, '').replace('<head>', `<head>\n${osmd}`);
-    },
     transform(source, id) {
       if (resolve(id) !== APP) return null;
       const transformed = `${bridge}${source}\nwindow.__etudeBooted?.();\n`;

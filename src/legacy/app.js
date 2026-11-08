@@ -4,7 +4,7 @@ import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, readPttV3, restoreSettings, writePttV3 } from '../domain/storage.ts';
 import { chordInversion, chordPitches, identifyChord as identifyChordDomain, samePitchSet } from '../domain/theory.ts';
 import { PianoBank, nearestPianoKey } from '../domain/audio.ts';
-import { patchOsmdPedals } from '../domain/notation.ts';
+import { loadOsmd, notationReloadMessage, patchOsmdPedals } from '../domain/notation.ts';
 import { NAV_GROUPS, navGroup, viewFromHash } from '../domain/views.ts';
 function t(k,...args){ const s=STRINGS[lang]||STRINGS.en; let v=(s[k]!=null?s[k]:(STRINGS.en?STRINGS.en[k]:null)); if(v==null) return k; if(!args.length) return v; if(args[0]!=null) v=v.replace('%a',args[0]); if(args[1]!=null) v=v.replace('%b',args[1]); for(let i=0;i<args.length;i++){ if(args[i]!=null) v=v.replace('%s',args[i]); } return v; }
 /* ============================================================================
@@ -3897,6 +3897,7 @@ async function scoreRender(){
  SCORE.heads=new Map(); SCORE.engine=null; SCORE.geo=null; SCORE.syms=[];
  await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));   // let the loading state paint before the engraver blocks
  if(version!==SCORE.version) return false;
+ try{ await loadOsmd(); }catch(err){ showNotationReloadPrompt(); console.error('OSMD:',err); throw err; }
  const isXml=!!AN.source&&AN.source.kind==='xml', autoBeam=isXml&&!/<beam[\s>]/.test(SCORE.xml);   // generated scores already carry <beam> groups per voice
  const oneStaffPart=(SCORE.xml.match(/<score-part[\s>]/g)||[]).length<=1;   // a lone piano needs no "Instr. P1" at the left
  scorePatchOsmd();
@@ -4007,6 +4008,11 @@ function scorePaintIdx(i){ (SCORE.heads.get(i)||[]).forEach(scorePaintEl); }
 function scorePaint(){ SCORE.heads.forEach(list=>list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function scorePatchOsmd(){ patchOsmdPedals(globalThis.opensheetmusicdisplay); }
+function showNotationReloadPrompt(){
+ const copy=notationReloadMessage(lang), box=document.createElement('div'); box.setAttribute('role','alert'); box.className='notation-reload';
+ box.innerHTML='<p></p><button type="button"></button>'; box.querySelector('p').textContent=copy.message; box.querySelector('button').textContent=copy.button;
+ box.querySelector('button').addEventListener('click',()=>location.reload()); document.body.append(box);
+}
 // Text-pedal skylines can miss ledger notes, and a release with no staff entry can land on its press glyph.
 // Place actual glyph ink without changing event timing. Recompute from native positions on every call.
 function scoreFixPedals(box){ let unresolved=0;
@@ -5044,6 +5050,7 @@ function scoreXmlLayout(doc){
 async function anReadXml(file,title){
  let xml;
  if(/\.mxl$/i.test(file.name)){ const buf=await file.arrayBuffer(); await anMxlPreflight(buf);
+  await loadOsmd();
   try{ xml=await opensheetmusicdisplay.MXLHelper.MXLtoXMLstring(buf); }catch(err){ console.error(err); throw anError('mxl'); }
   if(xml.length>AN_MAX_XML_CHARS) throw anError('mxlbig'); }
  else xml=await file.text();
