@@ -6,6 +6,7 @@ import * as audio from './audio.js';
 import type { AudioTone } from './audio.js';
 import * as notationApi from './notation.js';
 import * as router from './router.js';
+import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml } from './dom.js';
 import type {
   EtudeSurface,
   ViewApplicationState,
@@ -22,32 +23,7 @@ function runtimeErrorMessage(value: unknown): string {
   return value instanceof Error ? value.message : String(value);
 }
 
-type RuntimeElement = HTMLElement & {
-  _filled?: boolean;
-  value: string;
-  checked: boolean;
-  disabled: boolean;
-  hidden: boolean;
-  dataset: DOMStringMap;
-};
-
 declare global {
-  interface Element {
-    dataset: DOMStringMap;
-    title: string;
-    value: string;
-    checked: boolean;
-    disabled: boolean;
-    hidden: string | boolean;
-    isContentEditable: boolean;
-    tabIndex: number;
-    style: CSSStyleDeclaration;
-    offsetWidth: number;
-    offsetHeight: number;
-    click(): void;
-    focus(options?: { preventScroll?: boolean }): void;
-  }
-
   interface Navigator {
     bluetooth?: {
       requestDevice(options?: Record<string, unknown>): Promise<{
@@ -201,8 +177,8 @@ const SCALE_DEG = SCALE_DEGREE_LABELS;
 const CHORD_DEG = CHORD_DEGREE_LABELS;
 const MAJOR = [0, 2, 4, 5, 7, 9, 11], ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 const PROGS = PROGRESSION_TEMPLATES;
-function progChordTpl(sym) { return CHORDS.find((c) => c.symbol === sym); }
-function dispSym(s) { return s === 'maj' ? '' : s; }
+function progChordTpl(sym: string) { return CHORDS.find((c) => c.symbol === sym); }
+function dispSym(s: string) { return s === 'maj' ? '' : s; }
 /* Accompaniment: extra popular progressions + rhythmic playing patterns. */
 const ACCOMP_PROGS = PROGS.concat([
     { name: 'I–V–vi–iii–IV–I (Pachelbel pop)', chords: [[0, 'maj', 'I'], [7, 'maj', 'V'], [9, 'm', 'vi'], [4, 'm', 'iii'], [5, 'maj', 'IV'], [0, 'maj', 'I']] },
@@ -237,15 +213,15 @@ for (const [k, obj] of Object.entries(ACCOMP_I18N)) {
 const CIRCLE = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
 /* ---------- i18n ---------- */
 let lang: AppLanguage = 'en';
-function ivName(semi) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
+function ivName(semi: number) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
     return d[semi]; return (INTERVALS.find((x) => x.semi === semi) || {}).name || COMPOUND[semi] || '?'; }
-function scaleDisp(n) { const d = I18N_MUSIC.scales[lang]; return (d && d[n]) || n; }
-function chordDisp(c) { const sym = typeof c === 'string' ? c : c.symbol, name = typeof c === 'string' ? c : c.name, d = I18N_MUSIC.chords[lang]; return (d && d[sym]) || name; }
-function catLabel(cat) { const d = I18N_MUSIC.categories[lang]; return (d && d[cat]) || (CATS[cat] && CATS[cat].label) || cat; }
-function invName(i) { const d = I18N_MUSIC.inversions[lang]; return (d && d[i]) || INV_NAMES[i] || ''; }
-function feelDisp(sym) { const d = I18N_MUSIC.feels[lang]; return (d && d[sym]) || CHORD_FEEL[sym] || ''; }
-function itemLabel(it) { return it.cat === 'interval' ? ivName(it.semi) : it.cat === 'chord' ? chordDisp(it.ref) : it.cat === 'scale' ? scaleDisp(it.name) : it.ref.name; }
-function songsFor(semi, dir) { const src = (I18N_MUSIC.songs && I18N_MUSIC.songs[lang]) || SONGS; return (src[semi] || {})[dir] || []; }
+function scaleDisp(n: string) { const d = I18N_MUSIC.scales[lang]; return (d && d[n]) || n; }
+function chordDisp(c: theory.ChordTemplate|undefined) { const sym = typeof c === 'string' ? c : c.symbol, name = typeof c === 'string' ? c : c.name, d = I18N_MUSIC.chords[lang]; return (d && d[sym]) || name; }
+function catLabel(cat: string) { const d = I18N_MUSIC.categories[lang]; return (d && d[cat]) || (CATS[cat] && CATS[cat].label) || cat; }
+function invName(i: number) { const d = I18N_MUSIC.inversions[lang]; return (d && d[i]) || INV_NAMES[i] || ''; }
+function feelDisp(sym: string|number) { const d = I18N_MUSIC.feels[lang]; return (d && d[sym]) || CHORD_FEEL[sym] || ''; }
+function itemLabel(it: { cat: string; semi: any; ref: { name: any; }; name: any; }) { return it.cat === 'interval' ? ivName(it.semi) : it.cat === 'chord' ? chordDisp(it.ref) : it.cat === 'scale' ? scaleDisp(it.name) : it.ref.name; }
+function songsFor(semi: number, dir: string) { const src = (I18N_MUSIC.songs && I18N_MUSIC.songs[lang]) || SONGS; return (src[semi] || {})[dir] || []; }
 /* V3 pages: strings for Today plan, Learn progress, Songs ear check, Progress, a11y labels */
 /* V5: highlight toggle and contextual coaching (Reading focus · What to notice · Next step). %a %b %c are filled by tf(). */
 /* Bluetooth MIDI, answering by ear on the keys, rhythm lengths & two hands, installed app & screen */
@@ -255,7 +231,7 @@ function applyI18n() {
     (document).querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
     if (!activeInputId) {
         midiMsg = null;
-        const ss = $('set-midi-status');
+        const ss = byId('set-midi-status');
         if (ss)
             ss.textContent = t('midi_off');
     }
@@ -268,31 +244,31 @@ function applyI18n() {
     pwaUi();
     fsUi();
 }
-function setLang(l) {
+function setLang(l: string|undefined) {
     lang = l;
     viewState.language = lang;
     (document).querySelectorAll('#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === l ? 'true' : 'false'));
     applyI18n();
-    const rr = $('refRoot').value, kc = $('keyCtx').value, sr = $('song-root').value, pk = $('pr-key').value, rn = $('refName').value; // re-fill selects so "All keys"/"none"/scale names re-localise
-    fillRoots($('refRoot'), false);
-    fillRoots($('song-root'), false);
-    fillRoots($('pr-key'), true);
+    const rr = selectById('refRoot').value, kc = selectById('keyCtx').value, sr = selectById('song-root').value, pk = selectById('pr-key').value, rn = selectById('refName').value; // re-fill selects so "All keys"/"none"/scale names re-localise
+    fillRoots(byId('refRoot'), false);
+    fillRoots(byId('song-root'), false);
+    fillRoots(byId('pr-key'), true);
     fillRefNames();
     fillKeyCtx();
-    $('refRoot').value = String(rr || 0);
-    $('song-root').value = String(sr || 0);
-    $('pr-key').value = String(pk || 'all');
-    $('keyCtx').value = String(kc || '-1');
+    selectById('refRoot').value = String(rr || 0);
+    selectById('song-root').value = String(sr || 0);
+    selectById('pr-key').value = String(pk || 'all');
+    selectById('keyCtx').value = String(kc || '-1');
     if (rn)
-        $('refName').value = rn;
-    const ssc = $('tr-sscale');
+        selectById('refName').value = rn;
+    const ssc = byId('tr-sscale');
     if (ssc && ssc._filled) {
         const v = ssc.value;
         ssc.innerHTML = '';
         Object.keys(SCALES).forEach((nm) => { const o = (document).createElement('option'); o.value = nm; o.textContent = scaleDisp(nm); ssc.appendChild(o); });
         ssc.value = v || 'Major (Ionian)';
     }
-    const ap = $('ac-pat');
+    const ap = byId('ac-pat');
     if (ap && ap._filled) {
         const v = ap.value;
         ap.innerHTML = '';
@@ -324,30 +300,27 @@ function setLang(l) {
     saveAll();
 }
 /* ---------- HELPERS ---------- */
-const $ = (id: string): RuntimeElement => {
-    return document.getElementById(id) as RuntimeElement;
-};
 const midiToFreq = midiToFrequency;
 const pc = pitchClass;
-const isFlatKey = (p) => [3, 5, 8, 10].includes(((p % 12) + 12) % 12);
-const rootName = (p) => NOTE_SYS[notation].root[((p % 12) + 12) % 12];
-function pcName(p, flat) { return (flat ? NOTE_SYS[notation].flat : NOTE_SYS[notation].sharp)[((p % 12) + 12) % 12]; }
-function noteName(m, flat) { return pcName(pc(m), flat) + (Math.floor(m / 12) - 1); }
-function setEq(a, b) { if (a.length !== b.length)
+const isFlatKey = (p: number) => [3, 5, 8, 10].includes(((p % 12) + 12) % 12);
+const rootName = (p: number) => NOTE_SYS[notation].root[((p % 12) + 12) % 12];
+function pcName(p: number, flat: boolean) { return (flat ? NOTE_SYS[notation].flat : NOTE_SYS[notation].sharp)[((p % 12) + 12) % 12]; }
+function noteName(m: unknown, flat: boolean) { return pcName(pc(m), flat) + (Math.floor(m / 12) - 1); }
+function setEq(a: string|any[], b: string|any[]) { if (a.length !== b.length)
     return false; for (let i = 0; i < a.length; i++)
     if (a[i] !== b[i])
         return false; return true; }
-function isSubset(a, b) { return a.every((x) => b.includes(x)); }
-function randItem(a) { return a[Math.floor(Math.random() * a.length)]; }
-function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) {
+function isSubset(a: any[], b: string|any[]) { return a.every((x: any) => b.includes(x)); }
+function randItem(a: string|any[]) { return a[Math.floor(Math.random() * a.length)]; }
+function shuffle(a: string|any[]) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
 } return a; }
-function intervalLabel(semi) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
+function intervalLabel(semi: number) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
     return d[semi]; const C = lang === 'ro' ? RO_IV : COMPOUND; if (C[semi])
     return C[semi]; const oct = Math.floor(semi / 12), s = semi % 12; const base = s === 0 ? ivName(12) : ivName(s); return base + (lang === 'ro' ? (' + ' + oct + ' octav' + (oct > 1 ? 'e' : 'ă')) : (' + ' + oct + ' octave' + (oct > 1 ? 's' : ''))); }
-function chordFormula(c) { return formatChordFormula(c.intervals); }
-function scaleFormula(offs) { return formatScaleFormula(offs); }
+function chordFormula(c: { intervals: readonly number[]; }) { return formatChordFormula(c.intervals); }
+function scaleFormula(offs: readonly number[]) { return formatScaleFormula(offs); }
 const todayN = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); };
 /* ---------- AUDIO ENGINE ---------- */
 // Web Audio construction and voice ownership live in the typed audio domain.
@@ -355,14 +328,14 @@ const PIANO_KEYS = [21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 
 const PIANO_URLS = pianoUrls;
 const PIANO_WARM = [48, 84];
 const audioEngine = new AudioEngine({ pianoKeys: PIANO_KEYS, pianoUrls: PIANO_URLS, warmRange: PIANO_WARM, onPianoStatus: () => pianoStatus() });
-let actx = null;
-let master = null;
-let masterFilter = null;
-let comp = null;
+let actx: AudioContext|null = null;
+let master: GainNode|null = null;
+let masterFilter: BiquadFilterNode|null = null;
+let comp: DynamicsCompressorNode|null = null;
 let lfo = null;
-let lfoGain = null;
-let reverbNode = null;
-let reverbGain = null;
+let lfoGain: GainNode|null = null;
+let reverbNode: ConvolverNode|null = null;
+let reverbGain: GainNode|null = null;
 let muted = false;
 let masterVol = 0.72;
 let bendSemitones = 0;
@@ -420,26 +393,26 @@ function syncAudioState() {
 }
 function pianoStatus() {
     const message = t(pianoBank.status === 'ready' ? 'piano_ready' : pianoBank.status === 'error' ? 'piano_error' : 'piano_loading');
-    const global = $('piano-global-status');
+    const global = byId('piano-global-status');
     if (global) global.textContent = message;
-    const dock = $('piano-status');
+    const dock = byId('piano-status');
     if (dock) { dock.hidden = pianoBank.status === 'ready'; dock.textContent = message; }
 }
 function pianoKeys() { return pianoBank.keys; }
-function pianoNearest(midi) { return pianoBank.keys.reduce((best, key) => Math.abs(key - midi) < Math.abs(best - midi) ? key : best, pianoBank.keys[0] ?? 60); }
-function pianoFail(error) { pianoBank.fail(error); }
-let pianoDecode = (key) => pianoBank.decode(key);
-function pianoEnsure(midis) { return audioEngine.pianoEnsure(midis); }
+function pianoNearest(midi: number) { return pianoBank.keys.reduce((best, key) => Math.abs(key - midi) < Math.abs(best - midi) ? key : best, pianoBank.keys[0] ?? 60); }
+function pianoFail(error: unknown) { pianoBank.fail(error); }
+let pianoDecode = (key: number) => pianoBank.decode(key);
+function pianoEnsure(midis: unknown[]|readonly number[]) { return audioEngine.pianoEnsure(midis); }
 function pianoIdleWarm() { pianoBank.warmIdle(); }
 let preparePiano = () => pianoBank.prepare(PIANO_WARM);
-let makePianoVoice = (frequency, velocity, when, duration) => audioEngine.makePianoVoice(frequency, velocity, when, duration);
-function sampledPianoVoice(frequency, velocity, when, duration, options = {}) {
+let makePianoVoice = (frequency: number, velocity: number, when: number|undefined, duration: number|undefined) => audioEngine.makePianoVoice(frequency, velocity, when, duration);
+function sampledPianoVoice(frequency: number, velocity: number, when: number|undefined, duration: number|undefined, options = {}) {
     ensureAudio();
     const voice = audioEngine.sampledPianoVoice(frequency, velocity, when, duration, options, { decode: pianoDecode, fallbackVoice: makePianoVoice });
     syncAudioState();
     return voice;
 }
-function makeVoice(frequency, velocity, when, duration) {
+function makeVoice(frequency: number, velocity: number, when: number|undefined, duration: number|undefined) {
     ensureAudio();
     const voice = audioEngine.makeVoice(frequency, velocity, when, duration);
     syncAudioState();
@@ -455,49 +428,49 @@ let audioLockT = 0;
 function audioLockSync() {
     if (!actx || actx.state !== 'running') return;
     clearTimeout(audioLockT); audioLockT = 0;
-    const el = $('audioLock'); if (el) el.hidden = true;
+    const el = byId('audioLock'); if (el) el.hidden = true;
 }
 function audioLockCheck() {
     if (!localSynth || !actx || actx.state === 'running' || audioLockT) return;
-    audioLockT = setTimeout(() => { audioLockT = 0; const el = $('audioLock'); if (el && localSynth && actx && actx.state !== 'running') el.hidden = false; }, 300);
+    audioLockT = setTimeout(() => { audioLockT = 0; const el = byId('audioLock'); if (el && localSynth && actx && actx.state !== 'running') el.hidden = false; }, 300);
 }
 function audioUnlock() { ensureAudio(); const context = actx; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
-function audioNoteOn(midi, velocity) { syncAudioState(); audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); syncAudioState(); }
-function audioNoteOff(midi) { audioEngine.noteOff(midi); syncAudioState(); }
+function audioNoteOn(midi: number, velocity: any) { syncAudioState(); audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); syncAudioState(); }
+function audioNoteOff(midi: unknown) { audioEngine.noteOff(midi); syncAudioState(); }
 function stopPreviews() { clearExplorePreview(); audioEngine.stopPreviews(); syncAudioState(); }
-function setBendFromValue(value) { audioEngine.setBendFromValue(value); bendSemitones = audioEngine.bendSemitones; }
-function masterRamp(value) { audioEngine.masterRamp(value); syncAudioState(); }
-function startDrone(rootPc) { audioEngine.startDrone(rootPc); syncAudioState(); }
+function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); bendSemitones = audioEngine.bendSemitones; }
+function masterRamp(value: number) { audioEngine.masterRamp(value); syncAudioState(); }
+function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); syncAudioState(); }
 function stopDrone() { audioEngine.stopDrone(); syncAudioState(); }
 function startMetro() { audioEngine.startMetro(metro.bpm); metro.on = true; metro.timer = true; }
 function stopMetro() { audioEngine.stopMetro(); metro.on = false; metro.timer = null; }
 function metroSched() { audioEngine.startMetro(metro.bpm); }
-function metroClick(when, accent) { audioEngine.metroClick(when, accent); }
-let previewNote = function previewNote(midi, when, duration, velocity, options = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); syncAudioState(); }
-let playInterval = (rootMidi, semitones, style) => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); syncAudioState(); };
-function playIvDir(root, semitones, direction) { if (direction === 'desc') playInterval(root + semitones, -semitones, 'both'); else playInterval(root, semitones, 'both'); }
-function playChordMidis(midis, arpeggio) {
+function metroClick(when: number, accent: boolean) { audioEngine.metroClick(when, accent); }
+let previewNote = function previewNote(midi: number, when: number|undefined, duration: number|undefined, velocity: number|undefined, options = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); syncAudioState(); }
+let playInterval = (rootMidi: number, semitones: number, style: string) => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); syncAudioState(); };
+function playIvDir(root: number, semitones: number, direction: string) { if (direction === 'desc') playInterval(root + semitones, -semitones, 'both'); else playInterval(root, semitones, 'both'); }
+function playChordMidis(midis: any[], arpeggio: boolean) {
     ensureAudio(); stopPreviews();
-    exploreSequence(arpeggio ? midis.map((midi, index) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
+    exploreSequence(arpeggio ? midis.map((midi: any, index: number) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
     const start = actx?.currentTime ?? 0;
-    if (arpeggio) { midis.forEach((midi, index) => previewNote(midi, start + index * 0.16, 0.4)); midis.forEach((midi) => previewNote(midi, start + midis.length * 0.16 + 0.1, 1.1)); }
-    else midis.forEach((midi) => previewNote(midi, start, 1.2));
+    if (arpeggio) { midis.forEach((midi: any, index: number) => previewNote(midi, start + index * 0.16, 0.4)); midis.forEach((midi: any) => previewNote(midi, start + midis.length * 0.16 + 0.1, 1.1)); }
+    else midis.forEach((midi: any) => previewNote(midi, start, 1.2));
 }
-function playScaleNotes(rootMidi, offsets, ascending) {
+function playScaleNotes(rootMidi: number, offsets: any[]|readonly number[], ascending: boolean) {
     ensureAudio(); stopPreviews();
     const start = actx?.currentTime ?? 0; let sequence = offsets.concat([12]);
     if (!ascending) sequence = sequence.slice().reverse();
-    exploreSequence(sequence.map((offset, index) => ({ at: index * 270, notes: [rootMidi + offset] })).concat([{ at: sequence.length * 270, notes: [] }]));
-    sequence.forEach((offset, index) => previewNote(rootMidi + offset, start + index * 0.27, 0.26));
+    exploreSequence(sequence.map((offset: any, index: number) => ({ at: index * 270, notes: [rootMidi + offset] })).concat([{ at: sequence.length * 270, notes: [] }]));
+    sequence.forEach((offset: any, index: number) => previewNote(rootMidi + offset, start + index * 0.27, 0.26));
 }
 const droneVoices = audioEngine.droneVoices;
 const TONES = { soft: { w: ['triangle', 'sawtooth', 'sawtooth'], cut: 6 }, bright: { w: ['sawtooth', 'sawtooth', 'square'], cut: 9 }, organ: { w: ['sine', 'sine', 'sine'], cut: 14, oct: [0, 1200, 1902] }, mellow: { w: ['sine', 'triangle', 'sine'], cut: 3.2 }, glass: { w: ['sine', 'triangle', 'square'], cut: 11 } };
-let _noiseBuf = null;
+let _noiseBuf: null = null;
 function noiseBuffer() { return _noiseBuf; }
 function makeIR() { return null; }
 /* ---------- ACCOMPANIMENT LOOP ---------- */
 const accomp = { on: false, progIdx: 0, key: 0, pattern: 'block', bpm: 90, hands: 'both', click: false, timer: null, hlTimers: [], built: null, beatSec: .5, loopDur: 0, nextLoop: 0 };
-function accompVoicing(ch) {
+function accompVoicing(ch: any[]|readonly [number,string,string]) {
     const rootPc = (((accomp.key + ch[0]) % 12) + 12) % 12;
     const tpl = progChordTpl(ch[1]) || progChordTpl('maj');
     const ivs = tpl.intervals.filter((i) => i < 24);
@@ -510,26 +483,26 @@ function accompVoicing(ch) {
 function buildAccomp() {
     const prog = ACCOMP_PROGS[accomp.progIdx] || ACCOMP_PROGS[0];
     const pat = ACCOMP_PATTERNS[accomp.pattern] || ACCOMP_PATTERNS.block;
-    const ev = [];
+    const ev: AccompanimentEvent[] = [];
     let beat = 0;
     prog.chords.forEach((ch) => { pat.gen(ev, beat, accompVoicing(ch)); beat += pat.beats; });
     return { events: ev, beatsTotal: beat };
 }
-function accompTimer(fn, ms) {
+function accompTimer(fn: { (): void; (): void; (): void; (): void; }, ms: number) {
     const id = setTimeout(() => { const i = accomp.hlTimers.indexOf(id); if (i >= 0)
         accomp.hlTimers.splice(i, 1); fn(); }, Math.max(0, ms));
     accomp.hlTimers.push(id);
 }
-function accompHL(midi, st, onMs, offMs) {
+function accompHL(midi: any, st: string, onMs: number, offMs: number) {
     accompTimer(() => { if (accomp.on)
         kbState(midi, st, true); }, onMs);
     accompTimer(() => { if (!accomp.on)
         return; const el = keyEl.get(foldToView(midi)); if (el && el.dataset.s === st)
         kbState(midi, null, true); }, offMs);
 }
-function scheduleAccompAt(t0) {
+function scheduleAccompAt(t0: number) {
     const bs = accomp.beatSec;
-    accomp.built.events.forEach((e) => {
+    accomp.built.events.forEach((e: { hand: string; beat: number; durB: number; midi: any; }) => {
         if (accomp.hands !== 'both' && e.hand !== (accomp.hands === 'left' ? 'L' : 'R'))
             return;
         const when = t0 + e.beat * bs, dur = Math.max(.12, e.durB * bs * 0.95);
@@ -542,7 +515,7 @@ function scheduleAccompAt(t0) {
         accompTimer(() => { if (accomp.on)
             acChainHL(i); }, (t0 + i * per * bs - actx.currentTime) * 1000);
 }
-function acChainHL(i) { (document).querySelectorAll('#ac-chain .ch').forEach((el, k) => el.classList.toggle('on', k === i)); }
+function acChainHL(i: number) { (document).querySelectorAll('#ac-chain .ch').forEach((el, k) => el.classList.toggle('on', k === i)); }
 function accompTick() { if (!accomp.on || !actx)
     return; while (accomp.nextLoop < actx.currentTime + 0.6) {
     scheduleAccompAt(accomp.nextLoop);
@@ -567,7 +540,7 @@ function accompStart() {
     accomp.timer = setInterval(accompTick, 40);
     accompTick();
 }
-function accompStop(silent) {
+function accompStop(silent: boolean|undefined) {
     accomp.on = false;
     if (accomp.timer) {
         clearInterval(accomp.timer);
@@ -586,8 +559,8 @@ function accompStop(silent) {
 }
 /* ---------- TRANSCRIBE (hum → notes) ---------- */
 const trx = { on: false, pending: false, micRequest: 0, stream: null, src: null, analyser: null, buf: null, raf: 0, notes: [], display: null, curMidi: null, curStart: 0, lastVoice: 0, ring: [], hlTimers: [] };
-function trxFreqToMidi(f) { return Math.round(69 + 12 * Math.log2(f / 440)); }
-function trxAutoCorrelate(buf, sr) {
+function trxFreqToMidi(f: number) { return Math.round(69 + 12 * Math.log2(f / 440)); }
+function trxAutoCorrelate(buf: number[]|null, sr: number) {
     let SIZE = buf.length, rms = 0;
     for (let i = 0; i < SIZE; i++)
         rms += buf[i] * buf[i];
@@ -643,12 +616,12 @@ async function trxStart()  {
         return;
     ensureAudio();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        $('tr-msg').textContent = t('tr_micfail');
+        byId('tr-msg').textContent = t('tr_micfail');
         return;
     }
     const request = ++trx.micRequest;
     trx.pending = true;
-    $('tr-rec').textContent = t('tr_stop');
+    byId('tr-rec').textContent = t('tr_stop');
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
         if (request !== trx.micRequest || view0() !== 'transcribe') {
@@ -661,12 +634,12 @@ async function trxStart()  {
     catch (e) {
         if (request === trx.micRequest) {
             trx.pending = false;
-            $('tr-rec').textContent = t('tr_rec');
-            $('tr-msg').textContent = t('tr_micfail');
+            byId('tr-rec').textContent = t('tr_rec');
+            byId('tr-msg').textContent = t('tr_micfail');
         }
         return;
     }
-    $('tr-msg').textContent = '';
+    byId('tr-msg').textContent = '';
     trx.src = actx.createMediaStreamSource(trx.stream);
     trx.analyser = actx.createAnalyser();
     trx.analyser.fftSize = 2048;
@@ -678,15 +651,15 @@ async function trxStart()  {
     trx.curMidi = null;
     trx.ring = [];
     trx.lastVoice = actx.currentTime;
-    $('tr-rec').classList.add('rec-on');
-    $('tr-rec').textContent = t('tr_stop');
-    $('tr-live').classList.add('rec');
-    $('tr-actions').style.display = 'none';
-    $('tr-out').innerHTML = '';
+    byId('tr-rec').classList.add('rec-on');
+    byId('tr-rec').textContent = t('tr_stop');
+    byId('tr-live').classList.add('rec');
+    byId('tr-actions').style.display = 'none';
+    byId('tr-out').innerHTML = '';
     trxLoop();
 }
 function trxMedian() { const a = trx.ring.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; }
-function trxCloseNote(tEnd) { if (trx.curMidi == null)
+function trxCloseNote(tEnd: number) { if (trx.curMidi == null)
     return; const dur = tEnd - trx.curStart; if (dur >= 0.09)
     trx.notes.push({ midi: trx.curMidi, start: trx.curStart, dur }); trx.curMidi = null; }
 function trxLoop() {
@@ -699,7 +672,7 @@ function trxLoop() {
             trxCloseNote(now);
             trx.ring = [];
         }
-        $('tr-live').textContent = '—';
+        byId('tr-live').textContent = '—';
     }
     else {
         trx.lastVoice = now;
@@ -709,7 +682,7 @@ function trxLoop() {
         if (trx.ring.length > 5)
             trx.ring.shift();
         const sm = trxMedian(), cents = Math.round(1200 * Math.log2(f / midiToFreq(sm)));
-        $('tr-live').innerHTML = noteName(sm, false) + '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>';
+        byId('tr-live').innerHTML = noteName(sm, false) + '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>';
         if (trx.ring.length >= 3) {
             if (trx.curMidi == null) {
                 trx.curMidi = sm;
@@ -727,7 +700,7 @@ function trxLoop() {
 function trxStop() {
     trx.micRequest++;
     trx.pending = false;
-    $('tr-rec').textContent = t('tr_rec');
+    byId('tr-rec').textContent = t('tr_rec');
     if (!trx.on)
         return;
     trx.on = false;
@@ -741,19 +714,19 @@ function trxStop() {
         trx.src = null;
     }
     if (trx.stream) {
-        trx.stream.getTracks().forEach((t) => t.stop());
+        trx.stream.getTracks().forEach((t: { stop: () => any; }) => t.stop());
         trx.stream = null;
     }
-    $('tr-rec').classList.remove('rec-on');
-    $('tr-rec').textContent = t('tr_rec');
-    $('tr-live').classList.remove('rec');
-    $('tr-live').textContent = '—';
+    byId('tr-rec').classList.remove('rec-on');
+    byId('tr-rec').textContent = t('tr_rec');
+    byId('tr-live').classList.remove('rec');
+    byId('tr-live').textContent = '—';
     trxRender();
 }
-function trxSnap(midi) {
-    if (!$('tr-snap').checked)
+function trxSnap(midi: number) {
+    if (!inputById('tr-snap').checked)
         return midi;
-    const root = +($('tr-skey').value || 0), scale = SCALES[$('tr-sscale').value] || SCALES['Major (Ionian)'], set = scale.map((s) => (root + s) % 12);
+    const root = +(selectById('tr-skey').value || 0), scale = SCALES[selectById('tr-sscale').value] || SCALES['Major (Ionian)'], set = scale.map((s) => (root + s) % 12);
     let best = midi, bd = 99;
     for (let dd = -2; dd <= 2; dd++) {
         if (set.includes(((midi + dd) % 12 + 12) % 12) && Math.abs(dd) < bd) {
@@ -764,21 +737,21 @@ function trxSnap(midi) {
     return best;
 }
 const TRX_VALS = [{ b: 4, l: '1/1' }, { b: 3, l: '1/2.' }, { b: 2, l: '1/2' }, { b: 1.5, l: '1/4.' }, { b: 1, l: '1/4' }, { b: 0.75, l: '1/8.' }, { b: 0.5, l: '1/8' }, { b: 0.25, l: '1/16' }];
-function trxDurLabel(beats) { let best = TRX_VALS[0], bd = 1e9; TRX_VALS.forEach((v) => { const d = Math.abs(v.b - beats); if (d < bd) {
+function trxDurLabel(beats: number) { let best = TRX_VALS[0], bd = 1e9; TRX_VALS.forEach((v) => { const d = Math.abs(v.b - beats); if (d < bd) {
     bd = d;
     best = v;
 } }); return best.l; }
 function trxRender() {
-    const out = $('tr-out');
+    const out = byId('tr-out');
     out.innerHTML = '';
     if (!trx.notes.length) {
-        $('tr-msg').textContent = t('tr_none');
-        $('tr-actions').style.display = 'none';
+        byId('tr-msg').textContent = t('tr_none');
+        byId('tr-actions').style.display = 'none';
         return;
     }
-    $('tr-msg').textContent = '';
-    trx.bpm = +($('tr-bpm').value || 90);
-    const beatSec = 60 / trx.bpm, quant = $('tr-quant').checked, step = 4 / (+($('tr-gridSel').value || 8)); // step in beats
+    byId('tr-msg').textContent = '';
+    trx.bpm = +(inputById('tr-bpm').value || 90);
+    const beatSec = 60 / trx.bpm, quant = inputById('tr-quant').checked, step = 4 / (+(selectById('tr-gridSel').value || 8)); // step in beats
     const base = trx.notes[0].start;
     trx.display = trx.notes.map((n) => {
         let sb = (n.start - base) / beatSec, db = n.dur / beatSec;
@@ -788,15 +761,15 @@ function trxRender() {
         }
         return { midi: trxSnap(n.midi), sb, db, label: quant ? trxDurLabel(db) : '' };
     });
-    const maxDb = Math.max(...trx.display.map((n) => n.db));
-    trx.display.forEach((n) => {
+    const maxDb = Math.max(...trx.display.map((n: { db: any; }) => n.db));
+    trx.display.forEach((n: { db: number; midi: any; label: string; }) => {
         const w = Math.max(16, Math.round(120 * n.db / maxDb));
         const el = (document).createElement('div');
         el.className = 'tr-note';
         el.innerHTML = '<span class="nm">' + noteName(n.midi, false) + '</span><span class="bar" style="width:' + w + 'px"></span>' + (n.label ? '<span class="dl">' + n.label + '</span>' : '');
         out.appendChild(el);
     });
-    $('tr-actions').style.display = 'flex';
+    byId('tr-actions').style.display = 'flex';
 }
 function trxPlay() {
     if (!trx.display || !trx.display.length)
@@ -806,7 +779,7 @@ function trxPlay() {
     trx.hlTimers.forEach(clearTimeout);
     trx.hlTimers = [];
     const beatSec = 60 / (trx.bpm || 90), t0 = actx.currentTime + 0.12;
-    trx.display.forEach((n) => {
+    trx.display.forEach((n: { sb: number; db: number; midi: any; }) => {
         const when = t0 + n.sb * beatSec, dur = Math.max(0.12, n.db * beatSec * 0.95), onMs = (when - actx.currentTime) * 1000;
         previewNote(n.midi, when, dur, 100);
         trx.hlTimers.push(setTimeout(() => kbState(n.midi, 'rh', true), Math.max(0, onMs)));
@@ -815,15 +788,15 @@ function trxPlay() {
     });
 }
 /* MIDI / text export */
-function trxPushVar(arr, v) { v = Math.max(0, Math.round(v)); const b = [v & 0x7F]; v >>= 7; while (v > 0) {
+function trxPushVar(arr: any[], v: number) { v = Math.max(0, Math.round(v)); const b = [v & 0x7F]; v >>= 7; while (v > 0) {
     b.unshift((v & 0x7F) | 0x80);
     v >>= 7;
 } b.forEach((x) => arr.push(x)); }
 function trxBuildMidi() {
-    const TPQN = 480, bpm = trx.bpm || 90, ev = [];
-    trx.display.forEach((n) => { const on = Math.round(n.sb * TPQN), off = on + Math.max(1, Math.round(n.db * TPQN)); ev.push({ t: on, k: 1, m: n.midi }); ev.push({ t: off, k: 0, m: n.midi }); });
+    const TPQN = 480, bpm = trx.bpm || 90, ev: { t: number; k: number; m: any; }[] = [];
+    trx.display.forEach((n: { sb: number; db: number; midi: any; }) => { const on = Math.round(n.sb * TPQN), off = on + Math.max(1, Math.round(n.db * TPQN)); ev.push({ t: on, k: 1, m: n.midi }); ev.push({ t: off, k: 0, m: n.midi }); });
     ev.sort((a, b) => a.t - b.t || a.k - b.k);
-    const trk = [], mpqn = Math.round(60000000 / bpm);
+    const trk: ArrayLike<number> = [], mpqn = Math.round(60000000 / bpm);
     trxPushVar(trk, 0);
     trk.push(0xFF, 0x51, 0x03, (mpqn >> 16) & 255, (mpqn >> 8) & 255, mpqn & 255);
     let last = 0;
@@ -838,20 +811,20 @@ function trxBuildMidi() {
     out.set(trk, head.length + th.length);
     return out;
 }
-function trxDownload(name, blob) { const url = URL.createObjectURL(blob), a = (document).createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
+function trxDownload(name: string, blob: Blob|MediaSource) { const url = URL.createObjectURL(blob), a = (document).createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
 function trxExportMidi() { if (!trx.display || !trx.display.length)
     return; trxDownload('etude-melody.mid', new Blob([trxBuildMidi()], { type: 'audio/midi' })); }
 function trxExportTxt() { if (!trx.display || !trx.display.length)
-    return; const txt = 'Étude — melody\nTempo: ' + (trx.bpm || 90) + ' BPM\n\nNote\tValue\n' + trx.display.map((n) => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
-function trxClear() { trxStop(); trx.notes = []; trx.display = null; trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; kbClear('rh'); $('tr-out').innerHTML = ''; $('tr-actions').style.display = 'none'; $('tr-msg').textContent = ''; }
+    return; const txt = 'Étude — melody\nTempo: ' + (trx.bpm || 90) + ' BPM\n\nNote\tValue\n' + trx.display.map((n: { midi: any; label: any; }) => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
+function trxClear() { trxStop(); trx.notes = []; trx.display = null; trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; kbClear('rh'); byId('tr-out').innerHTML = ''; byId('tr-actions').style.display = 'none'; byId('tr-msg').textContent = ''; }
 function renderTranscribe() {
-    const ks = $('tr-skey');
+    const ks = byId('tr-skey');
     if (ks) {
         const v = ks.value;
         fillRoots(ks, false);
         ks.value = String(v || 0);
     }
-    const ss = $('tr-sscale');
+    const ss = byId('tr-sscale');
     if (ss && !ss._filled) {
         Object.keys(SCALES).forEach((nm) => { const o = (document).createElement('option'); o.value = nm; o.textContent = scaleDisp(nm); ss.appendChild(o); });
         ss._filled = true;
@@ -866,14 +839,14 @@ const SS_SYL_MAJ = ['do', 're', 'mi', 'fa', 'sol', 'la', 'ti'], SS_SYL_MIN = ['l
 const SS_MAJ = { 0: { r: 0, n: 0 }, 7: { r: 4, n: 1 }, 2: { r: 1, n: 2 }, 9: { r: 5, n: 3 }, 4: { r: 2, n: 4 }, 11: { r: 6, n: 5 }, 5: { r: 3, n: -1 }, 10: { r: 6, n: -2 }, 3: { r: 2, n: -3 }, 8: { r: 5, n: -4 }, 1: { r: 1, n: -5 } };
 const SS_MIN = { 9: 5, 4: 2, 2: 1, 11: 6, 7: 4, 0: 0, 5: 3 }; // minor tonic pc -> tonic letter index
 const SS_SHARP_ORDER = [3, 0, 4, 1, 5, 2, 6], SS_FLAT_ORDER = [6, 2, 5, 1, 4, 0, 3];
-function ssKeyAcc(n) { const a = [0, 0, 0, 0, 0, 0, 0]; if (n > 0)
+function ssKeyAcc(n: number) { const a = [0, 0, 0, 0, 0, 0, 0]; if (n > 0)
     for (let i = 0; i < n; i++)
         a[SS_SHARP_ORDER[i]] = 1;
 else
     for (let i = 0; i < -n; i++)
         a[SS_FLAT_ORDER[i]] = -1; return a; }
-function ssStepOf(li, oct) { return oct * 7 + li; }
-function ssMidiOf(li, oct, acc) { return (oct + 1) * 12 + SS_LETSEMI[li] + (acc || 0); }
+function ssStepOf(li: number, oct: number) { return oct * 7 + li; }
+function ssMidiOf(li: number, oct: number, acc: number) { return (oct + 1) * 12 + SS_LETSEMI[li] + (acc || 0); }
 const SS_LEVELS = [
     { name: 'sol–mi', degs: [2, 4], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.85, bpm: 72 },
     { name: '+ la', degs: [2, 4, 5], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.8, bpm: 74 },
@@ -883,10 +856,10 @@ const SS_LEVELS = [
     { name: 'minor keys', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [9, 4, 2], step: 0.7, bpm: 80, minor: true, raise7: 0.5, octaveUp: true },
     { name: 'rhythm & meter', degs: [0, 1, 2, 3, 4, 5, 6], durs: [2, 1.5, 1, 0.5], ts: [[4, 4], [3, 4], [6, 8]], bars: 4, keys: [0, 7, 5, 2, 10], step: 0.62, bpm: 84, octaveUp: true },
 ];
-function ssPick(a) { return a[Math.floor(Math.random() * a.length)]; }
-function ssNextDeg(prev, allowed, step) {
-    const w = allowed.map((p) => { const d = Math.abs(p - prev); return (d === 0 ? 0.12 : d <= 1 ? step : d <= 2 ? (1 - step) * 0.6 : (1 - step) * 0.3) + 0.01; });
-    let tot = w.reduce((a, b) => a + b, 0), r = Math.random() * tot;
+function ssPick(a: string|any[]) { return a[Math.floor(Math.random() * a.length)]; }
+function ssNextDeg(prev: number, allowed: any[], step: number) {
+    const w = allowed.map((p: number) => { const d = Math.abs(p - prev); return (d === 0 ? 0.12 : d <= 1 ? step : d <= 2 ? (1 - step) * 0.6 : (1 - step) * 0.3) + 0.01; });
+    let tot = w.reduce((a: any, b: any) => a + b, 0), r = Math.random() * tot;
     for (let i = 0; i < allowed.length; i++) {
         r -= w[i];
         if (r <= 0)
@@ -894,14 +867,14 @@ function ssNextDeg(prev, allowed, step) {
     }
     return allowed[0];
 }
-function ssMakeNote(p, tonicLi, baseOct, acc, minor, dur, raise7) {
+function ssMakeNote(p: number, tonicLi: any, baseOct: number, acc: any[], minor: boolean, dur: any, raise7: number|undefined) {
     const li = ((tonicLi + p) % 7 + 7) % 7, oct = baseOct + Math.floor((tonicLi + p) / 7);
     let a = acc[li];
     if (minor && (((p % 7) + 7) % 7) === 6 && Math.random() < (raise7 || 0))
         a = a + 1; // harmonic-minor raised 7th
     return { li, oct, acc: a, dur, p, midi: ssMidiOf(li, oct, a) };
 }
-function ssGen(level, clef, rangeShift) {
+function ssGen(level: number, clef: string, rangeShift: number) {
     const L = SS_LEVELS[Math.max(0, Math.min(SS_LEVELS.length - 1, level))], minor = !!L.minor;
     const keyPc = ssPick(L.keys), tonicLi = minor ? SS_MIN[keyPc] : SS_MAJ[keyPc].r, n = minor ? SS_MAJ[(keyPc + 3) % 12].n : SS_MAJ[keyPc].n, acc = ssKeyAcc(n);
     const ts = ssPick(L.ts), cap = ts[1] === 8 ? ts[0] * 0.5 : ts[0];
@@ -939,19 +912,19 @@ function ssGen(level, clef, rangeShift) {
 const CLEF_G = 'M376 415C374 427 376 428 382 434C398 449 419 470 438 491C522 583 572 702 572 815C572 902 548 988 507 1048C492 1070 466 1098 455 1098C441 1098 410 1072 390 1050C316 968 292 843 292 739C292 681 299 616 306 575C308 563 309 561 297 551C233 498 164 437 112 373C43 287 0 194 0 87C0 -87 119 -252 364 -252C387 -252 413 -250 433 -246C444 -244 446 -243 448 -255C460 -322 475 -409 475 -456C475 -604 375 -622 316 -622C262 -622 236 -606 236 -593C236 -586 245 -583 268 -576C299 -567 335 -540 335 -482C335 -427 300 -380 239 -380C172 -380 132 -433 132 -495C132 -560 171 -658 322 -658C389 -658 519 -628 519 -458C519 -401 501 -306 490 -244C488 -232 489 -233 503 -227C604 -187 671 -102 671 11C671 139 577 252 430 252C404 252 404 252 401 270ZM470 943C503 943 530 916 530 861C530 792 497 728 419 650C403 634 379 611 356 591C349 585 345 586 343 599C339 625 337 659 337 691C337 847 409 943 470 943ZM361 262C364 243 364 244 346 238C258 208 201 129 201 44C201 -46 248 -110 316 -133C324 -136 336 -139 343 -139C351 -139 355 -134 355 -128C355 -121 347 -118 340 -115C298 -97 268 -54 268 -8C268 49 307 92 368 109C384 113 386 112 388 101L438 -197C440 -208 439 -208 424 -211C408 -214 388 -216 368 -216C193 -216 80 -119 80 20C80 79 90 158 173 252C233 319 279 356 326 394C336 402 338 401 340 390ZM430 103C428 115 429 118 441 117C522 110 589 42 589 -46C589 -109 551 -160 495 -188C483 -194 481 -194 479 -182Z';
 const CLEF_F = 'M252 262C78 262 0 135 0 39C0 -41 42 -110 123 -110C186 -110 229 -66 229 -4C229 60 182 100 133 100C106 100 96 93 83 93C70 93 67 101 67 111C67 151 127 224 229 224C335 224 381 120 381 -37C381 -140 359 -260 297 -356C237 -449 134 -534 10 -605C1 -610 -5 -615 -5 -623C-5 -629 -1 -635 8 -635C13 -635 19 -633 25 -630C158 -565 286 -489 392 -375C479 -281 531 -159 531 -28C531 146 425 262 252 262ZM629 180C598 180 574 156 574 125C574 94 598 70 629 70C660 70 684 94 684 125C684 156 660 180 629 180ZM630 -71C599 -71 576 -94 576 -125C576 -156 599 -179 630 -179C661 -179 684 -156 684 -125C684 -94 661 -71 630 -71Z';
 const CLEF_SCALE = 0.044;
-function ssTrebleClef(x) { return srClef('treble', x, 46); }
-function ssBassClef(x) { return srClef('bass', x, 46); }
-function ssSharp(x, y) { return `<g class="ss-glyph"><line x1="${x}" y1="${y - 6}" x2="${x}" y2="${y + 6}" stroke="#1a1714" stroke-width="1"/><line x1="${x + 3.4}" y1="${y - 7}" x2="${x + 3.4}" y2="${y + 5}" stroke="#1a1714" stroke-width="1"/><line x1="${x - 2}" y1="${y - 2}" x2="${x + 5.4}" y2="${y - 3.2}" stroke="#1a1714" stroke-width="1.7"/><line x1="${x - 2}" y1="${y + 2.6}" x2="${x + 5.4}" y2="${y + 1.4}" stroke="#1a1714" stroke-width="1.7"/></g>`; }
-function ssFlat(x, y) { return `<path class="ss-glyph" fill="none" stroke="#1a1714" stroke-width="1.4" stroke-linecap="round" d="M ${x - 1},${y - 9} L ${x - 1},${y + 4} C ${x + 5},${y - 1} ${x + 4},${y - 5} ${x - 1},${y - 1.5}"/>`; }
-function ssNatural(x, y) { return `<g class="ss-glyph"><line x1="${x}" y1="${y - 7}" x2="${x}" y2="${y + 4}" stroke="#1a1714" stroke-width="1"/><line x1="${x + 4}" y1="${y - 4}" x2="${x + 4}" y2="${y + 7}" stroke="#1a1714" stroke-width="1"/><line x1="${x}" y1="${y - 3.5}" x2="${x + 4}" y2="${y - 4.7}" stroke="#1a1714" stroke-width="1.5"/><line x1="${x}" y1="${y + 2.2}" x2="${x + 4}" y2="${y + 1}" stroke="#1a1714" stroke-width="1.5"/></g>`; }
-function ssAccGlyph(a, k, x, y) { return a > 0 ? ssSharp(x, y) : a < 0 ? ssFlat(x, y) : ssNatural(x, y); }
-function ssNotehead(x, y, dur, onLine) {
+function ssTrebleClef(x: number) { return srClef('treble', x, 46); }
+function ssBassClef(x: number) { return srClef('bass', x, 46); }
+function ssSharp(x: number, y: number) { return `<g class="ss-glyph"><line x1="${x}" y1="${y - 6}" x2="${x}" y2="${y + 6}" stroke="#1a1714" stroke-width="1"/><line x1="${x + 3.4}" y1="${y - 7}" x2="${x + 3.4}" y2="${y + 5}" stroke="#1a1714" stroke-width="1"/><line x1="${x - 2}" y1="${y - 2}" x2="${x + 5.4}" y2="${y - 3.2}" stroke="#1a1714" stroke-width="1.7"/><line x1="${x - 2}" y1="${y + 2.6}" x2="${x + 5.4}" y2="${y + 1.4}" stroke="#1a1714" stroke-width="1.7"/></g>`; }
+function ssFlat(x: number, y: number) { return `<path class="ss-glyph" fill="none" stroke="#1a1714" stroke-width="1.4" stroke-linecap="round" d="M ${x - 1},${y - 9} L ${x - 1},${y + 4} C ${x + 5},${y - 1} ${x + 4},${y - 5} ${x - 1},${y - 1.5}"/>`; }
+function ssNatural(x: number, y: number) { return `<g class="ss-glyph"><line x1="${x}" y1="${y - 7}" x2="${x}" y2="${y + 4}" stroke="#1a1714" stroke-width="1"/><line x1="${x + 4}" y1="${y - 4}" x2="${x + 4}" y2="${y + 7}" stroke="#1a1714" stroke-width="1"/><line x1="${x}" y1="${y - 3.5}" x2="${x + 4}" y2="${y - 4.7}" stroke="#1a1714" stroke-width="1.5"/><line x1="${x}" y1="${y + 2.2}" x2="${x + 4}" y2="${y + 1}" stroke="#1a1714" stroke-width="1.5"/></g>`; }
+function ssAccGlyph(a: number, k: number, x: number, y: number) { return a > 0 ? ssSharp(x, y) : a < 0 ? ssFlat(x, y) : ssNatural(x, y); }
+function ssNotehead(x: number, y: number, dur: number, onLine: boolean|undefined) {
     const filled = dur < 2, rot = `rotate(-20 ${x} ${y})`;
     const e = `<ellipse class="ss-head${filled ? '' : ' ss-hollow'}" cx="${x}" cy="${y}" rx="6" ry="4.4" transform="${rot}"/>`;
     const dot = [0.375, 0.75, 1.5, 3].includes(dur) ? `<circle class="ss-head" cx="${x + 10}" cy="${onLine ? y - 6 : y - 1}" r="1.7"/>` : '';
     return e + dot;
 }
-function ssStem(x, y, dur) {
+function ssStem(x: number, y: number, dur: number) {
     if (dur >= 4)
         return '';
     const up = y > 70, sx = up ? x + 5.6 : x - 5.6, ey = up ? y - 32 : y + 32;
@@ -960,15 +933,15 @@ function ssStem(x, y, dur) {
         s += up ? `<path class="ss-flag" fill="none" stroke="#1a1714" stroke-width="1.8" d="M ${sx},${ey} C ${sx + 9},${ey + 5} ${sx + 9},${ey + 13} ${sx + 3},${ey + 17}"/>` : `<path class="ss-flag" fill="none" stroke="#1a1714" stroke-width="1.8" d="M ${sx},${ey} C ${sx + 9},${ey - 5} ${sx + 9},${ey - 13} ${sx + 3},${ey - 17}"/>`;
     return s;
 }
-function ssLedger(x, y) { let s = ''; if (y > 94) {
+function ssLedger(x: number, y: number) { let s = ''; if (y > 94) {
     for (let ly = 106; ly <= y + 1; ly += 12)
         s += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
 } if (y < 46) {
     for (let ly = 34; ly >= y - 1; ly -= 12)
         s += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
 } return s; }
-function ssKeySig(ex, x) {
-    const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li, oct) => 94 + (refStep - ssStepOf(li, oct)) * 6;
+function ssKeySig(ex: { clef: string; keyN: any; }, x: number) {
+    const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: number, oct: number) => 94 + (refStep - ssStepOf(li, oct)) * 6;
     const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]];
     const sB = [[3, 3], [0, 3], [4, 3], [1, 3], [5, 2], [2, 3], [6, 2]], fB = [[6, 2], [2, 3], [5, 2], [1, 3], [4, 2], [0, 3], [3, 2]];
     const n = ex.keyN, cnt = Math.abs(n), list = n > 0 ? (ex.clef === 'bass' ? sB : sT) : (ex.clef === 'bass' ? fB : fT);
@@ -980,10 +953,10 @@ function ssKeySig(ex, x) {
     }
     return { svg, w: cnt ? cnt * 9 + 6 : 6 };
 }
-function ssTimeSig(ts, x) { return `<text class="ss-num" x="${x + 9}" y="64">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="90">${ts[1]}</text>`; }
-function ssRender(ex) {
-    const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li, oct) => 94 + (refStep - ssStepOf(li, oct)) * 6, keyAcc = ssKeyAcc(ex.keyN);
-    let x = 10, body = '', noteX = [], idx = 0;
+function ssTimeSig(ts: any[], x: number) { return `<text class="ss-num" x="${x + 9}" y="64">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="90">${ts[1]}</text>`; }
+function ssRender(ex: never) {
+    const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: any, oct: any) => 94 + (refStep - ssStepOf(li, oct)) * 6, keyAcc = ssKeyAcc(ex.keyN);
+    let x = 10, body = '', noteX: { x: number; y: number; note: any; idx: number; }[] = [], idx = 0;
     body += ex.clef === 'bass' ? ssBassClef(x) : ssTrebleClef(x);
     x += 30;
     const ks = ssKeySig(ex, x);
@@ -991,8 +964,8 @@ function ssRender(ex) {
     x += ks.w;
     body += ssTimeSig(ex.ts, x);
     x += 26;
-    ex.measures.forEach((meas) => {
-        meas.forEach((note) => {
+    ex.measures.forEach((meas: any[]) => {
+        meas.forEach((note: { li: string|number; oct: any; acc: number; dur: number; p: number; }) => {
             const y = yOf(note.li, note.oct), nx = x + 10;
             let g = '';
             if (note.acc !== keyAcc[note.li])
@@ -1018,20 +991,20 @@ function ssRender(ex) {
 const sing = { ex: null, render: null, level: 0, clef: 'treble', mode: 'note', idx: 0, active: false, results: [], bpm: 80,
     runId: 0, micRequest: 0, analyser: null, stream: null, src: null, buf: null, raf: 0, ring: [], stable: 0, hint: 0, samples: [], keyEvents: [],
     hlTimers: [], playRaf: 0, playStart: 0, loopA: null, loopB: null };
-function ssFillLevels() { const sel = $('si-level'); if (!sel || sel._filled)
+function ssFillLevels() { const sel = byId('si-level'); if (!sel || sel._filled)
     return; SS_LEVELS.forEach((L, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = (i + 1) + ' · ' + L.name; sel.appendChild(o); }); sel._filled = true; }
 function ssDraw() { if (!sing.ex)
-    return; const r = ssRender(sing.ex); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = $('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !$('si-solf').checked); ssPaint(); }
-function ssPaint() { const svg = $('si-staff').querySelector('svg'); if (!svg)
+    return; const r = ssRender(sing.ex); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssPaint(); }
+function ssPaint() { const svg = byId('si-staff').querySelector('svg'); if (!svg)
     return; svg.querySelectorAll('.ss-n').forEach((g) => { const i = +g.dataset.i, res = sing.results[i]; if ((sing.mode === 'note') && sing.active && i === sing.idx)
     g.dataset.s = 'now';
 else if (res)
     g.dataset.s = res;
 else
     g.removeAttribute('data-s'); }); }
-function ssNewExercise() { sing.ex = ssGen(sing.level, sing.clef, 0); sing.idx = 0; sing.results = []; sing.active = false; sing.bpm = sing.ex.bpm; const bp = $('si-bpm'); if (bp) {
+function ssNewExercise() { sing.ex = ssGen(sing.level, sing.clef, 0); sing.idx = 0; sing.results = []; sing.active = false; sing.bpm = sing.ex.bpm; const bp = byId('si-bpm'); if (bp) {
     bp.value = sing.ex.bpm;
-    $('si-bpmLbl').textContent = sing.ex.bpm;
+    byId('si-bpmLbl').textContent = sing.ex.bpm;
 } ssDraw(); }
 function renderSing() { ssFillLevels(); if (!sing.ex || sing.ex.clef !== sing.clef || sing.ex.level !== sing.level)
     ssNewExercise();
@@ -1051,17 +1024,17 @@ function singStopAll() {
     stopMetro();
     stopDrone();
     ssPaint();
-    const g = $('si-go');
+    const g = byId('si-go');
     if (g)
         g.textContent = t(sing.mode === 'free' ? 'si_play' : 'si_listen');
-    const lv = $('si-live');
+    const lv = byId('si-live');
     if (lv) {
         lv.textContent = '—';
         lv.classList.remove('rec');
     }
 }
-function ssModeUI() { const m = sing.mode; const tw = $('si-tempo-wrap'); if (tw)
-    tw.style.display = (m === 'note') ? 'none' : 'flex'; const go = $('si-go'); if (go)
+function ssModeUI() { const m = sing.mode; const tw = byId('si-tempo-wrap'); if (tw)
+    tw.style.display = (m === 'note') ? 'none' : 'flex'; const go = byId('si-go'); if (go)
     go.textContent = t(m === 'free' ? 'si_play' : 'si_listen'); }
 /* ---- pitch input (mic, shared with Transcribe's autocorrelation) ---- */
 function ssMicStart() {
@@ -1083,17 +1056,17 @@ function ssMicStop() { sing.runId++; sing.micRequest++; if (sing.src) {
     catch (_) { }
     sing.src = null;
 } if (sing.stream) {
-    sing.stream.getTracks().forEach((t) => t.stop());
+    sing.stream.getTracks().forEach((t: { stop: () => any; }) => t.stop());
     sing.stream = null;
 } sing.analyser = null; }
 function ssReadPitch() { if (!sing.analyser)
     return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, actx.sampleRate); if (f < 0)
     return null; const midi = Math.round(69 + 12 * Math.log2(f / 440)), cents = Math.round(1200 * Math.log2(f / (440 * Math.pow(2, (midi - 69) / 12)))); return { f, midi, cents }; }
-function ssNeed(targetPc, sungPc) { let d = ((targetPc - sungPc) % 12 + 12) % 12; if (d > 6)
+function ssNeed(targetPc: number, sungPc: number) { let d = ((targetPc - sungPc) % 12 + 12) % 12; if (d > 6)
     d -= 12; return d; } // + → sing higher
 function ssCurNote() { return sing.flat ? sing.flat[sing.idx] : null; }
 /* ---- cursor + trail + scroll ---- */
-function ssSvg() { return $('si-staff').querySelector('svg'); }
+function ssSvg() { return byId('si-staff').querySelector('svg'); }
 function ssCursorEl() { const svg = ssSvg(); if (!svg)
     return null; let c = svg.querySelector('.ss-playhead'); if (!c) {
     c = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -1102,17 +1075,17 @@ function ssCursorEl() { const svg = ssSvg(); if (!svg)
     c.setAttribute('y2', '102');
     svg.appendChild(c);
 } return c; }
-function ssMoveCursor(x) { const c = ssCursorEl(); if (c) {
+function ssMoveCursor(x: string) { const c = ssCursorEl(); if (c) {
     c.setAttribute('x1', x);
     c.setAttribute('x2', x);
 } ssScrollToX(x); }
 function ssRemoveCursor() { const svg = ssSvg(), c = svg && svg.querySelector('.ss-playhead'); if (c)
     c.remove(); }
-function ssScrollToX(x) { const w = $('si-staff'); if (w.scrollWidth > w.clientWidth + 4)
+function ssScrollToX(x: number) { const w = byId('si-staff'); if (w.scrollWidth > w.clientWidth + 4)
     w.scrollLeft = Math.max(0, x - w.clientWidth * 0.4); }
 function ssScrollToCur() { const o = sing.render && sing.render.noteX[sing.idx]; if (o)
     ssScrollToX(o.x); }
-function ssPitchY(f) { const bottomMidi = sing.ex.clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
+function ssPitchY(f: number) { const bottomMidi = sing.ex.clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
     y -= 42; while (y < 4)
     y += 42; return y; }
 function ssDrawTrail() { const svg = ssSvg(); if (!svg)
@@ -1120,14 +1093,14 @@ function ssDrawTrail() { const svg = ssSvg(); if (!svg)
     pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     pl.setAttribute('class', 'ss-trail');
     svg.appendChild(pl);
-} pl.setAttribute('points', sing.trail.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')); }
+} pl.setAttribute('points', sing.trail.map((p: number[]) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')); }
 function ssClearTrail() { const svg = ssSvg(), pl = svg && svg.querySelector('.ss-trail'); if (pl)
     pl.remove(); }
-function ssBeatToX(beat) {
+function ssBeatToX(beat: number) {
     const ns = sing.render && sing.render.noteX;
     if (!ns || !ns.length)
         return 10;
-    const pts = ns.map((o) => ({ b: o.note.tBeat, x: o.x }));
+    const pts = ns.map((o: { note: { tBeat: any; }; x: any; }) => ({ b: o.note.tBeat, x: o.x }));
     pts.push({ b: sing.ex.totalBeats, x: sing.render.W - 12 });
     for (let i = 0; i < pts.length - 1; i++) {
         if (beat >= pts[i].b && beat <= pts[i + 1].b) {
@@ -1141,7 +1114,7 @@ function ssBeatToX(beat) {
 function ssTonic() { if (!sing.ex)
     return; ensureAudio(); previewNote(sing.ex.tonicMidi, actx.currentTime + 0.02, 0.85, 92); }
 // A pulse running along the staff while the melody plays; with reduced motion the notes simply stay as they are.
-function ssFlash(i) { if (reduceMotion())
+function ssFlash(i: string) { if (reduceMotion())
     return; const svg = ssSvg(); if (!svg)
     return; const g = svg.querySelector('.ss-n[data-i="' + i + '"]'); if (!g)
     return; const prev = g.getAttribute('data-s'); g.dataset.s = 'now'; sing.hlTimers.push(setTimeout(() => { if (g.dataset.s === 'now') {
@@ -1158,9 +1131,9 @@ function ssPlayIt() {
     sing.hlTimers.forEach(clearTimeout);
     sing.hlTimers = [];
     const beatSec = 60 / (sing.bpm || sing.ex.bpm), t0 = actx.currentTime + 0.12;
-    sing.flat.forEach((n, i) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); previewNote(n.midi, when, dur, 92); sing.hlTimers.push(setTimeout(() => ssFlash(i), Math.max(0, (when - actx.currentTime) * 1000))); });
+    sing.flat.forEach((n: { tBeat: number; dur: number; midi: any; }, i: any) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); previewNote(n.midi, when, dur, 92); sing.hlTimers.push(setTimeout(() => ssFlash(i), Math.max(0, (when - actx.currentTime) * 1000))); });
 }
-function ssDrone() { if ($('si-drone').checked) {
+function ssDrone() { if (inputById('si-drone').checked) {
     if (sing.ex) {
         ensureAudio();
         startDrone(pc(sing.ex.tonicMidi));
@@ -1178,21 +1151,21 @@ function ssNoteStart() {
     sing.wrongT = 0;
     ssPaint();
     ssScrollToCur();
-    $('si-verdict').className = 'verdict neutral';
-    $('si-verdict').textContent = t('si_singit');
+    byId('si-verdict').className = 'verdict neutral';
+    byId('si-verdict').textContent = t('si_singit');
     ensureAudio();
     previewNote(sing.ex.tonicMidi, actx.currentTime + 0.02, 0.6, 85);
     const run = sing.runId;
     ssMicMaybe().then((ok) => { if (run === sing.runId && sing.active && sing.mode === 'note') {
         if (!ok)
-            $('si-hint').textContent = t('si_nomic');
+            byId('si-hint').textContent = t('si_nomic');
         sing.raf = requestAnimationFrame(ssNoteLoop);
     } });
 }
-function ssNoteLoop(ts) {
+function ssNoteLoop(ts: number) {
     if (!sing.active || sing.mode !== 'note')
         return;
-    const cur = ssCurNote(), tgt = cur ? pc(cur.midi) : -1, p = ssReadPitch(), lv = $('si-live');
+    const cur = ssCurNote(), tgt = cur ? pc(cur.midi) : -1, p = ssReadPitch(), lv = byId('si-live');
     if (p) {
         lv.classList.add('rec');
         lv.innerHTML = noteName(p.midi, false) + '<small>' + (p.cents >= 0 ? '+' : '') + p.cents + '¢</small>';
@@ -1227,23 +1200,23 @@ function ssNoteCorrect() {
     sing.holdT = 0;
     sing.wrongT = 0;
     sing.hint = 0;
-    $('si-hint').textContent = '';
+    byId('si-hint').textContent = '';
     sing.idx++;
     ssPaint();
     ssScrollToCur();
     if (sing.idx >= sing.flat.length)
         ssNoteFinish();
 }
-function ssHintBump(am) {
+function ssHintBump(am: number) {
     const cur = ssCurNote();
     if (!cur)
         return;
     sing.hint++;
     const need = ssNeed(pc(cur.midi), pc(am)), syl = sing.ex.syl[((cur.p % 7) + 7) % 7];
     if (sing.hint === 1)
-        $('si-hint').textContent = need > 0 ? t('si_hi_up') : t('si_hi_down');
+        byId('si-hint').textContent = need > 0 ? t('si_hi_up') : t('si_hi_down');
     else {
-        $('si-hint').textContent = t('si_hi_syl', syl);
+        byId('si-hint').textContent = t('si_hi_syl', syl);
         ensureAudio();
         previewNote(cur.midi, actx.currentTime + 0.02, 0.6, 80);
     }
@@ -1256,12 +1229,12 @@ function ssNoteFinish() {
     ssMicStop();
     ssPaint();
     const tot = sing.flat.length;
-    const v = $('si-verdict');
+    const v = byId('si-verdict');
     v.className = 'verdict good';
     v.textContent = t('si_perfect');
-    $('si-go').textContent = t('si_listen');
-    $('si-live').textContent = '—';
-    $('si-hint').textContent = '';
+    byId('si-go').textContent = t('si_listen');
+    byId('si-live').textContent = '—';
+    byId('si-hint').textContent = '';
     ssBumpProgress(tot, tot);
 }
 /* ---- mode: phrase ---- */
@@ -1271,14 +1244,14 @@ function ssPhraseStart() {
     sing.samples = [];
     sing.keyEvents = [];
     ssPaint();
-    $('si-hint').textContent = '';
+    byId('si-hint').textContent = '';
     ensureAudio();
     const run = sing.runId;
     ssMicMaybe().then((ok) => {
         if (run !== sing.runId || !sing.active || sing.mode !== 'phrase')
             return;
         if (!ok)
-            $('si-hint').textContent = t('si_nomic');
+            byId('si-hint').textContent = t('si_nomic');
         const beatSec = 60 / sing.bpm, ci = sing.ex.ts[0];
         sing.countInMs = ci * beatSec * 1000;
         sing.phraseStartPN = performance.now() + 150;
@@ -1286,28 +1259,28 @@ function ssPhraseStart() {
         const t0 = actx.currentTime + 0.15 + (sing.phraseStartPN - performance.now()) / 1000;
         for (let b = 0; b < ci; b++)
             metroClick(t0 + b * beatSec, b === 0); // audible count-in (best-effort)
-        $('si-verdict').className = 'verdict neutral';
-        $('si-verdict').textContent = t('si_count');
+        byId('si-verdict').className = 'verdict neutral';
+        byId('si-verdict').textContent = t('si_count');
         sing.raf = requestAnimationFrame(ssPhraseLoop);
     });
 }
-function ssPhraseLoop(ts) {
+function ssPhraseLoop(ts: number) {
     if (!sing.active || sing.mode !== 'phrase')
         return;
     const beatSec = 60 / sing.bpm, dur = sing.ex.totalBeats * beatSec;
     if (ts < sing.phraseSingPN) {
-        $('si-verdict').textContent = t('si_count');
+        byId('si-verdict').textContent = t('si_count');
         ssMoveCursor(ssBeatToX(0));
         sing.raf = requestAnimationFrame(ssPhraseLoop);
         return;
     }
     const tt = (ts - sing.phraseSingPN) / 1000;
     if (tt <= dur) {
-        $('si-verdict').textContent = t('si_sing_now');
+        byId('si-verdict').textContent = t('si_sing_now');
         const p = ssReadPitch();
         if (p)
             sing.samples.push({ t: tt, pc: pc(p.midi), cents: p.cents });
-        const lv = $('si-live');
+        const lv = byId('si-live');
         if (p) {
             lv.classList.add('rec');
             lv.innerHTML = noteName(p.midi, false);
@@ -1328,7 +1301,7 @@ function ssPhraseGrade() {
     ssMicStop();
     ssRemoveCursor();
     const beatSec = 60 / sing.bpm;
-    sing.flat.forEach((n, i) => {
+    sing.flat.forEach((n: { tBeat: number; dur: any; midi: number; }, i: string|number) => {
         const s = n.tBeat * beatSec, e = (n.tBeat + n.dur) * beatSec, tpc = pc(n.midi);
         const win = sing.samples.filter((x) => x.t >= s - 0.05 && x.t <= e), onp = win.filter((x) => x.pc === tpc), frac = win.length ? onp.length / win.length : 0;
         let verdict = frac > 0.55 ? 'good' : frac > 0.18 ? 'near' : 'bad';
@@ -1338,11 +1311,11 @@ function ssPhraseGrade() {
     });
     ssPaint();
     const good = sing.results.filter((r) => r === 'good').length, tot = sing.flat.length;
-    const v = $('si-verdict');
+    const v = byId('si-verdict');
     v.className = 'verdict ' + (good === tot ? 'good' : 'neutral');
     v.textContent = good === tot ? t('si_perfect') : t('si_nicetry', good, tot);
-    $('si-live').textContent = '—';
-    $('si-go').textContent = t('si_listen');
+    byId('si-live').textContent = '—';
+    byId('si-go').textContent = t('si_listen');
     ssBumpProgress(good, tot);
 }
 /* ---- mode: free (follow-along scroll + pitch trail) ---- */
@@ -1356,14 +1329,14 @@ function ssFreeStart() {
     ssMicMaybe().then((ok) => { if (run !== sing.runId || !sing.active || sing.mode !== 'free')
         return; if (!ok) {
         singStopAll();
-        const v = $('si-verdict');
+        const v = byId('si-verdict');
         v.className = 'verdict bad';
         v.textContent = t('tr_micfail');
         return;
-    } if ($('si-drone').checked)
-        startDrone(pc(sing.ex.tonicMidi)); sing.freePN = performance.now() + 100; $('si-verdict').className = 'verdict neutral'; $('si-verdict').textContent = t('si_freehint'); sing.raf = requestAnimationFrame(ssFreeLoop); });
+    } if (inputById('si-drone').checked)
+        startDrone(pc(sing.ex.tonicMidi)); sing.freePN = performance.now() + 100; byId('si-verdict').className = 'verdict neutral'; byId('si-verdict').textContent = t('si_freehint'); sing.raf = requestAnimationFrame(ssFreeLoop); });
 }
-function ssFreeLoop(ts) {
+function ssFreeLoop(ts: number) {
     if (!sing.active || sing.mode !== 'free')
         return;
     const beatSec = 60 / sing.bpm, dur = sing.ex.totalBeats * beatSec;
@@ -1376,7 +1349,7 @@ function ssFreeLoop(ts) {
     }
     const x = ssBeatToX(Math.min(Math.max(tt, 0), dur) / beatSec);
     ssMoveCursor(x);
-    const p = ssReadPitch(), lv = $('si-live');
+    const p = ssReadPitch(), lv = byId('si-live');
     if (p) {
         lv.classList.add('rec');
         lv.innerHTML = noteName(p.midi, false) + '<small>' + (p.cents >= 0 ? '+' : '') + p.cents + '¢</small>';
@@ -1390,7 +1363,7 @@ function ssFreeLoop(ts) {
     sing.raf = requestAnimationFrame(ssFreeLoop);
 }
 /* ---- input from keyboard / MIDI (alternative to singing) ---- */
-function singKeyInput(m) { if (!sing.active)
+function singKeyInput(m: number) { if (!sing.active)
     return; if (sing.mode === 'note') {
     const cur = ssCurNote();
     if (!cur)
@@ -1409,20 +1382,20 @@ function singGo() {
         return;
     if (sing.active) {
         singStopAll();
-        $('si-verdict').textContent = '';
+        byId('si-verdict').textContent = '';
         return;
     }
-    $('si-hint').textContent = '';
-    sing.bpm = +($('si-bpm').value || sing.ex.bpm);
+    byId('si-hint').textContent = '';
+    sing.bpm = +(inputById('si-bpm').value || sing.ex.bpm);
     if (sing.mode === 'note')
         ssNoteStart();
     else if (sing.mode === 'phrase')
         ssPhraseStart();
     else
         ssFreeStart();
-    $('si-go').textContent = t('si_stop');
+    byId('si-go').textContent = t('si_stop');
 }
-function ssBumpProgress(good, tot) { if (sing.mode !== 'free' && good === tot && tot > 0) {
+function ssBumpProgress(good: number, tot: number) { if (sing.mode !== 'free' && good === tot && tot > 0) {
     data.singCleared = data.singCleared || {};
     data.singCleared[sing.level] = true;
     saveAll();
@@ -1439,7 +1412,7 @@ function viewHigh() { return view.low + view.oct * 12; }
 function chooseView() { const w = window.innerWidth; view.oct = w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
 function buildKeyboard() {
     clampTypeOctave();
-    const keys = $('keys');
+    const keys = byId('keys');
     if (!keys)
         return;
     const active = document.activeElement;
@@ -1506,14 +1479,14 @@ function buildKeyboard() {
         const key = keyEl.get(Math.max(lo, Math.min(hi, focused)));
         if (key) {
             key.focus({ preventScroll: true });
-            const scroll = $('dock-keys'), r = key.getBoundingClientRect(), s = scroll.getBoundingClientRect();
+            const scroll = byId('dock-keys'), r = key.getBoundingClientRect(), s = scroll.getBoundingClientRect();
             if (r.left < s.left)
                 scroll.scrollLeft += r.left - s.left;
             else if (r.right > s.right)
                 scroll.scrollLeft += r.right - s.right;
         }
     }
-    const oi = $('octInd');
+    const oi = byId('octInd');
     if (oi)
         oi.textContent = noteName(view.low, false) + '–' + noteName(viewHigh(), false);
     kbDegrees(kbDegSrc);
@@ -1522,12 +1495,12 @@ function buildKeyboard() {
     cofPaintDock();
 }
 // Chord-member numbers (1 3 5 7 …) shown on keys; `src` maps sounding MIDI notes to labels and is folded into view.
-let kbDegSrc = null;
-function kbDegrees(src) {
+let kbDegSrc: any[]|null = null;
+function kbDegrees(src: Map<number,string>|null) {
     kbDegSrc = src && src.size ? src : null;
     const folded = new Map();
     if (kbDegSrc)
-        kbDegSrc.forEach((label, m) => folded.set(foldToView(m), label));
+        kbDegSrc.forEach((label: any, m: any) => folded.set(foldToView(m), label));
     keyEl.forEach((el, m) => {
         const label = folded.get(m) || '', d = el.querySelector('.dg');
         const degDesc = label ? (label === 'R' ? t('kb_deg_r') : t('kb_deg', label)) : '';
@@ -1547,23 +1520,23 @@ function kbDegrees(src) {
 }
 function positionBlacks() { blackEl.forEach((el, bm) => { const w = whiteEl.get(bm - 1); if (!w || !w.offsetWidth)
     return; const bw = w.offsetWidth * .62, seam = w.offsetLeft + w.offsetWidth, n = (BLACK_NUDGE[pc(bm)] || 0) * bw; el.style.width = bw + 'px'; el.style.left = (seam - bw / 2 + n) + 'px'; }); syncKeyboardPan(); }
-function syncKeyboardPan() { const scroll = $('dock-keys'), pan = $('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
+function syncKeyboardPan() { const scroll = byId('dock-keys'), pan = byId('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
 function reflowKeys() { requestAnimationFrame(() => requestAnimationFrame(positionBlacks)); setTimeout(positionBlacks, 90); } // wait for the dock to lay out before measuring
-function foldToView(m) { const lo = view.low, hi = viewHigh(); let x = m; while (x < lo)
+function foldToView(m: unknown) { const lo = view.low, hi = viewHigh(); let x = m; while (x < lo)
     x += 12; while (x > hi)
     x -= 12; return x; }
-function kbState(midi, s, fold) { const m = fold ? foldToView(midi) : midi, el = keyEl.get(m); if (!el)
+function kbState(midi: unknown, s: string|null, fold: boolean) { const m = fold ? foldToView(midi) : midi, el = keyEl.get(m); if (!el)
     return; if (s)
     el.dataset.s = s;
 else
     delete el.dataset.s; const mk = el.querySelector('.mk'); if (mk)
     mk.textContent = s === 'good' ? '✓' : s === 'bad' ? '✗' : ''; }
-function kbClear(s) { keyEl.forEach((el) => { if (el.dataset.s === s)
+function kbClear(s: string) { keyEl.forEach((el) => { if (el.dataset.s === s)
     delete el.dataset.s; const mk = el.querySelector('.mk'); if (mk && !el.dataset.s)
     mk.textContent = ''; }); }
 function kbClearAll() { keyEl.forEach((el) => { delete el.dataset.s; const mk = el.querySelector('.mk'); if (mk)
     mk.textContent = ''; }); }
-function kbPress(midi, on) { const m = foldToView(midi), el = keyEl.get(m); if (!el)
+function kbPress(midi: unknown, on: boolean) { const m = foldToView(midi), el = keyEl.get(m); if (!el)
     return; if (!on && [...held].some((n) => foldToView(n) === m))
     return; el.classList.toggle('pressed', on); if (on) {
     if (!el.dataset.s)
@@ -1573,13 +1546,13 @@ else if (el.dataset.s === 'active')
     delete el.dataset.s; }
 function repaintHeld() { held.forEach((m) => kbPress(m, true)); }
 const pointerKey = new Map();
-function keyAt(x, y) { const el = document.elementFromPoint(x, y); if (el) {
+function keyAt(x: number, y: number) { const el = document.elementFromPoint(x, y); if (el) {
     const k = el.closest('.key');
     if (k)
         return +(k.dataset.midi ?? 0);
 } return null; }
 function initPointer() {
-    const kb = $('keys');
+    const kb = byId('keys');
     kb.addEventListener('pointerdown', (e) => { const m = keyAt(e.clientX, e.clientY); if (m == null)
         return; e.preventDefault(); try {
         kb.setPointerCapture(e.pointerId);
@@ -1593,7 +1566,7 @@ function initPointer() {
         if (m != null)
             handleNoteOn(m, 100, 'pointer:' + e.pointerId);
     } });
-    const end = (e) => { if (pointerKey.has(e.pointerId)) {
+    const end = (e: { pointerId: string; }) => { if (pointerKey.has(e.pointerId)) {
         const m = pointerKey.get(e.pointerId);
         if (m != null)
             handleNoteOff(m, 'pointer:' + e.pointerId);
@@ -1603,13 +1576,13 @@ function initPointer() {
     kb.addEventListener('pointercancel', end);
     kb.addEventListener('lostpointercapture', end);
 }
-function bindKeyA11y(b, m) { b.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') {
+function bindKeyA11y(b: HTMLButtonElement, m: string|number) { b.addEventListener('keydown', (e: { key: string; preventDefault: () => void; }) => { if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault();
     if (!b._kd) {
         b._kd = true;
         handleNoteOn(m, 100, 'button:' + m);
     }
-} }); b.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') {
+} }); b.addEventListener('keyup', (e: { key: string; preventDefault: () => void; }) => { if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault();
     b._kd = false;
     handleNoteOff(m, 'button:' + m);
@@ -1626,19 +1599,19 @@ const DOCK = { pref: null, auto: null, animT: 0 };
 function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
 function dockOpen(v = view0()) { if (DOCK.pref != null)
     return DOCK.pref; return false; }
-function dockShown() { return document.body.classList.contains('kb') && !$('dock').classList.contains('is-rail'); }
+function dockShown() { return document.body.classList.contains('kb') && !byId('dock').classList.contains('is-rail'); }
 // The dock's own button names the action it takes (Hide / Show keyboard).
 function dockLabels() {
-    const open = dockOpen(), act = t(open ? 'kb_hide' : 'kb_show'), dk = $('dock-kb-toggle');
+    const open = dockOpen(), act = t(open ? 'kb_hide' : 'kb_show'), dk = byId('dock-kb-toggle');
     dk.setAttribute('aria-expanded', open ? 'true' : 'false');
     dk.title = act;
     const label = dk.querySelector('.dock-kb-label');
     if (label) label.textContent = act;
 }
 function dockSync() {
-    const dock = $('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
+    const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
     dock.classList.toggle('compact', v === 'analysis');
-    $('dock-kb-toggle').hidden = !on;
+    byId('dock-kb-toggle').hidden = !on;
     dockLabels();
     if (on === was && open === wasOpen)
         return;
@@ -1663,8 +1636,8 @@ function dockSync() {
 }
 // Expanding from the rail, the keys rise out of it (not with reduced motion); transform and opacity only, so the layout is settled from the first frame.
 function dockReveal() { if (reduceMotion())
-    return; const dock = $('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = setTimeout(() => dock.classList.remove('is-opening'), 300); }
-function dockSet(open) {
+    return; const dock = byId('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = setTimeout(() => dock.classList.remove('is-opening'), 300); }
+function dockSet(open: boolean) {
     const keep = view0() === 'analysis' ? anKeepPlace() : dockKeepEnd(open);
     DOCK.pref = !!open;
     saveAll();
@@ -1675,15 +1648,15 @@ function dockSet(open) {
     keep();
 }
 // Other pages scroll under the dock: whoever is reading the end of a long page still sees it when the keys come back.
-function dockKeepEnd(open) {
+function dockKeepEnd(open: any) {
     const root = document.scrollingElement || document.documentElement, end = open && root.scrollHeight > innerHeight + 2 && root.scrollTop > 0 && root.scrollTop + innerHeight >= root.scrollHeight - 2;
     return () => { if (end)
         window.scrollTo(0, root.scrollHeight); };
 }
 /* ---------- INPUT ROUTING ---------- */
-const held = new Set(), heldOrder = [], sustained = new Set(), inputOwners = new Map();
-let pedalDown = false, evalTimer = null;
-function handleNoteOn(midi, vel, source = 'midi') {
+const held = new Set(), heldOrder: any[] = [], sustained = new Set(), inputOwners = new Map();
+let pedalDown = false, evalTimer: string|number|NodeJS.Timeout|null|undefined = null;
+function handleNoteOn(midi: unknown, vel: number, source = 'midi') {
     if (!Number.isInteger(midi) || midi < 0 || midi > 127)
         return;
     ensureAudio();
@@ -1700,7 +1673,7 @@ function handleNoteOn(midi, vel, source = 'midi') {
     wakePing();
     onInputChange('on', midi);
 }
-function handleNoteOff(midi, source = 'midi') {
+function handleNoteOff(midi: unknown, source = 'midi') {
     const owners = inputOwners.get(midi);
     if (!owners || !owners.delete(source))
         return;
@@ -1761,7 +1734,7 @@ function panic() { scorePause(); releaseLiveInput(); trxStop(); accompStop(); tr
     delete el.dataset.s; }); if (view0() === 'explore')
     updateExplore(); }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
-function onInputChange(kind, midi) {
+function onInputChange(kind: string, midi: null) {
     if (view0() === 'analysis') {
         pracInput(kind);
         return;
@@ -1804,14 +1777,14 @@ function onInputChange(kind, midi) {
             ekOff(SES.q, midi);
     }
 }
-function scheduleEval(fn, ms) { clearTimeout(evalTimer); evalTimer = setTimeout(fn, ms); }
+function scheduleEval(fn: { (): void; (): void; (): void; (): void; (): void; }, ms: number|undefined) { clearTimeout(evalTimer); evalTimer = setTimeout(fn, ms); }
 /* ---------- WEB MIDI ---------- */
-let midiAccess = null, activeInputId = null, savedDevice = null, midiMsg = null;
-function setMidi(text, cls) { midiMsg = { text, cls }; const s = $('set-midi-status'); if (s)
+let midiAccess: MIDIAccess|null = null, activeInputId: null = null, savedDevice: {}|null = null, midiMsg: { cls: any; text: any; }|null = null;
+function setMidi(text: string|null, cls: string) { midiMsg = { text, cls }; const s = byId('set-midi-status'); if (s)
     s.textContent = text; midiChipSync(); }
 // The header chip names the Web MIDI input when one is live, else a live Bluetooth MIDI piano, else the Web MIDI status.
 function midiChipSync() {
-    const mt = $('midiText'), md = $('midiDot');
+    const mt = byId('midiText'), md = byId('midiDot');
     if (!mt || !md)
         return;
     if (!(midiMsg && midiMsg.cls === 'on') && bleLive()) {
@@ -1842,10 +1815,10 @@ async function connectMidi()  {
     }
 }
 function listInputs() { return midiAccess ? [...midiAccess.inputs.values()] : []; }
-function pickArturia(ins) { const c = ins.filter((i) => /microlab|arturia/i.test(i.name)); if (!c.length)
-    return null; const g = c.filter((i) => !/daw|midiin2|control|thru/i.test(i.name)); return g[0] || c[0]; }
-function refreshDeviceList(autoPick) {
-    const sel = $('deviceSelect'), ins = listInputs();
+function pickArturia(ins: any[]) { const c = ins.filter((i: { name: string; }) => /microlab|arturia/i.test(i.name)); if (!c.length)
+    return null; const g = c.filter((i: { name: string; }) => !/daw|midiin2|control|thru/i.test(i.name)); return g[0] || c[0]; }
+function refreshDeviceList(autoPick: boolean) {
+    const sel = byId('deviceSelect'), ins = listInputs();
     sel.innerHTML = '';
     if (!ins.length) {
         sel.innerHTML = '<option>—</option>';
@@ -1860,7 +1833,7 @@ function refreshDeviceList(autoPick) {
     sel.value = chosen.id;
     attachInput(chosen.id);
 }
-function attachInput(id) { if (activeInputId && activeInputId !== id)
+function attachInput(id: any) { if (activeInputId && activeInputId !== id)
     releaseLiveInput(); listInputs().forEach((i) => i.onmidimessage = null); const inp = listInputs().find((i) => i.id === id); if (!inp)
     return; inp.onmidimessage = onMidiMessage; activeInputId = id; savedDevice = id; setMidi(inp.name, 'on'); saveAll(); }
 function autoReconnectMidi() {
@@ -1876,9 +1849,9 @@ function onStateChange() { const was = activeInputId, ins = listInputs(), presen
     panic();
     activeInputId = null;
 } refreshDeviceList(false); }
-function onMidiMessage(e) { const [st, d1, d2] = e.data; midiIn(st, d1, d2, 'midi'); }
+function onMidiMessage(e: { data: [any,any,any]; }) { const [st, d1, d2] = e.data; midiIn(st, d1, d2, 'midi'); }
 // One decoder for every transport (Web MIDI, Bluetooth MIDI): notes, sustain (CC64), mod wheel (CC1) and pitch bend.
-function midiIn(st, d1, d2, src) {
+function midiIn(st: number, d1: number, d2: number, src: string|undefined) {
     const cmd = st & 0xf0;
     if (cmd === 0x90 && d2 > 0) {
         handleNoteOn(d1, d2, src);
@@ -1909,10 +1882,10 @@ const BLE = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, 
 function bleCan() { return !!((navigator).bluetooth && (navigator).bluetooth.requestDevice); }
 function bleLive() { return !!(BLE.chr && BLE.dev && BLE.dev.gatt && BLE.dev.gatt.connected); }
 function bleName() { return (BLE.dev && BLE.dev.name) || (BLE.saved && BLE.saved.name) || t('ble_dev'); }
-function bleSet(key, cls, arg) { BLE.msg = key; BLE.cls = cls || ''; BLE.arg = arg == null ? null : arg; bleUi(); }
+function bleSet(key: string|null, cls: string|undefined, arg: null|undefined) { BLE.msg = key; BLE.cls = cls || ''; BLE.arg = arg == null ? null : arg; bleUi(); }
 function bleUi() {
     midiChipSync();
-    const st = $('set-ble-status'), b = $('set-ble'), re = $('set-ble-re');
+    const st = byId('set-ble-status'), b = byId('set-ble'), re = byId('set-ble-re');
     if (!st || !b)
         return;
     const live = bleLive(), key = BLE.msg || (bleCan() ? (BLE.dev && !live ? 'ble_known' : 'ble_off') : 'ble_unsupported');
@@ -1956,7 +1929,7 @@ async function bleChoose()  {
     BLE.tries = 0;
     bleOpen(dev, false);
 }
-function bleErr(err, quiet) {
+function bleErr(err: unknown, quiet: undefined) {
     const n = err && err.name, m = String((err && err.message) || '');
     console.warn('Bluetooth MIDI:', err);
     if (n === 'NotFoundError' && /cancel/i.test(m))
@@ -1977,7 +1950,7 @@ function bleErr(err, quiet) {
         bleSet('ble_failed', 'err', n || m || '?');
 }
 // A superseded attempt (user pressed Disconnect, or picked another piano) closes the link it opened unless it is wanted again.
-function bleStale(gen, dev) { if (gen === BLE.gen)
+function bleStale(gen: number, dev: { gatt: { disconnect: () => void; }; }|null) { if (gen === BLE.gen)
     return false; if (!BLE.want || BLE.dev !== dev) {
     try {
         dev.gatt.disconnect();
@@ -1985,7 +1958,7 @@ function bleStale(gen, dev) { if (gen === BLE.gen)
     catch (_) { }
 } return true; }
 // retrying: an automatic reconnect after the link dropped; quiet: the silent start-up attempt (no red errors if the piano is off).
-async function bleOpen(dev, retrying, quiet)  {
+async function bleOpen(dev: null, retrying: boolean, quiet: boolean|undefined)  {
     if (BLE.busy && BLE.dev === dev)
         return;
     if (BLE.dev && BLE.dev !== dev)
@@ -2061,7 +2034,7 @@ async function bleOpen(dev, retrying, quiet)  {
 }
 function bleUnhook() { if (BLE.chr)
     BLE.chr.removeEventListener('characteristicvaluechanged', bleOnValue); BLE.chr = null; }
-function bleOnGone(e) {
+function bleOnGone(e: { target: null; }) {
     if (e.target !== BLE.dev)
         return;
     const was = !!BLE.chr;
@@ -2094,7 +2067,7 @@ function bleRetry() {
 }
 function bleReconnect() { const dev = BLE.dev; if (!dev || bleLive() || BLE.busy)
     return; ensureAudio(); BLE.tries = 0; bleOpen(dev, false); }
-function bleDisconnect(keepMsg) {
+function bleDisconnect(keepMsg: boolean|undefined) {
     const chr = BLE.chr, dev = BLE.dev;
     BLE.want = false;
     BLE.gen++;
@@ -2138,7 +2111,7 @@ async function bleAutoReconnect()  {
     if (!s || !bleCan() || !window.isSecureContext || !(navigator).bluetooth.getDevices)
         return;
     try {
-        const dev = (await (navigator).bluetooth.getDevices()).find((d) => d.id === s.id);
+        const dev = (await (navigator).bluetooth.getDevices()).find((d: { id: any; }) => d.id === s.id);
         if (!dev || BLE.dev)
             return;
         BLE.dev = dev;
@@ -2151,14 +2124,14 @@ async function bleAutoReconnect()  {
     }
 }
 function bleParserReset() { BLE.run = 0; BLE.need = 0; BLE.n = 0; BLE.skip = 0; BLE.sysex = false; }
-function bleOnValue(e) { const v = e.target.value; if (v && v.byteLength > 1)
+function bleOnValue(e: { target: { value: any; }; }) { const v = e.target.value; if (v && v.byteLength > 1)
     bleParse(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); }
 /* BLE-MIDI packet: [header 10hhhhhh] then messages, each normally led by a timestamp byte [1lllllll]. A byte with bit 7 set that
    directly follows a timestamp is a status byte; any other byte with bit 7 set is the next timestamp. Within a packet a message may
    drop its status (running status) and then also its timestamp, so several notes can share one notification. SysEx may span
    packets (continuation packets carry only data after the header). Messages are dispatched as soon as their last byte is read;
    the timestamps carry no information we need, because the packet is played the moment it arrives. */
-function bleParse(p) {
+function bleParse(p: string|any[]|Uint8Array<any>) {
     if ((p[0] & 0xC0) !== 0x80)
         return;
     let ts = false;
@@ -2178,7 +2151,7 @@ function bleParse(p) {
         }
     }
 }
-function bleStatus(b) {
+function bleStatus(b: number) {
     if (b >= 0xF8)
         return; // real-time (clock, active sensing…): ignored, running status kept
     if (b === 0xF0) {
@@ -2202,7 +2175,7 @@ function bleStatus(b) {
     BLE.skip = 0;
     BLE.need = ((b & 0xF0) === 0xC0 || (b & 0xF0) === 0xD0) ? 1 : 2;
 }
-function bleData(b) {
+function bleData(b: number) {
     if (BLE.sysex)
         return;
     if (!BLE.run) {
@@ -2222,7 +2195,7 @@ function bleData(b) {
     BLE.n = 0;
     bleMsg(BLE.run, BLE.d1, b);
 }
-function bleMsg(st, d1, d2) {
+function bleMsg(st: number, d1: number, d2: number) {
     const cmd = st & 0xF0;
     if (cmd === 0xB0) {
         if (d1 === 64)
@@ -2272,7 +2245,7 @@ function pwaInit() {
     pwaUi();
 }
 function pwaUi() {
-    const st = $('set-pwa-status'), ib = $('set-install');
+    const st = byId('set-pwa-status'), ib = byId('set-install');
     if (!st || !ib)
         return;
     const pwaLabels: Record<string, string> = {
@@ -2306,7 +2279,7 @@ async function pwaInstall()  {
     pwaUi();
 }
 function fsCan() { return !!(document.fullscreenEnabled && document.documentElement.requestFullscreen); }
-function fsUi() { const b = $('set-full'); if (!b)
+function fsUi() { const b = byId('set-full'); if (!b)
     return; const row = b.closest('.set-row'); if (row)
     row.hidden = !fsCan(); b.textContent = t(document.fullscreenElement ? 'full_exit' : 'full_enter'); }
 function fsToggle() {
@@ -2358,7 +2331,7 @@ function wakeOnGesture() {
 }
 function wakeDrop() { const s = WAKE.lock; WAKE.lock = null; if (s)
     s.release().catch(() => { }); }
-function wakeSet(on) {
+function wakeSet(on: any) {
     WAKE.want = !!on;
     WAKE.idle = false;
     WAKE.err = '';
@@ -2387,7 +2360,7 @@ function wakePing() {
     if (!WAKE.idleT)
         wakeArm(WAKE_IDLE_MS);
 }
-function wakeArm(ms) {
+function wakeArm(ms: number|undefined) {
     WAKE.idleT = setTimeout(() => {
         WAKE.idleT = 0;
         if (!WAKE.want)
@@ -2403,7 +2376,7 @@ function wakeArm(ms) {
     }, ms);
 }
 function wakeUi() {
-    const cb = $('set-wake'), st = $('set-wake-status');
+    const cb = byId('set-wake'), st = byId('set-wake-status');
     if (!cb || !st)
         return;
     const can = wakeCan();
@@ -2429,7 +2402,7 @@ function wakeInit() {
 // Notes and Z / X follow physical key positions (KeyboardEvent.code), so QWERTZ, AZERTY… keep the piano shape; shortcuts stay on letters.
 const KEYMAP = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12 };
 const typingDown = new Map();
-function shiftTypeOctave(dir) { releaseTypingKeys(); const next = typeOctave + dir * 12, minLow = BASE_LOW, maxLow = Math.max(BASE_LOW, BASE_HIGH - view.oct * 12); if (dir < 0) {
+function shiftTypeOctave(dir: number) { releaseTypingKeys(); const next = typeOctave + dir * 12, minLow = BASE_LOW, maxLow = Math.max(BASE_LOW, BASE_HIGH - view.oct * 12); if (dir < 0) {
     if (next < view.low && view.low > minLow) {
         view.low = Math.max(minLow, view.low - 12);
         buildKeyboard();
@@ -2443,14 +2416,14 @@ else if (dir > 0) {
         repaintHeld();
     }
 } typeOctave = next; clampTypeOctave(); }
-function physKey(e) { return e.code || (/^[a-z]$/i.test(e.key || '') ? 'Key' + e.key.toUpperCase() : ''); } // some synthetic and virtual-keyboard events carry no code
+function physKey(e: KeyboardEvent) { return e.code || (/^[a-z]$/i.test(e.key || '') ? 'Key' + e.key.toUpperCase() : ''); } // some synthetic and virtual-keyboard events carry no code
 // Name those physical keys as the user's layout prints them (Keyboard Map API, Chromium); elsewhere the QWERTY names stay.
 function kbdLayoutLabels() {
     const kb = (navigator).keyboard;
     if (!kb || typeof kb.getLayoutMap !== 'function')
         return;
     try {
-        kb.getLayoutMap().then((map) => (document).querySelectorAll('kbd[data-codes]').forEach((el) => {
+        kb.getLayoutMap().then((map: { get: (arg0: string) => any; }) => (document).querySelectorAll('kbd[data-codes]').forEach((el) => {
             const ks = el.dataset.codes.split(' ').map((c) => map.get(c));
             if (ks.every((x) => typeof x === 'string' && x.trim()))
                 el.textContent = ks.map((x) => x.toUpperCase()).join(el.dataset.sep || ' ');
@@ -2465,33 +2438,33 @@ document.addEventListener('keydown', (e) => {
         releaseTypingKeys();
         return;
     }
-    if (inField() || $('drawer').classList.contains('on') || $('helpBox').classList.contains('on') || e.repeat)
+    if (inField() || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on') || e.repeat)
         return;
     const k = e.key.toLowerCase();
     if (e.key === '?') {
         e.preventDefault();
-        openHelp(!$('helpBox').classList.contains('on'));
+        openHelp(!byId('helpBox').classList.contains('on'));
         return;
     }
     if (rdKey(e, k))
         return;
     if (SES.active && SES.q) { // session shortcuts: digits pick an answer, R replays, N advances
         if (/^[1-9]$/.test(k) && !SES.answered && SES.q.mode === 'ear') {
-            const b = $('q-answers').children[+k - 1];
+            const b = byId('q-answers').children[+k - 1];
             if (b) {
                 e.preventDefault();
                 b.click();
                 return;
             }
         }
-        if (k === 'r' && !$('q-replay').hidden) {
+        if (k === 'r' && !byId('q-replay').hidden) {
             e.preventDefault();
-            $('q-replay').click();
+            byId('q-replay').click();
             return;
         }
-        if (k === 'n' && !$('q-next').hidden) {
+        if (k === 'n' && !byId('q-next').hidden) {
             e.preventDefault();
-            $('q-next').click();
+            byId('q-next').click();
             return;
         }
     }
@@ -2523,10 +2496,10 @@ document.addEventListener('keyup', (e) => { const c = physKey(e); if (typingDown
     handleNoteOff(m, 'typing:' + c);
 } });
 /* ---------- GRADING CORE ---------- */
-function chordTargetPcs(rootPc, tpl) { return chordPitches(rootPc, tpl.intervals); }
-function inversionOf(rootPc, tpl, bassMidi) { return chordInversion(rootPc, tpl, bassMidi); }
-function identifyChord(notes, expected) { return identifyChordDomain(notes, CHORDS , expected); }
-function slashLabel(id) { return rootName(id.rootPc) + id.chord.symbol + (id.inversion > 0 ? '/' + rootName(id.bassPc) : ''); }
+function chordTargetPcs(rootPc: number, tpl: theory.ChordTemplate|undefined) { return chordPitches(rootPc, tpl.intervals); }
+function inversionOf(rootPc: number, tpl: theory.ChordDefinition, bassMidi: number) { return chordInversion(rootPc, tpl, bassMidi); }
+function identifyChord(notes: any[]|readonly number[], expected: number|undefined) { return identifyChordDomain(notes, CHORDS , expected); }
+function slashLabel(id: { rootPc: any; chord: any; inversion: any; bassPc: any; }) { return rootName(id.rootPc) + id.chord.symbol + (id.inversion > 0 ? '/' + rootName(id.bassPc) : ''); }
 /* ============================================================================
    ITEM MODEL + SPACED REPETITION
    ============================================================================ */
@@ -2534,7 +2507,7 @@ const INTRO_IV = [7, 5, 4, 3, 12, 2, 9, 8, 11, 10, 1, 6];
 const INTRO_CH = ['maj', 'm', 'dim', 'sus4', 'sus2', 'aug', 'maj7', '7', 'm7', '6', 'm6', 'm7♭5', 'dim7', 'mMaj7', 'add9', '9', 'maj9', 'm9', '7♯5', '7♭5', 'maj7♯11', '7♭9', '7♯9', '11', '13'];
 const INTRO_SC = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Major pentatonic', 'Minor pentatonic', 'Dorian', 'Mixolydian', 'Blues', 'Lydian', 'Phrygian', 'Harmonic minor', 'Melodic minor', 'Locrian', 'Harmonic major', 'Whole tone', 'Phrygian dominant', 'Hungarian minor', 'Diminished (W-H)', 'Diminished (H-W)', 'Chromatic'];
 const CATS = { interval: { label: 'Intervals' }, chord: { label: 'Chords' }, scale: { label: 'Scales' }, prog: { label: 'Progressions' } };
-const ITEMS = [];
+const ITEMS: never[] = [];
 const ITEM_BY_ID = {};
 INTRO_IV.forEach((semi, i) => { const iv = INTERVALS.find((x) => x.semi === semi); ITEMS.push({ id: 'iv:' + semi, cat: 'interval', semi, label: iv.name, short: iv.short, intro: i }); });
 INTRO_CH.forEach((sym, i) => { const c = CHORDS.find((x) => x.symbol === sym); if (c)
@@ -2546,9 +2519,9 @@ ITEMS.forEach((it) => ITEM_BY_ID[it.id] = it);
 function freshData() { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false } }; }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
-function srsOf(id) { return data.srs[id] || (data.srs[id] = { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 }); }
+function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 }); }
 const IVL = [0, 1, 2, 4, 9, 21, 45, 90];
-function reviewItem(id, correct) {
+function reviewItem(id: any, correct: any) {
     const it = srsOf(id);
     it.reps++;
     if (correct) {
@@ -2591,7 +2564,7 @@ function touchDay() {
     if (keys.length > 400)
         keys.sort((a, b) => a - b).slice(0, keys.length - 400).forEach((k) => delete h[k]);
 }
-function seedPlacement(id, known) { if (known) {
+function seedPlacement(id: any, known: any) { if (known) {
     const it = srsOf(id);
     it.box = 4;
     it.ease = 2.4;
@@ -2602,17 +2575,17 @@ function seedPlacement(id, known) { if (known) {
 } data.totalReviews++; if (known)
     data.totalCorrect++; touchDay(); saveAll(); }
 const SCALE_EAR_POOL = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Dorian', 'Mixolydian', 'Phrygian', 'Lydian', 'Major pentatonic', 'Minor pentatonic', 'Blues', 'Harmonic minor', 'Whole tone'];
-function scaleEarOptions(correct) { let pool = SCALE_EAR_POOL.filter((n) => n !== correct); pool = shuffle(pool).slice(0, 6); pool.push(correct); return shuffle(pool); }
-function chordEarOptions(correctItem) {
+function scaleEarOptions(correct: string) { let pool = SCALE_EAR_POOL.filter((n) => n !== correct); pool = shuffle(pool).slice(0, 6); pool.push(correct); return shuffle(pool); }
+function chordEarOptions(correctItem: { short: any; ref: { pcset: string|any[]; }; }) {
     const others = ITEMS.filter((x) => x.cat === 'chord' && x.short !== correctItem.short);
     const same = shuffle(others.filter((x) => x.ref.pcset.length === correctItem.ref.pcset.length));
     const rest = shuffle(others.filter((x) => x.ref.pcset.length !== correctItem.ref.pcset.length));
     return shuffle(same.concat(rest).slice(0, 7).concat([correctItem]));
 }
 const PLACEMENT = ['iv:7', 'iv:5', 'iv:4', 'iv:3', 'iv:12', 'ch:maj', 'ch:m', 'ch:maj7', 'ch:7', 'sc:Major (Ionian)', 'sc:Aeolian (Natural minor)', 'pr:I–IV–V'];
-function boxOf(id) { return data.srs[id] ? data.srs[id].box : 0; }
-function isDue(id) { const s = data.srs[id]; return s && s.reps > 0 && s.due <= todayN(); }
-function isNew(id) { const s = data.srs[id]; return !s || s.reps === 0; }
+function boxOf(id: string|number) { return data.srs[id] ? data.srs[id].box : 0; }
+function isDue(id: string|number) { const s = data.srs[id]; return s && s.reps > 0 && s.due <= todayN(); }
+function isNew(id: string|number) { const s = data.srs[id]; return !s || s.reps === 0; }
 function dueItems() { return ITEMS.filter((it) => isDue(it.id)).sort((a, b) => data.srs[a.id].due - data.srs[b.id].due); }
 function newItemsAvail() { return ITEMS.filter((it) => isNew(it.id)).sort((a, b) => a.intro - b.intro); }
 // New concepts still allowed today: the daily quota minus those already introduced today (across sessions).
@@ -2623,7 +2596,7 @@ function masteredCount() { return ITEMS.filter((it) => boxOf(it.id) >= 4).length
    ============================================================================ */
 const SES = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0 };
 function sesStopPrompt() { clearTimeout(SES.promptT); SES.promptT = 0; }
-function sesPrompt(q, play) { sesStopPrompt(); SES.promptT = setTimeout(() => { SES.promptT = 0; if (SES.active && SES.q === q && !SES.answered)
+function sesPrompt(q: { (): void; (): void; (): void; (): void; }|null, play: (() => void)|undefined) { sesStopPrompt(); SES.promptT = setTimeout(() => { SES.promptT = 0; if (SES.active && SES.q === q && !SES.answered)
     play(); }, 250); }
 function buildQueue() {
     const goal = data.settings.goal;
@@ -2658,7 +2631,7 @@ function buildQueue() {
     // interleave: avoid two same-category in a row when possible
     for (let i = 1; i < qs.length; i++) {
         if (qs[i].it.cat === qs[i - 1].it.cat) {
-            const j = qs.findIndex((q, k) => k > i && q.it.cat !== qs[i - 1].it.cat);
+            const j = qs.findIndex((q: { it: { cat: any; }; }, k: number) => k > i && q.it.cat !== qs[i - 1].it.cat);
             if (j > -1) {
                 [qs[i], qs[j]] = [qs[j], qs[i]];
             }
@@ -2666,7 +2639,7 @@ function buildQueue() {
     }
     return qs;
 }
-function makeQuestion(it) {
+function makeQuestion(it: { id: any; cat: string; }) {
     const b = boxOf(it.id);
     const forced = SES.targeted && SES.targeted.mode;
     let mode;
@@ -2685,7 +2658,7 @@ function makeQuestion(it) {
         key = b < 1 ? randItem([0, 7, 5, 2, 9]) : Math.floor(Math.random() * 12); // start in friendly keys
     return { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
 }
-function startSession(targeted) {
+function startSession(targeted: { cat: string; mode: string; key: string; }|null) {
     ensureAudio();
     sesStopPrompt();
     SES.targeted = targeted || null;
@@ -2713,17 +2686,17 @@ function startPlacement() {
 }
 function sesHome() { return SES.targeted ? 'practice' : 'today'; }
 function openSessionUI() {
-    const ses = $('session');
+    const ses = byId('session');
     if (SES.targeted) {
-        $('view-practice').appendChild(ses);
-        $('pr-home').style.display = 'none';
+        byId('view-practice').appendChild(ses);
+        byId('pr-home').style.display = 'none';
     }
     else {
-        $('view-today').insertBefore(ses, $('summary'));
-        $('pr-home').style.display = '';
+        byId('view-today').insertBefore(ses, byId('summary'));
+        byId('pr-home').style.display = '';
     }
-    $('today-home').style.display = 'none';
-    $('summary').style.display = 'none';
+    byId('today-home').style.display = 'none';
+    byId('summary').style.display = 'none';
     ses.style.display = 'block';
     ses.classList.add('on');
     dockSync();
@@ -2731,7 +2704,7 @@ function openSessionUI() {
     requestAnimationFrame(() => { if (SES.active)
         ses.scrollIntoView({ block: 'start', behavior: 'instant' }); });
 }
-function endSession(toSummary) {
+function endSession(toSummary: boolean) {
     const wasPlacement = SES.placement;
     if (wasPlacement) {
         data.placed = true;
@@ -2741,8 +2714,8 @@ function endSession(toSummary) {
     ekStop(SES.q);
     SES.active = false;
     SES.placement = false;
-    $('session').style.display = 'none';
-    $('session').classList.remove('on');
+    byId('session').style.display = 'none';
+    byId('session').classList.remove('on');
     kbClearAll();
     held.forEach((m) => audioNoteOff(m));
     held.clear();
@@ -2751,16 +2724,16 @@ function endSession(toSummary) {
     stopDrone();
     if (SES.targeted) {
         prRecordDrill();
-        $('pr-home').style.display = '';
+        byId('pr-home').style.display = '';
         renderPracticeLast();
         if (toSummary)
-            $('pr-start').focus();
+            byId('pr-start').focus();
         return;
     }
     if (toSummary)
         showSummary(wasPlacement);
     else {
-        $('today-home').style.display = 'block';
+        byId('today-home').style.display = 'block';
         refreshToday();
     }
 }
@@ -2775,16 +2748,16 @@ function nextQuestion() {
     SES.answered = false;
     const q = SES.targeted ? makeQuestion(pickTargetedItem()) : SES.queue[SES.idx];
     SES.q = q;
-    $('ses-progress').style.width = SES.targeted ? '0%' : (100 * SES.idx / SES.queue.length) + '%';
-    $('ses-count').textContent = SES.targeted ? ('#' + (SES.total + 1) + (SES.total ? ' · ' + SES.correct + '/' + SES.total + ' ✓' : '')) : ((SES.idx + 1) + '/' + SES.queue.length);
-    $('q-verdict').textContent = '';
-    $('q-verdict').className = 'verdict';
-    $('q-elab').textContent = '';
-    $('q-elab').classList.remove('show');
-    $('q-next').hidden = true;
-    $('q-reveal').hidden = false;
-    $('q-answers').hidden = true;
-    $('q-answers').innerHTML = '';
+    byId('ses-progress').style.width = SES.targeted ? '0%' : (100 * SES.idx / SES.queue.length) + '%';
+    byId('ses-count').textContent = SES.targeted ? ('#' + (SES.total + 1) + (SES.total ? ' · ' + SES.correct + '/' + SES.total + ' ✓' : '')) : ((SES.idx + 1) + '/' + SES.queue.length);
+    byId('q-verdict').textContent = '';
+    byId('q-verdict').className = 'verdict';
+    byId('q-elab').textContent = '';
+    byId('q-elab').classList.remove('show');
+    byId('q-next').hidden = true;
+    byId('q-reveal').hidden = false;
+    byId('q-answers').hidden = true;
+    byId('q-answers').innerHTML = '';
     presentQuestion(q);
 }
 function pickTargetedItem() {
@@ -2799,12 +2772,12 @@ function pickTargetedItem() {
     }
     return pool[0];
 }
-function presentQuestion(q) {
+function presentQuestion(q: never) {
     const it = q.it;
-    $('q-cat').textContent = catLabel(it.cat);
+    byId('q-cat').textContent = catLabel(it.cat);
     const playLbl = { interval: t('play_interval'), chord: t('play_chord'), scale: t('play_scale'), prog: t('play_prog') };
-    $('q-mode').textContent = q.mode === 'ear' ? t(ekWanted(q) ? 'ek_mode' : 'listen_answer') : playLbl[it.cat];
-    $('q-replay').hidden = q.mode !== 'ear';
+    byId('q-mode').textContent = q.mode === 'ear' ? t(ekWanted(q) ? 'ek_mode' : 'listen_answer') : playLbl[it.cat];
+    byId('q-replay').hidden = q.mode !== 'ear';
     ekToggleSync(q);
     if (q.mode === 'ear') {
         presentEar(q);
@@ -2813,20 +2786,20 @@ function presentQuestion(q) {
         presentPlay(q);
     }
 }
-function earRoot(q) { return 57 + (q.key % 12 <= 5 ? q.key : q.key - 12) + 5; } // mid register, kept playable
-function presentPlay(q) {
+function earRoot(q: { key: number; }) { return 57 + (q.key % 12 <= 5 ? q.key : q.key - 12) + 5; } // mid register, kept playable
+function presentPlay(q: { it: any; key: any; offs: number[]; anchor: null; idx: number; }) {
     const it = q.it;
     if (it.cat === 'interval') {
-        $('q-prompt').innerHTML = ivName(it.semi) + ' <span class="sub">' + t('above') + ' ' + rootName(q.key) + '</span>';
+        byId('q-prompt').innerHTML = ivName(it.semi) + ' <span class="sub">' + t('above') + ' ' + rootName(q.key) + '</span>';
     }
     else if (it.cat === 'chord') {
-        $('q-prompt').innerHTML = rootName(q.key) + dispSym(it.short) + ' <span class="sub">' + chordDisp(it.ref) + '</span>';
+        byId('q-prompt').innerHTML = rootName(q.key) + dispSym(it.short) + ' <span class="sub">' + chordDisp(it.ref) + '</span>';
     }
     else if (it.cat === 'scale') {
         q.offs = SCALES[it.name].concat([12]);
         q.anchor = null;
         q.idx = 0;
-        $('q-prompt').innerHTML = rootName(q.key) + ' ' + scaleDisp(it.name) + ' <span class="sub">' + t('ascending') + '</span>';
+        byId('q-prompt').innerHTML = rootName(q.key) + ' ' + scaleDisp(it.name) + ' <span class="sub">' + t('ascending') + '</span>';
         if (data.settings.metronome)
             startMetro();
         if (data.settings.drone)
@@ -2834,14 +2807,14 @@ function presentPlay(q) {
     }
     else if (it.cat === 'prog') {
         q.idx = 0;
-        const chain = it.ref.chords.map((ch) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join('  ·  ');
-        $('q-prompt').innerHTML = it.ref.name + ' <span class="sub">' + t('in_key') + ' ' + rootName(q.key) + '</span>';
-        $('q-verdict').className = 'verdict neutral';
-        $('q-verdict').textContent = chain;
+        const chain = it.ref.chords.map((ch: any[]) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join('  ·  ');
+        byId('q-prompt').innerHTML = it.ref.name + ' <span class="sub">' + t('in_key') + ' ' + rootName(q.key) + '</span>';
+        byId('q-verdict').className = 'verdict neutral';
+        byId('q-verdict').textContent = chain;
         showProgTarget(q);
     }
 }
-function presentEar(q) {
+function presentEar(q: { ek: null; it: any; key: number; }) {
     ekStop(q);
     q.ek = null;
     ekUiReset();
@@ -2850,9 +2823,9 @@ function presentEar(q) {
         return;
     }
     const it = q.it;
-    $('q-prompt').textContent = t('listen');
-    $('q-answers').hidden = false;
-    const box = $('q-answers');
+    byId('q-prompt').textContent = t('listen');
+    byId('q-answers').hidden = false;
+    const box = byId('q-answers');
     box.innerHTML = '';
     let opts = [];
     if (it.cat === 'interval') {
@@ -2860,22 +2833,22 @@ function presentEar(q) {
         sesPrompt(() => playInterval(earRoot(q), it.semi, 'both'));
     }
     else if (it.cat === 'chord') {
-        opts = chordEarOptions(it).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
-        sesPrompt(() => playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true));
+        opts = chordEarOptions(it).map((x: { short: string; ref: any; }) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
+        sesPrompt(() => playChordMidis(it.ref.intervals.map((i: any) => 57 + q.key + i), true));
     }
     else if (it.cat === 'scale') {
-        opts = scaleEarOptions(it.name).map((nm) => ({ k: nm, t: scaleDisp(nm) }));
+        opts = scaleEarOptions(it.name).map((nm: any) => ({ k: nm, t: scaleDisp(nm) }));
         sesPrompt(() => playScaleNotes(60 + q.key, SCALES[it.name], true));
     }
     else if (it.cat === 'prog') {
         opts = PROGS.map((p) => ({ k: p.name, t: p.name }));
         sesPrompt(() => playProg(q.key, it.ref));
     }
-    opts.forEach((o) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o.k); b.textContent = o.t; b.onclick = () => answerEar(q, o.k, b); box.appendChild(b); });
+    opts.forEach((o: { k: any; t: string|null; }) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o.k); b.textContent = o.t; b.onclick = () => answerEar(q, o.k, b); box.appendChild(b); });
 }
-function playProg(rootPc, prog) { ensureAudio(); stopPreviews(); const t = actx.currentTime; prog.chords.forEach((ch, i) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); tpl.intervals.forEach((iv) => previewNote(root + iv, t + i * .9, .8)); }); }
-function showProgTarget(q) { kbClear('target'); const ch = q.it.ref.chords[q.idx], root = 60 + ((q.key + ch[0]) % 12), tpl = progChordTpl(ch[1]); tpl.intervals.forEach((iv) => kbState(root + iv, 'target', true)); }
-function playQuestionSound(q) {
+function playProg(rootPc: number, prog: theory.ProgressionTemplate) { ensureAudio(); stopPreviews(); const t = actx.currentTime; prog.chords.forEach((ch: any[], i: number) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); tpl.intervals.forEach((iv) => previewNote(root + iv, t + i * .9, .8)); }); }
+function showProgTarget(q: { it: { ref: { chords: { [x: string]: any; }; }; }; idx: string|number; key: any; }) { kbClear('target'); const ch = q.it.ref.chords[q.idx], root = 60 + ((q.key + ch[0]) % 12), tpl = progChordTpl(ch[1]); tpl.intervals.forEach((iv) => kbState(root + iv, 'target', true)); }
+function playQuestionSound(q: never) {
     const it = q.it;
     if (q.ek) {
         if (SES.answered)
@@ -2887,13 +2860,13 @@ function playQuestionSound(q) {
     if (it.cat === 'interval')
         playInterval(earRoot(q), it.semi, 'both');
     else if (it.cat === 'chord')
-        playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true);
+        playChordMidis(it.ref.intervals.map((i: any) => 57 + q.key + i), true);
     else if (it.cat === 'scale')
         playScaleNotes(60 + q.key, SCALES[it.name], true);
     else if (it.cat === 'prog')
         playProg(q.key, it.ref);
 }
-function answerEar(q, k, btn) {
+function answerEar(q: { it: any; missed: boolean; }, k: any, btn: HTMLButtonElement) {
     if (SES.answered)
         return;
     const it = q.it;
@@ -2917,7 +2890,7 @@ function answerEar(q, k, btn) {
         resolve(q, false);
     }
 }
-function markEarCorrect(q) { const it = q.it; const key = it.cat === 'interval' ? String(it.semi) : it.cat === 'chord' ? it.short : it.cat === 'scale' ? it.name : it.ref.name; [...$('q-answers').children].forEach((b) => { if (b.dataset.k === key)
+function markEarCorrect(q: never) { const it = q.it; const key = it.cat === 'interval' ? String(it.semi) : it.cat === 'chord' ? it.short : it.cat === 'scale' ? it.name : it.ref.name; [...byId('q-answers').children].forEach((b) => { if (b.dataset.k === key)
     b.classList.add('correct'); }); }
 /* ---------- BY EAR, ON THE KEYS: hear it, then play it back (intervals, chords in any inversion, short tonal melodies) ----------
    The prompt plays first; notes that arrive before it ends are ignored (armAt), so nothing the listener does while it sounds is
@@ -2927,24 +2900,24 @@ function markEarCorrect(q) { const it = q.it; const key = it.cat === 'interval' 
 const EK_TRIES = 3, EK_MEL_SCALES = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Major pentatonic', 'Minor pentatonic'];
 const EK_CHORD_GAP = 300; // ms: a key joins the chord if another chord key is still down or it lands this close to the previous one
 function ekForced() { return !!(SES.targeted && SES.targeted.cat === 'melody'); }
-function ekWanted(q) { return !!q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
+function ekWanted(q: { mode: string; it: { cat: string; }; }) { return !!q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
 // Spell like the key: minor-flavoured chords and scales on D, G, C, F, B♭, E♭ use flats, as do the flat major keys and the flat intervals.
-function ekFlat(q) {
+function ekFlat(q: { it: any; key: number; }) {
     const it = q.it, set = it.cat === 'chord' ? it.ref.pcset : it.cat === 'scale' ? SCALES[it.name] : null;
     if (set && set.includes(3) && !set.includes(4))
         return [0, 2, 3, 5, 7, 10].includes(q.key);
     return isFlatKey(q.key) || (it.cat === 'interval' && [1, 3, 8, 10].includes(it.semi));
 }
-function ekName(q, m) { return noteName(m, ekFlat(q)); }
-function ekToggleSync(q) {
-    const box = $('q-ansmode');
+function ekName(q: any, m: any) { return noteName(m, ekFlat(q)); }
+function ekToggleSync(q: never) {
+    const box = byId('q-ansmode');
     box.hidden = !(q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && !ekForced());
     box.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', (b.dataset.v === 'keys') === !!data.settings.earKeys ? 'true' : 'false'));
 }
-function ekUiReset() { $('q-ekhint').textContent = ''; $('q-ekprog').innerHTML = ''; $('q-ekreset').hidden = true; }
-function ekStop(q) { if (q && q.ek)
+function ekUiReset() { byId('q-ekhint').textContent = ''; byId('q-ekprog').innerHTML = ''; byId('q-ekreset').hidden = true; }
+function ekStop(q: null) { if (q && q.ek)
     clearTimeout(q.ek.goT); }
-function ekBuild(q) {
+function ekBuild(q: { it: any; key: number; }) {
     const it = q.it;
     if (it.cat === 'interval') {
         const r = earRoot(q);
@@ -2965,7 +2938,7 @@ function ekBuild(q) {
     }
     // a short tonal melody in the item's scale: starts on the tonic, moves mostly by step, ends on a stable degree
     const offs = SCALES[it.name], N = offs.length, ton = 60 + (q.key <= 5 ? q.key : q.key - 12), len = 3 + Math.floor(Math.random() * 3);
-    const at = (d) => ton + offs[((d % N) + N) % N] + 12 * Math.floor(d / N), stable = (d) => [0, 3, 4, 7].includes(pc(at(d) - ton));
+    const at = (d: number) => ton + offs[((d % N) + N) % N] + 12 * Math.floor(d / N), stable = (d: number) => [0, 3, 4, 7].includes(pc(at(d) - ton));
     let d = 0;
     const ds = [0];
     for (let i = 1; i < len; i++) {
@@ -2981,21 +2954,21 @@ function ekBuild(q) {
     const target = ds.map(at);
     return { kind: 'mel', target, n: target.length };
 }
-function presentEarKeys(q) {
+function presentEarKeys(q: { it: any; ek: ({ kind: string; target: any[]; n: number; inv?: undefined; pcs?: undefined; }|{ kind: string; target: any[]; inv: number; pcs: number[]; n: number; })&{ tries: number; seq: never[]; off: number; armAt: number; goT: number; won: boolean; warned: boolean; }; key: any; }) {
     const it = q.it, ek = q.ek = Object.assign(ekBuild(q), { tries: 0, seq: [], off: 0, armAt: Infinity, goT: 0, won: false, warned: false });
-    $('q-answers').hidden = true;
-    $('q-answers').innerHTML = '';
+    byId('q-answers').hidden = true;
+    byId('q-answers').innerHTML = '';
     const st = ekName(q, ek.target[0]), sub = ek.kind === 'iv' ? t('ek_sub_start', st) : ek.kind === 'ch' ? t('ek_sub_bass', st, ek.n) : t('ek_sub_mel', rootName(q.key) + ' ' + scaleDisp(it.name), ek.n);
-    $('q-prompt').innerHTML = t('ek_p_' + ek.kind) + ' <span class="sub">' + sub + '</span>';
+    byId('q-prompt').innerHTML = t('ek_p_' + ek.kind) + ' <span class="sub">' + sub + '</span>';
     if (ek.kind === 'mel')
-        $('q-cat').textContent = t('ek_cat_mel');
-    $('q-ekhint').textContent = t('ek_hint_' + ek.kind);
-    $('q-ekreset').hidden = false;
+        byId('q-cat').textContent = t('ek_cat_mel');
+    byId('q-ekhint').textContent = t('ek_hint_' + ek.kind);
+    byId('q-ekreset').hidden = false;
     ekProg(q, 0);
     ekPlay(q);
 }
 // Plays the prompt and returns when (seconds after now) its last note starts.
-function ekSound(q) {
+function ekSound(q: { ek: any; }) {
     const ek = q.ek;
     ensureAudio();
     if (!actx)
@@ -3011,20 +2984,20 @@ function ekSound(q) {
         last = 1.15;
     }
     else if (ek.kind === 'ch') {
-        ms.forEach((m, i) => previewNote(m, t0 + i * .16, .4));
+        ms.forEach((m: any, i: number) => previewNote(m, t0 + i * .16, .4));
         const bt = ms.length * .16 + .1;
-        ms.forEach((m) => previewNote(m, t0 + bt, 1.1));
+        ms.forEach((m: any) => previewNote(m, t0 + bt, 1.1));
         previewNote(ms[0], t0 + bt + 1.35, .6);
         last = bt + 1.35;
     }
     else {
         previewNote(ms[0], t0, .5);
-        ms.forEach((m, i) => previewNote(m, t0 + .85 + i * .5, .45));
+        ms.forEach((m: any, i: number) => previewNote(m, t0 + .85 + i * .5, .45));
         last = .85 + (ms.length - 1) * .5;
     }
     return .25 + last;
 }
-function ekPlay(q) {
+function ekPlay(q: { ek: any; }|null) {
     const ek = q.ek;
     if (!ek || SES.answered)
         return;
@@ -3042,9 +3015,9 @@ function ekPlay(q) {
     ek.goT = setTimeout(() => { if (SES.q === q && !SES.answered && !ek.seq.length)
         neutral(t('ek_go')); }, wait);
 }
-function ekProg(q, k) { const ek = q.ek; $('q-ekprog').innerHTML = ek ? Array.from({ length: ek.n }, (_, i) => '<i' + (i < k ? ' class="on"' : '') + '></i>').join('') : ''; }
-function ekFlash(ms, s) { ms.forEach((m) => kbState(m, s, true)); }
-function ekOn(q, m) {
+function ekProg(q: never, k: number) { const ek = q.ek; byId('q-ekprog').innerHTML = ek ? Array.from({ length: ek.n }, (_, i) => '<i' + (i < k ? ' class="on"' : '') + '></i>').join('') : ''; }
+function ekFlash(ms: any[], s: string) { ms.forEach((m: any) => kbState(m, s, true)); }
+function ekOn(q: never, m: null) {
     const ek = q.ek;
     if (m == null)
         return;
@@ -3062,15 +3035,15 @@ function ekOn(q, m) {
     }
     if (ek.kind === 'ch') {
         const prev = ek.seq[ek.seq.length - 1];
-        if (prev && !ek.seq.some((x) => held.has(x.m) && x.m !== m) && now - prev.t > EK_CHORD_GAP)
+        if (prev && !ek.seq.some((x: { m: unknown; }) => held.has(x.m) && x.m !== m) && now - prev.t > EK_CHORD_GAP)
             ek.seq = [];
     }
     ek.seq.push({ m, t: now });
     scheduleEval(() => ek.kind === 'iv' ? ekIv(q) : ekCh(q), ek.kind === 'iv' ? 90 : 140);
 }
-function ekOff(q, m) { const ek = q.ek; if (!ek || SES.answered || ek.kind !== 'ch' || !ek.seq.length)
+function ekOff(q: never, m: any) { const ek = q.ek; if (!ek || SES.answered || ek.kind !== 'ch' || !ek.seq.length)
     return; scheduleEval(() => ekCh(q), 140); }
-function ekIv(q) {
+function ekIv(q: { ek: any; }|null) {
     const ek = q.ek;
     if (SES.answered || SES.q !== q || !ek.seq.length)
         return;
@@ -3105,11 +3078,11 @@ function ekIv(q) {
     }
     ekMiss(q, [b.m], b.m < a.m ? t('ek_wrong_down') : t('ek_wrong_iv', intervalLabel(b.m - a.m)));
 }
-function ekCh(q) {
+function ekCh(q: { ek: any; }|null) {
     const ek = q.ek;
     if (SES.answered || SES.q !== q || !ek.seq.length)
         return;
-    const ms = [...new Set(ek.seq.map((x) => x.m))].sort((a, b) => a - b);
+    const ms = [...new Set(ek.seq.map((x: { m: any; }) => x.m))].sort((a, b) => a - b);
     const pcs = [...new Set(ms.map((m) => pc(m)))].sort((a, b) => a - b);
     const down = ms.some((m) => held.has(m));
     if (setEq(pcs, ek.pcs)) {
@@ -3132,7 +3105,7 @@ function ekCh(q) {
         neutral(t('ek_hold'));
     }
 }
-function ekMel(q, m) {
+function ekMel(q: { ek: any; }|null, m: number) {
     const ek = q.ek, tg = ek.target, i = ek.seq.length;
     if (i === 0) {
         if (pc(m) !== pc(tg[0])) {
@@ -3153,12 +3126,12 @@ function ekMel(q, m) {
     kbState(m, 'good', true);
     ekProg(q, ek.seq.length);
     if (ek.seq.length >= tg.length)
-        ekWin(q, ek.seq.map((x) => x.m));
+        ekWin(q, ek.seq.map((x: { m: any; }) => x.m));
     else
         neutral(t('ek_progress', ek.seq.length, tg.length));
 }
-function ekWin(q, ms) { q.ek.won = true; q.ek.played = ms; kbClear('target'); ekFlash(ms, 'good'); ekProg(q, q.ek.n); resolve(q, true); }
-function ekMiss(q, bad, msg) {
+function ekWin(q: { ek: { won: boolean; played: any; n: any; }; }, ms: any[]) { q.ek.won = true; q.ek.played = ms; kbClear('target'); ekFlash(ms, 'good'); ekProg(q, q.ek.n); resolve(q, true); }
+function ekMiss(q: { ek: any; missed: boolean; }|null, bad: any[], msg: string) {
     const ek = q.ek;
     q.missed = true;
     ek.tries++;
@@ -3172,14 +3145,14 @@ function ekMiss(q, bad, msg) {
     setTimeout(() => { kbClear('bad'); if (SES.q === q && !SES.answered)
         kbState(ek.target[0], 'target', true); }, 500);
     ekProg(q, 0);
-    const v = $('q-verdict');
+    const v = byId('q-verdict');
     v.className = 'verdict bad';
     v.textContent = msg + ' ' + t(ek.tries === EK_TRIES - 1 ? 'ek_last' : 'ek_again');
 }
 function ekReset() { const q = SES.q; if (!q || !q.ek || SES.answered)
     return; q.ek.seq = []; kbClear('good'); kbClear('bad'); kbState(q.ek.target[0], 'target', true); ekProg(q, 0); neutral(t('ek_reset_msg')); }
-function ekElab(q) {
-    const ek = q.ek, names = (ms) => ms.map((m) => ekName(q, m)).join(' ');
+function ekElab(q: { ek: any; }) {
+    const ek = q.ek, names = (ms: any[]) => ms.map((m: any) => ekName(q, m)).join(' ');
     if (ek.kind === 'iv')
         return t('ek_el_iv', ekName(q, ek.target[0])) + ' · ' + names(ek.target);
     if (ek.kind === 'ch')
@@ -3187,7 +3160,7 @@ function ekElab(q) {
     return t('ek_el_mel', names(ek.target));
 }
 /* play-mode grading via held notes */
-function sesInput(midi) {
+function sesInput(midi: any) {
     const q = SES.q;
     if (!q || SES.answered)
         return;
@@ -3206,7 +3179,7 @@ function sesInput(midi) {
     else if (q.it.cat === 'prog')
         gradeProgChord(q);
 }
-function gradeInterval(q) {
+function gradeInterval(q: never) {
     if (SES.answered)
         return;
     const ms = heldMidis().sort((a, b) => a - b);
@@ -3228,7 +3201,7 @@ function gradeInterval(q) {
         resolve(q, false);
     }
 }
-function gradeChord(q) {
+function gradeChord(q: never) {
     if (SES.answered)
         return;
     const hp = heldPcs(), tpl = q.it.ref, target = chordTargetPcs(q.key, tpl);
@@ -3259,7 +3232,7 @@ function gradeChord(q) {
         resolve(q, false);
     }
 }
-function gradeScaleNote(q, midi) {
+function gradeScaleNote(q: never, midi: unknown) {
     if (SES.answered || midi == null)
         return;
     if (q.idx === 0) {
@@ -3288,7 +3261,7 @@ function gradeScaleNote(q, midi) {
         resolve(q, false);
     }
 }
-function gradeProgChord(q) {
+function gradeProgChord(q: never) {
     if (SES.answered)
         return;
     const ch = q.it.ref.chords[q.idx], root = (q.key + ch[0]) % 12, tpl = progChordTpl(ch[1]);
@@ -3316,8 +3289,8 @@ function gradeProgChord(q) {
         resolve(q, false);
     }
 }
-function neutral(msg) { const v = $('q-verdict'); v.className = 'verdict neutral'; v.textContent = msg; }
-function resolve(q, correct) {
+function neutral(msg: string|null) { const v = byId('q-verdict'); v.className = 'verdict neutral'; v.textContent = msg; }
+function resolve(q: null, correct: boolean) {
     if (SES.answered)
         return;
     SES.answered = true;
@@ -3331,7 +3304,7 @@ function resolve(q, correct) {
     SES.total++;
     if (good)
         SES.correct++;
-    const v = $('q-verdict');
+    const v = byId('q-verdict');
     if (correct && !q.missed) {
         v.className = 'verdict good';
         v.textContent = randItem([t('correct1'), t('correct2'), t('correct3'), t('correct4')]);
@@ -3346,7 +3319,7 @@ function resolve(q, correct) {
     }
     if (q.ek) {
         ekStop(q);
-        $('q-ekreset').hidden = true;
+        byId('q-ekreset').hidden = true;
     }
     revealAnswerKeys(q);
     showElaboration(q);
@@ -3354,17 +3327,17 @@ function resolve(q, correct) {
         setTimeout(() => { if (SES.active && SES.q === q && SES.answered)
             playQuestionSound(q); }, 600);
     } // let the right answer be heard, not just seen
-    $('q-reveal').hidden = true;
-    $('q-next').hidden = false;
-    $('q-next').focus();
+    byId('q-reveal').hidden = true;
+    byId('q-next').hidden = false;
+    byId('q-next').focus();
 }
-function revealAnswerKeys(q) {
+function revealAnswerKeys(q: never) {
     const it = q.it;
     if (q.ek) {
         if (!q.ek.won) {
             kbClear('target');
             kbClear('good');
-            q.ek.target.forEach((m) => kbState(m, 'target', true));
+            q.ek.target.forEach((m: any) => kbState(m, 'target', true));
         }
         return;
     }
@@ -3374,15 +3347,15 @@ function revealAnswerKeys(q) {
     }
     else if (it.cat === 'chord') {
         const r = 60 + q.key;
-        it.ref.intervals.forEach((i) => kbState(r + i, 'target', true));
+        it.ref.intervals.forEach((i: any) => kbState(r + i, 'target', true));
     }
     else if (it.cat === 'scale') {
         const r = 60 + q.key;
         SCALES[it.name].concat([12]).forEach((o) => kbState(r + o, 'target', true));
     }
 }
-function showElaboration(q) {
-    const it = q.it, e = $('q-elab');
+function showElaboration(q: { it: any; key: any; ek: any; }) {
+    const it = q.it, e = byId('q-elab');
     let html = '';
     if (it.cat === 'interval') {
         const s = songsFor(it.semi, 'asc');
@@ -3396,7 +3369,7 @@ function showElaboration(q) {
         html = '<b>' + scaleDisp(it.name) + '</b> · ' + t('el_degrees') + ' ' + scaleFormula(SCALES[it.name]);
     }
     else if (it.cat === 'prog') {
-        const chain = it.ref.chords.map((ch) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join(' · '), rom = it.ref.chords.map((ch) => ch[2]).join(' · ');
+        const chain = it.ref.chords.map((ch: any[]) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join(' · '), rom = it.ref.chords.map((ch: any[]) => ch[2]).join(' · ');
         html = '<b>' + rom + '</b> — ' + chain;
     }
     if (q.ek)
@@ -3409,9 +3382,9 @@ function showElaboration(q) {
    ============================================================================ */
 let _view = 'today';
 function view0() { return _view; }
-const _modalStack = [];
-let _modalBackPending = false, _modalAfterBack = null;
-function pushModalState(id) {
+const _modalStack: any[] = [];
+let _modalBackPending = false, _modalAfterBack: null = null;
+function pushModalState(id: string) {
     if (_modalBackPending) {
         _modalAfterBack = id;
         _modalStack.length = 0;
@@ -3419,7 +3392,7 @@ function pushModalState(id) {
         return;
     }
     // Opening an overlay from the mobile menu replaces that temporary menu entry.
-    if (id !== 'menu' && history.state && history.state.modal === 'menu' && !$('mobileMenu').hidden) {
+    if (id !== 'menu' && history.state && history.state.modal === 'menu' && !byId('mobileMenu').hidden) {
         closeMobileMenu(false, true);
         _modalStack.length = 0;
         try {
@@ -3437,7 +3410,7 @@ function pushModalState(id) {
         catch (_) { }
     }
 }
-function popModalState(id) {
+function popModalState(id: string) {
     const idx = _modalStack.indexOf(id);
     if (idx !== -1) {
         _modalStack.splice(idx, 1);
@@ -3457,40 +3430,40 @@ function popModalState(id) {
     }
 }
 function closeMobileMenu(returnFocus = false, fromPop = false) {
-    const menu = $('mobileMenu');
+    const menu = byId('mobileMenu');
     if (!menu || menu.hidden)
         return false;
     menu.hidden = true;
-    $('menuBtn').setAttribute('aria-expanded', 'false');
+    byId('menuBtn').setAttribute('aria-expanded', 'false');
     if (!fromPop)
         popModalState('menu');
     if (returnFocus)
-        $('menuBtn').focus();
+        byId('menuBtn').focus();
     return true;
 }
 function openMobileMenu(fromPop = false) {
-    const mm = $('mobileMenu');
+    const mm = byId('mobileMenu');
     if (!fromPop)
         pushModalState('menu');
     mm.innerHTML = '';
     (document).querySelectorAll('#nav button').forEach((b) => { const x = (document).createElement('button'); x.textContent = b.textContent; x.dataset.view = b.dataset.view; x.setAttribute('aria-current', b.getAttribute('aria-current') || 'false'); x.addEventListener('click', () => show(x.dataset.view)); mm.appendChild(x); });
     mm.hidden = false;
-    $('menuBtn').setAttribute('aria-expanded', 'true');
+    byId('menuBtn').setAttribute('aria-expanded', 'true');
     const first = mm.querySelector('[aria-current="page"]') || mm.querySelector('button');
     first?.focus();
 }
 function renderModeNav() {
     const group = navGroup(view0()), views = (NAV_GROUPS )[String(group)] || [];
-    $('modeBar').hidden = views.length < 2;
-    $('modeNav').innerHTML = views.map((v) => `<button type="button" data-view="${v}" aria-current="${v === view0() ? 'page' : 'false'}">${t(v === 'practice' ? 'nav_drills' : 'nav_' + v)}</button>`).join('');
+    byId('modeBar').hidden = views.length < 2;
+    byId('modeNav').innerHTML = views.map((v: string) => `<button type="button" data-view="${v}" aria-current="${v === view0() ? 'page' : 'false'}">${t(v === 'practice' ? 'nav_drills' : 'nav_' + v)}</button>`).join('');
 }
-function focusView(v) {
-    const view = $('view-' + v);
+function focusView(v: string) {
+    const view = maybeById('view-' + v);
     const target = [...view.querySelectorAll('h1,h2')].find((el) => el.getClientRects().length) || view;
     target.tabIndex = -1;
     target.focus({ preventScroll: true });
 }
-let show = function show(v, moveFocus = true) {
+let show = function show(v: string|undefined, moveFocus = true) {
     if (!isAppView(v))
         return;
     viewState.view = v;
@@ -3542,8 +3515,8 @@ let show = function show(v, moveFocus = true) {
         endSession(false);
     }
     if (v === 'today' && !SES.active) {
-        $('today-home').style.display = 'block';
-        $('summary').style.display = 'none';
+        byId('today-home').style.display = 'block';
+        byId('summary').style.display = 'none';
         refreshToday();
     }
     if (v === 'explore') {
@@ -3598,34 +3571,34 @@ window.addEventListener('popstate', (e) => {
     if (modal === 'menu' || modal === 'help' || modal === 'drawer')
         _modalStack.push(modal);
     if (modal !== 'menu') {
-        const menu = $('mobileMenu'), returnFocus = !modal && menu.contains(document.activeElement) && location.hash.slice(1) === _view;
+        const menu = byId('mobileMenu'), returnFocus = !modal && menu.contains(document.activeElement) && location.hash.slice(1) === _view;
         closeMobileMenu(returnFocus, true);
     }
-    if (modal !== 'help' && $('helpBox').classList.contains('on'))
+    if (modal !== 'help' && byId('helpBox').classList.contains('on'))
         openHelp(false, true);
-    if (modal !== 'drawer' && $('drawer').classList.contains('on'))
+    if (modal !== 'drawer' && byId('drawer').classList.contains('on'))
         openDrawer(false, true);
     const v = location.hash.slice(1);
     if (navGroup(v) && v !== _view) {
         _routed = false;
         show(v);
     }
-    if (modal === 'menu' && getComputedStyle($('menuBtn')).display !== 'none' && $('mobileMenu').hidden)
+    if (modal === 'menu' && getComputedStyle(byId('menuBtn')).display !== 'none' && byId('mobileMenu').hidden)
         openMobileMenu(true);
-    if (modal === 'help' && !$('helpBox').classList.contains('on'))
+    if (modal === 'help' && !byId('helpBox').classList.contains('on'))
         openHelp(true, true);
-    if (modal === 'drawer' && !$('drawer').classList.contains('on'))
+    if (modal === 'drawer' && !byId('drawer').classList.contains('on'))
         openDrawer(true, true);
 });
 /* ---------- TODAY ---------- */
 function greeting() { const h = new Date().getHours(); return h < 5 ? t('g_late') : h < 12 ? t('g_morning') : h < 18 ? t('g_afternoon') : t('g_evening'); }
 function refreshToday() {
     const gr = greeting();
-    $('greet-title').textContent = /[.?!…]$/.test(gr) ? gr : gr + '.';
+    byId('greet-title').textContent = /[.?!…]$/.test(gr) ? gr : gr + '.';
     const tn = todayN();
-    $('streakN').textContent = currentStreak();
+    byId('streakN').textContent = currentStreak();
     const goal = data.settings.goal, done = Math.min(data.todayDay === tn ? data.todayCount : 0, goal);
-    const gd = $('goaldots');
+    const gd = byId('goaldots');
     gd.innerHTML = '';
     const dots = 5;
     for (let i = 0; i < dots; i++) {
@@ -3635,20 +3608,20 @@ function refreshToday() {
         gd.appendChild(x);
     }
     gd.setAttribute('aria-label', t('goal_aria', done, goal));
-    $('goal-txt').textContent = t('goal_txt', done, goal);
+    byId('goal-txt').textContent = t('goal_txt', done, goal);
     const due = dueItems().length, fresh = Math.min(newItemsAvail().length, newQuotaLeft());
-    $('c-due').textContent = String(due);
-    $('c-new').textContent = String(fresh);
-    $('c-mastered').textContent = String(masteredCount());
-    $('placeBtn').hidden = !(!data.placed && (data.totalReviews || 0) === 0); // offer placement only to brand-new users
+    byId('c-due').textContent = String(due);
+    byId('c-new').textContent = String(fresh);
+    byId('c-mastered').textContent = String(masteredCount());
+    byId('placeBtn').hidden = !(!data.placed && (data.totalReviews || 0) === 0); // offer placement only to brand-new users
     const next = dueItems()[0] || (fresh ? newItemsAvail()[0] : null);
-    $('nextup').innerHTML = next ? (t('nextup') + ' <b>' + itemLabel(next) + '</b> · ' + catLabel(next.cat).toLowerCase()) : t('nextup_none');
+    byId('nextup').innerHTML = next ? (t('nextup') + ' <b>' + itemLabel(next) + '</b> · ' + catLabel(next.cat).toLowerCase()) : t('nextup_none');
     const caughtUp = due === 0 && fresh === 0;
-    $('startBtn').textContent = caughtUp ? t('start_caught') : t('start');
-    $('hero-title').textContent = caughtUp ? t('hero_caught') : t('hero_session');
-    $('why-text').textContent = caughtUp ? t('why_caught') : t('why_due');
+    byId('startBtn').textContent = caughtUp ? t('start_caught') : t('start');
+    byId('hero-title').textContent = caughtUp ? t('hero_caught') : t('hero_session');
+    byId('why-text').textContent = caughtUp ? t('why_caught') : t('why_due');
     // focus grid
-    const fg = $('focusGrid');
+    const fg = byId('focusGrid');
     fg.innerHTML = '';
     Object.keys(CATS).forEach((cat) => {
         const items = ITEMS.filter((it) => it.cat === cat);
@@ -3657,25 +3630,25 @@ function refreshToday() {
         const card = (document).createElement('button');
         card.type = 'button';
         card.className = 'focus';
-        card.onclick = () => { show('practice'); $('pr-cat').value = cat; $('pr-cat').dispatchEvent(new Event('change')); $('pr-start').focus(); };
+        card.onclick = () => { show('practice'); selectById('pr-cat').value = cat; byId('pr-cat').dispatchEvent(new Event('change')); byId('pr-start').focus(); };
         card.innerHTML = '<div class="k">' + catLabel(cat) + '</div><div class="m">' + mastered + ' ' + t('mastered_lc') + ' · ' + seen + '/' + items.length + ' ' + t('started') + '</div><div class="bar"><i style="width:' + Math.round(100 * mastered / items.length) + '%"></i></div>';
         fg.appendChild(card);
     });
     renderPlan();
 }
 /* ---------- EXPLORE ---------- */
-let explorePreview = [], exploreTimers = [];
+let explorePreview: never[] = [], exploreTimers: NodeJS.Timeout[] = [];
 function clearExplorePreview() { exploreTimers.forEach(clearTimeout); exploreTimers = []; explorePreview = []; if (view0() === 'explore')
     updateExplore(); }
-function exploreSequence(events) {
+function exploreSequence(events: any[]) {
     if (view0() !== 'explore')
         return;
     clearExplorePreview();
     if (reduceMotion() && events.length > 2) {
         const last = events[events.length - 1]; // reduced motion: one steady picture of every note instead of a light running across the keys
-        events = [{ at: 0, notes: [...new Set(events.flatMap((e) => e.notes))].sort((a, b) => a - b) }].concat(last.notes.length ? [] : [last]);
+        events = [{ at: 0, notes: [...new Set(events.flatMap((e: { notes: any; }) => e.notes))].sort((a, b) => a - b) }].concat(last.notes.length ? [] : [last]);
     }
-    events.forEach((e) => {
+    events.forEach((e: { notes: any[]; at: number|undefined; }) => {
         const paint = () => { explorePreview = e.notes; updateExplore(); };
         if (e.at === 0)
             paint();
@@ -3686,8 +3659,8 @@ function exploreSequence(events) {
 // Bass on the left and treble on the right, as on the keyboard. The frame never changes, so nothing moves while you play: each clef shows
 // the exact sounding octave up to EX_LEDGERS ledger lines, and lists any note further away beside an arrow at its edge.
 const EX_LEDGERS = 5;
-function drawExploreStaff(midis, flat) {
-    const wrap = $('ex-staff');
+function drawExploreStaff(midis: any[]|Iterable<unknown>|null|undefined, flat: boolean) {
+    const wrap = byId('ex-staff');
     if (!wrap)
         return;
     const names = flat ? ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -3705,7 +3678,7 @@ function drawExploreStaff(midis, flat) {
         body += srClef(clef, x0 + 16, top);
         // Adjacent pitches use alternating head columns; accidentals have collision-free lanes.
         let prevStep = -Infinity, prevLane = 0;
-        const accLanes = [], heads = [];
+        const accLanes: any[] = [], heads: { p: { m: unknown; step: any; acc: string; }; y: number; lane: number; }[] = [];
         pitches.forEach((p) => {
             const y = top + 48 + (ref - p.step) * 6;
             if (y < top - room || y > top + 48 + room) {
@@ -3748,19 +3721,19 @@ function drawExploreStaff(midis, flat) {
     });
     if (!pitches.length)
         body += `<text class="ss-syl" x="${W / 2}" y="${top + 88}">${t('ex_staff_empty')}</text>`;
-    const label = t('ex_staff_label') + (midis.length ? ': ' + midis.map((m) => noteName(m, flat)).join(', ') : '');
+    const label = t('ex_staff_label') + (midis.length ? ': ' + midis.map((m: any) => noteName(m, flat)).join(', ') : '');
     wrap.setAttribute('aria-label', label);
     wrap.innerHTML = `<svg class="ss-svg" role="img" aria-label="${label}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:100%; height:auto; max-width:700px; margin:auto" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
-function fillRoots(sel, withAll) { sel.innerHTML = ''; if (withAll) {
+function fillRoots(sel: RuntimeElement, withAll: boolean) { sel.innerHTML = ''; if (withAll) {
     const o = (document).createElement('option');
     o.value = 'all';
     o.textContent = t('all_keys');
     sel.appendChild(o);
 } NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = n; sel.appendChild(o); }); }
-function fillKeyCtx() { const sel = $('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = t('key_major', n); sel.appendChild(o); }); }
+function fillKeyCtx() { const sel = byId('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = t('key_major', n); sel.appendChild(o); }); }
 function fillRefNames() {
-    const rt = $('refType').value, sel = $('refName');
+    const rt = selectById('refType').value, sel = byId('refName');
     sel.innerHTML = '';
     if (rt === 'chord') {
         CHORDS.forEach((c) => { const o = (document).createElement('option'); o.value = c.symbol; o.textContent = c.symbol; sel.appendChild(o); });
@@ -3769,16 +3742,16 @@ function fillRefNames() {
         Object.keys(SCALES).forEach((n) => { const o = (document).createElement('option'); o.value = n; o.textContent = scaleDisp(n); sel.appendChild(o); });
     }
 }
-function refMidis() { const root = 60 + parseInt($('refRoot').value, 10); if ($('refType').value === 'chord') {
-    const c = CHORDS.find((x) => x.symbol === $('refName').value);
+function refMidis() { const root = 60 + parseInt(selectById('refRoot').value, 10); if (selectById('refType').value === 'chord') {
+    const c = CHORDS.find((x) => x.symbol === selectById('refName').value);
     if (!c) return [];
     return c.intervals.map((i) => root + i);
-} return SCALES[$('refName').value].concat([12]).map((i) => root + i); }
+} return SCALES[selectById('refName').value].concat([12]).map((i) => root + i); }
 function updateExplore() {
     if (view0() !== 'explore')
         return;
     const notes = (held.size ? heldMidis() : explorePreview).slice().sort((a, b) => a - b);
-    const keyCtx = parseInt($('keyCtx').value, 10);
+    const keyCtx = parseInt(selectById('keyCtx').value, 10);
     let nameLabel = '—', roman = '—', spell = notes.length ? isFlatKey(pc(notes[0])) : false;
     let degrees = null;
     if (notes.length >= 3) {
@@ -3800,9 +3773,9 @@ function updateExplore() {
         nameLabel = pcName(pc(notes[0]), spell);
     }
     kbDegrees(degrees);
-    $('ro-notes').textContent = notes.length ? notes.map((m) => noteName(m, spell)).join('  ') : '—';
-    $('ro-name').textContent = nameLabel;
-    $('ro-roman').textContent = roman;
+    byId('ro-notes').textContent = notes.length ? notes.map((m) => noteName(m, spell)).join('  ') : '—';
+    byId('ro-name').textContent = nameLabel;
+    byId('ro-roman').textContent = roman;
     drawExploreStaff(notes, spell);
     cofNow(notes);
 }
@@ -3826,18 +3799,18 @@ const COF_SCALE = { natural: 'Aeolian (Natural minor)', harmonic: 'Harmonic mino
 const cof = { i: 0, minor: false, mode: 'scale', flavor: 'natural', picked: false };
 let exTabCur = 'free';
 const COF_SOL = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
-function cofSpell(letter, acc) { return spelledName(notation, 'CDEFGAB'.indexOf(letter), acc); }
-function cofParse(s) { return { L: s[0], acc: s[1] === '#' ? 1 : s[1] === 'b' ? -1 : 0 }; }
-function cofName(s) { const p = cofParse(s); return cofSpell(p.L, p.acc); }
+function cofSpell(letter: string, acc: number) { return spelledName(notation, 'CDEFGAB'.indexOf(letter), acc); }
+function cofParse(s: string[]) { return { L: s[0], acc: s[1] === '#' ? 1 : s[1] === 'b' ? -1 : 0 }; }
+function cofName(s: string) { const p = cofParse(s); return cofSpell(p.L, p.acc); }
 // Spell each degree with consecutive letter names so keys read correctly (e.g. G harmonic minor → F♯, D♯ minor → C𝄪).
-function cofSpellDegrees(tonic, offs, degs) {
+function cofSpellDegrees(tonic: string, offs: any[], degs: number[]) {
     const LET = 'CDEFGAB', NAT = [0, 2, 4, 5, 7, 9, 11], p = cofParse(tonic), li = LET.indexOf(p.L), tp = NAT[li] + p.acc;
-    return offs.map((o, k) => { const L = (li + degs[k]) % 7, d = ((tp + o - NAT[L]) % 12 + 12) % 12; return cofSpell(LET[L], d > 6 ? d - 12 : d); });
+    return offs.map((o: number, k: string|number) => { const L = (li + degs[k]) % 7, d = ((tp + o - NAT[L]) % 12 + 12) % 12; return cofSpell(LET[L], d > 6 ? d - 12 : d); });
 }
 function cofTonicPc() { return cof.minor ? (CIRCLE[cof.i] + 9) % 12 : CIRCLE[cof.i]; }
-function cofKeyLabel(i, minor) { if (i === 6)
+function cofKeyLabel(i: number, minor: boolean) { if (i === 6)
     return minor ? cofName('D#') + ' / ' + cofName('Eb') : cofName('F#') + ' / ' + cofName('Gb'); return cofName(minor ? COF_MIN[i] : COF_MAJ[i]); }
-function cofSigList(i) { const sh = 'FCGDAEB', fl = 'BEADGCF'; if (i === 0)
+function cofSigList(i: number|undefined) { const sh = 'FCGDAEB', fl = 'BEADGCF'; if (i === 0)
     return { n: 0, list: '' }; if (i <= 6)
     return { n: i, sharp: true, list: [...sh.slice(0, i)].map((L) => cofSpell(L, 1)).join(', ') }; const n = 12 - i; return { n, sharp: false, list: [...fl.slice(0, n)].map((L) => cofSpell(L, -1)).join(', ') }; }
 function cofData() {
@@ -3849,15 +3822,15 @@ function cofData() {
     const tbl = cof.minor ? COF_FING[cof.flavor] : COF_FING.maj, offs = (cof.minor ? SCALES[COF_SCALE[cof.flavor]] : SCALES['Major (Ionian)']).concat([12]);
     return { midis: offs.map((o) => root + o), names: cofSpellDegrees(tonic, offs, [0, 1, 2, 3, 4, 5, 6, 7]), rh: [...tbl.rh[tp]].map(Number), lh: [...tbl.lh[tp]].map(Number) };
 }
-function cofPt(r, deg) { const a = (deg - 90) * Math.PI / 180; return [(350 + r * Math.cos(a)).toFixed(2), (350 + r * Math.sin(a)).toFixed(2)]; }
-function cofSector(r0, r1, d0, d1) { const a = cofPt(r1, d0), b = cofPt(r1, d1), c = cofPt(r0, d1), d = cofPt(r0, d0); return 'M' + a + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + b + 'L' + c + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + d + 'Z'; }
-function cofTint(i, pct) { return 'fill:color-mix(in srgb, ' + (COF_COL[i] || '#6d4f7a') + ' ' + pct + '%, var(--card))'; }
-function cofText(x, y, cls, lines, lh) { return '<text class="' + cls + '" x="' + x + '" y="' + y + '">' + lines.map((s, k) => '<tspan x="' + x + '" dy="' + (k ? lh : -(lines.length - 1) * lh / 2) + '">' + s.replace(/([♯♭𝄪𝄫])/gu, '<tspan class="cof-g">$1</tspan>') + '</tspan>').join('') + '</text>'; }
+function cofPt(r: number, deg: number) { const a = (deg - 90) * Math.PI / 180; return [(350 + r * Math.cos(a)).toFixed(2), (350 + r * Math.sin(a)).toFixed(2)]; }
+function cofSector(r0: string|number, r1: string|number, d0: number, d1: number) { const a = cofPt(r1, d0), b = cofPt(r1, d1), c = cofPt(r0, d1), d = cofPt(r0, d0); return 'M' + a + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + b + 'L' + c + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + d + 'Z'; }
+function cofTint(i: number, pct: string|number) { return 'fill:color-mix(in srgb, ' + (COF_COL[i] || '#6d4f7a') + ' ' + pct + '%, var(--card))'; }
+function cofText(x: string, y: string, cls: string, lines: any[], lh: number) { return '<text class="' + cls + '" x="' + x + '" y="' + y + '">' + lines.map((s: string, k: any) => '<tspan x="' + x + '" dy="' + (k ? lh : -(lines.length - 1) * lh / 2) + '">' + s.replace(/([♯♭𝄪𝄫])/gu, '<tspan class="cof-g">$1</tspan>') + '</tspan>').join('') + '</text>'; }
 const cofMQ = window.matchMedia('(max-width:560px)');
 if (cofMQ)
     cofMQ?.addEventListener('change', () => renderCircle());
 function renderCircle() {
-    const box = $('circle');
+    const box = byId('circle');
     if (!box)
         return;
     const compact = !!(cofMQ && cofMQ.matches);
@@ -3923,20 +3896,20 @@ function cofSel() {
         g.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cofSector(150, 254, d0, d1), minD = cofSector(100, 150, d0, d1);
-    $('cof-sel').setAttribute('d', cof.minor ? minD : majD);
-    $('cof-rel').setAttribute('d', cof.minor ? majD : minD);
+    maybeById('cof-sel').setAttribute('d', cof.minor ? minD : majD);
+    maybeById('cof-rel').setAttribute('d', cof.minor ? majD : minD);
 }
 // Keeps the circle in step with the "Key context" select from the Free-play tab (always a major key there).
-function circleSel() { const k = parseInt($('keyCtx').value, 10); if (k >= 0) {
+function circleSel() { const k = parseInt(selectById('keyCtx').value, 10); if (k >= 0) {
     cof.i = CIRCLE.indexOf(k);
     cof.minor = false;
     cof.picked = true;
 } cofSel(); cofInfo(); cofPaintDock(); }
-function cofPick(i, minor) {
+function cofPick(i: number, minor: boolean) {
     cof.i = i;
     cof.minor = minor;
     cof.picked = true;
-    $('keyCtx').value = CIRCLE[i];
+    selectById('keyCtx').value = CIRCLE[i];
     cofSyncRef();
     cofSel();
     cofInfo();
@@ -3947,9 +3920,9 @@ function cofPick(i, minor) {
 function cofRevealFingering() {
     requestAnimationFrame(() => {
         const fing = (document).querySelector('#exp-circle .cof-fing');
-        if (!fing || $('exp-circle').hidden)
+        if (!fing || byId('exp-circle').hidden)
             return;
-        const dock = document.body.classList.contains('kb') ? $('dock') : null, dockH = dock ? dock.getBoundingClientRect().height : 0;
+        const dock = document.body.classList.contains('kb') ? byId('dock') : null, dockH = dock ? dock.getBoundingClientRect().height : 0;
         const header = (document).querySelector('header'), top = (header ? header.getBoundingClientRect().bottom : 0) + 16, bottom = window.innerHeight - dockH - 24;
         const rect = fing.getBoundingClientRect(), available = Math.max(0, bottom - top);
         const delta = rect.height > available || rect.top < top ? rect.top - top : rect.bottom > bottom ? rect.bottom - bottom : 0;
@@ -3958,10 +3931,10 @@ function cofRevealFingering() {
     });
 }
 function cofSyncRef() {
-    $('refType').value = cof.mode;
+    selectById('refType').value = cof.mode;
     fillRefNames();
-    $('refRoot').value = cofTonicPc();
-    $('refName').value = cof.mode === 'chord' ? (cof.minor ? 'm' : 'maj') : (cof.minor ? COF_SCALE[cof.flavor] : 'Major (Ionian)');
+    selectById('refRoot').value = cofTonicPc();
+    selectById('refName').value = cof.mode === 'chord' ? (cof.minor ? 'm' : 'maj') : (cof.minor ? COF_SCALE[cof.flavor] : 'Major (Ionian)');
 }
 function cofPlay() {
     const tp = cofTonicPc(), d = cofData();
@@ -3971,39 +3944,39 @@ function cofPlay() {
         playScaleNotes(60 + tp, (cof.minor ? SCALES[COF_SCALE[cof.flavor]] : SCALES['Major (Ionian)']), true);
 }
 function cofInfo() {
-    if (!$('cof-key'))
+    if (!byId('cof-key'))
         return;
     const i = cof.i, sig = cofSigList(i), rel = cofKeyLabel(i, !cof.minor);
-    $('cof-key').textContent = t(cof.minor ? 'key_minor' : 'key_major', cofKeyLabel(i, cof.minor));
-    const sigTxt = (g) => g.n ? t(g.sharp ? 'cof_sig_s' : 'cof_sig_f', String(g.n), '<b>' + g.list + '</b>') : t('cof_sig0');
+    byId('cof-key').textContent = t(cof.minor ? 'key_minor' : 'key_major', cofKeyLabel(i, cof.minor));
+    const sigTxt = (g: { n: number; list: string; sharp?: undefined; }|{ n: any; sharp: boolean; list: string; }) => g.n ? t(g.sharp ? 'cof_sig_s' : 'cof_sig_f', String(g.n), '<b>' + g.list + '</b>') : t('cof_sig0');
     const fl6 = { n: 6, sharp: false, list: [...'BEADGC'].map((L) => cofSpell(L, -1)).join(', ') };
-    $('cof-sig').innerHTML = sigTxt(sig) + (i === 6 ? ' / ' + sigTxt(fl6) : '') + ' · ' + t(cof.minor ? 'cof_rel_maj' : 'cof_rel_min', t(cof.minor ? 'key_major' : 'key_minor', rel));
+    byId('cof-sig').innerHTML = sigTxt(sig) + (i === 6 ? ' / ' + sigTxt(fl6) : '') + ' · ' + t(cof.minor ? 'cof_rel_maj' : 'cof_rel_min', t(cof.minor ? 'key_major' : 'key_minor', rel));
     (document).querySelectorAll('#cof-mode button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.mode ? 'true' : 'false'));
     (document).querySelectorAll('#cof-flavor button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.flavor ? 'true' : 'false'));
-    $('cof-flavor').hidden = !(cof.minor && cof.mode === 'scale');
+    byId('cof-flavor').hidden = !(cof.minor && cof.mode === 'scale');
     const ch = cof.mode === 'chord';
-    $('cof-fing-t').textContent = t(ch ? 'cof_fing_chord' : 'cof_fing_scale');
-    $('cof-fing-s').textContent = '· ' + t(ch ? 'cof_fing_chord_s' : 'cof_fing_scale_s');
-    $('cof-note').textContent = t(ch ? 'cof_note_chord' : 'cof_note_scale') + (!ch && cof.minor && cof.flavor === 'melodic' ? ' ' + t('cof_note_mel') : '');
+    byId('cof-fing-t').textContent = t(ch ? 'cof_fing_chord' : 'cof_fing_scale');
+    byId('cof-fing-s').textContent = '· ' + t(ch ? 'cof_fing_chord_s' : 'cof_fing_scale_s');
+    byId('cof-note').textContent = t(ch ? 'cof_note_chord' : 'cof_note_scale') + (!ch && cof.minor && cof.flavor === 'melodic' ? ' ' + t('cof_note_mel') : '');
     cofDiagram();
 }
 function cofDiagram() {
-    const box = $('cof-kb');
+    const box = byId('cof-kb');
     if (!box)
         return;
-    const d = cofData(), WHITE = [0, 2, 4, 5, 7, 9, 11], isW = (m) => WHITE.includes(pc(m));
+    const d = cofData(), WHITE = [0, 2, 4, 5, 7, 9, 11], isW = (m: number) => WHITE.includes(pc(m));
     let lo = d.midis[0], hi = d.midis[d.midis.length - 1];
     if (!isW(lo))
         lo--;
     if (!isW(hi))
         hi++;
-    const WW = 44, WH = 124, BW = 26, BH = 78, X0 = 34, TOP = 58, whites = [];
+    const WW = 44, WH = 124, BW = 26, BH = 78, X0 = 34, TOP = 58, whites: number[] = [];
     for (let m = lo; m <= hi; m++)
         if (isW(m))
             whites.push(m);
-    const W = X0 + whites.length * WW + 4, H = TOP + WH + 60, xOf = (m) => isW(m) ? X0 + whites.indexOf(m) * WW + WW / 2 : X0 + whites.indexOf(m + 1) * WW;
+    const W = X0 + whites.length * WW + 4, H = TOP + WH + 60, xOf = (m: number) => isW(m) ? X0 + whites.indexOf(m) * WW + WW / 2 : X0 + whites.indexOf(m + 1) * WW;
     const idx = new Map(d.midis.map((m, k) => [m, k]));
-    let s = '<svg class="cof-kb" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + t('cof_kb_aria', t('cof_rh_s') + ': ' + d.names.map((n, k) => n + ' ' + d.rh[k]).join(', ') + ' · ' + t('cof_lh_s') + ': ' + d.names.map((n, k) => n + ' ' + d.lh[k]).join(', ')) + '">';
+    let s = '<svg class="cof-kb" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + t('cof_kb_aria', t('cof_rh_s') + ': ' + d.names.map((n: string, k: string|number) => n + ' ' + d.rh[k]).join(', ') + ' · ' + t('cof_lh_s') + ': ' + d.names.map((n: string, k: string|number) => n + ' ' + d.lh[k]).join(', ')) + '">';
     s += '<text class="ck-hand" x="2" y="32">' + t('cof_rh_s') + '</text><text class="ck-hand" x="2" y="' + (TOP + WH + 36) + '">' + t('cof_lh_s') + '</text>';
     whites.forEach((m, k) => {
         const on = idx.has(m);
@@ -4019,25 +3992,25 @@ function cofDiagram() {
         if (on)
             s += '<text class="ck-n b" x="' + x + '" y="' + (TOP + BH - 11) + '" style="font-size:9.5px">' + d.names[idx.get(m)] + '</text>';
     }
-    const badge = (cls, x, y, n) => '<g class="ck-f ' + cls + '"><circle cx="' + x + '" cy="' + y + '" r="11"/><text x="' + x + '" y="' + y + '">' + n + '</text></g>';
+    const badge = (cls: string, x: string|number, y: string|number, n: string|number) => '<g class="ck-f ' + cls + '"><circle cx="' + x + '" cy="' + y + '" r="11"/><text x="' + x + '" y="' + y + '">' + n + '</text></g>';
     d.midis.forEach((m, k) => { const x = xOf(m), w = isW(m); s += badge('rh', x, w ? 40 : 14, d.rh[k]) + badge('lh', x, w ? TOP + WH + 18 : TOP + WH + 44, d.lh[k]); });
     box.innerHTML = s + '</svg>';
 }
-function cofNow(notes) { const box = $('cof-kb'); if (!box)
+function cofNow(notes: any[]|Iterable<unknown>|null|undefined) { const box = byId('cof-kb'); if (!box)
     return; const set = new Set(notes); box.querySelectorAll('[data-m]').forEach((r) => r.classList.toggle('now', set.has(+r.dataset.m))); }
 function cofPaintDock() { if (view0() !== 'explore')
     return; kbClear('target'); if (exTabCur !== 'circle')
     return; cofData().midis.forEach((m) => kbState(m, 'target', true)); }
-function exTab(tab, focus) {
+function exTab(tab: string, focus: boolean|undefined) {
     exTabCur = tab === 'circle' ? 'circle' : 'free';
     (document).querySelectorAll('#ex-tabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === exTabCur; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus)
         b.focus(); });
-    $('exp-free').hidden = exTabCur !== 'free';
-    $('exp-circle').hidden = exTabCur !== 'circle';
+    byId('exp-free').hidden = exTabCur !== 'free';
+    byId('exp-circle').hidden = exTabCur !== 'circle';
     cofPaintDock();
 }
 function initExploreTabs() {
-    const tl = $('ex-tabs');
+    const tl = byId('ex-tabs');
     if (!tl)
         return;
     tl.addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (b)
@@ -4048,11 +4021,11 @@ function initExploreTabs() {
         e.preventDefault();
         exTab(e.key === 'Home' ? 'free' : e.key === 'End' ? 'circle' : exTabCur === 'free' ? 'circle' : 'free', true);
     });
-    $('cof-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.dataset.v === cof.mode)
+    byId('cof-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.dataset.v === cof.mode)
         return; cof.mode = b.dataset.v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
-    $('cof-flavor').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.dataset.v === cof.flavor)
+    byId('cof-flavor').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.dataset.v === cof.flavor)
         return; cof.flavor = b.dataset.v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
-    $('cof-play').addEventListener('click', () => { if (!cof.picked) {
+    byId('cof-play').addEventListener('click', () => { if (!cof.picked) {
         cof.picked = true;
         cofSel();
     } cofSyncRef(); cofPlay(); });
@@ -4060,11 +4033,11 @@ function initExploreTabs() {
 /* ---------- SONGS ---------- */
 let songDir = 'asc';
 function renderSongs() {
-    const box = $('songsList');
+    const box = byId('songsList');
     if (!box)
         return;
     box.innerHTML = '';
-    const root = 60 + parseInt($('song-root').value || '0', 10);
+    const root = 60 + parseInt(selectById('song-root').value || '0', 10);
     for (let semi = 1; semi <= 12; semi++) {
         const iv = INTERVALS.find((i) => i.semi === semi) || { short: '' }, list = songsFor(semi, songDir);
         const card = (document).createElement('div');
@@ -4100,22 +4073,22 @@ function sqNew() {
     SQ.root = 55 + Math.floor(Math.random() * 10);
     SQ.dir = songDir;
     (document).querySelectorAll('#songsList .songcard').forEach((c) => c.removeAttribute('data-hl'));
-    $('sq-verdict').textContent = '';
-    $('sq-verdict').className = 'verdict';
+    byId('sq-verdict').textContent = '';
+    byId('sq-verdict').className = 'verdict';
     sqRender();
     sqPlay();
-    const f = $('sq-ans').querySelector('button');
+    const f = byId('sq-ans').querySelector('button');
     if (f)
         f.focus();
 }
 function sqRender() {
-    const a = $('sq-ans');
+    const a = byId('sq-ans');
     if (!a)
         return;
     a.hidden = !SQ.started;
-    $('sq-again').hidden = !SQ.started;
-    $('sq-go').textContent = t(SQ.started ? 'sq_next' : 'sq_start');
-    $('sq-score').textContent = SQ.total ? t('sq_score', SQ.right, SQ.total) : '';
+    byId('sq-again').hidden = !SQ.started;
+    byId('sq-go').textContent = t(SQ.started ? 'sq_next' : 'sq_start');
+    byId('sq-score').textContent = SQ.total ? t('sq_score', SQ.right, SQ.total) : '';
     if (!SQ.started)
         return;
     a.innerHTML = '';
@@ -4134,7 +4107,7 @@ function sqRender() {
         a.appendChild(b);
     }
 }
-function sqAnswer(n) {
+function sqAnswer(n: number) {
     if (SQ.answered || !SQ.started)
         return;
     SQ.answered = true;
@@ -4143,7 +4116,7 @@ function sqAnswer(n) {
     const ok = n === SQ.semi;
     if (ok)
         SQ.right++;
-    const hook = songsFor(SQ.semi, SQ.dir).find((x) => !/^\(/.test(x)), v = $('sq-verdict');
+    const hook = songsFor(SQ.semi, SQ.dir).find((x) => !/^\(/.test(x)), v = byId('sq-verdict');
     v.className = 'verdict ' + (ok ? 'good' : 'bad');
     v.textContent = t(ok ? 'sq_good' : 'sq_bad', ivName(SQ.semi)) + (hook ? ' ' + t('sq_hook', hook) : '');
     if (data.earDay !== todayN()) {
@@ -4157,7 +4130,7 @@ function sqAnswer(n) {
     if (card)
         card.dataset.hl = 'true';
     sqRender();
-    $('sq-go').focus();
+    byId('sq-go').focus();
     if (!ok)
         setTimeout(() => { if (view0() === 'songs')
             sqPlay(); }, 450);
@@ -4168,11 +4141,11 @@ function sqAnswer(n) {
    ============================================================================ */
 /* ---- Learn V4: new chapters (bilingual). Units, cheat sheets, quizzes & staves follow below. ---- */
 /* ---------- LEARN v4: units, progress, review, quizzes, staves, widgets, glossary ---------- */
-const LT = (a) => Array.isArray(a) ? (lang === 'ro' ? a[1] : a[0]) : a;
+const LT = (a: any[]) => Array.isArray(a) ? (lang === 'ro' ? a[1] : a[0]) : a;
 const LEARN_OLD_ORDER = ['keys', 'iv', 'sc', 'ch', 'cof', 'pr', 'rh', 'notation', 'dyn', 'modes', 'how'];
 const LEARN_GAPS = [3, 7, 16, 35, 90];
-let learnSel = 0, LGEN = 0, LQ = null, learnGloss = false;
-function learnTitle(L) { return (L[lang] && L[lang].t) || L.en.t; }
+let learnSel = 0, LGEN = 0, LQ: { id: any; done: any; qs: any; score: any; rev?: any; i: any; }|null = null, learnGloss = false;
+function learnTitle(L: { [x: string]: { t: any; }; id?: string; icon?: string; en: any; ro?: LessonCopy; }) { return (L[lang] && L[lang].t) || L.en.t; }
 function learnData() {
     if (!data.learnDone || typeof data.learnDone !== 'object')
         data.learnDone = {};
@@ -4184,9 +4157,9 @@ function learnData() {
         data.learnUnlock = {};
     return data;
 }
-function learnUnitOf(id) { return LEARN_UNITS.findIndex((u) => u.ls.includes(id)); }
-function learnUnitDone(i) { const u = LEARN_UNITS[i], d = learnData().learnDone; return u ? u.ls.filter((id) => d[id]).length : 0; }
-function learnUnitOpen(i) {
+function learnUnitOf(id: string) { return LEARN_UNITS.findIndex((u) => u.ls.includes(id)); }
+function learnUnitDone(i: number) { const u = LEARN_UNITS[i], d = learnData().learnDone; return u ? u.ls.filter((id) => d[id]).length : 0; }
+function learnUnitOpen(i: number) {
     if (i <= 0)
         return true;
     const u = LEARN_UNITS[i], D = learnData();
@@ -4197,9 +4170,9 @@ function learnUnitOpen(i) {
     const p = LEARN_UNITS[i - 1];
     return learnUnitOpen(i - 1) && p.ls.every((id) => D.learnDone[id]);
 }
-function learnLessonOpen(L) { return learnUnitOpen(learnUnitOf(L.id)); }
-function learnGap(id) { const r = learnData().learnRev[id]; return LEARN_GAPS[Math.min(r ? (r.n | 0) : 0, LEARN_GAPS.length - 1)]; }
-function learnDueDays(id) {
+function learnLessonOpen(L: { id: any; icon?: string; en?: LessonCopy; ro?: LessonCopy; }) { return learnUnitOpen(learnUnitOf(L.id)); }
+function learnGap(id: string) { const r = learnData().learnRev[id]; return LEARN_GAPS[Math.min(r ? (r.n | 0) : 0, LEARN_GAPS.length - 1)]; }
+function learnDueDays(id: string) {
     const D = learnData();
     if (!D.learnDone[id])
         return null;
@@ -4208,7 +4181,7 @@ function learnDueDays(id) {
     return age >= learnGap(id) ? age : null;
 }
 function learnDueList() { return LESSONS.filter((L) => learnDueDays(L.id) != null).sort((a, b) => learnDueDays(b.id) - learnDueDays(a.id)); }
-function learnComplete(L, score) {
+function learnComplete(L: { id: any; icon?: string; en?: LessonCopy; ro?: LessonCopy; }, score: number|null) {
     const D = learnData(), tn = todayN(), was = D.learnDone[L.id], due = learnDueDays(L.id) != null;
     const r = D.learnRev[L.id] || (D.learnRev[L.id] = { last: tn, n: 0 });
     if (score != null)
@@ -4226,7 +4199,7 @@ function learnComplete(L, score) {
     saveAll();
     return { first: !was, review: !!was && due };
 }
-function learnMark(read) {
+function learnMark(read: boolean) {
     const L = LESSONS[learnSel], D = learnData();
     if (read)
         learnComplete(L, null);
@@ -4247,7 +4220,7 @@ function learnInitSel() {
     const i = LESSONS.findIndex((L) => L.id === id);
     learnSel = i >= 0 ? i : 0;
 }
-function learnGo(i) {
+function learnGo(i: number) {
     learnSel = Math.max(0, Math.min(LESSONS.length - 1, i));
     learnData().learnSelId = LESSONS[learnSel].id;
     data.learnSel = learnSel;
@@ -4259,13 +4232,13 @@ function learnGo(i) {
     const g = (document).querySelector('#view-learn .learn-grid');
     if (g && g.getBoundingClientRect().top < 70)
         g.scrollIntoView({ block: 'start' });
-    const h = $('learnBody').querySelector('h3');
+    const h = byId('learnBody').querySelector('h3');
     if (h) {
         h.setAttribute('tabindex', '-1');
         h.focus({ preventScroll: true });
     }
 }
-function learnGoId(id) { const i = LESSONS.findIndex((L) => L.id === id); if (i >= 0) {
+function learnGoId(id: string) { const i = LESSONS.findIndex((L) => L.id === id); if (i >= 0) {
     if (view0() !== 'learn') {
         learnSel = i;
         learnData().learnSelId = id;
@@ -4277,7 +4250,7 @@ function learnGoId(id) { const i = LESSONS.findIndex((L) => L.id === id); if (i 
     else
         learnGo(i);
 } }
-function learnSay(msg) { const l = $('learnLive'); if (!l)
+function learnSay(msg: string|null) { const l = maybeById('learnLive'); if (!l)
     return; l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 30); }
 function learnHalt() {
     LGEN++;
@@ -4288,17 +4261,17 @@ function learnHalt() {
     (document).querySelectorAll('#learnBody .lbars .on, #learnBody .lbeat .on').forEach((e) => e.classList.remove('on'));
     (document).querySelectorAll('#learnBody [data-lplay][aria-pressed="true"]').forEach((b) => { b.setAttribute('aria-pressed', 'false'); b.textContent = t('lu_play_ex'); });
 }
-function learnTimer(fn, ms) { const g = LGEN; setTimeout(() => { if (g !== LGEN || view0() !== 'learn')
+function learnTimer(fn: { (): void; (): void; (): void; (): void; (): void; (): void; (): void; (): void; (): void; (): void; }, ms: number|undefined) { const g = LGEN; setTimeout(() => { if (g !== LGEN || view0() !== 'learn')
     return; fn(); }, ms); }
-function learnLight(ms, dur) {
+function learnLight(ms: any[], dur: number|undefined) {
     const g = LGEN;
     kbClear('target');
-    ms.forEach((m) => kbState(m, 'target', true));
+    ms.forEach((m: any) => kbState(m, 'target', true));
     clearTimeout((learnLight )._t);
     (learnLight )._t = setTimeout(() => { if (g === LGEN)
         kbClear('target'); }, dur);
 }
-function learnPlanItems(tn) {
+function learnPlanItems(tn: number) {
     const D = learnData(), ld = D.learnDone;
     const nextL = LESSONS.find((L) => !ld[L.id] && learnLessonOpen(L)), learnToday = Object.keys(ld).some((k) => ld[k] === tn);
     const out = [{ id: 'learn', done: learnToday || !nextL, t: t('plan_learn'), d: nextL ? t('plan_learn_d', learnTitle(nextL)) : t('plan_learn_all'),
@@ -4320,7 +4293,7 @@ function learnPlanItems(tn) {
 /* cheat sheets: rows of [label, value]; each may be a string or [en,ro] */
 /* staff excerpts: compact note strings "C4q E4+G4h Rq" (w h q e s, d=dotted, t=triplet eighth) */
 const LDUR = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
-function LP(s) { return s.trim().split(/\s+/).filter((x) => x !== '|').map((tok) => { const m = tok.match(/^(.+?)(d?[whqest])$/); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
+function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !== '|').map((tok: string) => { const m = tok.match(/^(.+?)(d?[whqest])$/); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
 const LSTAVES = {
     n_clefs: { p: { rh: LP('C4h G4h C5w'), lh: LP('C4h F3h C3w'), ts: [4, 4] }, bpm: 84, cap: ['Treble clef for the right hand, bass clef for the left. Middle C sits on a ledger line between them.', 'Cheia Sol pentru mâna dreaptă, cheia Fa pentru stânga. Do central stă pe o linie suplimentară între ele.'] },
     n_steps: { p: { rh: LP('C4q D4q E4q F4q G4q A4q B4q C5q'), ts: [4, 4] }, bpm: 96, cap: ['Line, space, line, space: each step up the staff is the next letter.', 'Linie, spațiu, linie, spațiu: fiecare treaptă în sus pe portativ e nota următoare.'] },
@@ -4354,24 +4327,24 @@ const LSTAVES = {
     acc1: { p: { rh: LP('E5h D5h C5w'), lh: LP('C3e G3e E3e G3e B2e G3e D3e G3e C3e G3e E3e G3e C3e G3e E3e G3e'), ts: [4, 4] }, bpm: 96, marks: [['txt', 0, ['Alberti bass: 1-5-3-5', 'Bas Alberti: 1-5-3-5']]], cap: ['A simple melody over an Alberti bass — the left hand breaks each chord low-high-middle-high.', 'O melodie simplă peste un bas Alberti — mâna stângă desface acordul jos-sus-mijloc-sus.'] },
 };
 const LSR = {};
-function lStaffSvg(key) {
+function lStaffSvg(key: string|number) {
     const S = LSTAVES[key];
     const P = Object.assign({ noNames: true }, S.p);
     const r = srRender(P);
     LSR[key] = r;
     const lhTop = P.rh ? 150 : 46, botY = (P.lh ? lhTop : 46) + 48, dynY = 124, rnY = botY + 24;
-    const top = (h) => h === 'lh' ? lhTop : 46;
-    const bx = (b) => { const pts = r.beatX; for (let i = 0; i < pts.length - 1; i++) {
+    const top = (h: string) => h === 'lh' ? lhTop : 46;
+    const bx = (b: number) => { const pts = r.beatX; for (let i = 0; i < pts.length - 1; i++) {
         if (b >= pts[i].b - 1e-3 && b <= pts[i + 1].b + 1e-3) {
             const f = (b - pts[i].b) / Math.max(1e-3, pts[i + 1].b - pts[i].b);
             return pts[i].x + Math.min(1, Math.max(0, f)) * (pts[i + 1].x - pts[i].x);
         }
     } return pts[pts.length - 1].x; };
-    const nAt = (b, h) => { const c = r.notes.filter((n) => Math.abs(n.beat - b) < 0.02 && (!h || n.hand === h)); return c.length ? c.reduce((a, n) => n.y < a.y ? n : a) : null; };
-    const many = (b) => r.notes.filter((n) => Math.abs(n.beat - b) < 0.02).length > 1;
-    const T = (x, y, s, c, anc) => '<text class="lm ' + (c || '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '"' + (anc ? ' text-anchor="' + anc + '"' : '') + '>' + s + '</text>';
+    const nAt = (b: number, h: any) => { const c = r.notes.filter((n) => Math.abs(n.beat - b) < 0.02 && (!h || n.hand === h)); return c.length ? c.reduce((a, n) => n.y < a.y ? n : a) : null; };
+    const many = (b: number) => r.notes.filter((n) => Math.abs(n.beat - b) < 0.02).length > 1;
+    const T = (x: number, y: number, s: string, c: string, anc: string|undefined) => '<text class="lm ' + (c || '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '"' + (anc ? ' text-anchor="' + anc + '"' : '') + '>' + s + '</text>';
     let out = '', needH = 0;
-    (S.marks || []).forEach((mk) => {
+    (S.marks || []).forEach((mk: any[]) => {
         const k = mk[0], b = mk[1];
         if (k === 'dyn')
             out += T(bx(b) - 6, dynY, mk[2], 'lm-dyn');
@@ -4440,32 +4413,32 @@ function lStaffSvg(key) {
     svg = svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="group" aria-label="' + LT(S.cap).replace(/"/g, '&quot;') + '"');
     return svg.replace('</svg>', out + '</svg>');
 }
-function lStaffHTML(key) {
+function lStaffHTML(key: string|undefined) {
     const S = LSTAVES[key];
     if (!S)
         return '';
     return '<figure class="lstaff" data-lstaff="' + key + '"><div class="ss-wrap lstaff-svg">' + lStaffSvg(key) + '</div><figcaption><button type="button" class="btn ghost sm" data-lplay="' + key + '" aria-pressed="false">' + t('lu_play_ex') + '</button><span>' + LT(S.cap) + ' <em class="lstaff-hint">' + t('lu_staff_hint') + '</em></span></figcaption></figure>';
 }
 const LVEL = { pp: 40, p: 55, mp: 70, mf: 84, f: 100, ff: 112 };
-function lVel(S, b) {
+function lVel(S: { marks: never[]; }, b: number) {
     const M = S.marks || [];
     let base = 80, bb = -1;
-    M.forEach((m) => { if (m[0] === 'dyn' && LVEL[m[2]] && m[1] <= b + 1e-3 && m[1] >= bb) {
+    M.forEach((m: number[]) => { if (m[0] === 'dyn' && LVEL[m[2]] && m[1] <= b + 1e-3 && m[1] >= bb) {
         base = LVEL[m[2]];
         bb = m[1];
     } });
-    M.forEach((m) => { if ((m[0] === 'cr' || m[0] === 'dim') && b >= m[1] && b <= m[2]) {
-        const nx = M.filter((x) => x[0] === 'dyn' && LVEL[x[2]] && x[1] >= m[2] - 0.5).sort((a, c) => a[1] - c[1])[0];
+    M.forEach((m: number[]) => { if ((m[0] === 'cr' || m[0] === 'dim') && b >= m[1] && b <= m[2]) {
+        const nx = M.filter((x: number[]) => x[0] === 'dyn' && LVEL[x[2]] && x[1] >= m[2] - 0.5).sort((a: number[], c: number[]) => a[1] - c[1])[0];
         if (nx)
             base = base + (LVEL[nx[2]] - base) * (b - m[1]) / Math.max(0.5, nx[1] - m[1]);
     } });
-    if (M.some((m) => m[0] === 'dyn' && m[2] === 'sfz' && Math.abs(m[1] - b) < 0.02))
+    if (M.some((m: number[]) => m[0] === 'dyn' && m[2] === 'sfz' && Math.abs(m[1] - b) < 0.02))
         base = 118;
-    if (M.some((m) => m[0] === 'acc' && Math.abs(m[1] - b) < 0.02))
+    if (M.some((m: number[]) => m[0] === 'acc' && Math.abs(m[1] - b) < 0.02))
         base = Math.min(124, base + 24);
     return Math.round(base);
 }
-async function lStaffPlay(key, btn)  {
+async function lStaffPlay(key: string|number, btn: { getAttribute: (arg0: string) => string; setAttribute: (arg0: string,arg1: string) => void; textContent: string; closest: (arg0: string) => any; })  {
     const was = btn.getAttribute('aria-pressed') === 'true';
     learnHalt();
     if (was)
@@ -4479,18 +4452,18 @@ async function lStaffPlay(key, btn)  {
     btn.setAttribute('aria-pressed', 'true');
     btn.textContent = t('lu_stop');
     const S = LSTAVES[key], r = LSR[key], spb = 60 / (S.bpm || 90), fig = btn.closest('.lstaff'), svg = fig.querySelector('svg'), wrap = fig.querySelector('.lstaff-svg');
-    const M = S.marks || [], has = (k, b) => M.some((m) => m[0] === k && Math.abs(m[1] - b) < 0.02), ties = M.filter((m) => m[0] === 'tie');
+    const M = S.marks || [], has = (k: string, b: number) => M.some((m: number[]) => m[0] === k && Math.abs(m[1] - b) < 0.02), ties = M.filter((m: string[]) => m[0] === 'tie');
     const cap = S.p.ts[1] === 8 ? S.p.ts[0] * 0.5 : S.p.ts[0], pk = S.p.pickup || 0, step = S.p.ts[1] === 8 ? 1.5 : 1;
     const t0 = actx.currentTime + 0.15;
     let off = 0;
     (S.seq || [[0, r.total]]).forEach(([a, z] = []) => {
-        r.notes.filter((n) => n.beat >= a - 1e-3 && n.beat < z - 1e-3).forEach((n) => {
-            if (ties.some((m) => Math.abs(m[2] - n.beat) < 0.02 && r.notes.some((o) => o.midi === n.midi && Math.abs(o.beat - m[1]) < 0.02)))
+        r.notes.filter((n: { beat: number; }) => n.beat >= a - 1e-3 && n.beat < z - 1e-3).forEach((n: { beat: number; midi: number; dur: any; nid: string; x: number; }) => {
+            if (ties.some((m: number[]) => Math.abs(m[2] - n.beat) < 0.02 && r.notes.some((o: { midi: any; beat: number; }) => o.midi === n.midi && Math.abs(o.beat - m[1]) < 0.02)))
                 return;
             let dur = n.dur;
-            const tie = ties.find((m) => Math.abs(m[1] - n.beat) < 0.02);
+            const tie = ties.find((m: number[]) => Math.abs(m[1] - n.beat) < 0.02);
             if (tie) {
-                const o = r.notes.find((x) => x.midi === n.midi && Math.abs(x.beat - tie[2]) < 0.02);
+                const o = r.notes.find((x: { midi: any; beat: number; }) => x.midi === n.midi && Math.abs(x.beat - tie[2]) < 0.02);
                 if (o)
                     dur += o.dur;
             }
@@ -4520,7 +4493,7 @@ async function lStaffPlay(key, btn)  {
     learnTimer(() => { if (g !== LGEN)
         return; btn.setAttribute('aria-pressed', 'false'); btn.textContent = t('lu_play_ex'); kbClear('target'); }, off * spb * 1000 + 700);
 }
-async function lStaffNote(gEl)  {
+async function lStaffNote(gEl: { closest: (arg0: string) => any; dataset: { nid: string|number; s: string; }; })  {
     const fig = gEl.closest('.lstaff');
     if (!fig)
         return;
@@ -4539,13 +4512,13 @@ async function lStaffNote(gEl)  {
         delete gEl.dataset.s; }, 700);
     learnSay(noteName(n.midi, (LSTAVES[key].p.keyN || 0) < 0));
 }
-function lqLabel(o) { return LT(o); }
-function lqStart(L) {
+function lqLabel(o: any) { return LT(o); }
+function lqStart(L: { id: any; icon?: string; en?: LessonCopy; ro?: LessonCopy; }) {
     const qs = (LQZ[L.id] || []).map((q) => {
         const c = Object.assign({}, q);
         const locOpts = (q.i18n && q.i18n[lang] && q.i18n[lang].o) || null;
         if (q.o) {
-            c.opts = shuffle(q.o.map((x, i) => ({ x: (locOpts && locOpts[i]) || x, ok: i === (q.a || 0) })));
+            c.opts = shuffle(q.o.map((x: any, i: string|number|string[]) => ({ x: (locOpts && locOpts[i]) || x, ok: i === (q.a || 0) })));
         }
         c.got = [];
         c.ans = false;
@@ -4555,10 +4528,10 @@ function lqStart(L) {
     LQ = { id: L.id, qs, i: 0, score: 0, done: false };
     lqRender();
 }
-function lqNeed(n) { return Math.max(1, Math.round(n * 0.7)); }
-function lqMidis(q) { return (q.pcs || q.seq).map((p) => 60 + p); }
+function lqNeed(n: number) { return Math.max(1, Math.round(n * 0.7)); }
+function lqMidis(q: { pcs: any; seq: any; }) { return (q.pcs || q.seq).map((p: number) => 60 + p); }
 function lqRender() {
-    const box = $('lq');
+    const box = maybeById('lq');
     if (!box)
         return;
     const L = LESSONS[learnSel], qz = LQZ[L.id] || [], D = learnData(), done = !!D.learnDone[L.id], rv = D.learnRev[L.id] || {};
@@ -4586,32 +4559,32 @@ function lqRender() {
                 h += '<div class="lq-act"><button type="button" class="btn ghost sm" data-lq="show">' + t('lu_q_show') + '</button></div>';
         }
         else
-            h += '<div class="lq-opts" role="group" aria-labelledby="lq-q">' + q.opts.map((o, i) => '<button type="button" class="lq-o" data-lqo="' + i + '"' + (q.ans ? ' disabled' + (o.ok ? ' data-r="good"' : (q.pick === i ? ' data-r="bad"' : '')) : '') + '>' + lqLabel(o.x) + '</button>').join('') + '</div>';
+            h += '<div class="lq-opts" role="group" aria-labelledby="lq-q">' + q.opts.map((o: { ok: any; x: any; }, i: string) => '<button type="button" class="lq-o" data-lqo="' + i + '"' + (q.ans ? ' disabled' + (o.ok ? ' data-r="good"' : (q.pick === i ? ' data-r="bad"' : '')) : '') + '>' + lqLabel(o.x) + '</button>').join('') + '</div>';
         if (q.ans) {
             h += '<p class="lq-fb" data-r="' + (q.ok ? 'good' : 'bad') + '">' + q.fb + '</p><div class="lq-act"><button type="button" class="btn primary" data-lq="next">' + t(LQ.i < LQ.qs.length - 1 ? 'lu_q_next' : 'lu_q_finish') + '</button></div>';
         }
     }
     box.innerHTML = h;
 }
-function learnReveal(el) {
-    const d = $('dock'), dh = d && getComputedStyle(d).display !== 'none' ? d.getBoundingClientRect().height : 0, r = el.getBoundingClientRect(), lim = innerHeight - dh - 16;
+function learnReveal(el: { getBoundingClientRect: () => any; }) {
+    const d = byId('dock'), dh = d && getComputedStyle(d).display !== 'none' ? d.getBoundingClientRect().height : 0, r = el.getBoundingClientRect(), lim = innerHeight - dh - 16;
     if (r.bottom > lim)
         scrollBy(0, r.bottom - lim);
     else if (r.top < 80)
         scrollBy(0, r.top - 80);
 }
-function lqFocus(sel) { const el = $('lq') && $('lq').querySelector(sel); if (el) {
+function lqFocus(sel: string) { const el = maybeById('lq') && maybeById('lq').querySelector(sel); if (el) {
     el.focus({ preventScroll: true });
     learnReveal(el);
 } }
-function lqAnswer(ok, fb) { const q = LQ.qs[LQ.i]; q.ans = true; q.ok = ok; if (ok)
+function lqAnswer(ok: boolean, fb: string) { const q = LQ.qs[LQ.i]; q.ans = true; q.ok = ok; if (ok)
     LQ.score++; q.fb = fb; lqRender(); learnSay(fb); lqFocus('[data-lq="next"]'); }
-function lqPick(i) {
+function lqPick(i: number) {
     const q = LQ && LQ.qs[LQ.i];
     if (!q || q.ans || !q.opts)
         return;
     q.pick = i;
-    const o = q.opts[i], right = q.opts.find((x) => x.ok);
+    const o = q.opts[i], right = q.opts.find((x: { ok: any; }) => x.ok);
     lqAnswer(o.ok, (o.ok ? t('lu_q_ok') : t('lu_q_no', lqLabel(right.x))) + ((q.i18n && q.i18n[lang] && q.i18n[lang].why) ? ' ' + q.i18n[lang].why : (q.why ? ' ' + LT(q.why) : '')));
 }
 function lqNext() {
@@ -4634,7 +4607,7 @@ function lqNext() {
         learnNavRender();
     }
     lqRender();
-    learnSay($('lq').querySelector('.lq-res')?.textContent || '');
+    learnSay(maybeById('lq').querySelector('.lq-res')?.textContent || '');
     lqFocus('.lq-act button');
 }
 function lqShow() {
@@ -4645,8 +4618,8 @@ function lqShow() {
     learnLight(ms, 4000);
     ensureAudio();
     preparePiano().then((ok) => { if (ok)
-        ms.forEach((m, i) => previewNote(m, actx.currentTime + 0.05 + (q.seq ? i * 0.45 : 0), 0.9, 90)); });
-    lqAnswer(false, t('lu_q_no', ms.map((m) => pcName(pc(m), false)).join(' – ')));
+        ms.forEach((m: any, i: number) => previewNote(m, actx.currentTime + 0.05 + (q.seq ? i * 0.45 : 0), 0.9, 90)); });
+    lqAnswer(false, t('lu_q_no', ms.map((m: number) => pcName(pc(m), false)).join(' – ')));
 }
 function learnInput() {
     const m = heldOrder[heldOrder.length - 1];
@@ -4685,10 +4658,10 @@ function learnInput() {
         learnSay(t('lu_q_got', q.got.length, tot));
     }
 }
-function learnRdLevel(u) {
+function learnRdLevel(u: { icon?: string; ls?: string[]; en?: string; ro?: string; rd?: any; }) {
     const units = RD_UNITS.filter((x) => u.rd.includes(x.u));
     let pick = null;
-    units.some((x) => x.lv.some((L) => { if (rdUnlocked(L) && ((rdData().lv[L.id] || {}).s || 0) < 1) {
+    units.some((x) => x.lv.some((L: { id: string|number; }) => { if (rdUnlocked(L) && ((rdData().lv[L.id] || {}).s || 0) < 1) {
         pick = L;
         return true;
     } return false; }));
@@ -4699,12 +4672,12 @@ function learnRdLevel(u) {
     return pick;
 }
 function learnSide() {
-    const toc = $('learnToc');
+    const toc = byId('learnToc');
     if (!toc)
         return;
     const D = learnData(), done = D.learnDone, nDone = LESSONS.filter((L) => done[L.id]).length;
-    $('learnMeta').textContent = t('learn_read_n', nDone, LESSONS.length);
-    $('learnProg').style.width = Math.round(100 * nDone / LESSONS.length) + '%';
+    byId('learnMeta').textContent = t('learn_read_n', nDone, LESSONS.length);
+    byId('learnProg').style.width = Math.round(100 * nDone / LESSONS.length) + '%';
     let h = '', opt = '';
     LEARN_UNITS.forEach((u, ui) => {
         const open = learnUnitOpen(ui), nm = (u[lang] || u.en);
@@ -4722,10 +4695,10 @@ function learnSide() {
         opt += '</optgroup>';
     });
     toc.innerHTML = h;
-    $('learnExtra').innerHTML = '<label class="learn-pick"><span>' + t('lu_pick') + '</span><select id="learnPick">' + opt + '</select></label><button type="button" class="btn ghost sm" id="learnGlossBtn" aria-pressed="' + learnGloss + '">📖 ' + t('lu_gloss') + '</button>';
+    maybeById('learnExtra').innerHTML = '<label class="learn-pick"><span>' + t('lu_pick') + '</span><select id="learnPick">' + opt + '</select></label><button type="button" class="btn ghost sm" id="learnGlossBtn" aria-pressed="' + learnGloss + '">📖 ' + t('lu_gloss') + '</button>';
 }
 function learnNavRender() {
-    const nav = $('learnBody').querySelector('.learn-nav');
+    const nav = byId('learnBody').querySelector('.learn-nav');
     if (!nav)
         return;
     const L = LESSONS[learnSel], D = learnData(), isRead = !!D.learnDone[L.id], last = learnSel === LESSONS.length - 1;
@@ -4737,7 +4710,7 @@ function learnWire() {
     if ((learnWire )._ok)
         return;
     (learnWire )._ok = true;
-    const side = (document).querySelector('#view-learn .learn-side'), toc = $('learnToc');
+    const side = (document).querySelector('#view-learn .learn-side'), toc = byId('learnToc');
     const ex = (document).createElement('div');
     ex.id = 'learnExtra';
     ex.className = 'learn-extra';
@@ -4755,11 +4728,11 @@ function learnWire() {
         learnGloss = !learnGloss;
         LQ = null;
         renderLearn();
-        const s = $('lg-q');
+        const s = maybeById('lg-q');
         if (s)
             s.focus();
     } });
-    const body = $('learnBody');
+    const body = byId('learnBody');
     body.addEventListener('keydown', (e) => { const g = e.target.closest && e.target.closest('.lstaff .ss-n'); if (g && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
         lStaffNote(g);
@@ -4770,10 +4743,10 @@ function learnWire() {
         lwInput(e); });
     body.addEventListener('change', (e) => lwInput(e));
 }
-function learnBodyHTML(L) { return (L[lang] && L[lang].b) || L.en.b; }
+function learnBodyHTML(L: { [x: string]: { b: any; }; id?: string; icon?: string; en: any; ro?: LessonCopy; }) { return (L[lang] && L[lang].b) || L.en.b; }
 let renderLearn = function renderLearn() {
-    const body = $('learnBody');
-    if (!body || !$('learnToc'))
+    const body = byId('learnBody');
+    if (!body || !byId('learnToc'))
         return;
     learnWire();
     learnInitSel();
@@ -4799,7 +4772,7 @@ let renderLearn = function renderLearn() {
     h += '<div class="learn-content">' + learnBodyHTML(L) + '</div>';
     const sum = LSUM[L.id];
     if (sum)
-        h += '<section class="lsum" aria-labelledby="lsum-h"><h4 id="lsum-h">📋 ' + t('lu_sum') + '</h4><dl>' + sum.map((r) => { const sRow = (r.i18n && r.i18n[lang]) || [LT(r[0]), LT(r[1])]; return '<div><dt>' + sRow[0] + '</dt><dd>' + sRow[1] + '</dd></div>'; }).join('') + '</dl></section>';
+        h += '<section class="lsum" aria-labelledby="lsum-h"><h4 id="lsum-h">📋 ' + t('lu_sum') + '</h4><dl>' + sum.map((r: any[]) => { const sRow = (r.i18n && r.i18n[lang]) || [LT(r[0]), LT(r[1])]; return '<div><dt>' + sRow[0] + '</dt><dd>' + sRow[1] + '</dd></div>'; }).join('') + '</dl></section>';
     if (LQZ[L.id])
         h += '<section class="lq" id="lq" aria-labelledby="lq-h"></section>';
     h += '<div class="learn-nav"></div>';
@@ -4813,12 +4786,12 @@ let renderLearn = function renderLearn() {
         LQ = null;
     lqRender();
     learnNavRender();
-    const cur = $('learnToc').querySelector('[aria-current="true"]');
-    const toc = $('learnToc');
+    const cur = byId('learnToc').querySelector('[aria-current="true"]');
+    const toc = byId('learnToc');
     if (cur && toc.scrollHeight > toc.clientHeight)
         cur.scrollIntoView({ block: 'nearest' });
 };
-function learnClick(e) {
+function learnClick(e: PointerEvent) {
     const g = e.target.closest('[data-go]');
     if (g) {
         e.preventDefault();
@@ -4826,8 +4799,8 @@ function learnClick(e) {
         show(g.dataset.go);
         if (g.dataset.extab)
             exTab(g.dataset.extab);
-        if (c && $('pr-cat'))
-            $('pr-cat').value = c;
+        if (c && byId('pr-cat'))
+            selectById('pr-cat').value = c;
         return;
     }
     if (e.target.closest('[data-lgback]')) {
@@ -4928,8 +4901,8 @@ function learnClick(e) {
     if (d)
         runDemo(d.dataset.demo, d);
 }
-function lSeqLight(chords, stepMs, holdMs) {
-    chords.forEach((ms, i) => learnTimer(() => { kbClear('target'); ms.forEach((m) => kbState(m, 'target', true)); }, i * stepMs));
+function lSeqLight(chords: any[], stepMs: number, holdMs: number) {
+    chords.forEach((ms: any[], i: number) => learnTimer(() => { kbClear('target'); ms.forEach((m: any) => kbState(m, 'target', true)); }, i * stepMs));
     learnTimer(() => kbClear('target'), (chords.length - 1) * stepMs + (holdMs || stepMs));
 }
 const LBLUES = [0, 0, 0, 0, 5, 5, 0, 0, 7, 5, 0, 7];
@@ -4938,7 +4911,7 @@ function lBarsHTML() {
     return '<div class="lbars" role="list" aria-label="' + t('lw_blues') + '">' + LBLUES.map((d, i) => '<span role="listitem" data-bar="' + i + '"><b>' + rn[d] + '</b><small>' + pcName(d, d === 5) + '7</small></span>').join('') + '</div>';
 }
 const LACC_CH = [{ bass: 48, right: [60, 64, 67], fifth: 55 }, { bass: 45, right: [60, 64, 69], fifth: 52 }, { bass: 41, right: [60, 65, 69], fifth: 48 }, { bass: 43, right: [59, 62, 67], fifth: 50 }];
-async function runDemo(spec, btn)  {
+async function runDemo(spec: string, btn: any)  {
     ensureAudio();
     learnHalt();
     const g = LGEN;
@@ -4955,8 +4928,8 @@ async function runDemo(spec, btn)  {
     }
     else if (kind === 'run') {
         const ms = p[1].split('.').map(Number);
-        ms.forEach((m, i) => previewNote(m, T0 + i * 0.4, 0.38, 92));
-        lSeqLight(ms.map((m) => [m]), 400, 700);
+        ms.forEach((m: any, i: number) => previewNote(m, T0 + i * 0.4, 0.38, 92));
+        lSeqLight(ms.map((m: any) => [m]), 400, 700);
     }
     else if (kind === 'ms') {
         const ms = p[1].split('.').map(Number);
@@ -4993,7 +4966,7 @@ async function runDemo(spec, btn)  {
         }
     }
     else if (kind === 'blues') {
-        const rp = +p[1] || 0, spb = 0.3, bars = $('learnBody').querySelectorAll('.lbars [data-bar]');
+        const rp = +p[1] || 0, spb = 0.3, bars = byId('learnBody').querySelectorAll('.lbars [data-bar]');
         const chs = LBLUES.map((d) => { const r = (rp + d) % 12, root = 60 + r - (r > 7 ? 12 : 0); return { bass: 36 + r, ms: [root, root + 4, root + 7, root + 10] }; });
         chs.forEach((c, i) => {
             const b0 = T0 + i * 4 * spb;
@@ -5008,15 +4981,15 @@ async function runDemo(spec, btn)  {
         learnTimer(() => bars.forEach((b) => b.classList.remove('on')), 48 * spb * 1000 + 1500);
     }
     else if (kind === 'vc') {
-        const chs = p[1].split('|').map((s) => s.split('.').map(Number));
-        chs.forEach((ms, i) => ms.forEach((m) => previewNote(m, T0 + i * 1.1, 1.05, m < 55 ? 80 : 88)));
+        const chs = p[1].split('|').map((s: string) => s.split('.').map(Number));
+        chs.forEach((ms: any[], i: number) => ms.forEach((m: number) => previewNote(m, T0 + i * 1.1, 1.05, m < 55 ? 80 : 88)));
         lSeqLight(chs, 1100, 1200);
     }
     else if (kind === 'acc') {
         const P = ACCOMP_PATTERNS[p[1]];
         if (!P)
             return;
-        const spb = P.beats === 3 ? 0.45 : 0.55, ev = [];
+        const spb = P.beats === 3 ? 0.45 : 0.55, ev: any[] = [];
         LACC_CH.forEach((c, i) => P.gen(ev, i * P.beats, c));
         previewNote(48, T0 + 4 * P.beats * spb, 1.6, 80);
         [60, 64, 67].forEach((m) => previewNote(m, T0 + 4 * P.beats * spb, 1.6, 80));
@@ -5026,7 +4999,7 @@ async function runDemo(spec, btn)  {
     else if (kind === 'beat')
         demoBeat(p[1], btn);
 }
-function lDots(btn, n, strong) {
+function lDots(btn: { closest: (arg0: string) => any; }, n: number, strong: { (i: any): 1|0|2; (arg0: number): number; }) {
     const row = btn && btn.closest('.demo-row');
     if (!row)
         return [];
@@ -5040,28 +5013,28 @@ function lDots(btn, n, strong) {
     bd.innerHTML = Array.from({ length: n }, (_, i) => '<span' + (strong(i) === 2 ? ' class="s"' : strong(i) === 1 ? ' class="m"' : '') + '>' + (i + 1) + '</span>').join('');
     return [...bd.children];
 }
-function demoBeat(kind, btn) {
+function demoBeat(kind: string, btn: any) {
     const t0 = actx.currentTime + 0.1;
     let n, step, total, lvl, lab;
     if (kind === '68') {
         n = 6;
         step = 0.21;
         total = 12;
-        lvl = (i) => i === 0 ? 2 : i === 3 ? 1 : 0;
+        lvl = (i: number) => i === 0 ? 2 : i === 3 ? 1 : 0;
         lab = '6/8';
     }
     else if (kind === '3t') {
         n = 12;
         step = 60 / 80 / 3;
         total = 24;
-        lvl = (i) => i === 0 ? 2 : i % 3 === 0 ? 1 : 0;
+        lvl = (i: number) => i === 0 ? 2 : i % 3 === 0 ? 1 : 0;
         lab = '4/4 ×3';
     }
     else {
         n = +kind || 4;
         step = 60 / 96;
         total = n * 2;
-        lvl = (i) => i === 0 ? 2 : 0;
+        lvl = (i: number) => i === 0 ? 2 : 0;
         lab = n + '/4';
     }
     const dots = lDots(btn, n, lvl);
@@ -5077,8 +5050,8 @@ function demoBeat(kind, btn) {
 }
 const LM = { el: null, timer: 0, next: 0, i: 0 };
 const LTEMPO = [[60, 'Largo'], [76, 'Adagio'], [108, 'Andante'], [120, 'Moderato'], [168, 'Allegro'], [999, 'Presto']];
-function lmTerm(b) { return LTEMPO.find((x) => b < x[0])[1]; }
-function lmMeter(m) { return m === '6/8' ? { n: 6, div: 3, lvl: (i) => i === 0 ? 2 : i === 3 ? 1 : 0 } : { n: +m[0], div: 1, lvl: (i) => i === 0 ? 2 : 0 }; }
+function lmTerm(b: number) { return LTEMPO.find((x) => b < x[0])[1]; }
+function lmMeter(m: string|(string|number)[]) { return m === '6/8' ? { n: 6, div: 3, lvl: (i: number) => i === 0 ? 2 : i === 3 ? 1 : 0 } : { n: +m[0], div: 1, lvl: (i: number) => i === 0 ? 2 : 0 }; }
 function lmStop() {
     if (LM.timer) {
         clearInterval(LM.timer);
@@ -5093,10 +5066,10 @@ function lmStop() {
         b.setAttribute('aria-pressed', 'false');
         b.textContent = '▶ ' + t('lw_start');
     }
-    el.querySelectorAll('.lbeat .on').forEach((d) => d.classList.remove('on'));
+    el.querySelectorAll('.lbeat .on').forEach((d: { classList: { remove: (arg0: string) => any; }; }) => d.classList.remove('on'));
 }
-function lmDots(el) { const s = el._s, M = lmMeter(s.meter); el.querySelector('.lbeat').innerHTML = Array.from({ length: M.n }, (_, i) => '<span' + (M.lvl(i) === 2 ? ' class="s"' : M.lvl(i) === 1 ? ' class="m"' : '') + '>' + (i + 1) + '</span>').join(''); }
-function lmStart(el) {
+function lmDots(el: { _s: any; querySelector: (arg0: string) => { (): any; new(): any; innerHTML: string; }; }) { const s = el._s, M = lmMeter(s.meter); el.querySelector('.lbeat').innerHTML = Array.from({ length: M.n }, (_, i) => '<span' + (M.lvl(i) === 2 ? ' class="s"' : M.lvl(i) === 1 ? ' class="m"' : '') + '>' + (i + 1) + '</span>').join(''); }
+function lmStart(el: Node|null) {
     ensureAudio();
     LM.el = el;
     LM.next = actx.currentTime + 0.1;
@@ -5114,13 +5087,13 @@ function lmStart(el) {
             const k = LM.i % M.n, lv = M.lvl(k);
             metroClick(LM.next, lv > 0);
             setTimeout(() => { if (LM.el === el)
-                dots.forEach((d, j) => d.classList.toggle('on', j === k)); }, Math.max(0, (LM.next - actx.currentTime) * 1000));
+                dots.forEach((d: { classList: { toggle: (arg0: string,arg1: boolean) => any; }; }, j: number) => d.classList.toggle('on', j === k)); }, Math.max(0, (LM.next - actx.currentTime) * 1000));
             LM.i++;
             LM.next += dt;
         }
     }, 25);
 }
-function lwMetro(el) {
+function lwMetro(el: { _s: { bpm: number; meter: string; }; innerHTML: string; }) {
     const s = el._s || (el._s = { bpm: 90, meter: '4/4' });
     el.innerHTML = '<h4>⏱ ' + t('lw_metro') + '</h4><div class="lw-row"><label class="lw-range"><span>' + t('lw_tempo') + '</span><input type="range" min="40" max="208" step="1" value="' + s.bpm + '" data-wi="bpm" aria-valuetext="' + t('lw_bpm', s.bpm) + ', ' + lmTerm(s.bpm) + '"></label>' +
         '<output class="lw-bpm" aria-live="polite"><b>' + s.bpm + '</b> BPM · <i>' + lmTerm(s.bpm) + '</i></output></div>' +
@@ -5130,18 +5103,18 @@ function lwMetro(el) {
 }
 const LLET = 'CDEFGAB', LNAT = [0, 2, 4, 5, 7, 9, 11];
 const LSPF = [[0, 0], [1, -1], [1, 0], [2, -1], [2, 0], [3, 0], [3, 1], [4, 0], [5, -1], [5, 0], [6, -1], [6, 0]], LSPS = [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [3, 0], [3, 1], [4, 0], [4, 1], [5, 0], [5, 1], [6, 0]];
-function lSp(li, acc) { return spelledName(notation, li, acc); }
-function lPitch(li, acc, midi) { return LLET[li] + (acc > 0 ? '#' : acc < 0 ? 'b' : '') + (Math.floor((midi - acc) / 12) - 1); }
-function lStaffSmall(piece, label) {
+function lSp(li: number, acc: number) { return spelledName(notation, li, acc); }
+function lPitch(li: number, acc: number, midi: number) { return LLET[li] + (acc > 0 ? '#' : acc < 0 ? 'b' : '') + (Math.floor((midi - acc) / 12) - 1); }
+function lStaffSmall(piece: { rh: (number|string[])[][]; lh?: (string|number)[][]; keyN?: any; }, label: string) {
     const r = srRender(Object.assign({ ts: [4, 4], keyN: 0, noNames: true }, piece));
     return '<div class="ss-wrap lw-staff">' + r.svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="img" aria-label="' + label.replace(/"/g, '&quot;') + '"') + '</div>';
 }
-function lSel(wi, opts, cur, lab) { return '<label><span>' + lab + '</span><select data-wi="' + wi + '">' + opts.map((o) => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>'; }
+function lSel(wi: string, opts: any[], cur: string|number, lab: string) { return '<label><span>' + lab + '</span><select data-wi="' + wi + '">' + opts.map((o: string[]) => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>'; }
 const LW_PRESETS = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor', 'Dorian', 'Major pentatonic', 'Minor pentatonic', 'Blues'];
-function lwStepLab(s) { const d = STEP_LABELS[lang] || { 2: 'T', 1: 'S', 3: 'T+S' }; return d[s] || (s === 2 ? d[2] : s === 1 ? d[1] : d[3]); }
-function lwScale(el) {
+function lwStepLab(s: number) { const d = STEP_LABELS[lang] || { 2: 'T', 1: 'S', 3: 'T+S' }; return d[s] || (s === 2 ? d[2] : s === 1 ? d[1] : d[3]); }
+function lwScale(el: { _s: { root: number; st: number[]; }; innerHTML: string; }) {
     const s = el._s || (el._s = { root: 0, st: [2, 2, 1] }), cum = [0];
-    s.st.forEach((x) => cum.push(cum[cum.length - 1] + x));
+    s.st.forEach((x: number) => cum.push(cum[cum.length - 1] + x));
     const tot = cum[cum.length - 1], flat = [5, 10, 3, 8, 1].includes(s.root), offs = tot === 12 ? cum.slice(0, -1) : cum;
     const nm = tot === 12 ? Object.keys(SCALES).find((k) => SCALES[k].join() === offs.join()) : null;
     el.innerHTML = '<h4>🪜 ' + t('lw_scale') + '</h4><div class="lw-row">' + lSel('root', LSPF.map((x, i) => [i, lSp(x[0], x[1])]), s.root, t('lw_root')) +
@@ -5149,13 +5122,13 @@ function lwScale(el) {
         '<div class="lw-row" role="group" aria-label="' + t('lw_steps') + '">' + [['w', t('lw_w')], ['h', t('lw_h')], ['wh', t('lw_wh')]].map((b) => '<button type="button" class="btn sm" data-w="' + b[0] + '"' + (tot >= 12 ? ' disabled' : '') + '>+ ' + b[1] + '</button>').join('') +
         '<button type="button" class="btn ghost sm" data-w="undo"' + (s.st.length ? '' : ' disabled') + '>↶ ' + t('lw_undo') + '</button><button type="button" class="btn ghost sm" data-w="clear">' + t('lw_clear') + '</button>' +
         '<button type="button" class="btn primary sm" data-w="splay">▶ ' + t('lw_play') + '</button></div>' +
-        '<div class="lw-steps" aria-label="' + t('lw_steps') + '">' + (s.st.length ? s.st.map((x) => '<span class="lw-st s' + x + '">' + lwStepLab(x) + '</span>').join('') : '<span class="lw-st">—</span>') + '</div>' +
+        '<div class="lw-steps" aria-label="' + t('lw_steps') + '">' + (s.st.length ? s.st.map((x: string) => '<span class="lw-st s' + x + '">' + lwStepLab(x) + '</span>').join('') : '<span class="lw-st">—</span>') + '</div>' +
         '<div class="lw-notes">' + cum.map((o, i) => '<span class="lw-chip' + (i === 0 || o === 12 ? ' t' : '') + '">' + pcName(s.root + o, flat) + '</span>').join('') + '</div>' +
         '<p class="lw-out" aria-live="polite">' + t('lw_total', tot) + ' · ' + (tot === 12 ? (nm ? t('lw_name', '<b>' + scaleDisp(nm) + '</b>') : t('lw_complete') + ' ' + t('lw_name_none')) : t('lw_name_none')) + '</p>';
 }
 const LW_Q = ['maj', 'm', 'dim', 'aug', 'sus2', 'sus4', '7', 'maj7', 'm7', 'm7♭5', 'dim7', '6', 'add9'];
 const LW_STEP = { 0: 0, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 11: 6, 14: 1 };
-function lwChordData(s) {
+function lwChordData(s: { q: string; root: number; inv: number; bass: number; }) {
     const c = CHORDS.find((x) => x.symbol === s.q), rs = LSPF[s.root], base = 60 + s.root - (s.root > 6 ? 12 : 0);
     let tones = c.intervals.map((iv) => {
         let li = (rs[0] + (s.q === 'dim7' && iv === 9 ? 6 : LW_STEP[iv] || 0)) % 7, pcT = (s.root + iv) % 12, acc = ((pcT - LNAT[li]) % 12 + 18) % 12 - 6;
@@ -5181,7 +5154,7 @@ function lwChordData(s) {
     const root = tones.find((x) => x.iv === 0), sym = lSp(root.li, root.acc) + (s.q === 'maj' ? '' : s.q), slash = bpc !== s.root;
     return { c, tones, inv, bass: { li: b.li, acc: b.acc, midi: bm }, symbol: sym + (slash ? '/' + lSp(b.li, b.acc) : '') };
 }
-function lwChord(el) {
+function lwChord(el: { _s: { root: number; q: string; inv: number; bass: number; }; innerHTML: string; }) {
     const s = el._s || (el._s = { root: 0, q: 'maj', inv: 0, bass: -1 }), D = lwChordData(s);
     el.innerHTML = '<h4>🧱 ' + t('lw_chord') + '</h4><div class="lw-row">' + lSel('root', LSPF.map((x, i) => [i, lSp(x[0], x[1])]), s.root, t('lw_root')) +
         lSel('q', LW_Q.map((q) => { const c = CHORDS.find((x) => x.symbol === q); return [q, (q === 'maj' ? '—' : q) + ' · ' + chordDisp(c)]; }), s.q, t('lw_quality')) +
@@ -5192,8 +5165,8 @@ function lwChord(el) {
         lStaffSmall({ rh: [[D.tones.map((x) => lPitch(x.li, x.acc, x.midi)), 4]], lh: [[lPitch(D.bass.li, D.bass.acc, D.bass.midi), 4]] }, D.symbol) +
         '<div class="lw-row"><button type="button" class="btn primary sm" data-w="cplay">▶ ' + t('lw_play') + '</button></div>';
 }
-function lCofKey(i) { const n = i <= 6 ? i : i - 12, ka = ssKeyAcc(n), li = n >= 0 ? (4 * n) % 7 : (3 * -n) % 7, mli = (li + 5) % 7; return { n, li, acc: ka[li], mli, macc: ka[mli], ka }; }
-function lwCof(el) {
+function lCofKey(i: number) { const n = i <= 6 ? i : i - 12, ka = ssKeyAcc(n), li = n >= 0 ? (4 * n) % 7 : (3 * -n) % 7, mli = (li + 5) % 7; return { n, li, acc: ka[li], mli, macc: ka[mli], ka }; }
+function lwCof(el: { _s: { i: number; }; innerHTML: string; }) {
     const s = el._s || (el._s = { i: 0 }), K = lCofKey(s.i), cnt = Math.abs(K.n), ord = (K.n >= 0 ? SS_SHARP_ORDER : SS_FLAT_ORDER).slice(0, cnt).map((li) => lSp(li, K.n > 0 ? 1 : -1));
     const tri = [0, 2, 4].map((d) => { const li = (K.li + d) % 7, acc = K.ka[li], midi = 60 + LNAT[li] + acc + (li < K.li ? 12 : 0) + (K.li >= 5 ? -12 : 0); return lPitch(li, acc, midi); });
     let btns = '';
@@ -5207,13 +5180,13 @@ function lwCof(el) {
         lStaffSmall({ rh: [[tri, 4]], keyN: K.n }, key + '. ' + sig) + '<button type="button" class="btn primary sm" data-w="cofplay">▶ ' + t('lw_play') + '</button></div></div>';
 }
 const LW_R = { scale: lwScale, chord: lwChord, cof: lwCof, metro: lwMetro };
-function lwMount(el) { el.classList.add('lw'); const f = LW_R[el.dataset.widget]; if (f)
+function lwMount(el: Element) { el.classList.add('lw'); const f = LW_R[el.dataset.widget]; if (f)
     f(el); }
-function lwRefocus(el, sel) { (LW_R[el.dataset.widget] || (() => { }))(el); const f = el.querySelector(sel); const g = f && !f.disabled ? f : el.querySelector('[data-w="splay"],[data-w="clear"]'); if (g) {
+function lwRefocus(el: { dataset: { widget: string|number; }; querySelector: (arg0: string) => any; }, sel: string) { (LW_R[el.dataset.widget] || (() => { }))(el); const f = el.querySelector(sel); const g = f && !f.disabled ? f : el.querySelector('[data-w="splay"],[data-w="clear"]'); if (g) {
     g.focus({ preventScroll: true });
     learnReveal(g);
 } }
-function lwInput(e) {
+function lwInput(e: Event) {
     const x = e.target, wi = x.dataset && x.dataset.wi, el = x.closest && x.closest('[data-widget]');
     if (!wi || !el)
         return;
@@ -5257,9 +5230,9 @@ function lwInput(e) {
     else if (wi === 'preset')
         lwScalePlay(el);
 }
-async function lwScalePlay(el)  {
+async function lwScalePlay(el: { _s: any; querySelector: (arg0: string) => any; })  {
     const s = el._s, cum = [0];
-    s.st.forEach((x) => cum.push(cum[cum.length - 1] + x));
+    s.st.forEach((x: number) => cum.push(cum[cum.length - 1] + x));
     learnHalt();
     ensureAudio();
     if (!await preparePiano())
@@ -5271,7 +5244,7 @@ async function lwScalePlay(el)  {
     if (nm)
         learnSay(nm.textContent);
 }
-async function lwChordPlay(el)  {
+async function lwChordPlay(el: { _s: any; })  {
     const D = lwChordData(el._s), ms = [D.bass.midi].concat(D.tones.map((x) => x.midi));
     learnHalt();
     ensureAudio();
@@ -5283,7 +5256,7 @@ async function lwChordPlay(el)  {
     learnLight(ms, ms.length * 140 + 1600);
     learnSay(D.symbol);
 }
-async function lwClick(w)  {
+async function lwClick(w: { closest: (arg0: string) => any; dataset: { w: any; k: string|number; }; })  {
     const el = w.closest('[data-widget]');
     if (!el)
         return;
@@ -5316,7 +5289,7 @@ async function lwClick(w)  {
         return;
     }
     if (a === 'w' || a === 'h' || a === 'wh') {
-        const st = ({ w: 2, h: 1, wh: 3 } )[a], tot = s.st.reduce((x, y) => x + y, 0);
+        const st = ({ w: 2, h: 1, wh: 3 } )[a], tot = s.st.reduce((x: any, y: any) => x + y, 0);
         if (tot + st > 12) {
             learnSay(t('lw_over'));
             return;
@@ -5343,7 +5316,7 @@ async function lwClick(w)  {
         lwRefocus(el, '[data-w="clear"]');
     }
 }
-function lgNorm(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function lgNorm(s: string) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 function lgHTML() {
     const k = (GLOSS[0] && GLOSS[0][lang]) ? lang : 'en', list = GLOSS.slice().sort((a, b) => ((a[k] ? a[k][0] : a.en[0])).localeCompare(b[k] ? b[k][0] : b.en[0], lang));
     return '<h3 tabindex="-1">📖 ' + t('lg_title') + '</h3><label class="lg-search"><span>' + t('lg_search') + '</span><input type="search" id="lg-q" placeholder="' + t('lg_ph') + '" autocomplete="off"></label>' +
@@ -5355,11 +5328,11 @@ function lgHTML() {
         '<div class="learn-nav"><button type="button" class="btn ghost sm" data-lgback="1">' + t('lg_close') + '</button></div>';
 }
 function lgFilter() {
-    const q = $('lg-q'), v = q ? lgNorm(q.value.trim()) : '';
+    const q = maybeById('lg-q'), v = q ? lgNorm(q.value.trim()) : '';
     let n = 0;
     (document).querySelectorAll('#learnBody .lg-it').forEach((it) => { const on = !v || it.dataset.k.includes(v); it.hidden = !on; if (on)
         n++; });
-    const o = $('lg-n');
+    const o = maybeById('lg-n');
     if (o)
         o.textContent = n ? t('lg_n', n) : t('lg_none', q.value.trim());
 }
@@ -5368,7 +5341,7 @@ function lgFilter() {
    + graded repertoire + step-by-step / assessment / listen modes.
    ============================================================================ */
 const SR_LET = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-function srPitch(s) { const m = /^([A-G])([#b]?)(\d)$/.exec(s); if (!m) return null; const li = SR_LET.indexOf(m[1]), acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, oct = +m[3]; return { li, oct, acc, midi: ssMidiOf(li, oct, acc) }; }
+function srPitch(s: string) { const m = /^([A-G])([#b]?)(\d)$/.exec(s); if (!m) return null; const li = SR_LET.indexOf(m[1]), acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, oct = +m[3]; return { li, oct, acc, midi: ssMidiOf(li, oct, acc) }; }
 const PIECES = [
     { id: 'w5rh', t: { en: 'Five-finger warm-up (right hand)', ro: 'Încălzire pe cinci note (dreapta)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
         rh: [['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['E4', 1], ['G4', 1], ['E4', 1], ['C4', 4]] },
@@ -5409,15 +5382,15 @@ const PIECES = [
 const SR = { piece: null, hands: 'both', modeSel: 'learn', names: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null };
-function srEvents(list) { const ev = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
+function srEvents(list: any) { const ev: { rest?: boolean; beat: number; dur: any; chord?: boolean; }[] = []; let beat = 0; (list || []).forEach((x: any[]) => { const d = x[1]; if (x[0] === 'R')
     ev.push({ rest: true, beat, dur: d });
 else if (Array.isArray(x[0]))
     x[0].forEach((n) => ev.push(Object.assign(srPitch(n), { beat, dur: d, chord: x[0].length > 1 })));
 else
     ev.push(Object.assign(srPitch(x[0]), { beat, dur: d })); beat += d; }); return { ev, total: beat }; }
-function srClef(clef, x, top) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
-function srKeySigG(clef, keyN, x, top) {
-    const refStep = clef === 'bass' ? 18 : 30, bot = top + 48, yOf = (li, oct) => bot + (refStep - ssStepOf(li, oct)) * 6;
+function srClef(clef: string, x: number, top: number) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
+function srKeySigG(clef: string, keyN: number, x: number, top: number) {
+    const refStep = clef === 'bass' ? 18 : 30, bot = top + 48, yOf = (li: number, oct: number) => bot + (refStep - ssStepOf(li, oct)) * 6;
     const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]];
     const sB = [[3, 3], [0, 3], [4, 3], [1, 3], [5, 2], [2, 3], [6, 2]], fB = [[6, 2], [2, 3], [5, 2], [1, 3], [4, 2], [0, 3], [3, 2]];
     const cnt = Math.abs(keyN), list = keyN > 0 ? (clef === 'bass' ? sB : sT) : (clef === 'bass' ? fB : fT);
@@ -5429,10 +5402,10 @@ function srKeySigG(clef, keyN, x, top) {
     }
     return { svg, w: cnt ? cnt * 9 + 6 : 6 };
 }
-function srTimeSigG(ts, x, top) { return `<text class="ss-num" x="${x + 9}" y="${top + 18}">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="${top + 44}">${ts[1]}</text>`; }
-function srStem2(x, y, dur, mid) { if (dur >= 4)
+function srTimeSigG(ts: any[], x: number, top: number) { return `<text class="ss-num" x="${x + 9}" y="${top + 18}">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="${top + 44}">${ts[1]}</text>`; }
+function srStem2(x: number, y: number, dur: number, mid: number) { if (dur >= 4)
     return ''; const up = y > mid, sx = up ? x + 5.6 : x - 5.6, ey = up ? y - 32 : y + 32; return srStemLine(sx, y, ey, dur, up); }
-function srStemLine(sx, y, ey, dur, up) {
+function srStemLine(sx: number, y: any, ey: number, dur: number, up: boolean) {
     if (dur >= 4)
         return '';
     const base = [0.375, 0.75, 1.5, 3].includes(dur) ? dur / 1.5 : dur, flags = base <= 0.125 ? 3 : base <= 0.25 ? 2 : base <= 0.5 ? 1 : 0;
@@ -5443,7 +5416,7 @@ function srStemLine(sx, y, ey, dur, up) {
     }
     return s;
 }
-function srLedger2(x, y, top) {
+function srLedger2(x: number, y: number, top: number) {
     const bot = top + 48;
     let s = '';
     if (y > bot) {
@@ -5456,15 +5429,15 @@ function srLedger2(x, y, top) {
     }
     return s;
 }
-function srRest(x, top, dur) {
+function srRest(x: number, top: number, dur: number) {
     if (dur >= 4)
         return `<rect class="ss-glyph" x="${x - 6}" y="${top + 12}" width="12" height="5"/>`;
     if (dur >= 2)
         return `<rect class="ss-glyph" x="${x - 6}" y="${top + 19}" width="12" height="5"/>`;
     return `<text class="ss-clef" x="${x - 6}" y="${top + 34}" style="font-size:30px">${dur <= 0.125 ? '\u{1D140}' : dur <= 0.25 ? '\u{1D13F}' : dur <= 0.5 ? '\u{1D13E}' : '\u{1D13D}'}</text>`;
 }
-function srRender(piece) {
-    const staves = [];
+function srRender(piece: never) {
+    const staves: { top: number; }[]|{ hand: any; clef: any; refStep: any; top: any; }[] = [];
     if (piece.rh)
         staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46 });
     if (piece.lh)
@@ -5482,7 +5455,7 @@ function srRender(piece) {
     x += ksw;
     staves.forEach((st) => { head += srTimeSigG(piece.ts, x, st.top); });
     x += 26;
-    const bounds = [];
+    const bounds: any[] = [];
     {
         let b = pickup > 0 ? pickup : cap;
         while (b < total - 1e-4) {
@@ -5491,9 +5464,9 @@ function srRender(piece) {
         }
     }
     const beatSet = new Set();
-    staves.forEach((st) => st.data.ev.forEach((e) => beatSet.add(+e.beat.toFixed(4))));
+    staves.forEach((st) => st.data.ev.forEach((e: { beat: number; }) => beatSet.add(+e.beat.toFixed(4))));
     const beats = [...beatSet].sort((a, b) => a - b);
-    const notes = [], beatX = [];
+    const notes: { nid: number; hand: any; midi: any; beat: any; dur: any; x: number; y: any; li: any; oct: any; acc: any; }[] = [], beatX = [];
     let body = '', nid = 0;
     // Beam pairs of eighths that start on a beat (simple meters only).
     if (piece.ts[1] === 4)
@@ -5517,18 +5490,18 @@ function srRender(piece) {
         const nx = x + 10;
         let minDur = 4;
         staves.forEach((st) => {
-            const here = st.data.ev.filter((e) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e) => !e.rest && e.chord);
+            const here = st.data.ev.filter((e: { beat: number; }) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e: { rest: any; chord: any; }) => !e.rest && e.chord);
             if (chord.length) {
-                const items = chord.map((e) => ({ e, step: ssStepOf(e.li, e.oct) })).sort((p, q) => p.step - q.step);
-                items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
-                const up = items.reduce((sum, it) => sum + it.y, 0) / items.length > st.top + 24, dur = items[0].e.dur;
-                let prev = null;
-                (up ? items : items.slice().reverse()).forEach((it) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
-                const lanes = [];
-                items.slice().reverse().forEach((it) => {
+                const items = chord.map((e: { li: any; oct: any; }) => ({ e, step: ssStepOf(e.li, e.oct) })).sort((p: { step: number; }, q: { step: number; }) => p.step - q.step);
+                items.forEach((it: { y: any; step: number; }) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
+                const up = items.reduce((sum: any, it: { y: any; }) => sum + it.y, 0) / items.length > st.top + 24, dur = items[0].e.dur;
+                let prev: { step: number; dx: number; }|null = null;
+                (up ? items : items.slice().reverse()).forEach((it: { dx: number; step: number; }) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
+                const lanes: any[][] = [];
+                items.slice().reverse().forEach((it: { e: { acc: number; li: string|number; }; y: number; ax: number; dx: number; }) => {
                     if (it.e.acc === keyAcc[it.e.li])
                         return;
-                    let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
+                    let a = lanes.findIndex((l) => l.every((y: number) => Math.abs(y - it.y) >= 14));
                     if (a < 0) {
                         a = lanes.length;
                         lanes.push([]);
@@ -5537,8 +5510,8 @@ function srRender(piece) {
                     it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
                 });
                 const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
-                const names = (SR.names && !piece.noNames) ? items.map((it) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
-                items.forEach((it, k) => {
+                const names = (SR.names && !piece.noNames) ? items.map((it: { e: { midi: number; }; }) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
+                items.forEach((it: { e: any; ax: null; y: any; dx: number; step: number; }, k: number) => {
                     const e = it.e;
                     let g = k === 0 ? `<rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>` : '';
                     if (it.ax != null)
@@ -5553,7 +5526,7 @@ function srRender(piece) {
                     nid++;
                 });
             }
-            here.forEach((e) => {
+            here.forEach((e: { dur: number; rest: any; chord: any; li: string|number; oct: any; acc: number; beam: any; midi: number; beat: any; }) => {
                 minDur = Math.min(minDur, e.dur);
                 if (e.rest) {
                     body += srRest(nx, st.top, e.dur);
@@ -5577,7 +5550,7 @@ function srRender(piece) {
         beatX.push({ b, x: nx });
         x += 26 + Math.min(minDur, 4) * 14;
     });
-    staves.forEach((st) => st.data.ev.forEach((a) => {
+    staves.forEach((st) => st.data.ev.forEach((a: { beam: { first: any; mate: any; }; by: number; mid: number; bx: number; nid: any; }) => {
         if (!a.beam || !a.beam.first)
             return;
         const b = a.beam.mate, up = (a.by + b.by) / 2 > a.mid;
@@ -5595,7 +5568,7 @@ function srRender(piece) {
             else if (d < -6)
                 e2 = e1 - 6;
         } // limit the slope by lengthening stems only
-        const s1 = up ? a.bx + 5.6 : a.bx - 5.6, s2 = up ? b.bx + 5.6 : b.bx - 5.6, th = up ? 5 : -5, stem = (sx, y, ey) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
+        const s1 = up ? a.bx + 5.6 : a.bx - 5.6, s2 = up ? b.bx + 5.6 : b.bx - 5.6, th = up ? 5 : -5, stem = (sx: any, y: any, ey: any) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
         body = body.replace(`@@B${a.nid}@@`, stem(s1, a.by, e1)).replace(`@@B${b.nid}@@`, stem(s2, b.by, e2) + `<path class="ss-beam" d="M ${s1},${e1} L ${s2},${e2} L ${s2},${e2 + th} L ${s1},${e1 + th} Z"/>`);
     }));
     x += 8;
@@ -5612,7 +5585,7 @@ function srRender(piece) {
     return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${staff}${head}${body}</svg>`, notes, beatX, total, W, yTop: topY - 8, yBot: botY + 8 };
 }
 /* ---- state, drawing, grading ---- */
-function srSvg() { return $('rd-staff') ? $('rd-staff').querySelector('svg') : null; }
+function srSvg() { return byId('rd-staff') ? byId('rd-staff').querySelector('svg') : null; }
 function srHandsAvail() { const p = SR.piece; return p.rh && p.lh ? 'both' : (p.rh ? 'rh' : 'lh'); }
 function srActiveHands() { const a = srHandsAvail(); return a === 'both' ? SR.hands : a; }
 function srStepsBuild() {
@@ -5631,7 +5604,7 @@ function srDraw() {
     SR.notes = r.notes;
     SR.beatX = r.beatX;
     SR.totalBeats = r.total;
-    $('rd-staff').innerHTML = r.svg;
+    byId('rd-staff').innerHTML = r.svg;
     srStepsBuild();
     srPaintAll();
     srCoach();
@@ -5643,7 +5616,7 @@ function srPaintAll() {
     const st = (SR.active && SR.modeSel === 'learn') ? SR.steps[SR.stepIdx] : null;
     svg.querySelectorAll('.ss-n').forEach((g) => {
         const id = +g.dataset.nid, r = SR.results[id];
-        if (st && st.notes.some((n) => n.nid === id) && !SR.hit.has(id))
+        if (st && st.notes.some((n: { nid: number; }) => n.nid === id) && !SR.hit.has(id))
             g.dataset.s = 'now';
         else if (r)
             g.dataset.s = r;
@@ -5651,11 +5624,11 @@ function srPaintAll() {
             g.removeAttribute('data-s');
     });
 }
-function srScrollX(x) { const w = $('rd-staff'); if (w && w.scrollWidth > w.clientWidth + 4)
+function srScrollX(x: number) { const w = byId('rd-staff'); if (w && w.scrollWidth > w.clientWidth + 4)
     w.scrollLeft = Math.max(0, x - w.clientWidth * 0.4); }
 function srScrollStep() { const st = SR.steps[SR.stepIdx]; if (st)
     srScrollX(st.notes[0].x); }
-function srBeatToX(beat) {
+function srBeatToX(beat: number) {
     const pts = SR.beatX;
     if (!pts || !pts.length)
         return 10;
@@ -5667,7 +5640,7 @@ function srBeatToX(beat) {
     }
     return beat <= pts[0].b ? pts[0].x : pts[pts.length - 1].x;
 }
-function srCursor(x) {
+function srCursor(x: string) {
     const svg = srSvg();
     if (!svg)
         return;
@@ -5689,15 +5662,15 @@ function srTargets() {
         return;
     const st = SR.steps[SR.stepIdx];
     if (st)
-        st.notes.forEach((n) => { if (!SR.hit.has(n.nid))
+        st.notes.forEach((n: { nid: unknown; midi: any; }) => { if (!SR.hit.has(n.nid))
             kbState(n.midi, 'target', true); });
 }
-function srClick(t, acc) {
+function srClick(t: number, acc: boolean) {
     const click = audioEngine.scheduleClick(t, acc);
     if (click?.oscs)
         SR.nodes.push(...click.oscs);
 }
-function srStopAll(keep) {
+function srStopAll(keep: boolean|undefined) {
     SR.active = false;
     SR.assessOn = false;
     if (SR.raf)
@@ -5725,23 +5698,23 @@ function srStopAll(keep) {
         SR.next = null;
         srPaintAll();
     }
-    const go = $('rd-go');
+    const go = byId('rd-go');
     if (go)
         go.textContent = t('rd_start');
     SR.listening = false;
-    const li = $('rd-listen');
+    const li = byId('rd-listen');
     if (li)
         li.textContent = t('rd_listen');
     srCoach();
 }
-function srPlayGap(fromBeat, toBeat) {
+function srPlayGap(fromBeat: number, toBeat: number) {
     const sel = srActiveHands();
     if (sel === 'both' || srHandsAvail() !== 'both')
         return;
     const bs = 60 / SR.bpm;
     SR.notes.filter((n) => n.hand !== sel && n.beat >= fromBeat - 1e-3 && n.beat < toBeat - 1e-3).forEach((n) => previewNote(n.midi, actx.currentTime + 0.02, Math.max(.15, n.dur * bs * .9), 78));
 }
-function srCount() { const v = $('rd-verdict'); v.className = 'verdict neutral'; v.textContent = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : ''); }
+function srCount() { const v = byId('rd-verdict'); v.className = 'verdict neutral'; v.textContent = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : ''); }
 function srLearnStart() {
     SR.active = true;
     SR.results = {};
@@ -5755,15 +5728,15 @@ function srLearnStart() {
     srPaintAll();
     srTargets();
     srScrollStep();
-    const v = $('rd-verdict');
+    const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rd_learn_go');
-    $('rd-go').textContent = t('rd_stop');
+    byId('rd-go').textContent = t('rd_stop');
 }
 function srLearnFinish() {
     SR.next = srNextLearn();
     srStopAll(true);
-    const v = $('rd-verdict');
+    const v = byId('rd-verdict');
     if (SR.mistakes === 0) {
         v.className = 'verdict good';
         v.textContent = t('rd_perfect');
@@ -5803,26 +5776,26 @@ function srAssessStart() {
         SR.notes.filter((n) => n.hand !== sel).forEach((n) => previewNote(n.midi, act0 + (ci + n.beat) * bs, Math.max(.15, n.dur * bs * .9), 78));
     SR.t0 = perf0 + ci * bs * 1000;
     SR.assessOn = false;
-    const v = $('rd-verdict');
+    const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rd_count');
-    $('rd-go').textContent = t('rd_stop');
+    byId('rd-go').textContent = t('rd_stop');
     SR.raf = requestAnimationFrame(srAssessLoop);
 }
 function srTol() { return Math.min(0.55, 0.3 * SR.bpm / 60); }
-function srAssessLoop(ts) {
+function srAssessLoop(ts: number) {
     if (!SR.active || SR.modeSel !== 'assess')
         return;
     const bs = 60 / SR.bpm, bNow = (ts - SR.t0) / 1000 / bs;
     if (bNow >= 0 && !SR.assessOn) {
         SR.assessOn = true;
-        $('rd-verdict').textContent = t('rd_play');
+        byId('rd-verdict').textContent = t('rd_play');
     }
     srCursor(srBeatToX(Math.max(0, Math.min(bNow, SR.totalBeats))));
     let dirty = false;
     SR.steps.forEach((st) => { if (!st.closed && bNow > st.beat + srTol() + 0.05) {
         st.closed = true;
-        st.notes.forEach((n) => { if (!SR.results[n.nid]) {
+        st.notes.forEach((n: { nid: string|number; }) => { if (!SR.results[n.nid]) {
             SR.results[n.nid] = 'bad';
             dirty = true;
         } });
@@ -5841,7 +5814,7 @@ function srAssessFinish() {
     const pct = totalN ? Math.round(100 * good / totalN) : 0, stars = pct >= 95 ? 3 : pct >= 80 ? 2 : pct >= 60 ? 1 : 0;
     SR.next = srNextAssess(pct);
     srStopAll(true);
-    const v = $('rd-verdict');
+    const v = byId('rd-verdict');
     v.className = 'verdict ' + (stars >= 2 ? 'good' : stars ? 'neutral' : 'bad');
     v.textContent = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + (SR.wrongExtra ? '  ·  ' + t('rd_extra', SR.wrongExtra) : '') + rdSightDone('assess', pct);
     if (!SR.piece.ephemeral) {
@@ -5854,18 +5827,18 @@ function srAssessFinish() {
     srBest();
     fillPieces();
 }
-function srKeyInput(m) {
+function srKeyInput(m: any) {
     if (!SR.active)
         return;
     if (SR.modeSel === 'learn') {
         const st = SR.steps[SR.stepIdx];
         if (!st)
             return;
-        const need = st.notes.find((n) => !SR.hit.has(n.nid) && n.midi === m);
+        const need = st.notes.find((n: { nid: unknown; midi: any; }) => !SR.hit.has(n.nid) && n.midi === m);
         if (need) {
             SR.hit.add(need.nid);
             SR.results[need.nid] = 'good';
-            if (st.notes.every((n) => SR.hit.has(n.nid))) {
+            if (st.notes.every((n: { nid: unknown; }) => SR.hit.has(n.nid))) {
                 const next = SR.steps[SR.stepIdx + 1];
                 srPlayGap(st.beat, next ? next.beat : 1e9);
                 SR.stepIdx++;
@@ -5898,7 +5871,7 @@ function srKeyInput(m) {
                 continue;
             const dd = Math.abs(bNow - st.beat);
             if (dd <= srTol() && dd < bestD) {
-                const cand = st.notes.find((n) => !SR.results[n.nid] && n.midi === m);
+                const cand = st.notes.find((n: { nid: string|number; midi: any; }) => !SR.results[n.nid] && n.midi === m);
                 if (cand) {
                     best = cand;
                     bestD = dd;
@@ -5922,10 +5895,10 @@ function srListen() {
     }
     ensureAudio();
     srStopAll(true);
-    SR.bpm = +($('rd-bpm').value || SR.piece.bpm);
+    SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
     const bs = 60 / SR.bpm, act0 = actx.currentTime + 0.1, perf0 = performance.now() + 100;
     SR.listening = true;
-    $('rd-listen').textContent = t('rd_stop');
+    byId('rd-listen').textContent = t('rd_stop');
     const follow = () => { if (!SR.listening)
         return; const b = (performance.now() - perf0) / 1000 / bs; if (b >= 0)
         srCursor(srBeatToX(Math.min(b, SR.totalBeats))); SR.raf = requestAnimationFrame(follow); };
@@ -5953,12 +5926,12 @@ function srGo() {
         return;
     if (SR.active) {
         srStopAll();
-        $('rd-verdict').textContent = '';
+        byId('rd-verdict').textContent = '';
         return;
     }
     srStopAll();
     ensureAudio();
-    SR.bpm = +($('rd-bpm').value || SR.piece.bpm);
+    SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
     if (SR.modeSel === 'learn')
         srLearnStart();
     else
@@ -5971,19 +5944,19 @@ function srMeta() {
     const n = p.keyN || 0;
     const keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n), key = pcName(keyPc, n < 0) + ' ' + (p.minor ? t('rd_min') : t('rd_maj'));
     if (p.gen) {
-        $('rd-meta').textContent = t('rdx_sr_meta', key, p.bpm) + ' · ' + p.ts[0] + '/' + p.ts[1];
+        byId('rd-meta').textContent = t('rdx_sr_meta', key, p.bpm) + ' · ' + p.ts[0] + '/' + p.ts[1];
         return;
     }
     if (p.ephemeral) {
-        $('rd-meta').textContent = t('rd_excerpt_from', p.from.title) + ' · ' + p.from.bars + ' · ' + key + ' · ' + p.ts[0] + '/' + p.ts[1] + ' · ' + t('rd_excerpt_simpl');
+        byId('rd-meta').textContent = t('rd_excerpt_from', p.from.title) + ' · ' + p.from.bars + ' · ' + key + ' · ' + p.ts[0] + '/' + p.ts[1] + ' · ' + t('rd_excerpt_simpl');
         return;
     }
-    $('rd-meta').textContent = t('rd_level') + ' ' + p.level + ' · ' + rootName(keyPc) + ' ' + (p.minor ? t('rd_min') : t('rd_maj')) + ' · ' + p.ts[0] + '/' + p.ts[1] + (p.comp ? (' · ' + p.comp) : '');
+    byId('rd-meta').textContent = t('rd_level') + ' ' + p.level + ' · ' + rootName(keyPc) + ' ' + (p.minor ? t('rd_min') : t('rd_maj')) + ' · ' + p.ts[0] + '/' + p.ts[1] + (p.comp ? (' · ' + p.comp) : '');
 }
-function srPieceTitle(p) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
-function srBest() { const rec = SR.piece && !SR.piece.ephemeral && data.sheet[SR.piece.id]; $('rd-best').textContent = rec && rec.best ? (t('rd_best', rec.best) + (rec.learned ? ' · ✓ ' + t('rd_learned') : '')) : (rec && rec.learned ? ('✓ ' + t('rd_learned')) : ''); }
+function srPieceTitle(p: { id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; lh: (string|number)[][]; rh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh: (string|number)[][]; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; pickup: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; }|undefined) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
+function srBest() { const rec = SR.piece && !SR.piece.ephemeral && data.sheet[SR.piece.id]; byId('rd-best').textContent = rec && rec.best ? (t('rd_best', rec.best) + (rec.learned ? ' · ✓ ' + t('rd_learned') : '')) : (rec && rec.learned ? ('✓ ' + t('rd_learned')) : ''); }
 function fillPieces() {
-    const sel = $('rd-piece');
+    const sel = byId('rd-piece');
     if (!sel)
         return;
     const cur = sel.value;
@@ -6011,7 +5984,7 @@ function fillPieces() {
     Object.keys(lv).sort().forEach((L) => {
         const og = (document).createElement('optgroup');
         og.label = t('rd_level') + ' ' + L;
-        lv[L].forEach((p) => {
+        lv[L].forEach((p: { id: string; }) => {
             const o = (document).createElement('option');
             o.value = p.id;
             const rec = data.sheet[p.id];
@@ -6022,28 +5995,28 @@ function fillPieces() {
     });
     sel.value = (cur && (PIECES.some((p) => p.id === cur) || (SR.excerpt && SR.excerpt.id === cur) || (SR.gen && SR.gen.id === cur))) ? cur : PIECES[0].id;
 }
-function srSelectPiece(id) {
+function srSelectPiece(id: string) {
     srStopAll();
     SR.piece = (SR.excerpt && SR.excerpt.id === id ? SR.excerpt : null) || (SR.gen && SR.gen.id === id ? SR.gen : null) || PIECES.find((p) => p.id === id) || PIECES[0];
     SR.bpm = SR.piece.bpm;
-    $('rd-piece').value = SR.piece.id;
-    const bp = $('rd-bpm');
+    selectById('rd-piece').value = SR.piece.id;
+    const bp = byId('rd-bpm');
     bp.value = SR.piece.bpm;
-    $('rd-bpmLbl').textContent = SR.piece.bpm;
+    byId('rd-bpmLbl').textContent = SR.piece.bpm;
     const avail = srHandsAvail();
-    [...$('rd-hands').children].forEach((b) => {
+    [...byId('rd-hands').children].forEach((b) => {
         b.disabled = avail !== 'both';
         b.setAttribute('aria-pressed', (avail === 'both' ? b.dataset.v === SR.hands : b.dataset.v === avail) ? 'true' : 'false');
     });
     srDraw();
     srMeta();
     srBest();
-    $('rd-verdict').textContent = '';
+    byId('rd-verdict').textContent = '';
     if (SR.piece.ephemeral && typeof rdTab === 'function')
         rdTab('pieces');
 }
 function renderRead() { fillPieces(); if (!SR.piece)
-    srSelectPiece($('rd-piece').value);
+    srSelectPiece(selectById('rd-piece').value);
 else {
     srDraw();
     srMeta();
@@ -6069,22 +6042,22 @@ function rdData() {
     r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1 }, r.prefs || {});
     return r;
 }
-function rdP(s) { const p = srPitch(s); return { li: p.li, oct: p.oct, acc: p.acc }; }
-function rdStep(n) { return n.oct * 7 + n.li; }
-function rdMidi(n) { return ssMidiOf(n.li, n.oct, n.acc || 0); }
-function rdFromStep(s, acc) { return { li: ((s % 7) + 7) % 7, oct: Math.floor(s / 7), acc: acc || 0 }; }
-function rdAccSym(a) { return a > 0 ? '♯' : a < 0 ? '♭' : ''; }
-function rdLetter(li) { return (LETTERS[notation] || LETTERS.letter)[li]; }
-function rdName(n, oct) { return spelledName(notation, n.li, n.acc || 0) + (oct ? n.oct : ''); }
-function rdSpell(s) { const m = /^([A-G])([#b]?)$/.exec(s); return m ? spelledName(notation, SR_LET.indexOf(m[1]), m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) : ''; }
-function rdKeyLabel(k) { return rdSpell(RD_MAJ[k + 7]) + ' ' + t('rd_maj'); }
-function rdKeyMinor(k) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min'); }
-function rdNk(clef, n) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
-function rdEsc(s) { return String(s).replace(/[&<>"]/g, (c) => ( { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } )[c]); }
+function rdP(s: string) { const p = srPitch(s); return { li: p.li, oct: p.oct, acc: p.acc }; }
+function rdStep(n: { li: any; oct: any; acc?: number; }) { return n.oct * 7 + n.li; }
+function rdMidi(n: { li: any; oct: any; acc: any; }) { return ssMidiOf(n.li, n.oct, n.acc || 0); }
+function rdFromStep(s: number, acc: number|undefined) { return { li: ((s % 7) + 7) % 7, oct: Math.floor(s / 7), acc: acc || 0 }; }
+function rdAccSym(a: number) { return a > 0 ? '♯' : a < 0 ? '♭' : ''; }
+function rdLetter(li: number) { return (LETTERS[notation] || LETTERS.letter)[li]; }
+function rdName(n: theory.SpelledMidi&{ s: string; }, oct: boolean|undefined) { return spelledName(notation, n.li, n.acc || 0) + (oct ? n.oct : ''); }
+function rdSpell(s: string) { const m = /^([A-G])([#b]?)$/.exec(s); return m ? spelledName(notation, SR_LET.indexOf(m[1]), m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) : ''; }
+function rdKeyLabel(k: number) { return rdSpell(RD_MAJ[k + 7]) + ' ' + t('rd_maj'); }
+function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min'); }
+function rdNk(clef: string|number, n: { li: string|number; acc: any; oct: string; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
+function rdEsc(s: string) { return String(s).replace(/[&<>"]/g, (c) => ( { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } )[c]); }
 /* ---- curriculum ---- */
-const RD_UNITS = [], RD_LV = {};
-function rdU(u, icon, list) { const lv = list.map((o, i) => Object.assign({ u, n: i + 1, id: u + (i + 1) }, o)); RD_UNITS.push({ u, icon, lv }); lv.forEach((L) => { RD_LV[L.id] = L; }); }
-const rdS = (a) => a.split(' '), RD_ALLIV = [2, 3, 4, 5, 6, 7, 8];
+const RD_UNITS: { u: any; icon: any; lv: any; }[] = [], RD_LV = {};
+function rdU(u: string, icon: string, list: any[]) { const lv = list.map((o: any, i: number) => Object.assign({ u, n: i + 1, id: u + (i + 1) }, o)); RD_UNITS.push({ u, icon, lv }); lv.forEach((L: { id: string|number; }) => { RD_LV[L.id] = L; }); }
+const rdS = (a: string) => a.split(' '), RD_ALLIV = [2, 3, 4, 5, 6, 7, 8];
 rdU('tr', '𝄞', [
     { ty: 'name', clef: 'treble', set: rdS('C4 G4 C5'), tag: 'land' },
     { ty: 'name', clef: 'treble', lo: 'C4', hi: 'G4' },
@@ -6166,12 +6139,12 @@ rdU('sr', '👁', [
 ]);
 const RD_ALL = RD_UNITS.flatMap((u) => u.lv);
 /* ---- staff renderer for drills (whole-note columns, any clef, key signatures) ---- */
-function rdCClef(x, cy) {
-    const p = (s) => `<path class="rdx-cc" d="M ${x + 9},${cy} C ${x + 13},${cy - 3 * s} ${x + 14},${cy - 8 * s} ${x + 15},${cy - 11 * s} C ${x + 18},${cy - 8 * s} ${x + 24},${cy - 10 * s} ${x + 24},${cy - 17 * s} C ${x + 24},${cy - 25 * s} ${x + 16},${cy - 26 * s} ${x + 12},${cy - 21 * s}"/>`;
+function rdCClef(x: number, cy: number) {
+    const p = (s: number) => `<path class="rdx-cc" d="M ${x + 9},${cy} C ${x + 13},${cy - 3 * s} ${x + 14},${cy - 8 * s} ${x + 15},${cy - 11 * s} C ${x + 18},${cy - 8 * s} ${x + 24},${cy - 10 * s} ${x + 24},${cy - 17 * s} C ${x + 24},${cy - 25 * s} ${x + 16},${cy - 26 * s} ${x + 12},${cy - 21 * s}"/>`;
     return `<g class="rdx-cclef"><rect x="${x}" y="${cy - 24}" width="4.5" height="48"/><rect x="${x + 6.5}" y="${cy - 24}" width="1.6" height="48"/>${p(1)}${p(-1)}</g>`;
 }
-function rdPercClef(x, top) { return `<g class="rdx-cclef"><rect x="${x}" y="${top + 12}" width="4" height="24"/><rect x="${x + 8}" y="${top + 12}" width="4" height="24"/></g>`; }
-function rdKsSvg(clef, keyN, x, top) {
+function rdPercClef(x: number, top: number) { return `<g class="rdx-cclef"><rect x="${x}" y="${top + 12}" width="4" height="24"/><rect x="${x + 8}" y="${top + 12}" width="4" height="24"/></g>`; }
+function rdKsSvg(clef: string, keyN: number, x: number, top: number) {
     const bot = top + 48, ref = RD_REF[clef], off = ({ treble: 0, bass: -2, alto: -1, tenor: -1 } )[clef];
     const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]], sTn = [[3, 4], [0, 5], [4, 4], [1, 5], [5, 4], [2, 5], [6, 4]];
     const list = keyN > 0 ? (clef === 'tenor' ? sTn : sT) : fT;
@@ -6183,7 +6156,7 @@ function rdKsSvg(clef, keyN, x, top) {
     }
     return { svg: s, w: keyN ? Math.abs(keyN) * 9 + 8 : 4 };
 }
-function rdSvg(o) {
+function rdSvg(o: { clef: any; keyN?: any; cols: any; minW?: any; aria?: any; colW?: any; lbl?: any; scale?: any; dur?: any; lblCls?: any; }) {
     const grand = o.clef === 'grand', clefs = grand ? ['treble', 'bass'] : [o.clef], tops = grand ? [40, 136] : [40];
     const keyN = o.keyN || 0, kA = ssKeyAcc(keyN), colW = o.colW || 64, L0 = grand ? 18 : 8;
     let head = '', x = L0 + 4;
@@ -6192,21 +6165,21 @@ function rdSvg(o) {
     let ksw = 4;
     clefs.forEach((c, i) => { const k = rdKsSvg(c, keyN, x, tops[i]); head += k.svg; ksw = Math.max(ksw, k.w); });
     x += ksw + (o.cols.length ? 10 : 0);
-    const x0 = x, body = [], heads = [];
+    const x0 = x, body: string[] = [], heads: { c: any; i: any; x: any; y: any; }[] = [];
     let minY = tops[0], maxY = tops[tops.length - 1] + 48;
-    o.cols.forEach((col, ci) => {
+    o.cols.forEach((col: any[], ci: number) => {
         const nx = x0 + ci * colW + colW / 2;
-        const items = col.map((n, ii) => {
+        const items = col.map((n: { staff: any; }, ii: any) => {
             const c = grand ? (n.staff || (rdStep(n) >= 28 ? 'treble' : 'bass')) : o.clef, top = tops[clefs.indexOf(c)], st = rdStep(n);
             return { n, ii, c, top, step: st, y: top + 48 + (RD_REF[c] - st) * 6 };
-        }).sort((a, b) => a.step - b.step);
-        let prev = null;
-        items.forEach((it) => { it.dx = (prev && prev.c === it.c && it.step - prev.step === 1 && prev.dx === 0) ? 12 : 0; prev = it; });
-        const lanes = [];
-        items.slice().reverse().forEach((it) => {
+        }).sort((a: { step: number; }, b: { step: number; }) => a.step - b.step);
+        let prev: { c: any; step: number; dx: number; }|null = null;
+        items.forEach((it: { dx: number; c: any; step: number; }) => { it.dx = (prev && prev.c === it.c && it.step - prev.step === 1 && prev.dx === 0) ? 12 : 0; prev = it; });
+        const lanes: any[][] = [];
+        items.slice().reverse().forEach((it: { n: { acc: any; li: string|number; }; y: number; ax: number; }) => {
             if ((it.n.acc || 0) === kA[it.n.li])
                 return;
-            let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
+            let a = lanes.findIndex((l) => l.every((y: number) => Math.abs(y - it.y) >= 14));
             if (a < 0) {
                 a = lanes.length;
                 lanes.push([]);
@@ -6214,7 +6187,7 @@ function rdSvg(o) {
             lanes[a].push(it.y);
             it.ax = nx - 15 - a * 10;
         });
-        items.forEach((it) => {
+        items.forEach((it: { ax: null; n: { acc: any; li: string|number; s: any; hc: any; tip: any; }; y: number; dx: number; top: any; c: string|number; step: number; ii: any; }) => {
             let g = '';
             if (it.ax != null)
                 g += ssAccGlyph(it.n.acc || 0, kA[it.n.li], it.ax, it.y);
@@ -6227,7 +6200,7 @@ function rdSvg(o) {
     });
     const W = Math.max(o.minW || 0, x0 + o.cols.length * colW + 10), lblY = maxY + 24;
     if (o.lbl)
-        o.cols.forEach((_, ci) => { if (o.lbl[ci] != null)
+        o.cols.forEach((_: any, ci: number) => { if (o.lbl[ci] != null)
             body.push(`<text class="rdx-lbl${o.lblCls && o.lblCls[ci] ? ' ' + o.lblCls[ci] : ''}" x="${x0 + ci * colW + colW / 2}" y="${lblY}">${rdEsc(o.lbl[ci])}</text>`); });
     const yA = Math.min(tops[0] - 10, minY - 14), yB = (o.lbl ? lblY + 10 : maxY + 14);
     let staff = '';
@@ -6242,12 +6215,12 @@ function rdSvg(o) {
 /* ---- drill engine ---- */
 const RD_TESTN = 20, RD_RUSH = 60;
 const RD = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, kbDown: null, rh: null };
-function rdLvPrev(L) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
-function rdLvNext(L) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
-function rdUnlocked(L) { if (!L)
+function rdLvPrev(L: { u: any; n: number; }) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
+function rdLvNext(L: { u: any; n: string|number; }|null) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
+function rdUnlocked(L: any) { if (!L)
     return false; const p = rdLvPrev(L); return !p || ((rdData().lv[p.id] || {}).s || 0) >= 1; }
-function rdTarget(L) { return (RD_TARGET[L.ty] || 3000) + ((L.clef === 'grand' || L.clef === 'mix') ? 800 : 0) + ((L.acc || L.keys) ? 1000 : 0); }
-function rdStat(k, ok, ms) {
+function rdTarget(L: { ty: string|number; clef: string; acc: any; keys: any; }|null) { return (RD_TARGET[L.ty] || 3000) + ((L.clef === 'grand' || L.clef === 'mix') ? 800 : 0) + ((L.acc || L.keys) ? 1000 : 0); }
+function rdStat(k: string, ok: boolean, ms: number) {
     const d = rdData(), s = d.nt[k] || (d.nt[k] = { n: 0, ok: 0, ms: 0, e: 0, t: 0 });
     s.e = s.n ? s.e * 0.7 + (ok ? 0 : 0.3) : (ok ? 0.1 : 1);
     s.t = s.n ? Math.round(s.t * 0.7 + ms * 0.3) : ms;
@@ -6256,14 +6229,14 @@ function rdStat(k, ok, ms) {
         s.ok++;
     s.ms += ms;
 }
-function rdWeight(k) { const s = rdData().nt[k]; if (!s || !s.n)
+function rdWeight(k: string|number) { const s = rdData().nt[k]; if (!s || !s.n)
     return 2.2; const slow = Math.min(2, Math.max(0, (s.t || 0) / rdTarget(RD.L) - 1)); return 1 + 6 * (s.e || 0) + 1.5 * slow + (s.n < 3 ? 0.8 : 0); }
-function rdPickW(items, keyOf, avoid) {
-    let c = items.filter((x) => keyOf(x) !== avoid);
+function rdPickW(items: any[], keyOf: (arg0: any) => any, avoid: null) {
+    let c = items.filter((x: any) => keyOf(x) !== avoid);
     if (!c.length)
         c = items;
-    const w = c.map((x) => rdWeight(keyOf(x)));
-    let r = Math.random() * w.reduce((a, b) => a + b, 0);
+    const w = c.map((x: any) => rdWeight(keyOf(x)));
+    let r = Math.random() * w.reduce((a: any, b: any) => a + b, 0);
     for (let i = 0; i < c.length; i++) {
         r -= w[i];
         if (r <= 0)
@@ -6271,7 +6244,7 @@ function rdPickW(items, keyOf, avoid) {
     }
     return c[c.length - 1];
 }
-function rdPickFrom(items, keyOf) {
+function rdPickFrom(items: any[], keyOf: { (v: any): string; (v: any): string; (v: any): string; (x: any): string; (arg0: never): null; }) {
     let r;
     if (RD.mode === 'test') {
         const sig = items.map(keyOf).join('|');
@@ -6289,7 +6262,7 @@ function rdPickFrom(items, keyOf) {
     RD.lastK = keyOf(r);
     return r;
 }
-function rdPool(L) {
+function rdPool(L: { set: any[]; lo: any; hi: any; acc: number; }|null) {
     if (L.set)
         return L.set.map(rdP);
     const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), out = [];
@@ -6307,20 +6280,20 @@ function rdPool(L) {
     }
     return out;
 }
-function rdIvName(n) { return t('rdx_iv' + n); }
-function rdChLabel(li, q) { return rdLetter(li) + ' ' + t('rdx_q_' + q); }
-function rdGen(L) {
+function rdIvName(n: string|number) { return t('rdx_iv' + n); }
+function rdChLabel(li: number, q: string) { return rdLetter(li) + ' ' + t('rdx_q_' + q); }
+function rdGen(L: { ty: any; kmax: number; clef: any; lo: any; hi: any; ivs: any[]; harm: number; q: any[]; inv: any; keys: number; acc: any; }|null) {
     const ty = L.ty;
     if (ty === 'ks') {
         const ks = [];
         for (let k = -L.kmax; k <= L.kmax; k++)
             ks.push(k);
-        const k = rdPickFrom(ks, (v) => 'ks:' + v);
-        const opts = shuffle(ks.filter((v) => v !== k)).slice(0, 5).concat([k]).sort((a, b) => a - b);
-        return { ty, clef: L.clef, keyN: k, key: 'ks:' + k, ans: k, opts: opts.map((v) => ({ v, l: rdKeyLabel(v), s: rdKeyMinor(v) })) };
+        const k = rdPickFrom(ks, (v: string) => 'ks:' + v);
+        const opts = shuffle(ks.filter((v) => v !== k)).slice(0, 5).concat([k]).sort((a: number, b: number) => a - b);
+        return { ty, clef: L.clef, keyN: k, key: 'ks:' + k, ans: k, opts: opts.map((v: any) => ({ v, l: rdKeyLabel(v), s: rdKeyMinor(v) })) };
     }
     if (ty === 'iv') {
-        const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), iv = rdPickFrom(L.ivs, (v) => 'iv:' + v);
+        const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), iv = rdPickFrom(L.ivs, (v: string) => 'iv:' + v);
         let a = lo, b = lo + iv - 1;
         for (let k = 0; k < 40; k++) {
             a = lo + Math.floor(Math.random() * (hi - lo + 1));
@@ -6337,10 +6310,10 @@ function rdGen(L) {
             na = nb;
             nb = x;
         }
-        return { ty, clef: L.clef, key: 'iv:' + iv, ans: iv, a: na, b: nb, harm, opts: L.ivs.map((v) => ({ v, l: rdIvName(v), k: String(v) })), midis: [rdMidi(na), rdMidi(nb)] };
+        return { ty, clef: L.clef, key: 'iv:' + iv, ans: iv, a: na, b: nb, harm, opts: L.ivs.map((v: any) => ({ v, l: rdIvName(v), k: String(v) })), midis: [rdMidi(na), rdMidi(nb)] };
     }
     if (ty === 'ch') {
-        const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), qual = rdPickFrom(L.q, (v) => 'ch:' + v);
+        const lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi)), qual = rdPickFrom(L.q, (v: string) => 'ch:' + v);
         let notes = null, root = null, inv = 0;
         for (let k = 0; k < 80 && !notes; k++) {
             const rs = lo + Math.floor(Math.random() * Math.max(1, hi - lo - 3));
@@ -6358,11 +6331,11 @@ function rdGen(L) {
             notes = ns;
         }
         const ans = root.li + ':' + qual, set = new Set([ans]);
-        L.q.forEach((q) => set.add(root.li + ':' + q));
+        L.q.forEach((q: string) => set.add(root.li + ':' + q));
         while (set.size < 6) {
             set.add(Math.floor(Math.random() * 7) + ':' + ssPick(L.q));
         }
-        const opts = shuffle([...set]).map((v) => { const [li, q] = v.split(':'); return { v, l: rdChLabel(+li, q) }; });
+        const opts = shuffle([...set]).map((v: { split: (arg0: string) => [any,any]; }) => { const [li, q] = v.split(':'); return { v, l: rdChLabel(+li, q) }; });
         const midis = notes.map(rdMidi);
         return { ty, clef: L.clef, key: 'ch:' + qual, ans, root, qual, inv, notes, opts, midis, pcs: [...new Set(midis.map(pc))].sort((a, b) => a - b) };
     }
@@ -6379,10 +6352,10 @@ function rdGen(L) {
     if (L.keys) {
         keyN = Math.floor(Math.random() * (2 * L.keys + 1)) - L.keys;
         const kA = ssKeyAcc(keyN);
-        pool = pool.map((n) => Object.assign({}, n, { acc: kA[n.li] }));
+        pool = pool.map((n: { li: string|number; }) => Object.assign({}, n, { acc: kA[n.li] }));
     }
-    const sc = (n) => clef === 'grand' ? (rdStep(n) >= 28 ? 'treble' : 'bass') : clef;
-    const n = rdPickFrom(pool, (x) => rdNk(sc(x), x));
+    const sc = (n: any) => clef === 'grand' ? (rdStep(n) >= 28 ? 'treble' : 'bass') : clef;
+    const n = rdPickFrom(pool, (x: any) => rdNk(sc(x), x));
     const q = { ty, clef, keyN, note: n, sclef: sc(n), key: rdNk(sc(n), n), midi: rdMidi(n), midis: [rdMidi(n)], needAcc: !!(L.acc || L.keys) };
     if (ty === 'k2s') {
         const seen = new Set([q.midi]), opts = [n];
@@ -6395,12 +6368,12 @@ function rdGen(L) {
                 opts.push(x);
             }
         }
-        q.opts = shuffle(opts).map((x, i) => ({ v: i, n: x }));
-        q.ans = q.opts.findIndex((o) => o.n === n);
+        q.opts = shuffle(opts).map((x: any, i: any) => ({ v: i, n: x }));
+        q.ans = q.opts.findIndex((o: { n: any; }) => o.n === n);
     }
     return q;
 }
-function rdQSvg(q, extra) {
+function rdQSvg(q: { ty: any; clef: any; keyN: number; note: any; sclef: any; key: string; midi: any; midis: any[]; needAcc: boolean; }|{ ty: any; clef: any; keyN: any; key: string; ans: any; opts: any; a?: undefined; b?: undefined; harm?: undefined; midis?: undefined; root?: undefined; qual?: undefined; inv?: undefined; notes?: undefined; pcs?: undefined; }|{ ty: any; clef: any; key: string; ans: any; a: { li: number; oct: number; acc: any; }; b: { li: number; oct: number; acc: any; }; harm: boolean; opts: any; midis: any[]; keyN?: undefined; root?: undefined; qual?: undefined; inv?: undefined; notes?: undefined; pcs?: undefined; }|{ ty: any; clef: any; key: string; ans: string; root: { li: number; oct: number; acc: any; }|null; qual: any; inv: number; notes: { li: number; oct: number; acc: any; }[]|null; opts: any; midis: any[]; pcs: number[]; keyN?: undefined; a?: undefined; b?: undefined; harm?: undefined; }|null, extra: (theory.SpelledMidi&{ s: string; })|null|undefined) {
     const st = q.state;
     if (q.ty === 'ks')
         return rdSvg({ clef: q.clef, keyN: q.keyN, cols: [], minW: 150, aria: t('rdx_p_ks') }).svg;
@@ -6409,25 +6382,25 @@ function rdQSvg(q, extra) {
         return rdSvg({ clef: q.clef, cols: q.harm ? [[a, b]] : [[a], [b]], colW: q.harm ? 96 : 72 }).svg;
     }
     if (q.ty === 'ch')
-        return rdSvg({ clef: q.clef, cols: [q.notes.map((n) => Object.assign({ s: st }, n))], colW: 100 }).svg;
+        return rdSvg({ clef: q.clef, cols: [q.notes.map((n: any) => Object.assign({ s: st }, n))], colW: 100 }).svg;
     const col = [Object.assign({ s: q.ty === 'k2s' ? null : st }, q.note)];
     if (extra)
         col.push(extra);
     return rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, keyN: q.keyN, cols: [col], colW: 100, lbl: q.lbl ? [q.lbl] : null }).svg;
 }
-function rdKbRange(q) {
+function rdKbRange(q: { ty: any; clef: any; keyN: number; note: any; sclef: any; key: string; midi: any; midis: any[]; needAcc: boolean; }|{ ty: any; clef: any; keyN: any; key: string; ans: any; opts: any; a?: undefined; b?: undefined; harm?: undefined; midis?: undefined; root?: undefined; qual?: undefined; inv?: undefined; notes?: undefined; pcs?: undefined; }|{ ty: any; clef: any; key: string; ans: any; a: { li: number; oct: number; acc: any; }; b: { li: number; oct: number; acc: any; }; harm: boolean; opts: any; midis: any[]; keyN?: undefined; root?: undefined; qual?: undefined; inv?: undefined; notes?: undefined; pcs?: undefined; }|{ ty: any; clef: any; key: string; ans: string; root: { li: number; oct: number; acc: any; }|null; qual: any; inv: number; notes: { li: number; oct: number; acc: any; }[]|null; opts: any; midis: any[]; pcs: number[]; keyN?: undefined; a?: undefined; b?: undefined; harm?: undefined; }) {
     const L = RD.L;
     let lo = L.lo ? rdMidi(rdP(L.lo)) : 48, hi = L.hi ? rdMidi(rdP(L.hi)) : 71;
     lo = Math.min(lo, q.midi);
     hi = Math.max(hi, q.midi);
     return [lo - pc(lo), hi + (11 - pc(hi))];
 }
-function rdMiniKb(lo, hi, mark, inter) {
+function rdMiniKb(lo: any, hi: number, mark: null, inter: boolean) {
     const whites = [];
     for (let m = lo; m <= hi; m++)
         if (![1, 3, 6, 8, 10].includes(pc(m)))
             whites.push(m);
-    const ww = 100 / whites.length, tag = inter ? 'button' : 'span', keyAttrs = (m) => inter ? ` type="button" aria-label="${rdEsc(noteName(m, false))}"` : '';
+    const ww = 100 / whites.length, tag = inter ? 'button' : 'span', keyAttrs = (m: any) => inter ? ` type="button" aria-label="${rdEsc(noteName(m, false))}"` : '';
     let w = '', bk = '';
     whites.forEach((m, i) => {
         w += `<${tag} class="rdx-w" data-m="${m}" style="left:${(i * ww).toFixed(3)}%;width:${ww.toFixed(3)}%"${keyAttrs(m)}${m === mark ? ' data-s="target"' : ''}>${pc(m) === 0 ? `<i>${rdLetter(0)}${Math.floor(m / 12) - 1}</i>` : ''}</${tag}>`;
@@ -6436,13 +6409,13 @@ function rdMiniKb(lo, hi, mark, inter) {
     });
     return `<div class="rdx-kb${inter ? ' inter' : ''}" id="rdx-kb"${inter ? ` role="group" aria-label="${rdEsc(t('rdx_p_play'))}"` : ' aria-hidden="true"'}>${w}${bk}</div>`;
 }
-function rdKbMark(m, s) { const el = (document).querySelector('#rdx-kb [data-m="' + m + '"]'); if (el) {
+function rdKbMark(m: string, s: string|undefined) { const el = (document).querySelector('#rdx-kb [data-m="' + m + '"]'); if (el) {
     if (s)
         el.dataset.s = s;
     else
         delete el.dataset.s;
 } }
-function rdBtn(o, i, cls) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
+function rdBtn(o: { v: any; l?: any; html?: any; k?: any; s?: any; }, i: number, cls: string|undefined) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
 function rdNext() {
     clearTimeout(RD.hintT);
     RD.answered = false;
@@ -6463,12 +6436,12 @@ function rdNext() {
     else if (q.ty === 'k2s') {
         const r = rdKbRange(q);
         kb = rdMiniKb(r[0], r[1], q.midi, false);
-        ans = q.opts.map((o, i) => rdBtn({ v: o.v, html: rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, cols: [[o.n]], colW: 56, scale: 0.8 }).svg }, i, 'rdx-opt')).join('');
+        ans = q.opts.map((o: { v: any; n: any; }, i: any) => rdBtn({ v: o.v, html: rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, cols: [[o.n]], colW: 56, scale: 0.8 }).svg }, i, 'rdx-opt')).join('');
     }
     else
-        ans = q.opts.map((o, i) => rdBtn(o, i)).join('');
+        ans = q.opts.map((o: any, i: any) => rdBtn(o, i)).join('');
     const pr = RD.mode === 'practice';
-    $('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div>${q.ty === 'k2s' ? kb : ''}<div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${q.ty === 'k2s' ? '' : kb}<div class="rdx-tools">${pr ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.needAcc && q.ty === 'name' ? t('rdx_keys_acc') : '')}</span></div></div>`;
+    byId('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div>${q.ty === 'k2s' ? kb : ''}<div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${q.ty === 'k2s' ? '' : kb}<div class="rdx-tools">${pr ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.needAcc && q.ty === 'name' ? t('rdx_keys_acc') : '')}</span></div></div>`;
     if (q.ty === 'k2s' && rdData().prefs.sound)
         rdSound(q.midis);
     if (pr && rdData().prefs.hints)
@@ -6477,9 +6450,9 @@ function rdNext() {
     rdHud();
     RD.t0 = performance.now();
 }
-function rdSound(ms, arp) { if (!ms || !ms.length)
+function rdSound(ms: any[]|undefined, arp: boolean|undefined) { if (!ms || !ms.length)
     return; ensureAudio(); if (!actx)
-    return; const t0 = actx.currentTime + 0.03; ms.forEach((m, i) => previewNote(m, t0 + (arp ? i * 0.45 : 0), 0.9, 88)); }
+    return; const t0 = actx.currentTime + 0.03; ms.forEach((m: any, i: number) => previewNote(m, t0 + (arp ? i * 0.45 : 0), 0.9, 88)); }
 const RD_LM = [14, 18, 21, 24, 28, 32, 35, 38, 42];
 function rdHint() {
     const q = RD.q;
@@ -6507,17 +6480,17 @@ function rdHint() {
         s = t('rdx_hint_ch', rdLetter(q.root.li));
     else if (q.ty === 'ks')
         s = t(q.keyN > 0 ? 'rdx_hint_ks_s' : q.keyN < 0 ? 'rdx_hint_ks_f' : 'rdx_hint_ks_0');
-    const f = $('rdx-fb');
+    const f = maybeById('rdx-fb');
     if (f) {
         f.className = 'rdx-fb hint';
         f.textContent = '💡 ' + s;
     }
 }
-function rdAnsText(q) { if (q.ty === 'iv')
+function rdAnsText(q: { ty: string; ans: any; root: { li: any; }; qual: any; note: any; }|null) { if (q.ty === 'iv')
     return rdIvName(q.ans); if (q.ty === 'ch')
     return rdChLabel(q.root.li, q.qual); if (q.ty === 'ks')
     return rdKeyLabel(q.ans) + ' / ' + rdKeyMinor(q.ans); return rdName(q.note, true); }
-function rdAnswer(ok, given) {
+function rdAnswer(ok: boolean, given: { btn?: any; midi?: any; }) {
     const q = RD.q;
     if (!q || RD.answered || !RD.on)
         return;
@@ -6552,7 +6525,7 @@ function rdAnswer(ok, given) {
     else
         rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'rush' ? 800 : 1500)));
 }
-function rdFeedback(ok, g) {
+function rdFeedback(ok: any, g: { midi: number|null; btn: Element; }) {
     const q = RD.q;
     q.state = ok ? 'good' : 'bad';
     if (q.ty === 'name' && !ok)
@@ -6561,12 +6534,12 @@ function rdFeedback(ok, g) {
     if (extra)
         q.state = null;
     if (q.ty !== 'k2s')
-        $('rdx-staff').innerHTML = rdQSvg(q, extra);
-    const sv = $('rdx-staff');
+        maybeById('rdx-staff').innerHTML = rdQSvg(q, extra);
+    const sv = maybeById('rdx-staff');
     sv.classList.remove('flash-ok', 'flash-bad');
     void sv.offsetWidth;
     sv.classList.add(ok ? 'flash-ok' : 'flash-bad');
-    $('rdx-ans').querySelectorAll('.rdx-a').forEach((b) => { b.disabled = true; if (b.dataset.a === String(q.ans) || (q.ty === 'name' && +b.dataset.a === q.note.li))
+    maybeById('rdx-ans').querySelectorAll('.rdx-a').forEach((b) => { b.disabled = true; if (b.dataset.a === String(q.ans) || (q.ty === 'name' && +b.dataset.a === q.note.li))
         b.classList.add('correct');
     else if (g.btn === b)
         b.classList.add('wrong'); });
@@ -6575,14 +6548,14 @@ function rdFeedback(ok, g) {
         if (g.midi != null && g.midi !== q.midi)
             rdKbMark(g.midi, 'bad');
     }
-    const f = $('rdx-fb'), msg = ok ? (t('rdx_ok') + (RD.streak >= 3 ? '  🔥 ' + RD.streak : '')) : t('rdx_wrong', rdAnsText(q)) + (extra ? ' · ' + t('rdx_played', rdName(extra, true)) : '');
+    const f = maybeById('rdx-fb'), msg = ok ? (t('rdx_ok') + (RD.streak >= 3 ? '  🔥 ' + RD.streak : '')) : t('rdx_wrong', rdAnsText(q)) + (extra ? ' · ' + t('rdx_played', rdName(extra, true)) : '');
     f.className = 'rdx-fb ' + (ok ? 'good' : 'bad');
     f.textContent = (ok ? '✓ ' : '✗ ') + msg;
-    $('rdx-live').textContent = msg;
+    byId('rdx-live').textContent = msg;
     if (rdData().prefs.sound && q.ty !== 'play' && !(q.ty === 'k2s') && q.midis)
         rdSound(q.midis, q.ty === 'iv' && !q.harm);
 }
-function rdClickAns(b) {
+function rdClickAns(b: { dataset: { a: any; }; }) {
     const q = RD.q;
     if (!q || RD.answered || !RD.on)
         return;
@@ -6593,7 +6566,7 @@ function rdClickAns(b) {
         return rdAnswer(+v === q.ans, { btn: b });
     rdAnswer(v === String(q.ans), { btn: b });
 }
-function rdInput(m) {
+function rdInput(m: number) {
     if (!RD.on)
         return;
     if (RD.L.ty === 'rh') {
@@ -6609,9 +6582,9 @@ function rdInput(m) {
     if (q.ty === 'name')
         return rdAnswer(pc(m) === pc(q.midi), { midi: m });
     if (q.ty === 'k2s') {
-        const i = q.opts.findIndex((o) => strict ? rdMidi(o.n) === m : pc(rdMidi(o.n)) === pc(m));
+        const i = q.opts.findIndex((o: { n: any; }) => strict ? rdMidi(o.n) === m : pc(rdMidi(o.n)) === pc(m));
         if (i >= 0)
-            rdAnswer(i === q.ans, { btn: $('rdx-ans').querySelectorAll('.rdx-a')[i], midi: m });
+            rdAnswer(i === q.ans, { btn: maybeById('rdx-ans').querySelectorAll('.rdx-a')[i], midi: m });
         return;
     }
     if (q.ty === 'ch') {
@@ -6621,13 +6594,13 @@ function rdInput(m) {
     }
 }
 function rdHud() {
-    const h = $('rdx-hud'), mt = $('rdx-meter');
+    const h = byId('rdx-hud'), mt = byId('rdx-meter');
     if (!h)
         return;
     let s = '', f = null;
     if (RD.L && RD.L.ty === 'rh') {
         const n = (RD.rhP || []).length;
-        s = n ? '⌀ ' + Math.round(RD.rhP.reduce((x, y) => x + y, 0) / n) + '% · ' + n + '×' : '';
+        s = n ? '⌀ ' + Math.round(RD.rhP.reduce((x: any, y: any) => x + y, 0) / n) + '% · ' + n + '×' : '';
         if (RD.mode === 'test')
             f = n / 4;
     }
@@ -6650,16 +6623,16 @@ function rdHud() {
 }
 /* ---- rhythm reading: tap the rhythm against a metronome ---- */
 const RD_RHU = { '4': [[1]], '2': [[2]], '1': [[4]], '8': [[.5], [.5]], 'r4': [[1, 1]], 'd': [[1.5], [.5]], '16': [[.25], [.25], [.25], [.25]] };
-function rdRhGen(L) {
-    let ev = [];
+function rdRhGen(L: { units: any[]; }|null) {
+    let ev: never[] = [];
     for (let tries = 0; tries < 12; tries++) {
         ev = [];
         for (let bar = 0; bar < 2; bar++) {
             let pos = 0;
             while (pos < 4 - 1e-6) {
-                const c = L.units.filter((u) => { const len = RD_RHU[u].reduce((a, x) => a + x[0], 0); return len <= 4 - pos + 1e-6 && !(u === '1' && pos > 0) && !(u === 'r4' && bar === 0 && pos === 0) && !(u === 'd' && pos % 2); });
+                const c = L.units.filter((u: string) => { const len = RD_RHU[u].reduce((a: any, x: any[]) => a + x[0], 0); return len <= 4 - pos + 1e-6 && !(u === '1' && pos > 0) && !(u === 'r4' && bar === 0 && pos === 0) && !(u === 'd' && pos % 2); });
                 const u = c.length ? ssPick(c) : '4';
-                RD_RHU[u].forEach((x) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1], u }); pos += x[0]; });
+                RD_RHU[u].forEach((x: number[]) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1], u }); pos += x[0]; });
             }
         }
         const last = L.units[L.units.length - 1];
@@ -6668,15 +6641,15 @@ function rdRhGen(L) {
     }
     return ev;
 }
-function rdRhGrade(on, taps, bs) {
-    const used = new Set(), res = [];
+function rdRhGrade(on: any[], taps: any[], bs: number) {
+    const used = new Set(), res: never[] = [];
     let minI = 4;
     for (let i = 1; i < on.length; i++)
         minI = Math.min(minI, on[i] - on[i - 1]);
     const win = Math.min(0.25, 0.5 * minI * bs);
-    on.forEach((b) => {
+    on.forEach((b: number) => {
         let bi = -1, bd = Infinity;
-        taps.forEach((tb, j) => { if (used.has(j))
+        taps.forEach((tb: number, j: unknown) => { if (used.has(j))
             return; const d = (tb - b) * bs; if (Math.abs(d) <= win && Math.abs(d) < Math.abs(bd)) {
             bd = d;
             bi = j;
@@ -6693,12 +6666,12 @@ function rdRhGrade(on, taps, bs) {
     const offs = res.filter((r) => r.off != null).map((r) => r.off), mean = offs.length ? offs.reduce((a, b) => a + b, 0) / offs.length : 0;
     return { res, extra, good, near, pct: Math.max(0, Math.round(100 * (good + 0.5 * near) / Math.max(1, on.length) - extra * 5)), mean: Math.round(mean) };
 }
-function rdClick(tm, acc) {
+function rdClick(tm: number, acc: boolean) {
     const click = audioEngine.scheduleClick(tm, acc);
     if (click?.oscs)
         (RD.nodes = RD.nodes || []).push(...click.oscs);
 }
-function rdBeatX(r, beat) { const p = r.beatX; for (let i = 0; i < p.length - 1; i++) {
+function rdBeatX(r: { beatX: any; }, beat: number) { const p = r.beatX; for (let i = 0; i < p.length - 1; i++) {
     if (beat >= p[i].b && beat <= p[i + 1].b) {
         const f = (beat - p[i].b) / Math.max(1e-3, p[i + 1].b - p[i].b);
         return p[i].x + f * (p[i + 1].x - p[i].x);
@@ -6707,28 +6680,28 @@ function rdBeatX(r, beat) { const p = r.beatX; for (let i = 0; i < p.length - 1;
 // Options (remembered): grade how long each note is held, and/or a left-hand part on a second staff.
 function rdRhPrefs() { const p = rdData().prefs; return { dur: !!p.rhDur, two: p.rhHands === 2 }; }
 const RD_LH_PAT = { whole: [[4]], half: [[2], [2]], pulse: [[1], [1], [1], [1]], onethree: [[1], [1, 1], [1], [1, 1]], twofour: [[1, 1], [1], [1, 1], [1]] };
-function rdRhGenLH(L) {
-    const pool = L.n <= 2 ? ['whole', 'half'] : L.n === 3 ? ['whole', 'half', 'pulse'] : ['half', 'pulse', 'onethree', 'twofour'], ev = [];
+function rdRhGenLH(L: { n: number; }|null) {
+    const pool = L.n <= 2 ? ['whole', 'half'] : L.n === 3 ? ['whole', 'half', 'pulse'] : ['half', 'pulse', 'onethree', 'twofour'], ev: { beat: number; dur: any; rest: boolean; }[] = [];
     for (let bar = 0; bar < 2; bar++) {
         let pos = 0;
-        RD_LH_PAT[ssPick(pool)].forEach((x) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1] }); pos += x[0]; });
+        RD_LH_PAT[ssPick(pool)].forEach((x: number[]) => { ev.push({ beat: bar * 4 + pos, dur: x[0], rest: !!x[1] }); pos += x[0]; });
     }
     return ev;
 }
 // The anchors on the dock keyboard: C3 for the left hand, C5 for the right (any key below / from middle C counts for that hand).
-function rdRhMarks(on) { [48, 72].forEach((m) => kbState(m, on ? 'target' : null, false)); }
-function rdRhNew(keep) {
+function rdRhMarks(on: boolean) { [48, 72].forEach((m) => kbState(m, on ? 'target' : null, false)); }
+function rdRhNew(keep: boolean|undefined) {
     const L = RD.L, pr = rdRhPrefs(), old = keep && RD.rh;
     const ev = old ? old.ev : rdRhGen(L), lh = pr.two ? ((old && old.lh) || rdRhGenLH(L)) : null;
-    const piece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: L.bpm, rh: ev.map((e) => [e.rest ? 'R' : 'B4', e.dur]) };
+    const piece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: L.bpm, rh: ev.map((e: { rest: any; dur: any; }) => [e.rest ? 'R' : 'B4', e.dur]) };
     if (lh)
-        piece.lh = lh.map((e) => [e.rest ? 'R' : 'D3', e.dur]);
+        piece.lh = lh.map((e: { rest: any; dur: any; }) => [e.rest ? 'R' : 'D3', e.dur]);
     const r = srRender(piece);
-    RD.rh = { ev, lh, r, dur: pr.dur, two: pr.two, on: ev.filter((e) => !e.rest).map((e) => e.beat), taps: [], presses: [], open: new Map(), playing: false, graded: null, raf: 0 };
-    const tst = RD.mode === 'test', pad = (h, lbl, k) => `<button class="rdx-tap" id="rdx-tap${h === 'L' ? 'L' : ''}" data-hand="${h}" aria-label="${rdEsc(lbl)}" aria-describedby="rdx-coach">${rdEsc(lbl)}<small>${rdEsc(k)}</small></button>`;
+    RD.rh = { ev, lh, r, dur: pr.dur, two: pr.two, on: ev.filter((e: { rest: any; }) => !e.rest).map((e: { beat: any; }) => e.beat), taps: [], presses: [], open: new Map(), playing: false, graded: null, raf: 0 };
+    const tst = RD.mode === 'test', pad = (h: string, lbl: string, k: string) => `<button class="rdx-tap" id="rdx-tap${h === 'L' ? 'L' : ''}" data-hand="${h}" aria-label="${rdEsc(lbl)}" aria-describedby="rdx-coach">${rdEsc(lbl)}<small>${rdEsc(k)}</small></button>`;
     const pads = pr.two ? pad('L', t('rdx_tap') + ' · ' + t('rdx_tap_l'), t('rdx_tap_lk')) + pad('R', t('rdx_tap') + ' · ' + t('rdx_tap_r'), t('rdx_tap_rk')) : pad('R', t('rdx_tap'), t('rdx_tap_k'));
     const hint = [pr.two ? t('rdx_rh_two_hint') : '', pr.dur ? t('rdx_rh_dur_hint') : ''].filter(Boolean).join(' ');
-    $('rdx-body').innerHTML = `<div class="rdx-q rdx-rh"><div class="rdx-prompt">${t('rdx_p_rh')}${tst ? ' · ' + t('rdx_hud_q', RD.rhP.length + 1, 4) : ''}</div>
+    byId('rdx-body').innerHTML = `<div class="rdx-q rdx-rh"><div class="rdx-prompt">${t('rdx_p_rh')}${tst ? ' · ' + t('rdx_hud_q', RD.rhP.length + 1, 4) : ''}</div>
     <div class="rdx-rhopts" id="rdx-rhopts" role="group" aria-label="${t('rdx_rh_opts')}"><label class="switch-inline"><input type="checkbox" id="rdx-rhdur"${pr.dur ? ' checked' : ''}> <span>${t('rdx_rh_dur')}</span></label>
       <div class="seg" id="rdx-rhhands" role="group" aria-label="${t('rdx_rh_hands')}"><button type="button" data-hands="1" aria-pressed="${!pr.two}">${t('rdx_rh_one')}</button><button type="button" data-hands="2" aria-pressed="${pr.two}">${t('rdx_rh_two')}</button></div></div>
     <p class="rdx-rhhint" id="rdx-rhhint">${rdEsc(hint)}</p>
@@ -6738,8 +6711,8 @@ function rdRhNew(keep) {
     rdRhMarks(pr.two);
     rdHud();
 }
-function rdRhOptsLock(on) { (document).querySelectorAll('#rdx-rhopts input,#rdx-rhopts button').forEach((x) => { x.disabled = on; }); }
-function rdRhRun(listen) {
+function rdRhOptsLock(on: boolean) { (document).querySelectorAll('#rdx-rhopts input,#rdx-rhopts button').forEach((x) => { x.disabled = on; }); }
+function rdRhRun(listen: boolean) {
     const R = RD.rh;
     if (!R || R.playing)
         return;
@@ -6754,8 +6727,8 @@ function rdRhRun(listen) {
     R.playing = true;
     R.listen = !!listen;
     rdRhOptsLock(true);
-    $('rdx-rhdet').innerHTML = '';
-    $('rdx-staff').querySelectorAll('.ss-n').forEach((g) => { g.removeAttribute('data-s'); g.removeAttribute('data-d'); const tt = g.querySelector('title.rdx-tt'); if (tt)
+    maybeById('rdx-rhdet').innerHTML = '';
+    maybeById('rdx-staff').querySelectorAll('.ss-n').forEach((g) => { g.removeAttribute('data-s'); g.removeAttribute('data-d'); const tt = g.querySelector('title.rdx-tt'); if (tt)
         tt.remove(); });
     const act0 = actx.currentTime + 0.2, beat0 = act0 + 4 * bs;
     R.t0 = performance.now() + 200 + 4 * bs * 1000;
@@ -6765,16 +6738,16 @@ function rdRhRun(listen) {
         rdClick(beat0 + b * bs, b % 4 === 0);
     if (listen) {
         const k = R.dur ? .92 : .8;
-        R.ev.forEach((e) => { if (!e.rest)
+        R.ev.forEach((e: { rest: any; beat: number; dur: number; }) => { if (!e.rest)
             previewNote(72, beat0 + e.beat * bs, Math.max(.12, e.dur * bs * k), 90); });
         if (R.lh)
-            R.lh.forEach((e) => { if (!e.rest)
+            R.lh.forEach((e: { rest: any; beat: number; dur: number; }) => { if (!e.rest)
                 previewNote(48, beat0 + e.beat * bs, Math.max(.12, e.dur * bs * k), 80); });
     }
-    const f = $('rdx-fb');
+    const f = maybeById('rdx-fb');
     f.className = 'rdx-fb';
     f.textContent = t('rdx_rh_count');
-    const svg = $('rdx-staff').querySelector('svg');
+    const svg = maybeById('rdx-staff').querySelector('svg');
     if (!svg) return;
     let c = svg.querySelector('.ss-playhead');
     if (!c) {
@@ -6809,7 +6782,7 @@ function rdRhRun(listen) {
     R.raf = requestAnimationFrame(loop);
 }
 // Every press is kept with its release: src names the key (MIDI note, computer key, pointer on a pad), hand is 'L' or 'R'.
-function rdRhPress(src, hand) {
+function rdRhPress(src: string, hand: string) {
     const R = RD.rh;
     if (!R || !R.playing || R.listen)
         return;
@@ -6827,22 +6800,22 @@ function rdRhPress(src, hand) {
         el.classList.add('hit');
     }
 }
-function rdRhRelease(src) { const R = RD.rh; if (!R)
+function rdRhRelease(src: string) { const R = RD.rh; if (!R)
     return; const p = R.open.get(src); if (!p)
     return; R.open.delete(src); if (R.playing)
     p.off = (performance.now() - R.t0) / 1000 / (60 / RD.L.bpm); }
-function rdRhKey(kind, m) { if (kind === 'on')
+function rdRhKey(kind: string, m: string|number) { if (kind === 'on')
     rdRhPress('m' + m, m < 60 ? 'L' : 'R');
 else
     rdRhRelease('m' + m); }
-function rdTap(hand) { const src = 'tap' + performance.now(); rdRhPress(src, hand || 'R'); rdRhRelease(src); } // a click without press/release (assistive tech)
+function rdTap(hand: string) { const src = 'tap' + performance.now(); rdRhPress(src, hand || 'R'); rdRhRelease(src); } // a click without press/release (assistive tech)
 /* Lengths: each written note is paired with one stroke of its hand (keys struck within 70 ms are one stroke, e.g. a held chord, and it
    ends when its last key lifts). The release is compared with the written end of the note; the windows scale with the note's length
    and are clamped to practical limits, so at any tempo a held half note and a quarter followed by a rest are told apart, while normal
    articulation stays "good". Keys still down when the exercise ends count as released at that moment. */
-function rdRhStrokes(ps, end, gap) {
-    const out = [];
-    ps.slice().sort((a, b) => a.on - b.on).forEach((p) => {
+function rdRhStrokes(ps: any[], end: any, gap: number) {
+    const out: any[] = [];
+    ps.slice().sort((a: { on: number; }, b: { on: number; }) => a.on - b.on).forEach((p: { off: null; on: number; }) => {
         const off = p.off == null ? end : p.off, l = out[out.length - 1];
         if (l && p.on - l.on <= gap)
             l.off = Math.max(l.off, off);
@@ -6851,13 +6824,13 @@ function rdRhStrokes(ps, end, gap) {
     });
     return out;
 }
-function rdRhGradeHand(ev, ps, bs, dur, end) {
-    const tg = ev.filter((e) => !e.rest), st = rdRhStrokes(ps.filter((p) => p.on > -0.5), end, 0.07 / bs), used = new Set(), res = [];
+function rdRhGradeHand(ev: any[], ps: any[], bs: number, dur: any, end: any) {
+    const tg = ev.filter((e: { rest: any; }) => !e.rest), st = rdRhStrokes(ps.filter((p: { on: number; }) => p.on > -0.5), end, 0.07 / bs), used = new Set(), res: never[] = [];
     let minI = 4;
     for (let i = 1; i < tg.length; i++)
         minI = Math.min(minI, tg[i].beat - tg[i - 1].beat);
-    const win = Math.min(0.25, 0.5 * minI * bs), cl = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
-    tg.forEach((e) => {
+    const win = Math.min(0.25, 0.5 * minI * bs), cl = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
+    tg.forEach((e: { beat: number; dur: number; }) => {
         let bi = -1, bd = Infinity;
         st.forEach((s, j) => { if (used.has(j))
             return; const d = (s.on - e.beat) * bs; if (Math.abs(d) <= win && Math.abs(d) < Math.abs(bd)) {
@@ -6884,14 +6857,14 @@ function rdRhGradeHand(ev, ps, bs, dur, end) {
     return { res, N, good, near, extra, score, dur, lenOk: res.filter((r) => r.rs === 'good' || r.rs === 'near').length, early: res.filter((r) => r.rs === 'early').length, late: res.filter((r) => r.rs === 'late').length,
         mean: offs.length ? Math.round(offs.reduce((a, b) => a + b, 0) / offs.length) : 0, pct: Math.max(0, Math.round(100 * score / Math.max(1, N) - extra * 5)) };
 }
-function rdRhGradeAll(R, bs, end) {
+function rdRhGradeAll(R: { two: any; ev: any; lh: any; presses: any[]; dur: any; }|null, bs: number, end: any) {
     const hands = R.two ? ['R', 'L'] : ['R'], by = {};
-    hands.forEach((h) => { by[h] = rdRhGradeHand(h === 'R' ? R.ev : R.lh, R.presses.filter((p) => p.hand === h), bs, R.dur, end); });
-    const all = hands.map((h) => by[h]), sum = (k) => all.reduce((a, g) => a + g[k], 0), N = sum('N'), offs = all.flatMap((g) => g.res.filter((r) => r.off != null).map((r) => r.off));
+    hands.forEach((h) => { by[h] = rdRhGradeHand(h === 'R' ? R.ev : R.lh, R.presses.filter((p: { hand: string; }) => p.hand === h), bs, R.dur, end); });
+    const all = hands.map((h) => by[h]), sum = (k: string) => all.reduce((a, g) => a + g[k], 0), N = sum('N'), offs = all.flatMap((g) => g.res.filter((r: { off: null; }) => r.off != null).map((r: { off: any; }) => r.off));
     return { by, N, good: sum('good'), near: sum('near'), extra: sum('extra'), lenOk: sum('lenOk'), early: sum('early'), late: sum('late'), res: all.flatMap((g) => g.res),
         mean: offs.length ? Math.round(offs.reduce((a, b) => a + b, 0) / offs.length) : 0, pct: Math.max(0, Math.round(100 * sum('score') / Math.max(1, N) - sum('extra') * 5)) };
 }
-function rdRhNoteTip(r) {
+function rdRhNoteTip(r: { off: number|null; rs: string; roff: number; }) {
     if (r.off == null)
         return t('rdx_rh_n_miss');
     const p = [];
@@ -6905,7 +6878,7 @@ function rdRhNoteTip(r) {
         p.push(Math.round(r.off) + ' ms');
     return p.join(' · ');
 }
-function rdRhHandLine(name, g) {
+function rdRhHandLine(name: string, g: { good: any; near: any; N: string; dur: any; lenOk: string; early: string|number; late: string|number; extra: string|number; pct: string|number; }) {
     const p = [t('rdx_rh_att', (g.good + g.near) + '/' + g.N)];
     if (g.dur) {
         p.push(t('rdx_rh_len', g.lenOk + '/' + g.N));
@@ -6918,20 +6891,20 @@ function rdRhHandLine(name, g) {
         p.push(t('rdx_rh_extra', g.extra));
     return (name ? t('rdx_rh_hand', name, g.pct) + ' — ' : '') + p.join(' · ');
 }
-function rdRhDone(endBeat) {
+function rdRhDone(endBeat: number) {
     const R = RD.rh, bs = 60 / RD.L.bpm, plain = !R.dur && !R.two;
     let g, msg;
-    const det = $('rdx-rhdet');
+    const det = maybeById('rdx-rhdet');
     if (plain) {
-        g = rdRhGrade(R.on, R.taps.filter((x) => x > -0.5), bs); // the original tap-only grading
-        const gs = $('rdx-staff').querySelectorAll('.ss-n');
+        g = rdRhGrade(R.on, R.taps.filter((x: number) => x > -0.5), bs); // the original tap-only grading
+        const gs = maybeById('rdx-staff').querySelectorAll('.ss-n');
         g.res.forEach((r, i) => { if (gs[i])
             gs[i].dataset.s = r.s; });
     }
     else {
         g = rdRhGradeAll(R, bs, endBeat || 8.6);
-        Object.entries(g.by).forEach(([h, hg] = []) => hg.res.forEach((r) => {
-            const n = R.r.notes.find((x) => x.hand === (h === 'L' ? 'lh' : 'rh') && Math.abs(x.beat - r.e.beat) < 1e-3), el = n && $('rdx-staff').querySelector('.ss-n[data-nid="' + n.nid + '"]');
+        Object.entries(g.by).forEach(([h, hg] = []) => hg.res.forEach((r: { e: { beat: number; }; s: any; rs: string; }) => {
+            const n = R.r.notes.find((x: { hand: string; beat: number; }) => x.hand === (h === 'L' ? 'lh' : 'rh') && Math.abs(x.beat - r.e.beat) < 1e-3), el = n && maybeById('rdx-staff').querySelector('.ss-n[data-nid="' + n.nid + '"]');
             if (!el)
                 return;
             el.dataset.s = r.s;
@@ -6961,10 +6934,10 @@ function rdRhDone(endBeat) {
         msg = t('rdx_rh_score', g.pct) + ' · ' + tm;
     if (det)
         det.innerHTML = R.two ? ['R', 'L'].map((h) => `<div>${rdEsc(rdRhHandLine(t(h === 'R' ? 'rdx_rh_hand_r' : 'rdx_rh_hand_l'), g.by[h]))}</div>`).join('') : '';
-    const f = $('rdx-fb');
+    const f = maybeById('rdx-fb');
     f.className = 'rdx-fb ' + (g.pct >= 75 ? 'good' : g.pct >= 50 ? '' : 'bad');
     f.textContent = msg;
-    $('rdx-live').textContent = [msg].concat(det ? [...det.children].map((x) => x.textContent) : []).join('. ');
+    byId('rdx-live').textContent = [msg].concat(det ? [...det.children].map((x) => x.textContent) : []).join('. ');
     rdStat('rh:' + RD.L.id, g.pct >= 75, 0);
     if (RD.mode === 'test') {
         if (RD.rhP.length >= 4) {
@@ -6972,14 +6945,14 @@ function rdRhDone(endBeat) {
                 rdFinish(); }, 1600));
         }
         else
-            $('rdx-rhnext').innerHTML = `<button class="btn primary" data-act="rhnew">${t('rdx_next_ex')} →</button>`;
+            maybeById('rdx-rhnext').innerHTML = `<button class="btn primary" data-act="rhnew">${t('rdx_next_ex')} →</button>`;
     }
     else
-        $('rdx-rhnext').innerHTML = `<button class="btn ghost" data-act="rhagain">↺ ${t('rdx_again_same')}</button><button class="btn primary" data-act="rhnew">🎲 ${t('rdx_new_rh')}</button>`;
+        maybeById('rdx-rhnext').innerHTML = `<button class="btn ghost" data-act="rhagain">↺ ${t('rdx_again_same')}</button><button class="btn primary" data-act="rhnew">🎲 ${t('rdx_new_rh')}</button>`;
     rdHud();
 }
 /* ---- generated sight-reading melodies (played in the Read & play engine) ---- */
-function rdSightGen(L) {
+function rdSightGen(L: { keys: any; lo: any; hi: any; durs: any[]; id: any; n: any; bpm: any; clef: string; }|null) {
     const keyN = ssPick(L.keys), kA = ssKeyAcc(keyN), lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi));
     const tonLi = SR_LET.indexOf(RD_MAJ[keyN + 7][0]);
     let ton = lo;
@@ -6987,7 +6960,7 @@ function rdSightGen(L) {
         ton++;
     if (ton > hi)
         ton -= 7;
-    const nm = (s) => { const n = rdFromStep(s); return SR_LET[n.li] + (kA[n.li] > 0 ? '#' : kA[n.li] < 0 ? 'b' : '') + n.oct; };
+    const nm = (s: any) => { const n = rdFromStep(s); return SR_LET[n.li] + (kA[n.li] > 0 ? '#' : kA[n.li] < 0 ? 'b' : '') + n.oct; };
     let cur = ton;
     const mel = [];
     const mv = () => { const near = [-2, -1, -1, 1, 1, 2, 0], far = [3, -3, 4, -4]; for (let k = 0; k < 24; k++) {
@@ -6999,7 +6972,7 @@ function rdSightGen(L) {
         let pos = 0;
         const end = bar === 3 ? 2 : 4;
         while (pos < end - 1e-6) {
-            const c = L.durs.filter((d) => (d === 1.5 ? 2 : d === 0.5 ? 1 : d) <= end - pos + 1e-6 && !(d === 1.5 && pos % 1));
+            const c = L.durs.filter((d: number) => (d === 1.5 ? 2 : d === 0.5 ? 1 : d) <= end - pos + 1e-6 && !(d === 1.5 && pos % 1));
             const d = c.length ? ssPick(c) : end - pos;
             if (d === 1.5) {
                 cur = mv();
@@ -7039,7 +7012,7 @@ function rdSightGen(L) {
     }
     return p;
 }
-function rdSightStart(mode) {
+function rdSightStart(mode: string) {
     const L = RD.L;
     rdData().prefs.srLv = L.id;
     SR.gen = rdSightGen(L);
@@ -7047,17 +7020,17 @@ function rdSightStart(mode) {
     rdTab('pieces');
     fillPieces();
     SR.modeSel = mode === 'test' ? 'assess' : 'learn';
-    [...$('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === SR.modeSel ? 'true' : 'false'));
+    [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === SR.modeSel ? 'true' : 'false'));
     srSelectPiece('gen');
-    const v = $('rd-verdict');
+    const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rdx_sr_ready');
-    const g = $('rd-go');
+    const g = byId('rd-go');
     if (g)
         g.focus();
 }
 function rdGenMelody() { const L = RD_LV[rdData().prefs.srLv] || RD_LV.sr1; RD.L = L; rdSightStart(SR.modeSel === 'assess' ? 'test' : 'practice'); }
-function rdSightDone(kind, val) {
+function rdSightDone(kind: string, val: number) {
     const p = SR.piece;
     if (!p || !p.gen)
         return '';
@@ -7074,14 +7047,14 @@ function rdSightDone(kind, val) {
     return (kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars)) + (nx && !was && rdUnlocked(nx) ? ' · 🔓 ' + t('rdx_unlocked', rdLvName(nx)) : '');
 }
 /* ---- sessions: intro → questions → summary ---- */
-function rdLvName(L) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
-function rdRangeTxt(L) { if (L.set)
-    return L.set.map((s) => rdName(rdP(s), true)).join(' · '); if (L.lo)
+function rdLvName(L: null) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
+function rdRangeTxt(L: { set: any[]; lo: any; hi: any; }) { if (L.set)
+    return L.set.map((s: any) => rdName(rdP(s), true)).join(' · '); if (L.lo)
     return rdName(rdP(L.lo), true) + '–' + rdName(rdP(L.hi), true); return ''; }
-function rdLvDetail(L) {
+function rdLvDetail(L: null) {
     const p = [t('rdx_ty_' + L.ty)];
     if (L.ty === 'rh')
-        p.push(L.units.map((u) => t('rdx_rhu_' + u)).join(', '));
+        p.push(L.units.map((u: string) => t('rdx_rhu_' + u)).join(', '));
     else if (L.ty === 'ks') {
         p.push(t('rdx_kmax', L.kmax));
         if (L.clef === 'grand')
@@ -7105,16 +7078,16 @@ function rdLvDetail(L) {
     if (L.ty === 'iv' && L.ivs.length < 7)
         p.push(rdIvName(L.ivs[0]) + '–' + rdIvName(L.ivs[L.ivs.length - 1]));
     if (L.q)
-        p.push(L.q.map((q) => t('rdx_q_' + q)).join(' / '));
+        p.push(L.q.map((q: string) => t('rdx_q_' + q)).join(' / '));
     if (L.inv)
         p.push(t('rdx_inv'));
     if (L.ty === 'sr' || L.ty === 'rh')
         p.push(L.bpm + ' BPM');
     return p.join(' · ');
 }
-function rdLvSub(L) { return rdLvDetail(L).split(' · ').slice(1).join(' · '); }
-function rdStars(s) { return `<span class="rdx-stars" role="img" aria-label="${t('rdx_stars_n', s)}">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span>`; }
-function rdKeyText(k) {
+function rdLvSub(L: any) { return rdLvDetail(L).split(' · ').slice(1).join(' · '); }
+function rdStars(s: number) { return `<span class="rdx-stars" role="img" aria-label="${t('rdx_stars_n', s)}">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span>`; }
+function rdKeyText(k: string) {
     let m = /^([tban]):([A-G])([#b]?)(\d)$/.exec(k);
     if (m)
         return rdName({ li: SR_LET.indexOf(m[2]), acc: m[3] === '#' ? 1 : m[3] === 'b' ? -1 : 0, oct: +m[4] }, true) + ' (' + t('rdx_clef_' + ({ t: 'treble', b: 'bass', a: 'alto', n: 'tenor' })[m[1]]) + ')';
@@ -7128,32 +7101,32 @@ function rdKeyText(k) {
         return rdLvName(RD_LV[m[1]]);
     return k;
 }
-function rdScroll() { const tb = $('rd-tabs'); if (!tb)
+function rdScroll() { const tb = byId('rd-tabs'); if (!tb)
     return; const hd = (document).querySelector('header'), y = tb.getBoundingClientRect().top + window.scrollY - (hd ? hd.offsetHeight : 0) - 10; if (window.scrollY > y + 4 || tb.getBoundingClientRect().top > window.innerHeight * 0.3)
     window.scrollTo({ top: Math.max(0, y), behavior: 'auto' }); }
-function rdOpen(L) { rdAbort(); RD.L = L; if (!L.custom)
-    rdData().prefs.last = L.id; $('rdx-home').hidden = true; $('rdx-stage').hidden = false; rdIntro(); rdScroll(); const b = $('rdx-back'); if (b)
+function rdOpen(L: { custom: any; id: any; u?: string; n?: number; ty?: string; clef?: string; lo?: string; hi?: string; acc?: number; keys?: number; }|null) { rdAbort(); RD.L = L; if (!L.custom)
+    rdData().prefs.last = L.id; byId('rdx-home').hidden = true; byId('rdx-stage').hidden = false; rdIntro(); rdScroll(); const b = byId('rdx-back'); if (b)
     b.focus({ preventScroll: true }); }
 function rdIntro() {
     const L = RD.L, r = L.custom ? {} : (rdData().lv[L.id] || {});
     RD.on = false;
-    $('rdx-title').textContent = rdLvName(L);
-    $('rdx-sub').textContent = rdLvDetail(L);
-    $('rdx-hud').textContent = '';
-    $('rdx-meter').hidden = true;
-    $('rdx-end').hidden = true;
+    byId('rdx-title').textContent = rdLvName(L);
+    byId('rdx-sub').textContent = rdLvDetail(L);
+    byId('rdx-hud').textContent = '';
+    byId('rdx-meter').hidden = true;
+    byId('rdx-end').hidden = true;
     const modes = (L.ty === 'rh' || L.ty === 'sr') ? ['practice', 'test'] : ['practice', 'test', 'rush'], ic = { practice: '🎯', test: '📝', rush: '⚡' };
     let prev = '';
     if (['name', 'play', 'k2s'].includes(L.ty) && L.clef !== 'mix') {
-        const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
-        prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef: L.clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
+        const pool = rdPool(L).filter((n: { acc: any; }) => !n.acc).sort((a: any, b: any) => rdStep(a) - rdStep(b));
+        prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef: L.clef, cols: pool.map((n: any) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n: any) => rdName(n)) }).svg}</div>`;
     }
     const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}</div>`;
     const sfx = (L.ty === 'rh' || L.ty === 'sr') ? '_' + L.ty : '';
-    $('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty)}</p>${prev}${rec}<div class="rdx-modes">${modes.map((m) => `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`).join('')}</div></div>`;
+    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty)}</p>${prev}${rec}<div class="rdx-modes">${modes.map((m) => `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`).join('')}</div></div>`;
     rdCoach(true);
 }
-function rdStart(mode) {
+function rdStart(mode: string) {
     const L = RD.L;
     if (!L)
         return;
@@ -7165,7 +7138,7 @@ function rdStart(mode) {
     rdClear();
     Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null });
     rdCoach(true);
-    const e = $('rdx-end');
+    const e = byId('rdx-end');
     e.hidden = false;
     e.textContent = t(mode === 'practice' ? 'rdx_end' : 'rdx_quit');
     if (mode === 'rush') {
@@ -7193,7 +7166,7 @@ function rdClear() {
         if (RD.rh.two)
             rdRhMarks(false);
     }
-    (RD.nodes || []).forEach((n) => { try {
+    (RD.nodes || []).forEach((n: { stop: (arg0: number) => void; }) => { try {
         n.stop(0);
     }
     catch (_) { } });
@@ -7211,17 +7184,17 @@ else {
     rdAbort();
     rdIntro();
 } }
-function rdBack() { rdAbort(); $('rdx-stage').hidden = true; $('rdx-home').hidden = false; rdRenderHome(); }
+function rdBack() { rdAbort(); byId('rdx-stage').hidden = true; byId('rdx-home').hidden = false; rdRenderHome(); }
 function rdFinish() {
     const L = RD.L, mode = RD.mode;
     rdClear();
     RD.on = false;
-    $('rdx-end').hidden = true;
-    $('rdx-meter').hidden = true;
+    byId('rdx-end').hidden = true;
+    byId('rdx-meter').hidden = true;
     let acc = 0, avg = 0, stars = 0;
     const score = RD.ok;
     if (L.ty === 'rh') {
-        acc = RD.rhP.length ? Math.round(RD.rhP.reduce((a, b) => a + b, 0) / RD.rhP.length) : 0;
+        acc = RD.rhP.length ? Math.round(RD.rhP.reduce((a: any, b: any) => a + b, 0) / RD.rhP.length) : 0;
         if (mode === 'test')
             stars = acc >= 90 ? 3 : acc >= 75 ? 2 : acc >= 60 ? 1 : 0;
     }
@@ -7261,15 +7234,15 @@ function rdFinish() {
     const nx = rdLvNext(L);
     RD.next = rdNextStep(L, mode, acc, avg, stars, weak);
     rdCoach(false);
-    $('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}${unl ? `<p class="rdx-unl">🔓 ${t('rdx_unlocked', rdEsc(rdLvName(unl)))}</p>` : ''}
+    byId('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}${unl ? `<p class="rdx-unl">🔓 ${t('rdx_unlocked', rdEsc(rdLvName(unl)))}</p>` : ''}
     <div class="rdx-tiles">${tiles.map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c] = []) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
     ${(RD).next ? `<div class="coach rdx-coach" id="rdx-next" data-kind="next">${coachHTML(t('coach_next'), (RD).next, 'rdx-next-act')}</div>` : ''}
     <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!(L)?.custom && nx && rdUnlocked(nx) ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
-    $('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
-    $('rdx-hud').textContent = '';
-    $('rdx-meter').hidden = true;
-    const s = $('rdx-sum');
+    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
+    byId('rdx-hud').textContent = '';
+    byId('rdx-meter').hidden = true;
+    const s = maybeById('rdx-sum');
     if (s)
         s.focus({ preventScroll: true });
 }
@@ -7282,13 +7255,13 @@ function rdSuggest() {
 }
 function rdRenderHome() {
     const d = rdData(), tot = d.tot, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0), cont = rdSuggest();
-    $('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
+    byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
     <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${t('rdx_st_time')}</span></div></div>
     <div class="rdx-hero-r"><button class="btn primary" data-lv="${cont.id}" id="rdx-cont">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}<small>${rdEsc(rdLvName(cont) + ' · ' + t('rdx_ty_' + cont.ty))}</small></button>
       <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label></div>`;
-    $('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
-        const done = u.lv.filter((L) => ((d.lv[L.id] || {}).s || 0) > 0).length;
-        return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L) => {
+    byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
+        const done = u.lv.filter((L: { id: string|number; }) => ((d.lv[L.id] || {}).s || 0) > 0).length;
+        return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: { id: string|number; n: any; ty: string; }) => {
             const r = d.lv[L.id] || {}, ok = rdUnlocked(L), s = r.s || 0;
             return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}"${ok ? '' : ' aria-disabled="true"'} title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (ok ? '' : ' — ' + t('rdx_locked')) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${ok ? L.n : '🔒'}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
         }).join('')}</div></section>`;
@@ -7297,7 +7270,7 @@ function rdRenderHome() {
 }
 const RD_CDEF = { treble: ['C4', 'G5'], bass: ['F2', 'C4'], grand: ['C3', 'C5'], alto: ['D3', 'B4'], tenor: ['A2', 'G4'] };
 function rdCustomFill() {
-    const lo = $('rdx-c-lo'), hi = $('rdx-c-hi');
+    const lo = byId('rdx-c-lo'), hi = byId('rdx-c-hi');
     if (!lo)
         return;
     const c = rdData().prefs.custom || { ty: 'name', clef: 'treble', lo: 'C4', hi: 'G5', acc: 0, keys: 0, land: false };
@@ -7310,20 +7283,20 @@ function rdCustomFill() {
     hi.innerHTML = opts;
     lo.value = c.lo;
     hi.value = c.hi;
-    $('rdx-c-ty').value = c.ty;
-    $('rdx-c-clef').value = c.clef;
-    $('rdx-c-acc').value = String(c.acc);
-    $('rdx-c-keys').value = String(c.keys);
-    $('rdx-c-land').checked = !!c.land;
+    selectById('rdx-c-ty').value = c.ty;
+    selectById('rdx-c-clef').value = c.clef;
+    selectById('rdx-c-acc').value = String(c.acc);
+    selectById('rdx-c-keys').value = String(c.keys);
+    inputById('rdx-c-land').checked = !!c.land;
 }
 function rdCustomRead() {
-    let lo = $('rdx-c-lo').value, hi = $('rdx-c-hi').value;
+    let lo = selectById('rdx-c-lo').value, hi = selectById('rdx-c-hi').value;
     if (rdStep(rdP(lo)) > rdStep(rdP(hi))) {
         const x = lo;
         lo = hi;
         hi = x;
     }
-    const c = { ty: $('rdx-c-ty').value, clef: $('rdx-c-clef').value, lo, hi, acc: +$('rdx-c-acc').value, keys: +$('rdx-c-keys').value, land: $('rdx-c-land').checked };
+    const c = { ty: selectById('rdx-c-ty').value, clef: selectById('rdx-c-clef').value, lo, hi, acc: +selectById('rdx-c-acc').value, keys: +selectById('rdx-c-keys').value, land: inputById('rdx-c-land').checked };
     rdData().prefs.custom = c;
     return c;
 }
@@ -7339,7 +7312,7 @@ function rdCustomGo() {
     rdOpen(L);
 }
 /* ---- statistics: per-note heatmap on the staff, skills, weakest items ---- */
-function rdAgg(c, li, oct) {
+function rdAgg(c: string, li: number, oct: number) {
     let n = 0, ok = 0, ms = 0;
     const re = /^([tban]):([A-G])([#b]?)(\d)$/;
     for (const [k, s] of Object.entries((rdData().nt))) {
@@ -7353,7 +7326,7 @@ function rdAgg(c, li, oct) {
     }
     return { n, ok, ms };
 }
-function rdHeat(clef, lo, hi) {
+function rdHeat(clef: string, lo: string, hi: string) {
     const c = RD_CLEFC[clef], cols = [], lbl = [], cls = [];
     for (let s = rdStep(rdP(lo)); s <= rdStep(rdP(hi)); s++) {
         const n = rdFromStep(s), a = rdAgg(c, n.li, n.oct), acc = a.n ? Math.round(100 * a.ok / a.n) : null;
@@ -7363,18 +7336,18 @@ function rdHeat(clef, lo, hi) {
     }
     return rdSvg({ clef, cols, colW: 24, dur: 1, scale: 1.2, lbl, lblCls: cls, aria: t('rdx_heat_aria', t('rdx_clef_' + clef)) }).svg;
 }
-function rdBars(rows) { return rows.map((r) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + r.n + '×' : '—'}</em></div>`).join(''); }
+function rdBars(rows: any[]) { return rows.map((r: { l: any; n: string|number; ok: number; }) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + r.n + '×' : '—'}</em></div>`).join(''); }
 function rdRenderStats() {
-    const d = rdData(), tot = d.tot, nt = d.nt, g = (k) => nt[k] || { n: 0, ok: 0 };
+    const d = rdData(), tot = d.tot, nt = d.nt, g = (k: string) => nt[k] || { n: 0, ok: 0 };
     const lvDone = RD_ALL.filter((L) => ((d.lv[L.id] || {}).s || 0) > 0).length, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0);
     const weak = Object.entries(nt).filter(([k, s] = []) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
     const ks = [];
     for (let k = -7; k <= 7; k++)
         if (g('ks:' + k).n)
             ks.push({ l: rdKeyLabel(k), ...g('ks:' + k) });
-    const rh = RD_UNITS.find((u) => u.u === 'rh').lv.filter((L) => g('rh:' + L.id).n).map((L) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
+    const rh = RD_UNITS.find((u) => u.u === 'rh').lv.filter((L: { id: string; }) => g('rh:' + L.id).n).map((L: { id: string; }) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
     const extra = ['alto', 'tenor'].filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
-    $('rdx-stats').innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+    byId('rdx-stats').innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     <div class="panel rdx-stat-p"><h3>${t('rdx_heat')}</h3><p class="rdx-desc">${t('rdx_heat_d')}</p>
       <div class="rdx-staff rdx-heat">${rdHeat('treble', 'A3', 'C6')}</div><div class="rdx-staff rdx-heat">${rdHeat('bass', 'C2', 'E4')}</div>
       ${extra.map((c) => `<div class="rdx-staff rdx-heat">${rdHeat(c, c === 'alto' ? 'C3' : 'A2', c === 'alto' ? 'D5' : 'B4')}</div>`).join('')}</div>
@@ -7386,12 +7359,12 @@ function rdRenderStats() {
       <div class="row" style="margin-top:14px"><button class="btn ghost sm" id="rdx-reset">${t('rdx_reset')}</button></div></div>`;
 }
 /* ---- tabs, wiring, locale ---- */
-function rdTab(tab) {
+function rdTab(tab: string|undefined) {
     if (!['drills', 'pieces', 'stats'].includes(tab))
         tab = 'drills';
     rdData().prefs.tab = tab;
     (document).querySelectorAll('#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
-    ['drills', 'pieces', 'stats'].forEach((x) => { const p = $('rdp-' + x); if (p)
+    ['drills', 'pieces', 'stats'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
         p.hidden = x !== tab; });
     if (tab !== 'drills' && RD.on) {
         rdAbort();
@@ -7401,12 +7374,12 @@ function rdTab(tab) {
         srStopAll(true);
     if (tab === 'stats')
         rdRenderStats();
-    else if (tab === 'drills' && $('rdx-stage').hidden)
+    else if (tab === 'drills' && byId('rdx-stage').hidden)
         rdRenderHome();
 }
 function rdRender() { rdTab(rdData().prefs.tab); }
-function rdKey(e, k) {
-    if (view0() !== 'read' || $('rdp-drills').hidden || !RD.on)
+function rdKey(e: KeyboardEvent, k: string) {
+    if (view0() !== 'read' || byId('rdp-drills').hidden || !RD.on)
         return false;
     if (RD.L.ty === 'rh') {
         const R = RD.rh;
@@ -7445,15 +7418,15 @@ function rdKey(e, k) {
     return false;
 }
 function rdOnLocale() {
-    if (!$('view-read'))
+    if (!byId('view-read'))
         return;
     if (SR.active) {
-        const g = $('rd-go');
+        const g = byId('rd-go');
         if (g)
             g.textContent = t('rd_stop');
     }
     if (SR.listening) {
-        const l = $('rd-listen');
+        const l = byId('rd-listen');
         if (l)
             l.textContent = t('rd_stop');
     }
@@ -7461,17 +7434,17 @@ function rdOnLocale() {
         SR.gen.t = { en: tl('en', 'rdx_sr_title', SR.gen.level), ro: tl('ro', 'rdx_sr_title', SR.gen.level) };
         fillPieces();
         if (SR.piece)
-            $('rd-piece').value = SR.piece.id;
+            selectById('rd-piece').value = SR.piece.id;
     }
-    if (!$('rdx-stage').hidden && RD.L) {
-        $('rdx-title').textContent = rdLvName(RD.L);
-        $('rdx-sub').textContent = rdLvDetail(RD.L);
-        if (!RD.on && !$('rdx-body').querySelector('.rdx-sum'))
+    if (!byId('rdx-stage').hidden && RD.L) {
+        byId('rdx-title').textContent = rdLvName(RD.L);
+        byId('rdx-sub').textContent = rdLvDetail(RD.L);
+        if (!RD.on && !byId('rdx-body').querySelector('.rdx-sum'))
             rdIntro();
         else if (RD.on && RD.q && RD.q.ty === 'name')
-            $('rdx-ans').querySelectorAll('.rdx-a').forEach((b) => { b.firstChild.textContent = rdLetter(+b.dataset.a); });
+            maybeById('rdx-ans').querySelectorAll('.rdx-a').forEach((b) => { b.firstChild.textContent = rdLetter(+b.dataset.a); });
         if (RD.on) {
-            $('rdx-end').textContent = t(RD.mode === 'practice' ? 'rdx_end' : 'rdx_quit');
+            byId('rdx-end').textContent = t(RD.mode === 'practice' ? 'rdx_end' : 'rdx_quit');
             rdHud();
         }
     }
@@ -7481,17 +7454,17 @@ function rdOnLocale() {
         rdCustomFill();
 }
 (function rdInit() {
-    const dr = $('rdp-drills');
+    const dr = byId('rdp-drills');
     if (!dr)
         return;
-    $('rd-tabs').addEventListener('click', (e) => { const b = e.target.closest('[role=tab]'); if (b) {
+    byId('rd-tabs').addEventListener('click', (e) => { const b = e.target.closest('[role=tab]'); if (b) {
         rdTab(b.dataset.tab);
         saveAll();
     } });
-    $('rd-tabs').addEventListener('keydown', (e) => {
+    byId('rd-tabs').addEventListener('keydown', (e) => {
         if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End')
             return;
-        const tabs = [...$('rd-tabs').querySelectorAll('[role=tab]')], i = tabs.indexOf(document.activeElement);
+        const tabs = [...byId('rd-tabs').querySelectorAll('[role=tab]')], i = tabs.indexOf(document.activeElement);
         if (i < 0)
             return;
         e.preventDefault();
@@ -7506,7 +7479,7 @@ function rdOnLocale() {
             if (!L)
                 return;
             if (lv.getAttribute('aria-disabled') === 'true') {
-                $('rdx-live').textContent = t('rdx_locked_msg');
+                byId('rdx-live').textContent = t('rdx_locked_msg');
                 lv.classList.remove('shake');
                 void lv.offsetWidth;
                 lv.classList.add('shake');
@@ -7528,7 +7501,7 @@ function rdOnLocale() {
         const ac = e.target.closest('[data-acc]');
         if (ac) {
             RD.accSel = +ac.dataset.acc;
-            ac.parentNode.querySelectorAll('[data-acc]').forEach((x) => x.setAttribute('aria-pressed', x === ac ? 'true' : 'false'));
+            ac.parentNode.querySelectorAll('[data-acc]').forEach((x: { setAttribute: (arg0: string,arg1: string) => any; }) => x.setAttribute('aria-pressed', x === ac ? 'true' : 'false'));
             return;
         }
         const key = e.target.closest('.rdx-kb.inter button[data-m]');
@@ -7605,7 +7578,7 @@ function rdOnLocale() {
             handleNoteOn(m, 96, 'rdk');
         }
     });
-    const up = (e) => { rdRhRelease('p' + e.pointerId); if (RD.kbDown != null) {
+    const up = (e: { pointerId: string; }) => { rdRhRelease('p' + e.pointerId); if (RD.kbDown != null) {
         const m = RD.kbDown;
         RD.kbDown = null;
         handleNoteOff(m, 'rdk');
@@ -7635,24 +7608,24 @@ function rdOnLocale() {
         }
         else if (id === 'rdx-c-clef') {
             const d = RD_CDEF[e.target.value];
-            $('rdx-c-lo').value = d[0];
-            $('rdx-c-hi').value = d[1];
+            selectById('rdx-c-lo').value = d[0];
+            selectById('rdx-c-hi').value = d[1];
             rdCustomRead();
         }
         else if (/^rdx-c-/.test(id))
             rdCustomRead();
     });
-    $('rdp-stats').addEventListener('click', (e) => { if (e.target.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
+    byId('rdp-stats').addEventListener('click', (e) => { if (e.target.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
         const d = rdData();
         d.nt = {};
         d.tot = { n: 0, ok: 0, ms: 0, sess: 0 };
         saveAll();
         rdRenderStats();
     } });
-    const g = $('rd-gen');
+    const g = byId('rd-gen');
     if (g)
         g.addEventListener('click', rdGenMelody);
-    ['set-lang', 'set-notation'].forEach((id) => { const el = $(id); if (el)
+    ['set-lang', 'set-notation'].forEach((id) => { const el = maybeById(id); if (el)
         el.addEventListener('click', () => setTimeout(rdOnLocale, 0)); });
 })();
 /* ---------- COACHING: one short tip per surface, chosen from what is on screen and how the last attempt went ----------
@@ -7660,23 +7633,23 @@ function rdOnLocale() {
    "Next step" when a run ends; reading drills get a focus line for the drill type and a next step in their summary; Score &
    analysis gets "What to notice" in Now and a next step in the practice summary. A tip keeps the facts it was chosen from
    and is re-worded after a language or notation change. */
-function tf(k, ...a: unknown[]) { let s = t(k); ['%a', '%b', '%c'].forEach((p, i) => { if (a[i] != null)
+function tf(k: string, ...a: unknown[]) { let s = t(k); ['%a', '%b', '%c'].forEach((p, i) => { if (a[i] != null)
     s = s.split(p).join(String(a[i])); }); return s; }
-function coachList(xs) { try {
+function coachList(xs: any[]|Iterable<string>) { try {
     return new Intl.ListFormat(lang, { type: 'conjunction' }).format(xs);
 }
 catch (e) {
     return xs.join(', ');
 } }
-const coachText = (c) => tf(c.k, ...(c.args ? c.args() : []));
+const coachText = (c: { k: any; args: () => any; }) => tf(c.k, ...(c.args ? c.args() : []));
 // The lead ("Reading focus:", "Next step:"), the tip, and an optional button that does what the tip suggests.
-function coachHTML(lead, c, actId) {
+function coachHTML(lead: string, c: { k: string; args?: undefined; }|{ k: string; args: () => any[]; }, actId: string|undefined) {
     const e = xmlEsc, act = c.act ? tf(c.act.k, ...(c.act.args ? c.act.args() : [])) : '';
     return `<span class="coach-k">${e(lead)}</span> <span class="coach-t">${e(coachText(c))}</span>` + (act ? `<span class="coach-act"><button type="button" class="btn sm" id="${actId}">${e(act)}</button></span>` : '');
 }
 /* Read & play */
-const srStepNo = (n) => n.oct * 7 + n.li;
-function srKeyNames(keyN) { return (keyN > 0 ? [3, 0, 4, 1, 5, 2, 6] : [6, 2, 5, 1, 4, 0, 3]).slice(0, Math.abs(keyN)).map((li) => spelledName(notation, li, keyN > 0 ? 1 : -1)); }
+const srStepNo = (n: { oct: number; li: number; }) => n.oct * 7 + n.li;
+function srKeyNames(keyN: number) { return (keyN > 0 ? [3, 0, 4, 1, 5, 2, 6] : [6, 2, 5, 1, 4, 0, 3]).slice(0, Math.abs(keyN)).map((li) => spelledName(notation, li, keyN > 0 ? 1 : -1)); }
 // The active hands as onsets per hand: melodic moves, leaps (a third or wider), chords, and whether the rhythm goes beyond whole beats.
 function srShape() {
     const sel = srActiveHands(), f = { moves: 0, leaps: 0, chords: 0, hands: 0, rhythm: false };
@@ -7690,7 +7663,7 @@ function srShape() {
         if (!by.size)
             return;
         f.hands++;
-        let prev = null;
+        let prev: string|any[]|null = null;
         [...by.values()].sort((a, b) => a[0].beat - b[0].beat).forEach((g) => {
             if (g.length > 1)
                 f.chords++;
@@ -7699,7 +7672,7 @@ function srShape() {
                 if (Math.abs(srStepNo(g[0]) - srStepNo(prev[0])) >= 2)
                     f.leaps++;
             }
-            if (g.some((n) => n.dur % 1))
+            if (g.some((n: { dur: number; }) => n.dur % 1))
                 f.rhythm = true;
             prev = g;
         });
@@ -7708,29 +7681,29 @@ function srShape() {
 }
 // A wrong key in Step by step: the right note in another octave, the natural instead of a sharp or flat, a slip inside a chord,
 // the wrong way from the previous note, or the right way but the wrong distance.
-function srSlip(st, m) {
-    const want = st.notes.filter((n) => !SR.hit.has(n.nid));
+function srSlip(st: { notes: { filter: (arg0: { (n: any): boolean; (x: any): boolean; }) => { (): any; new(): any; length: number; }; }; }, m: number) {
+    const want = st.notes.filter((n: { nid: unknown; }) => !SR.hit.has(n.nid));
     if (!want.length)
         return null;
-    const n = want.reduce((a, b) => Math.abs(b.midi - m) < Math.abs(a.midi - m) ? b : a);
+    const n = want.reduce((a: { midi: number; }, b: { midi: number; }) => Math.abs(b.midi - m) < Math.abs(a.midi - m) ? b : a);
     if (pc(n.midi) === pc(m))
         return { k: 'oct', n, m };
     if (n.acc && m === n.midi - n.acc)
         return { k: 'key', n, m };
-    if (st.notes.filter((x) => x.hand === n.hand).length > 1)
+    if (st.notes.filter((x: { hand: any; }) => x.hand === n.hand).length > 1)
         return { k: 'chord', n, m };
-    const prev = (SR.steps[SR.stepIdx - 1] || { notes: [] }).notes.filter((x) => x.hand === n.hand);
+    const prev = (SR.steps[SR.stepIdx - 1] || { notes: [] }).notes.filter((x: { hand: any; }) => x.hand === n.hand);
     if (!prev.length)
         return { k: 'other', n, m };
-    const p = prev.reduce((a, b) => Math.abs(b.midi - n.midi) < Math.abs(a.midi - n.midi) ? b : a);
+    const p = prev.reduce((a: { midi: number; }, b: { midi: number; }) => Math.abs(b.midi - n.midi) < Math.abs(a.midi - n.midi) ? b : a);
     return { k: Math.sign(n.midi - p.midi) !== Math.sign(m - p.midi) ? 'dir' : 'dist', n, m };
 }
-function srSlipNote(st, m) { const s = srSlip(st, m); if (!s)
+function srSlipNote(st: never, m: any) { const s = srSlip(st, m); if (!s)
     return; const E = SR.errs || (SR.errs = {}); E[s.k] = (E[s.k] || 0) + 1; if (s.k === 'key')
     SR.slipKey = s; srCoach(); }
-function srTopSlip() { const E = SR.errs || {}; let top = null; ['key', 'oct', 'chord', 'dir', 'dist'].forEach((k) => { if ((E[k] || 0) >= 2 && (!top || E[k] > E[top]))
+function srTopSlip() { const E = SR.errs || {}; let top: string|null = null; ['key', 'oct', 'chord', 'dir', 'dist'].forEach((k) => { if ((E[k] || 0) >= 2 && (!top || E[k] > E[top]))
     top = k; }); return top; }
-const srSlipNames = (s) => [rdLetter(s.n.li), spelledName(notation, s.n.li, s.n.acc)]; // what was played (the natural), what is written
+const srSlipNames = (s: never) => [rdLetter(s.n.li), spelledName(notation, s.n.li, s.n.acc)]; // what was played (the natural), what is written
 // Reading focus: the slip being repeated right now, else what this piece asks for in this mode.
 function srFocus() {
     const p = SR.piece;
@@ -7772,19 +7745,19 @@ function srNextLearn() {
     return { k: 'rn_again' };
 }
 // After Assessment: the score, extra notes, and where the misses were — leaps, chords or altered notes — compared with the rest.
-function srNextAssess(pct) {
-    const p = SR.piece, bpm = SR.bpm, rec = p.ephemeral ? null : data.sheet[p.id], bad = (n) => SR.results[n.nid] !== 'good';
+function srNextAssess(pct: number) {
+    const p = SR.piece, bpm = SR.bpm, rec = p.ephemeral ? null : data.sheet[p.id], bad = (n: { nid: string|number; }) => SR.results[n.nid] !== 'good';
     if (pct >= 95)
         return bpm <= 150 ? { k: 'rn_a_clean', args: () => [pct, bpm + 10], act: { k: 'rn_act_bpm', args: () => [bpm + 10], run: () => srSetBpm(bpm + 10) } } : { k: 'rn_a_top' };
     const cat = { leaps: [0, 0], chords: [0, 0], acc: [0, 0] }, last = {};
     let all = 0, miss = 0;
     SR.steps.forEach((st) => ['rh', 'lh'].forEach((h) => {
-        const g = st.notes.filter((n) => n.hand === h);
+        const g = st.notes.filter((n: { hand: string; }) => n.hand === h);
         if (!g.length)
             return;
         const prev = last[h];
         last[h] = g;
-        g.forEach((n) => {
+        g.forEach((n: { acc: any; }) => {
             const b = bad(n) ? 1 : 0;
             all++;
             miss += b;
@@ -7820,12 +7793,12 @@ function srNextAssess(pct) {
     }
     return { k: 'rn_a_good' };
 }
-function srSetMode(v) { SR.modeSel = v; [...$('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === v ? 'true' : 'false')); srStopAll(); $('rd-verdict').textContent = ''; $('rd-go').focus(); }
-function srSetBpm(v) { if (SR.active || SR.listening)
-    return; const b = $('rd-bpm'); b.value = v; $('rd-bpmLbl').textContent = v; SR.bpm = v; SR.next = null; srCoach(); $('rd-go').focus(); }
+function srSetMode(v: string|undefined) { SR.modeSel = v; [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === v ? 'true' : 'false')); srStopAll(); byId('rd-verdict').textContent = ''; byId('rd-go').focus(); }
+function srSetBpm(v: string|number|null) { if (SR.active || SR.listening)
+    return; const b = byId('rd-bpm'); b.value = v; byId('rd-bpmLbl').textContent = v; SR.bpm = v; SR.next = null; srCoach(); byId('rd-go').focus(); }
 // One line under the score; it is a polite live region, so it is only rewritten when the tip itself changes.
 function srCoach() {
-    const box = $('rd-coach');
+    const box = byId('rd-coach');
     if (!box)
         return;
     const c = SR.piece ? (SR.next || srFocus()) : null, html = c ? coachHTML(t(SR.next ? 'coach_next' : 'coach_focus'), c, 'rd-coach-act') : '';
@@ -7836,7 +7809,7 @@ function srCoach() {
     }
 }
 /* Reading drills */
-function rdFocus(L) {
+function rdFocus(L: { clef: any; ty: string; inv: any; tag: string; set: any[]; keys: any; acc: any; }|null) {
     if (!L)
         return null;
     const x = rdLetter, c = L.clef;
@@ -7855,7 +7828,7 @@ function rdFocus(L) {
     if (L.tag === 'land')
         return { k: 'rdc_land' };
     if ((L.tag === 'lines' || L.tag === 'spaces') && L.set)
-        return { k: 'rdc_' + L.tag, args: () => [L.set.map((s) => rdName(rdP(s))).join(' ')] };
+        return { k: 'rdc_' + L.tag, args: () => [L.set.map((s: any) => rdName(rdP(s))).join(' ')] };
     if (L.tag === 'ledup' || L.tag === 'leddn')
         return { k: 'rdc_ledger' };
     if (L.keys)
@@ -7872,12 +7845,12 @@ function rdFocus(L) {
         return { k: 'rdc_gr', args: () => [x(0)] };
     return c === 'bass' ? { k: 'rdc_ba', args: () => [x(3), x(0), x(4)] } : { k: 'rdc_tr', args: () => [x(0), x(4), x(3)] };
 }
-function rdCoach(show) { const box = $('rdx-coach'); if (!box)
+function rdCoach(show: boolean) { const box = byId('rdx-coach'); if (!box)
     return; const c = show ? rdFocus(RD.L) : null; box.hidden = !c; box.innerHTML = c ? coachHTML(t('coach_focus'), c) : ''; }
 // The session's next step: accuracy first, then the notes missed most, then speed; rhythm drills look at the average timing.
-function rdNextStep(L, mode, acc, avg, stars, weak) {
+function rdNextStep(L: { ty: string; custom: any; }|null, mode: string, acc: number, avg: number, stars: number, weak: [string,unknown][]|[any?][]) {
     if (L.ty === 'rh') {
-        const m = RD.rhM || [], mean = m.length ? m.reduce((a, b) => a + b, 0) / m.length : 0;
+        const m = RD.rhM || [], mean = m.length ? m.reduce((a: any, b: any) => a + b, 0) / m.length : 0;
         if (acc < 60)
             return { k: 'rdn_rh_low' };
         if (mean < -35)
@@ -7906,23 +7879,23 @@ function rdNextStep(L, mode, acc, avg, stars, weak) {
         return { k: 'rdn_next', args: () => [rdLvName(nx)] };
     return { k: 'rdn_ok' };
 }
-function rdNextRender() { const box = $('rdx-next'); if (box && RD.next)
+function rdNextRender() { const box = maybeById('rdx-next'); if (box && RD.next)
     box.innerHTML = coachHTML(t('coach_next'), RD.next, 'rdx-next-act'); }
 /* Score & analysis · Now: one thing worth noticing in the bar (or passage, or selection) on show, from its own analysis */
-function anCoach(f, segs, notes) {
+function anCoach(f: { kind: any; a: any; b: any; lo?: number; hi?: number; }, segs: any[], notes: string|any[]) {
     if (!f || !AN.view || !notes.length)
         return null;
-    const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s) => anKeyAt(s.start), lab = (s) => anChordLabel(s, K(s)), rn = (s) => anRoman(K(s), s);
-    const tip = (k, ...a: unknown[]) => ({ h: t(f.kind === 'sel' ? 'coach_sel' : one ? 'coach_bar' : 'coach_pass'), text: tf(k, ...a) });
-    const cadTip = (s) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
-    const nct = segs.flatMap((s) => (s.nct || []).filter((x) => x.type !== 'other').map((x) => ({ x, s }))), nctNames = () => [...new Set(nct.map(({ x, s } = {}) => spellName(x.note.midi, K(s), true)))];
+    const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s: { start: any; }) => anKeyAt(s.start), lab = (s: any) => anChordLabel(s, K(s)), rn = (s: any) => anRoman(K(s), s);
+    const tip = (k: string, ...a: unknown[]) => ({ h: t(f.kind === 'sel' ? 'coach_sel' : one ? 'coach_bar' : 'coach_pass'), text: tf(k, ...a) });
+    const cadTip = (s: { cad: string; }) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
+    const nct = segs.flatMap((s: { nct: any; }) => (s.nct || []).filter((x: { type: string; }) => x.type !== 'other').map((x: any) => ({ x, s }))), nctNames = () => [...new Set(nct.map(({ x, s } = {}) => spellName(x.note.midi, K(s), true)))];
     if (!segs.length)
         return fall ? tip('cn_fall') : null;
     if (!one) {
         const info = anKeyInfo(notes), main = v.mainKey;
         if (info.conf !== 'low' && (info.best.root !== main.root || !!info.best.minor !== !!main.minor))
             return tip('cn_key', anKeyName(info.best), anKeyName(main));
-        const cad = segs.filter((s) => s.cad).pop();
+        const cad = segs.filter((s: { cad: any; }) => s.cad).pop();
         if (cad)
             return cadTip(cad);
         if (nct.length >= 2) {
@@ -7931,22 +7904,22 @@ function anCoach(f, segs, notes) {
         }
         return tip(fall ? 'cn_fall' : 'cn_bass');
     }
-    const cad = segs.find((s) => s.cad);
+    const cad = segs.find((s: { cad: any; }) => s.cad);
     if (cad)
         return cadTip(cad);
     if (nct.length)
         return tip('cn_nct', coachList(nctNames().slice(0, 3)), [...new Set(nct.map(({ x } = {}) => t('an_nct_' + x.type)))].join(', '));
-    const sec = segs.find((s) => rn(s).includes('/'));
+    const sec = segs.find((s: any) => rn(s).includes('/'));
     if (sec)
         return tip('cn_sec', lab(sec), rn(sec));
-    const inv = !v.implied && segs.find((s) => anInv(s) > 0);
+    const inv = !v.implied && segs.find((s: any) => anInv(s) > 0);
     if (inv) {
         const k = K(inv);
         return tip('cn_inv', spellName(60 + inv.bass, k), spellName(60 + inv.ch.root, k) + inv.ch.c.s + ', ' + invName(anInv(inv)));
     }
-    const amb = segs.find((s) => s.ch.conf === 'low');
+    const amb = segs.find((s: { ch: { conf: string; }; }) => s.ch.conf === 'low');
     if (amb)
-        return tip('cn_amb', [lab(amb), ...amb.ch.alts.map((a) => spellName(60 + a.root, K(amb)) + a.c.s)].slice(0, 3).join(' / '));
+        return tip('cn_amb', [lab(amb), ...amb.ch.alts.map((a: { root: number; c: { s: string; }; }) => spellName(60 + a.root, K(amb)) + a.c.s)].slice(0, 3).join(' / '));
     if (v.implied)
         return tip('cn_implied', lab(segs[0]));
     if (fall)
@@ -7961,8 +7934,8 @@ function pracWeakHand() { let rh = 0, lh = 0; PRAC.res.forEach((r, i) => { if (r
     lh++;
 else
     rh++; }); return lh > rh ? 'lh' : 'rh'; }
-function pracLoopBars(i, j) {
-    const ms = anMeasures(), lo = ms[i].start, hi = ms[j].end, g = SCORE.geo, gi = (b) => g ? g.measures.findIndex((m) => m && b >= m.b0 - 1e-6 && b < m.b1 - 1e-6) : -1, a = gi(lo + 1e-4), b = gi(hi - 1e-4);
+function pracLoopBars(i: string|number, j: string|number) {
+    const ms = anMeasures(), lo = ms[i].start, hi = ms[j].end, g = SCORE.geo, gi = (b: number) => g ? g.measures.findIndex((m: { b0: number; b1: number; }) => m && b >= m.b0 - 1e-6 && b < m.b1 - 1e-6) : -1, a = gi(lo + 1e-4), b = gi(hi - 1e-4);
     if (a >= 0 && b >= 0)
         scoreSelectRange(a, b);
     else
@@ -7970,7 +7943,7 @@ function pracLoopBars(i, j) {
     if (AN.selected.size)
         scoreLoopStart();
 }
-function pracNextStep(R) {
+function pracNextStep(R: { segs: { f: any; }[]; sel: any; from: null|undefined; b: any; a: any; }) {
     const st = PRAC.stats, acc = st && pracAcc(st);
     if (acc == null)
         return null;
@@ -7980,7 +7953,7 @@ function pracNextStep(R) {
     else
         scorePlay(false, R.from); };
     if (acc >= .95 && st.wrong <= 1) {
-        const sel = $('score-speed'), next = [...sel.options].map((o) => +o.value).find((v) => v > Math.round(f * 100) && v <= 100);
+        const sel = byId('score-speed'), next = [...sel.options].map((o) => +o.value).find((v) => v > Math.round(f * 100) && v <= 100);
         if (next)
             return { k: 'pn_clean_tempo', args: () => [Math.round(f * 100) + '%'], act: { k: 'pn_act_faster', args: () => [next + '%'], run: () => { sel.value = String(next); pracHud(); anUpdateControls(); again(); } } };
         if (PRAC.hands !== 'both' && both)
@@ -7989,7 +7962,7 @@ function pracNextStep(R) {
             return { k: 'pn_clean_wait', act: { k: 'pn_act_time', run: () => { pracSet('wait', false); again(); } } };
         return { k: 'pn_clean' };
     }
-    const ms = anMeasures(), bar = (b) => { let i = 0; for (let j = 0; j < ms.length; j++) {
+    const ms = anMeasures(), bar = (b: number) => { let i = 0; for (let j = 0; j < ms.length; j++) {
         if (ms[j].start <= b + 1e-6)
             i = j;
         else
@@ -7999,7 +7972,7 @@ function pracNextStep(R) {
     if (misses.length >= 3 && bar(scoreBeatAt(R.b) - 1e-4) - bar(scoreBeatAt(R.a)) >= 3) {
         const per = new Map();
         misses.forEach((n) => { const i = bar(n.start); per.set(i, (per.get(i) || 0) + 1); });
-        let best = null;
+        let best: { c: any; i: any; j: any; }|null = null;
         per.forEach((c, i) => { const two = c + (per.get(i + 1) || 0); if (!best || two > best.c)
             best = { i, j: per.has(i + 1) ? i + 1 : i, c: two }; });
         if (best.c >= misses.length * .6) {
@@ -8017,25 +7990,25 @@ function pracNextStep(R) {
         return { k: FALL.mode === 'fall' ? 'pn_loose_fall' : 'pn_loose' };
     return { k: acc < .7 ? 'pn_slower' : 'pn_ok' };
 }
-function pracNextRender() { const box = $('pr-sum-next'), n = PRAC.next; if (!box)
+function pracNextRender() { const box = byId('pr-sum-next'), n = PRAC.next; if (!box)
     return; box.hidden = !n; box.innerHTML = n ? coachHTML(t('coach_next'), n, 'pr-next-act') : ''; }
 // Language or note names changed: re-word every tip on show.
-function coachRefresh() { srCoach(); if (RD.L && !$('rdx-coach').hidden)
-    rdCoach(true); rdNextRender(); if (!$('pr-sum').hidden)
+function coachRefresh() { srCoach(); if (RD.L && !byId('rdx-coach').hidden)
+    rdCoach(true); rdNextRender(); if (!byId('pr-sum').hidden)
     pracNextRender(); }
 /* ---------- SCORE & ANALYSIS ---------- */
 const AN = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
 const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000, AN_PRACTICE_BARS = 32, AN_EXAMPLES = ['minuet', 'elise', 'ode', 'twinkle', 'jingle'];
-function anError(code, detail) { const e = new Error(detail || code); e.code = code; return e; }
-function tl(L, k, a, b) { let v = (STRINGS[L] && STRINGS[L][k] != null) ? STRINGS[L][k] : STRINGS.en[k]; if (v == null)
+function anError(code: string, detail: string|undefined) { const e = new Error(detail || code); e.code = code; return e; }
+function tl(L: string, k: string, a: string|null, b: string|null|undefined) { let v = (STRINGS[L] && STRINGS[L][k] != null) ? STRINGS[L][k] : STRINGS.en[k]; if (v == null)
     return k; if (a != null)
     v = v.replace('%s', a).replace('%a', a); if (b != null)
     v = v.replace('%b', b); return v; }
-function anParse(buffer) {
+function anParse(buffer: any) {
     const a = new Uint8Array(buffer), v = new DataView(buffer);
     let pos = 0;
-    const need = (n) => { if (n < 0 || pos + n > a.length)
+    const need = (n: number) => { if (n < 0 || pos + n > a.length)
         throw anError('midi', 'truncated'); };
     const u8 = () => { need(1); return a[pos++]; }, u16 = () => { need(2); const n = v.getUint16(pos); pos += 2; return n; }, u32 = () => { need(4); const n = v.getUint32(pos); pos += 4; return n; };
     const tag = () => String.fromCharCode(u8(), u8(), u8(), u8());
@@ -8142,8 +8115,8 @@ function anParse(buffer) {
     return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes: notes.sort((x, y) => x.start - y.start || x.midi - y.midi) };
 }
 // Built-in pieces become the same parsed structure as a MIDI file: one "track" per hand, beats in quarter notes.
-function anPieceToParsed(p) {
-    const cap = p.ts[1] === 8 ? p.ts[0] * 0.5 : p.ts[0] * 4 / p.ts[1], shift = p.pickup ? (cap - p.pickup) % cap : 0, notes = [];
+function anPieceToParsed(p: { id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; lh: (string|number)[][]; rh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh: (string|number)[][]; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; pickup: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; }) {
+    const cap = p.ts[1] === 8 ? p.ts[0] * 0.5 : p.ts[0] * 4 / p.ts[1], shift = p.pickup ? (cap - p.pickup) % cap : 0, notes: { midi: any; start: any; end: any; vel: number; track: string|number; channel: string|number; srcHand: string|number; }[] = [];
     [['rh', 0], ['lh', 1]].forEach(([hand, track] = []) => { if (!p[hand])
         return; srEvents(p[hand]).ev.forEach((e) => { if (!e.rest)
         notes.push({ midi: e.midi, start: e.beat + shift, end: e.beat + shift + e.dur, vel: hand === 'rh' ? 92 : 74, track, channel: track, srcHand: hand }); }); });
@@ -8155,18 +8128,18 @@ function anPieceToParsed(p) {
 const KEY_MAJ_FIFTHS = { 0: 0, 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: -5, 8: -4, 3: -3, 10: -2, 5: -1 }, LETTER_PC = [0, 2, 4, 5, 7, 9, 11];
 const LETTERS = { letter: ['C', 'D', 'E', 'F', 'G', 'A', 'B'], solfege: ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'], german: ['C', 'D', 'E', 'F', 'G', 'A', 'H'] };
 // B-flat is B in German; B-natural and other alterations use H.
-function spelledName(sys, li, acc, ascii = false) { if (sys === 'german' && li === 6 && acc === -1)
+function spelledName(sys: string, li: number, acc: number, ascii = false) { if (sys === 'german' && li === 6 && acc === -1)
     return 'B'; const symbols = ascii ? ['bb', 'b', '', '#', '##'] : ['𝄫', '♭', '', '♯', '𝄪']; return LETTERS[sys][li] + (symbols[acc + 2] || ''); }
-function anKeyName(k) { const f = k.fifths != null ? k.fifths : keyFifths(k.root, k.minor), s = spellMidi(60 + k.root, f, k.minor); return spelledName(notation, s.li, s.acc, true) + ' ' + t(k.minor ? 'an_minor' : 'an_major'); }
+function anKeyName(k: theory.KeyRank) { const f = k.fifths != null ? k.fifths : keyFifths(k.root, k.minor), s = spellMidi(60 + k.root, f, k.minor); return spelledName(notation, s.li, s.acc, true) + ' ' + t(k.minor ? 'an_minor' : 'an_major'); }
 // Key-aware spelling: diatonic notes follow the signature, minor keys raise 6/7 on their own letters, other notes take the key's accidental direction.
-function anKeyAt(beat) { const ks = AN.keyMap; if (!ks.length)
+function anKeyAt(beat: number) { const ks = AN.keyMap; if (!ks.length)
     return { root: 0, minor: false, fifths: 0 }; let k = ks[0]; for (const x of ks)
     if (x.beat <= beat + 1e-6)
         k = x; return k; }
-function spellName(m, key, withOct) { const k = key || anKeyAt(0), s = spellMidi(m, k.fifths, k.minor); return spelledName(notation, s.li, s.acc, true) + (withOct ? s.oct : ''); }
+function spellName(m: number, key: { root: number; minor: boolean; fifths: number; }|null, withOct: boolean|undefined) { const k = key || anKeyAt(0), s = spellMidi(m, k.fifths, k.minor); return spelledName(notation, s.li, s.acc, true) + (withOct ? s.oct : ''); }
 // Krumhansl–Kessler key profiles: unlike plain scale coverage, they tell a major key from its relative minor.
 const AN_PROFILE = { maj: [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88], min: [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17] };
-function anKeyInfo(ns) {
+function anKeyInfo(ns: string|any[]|readonly theory.TheoryNote[]) {
     const ranks = anKeyRank(ns), best = ranks[0], margin = best.score - ranks[1].score;
     const conf = ns.length < 12 ? 'low' : best.score >= 0.75 && margin >= 0.08 ? 'high' : best.score >= 0.6 && margin >= 0.03 ? 'medium' : 'low';
     return { best, alts: ranks.slice(1, 4), conf };
@@ -8185,24 +8158,24 @@ const AN_CHORDS = [{ s: '', q: 'M', p: [0, 4, 7] }, { s: 'm', q: 'm', p: [0, 3, 
     { s: '9', q: 'M', p: [0, 4, 7, 10, 2], x: 1, dom: 1, ext: [10, 2], cx: .11, n9: 1 }, { s: 'm9', q: 'm', p: [0, 3, 7, 10, 2], x: 1, ext: [10, 2], cx: .13, n9: 1 },
     { s: 'maj9', q: 'M', p: [0, 4, 7, 11, 2], x: 1, ext: [11, 2], cx: .14, n9: 1 }, { s: '7♭5', q: 'M', p: [0, 4, 6, 10], x: 1, dom: 1, ext: [6, 10], cx: .15, rn: '♭5' },
     { s: '7♯5', q: 'A', p: [0, 4, 8, 10], x: 1, dom: 1, ext: [8, 10], cx: .15 }];
-const anDomQ = (c) => !!c.dom || c.q === 'M' && !/maj|6/.test(c.s); // can act as V or V/x: a major triad, add9 or the dominant family
+const anDomQ = (c: { dom: any; q: string; s: string; }) => !!c.dom || c.q === 'M' && !/maj|6/.test(c.s); // can act as V or V/x: a major triad, add9 or the dominant family
 // The chord member in the bass: 1 third, 2 fifth, 3 seventh; suspended and power chords, and an added tone in the bass, count as 0.
-function anInv(seg) { const c = seg.ch.c, iv = ((seg.bass - seg.ch.root) % 12 + 12) % 12; return c.q === 'S' || c.q === 'P' ? 0 : iv === c.p[1] ? 1 : iv === c.p[2] ? 2 : c.x && iv === c.p[3] ? 3 : 0; }
+function anInv(seg: { ch: { c: any; root: number; }; bass: number; }) { const c = seg.ch.c, iv = ((seg.bass - seg.ch.root) % 12 + 12) % 12; return c.q === 'S' || c.q === 'P' ? 0 : iv === c.p[1] ? 1 : iv === c.p[2] ? 2 : c.x && iv === c.p[3] ? 3 : 0; }
 // The key's diatonic triads (with V and vii° in minor) and V7.
 function anMeasures() { if (SCORE.measures && SCORE.measures.length)
     return SCORE.measures; const end = AN.notes.length ? Math.max(...AN.notes.map((n) => n.end)) : 0, out = []; for (let s = 0, i = 1; s < end; s += 4, i++)
     out.push({ number: String(i), start: s, end: s + 4, num: 4, den: 4 }); return out; }
-function anBeatUnit(m) { return m.den === 8 && m.num % 3 === 0 ? 1.5 : 4 / m.den; }
-function anMeasureAt(beat) { const ms = anMeasures(); let m = ms[0]; for (const x of ms) {
+function anBeatUnit(m: { number?: string; start?: number; end?: number; num: any; den: any; }) { return m.den === 8 && m.num % 3 === 0 ? 1.5 : 4 / m.den; }
+function anMeasureAt(beat: number) { const ms = anMeasures(); let m = ms[0]; for (const x of ms) {
     if (x.start <= beat + 1e-6)
         m = x;
     else
         break;
 } return m; }
 // Time-weighted texture: how many notes sound together while anything sounds, and the peak.
-function anPoly(ns) {
-    const ev = [];
-    ns.forEach((n) => { ev.push([n.start, 1]); ev.push([n.end, -1]); });
+function anPoly(ns: any[]) {
+    const ev: any[][] = [];
+    ns.forEach((n: { start: any; end: any; }) => { ev.push([n.start, 1]); ev.push([n.end, -1]); });
     ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     let c = 0, last = null, area = 0, on = 0, max = 0;
     for (const [x, d] of ev) {
@@ -8217,29 +8190,29 @@ function anPoly(ns) {
     return { avg: on ? area / on : 0, max };
 }
 // The nearest note before and after each note within its own voice (part or track, and hand).
-function anVoiceNeighbors(ns) {
-    const groups = new Map(), out = new Map(), key = (n) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n);
-    ns.forEach((n) => { const k = key(n); if (!groups.has(k))
+function anVoiceNeighbors(ns: any[]) {
+    const groups = new Map(), out = new Map(), key = (n: { part: any; track: any; }) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n);
+    ns.forEach((n: any) => { const k = key(n); if (!groups.has(k))
         groups.set(k, []); groups.get(k).push(n); });
     groups.forEach((notes) => {
-        const onsets = [];
-        notes.slice().sort((a, b) => a.start - b.start || a.midi - b.midi).forEach((n) => { let g = onsets[onsets.length - 1]; if (!g || Math.abs(g.start - n.start) > .001) {
+        const onsets: any[] = [];
+        notes.slice().sort((a: { start: number; midi: number; }, b: { start: number; midi: number; }) => a.start - b.start || a.midi - b.midi).forEach((n: { start: number; }) => { let g = onsets[onsets.length - 1]; if (!g || Math.abs(g.start - n.start) > .001) {
             g = { start: n.start, notes: [] };
             onsets.push(g);
         } g.notes.push(n); });
-        onsets.forEach((g, i) => g.notes.forEach((n) => {
-            const nearest = (a) => a && a.notes.reduce((best, x) => !best || Math.abs(x.midi - n.midi) < Math.abs(best.midi - n.midi) ? x : best, null);
+        onsets.forEach((g, i) => g.notes.forEach((n: { midi: number; }) => {
+            const nearest = (a: { notes: any[]; }) => a && a.notes.reduce((best: { midi: number; }, x: { midi: number; }) => !best || Math.abs(x.midi - n.midi) < Math.abs(best.midi - n.midi) ? x : best, null);
             out.set(n, { prev: nearest(onsets[i - 1]), next: nearest(onsets[i + 1]) });
         }));
     });
     return out;
 }
-function anClassifyNonChord(ns, segs) {
-    const around = anVoiceNeighbors(ns), eps = 1e-6, step = (a, b) => a && b && Math.abs(a.midi - b.midi) > 0 && Math.abs(a.midi - b.midi) <= 2;
-    segs.forEach((seg, si) => {
+function anClassifyNonChord(ns: any, segs: any[]) {
+    const around = anVoiceNeighbors(ns), eps = 1e-6, step = (a: { midi: number; }, b: { midi: number; }) => a && b && Math.abs(a.midi - b.midi) > 0 && Math.abs(a.midi - b.midi) <= 2;
+    segs.forEach((seg: { ch: { tones: Iterable<unknown>|null|undefined; }; end: number; start: number; nct: { note: any; index: any; type: string; }[]; notes: any[]; }, si: number) => {
         const tones = new Set(seg.ch.tones), nextSeg = segs[si + 1], nextTones = nextSeg && new Set(nextSeg.ch.tones), span = seg.end - seg.start, seen = new Set();
         seg.nct = [];
-        seg.notes.forEach((n) => {
+        seg.notes.forEach((n: { midi: number; start: number; end: number; }) => {
             const idx = AN.index.get(n);
             if (tones.has(pc(n.midi)) || seen.has(idx))
                 return;
@@ -8265,12 +8238,12 @@ function anClassifyNonChord(ns, segs) {
 // chord change must earn its cost, which is lower on the downbeat and the half bar and higher when the chords share tones. So
 // an arpeggio or Alberti bar stays one chord, while a real change on a beat still splits the bar.
 // Metric weight of a time point: the downbeat, the middle of an even bar, other beats, half beats, anything shorter.
-function anAccent(m, u, x) {
+function anAccent(m: { number?: string; start: any; end: any; num?: number; den?: number; }, u: number, x: number) {
     const b = (x - m.start) / u, n = Math.round((m.end - m.start) / u), k = Math.round(b);
     return b < 1e-4 ? 1 : Math.abs(b - k) < 1e-4 ? (n % 2 === 0 && 2 * k === n ? .85 : .7) : Math.abs(2 * b - Math.round(2 * b)) < 1e-4 ? .55 : .45;
 }
 // Where a chord may change in a bar: on its beats (at least an eighth note apart); for a single line only at the half bar.
-function anGrid(m, implied) {
+function anGrid(m: { number?: string; start: any; end: any; num?: number; den?: number; }, implied: any) {
     const len = m.end - m.start, u = anBeatUnit(m), eps = 1e-6;
     if (implied) {
         const half = len / 2;
@@ -8286,11 +8259,11 @@ function anGrid(m, implied) {
 // voice, approached and left by step, off the strong beats). res: when a melodic note moves on by step. A step only counts when
 // one note gives way to the next (not two voices of a held chord), and a figure like the G–F–G of a G7 Alberti bass, framed by
 // leaps, is a broken chord rather than a neighbour note.
-function anNoteInfo(sorted) {
+function anNoteInfo(sorted: any[]) {
     const around = anVoiceNeighbors(sorted), ms = anMeasures(), out = new Map(), count = new Map(), eps = 1e-6;
-    const vk = (n) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n) + '|' + n.start.toFixed(3), d = (a, b) => a && b ? Math.abs(a.midi - b.midi) : 0;
-    const step = (a, b) => d(a, b) > 0 && d(a, b) <= 2 && a.end <= b.start + .125 && b.start > a.start;
-    sorted.forEach((n) => count.set(vk(n), (count.get(vk(n)) || 0) + 1));
+    const vk = (n: { part: any; track: any; start: number; }) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n) + '|' + n.start.toFixed(3), d = (a: { midi: number; }, b: { midi: number; }) => a && b ? Math.abs(a.midi - b.midi) : 0;
+    const step = (a: { end: number; start: number; }, b: { start: number; }) => d(a, b) > 0 && d(a, b) <= 2 && a.end <= b.start + .125 && b.start > a.start;
+    sorted.forEach((n: any) => count.set(vk(n), (count.get(vk(n)) || 0) + 1));
     let j = 0;
     for (const n of sorted) {
         while (j + 1 < ms.length && ms[j + 1].start <= n.start + eps)
@@ -8308,7 +8281,7 @@ function anNoteInfo(sorted) {
 }
 // Weighted pitch classes per grid unit: sounding time × the metric weight of the onset (of the unit start for a held note) × the
 // passing-note factor. low: the bass at the start of the unit; held: pitch classes held over into it.
-function anUnits(m, grid, here, info) {
+function anUnits(m: { number?: string; start?: number; end: any; num?: number; den?: number; }, grid: string|any[], here: any[], info: Map<any,any>) {
     const U = [], u = anBeatUnit(m), eps = 1e-6;
     for (let i = 0; i + 1 < grid.length; i++) {
         const s = grid[i], e = grid[i + 1], w = Array(12).fill(0), res = [], acc = anAccent(m, u, s);
@@ -8335,7 +8308,7 @@ function anUnits(m, grid, here, info) {
 }
 // Units a..b-1 together. sw leaves out melodic notes that move on by step inside the span: they cannot be the colour tone
 // (sixth, seventh, ninth) or the suspended tone a richer chord name needs.
-function anSpan(U, a, b) {
+function anSpan(U: { e: any; }[], a: number, b: number) {
     const w = Array(12).fill(0), sw = Array(12).fill(0), e = U[b - 1].e;
     let T = 0, bass = null;
     for (let i = a; i < b; i++) {
@@ -8356,8 +8329,8 @@ function anSpan(U, a, b) {
 // How well one template explains a span; cover is the share of the weighted notes that are chord tones. The root must sound
 // clearly, the tone that fixes the quality must sound and colour tones must sound clearly; of the rest only a triad's fifth may be
 // missing. Suspended and power chords need the third to be absent. complete: every chord tone sounds.
-function anFit(S, root, c, dia) {
-    const w = S.w, T = S.T, tones = c.p.map((i) => (root + i) % 12);
+function anFit(S: { w: any; T: any; sw: number[]; bass: any; }, root: string|number, c: { s: string; q: string; p: number[]; cx?: undefined; rn?: undefined; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; cx: number; rn?: undefined; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; cx: number; rn: string; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; ext: number[]; cx: number; rn: string; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; rn?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; rn?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; rn: string; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; n9: number; rn?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; n9: number; rn?: undefined; dom?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; rn: string; n9?: undefined; }, dia: Set<string>) {
+    const w = S.w, T = S.T, tones = c.p.map((i: any) => (root + i) % 12);
     if (!(w[root] >= .05 * T && w[tones[1]] > 0))
         return null;
     if ((c.q === 'S' || c.q === 'P') && (Math.max(w[(root + 3) % 12], w[(root + 4) % 12]) > .03 * T || c.q === 'S' && S.sw[tones[1]] < .04 * T))
@@ -8375,15 +8348,15 @@ function anFit(S, root, c, dia) {
                 return null;
         }
     let cw = 0;
-    tones.forEach((p) => { cw += w[p]; });
+    tones.forEach((p: string|number) => { cw += w[p]; });
     const cover = cw / T;
     if (cover < .5)
         return null;
     return { root, c, tones, cover, complete: !miss, fit: 2 * cover - 1 - (c.cx || 0) - miss + (S.bass === root ? .06 : tones.includes(S.bass) ? 0 : -.06) + (dia.has(root + ':' + c.s) ? .02 : 0) };
 }
 // A single line only implies harmony, so it is matched against the key's chords (with V and vii° in minor).
-function anFitImplied(S, key) {
-    const out = [];
+function anFitImplied(S: { T: number; w: number[]; }, key: theory.KeySignature) {
+    const out: { root: number; c: { s: string; q: string; p: number[]; cx?: undefined; rn?: undefined; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; cx: number; rn?: undefined; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; cx: number; rn: string; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; ext: number[]; cx: number; rn: string; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; rn?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; rn?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; rn: string; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; n9: number; rn?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; n9: number; rn?: undefined; dom?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; rn: string; n9?: undefined; }|undefined; tones: number[]; cover: number; complete: boolean; fit: number; }[] = [];
     if (!(S.T > 0))
         return out;
     for (const d of anDiatonic(key, AN_CHORDS)) {
@@ -8400,7 +8373,7 @@ function anFitImplied(S, key) {
     }
     return out.sort((a, b) => b.fit - a.fit);
 }
-function anCands(S, implied) {
+function anCands(S: { a?: any; b?: any; s: any; e?: any; w: any; sw?: any[]; T: any; bass?: number|null; }, implied: any) {
     const key = anKeyAt(S.s);
     if (implied)
         return anFitImplied(S, key);
@@ -8418,13 +8391,13 @@ function anCands(S, implied) {
 // A rich chord over a long span may be two harmonies in a row (C then G reads as Cmaj9). When the span splits into two parts whose
 // best readings are complete chords, neither holding the other, the rich reading loses the weight of the smaller part. A part that
 // already reads as the rich chord, and the upper three notes of a dominant seventh (B–D–F of G7), do not count as another chord.
-function anUnion(sp, a, b) {
-    const S = sp[a][b], id = (tones) => tones.slice().sort((p, q) => p - q).join(), within = (y, x) => y.tones.every((p) => x.tones.includes(p));
+function anUnion(sp: never[][], a: number, b: number) {
+    const S = sp[a][b], id = (tones: any[]) => tones.slice().sort((p: number, q: number) => p - q).join(), within = (y: { tones: any[]; }, x: { tones: string|any[]; }) => y.tones.every((p: any) => x.tones.includes(p));
     let hit = false;
     for (const X of S.all) {
         if (X.tones.length < 4)
             continue;
-        const up = X.c.dom ? id(X.tones.slice(1)) : '', top = (Z) => { const y = Z.all[0]; return y && y.complete && y.cover >= .75 && !within(X, y) && id(y.tones) !== up ? y : null; };
+        const up = X.c.dom ? id(X.tones.slice(1)) : '', top = (Z: { all: any[]; }) => { const y = Z.all[0]; return y && y.complete && y.cover >= .75 && !within(X, y) && id(y.tones) !== up ? y : null; };
         let pen = 0;
         for (let k = a + 1; k < b; k++) {
             const y = top(sp[a][k]), z = top(sp[k][b]);
@@ -8437,22 +8410,22 @@ function anUnion(sp, a, b) {
         }
     }
     if (hit)
-        S.all.sort((x, y) => y.fit - x.fit);
+        S.all.sort((x: { fit: number; }, y: { fit: number; }) => y.fit - x.fit);
 }
 // How sure a reading is. exact: every chord tone sounds, little else does and no other chord comes close. likely: the best
 // reading, though a tone is missing, other notes sound or a rival is near. suggested: ambiguous, or implied by a single line.
-function anRate(x, all, implied) {
-    const id = (y) => y.tones.slice().sort((p, q) => p - q).join(), own = id(x), rival = all.find((y) => id(y) !== own), margin = rival ? x.fit - rival.fit : 1;
+function anRate(x: { fit: number; complete: any; cover: number; root: any; c: any; tones: any; }, all: any[], implied: any) {
+    const id = (y: { tones: any[]; }) => y.tones.slice().sort((p: number, q: number) => p - q).join(), own = id(x), rival = all.find((y: any) => id(y) !== own), margin = rival ? x.fit - rival.fit : 1;
     const det = implied ? 'suggested' : x.complete && x.cover >= .8 && margin >= .1 ? 'exact' : x.cover >= .6 && margin >= .04 ? 'likely' : 'suggested';
     return { root: x.root, c: x.c, tones: x.tones, cover: x.cover, fit: x.fit, complete: x.complete, margin, det,
         conf: det === 'exact' ? 'high' : det === 'likely' || implied && x.cover >= .75 && margin >= .1 ? 'medium' : 'low',
-        alts: all.filter((y) => !(y.root === x.root && y.c === x.c) && y.fit >= x.fit - .08).slice(0, 2) };
+        alts: all.filter((y: { root: any; c: any; fit: number; }) => !(y.root === x.root && y.c === x.c) && y.fit >= x.fit - .08).slice(0, 2) };
 }
-function anHarmony(ns, implied) {
-    const out = [];
+function anHarmony(ns: any[], implied: boolean) {
+    const out: { start: any; end: any; measure: any; unit: number; bass: any; ch: { root: any; c: any; tones: any; cover: any; fit: any; complete: any; margin: number; det: string; conf: string; alts: any; }; notes: any; }[] = [];
     if (!ns.length)
         return out;
-    const eps = 1e-6, sorted = ns.slice().sort((a, b) => a.start - b.start || a.midi - b.midi), info = anNoteInfo(sorted), lo = sorted[0].start, hi = Math.max(...ns.map((n) => n.end));
+    const eps = 1e-6, sorted = ns.slice().sort((a: { start: number; midi: number; }, b: { start: number; midi: number; }) => a.start - b.start || a.midi - b.midi), info = anNoteInfo(sorted), lo = sorted[0].start, hi = Math.max(...ns.map((n: { end: any; }) => n.end));
     const bars = [], active = [];
     let k = 0;
     for (const m of anMeasures()) {
@@ -8480,9 +8453,9 @@ function anHarmony(ns, implied) {
     // Viterbi over spans. A state is the chord in force; a span either names a chord (scored by its weight × fit) or is left without
     // one, which scores like a very poor fit. A change costs a share of the bar's mean unit weight: least on the downbeat, then the
     // half bar, then other beats, and more when the chords share tones, or a shared tone is held across the change.
-    const same = (x, y) => x && y && x.root === y.root && x.c === y.c;
-    const cost = (B, a, y, x) => {
-        const common = x.tones.filter((p) => y.tones.includes(p)), held = common.some((p) => B.U[a].held >> p & 1);
+    const same = (x: never, y: { root: any; c: any; }) => x && y && x.root === y.root && x.c === y.c;
+    const cost = (B: { m?: { number: string; start: number; end: number; num: number; den: number; }; here?: any[]; U: any; n: any; Lmax?: number; sp?: never[][]; M: any; }, a: number, y: never, x: { tones: any[]; }) => {
+        const common = x.tones.filter((p: any) => y.tones.includes(p)), held = common.some((p: number) => B.U[a].held >> p & 1);
         return (a === 0 ? .2 : 2 * a === B.n ? .4 : .55) * B.M * (1 + .25 * common.length + (held ? .25 : 0));
     };
     let states = [{ v: 0, cur: null, back: null, pick: null }];
@@ -8507,12 +8480,12 @@ function anHarmony(ns, implied) {
     let end = states[0];
     states.forEach((st) => { if (st.v > end.v)
         end = st; });
-    const picks = [];
+    const picks: never[] = [];
     for (let st = end; st; st = st.back)
         if (st.pick)
             picks.push(st.pick);
     picks.reverse();
-    const segs = [];
+    const segs: any[] = [];
     picks.forEach((p) => { const last = segs[segs.length - 1]; if (last && last.B === p.B && same(last.x, p.x))
         last.b = p.b;
     else
@@ -8523,15 +8496,15 @@ function anHarmony(ns, implied) {
             g.a++;
         while (g.b - g.a > 1 && U[g.b - 1].low == null)
             g.b--;
-        const S = g.B.sp[g.a][g.b] || anSpan(U, g.a, g.b), all = S.all || (S.all = anCands(S, implied)), x = all.find((y) => same(y, g.x)) || g.x;
-        out.push({ start: S.s, end: S.e, measure: g.B.m, unit: anBeatUnit(g.B.m), bass: implied ? x.root : S.bass, ch: anRate(x, all, implied), notes: g.B.here.filter((n) => n.start < S.e - eps && n.end > S.s + eps) });
+        const S = g.B.sp[g.a][g.b] || anSpan(U, g.a, g.b), all = S.all || (S.all = anCands(S, implied)), x = all.find((y: any) => same(y, g.x)) || g.x;
+        out.push({ start: S.s, end: S.e, measure: g.B.m, unit: anBeatUnit(g.B.m), bass: implied ? x.root : S.bass, ch: anRate(x, all, implied), notes: g.B.here.filter((n: { start: number; end: number; }) => n.start < S.e - eps && n.end > S.s + eps) });
     }
     anClassifyNonChord(ns, out);
     return out;
 }
 // Minor-aware Roman numerals with inversion figures and secondary dominants (V/x).
 const AN_DIA = { maj: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'], min: ['i', 'ii°', 'III', 'iv', 'V', 'VI', 'vii°'] };
-function anRoman(key, seg) {
+function anRoman(key: { root: any; minor: any; fifths?: number; }, seg: { ch: any; }) {
     const ch = seg.ch, c = ch.c, rel = ((ch.root - key.root) % 12 + 12) % 12, minor = key.minor, scale = minor ? [0, 2, 3, 5, 7, 8, 10] : MAJOR, q = c.q, inv = anInv(seg);
     const fig = c.x ? (c.n9 && !inv ? '⁹' : ['⁷', '⁶₅', '⁴₃', '⁴₂'][inv]) : ['', '⁶', '⁶₄'][inv] || '', mark = q === 'd' ? '°' : q === 'h' ? 'ø' : q === 'A' ? '+' : '', sfx = c.rn || '';
     const secondary = anDomQ(c) && (minor ? (rel === 2 || (rel === 0 && c.x)) : ([2, 4, 9, 11].includes(rel) || (rel === 0 && c.x)));
@@ -8573,13 +8546,13 @@ function anRoman(key, seg) {
     return acc + num + mark + fig + sfx;
 }
 // Possible cadences: dominant or subdominant resolving onto a downbeat, or a dominant closing the passage.
-function anCadences(segs) {
-    segs.forEach((b, i) => {
+function anCadences(segs: any[]) {
+    segs.forEach((b: { ch: { root: number; c: { q: string; }; }; start: number; measure: { start: number; end: number; }; cad: string; end: number; unit: number; }, i: number) => {
         const a = segs[i - 1];
         if (!b.ch)
             return;
         const key = anKeyAt(b.start), rb = ((b.ch.root - key.root) % 12 + 12) % 12;
-        const down = Math.abs(b.start - b.measure.start) < 1e-6, isDom = (s) => s && s.ch && ((s.ch.root - key.root) % 12 + 12) % 12 === 7 && anDomQ(s.ch.c);
+        const down = Math.abs(b.start - b.measure.start) < 1e-6, isDom = (s: { ch: { root: number; c: any; }; }) => s && s.ch && ((s.ch.root - key.root) % 12 + 12) % 12 === 7 && anDomQ(s.ch.c);
         if (a && down && isDom(a) && rb === 0 && (b.ch.c.q === 'M' || b.ch.c.q === 'm'))
             b.cad = 'auth';
         else if (a && down && a.ch && ((a.ch.root - key.root) % 12 + 12) % 12 === 5 && (a.ch.c.q === 'M' || a.ch.c.q === 'm') && !a.ch.c.x && rb === 0)
@@ -8591,9 +8564,9 @@ function anCadences(segs) {
     });
 }
 // Motifs are searched on the top line (highest note per onset), so chords and the left hand do not scramble the melody.
-function anMotifs(ns) {
+function anMotifs(ns: any[]) {
     const tops = new Map();
-    ns.forEach((n) => { const k = n.start.toFixed(3), cur = tops.get(k); if (!cur || n.midi > cur.midi)
+    ns.forEach((n: { start: number; midi: number; }) => { const k = n.start.toFixed(3), cur = tops.get(k); if (!cur || n.midi > cur.midi)
         tops.set(k, n); });
     const a = [...tops.values()].sort((x, y) => x.start - y.start);
     if (a.length < 8)
@@ -8617,31 +8590,31 @@ function anMotifs(ns) {
     }
     return [...map.values()].filter((v) => v.count >= 2).sort((x, y) => y.count - x.count).slice(0, 4);
 }
-function anHandOf(n) { return n.hand || (n.midi >= 60 ? 'rh' : 'lh'); }
+function anHandOf(n: never) { return n.hand || (n.midi >= 60 ? 'rh' : 'lh'); }
 // Everything the workspace shows for one scope; strings are produced at render time so language and notation can change.
-function anCompute(ns, scopeKey) {
+function anCompute(ns: never[], scopeKey: string) {
     const ck = AN.version + '|' + scopeKey;
     if (AN.cache.has(ck))
         return AN.cache.get(ck);
-    const lo = Math.min(...ns.map((n) => n.start)), hi = Math.max(...ns.map((n) => n.end)), pitches = [...new Set(ns.map((n) => n.midi))].sort((a, b) => a - b);
+    const lo = Math.min(...ns.map((n: { start: any; }) => n.start)), hi = Math.max(...ns.map((n: { end: any; }) => n.end)), pitches = [...new Set(ns.map((n: { midi: any; }) => n.midi))].sort((a, b) => a - b);
     const poly = anPoly(ns), implied = poly.avg < 1.25, segs = anHarmony(ns, implied);
     anCadences(segs);
     const ms = anMeasures().filter((m) => m.end > lo + 1e-6 && m.start < hi - 1e-6);
     let beats = 0;
     ms.forEach((m) => { const s = Math.max(lo, m.start), e = Math.min(hi, m.end); if (e > s)
         beats += (e - s) / anBeatUnit(m); });
-    const starts = ns.map((n) => n.start).sort((a, b) => a - b);
+    const starts = ns.map((n: { start: any; }) => n.start).sort((a: number, b: number) => a - b);
     let onsets = 0, prev = -Infinity;
-    starts.forEach((s) => { if (s - prev > 0.06)
+    starts.forEach((s: number) => { if (s - prev > 0.06)
         onsets++; prev = s; });
-    const tAt = (b) => { let bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
+    const tAt = (b: number) => { let bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
         if (e.beat <= b + 1e-6)
             bpm = e.bpm;
         else
             break;
     } return bpm; };
     const tempos = [tAt(lo), ...SCORE.tempoList.filter((e) => e.beat > lo + 1e-6 && e.beat < hi - 1e-6).map((e) => e.bpm)];
-    const hands = ns.some((n) => n.hand) ? 'hands' : 'register', rh = ns.filter((n) => anHandOf(n) === 'rh').length;
+    const hands = ns.some((n: { hand: any; }) => n.hand) ? 'hands' : 'register', rh = ns.filter((n: any) => anHandOf(n) === 'rh').length;
     const model = { ns, lo, hi, pitches, poly, implied, segs, ms, beats: Math.max(beats, 1e-6), onsets, tempos, hands, rh, lh: ns.length - rh,
         key: anKeyInfo(ns), mainKey: anKeyAt(lo), motifs: anMotifs(ns), seconds: scoreSeconds(hi) - scoreSeconds(lo) };
     if (AN.cache.size > 16)
@@ -8655,16 +8628,16 @@ const SCORE = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playi
     geo: null, mrange: null, resume: null, paused: false, cursorEl: null, followSys: -1, panAt: 0, hl: false };
 // sel: a note picked by hand (blue, like the playback line); lit: a sounding note, gold, only with "Highlight sounding notes" on
 const SCORE_LOOK = { paper: { bg: '#fffefa', ink: '#000000', staff: undefined, sel: '#1a6fe0', lit: '#a47720', ok: '#1b8f4c', bad: '#d22f2f', dim: '#b9b2a6' }, night: { bg: '#1d1a17', ink: '#ece5d8', staff: '#a1988a', sel: '#7fb2ff', lit: '#e8bb5c', ok: '#6fdc9a', bad: '#ff7a7a', dim: '#5d574f' } }; // MuseScore-blue selection
-function scoreSetTempos(list) { SCORE.tempos = list.length ? list : [{ beat: 0, bpm: 120 }]; SCORE.tempoList = SCORE.tempos.slice().sort((a, b) => a.beat - b.beat); if (SCORE.tempoList[0].beat > 0)
+function scoreSetTempos(list: string|any[]) { SCORE.tempos = list.length ? list : [{ beat: 0, bpm: 120 }]; SCORE.tempoList = SCORE.tempos.slice().sort((a, b) => a.beat - b.beat); if (SCORE.tempoList[0].beat > 0)
     SCORE.tempoList.unshift({ beat: 0, bpm: SCORE.tempoList[0].bpm }); }
-function scoreSeconds(beat) { let sec = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
+function scoreSeconds(beat: number) { let sec = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
     if (e.beat > beat)
         break;
     sec += (e.beat - last) * 60 / bpm;
     last = e.beat;
     bpm = e.bpm;
 } return sec + (beat - last) * 60 / bpm; }
-function scoreBeatAt(sec) { let acc = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
+function scoreBeatAt(sec: number|null) { let acc = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
     const d = (e.beat - last) * 60 / bpm;
     if (acc + d > sec)
         break;
@@ -8672,19 +8645,19 @@ function scoreBeatAt(sec) { let acc = 0, last = 0, bpm = SCORE.tempoList[0].bpm;
     last = e.beat;
     bpm = e.bpm;
 } return last + (sec - acc) * bpm / 60; }
-function scoreXmlNotes(doc) {
-    const notes = [], tempos = [], measures = [], keys = [], dynamics = [], transients = [], wedgeEvents = [], pedalEvents = [], dolces = [], partEnds = [];
-    const linkOpen = new Map(), linkPairs = [], lineEvents = []; // slurs, glissandi and slides by note; dashes and brackets by beat
+function scoreXmlNotes(doc: Document) {
+    const notes: never[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: { number: any; start: number; end: number; num: number; den: number; }[] = [], keys: { beat: number; fifths: number; mode: any; }[] = [], dynamics: { part: any; staff: any; beat: any; value: any; sequence: number; }[] = [], transients: { part: any; staff: any; beat: any; value: any; sequence: number; }[] = [], wedgeEvents: { part: number; staff: number; beat: number; type: any; number: any; sequence: number; }[] = [], pedalEvents: { part: any; staff: any; beat: any; type: any; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
+    const linkOpen = new Map(), linkPairs: { kind: any; a: any; b: any; style: any; }[] = [], lineEvents: { part: number; staff: number; beat: number; kind: string; type: any; number: any; sequence: number; }[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
     let malformed = false;
     const DYN = { ppp: 28, pp: 42, p: 56, mp: 70, mf: 84, f: 98, ff: 112, fff: 122, sfz: 115, fz: 115, rfz: 115 };
-    const direct = (node, name) => [...node.children].filter((c) => c.localName === name), child = (node, name) => direct(node, name)[0] || null;
-    const number = (node, fallback = 0) => { const n = +(node?.textContent || ''); return Number.isFinite(n) ? n : fallback; };
-    const span = (node) => { const n = +(node?.textContent || 0); if (!Number.isFinite(n))
+    const direct = (node: { children: any; }, name: string) => [...node.children].filter((c) => c.localName === name), child = (node: any, name: string) => direct(node, name)[0] || null;
+    const number = (node: { textContent: any; }, fallback = 0) => { const n = +(node?.textContent || ''); return Number.isFinite(n) ? n : fallback; };
+    const span = (node: { textContent: any; }) => { const n = +(node?.textContent || 0); if (!Number.isFinite(n))
         malformed = true; return n; }; // durations must be numbers
-    const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-    const dynamicValue = (value, percent = false) => { if (value == null || value === '')
+    const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+    const dynamicValue = (value: string|null, percent = false) => { if (value == null || value === '')
         return null; const n = +value; return Number.isFinite(n) ? clamp(percent && n <= 100 ? n * .9 : n, 1, 127) : null; };
-    const dynamicInfo = (box) => {
+    const dynamicInfo = (box: { children: any; }) => {
         const named = [...box.children].find((el) => DYN[el.localName?.toLowerCase()] != null || el.localName === 'other-dynamics');
         const name = ((named?.localName === 'other-dynamics' ? named.textContent : named?.localName) || '').trim().toLowerCase();
         if (name === 'fp')
@@ -8694,7 +8667,7 @@ function scoreXmlNotes(doc) {
         return DYN[name] != null ? { value: DYN[name] } : null;
     };
     let sequence = 0;
-    const pushDynamic = (part, staff, beat, info) => {
+    const pushDynamic = (part: number, staff: number, beat: number, info: { value: number; hit: number; }|{ hit: any; value?: undefined; }|{ value: any; hit?: undefined; }|null) => {
         if (!info)
             return;
         if (info.value != null)
@@ -8702,7 +8675,7 @@ function scoreXmlNotes(doc) {
         if (info.hit != null)
             transients.push({ part, staff, beat, value: info.hit, sequence: sequence++ });
     };
-    const addSound = (sound, part, staff, beat) => {
+    const addSound = (sound: { hasAttribute: (arg0: string) => any; getAttribute: (arg0: string) => string|number; }, part: number, staff: number, beat: number) => {
         if (sound.hasAttribute('tempo')) {
             const bpm = +sound.getAttribute('tempo');
             if (bpm > 0 && Number.isFinite(bpm))
@@ -8719,7 +8692,7 @@ function scoreXmlNotes(doc) {
     [...doc.querySelectorAll('score-partwise > part')].forEach((part, pi) => {
         let measureStart = 0, num = 4, den = 4, staves = 1, division = 1;
         const gracePending = new Map();
-        const graceKey = (staff, voice) => staff + ':' + voice;
+        const graceKey = (staff: string|number, voice: string|number) => staff + ':' + voice;
         for (const measure of part.children) {
             if (measure.localName !== 'measure')
                 continue;
@@ -8787,7 +8760,7 @@ function scoreXmlNotes(doc) {
                             }
                             else {
                                 const hand = staves >= 2 ? (staff === 1 ? 'rh' : 'lh') : null, stop = [...node.querySelectorAll('tie')].some((t) => t.getAttribute('type') === 'stop');
-                                const prev = stop && notes.findLast((n) => n.part === pi && n.staff === staff && n.voice === voice && n.midi === midi && Math.abs(n.end - start) < .001);
+                                const prev = stop && notes.findLast((n: { part: number; staff: number; voice: number; midi: any; end: number; }) => n.part === pi && n.staff === staff && n.voice === voice && n.midi === midi && Math.abs(n.end - start) < .001);
                                 const fg = number(node.querySelector('fingering')), nd = [...node.querySelectorAll('notations > dynamics')].map(dynamicInfo).find(Boolean), attr = dynamicValue(node.getAttribute('dynamics'));
                                 const arts = new Set([...node.querySelectorAll('notations > articulations > *')].map((a) => a.localName));
                                 let own = null;
@@ -8819,7 +8792,7 @@ function scoreXmlNotes(doc) {
                                     own = n;
                                 }
                                 if (own)
-                                    node.querySelectorAll('notations > slur, notations > glissando, notations > slide').forEach((l) => {
+                                    node.querySelectorAll('notations > slur, notations > glissando, notations > slide').forEach((l: { getAttribute: (arg0: string) => any; localName: string; }) => {
                                         const type = (l.getAttribute('type') || '').toLowerCase(), key = pi + ':' + l.localName + ':' + (l.getAttribute('number') || '1');
                                         if (type === 'start')
                                             linkOpen.set(key, own);
@@ -8849,10 +8822,10 @@ function scoreXmlNotes(doc) {
     // Malformed numbers (a NaN duration, a zero or negative meter…) would otherwise poison every later position.
     if (malformed || notes.some((n) => !Number.isFinite(n.start) || !Number.isFinite(n.end)) || measures.some((m) => !Number.isFinite(m.start) || !Number.isFinite(m.end) || !(m.num > 0 && Number.isInteger(m.num)) || !(m.den > 0 && Number.isInteger(m.den))))
         throw anError('xml');
-    const sorted = notes.sort((a, b) => a.start - b.start || a.midi - b.midi), byTime = (a, b) => a.beat - b.beat || a.sequence - b.sequence;
-    const same = (event, n) => event.part === n.part && (event.staff === 0 || event.staff === n.staff);
+    const sorted = notes.sort((a, b) => a.start - b.start || a.midi - b.midi), byTime = (a: { beat: number; sequence: number; }, b: { beat: number; sequence: number; }) => a.beat - b.beat || a.sequence - b.sequence;
+    const same = (event: { part: any; staff: number; }, n: { part: any; staff: any; }) => event.part === n.part && (event.staff === 0 || event.staff === n.staff);
     const persistent = dynamics.slice().sort(byTime), explicit = persistent.slice();
-    const levelAt = (part, staff, beat) => {
+    const levelAt = (part: any, staff: any, beat: number) => {
         let value = 90, last = -Infinity, specificity = -1, seq = -1;
         persistent.forEach((e) => {
             if (e.part !== part || (e.staff !== 0 && e.staff !== staff) || e.beat > beat + .001)
@@ -8867,7 +8840,7 @@ function scoreXmlNotes(doc) {
         });
         return value;
     };
-    const open = new Map(), wedges = [];
+    const open = new Map(), wedges: { part: any; staff: any; start: any; end: any; from: number; to: any; }[] = [];
     wedgeEvents.sort(byTime).forEach((e) => {
         const key = e.part + ':' + e.staff + ':' + e.number;
         if (e.type === 'crescendo' || e.type === 'diminuendo')
@@ -8886,9 +8859,9 @@ function scoreXmlNotes(doc) {
         }
     });
     persistent.sort(byTime);
-    const pedalSegments = [];
+    const pedalSegments: { part: any; start: any; end: any; }[] = [];
     for (const part of [...new Set(pedalEvents.map((e) => e.part))]) {
-        let active = null;
+        let active: { start: any; }|null = null;
         pedalEvents.filter((e) => e.part === part).sort(byTime).forEach((e) => {
             if (e.type === 'start') {
                 if (active && e.beat > active.start + .001)
@@ -8911,14 +8884,14 @@ function scoreXmlNotes(doc) {
     const topAt = new Map(), sizeAt = new Map();
     sorted.forEach((n) => { const key = n.part + ':' + n.staff + ':' + n.start, top = topAt.get(key); if (top == null || n.midi > top)
         topAt.set(key, n.midi); sizeAt.set(key, (sizeAt.get(key) || 0) + 1); });
-    const measureAt = (beat) => measures.find((m) => beat >= m.start - .001 && beat < m.end - .001);
-    const dolceAt = (n) => { let on = false, last = -Infinity, seq = -1; dolces.forEach((d) => { if (!same(d, n) || d.beat > n.start + .001)
+    const measureAt = (beat: number) => measures.find((m) => beat >= m.start - .001 && beat < m.end - .001);
+    const dolceAt = (n: { start: number; }) => { let on = false, last = -Infinity, seq = -1; dolces.forEach((d) => { if (!same(d, n) || d.beat > n.start + .001)
         return; if (d.beat > last + .001 || (Math.abs(d.beat - last) < .001 && d.sequence > seq)) {
         on = d.on;
         last = d.beat;
         seq = d.sequence;
     } }); return on; };
-    const transientAt = (n) => { let hit = n.dynamicHit, last = -Infinity, seq = -1; transients.forEach((e) => { if (!same(e, n) || Math.abs(e.beat - n.start) > .012)
+    const transientAt = (n: { dynamicHit: any; start: number; }) => { let hit = n.dynamicHit, last = -Infinity, seq = -1; transients.forEach((e) => { if (!same(e, n) || Math.abs(e.beat - n.start) > .012)
         return; if (e.beat > last + .001 || (Math.abs(e.beat - last) < .001 && e.sequence > seq)) {
         hit = e.value;
         last = e.beat;
@@ -9000,27 +8973,27 @@ function scoreXmlNotes(doc) {
     const links = linkPairs.filter((l) => l.a.staff !== l.b.staff).map((l) => ({ kind: l.kind, a: sorted.indexOf(l.a), b: sorted.indexOf(l.b), style: l.style })).filter((l) => l.a >= 0 && l.b >= 0);
     return { notes: sorted, tempos: tempos.filter((e) => e.bpm > 0 && Number.isFinite(e.bpm) && Number.isFinite(e.beat)), measures, keys, links };
 }
-function xmlEsc(s) { return String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' } )[c]); }
+function xmlEsc(s: string) { return String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' } )[c]); }
 // MIDI (or a built-in piece) → MusicXML. `opt.grid` is the quantization per quarter note (2, 4 or 8); divisions grow when a meter needs finer units.
-function scoreFromMidi(parsed, title, opt) {
-    const grid = opt.grid || 4, events = parsed.meta || [], timeEvents = events.filter((e) => e.type === 'time');
+function scoreFromMidi(parsed: { meta: any; notes: any; }, title: any, opt: { grid: any; keys: any; composer: any; }) {
+    const grid = opt.grid || 4, events = parsed.meta || [], timeEvents = events.filter((e: { type: string; }) => e.type === 'time');
     let div = grid;
-    while (timeEvents.some((e) => (4 * div) % e.den) && div < grid * 64)
+    while (timeEvents.some((e: { den: number; }) => (4 * div) % e.den) && div < grid * 64)
         div *= 2;
     const k = div / grid;
     SCORE.midiGrid = grid;
     SCORE.measures = [];
-    const tempos = events.filter((e) => e.type === 'tempo').map((e) => ({ beat: e.beat, bpm: e.bpm }));
+    const tempos = events.filter((e: { type: string; }) => e.type === 'tempo').map((e: { beat: any; bpm: any; }) => ({ beat: e.beat, bpm: e.bpm }));
     scoreSetTempos(tempos);
     SCORE.tempoFromFile = tempos.length > 0;
-    const notes = parsed.notes.map((n) => { const s = Math.round(n.start * grid) * k; return { ...n, start: s, end: Math.max(s + k, Math.round(n.end * grid) * k), staff: n.hand === 'lh' ? 2 : 1 }; }).sort((a, b) => a.start - b.start || a.midi - b.midi);
-    const end = Math.max(...notes.map((n) => n.end));
+    const notes = parsed.notes.map((n: { start: number; end: number; hand: string; }) => { const s = Math.round(n.start * grid) * k; return { ...n, start: s, end: Math.max(s + k, Math.round(n.end * grid) * k), staff: n.hand === 'lh' ? 2 : 1 }; }).sort((a: { start: number; midi: number; }, b: { start: number; midi: number; }) => a.start - b.start || a.midi - b.midi);
+    const end = Math.max(...notes.map((n: { end: any; }) => n.end));
     if (end > 200000)
         throw anError('long');
     // Played legato overlaps of up to a sixteenth would spawn extra voices; trim them for the engraving only.
     const trim = k * Math.max(1, grid / 4);
     for (const staff of [1, 2]) {
-        const own = notes.filter((n) => n.staff === staff), onsets = [...new Set(own.map((n) => n.start))].sort((a, b) => a - b);
+        const own = notes.filter((n: { staff: number; }) => n.staff === staff), onsets = [...new Set(own.map((n: { start: any; }) => n.start))].sort((a, b) => a - b);
         let j = 0;
         for (const n of own) {
             while (j < onsets.length && onsets[j] <= n.start)
@@ -9038,7 +9011,7 @@ function scoreFromMidi(parsed, title, opt) {
         groups.get(key).notes.push(n);
     }
     // The highest lane becomes the stem-up main voice so a melody is never engraved underneath its accompaniment.
-    const used = [...new Set(notes.map((n) => n.staff))], single = used.length === 1, staves = single ? used : [1, 2]; // one hand only → one staff
+    const used = [...new Set(notes.map((n: { staff: any; }) => n.staff))], single = used.length === 1, staves = single ? used : [1, 2]; // one hand only → one staff
     const globalVoices = [];
     for (const staff of staves) {
         const lanes = [];
@@ -9051,7 +9024,7 @@ function scoreFromMidi(parsed, title, opt) {
             lane.groups.push(group);
             lane.end = group.end;
         }
-        const avg = (l) => { let s = 0, c = 0; l.groups.forEach((g) => g.notes.forEach((n) => { s += n.midi; c++; })); return c ? s / c : 0; };
+        const avg = (l: { groups: any[]; }) => { let s = 0, c = 0; l.groups.forEach((g: { notes: any[]; }) => g.notes.forEach((n: { midi: number; }) => { s += n.midi; c++; })); return c ? s / c : 0; };
         lanes.sort((a, b) => avg(b) - avg(a));
         lanes.forEach((l, i) => { l.secondary = i > 0; l.stem = lanes.length > 1 ? (i ? 'down' : 'up') : ''; });
         if (!lanes.length)
@@ -9060,8 +9033,8 @@ function scoreFromMidi(parsed, title, opt) {
     }
     const VALUES = [[4, 'whole', 0], [3, 'half', 1], [2, 'half', 0], [1.5, 'quarter', 1], [1, 'quarter', 0], [0.75, 'eighth', 1], [0.5, 'eighth', 0], [0.375, '16th', 1], [0.25, '16th', 0], [0.1875, '32nd', 1], [0.125, '32nd', 0], [0.0625, '64th', 0], [0.03125, '128th', 0], [0.015625, '256th', 0]]
         .map(([q, type, dot] = []) => [q * div, type, dot]).filter(([d] = []) => Number.isInteger(d) && d >= 1);
-    const changes = events.filter((e) => e.type === 'time').map((e) => ({ ...e })).concat((opt.keys || []).map((e) => ({ type: 'key', beat: e.beat, fifths: e.fifths, minor: !!e.minor })))
-        .map((e) => ({ ...e, pos: Math.round(e.beat * div) })).sort((a, b) => a.pos - b.pos);
+    const changes = events.filter((e: { type: string; }) => e.type === 'time').map((e: any) => ({ ...e })).concat((opt.keys || []).map((e: { beat: any; fifths: any; minor: any; }) => ({ type: 'key', beat: e.beat, fifths: e.fifths, minor: !!e.minor })))
+        .map((e: { beat: number; }) => ({ ...e, pos: Math.round(e.beat * div) })).sort((a: { pos: number; }, b: { pos: number; }) => a.pos - b.pos);
     let at = 0, number = 1, xml = '', fifths = 0, minor = false, num = 4, den = 4, ci = 0;
     while (at < end) {
         const beat = at / div;
@@ -9094,14 +9067,14 @@ function scoreFromMidi(parsed, title, opt) {
             if (vi)
                 xml += '<backup><duration>' + length + '</duration></backup>';
             let cursor = at;
-            const evs = [];
-            const emit = (group, start, duration) => { let left = duration, offset = 0; while (left > 0) {
+            const evs: { group: any; pos: any; d: any; type: any; dot: any; from: boolean; to: boolean; }[] = [];
+            const emit = (group: { start: number; end: number; }|null, start: number, duration: number) => { let left = duration, offset = 0; while (left > 0) {
                 const [d, type, dot] = VALUES.find((v) => v[0] <= left);
                 evs.push({ group, pos: start + offset, d, type, dot, from: !!group && start + offset > group.start, to: !!group && start + offset + d < group.end });
                 left -= d;
                 offset += d;
             } };
-            for (const group of voice.groups.filter((g) => g.start < stop && g.end > at)) {
+            for (const group of voice.groups.filter((g: { start: number; end: number; }) => g.start < stop && g.end > at)) {
                 const start = Math.max(at, group.start), finish = Math.min(stop, group.end);
                 if (start > cursor)
                     emit(null, cursor, start - cursor);
@@ -9111,7 +9084,7 @@ function scoreFromMidi(parsed, title, opt) {
             if (cursor < stop)
                 emit(null, cursor, stop - cursor);
             scoreBeams(evs, at, beamLen);
-            evs.forEach(({ group, d, type, dot, from, to, beam } = {}) => { const chord = group ? group.notes : [null]; chord.forEach((n, index) => { xml += '<note' + (!group && voice.secondary ? ' print-object="no" print-spacing="yes"' : '') + '>' + (index ? '<chord/>' : '') + (n ? scorePitch(n.midi, fifths, minor) : '<rest/>') + '<duration>' + d + '</duration>' + (from ? '<tie type="stop"/>' : '') + (to ? '<tie type="start"/>' : '') + '<voice>' + (vi + 1) + '</voice><type>' + type + '</type>' + (dot ? '<dot/>' : '') + (n && voice.stem ? '<stem>' + voice.stem + '</stem>' : '') + '<staff>' + (single ? 1 : voice.staff) + '</staff>' + (beam && !index ? '<beam number="1">' + beam + '</beam>' : '') + (from || to ? '<notations>' + (from ? '<tied type="stop"/>' : '') + (to ? '<tied type="start"/>' : '') + '</notations>' : '') + '</note>'; }); });
+            evs.forEach(({ group, d, type, dot, from, to, beam } = {}) => { const chord = group ? group.notes : [null]; chord.forEach((n: { midi: number; }, index: any) => { xml += '<note' + (!group && voice.secondary ? ' print-object="no" print-spacing="yes"' : '') + '>' + (index ? '<chord/>' : '') + (n ? scorePitch(n.midi, fifths, minor) : '<rest/>') + '<duration>' + d + '</duration>' + (from ? '<tie type="stop"/>' : '') + (to ? '<tie type="start"/>' : '') + '<voice>' + (vi + 1) + '</voice><type>' + type + '</type>' + (dot ? '<dot/>' : '') + (n && voice.stem ? '<stem>' + voice.stem + '</stem>' : '') + '<staff>' + (single ? 1 : voice.staff) + '</staff>' + (beam && !index ? '<beam number="1">' + beam + '</beam>' : '') + (from || to ? '<notations>' + (from ? '<tied type="stop"/>' : '') + (to ? '<tied type="start"/>' : '') + '</notations>' : '') + '</note>'; }); });
         });
         xml += (stop >= end ? '<barline location="right"><bar-style>light-heavy</bar-style></barline>' : '') + '</measure>';
         at = stop;
@@ -9122,11 +9095,11 @@ function scoreFromMidi(parsed, title, opt) {
     return '<?xml version="1.0"?><score-partwise version="3.1">' + (title ? '<work><work-title>' + xmlEsc(title) + '</work-title></work>' : '') + (opt.composer ? '<identification><creator type="composer">' + xmlEsc(opt.composer) + '</creator></identification>' : '') + '<part-list><score-part id="P1"><part-name>' + xmlEsc(t('sc_part')) + '</part-name></score-part></part-list><part id="P1">' + xml + '</part></score-partwise>';
 }
 // Beam runs of eighths and shorter inside one beat group of the bar; rests and longer values break a run.
-function scoreBeams(evs, at, len) {
-    let run = [];
+function scoreBeams(evs: any[], at: number, len: number) {
+    let run: any[] = [];
     const flush = () => { if (run.length > 1)
         run.forEach((e, i) => { e.beam = i ? (i === run.length - 1 ? 'end' : 'continue') : 'begin'; }); run = []; };
-    evs.forEach((e) => {
+    evs.forEach((e: { pos: number; group: any; type: string; d: number; }) => {
         const g0 = Math.floor((e.pos - at) / len), prev = run[run.length - 1];
         if (!e.group || !/^(eighth|16th|32nd|64th)$/.test(e.type) || Math.floor((e.pos - at + e.d - 1) / len) !== g0) {
             flush();
@@ -9139,19 +9112,19 @@ function scoreBeams(evs, at, len) {
     flush();
 }
 // Hands: MIDI tracks (or channels) when their median pitches separate cleanly, otherwise a pitch split. Track order is never trusted.
-function anAssignHands(notes, mode) {
-    const split = (s) => notes.map((n) => n.midi >= s ? 'rh' : 'lh');
+function anAssignHands(notes: any[], mode: string) {
+    const split = (s: number) => notes.map((n: { midi: number; }) => n.midi >= s ? 'rh' : 'lh');
     if (/^\d+$/.test(mode))
         return { of: split(+mode), how: 'split', split: +mode };
-    if (mode === 'auto' && notes.every((n) => n.srcHand))
-        return { of: notes.map((n) => n.srcHand), how: 'piece' };
-    const field = new Set(notes.map((n) => n.track)).size > 1 ? 'track' : new Set(notes.map((n) => n.channel)).size > 1 ? 'channel' : null;
+    if (mode === 'auto' && notes.every((n: { srcHand: any; }) => n.srcHand))
+        return { of: notes.map((n: { srcHand: any; }) => n.srcHand), how: 'piece' };
+    const field = new Set(notes.map((n: { track: any; }) => n.track)).size > 1 ? 'track' : new Set(notes.map((n: { channel: any; }) => n.channel)).size > 1 ? 'channel' : null;
     if (!field)
         return { of: split(60), how: 'one', split: 60 };
     const groups = new Map();
-    notes.forEach((n) => { const g = n[field]; if (!groups.has(g))
+    notes.forEach((n: { [x: string]: any; midi: any; }) => { const g = n[field]; if (!groups.has(g))
         groups.set(g, []); groups.get(g).push(n.midi); });
-    const list = [...groups].map(([g, ms] = []) => { const s = ms.slice().sort((a, b) => a - b); return { g, count: ms.length, median: s[s.length >> 1] }; }).sort((a, b) => b.median - a.median);
+    const list = [...groups].map(([g, ms] = []) => { const s = ms.slice().sort((a: number, b: number) => a - b); return { g, count: ms.length, median: s[s.length >> 1] }; }).sort((a, b) => b.median - a.median);
     let cut = 1, gap = -1;
     for (let i = 1; i < list.length; i++) {
         const d = list[i - 1].median - list[i].median;
@@ -9163,12 +9136,12 @@ function anAssignHands(notes, mode) {
     const upper = new Set(list.slice(0, cut).map((x) => x.g)), share = list.slice(0, cut).reduce((s, x) => s + x.count, 0) / notes.length;
     if (mode === 'auto' && !(gap >= 5 && share >= 0.05 && share <= 0.95))
         return { of: split(60), how: 'fallback', split: 60 };
-    return { of: notes.map((n) => upper.has(n[field]) ? 'rh' : 'lh'), how: 'tracks', groups: list.length };
+    return { of: notes.map((n: { [x: string]: any; }) => upper.has(n[field]) ? 'rh' : 'lh'), how: 'tracks', groups: list.length };
 }
 // Rebuild notes + notation from the stored MIDI/example source; analysis timing stays the unquantized source timing.
 function anRebuild() {
     const src = AN.source, parsed = src.parsed, hands = anAssignHands(parsed.notes, AN.recon.hands);
-    const notes = parsed.notes.map((n, i) => ({ midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i] }));
+    const notes = parsed.notes.map((n: { midi: any; start: any; end: any; vel: any; track: any; channel: any; }, i: string|number) => ({ midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i] }));
     const key = anResolveKey(parsed, AN.recon.key, notes);
     const xml = scoreFromMidi({ meta: parsed.meta, notes }, src.title, { grid: AN.recon.grid, keys: key.events, composer: src.comp });
     AN.notes = notes;
@@ -9177,7 +9150,7 @@ function anRebuild() {
     AN.keyOrigin = key.origin;
     AN.keyMap = key.events.map((e) => ({ ...keyFromFifths(e.fifths, e.minor), beat: e.beat }));
 }
-function anXmlKeyMap(src) {
+function anXmlKeyMap(src: { keys: any[]; notes: readonly theory.TheoryNote[]; }) {
     if (!src.keys.length) {
         const best = anKeyRank(src.notes)[0];
         AN.keyOrigin = 'auto';
@@ -9185,7 +9158,7 @@ function anXmlKeyMap(src) {
     }
     const ranks = anKeyRank(src.notes);
     let guessed = false;
-    const map = src.keys.map((k) => {
+    const map = src.keys.map((k: { mode: string; fifths: number; beat: any; }) => {
         let minor = k.mode === 'minor';
         if (!k.mode) {
             guessed = true;
@@ -9204,7 +9177,7 @@ const SC_PAGE_W = 794, SC_BASE = 0.75; // an A4 page is 794 CSS px wide at 100%;
 // Beam groups for OSMD's auto-beaming (only used for MusicXML written without beams): one beat, or a dotted quarter in compound meters.
 function scoreBeamGroups() { const m = (SCORE.measures || [])[0] || { num: 4, den: 4 }; return m.den === 8 && m.num % 3 === 0 ? [[3, 8]] : m.den === 2 ? [[2, 4]] : [[1, 4]]; }
 async function scoreRender()  {
-    const version = ++SCORE.version, box = $('an-roll');
+    const version = ++SCORE.version, box = byId('an-roll');
     if (!SCORE.xml) {
         anRenderEmpty();
         return false;
@@ -9288,7 +9261,7 @@ async function scoreRender()  {
 // View, zoom and appearance only need a new layout, not a new load; selection, cursor and highlights are repainted afterwards.
 // Page view: A4 sheets on the desk, as wide as 794 px × zoom but never wider than the desk (the music reflows instead of panning).
 function scoreLayout() {
-    const engine = SCORE.engine, box = $('an-roll');
+    const engine = SCORE.engine, box = byId('an-roll');
     if (!engine)
         return;
     box.hidden = false;
@@ -9338,22 +9311,22 @@ function scoreLayout() {
     return pedalsOk;
 }
 // OSMD's title label is plain text. Restore safe MusicXML italic/bold runs after each layout (never inject markup).
-function scoreStyleHeader(engine, layout) {
+function scoreStyleHeader(engine: never, layout: { titleRuns: any; }|null) {
     const node = engine.getTitleNode(), runs = layout && layout.titleRuns;
     if (!node || !runs || !runs.length)
         return;
     const text = node.localName === 'text' ? node : node.querySelector('text');
-    if (!text || text.textContent.trim() !== runs.map((r) => r.text).join('').trim())
+    if (!text || text.textContent.trim() !== runs.map((r: { text: any; }) => r.text).join('').trim())
         return;
-    const spans = runs.map((r) => { const span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan'); span.textContent = r.text; span.setAttribute('font-style', r.style); span.setAttribute('font-weight', r.weight); return span; });
+    const spans = runs.map((r: { text: string|null; style: string; weight: string; }) => { const span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan'); span.textContent = r.text; span.setAttribute('font-style', r.style); span.setAttribute('font-weight', r.weight); return span; });
     text.replaceChildren(...spans);
 }
 // Page view of an imported file keeps its own <print new-system / new-page> breaks (MuseScore's 3–4 bars a line).
 // Those breaks only help while the bars fit: note spacing tightens a step at a time until the engraver needs no
 // extra break; past the last step it fills the lines itself rather than leave a lone bar after every forced break.
 const SC_FIT = [[.85, 3, 2], [.7, 2.2, 1.6], [.58, 1.6, 1.3], [.48, 1.2, 1.1]]; // VexFlow spacing multiplier, addend, min note distance
-function scoreFitRender(engine, xmlBreaks, key) {
-    const set = (i, on) => {
+function scoreFitRender(engine: never, xmlBreaks: boolean, key: string) {
+    const set = (i: number, on: boolean) => {
         const f = SC_FIT[i];
         engine.updateRules({
             VoiceSpacingMultiplierVexflow: f[0],
@@ -9387,15 +9360,15 @@ function scoreFitRender(engine, xmlBreaks, key) {
     engine.render();
     SCORE.fit = { key, step: 0, on: false };
 }
-function scoreExtraBreaks(engine) {
+function scoreExtraBreaks(engine: { hasExtraBreaks: () => any; }) {
     return engine.hasExtraBreaks();
 }
 // Anything OSMD still draws in pure black (connectors, brackets, text without a colour rule) follows the night ink too.
 // The keyboard-focus ring around a notehead is measured in the score's own units: about 1 px of page colour, then 1.6 px of blue.
-function scoreRingFit(z) { (document).querySelectorAll('.sc-defs feMorphology').forEach((f) => f.setAttribute('radius', (+f.dataset.px / (z || SC_BASE)).toFixed(2))); }
-function scoreNightSweep(box, ink) {
+function scoreRingFit(z: any) { (document).querySelectorAll('.sc-defs feMorphology').forEach((f) => f.setAttribute('radius', (+f.dataset.px / (z || SC_BASE)).toFixed(2))); }
+function scoreNightSweep(box: RuntimeElement, ink: any) {
     const black = /^(#000|#000000|black|rgb\(0,\s*0,\s*0\))$/i;
-    box.querySelectorAll('svg *').forEach((el) => {
+    box.querySelectorAll('svg *').forEach((el: { getAttribute: (arg0: string) => any; setAttribute: (arg0: string,arg1: any) => void; style: { [x: string]: any; }; localName: string; }) => {
         for (const a of ['fill', 'stroke']) {
             const v = el.getAttribute(a);
             if (v && black.test(v.trim()))
@@ -9408,14 +9381,14 @@ function scoreNightSweep(box, ink) {
     });
 }
 // Bind each source note to its rendered notehead, retaining individual selection in chords. One tab stop; arrows move between notes.
-function scoreBind(engine) {
+function scoreBind(engine: never) {
     SCORE.heads = new Map();
-    let first = null;
-    const grid = SCORE.midiGrid || 0, startOf = (n) => grid ? Math.round(n.start * grid) / grid : n.start, endOf = (n) => grid ? Math.max(startOf(n) + 1 / grid, Math.round(n.end * grid) / grid) : n.end;
+    let first: { setAttribute: (arg0: string,arg1: string) => void; }|null = null;
+    const grid = SCORE.midiGrid || 0, startOf = (n: never) => grid ? Math.round(n.start * grid) / grid : n.start, endOf = (n: never) => grid ? Math.max(startOf(n) + 1 / grid, Math.round(n.end * grid) / grid) : n.end;
     const byMidi = new Map();
     AN.notes.forEach((n, i) => { if (!byMidi.has(n.midi))
         byMidi.set(n.midi, []); byMidi.get(n.midi).push(i); });
-    let bound = new Set(), boundBeat = null;
+    let bound = new Set(), boundBeat: null = null;
     engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g } = {}) => {
         if (boundBeat !== beat) {
             boundBeat = beat;
@@ -9424,11 +9397,11 @@ function scoreBind(engine) {
         const cands = byMidi.get(midi);
         if (!cands)
             return;
-        const same = (j) => { const n = AN.notes[j]; return (n.part == null || n.part === part) && (n.staff == null || n.staff === staff) && (n.voice == null || n.voice === voice); };
-        const match = (pred) => { const a = cands.filter(pred); return a.find((j) => same(j) && !bound.has(j)) ?? a.find((j) => !bound.has(j)) ?? a.find(same) ?? a[0]; };
-        const exact = (j) => Math.abs(startOf(AN.notes[j]) - beat) < .01, sustained = (j) => startOf(AN.notes[j]) <= beat + .001 && endOf(AN.notes[j]) > beat + .001;
+        const same = (j: string|number) => { const n = AN.notes[j]; return (n.part == null || n.part === part) && (n.staff == null || n.staff === staff) && (n.voice == null || n.voice === voice); };
+        const match = (pred: { (j: any): boolean; (j: any): boolean; (j: any): boolean; (j: any): boolean; }) => { const a = cands.filter(pred); return a.find((j: unknown) => same(j) && !bound.has(j)) ?? a.find((j: unknown) => !bound.has(j)) ?? a.find(same) ?? a[0]; };
+        const exact = (j: string|number) => Math.abs(startOf(AN.notes[j]) - beat) < .01, sustained = (j: string|number) => startOf(AN.notes[j]) <= beat + .001 && endOf(AN.notes[j]) > beat + .001;
         // A tied continuation belongs to its own voice, even when another voice starts the same pitch here.
-        const i = match((j) => same(j) && exact(j)) ?? match((j) => same(j) && sustained(j)) ?? match(exact) ?? match(sustained);
+        const i = match((j: any) => same(j) && exact(j)) ?? match((j: any) => same(j) && sustained(j)) ?? match(exact) ?? match(sustained);
         if (i == null)
             return;
         bound.add(i);
@@ -9447,7 +9420,7 @@ function scoreBind(engine) {
     if (first)
         first.setAttribute('tabindex', '0');
 }
-function scorePaintEl(g) { const i = +g.dataset.i, look = SCORE_LOOK[SCORE.look], selected = AN.selected.has(i), res = PRAC.res.get(i), n = AN.notes[i], color = SCORE.hl && SCORE.lit.has(i) ? look.lit : selected ? look.sel : res === 'hit' ? look.ok : res === 'miss' ? look.bad : n && !pracMine(n) ? look.dim : null; for (const shape of [g, ...g.querySelectorAll('path,ellipse,circle')]) {
+function scorePaintEl(g: { dataset: { i: string|number; }; querySelectorAll: (arg0: string) => any; setAttribute: (arg0: string,arg1: string) => void; }) { const i = +g.dataset.i, look = SCORE_LOOK[SCORE.look], selected = AN.selected.has(i), res = PRAC.res.get(i), n = AN.notes[i], color = SCORE.hl && SCORE.lit.has(i) ? look.lit : selected ? look.sel : res === 'hit' ? look.ok : res === 'miss' ? look.bad : n && !pracMine(n) ? look.dim : null; for (const shape of [g, ...g.querySelectorAll('path,ellipse,circle')]) {
     if (!shape.hasAttribute('data-original-fill')) {
         shape.dataset.originalFill = shape.style.fill || '';
         shape.dataset.originalStroke = shape.style.stroke || '';
@@ -9455,7 +9428,7 @@ function scorePaintEl(g) { const i = +g.dataset.i, look = SCORE_LOOK[SCORE.look]
     shape.style.fill = color || shape.dataset.originalFill;
     shape.style.stroke = color || shape.dataset.originalStroke;
 } g.setAttribute('aria-pressed', selected ? 'true' : 'false'); }
-function scorePaintIdx(i) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
+function scorePaintIdx(i: unknown) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
 function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
@@ -9474,9 +9447,9 @@ function showNotationReloadPrompt() {
 }
 // Text-pedal skylines can miss ledger notes, and a release with no staff entry can land on its press glyph.
 // Place actual glyph ink without changing event timing. Recompute from native positions on every call.
-let scoreFixPedals = function scoreFixPedals(box) {
+let scoreFixPedals = function scoreFixPedals(box: RuntimeElement) {
     let unresolved = 0;
-    box.querySelectorAll('svg').forEach((svg) => {
+    box.querySelectorAll('svg').forEach((svg: { querySelectorAll: (arg0: string) => any; getScreenCTM: () => any; getBoundingClientRect: () => any; }) => {
         const marks = [...svg.querySelectorAll('.vf-sc-pedal path')], ctm = svg.getScreenCTM();
         if (!marks.length || !ctm || !ctm.d)
             return;
@@ -9493,8 +9466,8 @@ let scoreFixPedals = function scoreFixPedals(box) {
             else
                 p.removeAttribute('transform');
         });
-        const gap = Math.max(1, Math.abs(ctm.d) * 2.5), limit = Math.abs(ctm.a) * 40, page = svg.getBoundingClientRect(), placed = [];
-        const cross = (a, b, pad = gap) => a.right + pad > b.left && a.left - pad < b.right && a.bottom + pad > b.top && a.top - pad < b.bottom;
+        const gap = Math.max(1, Math.abs(ctm.d) * 2.5), limit = Math.abs(ctm.a) * 40, page = svg.getBoundingClientRect(), placed: ConcatArray<{ left: number; right: any; top: number; bottom: any; }>|{ group: any; press: boolean; left: any; right: any; top: any; bottom: any; }[] = [];
+        const cross = (a: { left: any; right: any; top: any; bottom: any; }, b: { left: any; right: any; top: any; bottom: any; }, pad = gap) => a.right + pad > b.left && a.left - pad < b.right && a.bottom + pad > b.top && a.top - pad < b.bottom;
         const obstacles = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,text')].filter((n) => !n.closest('.vf-sc-pedal')).flatMap((n) => {
             const r = n.getBoundingClientRect(), s = getComputedStyle(n), pad = s.stroke !== 'none' ? Math.max(.5, parseFloat(s.strokeWidth) * Math.abs(ctm.d) / 2 || .5) : 0;
             if (n.matches('.sc-xline,.vf-stavetie path,path.vf-stavetie') && n.getTotalLength) {
@@ -9514,9 +9487,9 @@ let scoreFixPedals = function scoreFixPedals(box) {
             const r = p.getBoundingClientRect();
             if (r.width < .1)
                 return;
-            const group = p.closest('.vf-sc-pedal'), release = r.width < r.height * 1.3, rect = (x, y) => ({ left: r.left + x, right: r.right + x, top: r.top + y, bottom: r.bottom + y });
+            const group = p.closest('.vf-sc-pedal'), release = r.width < r.height * 1.3, rect = (x: number, y: number) => ({ left: r.left + x, right: r.right + x, top: r.top + y, bottom: r.bottom + y });
             let dx = 0, dy = 0;
-            const owner = group.scPedalOwner, sys = owner && owner.staffLine.ParentMusicSystem, pos = (s) => s && s.PositionAndShape && s.PositionAndShape.AbsolutePosition;
+            const owner = group.scPedalOwner, sys = owner && owner.staffLine.ParentMusicSystem, pos = (s: { PositionAndShape: { AbsolutePosition: any; }; }) => s && s.PositionAndShape && s.PositionAndShape.AbsolutePosition;
             const systems = sys && sys.Parent && sys.Parent.MusicSystems || [], next = systems[systems.indexOf(sys) + 1];
             const pedal = owner && owner.pedal, endpoint = pedal && (release ? pedal.endMeasure || pedal.endVfVoiceEntry?.parentStaffEntry.parentMeasure : pedal.startVfVoiceEntry?.parentStaffEntry.parentMeasure);
             const measures = owner && owner.staffLine.Measures || [], measure = endpoint && endpoint.ParentStaffLine?.ParentMusicSystem === sys ? endpoint : (release ? measures[measures.length - 1] : measures[0]);
@@ -9555,7 +9528,7 @@ let scoreFixPedals = function scoreFixPedals(box) {
     return unresolved === 0;
 };
 // SVG user units of the page a node sits on, from screen pixels (OSMD draws 10 units per staff space).
-function scoreToUser(svg, x, y) { const m = svg.getScreenCTM(); if (!m)
+function scoreToUser(svg: { getScreenCTM: () => any; createSVGPoint: () => any; }, x: any, y: number) { const m = svg.getScreenCTM(); if (!m)
     return null; const p = svg.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(m.inverse()); }
 // Lines between the hands that OSMD leaves out: cross-staff slurs, glissandi and slides, dashed voice-leading lines.
 function scoreXLines() {
@@ -9578,7 +9551,7 @@ function scoreXLines() {
         el.dataset.kind = l.kind === 'slur' ? 'slur' : l.kind === 'glissando' || l.kind === 'slide' ? 'gliss' : 'line';
         if (l.kind === 'slur') { // a crescent bowing over the top, from just above one notehead to just above the other
             const x0 = A.x + hw * .4, y0 = A.y - sp * .9, x1 = B.x - hw * .4, y1 = B.y - sp * .9, len = Math.hypot(x1 - x0, y1 - y0), h = Math.min(sp * 2.4, Math.max(sp * .8, len * .2)), th = sp * .22;
-            const nx = (y1 - y0) / len, ny = -(x1 - x0) / len, s = ny > 0 ? -1 : 1, c = (f, k) => [x0 + (x1 - x0) * f + nx * s * k, y0 + (y1 - y0) * f + ny * s * k].map((v) => v.toFixed(2)).join(' ');
+            const nx = (y1 - y0) / len, ny = -(x1 - x0) / len, s = ny > 0 ? -1 : 1, c = (f: number, k: number) => [x0 + (x1 - x0) * f + nx * s * k, y0 + (y1 - y0) * f + ny * s * k].map((v) => v.toFixed(2)).join(' ');
             el.setAttribute('d', `M${x0.toFixed(2)} ${y0.toFixed(2)} C${c(.25, h)} ${c(.75, h)} ${x1.toFixed(2)} ${y1.toFixed(2)} C${c(.75, h + th)} ${c(.25, h + th)} ${x0.toFixed(2)} ${y0.toFixed(2)}Z`);
             el.setAttribute('fill', ink);
             el.setAttribute('stroke', ink);
@@ -9600,27 +9573,27 @@ function scoreXLines() {
 }
 // Chord fingerings stacked one above the other must never touch: each column is re-stacked from the notes outwards,
 // clear of its noteheads, stems and the digits already placed on that staff, above or below as OSMD chose.
-function scoreFixFingerings(box, engine) {
+function scoreFixFingerings(box: RuntimeElement, engine: never) {
     const gs = engine && engine.readLayout().graphicSheet;
     if (!gs || !box)
         return;
-    const ink = (r) => ({ l: r.left + r.width * .08, r: r.right - r.width * .08, t: r.top + r.height * .18, b: r.bottom - r.height * .2 });
-    const crossX = (a, b) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > .5;
-    gs.MusicPages.forEach((pg) => pg.MusicSystems.forEach((sys) => sys.StaffLines.forEach((sl) => {
-        const placed = [];
-        sl.Measures.forEach((gm) => (gm.staffEntries || []).forEach((gse) => {
-            const labels = (gse.FingeringEntries || []).map((f) => f.SVGNode).filter((n) => n && n.ownerSVGElement);
+    const ink = (r: { left: number; width: number; right: number; top: number; height: number; bottom: number; }) => ({ l: r.left + r.width * .08, r: r.right - r.width * .08, t: r.top + r.height * .18, b: r.bottom - r.height * .2 });
+    const crossX = (a: { l: any; r: any; t?: any; b?: any; }, b: { r: number; l: number; }) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > .5;
+    gs.MusicPages.forEach((pg: { MusicSystems: any[]; }) => pg.MusicSystems.forEach((sys: { StaffLines: any[]; }) => sys.StaffLines.forEach((sl: { Measures: any[]; }) => {
+        const placed: { l: any; r: any; t: any; b: any; }[] = [];
+        sl.Measures.forEach((gm: { staffEntries: any; }) => (gm.staffEntries || []).forEach((gse: { FingeringEntries: any; graphicalVoiceEntries: any; }) => {
+            const labels = (gse.FingeringEntries || []).map((f: { SVGNode: any; }) => f.SVGNode).filter((n: { ownerSVGElement: any; }) => n && n.ownerSVGElement);
             if (!labels.length)
                 return;
-            const obstacles = [];
+            const obstacles: { l: any; r: any; t: any; b: any; }[] = [];
             let mid = 0, nh = 0;
-            (gse.graphicalVoiceEntries || []).forEach((gve) => {
-                const vf = gve.vfStaveNote || gve.mVexFlowStaveNote, g = (vf && vf.getAttribute && vf.getAttribute('el')) || (gve.notes || []).map((n) => n.getSVGGElement && n.getSVGGElement()).find(Boolean);
+            (gse.graphicalVoiceEntries || []).forEach((gve: { vfStaveNote: any; mVexFlowStaveNote: any; notes: any; }) => {
+                const vf = gve.vfStaveNote || gve.mVexFlowStaveNote, g = (vf && vf.getAttribute && vf.getAttribute('el')) || (gve.notes || []).map((n: { getSVGGElement: () => any; }) => n.getSVGGElement && n.getSVGGElement()).find(Boolean);
                 if (!g || !g.querySelectorAll)
                     return;
-                g.querySelectorAll('.vf-notehead').forEach((h) => { const r = h.getBoundingClientRect(); if (!r.width)
+                g.querySelectorAll('.vf-notehead').forEach((h: { getBoundingClientRect: () => any; }) => { const r = h.getBoundingClientRect(); if (!r.width)
                     return; obstacles.push({ l: r.left, r: r.right, t: r.top, b: r.bottom }); mid += r.top + r.height / 2; nh++; });
-                g.querySelectorAll('.vf-stem').forEach((s) => { const r = s.getBoundingClientRect(); if (r.height)
+                g.querySelectorAll('.vf-stem').forEach((s: { getBoundingClientRect: () => any; }) => { const r = s.getBoundingClientRect(); if (r.height)
                     obstacles.push({ l: r.left - 1, r: r.right + 1, t: r.top, b: r.bottom }); });
             });
             if (!nh)
@@ -9630,9 +9603,9 @@ function scoreFixFingerings(box, engine) {
             if (!ctm || !ctm.d)
                 return;
             const gap = Math.max(1, ctm.d * 2.5), cap = ctm.d * 40; // about 0.25 and 4 staff spaces in screen pixels
-            const items = labels.map((n) => { const r = n.getBoundingClientRect(); return { n, box: ink(r), up: r.top + r.height / 2 < mid }; });
+            const items = labels.map((n: { getBoundingClientRect: () => any; }) => { const r = n.getBoundingClientRect(); return { n, box: ink(r), up: r.top + r.height / 2 < mid }; });
             for (const up of [true, false]) {
-                items.filter((it) => it.up === up).sort((a, b) => up ? b.box.b - a.box.b : a.box.t - b.box.t).forEach((it) => {
+                items.filter((it: { up: boolean; }) => it.up === up).sort((a: { box: { b: number; t: number; }; }, b: { box: { b: number; t: number; }; }) => up ? b.box.b - a.box.b : a.box.t - b.box.t).forEach((it: { box: { l: any; r: any; t: number; b: number; }; n: any; }) => {
                     let dy = 0;
                     for (let k = 0; k < 16; k++) {
                         const bx = { l: it.box.l, r: it.box.r, t: it.box.t + dy, b: it.box.b + dy };
@@ -9653,15 +9626,15 @@ function scoreFixFingerings(box, engine) {
     // OSMD sometimes prints the same words twice in one spot ("dolce" over "dolce"): keep one. A chord symbol raised over the
     // upper staff must not sit on the words there ("dolce", "rit."): the words move above it.
     const chords = new Set(), fings = new Set();
-    gs.MeasureList.forEach((list) => (list || []).forEach((gm) => gm && (gm.staffEntries || []).forEach((gse) => { (gse.graphicalChordContainers || []).forEach((c) => { const n = c.GraphicalLabel && c.GraphicalLabel.SVGNode; if (n)
-        chords.add(n); }); (gse.FingeringEntries || []).forEach((f) => { if (f.SVGNode)
+    gs.MeasureList.forEach((list: any) => (list || []).forEach((gm: { staffEntries: any; }) => gm && (gm.staffEntries || []).forEach((gse: { graphicalChordContainers: any; FingeringEntries: any; }) => { (gse.graphicalChordContainers || []).forEach((c: { GraphicalLabel: { SVGNode: any; }; }) => { const n = c.GraphicalLabel && c.GraphicalLabel.SVGNode; if (n)
+        chords.add(n); }); (gse.FingeringEntries || []).forEach((f: { SVGNode: unknown; }) => { if (f.SVGNode)
         fings.add(f.SVGNode); }); })));
-    box.querySelectorAll('svg').forEach((svg) => {
+    box.querySelectorAll('svg').forEach((svg: { getScreenCTM: () => any; querySelectorAll: (arg0: string) => any[]; }) => {
         const ctm = svg.getScreenCTM();
         if (!ctm || !ctm.d)
             return;
-        const kept = [], chordBoxes = [], words = [];
-        svg.querySelectorAll('text').forEach((x) => {
+        const kept: { s: any; r: any; }[] = [], chordBoxes: { l: any; r: number; t: any; b: number; }[] = [], words: { x: any; b: { l: any; r: number; t: any; b: number; }; }[] = [];
+        svg.querySelectorAll('text').forEach((x: unknown) => {
             const r = x.getBoundingClientRect(), s = x.textContent.trim();
             if (!s || !r.width)
                 return;
@@ -9684,7 +9657,7 @@ function scoreFixFingerings(box, engine) {
     });
 }
 // Adds to any vertical shift already applied, so the pass can run again on a page it has already tidied.
-function scoreShiftY(n, dy) { const m = /^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform') || ''); n.setAttribute('transform', `translate(0 ${((m ? +m[1] : 0) + dy).toFixed(2)})`); }
+function scoreShiftY(n: { getAttribute: (arg0: string) => any; setAttribute: (arg0: string,arg1: string) => void; }, dy: number) { const m = /^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform') || ''); n.setAttribute('transform', `translate(0 ${((m ? +m[1] : 0) + dy).toFixed(2)})`); }
 // Every marking on the page that the hover can explain: its box (relative to its page, which only moves as a whole), kind and value.
 const SC_DYN = /^(ppp|pp|p|mp|mf|f|ff|fff|sfz|fz|rfz|fp|sf|sfp)$/;
 const SC_TERMS = [['dolcissimo'], ['dolce'], ['espressivo', 'espress\\.?', 'espr\\.'], ['cantabile'], ['legato'], ['leggiero', 'leggero'], ['sostenuto', 'sost\\.'],
@@ -9693,14 +9666,14 @@ const SC_TERMS = [['dolcissimo'], ['dolce'], ['espressivo', 'espress\\.?', 'espr
     .map(([k, ...alts] = []) => ({ k, re: new RegExp('(^|[^\\p{L}])(' + (alts.length ? alts : [k]).join('|') + ')(?=$|[^\\p{L}])', 'iu') }));
 const SC_ARTS = { 'a.': 'staccato', 'av': 'staccatissimo', 'a>': 'accent', 'a^': 'marcato', 'a-': 'tenuto', 'a@a': 'fermata', 'a@u': 'fermata', 'a@s': 'fermata', 'a@l': 'fermata', 'a@as': 'fermata', 'a@us': 'fermata',
     tr: 'trill', mordent: 'mordent', mordent_inverted: 'mordent', turn: 'turn', turn_inverted: 'turn', prallprall: 'trill', upprall: 'trill' };
-function scoreSyms(engine) {
-    const box = $('an-roll'), list = [], gs = engine && engine.readLayout().graphicSheet;
+function scoreSyms(engine: never) {
+    const box = byId('an-roll'), list: { kind: any; val: any; el: any; loose: boolean; page: any; x0: number; y0: number; x1: number; y1: number; }[] = [], gs = engine && engine.readLayout().graphicSheet;
     SCORE.syms = list;
     scoreTip(null);
     if (!gs)
         return;
-    const pageRects = new Map(), pageOf = (el) => el && el.closest && el.closest('[id^="osmdCanvasPage"]');
-    const add = (el, kind, val, rect, loose = true, ref) => {
+    const pageRects = new Map(), pageOf = (el: { closest: (arg0: string) => any; }) => el && el.closest && el.closest('[id^="osmdCanvasPage"]');
+    const add = (el: Element|SVGPathElement|null, kind: string|undefined, val: string|undefined, rect: DOMRect|null|undefined, loose = true, ref: undefined) => {
         const r = rect || el.getBoundingClientRect(), page = pageOf(el || ref);
         if ((!r.width && !r.height) || !page)
             return;
@@ -9720,21 +9693,21 @@ function scoreSyms(engine) {
     ['title', 'subtitle', 'composer', 'lyricist', 'copyright'].forEach((k) => { const n = gs[k] && gs[k].SVGNode; if (n) {
         seen.add(n);
         if (n.querySelectorAll)
-            n.querySelectorAll('text').forEach((x) => seen.add(x));
+            n.querySelectorAll('text').forEach((x: unknown) => seen.add(x));
     } });
-    gs.MusicPages.forEach((pg) => pg.MusicSystems.forEach((sys) => sys.StaffLines.forEach((sl) => {
-        (sl.AbstractExpressions || []).forEach((e) => (e.lines || []).forEach((l) => { const g = l.SVGElement; if (!g || !e.expression || e.expression.dynamicType == null)
+    gs.MusicPages.forEach((pg: { MusicSystems: any[]; }) => pg.MusicSystems.forEach((sys: { StaffLines: any[]; }) => sys.StaffLines.forEach((sl: { AbstractExpressions: any; Measures: any[]; }) => {
+        (sl.AbstractExpressions || []).forEach((e: { lines: any; expression: { dynamicType: number|null; }; }) => (e.lines || []).forEach((l: { SVGElement: any; }) => { const g = l.SVGElement; if (!g || !e.expression || e.expression.dynamicType == null)
             return; seen.add(g); add(g, e.expression.dynamicType === 0 ? 'cresc' : 'dim'); }));
-        sl.Measures.forEach((gm) => (gm.staffEntries || []).forEach((gse) => {
-            (gse.FingeringEntries || []).forEach((f) => { const n = f.SVGNode; if (!n)
-                return; n.querySelectorAll('text').forEach((x) => seen.add(x)); add(n, 'finger', (f.Label && f.Label.text || n.textContent || '').trim()); });
-            (gse.graphicalChordContainers || []).forEach((c) => { const lb = c.GraphicalLabel, n = lb && lb.SVGNode; if (!n)
-                return; n.querySelectorAll('text').forEach((x) => seen.add(x)); if (n.localName === 'text')
+        sl.Measures.forEach((gm: { staffEntries: any; }) => (gm.staffEntries || []).forEach((gse: { FingeringEntries: any; graphicalChordContainers: any; graphicalVoiceEntries: any; }) => {
+            (gse.FingeringEntries || []).forEach((f: { SVGNode: any; Label: { text: any; }; }) => { const n = f.SVGNode; if (!n)
+                return; n.querySelectorAll('text').forEach((x: unknown) => seen.add(x)); add(n, 'finger', (f.Label && f.Label.text || n.textContent || '').trim()); });
+            (gse.graphicalChordContainers || []).forEach((c: { GraphicalLabel: any; }) => { const lb = c.GraphicalLabel, n = lb && lb.SVGNode; if (!n)
+                return; n.querySelectorAll('text').forEach((x: unknown) => seen.add(x)); if (n.localName === 'text')
                 seen.add(n); add(n, 'chord', (lb.Label && lb.Label.text || n.textContent || '').trim()); });
-            (gse.graphicalVoiceEntries || []).forEach((gve) => {
+            (gse.graphicalVoiceEntries || []).forEach((gve: { vfStaveNote: any; mVexFlowStaveNote: any; notes: any; }) => {
                 const vf = gve.vfStaveNote || gve.mVexFlowStaveNote, el = vf && vf.getAttribute && vf.getAttribute('el');
                 // Rests are notation, not playable notes: bind their glyphs here, never in AN.notes or scoreBind.
-                (gve.notes || []).forEach((n) => {
+                (gve.notes || []).forEach((n: { sourceNote: any; getNoteheadSVGs: () => any; getSVGGElement: () => any; }) => {
                     const src = n.sourceNote;
                     if (!src || !src.isRest() || src.PrintObject === false)
                         return;
@@ -9747,10 +9720,10 @@ function scoreSyms(engine) {
                 const mg = el && el.querySelector && el.querySelector('.vf-modifiers');
                 if (!mg || !vf.modifiers)
                     return;
-                const paths = [...mg.children], mods = vf.modifiers, shown = paths.length === mods.length ? mods : mods.filter((m) => /articulation|ornament/i.test(m.getCategory ? m.getCategory() : ''));
+                const paths = [...mg.children], mods = vf.modifiers, shown = paths.length === mods.length ? mods : mods.filter((m: { getCategory: () => string; }) => /articulation|ornament/i.test(m.getCategory ? m.getCategory() : ''));
                 if (paths.length !== shown.length)
                     return;
-                shown.forEach((m, k) => { const kind = SC_ARTS[m.type]; if (kind)
+                shown.forEach((m: { type: string|number; }, k: string|number) => { const kind = SC_ARTS[m.type]; if (kind)
                     add(paths[k], kind, ''); });
             });
         }));
@@ -9775,7 +9748,7 @@ function scoreSyms(engine) {
     box.querySelectorAll('svg .vf-stavetie').forEach((g) => add(g, 'tie', '', null, false));
     box.querySelectorAll('svg .sc-xline').forEach((p) => add(p, p.dataset.kind, '', null, false));
     box.querySelectorAll('svg .vf-clef').forEach((g) => { const r = g.getBoundingClientRect(), q = r.height / Math.max(1, r.width); add(g, q > 1.9 ? 'clef_g' : q < 1.25 ? 'clef_f' : 'clef_c', '', r); });
-    const beatAt = (r) => {
+    const beatAt = (r: DOMRect) => {
         const g = SCORE.geo;
         if (!g)
             return null;
@@ -9803,14 +9776,14 @@ function scoreSyms(engine) {
         return; const k = n.staff + ':' + n.start; if (!rolls.has(k))
         rolls.set(k, []); rolls.get(k).push(i); });
     rolls.forEach((ix) => {
-        const rs = ix.flatMap((i) => (SCORE.heads.get(i) || []).map((g) => g.getBoundingClientRect())).filter((r) => r.width);
+        const rs = ix.flatMap((i: any) => (SCORE.heads.get(i) || []).map((g: { getBoundingClientRect: () => any; }) => g.getBoundingClientRect())).filter((r: { width: any; }) => r.width);
         if (!rs.length)
             return;
-        const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top)), b = Math.max(...rs.map((r) => r.bottom)), w = rs[0].width;
+        const l = Math.min(...rs.map((r: { left: any; }) => r.left)), t = Math.min(...rs.map((r: { top: any; }) => r.top)), b = Math.max(...rs.map((r: { bottom: any; }) => r.bottom)), w = rs[0].width;
         add(null, 'arpeggio', '', { left: l - w * 1.4, right: l - w * .15, top: t - w * .3, bottom: b + w * .3, width: w, height: b - t }, true, (SCORE.heads.get(ix[0]) || [])[0]);
     });
 }
-function scoreTermParts(s) {
+function scoreTermParts(s: string) {
     const out = [];
     SC_TERMS.forEach(({ k, re } = {}) => { const m = re.exec(s); if (m)
         out.push({ at: m.index + m[1].length, k }); });
@@ -9820,8 +9793,8 @@ function scoreTermParts(s) {
     return out.sort((a, b) => a.at - b.at).filter((p, i, a) => !(p.k === 'dolce' && a.some((q) => q.k === 'dolcissimo'))).map((p) => p.k === 'metro' ? t('sym_metro', p.n) : t('sym_t_' + p.k));
 }
 // "Name — meaning": the tooltip heads with the symbol as printed (or its name) and #an-hover reads it as one line.
-function scoreSymText(sym) {
-    const split = (s) => { const i = s.indexOf(' — '); return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 3)]; };
+function scoreSymText(sym: { kind: any; val: any; }) {
+    const split = (s: string|string[]) => { const i = s.indexOf(' — '); return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 3)]; };
     const k = sym.kind, v = sym.val;
     if (k === 'rest') {
         const name = t('sym_rest_' + v.type), raw = v.dots === 1 ? t('sym_rest_dotted', name) : v.dots > 1 ? t('sym_rest_dots', name, v.dots) : name, head = raw[0].toLocaleUpperCase(lang) + raw.slice(1);
@@ -9837,7 +9810,7 @@ function scoreSymText(sym) {
         full = t('sym_dyn_' + (v === 'sf' ? 'sfz' : v === 'sfp' ? 'fp' : v));
     else if (k === 'finger') {
         const ds = (v.match(/[1-5]/g) || []);
-        full = ds.length > 1 ? t('sym_finger_sub', ds.join(', '), ds.map((d) => d + ' = ' + t('sym_f' + d)).join(', ')) : ds.length ? t('sym_finger', ds[0], t('sym_f' + ds[0])) : t('sym_finger', '?', '?');
+        full = ds.length > 1 ? t('sym_finger_sub', ds.join(', '), ds.map((d: string) => d + ' = ' + t('sym_f' + d)).join(', ')) : ds.length ? t('sym_finger', ds[0], t('sym_f' + ds[0])) : t('sym_finger', '?', '?');
     }
     else if (k === 'rehearsal')
         full = t('sym_rehearsal');
@@ -9854,15 +9827,15 @@ function scoreSymText(sym) {
     const [name, body] = split(full), lit = ['dyn', 'finger', 'rehearsal', 'time', 'chord'].includes(k) ? v : '';
     return { head: lit ? lit + ' · ' + name : name, body, line: (lit ? lit + ' · ' : '') + full };
 }
-function scoreSymAt(e) {
-    const box = $('an-roll'), list = SCORE.syms || [], el = e.target && e.target.closest && e.target.closest('#an-roll [data-sym]');
+function scoreSymAt(e: { target: { closest: (arg0: string) => any; }; clientX: number|null; clientY: number; }) {
+    const box = byId('an-roll'), list = SCORE.syms || [], el = e.target && e.target.closest && e.target.closest('#an-roll [data-sym]');
     if (el && list[+el.dataset.sym] && list[+el.dataset.sym].el === el)
         return list[+el.dataset.sym];
     if (e.clientX == null || !list.length)
         return null;
     const rects = new Map(), pad = 3;
     let best = null, area = Infinity;
-    list.forEach((s) => {
+    list.forEach((s: { loose: any; page: { getBoundingClientRect: () => any; }; x0: number; x1: number; y0: number; y1: number; }) => {
         if (!s.loose)
             return;
         if (!rects.has(s.page))
@@ -9879,8 +9852,8 @@ function scoreSymAt(e) {
     return best;
 }
 // A small tooltip under the marking, inside the score panel; it never takes the pointer.
-function scoreTip(sym, txt) {
-    const box = $('an-roll');
+function scoreTip(sym: { kind: string|undefined; page: { getBoundingClientRect: () => any; }; y1: number; y0: number; x0: any; x1: any; }|null, txt: { head: any; body: any; line?: string; }|undefined) {
+    const box = byId('an-roll');
     let tip = box && box.querySelector(':scope > .sc-tip');
     if (!sym) {
         if (tip)
@@ -9906,11 +9879,11 @@ function scoreTip(sym, txt) {
     tip.style.top = Math.round(top) + 'px';
 }
 // Geometry in OSMD units (one staff space) relative to each page: systems, measures and the onset anchors the cursor moves between.
-function scoreGeo(engine) {
+function scoreGeo(engine: never) {
     const gs = engine.readLayout().graphicSheet, geo = { scale: 10 * engine.getZoom(), pages: [], systems: [], measures: [], anchors: [] }, sysIdx = new Map();
-    gs.MusicPages.forEach((pg, pi) => {
+    gs.MusicPages.forEach((pg: { PageNumber: string; MusicSystems: any[]; }, pi: string|number) => {
         geo.pages[pi] = (document).getElementById('osmdCanvasPage' + pg.PageNumber);
-        pg.MusicSystems.forEach((sys) => {
+        pg.MusicSystems.forEach((sys: { StaffLines: any; PositionAndShape: { AbsolutePosition: { y: any; }; }; }) => {
             const lines = sys.StaffLines;
             if (!lines || !lines.length)
                 return;
@@ -9919,8 +9892,8 @@ function scoreGeo(engine) {
             geo.systems.push({ page: pi, top: y + lines[0].PositionAndShape.RelativePosition.y, bottom: y + last.PositionAndShape.RelativePosition.y + last.StaffHeight });
         });
     });
-    gs.MeasureList.forEach((list, mi) => {
-        const gm = (list || []).find((m) => m && sysIdx.has(m.ParentMusicSystem));
+    gs.MeasureList.forEach((list: any, mi: string|number) => {
+        const gm = (list || []).find((m: { ParentMusicSystem: any; }) => m && sysIdx.has(m.ParentMusicSystem));
         if (!gm)
             return;
         const sm = gm.parentSourceMeasure, ps = gm.PositionAndShape, x0 = ps.AbsolutePosition.x, b0 = sm.AbsoluteTimestamp.RealValue * 4;
@@ -9928,12 +9901,12 @@ function scoreGeo(engine) {
     });
     // Where a bar's music begins (xs): right after the clef, key and time signature drawn at its start (system starts, changes),
     // else at its barline. Measured on the drawn glyphs; OSMD's begin-instruction width reaches past the first notes.
-    const glyphs = [];
+    const glyphs: { page: number; l: number; r: number; y: number; }[] = [];
     geo.pages.forEach((el, pi) => {
         if (!el)
             return;
         const pr = el.getBoundingClientRect();
-        el.querySelectorAll('.vf-clef,.vf-keysignature,.vf-timesignature').forEach((gl) => { const r = gl.getBoundingClientRect(); if (r.width > 0)
+        el.querySelectorAll('.vf-clef,.vf-keysignature,.vf-timesignature').forEach((gl: { getBoundingClientRect: () => any; }) => { const r = gl.getBoundingClientRect(); if (r.width > 0)
             glyphs.push({ page: pi, l: (r.left - pr.left) / geo.scale, r: (r.right - pr.left) / geo.scale, y: (r.top + r.height / 2 - pr.top) / geo.scale }); });
     });
     geo.measures.forEach((m) => {
@@ -9990,11 +9963,11 @@ function scoreCursorEl() { if (!SCORE.cursorEl) {
     el.setAttribute('aria-hidden', 'true');
     SCORE.cursorEl = el;
 } return SCORE.cursorEl; }
-function scoreCursorAt(beat) {
+function scoreCursorAt(beat: number) {
     const g = SCORE.geo, M = g && g.measures;
     if (!M || !M.length)
         return null;
-    let i = M.findIndex((m) => m && beat < m.b1 - 1e-9);
+    let i = M.findIndex((m: { b1: number; }) => m && beat < m.b1 - 1e-9);
     if (i < 0)
         i = M.length - 1;
     const m = M[i];
@@ -10011,7 +9984,7 @@ function scoreCursorAt(beat) {
     return { x: x0 + (x1 - x0) * f, sys: m.sys };
 }
 // Between the last onset at or before the beat and the next one on the same system, timed by the tempo map.
-function scoreAnchorAt(A, beat, sys) {
+function scoreAnchorAt(A: string|any[], beat: number, sys: any) {
     if (!A || !A.length)
         return null;
     let lo = 0, hi = A.length - 1, k = -1;
@@ -10042,7 +10015,7 @@ function scoreAnchorAt(A, beat, sys) {
     const t0 = scoreSeconds(a.beat), t1 = scoreSeconds(b.beat), at = Math.min(t1, Math.max(t0, scoreSeconds(beat))), f = t1 > t0 ? (at - t0) / (t1 - t0) : 0;
     return { x: a.x + (b.x - a.x) * f, sys };
 }
-function scoreCursorUpdate(follow) {
+function scoreCursorUpdate(follow: boolean) {
     const el = scoreCursorEl(), g = SCORE.geo, p = g && AN.notes.length && FALL.mode === 'score' ? scoreCursorAt(scoreBeatAt(fallTime())) : null, s = p && g.systems[p.sys], page = s && g.pages[s.page];
     if (!page) {
         el.remove();
@@ -10060,8 +10033,8 @@ function scoreCursorUpdate(follow) {
         scoreCursorFollow(p, s, page, g);
 }
 // Keep the cursor in view: vertically by system in page view, horizontally in continuous view.
-function scoreCursorFollow(p, s, page, g) {
-    const box = $('an-roll'), b = box.getBoundingClientRect(), r = page.getBoundingClientRect(), now = performance.now(), behavior = reduceMotion() ? 'auto' : 'smooth';
+function scoreCursorFollow(p: { x: any; sys: any; }, s: { top: number; bottom: number; }, page: { getBoundingClientRect: () => any; }, g: { scale: number; }|null) {
+    const box = byId('an-roll'), b = box.getBoundingClientRect(), r = page.getBoundingClientRect(), now = performance.now(), behavior = reduceMotion() ? 'auto' : 'smooth';
     if (!b.height)
         return;
     if (SCORE.layout === 'cont') {
@@ -10090,8 +10063,8 @@ function scoreCoralBars() {
     const L = SCORE.loop, ab = PRAC.A != null && PRAC.B != null && PRAC.B > PRAC.A, lo = L ? L.a : ab ? PRAC.A : null, hi = L ? L.b : PRAC.B;
     if (lo == null)
         return null;
-    const b0 = scoreBeatAt(lo), b1 = scoreBeatAt(hi), idx = [];
-    g.measures.forEach((m, i) => { if (m && m.b1 > b0 + 1e-6 && m.b0 < b1 - 1e-6)
+    const b0 = scoreBeatAt(lo), b1 = scoreBeatAt(hi), idx: any[] = [];
+    g.measures.forEach((m: { b1: number; b0: number; }, i: any) => { if (m && m.b1 > b0 + 1e-6 && m.b0 < b1 - 1e-6)
         idx.push(i); });
     return idx.length ? { a: idx[0], b: idx[idx.length - 1] } : null;
 }
@@ -10128,7 +10101,7 @@ function scoreMarks() {
     });
 }
 // Hit-test a click against the bars: inside a bar's box (system height) selects the bar, like clicking empty space in a MuseScore measure.
-function scoreMeasureAt(cx, cy) {
+function scoreMeasureAt(cx: number, cy: number) {
     const g = SCORE.geo;
     if (!g)
         return -1;
@@ -10151,18 +10124,18 @@ function scoreMeasureAt(cx, cy) {
     }
     return -1;
 }
-function scoreSelectMeasures(mi, extend) {
+function scoreSelectMeasures(mi: number, extend: any) {
     const g = SCORE.geo;
     if (!g || !g.measures[mi])
         return;
     scoreSelectRange(extend && SCORE.mrange ? SCORE.mrange.anchor : mi, mi);
 }
-function scoreSelectRange(anchor, mi) {
+function scoreSelectRange(anchor: number, mi: number) {
     const g = SCORE.geo;
     if (!g || !g.measures[anchor] || !g.measures[mi])
         return;
     const a = Math.min(anchor, mi), b = Math.max(anchor, mi), lo = g.measures[a].b0, hi = (g.measures[b] || g.measures[a]).b1;
-    const grid = SCORE.midiGrid || 0, q = (n) => grid ? Math.round(n.start * grid) / grid : n.start, idx = [];
+    const grid = SCORE.midiGrid || 0, q = (n: never) => grid ? Math.round(n.start * grid) / grid : n.start, idx: Iterable<any>|null|undefined = [];
     AN.notes.forEach((n, i) => { const s = q(n); if (s >= lo - 1e-6 && s < hi - 1e-6)
         idx.push(i); });
     AN.selected = new Set(idx);
@@ -10173,8 +10146,8 @@ function scoreUnlight() { if (!SCORE.lit.size)
     return; const old = SCORE.lit; SCORE.lit = new Set(); old.forEach(scorePaintIdx); }
 const reduceMotion = () =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-function anKeepVisible(g, smooth) {
-    const box = $('an-roll'), r = g.getBoundingClientRect(), b = box.getBoundingClientRect();
+function anKeepVisible(g: { getBoundingClientRect: () => any; }, smooth: boolean) {
+    const box = byId('an-roll'), r = g.getBoundingClientRect(), b = box.getBoundingClientRect();
     let top = box.scrollTop, left = box.scrollLeft;
     if (r.top < b.top + 16 || r.bottom > b.bottom - 16)
         top += r.top - b.top - b.height * .3;
@@ -10183,7 +10156,7 @@ function anKeepVisible(g, smooth) {
     if (top !== box.scrollTop || left !== box.scrollLeft)
         box.scrollTo({ top, left, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
 }
-function scoreStateText() { $('score-state').textContent = SCORE.run && SCORE.run.waitShown ? t('sc_state_wait') : SCORE.loop ? (SCORE.loop.ab ? t('sc_state_ab') : t('sc_state_loop', SCORE.loop.bars)) : SCORE.playing ? t(SCORE.sel ? 'sc_state_sel' : 'sc_state_play') : SCORE.paused ? t('sc_state_paused') : ''; }
+function scoreStateText() { byId('score-state').textContent = SCORE.run && SCORE.run.waitShown ? t('sc_state_wait') : SCORE.loop ? (SCORE.loop.ab ? t('sc_state_ab') : t('sc_state_loop', SCORE.loop.bars)) : SCORE.playing ? t(SCORE.sel ? 'sc_state_sel' : 'sc_state_play') : SCORE.paused ? t('sc_state_paused') : ''; }
 // Halt sound, timers and animation; the playback position (FALL.position) is left where it is.
 function scoreHalt() {
     SCORE.playing = false;
@@ -10195,8 +10168,8 @@ function scoreHalt() {
         SCORE.run = null;
     }
     PRAC.bar = null;
-    $('pr-count').hidden = true;
-    $('pr-hud').hidden = true;
+    byId('pr-count').hidden = true;
+    byId('pr-hud').hidden = true;
     cancelAnimationFrame(SCORE.followRaf);
     SCORE.followRaf = 0;
     scoreUnlight();
@@ -10243,7 +10216,7 @@ function scoreHome() {
     FALL.position = 0;
     scoreIdle();
     if (FALL.mode === 'score')
-        $('an-roll').scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        byId('an-roll').scrollTo({ top: 0, left: 0, behavior: 'auto' });
 }
 /* practice engine: playback runs on audio-clock segments, score time t = t0 + (now − a0)·f.
    A loop queues its next pass as a new segment ahead of time; "Wait for me" freezes the clock at a barrier (the next note of
@@ -10276,14 +10249,14 @@ function pracLoad() {
     }
     catch (e) { }
 }
-const pracMine = (n) => PRAC.hands === 'both' || anHandOf(n) === PRAC.hands;
+const pracMine = (n: never) => PRAC.hands === 'both' || anHandOf(n) === PRAC.hands;
 // My part sounds only when I am not being waited for; the other hand is the accompaniment (or muted).
-const pracSounds = (n) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
-const pracFactor = () => +($('score-speed').value || 100) / 100;
-function pracSegAt(R, now) { let s = R.segs[0]; for (const x of R.segs)
+const pracSounds = (n: any) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
+const pracFactor = () => +(selectById('score-speed').value || 100) / 100;
+function pracSegAt(R: { segs: any[]; }, now: number) { let s = R.segs[0]; for (const x of R.segs)
     if (x.a0 <= now + 1e-9)
         s = x; return s; }
-function pracRaw(R, now) { const s = pracSegAt(R, now); return { s, t: s.t0 + Math.max(0, now - s.a0) * s.f }; }
+function pracRaw(R: any, now: number) { const s = pracSegAt(R, now); return { s, t: s.t0 + Math.max(0, now - s.a0) * s.f }; }
 function pracBeats() {
     if (FALL.beatSrc === fallData() && FALL.beatTempo === SCORE.tempoList)
         return FALL.beats;
@@ -10308,15 +10281,15 @@ function pracStatsReset() {
     old.forEach(scorePaintIdx);
     pracHud();
 }
-function pracAcc(st) { const all = st.perfect + st.good + st.miss + st.wrong; return all ? (st.perfect + st.good) / all : null; }
-async function pracStart(o)  {
+function pracAcc(st: null) { const all = st.perfect + st.good + st.miss + st.wrong; return all ? (st.perfect + st.good) / all : null; }
+async function pracStart(o: { notes: any; a: any; b: any; loop: any; sel: any; from: any; ab?: any; bars?: any; })  {
     scoreHalt();
     SCORE.resume = null;
     ensureAudio();
     const gen = SCORE.playGen;
     FALL.position = o.from;
     scoreIdle();
-    const soundMidis = [...new Set(o.notes.flatMap((d) => [d.n.midi, ...(d.n.graces || []).map((g) => g.midi)]))];
+    const soundMidis = [...new Set(o.notes.flatMap((d: { n: { midi: any; graces: any; }; }) => [d.n.midi, ...(d.n.graces || []).map((g: { midi: any; }) => g.midi)]))];
     if (!await pianoEnsure(soundMidis) || gen !== SCORE.playGen)
         return;
     const f = pracFactor(), now = actx.currentTime + .1;
@@ -10328,10 +10301,10 @@ async function pracStart(o)  {
         ci = { t: now, n, sec };
         a0 = now + n * sec;
     }
-    const beats = pracBeats(), first = (t) => { const i = beats.findIndex((b) => b.t >= t - 1e-6); return i < 0 ? beats.length : i; };
-    const mine = o.notes.filter((d) => pracMine(d.n));
-    const R = { ...o, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
-    if (R.mi < 0 || !mine.some((d) => d.start >= o.from - 1e-6))
+    const beats = pracBeats(), first = (t: number) => { const i = beats.findIndex((b: { t: number; }) => b.t >= t - 1e-6); return i < 0 ? beats.length : i; };
+    const mine = o.notes.filter((d: { n: any; }) => pracMine(d.n));
+    const R = { ...o, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d: { start: number; }) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
+    if (R.mi < 0 || !mine.some((d: { start: number; }) => d.start >= o.from - 1e-6))
         R.mi = mine.length;
     SCORE.run = R;
     SCORE.playing = true;
@@ -10358,7 +10331,7 @@ function pracTick() {
         const s = R.segs[R.segs.length - 1];
         if (PRAC.wait && !PRAC.bar && R.wt !== Infinity)
             pracNextBar(R, s);
-        const B = PRAC.bar && PRAC.bar.seg === s ? PRAC.bar : null, at = (x) => s.a0 + (x - s.t0) / s.f;
+        const B = PRAC.bar && PRAC.bar.seg === s ? PRAC.bar : null, at = (x: number) => s.a0 + (x - s.t0) / s.f;
         const horizon = s.t0 + Math.max(0, H - s.a0) * s.f, lim = Math.min(horizon, s.t1, B ? B.t : Infinity);
         while (R.ni < R.notes.length) {
             const d = R.notes[R.ni];
@@ -10373,7 +10346,7 @@ function pracTick() {
             const st = Math.max(d.start, s.t0), en = R.loop ? Math.min(sound, s.t1) : sound, roll = d.n.roll || 0, onset = at(st) + roll;
             const opt = { warm: !!d.n.warm, hold: !!d.n.pedalEnd && d.n.soundEnd > d.n.end + .001 }, graces = st > d.start + 1e-6 ? [] : (d.n.graces || []), duration = Math.max(.05, (en - st) / s.f - roll);
             let carried = false;
-            graces.forEach((g, i) => {
+            graces.forEach((g: { tiedToPrincipal: any; midi: any; vel: any; }, i: number) => {
                 const when = onset - (graces.length - i) * .07, start = Math.max(now, when), carry = i === graces.length - 1 && g.tiedToPrincipal && g.midi === d.n.midi;
                 if (carry) {
                     previewNote(g.midi, start, Math.max(.05, onset + duration - start), g.vel ?? d.n.vel, opt);
@@ -10414,19 +10387,19 @@ function pracTick() {
         pracFinish(R);
 }
 // Loop: the next pass is 1 step faster (up to 100%) when the pass was clean, or always when no one is playing along.
-function pracRamp(R, s) {
+function pracRamp(R: any, s: { f: number; }) {
     if (!PRAC.ramp)
         return s.f;
     const st = PRAC.stats, acc = st.passAll ? st.passHit / st.passAll : null;
     if (PRAC.active && (acc == null || acc < .8))
         return s.f;
-    const sel = $('score-speed'), cur = Math.round(s.f * 100), next = [...sel.options].map((o) => +o.value).find((v) => v > cur && v <= 100);
+    const sel = byId('score-speed'), cur = Math.round(s.f * 100), next = [...sel.options].map((o) => +o.value).find((v) => v > cur && v <= 100);
     if (!next)
         return s.f;
     sel.value = String(next);
     return next / 100;
 }
-function pracPassEnd(R) {
+function pracPassEnd(R: { pass: number; segs: { f: number; }[]; mi: number; judged: Map<any,any>; waitShown: boolean; }) {
     const st = PRAC.stats;
     R.pass++;
     st.lastPass = st.passAll ? st.passHit / st.passAll : null;
@@ -10444,17 +10417,17 @@ function pracPassEnd(R) {
         old.forEach(scorePaintIdx);
     pracHud();
 }
-function pracNextBar(R, s) {
+function pracNextBar(R: { wt: number; mine: any[]; from: number; }, s: { t0: number; t1: number; first: any; }) {
     const from = Math.max(R.wt, s.t0);
-    const d = R.mine.find((x) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6));
+    const d = R.mine.find((x: { start: number; }) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6));
     if (!d) {
         R.wt = Infinity;
         return;
     }
-    const group = R.mine.filter((x) => Math.abs(x.start - d.start) < .03);
-    PRAC.bar = { t: d.start, need: new Set(group.map((x) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
+    const group = R.mine.filter((x: { start: number; }) => Math.abs(x.start - d.start) < .03);
+    PRAC.bar = { t: d.start, need: new Set(group.map((x: { n: { midi: any; }; }) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
 }
-function pracRelease(R, B, now) {
+function pracRelease(R: { wt: any; waitShown: boolean; }, B: never, now: number) {
     const s = B.seg, t = s.t0 + Math.max(0, now - s.a0) * s.f;
     if (t > B.t) {
         s.t0 = B.t;
@@ -10467,7 +10440,7 @@ function pracRelease(R, B, now) {
     scoreStateText();
     pracTick();
 }
-function pracMisses(R, time) {
+function pracMisses(R: { segs: { f: any; }[]; mi: number; mine: string|any[]; judged: { has: (arg0: any) => any; }; }, time: number) {
     const tol = .22 * (R.segs[0].f || 1);
     while (R.mi < R.mine.length && R.mine[R.mi].start < time - tol) {
         const d = R.mine[R.mi++];
@@ -10475,7 +10448,7 @@ function pracMisses(R, time) {
             pracJudge(R, d, 'miss');
     }
 }
-function pracJudge(R, d, j) {
+function pracJudge(R: { judged: { set: (arg0: any,arg1: any) => void; }; }, d: { i: any; }, j: string) {
     const st = PRAC.stats;
     st[j]++;
     if (j === 'perfect' || j === 'good') {
@@ -10498,7 +10471,7 @@ function pracJudge(R, d, j) {
     pracHud();
 }
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
-function pracInput(kind) {
+function pracInput(kind: string) {
     const R = SCORE.run;
     if (kind === 'on' && R && SCORE.playing && actx) {
         const m = heldOrder[heldOrder.length - 1], now = actx.currentTime;
@@ -10509,7 +10482,7 @@ function pracInput(kind) {
                 if (!B.got.has(m)) {
                     B.got.add(m);
                     const late = Math.max(0, t - B.t) / s.f;
-                    B.group.filter((x) => x.n.midi === m).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
+                    B.group.filter((x: { n: { midi: any; }; }) => x.n.midi === m).forEach((x: any) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
                 }
                 if ([...B.need].every((x) => B.got.has(x)))
                     pracRelease(R, B, now);
@@ -10533,7 +10506,7 @@ function pracInput(kind) {
         fallDraw();
 }
 function pracHud() {
-    const hud = $('pr-hud'), st = PRAC.stats;
+    const hud = byId('pr-hud'), st = PRAC.stats;
     if (!hud)
         return;
     const show = !!st && PRAC.active && AN.notes.length > 0 && (SCORE.playing || !!SCORE.run);
@@ -10541,15 +10514,15 @@ function pracHud() {
     if (!show)
         return;
     const acc = pracAcc(st);
-    $('pr-acc-v').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
-    $('pr-streak').textContent = st.streak;
-    $('pr-pass').textContent = SCORE.run ? SCORE.run.pass : 1;
-    $('pr-tempo').textContent = Math.round(((SCORE.run && SCORE.run.segs[0].f) || pracFactor()) * 100) + '%';
-    const j = $('pr-judge'), fresh = PRAC.judge && performance.now() - PRAC.judgeT < 900;
+    byId('pr-acc-v').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
+    byId('pr-streak').textContent = st.streak;
+    byId('pr-pass').textContent = SCORE.run ? SCORE.run.pass : 1;
+    byId('pr-tempo').textContent = Math.round(((SCORE.run && SCORE.run.segs[0].f) || pracFactor()) * 100) + '%';
+    const j = byId('pr-judge'), fresh = PRAC.judge && performance.now() - PRAC.judgeT < 900;
     j.dataset.j = fresh ? PRAC.judge : '';
     j.textContent = fresh ? t('pr_' + (PRAC.judge === 'miss' ? 'miss' : PRAC.judge)) : '';
 }
-function pracFinish(R) {
+function pracFinish(R: { sel: any; a: any; b: any; timer: string|number|NodeJS.Timeout|undefined; }) {
     const sel = R.sel, a = R.a, end = R.b;
     clearInterval(R.timer);
     SCORE.run = null;
@@ -10563,25 +10536,25 @@ function pracFinish(R) {
     FALL.lastT = null;
     FALL.position = sel ? a : end;
     scoreIdle();
-    $('pr-hud').hidden = true;
+    byId('pr-hud').hidden = true;
     if (PRAC.active && PRAC.stats)
         pracSummary(R);
 }
-function pracSummary(R) {
+function pracSummary(R: any) {
     const st = PRAC.stats, acc = pracAcc(st);
     PRAC.next = pracNextStep(R);
     pracNextRender();
-    $('pr-sum-acc').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
-    ['perfect', 'good', 'miss', 'wrong'].forEach((k) => { $('pr-sum-' + k).textContent = st[k]; });
-    $('pr-sum-note').textContent = t('pr_sum_note', st.best, Math.round(pracFactor() * 100) + '%');
-    $('pr-sum').hidden = false;
+    byId('pr-sum-acc').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
+    ['perfect', 'good', 'miss', 'wrong'].forEach((k) => { maybeById('pr-sum-' + k).textContent = st[k]; });
+    byId('pr-sum-note').textContent = t('pr_sum_note', st.best, Math.round(pracFactor() * 100) + '%');
+    byId('pr-sum').hidden = false;
     anSideSync();
-    $('pr-again').focus({ preventScroll: true });
+    byId('pr-again').focus({ preventScroll: true });
 }
-function pracSumClose() { $('pr-sum').hidden = true; PRAC.next = null; anSideSync(); }
+function pracSumClose() { byId('pr-sum').hidden = true; PRAC.next = null; anSideSync(); }
 // Count-in digits, the waiting state and the HUD's fading judgement follow the animation frame.
 function pracFrame() {
-    const R = SCORE.run, c = $('pr-count');
+    const R = SCORE.run, c = byId('pr-count');
     if (!R) {
         if (!c.hidden)
             c.hidden = true;
@@ -10599,10 +10572,10 @@ function pracFrame() {
         R.waitShown = waiting;
         scoreStateText();
     }
-    if (PRAC.judge && performance.now() - PRAC.judgeT > 900 && $('pr-judge').textContent)
+    if (PRAC.judge && performance.now() - PRAC.judgeT > 900 && byId('pr-judge').textContent)
         pracHud();
 }
-function pracSet(k, v) {
+function pracSet(k: string, v: string|boolean) {
     PRAC[k] = v;
     pracSave();
     if (k === 'hands') {
@@ -10620,7 +10593,7 @@ function pracSet(k, v) {
     if (FALL.mode === 'fall')
         fallDraw();
 }
-function pracSetAB(which) {
+function pracSetAB(which: string) {
     if (!AN.notes.length)
         return;
     const t0 = SCORE.playing ? fallTime() : FALL.position, ms = anMeasures(), m = anMeasureAt(scoreBeatAt(t0));
@@ -10716,7 +10689,7 @@ function scoreFollow() {
 }
 // Zoom acts on the visible view: the engraving size, or the seconds shown in falling notes.
 function anZoomNow() { return FALL.mode === 'fall' ? FALL.zoom : SCORE.zoom; }
-function scoreZoom(z) {
+function scoreZoom(z: number) {
     z = Math.round(Math.max(0.5, Math.min(2, z)) * 10) / 10;
     if (FALL.mode === 'fall') {
         if (z === FALL.zoom)
@@ -10733,12 +10706,12 @@ function scoreZoom(z) {
     if (SCORE.engine)
         scoreLayout();
 }
-function scoreSetLook(v) { SCORE.look = v === 'night' ? 'night' : 'paper'; $('an-roll').dataset.look = SCORE.look; anUpdateControls(); if (SCORE.engine)
+function scoreSetLook(v: string) { SCORE.look = v === 'night' ? 'night' : 'paper'; byId('an-roll').dataset.look = SCORE.look; anUpdateControls(); if (SCORE.engine)
     scoreLayout(); saveAll(); }
 // "Highlight sounding notes": off by default, so the notes stay black while the blue line plays through them.
-function scoreSetHl(on) { SCORE.hl = !!on; SCORE.heads.forEach((l) => l.forEach(scorePaintEl)); anUpdateControls(); saveAll(); }
+function scoreSetHl(on: boolean) { SCORE.hl = !!on; SCORE.heads.forEach((l) => l.forEach(scorePaintEl)); anUpdateControls(); saveAll(); }
 // Page | Continuous | Falling notes; the choice is remembered like the appearance.
-function scoreSetView(v) {
+function scoreSetView(v: string|undefined) {
     if (v === 'fall') {
         if (FALL.mode !== 'fall')
             fallMode('fall');
@@ -10748,9 +10721,9 @@ function scoreSetView(v) {
     const lay = v === 'cont' ? 'cont' : 'page';
     if (lay !== SCORE.layout) {
         SCORE.layout = lay;
-        $('an-roll').dataset.layout = lay;
+        byId('an-roll').dataset.layout = lay;
         SCORE.stale = !!SCORE.engine;
-        $('an-roll').scrollTo({ top: 0, left: 0 });
+        byId('an-roll').scrollTo({ top: 0, left: 0 });
     }
     if (FALL.mode !== 'score')
         fallMode('score');
@@ -10770,7 +10743,7 @@ function anKeysShown() { return view0() === 'analysis' && dockShown(); }
 // Keep still what is being read: the score's top edge while the score fills the upper half of the view (it simply grows or
 // shrinks at the bottom), otherwise what follows it.
 function anKeepPlace() {
-    const stage = $('an-stage'), r = stage.getBoundingClientRect(), root = document.documentElement;
+    const stage = byId('an-stage'), r = stage.getBoundingClientRect(), root = document.documentElement;
     const header = document.querySelector('header') || document.body;
     const below = r.height > 0 && r.bottom < (header.getBoundingClientRect().bottom + innerHeight) / 2; // same split in both states, so a round trip returns to the same place
     root.style.overflowAnchor = 'none'; // the browser's own scroll anchoring would hold the score and push what follows down
@@ -10779,28 +10752,28 @@ function anKeepPlace() {
 }
 // The score viewport is sized in CSS from these: 100dvh − header − toolbar − status bar − dock (when shown).
 function anLayoutVars() {
-    const st = document.documentElement.style, h = (el) => el && !el.hidden ? Math.round(el.getBoundingClientRect().height) : 0, dock = $('dock');
+    const st = document.documentElement.style, h = (el: HTMLElement|null) => el && !el.hidden ? Math.round(el.getBoundingClientRect().height) : 0, dock = byId('dock');
     st.setProperty('--hdr-h', h((document).querySelector('header')) + 'px');
     st.setProperty('--dock-h', (document.body.classList.contains('kb') ? h(dock) : 0) + 'px');
-    st.setProperty('--an-tb-h', h($('an-tbwrap')) + 'px');
-    st.setProperty('--an-sb-h', h($('an-status')) + 'px');
-    st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? $('an-side') : $('an-status')) + 'px');
+    st.setProperty('--an-tb-h', h(byId('an-tbwrap')) + 'px');
+    st.setProperty('--an-sb-h', h(byId('an-status')) + 'px');
+    st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
     anPinToolbarLater();
 }
 // Keep transport reachable while the page is scrolled below the score card's title row.
 function anPinToolbar() {
     AN.pinRaf = 0;
-    const tb = $('an-tbwrap');
+    const tb = byId('an-tbwrap');
     const active = view0() === 'analysis' && AN.notes.length && !tb.hidden;
     if (!active) {
         tb.classList.remove('is-floating');
         return;
     }
     const header = document.querySelector('header') || document.body, headBottom = header.getBoundingClientRect().bottom;
-    const source = $('an-src').getBoundingClientRect(), section = $('view-analysis').getBoundingClientRect();
+    const source = byId('an-src').getBoundingClientRect(), section = byId('view-analysis').getBoundingClientRect();
     const pin = source.bottom <= headBottom + 1 && section.bottom > headBottom + tb.offsetHeight + 12;
     if (pin) {
-        const r = $('an-panel').getBoundingClientRect();
+        const r = byId('an-panel').getBoundingClientRect();
         tb.style.setProperty('--an-pin-x', Math.round(r.left) + 'px');
         tb.style.setProperty('--an-pin-w', Math.round(r.width) + 'px');
     }
@@ -10814,23 +10787,23 @@ function anFocusStage(smooth = false) {
         return;
     anLayoutVars();
     const header = document.querySelector('header') || document.body;
-    const y = $('an-stage').getBoundingClientRect().top + window.scrollY - header.getBoundingClientRect().height - $('an-tbwrap').getBoundingClientRect().height;
+    const y = byId('an-stage').getBoundingClientRect().top + window.scrollY - header.getBoundingClientRect().height - byId('an-tbwrap').getBoundingClientRect().height;
     if (Math.abs(window.scrollY - y) > 1)
         window.scrollTo({ top: Math.max(0, Math.round(y)), behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
 }
 /* status bar: the position text is not a live region (no announcements while playing); selection changes are announced once, debounced */
-function anTempoAt(beat) { let bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
+function anTempoAt(beat: number) { let bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
     if (e.beat <= beat + 1e-6)
         bpm = e.bpm;
     else
         break;
 } return bpm; }
-function anStatusPos(time) {
+function anStatusPos(time: number|null|undefined) {
     if (!AN.notes.length)
         return;
     const t0 = time != null ? time : fallTime(), beat = scoreBeatAt(t0), m = anMeasureAt(beat) || { number: '1', start: 0, num: 4, den: 4 }, u = anBeatUnit(m);
     const beats = Math.max(1, Math.round(m.num * 4 / m.den / u)), bt = Math.min(beats, Math.max(1, Math.floor((beat - m.start) / u + 1e-6) + 1));
-    const set = (id, v) => { const el = $(id); if (el.textContent !== v)
+    const set = (id: string, v: string|null) => { const el = maybeById(id); if (el.textContent !== v)
         el.textContent = v; };
     set('st-bar', t('st_bar', m.number));
     set('st-beat', t('st_beat', bt));
@@ -10843,24 +10816,24 @@ function anStatusPos(time) {
     anTlUpdate(t0);
 }
 function anStatusSel() {
-    const el = $('st-sel'), n = AN.selected.size, R = SCORE.mrange, ms = anMeasures(), num = (i) => (ms[i] || { number: String(i + 1) }).number;
+    const el = byId('st-sel'), n = AN.selected.size, R = SCORE.mrange, ms = anMeasures(), num = (i: number) => (ms[i] || { number: String(i + 1) }).number;
     const txt = R ? t('st_msel', R.a === R.b ? t('an_bar1', num(R.a)) : t('an_bars', num(R.a), num(R.b)), n) : n ? (n === 1 ? t('st_sel1') : t('st_sel', n)) : '';
     if (el.textContent === txt)
         return;
     el.textContent = txt;
     clearTimeout(AN.liveT);
-    AN.liveT = setTimeout(() => { $('st-live').textContent = txt; }, 500);
+    AN.liveT = setTimeout(() => { byId('st-live').textContent = txt; }, 500);
 }
-function anActiveChord(sel) {
+function anActiveChord(sel: any[]) {
     if (AN.active && AN.active.kind === 'chord' && AN.view) {
         const seg = AN.view.segs[AN.active.k];
         if (seg)
             return { root: seg.ch.root, pcs: seg.ch.c.p };
     }
-    const id = identifyChord([...new Set(sel.map((n) => n.midi))]);
+    const id = identifyChord([...new Set(sel.map((n: { midi: any; }) => n.midi))]);
     return id ? { root: id.rootPc, pcs: id.chord.pcset } : null;
 }
-function anSegAt(beat) {
+function anSegAt(beat: number) {
     const all = AN.notes.length ? anCompute(AN.notes, 'all').segs : [];
     let lo = 0, hi = all.length - 1;
     while (lo <= hi) {
@@ -10874,7 +10847,7 @@ function anSegAt(beat) {
     }
     return null;
 }
-function anKeysPaint(force) {
+function anKeysPaint(force: boolean|undefined) {
     if (force)
         AN.kbApplied = new Map();
     if (!anKeysShown()) {
@@ -10927,41 +10900,41 @@ function anKeysCenter() {
 function anOriginText() { const o = AN.keyOrigin; return t(o === 'file' ? (AN.source && AN.source.kind === 'example' ? 'an_origin_piece' : 'an_origin_file') : o === 'manual' ? 'an_origin_manual' : o === 'mode' ? 'an_origin_mode' : 'an_origin_auto'); }
 // The passage the Practice tab and Read & Play work on: the selected bars or notes, else the whole piece.
 function anScopeNotes() { const f = anFocus(false); return f && f.kind !== 'cursor' ? anFocusNotes(f) : AN.notes; }
-function anBarsLabel(ns, L) {
-    const a = anMeasureAt(Math.min(...ns.map((n) => n.start))).number, b = anMeasureAt(Math.max(...ns.map((n) => n.start))).number;
+function anBarsLabel(ns: any[], L: string|undefined) {
+    const a = anMeasureAt(Math.min(...ns.map((n: { start: any; }) => n.start))).number, b = anMeasureAt(Math.max(...ns.map((n: { start: any; }) => n.start))).number;
     return a === b ? tl(L || lang, 'an_bar1', a) : tl(L || lang, 'an_bars', a, b);
 }
-function anNum(x, d) { return (Math.round(x * Math.pow(10, d)) / Math.pow(10, d)).toLocaleString(LOCALE_TAGS[lang] || lang); }
-function anClock(sec) { const s = Math.max(0, sec); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
-function anChordLabel(seg, key) { const ch = seg.ch; return spellName(60 + ch.root, key) + ch.c.s + (seg.bass !== ch.root ? '/' + spellName(60 + seg.bass, key) : ''); }
-function anBeatText(seg) {
-    const m = seg.measure, u = seg.unit, b1 = 1 + (seg.start - m.start) / u, b2 = (seg.end - m.start) / u, f = (x) => anNum(x, 1);
+function anNum(x: number, d: number) { return (Math.round(x * Math.pow(10, d)) / Math.pow(10, d)).toLocaleString(LOCALE_TAGS[lang] || lang); }
+function anClock(sec: number) { const s = Math.max(0, sec); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
+function anChordLabel(seg: { ch: any; bass: number; }, key: { root: number; minor: boolean; fifths: number; }) { const ch = seg.ch; return spellName(60 + ch.root, key) + ch.c.s + (seg.bass !== ch.root ? '/' + spellName(60 + seg.bass, key) : ''); }
+function anBeatText(seg: { measure: any; unit: any; start: number; end: number; }) {
+    const m = seg.measure, u = seg.unit, b1 = 1 + (seg.start - m.start) / u, b2 = (seg.end - m.start) / u, f = (x: number) => anNum(x, 1);
     return b2 - b1 < 1e-6 ? t('an_beat', f(b1)) : t('an_beats', f(b1) + '–' + f(b2));
 }
-function anDetText(ch) { return t('an_det_' + ch.det); }
+function anDetText(ch: { det: string; }) { return t('an_det_' + ch.det); }
 // What each hand plays in a chord span, low to high, each pitch class once: "RH E G C · LH C G".
-function anHandsText(seg, key) {
+function anHandsText(seg: { notes: any[]; }, key: { root: number; minor: boolean; fifths: number; }) {
     const by = { rh: [], lh: [] };
-    seg.notes.slice().sort((a, b) => a.midi - b.midi).forEach((n) => { const h = by[anHandOf(n)], p = pc(n.midi); if (!h.some((m) => pc(m) === p))
+    seg.notes.slice().sort((a: { midi: number; }, b: { midi: number; }) => a.midi - b.midi).forEach((n: { midi: number; }) => { const h = by[anHandOf(n)], p = pc(n.midi); if (!h.some((m: number) => pc(m) === p))
         h.push(n.midi); });
-    return ['rh', 'lh'].filter((h) => by[h].length).map((h) => t('an_' + h) + ' ' + by[h].slice(0, 6).map((m) => spellName(m, key)).join(' ') + (by[h].length > 6 ? ' …' : '')).join(' · ');
+    return ['rh', 'lh'].filter((h) => by[h].length).map((h) => t('an_' + h) + ' ' + by[h].slice(0, 6).map((m: any) => spellName(m, key)).join(' ') + (by[h].length > 6 ? ' …' : '')).join(' · ');
 }
 // Where the hands come from: the two staves, MIDI tracks, the piece's own parts, or the register.
 function anHandsSource() {
-    const h = AN.hands, at = (m) => spellName(m, null, true);
+    const h = AN.hands, at = (m: number) => spellName(m, null, true);
     if (!h)
         return AN.notes.some((n) => n.hand) ? t('an_hsrc_staves') : t('an_hsrc_est', at(60));
     return h.how === 'tracks' ? t('an_hsrc_tracks') : h.how === 'piece' ? t('an_hsrc_piece') : t(h.how === 'split' ? 'an_hsrc_split' : 'an_hsrc_est', at(h.split));
 }
-function anNctText(seg, key) {
+function anNctText(seg: { nct: any[]; }, key: { root: number; minor: boolean; fifths: number; }) {
     if (!seg || !seg.nct || !seg.nct.length)
         return '';
     return ['suspension', 'anticipation', 'passing', 'neighbor', 'other'].map((type) => {
-        const names = [...new Set(seg.nct.filter((x) => x.type === type).map((x) => spellName(x.note.midi, key, true)))];
+        const names = [...new Set(seg.nct.filter((x: { type: string; }) => x.type === type).map((x: { note: { midi: any; }; }) => spellName(x.note.midi, key, true)))];
         return names.length ? t('an_nct_' + type) + ': ' + names.join(', ') : '';
     }).filter(Boolean).join(' · ');
 }
-function anSegIndexAt(segs, beat) { let lo = 0, hi = segs.length - 1; while (lo <= hi) {
+function anSegIndexAt(segs: string|any[], beat: number) { let lo = 0, hi = segs.length - 1; while (lo <= hi) {
     const mid = (lo + hi) >> 1, s = segs[mid];
     if (beat < s.start - 1e-6)
         hi = mid - 1;
@@ -10970,11 +10943,11 @@ function anSegIndexAt(segs, beat) { let lo = 0, hi = segs.length - 1; while (lo 
     else
         return mid;
 } return -1; }
-function anInView(el, box) { const r = el.getBoundingClientRect(), p = box.getBoundingClientRect(); return r.bottom > p.top + 4 && r.top < p.bottom - 4; }
+function anInView(el: Element, box: RuntimeElement) { const r = el.getBoundingClientRect(), p = box.getBoundingClientRect(); return r.bottom > p.top + 4 && r.top < p.bottom - 4; }
 // The sounding chord is marked in both tabs. The Piece tab scrolls along only while its reader is following: the previous
 // chord was on screen and the list has not been scrolled by hand for a few seconds.
-function anSyncTimeline(time, follow) {
-    const side = $('an-side'), v = AN.view;
+function anSyncTimeline(time: number|null, follow: boolean) {
+    const side = byId('an-side'), v = AN.view;
     if (!side || side.hidden || !v)
         return;
     const idx = anSegIndexAt(v.segs, scoreBeatAt(time != null ? time : fallTime())), sig = AN.wsSig + '|' + SIDE.nowSig + '|' + idx;
@@ -10982,7 +10955,7 @@ function anSyncTimeline(time, follow) {
         return;
     AN.playSig = sig;
     AN.playSeg = idx;
-    const ws = $('an-ws'), prev = ws.querySelector('.an-ch.is-current'), seen = !!prev && !ws.hidden && anInView(prev, ws);
+    const ws = byId('an-ws'), prev = ws.querySelector('.an-ch.is-current'), seen = !!prev && !ws.hidden && anInView(prev, ws);
     side.querySelectorAll('.an-ch.is-current').forEach((el) => { el.classList.remove('is-current'); el.removeAttribute('aria-current'); });
     side.querySelectorAll('.an-prog-row.is-current').forEach((el) => el.classList.remove('is-current'));
     if (idx < 0)
@@ -10997,93 +10970,93 @@ function anSyncTimeline(time, follow) {
 }
 function anUpdateControls() {
     const has = AN.notes.length > 0, sel = AN.selected.size > 0, busy = AN.loading, fall = FALL.mode === 'fall', sheet = has && !fall, playing = SCORE.playing;
-    $('an-tbwrap').hidden = !has;
-    $('an-status').hidden = !has;
-    $('an-stage').dataset.mode = fall && has ? 'fall' : 'score';
-    $('an-roll').hidden = fall && has;
-    $('fall-wrap').hidden = !fall || !has;
-    const pb = $('score-play'), pk = playing ? 'sc_pause_k' : 'sc_play_k';
+    byId('an-tbwrap').hidden = !has;
+    byId('an-status').hidden = !has;
+    byId('an-stage').dataset.mode = fall && has ? 'fall' : 'score';
+    byId('an-roll').hidden = fall && has;
+    byId('fall-wrap').hidden = !fall || !has;
+    const pb = byId('score-play'), pk = playing ? 'sc_pause_k' : 'sc_play_k';
     pb.disabled = !has || busy;
     pb.dataset.state = playing ? 'pause' : 'play';
     pb.setAttribute('aria-label', t(pk));
     pb.title = t(pk);
-    [['sc-start', 'sc_start_k'], ['score-stop', 'sc_stop_k'], ['an-play', 'an_play'], ['an-loop', 'an_loop_k'], ['an-clear', 'an_clear_k'], ['an-recon-btn', 'an_recon_k']].forEach(([id, k] = []) => { $(id).setAttribute('aria-label', t(k)); $(id).title = t(k); });
-    $('sc-start').disabled = !has;
-    $('score-stop').disabled = !has;
-    $('score-speed').disabled = !has;
+    [['sc-start', 'sc_start_k'], ['score-stop', 'sc_stop_k'], ['an-play', 'an_play'], ['an-loop', 'an_loop_k'], ['an-clear', 'an_clear_k'], ['an-recon-btn', 'an_recon_k']].forEach(([id, k] = []) => { maybeById(id).setAttribute('aria-label', t(k)); maybeById(id).title = t(k); });
+    buttonById('sc-start').disabled = !has;
+    buttonById('score-stop').disabled = !has;
+    selectById('score-speed').disabled = !has;
     const ab = PRAC.A != null && PRAC.B != null;
-    $('an-play').disabled = !sel || busy;
-    $('an-loop').disabled = (!sel && !ab && !SCORE.loop) || busy;
-    $('an-clear').disabled = !sel && !SCORE.mrange;
-    $('an-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
+    buttonById('an-play').disabled = !sel || busy;
+    buttonById('an-loop').disabled = (!sel && !ab && !SCORE.loop) || busy;
+    buttonById('an-clear').disabled = !sel && !SCORE.mrange;
+    byId('an-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
     (document).querySelectorAll('#an-mode button').forEach((b) => { const v = b.dataset.scoreMode; b.disabled = !has; b.setAttribute('aria-pressed', (v === 'fall' ? fall : !fall && SCORE.layout === v) ? 'true' : 'false'); });
     const z = anZoomNow(), zs = Math.round(z * 100) + '%';
-    $('sc-zoom-out').disabled = !has || z <= 0.5 + 1e-6;
-    $('sc-zoom-in').disabled = !has || z >= 2 - 1e-6;
-    $('sc-zoom-reset').disabled = !has;
-    $('sc-zoom-reset').textContent = zs;
-    $('sc-zoom-reset').setAttribute('aria-label', t('sc_zoom_reset', zs));
-    $('sc-zoom-reset').title = t(fall ? 'fall_zoom_t' : 'sc_zoom_reset', zs);
+    buttonById('sc-zoom-out').disabled = !has || z <= 0.5 + 1e-6;
+    buttonById('sc-zoom-in').disabled = !has || z >= 2 - 1e-6;
+    buttonById('sc-zoom-reset').disabled = !has;
+    byId('sc-zoom-reset').textContent = zs;
+    byId('sc-zoom-reset').setAttribute('aria-label', t('sc_zoom_reset', zs));
+    byId('sc-zoom-reset').title = t(fall ? 'fall_zoom_t' : 'sc_zoom_reset', zs);
     (document).querySelectorAll('#sc-look button').forEach((b) => { b.disabled = !sheet; b.setAttribute('aria-pressed', b.dataset.v === SCORE.look ? 'true' : 'false'); });
-    const hl = $('sc-hl');
+    const hl = byId('sc-hl');
     hl.disabled = !sheet;
     hl.setAttribute('aria-pressed', SCORE.hl ? 'true' : 'false');
     hl.setAttribute('aria-label', t('sc_hl'));
     hl.title = t('sc_hl_t');
     // The toolbar toggle is named Keyboard and reports expanded or collapsed; the dock's own button names the action it takes.
-    const open = sheet && dockOpen(), kb = $('an-kb');
+    const open = sheet && dockOpen(), kb = byId('an-kb');
     kb.disabled = !sheet;
     kb.setAttribute('aria-expanded', open ? 'true' : 'false');
     kb.title = fall && has ? t('an_kb_fall') : t(open ? 'kb_hide' : 'kb_show');
     const ron = !!AN.source && AN.source.kind !== 'xml';
-    $('an-recon-btn').hidden = !ron;
+    byId('an-recon-btn').hidden = !ron;
     if (!ron)
         anReconOpen(false);
-    $('score-credit').hidden = !has || fall;
-    $('st-hint').textContent = t(fall ? 'fall_hint' : 'an_hint');
+    byId('score-credit').hidden = !has || fall;
+    byId('st-hint').textContent = t(fall ? 'fall_hint' : 'an_hint');
     // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to the falling-notes display options
     (document).querySelectorAll('#an-toolbar .an-zoom,#sc-look,#sc-hl,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
-    $('fall-opt').hidden = !(fall && has);
+    byId('fall-opt').hidden = !(fall && has);
     if (fall && has)
-        $('an-kb').setAttribute('aria-expanded', 'false');
+        byId('an-kb').setAttribute('aria-expanded', 'false');
     if (!(fall && has))
         anPop('fall-pop', false);
-    $('an-tl').hidden = !has;
-    $('an-loop').title = $('an-loop').getAttribute('aria-label') + (ab && !sel ? ' · A–B' : '');
-    $('an-metro').setAttribute('aria-pressed', PRAC.metro ? 'true' : 'false');
-    $('an-metro').title = t('an_metro_t');
-    $('an-metro').setAttribute('aria-label', t('an_metro_t'));
+    byId('an-tl').hidden = !has;
+    byId('an-loop').title = byId('an-loop').getAttribute('aria-label') + (ab && !sel ? ' · A–B' : '');
+    byId('an-metro').setAttribute('aria-pressed', PRAC.metro ? 'true' : 'false');
+    byId('an-metro').title = t('an_metro_t');
+    byId('an-metro').setAttribute('aria-label', t('an_metro_t'));
     (document).querySelectorAll('#pr-hands button,#pt-hands button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.h === PRAC.hands ? 'true' : 'false'));
-    $('pr-wait').setAttribute('aria-pressed', PRAC.wait ? 'true' : 'false');
-    $('pr-wait').title = t('pr_wait_t');
-    $('pt-wait').checked = PRAC.wait;
-    $('pt-metro').checked = PRAC.metro;
-    $('pr-countin').checked = PRAC.countIn;
-    $('pt-speed').value = $('score-speed').value;
-    $('pt-speed').disabled = !has;
-    $('pr-opt').title = t('pr_opt_t');
-    $('pr-opt').setAttribute('aria-label', t('pr_opt_t'));
-    $('fall-opt').title = t('fall_disp_t');
-    $('pr-clrab').disabled = PRAC.A == null && PRAC.B == null;
-    $('fall-finger-note').textContent = t(has && !anHasFinger() ? 'fall_finger_none' : 'fall_finger_note');
+    byId('pr-wait').setAttribute('aria-pressed', PRAC.wait ? 'true' : 'false');
+    byId('pr-wait').title = t('pr_wait_t');
+    inputById('pt-wait').checked = PRAC.wait;
+    inputById('pt-metro').checked = PRAC.metro;
+    inputById('pr-countin').checked = PRAC.countIn;
+    selectById('pt-speed').value = selectById('score-speed').value;
+    selectById('pt-speed').disabled = !has;
+    byId('pr-opt').title = t('pr_opt_t');
+    byId('pr-opt').setAttribute('aria-label', t('pr_opt_t'));
+    byId('fall-opt').title = t('fall_disp_t');
+    buttonById('pr-clrab').disabled = PRAC.A == null && PRAC.B == null;
+    byId('fall-finger-note').textContent = t(has && !anHasFinger() ? 'fall_finger_none' : 'fall_finger_note');
     dockSync();
     anSideSync();
     scoreMarks();
-    $('an-now-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
-    $('pt-start').textContent = t(playing ? 'pt_stop' : 'pt_start');
-    $('pt-start').disabled = !has || busy;
-    $('an-example').disabled = busy;
+    byId('an-now-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
+    byId('pt-start').textContent = t(playing ? 'pt_stop' : 'pt_start');
+    buttonById('pt-start').disabled = !has || busy;
+    selectById('an-example').disabled = busy;
     (document).querySelectorAll('#an-roll .an-ex,#an-roll [data-an-open]').forEach((b) => { b.disabled = busy; });
     if (has) {
         anStatusSel();
         anRenderPractice();
     }
 }
-function anReconOpen(open) { const b = $('an-recon-btn'), p = $('an-recon'), on = !!open && !b.hidden; p.hidden = !on; b.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+function anReconOpen(open: boolean) { const b = byId('an-recon-btn'), p = byId('an-recon'), on = !!open && !b.hidden; p.hidden = !on; b.setAttribute('aria-expanded', on ? 'true' : 'false'); }
 function anAnalyze() {
     anUpdateControls();
     if (!AN.notes.length) {
-        $('an-ws').innerHTML = '';
+        byId('an-ws').innerHTML = '';
         AN.view = null;
         AN.wsSig = '';
         anRenderNow();
@@ -11109,27 +11082,27 @@ function anAnalyze() {
 const SIDE = { open: true, tab: 'now', w: 340, sheet: false, drag: false, nowSig: '', ptSig: '', liveT: 0, handScroll: 0, deferred: false };
 const AN_TABS = ['now', 'piece', 'practice'];
 function anNarrow() { return (window).matchMedia('(max-width: 999px)').matches; }
-function anSideVisible(tab) { const side = $('an-side'); return !!side && !side.hidden && (anNarrow() ? SIDE.sheet : SIDE.open) && (!tab || SIDE.tab === tab); }
+function anSideVisible(tab: string) { const side = byId('an-side'); return !!side && !side.hidden && (anNarrow() ? SIDE.sheet : SIDE.open) && (!tab || SIDE.tab === tab); }
 function anSideSync() {
-    const side = $('an-side'), work = $('an-work'), btn = $('an-side-btn'), fab = $('an-fab'), has = AN.notes.length > 0, narrow = anNarrow(), open = has && (narrow ? SIDE.sheet : SIDE.open);
+    const side = byId('an-side'), work = byId('an-work'), btn = byId('an-side-btn'), fab = byId('an-fab'), has = AN.notes.length > 0, narrow = anNarrow(), open = has && (narrow ? SIDE.sheet : SIDE.open);
     side.hidden = !has || (!narrow && !SIDE.open);
     side.classList.toggle('is-open', narrow && open);
     work.classList.toggle('has-sheet', narrow && open);
     work.classList.toggle('no-side', !has || narrow || !SIDE.open);
     work.style.setProperty('--an-side-w', SIDE.w + 'px');
-    $('an-side-resize').setAttribute('aria-valuenow', String(SIDE.w));
+    byId('an-side-resize').setAttribute('aria-valuenow', String(SIDE.w));
     btn.hidden = !has;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     btn.title = t(open ? 'an_side_hide' : 'an_side_show');
-    fab.hidden = !has || !narrow || SIDE.sheet || !$('pr-sum').hidden;
+    fab.hidden = !has || !narrow || SIDE.sheet || !byId('pr-sum').hidden;
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
-    const pt = $('pr-opt');
+    const pt = byId('pr-opt');
     pt.setAttribute('aria-expanded', open && SIDE.tab === 'practice' ? 'true' : 'false');
 }
-function anSideSet(open) { SIDE.open = !!open; saveAll(); anSideSync(); }
+function anSideSet(open: boolean) { SIDE.open = !!open; saveAll(); anSideSync(); }
 // The sheet is not modal: the score above it stays live. Opening moves focus to the active tab; closing returns it to the button.
 // While it is open the score viewport ends where the sheet begins, so everything in the score can still be scrolled to.
-function anSheet(open, quiet) {
+function anSheet(open: boolean, quiet: boolean|undefined) {
     const want = !!open && AN.notes.length > 0;
     if (want === SIDE.sheet)
         return;
@@ -11145,23 +11118,23 @@ function anSheet(open, quiet) {
         if (tab)
             tab.focus({ preventScroll: true });
     }
-    else if ($('an-side').contains(document.activeElement) && !$('an-fab').hidden)
-        $('an-fab').focus({ preventScroll: true });
+    else if (byId('an-side').contains(document.activeElement) && !byId('an-fab').hidden)
+        byId('an-fab').focus({ preventScroll: true });
 }
-function anTab(tab, focus) {
+function anTab(tab: string, focus: boolean|undefined) {
     SIDE.tab = AN_TABS.includes(tab) ? tab : 'now';
     (document).querySelectorAll('#an-tabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === SIDE.tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus)
         b.focus({ preventScroll: true }); });
-    $('an-now').hidden = SIDE.tab !== 'now';
-    $('an-ws').hidden = SIDE.tab !== 'piece';
-    $('an-pt').hidden = SIDE.tab !== 'practice';
-    $('pr-opt').setAttribute('aria-expanded', anSideVisible('practice') ? 'true' : 'false');
+    byId('an-now').hidden = SIDE.tab !== 'now';
+    byId('an-ws').hidden = SIDE.tab !== 'piece';
+    byId('an-pt').hidden = SIDE.tab !== 'practice';
+    byId('pr-opt').setAttribute('aria-expanded', anSideVisible('practice') ? 'true' : 'false');
     if (SIDE.tab === 'piece')
         anRevealPieceRow(false);
     saveAll();
 }
 // Toolbar shortcuts into the panel (Practice options): show the tab, open the panel or sheet if needed, focus its first control.
-function anOpenTab(tab) {
+function anOpenTab(tab: string) {
     AN_POPS.forEach(([p] = []) => anPop(p, false));
     anReconOpen(false);
     anTab(tab);
@@ -11170,7 +11143,7 @@ function anOpenTab(tab) {
     else if (!SIDE.open)
         anSideSet(true);
     anSideSync();
-    const panel = $(tab === 'practice' ? 'an-pt' : tab === 'piece' ? 'an-ws' : 'an-now'), first = panel.querySelector('button:not([disabled]):not([hidden]),input,select');
+    const panel = maybeById(tab === 'practice' ? 'an-pt' : tab === 'piece' ? 'an-ws' : 'an-now'), first = panel.querySelector('button:not([disabled]):not([hidden]),input,select');
     (first || panel).focus({ preventScroll: true });
 }
 // What Now is about: the bar being played (while playing), else the selected bars, else the bars of the selected notes, else
@@ -11179,13 +11152,13 @@ function anFocus(follow = true) {
     const ms = anMeasures();
     if (!AN.notes.length || !ms.length)
         return null;
-    const at = (beat) => { let i = 0; for (let j = 0; j < ms.length; j++) {
+    const at = (beat: number) => { let i = 0; for (let j = 0; j < ms.length; j++) {
         if (ms[j].start <= beat + 1e-6)
             i = j;
         else
             break;
     } return i; };
-    const span = (a, b, kind) => ({ kind, a, b, lo: ms[a].start, hi: ms[b].end });
+    const span = (a: number, b: number, kind: string) => ({ kind, a, b, lo: ms[a].start, hi: ms[b].end });
     if (follow && SCORE.playing) {
         const i = at(scoreBeatAt(fallTime()));
         return span(i, i, 'play');
@@ -11201,12 +11174,12 @@ function anFocus(follow = true) {
     const i = at(scoreBeatAt(FALL.position));
     return span(i, i, 'cursor');
 }
-function anFocusNotes(f) {
+function anFocusNotes(f: { kind: any; a?: any; b?: any; lo: any; hi: any; }) {
     if (!f)
         return [];
     if (f.kind === 'sel')
         return [...AN.selected].sort((a, b) => a - b).map((i) => AN.notes[i]).filter(Boolean);
-    const grid = SCORE.midiGrid || 0, q = (n) => grid ? Math.round(n.start * grid) / grid : n.start;
+    const grid = SCORE.midiGrid || 0, q = (n: never) => grid ? Math.round(n.start * grid) / grid : n.start;
     return AN.notes.filter((n) => { const s = q(n); return s >= f.lo - 1e-6 && s < f.hi - 1e-6; });
 }
 // Listen, Loop and Practice play exactly what the coral band shows: whole bars (or the selected notes), which become the selection.
@@ -11219,7 +11192,7 @@ function anCommitFocus() {
     const g = SCORE.geo;
     if (!g)
         return false;
-    const gi = (beat) => g.measures.findIndex((m) => m && beat >= m.b0 - 1e-6 && beat < m.b1 - 1e-6), a = gi(f.lo), b = gi(f.hi - 1e-4);
+    const gi = (beat: number) => g.measures.findIndex((m: { b0: number; b1: number; }) => m && beat >= m.b0 - 1e-6 && beat < m.b1 - 1e-6), a = gi(f.lo), b = gi(f.hi - 1e-4);
     if (a < 0 || b < 0)
         return false;
     const R = SCORE.mrange;
@@ -11228,7 +11201,7 @@ function anCommitFocus() {
     return AN.selected.size > 0;
 }
 // Harmonic function from the scale degree (Riemann-style T / S / D); secondary dominants name their target.
-function anFunctionOf(key, seg, rn) {
+function anFunctionOf(key: { root: any; minor: any; fifths?: number; }, seg: { ch: { root: number; }; }, rn: string) {
     if (rn.includes('/'))
         return t('an_fn_sec', rn.slice(rn.indexOf('/') + 1));
     const rel = ((seg.ch.root - key.root) % 12 + 12) % 12, f = (key.minor ? ({ 0: 'T', 3: 'T', 8: 'T', 2: 'S', 5: 'S', 7: 'D', 10: 'D', 11: 'D' } ) : ({ 0: 'T', 4: 'T', 9: 'T', 2: 'S', 5: 'S', 7: 'D', 11: 'D' } ))[rel];
@@ -11236,18 +11209,18 @@ function anFunctionOf(key, seg, rn) {
 }
 // One chord of the progression: symbol, Roman numeral, beats and how sure the reading is; the full reading, with what each hand
 // plays, is its accessible name.
-function anChipHTML(s, i, rove) {
+function anChipHTML(s: { start: any; ch: { conf: any; alts: any[]; }; cad: string; measure: { number: string; }; end: any; }, i: any, rove: boolean|null) {
     const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), beats = anBeatText(s), conf = s.ch.conf;
-    const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), cad = s.cad ? t('an_cad_' + s.cad) : '', det = anDetText(s.ch), nct = anNctText(s, key);
+    const alts = s.ch.alts.map((a: { root: number; c: { s: string; }; }) => spellName(60 + a.root, key) + a.c.s).join(', '), cad = s.cad ? t('an_cad_' + s.cad) : '', det = anDetText(s.ch), nct = anNctText(s, key);
     const label = [t('an_bar') + ' ' + s.measure.number, beats, lab, rn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), anHandsText(s, key), nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
     const time = anClock(scoreSeconds(s.start)) + '–' + anClock(scoreSeconds(s.end));
     return `<button type="button" class="an-ch" data-k="${i}" data-conf="${conf}"${rove == null ? '' : ` tabindex="${rove ? 0 : -1}"`} aria-pressed="false" aria-label="${esc(label)}" title="${esc(label + ' · ' + time)}"><span class="an-ch-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-ch-rn">${esc(rn)}</span><span class="an-ch-t">${esc(beats + ' · ' + det)}</span>${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>`
         + (cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : '');
 }
 // Chords grouped by bar; each row carries its bar index so the selected bars can be marked.
-function anRowsHTML(list, rove) {
+function anRowsHTML(list: {}[], rove: number|null|undefined) {
     const ms = anMeasures();
-    let html = '', bar = null;
+    let html = '', bar: null = null;
     list.forEach(({ s, k } = {}) => {
         if (s.measure !== bar) {
             if (bar)
@@ -11261,11 +11234,11 @@ function anRowsHTML(list, rove) {
 }
 // A chord of the bar in focus, in full: symbol and numeral, function, inversion and bass, beats, how sure the reading is, what
 // each hand plays, non-chord tones.
-function anNowCard({ s, k } = {}, implied) {
+function anNowCard({ s, k } = {}, implied: any) {
     const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
     const inv = implied ? 0 : anInv(s), slash = !implied && s.bass !== s.ch.root;
     const fn = [anFunctionOf(key, s, rn), implied ? t('an_implied') : open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + s.bass, key)) : ''].filter(Boolean).join(' · ');
-    const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
+    const alts = s.ch.alts.map((a: { root: number; c: { s: string; }; }) => spellName(60 + a.root, key) + a.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
     const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, key), cad = s.cad ? t('an_cad_' + s.cad) : '';
     const label = [t('an_bar') + ' ' + s.measure.number, anBeatText(s), lab, rn, fn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), hands, nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
     return `<li><button type="button" class="an-ch an-nc" data-k="${k}" data-conf="${conf}" aria-pressed="false" aria-label="${esc(label)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>${cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : ''}</li>`;
@@ -11273,19 +11246,19 @@ function anNowCard({ s, k } = {}, implied) {
 // Now: rebuilt only when its bar(s) change. While playing it follows the music, but never pulls the content from under a
 // focused control (it catches up when focus leaves) and never scrolls the panel.
 function anRenderNow() {
-    const body = $('an-now-body');
+    const body = byId('an-now-body');
     if (!body)
         return;
-    const f = AN.view ? anFocus() : null, h = $('an-now-h'), sub = $('an-now-sub'), acts = [$('an-now-listen'), $('an-now-loop'), ...$('an-now-hands').children];
+    const f = AN.view ? anFocus() : null, h = byId('an-now-h'), sub = byId('an-now-sub'), acts = [byId('an-now-listen'), byId('an-now-loop'), ...byId('an-now-hands').children];
     if (!f) {
         SIDE.nowSig = '';
         h.textContent = '';
         sub.textContent = '';
         body.innerHTML = '';
-        $('an-now-mark').hidden = true;
-        $('an-now-pill').hidden = true;
-        $('an-coach').hidden = true;
-        $('an-coach').innerHTML = '';
+        byId('an-now-mark').hidden = true;
+        byId('an-now-pill').hidden = true;
+        byId('an-coach').hidden = true;
+        byId('an-coach').innerHTML = '';
         acts.forEach((b) => { b.disabled = true; });
         return;
     }
@@ -11297,15 +11270,15 @@ function anRenderNow() {
         return;
     }
     SIDE.deferred = false;
-    const esc = xmlEsc, v = AN.view, ms = anMeasures(), num = (i) => ms[i].number, one = f.a === f.b, notes = anFocusNotes(f), key = anKeyAt(f.lo);
+    const esc = xmlEsc, v = AN.view, ms = anMeasures(), num = (i: string|number) => ms[i].number, one = f.a === f.b, notes = anFocusNotes(f), key = anKeyAt(f.lo);
     const count = notes.length === 1 ? t('an_note1') : t('an_sel_notes', notes.length), bars = one ? t('an_bar1', num(f.a)) : t('an_bars', num(f.a), num(f.b));
     const head = f.kind === 'sel' ? t('an_sel_h') : one ? t('st_bar', num(f.a)) : t('an_now_passage', bars);
     h.textContent = head;
     sub.textContent = (f.kind === 'sel' ? [count, bars, anKeyName(key)] : [anKeyName(key), ms[f.a].num + '/' + ms[f.a].den, count]).join(' · ');
-    $('an-now-mark').hidden = !(f.kind === 'bars' || (f.kind === 'play' && SCORE.loop));
-    $('an-now-pill').hidden = f.kind !== 'play';
-    $('an-now-hint').textContent = t(f.kind === 'play' ? 'an_now_follow' : FALL.mode === 'fall' ? 'an_now_hint_fall' : (window).matchMedia('(pointer: coarse)').matches ? 'an_now_hint_touch' : 'an_now_hint');
-    const segs = v.segs.map((s, k) => ({ s, k })).filter(({ s } = {}) => s.end > f.lo + 1e-6 && s.start < f.hi - 1e-6);
+    byId('an-now-mark').hidden = !(f.kind === 'bars' || (f.kind === 'play' && SCORE.loop));
+    byId('an-now-pill').hidden = f.kind !== 'play';
+    byId('an-now-hint').textContent = t(f.kind === 'play' ? 'an_now_follow' : FALL.mode === 'fall' ? 'an_now_hint_fall' : (window).matchMedia('(pointer: coarse)').matches ? 'an_now_hint_touch' : 'an_now_hint');
+    const segs = v.segs.map((s: any, k: any) => ({ s, k })).filter(({ s } = {}) => s.end > f.lo + 1e-6 && s.start < f.hi - 1e-6);
     let html = '';
     if (!one) {
         const info = anKeyInfo(notes);
@@ -11315,7 +11288,7 @@ function anRenderNow() {
     if (!segs.length)
         html += `<p class="an-small">${esc(t(!notes.length ? 'an_now_empty' : one ? 'an_now_none' : 'an_harm_none'))}</p>`;
     else if (one)
-        html += `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${segs.map((x) => anNowCard(x, v.implied)).join('')}</ul><p class="an-small an-hsrc">${esc(anHandsSource())}</p>`;
+        html += `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${segs.map((x: {}|undefined) => anNowCard(x, v.implied)).join('')}</ul><p class="an-small an-hsrc">${esc(anHandsSource())}</p>`;
     else
         html += `<div class="an-prog" role="group" aria-label="${esc(t('an_prog_label'))}">${anRowsHTML(segs)}</div>`;
     const fe = document.activeElement;
@@ -11323,54 +11296,54 @@ function anRenderNow() {
     body.innerHTML = html;
     SIDE.nowSig = sig;
     AN.playSig = '';
-    const coach = anCoach(f, segs.map((x) => x.s), notes), cb = $('an-coach');
+    const coach = anCoach(f, segs.map((x: { s: any; }) => x.s), notes), cb = byId('an-coach');
     cb.hidden = !coach;
     cb.innerHTML = coach ? `<span class="coach-k">${esc(coach.h)}</span><span class="coach-t">${esc(coach.text)}</span>` : '';
     if (k) {
         const el = body.querySelector('.an-ch[data-k="' + k + '"]');
-        (el || $('an-now')).focus({ preventScroll: true });
+        (el || byId('an-now')).focus({ preventScroll: true });
     }
-    const both = new Set(notes.map(anHandOf)).size > 1, hb = $('an-now-hands').children;
+    const both = new Set(notes.map(anHandOf)).size > 1, hb = byId('an-now-hands').children;
     acts.forEach((b) => { b.disabled = !notes.length; });
     [...hb].forEach((b) => { b.hidden = !both && b.dataset.h !== 'both'; });
     hb[0].textContent = t(both ? 'pr_both' : 'an_practice_b');
-    $('an-now-pr-l').hidden = !both;
+    byId('an-now-pr-l').hidden = !both;
     anMarkActive();
     anSyncTimeline(fallTime(), false);
     anNowAnnounce(f, head, segs);
 }
 // Spoken once, a moment after the user picks bars or a chord; never while playing, so playback makes no announcements.
-function anNowAnnounce(f, head, segs) {
+function anNowAnnounce(f: { kind: any; a?: any; b?: any; lo?: number; hi?: number; }, head: string, segs: string|any[]) {
     clearTimeout(SIDE.liveT);
     if (SCORE.playing || f.kind === 'play' || f.kind === 'cursor' || !anSideVisible('now'))
         return;
     const s = segs.length ? segs[0].s : null, key = s && anKeyAt(s.start), rn = s && anRoman(key, s);
     const txt = head + (s ? ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ') + (segs.length > 1 ? ' …' : '') : '');
-    SIDE.liveT = setTimeout(() => { $('an-now-live').textContent = txt; }, 900);
+    SIDE.liveT = setTimeout(() => { byId('an-now-live').textContent = txt; }, 900);
 }
 // Practice: what Start will play, the A–B range and whether the passage fits Read & Play.
 function anRenderPractice() {
     if (!AN.notes.length)
         return;
     const f = anFocus(false), ms = anMeasures(), sel = !!f && f.kind !== 'cursor', ab = PRAC.A != null && PRAC.B != null && PRAC.B > PRAC.A;
-    const at = (beat) => { let i = 0; for (let j = 0; j < ms.length; j++) {
+    const at = (beat: number) => { let i = 0; for (let j = 0; j < ms.length; j++) {
         if (ms[j].start <= beat + 1e-6)
             i = j;
         else
             break;
     } return i; };
-    const range = (a, b) => a === b ? t('an_bar1', ms[a].number) : t('an_bars', ms[a].number, ms[b].number), Range = (a, b) => a === b ? t('st_bar', ms[a].number) : t('an_h_bars', ms[a].number, ms[b].number);
+    const range = (a: number, b: string|number|undefined) => a === b ? t('an_bar1', ms[a].number) : t('an_bars', ms[a].number, ms[b].number), Range = (a: string|number, b: string|number) => a === b ? t('st_bar', ms[a].number) : t('an_h_bars', ms[a].number, ms[b].number);
     const abBars = ab ? [at(scoreBeatAt(PRAC.A)), at(scoreBeatAt(PRAC.B) - 1e-4)] : null;
     const bars = abBars || [];
-    $('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : ab ? t('pt_scope_ab', range(...bars)) : t('pt_scope_all');
-    $('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
-    $('pt-abv').textContent = ab ? t('pt_ab_v', range(...bars)) : t('pt_ab_none');
+    byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : ab ? t('pt_scope_ab', range(...bars)) : t('pt_scope_all');
+    byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
+    byId('pt-abv').textContent = ab ? t('pt_ab_v', range(...bars)) : t('pt_ab_none');
     const ns = anScopeNotes(), sig = [AN.version, lang, ns.length, AN.index.get(ns[0]), AN.index.get(ns[ns.length - 1])].join('|');
     if (SIDE.ptSig !== sig) {
         SIDE.ptSig = sig;
         const chk = anPracticeCheck(ns);
-        $('an-practice').disabled = !chk.ok;
-        $('an-practice-note').textContent = chk.ok ? t('an_practice_hint') : chk.msg;
+        buttonById('an-practice').disabled = !chk.ok;
+        byId('an-practice-note').textContent = chk.ok ? t('an_practice_hint') : chk.msg;
     }
 }
 // Start in the Practice tab: the selection (or A–B) loops with the practice settings; otherwise the piece plays from the cursor.
@@ -11385,7 +11358,7 @@ function anPracticeStart() {
         scorePlay(false);
 }
 function anRevealPieceRow(smooth = true) {
-    const ws = $('an-ws');
+    const ws = byId('an-ws');
     if (ws.hidden || !anSideVisible('piece'))
         return;
     const row = ws.querySelector('.an-prog-row.is-sel');
@@ -11394,8 +11367,8 @@ function anRevealPieceRow(smooth = true) {
         ws.scrollTo({ top: ws.scrollTop + (r.top - p.top) - p.height * .25, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
     }
 }
-function anRenderWorkspace(v) {
-    const ws = $('an-ws'), esc = xmlEsc, k = v.key, main = v.mainKey;
+function anRenderWorkspace(v: { key: any; mainKey: any; ns: string|any[]; ms: any[]; tempos: string|any[]; seconds: any; pitches: string|any[]; beats: number; onsets: number; poly: { avg: number; max: string|number; }; hands: string; rh: any; lh: any; segs: any[]; implied: any; motifs: any[]; }|null) {
+    const ws = byId('an-ws'), esc = xmlEsc, k = v.key, main = v.mainKey;
     const focused = ws.contains(document.activeElement) ? document.activeElement : null, refocus = focused && (focused.dataset.k != null ? '[data-k="' + focused.dataset.k + '"]' : focused.dataset.motif != null ? '[data-motif="' + focused.dataset.motif + '"]' : null);
     // key
     const origin = anOriginText();
@@ -11405,10 +11378,10 @@ function anRenderWorkspace(v) {
   <h3 id="an-h-key">${esc(t('an_key_h'))}</h3><p class="an-keybig">${esc(anKeyName(main))}</p>
   <p class="an-small">${esc(t('an_key_used', origin))}</p>
   <p class="an-small">${esc(t('an_est', anKeyName(k.best) + ' — ' + t('an_conf_' + k.conf), anNum(k.best.score, 2)))}</p>
-  <p class="an-small">${esc(t('an_alts', k.alts.map((a) => anKeyName(a) + ' ' + anNum(a.score, 2)).join(' · ')))}</p>${differs ? `<p class="an-small an-warn">${esc(t('an_key_differs'))}</p>` : ''}</section>`;
+  <p class="an-small">${esc(t('an_alts', k.alts.map((a: { score: any; }) => anKeyName(a) + ' ' + anNum(a.score, 2)).join(' · ')))}</p>${differs ? `<p class="an-small an-warn">${esc(t('an_key_differs'))}</p>` : ''}</section>`;
     let facts = `<section class="an-over" aria-labelledby="an-h-over"><h3 id="an-h-over">${esc(t('an_overview'))}</h3><dl class="an-dl">`;
-    const row = (dt, dd, sub) => { facts += `<div><dt>${esc(dt)}</dt><dd>${esc(dd)}${sub ? `<small>${esc(sub)}</small>` : ''}</dd></div>`; };
-    const metersSet = [...new Set(v.ms.map((m) => m.num + '/' + m.den))], unit = anBeatUnit(v.ms[0] || { num: 4, den: 4 });
+    const row = (dt: string, dd: string, sub: string|undefined) => { facts += `<div><dt>${esc(dt)}</dt><dd>${esc(dd)}${sub ? `<small>${esc(sub)}</small>` : ''}</dd></div>`; };
+    const metersSet = [...new Set(v.ms.map((m: { num: string; den: string; }) => m.num + '/' + m.den))], unit = anBeatUnit(v.ms[0] || { num: 4, den: 4 });
     const tMin = Math.min(...v.tempos), tMax = Math.max(...v.tempos), changes = v.tempos.length - 1;
     row(t('an_f_duration'), anClock(v.seconds), t('an_at_speed'));
     row(t('an_f_meter'), metersSet.join(', '), t('an_beat_unit', t(unit === 1.5 ? 'an_unit_dq' : unit === 2 ? 'an_unit_h' : unit === 0.5 ? 'an_unit_e' : 'an_unit_q')));
@@ -11420,7 +11393,7 @@ function anRenderWorkspace(v) {
     row(t('an_f_npb'), anNum(npb, 1), t('an_dens_' + (opb < 0.75 ? 1 : opb < 1.25 ? 2 : opb < 2.25 ? 3 : opb < 4.5 ? 4 : 5)));
     row(t('an_f_opb'), anNum(opb, 1));
     row(t('an_f_poly'), t('an_poly', anNum(v.poly.avg, 1), v.poly.max), t('an_tex_' + (v.poly.avg < 1.25 ? 1 : v.poly.avg < 2.25 ? 2 : v.poly.avg < 3.25 ? 3 : 4)));
-    const pct = (x) => Math.round(100 * x / v.ns.length) + '%';
+    const pct = (x: number) => Math.round(100 * x / v.ns.length) + '%';
     if (v.hands === 'hands') {
         const how = AN.hands ? (AN.hands.how === 'tracks' ? t('an_hands_tracks') : AN.hands.how === 'piece' ? t('an_from_piece') : t('an_split_at', spellName(AN.hands.split, null, true))) : t('an_staff_hands');
         row(t('an_f_hands'), `${t('an_rh')} ${v.rh} (${pct(v.rh)}) · ${t('an_lh')} ${v.lh} (${pct(v.lh)})`, how);
@@ -11430,8 +11403,8 @@ function anRenderWorkspace(v) {
     facts += '</dl></section>';
     html += `<section class="an-harm" aria-labelledby="an-h-harm"><h3 id="an-h-harm">${esc(t('an_harm_h'))}</h3>`;
     // progression summary: consecutive repeats merged
-    const seq = [];
-    v.segs.forEach((s, i) => { const key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), last = seq[seq.length - 1]; if (!last || last.lab !== lab)
+    const seq: any[] = [];
+    v.segs.forEach((s: { start: any; }, i: any) => { const key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), last = seq[seq.length - 1]; if (!last || last.lab !== lab)
         seq.push({ lab, rn, i }); });
     if (seq.length) {
         const shown = seq.slice(0, 14), more = seq.length - shown.length;
@@ -11440,11 +11413,11 @@ function anRenderWorkspace(v) {
     html += `<p class="an-small">${esc(seq.length ? t(v.implied ? 'an_harm_implied' : 'an_harm_note') : t('an_harm_none'))}</p>`;
     if (v.segs.length) {
         AN.rove = Math.min(AN.rove, v.segs.length - 1);
-        html += `<div class="an-prog" role="toolbar" aria-orientation="vertical" aria-label="${esc(t('an_prog_label'))}" aria-describedby="an-prog-hint">${anRowsHTML(v.segs.map((s, i) => ({ s, k: i })), AN.rove)}</div><p class="an-legend" id="an-prog-hint">${esc(t('an_prog_hint'))}</p>`;
+        html += `<div class="an-prog" role="toolbar" aria-orientation="vertical" aria-label="${esc(t('an_prog_label'))}" aria-describedby="an-prog-hint">${anRowsHTML(v.segs.map((s: any, i: any) => ({ s, k: i })), AN.rove)}</div><p class="an-legend" id="an-prog-hint">${esc(t('an_prog_hint'))}</p>`;
     }
     html += `<h3 style="margin-top:18px">${esc(t('an_motifs_h'))}</h3>`;
     if (v.motifs.length)
-        html += `<div class="an-chips">${v.motifs.map((m, i) => { const steps = m.iv.map((n) => (n > 0 ? '+' : '') + n).join(' '); return `<button type="button" class="an-chip" data-motif="${i}" aria-pressed="false" title="${esc(t('an_motif_title', steps))}"><span>${esc(steps)}</span><small>× ${m.count}</small></button>`; }).join('')}</div>`;
+        html += `<div class="an-chips">${v.motifs.map((m: { iv: any[]; count: any; }, i: any) => { const steps = m.iv.map((n: number) => (n > 0 ? '+' : '') + n).join(' '); return `<button type="button" class="an-chip" data-motif="${i}" aria-pressed="false" title="${esc(t('an_motif_title', steps))}"><span>${esc(steps)}</span><small>× ${m.count}</small></button>`; }).join('')}</div>`;
     else
         html += `<p class="an-small">${esc(t('an_motif_none'))}</p>`;
     html += '</section>' + facts + '</div>';
@@ -11459,7 +11432,7 @@ function anRenderWorkspace(v) {
 }
 // The selection strip under Now: chosen notes (or a chosen chord), with the interval or chord they spell.
 function anRenderSelection() {
-    const box = $('an-sel');
+    const box = byId('an-sel');
     if (!box)
         return;
     const sel = [...AN.selected].sort((a, b) => a - b).map((i) => AN.notes[i]).filter(Boolean);
@@ -11490,16 +11463,16 @@ function anRenderSelection() {
     box.hidden = false;
 }
 function anMarkActive() {
-    const a = AN.active, side = $('an-side');
+    const a = AN.active, side = byId('an-side');
     if (!side)
         return;
     side.querySelectorAll('.an-ch').forEach((b) => b.setAttribute('aria-pressed', a && a.kind === 'chord' && +b.dataset.k === a.k ? 'true' : 'false'));
     side.querySelectorAll('.an-chip[data-motif]').forEach((b) => b.setAttribute('aria-pressed', a && a.kind === 'motif' && +b.dataset.motif === a.k ? 'true' : 'false'));
     const f = AN.notes.length ? anFocus(false) : null, on = !!f && f.kind !== 'cursor';
-    $('an-ws').querySelectorAll('.an-prog-row[data-bar]').forEach((r) => { const i = +r.dataset.bar; r.classList.toggle('is-sel', on && i >= f.a && i <= f.b); });
+    byId('an-ws').querySelectorAll('.an-prog-row[data-bar]').forEach((r) => { const i = +r.dataset.bar; r.classList.toggle('is-sel', on && i >= f.a && i <= f.b); });
 }
 /* opening files and examples */
-function anStatus(msg, isError) { const el = $('an-msg'); el.textContent = msg || ''; el.classList.toggle('is-error', !!isError); }
+function anStatus(msg: string, isError: boolean|undefined) { const el = byId('an-msg'); el.textContent = msg || ''; el.classList.toggle('is-error', !!isError); }
 function anLoadedText() {
     const src = AN.source;
     if (!src)
@@ -11509,24 +11482,24 @@ function anLoadedText() {
         return t('an_loaded_xml');
     if (src.kind === 'example')
         return t('an_loaded_example', g);
-    const tracks = new Set(src.parsed.notes.map((n) => n.track)).size;
+    const tracks = new Set(src.parsed.notes.map((n: { track: any; }) => n.track)).size;
     return t('an_loaded_midi', tracks === 1 ? t('an_track1') : t('an_tracks', tracks), g);
 }
-function anShowError(k, a) { AN.error = { k, a }; anStatus(t(k, a), true); if (!SCORE.xml)
+function anShowError(k: string, a: string|number|undefined) { AN.error = { k, a }; anStatus(t(k, a), true); if (!SCORE.xml)
     anRenderEmpty(); }
-function anSetLoading(on, msg) { AN.loading = on; if (on) {
+function anSetLoading(on: boolean, msg: string|undefined) { AN.loading = on; if (on) {
     scoreStop();
     AN.error = null;
     anStatus(msg);
 } anUpdateControls(); }
-function anErrorKey(err, fallback) { if (!err || !err.code)
+function anErrorKey(err: unknown, fallback: string) { if (!err || !err.code)
     console.error(err); const code = err && err.code; return 'an_err_' + (code && STRINGS.en['an_err_' + code] ? code : fallback); }
-function anPieceMeta(p) {
+function anPieceMeta(p: { id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; lh: (string|number)[][]; rh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh: (string|number)[][]; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; pickup: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; }|undefined) {
     const n = p.keyN || 0, keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n);
     return [p.comp, anKeyName({ root: keyPc, minor: !!p.minor, fifths: n }), p.ts[0] + '/' + p.ts[1]].filter(Boolean).join(' · ');
 }
 function anRenderEmpty() {
-    const box = $('an-roll');
+    const box = byId('an-roll');
     box.classList.add('is-empty');
     box.classList.remove('is-loading', 'is-over');
     box.setAttribute('aria-busy', 'false');
@@ -11538,30 +11511,30 @@ function anRenderEmpty() {
     anUpdateControls();
 }
 function anFillExamples() {
-    const sel = $('an-example'), cur = AN.source && AN.source.kind === 'example' ? AN.source.id : '';
+    const sel = byId('an-example'), cur = AN.source && AN.source.kind === 'example' ? AN.source.id : '';
     sel.innerHTML = `<option value="">${xmlEsc(t('an_example_pick'))}</option>` + AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter(Boolean).map((p) => `<option value="${p.id}">${xmlEsc(srPieceTitle(p))}</option>`).join('');
     sel.value = cur;
 }
 function anReconUI() {
     const src = AN.source, on = !!src && src.kind !== 'xml';
-    $('an-recon-btn').hidden = !on;
+    byId('an-recon-btn').hidden = !on;
     if (!on) {
         anReconOpen(false);
         return;
     }
-    const opt = (v, l) => `<option value="${v}">${xmlEsc(l)}</option>`;
-    $('an-hands').innerHTML = opt('auto', t('an_hands_auto')) + opt('tracks', t('an_hands_tracks')) + [59, 60, 64].map((m) => opt(String(m), t('an_hands_split', noteName(m, false)))).join('');
-    $('an-hands').value = AN.recon.hands;
-    $('an-grid').value = String(AN.recon.grid);
-    const keys = (minor) => [...Array(12).keys()].map((r) => { const f = keyFifths(r, minor); return opt(f + ':' + (minor ? 1 : 0), anKeyName({ root: r, minor, fifths: f })); }).join('');
-    $('an-keysel').innerHTML = opt('auto', t('an_key_auto')) + `<optgroup label="${xmlEsc(t('an_keys_major'))}">${keys(false)}</optgroup><optgroup label="${xmlEsc(t('an_keys_minor'))}">${keys(true)}</optgroup>`;
-    $('an-keysel').value = AN.recon.key;
+    const opt = (v: string, l: string) => `<option value="${v}">${xmlEsc(l)}</option>`;
+    byId('an-hands').innerHTML = opt('auto', t('an_hands_auto')) + opt('tracks', t('an_hands_tracks')) + [59, 60, 64].map((m) => opt(String(m), t('an_hands_split', noteName(m, false)))).join('');
+    selectById('an-hands').value = AN.recon.hands;
+    selectById('an-grid').value = String(AN.recon.grid);
+    const keys = (minor: boolean) => [...Array(12).keys()].map((r) => { const f = keyFifths(r, minor); return opt(f + ':' + (minor ? 1 : 0), anKeyName({ root: r, minor, fifths: f })); }).join('');
+    byId('an-keysel').innerHTML = opt('auto', t('an_key_auto')) + `<optgroup label="${xmlEsc(t('an_keys_major'))}">${keys(false)}</optgroup><optgroup label="${xmlEsc(t('an_keys_minor'))}">${keys(true)}</optgroup>`;
+    selectById('an-keysel').value = AN.recon.key;
     const h = AN.hands, k = AN.keyMap[0], parts = [];
     if (h)
         parts.push(h.how === 'tracks' ? t('an_rn_hands_tracks', h.groups) : h.how === 'piece' ? t('an_rn_hands_piece') : t(h.how === 'fallback' ? 'an_rn_hands_fallback' : h.how === 'one' ? 'an_rn_hands_one' : 'an_rn_hands_split', noteName(h.split, false)));
     if (k)
         parts.push(t('an_rn_key', anKeyName(k), anOriginText()));
-    $('an-recon-note').textContent = parts.join(' ');
+    byId('an-recon-note').textContent = parts.join(' ');
 }
 function anIndex() { AN.index = new Map(AN.notes.map((n, i) => [n, i])); AN.version++; AN.cache.clear(); AN.wsSig = ''; }
 function anReset() {
@@ -11585,7 +11558,7 @@ function anReset() {
     SCORE.version++;
     scoreSetTempos([]);
     anIndex();
-    $('an-name').textContent = '';
+    byId('an-name').textContent = '';
     anReconUI();
     anFillExamples();
     anRenderEmpty();
@@ -11596,17 +11569,17 @@ function anReset() {
 // Walk the directory the way it will (last end-of-directory record, signed 32-bit fields, the same record and local-header
 // reads), refuse anything it could not unpack anyway, and cap what every entry declares. Entries big enough to expand
 // past the cap (deflate tops out near 1032:1) are inflated once as a counted stream, so a lying header fails here.
-async function anMxlPreflight(buf)  {
+async function anMxlPreflight(buf: any)  {
     const u = new Uint8Array(buf), N = u.length, CAP = AN_MAX_XML_CHARS, bad = () => anError('mxl');
     let zero = 0;
-    const fits = (i, n) => i >= 0 && n >= 0 && zero + i + n <= N;
-    const int = (i, n) => { if (!fits(i, n))
+    const fits = (i: number, n: number) => i >= 0 && n >= 0 && zero + i + n <= N;
+    const int = (i: number, n: number) => { if (!fits(i, n))
         throw bad(); let v = 0; for (let k = n - 1; k >= 0; k--)
         v = (v << 8) + u[zero + i + k]; return v; };
-    const int8 = (i) => { const lo = int(i, 4); if (int(i + 4, 4))
+    const int8 = (i: number) => { const lo = int(i, 4); if (int(i + 4, 4))
         throw bad(); return lo; }; // JSZip drops the high half of 64-bit fields
-    const sig = (i, c, d) => fits(i, 4) && u[zero + i] === 80 && u[zero + i + 1] === 75 && u[zero + i + 2] === c && u[zero + i + 3] === d;
-    const last = (c, d) => { for (let r = N - 4; r >= 0; r--)
+    const sig = (i: number, c: number, d: number) => fits(i, 4) && u[zero + i] === 80 && u[zero + i + 1] === 75 && u[zero + i + 2] === c && u[zero + i + 3] === d;
+    const last = (c: number, d: number) => { for (let r = N - 4; r >= 0; r--)
         if (u[r] === 80 && u[r + 1] === 75 && u[r + 2] === c && u[r + 3] === d)
             return r - zero; return -1; };
     const eocd = last(5, 6);
@@ -11728,7 +11701,7 @@ async function anMxlPreflight(buf)  {
 }
 // Inflates raw-deflate bytes as a stream, counting and discarding the output; stops as soon as it passes `limit`.
 // Resolves to the byte count (limit+something when over), or null when this browser has no raw-deflate stream.
-let anInflatedSize = async function anInflatedSize(bytes, limit)  {
+let anInflatedSize = async function anInflatedSize(bytes: { length: number; subarray: (arg0: number,arg1: number) => BufferSource|undefined; }, limit: number)  {
     let ds;
     try {
         ds = new DecompressionStream('deflate-raw');
@@ -11761,11 +11734,11 @@ let anInflatedSize = async function anInflatedSize(bytes, limit)  {
 };
 // MusicXML distances are tenths of a staff space; OSMD distances are staff spaces.
 // Keep physical page/staff sizing when supplied, with bounded fallbacks for incomplete or malformed layout hints.
-function scoreXmlLayout(doc) {
+function scoreXmlLayout(doc: Document) {
     const root = doc.documentElement, defaults = root.querySelector(':scope > defaults');
     if (!defaults)
         return null;
-    const number = (el, selector, min, max) => { const node = el && el.querySelector(selector), value = node && parseFloat(node.textContent); return Number.isFinite(value) && value >= min && value <= max ? value : null; };
+    const number = (el: { querySelector: (arg0: any) => any; }, selector: string, min: number, max: number) => { const node = el && el.querySelector(selector), value = node && parseFloat(node.textContent); return Number.isFinite(value) && value >= min && value <= max ? value : null; };
     const mm = number(defaults, 'scaling > millimeters', .1, 100), tenths = number(defaults, 'scaling > tenths', 1, 1000), unit = mm && tenths ? mm / tenths : null;
     const base = unit && unit * 96 / 25.4 >= .3 && unit * 96 / 25.4 <= 1.5 ? unit * 96 / 25.4 : SC_BASE;
     const pw = number(defaults, 'page-layout > page-width', 100, 10000), ph = number(defaults, 'page-layout > page-height', 100, 20000);
@@ -11784,18 +11757,18 @@ function scoreXmlLayout(doc) {
             out[kind + 'Size'] = size;
         if (kind === 'title' && words) {
             let style = 'normal', weight = 'normal';
-            out.titleRuns = words.map((w) => { if (['normal', 'italic'].includes(w.getAttribute('font-style')))
+            out.titleRuns = words.map((w: { getAttribute: (arg0: string) => string; textContent: any; }) => { if (['normal', 'italic'].includes(w.getAttribute('font-style')))
                 style = w.getAttribute('font-style'); if (['normal', 'bold'].includes(w.getAttribute('font-weight')))
                 weight = w.getAttribute('font-weight'); return { text: w.textContent, style, weight }; });
         }
     }
     // These rules are global minima, not a command to repeat the first system's (often unusually large) spacing.
-    const minimum = (selector, max) => { const values = [...root.querySelectorAll(selector)].map((n) => Number(n.textContent)).filter((v) => Number.isFinite(v) && v >= 10 && v <= max); return values.length ? Math.min(...values) / 10 : null; };
+    const minimum = (selector: string, max: number) => { const values = [...root.querySelectorAll(selector)].map((n) => Number(n.textContent)).filter((v) => Number.isFinite(v) && v >= 10 && v <= max); return values.length ? Math.min(...values) / 10 : null; };
     out.staffGap = minimum('part > measure > print > staff-layout > staff-distance', 200);
     out.systemGap = minimum('part > measure > print > system-layout > system-distance', 400);
     return out;
 }
-async function anReadXml(file, title)  {
+async function anReadXml(file: { name: string; arrayBuffer: () => any; text: () => any; }, title: any)  {
     let xml;
     if (/\.mxl$/i.test(file.name)) {
         const buf = await file.arrayBuffer();
@@ -11833,8 +11806,8 @@ const AN_SMUFL_NOTES = { '\uE1D2': '\uD834\uDD5D', '\uECA2': '\uD834\uDD5D', '\u
     '\uE1D7': '\u266A', '\uECA7': '\u266A', '\uE1D8': '\u266A', '\uECA8': '\u266A', '\uE1D9': '\u266C', '\uECA9': '\u266C', '\uE1DA': '\u266C', '\uECAA': '\u266C', '\uE1E7': '.', '\uECB7': '.', '\uE520': 'p', '\uE522': 'f' };
 // Some exports leave an open last ending before the next forward repeat. Do not let it span the next section.
 // Explicit stop/discontinue pairs always win, including multi-measure endings crossing a repeat boundary.
-function scoreXmlEndings(doc) {
-    doc.querySelectorAll('score-partwise > part').forEach((part) => {
+function scoreXmlEndings(doc: { querySelectorAll: (arg0: string) => any[]; createElementNS: (arg0: any,arg1: string) => any; }) {
+    doc.querySelectorAll('score-partwise > part').forEach((part: { querySelectorAll: (arg0: string) => any; children: any; namespaceURI: any; }) => {
         const endings = [...part.querySelectorAll('barline > ending')], open = new Map(), unclosed = new Set();
         endings.forEach((e) => {
             const key = e.getAttribute('number') || '1';
@@ -11866,17 +11839,17 @@ function scoreXmlEndings(doc) {
                 });
                 open.clear();
             }
-            m.querySelectorAll(':scope > barline > ending').forEach((e) => { if (unclosed.has(e))
+            m.querySelectorAll(':scope > barline > ending').forEach((e: unknown) => { if (unclosed.has(e))
                 open.set(e.getAttribute('number') || '1', e); });
         });
     });
 }
-function anXmlTidy(doc, fallback) {
-    const root = doc.documentElement, kids = (el) => [...el.children], one = (el, name) => kids(el).find((c) => c.localName === name);
-    const text = (el) => (el && el.textContent || '').replace(/\s+/g, ' ').trim(), same = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+function anXmlTidy(doc: Document, fallback: any) {
+    const root = doc.documentElement, kids = (el: { children: any; }) => [...el.children], one = (el: any, name: string) => kids(el).find((c) => c.localName === name);
+    const text = (el: { textContent: any; }) => (el && el.textContent || '').replace(/\s+/g, ' ').trim(), same = (a: string, b: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
     // 1. Note glyphs in tempo and credit text; "Lento ( = 60 bpm)" gains its missing quarter note.
     //    A text split over several <words> ("Lento (", glyph, " = 60 bpm)") is one line in MuseScore, not a stack.
-    doc.querySelectorAll('direction').forEach((dir) => {
+    doc.querySelectorAll('direction').forEach((dir: any) => {
         const dts = kids(dir).filter((c) => c.localName === 'direction-type');
         if (dts.length < 2 || !dts.every((dt) => dt.children.length && kids(dt).every((c) => c.localName === 'words')))
             return;
@@ -11885,8 +11858,8 @@ function anXmlTidy(doc, fallback) {
         dts.slice(1).forEach((dt) => dt.remove());
         kids(dts[0]).slice(1).forEach((w) => w.remove());
     });
-    doc.querySelectorAll('words,credit-words,rehearsal').forEach((w) => {
-        let t = w.textContent, u = t.replace(/[\uE1D2-\uE1E7\uECA2-\uECB7\uE520\uE522]/g, (c) => AN_SMUFL_NOTES[c] ?? '');
+    doc.querySelectorAll('words,credit-words,rehearsal').forEach((w: { textContent: any; closest: (arg0: string) => { (): any; new(): any; previousElementSibling: any; }; getAttribute: (arg0: string) => any; removeAttribute: (arg0: string) => void; }) => {
+        let t = w.textContent, u = t.replace(/[\uE1D2-\uE1E7\uECA2-\uECB7\uE520\uE522]/g, (c: string|number) => AN_SMUFL_NOTES[c] ?? '');
         u = u.replace(/\(\s*=\s*(\d)/g, '(\u2669 = $1');
         if (/^\s*=\s*\d/.test(u)) {
             const prev = w.closest('direction-type')?.previousElementSibling, pt = prev?.querySelector('words')?.textContent || '';
@@ -11900,7 +11873,7 @@ function anXmlTidy(doc, fallback) {
         }
     });
     // 2. Title and composer from the header, the credits, or (last) the file name.
-    const credits = kids(root).filter((c) => c.localName === 'credit'), ctype = (c) => text(one(c, 'credit-type')).toLowerCase(), cwords = (c) => [...c.querySelectorAll('credit-words')].map(text).filter(Boolean).join(' ');
+    const credits = kids(root).filter((c) => c.localName === 'credit'), ctype = (c: any) => text(one(c, 'credit-type')).toLowerCase(), cwords = (c: { querySelectorAll: (arg0: string) => any; }) => [...c.querySelectorAll('credit-words')].map(text).filter(Boolean).join(' ');
     const workEl = one(root, 'work'), workTitle = workEl && one(workEl, 'work-title'), mvt = one(root, 'movement-title');
     let title = text(workTitle) || text(mvt);
     if (!title) {
@@ -11947,7 +11920,7 @@ function anXmlTidy(doc, fallback) {
             composerFromSubtitle = true;
         }
     }
-    const before = (names) => kids(root).find((c) => names.includes(c.localName)) || null;
+    const before = (names: string|any[]) => kids(root).find((c) => names.includes(c.localName)) || null;
     let work = workEl;
     if (!work) {
         work = doc.createElement('work');
@@ -11976,25 +11949,25 @@ function anXmlTidy(doc, fallback) {
         cr.textContent = composer;
     }
     // 3. Credits the header already shows, and long editorial notes, leave the page; so do long words over the staves.
-    const editorial = (t) => t.length >= 90 || /(^|\s)(edi[cç][aã]o|edici[oó]n|edition|correc[cç]|correction|nota(s)? d[aoe]|editor'?s note|note de l'[ée]diteur)/i.test(t);
+    const editorial = (t: string|any[]) => t.length >= 90 || /(^|\s)(edi[cç][aã]o|edici[oó]n|edition|correc[cç]|correction|nota(s)? d[aoe]|editor'?s note|note de l'[ée]diteur)/i.test(t);
     //    Version, arrangement and transcription notes ("Versão revista…", "arr. de…") go too when they read as a
     //    footnote: a sentence rather than a label, or set low on the page / far under the bass staff, where they
     //    would push the "Ped. … *" marks down.
     const versionNote = /(^|(?:\s|\(|\[))(vers[aã]o|versi[oó]n|version|vers\.|arr\.|arranj|arranged by|arrangement|transcr|adapt\.|adapta[cç]|adapted|revis[aã]o|revisi[oó]n|revised|revision)/i;
-    const yOf = (el) => { for (const a of ['default-y', 'relative-y']) {
+    const yOf = (el: { getAttribute: (arg0: string) => any; }) => { for (const a of ['default-y', 'relative-y']) {
         const v = parseFloat(el && el.getAttribute(a));
         if (!isNaN(v))
             return v;
     } return NaN; };
-    const footnote = (t, low) => versionNote.test(t) && (t.length >= 24 || low);
+    const footnote = (t: string|any[], low: boolean) => versionNote.test(t) && (t.length >= 24 || low);
     credits.forEach((c) => {
         const ty = ctype(c), t = cwords(c), raw = [...c.querySelectorAll('credit-words')].map((w) => w.textContent).join('\n'), cy = yOf(c.querySelector('credit-words'));
         if (ty === 'title' || (ty !== 'composer' && (same(t, title) || same(t, composer))) || (composerFromSubtitle && ty === 'subtitle') || editorial(t) || footnote(t, cy < 200) || raw.split('\n').filter((s) => s.trim()).length >= 3)
             c.remove();
     });
-    doc.querySelectorAll('direction > direction-type > words').forEach((w) => {
+    doc.querySelectorAll('direction > direction-type > words').forEach((w: { textContent: { split: (arg0: string) => { (): any; new(): any; filter: { (arg0: (s: any) => any): { (): any; new(): any; length: number; }; new(): any; }; }; }; parentElement: any; remove: () => void; }) => {
         const t = text(w), y = yOf(w);
-        if (!t || !(t.length >= 60 || editorial(t) || footnote(t, y <= -80) || (t.length >= 20 && y <= -90) || w.textContent.split('\n').filter((s) => s.trim()).length >= 3))
+        if (!t || !(t.length >= 60 || editorial(t) || footnote(t, y <= -80) || (t.length >= 20 && y <= -90) || w.textContent.split('\n').filter((s: string) => s.trim()).length >= 3))
             return;
         const dt = w.parentElement, dir = dt.parentElement;
         w.remove();
@@ -12009,7 +11982,7 @@ function anXmlTidy(doc, fallback) {
     });
     // 4. Chord symbols sit above the upper staff: a <harmony> tied to the left hand would print between the staves,
     //    on top of the dynamics and hairpins.
-    doc.querySelectorAll('harmony > staff').forEach((st) => { if ((parseInt(text(st)) || 1) > 1)
+    doc.querySelectorAll('harmony > staff').forEach((st: { textContent: string; }) => { if ((parseInt(text(st)) || 1) > 1)
         st.textContent = '1'; });
     // 5. A lone piano part, or a generic label, needs no instrument name at the left of the system.
     const parts = [...root.querySelectorAll('part-list > score-part')], generic = /^(p\s*\d*|instr\.?\s*p?\s*\d*|piano(forte)?|pian|pianoforte|klavier|grand piano|acoustic grand piano)$/i;
@@ -12023,7 +11996,7 @@ function anXmlTidy(doc, fallback) {
     });
     // 6. Pedal marks as "Ped. … *": OSMD draws line="yes" as a bracket under the bass staff, where fingering lives.
     //    It drops type="change" on text pedals, so a change becomes a release and a new press at the same moment.
-    doc.querySelectorAll('direction-type > pedal').forEach((p) => {
+    doc.querySelectorAll('direction-type > pedal').forEach((p: { getAttribute: (arg0: string) => any; setAttribute: (arg0: string,arg1: string) => void; parentElement: any; }) => {
         const ty = p.getAttribute('type');
         if (ty === 'continue')
             return;
@@ -12044,7 +12017,7 @@ function anXmlTidy(doc, fallback) {
     return title;
 }
 // The single entry point for the file input and drag & drop.
-async function anOpenFile(file)  {
+async function anOpenFile(file: File)  {
     if (!file)
         return;
     const name = file.name || '';
@@ -12071,7 +12044,7 @@ async function anOpenFile(file)  {
         return;
     await anCommit(src, token);
 }
-async function anLoadExample(id)  {
+async function anLoadExample(id: string)  {
     const p = PIECES.find((x) => x.id === id);
     if (!p)
         return;
@@ -12079,7 +12052,7 @@ async function anLoadExample(id)  {
     anSetLoading(true, t('an_loading', srPieceTitle(p)));
     await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
 }
-async function anCommit(src, token)  {
+async function anCommit(src: { notes: any[]; tempos: any[]; measures: any[]; keys: any[]; links: { kind: any; a: number; b: number; style: any; }[]; kind: string; title: any; label: any; xml: string; layout: { base: number; width: number; pageWidth: number; pageHeight: number; }|null; }|{ kind: string; title: any; label: any; parsed: { ppq: number; format: number; tracks: number; names: string[]; meta: ({ type: string; beat: number; bpm: number; num?: undefined; den?: undefined; fifths?: undefined; minor?: undefined; }|{ type: string; beat: number; num: number; den: number; bpm?: undefined; fifths?: undefined; minor?: undefined; }|{ type: string; beat: number; fifths: number; minor: boolean; bpm?: undefined; num?: undefined; den?: undefined; })[]; notes: { midi: any; start: number; end: number; vel: any; track: number; channel: number; }[]; }; }|null, token: number)  {
     scoreStop();
     AN.source = src;
     AN.error = null;
@@ -12115,7 +12088,7 @@ async function anCommit(src, token)  {
     anIndex();
     anReconUI();
     anFillExamples();
-    $('an-name').textContent = src.label || src.title;
+    byId('an-name').textContent = src.label || src.title;
     let ok = false;
     try {
         ok = await scoreRender();
@@ -12143,7 +12116,7 @@ async function anReconChange()  {
     if (!AN.source || AN.source.kind === 'xml')
         return;
     const prev = { ...AN.recon };
-    AN.recon = { hands: $('an-hands').value, grid: +$('an-grid').value, key: $('an-keysel').value };
+    AN.recon = { hands: selectById('an-hands').value, grid: +selectById('an-grid').value, key: selectById('an-keysel').value };
     scoreStop();
     try {
         anRebuild();
@@ -12185,7 +12158,7 @@ function anLocalize() {
         if (title !== src.title || (SCORE.xml && !SCORE.xml.includes(part))) {
             if (p) {
                 src.title = src.label = title;
-                $('an-name').textContent = title;
+                byId('an-name').textContent = title;
             }
             anRebuild();
             anIndex();
@@ -12225,8 +12198,8 @@ function anSelectionChanged() {
 }
 // Selections made from the analysis panel: a chord also selects its bar (`bars`, score measure indices), so the coral band
 // and the Now tab follow it.
-function anSelectNotes(list, active, bars) {
-    AN.selected = new Set(list.map((n) => AN.index.get(n)).filter((i) => i != null));
+function anSelectNotes(list: any[], active: { kind: string; k: any; }|null|undefined, bars: { a: any; b: any; }|null|undefined) {
+    AN.selected = new Set(list.map((n: any) => AN.index.get(n)).filter((i: null) => i != null));
     AN.active = active || null;
     SCORE.mrange = bars && AN.selected.size ? { anchor: bars.a, a: bars.a, b: bars.b, sig: [...AN.selected].sort((x, y) => x - y).join() } : null;
     if (!SCORE.playing && AN.selected.size) {
@@ -12248,11 +12221,11 @@ function anSelectNotes(list, active, bars) {
     if (g && FALL.mode === 'score')
         anKeepVisible(g, true);
 }
-function anSelectChord(k) {
+function anSelectChord(k: number) {
     const seg = AN.view && AN.view.segs[k];
     if (!seg)
         return;
-    const g = SCORE.geo, mi = g ? g.measures.findIndex((m) => m && Math.abs(m.b0 - seg.measure.start) < 1e-3) : -1;
+    const g = SCORE.geo, mi = g ? g.measures.findIndex((m: { b0: number; }) => m && Math.abs(m.b0 - seg.measure.start) < 1e-3) : -1;
     anSelectNotes(seg.notes, { kind: 'chord', k }, mi >= 0 ? { a: mi, b: mi } : null);
 }
 function anClearSelection() { if (!AN.selected.size && !SCORE.mrange)
@@ -12265,17 +12238,17 @@ else
     scorePaint(); if (FALL.mode === 'fall')
     fallDraw(); anUpdateControls(); anLayoutVars(); }
 // Hover (or focus) explains what is under the pointer: a note with its chord, or any other marking on the page.
-function anHover(e) {
+function anHover(e: { target: { closest: (arg0: string) => any; }; }) {
     const g = e.target.closest && e.target.closest('#an-roll [data-i]');
     if (!g) {
         const sym = scoreSymAt(e);
         if (!sym) {
-            $('an-hover').textContent = '';
+            byId('an-hover').textContent = '';
             scoreTip(null);
             return;
         }
         const txt = scoreSymText(sym);
-        $('an-hover').textContent = txt.line;
+        byId('an-hover').textContent = txt.line;
         scoreTip(sym, txt);
         return;
     }
@@ -12283,21 +12256,21 @@ function anHover(e) {
     const n = AN.notes[+g.dataset.i];
     if (!n)
         return;
-    const key = anKeyAt(n.start), group = AN.notes.filter((a) => a.start <= n.start + 0.001 && a.end > n.start + 0.001), chord = identifyChord(group.map((a) => a.midi)), seg = anSegAt(n.start), nct = seg && seg.nct && seg.nct.find((x) => x.note === n);
-    $('an-hover').textContent = spellName(n.midi, key, true) + ' · ' + t('an_bar') + ' ' + anMeasureAt(n.start).number + ' · ' + group.map((a) => spellName(a.midi, key, true)).join(' ') + ' · ' + (chord ? spellName(60 + chord.rootPc, key) + chord.chord.symbol + (chord.inversion > 0 ? '/' + spellName(60 + chord.bassPc, key) : '') : t('an_none')) + (nct ? ' · ' + t('an_nct_' + nct.type) : '');
+    const key = anKeyAt(n.start), group = AN.notes.filter((a) => a.start <= n.start + 0.001 && a.end > n.start + 0.001), chord = identifyChord(group.map((a) => a.midi)), seg = anSegAt(n.start), nct = seg && seg.nct && seg.nct.find((x: { note: any; }) => x.note === n);
+    byId('an-hover').textContent = spellName(n.midi, key, true) + ' · ' + t('an_bar') + ' ' + anMeasureAt(n.start).number + ' · ' + group.map((a) => spellName(a.midi, key, true)).join(' ') + ' · ' + (chord ? spellName(60 + chord.rootPc, key) + chord.chord.symbol + (chord.inversion > 0 ? '/' + spellName(60 + chord.bassPc, key) : '') : t('an_none')) + (nct ? ' · ' + t('an_nct_' + nct.type) : '');
 }
 // Click a notehead to select it (Shift/Ctrl adds), click empty space in a bar to select the bar (Shift extends the range),
 // drag for a marquee; a click outside every bar clears the selection.
-function scorePointer(e) {
-    const box = $('an-roll');
+function scorePointer(e: { button: number; target: RuntimeElement; offsetX: number; offsetY: number; clientX: any; clientY: any; shiftKey: any; ctrlKey: any; metaKey: any; preventDefault: () => void; }) {
+    const box = byId('an-roll');
     if (e.button !== 0 || !SCORE.xml || !box.querySelector('svg') || e.target.closest('.an-empty'))
         return;
     if (e.target === box && (e.offsetX >= box.clientWidth || e.offsetY >= box.clientHeight))
         return; // scrollbar
     const target = e.target.closest('[data-i]'), x = e.clientX, y = e.clientY, add = e.shiftKey || e.ctrlKey || e.metaKey;
     e.preventDefault();
-    let marquee = null;
-    const move = (ev) => { if (!marquee && Math.hypot(ev.clientX - x, ev.clientY - y) < 5)
+    let marquee: HTMLDivElement|null = null;
+    const move = (ev: { clientX: number; clientY: number; }) => { if (!marquee && Math.hypot(ev.clientX - x, ev.clientY - y) < 5)
         return; if (!marquee) {
         marquee = (document).createElement('div');
         marquee.className = 'an-marquee';
@@ -12305,7 +12278,7 @@ function scorePointer(e) {
     } Object.assign(marquee.style, { left: Math.min(x, ev.clientX) + 'px', top: Math.min(y, ev.clientY) + 'px', width: Math.abs(ev.clientX - x) + 'px', height: Math.abs(ev.clientY - y) + 'px' }); };
     const done = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', finish); window.removeEventListener('pointercancel', done); if (marquee)
         marquee.remove(); };
-    const finish = (ev) => {
+    const finish = (ev: { clientX: number; clientY: number; }) => {
         done();
         if (Math.hypot(ev.clientX - x, ev.clientY - y) < 5) {
             if (target) {
@@ -12331,7 +12304,7 @@ function scorePointer(e) {
         }
         if (!add)
             AN.selected.clear();
-        SCORE.heads.forEach((list, i) => list.forEach((g) => { const r = g.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2; if (cx >= Math.min(x, ev.clientX) && cx <= Math.max(x, ev.clientX) && cy >= Math.min(y, ev.clientY) && cy <= Math.max(y, ev.clientY))
+        SCORE.heads.forEach((list, i) => list.forEach((g: { getBoundingClientRect: () => any; }) => { const r = g.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2; if (cx >= Math.min(x, ev.clientX) && cx <= Math.max(x, ev.clientX) && cy >= Math.min(y, ev.clientY) && cy <= Math.max(y, ev.clientY))
             AN.selected.add(i); }));
         anSelectionChanged();
     };
@@ -12339,12 +12312,12 @@ function scorePointer(e) {
     window.addEventListener('pointerup', finish);
     window.addEventListener('pointercancel', done);
 }
-function anRove(g) { $('an-roll').querySelectorAll('[data-i][tabindex="0"]').forEach((x) => x.setAttribute('tabindex', '-1')); g.setAttribute('tabindex', '0'); }
+function anRove(g: { setAttribute: (arg0: string,arg1: string) => void; }) { byId('an-roll').querySelectorAll('[data-i][tabindex="0"]').forEach((x) => x.setAttribute('tabindex', '-1')); g.setAttribute('tabindex', '0'); }
 /* practice transfer: an ephemeral Read & Play piece (one line or chord stack per hand, bars kept, rhythm on a 16th grid) */
-function anToReadPiece(ns) {
+function anToReadPiece(ns: any[]) {
     if (!ns.length)
         return { error: 'none' };
-    const notes = ns.slice().sort((a, b) => a.start - b.start || a.midi - b.midi), meas = anMeasures(), A = notes[0].start;
+    const notes = ns.slice().sort((a: { start: number; midi: number; }, b: { start: number; midi: number; }) => a.start - b.start || a.midi - b.midi), meas = anMeasures(), A = notes[0].start;
     const m0 = anMeasureAt(A), m1 = anMeasureAt(notes[notes.length - 1].start), i0 = meas.indexOf(m0), i1 = meas.indexOf(m1);
     if (i1 - i0 + 1 > AN_PRACTICE_BARS || notes.length > 600)
         return { error: 'long' };
@@ -12353,29 +12326,29 @@ function anToReadPiece(ns) {
         const q = m0.num * 4 / m0.den;
         ts = Number.isInteger(q) ? [q, 4] : [Math.round(q * 2), 8];
     }
-    const cap = ts[1] === 8 ? ts[0] * 0.5 : ts[0], grid = SCORE.midiGrid === 8 ? 8 : 4, q = (v) => Math.round(v * grid) / grid;
+    const cap = ts[1] === 8 ? ts[0] * 0.5 : ts[0], grid = SCORE.midiGrid === 8 ? 8 : 4, q = (v: number) => Math.round(v * grid) / grid;
     const origin = q(A), offset = q(origin - m0.start), pickup = offset > 1e-6 && offset < cap - 1e-6 ? q(cap - offset) : 0, total = q(m1.end - origin);
     if (total <= 0)
         return { error: 'none' };
-    const key = anKeyAt(A), spellSR = (m) => { const s = spellMidi(m, key.fifths, key.minor); return s.oct < 0 || s.oct > 9 ? null : SR_LET[s.li] + (s.acc > 0 ? '#' : s.acc < 0 ? 'b' : '') + s.oct; };
+    const key = anKeyAt(A), spellSR = (m: number) => { const s = spellMidi(m, key.fifths, key.minor); return s.oct < 0 || s.oct > 9 ? null : SR_LET[s.li] + (s.acc > 0 ? '#' : s.acc < 0 ? 'b' : '') + s.oct; };
     const VAL = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9), RVAL = [4, 2, 1, 0.5, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9);
-    const nextBar = (p) => { let b = pickup > 0 ? pickup : cap; while (b <= p + 1e-6)
+    const nextBar = (p: number) => { let b = pickup > 0 ? pickup : cap; while (b <= p + 1e-6)
         b += cap; return b; };
-    const rests = (list, from, to) => { let p = from; while (p < to - 1e-6) {
+    const rests = (list: any[], from: number, to: number) => { let p = from; while (p < to - 1e-6) {
         const len = Math.min(to, nextBar(p)) - p, v = RVAL.find((x) => x <= len + 1e-6) || 1 / grid;
         list.push(['R', v]);
         p = q(p + v);
     } };
     let bad = false;
-    const build = (hand) => {
-        const own = notes.filter((n) => anHandOf(n) === hand);
+    const build = (hand: string) => {
+        const own = notes.filter((n: any) => anHandOf(n) === hand);
         if (!own.length)
             return null;
         const on = new Map();
-        own.forEach((n) => { const s = q(n.start - origin); if (s < 0 || s >= total - 1e-6)
+        own.forEach((n: { start: number; midi: any; end: number; }) => { const s = q(n.start - origin); if (s < 0 || s >= total - 1e-6)
             return; const k = s.toFixed(4); if (!on.has(k))
             on.set(k, { s, ms: new Set(), end: 0 }); const o = on.get(k); o.ms.add(n.midi); o.end = Math.max(o.end, Math.min(total, Math.max(s + 1 / grid, q(n.end - origin)))); });
-        const list = [], os = [...on.values()].sort((a, b) => a.s - b.s);
+        const list: (string|number|(string|null)[]|null)[][] = [], os = [...on.values()].sort((a, b) => a.s - b.s);
         let p = 0;
         os.forEach((o, i) => {
             if (o.s > p + 1e-6)
@@ -12408,7 +12381,7 @@ function anToReadPiece(ns) {
         piece.lh = lh;
     return { piece };
 }
-function anPracticeCheck(ns) {
+function anPracticeCheck(ns: any[]) {
     const r = anToReadPiece(ns);
     if (r.piece)
         return { ok: true, piece: r.piece };
@@ -12417,7 +12390,7 @@ function anPracticeCheck(ns) {
 function anPractice() {
     const chk = anPracticeCheck(anScopeNotes());
     if (!chk.ok) {
-        const note = $('an-practice-note');
+        const note = byId('an-practice-note');
         if (note)
             note.textContent = chk.msg;
         return;
@@ -12426,15 +12399,15 @@ function anPractice() {
     SR.excerpt = chk.piece;
     SR.modeSel = 'learn';
     SR.hands = 'both';
-    [...$('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === 'learn' ? 'true' : 'false'));
+    [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === 'learn' ? 'true' : 'false'));
     show('read');
     fillPieces();
     srSelectPiece(SR.excerpt.id);
-    const v = $('rd-verdict');
+    const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rd_excerpt_ready');
-    $('rd-go').focus({ preventScroll: true }); // bring the staff and Start above the keyboard dock
-    window.scrollTo({ top: Math.max(0, $('rd-meta').getBoundingClientRect().top + window.scrollY - 80), behavior: 'auto' });
+    byId('rd-go').focus({ preventScroll: true }); // bring the staff and Start above the keyboard dock
+    window.scrollTo({ top: Math.max(0, byId('rd-meta').getBoundingClientRect().top + window.scrollY - 80), behavior: 'auto' });
 }
 /* falling notes: a dark stage with lanes, bar lines and an integrated keyboard; notes coloured by hand */
 const FALL = { mode: 'score', raf: 0, position: 0, origin: 0, audioStart: 0, factor: 1, notes: [], hits: [], zoom: 1, geo: null, particles: [], flashes: [], lastT: null, lastFrame: 0, resume: null };
@@ -12470,7 +12443,7 @@ function fallTime() {
         x = B.t;
     return x;
 }
-function fallMode(mode) {
+function fallMode(mode: string) {
     FALL.mode = mode === 'fall' ? 'fall' : 'score';
     anUpdateControls();
     anLayoutVars();
@@ -12490,7 +12463,7 @@ function fallMode(mode) {
 }
 function fallReset() { cancelAnimationFrame(FALL.raf); FALL.raf = 0; FALL.position = 0; FALL.particles = []; FALL.flashes = []; FALL.lastT = null; FALL.geo = null; fallDraw(); scoreCursorUpdate(false); anStatusPos(); }
 // Keyboard range: the piece ±2 semitones, whole octaves from C to C, responsive minimum width (4 octaves desktop, 3 tablet, 2 mobile), never beyond the 88 keys.
-function fallRange(W) {
+function fallRange(W: number) {
     const ns = AN.notes;
     if (!ns.length)
         return (!W || W >= 900) ? [48, 96] : W >= 600 ? [48, 84] : [48, 72];
@@ -12512,7 +12485,7 @@ function fallRange(W) {
     }
     return [Math.max(21, lo), hi];
 }
-function fallKeys(lo, hi, W) {
+function fallKeys(lo: number, hi: number, W: number) {
     const whites = [], keys = new Map();
     for (let m = lo; m <= hi; m++)
         if (!FALL_BLACK.has(pc(m)))
@@ -12527,10 +12500,10 @@ function fallKeys(lo, hi, W) {
         }
     return { lo, hi, W, keys, whites, kw, bw };
 }
-function fallRR(ctx, x, y, w, h, r) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-function fallKeyPath(ctx, x, y, w, h, r) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r); ctx.closePath(); }
+function fallRR(ctx: { beginPath: () => void; moveTo: (arg0: any,arg1: any) => void; arcTo: (arg0: any,arg1: any,arg2: any,arg3: any,arg4: any) => void; closePath: () => void; }, x: number, y: number, w: number, h: number, r: number) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function fallKeyPath(ctx: { beginPath: () => void; moveTo: (arg0: any,arg1: any) => void; lineTo: (arg0: any,arg1: number) => void; arcTo: (arg0: any,arg1: any,arg2: number,arg3: number,arg4: any) => void; closePath: () => void; }, x: number, y: any, w: number, h: number, r: number) { r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r); ctx.closePath(); }
 // Crisp at any devicePixelRatio; animates only while playing (or while a burst fades), otherwise redraws on demand.
-function fallName(n) {
+function fallName(n: { finger: any; start: any; midi: number; }) {
     const mode = PRAC.labels;
     if (mode === 'none')
         return '';
@@ -12544,7 +12517,7 @@ function fallDraw() {
     FALL.raf = 0;
     if (FALL.mode !== 'fall' || !AN.notes.length)
         return;
-    const canvas = $('fall-canvas'), W = canvas.clientWidth, H = canvas.clientHeight;
+    const canvas = byId('fall-canvas'), W = canvas.clientWidth, H = canvas.clientHeight;
     if (!W || !H)
         return;
     const ctx = canvas.getContext('2d'), dpr = window.devicePixelRatio || 1, bw = Math.round(W * dpr), bh = Math.round(H * dpr);
@@ -12571,17 +12544,17 @@ function fallDraw() {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, hitY);
     ctx.fillStyle = 'rgba(0,0,0,.26)';
-    G.keys.forEach((k) => { if (k.black)
+    G.keys.forEach((k: { black: any; x: any; w: any; }) => { if (k.black)
         ctx.fillRect(k.x, 0, k.w, hitY); });
     if (FALL.laneSrc !== AN.notes) {
         FALL.laneSrc = AN.notes;
         FALL.lanes = new Set(AN.notes.map((n) => n.midi));
     }
     ctx.fillStyle = 'rgba(140,170,255,.035)';
-    FALL.lanes.forEach((m) => { const k = G.keys.get(m); if (k)
+    FALL.lanes.forEach((m: any) => { const k = G.keys.get(m); if (k)
         ctx.fillRect(k.x, 0, k.w, hitY); });
     ctx.fillStyle = 'rgba(150,175,235,.17)';
-    G.keys.forEach((k, m) => { if (!k.black && pc(m) === 0)
+    G.keys.forEach((k: { black: any; x: number; }, m: number) => { if (!k.black && pc(m) === 0)
         ctx.fillRect(Math.round(k.x), 0, 1, hitY); });
     const bars = [];
     for (const m of anMeasures()) {
@@ -12750,7 +12723,7 @@ function fallDraw() {
     else
         FALL.lastFrame = 0;
 }
-function fallBurst(k, y, c) {
+function fallBurst(k: { x: number; w: number; }, y: number, c: { rgb: any; lit: any[]; }) {
     const x = k.x + k.w / 2;
     FALL.flashes.push({ x, y, w: k.w, rgb: c.rgb, life: .3, max: .3 });
     for (let i = 0; i < 8; i++) {
@@ -12760,7 +12733,7 @@ function fallBurst(k, y, c) {
     if (FALL.particles.length > 300)
         FALL.particles.splice(0, FALL.particles.length - 300);
 }
-function fallParticles(ctx, dt) {
+function fallParticles(ctx: { save: () => void; globalCompositeOperation: string; createRadialGradient: (arg0: any,arg1: any,arg2: number,arg3: any,arg4: any,arg5: number) => any; fillStyle: any; fillRect: (arg0: number,arg1: number,arg2: number,arg3: number) => void; globalAlpha: number; beginPath: () => void; arc: (arg0: any,arg1: any,arg2: any,arg3: number,arg4: number) => void; fill: () => void; restore: () => void; }, dt: number) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     FALL.flashes = FALL.flashes.filter((f) => (f.life -= dt) > 0);
@@ -12786,10 +12759,10 @@ function fallParticles(ctx, dt) {
 }
 // Realistic keys: white keys with a soft gradient and front lip, glossy black keys; pressed keys light up in the hand colour and dip.
 // Keys you hold yourself show in gold; keys "Wait for me" is waiting for pulse.
-function fallKeyboard(ctx, G, y, kh, W, active, P, need, ms) {
+function fallKeyboard(ctx: { fillStyle: string; fillRect: (arg0: number,arg1: number,arg2: number,arg3: number) => void; createLinearGradient: (arg0: number,arg1: number,arg2: number,arg3: any) => any; fill: () => void; strokeStyle: string; lineWidth: number; stroke: () => void; font: string; textAlign: string; textBaseline: string; fillText: (arg0: string,arg1: any,arg2: number,arg3: number) => void; save: () => void; shadowColor: string; shadowBlur: number; shadowOffsetY: number; restore: () => void; beginPath: () => void; moveTo: (arg0: any,arg1: number) => void; lineTo: (arg0: number,arg1: any) => void; }, G: { kw: number; whites: any; keys: { get: (arg0: any) => any; }; }|null, y: number, kh: number, W: number, active: Map<any,any>, P: { [x: string]: { key: any; }; rh?: { a: string; b: string; lit: string[]; rgb: string; key: string[]; ink: string; }; lh?: { a: string; b: string; lit: string[]; rgb: string; key: string[]; ink: string; }; }, need: any[], ms: number) {
     P = P || FALL_COL;
     const mineHeld = new Set(held.keys ? held.keys() : held), pulse = .55 + .45 * Math.sin((ms || 0) / 170), wait = new Set(need || []);
-    const tint = (m) => { const h = active.get(m); if (h)
+    const tint = (m: unknown) => { const h = active.get(m); if (h)
         return P[h].key; if (mineHeld.has(m))
         return FALL_YOU; return null; };
     ctx.fillStyle = '#110e0c';
@@ -12914,11 +12887,11 @@ function fallKeyboard(ctx, G, y, kh, W, active, P, need, ms) {
     ctx.fillRect(0, y + 3.5, W, 4);
 }
 // Timeline under the stage: clock, bar ticks, loop region, A/B markers, seek slider and the current bar.
-function anTlUpdate(time) {
-    const tl = $('an-tl');
+function anTlUpdate(time: number|null|undefined) {
+    const tl = byId('an-tl');
     if (!tl || tl.hidden || !AN.notes.length)
         return;
-    const end = fallEnd(), pos = Math.max(0, Math.min(end, time != null ? time : fallTime())), seek = $('fall-seek'), pct = (x) => (end > 0 ? Math.max(0, Math.min(1, x / end)) * 100 : 0).toFixed(3) + '%';
+    const end = fallEnd(), pos = Math.max(0, Math.min(end, time != null ? time : fallTime())), seek = byId('fall-seek'), pct = (x: string|number) => (end > 0 ? Math.max(0, Math.min(1, x / end)) * 100 : 0).toFixed(3) + '%';
     const mx = String(Math.max(.1, end));
     if (seek.max !== mx)
         seek.max = mx;
@@ -12926,7 +12899,7 @@ function anTlUpdate(time) {
         seek.value = String(pos);
     seek.style.setProperty('--p', pct(pos));
     seek.setAttribute('aria-valuetext', t('fall_valtext', anClock(pos), anClock(end)));
-    const set = (id, v) => { const el = $(id); if (el.textContent !== v)
+    const set = (id: string, v: string|null) => { const el = maybeById(id); if (el.textContent !== v)
         el.textContent = v; };
     set('fall-clock', anClock(pos));
     set('fall-total', anClock(end));
@@ -12937,27 +12910,27 @@ function anTlUpdate(time) {
         FALL.tickTempo = SCORE.tempoList;
         FALL.tickEnd = end;
         const step = ms.length > 240 ? 8 : ms.length > 120 ? 4 : ms.length > 60 ? 2 : 1, major = ms.length > 60 ? Math.max(8, step * 4) : 4;
-        $('tl-ticks').innerHTML = ms.map((x, i) => i % step ? '' : `<i${i % major === 0 ? ' class="is-major"' : ''} style="left:${pct(scoreSeconds(x.start))}"></i>`).join('');
+        byId('tl-ticks').innerHTML = ms.map((x, i) => i % step ? '' : `<i${i % major === 0 ? ' class="is-major"' : ''} style="left:${pct(scoreSeconds(x.start))}"></i>`).join('');
     }
-    const L = SCORE.loop, lp = $('tl-loop'), A = PRAC.A, B = PRAC.B, la = L ? L.a : A != null && B != null ? A : null, lb = L ? L.b : A != null && B != null ? B : null;
+    const L = SCORE.loop, lp = byId('tl-loop'), A = PRAC.A, B = PRAC.B, la = L ? L.a : A != null && B != null ? A : null, lb = L ? L.b : A != null && B != null ? B : null;
     lp.hidden = la == null;
     if (la != null) {
         lp.style.left = pct(la);
         lp.style.width = (end > 0 ? (lb - la) / end * 100 : 0).toFixed(3) + '%';
     }
-    [['tl-a', A], ['tl-b', B]].forEach(([id, v] = []) => { const el = $(id); el.hidden = v == null; if (v != null)
+    [['tl-a', A], ['tl-b', B]].forEach(([id, v] = []) => { const el = maybeById(id); el.hidden = v == null; if (v != null)
         el.style.left = pct(v); });
 }
 // Seeking pauses while the slider moves and resumes on release if it was playing.
-function fallSeek() { const pos = +$('fall-seek').value; if (SCORE.playing) {
+function fallSeek() { const pos = +inputById('fall-seek').value; if (SCORE.playing) {
     FALL.resume = SCORE.loop ? null : { sel: SCORE.sel };
     scoreHalt();
 } SCORE.resume = null; FALL.position = pos; scoreIdle(); }
 function fallSeekEnd() { const r = FALL.resume; FALL.resume = null; if (r)
     scorePlay(r.sel, FALL.position); }
-function fallHit(e) { const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; return FALL.hits.findLast((h) => x >= h.x - 2 && x <= h.x + h.w + 2 && y >= h.y && y <= h.y + h.h); }
+function fallHit(e: { currentTarget: { getBoundingClientRect: () => any; }; clientX: number; clientY: number; }) { const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; return FALL.hits.findLast((h: { x: number; w: any; y: number; h: any; }) => x >= h.x - 2 && x <= h.x + h.w + 2 && y >= h.y && y <= h.y + h.h); }
 // The integrated keyboard is playable by mouse or touch.
-function fallKeyAt(e) {
+function fallKeyAt(e: { currentTarget: { getBoundingClientRect: () => any; }; clientX: number; clientY: number; }) {
     const G = FALL.geo;
     if (!G || !G.hitY)
         return null;
@@ -12976,7 +12949,7 @@ function fallKeyAt(e) {
     }
     return null;
 }
-function fallKeyDown(e) {
+function fallKeyDown(e: { preventDefault: () => void; pointerId: string; currentTarget: { setPointerCapture: (arg0: any) => void; }; }) {
     const m = fallKeyAt(e);
     if (m == null)
         return;
@@ -12992,10 +12965,10 @@ function fallKeyDown(e) {
     if (!FALL.raf)
         fallDraw();
 }
-function fallKeyUp(e) { const P = FALL.press, m = P && P.get(e.pointerId); if (m == null)
+function fallKeyUp(e: { pointerId: string; }) { const P = FALL.press, m = P && P.get(e.pointerId); if (m == null)
     return; P.delete(e.pointerId); handleNoteOff(m, 'fall:' + e.pointerId); if (!FALL.raf)
     fallDraw(); }
-function fallSelect(e) {
+function fallSelect(e: { shiftKey: any; ctrlKey: any; metaKey: any; }) {
     if (fallKeyAt(e) != null)
         return;
     const hit = fallHit(e), add = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -13012,31 +12985,31 @@ function fallSelect(e) {
         AN.selected.add(hit.i);
     anSelectionChanged();
 }
-function fallHover(e) { e.currentTarget.style.cursor = fallHit(e) || fallKeyAt(e) != null ? 'pointer' : ''; }
+function fallHover(e: { currentTarget: { style: { cursor: string; }; }; }) { e.currentTarget.style.cursor = fallHit(e) || fallKeyAt(e) != null ? 'pointer' : ''; }
 /* wiring */
 // Score shortcuts, only in this view and never while typing or choosing in a form field:
 // Space play/pause, Home go to start, Esc close the settings or clear the selection, + / − zoom.
-function anShortcut(e) {
-    if (view0() !== 'analysis' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || inField() || $('drawer').classList.contains('on') || $('helpBox').classList.contains('on'))
+function anShortcut(e: { defaultPrevented: any; metaKey: any; ctrlKey: any; altKey: any; key: any; preventDefault: () => void; repeat: any; target: { closest: (arg0: string) => any; }; }) {
+    if (view0() !== 'analysis' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || inField() || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on'))
         return;
     const k = e.key;
     if (k === 'Escape') {
-        if (!$('pr-sum').hidden) {
+        if (!byId('pr-sum').hidden) {
             e.preventDefault();
             pracSumClose();
             return;
         }
         for (const [p, b] of AN_POPS)
-            if (!$(p).hidden) {
+            if (!maybeById(p).hidden) {
                 e.preventDefault();
                 anPop(p, false);
-                $(b).focus();
+                maybeById(b).focus();
                 return;
             }
-        if (!$('an-recon').hidden) {
+        if (!byId('an-recon').hidden) {
             e.preventDefault();
             anReconOpen(false);
-            $('an-recon-btn').focus();
+            byId('an-recon-btn').focus();
             return;
         }
         if (SIDE.sheet) {
@@ -13087,7 +13060,7 @@ function anShortcut(e) {
     const K = k.length === 1 ? k.toLowerCase() : k;
     if (K === 'l') {
         e.preventDefault();
-        $('an-loop').click();
+        byId('an-loop').click();
         return;
     }
     if (K === '[') {
@@ -13113,7 +13086,7 @@ function anShortcut(e) {
     if (K === 'c') {
         e.preventDefault();
         PRAC.countIn = !PRAC.countIn;
-        $('pr-countin').checked = PRAC.countIn;
+        inputById('pr-countin').checked = PRAC.countIn;
         pracSave();
         return;
     }
@@ -13123,7 +13096,7 @@ function anShortcut(e) {
     }
 }
 // Seek to a time (keeps playing if it was playing) and step bar by bar.
-function scoreSeekTo(x) {
+function scoreSeekTo(x: number|null|undefined) {
     x = Math.max(0, Math.min(fallEnd(), x));
     if (SCORE.playing && !SCORE.loop) {
         scorePlay(SCORE.sel, x);
@@ -13136,7 +13109,7 @@ function scoreSeekTo(x) {
     FALL.position = x;
     scoreIdle();
 }
-function scoreSeekBar(d) {
+function scoreSeekBar(d: number) {
     const ms = anMeasures();
     if (!ms.length)
         return;
@@ -13151,9 +13124,9 @@ function scoreSeekBar(d) {
 }
 // Popovers under the toolbar: one open at a time, placed under their button, closed by Esc or a click outside.
 const AN_POPS = [['fall-pop', 'fall-opt'], ['an-keys-pop', 'an-keys-btn']];
-function anPop(id, open) {
+function anPop(id: string, open: boolean) {
     const pair = AN_POPS.find((x) => x[0] === id) || [id, id];
-    const p = $(id), b = $(pair[1]);
+    const p = maybeById(id), b = maybeById(pair[1]);
     open = !!open && !b.hidden;
     if (open) {
         AN_POPS.forEach(([q] = []) => { if (q !== id)
@@ -13181,7 +13154,7 @@ function anStageFit() {
         fallDraw();
         return;
     }
-    const box = $('an-roll'), sheet = box.querySelector('.an-sheet');
+    const box = byId('an-roll'), sheet = box.querySelector('.an-sheet');
     if (!SCORE.engine || !box.clientWidth || !sheet)
         return;
     if (SCORE.layout === 'cont') {
@@ -13195,8 +13168,8 @@ function anStageFit() {
 }
 // The panel's left edge resizes it: drag, or arrow keys on the focused separator (Home / End for the narrowest / widest).
 function anSideResizer() {
-    const h = $('an-side-resize'), work = $('an-work'), MIN = 280, MAX = 560;
-    const apply = (w, save) => { SIDE.w = Math.round(Math.max(MIN, Math.min(MAX, work.clientWidth * .5, w))); work.style.setProperty('--an-side-w', SIDE.w + 'px'); h.setAttribute('aria-valuenow', String(SIDE.w)); if (save) {
+    const h = byId('an-side-resize'), work = byId('an-work'), MIN = 280, MAX = 560;
+    const apply = (w: number, save: boolean) => { SIDE.w = Math.round(Math.max(MIN, Math.min(MAX, work.clientWidth * .5, w))); work.style.setProperty('--an-side-w', SIDE.w + 'px'); h.setAttribute('aria-valuenow', String(SIDE.w)); if (save) {
         saveAll();
         anStageFit();
     } };
@@ -13207,7 +13180,7 @@ function anSideResizer() {
         h.setPointerCapture(e.pointerId);
         SIDE.drag = true;
         h.classList.add('is-drag');
-        const right = work.getBoundingClientRect().right, move = (ev) => apply(right - ev.clientX, false);
+        const right = work.getBoundingClientRect().right, move = (ev: { clientX: number; }) => apply(right - ev.clientX, false);
         const up = () => { h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); SIDE.drag = false; h.classList.remove('is-drag'); apply(SIDE.w, true); };
         h.addEventListener('pointermove', move);
         h.addEventListener('pointerup', up);
@@ -13226,85 +13199,85 @@ function anSideResizer() {
     });
 }
 function anInitControls() {
-    $('an-file').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f)
+    byId('an-file').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f)
         anOpenFile(f); });
-    $('an-roll').addEventListener('click', (e) => { if (e.target.closest('[data-an-open]')) {
-        $('an-file').click();
+    byId('an-roll').addEventListener('click', (e) => { if (e.target.closest('[data-an-open]')) {
+        byId('an-file').click();
         return;
     } const ex = e.target.closest('.an-ex'); if (ex && !ex.disabled)
         anLoadExample(ex.dataset.piece); });
-    $('an-example').addEventListener('change', (e) => { if (e.target.value)
+    byId('an-example').addEventListener('change', (e) => { if (e.target.value)
         anLoadExample(e.target.value); });
-    ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => $(id).addEventListener('change', anReconChange));
-    $('an-recon-btn').addEventListener('click', () => anReconOpen($('an-recon').hidden));
+    ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => maybeById(id).addEventListener('change', anReconChange));
+    byId('an-recon-btn').addEventListener('click', () => anReconOpen(byId('an-recon').hidden));
     document.addEventListener('pointerdown', (e) => {
-        if (!$('an-recon').hidden && !e.target.closest('#an-recon,#an-recon-btn'))
+        if (!byId('an-recon').hidden && !e.target.closest('#an-recon,#an-recon-btn'))
             anReconOpen(false);
-        AN_POPS.forEach(([p, b] = []) => { if (!$(p).hidden && !e.target.closest('#' + p + ',#' + b))
+        AN_POPS.forEach(([p, b] = []) => { if (!maybeById(p).hidden && !e.target.closest('#' + p + ',#' + b))
             anPop(p, false); });
     });
-    $('an-recon-btn').addEventListener('click', () => AN_POPS.forEach(([p] = []) => anPop(p, false)));
-    AN_POPS.forEach(([p, b] = []) => $(b).addEventListener('click', () => anPop(p, $(p).hidden)));
+    byId('an-recon-btn').addEventListener('click', () => AN_POPS.forEach(([p] = []) => anPop(p, false)));
+    AN_POPS.forEach(([p, b] = []) => maybeById(b).addEventListener('click', () => anPop(p, maybeById(p).hidden)));
     pracLoad();
     const ck = { 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-ramp': 'ramp', 'fall-fx': 'fx' };
-    Object.entries(ck).forEach(([id, k] = []) => { $(id).checked = PRAC[k]; $(id).addEventListener('change', (e) => pracSet(k, e.target.checked)); });
-    [['fall-labels', 'labels'], ['fall-pal', 'pal'], ['fall-range', 'range']].forEach(([id, k] = []) => { $(id).value = PRAC[k]; $(id).addEventListener('change', (e) => pracSet(k, e.target.value)); });
-    const look = $('fall-look'), lookOut = () => { $('fall-look-v').textContent = (+look.value).toFixed(1) + ' s'; };
+    Object.entries(ck).forEach(([id, k] = []) => { maybeById(id).checked = PRAC[k]; maybeById(id).addEventListener('change', (e) => pracSet(k, e.target.checked)); });
+    [['fall-labels', 'labels'], ['fall-pal', 'pal'], ['fall-range', 'range']].forEach(([id, k] = []) => { maybeById(id).value = PRAC[k]; maybeById(id).addEventListener('change', (e) => pracSet(k, e.target.value)); });
+    const look = byId('fall-look'), lookOut = () => { byId('fall-look-v').textContent = (+look.value).toFixed(1) + ' s'; };
     look.value = String(Math.round(FALL_SEC / FALL.zoom * 5) / 5);
     lookOut();
     look.addEventListener('input', () => { FALL.zoom = FALL_SEC / +look.value; lookOut(); pracSave(); anUpdateControls(); fallDraw(); });
-    $('pr-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (b)
+    byId('pr-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (b)
         pracSet('hands', b.dataset.h); });
-    $('pr-wait').addEventListener('click', () => pracSet('wait', !PRAC.wait));
-    $('an-metro').addEventListener('click', () => pracSet('metro', !PRAC.metro));
-    $('pr-seta').addEventListener('click', () => pracSetAB('A'));
-    $('pr-setb').addEventListener('click', () => pracSetAB('B'));
-    $('pr-clrab').addEventListener('click', pracClearAB);
-    $('pr-again').addEventListener('click', () => { pracSumClose(); scorePlay(false, 0); });
-    $('pr-slower').addEventListener('click', () => { pracSumClose(); const sel = $('score-speed'), o = [...sel.options].map((x) => +x.value), cur = +sel.value, v = o.filter((x) => x < cur).pop(); if (v)
+    byId('pr-wait').addEventListener('click', () => pracSet('wait', !PRAC.wait));
+    byId('an-metro').addEventListener('click', () => pracSet('metro', !PRAC.metro));
+    byId('pr-seta').addEventListener('click', () => pracSetAB('A'));
+    byId('pr-setb').addEventListener('click', () => pracSetAB('B'));
+    byId('pr-clrab').addEventListener('click', pracClearAB);
+    byId('pr-again').addEventListener('click', () => { pracSumClose(); scorePlay(false, 0); });
+    byId('pr-slower').addEventListener('click', () => { pracSumClose(); const sel = byId('score-speed'), o = [...sel.options].map((x) => +x.value), cur = +sel.value, v = o.filter((x) => x < cur).pop(); if (v)
         sel.value = String(v); pracHud(); scorePlay(false, 0); });
-    $('pr-close').addEventListener('click', pracSumClose);
-    $('pr-sum-next').addEventListener('click', (e) => { if (e.target.closest('#pr-next-act') && PRAC.next && PRAC.next.act)
+    byId('pr-close').addEventListener('click', pracSumClose);
+    byId('pr-sum-next').addEventListener('click', (e) => { if (e.target.closest('#pr-next-act') && PRAC.next && PRAC.next.act)
         PRAC.next.act.run(); });
-    $('pr-sum').addEventListener('pointerdown', (e) => { if (e.target === e.currentTarget)
+    byId('pr-sum').addEventListener('pointerdown', (e) => { if (e.target === e.currentTarget)
         pracSumClose(); });
-    $('an-clear').addEventListener('click', anClearSelection);
-    $('an-play').addEventListener('click', () => scorePlay(true));
-    $('an-loop').addEventListener('click', () => { if (SCORE.loop)
+    byId('an-clear').addEventListener('click', anClearSelection);
+    byId('an-play').addEventListener('click', () => scorePlay(true));
+    byId('an-loop').addEventListener('click', () => { if (SCORE.loop)
         scoreStop();
     else
         scoreLoopStart(); });
-    $('score-play').addEventListener('click', scoreToggle);
-    $('score-stop').addEventListener('click', scoreStop);
-    $('sc-start').addEventListener('click', scoreHome);
+    byId('score-play').addEventListener('click', scoreToggle);
+    byId('score-stop').addEventListener('click', scoreStop);
+    byId('sc-start').addEventListener('click', scoreHome);
     const speed = () => { pracHud(); anUpdateControls(); if (!SCORE.playing)
         return; if (SCORE.loop)
         scoreLoopStart();
     else
         scorePlay(SCORE.sel, fallTime()); };
-    $('score-speed').addEventListener('change', speed);
+    byId('score-speed').addEventListener('change', speed);
     (document).querySelectorAll('[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!b.disabled)
         scoreSetView(b.dataset.scoreMode); }));
-    $('sc-zoom-out').addEventListener('click', () => scoreZoom(anZoomNow() - 0.1));
-    $('sc-zoom-in').addEventListener('click', () => scoreZoom(anZoomNow() + 0.1));
-    $('sc-zoom-reset').addEventListener('click', () => scoreZoom(1));
-    $('sc-look').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b && !b.disabled)
+    byId('sc-zoom-out').addEventListener('click', () => scoreZoom(anZoomNow() - 0.1));
+    byId('sc-zoom-in').addEventListener('click', () => scoreZoom(anZoomNow() + 0.1));
+    byId('sc-zoom-reset').addEventListener('click', () => scoreZoom(1));
+    byId('sc-look').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b && !b.disabled)
         scoreSetLook(b.dataset.v); });
-    $('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
-    $('an-kb').addEventListener('click', () => dockSet(!dockOpen()));
-    const seek = $('fall-seek');
+    byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
+    byId('an-kb').addEventListener('click', () => dockSet(!dockOpen()));
+    const seek = byId('fall-seek');
     seek.addEventListener('input', fallSeek);
     seek.addEventListener('change', fallSeekEnd);
-    const fc = $('fall-canvas');
+    const fc = byId('fall-canvas');
     fc.addEventListener('click', fallSelect);
     fc.addEventListener('pointermove', fallHover);
     fc.addEventListener('pointerdown', fallKeyDown);
     ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => fc.addEventListener(ev, fallKeyUp));
-    const roll = $('an-roll');
+    const roll = byId('an-roll');
     roll.addEventListener('pointerdown', scorePointer);
     roll.addEventListener('pointerover', anHover);
-    roll.addEventListener('pointerleave', () => { $('an-hover').textContent = ''; scoreTip(null); });
-    let hoverRaf = 0, hoverEv = null;
+    roll.addEventListener('pointerleave', () => { byId('an-hover').textContent = ''; scoreTip(null); });
+    let hoverRaf = 0, hoverEv: PointerEvent|null = null;
     roll.addEventListener('pointermove', (e) => { if (e.buttons)
         return; hoverEv = e; if (!hoverRaf)
         hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; if (hoverEv)
@@ -13342,7 +13315,7 @@ function anInitControls() {
     });
     document.addEventListener('keydown', anShortcut);
     // analysis panel: a chord (in Now or Piece) selects its notes and its bar and moves the cursor there
-    const side = $('an-side'), ws = $('an-ws');
+    const side = byId('an-side'), ws = byId('an-ws');
     side.addEventListener('click', (e) => {
         const ch = e.target.closest('.an-ch');
         if (ch && AN.view) {
@@ -13389,56 +13362,56 @@ function anInitControls() {
     ws.addEventListener('keydown', (e) => { if (/^(Page|Arrow|Home|End)/.test(e.key))
         SIDE.handScroll = performance.now(); });
     // tabs: click, or Left/Right/Home/End with automatic activation; the choice is remembered
-    $('an-tabs').addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (b)
+    byId('an-tabs').addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (b)
         anTab(b.dataset.tab); });
-    $('an-tabs').addEventListener('keydown', (e) => {
+    byId('an-tabs').addEventListener('keydown', (e) => {
         const i = AN_TABS.indexOf(SIDE.tab), j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? AN_TABS.length - 1 : null;
         if (j == null)
             return;
         e.preventDefault();
         anTab(AN_TABS[(j + AN_TABS.length) % AN_TABS.length], true);
     });
-    $('an-side-btn').addEventListener('click', () => { if (anNarrow())
+    byId('an-side-btn').addEventListener('click', () => { if (anNarrow())
         anSheet(!SIDE.sheet);
     else
         anSideSet(!SIDE.open); });
-    $('an-side-close').addEventListener('click', () => { if (anNarrow()) {
+    byId('an-side-close').addEventListener('click', () => { if (anNarrow()) {
         anSheet(false);
         return;
-    } anSideSet(false); $('an-side-btn').focus({ preventScroll: true }); });
-    $('an-fab').addEventListener('click', () => anSheet(true));
-    $('pr-opt').addEventListener('click', () => anOpenTab('practice'));
-    $('an-now').addEventListener('focusout', (e) => { if (SIDE.deferred && !$('an-now-body').contains(e.relatedTarget))
+    } anSideSet(false); byId('an-side-btn').focus({ preventScroll: true }); });
+    byId('an-fab').addEventListener('click', () => anSheet(true));
+    byId('pr-opt').addEventListener('click', () => anOpenTab('practice'));
+    byId('an-now').addEventListener('focusout', (e) => { if (SIDE.deferred && !byId('an-now-body').contains(e.relatedTarget))
         requestAnimationFrame(anRenderNow); });
     // Now: the passage actions
-    $('an-now-listen').addEventListener('click', () => { if (anCommitFocus())
+    byId('an-now-listen').addEventListener('click', () => { if (anCommitFocus())
         scorePlay(true); });
-    $('an-now-loop').addEventListener('click', () => { if (SCORE.loop) {
+    byId('an-now-loop').addEventListener('click', () => { if (SCORE.loop) {
         scoreStop();
         return;
     } if (anCommitFocus())
         scoreLoopStart(); });
-    $('an-now-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (!b || b.disabled)
+    byId('an-now-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (!b || b.disabled)
         return; if (PRAC.hands !== b.dataset.h)
         pracSet('hands', b.dataset.h); if (anCommitFocus())
         scoreLoopStart(); });
     // Practice: the same settings as the toolbar
-    $('pt-speed').innerHTML = $('score-speed').innerHTML;
-    $('pt-speed').value = $('score-speed').value;
-    $('pt-speed').addEventListener('change', (e) => { $('score-speed').value = e.target.value; speed(); });
-    $('pt-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (b && !b.disabled)
+    byId('pt-speed').innerHTML = byId('score-speed').innerHTML;
+    selectById('pt-speed').value = selectById('score-speed').value;
+    byId('pt-speed').addEventListener('change', (e) => { selectById('score-speed').value = e.target.value; speed(); });
+    byId('pt-hands').addEventListener('click', (e) => { const b = e.target.closest('button[data-h]'); if (b && !b.disabled)
         pracSet('hands', b.dataset.h); });
-    $('pt-wait').addEventListener('change', (e) => pracSet('wait', e.target.checked));
-    $('pt-metro').addEventListener('change', (e) => pracSet('metro', e.target.checked));
-    $('pt-start').addEventListener('click', anPracticeStart);
-    $('an-practice').addEventListener('click', anPractice);
+    byId('pt-wait').addEventListener('change', (e) => pracSet('wait', e.target.checked));
+    byId('pt-metro').addEventListener('change', (e) => pracSet('metro', e.target.checked));
+    byId('pt-start').addEventListener('click', anPracticeStart);
+    byId('an-practice').addEventListener('click', anPractice);
     anSideResizer();
     anTab(SIDE.tab);
     (window).matchMedia('(max-width: 999px)').addEventListener('change', () => { SIDE.sheet = false; anSideSync(); anLayoutVars(); });
     // drag & dropwhere on the analysis view; the drop zone (or the score) shows the target state
     let depth = 0;
-    const files = (e) => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
-    const over = (on) => { const drop = $('an-drop'), tt = $('an-drop-t'); $('an-roll').classList.toggle('is-over', on && !!SCORE.xml); if (drop)
+    const files = (e: DragEvent) => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+    const over = (on: boolean|undefined) => { const drop = maybeById('an-drop'), tt = maybeById('an-drop-t'); byId('an-roll').classList.toggle('is-over', on && !!SCORE.xml); if (drop)
         drop.classList.toggle('is-over', on); if (tt)
         tt.textContent = t(on ? 'an_drop_over' : 'an_drop_t'); };
     window.addEventListener('dragenter', (e) => { if (view0() !== 'analysis' || !files(e))
@@ -13458,10 +13431,10 @@ function anInitControls() {
     const vars = () => { cancelAnimationFrame(rq); rq = requestAnimationFrame(anLayoutVars); };
     // border-box: a safe-area inset only changes padding, which a content-box observer would miss
     const ro = new ResizeObserver(vars);
-    [(document).querySelector('header'), $('dock'), $('an-tbwrap'), $('an-status')].forEach((el) => ro.observe(el, { box: 'border-box' }));
+    [(document).querySelector('header'), byId('dock'), byId('an-tbwrap'), byId('an-status')].forEach((el) => ro.observe(el, { box: 'border-box' }));
     let lastW = 0, lastH = 0;
     new ResizeObserver((entries) => { const r = entries[0].contentRect, w = Math.round(r.width), h = Math.round(r.height); if (w === lastW && h === lastH)
-        return; lastW = w; lastH = h; anStageFit(); }).observe($('an-stage'));
+        return; lastW = w; lastH = h; anStageFit(); }).observe(byId('an-stage'));
     window.addEventListener('resize', vars);
     window.addEventListener('scroll', anPinToolbarLater, { passive: true });
     const dpr = () => (matchMedia)('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)').addEventListener('change', () => { if (FALL.mode === 'fall')
@@ -13472,13 +13445,13 @@ function anInitControls() {
 /* ---------- PROGRESS ---------- */
 function renderProgress() {
     const acc = data.totalReviews ? Math.round(100 * data.totalCorrect / data.totalReviews) : 0;
-    $('prog-empty').hidden = (data.totalReviews || 0) > 0;
-    $('progStats').innerHTML =
+    byId('prog-empty').hidden = (data.totalReviews || 0) > 0;
+    byId('progStats').innerHTML =
         statHTML(currentStreak(), t('st_streak')) + statHTML(data.bestStreak || 0, t('st_best')) +
             statHTML(masteredCount() + ' / ' + ITEMS.length, t('st_mastered')) +
             statHTML(data.totalReviews || 0, t('st_reviews')) + statHTML(acc + '%', t('st_acc'));
     // mastery rows + answer accuracy per topic (from each concept's review history)
-    const mr = $('masteryRows');
+    const mr = byId('masteryRows');
     mr.innerHTML = '';
     Object.keys(CATS).forEach((cat) => {
         const items = ITEMS.filter((it) => it.cat === cat);
@@ -13499,12 +13472,12 @@ function renderProgress() {
     });
     // weakest concepts → one click to drill that topic
     const weak = ITEMS.map((it) => ({ it, r: data.srs[it.id] })).filter((x) => x.r && x.r.reps >= 2 && x.r.lapses > 0).sort((a, b) => (b.r.lapses / b.r.reps) - (a.r.lapses / a.r.reps) || a.r.box - b.r.box).slice(0, 6);
-    $('weak-wrap').hidden = !weak.length;
-    const wl = $('weakList');
+    byId('weak-wrap').hidden = !weak.length;
+    const wl = byId('weakList');
     wl.innerHTML = '';
-    weak.forEach(({ it, r } = {}) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); $('pr-cat').value = it.cat; $('pr-start').focus(); }); wl.appendChild(b); });
+    weak.forEach(({ it, r } = {}) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); selectById('pr-cat').value = it.cat; byId('pr-start').focus(); }); wl.appendChild(b); });
     // forecast next 7 days
-    const fc = $('forecast');
+    const fc = byId('forecast');
     fc.innerHTML = '';
     const counts = [0, 0, 0, 0, 0, 0, 0];
     const tn = todayN();
@@ -13519,9 +13492,9 @@ function renderProgress() {
     counts.forEach((c, i) => { const day = (document).createElement('div'); day.className = 'day'; day.innerHTML = '<i style="height:' + (c / maxc * 60 + 3) + 'px" title="' + c + '"></i><span>' + names[i] + '</span><span class="num" style="color:var(--ink)">' + c + '</span>'; fc.appendChild(day); });
     const fcAny = counts.some((c) => c > 0);
     fc.hidden = !fcAny;
-    $('fc-none').hidden = fcAny;
+    byId('fc-none').hidden = fcAny;
     // practice heatmap — last 12 weeks
-    const hm = $('heatmap');
+    const hm = byId('heatmap');
     if (hm) {
         hm.innerHTML = '';
         const h = data.history || {};
@@ -13547,10 +13520,10 @@ function renderProgress() {
         const meta = t('heat_meta', active, sum);
         hm.setAttribute('aria-label', t('heat_aria') + ' — ' + meta);
         const sw = ['var(--line)', '#d8c79a', 'var(--gold)', '#7fae8b', 'var(--good)'].map((c) => '<i style="background:' + c + '"></i>').join('');
-        $('heat-meta').innerHTML = '<span>' + meta + '</span><span class="hm-key" aria-hidden="true">' + t('heat_less') + ' ' + sw + ' ' + t('heat_more') + '</span>';
+        byId('heat-meta').innerHTML = '<span>' + meta + '</span><span class="hm-key" aria-hidden="true">' + t('heat_less') + ' ' + sw + ' ' + t('heat_more') + '</span>';
     }
     // every concept, grouped by topic
-    const g = $('itemGrid');
+    const g = byId('itemGrid');
     g.innerHTML = '';
     Object.keys(CATS).forEach((cat) => {
         const sec = (document).createElement('div');
@@ -13575,11 +13548,11 @@ function renderProgress() {
         g.appendChild(sec);
     });
 }
-function statHTML(v, l) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
+function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
-function toolName(v) { return t(v === 'practice' ? 'nav_drills' : 'nav_' + v); }
+function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : 'nav_' + v); }
 function renderPlan() {
-    const list = $('plan-list');
+    const list = byId('plan-list');
     if (!list)
         return;
     const tn = todayN();
@@ -13590,7 +13563,7 @@ function renderPlan() {
                 startSession(null); } },
         ...learnPlanItems(tn),
         { id: 'read', done: td.read === tn, t: t('plan_read'), d: t('plan_read_d'), go: () => show('read') },
-        { id: 'ear', done: ear >= 5, partial: ear > 0 && ear < 5, prog: Math.min(1, ear / 5), pill: Math.min(ear, 5) + '/5', t: t('plan_ear'), d: ear ? t('plan_ear_dn', Math.min(ear, 5)) : t('plan_ear_d'), go: () => { show('songs'); $('sq-go').focus(); } },
+        { id: 'ear', done: ear >= 5, partial: ear > 0 && ear < 5, prog: Math.min(1, ear / 5), pill: Math.min(ear, 5) + '/5', t: t('plan_ear'), d: ear ? t('plan_ear_dn', Math.min(ear, 5)) : t('plan_ear_d'), go: () => { show('songs'); byId('sq-go').focus(); } },
     ];
     const nextIdx = items.findIndex((i) => !i.done);
     list.innerHTML = '';
@@ -13612,12 +13585,12 @@ function renderPlan() {
         li.appendChild(b);
         list.appendChild(li);
     });
-    $('plan-sub').textContent = t('plan_sub', items.filter((i) => i.done).length, items.length);
-    const segs = $('plan-segs');
+    byId('plan-sub').textContent = t('plan_sub', items.filter((i) => i.done).length, items.length);
+    const segs = byId('plan-segs');
     if (segs) {
         segs.innerHTML = items.map((it, idx) => '<i data-state="' + (it.done ? 'done' : it.partial ? 'partial' : idx === nextIdx ? 'next' : 'todo') + '"></i>').join('');
     }
-    const nextIt = nextIdx >= 0 ? items[nextIdx] : null, lt = data.lastTool, cb = $('plan-continue');
+    const nextIt = nextIdx >= 0 ? items[nextIdx] : null, lt = data.lastTool, cb = byId('plan-continue');
     if (nextIt) {
         cb.hidden = false;
         cb.textContent = t('plan_continue', nextIt.t);
@@ -13635,7 +13608,7 @@ function renderPlan() {
 function prRecordDrill() { if (!SES.targeted || !SES.total)
     return; const tg = SES.targeted; data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, c: SES.correct, n: SES.total, day: todayN() }; saveAll(); }
 function renderPracticeLast() {
-    const el = $('pr-last');
+    const el = byId('pr-last');
     if (!el)
         return;
     const d = data.lastDrill;
@@ -13650,29 +13623,29 @@ function renderPracticeLast() {
 }
 /* ---------- SUMMARY ---------- */
 function showSummary(..._args: unknown[]) {
-    $('summary').style.display = 'block';
-    $('today-home').style.display = 'none';
+    byId('summary').style.display = 'block';
+    byId('today-home').style.display = 'none';
     const acc = SES.total ? Math.round(100 * SES.correct / SES.total) : 0;
-    $('sum-acc').textContent = acc + '%';
-    $('sum-rev').textContent = SES.total;
-    $('sum-streak').textContent = currentStreak();
-    const r = $('sum-ring');
+    byId('sum-acc').textContent = acc + '%';
+    byId('sum-rev').textContent = SES.total;
+    byId('sum-streak').textContent = currentStreak();
+    const r = byId('sum-ring');
     const C = 2 * Math.PI * 52;
     r.innerHTML = '<circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" stroke-width="9"/><circle cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - acc / 100)) + '" transform="rotate(-90 60 60)"/><text x="60" y="60" text-anchor="middle" dy=".35em" font-family="var(--serif)" font-weight="900" font-size="26" fill="var(--ink)">' + acc + '%</text>';
     if (SES.placement || arguments[0]) {
-        $('sum-title').textContent = t('sum_place');
-        $('sum-note').textContent = t('sum_placenote', SES.correct, SES.total);
+        byId('sum-title').textContent = t('sum_place');
+        byId('sum-note').textContent = t('sum_placenote', SES.correct, SES.total);
     }
     else {
-        $('sum-title').textContent = t('sum_welldone');
+        byId('sum-title').textContent = t('sum_welldone');
         const dueLeft = dueItems().length;
-        $('sum-note').textContent = dueLeft ? t('sum_more', dueLeft) : t('sum_caught');
+        byId('sum-note').textContent = dueLeft ? t('sum_more', dueLeft) : t('sum_caught');
     }
 }
 /* ============================================================================
    PERSISTENCE  (versioned, migrates V2)
    ============================================================================ */
-function clampPersistedNumber(v, min, max, fallback) { return typeof v === 'number' && Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : fallback; }
+function clampPersistedNumber(v: unknown, min: number, max: number, fallback: number) { return typeof v === 'number' && Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : fallback; }
 /* ---- several open tabs ----
    Each tab keeps the whole record in memory and saves all of it, so a plain write would wipe out whatever another tab saved
    in the meantime. Every write identifies its parent and each tab retains a short history of prior records. Before every
@@ -13690,27 +13663,27 @@ function clampPersistedNumber(v, min, max, fallback) { return typeof v === 'numb
 const SYNC = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_NONE = {}, SYNC_ID = /^[a-z0-9_-]{1,48}$/i; // SYNC_NONE: no shared base, so counters keep the larger side instead of adding
 const SYNC_ADD = /^(totalReviews|totalCorrect|history\.\d+|reading\.tot\.\w+|reading\.nt\..+\.(n|ok|ms)|reading\.lv\..+\.n|learnRev\..+\.n)$/;
 const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush))$/;
-const SYNC_PREFS = { theme: [() => theme, (v) => { if (['auto', 'light', 'dark'].includes(v)) {
+const SYNC_PREFS = { theme: [() => theme, (v: string) => { if (['auto', 'light', 'dark'].includes(v)) {
             theme = v;
             applyTheme();
         } }],
-    lang: [() => lang, (v) => { if (STRINGS[v]) {
+    lang: [() => lang, (v: string|number) => { if (STRINGS[v]) {
             setLang(v);
             setTimeout(rdOnLocale, 0);
         } }, 1],
-    notation: [() => notation, (v) => { if (['letter', 'solfege', 'german'].includes(v)) {
+    notation: [() => notation, (v: string) => { if (['letter', 'solfege', 'german'].includes(v)) {
             notation = v;
             applyNotation();
             refreshToday();
             setTimeout(rdOnLocale, 0);
         } }, 1],
-    labels: [() => labelMode, (v) => { if (['c', 'all', 'none'].includes(v)) {
+    labels: [() => labelMode, (v: string) => { if (['c', 'all', 'none'].includes(v)) {
             labelMode = v;
             buildKeyboard();
             repaintHeld();
         } }, 1] };
 function syncGen() { return Date.now().toString(36).padStart(9, '0') + Math.random().toString(36).slice(2, 8); } // sorts by time
-function syncId(p, raw) {
+function syncId(p: { [x: string]: unknown; v?: 3; data?: Record<string,unknown>&{ settings?: Record<string,unknown>; srs?: Record<string,unknown>; }; syncId?: any; }, raw: string|null) {
     if (p && typeof p.syncId === 'string' && SYNC_ID.test(p.syncId))
         return p.syncId;
     const s = typeof raw === 'string' ? raw : JSON.stringify(p || {});
@@ -13719,7 +13692,7 @@ function syncId(p, raw) {
         h = Math.imul(h ^ s.charCodeAt(i), 16777619);
     return 'h' + (h >>> 0).toString(36);
 }
-function syncRemember(id, p) {
+function syncRemember(id: string, p: unknown) {
     if (!id || !isBackupPayload(p))
         return;
     SYNC.known.delete(id);
@@ -13727,15 +13700,15 @@ function syncRemember(id, p) {
     while (SYNC.known.size > 16)
         SYNC.known.delete(SYNC.known.keys().next().value);
 }
-function syncCurrent(raw) { const p = JSON.parse(raw); SYNC.raw = raw; SYNC.id = syncId(p, raw); syncRemember(SYNC.id, p); } // its own copy: data may share objects with the record it was read from
-function syncPair(a, b) { return 'merge:' + [a, b].sort().join('+'); }
+function syncCurrent(raw: string|null) { const p = JSON.parse(raw); SYNC.raw = raw; SYNC.id = syncId(p, raw); syncRemember(SYNC.id, p); } // its own copy: data may share objects with the record it was read from
+function syncPair(a: string, b: string) { return 'merge:' + [a, b].sort().join('+'); }
 function syncInitial() {
     const p = { v: 3, gen: SYNC.gen, data: JSON.parse(JSON.stringify(data)) };
     SYNC.id = 'init';
     SYNC.raw = null;
     syncRemember(SYNC.id, p);
 }
-function syncSame(a, b) {
+function syncSame(a: { [x: string]: any; srs?: {}; streak?: number; bestStreak?: number; lastActive?: number; todayDay?: number; todayCount?: number; newToday?: number; totalReviews?: number; totalCorrect?: number; placed?: boolean; history?: {}; singCleared?: {}; sheet?: {}; settings?: { goal: number; newPerDay: number; allowInv: boolean; metronome: boolean; drone: boolean; }; }, b: Record<string,unknown>&{ settings?: Record<string,unknown>; srs?: Record<string,unknown>; }) {
     if (a === b)
         return true;
     if (!a || !b || typeof a !== 'object' || typeof b !== 'object')
@@ -13744,18 +13717,18 @@ function syncSame(a, b) {
     const right = b;
     return k.length === Object.keys(right).length && k.every((x) => Object.prototype.hasOwnProperty.call(right, x) && syncSame(a[x], right[x]));
 }
-function syncSrsPair(b, l, r) {
+function syncSrsPair(b: unknown, l: unknown, r: unknown) {
     if (b === SYNC_NONE || !isRecord(l) || !isRecord(r))
         return null;
     const base = isRecord(b) ? b : { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 };
     const left = l, right = r;
-    const reps = (x) => Math.max(0, Math.floor(+x.reps || 0)), lapses = (x) => Math.max(0, Math.floor(+x.lapses || 0));
-    const br = reps(base), bl = lapses(base), lr = reps(left), rr = reps(right), wrong = (x) => lapses(x) === bl ? false : lapses(x) === bl + 1 ? true : null, lw = wrong(left), rw = wrong(right);
+    const reps = (x: Record<string,unknown>) => Math.max(0, Math.floor(+x.reps || 0)), lapses = (x: Record<string,unknown>) => Math.max(0, Math.floor(+x.lapses || 0));
+    const br = reps(base), bl = lapses(base), lr = reps(left), rr = reps(right), wrong = (x: Record<string,unknown>) => lapses(x) === bl ? false : lapses(x) === bl + 1 ? true : null, lw = wrong(left), rw = wrong(right);
     if (lr !== br + 1 || rr !== br + 1 || lw === null || rw === null)
         return null;
     return { base: { ...base, box: Math.max(0, Math.min(7, Math.round(+base.box || 0))), ease: Math.max(1.6, Math.min(2.9, +base.ease || 2.3)), reps: br, lapses: bl }, baseReps: br, wrong: [lw, rw], day: Math.max(+base.last || 0, +left.last || 0, +right.last || 0) || todayN() };
 }
-function syncSrs(b, l, r) {
+function syncSrs(b: any, l: unknown, r: unknown) {
     const pair = syncSrsPair(b, l, r);
     if (!pair) {
         if (!isRecord(l) || !isRecord(r))
@@ -13775,13 +13748,13 @@ function syncSrs(b, l, r) {
     } const days = IVL[out.box] !== undefined ? IVL[out.box] : 120; out.due = pair.day + Math.max(0, Math.round(days * (out.ease / 2.3))); out.last = pair.day; });
     return out;
 }
-function syncNewCollisions(b, l, r) {
+function syncNewCollisions(b: { srs?: any; }, l: unknown, r: unknown) {
     if (b === SYNC_NONE || !isRecord(l) || !isRecord(r))
         return [];
     const bs = isRecord(b.srs) ? b.srs : {}, ls = isRecord(l.srs) ? l.srs : {}, rs = isRecord(r.srs) ? r.srs : {};
     return [...new Set([...Object.keys(ls), ...Object.keys(rs)])].flatMap((k) => { const pair = syncSrsPair(bs[k], ls[k], rs[k]); return pair && pair.baseReps === 0 ? [pair.day] : []; });
 }
-function syncPick(b, l, r, p) {
+function syncPick(b: {}, l: number|undefined, r: number|undefined, p: string) {
     if (l === undefined || r === undefined)
         return l === undefined ? r : l; // one tab deleted what the other changed: keep the data
     if (p.startsWith('srs.'))
@@ -13798,7 +13771,7 @@ function syncPick(b, l, r, p) {
         return l || r;
     return l;
 }
-function syncInto(l, b, r, p) {
+function syncInto(l: Record<string,unknown>, b: unknown, r: Record<string,unknown>, p: string) {
     new Set([...Object.keys(l), ...Object.keys(r)]).forEach((k) => {
         const q = p ? p + '.' + k : k, none = b === SYNC_NONE, bk = none ? b : isRecord(b) ? b[k] : undefined, lv = l[k], rv = r[k], srs = /^srs\./.test(q);
         if (!none && syncSame(rv, bk))
@@ -13816,14 +13789,14 @@ function syncInto(l, b, r, p) {
     });
 }
 // todayCount/newToday count the day in todayDay (earToday the day in earDay): only the later day's counts survive, and same-day counts add up.
-function syncData(b, l, r) {
+function syncData(b: {}, l: { srs?: {}; streak?: number; bestStreak?: number; lastActive: any; todayDay?: number; todayCount?: number; newToday?: number; totalReviews?: number; totalCorrect?: number; placed?: boolean; history?: {}; singCleared?: {}; sheet?: {}; settings?: { goal: number; newPerDay: number; allowInv: boolean; metronome: boolean; drone: boolean; }; }, r: Record<string,unknown>&{ settings?: Record<string,unknown>; srs?: Record<string,unknown>; }) {
     const day = {}, left = l, right = r, repeatedNew = syncNewCollisions(b, l, r);
     [['todayDay', 'todayCount', 'newToday'], ['earDay', 'earToday']].forEach(([dk, ...ks] = []) => {
         if (left[dk] === undefined && right[dk] === undefined)
             return;
-        const d = Math.max(+left[dk] || 0, +right[dk] || 0), on = (x) => x !== SYNC_NONE && isRecord(x) && (+(x )[dk] || 0) === d;
+        const d = Math.max(+left[dk] || 0, +right[dk] || 0), on = (x: unknown) => x !== SYNC_NONE && isRecord(x) && (+(x )[dk] || 0) === d;
         day[dk] = d;
-        ks.forEach((k) => { const n = (x) => on(x) ? (+x[k] || 0) : 0; day[k] = b === SYNC_NONE ? Math.max(n(l), n(r)) : Math.max(0, n(l) + n(r) - n(b)); });
+        ks.forEach((k) => { const n = (x: { [x: string]: string|number; }) => on(x) ? (+x[k] || 0) : 0; day[k] = b === SYNC_NONE ? Math.max(n(l), n(r)) : Math.max(0, n(l) + n(r) - n(b)); });
     });
     if (repeatedNew.length && day.todayDay !== undefined)
         day.newToday = Math.max(0, (+day.newToday || 0) - repeatedNew.filter((d) => d === day.todayDay).length);
@@ -13832,7 +13805,7 @@ function syncData(b, l, r) {
     syncInto(l, b, r, '');
     Object.assign(l, day);
 }
-function syncPref(f, v) { const p = SYNC.pend[f]; return p && p.from === v ? p.v : v; } // another tab's choice that is still waiting here is what gets saved
+function syncPref(f: string, v: string) { const p = SYNC.pend[f]; return p && p.from === v ? p.v : v; } // another tab's choice that is still waiting here is what gets saved
 // Folds in what another tab stored since SYNC.raw. Returns '' (nothing new), 'merge', 'merge-save' (the merged state must
 // be persisted), 'swap' (that tab reset or imported the record) or 'old' (it saved over this tab's newer reset or import).
 let syncPull = function syncPull() {
@@ -13910,10 +13883,10 @@ function syncIdle() {
         return; delete SYNC.pend[f]; if (SYNC_PREFS[f][0]() === p.from)
         SYNC_PREFS[f][1](p.v); });
 }
-function syncNote(on) { const n = $('syncNote'); if (n)
+function syncNote(on: boolean) { const n = byId('syncNote'); if (n)
     n.hidden = !on; }
 // Re-rendering waits for a fresh task, so a save made in the middle of drawing something is never re-entered.
-function syncAfter(got) { if (got === 'swap')
+function syncAfter(got: string) { if (got === 'swap')
     syncNote(true); clearTimeout(SYNC.t); SYNC.t = setTimeout(syncRefresh, 0); }
 function syncRefresh() {
     syncIdle();
@@ -13936,7 +13909,7 @@ function syncWrite() { try {
 catch (e) {
     console.warn('save failed', e);
 } }
-let _saveT = null;
+let _saveT: string|number|NodeJS.Timeout|null|undefined = null;
 function saveSoon() { clearTimeout(_saveT); _saveT = setTimeout(saveAll, 400); } // for sliders — avoid a localStorage write per pixel
 function loadAll() {
     try {
@@ -14026,8 +13999,8 @@ function loadAll() {
 /* ============================================================================
    WIRING + BOOT
    ============================================================================ */
-function labelSettingsControl(controlId, labelKey, helpKey) {
-    const control = $(controlId), label = (document).querySelector('[data-i18n="' + labelKey + '"]');
+function labelSettingsControl(controlId: string, labelKey: string|undefined, helpKey: string|undefined) {
+    const control = maybeById(controlId), label = (document).querySelector('[data-i18n="' + labelKey + '"]');
     if (!control || !label)
         return;
     label.id = controlId + '-label';
@@ -14046,31 +14019,31 @@ function labelSettingsControls() {
         .forEach((args) => labelSettingsControl(...args));
 }
 function reflectSettingsUI() {
-    $('volume').value = String(Math.round(masterVol * 100));
-    $('toneSel').value = tone;
-    $('bpm').value = String(metro.bpm);
-    $('bpmLbl').textContent = String(metro.bpm);
-    $('reverb').value = String(Math.round(reverbWet / 0.5 * 100));
+    inputById('volume').value = String(Math.round(masterVol * 100));
+    selectById('toneSel').value = tone;
+    inputById('bpm').value = String(metro.bpm);
+    byId('bpmLbl').textContent = String(metro.bpm);
+    inputById('reverb').value = String(Math.round(reverbWet / 0.5 * 100));
     (document).querySelectorAll('#set-labels button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === labelMode ? 'true' : 'false'));
-    $('set-synth').checked = localSynth;
-    $('set-drone').checked = !!data.settings.drone;
-    $('set-inv').checked = !!data.settings.allowInv;
-    $('set-metronome').checked = !!data.settings.metronome;
-    $('set-goal').value = String(data.settings.goal);
-    $('set-new').value = String(data.settings.newPerDay);
+    inputById('set-synth').checked = localSynth;
+    inputById('set-drone').checked = !!data.settings.drone;
+    inputById('set-inv').checked = !!data.settings.allowInv;
+    inputById('set-metronome').checked = !!data.settings.metronome;
+    selectById('set-goal').value = String(data.settings.goal);
+    selectById('set-new').value = String(data.settings.newPerDay);
     (document).querySelectorAll('#set-notation button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === notation ? 'true' : 'false'));
     (document).querySelectorAll('#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === lang ? 'true' : 'false'));
 }
-function overlaysOpen() { return $('drawer').classList.contains('on') || $('helpBox').classList.contains('on'); }
+function overlaysOpen() { return byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on'); }
 function syncScrim() {
     const open = overlaysOpen();
-    $('scrim').classList.toggle('on', open);
+    byId('scrim').classList.toggle('on', open);
     (document).querySelectorAll('body > #skipLink, body > header, body > main, body > #dock, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
 }
 // Closed overlays are only moved/faded out by CSS, so `inert` keeps their controls out of the Tab order;
 // opening moves focus inside, closing returns it to whatever opened the overlay.
 const overlayReturn = new Map();
-function setOverlay(el, o, firstId) {
+function setOverlay(el: RuntimeElement, o: any, firstId: string) {
     const was = el.classList.contains('on'), hadFocus = el.contains(document.activeElement);
     el.classList.toggle('on', o);
     el.setAttribute('aria-hidden', o ? 'false' : 'true');
@@ -14078,9 +14051,9 @@ function setOverlay(el, o, firstId) {
     syncScrim();
     if (o && !was) {
         overlayReturn.set(el, document.activeElement);
-        $(firstId).focus();
+        maybeById(firstId).focus();
         requestAnimationFrame(() => { if (el.classList.contains('on'))
-            $(firstId).focus(); });
+            maybeById(firstId).focus(); });
     }
     else if (!o && was) {
         const r = overlayReturn.get(el);
@@ -14089,7 +14062,7 @@ function setOverlay(el, o, firstId) {
             r.focus();
     }
 }
-function trapFocus(e) {
+function trapFocus(e: { key: string; currentTarget: { querySelectorAll: (arg0: string) => any; }; shiftKey: any; preventDefault: () => void; }) {
     if (e.key !== 'Tab')
         return;
     const f = [...e.currentTarget.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled && x.getClientRects().length);
@@ -14105,7 +14078,7 @@ function trapFocus(e) {
         a.focus();
     }
 }
-function openDrawer(o, fromPop = false) {
+function openDrawer(o: boolean, fromPop = false) {
     if (o) {
         releaseLiveInput();
         if (!fromPop)
@@ -14114,9 +14087,9 @@ function openDrawer(o, fromPop = false) {
     else if (!fromPop) {
         popModalState('drawer');
     }
-    setOverlay($('drawer'), o, 'drawerClose');
+    setOverlay(byId('drawer'), o, 'drawerClose');
 }
-function openHelp(o, fromPop = false) {
+function openHelp(o: boolean, fromPop = false) {
     if (o) {
         releaseLiveInput();
         kbdLayoutLabels();
@@ -14126,19 +14099,19 @@ function openHelp(o, fromPop = false) {
     else if (!fromPop) {
         popModalState('help');
     }
-    setOverlay($('helpBox'), o, 'helpClose');
+    setOverlay(byId('helpBox'), o, 'helpClose');
 }
 function applyNotation() {
-    const refR = $('refRoot').value, kc = $('keyCtx').value, sr = $('song-root').value, pk = $('pr-key').value;
-    fillRoots($('refRoot'), false);
-    fillRoots($('song-root'), false);
-    fillRoots($('pr-key'), true);
+    const refR = selectById('refRoot').value, kc = selectById('keyCtx').value, sr = selectById('song-root').value, pk = selectById('pr-key').value;
+    fillRoots(byId('refRoot'), false);
+    fillRoots(byId('song-root'), false);
+    fillRoots(byId('pr-key'), true);
     fillKeyCtx();
-    $('refRoot').value = String(refR || 0);
-    $('song-root').value = String(sr || 0);
-    $('pr-key').value = pk || 'all';
-    $('keyCtx').value = kc || '-1';
-    const ak = $('ac-key');
+    selectById('refRoot').value = String(refR || 0);
+    selectById('song-root').value = String(sr || 0);
+    selectById('pr-key').value = pk || 'all';
+    selectById('keyCtx').value = kc || '-1';
+    const ak = byId('ac-key');
     if (ak) {
         const av = ak.value;
         fillRoots(ak, false);
@@ -14165,86 +14138,86 @@ function applyNotation() {
 }
 /* ---------- ACCOMPANIMENT UI ---------- */
 function renderAccompany() {
-    const ps = $('ac-prog');
+    const ps = byId('ac-prog');
     if (ps && !ps._filled) {
         ACCOMP_PROGS.forEach((p, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = p.name; ps.appendChild(o); });
         ps._filled = true;
     }
-    const pt = $('ac-pat');
+    const pt = byId('ac-pat');
     if (pt && !pt._filled) {
         Object.keys(ACCOMP_PATTERNS).forEach((k) => { const o = (document).createElement('option'); o.value = k; o.textContent = ACCOMP_PATTERNS[k][lang] || ACCOMP_PATTERNS[k].en; pt.appendChild(o); });
         pt._filled = true;
     }
-    const ak = $('ac-key');
+    const ak = byId('ac-key');
     if (ak && !ak.options.length) {
         fillRoots(ak, false);
         ak.value = accomp.key || 0;
     }
     updateAccompChain();
 }
-function updateAccompChain() { const el = $('ac-chain'); if (!el)
-    return; const prog = ACCOMP_PROGS[+($('ac-prog').value || 0)]; if (!prog)
-    return; const key = +($('ac-key').value || 0); el.innerHTML = prog.chords.map((ch) => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
-function accompSync() { accomp.progIdx = +($('ac-prog').value || 0); accomp.key = +($('ac-key').value || 0); accomp.pattern = $('ac-pat').value || 'block'; accomp.bpm = +($('ac-bpm').value || 90); const hb = $('ac-hands').querySelector('[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v : 'both'; accomp.click = $('ac-click').checked; }
-function acPlayLabel() { $('ac-play').textContent = accomp.on ? t('ac_stop') : t('ac_play'); }
+function updateAccompChain() { const el = byId('ac-chain'); if (!el)
+    return; const prog = ACCOMP_PROGS[+(selectById('ac-prog').value || 0)]; if (!prog)
+    return; const key = +(selectById('ac-key').value || 0); el.innerHTML = prog.chords.map((ch) => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
+function accompSync() { accomp.progIdx = +(selectById('ac-prog').value || 0); accomp.key = +(selectById('ac-key').value || 0); accomp.pattern = selectById('ac-pat').value || 'block'; accomp.bpm = +(inputById('ac-bpm').value || 90); const hb = byId('ac-hands').querySelector('[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v : 'both'; accomp.click = inputById('ac-click').checked; }
+function acPlayLabel() { byId('ac-play').textContent = accomp.on ? t('ac_stop') : t('ac_play'); }
 function accompRestartIfPlaying() { if (accomp.on) {
     accompSync();
     accompStart();
 } }
 function initControls() {
     labelSettingsControls();
-    $('skipLink').addEventListener('click', (e) => { e.preventDefault(); $('main').focus({ preventScroll: true }); });
+    byId('skipLink').addEventListener('click', (e) => { e.preventDefault(); byId('main').focus({ preventScroll: true }); });
     // nav
-    $('nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b)
+    byId('nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b)
         show(b.dataset.view); });
-    $('modeNav').addEventListener('click', (e) => { const b = e.target.closest('button[data-view]'); if (b)
+    byId('modeNav').addEventListener('click', (e) => { const b = e.target.closest('button[data-view]'); if (b)
         show(b.dataset.view); });
     document.querySelector('.brand')?.addEventListener('click', (e) => { e.preventDefault(); show('today'); });
     // midi chip + settings
-    $('midiChip').addEventListener('click', connectMidi);
-    $('audioLockBtn').addEventListener('click', audioUnlock);
-    $('syncNoteBtn').addEventListener('click', () => syncNote(false));
-    $('set-connect').addEventListener('click', connectMidi);
-    $('deviceSelect').addEventListener('change', (e) => attachInput(e.target.value));
-    $('set-ble').addEventListener('click', bleClick);
-    $('set-ble-re').addEventListener('click', bleReconnect);
+    byId('midiChip').addEventListener('click', connectMidi);
+    byId('audioLockBtn').addEventListener('click', audioUnlock);
+    byId('syncNoteBtn').addEventListener('click', () => syncNote(false));
+    byId('set-connect').addEventListener('click', connectMidi);
+    byId('deviceSelect').addEventListener('change', (e) => attachInput(e.target.value));
+    byId('set-ble').addEventListener('click', bleClick);
+    byId('set-ble-re').addEventListener('click', bleReconnect);
     // installed app & screen
-    $('set-wake').addEventListener('change', (e) => wakeSet(e.target.checked));
-    $('set-full').addEventListener('click', fsToggle);
-    $('set-install').addEventListener('click', pwaInstall);
+    byId('set-wake').addEventListener('change', (e) => wakeSet(e.target.checked));
+    byId('set-full').addEventListener('click', fsToggle);
+    byId('set-install').addEventListener('click', pwaInstall);
     document.addEventListener('fullscreenchange', fsUi);
-    $('settingsBtn').addEventListener('click', () => openDrawer(true));
-    $('scrim').addEventListener('click', () => { openDrawer(false); openHelp(false); });
-    $('drawerClose').addEventListener('click', () => openDrawer(false));
-    $('helpBtn').addEventListener('click', () => openHelp(true));
-    $('helpClose').addEventListener('click', () => openHelp(false));
-    $('drawer').addEventListener('keydown', trapFocus);
-    $('helpBox').addEventListener('keydown', trapFocus);
+    byId('settingsBtn').addEventListener('click', () => openDrawer(true));
+    byId('scrim').addEventListener('click', () => { openDrawer(false); openHelp(false); });
+    byId('drawerClose').addEventListener('click', () => openDrawer(false));
+    byId('helpBtn').addEventListener('click', () => openHelp(true));
+    byId('helpClose').addEventListener('click', () => openHelp(false));
+    byId('drawer').addEventListener('keydown', trapFocus);
+    byId('helpBox').addEventListener('keydown', trapFocus);
     // learn: demo buttons + cross-links
-    $('learnBody').addEventListener('click', (e) => learnClick(e));
+    byId('learnBody').addEventListener('click', (e) => learnClick(e));
     // theme
-    $('set-theme').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
+    byId('set-theme').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
         return; theme = b.dataset.v; applyTheme(); saveAll(); });
     // mobile menu
-    $('menuBtn').addEventListener('click', () => {
-        const mm = $('mobileMenu');
+    byId('menuBtn').addEventListener('click', () => {
+        const mm = byId('mobileMenu');
         if (mm.hidden) {
             openMobileMenu();
         }
         else
             closeMobileMenu(true);
     });
-    document.addEventListener('click', (e) => { const mm = $('mobileMenu'); if (mm && !mm.hidden && !e.target.closest('#mobileMenu') && !e.target.closest('#menuBtn'))
+    document.addEventListener('click', (e) => { const mm = byId('mobileMenu'); if (mm && !mm.hidden && !e.target.closest('#mobileMenu') && !e.target.closest('#menuBtn'))
         closeMobileMenu(); });
     // backup export / import
-    $('exportBtn').addEventListener('click', () => {
+    byId('exportBtn').addEventListener('click', () => {
         saveAll();
         const raw = readPttV3(localStorage, KEY)?.raw || '{}';
-        const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+        const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0');
         trxDownload('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', new Blob([raw], { type: 'application/json' }));
     });
-    $('importBtn').addEventListener('click', () => $('importFile').click());
-    $('importFile').addEventListener('change', (e) => {
+    byId('importBtn').addEventListener('click', () => byId('importFile').click());
+    byId('importFile').addEventListener('change', (e) => {
         const f = e.target.files[0];
         e.target.value = '';
         if (!f)
@@ -14266,24 +14239,24 @@ function initControls() {
         rd.readAsText(f);
     });
     // session
-    $('tools').addEventListener('click', (e) => { const b = e.target.closest('button[data-view]'); if (b)
+    byId('tools').addEventListener('click', (e) => { const b = e.target.closest('button[data-view]'); if (b)
         show(b.dataset.view); });
-    $('startBtn').addEventListener('click', () => startSession(null));
-    $('placeBtn').addEventListener('click', startPlacement);
-    const goMethod = (e) => { e.preventDefault(); show('method'); };
-    $('whyLink').addEventListener('click', goMethod);
-    $('footMethod').addEventListener('click', goMethod);
-    $('method-start').addEventListener('click', () => { show('today'); startSession(null); });
-    $('ses-end').addEventListener('click', () => endSession(true));
-    $('q-next').addEventListener('click', () => { if (!SES.targeted)
+    byId('startBtn').addEventListener('click', () => startSession(null));
+    byId('placeBtn').addEventListener('click', startPlacement);
+    const goMethod = (e: { preventDefault: () => void; }) => { e.preventDefault(); show('method'); };
+    byId('whyLink').addEventListener('click', goMethod);
+    byId('footMethod').addEventListener('click', goMethod);
+    byId('method-start').addEventListener('click', () => { show('today'); startSession(null); });
+    byId('ses-end').addEventListener('click', () => endSession(true));
+    byId('q-next').addEventListener('click', () => { if (!SES.targeted)
         SES.idx++; nextQuestion(); });
-    $('q-reveal').addEventListener('click', () => { const q = SES.q; if (!q || SES.answered)
+    byId('q-reveal').addEventListener('click', () => { const q = SES.q; if (!q || SES.answered)
         return; q.missed = true; revealAnswerKeys(q); if (q.mode === 'ear')
         markEarCorrect(q); resolve(q, false); });
-    $('q-replay').addEventListener('click', () => { const q = SES.q; if (q)
+    byId('q-replay').addEventListener('click', () => { const q = SES.q; if (q)
         playQuestionSound(q); });
-    $('q-ekreset').addEventListener('click', ekReset);
-    $('q-ansmode').addEventListener('click', (e) => {
+    byId('q-ekreset').addEventListener('click', ekReset);
+    byId('q-ansmode').addEventListener('click', (e) => {
         const b = e.target.closest('button[data-v]'), q = SES.q;
         if (!b)
             return;
@@ -14302,28 +14275,28 @@ function initControls() {
         kbClear('target');
         kbClear('good');
         kbClear('bad');
-        $('q-verdict').textContent = '';
-        $('q-verdict').className = 'verdict';
+        byId('q-verdict').textContent = '';
+        byId('q-verdict').className = 'verdict';
         presentQuestion(q);
     });
-    $('sum-again').addEventListener('click', () => { $('summary').style.display = 'none'; startSession(null); });
-    $('sum-done').addEventListener('click', () => { $('summary').style.display = 'none'; show('today'); });
+    byId('sum-again').addEventListener('click', () => { byId('summary').style.display = 'none'; startSession(null); });
+    byId('sum-done').addEventListener('click', () => { byId('summary').style.display = 'none'; show('today'); });
     // practice
-    $('pr-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.disabled)
+    byId('pr-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.disabled)
         return; [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); });
     // Melodies are only ever answered on the keys: that topic locks the mode to "By ear, on keys".
-    $('pr-cat').addEventListener('change', (e) => {
-        const mel = e.target.value === 'melody', pm = $('pr-mode');
+    byId('pr-cat').addEventListener('change', (e) => {
+        const mel = e.target.value === 'melody', pm = byId('pr-mode');
         [...pm.children].forEach((x) => { x.disabled = mel && x.dataset.v !== 'keys'; if (mel)
             x.setAttribute('aria-pressed', x.dataset.v === 'keys' ? 'true' : 'false'); });
         if (!mel && !pm.querySelector('[aria-pressed="true"]'))
             pm.children[0].setAttribute('aria-pressed', 'true');
     });
-    $('pr-start').addEventListener('click', () => {
-        const cat = $('pr-cat').value;
-        const mb = $('pr-mode').querySelector('[aria-pressed="true"]');
+    byId('pr-start').addEventListener('click', () => {
+        const cat = selectById('pr-cat').value;
+        const mb = byId('pr-mode').querySelector('[aria-pressed="true"]');
         const v = cat === 'melody' ? 'keys' : (mb ? mb.dataset.v : 'play');
-        const key = $('pr-key').value;
+        const key = selectById('pr-key').value;
         if (v !== 'play' && cat !== 'melody') {
             data.settings.earKeys = v === 'keys';
             saveAll();
@@ -14332,13 +14305,13 @@ function initControls() {
         startSession({ cat, mode: v === 'play' ? 'play' : 'ear', key });
     });
     // accompaniment
-    $('ac-hands').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
+    byId('ac-hands').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
         return; [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
-    ['ac-prog', 'ac-pat', 'ac-key'].forEach((id) => $(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
-    $('ac-bpm').addEventListener('input', (e) => { $('ac-bpmLbl').textContent = e.target.value; });
-    $('ac-bpm').addEventListener('change', accompRestartIfPlaying);
-    $('ac-click').addEventListener('change', accompRestartIfPlaying);
-    $('ac-play').addEventListener('click', () => { if (accomp.on) {
+    ['ac-prog', 'ac-pat', 'ac-key'].forEach((id) => maybeById(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
+    byId('ac-bpm').addEventListener('input', (e) => { byId('ac-bpmLbl').textContent = e.target.value; });
+    byId('ac-bpm').addEventListener('change', accompRestartIfPlaying);
+    byId('ac-click').addEventListener('change', accompRestartIfPlaying);
+    byId('ac-play').addEventListener('click', () => { if (accomp.on) {
         accompStop();
     }
     else {
@@ -14346,8 +14319,8 @@ function initControls() {
         accompStart();
     } acPlayLabel(); });
     // read & play (sheet music)
-    $('rd-piece').addEventListener('change', (e) => srSelectPiece(e.target.value));
-    $('rd-hands').addEventListener('click', (e) => {
+    byId('rd-piece').addEventListener('change', (e) => srSelectPiece(e.target.value));
+    byId('rd-hands').addEventListener('click', (e) => {
         const b = e.target.closest('button');
         if (!b || b.disabled)
             return;
@@ -14356,73 +14329,73 @@ function initControls() {
         srStopAll();
         srStepsBuild();
         srPaintAll();
-        $('rd-verdict').textContent = '';
+        byId('rd-verdict').textContent = '';
     });
-    $('rd-mode').addEventListener('click', (e) => {
+    byId('rd-mode').addEventListener('click', (e) => {
         const b = e.target.closest('button');
         if (!b)
             return;
         SR.modeSel = b.dataset.v;
         [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
         srStopAll();
-        $('rd-verdict').textContent = '';
+        byId('rd-verdict').textContent = '';
     });
-    $('rd-names').addEventListener('change', (e) => { SR.names = e.target.checked; srStopAll(); srDraw(); });
-    $('rd-bpm').addEventListener('input', (e) => { if (SR.active || SR.listening) {
+    byId('rd-names').addEventListener('change', (e) => { SR.names = e.target.checked; srStopAll(); srDraw(); });
+    byId('rd-bpm').addEventListener('input', (e) => { if (SR.active || SR.listening) {
         e.target.value = SR.bpm;
         return;
-    } $('rd-bpmLbl').textContent = e.target.value; SR.bpm = +e.target.value; });
-    $('rd-go').addEventListener('click', srGo);
-    $('rd-coach').addEventListener('click', (e) => { if (e.target.closest('#rd-coach-act') && SR.next && SR.next.act)
+    } byId('rd-bpmLbl').textContent = e.target.value; SR.bpm = +e.target.value; });
+    byId('rd-go').addEventListener('click', srGo);
+    byId('rd-coach').addEventListener('click', (e) => { if (e.target.closest('#rd-coach-act') && SR.next && SR.next.act)
         SR.next.act.run(); });
-    $('rd-listen').addEventListener('click', srListen);
+    byId('rd-listen').addEventListener('click', srListen);
     // transcribe
-    $('tr-rec').addEventListener('click', () => { if (trx.on || trx.pending)
+    byId('tr-rec').addEventListener('click', () => { if (trx.on || trx.pending)
         trxStop();
     else
         trxStart(); });
-    $('tr-play').addEventListener('click', trxPlay);
-    $('tr-clear').addEventListener('click', trxClear);
-    $('tr-midi').addEventListener('click', trxExportMidi);
-    $('tr-txt').addEventListener('click', trxExportTxt);
-    $('tr-bpm').addEventListener('input', (e) => { $('tr-bpmLbl').textContent = e.target.value; });
-    ['tr-snap', 'tr-skey', 'tr-sscale', 'tr-quant', 'tr-bpm', 'tr-gridSel'].forEach((id) => $(id).addEventListener('change', () => { if (trx.notes && trx.notes.length)
+    byId('tr-play').addEventListener('click', trxPlay);
+    byId('tr-clear').addEventListener('click', trxClear);
+    byId('tr-midi').addEventListener('click', trxExportMidi);
+    byId('tr-txt').addEventListener('click', trxExportTxt);
+    byId('tr-bpm').addEventListener('input', (e) => { byId('tr-bpmLbl').textContent = e.target.value; });
+    ['tr-snap', 'tr-skey', 'tr-sscale', 'tr-quant', 'tr-bpm', 'tr-gridSel'].forEach((id) => maybeById(id).addEventListener('change', () => { if (trx.notes && trx.notes.length)
         trxRender(); }));
     // sight-singing
-    $('si-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
-        return; singStopAll(); [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); sing.mode = b.dataset.v; ssModeUI(); $('si-verdict').textContent = ''; $('si-hint').textContent = ''; ssPaint(); });
-    $('si-level').addEventListener('change', (e) => { singStopAll(); sing.level = +e.target.value; ssNewExercise(); });
-    $('si-clef').addEventListener('change', (e) => { singStopAll(); sing.clef = e.target.value; ssNewExercise(); });
-    $('si-solf').addEventListener('change', () => { $('si-staff').classList.toggle('nosolf', !$('si-solf').checked); });
-    $('si-new').addEventListener('click', () => { singStopAll(); ssNewExercise(); $('si-verdict').textContent = ''; $('si-hint').textContent = ''; });
-    $('si-go').addEventListener('click', singGo);
-    $('si-tonic').addEventListener('click', ssTonic);
-    $('si-playit').addEventListener('click', ssPlayIt);
-    $('si-drone').addEventListener('change', ssDrone);
-    $('si-bpm').addEventListener('input', (e) => { $('si-bpmLbl').textContent = e.target.value; sing.bpm = +e.target.value; });
+    byId('si-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
+        return; singStopAll(); [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); sing.mode = b.dataset.v; ssModeUI(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; ssPaint(); });
+    byId('si-level').addEventListener('change', (e) => { singStopAll(); sing.level = +e.target.value; ssNewExercise(); });
+    byId('si-clef').addEventListener('change', (e) => { singStopAll(); sing.clef = e.target.value; ssNewExercise(); });
+    byId('si-solf').addEventListener('change', () => { byId('si-staff').classList.toggle('nosolf', !inputById('si-solf').checked); });
+    byId('si-new').addEventListener('click', () => { singStopAll(); ssNewExercise(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; });
+    byId('si-go').addEventListener('click', singGo);
+    byId('si-tonic').addEventListener('click', ssTonic);
+    byId('si-playit').addEventListener('click', ssPlayIt);
+    byId('si-drone').addEventListener('change', ssDrone);
+    byId('si-bpm').addEventListener('input', (e) => { byId('si-bpmLbl').textContent = e.target.value; sing.bpm = +e.target.value; });
     // explore
     anInitControls();
-    $('refType').addEventListener('change', () => { fillRefNames(); cof.mode = $('refType').value; cofInfo(); cofPaintDock(); });
-    $('refPlay').addEventListener('click', () => { if ($('refType').value === 'chord')
+    byId('refType').addEventListener('change', () => { fillRefNames(); cof.mode = selectById('refType').value; cofInfo(); cofPaintDock(); });
+    byId('refPlay').addEventListener('click', () => { if (selectById('refType').value === 'chord')
         playChordMidis(refMidis(), true);
     else
-        playScaleNotes(60 + parseInt($('refRoot').value, 10), SCALES[$('refName').value], true); });
-    $('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => kbClear('target'), 2600)); });
-    $('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
+        playScaleNotes(60 + parseInt(selectById('refRoot').value, 10), SCALES[selectById('refName').value], true); });
+    byId('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => kbClear('target'), 2600)); });
+    byId('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
     // songs
-    $('song-root').addEventListener('change', renderSongs);
-    $('sq-go').addEventListener('click', sqNew);
-    $('sq-again').addEventListener('click', () => { if (SQ.started)
+    byId('song-root').addEventListener('change', renderSongs);
+    byId('sq-go').addEventListener('click', sqNew);
+    byId('sq-again').addEventListener('click', () => { if (SQ.started)
         sqPlay(); });
-    $('sq-ans').addEventListener('click', (e) => { const b = e.target.closest('button[data-semi]'); if (b)
+    byId('sq-ans').addEventListener('click', (e) => { const b = e.target.closest('button[data-semi]'); if (b)
         sqAnswer(+b.dataset.semi); });
-    $('song-dir').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
+    byId('song-dir').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
         return; songDir = b.dataset.v; [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderSongs(); });
     // progress
-    $('prog-export').addEventListener('click', () => $('exportBtn').click());
-    $('prog-import').addEventListener('click', () => $('importBtn').click());
-    $('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
-    $('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
+    byId('prog-export').addEventListener('click', () => byId('exportBtn').click());
+    byId('prog-import').addEventListener('click', () => byId('importBtn').click());
+    byId('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
+    byId('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
         data = { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, learnDone: {}, learnSel: 0, settings: data.settings };
         renderLearn._init = false;
         learnSel = 0;
@@ -14432,33 +14405,33 @@ function initControls() {
         refreshToday();
     } }); // a new generation: other tabs adopt the reset instead of merging their copy back
     // keyboard dock
-    $('oct-down').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.max(BASE_LOW, view.low - 12); buildKeyboard(); repaintHeld(); });
-    $('oct-up').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.min(BASE_HIGH - view.oct * 12, view.low + 12); buildKeyboard(); repaintHeld(); });
-    $('panicBtn').addEventListener('click', panic);
-    $('dock-kb-toggle').addEventListener('click', () => dockSet(!dockOpen()));
-    $('kb-pan').addEventListener('input', (e) => { $('dock-keys').scrollLeft = +e.target.value; });
-    $('dock-keys').addEventListener('scroll', () => { $('kb-pan').value = String($('dock-keys').scrollLeft); });
+    byId('oct-down').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.max(BASE_LOW, view.low - 12); buildKeyboard(); repaintHeld(); });
+    byId('oct-up').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.min(BASE_HIGH - view.oct * 12, view.low + 12); buildKeyboard(); repaintHeld(); });
+    byId('panicBtn').addEventListener('click', panic);
+    byId('dock-kb-toggle').addEventListener('click', () => dockSet(!dockOpen()));
+    byId('kb-pan').addEventListener('input', (e) => { byId('dock-keys').scrollLeft = +e.target.value; });
+    byId('dock-keys').addEventListener('scroll', () => { inputById('kb-pan').value = String(byId('dock-keys').scrollLeft); });
     // settings: notation/tone/audio/learning
-    $('set-notation').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
+    byId('set-notation').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
         return; notation = b.dataset.v; (document).querySelectorAll('#set-notation button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); applyNotation(); refreshToday(); saveAll(); });
-    $('set-lang').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b)
+    byId('set-lang').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b)
         setLang(b.dataset.v); });
-    $('toneSel').addEventListener('change', (e) => { releaseLiveInput(); stopPreviews(); stopDrone(); tone = e.target.value; ensureAudio(); pianoStatus(); saveAll(); });
-    $('volume').addEventListener('input', (e) => { masterVol = e.target.value / 100; muted = false; masterRamp(masterVol); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
-    $('set-synth').addEventListener('change', (e) => { localSynth = e.target.checked; if (!localSynth) {
+    byId('toneSel').addEventListener('change', (e) => { releaseLiveInput(); stopPreviews(); stopDrone(); tone = e.target.value; ensureAudio(); pianoStatus(); saveAll(); });
+    byId('volume').addEventListener('input', (e) => { masterVol = e.target.value / 100; muted = false; masterRamp(masterVol); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
+    byId('set-synth').addEventListener('change', (e) => { localSynth = e.target.checked; if (!localSynth) {
         liveVoices.forEach((v) => v.stop());
         liveVoices.clear();
     } saveAll(); });
-    $('reverb').addEventListener('input', (e) => { reverbWet = e.target.value / 100 * 0.5; if (reverbGain && actx)
+    byId('reverb').addEventListener('input', (e) => { reverbWet = e.target.value / 100 * 0.5; if (reverbGain && actx)
         reverbGain.gain.setTargetAtTime(reverbWet, actx.currentTime, 0.05); saveSoon(); });
-    $('set-labels').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
+    byId('set-labels').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b)
         return; labelMode = b.dataset.v; (document).querySelectorAll('#set-labels button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); buildKeyboard(); repaintHeld(); saveAll(); });
-    $('bpm').addEventListener('input', (e) => { metro.bpm = +e.target.value; $('bpmLbl').textContent = e.target.value; saveSoon(); });
-    $('set-drone').addEventListener('change', (e) => { data.settings.drone = e.target.checked; saveAll(); });
-    $('set-metronome').addEventListener('change', (e) => { data.settings.metronome = e.target.checked; saveAll(); });
-    $('set-inv').addEventListener('change', (e) => { data.settings.allowInv = e.target.checked; saveAll(); });
-    $('set-goal').addEventListener('change', (e) => { data.settings.goal = +e.target.value; saveAll(); refreshToday(); });
-    $('set-new').addEventListener('change', (e) => { data.settings.newPerDay = +e.target.value; saveAll(); refreshToday(); });
+    byId('bpm').addEventListener('input', (e) => { metro.bpm = +e.target.value; byId('bpmLbl').textContent = e.target.value; saveSoon(); });
+    byId('set-drone').addEventListener('change', (e) => { data.settings.drone = e.target.checked; saveAll(); });
+    byId('set-metronome').addEventListener('change', (e) => { data.settings.metronome = e.target.checked; saveAll(); });
+    byId('set-inv').addEventListener('change', (e) => { data.settings.allowInv = e.target.checked; saveAll(); });
+    byId('set-goal').addEventListener('change', (e) => { data.settings.goal = +e.target.value; saveAll(); refreshToday(); });
+    byId('set-new').addEventListener('change', (e) => { data.settings.newPerDay = +e.target.value; saveAll(); refreshToday(); });
     // global
     ['pointerdown', 'keydown', 'touchstart'].forEach((ev) => window.addEventListener(ev, function u() { ensureAudio(); }, { once: true }));
     // keyup/pointerup never reach an unfocused window, so focus loss only lets go of what the computer keyboard and pointer hold;
@@ -14479,15 +14452,15 @@ function initControls() {
         openDrawer(false);
         openHelp(false);
     } });
-    let rz = null;
+    let rz: string|number|NodeJS.Timeout|null|undefined = null;
     function handleScreenChange() {
         clearTimeout(rz);
         rz = setTimeout(() => {
-            if (!$('mobileMenu').hidden && getComputedStyle($('menuBtn')).display === 'none') {
-                const hadFocus = $('mobileMenu').contains(document.activeElement);
+            if (!byId('mobileMenu').hidden && getComputedStyle(byId('menuBtn')).display === 'none') {
+                const hadFocus = byId('mobileMenu').contains(document.activeElement);
                 closeMobileMenu();
                 if (hadFocus) {
-                    const current = $('nav').querySelector('[aria-current="page"]');
+                    const current = byId('nav').querySelector('[aria-current="page"]');
                     if (current)
                         current.focus({ preventScroll: true });
                 }
@@ -14508,7 +14481,7 @@ function initControls() {
                 anLayoutVars();
                 anStageFit();
                 // Re-align a visible score obscured by the dock, not a user reading elsewhere.
-                const work = $('an-work').getBoundingClientRect(), dock = $('dock').getBoundingClientRect();
+                const work = byId('an-work').getBoundingClientRect(), dock = byId('dock').getBoundingClientRect();
                 if (AN.notes.length && document.body.classList.contains('kb') && work.top < dock.top && work.bottom > dock.top && work.bottom > 0)
                     anFocusStage();
             }
@@ -14525,9 +14498,9 @@ function initControls() {
 /* boot */
 loadAll();
 applyTheme();
-fillRoots($('refRoot'), false);
-fillRoots($('song-root'), false);
-fillRoots($('pr-key'), true);
+fillRoots(byId('refRoot'), false);
+fillRoots(byId('song-root'), false);
+fillRoots(byId('pr-key'), true);
 fillRefNames();
 fillKeyCtx();
 chooseView();
