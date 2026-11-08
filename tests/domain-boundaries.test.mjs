@@ -114,6 +114,26 @@ describe('domain boundaries', () => {
     }
   });
 
+  it('rejects inferred any and unchecked property chains', async () => {
+    const probeRoot = fileURLToPath(new URL('../test-results/', import.meta.url));
+    const probes = [
+      'const value = JSON.parse("{}");\nvalue.deep.missing.call();\n',
+      'type Compat = unknown;\nfunction use(value: Compat) { return value.deep.missing(); }\n',
+    ];
+    for (const [index, source] of probes.entries()) {
+      const sourceRoot = await mkdtemp(join(probeRoot, `etude-inferred-boundary-${index}-`));
+      try {
+        await writeFile(join(sourceRoot, 'probe.ts'), source);
+        await expect(execFileAsync('node', ['scripts/check-ts-suppressions.mjs'], {
+          cwd: fileURLToPath(new URL('..', import.meta.url)),
+          env: { ...process.env, TS_SOURCE_ROOT: sourceRoot },
+        })).rejects.toMatchObject({ code: 1 });
+      } finally {
+        await rm(sourceRoot, { recursive: true, force: true });
+      }
+    }
+  });
+
   it('rejects a new unchecked application JavaScript module', async () => {
     const probeRoot = fileURLToPath(new URL('../test-results/', import.meta.url));
     const sourceRoot = await mkdtemp(join(probeRoot, 'etude-js-gate-'));

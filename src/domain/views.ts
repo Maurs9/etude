@@ -86,7 +86,7 @@ export interface ViewRuntimeBoundary {
 }
 
 export interface EtudeSurface {
-  readonly [name: string]: unknown;
+  [name: string]: unknown;
 }
 
 declare global {

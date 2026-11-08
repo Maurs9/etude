@@ -51,6 +51,12 @@ async function rejectIndirectAnyTypes() {
     types: ['node'],
   });
   const checker = program.getTypeChecker();
+  for (const diagnostic of program.getSemanticDiagnostics()) {
+    if (!diagnostic.file || !diagnostic.file.fileName.startsWith(fileURLToPath(root))) continue;
+    const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start ?? 0);
+    const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+    failures.push(`${diagnostic.file.fileName}:${position.line + 1}:${position.character + 1}: TypeScript diagnostic: ${message}`);
+  }
   for (const sourceFile of program.getSourceFiles()) {
     if (sourceFile.isDeclarationFile || !sourceFile.fileName.startsWith(fileURLToPath(root))) continue;
     const visitNode = node => {
@@ -59,6 +65,22 @@ async function rejectIndirectAnyTypes() {
         if (isAny(type) && node.type.kind !== ts.SyntaxKind.AnyKeyword) {
           const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
           failures.push(`${sourceFile.fileName}:${position.line + 1}: type annotation resolves to any; indirect any aliases are forbidden`);
+        }
+      }
+      if (ts.isCallExpression(node) &&
+          ts.isPropertyAccessExpression(node.expression) &&
+          node.expression.expression.kind === ts.SyntaxKind.Identifier &&
+          node.expression.expression.text === 'JSON' &&
+          node.expression.name.text === 'parse' &&
+          isAny(checker.getTypeAtLocation(node))) {
+        const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+        failures.push(`${sourceFile.fileName}:${position.line + 1}: inferred any from JSON.parse is forbidden; validate the parsed boundary`);
+      }
+      if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+        const receiver = node.expression;
+        if (isAny(checker.getTypeAtLocation(receiver))) {
+          const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+          failures.push(`${sourceFile.fileName}:${position.line + 1}: unchecked property access on an inferred any value is forbidden`);
         }
       }
       ts.forEachChild(node, visitNode);

@@ -8,6 +8,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/domain/views-runtime.ts"]
+  "include": ["src/**/*.ts"]
 }
