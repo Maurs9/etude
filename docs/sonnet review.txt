@@ -1,0 +1,504 @@
+# 1. Verdict general și riscuri critice
+
+Direcția (Vite + TS + vanilla, migrare incrementală, bridge pentru teste) este bună. Planul, așa cum e scris, are însă **5 blockeri** și câteva capcane secundare.
+
+| # | Blocker | De ce poate lua foc |
+|---|---|---|
+| B1 | `etude.html` *network-first* care **scrie în cache** + precache separat, cu hash-uri | Se creează skew shell/asset. Un shell V2 ajunge în cache fără chunk-urile V2. Offline rămâi cu o pagină albă persistentă. |
+| B2 | `import('./vendor/osmd.min.js')` pe un UMD din `src/` | Vite nu aplică CJS-interop pe fișiere din afara `node_modules`. Într-un modul ESM, `this` e `undefined`, iar `exports` și `module` nu există. Funcționează doar „din întâmplare” dacă wrapper-ul UMD folosește `window` sau `self`. |
+| B3 | Bridge-ul de test cu `Object.Assign` și conversia în `let` | Snapshot-urile de `Object.assign(window, {...})` devin *stale* pentru orice `let` reasignat. Handler-ele inline `onclick="..."` mor în modul. Conversia în `let` aduce TDZ fără niciun câștig. |
+| B4 | Opțiunea 4B (`setLang` async) | Introduce curse de tip „ultimul `setLang` care se termină câștigă” și strică un contract pe care se sprijină 214 `evaluate`. |
+| B5 | Fix-ul Moonlight prin `MinSkyBottomDistBetweenSystems` global | Modifică spațierea verticală a tuturor partiturilor și intră în conflict cu `scoreFixPedals`. Pagina orfană are o cauză îngustă, iar pârghia corectă este `PageBottomMargin`. |
+
+Capcane secundare, detaliate mai jos:
+- `ensureAudio()` trebuie apelat sincron în gest, înainte de primul `await`, altfel iOS rămâne cu contextul suspendat.
+- `controllerchange` + `reload()` reîncarcă pagina la prima vizită (din cauza `clients.claim()`).
+- `navigationPreload` rămâne activat persistent în registration.
+- Promisiuni rejectate sunt cache-uite pentru totdeauna (`osmdPromise ||=`, `pianoBank.inflight`).
+- Testul „fără chei duplicate” dispare silențios când `STRINGS` devine JSON.
+- GitHub Pages servește HTML cu `max-age=600` și nu poți seta headere.
+- Playwright `page.route` nu interceptează cereri deservite de un SW activ.
+
+---
+
+# 2. Răspunsuri detaliate
+
+## Întrebarea 1 — Service Worker: atomicitate shell + assets
+
+### Diagnostic
+
+**Scenariul A.** Pagina V1 e deschisă și SW V2 s-a activat. Click pe `#analysis` face `import('./assets/osmd-hash1.js')`, care trece prin SW V2. Fișierul nu e în cache-ul V2, iar cache-ul V1 e șters. SW-ul face fallback la rețea, iar GH Pages răspunde 404, deci `Failed to fetch dynamically imported module`. `anReadXml()` aruncă, iar UI-ul rămâne într-o stare intermediară până la reload manual. Pentru MP3-uri problema nu apare, pentru că au același hash între deploy-uri. Apare pentru orice chunk al cărui conținut s-a schimbat.
+
+**Scenariul B.** Este mai grav decât îl descrii, iar cauza este strategia network-first care scrie în cache:
+1. SW V1 aduce `etude.html` V2 și îl scrie în cache, peste shell-ul V1.
+2. Pagina V2 cere `app-hash2.js`. SW V1 nu îl are în precache și face passthrough. Dacă rețeaua cade, pagina rămâne albă.
+3. Mai rău, shell V2 rămâne în cache. Orice pornire offline ulterioară, până când SW V2 reușește să se instaleze, afișează shell V2 fără asset-uri V2. Starea e persistentă, nu tranzitorie.
+
+Același lucru se întâmplă **la migrarea chiar de la `sw.js` vechi la cel nou**. SW-ul vechi (`etude-shell-v2`) va servi network-first noul shell modular, fără asset-uri.
+
+Un al treilea scenariu pe care nu l-ai listat: GitHub Pages propagă prin CDN, iar `etude.html` are `max-age=600`. `cache.add(etude.html, {cache:'no-cache'})` din `install` poate lua un HTML V1 sau V3, în timp ce `sw.js` e V2. Fără o verificare, „precache-ul V2” conține un shell care nu-i aparține.
+
+### Principiile corecte
+
+1. **Shell-ul nu se scrie niciodată în cache în afara tranzacției de `install`.** Un shell e valid doar dacă toate asset-urile la care face referire sunt în manifestul acestui SW. Se verifică în `install`.
+2. **Network-first pe shell nu are rost în acest model.** Dacă shell-ul servit trebuie să fie cel al build-ului curent al SW-ului, să-l aduci din rețea nu aduce nimic. Pierzi doar 8 secunde de ecran alb pe rețea proastă.
+   - Folosește cache-first pentru shell, plus un `registration.update()` explicit la fiecare navigare și la `visibilitychange`.
+   - „Actualizare rapidă” înseamnă că SW V2 se instalează atomic în fundal, iar pagina oferă un buton de reload sau reîncarcă când e idle. Nu înseamnă să servești HTML nou cu SW vechi.
+3. **Asset-urile cu hash sunt imutabile.** Se țin într-un singur cache partajat între build-uri. Nu se re-descarcă 2 MB de MP3 la fiecare deploy, spre deosebire de `VERSION`-per-cache. La `activate` se șterg doar intrările care nu aparțin **nici generației curente, nici celei precedente**. Asta rezolvă Scenariul A.
+4. `install` e atomic doar pentru setul critic (shell, JS/CSS/fonturi, cele 13 MP3 din `PIANO_WARM`). Restul (OSMD, locale-uri lazy, celelalte 17 MP3) se aduce *best-effort* printr-un mesaj `TOPUP`. Astfel un request eșuat nu blochează SW-ul, iar prima vizită nu concurează pentru bandă.
+5. Nu apela `skipWaiting()` în `install`, cu o singură excepție: **release-ul de migrare**, unde SW-ul vechi nu știe de mesaje. În rest, `skipWaiting` se face la cerere (`postMessage`).
+6. Dezactivează `navigationPreload`. Ai activat-o în SW-ul vechi, iar setarea e persistentă în registration. Cu shell din cache, fiecare navigare ar risipi o cerere.
+
+### `src/sw.ts`
+
+```ts
+/// <reference lib="webworker" />
+type Entry = string | { url: string; revision: string | null };
+declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Entry[] };
+
+const SCOPE = self.registration.scope;
+const abs = (u: string) => new URL(u, SCOPE).href;
+
+const entries = self.__WB_MANIFEST
+  .map(e => (typeof e === 'string' ? { url: e, revision: null } : e))
+  .map(e => ({ url: abs(e.url), revision: e.revision }));
+
+const SHELL_URL = abs('etude.html');
+// build id = revizia shell-ului (md5 calculat de workbox-build) → nu ai nevoie de `define`
+const BUILD = entries.find(e => e.url === SHELL_URL)?.revision ?? 'dev';
+const SHELL_CACHE = `etude-shell-${BUILD}`;   // shell + manifest + icons (versionat)
+const IMM_CACHE   = 'etude-imm-v1';           // assets/ cu hash, partajat între build-uri
+const META_CACHE  = 'etude-meta';
+const META_KEY    = abs('__etude_meta__');
+
+const MUTABLE = entries.filter(e => e.revision !== null && !e.url.endsWith('/sw.js'));
+const HASHED  = entries.filter(e => e.revision === null);
+const HASHED_SET = new Set(HASHED.map(e => e.url));
+const ASSETS_PREFIX = abs('assets/');
+
+const WARM = new Set([48,51,54,57,60,63,66,69,72,75,78,81,84]);   // = PIANO_WARM
+const isDeferred = (u: string) => {
+  const m = /\/piano-(\d+)-[^/]+\.mp3$/.exec(u);
+  return m ? !WARM.has(+m[1]) : /\/(?:osmd|lessons?|quizzes|glossary)[^/]*\.(?:js|css)$/.test(u);
+};
+
+async function assertShellMatchesBuild(res: Response) {
+  const html = await res.text();
+  const refs = [...html.matchAll(/(?:src|href)="([^"]*\/assets\/[^"?#]+)"/g)]
+    .map(m => new URL(m[1], SHELL_URL).href);
+  // CDN stale / captive portal / HTML de la alt build → install eșuează, SW vechi rămâne activ
+  if (!refs.length || refs.some(u => !HASHED_SET.has(u))) throw new Error('shell/manifest mismatch');
+}
+
+self.addEventListener('install', event => event.waitUntil((async () => {
+  // 1) shell: obligatoriu, ocolește HTTP cache, verificat contra manifestului
+  const shell = await caches.open(SHELL_CACHE);
+  const res = await fetch(new Request(SHELL_URL, { cache: 'no-cache' }));
+  if (!res.ok) throw new Error(`shell ${res.status}`);
+  await assertShellMatchesBuild(res.clone());
+  await shell.put(SHELL_URL, res);
+
+  // 2) manifest/icons: opționale (ca acum)
+  await Promise.all(MUTABLE.filter(e => e.url !== SHELL_URL).map(e =>
+    fetch(new Request(e.url, { cache: 'no-cache' }))
+      .then(r => r.ok && shell.put(e.url, r)).catch(() => {})));
+
+  // 3) setul critic cu hash: all-or-nothing, dar sare peste ce există deja de la build-uri vechi
+  const imm = await caches.open(IMM_CACHE);
+  await Promise.all(HASHED.filter(e => !isDeferred(e.url)).map(async ({ url }) => {
+    if (await imm.match(url)) return;
+    const r = await fetch(url);               // cache:'default' → refolosește HTTP cache-ul paginii
+    if (!r.ok) throw new Error(`${url} ${r.status}`);
+    await imm.put(url, r);
+  }));
+
+  // DOAR în release-ul de migrare (SW-ul vechi nu înțelege mesaje); se șterge după:
+  // await self.skipWaiting();
+})()));
+
+self.addEventListener('activate', event => event.waitUntil((async () => {
+  try { await self.registration.navigationPreload?.disable(); } catch {}
+
+  const meta = await caches.open(META_CACHE);
+  const prev: string[] = await meta.match(META_KEY).then(r => (r ? r.json() : []));
+  const keep = new Set([...HASHED_SET, ...prev]);          // generația curentă + precedenta
+  const imm = await caches.open(IMM_CACHE);
+  for (const req of await imm.keys()) if (!keep.has(req.url)) await imm.delete(req);
+  await meta.put(META_KEY, new Response(JSON.stringify([...HASHED_SET])));
+
+  for (const k of await caches.keys())
+    if (k.startsWith('etude-') && ![SHELL_CACHE, IMM_CACHE, META_CACHE].includes(k)) await caches.delete(k);
+
+  await self.clients.claim();
+})()));
+
+self.addEventListener('message', e => {
+  if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  if (e.data?.type === 'TOPUP') e.waitUntil(topUp(e.source as Client | null));
+});
+
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+  const bare = url.origin + url.pathname;
+
+  if (req.mode === 'navigate' && (bare === SHELL_URL || bare === SCOPE)) { e.respondWith(shellResponse(e)); return; }
+  if (bare.startsWith(ASSETS_PREFIX)) { e.respondWith(immutable(e, bare)); return; }
+  if (MUTABLE.some(m => m.url === bare)) e.respondWith(caches.match(bare).then(r => r ?? fetch(req)));
+});
+
+async function shellResponse(e: FetchEvent) {
+  e.waitUntil(self.registration.update().catch(() => {}));  // trigger de update rapid
+  const hit = await (await caches.open(SHELL_CACHE)).match(SHELL_URL);
+  return hit ?? fetch(e.request);
+}
+
+async function immutable(e: FetchEvent, key: string) {
+  const imm = await caches.open(IMM_CACHE);
+  const hit = await imm.match(key);
+  if (hit) return hit;
+  const res = await fetch(e.request);
+  // nu cache-ui 404/HTML-fallback; ce nu e în manifest va fi curățat la următorul activate
+  if (res.status === 200 && !(res.headers.get('content-type') || '').includes('text/html'))
+    e.waitUntil(imm.put(key, res.clone()));
+  return res;
+}
+
+async function topUp(client: Client | null) {
+  const imm = await caches.open(IMM_CACHE);
+  const todo: string[] = [];
+  for (const { url } of HASHED) if (!(await imm.match(url))) todo.push(url);
+  let i = 0, missing = 0;
+  const worker = async () => {
+    while (i < todo.length) {
+      const u = todo[i++];
+      try {
+        const r = await fetch(u, { priority: 'low' } as RequestInit);
+        if (!r.ok) throw 0;
+        await imm.put(u, r);
+      } catch { missing++; }
+    }
+  };
+  await Promise.all([worker(), worker()]);        // max 2 în paralel
+  client?.postMessage({ type: 'TOPUP_DONE', missing });
+}
+```
+
+Configurare `vite-plugin-pwa`:
+
+```ts
+VitePWA({
+  strategies: 'injectManifest', srcDir: 'src', filename: 'sw.ts',
+  injectRegister: null, manifest: false,            // păstrezi manifest.webmanifest din public/
+  injectManifest: {
+    rollupFormat: 'iife',                           // SW clasic: modul-SW nu e universal
+    globPatterns: ['**/*.{js,css,html,mp3,woff2,svg,png,webmanifest}'],
+    globIgnores: ['**/sw.js'],
+    maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // altfel OSMD/chunk-urile mari sunt omise în tăcere sau dau eroare
+  },
+})
+```
+
+### Partea din pagină (`main.ts`)
+
+```ts
+const hadController = !!navigator.serviceWorker?.controller;   // ← critic
+let reloading = false;
+navigator.serviceWorker?.addEventListener('controllerchange', () => {
+  // la prima vizită clients.claim() declanșează controllerchange → NU reîncărca utilizatorul în timp ce cântă
+  if (!hadController || reloading) return;
+  reloading = true; location.reload();
+});
+
+async function registerSW() {
+  const reg = await navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' });
+  const offer = (w: ServiceWorker) => showUpdateToast(() => w.postMessage({ type: 'SKIP_WAITING' }));
+  if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+  reg.addEventListener('updatefound', () => {
+    const w = reg.installing!;
+    w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
+  });
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && reg.update().catch(() => {}));
+  if (!(navigator as any).connection?.saveData)
+    navigator.serviceWorker.ready.then(r => r.active?.postMessage({ type: 'TOPUP' }));
+}
+// înregistrează DUPĂ ce PIANO_WARM e decodat sau la idle (vezi întrebarea 6)
+window.addEventListener('vite:preloadError', e => {          // plasă de siguranță, nu mecanismul principal
+  e.preventDefault();
+  if (!sessionStorage.getItem('etude-pl')) { sessionStorage.setItem('etude-pl', '1'); location.reload(); }
+});
+```
+
+### Rezultatul pe scenarii
+- **A:** V2 activ, dar `osmd-hash1.js` e în `IMM_CACHE` (generația precedentă). Click-ul funcționează cu chunk-ul V1, consecvent cu codul V1 din pagină. La următorul reload pagina trece pe V2.
+- **B:** shell V2 nu ajunge niciodată în cache fără setul critic V2. Conexiunea cade, `install` eșuează și SW V1 rămâne activ cu shell V1 intact. Offline funcționează, iar `update()` reîncearcă la următoarea navigare.
+- **Skew CDN:** `assertShellMatchesBuild` aruncă și `install` eșuează curat.
+- **Teste:** `use: { serviceWorkers: 'block' }` implicit în `playwright.config`. Un SW activ ocolește `page.route`. Adaugă o suită separată de SW (build V1 → V2, offline, upgrade de la `sw.js`-ul vechi).
+- **Dacă nu ai SW** (prima vizită, HTML din HTTP cache de 10 min care referă hash-uri șterse): nu ai headere de controlat pe GH Pages. Pune în `<head>` un mic script inline care, la `error` pe `<script type=module>`, face un singur reload protejat de `sessionStorage`.
+
+---
+
+## Întrebarea 2 — `let pianoDecode = function…` și TDZ
+
+**Nu converti în `let`.** Premisa e greșită: într-un ES module, un *function declaration* este un binding **mutabil**. Strict mode interzice doar reasignarea `const` și a clasei. Poți face `pianoDecode = v` în setterul din bridge direct pe declarația originală:
+
+```js
+// app.js — funcțiile RĂMÂN declarații hoisted, zero schimbări în cod
+function pianoDecode(key) { /* ... */ }
+
+function installWindowBridge(w) {
+  const rw = (name, get, set) =>
+    Object.defineProperty(w, name, { get, set, configurable: true, enumerable: true });
+  rw('pianoDecode', () => pianoDecode, v => { pianoDecode = v; });   // legal pe function declaration
+  rw('actx',        () => actx,        v => { actx = v; });
+  // ... (celelalte 6 funcții și 4 let-uri)
+}
+installWindowBridge(window);   // ultima linie a modulului
+```
+
+Riscurile conversiei în `let`:
+1. **TDZ la evaluarea modulului.** Orice cod top-level care ajunge, direct sau tranzitiv, la `pianoDecode` înainte de linia `let` aruncă `ReferenceError`. Într-un fișier de 8.000+ linii cu ~860 funcții, nu poți exclude asta fără analiză.
+2. Pierzi hoisting-ul, deci ordinea textuală începe să conteze.
+3. Nu câștigi nimic. Comportamentul testelor e identic.
+
+Alte riscuri din bridge (B3):
+- **Snapshot stale.** `Object.assign(window, { SES, ITEMS, AN, ... })` copiază *valoarea* de la momentul apelului. Dacă oricare dintre cele 18 `let`-uri este reasignat în aplicație (probabil `ITEMS`, `SES`, `AN`), `window.X` rămâne în urmă.
+  - **Regulă:** orice binding care e `let` sau `var` și e citit din teste primește getter/setter, nu snapshot.
+  - Generează lista cu un script AST (`acorn`: top-level `VariableDeclaration kind=let` + funcții ținta), nu manual.
+- **Handler-e inline.** În HTML și în template-urile din `innerHTML` ai probabil `onclick="show('x')"`. Într-un modul, acele nume nu mai sunt globale. Fă un grep pe `on[a-z]+=\\?["']` și pe `onclick=` din string-urile JS. Idealul e delegarea evenimentelor. Ca măsură de tranziție, bridge-ul expune exact numele găsite.
+- **Execuție deferred.** Modulele rulează după parsare. Orice cod care presupunea un script inline sincron (`document.currentScript`, citirea `#piano-recordings` înainte de `DOMContentLoaded`) trebuie verificat. Fixture-ul tău așteaptă `window.show`, deci e ok.
+- **`this` top-level și globalii implicați.** `window[name]`, `globalThis.fn` și `typeof algoGlobal` pe funcții care nu mai sunt pe `window` vor da `undefined`. Rulează ESLint cu `no-undef` și grep pe `window\[`.
+- **Minificare.** Rulează testele pe `vite preview` (output minificat), nu doar pe dev server. Verifică explicit că esbuild/Rollup nu tratează funcțiile reasignate ca imutabile.
+
+**Pentru TS (fazele 5–6)**, unde `TS2630` interzice atribuirea la funcții, folosește un seam cu forwarder stabil:
+
+```ts
+function pianoDecodeDefault(key: number): Promise<AudioBuffer> { /* … */ }   // hoisted
+const seams = { pianoDecode: pianoDecodeDefault };                           // la începutul modulului
+export function pianoDecode(key: number) { return seams.pianoDecode(key); } // identitate stabilă, hoisted
+// bridge: get: () => seams.pianoDecode, set: v => { seams.pianoDecode = v }
+```
+Forwarderul exportat rămâne hoisted, iar modulele care îl importă văd mock-ul. Obiectul `seams` e mutabil fără TDZ, dacă îl declari înaintea oricărui cod care rulează la evaluare.
+
+---
+
+## Întrebarea 3 — OSMD în Vite
+
+**Cum se comportă `import('./vendor/osmd.min.js')`:**
+- **Dev:** fișierele din afara `node_modules` nu trec prin dependency optimizer. Vite le servește ca ESM. Un wrapper UMD de tip `(function(root,factory){...})(this, ...)` primește `this === undefined` și aruncă `TypeError` la `root.opensheetmusicdisplay = ...`. Dacă wrapper-ul folosește `window` sau `self`, merge doar prin efect secundar, iar `m.default` e `undefined`. Verifică: `head -c 400 osmd.min.js`.
+- **Build:** `@rollup/plugin-commonjs` în Vite are implicit `include: [/node_modules/]`, deci nu se aplică pe `src/vendor`. Rollup tratează fișierul ca ESM fără exporturi, rescrie `this` în `undefined` (cu warning) și îl re-minifică inutil (1.4 MB, build lent).
+- Rezultat: dev și build pot da comportamente diferite, ceea ce e cel mai rău tip de bug.
+
+**Recomandare: păstrează UMD-ul, dar ca asset opac încărcat cu `<script>` clasic.** Este exact artefactul pe care l-ai auditat (0 erori pe 12.590 note), rămâne `window.opensheetmusicdisplay` ca azi, iar spy-urile Playwright pe `MXLHelper` merg neschimbate. Zero interop.
+
+```ts
+import osmdUrl from './vendor/osmd-2.2.1.min.js?url';   // Vite îl emite hash-uit, fără transformare
+
+let p: Promise<typeof import('opensheetmusicdisplay')> | null = null;
+export function loadOsmd() {
+  const w = window as any;
+  if (w.opensheetmusicdisplay) return Promise.resolve(w.opensheetmusicdisplay);
+  return (p ??= new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = osmdUrl; s.async = true;
+    s.onload = () => {
+      if (!w.opensheetmusicdisplay) { p = null; return rej(new Error('OSMD global lipsă')); }
+      scorePatchOsmd();                // patch-ul pe prototip se aplică O DATĂ, pe orice cale de intrare
+      res(w.opensheetmusicdisplay);
+    };
+    s.onerror = () => { s.remove(); p = null; rej(new Error('OSMD load failed')); };  // altfel: promisiune rejectată cache-uită pe vecie
+    document.head.appendChild(s);
+  }));
+}
+```
+Observații:
+- Codul tău (`osmdPromise ||= import(...)`) cache-uiește și un eșec, deci offline-apoi-online nu mai încearcă niciodată.
+- `scorePatchOsmd()` rulează acum doar dacă îl apelezi manual. Pune-l în `onload`, ca testele și toate căile de intrare să fie acoperite.
+- Fă `loadOsmd()` și la `show('analysis' | 'score')`, ca să-l preîncarci înainte de `scoreRender()`. Evaluarea a 1.4 MB pe mobil costă zeci de ms.
+- Verifică dacă fișierul conține `</script` sau `<!--`. Este relevant doar cât timp îl ții inline, în pasul de upgrade pe monolit.
+- În teste: `await page.evaluate(async () => { await loadOsmd(); /* spy pe MXLHelper */ })`.
+
+**Pachetul npm** (`"opensheetmusicdisplay": "2.2.1"`, pin exact, fără caret) are sens *mai târziu*, în `osmd-adapter.ts`, când există teste golden. Atunci:
+- Folosește `await import('opensheetmusicdisplay')` doar din adapter. În rest `import type`, altfel un singur `import { X }` static trage 1.4 MB în entry. Nu ai nevoie de `manualChunks`.
+- Normalizează interop-ul: `const m = await import('opensheetmusicdisplay'); const O = (m as any).default?.OpenSheetMusicDisplay ? (m as any).default : m;`
+- Apelează `O.MXLHelper.MXLtoXMLstring` la momentul apelului, nu destructurat la import, ca spy-ul din teste să rămână eficient.
+- `window.opensheetmusicdisplay = O` pentru testele existente.
+- Verifică că `VexFlowMusicSheetDrawer` și `MXLHelper` sunt în exporturile pachetului 2.2.1.
+
+---
+
+## Întrebarea 4 — i18n
+
+**Recomandare fermă: 4A acum, cu un seam pentru o evoluție ulterioară. 4B (`setLang` async) nu.**
+
+**Dimensiune (de măsurat, nu de crezut):** `gzip -9 -c strings.json | wc -c`. Textele UI scurte în limbi latine se comprimă 3.5–4.5×. Din cifrele tale (~900 KB total, majoritatea fiind lecții, quiz-uri și glosar), `strings` + `music` pentru 7 limbi sunt probabil **300–450 KB raw, adică ~70–110 KB gzip** (GH Pages servește gzip). O singură limbă cântărește ~12–16 KB. Diferența 4A vs. 4B e deci ~60–100 KB gzip, o dată, apoi se cache-uiește. Față de 5.72 MB actuali e zgomot, iar pe 4G e sub 0.2 s.
+
+**De ce nu 4B:**
+- `setLang` devine async, deci toți apelanții (UI, deep-link `#hash`, boot, teste) trebuie să-l aștepte.
+- Cursa clasică: `setLang('de'); setLang('fr')`, iar `de` se termină al doilea și suprascrie.
+- Între `lang = l` și încărcare, `t()` poate returna cheia sau fallback.
+- Cele 214 `evaluate` presupun sincronie.
+
+**Ce faci în 4A:**
+- Toate cele 7 `strings` + `music` într-un chunk, `json: { stringify: true }` în Vite (se parsează ca `JSON.parse('…')`, mai rapid).
+- `en` este întotdeauna în chunk (lanț de fallback sincron).
+- `lessons`, `quizzes`, `glossary` lazy, dar doar prin **un singur punct de intrare** `ensureLearnData(lang)`, apelat în `show('learn')`. Testele care deschid `#learn` așteaptă cu `waitForFunction`.
+- Generează `keys.d.ts`, dar cheile dinamice (`t('lvl_' + n)`) rămân `string`. Adaugă un test de runtime: pentru fiecare limbă, setul de chei = setul `en`.
+
+**Testul „fără chei duplicate”:** `JSON.parse` păstrează în tăcere ultima cheie. Mutarea din `const STRINGS={…}` în JSON desființează verificarea. Înlocuiește-o cu un parser care detectează duplicatele (de ex. `eslint-plugin-jsonc` cu `jsonc/no-dupe-keys`) sau un test cu `@humanwhocodes/momoa`. Dacă păstrezi `strings` ca `.ts` cu object literal, TS (`TS1117`) o prinde.
+
+**Evoluție ulterioară (4C), când ai măsurat și vrei să tai din bundle:**
+- Locale-urile pe limbă, încărcate **doar la boot**, înainte de evaluarea aplicației: `await loadLocale(storedLang)` în `main.ts`, apoi `await import('./legacy/app.js')`.
+- `setLang` rămâne sincron pentru limbi încărcate. Selectorul din UI face `await ensureLocale(l); setLang(l)` cu token monoton:
+  ```ts
+  let tok = 0;
+  async function pickLang(l: string) { const my = ++tok; await ensureLocale(l); if (my === tok) setLang(l); }
+  ```
+- Testele rămân neschimbate dacă fixture-ul face `page.addInitScript(() => { window.__etudePreloadAll = true })`. Boot-ul încarcă atunci toate locale-urile.
+
+---
+
+## Întrebarea 5 — Paginare OSMD 2.2.1 și `RenderSlursAcrossStaves`
+
+### a) Pagina orfană
+
+Nu folosi `MinSkyBottomDistBetweenSystems`. Schimbă spațierea fiecărei pagini din fiecare partitură pentru a repara una. Interacționează și cu `scoreFixPedals`, pentru că pedalele stau în golul dintre sisteme.
+
+Testul pe care l-ai găsit este `d < PageHeight − PageBottomMargin`. Termenul `− i` (cu `i = BorderTop` al primului sistem, negativ) înrăutățește doar acest test și mută toate sistemele în jos. **Pârghia îngustă este `PageBottomMargin`**: nu afectează nimic în interiorul paginii, doar decide ce încape. Dacă pagina e doar SVG stivuit în scroll, marginea de jos nu e vizibilă oricum.
+
+Semnătura exactă a defectului (determinist, fără re-render):
+- o pagină cu ≤2 sisteme,
+- al cărei prim sistem NU începe cu `printNewPageXml`,
+- urmată de o pagină al cărei prim sistem începe cu `printNewPageXml`.
+
+Overflow-urile legitime (XML fără `new-page` pe acea pagină) nu intră în această semnătură.
+
+```js
+const scFirstSm = sys => {
+  const col = sys && sys.GraphicalMeasures && sys.GraphicalMeasures[0];
+  const gm = col && col.find(Boolean);
+  return gm && gm.parentSourceMeasure;
+};
+
+// returnează indexul paginii PRECEDENTE (cea care a „preaplin” din cauza lui `- i`)
+function scoreOrphanPages(engine) {
+  const pages = engine.GraphicSheet.MusicPages, out = [];
+  for (let p = 1; p < pages.length - 1; p++) {
+    const pg = pages[p];
+    if (pg.MusicSystems.length > 2) continue;
+    const first = scFirstSm(pg.MusicSystems[0]), next = scFirstSm(pages[p + 1].MusicSystems[0]);
+    if (first && next && !first.printNewPageXml && next.printNewPageXml) out.push(p - 1);
+  }
+  return out;
+}
+
+function scoreFixOrphanPages(engine) {
+  const R = engine.EngravingRules;
+  for (let pass = 0; pass < 2; pass++) {            // maxim +2 render-uri, doar pe partituri afectate
+    const bad = scoreOrphanPages(engine);
+    if (!bad.length) return;
+    const pages = engine.GraphicSheet.MusicPages;
+    // `i` din 2.2.1 = BorderTop al primului sistem de pe pagina care a preaplin (negativ)
+    const over = Math.max(...bad.map(p => -pages[p].MusicSystems[0].PositionAndShape.BorderTop), 0);
+    R.PageBottomMargin = Math.max(0, R.PageBottomMargin - over - 0.25);
+    engine.render();
+  }
+}
+```
+
+Integrare în `scoreFitRender`:
+- La începutul fiecărui apel salvează sau restaurează `R.PageBottomMargin` (`SC.defPBM` capturat la crearea engine-ului). Regulile rămân pe engine între partituri, deci altfel marginea redusă „curge” la următoarea partitură.
+- Rulează `scoreFixOrphanPages` doar după pasul final al scării de fit (pasul care a decis spargerile de sistem). Predicatul e o iterare ieftină, deci îl poți rula la fiecare render, inclusiv la resize și zoom. Lățimea containerului schimbă `PageHeight` prin aspect-ratio, deci orfanii pot reapărea la altă lățime.
+- Pune în `SCORE.fit` valoarea `pbm` ca *hint de start*, nu ca adevăr. Verifică predicatul oricum după `render()`.
+- Cost: render-ul inițial rămâne, apoi 0–2 render-uri extra doar la scorurile care au semnătura (din ce ai testat, 1 din 5).
+
+Două rezerve:
+- Nu cunosc termenul `s` din formula ta de `d` (l-ai omis). Dacă `over` nu ajunge, a doua trecere crește marginea.
+- Dacă vrei un fix la sursă, deschide un issue upstream. Contabilizarea `- i` în test, plus translația ulterioară cu `-i`, pare dublă la prima vedere.
+
+### b) `RenderSlursAcrossStaves` și cele 32 de reguli noi
+
+**Înghețare pentru paritate:** în timpul upgrade-ului setezi explicit **toate cele 32 de reguli noi** la valorile care reproduc comportamentul 1.9.9. Faci un diff programatic al `Object.keys(new EngravingRules())` între cele două versiuni și un `scoreEngineRules(R)` care le fixează. Asta face upgrade-ul deterministic și reversibil.
+- `if ('RenderSlursAcrossStaves' in R) R.RenderSlursAcrossStaves = false;` — `scoreXLines()` rămâne singurul care desenează legăturile între portative, deci nu apar duplicate.
+- Testează `UseGeometricSkyBottomLineCalculation` separat. Poate schimba poziția verticală a pedalelor și interacționează cu `scoreFixPedals` și cu paginarea. Pentru paritate, încearcă `false`; dacă nu există diferențe de layout, e ok și cu `true`.
+- Verifică și regulile despre beam-uri între portative. Spui că `scoreXLines` desenează și beams, iar mecanismul poate fi altul.
+
+**Migrare ulterioară spre legăturile native:** doar după ce ai o suită golden cu numărul de curbe `.vf-curve` per partitură, ca să dovedești că nativ ≥ manual. Atunci elimini slur-urile din `scoreXLines` (păstrezi beams). Ținerea ambelor active cu un filtru DOM de dedup e fragilă.
+
+**Test de regresie:** numărul de elemente `.sc-xline` + `.vf-curve` pe cele 5 partituri, comparat cu un golden. Mai adaugă `pages.length` (Moonlight = 14) și harta `sistem → prima măsură`.
+
+---
+
+## Întrebarea 6 — 30 MP3 și contenția de rețea
+
+Soluția este în design-ul de la întrebarea 1, plus câteva detalii:
+
+1. **Înregistrează SW-ul după ce `PIANO_WARM` e decodat**, sau la `requestIdleCallback({timeout: 5000})`, nu la `load`. Pagina nu e controlată înainte de claim, deci cererile ei merg direct la rețea și umplu HTTP cache-ul.
+2. **`install` ia doar setul critic.** Cele 13 MP3 din `PIANO_WARM` sunt deja în HTTP cache de la pagină (`max-age=600` de la GH Pages), iar `fetch(url)` cu `cache:'default'` le refolosește fără bandă. Celelalte 17 și OSMD intră în `TOPUP`, sub control de concurență (2 workeri, `priority:'low'`) și cu `saveData` respectat.
+3. **Fără o singură cerere blocantă:** `install` folosește `Promise.all` doar pe ce e critic. Opționalele folosesc `.catch(() => {})` ca în SW-ul actual. `TOPUP` numără ce lipsește și `cache.put` nu e atomic. La orice navigare ulterioară mesajul se retrimite, iar `topUp` aduce doar ce lipsește.
+4. **Handler-ul `immutable()` face runtime-cache**, deci o notă ne-caldă cântată înaintea `TOPUP` se descarcă o singură dată și rămâne în cache.
+5. Poți expune `TOPUP_DONE` ca indicator „disponibil offline”.
+6. **iOS/Safari:** ITP poate șterge cache-ul SW după 7 zile fără utilizare pentru site-uri neinstalate. Cere `navigator.storage.persist()` când aplicația e instalată.
+
+**Capcana din `pianoDecode` (Faza 2).** Codul tău nou face `fetch(url).then(…).then(b => ctx.decodeAudioData(b))` și ia `ctx` după `await`. Pe iOS, `AudioContext` trebuie creat sau `resume()`-at **sincron în gestul utilizatorului**. Păstrează ordinea originală:
+
+```js
+function pianoDecode(key) {
+  if (pianoBank.buffers[key]) return Promise.resolve(pianoBank.buffers[key]);
+  if (pianoBank.inflight[key]) return pianoBank.inflight[key];
+  const ctx = ensureAudio();                       // SINCRON, înainte de orice await
+  return pianoBank.inflight[key] = fetch(PIANO_URLS[key])
+    .then(r => { if (!r.ok) throw new Error('piano ' + key + ' ' + r.status); return r.arrayBuffer(); })
+    .then(ab => ctx.decodeAudioData(ab))
+    .then(buf => { pianoBank.buffers[key] = buf; delete pianoBank.inflight[key]; return buf; },
+          err => { delete pianoBank.inflight[key]; throw err; });   // altfel o nota eșuată o dată rămâne mută pe vecie
+}
+```
+
+Mai verifică:
+- Fișierele extrase trebuie să fie **byte-identice** cu cele din base64. Nu le re-encoda (padding-ul de decoder de MP3 se menține). Adaugă un test cu sha256 pe cele 30.
+- Prima notă ne-caldă are acum latență de rețea dacă SW-ul nu e încă gata. Fă `preparePiano()` să înceapă imediat la boot, nu doar la primul gest.
+- Numele fișierelor au formă `piano-NN-<hash>.mp3`, iar `isDeferred()` din `sw.ts` se bazează pe asta. Pune un test de build care verifică că regex-ul le potrivește pe toate 30.
+- Nu numi folderul sursă `assets/` dacă outputul e tot `assets/`. E confuz; folosește `src/assets/piano/`.
+
+---
+
+## Întrebarea 7 — Ordinea fazelor și capcane nevăzute
+
+**Upgrade-ul OSMD vine înainte de Faza 1**, ca PR separat pe monolit. Motive:
+- Ai deja toate scripturile de audit pe un singur fișier.
+- Schimbi o singură variabilă odată: o regresie nu poate veni din Vite, SW sau ESM.
+- Modificările sunt mici: bundle-ul, înghețarea regulilor, `scoreFixOrphanPages` și flag-ul pentru slur-uri.
+- Costul e 0.2 MB în plus în HTML.
+
+Transformă scripturile de audit în **teste golden** (Playwright/Vitest) înainte de upgrade, cu număr de pagini, harta `sistem → prima măsură`, numărul de note bound și numărul de elemente `.sc-xline`/`.vf-curve`. Ele vor supraviețui extragerii.
+
+**Alte capcane:**
+- **Fonturi:** `Fraunces` și `Hanken Grotesk` trebuie în subset **latin + latin-ext**. Românescul `ș ț` (U+0218–021B) e în latin-ext. Importă-le din CSS (`url('./fonts/…')`) ca să fie hash-uite și incluse automat în manifest, nu din `public/`. Adaugă `font-display: swap` și preload pe fontul critic.
+- **Script inline de temă** în `<head>`, ca să eviți flash-ul după mutarea CSS-ului în fișier extern.
+- **Teste care citesc `etude.html` cu `fs`:** introdu un helper `readSource()` înainte de migrare, apoi redirecționează-l.
+- **Fixture-ul** trebuie parametrizat cu `APP_URL`, ca același test să ruleze pe dev, pe `vite preview` și pe `dist` din CI. SW-urile se testează doar pe build.
+- **`base: './'`:** verifică `import.meta.glob ?url`, URL-urile din CSS și chunk-urile lazy într-un `vite preview` servit dintr-un subpath (`/etude/`), nu doar la rădăcină.
+- **Worklet-uri:** dacă detecția de pitch folosește `AudioWorklet`, se încarcă cu `addModule(new URL('./x.worklet.ts', import.meta.url))`, iar fișierul trebuie să ajungă și în precache. Dacă folosește `ScriptProcessor`, e deprecated, dar neschimbat față de azi.
+- **`ptt-v3`:** pe Safari non-instalat, `localStorage` poate fi șters după 7 zile de inactivitate. Ai deja `SYNC`, dar un buton de export/backup merită adăugat în același release.
+- **Migrarea SW-ului vechi:** adaugă un test de upgrade în care instalezi `sw.js` vechi (`etude-shell-v2`), apoi cel nou, și verifici că cache-urile se curăță și că offline merge.
+
+---
+
+# 3. Ordinea revizuită
+
+| Pas | Conținut | Gate |
+|---|---|---|
+| **0** | Teste golden pentru OSMD (pagini, sisteme, note bound, xlines). Helper `readSource()`. Fixture cu `APP_URL`. Playwright cu `serviceWorkers: 'block'`. | 192 teste verzi pe monolit |
+| **1** | Upgrade OSMD 2.2.1 pe monolit: înghețarea celor 32 de reguli, `RenderSlursAcrossStaves=false`, `scoreFixOrphanPages`. | Golden: Moonlight = 14 pagini, 0 diferențe de mapare |
+| **2** | Vite rulează `etude.html` neschimbat (scripturile inline clasice rămân). CI + deploy GH Pages. SW nou minimal (shell + icons, release de migrare cu `skipWaiting`). | Teste pe `vite preview`; test de upgrade de la SW-ul vechi |
+| **3** | CSS extern + JS în `src/legacy/app.js` ca modul + bridge generat prin AST (getteri pentru *toate* `let`-urile, `Object.assign` doar pentru `const`/funcții nereasignate). OSMD și JSON-urile rămân inline. | 192 teste verzi pe build minificat |
+| **4** | Extragere MP3 + `pianoDecode` cu fetch (cu `ensureAudio()` sincron și cleanup de `inflight`). | sha256 identic; teste de sunet |
+| **5** | OSMD extras ca asset `?url`, `loadOsmd()` cu `scorePatchOsmd()` în `onload`. Fonturi self-hosted (latin + latin-ext). | Testele `.mxl` cu `loadOsmd()` explicit |
+| **6** | i18n 4A: JSON-uri, chunk comun pentru `strings`+`music`, lazy doar pentru lecții/quiz/glosar. Test de duplicate. | Test de paritate de chei între limbi |
+| **7** | **SW complet** (varianta din întrebarea 1): precache atomic al setului critic, `TOPUP`, generație curentă + precedentă. Teste SW: V1→V2 cu chunk lazy, cădere de rețea în timpul `install`, offline, CDN skew. | Scenariile A și B, ambele, ca teste automate |
+| **8** | Modularizarea pe domenii (`theory` → `core` → `midi` → `audio` → `notation` → `modes`) cu seam-urile din întrebarea 2. Evaluezi OSMD din npm în adapter. | Un domeniu pe PR |
+
+Motivul pentru care SW-ul complet vine abia la pasul 7: atomicitatea lui depinde de existența asset-urilor cu hash. La pasul 2 un SW minimal acoperă migrarea cu risc mic, iar bridge-ul ESM (cel mai mecanic și mai riscant pas) se face cât timp OSMD și MP3-urile sunt încă inline, adică cu mai puține variabile în joc.

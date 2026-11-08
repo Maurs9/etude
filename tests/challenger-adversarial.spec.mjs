@@ -22,6 +22,9 @@ test.describe('Adversarial Stress Test: Rapid Language Switching', () => {
 
     // Warm up one switch to allow lazy one-time select/circle initialization
     await page.locator('#set-lang button[data-v="ro"]').click();
+    // The language buttons defer part of that work (the Read view's range selects) with setTimeout(…, 0);
+    // let it run so the baseline isn't taken halfway through the first fill.
+    await page.evaluate(() => new Promise(r => setTimeout(r, 0)));
 
     // Baseline stats after warm-up
     const baselineStats = await page.evaluate(() => ({
