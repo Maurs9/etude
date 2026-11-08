@@ -1,9 +1,11 @@
 {
   "name": "piano-theory-trainer",
   "private": true,
-  "description": "Étude — piano theory trainer (single-file static app). Tooling here is for tests only; the app itself has no build step.",
+  "description": "Étude — piano theory trainer (single-file static app). The app has no build step: `npm run build` only copies the files the site serves into dist/etude/ for GitHub Pages; the rest of the tooling is for tests.",
   "scripts": {
     "serve": "python3 -m http.server 8777",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/build.mjs && node scripts/serve.mjs dist 8778",
     "test": "playwright test"
   },
   "devDependencies": {
