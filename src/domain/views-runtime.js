@@ -6,7 +6,7 @@ import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, parsePttV3, readPttV3, restoreSettings, writePttV3 } from './storage.js';
 import { CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord as identifyChordDomain, midiToFrequency, pitchClass } from './theory.js';
-import { PianoBank, nearestPianoKey } from './audio.js';
+import { AudioEngine } from './audio.js';
 import { loadOsmd, notationReloadMessage, scorePatchOsmd } from './notation.js';
 import { NAV_GROUPS, navGroup, viewFromHash } from './router.js';
 function t(k, ...args) { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
@@ -248,440 +248,122 @@ function chordFormula(c) { return formatChordFormula(c.intervals); }
 function scaleFormula(offs) { return formatScaleFormula(offs); }
 const todayN = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); };
 /* ---------- AUDIO ENGINE ---------- */
-let actx = null, master = null, masterFilter = null, comp = null, lfo = null, lfoGain = null, reverbNode = null, reverbGain = null;
-let muted = false, masterVol = 0.72, bendSemitones = 0, localSynth = true, tone = 'piano', reverbWet = 0.125;
-const liveVoices = new Map();
-let previewVoices = [];
-const TONES = { soft: { w: ['triangle', 'sawtooth', 'sawtooth'], cut: 6 }, bright: { w: ['sawtooth', 'sawtooth', 'square'], cut: 9 }, organ: { w: ['sine', 'sine', 'sine'], cut: 14, oct: [0, 1200, 1902] }, mellow: { w: ['sine', 'triangle', 'sine'], cut: 3.2 }, glass: { w: ['sine', 'triangle', 'square'], cut: 11 } };
-function ensureAudio() {
-    if (actx && actx.state === 'closed') {
-        actx = null;
-        master = null;
-    }
-    if (actx) {
-        if (actx.state === 'suspended' || actx.state === 'interrupted')
-            actx.resume().catch(() => { });
-        preparePiano();
-        return;
-    } // 'interrupted': Safari after a call/Siri
-    const AC = window.AudioContext || window.webkitAudioContext;
-    try {
-        actx = new AC({ latencyHint: 'interactive' });
-    }
-    catch (_) {
-        actx = new AC();
-    }
-    if (actx.addEventListener)
-        actx.addEventListener('statechange', audioLockSync);
-    master = actx.createGain();
-    master.gain.value = muted ? 0 : masterVol;
-    masterFilter = actx.createBiquadFilter();
-    masterFilter.type = 'lowpass';
-    masterFilter.frequency.value = 15500;
-    masterFilter.Q.value = .4;
-    comp = actx.createDynamicsCompressor(); // gentle glue, not pumping
-    comp.threshold.value = -20;
-    comp.knee.value = 24;
-    comp.ratio.value = 4.5;
-    comp.attack.value = 0.004;
-    comp.release.value = 0.22;
-    master.connect(masterFilter).connect(comp).connect(actx.destination);
-    try {
-        reverbNode = actx.createConvolver();
-        reverbNode.buffer = makeIR(1.7, 2.4); // small generated hall — fully offline
-        reverbGain = actx.createGain();
-        reverbGain.gain.value = reverbWet;
-        masterFilter.connect(reverbNode).connect(reverbGain).connect(comp);
-    }
-    catch (_) {
-        reverbNode = null;
-        reverbGain = null;
-    }
-    lfo = actx.createOscillator();
-    lfo.frequency.value = 5.5;
-    lfoGain = actx.createGain();
-    lfoGain.gain.value = 0;
-    lfo.connect(lfoGain);
-    lfo.start();
-    actx.resume().catch(() => { });
-    preparePiano();
-}
-// Browsers keep audio locked until the page itself is clicked or typed on; a MIDI or Bluetooth key does not count as that gesture.
-// Notes that arrive while the context stays locked raise a notice whose button is the gesture; it goes only once audio really runs.
-let audioLockT = 0;
-function audioLockSync() { if (!actx || actx.state !== 'running')
-    return; clearTimeout(audioLockT); audioLockT = 0; const el = $('audioLock'); if (el)
-    el.hidden = true; }
-function audioLockCheck() {
-    if (!localSynth || !actx || actx.state === 'running' || audioLockT)
-        return;
-    // @ts-expect-error -- audited dynamic view runtime boundary
-    audioLockT = setTimeout(() => { audioLockT = 0; const el = $('audioLock'); if (el && localSynth && actx && actx.state !== 'running')
-        el.hidden = false; }, 300);
-}
-function audioUnlock() { ensureAudio(); const c = actx; if (c && c.state !== 'running')
-    c.resume().then(audioLockSync, () => { });
-else
-    audioLockSync(); }
-// Salamander Grand Piano v3 recordings by Alexander Holm (CC BY 3.0).
-// The MP3 bank is embedded so file:// playback never needs a server or network.
-// Samples are decoded on demand: the central range warms up first, the rest while the browser is idle.
+// Web Audio construction and voice ownership live in the typed audio domain.
 const PIANO_KEYS = [21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96, 99, 102, 105, 108];
 const PIANO_URLS = Object.fromEntries(PIANO_KEYS.map(key => [key, new URL(`../assets/piano/${key}.mp3`, import.meta.url).href]));
-const pianoBank = new PianoBank(PIANO_KEYS, PIANO_URLS, () => actx, () => pianoStatus());
 const PIANO_WARM = [48, 84];
+const audioEngine = new AudioEngine({ pianoKeys: PIANO_KEYS, pianoUrls: PIANO_URLS, warmRange: PIANO_WARM, onPianoStatus: () => pianoStatus() });
+let actx = null;
+let master = null;
+let masterFilter = null;
+let comp = null;
+let lfo = null;
+let lfoGain = null;
+let reverbNode = null;
+let reverbGain = null;
+let muted = false;
+let masterVol = 0.72;
+let bendSemitones = 0;
+let localSynth = true;
+let tone = 'piano';
+let reverbWet = 0.125;
+const liveVoices = audioEngine.liveVoices;
+let previewVoices = audioEngine.previewVoices;
+const pianoBank = audioEngine.pianoBank;
+const metro = { on: false, bpm: 90, next: 0, beat: 0, timer: null };
+function syncAudioState() {
+    actx = audioEngine.context;
+    master = audioEngine.master;
+    masterFilter = audioEngine.masterFilter;
+    comp = audioEngine.compressor;
+    lfoGain = audioEngine.lfoGain;
+    reverbNode = audioEngine.reverbNode;
+    reverbGain = audioEngine.reverbGain;
+    previewVoices = audioEngine.previewVoices;
+    audioEngine.tone = tone;
+    audioEngine.localSynth = localSynth;
+    audioEngine.muted = muted;
+    audioEngine.masterVolume = masterVol;
+    audioEngine.bendSemitones = bendSemitones;
+    audioEngine.reverbWet = reverbWet;
+}
 function pianoStatus() {
     const message = t(pianoBank.status === 'ready' ? 'piano_ready' : pianoBank.status === 'error' ? 'piano_error' : 'piano_loading');
     const global = $('piano-global-status');
-    if (global)
-        global.textContent = message;
+    if (global) global.textContent = message;
     const dock = $('piano-status');
-    if (dock) {
-        dock.hidden = pianoBank.status === 'ready';
-        dock.textContent = message;
-    }
+    if (dock) { dock.hidden = pianoBank.status === 'ready'; dock.textContent = message; }
 }
-function pianoKeys() {
-    return pianoBank.keys;
-}
-function pianoNearest(midi) { return nearestPianoKey(midi, pianoKeys()); }
-function pianoFail(err) { pianoBank.fail(err); }
-let pianoDecode = function pianoDecode(key) { return pianoBank.decode(key); };
-// Resolves true once every sample needed for these notes is decoded (used before scheduled playback).
-function pianoEnsure(midis) {
-    if (!actx)
-        return Promise.resolve(false);
-    const ctx = actx;
-    return pianoBank.ensure(midis, pianoNearest);
-}
-function pianoIdleWarm() {
-    pianoBank.warmIdle();
-}
-let preparePiano = function preparePiano() {
-    // @ts-expect-error -- audited dynamic view runtime boundary
-    return pianoBank.prepare(PIANO_WARM);
-};
-function sampledPianoVoice(freq, vel, when, dur, opt = {}) {
-    const ctx = actx, voice = { inner: null, released: false, stop(rt) { this.released = true; if (this.inner)
-            this.inner.stop(rt); }, setBend() { if (this.inner)
-            this.inner.setBend(); } };
-    const midi = 69 + 12 * Math.log2(freq / 440), nearest = pianoNearest(midi);
-    const start = (buffer, sampleMidi = nearest) => {
-        if (voice.released || ctx !== actx || ctx.state === 'closed')
-            return;
-        if (when != null && dur != null && when + dur <= ctx.currentTime)
-            return;
-        const rate = Math.pow(2, (midi - sampleMidi) / 12);
-        const t = Math.max(ctx.currentTime, when ?? ctx.currentTime), offset = when == null ? 0 : Math.max(0, t - when) * rate;
-        if (offset >= buffer.duration)
-            return;
-        const source = ctx.createBufferSource(), gain = ctx.createGain(), filter = ctx.createBiquadFilter();
-        // @ts-expect-error -- audited dynamic view runtime boundary
-        const velocity = Math.max(1, Math.min(127, vel || 100)) / 127, peak = 0.85 * Math.pow(velocity, 1.6), release = midi < 60 ? 0.22 : 0.15, warm = !!opt.warm, held = !!opt.hold;
-        source.buffer = buffer;
-        source.playbackRate.setValueAtTime(rate, t);
-        source.detune.setValueAtTime(bendSemitones * 100, t);
-        filter.type = 'lowpass';
-        filter.Q.value = 0.3;
-        filter.frequency.setValueAtTime(Math.min(ctx.sampleRate * 0.45, (warm ? 1700 : 2800) + (warm ? 10500 : 16000) * Math.pow(velocity, 1.4)), t);
-        gain.gain.value = 0;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.linearRampToValueAtTime(peak, t + (warm ? 0.008 : 0.003));
-        const modulation = lfoGain;
-        source.connect(gain).connect(filter).connect(master);
-        if (modulation)
-            modulation.connect(source.detune);
-        source.onended = () => { source.disconnect(); gain.disconnect(); filter.disconnect(); if (modulation) {
-            try {
-                modulation.disconnect(source.detune);
-            }
-            catch (_) { }
-        } };
-        const inner = { released: false, stop(rt) {
-                if (this.released)
-                    return;
-                this.released = true;
-                const r = Math.max(ctx.currentTime, rt ?? ctx.currentTime);
-                if (r <= t) {
-                    try {
-                        source.stop(r);
-                    }
-                    catch (_) { }
-                    return;
-                }
-                if (gain.gain.cancelAndHoldAtTime)
-                    gain.gain.cancelAndHoldAtTime(r);
-                else {
-                    gain.gain.cancelScheduledValues(r);
-                    gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), r);
-                }
-                gain.gain.exponentialRampToValueAtTime(0.0001, r + release);
-                try {
-                    source.stop(r + release + 0.02);
-                }
-                catch (_) { }
-            }, setBend() { source.detune.setTargetAtTime(bendSemitones * 100, ctx.currentTime, 0.01); } };
-        voice.inner = inner;
-        source.start(t, offset);
-        if (dur != null) {
-            const end = Math.max(t + 0.004, (when ?? t) + dur);
-            if (held && end > t + .03) {
-                const tail = Math.max(.0001, peak * .42), settle = Math.min(end - .004, t + Math.min(.45, Math.max(.03, dur * .32)));
-                gain.gain.exponentialRampToValueAtTime(tail, settle);
-                gain.gain.setValueAtTime(tail, end);
-            }
-            else
-                gain.gain.setValueAtTime(peak, end);
-            gain.gain.exponentialRampToValueAtTime(0.0001, end + release);
-            source.stop(end + release + 0.02);
-        }
-    };
-    if (pianoBank.ctx !== ctx)
-        preparePiano();
-    const ready = pianoBank.ctx === ctx && pianoBank.buffers.get(nearest);
-    if (ready)
-        start(ready);
-    else if (when == null) {
-        // Live playing must not wait for MP3 decoding: use a cached recording or the built-in synth for this note.
-        const keys = [...pianoBank.buffers.keys()], fallback = keys.reduce((best, k) => best == null || Math.abs(k - midi) < Math.abs(best - midi) ? k : best, null);
-        if (fallback != null && Math.abs(fallback - midi) <= 12)
-            start(pianoBank.buffers.get(fallback), fallback);
-        // @ts-expect-error -- audited dynamic view runtime boundary
-        else
-            voice.inner = makePianoVoice(freq, vel);
-        // Decode the preferred recording after scheduling the sound; do not replay a released note.
-        Promise.resolve().then(() => { if (ctx === actx)
-            return pianoDecode(nearest); }).catch(err => { if (ctx === actx && pianoBank.ctx === ctx)
-            pianoFail(err); });
-    }
-    else
-        pianoDecode(nearest).then(start, err => { if (ctx === actx && pianoBank.ctx === ctx)
-            pianoFail(err); });
+function pianoKeys() { return pianoBank.keys; }
+function pianoNearest(midi) { return pianoBank.keys.reduce((best, key) => Math.abs(key - midi) < Math.abs(best - midi) ? key : best, pianoBank.keys[0] ?? 60); }
+function pianoFail(error) { pianoBank.fail(error); }
+let pianoDecode = key => pianoBank.decode(key);
+function pianoEnsure(midis) { return audioEngine.pianoEnsure(midis); }
+function pianoIdleWarm() { pianoBank.warmIdle(); }
+let preparePiano = () => pianoBank.prepare(PIANO_WARM);
+let makePianoVoice = (frequency, velocity, when, duration) => audioEngine.makePianoVoice(frequency, velocity, when, duration);
+function sampledPianoVoice(frequency, velocity, when, duration, options = {}) {
+    ensureAudio();
+    const voice = audioEngine.sampledPianoVoice(frequency, velocity, when, duration, options, { decode: pianoDecode, fallbackVoice: makePianoVoice });
+    syncAudioState();
     return voice;
 }
-function makeIR(seconds, decay) {
-    const rate = actx.sampleRate, len = Math.max(1, Math.floor(rate * seconds)), buf = actx.createBuffer(2, len, rate);
-    for (let ch = 0; ch < 2; ch++) {
-        const d = buf.getChannelData(ch);
-        let last = 0;
-        for (let i = 0; i < len; i++) {
-            const w = Math.random() * 2 - 1;
-            last = last * 0.62 + w * 0.38;
-            d[i] = last * Math.pow(1 - i / len, decay);
-        }
-    }
-    return buf;
-}
-function masterRamp(t) { if (!master)
-    return; const n = actx.currentTime; master.gain.cancelScheduledValues(n); master.gain.setValueAtTime(Math.max(.0001, master.gain.value), n); master.gain.linearRampToValueAtTime(t, n + .02); }
-function makeVoice(freq, vel, when, dur) {
-    if (tone === 'piano')
-        return sampledPianoVoice(freq, vel, when, dur);
-    if (tone === 'piano-synth')
-        return makePianoVoice(freq, vel, when, dur);
-    const t = when ?? actx.currentTime, tp = TONES[tone] || TONES.soft, det0 = [0, -7, 7];
-    const g = actx.createGain(), filt = actx.createBiquadFilter();
-    filt.type = 'lowpass';
-    filt.frequency.setValueAtTime(Math.min(11000, freq * tp.cut + 700), t);
-    filt.Q.value = .6;
-    const oscs = det0.map((det, i) => { const o = actx.createOscillator(); o.type = tp.w[i] || 'sine'; o.frequency.setValueAtTime(freq, t); o.detune.setValueAtTime(det + (tp.oct ? tp.oct[i] : 0) + bendSemitones * 100, t); o.connect(g); if (lfoGain)
-        lfoGain.connect(o.detune); return o; });
-    const peak = .16 * (.4 + .6 * (vel / 127));
-    g.gain.setValueAtTime(.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + .006);
-    g.gain.exponentialRampToValueAtTime(peak * .6, t + .14);
-    g.connect(filt).connect(master);
-    oscs.forEach(o => o.start(t));
-    const voice = { oscs, g, released: false, base: det0.map((d, i) => d + (tp.oct ? tp.oct[i] : 0)),
-        stop(rt) { if (this.released)
-            return; this.released = true; const r = rt ?? actx.currentTime; this.g.gain.cancelScheduledValues(r); this.g.gain.setValueAtTime(Math.max(.0001, this.g.gain.value), r); this.g.gain.exponentialRampToValueAtTime(.0001, r + .28); this.oscs.forEach(o => { try {
-            o.stop(r + .32);
-        }
-        catch (_) { } }); },
-        setBend() { const n = actx.currentTime; this.oscs.forEach((o, i) => o.detune.setTargetAtTime(this.base[i] + bendSemitones * 100, n, .01)); } };
-    if (dur != null) {
-        const rel = t + dur;
-        g.gain.setValueAtTime(peak * .6, rel);
-        g.gain.exponentialRampToValueAtTime(.0001, rel + .25);
-        oscs.forEach(o => { try {
-            o.stop(rel + .3);
-        }
-        catch (_) { } });
-    }
+function makeVoice(frequency, velocity, when, duration) {
+    ensureAudio();
+    const voice = audioEngine.makeVoice(frequency, velocity, when, duration);
+    syncAudioState();
     return voice;
 }
-/* Acoustic piano model: inharmonic partials, per-partial decay (highs die first),
-   a hammer-noise transient, and a quick damper release. Fully offline. */
+function ensureAudio() {
+    const context = audioEngine.ensureAudio();
+    syncAudioState();
+    if (context) void preparePiano();
+    return context;
+}
+let audioLockT = 0;
+function audioLockSync() {
+    if (!actx || actx.state !== 'running') return;
+    clearTimeout(audioLockT); audioLockT = 0;
+    const el = $('audioLock'); if (el) el.hidden = true;
+}
+function audioLockCheck() {
+    if (!localSynth || !actx || actx.state === 'running' || audioLockT) return;
+    audioLockT = setTimeout(() => { audioLockT = 0; const el = $('audioLock'); if (el && localSynth && actx && actx.state !== 'running') el.hidden = false; }, 300);
+}
+function audioUnlock() { ensureAudio(); const context = actx; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
+function audioNoteOn(midi, velocity) { syncAudioState(); audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); syncAudioState(); }
+function audioNoteOff(midi) { audioEngine.noteOff(midi); syncAudioState(); }
+function stopPreviews() { clearExplorePreview(); audioEngine.stopPreviews(); syncAudioState(); }
+function setBendFromValue(value) { audioEngine.setBendFromValue(value); bendSemitones = audioEngine.bendSemitones; }
+function masterRamp(value) { audioEngine.masterRamp(value); syncAudioState(); }
+function startDrone(rootPc) { audioEngine.startDrone(rootPc); syncAudioState(); }
+function stopDrone() { audioEngine.stopDrone(); syncAudioState(); }
+function startMetro() { audioEngine.startMetro(metro.bpm); metro.on = true; metro.timer = true; }
+function stopMetro() { audioEngine.stopMetro(); metro.on = false; metro.timer = null; }
+function metroSched() { audioEngine.startMetro(metro.bpm); }
+function metroClick(when, accent) { audioEngine.metroClick(when, accent); }
+function previewNote(midi, when, duration, velocity, options = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); syncAudioState(); }
+let playInterval = (rootMidi, semitones, style) => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); syncAudioState(); };
+function playIvDir(root, semitones, direction) { if (direction === 'desc') playInterval(root + semitones, -semitones, 'both'); else playInterval(root, semitones, 'both'); }
+function playChordMidis(midis, arpeggio) {
+    ensureAudio(); stopPreviews();
+    exploreSequence(arpeggio ? midis.map((midi, index) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
+    const start = actx?.currentTime ?? 0;
+    if (arpeggio) { midis.forEach((midi, index) => previewNote(midi, start + index * 0.16, 0.4)); midis.forEach(midi => previewNote(midi, start + midis.length * 0.16 + 0.1, 1.1)); }
+    else midis.forEach(midi => previewNote(midi, start, 1.2));
+}
+function playScaleNotes(rootMidi, offsets, ascending) {
+    ensureAudio(); stopPreviews();
+    const start = actx?.currentTime ?? 0; let sequence = offsets.concat([12]);
+    if (!ascending) sequence = sequence.slice().reverse();
+    exploreSequence(sequence.map((offset, index) => ({ at: index * 270, notes: [rootMidi + offset] })).concat([{ at: sequence.length * 270, notes: [] }]));
+    sequence.forEach((offset, index) => previewNote(rootMidi + offset, start + index * 0.27, 0.26));
+}
+const droneVoices = audioEngine.droneVoices;
+const TONES = { soft: { w: ['triangle', 'sawtooth', 'sawtooth'], cut: 6 }, bright: { w: ['sawtooth', 'sawtooth', 'square'], cut: 9 }, organ: { w: ['sine', 'sine', 'sine'], cut: 14, oct: [0, 1200, 1902] }, mellow: { w: ['sine', 'triangle', 'sine'], cut: 3.2 }, glass: { w: ['sine', 'triangle', 'square'], cut: 11 } };
 let _noiseBuf = null;
-function noiseBuffer() { if (_noiseBuf)
-    return _noiseBuf; const n = Math.floor(actx.sampleRate * .25), b = actx.createBuffer(1, n, actx.sampleRate), d = b.getChannelData(0); let last = 0; for (let i = 0; i < n; i++) {
-    const w = Math.random() * 2 - 1;
-    last = (last + .04 * w) / 1.04;
-    d[i] = last * 3.2;
-} _noiseBuf = b; return b; }
-let makePianoVoice = function makePianoVoice(freq, vel, when, dur) {
-    const t = when ?? actx.currentTime;
-    const v = Math.max(.06, Math.min(1, (vel || 100) / 127));
-    const out = actx.createGain();
-    if (actx.createStereoPanner) {
-        const pan = actx.createStereoPanner(); // bass to the left, treble to the right, like sitting at the piano
-        pan.pan.value = Math.max(-.45, Math.min(.45, Math.log2(freq / 261.63) * 0.22));
-        out.connect(pan);
-        pan.connect(master);
-    }
-    else
-        out.connect(master);
-    const lvl = .13 * (.45 + .55 * v); // velocity → loudness
-    out.gain.setValueAtTime(.0001, t);
-    out.gain.linearRampToValueAtTime(lvl, t + .003); // ramped attack — no click
-    const oct = Math.log2(freq / 27.5); // octaves above A0
-    let baseDecay = Math.max(.7, Math.min(13, 9.2 - oct * 0.92)); // bass rings, treble is short
-    const nyq = actx.sampleRate * .48;
-    const B = 0.00045 + oct * 0.00006; // string stiffness (inharmonicity)
-    const nPart = freq < 150 ? 14 : freq < 350 ? 11 : freq < 800 ? 8 : 5;
-    const oscs = [], maxLife = baseDecay + 0.3;
-    for (let n = 1; n <= nPart; n++) {
-        const fn = freq * n * Math.sqrt(1 + B * n * n);
-        if (fn > nyq)
-            break;
-        const o = actx.createOscillator();
-        o.type = 'sine';
-        o.frequency.setValueAtTime(fn, t);
-        o.detune.setValueAtTime(bendSemitones * 100, t);
-        const modulation = lfoGain;
-        if (modulation) {
-            modulation.connect(o.detune);
-            o.addEventListener('ended', () => { try {
-                modulation.disconnect(o.detune);
-            }
-            catch (_) { } });
-        }
-        const pg = actx.createGain();
-        let amp = Math.pow(n, -1.18);
-        if (n === 1)
-            amp *= 0.92;
-        amp *= Math.max(.12, 1 + (v - 0.55) * (n - 1) * 0.22); // harder hit → brighter
-        const dN = Math.max(.22, baseDecay / (1 + (n - 1) * 0.62)); // upper partials decay faster
-        pg.gain.setValueAtTime(.0001, t);
-        pg.gain.exponentialRampToValueAtTime(Math.max(.0002, amp), t + 0.004);
-        pg.gain.exponentialRampToValueAtTime(.0001, t + 0.004 + dN);
-        o.connect(pg).connect(out);
-        o.start(t);
-        try {
-            o.stop(t + maxLife);
-        }
-        catch (_) { }
-        oscs.push(o);
-    }
-    ;
-    // hammer/key transient — velocity-squared so soft playing is nearly noiseless
-    const ns = actx.createBufferSource();
-    ns.buffer = noiseBuffer();
-    const nf = actx.createBiquadFilter();
-    nf.type = 'bandpass';
-    nf.frequency.value = Math.min(nyq, freq * 3 + 700);
-    nf.Q.value = 1.2;
-    const ng = actx.createGain();
-    ng.gain.setValueAtTime(.028 * v * v, t);
-    ng.gain.exponentialRampToValueAtTime(.0001, t + 0.04);
-    ns.connect(nf).connect(ng).connect(out);
-    ns.start(t);
-    try {
-        ns.stop(t + 0.09);
-    }
-    catch (_) { }
-    const voice = { oscs, g: out, released: false,
-        stop(rt) { if (this.released)
-            return; this.released = true; const r = rt ?? actx.currentTime; const rel = freq > 500 ? 0.1 : 0.17; out.gain.cancelScheduledValues(r); out.gain.setValueAtTime(Math.max(.0001, out.gain.value), r); out.gain.exponentialRampToValueAtTime(.0001, r + rel); this.oscs.forEach(o => { try {
-            o.stop(r + rel + 0.05);
-        }
-        catch (_) { } }); },
-        setBend() { const n = actx.currentTime; this.oscs.forEach(o => o.detune.setTargetAtTime(bendSemitones * 100, n, .01)); } };
-    if (dur != null) {
-        const rel = t + dur;
-        out.gain.setValueAtTime(lvl, rel);
-        out.gain.exponentialRampToValueAtTime(.0001, rel + 0.18);
-        oscs.forEach(o => { try {
-            o.stop(rel + 0.22);
-        }
-        catch (_) { } });
-    }
-    return voice;
-};
-// @ts-expect-error -- audited dynamic view runtime boundary
-function audioNoteOn(m, v) { ensureAudio(); if (!localSynth)
-    return; if (liveVoices.has(m))
-    liveVoices.get(m).stop(); liveVoices.set(m, makeVoice(midiToFreq(m), v || 100)); }
-function audioNoteOff(m) { const v = liveVoices.get(m); if (v) {
-    v.stop();
-    liveVoices.delete(m);
-} }
-function stopPreviews() { clearExplorePreview(); const n = actx ? actx.currentTime : 0; previewVoices.forEach(v => { try {
-    v.stop(n);
-}
-catch (_) { } }); previewVoices = []; }
-let previewNote = function previewNote(m, when, dur, vel, opt) {
-    ensureAudio();
-    previewVoices = previewVoices.filter(v => v.previewEnd > actx.currentTime);
-    const voice = sampledPianoVoice(midiToFreq(m), vel || 96, when, dur, opt);
-    // @ts-expect-error -- audited dynamic view runtime boundary
-    voice.previewEnd = (when ?? actx.currentTime) + dur + (opt?.hold ? 0.6 : 0.4);
-    previewVoices.push(voice);
-};
-function setBendFromValue(v) { bendSemitones = (Math.max(-8192, Math.min(8191, v)) / 8192) * 2; liveVoices.forEach(v => v.setBend()); }
-let playInterval = function playInterval(rootMidi, semi, style) {
-    ensureAudio();
-    stopPreviews();
-    const t = actx.currentTime;
-    style = style || 'both';
-    // @ts-expect-error -- audited dynamic view runtime boundary
-    if (style !== 'harmonic') {
-        previewNote(rootMidi, t, .45);
-        previewNote(rootMidi + semi, t + .5, .45);
-    }
-    // @ts-expect-error -- audited dynamic view runtime boundary
-    if (style !== 'melodic') {
-        const t2 = style === 'harmonic' ? t : t + 1.15;
-        previewNote(rootMidi, t2, .8);
-        previewNote(rootMidi + semi, t2, .8);
-    }
-};
-function playIvDir(root, semi, dir) { if (dir === 'desc')
-    playInterval(root + semi, -semi, 'both');
-else
-    playInterval(root, semi, 'both'); }
-// @ts-expect-error -- audited dynamic view runtime boundary
-function playChordMidis(ms, arp) { ensureAudio(); stopPreviews(); exploreSequence(arp ? ms.map((m, i) => ({ at: i * 160, notes: [m] })).concat([{ at: ms.length * 160 + 100, notes: ms }, { at: ms.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: ms }, { at: 1200, notes: [] }]); const t = actx.currentTime; if (arp) {
-    ms.forEach((m, i) => previewNote(m, t + i * .16, .4));
-    ms.forEach(m => previewNote(m, t + ms.length * .16 + .1, 1.1));
-}
-else
-    ms.forEach(m => previewNote(m, t, 1.2)); }
-// @ts-expect-error -- audited dynamic view runtime boundary
-function playScaleNotes(rootMidi, offs, asc) { ensureAudio(); stopPreviews(); const t = actx.currentTime; let seq = offs.concat([12]); if (!asc)
-    seq = seq.slice().reverse(); exploreSequence(seq.map((o, i) => ({ at: i * 270, notes: [rootMidi + o] })).concat([{ at: seq.length * 270, notes: [] }])); seq.forEach((o, i) => previewNote(rootMidi + o, t + i * .27, .26)); }
-/* metronome + drone */
-const metro = { on: false, bpm: 90, next: 0, beat: 0, timer: null };
-function startMetro() { ensureAudio(); metro.on = true; metro.next = actx.currentTime + .12; metro.beat = 0; if (!metro.timer)
-    metro.timer = setInterval(metroSched, 25); }
-function stopMetro() { metro.on = false; if (metro.timer) {
-    clearInterval(metro.timer);
-    metro.timer = null;
-} }
-function metroSched() { if (!metro.on || !actx)
-    return; if (actx.currentTime - metro.next > .5) {
-    metro.next = actx.currentTime + .05;
-    metro.beat = 0;
-} while (metro.next < actx.currentTime + .1) {
-    metroClick(metro.next, metro.beat % 4 === 0);
-    metro.beat++;
-    metro.next += 60 / metro.bpm;
-} }
-function metroClick(t, acc) { const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = acc ? 2100 : 1350; o.connect(g).connect(master); const pk = acc ? .3 : .16; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(pk, t + .001); g.gain.exponentialRampToValueAtTime(.0001, t + .05); o.start(t); o.stop(t + .06); }
-let droneVoices = [];
-// @ts-expect-error -- audited dynamic view runtime boundary
-function startDrone(rootPc) { ensureAudio(); stopDrone(); [36 + rootPc, 43 + rootPc].forEach(m => droneVoices.push(makeVoice(midiToFreq(m), 52))); }
-function stopDrone() { droneVoices.forEach(v => v.stop()); droneVoices = []; }
+function noiseBuffer() { return _noiseBuf; }
+function makeIR() { return null; }
 /* ---------- ACCOMPANIMENT LOOP ---------- */
 const accomp = { on: false, progIdx: 0, key: 0, pattern: 'block', bpm: 90, hands: 'both', click: false, timer: null, hlTimers: [], built: null, beatSec: .5, loopDur: 0, nextLoop: 0 };
 function accompVoicing(ch) {
