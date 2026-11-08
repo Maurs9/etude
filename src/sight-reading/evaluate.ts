@@ -41,13 +41,28 @@ export type SightReadingEvaluateConfig = {
 };
 
 type Pair = { readonly expected: SightReadingExpected; readonly input: SightReadingPerformed; readonly error: number };
-type Path = { readonly pairs: readonly Pair[]; readonly cost: number; readonly key: string };
+type Path = { readonly pairs: readonly Pair[]; readonly cost: number };
+
+function compareTie(a: Path, b: Path): number {
+  const length = Math.min(a.pairs.length, b.pairs.length);
+  for (let index = 0; index < length; index += 1) {
+    const left = a.pairs[index];
+    const right = b.pairs[index];
+    if (left.expected.onMs !== right.expected.onMs) return left.expected.onMs - right.expected.onMs;
+    if (left.input.onMs !== right.input.onMs) return left.input.onMs - right.input.onMs;
+    const expectedId = left.expected.id.localeCompare(right.expected.id);
+    if (expectedId !== 0) return expectedId;
+    const inputId = left.input.id.localeCompare(right.input.id);
+    if (inputId !== 0) return inputId;
+  }
+  return a.pairs.length - b.pairs.length;
+}
 
 function better(a: Path, b: Path | null): boolean {
   if (!b) return true;
   if (a.pairs.length !== b.pairs.length) return a.pairs.length > b.pairs.length;
   if (a.cost !== b.cost) return a.cost < b.cost;
-  return a.key < b.key;
+  return compareTie(a, b) < 0;
 }
 
 function matchPitch(expected: readonly SightReadingExpected[], inputs: readonly SightReadingPerformed[], windowMs: number): Pair[] {
@@ -60,8 +75,8 @@ function matchPitch(expected: readonly SightReadingExpected[], inputs: readonly 
       : Math.min(windowMs, 0.45 * Math.min(...neighbors.map((neighbor) => Math.abs(neighbor.onMs - note.onMs))));
   });
   const dp: Array<Array<Path | null>> = Array.from({ length: expected.length + 1 }, () => Array<Path | null>(inputs.length + 1).fill(null));
-  for (let i = 0; i <= expected.length; i += 1) dp[i][0] = { pairs: [], cost: 0, key: '' };
-  for (let j = 0; j <= inputs.length; j += 1) dp[0][j] = { pairs: [], cost: 0, key: '' };
+  for (let i = 0; i <= expected.length; i += 1) dp[i][0] = { pairs: [], cost: 0 };
+  for (let j = 0; j <= inputs.length; j += 1) dp[0][j] = { pairs: [], cost: 0 };
   for (let i = 1; i <= expected.length; i += 1) {
     for (let j = 1; j <= inputs.length; j += 1) {
       const skipExpected = dp[i - 1][j];
@@ -69,12 +84,11 @@ function matchPitch(expected: readonly SightReadingExpected[], inputs: readonly 
       let best = skipExpected && skipInput && better(skipExpected, skipInput) ? skipExpected : skipInput;
       const error = inputs[j - 1].onMs - expected[i - 1].onMs;
       if (Math.abs(error) <= windows[i - 1]) {
-        const previous = dp[i - 1][j - 1] ?? { pairs: [], cost: 0, key: '' };
+        const previous = dp[i - 1][j - 1] ?? { pairs: [], cost: 0 };
         const pair: Pair = { expected: expected[i - 1], input: inputs[j - 1], error };
         const candidate: Path = {
           pairs: [...previous.pairs, pair],
           cost: previous.cost + Math.abs(error),
-          key: `${previous.key}|${expected[i - 1].onMs}|${inputs[j - 1].onMs}|${expected[i - 1].id}|${inputs[j - 1].id}`,
         };
         if (better(candidate, best)) best = candidate;
       }

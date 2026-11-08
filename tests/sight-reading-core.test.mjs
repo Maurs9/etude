@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { srtCanonicalString, srtFingerprint } from '../src/sight-reading/fingerprint.ts';
 import { srtEvaluate } from '../src/sight-reading/evaluate.ts';
 import { srtGenerate } from '../src/sight-reading/generator.ts';
-import { srtBuildExpected, srtValidatePiece } from '../src/sight-reading/model.ts';
+import { srtBuildExpected, srtToLegacyPiece, srtValidatePiece } from '../src/sight-reading/model.ts';
 
 const referencePiece = (events) => ({
   schemaVersion: 1,
@@ -32,6 +32,31 @@ describe('sight-reading model and fingerprint', () => {
     ]);
     expect(srtFingerprint(rest)).toBe('v1:8472a9986749aba1');
   });
+
+  it('ignores non-musical identity fields and preserves event-to-note ids', () => {
+    const piece = referencePiece([
+      { id: 'a', hand: 'rh', onsetTick: 0, durationTick: 480, pitches: [{ midi: 60, spelling: 'C4', finger: 1 }] },
+      { id: 'b', hand: 'rh', onsetTick: 480, durationTick: 480, pitches: [{ midi: 62, spelling: 'D4', finger: 2 }] },
+      { id: 'c', hand: 'rh', onsetTick: 960, durationTick: 960, pitches: [{ midi: 60, spelling: 'C4', finger: null }] },
+    ]);
+    const changed = {
+      ...piece,
+      seed: 999,
+      title: 'different',
+      bpm: 144,
+      profileId: 'P1.b',
+      events: piece.events.map((event, index) => ({
+        ...event,
+        id: `changed-${index}`,
+        pitches: event.pitches.map((pitch) => ({ ...pitch, finger: pitch.finger === null ? 5 : 1 })),
+      })),
+    };
+    expect(srtFingerprint(changed)).toBe(srtFingerprint(piece));
+    const legacy = srtToLegacyPiece(piece);
+    expect(legacy.notes.map((note) => [note.eventId, note.nid])).toEqual([
+      ['a', 'a:0'], ['b', 'b:0'], ['c', 'c:0'],
+    ]);
+  });
 });
 
 describe('sight-reading evaluator', () => {
@@ -50,6 +75,35 @@ describe('sight-reading evaluator', () => {
     expect(run(expected.map((note, index) => ({ id: `i-${note.id}`, midi: note.midi, onMs: note.onMs + (index === 3 ? 220 : 0) })))).toMatchObject({ G: 3, lateOrEarlyCount: 1, rhythmAcc: 75, stars: 1 });
     expect(run([])).toMatchObject({ TP: 0, FP: 0, FN: 4, pitchF1: 0, rhythmAcc: 0, stars: 0 });
   });
+
+  it('honours inclusive timing boundaries, close repeats, chords, rests and invalid input', () => {
+    expect(srtEvaluate([], []).status).toBe('invalid');
+    const repeated = [
+      { id: 'a', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 0 },
+      { id: 'b', midi: 60, hand: 'rh', onMs: 300, offMs: 400, restBeforeMs: 0, restAfterMs: 0 },
+    ];
+    expect(srtEvaluate(repeated, [
+      { id: 'i-a', midi: 60, onMs: 136 },
+      { id: 'i-b', midi: 60, onMs: 300 },
+    ])).toMatchObject({ TP: 1, FN: 1, FP: 1 });
+    const chord = [
+      { id: 'a', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 0 },
+      { id: 'b', midi: 64, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 0 },
+    ];
+    expect(srtEvaluate(chord, [
+      { id: 'i-b', midi: 64, onMs: 0 },
+      { id: 'i-a', midi: 60, onMs: 0 },
+    ])).toMatchObject({ TP: 2, FN: 0, FP: 0 });
+    expect(srtEvaluate([expected[0]], [{ id: 'boundary-good', midi: 60, onMs: 100 }]).noteResults[0].classification).toBe('good');
+    expect(srtEvaluate([expected[1]], [{ id: 'boundary-near', midi: 62, onMs: 580 }]).noteResults[0].classification).toBe('near');
+    expect(srtEvaluate([expected[2]], [{ id: 'boundary-late', midi: 64, onMs: 1050 }]).noteResults[0].classification).toBe('lateOrEarly');
+    expect(srtEvaluate(expected, expected.map((note) => ({ id: `rest-${note.id}`, midi: note.midi, onMs: note.onMs })), {
+      restWindows: [{ startMs: 0, endMs: 400 }],
+    }).restViolations).toBe(0);
+    expect(srtEvaluate(expected, [
+      { id: 'rest-extra', midi: 67, onMs: 200 },
+    ], { restWindows: [{ startMs: 100, endMs: 300 }] })).toMatchObject({ FP: 1, restViolations: 1, stars: 0 });
+  });
 });
 
 describe('sight-reading generator', () => {
@@ -63,6 +117,7 @@ describe('sight-reading generator', () => {
         }
       }
     }
+    expect(() => srtGenerate('invalid', 1, 'rh')).toThrow();
   });
 });
 

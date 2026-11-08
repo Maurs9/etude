@@ -119,7 +119,14 @@ function readRaw(storage: SightReadingStorage): unknown {
 
 export function srtReadLedger(storage: SightReadingStorage): SightReadingLedger {
   const parsed = readRaw(storage);
-  return isLedger(parsed) ? parsed : srtCreateLedger();
+  if (isLedger(parsed)) return parsed;
+  const created = srtCreateLedger();
+  try {
+    storage.setItem(SRT_LEDGER_KEY, JSON.stringify(created));
+  } catch {
+    // A read must remain usable even when storage is unavailable or full.
+  }
+  return created;
 }
 
 function saveLedger(storage: SightReadingStorage, ledger: SightReadingLedger): SightReadingLedgerResult {
@@ -162,6 +169,18 @@ function trimAttempts(attempts: Readonly<Record<string, SightReadingAttempt>>): 
     .slice(-SRT_MAX_ATTEMPTS));
 }
 
+function clearClaimsForMissingAttempts(
+  exposures: Readonly<Record<string, SightReadingExposure>>,
+  attempts: Readonly<Record<string, SightReadingAttempt>>,
+): Readonly<Record<string, SightReadingExposure>> {
+  return Object.fromEntries(Object.entries(exposures).map(([fingerprint, exposure]) => {
+    if (exposure.claim && !attempts[exposure.claim.attemptId]) {
+      return [fingerprint, { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason }];
+    }
+    return [fingerprint, exposure];
+  }));
+}
+
 function hasAttemptOwner(ledger: SightReadingLedger, attemptId: string, ownerTabId: string): boolean {
   return Object.values(ledger.exposures).some((exposure) =>
     exposure.claim?.attemptId === attemptId && exposure.claim.ownerTabId === ownerTabId);
@@ -170,10 +189,16 @@ function hasAttemptOwner(ledger: SightReadingLedger, attemptId: string, ownerTab
 function mergeImported(local: SightReadingLedger, imported: SightReadingLedger): SightReadingLedgerResult {
   const exposures: Record<string, SightReadingExposure> = { ...local.exposures };
   const attempts: Record<string, SightReadingAttempt> = { ...local.attempts };
+  for (const [attemptId, attempt] of Object.entries(imported.attempts)) {
+    const existing = attempts[attemptId];
+    const normalized = { ...attempt, generation: local.generation };
+    if (existing && JSON.stringify(existing) !== JSON.stringify(normalized)) return { ok: false, reason: 'conflict' };
+    if (!existing) attempts[attemptId] = normalized;
+  }
   for (const [fingerprint, exposure] of Object.entries(imported.exposures)) {
     if (exposures[fingerprint]) continue;
-    if (exposure.claim) {
-      const abandoned: SightReadingAttempt = {
+    if (exposure.claim && !attempts[exposure.claim.attemptId]) {
+      attempts[exposure.claim.attemptId] = {
         attemptId: exposure.claim.attemptId,
         fingerprint,
         ownerTabId: exposure.claim.ownerTabId,
@@ -201,25 +226,18 @@ function mergeImported(local: SightReadingLedger, imported: SightReadingLedger):
         noteResults: [],
         extraInputs: [],
       };
-      attempts[abandoned.attemptId] = abandoned;
-      exposures[fingerprint] = { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason };
-    } else {
-      exposures[fingerprint] = exposure;
     }
-  }
-  for (const [attemptId, attempt] of Object.entries(imported.attempts)) {
-    const existing = attempts[attemptId];
-    if (existing && JSON.stringify(existing) !== JSON.stringify(attempt)) return { ok: false, reason: 'conflict' };
-    if (!existing) attempts[attemptId] = { ...attempt, generation: local.generation };
+    exposures[fingerprint] = { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason };
   }
   if (Object.keys(exposures).length > SRT_MAX_EXPOSURES) return { ok: false, reason: 'quota' };
+  const trimmedAttempts = trimAttempts(attempts);
   return {
     ok: true,
     ledger: {
       ...local,
       revision: local.revision + 1,
-      exposures,
-      attempts: trimAttempts(attempts),
+      attempts: trimmedAttempts,
+      exposures: clearClaimsForMissingAttempts(exposures, trimmedAttempts),
     },
   };
 }
@@ -259,7 +277,13 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
       const existing = ledger.attempts[attempt.attemptId];
       if (existing && JSON.stringify(existing) !== JSON.stringify(attempt)) return { ok: false, reason: 'conflict' };
       if (existing) return { ok: true, ledger };
-      return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, attempts: trimAttempts({ ...ledger.attempts, [attempt.attemptId]: attempt }) });
+      const attempts = trimAttempts({ ...ledger.attempts, [attempt.attemptId]: attempt });
+      const exposures = Object.fromEntries(Object.entries(ledger.exposures).map(([fingerprint, exposure]) => (
+        exposure.claim?.attemptId === attempt.attemptId
+          ? [fingerprint, { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason }]
+          : [fingerprint, exposure]
+      )));
+      return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures, attempts });
     }
     if (operation.type === 'abandonAttempt') {
       if (!hasAttemptOwner(ledger, operation.attemptId, operation.ownerTabId)) return { ok: false, reason: 'owner_mismatch' };

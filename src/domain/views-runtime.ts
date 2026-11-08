@@ -1750,7 +1750,7 @@ function handleNoteOn(midi: number, vel: number, source = 'midi') {
     wakePing();
     onInputChange('on', midi, source, null);
 }
-function handleNoteOff(midi: number, source = 'midi') {
+function handleNoteOff(midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = 'physical') {
     const owners = inputOwners.get(midi);
     if (!owners || !owners.delete(source))
         return;
@@ -1768,7 +1768,7 @@ function handleNoteOff(midi: number, source = 'midi') {
         sustained.add(midi);
     else
         audioNoteOff(midi);
-    onInputChange('off', midi, source, 'physical');
+    onInputChange('off', midi, source, releaseKind);
 }
 function pedalUp() { sustained.forEach((m) => { if (!held.has(m))
     audioNoteOff(m); }); sustained.clear(); }
@@ -1793,7 +1793,7 @@ function releaseFocusInput() {
     let fell = false;
     [...inputOwners.entries()].forEach(([m, o]) => [...o].forEach((s) => { if (s === 'midi' || s === 'ble')
         return; if (s.startsWith('fall:'))
-        fell = true; handleNoteOff(m, s); }));
+        fell = true; handleNoteOff(m, s, 'focus'); }));
     if (srtRecorder)
         srtRecorder.releaseAll('focus', performance.now() - SR.t0);
     pointerKey.clear();
@@ -6192,7 +6192,9 @@ async function srtStartFirstSight() {
         return;
     }
     if (!navigator.locks || typeof navigator.locks.request !== 'function') {
+        srtSetState({ type: 'prepare', mode: 'practice', fingerprint: SR.srtFingerprint });
         byId('rd-verdict').textContent = t('rd_srt_no_locks');
+        srAssessStart();
         return;
     }
     srtSetState({ type: 'prepare', mode: 'firstSight', fingerprint: SR.srtFingerprint, attemptId: srtAttemptId() });
@@ -6244,9 +6246,18 @@ function srtStartClaimedAttempt() {
 async function srtSwitchToPractice() {
     window.clearInterval(SR.srtPreviewTimer);
     srtPreviewUi(false);
-    srtSetState({ type: 'switchToPractice' });
+    const state = SR.srtState;
+    if (state?.attemptId && SR.srtOwnerTabId) {
+        await srtLedgerUpdate(localStorage, {
+            type: 'abandonAttempt',
+            attemptId: state.attemptId,
+            ownerTabId: SR.srtOwnerTabId,
+            generation: srtReadLedger(localStorage).generation,
+        });
+    }
     SR.srtLease?.release();
     SR.srtLease = null;
+    srtSetState({ type: 'switchToPractice' });
     srAssessStart();
 }
 function srAssessStart() {
@@ -6363,6 +6374,7 @@ function srAssessFinish() {
             }
         });
     }
+    srPaintAll();
     srtRecorder = null;
     if (!SR.piece)
         throw new Error('Étude: no piece selected');
@@ -6540,6 +6552,12 @@ function fillPieces() {
 function srSelectPiece(id: string) {
     srStopAll();
     SR.piece = (SR.excerpt && SR.excerpt.id === id ? SR.excerpt : null) || (SR.gen && SR.gen.id === id ? SR.gen : null) || PIECES.find((p) => p.id === id) || PIECES[0];
+    if (!SR.gen || SR.piece.id !== SR.gen.id) {
+        SR.srtPiece = null;
+        SR.srtFingerprint = null;
+        SR.srtState = SRT_INITIAL_STATE;
+        SR.srtPendingAttempt = null;
+    }
     SR.bpm = SR.piece.bpm;
     selectById('rd-piece').value = SR.piece.id;
     const bp = inputById('rd-bpm');
@@ -15407,21 +15425,23 @@ function initControls() {
         if (!f)
             return;
         const rd = new FileReader();
-        rd.onload = () => { try {
+        rd.onload = async () => { try {
             const p = syncParseJson(String(rd.result));
             if (!isBackupPayload(p))
                 throw 0;
             if (!confirm(t('import_confirm')))
                 return;
-            p.gen = syncGen();
-            writePttV3(localStorage, p, KEY);
             if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
                 const local = srtReadLedger(localStorage);
-                void srtLedgerUpdate(localStorage, { type: 'importLedger', imported: p.data.sightLedger, generation: local.generation })
-                    .finally(() => location.reload());
+                const merged = await srtLedgerUpdate(localStorage, { type: 'importLedger', imported: p.data.sightLedger, generation: local.generation });
+                if (!merged.ok) {
+                    alert(t('import_bad'));
+                    return;
+                }
             }
-            else
-                location.reload();
+            p.gen = syncGen();
+            writePttV3(localStorage, p, KEY);
+            location.reload();
         }
         catch (_) {
             alert(t('import_bad'));

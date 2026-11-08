@@ -56,7 +56,7 @@ export function srtTransition(state: SightReadingState, event: SightReadingEvent
       return state;
     case 'preview':
       if (event.type === 'startNow') return { ...state, name: 'countIn' };
-      if (event.type === 'switchToPractice') return { ...state, name: 'abandoned', mode: 'practice' };
+      if (event.type === 'switchToPractice') return { ...state, name: 'preparing', mode: 'practice', attemptId: null };
       if (event.type === 'abandon') return { ...state, name: 'abandoned' };
       if (event.type === 'interrupt') return { ...state, name: 'interrupted' };
       return state;
