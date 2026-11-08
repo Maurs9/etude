@@ -105,6 +105,29 @@ describe('sight-reading evaluator', () => {
     ], { restWindows: [{ startMs: 100, endMs: 300 }] })).toMatchObject({ FP: 1, restViolations: 1, stars: 0 });
   });
 
+  it('counts rest violations only outside both same-pitch neighbor windows', () => {
+    const repeatedRestExpected = [
+      { id: 'previous', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 900 },
+      { id: 'next', midi: 60, hand: 'rh', onMs: 1000, offMs: 1100, restBeforeMs: 900, restAfterMs: 0 },
+    ];
+    const restWindows = [{ startMs: 100, endMs: 1000 }];
+    expect(srtEvaluate(repeatedRestExpected, [
+      { id: 'previous-input', midi: 60, onMs: 0 },
+      { id: 'inside-previous-window', midi: 60, onMs: 200 },
+      { id: 'next-input', midi: 60, onMs: 1000 },
+    ], { restWindows }).restViolations).toBe(0);
+    expect(srtEvaluate(repeatedRestExpected, [
+      { id: 'previous-input', midi: 60, onMs: 0 },
+      { id: 'inside-next-window', midi: 60, onMs: 800 },
+      { id: 'next-input', midi: 60, onMs: 1000 },
+    ], { restWindows }).restViolations).toBe(0);
+    expect(srtEvaluate(repeatedRestExpected, [
+      { id: 'previous-input', midi: 60, onMs: 0 },
+      { id: 'central-extra', midi: 60, onMs: 500 },
+      { id: 'next-input', midi: 60, onMs: 1000 },
+    ], { restWindows }).restViolations).toBe(1);
+  });
+
   it('returns the complete acceptance vectors, not only selected score fields', () => {
     const run = (inputs) => srtEvaluate(expected, inputs);
     const perfect = run(expected.map((note) => ({ id: `i-${note.id}`, midi: note.midi, onMs: note.onMs })));

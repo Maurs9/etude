@@ -43,6 +43,29 @@ export type SightReadingEvaluateConfig = {
 type Pair = { readonly expected: SightReadingExpected; readonly input: SightReadingPerformed; readonly error: number };
 type Path = { readonly pairs: readonly Pair[]; readonly cost: number };
 
+function associationWindow(
+  note: SightReadingExpected,
+  expected: readonly SightReadingExpected[],
+  windowMs: number,
+): number {
+  const samePitch = expected
+    .filter((candidate) => candidate.midi === note.midi)
+    .sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
+  const index = samePitch.findIndex((candidate) => candidate.id === note.id);
+  const neighbors = [samePitch[index - 1], samePitch[index + 1]]
+    .filter((candidate): candidate is SightReadingExpected => !!candidate);
+  return neighbors.length === 0
+    ? windowMs
+    : Math.min(windowMs, 0.45 * Math.min(...neighbors.map((neighbor) => Math.abs(neighbor.onMs - note.onMs))));
+}
+
+function buildAssociationWindows(
+  expected: readonly SightReadingExpected[],
+  windowMs: number,
+): ReadonlyMap<string, number> {
+  return new Map(expected.map((note) => [note.id, associationWindow(note, expected, windowMs)]));
+}
+
 function compareTie(a: Path, b: Path): number {
   const length = Math.min(a.pairs.length, b.pairs.length);
   for (let index = 0; index < length; index += 1) {
@@ -65,15 +88,12 @@ function better(a: Path, b: Path | null): boolean {
   return compareTie(a, b) < 0;
 }
 
-function matchPitch(expected: readonly SightReadingExpected[], inputs: readonly SightReadingPerformed[], windowMs: number): Pair[] {
-  const windows = expected.map((note) => {
-    const samePitch = expected.filter((candidate) => candidate.midi === note.midi).sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
-    const index = samePitch.findIndex((candidate) => candidate.id === note.id);
-    const neighbors = [samePitch[index - 1], samePitch[index + 1]].filter((candidate): candidate is SightReadingExpected => !!candidate);
-    return neighbors.length === 0
-      ? windowMs
-      : Math.min(windowMs, 0.45 * Math.min(...neighbors.map((neighbor) => Math.abs(neighbor.onMs - note.onMs))));
-  });
+function matchPitch(
+  expected: readonly SightReadingExpected[],
+  inputs: readonly SightReadingPerformed[],
+  associationWindows: ReadonlyMap<string, number>,
+  windowMs: number,
+): Pair[] {
   const dp: Array<Array<Path | null>> = Array.from({ length: expected.length + 1 }, () => Array<Path | null>(inputs.length + 1).fill(null));
   for (let i = 0; i <= expected.length; i += 1) dp[i][0] = { pairs: [], cost: 0 };
   for (let j = 0; j <= inputs.length; j += 1) dp[0][j] = { pairs: [], cost: 0 };
@@ -83,7 +103,7 @@ function matchPitch(expected: readonly SightReadingExpected[], inputs: readonly 
       const skipInput = dp[i][j - 1];
       let best = skipExpected && skipInput && better(skipExpected, skipInput) ? skipExpected : skipInput;
       const error = inputs[j - 1].onMs - expected[i - 1].onMs;
-      if (Math.abs(error) <= windows[i - 1]) {
+      if (Math.abs(error) <= (associationWindows.get(expected[i - 1].id) ?? windowMs)) {
         const previous = dp[i - 1][j - 1] ?? { pairs: [], cost: 0 };
         const pair: Pair = { expected: expected[i - 1], input: inputs[j - 1], error };
         const candidate: Path = {
@@ -96,6 +116,26 @@ function matchPitch(expected: readonly SightReadingExpected[], inputs: readonly 
     }
   }
   return dp[expected.length][inputs.length]?.pairs.slice() ?? [];
+}
+
+function overlapsNeighborWindow(
+  input: SightReadingPerformed,
+  rest: { readonly startMs: number; readonly endMs: number },
+  expected: readonly SightReadingExpected[],
+  associationWindows: ReadonlyMap<string, number>,
+): boolean {
+  const samePitch = expected
+    .filter((note) => note.midi === input.midi)
+    .sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
+  let previous: SightReadingExpected | undefined;
+  let next: SightReadingExpected | undefined;
+  for (const note of samePitch) {
+    if (note.onMs <= rest.startMs) previous = note;
+    if (!next && note.onMs >= rest.endMs) next = note;
+  }
+  return [previous, next]
+    .filter((note): note is SightReadingExpected => !!note)
+    .some((note) => Math.abs(input.onMs - note.onMs) <= (associationWindows.get(note.id) ?? 0));
 }
 
 function emptyResult(): SightReadingEvaluation {
@@ -118,11 +158,12 @@ export function srtEvaluate(
   const inputByMidi = new Map<number, SightReadingPerformed[]>();
   for (const note of expected) byMidi.set(note.midi, [...(byMidi.get(note.midi) ?? []), note]);
   for (const input of performed) inputByMidi.set(input.midi, [...(inputByMidi.get(input.midi) ?? []), input]);
+  const associationWindows = buildAssociationWindows(expected, baseWindow);
   const pairs: Pair[] = [];
   for (const [midi, notes] of byMidi) {
     const sorted = [...notes].sort((a, b) => a.onMs - b.onMs);
     const inputs = [...(inputByMidi.get(midi) ?? [])].sort((a, b) => a.onMs - b.onMs);
-    pairs.push(...matchPitch(sorted, inputs, baseWindow));
+    pairs.push(...matchPitch(sorted, inputs, associationWindows, baseWindow));
   }
   const matchedIds = new Set(pairs.map((pair) => pair.input.id));
   const matchedExpected = new Map(pairs.map((pair) => [pair.expected.id, pair]));
@@ -142,7 +183,11 @@ export function srtEvaluate(
   const lateOrEarlyCount = noteResults.filter((note) => note.classification === 'lateOrEarly').length;
   const offsets = pairs.map((pair) => pair.error);
   const restViolations = extras.filter((input) =>
-    (config.restWindows ?? []).some((rest) => input.onMs > rest.startMs && input.onMs < rest.endMs),
+    (config.restWindows ?? []).some((rest) =>
+      input.onMs > rest.startMs &&
+      input.onMs < rest.endMs &&
+      !overlapsNeighborWindow(input, rest, expected, associationWindows),
+    ),
   ).length;
   const pitchPrecision = TP + FP === 0 ? 0 : TP / (TP + FP);
   const pitchRecall = TP / expected.length;
