@@ -208,6 +208,21 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <label class="switch-inline"><input type="checkbox" id="rd-names"> <span data-i18n="rd_names">Note names</span></label>
         </div>
         <div id="rd-meta" class="lede" style="font-size:13px; margin-top:8px"></div>
+        <div id="rd-srt-preview" class="panel" hidden aria-live="polite">
+          <strong data-i18n="rd_srt_preview_title">First attempt</strong>
+          <span id="rd-srt-countdown" data-i18n="rd_srt_preview_hint">You have 20 seconds to preview this piece.</span>
+          <div class="row">
+            <button class="btn primary" id="rd-srt-start" data-i18n="rd_srt_start">Start now</button>
+            <button class="btn ghost" id="rd-srt-practice" data-i18n="rd_srt_practice">Switch to practice</button>
+          </div>
+        </div>
+        <div id="rd-srt-pending" class="panel" hidden aria-live="polite">
+          <strong data-i18n="rd_srt_unsaved">Result not saved</strong>
+          <div class="row">
+            <button class="btn primary" id="rd-srt-retry" data-i18n="rd_srt_save_retry">Retry save</button>
+            <button class="btn ghost" id="rd-srt-continue" data-i18n="rd_srt_continue">Continue without saving</button>
+          </div>
+        </div>
         <div class="ss-wrap" id="rd-staff" style="margin-top:10px" role="img" aria-label="Sheet music" data-i18n-aria="rdx_sheet_aria"></div>
         <div class="coach" id="rd-coach" aria-live="polite"></div>
         <div id="rd-verdict" class="verdict neutral" style="min-height:24px; margin-top:6px" role="status" aria-live="polite"></div>

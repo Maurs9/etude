@@ -2,6 +2,10 @@ import type { SightReadingEvaluation } from './evaluate.js';
 
 export const SRT_LEDGER_KEY = 'etude-sight-v1' as const;
 export const SRT_LEDGER_SCHEMA = 1 as const;
+export const SRT_LEDGER_LOCK = 'etude-sight-ledger-v1' as const;
+export const SRT_MAX_ATTEMPTS = 500 as const;
+export const SRT_MAX_EXPOSURES = 4096 as const;
+
 export type SightReadingExposure = {
   readonly firstSeenAt: number;
   readonly reason: string;
@@ -32,46 +36,90 @@ export type SightReadingLedgerOperation =
   | { readonly type: 'finishAttempt'; readonly attempt: SightReadingAttempt; readonly generation: string }
   | { readonly type: 'abandonAttempt'; readonly attemptId: string; readonly ownerTabId: string; readonly generation: string }
   | { readonly type: 'recordExposure'; readonly fingerprint: string; readonly reason: string; readonly generation: string }
+  | { readonly type: 'recordListen'; readonly fingerprint: string; readonly generation: string }
+  | { readonly type: 'recoverOrphanClaims'; readonly generation: string }
   | { readonly type: 'resetLedger' }
-  | { readonly type: 'updatePrefs'; readonly prefs: Readonly<Record<string, boolean>>; readonly generation: string };
+  | { readonly type: 'updatePrefs'; readonly prefs: Readonly<Record<string, boolean>>; readonly generation: string }
+  | { readonly type: 'importLedger'; readonly imported: SightReadingLedger; readonly generation: string };
 
 export interface SightReadingStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
-const parseJson: (text: string) => unknown = JSON.parse;
+export type SightReadingAttemptLease = {
+  readonly attemptId: string;
+  readonly release: () => void;
+  readonly ready: Promise<void>;
+};
 
-function generation(): string {
-  return `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function hasWebLocks(): boolean {
+  return typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function';
+}
+
+function newGeneration(): string {
+  const suffix = Math.floor(Math.random() * 0x1000000).toString(36).padStart(4, '0');
+  return `gen-${Date.now()}-${suffix}`;
 }
 
 export function srtCreateLedger(): SightReadingLedger {
-  return { schemaVersion: 1, generation: generation(), revision: 0, exposures: {}, attempts: {}, prefs: { practiceHints: true, lookAhead: false }, sessions: {} };
+  return {
+    schemaVersion: 1,
+    generation: newGeneration(),
+    revision: 0,
+    exposures: {},
+    attempts: {},
+    prefs: { practiceHints: true, lookAhead: false },
+    sessions: {},
+  };
+}
+
+function isAttempt(value: unknown): value is SightReadingAttempt {
+  if (!isRecord(value)) return false;
+  return typeof value.attemptId === 'string' &&
+    typeof value.fingerprint === 'string' &&
+    typeof value.ownerTabId === 'string' &&
+    typeof value.generation === 'string' &&
+    ['completed', 'abandoned', 'interrupted'].includes(String(value.status)) &&
+    typeof value.finishedAt === 'number';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isLedger(value: unknown): value is SightReadingLedger {
+  if (!isRecord(value)) return false;
+  const record = value;
+  return record.schemaVersion === 1 &&
+    typeof record.generation === 'string' &&
+    typeof record.revision === 'number' &&
+    typeof record.exposures === 'object' && record.exposures !== null &&
+    typeof record.attempts === 'object' && record.attempts !== null &&
+    typeof record.prefs === 'object' && record.prefs !== null &&
+    typeof record.sessions === 'object' && record.sessions !== null &&
+    Object.values(record.attempts).every(isAttempt);
+}
+
+export function isSightReadingLedger(value: unknown): value is SightReadingLedger {
+  return isLedger(value);
+}
+
+const parseJson: (text: string) => unknown = JSON.parse;
+
+function readRaw(storage: SightReadingStorage): unknown {
+  const raw = storage.getItem(SRT_LEDGER_KEY);
+  if (!raw) return null;
+  try {
+    return parseJson(raw);
+  } catch {
+    return null;
+  }
 }
 
 export function srtReadLedger(storage: SightReadingStorage): SightReadingLedger {
-  const raw = storage.getItem(SRT_LEDGER_KEY);
-  if (!raw) return srtCreateLedger();
-  try {
-    const parsed = parseJson(raw);
-    if (isLedger(parsed)) return parsed;
-  } catch {
-    // Corrupt local data is replaced with a fresh ledger.
-  }
-
-  function isLedger(value: unknown): value is SightReadingLedger {
-    if (typeof value !== 'object' || value === null) return false;
-    if (!('schemaVersion' in value) || value.schemaVersion !== 1) return false;
-    if (!('generation' in value) || typeof value.generation !== 'string') return false;
-    if (!('revision' in value) || typeof value.revision !== 'number') return false;
-    if (!('exposures' in value) || typeof value.exposures !== 'object' || value.exposures === null) return false;
-    if (!('attempts' in value) || typeof value.attempts !== 'object' || value.attempts === null) return false;
-    if (!('prefs' in value) || typeof value.prefs !== 'object' || value.prefs === null) return false;
-    if (!('sessions' in value) || typeof value.sessions !== 'object' || value.sessions === null) return false;
-    return true;
-  }
-  return srtCreateLedger();
+  const parsed = readRaw(storage);
+  return isLedger(parsed) ? parsed : srtCreateLedger();
 }
 
 function saveLedger(storage: SightReadingStorage, ledger: SightReadingLedger): SightReadingLedgerResult {
@@ -83,42 +131,178 @@ function saveLedger(storage: SightReadingStorage, ledger: SightReadingLedger): S
   }
 }
 
-export async function srtLedgerUpdate(storage: SightReadingStorage, operation: SightReadingLedgerOperation): Promise<SightReadingLedgerResult> {
-  const hasLocks = typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function';
-  if (operation.type !== 'resetLedger' && !hasLocks && operation.type === 'claimExposure') return { ok: false, reason: 'unsupported' };
-  const run = async (): Promise<SightReadingLedgerResult> => {
-    let ledger = srtReadLedger(storage);
-    if (operation.type === 'resetLedger') {
-      ledger = srtCreateLedger();
-      return saveLedger(storage, ledger);
-    }
-    if (operation.generation !== ledger.generation) return { ok: false, reason: 'stale_generation' };
-    if (operation.type === 'claimExposure') {
-      if (ledger.exposures[operation.fingerprint]?.claim) return { ok: false, reason: 'already_exposed' };
-      const exposures = { ...ledger.exposures, [operation.fingerprint]: { firstSeenAt: Date.now(), reason: 'first-sight', claim: { attemptId: operation.attemptId, ownerTabId: operation.ownerTabId, generation: operation.generation } } };
-      ledger = { ...ledger, revision: ledger.revision + 1, exposures };
-    } else if (operation.type === 'recordExposure') {
-      const exposures = { ...ledger.exposures, [operation.fingerprint]: { firstSeenAt: Date.now(), reason: operation.reason } };
-      ledger = { ...ledger, revision: ledger.revision + 1, exposures };
-    } else if (operation.type === 'finishAttempt') {
-      if (operation.attempt.generation !== ledger.generation) return { ok: false, reason: 'stale_generation' };
-      const existing = ledger.attempts[operation.attempt.attemptId];
-      if (existing && JSON.stringify(existing) !== JSON.stringify(operation.attempt)) return { ok: false, reason: 'conflict' };
-      if (existing) return { ok: true, ledger };
-      const attempts = { ...ledger.attempts, [operation.attempt.attemptId]: operation.attempt };
-      const entries = Object.entries(attempts).sort((a, b) => a[1].finishedAt - b[1].finishedAt || a[0].localeCompare(b[0])).slice(-500);
-      ledger = { ...ledger, revision: ledger.revision + 1, attempts: Object.fromEntries(entries) };
-    } else if (operation.type === 'abandonAttempt') {
-      const exposure = Object.values(ledger.exposures).find((item) => item.claim?.attemptId === operation.attemptId);
-      if (exposure?.claim?.ownerTabId !== operation.ownerTabId) return { ok: false, reason: 'owner_mismatch' };
-      ledger = { ...ledger, revision: ledger.revision + 1 };
-    } else if (operation.type === 'updatePrefs') {
-      ledger = { ...ledger, revision: ledger.revision + 1, prefs: { ...ledger.prefs, ...operation.prefs } };
-    }
-    return saveLedger(storage, ledger);
+async function withLedgerLock<T>(callback: () => Promise<T>): Promise<T> {
+  if (!hasWebLocks()) return callback();
+  return navigator.locks.request(SRT_LEDGER_LOCK, { mode: 'exclusive' }, callback);
+}
+
+export function srtAcquireAttemptLease(attemptId: string): SightReadingAttemptLease | null {
+  if (!hasWebLocks()) return null;
+  let releaseLease: (() => void) | null = null;
+  let markReady: (() => void) | null = null;
+  const ready = new Promise<void>((resolve) => { markReady = resolve; });
+  void navigator.locks.request(
+    `etude-sight-attempt-${attemptId}`,
+    { mode: 'exclusive' },
+    async () => new Promise<void>((resolve) => {
+      markReady?.();
+      releaseLease = resolve;
+    }),
+  );
+  return {
+    attemptId,
+    ready,
+    release: () => releaseLease?.(),
   };
-  if (!hasLocks) return run();
-  return navigator.locks.request('etude-sight-ledger-v1', { mode: 'exclusive' }, run);
+}
+
+function trimAttempts(attempts: Readonly<Record<string, SightReadingAttempt>>): Readonly<Record<string, SightReadingAttempt>> {
+  return Object.fromEntries(Object.entries(attempts)
+    .sort((a, b) => a[1].finishedAt - b[1].finishedAt || a[0].localeCompare(b[0]))
+    .slice(-SRT_MAX_ATTEMPTS));
+}
+
+function hasAttemptOwner(ledger: SightReadingLedger, attemptId: string, ownerTabId: string): boolean {
+  return Object.values(ledger.exposures).some((exposure) =>
+    exposure.claim?.attemptId === attemptId && exposure.claim.ownerTabId === ownerTabId);
+}
+
+function mergeImported(local: SightReadingLedger, imported: SightReadingLedger): SightReadingLedgerResult {
+  const exposures: Record<string, SightReadingExposure> = { ...local.exposures };
+  const attempts: Record<string, SightReadingAttempt> = { ...local.attempts };
+  for (const [fingerprint, exposure] of Object.entries(imported.exposures)) {
+    if (exposures[fingerprint]) continue;
+    if (exposure.claim) {
+      const abandoned: SightReadingAttempt = {
+        attemptId: exposure.claim.attemptId,
+        fingerprint,
+        ownerTabId: exposure.claim.ownerTabId,
+        generation: local.generation,
+        status: 'abandoned',
+        finishedAt: Date.now(),
+        scoringVersion: 1,
+        N: 0,
+        TP: 0,
+        FP: 0,
+        FN: 0,
+        G: 0,
+        Q: 0,
+        lateOrEarlyCount: 0,
+        restViolations: 0,
+        pitchPrecision: null,
+        pitchRecall: null,
+        pitchF1: null,
+        rhythmAcc: null,
+        score: null,
+        stars: 0,
+        perfect: false,
+        meanOffsetMs: null,
+        meanAbsoluteOffsetMs: null,
+        noteResults: [],
+        extraInputs: [],
+      };
+      attempts[abandoned.attemptId] = abandoned;
+      exposures[fingerprint] = { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason };
+    } else {
+      exposures[fingerprint] = exposure;
+    }
+  }
+  for (const [attemptId, attempt] of Object.entries(imported.attempts)) {
+    const existing = attempts[attemptId];
+    if (existing && JSON.stringify(existing) !== JSON.stringify(attempt)) return { ok: false, reason: 'conflict' };
+    if (!existing) attempts[attemptId] = { ...attempt, generation: local.generation };
+  }
+  if (Object.keys(exposures).length > SRT_MAX_EXPOSURES) return { ok: false, reason: 'quota' };
+  return {
+    ok: true,
+    ledger: {
+      ...local,
+      revision: local.revision + 1,
+      exposures,
+      attempts: trimAttempts(attempts),
+    },
+  };
+}
+
+export async function srtLedgerUpdate(storage: SightReadingStorage, operation: SightReadingLedgerOperation): Promise<SightReadingLedgerResult> {
+  if ((operation.type === 'claimExposure' || operation.type === 'recoverOrphanClaims') && !hasWebLocks()) return { ok: false, reason: 'unsupported' };
+  return withLedgerLock(async () => {
+    const raw = readRaw(storage);
+    if (isRecord(raw) && raw.schemaVersion !== undefined && raw.schemaVersion !== 1) return { ok: false, reason: 'unsupported' };
+    let ledger = srtReadLedger(storage);
+    if (operation.type === 'resetLedger') return saveLedger(storage, srtCreateLedger());
+    if (operation.generation !== ledger.generation && operation.type !== 'importLedger') return { ok: false, reason: 'stale_generation' };
+    if (operation.type === 'claimExposure') {
+      if (ledger.exposures[operation.fingerprint]) return { ok: false, reason: 'already_exposed' };
+      if (Object.keys(ledger.exposures).length >= SRT_MAX_EXPOSURES) return { ok: false, reason: 'quota' };
+      const exposures = {
+        ...ledger.exposures,
+        [operation.fingerprint]: {
+          firstSeenAt: Date.now(),
+          reason: 'first-sight',
+          claim: { attemptId: operation.attemptId, ownerTabId: operation.ownerTabId, generation: operation.generation },
+        },
+      };
+      return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures });
+    }
+    if (operation.type === 'recordExposure' || operation.type === 'recordListen') {
+      if (Object.keys(ledger.exposures).length >= SRT_MAX_EXPOSURES && !ledger.exposures[operation.fingerprint]) return { ok: false, reason: 'quota' };
+      const exposures = {
+        ...ledger.exposures,
+        [operation.fingerprint]: { firstSeenAt: ledger.exposures[operation.fingerprint]?.firstSeenAt ?? Date.now(), reason: operation.type === 'recordListen' ? 'listen' : operation.reason },
+      };
+      return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures });
+    }
+    if (operation.type === 'finishAttempt') {
+      const attempt = operation.attempt;
+      if (attempt.generation !== ledger.generation || !hasAttemptOwner(ledger, attempt.attemptId, attempt.ownerTabId)) return { ok: false, reason: 'owner_mismatch' };
+      const existing = ledger.attempts[attempt.attemptId];
+      if (existing && JSON.stringify(existing) !== JSON.stringify(attempt)) return { ok: false, reason: 'conflict' };
+      if (existing) return { ok: true, ledger };
+      return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, attempts: trimAttempts({ ...ledger.attempts, [attempt.attemptId]: attempt }) });
+    }
+    if (operation.type === 'abandonAttempt') {
+      if (!hasAttemptOwner(ledger, operation.attemptId, operation.ownerTabId)) return { ok: false, reason: 'owner_mismatch' };
+      const exposureEntry = Object.entries(ledger.exposures).find(([, exposure]) => exposure.claim?.attemptId === operation.attemptId);
+      if (!exposureEntry) return { ok: false, reason: 'owner_mismatch' };
+      const [fingerprint] = exposureEntry;
+      const attempt: SightReadingAttempt = {
+        attemptId: operation.attemptId, fingerprint, ownerTabId: operation.ownerTabId, generation: ledger.generation,
+        status: 'abandoned', finishedAt: Date.now(), scoringVersion: 1, N: 0, TP: 0, FP: 0, FN: 0, G: 0, Q: 0,
+        lateOrEarlyCount: 0, restViolations: 0, pitchPrecision: null, pitchRecall: null, pitchF1: null, rhythmAcc: null, score: null,
+        stars: 0, perfect: false, meanOffsetMs: null, meanAbsoluteOffsetMs: null, noteResults: [], extraInputs: [],
+      };
+      const exposures = { ...ledger.exposures, [fingerprint]: { firstSeenAt: ledger.exposures[fingerprint].firstSeenAt, reason: ledger.exposures[fingerprint].reason } };
+      return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures, attempts: trimAttempts({ ...ledger.attempts, [operation.attemptId]: attempt }) });
+    }
+    if (operation.type === 'recoverOrphanClaims') {
+      const attempts = { ...ledger.attempts };
+      const exposures = { ...ledger.exposures };
+      for (const [fingerprint, exposure] of Object.entries(exposures)) {
+        const claim = exposure.claim;
+        if (!claim || attempts[claim.attemptId] || claim.generation !== ledger.generation) continue;
+        const available = await navigator.locks.request(`etude-sight-attempt-${claim.attemptId}`, { mode: 'exclusive', ifAvailable: true }, (lock) => lock !== null);
+        if (!available) continue;
+        attempts[claim.attemptId] = {
+          attemptId: claim.attemptId, fingerprint, ownerTabId: claim.ownerTabId, generation: ledger.generation, status: 'abandoned', finishedAt: Date.now(),
+          scoringVersion: 1, N: 0, TP: 0, FP: 0, FN: 0, G: 0, Q: 0, lateOrEarlyCount: 0, restViolations: 0,
+          pitchPrecision: null, pitchRecall: null, pitchF1: null, rhythmAcc: null, score: null, stars: 0, perfect: false,
+          meanOffsetMs: null, meanAbsoluteOffsetMs: null, noteResults: [], extraInputs: [],
+        };
+        exposures[fingerprint] = { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason };
+      }
+      return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures, attempts: trimAttempts(attempts) });
+    }
+    if (operation.type === 'importLedger') {
+      const imported = mergeImported(ledger, operation.imported);
+      if (!imported.ok) return imported;
+      return saveLedger(storage, imported.ledger);
+    }
+    if (operation.type === 'updatePrefs') {
+      return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, prefs: { ...ledger.prefs, ...operation.prefs } });
+    }
+    return { ok: false, reason: 'unsupported' };
+  });
 }
 
 export function srtLedgerExport(ledger: SightReadingLedger): SightReadingLedger {

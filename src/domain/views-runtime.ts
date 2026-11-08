@@ -16,9 +16,12 @@ import type {
 } from './views.js';
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import { srtEvaluate, type SightReadingPerformed } from '../sight-reading/evaluate.js';
-import type { SightReadingExpected } from '../sight-reading/model.js';
+import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
+import { srtFingerprint } from '../sight-reading/fingerprint.js';
+import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder } from '../sight-reading/recorder.js';
-import { SRT_LEDGER_KEY, srtReadLedger } from '../sight-reading/ledger.js';
+import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease } from '../sight-reading/ledger.js';
+import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 
 function runtimeErrorName(value: unknown): string {
   return value instanceof Error ? value.name : '';
@@ -5712,10 +5715,14 @@ interface SrState {
     beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
     bpm: number; t0: number; next: CoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
     excerpt?: SrPiece | null; gen?: SrPiece | null; listening?: boolean;
+    srtPiece?: SightReadingPiece | null; srtFingerprint?: string | null; srtState?: SightReadingState;
+    srtOwnerTabId?: string; srtAttemptStartedAt?: number; srtPreviewTimer?: number; srtCountdown?: number; srtLease?: SightReadingAttemptLease | null; srtPendingAttempt?: SightReadingAttempt | null;
 }
 const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
-    render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null };
+    render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
+    srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
+    srtOwnerTabId: `tab-${Math.random().toString(36).slice(2)}`, srtAttemptStartedAt: 0, srtPreviewTimer: 0, srtCountdown: 0, srtLease: null, srtPendingAttempt: null };
 let srtRecorder: SightReadingRecorder | null = null;
 interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
 /** A note to engrave; beamed eighths also record their stem position once drawn. */
@@ -6119,6 +6126,129 @@ function srLearnFinish() {
     srBest();
     fillPieces();
 }
+function srtSetState(event: Parameters<typeof srtTransition>[1]) {
+    SR.srtState = srtTransition(SR.srtState || SRT_INITIAL_STATE, event);
+}
+function srtPreviewUi(show: boolean) {
+    const panel = maybeById('rd-srt-preview');
+    if (panel)
+        panel.hidden = !show;
+}
+function srtPendingUi(show: boolean) {
+    const panel = maybeById('rd-srt-pending');
+    if (panel)
+        panel.hidden = !show;
+}
+async function srtRetryPendingSave() {
+    const attempt = SR.srtPendingAttempt;
+    if (!attempt)
+        return;
+    const result = await srtLedgerUpdate(localStorage, { type: 'finishAttempt', attempt, generation: attempt.generation });
+    const v = byId('rd-verdict');
+    if (result.ok) {
+        srtSetState({ type: 'saved' });
+        SR.srtPendingAttempt = null;
+        SR.srtLease?.release();
+        SR.srtLease = null;
+        srtPendingUi(false);
+        v.textContent = t('rd_srt_summary', Math.round(attempt.pitchF1 ?? 0), attempt.TP, attempt.N, attempt.FP, Math.round(attempt.rhythmAcc ?? 0), Math.round(attempt.meanOffsetMs ?? 0));
+    }
+}
+function srtContinueWithoutSave() {
+    if (SR.srtState?.name === 'pendingSave')
+        srtSetState({ type: 'continueWithoutSave' });
+    SR.srtPendingAttempt = null;
+    SR.srtLease?.release();
+    SR.srtLease = null;
+    srtPendingUi(false);
+}
+function srtAttemptId() {
+    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `attempt-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned') {
+    const state = SR.srtState;
+    if (state?.attemptId && SR.srtOwnerTabId && SR.srtPiece && SR.srtFingerprint) {
+        await srtLedgerUpdate(localStorage, {
+            type: 'abandonAttempt',
+            attemptId: state.attemptId,
+            ownerTabId: SR.srtOwnerTabId,
+            generation: srtReadLedger(localStorage).generation,
+        });
+    }
+    SR.srtLease?.release();
+    SR.srtLease = null;
+    if (state && (state.name === 'preview' || state.name === 'claiming' || state.name === 'countIn' || state.name === 'playing'))
+        srtSetState({ type: status === 'interrupted' ? 'interrupt' : 'abandon' });
+}
+async function srtStartFirstSight() {
+    if (!SR.srtPiece || !SR.srtFingerprint)
+        return;
+    const ledger = srtReadLedger(localStorage);
+    if (ledger.exposures[SR.srtFingerprint]) {
+        srtSetState({ type: 'prepare', mode: 'practice', fingerprint: SR.srtFingerprint });
+        srAssessStart();
+        return;
+    }
+    if (!navigator.locks || typeof navigator.locks.request !== 'function') {
+        byId('rd-verdict').textContent = t('rd_srt_no_locks');
+        return;
+    }
+    srtSetState({ type: 'prepare', mode: 'firstSight', fingerprint: SR.srtFingerprint, attemptId: srtAttemptId() });
+    srtSetState({ type: 'claim' });
+    const attemptId = SR.srtState?.attemptId;
+    if (!attemptId)
+        return;
+    const lease = srtAcquireAttemptLease(attemptId);
+    if (!lease) {
+        byId('rd-verdict').textContent = t('rd_srt_no_locks');
+        return;
+    }
+    SR.srtLease = lease;
+    await lease.ready;
+    const result = await srtLedgerUpdate(localStorage, {
+        type: 'claimExposure',
+        fingerprint: SR.srtFingerprint,
+        attemptId,
+        ownerTabId: SR.srtOwnerTabId || '',
+        generation: ledger.generation,
+    });
+    if (!result.ok) {
+        lease.release();
+        SR.srtLease = null;
+        srtSetState({ type: 'blocked', reason: result.reason });
+        byId('rd-verdict').textContent = result.reason === 'already_exposed' ? t('rd_srt_practice_badge') : result.reason;
+        return;
+    }
+    srtSetState({ type: 'claimed' });
+    srtPreviewUi(true);
+    SR.srtCountdown = 20;
+    byId('rd-srt-countdown').textContent = t('rd_srt_countdown', SR.srtCountdown);
+    window.clearInterval(SR.srtPreviewTimer);
+    SR.srtPreviewTimer = window.setInterval(() => {
+        SR.srtCountdown = Math.max(0, (SR.srtCountdown || 0) - 1);
+        byId('rd-srt-countdown').textContent = t('rd_srt_countdown', SR.srtCountdown);
+        if (SR.srtCountdown <= 0) {
+            window.clearInterval(SR.srtPreviewTimer);
+            srtStartClaimedAttempt();
+        }
+    }, 1000);
+}
+function srtStartClaimedAttempt() {
+    window.clearInterval(SR.srtPreviewTimer);
+    srtPreviewUi(false);
+    srtSetState({ type: 'startNow' });
+    srAssessStart();
+}
+async function srtSwitchToPractice() {
+    window.clearInterval(SR.srtPreviewTimer);
+    srtPreviewUi(false);
+    srtSetState({ type: 'switchToPractice' });
+    SR.srtLease?.release();
+    SR.srtLease = null;
+    srAssessStart();
+}
 function srAssessStart() {
     SR.active = true;
     SR.results = {};
@@ -6129,6 +6259,9 @@ function srAssessStart() {
     srPaintAll();
     if (!SR.piece)
         throw new Error('Étude: no piece selected');
+    SR.bpm = SR.srtState?.mode === 'firstSight' ? 60 : +(inputById('rd-bpm').value || SR.piece.bpm);
+    inputById('rd-bpm').value = String(SR.bpm);
+    byId('rd-bpmLbl').textContent = String(SR.bpm);
     const bs = 60 / SR.bpm, cap = SR.piece.ts[1] === 8 ? SR.piece.ts[0] * 0.5 : SR.piece.ts[0], ci = cap, pk = SR.piece.pickup || 0;
     if (!actx)
         return;
@@ -6145,6 +6278,8 @@ function srAssessStart() {
     SR.t0 = perf0 + ci * bs * 1000;
     srtRecorder = new SightReadingRecorder({ durationMs: SR.totalBeats * bs * 1000 });
     SR.assessOn = false;
+    if (SR.srtState?.name === 'countIn' || SR.srtState?.name === 'preparing')
+        srtSetState({ type: 'countInDone' });
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rd_count');
@@ -6161,48 +6296,36 @@ function srAssessLoop(ts: number) {
         byId('rd-verdict').textContent = t('rd_play');
     }
     srCursor(srBeatToX(Math.max(0, Math.min(bNow, SR.totalBeats))));
-    let dirty = false;
-    SR.steps.forEach((st) => { if (!st.closed && bNow > st.beat + srTol() + 0.05) {
-        st.closed = true;
-        st.notes.forEach((n: { nid: number; }) => { if (!SR.results[n.nid]) {
-            SR.results[n.nid] = 'bad';
-            dirty = true;
-        } });
-    } });
-    if (dirty)
-        srPaintAll();
-    if (bNow > SR.totalBeats + 1) {
+    if (bNow >= SR.totalBeats + (0.25 / bs)) {
         srAssessFinish();
         return;
     }
     SR.raf = requestAnimationFrame(srAssessLoop);
 }
 function srAssessFinish() {
-    const evaluated = srtRecorder ? srtEvaluate(
-        SR.notes.map((note): SightReadingExpected => ({
-            id: String(note.nid),
-            midi: note.midi,
-            hand: note.hand,
-            onMs: note.beat * (60000 / SR.bpm),
-            offMs: (note.beat + note.dur) * (60000 / SR.bpm),
-            restBeforeMs: 0,
-            restAfterMs: 0,
-        })),
-        srtRecorder.finish().map((input): SightReadingPerformed => ({
-            id: input.id,
-            midi: input.midi,
-            onMs: input.onMs,
-            offMs: input.offMs,
-        })),
-    ) : null;
+    const expected = SR.srtPiece
+        ? srtBuildExpected(SR.srtPiece, { bpm: SR.bpm, hand: srActiveHands() as 'rh' | 'lh' })
+        : SR.notes.map((note): SightReadingExpected => ({
+            id: String(note.nid), midi: note.midi, hand: note.hand,
+            onMs: note.beat * (60000 / SR.bpm), offMs: (note.beat + note.dur) * (60000 / SR.bpm),
+            restBeforeMs: 0, restAfterMs: 0,
+        }));
+    const performed = srtRecorder?.finish().map((input): SightReadingPerformed => ({
+        id: input.id, midi: input.midi, onMs: input.onMs, offMs: input.offMs,
+    })) ?? [];
+    const restWindows = SR.srtPiece?.events
+        .filter((event) => event.pitches.length === 0)
+        .map((event) => ({ startMs: event.onsetTick * 60000 / SR.bpm / 480, endMs: (event.onsetTick + event.durationTick) * 60000 / SR.bpm / 480 }));
+    const evaluated = srtEvaluate(expected, performed, restWindows ? { restWindows } : {});
     if (evaluated) {
-        evaluated.noteResults.forEach((result) => {
-            const nid = Number(result.expectedId);
+        const renderedNotes = SR.notes.filter((note) => srActiveHands() === 'both' || note.hand === srActiveHands());
+        evaluated.noteResults.forEach((result, index) => {
+            const nid = renderedNotes[index]?.nid ?? Number(result.expectedId);
             SR.results[nid] = result.classification === 'good' ? 'good' : result.classification === 'missed' ? 'bad' : 'near';
         });
         SR.wrongExtra = evaluated.FP;
     }
-    const totalN = SR.steps.reduce((s, st) => s + st.notes.length, 0);
+    const totalN = expected.length;
     const good = evaluated ? evaluated.G : Object.values(SR.results).filter((r) => r === 'good').length;
     const pct = evaluated?.score == null ? (totalN ? Math.round(100 * good / totalN) : 0) : Math.round(evaluated.score);
     const stars = evaluated?.stars ?? (pct >= 95 ? 3 : pct >= 80 ? 2 : pct >= 60 ? 1 : 0);
@@ -6210,9 +6333,36 @@ function srAssessFinish() {
     srStopAll(true);
     const v = byId('rd-verdict');
     v.className = 'verdict ' + (stars >= 2 ? 'good' : stars ? 'neutral' : 'bad');
-    v.textContent = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) +
-        (evaluated ? ` · F1 ${Math.round(evaluated.pitchF1 ?? 0)}% · TP ${evaluated.TP}/${evaluated.N} · FP ${evaluated.FP} · Rhythm ${Math.round(evaluated.rhythmAcc ?? 0)}%` : '') +
+    const modeLabel = SR.srtState?.mode === 'firstSight' ? t('rd_srt_first_sight') : t('rd_srt_practice_badge');
+    v.textContent = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + ' · ' + modeLabel +
+        (evaluated ? ' · ' + t('rd_srt_summary', Math.round(evaluated.pitchF1 ?? 0), evaluated.TP, evaluated.N, evaluated.FP, Math.round(evaluated.rhythmAcc ?? 0), Math.round(evaluated.meanOffsetMs ?? 0)) : '') +
         (SR.wrongExtra ? '  ·  ' + t('rd_extra', SR.wrongExtra) : '') + rdSightDone('assess', pct);
+    srtSetState({ type: 'finish' });
+    if (evaluated && SR.srtState?.attemptId && SR.srtFingerprint && SR.srtOwnerTabId) {
+        const attempt: SightReadingAttempt = {
+            ...evaluated,
+            status: 'completed',
+            attemptId: SR.srtState.attemptId,
+            fingerprint: SR.srtFingerprint,
+            ownerTabId: SR.srtOwnerTabId,
+            generation: srtReadLedger(localStorage).generation,
+            finishedAt: Date.now(),
+        };
+        SR.srtPendingAttempt = attempt;
+        void srtLedgerUpdate(localStorage, { type: 'finishAttempt', attempt, generation: attempt.generation }).then((result) => {
+            if (result.ok) {
+                srtSetState({ type: 'saved' });
+                SR.srtPendingAttempt = null;
+                SR.srtLease?.release();
+                SR.srtLease = null;
+                srtPendingUi(false);
+            } else {
+                srtSetState({ type: 'saveFailed' });
+                srtPendingUi(true);
+                v.textContent += ' · ' + t('rd_srt_unsaved');
+            }
+        });
+    }
     srtRecorder = null;
     if (!SR.piece)
         throw new Error('Étude: no piece selected');
@@ -6262,39 +6412,23 @@ function srKeyInput(m: number) {
             srCount();
         }
     }
-    else if (SR.modeSel === 'assess' && SR.assessOn) {
-        const bs = 60 / SR.bpm, bNow = (performance.now() - SR.t0) / 1000 / bs;
-        let best: { nid: number; } | null = null, bestD = Infinity;
-        for (const st of SR.steps) {
-            if (st.closed)
-                continue;
-            const dd = Math.abs(bNow - st.beat);
-            if (dd <= srTol() && dd < bestD) {
-                const cand = st.notes.find((n: { nid: number; midi: number; }) => !SR.results[n.nid] && n.midi === m);
-                if (cand) {
-                    best = cand;
-                    bestD = dd;
-                }
-            }
-        }
-        if (best) {
-            SR.results[best.nid] = 'good';
-            srPaintAll();
-            return;
-        }
-        SR.wrongExtra++;
-    }
 }
 function srListen() {
     if (!SR.piece)
         return;
+    if (SR.srtState && (SR.srtState.name === 'preview' || SR.srtState.name === 'countIn' || SR.srtState.name === 'playing'))
+        void srtAbandonClaim('interrupted');
     if (SR.listening) {
         srStopAll(true);
         return;
     }
+    if (SR.srtFingerprint)
+        void srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint: SR.srtFingerprint, generation: srtReadLedger(localStorage).generation });
     ensureAudio();
     srStopAll(true);
     SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
+    inputById('rd-bpm').value = String(SR.bpm);
+    byId('rd-bpmLbl').textContent = String(SR.bpm);
     if (!actx)
         return;
     const bs = 60 / SR.bpm, act0 = actx.currentTime + 0.1, perf0 = performance.now() + 100;
@@ -6326,6 +6460,8 @@ function srGo() {
     if (!SR.piece)
         return;
     if (SR.active) {
+        if (SR.srtState && (SR.srtState.name === 'countIn' || SR.srtState.name === 'playing'))
+            void srtAbandonClaim('interrupted');
         srStopAll();
         byId('rd-verdict').textContent = '';
         return;
@@ -6335,6 +6471,8 @@ function srGo() {
     SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
     if (SR.modeSel === 'learn')
         srLearnStart();
+    else if (SR.srtPiece && SR.srtState?.mode === 'firstSight' && SR.srtState.name === 'idle')
+        void srtStartFirstSight();
     else
         srAssessStart();
 }
@@ -7496,6 +7634,47 @@ interface RdSightLevel { keys: number[]; lo: string; hi: string; durs: number[];
 // A generated melody, shaped like a Read & play piece; rh/lh hold [pitch name, beats] pairs.
 interface RdSightPiece { id: string; ephemeral: boolean; gen: string; comp: string; level: number; keyN: number; ts: number[]; bpm: number; t: { en: string; ro: string; }; rh?: [string, number][]; lh?: [string, number][]; }
 function isRdSightLevel(L: ReadDrillLevel): L is ReadDrillLevel & RdSightLevel { return Array.isArray(L.keys) && L.lo !== undefined && L.hi !== undefined && Array.isArray(L.durs) && L.bpm !== undefined; }
+function srtProfileForLevel(L: RdSightLevel): SightReadingProfile {
+    if (L.clef === 'grand')
+        return 'P2.c';
+    if (L.id === 'sr1')
+        return 'P1.a';
+    if (L.id === 'sr2')
+        return 'P1.b';
+    if (L.id === 'sr3')
+        return 'P1.c';
+    if (L.id === 'sr4')
+        return 'P2.a';
+    return 'P2.b';
+}
+function srtSeedForLevel(id: string): number {
+    const key = 'etude-sight-seed-' + id;
+    const saved = Number.parseInt(localStorage.getItem(key) || '', 10);
+    if (Number.isInteger(saved))
+        return saved;
+    let seed = 0;
+    for (const char of id)
+        seed = (seed * 31 + char.charCodeAt(0)) | 0;
+    localStorage.setItem(key, String(seed));
+    return seed;
+}
+function srtLegacyPiece(piece: SightReadingPiece, L: RdSightLevel): RdSightPiece {
+    const hand = L.clef === 'bass' ? 'lh' : 'rh';
+    const events: [string, number][] = piece.events.map((event) => {
+        const pitch = event.pitches[0];
+        return [pitch ? pitch.spelling : 'R', event.durationTick / 480];
+    });
+    const result: RdSightPiece = {
+        id: 'gen', ephemeral: true, gen: L.id, comp: '', level: L.n, keyN: 0,
+        ts: [piece.meter.num, 4], bpm: 60,
+        t: { en: tl('en', 'rdx_sr_title', L.n), ro: tl('ro', 'rdx_sr_title', L.n) },
+    };
+    if (hand === 'lh')
+        result.lh = events;
+    else
+        result.rh = events;
+    return result;
+}
 function rdSightGen(L: RdSightLevel) {
     const keyN: number = ssPick(L.keys), kA = ssKeyAcc(keyN), lo = rdStep(rdP(L.lo)), hi = rdStep(rdP(L.hi));
     const tonLi = SR_LET.indexOf(RD_MAJ[keyN + 7][0]);
@@ -7563,7 +7742,16 @@ function rdSightStart(mode: string) {
     rdData().prefs.srLv = L.id;
     if (!isRdSightLevel(L))
         throw new TypeError('Étude: ' + L.id + ' is not a sight-reading level');
-    SR.gen = rdSightGen(L);
+    const profile = srtProfileForLevel(L);
+    const srtPiece = srtGenerate(profile, srtSeedForLevel(L.id), L.clef === 'bass' ? 'lh' : 'rh');
+    SR.srtPiece = srtPiece;
+    SR.srtFingerprint = srtFingerprint(srtPiece);
+    SR.srtState = SRT_INITIAL_STATE;
+    SR.srtPendingAttempt = null;
+    srtPreviewUi(false);
+    srtPendingUi(false);
+    void srtLedgerUpdate(localStorage, { type: 'recoverOrphanClaims', generation: srtReadLedger(localStorage).generation });
+    SR.gen = srtLegacyPiece(srtPiece, L);
     RD.on = false;
     rdTab('pieces');
     fillPieces();
@@ -15227,9 +15415,13 @@ function initControls() {
                 return;
             p.gen = syncGen();
             writePttV3(localStorage, p, KEY);
-            if (p.data.sightLedger)
-                localStorage.setItem(SRT_LEDGER_KEY, JSON.stringify(p.data.sightLedger));
-            location.reload();
+            if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
+                const local = srtReadLedger(localStorage);
+                void srtLedgerUpdate(localStorage, { type: 'importLedger', imported: p.data.sightLedger, generation: local.generation })
+                    .finally(() => location.reload());
+            }
+            else
+                location.reload();
         }
         catch (_) {
             alert(t('import_bad'));
@@ -15345,6 +15537,10 @@ function initControls() {
         return;
     } byId('rd-bpmLbl').textContent = wiringField(e).value; SR.bpm = +wiringField(e).value; });
     byId('rd-go').addEventListener('click', srGo);
+    byId('rd-srt-start').addEventListener('click', srtStartClaimedAttempt);
+    byId('rd-srt-practice').addEventListener('click', () => { void srtSwitchToPractice(); });
+    byId('rd-srt-retry').addEventListener('click', () => { void srtRetryPendingSave(); });
+    byId('rd-srt-continue').addEventListener('click', srtContinueWithoutSave);
     byId('rd-coach').addEventListener('click', (e) => { if (eventClosest(e, '#rd-coach-act') && SR.next && SR.next.act)
         SR.next.act.run(); });
     byId('rd-listen').addEventListener('click', srListen);
@@ -15439,8 +15635,10 @@ function initControls() {
     // playback, recording, accompaniment and drills keep running
     window.addEventListener('blur', releaseFocusInput);
     // a hidden tab throttles timers and stops animation frames: timed playback, accompaniment, mic capture and drills stop cleanly (score playback pauses resumably)
-    document.addEventListener('visibilitychange', () => { if (document.hidden)
-        panic(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) {
+        void srtAbandonClaim('interrupted');
+        panic();
+    } });
     window.addEventListener('storage', (e) => { if (e.storageArea && e.storageArea !== localStorage || e.key !== null && e.key !== KEY)
         return; const got = syncPull(); if (got === 'old' || got === 'merge-save')
         syncWrite(); if (got)

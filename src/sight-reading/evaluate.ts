@@ -41,32 +41,40 @@ export type SightReadingEvaluateConfig = {
 };
 
 type Pair = { readonly expected: SightReadingExpected; readonly input: SightReadingPerformed; readonly error: number };
-type Path = { readonly pairs: readonly Pair[]; readonly cost: number; readonly ids: string };
+type Path = { readonly pairs: readonly Pair[]; readonly cost: number; readonly key: string };
 
 function better(a: Path, b: Path | null): boolean {
   if (!b) return true;
   if (a.pairs.length !== b.pairs.length) return a.pairs.length > b.pairs.length;
   if (a.cost !== b.cost) return a.cost < b.cost;
-  return a.ids < b.ids;
+  return a.key < b.key;
 }
 
 function matchPitch(expected: readonly SightReadingExpected[], inputs: readonly SightReadingPerformed[], windowMs: number): Pair[] {
+  const windows = expected.map((note) => {
+    const samePitch = expected.filter((candidate) => candidate.midi === note.midi).sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
+    const index = samePitch.findIndex((candidate) => candidate.id === note.id);
+    const neighbors = [samePitch[index - 1], samePitch[index + 1]].filter((candidate): candidate is SightReadingExpected => !!candidate);
+    return neighbors.length === 0
+      ? windowMs
+      : Math.min(windowMs, 0.45 * Math.min(...neighbors.map((neighbor) => Math.abs(neighbor.onMs - note.onMs))));
+  });
   const dp: Array<Array<Path | null>> = Array.from({ length: expected.length + 1 }, () => Array<Path | null>(inputs.length + 1).fill(null));
-  for (let i = 0; i <= expected.length; i += 1) dp[i][0] = { pairs: [], cost: 0, ids: '' };
-  for (let j = 0; j <= inputs.length; j += 1) dp[0][j] = { pairs: [], cost: 0, ids: '' };
+  for (let i = 0; i <= expected.length; i += 1) dp[i][0] = { pairs: [], cost: 0, key: '' };
+  for (let j = 0; j <= inputs.length; j += 1) dp[0][j] = { pairs: [], cost: 0, key: '' };
   for (let i = 1; i <= expected.length; i += 1) {
     for (let j = 1; j <= inputs.length; j += 1) {
       const skipExpected = dp[i - 1][j];
       const skipInput = dp[i][j - 1];
       let best = skipExpected && skipInput && better(skipExpected, skipInput) ? skipExpected : skipInput;
       const error = inputs[j - 1].onMs - expected[i - 1].onMs;
-      if (Math.abs(error) <= windowMs) {
-        const previous = dp[i - 1][j - 1] ?? { pairs: [], cost: 0, ids: '' };
+      if (Math.abs(error) <= windows[i - 1]) {
+        const previous = dp[i - 1][j - 1] ?? { pairs: [], cost: 0, key: '' };
         const pair: Pair = { expected: expected[i - 1], input: inputs[j - 1], error };
         const candidate: Path = {
           pairs: [...previous.pairs, pair],
           cost: previous.cost + Math.abs(error),
-          ids: `${previous.ids}|${expected[i - 1].id}|${inputs[j - 1].id}`,
+          key: `${previous.key}|${expected[i - 1].onMs}|${inputs[j - 1].onMs}|${expected[i - 1].id}|${inputs[j - 1].id}`,
         };
         if (better(candidate, best)) best = candidate;
       }
@@ -100,15 +108,7 @@ export function srtEvaluate(
   for (const [midi, notes] of byMidi) {
     const sorted = [...notes].sort((a, b) => a.onMs - b.onMs);
     const inputs = [...(inputByMidi.get(midi) ?? [])].sort((a, b) => a.onMs - b.onMs);
-    const matches = matchPitch(sorted, inputs, baseWindow);
-    for (const pair of matches) {
-      const index = sorted.findIndex((note) => note.id === pair.expected.id);
-      const neighbors = [sorted[index - 1], sorted[index + 1]].filter((note): note is SightReadingExpected => !!note);
-      const closeWindow = neighbors.length > 0
-        ? Math.min(baseWindow, 0.45 * Math.min(...neighbors.map((note) => Math.abs(note.onMs - pair.expected.onMs))))
-        : baseWindow;
-      if (Math.abs(pair.error) <= closeWindow) pairs.push(pair);
-    }
+    pairs.push(...matchPitch(sorted, inputs, baseWindow));
   }
   const matchedIds = new Set(pairs.map((pair) => pair.input.id));
   const matchedExpected = new Map(pairs.map((pair) => [pair.expected.id, pair]));
