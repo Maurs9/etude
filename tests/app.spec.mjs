@@ -519,10 +519,15 @@ test.describe('MusicXML pedal collision regression', () => {
     await page.evaluate(() => scoreLayout());
     expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
     const label = page.locator('#an-roll [data-sym]').and(page.getByLabel(/^Ped\./)).first();
-    await label.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
-    const rect = await label.boundingBox();
-    await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    await expect(page.locator('#an-hover')).toContainText('press the sustain');
+    // The resize also reaches the stage's ResizeObserver, which may lay the score out once more after the call above
+    // and move the label; measure it again and re-hover until the hint shows.
+    await expect(async () => {
+      await label.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
+      const rect = await label.boundingBox();
+      await page.mouse.move(0, 0);
+      await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      await expect(page.locator('#an-hover')).toContainText('press the sustain', { timeout: 1000 });
+    }).toPass();
     await label.focus();
     await expect(page.locator('#an-hover')).toContainText('press the sustain');
   });
@@ -1604,7 +1609,7 @@ test('Settings controls receive localized programmatic labels', async ({ app }) 
 });
 
 test('leaving the window lets go of keys held on the computer keyboard or screen, and nothing else', async ({ app, page }) => {
-  await app.open({ hash: 'accompany' });
+  await app.open({ hash: 'accompany', dock: true });
   await page.evaluate(() => accompStart());
   const box = await page.locator('#keys .key.white[data-midi="67"]').boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height - 10);
@@ -2001,6 +2006,20 @@ test('the fixed keyboard dock never covers the end of the page, whatever its mea
       await page.evaluate(() => { $('dock').style.paddingBottom = ''; });
     }
   }
+});
+
+test('the keyboard dock starts hidden on a first visit and remembers being shown', async ({ app, page }) => {
+  await app.open({ hash: 'explore' });
+  const toggle = page.locator('#dock-kb-toggle'), key = page.locator('#keys .white').first();
+  await expect(key).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(key).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await page.reload();
+  await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+  await expect(key).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).kbDock)).toBe(true);
 });
 
 test.describe('sound locked by the browser', () => {

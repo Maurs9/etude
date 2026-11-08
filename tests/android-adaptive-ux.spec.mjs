@@ -221,7 +221,7 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
   test('a focused piano key survives a change in keyboard size', async ({ app }) => {
     const page = app.page;
     await page.setViewportSize({ width: 844, height: 390 });
-    await app.open({ hash: 'explore' });
+    await app.open({ hash: 'explore', dock: true });
     await page.locator('#keys [data-midi="60"]').focus();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('#keys [data-midi="60"]')).toBeFocused();
@@ -230,7 +230,7 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
   test('a focused key stays visible when the keyboard shrinks', async ({ app }) => {
     const page=app.page;
     await page.setViewportSize({width:844,height:390});
-    await app.open({hash:'explore'});
+    await app.open({hash:'explore',dock:true});
     await page.locator('#keys [data-midi="84"]').focus();
     await page.setViewportSize({width:320,height:700});
     const key=page.locator('#keys [data-midi="72"]');
@@ -245,7 +245,7 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     test(`320px keyboard controls fit and provide horizontal access (${lang})`, async ({ app }) => {
       const page = app.page;
       await page.setViewportSize({ width: 320, height: 700 });
-      await app.open({ hash: 'explore', lang });
+      await app.open({ hash: 'explore', lang, dock: true });
       for (const selector of ['#oct-down', '#oct-up', '#panicBtn', '#dock-kb-toggle']) {
         const box = await page.locator(selector).boundingBox();
         expect(box.x).toBeGreaterThanOrEqual(0);

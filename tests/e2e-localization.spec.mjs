@@ -672,8 +672,9 @@ test.describe('Tier 4: Real-World Scenarios (Full User Journeys)', () => {
     }
   });
 
-  test('T4.4: Journey 4: French offline resilience journey', async ({ app, page, context }) => {
-    await app.open();
+  // @sw: needs a live service worker, so it runs in the `sw` project (see playwright.config.mjs).
+  test('T4.4: Journey 4: French offline resilience journey', { tag: '@sw' }, async ({ app, page, context }) => {
+    await app.open({ dock: true });
 
     // 1. Switch to French
     await selectLanguage(page, 'fr');
@@ -694,10 +695,11 @@ test.describe('Tier 4: Real-World Scenarios (Full User Journeys)', () => {
     await expect(page.locator('#drawerTitle')).toHaveText('Paramètres');
     await page.locator('#drawerClose').click();
 
-    // 5. Test interaction with piano keyboard
+    // 5. Test interaction with piano keyboard (press below the black keys, which cover the white key's centre)
     const firstWhiteKey = page.locator('#keys .white').first();
     await expect(firstWhiteKey).toBeVisible();
-    await firstWhiteKey.click();
+    const keyBox = await firstWhiteKey.boundingBox();
+    await firstWhiteKey.click({ position: { x: keyBox.width / 2, y: keyBox.height - 10 } });
 
     // Clean up offline state
     await context.setOffline(false);
