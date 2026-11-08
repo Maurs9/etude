@@ -31,6 +31,11 @@
       "iteration": 5,
       "verdict": "PASS",
       "summary": "All MVP acceptance criteria pass, including the iteration-4 regressions, complete browser/offline coverage, unchanged goldens, and a headed-Chrome first-attempt reload journey."
+    },
+    {
+      "iteration": 5,
+      "verdict": "FAIL",
+      "summary": "Mixed keyboard/MIDI ownership is closed incorrectly on focus loss; completed results do not relocalize; mandatory flow, ledger, accessibility, and pending-save Playwright cases remain incomplete."
     }
   ]
 }
