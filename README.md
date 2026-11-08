@@ -69,9 +69,10 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
 - `package.json`, `package-lock.json` — test tooling and locked dependencies
 
-`npm run typecheck` runs the full `strict` compiler gate and rejects
-file-wide `@ts-nocheck` directives. The large browser view runtime still has
-explicit, line-scoped compatibility annotations around legacy DOM-shaped data;
-new storage, theory, audio, notation, and routing code must remain fully typed.
-Keep browser-only DOM wiring in the view domain and keep the other behavior
-behind those typed module boundaries.
+`npm run typecheck` runs the full `strict` compiler gate. The suppression guard
+rejects `@ts-nocheck` and `@ts-ignore` in application TypeScript, and allows
+only a small, reasoned set of `@ts-expect-error` boundary exceptions. The
+browser view runtime uses explicit DOM/data boundary types rather than
+compiler-suppression comments; storage, theory, audio, notation, and routing
+remain separate typed modules. Keep browser-only DOM wiring in the view domain
+and keep the other behavior behind those typed module boundaries.

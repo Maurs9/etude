@@ -51,4 +51,10 @@ describe('domain boundaries', () => {
     expect(notation).not.toMatch(/readonly (?:EngravingRules|GraphicSheet|Sheet|cursor|Zoom)\b/);
     expect(notation).toMatch(/forEachRenderedNote/);
   });
+
+  it('keeps the view runtime free of compiler-bypass comments', async () => {
+    const runtime = await readFile(runtimePath, 'utf8');
+    expect(runtime).not.toMatch(/@ts-(?:nocheck|ignore)\b/);
+    expect(runtime).not.toMatch(/@ts-expect-error\b/);
+  });
 });
