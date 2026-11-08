@@ -13,6 +13,12 @@ if (!cssMatch || !moduleMatch) throw new Error('Vite output is missing the style
 const css = await readFile(join(OUT_DIR, cssMatch[1].replace(/^\.\//, '')), 'utf8');
 let app = await readFile(join(OUT_DIR, moduleMatch[1].replace(/^\.\//, '')), 'utf8');
 const osmd = await readFile(join(OUT_DIR, 'vendor', 'osmd-1.9.9.min.js'), 'utf8');
+let standaloneCss = css;
+for (const file of await readdir(join(OUT_DIR, 'assets'))) {
+  if (!file.endsWith('.woff2')) continue;
+  const data = `data:font/woff2;base64,${(await readFile(join(OUT_DIR, 'assets', file))).toString('base64')}`;
+  standaloneCss = standaloneCss.replaceAll(`url(./${file})`, `url(${data})`);
+}
 for (const file of await readdir(join(OUT_DIR, 'assets'))) {
   if (!file.endsWith('.mp3')) continue;
   const data = `data:audio/mpeg;base64,${(await readFile(join(OUT_DIR, 'assets', file))).toString('base64')}`;
@@ -20,7 +26,7 @@ for (const file of await readdir(join(OUT_DIR, 'assets'))) {
 }
 
 html = html
-  .replace(cssMatch[0], `<style>${css}</style>`)
+  .replace(cssMatch[0], `<style>${standaloneCss}</style>`)
   .replace(moduleMatch[0], `<script type="module">${app}</script>`)
   .replace(/<script defer src="\.\/vendor\/osmd-1\.9\.9\.min\.js"><\/script>/, () => `<script>${osmd}</script>`);
 await writeFile(standalone, html);

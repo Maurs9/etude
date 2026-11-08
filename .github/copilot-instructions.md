@@ -63,5 +63,5 @@ PW_CHANNEL= npm test  # use bundled Chromium instead (after `npx playwright inst
 - The keyboard dock starts hidden on a first visit, so tests that press on-screen piano keys open the app with `app.open({ dock: true })`.
 - CI (`.github/workflows/test.yml`) runs the suite with Playwright's Chromium on every pushed branch and on pull requests. Merge a branch only when its run is green. On `main`, a green run also deploys the site (see Deployment).
 - The architecture migration follows `docs/plans/2026-11-08-safe-migration-plan.md`. Keep migration work and feature work in separate PRs.
-- During the migration, the monolithic implementation is `src/legacy/app.js`; styles are in `src/styles/`, piano recordings are in `src/assets/piano/`, and OSMD is `public/vendor/osmd-1.9.9.min.js`. `scripts/split-etude.mjs` is deterministic and its join test must stay byte-for-byte green.
+- During the migration, the monolithic implementation is `src/legacy/app.js`; self-hosted font subsets and styles are in `src/styles/` and `src/assets/fonts/`, piano recordings are in `src/assets/piano/`, and OSMD is `public/vendor/osmd-1.9.9.min.js`. No page request should go to Google Fonts. `scripts/split-etude.mjs` is deterministic and its join test must stay byte-for-byte green.
 - `node_modules/` and `test-results/` are gitignored; never force-add them.

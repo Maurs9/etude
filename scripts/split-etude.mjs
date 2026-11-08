@@ -12,6 +12,10 @@ export const PIANO_DIR = join(ROOT, 'src', 'assets', 'piano');
 
 const STYLE_MARKER = '<!-- etude: extracted style -->';
 const STYLE_TAG = '<link rel="stylesheet" href="./src/styles/etude.css">';
+const FONT_TAG = '<link rel="stylesheet" href="./src/styles/fonts.css">';
+const GOOGLE_FONT_BLOCK = `<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
 const PIANO_TAG = '<!-- etude: piano recordings are separate files -->';
 const OSMD_MARKER = '<!-- etude: extracted osmd -->';
 const OSMD_TAG = '<script defer src="./vendor/osmd-1.9.9.min.js"></script>';
@@ -92,6 +96,7 @@ export async function joinSplit() {
     json[file.slice(0, -4)] = (await readFile(join(PIANO_DIR, file))).toString('base64');
   }
   return shell
+    .replace(FONT_TAG, () => GOOGLE_FONT_BLOCK)
     .replace(STYLE_MARKER + STYLE_TAG, () => `<style>${css}</style>`)
     .replace(PIANO_TAG, () => pianoBlock(json))
     .replace(OSMD_MARKER + OSMD_TAG, () => `<script type="text/javascript">${osmd}</script>`)

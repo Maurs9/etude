@@ -55,7 +55,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 
 - `etude.html` — stable application shell
 - `src/legacy/app.js` — current compatibility module during the migration
-- `src/styles/`, `src/assets/piano/` — styles and separate hashed recordings
+- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed recordings
 - `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
 - `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
