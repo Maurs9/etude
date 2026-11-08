@@ -1,6 +1,6 @@
 {
   "goal_id": "sight-reading-v3-mvp",
-  "status": "building",
+  "status": "completed",
   "iteration": 7,
   "builder_model": "GPT:5.6-Luna",
   "inspector_model": "GPT:5.6-Sol",
