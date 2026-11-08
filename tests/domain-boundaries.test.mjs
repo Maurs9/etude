@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const runtimePath = new URL('../src/domain/views.ts', import.meta.url);
+const runtimeImplementationPath = new URL('../src/domain/views-runtime.js', import.meta.url);
 const theoryPath = new URL('../src/domain/theory.ts', import.meta.url);
 const notationPath = new URL('../src/domain/notation.ts', import.meta.url);
+const execFileAsync = promisify(execFile);
 
 describe('domain boundaries', () => {
   it('keeps Web Audio node construction in the audio domain', async () => {
@@ -13,20 +20,20 @@ describe('domain boundaries', () => {
   });
 
   it('uses the audio boundary for scheduled rhythm clicks', async () => {
-    const runtime = await readFile(runtimePath, 'utf8');
+    const runtime = await readFile(runtimeImplementationPath, 'utf8');
     expect(runtime).toMatch(/audioEngine\.scheduleClick/);
     expect(runtime).not.toMatch(/function\s+(?:srClick|rdClick)[\s\S]*?createOscillator/);
   });
 
   it('does not reach into OSMD vendor members from the view runtime', async () => {
-    const runtime = await readFile(runtimePath, 'utf8');
+    const runtime = await readFile(runtimeImplementationPath, 'utf8');
     expect(runtime).not.toMatch(/engine\.(?:EngravingRules|GraphicSheet|Sheet|cursor|Zoom)\b/);
     expect(runtime).not.toMatch(/engine\.get(?:Rules|GraphicSheet|Sheet|Cursor|GraphicalNote)\b/);
     expect(runtime).toMatch(/engine\.(?:updateRules|readLayout|readCursor|forEachRenderedNote)\b/);
   });
 
   it('keeps extracted pure exercise and score calculations out of views', async () => {
-    const [runtime, theory] = await Promise.all([readFile(runtimePath, 'utf8'), readFile(theoryPath, 'utf8')]);
+    const [runtime, theory] = await Promise.all([readFile(runtimeImplementationPath, 'utf8'), readFile(theoryPath, 'utf8')]);
     for (const [runtimeName, theoryName] of [
       ['SCALES', 'SCALE_DEFINITIONS'],
       ['CHORDS', 'CHORD_TEMPLATES'],
@@ -56,5 +63,30 @@ describe('domain boundaries', () => {
     const runtime = await readFile(runtimePath, 'utf8');
     expect(runtime).not.toMatch(/@ts-(?:nocheck|ignore)\b/);
     expect(runtime).not.toMatch(/@ts-expect-error\b/);
+  });
+
+  it('keeps the typed view boundary free of explicit any', async () => {
+    const [boundary, implementation] = await Promise.all([
+      readFile(runtimePath, 'utf8'),
+      readFile(runtimeImplementationPath, 'utf8'),
+    ]);
+    const explicitAny = /(?:\:\s*any\b|\bas\s+any\b|<any>|\bArray\s*<\s*any\s*>)/;
+    expect(boundary).not.toMatch(explicitAny);
+    expect(implementation).not.toMatch(explicitAny);
+  });
+
+  it('rejects a blanket explicit-any conversion through the migration gate', async () => {
+    const probeRoot = fileURLToPath(new URL('../test-results/', import.meta.url));
+    await mkdir(probeRoot, { recursive: true });
+    const probe = await mkdtemp(join(probeRoot, 'etude-ts-gate-'));
+    try {
+      await writeFile(join(probe, 'probe.ts'), 'const unchecked: any = undefined;\n');
+      await expect(execFileAsync('node', ['scripts/check-ts-suppressions.mjs'], {
+        cwd: fileURLToPath(new URL('..', import.meta.url)),
+        env: { ...process.env, TS_SOURCE_ROOT: probe },
+      })).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await rm(probe, { recursive: true, force: true });
+    }
   });
 });

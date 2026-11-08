@@ -48,6 +48,7 @@ export default [
       },
     },
     plugins: {
+      '@typescript-eslint': tseslint.plugin,
       'import-x': importX,
     },
     rules: {
@@ -55,6 +56,7 @@ export default [
       'no-empty': 'off',
       'no-useless-assignment': 'off',
       'no-func-assign': 'off',
+      '@typescript-eslint/no-explicit-any': 'error',
       'no-dupe-keys': 'error',
       'no-restricted-globals': [
         'error',

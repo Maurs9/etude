@@ -1,9 +1,13 @@
 import { readdir, readFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 
-const root = new URL('../src/', import.meta.url);
+const root = process.env.TS_SOURCE_ROOT
+  ? pathToFileURL(`${process.env.TS_SOURCE_ROOT.replace(/\/?$/, '/')}`)
+  : new URL('../src/', import.meta.url);
 const failures = [];
 const MAX_EXPECTED_ERRORS = 8;
 let expectedErrorCount = 0;
+let explicitAnyCount = 0;
 
 async function visit(url) {
   const entries = await readdir(url, { withFileTypes: true });
@@ -29,6 +33,10 @@ async function visit(url) {
           failures.push(`${child.pathname}:${index + 1}: @ts-expect-error requires a reason`);
         }
       }
+      if (/(?:\s*:\s*any\b|\bas\s+any\b|<any>|\bArray\s*<\s*any\s*>)/.test(line)) {
+        explicitAnyCount += 1;
+        failures.push(`${child.pathname}:${index + 1}: explicit any is forbidden; use a domain type or unknown with narrowing`);
+      }
     });
   }
 }
@@ -43,5 +51,5 @@ if (failures.length) {
   console.error(failures.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('No TypeScript source uses file-wide @ts-nocheck.');
+  console.log(`TypeScript boundary checks passed (${explicitAnyCount} explicit any values).`);
 }

@@ -1,7 +1,7 @@
 # Étude: safe, incremental migration plan
 
 **Date:** 8 November 2026
-**Status:** This plan sets the order, safety rules and exit gates for the architecture migration. Step 0 is done and merged into `main` (PR #4). Step 2a, publishing the site from Actions, remains ready on `feat/migration-step-2a-deploy`. Steps 2b, 3, 3b, 4 and Step 5 are implemented and locally verified on `migration`, pending the owner's live rollout and freeze checks. The legacy app and globals bridge are gone. `src/domain/views.ts` is the application entry point and owns the browser view runtime alongside the typed storage, theory, audio, notation, and routing modules. The strict gate covers the complete TypeScript source and rejects `@ts-nocheck` and `@ts-ignore`; the runtime expresses its legacy DOM/data boundary explicitly in TypeScript rather than disabling the compiler.
+**Status:** This plan sets the order, safety rules and exit gates for the architecture migration. Step 0 is done and merged into `main` (PR #4). Step 2a, publishing the site from Actions, remains ready on `feat/migration-step-2a-deploy`. Steps 2b, 3, 3b, 4 and Step 5 are implemented and locally verified on `migration`, pending the owner's live rollout and freeze checks. The legacy app and globals bridge are gone. `src/domain/views.ts` is the typed application/view boundary and entry point; it loads the behaviour-preserving `src/domain/views-runtime.js` implementation alongside the typed storage, theory, audio, notation, and routing modules. The strict gate covers the complete TypeScript source, rejects compiler-bypass comments and explicit `any`, and requires new view code to use explicit DOM, state, locale, event, callback and view-data contracts.
 
 ## 1. Summary
 
