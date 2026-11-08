@@ -8558,15 +8558,62 @@ function coachRefresh() { srCoach(); if (RD.L && !byId('rdx-coach').hidden)
     rdCoach(true); rdNextRender(); if (!byId('pr-sum').hidden)
     pracNextRender(); }
 /* ---------- SCORE & ANALYSIS ---------- */
-const AN = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
+type AnHand = 'rh' | 'lh';
+interface ScoreNoteArticulation { staccato: boolean; staccatissimo: boolean; accent: boolean; strongAccent: boolean; tenuto: boolean; }
+interface ScoreGraceNote { midi: number; vel: number; tieStart?: boolean; tiedToPrincipal?: boolean; }
+// A note of the loaded piece: MIDI and built-in pieces fill the timing and hand; MusicXML adds its notation and performance details.
+interface AnNote {
+    midi: number; start: number; end: number; vel: number;
+    track?: number; channel?: number; hand?: AnHand | null; srcHand?: AnHand;
+    part?: number; staff?: number; voice?: number; type?: string; art?: ScoreNoteArticulation; arpeggiate?: boolean;
+    finger?: number; explicitVel?: number; dynamicHit?: number; graces?: ScoreGraceNote[]; warm?: boolean; soundRatio?: number;
+    roll?: number; nextSame?: number; pedalEnd?: number; soundEnd?: number;
+}
+interface ScoreXmlNote extends AnNote { hand: AnHand | null; part: number; staff: number; voice: number; type: string; art: ScoreNoteArticulation; arpeggiate: boolean; }
+interface AnParsedNote { midi: number; start: number; end: number; vel: number; track: number; channel: number; srcHand?: AnHand; }
+type AnMidiMeta = { type: 'tempo'; beat: number; bpm: number } | { type: 'time'; beat: number; num: number; den: number } | AnMidiKeyMeta;
+interface AnMidiKeyMeta { type: 'key'; beat: number; fifths: number; minor: boolean; }
+interface AnParsedMidi { ppq: number; format: number; tracks: number; names: string[]; meta: AnMidiMeta[]; notes: AnParsedNote[]; }
+interface ScoreXmlLayout {
+    base: number; width: number; pageWidth: number; pageHeight: number;
+    left?: number; right?: number; top?: number; bottom?: number;
+    titleSize?: number; subtitleSize?: number; composerSize?: number;
+    titleRuns?: { text: string | null; style: string; weight: string }[];
+    staffGap?: number | null; systemGap?: number | null;
+}
+interface ScoreMeasure { number: string; start: number; end: number; num: number; den: number; }
+interface ScoreXmlKey { beat: number; fifths: number; mode: 'major' | 'minor' | null; }
+interface ScoreXmlLink { kind: string; a: number; b: number; style: string; }
+type AnSource =
+    | { kind: 'xml'; title: string; label: string; xml: string; layout: ScoreXmlLayout | null; notes: ScoreXmlNote[]; tempos: { beat: number; bpm: number }[]; measures: ScoreMeasure[]; keys: ScoreXmlKey[]; links: ScoreXmlLink[] }
+    | { kind: 'midi'; title: string; label: string; parsed: AnParsedMidi; comp?: undefined }
+    | { kind: 'example'; id: string; title: string; label: string; comp: string; parsed: AnParsedMidi };
+type AnHandAssignment =
+    | { of: AnHand[]; how: 'split' | 'one' | 'fallback'; split: number }
+    | { of: AnHand[]; how: 'piece' }
+    | { of: AnHand[]; how: 'tracks'; groups: number };
+// Everything the analysis workspace shows for one scope (see anCompute).
+interface AnAnalysisModel {
+    ns: AnNote[]; lo: number; hi: number; pitches: number[]; poly: { avg: number; max: number }; implied: boolean; segs: AnHarmonySeg[]; ms: ScoreMeasure[];
+    beats: number; onsets: number; tempos: number[]; hands: string; rh: number; lh: number; key: { best: theory.KeyRank; alts: theory.KeyRank[]; conf: string };
+    mainKey: theory.KeySignature; motifs: AnMotif[]; seconds: number;
+}
+interface AnState {
+    notes: AnNote[]; selected: Set<number>; active: { kind: string; k: number } | null; source: AnSource | null; recon: { hands: string; grid: number; key: string };
+    hands: AnHandAssignment | null; keyMap: (theory.KeySignature & { beat: number })[]; keyOrigin: string; index: Map<AnNote, number>; version: number;
+    cache: Map<string, AnAnalysisModel>; view: AnAnalysisModel | null; wsSig: string; rove: number; playSeg: number; playSig: string; kbCenter: boolean;
+    kbApplied: Map<number, string>; error: { k: string; a: string | number | undefined } | null; loading: boolean; loadToken: number;
+    liveT?: ReturnType<typeof setTimeout>; pinRaf?: number;
+}
+const AN: AnState = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
 const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000, AN_PRACTICE_BARS = 32, AN_EXAMPLES = ['minuet', 'elise', 'ode', 'twinkle', 'jingle'];
-function anError(code: string, detail: string|undefined) { const e = new Error(detail || code); e.code = code; return e; }
-function tl(L: string, k: string, a: string|null, b: string|null|undefined) { let v = (STRINGS[L] && STRINGS[L][k] != null) ? STRINGS[L][k] : STRINGS.en[k]; if (v == null)
+function anError(code: string, detail?: string) { const e = Object.assign(new Error(detail || code), { code }); return e; }
+function tl(L: string, k: string, a?: string|number|null, b?: string|number|null) { const own = L === 'en' || L === 'ro' ? STRINGS[L] : undefined; let v = (own && own[k] != null) ? own[k] : STRINGS.en[k]; if (v == null)
     return k; if (a != null)
-    v = v.replace('%s', a).replace('%a', a); if (b != null)
-    v = v.replace('%b', b); return v; }
-function anParse(buffer: any) {
+    v = v.replace('%s', String(a)).replace('%a', String(a)); if (b != null)
+    v = v.replace('%b', String(b)); return v; }
+function anParse(buffer: ArrayBuffer) {
     const a = new Uint8Array(buffer), v = new DataView(buffer);
     let pos = 0;
     const need = (n: number) => { if (n < 0 || pos + n > a.length)
@@ -8589,7 +8636,7 @@ function anParse(buffer: any) {
         throw anError('midi', 'format');
     need(len - 6);
     pos += len - 6;
-    const notes = [], meta = [], names = [];
+    const notes: AnParsedNote[] = [], meta: AnMidiMeta[] = [], names: string[] = [];
     for (let ti = 0; ti < tracks; ti++) {
         if (tag() !== 'MTrk')
             throw anError('midi', 'track');
@@ -8597,10 +8644,10 @@ function anParse(buffer: any) {
         need(size);
         const end = pos + size;
         let tick = 0, running = 0;
-        const active = new Map();
+        const active = new Map<string, { start: number; midi: number; vel: number }[]>();
         while (pos < end) {
             tick += vlq();
-            let status = u8(), first = null;
+            let status = u8(), first: number | null = null;
             if (status < 128) {
                 if (!running)
                     throw anError('midi', 'running');
@@ -8645,15 +8692,18 @@ function anParse(buffer: any) {
                 if (ch !== 9 && (cmd === 144 || cmd === 128)) {
                     const k = ch + ':' + d1;
                     if (cmd === 144 && d2 > 0) {
-                        if (!active.has(k))
-                            active.set(k, []);
-                        active.get(k).push({ start: tick, midi: d1, vel: d2 });
+                        let q = active.get(k);
+                        if (!q) {
+                            q = [];
+                            active.set(k, q);
+                        }
+                        q.push({ start: tick, midi: d1, vel: d2 });
                     }
                     else {
                         const q = active.get(k);
                         if (q && q.length) {
                             const n = q.shift();
-                            if (tick > n.start)
+                            if (n && tick > n.start)
                                 notes.push({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: ch });
                             if (notes.length > AN_MAX_NOTES)
                                 throw anError('notes');
@@ -8676,9 +8726,9 @@ function anParse(buffer: any) {
     return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes: notes.sort((x, y) => x.start - y.start || x.midi - y.midi) };
 }
 // Built-in pieces become the same parsed structure as a MIDI file: one "track" per hand, beats in quarter notes.
-function anPieceToParsed(p: { id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; lh: (string|number)[][]; rh?: undefined; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; rh: (string|number)[][]; lh: (string|number)[][]; minor?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number; rh: (string|number)[][]; lh?: undefined; pickup?: undefined; }|{ id: string; t: { en: string; ro: string; }; comp: string; level: number; keyN: number; ts: number[]; bpm: number; pickup: number; rh: (string|number)[][]; lh?: undefined; minor?: undefined; }) {
-    const cap = p.ts[1] === 8 ? p.ts[0] * 0.5 : p.ts[0] * 4 / p.ts[1], shift = p.pickup ? (cap - p.pickup) % cap : 0, notes: { midi: any; start: any; end: any; vel: number; track: string|number; channel: string|number; srcHand: string|number; }[] = [];
-    [['rh', 0], ['lh', 1]].forEach(([hand, track] = []) => { if (!p[hand])
+function anPieceToParsed(p: (typeof PIECES)[number]): AnParsedMidi {
+    const cap = p.ts[1] === 8 ? p.ts[0] * 0.5 : p.ts[0] * 4 / p.ts[1], shift = p.pickup ? (cap - p.pickup) % cap : 0, notes: AnParsedNote[] = [];
+    ([['rh', 0], ['lh', 1]] as const).forEach(([hand, track]) => { if (!p[hand])
         return; srEvents(p[hand]).ev.forEach((e) => { if (!e.rest)
         notes.push({ midi: e.midi, start: e.beat + shift, end: e.beat + shift + e.dur, vel: hand === 'rh' ? 92 : 74, track, channel: track, srcHand: hand }); }); });
     notes.sort((x, y) => x.start - y.start || x.midi - y.midi);
@@ -8689,18 +8739,18 @@ function anPieceToParsed(p: { id: string; t: { en: string; ro: string; }; comp: 
 const KEY_MAJ_FIFTHS = { 0: 0, 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: -5, 8: -4, 3: -3, 10: -2, 5: -1 }, LETTER_PC = [0, 2, 4, 5, 7, 9, 11];
 const LETTERS = { letter: ['C', 'D', 'E', 'F', 'G', 'A', 'B'], solfege: ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'], german: ['C', 'D', 'E', 'F', 'G', 'A', 'H'] };
 // B-flat is B in German; B-natural and other alterations use H.
-function spelledName(sys: string, li: number, acc: number, ascii = false) { if (sys === 'german' && li === 6 && acc === -1)
+function spelledName(sys: theory.NoteSystem, li: number, acc: number, ascii = false) { if (sys === 'german' && li === 6 && acc === -1)
     return 'B'; const symbols = ascii ? ['bb', 'b', '', '#', '##'] : ['𝄫', '♭', '', '♯', '𝄪']; return LETTERS[sys][li] + (symbols[acc + 2] || ''); }
-function anKeyName(k: theory.KeyRank) { const f = k.fifths != null ? k.fifths : keyFifths(k.root, k.minor), s = spellMidi(60 + k.root, f, k.minor); return spelledName(notation, s.li, s.acc, true) + ' ' + t(k.minor ? 'an_minor' : 'an_major'); }
+function anKeyName(k: theory.KeySignature) { const f = k.fifths != null ? k.fifths : keyFifths(k.root, k.minor), s = spellMidi(60 + k.root, f, k.minor); return spelledName(notation, s.li, s.acc, true) + ' ' + t(k.minor ? 'an_minor' : 'an_major'); }
 // Key-aware spelling: diatonic notes follow the signature, minor keys raise 6/7 on their own letters, other notes take the key's accidental direction.
 function anKeyAt(beat: number) { const ks = AN.keyMap; if (!ks.length)
     return { root: 0, minor: false, fifths: 0 }; let k = ks[0]; for (const x of ks)
     if (x.beat <= beat + 1e-6)
         k = x; return k; }
-function spellName(m: number, key: { root: number; minor: boolean; fifths: number; }|null, withOct: boolean|undefined) { const k = key || anKeyAt(0), s = spellMidi(m, k.fifths, k.minor); return spelledName(notation, s.li, s.acc, true) + (withOct ? s.oct : ''); }
+function spellName(m: number, key: theory.KeySignature|null, withOct?: boolean) { const k = key || anKeyAt(0), s = spellMidi(m, k.fifths, k.minor); return spelledName(notation, s.li, s.acc, true) + (withOct ? s.oct : ''); }
 // Krumhansl–Kessler key profiles: unlike plain scale coverage, they tell a major key from its relative minor.
 const AN_PROFILE = { maj: [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88], min: [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17] };
-function anKeyInfo(ns: string|any[]|readonly theory.TheoryNote[]) {
+function anKeyInfo(ns: readonly theory.TheoryNote[]) {
     const ranks = anKeyRank(ns), best = ranks[0], margin = best.score - ranks[1].score;
     const conf = ns.length < 12 ? 'low' : best.score >= 0.75 && margin >= 0.08 ? 'high' : best.score >= 0.6 && margin >= 0.03 ? 'medium' : 'low';
     return { best, alts: ranks.slice(1, 4), conf };
@@ -8710,7 +8760,8 @@ function anKeyInfo(ns: string|any[]|readonly theory.TheoryNote[]) {
 // a power chord); x: a seventh chord (figures ⁷ ⁶₅ ⁴₃ ⁴₂); dom: the dominant-seventh family; ext: tones that must clearly sound for
 // the richer reading (a sixth chord needs its fifth as well, or it is a triad in first inversion); cx: a small cost of the richer
 // reading; rn: suffix after the Roman numeral; n9: a ninth chord.
-const AN_CHORDS = [{ s: '', q: 'M', p: [0, 4, 7] }, { s: 'm', q: 'm', p: [0, 3, 7] }, { s: '°', q: 'd', p: [0, 3, 6], cx: .05 }, { s: '+', q: 'A', p: [0, 4, 8], cx: .1 },
+interface AnChordTemplate { s: string; q: string; p: number[]; cx?: number; rn?: string; ext?: number[]; x?: number; dom?: number; n9?: number; }
+const AN_CHORDS: AnChordTemplate[] = [{ s: '', q: 'M', p: [0, 4, 7] }, { s: 'm', q: 'm', p: [0, 3, 7] }, { s: '°', q: 'd', p: [0, 3, 6], cx: .05 }, { s: '+', q: 'A', p: [0, 4, 8], cx: .1 },
     { s: 'sus2', q: 'S', p: [0, 2, 7], cx: .1, rn: 'sus2' }, { s: 'sus4', q: 'S', p: [0, 5, 7], cx: .08, rn: 'sus4' }, { s: '5', q: 'P', p: [0, 7], cx: .06, rn: '5' },
     { s: '6', q: 'M', p: [0, 4, 7, 9], ext: [9, 7], cx: .09, rn: 'add6' }, { s: 'm6', q: 'm', p: [0, 3, 7, 9], ext: [9, 7], cx: .11, rn: 'add6' },
     { s: '7', q: 'M', p: [0, 4, 7, 10], x: 1, dom: 1, ext: [10], cx: .04 }, { s: 'maj7', q: 'M', p: [0, 4, 7, 11], x: 1, ext: [11], cx: .07 }, { s: 'm7', q: 'm', p: [0, 3, 7, 10], x: 1, ext: [10], cx: .05 },
@@ -8719,14 +8770,14 @@ const AN_CHORDS = [{ s: '', q: 'M', p: [0, 4, 7] }, { s: 'm', q: 'm', p: [0, 3, 
     { s: '9', q: 'M', p: [0, 4, 7, 10, 2], x: 1, dom: 1, ext: [10, 2], cx: .11, n9: 1 }, { s: 'm9', q: 'm', p: [0, 3, 7, 10, 2], x: 1, ext: [10, 2], cx: .13, n9: 1 },
     { s: 'maj9', q: 'M', p: [0, 4, 7, 11, 2], x: 1, ext: [11, 2], cx: .14, n9: 1 }, { s: '7♭5', q: 'M', p: [0, 4, 6, 10], x: 1, dom: 1, ext: [6, 10], cx: .15, rn: '♭5' },
     { s: '7♯5', q: 'A', p: [0, 4, 8, 10], x: 1, dom: 1, ext: [8, 10], cx: .15 }];
-const anDomQ = (c: { dom: any; q: string; s: string; }) => !!c.dom || c.q === 'M' && !/maj|6/.test(c.s); // can act as V or V/x: a major triad, add9 or the dominant family
+const anDomQ = (c: AnChordTemplate) => !!c.dom || c.q === 'M' && !/maj|6/.test(c.s); // can act as V or V/x: a major triad, add9 or the dominant family
 // The chord member in the bass: 1 third, 2 fifth, 3 seventh; suspended and power chords, and an added tone in the bass, count as 0.
-function anInv(seg: { ch: { c: any; root: number; }; bass: number; }) { const c = seg.ch.c, iv = ((seg.bass - seg.ch.root) % 12 + 12) % 12; return c.q === 'S' || c.q === 'P' ? 0 : iv === c.p[1] ? 1 : iv === c.p[2] ? 2 : c.x && iv === c.p[3] ? 3 : 0; }
+function anInv(seg: { ch: { c: AnChordTemplate; root: number; }; bass: number|null; }) { const c = seg.ch.c, iv = (((seg.bass ?? 0) - seg.ch.root) % 12 + 12) % 12; return c.q === 'S' || c.q === 'P' ? 0 : iv === c.p[1] ? 1 : iv === c.p[2] ? 2 : c.x && iv === c.p[3] ? 3 : 0; }
 // The key's diatonic triads (with V and vii° in minor) and V7.
-function anMeasures() { if (SCORE.measures && SCORE.measures.length)
-    return SCORE.measures; const end = AN.notes.length ? Math.max(...AN.notes.map((n) => n.end)) : 0, out = []; for (let s = 0, i = 1; s < end; s += 4, i++)
+function anMeasures(): ScoreMeasure[] { if (SCORE.measures && SCORE.measures.length)
+    return SCORE.measures; const end = AN.notes.length ? Math.max(...AN.notes.map((n) => n.end)) : 0, out: ScoreMeasure[] = []; for (let s = 0, i = 1; s < end; s += 4, i++)
     out.push({ number: String(i), start: s, end: s + 4, num: 4, den: 4 }); return out; }
-function anBeatUnit(m: { number?: string; start?: number; end?: number; num: any; den: any; }) { return m.den === 8 && m.num % 3 === 0 ? 1.5 : 4 / m.den; }
+function anBeatUnit(m: { num: number; den: number; }) { return m.den === 8 && m.num % 3 === 0 ? 1.5 : 4 / m.den; }
 function anMeasureAt(beat: number) { const ms = anMeasures(); let m = ms[0]; for (const x of ms) {
     if (x.start <= beat + 1e-6)
         m = x;
@@ -8734,11 +8785,11 @@ function anMeasureAt(beat: number) { const ms = anMeasures(); let m = ms[0]; for
         break;
 } return m; }
 // Time-weighted texture: how many notes sound together while anything sounds, and the peak.
-function anPoly(ns: any[]) {
-    const ev: any[][] = [];
-    ns.forEach((n: { start: any; end: any; }) => { ev.push([n.start, 1]); ev.push([n.end, -1]); });
+function anPoly(ns: readonly { start: number; end: number; }[]) {
+    const ev: [number, number][] = [];
+    ns.forEach((n) => { ev.push([n.start, 1]); ev.push([n.end, -1]); });
     ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    let c = 0, last = null, area = 0, on = 0, max = 0;
+    let c = 0, last: number | null = null, area = 0, on = 0, max = 0;
     for (const [x, d] of ev) {
         if (last != null && c > 0) {
             area += c * (x - last);
@@ -8751,38 +8802,41 @@ function anPoly(ns: any[]) {
     return { avg: on ? area / on : 0, max };
 }
 // The nearest note before and after each note within its own voice (part or track, and hand).
-function anVoiceNeighbors(ns: any[]) {
-    const groups = new Map(), out = new Map(), key = (n: { part: any; track: any; }) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n);
-    ns.forEach((n: any) => { const k = key(n); if (!groups.has(k))
-        groups.set(k, []); groups.get(k).push(n); });
+interface AnVoiceNeighbors { prev: AnNote|null|undefined; next: AnNote|null|undefined; }
+function anVoiceNeighbors(ns: readonly AnNote[]) {
+    const groups = new Map<string, AnNote[]>(), out = new Map<AnNote, AnVoiceNeighbors>(), key = (n: AnNote) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n);
+    ns.forEach((n) => { const k = key(n); let list = groups.get(k); if (!list) {
+        list = [];
+        groups.set(k, list);
+    } list.push(n); });
     groups.forEach((notes) => {
-        const onsets: any[] = [];
-        notes.slice().sort((a: { start: number; midi: number; }, b: { start: number; midi: number; }) => a.start - b.start || a.midi - b.midi).forEach((n: { start: number; }) => { let g = onsets[onsets.length - 1]; if (!g || Math.abs(g.start - n.start) > .001) {
+        const onsets: { start: number; notes: AnNote[]; }[] = [];
+        notes.slice().sort((a, b) => a.start - b.start || a.midi - b.midi).forEach((n) => { let g = onsets[onsets.length - 1]; if (!g || Math.abs(g.start - n.start) > .001) {
             g = { start: n.start, notes: [] };
             onsets.push(g);
         } g.notes.push(n); });
-        onsets.forEach((g, i) => g.notes.forEach((n: { midi: number; }) => {
-            const nearest = (a: { notes: any[]; }) => a && a.notes.reduce((best: { midi: number; }, x: { midi: number; }) => !best || Math.abs(x.midi - n.midi) < Math.abs(best.midi - n.midi) ? x : best, null);
+        onsets.forEach((g, i) => g.notes.forEach((n) => {
+            const nearest = (a: { notes: AnNote[]; }|undefined) => a && a.notes.reduce<AnNote|null>((best, x) => !best || Math.abs(x.midi - n.midi) < Math.abs(best.midi - n.midi) ? x : best, null);
             out.set(n, { prev: nearest(onsets[i - 1]), next: nearest(onsets[i + 1]) });
         }));
     });
     return out;
 }
-function anClassifyNonChord(ns: any, segs: any[]) {
-    const around = anVoiceNeighbors(ns), eps = 1e-6, step = (a: { midi: number; }, b: { midi: number; }) => a && b && Math.abs(a.midi - b.midi) > 0 && Math.abs(a.midi - b.midi) <= 2;
-    segs.forEach((seg: { ch: { tones: Iterable<unknown>|null|undefined; }; end: number; start: number; nct: { note: any; index: any; type: string; }[]; notes: any[]; }, si: number) => {
-        const tones = new Set(seg.ch.tones), nextSeg = segs[si + 1], nextTones = nextSeg && new Set(nextSeg.ch.tones), span = seg.end - seg.start, seen = new Set();
-        seg.nct = [];
-        seg.notes.forEach((n: { midi: number; start: number; end: number; }) => {
+function anClassifyNonChord(ns: readonly AnNote[], segs: AnHarmonySeg[]) {
+    const around = anVoiceNeighbors(ns), eps = 1e-6, step = (a: AnNote|null|undefined, b: AnNote|null|undefined) => a && b && Math.abs(a.midi - b.midi) > 0 && Math.abs(a.midi - b.midi) <= 2;
+    segs.forEach((seg, si: number) => {
+        const tones = new Set(seg.ch.tones), nextSeg: AnHarmonySeg|undefined = segs[si + 1], nextTones = nextSeg && new Set(nextSeg.ch.tones), span = seg.end - seg.start, seen = new Set<number|undefined>();
+        const nct: AnNonChordTone[] = seg.nct = [];
+        seg.notes.forEach((n) => {
             const idx = AN.index.get(n);
             if (tones.has(pc(n.midi)) || seen.has(idx))
                 return;
             seen.add(idx);
-            const ctx = around.get(n) || {}, prev = ctx.prev, next = ctx.next, prevTone = prev && tones.has(pc(prev.midi)), nextTone = next && tones.has(pc(next.midi));
+            const ctx = around.get(n) || { prev: undefined, next: undefined }, prev = ctx.prev, next = ctx.next, prevTone = prev && tones.has(pc(prev.midi)), nextTone = next && tones.has(pc(next.midi));
             let type = 'other';
             if (n.start < seg.start - eps && next && next.start >= seg.start - eps && next.start < seg.end + eps && step(n, next) && nextTone)
                 type = 'suspension';
-            else if (nextSeg && n.start >= seg.end - Math.max(.25, span * .45) && nextTones.has(pc(n.midi)) && (n.end > seg.end + eps || (next && pc(next.midi) === pc(n.midi))))
+            else if (nextTones && n.start >= seg.end - Math.max(.25, span * .45) && nextTones.has(pc(n.midi)) && (n.end > seg.end + eps || (next && pc(next.midi) === pc(n.midi))))
                 type = 'anticipation';
             else if (prev && next && step(prev, n) && step(n, next) && prevTone && nextTone) {
                 if (prev.midi === next.midi)
@@ -8790,7 +8844,7 @@ function anClassifyNonChord(ns: any, segs: any[]) {
                 else if (Math.sign(n.midi - prev.midi) === Math.sign(next.midi - n.midi))
                     type = 'passing';
             }
-            seg.nct.push({ note: n, index: idx, type });
+            nct.push({ note: n, index: idx, type });
         });
     });
 }
@@ -8799,12 +8853,12 @@ function anClassifyNonChord(ns: any, segs: any[]) {
 // chord change must earn its cost, which is lower on the downbeat and the half bar and higher when the chords share tones. So
 // an arpeggio or Alberti bar stays one chord, while a real change on a beat still splits the bar.
 // Metric weight of a time point: the downbeat, the middle of an even bar, other beats, half beats, anything shorter.
-function anAccent(m: { number?: string; start: any; end: any; num?: number; den?: number; }, u: number, x: number) {
+function anAccent(m: { start: number; end: number; }, u: number, x: number) {
     const b = (x - m.start) / u, n = Math.round((m.end - m.start) / u), k = Math.round(b);
     return b < 1e-4 ? 1 : Math.abs(b - k) < 1e-4 ? (n % 2 === 0 && 2 * k === n ? .85 : .7) : Math.abs(2 * b - Math.round(2 * b)) < 1e-4 ? .55 : .45;
 }
 // Where a chord may change in a bar: on its beats (at least an eighth note apart); for a single line only at the half bar.
-function anGrid(m: { number?: string; start: any; end: any; num?: number; den?: number; }, implied: any) {
+function anGrid(m: ScoreMeasure, implied: boolean) {
     const len = m.end - m.start, u = anBeatUnit(m), eps = 1e-6;
     if (implied) {
         const half = len / 2;
@@ -8820,38 +8874,43 @@ function anGrid(m: { number?: string; start: any; end: any; num?: number; den?: 
 // voice, approached and left by step, off the strong beats). res: when a melodic note moves on by step. A step only counts when
 // one note gives way to the next (not two voices of a held chord), and a figure like the G–F–G of a G7 Alberti bass, framed by
 // leaps, is a broken chord rather than a neighbour note.
-function anNoteInfo(sorted: any[]) {
-    const around = anVoiceNeighbors(sorted), ms = anMeasures(), out = new Map(), count = new Map(), eps = 1e-6;
-    const vk = (n: { part: any; track: any; start: number; }) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n) + '|' + n.start.toFixed(3), d = (a: { midi: number; }, b: { midi: number; }) => a && b ? Math.abs(a.midi - b.midi) : 0;
-    const step = (a: { end: number; start: number; }, b: { start: number; }) => d(a, b) > 0 && d(a, b) <= 2 && a.end <= b.start + .125 && b.start > a.start;
-    sorted.forEach((n: any) => count.set(vk(n), (count.get(vk(n)) || 0) + 1));
+interface AnNoteWeight { acc: number; emb: number; res: number; }
+function anNoteInfo(sorted: readonly AnNote[]) {
+    const around = anVoiceNeighbors(sorted), ms = anMeasures(), out = new Map<AnNote, AnNoteWeight>(), count = new Map<string, number>(), eps = 1e-6;
+    const vk = (n: AnNote) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n) + '|' + n.start.toFixed(3), d = (a: AnNote|null|undefined, b: AnNote|null|undefined) => a && b ? Math.abs(a.midi - b.midi) : 0;
+    const step = (a: AnNote|null|undefined, b: AnNote|null|undefined) => !!a && !!b && d(a, b) > 0 && d(a, b) <= 2 && a.end <= b.start + .125 && b.start > a.start;
+    sorted.forEach((n) => count.set(vk(n), (count.get(vk(n)) || 0) + 1));
     let j = 0;
     for (const n of sorted) {
         while (j + 1 < ms.length && ms[j + 1].start <= n.start + eps)
             j++;
-        const m = ms[j], { prev, next } = around.get(n) || {}, alone = count.get(vk(n)) === 1;
+        const m = ms[j], { prev, next } = around.get(n) || { prev: undefined, next: undefined }, alone = count.get(vk(n)) === 1;
         if (!m) {
             out.set(n, { acc: 1, emb: 1, res: Infinity });
             continue;
         }
-        const fig = prev && next && prev.midi === next.midi && d((around.get(prev) || {}).prev, prev) > 2 && d(next, (around.get(next) || {}).next) > 2;
+        const fig = prev && next && prev.midi === next.midi && d((around.get(prev) || { prev: undefined }).prev, prev) > 2 && d(next, (around.get(next) || { next: undefined }).next) > 2;
         const u = anBeatUnit(m), acc = anAccent(m, u, n.start), on = alone && !fig && step(n, next);
-        out.set(n, { acc, emb: on && acc < .85 && n.end - n.start <= u + eps && step(prev, n) ? .4 : 1, res: on ? next.start : Infinity });
+        out.set(n, { acc, emb: on && acc < .85 && n.end - n.start <= u + eps && step(prev, n) ? .4 : 1, res: on && next ? next.start : Infinity });
     }
     return out;
 }
 // Weighted pitch classes per grid unit: sounding time × the metric weight of the onset (of the unit start for a held note) × the
 // passing-note factor. low: the bass at the start of the unit; held: pitch classes held over into it.
-function anUnits(m: { number?: string; start?: number; end: any; num?: number; den?: number; }, grid: string|any[], here: any[], info: Map<any,any>) {
-    const U = [], u = anBeatUnit(m), eps = 1e-6;
+interface AnUnit { s: number; e: number; w: number[]; res: [number, number, number][]; T: number; held: number; low: number|null; }
+function anUnits(m: ScoreMeasure, grid: readonly number[], here: readonly AnNote[], info: Map<AnNote, AnNoteWeight>) {
+    const U: AnUnit[] = [], u = anBeatUnit(m), eps = 1e-6;
     for (let i = 0; i + 1 < grid.length; i++) {
-        const s = grid[i], e = grid[i + 1], w = Array(12).fill(0), res = [], acc = anAccent(m, u, s);
-        let T = 0, low = null, any = null, held = 0;
+        const s = grid[i], e = grid[i + 1], w: number[] = Array(12).fill(0), res: [number, number, number][] = [], acc = anAccent(m, u, s);
+        let T = 0, low: number|null = null, any: number|null = null, held = 0;
         for (const n of here) {
             const d = Math.min(n.end, e) - Math.max(n.start, s);
             if (d <= eps)
                 continue;
-            const f = info.get(n), p = pc(n.midi), x = d * (n.start < s - eps ? acc : f.acc) * f.emb;
+            const f = info.get(n);
+            if (!f)
+                continue;
+            const p = pc(n.midi), x = d * (n.start < s - eps ? acc : f.acc) * f.emb;
             w[p] += x;
             T += x;
             if (f.res < m.end - eps)
@@ -8869,9 +8928,11 @@ function anUnits(m: { number?: string; start?: number; end: any; num?: number; d
 }
 // Units a..b-1 together. sw leaves out melodic notes that move on by step inside the span: they cannot be the colour tone
 // (sixth, seventh, ninth) or the suspended tone a richer chord name needs.
-function anSpan(U: { e: any; }[], a: number, b: number) {
-    const w = Array(12).fill(0), sw = Array(12).fill(0), e = U[b - 1].e;
-    let T = 0, bass = null;
+interface AnSpanReading { a: number; b: number; s: number; e: number; w: number[]; sw: number[]; T: number; bass: number|null; all?: AnChordReading[]; }
+type AnSpanChoice = AnSpanReading & { all: AnChordReading[]; };
+function anSpan(U: readonly AnUnit[], a: number, b: number): AnSpanReading {
+    const w: number[] = Array(12).fill(0), sw: number[] = Array(12).fill(0), e = U[b - 1].e;
+    let T = 0, bass: number|null = null;
     for (let i = a; i < b; i++) {
         const u = U[i];
         T += u.T;
@@ -8890,8 +8951,9 @@ function anSpan(U: { e: any; }[], a: number, b: number) {
 // How well one template explains a span; cover is the share of the weighted notes that are chord tones. The root must sound
 // clearly, the tone that fixes the quality must sound and colour tones must sound clearly; of the rest only a triad's fifth may be
 // missing. Suspended and power chords need the third to be absent. complete: every chord tone sounds.
-function anFit(S: { w: any; T: any; sw: number[]; bass: any; }, root: string|number, c: { s: string; q: string; p: number[]; cx?: undefined; rn?: undefined; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; cx: number; rn?: undefined; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; cx: number; rn: string; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; ext: number[]; cx: number; rn: string; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; rn?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; rn?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; rn: string; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; n9: number; rn?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; n9: number; rn?: undefined; dom?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; rn: string; n9?: undefined; }, dia: Set<string>) {
-    const w = S.w, T = S.T, tones = c.p.map((i: any) => (root + i) % 12);
+interface AnChordReading { root: number; c: AnChordTemplate; tones: number[]; cover: number; complete: boolean; fit: number; }
+function anFit(S: AnSpanReading, root: number, c: AnChordTemplate, dia: Set<string>): AnChordReading|null {
+    const w = S.w, T = S.T, tones = c.p.map((i) => (root + i) % 12);
     if (!(w[root] >= .05 * T && w[tones[1]] > 0))
         return null;
     if ((c.q === 'S' || c.q === 'P') && (Math.max(w[(root + 3) % 12], w[(root + 4) % 12]) > .03 * T || c.q === 'S' && S.sw[tones[1]] < .04 * T))
@@ -8909,19 +8971,21 @@ function anFit(S: { w: any; T: any; sw: number[]; bass: any; }, root: string|num
                 return null;
         }
     let cw = 0;
-    tones.forEach((p: string|number) => { cw += w[p]; });
+    tones.forEach((p) => { cw += w[p]; });
     const cover = cw / T;
     if (cover < .5)
         return null;
-    return { root, c, tones, cover, complete: !miss, fit: 2 * cover - 1 - (c.cx || 0) - miss + (S.bass === root ? .06 : tones.includes(S.bass) ? 0 : -.06) + (dia.has(root + ':' + c.s) ? .02 : 0) };
+    return { root, c, tones, cover, complete: !miss, fit: 2 * cover - 1 - (c.cx || 0) - miss + (S.bass === root ? .06 : S.bass != null && tones.includes(S.bass) ? 0 : -.06) + (dia.has(root + ':' + c.s) ? .02 : 0) };
 }
 // A single line only implies harmony, so it is matched against the key's chords (with V and vii° in minor).
 function anFitImplied(S: { T: number; w: number[]; }, key: theory.KeySignature) {
-    const out: { root: number; c: { s: string; q: string; p: number[]; cx?: undefined; rn?: undefined; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; cx: number; rn?: undefined; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; cx: number; rn: string; ext?: undefined; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; ext: number[]; cx: number; rn: string; x?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; rn?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; rn?: undefined; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; rn: string; dom?: undefined; n9?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; n9: number; rn?: undefined; }|{ s: string; q: string; p: number[]; x: number; ext: number[]; cx: number; n9: number; rn?: undefined; dom?: undefined; }|{ s: string; q: string; p: number[]; x: number; dom: number; ext: number[]; cx: number; rn: string; n9?: undefined; }|undefined; tones: number[]; cover: number; complete: boolean; fit: number; }[] = [];
+    const out: AnChordReading[] = [];
     if (!(S.T > 0))
         return out;
     for (const d of anDiatonic(key, AN_CHORDS)) {
         const chord = d.c;
+        if (!chord)
+            continue;
         const tones = chord.p.map((i) => (d.root + i) % 12);
         if (!(S.w[d.root] > 0) || tones.filter((p) => S.w[p] > 0).length < 2 || chord.x && !(S.w[tones[3]] > 0))
             continue;
@@ -8934,11 +8998,11 @@ function anFitImplied(S: { T: number; w: number[]; }, key: theory.KeySignature) 
     }
     return out.sort((a, b) => b.fit - a.fit);
 }
-function anCands(S: { a?: any; b?: any; s: any; e?: any; w: any; sw?: any[]; T: any; bass?: number|null; }, implied: any) {
+function anCands(S: AnSpanReading, implied: boolean) {
     const key = anKeyAt(S.s);
     if (implied)
         return anFitImplied(S, key);
-    const dia = new Set(anDiatonic(key, AN_CHORDS).map((d) => d.root + ':' + d.c.s)), out = [];
+    const dia = new Set(anDiatonic(key, AN_CHORDS).map((d) => d.root + ':' + d.c?.s)), out: AnChordReading[] = [];
     if (S.T > 0)
         for (let r = 0; r < 12; r++)
             if (S.w[r] > 0)
@@ -8952,13 +9016,13 @@ function anCands(S: { a?: any; b?: any; s: any; e?: any; w: any; sw?: any[]; T: 
 // A rich chord over a long span may be two harmonies in a row (C then G reads as Cmaj9). When the span splits into two parts whose
 // best readings are complete chords, neither holding the other, the rich reading loses the weight of the smaller part. A part that
 // already reads as the rich chord, and the upper three notes of a dominant seventh (B–D–F of G7), do not count as another chord.
-function anUnion(sp: never[][], a: number, b: number) {
-    const S = sp[a][b], id = (tones: any[]) => tones.slice().sort((p: number, q: number) => p - q).join(), within = (y: { tones: any[]; }, x: { tones: string|any[]; }) => y.tones.every((p: any) => x.tones.includes(p));
+function anUnion(sp: AnSpanChoice[][], a: number, b: number) {
+    const S = sp[a][b], id = (tones: number[]) => tones.slice().sort((p, q) => p - q).join(), within = (y: AnChordReading, x: AnChordReading) => y.tones.every((p) => x.tones.includes(p));
     let hit = false;
     for (const X of S.all) {
         if (X.tones.length < 4)
             continue;
-        const up = X.c.dom ? id(X.tones.slice(1)) : '', top = (Z: { all: any[]; }) => { const y = Z.all[0]; return y && y.complete && y.cover >= .75 && !within(X, y) && id(y.tones) !== up ? y : null; };
+        const up = X.c.dom ? id(X.tones.slice(1)) : '', top = (Z: AnSpanChoice) => { const y: AnChordReading|undefined = Z.all[0]; return y && y.complete && y.cover >= .75 && !within(X, y) && id(y.tones) !== up ? y : null; };
         let pen = 0;
         for (let k = a + 1; k < b; k++) {
             const y = top(sp[a][k]), z = top(sp[k][b]);
@@ -8971,23 +9035,29 @@ function anUnion(sp: never[][], a: number, b: number) {
         }
     }
     if (hit)
-        S.all.sort((x: { fit: number; }, y: { fit: number; }) => y.fit - x.fit);
+        S.all.sort((x, y) => y.fit - x.fit);
 }
 // How sure a reading is. exact: every chord tone sounds, little else does and no other chord comes close. likely: the best
 // reading, though a tone is missing, other notes sound or a rival is near. suggested: ambiguous, or implied by a single line.
-function anRate(x: { fit: number; complete: any; cover: number; root: any; c: any; tones: any; }, all: any[], implied: any) {
-    const id = (y: { tones: any[]; }) => y.tones.slice().sort((p: number, q: number) => p - q).join(), own = id(x), rival = all.find((y: any) => id(y) !== own), margin = rival ? x.fit - rival.fit : 1;
+interface AnRatedChord extends AnChordReading { margin: number; det: string; conf: string; alts: AnChordReading[]; }
+function anRate(x: AnChordReading, all: AnChordReading[], implied: boolean): AnRatedChord {
+    const id = (y: AnChordReading) => y.tones.slice().sort((p, q) => p - q).join(), own = id(x), rival = all.find((y) => id(y) !== own), margin = rival ? x.fit - rival.fit : 1;
     const det = implied ? 'suggested' : x.complete && x.cover >= .8 && margin >= .1 ? 'exact' : x.cover >= .6 && margin >= .04 ? 'likely' : 'suggested';
     return { root: x.root, c: x.c, tones: x.tones, cover: x.cover, fit: x.fit, complete: x.complete, margin, det,
         conf: det === 'exact' ? 'high' : det === 'likely' || implied && x.cover >= .75 && margin >= .1 ? 'medium' : 'low',
-        alts: all.filter((y: { root: any; c: any; fit: number; }) => !(y.root === x.root && y.c === x.c) && y.fit >= x.fit - .08).slice(0, 2) };
+        alts: all.filter((y) => !(y.root === x.root && y.c === x.c) && y.fit >= x.fit - .08).slice(0, 2) };
 }
-function anHarmony(ns: any[], implied: boolean) {
-    const out: { start: any; end: any; measure: any; unit: number; bass: any; ch: { root: any; c: any; tones: any; cover: any; fit: any; complete: any; margin: number; det: string; conf: string; alts: any; }; notes: any; }[] = [];
+interface AnNonChordTone { note: AnNote; index: number|undefined; type: string; }
+interface AnHarmonySeg { start: number; end: number; measure: ScoreMeasure; unit: number; bass: number|null; ch: AnRatedChord; notes: AnNote[]; nct?: AnNonChordTone[]; cad?: string; }
+interface AnHarmonyBar { m: ScoreMeasure; here: AnNote[]; U: AnUnit[]; n: number; Lmax: number; sp: AnSpanChoice[][]; M: number; }
+interface AnHarmonyPick { B: AnHarmonyBar; a: number; b: number; x: AnChordReading; }
+interface AnHarmonyState { v: number; cur: AnChordReading|null; back: AnHarmonyState|null; pick: AnHarmonyPick|null; }
+function anHarmony(ns: readonly AnNote[], implied: boolean) {
+    const out: AnHarmonySeg[] = [];
     if (!ns.length)
         return out;
-    const eps = 1e-6, sorted = ns.slice().sort((a: { start: number; midi: number; }, b: { start: number; midi: number; }) => a.start - b.start || a.midi - b.midi), info = anNoteInfo(sorted), lo = sorted[0].start, hi = Math.max(...ns.map((n: { end: any; }) => n.end));
-    const bars = [], active = [];
+    const eps = 1e-6, sorted = ns.slice().sort((a, b) => a.start - b.start || a.midi - b.midi), info = anNoteInfo(sorted), lo = sorted[0].start, hi = Math.max(...ns.map((n) => n.end));
+    const bars: AnHarmonyBar[] = [], active: AnNote[] = [];
     let k = 0;
     for (const m of anMeasures()) {
         if (m.end <= lo + eps || m.start >= hi - eps)
@@ -9000,11 +9070,10 @@ function anHarmony(ns: any[], implied: boolean) {
         const here = active.filter((n) => n.end > m.start + eps);
         if (!here.length)
             continue;
-        const U = anUnits(m, anGrid(m, implied), here, info), n = U.length, Lmax = n > 12 ? 8 : n, sp = U.map(() => []);
+        const U = anUnits(m, anGrid(m, implied), here, info), n = U.length, Lmax = n > 12 ? 8 : n, sp = U.map((): AnSpanChoice[] => []);
         for (let L = 1; L <= Lmax; L++)
             for (let a = 0; a + L <= n; a++) {
-                const S = anSpan(U, a, a + L);
-                S.all = anCands(S, implied);
+                const span = anSpan(U, a, a + L), S = Object.assign(span, { all: anCands(span, implied) });
                 sp[a][a + L] = S;
                 if (L > 1 && !implied)
                     anUnion(sp, a, a + L);
@@ -9014,16 +9083,16 @@ function anHarmony(ns: any[], implied: boolean) {
     // Viterbi over spans. A state is the chord in force; a span either names a chord (scored by its weight × fit) or is left without
     // one, which scores like a very poor fit. A change costs a share of the bar's mean unit weight: least on the downbeat, then the
     // half bar, then other beats, and more when the chords share tones, or a shared tone is held across the change.
-    const same = (x: never, y: { root: any; c: any; }) => x && y && x.root === y.root && x.c === y.c;
-    const cost = (B: { m?: { number: string; start: number; end: number; num: number; den: number; }; here?: any[]; U: any; n: any; Lmax?: number; sp?: never[][]; M: any; }, a: number, y: never, x: { tones: any[]; }) => {
-        const common = x.tones.filter((p: any) => y.tones.includes(p)), held = common.some((p: number) => B.U[a].held >> p & 1);
+    const same = (x: AnChordReading|null, y: AnChordReading|null) => x && y && x.root === y.root && x.c === y.c;
+    const cost = (B: AnHarmonyBar, a: number, y: AnChordReading, x: AnChordReading) => {
+        const common = x.tones.filter((p) => y.tones.includes(p)), held = common.some((p) => B.U[a].held >> p & 1);
         return (a === 0 ? .2 : 2 * a === B.n ? .4 : .55) * B.M * (1 + .25 * common.length + (held ? .25 : 0));
     };
-    let states = [{ v: 0, cur: null, back: null, pick: null }];
+    let states: AnHarmonyState[] = [{ v: 0, cur: null, back: null, pick: null }];
     for (const B of bars) {
         const at = [states];
         for (let b = 1; b <= B.n; b++) {
-            const best = new Map();
+            const best = new Map<string, AnHarmonyState>();
             for (let a = Math.max(0, b - B.Lmax); a < b; a++) {
                 const S = B.sp[a][b], opts = [null, ...S.all.slice(0, 6)];
                 for (const st of at[a])
@@ -9041,12 +9110,12 @@ function anHarmony(ns: any[], implied: boolean) {
     let end = states[0];
     states.forEach((st) => { if (st.v > end.v)
         end = st; });
-    const picks: never[] = [];
-    for (let st = end; st; st = st.back)
+    const picks: AnHarmonyPick[] = [];
+    for (let st: AnHarmonyState|null = end; st; st = st.back)
         if (st.pick)
             picks.push(st.pick);
     picks.reverse();
-    const segs: any[] = [];
+    const segs: AnHarmonyPick[] = [];
     picks.forEach((p) => { const last = segs[segs.length - 1]; if (last && last.B === p.B && same(last.x, p.x))
         last.b = p.b;
     else
@@ -9057,15 +9126,15 @@ function anHarmony(ns: any[], implied: boolean) {
             g.a++;
         while (g.b - g.a > 1 && U[g.b - 1].low == null)
             g.b--;
-        const S = g.B.sp[g.a][g.b] || anSpan(U, g.a, g.b), all = S.all || (S.all = anCands(S, implied)), x = all.find((y: any) => same(y, g.x)) || g.x;
-        out.push({ start: S.s, end: S.e, measure: g.B.m, unit: anBeatUnit(g.B.m), bass: implied ? x.root : S.bass, ch: anRate(x, all, implied), notes: g.B.here.filter((n: { start: number; end: number; }) => n.start < S.e - eps && n.end > S.s + eps) });
+        const S = g.B.sp[g.a][g.b] || anSpan(U, g.a, g.b), all = S.all || (S.all = anCands(S, implied)), x = all.find((y) => same(y, g.x)) || g.x;
+        out.push({ start: S.s, end: S.e, measure: g.B.m, unit: anBeatUnit(g.B.m), bass: implied ? x.root : S.bass, ch: anRate(x, all, implied), notes: g.B.here.filter((n) => n.start < S.e - eps && n.end > S.s + eps) });
     }
     anClassifyNonChord(ns, out);
     return out;
 }
 // Minor-aware Roman numerals with inversion figures and secondary dominants (V/x).
 const AN_DIA = { maj: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'], min: ['i', 'ii°', 'III', 'iv', 'V', 'VI', 'vii°'] };
-function anRoman(key: { root: any; minor: any; fifths?: number; }, seg: { ch: any; }) {
+function anRoman(key: theory.KeySignature, seg: { ch: AnChordReading; bass: number|null; }) {
     const ch = seg.ch, c = ch.c, rel = ((ch.root - key.root) % 12 + 12) % 12, minor = key.minor, scale = minor ? [0, 2, 3, 5, 7, 8, 10] : MAJOR, q = c.q, inv = anInv(seg);
     const fig = c.x ? (c.n9 && !inv ? '⁹' : ['⁷', '⁶₅', '⁴₃', '⁴₂'][inv]) : ['', '⁶', '⁶₄'][inv] || '', mark = q === 'd' ? '°' : q === 'h' ? 'ø' : q === 'A' ? '+' : '', sfx = c.rn || '';
     const secondary = anDomQ(c) && (minor ? (rel === 2 || (rel === 0 && c.x)) : ([2, 4, 9, 11].includes(rel) || (rel === 0 && c.x)));
@@ -9074,7 +9143,7 @@ function anRoman(key: { root: any; minor: any; fifths?: number; }, seg: { ch: an
         if (target > 0)
             return 'V' + mark + fig + sfx + '/' + AN_DIA[minor ? 'min' : 'maj'][target].replace('°', '');
     }
-    let deg, acc = '';
+    let deg: number, acc = '';
     if (minor && rel === 11)
         deg = 6;
     else if (minor && rel === 9) {
@@ -9107,13 +9176,13 @@ function anRoman(key: { root: any; minor: any; fifths?: number; }, seg: { ch: an
     return acc + num + mark + fig + sfx;
 }
 // Possible cadences: dominant or subdominant resolving onto a downbeat, or a dominant closing the passage.
-function anCadences(segs: any[]) {
-    segs.forEach((b: { ch: { root: number; c: { q: string; }; }; start: number; measure: { start: number; end: number; }; cad: string; end: number; unit: number; }, i: number) => {
-        const a = segs[i - 1];
+function anCadences(segs: AnHarmonySeg[]) {
+    segs.forEach((b, i: number) => {
+        const a: AnHarmonySeg|undefined = segs[i - 1];
         if (!b.ch)
             return;
         const key = anKeyAt(b.start), rb = ((b.ch.root - key.root) % 12 + 12) % 12;
-        const down = Math.abs(b.start - b.measure.start) < 1e-6, isDom = (s: { ch: { root: number; c: any; }; }) => s && s.ch && ((s.ch.root - key.root) % 12 + 12) % 12 === 7 && anDomQ(s.ch.c);
+        const down = Math.abs(b.start - b.measure.start) < 1e-6, isDom = (s: AnHarmonySeg|undefined) => s && s.ch && ((s.ch.root - key.root) % 12 + 12) % 12 === 7 && anDomQ(s.ch.c);
         if (a && down && isDom(a) && rb === 0 && (b.ch.c.q === 'M' || b.ch.c.q === 'm'))
             b.cad = 'auth';
         else if (a && down && a.ch && ((a.ch.root - key.root) % 12 + 12) % 12 === 5 && (a.ch.c.q === 'M' || a.ch.c.q === 'm') && !a.ch.c.x && rb === 0)
@@ -9125,14 +9194,15 @@ function anCadences(segs: any[]) {
     });
 }
 // Motifs are searched on the top line (highest note per onset), so chords and the left hand do not scramble the melody.
-function anMotifs(ns: any[]) {
-    const tops = new Map();
-    ns.forEach((n: { start: number; midi: number; }) => { const k = n.start.toFixed(3), cur = tops.get(k); if (!cur || n.midi > cur.midi)
+interface AnMotif { iv: number[]; count: number; last: number; notes: AnNote[]; }
+function anMotifs(ns: readonly AnNote[]) {
+    const tops = new Map<string, AnNote>();
+    ns.forEach((n) => { const k = n.start.toFixed(3), cur = tops.get(k); if (!cur || n.midi > cur.midi)
         tops.set(k, n); });
     const a = [...tops.values()].sort((x, y) => x.start - y.start);
     if (a.length < 8)
         return [];
-    const map = new Map();
+    const map = new Map<string, AnMotif>();
     for (let i = 0; i + 3 < a.length; i++) {
         const iv = [1, 2, 3].map((j) => a[i + j].midi - a[i + j - 1].midi);
         if (iv.every((v) => !v))
@@ -9151,22 +9221,22 @@ function anMotifs(ns: any[]) {
     }
     return [...map.values()].filter((v) => v.count >= 2).sort((x, y) => y.count - x.count).slice(0, 4);
 }
-function anHandOf(n: never) { return n.hand || (n.midi >= 60 ? 'rh' : 'lh'); }
+function anHandOf(n: { hand?: AnHand|null; midi: number; }): AnHand { return n.hand || (n.midi >= 60 ? 'rh' : 'lh'); }
 // Everything the workspace shows for one scope; strings are produced at render time so language and notation can change.
-function anCompute(ns: never[], scopeKey: string) {
-    const ck = AN.version + '|' + scopeKey;
-    if (AN.cache.has(ck))
-        return AN.cache.get(ck);
-    const lo = Math.min(...ns.map((n: { start: any; }) => n.start)), hi = Math.max(...ns.map((n: { end: any; }) => n.end)), pitches = [...new Set(ns.map((n: { midi: any; }) => n.midi))].sort((a, b) => a - b);
+function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
+    const ck = AN.version + '|' + scopeKey, cached = AN.cache.get(ck);
+    if (cached)
+        return cached;
+    const lo = Math.min(...ns.map((n) => n.start)), hi = Math.max(...ns.map((n) => n.end)), pitches = [...new Set(ns.map((n) => n.midi))].sort((a, b) => a - b);
     const poly = anPoly(ns), implied = poly.avg < 1.25, segs = anHarmony(ns, implied);
     anCadences(segs);
     const ms = anMeasures().filter((m) => m.end > lo + 1e-6 && m.start < hi - 1e-6);
     let beats = 0;
     ms.forEach((m) => { const s = Math.max(lo, m.start), e = Math.min(hi, m.end); if (e > s)
         beats += (e - s) / anBeatUnit(m); });
-    const starts = ns.map((n: { start: any; }) => n.start).sort((a: number, b: number) => a - b);
+    const starts = ns.map((n) => n.start).sort((a, b) => a - b);
     let onsets = 0, prev = -Infinity;
-    starts.forEach((s: number) => { if (s - prev > 0.06)
+    starts.forEach((s) => { if (s - prev > 0.06)
         onsets++; prev = s; });
     const tAt = (b: number) => { let bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
         if (e.beat <= b + 1e-6)
@@ -9175,7 +9245,7 @@ function anCompute(ns: never[], scopeKey: string) {
             break;
     } return bpm; };
     const tempos = [tAt(lo), ...SCORE.tempoList.filter((e) => e.beat > lo + 1e-6 && e.beat < hi - 1e-6).map((e) => e.bpm)];
-    const hands = ns.some((n: { hand: any; }) => n.hand) ? 'hands' : 'register', rh = ns.filter((n: any) => anHandOf(n) === 'rh').length;
+    const hands = ns.some((n) => n.hand) ? 'hands' : 'register', rh = ns.filter((n) => anHandOf(n) === 'rh').length;
     const model = { ns, lo, hi, pitches, poly, implied, segs, ms, beats: Math.max(beats, 1e-6), onsets, tempos, hands, rh, lh: ns.length - rh,
         key: anKeyInfo(ns), mainKey: anKeyAt(lo), motifs: anMotifs(ns), seconds: scoreSeconds(hi) - scoreSeconds(lo) };
     if (AN.cache.size > 16)
@@ -9184,12 +9254,33 @@ function anCompute(ns: never[], scopeKey: string) {
     return model;
 }
 /* notation import / generation */
-const SCORE = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playing: false, sel: false, loop: null, tempos: [{ beat: 0, bpm: 120 }], tempoList: [{ beat: 0, bpm: 120 }], tempoFromFile: false,
+interface ScorePlayNote { n: AnNote; i: number; start: number; finish: number; sound?: number; }
+interface ScoreLoop { a: number; b: number; bars?: string; ab: boolean; pass: number; notes: ScorePlayNote[]; next: number; }
+interface ScorePracticeRun {
+    notes: ScorePlayNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string;
+    segs: { a0: number; t0: number; t1: number; f: number; first: boolean; }[]; ni: number; beats: { t: number; acc: boolean; }[]; bi: number; beat0: number; wt: number; pass: number;
+    mine: ScorePlayNote[]; mi: number; judged: Map<number, string>; gen: number; ci: { t: number; n: number; sec: number; } | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean;
+}
+interface ScoreGeoMeasure { sys: number; x0: number; xn: number; x1: number; b0: number; b1: number; xs?: number; cx?: number; }
+interface ScoreGeometry {
+    scale: number; pages: (HTMLElement | null)[]; systems: { page: number; top: number; bottom: number; }[]; measures: (ScoreGeoMeasure | undefined)[];
+    anchors: { beat: number; x: number; sys: number; end?: boolean; }[];
+}
+interface ScoreSymbol { kind: string | undefined; val: string | { type: string; dots: number; } | undefined; el: HTMLElement | SVGElement | null; loose: boolean; page: Element; x0: number; y0: number; x1: number; y1: number; }
+interface ScoreState {
+    xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoop | null;
+    tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
+    heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
+    geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
+    followSys: number; panAt: number; hl: boolean; run?: ScorePracticeRun | null; syms?: ScoreSymbol[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
+    markGeo?: ScoreGeometry | null; markSig?: string;
+}
+const SCORE: ScoreState = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playing: false, sel: false, loop: null, tempos: [{ beat: 0, bpm: 120 }], tempoList: [{ beat: 0, bpm: 120 }], tempoFromFile: false,
     measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: 'page', stale: false, layoutWidth: 0,
     geo: null, mrange: null, resume: null, paused: false, cursorEl: null, followSys: -1, panAt: 0, hl: false };
 // sel: a note picked by hand (blue, like the playback line); lit: a sounding note, gold, only with "Highlight sounding notes" on
 const SCORE_LOOK = { paper: { bg: '#fffefa', ink: '#000000', staff: undefined, sel: '#1a6fe0', lit: '#a47720', ok: '#1b8f4c', bad: '#d22f2f', dim: '#b9b2a6' }, night: { bg: '#1d1a17', ink: '#ece5d8', staff: '#a1988a', sel: '#7fb2ff', lit: '#e8bb5c', ok: '#6fdc9a', bad: '#ff7a7a', dim: '#5d574f' } }; // MuseScore-blue selection
-function scoreSetTempos(list: string|any[]) { SCORE.tempos = list.length ? list : [{ beat: 0, bpm: 120 }]; SCORE.tempoList = SCORE.tempos.slice().sort((a, b) => a.beat - b.beat); if (SCORE.tempoList[0].beat > 0)
+function scoreSetTempos(list: { beat: number; bpm: number; }[]) { SCORE.tempos = list.length ? list : [{ beat: 0, bpm: 120 }]; SCORE.tempoList = SCORE.tempos.slice().sort((a, b) => a.beat - b.beat); if (SCORE.tempoList[0].beat > 0)
     SCORE.tempoList.unshift({ beat: 0, bpm: SCORE.tempoList[0].bpm }); }
 function scoreSeconds(beat: number) { let sec = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
     if (e.beat > beat)
@@ -9198,7 +9289,7 @@ function scoreSeconds(beat: number) { let sec = 0, last = 0, bpm = SCORE.tempoLi
     last = e.beat;
     bpm = e.bpm;
 } return sec + (beat - last) * 60 / bpm; }
-function scoreBeatAt(sec: number|null) { let acc = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
+function scoreBeatAt(sec: number) { let acc = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
     const d = (e.beat - last) * 60 / bpm;
     if (acc + d > sec)
         break;
@@ -9206,19 +9297,27 @@ function scoreBeatAt(sec: number|null) { let acc = 0, last = 0, bpm = SCORE.temp
     last = e.beat;
     bpm = e.bpm;
 } return last + (sec - acc) * bpm / 60; }
+interface ScoreXmlLevel { part: number; staff: number; beat: number; value: number; sequence: number; }
+interface ScoreXmlMark { part: number; staff: number; beat: number; type: string; number: string; sequence: number; }
+interface ScoreXmlLine extends ScoreXmlMark { kind: string; }
+interface ScoreXmlDynamic { value?: number | null; hit?: number; }
+const SCORE_STEP: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 function scoreXmlNotes(doc: Document) {
-    const notes: never[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: { number: any; start: number; end: number; num: number; den: number; }[] = [], keys: { beat: number; fifths: number; mode: any; }[] = [], dynamics: { part: any; staff: any; beat: any; value: any; sequence: number; }[] = [], transients: { part: any; staff: any; beat: any; value: any; sequence: number; }[] = [], wedgeEvents: { part: number; staff: number; beat: number; type: any; number: any; sequence: number; }[] = [], pedalEvents: { part: any; staff: any; beat: any; type: any; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
-    const linkOpen = new Map(), linkPairs: { kind: any; a: any; b: any; style: any; }[] = [], lineEvents: { part: number; staff: number; beat: number; kind: string; type: any; number: any; sequence: number; }[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
+    const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
+    const linkOpen = new Map<string, ScoreXmlNote>(), linkPairs: { kind: string; a: ScoreXmlNote; b: ScoreXmlNote; style: string; }[] = [], lineEvents: ScoreXmlLine[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
     let malformed = false;
-    const DYN = { ppp: 28, pp: 42, p: 56, mp: 70, mf: 84, f: 98, ff: 112, fff: 122, sfz: 115, fz: 115, rfz: 115 };
-    const direct = (node: { children: any; }, name: string) => [...node.children].filter((c) => c.localName === name), child = (node: any, name: string) => direct(node, name)[0] || null;
-    const number = (node: { textContent: any; }, fallback = 0) => { const n = +(node?.textContent || ''); return Number.isFinite(n) ? n : fallback; };
-    const span = (node: { textContent: any; }) => { const n = +(node?.textContent || 0); if (!Number.isFinite(n))
+    const lastNote = (match: (n: ScoreXmlNote) => boolean) => { for (let i = notes.length - 1; i >= 0; i--)
+        if (match(notes[i]))
+            return notes[i]; return undefined; };
+    const DYN: Record<string, number> = { ppp: 28, pp: 42, p: 56, mp: 70, mf: 84, f: 98, ff: 112, fff: 122, sfz: 115, fz: 115, rfz: 115 };
+    const direct = (node: Element, name: string) => [...node.children].filter((c) => c.localName === name), child = (node: Element, name: string): Element | null => direct(node, name)[0] || null;
+    const number = (node: Element | null, fallback = 0) => { const n = +(node?.textContent || ''); return Number.isFinite(n) ? n : fallback; };
+    const span = (node: Element | null) => { const n = +(node?.textContent || 0); if (!Number.isFinite(n))
         malformed = true; return n; }; // durations must be numbers
     const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
     const dynamicValue = (value: string|null, percent = false) => { if (value == null || value === '')
         return null; const n = +value; return Number.isFinite(n) ? clamp(percent && n <= 100 ? n * .9 : n, 1, 127) : null; };
-    const dynamicInfo = (box: { children: any; }) => {
+    const dynamicInfo = (box: Element): ScoreXmlDynamic | null => {
         const named = [...box.children].find((el) => DYN[el.localName?.toLowerCase()] != null || el.localName === 'other-dynamics');
         const name = ((named?.localName === 'other-dynamics' ? named.textContent : named?.localName) || '').trim().toLowerCase();
         if (name === 'fp')
@@ -9228,7 +9327,7 @@ function scoreXmlNotes(doc: Document) {
         return DYN[name] != null ? { value: DYN[name] } : null;
     };
     let sequence = 0;
-    const pushDynamic = (part: number, staff: number, beat: number, info: { value: number; hit: number; }|{ hit: any; value?: undefined; }|{ value: any; hit?: undefined; }|null) => {
+    const pushDynamic = (part: number, staff: number, beat: number, info: ScoreXmlDynamic | null) => {
         if (!info)
             return;
         if (info.value != null)
@@ -9236,9 +9335,9 @@ function scoreXmlNotes(doc: Document) {
         if (info.hit != null)
             transients.push({ part, staff, beat, value: info.hit, sequence: sequence++ });
     };
-    const addSound = (sound: { hasAttribute: (arg0: string) => any; getAttribute: (arg0: string) => string|number; }, part: number, staff: number, beat: number) => {
+    const addSound = (sound: Element, part: number, staff: number, beat: number) => {
         if (sound.hasAttribute('tempo')) {
-            const bpm = +sound.getAttribute('tempo');
+            const bpm = Number(sound.getAttribute('tempo'));
             if (bpm > 0 && Number.isFinite(bpm))
                 tempos.push({ beat: Math.max(0, beat), bpm });
         }
@@ -9252,8 +9351,8 @@ function scoreXmlNotes(doc: Document) {
     };
     [...doc.querySelectorAll('score-partwise > part')].forEach((part, pi) => {
         let measureStart = 0, num = 4, den = 4, staves = 1, division = 1;
-        const gracePending = new Map();
-        const graceKey = (staff: string|number, voice: string|number) => staff + ':' + voice;
+        const gracePending = new Map<string, ScoreGraceNote[]>();
+        const graceKey = (staff: number, voice: number) => staff + ':' + voice;
         for (const measure of part.children) {
             if (measure.localName !== 'measure')
                 continue;
@@ -9310,10 +9409,10 @@ function scoreXmlNotes(doc: Document) {
                     const grace = !!child(node, 'grace'), duration = span(child(node, 'duration')) / division, chord = !!child(node, 'chord'), start = chord ? lastStart : at;
                     const voice = number(child(node, 'voice'), 1) || 1, staff = number(child(node, 'staff'), 1) || 1, pitch = child(node, 'pitch'), key = graceKey(staff, voice);
                     if (pitch) {
-                        const step = child(pitch, 'step')?.textContent, oct = number(child(pitch, 'octave')), alter = number(child(pitch, 'alter')), midi = (oct + 1) * 12 + (({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 } )[step]) + alter;
+                        const step = child(pitch, 'step')?.textContent, oct = number(child(pitch, 'octave')), alter = number(child(pitch, 'alter')), midi = (oct + 1) * 12 + (step == null ? NaN : SCORE_STEP[step]) + alter;
                         if (Number.isFinite(midi)) {
                             if (grace) {
-                                const list = gracePending.get(key) || [], g = { midi, vel: 84 };
+                                const list = gracePending.get(key) || [], g: ScoreGraceNote = { midi, vel: 84 };
                                 if ([...node.querySelectorAll('tie')].some((t) => t.getAttribute('type') === 'start'))
                                     g.tieStart = true;
                                 list.push(g);
@@ -9321,16 +9420,16 @@ function scoreXmlNotes(doc: Document) {
                             }
                             else {
                                 const hand = staves >= 2 ? (staff === 1 ? 'rh' : 'lh') : null, stop = [...node.querySelectorAll('tie')].some((t) => t.getAttribute('type') === 'stop');
-                                const prev = stop && notes.findLast((n: { part: number; staff: number; voice: number; midi: any; end: number; }) => n.part === pi && n.staff === staff && n.voice === voice && n.midi === midi && Math.abs(n.end - start) < .001);
+                                const prev = stop && lastNote((n) => n.part === pi && n.staff === staff && n.voice === voice && n.midi === midi && Math.abs(n.end - start) < .001);
                                 const fg = number(node.querySelector('fingering')), nd = [...node.querySelectorAll('notations > dynamics')].map(dynamicInfo).find(Boolean), attr = dynamicValue(node.getAttribute('dynamics'));
                                 const arts = new Set([...node.querySelectorAll('notations > articulations > *')].map((a) => a.localName));
-                                let own = null;
+                                let own: ScoreXmlNote | null = null;
                                 if (prev) {
                                     prev.end = start + duration;
                                     own = prev;
                                 }
                                 else if (duration > 0) {
-                                    const n = { midi, start, end: start + duration, vel: 90, hand, part: pi, staff, voice, type: child(node, 'type')?.textContent || '', art: {
+                                    const n: ScoreXmlNote = { midi, start, end: start + duration, vel: 90, hand, part: pi, staff, voice, type: child(node, 'type')?.textContent || '', art: {
                                             staccato: arts.has('staccato'), staccatissimo: arts.has('staccatissimo'), accent: arts.has('accent'), strongAccent: arts.has('strong-accent'), tenuto: arts.has('tenuto')
                                         },
                                         arpeggiate: !!node.querySelector('notations > arpeggiate') };
@@ -9342,10 +9441,11 @@ function scoreXmlNotes(doc: Document) {
                                         n.explicitVel = attr;
                                     if (nd?.hit != null)
                                         n.dynamicHit = nd.hit;
-                                    if (!chord && gracePending.has(key)) {
-                                        n.graces = gracePending.get(key);
+                                    const graces = gracePending.get(key);
+                                    if (!chord && graces) {
+                                        n.graces = graces;
                                         gracePending.delete(key);
-                                        const last = n.graces[n.graces.length - 1];
+                                        const last = graces[graces.length - 1];
                                         if (stop && last.tieStart && last.midi === midi)
                                             last.tiedToPrincipal = true;
                                     }
@@ -9353,15 +9453,17 @@ function scoreXmlNotes(doc: Document) {
                                     own = n;
                                 }
                                 if (own)
-                                    node.querySelectorAll('notations > slur, notations > glissando, notations > slide').forEach((l: { getAttribute: (arg0: string) => any; localName: string; }) => {
+                                    node.querySelectorAll('notations > slur, notations > glissando, notations > slide').forEach((l) => {
                                         const type = (l.getAttribute('type') || '').toLowerCase(), key = pi + ':' + l.localName + ':' + (l.getAttribute('number') || '1');
                                         if (type === 'start')
                                             linkOpen.set(key, own);
-                                        else if (type === 'stop' && linkOpen.has(key)) {
+                                        else if (type === 'stop') {
                                             const a = linkOpen.get(key);
-                                            linkOpen.delete(key);
-                                            if (a !== own)
-                                                linkPairs.push({ kind: l.localName, a, b: own, style: l.getAttribute('line-type') || '' });
+                                            if (a) {
+                                                linkOpen.delete(key);
+                                                if (a !== own)
+                                                    linkPairs.push({ kind: l.localName, a, b: own, style: l.getAttribute('line-type') || '' });
+                                            }
                                         }
                                     });
                             }
@@ -9384,9 +9486,9 @@ function scoreXmlNotes(doc: Document) {
     if (malformed || notes.some((n) => !Number.isFinite(n.start) || !Number.isFinite(n.end)) || measures.some((m) => !Number.isFinite(m.start) || !Number.isFinite(m.end) || !(m.num > 0 && Number.isInteger(m.num)) || !(m.den > 0 && Number.isInteger(m.den))))
         throw anError('xml');
     const sorted = notes.sort((a, b) => a.start - b.start || a.midi - b.midi), byTime = (a: { beat: number; sequence: number; }, b: { beat: number; sequence: number; }) => a.beat - b.beat || a.sequence - b.sequence;
-    const same = (event: { part: any; staff: number; }, n: { part: any; staff: any; }) => event.part === n.part && (event.staff === 0 || event.staff === n.staff);
+    const same = (event: { part: number; staff: number; }, n: { part: number; staff: number; }) => event.part === n.part && (event.staff === 0 || event.staff === n.staff);
     const persistent = dynamics.slice().sort(byTime), explicit = persistent.slice();
-    const levelAt = (part: any, staff: any, beat: number) => {
+    const levelAt = (part: number, staff: number, beat: number) => {
         let value = 90, last = -Infinity, specificity = -1, seq = -1;
         persistent.forEach((e) => {
             if (e.part !== part || (e.staff !== 0 && e.staff !== staff) || e.beat > beat + .001)
@@ -9401,7 +9503,7 @@ function scoreXmlNotes(doc: Document) {
         });
         return value;
     };
-    const open = new Map(), wedges: { part: any; staff: any; start: any; end: any; from: number; to: any; }[] = [];
+    const open = new Map<string, ScoreXmlMark>(), wedges: { part: number; staff: number; start: number; end: number; from: number; to: number; }[] = [];
     wedgeEvents.sort(byTime).forEach((e) => {
         const key = e.part + ':' + e.staff + ':' + e.number;
         if (e.type === 'crescendo' || e.type === 'diminuendo')
@@ -9420,10 +9522,10 @@ function scoreXmlNotes(doc: Document) {
         }
     });
     persistent.sort(byTime);
-    const pedalSegments: { part: any; start: any; end: any; }[] = [];
+    const pedalSegments: { part: number; start: number; end: number; }[] = [];
     for (const part of [...new Set(pedalEvents.map((e) => e.part))]) {
-        let active: { start: any; }|null = null;
-        pedalEvents.filter((e) => e.part === part).sort(byTime).forEach((e) => {
+        let active: { start: number; } | null = null;
+        for (const e of pedalEvents.filter((e) => e.part === part).sort(byTime)) {
             if (e.type === 'start') {
                 if (active && e.beat > active.start + .001)
                     pedalSegments.push({ part, start: active.start, end: e.beat });
@@ -9438,21 +9540,21 @@ function scoreXmlNotes(doc: Document) {
                 pedalSegments.push({ part, start: active.start, end: e.beat });
                 active = null;
             }
-        });
-        if (active && (partEnds )[String(part)] > active.start + .001)
-            pedalSegments.push({ part, start: active.start, end: (partEnds )[String(part)] });
+        }
+        if (active && partEnds[part] > active.start + .001)
+            pedalSegments.push({ part, start: active.start, end: partEnds[part] });
     }
-    const topAt = new Map(), sizeAt = new Map();
+    const topAt = new Map<string, number>(), sizeAt = new Map<string, number>();
     sorted.forEach((n) => { const key = n.part + ':' + n.staff + ':' + n.start, top = topAt.get(key); if (top == null || n.midi > top)
         topAt.set(key, n.midi); sizeAt.set(key, (sizeAt.get(key) || 0) + 1); });
     const measureAt = (beat: number) => measures.find((m) => beat >= m.start - .001 && beat < m.end - .001);
-    const dolceAt = (n: { start: number; }) => { let on = false, last = -Infinity, seq = -1; dolces.forEach((d) => { if (!same(d, n) || d.beat > n.start + .001)
+    const dolceAt = (n: ScoreXmlNote) => { let on = false, last = -Infinity, seq = -1; dolces.forEach((d) => { if (!same(d, n) || d.beat > n.start + .001)
         return; if (d.beat > last + .001 || (Math.abs(d.beat - last) < .001 && d.sequence > seq)) {
         on = d.on;
         last = d.beat;
         seq = d.sequence;
     } }); return on; };
-    const transientAt = (n: { dynamicHit: any; start: number; }) => { let hit = n.dynamicHit, last = -Infinity, seq = -1; transients.forEach((e) => { if (!same(e, n) || Math.abs(e.beat - n.start) > .012)
+    const transientAt = (n: ScoreXmlNote) => { let hit: number | undefined = n.dynamicHit, last = -Infinity, seq = -1; transients.forEach((e) => { if (!same(e, n) || Math.abs(e.beat - n.start) > .012)
         return; if (e.beat > last + .001 || (Math.abs(e.beat - last) < .001 && e.sequence > seq)) {
         hit = e.value;
         last = e.beat;
@@ -9489,7 +9591,7 @@ function scoreXmlNotes(doc: Document) {
         n.vel = Math.round(clamp(vel, 1, 127));
         n.soundRatio = n.art.staccatissimo ? .3 : n.art.staccato ? .45 : 1;
     });
-    const arpeggios = new Map();
+    const arpeggios = new Map<string, boolean>();
     sorted.forEach((n) => { if (n.arpeggiate) {
         const key = n.part + ':' + n.staff + ':' + n.voice + ':' + n.start;
         arpeggios.set(key, true);
@@ -9497,14 +9599,14 @@ function scoreXmlNotes(doc: Document) {
     sorted.forEach((n) => { const key = n.part + ':' + n.staff + ':' + n.voice + ':' + n.start; if (arpeggios.has(key))
         n.roll = 0; });
     [...arpeggios.keys()].forEach((key) => sorted.filter((n) => n.part + ':' + n.staff + ':' + n.voice + ':' + n.start === key).sort((a, b) => a.midi - b.midi).forEach((n, i) => n.roll = i * .022));
-    const nextSame = new Map();
+    const nextSame = new Map<string, number>();
     for (let i = sorted.length - 1; i >= 0; i--) {
         const n = sorted[i], key = n.part + ':' + n.midi;
         n.nextSame = nextSame.get(key);
         nextSame.set(key, n.start);
     }
     sorted.forEach((n) => {
-        let soundEnd = n.start + (n.end - n.start) * n.soundRatio, pedal = pedalSegments.find((p) => p.part === n.part && p.start <= n.start + .001 && p.end > n.start + .001);
+        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => p.part === n.part && p.start <= n.start + .001 && p.end > n.start + .001);
         if (pedal) {
             n.pedalEnd = pedal.end;
             soundEnd = Math.max(soundEnd, pedal.end);
@@ -9516,7 +9618,7 @@ function scoreXmlNotes(doc: Document) {
     });
     // Lines between the hands: cross-staff slurs, glissandi and slides (OSMD leaves them out) and dashed or bracketed
     // voice-leading lines that start on one staff and end on the other, from the first note after the start to the last before the stop.
-    const lineOpen = new Map();
+    const lineOpen = new Map<string, ScoreXmlLine>();
     lineEvents.sort(byTime).forEach((e) => {
         const key = e.part + ':' + e.kind + ':' + e.number;
         if (e.type === 'start') {
@@ -9534,27 +9636,35 @@ function scoreXmlNotes(doc: Document) {
     const links = linkPairs.filter((l) => l.a.staff !== l.b.staff).map((l) => ({ kind: l.kind, a: sorted.indexOf(l.a), b: sorted.indexOf(l.b), style: l.style })).filter((l) => l.a >= 0 && l.b >= 0);
     return { notes: sorted, tempos: tempos.filter((e) => e.bpm > 0 && Number.isFinite(e.bpm) && Number.isFinite(e.beat)), measures, keys, links };
 }
-function xmlEsc(s: string) { return String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' } )[c]); }
+const XML_ESC: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' };
+function xmlEsc(s: string) { return String(s).replace(/[<>&"']/g, (c) => XML_ESC[c]); }
 // MIDI (or a built-in piece) → MusicXML. `opt.grid` is the quantization per quarter note (2, 4 or 8); divisions grow when a meter needs finer units.
-function scoreFromMidi(parsed: { meta: any; notes: any; }, title: any, opt: { grid: any; keys: any; composer: any; }) {
-    const grid = opt.grid || 4, events = parsed.meta || [], timeEvents = events.filter((e: { type: string; }) => e.type === 'time');
+interface ScoreMidiNote { midi: number; start: number; end: number; vel: number; track: number; channel: number; hand: AnHand; }
+type ScoreMidiTime = Extract<AnMidiMeta, { type: 'time' }>;
+type ScoreMidiChange = ScoreMidiTime | { type: 'key'; beat: number; fifths: number; minor: boolean; };
+interface ScoreEngraveGroup { staff: number; start: number; end: number; notes: (ScoreMidiNote & { staff: number; })[]; }
+interface ScoreEngraveVoice { groups: ScoreEngraveGroup[]; staff: number; secondary: boolean; stem: string; }
+interface ScoreEngraveEvent { group: ScoreEngraveGroup | null; pos: number; d: number; type: string; dot: number; from: boolean; to: boolean; beam?: string; }
+function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, title: string, opt: { grid: number; keys: { beat: number; fifths: number; minor: boolean; }[]; composer?: string; }) {
+    const isTime = (e: AnMidiMeta): e is ScoreMidiTime => e.type === 'time';
+    const grid = opt.grid || 4, events = parsed.meta || [], timeEvents = events.filter(isTime);
     let div = grid;
-    while (timeEvents.some((e: { den: number; }) => (4 * div) % e.den) && div < grid * 64)
+    while (timeEvents.some((e) => (4 * div) % e.den) && div < grid * 64)
         div *= 2;
     const k = div / grid;
     SCORE.midiGrid = grid;
     SCORE.measures = [];
-    const tempos = events.filter((e: { type: string; }) => e.type === 'tempo').map((e: { beat: any; bpm: any; }) => ({ beat: e.beat, bpm: e.bpm }));
+    const tempos = events.filter((e): e is Extract<AnMidiMeta, { type: 'tempo' }> => e.type === 'tempo').map((e) => ({ beat: e.beat, bpm: e.bpm }));
     scoreSetTempos(tempos);
     SCORE.tempoFromFile = tempos.length > 0;
-    const notes = parsed.notes.map((n: { start: number; end: number; hand: string; }) => { const s = Math.round(n.start * grid) * k; return { ...n, start: s, end: Math.max(s + k, Math.round(n.end * grid) * k), staff: n.hand === 'lh' ? 2 : 1 }; }).sort((a: { start: number; midi: number; }, b: { start: number; midi: number; }) => a.start - b.start || a.midi - b.midi);
-    const end = Math.max(...notes.map((n: { end: any; }) => n.end));
+    const notes = parsed.notes.map((n) => { const s = Math.round(n.start * grid) * k; return { ...n, start: s, end: Math.max(s + k, Math.round(n.end * grid) * k), staff: n.hand === 'lh' ? 2 : 1 }; }).sort((a, b) => a.start - b.start || a.midi - b.midi);
+    const end = Math.max(...notes.map((n) => n.end));
     if (end > 200000)
         throw anError('long');
     // Played legato overlaps of up to a sixteenth would spawn extra voices; trim them for the engraving only.
     const trim = k * Math.max(1, grid / 4);
     for (const staff of [1, 2]) {
-        const own = notes.filter((n: { staff: number; }) => n.staff === staff), onsets = [...new Set(own.map((n: { start: any; }) => n.start))].sort((a, b) => a - b);
+        const own = notes.filter((n) => n.staff === staff), onsets = [...new Set(own.map((n) => n.start))].sort((a, b) => a - b);
         let j = 0;
         for (const n of own) {
             while (j < onsets.length && onsets[j] <= n.start)
@@ -9564,38 +9674,38 @@ function scoreFromMidi(parsed: { meta: any; notes: any; }, title: any, opt: { gr
                 n.end = next;
         }
     }
-    const groups = new Map();
+    const groups = new Map<string, ScoreEngraveGroup>();
     for (const n of notes) {
         const key = n.staff + ':' + n.start + ':' + n.end;
-        if (!groups.has(key))
-            groups.set(key, { staff: n.staff, start: n.start, end: n.end, notes: [] });
-        groups.get(key).notes.push(n);
+        let group = groups.get(key);
+        if (!group)
+            groups.set(key, group = { staff: n.staff, start: n.start, end: n.end, notes: [] });
+        group.notes.push(n);
     }
     // The highest lane becomes the stem-up main voice so a melody is never engraved underneath its accompaniment.
-    const used = [...new Set(notes.map((n: { staff: any; }) => n.staff))], single = used.length === 1, staves = single ? used : [1, 2]; // one hand only → one staff
-    const globalVoices = [];
+    const used = [...new Set(notes.map((n) => n.staff))], single = used.length === 1, staves = single ? used : [1, 2]; // one hand only → one staff
+    const globalVoices: ScoreEngraveVoice[] = [];
     for (const staff of staves) {
-        const lanes = [];
+        const lanes: (ScoreEngraveVoice & { end: number; })[] = [];
         for (const group of [...groups.values()].filter((g) => g.staff === staff)) {
             let lane = lanes.find((l) => l.end <= group.start);
             if (!lane) {
-                lane = { end: 0, groups: [], staff };
+                lane = { end: 0, groups: [], staff, secondary: false, stem: '' };
                 lanes.push(lane);
             }
             lane.groups.push(group);
             lane.end = group.end;
         }
-        const avg = (l: { groups: any[]; }) => { let s = 0, c = 0; l.groups.forEach((g: { notes: any[]; }) => g.notes.forEach((n: { midi: number; }) => { s += n.midi; c++; })); return c ? s / c : 0; };
+        const avg = (l: ScoreEngraveVoice) => { let s = 0, c = 0; l.groups.forEach((g) => g.notes.forEach((n) => { s += n.midi; c++; })); return c ? s / c : 0; };
         lanes.sort((a, b) => avg(b) - avg(a));
         lanes.forEach((l, i) => { l.secondary = i > 0; l.stem = lanes.length > 1 ? (i ? 'down' : 'up') : ''; });
-        if (!lanes.length)
-            lanes.push({ groups: [], staff, secondary: false, stem: '' });
-        globalVoices.push(...lanes);
+        globalVoices.push(...(lanes.length ? lanes : [{ groups: [], staff, secondary: false, stem: '' }]));
     }
-    const VALUES = [[4, 'whole', 0], [3, 'half', 1], [2, 'half', 0], [1.5, 'quarter', 1], [1, 'quarter', 0], [0.75, 'eighth', 1], [0.5, 'eighth', 0], [0.375, '16th', 1], [0.25, '16th', 0], [0.1875, '32nd', 1], [0.125, '32nd', 0], [0.0625, '64th', 0], [0.03125, '128th', 0], [0.015625, '256th', 0]]
-        .map(([q, type, dot] = []) => [q * div, type, dot]).filter(([d] = []) => Number.isInteger(d) && d >= 1);
-    const changes = events.filter((e: { type: string; }) => e.type === 'time').map((e: any) => ({ ...e })).concat((opt.keys || []).map((e: { beat: any; fifths: any; minor: any; }) => ({ type: 'key', beat: e.beat, fifths: e.fifths, minor: !!e.minor })))
-        .map((e: { beat: number; }) => ({ ...e, pos: Math.round(e.beat * div) })).sort((a: { pos: number; }, b: { pos: number; }) => a.pos - b.pos);
+    const VALUE_TABLE: [number, string, number][] = [[4, 'whole', 0], [3, 'half', 1], [2, 'half', 0], [1.5, 'quarter', 1], [1, 'quarter', 0], [0.75, 'eighth', 1], [0.5, 'eighth', 0], [0.375, '16th', 1], [0.25, '16th', 0], [0.1875, '32nd', 1], [0.125, '32nd', 0], [0.0625, '64th', 0], [0.03125, '128th', 0], [0.015625, '256th', 0]];
+    const VALUES = VALUE_TABLE.map(([q, type, dot]): [number, string, number] => [q * div, type, dot]).filter(([d]) => Number.isInteger(d) && d >= 1);
+    const meters: ScoreMidiChange[] = events.filter(isTime).map((e) => ({ ...e }));
+    const changes = meters.concat((opt.keys || []).map((e): ScoreMidiChange => ({ type: 'key', beat: e.beat, fifths: e.fifths, minor: !!e.minor })))
+        .map((e) => ({ ...e, pos: Math.round(e.beat * div) })).sort((a, b) => a.pos - b.pos);
     let at = 0, number = 1, xml = '', fifths = 0, minor = false, num = 4, den = 4, ci = 0;
     while (at < end) {
         const beat = at / div;
@@ -9628,14 +9738,17 @@ function scoreFromMidi(parsed: { meta: any; notes: any; }, title: any, opt: { gr
             if (vi)
                 xml += '<backup><duration>' + length + '</duration></backup>';
             let cursor = at;
-            const evs: { group: any; pos: any; d: any; type: any; dot: any; from: boolean; to: boolean; }[] = [];
-            const emit = (group: { start: number; end: number; }|null, start: number, duration: number) => { let left = duration, offset = 0; while (left > 0) {
-                const [d, type, dot] = VALUES.find((v) => v[0] <= left);
+            const evs: ScoreEngraveEvent[] = [];
+            const emit = (group: ScoreEngraveGroup | null, start: number, duration: number) => { let left = duration, offset = 0; while (left > 0) {
+                const value = VALUES.find((v) => v[0] <= left);
+                if (!value)
+                    throw anError('meter');
+                const [d, type, dot] = value;
                 evs.push({ group, pos: start + offset, d, type, dot, from: !!group && start + offset > group.start, to: !!group && start + offset + d < group.end });
                 left -= d;
                 offset += d;
             } };
-            for (const group of voice.groups.filter((g: { start: number; end: number; }) => g.start < stop && g.end > at)) {
+            for (const group of voice.groups.filter((g) => g.start < stop && g.end > at)) {
                 const start = Math.max(at, group.start), finish = Math.min(stop, group.end);
                 if (start > cursor)
                     emit(null, cursor, start - cursor);
@@ -9645,7 +9758,7 @@ function scoreFromMidi(parsed: { meta: any; notes: any; }, title: any, opt: { gr
             if (cursor < stop)
                 emit(null, cursor, stop - cursor);
             scoreBeams(evs, at, beamLen);
-            evs.forEach(({ group, d, type, dot, from, to, beam } = {}) => { const chord = group ? group.notes : [null]; chord.forEach((n: { midi: number; }, index: any) => { xml += '<note' + (!group && voice.secondary ? ' print-object="no" print-spacing="yes"' : '') + '>' + (index ? '<chord/>' : '') + (n ? scorePitch(n.midi, fifths, minor) : '<rest/>') + '<duration>' + d + '</duration>' + (from ? '<tie type="stop"/>' : '') + (to ? '<tie type="start"/>' : '') + '<voice>' + (vi + 1) + '</voice><type>' + type + '</type>' + (dot ? '<dot/>' : '') + (n && voice.stem ? '<stem>' + voice.stem + '</stem>' : '') + '<staff>' + (single ? 1 : voice.staff) + '</staff>' + (beam && !index ? '<beam number="1">' + beam + '</beam>' : '') + (from || to ? '<notations>' + (from ? '<tied type="stop"/>' : '') + (to ? '<tied type="start"/>' : '') + '</notations>' : '') + '</note>'; }); });
+            evs.forEach(({ group, d, type, dot, from, to, beam }) => { const chord = group ? group.notes : [null]; chord.forEach((n, index) => { xml += '<note' + (!group && voice.secondary ? ' print-object="no" print-spacing="yes"' : '') + '>' + (index ? '<chord/>' : '') + (n ? scorePitch(n.midi, fifths, minor) : '<rest/>') + '<duration>' + d + '</duration>' + (from ? '<tie type="stop"/>' : '') + (to ? '<tie type="start"/>' : '') + '<voice>' + (vi + 1) + '</voice><type>' + type + '</type>' + (dot ? '<dot/>' : '') + (n && voice.stem ? '<stem>' + voice.stem + '</stem>' : '') + '<staff>' + (single ? 1 : voice.staff) + '</staff>' + (beam && !index ? '<beam number="1">' + beam + '</beam>' : '') + (from || to ? '<notations>' + (from ? '<tied type="stop"/>' : '') + (to ? '<tied type="start"/>' : '') + '</notations>' : '') + '</note>'; }); });
         });
         xml += (stop >= end ? '<barline location="right"><bar-style>light-heavy</bar-style></barline>' : '') + '</measure>';
         at = stop;
@@ -9656,11 +9769,11 @@ function scoreFromMidi(parsed: { meta: any; notes: any; }, title: any, opt: { gr
     return '<?xml version="1.0"?><score-partwise version="3.1">' + (title ? '<work><work-title>' + xmlEsc(title) + '</work-title></work>' : '') + (opt.composer ? '<identification><creator type="composer">' + xmlEsc(opt.composer) + '</creator></identification>' : '') + '<part-list><score-part id="P1"><part-name>' + xmlEsc(t('sc_part')) + '</part-name></score-part></part-list><part id="P1">' + xml + '</part></score-partwise>';
 }
 // Beam runs of eighths and shorter inside one beat group of the bar; rests and longer values break a run.
-function scoreBeams(evs: any[], at: number, len: number) {
-    let run: any[] = [];
+function scoreBeams(evs: ScoreEngraveEvent[], at: number, len: number) {
+    let run: ScoreEngraveEvent[] = [];
     const flush = () => { if (run.length > 1)
         run.forEach((e, i) => { e.beam = i ? (i === run.length - 1 ? 'end' : 'continue') : 'begin'; }); run = []; };
-    evs.forEach((e: { pos: number; group: any; type: string; d: number; }) => {
+    evs.forEach((e) => {
         const g0 = Math.floor((e.pos - at) / len), prev = run[run.length - 1];
         if (!e.group || !/^(eighth|16th|32nd|64th)$/.test(e.type) || Math.floor((e.pos - at + e.d - 1) / len) !== g0) {
             flush();
@@ -9673,19 +9786,19 @@ function scoreBeams(evs: any[], at: number, len: number) {
     flush();
 }
 // Hands: MIDI tracks (or channels) when their median pitches separate cleanly, otherwise a pitch split. Track order is never trusted.
-function anAssignHands(notes: any[], mode: string) {
-    const split = (s: number) => notes.map((n: { midi: number; }) => n.midi >= s ? 'rh' : 'lh');
+function anAssignHands(notes: AnParsedNote[], mode: string): AnHandAssignment {
+    const split = (s: number) => notes.map((n): AnHand => n.midi >= s ? 'rh' : 'lh');
     if (/^\d+$/.test(mode))
         return { of: split(+mode), how: 'split', split: +mode };
-    if (mode === 'auto' && notes.every((n: { srcHand: any; }) => n.srcHand))
-        return { of: notes.map((n: { srcHand: any; }) => n.srcHand), how: 'piece' };
-    const field = new Set(notes.map((n: { track: any; }) => n.track)).size > 1 ? 'track' : new Set(notes.map((n: { channel: any; }) => n.channel)).size > 1 ? 'channel' : null;
+    if (mode === 'auto' && notes.every((n): n is AnParsedNote & { srcHand: AnHand; } => !!n.srcHand))
+        return { of: notes.map((n) => n.srcHand), how: 'piece' };
+    const field = new Set(notes.map((n) => n.track)).size > 1 ? 'track' : new Set(notes.map((n) => n.channel)).size > 1 ? 'channel' : null;
     if (!field)
         return { of: split(60), how: 'one', split: 60 };
-    const groups = new Map();
-    notes.forEach((n: { [x: string]: any; midi: any; }) => { const g = n[field]; if (!groups.has(g))
-        groups.set(g, []); groups.get(g).push(n.midi); });
-    const list = [...groups].map(([g, ms] = []) => { const s = ms.slice().sort((a: number, b: number) => a - b); return { g, count: ms.length, median: s[s.length >> 1] }; }).sort((a, b) => b.median - a.median);
+    const groups = new Map<number, number[]>();
+    notes.forEach((n) => { const g = n[field]; let ms = groups.get(g); if (!ms)
+        groups.set(g, ms = []); ms.push(n.midi); });
+    const list = [...groups].map(([g, ms]) => { const s = ms.slice().sort((a, b) => a - b); return { g, count: ms.length, median: s[s.length >> 1] }; }).sort((a, b) => b.median - a.median);
     let cut = 1, gap = -1;
     for (let i = 1; i < list.length; i++) {
         const d = list[i - 1].median - list[i].median;
@@ -9697,13 +9810,16 @@ function anAssignHands(notes: any[], mode: string) {
     const upper = new Set(list.slice(0, cut).map((x) => x.g)), share = list.slice(0, cut).reduce((s, x) => s + x.count, 0) / notes.length;
     if (mode === 'auto' && !(gap >= 5 && share >= 0.05 && share <= 0.95))
         return { of: split(60), how: 'fallback', split: 60 };
-    return { of: notes.map((n: { [x: string]: any; }) => upper.has(n[field]) ? 'rh' : 'lh'), how: 'tracks', groups: list.length };
+    return { of: notes.map((n) => upper.has(n[field]) ? 'rh' : 'lh'), how: 'tracks', groups: list.length };
 }
 // Rebuild notes + notation from the stored MIDI/example source; analysis timing stays the unquantized source timing.
 function anRebuild() {
-    const src = AN.source, parsed = src.parsed, hands = anAssignHands(parsed.notes, AN.recon.hands);
-    const notes = parsed.notes.map((n: { midi: any; start: any; end: any; vel: any; track: any; channel: any; }, i: string|number) => ({ midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i] }));
-    const key = anResolveKey(parsed, AN.recon.key, notes);
+    const src = AN.source;
+    if (!src || src.kind === 'xml')
+        return;
+    const parsed = src.parsed, hands = anAssignHands(parsed.notes, AN.recon.hands);
+    const notes = parsed.notes.map((n, i): ScoreMidiNote => ({ midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i] }));
+    const key = anResolveKey({ meta: parsed.meta.filter((e): e is AnMidiKeyMeta => e.type === 'key') }, AN.recon.key, notes);
     const xml = scoreFromMidi({ meta: parsed.meta, notes }, src.title, { grid: AN.recon.grid, keys: key.events, composer: src.comp });
     AN.notes = notes;
     SCORE.xml = xml;
@@ -9711,7 +9827,7 @@ function anRebuild() {
     AN.keyOrigin = key.origin;
     AN.keyMap = key.events.map((e) => ({ ...keyFromFifths(e.fifths, e.minor), beat: e.beat }));
 }
-function anXmlKeyMap(src: { keys: any[]; notes: readonly theory.TheoryNote[]; }) {
+function anXmlKeyMap(src: { keys: ScoreXmlKey[]; notes: readonly theory.TheoryNote[]; }) {
     if (!src.keys.length) {
         const best = anKeyRank(src.notes)[0];
         AN.keyOrigin = 'auto';
@@ -9719,7 +9835,7 @@ function anXmlKeyMap(src: { keys: any[]; notes: readonly theory.TheoryNote[]; })
     }
     const ranks = anKeyRank(src.notes);
     let guessed = false;
-    const map = src.keys.map((k: { mode: string; fifths: number; beat: any; }) => {
+    const map = src.keys.map((k) => {
         let minor = k.mode === 'minor';
         if (!k.mode) {
             guessed = true;
@@ -9737,6 +9853,14 @@ function anXmlKeyMap(src: { keys: any[]; notes: readonly theory.TheoryNote[]; })
 const SC_PAGE_W = 794, SC_BASE = 0.75; // an A4 page is 794 CSS px wide at 100%; OSMD draws 10 px per staff space at zoom 1, so 0.75 ≈ MuseScore's default staff size
 // Beam groups for OSMD's auto-beaming (only used for MusicXML written without beams): one beat, or a dotted quarter in compound meters.
 function scoreBeamGroups() { const m = (SCORE.measures || [])[0] || { num: 4, den: 4 }; return m.den === 8 && m.num % 3 === 0 ? [[3, 8]] : m.den === 2 ? [[2, 4]] : [[1, 4]]; }
+// The engraving rules Étude sets on OSMD (a type alias, so it passes as the renderer's rule record).
+type ScoreEngravingRules = {
+    PageLeftMargin?: number; PageRightMargin?: number; PageTopMargin?: number; PageBottomMargin?: number; TitleTopDistance?: number; SystemComposerDistance?: number;
+    MinimumDistanceBetweenSystems?: number; MinSkyBottomDistBetweenSystems?: number; BetweenStaffDistance?: number; StaffDistance?: number; MinSkyBottomDistBetweenStaves?: number;
+    MeasureNumberLabelHeight?: number; InstrumentLabelTextHeight?: number; FixedMeasureWidth?: boolean; ChordSymbolYOffset?: number; FingeringOffsetY?: number;
+    FingeringTextSize?: number; FingeringPaddingY?: number; SheetTitleHeight?: number; SheetSubtitleHeight?: number; SheetComposerHeight?: number;
+    StaffLineColor?: string; RenderMeasureNumbersOnlyAtSystemStart?: boolean; MeasureNumberLabelOffset?: number;
+};
 async function scoreRender()  {
     const version = ++SCORE.version, box = byId('an-roll');
     if (!SCORE.xml) {
@@ -9767,7 +9891,7 @@ async function scoreRender()  {
     const oneStaffPart = (SCORE.xml.match(/<score-part[\s>]/g) || []).length <= 1; // a lone piano needs no "Instr. P1" at the left
     const engine = await createScoreRenderer(box.firstElementChild || box, { autoResize: false, backend: 'svg', drawTitle: true, drawComposer: true, drawPartNames: !oneStaffPart, drawPartAbbreviations: false, drawMeasureNumbers: true,
         autoBeam, autoBeamOptions: { beam_rests: false, beam_middle_rests_only: false, maintain_stem_directions: true, groups: scoreBeamGroups() } });
-    const R = {}; // MuseScore-like page: wider margins, title block, measure numbers only at system starts
+    const R: ScoreEngravingRules = {}; // MuseScore-like page: wider margins, title block, measure numbers only at system starts
     R.PageLeftMargin = R.PageRightMargin = 7;
     R.PageTopMargin = 6;
     R.PageBottomMargin = 6;
@@ -9794,14 +9918,18 @@ async function scoreRender()  {
         R.FingeringTextSize = 1.35;
         R.FingeringPaddingY = -.35;
     }
-    const layout = isXml && AN.source.layout;
+    const layout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null;
     if (layout) {
-        for (const kind of ['title', 'subtitle', 'composer'])
-            if (layout[kind + 'Size'])
-                R[({ title: 'SheetTitleHeight', subtitle: 'SheetSubtitleHeight', composer: 'SheetComposerHeight' } )[kind]] = layout[kind + 'Size'] * 96 / 72 / (10 * layout.base);
-        for (const side of ['Left', 'Right', 'Top', 'Bottom'])
-            if (layout[side.toLowerCase()] != null)
-                R['Page' + side + 'Margin'] = layout[side.toLowerCase()];
+        for (const [size, rule] of [['titleSize', 'SheetTitleHeight'], ['subtitleSize', 'SheetSubtitleHeight'], ['composerSize', 'SheetComposerHeight']] as const) {
+            const pt = layout[size];
+            if (pt)
+                R[rule] = pt * 96 / 72 / (10 * layout.base);
+        }
+        for (const [side, rule] of [['left', 'PageLeftMargin'], ['right', 'PageRightMargin'], ['top', 'PageTopMargin'], ['bottom', 'PageBottomMargin']] as const) {
+            const margin = layout[side];
+            if (margin != null)
+                R[rule] = margin;
+        }
         if (layout.staffGap != null) {
             R.StaffDistance = R.BetweenStaffDistance = layout.staffGap;
             R.MinSkyBottomDistBetweenStaves = .5;
@@ -9831,12 +9959,12 @@ function scoreLayout() {
         box.hidden = FALL.mode !== 'score';
         return;
     }
-    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R = {}, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
+    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R: ScoreEngravingRules = {}, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
     box.dataset.layout = SCORE.layout;
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    const sourceLayout = AN.source && AN.source.kind === 'xml' && AN.source.layout, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
+    const sourceLayout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
     const sheetW = Math.max(240, Math.round(Math.min(pageW * SCORE.zoom, avail)));
-    if (sheet) sheet.style.width = cont ? '' : sheetW + 'px';
+    if (sheet instanceof HTMLElement) sheet.style.width = cont ? '' : sheetW + 'px';
     engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: cont ? 'Endless' : 'A4_P', renderSingleHorizontalStaffline: cont, drawTitle: !cont, drawSubtitle: !cont, drawComposer: !cont, drawLyricist: !cont });
     if (!cont && sourceLayout)
         engine.setCustomPageFormat(sourceLayout.pageWidth, sourceLayout.pageHeight);
@@ -9872,21 +10000,21 @@ function scoreLayout() {
     return pedalsOk;
 }
 // OSMD's title label is plain text. Restore safe MusicXML italic/bold runs after each layout (never inject markup).
-function scoreStyleHeader(engine: never, layout: { titleRuns: any; }|null) {
+function scoreStyleHeader(engine: notationApi.ScoreRenderer, layout: ScoreXmlLayout | null) {
     const node = engine.getTitleNode(), runs = layout && layout.titleRuns;
     if (!node || !runs || !runs.length)
         return;
     const text = node.localName === 'text' ? node : node.querySelector('text');
-    if (!text || text.textContent.trim() !== runs.map((r: { text: any; }) => r.text).join('').trim())
+    if (!text || (text.textContent || '').trim() !== runs.map((r) => r.text).join('').trim())
         return;
-    const spans = runs.map((r: { text: string|null; style: string; weight: string; }) => { const span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan'); span.textContent = r.text; span.setAttribute('font-style', r.style); span.setAttribute('font-weight', r.weight); return span; });
+    const spans = runs.map((r) => { const span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan'); span.textContent = r.text; span.setAttribute('font-style', r.style); span.setAttribute('font-weight', r.weight); return span; });
     text.replaceChildren(...spans);
 }
 // Page view of an imported file keeps its own <print new-system / new-page> breaks (MuseScore's 3–4 bars a line).
 // Those breaks only help while the bars fit: note spacing tightens a step at a time until the engraver needs no
 // extra break; past the last step it fills the lines itself rather than leave a lone bar after every forced break.
-const SC_FIT = [[.85, 3, 2], [.7, 2.2, 1.6], [.58, 1.6, 1.3], [.48, 1.2, 1.1]]; // VexFlow spacing multiplier, addend, min note distance
-function scoreFitRender(engine: never, xmlBreaks: boolean, key: string) {
+const SC_FIT: [number, number, number][] = [[.85, 3, 2], [.7, 2.2, 1.6], [.58, 1.6, 1.3], [.48, 1.2, 1.1]]; // VexFlow spacing multiplier, addend, min note distance
+function scoreFitRender(engine: notationApi.ScoreRenderer, xmlBreaks: boolean, key: string) {
     const set = (i: number, on: boolean) => {
         const f = SC_FIT[i];
         engine.updateRules({
@@ -9921,20 +10049,21 @@ function scoreFitRender(engine: never, xmlBreaks: boolean, key: string) {
     engine.render();
     SCORE.fit = { key, step: 0, on: false };
 }
-function scoreExtraBreaks(engine: { hasExtraBreaks: () => any; }) {
+function scoreExtraBreaks(engine: notationApi.ScoreRenderer) {
     return engine.hasExtraBreaks();
 }
 // Anything OSMD still draws in pure black (connectors, brackets, text without a colour rule) follows the night ink too.
 // The keyboard-focus ring around a notehead is measured in the score's own units: about 1 px of page colour, then 1.6 px of blue.
-function scoreRingFit(z: any) { (document).querySelectorAll('.sc-defs feMorphology').forEach((f) => f.setAttribute('radius', (+f.dataset.px / (z || SC_BASE)).toFixed(2))); }
-function scoreNightSweep(box: RuntimeElement, ink: any) {
+function scoreRingFit(z: number) { (document).querySelectorAll('.sc-defs feMorphology').forEach((f) => { if (f instanceof SVGElement)
+    f.setAttribute('radius', (Number(f.dataset.px) / (z || SC_BASE)).toFixed(2)); }); }
+function scoreNightSweep(box: HTMLElement, ink: string) {
     const black = /^(#000|#000000|black|rgb\(0,\s*0,\s*0\))$/i;
-    box.querySelectorAll('svg *').forEach((el: { getAttribute: (arg0: string) => any; setAttribute: (arg0: string,arg1: any) => void; style: { [x: string]: any; }; localName: string; }) => {
-        for (const a of ['fill', 'stroke']) {
+    box.querySelectorAll('svg *').forEach((el) => {
+        for (const a of ['fill', 'stroke'] as const) {
             const v = el.getAttribute(a);
             if (v && black.test(v.trim()))
                 el.setAttribute(a, ink);
-            if (el.style[a] && black.test(el.style[a].trim()))
+            if ((el instanceof SVGElement || el instanceof HTMLElement) && el.style[a] && black.test(el.style[a].trim()))
                 el.style[a] = ink;
         }
         if (el.localName === 'text' && !el.getAttribute('fill'))
@@ -9942,15 +10071,14 @@ function scoreNightSweep(box: RuntimeElement, ink: any) {
     });
 }
 // Bind each source note to its rendered notehead, retaining individual selection in chords. One tab stop; arrows move between notes.
-function scoreBind(engine: never) {
+function scoreBind(engine: notationApi.ScoreRenderer) {
     SCORE.heads = new Map();
-    let first: { setAttribute: (arg0: string,arg1: string) => void; }|null = null;
-    const grid = SCORE.midiGrid || 0, startOf = (n: never) => grid ? Math.round(n.start * grid) / grid : n.start, endOf = (n: never) => grid ? Math.max(startOf(n) + 1 / grid, Math.round(n.end * grid) / grid) : n.end;
-    const byMidi = new Map();
-    AN.notes.forEach((n, i) => { if (!byMidi.has(n.midi))
-        byMidi.set(n.midi, []); byMidi.get(n.midi).push(i); });
-    let bound = new Set(), boundBeat: null = null;
-    engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g } = {}) => {
+    const grid = SCORE.midiGrid || 0, startOf = (n: AnNote) => grid ? Math.round(n.start * grid) / grid : n.start, endOf = (n: AnNote) => grid ? Math.max(startOf(n) + 1 / grid, Math.round(n.end * grid) / grid) : n.end;
+    const byMidi = new Map<number, number[]>();
+    AN.notes.forEach((n, i) => { let list = byMidi.get(n.midi); if (!list)
+        byMidi.set(n.midi, list = []); list.push(i); });
+    let bound = new Set<number>(), boundBeat: number | null = null;
+    engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g }) => {
         if (boundBeat !== beat) {
             boundBeat = beat;
             bound = new Set();
@@ -9958,38 +10086,41 @@ function scoreBind(engine: never) {
         const cands = byMidi.get(midi);
         if (!cands)
             return;
-        const same = (j: string|number) => { const n = AN.notes[j]; return (n.part == null || n.part === part) && (n.staff == null || n.staff === staff) && (n.voice == null || n.voice === voice); };
-        const match = (pred: { (j: any): boolean; (j: any): boolean; (j: any): boolean; (j: any): boolean; }) => { const a = cands.filter(pred); return a.find((j: unknown) => same(j) && !bound.has(j)) ?? a.find((j: unknown) => !bound.has(j)) ?? a.find(same) ?? a[0]; };
-        const exact = (j: string|number) => Math.abs(startOf(AN.notes[j]) - beat) < .01, sustained = (j: string|number) => startOf(AN.notes[j]) <= beat + .001 && endOf(AN.notes[j]) > beat + .001;
+        const same = (j: number) => { const n = AN.notes[j]; return (n.part == null || n.part === part) && (n.staff == null || n.staff === staff) && (n.voice == null || n.voice === voice); };
+        const match = (pred: (j: number) => boolean) => { const a = cands.filter(pred); return a.find((j) => same(j) && !bound.has(j)) ?? a.find((j) => !bound.has(j)) ?? a.find(same) ?? a[0]; };
+        const exact = (j: number) => Math.abs(startOf(AN.notes[j]) - beat) < .01, sustained = (j: number) => startOf(AN.notes[j]) <= beat + .001 && endOf(AN.notes[j]) > beat + .001;
         // A tied continuation belongs to its own voice, even when another voice starts the same pitch here.
-        const i = match((j: any) => same(j) && exact(j)) ?? match((j: any) => same(j) && sustained(j)) ?? match(exact) ?? match(sustained);
+        const i = match((j) => same(j) && exact(j)) ?? match((j) => same(j) && sustained(j)) ?? match(exact) ?? match(sustained);
         if (i == null)
             return;
         bound.add(i);
-        g.dataset.i = i;
+        g.dataset.i = String(i);
         g.style.cursor = 'pointer';
         g.style.pointerEvents = 'all';
         g.setAttribute('tabindex', '-1');
         g.setAttribute('role', 'button');
         g.setAttribute('aria-label', spellName(AN.notes[i].midi, anKeyAt(AN.notes[i].start), true));
-        if (!SCORE.heads.has(i))
-            SCORE.heads.set(i, []);
-        SCORE.heads.get(i).push(g);
-        if (!first)
-            first = g;
+        let heads = SCORE.heads.get(i);
+        if (!heads)
+            SCORE.heads.set(i, heads = []);
+        heads.push(g);
     });
+    // The first notehead bound is the first one of the first note given heads.
+    const first = SCORE.heads.values().next().value?.[0];
     if (first)
         first.setAttribute('tabindex', '0');
 }
-function scorePaintEl(g: { dataset: { i: string|number; }; querySelectorAll: (arg0: string) => any; setAttribute: (arg0: string,arg1: string) => void; }) { const i = +g.dataset.i, look = SCORE_LOOK[SCORE.look], selected = AN.selected.has(i), res = PRAC.res.get(i), n = AN.notes[i], color = SCORE.hl && SCORE.lit.has(i) ? look.lit : selected ? look.sel : res === 'hit' ? look.ok : res === 'miss' ? look.bad : n && !pracMine(n) ? look.dim : null; for (const shape of [g, ...g.querySelectorAll('path,ellipse,circle')]) {
+function scorePaintEl(g: SVGElement) { const i = Number(g.dataset.i), look = SCORE_LOOK[SCORE.look], selected = AN.selected.has(i), res = PRAC.res.get(i), n = AN.notes[i], color = SCORE.hl && SCORE.lit.has(i) ? look.lit : selected ? look.sel : res === 'hit' ? look.ok : res === 'miss' ? look.bad : n && !pracMine(n) ? look.dim : null; for (const shape of [g, ...g.querySelectorAll('path,ellipse,circle')]) {
+    if (!(shape instanceof SVGElement))
+        continue;
     if (!shape.hasAttribute('data-original-fill')) {
         shape.dataset.originalFill = shape.style.fill || '';
         shape.dataset.originalStroke = shape.style.stroke || '';
     }
-    shape.style.fill = color || shape.dataset.originalFill;
-    shape.style.stroke = color || shape.dataset.originalStroke;
+    shape.style.fill = color || shape.dataset.originalFill || '';
+    shape.style.stroke = color || shape.dataset.originalStroke || '';
 } g.setAttribute('aria-pressed', selected ? 'true' : 'false'); }
-function scorePaintIdx(i: unknown) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
+function scorePaintIdx(i: number) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
 function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
@@ -10008,10 +10139,14 @@ function showNotationReloadPrompt() {
 }
 // Text-pedal skylines can miss ledger notes, and a release with no staff entry can land on its press glyph.
 // Place actual glyph ink without changing event timing. Recompute from native positions on every call.
-let scoreFixPedals = function scoreFixPedals(box: RuntimeElement) {
+// One property of an OSMD object (Étude doesn't type the engraver's internals); callers narrow what comes back.
+function scoreVendorField(v: unknown, k: string): unknown { return typeof v === 'object' && v !== null ? Reflect.get(v, k) : undefined; }
+function scoreVendorList(v: unknown): unknown[] { return Array.isArray(v) ? v : []; }
+interface ScorePedalBox { left: number; right: number; top: number; bottom: number; group?: Element | null; press?: boolean; }
+let scoreFixPedals = function scoreFixPedals(box: HTMLElement) {
     let unresolved = 0;
-    box.querySelectorAll('svg').forEach((svg: { querySelectorAll: (arg0: string) => any; getScreenCTM: () => any; getBoundingClientRect: () => any; }) => {
-        const marks = [...svg.querySelectorAll('.vf-sc-pedal path')], ctm = svg.getScreenCTM();
+    box.querySelectorAll('svg').forEach((svg) => {
+        const marks = [...svg.querySelectorAll('.vf-sc-pedal path')].filter((p) => p instanceof SVGElement), ctm = svg.getScreenCTM();
         if (!marks.length || !ctm || !ctm.d)
             return;
         marks.forEach((p) => {
@@ -10027,12 +10162,12 @@ let scoreFixPedals = function scoreFixPedals(box: RuntimeElement) {
             else
                 p.removeAttribute('transform');
         });
-        const gap = Math.max(1, Math.abs(ctm.d) * 2.5), limit = Math.abs(ctm.a) * 40, page = svg.getBoundingClientRect(), placed: ConcatArray<{ left: number; right: any; top: number; bottom: any; }>|{ group: any; press: boolean; left: any; right: any; top: any; bottom: any; }[] = [];
-        const cross = (a: { left: any; right: any; top: any; bottom: any; }, b: { left: any; right: any; top: any; bottom: any; }, pad = gap) => a.right + pad > b.left && a.left - pad < b.right && a.bottom + pad > b.top && a.top - pad < b.bottom;
-        const obstacles = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,text')].filter((n) => !n.closest('.vf-sc-pedal')).flatMap((n) => {
+        const gap = Math.max(1, Math.abs(ctm.d) * 2.5), limit = Math.abs(ctm.a) * 40, page = svg.getBoundingClientRect(), placed: ScorePedalBox[] = [];
+        const cross = (a: ScorePedalBox, b: ScorePedalBox, pad = gap) => a.right + pad > b.left && a.left - pad < b.right && a.bottom + pad > b.top && a.top - pad < b.bottom;
+        const obstacles: ScorePedalBox[] = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,text')].filter((n) => !n.closest('.vf-sc-pedal')).flatMap((n) => {
             const r = n.getBoundingClientRect(), s = getComputedStyle(n), pad = s.stroke !== 'none' ? Math.max(.5, parseFloat(s.strokeWidth) * Math.abs(ctm.d) / 2 || .5) : 0;
-            if (n.matches('.sc-xline,.vf-stavetie path,path.vf-stavetie') && n.getTotalLength) {
-                const len = n.getTotalLength(), m = n.getScreenCTM(), out = [];
+            if (n.matches('.sc-xline,.vf-stavetie path,path.vf-stavetie') && n instanceof SVGGeometryElement) {
+                const len = n.getTotalLength(), m = n.getScreenCTM() ?? undefined, out: ScorePedalBox[] = [];
                 let a = n.getPointAtLength(0);
                 a = new DOMPoint(a.x, a.y).matrixTransform(m);
                 for (let i = 1, count = Math.max(1, Math.ceil(len / 2)); i <= count; i++) {
@@ -10050,13 +10185,16 @@ let scoreFixPedals = function scoreFixPedals(box: RuntimeElement) {
                 return;
             const group = p.closest('.vf-sc-pedal'), release = r.width < r.height * 1.3, rect = (x: number, y: number) => ({ left: r.left + x, right: r.right + x, top: r.top + y, bottom: r.bottom + y });
             let dx = 0, dy = 0;
-            const owner = group.scPedalOwner, sys = owner && owner.staffLine.ParentMusicSystem, pos = (s: { PositionAndShape: { AbsolutePosition: any; }; }) => s && s.PositionAndShape && s.PositionAndShape.AbsolutePosition;
-            const systems = sys && sys.Parent && sys.Parent.MusicSystems || [], next = systems[systems.indexOf(sys) + 1];
-            const pedal = owner && owner.pedal, endpoint = pedal && (release ? pedal.endMeasure || pedal.endVfVoiceEntry?.parentStaffEntry.parentMeasure : pedal.startVfVoiceEntry?.parentStaffEntry.parentMeasure);
-            const measures = owner && owner.staffLine.Measures || [], measure = endpoint && endpoint.ParentStaffLine?.ParentMusicSystem === sys ? endpoint : (release ? measures[measures.length - 1] : measures[0]);
-            const ml = pos(measure) ? ctm.e + pos(measure).x * 10 * ctm.a - limit : -Infinity, mr = pos(measure) ? ctm.e + (pos(measure).x + measure.PositionAndShape.Size.width) * 10 * ctm.a + limit : Infinity;
-            const minY = Math.max(page.top + gap - r.top, -Math.abs(ctm.d) * 40, pos(sys) ? ctm.f + pos(sys).y * 10 * ctm.d - r.top : -Infinity);
-            const maxY = Math.min(page.bottom - gap - r.bottom, Math.abs(ctm.d) * 40, pos(next) ? ctm.f + pos(next).y * 10 * ctm.d - gap - r.bottom : Infinity);
+            const V = scoreVendorField, owner = V(group, 'scPedalOwner'), sys = V(V(owner, 'staffLine'), 'ParentMusicSystem');
+            const pos = (s: unknown) => { const at = V(V(s, 'PositionAndShape'), 'AbsolutePosition'); return at ? { x: Number(V(at, 'x')), y: Number(V(at, 'y')) } : null; };
+            const systems = scoreVendorList(V(V(sys, 'Parent'), 'MusicSystems')), next = systems[systems.indexOf(sys) + 1];
+            const pedal = V(owner, 'pedal'), measureOf = (entry: unknown) => V(V(entry, 'parentStaffEntry'), 'parentMeasure');
+            const endpoint = pedal && (release ? V(pedal, 'endMeasure') || measureOf(V(pedal, 'endVfVoiceEntry')) : measureOf(V(pedal, 'startVfVoiceEntry')));
+            const measures = scoreVendorList(V(V(owner, 'staffLine'), 'Measures')), measure = endpoint && V(V(endpoint, 'ParentStaffLine'), 'ParentMusicSystem') === sys ? endpoint : (release ? measures[measures.length - 1] : measures[0]);
+            const mp = pos(measure), sp = pos(sys), np = pos(next);
+            const ml = mp ? ctm.e + mp.x * 10 * ctm.a - limit : -Infinity, mr = mp ? ctm.e + (mp.x + Number(V(V(V(measure, 'PositionAndShape'), 'Size'), 'width'))) * 10 * ctm.a + limit : Infinity;
+            const minY = Math.max(page.top + gap - r.top, -Math.abs(ctm.d) * 40, sp ? ctm.f + sp.y * 10 * ctm.d - r.top : -Infinity);
+            const maxY = Math.min(page.bottom - gap - r.bottom, Math.abs(ctm.d) * 40, np ? ctm.f + np.y * 10 * ctm.d - gap - r.bottom : Infinity);
             const all = obstacles.concat(placed), ys = [...new Set([0, minY, maxY, ...all.flatMap((o) => [o.bottom + gap - r.top, o.top - gap - r.bottom])])].filter((y) => y >= minY && y <= maxY).sort((a, b) => Math.abs(a) - Math.abs(b));
             let found = false;
             for (const y of ys) {
