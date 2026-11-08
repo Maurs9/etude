@@ -1,6 +1,6 @@
 # Copilot instructions for Étude
 
-Étude is a piano theory trainer. The migration keeps `etude.html` as the stable shell URL while the app moves into Vite-built TypeScript modules. `sw.js`, `manifest.webmanifest` and `icons/` provide the installable, offline PWA shell. Node tooling builds the tested site into `dist/etude/` for GitHub Pages.
+Étude is a piano theory trainer. The migration keeps `etude.html` as the stable shell URL while the app moves into Vite-built TypeScript modules. `sw.js`, `public/manifest.webmanifest` and `public/icons/` provide the installable, offline PWA shell. Node tooling builds the tested site into `dist/etude/` for GitHub Pages.
 
 ## Git, pushing and releases
 
@@ -31,7 +31,7 @@ If a release changes the service worker's caching rules, change `scripts/generat
 - GitHub Pages publishes from the Tests workflow (`.github/workflows/test.yml`), with the Pages source set to "GitHub Actions". When a push to `main` passes the tests, the `deploy` job publishes `dist/etude/` at https://maurs9.github.io/etude/. It fails if the Pages source is a branch, and skips publishing (with a warning) if `main` has moved on. To publish again, re-run the latest `main` run within a day, or use "Run workflow" on `main`. Don't add one of the Pages workflows GitHub suggests; it would publish the whole repo over this one.
 - `scripts/build.mjs` publishes only the files listed in its `SITE_FILES`, byte for byte, plus an `index.html` that forwards `/etude/` to `etude.html`, then generates `sw.js` from that output. If the app starts loading another file, add it to `SITE_FILES`, or the live site and its hash-checked precache will be incomplete. `tests/deploy.spec.mjs` checks the published site under `/etude/`. Pages matches paths case-sensitively, unlike macOS, so a file name's letter case must match exactly; Linux CI catches a mismatch only in files the tests load.
 - The generated worker installs atomically with `cache: 'no-cache'`, verifies SHA-256 hashes, keeps the previous active cache for one activation, and never caches a network navigation response. For an emergency rollback, follow `docs/sw-kill-switch.md` and deploy `scripts/sw-kill-switch.js` as `sw.js`; do not maintain a hand-written `VERSION` or `ASSETS` list.
-- `npm run preview` builds the site and serves it at http://127.0.0.1:8778/etude/, the same paths as on Pages.
+- `npm run dev` serves the Vite source app at http://127.0.0.1:5173/etude.html. `npm run preview` builds the site and serves it at http://127.0.0.1:8778/etude/, the same paths as on Pages. `npm run build:standalone` also writes `dist/etude-standalone.html` for `file://`.
 
 ## Conventions in `etude.html`
 
@@ -47,7 +47,11 @@ If a release changes the service worker's caching rules, change `scripts/generat
 
 ```sh
 npm ci
-npm test            # Playwright; uses installed Chrome
+npm run typecheck
+npm run lint
+npm run test:unit
+npm test            # Playwright against the built dist/etude site
+npm run test:dev    # app project against Vite dev
 PW_CHANNEL= npm test  # use bundled Chromium instead (after `npx playwright install chromium`)
 ```
 
@@ -59,4 +63,5 @@ PW_CHANNEL= npm test  # use bundled Chromium instead (after `npx playwright inst
 - The keyboard dock starts hidden on a first visit, so tests that press on-screen piano keys open the app with `app.open({ dock: true })`.
 - CI (`.github/workflows/test.yml`) runs the suite with Playwright's Chromium on every pushed branch and on pull requests. Merge a branch only when its run is green. On `main`, a green run also deploys the site (see Deployment).
 - The architecture migration follows `docs/plans/2026-11-08-safe-migration-plan.md`. Keep migration work and feature work in separate PRs.
+- During the migration, the monolithic implementation is `src/legacy/app.js`; styles are in `src/styles/`, piano recordings are in `src/assets/piano/`, and OSMD is `public/vendor/osmd-1.9.9.min.js`. `scripts/split-etude.mjs` is deterministic and its join test must stay byte-for-byte green.
 - `node_modules/` and `test-results/` are gitignored; never force-add them.

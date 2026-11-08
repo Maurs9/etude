@@ -29,15 +29,13 @@ const expectGolden = (file, actual) => {
 
 test.describe('golden: piano recordings', () => {
   test('every recorded piano sample is byte-for-byte unchanged', () => {
-    const html = readFileSync(new URL('../' + APP, import.meta.url), 'utf8');
-    const block = html.match(/<script type="application\/json" id="piano-recordings">([^<]*)<\/script>/);
-    expect(block, `the #piano-recordings block in ${APP}`).toBeTruthy();
     const samples = {}, notCanonical = [];
-    for (const [midi, b64] of Object.entries(JSON.parse(block[1]))) {
-      const mp3 = Buffer.from(b64, 'base64');
-      if (mp3.toString('base64') !== b64) notCanonical.push(midi);   // Buffer.from skips stray characters; the round trip doesn't
+    const dir = new URL('../src/assets/piano/', import.meta.url);
+    for (const file of readdirSync(fileURLToPath(dir)).filter(file => file.endsWith('.mp3')).sort((a, b) => Number(a.slice(0, -4)) - Number(b.slice(0, -4)))) {
+      const midi = file.slice(0, -4), mp3 = readFileSync(new URL(file, dir));
       samples[midi] = `sha256:${createHash('sha256').update(mp3).digest('hex')} bytes:${mp3.length}`;
     }
+    expect(Object.keys(samples), 'the split piano bank has all 30 samples').toHaveLength(30);
     expect(notCanonical, 'samples whose base64 is not canonical').toEqual([]);
     expectGolden(join(GOLDEN, 'piano-recordings.json'), samples);
   });

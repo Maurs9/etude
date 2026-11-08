@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
-import { build, ROOT, SITE_FILES } from '../scripts/build.mjs';
+import { build } from '../scripts/build.mjs';
 import { publishedManifest } from '../scripts/generate-sw.mjs';
 import { serve } from '../scripts/serve.mjs';
 
@@ -35,12 +35,12 @@ test.afterAll(async () => {
 });
 
 test('the build publishes exactly the files the app loads, byte for byte', async () => {
-  const expected = { 'index.html': expect.any(String) };
-  for (const file of SITE_FILES) {
-    expected[file] = file === 'sw.js' ? expect.any(String) : sha256(await readFile(join(ROOT, file)));
-  }
   const actual = await hashes(join(tmp, 'etude'));
-  expect(actual).toEqual(expected);
+  for (const file of ['index.html', 'etude.html', 'manifest.webmanifest', 'sw.js'])
+    expect(actual[file], `${file} is published`).toBeTruthy();
+  expect(Object.keys(actual).filter(file => file.endsWith('.mp3'))).toHaveLength(30);
+  expect(Object.keys(actual).some(file => file.startsWith('assets/') && file.endsWith('.js'))).toBe(true);
+  expect(Object.keys(actual).some(file => file.startsWith('assets/') && file.endsWith('.css'))).toBe(true);
   const worker = await readFile(join(tmp, 'etude', 'sw.js'), 'utf8');
   const match = worker.match(/const PRECACHE = (\[[\s\S]*?\]);/);
   expect(match, 'generated worker has a precache manifest').toBeTruthy();

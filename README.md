@@ -1,6 +1,6 @@
 # Étude — Piano Theory Trainer
 
-Étude is a browser-based piano theory and practice app for developing your ear, reading skills, and keyboard technique. The app is contained in a single HTML file and does not need a build step.
+Étude is a browser-based piano theory and practice app for developing your ear, reading skills, and keyboard technique. It is a static Vite application: `etude.html` remains the stable shell URL, while the app module, styles, piano recordings, and OSMD bundle are built from `src/`.
 
 **Live app:** [https://maurs9.github.io/etude/etude.html](https://maurs9.github.io/etude/etude.html)
 
@@ -23,13 +23,18 @@
 
 ## Run locally
 
-With Python 3 installed, start a web server from the project directory:
+Install the locked toolchain and start Vite:
 
 ```sh
-python3 -m http.server 8777
+npm ci
+npm run dev
 ```
 
-Open [http://localhost:8777/etude.html](http://localhost:8777/etude.html). Serving over localhost or HTTPS is recommended for browser features such as the service worker and microphone access; permissions may be required.
+Open [http://localhost:5173/etude.html](http://localhost:5173/etude.html). Serving over localhost or HTTPS is recommended for browser features such as the service worker and microphone access; permissions may be required.
+
+The Pages-shaped build is available with `npm run build` and `npm run preview`.
+For a single offline file, run `npm run build:standalone`; it writes
+`dist/etude-standalone.html`, which can be opened directly with `file://`.
 
 ## Tests
 
@@ -37,14 +42,21 @@ The test suite uses Node.js, npm, Python 3, and Playwright. By default it launch
 
 ```sh
 npm ci
-npm test
+npm run typecheck
+npm run lint
+npm run test:unit
+npm test                 # built dist/etude/ and @sw tests
+npm run test:dev         # app project against the Vite dev server
 ```
 
 Alternatively, install Playwright's Chromium with `npx playwright install chromium` and set `PW_CHANNEL` to an empty value before running the tests. The Playwright configuration starts its own local server on port 8787.
 
 ## Project structure
 
-- `etude.html` — application
-- `sw.js`, `manifest.webmanifest`, `icons/` — installable app and offline assets
+- `etude.html` — stable application shell
+- `src/legacy/app.js` — current compatibility module during the migration
+- `src/styles/`, `src/assets/piano/` — styles and separate hashed recordings
+- `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
+- `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
 - `package.json`, `package-lock.json` — test tooling and locked dependencies

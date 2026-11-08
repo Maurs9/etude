@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const html = fs.readFileSync(process.argv[2] || path.join(__dirname, '..', 'etude.html'), 'utf8').replace(/\r\n/g, '\n');
+const html = fs.readFileSync(process.argv[2] || path.join(__dirname, '..', 'src', 'legacy', 'app.js'), 'utf8').replace(/\r\n/g, '\n');
 function between(start, end) {
   const a = html.indexOf(start), b = html.indexOf(end, a + start.length);
   if (a < 0 || b < 0) throw Error(`Cannot locate source boundary: ${start} ... ${end}`);

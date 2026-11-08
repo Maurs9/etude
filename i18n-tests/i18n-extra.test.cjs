@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 
 function englishStrings() {
-  const html = fs.readFileSync(path.join(root, 'etude.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'src', 'legacy', 'app.js'), 'utf8');
   const start = html.indexOf('const STRINGS={');
   const end = html.indexOf('\nfunction t(k', start);
   assert.ok(start >= 0 && end > start, 'English dictionary must be discoverable');

@@ -6,6 +6,12 @@
 
 ## Architecture and work remaining
 
+The migration build no longer publishes a hand-maintained `SITE_FILES` list:
+Vite follows static imports and `public/`, and the generated worker hashes the
+final output. The extra-language file remains a legacy integration until Step 4
+moves the supported English/Romanian dictionaries into statically imported
+locale modules.
+
 - English and Romanian are stored in `STRINGS`, with more `Object.assign(STRINGS.en/ro, ...)` blocks throughout the application. Static elements use the three data attributes above; dynamically generated content commonly uses `t()` or `tl()`, including interpolations `%s`, `%a`, `%b`.
 - In addition, code has explicit `lang === 'ro'` branches. These include interval, chord, scale, inversion and category names; song references; lesson content; glossary; piece titles; list formatting; and number/date formats. See `ivName`, `scaleDisp`, `chordDisp`, `catLabel`, `invName`, `feelDisp`, `songsFor`, `LT`, `learnTitle`, `learnBodyHTML`, `lgHTML`, `srPieceTitle`, `coachList`, `anNum`, and the export code. Adding dictionary keys alone does not localize these.
 - `LESSONS` contains 22 hand-authored bilingual chapters (HTML with functional `data-demo` controls). Preserve markup, demo attributes, terminology and the underlying musical meanings in each translation. `LEARN_UNITS`, quizzes/widgets, `GLOSS`, titles, accompaniment patterns and other bilingual arrays also need locale-aware data and rendering. Review direct English strings outside `STRINGS`, too.

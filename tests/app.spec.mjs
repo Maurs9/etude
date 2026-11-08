@@ -37,7 +37,7 @@ test.describe('i18n', () => {
 
   test('no string key is defined twice in a language', () => {
     // Object literals silently keep the last duplicate, so scan the source of the STRINGS literal (skipping string contents).
-    const html = readFileSync(new URL('../' + APP, import.meta.url), 'utf8');
+    const html = readFileSync(new URL('../src/legacy/app.js', import.meta.url), 'utf8');
     const src = html.slice(html.indexOf('const STRINGS={'));
     const dupes = [];
     let depth = 0, i = src.indexOf('{'), lang = null, seen = null;
