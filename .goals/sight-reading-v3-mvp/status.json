@@ -36,6 +36,11 @@
       "iteration": 5,
       "verdict": "FAIL",
       "summary": "Mixed keyboard/MIDI ownership is closed incorrectly on focus loss; completed results do not relocalize; mandatory flow, ledger, accessibility, and pending-save Playwright cases remain incomplete."
+    },
+    {
+      "iteration": 6,
+      "verdict": "FAIL",
+      "summary": "Mixed-source attempts never set mixedInput; audio suspension leaves first-sight active; note names remain visible; ledger errors leak untranslated codes; the non-greedy browser test sends no input."
     }
   ]
 }
