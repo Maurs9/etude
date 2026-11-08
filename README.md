@@ -54,8 +54,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 ## Project structure
 
 - `etude.html` — stable application shell
-- `src/domain/views.ts` — typed bootstrap for the application view runtime
-- `src/domain/views-runtime.js` — current DOM/event runtime boundary; it is still an unchecked JavaScript migration blocker, although audio, theory, and notation operations now cross typed adapters
+- `src/domain/views.ts` — TypeScript application/view runtime and browser test surface
 - `src/domain/router.ts` — hash-route groups and safe fallback
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
 - `src/domain/storage.ts` — typed `ptt-v3` reader, writer, and settings normalization
@@ -71,7 +70,5 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `package.json`, `package-lock.json` — test tooling and locked dependencies
 
 All TypeScript under `src/` is checked with the compiler's full `strict` mode.
-The current `typecheck` gate does not include `views-runtime.js`; completing the
-views migration requires moving that implementation into strict TypeScript,
-not adding a facade or a broad suppression. Until then, new storage, theory,
-audio, or notation behavior belongs in the corresponding typed module first.
+Keep browser-only DOM wiring in the view domain and keep storage, theory,
+audio, notation, and routing behavior behind their typed module boundaries.

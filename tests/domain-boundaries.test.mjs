@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
-const runtimePath = new URL('../src/domain/views-runtime.js', import.meta.url);
+const runtimePath = new URL('../src/domain/views.ts', import.meta.url);
 const theoryPath = new URL('../src/domain/theory.ts', import.meta.url);
 const notationPath = new URL('../src/domain/notation.ts', import.meta.url);
 
