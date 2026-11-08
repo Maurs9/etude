@@ -57,6 +57,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `src/legacy/app.js` — current compatibility module during the migration
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
 - `src/domain/storage.ts` — typed `ptt-v3` reader and settings normalization
+- `src/domain/theory.ts` — typed, pure pitch-class, scale, chord, and interval helpers
 - `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed recordings
 - `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
 - `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker
