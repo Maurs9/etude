@@ -51,6 +51,26 @@ function pianoBlock(json) {
 
 export async function split(source = null) {
   source ||= await readFile(APP_FILE, 'utf8');
+  const parts = splitSource(source);
+  await mkdir(dirname(CSS_SOURCE), { recursive: true });
+  await mkdir(dirname(APP_SOURCE), { recursive: true });
+  await mkdir(dirname(OSMD_SOURCE), { recursive: true });
+  await mkdir(PIANO_DIR, { recursive: true });
+  await mkdir(join(ROOT, 'public', 'icons'), { recursive: true });
+  await writeFile(CSS_SOURCE, parts.css);
+  await writeFile(APP_SOURCE, parts.app);
+  await writeFile(OSMD_SOURCE, parts.osmd);
+  for (const [midi, base64] of Object.entries(parts.piano))
+    await writeFile(join(PIANO_DIR, `${midi}.mp3`), Buffer.from(base64, 'base64'));
+  await writeFile(join(ROOT, 'public', 'manifest.webmanifest'), await readFile(join(ROOT, 'manifest.webmanifest')));
+  for (const icon of ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'icon.svg'])
+    await copyFile(join(ROOT, 'icons', icon), join(ROOT, 'public', 'icons', icon));
+  await writeFile(APP_FILE, parts.shell);
+  const names = await generateBridge(APP_SOURCE, join(ROOT, 'src', 'legacy', 'bridge.js'));
+  return { shell: parts.shell, pianoKeys: Object.keys(parts.piano).map(Number), names };
+}
+
+export function splitSource(source) {
   const style = block(source, '<style>', '</style>');
   const piano = block(source, '<script type="application/json" id="piano-recordings">', '</script>');
   const osmd = block(source, '<script type="text/javascript">', '</script>');
@@ -66,23 +86,7 @@ export async function split(source = null) {
   shell += PIANO_TAG + source.slice(piano.end, osmd.start);
   shell += OSMD_MARKER + OSMD_TAG + source.slice(osmd.end, app.start);
   shell += APP_MARKER + APP_TAG + source.slice(app.end);
-
-  await mkdir(dirname(CSS_SOURCE), { recursive: true });
-  await mkdir(dirname(APP_SOURCE), { recursive: true });
-  await mkdir(dirname(OSMD_SOURCE), { recursive: true });
-  await mkdir(PIANO_DIR, { recursive: true });
-  await mkdir(join(ROOT, 'public', 'icons'), { recursive: true });
-  await writeFile(CSS_SOURCE, styleBody);
-  await writeFile(APP_SOURCE, appBody);
-  await writeFile(OSMD_SOURCE, osmdBody);
-  for (const [midi, base64] of Object.entries(pianoJson))
-    await writeFile(join(PIANO_DIR, `${midi}.mp3`), Buffer.from(base64, 'base64'));
-  await writeFile(join(ROOT, 'public', 'manifest.webmanifest'), await readFile(join(ROOT, 'manifest.webmanifest')));
-  for (const icon of ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'icon.svg'])
-    await copyFile(join(ROOT, 'icons', icon), join(ROOT, 'public', 'icons', icon));
-  await writeFile(APP_FILE, shell);
-  const names = await generateBridge(APP_SOURCE, join(ROOT, 'src', 'legacy', 'bridge.js'));
-  return { shell, pianoKeys: Object.keys(pianoJson).map(Number), names };
+  return { shell, css: styleBody, app: appBody, osmd: osmdBody, piano: pianoJson };
 }
 
 export async function joinSplit() {
@@ -95,10 +99,14 @@ export async function joinSplit() {
   for (const file of keys.filter(file => file.endsWith('.mp3')).sort((a, b) => Number(a.slice(0, -4)) - Number(b.slice(0, -4)))) {
     json[file.slice(0, -4)] = (await readFile(join(PIANO_DIR, file))).toString('base64');
   }
+  return joinSource({ shell, css, app, osmd, piano: json });
+}
+
+export function joinSource({ shell, css, app, osmd, piano }) {
   return shell
     .replace(FONT_TAG, () => GOOGLE_FONT_BLOCK)
     .replace(STYLE_MARKER + STYLE_TAG, () => `<style>${css}</style>`)
-    .replace(PIANO_TAG, () => pianoBlock(json))
+    .replace(PIANO_TAG, () => pianoBlock(piano))
     .replace(OSMD_MARKER + OSMD_TAG, () => `<script type="text/javascript">${osmd}</script>`)
     .replace(APP_MARKER + APP_TAG, () => `<script>\n${app}</script>`);
 }

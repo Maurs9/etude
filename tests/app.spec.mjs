@@ -995,6 +995,39 @@ test('a stale live decode error cannot mark a replacement audio context as faile
   expect(result).toBe('ready');
 });
 
+test('an aborted piano warm-up can recover before Learn playback', async ({ app, page }) => {
+  await app.open();
+  let aborted = false;
+  await page.route('**/*.mp3*', async route => {
+    if (!aborted) {
+      aborted = true;
+      await route.abort('failed');
+    } else {
+      await route.continue();
+    }
+  });
+  const first = await page.evaluate(async () => {
+    ensureAudio();
+    pianoBank.promise = null;
+    pianoBank.status = 'idle';
+    pianoBank.buffers = new Map();
+    pianoBank.pending = new Map();
+    pianoBank.ctx = actx;
+    return preparePiano();
+  });
+  await page.unroute('**/*.mp3*');
+  const second = await page.evaluate(async () => {
+    const ready = await preparePiano();
+    startSession(null);
+    const question = SES.q;
+    playQuestionSound(question);
+    return { ready, active: SES.active, hasQuestion: !!question, voices: previewVoices.length, status: pianoBank.status };
+  });
+  expect(first).toBe(false);
+  expect(second).toMatchObject({ ready: true, active: true, hasQuestion: true, status: 'ready' });
+  expect(second.voices).toBeGreaterThan(0);
+});
+
 test('synthesized piano notes connect modulation to each pitched oscillator', async ({ app }) => {
   const page=await app.open();
   const result=await page.evaluate(() => {
