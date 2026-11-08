@@ -2496,10 +2496,16 @@ document.addEventListener('keyup', (e) => { const c = physKey(e); if (typingDown
     handleNoteOff(m, 'typing:' + c);
 } });
 /* ---------- GRADING CORE ---------- */
-function chordTargetPcs(rootPc: number, tpl: theory.ChordTemplate|undefined) { return chordPitches(rootPc, tpl.intervals); }
-function inversionOf(rootPc: number, tpl: theory.ChordDefinition, bassMidi: number) { return chordInversion(rootPc, tpl, bassMidi); }
-function identifyChord(notes: any[]|readonly number[], expected: number|undefined) { return identifyChordDomain(notes, CHORDS , expected); }
-function slashLabel(id: { rootPc: any; chord: any; inversion: any; bassPc: any; }) { return rootName(id.rootPc) + id.chord.symbol + (id.inversion > 0 ? '/' + rootName(id.bassPc) : ''); }
+function chordTargetPcs(rootPc: number, tpl: theory.ChordTemplate|undefined) { if (!tpl)
+    throw new Error('Étude: unknown chord template'); return chordPitches(rootPc, tpl.intervals); }
+function inversionOf(rootPc: number, tpl: { symbol: string; idx?: number; pcset?: readonly number[] }, bassMidi: number) {
+    const { idx, pcset } = tpl;
+    if (idx === undefined || !pcset)
+        return 0;
+    return chordInversion(rootPc, { idx, symbol: tpl.symbol, pcset }, bassMidi);
+}
+function identifyChord(notes: readonly number[], expected?: number) { return identifyChordDomain(notes, CHORDS , expected); }
+function slashLabel(id: { rootPc: number; chord: { symbol: string; }; inversion: number; bassPc: number; }) { return rootName(id.rootPc) + id.chord.symbol + (id.inversion > 0 ? '/' + rootName(id.bassPc) : ''); }
 /* ============================================================================
    ITEM MODEL + SPACED REPETITION
    ============================================================================ */
@@ -2507,21 +2513,66 @@ const INTRO_IV = [7, 5, 4, 3, 12, 2, 9, 8, 11, 10, 1, 6];
 const INTRO_CH = ['maj', 'm', 'dim', 'sus4', 'sus2', 'aug', 'maj7', '7', 'm7', '6', 'm6', 'm7♭5', 'dim7', 'mMaj7', 'add9', '9', 'maj9', 'm9', '7♯5', '7♭5', 'maj7♯11', '7♭9', '7♯9', '11', '13'];
 const INTRO_SC = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Major pentatonic', 'Minor pentatonic', 'Dorian', 'Mixolydian', 'Blues', 'Lydian', 'Phrygian', 'Harmonic minor', 'Melodic minor', 'Locrian', 'Harmonic major', 'Whole tone', 'Phrygian dominant', 'Hungarian minor', 'Diminished (W-H)', 'Diminished (H-W)', 'Chromatic'];
 const CATS = { interval: { label: 'Intervals' }, chord: { label: 'Chords' }, scale: { label: 'Scales' }, prog: { label: 'Progressions' } };
-const ITEMS: never[] = [];
-const ITEM_BY_ID = {};
-INTRO_IV.forEach((semi, i) => { const iv = INTERVALS.find((x) => x.semi === semi); ITEMS.push({ id: 'iv:' + semi, cat: 'interval', semi, label: iv.name, short: iv.short, intro: i }); });
+interface TrainerItemBase { id: string; label: string; short: string; intro: number; }
+interface IntervalTrainerItem extends TrainerItemBase { cat: 'interval'; semi: number; }
+interface ChordTrainerItem extends TrainerItemBase { cat: 'chord'; ref: theory.ChordTemplate; }
+interface ScaleTrainerItem extends TrainerItemBase { cat: 'scale'; name: string; }
+interface ProgTrainerItem extends TrainerItemBase { cat: 'prog'; ref: theory.ProgressionTemplate; }
+type TrainerItem = IntervalTrainerItem | ChordTrainerItem | ScaleTrainerItem | ProgTrainerItem;
+const ITEMS: TrainerItem[] = [];
+const ITEM_BY_ID: Record<string, TrainerItem> = {};
+INTRO_IV.forEach((semi, i) => { const iv = INTERVALS.find((x) => x.semi === semi); if (!iv)
+    return; ITEMS.push({ id: 'iv:' + semi, cat: 'interval', semi, label: iv.name, short: iv.short, intro: i }); });
 INTRO_CH.forEach((sym, i) => { const c = CHORDS.find((x) => x.symbol === sym); if (c)
     ITEMS.push({ id: 'ch:' + sym, cat: 'chord', ref: c, label: c.name, short: sym, intro: 100 + i }); });
 INTRO_SC.forEach((nm, i) => { if (SCALES[nm])
     ITEMS.push({ id: 'sc:' + nm, cat: 'scale', name: nm, label: nm, short: nm, intro: 200 + i }); });
 PROGS.forEach((p, i) => { ITEMS.push({ id: 'pr:' + p.name, cat: 'prog', ref: p, label: p.name, short: p.name, intro: 300 + i }); });
 ITEMS.forEach((it) => ITEM_BY_ID[it.id] = it);
-function freshData() { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false } }; }
+interface StoredSrsEntry { box: number; ease: number; due: number; reps: number; lapses: number; last: number; }
+type StoredTrainerSettings = Omit<storage.AppSettings, 'earKeys'> & { earKeys?: boolean; };
+interface StoredSheetRecord { best?: number; learned?: boolean; }
+interface StoredLastDrill { cat: string; mode: string; keys: boolean; key: string; c: number; n: number; day: number; }
+interface StoredLessonReview { last: number; n: number; best?: number; rv?: number; }
+interface StoredReadingLevel { s: number; acc: number; t: number; n: number; rush: number; }
+interface StoredReadingNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
+interface StoredReadingTotals { n: number; ok: number; ms: number; sess: number; }
+interface StoredReadingCustomDrill { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
+interface StoredReadingPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: StoredReadingCustomDrill | null; rhDur: boolean; rhHands: number; srLv?: string; }
+interface StoredReadingProgress { lv: Record<string, StoredReadingLevel>; nt: Record<string, StoredReadingNoteStat>; tot: StoredReadingTotals; prefs: StoredReadingPrefs; }
+interface StoredTrainerData {
+    srs: Record<string, StoredSrsEntry>;
+    streak: number;
+    bestStreak: number;
+    lastActive: number;
+    todayDay: number;
+    todayCount: number;
+    newToday: number;
+    totalReviews: number;
+    totalCorrect: number;
+    placed: boolean;
+    history: Record<string, number>;
+    singCleared: Record<string, boolean>;
+    sheet: Record<string, StoredSheetRecord>;
+    settings: StoredTrainerSettings;
+    lastTool?: string;
+    toolDay?: Record<string, number>;
+    earDay?: number;
+    earToday?: number;
+    lastDrill?: StoredLastDrill;
+    learnDone?: Record<string, number>;
+    learnRev?: Record<string, StoredLessonReview>;
+    learnUnlock?: Record<string, number>;
+    learnSel?: number;
+    learnSelId?: string;
+    reading?: StoredReadingProgress;
+}
+function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false } }; }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
 function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 }); }
 const IVL = [0, 1, 2, 4, 9, 21, 45, 90];
-function reviewItem(id: any, correct: any) {
+function reviewItem(id: string, correct: boolean) {
     const it = srsOf(id);
     it.reps++;
     if (correct) {
@@ -2562,9 +2613,9 @@ function touchDay() {
     h[t] = (h[t] || 0) + 1;
     const keys = Object.keys(h);
     if (keys.length > 400)
-        keys.sort((a, b) => a - b).slice(0, keys.length - 400).forEach((k) => delete h[k]);
+        keys.sort((a, b) => Number(a) - Number(b)).slice(0, keys.length - 400).forEach((k) => delete h[k]);
 }
-function seedPlacement(id: any, known: any) { if (known) {
+function seedPlacement(id: string, known: boolean) { if (known) {
     const it = srsOf(id);
     it.box = 4;
     it.ease = 2.4;
@@ -2576,8 +2627,8 @@ function seedPlacement(id: any, known: any) { if (known) {
     data.totalCorrect++; touchDay(); saveAll(); }
 const SCALE_EAR_POOL = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Dorian', 'Mixolydian', 'Phrygian', 'Lydian', 'Major pentatonic', 'Minor pentatonic', 'Blues', 'Harmonic minor', 'Whole tone'];
 function scaleEarOptions(correct: string) { let pool = SCALE_EAR_POOL.filter((n) => n !== correct); pool = shuffle(pool).slice(0, 6); pool.push(correct); return shuffle(pool); }
-function chordEarOptions(correctItem: { short: any; ref: { pcset: string|any[]; }; }) {
-    const others = ITEMS.filter((x) => x.cat === 'chord' && x.short !== correctItem.short);
+function chordEarOptions(correctItem: ChordTrainerItem) {
+    const others = ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord' && x.short !== correctItem.short);
     const same = shuffle(others.filter((x) => x.ref.pcset.length === correctItem.ref.pcset.length));
     const rest = shuffle(others.filter((x) => x.ref.pcset.length !== correctItem.ref.pcset.length));
     return shuffle(same.concat(rest).slice(0, 7).concat([correctItem]));
@@ -2594,9 +2645,15 @@ function masteredCount() { return ITEMS.filter((it) => boxOf(it.id) >= 4).length
 /* ============================================================================
    SESSION ENGINE  (interleaved, adaptive, with feedback + elaboration)
    ============================================================================ */
-const SES = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0 };
+interface EarKeysNote { m: number; t: number; }
+type EarKeysPrompt = { kind: 'iv'; target: number[]; n: number; } | { kind: 'ch'; target: number[]; inv: number; pcs: number[]; n: number; } | { kind: 'mel'; target: number[]; n: number; };
+type EarKeysState = EarKeysPrompt & { tries: number; seq: EarKeysNote[]; off: number; armAt: number; goT: ReturnType<typeof setTimeout> | number; won: boolean; warned: boolean; played?: number[]; };
+interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; }
+interface TrainerSessionTarget { cat: string; mode: string; key: string; }
+interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; }
+const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0 };
 function sesStopPrompt() { clearTimeout(SES.promptT); SES.promptT = 0; }
-function sesPrompt(q: { (): void; (): void; (): void; (): void; }|null, play: (() => void)|undefined) { sesStopPrompt(); SES.promptT = setTimeout(() => { SES.promptT = 0; if (SES.active && SES.q === q && !SES.answered)
+function sesPrompt(q: TrainerQuestion, play: () => void) { sesStopPrompt(); SES.promptT = setTimeout(() => { SES.promptT = 0; if (SES.active && SES.q === q && !SES.answered)
     play(); }, 250); }
 function buildQueue() {
     const goal = data.settings.goal;
@@ -2627,11 +2684,11 @@ function buildQueue() {
     }
     if (!pool.length)
         pool = shuffle(ITEMS).slice(0, goal);
-    let qs = shuffle(pool).map(makeQuestion);
+    let qs: TrainerQuestion[] = shuffle(pool).map(makeQuestion);
     // interleave: avoid two same-category in a row when possible
     for (let i = 1; i < qs.length; i++) {
         if (qs[i].it.cat === qs[i - 1].it.cat) {
-            const j = qs.findIndex((q: { it: { cat: any; }; }, k: number) => k > i && q.it.cat !== qs[i - 1].it.cat);
+            const j = qs.findIndex((q, k) => k > i && q.it.cat !== qs[i - 1].it.cat);
             if (j > -1) {
                 [qs[i], qs[j]] = [qs[j], qs[i]];
             }
@@ -2639,10 +2696,10 @@ function buildQueue() {
     }
     return qs;
 }
-function makeQuestion(it: { id: any; cat: string; }) {
+function makeQuestion(it: TrainerItem): TrainerQuestion {
     const b = boxOf(it.id);
     const forced = SES.targeted && SES.targeted.mode;
-    let mode;
+    let mode: string;
     if (SES.placement)
         mode = 'ear'; // placement probes real by-ear knowledge
     else if (forced)
@@ -2651,14 +2708,14 @@ function makeQuestion(it: { id: any; cat: string; }) {
         mode = b >= 3 ? 'ear' : 'play';
     else
         mode = b >= 2 ? 'ear' : 'play'; // desirable difficulty: recall-by-sound once recognised-by-doing
-    let key;
+    let key: number;
     if (SES.targeted && SES.targeted.key != null && SES.targeted.key !== 'all')
         key = (+SES.targeted.key) || 0; // honour the key picked in Practice
     else
         key = b < 1 ? randItem([0, 7, 5, 2, 9]) : Math.floor(Math.random() * 12); // start in friendly keys
     return { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
 }
-function startSession(targeted: { cat: string; mode: string; key: string; }|null) {
+function startSession(targeted: TrainerSessionTarget|null) {
     ensureAudio();
     sesStopPrompt();
     SES.targeted = targeted || null;
@@ -2747,6 +2804,8 @@ function nextQuestion() {
     kbClearAll();
     SES.answered = false;
     const q = SES.targeted ? makeQuestion(pickTargetedItem()) : SES.queue[SES.idx];
+    if (!q)
+        return;
     SES.q = q;
     byId('ses-progress').style.width = SES.targeted ? '0%' : (100 * SES.idx / SES.queue.length) + '%';
     byId('ses-count').textContent = SES.targeted ? ('#' + (SES.total + 1) + (SES.total ? ' · ' + SES.correct + '/' + SES.total + ' ✓' : '')) : ((SES.idx + 1) + '/' + SES.queue.length);
@@ -2761,6 +2820,8 @@ function nextQuestion() {
     presentQuestion(q);
 }
 function pickTargetedItem() {
+    if (!SES.targeted)
+        throw new Error('Étude: no targeted drill');
     const c = SES.targeted.cat;
     const pool = c === 'melody' ? ITEMS.filter((it) => it.cat === 'scale' && EK_MEL_SCALES.includes(it.name)) : ITEMS.filter((it) => it.cat === c); // weakness-weighted
     const w = pool.map((it) => { const s = data.srs[it.id] || { box: 0 }; return 1 / (1 + s.box); });
@@ -2772,7 +2833,7 @@ function pickTargetedItem() {
     }
     return pool[0];
 }
-function presentQuestion(q: never) {
+function presentQuestion(q: TrainerQuestion) {
     const it = q.it;
     byId('q-cat').textContent = catLabel(it.cat);
     const playLbl = { interval: t('play_interval'), chord: t('play_chord'), scale: t('play_scale'), prog: t('play_prog') };
@@ -2787,7 +2848,7 @@ function presentQuestion(q: never) {
     }
 }
 function earRoot(q: { key: number; }) { return 57 + (q.key % 12 <= 5 ? q.key : q.key - 12) + 5; } // mid register, kept playable
-function presentPlay(q: { it: any; key: any; offs: number[]; anchor: null; idx: number; }) {
+function presentPlay(q: TrainerQuestion) {
     const it = q.it;
     if (it.cat === 'interval') {
         byId('q-prompt').innerHTML = ivName(it.semi) + ' <span class="sub">' + t('above') + ' ' + rootName(q.key) + '</span>';
@@ -2807,14 +2868,14 @@ function presentPlay(q: { it: any; key: any; offs: number[]; anchor: null; idx: 
     }
     else if (it.cat === 'prog') {
         q.idx = 0;
-        const chain = it.ref.chords.map((ch: any[]) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join('  ·  ');
+        const chain = it.ref.chords.map((ch) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join('  ·  ');
         byId('q-prompt').innerHTML = it.ref.name + ' <span class="sub">' + t('in_key') + ' ' + rootName(q.key) + '</span>';
         byId('q-verdict').className = 'verdict neutral';
         byId('q-verdict').textContent = chain;
         showProgTarget(q);
     }
 }
-function presentEar(q: { ek: null; it: any; key: number; }) {
+function presentEar(q: TrainerQuestion) {
     ekStop(q);
     q.ek = null;
     ekUiReset();
@@ -2827,28 +2888,32 @@ function presentEar(q: { ek: null; it: any; key: number; }) {
     byId('q-answers').hidden = false;
     const box = byId('q-answers');
     box.innerHTML = '';
-    let opts = [];
+    let opts: { k: number | string; t: string; }[] = [];
     if (it.cat === 'interval') {
         opts = INTERVALS.map((iv) => ({ k: iv.semi, t: iv.short + ' · ' + ivName(iv.semi) }));
-        sesPrompt(() => playInterval(earRoot(q), it.semi, 'both'));
+        sesPrompt(q, () => playInterval(earRoot(q), it.semi, 'both'));
     }
     else if (it.cat === 'chord') {
-        opts = chordEarOptions(it).map((x: { short: string; ref: any; }) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
-        sesPrompt(() => playChordMidis(it.ref.intervals.map((i: any) => 57 + q.key + i), true));
+        opts = chordEarOptions(it).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
+        sesPrompt(q, () => playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true));
     }
     else if (it.cat === 'scale') {
-        opts = scaleEarOptions(it.name).map((nm: any) => ({ k: nm, t: scaleDisp(nm) }));
-        sesPrompt(() => playScaleNotes(60 + q.key, SCALES[it.name], true));
+        opts = scaleEarOptions(it.name).map((nm: string) => ({ k: nm, t: scaleDisp(nm) }));
+        sesPrompt(q, () => playScaleNotes(60 + q.key, SCALES[it.name], true));
     }
     else if (it.cat === 'prog') {
         opts = PROGS.map((p) => ({ k: p.name, t: p.name }));
-        sesPrompt(() => playProg(q.key, it.ref));
+        sesPrompt(q, () => playProg(q.key, it.ref));
     }
-    opts.forEach((o: { k: any; t: string|null; }) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o.k); b.textContent = o.t; b.onclick = () => answerEar(q, o.k, b); box.appendChild(b); });
+    opts.forEach((o) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o.k); b.textContent = o.t; b.onclick = () => answerEar(q, o.k, b); box.appendChild(b); });
 }
-function playProg(rootPc: number, prog: theory.ProgressionTemplate) { ensureAudio(); stopPreviews(); const t = actx.currentTime; prog.chords.forEach((ch: any[], i: number) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); tpl.intervals.forEach((iv) => previewNote(root + iv, t + i * .9, .8)); }); }
-function showProgTarget(q: { it: { ref: { chords: { [x: string]: any; }; }; }; idx: string|number; key: any; }) { kbClear('target'); const ch = q.it.ref.chords[q.idx], root = 60 + ((q.key + ch[0]) % 12), tpl = progChordTpl(ch[1]); tpl.intervals.forEach((iv) => kbState(root + iv, 'target', true)); }
-function playQuestionSound(q: never) {
+function playProg(rootPc: number, prog: theory.ProgressionTemplate) { ensureAudio(); stopPreviews(); if (!actx)
+    return; const t = actx.currentTime; prog.chords.forEach((ch, i: number) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); if (!tpl)
+    return; tpl.intervals.forEach((iv) => previewNote(root + iv, t + i * .9, .8)); }); }
+function showProgTarget(q: TrainerQuestion) { kbClear('target'); if (q.it.cat !== 'prog')
+    return; const ch = q.it.ref.chords[q.idx], root = 60 + ((q.key + ch[0]) % 12), tpl = progChordTpl(ch[1]); if (!tpl)
+    return; tpl.intervals.forEach((iv) => kbState(root + iv, 'target', true)); }
+function playQuestionSound(q: TrainerQuestion) {
     const it = q.it;
     if (q.ek) {
         if (SES.answered)
@@ -2860,17 +2925,17 @@ function playQuestionSound(q: never) {
     if (it.cat === 'interval')
         playInterval(earRoot(q), it.semi, 'both');
     else if (it.cat === 'chord')
-        playChordMidis(it.ref.intervals.map((i: any) => 57 + q.key + i), true);
+        playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true);
     else if (it.cat === 'scale')
         playScaleNotes(60 + q.key, SCALES[it.name], true);
     else if (it.cat === 'prog')
         playProg(q.key, it.ref);
 }
-function answerEar(q: { it: any; missed: boolean; }, k: any, btn: HTMLButtonElement) {
+function answerEar(q: TrainerQuestion, k: number | string, btn: HTMLButtonElement) {
     if (SES.answered)
         return;
     const it = q.it;
-    let ok;
+    let ok: boolean;
     if (it.cat === 'interval')
         ok = k === it.semi;
     else if (it.cat === 'chord')
@@ -2890,7 +2955,7 @@ function answerEar(q: { it: any; missed: boolean; }, k: any, btn: HTMLButtonElem
         resolve(q, false);
     }
 }
-function markEarCorrect(q: never) { const it = q.it; const key = it.cat === 'interval' ? String(it.semi) : it.cat === 'chord' ? it.short : it.cat === 'scale' ? it.name : it.ref.name; [...byId('q-answers').children].forEach((b) => { if (b.dataset.k === key)
+function markEarCorrect(q: TrainerQuestion) { const it = q.it; const key = it.cat === 'interval' ? String(it.semi) : it.cat === 'chord' ? it.short : it.cat === 'scale' ? it.name : it.ref.name; [...byId('q-answers').children].forEach((b) => { if (b instanceof HTMLElement && b.dataset.k === key)
     b.classList.add('correct'); }); }
 /* ---------- BY EAR, ON THE KEYS: hear it, then play it back (intervals, chords in any inversion, short tonal melodies) ----------
    The prompt plays first; notes that arrive before it ends are ignored (armAt), so nothing the listener does while it sounds is
@@ -2900,24 +2965,24 @@ function markEarCorrect(q: never) { const it = q.it; const key = it.cat === 'int
 const EK_TRIES = 3, EK_MEL_SCALES = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Major pentatonic', 'Minor pentatonic'];
 const EK_CHORD_GAP = 300; // ms: a key joins the chord if another chord key is still down or it lands this close to the previous one
 function ekForced() { return !!(SES.targeted && SES.targeted.cat === 'melody'); }
-function ekWanted(q: { mode: string; it: { cat: string; }; }) { return !!q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
+function ekWanted(q: TrainerQuestion | null) { return !!q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
 // Spell like the key: minor-flavoured chords and scales on D, G, C, F, B♭, E♭ use flats, as do the flat major keys and the flat intervals.
-function ekFlat(q: { it: any; key: number; }) {
+function ekFlat(q: TrainerQuestion) {
     const it = q.it, set = it.cat === 'chord' ? it.ref.pcset : it.cat === 'scale' ? SCALES[it.name] : null;
     if (set && set.includes(3) && !set.includes(4))
         return [0, 2, 3, 5, 7, 10].includes(q.key);
     return isFlatKey(q.key) || (it.cat === 'interval' && [1, 3, 8, 10].includes(it.semi));
 }
-function ekName(q: any, m: any) { return noteName(m, ekFlat(q)); }
-function ekToggleSync(q: never) {
+function ekName(q: TrainerQuestion, m: number) { return noteName(m, ekFlat(q)); }
+function ekToggleSync(q: TrainerQuestion | null) {
     const box = byId('q-ansmode');
     box.hidden = !(q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && !ekForced());
     box.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', (b.dataset.v === 'keys') === !!data.settings.earKeys ? 'true' : 'false'));
 }
 function ekUiReset() { byId('q-ekhint').textContent = ''; byId('q-ekprog').innerHTML = ''; byId('q-ekreset').hidden = true; }
-function ekStop(q: null) { if (q && q.ek)
+function ekStop(q: TrainerQuestion | null) { if (q && q.ek)
     clearTimeout(q.ek.goT); }
-function ekBuild(q: { it: any; key: number; }) {
+function ekBuild(q: TrainerQuestion): EarKeysPrompt {
     const it = q.it;
     if (it.cat === 'interval') {
         const r = earRoot(q);
@@ -2927,8 +2992,11 @@ function ekBuild(q: { it: any; key: number; }) {
         const ivs = [...new Set(it.ref.intervals)].sort((a, b) => a - b), n = ivs.length;
         const inv = n <= 4 && Math.random() < .6 ? 1 + Math.floor(Math.random() * (n - 1)) : 0; // triads and sevenths come in every inversion
         let ns = ivs.map((i) => 48 + q.key + i);
-        for (let k = 0; k < inv; k++)
-            ns.push(ns.shift() + 12);
+        for (let k = 0; k < inv; k++) {
+            const low = ns.shift();
+            if (low !== undefined)
+                ns.push(low + 12);
+        }
         if (ns[0] < 52)
             ns = ns.map((m) => m + 12);
         if (ns[ns.length - 1] > 88)
@@ -2937,12 +3005,14 @@ function ekBuild(q: { it: any; key: number; }) {
         return { kind: 'ch', target: ns, inv, pcs, n: pcs.length };
     }
     // a short tonal melody in the item's scale: starts on the tonic, moves mostly by step, ends on a stable degree
+    if (it.cat !== 'scale')
+        throw new Error('Étude: no ear-keys prompt for a ' + it.cat + ' item');
     const offs = SCALES[it.name], N = offs.length, ton = 60 + (q.key <= 5 ? q.key : q.key - 12), len = 3 + Math.floor(Math.random() * 3);
     const at = (d: number) => ton + offs[((d % N) + N) % N] + 12 * Math.floor(d / N), stable = (d: number) => [0, 3, 4, 7].includes(pc(at(d) - ton));
     let d = 0;
     const ds = [0];
     for (let i = 1; i < len; i++) {
-        const last = i === len - 1, opts = [];
+        const last = i === len - 1, opts: number[] = [];
         [-2, -1, 1, 2].forEach((s) => { const nd = d + s; if (nd < -2 || nd > N + 2 || (last && !stable(nd)))
             return; opts.push(nd); if (Math.abs(s) === 1)
             opts.push(nd, nd); });
@@ -2954,11 +3024,11 @@ function ekBuild(q: { it: any; key: number; }) {
     const target = ds.map(at);
     return { kind: 'mel', target, n: target.length };
 }
-function presentEarKeys(q: { it: any; ek: ({ kind: string; target: any[]; n: number; inv?: undefined; pcs?: undefined; }|{ kind: string; target: any[]; inv: number; pcs: number[]; n: number; })&{ tries: number; seq: never[]; off: number; armAt: number; goT: number; won: boolean; warned: boolean; }; key: any; }) {
+function presentEarKeys(q: TrainerQuestion) {
     const it = q.it, ek = q.ek = Object.assign(ekBuild(q), { tries: 0, seq: [], off: 0, armAt: Infinity, goT: 0, won: false, warned: false });
     byId('q-answers').hidden = true;
     byId('q-answers').innerHTML = '';
-    const st = ekName(q, ek.target[0]), sub = ek.kind === 'iv' ? t('ek_sub_start', st) : ek.kind === 'ch' ? t('ek_sub_bass', st, ek.n) : t('ek_sub_mel', rootName(q.key) + ' ' + scaleDisp(it.name), ek.n);
+    const st = ekName(q, ek.target[0]), sub = ek.kind === 'iv' ? t('ek_sub_start', st) : ek.kind === 'ch' ? t('ek_sub_bass', st, ek.n) : t('ek_sub_mel', rootName(q.key) + ' ' + scaleDisp(it.cat === 'scale' ? it.name : ''), ek.n);
     byId('q-prompt').innerHTML = t('ek_p_' + ek.kind) + ' <span class="sub">' + sub + '</span>';
     if (ek.kind === 'mel')
         byId('q-cat').textContent = t('ek_cat_mel');
@@ -2968,14 +3038,16 @@ function presentEarKeys(q: { it: any; ek: ({ kind: string; target: any[]; n: num
     ekPlay(q);
 }
 // Plays the prompt and returns when (seconds after now) its last note starts.
-function ekSound(q: { ek: any; }) {
+function ekSound(q: TrainerQuestion) {
     const ek = q.ek;
     ensureAudio();
     if (!actx)
         return 0;
     stopPreviews();
+    if (!ek)
+        return 0;
     const t0 = actx.currentTime + .25, ms = ek.target;
-    let last;
+    let last: number;
     if (ek.kind === 'iv') {
         previewNote(ms[0], t0, .45);
         previewNote(ms[1], t0 + .5, .45);
@@ -2984,20 +3056,20 @@ function ekSound(q: { ek: any; }) {
         last = 1.15;
     }
     else if (ek.kind === 'ch') {
-        ms.forEach((m: any, i: number) => previewNote(m, t0 + i * .16, .4));
+        ms.forEach((m, i: number) => previewNote(m, t0 + i * .16, .4));
         const bt = ms.length * .16 + .1;
-        ms.forEach((m: any) => previewNote(m, t0 + bt, 1.1));
+        ms.forEach((m) => previewNote(m, t0 + bt, 1.1));
         previewNote(ms[0], t0 + bt + 1.35, .6);
         last = bt + 1.35;
     }
     else {
         previewNote(ms[0], t0, .5);
-        ms.forEach((m: any, i: number) => previewNote(m, t0 + .85 + i * .5, .45));
+        ms.forEach((m, i: number) => previewNote(m, t0 + .85 + i * .5, .45));
         last = .85 + (ms.length - 1) * .5;
     }
     return .25 + last;
 }
-function ekPlay(q: { ek: any; }|null) {
+function ekPlay(q: TrainerQuestion) {
     const ek = q.ek;
     if (!ek || SES.answered)
         return;
@@ -3015,13 +3087,15 @@ function ekPlay(q: { ek: any; }|null) {
     ek.goT = setTimeout(() => { if (SES.q === q && !SES.answered && !ek.seq.length)
         neutral(t('ek_go')); }, wait);
 }
-function ekProg(q: never, k: number) { const ek = q.ek; byId('q-ekprog').innerHTML = ek ? Array.from({ length: ek.n }, (_, i) => '<i' + (i < k ? ' class="on"' : '') + '></i>').join('') : ''; }
-function ekFlash(ms: any[], s: string) { ms.forEach((m: any) => kbState(m, s, true)); }
-function ekOn(q: never, m: null) {
+function ekProg(q: TrainerQuestion, k: number) { const ek = q.ek; byId('q-ekprog').innerHTML = ek ? Array.from({ length: ek.n }, (_, i) => '<i' + (i < k ? ' class="on"' : '') + '></i>').join('') : ''; }
+function ekFlash(ms: number[], s: string) { ms.forEach((m) => kbState(m, s, true)); }
+function ekOn(q: TrainerQuestion, m: number | null | undefined) {
     const ek = q.ek;
     if (m == null)
         return;
     const now = performance.now();
+    if (!ek)
+        return;
     if (now < ek.armAt) {
         if (!ek.warned) {
             ek.warned = true;
@@ -3035,17 +3109,17 @@ function ekOn(q: never, m: null) {
     }
     if (ek.kind === 'ch') {
         const prev = ek.seq[ek.seq.length - 1];
-        if (prev && !ek.seq.some((x: { m: unknown; }) => held.has(x.m) && x.m !== m) && now - prev.t > EK_CHORD_GAP)
+        if (prev && !ek.seq.some((x) => held.has(x.m) && x.m !== m) && now - prev.t > EK_CHORD_GAP)
             ek.seq = [];
     }
     ek.seq.push({ m, t: now });
     scheduleEval(() => ek.kind === 'iv' ? ekIv(q) : ekCh(q), ek.kind === 'iv' ? 90 : 140);
 }
-function ekOff(q: never, m: any) { const ek = q.ek; if (!ek || SES.answered || ek.kind !== 'ch' || !ek.seq.length)
+function ekOff(q: TrainerQuestion, m: number) { const ek = q.ek; if (!ek || SES.answered || ek.kind !== 'ch' || !ek.seq.length)
     return; scheduleEval(() => ekCh(q), 140); }
-function ekIv(q: { ek: any; }|null) {
+function ekIv(q: TrainerQuestion) {
     const ek = q.ek;
-    if (SES.answered || SES.q !== q || !ek.seq.length)
+    if (!ek || SES.answered || SES.q !== q || !ek.seq.length)
         return;
     const s = ek.seq, start = ek.target[0], semi = ek.target[1] - start;
     let a = s[0], b = s[1];
@@ -3078,11 +3152,11 @@ function ekIv(q: { ek: any; }|null) {
     }
     ekMiss(q, [b.m], b.m < a.m ? t('ek_wrong_down') : t('ek_wrong_iv', intervalLabel(b.m - a.m)));
 }
-function ekCh(q: { ek: any; }|null) {
+function ekCh(q: TrainerQuestion) {
     const ek = q.ek;
-    if (SES.answered || SES.q !== q || !ek.seq.length)
+    if (!ek || ek.kind !== 'ch' || SES.answered || SES.q !== q || !ek.seq.length)
         return;
-    const ms = [...new Set(ek.seq.map((x: { m: any; }) => x.m))].sort((a, b) => a - b);
+    const ms = [...new Set(ek.seq.map((x) => x.m))].sort((a, b) => a - b);
     const pcs = [...new Set(ms.map((m) => pc(m)))].sort((a, b) => a - b);
     const down = ms.some((m) => held.has(m));
     if (setEq(pcs, ek.pcs)) {
@@ -3105,8 +3179,11 @@ function ekCh(q: { ek: any; }|null) {
         neutral(t('ek_hold'));
     }
 }
-function ekMel(q: { ek: any; }|null, m: number) {
-    const ek = q.ek, tg = ek.target, i = ek.seq.length;
+function ekMel(q: TrainerQuestion, m: number) {
+    const ek = q.ek;
+    if (!ek)
+        return;
+    const tg = ek.target, i = ek.seq.length;
     if (i === 0) {
         if (pc(m) !== pc(tg[0])) {
             ekFlash([m], 'bad');
@@ -3126,14 +3203,17 @@ function ekMel(q: { ek: any; }|null, m: number) {
     kbState(m, 'good', true);
     ekProg(q, ek.seq.length);
     if (ek.seq.length >= tg.length)
-        ekWin(q, ek.seq.map((x: { m: any; }) => x.m));
+        ekWin(q, ek.seq.map((x) => x.m));
     else
         neutral(t('ek_progress', ek.seq.length, tg.length));
 }
-function ekWin(q: { ek: { won: boolean; played: any; n: any; }; }, ms: any[]) { q.ek.won = true; q.ek.played = ms; kbClear('target'); ekFlash(ms, 'good'); ekProg(q, q.ek.n); resolve(q, true); }
-function ekMiss(q: { ek: any; missed: boolean; }|null, bad: any[], msg: string) {
+function ekWin(q: TrainerQuestion, ms: number[]) { if (!q.ek)
+    return; q.ek.won = true; q.ek.played = ms; kbClear('target'); ekFlash(ms, 'good'); ekProg(q, q.ek.n); resolve(q, true); }
+function ekMiss(q: TrainerQuestion, bad: number[], msg: string) {
     const ek = q.ek;
     q.missed = true;
+    if (!ek)
+        return;
     ek.tries++;
     ek.seq = [];
     kbClear('good');
@@ -3151,8 +3231,10 @@ function ekMiss(q: { ek: any; missed: boolean; }|null, bad: any[], msg: string) 
 }
 function ekReset() { const q = SES.q; if (!q || !q.ek || SES.answered)
     return; q.ek.seq = []; kbClear('good'); kbClear('bad'); kbState(q.ek.target[0], 'target', true); ekProg(q, 0); neutral(t('ek_reset_msg')); }
-function ekElab(q: { ek: any; }) {
-    const ek = q.ek, names = (ms: any[]) => ms.map((m: any) => ekName(q, m)).join(' ');
+function ekElab(q: TrainerQuestion) {
+    const ek = q.ek, names = (ms: number[]) => ms.map((m) => ekName(q, m)).join(' ');
+    if (!ek)
+        return '';
     if (ek.kind === 'iv')
         return t('ek_el_iv', ekName(q, ek.target[0])) + ' · ' + names(ek.target);
     if (ek.kind === 'ch')
@@ -3160,7 +3242,7 @@ function ekElab(q: { ek: any; }) {
     return t('ek_el_mel', names(ek.target));
 }
 /* play-mode grading via held notes */
-function sesInput(midi: any) {
+function sesInput(midi: number) {
     const q = SES.q;
     if (!q || SES.answered)
         return;
@@ -3179,8 +3261,8 @@ function sesInput(midi: any) {
     else if (q.it.cat === 'prog')
         gradeProgChord(q);
 }
-function gradeInterval(q: never) {
-    if (SES.answered)
+function gradeInterval(q: TrainerQuestion) {
+    if (SES.answered || q.it.cat !== 'interval')
         return;
     const ms = heldMidis().sort((a, b) => a - b);
     if (ms.length < 2)
@@ -3201,8 +3283,8 @@ function gradeInterval(q: never) {
         resolve(q, false);
     }
 }
-function gradeChord(q: never) {
-    if (SES.answered)
+function gradeChord(q: TrainerQuestion) {
+    if (SES.answered || q.it.cat !== 'chord')
         return;
     const hp = heldPcs(), tpl = q.it.ref, target = chordTargetPcs(q.key, tpl);
     if (!hp.length)
@@ -3232,8 +3314,8 @@ function gradeChord(q: never) {
         resolve(q, false);
     }
 }
-function gradeScaleNote(q: never, midi: unknown) {
-    if (SES.answered || midi == null)
+function gradeScaleNote(q: TrainerQuestion, midi: number | null | undefined) {
+    if (SES.answered || midi == null || !q.offs)
         return;
     if (q.idx === 0) {
         if (pc(midi) !== q.key) {
@@ -3244,6 +3326,8 @@ function gradeScaleNote(q: never, midi: unknown) {
         }
         q.anchor = midi;
     }
+    if (q.anchor === null)
+        return;
     const want = q.anchor + q.offs[q.idx];
     if (midi === want) {
         kbState(midi, 'good', true);
@@ -3261,8 +3345,8 @@ function gradeScaleNote(q: never, midi: unknown) {
         resolve(q, false);
     }
 }
-function gradeProgChord(q: never) {
-    if (SES.answered)
+function gradeProgChord(q: TrainerQuestion) {
+    if (SES.answered || q.it.cat !== 'prog')
         return;
     const ch = q.it.ref.chords[q.idx], root = (q.key + ch[0]) % 12, tpl = progChordTpl(ch[1]);
     const target = chordTargetPcs(root, tpl), hp = heldPcs();
@@ -3290,7 +3374,7 @@ function gradeProgChord(q: never) {
     }
 }
 function neutral(msg: string|null) { const v = byId('q-verdict'); v.className = 'verdict neutral'; v.textContent = msg; }
-function resolve(q: null, correct: boolean) {
+function resolve(q: TrainerQuestion, correct: boolean) {
     if (SES.answered)
         return;
     SES.answered = true;
@@ -3331,13 +3415,13 @@ function resolve(q: null, correct: boolean) {
     byId('q-next').hidden = false;
     byId('q-next').focus();
 }
-function revealAnswerKeys(q: never) {
+function revealAnswerKeys(q: TrainerQuestion) {
     const it = q.it;
     if (q.ek) {
         if (!q.ek.won) {
             kbClear('target');
             kbClear('good');
-            q.ek.target.forEach((m: any) => kbState(m, 'target', true));
+            q.ek.target.forEach((m) => kbState(m, 'target', true));
         }
         return;
     }
@@ -3347,14 +3431,14 @@ function revealAnswerKeys(q: never) {
     }
     else if (it.cat === 'chord') {
         const r = 60 + q.key;
-        it.ref.intervals.forEach((i: any) => kbState(r + i, 'target', true));
+        it.ref.intervals.forEach((i) => kbState(r + i, 'target', true));
     }
     else if (it.cat === 'scale') {
         const r = 60 + q.key;
         SCALES[it.name].concat([12]).forEach((o) => kbState(r + o, 'target', true));
     }
 }
-function showElaboration(q: { it: any; key: any; ek: any; }) {
+function showElaboration(q: TrainerQuestion) {
     const it = q.it, e = byId('q-elab');
     let html = '';
     if (it.cat === 'interval') {
@@ -3369,7 +3453,7 @@ function showElaboration(q: { it: any; key: any; ek: any; }) {
         html = '<b>' + scaleDisp(it.name) + '</b> · ' + t('el_degrees') + ' ' + scaleFormula(SCALES[it.name]);
     }
     else if (it.cat === 'prog') {
-        const chain = it.ref.chords.map((ch: any[]) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join(' · '), rom = it.ref.chords.map((ch: any[]) => ch[2]).join(' · ');
+        const chain = it.ref.chords.map((ch) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join(' · '), rom = it.ref.chords.map((ch) => ch[2]).join(' · ');
         html = '<b>' + rom + '</b> — ' + chain;
     }
     if (q.ek)
@@ -3382,8 +3466,11 @@ function showElaboration(q: { it: any; key: any; ek: any; }) {
    ============================================================================ */
 let _view = 'today';
 function view0() { return _view; }
-const _modalStack: any[] = [];
-let _modalBackPending = false, _modalAfterBack: null = null;
+const _modalStack: string[] = [];
+let _modalBackPending = false, _modalAfterBack: string | null = null;
+function historyModalOf(state: unknown): unknown {
+    return state && typeof state === 'object' && 'modal' in state ? state.modal : undefined;
+}
 function pushModalState(id: string) {
     if (_modalBackPending) {
         _modalAfterBack = id;
@@ -3392,7 +3479,7 @@ function pushModalState(id: string) {
         return;
     }
     // Opening an overlay from the mobile menu replaces that temporary menu entry.
-    if (id !== 'menu' && history.state && history.state.modal === 'menu' && !byId('mobileMenu').hidden) {
+    if (id !== 'menu' && historyModalOf(history.state) === 'menu' && !byId('mobileMenu').hidden) {
         closeMobileMenu(false, true);
         _modalStack.length = 0;
         try {
@@ -3418,7 +3505,7 @@ function popModalState(id: string) {
             _modalAfterBack = null;
             return;
         }
-        if (history.state && history.state.modal === id) {
+        if (historyModalOf(history.state) === id) {
             try {
                 _modalBackPending = true;
                 history.back();
@@ -3446,25 +3533,25 @@ function openMobileMenu(fromPop = false) {
     if (!fromPop)
         pushModalState('menu');
     mm.innerHTML = '';
-    (document).querySelectorAll('#nav button').forEach((b) => { const x = (document).createElement('button'); x.textContent = b.textContent; x.dataset.view = b.dataset.view; x.setAttribute('aria-current', b.getAttribute('aria-current') || 'false'); x.addEventListener('click', () => show(x.dataset.view)); mm.appendChild(x); });
+    queryAllHtml(document, '#nav button').forEach((b) => { const x = (document).createElement('button'); x.textContent = b.textContent; x.dataset.view = b.dataset.view; x.setAttribute('aria-current', b.getAttribute('aria-current') || 'false'); x.addEventListener('click', () => show(x.dataset.view)); mm.appendChild(x); });
     mm.hidden = false;
     byId('menuBtn').setAttribute('aria-expanded', 'true');
-    const first = mm.querySelector('[aria-current="page"]') || mm.querySelector('button');
+    const first = queryHtml(mm, '[aria-current="page"]') || mm.querySelector('button');
     first?.focus();
 }
 function renderModeNav() {
-    const group = navGroup(view0()), views = (NAV_GROUPS )[String(group)] || [];
+    const group = navGroup(view0()), views: readonly string[] = group ? NAV_GROUPS[group] : [];
     byId('modeBar').hidden = views.length < 2;
     byId('modeNav').innerHTML = views.map((v: string) => `<button type="button" data-view="${v}" aria-current="${v === view0() ? 'page' : 'false'}">${t(v === 'practice' ? 'nav_drills' : 'nav_' + v)}</button>`).join('');
 }
 function focusView(v: string) {
-    const view = maybeById('view-' + v);
-    const target = [...view.querySelectorAll('h1,h2')].find((el) => el.getClientRects().length) || view;
+    const view = byId('view-' + v);
+    const target = queryAllHtml(view, 'h1,h2').find((el) => el.getClientRects().length) || view;
     target.tabIndex = -1;
     target.focus({ preventScroll: true });
 }
 let show = function show(v: string|undefined, moveFocus = true) {
-    if (!isAppView(v))
+    if (v === undefined || !isAppView(v))
         return;
     viewState.view = v;
     const prev = _view;
@@ -3506,7 +3593,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
         rdAbort();
     }
     (document).querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + v));
-    (document).querySelectorAll('#nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.view === navGroup(v) ? 'page' : 'false'));
+    queryAllHtml(document, '#nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.view === navGroup(v) ? 'page' : 'false'));
     dockSync();
     if (dockShown())
         reflowKeys(); // reposition once the dock is laid out
@@ -3566,7 +3653,7 @@ window.addEventListener('popstate', (e) => {
             return;
         }
     }
-    const modal = e.state && e.state.modal;
+    const modal = historyModalOf(e.state);
     _modalStack.length = 0;
     if (modal === 'menu' || modal === 'help' || modal === 'drawer')
         _modalStack.push(modal);
@@ -3596,7 +3683,7 @@ function refreshToday() {
     const gr = greeting();
     byId('greet-title').textContent = /[.?!…]$/.test(gr) ? gr : gr + '.';
     const tn = todayN();
-    byId('streakN').textContent = currentStreak();
+    byId('streakN').textContent = String(currentStreak());
     const goal = data.settings.goal, done = Math.min(data.todayDay === tn ? data.todayCount : 0, goal);
     const gd = byId('goaldots');
     gd.innerHTML = '';
@@ -3637,18 +3724,22 @@ function refreshToday() {
     renderPlan();
 }
 /* ---------- EXPLORE ---------- */
-let explorePreview: never[] = [], exploreTimers: NodeJS.Timeout[] = [];
+interface ExplorePreviewFrame {
+    at: number;
+    notes: number[];
+}
+let explorePreview: number[] = [], exploreTimers: ReturnType<typeof setTimeout>[] = [];
 function clearExplorePreview() { exploreTimers.forEach(clearTimeout); exploreTimers = []; explorePreview = []; if (view0() === 'explore')
     updateExplore(); }
-function exploreSequence(events: any[]) {
+function exploreSequence(events: ExplorePreviewFrame[]) {
     if (view0() !== 'explore')
         return;
     clearExplorePreview();
     if (reduceMotion() && events.length > 2) {
         const last = events[events.length - 1]; // reduced motion: one steady picture of every note instead of a light running across the keys
-        events = [{ at: 0, notes: [...new Set(events.flatMap((e: { notes: any; }) => e.notes))].sort((a, b) => a - b) }].concat(last.notes.length ? [] : [last]);
+        events = [{ at: 0, notes: [...new Set(events.flatMap((e) => e.notes))].sort((a, b) => a - b) }].concat(last.notes.length ? [] : [last]);
     }
-    events.forEach((e: { notes: any[]; at: number|undefined; }) => {
+    events.forEach((e) => {
         const paint = () => { explorePreview = e.notes; updateExplore(); };
         if (e.at === 0)
             paint();
@@ -3659,26 +3750,36 @@ function exploreSequence(events: any[]) {
 // Bass on the left and treble on the right, as on the keyboard. The frame never changes, so nothing moves while you play: each clef shows
 // the exact sounding octave up to EX_LEDGERS ledger lines, and lists any note further away beside an arrow at its edge.
 const EX_LEDGERS = 5;
-function drawExploreStaff(midis: any[]|Iterable<unknown>|null|undefined, flat: boolean) {
+interface ExploreStaffPitch {
+    m: number;
+    step: number;
+    acc: string;
+}
+interface ExploreStaffHead {
+    p: ExploreStaffPitch;
+    y: number;
+    lane: number;
+}
+function drawExploreStaff(midis: readonly number[], flat: boolean) {
     const wrap = byId('ex-staff');
     if (!wrap)
         return;
     const names = flat ? ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const pitches = [...new Set(midis)].map((m) => {
+    const pitches: ExploreStaffPitch[] = [...new Set(midis)].map((m) => {
         const name = names[pc(m)], li = 'CDEFGAB'.indexOf(name[0]), oct = Math.floor(m / 12) - 1;
         return { m, step: ssStepOf(li, oct), acc: name.slice(1) };
     }).sort((a, b) => a.step - b.step || a.m - b.m);
     const W = 520, H = 234, top = 94, room = EX_LEDGERS * 12 + 6;
     let body = '';
-    [['bass', 16, 250], ['treble', 270, 504]].forEach(([clef, x0, x1] = []) => {
-        const treble = clef === 'treble', ref = treble ? 30 : 18, x = x0 + 146, far = { up: [], down: [] };
+    ([['bass', 16, 250], ['treble', 270, 504]] as const).forEach(([clef, x0, x1]) => {
+        const treble = clef === 'treble', ref = treble ? 30 : 18, x = x0 + 146, far: { up: string[]; down: string[] } = { up: [], down: [] };
         body += `<g class="ex-stave" data-clef="${clef}"><text class="ss-syl" x="${x0 + 24}" y="${top - 24}">${t(treble ? 'si_treble' : 'si_bass')}</text>`;
         for (let i = 0; i < 5; i++)
             body += `<line class="ss-line" x1="${x0}" y1="${top + i * 12}" x2="${x1}" y2="${top + i * 12}" stroke-width="1.2"/>`;
         body += srClef(clef, x0 + 16, top);
         // Adjacent pitches use alternating head columns; accidentals have collision-free lanes.
         let prevStep = -Infinity, prevLane = 0;
-        const accLanes: any[] = [], heads: { p: { m: unknown; step: any; acc: string; }; y: number; lane: number; }[] = [];
+        const accLanes: number[] = [], heads: ExploreStaffHead[] = [];
         pitches.forEach((p) => {
             const y = top + 48 + (ref - p.step) * 6;
             if (y < top - room || y > top + 48 + room) {
@@ -3691,15 +3792,15 @@ function drawExploreStaff(midis: any[]|Iterable<unknown>|null|undefined, flat: b
             heads.push({ p, y, lane });
         });
         // One set of ledger lines per chord, wide enough for whichever head columns need them.
-        const ledgers = new Map();
-        heads.forEach(({ y, lane } = {}) => {
+        const ledgers = new Map<number, number>();
+        heads.forEach(({ y, lane }) => {
             for (let ly = top - 12; ly >= y - 1; ly -= 12)
                 ledgers.set(ly, Math.max(ledgers.get(ly) || 0, lane));
             for (let ly = top + 60; ly <= y + 1; ly += 12)
                 ledgers.set(ly, Math.max(ledgers.get(ly) || 0, lane));
         });
         ledgers.forEach((lane, ly) => { body += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9 + lane * 13}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`; });
-        heads.forEach(({ p, y, lane } = {}) => {
+        heads.forEach(({ p, y, lane }) => {
             let accidental = '';
             if (p.acc) {
                 let a = accLanes.findIndex((last) => Math.abs(last - y) >= 24);
@@ -3711,7 +3812,7 @@ function drawExploreStaff(midis: any[]|Iterable<unknown>|null|undefined, flat: b
             body += `<g class="ss-n" data-midi="${p.m}" data-clef="${clef}"><title>${noteName(p.m, flat)}</title>${accidental}${ssNotehead(x + lane * 13, y, 4)}</g>`;
         });
         // Listed far notes shrink rather than spill into the other staff; 7px a character overestimates 11px text.
-        [['up', '↑', 14], ['down', '↓', H - 6]].forEach(([k, arrow, y] = []) => {
+        ([['up', '↑', 14], ['down', '↓', H - 6]] as const).forEach(([k, arrow, y]) => {
             if (!far[k].length)
                 return;
             const s = `${arrow} ${far[k].join(' ')}`, max = x1 - x0 - 16, est = s.length * 7, w = Math.min(est, max), cx = Math.min(Math.max(x, x0 + 8 + w / 2), x1 - 8 - w / 2);
@@ -3721,17 +3822,17 @@ function drawExploreStaff(midis: any[]|Iterable<unknown>|null|undefined, flat: b
     });
     if (!pitches.length)
         body += `<text class="ss-syl" x="${W / 2}" y="${top + 88}">${t('ex_staff_empty')}</text>`;
-    const label = t('ex_staff_label') + (midis.length ? ': ' + midis.map((m: any) => noteName(m, flat)).join(', ') : '');
+    const label = t('ex_staff_label') + (midis.length ? ': ' + midis.map((m) => noteName(m, flat)).join(', ') : '');
     wrap.setAttribute('aria-label', label);
     wrap.innerHTML = `<svg class="ss-svg" role="img" aria-label="${label}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:100%; height:auto; max-width:700px; margin:auto" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
-function fillRoots(sel: RuntimeElement, withAll: boolean) { sel.innerHTML = ''; if (withAll) {
+function fillRoots(sel: HTMLElement, withAll: boolean) { sel.innerHTML = ''; if (withAll) {
     const o = (document).createElement('option');
     o.value = 'all';
     o.textContent = t('all_keys');
     sel.appendChild(o);
-} NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = n; sel.appendChild(o); }); }
-function fillKeyCtx() { const sel = byId('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = i; o.textContent = t('key_major', n); sel.appendChild(o); }); }
+} NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = n; sel.appendChild(o); }); }
+function fillKeyCtx() { const sel = byId('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = t('key_major', n); sel.appendChild(o); }); }
 function fillRefNames() {
     const rt = selectById('refType').value, sel = byId('refName');
     sel.innerHTML = '';
@@ -3753,7 +3854,7 @@ function updateExplore() {
     const notes = (held.size ? heldMidis() : explorePreview).slice().sort((a, b) => a - b);
     const keyCtx = parseInt(selectById('keyCtx').value, 10);
     let nameLabel = '—', roman = '—', spell = notes.length ? isFlatKey(pc(notes[0])) : false;
-    let degrees = null;
+    let degrees: Map<number, string> | null = null;
     if (notes.length >= 3) {
         const id = identifyChord(notes);
         if (id)
@@ -3796,21 +3897,37 @@ const COF_FING = {
 const COF_MAJ = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'], COF_MIN = ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'Bb', 'F', 'C', 'G', 'D'];
 const COF_COL = ['#e8c160', '#ecae4c', '#e79443', '#df7a3b', '#d2623a', '#bd4834', null, '#355895', '#3b6fa2', '#3f86a6', '#4b9ea6', '#62b3a6'];
 const COF_SCALE = { natural: 'Aeolian (Natural minor)', harmonic: 'Harmonic minor', melodic: 'Melodic minor' };
-const cof = { i: 0, minor: false, mode: 'scale', flavor: 'natural', picked: false };
+type CofMode = 'scale' | 'chord';
+type CofFlavor = keyof typeof COF_SCALE;
+interface CofSelection {
+    i: number;
+    minor: boolean;
+    mode: CofMode;
+    flavor: CofFlavor;
+    picked: boolean;
+}
+interface CofSignature {
+    n: number;
+    sharp?: boolean;
+    list: string;
+}
+function isCofMode(v: string | undefined): v is CofMode { return v === 'scale' || v === 'chord'; }
+function isCofFlavor(v: string | undefined): v is CofFlavor { return v === 'natural' || v === 'harmonic' || v === 'melodic'; }
+const cof: CofSelection = { i: 0, minor: false, mode: 'scale', flavor: 'natural', picked: false };
 let exTabCur = 'free';
 const COF_SOL = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
 function cofSpell(letter: string, acc: number) { return spelledName(notation, 'CDEFGAB'.indexOf(letter), acc); }
-function cofParse(s: string[]) { return { L: s[0], acc: s[1] === '#' ? 1 : s[1] === 'b' ? -1 : 0 }; }
+function cofParse(s: string) { return { L: s[0], acc: s[1] === '#' ? 1 : s[1] === 'b' ? -1 : 0 }; }
 function cofName(s: string) { const p = cofParse(s); return cofSpell(p.L, p.acc); }
 // Spell each degree with consecutive letter names so keys read correctly (e.g. G harmonic minor → F♯, D♯ minor → C𝄪).
-function cofSpellDegrees(tonic: string, offs: any[], degs: number[]) {
+function cofSpellDegrees(tonic: string, offs: readonly number[], degs: number[]) {
     const LET = 'CDEFGAB', NAT = [0, 2, 4, 5, 7, 9, 11], p = cofParse(tonic), li = LET.indexOf(p.L), tp = NAT[li] + p.acc;
-    return offs.map((o: number, k: string|number) => { const L = (li + degs[k]) % 7, d = ((tp + o - NAT[L]) % 12 + 12) % 12; return cofSpell(LET[L], d > 6 ? d - 12 : d); });
+    return offs.map((o, k) => { const L = (li + degs[k]) % 7, d = ((tp + o - NAT[L]) % 12 + 12) % 12; return cofSpell(LET[L], d > 6 ? d - 12 : d); });
 }
 function cofTonicPc() { return cof.minor ? (CIRCLE[cof.i] + 9) % 12 : CIRCLE[cof.i]; }
 function cofKeyLabel(i: number, minor: boolean) { if (i === 6)
     return minor ? cofName('D#') + ' / ' + cofName('Eb') : cofName('F#') + ' / ' + cofName('Gb'); return cofName(minor ? COF_MIN[i] : COF_MAJ[i]); }
-function cofSigList(i: number|undefined) { const sh = 'FCGDAEB', fl = 'BEADGCF'; if (i === 0)
+function cofSigList(i: number): CofSignature { const sh = 'FCGDAEB', fl = 'BEADGCF'; if (i === 0)
     return { n: 0, list: '' }; if (i <= 6)
     return { n: i, sharp: true, list: [...sh.slice(0, i)].map((L) => cofSpell(L, 1)).join(', ') }; const n = 12 - i; return { n, sharp: false, list: [...fl.slice(0, n)].map((L) => cofSpell(L, -1)).join(', ') }; }
 function cofData() {
@@ -3823,9 +3940,9 @@ function cofData() {
     return { midis: offs.map((o) => root + o), names: cofSpellDegrees(tonic, offs, [0, 1, 2, 3, 4, 5, 6, 7]), rh: [...tbl.rh[tp]].map(Number), lh: [...tbl.lh[tp]].map(Number) };
 }
 function cofPt(r: number, deg: number) { const a = (deg - 90) * Math.PI / 180; return [(350 + r * Math.cos(a)).toFixed(2), (350 + r * Math.sin(a)).toFixed(2)]; }
-function cofSector(r0: string|number, r1: string|number, d0: number, d1: number) { const a = cofPt(r1, d0), b = cofPt(r1, d1), c = cofPt(r0, d1), d = cofPt(r0, d0); return 'M' + a + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + b + 'L' + c + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + d + 'Z'; }
+function cofSector(r0: number, r1: number, d0: number, d1: number) { const a = cofPt(r1, d0), b = cofPt(r1, d1), c = cofPt(r0, d1), d = cofPt(r0, d0); return 'M' + a + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + b + 'L' + c + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + d + 'Z'; }
 function cofTint(i: number, pct: string|number) { return 'fill:color-mix(in srgb, ' + (COF_COL[i] || '#6d4f7a') + ' ' + pct + '%, var(--card))'; }
-function cofText(x: string, y: string, cls: string, lines: any[], lh: number) { return '<text class="' + cls + '" x="' + x + '" y="' + y + '">' + lines.map((s: string, k: any) => '<tspan x="' + x + '" dy="' + (k ? lh : -(lines.length - 1) * lh / 2) + '">' + s.replace(/([♯♭𝄪𝄫])/gu, '<tspan class="cof-g">$1</tspan>') + '</tspan>').join('') + '</text>'; }
+function cofText(x: string, y: string, cls: string, lines: string[], lh: number) { return '<text class="' + cls + '" x="' + x + '" y="' + y + '">' + lines.map((s, k) => '<tspan x="' + x + '" dy="' + (k ? lh : -(lines.length - 1) * lh / 2) + '">' + s.replace(/([♯♭𝄪𝄫])/gu, '<tspan class="cof-g">$1</tspan>') + '</tspan>').join('') + '</text>'; }
 const cofMQ = window.matchMedia('(max-width:560px)');
 if (cofMQ)
     cofMQ?.addEventListener('change', () => renderCircle());
@@ -3857,7 +3974,7 @@ function renderCircle() {
         min += '<g class="cof-k" data-i="' + i + '" data-ring="min" tabindex="0" role="button" aria-pressed="false" aria-label="' + t('cof_aria_min', cofKeyLabel(i, true)) + '">' +
             '<path class="cof-w" d="' + cofSector(100, 150, d0, d1) + '" style="' + cofTint(i, 24) + '"/>' + cofText(nx, ny, 'cof-min' + (i === 6 ? ' sm' : ''), minL, 17) + '</g>';
         if (sig.n && !compact) {
-            const items = sig.list.split(', '), lines = [];
+            const items = sig.list.split(', '), lines: string[] = [];
             for (let k = 0; k < items.length; k += 3)
                 lines.push(items.slice(k, k + 3).join(' '));
             const a = i * 30, sx = Math.sin(a * Math.PI / 180), side = Math.abs(sx) > .35, [ax, ay] = cofPt(side ? 268 : 280, a);
@@ -3873,7 +3990,9 @@ function renderCircle() {
         '<text class="cof-iv dn" x="350" y="386">' + t('cof_4th') + '</text><text class="cof-st" x="350" y="404">' + t('cof_5st') + '</text></svg>';
     box.innerHTML = s;
     box.querySelectorAll('.cof-k').forEach((g) => {
-        const pick = () => cofPick(+g.dataset.i, g.dataset.ring === 'min');
+        if (!(g instanceof SVGElement))
+            return;
+        const pick = () => cofPick(Number(g.dataset.i), g.dataset.ring === 'min');
         g.addEventListener('click', pick);
         g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -3890,14 +4009,16 @@ function cofSel() {
         return;
     svg.classList.toggle('has-sel', cof.picked);
     svg.querySelectorAll('.cof-k').forEach((g) => {
-        const i = +g.dataset.i, mn = g.dataset.ring === 'min', on = i === cof.i && mn === cof.minor;
+        if (!(g instanceof SVGElement))
+            return;
+        const i = Number(g.dataset.i), mn = g.dataset.ring === 'min', on = i === cof.i && mn === cof.minor;
         g.classList.toggle('on', on);
         g.classList.toggle('rel', i === cof.i && !on);
         g.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cofSector(150, 254, d0, d1), minD = cofSector(100, 150, d0, d1);
-    maybeById('cof-sel').setAttribute('d', cof.minor ? minD : majD);
-    maybeById('cof-rel').setAttribute('d', cof.minor ? majD : minD);
+    byId('cof-sel').setAttribute('d', cof.minor ? minD : majD);
+    byId('cof-rel').setAttribute('d', cof.minor ? majD : minD);
 }
 // Keeps the circle in step with the "Key context" select from the Free-play tab (always a major key there).
 function circleSel() { const k = parseInt(selectById('keyCtx').value, 10); if (k >= 0) {
@@ -3909,7 +4030,7 @@ function cofPick(i: number, minor: boolean) {
     cof.i = i;
     cof.minor = minor;
     cof.picked = true;
-    selectById('keyCtx').value = CIRCLE[i];
+    selectById('keyCtx').value = String(CIRCLE[i]);
     cofSyncRef();
     cofSel();
     cofInfo();
@@ -3933,7 +4054,7 @@ function cofRevealFingering() {
 function cofSyncRef() {
     selectById('refType').value = cof.mode;
     fillRefNames();
-    selectById('refRoot').value = cofTonicPc();
+    selectById('refRoot').value = String(cofTonicPc());
     selectById('refName').value = cof.mode === 'chord' ? (cof.minor ? 'm' : 'maj') : (cof.minor ? COF_SCALE[cof.flavor] : 'Major (Ionian)');
 }
 function cofPlay() {
@@ -3948,11 +4069,11 @@ function cofInfo() {
         return;
     const i = cof.i, sig = cofSigList(i), rel = cofKeyLabel(i, !cof.minor);
     byId('cof-key').textContent = t(cof.minor ? 'key_minor' : 'key_major', cofKeyLabel(i, cof.minor));
-    const sigTxt = (g: { n: number; list: string; sharp?: undefined; }|{ n: any; sharp: boolean; list: string; }) => g.n ? t(g.sharp ? 'cof_sig_s' : 'cof_sig_f', String(g.n), '<b>' + g.list + '</b>') : t('cof_sig0');
-    const fl6 = { n: 6, sharp: false, list: [...'BEADGC'].map((L) => cofSpell(L, -1)).join(', ') };
+    const sigTxt = (g: CofSignature) => g.n ? t(g.sharp ? 'cof_sig_s' : 'cof_sig_f', String(g.n), '<b>' + g.list + '</b>') : t('cof_sig0');
+    const fl6: CofSignature = { n: 6, sharp: false, list: [...'BEADGC'].map((L) => cofSpell(L, -1)).join(', ') };
     byId('cof-sig').innerHTML = sigTxt(sig) + (i === 6 ? ' / ' + sigTxt(fl6) : '') + ' · ' + t(cof.minor ? 'cof_rel_maj' : 'cof_rel_min', t(cof.minor ? 'key_major' : 'key_minor', rel));
-    (document).querySelectorAll('#cof-mode button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.mode ? 'true' : 'false'));
-    (document).querySelectorAll('#cof-flavor button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.flavor ? 'true' : 'false'));
+    queryAllHtml(document, '#cof-mode button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.mode ? 'true' : 'false'));
+    queryAllHtml(document, '#cof-flavor button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.flavor ? 'true' : 'false'));
     byId('cof-flavor').hidden = !(cof.minor && cof.mode === 'scale');
     const ch = cof.mode === 'chord';
     byId('cof-fing-t').textContent = t(ch ? 'cof_fing_chord' : 'cof_fing_scale');
@@ -3975,35 +4096,35 @@ function cofDiagram() {
         if (isW(m))
             whites.push(m);
     const W = X0 + whites.length * WW + 4, H = TOP + WH + 60, xOf = (m: number) => isW(m) ? X0 + whites.indexOf(m) * WW + WW / 2 : X0 + whites.indexOf(m + 1) * WW;
-    const idx = new Map(d.midis.map((m, k) => [m, k]));
-    let s = '<svg class="cof-kb" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + t('cof_kb_aria', t('cof_rh_s') + ': ' + d.names.map((n: string, k: string|number) => n + ' ' + d.rh[k]).join(', ') + ' · ' + t('cof_lh_s') + ': ' + d.names.map((n: string, k: string|number) => n + ' ' + d.lh[k]).join(', ')) + '">';
+    const idx = new Map(d.midis.map((m, k) => [m, k] as const));
+    let s = '<svg class="cof-kb" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + t('cof_kb_aria', t('cof_rh_s') + ': ' + d.names.map((n, k) => n + ' ' + d.rh[k]).join(', ') + ' · ' + t('cof_lh_s') + ': ' + d.names.map((n, k) => n + ' ' + d.lh[k]).join(', ')) + '">';
     s += '<text class="ck-hand" x="2" y="32">' + t('cof_rh_s') + '</text><text class="ck-hand" x="2" y="' + (TOP + WH + 36) + '">' + t('cof_lh_s') + '</text>';
     whites.forEach((m, k) => {
-        const on = idx.has(m);
+        const ni = idx.get(m), on = ni !== undefined;
         s += '<rect class="ck-w' + (on ? ' on' : '') + '" data-m="' + m + '" x="' + (X0 + k * WW) + '" y="' + TOP + '" width="' + WW + '" height="' + WH + '" rx="5"/>';
         if (on)
-            s += '<text class="ck-n" x="' + (X0 + k * WW + WW / 2) + '" y="' + (TOP + WH - 12) + '">' + d.names[idx.get(m)] + '</text>';
+            s += '<text class="ck-n" x="' + (X0 + k * WW + WW / 2) + '" y="' + (TOP + WH - 12) + '">' + d.names[ni] + '</text>';
     });
     for (let m = lo; m <= hi; m++) {
         if (isW(m))
             continue;
-        const on = idx.has(m), x = xOf(m);
+        const ni = idx.get(m), on = ni !== undefined, x = xOf(m);
         s += '<rect class="ck-b' + (on ? ' on' : '') + '" data-m="' + m + '" x="' + (x - BW / 2) + '" y="' + TOP + '" width="' + BW + '" height="' + BH + '" rx="3"/>';
         if (on)
-            s += '<text class="ck-n b" x="' + x + '" y="' + (TOP + BH - 11) + '" style="font-size:9.5px">' + d.names[idx.get(m)] + '</text>';
+            s += '<text class="ck-n b" x="' + x + '" y="' + (TOP + BH - 11) + '" style="font-size:9.5px">' + d.names[ni] + '</text>';
     }
     const badge = (cls: string, x: string|number, y: string|number, n: string|number) => '<g class="ck-f ' + cls + '"><circle cx="' + x + '" cy="' + y + '" r="11"/><text x="' + x + '" y="' + y + '">' + n + '</text></g>';
     d.midis.forEach((m, k) => { const x = xOf(m), w = isW(m); s += badge('rh', x, w ? 40 : 14, d.rh[k]) + badge('lh', x, w ? TOP + WH + 18 : TOP + WH + 44, d.lh[k]); });
     box.innerHTML = s + '</svg>';
 }
-function cofNow(notes: any[]|Iterable<unknown>|null|undefined) { const box = byId('cof-kb'); if (!box)
-    return; const set = new Set(notes); box.querySelectorAll('[data-m]').forEach((r) => r.classList.toggle('now', set.has(+r.dataset.m))); }
+function cofNow(notes: readonly number[]) { const box = byId('cof-kb'); if (!box)
+    return; const set = new Set(notes); box.querySelectorAll('[data-m]').forEach((r) => r.classList.toggle('now', set.has(Number(r.getAttribute('data-m'))))); }
 function cofPaintDock() { if (view0() !== 'explore')
     return; kbClear('target'); if (exTabCur !== 'circle')
     return; cofData().midis.forEach((m) => kbState(m, 'target', true)); }
-function exTab(tab: string, focus: boolean|undefined) {
+function exTab(tab: string | undefined, focus?: boolean) {
     exTabCur = tab === 'circle' ? 'circle' : 'free';
-    (document).querySelectorAll('#ex-tabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === exTabCur; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus)
+    queryAllHtml(document, '#ex-tabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === exTabCur; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus)
         b.focus(); });
     byId('exp-free').hidden = exTabCur !== 'free';
     byId('exp-circle').hidden = exTabCur !== 'circle';
@@ -4013,7 +4134,7 @@ function initExploreTabs() {
     const tl = byId('ex-tabs');
     if (!tl)
         return;
-    tl.addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (b)
+    tl.addEventListener('click', (e) => { const b = eventClosest(e, '[role="tab"]'); if (b)
         exTab(b.dataset.tab); });
     tl.addEventListener('keydown', (e) => {
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End')
@@ -4021,10 +4142,10 @@ function initExploreTabs() {
         e.preventDefault();
         exTab(e.key === 'Home' ? 'free' : e.key === 'End' ? 'circle' : exTabCur === 'free' ? 'circle' : 'free', true);
     });
-    byId('cof-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.dataset.v === cof.mode)
-        return; cof.mode = b.dataset.v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
-    byId('cof-flavor').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || b.dataset.v === cof.flavor)
-        return; cof.flavor = b.dataset.v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
+    byId('cof-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.mode || !isCofMode(v))
+        return; cof.mode = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
+    byId('cof-flavor').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.flavor || !isCofFlavor(v))
+        return; cof.flavor = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
     byId('cof-play').addEventListener('click', () => { if (!cof.picked) {
         cof.picked = true;
         cofSel();
@@ -4126,7 +4247,7 @@ function sqAnswer(n: number) {
     if (ok)
         data.earToday = (data.earToday || 0) + 1;
     saveAll();
-    const card = (document).querySelector('#songsList .songcard[data-semi="' + SQ.semi + '"]');
+    const card = queryHtml(document, '#songsList .songcard[data-semi="' + SQ.semi + '"]');
     if (card)
         card.dataset.hl = 'true';
     sqRender();
