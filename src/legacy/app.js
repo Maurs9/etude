@@ -3,6 +3,7 @@ import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, readPttV3, restoreSettings, writePttV3 } from '../domain/storage.ts';
 import { chordInversion, chordPitches, identifyChord as identifyChordDomain, samePitchSet } from '../domain/theory.ts';
+import { PianoBank, nearestPianoKey } from '../domain/audio.ts';
 import { patchOsmdPedals } from '../domain/notation.ts';
 import { NAV_GROUPS, navGroup, viewFromHash } from '../domain/views.ts';
 function t(k,...args){ const s=STRINGS[lang]||STRINGS.en; let v=(s[k]!=null?s[k]:(STRINGS.en?STRINGS.en[k]:null)); if(v==null) return k; if(!args.length) return v; if(args[0]!=null) v=v.replace('%a',args[0]); if(args[1]!=null) v=v.replace('%b',args[1]); for(let i=0;i<args.length;i++){ if(args[i]!=null) v=v.replace('%s',args[i]); } return v; }
@@ -210,7 +211,9 @@ function audioUnlock(){ ensureAudio(); const c=actx; if(c&&c.state!=='running') 
 // Salamander Grand Piano v3 recordings by Alexander Holm (CC BY 3.0).
 // The MP3 bank is embedded so file:// playback never needs a server or network.
 // Samples are decoded on demand: the central range warms up first, the rest while the browser is idle.
-const pianoBank={ctx:null,buffers:new Map(),pending:new Map(),raw:null,keys:null,promise:null,status:'idle',idle:0};
+const PIANO_KEYS=[21,24,27,30,33,36,39,42,45,48,51,54,57,60,63,66,69,72,75,78,81,84,87,90,93,96,99,102,105,108];
+const PIANO_URLS=Object.fromEntries(PIANO_KEYS.map(key=>[key,new URL(`../assets/piano/${key}.mp3`,import.meta.url).href]));
+const pianoBank=new PianoBank(PIANO_KEYS,PIANO_URLS,()=>actx,()=>pianoStatus());
 const PIANO_WARM=[48,84];
 function pianoStatus(){
   const message=t(pianoBank.status==='ready'?'piano_ready':pianoBank.status==='error'?'piano_error':'piano_loading');
@@ -218,51 +221,22 @@ function pianoStatus(){
   const dock=$('piano-status'); if(dock){dock.hidden=pianoBank.status==='ready';dock.textContent=message;}
 }
 function pianoKeys(){
-  if(!pianoBank.keys){ pianoBank.raw=JSON.parse($('piano-recordings').textContent); pianoBank.keys=Object.keys(pianoBank.raw).map(Number).sort((a,b)=>a-b); }
   return pianoBank.keys;
 }
-function pianoNearest(midi){ const keys=pianoKeys(); return keys.reduce((best,m)=>Math.abs(m-midi)<Math.abs(best-midi)?m:best,keys[0]); }
-function pianoFail(err){ if(pianoBank.status!=='error'){ pianoBank.status='error'; pianoStatus(); } console.error('Piano recordings could not be decoded',err); }
-function pianoDecode(key){
-  const ctx=actx;
-  if(pianoBank.ctx!==ctx){ pianoBank.ctx=ctx; pianoBank.buffers=new Map(); pianoBank.pending=new Map(); pianoBank.promise=null; }
-  if(pianoBank.buffers.has(key)) return Promise.resolve(pianoBank.buffers.get(key));
-  if(pianoBank.pending.has(key)) return pianoBank.pending.get(key);
-  pianoKeys(); const b64=pianoBank.raw[key]; if(!b64) return Promise.reject(new Error('No piano recording for '+key));
-  const bin=atob(b64), bytes=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-  const job=ctx.decodeAudioData(bytes.buffer).then(audio=>{
-    if(!audio.length||!Number.isFinite(audio.duration)) throw new Error('Invalid piano recording '+key);
-    if(pianoBank.ctx===ctx) pianoBank.buffers.set(key,audio);
-    return audio;
-  }).finally(()=>{ if(pianoBank.ctx===ctx) pianoBank.pending.delete(key); });
-  pianoBank.pending.set(key,job); return job;
-}
+function pianoNearest(midi){ return nearestPianoKey(midi,pianoKeys()); }
+function pianoFail(err){ pianoBank.fail(err); }
+function pianoDecode(key){ return pianoBank.decode(key); }
 // Resolves true once every sample needed for these notes is decoded (used before scheduled playback).
 function pianoEnsure(midis){
   if(!actx) return Promise.resolve(false);
   const ctx=actx;
-  pianoKeys(); const keys=[...new Set(midis.map(pianoNearest))];
-  return Promise.all(keys.map(pianoDecode)).then(()=>true,err=>{ if(ctx===actx&&pianoBank.ctx===ctx) pianoFail(err); return false; });
+  return pianoBank.ensure(midis,pianoNearest);
 }
 function pianoIdleWarm(){
-  const ctx=actx, keys=pianoKeys().filter(k=>!pianoBank.buffers.has(k)).sort((a,b)=>Math.abs(a-66)-Math.abs(b-66));
-  const step=()=>{ if(ctx!==actx||pianoBank.status==='error') return; const k=keys.shift(); if(k==null) return;
-    pianoDecode(k).then(()=>schedule(),err=>{ if(ctx===actx&&pianoBank.ctx===ctx) pianoFail(err); }); };
-  const schedule=()=>{ if(window.requestIdleCallback) pianoBank.idle=requestIdleCallback(step,{timeout:4000}); else pianoBank.idle=setTimeout(step,120); };
-  schedule();
+  pianoBank.warmIdle();
 }
 function preparePiano(){
-  if(!actx) return Promise.resolve(false);
-  if(pianoBank.ctx===actx&&pianoBank.promise) return pianoBank.promise;
-  const ctx=actx; pianoBank.ctx=ctx; pianoBank.buffers=new Map(); pianoBank.pending=new Map(); pianoBank.status='loading'; pianoStatus();
-  const warm=pianoKeys().filter(k=>k>=PIANO_WARM[0]&&k<=PIANO_WARM[1]);
-  pianoBank.promise=pianoEnsure(warm).then(ok=>{
-    if(pianoBank.ctx!==ctx) return false;
-    if(ok){ pianoBank.status='ready'; pianoStatus(); pianoIdleWarm(); }
-    return ok;
-  });
-  return pianoBank.promise;
+  return pianoBank.prepare(PIANO_WARM);
 }
 function sampledPianoVoice(freq,vel,when,dur,opt={}){
   const ctx=actx, voice={inner:null,released:false,stop(rt){this.released=true;if(this.inner)this.inner.stop(rt);},setBend(){if(this.inner)this.inner.setBend();}};

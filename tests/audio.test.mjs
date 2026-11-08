@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchPianoAudio, nearestPianoKey } from '../src/domain/audio.ts';
+import { fetchPianoAudio, nearestPianoKey, PianoBank } from '../src/domain/audio.ts';
 
 describe('piano audio domain', () => {
   it('fetches only successful samples and decodes their bytes', async () => {
@@ -20,5 +20,20 @@ describe('piano audio domain', () => {
       .rejects.toThrow('503');
     expect(nearestPianoKey(62, [60, 66, 72])).toBe(60);
     expect(nearestPianoKey(65, [60, 66, 72])).toBe(66);
+  });
+
+  it('resets the pending warm-up after an aborted sample so retry can succeed', async () => {
+    const context = { decodeAudioData: async () => ({ length: 1, duration: 1 }) };
+    let fail = true;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      if (fail) throw new DOMException('aborted', 'AbortError');
+      return { ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(1) };
+    }));
+    const bank = new PianoBank([48], { 48: '/48.mp3' }, () => context);
+    expect(await bank.prepare([48, 48])).toBe(false);
+    expect(bank.promise).toBeNull();
+    fail = false;
+    expect(await bank.prepare([48, 48])).toBe(true);
+    expect(bank.status).toBe('ready');
   });
 });
