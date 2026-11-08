@@ -6,6 +6,8 @@ export default [
     ignores: [
       'dist/**',
       'node_modules/**',
+      'test-results/**',
+      '.goals/**',
       'public/**',
       'tests/**',
       'etude.html',
