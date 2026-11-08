@@ -65,4 +65,5 @@ PW_CHANNEL= npm test  # use bundled Chromium instead (after `npx playwright inst
 - The architecture migration follows `docs/plans/2026-11-08-safe-migration-plan.md`. Keep migration work and feature work in separate PRs.
 - During the migration, the monolithic implementation is `src/legacy/app.js`; self-hosted font subsets and styles are in `src/styles/` and `src/assets/fonts/`, piano recordings are in `src/assets/piano/`, and OSMD is `public/vendor/osmd-1.9.9.min.js`. No page request should go to Google Fonts. `scripts/split-etude.mjs` is deterministic and its join test must stay byte-for-byte green.
 - Locale strings and lesson data are statically imported from `src/locales/`; `setLang()` remains synchronous. Add user-visible text to both `en` and `ro`, preserve `data-i18n*` attributes, and keep the locale parity and duplicate-key checks green.
+- Storage reads belong in `src/domain/storage.ts`; keep the `ptt-v3` key and reader compatibility for older saves. Add storage fixtures and Vitest coverage when changing persisted data.
 - `node_modules/` and `test-results/` are gitignored; never force-add them.

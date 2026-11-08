@@ -329,10 +329,8 @@ Object.defineProperty(window, "initPointer", { configurable: true, get: () => in
 Object.defineProperty(window, "intervalLabel", { configurable: true, get: () => intervalLabel, set: value => { intervalLabel = value; } });
 Object.defineProperty(window, "invName", { configurable: true, get: () => invName, set: value => { invName = value; } });
 Object.defineProperty(window, "inversionOf", { configurable: true, get: () => inversionOf, set: value => { inversionOf = value; } });
-Object.defineProperty(window, "isBackupPayload", { configurable: true, get: () => isBackupPayload, set: value => { isBackupPayload = value; } });
 Object.defineProperty(window, "isDue", { configurable: true, get: () => isDue, set: value => { isDue = value; } });
 Object.defineProperty(window, "isNew", { configurable: true, get: () => isNew, set: value => { isNew = value; } });
-Object.defineProperty(window, "isRecord", { configurable: true, get: () => isRecord, set: value => { isRecord = value; } });
 Object.defineProperty(window, "isSubset", { configurable: true, get: () => isSubset, set: value => { isSubset = value; } });
 Object.defineProperty(window, "itemLabel", { configurable: true, get: () => itemLabel, set: value => { itemLabel = value; } });
 Object.defineProperty(window, "ivName", { configurable: true, get: () => ivName, set: value => { ivName = value; } });
@@ -647,7 +645,6 @@ Object.defineProperty(window, "renderSongs", { configurable: true, get: () => re
 Object.defineProperty(window, "renderTranscribe", { configurable: true, get: () => renderTranscribe, set: value => { renderTranscribe = value; } });
 Object.defineProperty(window, "repaintHeld", { configurable: true, get: () => repaintHeld, set: value => { repaintHeld = value; } });
 Object.defineProperty(window, "resolve", { configurable: true, get: () => resolve, set: value => { resolve = value; } });
-Object.defineProperty(window, "restoreSettings", { configurable: true, get: () => restoreSettings, set: value => { restoreSettings = value; } });
 Object.defineProperty(window, "revealAnswerKeys", { configurable: true, get: () => revealAnswerKeys, set: value => { revealAnswerKeys = value; } });
 Object.defineProperty(window, "reverbGain", { configurable: true, get: () => reverbGain, set: value => { reverbGain = value; } });
 Object.defineProperty(window, "reverbNode", { configurable: true, get: () => reverbNode, set: value => { reverbNode = value; } });
@@ -990,7 +987,6 @@ Object.defineProperty(window, "INV_NAMES", { configurable: true, get: () => INV_
 Object.defineProperty(window, "ITEMS", { configurable: true, get: () => ITEMS });
 Object.defineProperty(window, "ITEM_BY_ID", { configurable: true, get: () => ITEM_BY_ID });
 Object.defineProperty(window, "IVL", { configurable: true, get: () => IVL });
-Object.defineProperty(window, "KEY", { configurable: true, get: () => KEY });
 Object.defineProperty(window, "KEYMAP", { configurable: true, get: () => KEYMAP });
 Object.defineProperty(window, "KEY_MAJ_FIFTHS", { configurable: true, get: () => KEY_MAJ_FIFTHS });
 Object.defineProperty(window, "LACC_CH", { configurable: true, get: () => LACC_CH });
@@ -1057,9 +1053,6 @@ Object.defineProperty(window, "SC_FIT", { configurable: true, get: () => SC_FIT 
 Object.defineProperty(window, "SC_PAGE_W", { configurable: true, get: () => SC_PAGE_W });
 Object.defineProperty(window, "SC_TERMS", { configurable: true, get: () => SC_TERMS });
 Object.defineProperty(window, "SES", { configurable: true, get: () => SES });
-Object.defineProperty(window, "SETTING_DEFAULTS", { configurable: true, get: () => SETTING_DEFAULTS });
-Object.defineProperty(window, "SETTING_GOALS", { configurable: true, get: () => SETTING_GOALS });
-Object.defineProperty(window, "SETTING_NEW_PER_DAY", { configurable: true, get: () => SETTING_NEW_PER_DAY });
 Object.defineProperty(window, "SIDE", { configurable: true, get: () => SIDE });
 Object.defineProperty(window, "SONGS", { configurable: true, get: () => SONGS });
 Object.defineProperty(window, "SQ", { configurable: true, get: () => SQ });

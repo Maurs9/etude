@@ -1,6 +1,7 @@
 "use strict";
 import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.js';
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
+import { PTT_KEY as KEY, isBackupPayload, isRecord, restoreSettings } from '../domain/storage.ts';
 function t(k,...args){ const s=STRINGS[lang]||STRINGS.en; let v=(s[k]!=null?s[k]:(STRINGS.en?STRINGS.en[k]:null)); if(v==null) return k; if(!args.length) return v; if(args[0]!=null) v=v.replace('%a',args[0]); if(args[1]!=null) v=v.replace('%b',args[1]); for(let i=0;i<args.length;i++){ if(args[i]!=null) v=v.replace('%s',args[i]); } return v; }
 /* ============================================================================
    ÉTUDE — V3.  Reuses the verified V2 theory/audio/MIDI engine; adds a
@@ -5739,17 +5740,7 @@ function showSummary(){
 /* ============================================================================
    PERSISTENCE  (versioned, migrates V2)
    ============================================================================ */
-const KEY='ptt-v3';
-function isRecord(v){ return !!v&&typeof v==='object'&&!Array.isArray(v); }
-const SETTING_DEFAULTS={goal:12,newPerDay:5,allowInv:false,metronome:false,drone:false,earKeys:false};
-const SETTING_GOALS=[8,12,16,24], SETTING_NEW_PER_DAY=[3,5,8,12];
 function clampPersistedNumber(v,min,max,fallback){ return typeof v==='number'&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):fallback; }
-function restoreSettings(v){ const s=isRecord(v)?v:{};
-  return {goal:SETTING_GOALS.includes(s.goal)?s.goal:SETTING_DEFAULTS.goal, newPerDay:SETTING_NEW_PER_DAY.includes(s.newPerDay)?s.newPerDay:SETTING_DEFAULTS.newPerDay,
-    allowInv:s.allowInv===true, metronome:s.metronome===true, drone:s.drone===true, earKeys:s.earKeys===true}; }
-function isBackupPayload(p){ return isRecord(p)&&p.v===3&&isRecord(p.data)&&
-  (p.data.settings===undefined||isRecord(p.data.settings))&&
-  (p.data.srs===undefined||isRecord(p.data.srs)); }
 /* ---- several open tabs ----
    Each tab keeps the whole record in memory and saves all of it, so a plain write would wipe out whatever another tab saved
    in the meantime. Every write identifies its parent and each tab retains a short history of prior records. Before every
