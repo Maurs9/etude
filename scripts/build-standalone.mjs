@@ -14,6 +14,12 @@ const css = await readFile(join(OUT_DIR, cssMatch[1].replace(/^\.\//, '')), 'utf
 let app = await readFile(join(OUT_DIR, moduleMatch[1].replace(/^\.\//, '')), 'utf8');
 const osmd = await readFile(join(OUT_DIR, 'vendor', 'osmd-1.9.9.min.js'), 'utf8');
 let standaloneCss = css;
+const iconMatch = html.match(/<link rel="apple-touch-icon"[^>]+href="([^"]+)"[^>]*>/);
+if (iconMatch) {
+  const iconPath = join(OUT_DIR, iconMatch[1].replace(/^\.\//, ''));
+  const icon = `data:image/png;base64,${(await readFile(iconPath)).toString('base64')}`;
+  html = html.replace(iconMatch[0], iconMatch[0].replace(iconMatch[1], icon));
+}
 for (const file of await readdir(join(OUT_DIR, 'assets'))) {
   if (!file.endsWith('.woff2')) continue;
   const data = `data:font/woff2;base64,${(await readFile(join(OUT_DIR, 'assets', file))).toString('base64')}`;
