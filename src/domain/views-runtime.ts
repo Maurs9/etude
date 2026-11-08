@@ -1,5 +1,6 @@
 import * as locale from '../locales/index.js';
 import * as content from '../locales/content.js';
+import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, LearnText, LearnUnit, Lesson, Localised } from '../locales/content-types.js';
 import * as storage from './storage.js';
 import * as theory from './theory.js';
 import * as audio from './audio.js';
@@ -75,39 +76,18 @@ declare global {
   }
 }
 
-const pianoAssets = (import.meta as ImportMeta & {
-  glob<T = string>(pattern: string, options?: Record<string, unknown>): Record<string, T>;
-}).glob<string>('../assets/piano/*.mp3', {
+const pianoAssets = import.meta.glob<string>('../assets/piano/*.mp3', {
   eager: true,
   query: '?url',
   import: 'default',
 });
-const pianoUrls: Record<number, string> = Object.fromEntries(
-  Object.entries(pianoAssets).map(([path, url]: [string, string]) => [
-    Number(path.match(/(\d+)\.mp3$/)?.[1]),
-    url,
-  ]),
-) as Record<number, string>;
+const pianoUrls: Record<number, string> = {};
+for (const [path, url] of Object.entries(pianoAssets)) pianoUrls[Number(path.match(/(\d+)\.mp3$/)?.[1])] = url;
 /** Every interface language the shell offers. */
 type RuntimeLanguage = InterfaceLanguage;
 const RUNTIME_LANGUAGES: readonly RuntimeLanguage[] = ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'];
 function isRuntimeLanguage(value: unknown): value is RuntimeLanguage { return RUNTIME_LANGUAGES.some((l) => l === value); }
 type LocaleStrings = Record<string, Record<string, string>>;
-type MusicTranslations = {
-  intervals: Record<string, Record<string, string>>;
-  scales: Record<string, Record<string, string>>;
-  chords: Record<string, Record<string, string>>;
-  categories: Record<string, Record<string, string>>;
-  inversions: Record<string, Record<string, string>>;
-  feels: Record<string, Record<string, string>>;
-  songs: Record<string, Record<string, Record<string, string[]>>>;
-};
-/** Content written in English and translated into some (in practice all) other interface languages; readers fall back to `en`. */
-type Localised<T> = { en: T } & Partial<Record<RuntimeLanguage, T>>;
-type LessonCopy = { t: string; b: string };
-type Lesson = { id: string; icon: string } & Localised<LessonCopy>;
-type LearnUnit = { id: string; icon: string; ls: string[]; rd: string[] } & Localised<string>;
-type GlossaryEntry = { l: string } & Localised<[string, string]>;
 type IntervalDefinition = { semi: number; name: string; short: string };
 type AccompanimentChord = { bass: number; fifth: number; right: number[] };
 type AccompanimentEvent = { beat: number; midi: number; durB: number; hand: 'L' | 'R' };
@@ -129,14 +109,14 @@ type AccompanimentPattern = {
  */
 "use strict";
 const STRINGS: LocaleStrings = locale.STRINGS;
-const I18N_MUSIC = locale.I18N_MUSIC as MusicTranslations;
-const STEP_LABELS = locale.STEP_LABELS as Record<string, Record<string, string>>;
+const I18N_MUSIC = locale.I18N_MUSIC;
+const STEP_LABELS = locale.STEP_LABELS;
 const LOCALE_TAGS: Record<string, string> = locale.LOCALE_TAGS;
-const LESSONS = content.LESSONS as unknown as Lesson[];
-const LEARN_UNITS = content.LEARN_UNITS as unknown as LearnUnit[];
-const LQZ = content.LQZ as unknown as Record<string, LearnQuizSpec[]>;
-const LSUM = content.LSUM as unknown as Record<string, LearnSummaryRow[]>;
-const GLOSS = content.GLOSS as unknown as GlossaryEntry[];
+const LESSONS = content.LESSONS;
+const LEARN_UNITS = content.LEARN_UNITS;
+const LQZ = content.LQZ;
+const LSUM = content.LSUM;
+const GLOSS = content.GLOSS;
 const KEY = storage.PTT_KEY, isBackupPayload = storage.isBackupPayload, isRecord = storage.isRecord, legacySettings = storage.legacySettings, parsePttV3 = storage.parsePttV3, readPttV3 = storage.readPttV3, restoreSettings = storage.restoreSettings, writePttV3 = storage.writePttV3;
 const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = theory.SCALE_DEGREE_LABELS, anFnKey = theory.analysisFunction, anDiatonic = theory.anDiatonic, anIntervalName = theory.anIntervalName, anKeyRank = theory.anKeyRank, anPcWeights = theory.anPcWeights, anResolveKey = theory.anResolveKey, CHORD_TEMPLATES = theory.CHORD_TEMPLATES, chordDegreeMap = theory.chordDegreeMap, chordInversion = theory.chordInversion, chordPitches = theory.chordPitches, srKeyName = theory.circleKeyPitchClass, formatChordFormula = theory.formatChordFormula, formatScaleFormula = theory.formatScaleFormula, identifyChordDomain = theory.identifyChord, keyFifths = theory.keyFifths, keyFromFifths = theory.keyFromFifths, midiToFrequency = theory.midiToFrequency, pitchClass = theory.pitchClass, PROGRESSION_TEMPLATES = theory.PROGRESSION_TEMPLATES, rdSpellMidi = theory.readingSpelling, romanFor = theory.romanFor, SCALE_DEFINITIONS = theory.SCALE_DEFINITIONS, scorePitch = theory.scorePitchXml, spellMidi = theory.spellMidi;
 const AudioEngine = audio.AudioEngine;
@@ -408,7 +388,7 @@ function registerViewEvent<Name extends ViewEventName>(
   name: Name,
   handler: ViewEventHandler<Name>,
 ): void {
-  document.addEventListener(name, handler as (event: Event) => void);
+  document.addEventListener(name, handler);
 }
 const liveVoices = audioEngine.liveVoices;
 let previewVoices = audioEngine.previewVoices;
@@ -4361,24 +4341,9 @@ function sqAnswer(n: number) {
    ============================================================================ */
 /* ---- Learn V4: new chapters (bilingual). Units, cheat sheets, quizzes & staves follow below. ---- */
 /* ---------- LEARN v4: units, progress, review, quizzes, staves, widgets, glossary ---------- */
-/** Learn copy that is either already localised or an `[en, ro]` pair. */
-type LearnText = string | string[];
 const LT = (a: LearnText) => Array.isArray(a) ? (lang === 'ro' ? a[1] : a[0]) : a;
 const LEARN_OLD_ORDER = ['keys', 'iv', 'sc', 'ch', 'cof', 'pr', 'rh', 'notation', 'dyn', 'modes', 'how'];
 const LEARN_GAPS = [3, 7, 16, 35, 90];
-/** A quiz question already translated into one language. */
-interface LearnQuizCopy { q?: string; o?: string[] | null; why?: string }
-/** One lesson-quiz question as written in the content (`LQZ`). */
-interface LearnQuizSpec {
-    q: LearnText;
-    o?: LearnText[];
-    a?: number;
-    hear?: string;
-    pcs?: number[];
-    seq?: number[];
-    why?: LearnText;
-    i18n?: Partial<Record<RuntimeLanguage, LearnQuizCopy>>;
-}
 /** A quiz question while it is being answered. */
 interface LearnQuizRunQuestion extends LearnQuizSpec {
     opts?: { x: LearnText; ok: boolean }[];
@@ -5043,8 +5008,6 @@ function learnWire() {
     body.addEventListener('change', (e) => lwInput(e));
 }
 function learnBodyHTML(L: Lesson) { return L[lang]?.b || L.en.b; }
-/** One cheat-sheet row (`LSUM`): term and meaning, optionally pre-translated per language. */
-type LearnSummaryRow = [LearnText, LearnText] & { i18n?: Partial<Record<RuntimeLanguage, [string, string]>> };
 let renderLearn: { (): void; _init?: boolean } = function renderLearn() {
     const body = byId('learnBody');
     if (!body || !byId('learnToc'))
@@ -15145,7 +15108,7 @@ function wiringInput(e: Event): HTMLInputElement {
 }
 /** The buttons of the segmented control a click was delegated to. */
 function wiringSegment(e: Event): HTMLElement[] {
-    return e.currentTarget instanceof Element ? wiringSegment(e).filter((x): x is HTMLElement => x instanceof HTMLElement) : [];
+    return e.currentTarget instanceof Element ? [...e.currentTarget.children].filter((x): x is HTMLElement => x instanceof HTMLElement) : [];
 }
 function wiringDisabled(b: HTMLElement): boolean { return b instanceof HTMLButtonElement && b.disabled; }
 function initControls() {

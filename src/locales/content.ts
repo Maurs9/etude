@@ -1,5 +1,7 @@
+import type { GlossaryEntry, LearnQuizSpec, LearnSummaryRow, LearnUnit, Lesson } from './content-types.js';
+
 /* Generated from the frozen Step 3 app data. Keep locale data static and synchronously importable. */
-export const LESSONS = [
+export const LESSONS: Lesson[] = [
   {
     "id": "keys",
     "icon": "♪",
@@ -707,7 +709,7 @@ export const LESSONS = [
 ];
 
 /* Generated from the frozen Step 3 app data. Keep locale data static and synchronously importable. */
-export const LEARN_UNITS = [
+export const LEARN_UNITS: LearnUnit[] = [
   {
     "id": "fund",
     "icon": "🎹",
@@ -865,7 +867,7 @@ export const LEARN_UNITS = [
 ];
 
 /* Generated from the frozen Step 3 app data. Keep locale data static and synchronously importable. */
-export const LQZ = {
+export const LQZ: Record<string, LearnQuizSpec[]> = {
   "keys": [
     {
       "q": [
@@ -9121,7 +9123,7 @@ export const LQZ = {
 };
 
 /* Generated from the frozen Step 3 app data. Keep locale data static and synchronously importable. */
-export const LSUM = {
+export const LSUM: Record<string, LearnSummaryRow[]> = {
   "keys": [
     [
       [
@@ -10139,7 +10141,7 @@ export const LSUM = {
 };
 
 /* Generated from the frozen Step 3 app data. Keep locale data static and synchronously importable. */
-export const GLOSS = [
+export const GLOSS: GlossaryEntry[] = [
   {
     "l": "keys",
     "en": [
