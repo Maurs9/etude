@@ -28,8 +28,8 @@ test('spelled German notes preserve accidentals across reading, learning and ana
 test('German notation syncs between tabs without changing language', async ({ app, context }) => {
   const first = await app.open();
   const second = await context.newPage();
-  await second.goto('etude.html');
-  await second.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+  await second.goto('etude.html?__etude_test_surface=1');
+  await second.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
   await first.locator('#set-notation button[data-v="german"]').dispatchEvent('click');
   await expect.poll(() => second.evaluate(() => noteName(71,false))).toBe('H4');
   expect(await second.evaluate(() => lang)).toBe('en');
@@ -38,6 +38,6 @@ test('German notation syncs between tabs without changing language', async ({ ap
 
 test('invalid persisted notation falls back to letters', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('ptt-v3', JSON.stringify({v:3,lang:'en',notation:'invalid',data:{}})));
-  await page.goto('etude.html');
+  await page.goto('etude.html?__etude_test_surface=1');
   expect(await page.evaluate(() => noteName(71,false))).toBe('B4');
 });

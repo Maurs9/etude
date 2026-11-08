@@ -20,7 +20,7 @@ async function hashes(dir) {
   return out;
 }
 const stop = server => new Promise(done => { server.closeAllConnections(); server.close(() => done()); });
-const booted = page => page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+const booted = page => page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
 let tmp, server, base;
 test.beforeAll(async () => {

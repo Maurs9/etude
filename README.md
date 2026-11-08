@@ -54,15 +54,16 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 ## Project structure
 
 - `etude.html` — stable application shell
-- `src/legacy/app.js` — current compatibility module during the migration
+- `src/domain/views.ts` — typed view runtime and application event wiring
+- `src/domain/router.ts` — hash-route groups and safe fallback
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
-- `src/domain/storage.ts` — typed `ptt-v3` reader and settings normalization
-- `src/domain/theory.ts` — typed, pure pitch-class, scale, chord, and interval helpers
-- `src/domain/audio.ts` — checked piano-sample fetch/decode helper with retry-safe failures
-- `src/domain/notation.ts` — typed OSMD adapter for grouped pedal rendering
-- `src/domain/views.ts` — typed hash-router groups and safe view fallback
+- `src/domain/storage.ts` — typed `ptt-v3` reader, writer, and settings normalization
+- `src/domain/theory.ts` — typed, pure pitch-class, scale, chord, interval, and chord-identification helpers
+- `src/domain/audio.ts` — checked piano-sample fetch/decode and retry-safe piano bank
+- `src/domain/notation.ts` — lazy OSMD loader and typed adapter for grouped pedal rendering
+- `scripts/generate-surface.mjs` — generated `window.__etude` test surface (test-only aliases require an explicit query)
 - `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed recordings
 - `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
-- `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker
+- `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker; imports and `public/` determine the published files
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
 - `package.json`, `package-lock.json` — test tooling and locked dependencies

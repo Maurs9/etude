@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { bridgeSource, topLevelBindings } from '../scripts/generate-bridge.mjs';
 
-const APP = new URL('../src/legacy/app.js', import.meta.url);
+const APP = new URL('../src/domain/views.ts', import.meta.url);
 
 function bridgedNames(source) {
   return [...bridgeSource(source).matchAll(/Object\.defineProperty\(window, "([^"]+)"/g)]

@@ -11,8 +11,6 @@ export default [
       'public/**',
       'tests/**',
       'etude.html',
-      'src/legacy/app.js',
-      'src/legacy/bridge.js',
       'sw.js',
       'scripts/sw-kill-switch.js',
       'i18n-framework/runtime.spec.cjs',
@@ -29,6 +27,18 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       'no-dupe-keys': 'error',
+      'no-restricted-properties': ['error',
+        { object: 'window', property: 'anLayoutVars', message: 'Use the local typed layout function, not an app global.' },
+      ],
+    },
+  },
+  {
+    files: ['src/**/*.js', 'scripts/**/*.mjs', 'vite.config.mjs'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: [{ name: '../legacy/app.js', message: 'Import a typed domain module instead of the removed legacy runtime.' }],
+        patterns: [{ group: ['**/legacy/**'], message: 'Legacy runtime modules are not allowed in application code.' }],
+      }],
     },
   },
 ];

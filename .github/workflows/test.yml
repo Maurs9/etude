@@ -38,7 +38,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:unit
       - run: npx playwright test
+      - run: npm run test:dev
       # Failure traces, and the score-layout results for platforms without a golden baseline yet (see tests/golden.spec.mjs).
       # A failed upload doesn't stop a green run from publishing the site.
       - uses: actions/upload-artifact@v7

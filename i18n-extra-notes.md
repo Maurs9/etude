@@ -4,7 +4,7 @@
 
 **Do not offer these locales as fully localized.** The dictionaries are intentionally sparse: the existing `t()` function falls back to English for absent keys. The Learn handbook and other content are not covered by the 1,354-key count and also need translation.
 
-## Architecture and work remaining
+## Architecture notes
 
 The migration build no longer publishes a hand-maintained `SITE_FILES` list:
 Vite follows static imports and `public/`, and the generated worker hashes the
@@ -24,7 +24,7 @@ or retired.
 1. The supported dictionaries and educational content are static modules under `src/locales/`; import them synchronously before `setLang()` and `applyI18n()`. Do not reintroduce a runtime script or asynchronous locale loading.
 2. The optional five-language preview still uses the extracted legacy payload, with the exact codes `es`, `fr`, `de`, `it`, and `pt-BR` and appropriate native labels.
 3. Complete the translation and dynamic-data work described above before presenting a locale as supported. Avoid treating fallback English as translated text. Ensure every `%s`, `%a`, and `%b` remains present in each corresponding string; preserve HTML when the original is interpreted as HTML.
-4. Vite follows `src/locales/` imports and the build generates the worker manifest from the final published directory, so supported locale data is automatically hash-checked and atomically precached. Do not maintain a hand-written `SITE_FILES`, `ASSETS` list, or cache version.
+4. Vite follows `src/locales/` imports and the build generates the worker manifest from the final published directory, so supported locale data is automatically hash-checked and atomically precached. Do not maintain a hand-written `SITE_FILES`, `ASSETS` list, or cache version. The runtime is `src/domain/views.ts`, and `window.__etude` is the deliberate browser test/import surface; lazy OSMD failures use bilingual reload guidance.
 5. Expand coverage tests to fail on *any* missing translation and exercise language persistence, switching, accessibility attributes, Learn chapters, dynamic labels, interpolation, offline reload and independent notation. Check long text and controls at mobile widths. Review translations with native speakers.
 
 Current standalone verification: `node --test i18n-tests/i18n-extra.test.cjs`. The test is outside `tests/` so Playwright does not discover it. It verifies the five sparse dictionaries, known keys, nonempty strings, placeholders, and browser-global loading. It deliberately does **not** assert full localization.

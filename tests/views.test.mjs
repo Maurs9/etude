@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAppView, navGroup, viewFromHash } from '../src/domain/views.ts';
+import { isAppView, navGroup, viewFromHash } from '../src/domain/router.ts';
 
 describe('view routing domain', () => {
   it('keeps hash routing grouped and safely defaults unknown views', () => {

@@ -1,11 +1,10 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateBridge } from './generate-bridge.mjs';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const APP_FILE = join(ROOT, 'etude.html');
-export const APP_SOURCE = join(ROOT, 'src', 'legacy', 'app.js');
+export const APP_SOURCE = join(ROOT, 'src', 'domain', 'views.ts');
 export const CSS_SOURCE = join(ROOT, 'src', 'styles', 'etude.css');
 export const OSMD_SOURCE = join(ROOT, 'public', 'vendor', 'osmd-1.9.9.min.js');
 export const PIANO_DIR = join(ROOT, 'src', 'assets', 'piano');
@@ -35,7 +34,7 @@ const APP_TAG = `<script>
   addEventListener('load',()=>setTimeout(show,0),{once:true});
 })();
 </script>
-<script type="module" src="./src/legacy/app.js"></script>`;
+<script type="module" src="./src/domain/views.ts"></script>`;
 
 function block(source, open, close) {
   const start = source.indexOf(open);
@@ -66,8 +65,7 @@ export async function split(source = null) {
   for (const icon of ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'icon.svg'])
     await copyFile(join(ROOT, 'icons', icon), join(ROOT, 'public', 'icons', icon));
   await writeFile(APP_FILE, parts.shell);
-  const names = await generateBridge(APP_SOURCE, join(ROOT, 'src', 'legacy', 'bridge.js'));
-  return { shell: parts.shell, pianoKeys: Object.keys(parts.piano).map(Number), names };
+  return { shell: parts.shell, pianoKeys: Object.keys(parts.piano).map(Number) };
 }
 
 export function splitSource(source) {

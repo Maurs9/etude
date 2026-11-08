@@ -43,7 +43,7 @@ test.describe('i18n', () => {
       expect(Object.keys(strings).length, `${locale} has locale keys`).toBeGreaterThan(0);
     return;
     // Object literals silently keep the last duplicate, so scan the source of the STRINGS literal (skipping string contents).
-    const html = readFileSync(new URL('../src/legacy/app.js', import.meta.url), 'utf8');
+    const html = readFileSync(new URL('../src/domain/views.ts', import.meta.url), 'utf8');
     const src = html.slice(html.indexOf('const STRINGS={'));
     const dupes = [];
     let depth = 0, i = src.indexOf('{'), lang = null, seen = null;
@@ -184,7 +184,7 @@ test.describe('Navigation accessibility', () => {
     await page.locator('#skipLink').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('main')).toBeFocused();
-    await expect(page).toHaveURL(/etude\.html#today$/);
+    await expect(page).toHaveURL(/etude\.html(?:\?__etude_test_surface=1)?#today$/);
 
     for (const width of [320, 375]) {
       await page.setViewportSize({ width, height: 700 });
@@ -1356,6 +1356,7 @@ const MXL_CAP = 32 * 2 ** 20;   // AN_MAX_XML_CHARS
 
 test('a small .mxl that unpacks to an oversized XML is refused with a clear message', async ({ app }) => {
   const page = await app.open({ hash: 'analysis' });
+  await page.evaluate(() => window.__etude.loadOsmd());
   const r = await page.evaluate(async b64 => {
     const real = opensheetmusicdisplay.MXLHelper.MXLtoXMLstring;
     opensheetmusicdisplay.MXLHelper.MXLtoXMLstring = async () => 'x'.repeat(AN_MAX_XML_CHARS + 1);   // stands in for a zip bomb that got past the checks
@@ -1369,12 +1370,15 @@ test('a small .mxl that unpacks to an oversized XML is refused with a clear mess
 
 test.describe('.mxl archives are checked before they are unpacked', () => {
   // Counts what reaches JSZip (through OSMD) and the preflight's counted inflate.
-  const spyUnpack = page => page.evaluate(() => {
+  const spyUnpack = async page => {
+    await page.evaluate(() => window.__etude.loadOsmd());
+    return page.evaluate(() => {
     const helper = opensheetmusicdisplay.MXLHelper, unzip = helper.MXLtoXMLstring, count = anInflatedSize;
     window.__unpack = { jszip: 0, counted: 0 };
     helper.MXLtoXMLstring = function (...a) { window.__unpack.jszip++; return unzip.apply(this, a); };
     anInflatedSize = function (...a) { window.__unpack.counted++; return count.apply(this, a); };
-  });
+    });
+  };
   // Opens the archive through the file picker and reports how the import ended.
   const openMxl = async (page, bytes) => {
     const before = await page.evaluate(() => { window.__unpack.jszip = window.__unpack.counted = 0; return AN.loadToken; });
