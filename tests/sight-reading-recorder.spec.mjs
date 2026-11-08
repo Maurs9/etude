@@ -1,14 +1,20 @@
 import { test, expect } from './fixtures.mjs';
 
-async function openRecorder(app) {
+async function openRecorder(app, playing = false) {
   const page = await app.open({ hash: 'read' });
+  if (playing) await page.clock.install();
   await page.locator('#rdt-pieces').click();
   await page.locator('#rd-mode button[data-v="assess"]').click();
   await page.locator('#rd-gen').click();
   await page.locator('#rd-go').click();
   await expect(page.locator('#rd-srt-start')).toBeVisible();
   await page.locator('#rd-srt-start').click();
-  await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('countIn');
+  if (playing) {
+    await page.clock.runFor(5000);
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('playing');
+  } else {
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('countIn');
+  }
   return page;
 }
 
@@ -35,23 +41,25 @@ test.describe('Sight-Reading recorder integration', () => {
     ]);
   });
 
-  test('releases only focus-owned keyboard and pointer notes, retaining physical MIDI and BLE notes', async ({ app }) => {
-    const page = await openRecorder(app);
-    const inputs = await page.evaluate(() => {
-      const recorder = window.__etude.srtRecorder;
-      recorder.record('on', 60, 'midi', null, 10);
-      recorder.record('on', 61, 'ble', null, 11);
-      recorder.record('on', 62, 'typing:a', null, 12);
-      recorder.record('on', 63, 'pointer:1', null, 13);
+  test('keeps a mixed keyboard and MIDI attack open until the physical owner releases', async ({ app }) => {
+    const page = await openRecorder(app, true);
+    const result = await page.evaluate(() => {
+      window.__etude.SR.t0 = performance.now();
+      window.__etude.handleNoteOn(60, 100, 'typing:KeyA');
+      window.__etude.handleNoteOn(60, 100, 'midi');
       window.__etude.releaseFocusInput();
-      return recorder.finish();
+      const afterFocus = window.__etude.srtRecorder.finish().map(input => ({ ...input }));
+      window.__etude.handleNoteOff(60, 'midi', 'physical');
+      const afterMidiOff = window.__etude.srtRecorder.finish().map(input => ({ ...input }));
+      return { afterFocus, afterMidiOff };
     });
-    expect(inputs).toEqual([
-      { id: 'input-1', midi: 60, onMs: 10, offMs: null, source: 'midi', releaseKind: null },
-      { id: 'input-2', midi: 61, onMs: 11, offMs: null, source: 'ble', releaseKind: null },
-      { id: 'input-3', midi: 62, onMs: 12, offMs: expect.any(Number), source: 'typing:a', releaseKind: 'focus' },
-      { id: 'input-4', midi: 63, onMs: 13, offMs: expect.any(Number), source: 'pointer:1', releaseKind: 'focus' },
-    ]);
+    expect(result.afterFocus).toHaveLength(1);
+    expect(result.afterFocus[0]).toMatchObject({
+      midi: 60, source: 'typing:KeyA', offMs: null, releaseKind: null,
+    });
+    expect(result.afterMidiOff[0]).toMatchObject({
+      midi: 60, source: 'typing:KeyA', offMs: expect.any(Number), releaseKind: 'physical',
+    });
   });
 
   test('panic closes every remaining recorder note with a reset release', async ({ app }) => {

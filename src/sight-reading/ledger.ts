@@ -263,6 +263,20 @@ function hasAttemptOwner(ledger: SightReadingLedger, attemptId: string, ownerTab
     exposure.claim?.attemptId === attemptId && exposure.claim.ownerTabId === ownerTabId);
 }
 
+function structurallyEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => structurallyEqual(value, right[index]));
+  }
+  if (!isRecord(left) || !isRecord(right)) return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && structurallyEqual(left[key], right[key]));
+}
+
 function mergeImported(local: SightReadingLedger, imported: SightReadingLedger): SightReadingLedgerResult {
   const exposures: Record<string, SightReadingExposure> = { ...local.exposures };
   const attempts: Record<string, SightReadingAttempt> = { ...local.attempts };
@@ -270,7 +284,7 @@ function mergeImported(local: SightReadingLedger, imported: SightReadingLedger):
   for (const [attemptId, attempt] of Object.entries(imported.attempts)) {
     const existing = attempts[attemptId];
     const normalized = { ...attempt, generation: local.generation };
-    if (existing && JSON.stringify(existing) !== JSON.stringify(normalized)) return { ok: false, reason: 'conflict' };
+    if (existing && !structurallyEqual(existing, normalized)) return { ok: false, reason: 'conflict' };
     if (!existing) attempts[attemptId] = normalized;
   }
   for (const [fingerprint, exposure] of Object.entries(imported.exposures)) {

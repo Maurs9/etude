@@ -150,6 +150,169 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
     await page.locator('#rd-srt-retry').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('saved');
     await expect(page.locator('#rd-srt-pending')).toBeHidden();
+
+    await page.evaluate(async () => {
+      await window.__etude.srtLedgerUpdate(localStorage, { type: 'resetLedger' });
+    });
+    await page.locator('#rd-gen').click();
+    await page.locator('#rd-go').click();
+    await page.locator('#rd-srt-start').click();
+    await page.clock.runFor(5000);
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('playing');
+    await page.evaluate(() => {
+      const original = Storage.prototype.setItem;
+      window.__srtOriginalSetItem = original;
+      Storage.prototype.setItem = function setItem(key, value) {
+        if (key === 'etude-sight-v1') throw new DOMException('blocked', 'QuotaExceededError');
+        return original.call(this, key, value);
+      };
+      window.__etude.srAssessFinish();
+    });
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('pendingSave');
+    await expect(page.locator('#rd-srt-pending')).toBeVisible();
+    await page.evaluate(() => { Storage.prototype.setItem = window.__srtOriginalSetItem; });
+    await page.locator('#rd-srt-continue').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('abandoned');
+    expect(await page.evaluate(() => {
+      const ledger = window.__etude.srtReadLedger(localStorage);
+      return Object.values(ledger.attempts).some((entry) => entry.status === 'abandoned') &&
+        Object.values(ledger.exposures).every((entry) => !entry.claim);
+    })).toBe(true);
+  });
+
+  test('automatically expires the 20-second preview into count-in', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    await page.clock.install();
+    await page.locator('#rd-go').click();
+    await expect(page.locator('#rd-srt-preview')).toBeVisible();
+    await expect(page.locator('#rd-srt-countdown')).toContainText('20');
+    await page.clock.runFor(19_000);
+    expect(await page.evaluate(() => window.__etude.SR.srtState.name)).toBe('preview');
+    await page.clock.runFor(1_000);
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('countIn');
+    await expect(page.locator('#rd-srt-preview')).toBeHidden();
+  });
+
+  test('invalidates a first attempt when the page becomes hidden', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    await page.locator('#rd-go').click();
+    await expect(page.locator('#rd-srt-preview')).toBeVisible();
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('interrupted');
+    expect(await page.evaluate(() => {
+      const ledger = window.__etude.srtReadLedger(localStorage);
+      return Object.values(ledger.attempts).some((entry) => entry.status === 'interrupted') &&
+        Object.values(ledger.exposures).every((entry) => !entry.claim);
+    })).toBe(true);
+  });
+
+  test('keeps a real pending-save claim out of orphan recovery in another tab', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    const tabB = await page.context().newPage();
+    try {
+      await tabB.goto(page.url());
+      await tabB.waitForFunction(() => typeof window.__etude?.srtLedgerUpdate === 'function');
+      await page.clock.install();
+      await page.locator('#rd-go').click();
+      await page.locator('#rd-srt-start').click();
+      await page.clock.runFor(5000);
+      await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('playing');
+      await page.evaluate(() => {
+        const original = Storage.prototype.setItem;
+        window.__srtOriginalSetItem = original;
+        Storage.prototype.setItem = function setItem(key, value) {
+          if (key === 'etude-sight-v1') throw new DOMException('blocked', 'QuotaExceededError');
+          return original.call(this, key, value);
+        };
+        window.__etude.srAssessFinish();
+      });
+      await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('pendingSave');
+      const recovery = await tabB.evaluate(async () => {
+        const generation = window.__etude.srtReadLedger(localStorage).generation;
+        return window.__etude.srtLedgerUpdate(localStorage, { type: 'recoverOrphanClaims', generation });
+      });
+      expect(recovery).toMatchObject({ ok: true });
+      expect(await page.evaluate(() => Object.values(window.__etude.srtReadLedger(localStorage).exposures).some((entry) => entry.claim))).toBe(true);
+      await page.evaluate(() => { Storage.prototype.setItem = window.__srtOriginalSetItem; });
+      await page.locator('#rd-srt-continue').click();
+      await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('abandoned');
+      expect(await page.evaluate(() => Object.values(window.__etude.srtReadLedger(localStorage).exposures).every((entry) => !entry.claim))).toBe(true);
+    } finally {
+      await tabB.close();
+    }
+  });
+
+  test('does not greedily color notes while assessment is playing', async ({ app }) => {
+    const page = await startPracticeAssess(app);
+    await page.clock.runFor(1000);
+    expect(await page.locator('#rd-staff .ss-n[data-s]').count()).toBe(0);
+    expect(await page.locator('#rd-staff .ss-result-symbol:not([style*="display: none"])').count()).toBe(0);
+  });
+
+  test('records aria-live verdict mutations only after a state transition', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    await page.clock.install();
+    await page.evaluate(() => {
+      const target = document.querySelector('#rd-verdict');
+      if (!target) throw new Error('missing verdict');
+      window.__srtVerdictChanges = [];
+      new MutationObserver(() => {
+        window.__srtVerdictChanges.push(window.__etude.SR.srtState.name);
+      }).observe(target, { childList: true, characterData: true, subtree: true });
+    });
+    await page.locator('#rd-go').click();
+    await page.locator('#rd-srt-start').click();
+    await page.clock.runFor(5000);
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('playing');
+    const beforePlaying = await page.evaluate(() => window.__srtVerdictChanges.length);
+    await page.clock.runFor(2000);
+    expect(await page.evaluate(() => window.__srtVerdictChanges.length)).toBe(beforePlaying);
+    await page.clock.runFor(30_000);
+    await expect.poll(() => page.evaluate(() => ['completed', 'saved', 'pendingSave'].includes(window.__etude.SR.srtState.name))).toBe(true);
+    const states = await page.evaluate(() => window.__srtVerdictChanges);
+    expect(states.every((state, index) => index === 0 || state !== states[index - 1])).toBe(true);
+  });
+
+  test('relocalizes a completed result and every SVG title across all seven languages', async ({ app }) => {
+    const page = await startPracticeAssess(app);
+    await page.evaluate(() => {
+      const api = window.__etude;
+      const expected = api.srtBuildExpected(api.SR.srtPiece, { bpm: api.SR.bpm, hand: 'rh' });
+      api.srtRecorder.record('on', expected[0].midi, 'test', null, expected[0].onMs);
+      api.srAssessFinish();
+    });
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('completed');
+    const snapshots = [];
+    for (const language of ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR']) {
+      snapshots.push(await page.evaluate((language) => {
+        const api = window.__etude;
+        api.setLang(language);
+        const result = api.SR.srtEvaluation;
+        const titles = [...document.querySelectorAll('.ss-n[data-s]')].map((note) => {
+          const status = note.getAttribute('data-s');
+          const key = status === 'good' ? 'rd_srt_symbol_good' :
+            status === 'near' ? 'rd_srt_symbol_near' : 'rd_srt_symbol_bad';
+          const symbol = status === 'good' ? '✓' : status === 'near' ? '≈' : '✗';
+          return {
+            actual: note.querySelector('title')?.textContent ?? '',
+            expected: `${symbol} ${api.t(key)}`,
+          };
+        });
+        return {
+          language,
+          verdict: document.querySelector('#rd-verdict')?.textContent ?? '',
+          titles,
+          expectedSummary: api.t('rd_srt_summary', Math.round(result.pitchF1 ?? 0), result.TP, result.N, result.FP, Math.round(result.rhythmAcc ?? 0), Math.round(result.meanOffsetMs ?? 0)),
+        };
+      }, language));
+    }
+    expect(snapshots.every((snapshot) => snapshot.verdict.includes(snapshot.expectedSummary))).toBe(true);
+    expect(snapshots.every((snapshot) =>
+      snapshot.titles.length > 0 && snapshot.titles.every((title) => title.actual === title.expected))).toBe(true);
+    expect(new Set(snapshots.map((snapshot) => snapshot.verdict)).size).toBeGreaterThan(1);
   });
 
   test('renders late-or-early timing as the missed/late symbol', async ({ app }) => {

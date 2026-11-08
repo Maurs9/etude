@@ -15,7 +15,7 @@ import type {
   ViewEventName,
 } from './views.js';
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
-import { srtEvaluate, type SightReadingPerformed } from '../sight-reading/evaluate.js';
+import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint } from '../sight-reading/fingerprint.js';
 import { srtGenerate } from '../sight-reading/generator.js';
@@ -320,6 +320,9 @@ function setLang(l: string|undefined) {
         if (SR.piece) {
             srMeta();
             srBest();
+            if (SR.srtEvaluation && SR.srtState && ['completed', 'pendingSave', 'saved'].includes(SR.srtState.name))
+                srRenderAssessResult();
+            srPaintAll();
         }
     }
     anLocalize();
@@ -1794,8 +1797,6 @@ function releaseFocusInput() {
     [...inputOwners.entries()].forEach(([m, o]) => [...o].forEach((s) => { if (s === 'midi' || s === 'ble')
         return; if (s.startsWith('fall:'))
         fell = true; handleNoteOff(m, s, 'focus'); }));
-    if (srtRecorder)
-        srtRecorder.releaseFocus(performance.now() - SR.t0);
     pointerKey.clear();
     typingDown.clear();
     if (FALL.press)
@@ -5718,12 +5719,14 @@ interface SrState {
     excerpt?: SrPiece | null; gen?: SrPiece | null; listening?: boolean;
     srtPiece?: SightReadingPiece | null; srtFingerprint?: string | null; srtState?: SightReadingState;
     srtOwnerTabId?: string; srtAttemptStartedAt?: number; srtPreviewTimer?: number; srtCountdown?: number; srtLease?: SightReadingAttemptLease | null; srtPendingAttempt?: SightReadingAttempt | null;
+    srtEvaluation?: SightReadingEvaluation | null; srtResultValue?: number | null; srtResultLevelId?: string | null; srtResultUnlockId?: string | null;
 }
 const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
     srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
-    srtOwnerTabId: `tab-${Math.random().toString(36).slice(2)}`, srtAttemptStartedAt: 0, srtPreviewTimer: 0, srtCountdown: 0, srtLease: null, srtPendingAttempt: null };
+    srtOwnerTabId: `tab-${Math.random().toString(36).slice(2)}`, srtAttemptStartedAt: 0, srtPreviewTimer: 0, srtCountdown: 0, srtLease: null, srtPendingAttempt: null,
+    srtEvaluation: null, srtResultValue: null, srtResultLevelId: null, srtResultUnlockId: null };
 let srtRecorder: SightReadingRecorder | null = null;
 interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
 /** A note to engrave; beamed eighths also record their stem position once drawn. */
@@ -6185,14 +6188,13 @@ async function srtRetryPendingSave() {
     if (!attempt)
         return;
     const result = await srtLedgerUpdate(localStorage, { type: 'finishAttempt', attempt, generation: attempt.generation });
-    const v = byId('rd-verdict');
     if (result.ok) {
         srtSetState({ type: 'saved' });
         SR.srtPendingAttempt = null;
         SR.srtLease?.release();
         SR.srtLease = null;
         srtPendingUi(false);
-        v.textContent = t('rd_srt_summary', Math.round(attempt.pitchF1 ?? 0), attempt.TP, attempt.N, attempt.FP, Math.round(attempt.rhythmAcc ?? 0), Math.round(attempt.meanOffsetMs ?? 0));
+        srRenderAssessResult();
     }
 }
 async function srtContinueWithoutSave() {
@@ -6325,6 +6327,10 @@ function srAssessStart() {
     SR.active = true;
     SR.results = {};
     SR.wrongExtra = 0;
+    SR.srtEvaluation = null;
+    SR.srtResultValue = null;
+    SR.srtResultLevelId = null;
+    SR.srtResultUnlockId = null;
     SR.next = null;
     srCoach();
     SR.steps.forEach((s) => s.closed = false);
@@ -6407,16 +6413,18 @@ function srAssessFinish() {
     const totalN = expected.length;
     const good = evaluated ? evaluated.G : Object.values(SR.results).filter((r) => r === 'good').length;
     const pct = evaluated?.score == null ? (totalN ? Math.round(100 * good / totalN) : 0) : Math.round(evaluated.score);
-    const stars = evaluated?.stars ?? (pct >= 95 ? 3 : pct >= 80 ? 2 : pct >= 60 ? 1 : 0);
     SR.next = srNextAssess(pct);
     srStopAll(true);
-    const v = byId('rd-verdict');
-    v.className = 'verdict ' + (stars >= 2 ? 'good' : stars ? 'neutral' : 'bad');
-    const modeLabel = SR.srtState?.mode === 'firstSight' ? t('rd_srt_first_sight') : t('rd_srt_practice_badge');
-    v.textContent = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + ' · ' + modeLabel +
-        (evaluated ? ' · ' + t('rd_srt_summary', Math.round(evaluated.pitchF1 ?? 0), evaluated.TP, evaluated.N, evaluated.FP, Math.round(evaluated.rhythmAcc ?? 0), Math.round(evaluated.meanOffsetMs ?? 0)) : '') +
-        (SR.wrongExtra ? '  ·  ' + t('rd_extra', SR.wrongExtra) : '') + rdSightDone('assess', pct);
     srtSetState({ type: 'finish' });
+    SR.srtEvaluation = evaluated;
+    SR.srtResultValue = pct;
+    SR.srtResultLevelId = SR.piece?.gen ?? null;
+    const nextLevel = SR.srtResultLevelId ? rdLvNext(RD_LV[SR.srtResultLevelId]) : null;
+    const wasUnlocked = nextLevel ? rdUnlocked(nextLevel) : false;
+    if (SR.piece?.gen)
+        rdSightDone('assess', pct);
+    SR.srtResultUnlockId = nextLevel && !wasUnlocked && rdUnlocked(nextLevel) ? nextLevel.id : null;
+    srRenderAssessResult();
     if (evaluated && SR.srtState?.attemptId && SR.srtFingerprint && SR.srtOwnerTabId) {
         const attempt: SightReadingAttempt = {
             ...evaluated,
@@ -6438,7 +6446,7 @@ function srAssessFinish() {
             } else {
                 srtSetState({ type: 'saveFailed' });
                 srtPendingUi(true);
-                v.textContent += ' · ' + t('rd_srt_unsaved');
+                srRenderAssessResult();
             }
         });
     }
@@ -6455,6 +6463,25 @@ function srAssessFinish() {
     saveAll();
     srBest();
     fillPieces();
+}
+function srRenderAssessResult() {
+    const evaluated = SR.srtEvaluation;
+    if (!evaluated)
+        return;
+    const pct = SR.srtResultValue ?? (evaluated.score == null ? 0 : Math.round(evaluated.score));
+    const stars = evaluated.stars;
+    const v = byId('rd-verdict');
+    v.className = 'verdict ' + (stars >= 2 ? 'good' : stars ? 'neutral' : 'bad');
+    const modeLabel = SR.srtState?.mode === 'firstSight' ? t('rd_srt_first_sight') : t('rd_srt_practice_badge');
+    let text = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + ' · ' + modeLabel +
+        ' · ' + t('rd_srt_summary', Math.round(evaluated.pitchF1 ?? 0), evaluated.TP, evaluated.N, evaluated.FP, Math.round(evaluated.rhythmAcc ?? 0), Math.round(evaluated.meanOffsetMs ?? 0));
+    if (SR.wrongExtra)
+        text += '  ·  ' + t('rd_extra', SR.wrongExtra);
+    if (SR.srtResultUnlockId && RD_LV[SR.srtResultUnlockId])
+        text += ' · 🔓 ' + t('rdx_unlocked', rdLvName(RD_LV[SR.srtResultUnlockId]));
+    if (SR.srtState?.name === 'pendingSave')
+        text += ' · ' + t('rd_srt_unsaved');
+    v.textContent = text;
 }
 function srKeyInput(m: number) {
     if (!SR.active)
@@ -6629,6 +6656,10 @@ function fillPieces() {
 }
 function srSelectPiece(id: string) {
     srStopAll();
+    SR.srtEvaluation = null;
+    SR.srtResultValue = null;
+    SR.srtResultLevelId = null;
+    SR.srtResultUnlockId = null;
     SR.piece = (SR.excerpt && SR.excerpt.id === id ? SR.excerpt : null) || (SR.gen && SR.gen.id === id ? SR.gen : null) || PIECES.find((p) => p.id === id) || PIECES[0];
     if (!SR.gen || SR.piece.id !== SR.gen.id) {
         SR.srtPiece = null;
@@ -7844,6 +7875,10 @@ function rdSightStart(mode: string) {
     SR.srtFingerprint = srtFingerprint(srtPiece);
     SR.srtState = SRT_INITIAL_STATE;
     SR.srtPendingAttempt = null;
+    SR.srtEvaluation = null;
+    SR.srtResultValue = null;
+    SR.srtResultLevelId = null;
+    SR.srtResultUnlockId = null;
     srtPreviewUi(false);
     srtPendingUi(false);
     srtNotice(null);

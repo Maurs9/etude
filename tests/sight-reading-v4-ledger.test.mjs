@@ -94,6 +94,27 @@ describe('sight-reading iteration 4 ledger invariants', () => {
     expect(imported).toMatchObject({ ok: false, reason: 'stale_generation' });
   });
 
+  it('deduplicates a structurally identical imported attempt with reordered keys', async () => {
+    const storage = new MemoryStorage();
+    const ledger = srtCreateLedger();
+    const attempt = emptyAttempt({ generation: ledger.generation });
+    storage.setItem('etude-sight-v1', JSON.stringify({
+      ...ledger,
+      attempts: { [attempt.attemptId]: attempt },
+    }));
+    const reorderedAttempt = Object.fromEntries(Object.entries(attempt).reverse());
+    const result = await srtLedgerUpdate(storage, {
+      type: 'importLedger',
+      imported: {
+        ...ledger,
+        attempts: { [attempt.attemptId]: reorderedAttempt },
+      },
+      generation: ledger.generation,
+    });
+    expect(result.ok).toBe(true);
+    expect(Object.keys(srtReadLedger(storage).attempts)).toEqual([attempt.attemptId]);
+  });
+
   it('persists interrupted terminal state and clears the claim', async () => {
     const storage = new MemoryStorage();
     const ledger = srtCreateLedger();

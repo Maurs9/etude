@@ -8,6 +8,38 @@ async function openRead(app) {
   return page;
 }
 
+function emptyAttempt(overrides = {}) {
+  return {
+    attemptId: 'attempt-1',
+    fingerprint: 'v1:test',
+    ownerTabId: 'tab-a',
+    generation: 'gen-a',
+    status: 'completed',
+    finishedAt: 1,
+    scoringVersion: 1,
+    N: 0,
+    TP: 0,
+    FP: 0,
+    FN: 0,
+    G: 0,
+    Q: 0,
+    lateOrEarlyCount: 0,
+    restViolations: 0,
+    pitchPrecision: null,
+    pitchRecall: null,
+    pitchF1: null,
+    rhythmAcc: null,
+    score: null,
+    stars: 0,
+    perfect: false,
+    meanOffsetMs: null,
+    meanAbsoluteOffsetMs: null,
+    noteResults: [],
+    extraInputs: [],
+    ...overrides,
+  };
+}
+
 test.describe('Sight-Reading ledger browser integration', () => {
   test('atomically grants one of two tabs the same exposure claim', async ({ app }) => {
     const page = await openRead(app);
@@ -95,10 +127,107 @@ test.describe('Sight-Reading ledger browser integration', () => {
       const exposure = await api.srtLedgerUpdate(localStorage, {
         type: 'recordExposure', fingerprint: 'v1:overflow', reason: 'listen', generation: ledger.generation,
       });
-      return { exposure, count: Object.keys(api.srtReadLedger(localStorage).exposures).length };
+      const attempt = index => ({
+        attemptId: `attempt-${index}`, fingerprint: `v1:attempt-${index}`, ownerTabId: 'tab-a',
+        generation: ledger.generation, status: 'completed', finishedAt: index, scoringVersion: 1,
+        N: 0, TP: 0, FP: 0, FN: 0, G: 0, Q: 0, lateOrEarlyCount: 0, restViolations: 0,
+        pitchPrecision: null, pitchRecall: null, pitchF1: null, rhythmAcc: null, score: null,
+        stars: 0, perfect: false, meanOffsetMs: null, meanAbsoluteOffsetMs: null,
+        noteResults: [], extraInputs: [],
+      });
+      const attempts = Object.fromEntries(Array.from({ length: 500 }, (_, index) => [
+        `attempt-${index}`, attempt(index),
+      ]));
+      const boundedLedger = { ...ledger, attempts, exposures: {} };
+      localStorage.setItem('etude-sight-v1', JSON.stringify(boundedLedger));
+      const claim = await api.srtLedgerUpdate(localStorage, {
+        type: 'claimExposure', fingerprint: 'v1:attempt-500', attemptId: 'attempt-500',
+        ownerTabId: 'tab-a', generation: ledger.generation,
+      });
+      const terminal = await api.srtLedgerUpdate(localStorage, {
+        type: 'finishAttempt', attempt: attempt(500), generation: ledger.generation,
+      });
+      const after = api.srtReadLedger(localStorage);
+      return {
+        exposure,
+        exposureCount: Object.keys(exposures).length,
+        claim,
+        terminal,
+        attemptCount: Object.keys(after.attempts).length,
+        keptNewest: !!after.attempts['attempt-500'],
+        trimmedOldest: !after.attempts['attempt-0'],
+      };
     });
     expect(result.exposure).toEqual({ ok: false, reason: 'quota' });
-    expect(result.count).toBe(4096);
+    expect(result.exposureCount).toBe(4096);
+    expect(result.claim.ok).toBe(true);
+    expect(result.terminal.ok).toBe(true);
+    expect(result.attemptCount).toBe(500);
+    expect(result.keptNewest).toBe(true);
+    expect(result.trimmedOldest).toBe(true);
+  });
+
+  test('takes the attempt lock before the short ledger lock and releases the ledger lock', async ({ app }) => {
+    const page = await openRead(app);
+    await page.evaluate(() => {
+      const nativeRequest = navigator.locks.request.bind(navigator.locks);
+      window.__lockEvents = [];
+      navigator.locks.request = (name, options, callback) => {
+        window.__lockEvents.push(`request:${name}`);
+        return nativeRequest(name, options, async lock => {
+          window.__lockEvents.push(`acquire:${name}`);
+          try {
+            return await callback(lock);
+          } finally {
+            window.__lockEvents.push(`release:${name}`);
+          }
+        });
+      };
+    });
+    await page.locator('#rd-go').click();
+    await expect(page.locator('#rd-srt-preview')).toBeVisible();
+    const result = await page.evaluate(async () => ({
+      events: window.__lockEvents,
+      held: (await navigator.locks.query()).held.map(lock => lock.name),
+    }));
+    const attemptRequest = result.events.findIndex(event => event.startsWith('request:etude-sight-attempt-'));
+    const ledgerRequest = result.events.indexOf('request:etude-sight-ledger-v1');
+    expect(attemptRequest).toBeGreaterThanOrEqual(0);
+    expect(ledgerRequest).toBeGreaterThan(attemptRequest);
+    expect(result.events).toContain('release:etude-sight-ledger-v1');
+    expect(result.held.some(name => name.startsWith('etude-sight-attempt-'))).toBe(true);
+    expect(result.held).not.toContain('etude-sight-ledger-v1');
+  });
+
+  test('makes terminal retries idempotent and rejects an owner mismatch', async ({ app }) => {
+    const page = await openRead(app);
+    const result = await page.evaluate(async base => {
+      const api = window.__etude;
+      const ledger = api.srtReadLedger(localStorage);
+      const attempt = { ...base, generation: ledger.generation };
+      const claim = await api.srtLedgerUpdate(localStorage, {
+        type: 'claimExposure', fingerprint: attempt.fingerprint, attemptId: attempt.attemptId,
+        ownerTabId: attempt.ownerTabId, generation: ledger.generation,
+      });
+      const first = await api.srtLedgerUpdate(localStorage, {
+        type: 'finishAttempt', attempt, generation: ledger.generation,
+      });
+      const revision = api.srtReadLedger(localStorage).revision;
+      const retry = await api.srtLedgerUpdate(localStorage, {
+        type: 'finishAttempt', attempt, generation: ledger.generation,
+      });
+      const retryRevision = api.srtReadLedger(localStorage).revision;
+      const mismatched = { ...attempt, attemptId: 'attempt-wrong-owner', fingerprint: 'v1:wrong-owner', ownerTabId: 'tab-b' };
+      const ownerMismatch = await api.srtLedgerUpdate(localStorage, {
+        type: 'finishAttempt', attempt: mismatched, generation: ledger.generation,
+      });
+      return { claim, first, retry, revision, retryRevision, ownerMismatch };
+    }, emptyAttempt());
+    expect(result.claim.ok).toBe(true);
+    expect(result.first.ok).toBe(true);
+    expect(result.retry).toEqual(result.first);
+    expect(result.retryRevision).toBe(result.revision);
+    expect(result.ownerMismatch).toEqual({ ok: false, reason: 'owner_mismatch' });
   });
 
   test('disables claiming without Web Locks while keeping the practice path available', async ({ app }) => {
