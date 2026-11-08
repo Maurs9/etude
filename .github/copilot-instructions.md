@@ -1,6 +1,6 @@
 # Copilot instructions for Étude
 
-Étude is a piano theory trainer. The whole app is one static file, `etude.html`, with no build step. `sw.js`, `manifest.webmanifest` and `icons/` provide the installable, offline PWA shell. Node tooling exists only for the Playwright tests.
+Étude is a piano theory trainer. The whole app is one static file, `etude.html`, with no build step. `sw.js`, `manifest.webmanifest` and `icons/` provide the installable, offline PWA shell. Node tooling exists only for the Playwright tests and for `npm run build`, which copies the files the site serves into `dist/etude/` for GitHub Pages.
 
 ## Git, pushing and releases
 
@@ -26,6 +26,12 @@ gh release create v1.0.1 --generate-notes
 
 If a release changes the service worker's caching rules, bump `VERSION` in `sw.js`.
 
+## Deployment
+
+- GitHub Pages publishes from the Tests workflow (`.github/workflows/test.yml`), with the Pages source set to "GitHub Actions". When a push to `main` passes the tests, the `deploy` job publishes `dist/etude/` at https://maurs9.github.io/etude/. It fails if the Pages source is a branch, and skips publishing (with a warning) if `main` has moved on. To publish again, re-run the latest `main` run within a day, or use "Run workflow" on `main`. Don't add one of the Pages workflows GitHub suggests; it would publish the whole repo over this one.
+- `scripts/build.mjs` publishes only the files listed in its `SITE_FILES`, byte for byte, plus an `index.html` that forwards `/etude/` to `etude.html`. If the app starts loading another file, add it to `SITE_FILES`, or the live site won't have it. `tests/deploy.spec.mjs` checks the published site under `/etude/`. Pages matches paths case-sensitively, unlike macOS, so a file name's letter case must match exactly; Linux CI catches a mismatch only in files the tests load.
+- `npm run preview` builds the site and serves it at http://127.0.0.1:8778/etude/, the same paths as on Pages.
+
 ## Conventions in `etude.html`
 
 - Any user-visible text or accessible name needs strings in both `en` and `ro` in the `STRINGS` object. Elements use `data-i18n`, `data-i18n-aria` and `data-i18n-title`, which `applyI18n()` applies. A test fails if a key is defined twice in one language.
@@ -47,9 +53,9 @@ PW_CHANNEL= npm test  # use bundled Chromium instead (after `npx playwright inst
 - `playwright.config.mjs` serves on port **8787** with `reuseExistingServer` outside CI. If another worktree already serves 8787, `npm test` silently tests *that* worktree's `etude.html`. In that case, use a temporary, untracked config that imports `./playwright.config.mjs` and overrides `use.baseURL` and `webServer` to a free port. Run it with `npx playwright test -c <file>`, then delete the file.
 - Never stop servers you didn't start; they may belong to the owner's other sessions.
 - Add regression tests to `tests/app.spec.mjs`, following its existing style, and leave the full suite green.
-- `tests/golden.spec.mjs` pins what must not change by accident: the piano recordings (byte hashes) and the engraving of the fixture scores (notes, systems, pages). When a change is meant to move a baseline, run `UPDATE_GOLDEN=1 npx playwright test golden`, review the JSON diff and commit it on its own, saying why. Layout baselines are per platform; a platform without one (e.g. Linux CI) is reported, not failed.
+- `tests/golden.spec.mjs` pins what must not change by accident: the piano recordings (byte hashes) and the engraving of the fixture scores (notes, systems, pages). When a change is meant to move a baseline, run `UPDATE_GOLDEN=1 npx playwright test golden`, review the JSON diff and commit it on its own, saying why. Layout baselines are per platform. Locally, a platform without one is reported, not failed; CI sets `GOLDEN_REQUIRE_PLATFORM=1`, so there it fails and the measured layout is in the run's `test-results` artifact.
 - Tests that need a real service worker are tagged `@sw` and run in the `sw` project; all others run with service workers blocked.
 - The keyboard dock starts hidden on a first visit, so tests that press on-screen piano keys open the app with `app.open({ dock: true })`.
-- CI (`.github/workflows/test.yml`) runs the suite with Playwright's Chromium on every pushed branch and on pull requests. Merge a branch only when its run is green.
+- CI (`.github/workflows/test.yml`) runs the suite with Playwright's Chromium on every pushed branch and on pull requests. Merge a branch only when its run is green. On `main`, a green run also deploys the site (see Deployment).
 - The architecture migration follows `docs/plans/2026-11-08-safe-migration-plan.md`. Keep migration work and feature work in separate PRs.
 - `node_modules/` and `test-results/` are gitignored; never force-add them.
