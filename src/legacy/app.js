@@ -3,6 +3,7 @@ import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, restoreSettings } from '../domain/storage.ts';
 import { chordPitches, samePitchSet } from '../domain/theory.ts';
+import { patchOsmdPedals } from '../domain/notation.ts';
 function t(k,...args){ const s=STRINGS[lang]||STRINGS.en; let v=(s[k]!=null?s[k]:(STRINGS.en?STRINGS.en[k]:null)); if(v==null) return k; if(!args.length) return v; if(args[0]!=null) v=v.replace('%a',args[0]); if(args[1]!=null) v=v.replace('%b',args[1]); for(let i=0;i<args.length;i++){ if(args[i]!=null) v=v.replace('%s',args[i]); } return v; }
 /* ============================================================================
    ÉTUDE — V3.  Reuses the verified V2 theory/audio/MIDI engine; adds a
@@ -4036,11 +4037,7 @@ function scorePaintEl(g){const i=+g.dataset.i,look=SCORE_LOOK[SCORE.look],select
 function scorePaintIdx(i){ (SCORE.heads.get(i)||[]).forEach(scorePaintEl); }
 function scorePaint(){ SCORE.heads.forEach(list=>list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
-function scorePatchOsmd(){ const D=opensheetmusicdisplay.VexFlowMusicSheetDrawer, P=D&&D.prototype; if(!P||P.scPedalGroups||typeof P.drawPedals!=='function') return;
- const draw=P.drawPedals; P.drawPedals=function(line){ const ctx=this.backend&&this.backend.getContext&&this.backend.getContext();
-  if(!ctx||!ctx.openGroup||!line||!line.Pedals) return draw.call(this,line);
-  for(const p of line.Pedals){ const group=ctx.openGroup('sc-pedal'); if(group) group.scPedalOwner={staffLine:line,pedal:p}; try{ draw.call(this,{Pedals:[p]}); } finally{ ctx.closeGroup(); } } };
- P.scPedalGroups=true; }
+function scorePatchOsmd(){ patchOsmdPedals(globalThis.opensheetmusicdisplay); }
 // Text-pedal skylines can miss ledger notes, and a release with no staff entry can land on its press glyph.
 // Place actual glyph ink without changing event timing. Recompute from native positions on every call.
 function scoreFixPedals(box){ let unresolved=0;

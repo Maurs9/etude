@@ -68,4 +68,5 @@ PW_CHANNEL= npm test  # use bundled Chromium instead (after `npx playwright inst
 - Storage reads belong in `src/domain/storage.ts`; keep the `ptt-v3` key and reader compatibility for older saves. Add storage fixtures and Vitest coverage when changing persisted data.
 - Pure pitch, scale, chord, and interval calculations belong in `src/domain/theory.ts`; keep them browser-independent and cover them with Vitest before wiring a view to them.
 - Piano sample fetching and decoding belongs in `src/domain/audio.ts`; always check `res.ok`, read the audio context before fetching, and clear pending state so a failed warm-up can retry.
+- OSMD-specific patches belong in `src/domain/notation.ts`; keep the adapter defensive when an OSMD method is missing and cover its grouping behavior without requiring a browser.
 - `node_modules/` and `test-results/` are gitignored; never force-add them.
