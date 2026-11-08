@@ -21,6 +21,11 @@
       "iteration": 3,
       "verdict": "FAIL",
       "summary": "Strict TypeScript, real audio/theory/notation ownership, CI-safe split verification, and truthful final-state docs remain unmet."
+    },
+    {
+      "iteration": 4,
+      "verdict": "FAIL",
+      "summary": "The strict gate excludes a renamed JavaScript runtime; real views, audio, theory, and notation ownership and matching docs remain incomplete."
     }
   ]
 }
