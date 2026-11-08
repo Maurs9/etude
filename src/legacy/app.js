@@ -1,7 +1,7 @@
 "use strict";
 import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.js';
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
-import { PTT_KEY as KEY, isBackupPayload, isRecord, restoreSettings } from '../domain/storage.ts';
+import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, readPttV3, restoreSettings, writePttV3 } from '../domain/storage.ts';
 import { chordPitches, samePitchSet } from '../domain/theory.ts';
 import { patchOsmdPedals } from '../domain/notation.ts';
 import { NAV_GROUPS, navGroup, viewFromHash } from '../domain/views.ts';
@@ -5855,19 +5855,19 @@ function syncAfter(got){ if(got==='swap') syncNote(true); clearTimeout(SYNC.t); 
 function syncRefresh(){ syncIdle(); reflectSettingsUI();
   if(view0()==='today'&&!SES.active) refreshToday(); else if(view0()==='progress') renderProgress(); else if(view0()==='practice'&&!SES.active) renderPracticeLast(); }
 function saveAll(){ const got=syncPull(); syncWrite(); if(got==='merge'||got==='merge-save'||got==='swap') syncAfter(got); }
-function syncWrite(){ try{ const p={ v:3, gen:SYNC.gen, syncId:syncGen(), syncParent:SYNC.id, ...SYNC.merge&&SYNC.merge.into===SYNC.id?{syncMerge:SYNC.merge.id}:{}, audioEngine:'recorded-piano-v2', lang:syncPref('lang',lang), theme, data, notation:syncPref('notation',notation), tone, masterVol, muted, localSynth, reverb:reverbWet, labels:syncPref('labels',labelMode), bpm:metro.bpm, drone:!!data.settings.drone, device:activeInputId||savedDevice, scoreLook:SCORE.look, scoreHl:SCORE.hl, scoreView:FALL.mode==='fall'?'fall':SCORE.layout, kbDock:DOCK.pref, anSide:{open:SIDE.open,tab:SIDE.tab,w:SIDE.w}, wake:WAKE.want, ble:BLE.saved }, s=JSON.stringify(p); localStorage.setItem(KEY,s); SYNC.merge=null; syncCurrent(s); }catch(e){ console.warn('save failed',e); } }
+function syncWrite(){ try{ const p={ v:3, gen:SYNC.gen, syncId:syncGen(), syncParent:SYNC.id, ...SYNC.merge&&SYNC.merge.into===SYNC.id?{syncMerge:SYNC.merge.id}:{}, audioEngine:'recorded-piano-v2', lang:syncPref('lang',lang), theme, data, notation:syncPref('notation',notation), tone, masterVol, muted, localSynth, reverb:reverbWet, labels:syncPref('labels',labelMode), bpm:metro.bpm, drone:!!data.settings.drone, device:activeInputId||savedDevice, scoreLook:SCORE.look, scoreHl:SCORE.hl, scoreView:FALL.mode==='fall'?'fall':SCORE.layout, kbDock:DOCK.pref, anSide:{open:SIDE.open,tab:SIDE.tab,w:SIDE.w}, wake:WAKE.want, ble:BLE.saved }; const s=writePttV3(localStorage,p); SYNC.merge=null; syncCurrent(s); }catch(e){ console.warn('save failed',e); } }
 let _saveT=null; function saveSoon(){ clearTimeout(_saveT); _saveT=setTimeout(saveAll,400); }   // for sliders — avoid a localStorage write per pixel
 function loadAll(){ try{
     SYNC.known.clear(); SYNC.id=''; SYNC.merge=null;
-    const stored=localStorage.getItem(KEY), raw=JSON.parse(stored||'null');
-    if(isBackupPayload(raw)){ SYNC.gen=typeof raw.gen==='string'?raw.gen:''; syncCurrent(stored); if(raw.data){ data=Object.assign(data,raw.data); data.settings=restoreSettings(raw.data.settings); data.srs=raw.data.srs||{}; }
+    const stored=readPttV3(localStorage), raw=stored?.payload;
+    if(raw){ SYNC.gen=typeof raw.gen==='string'?raw.gen:''; syncCurrent(stored.raw); if(raw.data){ data=Object.assign(data,raw.data); data.settings=restoreSettings(raw.data.settings); data.srs=raw.data.srs||{}; }
       if(raw.lang && STRINGS[raw.lang]) lang=raw.lang; if(raw.theme) theme=raw.theme; if(['letter','solfege','german'].includes(raw.notation)) notation=raw.notation; tone=raw.audioEngine==='recorded-piano-v2'&&raw.tone?raw.tone:'piano'; masterVol=clampPersistedNumber(raw.masterVol,0,1,masterVol); if(raw.muted===true) muted=true; if(typeof raw.localSynth==='boolean') localSynth=raw.localSynth; reverbWet=clampPersistedNumber(raw.reverb,0,0.5,reverbWet); if(raw.labels) labelMode=raw.labels; metro.bpm=Math.round(clampPersistedNumber(raw.bpm,50,180,metro.bpm)); if(raw.device) savedDevice=raw.device; if(raw.scoreLook==='paper'||raw.scoreLook==='night') SCORE.look=raw.scoreLook; if(typeof raw.scoreHl==='boolean') SCORE.hl=raw.scoreHl; if(raw.scoreView==='page'||raw.scoreView==='cont') SCORE.layout=raw.scoreView; else if(raw.scoreView==='fall') FALL.mode='fall'; if(typeof raw.kbDock==='boolean') DOCK.pref=raw.kbDock; else if(typeof raw.anKb==='boolean') DOCK.pref=raw.anKb;   // the Score & analysis choice becomes the choice for every view
       if(typeof raw.wake==='boolean') WAKE.want=raw.wake;
       const bl=raw.ble; if(bl&&typeof bl.id==='string'&&bl.id) BLE.saved={id:bl.id,name:typeof bl.name==='string'?bl.name:'',auto:bl.auto!==false};
       const sd=raw.anSide; if(sd&&typeof sd==='object'){ if(typeof sd.open==='boolean') SIDE.open=sd.open; if(AN_TABS.includes(sd.tab)) SIDE.tab=sd.tab; if(Number.isFinite(sd.w)) SIDE.w=Math.max(280,Math.min(560,Math.round(sd.w))); }
       return; }
     // migrate from V2 settings (notation/tone) if present
-    const v2s=JSON.parse(localStorage.getItem('ptt-settings-v2')||'null'); if(v2s){ if(['letter','solfege','german'].includes(v2s.noteSys)) notation=v2s.noteSys; tone='piano'; masterVol=clampPersistedNumber(v2s.vol,0,1,masterVol); }
+    const v2s=legacySettings(localStorage); if(v2s){ if(['letter','solfege','german'].includes(v2s.noteSys)) notation=v2s.noteSys; tone='piano'; masterVol=clampPersistedNumber(v2s.vol,0,1,masterVol); }
     const v2st=JSON.parse(localStorage.getItem('ptt-stats-v2')||'null');
     if(v2st&&v2st.items){ // seed SRS boxes from V2 per-item accuracy
       const map={iv:'iv',ch:'ch',sc:'sc',pr:'pr'};

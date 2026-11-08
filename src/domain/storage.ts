@@ -27,6 +27,16 @@ export type PttV3Payload = {
   [key: string]: unknown;
 };
 
+export interface StorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
+export type ReadPttResult = {
+  raw: string;
+  payload: PttV3Payload;
+};
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -62,6 +72,29 @@ export function parsePttV3(raw: string | null): PttV3Payload | null {
   try {
     const parsed: unknown = JSON.parse(raw);
     return isBackupPayload(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function readPttV3(storage: StorageLike, key = PTT_KEY): ReadPttResult | null {
+  const raw = storage.getItem(key);
+  const payload = parsePttV3(raw);
+  return payload && raw ? { raw, payload } : null;
+}
+
+export function writePttV3(storage: StorageLike, payload: PttV3Payload, key = PTT_KEY): string {
+  const raw = JSON.stringify(payload);
+  storage.setItem(key, raw);
+  return raw;
+}
+
+export function legacySettings(storage: StorageLike, key = 'ptt-settings-v2'): Record<string, unknown> | null {
+  const raw = storage.getItem(key);
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return isRecord(value) ? value : null;
   } catch {
     return null;
   }
