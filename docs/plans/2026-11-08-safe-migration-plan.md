@@ -156,7 +156,7 @@ After the fixes: **196 passed in each of three consecutive runs, about 1.8 min e
 
 ### Step 1: OSMD 2.2.1 (optional and independent)
 
-**When:** before Step 2 or after Step 4, never between them. OSMD 1.9.9 passes through Steps 2–4 untouched.
+**When:** before Step 2 or after Step 4, never between them. OSMD 1.9.9 passes through Steps 2–4 untouched. The five scores aren't available yet (decision 4), so the default is after Step 4.
 
 **Scope:**
 
@@ -353,7 +353,7 @@ The spec is Part III of the unified plan (M0–M10). Work starts after Step 4 an
 
 - **Separate PRs:** migration PRs contain no feature changes, and feature PRs contain no migration changes.
 - **Concurrent sessions:** other sessions keep editing `etude.html` until Step 3's freeze. Step 3's PR updates the instructions to point at `src/legacy/app.js`.
-- **Rollback anchor:** the owner tags `pre-migration` on `main` before opening Step 2's PR. The tag is the rollback anchor.
+- **Rollback anchor:** the last commit on `main` before Step 2 merges. Optionally tag it `pre-migration` (decision 5).
 - **Releases:**
   - Steps 1, 2 and 3 are each a MINOR release.
   - Steps 4 and 5 are grouped into releases as convenient.
@@ -361,14 +361,16 @@ The spec is Part III of the unified plan (M0–M10). Work starts after Step 4 an
 
 ## 8. Owner decisions
 
-| # | Decision | Needed by | Recommendation |
+Answered by the owner on 8 November 2026.
+
+| # | Decision | Needed by | Outcome |
 |---|---|---|---|
-| 1 | Deploy GitHub Pages from Actions | Step 2 | Yes. The deployed bytes become the tested bytes. |
-| 2 | Keep `file://` support | Before Step 3 | Keep it. CI also builds a single-file `etude-standalone.html`, with everything inlined as it is today, attaches it to each release and smoke-tests it over `file://`. The alternative is to drop `file://` support and say so in the release notes. |
-| 3 | 1–2 day freeze for Step 3 | Step 3 | Yes. |
-| 4 | Five desktop scores, provided locally through `ETUDE_SCORES_DIR` (never committed) | Step 1 exit, and extra cover for Step 3 | Yes. |
-| 5 | Push the `pre-migration` and release tags | Step 2 | — |
-| 6 | Merge a branch only when its "Tests" run is green. The workflow runs on every pushed branch; a required check would only block or be bypassed on direct pushes to `main`. | Now | Yes. |
+| 1 | Deploy GitHub Pages from Actions | Step 2 | **Pending the one-time setting.** The owner keeps pushing from GitHub Desktop; that doesn't change. In Step 2, the owner sets Settings → Pages → Source to "GitHub Actions", so a push to `main` builds, tests, then publishes. The deployed bytes become the tested bytes. |
+| 2 | Keep `file://` support | Before Step 3 | **Keep it** (owner: "use the best approach"). CI also builds a single-file `etude-standalone.html`, with everything inlined as it is today, attaches it to each release and smoke-tests it over `file://`. |
+| 3 | 1–2 day freeze for Step 3 | Step 3 | **Agreed.** |
+| 4 | Five desktop scores, provided locally through `ETUDE_SCORES_DIR` (never committed) | Step 1 exit | **Later.** Not available yet. They're required before Step 1 merges, not for Steps 2–3, which the committed fixtures cover. |
+| 5 | Tag `pre-migration` | Step 2 | **Optional.** Nothing depends on it: the upgrade test uses a committed copy of today's `sw.js`, and a rollback can use the commit hash. It's a convenient name for "the last single-file version". To add it in GitHub Desktop: History → right-click the commit → Create Tag, then push. Release tags follow the usual release rules. |
+| 6 | Merge a branch only when its "Tests" run is green. The workflow runs on every pushed branch; a required check would only block or be bypassed on direct pushes to `main`. | Now | **Agreed.** |
 
 ## 9. Review findings and where they're handled
 
