@@ -1,0 +1,10 @@
+{
+  "goal_id": "sight-reading-v3-mvp",
+  "status": "building",
+  "iteration": 1,
+  "builder_model": "GPT:5.6-Luna",
+  "inspector_model": "GPT:5.6-Sol",
+  "initial_sha": "a26497d263a31d1c0d74921a07ea4b8720d8af6c",
+  "created_at": "2026-11-08T22:35:01+02:00",
+  "history": []
+}
