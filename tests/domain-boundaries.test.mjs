@@ -96,6 +96,24 @@ describe('domain boundaries', () => {
     }
   });
 
+  it('rejects an indirect any alias resolved from JSON.parse', async () => {
+    const probeRoot = fileURLToPath(new URL('../test-results/', import.meta.url));
+    const sourceRoot = await mkdtemp(join(probeRoot, 'etude-indirect-any-'));
+    try {
+      await writeFile(join(sourceRoot, 'probe.ts'), [
+        'type HiddenAny = ReturnType<typeof JSON.parse>;',
+        'const value: HiddenAny = { deep: { missing: () => undefined } };',
+        'value.deep.missing.call();',
+      ].join('\n'));
+      await expect(execFileAsync('node', ['scripts/check-ts-suppressions.mjs'], {
+        cwd: fileURLToPath(new URL('..', import.meta.url)),
+        env: { ...process.env, TS_SOURCE_ROOT: sourceRoot },
+      })).rejects.toMatchObject({ code: 1 });
+    } finally {
+      await rm(sourceRoot, { recursive: true, force: true });
+    }
+  });
+
   it('rejects a new unchecked application JavaScript module', async () => {
     const probeRoot = fileURLToPath(new URL('../test-results/', import.meta.url));
     const sourceRoot = await mkdtemp(join(probeRoot, 'etude-js-gate-'));

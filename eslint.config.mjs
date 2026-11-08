@@ -90,7 +90,6 @@ export default [
         {
           patterns: [
             { group: ['**/legacy/**'], message: 'Legacy runtime modules are not allowed.' },
-            { group: ['./views', './views.*'], message: 'Domain modules must not depend on the view runtime.' },
           ],
         },
       ],

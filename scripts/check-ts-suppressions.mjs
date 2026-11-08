@@ -1,5 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
+import ts from 'typescript';
 import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const root = process.env.TS_SOURCE_ROOT
   ? pathToFileURL(`${process.env.TS_SOURCE_ROOT.replace(/\/?$/, '/')}`)
@@ -17,6 +19,53 @@ const FORBIDDEN_RUNTIME_PATTERNS = [
   [/\bRUNTIME_SOURCE\b/, 'encoded runtime source payloads are forbidden in application TypeScript'],
   [/\b(?:base64|encodedRuntime|generatedRuntime)\b/i, 'encoded/generated runtime payloads are forbidden in application TypeScript'],
 ];
+
+function isAny(type) {
+  return (type.flags & ts.TypeFlags.Any) !== 0;
+}
+
+async function findTypeFiles(url) {
+  const files = [];
+  const entries = await readdir(url, { withFileTypes: true });
+  for (const entry of entries) {
+    const child = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, url);
+    if (entry.isDirectory()) {
+      files.push(...await findTypeFiles(child));
+    } else if (/\.(?:ts|tsx)$/.test(entry.name)) {
+      files.push(fileURLToPath(child));
+    }
+  }
+  return files;
+}
+
+async function rejectIndirectAnyTypes() {
+  const files = await findTypeFiles(root);
+  if (!files.length) return;
+  const program = ts.createProgram(files, {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    strict: true,
+    noEmit: true,
+    skipLibCheck: true,
+    types: ['node'],
+  });
+  const checker = program.getTypeChecker();
+  for (const sourceFile of program.getSourceFiles()) {
+    if (sourceFile.isDeclarationFile || !sourceFile.fileName.startsWith(fileURLToPath(root))) continue;
+    const visitNode = node => {
+      if (node.type && ts.isTypeNode(node.type)) {
+        const type = checker.getTypeAtLocation(node.type);
+        if (isAny(type) && node.type.kind !== ts.SyntaxKind.AnyKeyword) {
+          const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+          failures.push(`${sourceFile.fileName}:${position.line + 1}: type annotation resolves to any; indirect any aliases are forbidden`);
+        }
+      }
+      ts.forEachChild(node, visitNode);
+    };
+    visitNode(sourceFile);
+  }
+}
 
 async function visit(url) {
   const entries = await readdir(url, { withFileTypes: true });
@@ -60,6 +109,7 @@ async function visit(url) {
 }
 
 await visit(root);
+await rejectIndirectAnyTypes();
 
 if (expectedErrorCount > MAX_EXPECTED_ERRORS) {
   failures.push(`src: ${expectedErrorCount} @ts-expect-error directives exceed the limit of ${MAX_EXPECTED_ERRORS}`);

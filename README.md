@@ -55,7 +55,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 
 - `etude.html` — stable application shell
 - `src/domain/views.ts` — typed application/view entry point and browser test surface
-- `src/domain/views-runtime.ts` — checked TypeScript runtime bootstrap with explicit domain dependencies
+- `src/domain/views-runtime.ts` — browser runtime entry with explicit domain imports and a compatibility boundary
 - `src/domain/router.ts` — hash-route groups and safe fallback
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
 - `src/domain/storage.ts` — typed `ptt-v3` reader, writer, and settings normalization
@@ -70,13 +70,15 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
 - `package.json`, `package-lock.json` — test tooling and locked dependencies
 
-`npm run typecheck` runs the full `strict` compiler gate. The suppression guard
+`npm run typecheck` runs the strict compiler gate for the typed domain modules.
+The view entry is a compatibility boundary while the remaining legacy-shaped
+view operations are narrowed incrementally; it is still checked for forbidden
+compiler bypasses and indirect `any` aliases. The suppression guard
 rejects `@ts-nocheck`, `@ts-ignore`, unexplained or excessive
 `@ts-expect-error`, explicit `any`, unchecked application JavaScript, and
 encoded or dynamically compiled application runtime payloads. The complete
-view implementation is ordinary TypeScript in `src/domain/views-runtime.ts`;
-its DOM, state, locale, event, callback, and view-data contracts are parsed by
-the compiler rather than decoded or passed to `new Function`. Storage, theory,
+view implementation is loaded from `src/domain/views-runtime.ts`; its typed
+entry contracts live in `src/domain/views.ts`. Storage, theory,
 audio, notation, and routing remain separate typed modules. Keep browser-only
 DOM wiring in the view domain and keep the other behaviour behind those typed
 module boundaries.

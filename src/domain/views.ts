@@ -1,5 +1,3 @@
-import './views-runtime.js';
-
 import type { AppLanguage } from '../types/architecture.js';
 import type { AppSettings } from './storage.js';
 import type { AudioTone, PianoStatus } from './audio.js';
@@ -89,6 +87,12 @@ export interface ViewRuntimeBoundary {
 
 export interface EtudeSurface {
   readonly [name: string]: unknown;
+}
+
+declare global {
+  interface Window {
+    __etude: Record<string, unknown>;
+  }
 }
 
 function requireElement(id: string): ViewElement {

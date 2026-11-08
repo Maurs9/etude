@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 const ROOT = resolve(import.meta.dirname);
-const APP = resolve(ROOT, 'src/domain/views.ts');
+const APP = resolve(ROOT, 'src/domain/views-runtime.ts');
 
 function migrationPlugin() {
   return {

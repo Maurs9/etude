@@ -34,7 +34,7 @@ const APP_TAG = `<script>
   addEventListener('load',()=>setTimeout(show,0),{once:true});
 })();
 </script>
-<script type="module" src="./src/domain/views.ts"></script>`;
+<script type="module" src="./src/domain/views-runtime.ts"></script>`;
 
 function block(source, open, close) {
   const start = source.indexOf(open);
