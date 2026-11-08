@@ -1,4 +1,4 @@
-export const STRINGS: Record<string, Record<string, any>>;
-export const I18N_MUSIC: Record<string, any>;
-export const STEP_LABELS: Record<string, any>;
-export const LOCALE_TAGS: Record<string, any>;
+export const STRINGS: Record<string, Record<string, string>>;
+export const I18N_MUSIC: Record<string, unknown>;
+export const STEP_LABELS: Record<string, unknown>;
+export const LOCALE_TAGS: Record<string, string>;

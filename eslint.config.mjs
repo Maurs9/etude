@@ -54,6 +54,7 @@ export default [
       'no-unused-vars': 'off',
       'no-empty': 'off',
       'no-useless-assignment': 'off',
+      'no-func-assign': 'off',
       'no-dupe-keys': 'error',
       'no-restricted-globals': [
         'error',
@@ -81,10 +82,20 @@ export default [
   },
   {
     files: ['src/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
     plugins: {
       'import-x': importX,
     },
     rules: {
+      'no-unused-vars': 'off',
+      'no-empty': 'off',
+      'no-useless-assignment': 'off',
+      'no-func-assign': 'off',
       'no-dupe-keys': 'error',
       'no-restricted-imports': [
         'error',

@@ -1,5 +1,5 @@
-export const LESSONS: Record<string, any>;
-export const LEARN_UNITS: Record<string, any>;
-export const LQZ: Record<string, any>;
-export const LSUM: Record<string, any>;
-export const GLOSS: Record<string, any>;
+export const LESSONS: Record<string, unknown>;
+export const LEARN_UNITS: Record<string, unknown>;
+export const LQZ: Record<string, unknown>;
+export const LSUM: Record<string, unknown>;
+export const GLOSS: Record<string, unknown>;
