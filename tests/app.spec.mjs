@@ -985,26 +985,33 @@ test('a stale live decode error cannot mark a replacement audio context as faile
 });
 
 test('an aborted piano warm-up can recover before Learn playback', async ({ app, page }) => {
-  await app.open();
+  let armed = false;
   let aborted = false;
   await page.route('**/*.mp3*', async route => {
-    if (!aborted) {
+    if (armed && !aborted) {
       aborted = true;
       await route.abort('failed');
     } else {
       await route.continue();
     }
   });
-  const first = await page.evaluate(async () => {
+  await app.open();
+  await page.evaluate(() => {
     window.__etude.ensureAudio();
+    window.__etude.pianoBank.promise = null;
+    window.__etude.pianoBank.status = 'error';
+    window.__etude.pianoBank.buffers = new Map();
+    window.__etude.pianoBank.pending = new Map();
+    window.__etude.pianoBank.ctx = window.__etude.actx;
+  });
+  armed = true;
+  const first = await page.evaluate(async () => {
     window.__etude.pianoBank.promise = null;
     window.__etude.pianoBank.status = 'idle';
     window.__etude.pianoBank.buffers = new Map();
     window.__etude.pianoBank.pending = new Map();
-    window.__etude.pianoBank.ctx = window.__etude.actx;
     return window.__etude.preparePiano();
   });
-  await page.unroute('**/*.mp3*');
   const second = await page.evaluate(async () => {
     const ready = await window.__etude.preparePiano();
     window.__etude.startSession(null);
@@ -1012,6 +1019,7 @@ test('an aborted piano warm-up can recover before Learn playback', async ({ app,
     window.__etude.playQuestionSound(question);
     return { ready, active: window.__etude.SES.active, hasQuestion: !!question, voices: window.__etude.previewVoices.length, status: window.__etude.pianoBank.status };
   });
+  await page.unroute('**/*.mp3*');
   expect(first).toBe(false);
   expect(second).toMatchObject({ ready: true, active: true, hasQuestion: true, status: 'ready' });
   expect(second.voices).toBeGreaterThan(0);
