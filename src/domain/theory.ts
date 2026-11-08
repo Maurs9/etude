@@ -2,6 +2,49 @@ export type PitchClass = number;
 
 export const PITCH_CLASS_COUNT = 12;
 
+export const SCALE_DEGREE_LABELS: Readonly<Record<number, string>> = {
+  0: '1',
+  1: '♭2',
+  2: '2',
+  3: '♭3',
+  4: '3',
+  5: '4',
+  6: '♯4',
+  7: '5',
+  8: '♭6',
+  9: '6',
+  10: '♭7',
+  11: '7',
+};
+
+export const CHORD_DEGREE_LABELS: Readonly<Record<number, string>> = {
+  0: '1',
+  2: '2',
+  3: '♭3',
+  4: '3',
+  5: '4',
+  6: '♭5',
+  7: '5',
+  8: '♯5',
+  9: '6',
+  10: '♭7',
+  11: '7',
+  13: '♭9',
+  14: '9',
+  15: '♯9',
+  17: '11',
+  18: '♯11',
+  21: '13',
+};
+
+export function midiToFrequency(midi: number): number {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+export function pitchClass(midi: number): PitchClass {
+  return normalizeSemitones(midi);
+}
+
 export function normalizeSemitones(value: number): PitchClass {
   return ((value % PITCH_CLASS_COUNT) + PITCH_CLASS_COUNT) % PITCH_CLASS_COUNT;
 }
@@ -44,6 +87,17 @@ export type ChordIdentification<T extends ChordDefinition = ChordDefinition> = {
 
 export function chordTargetPitches(root: PitchClass, intervals: readonly number[]): PitchClass[] {
   return chordPitches(root, intervals);
+}
+
+export function formatChordFormula(intervals: readonly number[]): string {
+  return intervals.map(interval => {
+    const classValue = normalizeSemitones(interval);
+    return CHORD_DEGREE_LABELS[interval] ?? CHORD_DEGREE_LABELS[classValue] ?? '?';
+  }).join(' ');
+}
+
+export function formatScaleFormula(offsets: readonly number[]): string {
+  return offsets.map(offset => SCALE_DEGREE_LABELS[normalizeSemitones(offset)] ?? '?').join(' ');
 }
 
 export function chordInversion(root: PitchClass, chord: ChordDefinition, bassMidi: number): number {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chordInversion, chordPitches, identifyChord, intervalOctave, normalizeSemitones, samePitchSet, scalePitches, transposePitchClass } from '../src/domain/theory.ts';
+import { chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord, intervalOctave, midiToFrequency, normalizeSemitones, pitchClass, samePitchSet, scalePitches, transposePitchClass } from '../src/domain/theory.ts';
 
 describe('pure theory helpers', () => {
   it('normalizes and transposes pitch classes across octaves', () => {
@@ -24,5 +24,12 @@ describe('pure theory helpers', () => {
     expect(result?.chord.symbol).toBe('maj');
     expect(result?.rootPc).toBe(0);
     expect(chordInversion(0, chords[0], 64)).toBe(1);
+  });
+
+  it('keeps pitch and formula formatting browser-independent', () => {
+    expect(midiToFrequency(69)).toBe(440);
+    expect(pitchClass(-1)).toBe(11);
+    expect(formatChordFormula([0, 4, 7, 14])).toBe('1 3 5 9');
+    expect(formatScaleFormula([0, 2, 4, 7])).toBe('1 2 3 5');
   });
 });

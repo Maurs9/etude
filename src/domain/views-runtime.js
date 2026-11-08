@@ -5,7 +5,7 @@
 import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.js';
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, parsePttV3, readPttV3, restoreSettings, writePttV3 } from './storage.js';
-import { chordInversion, chordPitches, identifyChord as identifyChordDomain } from './theory.js';
+import { CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord as identifyChordDomain, midiToFrequency, pitchClass } from './theory.js';
 import { PianoBank, nearestPianoKey } from './audio.js';
 import { loadOsmd, notationReloadMessage, scorePatchOsmd } from './notation.js';
 import { NAV_GROUPS, navGroup, viewFromHash } from './router.js';
@@ -87,8 +87,8 @@ const CHORDS = [
 CHORDS.forEach((c, i) => { c.idx = i; c.pcset = [...new Set(c.intervals.map(x => ((x % 12) + 12) % 12))].sort((a, b) => a - b); });
 const CHORD_FEEL = { maj: 'bright, resolved', m: 'darker, melancholy', dim: 'tense, unstable', aug: 'dreamlike', sus2: 'open, airy', sus4: 'suspended', maj7: 'lush, jazzy', '7': 'bluesy, wants to resolve', m7: 'smooth, mellow', 'm7♭5': 'dark, cinematic', dim7: 'very tense', mMaj7: 'noir', 6: 'sweet, vintage', m6: 'wistful', '9': 'funky', maj9: 'dreamy', m9: 'soulful' };
 const INV_NAMES = ['root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion'];
-const SCALE_DEG = { 0: '1', 1: '♭2', 2: '2', 3: '♭3', 4: '3', 5: '4', 6: '♯4', 7: '5', 8: '♭6', 9: '6', 10: '♭7', 11: '7' };
-const CHORD_DEG = { 0: '1', 2: '2', 3: '♭3', 4: '3', 5: '4', 6: '♭5', 7: '5', 8: '♯5', 9: '6', 10: '♭7', 11: '7', 13: '♭9', 14: '9', 15: '♯9', 17: '11', 18: '♯11', 21: '13' };
+const SCALE_DEG = SCALE_DEGREE_LABELS;
+const CHORD_DEG = CHORD_DEGREE_LABELS;
 const MAJOR = [0, 2, 4, 5, 7, 9, 11], ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 const PROGS = [
     { name: 'I–IV–V', chords: [[0, 'maj', 'I'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
@@ -225,8 +225,8 @@ function setLang(l) {
 }
 /* ---------- HELPERS ---------- */
 const $ = id => document.getElementById(id);
-const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
-const pc = m => ((m % 12) + 12) % 12;
+const midiToFreq = midiToFrequency;
+const pc = pitchClass;
 const isFlatKey = p => [3, 5, 8, 10].includes(((p % 12) + 12) % 12);
 const rootName = p => NOTE_SYS[notation].root[((p % 12) + 12) % 12];
 function pcName(p, flat) { return (flat ? NOTE_SYS[notation].flat : NOTE_SYS[notation].sharp)[((p % 12) + 12) % 12]; }
@@ -244,8 +244,8 @@ function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) {
 function intervalLabel(semi) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
     return d[semi]; const C = lang === 'ro' ? RO_IV : COMPOUND; if (C[semi])
     return C[semi]; const oct = Math.floor(semi / 12), s = semi % 12; const base = s === 0 ? ivName(12) : ivName(s); return base + (lang === 'ro' ? (' + ' + oct + ' octav' + (oct > 1 ? 'e' : 'ă')) : (' + ' + oct + ' octave' + (oct > 1 ? 's' : ''))); }
-function chordFormula(c) { return c.intervals.map(i => { const f = ((i % 12) + 12) % 12; return CHORD_DEG[i] ?? CHORD_DEG[f] ?? '?'; }).join(' '); }
-function scaleFormula(offs) { return offs.map(i => SCALE_DEG[((i % 12) + 12) % 12]).join(' '); }
+function chordFormula(c) { return formatChordFormula(c.intervals); }
+function scaleFormula(offs) { return formatScaleFormula(offs); }
 const todayN = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); };
 /* ---------- AUDIO ENGINE ---------- */
 let actx = null, master = null, masterFilter = null, comp = null, lfo = null, lfoGain = null, reverbNode = null, reverbGain = null;
