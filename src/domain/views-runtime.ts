@@ -1808,7 +1808,8 @@ function releaseFocusInput() {
     if (fell && !FALL.raf)
         fallDraw();
 }
-function panic() { scorePause(); if (srtRecorder)
+function panic() { scorePause(); if (SR.srtState && (SR.srtState.name === 'preview' || SR.srtState.name === 'countIn' || SR.srtState.name === 'playing'))
+    void srtAbandonClaim('interrupted'); if (srtRecorder)
     srtRecorder.releaseAll('reset', performance.now() - SR.t0); releaseLiveInput(); trxStop(); accompStop(); trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; singStopAll(); srStopAll(true); held.forEach((m) => audioNoteOff(m)); held.clear(); heldOrder.length = 0; sustained.forEach((m) => audioNoteOff(m)); sustained.clear(); liveVoices.forEach((v) => v.stop()); liveVoices.clear(); stopPreviews(); stopDrone(); pointerKey.clear(); typingDown.clear(); pedalDown = false; bendSemitones = 0; if (lfoGain && actx)
     lfoGain.gain.setTargetAtTime(0, actx.currentTime, .02); keyEl.forEach((el) => { el.classList.remove('pressed'); if (el.dataset.s === 'active')
     delete el.dataset.s; }); if (view0() === 'explore')
@@ -5984,12 +5985,36 @@ function srPaintAll() {
         if (!title.parentNode)
             g.appendChild(title);
         const symbol = r === 'good' ? '✓' : r === 'near' ? '≈' : r === 'bad' ? '✗' : r === 'extra' ? '+' : '';
-        title.textContent = symbol;
+        const label = r === 'good' ? t('rd_srt_symbol_good') : r === 'near' ? t('rd_srt_symbol_near') : r === 'bad' ? t('rd_srt_symbol_bad') : r === 'extra' ? t('rd_srt_symbol_extra') : '';
+        title.textContent = symbol ? symbol + ' ' + label : '';
         if (symbol)
             g.setAttribute('aria-label', symbol);
         else
             g.removeAttribute('aria-label');
+        let visible = g.querySelector<SVGTextElement>('.ss-result-symbol');
+        if (!visible) {
+            visible = document.createElementNS('http://www.w3.org/2000/svg', 'text') as SVGTextElement;
+            visible.setAttribute('class', 'ss-result-symbol');
+            visible.setAttribute('aria-hidden', 'true');
+            g.appendChild(visible);
+        }
+        const note = SR.notes.find((item) => item.nid === id);
+        visible.setAttribute('x', String((note?.x ?? 0) + 12));
+        visible.setAttribute('y', String(Math.max(12, (note?.y ?? 16) - 8)));
+        visible.textContent = symbol;
+        visible.style.display = symbol ? '' : 'none';
     });
+    let extras = svg.querySelector('.ss-extra-symbol');
+    if (SR.wrongExtra > 0) {
+        if (!(extras instanceof SVGGElement)) {
+            extras = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            extras.setAttribute('class', 'ss-extra-symbol');
+            svg.appendChild(extras);
+        }
+        extras.innerHTML = `<title>${rdEsc(t('rd_srt_symbol_extra'))}</title><text x="${Math.max(20, (SR.render?.W ?? 420) - 24)}" y="18">+${SR.wrongExtra}</text>`;
+    }
+    else if (extras)
+        extras.remove();
 }
 function srScrollX(x: number) { const w = byId('rd-staff'); if (w && w.scrollWidth > w.clientWidth + 4)
     w.scrollLeft = Math.max(0, x - w.clientWidth * 0.4); }
@@ -6133,6 +6158,15 @@ function srtPreviewUi(show: boolean) {
     const panel = maybeById('rd-srt-preview');
     if (panel)
         panel.hidden = !show;
+    if (show) {
+        requestAnimationFrame(() => {
+            const start = maybeById('rd-srt-start');
+            if (!start)
+                return;
+            start.focus({ preventScroll: true });
+            start.scrollIntoView({ block: 'center', behavior: 'auto' });
+        });
+    }
 }
 function srtPendingUi(show: boolean) {
     const panel = maybeById('rd-srt-pending');
@@ -6154,7 +6188,9 @@ async function srtRetryPendingSave() {
         v.textContent = t('rd_srt_summary', Math.round(attempt.pitchF1 ?? 0), attempt.TP, attempt.N, attempt.FP, Math.round(attempt.rhythmAcc ?? 0), Math.round(attempt.meanOffsetMs ?? 0));
     }
 }
-function srtContinueWithoutSave() {
+async function srtContinueWithoutSave() {
+    if (SR.srtState?.name === 'pendingSave')
+        await srtAbandonClaim('abandoned');
     if (SR.srtState?.name === 'pendingSave')
         srtSetState({ type: 'continueWithoutSave' });
     SR.srtPendingAttempt = null;
@@ -6175,26 +6211,32 @@ async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned'
             attemptId: state.attemptId,
             ownerTabId: SR.srtOwnerTabId,
             generation: srtReadLedger(localStorage).generation,
+            status,
         });
     }
     SR.srtLease?.release();
     SR.srtLease = null;
-    if (state && (state.name === 'preview' || state.name === 'claiming' || state.name === 'countIn' || state.name === 'playing'))
+    if (state && (state.name === 'preview' || state.name === 'claiming' || state.name === 'countIn' || state.name === 'playing' || state.name === 'pendingSave'))
         srtSetState({ type: status === 'interrupted' ? 'interrupt' : 'abandon' });
+}
+function srtStartPractice() {
+    if (!SR.srtFingerprint)
+        return;
+    srtSetState({ type: 'prepare', mode: 'practice', fingerprint: SR.srtFingerprint });
+    srtSetState({ type: 'startPreview' });
+    srAssessStart();
 }
 async function srtStartFirstSight() {
     if (!SR.srtPiece || !SR.srtFingerprint)
         return;
     const ledger = srtReadLedger(localStorage);
     if (ledger.exposures[SR.srtFingerprint]) {
-        srtSetState({ type: 'prepare', mode: 'practice', fingerprint: SR.srtFingerprint });
-        srAssessStart();
+        srtStartPractice();
         return;
     }
     if (!navigator.locks || typeof navigator.locks.request !== 'function') {
-        srtSetState({ type: 'prepare', mode: 'practice', fingerprint: SR.srtFingerprint });
         byId('rd-verdict').textContent = t('rd_srt_no_locks');
-        srAssessStart();
+        srtStartPractice();
         return;
     }
     srtSetState({ type: 'prepare', mode: 'firstSight', fingerprint: SR.srtFingerprint, attemptId: srtAttemptId() });
@@ -6253,11 +6295,13 @@ async function srtSwitchToPractice() {
             attemptId: state.attemptId,
             ownerTabId: SR.srtOwnerTabId,
             generation: srtReadLedger(localStorage).generation,
+            status: 'abandoned',
         });
     }
     SR.srtLease?.release();
     SR.srtLease = null;
     srtSetState({ type: 'switchToPractice' });
+    srtSetState({ type: 'startPreview' });
     srAssessStart();
 }
 function srAssessStart() {
@@ -6289,8 +6333,13 @@ function srAssessStart() {
     SR.t0 = perf0 + ci * bs * 1000;
     srtRecorder = new SightReadingRecorder({ durationMs: SR.totalBeats * bs * 1000 });
     SR.assessOn = false;
-    if (SR.srtState?.name === 'countIn' || SR.srtState?.name === 'preparing')
-        srtSetState({ type: 'countInDone' });
+    if (SR.srtState?.name === 'preparing')
+        srtSetState({ type: 'startPreview' });
+    if (SR.srtState?.name === 'countIn')
+        SR.timers.push(setTimeout(() => {
+            if (SR.active && SR.srtState?.name === 'countIn')
+                srtSetState({ type: 'countInDone' });
+        }, ci * bs * 1000));
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rd_count');
@@ -16879,6 +16928,11 @@ Object.defineProperty(__etude, "renderLearn", { configurable: true, get: () => r
 Object.defineProperty(__etude, "show", { configurable: true, get: () => show, set: (value) => { show = value; } });
 Object.defineProperty(__etude, "theme", { configurable: true, get: () => theme, set: (value) => { theme = value; } });
 Object.defineProperty(__etude, "srtEvaluate", { configurable: true, value: srtEvaluate });
+Object.defineProperty(__etude, "srtGenerate", { configurable: true, value: srtGenerate });
+Object.defineProperty(__etude, "srtFingerprint", { configurable: true, value: srtFingerprint });
+Object.defineProperty(__etude, "srtBuildExpected", { configurable: true, value: srtBuildExpected });
+Object.defineProperty(__etude, "srtLedgerUpdate", { configurable: true, value: srtLedgerUpdate });
+Object.defineProperty(__etude, "srtReadLedger", { configurable: true, value: srtReadLedger });
 Object.defineProperty(__etude, "srtRecorder", { configurable: true, get: () => srtRecorder });
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;

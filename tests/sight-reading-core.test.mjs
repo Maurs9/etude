@@ -104,6 +104,83 @@ describe('sight-reading evaluator', () => {
       { id: 'rest-extra', midi: 67, onMs: 200 },
     ], { restWindows: [{ startMs: 100, endMs: 300 }] })).toMatchObject({ FP: 1, restViolations: 1, stars: 0 });
   });
+
+  it('returns the complete acceptance vectors, not only selected score fields', () => {
+    const run = (inputs) => srtEvaluate(expected, inputs);
+    const perfect = run(expected.map((note) => ({ id: `i-${note.id}`, midi: note.midi, onMs: note.onMs })));
+    expect(perfect).toEqual({
+      status: 'ok', scoringVersion: 1, N: 4, TP: 4, FP: 0, FN: 0, G: 4, Q: 0, lateOrEarlyCount: 0,
+      restViolations: 0, pitchPrecision: 1, pitchRecall: 1, pitchF1: 100, rhythmAcc: 100, score: 100,
+      stars: 3, perfect: true, meanOffsetMs: 0, meanAbsoluteOffsetMs: 0,
+      noteResults: [
+        { expectedId: 'a', classification: 'good', matchedInputId: 'i-a', errorMs: 0 },
+        { expectedId: 'b', classification: 'good', matchedInputId: 'i-b', errorMs: 0 },
+        { expectedId: 'c', classification: 'good', matchedInputId: 'i-c', errorMs: 0 },
+        { expectedId: 'd', classification: 'good', matchedInputId: 'i-d', errorMs: 0 },
+      ],
+      extraInputs: [],
+    });
+    expect(run([
+      { id: 'i-a', midi: 60, onMs: 0 }, { id: 'i-b', midi: 62, onMs: 400 },
+      { id: 'i-c', midi: 64, onMs: 800 }, { id: 'i-x', midi: 67, onMs: 1200 },
+    ])).toEqual({
+      status: 'ok', scoringVersion: 1, N: 4, TP: 3, FP: 1, FN: 1, G: 3, Q: 0, lateOrEarlyCount: 0,
+      restViolations: 0, pitchPrecision: 0.75, pitchRecall: 0.75, pitchF1: 75, rhythmAcc: 75, score: 75,
+      stars: 1, perfect: false, meanOffsetMs: 0, meanAbsoluteOffsetMs: 0,
+      noteResults: [
+        { expectedId: 'a', classification: 'good', matchedInputId: 'i-a', errorMs: 0 },
+        { expectedId: 'b', classification: 'good', matchedInputId: 'i-b', errorMs: 0 },
+        { expectedId: 'c', classification: 'good', matchedInputId: 'i-c', errorMs: 0 },
+        { expectedId: 'd', classification: 'missed', matchedInputId: null, errorMs: null },
+      ],
+      extraInputs: [{ id: 'i-x', midi: 67, onMs: 1200 }],
+    });
+    expect(run([
+      ...expected.map((note) => ({ id: `i-${note.id}`, midi: note.midi, onMs: note.onMs })),
+      { id: 'extra', midi: 70, onMs: 600 },
+    ])).toEqual({
+      status: 'ok', scoringVersion: 1, N: 4, TP: 4, FP: 1, FN: 0, G: 4, Q: 0, lateOrEarlyCount: 0,
+      restViolations: 0, pitchPrecision: 0.8, pitchRecall: 1, pitchF1: 88.88888888888889, rhythmAcc: 100,
+      score: 88.88888888888889, stars: 2, perfect: false, meanOffsetMs: 0, meanAbsoluteOffsetMs: 0,
+      noteResults: perfect.noteResults, extraInputs: [{ id: 'extra', midi: 70, onMs: 600 }],
+    });
+    expect(run(expected.map((note, index) => ({ id: `i-${note.id}`, midi: note.midi, onMs: note.onMs + (index === 3 ? 140 : 0) })))).toEqual({
+      status: 'ok', scoringVersion: 1, N: 4, TP: 4, FP: 0, FN: 0, G: 3, Q: 1, lateOrEarlyCount: 0,
+      restViolations: 0, pitchPrecision: 1, pitchRecall: 1, pitchF1: 100, rhythmAcc: 87.5, score: 87.5,
+      stars: 2, perfect: false, meanOffsetMs: 35, meanAbsoluteOffsetMs: 35,
+      noteResults: [
+        { expectedId: 'a', classification: 'good', matchedInputId: 'i-a', errorMs: 0 },
+        { expectedId: 'b', classification: 'good', matchedInputId: 'i-b', errorMs: 0 },
+        { expectedId: 'c', classification: 'good', matchedInputId: 'i-c', errorMs: 0 },
+        { expectedId: 'd', classification: 'near', matchedInputId: 'i-d', errorMs: 140 },
+      ],
+      extraInputs: [],
+    });
+    expect(run(expected.map((note, index) => ({ id: `i-${note.id}`, midi: note.midi, onMs: note.onMs + (index === 3 ? 220 : 0) })))).toEqual({
+      status: 'ok', scoringVersion: 1, N: 4, TP: 4, FP: 0, FN: 0, G: 3, Q: 0, lateOrEarlyCount: 1,
+      restViolations: 0, pitchPrecision: 1, pitchRecall: 1, pitchF1: 100, rhythmAcc: 75, score: 75,
+      stars: 1, perfect: false, meanOffsetMs: 55, meanAbsoluteOffsetMs: 55,
+      noteResults: [
+        { expectedId: 'a', classification: 'good', matchedInputId: 'i-a', errorMs: 0 },
+        { expectedId: 'b', classification: 'good', matchedInputId: 'i-b', errorMs: 0 },
+        { expectedId: 'c', classification: 'good', matchedInputId: 'i-c', errorMs: 0 },
+        { expectedId: 'd', classification: 'lateOrEarly', matchedInputId: 'i-d', errorMs: 220 },
+      ],
+      extraInputs: [],
+    });
+    expect(run([])).toEqual({
+      status: 'ok', scoringVersion: 1, N: 4, TP: 0, FP: 0, FN: 4, G: 0, Q: 0, lateOrEarlyCount: 0,
+      restViolations: 0, pitchPrecision: 0, pitchRecall: 0, pitchF1: 0, rhythmAcc: 0, score: 0,
+      stars: 0, perfect: false, meanOffsetMs: null, meanAbsoluteOffsetMs: null,
+      noteResults: [
+        { expectedId: 'a', classification: 'missed', matchedInputId: null, errorMs: null },
+        { expectedId: 'b', classification: 'missed', matchedInputId: null, errorMs: null },
+        { expectedId: 'c', classification: 'missed', matchedInputId: null, errorMs: null },
+        { expectedId: 'd', classification: 'missed', matchedInputId: null, errorMs: null },
+      ],
+      extraInputs: [],
+    });
+  });
 });
 
 describe('sight-reading generator', () => {

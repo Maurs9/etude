@@ -34,7 +34,7 @@ export type SightReadingLedgerResult =
 export type SightReadingLedgerOperation =
   | { readonly type: 'claimExposure'; readonly fingerprint: string; readonly attemptId: string; readonly ownerTabId: string; readonly generation: string }
   | { readonly type: 'finishAttempt'; readonly attempt: SightReadingAttempt; readonly generation: string }
-  | { readonly type: 'abandonAttempt'; readonly attemptId: string; readonly ownerTabId: string; readonly generation: string }
+  | { readonly type: 'abandonAttempt'; readonly attemptId: string; readonly ownerTabId: string; readonly generation: string; readonly status?: 'abandoned' | 'interrupted' }
   | { readonly type: 'recordExposure'; readonly fingerprint: string; readonly reason: string; readonly generation: string }
   | { readonly type: 'recordListen'; readonly fingerprint: string; readonly generation: string }
   | { readonly type: 'recoverOrphanClaims'; readonly generation: string }
@@ -76,16 +76,52 @@ export function srtCreateLedger(): SightReadingLedger {
 
 function isAttempt(value: unknown): value is SightReadingAttempt {
   if (!isRecord(value)) return false;
-  return typeof value.attemptId === 'string' &&
+  const noteResults = value.noteResults;
+  const extraInputs = value.extraInputs;
+  return typeof value.attemptId === 'string' && value.attemptId.length > 0 &&
     typeof value.fingerprint === 'string' &&
     typeof value.ownerTabId === 'string' &&
     typeof value.generation === 'string' &&
     ['completed', 'abandoned', 'interrupted'].includes(String(value.status)) &&
-    typeof value.finishedAt === 'number';
+    isFiniteNumber(value.finishedAt) &&
+    value.scoringVersion === 1 &&
+    isFiniteNumber(value.N) && value.N >= 0 &&
+    isFiniteNumber(value.TP) && value.TP >= 0 &&
+    isFiniteNumber(value.FP) && value.FP >= 0 &&
+    isFiniteNumber(value.FN) && value.FN >= 0 &&
+    isFiniteNumber(value.G) && value.G >= 0 &&
+    isFiniteNumber(value.Q) && value.Q >= 0 &&
+    isFiniteNumber(value.lateOrEarlyCount) && value.lateOrEarlyCount >= 0 &&
+    isFiniteNumber(value.restViolations) && value.restViolations >= 0 &&
+    (value.pitchPrecision === null || isFiniteNumber(value.pitchPrecision)) &&
+    (value.pitchRecall === null || isFiniteNumber(value.pitchRecall)) &&
+    (value.pitchF1 === null || isFiniteNumber(value.pitchF1)) &&
+    (value.rhythmAcc === null || isFiniteNumber(value.rhythmAcc)) &&
+    (value.score === null || isFiniteNumber(value.score)) &&
+    typeof value.stars === 'number' && Number.isInteger(value.stars) && value.stars >= 0 && value.stars <= 3 &&
+    typeof value.perfect === 'boolean' &&
+    (value.meanOffsetMs === null || isFiniteNumber(value.meanOffsetMs)) &&
+    (value.meanAbsoluteOffsetMs === null || isFiniteNumber(value.meanAbsoluteOffsetMs)) &&
+    Array.isArray(noteResults) && noteResults.every((result) => {
+      if (!isRecord(result)) return false;
+      return typeof result.expectedId === 'string' &&
+        ['good', 'near', 'lateOrEarly', 'missed'].includes(String(result.classification)) &&
+        (result.matchedInputId === null || typeof result.matchedInputId === 'string') &&
+        (result.errorMs === null || isFiniteNumber(result.errorMs));
+    }) &&
+    Array.isArray(extraInputs) && extraInputs.every((input) => {
+      if (!isRecord(input)) return false;
+      return typeof input.id === 'string' && Number.isInteger(input.midi) &&
+        isFiniteNumber(input.onMs) && (input.offMs === undefined || input.offMs === null || isFiniteNumber(input.offMs));
+    });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function isLedger(value: unknown): value is SightReadingLedger {
@@ -93,11 +129,23 @@ function isLedger(value: unknown): value is SightReadingLedger {
   const record = value;
   return record.schemaVersion === 1 &&
     typeof record.generation === 'string' &&
-    typeof record.revision === 'number' &&
+    record.generation.length > 0 &&
+    isFiniteNumber(record.revision) && Number.isInteger(record.revision) && record.revision >= 0 &&
     typeof record.exposures === 'object' && record.exposures !== null &&
     typeof record.attempts === 'object' && record.attempts !== null &&
     typeof record.prefs === 'object' && record.prefs !== null &&
     typeof record.sessions === 'object' && record.sessions !== null &&
+    Object.keys(record.exposures).length <= SRT_MAX_EXPOSURES &&
+    Object.keys(record.attempts).length <= SRT_MAX_ATTEMPTS &&
+    Object.values(record.exposures).every((exposure) => {
+      if (!isRecord(exposure)) return false;
+      if (!isFiniteNumber(exposure.firstSeenAt) || typeof exposure.reason !== 'string') return false;
+      if (exposure.claim === undefined) return true;
+      if (!isRecord(exposure.claim)) return false;
+      return typeof exposure.claim.attemptId === 'string' &&
+        typeof exposure.claim.ownerTabId === 'string' &&
+        typeof exposure.claim.generation === 'string';
+    }) &&
     Object.values(record.attempts).every(isAttempt);
 }
 
@@ -189,6 +237,7 @@ function hasAttemptOwner(ledger: SightReadingLedger, attemptId: string, ownerTab
 function mergeImported(local: SightReadingLedger, imported: SightReadingLedger): SightReadingLedgerResult {
   const exposures: Record<string, SightReadingExposure> = { ...local.exposures };
   const attempts: Record<string, SightReadingAttempt> = { ...local.attempts };
+  const localAttemptIds = new Set(Object.keys(local.attempts));
   for (const [attemptId, attempt] of Object.entries(imported.attempts)) {
     const existing = attempts[attemptId];
     const normalized = { ...attempt, generation: local.generation };
@@ -197,35 +246,41 @@ function mergeImported(local: SightReadingLedger, imported: SightReadingLedger):
   }
   for (const [fingerprint, exposure] of Object.entries(imported.exposures)) {
     if (exposures[fingerprint]) continue;
-    if (exposure.claim && !attempts[exposure.claim.attemptId]) {
-      attempts[exposure.claim.attemptId] = {
-        attemptId: exposure.claim.attemptId,
-        fingerprint,
-        ownerTabId: exposure.claim.ownerTabId,
-        generation: local.generation,
-        status: 'abandoned',
-        finishedAt: Date.now(),
-        scoringVersion: 1,
-        N: 0,
-        TP: 0,
-        FP: 0,
-        FN: 0,
-        G: 0,
-        Q: 0,
-        lateOrEarlyCount: 0,
-        restViolations: 0,
-        pitchPrecision: null,
-        pitchRecall: null,
-        pitchF1: null,
-        rhythmAcc: null,
-        score: null,
-        stars: 0,
-        perfect: false,
-        meanOffsetMs: null,
-        meanAbsoluteOffsetMs: null,
-        noteResults: [],
-        extraInputs: [],
-      };
+    if (exposure.claim) {
+      const importedAttempt = attempts[exposure.claim.attemptId];
+      if (importedAttempt && !localAttemptIds.has(exposure.claim.attemptId)) {
+        attempts[exposure.claim.attemptId] = { ...importedAttempt, status: 'abandoned', finishedAt: Date.now() };
+      }
+      else if (!importedAttempt) {
+        attempts[exposure.claim.attemptId] = {
+          attemptId: exposure.claim.attemptId,
+          fingerprint,
+          ownerTabId: exposure.claim.ownerTabId,
+          generation: local.generation,
+          status: 'abandoned',
+          finishedAt: Date.now(),
+          scoringVersion: 1,
+          N: 0,
+          TP: 0,
+          FP: 0,
+          FN: 0,
+          G: 0,
+          Q: 0,
+          lateOrEarlyCount: 0,
+          restViolations: 0,
+          pitchPrecision: null,
+          pitchRecall: null,
+          pitchF1: null,
+          rhythmAcc: null,
+          score: null,
+          stars: 0,
+          perfect: false,
+          meanOffsetMs: null,
+          meanAbsoluteOffsetMs: null,
+          noteResults: [],
+          extraInputs: [],
+        };
+      }
     }
     exposures[fingerprint] = { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason };
   }
@@ -273,10 +328,10 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
     }
     if (operation.type === 'finishAttempt') {
       const attempt = operation.attempt;
-      if (attempt.generation !== ledger.generation || !hasAttemptOwner(ledger, attempt.attemptId, attempt.ownerTabId)) return { ok: false, reason: 'owner_mismatch' };
       const existing = ledger.attempts[attempt.attemptId];
       if (existing && JSON.stringify(existing) !== JSON.stringify(attempt)) return { ok: false, reason: 'conflict' };
       if (existing) return { ok: true, ledger };
+      if (attempt.generation !== ledger.generation || !hasAttemptOwner(ledger, attempt.attemptId, attempt.ownerTabId)) return { ok: false, reason: 'owner_mismatch' };
       const attempts = trimAttempts({ ...ledger.attempts, [attempt.attemptId]: attempt });
       const exposures = Object.fromEntries(Object.entries(ledger.exposures).map(([fingerprint, exposure]) => (
         exposure.claim?.attemptId === attempt.attemptId
@@ -292,7 +347,7 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
       const [fingerprint] = exposureEntry;
       const attempt: SightReadingAttempt = {
         attemptId: operation.attemptId, fingerprint, ownerTabId: operation.ownerTabId, generation: ledger.generation,
-        status: 'abandoned', finishedAt: Date.now(), scoringVersion: 1, N: 0, TP: 0, FP: 0, FN: 0, G: 0, Q: 0,
+        status: operation.status ?? 'abandoned', finishedAt: Date.now(), scoringVersion: 1, N: 0, TP: 0, FP: 0, FN: 0, G: 0, Q: 0,
         lateOrEarlyCount: 0, restViolations: 0, pitchPrecision: null, pitchRecall: null, pitchF1: null, rhythmAcc: null, score: null,
         stars: 0, perfect: false, meanOffsetMs: null, meanAbsoluteOffsetMs: null, noteResults: [], extraInputs: [],
       };
@@ -318,6 +373,7 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures, attempts: trimAttempts(attempts) });
     }
     if (operation.type === 'importLedger') {
+      if (operation.generation !== ledger.generation) return { ok: false, reason: 'stale_generation' };
       const imported = mergeImported(ledger, operation.imported);
       if (!imported.ok) return imported;
       return saveLedger(storage, imported.ledger);

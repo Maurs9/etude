@@ -35,24 +35,84 @@ test.describe('Sight-Reading v3 MVP', () => {
     expect(Object.values(ledger.exposures).every((exposure) => !exposure.claim)).toBe(true);
   });
 
-  test('keeps generation, evaluation and ledger available offline after first load @sw', async ({ app }) => {
+  test('moves focus into the preview actions on a narrow viewport', async ({ app }) => {
+    await app.page.setViewportSize({ width: 320, height: 700 });
     const page = await openAssessGenerator(app);
-    const before = await page.evaluate(() => ({
-      fingerprint: window.__etude.SR.srtFingerprint,
-      piece: window.__etude.SR.srtPiece?.events.length,
-    }));
+    await page.locator('#rd-go').click();
+    await expect(page.locator('#rd-srt-preview')).toBeVisible();
+    await expect(page.locator('#rd-srt-start')).toBeFocused();
+    const bounds = await page.locator('#rd-srt-start').boundingBox();
+    expect(bounds?.y).toBeGreaterThanOrEqual(0);
+    expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(700);
+  });
+
+  test('renders result symbols and titles without relying on colour', async ({ app }) => {
+    const page = await openAssessGenerator(app);
+    const result = await page.evaluate(() => {
+      const note = window.__etude.SR.notes[0];
+      window.__etude.SR.results = { [note.nid]: 'good' };
+      window.__etude.SR.wrongExtra = 1;
+      window.__etude.srPaintAll();
+      return {
+        symbol: document.querySelector('.ss-result-symbol')?.textContent,
+        title: document.querySelector('.ss-n title')?.textContent,
+        extra: document.querySelector('.ss-extra-symbol text')?.textContent,
+      };
+    });
+    expect(result.symbol).toBe('✓');
+    expect(result.title).toContain('Correct');
+    expect(result.extra).toBe('+1');
+  });
+
+  test('keeps generation, fingerprint, evaluation, recording result and ledger available offline after first load @sw', async ({ app }) => {
+    const page = await openAssessGenerator(app);
     await page.waitForFunction(() => !!navigator.serviceWorker?.controller);
     await page.context().setOffline(true);
     await page.reload();
     await page.waitForFunction(() => typeof window.__etude?.show === 'function');
     await page.evaluate(() => window.__etude.show('read'));
-    const after = await page.evaluate(() => ({
-      key: localStorage.getItem('etude-sight-v1') !== null,
-      fingerprint: window.__etude.SR.srtFingerprint,
-      piece: window.__etude.SR.srtPiece?.events.length,
-    }));
-    expect(after.key).toBe(true);
-    expect(before.fingerprint).toMatch(/^v1:/);
-    expect(before.piece).toBeGreaterThan(0);
+    const after = await page.evaluate(async () => {
+      const piece = window.__etude.srtGenerate('P1.a', 17, 'rh');
+      const fingerprint = window.__etude.srtFingerprint(piece);
+      const expected = window.__etude.srtBuildExpected(piece, { bpm: 60, hand: 'rh' });
+      const performed = expected.map((note, index) => ({ id: `offline-${index}`, midi: note.midi, onMs: note.onMs }));
+      const evaluation = window.__etude.srtEvaluate(expected, performed);
+      const ledger = window.__etude.srtReadLedger(localStorage);
+      const claim = await window.__etude.srtLedgerUpdate(localStorage, {
+        type: 'claimExposure',
+        fingerprint,
+        attemptId: 'offline-attempt',
+        ownerTabId: 'offline-tab',
+        generation: ledger.generation,
+      });
+      const attempt = {
+        ...evaluation,
+        attemptId: 'offline-attempt',
+        fingerprint,
+        ownerTabId: 'offline-tab',
+        generation: ledger.generation,
+        status: 'completed',
+        finishedAt: Date.now(),
+      };
+      const finish = await window.__etude.srtLedgerUpdate(localStorage, {
+        type: 'finishAttempt',
+        attempt,
+        generation: ledger.generation,
+      });
+      return {
+        piece: piece.events.length,
+        fingerprint,
+        score: evaluation.score,
+        claim: claim.ok,
+        finish: finish.ok,
+        savedStatus: window.__etude.srtReadLedger(localStorage).attempts['offline-attempt']?.status,
+      };
+    });
+    expect(after.piece).toBeGreaterThan(0);
+    expect(after.fingerprint).toMatch(/^v1:/);
+    expect(after.score).toBe(100);
+    expect(after.claim).toBe(true);
+    expect(after.finish).toBe(true);
+    expect(after.savedStatus).toBe('completed');
   });
 });

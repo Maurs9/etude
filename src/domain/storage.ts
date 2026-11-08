@@ -1,3 +1,5 @@
+import { isSightReadingLedger } from '../sight-reading/ledger.js';
+
 export const PTT_KEY = 'ptt-v3' as const;
 
 export const SETTING_DEFAULTS = {
@@ -65,7 +67,7 @@ export function isBackupPayload(value: unknown): value is PttV3Payload {
     isRecord(value.data) &&
     (value.data.settings === undefined || isRecord(value.data.settings)) &&
     (value.data.srs === undefined || isRecord(value.data.srs)) &&
-    (value.data.sightLedger === undefined || isRecord(value.data.sightLedger));
+    (value.data.sightLedger === undefined || isSightReadingLedger(value.data.sightLedger));
 }
 
 const parseJson: (text: string) => unknown = JSON.parse;

@@ -429,6 +429,9 @@
   .ss-n[data-s=good] .ss-head{fill:#3c8f57} .ss-n[data-s=good] .ss-stem,.ss-n[data-s=good] .ss-flag{stroke:#3c8f57}
   .ss-n[data-s=near] .ss-head{fill:#c79a2e} .ss-n[data-s=near] .ss-stem,.ss-n[data-s=near] .ss-flag{stroke:#c79a2e}
   .ss-n[data-s=bad] .ss-head{fill:#b5532f} .ss-n[data-s=bad] .ss-stem,.ss-n[data-s=bad] .ss-flag{stroke:#b5532f}
+  .ss-result-symbol{fill:var(--staffink); font-family:var(--sans); font-size:11px; font-weight:900; text-anchor:middle; pointer-events:none}
+  .ss-n[data-s=good] .ss-result-symbol{fill:#3c8f57} .ss-n[data-s=near] .ss-result-symbol{fill:#c79a2e} .ss-n[data-s=bad] .ss-result-symbol{fill:#b5532f}
+  .ss-extra-symbol text{fill:var(--staffink); font-family:var(--sans); font-size:14px; font-weight:900}
   .ss-syl{fill:var(--muted); font-size:11px; font-weight:700; text-anchor:middle}
   .ss-wrap.nosolf .ss-syl{display:none}
   .ss-trail{fill:none; stroke:var(--gold); stroke-width:2; stroke-opacity:.75; stroke-linecap:round; stroke-linejoin:round}
