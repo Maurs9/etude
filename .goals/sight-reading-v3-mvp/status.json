@@ -46,6 +46,11 @@
       "iteration": 7,
       "verdict": "PASS",
       "summary": "All M0-M10 criteria pass, including mixedInput persistence, audio/BLE interruption, assistance suppression, localized ledger failures, real-input non-greedy coverage, offline matrices, and the headed reload journey."
+    },
+    {
+      "iteration": 7,
+      "verdict": "FAIL",
+      "summary": "Iteration-7 regressions are fixed and all gates pass, but restViolations incorrectly counts extras inside neighboring note association windows, contrary to the exact evaluator specification."
     }
   ]
 }
