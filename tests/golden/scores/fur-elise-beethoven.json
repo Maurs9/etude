@@ -13,6 +13,14 @@
       "pedalMarks": 94,
       "curves": 26,
       "crossLines": 0
+    },
+    "linux": {
+      "pages": 3,
+      "systemsPerPage": [6, 7, 5],
+      "systemStarts": [1, 8, 15, 21, 27, 33, 37, 43, 49, 55, 61, 67, 73, 80, 84, 89, 96, 102],
+      "pedalMarks": 94,
+      "curves": 26,
+      "crossLines": 0
     }
   }
 }
