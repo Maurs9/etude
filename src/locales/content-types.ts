@@ -27,7 +27,8 @@ export interface LearnQuizSpec {
 }
 
 /** One cheat-sheet row (`LSUM`): term and meaning, optionally pre-translated per language. */
-export type LearnSummaryRow = [LearnText, LearnText] & { i18n?: Partial<Record<InterfaceLanguage, [string, string]>> };
+export type LearnSummaryRow = [LearnText, LearnText];
+export type LearnSummaryTranslations = Partial<Record<InterfaceLanguage, Record<string, [string, string][]>>>;
 
 type Translations<T> = Partial<Record<InterfaceLanguage, T>>;
 

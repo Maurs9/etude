@@ -37,30 +37,39 @@ test.describe('i18n', () => {
   }
 
   test('no string key is defined twice in a language', () => {
-    expect(Object.keys(STRINGS)).toEqual(expect.arrayContaining(['en', 'ro']));
-    expect(Object.keys(STRINGS.en).sort()).toEqual(Object.keys(STRINGS.ro).sort());
-    for (const [locale, strings] of Object.entries(STRINGS))
-      expect(Object.keys(strings).length, `${locale} has locale keys`).toBeGreaterThan(0);
-    return;
-    // Object literals silently keep the last duplicate, so scan the source of the STRINGS literal (skipping string contents).
-    const html = readFileSync(new URL('../src/domain/views.ts', import.meta.url), 'utf8');
-    const src = html.slice(html.indexOf('const STRINGS={'));
-    const dupes = [];
+    // Object literals silently keep the last duplicate, so scan the source of the STRINGS literal (keys may be quoted or bare).
+    const file = readFileSync(new URL('../src/locales/index.js', import.meta.url), 'utf8');
+    const src = file.slice(file.indexOf('export const STRINGS = {'));
+    const dupes = [], langs = [];
     let depth = 0, i = src.indexOf('{'), lang = null, seen = null;
+    const key = k => {
+      if (depth === 1) { lang = k; langs.push(k); seen = new Set(); }
+      else if (depth === 2) { if (seen.has(k)) dupes.push(lang + ':' + k); seen.add(k); }
+    };
     for (; i < src.length; i++) {
       const c = src[i];
-      if (c === "'" || c === '"' || c === '`') { for (i++; src[i] !== c; i++) if (src[i] === '\\') i++; continue; }
+      if (c === "'" || c === '"' || c === '`') {
+        const start = i + 1;
+        for (i++; src[i] !== c; i++) if (src[i] === '\\') i++;
+        if (/^\s*:/.test(src.slice(i + 1, i + 8))) key(src.slice(start, i));
+        continue;
+      }
       if (c === '{' || c === '(' || c === '[') { depth++; continue; }
       if (c === '}' || c === ')' || c === ']') { if (--depth === 0) break; continue; }
       const m = /^[A-Za-z_][A-Za-z0-9_]*(?=\s*:)/.exec(src.slice(i, i + 64));
-      if (m && /[{,\s]/.test(src[i - 1])) {
-        if (depth === 1) { lang = m[0]; seen = new Set(); }
-        else if (depth === 2) { if (seen.has(m[0])) dupes.push(lang + ':' + m[0]); seen.add(m[0]); }
-        i += m[0].length - 1;
-      } else if (/[A-Za-z0-9_$]/.test(c)) { while (/[A-Za-z0-9_$]/.test(src[i + 1])) i++; }
+      if (m && /[{,\s]/.test(src[i - 1])) { key(m[0]); i += m[0].length - 1; }
+      else if (/[A-Za-z0-9_$]/.test(c)) { while (/[A-Za-z0-9_$]/.test(src[i + 1])) i++; }
     }
-    expect(lang).toBe('ro');
+    expect(langs).toEqual(Object.keys(STRINGS));
+    expect(langs).toEqual(expect.arrayContaining(['en', 'ro']));
     expect(dupes).toEqual([]);
+  });
+
+  test('the Learn cheat sheet follows the interface language', async ({ app, page }) => {
+    await app.open();
+    await page.evaluate(() => { window.__etude.setLang('de'); window.__etude.show('learn'); });
+    await expect(page.locator('#view-learn .lsum dl')).toContainText('Oktave');
+    await expect(page.locator('#view-learn .lsum dl')).not.toContainText('semitones');
   });
 });
 

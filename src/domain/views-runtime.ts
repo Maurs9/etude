@@ -115,7 +115,7 @@ const LOCALE_TAGS: Record<string, string> = locale.LOCALE_TAGS;
 const LESSONS = content.LESSONS;
 const LEARN_UNITS = content.LEARN_UNITS;
 const LQZ = content.LQZ;
-const LSUM = content.LSUM;
+const LSUM = content.LSUM, LSUM_I18N = content.LSUM_I18N;
 const GLOSS = content.GLOSS;
 const KEY = storage.PTT_KEY, isBackupPayload = storage.isBackupPayload, isRecord = storage.isRecord, legacySettings = storage.legacySettings, parsePttV3 = storage.parsePttV3, readPttV3 = storage.readPttV3, restoreSettings = storage.restoreSettings, writePttV3 = storage.writePttV3;
 const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = theory.SCALE_DEGREE_LABELS, anFnKey = theory.analysisFunction, anDiatonic = theory.anDiatonic, anIntervalName = theory.anIntervalName, anKeyRank = theory.anKeyRank, anPcWeights = theory.anPcWeights, anResolveKey = theory.anResolveKey, CHORD_TEMPLATES = theory.CHORD_TEMPLATES, chordDegreeMap = theory.chordDegreeMap, chordInversion = theory.chordInversion, chordPitches = theory.chordPitches, srKeyName = theory.circleKeyPitchClass, formatChordFormula = theory.formatChordFormula, formatScaleFormula = theory.formatScaleFormula, identifyChordDomain = theory.identifyChord, keyFifths = theory.keyFifths, keyFromFifths = theory.keyFromFifths, midiToFrequency = theory.midiToFrequency, pitchClass = theory.pitchClass, PROGRESSION_TEMPLATES = theory.PROGRESSION_TEMPLATES, rdSpellMidi = theory.readingSpelling, romanFor = theory.romanFor, SCALE_DEFINITIONS = theory.SCALE_DEFINITIONS, scorePitch = theory.scorePitchXml, spellMidi = theory.spellMidi;
@@ -5036,7 +5036,7 @@ let renderLearn: { (): void; _init?: boolean } = function renderLearn() {
     h += '<div class="learn-content">' + learnBodyHTML(L) + '</div>';
     const sum: LearnSummaryRow[] | undefined = LSUM[L.id];
     if (sum)
-        h += '<section class="lsum" aria-labelledby="lsum-h"><h4 id="lsum-h">📋 ' + t('lu_sum') + '</h4><dl>' + sum.map((r) => { const sRow = (r.i18n && r.i18n[lang]) || [LT(r[0]), LT(r[1])]; return '<div><dt>' + sRow[0] + '</dt><dd>' + sRow[1] + '</dd></div>'; }).join('') + '</dl></section>';
+        h += '<section class="lsum" aria-labelledby="lsum-h"><h4 id="lsum-h">📋 ' + t('lu_sum') + '</h4><dl>' + sum.map((r, ri) => { const sRow = LSUM_I18N[lang]?.[L.id]?.[ri] ?? [LT(r[0]), LT(r[1])]; return '<div><dt>' + sRow[0] + '</dt><dd>' + sRow[1] + '</dd></div>'; }).join('') + '</dl></section>';
     if (LQZ[L.id])
         h += '<section class="lq" id="lq" aria-labelledby="lq-h"></section>';
     h += '<div class="learn-nav"></div>';
