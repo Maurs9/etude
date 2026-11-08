@@ -8,9 +8,10 @@
 
 The migration build no longer publishes a hand-maintained `SITE_FILES` list:
 Vite follows static imports and `public/`, and the generated worker hashes the
-final output. The extra-language file remains a legacy integration until Step 4
-moves the supported English/Romanian dictionaries into statically imported
-locale modules.
+final output. English/Romanian strings and lesson content now live in
+`src/locales/` and are synchronously imported; `i18n-extra.js` remains a
+legacy data source for the optional five-language preview until it is migrated
+or retired.
 
 - English and Romanian are stored in `STRINGS`, with more `Object.assign(STRINGS.en/ro, ...)` blocks throughout the application. Static elements use the three data attributes above; dynamically generated content commonly uses `t()` or `tl()`, including interpolations `%s`, `%a`, `%b`.
 - In addition, code has explicit `lang === 'ro'` branches. These include interval, chord, scale, inversion and category names; song references; lesson content; glossary; piece titles; list formatting; and number/date formats. See `ivName`, `scaleDisp`, `chordDisp`, `catLabel`, `invName`, `feelDisp`, `songsFor`, `LT`, `learnTitle`, `learnBodyHTML`, `lgHTML`, `srPieceTitle`, `coachList`, `anNum`, and the export code. Adding dictionary keys alone does not localize these.
@@ -20,10 +21,10 @@ locale modules.
 
 ## Integration, only after completion or explicit acceptance of a partial preview
 
-1. Load `i18n-extra.js` with a normal, non-deferred `<script src="i18n-extra.js"></script>` immediately before the main application script (`<script>` after the embedded OSMD library). This also supports opening the HTML and JS together via `file://`.
-2. Directly after `const STRINGS = {...};` and before `t()` / preference initialization, merge with `Object.assign(STRINGS, globalThis.ETUDE_EXTRA_STRINGS || {});`. Missing script must not crash the existing English/Romanian app. Once translations are complete, add the five buttons under `#set-lang`, with the exact codes `es`, `fr`, `de`, `it`, and `pt-BR` and appropriate native labels.
+1. The supported dictionaries and educational content are static modules under `src/locales/`; import them synchronously before `setLang()` and `applyI18n()`. Do not reintroduce a runtime script or asynchronous locale loading.
+2. The optional five-language preview still uses the extracted legacy payload, with the exact codes `es`, `fr`, `de`, `it`, and `pt-BR` and appropriate native labels.
 3. Complete the translation and dynamic-data work described above before presenting a locale as supported. Avoid treating fallback English as translated text. Ensure every `%s`, `%a`, and `%b` remains present in each corresponding string; preserve HTML when the original is interpreted as HTML.
-4. Add `i18n-extra.js` to `SITE_FILES` in `scripts/build.mjs`, which lists the files GitHub Pages publishes. The build generates the worker manifest from the final published directory, so the locale file is automatically hash-checked and atomically precached. Do not maintain a hand-written `ASSETS` list or cache version; update the generated-worker and offline tests when the locale file becomes part of the application.
+4. Vite follows `src/locales/` imports and the build generates the worker manifest from the final published directory, so supported locale data is automatically hash-checked and atomically precached. Do not maintain a hand-written `SITE_FILES`, `ASSETS` list, or cache version.
 5. Expand coverage tests to fail on *any* missing translation and exercise language persistence, switching, accessibility attributes, Learn chapters, dynamic labels, interpolation, offline reload and independent notation. Check long text and controls at mobile widths. Review translations with native speakers.
 
 Current standalone verification: `node --test i18n-tests/i18n-extra.test.cjs`. The test is outside `tests/` so Playwright does not discover it. It verifies the five sparse dictionaries, known keys, nonempty strings, placeholders, and browser-global loading. It deliberately does **not** assert full localization.

@@ -6,14 +6,11 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 
 function englishStrings() {
-  const html = fs.readFileSync(path.join(root, 'src', 'legacy', 'app.js'), 'utf8');
-  const start = html.indexOf('const STRINGS={');
-  const end = html.indexOf('\nfunction t(k', start);
-  assert.ok(start >= 0 && end > start, 'English dictionary must be discoverable');
-  let script = html.slice(start, end).replace('const STRINGS=', 'var STRINGS=');
-  for (const match of html.matchAll(/Object\.assign\(STRINGS\.(en|ro),\s*\{[\s\S]*?\n\}\);/g)) script += '\n' + match[0];
+  const module = fs.readFileSync(path.join(root, 'src', 'locales', 'index.js'), 'utf8');
+  const match = module.match(/export const STRINGS = (\{[\s\S]*?\});\n\n\/\* Generated/);
+  assert.ok(match, 'static locale module must expose STRINGS');
   const context = {};
-  vm.runInNewContext(script, context);
+  vm.runInNewContext(`STRINGS=${match[1]}`, context);
   return context.STRINGS.en;
 }
 
