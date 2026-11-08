@@ -9,56 +9,166 @@ type Drawer = {
   scPedalGroups?: boolean;
 };
 
+type VendorRules = Record<string, unknown> & {
+  GNote?: (note: unknown) => VendorGraphicalNote | null;
+};
+type VendorGraphicalNote = {
+  vfnote?: readonly [unknown, number];
+  getNoteheadSVGs?: () => SVGElement[];
+  getSVGGElement?: () => SVGElement | null;
+};
+type VendorRenderer = {
+  EngravingRules: VendorRules;
+  GraphicSheet: unknown;
+  Sheet: unknown;
+  cursor: VendorCursor;
+  load(xml: string): Promise<void>;
+  setOptions(options: Record<string, unknown>): void;
+  setCustomPageFormat(width: number, height: number): void;
+  render(): void;
+  Zoom: number;
+};
+type VendorCursor = {
+  reset(): void;
+  Iterator: VendorIterator;
+  CurrentVisibleVoiceEntries?(): readonly unknown[];
+  getStaffEntryFromVoiceEntry?(entry: unknown): VendorStaffEntry | null;
+};
+type VendorIterator = {
+  EndReached: boolean;
+  CurrentSourceTimestamp: { RealValue: number };
+  CurrentVoiceEntries?: readonly unknown[];
+  moveToNext(): void;
+};
+type VendorStaffEntry = {
+  PositionAndShape?: { AbsolutePosition?: { x?: number } };
+  parentMeasure?: { ParentMusicSystem?: unknown };
+};
+type VendorNote = {
+  isRest?: () => boolean;
+  Pitch?: { Frequency?: number };
+  ParentStaffEntry?: { ParentStaff?: { Id?: number; ParentInstrument?: unknown } };
+  ParentVoiceEntry?: { ParentVoice?: { VoiceId?: number } };
+};
+type VendorVoiceEntry = { Notes?: readonly VendorNote[] };
+
+export interface RenderedNote {
+  midi: number;
+  part: number;
+  staff: number | undefined;
+  voice: number | undefined;
+  beat: number;
+  element: SVGElement;
+}
+
+export interface LayoutReader {
+  readonly graphicSheet: unknown;
+  readonly sheet: unknown;
+}
+
 export type AppLanguage = 'en' | 'ro';
 
 let osmdPromise: Promise<OsmdModule> | null = null;
 
 export interface OsmdModule {
-  OpenSheetMusicDisplay: new (container: Element, options: Record<string, unknown>) => unknown;
+  OpenSheetMusicDisplay: new (container: Element, options: Record<string, unknown>) => VendorRenderer;
   MXLHelper: {
     MXLtoXMLstring(data: ArrayBuffer): string;
   };
 }
 
 export interface ScoreRenderer {
-  getRules(): any;
+  updateRules(updates: Readonly<Record<string, unknown>>): void;
   load(xml: string): Promise<void>;
   setOptions(options: Record<string, unknown>): void;
   setCustomPageFormat(width: number, height: number): void;
   getZoom(): number;
   setZoom(value: number): void;
   render(): void;
-  getGraphicSheet(): any;
-  getSheet(): any;
-  getCursor(): any;
-  getGraphicalNote(note: unknown): any;
-  readonly EngravingRules: any;
-  readonly GraphicSheet: any;
-  readonly Sheet: any;
-  readonly cursor: any;
-  Zoom: number;
+  readLayout(): LayoutReader;
+  readCursor(): VendorCursor;
+  getTitleNode(): SVGElement | null;
+  hasExtraBreaks(): boolean;
+  forEachRenderedNote(callback: (note: RenderedNote) => void): void;
 }
 
 class OsmdScoreRenderer implements ScoreRenderer {
-  constructor(private readonly vendor: any) {}
+  constructor(private readonly vendor: VendorRenderer) {}
 
-  getRules(): any { return this.vendor.EngravingRules; }
+  updateRules(updates: Readonly<Record<string, unknown>>): void {
+    Object.assign(this.vendor.EngravingRules, updates);
+  }
   load(xml: string): Promise<void> { return this.vendor.load(xml); }
   setOptions(options: Record<string, unknown>): void { this.vendor.setOptions(options); }
   setCustomPageFormat(width: number, height: number): void { this.vendor.setCustomPageFormat(width, height); }
   getZoom(): number { return this.vendor.Zoom; }
   setZoom(value: number): void { this.vendor.Zoom = value; }
   render(): void { this.vendor.render(); }
-  getGraphicSheet(): any { return this.vendor.GraphicSheet; }
-  getSheet(): any { return this.vendor.Sheet; }
-  getCursor(): any { return this.vendor.cursor; }
-  getGraphicalNote(note: unknown): any { return this.vendor.EngravingRules.GNote(note); }
-  get EngravingRules(): any { return this.vendor.EngravingRules; }
-  get GraphicSheet(): any { return this.vendor.GraphicSheet; }
-  get Sheet(): any { return this.vendor.Sheet; }
-  get cursor(): any { return this.vendor.cursor; }
-  get Zoom(): number { return this.vendor.Zoom; }
-  set Zoom(value: number) { this.vendor.Zoom = value; }
+  readLayout(): LayoutReader {
+    return { graphicSheet: this.vendor.GraphicSheet, sheet: this.vendor.Sheet };
+  }
+  readCursor(): VendorCursor { return this.vendor.cursor; }
+  getTitleNode(): SVGElement | null {
+    const sheet = asRecord(this.vendor.GraphicSheet);
+    const title = asRecord(sheet.title);
+    return typeof SVGElement !== 'undefined' && title.SVGNode instanceof SVGElement ? title.SVGNode : null;
+  }
+  hasExtraBreaks(): boolean {
+    const sheet = asRecord(this.vendor.GraphicSheet);
+    return asArray(sheet.MusicPages).some((page, pageIndex) =>
+      asArray(asRecord(page).MusicSystems).some((system, systemIndex) => {
+        if (!pageIndex && !systemIndex) return false;
+        const measures = asArray(asRecord(system).GraphicalMeasures);
+        const first = measures[0];
+        const measure = asArray(first).find(Boolean);
+        const source = asRecord(asRecord(measure).parentSourceMeasure);
+        return !!source && !source.printNewSystemXml && !source.printNewPageXml;
+      }),
+    );
+  }
+  forEachRenderedNote(callback: (note: RenderedNote) => void): void {
+    const cursor = this.vendor.cursor;
+    const sheet = asRecord(this.vendor.Sheet);
+    const instruments = asArray(sheet.Instruments);
+    cursor.reset();
+    const iterator = cursor.Iterator;
+    let guard = 0;
+    while (!iterator.EndReached && guard++ < 40000) {
+      const beat = iterator.CurrentSourceTimestamp.RealValue * 4;
+      for (const entry of iterator.CurrentVoiceEntries ?? []) {
+        for (const note of (asRecord(entry) as VendorVoiceEntry).Notes ?? []) {
+          if (note.isRest?.() || !note.Pitch?.Frequency) continue;
+          const staff = note.ParentStaffEntry?.ParentStaff;
+          const voice = note.ParentVoiceEntry?.ParentVoice?.VoiceId;
+          const part = staff?.ParentInstrument ? instruments.indexOf(staff.ParentInstrument) : -1;
+          const graphical = this.vendor.EngravingRules.GNote?.(note);
+          const vf = graphical?.vfnote;
+          if (!graphical || !vf) continue;
+          const heads = graphical.getNoteheadSVGs?.() ?? [];
+          const element = heads[vf[1]] ?? graphical.getSVGGElement?.();
+          if (!element) continue;
+          callback({
+            midi: Math.round(69 + 12 * Math.log2(note.Pitch.Frequency / 440)),
+            part,
+            staff: staff?.Id,
+            voice,
+            beat,
+            element,
+          });
+        }
+      }
+      iterator.moveToNext();
+    }
+    cursor.reset();
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function asArray(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function isOsmdModule(value: unknown): value is OsmdModule {

@@ -37,6 +37,88 @@ export const CHORD_DEGREE_LABELS: Readonly<Record<number, string>> = {
   21: '13',
 };
 
+export type NoteSystem = 'letter' | 'german' | 'solfege';
+
+export const SCALE_DEFINITIONS: Readonly<Record<string, readonly number[]>> = {
+  'Major (Ionian)': [0, 2, 4, 5, 7, 9, 11],
+  Dorian: [0, 2, 3, 5, 7, 9, 10],
+  Phrygian: [0, 1, 3, 5, 7, 8, 10],
+  Lydian: [0, 2, 4, 6, 7, 9, 11],
+  Mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  'Aeolian (Natural minor)': [0, 2, 3, 5, 7, 8, 10],
+  Locrian: [0, 1, 3, 5, 6, 8, 10],
+  'Harmonic minor': [0, 2, 3, 5, 7, 8, 11],
+  'Melodic minor': [0, 2, 3, 5, 7, 9, 11],
+  'Harmonic major': [0, 2, 4, 5, 7, 8, 11],
+  'Major pentatonic': [0, 2, 4, 7, 9],
+  'Minor pentatonic': [0, 3, 5, 7, 10],
+  Blues: [0, 3, 5, 6, 7, 10],
+  'Whole tone': [0, 2, 4, 6, 8, 10],
+  'Diminished (W-H)': [0, 2, 3, 5, 6, 8, 9, 11],
+  'Diminished (H-W)': [0, 1, 3, 4, 6, 7, 9, 10],
+  'Phrygian dominant': [0, 1, 4, 5, 7, 8, 10],
+  'Hungarian minor': [0, 2, 3, 6, 7, 8, 11],
+  Chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+};
+
+export interface ChordTemplate {
+  symbol: string;
+  name: string;
+  intervals: readonly number[];
+  idx?: number;
+  pcset?: readonly number[];
+}
+
+export const CHORD_TEMPLATES: readonly ChordTemplate[] = [
+  { symbol: '13', name: '13th', intervals: [0, 4, 7, 10, 14, 21] },
+  { symbol: '11', name: '11th (no 3rd)', intervals: [0, 7, 10, 14, 17] },
+  { symbol: 'maj9', name: 'Major 9th', intervals: [0, 4, 7, 11, 14] },
+  { symbol: '9', name: 'Dominant 9th', intervals: [0, 4, 7, 10, 14] },
+  { symbol: 'm9', name: 'Minor 9th', intervals: [0, 3, 7, 10, 14] },
+  { symbol: '7♭9', name: 'Dominant 7♭9', intervals: [0, 4, 7, 10, 13] },
+  { symbol: '7♯9', name: 'Dominant 7♯9', intervals: [0, 4, 7, 10, 15] },
+  { symbol: 'maj7♯11', name: 'Major 7th ♯11', intervals: [0, 4, 7, 11, 18] },
+  { symbol: 'maj7', name: 'Major 7th', intervals: [0, 4, 7, 11] },
+  { symbol: '7', name: 'Dominant 7th', intervals: [0, 4, 7, 10] },
+  { symbol: 'm7', name: 'Minor 7th', intervals: [0, 3, 7, 10] },
+  { symbol: 'mMaj7', name: 'Minor-Major 7th', intervals: [0, 3, 7, 11] },
+  { symbol: 'm7♭5', name: 'Half-diminished 7th', intervals: [0, 3, 6, 10] },
+  { symbol: 'dim7', name: 'Diminished 7th', intervals: [0, 3, 6, 9] },
+  { symbol: '7♯5', name: 'Augmented 7th', intervals: [0, 4, 8, 10] },
+  { symbol: '7♭5', name: 'Dominant 7♭5', intervals: [0, 4, 6, 10] },
+  { symbol: '6', name: 'Major 6th', intervals: [0, 4, 7, 9] },
+  { symbol: 'm6', name: 'Minor 6th', intervals: [0, 3, 7, 9] },
+  { symbol: 'add9', name: 'Add 9', intervals: [0, 4, 7, 14] },
+  { symbol: 'maj', name: 'Major', intervals: [0, 4, 7] },
+  { symbol: 'm', name: 'Minor', intervals: [0, 3, 7] },
+  { symbol: 'dim', name: 'Diminished', intervals: [0, 3, 6] },
+  { symbol: 'aug', name: 'Augmented', intervals: [0, 4, 8] },
+  { symbol: 'sus2', name: 'Suspended 2nd', intervals: [0, 2, 7] },
+  { symbol: 'sus4', name: 'Suspended 4th', intervals: [0, 5, 7] },
+].map((chord, idx) => ({
+  ...chord,
+  idx,
+  pcset: [...new Set(chord.intervals.map(normalizeSemitones))].sort((a, b) => a - b),
+}));
+
+export interface ProgressionTemplate {
+  name: string;
+  chords: readonly (readonly [number, string, string])[];
+}
+
+export const PROGRESSION_TEMPLATES: readonly ProgressionTemplate[] = [
+  { name: 'I–IV–V', chords: [[0, 'maj', 'I'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
+  { name: 'I–V–vi–IV (pop)', chords: [[0, 'maj', 'I'], [7, 'maj', 'V'], [9, 'm', 'vi'], [5, 'maj', 'IV']] },
+  { name: 'ii–V–I (jazz)', chords: [[2, 'm7', 'ii'], [7, '7', 'V'], [0, 'maj7', 'I']] },
+  { name: 'I–vi–IV–V (50s)', chords: [[0, 'maj', 'I'], [9, 'm', 'vi'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
+  { name: 'vi–IV–I–V', chords: [[9, 'm', 'vi'], [5, 'maj', 'IV'], [0, 'maj', 'I'], [7, 'maj', 'V']] },
+  { name: 'I–♭VII–IV (rock)', chords: [[0, 'maj', 'I'], [10, 'maj', '♭VII'], [5, 'maj', 'IV']] },
+  { name: 'minor ii–V–i', chords: [[2, 'm7♭5', 'iiø'], [7, '7', 'V'], [0, 'm', 'i']] },
+  { name: 'i–♭VI–♭VII (epic)', chords: [[0, 'm', 'i'], [8, 'maj', '♭VI'], [10, 'maj', '♭VII']] },
+  { name: '12-bar blues', chords: [[0, '7', 'I⁷'], [5, '7', 'IV⁷'], [7, '7', 'V⁷'], [0, '7', 'I⁷']] },
+  { name: 'Pachelbel’s Canon', chords: [[0, 'maj', 'I'], [7, 'maj', 'V'], [9, 'm', 'vi'], [4, 'm', 'iii'], [5, 'maj', 'IV'], [0, 'maj', 'I'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
+];
+
 export function midiToFrequency(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
@@ -384,4 +466,40 @@ export function anResolveKey(
   }
   const best = anKeyRank(notes)[0];
   return { events: [{ beat: 0, fifths: best.fifths, minor: best.minor }], origin: 'auto' };
+}
+
+export function circleKeyPitchClass(keyNumber: number): PitchClass {
+  return keyNumber >= 0
+    ? normalizeSemitones(7 * keyNumber)
+    : normalizeSemitones(5 * -keyNumber);
+}
+
+export function readingSpelling(midi: number, keyNumber: number): SpelledMidi {
+  const pitch = pitchClass(midi);
+  const octave = Math.floor(midi / 12) - 1;
+  const natural = (LETTER_PITCH_CLASSES as readonly number[]).indexOf(pitch);
+  if (natural >= 0) return { li: natural, oct: octave, acc: 0 };
+  const li = (LETTER_PITCH_CLASSES as readonly number[]).indexOf(
+    normalizeSemitones(pitch + (keyNumber < 0 ? 1 : -1)),
+  );
+  return { li, oct: octave, acc: keyNumber < 0 ? -1 : 1 };
+}
+
+export function analysisFunction(
+  key: Pick<KeySignature, 'root' | 'minor'>,
+  chordRoot: PitchClass,
+  romanNumeral: string,
+): 'T' | 'S' | 'D' | 'sec' | 'chr' {
+  if (romanNumeral.includes('/')) return 'sec';
+  const relative = normalizeSemitones(chordRoot - key.root);
+  const functions: Readonly<Record<number, 'T' | 'S' | 'D'>> = key.minor
+    ? { 0: 'T', 3: 'T', 8: 'T', 2: 'S', 5: 'S', 7: 'D', 10: 'D', 11: 'D' }
+    : { 0: 'T', 4: 'T', 9: 'T', 2: 'S', 5: 'S', 7: 'D', 11: 'D' };
+  return functions[relative] ?? 'chr';
+}
+
+export function scorePitchXml(midi: number, fifths: number, minor: boolean): string {
+  const spelled = spellMidi(midi, fifths, minor);
+  const step = ['C', 'D', 'E', 'F', 'G', 'A', 'B'][spelled.li];
+  return `<pitch><step>${step}</step>${spelled.acc ? `<alter>${spelled.acc}</alter>` : ''}<octave>${spelled.oct}</octave></pitch>`;
 }

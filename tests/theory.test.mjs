@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anDiatonic, anIntervalName, anKeyRank, chordDegreeMap, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord, intervalOctave, keyFifths, keyFromFifths, midiToFrequency, normalizeSemitones, pitchClass, romanFor, samePitchSet, scalePitches, spellMidi, transposePitchClass } from '../src/domain/theory.ts';
+import { anDiatonic, anIntervalName, anKeyRank, analysisFunction, CHORD_TEMPLATES, circleKeyPitchClass, chordDegreeMap, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord, intervalOctave, keyFifths, keyFromFifths, midiToFrequency, normalizeSemitones, pitchClass, PROGRESSION_TEMPLATES, readingSpelling, romanFor, samePitchSet, scalePitches, SCALE_DEFINITIONS, scorePitchXml, spellMidi, transposePitchClass } from '../src/domain/theory.ts';
 
 describe('pure theory helpers', () => {
   it('normalizes and transposes pitch classes across octaves', () => {
@@ -46,5 +46,15 @@ describe('pure theory helpers', () => {
     const notes = [0, 4, 7].map((midi, index) => ({ midi: 60 + midi, start: index, end: index + 1 }));
     expect(anKeyRank(notes)[0]).toHaveProperty('root');
     expect(anDiatonic({ root: 0, minor: false, fifths: 0 })).toHaveLength(8);
+  });
+
+  it('keeps extracted exercise definitions and score helpers in the theory domain', () => {
+    expect(SCALE_DEFINITIONS['Major (Ionian)']).toEqual([0, 2, 4, 5, 7, 9, 11]);
+    expect(CHORD_TEMPLATES.find(chord => chord.symbol === 'maj')?.pcset).toEqual([0, 4, 7]);
+    expect(PROGRESSION_TEMPLATES[0].name).toBe('I–IV–V');
+    expect(circleKeyPitchClass(-1)).toBe(5);
+    expect(readingSpelling(61, -1)).toMatchObject({ li: 1, acc: -1 });
+    expect(analysisFunction({ root: 0, minor: false }, 7, 'V')).toBe('D');
+    expect(scorePitchXml(61, -1, false)).toContain('<step>D</step><alter>-1</alter>');
   });
 });

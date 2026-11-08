@@ -3,7 +3,7 @@
 import { STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } from '../locales/index.js';
 import { LESSONS, LEARN_UNITS, LQZ, LSUM, GLOSS } from '../locales/content.js';
 import { PTT_KEY as KEY, isBackupPayload, isRecord, legacySettings, parsePttV3, readPttV3, restoreSettings, writePttV3 } from './storage.js';
-import { CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS, anDiatonic, anIntervalName, anKeyRank, anPcWeights, anResolveKey, chordDegreeMap, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord as identifyChordDomain, keyFifths, keyFromFifths, midiToFrequency, pitchClass, romanFor, spellMidi } from './theory.js';
+import { CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS, analysisFunction as anFnKey, anDiatonic, anIntervalName, anKeyRank, anPcWeights, anResolveKey, CHORD_TEMPLATES, chordDegreeMap, chordInversion, chordPitches, circleKeyPitchClass as srKeyName, formatChordFormula, formatScaleFormula, identifyChord as identifyChordDomain, keyFifths, keyFromFifths, midiToFrequency, pitchClass, PROGRESSION_TEMPLATES, readingSpelling as rdSpellMidi, romanFor, SCALE_DEFINITIONS, scorePitchXml as scorePitch, spellMidi } from './theory.js';
 import { AudioEngine } from './audio.js';
 import { createScoreRenderer, loadOsmd, mxlToXml, notationReloadMessage, scorePatchOsmd } from './notation.js';
 import { NAV_GROUPS, navGroup, viewFromHash } from './router.js';
@@ -65,40 +65,14 @@ const SONGS = {
     11: { asc: ['Take On Me (chorus)', 'Bali Ha’i'], desc: ['(rare)'] },
     12: { asc: ['Over the Rainbow', 'Singin’ in the Rain'], desc: ['Willow Weep for Me'] },
 };
-const SCALES = { 'Major (Ionian)': [0, 2, 4, 5, 7, 9, 11], 'Dorian': [0, 2, 3, 5, 7, 9, 10], 'Phrygian': [0, 1, 3, 5, 7, 8, 10], 'Lydian': [0, 2, 4, 6, 7, 9, 11], 'Mixolydian': [0, 2, 4, 5, 7, 9, 10], 'Aeolian (Natural minor)': [0, 2, 3, 5, 7, 8, 10], 'Locrian': [0, 1, 3, 5, 6, 8, 10], 'Harmonic minor': [0, 2, 3, 5, 7, 8, 11], 'Melodic minor': [0, 2, 3, 5, 7, 9, 11], 'Harmonic major': [0, 2, 4, 5, 7, 8, 11], 'Major pentatonic': [0, 2, 4, 7, 9], 'Minor pentatonic': [0, 3, 5, 7, 10], 'Blues': [0, 3, 5, 6, 7, 10], 'Whole tone': [0, 2, 4, 6, 8, 10], 'Diminished (W-H)': [0, 2, 3, 5, 6, 8, 9, 11], 'Diminished (H-W)': [0, 1, 3, 4, 6, 7, 9, 10], 'Phrygian dominant': [0, 1, 4, 5, 7, 8, 10], 'Hungarian minor': [0, 2, 3, 6, 7, 8, 11], 'Chromatic': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] };
-const CHORDS = [
-    { symbol: '13', name: '13th', intervals: [0, 4, 7, 10, 14, 21] }, { symbol: '11', name: '11th (no 3rd)', intervals: [0, 7, 10, 14, 17] },
-    { symbol: 'maj9', name: 'Major 9th', intervals: [0, 4, 7, 11, 14] }, { symbol: '9', name: 'Dominant 9th', intervals: [0, 4, 7, 10, 14] },
-    { symbol: 'm9', name: 'Minor 9th', intervals: [0, 3, 7, 10, 14] }, { symbol: '7♭9', name: 'Dominant 7♭9', intervals: [0, 4, 7, 10, 13] },
-    { symbol: '7♯9', name: 'Dominant 7♯9', intervals: [0, 4, 7, 10, 15] }, { symbol: 'maj7♯11', name: 'Major 7th ♯11', intervals: [0, 4, 7, 11, 18] },
-    { symbol: 'maj7', name: 'Major 7th', intervals: [0, 4, 7, 11] }, { symbol: '7', name: 'Dominant 7th', intervals: [0, 4, 7, 10] },
-    { symbol: 'm7', name: 'Minor 7th', intervals: [0, 3, 7, 10] }, { symbol: 'mMaj7', name: 'Minor-Major 7th', intervals: [0, 3, 7, 11] },
-    { symbol: 'm7♭5', name: 'Half-diminished 7th', intervals: [0, 3, 6, 10] }, { symbol: 'dim7', name: 'Diminished 7th', intervals: [0, 3, 6, 9] },
-    { symbol: '7♯5', name: 'Augmented 7th', intervals: [0, 4, 8, 10] }, { symbol: '7♭5', name: 'Dominant 7♭5', intervals: [0, 4, 6, 10] },
-    { symbol: '6', name: 'Major 6th', intervals: [0, 4, 7, 9] }, { symbol: 'm6', name: 'Minor 6th', intervals: [0, 3, 7, 9] },
-    { symbol: 'add9', name: 'Add 9', intervals: [0, 4, 7, 14] }, { symbol: 'maj', name: 'Major', intervals: [0, 4, 7] },
-    { symbol: 'm', name: 'Minor', intervals: [0, 3, 7] }, { symbol: 'dim', name: 'Diminished', intervals: [0, 3, 6] },
-    { symbol: 'aug', name: 'Augmented', intervals: [0, 4, 8] }, { symbol: 'sus2', name: 'Suspended 2nd', intervals: [0, 2, 7] },
-    { symbol: 'sus4', name: 'Suspended 4th', intervals: [0, 5, 7] },
-];
-CHORDS.forEach((c, i) => { c.idx = i; c.pcset = [...new Set(c.intervals.map(x => ((x % 12) + 12) % 12))].sort((a, b) => a - b); });
+const SCALES = SCALE_DEFINITIONS;
+const CHORDS = CHORD_TEMPLATES;
 const CHORD_FEEL = { maj: 'bright, resolved', m: 'darker, melancholy', dim: 'tense, unstable', aug: 'dreamlike', sus2: 'open, airy', sus4: 'suspended', maj7: 'lush, jazzy', '7': 'bluesy, wants to resolve', m7: 'smooth, mellow', 'm7♭5': 'dark, cinematic', dim7: 'very tense', mMaj7: 'noir', 6: 'sweet, vintage', m6: 'wistful', '9': 'funky', maj9: 'dreamy', m9: 'soulful' };
 const INV_NAMES = ['root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion'];
 const SCALE_DEG = SCALE_DEGREE_LABELS;
 const CHORD_DEG = CHORD_DEGREE_LABELS;
 const MAJOR = [0, 2, 4, 5, 7, 9, 11], ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
-const PROGS = [
-    { name: 'I–IV–V', chords: [[0, 'maj', 'I'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
-    { name: 'I–V–vi–IV (pop)', chords: [[0, 'maj', 'I'], [7, 'maj', 'V'], [9, 'm', 'vi'], [5, 'maj', 'IV']] },
-    { name: 'ii–V–I (jazz)', chords: [[2, 'm7', 'ii'], [7, '7', 'V'], [0, 'maj7', 'I']] },
-    { name: 'I–vi–IV–V (50s)', chords: [[0, 'maj', 'I'], [9, 'm', 'vi'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
-    { name: 'vi–IV–I–V', chords: [[9, 'm', 'vi'], [5, 'maj', 'IV'], [0, 'maj', 'I'], [7, 'maj', 'V']] },
-    { name: 'I–♭VII–IV (rock)', chords: [[0, 'maj', 'I'], [10, 'maj', '♭VII'], [5, 'maj', 'IV']] },
-    { name: 'minor ii–V–i', chords: [[2, 'm7♭5', 'iiø'], [7, '7', 'V'], [0, 'm', 'i']] },
-    { name: 'i–♭VI–♭VII (epic)', chords: [[0, 'm', 'i'], [8, 'maj', '♭VI'], [10, 'maj', '♭VII']] },
-    { name: '12-bar blues', chords: [[0, '7', 'I⁷'], [5, '7', 'IV⁷'], [7, '7', 'V⁷'], [0, '7', 'I⁷']] },
-    { name: 'Pachelbel’s Canon', chords: [[0, 'maj', 'I'], [7, 'maj', 'V'], [9, 'm', 'vi'], [4, 'm', 'iii'], [5, 'maj', 'IV'], [0, 'maj', 'I'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
-];
+const PROGS = PROGRESSION_TEMPLATES;
 function progChordTpl(sym) { return CHORDS.find(c => c.symbol === sym); }
 function dispSym(s) { return s === 'maj' ? '' : s; }
 /* Accompaniment: extra popular progressions + rhythmic playing patterns. */
@@ -5807,7 +5781,6 @@ function srGo() {
     else
         srAssessStart();
 }
-function srKeyName(n) { const pcv = n >= 0 ? (7 * n) % 12 : (5 * (-n)) % 12; return pcv; }
 function srMeta() {
     const p = SR.piece;
     if (!p)
@@ -6361,12 +6334,6 @@ function rdAnsText(q) { if (q.ty === 'iv')
     return rdIvName(q.ans); if (q.ty === 'ch')
     return rdChLabel(q.root.li, q.qual); if (q.ty === 'ks')
     return rdKeyLabel(q.ans) + ' / ' + rdKeyMinor(q.ans); return rdName(q.note, true); }
-function rdSpellMidi(m, keyN) {
-    const p = pc(m), oct = Math.floor(m / 12) - 1, nat = [0, 2, 4, 5, 7, 9, 11].indexOf(p);
-    if (nat >= 0)
-        return { li: nat, oct, acc: 0 };
-    return keyN < 0 ? { li: [0, 2, 4, 5, 7, 9, 11].indexOf(p + 1), oct, acc: -1 } : { li: [0, 2, 4, 5, 7, 9, 11].indexOf(p - 1), oct, acc: 1 };
-}
 function rdAnswer(ok, given) {
     const q = RD.q;
     if (!q || RD.answered || !RD.on)
@@ -7756,12 +7723,6 @@ function rdNextStep(L, mode, acc, avg, stars, weak) {
 function rdNextRender() { const box = $('rdx-next'); if (box && RD.next)
     box.innerHTML = coachHTML(t('coach_next'), RD.next, 'rdx-next-act'); }
 /* Score & analysis · Now: one thing worth noticing in the bar (or passage, or selection) on show, from its own analysis */
-function anFnKey(key, seg, rn) {
-    if (rn.includes('/'))
-        return 'sec';
-    const rel = ((seg.ch.root - key.root) % 12 + 12) % 12;
-    return (key.minor ? { 0: 'T', 3: 'T', 8: 'T', 2: 'S', 5: 'S', 7: 'D', 10: 'D', 11: 'D' } : { 0: 'T', 4: 'T', 9: 'T', 2: 'S', 5: 'S', 7: 'D', 11: 'D' })[rel] || 'chr';
-}
 function anCoach(f, segs, notes) {
     if (!f || !AN.view || !notes.length)
         return null;
@@ -8852,7 +8813,6 @@ function scoreXmlNotes(doc) {
     const links = linkPairs.filter(l => l.a.staff !== l.b.staff).map(l => ({ kind: l.kind, a: sorted.indexOf(l.a), b: sorted.indexOf(l.b), style: l.style })).filter(l => l.a >= 0 && l.b >= 0);
     return { notes: sorted, tempos: tempos.filter(e => e.bpm > 0 && Number.isFinite(e.bpm) && Number.isFinite(e.beat)), measures, keys, links };
 }
-function scorePitch(m, fifths, minor) { const s = spellMidi(m, fifths, minor); return '<pitch><step>' + LETTERS.letter[s.li] + '</step>' + (s.acc ? '<alter>' + s.acc + '</alter>' : '') + '<octave>' + s.oct + '</octave></pitch>'; }
 function xmlEsc(s) { return String(s).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c])); }
 // MIDI (or a built-in piece) → MusicXML. `opt.grid` is the quantization per quarter note (2, 4 or 8); divisions grow when a meter needs finer units.
 function scoreFromMidi(parsed, title, opt) {
@@ -9084,7 +9044,7 @@ async function scoreRender() {
     const oneStaffPart = (SCORE.xml.match(/<score-part[\s>]/g) || []).length <= 1; // a lone piano needs no "Instr. P1" at the left
     const engine = await createScoreRenderer(box.firstElementChild, { autoResize: false, backend: 'svg', drawTitle: true, drawComposer: true, drawPartNames: !oneStaffPart, drawPartAbbreviations: false, drawMeasureNumbers: true,
         autoBeam, autoBeamOptions: { beam_rests: false, beam_middle_rests_only: false, maintain_stem_directions: true, groups: scoreBeamGroups() } });
-    const R = engine.getRules(); // MuseScore-like page: wider margins, title block, measure numbers only at system starts
+    const R = {}; // MuseScore-like page: wider margins, title block, measure numbers only at system starts
     R.PageLeftMargin = R.PageRightMargin = 7;
     R.PageTopMargin = 6;
     R.PageBottomMargin = 6;
@@ -9128,6 +9088,7 @@ async function scoreRender() {
             R.MinSkyBottomDistBetweenSystems = 1;
         }
     }
+    engine.updateRules(R);
     const source = SCORE.xml.trim();
     await engine.load(source.startsWith('<?xml') ? source : '<?xml version="1.0" encoding="utf-8"?>' + source);
     if (version !== SCORE.version)
@@ -9147,7 +9108,7 @@ function scoreLayout() {
         box.hidden = FALL.mode !== 'score';
         return;
     }
-    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R = engine.getRules(), sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
+    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R = {}, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
     box.dataset.layout = SCORE.layout;
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const sourceLayout = AN.source && AN.source.kind === 'xml' && AN.source.layout, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
@@ -9159,6 +9120,7 @@ function scoreLayout() {
     R.StaffLineColor = look.staff;
     R.RenderMeasureNumbersOnlyAtSystemStart = !cont;
     R.MeasureNumberLabelOffset = cont ? 1 : 2;
+    engine.updateRules(R);
     // A page narrower than A4 × zoom is the same A4 page scaled down: the staff space shrinks with it, so every
     // system keeps its bars and every page its systems whatever the panel width.
     engine.setZoom(cont ? SCORE.zoom * base : sheetW / pageW * base);
@@ -9188,7 +9150,7 @@ function scoreLayout() {
 }
 // OSMD's title label is plain text. Restore safe MusicXML italic/bold runs after each layout (never inject markup).
 function scoreStyleHeader(engine, layout) {
-    const node = engine.getGraphicSheet().title && engine.getGraphicSheet().title.SVGNode, runs = layout && layout.titleRuns;
+    const node = engine.getTitleNode(), runs = layout && layout.titleRuns;
     if (!node || !runs || !runs.length)
         return;
     const text = node.localName === 'text' ? node : node.querySelector('text');
@@ -9202,12 +9164,16 @@ function scoreStyleHeader(engine, layout) {
 // extra break; past the last step it fills the lines itself rather than leave a lone bar after every forced break.
 const SC_FIT = [[.85, 3, 2], [.7, 2.2, 1.6], [.58, 1.6, 1.3], [.48, 1.2, 1.1]]; // VexFlow spacing multiplier, addend, min note distance
 function scoreFitRender(engine, xmlBreaks, key) {
-    const R = engine.getRules(), set = (i, on) => {
+    const set = (i, on) => {
         const f = SC_FIT[i];
-        R.VoiceSpacingMultiplierVexflow = f[0];
-        R.VoiceSpacingAddendVexflow = f[1];
-        R.MinNoteDistance = f[2];
-        R.NewSystemAtXMLNewSystemAttribute = R.NewSystemAtXMLNewPageAttribute = R.NewPageAtXMLNewPageAttribute = on;
+        engine.updateRules({
+            VoiceSpacingMultiplierVexflow: f[0],
+            VoiceSpacingAddendVexflow: f[1],
+            MinNoteDistance: f[2],
+            NewSystemAtXMLNewSystemAttribute: on,
+            NewSystemAtXMLNewPageAttribute: on,
+            NewPageAtXMLNewPageAttribute: on,
+        });
     };
     if (!xmlBreaks) {
         set(0, false);
@@ -9233,12 +9199,7 @@ function scoreFitRender(engine, xmlBreaks, key) {
     SCORE.fit = { key, step: 0, on: false };
 }
 function scoreExtraBreaks(engine) {
-    return engine.getGraphicSheet().MusicPages.some((pg, pi) => pg.MusicSystems.some((sys, si) => {
-        if (!pi && !si)
-            return false;
-        const col = sys.GraphicalMeasures && sys.GraphicalMeasures[0], gm = col && col.find(Boolean), sm = gm && gm.parentSourceMeasure;
-        return !!sm && !sm.printNewSystemXml && !sm.printNewPageXml;
-    }));
+    return engine.hasExtraBreaks();
 }
 // Anything OSMD still draws in pure black (connectors, brackets, text without a colour rule) follows the night ink too.
 // The keyboard-focus ring around a notehead is measured in the score's own units: about 1 px of page colour, then 1.6 px of blue.
@@ -9265,47 +9226,35 @@ function scoreBind(engine) {
     const byMidi = new Map();
     AN.notes.forEach((n, i) => { if (!byMidi.has(n.midi))
         byMidi.set(n.midi, []); byMidi.get(n.midi).push(i); });
-    engine.getCursor().reset();
-    const it = engine.getCursor().Iterator;
-    let guard = 0;
-    while (!it.EndReached && guard++ < 40000) {
-        const beat = it.CurrentSourceTimestamp.RealValue * 4, bound = new Set();
-        for (const entry of it.CurrentVoiceEntries || [])
-            for (const note of entry.Notes) {
-                if (note.isRest() || !note.Pitch)
-                    continue;
-                const midi = Math.round(69 + 12 * Math.log2(note.Pitch.Frequency / 440)), cands = byMidi.get(midi);
-                if (!cands)
-                    continue;
-                const staff = note.ParentStaffEntry && note.ParentStaffEntry.ParentStaff, voice = note.ParentVoiceEntry && note.ParentVoiceEntry.ParentVoice.VoiceId, part = staff ? engine.getSheet().Instruments.indexOf(staff.ParentInstrument) : -1;
-                const same = j => { const n = AN.notes[j]; return (n.part == null || n.part === part) && (n.staff == null || n.staff === staff?.Id) && (n.voice == null || n.voice === voice); };
-                const match = pred => { const a = cands.filter(pred); return a.find(j => same(j) && !bound.has(j)) ?? a.find(j => !bound.has(j)) ?? a.find(same) ?? a[0]; };
-                const exact = j => Math.abs(startOf(AN.notes[j]) - beat) < .01, sustained = j => startOf(AN.notes[j]) <= beat + .001 && endOf(AN.notes[j]) > beat + .001;
-                // A tied continuation belongs to its own voice, even when another voice starts the same pitch here.
-                let i = match(j => same(j) && exact(j)) ?? match(j => same(j) && sustained(j)) ?? match(exact) ?? match(sustained);
-                if (i == null)
-                    continue;
-                const graphical = engine.getGraphicalNote(note), vf = graphical && graphical.vfnote;
-                if (!vf)
-                    continue;
-                const heads = graphical.getNoteheadSVGs ? graphical.getNoteheadSVGs() : [], g = heads[vf[1]] || graphical.getSVGGElement();
-                if (!g)
-                    continue;
-                bound.add(i);
-                g.dataset.i = i;
-                g.style.cursor = 'pointer';
-                g.style.pointerEvents = 'all';
-                g.setAttribute('tabindex', '-1');
-                g.setAttribute('role', 'button');
-                g.setAttribute('aria-label', spellName(AN.notes[i].midi, anKeyAt(AN.notes[i].start), true));
-                if (!SCORE.heads.has(i))
-                    SCORE.heads.set(i, []);
-                SCORE.heads.get(i).push(g);
-                if (!first)
-                    first = g;
-            }
-        it.moveToNext();
-    }
+    let bound = new Set(), boundBeat = null;
+    engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g }) => {
+        if (boundBeat !== beat) {
+            boundBeat = beat;
+            bound = new Set();
+        }
+        const cands = byMidi.get(midi);
+        if (!cands)
+            return;
+        const same = j => { const n = AN.notes[j]; return (n.part == null || n.part === part) && (n.staff == null || n.staff === staff) && (n.voice == null || n.voice === voice); };
+        const match = pred => { const a = cands.filter(pred); return a.find(j => same(j) && !bound.has(j)) ?? a.find(j => !bound.has(j)) ?? a.find(same) ?? a[0]; };
+        const exact = j => Math.abs(startOf(AN.notes[j]) - beat) < .01, sustained = j => startOf(AN.notes[j]) <= beat + .001 && endOf(AN.notes[j]) > beat + .001;
+        // A tied continuation belongs to its own voice, even when another voice starts the same pitch here.
+        const i = match(j => same(j) && exact(j)) ?? match(j => same(j) && sustained(j)) ?? match(exact) ?? match(sustained);
+        if (i == null)
+            return;
+        bound.add(i);
+        g.dataset.i = i;
+        g.style.cursor = 'pointer';
+        g.style.pointerEvents = 'all';
+        g.setAttribute('tabindex', '-1');
+        g.setAttribute('role', 'button');
+        g.setAttribute('aria-label', spellName(AN.notes[i].midi, anKeyAt(AN.notes[i].start), true));
+        if (!SCORE.heads.has(i))
+            SCORE.heads.set(i, []);
+        SCORE.heads.get(i).push(g);
+        if (!first)
+            first = g;
+    });
     if (first)
         first.setAttribute('tabindex', '0');
 }
@@ -9459,7 +9408,7 @@ function scoreXLines() {
 // Chord fingerings stacked one above the other must never touch: each column is re-stacked from the notes outwards,
 // clear of its noteheads, stems and the digits already placed on that staff, above or below as OSMD chose.
 function scoreFixFingerings(box, engine) {
-    const gs = engine && engine.getGraphicSheet();
+    const gs = engine && engine.readLayout().graphicSheet;
     if (!gs || !box)
         return;
     const ink = r => ({ l: r.left + r.width * .08, r: r.right - r.width * .08, t: r.top + r.height * .18, b: r.bottom - r.height * .2 });
@@ -9552,7 +9501,7 @@ const SC_TERMS = [['dolcissimo'], ['dolce'], ['espressivo', 'espress\\.?', 'espr
 const SC_ARTS = { 'a.': 'staccato', 'av': 'staccatissimo', 'a>': 'accent', 'a^': 'marcato', 'a-': 'tenuto', 'a@a': 'fermata', 'a@u': 'fermata', 'a@s': 'fermata', 'a@l': 'fermata', 'a@as': 'fermata', 'a@us': 'fermata',
     tr: 'trill', mordent: 'mordent', mordent_inverted: 'mordent', turn: 'turn', turn_inverted: 'turn', prallprall: 'trill', upprall: 'trill' };
 function scoreSyms(engine) {
-    const box = $('an-roll'), list = [], gs = engine && engine.getGraphicSheet();
+    const box = $('an-roll'), list = [], gs = engine && engine.readLayout().graphicSheet;
     SCORE.syms = list;
     scoreTip(null);
     if (!gs)
@@ -9765,7 +9714,7 @@ function scoreTip(sym, txt) {
 }
 // Geometry in OSMD units (one staff space) relative to each page: systems, measures and the onset anchors the cursor moves between.
 function scoreGeo(engine) {
-    const gs = engine.getGraphicSheet(), geo = { scale: 10 * engine.getZoom(), pages: [], systems: [], measures: [], anchors: [] }, sysIdx = new Map();
+    const gs = engine.readLayout().graphicSheet, geo = { scale: 10 * engine.getZoom(), pages: [], systems: [], measures: [], anchors: [] }, sysIdx = new Map();
     gs.MusicPages.forEach((pg, pi) => {
         geo.pages[pi] = document.getElementById('osmdCanvasPage' + pg.PageNumber);
         pg.MusicSystems.forEach(sys => {
@@ -9803,7 +9752,7 @@ function scoreGeo(engine) {
             end = Math.max(end, gl.r); });
         m.xs = end > -Infinity ? Math.min(m.xn, end + .6) : m.x0;
     });
-    const cur = engine.getCursor();
+    const cur = engine.readCursor();
     if (cur) {
         cur.reset();
         const it = cur.Iterator;
