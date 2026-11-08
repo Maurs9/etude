@@ -9528,13 +9528,17 @@ let scoreFixPedals = function scoreFixPedals(box: RuntimeElement) {
     return unresolved === 0;
 };
 // SVG user units of the page a node sits on, from screen pixels (OSMD draws 10 units per staff space).
-function scoreToUser(svg: { getScreenCTM: () => any; createSVGPoint: () => any; }, x: any, y: number) { const m = svg.getScreenCTM(); if (!m)
+function scoreToUser(svg: SVGSVGElement, x: number, y: number) { const m = svg.getScreenCTM(); if (!m)
     return null; const p = svg.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(m.inverse()); }
+// A line the source file draws from note index a to note index b, with its kind and line style.
+interface ScoreCrossLink { a: number; b: number; kind: string; style?: string }
 // Lines between the hands that OSMD leaves out: cross-staff slurs, glissandi and slides, dashed voice-leading lines.
 function scoreXLines() {
-    const links = (AN.source && AN.source.links) || [], ink = SCORE_LOOK[SCORE.look].ink, NS = 'http://www.w3.org/2000/svg';
+    if (!scoreHasKey(SCORE_LOOK, SCORE.look))
+        return;
+    const links: ScoreCrossLink[] = (AN.source && AN.source.links) || [], ink = SCORE_LOOK[SCORE.look].ink, NS = 'http://www.w3.org/2000/svg';
     links.forEach((l) => {
-        const ga = (SCORE.heads.get(l.a) || [])[0], gb = (SCORE.heads.get(l.b) || [])[0];
+        const ha: SVGElement[] = SCORE.heads.get(l.a) || [], hb: SVGElement[] = SCORE.heads.get(l.b) || [], ga = ha[0], gb = hb[0];
         if (!ga || !gb)
             return;
         const svg = ga.ownerSVGElement;
@@ -9543,7 +9547,10 @@ function scoreXLines() {
         const ra = ga.getBoundingClientRect(), rb = gb.getBoundingClientRect(), A = scoreToUser(svg, ra.left + ra.width / 2, ra.top + ra.height / 2), B = scoreToUser(svg, rb.left + rb.width / 2, rb.top + rb.height / 2);
         if (!A || !B)
             return;
-        const sp = 10, hw = Math.max(.5, scoreToUser(svg, ra.right, 0).x - scoreToUser(svg, ra.left, 0).x) / 2;
+        const R = scoreToUser(svg, ra.right, 0), L = scoreToUser(svg, ra.left, 0);
+        if (!R || !L)
+            return;
+        const sp = 10, hw = Math.max(.5, R.x - L.x) / 2;
         if (B.x < A.x + hw || Math.abs(B.y - A.y) > sp * 24)
             return; // the far end is on another system
         const el = document.createElementNS(NS, 'path');
@@ -9571,41 +9578,79 @@ function scoreXLines() {
         svg.appendChild(el);
     });
 }
+// The parts of OSMD's engraved sheet the score passes read. OSMD ships no types for these, so isScoreOsmdSheet checks the root.
+interface ScoreOsmdLabel { SVGNode?: SVGElement | null; Label?: { text?: string } }
+interface ScoreOsmdVexNote {
+    getAttribute?(name: 'el'): SVGElement | undefined;
+    duration?: string;
+    modifiers?: { getCategory?(): string; type: string }[];
+}
+interface ScoreOsmdNote {
+    sourceNote?: { isRest(): boolean; PrintObject?: boolean; TypeLength?: { RealValue: number }; DotsXml?: number };
+    getNoteheadSVGs?(): SVGElement[];
+    getSVGGElement?(): SVGElement;
+}
+interface ScoreOsmdVoiceEntry { vfStaveNote?: ScoreOsmdVexNote; mVexFlowStaveNote?: ScoreOsmdVexNote; notes?: ScoreOsmdNote[] }
+interface ScoreOsmdStaffEntry { FingeringEntries?: ScoreOsmdLabel[]; graphicalChordContainers?: { GraphicalLabel?: ScoreOsmdLabel }[]; graphicalVoiceEntries?: ScoreOsmdVoiceEntry[] }
+interface ScoreOsmdMeasure {
+    staffEntries?: ScoreOsmdStaffEntry[];
+    ParentMusicSystem: ScoreOsmdSystem;
+    parentSourceMeasure: { AbsoluteTimestamp: { RealValue: number }; Duration: { RealValue: number } };
+    PositionAndShape: { AbsolutePosition: { x: number }; Size: { width: number } };
+    beginInstructionsWidth?: number;
+}
+interface ScoreOsmdStaffLine {
+    Measures: ScoreOsmdMeasure[];
+    AbstractExpressions?: { lines?: { SVGElement?: SVGElement }[]; expression?: { dynamicType?: number | null } }[];
+    PositionAndShape: { RelativePosition: { y: number } };
+    StaffHeight: number;
+}
+interface ScoreOsmdSystem { StaffLines: ScoreOsmdStaffLine[]; PositionAndShape: { AbsolutePosition: { y: number } } }
+interface ScoreOsmdSheet {
+    MusicPages: { PageNumber: number; MusicSystems: ScoreOsmdSystem[] }[];
+    MeasureList: (ScoreOsmdMeasure | undefined)[][];
+    title?: ScoreOsmdLabel; subtitle?: ScoreOsmdLabel; composer?: ScoreOsmdLabel; lyricist?: ScoreOsmdLabel; copyright?: ScoreOsmdLabel;
+}
+function isScoreOsmdSheet(v: unknown): v is ScoreOsmdSheet {
+    return typeof v === 'object' && v !== null && 'MusicPages' in v && Array.isArray(v.MusicPages) && 'MeasureList' in v && Array.isArray(v.MeasureList);
+}
+// A marking's inked area in screen pixels: left, right, top, bottom.
+interface ScoreInkBox { l: number; r: number; t: number; b: number }
 // Chord fingerings stacked one above the other must never touch: each column is re-stacked from the notes outwards,
 // clear of its noteheads, stems and the digits already placed on that staff, above or below as OSMD chose.
-function scoreFixFingerings(box: RuntimeElement, engine: never) {
-    const gs = engine && engine.readLayout().graphicSheet;
+function scoreFixFingerings(box: HTMLElement, engine: import('./notation.js').ScoreRenderer | null) {
+    const sheet = engine && engine.readLayout().graphicSheet, gs = isScoreOsmdSheet(sheet) ? sheet : null;
     if (!gs || !box)
         return;
-    const ink = (r: { left: number; width: number; right: number; top: number; height: number; bottom: number; }) => ({ l: r.left + r.width * .08, r: r.right - r.width * .08, t: r.top + r.height * .18, b: r.bottom - r.height * .2 });
-    const crossX = (a: { l: any; r: any; t?: any; b?: any; }, b: { r: number; l: number; }) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > .5;
-    gs.MusicPages.forEach((pg: { MusicSystems: any[]; }) => pg.MusicSystems.forEach((sys: { StaffLines: any[]; }) => sys.StaffLines.forEach((sl: { Measures: any[]; }) => {
-        const placed: { l: any; r: any; t: any; b: any; }[] = [];
-        sl.Measures.forEach((gm: { staffEntries: any; }) => (gm.staffEntries || []).forEach((gse: { FingeringEntries: any; graphicalVoiceEntries: any; }) => {
-            const labels = (gse.FingeringEntries || []).map((f: { SVGNode: any; }) => f.SVGNode).filter((n: { ownerSVGElement: any; }) => n && n.ownerSVGElement);
+    const ink = (r: DOMRect): ScoreInkBox => ({ l: r.left + r.width * .08, r: r.right - r.width * .08, t: r.top + r.height * .18, b: r.bottom - r.height * .2 });
+    const crossX = (a: ScoreInkBox, b: ScoreInkBox) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > .5;
+    gs.MusicPages.forEach((pg) => pg.MusicSystems.forEach((sys) => sys.StaffLines.forEach((sl) => {
+        const placed: ScoreInkBox[] = [];
+        sl.Measures.forEach((gm) => (gm.staffEntries || []).forEach((gse) => {
+            const labels = (gse.FingeringEntries || []).map((f) => f.SVGNode).filter((n): n is SVGElement => !!n && !!n.ownerSVGElement);
             if (!labels.length)
                 return;
-            const obstacles: { l: any; r: any; t: any; b: any; }[] = [];
+            const obstacles: ScoreInkBox[] = [];
             let mid = 0, nh = 0;
-            (gse.graphicalVoiceEntries || []).forEach((gve: { vfStaveNote: any; mVexFlowStaveNote: any; notes: any; }) => {
-                const vf = gve.vfStaveNote || gve.mVexFlowStaveNote, g = (vf && vf.getAttribute && vf.getAttribute('el')) || (gve.notes || []).map((n: { getSVGGElement: () => any; }) => n.getSVGGElement && n.getSVGGElement()).find(Boolean);
+            (gse.graphicalVoiceEntries || []).forEach((gve) => {
+                const vf = gve.vfStaveNote || gve.mVexFlowStaveNote, g = (vf && vf.getAttribute && vf.getAttribute('el')) || (gve.notes || []).map((n) => n.getSVGGElement && n.getSVGGElement()).find(Boolean);
                 if (!g || !g.querySelectorAll)
                     return;
-                g.querySelectorAll('.vf-notehead').forEach((h: { getBoundingClientRect: () => any; }) => { const r = h.getBoundingClientRect(); if (!r.width)
+                g.querySelectorAll('.vf-notehead').forEach((h) => { const r = h.getBoundingClientRect(); if (!r.width)
                     return; obstacles.push({ l: r.left, r: r.right, t: r.top, b: r.bottom }); mid += r.top + r.height / 2; nh++; });
-                g.querySelectorAll('.vf-stem').forEach((s: { getBoundingClientRect: () => any; }) => { const r = s.getBoundingClientRect(); if (r.height)
+                g.querySelectorAll('.vf-stem').forEach((s) => { const r = s.getBoundingClientRect(); if (r.height)
                     obstacles.push({ l: r.left - 1, r: r.right + 1, t: r.top, b: r.bottom }); });
             });
             if (!nh)
                 return;
             mid /= nh;
-            const svg = labels[0].ownerSVGElement, ctm = svg.getScreenCTM();
+            const svg = labels[0].ownerSVGElement, ctm = svg && svg.getScreenCTM();
             if (!ctm || !ctm.d)
                 return;
             const gap = Math.max(1, ctm.d * 2.5), cap = ctm.d * 40; // about 0.25 and 4 staff spaces in screen pixels
-            const items = labels.map((n: { getBoundingClientRect: () => any; }) => { const r = n.getBoundingClientRect(); return { n, box: ink(r), up: r.top + r.height / 2 < mid }; });
+            const items = labels.map((n) => { const r = n.getBoundingClientRect(); return { n, box: ink(r), up: r.top + r.height / 2 < mid }; });
             for (const up of [true, false]) {
-                items.filter((it: { up: boolean; }) => it.up === up).sort((a: { box: { b: number; t: number; }; }, b: { box: { b: number; t: number; }; }) => up ? b.box.b - a.box.b : a.box.t - b.box.t).forEach((it: { box: { l: any; r: any; t: number; b: number; }; n: any; }) => {
+                items.filter((it) => it.up === up).sort((a, b) => up ? b.box.b - a.box.b : a.box.t - b.box.t).forEach((it) => {
                     let dy = 0;
                     for (let k = 0; k < 16; k++) {
                         const bx = { l: it.box.l, r: it.box.r, t: it.box.t + dy, b: it.box.b + dy };
@@ -9625,17 +9670,17 @@ function scoreFixFingerings(box: RuntimeElement, engine: never) {
     })));
     // OSMD sometimes prints the same words twice in one spot ("dolce" over "dolce"): keep one. A chord symbol raised over the
     // upper staff must not sit on the words there ("dolce", "rit."): the words move above it.
-    const chords = new Set(), fings = new Set();
-    gs.MeasureList.forEach((list: any) => (list || []).forEach((gm: { staffEntries: any; }) => gm && (gm.staffEntries || []).forEach((gse: { graphicalChordContainers: any; FingeringEntries: any; }) => { (gse.graphicalChordContainers || []).forEach((c: { GraphicalLabel: { SVGNode: any; }; }) => { const n = c.GraphicalLabel && c.GraphicalLabel.SVGNode; if (n)
-        chords.add(n); }); (gse.FingeringEntries || []).forEach((f: { SVGNode: unknown; }) => { if (f.SVGNode)
+    const chords = new Set<Element>(), fings = new Set<Element>();
+    gs.MeasureList.forEach((list) => (list || []).forEach((gm) => gm && (gm.staffEntries || []).forEach((gse) => { (gse.graphicalChordContainers || []).forEach((c) => { const n = c.GraphicalLabel && c.GraphicalLabel.SVGNode; if (n)
+        chords.add(n); }); (gse.FingeringEntries || []).forEach((f) => { if (f.SVGNode)
         fings.add(f.SVGNode); }); })));
-    box.querySelectorAll('svg').forEach((svg: { getScreenCTM: () => any; querySelectorAll: (arg0: string) => any[]; }) => {
+    box.querySelectorAll('svg').forEach((svg) => {
         const ctm = svg.getScreenCTM();
         if (!ctm || !ctm.d)
             return;
-        const kept: { s: any; r: any; }[] = [], chordBoxes: { l: any; r: number; t: any; b: number; }[] = [], words: { x: any; b: { l: any; r: number; t: any; b: number; }; }[] = [];
-        svg.querySelectorAll('text').forEach((x: unknown) => {
-            const r = x.getBoundingClientRect(), s = x.textContent.trim();
+        const kept: { s: string; r: DOMRect; }[] = [], chordBoxes: ScoreInkBox[] = [], words: { x: SVGTextElement; b: ScoreInkBox; }[] = [];
+        svg.querySelectorAll('text').forEach((x) => {
+            const r = x.getBoundingClientRect(), s = (x.textContent ?? '').trim();
             if (!s || !r.width)
                 return;
             if (kept.some((k) => k.s === s && Math.abs(k.r.left - r.left) < 3 && Math.abs(k.r.top - r.top) < 3)) {
@@ -9648,7 +9693,7 @@ function scoreFixFingerings(box: RuntimeElement, engine: never) {
             else if (![...fings].some((f) => f === x || f.contains(x)) && !x.closest('.measure-number'))
                 words.push({ x, b: ink(r) });
         });
-        words.forEach(({ x, b } = {}) => {
+        words.forEach(({ x, b }) => {
             const hit = chordBoxes.find((c) => crossX(b, c) && b.b + ctm.d * 5 > c.t && b.t < c.b);
             if (!hit || b.t > hit.t)
                 return;
@@ -9657,73 +9702,83 @@ function scoreFixFingerings(box: RuntimeElement, engine: never) {
     });
 }
 // Adds to any vertical shift already applied, so the pass can run again on a page it has already tidied.
-function scoreShiftY(n: { getAttribute: (arg0: string) => any; setAttribute: (arg0: string,arg1: string) => void; }, dy: number) { const m = /^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform') || ''); n.setAttribute('transform', `translate(0 ${((m ? +m[1] : 0) + dy).toFixed(2)})`); }
+function scoreShiftY(n: Element, dy: number) { const m = /^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform') || ''); n.setAttribute('transform', `translate(0 ${((m ? +m[1] : 0) + dy).toFixed(2)})`); }
 // Every marking on the page that the hover can explain: its box (relative to its page, which only moves as a whole), kind and value.
 const SC_DYN = /^(ppp|pp|p|mp|mf|f|ff|fff|sfz|fz|rfz|fp|sf|sfp)$/;
 const SC_TERMS = [['dolcissimo'], ['dolce'], ['espressivo', 'espress\\.?', 'espr\\.'], ['cantabile'], ['legato'], ['leggiero', 'leggero'], ['sostenuto', 'sost\\.'],
     ['ritardando', 'ritard\\.', 'rit\\.?'], ['rallentando', 'rall\\.'], ['accelerando', 'accel\\.'], ['atempo', 'a tempo'], ['rubato'], ['crescendo', 'cresc\\.'], ['diminuendo', 'decrescendo', 'dim\\.', 'decresc\\.'],
     ['poco'], ['piu', 'più'], ['molto'], ['sempre'], ['sim', 'simile', 'sim\\.'], ['grave'], ['largo'], ['larghetto'], ['lento'], ['adagio'], ['andantino'], ['andante'], ['moderato'], ['allegretto'], ['allegro'], ['vivace'], ['presto']]
-    .map(([k, ...alts] = []) => ({ k, re: new RegExp('(^|[^\\p{L}])(' + (alts.length ? alts : [k]).join('|') + ')(?=$|[^\\p{L}])', 'iu') }));
+    .map(([k, ...alts]) => ({ k, re: new RegExp('(^|[^\\p{L}])(' + (alts.length ? alts : [k]).join('|') + ')(?=$|[^\\p{L}])', 'iu') }));
 const SC_ARTS = { 'a.': 'staccato', 'av': 'staccatissimo', 'a>': 'accent', 'a^': 'marcato', 'a-': 'tenuto', 'a@a': 'fermata', 'a@u': 'fermata', 'a@s': 'fermata', 'a@l': 'fermata', 'a@as': 'fermata', 'a@us': 'fermata',
     tr: 'trill', mordent: 'mordent', mordent_inverted: 'mordent', turn: 'turn', turn_inverted: 'turn', prallprall: 'trill', upprall: 'trill' };
-function scoreSyms(engine: never) {
-    const box = byId('an-roll'), list: { kind: any; val: any; el: any; loose: boolean; page: any; x0: number; y0: number; x1: number; y1: number; }[] = [], gs = engine && engine.readLayout().graphicSheet;
+// A rest's value: its written length and dots.
+interface ScoreRestSym { type: string; dots: number }
+// A box given directly, where no element carries the marking (an arpeggio's wavy line).
+type ScoreSymRect = Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom' | 'width' | 'height'>;
+// A marking the hover can explain: its element, kind and value, boxed relative to its page.
+interface ScoreSym { kind: string | undefined; val: string | ScoreRestSym; el: Element | null; loose: boolean; page: Element; x0: number; y0: number; x1: number; y1: number }
+// A lookup-table key check, so a value read from the engraving can index one of the tables here.
+function scoreHasKey<T extends object>(table: T, key: PropertyKey): key is keyof T { return Object.prototype.hasOwnProperty.call(table, key); }
+function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
+    const sheet = engine && engine.readLayout().graphicSheet;
+    const box = byId('an-roll'), list: ScoreSym[] = [], gs = isScoreOsmdSheet(sheet) ? sheet : null;
     SCORE.syms = list;
     scoreTip(null);
     if (!gs)
         return;
-    const pageRects = new Map(), pageOf = (el: { closest: (arg0: string) => any; }) => el && el.closest && el.closest('[id^="osmdCanvasPage"]');
-    const add = (el: Element|SVGPathElement|null, kind: string|undefined, val: string|undefined, rect: DOMRect|null|undefined, loose = true, ref: undefined) => {
-        const r = rect || el.getBoundingClientRect(), page = pageOf(el || ref);
-        if ((!r.width && !r.height) || !page)
+    const pageRects = new Map<Element, DOMRect>(), pageOf = (el: Element | null | undefined) => el && el.closest && el.closest('[id^="osmdCanvasPage"]');
+    const add = (el: Element | null, kind: string | undefined, val: string | ScoreRestSym = '', rect?: ScoreSymRect | null, loose = true, ref?: Element) => {
+        const r = rect || (el && el.getBoundingClientRect()), page = pageOf(el || ref);
+        if (!r || (!r.width && !r.height) || !page)
             return;
         if (!pageRects.has(page))
             pageRects.set(page, page.getBoundingClientRect());
-        const pr = pageRects.get(page);
+        const pr = pageRects.get(page) || page.getBoundingClientRect();
         const i = list.length;
         list.push({ kind, val, el, loose, page, x0: r.left - pr.left, y0: r.top - pr.top, x1: r.right - pr.left, y1: r.bottom - pr.top });
-        if (el) {
-            el.dataset.sym = i;
+        if (el instanceof HTMLElement || el instanceof SVGElement) {
+            el.dataset.sym = String(i);
             el.style.cursor = 'help';
             el.tabIndex = 0;
             el.setAttribute('aria-label', scoreSymText({ kind, val }).line);
         }
     };
-    const seen = new Set(); // the title block is not a marking
-    ['title', 'subtitle', 'composer', 'lyricist', 'copyright'].forEach((k) => { const n = gs[k] && gs[k].SVGNode; if (n) {
+    const seen = new Set<Element>(); // the title block is not a marking
+    (['title', 'subtitle', 'composer', 'lyricist', 'copyright'] as const).forEach((k) => { const n = gs[k] && gs[k].SVGNode; if (n) {
         seen.add(n);
         if (n.querySelectorAll)
-            n.querySelectorAll('text').forEach((x: unknown) => seen.add(x));
+            n.querySelectorAll('text').forEach((x) => seen.add(x));
     } });
-    gs.MusicPages.forEach((pg: { MusicSystems: any[]; }) => pg.MusicSystems.forEach((sys: { StaffLines: any[]; }) => sys.StaffLines.forEach((sl: { AbstractExpressions: any; Measures: any[]; }) => {
-        (sl.AbstractExpressions || []).forEach((e: { lines: any; expression: { dynamicType: number|null; }; }) => (e.lines || []).forEach((l: { SVGElement: any; }) => { const g = l.SVGElement; if (!g || !e.expression || e.expression.dynamicType == null)
+    gs.MusicPages.forEach((pg) => pg.MusicSystems.forEach((sys) => sys.StaffLines.forEach((sl) => {
+        (sl.AbstractExpressions || []).forEach((e) => (e.lines || []).forEach((l) => { const g = l.SVGElement; if (!g || !e.expression || e.expression.dynamicType == null)
             return; seen.add(g); add(g, e.expression.dynamicType === 0 ? 'cresc' : 'dim'); }));
-        sl.Measures.forEach((gm: { staffEntries: any; }) => (gm.staffEntries || []).forEach((gse: { FingeringEntries: any; graphicalChordContainers: any; graphicalVoiceEntries: any; }) => {
-            (gse.FingeringEntries || []).forEach((f: { SVGNode: any; Label: { text: any; }; }) => { const n = f.SVGNode; if (!n)
-                return; n.querySelectorAll('text').forEach((x: unknown) => seen.add(x)); add(n, 'finger', (f.Label && f.Label.text || n.textContent || '').trim()); });
-            (gse.graphicalChordContainers || []).forEach((c: { GraphicalLabel: any; }) => { const lb = c.GraphicalLabel, n = lb && lb.SVGNode; if (!n)
-                return; n.querySelectorAll('text').forEach((x: unknown) => seen.add(x)); if (n.localName === 'text')
-                seen.add(n); add(n, 'chord', (lb.Label && lb.Label.text || n.textContent || '').trim()); });
-            (gse.graphicalVoiceEntries || []).forEach((gve: { vfStaveNote: any; mVexFlowStaveNote: any; notes: any; }) => {
+        sl.Measures.forEach((gm) => (gm.staffEntries || []).forEach((gse) => {
+            (gse.FingeringEntries || []).forEach((f) => { const n = f.SVGNode; if (!n)
+                return; n.querySelectorAll('text').forEach((x) => seen.add(x)); add(n, 'finger', (f.Label && f.Label.text || n.textContent || '').trim()); });
+            (gse.graphicalChordContainers || []).forEach((c) => { const lb = c.GraphicalLabel, n = lb && lb.SVGNode; if (!n)
+                return; n.querySelectorAll('text').forEach((x) => seen.add(x)); if (n.localName === 'text')
+                seen.add(n); add(n, 'chord', (lb && lb.Label && lb.Label.text || n.textContent || '').trim()); });
+            (gse.graphicalVoiceEntries || []).forEach((gve) => {
                 const vf = gve.vfStaveNote || gve.mVexFlowStaveNote, el = vf && vf.getAttribute && vf.getAttribute('el');
                 // Rests are notation, not playable notes: bind their glyphs here, never in AN.notes or scoreBind.
-                (gve.notes || []).forEach((n: { sourceNote: any; getNoteheadSVGs: () => any; getSVGGElement: () => any; }) => {
+                (gve.notes || []).forEach((n) => {
                     const src = n.sourceNote;
                     if (!src || !src.isRest() || src.PrintObject === false)
                         return;
                     const heads = n.getNoteheadSVGs ? n.getNoteheadSVGs() : [], g = heads[0] || (n.getSVGGElement && n.getSVGGElement());
                     if (!g)
                         return;
-                    const type = src.TypeLength && src.TypeLength.RealValue === 0 ? 'measure' : (({ w: 'whole', h: 'half', q: 'quarter', 8: 'eighth', 16: '16th', 32: '32nd', 64: '64th', 128: '128th', 256: '256th', b: 'breve' } )[vf && vf.duration] || 'other');
+                    const restNames = { w: 'whole', h: 'half', q: 'quarter', 8: 'eighth', 16: '16th', 32: '32nd', 64: '64th', 128: '128th', 256: '256th', b: 'breve' }, dur = vf && vf.duration;
+                    const type = src.TypeLength && src.TypeLength.RealValue === 0 ? 'measure' : ((dur != null && scoreHasKey(restNames, dur) ? restNames[dur] : undefined) || 'other');
                     add(g, 'rest', { type, dots: src.DotsXml || 0 });
                 });
                 const mg = el && el.querySelector && el.querySelector('.vf-modifiers');
-                if (!mg || !vf.modifiers)
+                if (!mg || !vf || !vf.modifiers)
                     return;
-                const paths = [...mg.children], mods = vf.modifiers, shown = paths.length === mods.length ? mods : mods.filter((m: { getCategory: () => string; }) => /articulation|ornament/i.test(m.getCategory ? m.getCategory() : ''));
+                const paths = [...mg.children], mods = vf.modifiers, shown = paths.length === mods.length ? mods : mods.filter((m) => /articulation|ornament/i.test(m.getCategory ? m.getCategory() : ''));
                 if (paths.length !== shown.length)
                     return;
-                shown.forEach((m: { type: string|number; }, k: string|number) => { const kind = SC_ARTS[m.type]; if (kind)
+                shown.forEach((m, k) => { const kind = scoreHasKey(SC_ARTS, m.type) ? SC_ARTS[m.type] : undefined; if (kind)
                     add(paths[k], kind, ''); });
             });
         }));
@@ -9746,10 +9801,10 @@ function scoreSyms(engine: never) {
     });
     box.querySelectorAll('svg .vf-curve').forEach((g) => add(g, 'slur', '', null, false));
     box.querySelectorAll('svg .vf-stavetie').forEach((g) => add(g, 'tie', '', null, false));
-    box.querySelectorAll('svg .sc-xline').forEach((p) => add(p, p.dataset.kind, '', null, false));
+    box.querySelectorAll('svg .sc-xline').forEach((p) => add(p, p instanceof SVGElement ? p.dataset.kind : undefined, '', null, false));
     box.querySelectorAll('svg .vf-clef').forEach((g) => { const r = g.getBoundingClientRect(), q = r.height / Math.max(1, r.width); add(g, q > 1.9 ? 'clef_g' : q < 1.25 ? 'clef_f' : 'clef_c', '', r); });
     const beatAt = (r: DOMRect) => {
-        const g = SCORE.geo;
+        const g: ScoreGeometry | null = SCORE.geo;
         if (!g)
             return null;
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -9771,32 +9826,32 @@ function scoreSyms(engine: never) {
         return; const m = anMeasures().find((x) => x.start <= b + .001 && x.end > b + .001); if (m)
         add(g, 'time', m.num + '/' + m.den, r); });
     // An arpeggio's wavy line stands just left of its chord.
-    const rolls = new Map();
+    const rolls = new Map<string, number[]>();
     AN.notes.forEach((n, i) => { if (!n.arpeggiate)
         return; const k = n.staff + ':' + n.start; if (!rolls.has(k))
-        rolls.set(k, []); rolls.get(k).push(i); });
+        rolls.set(k, []); (rolls.get(k) || []).push(i); });
     rolls.forEach((ix) => {
-        const rs = ix.flatMap((i: any) => (SCORE.heads.get(i) || []).map((g: { getBoundingClientRect: () => any; }) => g.getBoundingClientRect())).filter((r: { width: any; }) => r.width);
+        const rs = ix.flatMap((i) => { const hs: Element[] = SCORE.heads.get(i) || []; return hs.map((g) => g.getBoundingClientRect()); }).filter((r) => r.width);
         if (!rs.length)
             return;
-        const l = Math.min(...rs.map((r: { left: any; }) => r.left)), t = Math.min(...rs.map((r: { top: any; }) => r.top)), b = Math.max(...rs.map((r: { bottom: any; }) => r.bottom)), w = rs[0].width;
-        add(null, 'arpeggio', '', { left: l - w * 1.4, right: l - w * .15, top: t - w * .3, bottom: b + w * .3, width: w, height: b - t }, true, (SCORE.heads.get(ix[0]) || [])[0]);
+        const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top)), b = Math.max(...rs.map((r) => r.bottom)), w = rs[0].width, h0: Element[] = SCORE.heads.get(ix[0]) || [];
+        add(null, 'arpeggio', '', { left: l - w * 1.4, right: l - w * .15, top: t - w * .3, bottom: b + w * .3, width: w, height: b - t }, true, h0[0]);
     });
 }
 function scoreTermParts(s: string) {
-    const out = [];
-    SC_TERMS.forEach(({ k, re } = {}) => { const m = re.exec(s); if (m)
+    const out: { at: number; k: string; n?: string }[] = [];
+    SC_TERMS.forEach(({ k, re }) => { const m = re.exec(s); if (m)
         out.push({ at: m.index + m[1].length, k }); });
     const metro = /[\u2669\u266A\u266B\u266C\uD834]\S*\s*\.?\s*=\s*(\d+)/.exec(s);
     if (metro)
         out.push({ at: metro.index, k: 'metro', n: metro[1] });
-    return out.sort((a, b) => a.at - b.at).filter((p, i, a) => !(p.k === 'dolce' && a.some((q) => q.k === 'dolcissimo'))).map((p) => p.k === 'metro' ? t('sym_metro', p.n) : t('sym_t_' + p.k));
+    return out.sort((a, b) => a.at - b.at).filter((p, i, a) => !(p.k === 'dolce' && a.some((q) => q.k === 'dolcissimo'))).map((p) => p.k === 'metro' ? t('sym_metro', p.n ?? '') : t('sym_t_' + p.k));
 }
 // "Name — meaning": the tooltip heads with the symbol as printed (or its name) and #an-hover reads it as one line.
-function scoreSymText(sym: { kind: any; val: any; }) {
-    const split = (s: string|string[]) => { const i = s.indexOf(' — '); return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 3)]; };
+function scoreSymText(sym: { kind: string | undefined; val: string | ScoreRestSym; }) {
+    const split = (s: string) => { const i = s.indexOf(' — '); return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 3)]; };
     const k = sym.kind, v = sym.val;
-    if (k === 'rest') {
+    if (typeof v !== 'string') { // only a rest's value is not text
         const name = t('sym_rest_' + v.type), raw = v.dots === 1 ? t('sym_rest_dotted', name) : v.dots > 1 ? t('sym_rest_dots', name, v.dots) : name, head = raw[0].toLocaleUpperCase(lang) + raw.slice(1);
         const body = t(v.type === 'measure' ? 'sym_rest_measure_body' : 'sym_rest_body');
         return { head, body, line: head + ' — ' + body };
@@ -9805,11 +9860,11 @@ function scoreSymText(sym: { kind: any; val: any; }) {
         const parts = scoreTermParts(v);
         return { head: v, body: parts.join(' · '), line: v + ' · ' + parts.join(' · ') };
     }
-    let full;
+    let full: string;
     if (k === 'dyn')
         full = t('sym_dyn_' + (v === 'sf' ? 'sfz' : v === 'sfp' ? 'fp' : v));
     else if (k === 'finger') {
-        const ds = (v.match(/[1-5]/g) || []);
+        const ds: string[] = (v.match(/[1-5]/g) || []);
         full = ds.length > 1 ? t('sym_finger_sub', ds.join(', '), ds.map((d: string) => d + ' = ' + t('sym_f' + d)).join(', ')) : ds.length ? t('sym_finger', ds[0], t('sym_f' + ds[0])) : t('sym_finger', '?', '?');
     }
     else if (k === 'rehearsal')
@@ -9824,23 +9879,24 @@ function scoreSymText(sym: { kind: any; val: any; }) {
         full = t('sym_chord');
     else
         full = t('sym_' + k);
-    const [name, body] = split(full), lit = ['dyn', 'finger', 'rehearsal', 'time', 'chord'].includes(k) ? v : '';
+    const [name, body] = split(full), lit = k !== undefined && ['dyn', 'finger', 'rehearsal', 'time', 'chord'].includes(k) ? v : '';
     return { head: lit ? lit + ' · ' + name : name, body, line: (lit ? lit + ' · ' : '') + full };
 }
-function scoreSymAt(e: { target: { closest: (arg0: string) => any; }; clientX: number|null; clientY: number; }) {
-    const box = byId('an-roll'), list = SCORE.syms || [], el = e.target && e.target.closest && e.target.closest('#an-roll [data-sym]');
-    if (el && list[+el.dataset.sym] && list[+el.dataset.sym].el === el)
-        return list[+el.dataset.sym];
-    if (e.clientX == null || !list.length)
+function scoreSymAt(e: Event) {
+    const hit = eventElement(e)?.closest('#an-roll [data-sym]'), pt = e instanceof MouseEvent ? e : null;
+    const box = byId('an-roll'), list: ScoreSym[] = SCORE.syms || [], el = hit instanceof HTMLElement || hit instanceof SVGElement ? hit : null;
+    if (el && list[+(el.dataset.sym ?? '')] && list[+(el.dataset.sym ?? '')].el === el)
+        return list[+(el.dataset.sym ?? '')];
+    if (!pt || !list.length)
         return null;
-    const rects = new Map(), pad = 3;
-    let best = null, area = Infinity;
-    list.forEach((s: { loose: any; page: { getBoundingClientRect: () => any; }; x0: number; x1: number; y0: number; y1: number; }) => {
+    const rects = new Map<Element, DOMRect>(), pad = 3;
+    let best: ScoreSym | null = null, area = Infinity;
+    list.forEach((s) => {
         if (!s.loose)
             return;
         if (!rects.has(s.page))
             rects.set(s.page, s.page.getBoundingClientRect());
-        const pr = rects.get(s.page), x = e.clientX - pr.left, y = e.clientY - pr.top;
+        const pr = rects.get(s.page) || s.page.getBoundingClientRect(), x = pt.clientX - pr.left, y = pt.clientY - pr.top;
         if (x < s.x0 - pad || x > s.x1 + pad || y < s.y0 - pad || y > s.y1 + pad)
             return;
         const a = (s.x1 - s.x0) * (s.y1 - s.y0);
@@ -9852,10 +9908,10 @@ function scoreSymAt(e: { target: { closest: (arg0: string) => any; }; clientX: n
     return best;
 }
 // A small tooltip under the marking, inside the score panel; it never takes the pointer.
-function scoreTip(sym: { kind: string|undefined; page: { getBoundingClientRect: () => any; }; y1: number; y0: number; x0: any; x1: any; }|null, txt: { head: any; body: any; line?: string; }|undefined) {
+function scoreTip(sym: ScoreSym | null, txt?: { head: string; body: string; line?: string; }) {
     const box = byId('an-roll');
-    let tip = box && box.querySelector(':scope > .sc-tip');
-    if (!sym) {
+    let tip: HTMLElement | null = box && queryHtml(box, ':scope > .sc-tip');
+    if (!sym || !txt) {
         if (tip)
             tip.hidden = true;
         return;
@@ -9878,12 +9934,28 @@ function scoreTip(sym: { kind: string|undefined; page: { getBoundingClientRect: 
     tip.style.left = Math.round(Math.max(minX, Math.min(maxX, ox + (sym.x0 + sym.x1) / 2 - w / 2))) + 'px';
     tip.style.top = Math.round(top) + 'px';
 }
+// Score geometry in OSMD units, relative to each page: a system's vertical extent, a measure's span and beats,
+// and the onset anchors the playback cursor moves between.
+interface ScoreGeoSystem { page: number; top: number; bottom: number }
+interface ScoreGeoMeasure { sys: number; x0: number; xn: number; x1: number; xs: number; cx: number; b0: number; b1: number }
+interface ScoreGeoAnchor { beat: number; x: number; sys: number; end?: boolean }
+interface ScoreGeometry { scale: number; pages: (HTMLElement | null)[]; systems: ScoreGeoSystem[]; measures: (ScoreGeoMeasure | undefined)[]; anchors: ScoreGeoAnchor[] }
+// OSMD's iterator lists the voice entries drawn at its position; the bundled type leaves that method out.
+function scoreVisibleEntries(it: object): readonly unknown[] {
+    if (!('CurrentVisibleVoiceEntries' in it) || typeof it.CurrentVisibleVoiceEntries !== 'function')
+        return [];
+    const list: unknown = it.CurrentVisibleVoiceEntries();
+    return Array.isArray(list) ? list : [];
+}
 // Geometry in OSMD units (one staff space) relative to each page: systems, measures and the onset anchors the cursor moves between.
-function scoreGeo(engine: never) {
-    const gs = engine.readLayout().graphicSheet, geo = { scale: 10 * engine.getZoom(), pages: [], systems: [], measures: [], anchors: [] }, sysIdx = new Map();
-    gs.MusicPages.forEach((pg: { PageNumber: string; MusicSystems: any[]; }, pi: string|number) => {
+function scoreGeo(engine: import('./notation.js').ScoreRenderer) {
+    const sheet = engine.readLayout().graphicSheet;
+    if (!isScoreOsmdSheet(sheet))
+        return;
+    const gs = sheet, geo: ScoreGeometry = { scale: 10 * engine.getZoom(), pages: [], systems: [], measures: [], anchors: [] }, sysIdx = new Map<unknown, number>();
+    gs.MusicPages.forEach((pg, pi) => {
         geo.pages[pi] = (document).getElementById('osmdCanvasPage' + pg.PageNumber);
-        pg.MusicSystems.forEach((sys: { StaffLines: any; PositionAndShape: { AbsolutePosition: { y: any; }; }; }) => {
+        pg.MusicSystems.forEach((sys) => {
             const lines = sys.StaffLines;
             if (!lines || !lines.length)
                 return;
@@ -9892,12 +9964,12 @@ function scoreGeo(engine: never) {
             geo.systems.push({ page: pi, top: y + lines[0].PositionAndShape.RelativePosition.y, bottom: y + last.PositionAndShape.RelativePosition.y + last.StaffHeight });
         });
     });
-    gs.MeasureList.forEach((list: any, mi: string|number) => {
-        const gm = (list || []).find((m: { ParentMusicSystem: any; }) => m && sysIdx.has(m.ParentMusicSystem));
-        if (!gm)
+    gs.MeasureList.forEach((list, mi) => {
+        const gm = (list || []).find((m) => m && sysIdx.has(m.ParentMusicSystem)), si = gm && sysIdx.get(gm.ParentMusicSystem);
+        if (!gm || si === undefined)
             return;
         const sm = gm.parentSourceMeasure, ps = gm.PositionAndShape, x0 = ps.AbsolutePosition.x, b0 = sm.AbsoluteTimestamp.RealValue * 4;
-        geo.measures[mi] = { sys: sysIdx.get(gm.ParentMusicSystem), x0, xn: x0 + (gm.beginInstructionsWidth || 0), x1: x0 + ps.Size.width, b0, b1: b0 + sm.Duration.RealValue * 4 };
+        geo.measures[mi] = { sys: si, x0, xn: x0 + (gm.beginInstructionsWidth || 0), x1: x0 + ps.Size.width, xs: x0, cx: x0, b0, b1: b0 + sm.Duration.RealValue * 4 };
     });
     // Where a bar's music begins (xs): right after the clef, key and time signature drawn at its start (system starts, changes),
     // else at its barline. Measured on the drawn glyphs; OSMD's begin-instruction width reaches past the first notes.
@@ -9906,7 +9978,7 @@ function scoreGeo(engine: never) {
         if (!el)
             return;
         const pr = el.getBoundingClientRect();
-        el.querySelectorAll('.vf-clef,.vf-keysignature,.vf-timesignature').forEach((gl: { getBoundingClientRect: () => any; }) => { const r = gl.getBoundingClientRect(); if (r.width > 0)
+        el.querySelectorAll('.vf-clef,.vf-keysignature,.vf-timesignature').forEach((gl) => { const r = gl.getBoundingClientRect(); if (r.width > 0)
             glyphs.push({ page: pi, l: (r.left - pr.left) / geo.scale, r: (r.right - pr.left) / geo.scale, y: (r.top + r.height / 2 - pr.top) / geo.scale }); });
     });
     geo.measures.forEach((m) => {
@@ -9924,23 +9996,24 @@ function scoreGeo(engine: never) {
         const it = cur.Iterator;
         let guard = 0;
         while (!it.EndReached && guard++ < 40000) {
-            let x = Infinity, sys = null;
-            for (const ve of it.CurrentVisibleVoiceEntries()) {
-                const gse = cur.getStaffEntryFromVoiceEntry(ve), ax = gse && gse.PositionAndShape.AbsolutePosition.x;
-                if (gse && ax < x) {
+            let x = Infinity, sys: unknown = null;
+            for (const ve of scoreVisibleEntries(it)) {
+                const gse = cur.getStaffEntryFromVoiceEntry ? cur.getStaffEntryFromVoiceEntry(ve) : null, ax = gse && gse.PositionAndShape?.AbsolutePosition?.x;
+                if (gse && ax != null && ax < x) {
                     x = ax;
-                    sys = gse.parentMeasure.ParentMusicSystem;
+                    sys = gse.parentMeasure?.ParentMusicSystem;
                 }
             }
-            if (sysIdx.has(sys))
-                geo.anchors.push({ beat: it.CurrentSourceTimestamp.RealValue * 4, x, sys: sysIdx.get(sys) });
+            const si = sysIdx.get(sys);
+            if (si !== undefined)
+                geo.anchors.push({ beat: it.CurrentSourceTimestamp.RealValue * 4, x, sys: si });
             it.moveToNext();
         }
         cur.reset();
     }
     // A measure's rail starts at its first onset when present, otherwise just after its instructions.
     // This preserves the downbeat connection while the cursor advances at one steady visual pace within the bar.
-    const onsetX = new Map();
+    const onsetX = new Map<string, number>();
     geo.anchors.forEach((a) => { const key = a.sys + ':' + Math.round(a.beat * 960), old = onsetX.get(key); if (old == null || a.x < old)
         onsetX.set(key, a.x); });
     geo.measures.forEach((m) => { if (m)
@@ -9957,17 +10030,20 @@ function scoreGeo(engine: never) {
 }
 // Playback position: a thin blue line over the whole system. Its speed follows the tempo map.
 // Fixed-width bars use one steady rail per bar; natural-width bars move between the drawn note onsets.
-function scoreCursorEl() { if (!SCORE.cursorEl) {
+function scoreCursorEl(): HTMLElement { const cur: HTMLElement | null = SCORE.cursorEl; if (cur)
+    return cur;
     const el = (document).createElement('div');
     el.className = 'sc-cursor';
     el.setAttribute('aria-hidden', 'true');
     SCORE.cursorEl = el;
-} return SCORE.cursorEl; }
-function scoreCursorAt(beat: number) {
-    const g = SCORE.geo, M = g && g.measures;
-    if (!M || !M.length)
+    return el; }
+// Where the playback cursor stands: x in OSMD units on system `sys`.
+interface ScoreCursorPos { x: number; sys: number }
+function scoreCursorAt(beat: number): ScoreCursorPos | null {
+    const g: ScoreGeometry | null = SCORE.geo, M = g && g.measures;
+    if (!g || !M || !M.length)
         return null;
-    let i = M.findIndex((m: { b1: number; }) => m && beat < m.b1 - 1e-9);
+    let i = M.findIndex((m: ScoreGeoMeasure | undefined) => m && beat < m.b1 - 1e-9);
     if (i < 0)
         i = M.length - 1;
     const m = M[i];
@@ -9984,7 +10060,7 @@ function scoreCursorAt(beat: number) {
     return { x: x0 + (x1 - x0) * f, sys: m.sys };
 }
 // Between the last onset at or before the beat and the next one on the same system, timed by the tempo map.
-function scoreAnchorAt(A: string|any[], beat: number, sys: any) {
+function scoreAnchorAt(A: ScoreGeoAnchor[], beat: number, sys: number): ScoreCursorPos | null {
     if (!A || !A.length)
         return null;
     let lo = 0, hi = A.length - 1, k = -1;
@@ -10002,7 +10078,7 @@ function scoreAnchorAt(A: string|any[], beat: number, sys: any) {
     if (k < 0)
         return null;
     const a = A[k];
-    let b = null;
+    let b: ScoreGeoAnchor | null = null;
     for (let j = k + 1; j < A.length; j++) {
         if (A[j].beat > a.beat + 1e-9) {
             if (A[j].sys === sys)
@@ -10016,8 +10092,8 @@ function scoreAnchorAt(A: string|any[], beat: number, sys: any) {
     return { x: a.x + (b.x - a.x) * f, sys };
 }
 function scoreCursorUpdate(follow: boolean) {
-    const el = scoreCursorEl(), g = SCORE.geo, p = g && AN.notes.length && FALL.mode === 'score' ? scoreCursorAt(scoreBeatAt(fallTime())) : null, s = p && g.systems[p.sys], page = s && g.pages[s.page];
-    if (!page) {
+    const el = scoreCursorEl(), g: ScoreGeometry | null = SCORE.geo, p = g && AN.notes.length && FALL.mode === 'score' ? scoreCursorAt(scoreBeatAt(fallTime())) : null, s = g && p ? g.systems[p.sys] : null, page = g && s ? g.pages[s.page] : null;
+    if (!g || !p || !s || !page) {
         el.remove();
         return;
     }
@@ -10033,7 +10109,7 @@ function scoreCursorUpdate(follow: boolean) {
         scoreCursorFollow(p, s, page, g);
 }
 // Keep the cursor in view: vertically by system in page view, horizontally in continuous view.
-function scoreCursorFollow(p: { x: any; sys: any; }, s: { top: number; bottom: number; }, page: { getBoundingClientRect: () => any; }, g: { scale: number; }|null) {
+function scoreCursorFollow(p: ScoreCursorPos, s: ScoreGeoSystem, page: HTMLElement, g: ScoreGeometry) {
     const box = byId('an-roll'), b = box.getBoundingClientRect(), r = page.getBoundingClientRect(), now = performance.now(), behavior = reduceMotion() ? 'auto' : 'smooth';
     if (!b.height)
         return;
@@ -10052,34 +10128,38 @@ function scoreCursorFollow(p: { x: any; sys: any; }, s: { top: number; bottom: n
     }
     SCORE.followSys = p.sys;
 }
+// Bars chosen on the score: the anchor bar, the span a..b (measure indices) and the selected notes it held.
+interface ScoreMeasureRange { anchor: number; a: number; b: number; sig: string }
+// A running loop: score-time span a..b in seconds, its bar count, whether it is the A–B range, the pass and when the next one starts.
+interface ScoreLoopState { a: number; b: number; bars: string | undefined; ab: boolean; pass: number; notes: PracticeTimedNote[]; next: number }
 // Coral bars: the selected bars, else the bars a running loop or the A–B range covers (score measure indices).
 function scoreCoralBars() {
-    const g = SCORE.geo;
+    const g: ScoreGeometry | null = SCORE.geo;
     if (!g)
         return null;
-    const R = SCORE.mrange;
+    const R: ScoreMeasureRange | null = SCORE.mrange;
     if (R)
         return { a: R.a, b: R.b };
-    const L = SCORE.loop, ab = PRAC.A != null && PRAC.B != null && PRAC.B > PRAC.A, lo = L ? L.a : ab ? PRAC.A : null, hi = L ? L.b : PRAC.B;
-    if (lo == null)
+    const L: ScoreLoopState | null = SCORE.loop, ab = PRAC.A != null && PRAC.B != null && PRAC.B > PRAC.A, lo = L ? L.a : ab ? PRAC.A : null, hi = L ? L.b : PRAC.B;
+    if (lo == null || hi == null)
         return null;
-    const b0 = scoreBeatAt(lo), b1 = scoreBeatAt(hi), idx: any[] = [];
-    g.measures.forEach((m: { b1: number; b0: number; }, i: any) => { if (m && m.b1 > b0 + 1e-6 && m.b0 < b1 - 1e-6)
+    const b0 = scoreBeatAt(lo), b1 = scoreBeatAt(hi), idx: number[] = [];
+    g.measures.forEach((m: ScoreGeoMeasure | undefined, i: number) => { if (m && m.b1 > b0 + 1e-6 && m.b0 < b1 - 1e-6)
         idx.push(i); });
     return idx.length ? { a: idx[0], b: idx[idx.length - 1] } : null;
 }
 // Like MuseScore's range selection: one coral band per system, over every staff (top line of the top staff to the bottom
 // line of the bottom one), from where the first bar's notes begin (after a system's clef, key and time) to the last barline.
 function scoreMarks() {
-    const g = SCORE.geo, C = g && FALL.mode === 'score' ? scoreCoralBars() : null, sig = C ? C.a + ':' + C.b : '';
+    const g: ScoreGeometry | null = SCORE.geo, C = g && FALL.mode === 'score' ? scoreCoralBars() : null, sig = C ? C.a + ':' + C.b : '';
     if (sig === SCORE.markSig && g === SCORE.markGeo && (!C || (document).querySelector('#an-roll .sc-mrect')))
         return;
     SCORE.markSig = sig;
     SCORE.markGeo = g;
     (document).querySelectorAll('#an-roll .sc-mrect').forEach((e) => e.remove());
-    if (!C)
+    if (!g || !C)
         return;
-    const by = new Map();
+    const by = new Map<number, { x0: number; x1: number }>();
     for (let mi = C.a; mi <= C.b; mi++) {
         const m = g.measures[mi];
         if (!m)
@@ -10102,7 +10182,7 @@ function scoreMarks() {
 }
 // Hit-test a click against the bars: inside a bar's box (system height) selects the bar, like clicking empty space in a MuseScore measure.
 function scoreMeasureAt(cx: number, cy: number) {
-    const g = SCORE.geo;
+    const g: ScoreGeometry | null = SCORE.geo;
     if (!g)
         return -1;
     for (let pi = 0; pi < g.pages.length; pi++) {
@@ -10124,18 +10204,19 @@ function scoreMeasureAt(cx: number, cy: number) {
     }
     return -1;
 }
-function scoreSelectMeasures(mi: number, extend: any) {
-    const g = SCORE.geo;
+function scoreSelectMeasures(mi: number, extend: boolean) {
+    const g: ScoreGeometry | null = SCORE.geo, R: ScoreMeasureRange | null = SCORE.mrange;
     if (!g || !g.measures[mi])
         return;
-    scoreSelectRange(extend && SCORE.mrange ? SCORE.mrange.anchor : mi, mi);
+    scoreSelectRange(extend && R ? R.anchor : mi, mi);
 }
 function scoreSelectRange(anchor: number, mi: number) {
-    const g = SCORE.geo;
-    if (!g || !g.measures[anchor] || !g.measures[mi])
+    const g: ScoreGeometry | null = SCORE.geo;
+    const ma = g && g.measures[Math.min(anchor, mi)], mb = g && g.measures[Math.max(anchor, mi)];
+    if (!g || !g.measures[anchor] || !g.measures[mi] || !ma)
         return;
-    const a = Math.min(anchor, mi), b = Math.max(anchor, mi), lo = g.measures[a].b0, hi = (g.measures[b] || g.measures[a]).b1;
-    const grid = SCORE.midiGrid || 0, q = (n: never) => grid ? Math.round(n.start * grid) / grid : n.start, idx: Iterable<any>|null|undefined = [];
+    const a = Math.min(anchor, mi), b = Math.max(anchor, mi), lo = ma.b0, hi = (mb || ma).b1;
+    const grid = SCORE.midiGrid || 0, q = (n: { start: number }) => grid ? Math.round(n.start * grid) / grid : n.start, idx: number[] = [];
     AN.notes.forEach((n, i) => { const s = q(n); if (s >= lo - 1e-6 && s < hi - 1e-6)
         idx.push(i); });
     AN.selected = new Set(idx);
@@ -10146,7 +10227,7 @@ function scoreUnlight() { if (!SCORE.lit.size)
     return; const old = SCORE.lit; SCORE.lit = new Set(); old.forEach(scorePaintIdx); }
 const reduceMotion = () =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-function anKeepVisible(g: { getBoundingClientRect: () => any; }, smooth: boolean) {
+function anKeepVisible(g: Element, smooth: boolean) {
     const box = byId('an-roll'), r = g.getBoundingClientRect(), b = box.getBoundingClientRect();
     let top = box.scrollTop, left = box.scrollLeft;
     if (r.top < b.top + 16 || r.bottom > b.bottom - 16)
@@ -10184,9 +10265,9 @@ function scoreHalt() {
 function scoreIdle() { scoreStateText(); anUpdateControls(); anKeysPaint(); fallDraw(); scoreCursorUpdate(true); anStatusPos(); }
 // Where Stop returns to: the start of the selected bars or notes, else the beginning.
 function anSelStart() {
-    const g = SCORE.geo, R = SCORE.mrange;
-    if (R && g && g.measures[R.a])
-        return scoreSeconds(g.measures[R.a].b0);
+    const g: ScoreGeometry | null = SCORE.geo, R: ScoreMeasureRange | null = SCORE.mrange, m = R && g && g.measures[R.a];
+    if (m)
+        return scoreSeconds(m.b0);
     return AN.selected.size ? Math.min(...[...AN.selected].map((i) => scoreSeconds(AN.notes[i].start))) : 0;
 }
 function scoreStop() { scoreHalt(); SCORE.resume = null; FALL.position = AN.notes.length ? anSelStart() : 0; scoreIdle(); }
@@ -10221,8 +10302,38 @@ function scoreHome() {
 /* practice engine: playback runs on audio-clock segments, score time t = t0 + (now − a0)·f.
    A loop queues its next pass as a new segment ahead of time; "Wait for me" freezes the clock at a barrier (the next note of
    the practised hand) until those keys are played. Notes are scheduled ~0.3 s ahead by a 25 ms tick. */
-const PRAC = { hands: 'both', wait: false, metro: false, countIn: false, acc: true, hear: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
+// Judgements counted in a practice run, and the share of notes hit in the current and the last loop pass.
+interface PracticeStats { perfect: number; good: number; miss: number; wrong: number; streak: number; best: number; passHit: number; passAll: number; lastPass: number | null }
+// The parts of an analysed note that practice playback reads.
+interface PracticeGrace { midi: number; vel?: number; tiedToPrincipal?: boolean }
+interface PracticeNoteFacts { midi: number; vel: number; start: number; end: number; soundEnd?: number; graces?: PracticeGrace[]; roll?: number; warm?: boolean; pedalEnd?: boolean }
+// A note on the playback clock: its index i in AN.notes and its start, written end and sounding end in score seconds.
+interface PracticeTimedNote { n: PracticeNoteFacts; i: number; start: number; finish: number; sound?: number }
+// One stretch of the audio clock: score time t = t0 + (now − a0)·f, until t1.
+interface PracticeSegment { a0: number; t0: number; t1: number; f: number; first: boolean }
+// "Wait for me": the clock stops at t until every key in need has been played.
+interface PracticeBarrier { t: number; need: Set<number>; got: Set<number>; group: PracticeTimedNote[]; seg: PracticeSegment; since: number }
+interface PracticeBeat { t: number; acc: boolean }
+interface PracticeCountIn { t: number; n: number; sec: number }
+interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string }
+// A running practice: its clock segments, scheduling cursors (ni notes, bi beats, mi my next note), the judgements and the tick timer.
+interface PracticeRun extends PracticeStartOptions {
+    segs: PracticeSegment[]; ni: number; beats: PracticeBeat[]; bi: number; beat0: number; wt: number; pass: number; mine: PracticeTimedNote[]; mi: number;
+    judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean;
+}
+// The coaching tip shown after a run, with its optional one-click action.
+interface PracticeNextStep { k: string; args?: () => (string | number)[]; act?: { k: string; args?: () => (string | number)[]; run: () => void } | null }
+interface PracticeState {
+    hands: string; wait: boolean; metro: boolean; countIn: boolean; acc: boolean; hear: boolean; ramp: boolean; A: number | null; B: number | null;
+    labels: string; pal: string; range: string; fx: boolean; bar: PracticeBarrier | null; active: boolean; stats: PracticeStats | null;
+    res: Map<number, string>; judge: string; judgeT: number; next: PracticeNextStep | null;
+}
+const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, countIn: false, acc: true, hear: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
     bar: null, active: false, stats: null, res: new Map(), judge: '', judgeT: 0, next: null };
+const PRAC_FLAGS = ['wait', 'metro', 'countIn', 'acc', 'hear', 'ramp', 'fx'] as const;
+const PRAC_CHOICES = ['hands', 'labels', 'pal', 'range'] as const;
+function isPracFlag(k: string): k is typeof PRAC_FLAGS[number] { return PRAC_FLAGS.some((f) => f === k); }
+function isPracChoice(k: string): k is typeof PRAC_CHOICES[number] { return PRAC_CHOICES.some((f) => f === k); }
 const PRAC_KEY = 'etude-practice-v3';
 function pracSave() { try {
     const { hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx } = PRAC;
@@ -10231,16 +10342,16 @@ function pracSave() { try {
 catch (e) { } }
 function pracLoad() {
     try {
-        const r = JSON.parse(localStorage.getItem(PRAC_KEY) || 'null');
+        const r = storage.legacySettings(localStorage, PRAC_KEY);
         if (!r)
             return;
-        if (['both', 'rh', 'lh'].includes(r.hands))
+        if (typeof r.hands === 'string' && ['both', 'rh', 'lh'].includes(r.hands))
             PRAC.hands = r.hands;
-        ['wait', 'metro', 'countIn', 'acc', 'hear', 'ramp', 'fx'].forEach((k) => { if (typeof r[k] === 'boolean')
-            PRAC[k] = r[k]; });
-        if (['none', 'letter', 'solfege', 'finger'].includes(r.labels))
+        PRAC_FLAGS.forEach((k) => { const v = r[k]; if (typeof v === 'boolean')
+            PRAC[k] = v; });
+        if (typeof r.labels === 'string' && ['none', 'letter', 'solfege', 'finger'].includes(r.labels))
             PRAC.labels = r.labels;
-        if (FALL_PAL[r.pal])
+        if (typeof r.pal === 'string' && scoreHasKey(FALL_PAL, r.pal) && FALL_PAL[r.pal])
             PRAC.pal = r.pal;
         if (r.range === 'fit' || r.range === 'full')
             PRAC.range = r.range;
@@ -10249,18 +10360,18 @@ function pracLoad() {
     }
     catch (e) { }
 }
-const pracMine = (n: never) => PRAC.hands === 'both' || anHandOf(n) === PRAC.hands;
+const pracMine = (n: PracticeNoteFacts) => PRAC.hands === 'both' || anHandOf(n) === PRAC.hands;
 // My part sounds only when I am not being waited for; the other hand is the accompaniment (or muted).
-const pracSounds = (n: any) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
+const pracSounds = (n: PracticeNoteFacts) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
 const pracFactor = () => +(selectById('score-speed').value || 100) / 100;
-function pracSegAt(R: { segs: any[]; }, now: number) { let s = R.segs[0]; for (const x of R.segs)
+function pracSegAt(R: { segs: PracticeSegment[] }, now: number) { let s = R.segs[0]; for (const x of R.segs)
     if (x.a0 <= now + 1e-9)
         s = x; return s; }
-function pracRaw(R: any, now: number) { const s = pracSegAt(R, now); return { s, t: s.t0 + Math.max(0, now - s.a0) * s.f }; }
+function pracRaw(R: { segs: PracticeSegment[] }, now: number) { const s = pracSegAt(R, now); return { s, t: s.t0 + Math.max(0, now - s.a0) * s.f }; }
 function pracBeats() {
     if (FALL.beatSrc === fallData() && FALL.beatTempo === SCORE.tempoList)
         return FALL.beats;
-    const out = [];
+    const out: PracticeBeat[] = [];
     for (const m of anMeasures()) {
         const u = anBeatUnit(m);
         let k = 0;
@@ -10281,19 +10392,19 @@ function pracStatsReset() {
     old.forEach(scorePaintIdx);
     pracHud();
 }
-function pracAcc(st: null) { const all = st.perfect + st.good + st.miss + st.wrong; return all ? (st.perfect + st.good) / all : null; }
-async function pracStart(o: { notes: any; a: any; b: any; loop: any; sel: any; from: any; ab?: any; bars?: any; })  {
+function pracAcc(st: PracticeStats) { const all = st.perfect + st.good + st.miss + st.wrong; return all ? (st.perfect + st.good) / all : null; }
+async function pracStart(o: PracticeStartOptions)  {
     scoreHalt();
     SCORE.resume = null;
     ensureAudio();
     const gen = SCORE.playGen;
     FALL.position = o.from;
     scoreIdle();
-    const soundMidis = [...new Set(o.notes.flatMap((d: { n: { midi: any; graces: any; }; }) => [d.n.midi, ...(d.n.graces || []).map((g: { midi: any; }) => g.midi)]))];
-    if (!await pianoEnsure(soundMidis) || gen !== SCORE.playGen)
+    const soundMidis = [...new Set(o.notes.flatMap((d) => [d.n.midi, ...(d.n.graces || []).map((g) => g.midi)]))];
+    if (!await pianoEnsure(soundMidis) || gen !== SCORE.playGen || !actx)
         return;
     const f = pracFactor(), now = actx.currentTime + .1;
-    let a0 = now, ci = null;
+    let a0 = now, ci: PracticeCountIn | null = null;
     if (PRAC.countIn) {
         const beat = scoreBeatAt(o.from), m = anMeasureAt(beat) || { num: 4, den: 4 }, u = anBeatUnit(m), n = Math.max(2, Math.round(m.num * 4 / m.den / u)), sec = u * 60 / anTempoAt(beat) / f;
         for (let k = 0; k < n; k++)
@@ -10301,15 +10412,16 @@ async function pracStart(o: { notes: any; a: any; b: any; loop: any; sel: any; f
         ci = { t: now, n, sec };
         a0 = now + n * sec;
     }
-    const beats = pracBeats(), first = (t: number) => { const i = beats.findIndex((b: { t: number; }) => b.t >= t - 1e-6); return i < 0 ? beats.length : i; };
-    const mine = o.notes.filter((d: { n: any; }) => pracMine(d.n));
-    const R = { ...o, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d: { start: number; }) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
-    if (R.mi < 0 || !mine.some((d: { start: number; }) => d.start >= o.from - 1e-6))
+    const beats: PracticeBeat[] = pracBeats(), first = (t: number) => { const i = beats.findIndex((b) => b.t >= t - 1e-6); return i < 0 ? beats.length : i; };
+    const mine = o.notes.filter((d) => pracMine(d.n));
+    const R: PracticeRun = { ...o, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
+    if (R.mi < 0 || !mine.some((d) => d.start >= o.from - 1e-6))
         R.mi = mine.length;
     SCORE.run = R;
     SCORE.playing = true;
     SCORE.sel = o.sel;
-    SCORE.loop = o.loop ? { a: o.a, b: o.b, bars: o.bars, ab: !!o.ab, pass: 1, notes: o.notes, next: a0 + (o.b - o.a) / f } : null;
+    const loop: ScoreLoopState | null = o.loop ? { a: o.a, b: o.b, bars: o.bars, ab: !!o.ab, pass: 1, notes: o.notes, next: a0 + (o.b - o.a) / f } : null;
+    SCORE.loop = loop;
     FALL.origin = o.from;
     FALL.audioStart = a0;
     FALL.factor = f;
@@ -10323,7 +10435,7 @@ async function pracStart(o: { notes: any; a: any; b: any; loop: any; sel: any; f
     scoreFollow();
 }
 function pracTick() {
-    const R = SCORE.run;
+    const R: PracticeRun | null = SCORE.run;
     if (!R || !SCORE.playing || !actx || R.gen !== SCORE.playGen)
         return;
     const now = actx.currentTime, H = now + .3;
@@ -10331,7 +10443,7 @@ function pracTick() {
         const s = R.segs[R.segs.length - 1];
         if (PRAC.wait && !PRAC.bar && R.wt !== Infinity)
             pracNextBar(R, s);
-        const B = PRAC.bar && PRAC.bar.seg === s ? PRAC.bar : null, at = (x: number) => s.a0 + (x - s.t0) / s.f;
+        const B: PracticeBarrier | null = PRAC.bar && PRAC.bar.seg === s ? PRAC.bar : null, at = (x: number) => s.a0 + (x - s.t0) / s.f;
         const horizon = s.t0 + Math.max(0, H - s.a0) * s.f, lim = Math.min(horizon, s.t1, B ? B.t : Infinity);
         while (R.ni < R.notes.length) {
             const d = R.notes[R.ni];
@@ -10344,9 +10456,9 @@ function pracTick() {
             if (!pracSounds(d.n))
                 continue;
             const st = Math.max(d.start, s.t0), en = R.loop ? Math.min(sound, s.t1) : sound, roll = d.n.roll || 0, onset = at(st) + roll;
-            const opt = { warm: !!d.n.warm, hold: !!d.n.pedalEnd && d.n.soundEnd > d.n.end + .001 }, graces = st > d.start + 1e-6 ? [] : (d.n.graces || []), duration = Math.max(.05, (en - st) / s.f - roll);
+            const opt = { warm: !!d.n.warm, hold: !!d.n.pedalEnd && d.n.soundEnd !== undefined && d.n.soundEnd > d.n.end + .001 }, graces = st > d.start + 1e-6 ? [] : (d.n.graces || []), duration = Math.max(.05, (en - st) / s.f - roll);
             let carried = false;
-            graces.forEach((g: { tiedToPrincipal: any; midi: any; vel: any; }, i: number) => {
+            graces.forEach((g, i) => {
                 const when = onset - (graces.length - i) * .07, start = Math.max(now, when), carry = i === graces.length - 1 && g.tiedToPrincipal && g.midi === d.n.midi;
                 if (carry) {
                     previewNote(g.midi, start, Math.max(.05, onset + duration - start), g.vel ?? d.n.vel, opt);
@@ -10364,10 +10476,10 @@ function pracTick() {
                 metroClick(Math.max(now, at(b.t)), b.acc);
         }
         if (R.loop && !B && horizon >= s.t1) {
-            const next = { a0: at(s.t1), t0: R.a, t1: R.b, f: pracRamp(R, s), first: false };
+            const next = { a0: at(s.t1), t0: R.a, t1: R.b, f: pracRamp(R, s), first: false }, L: ScoreLoopState | null = SCORE.loop;
             R.segs.push(next);
-            if (SCORE.loop)
-                SCORE.loop.next = next.a0 + (R.b - R.a) / next.f;
+            if (L)
+                L.next = next.a0 + (R.b - R.a) / next.f;
             R.ni = 0;
             R.bi = R.beat0;
             R.wt = R.a;
@@ -10387,26 +10499,29 @@ function pracTick() {
         pracFinish(R);
 }
 // Loop: the next pass is 1 step faster (up to 100%) when the pass was clean, or always when no one is playing along.
-function pracRamp(R: any, s: { f: number; }) {
-    if (!PRAC.ramp)
+function pracRamp(R: PracticeRun, s: PracticeSegment) {
+    const st = PRAC.stats;
+    if (!PRAC.ramp || !st)
         return s.f;
-    const st = PRAC.stats, acc = st.passAll ? st.passHit / st.passAll : null;
+    const acc = st.passAll ? st.passHit / st.passAll : null;
     if (PRAC.active && (acc == null || acc < .8))
         return s.f;
-    const sel = byId('score-speed'), cur = Math.round(s.f * 100), next = [...sel.options].map((o) => +o.value).find((v) => v > cur && v <= 100);
+    const sel = selectById('score-speed'), cur = Math.round(s.f * 100), next = [...sel.options].map((o) => +o.value).find((v) => v > cur && v <= 100);
     if (!next)
         return s.f;
     sel.value = String(next);
     return next / 100;
 }
-function pracPassEnd(R: { pass: number; segs: { f: number; }[]; mi: number; judged: Map<any,any>; waitShown: boolean; }) {
-    const st = PRAC.stats;
+function pracPassEnd(R: PracticeRun) {
+    const st = PRAC.stats, L: ScoreLoopState | null = SCORE.loop;
+    if (!st)
+        return;
     R.pass++;
     st.lastPass = st.passAll ? st.passHit / st.passAll : null;
     st.passHit = 0;
     st.passAll = 0;
-    if (SCORE.loop)
-        SCORE.loop.pass = R.pass;
+    if (L)
+        L.pass = R.pass;
     FALL.factor = R.segs[0].f;
     R.mi = 0;
     R.judged = new Map();
@@ -10417,17 +10532,17 @@ function pracPassEnd(R: { pass: number; segs: { f: number; }[]; mi: number; judg
         old.forEach(scorePaintIdx);
     pracHud();
 }
-function pracNextBar(R: { wt: number; mine: any[]; from: number; }, s: { t0: number; t1: number; first: any; }) {
+function pracNextBar(R: PracticeRun, s: PracticeSegment) {
     const from = Math.max(R.wt, s.t0);
-    const d = R.mine.find((x: { start: number; }) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6));
+    const d = R.mine.find((x) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6));
     if (!d) {
         R.wt = Infinity;
         return;
     }
-    const group = R.mine.filter((x: { start: number; }) => Math.abs(x.start - d.start) < .03);
-    PRAC.bar = { t: d.start, need: new Set(group.map((x: { n: { midi: any; }; }) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
+    const group = R.mine.filter((x) => Math.abs(x.start - d.start) < .03);
+    PRAC.bar = { t: d.start, need: new Set(group.map((x) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
 }
-function pracRelease(R: { wt: any; waitShown: boolean; }, B: never, now: number) {
+function pracRelease(R: PracticeRun, B: PracticeBarrier, now: number) {
     const s = B.seg, t = s.t0 + Math.max(0, now - s.a0) * s.f;
     if (t > B.t) {
         s.t0 = B.t;
@@ -10440,7 +10555,7 @@ function pracRelease(R: { wt: any; waitShown: boolean; }, B: never, now: number)
     scoreStateText();
     pracTick();
 }
-function pracMisses(R: { segs: { f: any; }[]; mi: number; mine: string|any[]; judged: { has: (arg0: any) => any; }; }, time: number) {
+function pracMisses(R: PracticeRun, time: number) {
     const tol = .22 * (R.segs[0].f || 1);
     while (R.mi < R.mine.length && R.mine[R.mi].start < time - tol) {
         const d = R.mine[R.mi++];
@@ -10448,8 +10563,10 @@ function pracMisses(R: { segs: { f: any; }[]; mi: number; mine: string|any[]; ju
             pracJudge(R, d, 'miss');
     }
 }
-function pracJudge(R: { judged: { set: (arg0: any,arg1: any) => void; }; }, d: { i: any; }, j: string) {
+function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | 'good' | 'miss' | 'wrong') {
     const st = PRAC.stats;
+    if (!st)
+        return;
     st[j]++;
     if (j === 'perfect' || j === 'good') {
         st.streak++;
@@ -10472,7 +10589,7 @@ function pracJudge(R: { judged: { set: (arg0: any,arg1: any) => void; }; }, d: {
 }
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
 function pracInput(kind: string) {
-    const R = SCORE.run;
+    const R: PracticeRun | null = SCORE.run;
     if (kind === 'on' && R && SCORE.playing && actx) {
         const m = heldOrder[heldOrder.length - 1], now = actx.currentTime;
         if (m != null && now >= R.segs[0].a0 - .05) {
@@ -10482,14 +10599,14 @@ function pracInput(kind: string) {
                 if (!B.got.has(m)) {
                     B.got.add(m);
                     const late = Math.max(0, t - B.t) / s.f;
-                    B.group.filter((x: { n: { midi: any; }; }) => x.n.midi === m).forEach((x: any) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
+                    B.group.filter((x) => x.n.midi === m).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
                 }
                 if ([...B.need].every((x) => B.got.has(x)))
                     pracRelease(R, B, now);
             }
             else {
                 const time = fallTime(), tol = .22 * s.f;
-                let best = null;
+                let best: PracticeTimedNote | null = null;
                 for (const d of R.mine) {
                     if (d.start > time + tol)
                         break;
@@ -10513,16 +10630,16 @@ function pracHud() {
     hud.hidden = !show;
     if (!show)
         return;
-    const acc = pracAcc(st);
+    const acc = st && pracAcc(st), R: PracticeRun | null = SCORE.run;
     byId('pr-acc-v').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
-    byId('pr-streak').textContent = st.streak;
-    byId('pr-pass').textContent = SCORE.run ? SCORE.run.pass : 1;
-    byId('pr-tempo').textContent = Math.round(((SCORE.run && SCORE.run.segs[0].f) || pracFactor()) * 100) + '%';
+    byId('pr-streak').textContent = String(st ? st.streak : 0);
+    byId('pr-pass').textContent = String(R ? R.pass : 1);
+    byId('pr-tempo').textContent = Math.round(((R && R.segs[0].f) || pracFactor()) * 100) + '%';
     const j = byId('pr-judge'), fresh = PRAC.judge && performance.now() - PRAC.judgeT < 900;
     j.dataset.j = fresh ? PRAC.judge : '';
     j.textContent = fresh ? t('pr_' + (PRAC.judge === 'miss' ? 'miss' : PRAC.judge)) : '';
 }
-function pracFinish(R: { sel: any; a: any; b: any; timer: string|number|NodeJS.Timeout|undefined; }) {
+function pracFinish(R: PracticeRun) {
     const sel = R.sel, a = R.a, end = R.b;
     clearInterval(R.timer);
     SCORE.run = null;
@@ -10540,12 +10657,15 @@ function pracFinish(R: { sel: any; a: any; b: any; timer: string|number|NodeJS.T
     if (PRAC.active && PRAC.stats)
         pracSummary(R);
 }
-function pracSummary(R: any) {
-    const st = PRAC.stats, acc = pracAcc(st);
+function pracSummary(R: PracticeRun) {
+    const st = PRAC.stats;
+    if (!st)
+        return;
+    const acc = pracAcc(st);
     PRAC.next = pracNextStep(R);
     pracNextRender();
     byId('pr-sum-acc').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
-    ['perfect', 'good', 'miss', 'wrong'].forEach((k) => { maybeById('pr-sum-' + k).textContent = st[k]; });
+    (['perfect', 'good', 'miss', 'wrong'] as const).forEach((k) => { byId('pr-sum-' + k).textContent = String(st[k]); });
     byId('pr-sum-note').textContent = t('pr_sum_note', st.best, Math.round(pracFactor() * 100) + '%');
     byId('pr-sum').hidden = false;
     anSideSync();
@@ -10554,8 +10674,8 @@ function pracSummary(R: any) {
 function pracSumClose() { byId('pr-sum').hidden = true; PRAC.next = null; anSideSync(); }
 // Count-in digits, the waiting state and the HUD's fading judgement follow the animation frame.
 function pracFrame() {
-    const R = SCORE.run, c = byId('pr-count');
-    if (!R) {
+    const R: PracticeRun | null = SCORE.run, c = byId('pr-count');
+    if (!R || !actx) {
         if (!c.hidden)
             c.hidden = true;
         return;
@@ -10576,10 +10696,15 @@ function pracFrame() {
         pracHud();
 }
 function pracSet(k: string, v: string|boolean) {
-    PRAC[k] = v;
+    if (typeof v === 'boolean') {
+        if (isPracFlag(k))
+            PRAC[k] = v;
+    }
+    else if (isPracChoice(k))
+        PRAC[k] = v;
     pracSave();
     if (k === 'hands') {
-        SCORE.heads.forEach((l) => l.forEach(scorePaintEl));
+        SCORE.heads.forEach((l: Element[]) => l.forEach(scorePaintEl));
         anKeysPaint();
     }
     if (SCORE.playing && ['hands', 'wait', 'acc', 'hear'].includes(k)) {
@@ -10616,10 +10741,10 @@ function pracSetAB(which: string) {
 }
 function pracClearAB() { PRAC.A = PRAC.B = null; if (SCORE.loop && SCORE.loop.ab)
     scoreStop(); anUpdateControls(); anTlUpdate(); }
-async function scorePlay(selection = false, from = null)  {
+async function scorePlay(selection = false, from: number | null = null)  {
     if (!AN.notes.length)
         return;
-    const all = fallData(), chosen = selection ? all.filter((d) => AN.selected.has(d.i)) : all;
+    const all: PracticeTimedNote[] = fallData(), chosen = selection ? all.filter((d) => AN.selected.has(d.i)) : all;
     if (!chosen.length)
         return;
     const a = selection ? Math.min(...chosen.map((d) => d.start)) : 0, b = selection ? Math.max(...chosen.map((d) => d.finish)) : fallEnd();
@@ -10636,8 +10761,8 @@ async function scorePlay(selection = false, from = null)  {
 }
 // Loop the selected notes, else the A–B range (whole bars).
 async function scoreLoopStart()  {
-    const all = fallData();
-    let notes = null, a = 0, b = 0, bars = '', ab = false;
+    const all: PracticeTimedNote[] = fallData();
+    let notes: PracticeTimedNote[] | null = null, a = 0, b = 0, bars = '', ab = false;
     if (AN.selected.size) {
         notes = all.filter((d) => AN.selected.has(d.i));
         if (notes.length) {
@@ -10667,8 +10792,8 @@ function scoreFollow() {
         anKeysPaint();
         return;
     }
-    const time = fallTime(), now = new Set(), sel = SCORE.sel ? AN.selected : null;
-    fallData().forEach(({ i, start, finish } = {}) => { if (time >= start && time < finish && (!sel || sel.has(i)))
+    const time = fallTime(), now = new Set<number>(), sel = SCORE.sel ? AN.selected : null, all: PracticeTimedNote[] = fallData();
+    all.forEach(({ i, start, finish }) => { if (time >= start && time < finish && (!sel || sel.has(i)))
         now.add(i); });
     if (now.size !== SCORE.lit.size || [...now].some((i) => !SCORE.lit.has(i))) {
         const old = SCORE.lit;
@@ -10709,7 +10834,7 @@ function scoreZoom(z: number) {
 function scoreSetLook(v: string) { SCORE.look = v === 'night' ? 'night' : 'paper'; byId('an-roll').dataset.look = SCORE.look; anUpdateControls(); if (SCORE.engine)
     scoreLayout(); saveAll(); }
 // "Highlight sounding notes": off by default, so the notes stay black while the blue line plays through them.
-function scoreSetHl(on: boolean) { SCORE.hl = !!on; SCORE.heads.forEach((l) => l.forEach(scorePaintEl)); anUpdateControls(); saveAll(); }
+function scoreSetHl(on: boolean) { SCORE.hl = !!on; SCORE.heads.forEach((l: Element[]) => l.forEach(scorePaintEl)); anUpdateControls(); saveAll(); }
 // Page | Continuous | Falling notes; the choice is remembered like the appearance.
 function scoreSetView(v: string|undefined) {
     if (v === 'fall') {
@@ -10798,12 +10923,12 @@ function anTempoAt(beat: number) { let bpm = SCORE.tempoList[0].bpm; for (const 
     else
         break;
 } return bpm; }
-function anStatusPos(time: number|null|undefined) {
+function anStatusPos(time?: number | null) {
     if (!AN.notes.length)
         return;
     const t0 = time != null ? time : fallTime(), beat = scoreBeatAt(t0), m = anMeasureAt(beat) || { number: '1', start: 0, num: 4, den: 4 }, u = anBeatUnit(m);
     const beats = Math.max(1, Math.round(m.num * 4 / m.den / u)), bt = Math.min(beats, Math.max(1, Math.floor((beat - m.start) / u + 1e-6) + 1));
-    const set = (id: string, v: string|null) => { const el = maybeById(id); if (el.textContent !== v)
+    const set = (id: string, v: string) => { const el = byId(id); if (el.textContent !== v)
         el.textContent = v; };
     set('st-bar', t('st_bar', m.number));
     set('st-beat', t('st_beat', bt));
@@ -10824,13 +10949,13 @@ function anStatusSel() {
     clearTimeout(AN.liveT);
     AN.liveT = setTimeout(() => { byId('st-live').textContent = txt; }, 500);
 }
-function anActiveChord(sel: any[]) {
+function anActiveChord(sel: { midi: number }[]) {
     if (AN.active && AN.active.kind === 'chord' && AN.view) {
         const seg = AN.view.segs[AN.active.k];
         if (seg)
             return { root: seg.ch.root, pcs: seg.ch.c.p };
     }
-    const id = identifyChord([...new Set(sel.map((n: { midi: any; }) => n.midi))]);
+    const id = identifyChord([...new Set(sel.map((n) => n.midi))]);
     return id ? { root: id.rootPc, pcs: id.chord.pcset } : null;
 }
 function anSegAt(beat: number) {
@@ -10847,7 +10972,7 @@ function anSegAt(beat: number) {
     }
     return null;
 }
-function anKeysPaint(force: boolean|undefined) {
+function anKeysPaint(force?: boolean) {
     if (force)
         AN.kbApplied = new Map();
     if (!anKeysShown()) {
@@ -10855,8 +10980,8 @@ function anKeysPaint(force: boolean|undefined) {
             anKeysClear();
         return;
     }
-    const want = new Map();
-    let deg = null;
+    const want = new Map<number, string>();
+    let deg: Map<number, string> | null = null;
     if (SCORE.playing) {
         const lit = [...SCORE.lit].map((i) => AN.notes[i]).filter(Boolean);
         lit.forEach((n) => want.set(foldToView(n.midi), anHandOf(n)));
@@ -10900,24 +11025,30 @@ function anKeysCenter() {
 function anOriginText() { const o = AN.keyOrigin; return t(o === 'file' ? (AN.source && AN.source.kind === 'example' ? 'an_origin_piece' : 'an_origin_file') : o === 'manual' ? 'an_origin_manual' : o === 'mode' ? 'an_origin_mode' : 'an_origin_auto'); }
 // The passage the Practice tab and Read & Play work on: the selected bars or notes, else the whole piece.
 function anScopeNotes() { const f = anFocus(false); return f && f.kind !== 'cursor' ? anFocusNotes(f) : AN.notes; }
-function anBarsLabel(ns: any[], L: string|undefined) {
-    const a = anMeasureAt(Math.min(...ns.map((n: { start: any; }) => n.start))).number, b = anMeasureAt(Math.max(...ns.map((n: { start: any; }) => n.start))).number;
+function anBarsLabel(ns: { start: number }[], L?: string) {
+    const a = anMeasureAt(Math.min(...ns.map((n) => n.start))).number, b = anMeasureAt(Math.max(...ns.map((n) => n.start))).number;
     return a === b ? tl(L || lang, 'an_bar1', a) : tl(L || lang, 'an_bars', a, b);
 }
 function anNum(x: number, d: number) { return (Math.round(x * Math.pow(10, d)) / Math.pow(10, d)).toLocaleString(LOCALE_TAGS[lang] || lang); }
 function anClock(sec: number) { const s = Math.max(0, sec); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
-function anChordLabel(seg: { ch: any; bass: number; }, key: { root: number; minor: boolean; fifths: number; }) { const ch = seg.ch; return spellName(60 + ch.root, key) + ch.c.s + (seg.bass !== ch.root ? '/' + spellName(60 + seg.bass, key) : ''); }
-function anBeatText(seg: { measure: any; unit: any; start: number; end: number; }) {
+// The parts of a chord span (one segment of the harmonic analysis) that its descriptions read.
+interface AnSpanChordFacts { ch: { root: number; c: { s: string } }; bass: number }
+interface AnSpanBeatFacts { measure: { start: number }; unit: number; start: number; end: number }
+interface AnSpanNoteFacts { midi: number; hand?: string }
+interface AnSpanNctFacts { type: string; note: { midi: number } }
+function anChordLabel(seg: AnSpanChordFacts, key: theory.KeySignature) { const ch = seg.ch; return spellName(60 + ch.root, key) + ch.c.s + (seg.bass !== ch.root ? '/' + spellName(60 + seg.bass, key) : ''); }
+function anBeatText(seg: AnSpanBeatFacts) {
     const m = seg.measure, u = seg.unit, b1 = 1 + (seg.start - m.start) / u, b2 = (seg.end - m.start) / u, f = (x: number) => anNum(x, 1);
     return b2 - b1 < 1e-6 ? t('an_beat', f(b1)) : t('an_beats', f(b1) + '–' + f(b2));
 }
 function anDetText(ch: { det: string; }) { return t('an_det_' + ch.det); }
 // What each hand plays in a chord span, low to high, each pitch class once: "RH E G C · LH C G".
-function anHandsText(seg: { notes: any[]; }, key: { root: number; minor: boolean; fifths: number; }) {
-    const by = { rh: [], lh: [] };
-    seg.notes.slice().sort((a: { midi: number; }, b: { midi: number; }) => a.midi - b.midi).forEach((n: { midi: number; }) => { const h = by[anHandOf(n)], p = pc(n.midi); if (!h.some((m: number) => pc(m) === p))
+function anHandsText(seg: { notes: AnSpanNoteFacts[] }, key: theory.KeySignature) {
+    const by: { rh: number[]; lh: number[] } = { rh: [], lh: [] };
+    seg.notes.slice().sort((a, b) => a.midi - b.midi).forEach((n) => { const hand: string = anHandOf(n), h = hand === 'rh' || hand === 'lh' ? by[hand] : null, p = pc(n.midi); if (!h)
+        return; if (!h.some((m) => pc(m) === p))
         h.push(n.midi); });
-    return ['rh', 'lh'].filter((h) => by[h].length).map((h) => t('an_' + h) + ' ' + by[h].slice(0, 6).map((m: any) => spellName(m, key)).join(' ') + (by[h].length > 6 ? ' …' : '')).join(' · ');
+    return (['rh', 'lh'] as const).filter((h) => by[h].length).map((h) => t('an_' + h) + ' ' + by[h].slice(0, 6).map((m) => spellName(m, key)).join(' ') + (by[h].length > 6 ? ' …' : '')).join(' · ');
 }
 // Where the hands come from: the two staves, MIDI tracks, the piece's own parts, or the register.
 function anHandsSource() {
@@ -10926,15 +11057,15 @@ function anHandsSource() {
         return AN.notes.some((n) => n.hand) ? t('an_hsrc_staves') : t('an_hsrc_est', at(60));
     return h.how === 'tracks' ? t('an_hsrc_tracks') : h.how === 'piece' ? t('an_hsrc_piece') : t(h.how === 'split' ? 'an_hsrc_split' : 'an_hsrc_est', at(h.split));
 }
-function anNctText(seg: { nct: any[]; }, key: { root: number; minor: boolean; fifths: number; }) {
+function anNctText(seg: { nct?: AnSpanNctFacts[] } | null, key: theory.KeySignature) {
     if (!seg || !seg.nct || !seg.nct.length)
         return '';
     return ['suspension', 'anticipation', 'passing', 'neighbor', 'other'].map((type) => {
-        const names = [...new Set(seg.nct.filter((x: { type: string; }) => x.type === type).map((x: { note: { midi: any; }; }) => spellName(x.note.midi, key, true)))];
+        const names = [...new Set((seg.nct || []).filter((x) => x.type === type).map((x) => spellName(x.note.midi, key, true)))];
         return names.length ? t('an_nct_' + type) + ': ' + names.join(', ') : '';
     }).filter(Boolean).join(' · ');
 }
-function anSegIndexAt(segs: string|any[], beat: number) { let lo = 0, hi = segs.length - 1; while (lo <= hi) {
+function anSegIndexAt(segs: readonly { start: number; end: number }[], beat: number) { let lo = 0, hi = segs.length - 1; while (lo <= hi) {
     const mid = (lo + hi) >> 1, s = segs[mid];
     if (beat < s.start - 1e-6)
         hi = mid - 1;
@@ -10943,7 +11074,7 @@ function anSegIndexAt(segs: string|any[], beat: number) { let lo = 0, hi = segs.
     else
         return mid;
 } return -1; }
-function anInView(el: Element, box: RuntimeElement) { const r = el.getBoundingClientRect(), p = box.getBoundingClientRect(); return r.bottom > p.top + 4 && r.top < p.bottom - 4; }
+function anInView(el: Element, box: Element) { const r = el.getBoundingClientRect(), p = box.getBoundingClientRect(); return r.bottom > p.top + 4 && r.top < p.bottom - 4; }
 // The sounding chord is marked in both tabs. The Piece tab scrolls along only while its reader is following: the previous
 // chord was on screen and the list has not been scrolled by hand for a few seconds.
 function anSyncTimeline(time: number|null, follow: boolean) {
@@ -10975,12 +11106,12 @@ function anUpdateControls() {
     byId('an-stage').dataset.mode = fall && has ? 'fall' : 'score';
     byId('an-roll').hidden = fall && has;
     byId('fall-wrap').hidden = !fall || !has;
-    const pb = byId('score-play'), pk = playing ? 'sc_pause_k' : 'sc_play_k';
+    const pb = buttonById('score-play'), pk = playing ? 'sc_pause_k' : 'sc_play_k';
     pb.disabled = !has || busy;
     pb.dataset.state = playing ? 'pause' : 'play';
     pb.setAttribute('aria-label', t(pk));
     pb.title = t(pk);
-    [['sc-start', 'sc_start_k'], ['score-stop', 'sc_stop_k'], ['an-play', 'an_play'], ['an-loop', 'an_loop_k'], ['an-clear', 'an_clear_k'], ['an-recon-btn', 'an_recon_k']].forEach(([id, k] = []) => { maybeById(id).setAttribute('aria-label', t(k)); maybeById(id).title = t(k); });
+    [['sc-start', 'sc_start_k'], ['score-stop', 'sc_stop_k'], ['an-play', 'an_play'], ['an-loop', 'an_loop_k'], ['an-clear', 'an_clear_k'], ['an-recon-btn', 'an_recon_k']].forEach(([id, k]) => { const b = byId(id); b.setAttribute('aria-label', t(k)); b.title = t(k); });
     buttonById('sc-start').disabled = !has;
     buttonById('score-stop').disabled = !has;
     selectById('score-speed').disabled = !has;
@@ -10989,7 +11120,8 @@ function anUpdateControls() {
     buttonById('an-loop').disabled = (!sel && !ab && !SCORE.loop) || busy;
     buttonById('an-clear').disabled = !sel && !SCORE.mrange;
     byId('an-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
-    (document).querySelectorAll('#an-mode button').forEach((b) => { const v = b.dataset.scoreMode; b.disabled = !has; b.setAttribute('aria-pressed', (v === 'fall' ? fall : !fall && SCORE.layout === v) ? 'true' : 'false'); });
+    queryAllHtml(document, '#an-mode button').forEach((b) => { const v = b.dataset.scoreMode; if ('disabled' in b)
+        b.disabled = !has; b.setAttribute('aria-pressed', (v === 'fall' ? fall : !fall && SCORE.layout === v) ? 'true' : 'false'); });
     const z = anZoomNow(), zs = Math.round(z * 100) + '%';
     buttonById('sc-zoom-out').disabled = !has || z <= 0.5 + 1e-6;
     buttonById('sc-zoom-in').disabled = !has || z >= 2 - 1e-6;
@@ -10997,14 +11129,15 @@ function anUpdateControls() {
     byId('sc-zoom-reset').textContent = zs;
     byId('sc-zoom-reset').setAttribute('aria-label', t('sc_zoom_reset', zs));
     byId('sc-zoom-reset').title = t(fall ? 'fall_zoom_t' : 'sc_zoom_reset', zs);
-    (document).querySelectorAll('#sc-look button').forEach((b) => { b.disabled = !sheet; b.setAttribute('aria-pressed', b.dataset.v === SCORE.look ? 'true' : 'false'); });
-    const hl = byId('sc-hl');
+    queryAllHtml(document, '#sc-look button').forEach((b) => { if ('disabled' in b)
+        b.disabled = !sheet; b.setAttribute('aria-pressed', b.dataset.v === SCORE.look ? 'true' : 'false'); });
+    const hl = buttonById('sc-hl');
     hl.disabled = !sheet;
     hl.setAttribute('aria-pressed', SCORE.hl ? 'true' : 'false');
     hl.setAttribute('aria-label', t('sc_hl'));
     hl.title = t('sc_hl_t');
     // The toolbar toggle is named Keyboard and reports expanded or collapsed; the dock's own button names the action it takes.
-    const open = sheet && dockOpen(), kb = byId('an-kb');
+    const open = sheet && dockOpen(), kb = buttonById('an-kb');
     kb.disabled = !sheet;
     kb.setAttribute('aria-expanded', open ? 'true' : 'false');
     kb.title = fall && has ? t('an_kb_fall') : t(open ? 'kb_hide' : 'kb_show');
@@ -11015,7 +11148,7 @@ function anUpdateControls() {
     byId('score-credit').hidden = !has || fall;
     byId('st-hint').textContent = t(fall ? 'fall_hint' : 'an_hint');
     // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to the falling-notes display options
-    (document).querySelectorAll('#an-toolbar .an-zoom,#sc-look,#sc-hl,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
+    queryAllHtml(document, '#an-toolbar .an-zoom,#sc-look,#sc-hl,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
     byId('fall-opt').hidden = !(fall && has);
     if (fall && has)
         byId('an-kb').setAttribute('aria-expanded', 'false');
@@ -11026,7 +11159,7 @@ function anUpdateControls() {
     byId('an-metro').setAttribute('aria-pressed', PRAC.metro ? 'true' : 'false');
     byId('an-metro').title = t('an_metro_t');
     byId('an-metro').setAttribute('aria-label', t('an_metro_t'));
-    (document).querySelectorAll('#pr-hands button,#pt-hands button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.h === PRAC.hands ? 'true' : 'false'));
+    queryAllHtml(document, '#pr-hands button,#pt-hands button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.h === PRAC.hands ? 'true' : 'false'));
     byId('pr-wait').setAttribute('aria-pressed', PRAC.wait ? 'true' : 'false');
     byId('pr-wait').title = t('pr_wait_t');
     inputById('pt-wait').checked = PRAC.wait;
@@ -11046,7 +11179,8 @@ function anUpdateControls() {
     byId('pt-start').textContent = t(playing ? 'pt_stop' : 'pt_start');
     buttonById('pt-start').disabled = !has || busy;
     selectById('an-example').disabled = busy;
-    (document).querySelectorAll('#an-roll .an-ex,#an-roll [data-an-open]').forEach((b) => { b.disabled = busy; });
+    (document).querySelectorAll('#an-roll .an-ex,#an-roll [data-an-open]').forEach((b) => { if ('disabled' in b)
+        b.disabled = busy; });
     if (has) {
         anStatusSel();
         anRenderPractice();
