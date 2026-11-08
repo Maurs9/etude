@@ -1,6 +1,5 @@
 /* Emergency worker. Deploy this file as sw.js only long enough to remove a broken cache. */
 'use strict';
-const DONE = 'sw-kill-switch=done';
 
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => {
