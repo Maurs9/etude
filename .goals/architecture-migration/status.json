@@ -71,6 +71,11 @@
       "iteration": 7,
       "verdict": "FAIL",
       "summary": "The readable runtime replaces explicit any with ReturnType<typeof JSON.parse>, an any alias used throughout; strict typing, enforcement, and final-state docs remain incomplete."
+    },
+    {
+      "iteration": 8,
+      "verdict": "FAIL",
+      "summary": "The browser runtime replaces the any alias with a blanket unknown alias but excludes the file from strict compilation; typed contracts remain unused and checker probes still accept inferred any and invalid unknown operations."
     }
   ]
 }
