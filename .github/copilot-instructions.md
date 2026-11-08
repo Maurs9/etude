@@ -67,4 +67,5 @@ PW_CHANNEL= npm test  # use bundled Chromium instead (after `npx playwright inst
 - Locale strings and lesson data are statically imported from `src/locales/`; `setLang()` remains synchronous. Add user-visible text to both `en` and `ro`, preserve `data-i18n*` attributes, and keep the locale parity and duplicate-key checks green.
 - Storage reads belong in `src/domain/storage.ts`; keep the `ptt-v3` key and reader compatibility for older saves. Add storage fixtures and Vitest coverage when changing persisted data.
 - Pure pitch, scale, chord, and interval calculations belong in `src/domain/theory.ts`; keep them browser-independent and cover them with Vitest before wiring a view to them.
+- Piano sample fetching and decoding belongs in `src/domain/audio.ts`; always check `res.ok`, read the audio context before fetching, and clear pending state so a failed warm-up can retry.
 - `node_modules/` and `test-results/` are gitignored; never force-add them.

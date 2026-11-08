@@ -7,7 +7,8 @@ const APP = resolve(ROOT, 'src/legacy/app.js');
 const BRIDGE = resolve(ROOT, 'src/legacy/bridge.js');
 const PIANO_KEYS = [21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90, 93, 96, 99, 102, 105, 108];
 
-const pianoSource = `// The recordings are separate files so the browser can cache and retry each sample independently.
+const pianoSource = `import { fetchPianoAudio, nearestPianoKey } from '../domain/audio.ts';
+// The recordings are separate files so the browser can cache and retry each sample independently.
 const PIANO_KEYS=[${PIANO_KEYS.join(',')}];
 const PIANO_URLS={${PIANO_KEYS.map(key => `${key}:new URL('../assets/piano/${key}.mp3',import.meta.url).href`).join(',')}};
 const pianoBank={ctx:null,buffers:new Map(),pending:new Map(),raw:null,keys:null,promise:null,status:'idle',idle:0};
@@ -18,7 +19,7 @@ function pianoStatus(){
   const dock=$('piano-status'); if(dock){dock.hidden=pianoBank.status==='ready';dock.textContent=message;}
 }
 function pianoKeys(){ return PIANO_KEYS; }
-function pianoNearest(midi){ const keys=pianoKeys(); return keys.reduce((best,m)=>Math.abs(m-midi)<Math.abs(best-midi)?m:best,keys[0]); }
+function pianoNearest(midi){ return nearestPianoKey(midi,pianoKeys()); }
 function pianoFail(err){ pianoBank.promise=null; pianoBank.status='idle'; pianoStatus(); console.error('Piano recordings could not be decoded',err); }
 function pianoDecode(key){
   const ctx=actx;
@@ -26,9 +27,7 @@ function pianoDecode(key){
   if(pianoBank.buffers.has(key)) return Promise.resolve(pianoBank.buffers.get(key));
   if(pianoBank.pending.has(key)) return pianoBank.pending.get(key);
   const url=PIANO_URLS[key]; if(!url) return Promise.reject(new Error('No piano recording for '+key));
-  const job=fetch(url,{cache:'no-cache'}).then(res=>{ if(!res.ok) throw new Error('Piano sample '+key+' returned '+res.status); return res.arrayBuffer(); })
-    .then(bytes=>ctx.decodeAudioData(bytes)).then(audio=>{
-      if(!audio.length||!Number.isFinite(audio.duration)) throw new Error('Invalid piano recording '+key);
+  const job=fetchPianoAudio(url,ctx).then(audio=>{
       if(pianoBank.ctx===ctx) pianoBank.buffers.set(key,audio);
       return audio;
     }).finally(()=>{ if(pianoBank.ctx===ctx) pianoBank.pending.delete(key); });
