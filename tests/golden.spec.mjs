@@ -98,12 +98,12 @@ test.describe('golden: score engraving', () => {
       expect(saved, `no baseline at ${file}; create it with UPDATE_GOLDEN=1`).not.toBeNull();
       expect(paged.music).toEqual(saved.music);
       if (saved.layout?.[process.platform]) expect(paged.layout).toEqual(saved.layout[process.platform]);
-      else if (REQUIRE_PLATFORM) expect(saved.layout, `no ${process.platform} layout baseline in ${file}`).toHaveProperty(process.platform);
       else {
         // No baseline for this platform yet (e.g. Linux CI): keep the result so it can be reviewed and committed.
         const out = test.info().outputPath(score.name.replace(/\.\w+$/, '') + '.' + process.platform + '.json');
         writeJson(out, paged.layout);
         test.info().annotations.push({ type: 'golden', description: `no ${process.platform} layout baseline; result written to ${out}` });
+        expect(REQUIRE_PLATFORM, `no ${process.platform} layout baseline in ${file}; the measured one is in ${out}`).toBe(false);
       }
     });
   }

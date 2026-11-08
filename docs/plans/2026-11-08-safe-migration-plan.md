@@ -1,7 +1,7 @@
 # Étude: safe, incremental migration plan
 
 **Date:** 8 November 2026
-**Status:** This plan sets the order, safety rules and exit gates for the architecture migration. Step 0 is implemented on `feat/architecture-migration`.
+**Status:** This plan sets the order, safety rules and exit gates for the architecture migration. Step 0 is done on `feat/architecture-migration`; next, merge it into `main`.
 
 ## 1. Summary
 
@@ -100,7 +100,7 @@ The branch (`main` at `eba5ebd`, plus docs) had **183 passing and 8 failing test
 | Adversarial language test (intermittent) | The language buttons fill the Read range selects in a deferred `setTimeout(rdOnLocale, 0)`. | Wait one macrotask after the warm-up switch. |
 | Bach pedal hover (intermittent) | A ResizeObserver relayout can move the label after it was measured. | Measure and hover inside `expect(...).toPass()`. |
 
-After the fixes: **196 passed in each of three consecutive runs, about 1.8 min each** (local macOS).
+After the fixes: **196 passed in each of three consecutive runs, about 1.8 min each** (local macOS). The first CI run (8 November, `ubuntu-24.04`, Playwright's Chromium) also passed all 196, in 3.3 min with no retries.
 
 ### 5.2 What Step 0 added
 
@@ -144,7 +144,7 @@ After the fixes: **196 passed in each of three consecutive runs, about 1.8 min e
 
 - On a platform without a layout baseline, the test still passes. It writes the measured layout to `test-results/…/<score>.<platform>.json` and adds an annotation.
 - To adopt the Linux baseline, take that file from the CI artifact (or run the update on Linux). Add it under `layout.linux` and commit it on its own.
-- **Step 0 is finished only when the Linux baselines are committed** and the workflow sets `GOLDEN_REQUIRE_PLATFORM=1`. From then on, a missing platform baseline fails instead of passing quietly.
+- **Done (8 November):** the Linux baselines from the first CI run are committed. They're identical to the macOS ones for all three fixtures. The workflow now sets `GOLDEN_REQUIRE_PLATFORM=1`, so a missing platform baseline fails instead of passing quietly. CI runs on a pinned `ubuntu-24.04` image; moving to a newer one is a deliberate change that re-takes the baselines in the same PR.
 - The macOS baselines were taken with the auto-updating system Chrome. If a Chrome update moves them, re-take them with `PW_CHANNEL=` (Playwright's pinned Chromium).
 
 **Private scores:**
@@ -393,5 +393,4 @@ Answered by the owner on 8 November 2026.
 - **Pixel-level engraving changes** that keep every count the same. The Step 1 visual audit covers these, and Step 3 can add an optional screenshot pass.
 - **Real devices:** the owner checks iOS PWA update behaviour and storage eviction by hand after Steps 2 and 3.
 - **Audio** is headless on CI. Only the bytes of the recordings and their decoding are checked.
-- **Linux layout** has no baselines until the artifact from the first CI run is adopted (§5.3).
-- **CI itself** hasn't run yet, because this branch was prepared without push access. Its first run may show Linux-only differences (fonts, audio) to triage before the workflow becomes a required check.
+- **New golden scores** need both a `darwin` and a `linux` layout baseline. On CI a missing one fails the run, and the measured layout is in that run's `test-results` artifact (`<score>.linux.json`), ready to review and commit. `UPDATE_GOLDEN=1` on Linux works too.

@@ -16,14 +16,18 @@ concurrency:
 
 jobs:
   playwright:
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the Linux layout baselines were taken on this image, and a new image (fonts)
+    # may move them. Change it on purpose, re-taking the baselines in the same PR.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       # Playwright's own Chromium (pinned by @playwright/test) instead of the runner's Chrome, so runs are reproducible.
       PW_CHANNEL: ''
+      # Every score golden must have a Linux layout baseline; a missing one fails instead of passing quietly.
+      GOLDEN_REQUIRE_PLATFORM: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -31,7 +35,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
       # Failure traces, and the score-layout results for platforms without a golden baseline yet (see tests/golden.spec.mjs).
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: test-results
