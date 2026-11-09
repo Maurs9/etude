@@ -191,7 +191,8 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
             <button class="btn ghost sm" id="rdx-back" data-i18n="rdx_back">← Levels</button>
             <div class="rdx-head"><div id="rdx-title" class="rdx-title"></div><div id="rdx-sub" class="rdx-sub"></div></div>
             <div id="rdx-hud" class="rdx-hud" aria-hidden="true"></div>
-            <button class="btn ghost sm" id="rdx-end" hidden>End</button>
+            <button class="btn ghost sm stage-fs" id="rdx-fs" type="button" hidden aria-label="Full screen" title="Full screen">⛶</button>
+            <button class="btn ghost sm" id="rdx-end" hidden aria-keyshortcuts="Escape">End</button>
           </div>
           <div class="rdx-meter" id="rdx-meter" hidden><i></i></div>
           <div id="rdx-body"></div>
@@ -234,6 +235,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <label class="field" style="min-width:180px"><span data-i18n="rd_tempo">Tempo</span> <small><span id="rd-bpmLbl">90</span> BPM</small><input id="rd-bpm" type="range" min="40" max="160" value="90" aria-label="Tempo" data-i18n-aria="rd_tempo"></label>
           <span style="margin-left:auto"></span>
           <span id="rd-best" class="lede" style="font-size:13px"></span>
+          <button class="btn ghost sm stage-fs" id="rd-fs" type="button" hidden aria-label="Full screen" title="Full screen">⛶</button>
         </div>
       </div>
       </div>

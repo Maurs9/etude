@@ -29,7 +29,7 @@ import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder } from '../sight-reading/recorder.js';
 import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
-import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible } from '../sight-reading/stream.js';
+import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
 
 let scoreLibrary: LibraryController | null = null;
@@ -1701,8 +1701,15 @@ interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; for
 const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
 function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
 function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
+// The full-screen stage of a running reading drill or piece. With a MIDI or Bluetooth piano connected, the keys fold into the
+// rail there; showing or hiding them on the stage (`kb`) lasts until the stage closes and leaves the saved choice alone.
+interface PracticeStageState { on: boolean; kb: boolean | null; rz: number }
+const STAGE: PracticeStageState = { on: false, kb: null, rz: 0 };
+function midiLive() { return !!activeInputId || bleLive(); }
+function stageDock(v = view0()) { return STAGE.on && v === 'read' && (STAGE.kb != null || midiLive()); }
 function dockOpen(v = view0()) { if (dockForced(v))
-    return true; if (DOCK.pref != null)
+    return true; if (stageDock(v))
+    return STAGE.kb ?? false; if (DOCK.pref != null)
     return DOCK.pref; return false; }
 function dockShown() { return document.body.classList.contains('kb') && !byId('dock').classList.contains('is-rail'); }
 // The dock's own button names the action it takes (Hide / Show keyboard).
@@ -1712,6 +1719,8 @@ function dockLabels() {
     dk.title = act;
     const label = dk.querySelector('.dock-kb-label');
     if (label) label.textContent = act;
+    const name = STAGE.on && midiLive() ? (activeInputId && midiMsg?.text) || bleName() : null;
+    byId('dock-rail-note').textContent = name ? t('stage_rail_midi', name) : t('kb_rail_note');
 }
 function dockSync() {
     const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
@@ -1738,11 +1747,18 @@ function dockSync() {
             anKeysClear();
     }
     anLayoutVars(); // size the page and the score from the dock's new height in this same frame: no stale gap, no overlap
+    if (STAGE.on)
+        stageRefit();
 }
 // Expanding from the rail, the keys rise out of it (not with reduced motion); transform and opacity only, so the layout is settled from the first frame.
 function dockReveal() { if (reduceMotion())
     return; const dock = byId('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = window.setTimeout(() => dock.classList.remove('is-opening'), 300); }
 function dockSet(open: boolean) {
+    if (stageDock()) {
+        STAGE.kb = !!open;
+        dockSync();
+        return;
+    }
     const keep = view0() === 'analysis' ? anKeepPlace() : dockKeepEnd(open);
     DOCK.pref = !!open;
     saveAll();
@@ -1901,10 +1917,13 @@ function midiChipSync() {
     if (!(midiMsg && midiMsg.cls === 'on') && bleLive()) {
         mt.textContent = t('ble_on', bleName());
         md.className = 'dot on';
-        return;
     }
-    mt.textContent = midiMsg ? midiMsg.text : t('midi_connect');
-    md.className = 'dot' + (midiMsg && midiMsg.cls ? ' ' + midiMsg.cls : '');
+    else {
+        mt.textContent = midiMsg ? midiMsg.text : t('midi_connect');
+        md.className = 'dot' + (midiMsg && midiMsg.cls ? ' ' + midiMsg.cls : '');
+    }
+    if (STAGE.on)
+        dockSync();
 }
 async function connectMidi()  {
     ensureAudio();
@@ -2409,7 +2428,10 @@ async function pwaInstall()  {
     pwaUi();
 }
 function fsCan() { return !!(document.fullscreenEnabled && document.documentElement.requestFullscreen); }
-function fsUi() { const b = byId('set-full'); if (!b)
+function fsUi() {
+    const on = !!document.fullscreenElement;
+    queryAllHtml(document, '.stage-fs').forEach((s) => { s.hidden = !fsCan(); s.setAttribute('aria-label', t(on ? 'stage_fs_exit' : 'stage_fs')); s.title = t(on ? 'stage_fs_exit' : 'stage_fs'); });
+    const b = byId('set-full'); if (!b)
     return; const row = b.closest('.set-row'); if (row instanceof HTMLElement)
     row.hidden = !fsCan(); b.textContent = t(document.fullscreenElement ? 'full_exit' : 'full_enter'); }
 function fsToggle() {
@@ -2577,7 +2599,7 @@ document.addEventListener('keydown', (e) => {
         openHelp(!byId('helpBox').classList.contains('on'));
         return;
     }
-    if (rdKey(e, k))
+    if (stageKey(e) || rdKey(e, k))
         return;
     if (SES.active && SES.q) { // session shortcuts: digits pick an answer, R replays, N advances
         if (/^[1-9]$/.test(k) && !SES.answered && SES.q.mode === 'ear') {
@@ -3746,6 +3768,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
         kbDegrees(null);
     }
     _view = v;
+    stageSync();
     if (prev === 'accompany' && v !== 'accompany')
         accompStop();
     if (prev === 'transcribe' && v !== 'transcribe')
@@ -6062,6 +6085,7 @@ function srDraw() {
     const concealed = srtScoreConcealed();
     byId('rd-staff').setAttribute('aria-hidden', concealed ? 'true' : 'false');
     byId('rd-staff').innerHTML = concealed ? '' : r.svg;
+    srFit();
     srStepsBuild();
     if (!concealed)
         srPaintAll();
@@ -6139,8 +6163,24 @@ function srPaintAll() {
     else if (extras)
         extras.remove();
 }
-function srScrollX(x: number) { const w = byId('rd-staff'); if (w && w.scrollWidth > w.clientWidth + 4)
-    w.scrollLeft = Math.max(0, x - w.clientWidth * 0.4); }
+// x is in SVG units; on the full-screen stage the score is drawn larger than one pixel a unit.
+function srScrollX(x: number) { const w = byId('rd-staff'), svg = srSvg(), W = SR.render?.W, k = svg && W ? svg.getBoundingClientRect().width / W || 1 : 1; if (w && w.scrollWidth > w.clientWidth + 4)
+    w.scrollLeft = Math.max(0, x * k - w.clientWidth * 0.4); }
+// On the stage the score grows to the height it is given (up to 2.4×, less on narrow screens so a phrase still fits) and scrolls sideways as before.
+function srFit() {
+    const svg = srSvg(), r = SR.render;
+    if (!svg || !r)
+        return;
+    const box = svg.viewBox.baseVal, H = box && box.height ? box.height : 150, wrap = byId('rd-staff');
+    if (!STAGE.on || wrap.closest('[hidden]')) {
+        svg.style.width = '';
+        svg.style.height = '';
+        return;
+    }
+    const k = Math.max(1, Math.min(2.4, (wrap.clientHeight - 14) / H, wrap.clientWidth / 360));
+    svg.style.width = Math.round(r.W * k) + 'px';
+    svg.style.height = Math.round(H * k) + 'px';
+}
 function srScrollStep() { const st = SR.steps[SR.stepIdx]; if (st)
     srScrollX(st.notes[0].x); }
 function srBeatToX(beat: number) {
@@ -6195,6 +6235,7 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
     }
     const preservePendingResult = srtPendingSaveProtected();
     SR.active = false;
+    stageSync();
     SR.assessOn = false;
     if (SR.raf)
         cancelAnimationFrame(SR.raf);
@@ -6243,6 +6284,7 @@ function srPlayGap(fromBeat: number, toBeat: number) {
 function srCount() { const v = byId('rd-verdict'); v.className = 'verdict neutral'; v.textContent = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : ''); }
 function srLearnStart() {
     SR.active = true;
+    stageSync();
     SR.results = {};
     SR.stepIdx = 0;
     SR.hit.clear();
@@ -6858,6 +6900,7 @@ function srAssessStart(operation?: number) {
             operation !== undefined && operation !== srtOperationEpoch))
         return;
     SR.active = true;
+    stageSync();
     SR.results = {};
     SR.wrongExtra = 0;
     SR.srtEvaluation = null;
@@ -7320,7 +7363,7 @@ interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rus
 interface ReadDrillNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
 interface ReadDrillTotals { n: number; ok: number; ms: number; sess: number; }
 interface ReadDrillCustom { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
-interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; }
+interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; stage: boolean; }
 interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { [noteKey: string]: ReadDrillNoteStat; }; tot: ReadDrillTotals; prefs: ReadDrillPrefs; }
 function rdData(): ReadDrillData {
     if (!data.reading || typeof data.reading !== 'object')
@@ -7329,7 +7372,7 @@ function rdData(): ReadDrillData {
     r.lv = r.lv || {};
     r.nt = r.nt || {};
     r.tot = Object.assign({ n: 0, ok: 0, ms: 0, sess: 0 }, r.tot || {});
-    r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1, flow: true, ghost: false }, r.prefs || {});
+    r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1, flow: true, ghost: false, stage: true }, r.prefs || {});
     if (!isReadDrillData(r))
         throw new Error('Étude: reading progress could not be initialised');
     return r;
@@ -7528,7 +7571,7 @@ function rdSvg(o: ReadDrillSvgOptions) {
     const hl = o.hl != null ? band(x0 + o.hl * colW, 'rdx-now') : '';
     const ghost = o.ghost ? `<g class="rdx-ghost">${band(-colW / 2, 'rdx-ghost-b')}<text x="0" y="${yA + 15}">👻</text></g>` : '';
     const notes = o.wrap ? `<g class="${o.wrap}" style="--dx:${colW}px">${body.join('')}</g>` : body.join('');
-    return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0 };
+    return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0, H };
 }
 /* ---- drill engine ---- */
 const RD_TESTN = 20, RD_RUSH = 60;
@@ -7923,20 +7966,49 @@ function rdFlowShow(slide: boolean) {
     if (!F || !L || !st)
         return;
     const grand = L.clef === 'grand', fix = RD.fix, q = F.items[Math.min(F.cur, F.items.length - 1)];
-    const n = streamVisible(st.clientWidth - 28, { scale: RD_FLOW_SC, colW: RD_FLOW_W, head: grand ? 76 : 66 });
-    const start = streamStart(F.cur, n, rdRunLen());
-    rdFlowFill(F, start + n);
-    const vis = F.items.slice(start, start + n);
-    const cols = vis.map((it, i) => {
-        const k = start + i, col: ReadDrillStaffNote[] = [Object.assign({ s: k === F.cur ? 'now' : k < F.cur ? it.state : null, cn: it.cn }, it.note)];
-        if (k === F.cur && fix && F.played != null && F.played !== it.midi)
-            col.push(Object.assign(rdSpellMidi(F.played, 0), { s: 'bad' }));
-        return col;
-    });
-    const r = rdSvg({ clef: grand ? 'grand' : q.sclef, cols, colW: RD_FLOW_W, scale: RD_FLOW_SC, dur: 1, lbl: vis.map((it) => it.state === 'bad' ? rdName(it.note, true) : null), lblCls: vis.map(() => 'lo'), ext: F.ext, hl: F.cur < F.items.length ? F.cur - start : null, ghost: F.gh, wrap: 'rdx-flow-n' + (slide && start === F.start + 1 ? ' slide' : ''), aria: t('rdx_p_' + q.ty + '_flow'), bars: RD.mode === 'marathon' ? vis.map((_, i) => start + i > 0 && (start + i) % MARATHON_NOTES_PER_BAR === 0) : undefined });
-    st.innerHTML = r.svg;
-    F.start = start;
-    F.geo = { x0: r.x0, colW: RD_FLOW_W, n };
+    const clef: ReadClefDraw = grand ? 'grand' : q.sclef, head = grand ? 76 : 66, colW = RD_FLOW_W, aw = st.clientWidth - 28;
+    const svgOf = (start: number, vis: ReadQuestionNote[], sc: number, o: Partial<ReadDrillSvgOptions>) => rdSvg({ clef, colW, scale: sc, dur: 1, ext: F.ext, aria: t('rdx_p_' + q.ty + '_flow'), ...o,
+        cols: vis.map((it, i) => {
+            const k = start + i, col: ReadDrillStaffNote[] = [Object.assign({ s: k === F.cur ? 'now' : k < F.cur ? it.state : null, cn: it.cn }, it.note)];
+            if (k === F.cur && fix && F.played != null && F.played !== it.midi)
+                col.push(Object.assign(rdSpellMidi(F.played, 0), { s: 'bad' }));
+            return col;
+        }),
+        lbl: vis.map((it) => it.state === 'bad' ? rdName(it.note, true) : null), lblCls: vis.map(() => 'lo') });
+    // On the full-screen stage the notes grow into the height the stage gives them, keeping at least 8 columns across.
+    const H = rdSvg({ clef, cols: [], ext: F.ext, lbl: [], ghost: F.gh }).H, ah = st.clientHeight - 12, gap = 10;
+    const wide = Math.min(2.6, aw / (head + 10 + 8 * colW));
+    const total = rdRunLen();
+    st.classList.toggle('rdx-sys', RD.mode === 'marathon' && total !== null);
+    if (RD.mode === 'marathon' && total !== null) {
+        // Marathon reads like a page: whole bars on each system, the current system on top and the next ones below it.
+        const rows = STAGE.on ? systemRows(ah, H * Math.max(1, Math.min(RD_FLOW_SC, wide)) + gap) : 2;
+        const sc = STAGE.on ? Math.max(1, Math.min(wide, (ah - gap * (rows - 1)) / (rows * H))) : RD_FLOW_SC;
+        const per = systemBars(aw, { scale: sc, colW, head }, MARATHON_NOTES_PER_BAR) * MARATHON_NOTES_PER_BAR;
+        const win = systemWindow(F.cur, per, rows, total);
+        rdFlowFill(F, Math.min(total, (win.first + win.count) * per));
+        let cur0 = win.first * per, out = '';
+        for (let row = win.first; row < win.first + win.count; row++) {
+            const s0 = row * per, vis = F.items.slice(s0, Math.min(total, s0 + per)), here = F.cur >= s0 && F.cur < s0 + per;
+            if (here)
+                cur0 = s0;
+            const r = svgOf(s0, vis, sc, { minW: head + per * colW + 10, hl: here ? F.cur - s0 : null, ghost: F.gh && here, wrap: 'rdx-flow-n', bars: vis.map((_, i) => i > 0 && (s0 + i) % MARATHON_NOTES_PER_BAR === 0) });
+            out += here ? r.svg : r.svg.replace('<svg class="rdx-svg"', '<svg class="rdx-svg" aria-hidden="true"');
+        }
+        st.innerHTML = out;
+        F.start = cur0;
+        F.geo = { x0: head, colW, n: per };
+    }
+    else {
+        const sc = STAGE.on ? Math.max(1, Math.min(wide, ah / H)) : RD_FLOW_SC;
+        const n = streamVisible(aw, { scale: sc, colW, head });
+        const start = streamStart(F.cur, n, total);
+        rdFlowFill(F, start + n);
+        const r = svgOf(start, F.items.slice(start, start + n), sc, { hl: F.cur < F.items.length ? F.cur - start : null, ghost: F.gh, wrap: 'rdx-flow-n' + (slide && start === F.start + 1 ? ' slide' : '') });
+        st.innerHTML = r.svg;
+        F.start = start;
+        F.geo = { x0: r.x0, colW, n };
+    }
     rdGhostPlace();
     queryAllHtml(byId('rdx-ans'), '.rdx-a').forEach((b) => {
         const v = Number(b.dataset.a);
@@ -9018,6 +9090,7 @@ function rdIntro() {
         return;
     const r: Partial<ReadDrillLevelStat> = L.custom ? {} : (rdData().lv[L.id] || {});
     RD.on = false;
+    stageSync();
     byId('rdx-title').textContent = rdLvName(L);
     byId('rdx-sub').textContent = rdLvDetail(L);
     byId('rdx-hud').textContent = '';
@@ -9053,6 +9126,7 @@ function rdStart(mode: string, bars?: number) {
     rdClear();
     const now = performance.now();
     Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false, arc: srtIsArcadeMode(mode) ? srtArcadeStart(mode, now, { targetMs: rdTarget(L), marathonBars: RD.bars }) : null, tout: false, arcFx: '', limF: 1 });
+    stageSync();
     rdCoach(true);
     const e = byId('rdx-end');
     e.hidden = false;
@@ -9099,7 +9173,7 @@ function rdClear() {
     rdDockClear();
     rdDockForce(false);
 }
-function rdAbort() { rdClear(); RD.on = false; }
+function rdAbort() { rdClear(); RD.on = false; stageSync(); }
 function rdEndClick() { if (RD.on && RD.mode === 'practice' && RD.n > 0)
     rdFinish();
 else {
@@ -9107,10 +9181,58 @@ else {
     rdIntro();
 } }
 function rdBack() { rdAbort(); byId('rdx-stage').hidden = true; byId('rdx-home').hidden = false; rdRenderHome(); }
+/* ---- full-screen stage: a running drill or piece takes the whole window; Esc (or End) leaves it ---- */
+function stageWanted() {
+    if (view0() !== 'read' || !rdData().prefs.stage)
+        return false;
+    return (RD.on && !byId('rdp-drills').hidden && !byId('rdx-stage').hidden) || (SR.active && !byId('rdp-pieces').hidden);
+}
+function stageSync() {
+    const on = stageWanted();
+    if (on === STAGE.on)
+        return;
+    STAGE.on = on;
+    STAGE.kb = null;
+    if (on)
+        document.body.dataset.stage = 'immersive';
+    else
+        delete document.body.dataset.stage;
+    if (on)
+        window.scrollTo(0, 0);
+    dockSync();
+    anLayoutVars();
+    stageRefit();
+}
+// The staff is sized from the room the stage leaves it, so it is redrawn whenever that changes.
+function stageRefit() {
+    if (RD.on && RD.flow)
+        rdFlowShow(false);
+    srFit();
+}
+function stageResize() { clearTimeout(STAGE.rz); STAGE.rz = window.setTimeout(() => { if (STAGE.on)
+    stageRefit(); }, 120); }
+// Esc leaves the stage like End or Stop; focus goes to a control that stays on screen.
+function stageKey(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !STAGE.on)
+        return false;
+    e.preventDefault();
+    if (RD.on) {
+        rdEndClick();
+        const back = byId('rdx-back');
+        if (!byId('rdx-stage').contains(document.activeElement) || document.activeElement?.closest('[hidden]'))
+            back.focus({ preventScroll: true });
+    }
+    else if (SR.active) {
+        srGo();
+        byId('rd-go').focus({ preventScroll: true });
+    }
+    return true;
+}
 function rdFinish() {
     const L = RD.L, mode = RD.mode, now = performance.now();
     rdClear();
     RD.on = false;
+    stageSync();
     byId('rdx-end').hidden = true;
     byId('rdx-meter').hidden = true;
     let acc = 0, avg = 0, stars = 0;
@@ -9196,7 +9318,7 @@ function rdRenderHome() {
     byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
     <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${t('rdx_st_time')}</span></div></div>
     <div class="rdx-hero-r"><button class="btn primary" data-lv="${cont.id}" id="rdx-cont">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}<small>${rdEsc(rdLvName(cont) + ' · ' + t('rdx_ty_' + cont.ty))}</small></button>
-      <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-flow"${d.prefs.flow ? ' checked' : ''}> <span>${t('rdx_flow')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-ghost"${d.prefs.ghost ? ' checked' : ''}${d.prefs.flow ? '' : ' disabled'}> <span>${t('rdx_ghost')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-weak-inject"${data.settings.weakSpotInjection ? ' checked' : ''}> <span>${t('rdx_weak_inject')}</span></label></div>`;
+      <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-flow"${d.prefs.flow ? ' checked' : ''}> <span>${t('rdx_flow')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-ghost"${d.prefs.ghost ? ' checked' : ''}${d.prefs.flow ? '' : ' disabled'}> <span>${t('rdx_ghost')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-stage-pref"${d.prefs.stage ? ' checked' : ''}> <span>${t('rdx_stage')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-weak-inject"${data.settings.weakSpotInjection ? ' checked' : ''}> <span>${t('rdx_weak_inject')}</span></label></div>`;
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
@@ -9326,6 +9448,7 @@ function rdTab(tab: string|undefined) {
         rdRenderStats();
     else if (tab === 'drills' && byId('rdx-stage').hidden)
         rdRenderHome();
+    stageSync();
 }
 function rdRender() { rdTab(rdData().prefs.tab); }
 function rdKey(e: KeyboardEvent, k: string) {
@@ -9544,6 +9667,10 @@ function rdOnLocale() {
         }
         else if (id === 'rdx-ghost') {
             p.ghost = checked;
+            saveAll();
+        }
+        else if (id === 'rdx-stage-pref') {
+            p.stage = checked;
             saveAll();
         }
         else if (id === 'rdx-weak-inject')
@@ -16972,8 +17099,10 @@ function initControls() {
     // installed app & screen
     byId('set-wake').addEventListener('change', (e) => wakeSet(wiringInput(e).checked));
     byId('set-full').addEventListener('click', fsToggle);
+    queryAllHtml(document, '.stage-fs').forEach((b) => b.addEventListener('click', fsToggle));
     byId('set-install').addEventListener('click', pwaInstall);
     document.addEventListener('fullscreenchange', fsUi);
+    window.addEventListener('resize', stageResize);
     byId('settingsBtn').addEventListener('click', () => openDrawer(true));
     byId('scrim').addEventListener('click', () => { openDrawer(false); openHelp(false); });
     byId('drawerClose').addEventListener('click', () => openDrawer(false));
@@ -17899,6 +18028,8 @@ Object.defineProperty(__etude, "rdCustomGo", { configurable: true, get: () => rd
 Object.defineProperty(__etude, "rdCustomRead", { configurable: true, get: () => rdCustomRead });
 Object.defineProperty(__etude, "rdData", { configurable: true, get: () => rdData });
 Object.defineProperty(__etude, "rdEndClick", { configurable: true, get: () => rdEndClick });
+Object.defineProperty(__etude, "STAGE", { configurable: true, get: () => STAGE });
+Object.defineProperty(__etude, "stageSync", { configurable: true, get: () => stageSync });
 Object.defineProperty(__etude, "rdEsc", { configurable: true, get: () => rdEsc });
 Object.defineProperty(__etude, "rdFeedback", { configurable: true, get: () => rdFeedback });
 Object.defineProperty(__etude, "rdFinish", { configurable: true, get: () => rdFinish });

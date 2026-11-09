@@ -2088,6 +2088,100 @@ test.describe('reading drills: arcade modes', () => {
     expect(await arc(page)).toMatchObject({ mode: 'marathon', total: 64, correct: 0 });
   });
 
+  test('a running drill fills the screen, and Esc leaves the stage for the mode picker', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await app.open({ hash: 'read' });
+    await start(page, TREBLE_PLAY, 'survival');
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
+    await expect(page.locator('header .bar')).toBeHidden();
+    await expect(page.locator('#rd-tabs')).toBeHidden();
+    await expect(page.locator('#rdx-end')).toHaveAttribute('aria-keyshortcuts', 'Escape');
+    const fsOk = await page.evaluate(() => !!document.fullscreenEnabled);
+    await expect(page.locator('#rdx-fs')).toBeVisible({ visible: fsOk });
+    const box = await page.locator('#rdx-stage').boundingBox();
+    expect(box.y).toBeLessThanOrEqual(1);
+    expect(box.height).toBeGreaterThan(700);
+    const svg = await page.locator('#rdx-staff svg').first().boundingBox();
+    expect(svg.height).toBeGreaterThan(250);
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#rdx-body .rdx-modes')).toBeVisible();
+    expect(await page.evaluate(() => window.__etude.RD.on)).toBe(false);
+    await expect(page.locator('body')).not.toHaveAttribute('data-stage', /./);
+    await expect(page.locator('header .bar')).toBeVisible();
+    await expect(page.locator('#rdx-fs')).toBeHidden();
+    await expect(page.locator(':focus')).toHaveCount(1);
+  });
+
+  test('turning the stage off keeps a running drill inside the page', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await page.locator('#rdx-stage-pref').uncheck();
+    expect(await page.evaluate(() => window.__etude.rdData().prefs.stage)).toBe(false);
+    await start(page, TREBLE_PLAY, 'survival');
+    await expect(page.locator('#rdx-staff svg')).toBeVisible();
+    await expect(page.locator('body')).not.toHaveAttribute('data-stage', /./);
+    await expect(page.locator('header .bar')).toBeVisible();
+  });
+
+  test('on the stage, Marathon reads as a page of systems with the current one on top', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await app.open({ hash: 'read' });
+    await start(page, TREBLE_PLAY, 'marathon');
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
+    const systems = page.locator('#rdx-staff > .rdx-svg');
+    expect(await systems.count()).toBeGreaterThanOrEqual(2);
+    await expect(systems.first()).not.toHaveAttribute('aria-hidden', 'true');
+    await expect(systems.first().locator('.ss-n[data-s=now]')).toHaveCount(1);
+    const per = await page.evaluate(() => window.__etude.RD.flow.geo.n);
+    expect(per % 4).toBe(0);
+    await playRight(page, per);
+    await expect(page.locator('#rdx-hud')).toContainText(`${per + 1} / `);
+    expect(await page.evaluate(() => window.__etude.RD.flow.start)).toBe(per);
+    await expect(systems.first().locator('.ss-n[data-s=now]')).toHaveCount(1);
+  });
+
+  test('with a MIDI keyboard connected the stage folds the on-screen keys to a rail, and they come back after', async ({ app }) => {
+    const page = app.page, name = 'Stage Piano';
+    await page.addInitScript(name => {
+      const input = { id: 'stage', name, type: 'input', state: 'connected', connection: 'open', onmidimessage: null };
+      Object.defineProperty(navigator, 'requestMIDIAccess', { configurable: true, value: async () => ({ inputs: new Map([[input.id, input]]), outputs: new Map(), sysexEnabled: false, onstatechange: null }) });
+    }, name);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await app.open({ hash: 'read', dock: true });
+    await page.locator('#midiChip').click();
+    await expect(page.locator('#midiText')).toHaveText(name);
+    await expect(page.locator('#dock')).not.toHaveClass(/\bis-rail\b/);
+    await start(page, TREBLE_PLAY, 'survival');
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    await expect(page.locator('#dock-rail-note')).toHaveText(fill(STRINGS.en.stage_rail_midi, name));
+    await page.locator('#dock-kb-toggle').click();
+    await expect(page.locator('#dock')).not.toHaveClass(/\bis-rail\b/);
+    expect(await page.evaluate(() => window.__etude.STAGE.kb)).toBe(true);
+    await page.locator('#dock-kb-toggle').click();
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('body')).not.toHaveAttribute('data-stage', /./);
+    await expect(page.locator('#dock')).not.toHaveClass(/\bis-rail\b/);
+  });
+
+  test('sight-reading a piece takes the stage too, and Esc stops it', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await app.open({ hash: 'read' });
+    await page.locator('#rdt-pieces').click();
+    await page.locator('#rd-go').click();
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
+    await expect(page.locator('#rd-staff svg')).toBeVisible();
+    const h = (await page.locator('#rd-staff svg').boundingBox()).height;
+    expect(h).toBeGreaterThan(160);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('body')).not.toHaveAttribute('data-stage', /./);
+    expect(await page.evaluate(() => window.__etude.SR.active)).toBe(false);
+    await expect(page.locator('#rd-go')).toBeFocused();
+  });
+
   test('quitting an arcade run saves no result', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
     const id = await start(page, TREBLE_PLAY, 'survival');

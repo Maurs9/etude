@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { courtesyNatural, formatLead, ghostX, pacerLead, streamLead, streamStart, streamVisible } from '../../src/sight-reading/stream.ts';
+import { courtesyNatural, formatLead, ghostX, pacerLead, streamLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../../src/sight-reading/stream.ts';
 
 const fit = { scale: 1.35, colW: 52, head: 66 };
 
@@ -59,5 +59,34 @@ describe('look-ahead note stream', () => {
     expect(formatLead(2)).toBe('+2');
     expect(formatLead(-3)).toBe('−3');
     expect(formatLead(0)).toBe('±0');
+  });
+});
+
+describe('Marathon systems', () => {
+  it('fits whole bars on a system, one to four', () => {
+    expect(systemBars(1000, fit, 4)).toBe(3);
+    expect(systemBars(600, fit, 4)).toBe(1);
+    expect(systemBars(2000, fit, 4)).toBe(4);
+    expect(systemBars(2000, fit, 4, 6)).toBe(6);
+    expect(systemBars(0, fit, 4)).toBe(1);
+    expect(systemBars(Number.NaN, fit, 4)).toBe(1);
+  });
+
+  it('shows two or three systems', () => {
+    expect(systemRows(300, 200)).toBe(2);
+    expect(systemRows(650, 200)).toBe(3);
+    expect(systemRows(5000, 200)).toBe(3);
+    expect(systemRows(Number.NaN, 200)).toBe(2);
+  });
+
+  it('keeps the current system on top and the last page still', () => {
+    // 64 notes, 12 a system: 6 systems (the last one 4 notes).
+    expect(systemWindow(0, 12, 3, 64)).toEqual({ first: 0, count: 3 });
+    expect(systemWindow(11, 12, 3, 64)).toEqual({ first: 0, count: 3 });
+    expect(systemWindow(12, 12, 3, 64)).toEqual({ first: 1, count: 3 });
+    expect(systemWindow(40, 12, 3, 64)).toEqual({ first: 3, count: 3 });
+    expect(systemWindow(63, 12, 3, 64)).toEqual({ first: 3, count: 3 });
+    expect(systemWindow(64, 12, 3, 64)).toEqual({ first: 3, count: 3 });
+    expect(systemWindow(5, 16, 3, 16)).toEqual({ first: 0, count: 1 });
   });
 });

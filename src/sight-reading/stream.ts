@@ -74,3 +74,28 @@ export function pacerLead(cur: number, p: number): number {
 export function formatLead(d: number): string {
   return d > 0 ? '+' + d : d < 0 ? '−' + Math.abs(d) : '±0';
 }
+
+/** Whole bars of `notesPerBar` notes that fit on one system `availPx` wide: at least one, at most `maxBars`. */
+export function systemBars(availPx: number, fit: StreamFit, notesPerBar: number, maxBars = 4): number {
+  const n = Math.floor((availPx / fit.scale - fit.head - 10) / fit.colW);
+  const bars = Number.isFinite(n) ? Math.floor(n / notesPerBar) : 0;
+  return Math.max(1, Math.min(maxBars, bars));
+}
+
+/** How many systems `rowPx` tall fit in `availPx`, between `min` and `max`. */
+export function systemRows(availPx: number, rowPx: number, min = 2, max = 3): number {
+  const n = Math.floor(availPx / rowPx);
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : min;
+}
+
+/**
+ * The systems on screen: the current note's system on top and the next ones below,
+ * so the page moves up a system when one is finished. Near the end the last page
+ * stays put and the current system moves down instead.
+ */
+export function systemWindow(cur: number, perSystem: number, rows: number, total: number): { first: number; count: number } {
+  const per = Math.max(1, perSystem), all = Math.max(1, Math.ceil(total / per));
+  const row = Math.min(Math.floor(Math.max(0, cur) / per), all - 1);
+  const first = Math.max(0, Math.min(row, all - rows));
+  return { first, count: Math.min(rows, all - first) };
+}

@@ -1348,3 +1348,41 @@
     body.kb .dock{padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
     .keys{height:min(150px, 30dvh)}
   }
+
+/* ---------- practice stage: full-screen reading (body[data-stage=immersive]) ---------- */
+  .stage-fs{display:none}
+  .rdx-q .rdx-staff.rdx-sys{flex-direction:column; align-items:stretch; gap:10px}
+  .rdx-sys .rdx-svg{margin:0 auto}
+  body[data-stage=immersive] header{position:static; background:none; backdrop-filter:none; border-bottom:0}
+  body[data-stage=immersive] header > :not([role=status]),
+  body[data-stage=immersive] #modeBar,
+  body[data-stage=immersive] main > .wrap:first-child,
+  body[data-stage=immersive] #view-read .section-head,
+  body[data-stage=immersive] #view-read > .wrap > .lede,
+  body[data-stage=immersive] .rdx-tabs,
+  body[data-stage=immersive] details.osmd-lic,
+  body[data-stage=immersive] footer{display:none}
+  body[data-stage=immersive] main{padding:0}
+  body[data-stage=immersive] .stage-fs:not([hidden]){display:inline-flex}
+  body[data-stage=immersive] #rdx-stage,
+  body[data-stage=immersive] #rdp-pieces > .panel{height:calc(100dvh - var(--dock-h,0px)); display:flex; flex-direction:column; margin:0; border-radius:0; border-left:0; border-right:0; box-sizing:border-box; padding-top:6px; padding-bottom:8px}
+  body[data-stage=immersive] .rdx-top{min-height:44px; flex-wrap:nowrap; gap:10px}
+  body[data-stage=immersive] #rdx-back,
+  body[data-stage=immersive] #rdx-sub{display:none}
+  body[data-stage=immersive] .rdx-head{min-width:0}
+  body[data-stage=immersive] .rdx-title{font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  body[data-stage=immersive] #rdx-end::before{content:"← " / ""}
+  body[data-stage=immersive] #rdx-end::after{content:" (Esc)" / ""}
+  body[data-stage=immersive] .rdx-meter{margin-top:4px}
+  body[data-stage=immersive] #rdx-body{flex:1; min-height:0; display:flex; flex-direction:column}
+  body[data-stage=immersive] .rdx-q{flex:1; min-height:0; padding-top:8px; gap:8px}
+  body[data-stage=immersive] .rdx-q .rdx-staff{flex:1 1 0; min-height:0; overflow:hidden; width:100%; box-sizing:border-box}
+  body[data-stage=immersive] .rdx-q .rdx-staff:not(.rdx-flow) .rdx-svg{height:100%; max-height:420px; width:auto; max-width:100%}
+  body[data-stage=immersive] .rdx-coach{display:none}
+  body[data-stage=immersive] #rdp-pieces > .panel > .row:first-child,
+  body[data-stage=immersive] #rd-meta{display:none}
+  body[data-stage=immersive] #rd-staff{flex:1 1 0; min-height:0; display:flex; align-items:center; overflow-y:hidden}
+  body[data-stage=immersive] #rd-staff > svg{flex:none}
+  body[data-stage=immersive] .dock.is-rail{padding-top:2px; padding-bottom:calc(2px + env(safe-area-inset-bottom,0px))}
+  body[data-stage=immersive] .dock.is-rail .dock-kb-toggle{height:24px; min-height:24px}
+  @media (max-width:480px){ body[data-stage=immersive] .rdx-head{display:none} body[data-stage=immersive] .rdx-hud{flex:1} }

@@ -66,6 +66,9 @@ Oferirea a **100% din ecran** portativului și claviaturii în timpul exerciții
   - **HUD Compact (44px):** Buton `← Ieșire (Esc)`, titlul nivelului/tonalității, indicatorul de vieți (`♥♥♥`), bara de timp de reacție, multiplicatorul de serie (`×1..×4`), scorul numeric și butonul de Fullscreen nativ (`document.documentElement.requestFullscreen()`).
   - **MIDI Auto-Collapse Dock:** Când un dispozitiv Web MIDI sau BLE MIDI este conectat, adaugă un comutator rapid pe dock pentru restrângerea claviaturii într-o bară subțire de status (28px), lăsând ~85% din ecran pentru portativ.
 
+> **Status:** implementată (branch `feat/practice-immersive-stage`). Când pornește un exercițiu din Reading drills sau o piesă din *Pieces & sight-reading*, pagina intră în `body[data-stage="immersive"]`: antetul, bara de secțiuni, titlul, descrierea, tab-urile și subsolul dispar, iar panoul ocupă `100dvh` minus claviatura. Bara de sus (44px) are titlul, HUD-ul (vieți, timp, progres, multiplicator, scor), butonul de ecran complet nativ (ascuns acolo unde browserul nu îl permite) și `← Ieșire (Esc)`; `Esc` oprește exercițiul și readuce pagina. Portativul crește cu înălțimea disponibilă (până la 2,6× în șirul de note, 2,4× la piese, mai puțin pe ecrane înguste) și se redimensionează la rotirea ecranului. Cu MIDI sau BLE conectat, claviatura se strânge în bara subțire cu „*Dispozitiv* conectat · claviatura e strânsă”; butonul de pe bară o deschide doar pentru exercițiul curent, fără să schimbe preferința salvată. Modul se poate opri din lista de niveluri („Scenă pe tot ecranul”).
+- *Diferență față de plan:* ecranul complet nativ nu se închide singur la ieșirea din exercițiu; îl controlează utilizatorul, iar în ecran complet nativ browserul folosește primul `Esc` pentru a-l închide.
+
 ---
 
 ## Faza 3: Înlocuirea „1 Notă Statică” cu Fluxul Continuu (*Look-Ahead Stream*) & *Ghost Pacer*
@@ -110,7 +113,7 @@ Adăugarea modurilor de antrenament intens și a sistemului de punctaj din *Comp
      - Praguri multiplicator: `1×` (0–4 serie), `2×` (5–14 serie), `3×` (15–29 serie), `4×` (30+ serie).
 
 **Implementat:** `src/sight-reading/arcade.ts` este motorul pur, cu teste unitare: vieți, fereastra de timp (pornește de la viteza țintă a nivelului și scade cu 6% la fiecare 10 răspunsuri corecte la rând, până la 750 ms), bonusul de +5 s, multiplicatorul și punctajul. *Supraviețuire*, *Contra cronometru* și *Maraton* sunt moduri noi în Reading drills, alături de Practice, Test și Rush, la nivelurile de citire, cântare, clapă → portativ, intervale, acorduri și armuri (Maratonul numai la citire și cântare, cu 16, 32 sau 64 de măsuri a câte 4 note). HUD-ul arată viețile (`♥♥♡`), timpul rămas, progresul, multiplicatorul (`×2`), scorul și seria (`🔥`). Recordurile se salvează pe nivel (`sv`, `ta`, `mn`) și se sincronizează între tab-uri. Ieșirea înainte de final nu salvează rezultatul.
-- *Diferență față de plan:* Maratonul folosește șirul de note cu bare de măsură (sau cartonașele, dacă șirul e oprit), nu o partitură multi-sistem pe ecran complet; aceea depinde de Faza 2, care nu este implementată.
+- Maratonul se citește ca o pagină: fiecare sistem are măsuri întregi (câte încap, până la 4), sistemul curent stă sus, iar următoarele 1–2 apar dedesubt. Pe ecran complet numărul de sisteme și mărimea notelor urmează înălțimea disponibilă. Cu șirul de note oprit, Maratonul folosește cartonașele.
 
 ---
 
@@ -170,4 +173,4 @@ Utilizarea statisticilor de eroare și timp de reacție ale utilizatorului pentr
    - Toate porțile (`npm run typecheck`, `npm run lint`, `npm run test:unit`, `npx playwright test`, `npm run build`, `npm run build:standalone`) trebuie să treacă 100% pe verde.
 
 **Implementat:** etichetele noi (tab-ul Scores, injecția notelor slabe, șirul de note, fantoma, Supraviețuire, Contra cronometru, Maraton, vieți, scor, recorduri) există în toate cele 7 limbi; nivelurile polifonice folosesc etichetele existente. Testele unitare acoperă motorul arcade, polifonia în toate armurile de la 7♭ la 7♯ și valoarea implicită a setării. Comportamentul ON/OFF al injecției e verificat în testele E2E, pentru că selecția rulează în runtime-ul din browser. Testele E2E acoperă și tab-ul Scores, Supraviețuirea până la 3 greșeli, bonusul din Contra cronometru și Maratonul.
-- *Neacoperit:* intrarea și ieșirea din Full-Screen Stage (`Esc`), pentru că Faza 2 nu este implementată.
+Testele E2E acoperă și intrarea și ieșirea din Full-Screen Stage cu `Esc` (exerciții și piese), oprirea lui din preferință, sistemele Maratonului și strângerea claviaturii cu MIDI conectat; testele unitare acoperă împărțirea Maratonului pe sisteme.
