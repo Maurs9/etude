@@ -1,6 +1,6 @@
 {
   "goal_id": "sight-reading-v3-mvp",
-  "status": "building",
+  "status": "completed",
   "iteration": 18,
   "builder_model": "GPT:5.6-Luna",
   "inspector_model": "GPT:5.6-Sol",
@@ -101,6 +101,11 @@
       "iteration": 17,
       "verdict": "FAIL",
       "summary": "D16-1 and the pre-lease D16-2 race are fixed and all gates pass, but a stale in-flight claim can reveal Learn content without any exposure or attempt and restore first-sight preview after reload."
+    },
+    {
+      "iteration": 18,
+      "verdict": "PASS",
+      "summary": "D17-1 is fixed: Learn remains concealed until a durable exposure exists, identical content stays practice-only after reload, no attempt locks leak, and the complete quality gate passes."
     }
   ]
 }
