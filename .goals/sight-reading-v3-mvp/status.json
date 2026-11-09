@@ -51,6 +51,11 @@
       "iteration": 7,
       "verdict": "FAIL",
       "summary": "Iteration-7 regressions are fixed and all gates pass, but restViolations incorrectly counts extras inside neighboring note association windows, contrary to the exact evaluator specification."
+    },
+    {
+      "iteration": 8,
+      "verdict": "FAIL",
+      "summary": "Neighbor-window rest handling works for default close repeats, but the evaluator allows association windows above the required 250 ms maximum and the tests omit the 45%-narrowed rest-window case."
     }
   ]
 }
