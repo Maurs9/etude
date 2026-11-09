@@ -348,8 +348,10 @@ describe('sight-reading generator', () => {
       ['P3.c', 2, ['rh', 'lh']],
       ['P3.d', 3, ['rh']],
     ]) {
+      const keys = new Set();
       for (let seed = 0; seed < 100; seed += 1) {
         const piece = srtGenerate(profile, seed);
+        keys.add(piece.key.keyN);
         expect(srtValidatePiece(piece, profile)).toBe(true);
         expect(piece.key.keyN).toBeGreaterThanOrEqual(-7);
         expect(piece.key.keyN).toBeLessThanOrEqual(7);
@@ -360,6 +362,8 @@ describe('sight-reading generator', () => {
           expect(event.pitches.map((pitch) => pitch.midi)).toEqual([...event.pitches.map((pitch) => pitch.midi)].sort((a, b) => a - b));
         }
       }
+      // Every signature from 7 flats to 7 sharps comes up; the chromatic level has none.
+      expect([...keys].sort((a, b) => a - b)).toEqual(profile === 'P3.d' ? [0] : Array.from({ length: 15 }, (_, i) => i - 7));
     }
   });
 });

@@ -26,6 +26,7 @@ import { SightReadingRecorder } from '../sight-reading/recorder.js';
 import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible } from '../sight-reading/stream.js';
+import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
 
 function runtimeErrorName(value: unknown): string {
   return value instanceof Error ? value.name : '';
@@ -7299,7 +7300,8 @@ const RD_CLEFC: Record<ReadClefStaff, string> = { treble: 't', bass: 'b', alto: 
 const RD_MAJ = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'], RD_MIN = ['Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#'];
 const RD_CHQ: Record<ReadDrillChordQuality, number[]> = { maj: [0, 4, 7], min: [0, 3, 7], dim: [0, 3, 6], aug: [0, 4, 8] };
 const RD_TARGET: Partial<Record<ReadDrillType, number>> = { name: 2500, play: 3500, k2s: 4000, iv: 3500, ch: 6000, ks: 5000 };
-interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rush: number; }
+// sv, ta: best Survival and Time Attack scores; mn: best Marathon pace in notes per minute.
+interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rush: number; sv?: number; ta?: number; mn?: number; }
 interface ReadDrillNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
 interface ReadDrillTotals { n: number; ok: number; ms: number; sess: number; }
 interface ReadDrillCustom { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
@@ -7442,8 +7444,8 @@ function rdKsSvg(clef: ReadClefStaff, keyN: number, x: number, top: number) {
     return { svg: s, w: keyN ? Math.abs(keyN) * 9 + 8 : 4 };
 }
 interface ReadDrillStaffNote { li: number; oct: number; acc?: number; s?: string | null; hc?: string | null; tip?: string; staff?: ReadClefStaff; cn?: boolean; }
-// ext: notes that only reserve vertical room; hl: column to highlight; ghost: draw the pacer; wrap: class of a group around the notes.
-interface ReadDrillSvgOptions { clef: ReadClefDraw; keyN?: number; cols: ReadDrillStaffNote[][]; minW?: number; aria?: string; colW?: number; lbl?: (string | number | null | undefined)[] | null; scale?: number; dur?: number; lblCls?: (string | null | undefined)[]; ext?: ReadDrillStaffNote[]; hl?: number | null; ghost?: boolean; wrap?: string; }
+// ext: notes that only reserve vertical room; hl: column to highlight; ghost: draw the pacer; wrap: class of a group around the notes; bars: columns that start a bar.
+interface ReadDrillSvgOptions { clef: ReadClefDraw; keyN?: number; cols: ReadDrillStaffNote[][]; minW?: number; aria?: string; colW?: number; lbl?: (string | number | null | undefined)[] | null; scale?: number; dur?: number; lblCls?: (string | null | undefined)[]; ext?: ReadDrillStaffNote[]; hl?: number | null; ghost?: boolean; wrap?: string; bars?: boolean[]; }
 interface ReadDrillSvgItem { n: ReadDrillStaffNote; ii: number; c: ReadClefStaff; top: number; step: number; y: number; dx: number; ax?: number; }
 function rdSvg(o: ReadDrillSvgOptions) {
     const grand = o.clef === 'grand', clefs: ReadClefStaff[] = o.clef === 'grand' ? ['treble', 'bass'] : [o.clef], tops = grand ? [40, 136] : [40];
@@ -7458,6 +7460,8 @@ function rdSvg(o: ReadDrillSvgOptions) {
     let minY = tops[0], maxY = tops[tops.length - 1] + 48;
     o.cols.forEach((col, ci) => {
         const nx = x0 + ci * colW + colW / 2;
+        if (o.bars && o.bars[ci])
+            body.push(`<line class="ss-line rdx-barline" x1="${x0 + ci * colW}" y1="${tops[0]}" x2="${x0 + ci * colW}" y2="${tops[tops.length - 1] + 48}" stroke-width="1.2"/>`);
         const items = col.map((n, ii): ReadDrillSvgItem => {
             const c: ReadClefStaff = grand ? (n.staff || (rdStep(n) >= 28 ? 'treble' : 'bass')) : clefs[0], top = tops[clefs.indexOf(c)], st = rdStep(n);
             return { n, ii, c, top, step: st, y: top + 48 + (RD_REF[c] - st) * 6, dx: 0 };
@@ -7513,9 +7517,38 @@ function rdSvg(o: ReadDrillSvgOptions) {
 }
 /* ---- drill engine ---- */
 const RD_TESTN = 20, RD_RUSH = 60;
-type ReadDrillMode = 'practice' | 'test' | 'rush';
-interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; }
-const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false };
+type ReadDrillMode = 'practice' | 'test' | 'rush' | SightReadingArcadeMode;
+const RD_MODES: readonly string[] = ['practice', 'test', 'rush', 'survival', 'timeAttack', 'marathon'];
+function isReadDrillMode(mode: string): mode is ReadDrillMode { return RD_MODES.includes(mode); }
+const RD_MODE_ICON: Record<ReadDrillMode, string> = { practice: '🎯', test: '📝', rush: '⚡', survival: '♥', timeAttack: '⏱', marathon: '🏃' };
+// arc: the arcade run (Survival, Time Attack, Marathon); bars: the Marathon length last chosen; limT: Survival's per-note time limit;
+// tout: the last answer was a timeout; arcFx: what the last answer earned (a Time Attack bonus or a faster Survival pace); limF: Survival's time bar when the note was answered.
+interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; arc: SightReadingArcadeState | null; bars: SightReadingMarathonBars; limT?: ReturnType<typeof setTimeout>; tout: boolean; arcFx: '' | 'bonus' | 'faster'; limF: number; }
+const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false, arc: null, bars: 16, tout: false, arcFx: '', limF: 1 };
+// Rhythm and sight-reading levels keep Practice and Test; Marathon reads one long line of notes, so only naming and playing levels have it.
+function rdModes(L: ReadDrillLevel): ReadDrillMode[] {
+    if (L.ty === 'rh' || L.ty === 'sr')
+        return ['practice', 'test'];
+    const modes: ReadDrillMode[] = ['practice', 'test', 'rush', 'survival', 'timeAttack'];
+    if (L.ty === 'name' || L.ty === 'play')
+        modes.push('marathon');
+    return modes;
+}
+// How many notes the run has (Test and Marathon), or null when it ends another way.
+function rdRunLen(): number | null { return RD.mode === 'test' ? RD_TESTN : RD.arc && RD.arc.total !== null ? RD.arc.total : null; }
+function rdTimeUp() { return (RD.mode === 'rush' || RD.mode === 'timeAttack') && performance.now() >= RD.rushEnd; }
+// Survival: a note still unanswered when its time window closes costs a life.
+function rdArmLimit() {
+    clearTimeout(RD.limT);
+    const arc = RD.arc, q = RD.q;
+    if (!arc || arc.mode !== 'survival')
+        return;
+    RD.limT = setTimeout(() => { if (RD.on && !RD.answered && RD.q === q)
+        rdAnswer(false, {}, true); }, arc.targetMs);
+    rdHud();
+}
+function rdArcFx() { return RD.arcFx === 'bonus' ? t('rdx_ta_bonus') : RD.arcFx === 'faster' && RD.arc ? t('rdx_sv_faster', anNum(RD.arc.targetMs / 1000, 1)) : ''; }
+function rdClock(ms: number) { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function rdLvPrev(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
 function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
 function rdUnlocked(L: ReadDrillLevel | null | undefined) { if (!L)
@@ -7564,7 +7597,7 @@ function rdPickFrom<T>(items: T[], keyOf: (x: T) => string) {
         let pool = items.filter((item) => keyOf(item) !== RD.lastK);
         if (!pool.length)
             pool = items;
-        const weak = RD.mode === 'practice' && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
+        const weak = (RD.mode === 'practice' || RD.mode === 'survival' || RD.mode === 'marathon') && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
         r = rdPick(weak.length ? weak : pool);
     }
     RD.lastK = keyOf(r);
@@ -7817,7 +7850,7 @@ function rdFlowFill(F: ReadDrillFlow, upTo: number) {
     const L = RD.L;
     if (!L)
         throw new Error('Étude: no reading level');
-    const end = RD.mode === 'test' ? Math.min(upTo, RD_TESTN) : upTo;
+    const len = rdRunLen(), end = len !== null ? Math.min(upTo, len) : upTo;
     while (F.items.length < end) {
         const q = rdGen(L);
         if (q.ty !== 'name' && q.ty !== 'play')
@@ -7855,6 +7888,7 @@ function rdFlowArm() {
             rdHint(); }, 4000);
     rdHud();
     RD.t0 = performance.now();
+    rdArmLimit();
 }
 function rdFlowBody() {
     const F = RD.flow;
@@ -7875,7 +7909,7 @@ function rdFlowShow(slide: boolean) {
         return;
     const grand = L.clef === 'grand', fix = RD.fix, q = F.items[Math.min(F.cur, F.items.length - 1)];
     const n = streamVisible(st.clientWidth - 28, { scale: RD_FLOW_SC, colW: RD_FLOW_W, head: grand ? 76 : 66 });
-    const start = streamStart(F.cur, n, RD.mode === 'test' ? RD_TESTN : null);
+    const start = streamStart(F.cur, n, rdRunLen());
     rdFlowFill(F, start + n);
     const vis = F.items.slice(start, start + n);
     const cols = vis.map((it, i) => {
@@ -7884,7 +7918,7 @@ function rdFlowShow(slide: boolean) {
             col.push(Object.assign(rdSpellMidi(F.played, 0), { s: 'bad' }));
         return col;
     });
-    const r = rdSvg({ clef: grand ? 'grand' : q.sclef, cols, colW: RD_FLOW_W, scale: RD_FLOW_SC, dur: 1, lbl: vis.map((it) => it.state === 'bad' ? rdName(it.note, true) : null), lblCls: vis.map(() => 'lo'), ext: F.ext, hl: F.cur < F.items.length ? F.cur - start : null, ghost: F.gh, wrap: 'rdx-flow-n' + (slide && start === F.start + 1 ? ' slide' : ''), aria: t('rdx_p_' + q.ty + '_flow') });
+    const r = rdSvg({ clef: grand ? 'grand' : q.sclef, cols, colW: RD_FLOW_W, scale: RD_FLOW_SC, dur: 1, lbl: vis.map((it) => it.state === 'bad' ? rdName(it.note, true) : null), lblCls: vis.map(() => 'lo'), ext: F.ext, hl: F.cur < F.items.length ? F.cur - start : null, ghost: F.gh, wrap: 'rdx-flow-n' + (slide && start === F.start + 1 ? ' slide' : ''), aria: t('rdx_p_' + q.ty + '_flow'), bars: RD.mode === 'marathon' ? vis.map((_, i) => start + i > 0 && (start + i) % MARATHON_NOTES_PER_BAR === 0) : undefined });
     st.innerHTML = r.svg;
     F.start = start;
     F.geo = { x0: r.x0, colW: RD_FLOW_W, n };
@@ -7901,25 +7935,27 @@ function rdFlowShow(slide: boolean) {
         if (F.played != null && F.played !== q.midi)
             rdDockMark(F.played, 'bad');
     }
-    const f = byId('rdx-fb');
-    f.className = 'rdx-fb' + (fix ? ' bad' : '');
-    f.textContent = fix ? '✗ ' + rdFlowMsg() : '';
+    const f = byId('rdx-fb'), fx = fix ? '' : rdArcFx();
+    f.className = 'rdx-fb' + (fix ? ' bad' : fx ? ' good' : '');
+    f.textContent = fix ? (RD.tout ? '⏱ ' : '✗ ') + rdFlowMsg() : fx ? '✓ ' + fx : '';
 }
 function rdFlowMsg() {
-    const F = RD.flow, q = F && F.items[F.cur];
+    const F = RD.flow, q = F && F.items[F.cur], arc = RD.arc;
     if (!F || !q)
         return '';
-    return t('rdx_wrong', rdName(q.note, true)) + (q.ty === 'play' && F.played != null ? ' · ' + t('rdx_played', rdName(rdSpellMidi(F.played, 0), true)) : '') + ' · ' + t(q.ty === 'play' ? 'rdx_fix_play' : 'rdx_fix_name');
+    return (RD.tout ? t('rdx_timeout') + ' · ' : '') + t('rdx_wrong', rdName(q.note, true)) + (q.ty === 'play' && F.played != null ? ' · ' + t('rdx_played', rdName(rdSpellMidi(F.played, 0), true)) : '') + (arc && arc.lives !== null ? ' · ' + t('rdx_lives', arc.lives) : '') + (arc && arc.completed ? '' : ' · ' + t(q.ty === 'play' ? 'rdx_fix_play' : 'rdx_fix_name'));
 }
 // Only the first answer to a note is scored. After a wrong one the stream waits, showing the right answer, until it is given.
-function rdFlowAnswer(ok: boolean, g: ReadDrillGiven) {
+function rdFlowAnswer(ok: boolean, g: ReadDrillGiven, timeout = false) {
     const F = RD.flow, q = F && F.items[F.cur];
     if (!F || !q || (RD.answered && !RD.fix))
         return;
     if (!RD.fix) {
         RD.answered = true;
         clearTimeout(RD.hintT);
-        rdScore(q, ok);
+        clearTimeout(RD.limT);
+        RD.tout = timeout;
+        rdScore(q, ok, timeout);
         q.state = ok ? 'good' : 'bad';
     }
     if (ok)
@@ -7937,6 +7973,10 @@ function rdFlowAnswer(ok: boolean, g: ReadDrillGiven) {
     sv.classList.add('flash-bad');
     byId('rdx-live').textContent = rdFlowMsg();
     rdHud();
+    // A run that this mistake ended (no lives left, or the last Marathon note) closes after a moment to read the answer.
+    if (RD.arc && RD.arc.completed)
+        RD.timers.push(setTimeout(() => { if (RD.on)
+            rdFinish(); }, 1200));
 }
 function rdFlowAdvance(g: ReadDrillGiven) {
     const F = RD.flow;
@@ -7950,11 +7990,12 @@ function rdFlowAdvance(g: ReadDrillGiven) {
     F.wrong = [];
     RD.fix = false;
     RD.accSel = 0;
-    if ((RD.mode === 'test' && F.cur >= RD_TESTN) || (RD.mode === 'rush' && performance.now() >= RD.rushEnd)) {
+    const len = rdRunLen();
+    if ((len !== null && F.cur >= len) || rdTimeUp()) {
         rdFlowShow(false);
         rdHud();
         RD.timers.push(setTimeout(() => { if (RD.on)
-            rdFinish(); }, RD.mode === 'test' ? 400 : 0));
+            rdFinish(); }, RD.mode === 'rush' || RD.mode === 'timeAttack' ? 0 : 400));
         return;
     }
     rdFlowFill(F, F.cur + 1);
@@ -7962,6 +8003,9 @@ function rdFlowAdvance(g: ReadDrillGiven) {
     RD.answered = false;
     rdFlowShow(true);
     rdFlowArm();
+    const fx = rdArcFx();
+    if (fx)
+        byId('rdx-live').textContent = fx;
 }
 function rdGhostTick() {
     const F = RD.flow;
@@ -8035,6 +8079,7 @@ function rdNext() {
             rdHint(); }, 4000);
     rdHud();
     RD.t0 = performance.now();
+    rdArmLimit();
 }
 function rdSound(ms?: number[], arp?: boolean) { if (!ms || !ms.length)
     return; ensureAudio(); if (!actx)
@@ -8077,8 +8122,8 @@ function rdAnsText(q: ReadQuestion) { if (q.ty === 'iv')
     return rdChLabel(q.root.li, q.qual); if (q.ty === 'ks')
     return rdKeyLabel(q.ans) + ' / ' + rdKeyMinor(q.ans); return rdName(q.note, true); }
 interface ReadDrillGiven { btn?: Element; midi?: number; }
-function rdScore(q: ReadQuestion, ok: boolean) {
-    const ms = Math.round(performance.now() - RD.t0);
+function rdScore(q: ReadQuestion, ok: boolean, timeout = false) {
+    const now = performance.now(), ms = Math.round(now - RD.t0);
     RD.n++;
     RD.ms += ms;
     if (ok) {
@@ -8098,24 +8143,47 @@ function rdScore(q: ReadQuestion, ok: boolean) {
             tt.ok++;
         tt.ms += ms;
     }
+    RD.arcFx = '';
+    const prev = RD.arc;
+    if (!prev)
+        return;
+    if (prev.mode === 'survival')
+        RD.limF = Math.max(0, 1 - ms / prev.targetMs);
+    const arc = RD.arc = srtArcadeRecord(prev, ok ? 'correct' : timeout ? 'timeout' : 'wrong', ms, now);
+    if (arc.deadlineMs !== null && prev.deadlineMs !== null && arc.deadlineMs > prev.deadlineMs) {
+        RD.rushEnd = arc.deadlineMs;
+        RD.arcFx = 'bonus';
+    }
+    if (arc.targetMs < prev.targetMs)
+        RD.arcFx = 'faster';
 }
-function rdAnswer(ok: boolean, given?: ReadDrillGiven) {
-    if (RD.flow && RD.on)
-        return rdFlowAnswer(ok, given || {});
+function rdAnswer(ok: boolean, given?: ReadDrillGiven, timeout = false) {
+    if (!RD.on || (RD.arc && RD.arc.completed))
+        return;
+    // Time Attack: once the clock has run out nothing more is scored.
+    if (RD.mode === 'timeAttack' && rdTimeUp()) {
+        if (!RD.answered || RD.fix)
+            rdFinish();
+        return;
+    }
+    if (RD.flow)
+        return rdFlowAnswer(ok, given || {}, timeout);
     const q = RD.q;
-    if (!q || RD.answered || !RD.on)
+    if (!q || RD.answered)
         return;
     RD.answered = true;
     clearTimeout(RD.hintT);
-    rdScore(q, ok);
+    clearTimeout(RD.limT);
+    RD.tout = timeout;
+    rdScore(q, ok, timeout);
     rdFeedback(ok, given || {});
     rdHud();
-    const done = RD.mode === 'test' && RD.n >= RD_TESTN;
+    const done = (RD.mode === 'test' && RD.n >= RD_TESTN) || !!(RD.arc && RD.arc.completed);
     RD.timers.push(setTimeout(() => { if (!RD.on)
-        return; if (done || (RD.mode === 'rush' && performance.now() >= RD.rushEnd))
+        return; if (done || rdTimeUp())
         rdFinish();
     else
-        rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'rush' ? 800 : 1500)));
+        rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'rush' || RD.mode === 'timeAttack' ? 800 : 1500)));
 }
 function rdFeedback(ok: boolean, g: ReadDrillGiven) {
     const q = RD.q;
@@ -8144,9 +8212,11 @@ function rdFeedback(ok: boolean, g: ReadDrillGiven) {
         if (!ok && g.midi != null && g.midi !== q.midi)
             rdDockMark(g.midi, 'bad', exact);
     }
-    const f = byId('rdx-fb'), msg = ok ? (t('rdx_ok') + (RD.streak >= 3 ? '  🔥 ' + RD.streak : '')) : t('rdx_wrong', rdAnsText(q)) + (extra ? ' · ' + t('rdx_played', rdName(extra, true)) : '');
+    const arc = RD.arc, fx = ok ? rdArcFx() : '';
+    const f = byId('rdx-fb'), msg = ok ? (t('rdx_ok') + (RD.streak >= 3 ? '  🔥 ' + RD.streak : '') + (fx ? ' · ' + fx : ''))
+        : (RD.tout ? t('rdx_timeout') + ' · ' : '') + t('rdx_wrong', rdAnsText(q)) + (extra ? ' · ' + t('rdx_played', rdName(extra, true)) : '') + (arc && arc.lives !== null ? ' · ' + t('rdx_lives', arc.lives) : '');
     f.className = 'rdx-fb ' + (ok ? 'good' : 'bad');
-    f.textContent = (ok ? '✓ ' : '✗ ') + msg;
+    f.textContent = (ok ? '✓ ' : RD.tout ? '⏱ ' : '✗ ') + msg;
     byId('rdx-live').textContent = msg;
     if (rdData().prefs.sound && q.ty !== 'play' && !(q.ty === 'k2s') && q.midis)
         rdSound(q.midis, q.ty === 'iv' && !q.harm);
@@ -8210,6 +8280,28 @@ function rdHud() {
         const left = Math.max(0, Math.ceil((RD.rushEnd - performance.now()) / 1000));
         s = '⏱ ' + left + 's · ✓ ' + RD.ok;
         f = left / RD_RUSH;
+    }
+    else if (RD.arc) {
+        const arc = RD.arc, now = performance.now(), parts: string[] = [];
+        if (arc.mode === 'survival') {
+            const lives = arc.lives ?? 0;
+            parts.push('♥'.repeat(lives) + '♡'.repeat(Math.max(0, ARCADE_LIVES - lives)));
+            f = RD.answered ? RD.limF : 1 - (now - RD.t0) / arc.targetMs;
+        }
+        else if (arc.mode === 'timeAttack') {
+            const left = srtArcadeRemainingMs(arc, now) ?? 0;
+            parts.push('⏱ ' + Math.ceil(left / 1000) + 's');
+            f = left / TIME_ATTACK_MS;
+        }
+        else if (arc.total !== null) {
+            const answered = arc.correct + arc.mistakes;
+            parts.push(t('rdx_hud_q', Math.min(arc.total, answered + (RD.answered ? 0 : 1)), arc.total));
+            f = answered / arc.total;
+        }
+        parts.push('×' + srtArcadeMultiplier(arc.combo), t('rdx_arc_score', anNum(arc.score, 0)));
+        if (arc.combo >= 2)
+            parts.push('🔥 ' + arc.combo);
+        s = parts.join(' · ');
     }
     else
         s = '✓ ' + RD.ok + '/' + RD.n + (RD.streak >= 2 ? ' · 🔥 ' + RD.streak : '');
@@ -8916,39 +9008,48 @@ function rdIntro() {
     byId('rdx-hud').textContent = '';
     byId('rdx-meter').hidden = true;
     byId('rdx-end').hidden = true;
-    const modes: ('practice' | 'test' | 'rush')[] = (L.ty === 'rh' || L.ty === 'sr') ? ['practice', 'test'] : ['practice', 'test', 'rush'], ic = { practice: '🎯', test: '📝', rush: '⚡' };
+    const modes = rdModes(L), ic = RD_MODE_ICON;
     let prev = '';
     const clef = L.clef;
     if (['name', 'play', 'k2s'].includes(L.ty) && clef !== 'mix' && clef !== undefined) {
         const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
         prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
     }
-    const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}</div>`;
+    const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}${r.sv ? `<span>♥ ${t('rdx_best_sv', anNum(r.sv, 0))}</span>` : ''}${r.ta ? `<span>⏱ ${t('rdx_best_ta', anNum(r.ta, 0))}</span>` : ''}${r.mn ? `<span>🏃 ${t('rdx_best_mn', r.mn)}</span>` : ''}</div>`;
     const sfx = (L.ty === 'rh' || L.ty === 'sr') ? '_' + L.ty : '';
-    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${modes.map((m) => `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`).join('')}</div></div>`;
+    // Marathon is a group with one button per length; the other modes are a single button each.
+    const card = (m: ReadDrillMode) => m === 'marathon'
+        ? `<div class="rdx-mode rdx-mode-grp" role="group" aria-labelledby="rdx-m-marathon"><b id="rdx-m-marathon">${ic[m]} ${t('rdx_m_marathon')}</b><span>${t('rdx_md_marathon')}</span><div class="rdx-bars"><span>${t('rdx_bars')}</span>${[16, 32, 64].map((n) => `<button class="chip" data-mode="marathon" data-bars="${n}" aria-label="${rdEsc(t('rdx_m_marathon') + ', ' + t('rdx_bars') + ' ' + n)}">${n}</button>`).join('')}</div></div>`
+        : `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
+    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${modes.map(card).join('')}</div></div>`;
     rdCoach(true);
 }
-function rdStart(mode: string) {
+function rdStart(mode: string, bars?: number) {
     const L = RD.L;
-    if (!L)
+    if (!L || !isReadDrillMode(mode) || !rdModes(L).includes(mode))
         return;
     ensureAudio();
     if (L.ty === 'sr') {
         rdSightStart(mode);
         return;
     }
+    if (srtIsMarathonBars(bars))
+        RD.bars = bars;
     rdClear();
-    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false });
+    const now = performance.now();
+    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false, arc: srtIsArcadeMode(mode) ? srtArcadeStart(mode, now, { targetMs: rdTarget(L), marathonBars: RD.bars }) : null, tout: false, arcFx: '', limF: 1 });
     rdCoach(true);
     const e = byId('rdx-end');
     e.hidden = false;
     e.textContent = t(mode === 'practice' ? 'rdx_end' : 'rdx_quit');
-    if (mode === 'rush') {
-        RD.rushEnd = performance.now() + RD_RUSH * 1000;
+    if (mode === 'rush')
+        RD.rushEnd = now + RD_RUSH * 1000;
+    if (RD.arc && RD.arc.deadlineMs !== null)
+        RD.rushEnd = RD.arc.deadlineMs;
+    if (mode === 'rush' || mode === 'timeAttack' || mode === 'survival')
         RD.rushIv = window.setInterval(() => { if (!RD.on)
-            return; rdHud(); if (performance.now() >= RD.rushEnd && (!RD.answered || RD.fix))
+            return; rdHud(); if (rdTimeUp() && (!RD.answered || RD.fix))
             rdFinish(); }, 250);
-    }
     if (L.ty === 'rh')
         rdRhNew();
     else if (rdFlowOk(L))
@@ -8960,6 +9061,7 @@ function rdClear() {
     RD.timers.forEach(clearTimeout);
     RD.timers = [];
     clearTimeout(RD.hintT);
+    clearTimeout(RD.limT);
     clearInterval(RD.rushIv);
     RD.rushIv = 0;
     if (RD.flow)
@@ -8991,7 +9093,7 @@ else {
 } }
 function rdBack() { rdAbort(); byId('rdx-stage').hidden = true; byId('rdx-home').hidden = false; rdRenderHome(); }
 function rdFinish() {
-    const L = RD.L, mode = RD.mode;
+    const L = RD.L, mode = RD.mode, now = performance.now();
     rdClear();
     RD.on = false;
     byId('rdx-end').hidden = true;
@@ -9000,6 +9102,8 @@ function rdFinish() {
     const score = RD.ok;
     if (!L)
         return;
+    const arc = RD.arc && (RD.arc = srtArcadeComplete(RD.arc, now)), sum = arc && srtArcadeSummary(arc, now);
+    const npm = sum ? Math.round(sum.notesPerMinute ?? 0) : 0;
     if (L.ty === 'rh') {
         acc = RD.rhP.length ? Math.round(RD.rhP.reduce((a: number, b: number) => a + b, 0) / RD.rhP.length) : 0;
         if (mode === 'test')
@@ -9007,7 +9111,8 @@ function rdFinish() {
     }
     else {
         acc = RD.n ? Math.round(100 * RD.ok / RD.n) : 0;
-        avg = RD.n ? RD.ms / RD.n : 0;
+        // Arcade runs time only the right answers: a timeout is not a reading speed.
+        avg = sum ? sum.averageReactionMs ?? 0 : RD.n ? RD.ms / RD.n : 0;
         const tg = rdTarget(L);
         if (mode === 'test')
             stars = acc >= 95 && avg <= tg ? 3 : acc >= 90 && avg <= tg * 1.6 ? 2 : acc >= 80 ? 1 : 0;
@@ -9028,16 +9133,27 @@ function rdFinish() {
             newBest = score > (rec.rush || 0);
             rec.rush = Math.max(rec.rush || 0, score);
         }
+        if (sum) {
+            const k = sum.mode === 'survival' ? 'sv' : sum.mode === 'timeAttack' ? 'ta' : 'mn', v = k === 'mn' ? npm : sum.score;
+            newBest = v > (rec[k] || 0);
+            rec[k] = Math.max(rec[k] || 0, v);
+        }
         if (nx && !was && rdUnlocked(nx))
             unl = nx;
     }
     touchDay();
     saveAll();
     const weak = Object.entries(RD.miss).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const pts = sum ? anNum(sum.score, 0) : '', avgS = (avg / 1000).toFixed(1) + 's';
     const tiles = L.ty === 'rh' ? [[acc + '%', t('rdx_st_rh')], [RD.rhP.length, t('rdx_st_ex')]]
-        : [[acc + '%', t('rdx_st_acc')], [(avg / 1000).toFixed(1) + 's', t('rdx_st_time')], [mode === 'rush' ? score : RD.best, mode === 'rush' ? t('rdx_st_rush') : t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
+        : sum && sum.mode === 'survival' ? [[pts, t('rdx_st_score')], [rdClock(sum.elapsedMs), t('rdx_st_survived')], [sum.correct, t('rdx_st_rush')], [avgS, t('rdx_st_time')]]
+            : sum && sum.mode === 'timeAttack' ? [[pts, t('rdx_st_score')], [sum.correct, t('rdx_st_rush')], [acc + '%', t('rdx_st_acc')], [sum.bestCombo, t('rdx_st_streak')]]
+                : sum ? [[rdClock(sum.elapsedMs), t('rdx_st_total')], [acc + '%', t('rdx_st_acc')], [npm, t('rdx_st_npm')], [pts, t('rdx_st_score')]]
+                    : [[acc + '%', t('rdx_st_acc')], [avgS, t('rdx_st_time')], [mode === 'rush' ? score : RD.best, mode === 'rush' ? t('rdx_st_rush') : t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
+    const best = newBest ? ' · 🏆 ' + t('rdx_newbest') : '';
     const head = mode === 'test' ? `<div class="rdx-sum-stars">${rdStars(stars)}</div><p class="rdx-sum-msg">${t(stars === 3 ? 'rdx_s3' : stars === 2 ? 'rdx_s2' : stars === 1 ? 'rdx_s1' : 'rdx_s0')}</p>`
-        : mode === 'rush' ? `<p class="rdx-sum-msg">⚡ ${t('rdx_rush_score', score)}${newBest ? ' · 🏆 ' + t('rdx_newbest') : ''}</p>` : `<p class="rdx-sum-msg">${t('rdx_sum_practice')}</p>`;
+        : mode === 'rush' ? `<p class="rdx-sum-msg">⚡ ${t('rdx_rush_score', score)}${best}</p>`
+            : sum ? `<p class="rdx-sum-msg">${RD_MODE_ICON[mode]} ${sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)}${best}</p>` : `<p class="rdx-sum-msg">${t('rdx_sum_practice')}</p>`;
     const nx = rdLvNext(L);
     RD.next = rdNextStep(L, mode, acc, avg, stars, weak);
     rdCoach(false);
@@ -9046,7 +9162,7 @@ function rdFinish() {
     ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
     ${(RD).next ? `<div class="coach rdx-coach" id="rdx-next" data-kind="next">${coachHTML(t('coach_next'), (RD).next, 'rdx-next-act')}</div>` : ''}
     <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!(L)?.custom && nx && rdUnlocked(nx) ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
-    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
+    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + (sum ? ' · ' + (sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
     byId('rdx-hud').textContent = '';
     byId('rdx-meter').hidden = true;
     const s = maybeById('rdx-sum');
@@ -9318,7 +9434,7 @@ function rdOnLocale() {
         }
         const md = eventClosest(e, '[data-mode]');
         if (md) {
-            rdStart(md.dataset.mode ?? '');
+            rdStart(md.dataset.mode ?? '', Number(md.dataset.bars) || undefined);
             return;
         }
         const a = eventClosest(e, '.rdx-a');
@@ -9717,12 +9833,19 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
     const tg = rdTarget(L) / 1000, sec = avg / 1000;
     if (mode === 'rush')
         return RD.n - RD.ok >= 3 ? { k: 'rdn_rush' } : { k: 'rdn_ok' };
+    // A Survival run lost to the clock needs speed, not hints: timeouts also count against accuracy.
+    if (mode === 'survival' && RD.arc && RD.arc.timeouts >= 2)
+        return { k: 'rdn_sv_time', act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
     if (acc < 80)
         return { k: 'rdn_hints', act: { k: 'rdn_act_hints', run: () => { rdData().prefs.hints = true; saveAll(); rdStart('practice'); } } };
     if (weak.length && acc < 95)
         return { k: 'rdn_weak', args: () => [weak.slice(0, 3).map(([k]) => rdKeyText(k)).join(', ')], act: mode === 'practice' ? null : { k: 'rdn_act_practice', run: () => rdStart('practice') } };
+    if (mode === 'timeAttack' && RD.arc && RD.arc.bestCombo < ARCADE_STREAK)
+        return { k: 'rdn_ta' };
     if (sec > tg)
         return { k: 'rdn_speed', args: () => [anNum(sec, 1), anNum(tg, 1)], act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
+    if (srtIsArcadeMode(mode))
+        return { k: 'rdn_ok' };
     if (mode === 'practice')
         return { k: 'rdn_test', act: { k: 'rdn_act_test', run: () => rdStart('test') } };
     if (stars < 3)
@@ -16081,7 +16204,7 @@ interface SyncState {
 interface SyncNoBase { readonly syncNoBase?: undefined }
 const SYNC: SyncState = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_NONE: SyncNoBase = {}, SYNC_ID = /^[a-z0-9_-]{1,48}$/i; // SYNC_NONE: no shared base, so counters keep the larger side instead of adding
 const SYNC_ADD = /^(totalReviews|totalCorrect|history\.\d+|reading\.tot\.\w+|reading\.nt\..+\.(n|ok|ms)|reading\.lv\..+\.n|learnRev\..+\.n)$/;
-const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush))$/;
+const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush|sv|ta|mn))$/;
 const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
 const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
 function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }

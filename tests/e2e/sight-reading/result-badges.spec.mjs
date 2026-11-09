@@ -94,7 +94,8 @@ test.describe('Sight-reading iteration 16 regressions', () => {
       });
       expect(generated.keyN).toBeGreaterThanOrEqual(-7);
       expect(generated.keyN).toBeLessThanOrEqual(7);
-      expect(await page.locator('#rd-staff .ss-n').count()).toBeGreaterThan(10);
+      // Learn hides a new piece until its exposure is saved, then draws it.
+      await expect.poll(() => page.locator('#rd-staff .ss-n').count()).toBeGreaterThan(10);
     }
   });
 

@@ -1966,6 +1966,139 @@ test.describe('reading drills: note stream', () => {
   });
 });
 
+test.describe('reading drills: arcade modes', () => {
+  const TREBLE_PLAY = { ty: 'play', clef: 'treble' };
+  const open = (page, spec) => page.evaluate(spec => {
+    const e = window.__etude;
+    const level = Object.values(e.RD_LV).find(l => !l.acc && !l.keys && Object.entries(spec).every(([k, v]) => l[k] === v));
+    e.rdOpen(level);
+    return level.id;
+  }, spec);
+  const start = async (page, spec, mode) => {
+    const id = await open(page, spec);
+    await page.evaluate(mode => window.__etude.rdStart(mode), mode);
+    return id;
+  };
+  const play = (page, m) => page.evaluate(m => {
+    window.__etude.midiIn(0x90, m, 100, 'midi');
+    window.__etude.midiIn(0x80, m, 0, 'midi');
+  }, m);
+  // Plays the right note n times in a row, as fast as the stream allows.
+  const playRight = (page, n) => page.evaluate(n => {
+    const e = window.__etude;
+    for (let i = 0; i < n; i++) {
+      const m = e.RD.q.midi;
+      e.midiIn(0x90, m, 100, 'midi');
+      e.midiIn(0x80, m, 0, 'midi');
+    }
+  }, n);
+  const arc = page => page.evaluate(() => window.__etude.RD.arc);
+  const record = (page, id) => page.evaluate(id => window.__etude.rdData().lv[id], id);
+  const fill = (s, ...args) => args.reduce((r, a) => r.replace('%s', String(a)), s);
+  const modes = page => page.locator('#rdx-body .rdx-modes [data-mode]').evaluateAll(els => els.map(el => el.dataset.mode + (el.dataset.bars ? ':' + el.dataset.bars : '')));
+
+  test('naming and playing levels offer Survival, Time Attack and Marathon; rhythm and sight-reading do not', async ({ app }) => {
+    const page = await app.open({ hash: 'read', lang: 'ro' });
+    const ro = STRINGS.ro, arcade = ['practice', 'test', 'rush', 'survival', 'timeAttack'];
+    await open(page, TREBLE_PLAY);
+    expect(await modes(page)).toEqual([...arcade, 'marathon:16', 'marathon:32', 'marathon:64']);
+    await expect(page.locator('#rdx-body [data-mode="survival"]')).toContainText(ro.rdx_m_survival);
+    await expect(page.locator('#rdx-body [data-mode="timeAttack"]')).toContainText(ro.rdx_m_timeAttack);
+    await expect(page.getByRole('group', { name: ro.rdx_m_marathon })).toContainText(ro.rdx_bars);
+    for (const n of [16, 32, 64])
+      await expect(page.getByRole('button', { name: `${ro.rdx_m_marathon}, ${ro.rdx_bars} ${n}`, exact: true })).toBeVisible();
+    for (const [ty, expected] of [['k2s', arcade], ['iv', arcade], ['rh', ['practice', 'test']], ['sr', ['practice', 'test']]]) {
+      await page.evaluate(ty => window.__etude.rdOpen(Object.values(window.__etude.RD_LV).find(l => l.ty === ty)), ty);
+      expect(await modes(page), ty).toEqual(expected);
+    }
+    await page.evaluate(() => window.__etude.rdStart('survival'));
+    expect(await page.evaluate(() => window.__etude.RD.on)).toBe(false);
+  });
+
+  test('Survival: a wrong note or a note left too long costs a life, and the third ends the run', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const en = STRINGS.en, hud = page.locator('#rdx-hud'), fb = page.locator('#rdx-fb');
+    const id = await start(page, TREBLE_PLAY, 'survival');
+    await expect(hud).toContainText('♥♥♥');
+    // A short window from the next note on, so it times out quickly.
+    await page.evaluate(() => { const { RD } = window.__etude; RD.arc = { ...RD.arc, targetMs: 400 }; });
+    await playRight(page, 1);
+    expect((await arc(page)).correct).toBe(1);
+    await expect.poll(async () => (await arc(page)).timeouts).toBe(1);
+    await expect(fb).toContainText('⏱ ' + en.rdx_timeout);
+    await expect(fb).toContainText(fill(en.rdx_lives, 2));
+    await expect(hud).toContainText('♥♥♡');
+    // The stream waits for the right note; the next note is then played wrong.
+    await page.evaluate(() => {
+      const e = window.__etude, hit = m => { e.midiIn(0x90, m, 100, 'midi'); e.midiIn(0x80, m, 0, 'midi'); };
+      hit(e.RD.q.midi);
+      hit(e.RD.q.midi + 2);
+    });
+    expect(await arc(page)).toMatchObject({ lives: 1, mistakes: 2, timeouts: 1 });
+    await expect(hud).toContainText('♥♡♡');
+    await play(page, await page.evaluate(() => window.__etude.RD.q.midi));
+    await expect(page.locator('#rdx-sum')).toBeVisible();
+    const final = await arc(page);
+    expect(final).toMatchObject({ lives: 0, timeouts: 2, completed: true });
+    expect(final.score).toBeGreaterThan(0);
+    expect((await record(page, id)).sv).toBe(final.score);
+    await expect(page.locator('#rdx-sum')).toContainText('🏆');
+    await expect(page.locator('#rdx-next')).toContainText(en.rdn_sv_time);
+  });
+
+  test('Time Attack: ten right notes in a row add 5 seconds, and the run ends with the clock', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const hud = page.locator('#rdx-hud');
+    const id = await start(page, TREBLE_PLAY, 'timeAttack');
+    await expect(hud).toContainText(/⏱ (89|90)s/);
+    await playRight(page, 10);
+    expect(await page.evaluate(() => {
+      const { RD } = window.__etude;
+      return { combo: RD.arc.combo, length: Math.round(RD.arc.deadlineMs - RD.arc.startedAtMs), synced: RD.rushEnd === RD.arc.deadlineMs };
+    })).toEqual({ combo: 10, length: 95000, synced: true });
+    await expect(page.locator('#rdx-fb')).toContainText(STRINGS.en.rdx_ta_bonus);
+    await expect(hud).toContainText('×2');
+    await expect(hud).toContainText('🔥 10');
+    await page.evaluate(() => { const { RD } = window.__etude; RD.rushEnd = performance.now() - 1; RD.arc = { ...RD.arc, deadlineMs: RD.rushEnd }; });
+    await expect(page.locator('#rdx-sum')).toBeVisible();
+    const final = await arc(page);
+    expect(final).toMatchObject({ correct: 10, completed: true });
+    expect((await record(page, id)).ta).toBe(final.score);
+    await expect(page.locator('#rdx-sum')).toContainText('🏆');
+  });
+
+  test('Marathon: 16 bars are 64 notes with barlines, and the run saves the notes per minute', async ({ app }) => {
+    const page = await app.open({ hash: 'read', lang: 'ro' });
+    const ro = STRINGS.ro;
+    const id = await open(page, TREBLE_PLAY);
+    await page.getByRole('button', { name: `${ro.rdx_m_marathon}, ${ro.rdx_bars} 16`, exact: true }).click();
+    expect(await arc(page)).toMatchObject({ mode: 'marathon', marathonBars: 16, total: 64 });
+    await expect(page.locator('#rdx-hud')).toContainText('1 / 64');
+    expect(await page.locator('#rdx-staff .rdx-barline').count()).toBeGreaterThan(0);
+    await playRight(page, 63);
+    await expect(page.locator('#rdx-hud')).toContainText('64 / 64');
+    await playRight(page, 1);
+    await expect(page.locator('#rdx-sum')).toBeVisible();
+    expect(await arc(page)).toMatchObject({ correct: 64, mistakes: 0, completed: true });
+    const mn = (await record(page, id)).mn;
+    expect(mn).toBeGreaterThan(0);
+    await expect(page.locator('#rdx-sum')).toContainText(fill(ro.rdx_npm, mn));
+    await page.locator('#rdx-sum [data-act="again"]').click();
+    expect(await arc(page)).toMatchObject({ mode: 'marathon', total: 64, correct: 0 });
+  });
+
+  test('quitting an arcade run saves no result', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const id = await start(page, TREBLE_PLAY, 'survival');
+    await playRight(page, 1);
+    await expect(page.locator('#rdx-end')).toHaveText(STRINGS.en.rdx_quit);
+    await page.locator('#rdx-end').click();
+    await expect(page.locator('#rdx-body .rdx-modes')).toBeVisible();
+    expect(await page.evaluate(() => window.__etude.RD.on)).toBe(false);
+    expect(await record(page, id)).toBeUndefined();
+  });
+});
+
 test('Settings controls receive localized programmatic labels', async ({ app }) => {
   const page = await app.open();
   await page.locator('#settingsBtn').click();
@@ -1981,7 +2114,7 @@ test('Settings controls receive localized programmatic labels', async ({ app }) 
   expect(romanianInputLabel).not.toBe(englishInputLabel);
 });
 
-test('weak-spot injection is opt-in and targets only reading practice', async ({ app, page }) => {
+test('weak-spot injection is opt-in and steers only practice, survival and marathon', async ({ app, page }) => {
   await app.open({ hash: 'read' });
   await expect(page.locator('#rdx-weak-inject')).not.toBeChecked();
   await page.locator('#settingsBtn').click();
@@ -1995,28 +2128,27 @@ test('weak-spot injection is opt-in and targets only reading practice', async ({
   }))).toEqual({ setting: false, saved: false });
 
   const result = await page.evaluate(() => {
-    const level = Object.values(window.__etude.RD_LV).find(candidate => candidate.ty === 'name');
-    window.__etude.rdOpen(level);
-    window.__etude.rdStart('practice');
-    const weakKey = window.__etude.RD.q.key;
-    window.__etude.data.reading.nt[weakKey] = { n: 10, ok: 4, ms: 60000, e: 1, t: 6000 };
+    const api = window.__etude;
+    api.rdOpen(Object.values(api.RD_LV).find(candidate => candidate.ty === 'name'));
     const random = Math.random;
-    window.__etude.data.settings.weakSpotInjection = true;
-    window.__etude.RD.lastK = null;
-    Math.random = () => 0;
-    window.__etude.rdNext();
-    const injected = window.__etude.RD.q.key;
-    window.__etude.data.settings.weakSpotInjection = false;
-    window.__etude.RD.lastK = null;
-    Math.random = () => 0.999;
-    window.__etude.rdNext();
-    const standard = window.__etude.RD.q.key;
-    Math.random = random;
-    window.__etude.rdClear();
-    return { weakKey, injected, standard };
+    const pick = (mode, value, inject) => {
+      api.rdStart(mode);
+      api.data.settings.weakSpotInjection = inject;
+      api.RD.lastK = null;
+      Math.random = () => value;
+      api.rdNext();
+      Math.random = random;
+      return api.RD.q.key;
+    };
+    // Math.random() = 0 draws the level's first note unless injection replaces it, so the last note is made the weak one.
+    const first = pick('practice', 0, false), weakKey = pick('practice', 0.999, false);
+    api.data.reading.nt[weakKey] = { n: 10, ok: 4, ms: 60000, e: 1, t: 6000 };
+    const picks = { first, weakKey, injected: pick('practice', 0, true), standard: pick('practice', 0, false), survival: pick('survival', 0, true), marathon: pick('marathon', 0, true), rush: pick('rush', 0, true) };
+    api.rdClear();
+    return picks;
   });
-  expect(result.injected).toBe(result.weakKey);
-  expect(result.standard).not.toBe(result.weakKey);
+  expect(result.weakKey).not.toBe(result.first);
+  expect(result).toMatchObject({ injected: result.weakKey, standard: result.first, survival: result.weakKey, marathon: result.weakKey, rush: result.first });
 });
 
 test('leaving the window lets go of keys held on the computer keyboard or screen, and nothing else', async ({ app, page }) => {

@@ -70,7 +70,7 @@ Oferirea a **100% din ecran** portativului și claviaturii în timpul exerciții
 
 ## Faza 3: Înlocuirea „1 Notă Statică” cu Fluxul Continuu (*Look-Ahead Stream*) & *Ghost Pacer*
 
-> **Status:** implementată pentru exercițiile *Numește nota* și *Cântă nota* (branch `feat/practice-lookahead-stream`). Intervalele, acordurile, armurile și cheile amestecate (`mix`) rămân deocamdată pe cartonaș și intră în șir odată cu Faza 5.
+> **Status:** implementată pentru exercițiile *Numește nota* și *Cântă nota* (branch `feat/practice-lookahead-stream`). Intervalele, acordurile, armurile și cheile amestecate (`mix`) rămân pe cartonaș; polifonia din Faza 5 se exersează în nivelurile de prima vedere.
 
 ### Obiectiv
 Înlocuirea exercițiilor de tip „ghicește o singură notă pe un portativ gol” cu un șir continuu de note/intervale/acorduri pe portativ, astfel încât utilizatorul să antreneze citirea anticipativă (*look-ahead*) și intervallică încă de la Nivelul 1.
@@ -108,6 +108,9 @@ Adăugarea modurilor de antrenament intens și a sistemului de punctaj din *Comp
   4. **Motorul de Scor Arcade:**
      - $\text{Puncte} = (100 + \text{SpeedBonus}_{0..100}) \times \text{Multiplier}_{1\times..4\times}$
      - Praguri multiplicator: `1×` (0–4 serie), `2×` (5–14 serie), `3×` (15–29 serie), `4×` (30+ serie).
+
+**Implementat:** `src/sight-reading/arcade.ts` este motorul pur, cu teste unitare: vieți, fereastra de timp (pornește de la viteza țintă a nivelului și scade cu 6% la fiecare 10 răspunsuri corecte la rând, până la 750 ms), bonusul de +5 s, multiplicatorul și punctajul. *Supraviețuire*, *Contra cronometru* și *Maraton* sunt moduri noi în Reading drills, alături de Practice, Test și Rush, la nivelurile de citire, cântare, clapă → portativ, intervale, acorduri și armuri (Maratonul numai la citire și cântare, cu 16, 32 sau 64 de măsuri a câte 4 note). HUD-ul arată viețile (`♥♥♡`), timpul rămas, progresul, multiplicatorul (`×2`), scorul și seria (`🔥`). Recordurile se salvează pe nivel (`sv`, `ta`, `mn`) și se sincronizează între tab-uri. Ieșirea înainte de final nu salvează rezultatul.
+- *Diferență față de plan:* Maratonul folosește șirul de note cu bare de măsură (sau cartonașele, dacă șirul e oprit), nu o partitură multi-sistem pe ecran complet; aceea depinde de Faza 2, care nu este implementată.
 
 ---
 
@@ -153,7 +156,7 @@ Utilizarea statisticilor de eroare și timp de reacție ale utilizatorului pentr
   - **Când `settings.weakSpotInjection === true`:** Extrage din `rdData().nt` primele 25% cele mai lente/greșite poziții din gama curentă și le acordă o pondere de ~30% în generarea fluxului din *Practice / Survival / Marathon*.
   - **Când `settings.weakSpotInjection === false`:** Generatorul folosește exclusiv distribuția muzicală standard a nivelului, fără nicio influență din istoricul de greșeli.
   - *(Notă: Modul oficial `First-Sight Exam` rămâne întotdeauna 100% determinist pe bază de seed, ca să nu fie afectată corectitudinea examenului).*
-  - **Implementat:** setarea este dezactivată implicit, este păstrată în backup/sincronizare și are un comutator rapid în Reading drills. Când este activă, 30% dintre întrebările de Practice sunt extrase din sfertul cel mai lent sau cu cele mai multe erori din gama curentă; Test rămâne neafectat.
+  - **Implementat:** setarea este dezactivată implicit, este păstrată în backup/sincronizare și are un comutator rapid în Reading drills. Când este activă, 30% dintre întrebările din Practice, Supraviețuire și Maraton sunt extrase din sfertul cel mai lent sau cu cele mai multe erori din gama curentă; Test, Rush și Contra cronometru rămân neafectate.
 
 ---
 
@@ -165,3 +168,6 @@ Utilizarea statisticilor de eroare și timp de reacție ale utilizatorului pentr
    - **Unit Tests (`vitest`):** Teste pentru motorul `arcade.ts` (3 vieți, multiplicatori, scor), polifonia de 2–3 note în `generator.ts` pe toate armurile și comutatorul `weakSpotInjection` (ON vs OFF).
    - **E2E Tests (`playwright`):** Verificarea noului tab `Scores`, intrarea și ieșirea din modul Full-Screen Stage (`Esc`), rularea unui joc Survival până la 3 greșeli și verificarea setării de *Weak-Spot Injection*.
    - Toate porțile (`npm run typecheck`, `npm run lint`, `npm run test:unit`, `npx playwright test`, `npm run build`, `npm run build:standalone`) trebuie să treacă 100% pe verde.
+
+**Implementat:** etichetele noi (tab-ul Scores, injecția notelor slabe, șirul de note, fantoma, Supraviețuire, Contra cronometru, Maraton, vieți, scor, recorduri) există în toate cele 7 limbi; nivelurile polifonice folosesc etichetele existente. Testele unitare acoperă motorul arcade, polifonia în toate armurile de la 7♭ la 7♯ și valoarea implicită a setării. Comportamentul ON/OFF al injecției e verificat în testele E2E, pentru că selecția rulează în runtime-ul din browser. Testele E2E acoperă și tab-ul Scores, Supraviețuirea până la 3 greșeli, bonusul din Contra cronometru și Maratonul.
+- *Neacoperit:* intrarea și ieșirea din Full-Screen Stage (`Esc`), pentru că Faza 2 nu este implementată.
