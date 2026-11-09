@@ -12,7 +12,7 @@ if (!cssMatch || !moduleMatch) throw new Error('Vite output is missing the style
 
 const css = await readFile(join(OUT_DIR, cssMatch[1].replace(/^\.\//, '')), 'utf8');
 let app = await readFile(join(OUT_DIR, moduleMatch[1].replace(/^\.\//, '')), 'utf8');
-const osmd = await readFile(join(OUT_DIR, 'vendor', 'osmd-1.9.9.min.js'), 'utf8');
+const osmd = await readFile(join(OUT_DIR, 'vendor', 'osmd-2.3.0.min.js'), 'utf8');
 let standaloneCss = css;
 const iconMatch = html.match(/<link rel="apple-touch-icon"[^>]+href="([^"]+)"[^>]*>/);
 if (iconMatch) {

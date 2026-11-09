@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +7,7 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const APP_FILE = join(ROOT, 'etude.html');
 export const APP_SOURCE = join(ROOT, 'src', 'domain', 'views.ts');
 export const CSS_SOURCE = join(ROOT, 'src', 'styles', 'etude.css');
-export const OSMD_SOURCE = join(ROOT, 'public', 'vendor', 'osmd-1.9.9.min.js');
+export const OSMD_SOURCE = join(ROOT, 'public', 'vendor', 'osmd-2.3.0.min.js');
 export const PIANO_DIR = join(ROOT, 'src', 'assets', 'piano');
 
 const STYLE_MARKER = '<!-- etude: extracted style -->';
@@ -61,9 +62,12 @@ export async function split(source = null) {
   await writeFile(OSMD_SOURCE, parts.osmd);
   for (const [midi, base64] of Object.entries(parts.piano))
     await writeFile(join(PIANO_DIR, `${midi}.mp3`), Buffer.from(base64, 'base64'));
-  await writeFile(join(ROOT, 'public', 'manifest.webmanifest'), await readFile(join(ROOT, 'manifest.webmanifest')));
-  for (const icon of ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'icon.svg'])
-    await copyFile(join(ROOT, 'icons', icon), join(ROOT, 'public', 'icons', icon));
+  if (existsSync(join(ROOT, 'manifest.webmanifest')))
+    await writeFile(join(ROOT, 'public', 'manifest.webmanifest'), await readFile(join(ROOT, 'manifest.webmanifest')));
+  for (const icon of ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'icon.svg']) {
+    if (existsSync(join(ROOT, 'icons', icon)))
+      await copyFile(join(ROOT, 'icons', icon), join(ROOT, 'public', 'icons', icon));
+  }
   await writeFile(APP_FILE, parts.shell);
   return { shell: parts.shell, pianoKeys: Object.keys(parts.piano).map(Number) };
 }

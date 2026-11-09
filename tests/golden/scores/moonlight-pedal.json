@@ -21,6 +21,14 @@
       "pedalMarks": 4,
       "curves": 0,
       "crossLines": 1
+    },
+    "win32": {
+      "pages": 1,
+      "systemsPerPage": [1],
+      "systemStarts": [1],
+      "pedalMarks": 4,
+      "curves": 0,
+      "crossLines": 1
     }
   }
 }

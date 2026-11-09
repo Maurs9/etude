@@ -36,17 +36,20 @@ The Pages-shaped build is available with `npm run build` and `npm run preview`.
 For a single offline file, run `npm run build:standalone`; it writes
 `dist/etude-standalone.html`, which can be opened directly with `file://`.
 
-## Tests
+## Tests & Dependency Maintenance
 
-The test suite uses Node.js, npm, Python 3, and Playwright. By default it launches an installed Google Chrome browser.
+The test suite uses Node.js, npm, Python 3, Vitest, and Playwright. By default Playwright launches an installed Google Chrome browser.
 
 ```sh
 npm ci
 npm run typecheck
 npm run lint
-npm run test:unit
-npm test                 # built dist/etude/ and @sw tests
-npm run test:dev         # app project against the Vite dev server
+npm run test:unit        # Vitest unit tests (tests/unit/)
+npm run test:i18n        # Multi-language i18n pack tests (i18n/tests/)
+npm test                 # Playwright E2E against built dist/etude/ and @sw tests
+npm run test:dev         # Playwright app project against the Vite dev server
+npm run deps:check       # Check npm devDependencies + runtime vendor versions
+npm run osmd:check       # Verify OSMD bundle contract and check npm for updates
 ```
 
 Alternatively, install Playwright's Chromium with `npx playwright install chromium` and set `PW_CHANNEL` to an empty value before running the tests. The Playwright configuration starts its own local server on port 8787.
@@ -54,21 +57,20 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 ## Project structure
 
 - `etude.html` — stable application shell
-- `src/domain/views.ts` — typed application/view entry point and browser test surface
-- `src/domain/views-runtime.ts` — browser runtime entry with explicit domain imports and a compatibility boundary
-- `src/domain/router.ts` — hash-route groups and safe fallback
+- `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts`, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`)
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
-- `src/domain/storage.ts` — typed `ptt-v3` reader, writer, and settings normalization
-- `src/domain/theory.ts` — strict, browser-independent pitch, scale, chord, interval, and formula helpers
-- `src/domain/audio.ts` — strict Web Audio engine, voices, checked piano-sample fetch/decode, and retry-safe piano bank
-- `src/domain/notation.ts` — lazy OSMD/MXL adapter, constructor boundary, and grouped pedal patch
-- `window.__etude` — deliberate browser test/import surface; application state is not read through arbitrary `window.*` aliases
-- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed recordings
-- `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
-- `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker; add a source import or a file under `public/` and the published manifest updates automatically
-- `scripts/sw-kill-switch.js`, `docs/sw-kill-switch.md` — emergency worker rollback and runbook
-- `tests/`, `playwright.config.mjs` — Playwright tests and configuration
-- `package.json`, `package-lock.json` — test tooling and locked dependencies
+- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings
+- `public/vendor/osmd-2.3.0.min.js`, `public/manifest.webmanifest`, `public/icons/` — static public assets and lazy-loaded OSMD 2.3.0 bundle
+- `i18n/` — supplementary multi-language pack (`de`, `es`, `fr`, `it`, `pt-BR`), runtime (`i18n/framework/`), and test suite (`i18n/tests/`)
+- `scripts/` — build (`build.mjs`, `build-standalone.mjs`, `generate-sw.mjs`), quality gates (`check-ts-suppressions.mjs`), emergency rollback (`sw-kill-switch.js`), and safe dependency updaters (`update-deps.mjs`, `update-osmd.mjs`)
+- `tests/` — organized into:
+  - `tests/unit/` — Vitest unit and architecture invariant tests (`*.test.mjs`)
+  - `tests/e2e/` — Playwright E2E and golden score/audio tests (`*.spec.mjs`)
+  - `tests/e2e/sight-reading/` — Sight-Reading Playwright E2E specs
+  - `tests/helpers/` — shared Playwright fixtures and score audit helpers
+  - `tests/fixtures/` & `tests/golden/` — MusicXML/MXL fixtures and golden baselines
+- `docs/` — organized into `docs/i18n/`, `docs/plans/`, and `docs/runbooks/`
+- `TODO.md` — roadmap checklist and dependency inventory
 
 `npm run typecheck` runs the strict compiler gate for the typed domain modules.
 The view entry is a compatibility boundary while the remaining legacy-shaped
@@ -76,9 +78,4 @@ view operations are narrowed incrementally; it is still checked for forbidden
 compiler bypasses and indirect `any` aliases. The suppression guard
 rejects `@ts-nocheck`, `@ts-ignore`, unexplained or excessive
 `@ts-expect-error`, explicit `any`, unchecked application JavaScript, and
-encoded or dynamically compiled application runtime payloads. The complete
-view implementation is loaded from `src/domain/views-runtime.ts`; its typed
-entry contracts live in `src/domain/views.ts`. Storage, theory,
-audio, notation, and routing remain separate typed modules. Keep browser-only
-DOM wiring in the view domain and keep the other behaviour behind those typed
-module boundaries.
+encoded or dynamically compiled application runtime payloads.

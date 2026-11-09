@@ -8,6 +8,13 @@ type Drawer = {
   drawPedals?: (line: PedalLine) => void;
   scPedalGroups?: boolean;
 };
+type SystemBuilder = {
+  graphicalMusicSheet?: { MusicPages?: unknown[] };
+  rules?: { NewPageAtXMLNewPageAttribute?: boolean };
+  calculateMusicSystemsRelativePositions?: () => void;
+  pageTopBorder?: (system: unknown) => number;
+  scOrphanPageGuard?: boolean;
+};
 
 type VendorRules = Record<string, unknown> & {
   GNote?: (note: unknown) => VendorGraphicalNote | null;
@@ -94,7 +101,15 @@ export interface ScoreRenderer {
 }
 
 class OsmdScoreRenderer implements ScoreRenderer {
-  constructor(private readonly vendor: VendorRenderer) {}
+  constructor(private readonly vendor: VendorRenderer) {
+    // Preserve 1.9.9 SVG group structure (.vf-notehead, .vf-sc-pedal) and cross-staff slur handling (scoreXLines) across OSMD 2.x+.
+    if ('SVGMergeSingleChildGroups' in this.vendor.EngravingRules) {
+      this.vendor.EngravingRules.SVGMergeSingleChildGroups = false;
+    }
+    if ('RenderSlursAcrossStaves' in this.vendor.EngravingRules) {
+      this.vendor.EngravingRules.RenderSlursAcrossStaves = false;
+    }
+  }
 
   updateRules(updates: Readonly<Record<string, unknown>>): void {
     Object.assign(this.vendor.EngravingRules, updates);
@@ -192,7 +207,7 @@ export function loadOsmd(): Promise<OsmdModule> {
     if (inline?.textContent) {
       script.textContent = inline.textContent;
     } else {
-      script.src = new URL('vendor/osmd-1.9.9.min.js', document.baseURI).href;
+      script.src = new URL('vendor/osmd-2.3.0.min.js', document.baseURI).href;
       script.async = true;
     }
     script.onload = () => {
@@ -236,23 +251,79 @@ export function notationReloadMessage(language: AppLanguage): { message: string;
     : { message: 'The score could not load. Reload the page.', button: 'Reload' };
 }
 
+function hasOrphanSystemBeforeForcedPageBreak(pages: readonly unknown[]): boolean {
+  return pages.some((page, pageIndex) => {
+    if (pageIndex === 0) return false;
+    const systems = asArray(asRecord(page).MusicSystems);
+    if (systems.length !== 1) return false;
+    const soleSystem = asRecord(systems[0]);
+    if (!soleSystem.breaksPage) return false;
+    const measures = asArray(soleSystem.GraphicalMeasures);
+    const firstMeasure = asArray(measures[0]).find(Boolean);
+    const sourceMeasure = asRecord(asRecord(firstMeasure).parentSourceMeasure);
+    return !sourceMeasure.printNewPageXml;
+  });
+}
+
 export function patchOsmdPedals(osmd: unknown): void {
-  const drawer = (osmd as { VexFlowMusicSheetDrawer?: { prototype?: Drawer } } | null)?.VexFlowMusicSheetDrawer?.prototype;
-  if (!drawer || drawer.scPedalGroups || typeof drawer.drawPedals !== 'function') return;
-  const draw = drawer.drawPedals;
-  drawer.drawPedals = function drawPedals(line: PedalLine): void {
-    const context = this.backend?.getContext?.();
-    if (!context?.openGroup || !context.closeGroup || !line?.Pedals) {
-      draw.call(this, line);
-      return;
-    }
-    for (const pedal of line.Pedals) {
-      const group = context.openGroup('sc-pedal');
-      if (group) group.scPedalOwner = { staffLine: line, pedal };
-      try { draw.call(this, { Pedals: [pedal] }); } finally { context.closeGroup(); }
-    }
-  };
-  drawer.scPedalGroups = true;
+  const vendor = osmd as {
+    VexFlowMusicSheetDrawer?: { prototype?: Drawer };
+    MusicSystemBuilder?: { prototype?: SystemBuilder };
+  } | null;
+  const drawer = vendor?.VexFlowMusicSheetDrawer?.prototype;
+  if (!drawer || typeof drawer.drawPedals !== 'function') {
+    throw new Error('OSMD contract violation: VexFlowMusicSheetDrawer.prototype.drawPedals is missing');
+  }
+  if (!drawer.scPedalGroups) {
+    const draw = drawer.drawPedals;
+    drawer.drawPedals = function drawPedals(line: PedalLine): void {
+      const context = this.backend?.getContext?.();
+      if (!context?.openGroup || !context.closeGroup || !line?.Pedals) {
+        draw.call(this, line);
+        return;
+      }
+      const allPedals = line.Pedals;
+      try {
+        for (const pedal of allPedals) {
+          const group = context.openGroup('sc-pedal');
+          if (group) group.scPedalOwner = { staffLine: line, pedal };
+          try {
+            line.Pedals = [pedal];
+            draw.call(this, line);
+          } finally {
+            context.closeGroup();
+          }
+        }
+      } finally {
+        line.Pedals = allPedals;
+      }
+    };
+    drawer.scPedalGroups = true;
+  }
+
+  // Narrow pagination guard for OSMD 2.2+: if subtracting pageTopBorder pushes the final system before an XML
+  // `<print new-page="yes">` onto a single-system orphan page (e.g. Moonlight Sonata III bars 105, 138, 160),
+  // recalculate system positions using 1.9.9's zero top-border offset during page-break placement.
+  const builder = vendor?.MusicSystemBuilder?.prototype;
+  if (builder && !builder.scOrphanPageGuard && typeof builder.calculateMusicSystemsRelativePositions === 'function') {
+    const calc = builder.calculateMusicSystemsRelativePositions;
+    builder.calculateMusicSystemsRelativePositions = function calculateMusicSystemsRelativePositions(): void {
+      calc.call(this);
+      const pages = this.graphicalMusicSheet?.MusicPages;
+      if (this.rules?.NewPageAtXMLNewPageAttribute && Array.isArray(pages) && hasOrphanSystemBeforeForcedPageBreak(pages)) {
+        pages.length = 0;
+        const origTopBorder = this.pageTopBorder;
+        this.pageTopBorder = () => 0;
+        try {
+          calc.call(this);
+        } finally {
+          if (origTopBorder) this.pageTopBorder = origTopBorder;
+          else delete this.pageTopBorder;
+        }
+      }
+    };
+    builder.scOrphanPageGuard = true;
+  }
 }
 
 /**
