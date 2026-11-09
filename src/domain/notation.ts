@@ -8,6 +8,10 @@ type Drawer = {
   drawPedals?: (line: PedalLine) => void;
   scPedalGroups?: boolean;
 };
+type PedalCalculator = {
+  calculatePedalSkyBottomLine?: (pedal: unknown, line: PedalLine) => void;
+  scLocalTextPedals?: boolean;
+};
 type SystemBuilder = {
   graphicalMusicSheet?: { MusicPages?: unknown[] };
   rules?: { NewPageAtXMLNewPageAttribute?: boolean };
@@ -268,6 +272,7 @@ function hasOrphanSystemBeforeForcedPageBreak(pages: readonly unknown[]): boolea
 export function patchOsmdPedals(osmd: unknown): void {
   const vendor = osmd as {
     VexFlowMusicSheetDrawer?: { prototype?: Drawer };
+    VexFlowMusicSheetCalculator?: { prototype?: PedalCalculator };
     MusicSystemBuilder?: { prototype?: SystemBuilder };
   } | null;
   const drawer = vendor?.VexFlowMusicSheetDrawer?.prototype;
@@ -299,6 +304,29 @@ export function patchOsmdPedals(osmd: unknown): void {
       }
     };
     drawer.scPedalGroups = true;
+  }
+
+  // Text pedals are independent signs, not one continuous bracket. OSMD aligns every sign on a staff
+  // to the lowest earlier sign, so one ledger note can push the whole piece down in continuous view.
+  // Let its normal skyline calculation see only the current sign; the subsequent bottom-line update
+  // still reserves space for every sign, and bracket pedals retain the vendor's shared alignment.
+  const calculator = vendor?.VexFlowMusicSheetCalculator?.prototype;
+  if (calculator && !calculator.scLocalTextPedals && typeof calculator.calculatePedalSkyBottomLine === 'function') {
+    const calculate = calculator.calculatePedalSkyBottomLine;
+    calculator.calculatePedalSkyBottomLine = function calculatePedalSkyBottomLine(pedal: unknown, line: PedalLine): void {
+      if (!asRecord(pedal).EndSymbolPositionAndShape) {
+        calculate.call(this, pedal, line);
+        return;
+      }
+      const allPedals = line.Pedals;
+      try {
+        line.Pedals = [];
+        calculate.call(this, pedal, line);
+      } finally {
+        line.Pedals = allPedals;
+      }
+    };
+    calculator.scLocalTextPedals = true;
   }
 
   // Narrow pagination guard for OSMD 2.2+: if subtracting pageTopBorder pushes the final system before an XML

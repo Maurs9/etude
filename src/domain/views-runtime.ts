@@ -6,6 +6,9 @@ import * as theory from './theory.js';
 import * as audio from './audio.js';
 import type { AudioTone } from './audio.js';
 import * as notationApi from './notation.js';
+import { scoreOctaveMark, scoreStructuralMarks } from './score-svg-markings.js';
+import { recognizeScoreMarkings, SCORE_MARKING_TERMS } from './score-markings.js';
+import { normalizeScoreDirectionGlyphs, renderScoreNoteParentheses } from './score-xml-markings.js';
 import * as router from './router.js';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml } from './dom.js';
 import type {
@@ -9572,7 +9575,7 @@ interface AnNote {
     track?: number; channel?: number; hand?: AnHand | null; srcHand?: AnHand;
     part?: number; staff?: number; voice?: number; type?: string; art?: ScoreNoteArticulation; arpeggiate?: boolean;
     finger?: number; explicitVel?: number; dynamicHit?: number; graces?: ScoreGraceNote[]; warm?: boolean; soundRatio?: number;
-    roll?: number; nextSame?: number; pedalEnd?: number; soundEnd?: number;
+    roll?: number; nextSame?: number; pedalEnd?: number; soundEnd?: number; parenthesizedAt?: number[];
 }
 interface ScoreXmlNote extends AnNote { hand: AnHand | null; part: number; staff: number; voice: number; type: string; art: ScoreNoteArticulation; arpeggiate: boolean; }
 interface AnParsedNote { midi: number; start: number; end: number; vel: number; track: number; channel: number; srcHand?: AnHand; }
@@ -10444,6 +10447,8 @@ function scoreXmlNotes(doc: Document) {
                                     notes.push(n);
                                     own = n;
                                 }
+                                if (own && node.querySelector(':scope > notehead[parentheses="yes"]'))
+                                    (own.parenthesizedAt ??= []).push(start);
                                 if (own)
                                     node.querySelectorAll('notations > slur, notations > glissando, notations > slide').forEach((l) => {
                                         const type = (l.getAttribute('type') || '').toLowerCase(), key = pi + ':' + l.localName + ':' + (l.getAttribute('number') || '1');
@@ -10979,6 +10984,7 @@ function scoreLayout() {
     box.setAttribute('aria-busy', 'false');
     box.dataset.look = SCORE.look;
     scoreBind(engine);
+    renderScoreNoteParentheses(box, look.ink);
     scoreXLines();
     const pedalsOk = scoreFixPedals(box);
     scoreGeo(engine);
@@ -11087,6 +11093,7 @@ function scoreBind(engine: notationApi.ScoreRenderer) {
             return;
         bound.add(i);
         g.dataset.i = String(i);
+        if (AN.notes[i].parenthesizedAt?.some(start => Math.abs(start - beat) < .001)) g.dataset.parenthesized = 'yes';
         g.style.cursor = 'pointer';
         g.style.pointerEvents = 'all';
         g.setAttribute('tabindex', '-1');
@@ -11156,7 +11163,7 @@ let scoreFixPedals = function scoreFixPedals(box: HTMLElement) {
         });
         const gap = Math.max(1, Math.abs(ctm.d) * 2.5), limit = Math.abs(ctm.a) * 40, page = svg.getBoundingClientRect(), placed: ScorePedalBox[] = [];
         const cross = (a: ScorePedalBox, b: ScorePedalBox, pad = gap) => a.right + pad > b.left && a.left - pad < b.right && a.bottom + pad > b.top && a.top - pad < b.bottom;
-        const obstacles: ScorePedalBox[] = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,text')].filter((n) => !n.closest('.vf-sc-pedal')).flatMap((n) => {
+        const obstacles: ScorePedalBox[] = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,.sc-note-parentheses path,text')].filter((n) => !n.closest('.vf-sc-pedal')).flatMap((n) => {
             const r = n.getBoundingClientRect(), s = getComputedStyle(n), pad = s.stroke !== 'none' ? Math.max(.5, parseFloat(s.strokeWidth) * Math.abs(ctm.d) / 2 || .5) : 0;
             if (n.matches('.sc-xline,.vf-stavetie path,path.vf-stavetie') && n instanceof SVGGeometryElement) {
                 const len = n.getTotalLength(), m = n.getScreenCTM() ?? undefined, out: ScorePedalBox[] = [];
@@ -11171,6 +11178,7 @@ let scoreFixPedals = function scoreFixPedals(box: HTMLElement) {
             }
             return [{ left: r.left - pad, right: r.right + pad, top: r.top - pad, bottom: r.bottom + pad }];
         });
+        const inkBottoms = new Map<unknown, number>();
         marks.forEach((p) => {
             const r = p.getBoundingClientRect();
             if (r.width < .1)
@@ -11185,9 +11193,32 @@ let scoreFixPedals = function scoreFixPedals(box: HTMLElement) {
             const measures = scoreVendorList(V(V(owner, 'staffLine'), 'Measures')), measure = endpoint && V(V(endpoint, 'ParentStaffLine'), 'ParentMusicSystem') === sys ? endpoint : (release ? measures[measures.length - 1] : measures[0]);
             const mp = pos(measure), sp = pos(sys), np = pos(next);
             const ml = mp ? ctm.e + mp.x * 10 * ctm.a - limit : -Infinity, mr = mp ? ctm.e + (mp.x + Number(V(V(V(measure, 'PositionAndShape'), 'Size'), 'width'))) * 10 * ctm.a + limit : Infinity;
-            const minY = Math.max(page.top + gap - r.top, -Math.abs(ctm.d) * 40, sp ? ctm.f + sp.y * 10 * ctm.d - r.top : -Infinity);
+            const line = V(owner, 'staffLine'), local = measures.find((m) => V(m, 'parentSourceMeasure') === V(measure, 'parentSourceMeasure')) || measure;
+            const lp = pos(line), staffHeight = Number(V(line, 'StaffHeight'));
+            const staffBottom = lp && Number.isFinite(staffHeight) ? ctm.f + (lp.y + staffHeight) * 10 * ctm.d : null;
+            let inkBottom = inkBottoms.get(local);
+            if (staffBottom != null && inkBottom == null) {
+                inkBottom = staffBottom;
+                const nodes: SVGElement[] = [];
+                scoreVendorList(V(local, 'staffEntries')).forEach((entry) => {
+                    scoreVendorList(V(entry, 'FingeringEntries')).forEach((f) => { const n = V(f, 'SVGNode'); if (n instanceof SVGElement) nodes.push(n); });
+                    scoreVendorList(V(entry, 'graphicalVoiceEntries')).forEach((voice) => {
+                        const vf = V(voice, 'vfStaveNote') || V(voice, 'mVexFlowStaveNote'), get = V(vf, 'getAttribute');
+                        const n: unknown = typeof get === 'function' ? get.call(vf, 'el') : null;
+                        if (n instanceof SVGElement)
+                            nodes.push(...n.querySelectorAll<SVGElement>('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-modifiers'));
+                    });
+                });
+                nodes.forEach((n) => { const b = n.getBoundingClientRect(); if (b.width || b.height) inkBottom = Math.max(inkBottom ?? staffBottom, b.bottom); });
+                inkBottoms.set(local, inkBottom);
+            }
+            // OSMD uses one skyline for the entire system, even when a low fingering is in another bar.
+            // Anchor each endpoint to its own bass ink instead of preserving that unnecessarily distant row.
+            // Keep the native press/release baseline difference and search only below the owning staff.
+            const preferred = inkBottom == null ? 0 : inkBottom + gap + (release ? Math.abs(ctm.d) * 3 : 0) - r.top;
+            const minY = Math.max(page.top + gap - r.top, -Math.abs(ctm.d) * 40, staffBottom == null ? -Infinity : staffBottom + gap - r.top, sp ? ctm.f + sp.y * 10 * ctm.d - r.top : -Infinity);
             const maxY = Math.min(page.bottom - gap - r.bottom, Math.abs(ctm.d) * 40, np ? ctm.f + np.y * 10 * ctm.d - gap - r.bottom : Infinity);
-            const all = obstacles.concat(placed), ys = [...new Set([0, minY, maxY, ...all.flatMap((o) => [o.bottom + gap - r.top, o.top - gap - r.bottom])])].filter((y) => y >= minY && y <= maxY).sort((a, b) => Math.abs(a) - Math.abs(b));
+            const all = obstacles.concat(placed), ys = [...new Set([preferred, 0, minY, maxY, ...all.flatMap((o) => [o.bottom + gap - r.top, o.top - gap - r.bottom])])].filter((y) => y >= minY && y <= maxY).sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
             let found = false;
             for (const y of ys) {
                 const row = all.filter((o) => r.bottom + y + gap > o.top && r.top + y - gap < o.bottom), afterPress = release && row.some((o) => o.group === group && o.press);
@@ -11228,45 +11259,82 @@ function scoreXLines() {
     if (!scoreHasKey(SCORE_LOOK, SCORE.look))
         return;
     const links: ScoreCrossLink[] = (AN.source && AN.source.kind === 'xml' && AN.source.links) || [], ink = SCORE_LOOK[SCORE.look].ink, NS = 'http://www.w3.org/2000/svg';
+    if (!links.length)
+        return;
+    const sheet = SCORE.engine?.readLayout().graphicSheet;
+    if (!isScoreOsmdSheet(sheet))
+        return;
+    const svgs = [...byId('an-roll').querySelectorAll('svg')];
+    svgs.forEach((svg) => svg.querySelectorAll('.sc-xline').forEach((n) => n.remove()));
+    const systems = sheet.MusicPages.flatMap((page, pi) => page.MusicSystems.map((sys) => ({ sys, svg: svgs[pi] })));
+    const systemOf = (note: AnNote) => sheet.MeasureList.find((list) => list.some((gm) => gm && note.start >= gm.parentSourceMeasure.AbsoluteTimestamp.RealValue * 4 - .001 && note.start < (gm.parentSourceMeasure.AbsoluteTimestamp.RealValue + gm.parentSourceMeasure.Duration.RealValue) * 4 - .001))?.find(Boolean)?.ParentMusicSystem;
+    const noteSystems = AN.notes.map(systemOf);
+    const point = (i: number | undefined, svg: SVGSVGElement, system: ScoreOsmdSystem) => {
+        if (i == null || noteSystems[i] !== system)
+            return null;
+        const head = (SCORE.heads.get(i) || []).find((n) => n.ownerSVGElement === svg);
+        if (!head)
+            return null;
+        const r = head.getBoundingClientRect(), p = scoreToUser(svg, r.left + r.width / 2, r.top + r.height / 2), m = svg.getScreenCTM();
+        return p && m ? { x: p.x, y: p.y, hw: r.width / Math.abs(m.a) / 2 } : null;
+    };
     links.forEach((l) => {
-        const ha: SVGElement[] = SCORE.heads.get(l.a) || [], hb: SVGElement[] = SCORE.heads.get(l.b) || [], ga = ha[0], gb = hb[0];
-        if (!ga || !gb)
+        const first = AN.notes[l.a], last = AN.notes[l.b];
+        if (!first || !last)
             return;
-        const svg = ga.ownerSVGElement;
-        if (!svg || svg !== gb.ownerSVGElement)
+        const start = systems.findIndex((s) => s.sys === noteSystems[l.a]), end = systems.findIndex((s) => s.sys === noteSystems[l.b]);
+        if (start < 0 || end < start)
             return;
-        const ra = ga.getBoundingClientRect(), rb = gb.getBoundingClientRect(), A = scoreToUser(svg, ra.left + ra.width / 2, ra.top + ra.height / 2), B = scoreToUser(svg, rb.left + rb.width / 2, rb.top + rb.height / 2);
-        if (!A || !B)
+        const firstPoint = point(l.a, systems[start].svg, systems[start].sys), lastPoint = point(l.b, systems[end].svg, systems[end].sys);
+        if (!firstPoint || !lastPoint)
             return;
-        const R = scoreToUser(svg, ra.right, 0), L = scoreToUser(svg, ra.left, 0);
-        if (!R || !L)
-            return;
-        const sp = 10, hw = Math.max(.5, R.x - L.x) / 2;
-        if (B.x < A.x + hw || Math.abs(B.y - A.y) > sp * 24)
-            return; // the far end is on another system
-        const el = document.createElementNS(NS, 'path');
-        el.setAttribute('class', 'sc-xline');
-        el.dataset.kind = l.kind === 'slur' ? 'slur' : l.kind === 'glissando' || l.kind === 'slide' ? 'gliss' : 'line';
-        if (l.kind === 'slur') { // a crescent bowing over the top, from just above one notehead to just above the other
-            const x0 = A.x + hw * .4, y0 = A.y - sp * .9, x1 = B.x - hw * .4, y1 = B.y - sp * .9, len = Math.hypot(x1 - x0, y1 - y0), h = Math.min(sp * 2.4, Math.max(sp * .8, len * .2)), th = sp * .22;
-            const nx = (y1 - y0) / len, ny = -(x1 - x0) / len, s = ny > 0 ? -1 : 1, c = (f: number, k: number) => [x0 + (x1 - x0) * f + nx * s * k, y0 + (y1 - y0) * f + ny * s * k].map((v) => v.toFixed(2)).join(' ');
-            el.setAttribute('d', `M${x0.toFixed(2)} ${y0.toFixed(2)} C${c(.25, h)} ${c(.75, h)} ${x1.toFixed(2)} ${y1.toFixed(2)} C${c(.75, h + th)} ${c(.25, h + th)} ${x0.toFixed(2)} ${y0.toFixed(2)}Z`);
-            el.setAttribute('fill', ink);
-            el.setAttribute('stroke', ink);
-            el.setAttribute('stroke-width', '.4');
-        }
-        else {
-            const x0 = A.x + hw * 1.4, x1 = B.x - hw * 1.4;
+        // A fully resting intermediate system has no notehead anchor. Reuse a staff-relative height,
+        // never the absolute geometry of an endpoint on a different system of the same SVG page.
+        const continuation = (system: ScoreOsmdSystem) => ({
+            ...firstPoint,
+            y: system.PositionAndShape.AbsolutePosition.y * 10 + firstPoint.y - systems[start].sys.PositionAndShape.AbsolutePosition.y * 10,
+        });
+        // A page can hold several systems. SVG identity and a y-distance heuristic are not system identity:
+        // they used to draw a diagonal through the whitespace from bar 15 to bar 16 and omit page continuations.
+        for (let si = start; si <= end; si++) {
+            const { sys, svg } = systems[si];
+            if (!svg)
+                continue;
+            const local = AN.notes.flatMap((n, i) => n.part === first.part && n.start >= first.start - .001 && n.start <= last.start + .001 && noteSystems[i] === sys ? [i] : []).sort((a, b) => AN.notes[a].start - AN.notes[b].start);
+            const ownVoice = local.filter(i => AN.notes[i].voice === first.voice), candidates = ownVoice.length ? ownVoice : local;
+            const a = si === start ? firstPoint : point(candidates[0], svg, sys) ?? continuation(sys);
+            const b = si === end ? lastPoint : point(candidates[candidates.length - 1], svg, sys) ?? continuation(sys);
+            const measures = sys.StaffLines[0]?.Measures || [], left = measures[0], right = measures[measures.length - 1];
+            if (!left || !right)
+                continue;
+            const sp = 10, hw = Math.min(a.hw, b.hw), slur = l.kind === 'slur';
+            const x0 = si === start ? a.x + hw * (slur ? .4 : 1.4) : (left.PositionAndShape.AbsolutePosition.x + (left.beginInstructionsWidth || 0)) * 10 + sp * .4;
+            const x1 = si === end ? b.x - hw * (slur ? .4 : 1.4) : (right.PositionAndShape.AbsolutePosition.x + right.PositionAndShape.Size.width) * 10 - sp * .4;
+            const y0 = a.y - (slur ? sp * .9 : 0), y1 = b.y - (slur ? sp * .9 : 0);
             if (x1 <= x0)
-                return;
-            el.setAttribute('d', `M${x0.toFixed(2)} ${A.y.toFixed(2)} L${x1.toFixed(2)} ${B.y.toFixed(2)}`);
-            el.setAttribute('fill', 'none');
+                continue;
+            const el = document.createElementNS(NS, 'path');
+            el.setAttribute('class', 'sc-xline');
+            el.dataset.kind = slur ? 'slur' : l.kind === 'glissando' || l.kind === 'slide' ? 'gliss' : 'line';
+            el.dataset.link = l.a + ':' + l.b;
+            el.dataset.segment = String(si - start);
+            if (slur) {
+                const len = Math.hypot(x1 - x0, y1 - y0), h = Math.min(sp * 2.4, Math.max(sp * .8, len * .2)), th = sp * .22;
+                const nx = (y1 - y0) / len, ny = -(x1 - x0) / len, c = (f: number, k: number) => [x0 + (x1 - x0) * f + nx * k, y0 + (y1 - y0) * f + ny * k].map((v) => v.toFixed(2)).join(' ');
+                el.setAttribute('d', `M${x0.toFixed(2)} ${y0.toFixed(2)} C${c(.25, h)} ${c(.75, h)} ${x1.toFixed(2)} ${y1.toFixed(2)} C${c(.75, h + th)} ${c(.25, h + th)} ${x0.toFixed(2)} ${y0.toFixed(2)}Z`);
+                el.setAttribute('fill', ink);
+                el.setAttribute('stroke-width', '.4');
+            }
+            else {
+                el.setAttribute('d', `M${x0.toFixed(2)} ${y0.toFixed(2)} L${x1.toFixed(2)} ${y1.toFixed(2)}`);
+                el.setAttribute('fill', 'none');
+                el.setAttribute('stroke-width', l.kind === 'glissando' || l.kind === 'slide' ? '1.3' : '1');
+                if (l.style === 'dashed' || l.style === 'dotted' || el.dataset.kind === 'line')
+                    el.setAttribute('stroke-dasharray', l.style === 'dotted' ? '1 3' : '5 4');
+            }
             el.setAttribute('stroke', ink);
-            el.setAttribute('stroke-width', l.kind === 'glissando' || l.kind === 'slide' ? '1.3' : '1');
-            if (l.style === 'dashed' || l.style === 'dotted' || el.dataset.kind === 'line')
-                el.setAttribute('stroke-dasharray', l.style === 'dotted' ? '1 3' : '5 4');
+            svg.appendChild(el);
         }
-        svg.appendChild(el);
     });
 }
 // The parts of OSMD's engraved sheet the score passes read. OSMD ships no types for these, so isScoreOsmdSheet checks the root.
@@ -11277,7 +11345,8 @@ interface ScoreOsmdVexNote {
     modifiers?: { getCategory?(): string; type: string }[];
 }
 interface ScoreOsmdNote {
-    sourceNote?: { isRest(): boolean; PrintObject?: boolean; TypeLength?: { RealValue: number }; DotsXml?: number };
+    sourceNote?: { isRest(): boolean; PrintObject?: boolean; TypeLength?: { RealValue: number }; DotsXml?: number; IsGraceNote?: boolean };
+    vfnote?: readonly [unknown, number];
     getNoteheadSVGs?(): SVGElement[];
     getSVGGElement?(): SVGElement;
 }
@@ -11359,8 +11428,8 @@ function scoreFixFingerings(box: HTMLElement, engine: import('./notation.js').Sc
             }
         }));
     })));
-    // OSMD sometimes prints the same words twice in one spot ("dolce" over "dolce"): keep one. A chord symbol raised over the
-    // upper staff must not sit on the words there ("dolce", "rit."): the words move above it.
+    // A chord symbol raised over the upper staff must not sit on the words there ("dolce", "rit."):
+    // the words move above it. Text equality is not semantic equality (harmony C and rehearsal C differ).
     const chords = new Set<Element>(), fings = new Set<Element>();
     gs.MeasureList.forEach((list) => (list || []).forEach((gm) => gm && (gm.staffEntries || []).forEach((gse) => { (gse.graphicalChordContainers || []).forEach((c) => { const n = c.GraphicalLabel && c.GraphicalLabel.SVGNode; if (n)
         chords.add(n); }); (gse.FingeringEntries || []).forEach((f) => { if (f.SVGNode)
@@ -11369,19 +11438,14 @@ function scoreFixFingerings(box: HTMLElement, engine: import('./notation.js').Sc
         const ctm = svg.getScreenCTM();
         if (!ctm || !ctm.d)
             return;
-        const kept: { s: string; r: DOMRect; }[] = [], chordBoxes: ScoreInkBox[] = [], words: { x: SVGTextElement; b: ScoreInkBox; }[] = [];
+        const chordBoxes: ScoreInkBox[] = [], words: { x: SVGTextElement; b: ScoreInkBox; }[] = [];
         svg.querySelectorAll('text').forEach((x) => {
             const r = x.getBoundingClientRect(), s = (x.textContent ?? '').trim();
             if (!s || !r.width)
                 return;
-            if (kept.some((k) => k.s === s && Math.abs(k.r.left - r.left) < 3 && Math.abs(k.r.top - r.top) < 3)) {
-                x.remove();
-                return;
-            }
-            kept.push({ s, r });
             if ([...chords].some((c) => c === x || c.contains(x)))
                 chordBoxes.push(ink(r));
-            else if (![...fings].some((f) => f === x || f.contains(x)) && !x.closest('.measure-number'))
+            else if (![...fings].some((f) => f === x || f.contains(x)) && !x.closest('.measure-number,.osmd-measure-number,.vf-repetition,.vf-stavesection'))
                 words.push({ x, b: ink(r) });
         });
         words.forEach(({ x, b }) => {
@@ -11390,16 +11454,34 @@ function scoreFixFingerings(box: HTMLElement, engine: import('./notation.js').Sc
                 return;
             scoreShiftY(x, (hit.t - ctm.d * 5 - b.b) / ctm.d);
         });
+        // Repetition instructions combine text and a music glyph. OSMD's estimated skyline can miss
+        // their actual ink (segno by high notes, D.S. al by a ledger note, Coda by a chord symbol).
+        // Move the complete semantic group, never its glyph alone or the note it points to.
+        const navigation = '.vf-repetition,.vf-stavesection,.osmd-tempo,.vf-stavetempo';
+        const obstacles = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.osmd-fingering,.osmd-chord-symbol')].map((n) => ({ n, r: n.getBoundingClientRect() }));
+        svg.querySelectorAll<SVGElement>(navigation).forEach((mark) => {
+            const r = mark.getBoundingClientRect(), gap = Math.abs(ctm.d) * 2.5;
+            if (!r.width || !r.height)
+                return;
+            const blocks = obstacles.filter(({ n, r: o }) => !mark.contains(n) && !n.contains(mark) && o.width + o.height > 0 && r.right + gap > o.left && r.left - gap < o.right).map((o) => o.r);
+            let dy = 0;
+            for (let step = 0; step < blocks.length; step++) {
+                const hits = blocks.filter((o) => r.bottom + dy + gap > o.top && r.top + dy - gap < o.bottom);
+                if (!hits.length)
+                    break;
+                dy = Math.min(...hits.map((o) => o.top)) - gap - r.bottom - .01;
+            }
+            if (Math.abs(dy) > .1)
+                scoreShiftY(mark, dy / ctm.d);
+        });
     });
 }
 // Adds to any vertical shift already applied, so the pass can run again on a page it has already tidied.
 function scoreShiftY(n: Element, dy: number) { const m = /^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform') || ''); n.setAttribute('transform', `translate(0 ${((m ? +m[1] : 0) + dy).toFixed(2)})`); }
 // Every marking on the page that the hover can explain: its box (relative to its page, which only moves as a whole), kind and value.
 const SC_DYN = /^(ppp|pp|p|mp|mf|f|ff|fff|sfz|fz|rfz|fp|sf|sfp)$/;
-const SC_TERMS = [['dolcissimo'], ['dolce'], ['espressivo', 'espress\\.?', 'espr\\.'], ['cantabile'], ['legato'], ['leggiero', 'leggero'], ['sostenuto', 'sost\\.'],
-    ['ritardando', 'ritard\\.', 'rit\\.?'], ['rallentando', 'rall\\.'], ['accelerando', 'accel\\.'], ['atempo', 'a tempo'], ['rubato'], ['crescendo', 'cresc\\.'], ['diminuendo', 'decrescendo', 'dim\\.', 'decresc\\.'],
-    ['poco'], ['piu', 'più'], ['molto'], ['sempre'], ['sim', 'simile', 'sim\\.'], ['grave'], ['largo'], ['larghetto'], ['lento'], ['adagio'], ['andantino'], ['andante'], ['moderato'], ['allegretto'], ['allegro'], ['vivace'], ['presto']]
-    .map(([k, ...alts]) => ({ k, re: new RegExp('(^|[^\\p{L}])(' + (alts.length ? alts : [k]).join('|') + ')(?=$|[^\\p{L}])', 'iu') }));
+// Keep the diagnostic surface derived from the same vocabulary as the parser.
+const SC_TERMS = SCORE_MARKING_TERMS.map(({ term, forms }) => ({ k: term, forms }));
 const SC_ARTS = { 'a.': 'staccato', 'av': 'staccatissimo', 'a>': 'accent', 'a^': 'marcato', 'a-': 'tenuto', 'a@a': 'fermata', 'a@u': 'fermata', 'a@s': 'fermata', 'a@l': 'fermata', 'a@as': 'fermata', 'a@us': 'fermata',
     tr: 'trill', mordent: 'mordent', mordent_inverted: 'mordent', turn: 'turn', turn_inverted: 'turn', prallprall: 'trill', upprall: 'trill' };
 // A rest's value: its written length and dots.
@@ -11415,6 +11497,7 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
     const box = byId('an-roll'), list: ScoreSym[] = [], gs = isScoreOsmdSheet(sheet) ? sheet : null;
     SCORE.syms = list;
     scoreTip(null);
+    box.querySelectorAll('[data-sym]').forEach(el => el.removeAttribute('data-sym'));
     if (!gs)
         return;
     const pageRects = new Map<Element, DOMRect>(), pageOf = (el: Element | null | undefined) => el && el.closest && el.closest('[id^="osmdCanvasPage"]');
@@ -11440,6 +11523,11 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
         if (n.querySelectorAll)
             n.querySelectorAll('text').forEach((x) => seen.add(x));
     } });
+    scoreStructuralMarks(sheet).forEach(mark => add(mark.element, mark.kind, mark.value));
+    box.querySelectorAll('.vf-textbracket').forEach(element => {
+        const kind = scoreOctaveMark(element);
+        if (kind) add(element, kind);
+    });
     gs.MusicPages.forEach((pg) => pg.MusicSystems.forEach((sys) => sys.StaffLines.forEach((sl) => {
         (sl.AbstractExpressions || []).forEach((e) => (e.lines || []).forEach((l) => { const g = l.SVGElement; if (!g || !e.expression || e.expression.dynamicType == null)
             return; seen.add(g); add(g, e.expression.dynamicType === 0 ? 'cresc' : 'dim'); }));
@@ -11454,6 +11542,19 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
                 // Rests are notation, not playable notes: bind their glyphs here, never in AN.notes or scoreBind.
                 (gve.notes || []).forEach((n) => {
                     const src = n.sourceNote;
+                    if (src?.IsGraceNote && src.PrintObject !== false) {
+                        const heads = n.getNoteheadSVGs?.() ?? [], head = heads[n.vfnote?.[1] ?? 0] ?? n.getSVGGElement?.();
+                        if (head) {
+                            const tab = head.getAttribute('tabindex'), label = head.getAttribute('aria-label'), selectable = head.hasAttribute('data-i');
+                            head.dataset.grace = 'yes';
+                            add(head, 'grace');
+                            if (selectable) {
+                                head.style.cursor = 'pointer';
+                                head.setAttribute('tabindex', tab ?? '-1');
+                                head.setAttribute('aria-label', (label ? label + ' · ' : '') + t('sym_grace'));
+                            }
+                        }
+                    }
                     if (!src || !src.isRest() || src.PrintObject === false)
                         return;
                     const heads = n.getNoteheadSVGs ? n.getNoteheadSVGs() : [], g = heads[0] || (n.getSVGGElement && n.getSVGGElement());
@@ -11466,18 +11567,40 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
                 const mg = el && el.querySelector && el.querySelector('.vf-modifiers');
                 if (!mg || !vf || !vf.modifiers)
                     return;
-                const paths = [...mg.children], mods = vf.modifiers, shown = paths.length === mods.length ? mods : mods.filter((m) => /articulation|ornament/i.test(m.getCategory ? m.getCategory() : ''));
+                // Grace groups emit nested notes/ledgers, not one modifier path.
+                // Exclude both sides of that structural group before pairing glyphs.
+                const paths = [...mg.children].filter(child => !child.matches('.vf-stavenote,.vf-ledgers,.vf-stavetie'));
+                const mods = vf.modifiers.filter(modifier => modifier.getCategory?.() !== 'gracenotegroups');
+                const shown = paths.length === mods.length ? mods : mods.filter((m) => /articulation|ornament/i.test(m.getCategory ? m.getCategory() : ''));
                 if (paths.length !== shown.length)
                     return;
-                shown.forEach((m, k) => { const kind = scoreHasKey(SC_ARTS, m.type) ? SC_ARTS[m.type] : undefined; if (kind)
-                    add(paths[k], kind, ''); });
+                const accidentals = { '#': 'accidental_sharp', b: 'accidental_flat', n: 'accidental_natural', '##': 'accidental_doublesharp', bb: 'accidental_doubleflat' };
+                shown.forEach((m, k) => {
+                    const category = m.getCategory?.(), kind = category === 'dots' ? 'dot' : category === 'accidentals' && scoreHasKey(accidentals, m.type) ? accidentals[m.type] : scoreHasKey(SC_ARTS, m.type) ? SC_ARTS[m.type] : undefined;
+                    if (kind) add(paths[k], kind, '');
+                });
             });
         }));
     })));
     box.querySelectorAll('.vf-sc-pedal').forEach((g) => [...g.querySelectorAll('path')].forEach((p) => { const r = p.getBoundingClientRect(); if (r.width)
         add(p, r.width > r.height * 1.3 ? 'ped' : 'pedup', '', r); }));
+    box.querySelectorAll('.sc-note-parentheses').forEach(group => add(group, 'parenthesized'));
+    // A decimal metronome value can span multiple <text> children in OSMD.
+    // Bind the whole semantic group, including its trailing fraction.
+    box.querySelectorAll('.osmd-words,.osmd-tempo,.osmd-dynamic').forEach(element => {
+        // Separate SVG text nodes have no intervening DOM whitespace, even when they are drawn
+        // on different lines. Preserve that word boundary without separating a decimal suffix.
+        const texts = [...element.querySelectorAll('text')];
+        const s = (texts.length ? texts.map(text => text.textContent?.trim() ?? '').filter(Boolean).join(' ') : element.textContent ?? '').replace(/\s+/g, ' ').replace(/(\d)\s+([.,]\d)/g, '$1$2').trim();
+        if (!s || element.closest('[data-sym]')) return;
+        texts.forEach(text => seen.add(text));
+        if (SC_DYN.test(s)) add(element, 'dyn', s);
+        else if (/^[A-G](?:[#♯b♭])?(?:m(?:aj)?|dim|aug|sus[24]?)?\d*(?:\/[A-G][#♯b♭]?)?$/.test(s) && element.classList.contains('osmd-words')) add(element, 'chord', s);
+        else if (/^\d+:\d{2}$/.test(s)) add(element, 'timestamp', s);
+        else add(element, scoreTermParts(s).length ? 'text' : 'direction', s);
+    });
     box.querySelectorAll('svg text').forEach((x) => {
-        if (seen.has(x) || x.closest('.measure-number'))
+        if (seen.has(x) || x.closest('[data-sym],.measure-number,.osmd-measure-number'))
             return;
         const s = (x.textContent || '').replace(/\s+/g, ' ').trim();
         if (!s)
@@ -11530,13 +11653,7 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
     });
 }
 function scoreTermParts(s: string) {
-    const out: { at: number; k: string; n?: string }[] = [];
-    SC_TERMS.forEach(({ k, re }) => { const m = re.exec(s); if (m)
-        out.push({ at: m.index + m[1].length, k }); });
-    const metro = /[\u2669\u266A\u266B\u266C\uD834]\S*\s*\.?\s*=\s*(\d+)/.exec(s);
-    if (metro)
-        out.push({ at: metro.index, k: 'metro', n: metro[1] });
-    return out.sort((a, b) => a.at - b.at).filter((p, i, a) => !(p.k === 'dolce' && a.some((q) => q.k === 'dolcissimo'))).map((p) => p.k === 'metro' ? t('sym_metro', p.n ?? '') : t('sym_t_' + p.k));
+    return recognizeScoreMarkings(s, { context: 'direction' }).map(part => t(part.key, ...part.params));
 }
 // "Name — meaning": the tooltip heads with the symbol as printed (or its name) and #an-hover reads it as one line.
 function scoreSymText(sym: { kind: string | undefined; val: string | ScoreRestSym; }) {
@@ -11568,9 +11685,15 @@ function scoreSymText(sym: { kind: string | undefined; val: string | ScoreRestSy
     }
     else if (k === 'chord')
         full = t('sym_chord');
+    else if (k === 'timestamp')
+        full = t('sym_timestamp', v);
+    else if (k === 'direction')
+        full = t('sym_direction');
+    else if (k === 'volta')
+        full = t('sym_volta', v);
     else
         full = t('sym_' + k);
-    const [name, body] = split(full), lit = k !== undefined && ['dyn', 'finger', 'rehearsal', 'time', 'chord'].includes(k) ? v : '';
+    const [name, body] = split(full), lit = k !== undefined && ['dyn', 'finger', 'rehearsal', 'time', 'chord', 'direction', 'volta'].includes(k) ? v : '';
     return { head: lit ? lit + ' · ' + name : name, body, line: (lit ? lit + ' · ' : '') + full };
 }
 function scoreSymAt(e: Event) {
@@ -13633,6 +13756,68 @@ function scoreXmlLayout(doc: Document): AnXmlPageLayout | null {
     out.systemGap = minimum('part > measure > print > system-layout > system-distance', 400);
     return out;
 }
+// Normalize engraving-only export artifacts without changing any note, direction, or repeat timing.
+function scoreXmlEngraving(doc: Document) {
+    doc.querySelectorAll('direction').forEach((direction) => {
+        const values = [...direction.querySelectorAll(':scope > direction-type > metronome > per-minute')];
+        const suffixes = [...direction.querySelectorAll(':scope > direction-type > words')].filter((w) => /^\.\d+$/.test(w.textContent.trim()));
+        if (values.length !== 1 || suffixes.length !== 1 || !/^\d+$/.test(values[0].textContent.trim()))
+            return;
+        // A decimal may be split into a metronome integer and bold words in the SAME direction.
+        // Concatenate the written value, never infer it from <sound> (dotted-half beats have different BPM).
+        values[0].textContent = values[0].textContent.trim() + suffixes[0].textContent.trim();
+        const type = suffixes[0].parentElement;
+        suffixes[0].remove();
+        if (type && !type.children.length)
+            type.remove();
+    });
+    const signature = (el: Element): string => JSON.stringify([el.localName, [...el.attributes].map((a) => [a.name, a.value]).sort((a, b) => a[0].localeCompare(b[0])), [...el.children].map(signature), el.children.length ? '' : el.textContent.trim()]);
+    doc.querySelectorAll('part').forEach((part) => {
+        let divisions = 1;
+        [...part.children].filter((n) => n.localName === 'measure').forEach((measure) => {
+            let at = 0;
+            const harmonies = new Set<string>();
+            [...measure.children].forEach((node) => {
+                if (node.localName === 'attributes')
+                    divisions = Number(node.querySelector('divisions')?.textContent) || divisions;
+                else if (node.localName === 'harmony') {
+                    // Some exporters write the identical harmony twice before the same note (Ballade, bar 17).
+                    // Compare the complete element, including staff and offset; repeats at later onsets stay intact.
+                    const key = at + '|' + signature(node);
+                    if (harmonies.has(key))
+                        node.remove();
+                    else
+                        harmonies.add(key);
+                }
+                else if (node.localName === 'backup' || node.localName === 'forward')
+                    at += Number(node.querySelector('duration')?.textContent || 0) / divisions * (node.localName === 'backup' ? -1 : 1);
+                else if (node.localName === 'note' && !node.querySelector('chord,grace'))
+                    at += Number(node.querySelector('duration')?.textContent || 0) / divisions;
+            });
+        });
+    });
+    doc.querySelectorAll('ending').forEach((ending) => {
+        let label = ending.textContent;
+        if (!/(?:&lt;|<)\/?(?:font|b|i|u|span)\b/i.test(label))
+            return;
+        const entities: Record<string, string> = { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' };
+        for (let i = 0; i < 3; i++) {
+            const decoded = label.replace(/&([a-z]+|#x[\da-f]+|#\d+);/gi, (entity, key: string) => {
+                if (key[0] !== '#')
+                    return entities[key.toLowerCase()] ?? entity;
+                const value = key[1].toLowerCase() === 'x' ? parseInt(key.slice(2), 16) : Number(key.slice(1));
+                return value > 0 && value <= 0x10ffff ? String.fromCodePoint(value) : entity;
+            });
+            if (decoded === label)
+                break;
+            label = decoded;
+        }
+        // XML parsing is inert: neither markup nor event attributes enter the live document. Keep only text.
+        const parsed = new DOMParser().parseFromString('<label>' + label + '</label>', 'application/xml');
+        if (!parsed.querySelector('parsererror'))
+            ending.textContent = parsed.documentElement.textContent;
+    });
+}
 async function anReadXml(file: File, title: string)  {
     let xml: string;
     if (/\.mxl$/i.test(file.name)) {
@@ -13654,7 +13839,9 @@ async function anReadXml(file: File, title: string)  {
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
     if (doc.querySelector('parsererror') || doc.documentElement.localName !== 'score-partwise' || doc.querySelector('script'))
         throw anError('xml');
-    const layout = scoreXmlLayout(doc), clean = anXmlTidy(doc, title);
+    const layout = scoreXmlLayout(doc);
+    scoreXmlEngraving(doc);
+    const clean = anXmlTidy(doc, title);
     xml = new XMLSerializer().serializeToString(doc);
     const r = scoreXmlNotes(doc);
     if (!r.notes.length)
@@ -13713,6 +13900,7 @@ function scoreXmlEndings(doc: Document) {
     });
 }
 function anXmlTidy(doc: Document, fallback: string) {
+    normalizeScoreDirectionGlyphs(doc);
     const root = doc.documentElement, kids = (el: Element) => [...el.children], one = (el: Element, name: string) => kids(el).find((c) => c.localName === name);
     const smufl = new Map(Object.entries(AN_SMUFL_NOTES));
     const text = (el: Element | null | undefined) => (el && el.textContent || '').replace(/\s+/g, ' ').trim(), same = (a: string, b: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
@@ -13837,7 +14025,9 @@ function anXmlTidy(doc: Document, fallback: string) {
     });
     doc.querySelectorAll('direction > direction-type > words').forEach((w) => {
         const t = text(w), y = yOf(w);
-        if (!t || !(t.length >= 60 || editorial(t) || footnote(t, y <= -80) || (t.length >= 20 && y <= -90) || w.textContent.split('\n').filter((s: string) => s.trim()).length >= 3))
+        // Length/position alone must not delete a verified musical instruction (e.g. Beethoven's
+        // complete "Si deve suonare..." direction). The recognizer rejects unknown editorial prose.
+        if (!t || recognizeScoreMarkings(t, { context: 'direction' }).length || !(t.length >= 60 || editorial(t) || footnote(t, y <= -80) || (t.length >= 20 && y <= -90) || w.textContent.split('\n').filter((s: string) => s.trim()).length >= 3))
             return;
         const dt = w.parentElement, dir = dt && dt.parentElement;
         if (!dt || !dir)
@@ -14139,6 +14329,8 @@ function anHover(e: PointerEvent | FocusEvent) {
         return;
     const key = anKeyAt(n.start), group = AN.notes.filter((a) => a.start <= n.start + 0.001 && a.end > n.start + 0.001), chord = identifyChord(group.map((a) => a.midi)), seg = anSegAt(n.start), nct = seg && seg.nct && seg.nct.find((x: { note: unknown; type: string; }) => x.note === n);
     byId('an-hover').textContent = spellName(n.midi, key, true) + ' · ' + t('an_bar') + ' ' + anMeasureAt(n.start).number + ' · ' + group.map((a) => spellName(a.midi, key, true)).join(' ') + ' · ' + (chord ? spellName(60 + chord.rootPc, key) + chord.chord.symbol + (chord.inversion > 0 ? '/' + spellName(60 + chord.bassPc, key) : '') : t('an_none')) + (nct ? ' · ' + t('an_nct_' + nct.type) : '');
+    if (g.dataset.grace === 'yes') byId('an-hover').textContent += ' · ' + t('sym_grace');
+    if (g.dataset.parenthesized === 'yes') byId('an-hover').textContent += ' · ' + t('sym_parenthesized');
 }
 // Click a notehead to select it (Shift/Ctrl adds), click empty space in a bar to select the bar (Shift extends the range),
 // drag for a marquee; a click outside every bar clears the selection.

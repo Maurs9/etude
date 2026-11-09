@@ -12,7 +12,7 @@ export function scorePedalCollisions() {
       return { left: r.left - pad, right: r.right + pad, top: r.top - pad, bottom: r.bottom + pad };
     };
     const overlap = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > .1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > .1;
-    const obstacles = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,text')]
+    const obstacles = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,.sc-note-parentheses path,text')]
       .filter(el => !el.closest('.vf-sc-pedal')).map(el => ({ el, r: ink(el) }));
     const pedals = [...svg.querySelectorAll('.vf-sc-pedal path')].filter(el => el.getBoundingClientRect().width > .1);
     total += pedals.length;
