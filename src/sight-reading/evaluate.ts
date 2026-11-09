@@ -37,6 +37,7 @@ export type SightReadingEvaluation = {
 };
 export type SightReadingEvaluateConfig = {
   readonly windowMs?: number;
+  readonly chordWindowMs?: number;
   readonly restWindows?: readonly { readonly startMs: number; readonly endMs: number }[];
 };
 
@@ -151,24 +152,43 @@ function effectiveWindowMs(configuredWindowMs: number | undefined): number {
   return Math.min(250, windowMs);
 }
 
+function effectiveChordWindowMs(configuredWindowMs: number | undefined): number {
+  const windowMs = configuredWindowMs ?? 60;
+  if (!Number.isFinite(windowMs) || windowMs < 0) {
+    throw new RangeError('chordWindowMs must be a finite, non-negative number');
+  }
+  return Math.min(250, windowMs);
+}
+
 export function srtEvaluate(
   expected: readonly SightReadingExpected[],
   performed: readonly SightReadingPerformed[],
   config: SightReadingEvaluateConfig = {},
 ): SightReadingEvaluation {
   const baseWindow = effectiveWindowMs(config.windowMs);
+  const chordWindow = effectiveChordWindowMs(config.chordWindowMs);
   if (expected.length === 0) return emptyResult();
   const byMidi = new Map<number, SightReadingExpected[]>();
   const inputByMidi = new Map<number, SightReadingPerformed[]>();
   for (const note of expected) byMidi.set(note.midi, [...(byMidi.get(note.midi) ?? []), note]);
   for (const input of performed) inputByMidi.set(input.midi, [...(inputByMidi.get(input.midi) ?? []), input]);
   const associationWindows = buildAssociationWindows(expected, baseWindow);
-  const pairs: Pair[] = [];
+  let pairs: Pair[] = [];
   for (const [midi, notes] of byMidi) {
     const sorted = [...notes].sort((a, b) => a.onMs - b.onMs);
     const inputs = [...(inputByMidi.get(midi) ?? [])].sort((a, b) => a.onMs - b.onMs);
     pairs.push(...matchPitch(sorted, inputs, associationWindows, baseWindow));
   }
+  const pairsByOnset = new Map<number, Pair[]>();
+  for (const pair of pairs) pairsByOnset.set(pair.expected.onMs, [...(pairsByOnset.get(pair.expected.onMs) ?? []), pair]);
+  const invalidChordPairs = new Set<Pair>();
+  for (const [onMs, chordPairs] of pairsByOnset) {
+    const expectedAtOnset = expected.filter((note) => note.onMs === onMs);
+    if (expectedAtOnset.length < 2 || chordPairs.length !== expectedAtOnset.length) continue;
+    const inputTimes = chordPairs.map((pair) => pair.input.onMs);
+    if (Math.max(...inputTimes) - Math.min(...inputTimes) > chordWindow) chordPairs.forEach((pair) => invalidChordPairs.add(pair));
+  }
+  if (invalidChordPairs.size) pairs = pairs.filter((pair) => !invalidChordPairs.has(pair));
   const matchedIds = new Set(pairs.map((pair) => pair.input.id));
   const matchedExpected = new Map(pairs.map((pair) => [pair.expected.id, pair]));
   const noteResults = expected.map((note) => {

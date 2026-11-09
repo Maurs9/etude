@@ -105,6 +105,8 @@ Adăugarea modurilor de antrenament intens și a sistemului de punctaj din *Comp
 ### Obiectiv
 Extinderea generatorului și a curriculum-ului pentru a acoperi intervale armonice, acorduri de 3 note (inclusiv răsturnări) și citirea simultană pe ambele chei în orice gamă.
 
+**Implementat:** curriculum-ul are patru niveluri avansate pentru bicorduri, triade cu răsturnări, grand staff și cromatism. Generatorul produce deterministic partituri cu 2–3 voci, în toate armurile de la 7♭ la 7♯, în Major, Minor natural, Minor armonic și Cromatic. Validatorul verifică vocile, armura și ortografia notelor; evaluatorul acceptă un acord numai dacă toate atacurile sale sunt în fereastra de 60 ms.
+
 ### Fișiere Modificate
 - `src/sight-reading/model.ts` & `src/sight-reading/generator.ts`:
   - Extinderea modelului de evenimente pentru a suporta **polifonie pe fiecare mână** (`pitches: readonly number[]` / acorduri de 2–3 note simultan) și coordonare pe **Grand Staff (`𝄞 + 𝄢`)**:

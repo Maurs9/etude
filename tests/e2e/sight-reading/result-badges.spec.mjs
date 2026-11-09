@@ -66,6 +66,38 @@ async function finishCurrentAssess(page) {
 }
 
 test.describe('Sight-reading iteration 16 regressions', () => {
+  test('renders generated intervals, triads and grand staff in signed keys', async ({ app }) => {
+    const page = await openRead(app);
+    for (const [levelId, profile, expectedHands, voices] of [
+      ['sr6', 'P3.a', ['rh'], 2],
+      ['sr7', 'P3.b', ['rh'], 3],
+      ['sr8', 'P3.c', ['lh', 'rh'], 2],
+      ['sr9', 'P3.d', ['rh'], 3],
+    ]) {
+      const generated = await page.evaluate(({ id, injectedSeed }) => {
+        const api = window.__etude;
+        api.RD.L = api.RD_LV[id];
+        api.rdSightStart('practice', injectedSeed);
+        const piece = api.SR.srtPiece;
+        return {
+          profile: piece.profileId,
+          keyN: piece.key.keyN,
+          hands: [...new Set(piece.events.map((event) => event.hand))].sort(),
+          rightVoices: Math.max(...piece.events.filter((event) => event.hand === 'rh').map((event) => event.pitches.length)),
+        };
+      }, { id: levelId, injectedSeed: 17 });
+      expect(generated).toEqual({
+        profile,
+        keyN: expect.any(Number),
+        hands: expectedHands,
+        rightVoices: voices,
+      });
+      expect(generated.keyN).toBeGreaterThanOrEqual(-7);
+      expect(generated.keyN).toBeLessThanOrEqual(7);
+      expect(await page.locator('#rd-staff .ss-n').count()).toBeGreaterThan(10);
+    }
+  });
+
   test('consumes eligible content before Learn can reveal it, including round trips and direct draws', async ({ app }) => {
     const page = await openAssessGenerator(app);
     const fingerprint = await page.evaluate(() => window.__etude.SR.srtFingerprint);
