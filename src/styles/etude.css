@@ -40,6 +40,7 @@
   :root[data-theme=dark] .white:not([data-s]) .lbl{color:#645b4c; text-shadow:0 1px 0 rgba(255,255,255,.25)}
   :root[data-theme=dark] .white[data-s=target],:root[data-theme=dark] .white[data-s=active]{border-color:#b5831e}
   :root[data-theme=dark] .white[data-s=target] .lbl,:root[data-theme=dark] .white[data-s=active] .lbl{color:#3a2402; text-shadow:0 1px 0 rgba(255,255,255,.5)}
+  :root[data-theme=dark] .white .mk{color:#1a1714}
   :root[data-theme=dark] .keys{background:#0a0908}
   *{box-sizing:border-box}
   html,body{margin:0} html{height:100%}
@@ -1205,6 +1206,15 @@
   .rdx-staff{max-width:100%; overflow-x:auto; border-radius:12px}
   .rdx-q .rdx-staff{background:var(--paper2); border:1px solid var(--line); padding:6px 14px; min-height:120px; display:flex; align-items:center; justify-content:center}
   .rdx-q .rdx-staff:empty{display:none}
+  .rdx-q .rdx-staff.rdx-flow{display:flex; width:100%}
+  .rdx-flow-n.slide{animation:rdxSlide .16s ease-out}
+  @keyframes rdxSlide{from{transform:translateX(var(--dx))} to{transform:none}}
+  .rdx-svg .rdx-now{fill:var(--gold); fill-opacity:.14}
+  /* Deeper gold keeps the current note at 3:1 on the gold and ghost bands in the light theme. */
+  :root:not([data-theme=dark]) .rdx-flow-n .ss-n[data-s=now]{--gold:#8d6b26}
+  .rdx-svg .rdx-ghost-b{fill:var(--accent); fill-opacity:.12}
+  .rdx-svg .rdx-ghost text{font-size:12px; text-anchor:middle}
+  .rdx-svg .rdx-ghost.edge{opacity:.45}
   .rdx-svg{display:block; max-width:100%; height:auto}
   .rdx-svg .rdx-brace{fill:none; stroke:var(--staffink); stroke-width:2.6; stroke-linecap:round}
   .rdx-cclef rect{fill:var(--staffink)} .rdx-cc{fill:none; stroke:var(--staffink); stroke-width:2.6; stroke-linecap:round}
@@ -1230,15 +1240,11 @@
   .rdx-accs button{position:relative; font-size:19px; min-width:48px; padding:6px 14px}
   .rdx-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center}
   .rdx-kbd{font-size:12px; color:var(--faint)}
-  .rdx-kb{position:relative; width:min(100%,720px); height:96px; user-select:none; -webkit-user-select:none; touch-action:none}
+  .rdx-kb{position:relative; width:min(100%,720px); height:96px; user-select:none; -webkit-user-select:none}
   .rdx-w,.rdx-b{position:absolute; top:0; box-sizing:border-box}
-  .rdx-kb button{appearance:none; padding:0; color:inherit; font:inherit}
-  .rdx-kb button:focus-visible{outline:3px solid var(--accent); outline-offset:2px; z-index:3}
   .rdx-w{height:100%; background:linear-gradient(180deg,#ffffff 0%,#fcfbf9 35%,#f5eee1 80%,#ebe0ce 100%); border:1px solid #b8af9f; border-top:none; border-radius:0 0 4px 4px; box-shadow:inset 1px 0 0 rgba(255,255,255,.8), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -4px 6px -2px rgba(180,165,140,.3), 0 1px 3px rgba(0,0,0,.15)}
   .rdx-w i{position:absolute; bottom:4px; left:0; right:0; font:600 9px var(--sans); color:#8c8475; font-style:normal; text-align:center}
   .rdx-b{height:62%; background:linear-gradient(180deg,#36302a 0%,#24201c 45%,#181513 78%,#2a2520 92%,#141210 100%); border:1px solid #0d0b09; border-top:none; border-radius:0 0 3px 3px; z-index:1; box-shadow:inset 1px 1px 0 rgba(255,255,255,.16), inset -1px 0 0 rgba(0,0,0,.6), -1px 2px 4px rgba(0,0,0,.35), 1px 2px 4px rgba(0,0,0,.3), 0 3px 6px rgba(0,0,0,.3)}
-  .rdx-kb.inter .rdx-w,.rdx-kb.inter .rdx-b{cursor:pointer}
-  .rdx-kb.inter .rdx-w:active{background:#efe7d6}
   .rdx-w[data-s=target],.rdx-b[data-s=target]{background:var(--gold)}
   .rdx-w[data-s=good],.rdx-b[data-s=good]{background:#3c8f57}
   .rdx-w[data-s=bad],.rdx-b[data-s=bad]{background:#b5532f}
