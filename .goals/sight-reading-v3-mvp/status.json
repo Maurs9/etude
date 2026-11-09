@@ -1,7 +1,7 @@
 {
   "goal_id": "sight-reading-v3-mvp",
   "status": "building",
-  "iteration": 14,
+  "iteration": 15,
   "builder_model": "GPT:5.6-Luna",
   "inspector_model": "GPT:5.6-Sol",
   "initial_sha": "a26497d263a31d1c0d74921a07ea4b8720d8af6c",
@@ -86,6 +86,11 @@
       "iteration": 14,
       "verdict": "FAIL",
       "summary": "The full gate and manual journey pass, but practice/error UI remains inconsistent, failed switching leaks the claim lock, generated pieces are lost on round trips, and freshness stress repeats content."
+    },
+    {
+      "iteration": 15,
+      "verdict": "FAIL",
+      "summary": "Five browser-verified defects remain: eligible melodies can be studied without exposure, stale claims silently become practice, Retry hides saved results, and notices/badges mislead."
     }
   ]
 }
