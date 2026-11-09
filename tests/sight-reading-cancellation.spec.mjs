@@ -267,7 +267,10 @@ test.describe('Sight-reading cancellation races', () => {
       srtPiece: window.__etude.SR.srtPiece,
       active: window.__etude.SR.active,
       go: document.querySelector('#rd-go')?.textContent ?? '',
-    }))).toEqual({ piece: 'w5rh', srtPiece: null, active: true, go: expect.stringMatching(/Stop/) });
+    }))).toMatchObject({ piece: 'w5rh', active: true, go: expect.stringMatching(/Stop/) });
+    expect(await page.evaluate(() => window.__etude.SR.srtPiece)).toEqual(
+      expect.objectContaining({ profileId: 'P1.a' }),
+    );
     await page.evaluate(() => window.__etude.panic());
   });
 
@@ -365,7 +368,7 @@ test.describe('Sight-reading cancellation races', () => {
     await page.locator('#rd-piece').selectOption('w5rh');
     await expect.poll(async () => (await pendingSnapshot(page)).statuses).toEqual(['abandoned']);
     expect(await pendingSnapshot(page)).toMatchObject({
-      state: 'idle',
+      state: 'abandoned',
       pendingAttempt: null,
       claims: 0,
       heldAttemptLocks: 0,

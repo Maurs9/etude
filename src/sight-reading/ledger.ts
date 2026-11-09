@@ -31,7 +31,7 @@ export type SightReadingLedger = {
 };
 export type SightReadingLedgerResult =
   | { readonly ok: true; readonly ledger: SightReadingLedger }
-  | { readonly ok: false; readonly reason: 'stale_generation' | 'owner_mismatch' | 'already_exposed' | 'conflict' | 'quota' | 'unsupported' };
+  | { readonly ok: false; readonly reason: 'stale_generation' | 'owner_mismatch' | 'already_exposed' | 'conflict' | 'quota' | 'storage' | 'unsupported' };
 export type SightReadingLedgerOperation =
   | { readonly type: 'claimExposure'; readonly fingerprint: string; readonly attemptId: string; readonly ownerTabId: string; readonly generation: string }
   | { readonly type: 'finishAttempt'; readonly attempt: SightReadingAttempt; readonly generation: string }
@@ -57,6 +57,8 @@ export type SightReadingAttemptLease = {
 function hasWebLocks(): boolean {
   return typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function';
 }
+
+const volatileLedgers = new WeakMap<object, SightReadingLedger>();
 
 function newGeneration(): string {
   const suffix = Math.floor(Math.random() * 0x1000000).toString(36).padStart(4, '0');
@@ -186,7 +188,12 @@ export function isSightReadingLedger(value: unknown): value is SightReadingLedge
 const parseJson: (text: string) => unknown = JSON.parse;
 
 function readRaw(storage: SightReadingStorage): unknown {
-  const raw = storage.getItem(SRT_LEDGER_KEY);
+  let raw: string | null;
+  try {
+    raw = storage.getItem(SRT_LEDGER_KEY);
+  } catch {
+    return null;
+  }
   if (!raw) return null;
   try {
     return parseJson(raw);
@@ -199,7 +206,13 @@ export type SightReadingLedgerReadStatus = 'missing' | 'supported' | 'unsupporte
 
 export function srtLedgerReadStatus(storage: SightReadingStorage): SightReadingLedgerReadStatus {
   const raw = readRaw(storage);
-  if (raw === null) return storage.getItem(SRT_LEDGER_KEY) === null ? 'missing' : 'unsupported';
+  if (raw === null) {
+    try {
+      return storage.getItem(SRT_LEDGER_KEY) === null ? 'missing' : 'unsupported';
+    } catch {
+      return 'missing';
+    }
+  }
   if (isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA)
     return 'unsupported';
   return isLedger(raw) ? 'supported' : 'missing';
@@ -207,15 +220,20 @@ export function srtLedgerReadStatus(storage: SightReadingStorage): SightReadingL
 
 export function srtReadLedger(storage: SightReadingStorage): SightReadingLedger {
   const parsed = readRaw(storage);
-  if (isLedger(parsed)) return normalizeLedger(parsed);
+  if (isLedger(parsed)) {
+    volatileLedgers.delete(storage);
+    return normalizeLedger(parsed);
+  }
   if (isRecord(parsed) && typeof parsed.schemaVersion === 'number' && parsed.schemaVersion > SRT_LEDGER_SCHEMA) {
     return srtCreateLedger();
   }
+  const volatile = volatileLedgers.get(storage);
+  if (volatile) return volatile;
   const created = srtCreateLedger();
   try {
     storage.setItem(SRT_LEDGER_KEY, JSON.stringify(created));
   } catch {
-    // A read must remain usable even when storage is unavailable or full.
+    volatileLedgers.set(storage, created);
   }
   return created;
 }
@@ -234,9 +252,10 @@ function normalizeLedger(ledger: SightReadingLedger): SightReadingLedger {
 function saveLedger(storage: SightReadingStorage, ledger: SightReadingLedger): SightReadingLedgerResult {
   try {
     storage.setItem(SRT_LEDGER_KEY, JSON.stringify(ledger));
+    volatileLedgers.delete(storage);
     return { ok: true, ledger };
   } catch {
-    return { ok: false, reason: 'quota' };
+    return { ok: false, reason: 'storage' };
   }
 }
 

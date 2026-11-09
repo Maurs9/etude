@@ -64,7 +64,7 @@ test.describe('Sight-reading iteration 14 regressions', () => {
     for (const language of languages) {
       await page.evaluate((value) => window.__etude.setLang(value), language);
       await page.locator('#rd-srt-retry').click();
-      const expected = await page.evaluate(() => window.__etude.t('rd_srt_error_quota'));
+      const expected = await page.evaluate(() => window.__etude.t('rd_srt_error_pending_storage'));
       await expect(page.locator('#rd-srt-notice')).toHaveText(expected);
       expect(await pendingSnapshot(page)).toMatchObject({
         state: 'pendingSave',
@@ -77,7 +77,7 @@ test.describe('Sight-reading iteration 14 regressions', () => {
 
     await page.locator('#rd-srt-continue').click();
     await expect(page.locator('#rd-srt-notice')).toHaveText(
-      await page.evaluate(() => window.__etude.t('rd_srt_error_quota')),
+      await page.evaluate(() => window.__etude.t('rd_srt_error_pending_storage')),
     );
     expect(await pendingSnapshot(page)).toMatchObject({
       state: 'pendingSave',
