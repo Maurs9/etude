@@ -8130,8 +8130,10 @@ function rdClickAns(b: HTMLElement) {
     const v = b.dataset.a;
     if (q.ty === 'name')
         return rdAnswer(Number(v) === q.note.li && (!q.needAcc || RD.accSel === (q.note.acc || 0)), { btn: b });
-    if (q.ty === 'k2s')
-        return rdAnswer(Number(v) === q.ans, { btn: b });
+    if (q.ty === 'k2s') {
+        const o = q.opts?.[Number(v)];
+        return rdAnswer(Number(v) === q.ans, o ? { btn: b, midi: rdMidi(o.n) } : { btn: b });
+    }
     rdAnswer(v === String(q.ans), { btn: b });
 }
 function rdInput(m: number) {
@@ -8152,15 +8154,9 @@ function rdInput(m: number) {
         return rdAnswer(strict || (src.some((s) => /^(pointer|button):/.test(s)) && foldToView(q.midi) === q.midi) ? m === q.midi : pc(m) === pc(q.midi), { midi: m });
     if (q.ty === 'name')
         return rdAnswer(pc(m) === pc(q.midi), { midi: m });
-    if (q.ty === 'k2s') {
-        const opts = q.opts;
-        if (!opts)
-            throw new Error('Étude: key-to-staff question without options');
-        const i = opts.findIndex((o) => strict ? rdMidi(o.n) === m : pc(rdMidi(o.n)) === pc(m));
-        if (i >= 0)
-            rdAnswer(i === q.ans, { btn: byId('rdx-ans').querySelectorAll('.rdx-a')[i], midi: m });
+    // Key to staff answers with 1–4 or a click: a played note only sounds, since playing the lit key would answer without reading.
+    if (q.ty === 'k2s')
         return;
-    }
     if (q.ty === 'ch') {
         const hp = heldPcs();
         if (hp.length >= 3)

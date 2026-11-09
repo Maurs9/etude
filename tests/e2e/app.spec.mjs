@@ -1660,20 +1660,24 @@ test.describe('reading drills: key to staff', () => {
     }
   });
 
-  test('a wrong answer played on the piano marks the right key and the played one', async ({ app }) => {
+  test('notes played on the piano only sound; 1–4 answers, and a wrong pick marks its key', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
-    await start(page, 'treble');
-    const { midi, wrong } = await page.evaluate(() => {
-      const e = window.__etude, q = e.RD.q;
-      return { midi: q.midi, wrong: e.rdMidi(q.opts.find((o, i) => i !== q.ans).n) };
-    });
+    const midi = await start(page, 'treble');
     await page.evaluate(m => {
       window.__etude.midiIn(0x90, m, 100, 'midi');
       window.__etude.midiIn(0x80, m, 0, 'midi');
-    }, wrong);
+    }, midi);
+    expect(await page.evaluate(() => [window.__etude.RD.n, window.__etude.RD.answered])).toEqual([0, false]);
+    await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'target');
+    const { pick, wrong } = await page.evaluate(() => {
+      const e = window.__etude, q = e.RD.q, pick = q.opts.findIndex((o, i) => i !== q.ans);
+      return { pick, wrong: e.rdMidi(q.opts[pick].n) };
+    });
+    await page.keyboard.press(String(pick + 1));
     await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'good');
     await expect(page.locator(`#keys .key[data-midi="${wrong}"]`)).toHaveAttribute('data-s', 'bad');
-    await expect(page.locator('#rdx-ans .rdx-a.wrong')).toHaveCount(1);
+    await expect(page.locator('#rdx-ans .rdx-a').nth(pick)).toHaveClass(/\bwrong\b/);
+    expect(await page.evaluate(() => [window.__etude.RD.n, window.__etude.RD.ok])).toEqual([1, 0]);
   });
 
   test.describe('on a phone', () => {
