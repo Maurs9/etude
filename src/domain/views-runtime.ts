@@ -2670,7 +2670,7 @@ type StoredTrainerData = {
     learnSelId?: string;
     reading?: Partial<ReadDrillData>;
 };
-function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false } }; }
+function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, weakSpotInjection: false } }; }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
 function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 }); }
@@ -7255,7 +7255,7 @@ else {
 /* ============================================================================
    READING DRILLS (V3) — a structured, CMRT-style reading curriculum:
    note naming / playing, key→staff, intervals, chords, key signatures, rhythm,
-   C clefs and generated sight-reading, with adaptive weighting, stars & stats.
+   C clefs and generated sight-reading, with optional weak-spot injection, stars & stats.
    ============================================================================ */
 type ReadClefStaff = 'treble' | 'bass' | 'alto' | 'tenor';
 type ReadClefDraw = ReadClefStaff | 'grand';
@@ -7489,20 +7489,20 @@ function rdStat(k: string, ok: boolean, ms: number) {
         s.ok++;
     s.ms += ms;
 }
-function rdWeight(k: string) { const s = rdData().nt[k]; if (!s || !s.n)
-    return 2.2; const slow = Math.min(2, Math.max(0, (s.t || 0) / rdTarget(RD.L) - 1)); return 1 + 6 * (s.e || 0) + 1.5 * slow + (s.n < 3 ? 0.8 : 0); }
-function rdPickW<T>(items: T[], keyOf: (x: T) => string, avoid: string | null) {
-    let c = items.filter((x) => keyOf(x) !== avoid);
-    if (!c.length)
-        c = items;
-    const w = c.map((x) => rdWeight(keyOf(x)));
-    let r = Math.random() * w.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < c.length; i++) {
-        r -= w[i];
-        if (r <= 0)
-            return c[i];
-    }
-    return c[c.length - 1];
+function rdWeakness(k: string) {
+    const s = rdData().nt[k];
+    if (!s || !s.n)
+        return 0;
+    const errors = s.ok < s.n ? 1 - s.ok / s.n : 0;
+    const slow = Math.max(0, (s.t || 0) / rdTarget(RD.L) - 1);
+    return 6 * errors + slow;
+}
+function rdWeakItems<T>(items: T[], keyOf: (x: T) => string) {
+    const ranked = items.map((item) => ({ item, weakness: rdWeakness(keyOf(item)) })).filter(({ weakness }) => weakness > 0).sort((a, b) => b.weakness - a.weakness);
+    return ranked.slice(0, Math.ceil(ranked.length / 4)).map(({ item }) => item);
+}
+function rdPick<T>(items: T[]) {
+    return items[Math.floor(Math.random() * items.length)];
 }
 // In test mode the bag holds shuffled indices into items; the same signature means the same keys in the same order.
 function rdPickFrom<T>(items: T[], keyOf: (x: T) => string) {
@@ -7518,8 +7518,13 @@ function rdPickFrom<T>(items: T[], keyOf: (x: T) => string) {
             i = 0;
         r = items[RD.bag.splice(i, 1)[0]];
     }
-    else
-        r = rdPickW(items, keyOf, RD.lastK);
+    else {
+        let pool = items.filter((item) => keyOf(item) !== RD.lastK);
+        if (!pool.length)
+            pool = items;
+        const weak = RD.mode === 'practice' && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
+        r = rdPick(weak.length ? weak : pool);
+    }
     RD.lastK = keyOf(r);
     return r;
 }
@@ -8770,7 +8775,7 @@ function rdRenderHome() {
     byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
     <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${t('rdx_st_time')}</span></div></div>
     <div class="rdx-hero-r"><button class="btn primary" data-lv="${cont.id}" id="rdx-cont">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}<small>${rdEsc(rdLvName(cont) + ' · ' + t('rdx_ty_' + cont.ty))}</small></button>
-      <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label></div>`;
+      <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-weak-inject"${data.settings.weakSpotInjection ? ' checked' : ''}> <span>${t('rdx_weak_inject')}</span></label></div>`;
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
@@ -9126,6 +9131,8 @@ function rdOnLocale() {
             p.hints = checked;
             saveAll();
         }
+        else if (id === 'rdx-weak-inject')
+            setWeakSpotInjection(checked);
         else if (id === 'rdx-rhdur') {
             if (RD.rh && RD.rh.playing) {
                 if (el instanceof HTMLInputElement)
@@ -15974,7 +15981,7 @@ function labelSettingsControl(controlId: string, labelKey: string|undefined, hel
 type SettingsControlLabel = [controlId: string, labelKey: string, helpKey?: string];
 function labelSettingsControls() {
     const controls: SettingsControlLabel[] = [['deviceSelect', 'set_input'], ['toneSel', 'set_tone'], ['set-goal', 'set_sessionlen'], ['set-new', 'set_newperday', 'set_newperday_s'],
-        ['set-wake', 'set_wake'], ['set-synth', 'set_localsynth'], ['set-drone', 'set_drone'], ['set-metronome', 'set_metronome'], ['set-inv', 'set_allowinv']];
+        ['set-wake', 'set_wake'], ['set-synth', 'set_localsynth'], ['set-drone', 'set_drone'], ['set-metronome', 'set_metronome'], ['set-inv', 'set_allowinv'], ['set-weak-inject', 'set_weak_inject']];
     controls.forEach(([controlId, labelKey, helpKey]) => labelSettingsControl(controlId, labelKey, helpKey));
 }
 function reflectSettingsUI() {
@@ -15988,10 +15995,21 @@ function reflectSettingsUI() {
     inputById('set-drone').checked = !!data.settings.drone;
     inputById('set-inv').checked = !!data.settings.allowInv;
     inputById('set-metronome').checked = !!data.settings.metronome;
+    inputById('set-weak-inject').checked = !!data.settings.weakSpotInjection;
     selectById('set-goal').value = String(data.settings.goal);
     selectById('set-new').value = String(data.settings.newPerDay);
     queryAllHtml(document, '#set-notation button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === notation ? 'true' : 'false'));
     queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === lang ? 'true' : 'false'));
+}
+function setWeakSpotInjection(on: boolean) {
+    data.settings.weakSpotInjection = on;
+    const settingsToggle = maybeById('set-weak-inject');
+    if (settingsToggle instanceof HTMLInputElement)
+        settingsToggle.checked = on;
+    const readingToggle = maybeById('rdx-weak-inject');
+    if (readingToggle instanceof HTMLInputElement)
+        readingToggle.checked = on;
+    saveAll();
 }
 function overlaysOpen() { return byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on'); }
 function syncScrim() {
@@ -16438,6 +16456,7 @@ function initControls() {
     byId('set-drone').addEventListener('change', (e) => { data.settings.drone = wiringInput(e).checked; saveAll(); });
     byId('set-metronome').addEventListener('change', (e) => { data.settings.metronome = wiringInput(e).checked; saveAll(); });
     byId('set-inv').addEventListener('change', (e) => { data.settings.allowInv = wiringInput(e).checked; saveAll(); });
+    byId('set-weak-inject').addEventListener('change', (e) => { setWeakSpotInjection(wiringInput(e).checked); });
     byId('set-goal').addEventListener('change', (e) => { data.settings.goal = +wiringField(e).value; saveAll(); refreshToday(); });
     byId('set-new').addEventListener('change', (e) => { data.settings.newPerDay = +wiringField(e).value; saveAll(); refreshToday(); });
     // global
@@ -17120,7 +17139,6 @@ Object.defineProperty(__etude, "rdOpen", { configurable: true, get: () => rdOpen
 Object.defineProperty(__etude, "rdP", { configurable: true, get: () => rdP });
 Object.defineProperty(__etude, "rdPercClef", { configurable: true, get: () => rdPercClef });
 Object.defineProperty(__etude, "rdPickFrom", { configurable: true, get: () => rdPickFrom });
-Object.defineProperty(__etude, "rdPickW", { configurable: true, get: () => rdPickW });
 Object.defineProperty(__etude, "rdPool", { configurable: true, get: () => rdPool });
 Object.defineProperty(__etude, "rdQSvg", { configurable: true, get: () => rdQSvg });
 Object.defineProperty(__etude, "rdRangeTxt", { configurable: true, get: () => rdRangeTxt });
@@ -17162,7 +17180,6 @@ Object.defineProperty(__etude, "rdTap", { configurable: true, get: () => rdTap }
 Object.defineProperty(__etude, "rdTarget", { configurable: true, get: () => rdTarget });
 Object.defineProperty(__etude, "rdU", { configurable: true, get: () => rdU });
 Object.defineProperty(__etude, "rdUnlocked", { configurable: true, get: () => rdUnlocked });
-Object.defineProperty(__etude, "rdWeight", { configurable: true, get: () => rdWeight });
 Object.defineProperty(__etude, "refMidis", { configurable: true, get: () => refMidis });
 Object.defineProperty(__etude, "reflectSettingsUI", { configurable: true, get: () => reflectSettingsUI });
 Object.defineProperty(__etude, "reflowKeys", { configurable: true, get: () => reflowKeys });

@@ -9,6 +9,7 @@ export const SETTING_DEFAULTS = {
   metronome: false,
   drone: false,
   earKeys: false,
+  weakSpotInjection: false,
 } as const;
 
 export const SETTING_GOALS = [8, 12, 16, 24] as const;
@@ -21,6 +22,7 @@ export type AppSettings = {
   metronome: boolean;
   drone: boolean;
   earKeys: boolean;
+  weakSpotInjection: boolean;
 };
 
 export type PttV3Payload = {
@@ -58,6 +60,7 @@ export function restoreSettings(value: unknown): AppSettings {
     metronome: settings.metronome === true,
     drone: settings.drone === true,
     earKeys: settings.earKeys === true,
+    weakSpotInjection: settings.weakSpotInjection === true,
   };
 }
 
