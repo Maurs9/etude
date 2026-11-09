@@ -17,6 +17,7 @@ describe('ptt-v3 storage reader', () => {
       metronome: false,
       drone: false,
       earKeys: false,
+      weakSpotInjection: false,
     });
   });
 

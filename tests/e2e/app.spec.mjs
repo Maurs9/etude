@@ -1676,7 +1676,7 @@ test('persisted settings are normalized to supported audio and session limits', 
       muted: 'yes',
       reverb: 9,
       bpm: 999,
-      data: { settings: { goal: 999999, newPerDay: -2, allowInv: 'yes', metronome: 1, drone: {}, earKeys: 'yes' } },
+      data: { settings: { goal: 999999, newPerDay: -2, allowInv: 'yes', metronome: 1, drone: {}, earKeys: 'yes', weakSpotInjection: 'yes' } },
     },
   });
   expect(await page.evaluate(() => ({
@@ -1690,7 +1690,7 @@ test('persisted settings are normalized to supported audio and session limits', 
     muted: false,
     reverbWet: 0.5,
     bpm: 180,
-    settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, earKeys: false },
+    settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, earKeys: false, weakSpotInjection: false },
   });
 });
 
@@ -1703,7 +1703,7 @@ test('valid persisted settings are preserved', async ({ app }) => {
       muted: true,
       reverb: 0.3,
       bpm: 120,
-      data: { settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true } },
+      data: { settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true, weakSpotInjection: true } },
     },
   });
   expect(await page.evaluate(() => ({
@@ -1717,7 +1717,7 @@ test('valid persisted settings are preserved', async ({ app }) => {
     muted: true,
     reverbWet: 0.3,
     bpm: 120,
-    settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true },
+    settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true, weakSpotInjection: true },
   });
 });
 
@@ -1969,7 +1969,7 @@ test.describe('reading drills: note stream', () => {
 test('Settings controls receive localized programmatic labels', async ({ app }) => {
   const page = await app.open();
   await page.locator('#settingsBtn').click();
-  for (const id of ['deviceSelect', 'toneSel', 'set-goal', 'set-new', 'set-wake', 'set-synth', 'set-drone', 'set-metronome', 'set-inv']) {
+  for (const id of ['deviceSelect', 'toneSel', 'set-goal', 'set-new', 'set-wake', 'set-synth', 'set-drone', 'set-metronome', 'set-inv', 'set-weak-inject']) {
     const control = page.locator('#' + id);
     await expect(control).toHaveAttribute('aria-labelledby', id + '-label');
     expect(await control.evaluate(el => document.getElementById(el.getAttribute('aria-labelledby'))?.textContent.trim())).toBeTruthy();
@@ -1979,6 +1979,44 @@ test('Settings controls receive localized programmatic labels', async ({ app }) 
   await page.locator('#set-lang button[data-v="ro"]').click();
   const romanianInputLabel = await page.locator('#deviceSelect').evaluate(el => document.getElementById(el.getAttribute('aria-labelledby')).textContent.trim());
   expect(romanianInputLabel).not.toBe(englishInputLabel);
+});
+
+test('weak-spot injection is opt-in and targets only reading practice', async ({ app, page }) => {
+  await app.open({ hash: 'read' });
+  await expect(page.locator('#rdx-weak-inject')).not.toBeChecked();
+  await page.locator('#settingsBtn').click();
+  await page.locator('label:has(#set-weak-inject)').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#rdx-weak-inject')).toBeChecked();
+  await page.locator('label:has(#rdx-weak-inject)').click();
+  await expect.poll(() => page.evaluate(() => ({
+    setting: window.__etude.data.settings.weakSpotInjection,
+    saved: JSON.parse(localStorage.getItem('ptt-v3')).data.settings.weakSpotInjection,
+  }))).toEqual({ setting: false, saved: false });
+
+  const result = await page.evaluate(() => {
+    const level = Object.values(window.__etude.RD_LV).find(candidate => candidate.ty === 'name');
+    window.__etude.rdOpen(level);
+    window.__etude.rdStart('practice');
+    const weakKey = window.__etude.RD.q.key;
+    window.__etude.data.reading.nt[weakKey] = { n: 10, ok: 4, ms: 60000, e: 1, t: 6000 };
+    const random = Math.random;
+    window.__etude.data.settings.weakSpotInjection = true;
+    window.__etude.RD.lastK = null;
+    Math.random = () => 0;
+    window.__etude.rdNext();
+    const injected = window.__etude.RD.q.key;
+    window.__etude.data.settings.weakSpotInjection = false;
+    window.__etude.RD.lastK = null;
+    Math.random = () => 0.999;
+    window.__etude.rdNext();
+    const standard = window.__etude.RD.q.key;
+    Math.random = random;
+    window.__etude.rdClear();
+    return { weakKey, injected, standard };
+  });
+  expect(result.injected).toBe(result.weakKey);
+  expect(result.standard).not.toBe(result.weakKey);
 });
 
 test('leaving the window lets go of keys held on the computer keyboard or screen, and nothing else', async ({ app, page }) => {

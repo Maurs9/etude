@@ -151,6 +151,7 @@ Utilizarea statisticilor de eroare și timp de reacție ale utilizatorului pentr
   - **Când `settings.weakSpotInjection === true`:** Extrage din `rdData().nt` primele 25% cele mai lente/greșite poziții din gama curentă și le acordă o pondere de ~30% în generarea fluxului din *Practice / Survival / Marathon*.
   - **Când `settings.weakSpotInjection === false`:** Generatorul folosește exclusiv distribuția muzicală standard a nivelului, fără nicio influență din istoricul de greșeli.
   - *(Notă: Modul oficial `First-Sight Exam` rămâne întotdeauna 100% determinist pe bază de seed, ca să nu fie afectată corectitudinea examenului).*
+  - **Implementat:** setarea este dezactivată implicit, este păstrată în backup/sincronizare și are un comutator rapid în Reading drills. Când este activă, 30% dintre întrebările de Practice sunt extrase din sfertul cel mai lent sau cu cele mai multe erori din gama curentă; Test rămâne neafectat.
 
 ---
 
