@@ -1479,13 +1479,14 @@ test('a small .mxl that unpacks to an oversized XML is refused with a clear mess
 });
 
 test.describe('.mxl archives are checked before they are unpacked', () => {
-  // Counts what reaches JSZip (through OSMD) and the preflight's counted inflate.
+  // Counts what reaches JSZip (through OSMD) and the preflight's counted inflate. On Chromium, OSMD's warm keeper also unpacks
+  // its own bundled sample (passed as a string) once the page is idle, so only the app's ArrayBuffer calls are counted.
   const spyUnpack = async page => {
     await page.evaluate(() => window.__etude.loadOsmd());
     return page.evaluate(() => {
     const helper = opensheetmusicdisplay.MXLHelper, unzip = helper.MXLtoXMLstring, count = window.__etude.anInflatedSize;
     window.__unpack = { jszip: 0, counted: 0 };
-    helper.MXLtoXMLstring = function (...a) { window.__unpack.jszip++; return unzip.apply(this, a); };
+    helper.MXLtoXMLstring = function (...a) { if (a[0] instanceof ArrayBuffer) window.__unpack.jszip++; return unzip.apply(this, a); };
     window.__etude.anInflatedSize = function (...a) { window.__unpack.counted++; return count.apply(this, a); };
     });
   };
