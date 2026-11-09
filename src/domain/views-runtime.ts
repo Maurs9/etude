@@ -7416,7 +7416,11 @@ rdU('sr', '👁', [
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C5', durs: [1, 2, 0.5], keys: [0], bpm: 76 },
     { ty: 'sr', clef: 'bass', lo: 'C3', hi: 'C4', durs: [1, 2], keys: [0], bpm: 72 },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'E5', durs: [1, 2, 0.5, 1.5], keys: [-1, 0, 1], bpm: 80 },
-    { ty: 'sr', clef: 'grand', lo: 'C4', hi: 'C5', durs: [1, 2, 0.5], keys: [-1, 0, 1], bpm: 72 }
+    { ty: 'sr', clef: 'grand', lo: 'C4', hi: 'C5', durs: [1, 2, 0.5], keys: [-1, 0, 1], bpm: 72 },
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [-7, 7], bpm: 72 },
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 68 },
+    { ty: 'sr', clef: 'grand', lo: 'C3', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 64 },
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 }
 ]);
 const RD_ALL = RD_UNITS.flatMap((u) => u.lv);
 /* ---- staff renderer for drills (whole-note columns, any clef, key signatures) ---- */
@@ -8594,9 +8598,17 @@ function rdRhDone(endBeat: number) {
 // A sight-reading level: its keys (as signature counts), range, note lengths in beats and tempo.
 interface RdSightLevel { keys: number[]; lo: string; hi: string; durs: number[]; id: string; n: number; bpm: number; clef?: string; }
 // A generated melody, shaped like a Read & play piece; rh/lh hold [pitch name, beats] pairs.
-interface RdSightPiece { id: string; ephemeral: boolean; gen: string; comp: string; level: number; keyN: number; ts: number[]; bpm: number; t: { en: string; ro: string; }; rh?: [string, number][]; lh?: [string, number][]; }
+interface RdSightPiece { id: string; ephemeral: boolean; gen: string; comp: string; level: number; keyN: number; ts: number[]; bpm: number; t: { en: string; ro: string; }; minor?: boolean; rh?: SrToken[]; lh?: SrToken[]; }
 function isRdSightLevel(L: ReadDrillLevel): L is ReadDrillLevel & RdSightLevel { return Array.isArray(L.keys) && L.lo !== undefined && L.hi !== undefined && Array.isArray(L.durs) && L.bpm !== undefined; }
 function srtProfileForLevel(L: RdSightLevel): SightReadingProfile {
+    if (L.id === 'sr6')
+        return 'P3.a';
+    if (L.id === 'sr7')
+        return 'P3.b';
+    if (L.id === 'sr8')
+        return 'P3.c';
+    if (L.id === 'sr9')
+        return 'P3.d';
     if (L.clef === 'grand')
         return 'P2.c';
     if (L.id === 'sr1')
@@ -8676,19 +8688,21 @@ function srtRecentGeneratedFingerprints() {
 }
 function srtLegacyPiece(piece: SightReadingPiece, L: RdSightLevel): RdSightPiece {
     const hand = L.clef === 'bass' ? 'lh' : 'rh';
-    const events: [string, number][] = piece.events.map((event) => {
-        const pitch = event.pitches[0];
-        return [pitch ? pitch.spelling : 'R', event.durationTick / 480];
-    });
+    const events = (voice: 'rh'|'lh'): SrToken[] => piece.events
+        .filter((event) => event.hand === voice)
+        .sort((a, b) => a.onsetTick - b.onsetTick)
+        .map((event) => [event.pitches.length ? event.pitches.map((pitch) => pitch.spelling) : 'R', event.durationTick / 480]);
     const result: RdSightPiece = {
-        id: 'gen', ephemeral: true, gen: L.id, comp: '', level: L.n, keyN: 0,
+        id: 'gen', ephemeral: true, gen: L.id, comp: '', level: L.n, keyN: piece.key.keyN, minor: piece.key.mode !== 'major',
         ts: [piece.meter.num, 4], bpm: 60,
         t: { en: tl('en', 'rdx_sr_title', L.n), ro: tl('ro', 'rdx_sr_title', L.n) },
     };
-    if (hand === 'lh')
-        result.lh = events;
-    else
-        result.rh = events;
+    if (piece.events.some((event) => event.hand === 'lh'))
+        result.lh = events('lh');
+    if (piece.events.some((event) => event.hand === 'rh'))
+        result.rh = events('rh');
+    if (!result.rh && !result.lh)
+        result[hand] = events(hand);
     return result;
 }
 function rdSightGen(L: RdSightLevel) {
