@@ -147,13 +147,21 @@ function emptyResult(): SightReadingEvaluation {
   };
 }
 
+function effectiveWindowMs(configuredWindowMs: number | undefined): number {
+  const windowMs = configuredWindowMs ?? 250;
+  if (!Number.isFinite(windowMs) || windowMs < 0) {
+    throw new RangeError('windowMs must be a finite, non-negative number');
+  }
+  return Math.min(250, windowMs);
+}
+
 export function srtEvaluate(
   expected: readonly SightReadingExpected[],
   performed: readonly SightReadingPerformed[],
   config: SightReadingEvaluateConfig = {},
 ): SightReadingEvaluation {
+  const baseWindow = effectiveWindowMs(config.windowMs);
   if (expected.length === 0) return emptyResult();
-  const baseWindow = config.windowMs ?? 250;
   const byMidi = new Map<number, SightReadingExpected[]>();
   const inputByMidi = new Map<number, SightReadingPerformed[]>();
   for (const note of expected) byMidi.set(note.midi, [...(byMidi.get(note.midi) ?? []), note]);

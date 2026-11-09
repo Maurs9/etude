@@ -128,6 +128,43 @@ describe('sight-reading evaluator', () => {
     ], { restWindows }).restViolations).toBe(1);
   });
 
+  it('caps configured matching and rest windows at 250ms', () => {
+    const loneExpected = [
+      { id: 'lone', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 0 },
+    ];
+    expect(srtEvaluate(loneExpected, [
+      { id: 'late', midi: 60, onMs: 400 },
+    ], { windowMs: 500 })).toMatchObject({ TP: 0, FN: 1, FP: 1 });
+
+    const repeatedExpected = [
+      { id: 'previous', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 900 },
+      { id: 'next', midi: 60, hand: 'rh', onMs: 1000, offMs: 1100, restBeforeMs: 900, restAfterMs: 0 },
+    ];
+    expect(srtEvaluate(repeatedExpected, [
+      { id: 'extra', midi: 60, onMs: 400 },
+    ], {
+      windowMs: 500,
+      restWindows: [{ startMs: 100, endMs: 1000 }],
+    })).toMatchObject({ TP: 0, FN: 2, FP: 1, restViolations: 1 });
+  });
+
+  it('uses the narrowed 135ms window for close-repeat rest extras', () => {
+    const repeatedExpected = [
+      { id: 'previous', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 300 },
+      { id: 'next', midi: 60, hand: 'rh', onMs: 300, offMs: 400, restBeforeMs: 300, restAfterMs: 0 },
+    ];
+    const restWindows = [{ startMs: 1, endMs: 299 }];
+    const evaluateExtra = (onMs) => srtEvaluate(repeatedExpected, [
+      { id: `extra-${onMs}`, midi: 60, onMs },
+    ], { restWindows }).restViolations;
+
+    expect(evaluateExtra(135)).toBe(0);
+    expect(evaluateExtra(165)).toBe(0);
+    expect(evaluateExtra(136)).toBe(1);
+    expect(evaluateExtra(150)).toBe(1);
+    expect(evaluateExtra(164)).toBe(1);
+  });
+
   it('returns the complete acceptance vectors, not only selected score fields', () => {
     const run = (inputs) => srtEvaluate(expected, inputs);
     const perfect = run(expected.map((note) => ({ id: `i-${note.id}`, midi: note.midi, onMs: note.onMs })));
