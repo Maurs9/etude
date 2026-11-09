@@ -124,17 +124,13 @@ function overlapsNeighborWindow(
   expected: readonly SightReadingExpected[],
   associationWindows: ReadonlyMap<string, number>,
 ): boolean {
-  const samePitch = expected
-    .filter((note) => note.midi === input.midi)
-    .sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
-  let previous: SightReadingExpected | undefined;
-  let next: SightReadingExpected | undefined;
-  for (const note of samePitch) {
-    if (note.onMs <= rest.startMs) previous = note;
-    if (!next && note.onMs >= rest.endMs) next = note;
-  }
-  return [previous, next]
-    .filter((note): note is SightReadingExpected => !!note)
+  const sorted = [...expected].sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
+  const previous = sorted.filter((note) => note.onMs <= rest.startMs);
+  const next = sorted.filter((note) => note.onMs >= rest.endMs);
+  const previousOnset = previous.at(-1)?.onMs;
+  const nextOnset = next[0]?.onMs;
+  return sorted
+    .filter((note) => note.onMs === previousOnset || note.onMs === nextOnset)
     .some((note) => Math.abs(input.onMs - note.onMs) <= (associationWindows.get(note.id) ?? 0));
 }
 

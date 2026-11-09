@@ -100,12 +100,12 @@ describe('sight-reading evaluator', () => {
     expect(srtEvaluate(expected, expected.map((note) => ({ id: `rest-${note.id}`, midi: note.midi, onMs: note.onMs })), {
       restWindows: [{ startMs: 0, endMs: 400 }],
     }).restViolations).toBe(0);
-    expect(srtEvaluate(expected, [
-      { id: 'rest-extra', midi: 67, onMs: 200 },
-    ], { restWindows: [{ startMs: 100, endMs: 300 }] })).toMatchObject({ FP: 1, restViolations: 1, stars: 0 });
+    expect(srtEvaluate([expected[0], expected[2]], [
+      { id: 'rest-extra', midi: 67, onMs: 400 },
+    ], { restWindows: [{ startMs: 100, endMs: 700 }] })).toMatchObject({ FP: 1, restViolations: 1, stars: 0 });
   });
 
-  it('counts rest violations only outside both same-pitch neighbor windows', () => {
+  it('counts rest violations only outside both time-neighbor windows', () => {
     const repeatedRestExpected = [
       { id: 'previous', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 900 },
       { id: 'next', midi: 60, hand: 'rh', onMs: 1000, offMs: 1100, restBeforeMs: 900, restAfterMs: 0 },
@@ -126,6 +126,62 @@ describe('sight-reading evaluator', () => {
       { id: 'central-extra', midi: 60, onMs: 500 },
       { id: 'next-input', midi: 60, onMs: 1000 },
     ], { restWindows }).restViolations).toBe(1);
+
+    const mixedPitchExpected = [
+      { id: 'previous-c', midi: 60, hand: 'rh', onMs: 0, offMs: 600, restBeforeMs: 0, restAfterMs: 1200 },
+      { id: 'next-e', midi: 64, hand: 'rh', onMs: 1200, offMs: 1800, restBeforeMs: 600, restAfterMs: 0 },
+    ];
+    const mixedRest = [{ startMs: 600, endMs: 1200 }];
+    const matchedBoundaryInputs = [
+      { id: 'previous-c-input', midi: 60, onMs: 0 },
+      { id: 'next-e-input', midi: 64, onMs: 1200 },
+    ];
+    expect(srtEvaluate(mixedPitchExpected, [
+      ...matchedBoundaryInputs,
+      { id: 'wrong-pitch-next-window', midi: 62, onMs: 1100 },
+    ], { restWindows: mixedRest })).toMatchObject({ FP: 1, restViolations: 0 });
+    expect(srtEvaluate(mixedPitchExpected, [
+      ...matchedBoundaryInputs,
+      { id: 'wrong-pitch-previous-window', midi: 62, onMs: 200 },
+    ], { restWindows: mixedRest })).toMatchObject({ FP: 1, restViolations: 0 });
+    expect(srtEvaluate(mixedPitchExpected, [
+      ...matchedBoundaryInputs,
+      { id: 'wrong-pitch-central', midi: 62, onMs: 900 },
+    ], { restWindows: mixedRest })).toMatchObject({ FP: 1, restViolations: 1 });
+    expect(srtEvaluate(mixedPitchExpected, [
+      ...matchedBoundaryInputs,
+      { id: 'same-pitch-next-window', midi: 64, onMs: 1100 },
+    ], { restWindows: mixedRest })).toMatchObject({ FP: 1, restViolations: 0 });
+
+    const previousSideExpected = [
+      { id: 'previous-short', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 1200 },
+      { id: 'next-long', midi: 64, hand: 'rh', onMs: 1200, offMs: 1800, restBeforeMs: 100, restAfterMs: 0 },
+    ];
+    const previousSideInputs = [
+      { id: 'previous-short-input', midi: 60, onMs: 0 },
+      { id: 'next-long-input', midi: 64, onMs: 1200 },
+    ];
+    const previousSideRest = [{ startMs: 100, endMs: 1200 }];
+    expect(srtEvaluate(previousSideExpected, [
+      ...previousSideInputs,
+      { id: 'previous-side-window', midi: 62, onMs: 200 },
+    ], { restWindows: previousSideRest })).toMatchObject({ FP: 1, restViolations: 0 });
+    expect(srtEvaluate(previousSideExpected, [
+      ...previousSideInputs,
+      { id: 'previous-side-central', midi: 62, onMs: 400 },
+    ], { restWindows: previousSideRest })).toMatchObject({ FP: 1, restViolations: 1 });
+
+    const chordNeighborExpected = [
+      { id: 'chord-previous', midi: 60, hand: 'rh', onMs: 0, offMs: 600, restBeforeMs: 0, restAfterMs: 1200 },
+      { id: 'chord-next-e', midi: 64, hand: 'rh', onMs: 1200, offMs: 1800, restBeforeMs: 100, restAfterMs: 0 },
+      { id: 'chord-next-g', midi: 67, hand: 'rh', onMs: 1200, offMs: 1800, restBeforeMs: 100, restAfterMs: 0 },
+    ];
+    expect(srtEvaluate(chordNeighborExpected, [
+      { id: 'chord-previous-input', midi: 60, onMs: 0 },
+      { id: 'chord-next-e-input', midi: 64, onMs: 1200 },
+      { id: 'chord-next-g-input', midi: 67, onMs: 1200 },
+      { id: 'chord-neither-pitch', midi: 62, onMs: 1100 },
+    ], { restWindows: mixedRest })).toMatchObject({ FP: 1, restViolations: 0 });
   });
 
   it('caps configured matching and rest windows at 250ms', () => {
