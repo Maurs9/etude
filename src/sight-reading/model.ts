@@ -1,7 +1,7 @@
 export const TICKS_PER_QUARTER = 480 as const;
 
 export type SightReadingHand = 'rh' | 'lh';
-export type SightReadingProfile = 'P1.a' | 'P1.b' | 'P1.c' | 'P2.a' | 'P2.b' | 'P2.c';
+export type SightReadingProfile = 'P1.a' | 'P1.b' | 'P1.c' | 'P2.a' | 'P2.b' | 'P2.c' | 'P3.a' | 'P3.b' | 'P3.c' | 'P3.d';
 export type SightReadingMeter = { readonly num: 3 | 4; readonly den: 4 };
 export type SightReadingPitch = { readonly midi: number; readonly spelling: string; readonly finger: number | null };
 export type SightReadingEvent = {
@@ -11,7 +11,8 @@ export type SightReadingEvent = {
   readonly durationTick: number;
   readonly pitches: readonly SightReadingPitch[];
 };
-export type SightReadingKey = { readonly tonic: string; readonly mode: 'major'; readonly keyN: 0 };
+export type SightReadingKeyMode = 'major' | 'naturalMinor' | 'harmonicMinor' | 'chromatic';
+export type SightReadingKey = { readonly tonic: string; readonly mode: SightReadingKeyMode; readonly keyN: number };
 export type SightReadingPiece = {
   readonly schemaVersion: 1;
   readonly generatorVersion: 1;
@@ -38,9 +39,12 @@ export type SightReadingExpectedConfig = {
   readonly latencyOffsetMs?: number;
 };
 
-const PROFILES: readonly SightReadingProfile[] = ['P1.a', 'P1.b', 'P1.c', 'P2.a', 'P2.b', 'P2.c'];
-const SCALE_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
+const PROFILES: readonly SightReadingProfile[] = ['P1.a', 'P1.b', 'P1.c', 'P2.a', 'P2.b', 'P2.c', 'P3.a', 'P3.b', 'P3.c', 'P3.d'];
+const MAJOR_PCS = [0, 2, 4, 5, 7, 9, 11] as const;
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'] as const;
+const NATURAL_PCS = [0, 2, 4, 5, 7, 9, 11] as const;
+const MAJOR_TONICS = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'] as const;
+const MINOR_TONICS = ['Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#'] as const;
 
 export function isSightReadingProfile(value: string): value is SightReadingProfile {
   return PROFILES.some((profile) => profile === value);
@@ -55,6 +59,10 @@ export function srtProfileLimits(profile: SightReadingProfile, hand: SightReadin
   readonly meter: 3 | 4;
 } {
   const offset = hand === 'lh' ? -12 : 0;
+  if (profile === 'P3.a') return { min: 48 + offset, max: 90 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
+  if (profile === 'P3.b') return { min: 48 + offset, max: 96 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
+  if (profile === 'P3.c') return { min: 44 + offset, max: 96 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
+  if (profile === 'P3.d') return { min: 48 + offset, max: 96 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
   if (profile === 'P2.c') return { min: 60 + offset, max: 72 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
   return {
     min: 60 + offset,
@@ -72,20 +80,57 @@ function isInteger(value: unknown): value is number {
 
 function scaleIndex(midi: number): number {
   const octave = Math.floor(midi / 12);
-  const degree = [0, 2, 4, 5, 7, 9, 11].indexOf(((midi % 12) + 12) % 12);
-  return octave * 7 + degree;
+  const pitchClass = ((midi % 12) + 12) % 12;
+  const degree = MAJOR_PCS.indexOf(pitchClass as typeof MAJOR_PCS[number]);
+  return octave * 7 + (degree >= 0 ? degree : Math.round(pitchClass * 7 / 12));
 }
 
-function spellingFor(midi: number): string {
-  return `${LETTERS[scaleIndex(midi) % 7]}${Math.floor(midi / 12) - 1}`;
+function parseSpelling(value: string): { readonly letter: number; readonly accidental: number; readonly octave: number } | null {
+  const match = /^([A-G])([#b]?)(-?\d+)$/.exec(value);
+  if (!match) return null;
+  return {
+    letter: LETTERS.indexOf(match[1] as typeof LETTERS[number]),
+    accidental: match[2] === '#' ? 1 : match[2] === 'b' ? -1 : 0,
+    octave: Number(match[3]),
+  };
 }
 
-function validPitch(pitch: SightReadingPitch): boolean {
+function midiForSpelling(value: string): number | null {
+  const parsed = parseSpelling(value);
+  if (!parsed) return null;
+  return (parsed.octave + 1) * 12 + NATURAL_PCS[parsed.letter] + parsed.accidental;
+}
+
+function tonicPitchClass(tonic: string): number | null {
+  const parsed = parseSpelling(`${tonic}4`);
+  return parsed ? (NATURAL_PCS[parsed.letter] + parsed.accidental + 12) % 12 : null;
+}
+
+function scalePcs(key: SightReadingKey): readonly number[] {
+  const tonic = tonicPitchClass(key.tonic);
+  if (tonic === null) return [];
+  const intervals = key.mode === 'major' ? MAJOR_PCS
+    : key.mode === 'naturalMinor' ? [0, 2, 3, 5, 7, 8, 10]
+      : key.mode === 'harmonicMinor' ? [0, 2, 3, 5, 7, 8, 11]
+        : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  return intervals.map((interval) => (tonic + interval) % 12);
+}
+
+function validKey(key: SightReadingKey): boolean {
+  if (!key || !Number.isInteger(key.keyN) || key.keyN < -7 || key.keyN > 7 ||
+      !['major', 'naturalMinor', 'harmonicMinor', 'chromatic'].includes(key.mode)) return false;
+  const expected = key.mode === 'major' ? MAJOR_TONICS[key.keyN + 7]
+    : key.mode === 'chromatic' ? 'C' : MINOR_TONICS[key.keyN + 7];
+  return key.tonic === expected;
+}
+
+function validPitch(pitch: SightReadingPitch, key: SightReadingKey): boolean {
+  const midi = midiForSpelling(pitch.spelling);
   return isInteger(pitch.midi) &&
     pitch.midi >= 0 &&
     pitch.midi <= 127 &&
-    SCALE_PCS.has(((pitch.midi % 12) + 12) % 12) &&
-    pitch.spelling === spellingFor(pitch.midi) &&
+    midi === pitch.midi &&
+    scalePcs(key).includes(((pitch.midi % 12) + 12) % 12) &&
     typeof pitch.finger !== 'undefined' &&
     (pitch.finger === null || (isInteger(pitch.finger) && pitch.finger >= 1 && pitch.finger <= 5));
 }
@@ -94,7 +139,7 @@ export function srtValidatePiece(piece: SightReadingPiece, profile: SightReading
   if (!piece || piece.schemaVersion !== 1 || piece.generatorVersion !== 1 ||
       !isSightReadingProfile(profile) || piece.profileId !== profile ||
       piece.ticksPerQuarter !== TICKS_PER_QUARTER || piece.bars !== 4 ||
-      piece.key?.keyN !== 0 || piece.key.mode !== 'major' || piece.key.tonic !== 'C' ||
+      !validKey(piece.key) ||
       piece.meter.den !== 4 || (piece.meter.num !== 3 && piece.meter.num !== 4) ||
       !isInteger(piece.seed)) return false;
   const expectedMeter = srtProfileLimits(profile).meter;
@@ -110,12 +155,14 @@ export function srtValidatePiece(piece: SightReadingPiece, profile: SightReading
         event.onsetTick % TICKS_PER_QUARTER !== 0 || event.durationTick % TICKS_PER_QUARTER !== 0 ||
         event.onsetTick + event.durationTick > totalTicks ||
         event.onsetTick % barTicks + event.durationTick > barTicks ||
-        event.pitches.some((pitch) => !validPitch(pitch))) return false;
+        event.pitches.some((pitch) => !validPitch(pitch, piece.key))) return false;
     ids.add(event.id);
     for (let index = 1; index < event.pitches.length; index += 1) {
       if (event.pitches[index - 1].midi >= event.pitches[index].midi) return false;
     }
     const limits = srtProfileLimits(profile, event.hand);
+    const maxVoices = profile === 'P3.a' ? 2 : profile === 'P3.b' || profile === 'P3.c' || profile === 'P3.d' ? 3 : 1;
+    if (event.pitches.length > maxVoices) return false;
     if (event.pitches.some((pitch) => pitch.midi < limits.min || pitch.midi > limits.max)) return false;
     if (event.durationTick !== 480 && event.durationTick !== 960) return false;
     if (event.pitches.length === 0 && (!limits.rests || (profile !== 'P2.c' && event.durationTick !== 480) ||
@@ -138,22 +185,24 @@ export function srtValidatePiece(piece: SightReadingPiece, profile: SightReading
         hasRest = true;
       } else {
         const firstPitch = event.pitches[0];
-        if (previousMidi !== null) {
+        if (previousMidi !== null && !profile.startsWith('P3')) {
           if (Math.abs(scaleIndex(firstPitch.midi) - scaleIndex(previousMidi)) > limits.leap) return false;
           if (firstPitch.midi === previousMidi) hasRepeat = true;
         }
-        if (firstPitched && profile !== 'P2.c' && firstPitch.finger !== 1) return false;
-        if (!firstPitched && profile !== 'P2.c' && event.pitches.some((pitch) => pitch.finger !== null)) return false;
-        if (profile === 'P2.c' && event.pitches.some((pitch) => pitch.finger !== null)) return false;
+        if (!profile.startsWith('P3')) {
+          if (firstPitched && profile !== 'P2.c' && firstPitch.finger !== 1) return false;
+          if (!firstPitched && profile !== 'P2.c' && event.pitches.some((pitch) => pitch.finger !== null)) return false;
+          if (profile === 'P2.c' && event.pitches.some((pitch) => pitch.finger !== null)) return false;
+        }
         previousMidi = firstPitch.midi;
         firstPitched = false;
       }
       cursor += event.durationTick;
     }
-    if (cursor !== totalTicks || (limits.rests && !hasRest) || (limits.repeat && !hasRepeat)) return false;
+    if (cursor !== totalTicks || (!profile.startsWith('P3') && limits.rests && !hasRest) || (limits.repeat && !hasRepeat)) return false;
     const finalEvent = events.at(-1);
     if (!finalEvent || finalEvent.pitches.length === 0 ||
-        finalEvent.pitches[0].midi !== limits.min ||
+        finalEvent.pitches[0].midi < limits.min || finalEvent.pitches[0].midi > limits.max ||
         finalEvent.durationTick !== 960 ||
         finalEvent.onsetTick !== totalTicks - 960) return false;
   }

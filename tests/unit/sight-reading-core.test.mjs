@@ -94,6 +94,10 @@ describe('sight-reading evaluator', () => {
       { id: 'i-b', midi: 64, onMs: 0 },
       { id: 'i-a', midi: 60, onMs: 0 },
     ])).toMatchObject({ TP: 2, FN: 0, FP: 0 });
+    expect(srtEvaluate(chord, [
+      { id: 'i-a', midi: 60, onMs: 0 },
+      { id: 'i-b', midi: 64, onMs: 61 },
+    ])).toMatchObject({ TP: 0, FN: 2, FP: 2 });
     expect(srtEvaluate([expected[0]], [{ id: 'boundary-good', midi: 60, onMs: 100 }]).noteResults[0].classification).toBe('good');
     expect(srtEvaluate([expected[1]], [{ id: 'boundary-near', midi: 62, onMs: 580 }]).noteResults[0].classification).toBe('near');
     expect(srtEvaluate([expected[2]], [{ id: 'boundary-late', midi: 64, onMs: 1050 }]).noteResults[0].classification).toBe('lateOrEarly');
@@ -335,6 +339,32 @@ describe('sight-reading generator', () => {
       }
     }
     expect(() => srtGenerate('invalid', 1, 'rh')).toThrow();
+  });
+
+  it('generates polyphonic intervals, triads and grand staff in signed key signatures', () => {
+    for (const [profile, voices, hands] of [
+      ['P3.a', 2, ['rh']],
+      ['P3.b', 3, ['rh']],
+      ['P3.c', 2, ['rh', 'lh']],
+      ['P3.d', 3, ['rh']],
+    ]) {
+      const keys = new Set();
+      for (let seed = 0; seed < 100; seed += 1) {
+        const piece = srtGenerate(profile, seed);
+        keys.add(piece.key.keyN);
+        expect(srtValidatePiece(piece, profile)).toBe(true);
+        expect(piece.key.keyN).toBeGreaterThanOrEqual(-7);
+        expect(piece.key.keyN).toBeLessThanOrEqual(7);
+        expect(new Set(piece.events.map((event) => event.hand))).toEqual(new Set(hands));
+        const pitched = piece.events.filter((event) => event.pitches.length > 0);
+        expect(pitched.some((event) => event.hand === 'rh' && event.pitches.length === voices)).toBe(true);
+        for (const event of pitched) {
+          expect(event.pitches.map((pitch) => pitch.midi)).toEqual([...event.pitches.map((pitch) => pitch.midi)].sort((a, b) => a - b));
+        }
+      }
+      // Every signature from 7 flats to 7 sharps comes up; the chromatic level has none.
+      expect([...keys].sort((a, b) => a - b)).toEqual(profile === 'P3.d' ? [0] : Array.from({ length: 15 }, (_, i) => i - 7));
+    }
   });
 });
 

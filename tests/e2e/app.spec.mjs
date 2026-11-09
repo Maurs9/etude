@@ -188,6 +188,102 @@ test.describe('Navigation accessibility', () => {
     await expect(page.locator('#greet-title')).toBeFocused();
   });
 
+  test('Score & analysis is its own top-level Scores section, and old #analysis links still open it', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const scores = page.locator('#nav button[data-view="analysis"]'), practice = page.locator('#nav button[data-view="practice"]');
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+    await expect(scores).toHaveText('Scores');
+    await expect(scores).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('#nav button[aria-current="page"]')).toHaveCount(1);
+    await expect(page.locator('#modeBar')).toBeHidden();
+
+    await practice.click();
+    await expect(page).toHaveURL(/#practice$/);
+    await expect(practice).toHaveAttribute('aria-current', 'page');
+    await expect(scores).toHaveAttribute('aria-current', 'false');
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing']);
+
+    await scores.click();
+    await expect(page).toHaveURL(/#analysis$/);
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+    await expect(scores).toHaveAttribute('aria-current', 'page');
+
+    await page.evaluate(() => window.__etude.setLang('ro'));
+    await expect(scores).toHaveText('Partituri');
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.locator('#menuBtn').click();
+    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toHaveText('Partituri');
+    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toBeFocused();
+    await page.locator('#mobileMenu button[data-view="practice"]').click();
+    await expect(page.locator('#view-practice')).toHaveClass(/active/);
+    await page.locator('#menuBtn').click();
+    await page.locator('#mobileMenu button[data-view="analysis"]').click();
+    await expect(page.locator('#mobileMenu')).toBeHidden();
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+  });
+
+  // The header's state once the ResizeObserver refit has run: how far the settings button sits past the bar's padding,
+  // and which of the tagline, section tabs and menu button are showing.
+  const headerFit = page => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const bar = document.querySelector('header .bar'), shown = el => getComputedStyle(el).display !== 'none';
+    const tabs = [...document.querySelectorAll('#nav button')].map(b => b.getBoundingClientRect());
+    done({
+      overflow: document.getElementById('settingsBtn').getBoundingClientRect().right - (bar.getBoundingClientRect().right - parseFloat(getComputedStyle(bar).paddingRight)),
+      tag: shown(document.getElementById('brand-tag')),
+      tabs: shown(document.getElementById('nav')),
+      menu: shown(document.getElementById('menuBtn')),
+      oneRow: new Set(tabs.map(r => Math.round(r.top))).size === 1 && new Set(tabs.map(r => Math.round(r.height))).size === 1,
+      clearOfBrand: document.querySelector('.brand').getBoundingClientRect().right <= document.getElementById('nav').getBoundingClientRect().left,
+    });
+  }))));
+
+  test('the header fits in every language above the menu breakpoint: the tagline goes first, then the tabs fold into the menu', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await app.open();
+    expect(await headerFit(page), 'English keeps its tagline and tabs').toMatchObject({ tag: true, tabs: true, menu: false });
+    for (const width of [841, 1000]) {
+      await page.setViewportSize({ width, height: 700 });
+      for (const lang of Object.keys(STRINGS)) {
+        await page.evaluate(lang => window.__etude.setLang(lang), lang);
+        const fit = await headerFit(page), at = `${lang} at ${width}px`;
+        expect(fit.overflow, at).toBeLessThanOrEqual(0.5);
+        expect(fit.menu, at).toBe(!fit.tabs);
+        if (fit.tag) expect(fit.tabs, `${at}: the tagline hides before the tabs fold`).toBe(true);
+        if (fit.tabs) {
+          expect(fit.oneRow, at).toBe(true);
+          expect(fit.clearOfBrand, at).toBe(true);
+        }
+        if (lang === 'en') expect(fit.tabs, `${at}: English never folds`).toBe(true);
+      }
+    }
+  });
+
+  test('a long MIDI device name folds the section tabs into the menu instead of pushing the header off screen', async ({ app }) => {
+    const page = app.page, name = 'Yamaha Clavinova CLP-795GP Digital Piano MIDI 1';
+    await page.addInitScript(name => {
+      const input = { id: 'clp', name, type: 'input', state: 'connected', connection: 'open', onmidimessage: null };
+      Object.defineProperty(navigator, 'requestMIDIAccess', { configurable: true, value: async () => ({ inputs: new Map([[input.id, input]]), outputs: new Map(), sysexEnabled: false, onstatechange: null }) });
+    }, name);
+    await page.setViewportSize({ width: 900, height: 700 });
+    await app.open();
+
+    await page.locator('#midiChip').click();
+    await expect(page.locator('#midiText')).toHaveText(name);
+    const fit = await headerFit(page);
+    expect(fit).toMatchObject({ tabs: false, menu: true });
+    expect(fit.overflow).toBeLessThanOrEqual(0.5);
+    await page.locator('#menuBtn').click();
+    await expect(page.locator('#mobileMenu button')).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Explore', 'Progress']);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#mobileMenu')).toBeHidden();
+
+    await page.setViewportSize({ width: 1400, height: 800 });
+    await expect(page.locator('#nav')).toBeVisible();
+    await expect(page.locator('#menuBtn')).toBeHidden();
+    expect((await headerFit(page)).overflow).toBeLessThanOrEqual(0.5);
+  });
+
   test('skip link focuses main without changing the route, and supporting text stays readable on phones', async ({ app }) => {
     const page = await app.open();
     await page.locator('#skipLink').focus();
@@ -1383,13 +1479,14 @@ test('a small .mxl that unpacks to an oversized XML is refused with a clear mess
 });
 
 test.describe('.mxl archives are checked before they are unpacked', () => {
-  // Counts what reaches JSZip (through OSMD) and the preflight's counted inflate.
+  // Counts what reaches JSZip (through OSMD) and the preflight's counted inflate. On Chromium, OSMD's warm keeper also unpacks
+  // its own bundled sample (passed as a string) once the page is idle, so only the app's ArrayBuffer calls are counted.
   const spyUnpack = async page => {
     await page.evaluate(() => window.__etude.loadOsmd());
     return page.evaluate(() => {
     const helper = opensheetmusicdisplay.MXLHelper, unzip = helper.MXLtoXMLstring, count = window.__etude.anInflatedSize;
     window.__unpack = { jszip: 0, counted: 0 };
-    helper.MXLtoXMLstring = function (...a) { window.__unpack.jszip++; return unzip.apply(this, a); };
+    helper.MXLtoXMLstring = function (...a) { if (a[0] instanceof ArrayBuffer) window.__unpack.jszip++; return unzip.apply(this, a); };
     window.__etude.anInflatedSize = function (...a) { window.__unpack.counted++; return count.apply(this, a); };
     });
   };
@@ -1580,7 +1677,7 @@ test('persisted settings are normalized to supported audio and session limits', 
       muted: 'yes',
       reverb: 9,
       bpm: 999,
-      data: { settings: { goal: 999999, newPerDay: -2, allowInv: 'yes', metronome: 1, drone: {}, earKeys: 'yes' } },
+      data: { settings: { goal: 999999, newPerDay: -2, allowInv: 'yes', metronome: 1, drone: {}, earKeys: 'yes', weakSpotInjection: 'yes' } },
     },
   });
   expect(await page.evaluate(() => ({
@@ -1594,7 +1691,7 @@ test('persisted settings are normalized to supported audio and session limits', 
     muted: false,
     reverbWet: 0.5,
     bpm: 180,
-    settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, earKeys: false },
+    settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, earKeys: false, weakSpotInjection: false },
   });
 });
 
@@ -1607,7 +1704,7 @@ test('valid persisted settings are preserved', async ({ app }) => {
       muted: true,
       reverb: 0.3,
       bpm: 120,
-      data: { settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true } },
+      data: { settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true, weakSpotInjection: true } },
     },
   });
   expect(await page.evaluate(() => ({
@@ -1621,39 +1718,392 @@ test('valid persisted settings are preserved', async ({ app }) => {
     muted: true,
     reverbWet: 0.3,
     bpm: 120,
-    settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true },
+    settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true, weakSpotInjection: true },
   });
 });
 
-test('display-only reading keyboards remain hidden from assistive technology', async ({ app }) => {
-  const page = await app.open({ hash: 'read' });
-  await page.evaluate(() => {
-    const level = Object.values(window.__etude.RD_LV).find(level => level.ty === 'k2s');
-    window.__etude.rdOpen(level);
-    window.__etude.rdStart('practice');
+test.describe('reading drills: key to staff', () => {
+  const start = (page, clef) => page.evaluate(clef => {
+    const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'k2s' && l.clef === clef);
+    e.rdOpen(level);
+    e.rdStart('practice');
+    return e.RD.q.midi;
+  }, clef);
+  const question = page => page.evaluate(() => window.__etude.RD.q.midi);
+
+  test('the question lights a key on the big keyboard, which opens just for the drill', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    const midi = await start(page, 'treble');
+    await expect(page.locator('#rdx-kb')).toHaveCount(0);
+    await expect(page.locator('#dock')).not.toHaveClass(/\bis-rail\b/);
+    await expect(page.locator('#dock-kb-toggle')).toBeHidden();
+    await expect(page.locator('#keys [data-s="target"]')).toHaveCount(1);
+    await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'target');
+    await page.locator('#rdx-end').click();
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    await expect(page.locator('#dock-kb-toggle')).toBeVisible();
+    await expect(page.locator('#keys [data-s]')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__etude.DOCK.pref)).toBeNull();
   });
-  await expect(page.locator('#rdx-kb')).toHaveAttribute('aria-hidden', 'true');
-  await expect(page.locator('#rdx-kb button')).toHaveCount(0);
+
+  test('the keys show the drill in its own octaves, and moving them never loses the question', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await start(page, 'bass');
+    await expect(page.locator('#keys .key[data-midi="41"]')).toHaveCount(1); // F2, below the keys' usual C3
+    for (const button of ['#oct-up', '#oct-down', '#oct-down', '#oct-up', '#oct-up']) {
+      await page.locator(button).click();
+      await expect(page.locator(`#keys .key[data-midi="${await question(page)}"]`)).toHaveAttribute('data-s', 'target');
+    }
+  });
+
+  test('notes played on the piano only sound; 1–4 answers, and a wrong pick marks its key', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const midi = await start(page, 'treble');
+    await page.evaluate(m => {
+      window.__etude.midiIn(0x90, m, 100, 'midi');
+      window.__etude.midiIn(0x80, m, 0, 'midi');
+    }, midi);
+    expect(await page.evaluate(() => [window.__etude.RD.n, window.__etude.RD.answered])).toEqual([0, false]);
+    await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'target');
+    const { pick, wrong } = await page.evaluate(() => {
+      const e = window.__etude, q = e.RD.q, pick = q.opts.findIndex((o, i) => i !== q.ans);
+      return { pick, wrong: e.rdMidi(q.opts[pick].n) };
+    });
+    await page.keyboard.press(String(pick + 1));
+    await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'good');
+    await expect(page.locator(`#keys .key[data-midi="${wrong}"]`)).toHaveAttribute('data-s', 'bad');
+    await expect(page.locator('#rdx-ans .rdx-a').nth(pick)).toHaveClass(/\bwrong\b/);
+    expect(await page.evaluate(() => [window.__etude.RD.n, window.__etude.RD.ok])).toEqual([1, 0]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('every question brings its key into sight, in its own octave', async ({ app }) => {
+      const page = await app.open({ hash: 'read' });
+      expect(await page.evaluate(() => window.__etude.view.oct)).toBe(2);
+      await start(page, 'grand');
+      for (let i = 0; i < 8; i++) {
+        const key = page.locator(`#keys .key[data-midi="${await question(page)}"]`);
+        await expect(key).toHaveAttribute('data-s', 'target');
+        await expect(page.locator('#keys [data-s]')).toHaveCount(1);
+        expect(await key.evaluate(k => {
+          const r = k.getBoundingClientRect(), s = document.getElementById('dock-keys').getBoundingClientRect();
+          return r.left >= s.left - 1 && r.right <= s.right + 1;
+        })).toBe(true);
+        await page.evaluate(() => window.__etude.rdNext());
+      }
+    });
+  });
 });
 
-test('play drills expose named keyboard buttons that support Enter', async ({ app }) => {
-  const page = await app.open({ hash: 'read' });
-  await page.evaluate(() => {
-    const level = Object.values(window.__etude.RD_LV).find(level => level.ty === 'play');
-    window.__etude.rdOpen(level);
-    window.__etude.rdStart('practice');
+test('play drills answer on the big keyboard, whose named keys support Enter', async ({ app }) => {
+  const page = await app.open({ hash: 'read', dock: true });
+  const midi = await page.evaluate(() => {
+    const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'play' && l.clef === 'treble' && !l.acc && !l.keys);
+    e.rdOpen(level);
+    e.rdStart('practice');
+    return e.RD.q.midi;
   });
-  const key = page.locator('#rdx-kb.inter button').first();
+  await expect(page.locator('#rdx-kb')).toHaveCount(0);
+  const key = page.locator(`#keys .key[data-midi="${midi}"]`);
   await expect(key).toHaveAttribute('aria-label', /\S/);
   await key.focus();
   await page.keyboard.press('Enter');
-  await expect.poll(() => page.evaluate(() => window.__etude.RD.answered)).toBe(true);
+  await expect.poll(() => page.evaluate(() => ({ n: window.__etude.RD.n, ok: window.__etude.RD.ok }))).toEqual({ n: 1, ok: 1 });
+});
+
+test.describe('reading drills: note stream', () => {
+  const start = (page, spec, mode = 'practice', prefs = {}) => page.evaluate(({ spec, mode, prefs }) => {
+    const e = window.__etude;
+    Object.assign(e.rdData().prefs, prefs);
+    const level = Object.values(e.RD_LV).find(l => !l.acc && !l.keys && Object.entries(spec).every(([k, v]) => l[k] === v));
+    e.rdOpen(level);
+    e.rdStart(mode);
+  }, { spec, mode, prefs });
+  const play = (page, m) => page.evaluate(m => {
+    window.__etude.midiIn(0x90, m, 100, 'midi');
+    window.__etude.midiIn(0x80, m, 0, 'midi');
+  }, m);
+  const state = page => page.evaluate(() => {
+    const { RD } = window.__etude;
+    return { cur: RD.flow ? RD.flow.cur : null, n: RD.n, ok: RD.ok, midi: RD.q && RD.q.midi, li: RD.q && RD.q.note.li };
+  });
+  const TREBLE_PLAY = { ty: 'play', clef: 'treble' };
+
+  test('play drills show a row of notes to read ahead, and a right note moves on', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await start(page, TREBLE_PLAY);
+    await expect(page.locator('#rdx-staff.rdx-flow')).toBeVisible();
+    expect(await page.locator('#rdx-staff .ss-n').count()).toBeGreaterThanOrEqual(5);
+    await expect(page.locator('#rdx-staff .ss-n[data-s="now"]')).toHaveCount(1);
+    await expect(page.locator('#rdx-staff .rdx-now')).toHaveCount(1);
+    await expect(page.locator('#rdx-staff .rdx-ghost')).toHaveCount(0);
+    await expect(page.locator('#rdx-kb')).toHaveCount(0);
+    await play(page, (await state(page)).midi);
+    expect(await state(page)).toMatchObject({ cur: 1, n: 1, ok: 1 });
+    await expect(page.locator('#rdx-staff .ss-n[data-s="good"]')).toHaveCount(1);
+  });
+
+  test('a wrong note counts once, shows the right one and waits until it is played', async ({ app }) => {
+    const page = await app.open({ hash: 'read', dock: true });
+    await start(page, TREBLE_PLAY);
+    const { midi } = await state(page);
+    await play(page, midi + 2);
+    expect(await state(page)).toMatchObject({ cur: 0, n: 1, ok: 0, midi });
+    await expect(page.locator('#rdx-fb')).toHaveClass(/\bbad\b/);
+    await expect(page.locator('#rdx-staff .ss-n[data-s="bad"]')).toHaveCount(1);
+    await expect(page.locator('#rdx-staff .rdx-lbl')).toHaveCount(1);
+    await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'target');
+    await expect(page.locator(`#keys .key[data-midi="${midi + 2}"]`)).toHaveAttribute('data-s', 'bad');
+    await play(page, midi + 2);
+    expect(await state(page)).toMatchObject({ cur: 0, n: 1 });
+    await play(page, midi);
+    expect(await state(page)).toMatchObject({ cur: 1, n: 1, ok: 0 });
+    await expect(page.locator('#rdx-fb')).not.toHaveClass(/\bbad\b/);
+    await expect(page.locator('#keys [data-s="target"], #keys [data-s="bad"]')).toHaveCount(0);
+    await expect(page.locator('#rdx-staff .rdx-lbl')).toHaveCount(1);
+    await play(page, (await state(page)).midi);
+    expect(await state(page)).toMatchObject({ cur: 2, n: 2, ok: 1 });
+  });
+
+  test('on the big keyboard, a key an octave away from the note is wrong', async ({ app }) => {
+    const page = await app.open({ hash: 'read', dock: true });
+    await start(page, TREBLE_PLAY);
+    const { midi } = await state(page);
+    await page.locator(`#keys .key[data-midi="${midi + 12}"]`).press('Enter');
+    await expect.poll(() => state(page)).toMatchObject({ cur: 0, n: 1, ok: 0 });
+    await page.locator(`#keys .key[data-midi="${midi}"]`).press('Enter');
+    await expect.poll(() => state(page)).toMatchObject({ cur: 1, n: 1, ok: 0 });
+  });
+
+  test('a test run ends after 20 notes', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await start(page, TREBLE_PLAY, 'test');
+    await page.evaluate(() => {
+      const e = window.__etude;
+      for (let i = 0; i < 20; i++) {
+        const m = e.RD.q.midi;
+        e.midiIn(0x90, m, 100, 'midi');
+        e.midiIn(0x80, m, 0, 'midi');
+      }
+    });
+    expect(await state(page)).toMatchObject({ n: 20, ok: 20 });
+    await expect(page.locator('#rdx-sum')).toBeVisible();
+  });
+
+  test('with the stream turned off, play drills show one note at a time', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await start(page, TREBLE_PLAY, 'practice', { flow: false });
+    await expect(page.locator('#rdx-staff .ss-n')).toHaveCount(1);
+    await expect(page.locator('#rdx-staff')).not.toHaveClass(/rdx-flow/);
+    await expect(page.locator('#rdx-kb')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__etude.RD.flow)).toBeNull();
+  });
+
+  test('one note at a time, a wrong note marks the right and played keys on the big keyboard until the next note', async ({ app }) => {
+    const page = await app.open({ hash: 'read', dock: true });
+    await start(page, TREBLE_PLAY, 'practice', { flow: false });
+    const { midi } = await state(page);
+    await play(page, midi + 2);
+    await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'good');
+    await expect(page.locator(`#keys .key[data-midi="${midi + 2}"]`)).toHaveAttribute('data-s', 'bad');
+    await expect.poll(() => page.evaluate(() => window.__etude.RD.answered)).toBe(false);
+    await expect(page.locator('#keys [data-s="good"], #keys [data-s="bad"]')).toHaveCount(0);
+  });
+
+  test('in the dark theme, the ✓ and ✗ on white keys stay readable', async ({ app }) => {
+    const page = await app.open({ hash: 'read', dock: true });
+    await page.evaluate(() => { window.__etude.theme = 'dark'; window.__etude.applyTheme(); });
+    await start(page, TREBLE_PLAY, 'practice', { flow: false });
+    const { midi } = await state(page);
+    await play(page, [4, 11].includes(midi % 12) ? midi + 1 : midi + 2);
+    const ratios = await page.evaluate(() => {
+      const lin = v => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+      const lum = color => { const [r, g, b] = color.match(/[\d.]+/g).map(Number); return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b); };
+      return [...document.querySelectorAll('#keys .white[data-s="good"], #keys .white[data-s="bad"]')].map(key => {
+        const mark = lum(getComputedStyle(key.querySelector('.mk')).color);
+        const top = lum(getComputedStyle(key).backgroundImage.match(/rgba?\([^)]*\)/)[0]);
+        return (Math.max(mark, top) + 0.05) / (Math.min(mark, top) + 0.05);
+      });
+    });
+    expect(ratios).toHaveLength(2);
+    for (const ratio of ratios) expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('the ghost pacer is opt-in and shows the lead in the HUD', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await start(page, TREBLE_PLAY, 'practice', { ghost: true });
+    await expect(page.locator('#rdx-staff .rdx-ghost')).toHaveCount(1);
+    await expect(page.locator('#rdx-hud')).toContainText('👻');
+  });
+
+  test('turning the stream off on the drills page also turns off the ghost option', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const flow = page.locator('#rdx-flow'), ghost = page.locator('#rdx-ghost');
+    await expect(flow).toBeChecked();
+    await expect(ghost).toBeEnabled();
+    await flow.uncheck();
+    await expect(ghost).toBeDisabled();
+    expect(await page.evaluate(() => window.__etude.rdData().prefs.flow)).toBe(false);
+  });
+
+  test('name drills stream too: digit keys answer, and a wrong letter marks the right one', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await start(page, { ty: 'name', clef: 'treble', lo: 'C4', hi: 'C5' });
+    await expect(page.locator('#rdx-staff.rdx-flow')).toBeVisible();
+    const s0 = await state(page);
+    await page.keyboard.press(String(s0.li + 1));
+    await expect.poll(() => state(page)).toMatchObject({ cur: 1, n: 1, ok: 1 });
+    const s1 = await state(page), other = (s1.li + 1) % 7;
+    await page.keyboard.press(String(other + 1));
+    await expect.poll(() => state(page)).toMatchObject({ cur: 1, n: 2, ok: 1 });
+    await expect(page.locator(`#rdx-ans .rdx-a[data-a="${s1.li}"]`)).toHaveClass(/\bcorrect\b/);
+    await expect(page.locator(`#rdx-ans .rdx-a[data-a="${other}"]`)).toHaveClass(/\bwrong\b/);
+    await page.keyboard.press(String(s1.li + 1));
+    await expect.poll(() => state(page)).toMatchObject({ cur: 2, n: 2, ok: 1 });
+    await expect(page.locator('#rdx-ans .rdx-a.correct, #rdx-ans .rdx-a.wrong')).toHaveCount(0);
+  });
+});
+
+test.describe('reading drills: arcade modes', () => {
+  const TREBLE_PLAY = { ty: 'play', clef: 'treble' };
+  const open = (page, spec) => page.evaluate(spec => {
+    const e = window.__etude;
+    const level = Object.values(e.RD_LV).find(l => !l.acc && !l.keys && Object.entries(spec).every(([k, v]) => l[k] === v));
+    e.rdOpen(level);
+    return level.id;
+  }, spec);
+  const start = async (page, spec, mode) => {
+    const id = await open(page, spec);
+    await page.evaluate(mode => window.__etude.rdStart(mode), mode);
+    return id;
+  };
+  const play = (page, m) => page.evaluate(m => {
+    window.__etude.midiIn(0x90, m, 100, 'midi');
+    window.__etude.midiIn(0x80, m, 0, 'midi');
+  }, m);
+  // Plays the right note n times in a row, as fast as the stream allows.
+  const playRight = (page, n) => page.evaluate(n => {
+    const e = window.__etude;
+    for (let i = 0; i < n; i++) {
+      const m = e.RD.q.midi;
+      e.midiIn(0x90, m, 100, 'midi');
+      e.midiIn(0x80, m, 0, 'midi');
+    }
+  }, n);
+  const arc = page => page.evaluate(() => window.__etude.RD.arc);
+  const record = (page, id) => page.evaluate(id => window.__etude.rdData().lv[id], id);
+  const fill = (s, ...args) => args.reduce((r, a) => r.replace('%s', String(a)), s);
+  const modes = page => page.locator('#rdx-body .rdx-modes [data-mode]').evaluateAll(els => els.map(el => el.dataset.mode + (el.dataset.bars ? ':' + el.dataset.bars : '')));
+
+  test('naming and playing levels offer Survival, Time Attack and Marathon; rhythm and sight-reading do not', async ({ app }) => {
+    const page = await app.open({ hash: 'read', lang: 'ro' });
+    const ro = STRINGS.ro, arcade = ['practice', 'test', 'rush', 'survival', 'timeAttack'];
+    await open(page, TREBLE_PLAY);
+    expect(await modes(page)).toEqual([...arcade, 'marathon:16', 'marathon:32', 'marathon:64']);
+    await expect(page.locator('#rdx-body [data-mode="survival"]')).toContainText(ro.rdx_m_survival);
+    await expect(page.locator('#rdx-body [data-mode="timeAttack"]')).toContainText(ro.rdx_m_timeAttack);
+    await expect(page.getByRole('group', { name: ro.rdx_m_marathon })).toContainText(ro.rdx_bars);
+    for (const n of [16, 32, 64])
+      await expect(page.getByRole('button', { name: `${ro.rdx_m_marathon}, ${ro.rdx_bars} ${n}`, exact: true })).toBeVisible();
+    for (const [ty, expected] of [['k2s', arcade], ['iv', arcade], ['rh', ['practice', 'test']], ['sr', ['practice', 'test']]]) {
+      await page.evaluate(ty => window.__etude.rdOpen(Object.values(window.__etude.RD_LV).find(l => l.ty === ty)), ty);
+      expect(await modes(page), ty).toEqual(expected);
+    }
+    await page.evaluate(() => window.__etude.rdStart('survival'));
+    expect(await page.evaluate(() => window.__etude.RD.on)).toBe(false);
+  });
+
+  test('Survival: a wrong note or a note left too long costs a life, and the third ends the run', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const en = STRINGS.en, hud = page.locator('#rdx-hud'), fb = page.locator('#rdx-fb');
+    const id = await start(page, TREBLE_PLAY, 'survival');
+    await expect(hud).toContainText('♥♥♥');
+    // A short window from the next note on, so it times out quickly.
+    await page.evaluate(() => { const { RD } = window.__etude; RD.arc = { ...RD.arc, targetMs: 400 }; });
+    await playRight(page, 1);
+    expect((await arc(page)).correct).toBe(1);
+    await expect.poll(async () => (await arc(page)).timeouts).toBe(1);
+    await expect(fb).toContainText('⏱ ' + en.rdx_timeout);
+    await expect(fb).toContainText(fill(en.rdx_lives, 2));
+    await expect(hud).toContainText('♥♥♡');
+    // The stream waits for the right note; the next note is then played wrong.
+    await page.evaluate(() => {
+      const e = window.__etude, hit = m => { e.midiIn(0x90, m, 100, 'midi'); e.midiIn(0x80, m, 0, 'midi'); };
+      hit(e.RD.q.midi);
+      hit(e.RD.q.midi + 2);
+    });
+    expect(await arc(page)).toMatchObject({ lives: 1, mistakes: 2, timeouts: 1 });
+    await expect(hud).toContainText('♥♡♡');
+    await play(page, await page.evaluate(() => window.__etude.RD.q.midi));
+    await expect(page.locator('#rdx-sum')).toBeVisible();
+    const final = await arc(page);
+    expect(final).toMatchObject({ lives: 0, timeouts: 2, completed: true });
+    expect(final.score).toBeGreaterThan(0);
+    expect((await record(page, id)).sv).toBe(final.score);
+    await expect(page.locator('#rdx-sum')).toContainText('🏆');
+    await expect(page.locator('#rdx-next')).toContainText(en.rdn_sv_time);
+  });
+
+  test('Time Attack: ten right notes in a row add 5 seconds, and the run ends with the clock', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const hud = page.locator('#rdx-hud');
+    const id = await start(page, TREBLE_PLAY, 'timeAttack');
+    await expect(hud).toContainText(/⏱ (89|90)s/);
+    await playRight(page, 10);
+    expect(await page.evaluate(() => {
+      const { RD } = window.__etude;
+      return { combo: RD.arc.combo, length: Math.round(RD.arc.deadlineMs - RD.arc.startedAtMs), synced: RD.rushEnd === RD.arc.deadlineMs };
+    })).toEqual({ combo: 10, length: 95000, synced: true });
+    await expect(page.locator('#rdx-fb')).toContainText(STRINGS.en.rdx_ta_bonus);
+    await expect(hud).toContainText('×2');
+    await expect(hud).toContainText('🔥 10');
+    await page.evaluate(() => { const { RD } = window.__etude; RD.rushEnd = performance.now() - 1; RD.arc = { ...RD.arc, deadlineMs: RD.rushEnd }; });
+    await expect(page.locator('#rdx-sum')).toBeVisible();
+    const final = await arc(page);
+    expect(final).toMatchObject({ correct: 10, completed: true });
+    expect((await record(page, id)).ta).toBe(final.score);
+    await expect(page.locator('#rdx-sum')).toContainText('🏆');
+  });
+
+  test('Marathon: 16 bars are 64 notes with barlines, and the run saves the notes per minute', async ({ app }) => {
+    const page = await app.open({ hash: 'read', lang: 'ro' });
+    const ro = STRINGS.ro;
+    const id = await open(page, TREBLE_PLAY);
+    await page.getByRole('button', { name: `${ro.rdx_m_marathon}, ${ro.rdx_bars} 16`, exact: true }).click();
+    expect(await arc(page)).toMatchObject({ mode: 'marathon', marathonBars: 16, total: 64 });
+    await expect(page.locator('#rdx-hud')).toContainText('1 / 64');
+    expect(await page.locator('#rdx-staff .rdx-barline').count()).toBeGreaterThan(0);
+    await playRight(page, 63);
+    await expect(page.locator('#rdx-hud')).toContainText('64 / 64');
+    await playRight(page, 1);
+    await expect(page.locator('#rdx-sum')).toBeVisible();
+    expect(await arc(page)).toMatchObject({ correct: 64, mistakes: 0, completed: true });
+    const mn = (await record(page, id)).mn;
+    expect(mn).toBeGreaterThan(0);
+    await expect(page.locator('#rdx-sum')).toContainText(fill(ro.rdx_npm, mn));
+    await page.locator('#rdx-sum [data-act="again"]').click();
+    expect(await arc(page)).toMatchObject({ mode: 'marathon', total: 64, correct: 0 });
+  });
+
+  test('quitting an arcade run saves no result', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const id = await start(page, TREBLE_PLAY, 'survival');
+    await playRight(page, 1);
+    await expect(page.locator('#rdx-end')).toHaveText(STRINGS.en.rdx_quit);
+    await page.locator('#rdx-end').click();
+    await expect(page.locator('#rdx-body .rdx-modes')).toBeVisible();
+    expect(await page.evaluate(() => window.__etude.RD.on)).toBe(false);
+    expect(await record(page, id)).toBeUndefined();
+  });
 });
 
 test('Settings controls receive localized programmatic labels', async ({ app }) => {
   const page = await app.open();
   await page.locator('#settingsBtn').click();
-  for (const id of ['deviceSelect', 'toneSel', 'set-goal', 'set-new', 'set-wake', 'set-synth', 'set-drone', 'set-metronome', 'set-inv']) {
+  for (const id of ['deviceSelect', 'toneSel', 'set-goal', 'set-new', 'set-wake', 'set-synth', 'set-drone', 'set-metronome', 'set-inv', 'set-weak-inject']) {
     const control = page.locator('#' + id);
     await expect(control).toHaveAttribute('aria-labelledby', id + '-label');
     expect(await control.evaluate(el => document.getElementById(el.getAttribute('aria-labelledby'))?.textContent.trim())).toBeTruthy();
@@ -1663,6 +2113,43 @@ test('Settings controls receive localized programmatic labels', async ({ app }) 
   await page.locator('#set-lang button[data-v="ro"]').click();
   const romanianInputLabel = await page.locator('#deviceSelect').evaluate(el => document.getElementById(el.getAttribute('aria-labelledby')).textContent.trim());
   expect(romanianInputLabel).not.toBe(englishInputLabel);
+});
+
+test('weak-spot injection is opt-in and steers only practice, survival and marathon', async ({ app, page }) => {
+  await app.open({ hash: 'read' });
+  await expect(page.locator('#rdx-weak-inject')).not.toBeChecked();
+  await page.locator('#settingsBtn').click();
+  await page.locator('label:has(#set-weak-inject)').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#rdx-weak-inject')).toBeChecked();
+  await page.locator('label:has(#rdx-weak-inject)').click();
+  await expect.poll(() => page.evaluate(() => ({
+    setting: window.__etude.data.settings.weakSpotInjection,
+    saved: JSON.parse(localStorage.getItem('ptt-v3')).data.settings.weakSpotInjection,
+  }))).toEqual({ setting: false, saved: false });
+
+  const result = await page.evaluate(() => {
+    const api = window.__etude;
+    api.rdOpen(Object.values(api.RD_LV).find(candidate => candidate.ty === 'name'));
+    const random = Math.random;
+    const pick = (mode, value, inject) => {
+      api.rdStart(mode);
+      api.data.settings.weakSpotInjection = inject;
+      api.RD.lastK = null;
+      Math.random = () => value;
+      api.rdNext();
+      Math.random = random;
+      return api.RD.q.key;
+    };
+    // Math.random() = 0 draws the level's first note unless injection replaces it, so the last note is made the weak one.
+    const first = pick('practice', 0, false), weakKey = pick('practice', 0.999, false);
+    api.data.reading.nt[weakKey] = { n: 10, ok: 4, ms: 60000, e: 1, t: 6000 };
+    const picks = { first, weakKey, injected: pick('practice', 0, true), standard: pick('practice', 0, false), survival: pick('survival', 0, true), marathon: pick('marathon', 0, true), rush: pick('rush', 0, true) };
+    api.rdClear();
+    return picks;
+  });
+  expect(result.weakKey).not.toBe(result.first);
+  expect(result).toMatchObject({ injected: result.weakKey, standard: result.first, survival: result.weakKey, marathon: result.weakKey, rush: result.first });
 });
 
 test('leaving the window lets go of keys held on the computer keyboard or screen, and nothing else', async ({ app, page }) => {

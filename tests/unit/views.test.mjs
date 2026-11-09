@@ -3,7 +3,9 @@ import { isAppView, navGroup, viewFromHash } from '../../src/domain/router.ts';
 
 describe('view routing domain', () => {
   it('keeps hash routing grouped and safely defaults unknown views', () => {
-    expect(navGroup('analysis')).toBe('practice');
+    expect(navGroup('analysis')).toBe('scores');
+    expect(navGroup('read')).toBe('practice');
+    expect(navGroup('songs')).toBe('learn');
     expect(navGroup('today')).toBe('today');
     expect(isAppView('not-a-view')).toBe(false);
     expect(viewFromHash('#learn')).toBe('learn');

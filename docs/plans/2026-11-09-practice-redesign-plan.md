@@ -34,17 +34,21 @@ flowchart LR
 
 ## Faza 1: Reorganizarea Navigației & Separarea Tab-ului `Scores`
 
+> **Status:** implementată (branch `feat/practice-scores-tab`). `Songs` (cântecele-reper pentru intervale) era de fapt în grupul `learn`, nu în `Practice`, așa că rămâne în Learn; tab-ul `Scores` conține doar `analysis`.
+
 ### Obiectiv
-Scoaterea studioului de partituri (`Score & Analysis` + `Songs`) din sub-meniul `Practice` și promovarea lui ca pilon principal în bara de navigare de sus.
+Scoaterea studioului de partituri (`Score & Analysis`) din sub-meniul `Practice` și promovarea lui ca pilon principal în bara de navigare de sus.
 
 ### Fișiere Modificate
 - `src/domain/router.ts`:
-  - Actualizarea `NAV_GROUPS` pentru a defini grupul principal `scores: ['analysis', 'songs']` și grupul `practice: ['read', 'practice', 'sing']`.
+  - Actualizarea `NAV_GROUPS` cu grupul principal `scores: ['analysis']` și grupul `practice: ['practice', 'read', 'sing']`; `songs` rămâne în `learn`.
   - Păstrarea tuturor hash-urilor existente (`#analysis`, `#read`, `#practice`, `#songs`, `#sing`) pentru a nu rupe linkurile sau testele E2E.
 - `etude.html`:
   - Adăugarea butonului principal `Scores` (`data-view="analysis"`, `data-i18n="nav_scores"`) în `<nav class="tabs" id="nav">`.
 - `src/domain/views-runtime.ts`:
-  - Sincronizarea barei secundare (`#modeBar`) și a meniului mobil (`#mobileMenu`) cu noua grupare.
+  - Tab-ul activ (`aria-current`) se alege după grup (`navGroup`), iar bara secundară (`#modeBar`) și meniul mobil (`#mobileMenu`) urmează noua grupare.
+  - `fitHeader()`: cu 6 tab-uri, antetul nu mai încape în franceză între 841 și ~1040px (sau cu un nume lung de dispozitiv MIDI). Cât timp ar ieși din pagină, ascunde întâi sloganul, apoi strânge tab-urile în meniu (ca sub 840px).
+- `src/locales/index.js`: cheia `nav_scores` în toate cele 7 limbi.
 
 ---
 
@@ -66,15 +70,22 @@ Oferirea a **100% din ecran** portativului și claviaturii în timpul exerciții
 
 ## Faza 3: Înlocuirea „1 Notă Statică” cu Fluxul Continuu (*Look-Ahead Stream*) & *Ghost Pacer*
 
+> **Status:** implementată pentru exercițiile *Numește nota* și *Cântă nota* (branch `feat/practice-lookahead-stream`). Intervalele, acordurile, armurile și cheile amestecate (`mix`) rămân pe cartonaș; polifonia din Faza 5 se exersează în nivelurile de prima vedere.
+
 ### Obiectiv
 Înlocuirea exercițiilor de tip „ghicește o singură notă pe un portativ gol” cu un șir continuu de note/intervale/acorduri pe portativ, astfel încât utilizatorul să antreneze citirea anticipativă (*look-ahead*) și intervallică încă de la Nivelul 1.
 
 ### Fișiere Modificate
-- `src/domain/views-runtime.ts` (și un modul nou dedicat `src/sight-reading/stream.ts`):
-  - **Buffer de 8–12 coloane pe portativ:** În loc ca `rdNext()` să randeze `cols: [[notaCurenta]]`, randează o fereastră glisantă de 8–12 timpi/măsuri.
-  - La apăsarea notei/acordului corect, cursorul avansează instantaneu la coloana următoare, iar fereastra se completează lin în capătul drept.
-  - **Ghost Pacer (Cursor Fantomă Opțional):** În modurile fără metronom obligatoriu (*Step-by-step*), un cursor secundar discret avansează la BPM-ul țintă pentru a-ți arăta vizual dacă ești înaintea sau în urma tempoului ideal.
-  - *Notă:* Modul clasic de 1 singură notă rămâne disponibil doar ca opțiune secundară (*„Warm-up / Flashcard 1 notă”*) pentru începătorii absoluți.
+- `src/sight-reading/stream.ts` (modul nou, pur, cu teste unitare): câte coloane încap, unde începe fereastra, becarul de precauție, poziția fantomei și avansul față de ea.
+- `src/domain/views-runtime.ts`:
+  - **Fereastră de 5–12 coloane**, după lățimea ecranului. Nota curentă e evidențiată, iar ultimele 1–2 note rămân vizibile în stânga.
+  - La nota corectă, cursorul avansează și șirul alunecă o coloană spre stânga (fără animație cu *reduced motion*).
+  - **După o greșeală, șirul așteaptă:** nota corectă apare (numele sub notă, clapa marcată pe claviatură), iar exercițiul continuă abia după ce o cânți sau o numești. Se punctează doar primul răspuns la fiecare notă.
+  - **O singură claviatură:** *Cântă nota* (în șir și pe cartonaș) nu mai desenează claviatura mică de sub portativ; ținta, ✓ și ✗ apar pe claviatura mare de jos. Pe clapele de pe ecran contează octava, dacă nota se vede pe claviatură. *Clapă → portativ* pune și el întrebarea pe claviatura mare: dacă era ascunsă, se deschide pentru exercițiu (fără să schimbe alegerea salvată) și se închide la loc la final. Clapa întrebată rămâne la vedere în octava ei, chiar dacă muți octavele sau ecranul e îngust. Aici răspunzi cu 1–4 sau cu un clic pe portativ; notele cântate (pe pian sau pe clape) doar sună, altfel ai putea cânta clapa aprinsă fără să citești. O variantă greșită își aprinde clapa cu ✗.
+  - **Ghost Pacer (opțional, oprit implicit):** fantoma avansează cu viteza țintă pentru 3 stele, se oprește când ajunge la 3 note în fața ta, iar HUD-ul arată avansul (`👻 +2`, `👻 −1`).
+  - Fiindcă șirul nu are bare de măsură, o notă naturală primește becar de precauție dacă aceeași notă (literă și octavă) a avut recent o alterație.
+  - Șirul e pornit implicit. Comutatorul *„Șir de note”* din pagina exercițiilor revine la cartonașul cu o singură notă.
+  - *Notă:* în șir nu mai există pauza de feedback dintre note, iar nota următoare se poate citi din timp, așa că scorurile Rush și timpii din Test pot ieși mai buni decât pe cartonaș.
 
 ---
 
@@ -98,12 +109,17 @@ Adăugarea modurilor de antrenament intens și a sistemului de punctaj din *Comp
      - $\text{Puncte} = (100 + \text{SpeedBonus}_{0..100}) \times \text{Multiplier}_{1\times..4\times}$
      - Praguri multiplicator: `1×` (0–4 serie), `2×` (5–14 serie), `3×` (15–29 serie), `4×` (30+ serie).
 
+**Implementat:** `src/sight-reading/arcade.ts` este motorul pur, cu teste unitare: vieți, fereastra de timp (pornește de la viteza țintă a nivelului și scade cu 6% la fiecare 10 răspunsuri corecte la rând, până la 750 ms), bonusul de +5 s, multiplicatorul și punctajul. *Supraviețuire*, *Contra cronometru* și *Maraton* sunt moduri noi în Reading drills, alături de Practice, Test și Rush, la nivelurile de citire, cântare, clapă → portativ, intervale, acorduri și armuri (Maratonul numai la citire și cântare, cu 16, 32 sau 64 de măsuri a câte 4 note). HUD-ul arată viețile (`♥♥♡`), timpul rămas, progresul, multiplicatorul (`×2`), scorul și seria (`🔥`). Recordurile se salvează pe nivel (`sv`, `ta`, `mn`) și se sincronizează între tab-uri. Ieșirea înainte de final nu salvează rezultatul.
+- *Diferență față de plan:* Maratonul folosește șirul de note cu bare de măsură (sau cartonașele, dacă șirul e oprit), nu o partitură multi-sistem pe ecran complet; aceea depinde de Faza 2, care nu este implementată.
+
 ---
 
 ## Faza 5: Polifonie (2 și 3 Note Simultan), Grand Staff (`𝄞 + 𝄢`) și Toate Gamele
 
 ### Obiectiv
 Extinderea generatorului și a curriculum-ului pentru a acoperi intervale armonice, acorduri de 3 note (inclusiv răsturnări) și citirea simultană pe ambele chei în orice gamă.
+
+**Implementat:** curriculum-ul are patru niveluri avansate pentru bicorduri, triade cu răsturnări, grand staff și cromatism. Generatorul produce deterministic partituri cu 2–3 voci, în toate armurile de la 7♭ la 7♯, în Major, Minor natural, Minor armonic și Cromatic. Validatorul verifică vocile, armura și ortografia notelor; evaluatorul acceptă un acord numai dacă toate atacurile sale sunt în fereastra de 60 ms.
 
 ### Fișiere Modificate
 - `src/sight-reading/model.ts` & `src/sight-reading/generator.ts`:
@@ -140,6 +156,7 @@ Utilizarea statisticilor de eroare și timp de reacție ale utilizatorului pentr
   - **Când `settings.weakSpotInjection === true`:** Extrage din `rdData().nt` primele 25% cele mai lente/greșite poziții din gama curentă și le acordă o pondere de ~30% în generarea fluxului din *Practice / Survival / Marathon*.
   - **Când `settings.weakSpotInjection === false`:** Generatorul folosește exclusiv distribuția muzicală standard a nivelului, fără nicio influență din istoricul de greșeli.
   - *(Notă: Modul oficial `First-Sight Exam` rămâne întotdeauna 100% determinist pe bază de seed, ca să nu fie afectată corectitudinea examenului).*
+  - **Implementat:** setarea este dezactivată implicit, este păstrată în backup/sincronizare și are un comutator rapid în Reading drills. Când este activă, 30% dintre întrebările din Practice, Supraviețuire și Maraton sunt extrase din sfertul cel mai lent sau cu cele mai multe erori din gama curentă; Test, Rush și Contra cronometru rămân neafectate.
 
 ---
 
@@ -151,3 +168,6 @@ Utilizarea statisticilor de eroare și timp de reacție ale utilizatorului pentr
    - **Unit Tests (`vitest`):** Teste pentru motorul `arcade.ts` (3 vieți, multiplicatori, scor), polifonia de 2–3 note în `generator.ts` pe toate armurile și comutatorul `weakSpotInjection` (ON vs OFF).
    - **E2E Tests (`playwright`):** Verificarea noului tab `Scores`, intrarea și ieșirea din modul Full-Screen Stage (`Esc`), rularea unui joc Survival până la 3 greșeli și verificarea setării de *Weak-Spot Injection*.
    - Toate porțile (`npm run typecheck`, `npm run lint`, `npm run test:unit`, `npx playwright test`, `npm run build`, `npm run build:standalone`) trebuie să treacă 100% pe verde.
+
+**Implementat:** etichetele noi (tab-ul Scores, injecția notelor slabe, șirul de note, fantoma, Supraviețuire, Contra cronometru, Maraton, vieți, scor, recorduri) există în toate cele 7 limbi; nivelurile polifonice folosesc etichetele existente. Testele unitare acoperă motorul arcade, polifonia în toate armurile de la 7♭ la 7♯ și valoarea implicită a setării. Comportamentul ON/OFF al injecției e verificat în testele E2E, pentru că selecția rulează în runtime-ul din browser. Testele E2E acoperă și tab-ul Scores, Supraviețuirea până la 3 greșeli, bonusul din Contra cronometru și Maratonul.
+- *Neacoperit:* intrarea și ieșirea din Full-Screen Stage (`Esc`), pentru că Faza 2 nu este implementată.
