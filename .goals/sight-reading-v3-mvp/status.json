@@ -56,6 +56,11 @@
       "iteration": 8,
       "verdict": "FAIL",
       "summary": "Neighbor-window rest handling works for default close repeats, but the evaluator allows association windows above the required 250 ms maximum and the tests omit the 45%-narrowed rest-window case."
+    },
+    {
+      "iteration": 9,
+      "verdict": "FAIL",
+      "summary": "The evaluator cap and runtime behavior are correct, but the 135/165 ms regression inputs are matched notes rather than genuine extras, so the exact close-repeat rest-boundary coverage is still missing."
     }
   ]
 }
