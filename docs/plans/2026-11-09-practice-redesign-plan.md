@@ -34,17 +34,21 @@ flowchart LR
 
 ## Faza 1: Reorganizarea Navigației & Separarea Tab-ului `Scores`
 
+> **Status:** implementată (branch `feat/practice-scores-tab`). `Songs` (cântecele-reper pentru intervale) era de fapt în grupul `learn`, nu în `Practice`, așa că rămâne în Learn; tab-ul `Scores` conține doar `analysis`.
+
 ### Obiectiv
-Scoaterea studioului de partituri (`Score & Analysis` + `Songs`) din sub-meniul `Practice` și promovarea lui ca pilon principal în bara de navigare de sus.
+Scoaterea studioului de partituri (`Score & Analysis`) din sub-meniul `Practice` și promovarea lui ca pilon principal în bara de navigare de sus.
 
 ### Fișiere Modificate
 - `src/domain/router.ts`:
-  - Actualizarea `NAV_GROUPS` pentru a defini grupul principal `scores: ['analysis', 'songs']` și grupul `practice: ['read', 'practice', 'sing']`.
+  - Actualizarea `NAV_GROUPS` cu grupul principal `scores: ['analysis']` și grupul `practice: ['practice', 'read', 'sing']`; `songs` rămâne în `learn`.
   - Păstrarea tuturor hash-urilor existente (`#analysis`, `#read`, `#practice`, `#songs`, `#sing`) pentru a nu rupe linkurile sau testele E2E.
 - `etude.html`:
   - Adăugarea butonului principal `Scores` (`data-view="analysis"`, `data-i18n="nav_scores"`) în `<nav class="tabs" id="nav">`.
 - `src/domain/views-runtime.ts`:
-  - Sincronizarea barei secundare (`#modeBar`) și a meniului mobil (`#mobileMenu`) cu noua grupare.
+  - Tab-ul activ (`aria-current`) se alege după grup (`navGroup`), iar bara secundară (`#modeBar`) și meniul mobil (`#mobileMenu`) urmează noua grupare.
+  - `fitHeader()`: cu 6 tab-uri, antetul nu mai încape în franceză între 841 și ~1040px (sau cu un nume lung de dispozitiv MIDI). Cât timp ar ieși din pagină, ascunde întâi sloganul, apoi strânge tab-urile în meniu (ca sub 840px).
+- `src/locales/index.js`: cheia `nav_scores` în toate cele 7 limbi.
 
 ---
 

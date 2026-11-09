@@ -74,7 +74,7 @@
   .brand .tag{font-size:12px; color:var(--muted); font-style:italic; font-family:var(--serif); white-space:nowrap}
   nav.tabs{display:flex; gap:2px}
   nav.tabs button{appearance:none; border:none; background:none; color:var(--muted); font-size:14px; font-weight:600;
-    padding:8px 12px; border-radius:8px; cursor:pointer; transition:.15s; position:relative}
+    padding:8px 12px; border-radius:8px; cursor:pointer; transition:.15s; position:relative; white-space:nowrap}
   nav.tabs button:hover{color:var(--ink)}
   nav.tabs button[aria-current="page"]{color:var(--ink)}
   nav.tabs button[aria-current="page"]::after{content:""; position:absolute; left:12px; right:12px; bottom:2px; height:2px; background:var(--accent); border-radius:2px}
@@ -1150,6 +1150,9 @@
   .rdx-coach{max-width:640px; margin:18px auto 2px}
   @media (prefers-reduced-motion: reduce){ *{transition:none!important; animation:none!important} }
   @media (max-width:840px){ nav.tabs{display:none} .menu-btn{display:grid} }
+  /* fitHeader() adds these while the header would overflow (long translations, MIDI device names) */
+  .bar.hdr-notag .brand .tag{display:none}
+  .bar.hdr-fold nav.tabs{display:none} .bar.hdr-fold .menu-btn{display:grid}
   @media (max-width:680px){ .wrap{padding-inline:16px} .keys{height:126px} .white .lbl{font-size:8px; bottom:5px} .white .dg{bottom:20px} }
   @media (max-width:480px){ .dock-tools{flex-wrap:wrap; gap:6px} .dock-tools > span[style]{display:none} }
   /* ---- Reading drills (V3) ---- */

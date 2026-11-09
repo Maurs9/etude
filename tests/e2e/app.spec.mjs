@@ -188,6 +188,102 @@ test.describe('Navigation accessibility', () => {
     await expect(page.locator('#greet-title')).toBeFocused();
   });
 
+  test('Score & analysis is its own top-level Scores section, and old #analysis links still open it', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const scores = page.locator('#nav button[data-view="analysis"]'), practice = page.locator('#nav button[data-view="practice"]');
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+    await expect(scores).toHaveText('Scores');
+    await expect(scores).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('#nav button[aria-current="page"]')).toHaveCount(1);
+    await expect(page.locator('#modeBar')).toBeHidden();
+
+    await practice.click();
+    await expect(page).toHaveURL(/#practice$/);
+    await expect(practice).toHaveAttribute('aria-current', 'page');
+    await expect(scores).toHaveAttribute('aria-current', 'false');
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing']);
+
+    await scores.click();
+    await expect(page).toHaveURL(/#analysis$/);
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+    await expect(scores).toHaveAttribute('aria-current', 'page');
+
+    await page.evaluate(() => window.__etude.setLang('ro'));
+    await expect(scores).toHaveText('Partituri');
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.locator('#menuBtn').click();
+    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toHaveText('Partituri');
+    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toBeFocused();
+    await page.locator('#mobileMenu button[data-view="practice"]').click();
+    await expect(page.locator('#view-practice')).toHaveClass(/active/);
+    await page.locator('#menuBtn').click();
+    await page.locator('#mobileMenu button[data-view="analysis"]').click();
+    await expect(page.locator('#mobileMenu')).toBeHidden();
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+  });
+
+  // The header's state once the ResizeObserver refit has run: how far the settings button sits past the bar's padding,
+  // and which of the tagline, section tabs and menu button are showing.
+  const headerFit = page => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const bar = document.querySelector('header .bar'), shown = el => getComputedStyle(el).display !== 'none';
+    const tabs = [...document.querySelectorAll('#nav button')].map(b => b.getBoundingClientRect());
+    done({
+      overflow: document.getElementById('settingsBtn').getBoundingClientRect().right - (bar.getBoundingClientRect().right - parseFloat(getComputedStyle(bar).paddingRight)),
+      tag: shown(document.getElementById('brand-tag')),
+      tabs: shown(document.getElementById('nav')),
+      menu: shown(document.getElementById('menuBtn')),
+      oneRow: new Set(tabs.map(r => Math.round(r.top))).size === 1 && new Set(tabs.map(r => Math.round(r.height))).size === 1,
+      clearOfBrand: document.querySelector('.brand').getBoundingClientRect().right <= document.getElementById('nav').getBoundingClientRect().left,
+    });
+  }))));
+
+  test('the header fits in every language above the menu breakpoint: the tagline goes first, then the tabs fold into the menu', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await app.open();
+    expect(await headerFit(page), 'English keeps its tagline and tabs').toMatchObject({ tag: true, tabs: true, menu: false });
+    for (const width of [841, 1000]) {
+      await page.setViewportSize({ width, height: 700 });
+      for (const lang of Object.keys(STRINGS)) {
+        await page.evaluate(lang => window.__etude.setLang(lang), lang);
+        const fit = await headerFit(page), at = `${lang} at ${width}px`;
+        expect(fit.overflow, at).toBeLessThanOrEqual(0.5);
+        expect(fit.menu, at).toBe(!fit.tabs);
+        if (fit.tag) expect(fit.tabs, `${at}: the tagline hides before the tabs fold`).toBe(true);
+        if (fit.tabs) {
+          expect(fit.oneRow, at).toBe(true);
+          expect(fit.clearOfBrand, at).toBe(true);
+        }
+        if (lang === 'en') expect(fit.tabs, `${at}: English never folds`).toBe(true);
+      }
+    }
+  });
+
+  test('a long MIDI device name folds the section tabs into the menu instead of pushing the header off screen', async ({ app }) => {
+    const page = app.page, name = 'Yamaha Clavinova CLP-795GP Digital Piano MIDI 1';
+    await page.addInitScript(name => {
+      const input = { id: 'clp', name, type: 'input', state: 'connected', connection: 'open', onmidimessage: null };
+      Object.defineProperty(navigator, 'requestMIDIAccess', { configurable: true, value: async () => ({ inputs: new Map([[input.id, input]]), outputs: new Map(), sysexEnabled: false, onstatechange: null }) });
+    }, name);
+    await page.setViewportSize({ width: 900, height: 700 });
+    await app.open();
+
+    await page.locator('#midiChip').click();
+    await expect(page.locator('#midiText')).toHaveText(name);
+    const fit = await headerFit(page);
+    expect(fit).toMatchObject({ tabs: false, menu: true });
+    expect(fit.overflow).toBeLessThanOrEqual(0.5);
+    await page.locator('#menuBtn').click();
+    await expect(page.locator('#mobileMenu button')).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Explore', 'Progress']);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#mobileMenu')).toBeHidden();
+
+    await page.setViewportSize({ width: 1400, height: 800 });
+    await expect(page.locator('#nav')).toBeVisible();
+    await expect(page.locator('#menuBtn')).toBeHidden();
+    expect((await headerFit(page)).overflow).toBeLessThanOrEqual(0.5);
+  });
+
   test('skip link focuses main without changing the route, and supporting text stays readable on phones', async ({ app }) => {
     const page = await app.open();
     await page.locator('#skipLink').focus();
