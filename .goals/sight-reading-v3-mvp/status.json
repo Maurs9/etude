@@ -1,7 +1,7 @@
 {
   "goal_id": "sight-reading-v3-mvp",
   "status": "building",
-  "iteration": 12,
+  "iteration": 13,
   "builder_model": "GPT:5.6-Luna",
   "inspector_model": "GPT:5.6-Sol",
   "initial_sha": "a26497d263a31d1c0d74921a07ea4b8720d8af6c",
@@ -76,6 +76,11 @@
       "iteration": 12,
       "verdict": "FAIL",
       "summary": "Cancellation races no longer start ghost runs and all gates pass, but blanket cancellation breaks legacy assessment, allows background first-sight play, destroys pending-save results, burns preview attempts, and can desynchronize UI and ledger terminal status."
+    },
+    {
+      "iteration": 13,
+      "verdict": "FAIL",
+      "summary": "All gates pass and iteration-12 cancellation regressions are fixed, but failed abandon writes deadlock pendingSave, generation reuses one seed forever, and Learn/pre-claim exposure invalidates first-sight eligibility."
     }
   ]
 }
