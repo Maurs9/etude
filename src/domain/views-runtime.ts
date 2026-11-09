@@ -3656,8 +3656,17 @@ function focusView(v: string) {
 let show = function show(v: string|undefined, moveFocus = true) {
     if (v === undefined || !isAppView(v))
         return;
-    viewState.view = v;
     const prev = _view;
+    if (prev === 'read' && v !== 'read' && srtPendingSaveProtected()) {
+        if (SR.srtState?.name === 'pendingSave') {
+            void srtAbandonClaim('abandoned', false).then((result) => {
+                if (result.ok || SR.srtState?.name !== 'pendingSave')
+                    show(v, moveFocus);
+            });
+        }
+        return;
+    }
+    viewState.view = v;
     if (location.hash.slice(1) !== v) {
         const viaModal = _modalStack.length > 0;
         _modalStack.length = 0; // the modal's history entry becomes the new view's entry
@@ -5749,6 +5758,8 @@ type SrtAttemptCleanup = {
     readonly mixedInput: boolean;
 };
 const srtCleanupPromises = new Map<string, Promise<SightReadingLedgerResult>>();
+const srtReleasedLeases = new WeakSet<SightReadingAttemptLease>();
+let srtExposurePromise: { fingerprint: string; promise: Promise<SightReadingLedgerResult> } | null = null;
 interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
 /** A note to engrave; beamed eighths also record their stem position once drawn. */
 interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
@@ -5985,9 +5996,12 @@ function srDraw() {
     SR.notes = r.notes;
     SR.beatX = r.beatX;
     SR.totalBeats = r.total;
-    byId('rd-staff').innerHTML = r.svg;
+    const concealed = srtScoreConcealed();
+    byId('rd-staff').setAttribute('aria-hidden', concealed ? 'true' : 'false');
+    byId('rd-staff').innerHTML = concealed ? '' : r.svg;
     srStepsBuild();
-    srPaintAll();
+    if (!concealed)
+        srPaintAll();
     srCoach();
 }
 function srtEligibleFirstSightActive() {
@@ -6007,7 +6021,7 @@ function srtWatchAudioContext(context: AudioContext) {
     });
 }
 function srNamesVisible(piece: SrScore) {
-    return SR.names && !piece.noNames && !srtEligibleFirstSightActive() && SR.srtState?.name !== 'claiming';
+    return SR.names && !piece.noNames && !srtScoreConcealed() && !srtEligibleFirstSightActive() && SR.srtState?.name !== 'claiming';
 }
 function srPaintAll() {
     const svg = srSvg();
@@ -6250,6 +6264,45 @@ function srtNotice(text: string | null) {
 function srtLedgerFailureMessage(reason: 'stale_generation' | 'owner_mismatch' | 'already_exposed' | 'conflict' | 'quota' | 'unsupported') {
     return t('rd_srt_error_' + reason);
 }
+function srtScoreConcealed() {
+    const state = SR.srtState;
+    return !!SR.srtPiece && SR.modeSel === 'assess' && state?.mode === 'firstSight' &&
+        ['idle', 'preparing', 'claiming', 'blocked', 'abandoned', 'interrupted'].includes(state.name);
+}
+function srtRecordExposure(reason: string, kind: 'exposure' | 'listen' = 'exposure') {
+    const fingerprint = SR.srtFingerprint;
+    if (!fingerprint)
+        return null;
+    const ledger = srtReadLedger(localStorage);
+    if (ledger.exposures[fingerprint])
+        return Promise.resolve({ ok: true, ledger } satisfies SightReadingLedgerResult);
+    const operation = kind === 'listen'
+        ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation: ledger.generation })
+        : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation: ledger.generation });
+    srtExposurePromise = { fingerprint, promise: operation };
+    void operation.then((result) => {
+        if (srtExposurePromise?.promise === operation)
+            srtExposurePromise = null;
+        if (!result.ok) {
+            if (SR.srtFingerprint === fingerprint)
+                srtNotice(srtLedgerFailureMessage(result.reason));
+            return;
+        }
+        if (SR.srtFingerprint === fingerprint)
+            srDraw();
+    });
+    return operation;
+}
+function srtExposeForPractice(reason: string, kind: 'exposure' | 'listen' = 'exposure') {
+    if (!SR.srtPiece || !SR.srtFingerprint)
+        return;
+    const state = SR.srtState;
+    if (state?.name === 'idle' && state.mode === 'firstSight') {
+        SR.srtState = { ...state, mode: 'practice', fingerprint: SR.srtFingerprint };
+        srDraw();
+    }
+    void srtRecordExposure(reason, kind);
+}
 function srtClearPreview() {
     window.clearInterval(SR.srtPreviewTimer);
     SR.srtPreviewTimer = 0;
@@ -6281,6 +6334,9 @@ function srtCaptureAttempt(state: SightReadingState | undefined): SrtAttemptClea
 function srtReleaseLease(lease: SightReadingAttemptLease | null) {
     if (!lease)
         return;
+    if (srtReleasedLeases.has(lease))
+        return;
+    srtReleasedLeases.add(lease);
     lease.release();
     if (SR.srtLease === lease)
         SR.srtLease = null;
@@ -6356,7 +6412,12 @@ async function srtRetryPendingSave() {
         srtClearPendingAttempt(attempt.attemptId);
         srtReleaseLease(lease);
         srtPendingUi(false);
+        srtNotice(null);
         srRenderAssessResult();
+    }
+    else {
+        srtPendingUi(true);
+        srtNotice(srtLedgerFailureMessage(result.reason));
     }
 }
 async function srtContinueWithoutSave() {
@@ -6377,8 +6438,6 @@ async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned'
     if (transitionBeforeLedger && state && (state.name === 'preparing' || state.name === 'preview' || state.name === 'claiming' || state.name === 'countIn' || state.name === 'playing'))
         srtSetState({ type: status === 'interrupted' ? 'interrupt' : 'abandon' });
     expectedState = SR.srtState;
-    if (!transitionBeforeLedger && state?.name === 'pendingSave')
-        srtPendingUi(false);
     const result = attempt ? await srtEnsureAbandoned(attempt, status) : { ok: true, ledger: srtReadLedger(localStorage) } satisfies SightReadingLedgerResult;
     const terminalStatus = attempt ? srtAttemptStatus(attempt.attemptId) : null;
     const stillCurrent = srtOperationStillCurrent(operation, expectedState, attempt?.attemptId ?? expectedState?.attemptId ?? null);
@@ -6402,6 +6461,14 @@ async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned'
         if (attempt)
             srtClearPendingAttempt(attempt.attemptId);
         srtReleaseLease(lease);
+        if (state?.name === 'pendingSave') {
+            srtPendingUi(false);
+            srtNotice(null);
+        }
+    }
+    else if (!transitionBeforeLedger && state?.name === 'pendingSave') {
+        srtPendingUi(true);
+        srtNotice(srtLedgerFailureMessage(result.reason));
     }
     return result;
 }
@@ -6446,6 +6513,19 @@ async function srtStartFirstSight() {
         return;
     const operation = srtBeginOperation();
     const claimedFingerprint = SR.srtFingerprint;
+    const pendingExposure = srtExposurePromise?.fingerprint === claimedFingerprint ? srtExposurePromise.promise : null;
+    const idleState = SR.srtState;
+    if (pendingExposure) {
+        const result = await pendingExposure;
+        if (!srtOperationStillCurrent(operation, idleState, null))
+            return;
+        if (!result.ok)
+            srtNotice(srtLedgerFailureMessage(result.reason));
+        else
+            srtNotice(t('rd_srt_error_already_exposed'));
+        srtStartPractice();
+        return;
+    }
     const ledgerStatus = srtLedgerReadStatus(localStorage);
     if (ledgerStatus === 'unsupported') {
         srtNotice(t('rd_srt_ledger_unsupported'));
@@ -6454,7 +6534,7 @@ async function srtStartFirstSight() {
     }
     const ledger = srtReadLedger(localStorage);
     if (ledger.exposures[SR.srtFingerprint]) {
-        srtNotice(null);
+        srtNotice(t('rd_srt_error_already_exposed'));
         srtStartPractice();
         return;
     }
@@ -6801,7 +6881,7 @@ function srListen() {
         return;
     }
     if (SR.srtFingerprint)
-        void srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint: SR.srtFingerprint, generation: srtReadLedger(localStorage).generation });
+        srtExposeForPractice('listen', 'listen');
     ensureAudio();
     srStopAll(true, true);
     SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
@@ -6857,6 +6937,8 @@ function srGo() {
         const state = SR.srtState;
         if (state?.name === 'pendingSave' || state?.name === 'preview' || state?.name === 'claiming' || state?.name === 'preparing')
             return;
+        if (SR.modeSel === 'assess' && (state?.mode === 'practice' || state?.name === 'abandoned' || state?.name === 'interrupted'))
+            srtNotice(t('rd_srt_error_already_exposed'));
         if (state?.mode === 'practice' || state?.name === 'completed' || state?.name === 'saved' ||
             state?.name === 'abandoned' || state?.name === 'interrupted' || state?.name === 'blocked' ||
             state?.mode === 'firstSight')
@@ -6929,6 +7011,19 @@ function fillPieces() {
     sel.value = (cur && (PIECES.some((p) => p.id === cur) || (SR.excerpt && SR.excerpt.id === cur) || (SR.gen && SR.gen.id === cur))) ? cur : PIECES[0].id;
 }
 function srSelectPiece(id: string) {
+    if (srtPendingSaveProtected()) {
+        if (SR.srtState?.name === 'pendingSave') {
+            void srtAbandonClaim('abandoned', false).then((result) => {
+                if (result.ok || SR.srtState?.name !== 'pendingSave')
+                    srSelectPiece(id);
+            });
+        }
+        return;
+    }
+    if (id === SR.gen?.id && !SR.srtPiece && RD.L && isRdSightLevel(RD.L)) {
+        rdSightStart(SR.modeSel === 'assess' ? 'test' : 'practice');
+        return;
+    }
     srStopAll(undefined, false, 'navigate');
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
@@ -8048,16 +8143,48 @@ function srtProfileForLevel(L: RdSightLevel): SightReadingProfile {
         return 'P2.a';
     return 'P2.b';
 }
-function srtSeedForLevel(id: string): number {
-    const key = 'etude-sight-seed-' + id;
-    const saved = Number.parseInt(localStorage.getItem(key) || '', 10);
-    if (Number.isInteger(saved))
-        return saved;
-    let seed = 0;
+let srtSeedCounter = 0;
+const SRT_LAST_FINGERPRINT_KEY = 'etude-sight-last-fingerprint';
+function srtSeedForLevel(id: string, injectedSeed?: number): number {
+    if (Number.isInteger(injectedSeed))
+        return injectedSeed as number;
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        const values = new Uint32Array(1);
+        crypto.getRandomValues(values);
+        return values[0] >>> 0;
+    }
+    let salt = 0;
     for (const char of id)
-        seed = (seed * 31 + char.charCodeAt(0)) | 0;
-    localStorage.setItem(key, String(seed));
-    return seed;
+        salt = (salt * 31 + char.charCodeAt(0)) | 0;
+    srtSeedCounter = (srtSeedCounter + 1) >>> 0;
+    return (Date.now() ^ salt ^ srtSeedCounter) >>> 0;
+}
+function srtLastGeneratedFingerprint() {
+    try {
+        return sessionStorage.getItem(SRT_LAST_FINGERPRINT_KEY) || localStorage.getItem(SRT_LAST_FINGERPRINT_KEY);
+    }
+    catch {
+        try {
+            return localStorage.getItem(SRT_LAST_FINGERPRINT_KEY);
+        }
+        catch {
+            return null;
+        }
+    }
+}
+function srtRememberGeneratedFingerprint(fingerprint: string) {
+    try {
+        sessionStorage.setItem(SRT_LAST_FINGERPRINT_KEY, fingerprint);
+    }
+    catch {
+        // A session-storage failure must not block offline generation.
+    }
+    try {
+        localStorage.setItem(SRT_LAST_FINGERPRINT_KEY, fingerprint);
+    }
+    catch {
+        // A local-storage failure must not block offline generation.
+    }
 }
 function srtLegacyPiece(piece: SightReadingPiece, L: RdSightLevel): RdSightPiece {
     const hand = L.clef === 'bass' ? 'lh' : 'rh';
@@ -8136,19 +8263,40 @@ function rdSightGen(L: RdSightLevel) {
     }
     return p;
 }
-function rdSightStart(mode: string) {
+function rdSightStart(mode: string, injectedSeed?: number) {
     const L = RD.L;
     if (!L)
         return;
+    if (srtPendingSaveProtected()) {
+        if (SR.srtState?.name === 'pendingSave') {
+            void srtAbandonClaim('abandoned', false).then((result) => {
+                if (result.ok || SR.srtState?.name !== 'pendingSave')
+                    rdSightStart(mode, injectedSeed);
+            });
+        }
+        return;
+    }
+    const previousFingerprint = SR.srtFingerprint || srtLastGeneratedFingerprint();
     srStopAll(undefined, false, 'navigate');
     rdData().prefs.srLv = L.id;
     if (!isRdSightLevel(L))
         throw new TypeError('Étude: ' + L.id + ' is not a sight-reading level');
     const profile = srtProfileForLevel(L);
-    const srtPiece = srtGenerate(profile, srtSeedForLevel(L.id), L.clef === 'bass' ? 'lh' : 'rh');
+    const hand = L.clef === 'bass' ? 'lh' : 'rh';
+    let seed = srtSeedForLevel(L.id, injectedSeed);
+    let srtPiece = srtGenerate(profile, seed, hand);
+    if (injectedSeed === undefined && mode === 'test') {
+        const ledger = srtReadLedger(localStorage);
+        for (let reroll = 0; reroll < 16 &&
+            (ledger.exposures[srtFingerprint(srtPiece)] || srtFingerprint(srtPiece) === previousFingerprint); reroll++) {
+            seed = (seed + 0x9e3779b9) >>> 0;
+            srtPiece = srtGenerate(profile, seed, hand);
+        }
+    }
     SR.srtPiece = srtPiece;
     SR.srtFingerprint = srtFingerprint(srtPiece);
-    SR.srtState = SRT_INITIAL_STATE;
+    srtRememberGeneratedFingerprint(SR.srtFingerprint);
+    SR.srtState = { ...SRT_INITIAL_STATE, mode: mode === 'test' ? 'firstSight' : 'practice', fingerprint: SR.srtFingerprint };
     SR.srtPendingAttempt = null;
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
@@ -8165,6 +8313,8 @@ function rdSightStart(mode: string) {
     SR.modeSel = mode === 'test' ? 'assess' : 'learn';
     [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
     srSelectPiece('gen');
+    if (mode !== 'test')
+        srtExposeForPractice('learn');
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rdx_sr_ready');
@@ -8515,6 +8665,15 @@ function rdRenderStats() {
 function rdTab(tab: string|undefined) {
     if (tab === undefined || !['drills', 'pieces', 'stats'].includes(tab))
         tab = 'drills';
+    if (tab !== 'pieces' && srtPendingSaveProtected()) {
+        if (SR.srtState?.name === 'pendingSave') {
+            void srtAbandonClaim('abandoned', false).then((result) => {
+                if (result.ok || SR.srtState?.name !== 'pendingSave')
+                    rdTab(tab);
+            });
+        }
+        return;
+    }
     rdData().prefs.tab = tab;
     queryAllHtml(document, '#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
     ['drills', 'pieces', 'stats'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
@@ -8969,6 +9128,13 @@ function srSetMode(v: string) {
     SR.modeSel = v;
     [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x instanceof HTMLElement && x.dataset.v === v ? 'true' : 'false'));
     srStopAll();
+    if (v === 'learn')
+        srtExposeForPractice('learn');
+    else if (v === 'assess' && SR.srtPiece &&
+        (SR.srtState?.mode === 'practice' || SR.srtState?.name === 'abandoned' || SR.srtState?.name === 'interrupted'))
+        srtNotice(t('rd_srt_error_already_exposed'));
+    if (SR.srtPiece)
+        srDraw();
     byId('rd-verdict').textContent = '';
     byId('rd-go').focus();
 }
@@ -15943,10 +16109,7 @@ function initControls() {
         const b = eventClosest(e, 'button');
         if (!b || srtPendingSaveProtected())
             return;
-        SR.modeSel = b.dataset.v ?? SR.modeSel;
-        wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-        srStopAll();
-        byId('rd-verdict').textContent = '';
+        srSetMode(b.dataset.v ?? SR.modeSel);
     });
     byId('rd-names').addEventListener('change', (e) => {
         if (srtPendingSaveProtected()) {

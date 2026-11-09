@@ -49,10 +49,13 @@ test.describe('Sight-Reading v3 MVP', () => {
   test('renders result symbols and titles without relying on colour', async ({ app }) => {
     const page = await openAssessGenerator(app);
     const result = await page.evaluate(() => {
+      const api = window.__etude;
+      api.SR.srtState = { name: 'idle', mode: 'practice', attemptId: null, fingerprint: api.SR.srtFingerprint };
+      api.srDraw();
       const note = window.__etude.SR.notes[0];
-      window.__etude.SR.results = { [note.nid]: 'good' };
-      window.__etude.SR.wrongExtra = 1;
-      window.__etude.srPaintAll();
+      api.SR.results = { [note.nid]: 'good' };
+      api.SR.wrongExtra = 1;
+      api.srPaintAll();
       return {
         symbol: document.querySelector('.ss-result-symbol')?.textContent,
         title: document.querySelector('.ss-n title')?.textContent,

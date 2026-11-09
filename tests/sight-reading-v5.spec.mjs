@@ -102,6 +102,12 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
 
   test('completes first-sight preview, count-in, playing, save, and practice transition', async ({ app }) => {
     const page = await openAssessGenerator(app);
+    const pinGeneratedPiece = () => page.evaluate(() => {
+      const api = window.__etude;
+      api.RD.L = api.RD_LV.sr1;
+      api.rdSightStart('test', 12345);
+    });
+    await pinGeneratedPiece();
     await page.clock.install();
     await page.locator('#rd-go').click();
     await expect(page.locator('#rd-srt-preview')).toBeVisible();
@@ -123,6 +129,7 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
     await page.locator('#rdt-pieces').click();
     await page.locator('#rd-mode button[data-v="assess"]').click();
     await page.locator('#rd-gen').click();
+    await pinGeneratedPiece();
     await page.locator('#rd-go').click();
     await expect(page.locator('#rd-srt-preview')).toBeHidden();
     expect(await page.evaluate(() => window.__etude.SR.srtState.mode)).toBe('practice');
@@ -305,13 +312,15 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
         .some(attempt => attempt.status === 'interrupted'))).toBe(true);
   });
 
-  test('hides saved note-name assistance during first sight and restores it for practice', async ({ app }) => {
+  test('conceals an unclaimed score and note-name assistance until first sight or practice', async ({ app }) => {
     const page = await openAssessGenerator(app);
     await page.locator('#rd-names').check();
     await page.locator('#rd-gen').click();
-    expect(await page.locator('.ss-syl').count()).toBeGreaterThan(0);
+    expect(await page.locator('#rd-staff .ss-n').count()).toBe(0);
+    expect(await page.locator('.ss-syl').count()).toBe(0);
     await page.locator('#rd-go').click();
     await expect(page.locator('#rd-srt-preview')).toBeVisible();
+    expect(await page.locator('#rd-staff .ss-n').count()).toBeGreaterThan(0);
     expect(await page.locator('.ss-syl').count()).toBe(0);
     await page.locator('#rd-srt-practice').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.mode)).toBe('practice');
@@ -576,6 +585,11 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
 
     await page.evaluate(() => window.__etude.srtLedgerUpdate(localStorage, { type: 'resetLedger' }));
     await page.locator('#rd-gen').click();
+    await page.evaluate(() => {
+      const api = window.__etude;
+      api.RD.L = api.RD_LV.sr1;
+      api.rdSightStart('test', 12345);
+    });
     await page.locator('#rd-go').click();
     await expect(page.locator('#rd-srt-preview')).toBeVisible();
     await page.reload();
@@ -583,6 +597,11 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
     await page.locator('#rdt-pieces').click();
     await page.locator('#rd-mode button[data-v="assess"]').click();
     await page.locator('#rd-gen').click();
+    await page.evaluate(() => {
+      const api = window.__etude;
+      api.RD.L = api.RD_LV.sr1;
+      api.rdSightStart('test', 12345);
+    });
     await expect.poll(() => page.evaluate(() => {
       const ledger = window.__etude.srtReadLedger(localStorage);
       return Object.values(ledger.attempts).some((entry) => entry.status === 'abandoned');
@@ -594,6 +613,11 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
 
   test('keeps the UI usable across viewport, language, theme, reduced-motion, and contrast matrices', async ({ app }) => {
     const page = await openAssessGenerator(app);
+    await page.evaluate(() => {
+      const api = window.__etude;
+      api.SR.srtState = { name: 'idle', mode: 'practice', attemptId: null, fingerprint: api.SR.srtFingerprint };
+      api.srDraw();
+    });
     for (const viewport of [{ width: 320, height: 700 }, { width: 390, height: 700 }, { width: 1024, height: 768 }, { width: 1920, height: 1080 }, { width: 640, height: 320 }]) {
       await page.setViewportSize(viewport);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
