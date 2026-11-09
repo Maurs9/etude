@@ -1,7 +1,7 @@
 {
   "goal_id": "sight-reading-v3-mvp",
   "status": "building",
-  "iteration": 15,
+  "iteration": 16,
   "builder_model": "GPT:5.6-Luna",
   "inspector_model": "GPT:5.6-Sol",
   "initial_sha": "a26497d263a31d1c0d74921a07ea4b8720d8af6c",
@@ -91,6 +91,11 @@
       "iteration": 15,
       "verdict": "FAIL",
       "summary": "Five browser-verified defects remain: eligible melodies can be studied without exposure, stale claims silently become practice, Retry hides saved results, and notices/badges mislead."
+    },
+    {
+      "iteration": 16,
+      "verdict": "FAIL",
+      "summary": "D15-1 through D15-5 and all gates pass, but Analysis consumes an unseen retained melody and a pre-attempt-lock Learn race reveals content without any durable ledger record."
     }
   ]
 }
