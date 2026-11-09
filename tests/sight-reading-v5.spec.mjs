@@ -16,11 +16,11 @@ async function startPracticeAssess(app) {
   await page.locator('#rd-go').click();
   await expect(page.locator('#rd-srt-preview')).toBeVisible();
   await page.locator('#rd-srt-practice').click();
+  await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name === 'countIn' && window.__etude.SR.srtState.mode === 'practice')).toBe(true);
   await page.clock.runFor(5000);
   await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('playing');
   return page;
 }
-
 function contrastRatio(foreground, background) {
   const parse = (value) => {
     const match = value.match(/rgba?\(([^)]+)\)/);
@@ -202,7 +202,7 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('interrupted');
-    expect(await page.evaluate(() => {
+    await expect.poll(() => page.evaluate(() => {
       const ledger = window.__etude.srtReadLedger(localStorage);
       return Object.values(ledger.attempts).some((entry) => entry.status === 'interrupted') &&
         Object.values(ledger.exposures).every((entry) => !entry.claim);
@@ -568,7 +568,7 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
     await expect(page.locator('#rd-srt-preview')).toBeVisible();
     await page.locator('#rd-listen').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('interrupted');
-    expect(await page.evaluate(() => {
+    await expect.poll(() => page.evaluate(() => {
       const ledger = window.__etude.srtReadLedger(localStorage);
       return Object.values(ledger.attempts).some((entry) => entry.status === 'interrupted') &&
         Object.values(ledger.exposures).every((entry) => !entry.claim);
