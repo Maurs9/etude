@@ -21,6 +21,7 @@ const LOCALES = [
     navLearn: 'Learn',
     navPractice: 'Practice',
     navExplore: 'Explore',
+    navScores: 'Scores',
     unit1Title: 'Fundamentals',
     scaleMajor: 'Major (Ionian)',
     accentsSample: 'pitch & phrasing',
@@ -36,6 +37,7 @@ const LOCALES = [
     navLearn: 'Învață',
     navPractice: 'Exersează',
     navExplore: 'Explorează',
+    navScores: 'Partituri',
     unit1Title: 'Fundamente',
     scaleMajor: 'Majoră (ioniană)',
     accentsSample: 'Înălțimea și claviatura',
@@ -51,6 +53,7 @@ const LOCALES = [
     navLearn: 'Aprender',
     navPractice: 'Practicar',
     navExplore: 'Explorar',
+    navScores: 'Partituras',
     unit1Title: 'Fundamentos',
     scaleMajor: 'Mayor (jónica)',
     accentsSample: 'Las sesiones cortas y espaciadas',
@@ -66,6 +69,7 @@ const LOCALES = [
     navLearn: 'Apprendre',
     navPractice: 'Pratiquer',
     navExplore: 'Explorer',
+    navScores: 'Partitions',
     unit1Title: /Fondamentaux|bases/i,
     scaleMajor: 'Majeure (ionienne)',
     accentsSample: 'séances courtes et espacées',
@@ -81,6 +85,7 @@ const LOCALES = [
     navLearn: 'Lernen',
     navPractice: 'Üben',
     navExplore: 'Entdecken',
+    navScores: 'Partituren',
     unit1Title: 'Grundlagen',
     scaleMajor: 'Dur (Ionisch)',
     accentsSample: 'Kurze, verteilte Einheiten',
@@ -96,6 +101,7 @@ const LOCALES = [
     navLearn: 'Impara',
     navPractice: 'Esercitati',
     navExplore: 'Esplora',
+    navScores: 'Spartiti',
     unit1Title: /fondamenti/i,
     scaleMajor: 'Maggiore (ionica)',
     accentsSample: 'Sessioni brevi e distanziate',
@@ -111,6 +117,7 @@ const LOCALES = [
     navLearn: 'Aprender',
     navPractice: 'Praticar',
     navExplore: 'Explorar',
+    navScores: 'Partituras',
     unit1Title: 'Fundamentos',
     scaleMajor: 'Maior (jônica)',
     accentsSample: 'Sessões curtas e espaçadas',
@@ -214,6 +221,7 @@ test.describe('Tier 1: Feature Coverage across All 7 Locales', () => {
       await expect(page.locator('#nav button[data-view="today"]')).toHaveText(loc.navToday);
       await expect(page.locator('#nav button[data-view="learn"]')).toHaveText(loc.navLearn);
       await expect(page.locator('#nav button[data-view="practice"]')).toHaveText(loc.navPractice);
+      await expect(page.locator('#nav button[data-view="analysis"]')).toHaveText(loc.navScores);
       await expect(page.locator('#nav button[data-view="explore"]')).toHaveText(loc.navExplore);
     }
   });

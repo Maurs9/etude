@@ -270,6 +270,7 @@ function applyI18n() {
     wakeUi();
     pwaUi();
     fsUi();
+    fitHeader();
 }
 function setLang(l: string|undefined) {
     if (!isRuntimeLanguage(l))
@@ -3642,6 +3643,20 @@ function openMobileMenu(fromPop = false) {
     const first = queryHtml(mm, '[aria-current="page"]') || mm.querySelector('button');
     first?.focus();
 }
+// Keeps the header on one line whatever the language or MIDI device name: while the settings button is pushed past the
+// bar's padding, first drop the tagline, then fold the section tabs into the menu (as below the 840px breakpoint).
+function fitHeader() {
+    const bar = byId('nav').parentElement, end = byId('settingsBtn');
+    if (!bar)
+        return;
+    const fits = () => end.getBoundingClientRect().right <= bar.getBoundingClientRect().right - parseFloat(getComputedStyle(bar).paddingRight) + 0.5;
+    bar.classList.remove('hdr-notag', 'hdr-fold');
+    for (const step of ['hdr-notag', 'hdr-fold']) {
+        if (fits())
+            return;
+        bar.classList.add(step);
+    }
+}
 function renderModeNav() {
     const group = navGroup(view0()), views: readonly string[] = group ? NAV_GROUPS[group] : [];
     byId('modeBar').hidden = views.length < 2;
@@ -3719,7 +3734,8 @@ let show = function show(v: string|undefined, moveFocus = true) {
         rdAbort();
     }
     (document).querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + v));
-    queryAllHtml(document, '#nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.view === navGroup(v) ? 'page' : 'false'));
+    const group = navGroup(v);
+    queryAllHtml(document, '#nav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === group ? 'page' : 'false'));
     dockSync();
     if (dockShown())
         reflowKeys(); // reposition once the dock is laid out
@@ -16189,6 +16205,12 @@ function initControls() {
     });
     document.addEventListener('click', (e) => { const mm = byId('mobileMenu'), el = eventElement(e); if (mm && !mm.hidden && el && !el.closest('#mobileMenu') && !el.closest('#menuBtn'))
         closeMobileMenu(); });
+    // Refit when the bar's width or the MIDI chip's label changes, or a web font lands; fitHeader never resizes either.
+    const headerFit = new ResizeObserver(fitHeader), hdrBar = byId('nav').parentElement;
+    if (hdrBar)
+        headerFit.observe(hdrBar);
+    headerFit.observe(byId('midiChip'));
+    document.fonts.addEventListener('loadingdone', fitHeader);
     // backup export / import
     byId('exportBtn').addEventListener('click', () => {
         saveAll();
