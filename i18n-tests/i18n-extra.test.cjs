@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '..');
 
 function englishStrings() {
   const module = fs.readFileSync(path.join(root, 'src', 'locales', 'index.js'), 'utf8');
-  const match = module.match(/export const STRINGS = (\{[\s\S]*?\});\n\n\/\* Generated/);
+  const match = module.match(/export const STRINGS = (\{[\s\S]*?\});\r?\n\r?\n\/\* Generated/);
   assert.ok(match, 'static locale module must expose STRINGS');
   const context = {};
   vm.runInNewContext(`STRINGS=${match[1]}`, context);

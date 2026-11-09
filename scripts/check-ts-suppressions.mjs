@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
 
 const root = process.env.TS_SOURCE_ROOT
-  ? pathToFileURL(`${process.env.TS_SOURCE_ROOT.replace(/\/?$/, '/')}`)
+  ? pathToFileURL(`${process.env.TS_SOURCE_ROOT.replace(/[\\/]?$/, '/')}`)
   : new URL('../src/', import.meta.url);
 const scanAllJavaScript = Boolean(process.env.TS_SOURCE_ROOT);
 const failures = [];
@@ -52,13 +52,13 @@ async function rejectIndirectAnyTypes() {
   });
   const checker = program.getTypeChecker();
   for (const diagnostic of program.getSemanticDiagnostics()) {
-    if (!diagnostic.file || !diagnostic.file.fileName.startsWith(fileURLToPath(root))) continue;
+    if (!diagnostic.file || !diagnostic.file.fileName.replaceAll('\\', '/').startsWith(fileURLToPath(root).replaceAll('\\', '/'))) continue;
     const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start ?? 0);
     const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
     failures.push(`${diagnostic.file.fileName}:${position.line + 1}:${position.character + 1}: TypeScript diagnostic: ${message}`);
   }
   for (const sourceFile of program.getSourceFiles()) {
-    if (sourceFile.isDeclarationFile || !sourceFile.fileName.startsWith(fileURLToPath(root))) continue;
+    if (sourceFile.isDeclarationFile || !sourceFile.fileName.replaceAll('\\', '/').startsWith(fileURLToPath(root).replaceAll('\\', '/'))) continue;
     const visitNode = node => {
       if (node.type && ts.isTypeNode(node.type)) {
         const type = checker.getTypeAtLocation(node.type);

@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 const PORT = 8787;
-const DEV_SERVER = !!process.env.ETUDE_DEV_SERVER;
+const DEV_SERVER = !!process.env.ETUDE_DEV_SERVER || process.env.npm_lifecycle_event === 'test:dev';
 
 export default defineConfig({
   testDir: 'tests',
