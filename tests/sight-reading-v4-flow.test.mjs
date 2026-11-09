@@ -38,7 +38,7 @@ describe('sight-reading iteration 4 state transitions', () => {
     pending = srtTransition(pending, { type: 'saveFailed' });
     expect(pending.name).toBe('pendingSave');
     expect(srtTransition(pending, { type: 'continueWithoutSave' }).name).toBe('abandoned');
-    expect(srtTransition(pending, { type: 'interrupt' }).name).toBe('interrupted');
+    expect(srtTransition(pending, { type: 'interrupt' })).toEqual(pending);
     expect(srtTransition(pending, { type: 'startNow' })).toEqual(pending);
   });
 

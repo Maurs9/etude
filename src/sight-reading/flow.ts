@@ -47,11 +47,13 @@ export function srtTransition(state: SightReadingState, event: SightReadingEvent
       if (event.type === 'claim' && state.mode === 'firstSight') return { ...state, name: 'claiming' };
       if (event.type === 'startPreview' && state.mode === 'practice') return { ...state, name: 'countIn' };
       if (event.type === 'blocked') return { ...state, name: 'blocked', reason: event.reason };
+      if (event.type === 'abandon') return { ...state, name: 'abandoned' };
       if (event.type === 'interrupt') return { ...state, name: 'interrupted' };
       return state;
     case 'claiming':
       if (event.type === 'claimed') return { ...state, name: 'preview' };
       if (event.type === 'blocked') return { ...state, name: 'blocked', reason: event.reason };
+      if (event.type === 'abandon') return { ...state, name: 'abandoned' };
       if (event.type === 'interrupt') return { ...state, name: 'interrupted' };
       return state;
     case 'preview':
@@ -62,6 +64,7 @@ export function srtTransition(state: SightReadingState, event: SightReadingEvent
       return state;
     case 'countIn':
       if (event.type === 'countInDone') return { ...state, name: 'playing' };
+      if (event.type === 'abandon') return { ...state, name: 'abandoned' };
       if (event.type === 'interrupt') return { ...state, name: 'interrupted' };
       return state;
     case 'playing':
@@ -71,12 +74,10 @@ export function srtTransition(state: SightReadingState, event: SightReadingEvent
     case 'completed':
       if (event.type === 'saved') return { ...state, name: 'saved' };
       if (event.type === 'saveFailed') return { ...state, name: 'pendingSave' };
-      if (event.type === 'interrupt') return { ...state, name: 'interrupted' };
       return state;
     case 'pendingSave':
       if (event.type === 'saved' || event.type === 'retrySave') return { ...state, name: event.type === 'saved' ? 'saved' : 'completed' };
       if (event.type === 'continueWithoutSave' || event.type === 'abandon') return { ...state, name: 'abandoned' };
-      if (event.type === 'interrupt') return { ...state, name: 'interrupted' };
       return state;
     default:
       return state;

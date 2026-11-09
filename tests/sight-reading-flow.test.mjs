@@ -21,29 +21,31 @@ describe('sight-reading state machine', () => {
     ['idle', { type: 'prepare' }, 'preparing'],
     ['preparing:firstSight', { type: 'claim' }, 'claiming'],
     ['preparing:firstSight', { type: 'blocked', reason: 'unsupported' }, 'blocked'],
+    ['preparing:firstSight', { type: 'abandon' }, 'abandoned'],
     ['preparing:firstSight', { type: 'interrupt' }, 'interrupted'],
     ['preparing:practice', { type: 'startPreview' }, 'countIn'],
     ['preparing:practice', { type: 'blocked', reason: 'unsupported' }, 'blocked'],
+    ['preparing:practice', { type: 'abandon' }, 'abandoned'],
     ['preparing:practice', { type: 'interrupt' }, 'interrupted'],
     ['claiming', { type: 'claimed' }, 'preview'],
     ['claiming', { type: 'blocked', reason: 'already_exposed' }, 'blocked'],
+    ['claiming', { type: 'abandon' }, 'abandoned'],
     ['claiming', { type: 'interrupt' }, 'interrupted'],
     ['preview', { type: 'startNow' }, 'countIn'],
     ['preview', { type: 'switchToPractice' }, 'preparing'],
     ['preview', { type: 'abandon' }, 'abandoned'],
     ['preview', { type: 'interrupt' }, 'interrupted'],
     ['countIn', { type: 'countInDone' }, 'playing'],
+    ['countIn', { type: 'abandon' }, 'abandoned'],
     ['countIn', { type: 'interrupt' }, 'interrupted'],
     ['playing', { type: 'finish' }, 'completed'],
     ['playing', { type: 'interrupt' }, 'interrupted'],
     ['completed', { type: 'saved' }, 'saved'],
     ['completed', { type: 'saveFailed' }, 'pendingSave'],
-    ['completed', { type: 'interrupt' }, 'interrupted'],
     ['pendingSave', { type: 'saved' }, 'saved'],
     ['pendingSave', { type: 'retrySave' }, 'completed'],
     ['pendingSave', { type: 'continueWithoutSave' }, 'abandoned'],
     ['pendingSave', { type: 'abandon' }, 'abandoned'],
-    ['pendingSave', { type: 'interrupt' }, 'interrupted'],
   ];
 
   function stateFor(source) {
@@ -111,6 +113,7 @@ describe('sight-reading state machine', () => {
     expect(state.name).toBe('pendingSave');
     expect(srtTransition(state, { type: 'retrySave' }).name).toBe('completed');
     expect(srtTransition(state, { type: 'continueWithoutSave' }).name).toBe('abandoned');
+    expect(srtTransition(state, { type: 'interrupt' })).toEqual(state);
   });
 });
 
