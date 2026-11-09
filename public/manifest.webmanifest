@@ -8,6 +8,7 @@
   "start_url": "./etude.html",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["fullscreen", "window-controls-overlay", "standalone"],
   "orientation": "any",
   "background_color": "#f7f3ec",
   "theme_color": "#f7f3ec",

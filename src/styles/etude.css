@@ -59,7 +59,7 @@
   .num{font-variant-numeric:tabular-nums}
   a{color:var(--accent)}
   button{font-family:inherit}
-  .wrap{width:100%; max-width:var(--page-max); margin:0 auto; padding-inline:var(--page-gutter)}
+  .wrap{width:100%; max-width:var(--page-max); margin:0 auto; padding-left:max(var(--page-gutter), env(safe-area-inset-left, 0px)); padding-right:max(var(--page-gutter), env(safe-area-inset-right, 0px))}
   /* Give interactive workspaces more room without stretching reading-heavy pages. */
   header .bar,header .hdr-note .wrap,main > .wrap,#view-today > .wrap,#view-practice > .wrap,
   #view-read > .wrap,#view-explore > .wrap,#dock > .wrap{max-width:var(--work-max)}
@@ -1154,7 +1154,7 @@
   /* fitHeader() adds these while the header would overflow (long translations, MIDI device names) */
   .bar.hdr-notag .brand .tag{display:none}
   .bar.hdr-fold nav.tabs{display:none} .bar.hdr-fold .menu-btn{display:grid}
-  @media (max-width:680px){ .wrap{padding-inline:16px} .keys{height:126px} .white .lbl{font-size:8px; bottom:5px} .white .dg{bottom:20px} }
+  @media (max-width:680px){ .wrap{padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px))} .keys{height:126px} .white .lbl{font-size:8px; bottom:5px} .white .dg{bottom:20px} }
   @media (max-width:480px){ .dock-tools{flex-wrap:wrap; gap:6px} .dock-tools > span[style]{display:none} }
   /* ---- Reading drills (V3) ---- */
   .rdx-tabs{display:flex; gap:4px; flex-wrap:wrap; margin:18px 0 14px; border-bottom:1px solid var(--line)}
@@ -1315,22 +1315,25 @@
   .set-btns{display:inline-flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
   /* ---------- installed app / tablets: keep clear of notches, rounded corners and the gesture bar ---------- */
   header{padding-top:env(safe-area-inset-top,0px)}
-  body{padding-left:env(safe-area-inset-left,0px); padding-right:env(safe-area-inset-right,0px)}
-  .dock{padding-left:env(safe-area-inset-left,0px); padding-right:env(safe-area-inset-right,0px); padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
-  .dock.is-rail{padding-left:env(safe-area-inset-left,0px); padding-right:env(safe-area-inset-right,0px); padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}
+
+  .dock{padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  .dock.is-rail{padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}
   @media (display-mode: standalone), (display-mode: fullscreen){ body{overscroll-behavior-y:none} }
   /* ---------- piano music stand / compact landscape (phone & tablet on stand) ---------- */
   @media (orientation: landscape) and (max-height: 560px), (max-height: 480px){
     .bar{height:46px}
     .brand .mark{font-size:20px}
     .brand .tag{display:none}
-    .iconbtn{width:34px; height:34px; font-size:15px}
-    main{padding:12px 0 calc(var(--dock-h, 96px) + 16px)}
+    .iconbtn{width:36px; height:36px; font-size:15px; position:relative}
+    .iconbtn::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:44px; width:100%; height:100%}
+    main{padding:12px 0 calc(var(--dock-h, 96px) + 52px)}
     .dock:not(.is-rail){padding-top:4px; padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}
     .dock .wrap{gap:4px}
+    .dock .legend{display:none}
     .dock-tools{gap:8px; font-size:11px}
-    .dock-tools .btn{height:28px; padding:0 8px; font-size:11px}
-    .btn.dock-kb-toggle{height:28px; padding:0 8px; font-size:11.5px}
+    .dock-tools .btn{height:28px; padding:0 8px; font-size:11px; position:relative}
+    .btn.dock-kb-toggle{height:28px; padding:0 8px; font-size:11.5px; position:relative}
+    .dock-tools .btn::after, .btn.dock-kb-toggle::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:44px; width:100%; height:100%}
     .keys{height:76px}
     .white .lbl{font-size:7.5px; bottom:2px}
     .black{height:60%}
@@ -1342,8 +1345,13 @@
     .hero-top{padding:14px 18px}
     .stage{min-height:0; padding:12px 16px}
     .prompt{font-size:22px; margin:6px 0}
+    .tool, .plan-item, .focus{scroll-margin-top:calc(var(--hdr-h, 46px) + 10px)}
+    details.osmd-lic, footer{display:none}
   }
   /* ---------- foldables: dual-screen / tabletop posture ---------- */
+  @media (orientation: landscape) and (max-height: 560px) and (min-width: 700px){
+    .today-overview{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); align-items:start}
+  }
   @media (vertical-viewport-segments: 2){
     body.kb .dock{padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
     .keys{height:min(150px, 30dvh)}
