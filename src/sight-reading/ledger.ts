@@ -267,6 +267,7 @@ async function withLedgerLock<T>(callback: () => Promise<T>): Promise<T> {
 export function srtAcquireAttemptLease(attemptId: string): SightReadingAttemptLease | null {
   if (!hasWebLocks()) return null;
   let releaseLease: (() => void) | null = null;
+  let released = false;
   let markReady: (() => void) | null = null;
   const ready = new Promise<void>((resolve) => { markReady = resolve; });
   void navigator.locks.request(
@@ -275,12 +276,16 @@ export function srtAcquireAttemptLease(attemptId: string): SightReadingAttemptLe
     async () => new Promise<void>((resolve) => {
       markReady?.();
       releaseLease = resolve;
+      if (released) resolve();
     }),
   );
   return {
     attemptId,
     ready,
-    release: () => releaseLease?.(),
+    release: () => {
+      released = true;
+      releaseLease?.();
+    },
   };
 }
 

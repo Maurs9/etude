@@ -5764,6 +5764,7 @@ let srtRecorder: SightReadingRecorder | null = null;
 let srtOperationEpoch = 0;
 let srtCountInEpoch = 0;
 let srtCountInAttemptId: string | null = null;
+let srtClaimIssuedAttemptId: string | null = null;
 let srtPendingSelection: string | null = null;
 let srtPendingAbandonment: Promise<SightReadingLedgerResult> | null = null;
 type SrtAttemptCleanup = {
@@ -6449,6 +6450,8 @@ async function srtRetryPendingSave() {
     if (!srtOperationStillCurrent(epoch, state, attempt.attemptId)) {
         if (result.ok || srtAttemptStatus(attempt.attemptId)) {
             srtClearPendingAttempt(attempt.attemptId);
+            if (srtClaimIssuedAttemptId === attempt.attemptId)
+                srtClaimIssuedAttemptId = null;
             srtReleaseLease(lease);
         }
         else {
@@ -6461,6 +6464,8 @@ async function srtRetryPendingSave() {
             }, 'abandoned');
             if (cleanup.ok) {
                 srtClearPendingAttempt(attempt.attemptId);
+                if (srtClaimIssuedAttemptId === attempt.attemptId)
+                    srtClaimIssuedAttemptId = null;
                 srtReleaseLease(lease);
             }
         }
@@ -6493,6 +6498,17 @@ function srtAttemptId() {
 }
 async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned', transitionBeforeLedger = true) {
     const state = SR.srtState;
+    const preClaimAttempt = state?.mode === 'firstSight' &&
+        !!state.attemptId &&
+        (state.name === 'preparing' || state.name === 'claiming') &&
+        srtClaimIssuedAttemptId !== state.attemptId;
+    if (preClaimAttempt) {
+        const fingerprint = SR.srtFingerprint ?? null;
+        srtBeginOperation();
+        SR.srtPendingAttempt = null;
+        SR.srtState = { ...SRT_INITIAL_STATE, fingerprint };
+        return { ok: true, ledger: srtReadLedger(localStorage) } satisfies SightReadingLedgerResult;
+    }
     const attempt = srtCaptureAttempt(state);
     const lease = SR.srtLease ?? null;
     const operation = srtBeginOperation();
@@ -6507,6 +6523,8 @@ async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned'
         if (result.ok || terminalStatus) {
             if (attempt)
                 srtClearPendingAttempt(attempt.attemptId);
+            if (attempt && srtClaimIssuedAttemptId === attempt.attemptId)
+                srtClaimIssuedAttemptId = null;
             srtReleaseLease(lease);
         }
         return result;
@@ -6522,6 +6540,8 @@ async function srtAbandonClaim(status: 'abandoned' | 'interrupted' = 'abandoned'
     if (result.ok || terminalStatus) {
         if (attempt)
             srtClearPendingAttempt(attempt.attemptId);
+        if (attempt && srtClaimIssuedAttemptId === attempt.attemptId)
+            srtClaimIssuedAttemptId = null;
         srtReleaseLease(lease);
         if (state?.name === 'pendingSave') {
             srtPendingUi(false);
@@ -6617,12 +6637,14 @@ async function srtStartFirstSight() {
         return;
     }
     SR.srtLease = lease;
+    srtClaimIssuedAttemptId = null;
     await lease.ready;
     const claimingState = SR.srtState;
     if (!srtOperationStillCurrent(operation, claimingState, attemptId)) {
         srtReleaseLease(lease);
         return;
     }
+    srtClaimIssuedAttemptId = attemptId;
     const result = await srtLedgerUpdate(localStorage, {
         type: 'claimExposure',
         fingerprint: SR.srtFingerprint,
@@ -6641,11 +6663,17 @@ async function srtStartFirstSight() {
             };
             const cancelledByNavigation = srtIsAbandoned() || SR.srtFingerprint !== claimedFingerprint;
             await srtEnsureAbandoned(cleanup, cancelledByNavigation ? 'abandoned' : 'interrupted');
+            if (srtClaimIssuedAttemptId === attemptId)
+                srtClaimIssuedAttemptId = null;
         }
+        else if (srtClaimIssuedAttemptId === attemptId)
+            srtClaimIssuedAttemptId = null;
         srtReleaseLease(lease);
         return;
     }
     if (!result.ok) {
+        if (srtClaimIssuedAttemptId === attemptId)
+            srtClaimIssuedAttemptId = null;
         srtReleaseLease(lease);
         const retryable = result.reason === 'stale_generation' || result.reason === 'conflict' || result.reason === 'owner_mismatch';
         if (retryable) {
@@ -6708,6 +6736,8 @@ async function srtSwitchToPractice() {
     if (!srtOperationStillCurrent(operation, SR.srtState, attempt?.attemptId ?? null)) {
         if (result.ok || terminalStatus) {
             srtClearPendingAttempt(attempt?.attemptId ?? '');
+            if (attempt && srtClaimIssuedAttemptId === attempt.attemptId)
+                srtClaimIssuedAttemptId = null;
             srtReleaseLease(attempt?.lease ?? null);
         }
         else
@@ -6717,6 +6747,8 @@ async function srtSwitchToPractice() {
     if (!result.ok && !terminalStatus) {
         srtReleaseLease(attempt?.lease ?? null);
         srtClearPendingAttempt(attempt?.attemptId ?? '');
+        if (attempt && srtClaimIssuedAttemptId === attempt.attemptId)
+            srtClaimIssuedAttemptId = null;
         srtStartPractice();
         srtNotice(srtLedgerFailureMessage(result.reason, 'practice-switch'));
         return;
@@ -6724,6 +6756,8 @@ async function srtSwitchToPractice() {
     if (!result.ok && terminalStatus === 'completed') {
         srtReleaseLease(attempt?.lease ?? null);
         srtClearPendingAttempt(attempt?.attemptId ?? '');
+        if (attempt && srtClaimIssuedAttemptId === attempt.attemptId)
+            srtClaimIssuedAttemptId = null;
         srtPendingUi(false);
         srtSetState({ type: 'saved' });
         srRenderAssessResult();
@@ -6865,6 +6899,8 @@ function srAssessFinish() {
             if (!srtOperationStillCurrent(saveOperation, completedState, attempt.attemptId)) {
                 if (result.ok || srtAttemptStatus(attempt.attemptId)) {
                     srtClearPendingAttempt(attempt.attemptId);
+                    if (srtClaimIssuedAttemptId === attempt.attemptId)
+                        srtClaimIssuedAttemptId = null;
                     srtReleaseLease(saveLease);
                 }
                 else {
@@ -6877,6 +6913,8 @@ function srAssessFinish() {
                     }, 'abandoned');
                     if (cleanup.ok) {
                         srtClearPendingAttempt(attempt.attemptId);
+                        if (srtClaimIssuedAttemptId === attempt.attemptId)
+                            srtClaimIssuedAttemptId = null;
                         srtReleaseLease(saveLease);
                     }
                 }
@@ -6885,6 +6923,8 @@ function srAssessFinish() {
             if (result.ok) {
                 srtSetState({ type: 'saved' });
                 srtClearPendingAttempt(attempt.attemptId);
+                if (srtClaimIssuedAttemptId === attempt.attemptId)
+                    srtClaimIssuedAttemptId = null;
                 srtReleaseLease(saveLease);
                 srtPendingUi(false);
             } else {
@@ -14213,12 +14253,12 @@ function anPractice() {
     }
     scoreStop();
     SR.excerpt = chk.piece;
+    fillPieces();
+    srSelectPiece(chk.piece.id);
     SR.modeSel = 'learn';
     SR.hands = 'both';
     [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.getAttribute('data-v') === 'learn' ? 'true' : 'false'));
     show('read');
-    fillPieces();
-    srSelectPiece(chk.piece.id);
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rd_excerpt_ready');
