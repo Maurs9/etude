@@ -1494,6 +1494,7 @@ const BLACK_NUDGE: Record<number, number> = { 1: -.28, 3: .28, 6: -.30, 8: 0, 10
 function viewHigh() { return view.low + view.oct * 12; }
 function chooseView() { const w = window.innerWidth; view.oct = w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
 function buildKeyboard() {
+    rdDockView();
     clampTypeOctave();
     const keys = byId('keys');
     if (!keys)
@@ -1573,6 +1574,7 @@ function buildKeyboard() {
     if (oi)
         oi.textContent = noteName(view.low, false) + '–' + noteName(viewHigh(), false);
     kbDegrees(kbDegSrc);
+    rdDockPaint();
     if (view0() === 'analysis')
         anKeysPaint(true);
     cofPaintDock();
@@ -1604,6 +1606,10 @@ function kbDegrees(src: Map<number,string>|null) {
 function positionBlacks() { blackEl.forEach((el, bm) => { const w = whiteEl.get(bm - 1); if (!w || !w.offsetWidth)
     return; const bw = w.offsetWidth * .62, seam = w.offsetLeft + w.offsetWidth, n = (BLACK_NUDGE[pc(bm)] || 0) * bw; el.style.width = bw + 'px'; el.style.left = (seam - bw / 2 + n) + 'px'; }); syncKeyboardPan(); }
 function syncKeyboardPan() { const scroll = byId('dock-keys'), pan = inputById('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
+// On narrow screens the keys scroll sideways: bring a key into sight, unless focus is on the keys (the focused key stays in sight then).
+function dockKeyInSight(m: number) { const key = keyEl.get(m), scroll = byId('dock-keys'); if (!key || !dockShown() || byId('keys').contains(document.activeElement))
+    return; const r = key.getBoundingClientRect(), s = scroll.getBoundingClientRect(); if (r.left < s.left || r.right > s.right)
+    scroll.scrollLeft += (r.left + r.right - s.left - s.right) / 2; }
 function reflowKeys() { requestAnimationFrame(() => requestAnimationFrame(positionBlacks)); setTimeout(positionBlacks, 90); } // wait for the dock to lay out before measuring
 function foldToView(m: number) { const lo = view.low, hi = viewHigh(); let x = m; while (x < lo)
     x += 12; while (x > hi)
@@ -1677,11 +1683,14 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    Hiding only hides the on-screen keys: MIDI and the computer keys keep playing, and the rail keeps one Show keyboard button.
    Without a choice the keys are open, except in Score & analysis on small screens, where the score needs the room; that default
    is settled once per visit, so resizing the window never flips the keyboard (or what its buttons do) behind the user's back.
-   Falling notes draw their own keyboard, so that view shows neither the dock nor the rail and leaves the choice untouched. */
-interface KeyboardDockState { pref: boolean|null; auto: null; animT: number }
-const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0 };
+   Falling notes draw their own keyboard, so that view shows neither the dock nor the rail and leaves the choice untouched.
+   A reading drill that asks its question on the keys (`force`) opens them while it runs, without changing the saved choice. */
+interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
+const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
 function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
-function dockOpen(v = view0()) { if (DOCK.pref != null)
+function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
+function dockOpen(v = view0()) { if (dockForced(v))
+    return true; if (DOCK.pref != null)
     return DOCK.pref; return false; }
 function dockShown() { return document.body.classList.contains('kb') && !byId('dock').classList.contains('is-rail'); }
 // The dock's own button names the action it takes (Hide / Show keyboard).
@@ -1695,7 +1704,7 @@ function dockLabels() {
 function dockSync() {
     const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
     dock.classList.toggle('compact', v === 'analysis');
-    byId('dock-kb-toggle').hidden = !on;
+    byId('dock-kb-toggle').hidden = !on || dockForced(v); // a drill asking on the keys keeps them: Hide would do nothing
     dockLabels();
     if (on === was && open === wasOpen)
         return;
@@ -7694,50 +7703,75 @@ function rdQSvg(q: ReadQuestion, extra?: ReadDrillStaffNote | null) {
         col.push(extra);
     return rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, keyN: q.keyN, cols: [col], colW: 100, lbl: q.lbl ? [q.lbl] : null }).svg;
 }
-function rdKbRange(q: ReadQuestionNote) {
-    const L = RD.L;
-    if (!L)
-        throw new Error('Étude: no reading level');
-    let lo = L.lo ? rdMidi(rdP(L.lo)) : 48, hi = L.hi ? rdMidi(rdP(L.hi)) : 71;
-    lo = Math.min(lo, q.midi);
-    hi = Math.max(hi, q.midi);
-    return [lo - pc(lo), hi + (11 - pc(hi))];
-}
-function rdMiniKb(lo: number, hi: number, mark: number | null) {
-    const whites: number[] = [];
-    for (let m = lo; m <= hi; m++)
-        if (![1, 3, 6, 8, 10].includes(pc(m)))
-            whites.push(m);
-    const ww = 100 / whites.length;
-    let w = '', bk = '';
-    whites.forEach((m, i) => {
-        w += `<span class="rdx-w" data-m="${m}" style="left:${(i * ww).toFixed(3)}%;width:${ww.toFixed(3)}%"${m === mark ? ' data-s="target"' : ''}>${pc(m) === 0 ? `<i>${rdLetter(0)}${Math.floor(m / 12) - 1}</i>` : ''}</span>`;
-        if ([0, 2, 5, 7, 9].includes(pc(m)) && m + 1 <= hi)
-            bk += `<span class="rdx-b" data-m="${m + 1}" style="left:${((i + 1) * ww - ww * 0.3).toFixed(3)}%;width:${(ww * 0.6).toFixed(3)}%"${m + 1 === mark ? ' data-s="target"' : ''}></span>`;
-    });
-    return `<div class="rdx-kb" id="rdx-kb" aria-hidden="true">${w}${bk}</div>`;
-}
-function rdKbMark(m: number, s?: string) { const el = (document).querySelector('#rdx-kb [data-m="' + m + '"]'); if (el instanceof HTMLElement) {
-    if (s)
-        el.dataset.s = s;
-    else
-        delete el.dataset.s;
-} }
-// Play drills answer on the dock keyboard, so their marks go there (folded into its octaves). Only keys marked here are cleared again,
-// and a wrong key never hides the mark of the right one when both fold onto the same key.
-const rdDockKeys = new Set<number>();
-function rdDockMark(m: number, s: 'target' | 'good' | 'bad') {
-    if (s === 'bad' && [...rdDockKeys].some((k) => foldToView(k) === foldToView(m)))
+// Reading drills mark the dock keyboard. Play drills fold their marks into its octaves; key-to-staff marks stay on the exact key (`exact`),
+// since there the octave is part of the question. Only keys marked here are cleared again, a rebuilt keyboard gets them back, and a
+// wrong key never hides the mark of the right one when both land on the same key.
+type ReadDockMark = 'target' | 'good' | 'bad';
+const rdDockKeys = new Map<number, { s: ReadDockMark; exact: boolean }>();
+function rdDockAt(m: number, exact: boolean) { return exact ? m : foldToView(m); }
+function rdDockMark(m: number, s: ReadDockMark, exact = false) {
+    if (s === 'bad' && [...rdDockKeys].some(([k, d]) => rdDockAt(k, d.exact) === rdDockAt(m, exact)))
         return;
-    rdDockKeys.add(m);
-    kbState(m, s, true);
+    rdDockKeys.set(m, { s, exact });
+    kbState(m, s, !exact);
+}
+function rdDockPaint() {
+    const marked = new Set<number>();
+    let ask: number | null = null;
+    for (const [m, d] of rdDockKeys) {
+        const at = rdDockAt(m, d.exact);
+        if (d.s === 'bad' && marked.has(at))
+            continue;
+        marked.add(at);
+        kbState(m, d.s, !d.exact);
+        if (d.exact && d.s !== 'bad' && ask == null)
+            ask = m;
+    }
+    if (ask != null)
+        dockKeyInSight(ask);
 }
 function rdDockClear() {
     if (!rdDockKeys.size)
         return;
-    rdDockKeys.forEach((m) => kbState(m, null, true));
+    rdDockKeys.forEach((d, m) => kbState(m, null, !d.exact));
     rdDockKeys.clear();
     repaintHeld();
+}
+// While a key-to-staff question is up, the keys keep its key (and the level's whole range when that fits, so they rarely move):
+// shifting octaves or resizing never takes the question off the keyboard.
+function rdDockView() {
+    const q = RD.q, L = RD.L;
+    if (!RD.on || !q || q.ty !== 'k2s' || !L)
+        return;
+    const span = view.oct * 12;
+    let a = q.midi, b = q.midi;
+    if (L.lo && L.hi) {
+        const lo = rdMidi(rdP(L.lo)), hi = rdMidi(rdP(L.hi));
+        if (hi - (lo - pc(lo)) <= span) {
+            a = Math.min(a, lo);
+            b = Math.max(b, hi);
+        }
+    }
+    let low = view.low;
+    if (a < low)
+        low = a - pc(a);
+    else if (b > low + span)
+        low = Math.ceil((b - span) / 12) * 12;
+    view.low = Math.max(BASE_LOW, Math.min(BASE_HIGH - span, low));
+}
+function rdDockForce(on: boolean) { if (DOCK.force === on)
+    return; DOCK.force = on; dockSync(); }
+// Key-to-staff asks on the dock: it opens for the drill, shows the key in its own octave, and lights it.
+function rdDockAsk(m: number) {
+    rdDockForce(true);
+    const low = view.low;
+    rdDockView();
+    if (view.low !== low) {
+        buildKeyboard();
+        repaintHeld();
+    }
+    rdDockMark(m, 'target', true);
+    dockKeyInSight(m);
 }
 interface ReadDrillButton { v: number | string; l?: string; html?: string; k?: string; s?: string; }
 function rdBtn(o: ReadDrillButton, i: number, cls?: string) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
@@ -7941,15 +7975,13 @@ function rdNext() {
     const q = RD.q = rdGen(RD.L);
     q.hinted = false;
     q.state = null;
-    let acc = '', ans = '', kb = '';
+    let acc = '', ans = '';
     if (q.ty === 'name') {
         if (q.needAcc)
             acc = rdAccSeg();
         ans = [0, 1, 2, 3, 4, 5, 6].map((li) => rdBtn({ v: li, l: rdLetter(li) }, li)).join('');
     }
     else if (q.ty === 'k2s') {
-        const r = rdKbRange(q);
-        kb = rdMiniKb(r[0], r[1], q.midi);
         const opts = q.opts;
         if (!opts)
             throw new Error('Étude: key-to-staff question without options');
@@ -7963,7 +7995,11 @@ function rdNext() {
         ans = btns.map((o, i) => rdBtn(o, i)).join('');
     }
     const pr = RD.mode === 'practice';
-    byId('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div>${kb}<div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${rdTools(q)}</div>`;
+    byId('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div><div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${rdTools(q)}</div>`;
+    if (q.ty === 'k2s')
+        rdDockAsk(q.midi);
+    else
+        rdDockForce(false);
     if (q.ty === 'k2s' && rdData().prefs.sound)
         rdSound(q.midis);
     if (pr && rdData().prefs.hints)
@@ -8075,10 +8111,10 @@ function rdFeedback(ok: boolean, g: ReadDrillGiven) {
     else if (g.btn === b)
         b.classList.add('wrong'); });
     if (q.ty === 'play' || q.ty === 'k2s') {
-        const mark = q.ty === 'play' ? rdDockMark : rdKbMark;
-        mark(q.midi, 'good');
+        const exact = q.ty === 'k2s';
+        rdDockMark(q.midi, 'good', exact);
         if (!ok && g.midi != null && g.midi !== q.midi)
-            mark(g.midi, 'bad');
+            rdDockMark(g.midi, 'bad', exact);
     }
     const f = byId('rdx-fb'), msg = ok ? (t('rdx_ok') + (RD.streak >= 3 ? '  🔥 ' + RD.streak : '')) : t('rdx_wrong', rdAnsText(q)) + (extra ? ' · ' + t('rdx_played', rdName(extra, true)) : '');
     f.className = 'rdx-fb ' + (ok ? 'good' : 'bad');
@@ -8910,6 +8946,7 @@ function rdClear() {
     catch (_) { } });
     RD.nodes = [];
     rdDockClear();
+    rdDockForce(false);
 }
 function rdAbort() { rdClear(); RD.on = false; }
 function rdEndClick() { if (RD.on && RD.mode === 'practice' && RD.n > 0)
@@ -17313,8 +17350,6 @@ Object.defineProperty(__etude, "rdHud", { configurable: true, get: () => rdHud }
 Object.defineProperty(__etude, "rdInput", { configurable: true, get: () => rdInput });
 Object.defineProperty(__etude, "rdIntro", { configurable: true, get: () => rdIntro });
 Object.defineProperty(__etude, "rdIvName", { configurable: true, get: () => rdIvName });
-Object.defineProperty(__etude, "rdKbMark", { configurable: true, get: () => rdKbMark });
-Object.defineProperty(__etude, "rdKbRange", { configurable: true, get: () => rdKbRange });
 Object.defineProperty(__etude, "rdKey", { configurable: true, get: () => rdKey });
 Object.defineProperty(__etude, "rdKeyLabel", { configurable: true, get: () => rdKeyLabel });
 Object.defineProperty(__etude, "rdKeyMinor", { configurable: true, get: () => rdKeyMinor });
@@ -17327,7 +17362,6 @@ Object.defineProperty(__etude, "rdLvNext", { configurable: true, get: () => rdLv
 Object.defineProperty(__etude, "rdLvPrev", { configurable: true, get: () => rdLvPrev });
 Object.defineProperty(__etude, "rdLvSub", { configurable: true, get: () => rdLvSub });
 Object.defineProperty(__etude, "rdMidi", { configurable: true, get: () => rdMidi });
-Object.defineProperty(__etude, "rdMiniKb", { configurable: true, get: () => rdMiniKb });
 Object.defineProperty(__etude, "rdName", { configurable: true, get: () => rdName });
 Object.defineProperty(__etude, "rdNext", { configurable: true, get: () => rdNext });
 Object.defineProperty(__etude, "rdNextRender", { configurable: true, get: () => rdNextRender });

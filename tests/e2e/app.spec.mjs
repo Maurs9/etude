@@ -1625,15 +1625,76 @@ test('valid persisted settings are preserved', async ({ app }) => {
   });
 });
 
-test('display-only reading keyboards remain hidden from assistive technology', async ({ app }) => {
-  const page = await app.open({ hash: 'read' });
-  await page.evaluate(() => {
-    const level = Object.values(window.__etude.RD_LV).find(level => level.ty === 'k2s');
-    window.__etude.rdOpen(level);
-    window.__etude.rdStart('practice');
+test.describe('reading drills: key to staff', () => {
+  const start = (page, clef) => page.evaluate(clef => {
+    const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'k2s' && l.clef === clef);
+    e.rdOpen(level);
+    e.rdStart('practice');
+    return e.RD.q.midi;
+  }, clef);
+  const question = page => page.evaluate(() => window.__etude.RD.q.midi);
+
+  test('the question lights a key on the big keyboard, which opens just for the drill', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    const midi = await start(page, 'treble');
+    await expect(page.locator('#rdx-kb')).toHaveCount(0);
+    await expect(page.locator('#dock')).not.toHaveClass(/\bis-rail\b/);
+    await expect(page.locator('#dock-kb-toggle')).toBeHidden();
+    await expect(page.locator('#keys [data-s="target"]')).toHaveCount(1);
+    await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'target');
+    await page.locator('#rdx-end').click();
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    await expect(page.locator('#dock-kb-toggle')).toBeVisible();
+    await expect(page.locator('#keys [data-s]')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__etude.DOCK.pref)).toBeNull();
   });
-  await expect(page.locator('#rdx-kb')).toHaveAttribute('aria-hidden', 'true');
-  await expect(page.locator('#rdx-kb button')).toHaveCount(0);
+
+  test('the keys show the drill in its own octaves, and moving them never loses the question', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await start(page, 'bass');
+    await expect(page.locator('#keys .key[data-midi="41"]')).toHaveCount(1); // F2, below the keys' usual C3
+    for (const button of ['#oct-up', '#oct-down', '#oct-down', '#oct-up', '#oct-up']) {
+      await page.locator(button).click();
+      await expect(page.locator(`#keys .key[data-midi="${await question(page)}"]`)).toHaveAttribute('data-s', 'target');
+    }
+  });
+
+  test('a wrong answer played on the piano marks the right key and the played one', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await start(page, 'treble');
+    const { midi, wrong } = await page.evaluate(() => {
+      const e = window.__etude, q = e.RD.q;
+      return { midi: q.midi, wrong: e.rdMidi(q.opts.find((o, i) => i !== q.ans).n) };
+    });
+    await page.evaluate(m => {
+      window.__etude.midiIn(0x90, m, 100, 'midi');
+      window.__etude.midiIn(0x80, m, 0, 'midi');
+    }, wrong);
+    await expect(page.locator(`#keys .key[data-midi="${midi}"]`)).toHaveAttribute('data-s', 'good');
+    await expect(page.locator(`#keys .key[data-midi="${wrong}"]`)).toHaveAttribute('data-s', 'bad');
+    await expect(page.locator('#rdx-ans .rdx-a.wrong')).toHaveCount(1);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('every question brings its key into sight, in its own octave', async ({ app }) => {
+      const page = await app.open({ hash: 'read' });
+      expect(await page.evaluate(() => window.__etude.view.oct)).toBe(2);
+      await start(page, 'grand');
+      for (let i = 0; i < 8; i++) {
+        const key = page.locator(`#keys .key[data-midi="${await question(page)}"]`);
+        await expect(key).toHaveAttribute('data-s', 'target');
+        await expect(page.locator('#keys [data-s]')).toHaveCount(1);
+        expect(await key.evaluate(k => {
+          const r = k.getBoundingClientRect(), s = document.getElementById('dock-keys').getBoundingClientRect();
+          return r.left >= s.left - 1 && r.right <= s.right + 1;
+        })).toBe(true);
+        await page.evaluate(() => window.__etude.rdNext());
+      }
+    });
+  });
 });
 
 test('play drills answer on the big keyboard, whose named keys support Enter', async ({ app }) => {

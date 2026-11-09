@@ -1240,14 +1240,6 @@
   .rdx-accs button{position:relative; font-size:19px; min-width:48px; padding:6px 14px}
   .rdx-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center}
   .rdx-kbd{font-size:12px; color:var(--faint)}
-  .rdx-kb{position:relative; width:min(100%,720px); height:96px; user-select:none; -webkit-user-select:none}
-  .rdx-w,.rdx-b{position:absolute; top:0; box-sizing:border-box}
-  .rdx-w{height:100%; background:linear-gradient(180deg,#ffffff 0%,#fcfbf9 35%,#f5eee1 80%,#ebe0ce 100%); border:1px solid #b8af9f; border-top:none; border-radius:0 0 4px 4px; box-shadow:inset 1px 0 0 rgba(255,255,255,.8), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -4px 6px -2px rgba(180,165,140,.3), 0 1px 3px rgba(0,0,0,.15)}
-  .rdx-w i{position:absolute; bottom:4px; left:0; right:0; font:600 9px var(--sans); color:#8c8475; font-style:normal; text-align:center}
-  .rdx-b{height:62%; background:linear-gradient(180deg,#36302a 0%,#24201c 45%,#181513 78%,#2a2520 92%,#141210 100%); border:1px solid #0d0b09; border-top:none; border-radius:0 0 3px 3px; z-index:1; box-shadow:inset 1px 1px 0 rgba(255,255,255,.16), inset -1px 0 0 rgba(0,0,0,.6), -1px 2px 4px rgba(0,0,0,.35), 1px 2px 4px rgba(0,0,0,.3), 0 3px 6px rgba(0,0,0,.3)}
-  .rdx-w[data-s=target],.rdx-b[data-s=target]{background:var(--gold)}
-  .rdx-w[data-s=good],.rdx-b[data-s=good]{background:#3c8f57}
-  .rdx-w[data-s=bad],.rdx-b[data-s=bad]{background:#b5532f}
   .rdx-modes{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; width:100%; max-width:720px}
   .rdx-mode{appearance:none; text-align:left; border:1px solid var(--line); border-radius:12px; background:var(--paper2); color:var(--ink); padding:14px; cursor:pointer; font:inherit; display:flex; flex-direction:column; gap:4px; transition:border-color .12s, transform .12s}
   .rdx-mode:hover{border-color:var(--accent); transform:translateY(-1px)}
@@ -1282,8 +1274,6 @@
   .rdx-bar-t{height:8px; border-radius:4px; background:var(--line); overflow:hidden}
   .rdx-bar-t i{display:block; height:100%; background:var(--good)}
   .rdx-bar em{font-style:normal; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums}
-  :root[data-theme=dark] .rdx-w{background:#e9e2d4; border-color:#0f0d0b}
-  :root[data-theme=dark] .rdx-b{background:#0f0d0b}
   @media (max-width:680px){
     .rdx-hero{grid-template-columns:1fr; gap:14px}
     .rdx-ladder{grid-template-columns:1fr}
@@ -1291,7 +1281,6 @@
     .rdx-tabs [role=tab]{padding:9px 9px 10px; font-size:13.5px; white-space:nowrap; flex:none}
     .rdx-a{min-width:44px; font-size:16px; padding:8px 10px}
     .rdx-ty-ch .rdx-a,.rdx-ty-ks .rdx-a{min-width:46%}
-    .rdx-kb{height:78px}
     .rdx-a kbd,.rdx-kbd{display:none}
     .rdx-bar{grid-template-columns:84px 1fr 78px}
   }
