@@ -9,6 +9,10 @@ import * as notationApi from './notation.js';
 import { scoreOctaveMark, scoreStructuralMarks } from './score-svg-markings.js';
 import { recognizeScoreMarkings, SCORE_MARKING_TERMS } from './score-markings.js';
 import { normalizeScoreDirectionGlyphs, renderScoreNoteParentheses } from './score-xml-markings.js';
+import { initScoreLibrary } from './score-library-ui.js';
+import * as scoreLibraryStore from './score-library-store.js';
+import '../styles/score-library.css';
+import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
 import * as router from './router.js';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml } from './dom.js';
 import type {
@@ -27,6 +31,8 @@ import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreate
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible } from '../sight-reading/stream.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
+
+let scoreLibrary: LibraryController | null = null;
 
 function runtimeErrorName(value: unknown): string {
   return value instanceof Error ? value.name : '';
@@ -275,6 +281,7 @@ function applyI18n() {
     wakeUi();
     pwaUi();
     fsUi();
+    scoreLibrary?.localize();
     fitHeader();
 }
 function setLang(l: string|undefined) {
@@ -3725,6 +3732,9 @@ let show = function show(v: string|undefined, moveFocus = true) {
         saveSoon();
     }
     if (prev === 'analysis' && v !== prev) {
+        anLibraryNavigationResume = anLibraryCapture();
+        anLibrarySuspended = true;
+        void anLibraryFlush(false).catch(() => {});
         scoreStop();
         anKeysClear();
         anSheet(false, true);
@@ -3765,8 +3775,13 @@ let show = function show(v: string|undefined, moveFocus = true) {
         updateExplore();
         cofPaintDock();
     }
-    if (v === 'analysis')
+    if (v === 'analysis') {
+        if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
+            anLibraryRestoreResume(anLibraryNavigationResume);
+        anLibraryNavigationResume = null;
+        anLibrarySuspended = false;
         anDraw();
+    }
     if (v === 'learn')
         renderLearn();
     if (v === 'read')
@@ -10027,6 +10042,132 @@ interface AnState {
 const AN: AnState = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
 const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000, AN_PRACTICE_BARS = 32, AN_EXAMPLES = ['minuet', 'elise', 'ode', 'twinkle', 'jingle'];
+// Library records own original bytes; parsed/engraved objects remain disposable runtime state.
+let anLibraryActive: { id: string; source: AnSource } | null = null;
+let anLibrarySuspended = false;
+let anLibraryNavigationResume: LibraryResume | null = null;
+let anLibraryTimer: ReturnType<typeof setTimeout> | undefined;
+let anLibrarySaving = 0;
+let anLibraryWrites: Promise<void> = Promise.resolve();
+const anLibraryDirty = new Map<string, LibraryResume>();
+const anLibrarySaved = new Map<string, string>();
+function anLibraryCapture(): LibraryResume | null {
+    const active = anLibraryActive;
+    if (!active || active.source !== AN.source || anLibrarySuspended || AN.loading || !AN.notes.length)
+        return null;
+    const position = Math.max(0, Math.min(fallEnd(), fallTime()));
+    const resume: LibraryResume = {
+        position, measure: String(anMeasureAt(scoreBeatAt(position)).number),
+        speed: +(selectById('score-speed').value || 100),
+        hands: PRAC.hands === 'rh' ? 'rh' : PRAC.hands === 'lh' ? 'lh' : 'both',
+        wait: PRAC.wait, metronome: PRAC.metro,
+        view: FALL.mode === 'fall' ? 'fall' : SCORE.layout === 'cont' ? 'cont' : 'page',
+        look: SCORE.look === 'night' ? 'night' : 'paper', zoom: anZoomNow(),
+    };
+    if (anLibraryDirty.has(active.id) || anLibrarySaved.get(active.id) !== JSON.stringify(resume))
+        anLibraryDirty.set(active.id, resume);
+    return resume;
+}
+function anLibrarySchedule() {
+    anLibraryCapture();
+    if (!anLibraryDirty.size)
+        return;
+    clearTimeout(anLibraryTimer);
+    anLibraryTimer = setTimeout(() => { void anLibraryFlush().catch(() => {}); }, 350);
+}
+async function anLibraryFlush(capture = true): Promise<void> {
+    clearTimeout(anLibraryTimer);
+    if (capture)
+        anLibraryCapture();
+    const pending = [...anLibraryDirty];
+    const operation = anLibraryWrites.then(async () => {
+        for (const [id, resume] of pending) {
+            const item = await scoreLibraryStore.libraryUpdate(id, { resume });
+            // A score deleted in this or another tab must never be recreated by a delayed checkpoint.
+            if (anLibraryDirty.get(id) === resume)
+                anLibraryDirty.delete(id);
+            if (item)
+                anLibrarySaved.set(id, JSON.stringify(resume));
+            else if (anLibraryActive?.id === id)
+                anLibraryActive = null;
+        }
+    });
+    anLibraryWrites = operation.catch(() => {});
+    try {
+        await operation;
+        if (pending.length)
+            await scoreLibrary?.refresh();
+    }
+    catch (error) {
+        scoreLibrary?.notice('save_failed');
+        throw error;
+    }
+}
+function anLibraryDetach() {
+    anLibraryCapture();
+    void anLibraryFlush(false).catch(() => {});
+    anLibraryActive = null;
+    anLibrarySuspended = false;
+    anLibraryNavigationResume = null;
+}
+function anLibraryMetadata(source: AnSource): LibraryMetadata {
+    const document = source.kind === 'xml' ? new DOMParser().parseFromString(source.xml, 'application/xml') : null;
+    return { title: source.title, composer: document?.querySelector('identification > creator[type="composer"]')?.textContent?.trim() ?? '' };
+}
+async function anLibraryInspect(file: File): Promise<LibraryMetadata> {
+    if (!/\.(mid|midi|xml|musicxml|mxl)$/i.test(file.name) || !file.size || file.size > AN_MAX_BYTES)
+        throw anError('type');
+    const title = file.name.replace(/\.[^.]+$/, '');
+    if (/\.(mxl|xml|musicxml)$/i.test(file.name))
+        return anLibraryMetadata(await anReadXml(file, title));
+    const parsed = anParse(await file.arrayBuffer());
+    if (!parsed.notes.length || parsed.notes.length > AN_MAX_NOTES)
+        throw anError('midi');
+    return { title, composer: '' };
+}
+function anLibraryRestoreResume(resume: LibraryResume) {
+    selectById('score-speed').value = String(resume.speed);
+    pracSet('hands', resume.hands);
+    pracSet('wait', resume.wait);
+    pracSet('metro', resume.metronome);
+    scoreSetView(resume.view);
+    scoreSetLook(resume.look);
+    scoreZoom(resume.zoom);
+    FALL.position = Math.max(0, Math.min(fallEnd(), resume.position));
+    scoreIdle();
+}
+async function anLibraryOpen(item: LibraryItem, file: File): Promise<boolean> {
+    return anOpenFile(file, item);
+}
+function anLibraryInit() {
+    scoreLibrary = initScoreLibrary(byId('score-library-root'), {
+        language: () => lang, inspect: anLibraryInspect, open: anLibraryOpen, flush: () => anLibraryFlush(),
+    });
+    document.addEventListener('change', (event) => {
+        if (eventElement(event)?.closest('#an-toolbar,#an-recon,#an-pt,#fall-pop,#fall-seek'))
+            anLibrarySchedule();
+    });
+    document.addEventListener('pointerup', (event) => {
+        if (eventElement(event)?.closest('#an-panel'))
+            anLibrarySchedule();
+    });
+    setInterval(() => {
+        if (anLibraryActive || anLibraryDirty.size)
+            void anLibraryFlush().catch(() => {});
+    }, 3000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden')
+            void anLibraryFlush().catch(() => {});
+    });
+    window.addEventListener('beforeunload', (event) => {
+        anLibraryCapture();
+        if (!anLibraryDirty.size && !anLibrarySaving)
+            return;
+        void anLibraryFlush(false).catch(() => {});
+        event.preventDefault();
+        event.returnValue = '';
+    });
+}
 function anError(code: string, detail?: string) { const e = Object.assign(new Error(detail || code), { code }); return e; }
 function tl(L: string, k: string, a?: string|number|null, b?: string|number|null) { const own = L === 'en' || L === 'ro' ? STRINGS[L] : undefined; let v = (own && own[k] != null) ? own[k] : STRINGS.en[k]; if (v == null)
     return k; if (a != null)
@@ -12487,7 +12628,7 @@ function scoreHalt() {
     SCORE.timers = [];
     stopPreviews();
 }
-function scoreIdle() { scoreStateText(); anUpdateControls(); anKeysPaint(); fallDraw(); scoreCursorUpdate(true); anStatusPos(); }
+function scoreIdle() { scoreStateText(); anUpdateControls(); anKeysPaint(); fallDraw(); scoreCursorUpdate(true); anStatusPos(); anLibrarySchedule(); }
 // Where Stop returns to: the start of the selected bars or notes, else the beginning.
 function anSelStart() {
     const g: ScoreGeometry | null = SCORE.geo, R: ScoreMeasureRange | null = SCORE.mrange, m = R && g && g.measures[R.a];
@@ -12561,6 +12702,7 @@ const PRAC_KEY = 'etude-practice-v3';
 function pracSave() { try {
     const { hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx } = PRAC;
     localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, zoom: FALL.zoom }));
+    anLibrarySchedule();
 }
 catch (e) { } }
 function pracLoad() {
@@ -13926,6 +14068,7 @@ function anReconUI() {
 }
 function anIndex() { AN.index = new Map(AN.notes.map((n, i) => [n, i])); AN.version++; AN.cache.clear(); AN.wsSig = ''; }
 function anReset() {
+    anLibraryDetach();
     scoreStop();
     anSheet(false, true);
     AN.notes = [];
@@ -14495,42 +14638,92 @@ function anXmlTidy(doc: Document, fallback: string) {
     return title;
 }
 // The single entry point for the file input and drag & drop.
-async function anOpenFile(file: File)  {
+async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolean> {
     if (!file)
-        return;
+        return false;
     const name = file.name || '';
-    if (!/\.(mid|midi|xml|musicxml|mxl)$/i.test(name))
-        return anShowError('an_err_type', name);
-    if (file.size > AN_MAX_BYTES)
-        return anShowError('an_err_size', name);
-    if (!file.size)
-        return anShowError('an_err_empty', name);
+    if (!/\.(mid|midi|xml|musicxml|mxl)$/i.test(name)) {
+        anShowError('an_err_type', name);
+        return false;
+    }
+    if (file.size > AN_MAX_BYTES) {
+        anShowError('an_err_size', name);
+        return false;
+    }
+    if (!file.size) {
+        anShowError('an_err_empty', name);
+        return false;
+    }
+    const previous = { source: AN.source, position: fallTime() };
+    anLibraryCapture();
+    const checkpoint = anLibraryFlush(false).catch(() => {});
     const token = ++AN.loadToken, title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
     anSetLoading(true, t('an_loading', name));
+    // Loading stops audio, but a rejected or superseded import must not erase the old cursor.
+    FALL.position = previous.position;
+    await checkpoint;
+    if (token !== AN.loadToken)
+        return false;
     let src: AnSource;
     try {
         src = kind === 'midi' ? { kind: 'midi', title, label: name, parsed: anParse(await file.arrayBuffer()) } : await anReadXml(file, title);
     }
     catch (err) {
         if (token !== AN.loadToken)
-            return;
+            return false;
         anSetLoading(false);
+        if (AN.source === previous.source) {
+            FALL.position = previous.position;
+            scoreIdle();
+        }
         anShowError(anErrorKey(err, kind));
-        return;
+        return false;
     }
     if (token !== AN.loadToken)
-        return;
+        return false;
     await anCommit(src, token);
+    if (token !== AN.loadToken || AN.source !== src || AN.error || !SCORE.engine)
+        return false;
+    anLibrarySaving++;
+    scoreLibrary?.notice('saving');
+    try {
+        // Reopening does not recreate a score deleted concurrently in another tab.
+        const item = libraryItem
+            ? await scoreLibraryStore.libraryUpdate(libraryItem.id, { lastOpenedAt: Date.now() })
+            : (await scoreLibraryStore.librarySave(file, anLibraryMetadata(src))).item;
+        if (item && token === AN.loadToken && AN.source === src) {
+            if (item.resume)
+                anLibraryRestoreResume(item.resume);
+            anLibraryActive = { id: item.id, source: src };
+            if (item.resume)
+                anLibrarySaved.set(item.id, JSON.stringify(item.resume));
+            if (!libraryItem)
+                await scoreLibraryStore.libraryUpdate(item.id, { lastOpenedAt: Date.now() });
+            anLibrarySchedule();
+            scoreLibrary?.notice('saved');
+        }
+        await scoreLibrary?.refresh();
+    }
+    catch (_) {
+        // File opening remains available even if this browser blocks storage or has no quota.
+        scoreLibrary?.notice('save_failed');
+    }
+    finally {
+        anLibrarySaving--;
+    }
+    return token === AN.loadToken && AN.source === src && !AN.error;
 }
 async function anLoadExample(id: string)  {
     const p = PIECES.find((x) => x.id === id);
     if (!p)
         return;
+    anLibraryDetach();
     const token = ++AN.loadToken;
     anSetLoading(true, t('an_loading', srPieceTitle(p)));
     await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
 }
 async function anCommit(src: AnSource, token: number)  {
+    anLibraryDetach();
     scoreStop();
     AN.source = src;
     AN.error = null;
@@ -15716,6 +15909,7 @@ function anSideResizer() {
     });
 }
 function anInitControls() {
+    anLibraryInit();
     byId('an-file').addEventListener('change', (e) => { if (!(e.target instanceof HTMLInputElement) || !e.target.files)
         return; const f = e.target.files[0]; e.target.value = ''; if (f)
         anOpenFile(f); });
@@ -17162,6 +17356,8 @@ catch (err) {
 }
 /* @generated etude test surface */
 const __etude: EtudeSurface = {};
+Object.defineProperty(__etude, 'scoreLibraryStore', { configurable: true, get: () => scoreLibraryStore });
+Object.defineProperty(__etude, 'anLibraryFlush', { configurable: true, get: () => anLibraryFlush });
 Object.defineProperty(__etude, "LGEN", { configurable: true, get: () => LGEN });
 Object.defineProperty(__etude, "LP", { configurable: true, get: () => LP });
 Object.defineProperty(__etude, "LQ", { configurable: true, get: () => LQ });
