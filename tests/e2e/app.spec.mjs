@@ -2174,12 +2174,21 @@ test.describe('reading drills: arcade modes', () => {
     await page.locator('#rd-go').click();
     await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
     await expect(page.locator('#rd-staff svg')).toBeVisible();
+    await expect(page.locator('#rd-stage-top')).toBeVisible();
+    await expect(page.locator('#rd-stage-title')).not.toBeEmpty();
     const h = (await page.locator('#rd-staff svg').boundingBox()).height;
     expect(h).toBeGreaterThan(160);
+    const overflow = await page.locator('#rd-staff').evaluate(el => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
     await page.keyboard.press('Escape');
     await expect(page.locator('body')).not.toHaveAttribute('data-stage', /./);
     expect(await page.evaluate(() => window.__etude.SR.active)).toBe(false);
     await expect(page.locator('#rd-go')).toBeFocused();
+    await page.locator('#rd-go').click();
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
+    await page.locator('#rd-stage-end').click();
+    await expect(page.locator('body')).not.toHaveAttribute('data-stage', /./);
+    expect(await page.evaluate(() => window.__etude.SR.active)).toBe(false);
   });
 
   test('quitting an arcade run saves no result', async ({ app }) => {

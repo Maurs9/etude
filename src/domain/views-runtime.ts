@@ -6088,6 +6088,7 @@ function srDraw() {
     byId('rd-staff').setAttribute('aria-hidden', concealed ? 'true' : 'false');
     byId('rd-staff').innerHTML = concealed ? '' : r.svg;
     srFit();
+    byId('rd-staff').scrollLeft = 0;
     srStepsBuild();
     if (!concealed)
         srPaintAll();
@@ -6167,8 +6168,10 @@ function srPaintAll() {
 }
 // x is in SVG units; on the full-screen stage the score is drawn larger than one pixel a unit.
 function srScrollX(x: number) { const w = byId('rd-staff'), svg = srSvg(), W = SR.render?.W, k = svg && W ? svg.getBoundingClientRect().width / W || 1 : 1; if (w && w.scrollWidth > w.clientWidth + 4)
-    w.scrollLeft = Math.max(0, x * k - w.clientWidth * 0.4); }
-// On the stage the score grows to the height it is given (up to 2.4×, less on narrow screens so a phrase still fits) and scrolls sideways as before.
+    w.scrollLeft = Math.max(0, x * k - w.clientWidth * 0.4);
+else if (w)
+    w.scrollLeft = 0; }
+// On the stage the score fits into the available room without horizontal scrollbars, keeping the staff narrower and proportional.
 function srFit() {
     const svg = srSvg(), r = SR.render;
     if (!svg || !r)
@@ -6179,9 +6182,14 @@ function srFit() {
         svg.style.height = '';
         return;
     }
-    const k = Math.max(1, Math.min(2.4, (wrap.clientHeight - 14) / H, wrap.clientWidth / 360));
+    const availW = Math.max(280, wrap.clientWidth - 32);
+    const availH = Math.max(120, wrap.clientHeight - 20);
+    const kw = availW / r.W;
+    const kh = availH / H;
+    const k = Math.max(0.65, Math.min(1.35, kw, kh));
     svg.style.width = Math.round(r.W * k) + 'px';
     svg.style.height = Math.round(H * k) + 'px';
+    wrap.scrollLeft = 0;
 }
 function srScrollStep() { const st = SR.steps[SR.stepIdx]; if (st)
     srScrollX(st.notes[0].x); }
@@ -7220,18 +7228,25 @@ function srMeta() {
         return;
     const n = p.keyN || 0;
     const keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n), key = pcName(keyPc, n < 0) + ' ' + (p.minor ? t('rd_min') : t('rd_maj'));
+    let metaText = '';
     if (p.gen) {
-        byId('rd-meta').textContent = t('rdx_sr_meta', key, p.bpm) + ' · ' + p.ts[0] + '/' + p.ts[1];
-        return;
+        metaText = t('rdx_sr_meta', key, p.bpm) + ' · ' + p.ts[0] + '/' + p.ts[1];
     }
-    if (p.ephemeral) {
+    else if (p.ephemeral) {
         const from = p.from;
         if (!from)
             throw new TypeError('Étude: excerpt piece has no source');
-        byId('rd-meta').textContent = t('rd_excerpt_from', from.title) + ' · ' + from.bars + ' · ' + key + ' · ' + p.ts[0] + '/' + p.ts[1] + ' · ' + t('rd_excerpt_simpl');
-        return;
+        metaText = t('rd_excerpt_from', from.title) + ' · ' + from.bars + ' · ' + key + ' · ' + p.ts[0] + '/' + p.ts[1] + ' · ' + t('rd_excerpt_simpl');
     }
-    byId('rd-meta').textContent = t('rd_level') + ' ' + p.level + ' · ' + rootName(keyPc) + ' ' + (p.minor ? t('rd_min') : t('rd_maj')) + ' · ' + p.ts[0] + '/' + p.ts[1] + (p.comp ? (' · ' + p.comp) : '');
+    else {
+        metaText = t('rd_level') + ' ' + p.level + ' · ' + rootName(keyPc) + ' ' + (p.minor ? t('rd_min') : t('rd_maj')) + ' · ' + p.ts[0] + '/' + p.ts[1] + (p.comp ? (' · ' + p.comp) : '');
+    }
+    byId('rd-meta').textContent = metaText;
+    const tEl = maybeById('rd-stage-title'), sEl = maybeById('rd-stage-sub');
+    if (tEl)
+        tEl.textContent = srPieceTitle(p);
+    if (sEl)
+        sEl.textContent = metaText;
 }
 function srPieceTitle(p: { t?: Localised<string>; }) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
 function srBest() { const rec = SR.piece && !SR.piece.ephemeral && data.sheet[SR.piece.id]; byId('rd-best').textContent = rec && rec.best ? (t('rd_best', rec.best) + (rec.learned ? ' · ✓ ' + t('rd_learned') : '')) : (rec && rec.learned ? ('✓ ' + t('rd_learned')) : ''); }
@@ -9195,10 +9210,16 @@ function stageSync() {
         return;
     STAGE.on = on;
     STAGE.kb = null;
-    if (on)
+    if (on) {
         document.body.dataset.stage = 'immersive';
+        if (!byId('rdp-pieces').hidden)
+            srMeta();
+    }
     else
         delete document.body.dataset.stage;
+    const stageTop = maybeById('rd-stage-top');
+    if (stageTop)
+        stageTop.hidden = !on || byId('rdp-pieces').hidden;
     if (on)
         window.scrollTo(0, 0);
     dockSync();
@@ -17385,6 +17406,7 @@ function initControls() {
         return;
     } byId('rd-bpmLbl').textContent = wiringField(e).value; SR.bpm = +wiringField(e).value; });
     byId('rd-go').addEventListener('click', srGo);
+    maybeById('rd-stage-end')?.addEventListener('click', srGo);
     byId('rd-srt-start').addEventListener('click', () => srtStartClaimedAttempt());
     byId('rd-srt-practice').addEventListener('click', () => { void srtSwitchToPractice(); });
     byId('rd-srt-retry').addEventListener('click', () => { void srtRetryPendingSave(); });
