@@ -1,0 +1,266 @@
+type PedalLine = { Pedals?: readonly unknown[] };
+type PedalContext = {
+  openGroup?: (name: string) => { scPedalOwner?: { staffLine: PedalLine; pedal: unknown } } | null;
+  closeGroup?: () => void;
+};
+type Drawer = {
+  backend?: { getContext?: () => PedalContext | null };
+  drawPedals?: (line: PedalLine) => void;
+  scPedalGroups?: boolean;
+};
+
+type VendorRules = Record<string, unknown> & {
+  GNote?: (note: unknown) => VendorGraphicalNote | null;
+};
+type VendorGraphicalNote = {
+  vfnote?: readonly [unknown, number];
+  getNoteheadSVGs?: () => SVGElement[];
+  getSVGGElement?: () => SVGElement | null;
+};
+type VendorRenderer = {
+  EngravingRules: VendorRules;
+  GraphicSheet: unknown;
+  Sheet: unknown;
+  cursor: VendorCursor;
+  load(xml: string): Promise<void>;
+  setOptions(options: Record<string, unknown>): void;
+  setCustomPageFormat(width: number, height: number): void;
+  render(): void;
+  Zoom: number;
+};
+type VendorCursor = {
+  reset(): void;
+  Iterator: VendorIterator;
+  CurrentVisibleVoiceEntries?(): readonly unknown[];
+  getStaffEntryFromVoiceEntry?(entry: unknown): VendorStaffEntry | null;
+};
+type VendorIterator = {
+  EndReached: boolean;
+  CurrentSourceTimestamp: { RealValue: number };
+  CurrentVoiceEntries?: readonly unknown[];
+  moveToNext(): void;
+};
+type VendorStaffEntry = {
+  PositionAndShape?: { AbsolutePosition?: { x?: number } };
+  parentMeasure?: { ParentMusicSystem?: unknown };
+};
+type VendorNote = {
+  isRest?: () => boolean;
+  Pitch?: { Frequency?: number };
+  ParentStaffEntry?: { ParentStaff?: { Id?: number; ParentInstrument?: unknown } };
+  ParentVoiceEntry?: { ParentVoice?: { VoiceId?: number } };
+};
+type VendorVoiceEntry = { Notes?: readonly VendorNote[] };
+
+export interface RenderedNote {
+  midi: number;
+  part: number;
+  staff: number | undefined;
+  voice: number | undefined;
+  beat: number;
+  element: SVGElement;
+}
+
+export interface LayoutReader {
+  readonly graphicSheet: unknown;
+  readonly sheet: unknown;
+}
+
+export type AppLanguage = 'en' | 'ro';
+
+let osmdPromise: Promise<OsmdModule> | null = null;
+
+export interface OsmdModule {
+  OpenSheetMusicDisplay: new (container: Element, options: Record<string, unknown>) => VendorRenderer;
+  MXLHelper: {
+    MXLtoXMLstring(data: ArrayBuffer): string;
+  };
+}
+
+export interface ScoreRenderer {
+  updateRules(updates: Readonly<Record<string, unknown>>): void;
+  readRules(): Readonly<Record<string, unknown>>;
+  load(xml: string): Promise<void>;
+  setOptions(options: Record<string, unknown>): void;
+  setCustomPageFormat(width: number, height: number): void;
+  getZoom(): number;
+  setZoom(value: number): void;
+  render(): void;
+  readLayout(): LayoutReader;
+  readCursor(): VendorCursor;
+  getTitleNode(): SVGElement | null;
+  hasExtraBreaks(): boolean;
+  forEachRenderedNote(callback: (note: RenderedNote) => void): void;
+}
+
+class OsmdScoreRenderer implements ScoreRenderer {
+  constructor(private readonly vendor: VendorRenderer) {}
+
+  updateRules(updates: Readonly<Record<string, unknown>>): void {
+    Object.assign(this.vendor.EngravingRules, updates);
+  }
+  readRules(): Readonly<Record<string, unknown>> { return this.vendor.EngravingRules; }
+  load(xml: string): Promise<void> { return this.vendor.load(xml); }
+  setOptions(options: Record<string, unknown>): void { this.vendor.setOptions(options); }
+  setCustomPageFormat(width: number, height: number): void { this.vendor.setCustomPageFormat(width, height); }
+  getZoom(): number { return this.vendor.Zoom; }
+  setZoom(value: number): void { this.vendor.Zoom = value; }
+  render(): void { this.vendor.render(); }
+  readLayout(): LayoutReader {
+    return { graphicSheet: this.vendor.GraphicSheet, sheet: this.vendor.Sheet };
+  }
+  readCursor(): VendorCursor { return this.vendor.cursor; }
+  getTitleNode(): SVGElement | null {
+    const sheet = asRecord(this.vendor.GraphicSheet);
+    const title = asRecord(sheet.title);
+    return typeof SVGElement !== 'undefined' && title.SVGNode instanceof SVGElement ? title.SVGNode : null;
+  }
+  hasExtraBreaks(): boolean {
+    const sheet = asRecord(this.vendor.GraphicSheet);
+    return asArray(sheet.MusicPages).some((page, pageIndex) =>
+      asArray(asRecord(page).MusicSystems).some((system, systemIndex) => {
+        if (!pageIndex && !systemIndex) return false;
+        const measures = asArray(asRecord(system).GraphicalMeasures);
+        const first = measures[0];
+        const measure = asArray(first).find(Boolean);
+        const source = asRecord(asRecord(measure).parentSourceMeasure);
+        return !!source && !source.printNewSystemXml && !source.printNewPageXml;
+      }),
+    );
+  }
+  forEachRenderedNote(callback: (note: RenderedNote) => void): void {
+    const cursor = this.vendor.cursor;
+    const sheet = asRecord(this.vendor.Sheet);
+    const instruments = asArray(sheet.Instruments);
+    cursor.reset();
+    const iterator = cursor.Iterator;
+    let guard = 0;
+    while (!iterator.EndReached && guard++ < 40000) {
+      const beat = iterator.CurrentSourceTimestamp.RealValue * 4;
+      for (const entry of iterator.CurrentVoiceEntries ?? []) {
+        for (const note of (asRecord(entry) as VendorVoiceEntry).Notes ?? []) {
+          if (note.isRest?.() || !note.Pitch?.Frequency) continue;
+          const staff = note.ParentStaffEntry?.ParentStaff;
+          const voice = note.ParentVoiceEntry?.ParentVoice?.VoiceId;
+          const part = staff?.ParentInstrument ? instruments.indexOf(staff.ParentInstrument) : -1;
+          const graphical = this.vendor.EngravingRules.GNote?.(note);
+          const vf = graphical?.vfnote;
+          if (!graphical || !vf) continue;
+          const heads = graphical.getNoteheadSVGs?.() ?? [];
+          const element = heads[vf[1]] ?? graphical.getSVGGElement?.();
+          if (!element) continue;
+          callback({
+            midi: Math.round(69 + 12 * Math.log2(note.Pitch.Frequency / 440)),
+            part,
+            staff: staff?.Id,
+            voice,
+            beat,
+            element,
+          });
+        }
+      }
+      iterator.moveToNext();
+    }
+    cursor.reset();
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function asArray(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function isOsmdModule(value: unknown): value is OsmdModule {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { OpenSheetMusicDisplay?: unknown; MXLHelper?: unknown };
+  return typeof candidate.OpenSheetMusicDisplay === 'function' &&
+    !!candidate.MXLHelper &&
+    typeof (candidate.MXLHelper as { MXLtoXMLstring?: unknown }).MXLtoXMLstring === 'function';
+}
+
+export function loadOsmd(): Promise<OsmdModule> {
+  const existing = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+  if (isOsmdModule(existing)) return Promise.resolve(existing);
+  if (typeof document === 'undefined') return Promise.reject(new Error('OSMD requires a document'));
+  if (osmdPromise) return osmdPromise;
+  osmdPromise = new Promise<OsmdModule>((resolve, reject) => {
+    const script = document.createElement('script');
+    const inline = document.querySelector<HTMLScriptElement>('#etude-osmd-source');
+    if (inline?.textContent) {
+      script.textContent = inline.textContent;
+    } else {
+      script.src = new URL('vendor/osmd-1.9.9.min.js', document.baseURI).href;
+      script.async = true;
+    }
+    script.onload = () => {
+      const loaded = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+      if (isOsmdModule(loaded)) resolve(loaded);
+      else reject(new Error('OSMD loaded without an API'));
+    };
+    script.onerror = () => reject(new Error('OSMD could not be loaded'));
+    document.head.append(script);
+    if (inline?.textContent) {
+      queueMicrotask(() => {
+        const loaded = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+        if (isOsmdModule(loaded)) resolve(loaded);
+        else reject(new Error('OSMD loaded without an API'));
+      });
+    }
+  }).catch(error => {
+    osmdPromise = null;
+    throw error;
+  });
+  return osmdPromise;
+}
+
+export async function createScoreRenderer(
+  container: Element,
+  options: Record<string, unknown>,
+): Promise<ScoreRenderer> {
+  const osmd = await loadOsmd();
+  patchOsmdPedals(osmd);
+  return new OsmdScoreRenderer(new osmd.OpenSheetMusicDisplay(container, options));
+}
+
+export async function mxlToXml(data: ArrayBuffer): Promise<string> {
+  const osmd = await loadOsmd();
+  return osmd.MXLHelper.MXLtoXMLstring(data);
+}
+
+export function notationReloadMessage(language: AppLanguage): { message: string; button: string } {
+  return language === 'ro'
+    ? { message: 'Partitura nu s-a putut încărca. Reîncarcă pagina.', button: 'Reîncarcă' }
+    : { message: 'The score could not load. Reload the page.', button: 'Reload' };
+}
+
+export function patchOsmdPedals(osmd: unknown): void {
+  const drawer = (osmd as { VexFlowMusicSheetDrawer?: { prototype?: Drawer } } | null)?.VexFlowMusicSheetDrawer?.prototype;
+  if (!drawer || drawer.scPedalGroups || typeof drawer.drawPedals !== 'function') return;
+  const draw = drawer.drawPedals;
+  drawer.drawPedals = function drawPedals(line: PedalLine): void {
+    const context = this.backend?.getContext?.();
+    if (!context?.openGroup || !context.closeGroup || !line?.Pedals) {
+      draw.call(this, line);
+      return;
+    }
+    for (const pedal of line.Pedals) {
+      const group = context.openGroup('sc-pedal');
+      if (group) group.scPedalOwner = { staffLine: line, pedal };
+      try { draw.call(this, { Pedals: [pedal] }); } finally { context.closeGroup(); }
+    }
+  };
+  drawer.scPedalGroups = true;
+}
+
+/**
+ * Apply the Étude-specific OSMD patches after the score adapter has loaded OSMD.
+ * Keeping this operation in the notation domain prevents view code from reaching
+ * into the vendor object or owning a notation concern.
+ */
+export function scorePatchOsmd(): void {
+  const loaded = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
+  if (isOsmdModule(loaded)) patchOsmdPedals(loaded);
+}

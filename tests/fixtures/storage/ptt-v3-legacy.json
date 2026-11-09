@@ -1,0 +1,19 @@
+{
+  "v": 3,
+  "gen": "legacy",
+  "lang": "ro",
+  "data": {
+    "settings": {
+      "goal": 99,
+      "newPerDay": 1,
+      "allowInv": true,
+      "metronome": "yes"
+    },
+    "srs": {
+      "iv:1": {
+        "box": 2,
+        "reps": 3
+      }
+    }
+  }
+}

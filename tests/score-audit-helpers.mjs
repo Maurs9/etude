@@ -1,7 +1,7 @@
 // Independent ink audit, evaluated in the browser. Empty/hidden pedal output is not a pass.
 export function scorePedalCollisions() {
   const root = document.querySelector('#an-roll'), issues = [];
-  const expected = new DOMParser().parseFromString(SCORE.xml || '', 'application/xml').querySelectorAll('pedal').length;
+  const expected = new DOMParser().parseFromString(window.__etude.SCORE.xml || '', 'application/xml').querySelectorAll('pedal').length;
   let total = 0;
   const pos = o => o?.PositionAndShape?.AbsolutePosition;
   for (const [page, svg] of [...root.querySelectorAll('svg')].entries()) {

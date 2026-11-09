@@ -258,7 +258,7 @@ test.describe('Tier 1: Feature Coverage across All 7 Locales', () => {
       await selectLanguage(page, loc.code);
 
       // Verify scale display name via scaleDisp function in page evaluation
-      const majorName = await page.evaluate(() => scaleDisp('Major (Ionian)'));
+      const majorName = await page.evaluate(() => window.__etude.scaleDisp('Major (Ionian)'));
       expect(majorName, `Scale name in ${loc.code}`).toBe(loc.scaleMajor);
     }
   });
@@ -328,7 +328,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
 
       // Check each view at 320px width
       for (const view of ALL_VIEWS) {
-        await page.evaluate(v => show(v), view);
+        await page.evaluate(v => window.__etude.show(v), view);
         const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
         expect(scrollWidth, `View ${view} in locale ${loc.code} should not overflow 320px width`).toBeLessThanOrEqual(320);
       }
@@ -361,9 +361,9 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
 
       // Evaluate t() with arguments for keys that use placeholders
       const testCases = await page.evaluate(() => [
-        t('si_done', 3, 5),
-        t('sum_more', 4),
-        t('root_pos', 'C'),
+        window.__etude.t('si_done', 3, 5),
+        window.__etude.t('sum_more', 4),
+        window.__etude.t('root_pos', 'C'),
       ]);
 
       for (const res of testCases) {
@@ -383,7 +383,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
         localStorage.setItem('ptt-v3', JSON.stringify(s || { v: 3, lang: l, data: {} }));
       }, [{ v: 3, lang: loc.code, data: {} }, loc.code]);
       await page.goto(APP);
-      await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
       await expect(page.locator('html')).toHaveAttribute('lang', loc.code);
       await openSettings(page);
@@ -401,7 +401,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
 
       // Perform full page reload
       await page.reload();
-      await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
       // Verify language is retained post-reload
       await expect(page.locator('html')).toHaveAttribute('lang', loc.code);
@@ -426,7 +426,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
     });
 
     await page.goto(APP);
-    await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+    await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
     // App must gracefully fall back to English
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
@@ -457,11 +457,11 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
 
       // Notation must stay solfege
       await expect(page.locator('#set-notation button[data-v="solfege"]')).toHaveAttribute('aria-pressed', 'true');
-      const activeNotation = await page.evaluate(() => notation);
+      const activeNotation = await page.evaluate(() => window.__etude.notation);
       expect(activeNotation).toBe('solfege');
 
       // Pitch spelling must use solfege
-      const noteC = await page.evaluate(() => pcName(0, false));
+      const noteC = await page.evaluate(() => window.__etude.pcName(0, false));
       expect(noteC).toBe('Do');
     }
   });
@@ -480,13 +480,13 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
 
       // Notation must stay german
       await expect(page.locator('#set-notation button[data-v="german"]')).toHaveAttribute('aria-pressed', 'true');
-      const activeNotation = await page.evaluate(() => notation);
+      const activeNotation = await page.evaluate(() => window.__etude.notation);
       expect(activeNotation).toBe('german');
 
       // Pitch spelling in German: B-flat is B, B-natural is H
       const pitchSpelling = await page.evaluate(() => [
-        pcName(10, true),   // Bb -> B
-        pcName(11, false),  // B -> H
+        window.__etude.pcName(10, true),   // Bb -> B
+        window.__etude.pcName(11, false),  // B -> H
       ]);
       expect(pitchSpelling).toEqual(['B', 'H']);
     }
@@ -507,7 +507,7 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
       // Language must remain Romanian
       await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
       await expect(page.locator('#drawerTitle')).toHaveText('Setări');
-      const curLang = await page.evaluate(() => lang);
+      const curLang = await page.evaluate(() => window.__etude.lang);
       expect(curLang).toBe('ro');
     }
   });
@@ -527,7 +527,7 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
 
       // Reload page
       await page.reload();
-      await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
       // Verify both survived reload
       await expect(page.locator('html')).toHaveAttribute('lang', l);
@@ -536,7 +536,7 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
       await expect(page.locator(`#set-lang button[data-v="${l}"]`)).toHaveAttribute('aria-pressed', 'true');
       await expect(page.locator(`#set-notation button[data-v="${n}"]`)).toHaveAttribute('aria-pressed', 'true');
 
-      const runtimeState = await page.evaluate(() => [lang, notation]);
+      const runtimeState = await page.evaluate(() => [window.__etude.lang, window.__etude.notation]);
       expect(runtimeState).toEqual([l, n]);
     }
   });
@@ -545,13 +545,13 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
     const page1 = await app.open();
     const page2 = await context.newPage();
     await page2.goto(APP);
-    await page2.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+    await page2.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
     // Change language in page1 to Italian
     await selectLanguage(page1, 'it');
 
     // Page 2 must react to storage event and synchronize to Italian
-    await expect.poll(() => page2.evaluate(() => lang)).toBe('it');
+    await expect.poll(() => page2.evaluate(() => window.__etude.lang)).toBe('it');
     await expect(page2.locator('html')).toHaveAttribute('lang', 'it');
     await openSettings(page2);
     await expect(page2.locator('#drawerTitle')).toHaveText('Impostazioni');
@@ -565,15 +565,15 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
 
     const page2 = await context.newPage();
     await page2.goto(APP);
-    await page2.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+    await page2.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
     await selectLanguage(page2, 'es');
 
     // Page 1 changes notation to solfege
     await selectNotation(page1, 'solfege');
 
     // Page 2 receives notation change without losing its Spanish language
-    await expect.poll(() => page2.evaluate(() => notation)).toBe('solfege');
-    expect(await page2.evaluate(() => lang)).toBe('es');
+    await expect.poll(() => page2.evaluate(() => window.__etude.notation)).toBe('solfege');
+    expect(await page2.evaluate(() => window.__etude.lang)).toBe('es');
     await expect(page2.locator('html')).toHaveAttribute('lang', 'es');
 
     await page2.close();
@@ -629,10 +629,10 @@ test.describe('Tier 4: Real-World Scenarios (Full User Journeys)', () => {
 
     // 3. Verifies Circle of Fifths and note spelling in German
     const spelledGerman = await page.evaluate(() => ({
-      bNatural: cofSpell('B', 0),
-      bFlat: cofSpell('B', -1),
-      scaleMajor: scaleDisp('Major (Ionian)'),
-      scaleMinor: scaleDisp('Aeolian (Natural minor)'),
+      bNatural: window.__etude.cofSpell('B', 0),
+      bFlat: window.__etude.cofSpell('B', -1),
+      scaleMajor: window.__etude.scaleDisp('Major (Ionian)'),
+      scaleMinor: window.__etude.scaleDisp('Aeolian (Natural minor)'),
     }));
 
     // B-natural is H, B-flat is B, Major is Dur, Minor is Moll
@@ -687,7 +687,7 @@ test.describe('Tier 4: Real-World Scenarios (Full User Journeys)', () => {
 
     // 3. Perform a browser reload while completely offline
     await page.reload();
-    await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+    await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
 
     // 4. Verify application remains 100% operational offline in French
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');

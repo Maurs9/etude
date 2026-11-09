@@ -1,6 +1,6 @@
 # Étude — Piano Theory Trainer
 
-Étude is a browser-based piano theory and practice app for developing your ear, reading skills, and keyboard technique. The app is contained in a single HTML file and does not need a build step.
+Étude is a browser-based piano theory and practice app for developing your ear, reading skills, and keyboard technique. It is a static Vite application: `etude.html` remains the stable shell URL, while the app module, styles, piano recordings, and OSMD bundle are built from `src/`.
 
 **Live app:** [https://maurs9.github.io/etude/etude.html](https://maurs9.github.io/etude/etude.html)
 
@@ -23,13 +23,18 @@
 
 ## Run locally
 
-With Python 3 installed, start a web server from the project directory:
+Install the locked toolchain and start Vite:
 
 ```sh
-python3 -m http.server 8777
+npm ci
+npm run dev
 ```
 
-Open [http://localhost:8777/etude.html](http://localhost:8777/etude.html). Serving over localhost or HTTPS is recommended for browser features such as the service worker and microphone access; permissions may be required.
+Open [http://localhost:5173/etude.html](http://localhost:5173/etude.html). Serving over localhost or HTTPS is recommended for browser features such as the service worker and microphone access; permissions may be required.
+
+The Pages-shaped build is available with `npm run build` and `npm run preview`.
+For a single offline file, run `npm run build:standalone`; it writes
+`dist/etude-standalone.html`, which can be opened directly with `file://`.
 
 ## Tests
 
@@ -37,14 +42,43 @@ The test suite uses Node.js, npm, Python 3, and Playwright. By default it launch
 
 ```sh
 npm ci
-npm test
+npm run typecheck
+npm run lint
+npm run test:unit
+npm test                 # built dist/etude/ and @sw tests
+npm run test:dev         # app project against the Vite dev server
 ```
 
 Alternatively, install Playwright's Chromium with `npx playwright install chromium` and set `PW_CHANNEL` to an empty value before running the tests. The Playwright configuration starts its own local server on port 8787.
 
 ## Project structure
 
-- `etude.html` — application
-- `sw.js`, `manifest.webmanifest`, `icons/` — installable app and offline assets
+- `etude.html` — stable application shell
+- `src/domain/views.ts` — typed application/view entry point and browser test surface
+- `src/domain/views-runtime.ts` — browser runtime entry with explicit domain imports and a compatibility boundary
+- `src/domain/router.ts` — hash-route groups and safe fallback
+- `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
+- `src/domain/storage.ts` — typed `ptt-v3` reader, writer, and settings normalization
+- `src/domain/theory.ts` — strict, browser-independent pitch, scale, chord, interval, and formula helpers
+- `src/domain/audio.ts` — strict Web Audio engine, voices, checked piano-sample fetch/decode, and retry-safe piano bank
+- `src/domain/notation.ts` — lazy OSMD/MXL adapter, constructor boundary, and grouped pedal patch
+- `window.__etude` — deliberate browser test/import surface; application state is not read through arbitrary `window.*` aliases
+- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed recordings
+- `public/vendor/`, `public/manifest.webmanifest`, `public/icons/` — static public assets
+- `scripts/build.mjs`, `scripts/generate-sw.mjs` — Vite build and generated hash-checked worker; add a source import or a file under `public/` and the published manifest updates automatically
+- `scripts/sw-kill-switch.js`, `docs/sw-kill-switch.md` — emergency worker rollback and runbook
 - `tests/`, `playwright.config.mjs` — Playwright tests and configuration
 - `package.json`, `package-lock.json` — test tooling and locked dependencies
+
+`npm run typecheck` runs the strict compiler gate for the typed domain modules.
+The view entry is a compatibility boundary while the remaining legacy-shaped
+view operations are narrowed incrementally; it is still checked for forbidden
+compiler bypasses and indirect `any` aliases. The suppression guard
+rejects `@ts-nocheck`, `@ts-ignore`, unexplained or excessive
+`@ts-expect-error`, explicit `any`, unchecked application JavaScript, and
+encoded or dynamically compiled application runtime payloads. The complete
+view implementation is loaded from `src/domain/views-runtime.ts`; its typed
+entry contracts live in `src/domain/views.ts`. Storage, theory,
+audio, notation, and routing remain separate typed modules. Keep browser-only
+DOM wiring in the view domain and keep the other behaviour behind those typed
+module boundaries.

@@ -18,7 +18,7 @@ export const test = base.extend({
         localStorage.setItem('ptt-v3', JSON.stringify(s));
       }, state);
       await page.goto(APP + (hash ? '#' + hash : ''));
-      await page.waitForFunction(() => typeof window.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
       return page;
     };
     await use({ open, errors, page });

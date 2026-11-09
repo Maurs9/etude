@@ -29,15 +29,13 @@ const expectGolden = (file, actual) => {
 
 test.describe('golden: piano recordings', () => {
   test('every recorded piano sample is byte-for-byte unchanged', () => {
-    const html = readFileSync(new URL('../' + APP, import.meta.url), 'utf8');
-    const block = html.match(/<script type="application\/json" id="piano-recordings">([^<]*)<\/script>/);
-    expect(block, `the #piano-recordings block in ${APP}`).toBeTruthy();
     const samples = {}, notCanonical = [];
-    for (const [midi, b64] of Object.entries(JSON.parse(block[1]))) {
-      const mp3 = Buffer.from(b64, 'base64');
-      if (mp3.toString('base64') !== b64) notCanonical.push(midi);   // Buffer.from skips stray characters; the round trip doesn't
+    const dir = new URL('../src/assets/piano/', import.meta.url);
+    for (const file of readdirSync(fileURLToPath(dir)).filter(file => file.endsWith('.mp3')).sort((a, b) => Number(a.slice(0, -4)) - Number(b.slice(0, -4)))) {
+      const midi = file.slice(0, -4), mp3 = readFileSync(new URL(file, dir));
       samples[midi] = `sha256:${createHash('sha256').update(mp3).digest('hex')} bytes:${mp3.length}`;
     }
+    expect(Object.keys(samples), 'the split piano bank has all 30 samples').toHaveLength(30);
     expect(notCanonical, 'samples whose base64 is not canonical').toEqual([]);
     expectGolden(join(GOLDEN, 'piano-recordings.json'), samples);
   });
@@ -46,7 +44,7 @@ test.describe('golden: piano recordings', () => {
 // Evaluated in the page after an import. `music` must not depend on the layout or the platform; `layout` is checked
 // against a baseline for the current platform, since text metrics may differ between operating systems.
 function scoreFingerprint() {
-  const g = SCORE.geo, box = document.getElementById('an-roll');
+  const g = window.__etude.SCORE.geo, box = document.getElementById('an-roll');
   const bars = g.measures.map((m, i) => m && { n: i + 1, sys: m.sys, b1: m.b1 }).filter(Boolean);
   const count = sel => [...box.querySelectorAll(sel)].filter(el => el.getBoundingClientRect().width > .1).length;
   return {
@@ -83,12 +81,12 @@ test.describe('golden: score engraving', () => {
       await page.evaluate(() => document.fonts.ready);
       const mimeType = /\.mxl$/i.test(score.name) ? 'application/vnd.recordare.musicxml' : 'application/xml';
       await page.locator('#an-file').setInputFiles({ name: score.name, mimeType, buffer: readFileSync(score.path) });
-      await page.waitForFunction(() => !AN.loading && !!SCORE.geo);
-      expect(await page.evaluate(() => AN.error)).toBeNull();
-      expect(await page.evaluate(() => SCORE.layout)).toBe('page');
+      await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+      expect(await page.evaluate(() => window.__etude.AN.error)).toBeNull();
+      expect(await page.evaluate(() => window.__etude.SCORE.layout)).toBe('page');
       const paged = await page.evaluate(scoreFingerprint);
       expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
-      await page.evaluate(() => { SCORE.layout = 'cont'; scoreLayout(); });
+      await page.evaluate(() => { window.__etude.SCORE.layout = 'cont'; window.__etude.scoreLayout(); });
       const cont = await page.evaluate(scoreFingerprint);
       expect(cont.music, 'the continuous view engraves the same music').toEqual(paged.music);
       expect(await page.evaluate(scorePedalCollisions)).toEqual([]);

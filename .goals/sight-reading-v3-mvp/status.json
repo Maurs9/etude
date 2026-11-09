@@ -1,0 +1,111 @@
+{
+  "goal_id": "sight-reading-v3-mvp",
+  "status": "completed",
+  "iteration": 18,
+  "builder_model": "GPT:5.6-Luna",
+  "inspector_model": "GPT:5.6-Sol",
+  "initial_sha": "a26497d263a31d1c0d74921a07ea4b8720d8af6c",
+  "created_at": "2026-11-08T22:35:01+02:00",
+  "history": [
+    {
+      "iteration": 1,
+      "verdict": "FAIL",
+      "summary": "First-sight UI/flow, the two-lock ledger and safe import, required accessibility/offline behavior, and mandatory Playwright coverage are missing; assess still colours greedily during play."
+    },
+    {
+      "iteration": 2,
+      "verdict": "FAIL",
+      "summary": "A fresh ledger always rejects the first claim as stale_generation; practice switching, result painting, input release metadata, repertoire isolation, backup edge cases, accessibility, and mandatory Playwright/offline coverage remain incorrect or missing."
+    },
+    {
+      "iteration": 3,
+      "verdict": "FAIL",
+      "summary": "Core first-sight flow now runs, but ledger idempotency and stale-import generation checks fail; practice/pending-save lifecycle, visible result symbols, responsive focus, exact unit proofs, and mandatory browser/offline suites remain incomplete."
+    },
+    {
+      "iteration": 4,
+      "verdict": "FAIL",
+      "summary": "Generator profiles allow fourths instead of thirds; newer ledgers are overwritten; result semantics/contrast and mandatory recorder, ledger, backup, UI, and full offline browser suites remain incomplete."
+    },
+    {
+      "iteration": 5,
+      "verdict": "PASS",
+      "summary": "All MVP acceptance criteria pass, including the iteration-4 regressions, complete browser/offline coverage, unchanged goldens, and a headed-Chrome first-attempt reload journey."
+    },
+    {
+      "iteration": 5,
+      "verdict": "FAIL",
+      "summary": "Mixed keyboard/MIDI ownership is closed incorrectly on focus loss; completed results do not relocalize; mandatory flow, ledger, accessibility, and pending-save Playwright cases remain incomplete."
+    },
+    {
+      "iteration": 6,
+      "verdict": "FAIL",
+      "summary": "Mixed-source attempts never set mixedInput; audio suspension leaves first-sight active; note names remain visible; ledger errors leak untranslated codes; the non-greedy browser test sends no input."
+    },
+    {
+      "iteration": 7,
+      "verdict": "PASS",
+      "summary": "All M0-M10 criteria pass, including mixedInput persistence, audio/BLE interruption, assistance suppression, localized ledger failures, real-input non-greedy coverage, offline matrices, and the headed reload journey."
+    },
+    {
+      "iteration": 7,
+      "verdict": "FAIL",
+      "summary": "Iteration-7 regressions are fixed and all gates pass, but restViolations incorrectly counts extras inside neighboring note association windows, contrary to the exact evaluator specification."
+    },
+    {
+      "iteration": 8,
+      "verdict": "FAIL",
+      "summary": "Neighbor-window rest handling works for default close repeats, but the evaluator allows association windows above the required 250 ms maximum and the tests omit the 45%-narrowed rest-window case."
+    },
+    {
+      "iteration": 9,
+      "verdict": "FAIL",
+      "summary": "The evaluator cap and runtime behavior are correct, but the 135/165 ms regression inputs are matched notes rather than genuine extras, so the exact close-repeat rest-boundary coverage is still missing."
+    },
+    {
+      "iteration": 10,
+      "verdict": "PASS",
+      "summary": "All M0-M10 criteria and prior regressions pass; close-repeat boundary cases now prove genuine extras with correct TP/FN/FP and rest-violation results, and the exact full gate and manual reload journey succeed."
+    },
+    {
+      "iteration": 11,
+      "verdict": "FAIL",
+      "summary": "AC2 is fixed, but an async practice-switch race makes Playwright flaky and an interrupted ledger wait can start a ghost practice run."
+    },
+    {
+      "iteration": 12,
+      "verdict": "FAIL",
+      "summary": "Cancellation races no longer start ghost runs and all gates pass, but blanket cancellation breaks legacy assessment, allows background first-sight play, destroys pending-save results, burns preview attempts, and can desynchronize UI and ledger terminal status."
+    },
+    {
+      "iteration": 13,
+      "verdict": "FAIL",
+      "summary": "All gates pass and iteration-12 cancellation regressions are fixed, but failed abandon writes deadlock pendingSave, generation reuses one seed forever, and Learn/pre-claim exposure invalidates first-sight eligibility."
+    },
+    {
+      "iteration": 14,
+      "verdict": "FAIL",
+      "summary": "The full gate and manual journey pass, but practice/error UI remains inconsistent, failed switching leaks the claim lock, generated pieces are lost on round trips, and freshness stress repeats content."
+    },
+    {
+      "iteration": 15,
+      "verdict": "FAIL",
+      "summary": "Five browser-verified defects remain: eligible melodies can be studied without exposure, stale claims silently become practice, Retry hides saved results, and notices/badges mislead."
+    },
+    {
+      "iteration": 16,
+      "verdict": "FAIL",
+      "summary": "D15-1 through D15-5 and all gates pass, but Analysis consumes an unseen retained melody and a pre-attempt-lock Learn race reveals content without any durable ledger record."
+    },
+    {
+      "iteration": 17,
+      "verdict": "FAIL",
+      "summary": "D16-1 and the pre-lease D16-2 race are fixed and all gates pass, but a stale in-flight claim can reveal Learn content without any exposure or attempt and restore first-sight preview after reload."
+    },
+    {
+      "iteration": 18,
+      "verdict": "PASS",
+      "summary": "D17-1 is fixed: Learn remains concealed until a durable exposure exists, identical content stays practice-only after reload, no attempt locks leak, and the complete quality gate passes."
+    }
+  ]
+}

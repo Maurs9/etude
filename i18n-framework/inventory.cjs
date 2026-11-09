@@ -3,25 +3,33 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const html = fs.readFileSync(process.argv[2] || path.join(__dirname, '..', 'etude.html'), 'utf8').replace(/\r\n/g, '\n');
+const html = fs.readFileSync(process.argv[2] || path.join(__dirname, '..', 'src', 'legacy', 'app.js'), 'utf8').replace(/\r\n/g, '\n');
+function moduleValues(file, names) {
+  const source = fs.readFileSync(file, 'utf8').replace(/export const /g, 'const ');
+  const context = {};
+  vm.runInNewContext(`${source}\n__values={${names.join(',')}};`, context);
+  return context.__values;
+}
+const locale = moduleValues(path.join(__dirname, '..', 'src', 'locales', 'index.js'), ['STRINGS']);
+const content = moduleValues(path.join(__dirname, '..', 'src', 'locales', 'content.js'), ['LESSONS', 'LEARN_UNITS', 'LQZ', 'LSUM', 'GLOSS']);
 function between(start, end) {
   const a = html.indexOf(start), b = html.indexOf(end, a + start.length);
   if (a < 0 || b < 0) throw Error(`Cannot locate source boundary: ${start} ... ${end}`);
   return html.slice(a, b);
 }
-const initial = between('const STRINGS={', '\nfunction t(k');
-const assigns = [...html.matchAll(/Object\.assign\(STRINGS\.(?:en|ro),\s*\{[\s\S]*?\n\}\);/g)].map(m => m[0]).join('\n');
-if (!assigns) throw Error('No supplemental dictionaries found');
+const initial = `const STRINGS=${JSON.stringify(locale.STRINGS)};`;
+const assigns = '';
 const script = [
   initial, assigns,
   between('const INTERVALS=', 'CHORDS.forEach('),
   between('const CHORD_FEEL=', '\nconst ',),
   between('const INV_NAMES=', '\nconst ',),
   between('const CATS=', '\n',),
-  between('const LESSONS=', '/* ---------- LEARN v4:'),
-  between('const LEARN_UNITS=', '\nconst LEARN_OLD_ORDER'),
-  between('const GLOSS=', '\nfunction lgNorm'),
-  between('const LQZ=', '\nconst LDUR='),
+  `const LESSONS=${JSON.stringify(content.LESSONS)};`,
+  `const LEARN_UNITS=${JSON.stringify(content.LEARN_UNITS)};`,
+  `const GLOSS=${JSON.stringify(content.GLOSS)};`,
+  `const LQZ=${JSON.stringify(content.LQZ)};`,
+  `const LSUM=${JSON.stringify(content.LSUM)};`,
   `const pick = v => Array.isArray(v) ? v[0] : v;
   JSON.stringify({
     strings:STRINGS.en,

@@ -133,7 +133,7 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
   test('a drawer remains open when immediately reopened while its Back is pending', async ({ app }) => {
     const page=await app.open();
     await page.locator('#settingsBtn').click();
-    await page.evaluate(() => { openDrawer(false); openDrawer(true); });
+    await page.evaluate(() => { window.__etude.openDrawer(false); window.__etude.openDrawer(true); });
     await page.waitForTimeout(250);
     await expect(page.locator('#drawer')).toHaveClass(/on/);
     await page.goBack();
@@ -265,7 +265,7 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
   test('Dock stays hidden on views without a keyboard (no display override leaks from media queries)', async ({ app }) => {
     const page = await app.open();
     await page.setViewportSize({ width: 844, height: 390 });
-    await page.evaluate(() => show('progress'));
+    await page.evaluate(() => window.__etude.show('progress'));
     const display = await page.locator('#dock').evaluate(el => getComputedStyle(el).display);
     expect(display).toBe('none');
   });
