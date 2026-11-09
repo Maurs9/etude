@@ -1,7 +1,7 @@
 {
   "goal_id": "sight-reading-v3-mvp",
-  "status": "building",
-  "iteration": 16,
+  "status": "inspecting",
+  "iteration": 17,
   "builder_model": "GPT:5.6-Luna",
   "inspector_model": "GPT:5.6-Sol",
   "initial_sha": "a26497d263a31d1c0d74921a07ea4b8720d8af6c",
@@ -96,6 +96,11 @@
       "iteration": 16,
       "verdict": "FAIL",
       "summary": "D15-1 through D15-5 and all gates pass, but Analysis consumes an unseen retained melody and a pre-attempt-lock Learn race reveals content without any durable ledger record."
+    },
+    {
+      "iteration": 17,
+      "verdict": "FAIL",
+      "summary": "D16-1 and the pre-lease D16-2 race are fixed and all gates pass, but a stale in-flight claim can reveal Learn content without any exposure or attempt and restore first-sight preview after reload."
     }
   ]
 }
