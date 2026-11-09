@@ -25,6 +25,7 @@ import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder } from '../sight-reading/recorder.js';
 import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
+import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible } from '../sight-reading/stream.js';
 
 function runtimeErrorName(value: unknown): string {
   return value instanceof Error ? value.name : '';
@@ -1497,6 +1498,7 @@ const BLACK_NUDGE: Record<number, number> = { 1: -.28, 3: .28, 6: -.30, 8: 0, 10
 function viewHigh() { return view.low + view.oct * 12; }
 function chooseView() { const w = window.innerWidth; view.oct = w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
 function buildKeyboard() {
+    rdDockView();
     clampTypeOctave();
     const keys = byId('keys');
     if (!keys)
@@ -1576,6 +1578,7 @@ function buildKeyboard() {
     if (oi)
         oi.textContent = noteName(view.low, false) + '–' + noteName(viewHigh(), false);
     kbDegrees(kbDegSrc);
+    rdDockPaint();
     if (view0() === 'analysis')
         anKeysPaint(true);
     cofPaintDock();
@@ -1607,6 +1610,10 @@ function kbDegrees(src: Map<number,string>|null) {
 function positionBlacks() { blackEl.forEach((el, bm) => { const w = whiteEl.get(bm - 1); if (!w || !w.offsetWidth)
     return; const bw = w.offsetWidth * .62, seam = w.offsetLeft + w.offsetWidth, n = (BLACK_NUDGE[pc(bm)] || 0) * bw; el.style.width = bw + 'px'; el.style.left = (seam - bw / 2 + n) + 'px'; }); syncKeyboardPan(); }
 function syncKeyboardPan() { const scroll = byId('dock-keys'), pan = inputById('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
+// On narrow screens the keys scroll sideways: bring a key into sight, unless focus is on the keys (the focused key stays in sight then).
+function dockKeyInSight(m: number) { const key = keyEl.get(m), scroll = byId('dock-keys'); if (!key || !dockShown() || byId('keys').contains(document.activeElement))
+    return; const r = key.getBoundingClientRect(), s = scroll.getBoundingClientRect(); if (r.left < s.left || r.right > s.right)
+    scroll.scrollLeft += (r.left + r.right - s.left - s.right) / 2; }
 function reflowKeys() { requestAnimationFrame(() => requestAnimationFrame(positionBlacks)); setTimeout(positionBlacks, 90); } // wait for the dock to lay out before measuring
 function foldToView(m: number) { const lo = view.low, hi = viewHigh(); let x = m; while (x < lo)
     x += 12; while (x > hi)
@@ -1680,11 +1687,14 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    Hiding only hides the on-screen keys: MIDI and the computer keys keep playing, and the rail keeps one Show keyboard button.
    Without a choice the keys are open, except in Score & analysis on small screens, where the score needs the room; that default
    is settled once per visit, so resizing the window never flips the keyboard (or what its buttons do) behind the user's back.
-   Falling notes draw their own keyboard, so that view shows neither the dock nor the rail and leaves the choice untouched. */
-interface KeyboardDockState { pref: boolean|null; auto: null; animT: number }
-const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0 };
+   Falling notes draw their own keyboard, so that view shows neither the dock nor the rail and leaves the choice untouched.
+   A reading drill that asks its question on the keys (`force`) opens them while it runs, without changing the saved choice. */
+interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
+const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
 function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
-function dockOpen(v = view0()) { if (DOCK.pref != null)
+function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
+function dockOpen(v = view0()) { if (dockForced(v))
+    return true; if (DOCK.pref != null)
     return DOCK.pref; return false; }
 function dockShown() { return document.body.classList.contains('kb') && !byId('dock').classList.contains('is-rail'); }
 // The dock's own button names the action it takes (Hide / Show keyboard).
@@ -1698,7 +1708,7 @@ function dockLabels() {
 function dockSync() {
     const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
     dock.classList.toggle('compact', v === 'analysis');
-    byId('dock-kb-toggle').hidden = !on;
+    byId('dock-kb-toggle').hidden = !on || dockForced(v); // a drill asking on the keys keeps them: Hide would do nothing
     dockLabels();
     if (on === was && open === wasOpen)
         return;
@@ -1811,7 +1821,6 @@ function releaseFocusInput() {
     typingDown.clear();
     if (FALL.press)
         FALL.press.clear();
-    RD.kbDown = null;
     keyEl.forEach((el) => { el._kd = false; });
     if (RD.rh)
         [...RD.rh.open.keys()].forEach((s) => { if (/^(k:|p\d)/.test(s))
@@ -7294,7 +7303,7 @@ interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rus
 interface ReadDrillNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
 interface ReadDrillTotals { n: number; ok: number; ms: number; sess: number; }
 interface ReadDrillCustom { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
-interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; }
+interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; }
 interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { [noteKey: string]: ReadDrillNoteStat; }; tot: ReadDrillTotals; prefs: ReadDrillPrefs; }
 function rdData(): ReadDrillData {
     if (!data.reading || typeof data.reading !== 'object')
@@ -7303,7 +7312,7 @@ function rdData(): ReadDrillData {
     r.lv = r.lv || {};
     r.nt = r.nt || {};
     r.tot = Object.assign({ n: 0, ok: 0, ms: 0, sess: 0 }, r.tot || {});
-    r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1 }, r.prefs || {});
+    r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1, flow: true, ghost: false }, r.prefs || {});
     if (!isReadDrillData(r))
         throw new Error('Étude: reading progress could not be initialised');
     return r;
@@ -7428,8 +7437,9 @@ function rdKsSvg(clef: ReadClefStaff, keyN: number, x: number, top: number) {
     }
     return { svg: s, w: keyN ? Math.abs(keyN) * 9 + 8 : 4 };
 }
-interface ReadDrillStaffNote { li: number; oct: number; acc?: number; s?: string | null; hc?: string | null; tip?: string; staff?: ReadClefStaff; }
-interface ReadDrillSvgOptions { clef: ReadClefDraw; keyN?: number; cols: ReadDrillStaffNote[][]; minW?: number; aria?: string; colW?: number; lbl?: (string | number | null | undefined)[] | null; scale?: number; dur?: number; lblCls?: (string | null | undefined)[]; }
+interface ReadDrillStaffNote { li: number; oct: number; acc?: number; s?: string | null; hc?: string | null; tip?: string; staff?: ReadClefStaff; cn?: boolean; }
+// ext: notes that only reserve vertical room; hl: column to highlight; ghost: draw the pacer; wrap: class of a group around the notes.
+interface ReadDrillSvgOptions { clef: ReadClefDraw; keyN?: number; cols: ReadDrillStaffNote[][]; minW?: number; aria?: string; colW?: number; lbl?: (string | number | null | undefined)[] | null; scale?: number; dur?: number; lblCls?: (string | null | undefined)[]; ext?: ReadDrillStaffNote[]; hl?: number | null; ghost?: boolean; wrap?: string; }
 interface ReadDrillSvgItem { n: ReadDrillStaffNote; ii: number; c: ReadClefStaff; top: number; step: number; y: number; dx: number; ax?: number; }
 function rdSvg(o: ReadDrillSvgOptions) {
     const grand = o.clef === 'grand', clefs: ReadClefStaff[] = o.clef === 'grand' ? ['treble', 'bass'] : [o.clef], tops = grand ? [40, 136] : [40];
@@ -7452,7 +7462,7 @@ function rdSvg(o: ReadDrillSvgOptions) {
         items.forEach((it) => { it.dx = (prev && prev.c === it.c && it.step - prev.step === 1 && prev.dx === 0) ? 12 : 0; prev = it; });
         const lanes: number[][] = [];
         items.slice().reverse().forEach((it) => {
-            if ((it.n.acc || 0) === kA[it.n.li])
+            if ((it.n.acc || 0) === kA[it.n.li] && !it.n.cn)
                 return;
             let a = lanes.findIndex((l) => l.every((y: number) => Math.abs(y - it.y) >= 14));
             if (a < 0) {
@@ -7473,12 +7483,17 @@ function rdSvg(o: ReadDrillSvgOptions) {
             maxY = Math.max(maxY, it.y);
         });
     });
+    (o.ext || []).forEach((n) => {
+        const c: ReadClefStaff = grand ? (n.staff || (rdStep(n) >= 28 ? 'treble' : 'bass')) : clefs[0], y = tops[clefs.indexOf(c)] + 48 + (RD_REF[c] - rdStep(n)) * 6;
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+    });
     const W = Math.max(o.minW || 0, x0 + o.cols.length * colW + 10), lblY = maxY + 24;
     const lbl = o.lbl;
     if (lbl)
         o.cols.forEach((_, ci) => { const l = lbl[ci]; if (l != null)
             body.push(`<text class="rdx-lbl${o.lblCls && o.lblCls[ci] ? ' ' + o.lblCls[ci] : ''}" x="${x0 + ci * colW + colW / 2}" y="${lblY}">${rdEsc(l)}</text>`); });
-    const yA = Math.min(tops[0] - 10, minY - 14), yB = (o.lbl ? lblY + 10 : maxY + 14);
+    const yA = Math.min(tops[0] - 10, minY - 14) - (o.ghost ? 16 : 0), yB = (o.lbl ? lblY + 10 : maxY + 14);
     let staff = '';
     tops.forEach((tp) => { for (let k = 0; k < 5; k++)
         staff += `<line class="ss-line" x1="${L0}" y1="${tp + k * 12}" x2="${W - 4}" y2="${tp + k * 12}" stroke-width="1.2"/>`; });
@@ -7486,13 +7501,17 @@ function rdSvg(o: ReadDrillSvgOptions) {
     if (grand)
         staff += `<path class="rdx-brace" d="M ${L0 - 3},40 C ${L0 - 13},44 ${L0 - 3},100 ${L0 - 14},112 C ${L0 - 3},124 ${L0 - 13},180 ${L0 - 3},184"/>`;
     const sc = o.scale || 1.5, H = yB - yA;
-    return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${staff}${head}${body.join('')}</svg>`, heads, W };
+    const band = (bx: number, cls: string) => `<rect class="${cls}" x="${bx + 3}" y="${yA + 3}" width="${colW - 6}" height="${H - 6}" rx="8"/>`;
+    const hl = o.hl != null ? band(x0 + o.hl * colW, 'rdx-now') : '';
+    const ghost = o.ghost ? `<g class="rdx-ghost">${band(-colW / 2, 'rdx-ghost-b')}<text x="0" y="${yA + 15}">👻</text></g>` : '';
+    const notes = o.wrap ? `<g class="${o.wrap}" style="--dx:${colW}px">${body.join('')}</g>` : body.join('');
+    return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0 };
 }
 /* ---- drill engine ---- */
 const RD_TESTN = 20, RD_RUSH = 60;
 type ReadDrillMode = 'practice' | 'test' | 'rush';
-interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; kbDown: number | null; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; }
-const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, kbDown: null, rh: null, rhP: [], rhM: [], next: null, nodes: [] };
+interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; }
+const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false };
 function rdLvPrev(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
 function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
 function rdUnlocked(L: ReadDrillLevel | null | undefined) { if (!L)
@@ -7570,7 +7589,7 @@ interface ReadQuestionBase { key: string; hinted?: boolean; state?: 'good' | 'ba
 interface ReadQuestionKs extends ReadQuestionBase { ty: 'ks'; clef: ReadClefDraw; keyN: number; ans: number; opts: { v: number; l: string; s: string; }[]; midis?: undefined; }
 interface ReadQuestionIv extends ReadQuestionBase { ty: 'iv'; clef: ReadClefStaff; ans: number; a: ReadDrillPitch; b: ReadDrillPitch; harm: boolean; opts: { v: number; l: string; k: string; }[]; midis: number[]; }
 interface ReadQuestionCh extends ReadQuestionBase { ty: 'ch'; clef: ReadClefStaff; ans: string; root: ReadDrillPitch; qual: ReadDrillChordQuality; inv: number; notes: ReadDrillPitch[]; opts: { v: string; l: string; }[]; midis: number[]; pcs: number[]; }
-interface ReadQuestionNote extends ReadQuestionBase { ty: Exclude<ReadDrillType, 'ks' | 'iv' | 'ch'>; clef: ReadClefDraw; keyN: number; note: ReadDrillPitch; sclef: ReadClefStaff; midi: number; midis: number[]; needAcc: boolean; opts?: { v: number; n: ReadDrillPitch; }[]; ans?: number; }
+interface ReadQuestionNote extends ReadQuestionBase { ty: Exclude<ReadDrillType, 'ks' | 'iv' | 'ch'>; clef: ReadClefDraw; keyN: number; note: ReadDrillPitch; sclef: ReadClefStaff; midi: number; midis: number[]; needAcc: boolean; opts?: { v: number; n: ReadDrillPitch; }[]; ans?: number; cn?: boolean; }
 type ReadQuestion = ReadQuestionKs | ReadQuestionIv | ReadQuestionCh | ReadQuestionNote;
 function rdGen(L: ReadDrillLevel): ReadQuestion {
     const ty = L.ty;
@@ -7703,39 +7722,271 @@ function rdQSvg(q: ReadQuestion, extra?: ReadDrillStaffNote | null) {
         col.push(extra);
     return rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, keyN: q.keyN, cols: [col], colW: 100, lbl: q.lbl ? [q.lbl] : null }).svg;
 }
-function rdKbRange(q: ReadQuestionNote) {
+// Reading drills mark the dock keyboard. Play drills fold their marks into its octaves; key-to-staff marks stay on the exact key (`exact`),
+// since there the octave is part of the question. Only keys marked here are cleared again, a rebuilt keyboard gets them back, and a
+// wrong key never hides the mark of the right one when both land on the same key.
+type ReadDockMark = 'target' | 'good' | 'bad';
+const rdDockKeys = new Map<number, { s: ReadDockMark; exact: boolean }>();
+function rdDockAt(m: number, exact: boolean) { return exact ? m : foldToView(m); }
+function rdDockMark(m: number, s: ReadDockMark, exact = false) {
+    if (s === 'bad' && [...rdDockKeys].some(([k, d]) => rdDockAt(k, d.exact) === rdDockAt(m, exact)))
+        return;
+    rdDockKeys.set(m, { s, exact });
+    kbState(m, s, !exact);
+}
+function rdDockPaint() {
+    const marked = new Set<number>();
+    let ask: number | null = null;
+    for (const [m, d] of rdDockKeys) {
+        const at = rdDockAt(m, d.exact);
+        if (d.s === 'bad' && marked.has(at))
+            continue;
+        marked.add(at);
+        kbState(m, d.s, !d.exact);
+        if (d.exact && d.s !== 'bad' && ask == null)
+            ask = m;
+    }
+    if (ask != null)
+        dockKeyInSight(ask);
+}
+function rdDockClear() {
+    if (!rdDockKeys.size)
+        return;
+    rdDockKeys.forEach((d, m) => kbState(m, null, !d.exact));
+    rdDockKeys.clear();
+    repaintHeld();
+}
+// While a key-to-staff question is up, the keys keep its key (and the level's whole range when that fits, so they rarely move):
+// shifting octaves or resizing never takes the question off the keyboard.
+function rdDockView() {
+    const q = RD.q, L = RD.L;
+    if (!RD.on || !q || q.ty !== 'k2s' || !L)
+        return;
+    const span = view.oct * 12;
+    let a = q.midi, b = q.midi;
+    if (L.lo && L.hi) {
+        const lo = rdMidi(rdP(L.lo)), hi = rdMidi(rdP(L.hi));
+        if (hi - (lo - pc(lo)) <= span) {
+            a = Math.min(a, lo);
+            b = Math.max(b, hi);
+        }
+    }
+    let low = view.low;
+    if (a < low)
+        low = a - pc(a);
+    else if (b > low + span)
+        low = Math.ceil((b - span) / 12) * 12;
+    view.low = Math.max(BASE_LOW, Math.min(BASE_HIGH - span, low));
+}
+function rdDockForce(on: boolean) { if (DOCK.force === on)
+    return; DOCK.force = on; dockSync(); }
+// Key-to-staff asks on the dock: it opens for the drill, shows the key in its own octave, and lights it.
+function rdDockAsk(m: number) {
+    rdDockForce(true);
+    const low = view.low;
+    rdDockView();
+    if (view.low !== low) {
+        buildKeyboard();
+        repaintHeld();
+    }
+    rdDockMark(m, 'target', true);
+    dockKeyInSight(m);
+}
+interface ReadDrillButton { v: number | string; l?: string; html?: string; k?: string; s?: string; }
+function rdBtn(o: ReadDrillButton, i: number, cls?: string) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
+function rdAccSeg() { return `<div class="seg rdx-accs" id="rdx-accs" role="group" aria-label="${t('rdx_accl')}">${[-1, 0, 1].map((a, i) => `<button data-acc="${a}" aria-pressed="${a === RD.accSel}" title="${t('rdx_acc_t' + a)}">${a < 0 ? '♭' : a > 0 ? '♯' : '♮'}<kbd>${['-', '0', '='][i]}</kbd></button>`).join('')}</div>`; }
+function rdTools(q: ReadQuestion) { return `<div class="rdx-tools">${RD.mode === 'practice' ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.ty === 'name' && q.needAcc ? t('rdx_keys_acc') : '')}</span></div>`; }
+/* ---- look-ahead stream: name and play drills as a row of notes read from left to right ---- */
+// items: every note of the run so far; cur: the note to answer; start: the first note on screen.
+// played, wrong: the key or letters given wrongly for the current note, shown until it is answered right.
+// ext: the pool's lowest and highest notes, which keep the staff's height steady.
+// g0: when the pacer ghost set off; gd: notes the player leads it by; gh: the ghost is shown; rm: reduced motion.
+interface ReadDrillFlow { items: ReadQuestionNote[]; cur: number; start: number; played: number | null; wrong: string[]; ext: ReadDrillPitch[]; g0: number; raf: number; gd: number; gh: boolean; rm: boolean; geo: { x0: number; colW: number; n: number; }; }
+const RD_FLOW_W = 52, RD_FLOW_SC = 1.35, RD_GHOST_MAX = 3;
+function rdFlowOk(L: ReadDrillLevel | null | undefined) { return !!L && rdData().prefs.flow && (L.ty === 'name' || L.ty === 'play') && L.clef !== 'mix' && !L.keys; }
+function rdFlowFill(F: ReadDrillFlow, upTo: number) {
     const L = RD.L;
     if (!L)
         throw new Error('Étude: no reading level');
-    let lo = L.lo ? rdMidi(rdP(L.lo)) : 48, hi = L.hi ? rdMidi(rdP(L.hi)) : 71;
-    lo = Math.min(lo, q.midi);
-    hi = Math.max(hi, q.midi);
-    return [lo - pc(lo), hi + (11 - pc(hi))];
+    const end = RD.mode === 'test' ? Math.min(upTo, RD_TESTN) : upTo;
+    while (F.items.length < end) {
+        const q = rdGen(L);
+        if (q.ty !== 'name' && q.ty !== 'play')
+            throw new Error('Étude: the note stream needs name or play questions');
+        q.hinted = false;
+        q.state = null;
+        q.cn = courtesyNatural(F.items.slice(-6).map((x) => x.note), q.note);
+        F.items.push(q);
+    }
 }
-function rdMiniKb(lo: number, hi: number, mark: number | null, inter: boolean) {
-    const whites: number[] = [];
-    for (let m = lo; m <= hi; m++)
-        if (![1, 3, 6, 8, 10].includes(pc(m)))
-            whites.push(m);
-    const ww = 100 / whites.length, tag = inter ? 'button' : 'span', keyAttrs = (m: number) => inter ? ` type="button" aria-label="${rdEsc(noteName(m, false))}"` : '';
-    let w = '', bk = '';
-    whites.forEach((m, i) => {
-        w += `<${tag} class="rdx-w" data-m="${m}" style="left:${(i * ww).toFixed(3)}%;width:${ww.toFixed(3)}%"${keyAttrs(m)}${m === mark ? ' data-s="target"' : ''}>${pc(m) === 0 ? `<i>${rdLetter(0)}${Math.floor(m / 12) - 1}</i>` : ''}</${tag}>`;
-        if ([0, 2, 5, 7, 9].includes(pc(m)) && m + 1 <= hi)
-            bk += `<${tag} class="rdx-b" data-m="${m + 1}" style="left:${((i + 1) * ww - ww * 0.3).toFixed(3)}%;width:${(ww * 0.6).toFixed(3)}%"${keyAttrs(m + 1)}${m + 1 === mark ? ' data-s="target"' : ''}></${tag}>`;
+function rdFlowStart() {
+    const L = RD.L;
+    if (!L)
+        return;
+    const pool = rdPool(L).sort((a, b) => rdStep(a) - rdStep(b)), gh = rdData().prefs.ghost;
+    const F: ReadDrillFlow = RD.flow = { items: [], cur: 0, start: 0, played: null, wrong: [], ext: [pool[0], pool[pool.length - 1]], g0: performance.now(), raf: 0, gd: 0, gh, rm: reduceMotion(), geo: { x0: 0, colW: RD_FLOW_W, n: 0 } };
+    rdFlowFill(F, 1);
+    RD.q = F.items[0];
+    RD.answered = false;
+    RD.fix = false;
+    RD.accSel = 0;
+    rdFlowBody();
+    rdFlowShow(false);
+    rdFlowArm();
+    F.g0 = RD.t0;
+    if (gh)
+        F.raf = requestAnimationFrame(rdGhostTick);
+}
+// Starts the clock on the current note, with the practice hint after 4 s.
+function rdFlowArm() {
+    const q = RD.q;
+    clearTimeout(RD.hintT);
+    if (RD.mode === 'practice' && rdData().prefs.hints)
+        RD.hintT = setTimeout(() => { if (RD.on && !RD.answered && RD.q === q)
+            rdHint(); }, 4000);
+    rdHud();
+    RD.t0 = performance.now();
+}
+function rdFlowBody() {
+    const F = RD.flow;
+    if (!F)
+        return;
+    const q = F.items[Math.min(F.cur, F.items.length - 1)];
+    let acc = '', ans = '';
+    if (q.ty === 'name') {
+        if (q.needAcc)
+            acc = rdAccSeg();
+        ans = [0, 1, 2, 3, 4, 5, 6].map((li) => rdBtn({ v: li, l: rdLetter(li) }, li)).join('');
+    }
+    byId('rdx-body').innerHTML = `<div class="rdx-q rdx-flowq"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty + '_flow')}</div><div class="rdx-staff rdx-flow" id="rdx-staff"></div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${rdTools(q)}</div>`;
+}
+function rdFlowShow(slide: boolean) {
+    const F = RD.flow, L = RD.L, st = maybeById('rdx-staff');
+    if (!F || !L || !st)
+        return;
+    const grand = L.clef === 'grand', fix = RD.fix, q = F.items[Math.min(F.cur, F.items.length - 1)];
+    const n = streamVisible(st.clientWidth - 28, { scale: RD_FLOW_SC, colW: RD_FLOW_W, head: grand ? 76 : 66 });
+    const start = streamStart(F.cur, n, RD.mode === 'test' ? RD_TESTN : null);
+    rdFlowFill(F, start + n);
+    const vis = F.items.slice(start, start + n);
+    const cols = vis.map((it, i) => {
+        const k = start + i, col: ReadDrillStaffNote[] = [Object.assign({ s: k === F.cur ? 'now' : k < F.cur ? it.state : null, cn: it.cn }, it.note)];
+        if (k === F.cur && fix && F.played != null && F.played !== it.midi)
+            col.push(Object.assign(rdSpellMidi(F.played, 0), { s: 'bad' }));
+        return col;
     });
-    return `<div class="rdx-kb${inter ? ' inter' : ''}" id="rdx-kb"${inter ? ` role="group" aria-label="${rdEsc(t('rdx_p_play'))}"` : ' aria-hidden="true"'}>${w}${bk}</div>`;
+    const r = rdSvg({ clef: grand ? 'grand' : q.sclef, cols, colW: RD_FLOW_W, scale: RD_FLOW_SC, dur: 1, lbl: vis.map((it) => it.state === 'bad' ? rdName(it.note, true) : null), lblCls: vis.map(() => 'lo'), ext: F.ext, hl: F.cur < F.items.length ? F.cur - start : null, ghost: F.gh, wrap: 'rdx-flow-n' + (slide && start === F.start + 1 ? ' slide' : ''), aria: t('rdx_p_' + q.ty + '_flow') });
+    st.innerHTML = r.svg;
+    F.start = start;
+    F.geo = { x0: r.x0, colW: RD_FLOW_W, n };
+    rdGhostPlace();
+    queryAllHtml(byId('rdx-ans'), '.rdx-a').forEach((b) => {
+        const v = Number(b.dataset.a);
+        b.classList.toggle('correct', fix && v === q.note.li);
+        b.classList.toggle('wrong', fix && v !== q.note.li && F.wrong.includes(String(v)));
+    });
+    queryAllHtml(document, '#rdx-accs [data-acc]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.acc) === RD.accSel)));
+    rdDockClear();
+    if (fix && q.ty === 'play') {
+        rdDockMark(q.midi, 'target');
+        if (F.played != null && F.played !== q.midi)
+            rdDockMark(F.played, 'bad');
+    }
+    const f = byId('rdx-fb');
+    f.className = 'rdx-fb' + (fix ? ' bad' : '');
+    f.textContent = fix ? '✗ ' + rdFlowMsg() : '';
 }
-function rdKbMark(m: number, s?: string) { const el = (document).querySelector('#rdx-kb [data-m="' + m + '"]'); if (el instanceof HTMLElement) {
-    if (s)
-        el.dataset.s = s;
-    else
-        delete el.dataset.s;
-} }
-interface ReadDrillButton { v: number | string; l?: string; html?: string; k?: string; s?: string; }
-function rdBtn(o: ReadDrillButton, i: number, cls?: string) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
+function rdFlowMsg() {
+    const F = RD.flow, q = F && F.items[F.cur];
+    if (!F || !q)
+        return '';
+    return t('rdx_wrong', rdName(q.note, true)) + (q.ty === 'play' && F.played != null ? ' · ' + t('rdx_played', rdName(rdSpellMidi(F.played, 0), true)) : '') + ' · ' + t(q.ty === 'play' ? 'rdx_fix_play' : 'rdx_fix_name');
+}
+// Only the first answer to a note is scored. After a wrong one the stream waits, showing the right answer, until it is given.
+function rdFlowAnswer(ok: boolean, g: ReadDrillGiven) {
+    const F = RD.flow, q = F && F.items[F.cur];
+    if (!F || !q || (RD.answered && !RD.fix))
+        return;
+    if (!RD.fix) {
+        RD.answered = true;
+        clearTimeout(RD.hintT);
+        rdScore(q, ok);
+        q.state = ok ? 'good' : 'bad';
+    }
+    if (ok)
+        return rdFlowAdvance(g);
+    RD.fix = true;
+    if (q.ty === 'play' && g.midi != null)
+        F.played = g.midi;
+    const a = g.btn instanceof HTMLElement ? g.btn.dataset.a : undefined;
+    if (a != null && !F.wrong.includes(a))
+        F.wrong.push(a);
+    rdFlowShow(false);
+    const sv = byId('rdx-staff');
+    sv.classList.remove('flash-ok', 'flash-bad');
+    void sv.offsetWidth;
+    sv.classList.add('flash-bad');
+    byId('rdx-live').textContent = rdFlowMsg();
+    rdHud();
+}
+function rdFlowAdvance(g: ReadDrillGiven) {
+    const F = RD.flow;
+    if (!F)
+        return;
+    const q = F.items[F.cur];
+    if (q.ty === 'name' && g.midi == null && rdData().prefs.sound)
+        rdSound(q.midis);
+    F.cur++;
+    F.played = null;
+    F.wrong = [];
+    RD.fix = false;
+    RD.accSel = 0;
+    if ((RD.mode === 'test' && F.cur >= RD_TESTN) || (RD.mode === 'rush' && performance.now() >= RD.rushEnd)) {
+        rdFlowShow(false);
+        rdHud();
+        RD.timers.push(setTimeout(() => { if (RD.on)
+            rdFinish(); }, RD.mode === 'test' ? 400 : 0));
+        return;
+    }
+    rdFlowFill(F, F.cur + 1);
+    RD.q = F.items[F.cur];
+    RD.answered = false;
+    rdFlowShow(true);
+    rdFlowArm();
+}
+function rdGhostTick() {
+    const F = RD.flow;
+    if (!F || !RD.on)
+        return;
+    rdGhostPlace();
+    F.raf = requestAnimationFrame(rdGhostTick);
+}
+// The ghost answers one note per target time (the 3-star pace) and waits when it is RD_GHOST_MAX notes ahead.
+function rdGhostPlace() {
+    const F = RD.flow, L = RD.L;
+    if (!F || !L || !F.gh)
+        return;
+    const now = performance.now(), per = rdTarget(L);
+    let p = (now - F.g0) / per;
+    if (p > F.cur + RD_GHOST_MAX) {
+        p = F.cur + RD_GHOST_MAX;
+        F.g0 = now - p * per;
+    }
+    const el = document.querySelector('#rdx-staff .rdx-ghost');
+    if (el) {
+        const gx = ghostX(F.rm ? Math.floor(p) : p, F.start, F.geo.n, F.geo.x0, F.geo.colW);
+        el.setAttribute('transform', 'translate(' + gx.x.toFixed(1) + ' 0)');
+        el.classList.toggle('edge', gx.edge !== 0);
+    }
+    const d = pacerLead(F.cur, p);
+    if (d !== F.gd) {
+        F.gd = d;
+        rdHud();
+    }
+}
 function rdNext() {
     clearTimeout(RD.hintT);
+    rdDockClear();
     RD.answered = false;
     RD.accSel = 0;
     if (!RD.L)
@@ -7743,25 +7994,19 @@ function rdNext() {
     const q = RD.q = rdGen(RD.L);
     q.hinted = false;
     q.state = null;
-    let acc = '', ans = '', kb = '';
+    let acc = '', ans = '';
     if (q.ty === 'name') {
         if (q.needAcc)
-            acc = `<div class="seg rdx-accs" id="rdx-accs" role="group" aria-label="${t('rdx_accl')}">${[-1, 0, 1].map((a, i) => `<button data-acc="${a}" aria-pressed="${a === 0}" title="${t('rdx_acc_t' + a)}">${a < 0 ? '♭' : a > 0 ? '♯' : '♮'}<kbd>${['-', '0', '='][i]}</kbd></button>`).join('')}</div>`;
+            acc = rdAccSeg();
         ans = [0, 1, 2, 3, 4, 5, 6].map((li) => rdBtn({ v: li, l: rdLetter(li) }, li)).join('');
     }
-    else if (q.ty === 'play') {
-        const r = rdKbRange(q);
-        kb = rdMiniKb(r[0], r[1], null, true);
-    }
     else if (q.ty === 'k2s') {
-        const r = rdKbRange(q);
-        kb = rdMiniKb(r[0], r[1], q.midi, false);
         const opts = q.opts;
         if (!opts)
             throw new Error('Étude: key-to-staff question without options');
         ans = opts.map((o, i) => rdBtn({ v: o.v, html: rdSvg({ clef: q.clef === 'grand' ? 'grand' : q.sclef, cols: [[o.n]], colW: 56, scale: 0.8 }).svg }, i, 'rdx-opt')).join('');
     }
-    else {
+    else if (q.ty !== 'play') {
         const opts = q.opts;
         if (!opts)
             throw new Error('Étude: question without options');
@@ -7769,7 +8014,11 @@ function rdNext() {
         ans = btns.map((o, i) => rdBtn(o, i)).join('');
     }
     const pr = RD.mode === 'practice';
-    byId('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div>${q.ty === 'k2s' ? kb : ''}<div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${q.ty === 'k2s' ? '' : kb}<div class="rdx-tools">${pr ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.ty === 'name' && q.needAcc ? t('rdx_keys_acc') : '')}</span></div></div>`;
+    byId('rdx-body').innerHTML = `<div class="rdx-q"><div class="rdx-prompt" id="rdx-prompt">${t('rdx_p_' + q.ty)}</div><div class="rdx-staff" id="rdx-staff">${q.ty === 'k2s' ? '' : rdQSvg(q)}</div><div class="rdx-fb" id="rdx-fb"></div>${acc}<div class="rdx-ans rdx-ty-${q.ty}" id="rdx-ans" role="group" aria-label="${t('rdx_answers')}" aria-describedby="rdx-coach">${ans}</div>${rdTools(q)}</div>`;
+    if (q.ty === 'k2s')
+        rdDockAsk(q.midi);
+    else
+        rdDockForce(false);
     if (q.ty === 'k2s' && rdData().prefs.sound)
         rdSound(q.midis);
     if (pr && rdData().prefs.hints)
@@ -7796,7 +8045,7 @@ function rdHint() {
         const d = st - lm, nm = rdName(rdFromStep(lm), true);
         s = d === 0 ? t('rdx_hint_same', nm) : t(d > 0 ? 'rdx_hint_up' : 'rdx_hint_dn', Math.abs(d), nm);
         if (q.ty === 'play')
-            rdKbMark(q.midi, 'target');
+            rdDockMark(q.midi, 'target');
     }
     else if (q.ty === 'k2s')
         s = t('rdx_hint_k2s', rdName(q.note, true));
@@ -7819,12 +8068,7 @@ function rdAnsText(q: ReadQuestion) { if (q.ty === 'iv')
     return rdChLabel(q.root.li, q.qual); if (q.ty === 'ks')
     return rdKeyLabel(q.ans) + ' / ' + rdKeyMinor(q.ans); return rdName(q.note, true); }
 interface ReadDrillGiven { btn?: Element; midi?: number; }
-function rdAnswer(ok: boolean, given?: ReadDrillGiven) {
-    const q = RD.q;
-    if (!q || RD.answered || !RD.on)
-        return;
-    RD.answered = true;
-    clearTimeout(RD.hintT);
+function rdScore(q: ReadQuestion, ok: boolean) {
     const ms = Math.round(performance.now() - RD.t0);
     RD.n++;
     RD.ms += ms;
@@ -7845,6 +8089,16 @@ function rdAnswer(ok: boolean, given?: ReadDrillGiven) {
             tt.ok++;
         tt.ms += ms;
     }
+}
+function rdAnswer(ok: boolean, given?: ReadDrillGiven) {
+    if (RD.flow && RD.on)
+        return rdFlowAnswer(ok, given || {});
+    const q = RD.q;
+    if (!q || RD.answered || !RD.on)
+        return;
+    RD.answered = true;
+    clearTimeout(RD.hintT);
+    rdScore(q, ok);
     rdFeedback(ok, given || {});
     rdHud();
     const done = RD.mode === 'test' && RD.n >= RD_TESTN;
@@ -7876,9 +8130,10 @@ function rdFeedback(ok: boolean, g: ReadDrillGiven) {
     else if (g.btn === b)
         b.classList.add('wrong'); });
     if (q.ty === 'play' || q.ty === 'k2s') {
-        rdKbMark(q.midi, 'good');
-        if (g.midi != null && g.midi !== q.midi)
-            rdKbMark(g.midi, 'bad');
+        const exact = q.ty === 'k2s';
+        rdDockMark(q.midi, 'good', exact);
+        if (!ok && g.midi != null && g.midi !== q.midi)
+            rdDockMark(g.midi, 'bad', exact);
     }
     const f = byId('rdx-fb'), msg = ok ? (t('rdx_ok') + (RD.streak >= 3 ? '  🔥 ' + RD.streak : '')) : t('rdx_wrong', rdAnsText(q)) + (extra ? ' · ' + t('rdx_played', rdName(extra, true)) : '');
     f.className = 'rdx-fb ' + (ok ? 'good' : 'bad');
@@ -7889,13 +8144,15 @@ function rdFeedback(ok: boolean, g: ReadDrillGiven) {
 }
 function rdClickAns(b: HTMLElement) {
     const q = RD.q;
-    if (!q || RD.answered || !RD.on)
+    if (!q || (RD.answered && !RD.fix) || !RD.on)
         return;
     const v = b.dataset.a;
     if (q.ty === 'name')
         return rdAnswer(Number(v) === q.note.li && (!q.needAcc || RD.accSel === (q.note.acc || 0)), { btn: b });
-    if (q.ty === 'k2s')
-        return rdAnswer(Number(v) === q.ans, { btn: b });
+    if (q.ty === 'k2s') {
+        const o = q.opts?.[Number(v)];
+        return rdAnswer(Number(v) === q.ans, o ? { btn: b, midi: rdMidi(o.n) } : { btn: b });
+    }
     rdAnswer(v === String(q.ans), { btn: b });
 }
 function rdInput(m: number) {
@@ -7908,22 +8165,17 @@ function rdInput(m: number) {
         return;
     }
     const q = RD.q;
-    if (!q || RD.answered)
+    if (!q || (RD.answered && !RD.fix))
         return;
-    const own = inputOwners.get(m), strict = !!own && [...own].some((s) => s === 'midi' || s === 'ble' || s === 'rdk');
+    const src = [...(inputOwners.get(m) || [])], strict = src.some((s) => s === 'midi' || s === 'ble');
+    // On-screen keys must be the exact key while the note is within the keyboard's octaves; beyond them the name is enough, as the folded mark shows.
     if (q.ty === 'play')
-        return rdAnswer(strict ? m === q.midi : pc(m) === pc(q.midi), { midi: m });
+        return rdAnswer(strict || (src.some((s) => /^(pointer|button):/.test(s)) && foldToView(q.midi) === q.midi) ? m === q.midi : pc(m) === pc(q.midi), { midi: m });
     if (q.ty === 'name')
         return rdAnswer(pc(m) === pc(q.midi), { midi: m });
-    if (q.ty === 'k2s') {
-        const opts = q.opts;
-        if (!opts)
-            throw new Error('Étude: key-to-staff question without options');
-        const i = opts.findIndex((o) => strict ? rdMidi(o.n) === m : pc(rdMidi(o.n)) === pc(m));
-        if (i >= 0)
-            rdAnswer(i === q.ans, { btn: byId('rdx-ans').querySelectorAll('.rdx-a')[i], midi: m });
+    // Key to staff answers with 1–4 or a click: a played note only sounds, since playing the lit key would answer without reading.
+    if (q.ty === 'k2s')
         return;
-    }
     if (q.ty === 'ch') {
         const hp = heldPcs();
         if (hp.length >= 3)
@@ -7952,6 +8204,8 @@ function rdHud() {
     }
     else
         s = '✓ ' + RD.ok + '/' + RD.n + (RD.streak >= 2 ? ' · 🔥 ' + RD.streak : '');
+    if (RD.flow && RD.flow.gh)
+        s += ' · 👻 ' + formatLead(RD.flow.gd);
     h.textContent = s;
     mt.hidden = f == null;
     const progress = mt.firstElementChild;
@@ -8652,7 +8906,7 @@ function rdIntro() {
     }
     const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}</div>`;
     const sfx = (L.ty === 'rh' || L.ty === 'sr') ? '_' + L.ty : '';
-    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty)}</p>${prev}${rec}<div class="rdx-modes">${modes.map((m) => `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`).join('')}</div></div>`;
+    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${modes.map((m) => `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`).join('')}</div></div>`;
     rdCoach(true);
 }
 function rdStart(mode: string) {
@@ -8665,7 +8919,7 @@ function rdStart(mode: string) {
         return;
     }
     rdClear();
-    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null });
+    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false });
     rdCoach(true);
     const e = byId('rdx-end');
     e.hidden = false;
@@ -8673,11 +8927,13 @@ function rdStart(mode: string) {
     if (mode === 'rush') {
         RD.rushEnd = performance.now() + RD_RUSH * 1000;
         RD.rushIv = window.setInterval(() => { if (!RD.on)
-            return; rdHud(); if (performance.now() >= RD.rushEnd && !RD.answered)
+            return; rdHud(); if (performance.now() >= RD.rushEnd && (!RD.answered || RD.fix))
             rdFinish(); }, 250);
     }
     if (L.ty === 'rh')
         rdRhNew();
+    else if (rdFlowOk(L))
+        rdFlowStart();
     else
         rdNext();
 }
@@ -8687,6 +8943,10 @@ function rdClear() {
     clearTimeout(RD.hintT);
     clearInterval(RD.rushIv);
     RD.rushIv = 0;
+    if (RD.flow)
+        cancelAnimationFrame(RD.flow.raf);
+    RD.flow = null;
+    RD.fix = false;
     if (RD.rh) {
         RD.rh.playing = false;
         cancelAnimationFrame(RD.rh.raf);
@@ -8700,11 +8960,8 @@ function rdClear() {
     }
     catch (_) { } });
     RD.nodes = [];
-    if (RD.kbDown != null) {
-        const m = RD.kbDown;
-        RD.kbDown = null;
-        handleNoteOff(m, 'rdk');
-    }
+    rdDockClear();
+    rdDockForce(false);
 }
 function rdAbort() { rdClear(); RD.on = false; }
 function rdEndClick() { if (RD.on && RD.mode === 'practice' && RD.n > 0)
@@ -8789,7 +9046,7 @@ function rdRenderHome() {
     byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
     <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${t('rdx_st_time')}</span></div></div>
     <div class="rdx-hero-r"><button class="btn primary" data-lv="${cont.id}" id="rdx-cont">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}<small>${rdEsc(rdLvName(cont) + ' · ' + t('rdx_ty_' + cont.ty))}</small></button>
-      <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label></div>`;
+      <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-flow"${d.prefs.flow ? ' checked' : ''}> <span>${t('rdx_flow')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-ghost"${d.prefs.ghost ? ' checked' : ''}${d.prefs.flow ? '' : ' disabled'}> <span>${t('rdx_ghost')}</span></label></div>`;
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
@@ -8943,7 +9200,7 @@ function rdKey(e: KeyboardEvent, k: string) {
         }
         return false;
     }
-    if (RD.answered)
+    if (RD.answered && !RD.fix)
         return false;
     if (/^[1-9]$/.test(k)) {
         const b = (document).querySelector('#rdx-ans .rdx-a[data-k="' + k + '"]');
@@ -8988,6 +9245,10 @@ function rdOnLocale() {
         byId('rdx-sub').textContent = rdLvDetail(RD.L);
         if (!RD.on && !byId('rdx-body').querySelector('.rdx-sum'))
             rdIntro();
+        else if (RD.on && RD.flow) {
+            rdFlowBody();
+            rdFlowShow(false);
+        }
         else if (RD.on && RD.q && RD.q.ty === 'name')
             queryAllHtml(byId('rdx-ans'), '.rdx-a').forEach((b) => { if (b.firstChild)
                 b.firstChild.textContent = rdLetter(Number(b.dataset.a)); });
@@ -9052,13 +9313,6 @@ function rdOnLocale() {
             ac.parentNode?.querySelectorAll('[data-acc]').forEach((x) => x.setAttribute('aria-pressed', x === ac ? 'true' : 'false'));
             return;
         }
-        const key = eventClosest(e, '.rdx-kb.inter button[data-m]');
-        if (key && e.detail === 0) {
-            const m = Number(key.dataset.m);
-            handleNoteOn(m, 96, 'rdk');
-            handleNoteOff(m, 'rdk');
-            return;
-        }
         if (eventClosest(e, '#rdx-next-act')) {
             if (RD.next && RD.next.act)
                 RD.next.act.run();
@@ -9114,23 +9368,9 @@ function rdOnLocale() {
         if (pad) {
             e.preventDefault();
             rdRhPress('p' + e.pointerId, pad.dataset.hand || 'R');
-            return;
-        }
-        const k = eventClosest(e, '.rdx-kb.inter [data-m]');
-        if (k) {
-            e.preventDefault();
-            if (RD.kbDown != null)
-                handleNoteOff(RD.kbDown, 'rdk');
-            const m = Number(k.dataset.m);
-            RD.kbDown = m;
-            handleNoteOn(m, 96, 'rdk');
         }
     });
-    const up = (e: PointerEvent) => { rdRhRelease('p' + e.pointerId); if (RD.kbDown != null) {
-        const m = RD.kbDown;
-        RD.kbDown = null;
-        handleNoteOff(m, 'rdk');
-    } };
+    const up = (e: PointerEvent) => { rdRhRelease('p' + e.pointerId); };
     document.addEventListener('pointerup', up);
     document.addEventListener('pointercancel', up);
     document.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if (k === ' ' || k === 'enter' || k === 'f' || k === 'j')
@@ -9143,6 +9383,17 @@ function rdOnLocale() {
         }
         else if (id === 'rdx-hints') {
             p.hints = checked;
+            saveAll();
+        }
+        else if (id === 'rdx-flow') {
+            p.flow = checked;
+            saveAll();
+            const g = maybeById('rdx-ghost');
+            if (g instanceof HTMLInputElement)
+                g.disabled = !checked;
+        }
+        else if (id === 'rdx-ghost') {
+            p.ghost = checked;
             saveAll();
         }
         else if (id === 'rdx-rhdur') {
@@ -17309,8 +17560,6 @@ Object.defineProperty(__etude, "rdHud", { configurable: true, get: () => rdHud }
 Object.defineProperty(__etude, "rdInput", { configurable: true, get: () => rdInput });
 Object.defineProperty(__etude, "rdIntro", { configurable: true, get: () => rdIntro });
 Object.defineProperty(__etude, "rdIvName", { configurable: true, get: () => rdIvName });
-Object.defineProperty(__etude, "rdKbMark", { configurable: true, get: () => rdKbMark });
-Object.defineProperty(__etude, "rdKbRange", { configurable: true, get: () => rdKbRange });
 Object.defineProperty(__etude, "rdKey", { configurable: true, get: () => rdKey });
 Object.defineProperty(__etude, "rdKeyLabel", { configurable: true, get: () => rdKeyLabel });
 Object.defineProperty(__etude, "rdKeyMinor", { configurable: true, get: () => rdKeyMinor });
@@ -17323,7 +17572,6 @@ Object.defineProperty(__etude, "rdLvNext", { configurable: true, get: () => rdLv
 Object.defineProperty(__etude, "rdLvPrev", { configurable: true, get: () => rdLvPrev });
 Object.defineProperty(__etude, "rdLvSub", { configurable: true, get: () => rdLvSub });
 Object.defineProperty(__etude, "rdMidi", { configurable: true, get: () => rdMidi });
-Object.defineProperty(__etude, "rdMiniKb", { configurable: true, get: () => rdMiniKb });
 Object.defineProperty(__etude, "rdName", { configurable: true, get: () => rdName });
 Object.defineProperty(__etude, "rdNext", { configurable: true, get: () => rdNext });
 Object.defineProperty(__etude, "rdNextRender", { configurable: true, get: () => rdNextRender });

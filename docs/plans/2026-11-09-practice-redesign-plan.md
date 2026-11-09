@@ -70,15 +70,22 @@ Oferirea a **100% din ecran** portativului și claviaturii în timpul exerciții
 
 ## Faza 3: Înlocuirea „1 Notă Statică” cu Fluxul Continuu (*Look-Ahead Stream*) & *Ghost Pacer*
 
+> **Status:** implementată pentru exercițiile *Numește nota* și *Cântă nota* (branch `feat/practice-lookahead-stream`). Intervalele, acordurile, armurile și cheile amestecate (`mix`) rămân deocamdată pe cartonaș și intră în șir odată cu Faza 5.
+
 ### Obiectiv
 Înlocuirea exercițiilor de tip „ghicește o singură notă pe un portativ gol” cu un șir continuu de note/intervale/acorduri pe portativ, astfel încât utilizatorul să antreneze citirea anticipativă (*look-ahead*) și intervallică încă de la Nivelul 1.
 
 ### Fișiere Modificate
-- `src/domain/views-runtime.ts` (și un modul nou dedicat `src/sight-reading/stream.ts`):
-  - **Buffer de 8–12 coloane pe portativ:** În loc ca `rdNext()` să randeze `cols: [[notaCurenta]]`, randează o fereastră glisantă de 8–12 timpi/măsuri.
-  - La apăsarea notei/acordului corect, cursorul avansează instantaneu la coloana următoare, iar fereastra se completează lin în capătul drept.
-  - **Ghost Pacer (Cursor Fantomă Opțional):** În modurile fără metronom obligatoriu (*Step-by-step*), un cursor secundar discret avansează la BPM-ul țintă pentru a-ți arăta vizual dacă ești înaintea sau în urma tempoului ideal.
-  - *Notă:* Modul clasic de 1 singură notă rămâne disponibil doar ca opțiune secundară (*„Warm-up / Flashcard 1 notă”*) pentru începătorii absoluți.
+- `src/sight-reading/stream.ts` (modul nou, pur, cu teste unitare): câte coloane încap, unde începe fereastra, becarul de precauție, poziția fantomei și avansul față de ea.
+- `src/domain/views-runtime.ts`:
+  - **Fereastră de 5–12 coloane**, după lățimea ecranului. Nota curentă e evidențiată, iar ultimele 1–2 note rămân vizibile în stânga.
+  - La nota corectă, cursorul avansează și șirul alunecă o coloană spre stânga (fără animație cu *reduced motion*).
+  - **După o greșeală, șirul așteaptă:** nota corectă apare (numele sub notă, clapa marcată pe claviatură), iar exercițiul continuă abia după ce o cânți sau o numești. Se punctează doar primul răspuns la fiecare notă.
+  - **O singură claviatură:** *Cântă nota* (în șir și pe cartonaș) nu mai desenează claviatura mică de sub portativ; ținta, ✓ și ✗ apar pe claviatura mare de jos. Pe clapele de pe ecran contează octava, dacă nota se vede pe claviatură. *Clapă → portativ* pune și el întrebarea pe claviatura mare: dacă era ascunsă, se deschide pentru exercițiu (fără să schimbe alegerea salvată) și se închide la loc la final. Clapa întrebată rămâne la vedere în octava ei, chiar dacă muți octavele sau ecranul e îngust. Aici răspunzi cu 1–4 sau cu un clic pe portativ; notele cântate (pe pian sau pe clape) doar sună, altfel ai putea cânta clapa aprinsă fără să citești. O variantă greșită își aprinde clapa cu ✗.
+  - **Ghost Pacer (opțional, oprit implicit):** fantoma avansează cu viteza țintă pentru 3 stele, se oprește când ajunge la 3 note în fața ta, iar HUD-ul arată avansul (`👻 +2`, `👻 −1`).
+  - Fiindcă șirul nu are bare de măsură, o notă naturală primește becar de precauție dacă aceeași notă (literă și octavă) a avut recent o alterație.
+  - Șirul e pornit implicit. Comutatorul *„Șir de note”* din pagina exercițiilor revine la cartonașul cu o singură notă.
+  - *Notă:* în șir nu mai există pauza de feedback dintre note, iar nota următoare se poate citi din timp, așa că scorurile Rush și timpii din Test pot ieși mai buni decât pe cartonaș.
 
 ---
 
