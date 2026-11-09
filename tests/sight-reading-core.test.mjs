@@ -155,14 +155,38 @@ describe('sight-reading evaluator', () => {
     ];
     const restWindows = [{ startMs: 1, endMs: 299 }];
     const evaluateExtra = (onMs) => srtEvaluate(repeatedExpected, [
+      { id: 'previous-input', midi: 60, onMs: 0 },
       { id: `extra-${onMs}`, midi: 60, onMs },
-    ], { restWindows }).restViolations;
+      { id: 'next-input', midi: 60, onMs: 300 },
+    ], { restWindows });
 
-    expect(evaluateExtra(135)).toBe(0);
-    expect(evaluateExtra(165)).toBe(0);
-    expect(evaluateExtra(136)).toBe(1);
-    expect(evaluateExtra(150)).toBe(1);
-    expect(evaluateExtra(164)).toBe(1);
+    for (const [onMs, expectedRestViolations] of [
+      [135, 0],
+      [136, 1],
+      [150, 1],
+      [164, 1],
+      [165, 0],
+    ]) {
+      const result = evaluateExtra(onMs);
+      expect(result).toMatchObject({ TP: 2, FN: 0, FP: 1 });
+      expect(result.extraInputs.map((input) => input.id)).toContain(`extra-${onMs}`);
+      expect(result.restViolations).toBe(expectedRestViolations);
+    }
+  });
+
+  it('preserves smaller matching windows and rejects invalid window values', () => {
+    const loneExpected = [
+      { id: 'lone', midi: 60, hand: 'rh', onMs: 0, offMs: 100, restBeforeMs: 0, restAfterMs: 0 },
+    ];
+    expect(srtEvaluate(loneExpected, [
+      { id: 'outside-smaller-window', midi: 60, onMs: 101 },
+    ], { windowMs: 100 })).toMatchObject({ TP: 0, FN: 1, FP: 1 });
+
+    for (const windowMs of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => srtEvaluate(loneExpected, [], { windowMs })).toThrow(
+        'windowMs must be a finite, non-negative number',
+      );
+    }
   });
 
   it('returns the complete acceptance vectors, not only selected score fields', () => {
