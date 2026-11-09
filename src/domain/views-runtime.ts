@@ -6088,10 +6088,14 @@ function srDraw() {
     byId('rd-staff').setAttribute('aria-hidden', concealed ? 'true' : 'false');
     byId('rd-staff').innerHTML = concealed ? '' : r.svg;
     srFit();
-    byId('rd-staff').scrollLeft = 0;
     srStepsBuild();
-    if (!concealed)
+    if (!concealed) {
         srPaintAll();
+        if (SR.active && SR.modeSel === 'learn')
+            srScrollStep();
+        else if (!SR.active)
+            byId('rd-staff').scrollLeft = 0;
+    }
     srCoach();
 }
 function srtGeneratedSelected() {
@@ -6171,7 +6175,7 @@ function srScrollX(x: number) { const w = byId('rd-staff'), svg = srSvg(), W = S
     w.scrollLeft = Math.max(0, x * k - w.clientWidth * 0.4);
 else if (w)
     w.scrollLeft = 0; }
-// On the stage the score fits into the available room without horizontal scrollbars, keeping the staff narrower and proportional.
+// Fit short scores to the stage; longer scores scroll rather than shrinking below a readable scale.
 function srFit() {
     const svg = srSvg(), r = SR.render;
     if (!svg || !r)
@@ -6189,7 +6193,10 @@ function srFit() {
     const k = Math.max(0.65, Math.min(1.35, kw, kh));
     svg.style.width = Math.round(r.W * k) + 'px';
     svg.style.height = Math.round(H * k) + 'px';
-    wrap.scrollLeft = 0;
+    if (SR.active && SR.modeSel === 'learn')
+        srScrollStep();
+    else if (!SR.active)
+        wrap.scrollLeft = 0;
 }
 function srScrollStep() { const st = SR.steps[SR.stepIdx]; if (st)
     srScrollX(st.notes[0].x); }
@@ -17406,7 +17413,11 @@ function initControls() {
         return;
     } byId('rd-bpmLbl').textContent = wiringField(e).value; SR.bpm = +wiringField(e).value; });
     byId('rd-go').addEventListener('click', srGo);
-    maybeById('rd-stage-end')?.addEventListener('click', srGo);
+    maybeById('rd-stage-end')?.addEventListener('click', () => {
+        srGo();
+        if (!SR.active)
+            byId('rd-go').focus({ preventScroll: true });
+    });
     byId('rd-srt-start').addEventListener('click', () => srtStartClaimedAttempt());
     byId('rd-srt-practice').addEventListener('click', () => { void srtSwitchToPractice(); });
     byId('rd-srt-retry').addEventListener('click', () => { void srtRetryPendingSave(); });
