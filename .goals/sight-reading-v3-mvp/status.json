@@ -1,7 +1,7 @@
 {
   "goal_id": "sight-reading-v3-mvp",
   "status": "completed",
-  "iteration": 7,
+  "iteration": 10,
   "builder_model": "GPT:5.6-Luna",
   "inspector_model": "GPT:5.6-Sol",
   "initial_sha": "a26497d263a31d1c0d74921a07ea4b8720d8af6c",
@@ -61,6 +61,11 @@
       "iteration": 9,
       "verdict": "FAIL",
       "summary": "The evaluator cap and runtime behavior are correct, but the 135/165 ms regression inputs are matched notes rather than genuine extras, so the exact close-repeat rest-boundary coverage is still missing."
+    },
+    {
+      "iteration": 10,
+      "verdict": "PASS",
+      "summary": "All M0-M10 criteria and prior regressions pass; close-repeat boundary cases now prove genuine extras with correct TP/FN/FP and rest-violation results, and the exact full gate and manual reload journey succeed."
     }
   ]
 }

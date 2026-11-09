@@ -14,14 +14,16 @@ All acceptance criteria in `goal.md` are verified:
 
 ## Verification
 
-Iteration 7 Inspector passed every acceptance criterion. The exact gate passed with 105 unit tests and 260 Playwright tests, with no failures or skips. The headed keyboard and reload journey also passed.
+Iteration 10 Inspector passed every acceptance criterion. The exact gate passed with 109 unit tests and 260 Playwright tests, with no failures or skips. The headed keyboard and reload journey also passed.
 
 ## Iteration history
 
 1. Iterations 1–4 established the full MVP and successively closed missing flow, ledger, backup, accessibility, generator, and browser-coverage gaps.
 2. Iteration 5 initially passed, but independent follow-up verification caught recorder ownership, localization, and incomplete coverage defects. The goal was correctly reopened.
 3. Iteration 6 corrected those defects, then uncovered mixed-input provenance, audio/BLE interruption, assistance suppression, localization of ledger reasons, and a weak non-greedy regression test.
-4. Iteration 7 implemented those final requirements and passed fresh independent inspection.
+4. Iteration 7 implemented those requirements, then independent verification found neighboring-window rest-violation defects.
+5. Iterations 8–9 corrected the neighboring-window logic, enforced the absolute 250 ms evaluator cap, and strengthened the close-repeat tests.
+6. Iteration 10 supplied genuine extra-input boundary evidence for the 135/165 ms inclusive cases and passed fresh independent inspection.
 
 ## Recommendations
 
