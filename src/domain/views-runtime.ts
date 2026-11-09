@@ -282,6 +282,7 @@ function applyI18n() {
     pwaUi();
     fsUi();
     scoreLibrary?.localize();
+    updatePracticeModeHint();
     fitHeader();
 }
 function setLang(l: string|undefined) {
@@ -3821,6 +3822,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
         renderSing();
     if (v === 'practice' && !SES.active) {
         stopMetro();
+        syncPracticeCatAndMode();
         renderPracticeLast();
     }
     renderModeNav();
@@ -16457,6 +16459,84 @@ function renderPlan() {
 /* ---------- PRACTICE: last drill result ---------- */
 function prRecordDrill() { if (!SES.targeted || !SES.total)
     return; const tg = SES.targeted; data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, c: SES.correct, n: SES.total, day: todayN() }; saveAll(); }
+/* ---------- PRACTICE: setup mode and hints ---------- */
+let practiceModePref: 'play' | 'ear' | 'keys' = 'play';
+
+function updatePracticeModeHint() {
+    const hint = byId('pr-mode-hint');
+    const note = byId('pr-mode-note');
+    const catEl = byId('pr-cat');
+    const pm = byId('pr-mode');
+    if (!hint || !pm || !catEl) return;
+    const cat = (catEl as HTMLSelectElement).value;
+    const mel = cat === 'melody';
+    const prog = cat === 'prog';
+    const pressed = pm.querySelector('button[aria-pressed="true"]');
+    const mode = mel ? 'keys' : (pressed instanceof HTMLButtonElement ? pressed.dataset.v : 'play');
+
+    if (mode === 'keys') {
+        hint.textContent = 'Listen to the sound and play the notes back on the keyboard.';
+    } else if (mode === 'ear') {
+        hint.textContent = 'Listen to the sound and identify it from multiple choices.';
+    } else {
+        hint.textContent = 'Read the prompt and play the notes or choose the answer.';
+    }
+
+    if (note) {
+        if (mel) {
+            note.textContent = 'Melodies are ear training exercises played directly on the keyboard.';
+            note.hidden = false;
+        } else if (prog) {
+            note.textContent = 'Progressions by ear are identified by name from multiple choices.';
+            note.hidden = false;
+        } else {
+            note.textContent = '';
+            note.hidden = true;
+        }
+    }
+}
+
+function syncPracticeCatAndMode() {
+    const catEl = byId('pr-cat');
+    const pm = byId('pr-mode');
+    if (!catEl || !pm) return;
+    const cat = (catEl as HTMLSelectElement).value;
+    const mel = cat === 'melody';
+    const prog = cat === 'prog';
+
+    queryAllHtml(pm, ':scope > *').forEach((x) => {
+        if (x instanceof HTMLButtonElement) {
+            const v = x.dataset.v;
+            // Melodies only support 'keys'; Progressions do NOT support 'keys'
+            const dis = (mel && v !== 'keys') || (prog && v === 'keys');
+            x.disabled = dis;
+        }
+    });
+
+    // If user's preference was 'keys', but topic is prog, fall back to 'ear'
+    let targetV = mel ? 'keys' : (practiceModePref || (data.settings.earKeys ? 'keys' : 'play'));
+    if (prog && targetV === 'keys') {
+        targetV = 'ear';
+    }
+
+    let selected = false;
+    queryAllHtml(pm, 'button').forEach((b) => {
+        const btn = b as HTMLButtonElement;
+        const isMatch = btn.dataset.v === targetV && !btn.disabled;
+        if (isMatch) selected = true;
+        btn.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+    });
+
+    if (!selected) {
+        const fallback = pm.querySelector('button:not(:disabled)');
+        if (fallback instanceof HTMLButtonElement) {
+            queryAllHtml(pm, 'button').forEach((b) => b.setAttribute('aria-pressed', b === fallback ? 'true' : 'false'));
+        }
+    }
+
+    updatePracticeModeHint();
+}
+
 function renderPracticeLast() {
     const el = byId('pr-last');
     if (!el)
@@ -16917,6 +16997,14 @@ function reflectSettingsUI() {
     selectById('set-new').value = String(data.settings.newPerDay);
     queryAllHtml(document, '#set-notation button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === notation ? 'true' : 'false'));
     queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === lang ? 'true' : 'false'));
+    if (data.lastDrill) {
+        if (data.lastDrill.cat === 'melody') practiceModePref = 'keys';
+        else if (data.lastDrill.mode === 'ear') practiceModePref = data.lastDrill.keys ? 'keys' : 'ear';
+        else practiceModePref = 'play';
+    } else if (data.settings.earKeys) {
+        practiceModePref = 'keys';
+    }
+    syncPracticeCatAndMode();
 }
 function setWeakSpotInjection(on: boolean) {
     data.settings.weakSpotInjection = on;
@@ -17196,6 +17284,7 @@ function initControls() {
         if (!!data.settings.earKeys === on)
             return;
         data.settings.earKeys = on;
+        practiceModePref = on ? 'keys' : 'ear';
         saveAll();
         if (!q)
             return;
@@ -17214,22 +17303,27 @@ function initControls() {
     byId('sum-again').addEventListener('click', () => { byId('summary').style.display = 'none'; startSession(null); });
     byId('sum-done').addEventListener('click', () => { byId('summary').style.display = 'none'; show('today'); });
     // practice
-    byId('pr-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b || wiringDisabled(b))
-        return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); });
-    // Melodies are only ever answered on the keys: that topic locks the mode to "By ear, on keys".
-    byId('pr-cat').addEventListener('change', (e) => {
-        const mel = wiringField(e).value === 'melody', pm = byId('pr-mode');
-        queryAllHtml(pm, ':scope > *').forEach((x) => { if (x instanceof HTMLButtonElement)
-            x.disabled = mel && x.dataset.v !== 'keys'; if (mel)
-            x.setAttribute('aria-pressed', x.dataset.v === 'keys' ? 'true' : 'false'); });
-        if (!mel && !pm.querySelector('[aria-pressed="true"]'))
-            pm.children[0].setAttribute('aria-pressed', 'true');
+    byId('pr-mode').addEventListener('click', (e) => {
+        const b = eventClosest(e, 'button');
+        if (!b || wiringDisabled(b)) return;
+        wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+        const v = b.dataset.v as 'play' | 'ear' | 'keys' | undefined;
+        if (v) {
+            practiceModePref = v;
+            if (v !== 'play') {
+                data.settings.earKeys = v === 'keys';
+                saveAll();
+            }
+            updatePracticeModeHint();
+        }
     });
+    byId('pr-cat').addEventListener('change', syncPracticeCatAndMode);
     byId('pr-start').addEventListener('click', () => {
         const cat = selectById('pr-cat').value;
         const mb = queryHtml(byId('pr-mode'), '[aria-pressed="true"]');
         const v = cat === 'melody' ? 'keys' : (mb ? mb.dataset.v : 'play');
         const key = selectById('pr-key').value;
+        if (v) practiceModePref = v as 'play' | 'ear' | 'keys';
         if (v !== 'play' && cat !== 'melody') {
             data.settings.earKeys = v === 'keys';
             saveAll();
