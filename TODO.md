@@ -33,8 +33,10 @@ Acest document centralizează:
 - [ ] **Rollout GitHub Pages & Verificare PWA pe dispozitiv real (Steps 2a / 2b / 3):**
   - Verificarea în **Settings → Pages → Build and deployment → Source: GitHub Actions**.
   - După deploy pe `main`, deschiderea PWA-ului instalat pe telefon/desktop întâi online (pentru preluarea noului Service Worker atomic), apoi în Airplane Mode.
-- [ ] **Integrarea branch-ului `sight-reading-v3` în `main` (Step 6):**
-  - Merge-ul modulelor `src/sight-reading/` după validarea rollout-ului pe GitHub Pages.
+- [x] **Integrarea branch-ului `sight-reading-v3` în `main` (Step 6):**
+  - Merge realizat cu succes în `main` (`35d51c0`), teste și build-uri validate 100% pe Windows și Linux.
+- [ ] **Practice Redesign — Complete Music Trainer Experience ([2026-11-09-practice-redesign-plan.md](./docs/plans/2026-11-09-practice-redesign-plan.md)):**
+  - Separare tab-uri (Practice / Scores / Settings), Full-screen Stage, Endless & 3-Strikes Survival, note simultane (1, 2, 3 note) pe cheia Sol & Fa în toate gamele, streaming look-ahead și injecție opțională de note slabe în Setări.
 
 ---
 
