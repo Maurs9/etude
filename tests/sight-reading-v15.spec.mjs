@@ -183,7 +183,7 @@ test.describe('Sight-reading iteration 15 regressions', () => {
     await expect.poll(() => page.evaluate(() => ({
       model: window.__etude.SR.piece?.id,
       control: document.querySelector('#rd-piece')?.value,
-    }))).toEqual({ model: 'w5rh', control: 'w5rh' });
+    }))).toEqual({ model: 'gen', control: 'gen' });
   });
 
   test('recovers a failed Switch to practice without holding locks', async ({ app }) => {

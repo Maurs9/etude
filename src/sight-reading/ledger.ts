@@ -406,7 +406,7 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
     if (operation.type === 'finishAttempt') {
       const attempt = normalizeAttempt(operation.attempt);
       const existing = ledger.attempts[attempt.attemptId];
-      if (existing && JSON.stringify(existing) !== JSON.stringify(attempt)) return { ok: false, reason: 'conflict' };
+      if (existing && !structurallyEqual(existing, attempt)) return { ok: false, reason: 'conflict' };
       if (existing) return { ok: true, ledger };
       if (attempt.generation !== ledger.generation || !hasAttemptOwner(ledger, attempt.attemptId, attempt.ownerTabId)) return { ok: false, reason: 'owner_mismatch' };
       const attempts = trimAttempts({ ...ledger.attempts, [attempt.attemptId]: attempt });

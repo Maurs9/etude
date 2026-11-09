@@ -117,6 +117,26 @@ describe('sight-reading ledger lifecycle', () => {
     expect(conflict).toEqual({ ok: false, reason: 'conflict' });
   });
 
+  it('treats reordered terminal payload keys as the same attempt', async () => {
+    const initial = claimedLedger();
+    const storage = storageWith(initial);
+    const savedAttempt = attempt({
+      attemptId: 'attempt-1',
+      fingerprint: 'v1:test',
+      ownerTabId: 'tab-1',
+      generation: initial.generation,
+    });
+    const first = await srtLedgerUpdate(storage, { type: 'finishAttempt', attempt: savedAttempt, generation: initial.generation });
+    const reorderedAttempt = Object.fromEntries(Object.entries(savedAttempt).reverse());
+    const retry = await srtLedgerUpdate(storage, {
+      type: 'finishAttempt',
+      attempt: reorderedAttempt,
+      generation: initial.generation,
+    });
+    expect(first.ok).toBe(true);
+    expect(retry).toEqual(first);
+  });
+
   it('rejects an import from the generation that a reset replaced', async () => {
     const oldLedger = srtCreateLedger();
     const storage = storageWith(oldLedger);

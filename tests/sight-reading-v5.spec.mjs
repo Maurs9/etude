@@ -328,7 +328,7 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
     await expect(page.locator('#rd-names')).toBeChecked();
   });
 
-  test('localizes a blocked ledger quota instead of exposing the reason code', async ({ app }) => {
+  test('localizes the practice fallback for a full ledger instead of exposing the reason code', async ({ app }) => {
     const page = await openAssessGenerator(app);
     await page.evaluate(() => {
       const api = window.__etude;
@@ -340,9 +340,9 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
       localStorage.setItem('etude-sight-v1', JSON.stringify({ ...ledger, exposures }));
     });
     await page.locator('#rd-go').click();
-    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('blocked');
+    await expect.poll(() => page.evaluate(() => ({ name: window.__etude.SR.srtState.name, mode: window.__etude.SR.srtState.mode }))).toEqual({ name: 'countIn', mode: 'practice' });
     const result = await page.evaluate(() => ({
-      text: document.querySelector('#rd-verdict')?.textContent,
+      text: document.querySelector('#rd-srt-notice')?.textContent,
       expected: window.__etude.t('rd_srt_error_quota'),
     }));
     expect(result.text).toBe(result.expected);

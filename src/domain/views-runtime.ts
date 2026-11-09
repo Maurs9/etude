@@ -6007,6 +6007,7 @@ function srStepsBuild() {
 function srDraw() {
     if (!SR.piece)
         return;
+    srtConsumeOnLearnReveal();
     const r = srRender(SR.piece);
     SR.render = r;
     SR.notes = r.notes;
@@ -6324,16 +6325,27 @@ function srtRecordExposure(reason: string, kind: 'exposure' | 'listen' = 'exposu
     });
     return operation;
 }
-function srtExposeForPractice(reason: string, kind: 'exposure' | 'listen' = 'exposure') {
+function srtExposeForPractice(reason: string, kind: 'exposure' | 'listen' = 'exposure', redraw = true) {
     if (!SR.srtPiece || !SR.srtFingerprint)
         return;
     const state = SR.srtState;
     if (state?.mode === 'firstSight' &&
         (state.name === 'idle' || state.name === 'blocked' && state.reason !== 'already_exposed')) {
-        SR.srtState = { ...state, mode: 'practice', fingerprint: SR.srtFingerprint };
-        srDraw();
+        SR.srtState = { ...state, mode: 'practice', attemptId: null, fingerprint: SR.srtFingerprint };
+        if (redraw)
+            srDraw();
     }
     void srtRecordExposure(reason, kind);
+}
+function srtConsumeOnLearnReveal() {
+    if (SR.modeSel === 'assess' || !srtGeneratedSelected() || !SR.srtFingerprint)
+        return false;
+    const state = SR.srtState;
+    if (state?.mode !== 'firstSight' ||
+        !(state.name === 'idle' || state.name === 'blocked' && state.reason !== 'already_exposed'))
+        return false;
+    srtExposeForPractice('learn', 'exposure', false);
+    return true;
 }
 function srtClearPreview() {
     window.clearInterval(SR.srtPreviewTimer);
@@ -6411,13 +6423,6 @@ function srtClearPendingAttempt(attemptId: string) {
     if (SR.srtPendingAttempt?.attemptId === attemptId)
         SR.srtPendingAttempt = null;
 }
-function srtApplyPendingSelection() {
-    if (!srtPendingSelection || SR.srtState?.name === 'pendingSave')
-        return;
-    const selection = srtPendingSelection;
-    srtPendingSelection = null;
-    srSelectPiece(selection);
-}
 function srtAbandonPendingSelection() {
     if (srtPendingAbandonment)
         return;
@@ -6426,14 +6431,17 @@ function srtAbandonPendingSelection() {
     void operation.then((result) => {
         if (srtPendingAbandonment === operation)
             srtPendingAbandonment = null;
-        if (result.ok || SR.srtState?.name !== 'pendingSave')
-            srtApplyPendingSelection();
+        const selection = srtPendingSelection;
+        srtPendingSelection = null;
+        if (result.ok && selection && SR.srtState?.name === 'abandoned')
+            srSelectPiece(selection);
     });
 }
 async function srtRetryPendingSave() {
     const attempt = SR.srtPendingAttempt;
     if (!attempt)
         return;
+    srtPendingSelection = null;
     const epoch = srtOperationEpoch;
     const state = SR.srtState;
     const lease = SR.srtLease ?? null;
@@ -6465,11 +6473,6 @@ async function srtRetryPendingSave() {
         srtPendingUi(false);
         srtNotice(null);
         srRenderAssessResult();
-        if (srtPendingSelection) {
-            const selection = srtPendingSelection;
-            srtPendingSelection = null;
-            srSelectPiece(selection);
-        }
     }
     else {
         srtPendingUi(true);
@@ -6479,9 +6482,9 @@ async function srtRetryPendingSave() {
 async function srtContinueWithoutSave() {
     if (SR.srtState?.name !== 'pendingSave')
         return;
+    srtPendingSelection = null;
     const result = await (srtPendingAbandonment ?? srtAbandonClaim('abandoned', false));
-    if (result.ok || SR.srtState?.name !== 'pendingSave')
-        srtApplyPendingSelection();
+    void result;
 }
 function srtAttemptId() {
     return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -6587,8 +6590,8 @@ async function srtStartFirstSight() {
     }
     const ledgerStatus = srtLedgerReadStatus(localStorage);
     if (ledgerStatus === 'unsupported') {
-        srtNotice(t('rd_srt_ledger_unsupported'));
         srtStartPractice();
+        srtNotice(t('rd_srt_ledger_unsupported'));
         return;
     }
     const ledger = srtReadLedger(localStorage);
@@ -6598,8 +6601,8 @@ async function srtStartFirstSight() {
         return;
     }
     if (!navigator.locks || typeof navigator.locks.request !== 'function') {
-        srtNotice(t('rd_srt_no_locks'));
         srtStartPractice();
+        srtNotice(t('rd_srt_no_locks'));
         return;
     }
     srtNotice(null);
@@ -6644,7 +6647,15 @@ async function srtStartFirstSight() {
     }
     if (!result.ok) {
         srtReleaseLease(lease);
-        if (result.reason === 'storage') {
+        const retryable = result.reason === 'stale_generation' || result.reason === 'conflict' || result.reason === 'owner_mismatch';
+        if (retryable) {
+            SR.srtState = { ...SRT_INITIAL_STATE, fingerprint: claimedFingerprint };
+            SR.srtPendingAttempt = null;
+            srDraw();
+            srtNotice(srtLedgerFailureMessage(result.reason));
+            return;
+        }
+        if (result.reason === 'storage' || result.reason === 'quota' || result.reason === 'unsupported') {
             srtStartPractice();
             srtNotice(srtLedgerFailureMessage(result.reason));
             return;
@@ -6906,8 +6917,11 @@ function srRenderAssessResult() {
     const stars = evaluated.stars;
     const v = byId('rd-verdict');
     v.className = 'verdict ' + (stars >= 2 ? 'good' : stars ? 'neutral' : 'bad');
-    const modeLabel = SR.srtState?.mode === 'firstSight' ? t('rd_srt_first_sight') : t('rd_srt_practice_badge');
-    let text = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + ' · ' + modeLabel +
+    const firstSightResult = srtGeneratedSelected() && SR.srtState?.mode === 'firstSight' && SR.srtState.attemptId !== null;
+    const practiceResult = srtGeneratedSelected() && SR.srtState?.mode === 'practice';
+    const modeLabel = firstSightResult ? t('rd_srt_first_sight') : practiceResult ? t('rd_srt_practice_badge') : '';
+    const modeSuffix = modeLabel ? ' · ' + modeLabel : '';
+    let text = t('rd_score', pct) + '  ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + modeSuffix +
         ' · ' + t('rd_srt_summary', Math.round(evaluated.pitchF1 ?? 0), evaluated.TP, evaluated.N, evaluated.FP, Math.round(evaluated.rhythmAcc ?? 0), Math.round(evaluated.meanOffsetMs ?? 0));
     if (SR.wrongExtra)
         text += '  ·  ' + t('rd_extra', SR.wrongExtra);
@@ -7137,12 +7151,13 @@ function srSelectPiece(id: string) {
         b.disabled = avail !== 'both';
         b.setAttribute('aria-pressed', (avail === 'both' ? b.dataset.v === SR.hands : b.dataset.v === avail) ? 'true' : 'false');
     });
+    const consumedForLearn = srtConsumeOnLearnReveal();
     srDraw();
     srMeta();
     srBest();
     byId('rd-verdict').textContent = '';
     srtNotice(null);
-    if (srtGeneratedSelected() && (SR.srtState?.mode === 'practice' || SR.srtState?.name === 'abandoned' || SR.srtState?.name === 'interrupted')) {
+    if (!consumedForLearn && srtGeneratedSelected() && (SR.srtState?.mode === 'practice' || SR.srtState?.name === 'abandoned' || SR.srtState?.name === 'interrupted')) {
         const message = t('rd_srt_error_already_exposed');
         srtNotice(message);
         if (SR.srtState.name === 'abandoned' || SR.srtState.name === 'interrupted') {
@@ -8389,8 +8404,9 @@ function rdSightStart(mode: string, injectedSeed?: number) {
         return;
     if (srtPendingSaveProtected()) {
         if (SR.srtState?.name === 'pendingSave') {
+            const pendingEpoch = srtOperationEpoch;
             void srtAbandonClaim('abandoned', false).then((result) => {
-                if (result.ok || SR.srtState?.name !== 'pendingSave')
+                if (result.ok && srtOperationEpoch === pendingEpoch + 1 && SR.srtState?.name === 'abandoned')
                     rdSightStart(mode, injectedSeed);
             });
         }
@@ -8417,7 +8433,7 @@ function rdSightStart(mode: string, injectedSeed?: number) {
     SR.srtPiece = srtPiece;
     SR.srtFingerprint = srtFingerprint(srtPiece);
     srtRememberGeneratedFingerprint(SR.srtFingerprint);
-    SR.srtState = { ...SRT_INITIAL_STATE, mode: mode === 'test' ? 'firstSight' : 'practice', fingerprint: SR.srtFingerprint };
+    SR.srtState = { ...SRT_INITIAL_STATE, mode: 'firstSight', fingerprint: SR.srtFingerprint };
     SR.srtPendingAttempt = null;
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
@@ -8435,7 +8451,7 @@ function rdSightStart(mode: string, injectedSeed?: number) {
     [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
     srSelectPiece('gen');
     if (mode !== 'test')
-        srtExposeForPractice('learn');
+        srtConsumeOnLearnReveal();
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rdx_sr_ready');
@@ -9252,7 +9268,7 @@ function srSetMode(v: string) {
     const practiceOnly = v === 'assess' && srtGeneratedSelected() &&
         (SR.srtState?.mode === 'practice' || SR.srtState?.name === 'abandoned' || SR.srtState?.name === 'interrupted');
     if (v === 'learn' && srtGeneratedSelected())
-        srtExposeForPractice('learn');
+        srtConsumeOnLearnReveal();
     srDraw();
     byId('rd-verdict').textContent = '';
     if (practiceOnly) {
