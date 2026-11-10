@@ -35,6 +35,7 @@ import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisi
 import { srtNotationSegments } from '../sight-reading/notation.js';
 import '../styles/sight-rhythm.css';
 import { SCALE_FINGERINGS } from './technique.js';
+import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
 import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
 
@@ -2894,10 +2895,15 @@ function masteredCount() { return ITEMS.filter((it) => boxOf(it.id) >= 4).length
 interface EarKeysNote { m: number; t: number; }
 type EarKeysPrompt = { kind: 'iv'; target: number[]; n: number; } | { kind: 'ch'; target: number[]; inv: number; pcs: number[]; n: number; } | { kind: 'mel'; target: number[]; n: number; };
 type EarKeysState = EarKeysPrompt & { tries: number; seq: EarKeysNote[]; off: number; armAt: number; goT: ReturnType<typeof setTimeout> | number; won: boolean; warned: boolean; played?: number[]; };
-interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; }
+interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; }
+// A wrong answer: what was given against what was expected, both sounds for Hear both, and the item taken for this one (`pair`).
+interface TrainerGiven { text: string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
 interface TrainerSessionTarget { cat: string; mode: string; key: string; }
-interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; }
-const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0 };
+// contrast: a short drill on two items the last session mixed up (its question order, by item id).
+interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; contrast: { a: string; b: string; order: string[] } | null; }
+const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0, contrast: null };
+// Which items this session took for which (kept in memory only; a new session, but not its contrast drill, starts it over).
+const confusions = new ConfusionLog();
 function sesStopPrompt() { clearTimeout(SES.promptT); SES.promptT = 0; }
 function sesPrompt(q: TrainerQuestion, play: () => void) { sesStopPrompt(); SES.promptT = setTimeout(() => { SES.promptT = 0; if (SES.active && SES.q === q && !SES.answered)
     play(); }, 250); }
@@ -2961,11 +2967,15 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
         key = b < 1 ? randItem([0, 7, 5, 2, 9]) : Math.floor(Math.random() * 12); // start in friendly keys
     return { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
 }
-function startSession(targeted: TrainerSessionTarget|null) {
+function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
     ensureAudio();
     sesStopPrompt();
     SES.targeted = targeted || null;
     SES.placement = false;
+    SES.contrast = targeted ? contrast : null;
+    if (!SES.contrast)
+        confusions.clear();
+    contrastOfferHide();
     SES.queue = targeted ? Array.from({ length: 9999 }) : buildQueue(); // targeted = endless
     SES.idx = 0;
     SES.correct = 0;
@@ -2979,6 +2989,9 @@ function startPlacement() {
     sesStopPrompt();
     SES.targeted = null;
     SES.placement = true;
+    SES.contrast = null;
+    confusions.clear();
+    contrastOfferHide();
     SES.queue = PLACEMENT.map((id) => ITEM_BY_ID[id]).filter(Boolean).map(makeQuestion);
     SES.idx = 0;
     SES.correct = 0;
@@ -3016,6 +3029,8 @@ function endSession(toSummary: boolean) {
     sesStopPrompt();
     ekStop(SES.q);
     techniqueStop(techniqueHost);
+    const contrastRun = SES.contrast;
+    SES.contrast = null;
     SES.active = false;
     SES.placement = false;
     byId('session').style.display = 'none';
@@ -3028,25 +3043,30 @@ function endSession(toSummary: boolean) {
     stopMetro();
     stopDrone();
     if (SES.targeted) {
-        prRecordDrill();
+        if (!contrastRun)
+            prRecordDrill(); // a contrast drill leaves the last-drill record alone: nothing new is saved
         byId('pr-home').style.display = '';
         renderPracticeLast();
+        contrastOffer(byId('pr-last'), contrastRun ? { correct: SES.correct, total: SES.total } : null);
         if (toSummary)
             byId('pr-start').focus();
         return;
     }
-    if (toSummary)
+    if (toSummary) {
         showSummary(wasPlacement);
+        contrastOffer(byId('sum-note'), null);
+    }
     else {
         byId('today-home').style.display = 'block';
         refreshToday();
     }
 }
 function nextQuestion() {
-    if (!SES.targeted && SES.idx >= SES.queue.length) {
+    if ((!SES.targeted && SES.idx >= SES.queue.length) || (SES.contrast && SES.total >= SES.contrast.order.length)) {
         endSession(true);
         return;
     }
+    byId('q-both').hidden = true;
     sesStopPrompt();
     ekStop(SES.q);
     kbClearAll();
@@ -3066,6 +3086,10 @@ function nextQuestion() {
     SES.q = q;
     byId('ses-progress').style.width = SES.targeted ? '0%' : (100 * SES.idx / SES.queue.length) + '%';
     byId('ses-count').textContent = SES.targeted ? ('#' + (SES.total + 1) + (SES.total ? ' · ' + SES.correct + '/' + SES.total + ' ✓' : '')) : ((SES.idx + 1) + '/' + SES.queue.length);
+    if (SES.contrast) {
+        byId('ses-progress').style.width = (100 * SES.total / SES.contrast.order.length) + '%';
+        byId('ses-count').textContent = (SES.total + 1) + '/' + SES.contrast.order.length;
+    }
     byId('q-verdict').textContent = '';
     byId('q-verdict').className = 'verdict';
     byId('q-elab').textContent = '';
@@ -3088,6 +3112,9 @@ const techniqueHost: TechniqueHost = {
 function pickTargetedItem() {
     if (!SES.targeted)
         throw new Error('Étude: no targeted drill');
+    const contrastItem = SES.contrast ? ITEM_BY_ID[SES.contrast.order[SES.total % SES.contrast.order.length]] : undefined;
+    if (contrastItem)
+        return contrastItem;
     const c = SES.targeted.cat;
     const pool = c === 'melody' ? ITEMS.filter((it) => it.cat === 'scale' && EK_MEL_SCALES.includes(it.name)) : ITEMS.filter((it) => it.cat === c); // weakness-weighted
     const w = pool.map((it) => { const s = data.srs[it.id] || { box: 0 }; return 1 / (1 + s.box); });
@@ -3161,17 +3188,19 @@ function presentEar(q: TrainerQuestion) {
         sesPrompt(q, () => playInterval(earRoot(q), it.semi, 'both'));
     }
     else if (it.cat === 'chord') {
-        opts = chordEarOptions(it).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
+        opts = (SES.contrast ? ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord') : chordEarOptions(it)).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
         sesPrompt(q, () => playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true));
     }
     else if (it.cat === 'scale') {
-        opts = scaleEarOptions(it.name).map((nm: string) => ({ k: nm, t: scaleDisp(nm) }));
+        opts = (SES.contrast ? Object.keys(SCALES) : scaleEarOptions(it.name)).map((nm: string) => ({ k: nm, t: scaleDisp(nm) }));
         sesPrompt(q, () => playScaleNotes(60 + q.key, SCALES[it.name], true));
     }
     else if (it.cat === 'prog') {
         opts = PROGS.map((p) => ({ k: p.name, t: p.name }));
         sesPrompt(q, () => playProg(q.key, it.ref));
     }
+    if (SES.contrast) // a contrast drill offers just the two answers it compares
+        opts = opts.filter((o) => SES.contrast && [SES.contrast.a, SES.contrast.b].includes(earOptionId(it.cat, o.k)));
     opts.forEach((o) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o.k); b.textContent = o.t; b.onclick = () => answerEar(q, o.k, b); box.appendChild(b); });
 }
 function playProg(rootPc: number, prog: theory.ProgressionTemplate) { ensureAudio(); stopPreviews(); if (!actx)
@@ -3219,6 +3248,7 @@ function answerEar(q: TrainerQuestion, k: number | string, btn: HTMLButtonElemen
         btn.classList.add('wrong');
         q.missed = true;
         markEarCorrect(q);
+        q.given = givenByEar(q, k);
         resolve(q, false);
     }
 }
@@ -3232,7 +3262,7 @@ function markEarCorrect(q: TrainerQuestion) { const it = q.it; const key = it.ca
 const EK_TRIES = 3, EK_MEL_SCALES = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Major pentatonic', 'Minor pentatonic'];
 const EK_CHORD_GAP = 300; // ms: a key joins the chord if another chord key is still down or it lands this close to the previous one
 function ekForced() { return !!(SES.targeted && SES.targeted.cat === 'melody'); }
-function ekWanted(q: TrainerQuestion | null) { return !!q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
+function ekWanted(q: TrainerQuestion | null) { return !!q && q.mode === 'ear' && !SES.placement && !SES.contrast && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
 // Spell like the key: minor-flavoured chords and scales on D, G, C, F, B♭, E♭ use flats, as do the flat major keys and the flat intervals.
 function ekFlat(q: TrainerQuestion) {
     const it = q.it, set = it.cat === 'chord' ? it.ref.pcset : it.cat === 'scale' ? SCALES[it.name] : null;
@@ -3417,6 +3447,7 @@ function ekIv(q: TrainerQuestion) {
         ekWin(q, [a.m, b.m]);
         return;
     }
+    q.given = givenInterval(q, a.m, b.m, a.m);
     ekMiss(q, [b.m], b.m < a.m ? t('ek_wrong_down') : t('ek_wrong_iv', intervalLabel(b.m - a.m)));
 }
 function ekCh(q: TrainerQuestion) {
@@ -3434,6 +3465,7 @@ function ekCh(q: TrainerQuestion) {
         return;
     }
     if (!isSubset(pcs, ek.pcs)) {
+        q.given = givenChord(q, ms, ek.target, null);
         ekMiss(q, ms.filter((m) => !ek.pcs.includes(pc(m))), t('ek_wrong_ch'));
         return;
     }
@@ -3463,6 +3495,7 @@ function ekMel(q: TrainerQuestion, m: number) {
     }
     const want = tg[i] + ek.off;
     if (m !== want) {
+        q.given = givenNote(ek.seq.slice(-2).map((x) => x.m), m, want);
         ekMiss(q, [m], t('ek_wrong_mel', i + 1, t(m > want ? 'ek_high' : 'ek_low')));
         return;
     }
@@ -3551,6 +3584,7 @@ function gradeInterval(q: TrainerQuestion) {
         [lo, hi].forEach((m) => kbState(m, 'bad', true));
         setTimeout(() => kbClear('bad'), 500);
         q.missed = true;
+        q.given = givenInterval(q, lo, hi, pc(lo) === q.key ? lo : 60 + q.key);
         resolve(q, false);
     }
 }
@@ -3582,6 +3616,7 @@ function gradeChord(q: TrainerQuestion) {
         heldMidis().forEach((m) => kbState(m, 'bad', true));
         setTimeout(() => kbClear('bad'), 500);
         q.missed = true;
+        q.given = givenChord(q, heldMidis(), tpl.intervals.map((i) => 60 + q.key + i), null);
         resolve(q, false);
     }
 }
@@ -3613,6 +3648,7 @@ function gradeScaleNote(q: TrainerQuestion, midi: number | null | undefined) {
         kbState(midi, 'bad', true);
         setTimeout(() => kbClear('bad'), 420);
         q.missed = true;
+        q.given = givenNote(q.offs.slice(Math.max(0, q.idx - 2), q.idx).map((o) => (q.anchor ?? 0) + o), midi, want);
         resolve(q, false);
     }
 }
@@ -3641,8 +3677,112 @@ function gradeProgChord(q: TrainerQuestion) {
         heldMidis().forEach((m) => kbState(m, 'bad', true));
         setTimeout(() => kbClear('bad'), 420);
         q.missed = true;
+        q.given = givenChord(q, heldMidis(), tpl ? tpl.intervals.map((i) => 60 + root + i) : [], q.idx + 1);
         resolve(q, false);
     }
+}
+/* ---------- error-aware feedback: what was given against what was expected (feedback.ts) ---------- */
+function noteNames(ms: readonly number[]) { return ms.map((m) => rootName(pc(m))).join('–'); }
+function chordLabel(rootPc: number, ref: theory.ChordTemplate) { return rootName(rootPc) + dispSym(ref.symbol) + ' · ' + chordDisp(ref); }
+// The item id an ear answer stands for, as the item list names them.
+function earOptionId(cat: string, k: number | string) { return (cat === 'interval' ? 'iv:' : cat === 'chord' ? 'ch:' : cat === 'scale' ? 'sc:' : 'pr:') + k; }
+function progMidis(rootPc: number, prog: theory.ProgressionTemplate) { return prog.chords.map((ch) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); return tpl ? tpl.intervals.map((iv) => root + iv) : []; }); }
+function givenByEar(q: TrainerQuestion, k: number | string): TrainerGiven | null {
+    const it = q.it, pair = ITEM_BY_ID[earOptionId(it.cat, k)] ? earOptionId(it.cat, k) : undefined;
+    if (it.cat === 'interval' && typeof k === 'number') {
+        const r = earRoot(q);
+        return { text: t('fb_picked', ivName(k), ivName(it.semi)), given: feedbackBroken([r, r + k]), expected: feedbackBroken([r, r + it.semi]), pair };
+    }
+    if (it.cat === 'chord') {
+        const ref = CHORDS.find((c) => c.symbol === k);
+        if (!ref)
+            return null;
+        const base = 57 + q.key;
+        return { text: t('fb_picked', chordDisp(ref), chordDisp(it.ref)), given: feedbackBroken(ref.intervals.map((i) => base + i), 0.16, 1.1), expected: feedbackBroken(it.ref.intervals.map((i) => base + i), 0.16, 1.1), pair };
+    }
+    if (it.cat === 'scale' && typeof k === 'string' && SCALES[k]) {
+        const line = (name: string) => feedbackLine(SCALES[name].concat([12]).map((o) => 60 + q.key + o));
+        return { text: t('fb_picked', scaleDisp(k), scaleDisp(it.name)), given: line(k), expected: line(it.name), pair };
+    }
+    if (it.cat === 'prog') {
+        const prog = PROGS.find((p) => p.name === k);
+        if (!prog)
+            return null;
+        return { text: t('fb_picked', prog.name, it.ref.name), given: feedbackChords(progMidis(q.key, prog)), expected: feedbackChords(progMidis(q.key, it.ref)), pair };
+    }
+    return null;
+}
+// Two keys for an interval question; `from` is where the expected interval is sounded (the right start note when it was played).
+function givenInterval(q: TrainerQuestion, lo: number, hi: number, from: number): TrainerGiven | null {
+    const it = q.it;
+    if (it.cat !== 'interval')
+        return null;
+    const semi = hi - lo, rootOk = pc(lo) === q.key || (!!q.ek && pc(lo) === pc(q.ek.target[0]));
+    const given = rootOk ? intervalLabel(Math.abs(semi)) : noteNames([lo, hi]) + ' (' + intervalLabel(Math.abs(semi)) + ')';
+    const expected = rootOk ? ivName(it.semi) : ivName(it.semi) + ' ' + t('above') + ' ' + rootName(q.key);
+    const pair = rootOk && semi > 0 && ITEM_BY_ID['iv:' + semi] ? 'iv:' + semi : undefined;
+    return { text: t('fb_played', given, expected), given: feedbackBroken([lo, hi]), expected: feedbackBroken([from, from + it.semi]), pair };
+}
+// Keys for a chord question (or chord `chordNo` of a progression), named as a chord when they make one.
+function givenChord(q: TrainerQuestion, ms: readonly number[], expectedMidis: readonly number[], chordNo: number | null): TrainerGiven | null {
+    const sorted = [...ms].sort((a, b) => a - b), id = identifyChord(sorted);
+    const given = id ? chordLabel(id.rootPc, id.chord) : t('fb_notes', noteNames(sorted));
+    const it = q.it;
+    let expected = noteNames(expectedMidis), pair: string | undefined;
+    if (it.cat === 'chord' && chordNo === null) {
+        expected = chordLabel(q.key, it.ref);
+        if (id && id.rootPc === q.key && ITEM_BY_ID['ch:' + id.chord.symbol])
+            pair = 'ch:' + id.chord.symbol;
+    }
+    else if (it.cat === 'prog' && chordNo !== null) {
+        const ch = it.ref.chords[chordNo - 1], tpl = ch ? progChordTpl(ch[1]) : undefined;
+        if (ch && tpl)
+            expected = chordLabel((q.key + ch[0]) % 12, tpl);
+    }
+    const text = chordNo === null ? t('fb_played', given, expected) : t('fb_chord_n', given, chordNo, expected);
+    return { text, given: feedbackBroken(sorted, 0.16, 1.1), expected: feedbackBroken(expectedMidis, 0.16, 1.1), pair };
+}
+// A wrong note in a line (scale or melody), heard after the notes before it.
+function givenNote(before: readonly number[], midi: number, want: number): TrainerGiven {
+    return { text: t('fb_note', rootName(pc(midi)), rootName(pc(want))), given: feedbackLine([...before, midi]), expected: feedbackLine([...before, want]) };
+}
+function playGivenAndExpected(g: TrainerGiven) {
+    ensureAudio();
+    stopPreviews();
+    const start = actx?.currentTime ?? 0;
+    feedbackSchedule(g.given, g.expected).forEach((n) => previewNote(n.midi, start + n.at, n.dur));
+}
+// After a session: offer a short contrast drill when two items were mixed up more than once (and report one just finished).
+function contrastOfferHide() { const box = maybeById('ses-contrast'); if (box)
+    box.hidden = true; }
+function contrastOffer(anchor: HTMLElement, finished: { correct: number; total: number } | null) {
+    const pair = confusions.top(), a = pair ? ITEM_BY_ID[pair.expected] : undefined, b = pair ? ITEM_BY_ID[pair.given] : undefined;
+    let box = maybeById('ses-contrast');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'ses-contrast';
+        box.className = 'verdict neutral cf-offer';
+        box.setAttribute('role', 'status');
+    }
+    anchor.after(box);
+    const lines: string[] = [];
+    if (finished && finished.total)
+        lines.push(`<span>${rdEsc(t('cf_done', finished.correct, finished.total))}</span>`);
+    if (pair && a && b)
+        lines.push(`<span>${rdEsc(t('cf_offer', itemLabel(a), itemLabel(b), pair.count))}</span> <button type="button" class="btn sm primary" id="cf-start">${rdEsc(t('cf_start', CONTRAST_LENGTH))}</button>`);
+    box.innerHTML = lines.join('<br>');
+    box.hidden = !lines.length;
+    const go = maybeById('cf-start');
+    if (go && pair)
+        go.onclick = () => startContrast(pair);
+}
+function startContrast(pair: ConfusionPair) {
+    const a = ITEM_BY_ID[pair.expected], b = ITEM_BY_ID[pair.given];
+    if (!a || !b || a.cat !== b.cat)
+        return;
+    byId('summary').style.display = 'none';
+    show('practice');
+    startSession({ cat: a.cat, mode: 'ear', key: 'all' }, { a: a.id, b: b.id, order: contrastOrder(a.id, b.id) });
 }
 function neutral(msg: string|null) { const v = byId('q-verdict'); v.className = 'verdict neutral'; v.textContent = msg; }
 function resolve(q: TrainerQuestion, correct: boolean) {
@@ -3670,8 +3810,10 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     } // reproduced after a miss: counts as a lapse
     else {
         v.className = 'verdict bad';
-        v.textContent = t('notquite');
+        v.textContent = q.given ? q.given.text : t('notquite');
     }
+    if (!correct && q.given && q.given.pair && !SES.placement && !SES.contrast)
+        confusions.record(q.it.id, q.given.pair);
     if (q.ek) {
         ekStop(q);
         byId('q-ekreset').hidden = true;
@@ -3679,8 +3821,14 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     revealAnswerKeys(q);
     showElaboration(q);
     if (!good) {
-        setTimeout(() => { if (SES.active && SES.q === q && SES.answered)
+        const replay = setTimeout(() => { if (SES.active && SES.q === q && SES.answered)
             playQuestionSound(q); }, 600);
+        const given = correct ? null : q.given;
+        if (given) { // Hear both: the given sound, then the expected one (it replaces the replay still to come)
+            const both = byId('q-both');
+            both.hidden = false;
+            both.onclick = () => { clearTimeout(replay); playGivenAndExpected(given); };
+        }
     } // let the right answer be heard, not just seen
     byId('q-reveal').hidden = true;
     byId('q-next').hidden = false;
