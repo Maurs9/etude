@@ -31,25 +31,23 @@ Acest document centralizează:
 - [x] **Roadmap Faza 2 — Aplicația se simte nativă (#9):** fade de 120ms la schimbarea ecranului, texte de dispozitiv pe telefon și în aplicația instalată (`native.css`), sunetul se reia la revenire (`audio.resumeOnReturn`, `dom.onPageReturn`), verificare de versiune nouă la revenire.
 - [x] **Roadmap Faza 3 — Cântat de încredere (#10):** notele MIDI sunt judecate după ora evenimentului (`midi-timing.ts`), reconectare automată MIDI, calibrarea latenței per sursă în `data.latency` (0–500 ms), claviatură lată pe telefon ținut orizontal (`landscape.css`).
 - [x] **Roadmap Faza 4 — Mai mult pian (#11):** niveluri de ritm sr10–sr12 (optimi, note cu punct, sincope, legato de prelungire), exercițiu de game și arpegii (`technique.ts`), feedback care arată greșeala și un exercițiu de contrast (`feedback.ts`).
+- [x] **Constatări din review, Fazele 2–4 (#13):** antetul rămâne pe orizontală când un exercițiu forțează claviatura, exercițiul de game respectă „Accept any octave” și cere două clape la mâini împreună, judecă după `inputTime()` și nu ia o clapă înaintea pasului precedent. Resetarea progresului păstrează `data.latency`. Pe ecran tactil rămân „sau cântă acordul” și „cântă la MIDI sau atinge o clapă”. Orice stare MIDI se traduce din nou la schimbarea limbii.
+- [x] **Practice Redesign — Complete Music Trainer Experience ([2026-11-09-practice-redesign-plan.md](./docs/plans/2026-11-09-practice-redesign-plan.md)):** toate cele 7 faze sunt în `main`: tab-ul Scores, Full-screen Stage, șirul de note și fantoma, Supraviețuire, Contra cronometru și Maraton (`arcade.ts`), polifonie și grand staff în toate armurile, injecția notelor slabe din Setări, cu traduceri în 7 limbi și teste.
 
 ### Rămas de făcut (Următorii pași)
 - [ ] **Roadmap, amânate cu bună știință:** notarea ritmului bătut (tap), jurnalul de performanță și un planificator pe abilități, statistici salvate ale confuziilor. Toate adaugă date salvate, deci au nevoie de un pas în `PTT_MIGRATIONS`.
-- [ ] **Constatări deschise din review (Fazele 2–4):**
-  - Fullscreen-ul din browser poate fi tratat ca aplicație instalată.
-  - Pe ecran tactil, ascunderea indiciilor de taste ascunde și „sau cântă acordul” în exercițiile de citire.
-  - Pe orizontală, un exercițiu care forțează claviatura ascunde și butonul de ascundere și antetul.
-  - Resetarea progresului șterge și calibrarea (`data.latency`).
-  - Un pian Bluetooth asociat prin sistem vine prin Web MIDI și folosește offsetul `usb`.
-  - Exercițiul de game cere octava exactă, greu pe tastele pliate de pe ecran. Arpegiile au digitație doar în Do, Fa, Sol major și la, re, mi minor.
-  - Exercițiul de game folosește încă `performance.now()`, nu `inputTime()` din Faza 3.
+- [ ] **Constatări deschise:**
+  - Un pian Bluetooth asociat prin sistem vine prin Web MIDI și folosește offsetul `usb`. Trebuie un offset per dispozitiv.
+  - Arpegiile au digitație doar în Do, Fa, Sol major și la, re, mi minor. Celelalte tonalități au nevoie de o sursă verificată.
+  - Într-o fereastră de desktop sub 680px, fără ecran tactil, un exercițiu de acorduri nu arată niciun indiciu.
+  - Resetarea progresului păstrează datele dispozitivului (`data.latency`) printr-un caz special. La a doua cheie de dispozitiv, se generalizează.
+  - Lăsat așa intenționat: fullscreen-ul din browser e tratat ca aplicație instalată (`display_override` din manifest începe cu `fullscreen`).
 - [ ] **Rollout GitHub Pages & Verificare PWA pe dispozitiv real (Steps 2a / 2b / 3):**
   - Verificarea în **Settings → Pages → Build and deployment → Source: GitHub Actions**.
   - După deploy pe `main`, deschiderea PWA-ului instalat pe telefon/desktop întâi online (pentru preluarea noului Service Worker atomic), apoi în Airplane Mode.
   - Pașii completi sunt în [docs/runbooks/device-smoke.md](./docs/runbooks/device-smoke.md) (instalare, offline, stocare și copii automate, actualizare, sunet, MIDI).
 - [x] **Integrarea branch-ului `sight-reading-v3` în `main` (Step 6):**
   - Merge realizat cu succes în `main` (`35d51c0`), teste și build-uri validate 100% pe Windows și Linux.
-- [ ] **Practice Redesign — Complete Music Trainer Experience ([2026-11-09-practice-redesign-plan.md](./docs/plans/2026-11-09-practice-redesign-plan.md)):**
-  - Separare tab-uri (Practice / Scores / Settings), Full-screen Stage, Endless & 3-Strikes Survival, note simultane (1, 2, 3 note) pe cheia Sol & Fa în toate gamele, streaming look-ahead și injecție opțională de note slabe în Setări.
 
 ---
 
