@@ -84,4 +84,30 @@ test.describe('Practice: scales and arpeggios', () => {
     for (const midi of [...up, ...up.slice(0, -1).reverse()]) await play(midi);
     await expect(page.locator('#q-elab')).toContainText('Notes: 15 played · wrong keys: 1');
   });
+
+  test('judges a MIDI key by its own event time, not by when the page handled it', async ({ app }) => {
+    // One Web MIDI port the test drives; send(midi, stamp) delivers a note-on and note-off stamped with the key's own time.
+    await app.page.addInitScript(() => {
+      const port = { id: 'usb-1', name: 'Digital Piano', type: 'input', state: 'connected', connection: 'open', onmidimessage: null };
+      const access = { inputs: new Map([[port.id, port]]), outputs: new Map(), sysexEnabled: false, onstatechange: null };
+      window.__midi = { send(midi, stamp) {
+        port.onmidimessage({ data: new Uint8Array([0x90, midi, 90]), timeStamp: stamp });
+        port.onmidimessage({ data: new Uint8Array([0x80, midi, 0]), timeStamp: stamp + 1 });
+      } };
+      Object.defineProperty(navigator, 'requestMIDIAccess', { configurable: true, value: async () => access });
+    });
+    const page = await openDrill(app);
+    await page.locator('#midiChip').click();
+    await expect(page.locator('#midiText')).toHaveText('Digital Piano');
+    const up = await page.evaluate(() => [...document.querySelectorAll('#tq-drill .tq-cell')].map((cell) => Number(cell.dataset.m)));
+    const notes = [...up, ...up.slice(0, -1).reverse()];
+    // The keys go down every 300 ms, but every other one reaches the page 200 ms late.
+    for (let index = 0; index < notes.length; index += 1) {
+      const late = index % 2 ? 200 : 0;
+      await page.clock.runFor(index === 0 ? 300 : 300 + late - (index % 2 ? 0 : 200));
+      await page.evaluate(([midi, late]) => window.__midi.send(midi, performance.now() - late), [notes[index], late]);
+    }
+    await expect(page.locator('#q-verdict')).toHaveClass(/good/);
+    await expect(page.locator('#q-elab')).toContainText('steady');
+  });
 });

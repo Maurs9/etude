@@ -3733,7 +3733,7 @@ function ekElab(q: TrainerQuestion) {
 /* play-mode grading via held notes */
 function sesInput(midi: number) {
     if (techniqueDrillActive() && SES.targeted?.cat === TECHNIQUE_TOPIC) {
-        techniqueInput(techniqueHost, midi, performance.now());
+        techniqueInput(techniqueHost, midi, inputTime()); // the key's own time, less its calibrated latency
         return;
     }
     const q = SES.q;
