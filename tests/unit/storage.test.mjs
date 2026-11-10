@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { isBackupPayload, legacySettings, parsePttV3, readPttV3, restoreSettings, writePttV3 } from '../../src/domain/storage.ts';
+import { isBackupPayload, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreSettings, writePttV3 } from '../../src/domain/storage.ts';
 
 const fixture = name => readFile(new URL(`../fixtures/storage/${name}`, import.meta.url), 'utf8');
 
@@ -42,3 +42,37 @@ describe('ptt-v3 storage reader', () => {
     expect(legacySettings({ getItem: () => JSON.stringify({ noteSys: 'german' }), setItem: () => {} })?.noteSys).toBe('german');
   });
 });
+
+describe('ptt-v3 schema versions', () => {
+  it('treats every saved fixture without a schema field as schema 1, the current one', async () => {
+    expect(PTT_SCHEMA).toBe(1);
+    for (const name of ['ptt-v3-legacy.json', 'ptt-v3-minimal.json']) {
+      const payload = parsePttV3(await fixture(name));
+      expect(pttSchema(payload)).toBe(1);
+      expect(migratePtt(payload)).toEqual({ status: 'current', payload });
+    }
+    for (const schema of [0, -1, 1.5, '2', null]) expect(pttSchema({ v: 3, schema, data: {} })).toBe(1);
+  });
+
+  it('reports a record from a newer build without changing it', async () => {
+    const raw = await fixture('ptt-v3-future-schema.json'), payload = parsePttV3(raw);
+    expect(isBackupPayload(payload)).toBe(true);
+    expect(migratePtt(payload)).toEqual({ status: 'too-new', schema: 99 });
+    expect(payload).toEqual(JSON.parse(raw));
+  });
+
+  it('runs each upgrade step in order and stamps the new schema', () => {
+    const steps = [
+      p => ({ ...p, data: { ...p.data, step1: true } }),
+      p => ({ ...p, data: { ...p.data, step2: p.data.step1 === true } }),
+    ];
+    const result = migratePtt({ v: 3, data: { totalReviews: 3 } }, steps);
+    expect(result).toEqual({ status: 'migrated', from: 1, payload: { v: 3, schema: 3, data: { totalReviews: 3, step1: true, step2: true } } });
+    expect(migratePtt({ v: 3, schema: 2, data: {} }, steps)).toMatchObject({ status: 'migrated', from: 2, payload: { schema: 3, data: { step2: false } } });
+  });
+
+  it('refuses an upgrade step that breaks the record', () => {
+    expect(() => migratePtt({ v: 3, data: {} }, [() => ({ v: 2, data: {} })])).toThrow(/invalid record/);
+  });
+});
+

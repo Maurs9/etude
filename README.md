@@ -10,7 +10,7 @@
 - Targeted drills, accompaniment, sight-singing, and ear training
 - Free play, progress tracking, and practice planning
 - USB MIDI and direct Web Bluetooth MIDI support for compatible digital pianos and keyboards
-- Local browser storage for settings and progress, with backup export and import
+- Progress stays on the device: Étude asks the browser to keep it, warns when a save fails, keeps 3 days of automatic backups plus a copy before each reset, import or restore, and refuses to overwrite progress saved by a newer version. Export and import a backup file in **Settings → Your data**.
 - Installable app shell (PWA) with offline support and Screen Wake Lock after an initial online visit
 
 ## Digital piano and MIDI keyboard setup
@@ -57,7 +57,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 ## Project structure
 
 - `etude.html` — stable application shell
-- `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts`, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`)
+- `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts` with the saved-record schema and its migrations, `data-safety.ts` for persistent storage and automatic backups, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`)
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
 - `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings
 - `public/vendor/osmd-2.3.0.min.js`, `public/manifest.webmanifest`, `public/icons/` — static public assets and lazy-loaded OSMD 2.3.0 bundle

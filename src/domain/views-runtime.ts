@@ -4,6 +4,7 @@ import { LESSONS, LEARN_UNITS } from '../locales/catalog.js';
 import type { LearnPayload, UIPayload } from '../locales/payload-types.js';
 import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, LearnSummaryTranslations, LearnText, LearnUnit, LessonMetadata as Lesson, Localised, MusicTranslations, StepLabels } from '../locales/content-types.js';
 import * as storage from './storage.js';
+import * as safety from './data-safety.js';
 import * as theory from './theory.js';
 import * as audio from './audio.js';
 import type { AudioTone } from './audio.js';
@@ -329,6 +330,7 @@ function applyI18n() {
     bleUi();
     wakeUi();
     pwaUi();
+    renderDataSafety();
     fsUi();
     scoreLibrary?.localize();
     updatePracticeModeHint();
@@ -17027,6 +17029,10 @@ let syncPull = function syncPull() {
     rp = stored?.payload || null;
     if (!isBackupPayload(rp))
         return '';
+    if (storage.pttSchema(rp) > storage.PTT_SCHEMA) { // a newer build wrote it: merging would drop what this build does not know
+        storeBlock();
+        return '';
+    }
     const gen = typeof rp.gen === 'string' ? rp.gen : '', swap = gen > SYNC.gen;
     if (gen < SYNC.gen)
         return 'old';
@@ -17119,23 +17125,228 @@ function syncRefresh() {
 }
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
-function syncWrite() { try {
-    const p: storage.PttV3Payload = { v: 3, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: activeInputId || savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved };
+function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: activeInputId || savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
+function syncWrite() { if (STORE.blocked)
+    return; try {
+    const p = syncPayload();
     const s = writePttV3(localStorage, p);
     SYNC.merge = null;
     syncCurrent(s);
+    storeSaved();
 }
 catch (e) {
     console.warn('save failed', e);
+    storeFailed();
 } }
 let _saveT: ReturnType<typeof setTimeout> | null = null;
 function saveSoon() { clearTimeout(_saveT ?? undefined); _saveT = setTimeout(saveAll, 400); } // for sliders — avoid a localStorage write per pixel
+// Data safety: storage the browser keeps, a visible save failure, rolling copies, and records this build must not overwrite.
+const STORE = { blocked: '' as '' | 'too-new' | 'quarantine', failed: false, unreadable: false, persist: 'unsupported' as safety.PersistState, usage: null as { usage: number; quota: number } | null, snaps: [] as safety.SnapshotInfo[], snapDay: -1 };
+const STORE_LAST_EXPORT = 'etude-last-export', STORE_UNREADABLE = KEY + '-unreadable', STORE_EXPORT_DUE_MS = 14 * 864e5;
+/** The Export file: the saved record plus the sight-reading ledger. Uses memory when the last save failed. */
+function backupJson(): string {
+    let current: storage.ReadPttResult | null = null;
+    try {
+        current = STORE.failed ? null : readPttV3(localStorage, KEY);
+    }
+    catch (_) { }
+    const payload = current?.payload ?? syncPayload();
+    return JSON.stringify({ ...payload, data: { ...payload.data, sightLedger: srtReadLedger(localStorage) } });
+}
+function storeSaved() { if (STORE.failed) {
+    STORE.failed = false;
+    storeNote();
+} storeDaily(); }
+function storeFailed() { if (STORE.failed)
+    return; STORE.failed = true; storeNote(); }
+function storeBlock() { if (STORE.blocked === 'too-new')
+    return; STORE.blocked = 'too-new'; storeNote(); }
+function storeHasProgress() {
+    if (data.totalReviews > 0 || Object.keys(data.srs || {}).length > 0)
+        return true;
+    try {
+        return Object.keys(srtReadLedger(localStorage).attempts).length > 0; // Read and Marathon history lives in its own record
+    }
+    catch (_) {
+        return false;
+    }
+}
+/** One copy a day, taken on the first save of the day. An empty record is not worth a slot. */
+function storeDaily() {
+    const day = todayN();
+    if (STORE.snapDay === day || !storeHasProgress())
+        return;
+    STORE.snapDay = day;
+    void safety.listSnapshots().then(async (list) => { if (safety.needsDailySnapshot(list, day))
+        await safety.saveSnapshot({ day, reason: 'daily', raw: backupJson() }); await storeRefresh(); }).catch((e: unknown) => console.warn('daily backup failed', e));
+}
+async function storeSnapshot(reason: safety.SnapshotReason, raw: string): Promise<boolean> {
+    try {
+        await safety.saveSnapshot({ day: todayN(), reason, raw });
+        void storeRefresh();
+        return true;
+    }
+    catch (e) {
+        console.warn('backup copy failed', e);
+        return false;
+    }
+}
+/** A record that does not parse is kept before anything can save over it. */
+function storeQuarantine(text: string) {
+    STORE.unreadable = true;
+    let kept = false;
+    try {
+        localStorage.setItem(STORE_UNREADABLE, text);
+        kept = true;
+    }
+    catch (_) { }
+    if (!kept)
+        STORE.blocked = 'quarantine'; // no copy yet: saving now would destroy the only one
+    void storeSnapshot('unreadable', text).then((ok) => {
+        if (!ok)
+            return;
+        try {
+            localStorage.removeItem(STORE_UNREADABLE); // IndexedDB holds it now: free the quota the live record needs
+        }
+        catch (_) { }
+        if (STORE.blocked === 'quarantine') {
+            STORE.blocked = '';
+            storeNote();
+            saveAll();
+        }
+    });
+}
+/** Import and restore share this path: a copy of the current progress first, then the backup, then a reload. */
+async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<boolean> {
+    if (!await storeSnapshot(reason, backupJson()) && !confirm(t('store_copy_failed')))
+        return true; // the user kept their progress: nothing to report
+    if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
+        const local = srtReadLedger(localStorage);
+        const merged = await srtLedgerUpdate(localStorage, { type: 'importLedger', imported: p.data.sightLedger, generation: local.generation });
+        if (!merged.ok)
+            return false;
+    }
+    p.gen = syncGen();
+    writePttV3(localStorage, p, KEY);
+    location.reload();
+    return true;
+}
+async function storeRestore(id: number | undefined) {
+    if (!id)
+        return;
+    try {
+        const snap = await safety.readSnapshot(id), p = snap ? syncParseJson(snap.raw) : null;
+        if (!snap || !isBackupPayload(p) || storage.pttSchema(p) > storage.PTT_SCHEMA) {
+            alert(t('import_bad'));
+            return;
+        }
+        if (!confirm(t('snap_confirm', storeWhen(snap.id))))
+            return;
+        if (!await storeApplyBackup(p, 'before-restore'))
+            alert(t('import_bad'));
+    }
+    catch (_) {
+        alert(t('import_bad'));
+    }
+}
+function storeExported() {
+    try {
+        localStorage.setItem(STORE_LAST_EXPORT, String(Date.now()));
+    }
+    catch (_) { }
+    renderDataSafety();
+}
+function storeLastExport(): number {
+    try {
+        const v = Number(localStorage.getItem(STORE_LAST_EXPORT));
+        return Number.isFinite(v) && v > 0 ? v : 0;
+    }
+    catch (_) {
+        return 0;
+    }
+}
+function storeWhen(ms: number) { return new Date(ms).toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' }); }
+function storeSize(bytes: number) { return bytes < 1e6 ? Math.max(1, Math.round(bytes / 1e3)) + ' kB' : (bytes / 1e6).toFixed(1) + ' MB'; }
+async function storeRefresh() {
+    try {
+        STORE.snaps = await safety.listSnapshots();
+    }
+    catch (_) {
+        STORE.snaps = [];
+    }
+    STORE.usage = await safety.storageUsage(navigator.storage);
+    renderDataSafety();
+    storeNote();
+}
+function renderDataSafety() {
+    const st = document.getElementById('set-storage-status'), age = document.getElementById('set-backup-age'), sel = document.getElementById('set-snaps'), btn = document.getElementById('set-snap-restore');
+    if (!st || !age || !(sel instanceof HTMLSelectElement) || !(btn instanceof HTMLButtonElement))
+        return;
+    const key = STORE.persist === 'persisted' ? 'set_storage_on' : STORE.persist === 'best-effort' ? 'set_storage_off' : 'set_storage_na';
+    st.textContent = t(key) + (STORE.usage ? ' ' + t('set_storage_used', storeSize(STORE.usage.usage)) : '');
+    const last = storeLastExport();
+    age.textContent = last ? t('set_backup_last', storeWhen(last)) : t('set_backup_never');
+    age.classList.toggle('warn', storeHasProgress() && (!last || Date.now() - last > STORE_EXPORT_DUE_MS));
+    const list = STORE.snaps.filter(x => x.reason !== 'unreadable');
+    sel.replaceChildren(...list.map((x) => { const o = document.createElement('option'); o.value = String(x.id); o.textContent = t('snap_item', storeWhen(x.id), t('snap_' + x.reason.replace('-', '_'))); return o; }));
+    if (!list.length) {
+        const o = document.createElement('option');
+        o.value = '';
+        o.textContent = t('set_snap_none');
+        sel.append(o);
+    }
+    sel.disabled = btn.disabled = !list.length;
+}
+function storeNote() {
+    const box = document.getElementById('storeNote'), txt = document.getElementById('storeNoteText');
+    if (!box || !txt)
+        return;
+    const mode = STORE.blocked === 'too-new' ? 'too-new' : STORE.blocked === 'quarantine' ? 'stuck' : STORE.failed ? 'failed' : STORE.unreadable ? 'unreadable' : '';
+    box.hidden = !mode;
+    if (!mode)
+        return;
+    const restorable = STORE.snaps.some(x => x.reason !== 'unreadable');
+    const key = mode === 'too-new' ? 'store_too_new' : mode === 'stuck' ? 'store_stuck' : mode === 'failed' ? 'store_fail' : restorable ? 'store_unreadable' : 'store_unreadable_nobk';
+    txt.dataset.i18n = key; // applyI18n keeps it in the current language
+    txt.textContent = t(key);
+    byId('storeNoteExport').hidden = mode !== 'failed' && mode !== 'stuck';
+    byId('storeNoteReload').hidden = mode !== 'too-new';
+    byId('storeNoteRestore').hidden = !(mode === 'unreadable' && restorable);
+    byId('storeNoteOk').hidden = mode !== 'unreadable';
+}
+/** Chrome grants persistent storage without a prompt, mostly to installed apps. Ask once, on the first tap or key. */
+function storeInit() {
+    const sm = navigator.storage;
+    void safety.persistState(sm).then((state) => {
+        STORE.persist = state;
+        void storeRefresh();
+        if (state !== 'best-effort')
+            return;
+        const ask = () => {
+            window.removeEventListener('pointerdown', ask, true);
+            window.removeEventListener('keydown', ask, true);
+            void safety.requestPersist(sm).then((next) => { STORE.persist = next; renderDataSafety(); });
+        };
+        window.addEventListener('pointerdown', ask, true);
+        window.addEventListener('keydown', ask, true);
+    });
+    storeNote();
+}
 function loadAll() {
     try {
         SYNC.known.clear();
         SYNC.id = '';
         SYNC.merge = null;
-        const stored = readPttV3(localStorage), raw = stored?.payload;
+        const text = localStorage.getItem(KEY), stored = readPttV3(localStorage), migrated = stored ? storage.migratePtt(stored.payload) : null;
+        if (text && !stored)
+            storeQuarantine(text);
+        if (migrated?.status === 'too-new') {
+            storeBlock();
+            return;
+        }
+        if (stored && migrated?.status === 'migrated')
+            void storeSnapshot('before-upgrade', stored.raw);
+        const raw = migrated?.payload;
         if (raw && stored) {
             SYNC.gen = typeof raw.gen === 'string' ? raw.gen : '';
             syncCurrent(stored.raw);
@@ -17490,10 +17701,10 @@ function initControls() {
     // backup export / import
     byId('exportBtn').addEventListener('click', () => {
         saveAll();
-        const current = readPttV3(localStorage, KEY);
-        const raw = current ? JSON.stringify({ ...current.payload, data: { ...current.payload.data, sightLedger: srtReadLedger(localStorage) } }) : '{}';
+        const raw = backupJson();
         const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0');
         trxDownload('etude-backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '.json', new Blob([raw], { type: 'application/json' }));
+        storeExported();
     });
     byId('importBtn').addEventListener('click', () => byId('importFile').click());
     byId('importFile').addEventListener('change', (e) => {
@@ -17506,25 +17717,26 @@ function initControls() {
             const p = syncParseJson(String(rd.result));
             if (!isBackupPayload(p))
                 throw 0;
+            if (storage.pttSchema(p) > storage.PTT_SCHEMA) {
+                alert(t('import_too_new'));
+                return;
+            }
             if (!confirm(t('import_confirm')))
                 return;
-            if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
-                const local = srtReadLedger(localStorage);
-                const merged = await srtLedgerUpdate(localStorage, { type: 'importLedger', imported: p.data.sightLedger, generation: local.generation });
-                if (!merged.ok) {
-                    alert(t('import_bad'));
-                    return;
-                }
-            }
-            p.gen = syncGen();
-            writePttV3(localStorage, p, KEY);
-            location.reload();
+            if (!await storeApplyBackup(p, 'before-import'))
+                alert(t('import_bad'));
         }
         catch (_) {
             alert(t('import_bad'));
         } };
         rd.readAsText(f);
     });
+    byId('storeNoteExport').addEventListener('click', () => byId('exportBtn').click());
+    byId('storeNoteReload').addEventListener('click', () => location.reload());
+    byId('storeNoteOk').addEventListener('click', () => { STORE.unreadable = false; storeNote(); });
+    byId('storeNoteRestore').addEventListener('click', () => { void storeRestore(STORE.snaps.find(x => x.reason !== 'unreadable')?.id); });
+    byId('set-snap-restore').addEventListener('click', () => { const sel = byId('set-snaps'); if (sel instanceof HTMLSelectElement && Number(sel.value))
+        void storeRestore(Number(sel.value)); });
     // session
     byId('tools').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
         show(b.dataset.view); });
@@ -17737,6 +17949,7 @@ function initControls() {
     byId('prog-import').addEventListener('click', () => byId('importBtn').click());
     byId('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
     byId('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
+        void storeSnapshot('before-reset', backupJson()); // the copy is taken now, before the reset below
         data = { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, learnDone: {}, learnSel: 0, settings: data.settings };
         renderLearn._init = false;
         learnSel = 0;
@@ -17873,6 +18086,7 @@ saveAll(); // Persist the one-time migration from legacy synthetic timbres.
 autoReconnectMidi();
 bleAutoReconnect();
 pwaInit();
+storeInit();
 wakeInit();
 kbdLayoutLabels();
 // Decode embedded recordings ahead of the first note; AudioContext resumes on a gesture.
@@ -18959,6 +19173,9 @@ Object.defineProperty(__etude, "SS_SHARP_ORDER", { configurable: true, get: () =
 Object.defineProperty(__etude, "SS_SYL_MAJ", { configurable: true, get: () => SS_SYL_MAJ });
 Object.defineProperty(__etude, "SS_SYL_MIN", { configurable: true, get: () => SS_SYL_MIN });
 Object.defineProperty(__etude, "SYNC", { configurable: true, get: () => SYNC });
+Object.defineProperty(__etude, "STORE", { configurable: true, get: () => STORE });
+Object.defineProperty(__etude, "storeRefresh", { configurable: true, get: () => storeRefresh });
+Object.defineProperty(__etude, "backupJson", { configurable: true, get: () => backupJson });
 Object.defineProperty(__etude, "SYNC_ADD", { configurable: true, get: () => SYNC_ADD });
 Object.defineProperty(__etude, "SYNC_ID", { configurable: true, get: () => SYNC_ID });
 Object.defineProperty(__etude, "SYNC_MAX", { configurable: true, get: () => SYNC_MAX });
