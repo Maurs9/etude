@@ -69,8 +69,9 @@ describe('dispatch context', () => {
   it('reads stored offsets defensively', () => {
     expect(readLatencyOffsets(undefined)).toEqual({ touch: 0, usb: 0, ble: 0 });
     expect(readLatencyOffsets([1, 2])).toEqual({ touch: 0, usb: 0, ble: 0 });
-    expect(readLatencyOffsets({ touch: 41.6, usb: '9', ble: -5 })).toEqual({ touch: 42, usb: 0, ble: 0 });
-    expect(readLatencyOffsets({ usb: 301, ble: Infinity, touch: 300 })).toEqual({ touch: 300, usb: 0, ble: 0 });
+    expect(readLatencyOffsets({ touch: 41.6, usb: '9', ble: -5 })).toEqual({ touch: 42, usb: 0, ble: 0 }); // negative clamps to 0
+    expect(readLatencyOffsets({ usb: 501, ble: Infinity, touch: 500 })).toEqual({ touch: 500, usb: 500, ble: 0 });
+    expect(readLatencyOffsets({ usb: NaN, ble: null, touch: true })).toEqual({ touch: 0, usb: 0, ble: 0 });
   });
 });
 

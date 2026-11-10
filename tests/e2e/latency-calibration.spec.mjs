@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { test, expect } from '../helpers/fixtures.mjs';
 import { STRINGS } from '../../src/locales/index.js';
 
@@ -88,10 +89,44 @@ test('closing Settings ends a run, and the page gets the keys again', async ({ a
   await expect(page.locator('#lat-result')).toHaveText('');
 });
 
-test('a malformed stored offset reads as 0', async ({ app }) => {
+test('a stored offset is clamped to 0–500 ms, and anything that is not a number reads as 0', async ({ app }) => {
   const page = await app.open({ saved: { v: 3, lang: 'en', data: { latency: { usb: 'fast', ble: -20, touch: 9999 } } } });
   await page.locator('#settingsBtn').click();
   await expect(page.locator('#lat-v-usb')).toHaveText('0');
   await expect(page.locator('#lat-v-ble')).toHaveText('0');
-  await expect(page.locator('#lat-v-touch')).toHaveText('0');
+  await expect(page.locator('#lat-v-touch')).toHaveText('500');
+});
+
+// data.latency (not data.settings, which is rebuilt from known keys) is the stored record: { touch, usb, ble } in ms.
+const OFFSETS = { touch: 42, usb: 12, ble: 31 };
+const shows = async (page, o) => {
+  for (const [src, ms] of Object.entries(o)) await expect(page.locator('#lat-v-' + src)).toHaveText(String(ms));
+};
+
+test('calibrated offsets survive a reload', async ({ app }) => {
+  const page = await app.open({ saved: { v: 3, lang: 'en', data: { latency: OFFSETS } } });
+  await shows(page, OFFSETS);
+  await page.reload();
+  await page.waitForFunction(() => typeof window.__etude?.show === 'function');
+  await shows(page, OFFSETS);
+  expect(await stored(page)).toEqual(OFFSETS); // saved again by the app itself, not only seeded
+});
+
+test('calibrated offsets survive an Export then Import round-trip', async ({ app }) => {
+  const page = await app.open({ saved: { v: 3, lang: 'en', data: { latency: OFFSETS } } });
+  await page.locator('#settingsBtn').click();
+  const download = page.waitForEvent('download');
+  await page.locator('#exportBtn').click();
+  const file = await (await download).path();
+  const backup = await readFile(file, 'utf8');
+  expect(JSON.parse(backup).data.latency).toEqual(OFFSETS);
+  await page.locator('#set-lat').click();
+  await page.locator('#lat-reset').click(); // the offsets are gone until the backup comes back
+  await shows(page, { touch: 0, usb: 0, ble: 0 });
+  expect(await stored(page)).toBeUndefined();
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#importFile').setInputFiles({ name: 'etude-backup.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
+  await expect.poll(() => stored(page)).toEqual(OFFSETS);
+  await page.waitForFunction(() => typeof window.__etude?.show === 'function');
+  await shows(page, OFFSETS);
 });

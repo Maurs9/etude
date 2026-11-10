@@ -2148,7 +2148,7 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
    on-screen keys, is paired with its nearest click by its own event time; the median lateness per source (touch, USB MIDI,
    Bluetooth MIDI) becomes that source's offset. The judges subtract it through inputTime(). Notes played meanwhile only sound.
    Stored in data.latency ({ touch, usb, ble } in ms, each optional): settings are rebuilt from known keys on load and sync, which
-   would drop it. Read defensively: anything missing or out of range is 0. */
+   would drop it. Read defensively: a finite number is clamped to 0–500 ms, anything else is 0. No schema migration: the key is optional. */
 const CAL_BEATS = 12, CAL_COUNT_IN = 4, CAL_BPM = 100, CAL_SOURCES: readonly InputSource[] = ['touch', 'usb', 'ble'];
 interface TimingCalibration { on: boolean; clicks: number[]; taps: { src: InputSource; t: number }[]; timers: number[]; nodes: OscillatorNode[] }
 const CAL: TimingCalibration = { on: false, clicks: [], taps: [], timers: [], nodes: [] };

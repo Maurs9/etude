@@ -14,8 +14,8 @@ export interface LatencyOffsets { touch: number; usb: number; ble: number; }
 
 /** A stamp older than this (ms) is not trusted: it is from another time base, or the page was busy for that long. */
 export const MAX_EVENT_AGE_MS = 1000;
-/** Calibrated offsets are latencies: kept within 0…this many ms. */
-export const MAX_OFFSET_MS = 300;
+/** Calibrated offsets are latencies: clamped to 0…this many ms. */
+export const MAX_OFFSET_MS = 500;
 export const ZERO_OFFSETS: Readonly<LatencyOffsets> = Object.freeze({ touch: 0, usb: 0, ble: 0 });
 
 /** The event time a stamp stands for, or now when the stamp cannot be trusted. */
@@ -72,10 +72,10 @@ export function setLatencyOffsets(value: unknown): LatencyOffsets {
 
 export function latencyOffsets(): LatencyOffsets { return currentOffsets(); }
 
-/** Reads stored offsets defensively: missing, malformed or out-of-range fields are 0. */
+/** Reads stored offsets defensively: a finite number is clamped to 0…MAX_OFFSET_MS, anything else is 0. */
 export function readLatencyOffsets(value: unknown): LatencyOffsets {
     const rec = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-    const one = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= MAX_OFFSET_MS ? Math.round(v) : 0;
+    const one = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? Math.round(Math.max(0, Math.min(MAX_OFFSET_MS, v))) : 0;
     return { touch: one(rec.touch), usb: one(rec.usb), ble: one(rec.ble) };
 }
 
