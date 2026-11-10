@@ -35,12 +35,17 @@ async function prepareOutDir(outDir) {
   if (entries.length) throw new Error(`Refusing to build into ${outDir}: it isn't empty, and only dist/etude/ is emptied before a build.`);
 }
 
-export async function build(outDir = OUT_DIR) {
+export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html'), singleFile = false } = {}) {
   outDir = resolve(outDir);
   await prepareOutDir(outDir);
   await viteBuild({
     configFile: join(ROOT, 'vite.config.mjs'),
-    build: { outDir, emptyOutDir: false },
+    root: dirname(input),
+    build: {
+      outDir,
+      emptyOutDir: false,
+      rolldownOptions: { input, ...(singleFile ? { output: { codeSplitting: false } } : {}) },
+    },
   });
   await writeFile(join(outDir, 'index.html'), INDEX_HTML);
   await generateWorker(outDir, join(outDir, 'sw.js'));

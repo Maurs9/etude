@@ -391,7 +391,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
         localStorage.setItem('ptt-v3', JSON.stringify(s || { v: 3, lang: l, data: {} }));
       }, [{ v: 3, lang: loc.code, data: {} }, loc.code]);
       await page.goto(APP);
-      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
       await expect(page.locator('html')).toHaveAttribute('lang', loc.code);
       await openSettings(page);
@@ -409,7 +409,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
 
       // Perform full page reload
       await page.reload();
-      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
       // Verify language is retained post-reload
       await expect(page.locator('html')).toHaveAttribute('lang', loc.code);
@@ -434,7 +434,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
     });
 
     await page.goto(APP);
-    await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+    await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
     // App must gracefully fall back to English
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
@@ -535,7 +535,7 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
 
       // Reload page
       await page.reload();
-      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
       // Verify both survived reload
       await expect(page.locator('html')).toHaveAttribute('lang', l);
@@ -553,7 +553,7 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
     const page1 = await app.open();
     const page2 = await context.newPage();
     await page2.goto(APP);
-    await page2.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+    await page2.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
     // Change language in page1 to Italian
     await selectLanguage(page1, 'it');
@@ -573,7 +573,7 @@ test.describe('Tier 3: Cross-Feature Combinations', () => {
 
     const page2 = await context.newPage();
     await page2.goto(APP);
-    await page2.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+    await page2.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
     await selectLanguage(page2, 'es');
 
     // Page 1 changes notation to solfege
@@ -695,7 +695,7 @@ test.describe('Tier 4: Real-World Scenarios (Full User Journeys)', () => {
 
     // 3. Perform a browser reload while completely offline
     await page.reload();
-    await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+    await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
     // 4. Verify application remains 100% operational offline in French
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');

@@ -1116,13 +1116,15 @@ test('an aborted piano warm-up can recover before Learn playback', async ({ app,
       delete window.__abortFirstPianoFetch;
       delete window.__restorePianoFetch;
     };
-    window.__abortFirstPianoFetch();
   });
   const first = await page.evaluate(async () => {
     window.__etude.pianoBank.promise = null;
     window.__etude.pianoBank.status = 'idle';
     window.__etude.pianoBank.buffers = new Map();
     window.__etude.pianoBank.pending = new Map();
+    // Inject the abort and call prepare in the same browser task: an idle warm-up
+    // between evaluate calls must not consume the fault meant for this attempt.
+    window.__abortFirstPianoFetch();
     return window.__etude.preparePiano();
   });
   await page.evaluate(() => window.__restorePianoFetch?.());
@@ -2320,7 +2322,7 @@ test.describe('several open tabs', () => {
     const tab = await page.context().newPage(), errors = [];
     tab.on('pageerror', e => errors.push(e.message));
     await tab.goto(APP);
-    await tab.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+    await tab.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
     return { tab, errors };
   };
   const answer = page => page.evaluate(() => { if (window.__etude.SES.answered) { window.__etude.SES.idx++; window.__etude.nextQuestion(); } window.__etude.resolve(window.__etude.SES.q, true); });
@@ -2664,7 +2666,7 @@ test('the keyboard dock starts hidden on a first visit and remembers being shown
   await expect(key).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await page.reload();
-  await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+  await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
   await expect(key).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).kbDock)).toBe(true);
 });

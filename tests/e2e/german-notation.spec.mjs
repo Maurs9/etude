@@ -39,5 +39,6 @@ test('German notation syncs between tabs without changing language', async ({ ap
 test('invalid persisted notation falls back to letters', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('ptt-v3', JSON.stringify({v:3,lang:'en',notation:'invalid',data:{}})));
   await page.goto('etude.html');
+  await page.waitForFunction(() => typeof window.__etude?.noteName === 'function');
   expect(await page.evaluate(() => window.__etude.noteName(71,false))).toBe('B4');
 });

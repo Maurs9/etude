@@ -330,9 +330,9 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
 
   test('localizes the practice fallback for a full ledger instead of exposing the reason code', async ({ app }) => {
     const page = await openAssessGenerator(app);
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const api = window.__etude;
-      api.setLang('ro');
+      await api.setLang('ro');
       const ledger = api.srtReadLedger(localStorage);
       const exposures = Object.fromEntries(Array.from({ length: 4096 }, (_, index) => [
         `v1:quota-${index}`, { firstSeenAt: index, reason: 'listen' },
@@ -384,9 +384,9 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('completed');
     const snapshots = [];
     for (const language of ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR']) {
-      snapshots.push(await page.evaluate((language) => {
+      snapshots.push(await page.evaluate(async (language) => {
         const api = window.__etude;
-        api.setLang(language);
+        await api.setLang(language);
         const result = api.SR.srtEvaluation;
         const titles = [...document.querySelectorAll('.ss-n[data-s]')].map((note) => {
           const status = note.getAttribute('data-s');

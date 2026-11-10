@@ -10,6 +10,7 @@
     "typecheck": "node scripts/check-ts-suppressions.mjs && tsc --noEmit",
     "lint": "eslint . --no-warn-ignored",
     "test:unit": "vitest run",
+    "perf:baseline": "node scripts/perf-baseline.mjs",
     "test:i18n": "node --test i18n/tests/i18n-extra.test.cjs",
     "test:dev": "playwright test --project=app",
     "test": "playwright test",

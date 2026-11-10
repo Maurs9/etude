@@ -1,6 +1,6 @@
 import type { LibraryController, LibraryHost, LibraryItem } from './score-library-types.js';
 import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRestore, librarySave, libraryUpdate } from './score-library-store.js';
-import { libraryText, type LibraryTextKey } from '../locales/score-library.js';
+import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
 
 const controllers = new WeakMap<HTMLElement, LibraryController>();
 type Values = Record<string, string | number>;

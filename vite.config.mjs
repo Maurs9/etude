@@ -23,6 +23,6 @@ export default defineConfig({
   build: {
     outDir: 'dist/etude',
     emptyOutDir: true,
-    rollupOptions: { input: resolve(ROOT, 'etude.html') },
+    rolldownOptions: { input: resolve(ROOT, 'etude.html') },
   },
 });

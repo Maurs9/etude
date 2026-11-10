@@ -5,6 +5,8 @@ export type Localised<T> = { en: T } & Partial<Record<InterfaceLanguage, T>>;
 
 export type LessonCopy = { t: string; b: string };
 export type Lesson = { id: string; icon: string } & Localised<LessonCopy>;
+/** Titles and identity only: safe for Today, review planning and unit gates. */
+export type LessonMetadata = { id: string; icon: string } & Localised<Pick<LessonCopy, 't'>>;
 export type LearnUnit = { id: string; icon: string; ls: string[]; rd: string[] } & Localised<string>;
 export type GlossaryEntry = { l: string } & Localised<[string, string]>;
 
@@ -38,7 +40,7 @@ export interface MusicTranslations {
   scales: Translations<Record<string, string>>;
   chords: Translations<Record<string, string>>;
   categories: Translations<Record<string, string>>;
-  inversions: Translations<string[]>;
+  inversions: Translations<string[] | Record<number, string>>;
   feels: Translations<Record<string, string>>;
   songs: Translations<Record<string, Record<string, string[]>>>;
 }

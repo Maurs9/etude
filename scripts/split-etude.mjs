@@ -22,7 +22,7 @@ const OSMD_TAG = '<script defer src="./vendor/osmd-1.9.9.min.js"></script>';
 const APP_MARKER = '<!-- etude: extracted app -->';
 const APP_TAG = `<script>
 (()=>{let booted=false, shown=false;
-  const show=()=>{if(booted||shown)return; shown=true;
+  const show=()=>{if(booted||shown||document.documentElement.hasAttribute('data-locale-pending'))return; shown=true;
     const ro=/^ro\\b/i.test(navigator.language||'');
     const box=document.createElement('div'); box.setAttribute('role','alert');
     box.style.cssText='position:fixed;inset:16px;z-index:9999;padding:24px;border:2px solid #8c2b2b;border-radius:12px;background:#fffdf8;color:#1a1714;font:600 16px/1.5 sans-serif;box-shadow:0 12px 40px #0004';

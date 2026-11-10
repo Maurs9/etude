@@ -200,7 +200,7 @@ test.describe('Adversarial Stress Test: Note Notation & Language Decoupling', ()
 
     // Reload page to confirm survival
     await page.reload();
-    await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+    await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
     const reloaded = await page.evaluate(() => ({
     lang: window.__etude.lang,
@@ -217,7 +217,7 @@ test.describe('Adversarial Stress Test: Note Notation & Language Decoupling', ()
     const page1 = await app.open();
     const page2 = await context.newPage();
     await page2.goto(APP);
-    await page2.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+    await page2.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
     // Initial state: en + letter
     await page1.locator('#settingsBtn').click();
@@ -249,7 +249,7 @@ test.describe('Adversarial Stress Test: Extreme Viewports & Mobile Boundary', ()
     test(`viewport ${width}px: no horizontal document overflow in all 7 locales and Settings buttons wrap`, async ({ page }) => {
       await page.setViewportSize({ width, height: 720 });
       await page.goto(APP);
-      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
       // Test across locales
       const localeOverflows = [];
@@ -329,7 +329,7 @@ test.describe('Adversarial Stress Test: Corrupted localStorage Payloads', () => 
       }, c.payload);
 
       await page.goto(APP);
-      await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+      await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
 
       // App must boot without uncaught fatal errors
       expect(errors.map((e) => e.message)).toEqual([]);
@@ -361,9 +361,12 @@ test.describe('Adversarial Stress Test: Corrupted localStorage Payloads', () => 
 });
 
 test.describe('Adversarial Stress Test: Network Offline Mode & Zero Network Dependencies', () => {
-  test('complete offline mode functions with zero network requests', async ({ page, context }) => {
+  test('complete offline mode functions with zero network requests', { tag: '@sw' }, async ({ page, context }) => {
     await page.goto(APP);
-    await page.waitForFunction(() => typeof window.__etude.show === 'function' && document.querySelector('#keys .key'));
+    await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
+
+    // The installed app precaches every deferred language and lesson before offline use.
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
 
     // Abort and track any subsequent external requests (excluding optional CDN webfonts)
     const appExternalRequests = [];
@@ -411,7 +414,8 @@ test.describe('Adversarial Stress Test: Network Offline Mode & Zero Network Depe
       if (typeof window.__etude.renderLearn === 'function') window.__etude.renderLearn();
     });
 
-    const learnBody = await page.locator('#learnBody').textContent();
+    await expect(page.locator('#learnBody .learn-content')).not.toBeEmpty();
+    const learnBody = await page.locator('#learnBody .learn-content').textContent();
     expect(learnBody).toBeTruthy();
 
     // Zero external application requests made

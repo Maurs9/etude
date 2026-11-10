@@ -1,6 +1,8 @@
-import * as locale from '../locales/index.js';
-import * as content from '../locales/content.js';
-import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, LearnText, LearnUnit, Lesson, Localised } from '../locales/content-types.js';
+import { loadUI, loadLearn } from '../locales/loader.js';
+import { installLibraryCopy } from '../locales/library-runtime.js';
+import { LESSONS, LEARN_UNITS } from '../locales/catalog.js';
+import type { LearnPayload, UIPayload } from '../locales/payload-types.js';
+import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, LearnSummaryTranslations, LearnText, LearnUnit, LessonMetadata as Lesson, Localised, MusicTranslations, StepLabels } from '../locales/content-types.js';
 import * as storage from './storage.js';
 import * as theory from './theory.js';
 import * as audio from './audio.js';
@@ -126,15 +128,62 @@ type AccompanimentPattern = {
  * browser-only compatibility remains local to this module.
  */
 "use strict";
-const STRINGS: LocaleStrings = locale.STRINGS;
-const I18N_MUSIC = locale.I18N_MUSIC;
-const STEP_LABELS = locale.STEP_LABELS;
-const LOCALE_TAGS: Record<string, string> = locale.LOCALE_TAGS;
-const LESSONS = content.LESSONS;
-const LEARN_UNITS = content.LEARN_UNITS;
-const LQZ = content.LQZ;
-const LSUM = content.LSUM, LSUM_I18N = content.LSUM_I18N;
-const GLOSS = content.GLOSS;
+let STRINGS: LocaleStrings = {};
+let I18N_MUSIC: MusicTranslations = { intervals: {}, scales: {}, chords: {}, categories: {}, inversions: {}, feels: {}, songs: {} };
+let STEP_LABELS: StepLabels = {};
+let LOCALE_TAGS: Record<string, string> = {};
+let LQZ: LearnPayload['LQZ'] = {};
+let LSUM: LearnPayload['LSUM'] = {};
+const LSUM_I18N: LearnSummaryTranslations = {};
+let GLOSS: LearnPayload['GLOSS'] = [];
+let learnPayload: LearnPayload | null = null;
+let learnLanguage: RuntimeLanguage | null = null;
+let localeRequest = 0;
+let learnRequest = 0;
+let learnLoading: Promise<void> | null = null;
+function installUI(payload: UIPayload) {
+    ({ STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } = payload);
+    installLibraryCopy(payload.LIBRARY);
+}
+function installLearn(language: RuntimeLanguage, payload: LearnPayload) {
+    learnPayload = payload;
+    learnLanguage = language;
+    ({ LQZ, LSUM, GLOSS } = payload);
+}
+/** Keep the currently committed language intact on failure; never auto-reload a session. */
+function localeLoadError(retry: () => Promise<unknown>, target: HTMLElement = document.body) {
+    const previous = document.getElementById('locale-load-error');
+    previous?.remove();
+    const box = document.createElement('div');
+    box.id = 'locale-load-error';
+    box.setAttribute('role', 'alert');
+    if (target === document.body) box.style.cssText = 'position:fixed;inset:auto 16px 16px;z-index:10000;padding:20px;border:2px solid #8c2b2b;border-radius:12px;background:#fffdf8;color:#1a1714;font:600 16px/1.5 sans-serif;box-shadow:0 12px 40px #0004';
+    const message = document.createElement('p');
+    message.textContent = 'Content could not be loaded. Check your connection and retry, or reload to get the latest version. Your progress is saved.';
+    const again = document.createElement('button');
+    again.type = 'button';
+    again.dataset.lazyRetry = '';
+    again.textContent = 'Retry';
+    again.addEventListener('click', () => { box.remove(); void retry().catch(() => localeLoadError(retry, target)); });
+    const reload = document.createElement('button');
+    reload.type = 'button';
+    reload.dataset.lazyReload = '';
+    reload.textContent = 'Reload';
+    reload.addEventListener('click', () => location.reload());
+    box.append(message, again, reload);
+    target.append(box);
+}
+async function bootLocale(): Promise<void> {
+    document.documentElement.dataset.localePending = '';
+    await new Promise<void>((resolve) => {
+        const attempt = async () => {
+            try { installUI(await loadUI(lang)); resolve(); }
+            catch { localeLoadError(attempt); }
+        };
+        void attempt();
+    });
+    delete document.documentElement.dataset.localePending;
+}
 const KEY = storage.PTT_KEY, isBackupPayload = storage.isBackupPayload, isRecord = storage.isRecord, legacySettings = storage.legacySettings, parsePttV3 = storage.parsePttV3, readPttV3 = storage.readPttV3, restoreSettings = storage.restoreSettings, writePttV3 = storage.writePttV3;
 const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = theory.SCALE_DEGREE_LABELS, anFnKey = theory.analysisFunction, anDiatonic = theory.anDiatonic, anIntervalName = theory.anIntervalName, anKeyRank = theory.anKeyRank, anPcWeights = theory.anPcWeights, anResolveKey = theory.anResolveKey, CHORD_TEMPLATES = theory.CHORD_TEMPLATES, chordDegreeMap = theory.chordDegreeMap, chordInversion = theory.chordInversion, chordPitches = theory.chordPitches, srKeyName = theory.circleKeyPitchClass, formatChordFormula = theory.formatChordFormula, formatScaleFormula = theory.formatScaleFormula, identifyChordDomain = theory.identifyChord, keyFifths = theory.keyFifths, keyFromFifths = theory.keyFromFifths, midiToFrequency = theory.midiToFrequency, pitchClass = theory.pitchClass, PROGRESSION_TEMPLATES = theory.PROGRESSION_TEMPLATES, rdSpellMidi = theory.readingSpelling, romanFor = theory.romanFor, SCALE_DEFINITIONS = theory.SCALE_DEFINITIONS, scorePitch = theory.scorePitchXml, spellMidi = theory.spellMidi;
 const AudioEngine = audio.AudioEngine;
@@ -285,9 +334,40 @@ function applyI18n() {
     updatePracticeModeHint();
     fitHeader();
 }
-function setLang(l: string|undefined) {
+async function setLang(l: string|undefined, synchronized = false): Promise<void> {
     if (!isRuntimeLanguage(l))
         return;
+    if (!synchronized) delete SYNC.pend.lang;
+    const pending = synchronized ? SYNC.pend.lang : undefined;
+    const request = ++localeRequest;
+    try {
+        const payload = await loadUI(l);
+        if (request !== localeRequest) return;
+        const learn = view0() === 'learn' ? await loadLearn(l) : null;
+        if (request !== localeRequest) return;
+        if (synchronized) {
+            if (!pending || SYNC.pend.lang !== pending || pending.v !== l) return;
+            // A drill may have started while the imports were pending. Keep its
+            // synchronized intent (also used by saves), and retry only when idle.
+            if (syncBusy()) { pending.running = false; return; }
+        }
+        document.getElementById('locale-load-error')?.remove();
+        installUI(payload);
+        if (learn) installLearn(l, learn);
+    }
+    catch {
+        const current = () => request === localeRequest && (!synchronized || !!pending && SYNC.pend.lang === pending);
+        if (current()) {
+            if (pending) { pending.failed = true; pending.running = false; }
+            localeLoadError(async () => {
+                if (!current()) return;
+                if (pending) { pending.failed = false; syncIdle(); }
+                else await setLang(l);
+            });
+        }
+        return;
+    }
+    if (lang !== l) { learnRequest++; LQ = null; }
     lang = l;
     viewState.language = lang;
     queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === l ? 'true' : 'false'));
@@ -342,6 +422,7 @@ function setLang(l: string|undefined) {
     anLocalize();
     if (view0() === 'analysis')
         anDraw();
+    rdOnLocale();
     coachRefresh();
     saveAll();
 }
@@ -5123,14 +5204,34 @@ function learnWire() {
         lwInput(e); });
     body.addEventListener('change', (e) => lwInput(e));
 }
-function learnBodyHTML(L: Lesson) { return L[lang]?.b || L.en.b; }
-let renderLearn: { (): void; _init?: boolean } = function renderLearn() {
+function learnBodyHTML(L: Lesson) { return learnPayload?.LESSONS[L.id]?.b ?? ''; }
+let renderLearn: { (fromLoad?: boolean): void; _init?: boolean } = function renderLearn(fromLoad = false) {
     const body = byId('learnBody');
     if (!body || !byId('learnToc'))
         return;
+    if (learnLanguage !== lang) {
+        learnWire();
+        learnInitSel();
+        learnSide();
+        learnHalt();
+        body.innerHTML = '<p role="status" data-lazy-loading>Loading…</p>';
+        const requestedLanguage = lang, request = ++learnRequest;
+        learnLoading = loadLearn(requestedLanguage).then((payload) => {
+            if (request !== learnRequest || requestedLanguage !== lang || view0() !== 'learn') return;
+            installLearn(requestedLanguage, payload);
+            renderLearn(true);
+        }).catch(() => {
+            if (request !== learnRequest || requestedLanguage !== lang || view0() !== 'learn') return;
+            body.querySelector('[data-lazy-loading]')?.remove();
+            localeLoadError(async () => { renderLearn(); await learnLoading; }, body);
+        });
+        return;
+    }
     learnWire();
     learnInitSel();
-    learnHalt();
+    // Loading already halted the previous lesson. Do not clear newer keyboard input on completion.
+    if (!fromLoad)
+        learnHalt();
     learnSide();
     if (learnGloss) {
         body.innerHTML = lgHTML();
@@ -5745,7 +5846,7 @@ function lgHTML() {
         '<p class="lg-n" id="lg-n" aria-live="polite"></p><dl class="lg-list">' + list.map((g) => {
         const L = LESSONS.find((x) => x.id === g.l);
         const cur = g[k] || g.en;
-        return '<div class="lg-it" data-k="' + lgNorm(cur[0] + ' ' + cur[1] + ' ' + g.en[0]).replace(/"/g, '') + '"><dt>' + cur[0] + '</dt><dd>' + cur[1] + (L ? ' <a href="#" data-lgo="' + L.id + '">' + L.icon + ' ' + learnTitle(L) + '</a>' : '') + '</dd></div>';
+        return '<div class="lg-it" data-k="' + lgNorm(cur[0] + ' ' + cur[1] + ' ' + g.searchEnglish).replace(/"/g, '') + '"><dt>' + cur[0] + '</dt><dd>' + cur[1] + (L ? ' <a href="#" data-lgo="' + L.id + '">' + L.icon + ' ' + learnTitle(L) + '</a>' : '') + '</dd></div>';
     }).join('') + '</dl>' +
         '<div class="learn-nav"><button type="button" class="btn ghost sm" data-lgback="1">' + t('lg_close') + '</button></div>';
 }
@@ -9734,7 +9835,7 @@ function rdOnLocale() {
     const g = byId('rd-gen');
     if (g)
         g.addEventListener('click', rdGenMelody);
-    ['set-lang', 'set-notation'].forEach((id) => { const el = maybeById(id); if (el)
+    ['set-notation'].forEach((id) => { const el = maybeById(id); if (el)
         el.addEventListener('click', () => setTimeout(rdOnLocale, 0)); });
 })();
 /* ---------- COACHING: one short tip per surface, chosen from what is on screen and how the last attempt went ----------
@@ -16619,7 +16720,7 @@ function clampPersistedNumber(v: unknown, min: number, max: number, fallback: nu
    latest change made in any tab; the last three re-render the page and keyboard, so they wait while a drill, reading run or
    playback is going. Sound, device and panel choices stay with each tab (whichever saved last is what loads next time). */
 type SyncPrefName = 'theme' | 'lang' | 'notation' | 'labels';
-interface SyncPendingPref { v: unknown; from: string }
+interface SyncPendingPref { v: unknown; from: string; running?: boolean; failed?: boolean }
 interface SyncState {
     raw: string | null;
     gen: string;
@@ -16637,19 +16738,18 @@ const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|
 const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
 const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
 function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }
-function syncIsLang(v: unknown): v is RuntimeLanguage { return typeof v === 'string' && Object.prototype.hasOwnProperty.call(STRINGS, v); }
+function syncIsLang(v: unknown): v is RuntimeLanguage { return isRuntimeLanguage(v); }
 // Every non-null object, arrays included, reads as string keys holding JSON values.
 function syncIsObject(v: unknown): v is Record<string, unknown> { return !!v && typeof v === 'object'; }
 function syncHasBase<T extends object>(x: T | SyncNoBase): x is T { return x !== SYNC_NONE; }
 const syncParseJson: (text: string) => unknown = JSON.parse;
-type SyncPrefEntry = readonly [get: () => string, set: (v: unknown) => void, later?: 1];
+type SyncPrefEntry = readonly [get: () => string, set: (v: unknown) => void | Promise<void>, later?: 1];
 const SYNC_PREFS: Record<SyncPrefName, SyncPrefEntry> = { theme: [() => theme, (v: unknown) => { if (syncOneOf(SYNC_THEMES, v)) {
             theme = v;
             applyTheme();
         } }],
     lang: [() => lang, (v: unknown) => { if (syncIsLang(v)) {
-            setLang(v);
-            setTimeout(rdOnLocale, 0);
+            return setLang(v, true).catch(() => localeLoadError(() => setLang(v)));
         } }, 1],
     notation: [() => notation, (v: unknown) => { if (syncOneOf(SYNC_NOTATIONS, v)) {
             notation = v;
@@ -16838,8 +16938,11 @@ let syncPull = function syncPull() {
             const [get, set, later] = SYNC_PREFS[f], v = rp[f];
             if (v === undefined || v === bp[f] || syncPref(f, get()) !== bp[f])
                 return; // the other tab did not change it, or this tab changed it too
-            if (v === get())
+            if (v === get()) {
+                // A newer choice can equal the committed language while an older import is still running.
+                if (f === 'lang' && SYNC.pend.lang?.running) localeRequest++;
                 delete SYNC.pend[f];
+            }
             else if (later)
                 SYNC.pend[f] = { v, from: get() };
             else
@@ -16867,9 +16970,19 @@ function syncIdle() {
         SYNC.w = setTimeout(syncIdle, 1500);
         return;
     }
-    Object.keys(SYNC.pend).filter(syncIsPrefName).forEach((f) => { const p = SYNC.pend[f]; if (!p)
-        return; delete SYNC.pend[f]; if (SYNC_PREFS[f][0]() === p.from)
-        SYNC_PREFS[f][1](p.v); });
+    Object.keys(SYNC.pend).filter(syncIsPrefName).forEach((f) => {
+        const p = SYNC.pend[f];
+        if (!p || p.running || p.failed) return;
+        if (SYNC_PREFS[f][0]() !== p.from) { delete SYNC.pend[f]; return; }
+        p.running = true;
+        const result = SYNC_PREFS[f][1](p.v);
+        if (result) void result.finally(() => {
+            if (SYNC.pend[f] !== p || p.failed) return;
+            if (p.running) delete SYNC.pend[f];
+            else syncIdle();
+        });
+        else delete SYNC.pend[f];
+    });
 }
 function syncNote(on: boolean) { const n = byId('syncNote'); if (n)
     n.hidden = !on; }
@@ -17492,7 +17605,7 @@ function initControls() {
     byId('set-notation').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_NOTATIONS, v))
         return; notation = v; (document).querySelectorAll('#set-notation button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); applyNotation(); refreshToday(); saveAll(); });
     byId('set-lang').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
-        setLang(b.dataset.v); });
+        void setLang(b.dataset.v).catch(() => localeLoadError(() => setLang(b.dataset.v))); });
     byId('toneSel').addEventListener('change', (e) => { releaseLiveInput(); stopPreviews(); stopDrone(); const v = wiringField(e).value; if (syncOneOf(SYNC_TONES, v))
         tone = v; ensureAudio(); pianoStatus(); saveAll(); });
     byId('volume').addEventListener('input', (e) => { masterVol = Number(wiringField(e).value) / 100; muted = false; masterRamp(masterVol); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
@@ -17576,6 +17689,7 @@ function initControls() {
 }
 /* boot */
 loadAll();
+await bootLocale();
 applyTheme();
 fillRoots(byId('refRoot'), false);
 fillRoots(byId('song-root'), false);
@@ -17612,6 +17726,8 @@ catch (err) {
 }
 /* @generated etude test surface */
 const __etude: EtudeSurface = {};
+Object.defineProperty(__etude, 'LESSONS', { configurable: true, get: () => LESSONS });
+Object.defineProperty(__etude, 'learnReady', { configurable: true, get: () => learnLoading ?? Promise.resolve() });
 Object.defineProperty(__etude, 'scoreLibraryStore', { configurable: true, get: () => scoreLibraryStore });
 Object.defineProperty(__etude, 'anLibraryFlush', { configurable: true, get: () => anLibraryFlush });
 Object.defineProperty(__etude, "LGEN", { configurable: true, get: () => LGEN });
