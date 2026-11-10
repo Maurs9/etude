@@ -1,0 +1,13 @@
+/* Settings → MIDI keyboard → Timing: the tap-with-the-click wizard (initLatencyCalibration). */
+.lat-panel{display:grid; gap:10px; padding:10px 0 12px; border-bottom:1px solid var(--line)}
+.lat-panel[hidden]{display:none}
+.lat-panel .set-btns{justify-self:end}
+.lat-pad{appearance:none; min-height:88px; border:2px dashed var(--line2); border-radius:14px; background:var(--card); color:var(--muted);
+  font:700 15px var(--sans); cursor:pointer; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent}
+.lat-pad.on{border-style:solid; border-color:var(--accent); color:var(--ink)}
+.lat-pad.beat{animation:lat-beat .18s ease-out}
+.lat-pad:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.lat-result{margin:0; min-height:1.3em; font-size:12.5px; color:var(--muted)}
+#set-lat-status{white-space:normal}
+@keyframes lat-beat{from{background:color-mix(in srgb, var(--accent) 28%, var(--card))}}
+@media (prefers-reduced-motion: reduce){ .lat-pad.beat{animation:none} }

@@ -738,6 +738,14 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="set-row"><div class="lab"><span data-i18n="set_ble">Bluetooth MIDI (direct)</span> <small id="set-ble-status" role="status" aria-live="polite">Not connected</small></div>
         <span class="set-btns"><button class="btn sm ghost" id="set-ble-re" data-i18n="ble_reconnect" hidden>Reconnect</button><button class="btn sm" id="set-ble" data-i18n="ble_connect">Connect</button></span></div>
       <p class="lede" style="font-size:12px; margin-top:8px" data-i18n="set_ble_hint">For compatible Bluetooth MIDI pianos and keyboards in Chrome or Edge on Android.</p>
+      <div class="set-row"><div class="lab"><span data-i18n="set_latency">Timing</span> <small id="set-lat-status"><span data-i18n="lat_touch">Touch</span> <span id="lat-v-touch">0</span> ms · <span data-i18n="lat_usb">USB MIDI</span> <span id="lat-v-usb">0</span> ms · <span data-i18n="lat_ble">Bluetooth MIDI</span> <span id="lat-v-ble">0</span> ms</small></div>
+        <button class="btn sm" id="set-lat" aria-expanded="false" aria-controls="lat-panel" data-i18n="lat_calibrate">Calibrate</button></div>
+      <div class="lat-panel" id="lat-panel" hidden>
+        <p class="lede" style="font-size:12px; margin:0" data-i18n="lat_hint">Press Start, then play any key on the piano with each click, or tap the pad. Each way of playing is measured on its own.</p>
+        <button type="button" class="lat-pad" id="lat-pad" data-i18n="lat_pad">Tap here</button>
+        <p class="lat-result" id="lat-result" role="status" aria-live="polite"></p>
+        <span class="set-btns"><button class="btn sm ghost" id="lat-reset" data-i18n="lat_reset">Reset</button><button class="btn sm" id="lat-go" data-i18n="lat_start">Start</button></span>
+      </div>
     </div>
 
     <div class="set-group">

@@ -26,6 +26,9 @@ import type {
   ViewEventName,
 } from './views.js';
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
+import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
+import '../styles/calibration.css';
+import '../styles/landscape.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint } from '../sight-reading/fingerprint.js';
@@ -47,7 +50,7 @@ function runtimeErrorMessage(value: unknown): string {
 }
 
 /** The parts of Web Bluetooth the BLE-MIDI link uses (not yet in TypeScript's DOM library). */
-interface BleValueEvent { readonly target: BleMidiCharacteristic }
+interface BleValueEvent { readonly target: BleMidiCharacteristic; readonly timeStamp?: number }
 interface BleMidiCharacteristic {
   readonly value?: DataView;
   startNotifications(): Promise<unknown>;
@@ -1590,7 +1593,10 @@ function clampTypeOctave() { const lo = view.low, maxLo = Math.max(lo, viewHigh(
 const whiteEl = new Map<number, HTMLButtonElement>(), blackEl = new Map<number, HTMLButtonElement>(), keyEl = new Map<number, HTMLButtonElement>();
 const BLACK_NUDGE: Record<number, number> = { 1: -.28, 3: .28, 6: -.30, 8: 0, 10: .30 };
 function viewHigh() { return view.low + view.oct * 12; }
-function chooseView() { const w = window.innerWidth; view.oct = w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
+// A phone on its side: the compact landscape layout of etude.css, and landscape.css while the keys are open (body.kb-land).
+const LAND_PHONE = matchMedia('(orientation: landscape) and (max-height: 560px)');
+// Three octaves on a phone on its side (four from 960 px), so the keys are wide enough to play; otherwise by width.
+function chooseView() { const w = window.innerWidth; view.oct = LAND_PHONE.matches ? (w >= 960 ? 4 : 3) : w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
 function buildKeyboard() {
     rdDockView();
     clampTypeOctave();
@@ -1738,25 +1744,29 @@ function keyAt(x: number, y: number) { const el = document.elementFromPoint(x, y
     if (k instanceof HTMLElement)
         return +(k.dataset.midi ?? 0);
 } return null; }
+// A touch or click on the screen, judged from its own event time less the calibrated touch latency.
+function touchInput(e: Event, fn: () => void) { withInputTime(eventTime(e.timeStamp, performance.now()), 'touch', fn); }
 function initPointer() {
     const kb = byId('keys');
     kb.addEventListener('pointerdown', (e) => { const m = keyAt(e.clientX, e.clientY); if (m == null)
         return; e.preventDefault(); try {
         kb.setPointerCapture(e.pointerId);
     }
-    catch (_) { } ; pointerKey.set(e.pointerId, m); handleNoteOn(m, 100, 'pointer:' + e.pointerId); });
+    catch (_) { } ; pointerKey.set(e.pointerId, m); touchInput(e, () => handleNoteOn(m, 100, 'pointer:' + e.pointerId)); });
     kb.addEventListener('pointermove', (e) => { if (!pointerKey.has(e.pointerId))
         return; const cur = pointerKey.get(e.pointerId), m = keyAt(e.clientX, e.clientY); if (m !== cur) {
-        if (cur != null)
-            handleNoteOff(cur, 'pointer:' + e.pointerId);
-        pointerKey.set(e.pointerId, m);
-        if (m != null)
-            handleNoteOn(m, 100, 'pointer:' + e.pointerId);
+        touchInput(e, () => {
+            if (cur != null)
+                handleNoteOff(cur, 'pointer:' + e.pointerId);
+            pointerKey.set(e.pointerId, m);
+            if (m != null)
+                handleNoteOn(m, 100, 'pointer:' + e.pointerId);
+        });
     } });
     const end = (e: PointerEvent) => { if (pointerKey.has(e.pointerId)) {
         const m = pointerKey.get(e.pointerId);
         if (m != null)
-            handleNoteOff(m, 'pointer:' + e.pointerId);
+            touchInput(e, () => handleNoteOff(m, 'pointer:' + e.pointerId));
         pointerKey.delete(e.pointerId);
     } };
     kb.addEventListener('pointerup', end);
@@ -1824,11 +1834,14 @@ function dockLabels() {
 }
 function dockSync() {
     const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
+    // On a phone on its side the open keys take the header's room (landscape.css); Hide keyboard brings the header back.
+    const land = open && LAND_PHONE.matches, wasLand = document.body.classList.contains('kb-land');
     dock.classList.toggle('compact', v === 'analysis');
     byId('dock-kb-toggle').hidden = !on || dockForced(v); // a drill asking on the keys keeps them: Hide would do nothing
     dockLabels();
-    if (on === was && open === wasOpen)
+    if (on === was && open === wasOpen && land === wasLand)
         return;
+    document.body.classList.toggle('kb-land', land);
     document.body.classList.toggle('kb', on);
     dock.classList.toggle('is-rail', on && !open);
     if (open) {
@@ -1850,6 +1863,7 @@ function dockSync() {
     if (STAGE.on)
         stageRefit();
 }
+LAND_PHONE.addEventListener('change', () => dockSync());
 // Expanding from the rail, the keys rise out of it (not with reduced motion); transform and opacity only, so the layout is settled from the first frame.
 function dockReveal() { if (reduceMotion())
     return; const dock = byId('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = window.setTimeout(() => dock.classList.remove('is-opening'), 300); }
@@ -1959,6 +1973,11 @@ function panic() { scorePause(); srtCancelAttempt('interrupted'); if (srtRecorde
     updateExplore(); }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
 function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
+    if (calListening()) { // the timing wizard is listening: notes only sound, no drill sees them
+        if (kind === 'on')
+            calTap();
+        return;
+    }
     if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder) {
         srtRecorder.record(kind, midi, source, releaseKind, performance.now() - SR.t0);
     }
@@ -2007,6 +2026,9 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
 function scheduleEval(fn: () => void, ms: number) { clearTimeout(evalTimer ?? undefined); evalTimer = window.setTimeout(fn, ms); }
 /* ---------- WEB MIDI ---------- */
 let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; }|null = null;
+// The input in use when it went away (a cable pulled, the piano switched off). It is attached again when it comes back: by id, or by
+// name when the system gives it a new id (Android does). Another input may stand in meanwhile; picking one by hand forgets the lost one.
+let midiLost: { id: string; name: string }|null = null, activeInputName = '', midiAuto = false;
 function setMidi(text: string|null, cls: string) { midiMsg = { text, cls }; const s = byId('set-midi-status'); if (s)
     s.textContent = text; midiChipSync(); }
 // The header chip names the Web MIDI input when one is live, else a live Bluetooth MIDI piano, else the Web MIDI status.
@@ -2044,7 +2066,10 @@ async function connectMidi()  {
             runtimeErrorName(err) === 'NotAllowedError' ? t('midi_denied') : t('midi_unavail'), 'err');
     }
 }
-function listInputs() { return midiAccess ? [...midiAccess.inputs.values()] : []; }
+// Chrome keeps an unplugged port in the map with state 'disconnected': it is not an input until it is back.
+function listInputs() { return midiAccess ? [...midiAccess.inputs.values()].filter((i) => i.state !== 'disconnected') : []; }
+function midiFindLost(ins: MIDIInput[]) { const l = midiLost; if (!l)
+    return undefined; return ins.find((i) => i.id === l.id) || (l.name ? ins.find((i) => i.name === l.name) : undefined); }
 function pickArturia(ins: MIDIInput[]) { const c = ins.filter((i) => /microlab|arturia/i.test(i.name ?? '')); if (!c.length)
     return null; const g = c.filter((i) => !/daw|midiin2|control|thru/i.test(i.name ?? '')); return g[0] || c[0]; }
 function refreshDeviceList(autoPick: boolean) {
@@ -2053,21 +2078,29 @@ function refreshDeviceList(autoPick: boolean) {
     if (!ins.length) {
         sel.innerHTML = '<option>—</option>';
         activeInputId = null;
-        setMidi(t('midi_noinputs'), 'err');
+        setMidi(midiLost ? t('midi_waiting', midiLost.name || 'MIDI') : t('midi_noinputs'), 'err');
         return;
     }
     ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
     const still = activeInputId && ins.some((i) => i.id === activeInputId);
     const remembered = !still && savedDevice ? ins.find((i) => i.id === savedDevice) : undefined; // reconnect the device used last time
-    const chosen = (still ? ins.find((i) => i.id === activeInputId) : undefined) || remembered || ((autoPick || !activeInputId) ? (pickArturia(ins) || ins[0]) : ins[0]);
+    const chosen = midiFindLost(ins) || (still ? ins.find((i) => i.id === activeInputId) : undefined) || remembered || ((autoPick || !activeInputId) ? (pickArturia(ins) || ins[0]) : ins[0]);
     if (!chosen)
         return;
     sel.value = chosen.id;
-    attachInput(chosen.id);
+    midiAuto = true;
+    try {
+        attachInput(chosen.id);
+    }
+    finally {
+        midiAuto = false;
+    }
 }
 function attachInput(id: string) { if (activeInputId && activeInputId !== id)
     releaseLiveInput(); listInputs().forEach((i) => i.onmidimessage = null); const inp = listInputs().find((i) => i.id === id); if (!inp)
-    return; inp.onmidimessage = onMidiMessage; activeInputId = id; savedDevice = id; setMidi(inp.name, 'on'); saveAll(); }
+    return; const standIn = midiAuto && !!midiLost && midiFindLost([inp]) !== inp; if (!standIn)
+    midiLost = null; inp.onmidimessage = onMidiMessage; activeInputId = id; activeInputName = inp.name || ''; if (!standIn)
+    savedDevice = id; setMidi(inp.name, 'on'); saveAll(); } // a stand-in is not remembered for the next visit
 function autoReconnectMidi() {
     if (!navigator.permissions || !navigator.requestMIDIAccess)
         return;
@@ -2079,14 +2112,21 @@ function autoReconnectMidi() {
     catch (_) { }
 }
 function onStateChange() { const was = activeInputId, ins = listInputs(), present = activeInputId && ins.some((i) => i.id === activeInputId); if (was && !present) {
+    if (!midiLost) // a stand-in that goes too leaves the first lost input remembered
+        midiLost = { id: was, name: activeInputName };
     panic();
     activeInputId = null;
 } refreshDeviceList(false); }
 // A short message leaves the missing bytes NaN, which no comparison below matches (as `undefined` did).
+// The event's own timeStamp (performance.now() clock) is when the key went down; the handler can run a frame or more later.
 function onMidiMessage(e: MIDIMessageEvent) { if (!e.data)
-    return; const [st = NaN, d1 = NaN, d2 = NaN] = e.data; midiIn(st, d1, d2, 'midi'); }
+    return; const [st = NaN, d1 = NaN, d2 = NaN] = e.data; midiIn(st, d1, d2, 'midi', eventTime(e.timeStamp, performance.now())); }
 // One decoder for every transport (Web MIDI, Bluetooth MIDI): notes, sustain (CC64), mod wheel (CC1) and pitch bend.
-function midiIn(st: number, d1: number, d2: number, src: string) {
+// at: when the message happened (performance.now() ms). Judges read it, less the source's calibrated offset, through inputTime().
+function midiIn(st: number, d1: number, d2: number, src: string, at = performance.now()) {
+    withInputTime(at, src === 'ble' ? 'ble' : 'usb', () => midiDispatch(st, d1, d2, src));
+}
+function midiDispatch(st: number, d1: number, d2: number, src: string) {
     const cmd = st & 0xf0;
     if (cmd === 0x90 && d2 > 0) {
         handleNoteOn(d1, d2, src);
@@ -2107,6 +2147,125 @@ function midiIn(st: number, d1: number, d2: number, src: string) {
             lfoGain.gain.setTargetAtTime((d2 / 127) * 35, actx.currentTime, .03);
     }
 }
+/* ---------- TIMING CALIBRATION: tap with the click (Settings → MIDI keyboard → Timing) ----------
+   A bar of count-in, then twelve clicks at 100 bpm. Every key played on a MIDI or Bluetooth piano, every touch on the pad or the
+   on-screen keys, is paired with its nearest click by its own event time; the median lateness per source (touch, USB MIDI,
+   Bluetooth MIDI) becomes that source's offset. The judges subtract it through inputTime(). Notes played meanwhile only sound.
+   Stored in data.latency ({ touch, usb, ble } in ms, each optional): settings are rebuilt from known keys on load and sync, which
+   would drop it. Read defensively: a finite number is clamped to 0–500 ms, anything else is 0. No schema migration: the key is optional. */
+const CAL_BEATS = 12, CAL_COUNT_IN = 4, CAL_BPM = 100, CAL_SOURCES: readonly InputSource[] = ['touch', 'usb', 'ble'];
+interface TimingCalibration { on: boolean; clicks: number[]; taps: { src: InputSource; t: number }[]; timers: number[]; nodes: OscillatorNode[] }
+const CAL: TimingCalibration = { on: false, clicks: [], taps: [], timers: [], nodes: [] };
+function calRecord(): Record<string, unknown> { return data; }
+useLatencyOffsets(() => calRecord().latency);
+function calLabel(src: InputSource) { return t('lat_' + src); }
+function initLatencyCalibration() {
+    const open = buttonById('set-lat'), panel = byId('lat-panel');
+    open.addEventListener('click', () => { panel.hidden = !panel.hidden; open.setAttribute('aria-expanded', String(!panel.hidden)); if (panel.hidden)
+        calStop(); });
+    buttonById('lat-go').addEventListener('click', () => { if (CAL.on)
+        calStop();
+    else
+        calStart(); });
+    buttonById('lat-reset').addEventListener('click', calReset);
+    byId('lat-pad').addEventListener('pointerdown', (e) => { e.preventDefault(); touchInput(e, calTap); });
+    calUi();
+}
+function calUi() {
+    const o = readLatencyOffsets(calRecord().latency);
+    CAL_SOURCES.forEach((src) => { byId('lat-v-' + src).textContent = String(o[src]); });
+    const go = buttonById('lat-go');
+    go.dataset.i18n = CAL.on ? 'lat_stop' : 'lat_start';
+    go.textContent = t(go.dataset.i18n);
+    buttonById('lat-reset').disabled = CAL.on;
+    byId('lat-pad').classList.toggle('on', CAL.on);
+}
+// A run listens only while its panel shows in the open Settings drawer: closing either ends it, and input goes to the page again.
+function calListening() {
+    if (!CAL.on)
+        return false;
+    if (byId('drawer').classList.contains('on') && !byId('lat-panel').hidden)
+        return true;
+    calStop();
+    calSay('');
+    return false;
+}
+function calSay(text: string) { byId('lat-result').textContent = text; }
+function calStart() {
+    ensureAudio();
+    if (!actx)
+        return;
+    calStop();
+    const bs = 60 / CAL_BPM, lead = .3, act0 = actx.currentTime + lead, perf0 = performance.now() + lead * 1000;
+    CAL.on = true;
+    CAL.taps = [];
+    CAL.clicks = [];
+    for (let b = 0; b < CAL_COUNT_IN + CAL_BEATS; b++) {
+        const click = audioEngine.scheduleClick(act0 + b * bs, b % 4 === 0);
+        if (click?.oscs)
+            CAL.nodes.push(...click.oscs);
+        if (b >= CAL_COUNT_IN)
+            CAL.clicks.push(perf0 + b * bs * 1000);
+        CAL.timers.push(window.setTimeout(() => calBeat(b), lead * 1000 + b * bs * 1000));
+    }
+    CAL.timers.push(window.setTimeout(calFinish, lead * 1000 + (CAL_COUNT_IN + CAL_BEATS) * bs * 1000));
+    calSay(t('lat_countin'));
+    calUi();
+}
+function calBeat(b: number) {
+    const pad = byId('lat-pad');
+    pad.classList.remove('beat');
+    void pad.offsetWidth;
+    pad.classList.add('beat');
+    calSay(b < CAL_COUNT_IN ? t('lat_countin') : t('lat_beat', b - CAL_COUNT_IN + 1, CAL_BEATS));
+}
+function calTap() {
+    const src = inputSource();
+    if (CAL.on && src)
+        CAL.taps.push({ src, t: inputEventTime() });
+}
+function calStop() {
+    CAL.timers.forEach(clearTimeout);
+    CAL.timers = [];
+    CAL.nodes.forEach((n) => { try {
+        n.stop();
+    }
+    catch (_) { } });
+    CAL.nodes = [];
+    CAL.on = false;
+    calUi();
+}
+function calFinish() {
+    calStop(); // its timers and clicks are spent; this clears them and the running state
+    const bs = 60000 / CAL_BPM, next: LatencyOffsets = readLatencyOffsets(calRecord().latency), said: string[] = [];
+    let changed = false;
+    CAL_SOURCES.forEach((src) => {
+        const taps = CAL.taps.filter((x) => x.src === src).map((x) => x.t);
+        if (!taps.length)
+            return;
+        const r = calibrationOffset(taps, CAL.clicks, bs);
+        if (r.ok) {
+            next[src] = r.offset;
+            changed = true;
+            said.push(t('lat_set', calLabel(src), r.offset));
+        }
+        else
+            said.push(t(r.reason === 'few' ? 'lat_few' : 'lat_uneven', calLabel(src)));
+    });
+    if (changed) {
+        calRecord().latency = next;
+        saveAll();
+    }
+    calSay(said.length ? said.join(' · ') : t('lat_none'));
+    calUi();
+}
+function calReset() {
+    calStop();
+    delete calRecord().latency;
+    saveAll();
+    calSay(t('lat_cleared'));
+    calUi();
+}
 /* ---------- BLUETOOTH MIDI: BLE-MIDI straight from the piano over Web Bluetooth ----------
    Notifications are decoded and handed to midiIn() in the same event turn: no queue, timer or polling between the radio and the
    sound. The chooser only opens from the Connect button; Reconnect (and the silent start-up reconnect) reuse a device the site was
@@ -2116,9 +2275,10 @@ interface BleMidiState {
     dev: BleMidiDevice|null; chr: BleMidiCharacteristic|null; busy: boolean; want: boolean; gen: number; tries: number; retryT: number; guardT: number; timedOut: number;
     msg: string|null; cls: string; arg: string|null; saved: { id: string; name: string; auto: boolean }|null;
     run: number; need: number; n: number; d1: number; skip: number; sysex: boolean; pedal: boolean; bend: boolean; mod: boolean;
+    clock: BleClock; at: number; // the sender's clock mapped onto ours; the local time of the message being decoded
 }
 const BLE: BleMidiState = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, retryT: 0, guardT: 0, timedOut: 0, msg: null, cls: '', arg: null, saved: null,
-    run: 0, need: 0, n: 0, d1: 0, skip: 0, sysex: false, pedal: false, bend: false, mod: false };
+    run: 0, need: 0, n: 0, d1: 0, skip: 0, sysex: false, pedal: false, bend: false, mod: false, clock: new BleClock(), at: 0 };
 function bleCan() { return !!((navigator).bluetooth && (navigator).bluetooth.requestDevice); }
 function bleLive() { return !!(BLE.chr && BLE.dev && BLE.dev.gatt && BLE.dev.gatt.connected); }
 function bleName() { return (BLE.dev && BLE.dev.name) || (BLE.saved && BLE.saved.name) || t('ble_dev'); }
@@ -2294,17 +2454,19 @@ function bleOnGone(e: BleDisconnectEvent) {
     else
         bleUi();
 }
-// After an unexpected drop, try the same device again a few times (no chooser needed), then hand over to the Reconnect button.
+// After an unexpected drop, try the same device again (no chooser needed), backing off for about a minute: long enough for a piano
+// that was switched off and on, or carried out of range and back. Then hand over to the Reconnect button.
+const BLE_RETRY_MS = [500, 1000, 2000, 4000, 8000, 15000, 30000];
 function bleRetry() {
     const dev = BLE.dev;
     if (!dev || !BLE.want)
         return;
-    if (BLE.tries >= 3) {
+    if (BLE.tries >= BLE_RETRY_MS.length) {
         BLE.want = false;
         bleSet('ble_gone', 'err');
         return;
     }
-    const wait = [500, 2000, 5000][BLE.tries++];
+    const wait = BLE_RETRY_MS[BLE.tries++];
     bleSet('ble_lost', 'err');
     clearTimeout(BLE.retryT);
     BLE.retryT = window.setTimeout(() => { if (BLE.want && BLE.dev === dev && !bleLive())
@@ -2371,23 +2533,30 @@ async function bleAutoReconnect()  {
         console.warn('Bluetooth MIDI:', err);
     }
 }
-function bleParserReset() { BLE.run = 0; BLE.need = 0; BLE.n = 0; BLE.skip = 0; BLE.sysex = false; }
+function bleParserReset() { BLE.run = 0; BLE.need = 0; BLE.n = 0; BLE.skip = 0; BLE.sysex = false; BLE.clock.reset(); }
 function bleOnValue(e: BleValueEvent) { const v = e.target.value; if (v && v.byteLength > 1)
-    bleParse(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); }
+    bleParse(new Uint8Array(v.buffer, v.byteOffset, v.byteLength), eventTime(e.timeStamp, performance.now())); }
 /* BLE-MIDI packet: [header 10hhhhhh] then messages, each normally led by a timestamp byte [1lllllll]. A byte with bit 7 set that
    directly follows a timestamp is a status byte; any other byte with bit 7 set is the next timestamp. Within a packet a message may
    drop its status (running status) and then also its timestamp, so several notes can share one notification. SysEx may span
-   packets (continuation packets carry only data after the header). Messages are dispatched as soon as their last byte is read;
-   the timestamps carry no information we need, because the packet is played the moment it arrives. */
-function bleParse(p: Uint8Array) {
+   packets (continuation packets carry only data after the header). Messages are dispatched (and sound) as soon as their last byte
+   is read. The timestamps tell the judges when each message was played: BLE.clock maps them onto the local clock, which takes the
+   radio's connection-interval jitter out of the judged time. */
+function bleParse(p: Uint8Array, arrival = performance.now()) {
     if ((p[0] & 0xC0) !== 0x80)
         return;
+    const stamps = bleTimestamps(p);
+    stamps.forEach((ms) => BLE.clock.observe(ms, arrival));
+    BLE.at = arrival;
     let ts = false;
     for (let i = 1; i < p.length; i++) {
         const b = p[i];
         if (b & 0x80) {
             if (!ts) {
                 ts = true;
+                const ms = stamps.get(i);
+                if (ms != null)
+                    BLE.at = BLE.clock.map(ms, arrival);
                 continue;
             }
             ts = false;
@@ -2453,7 +2622,7 @@ function bleMsg(st: number, d1: number, d2: number) {
     }
     else if (cmd === 0xE0)
         BLE.bend = ((d2 << 7) | d1) !== 8192;
-    midiIn(st, d1, d2, 'ble');
+    midiIn(st, d1, d2, 'ble', BLE.at);
 }
 /* ---------- INSTALLED APP: offline copy, install prompt, full screen and screen wake lock ---------- */
 interface InstalledAppState { sw: string; err: string; prompt: InstallPromptEvent|null; installed: boolean }
@@ -8407,7 +8576,7 @@ function rdAnsText(q: ReadQuestion) { if (q.ty === 'iv')
     return rdKeyLabel(q.ans) + ' / ' + rdKeyMinor(q.ans); return rdName(q.note, true); }
 interface ReadDrillGiven { btn?: Element; midi?: number; }
 function rdScore(q: ReadQuestion, ok: boolean, timeout = false) {
-    const now = performance.now(), ms = Math.round(now - RD.t0);
+    const now = performance.now(), ms = Math.max(0, Math.round(Math.min(now, inputTime(now)) - RD.t0)); // a played answer counts from its key's own time
     RD.n++;
     RD.ms += ms;
     if (ok) {
@@ -8794,7 +8963,7 @@ function rdRhPress(src: string, hand: string) {
         return;
     if (R.open.has(src))
         rdRhRelease(src);
-    const b = (performance.now() - R.t0) / 1000 / (60 / rdLevelBpm(L));
+    const b = (inputTime() - R.t0) / 1000 / (60 / rdLevelBpm(L)); // the key's own time, less its calibrated latency
     const p: RdRhythmPress = { src, hand: R.two && hand === 'L' ? 'L' : 'R', on: b, off: null };
     R.presses.push(p);
     R.open.set(src, p);
@@ -8809,7 +8978,7 @@ function rdRhPress(src: string, hand: string) {
 function rdRhRelease(src: string) { const R = RD.rh; if (!R)
     return; const p = R.open.get(src); if (!p)
     return; R.open.delete(src); const L = RD.L; if (R.playing && L)
-    p.off = (performance.now() - R.t0) / 1000 / (60 / rdLevelBpm(L)); }
+    p.off = Math.max(p.on, (inputTime() - R.t0) / 1000 / (60 / rdLevelBpm(L))); }
 function rdRhKey(kind: string, m: number) { if (kind === 'on')
     rdRhPress('m' + m, m < 60 ? 'L' : 'R');
 else
@@ -9843,10 +10012,10 @@ function rdOnLocale() {
         const pad = eventClosest(e, '.rdx-tap');
         if (pad) {
             e.preventDefault();
-            rdRhPress('p' + e.pointerId, pad.dataset.hand || 'R');
+            touchInput(e, () => rdRhPress('p' + e.pointerId, pad.dataset.hand || 'R'));
         }
     });
-    const up = (e: PointerEvent) => { rdRhRelease('p' + e.pointerId); };
+    const up = (e: PointerEvent) => { touchInput(e, () => rdRhRelease('p' + e.pointerId)); };
     document.addEventListener('pointerup', up);
     document.addEventListener('pointercancel', up);
     document.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if (k === ' ' || k === 'enter' || k === 'f' || k === 'j')
@@ -13326,7 +13495,8 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
 function pracInput(kind: string) {
     const R = SCORE.run;
     if (kind === 'on' && R && SCORE.playing && actx) {
-        const m = heldOrder[heldOrder.length - 1], now = actx.currentTime;
+        // The key's own time on the audio clock: the handler may run a frame or a radio interval after the note was played.
+        const m = heldOrder[heldOrder.length - 1], now = actx.currentTime - Math.max(0, inputLag()) / 1000;
         if (m != null && now >= R.segs[0].a0 - .05) {
             PRAC.active = true;
             const { s, t } = pracRaw(R, now), B = PRAC.bar;
@@ -13337,10 +13507,10 @@ function pracInput(kind: string) {
                     B.group.filter((x) => x.n.midi === m).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
                 }
                 if ([...B.need].every((x) => B.got.has(x)))
-                    pracRelease(R, B, now);
+                    pracRelease(R, B, actx.currentTime); // the clock resumes from the real present, not the judged time
             }
             else {
-                const time = fallTime(), tol = .22 * s.f;
+                const time = fallTime(now), tol = .22 * s.f;
                 let best: PracticeTimedNote | null = null;
                 for (const d of R.mine) {
                     if (d.start > time + tol)
@@ -15508,11 +15678,11 @@ function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE
     FALL.end = FALL.notes.length ? Math.max(...FALL.notes.map((n) => n.finish)) : 0;
 } return FALL.notes; }
 function fallEnd() { fallData(); return FALL.end; }
-function fallTime() {
+function fallTime(at?: number) {
     const R = SCORE.run;
     if (!SCORE.playing || !actx || !R)
         return FALL.position;
-    const { s, t } = pracRaw(R, actx.currentTime), B = PRAC.bar;
+    const { s, t } = pracRaw(R, at ?? actx.currentTime), B = PRAC.bar;
     let x = Math.min(t, s.t1);
     if (B && B.seg === s && x > B.t)
         x = B.t;
@@ -17701,6 +17871,7 @@ function wiringSegment(e: Event): HTMLElement[] {
 function wiringDisabled(b: HTMLElement): boolean { return b instanceof HTMLButtonElement && b.disabled; }
 function initControls() {
     labelSettingsControls();
+    initLatencyCalibration(); // Settings → MIDI keyboard → Timing
     byId('skipLink').addEventListener('click', (e) => { e.preventDefault(); byId('main').focus({ preventScroll: true }); });
     // nav
     byId('nav').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
