@@ -138,4 +138,13 @@ describe('technique grading', () => {
     expect([...run.pending]).toEqual([60]); // the left hand's C3 took the C2
     expect(techniqueNoteOn(run, 72, 10, true)).toBe('step');
   });
+
+  it('wants two keys hands together, even with Accept any octave', () => {
+    const run = techniqueStart(techniqueSteps({ ...spec, hands: 'both' }));
+    expect(techniqueNoteOn(run, 60, 0, true)).toBe('partial');
+    expect(techniqueNoteOn(run, 60, 10, true)).toBe('wrong'); // the same key again is not the other hand
+    expect(techniqueNoteOn(run, 36, 20, true)).toBe('step');
+    expect(techniqueNoteOn(run, 62, 250, true)).toBe('partial');
+    expect(techniqueNoteOn(run, 50, 260, true)).toBe('step'); // a new step takes any key again
+  });
 });

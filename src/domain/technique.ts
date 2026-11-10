@@ -112,6 +112,8 @@ export interface TechniqueRun {
   readonly steps: readonly TechniqueStep[];
   index: number;
   pending: Set<number>;
+  /** Keys already played in this step: each hand needs its own key, even when any octave counts. */
+  played: Set<number>;
   times: number[];
   readonly onsets: number[];
   readonly spreads: number[];
@@ -120,7 +122,7 @@ export interface TechniqueRun {
 export type TechniqueInput = 'step' | 'partial' | 'wrong' | 'done' | 'ignored';
 
 export function techniqueStart(steps: readonly TechniqueStep[]): TechniqueRun {
-  return { steps, index: 0, pending: new Set(steps[0]?.notes.map((note) => note.midi) ?? []), times: [], onsets: [], spreads: [], wrong: [] };
+  return { steps, index: 0, pending: new Set(steps[0]?.notes.map((note) => note.midi) ?? []), played: new Set(), times: [], onsets: [], spreads: [], wrong: [] };
 }
 
 /**
@@ -141,12 +143,13 @@ function pendingMatch(pending: ReadonlySet<number>, midi: number, anyOctave: boo
 
 export function techniqueNoteOn(run: TechniqueRun, midi: number, timeMs: number, anyOctave = false): TechniqueInput {
   if (run.index >= run.steps.length) return 'ignored';
-  const hit = pendingMatch(run.pending, midi, anyOctave);
+  const hit = run.played.has(midi) ? null : pendingMatch(run.pending, midi, anyOctave);
   if (hit === null) {
     run.wrong.push({ midi, step: run.index });
     return 'wrong';
   }
   run.pending.delete(hit);
+  run.played.add(midi);
   run.times.push(timeMs);
   if (run.pending.size) return 'partial';
   // The step sounds when its notes do: hands together, the mean of the two attacks.
@@ -154,6 +157,7 @@ export function techniqueNoteOn(run: TechniqueRun, midi: number, timeMs: number,
   run.spreads.push(Math.max(...run.times) - Math.min(...run.times));
   run.index += 1;
   run.times = [];
+  run.played = new Set();
   run.pending = new Set(run.steps[run.index]?.notes.map((note) => note.midi) ?? []);
   return run.index >= run.steps.length ? 'done' : 'step';
 }
