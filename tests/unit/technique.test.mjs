@@ -139,6 +139,13 @@ describe('technique grading', () => {
     expect(techniqueNoteOn(run, 72, 10, true)).toBe('step');
   });
 
+  it('never times a step before the one it follows', () => {
+    const run = techniqueStart(techniqueSteps(spec));
+    techniqueNoteOn(run, 60, 1000);
+    techniqueNoteOn(run, 62, 940); // an event time from another source, less a larger offset
+    expect(run.onsets).toEqual([1000, 1000]);
+  });
+
   it('wants two keys hands together, even with Accept any octave', () => {
     const run = techniqueStart(techniqueSteps({ ...spec, hands: 'both' }));
     expect(techniqueNoteOn(run, 60, 0, true)).toBe('partial');

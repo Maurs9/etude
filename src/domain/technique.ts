@@ -150,7 +150,9 @@ export function techniqueNoteOn(run: TechniqueRun, midi: number, timeMs: number,
   }
   run.pending.delete(hit);
   run.played.add(midi);
-  run.times.push(timeMs);
+  // Event times from different sources (touch, USB, Bluetooth) carry different offsets, so a key can arrive judged earlier than
+  // the step before it. It counts as no earlier, which keeps every gap between steps at zero or more.
+  run.times.push(Math.max(timeMs, run.onsets[run.onsets.length - 1] ?? timeMs));
   if (run.pending.size) return 'partial';
   // The step sounds when its notes do: hands together, the mean of the two attacks.
   run.onsets.push(run.times.reduce((sum, value) => sum + value, 0) / run.times.length);
