@@ -326,7 +326,10 @@ function applyI18n() {
     queryAllHtml(document, '[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n ?? ''); });
     queryAllHtml(document, '[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria ?? '')); });
     queryAllHtml(document, '[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle ?? ''); });
-    if (!activeInputId) {
+    // A status kept as a string key is said again in the new language (a lost piano still waits to come back).
+    if (midiMsg?.key)
+        midiStatus(midiMsg.key, midiMsg.cls, ...(midiMsg.args ?? []));
+    else if (!activeInputId) {
         midiMsg = null;
         const ss = byId('set-midi-status');
         if (ss)
@@ -1840,13 +1843,16 @@ function dockLabels() {
 function dockSync() {
     const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
     // On a phone on its side the open keys take the header's room (landscape.css); Hide keyboard brings the header back.
+    // A drill asking on the keys hides that button, so the header stays (kb-forced): it is the way to the other views.
     const land = open && LAND_PHONE.matches, wasLand = document.body.classList.contains('kb-land');
+    const forced = land && dockForced(v), wasForced = document.body.classList.contains('kb-forced');
     dock.classList.toggle('compact', v === 'analysis');
     byId('dock-kb-toggle').hidden = !on || dockForced(v); // a drill asking on the keys keeps them: Hide would do nothing
     dockLabels();
-    if (on === was && open === wasOpen && land === wasLand)
+    if (on === was && open === wasOpen && land === wasLand && forced === wasForced)
         return;
     document.body.classList.toggle('kb-land', land);
+    document.body.classList.toggle('kb-forced', forced);
     document.body.classList.toggle('kb', on);
     dock.classList.toggle('is-rail', on && !open);
     if (open) {
@@ -2030,10 +2036,15 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
 }
 function scheduleEval(fn: () => void, ms: number) { clearTimeout(evalTimer ?? undefined); evalTimer = window.setTimeout(fn, ms); }
 /* ---------- WEB MIDI ---------- */
-let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; }|null = null;
+let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; key?: string; args?: string[] }|null = null;
 // The input in use when it went away (a cable pulled, the piano switched off). It is attached again when it comes back: by id, or by
 // name when the system gives it a new id (Android does). Another input may stand in meanwhile; picking one by hand forgets the lost one.
 let midiLost: { id: string; name: string }|null = null, activeInputName = '', midiAuto = false;
+// A status in the user's language: the key and its arguments are kept so applyI18n can say it again after a language change.
+function midiStatus(key: string, cls: string, ...args: string[]) { setMidi(t(key, ...args), cls); if (midiMsg) {
+    midiMsg.key = key;
+    midiMsg.args = args;
+} }
 function setMidi(text: string|null, cls: string) { midiMsg = { text, cls }; const s = byId('set-midi-status'); if (s)
     s.textContent = text; midiChipSync(); }
 // The header chip names the Web MIDI input when one is live, else a live Bluetooth MIDI piano, else the Web MIDI status.
@@ -2055,11 +2066,11 @@ function midiChipSync() {
 async function connectMidi()  {
     ensureAudio();
     if (!navigator.requestMIDIAccess) {
-        setMidi(t('midi_unsupported'), 'err');
+        midiStatus('midi_unsupported', 'err');
         return;
     }
     if (!window.isSecureContext)
-        setMidi(t('midi_insecure'), 'err');
+        midiStatus('midi_insecure', 'err');
     try {
         midiAccess = await navigator.requestMIDIAccess({ sysex: false });
         midiAccess.onstatechange = onStateChange;
@@ -2067,8 +2078,8 @@ async function connectMidi()  {
     }
     catch (err) {
         console.error(err);
-        setMidi(runtimeErrorName(err) === 'SecurityError' ? t('midi_blocked') :
-            runtimeErrorName(err) === 'NotAllowedError' ? t('midi_denied') : t('midi_unavail'), 'err');
+        midiStatus(runtimeErrorName(err) === 'SecurityError' ? 'midi_blocked' :
+            runtimeErrorName(err) === 'NotAllowedError' ? 'midi_denied' : 'midi_unavail', 'err');
     }
 }
 // Chrome keeps an unplugged port in the map with state 'disconnected': it is not an input until it is back.
@@ -2083,7 +2094,10 @@ function refreshDeviceList(autoPick: boolean) {
     if (!ins.length) {
         sel.innerHTML = '<option>—</option>';
         activeInputId = null;
-        setMidi(midiLost ? t('midi_waiting', midiLost.name || 'MIDI') : t('midi_noinputs'), 'err');
+        if (midiLost)
+            midiStatus('midi_waiting', 'err', midiLost.name || 'MIDI');
+        else
+            midiStatus('midi_noinputs', 'err');
         return;
     }
     ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
@@ -2157,7 +2171,7 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
    on-screen keys, is paired with its nearest click by its own event time; the median lateness per source (touch, USB MIDI,
    Bluetooth MIDI) becomes that source's offset. The judges subtract it through inputTime(). Notes played meanwhile only sound.
    Stored in data.latency ({ touch, usb, ble } in ms, each optional): settings are rebuilt from known keys on load and sync, which
-   would drop it. Read defensively: a finite number is clamped to 0–500 ms, anything else is 0. No schema migration: the key is optional. */
+   would drop it. Reset progress keeps it, as it keeps the settings. Read defensively: a finite number is clamped to 0–500 ms, anything else is 0. No schema migration: the key is optional. */
 const CAL_BEATS = 12, CAL_COUNT_IN = 4, CAL_BPM = 100, CAL_SOURCES: readonly InputSource[] = ['touch', 'usb', 'ble'];
 interface TimingCalibration { on: boolean; clicks: number[]; taps: { src: InputSource; t: number }[]; timers: number[]; nodes: OscillatorNode[] }
 const CAL: TimingCalibration = { on: false, clicks: [], taps: [], timers: [], nodes: [] };
@@ -3293,6 +3307,7 @@ const techniqueHost: TechniqueHost = {
     mark: (midi, state) => kbState(midi, state, true),
     clearMarks: () => kbClearAll(),
     byId,
+    anyOctave: () => !!data.settings.anyOctave,
 };
 function pickTargetedItem() {
     if (!SES.targeted)
@@ -3729,7 +3744,7 @@ function ekElab(q: TrainerQuestion) {
 /* play-mode grading via held notes */
 function sesInput(midi: number) {
     if (techniqueDrillActive() && SES.targeted?.cat === TECHNIQUE_TOPIC) {
-        techniqueInput(techniqueHost, midi, performance.now());
+        techniqueInput(techniqueHost, midi, inputTime()); // the key's own time, less its calibrated latency
         return;
     }
     const q = SES.q;
@@ -8450,7 +8465,8 @@ function rdDockAsk(m: number) {
 interface ReadDrillButton { v: number | string; l?: string; html?: string; k?: string; s?: string; }
 function rdBtn(o: ReadDrillButton, i: number, cls?: string) { return `<button class="chip rdx-a${cls ? ' ' + cls : ''}" data-a="${rdEsc(o.v)}" data-k="${o.k || (i + 1)}">${o.html || rdEsc(o.l)}${o.s ? `<small>${rdEsc(o.s)}</small>` : ''}<kbd>${o.k || (i + 1)}</kbd></button>`; }
 function rdAccSeg() { return `<div class="seg rdx-accs" id="rdx-accs" role="group" aria-label="${t('rdx_accl')}">${[-1, 0, 1].map((a, i) => `<button data-acc="${a}" aria-pressed="${a === RD.accSel}" title="${t('rdx_acc_t' + a)}">${a < 0 ? '♭' : a > 0 ? '♯' : '♮'}<kbd>${['-', '0', '='][i]}</kbd></button>`).join('')}</div>`; }
-function rdTools(q: ReadQuestion) { return `<div class="rdx-tools">${RD.mode === 'practice' ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.ty === 'name' && q.needAcc ? t('rdx_keys_acc') : '')}</span></div>`; }
+// On a touch screen the computer-key hint (.rdx-kbd) is hidden (native.css); the ways that still work there keep a line (.rdx-touch).
+function rdTools(q: ReadQuestion) { return `<div class="rdx-tools">${RD.mode === 'practice' ? `<button class="btn ghost sm" id="rdx-hear">🔊 ${t('rdx_hear')}</button><button class="btn ghost sm" id="rdx-hintb">💡 ${t('rdx_hint')}</button>` : ''}<span class="rdx-kbd">${t('rdx_keys_' + q.ty) + (q.ty === 'name' && q.needAcc ? t('rdx_keys_acc') : '')}</span>${q.ty === 'ch' || q.ty === 'play' ? `<span class="rdx-touch ctx-touch">${t('rdx_touch_' + q.ty)}</span>` : ''}</div>`; }
 /* ---- look-ahead stream: name and play drills as a row of notes read from left to right ---- */
 // items: every note of the run so far; cur: the note to answer; start: the first note on screen.
 // played, wrong: the key or letters given wrongly for the current note, shown until it is answered right.
@@ -18387,7 +18403,10 @@ function initControls() {
     byId('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
     byId('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
         void storeSnapshot('before-reset', backupJson()); // the copy is taken now, before the reset below
+        const latency = calRecord().latency; // the timing calibration belongs to the device, like the settings
         data = { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, learnDone: {}, learnSel: 0, settings: data.settings };
+        if (latency !== undefined)
+            calRecord().latency = latency;
         renderLearn._init = false;
         learnSel = 0;
         SYNC.gen = syncGen();

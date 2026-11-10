@@ -20,6 +20,8 @@ export interface TechniqueHost {
   mark(midi: number, state: 'target' | 'good' | 'bad' | null): void;
   clearMarks(): void;
   byId(id: string): HTMLElement;
+  /** The setting Accept any octave: a key of the right note name counts in any octave. */
+  anyOctave(): boolean;
 }
 
 interface DrillState {
@@ -214,7 +216,7 @@ export function techniqueInput(host: TechniqueHost, midi: number, timeMs: number
   const s = state;
   if (!s || s.done) return;
   const expected = s.steps[s.run.index];
-  const result = techniqueNoteOn(s.run, midi, timeMs);
+  const result = techniqueNoteOn(s.run, midi, timeMs, host.anyOctave());
   const live = document.querySelector<HTMLElement>('#tq-drill .tq-live');
   if (result === 'wrong') {
     host.mark(midi, 'bad');
