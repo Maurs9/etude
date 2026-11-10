@@ -320,6 +320,7 @@ const payload: UIPayload = {
       "fall_mode": "Falling notes",
       "fall_hint": "Click a bar to select its note · play along on the keys or your MIDI keyboard",
       "tb_label": "Score controls",
+      "tb_more": "More controls",
       "tb_transport": "Playback",
       "tb_selection": "Selection",
       "sc_start_k": "Go to the start (Home)",

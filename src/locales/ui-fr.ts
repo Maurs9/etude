@@ -1361,6 +1361,7 @@ const payload: UIPayload = {
       "nav_analysis": "Partition et analyse",
       "nav_scores": "Partitions",
       "tb_label": "Commandes de la partition",
+      "tb_more": "Plus de commandes",
       "tb_transport": "Lecture",
       "tb_selection": "Sélection",
       "pr_group": "Pratique",

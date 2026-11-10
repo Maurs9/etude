@@ -1,5 +1,21 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 
+// Above 840px a header too full for its tabs folds them into the menu (phones use the bottom bar instead).
+// A long connected MIDI device name is a real way to get there.
+const foldedHeader = async (app) => {
+  const page = app.page, name = 'Yamaha Clavinova CLP-795GP Digital Piano MIDI 1';
+  await page.addInitScript(name => {
+    const input = { id: 'clp', name, type: 'input', state: 'connected', connection: 'open', onmidimessage: null };
+    Object.defineProperty(navigator, 'requestMIDIAccess', { configurable: true, value: async () => ({ inputs: new Map([[input.id, input]]), outputs: new Map(), sysexEnabled: false, onstatechange: null }) });
+  }, name);
+  await page.setViewportSize({ width: 900, height: 700 });
+  await app.open();
+  await page.locator('#midiChip').click();
+  await expect(page.locator('#midiText')).toHaveText(name);
+  await expect(page.locator('#menuBtn')).toBeVisible();
+  return page;
+};
+
 test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
 
   test('Viewport meta contains interactive-widget=resizes-content for Android edge-to-edge IME', async ({ app }) => {
@@ -43,10 +59,8 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     await expect(page.locator('#view-today')).toHaveClass(/active/);
   });
 
-  test('Navigation-event: Android back gesture closes Mobile Menu on mobile viewports', async ({ app }) => {
-    const page = app.page;
-    await page.setViewportSize({ width: 390, height: 844 });
-    await app.open();
+  test('Navigation-event: Android back gesture closes the folded-header menu', async ({ app }) => {
+    const page = await foldedHeader(app);
 
     // Open mobile menu
     await page.locator('#menuBtn').click();
@@ -90,18 +104,18 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     expect(hasHorizontalOverflow).toBe(false);
 
     // Check piano dock is visible and keys are properly positioned
-    await page.locator('header nav.tabs button[data-view="explore"]').click();
+    await page.locator('header nav.tabs button[data-view="practice"]').click();
+    await page.locator('#modeNav button[data-view="explore"]').click();
     await expect(page.locator('.dock')).toBeVisible();
     const whiteKeysCount = await page.locator('.key.white').count();
     expect(whiteKeysCount).toBeGreaterThan(15);
   });
 
-  test('Back after picking a view from the mobile menu goes to the previous view in one step', async ({ app }) => {
+  test('Back after picking a view from the bottom bar goes to the previous view in one step', async ({ app }) => {
     const page = app.page;
     await page.setViewportSize({ width: 390, height: 844 });
     await app.open();
-    await page.locator('#menuBtn').click();
-    await page.locator('#mobileMenu button[data-view="progress"]').click();
+    await page.locator('#bottomNav button[data-view="progress"]').click();
     await expect(page.locator('#view-progress')).toHaveClass(/active/);
     await page.goBack();
     await expect(page.locator('#view-today')).toHaveClass(/active/);
@@ -151,18 +165,14 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
   });
 
   test('Back restores focus after closing the mobile menu', async ({ app }) => {
-    const page=app.page;
-    await page.setViewportSize({width:390,height:844});
-    await app.open();
+    const page = await foldedHeader(app);
     await page.locator('#menuBtn').click();
     await page.goBack();
     await expect(page.locator('#menuBtn')).toBeFocused();
   });
 
   test('opening Help from the mobile menu does not leave a menu history entry', async ({ app }) => {
-    const page=app.page;
-    await page.setViewportSize({width:390,height:844});
-    await app.open();
+    const page = await foldedHeader(app);
     await page.locator('#menuBtn').click();
     await page.locator('#helpBtn').click();
     await expect(page.locator('#helpBox')).toHaveClass(/on/);
@@ -208,12 +218,10 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     expect(right).toBeLessThanOrEqual(681);
   });
 
-  test('rotating to a wider layout closes the mobile menu', async ({ app }) => {
-    const page = app.page;
-    await page.setViewportSize({ width: 390, height: 844 });
-    await app.open();
+  test('widening the window closes the mobile menu', async ({ app }) => {
+    const page = await foldedHeader(app);
     await page.locator('#menuBtn').click();
-    await page.setViewportSize({ width: 844, height: 390 });
+    await page.setViewportSize({ width: 1400, height: 800 });
     await expect(page.locator('#mobileMenu')).toBeHidden();
     await expect(page.locator('#menuBtn')).toHaveAttribute('aria-expanded', 'false');
   });
@@ -270,4 +278,192 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     expect(display).toBe('none');
   });
 
+});
+
+test.describe('bottom navigation on phones', () => {
+  const rect = (page, sel) => page.locator(sel).evaluate(el => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, width: r.width, height: r.height }; });
+
+  test('a phone gets a five-section bottom bar instead of the menu, with thumb-sized targets', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open();
+    const bar = page.locator('#bottomNav'), items = bar.locator('button');
+    await expect(bar).toBeVisible();
+    await expect(page.locator('#menuBtn')).toBeHidden();
+    await expect(items).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Progress']);
+    for (let i = 0; i < 5; i++) {
+      const r = await items.nth(i).evaluate(el => el.getBoundingClientRect());
+      expect(r.height).toBeGreaterThanOrEqual(48);
+      expect(r.width).toBeGreaterThanOrEqual(48);
+    }
+    const b = await rect(page, '#bottomNav');
+    expect(Math.round(b.bottom)).toBe(844);
+    await expect(items.nth(0)).toHaveAttribute('aria-current', 'page');
+
+    await items.nth(3).click();
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+    await expect(bar.locator('button[aria-current="page"]')).toHaveText('Scores');
+    await page.goBack();
+    await expect(page.locator('#view-today')).toHaveClass(/active/);
+    await expect(bar.locator('button[aria-current="page"]')).toHaveText('Today');
+  });
+
+  test('wide screens keep the header tabs and no bottom bar', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await app.open();
+    await expect(page.locator('#bottomNav')).toBeHidden();
+    await expect(page.locator('#nav')).toBeVisible();
+  });
+
+  test('Explore lives under Practice, and the keyboard dock sits above the bar', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open({ hash: 'explore' });
+    await expect(page.locator('#bottomNav button[aria-current="page"]')).toHaveText('Practice');
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Accompany', 'Transcribe']);
+    await expect(page.locator('#modeNav button[aria-current="page"]')).toHaveText('Explore');
+    await expect(page.locator('#dock')).toBeVisible();
+    await expect.poll(async () => (await rect(page, '#dock')).bottom - (await rect(page, '#bottomNav')).top).toBeLessThanOrEqual(0.5);
+    // The page reserves room for both, so its last line can scroll clear of them.
+    const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.body).paddingBottom));
+    const dock = await rect(page, '#dock'), nav = await rect(page, '#bottomNav');
+    expect(pad).toBeGreaterThanOrEqual(Math.round(dock.height + nav.height) - 1);
+  });
+
+  test('the header tabs drop Explore: it opens from Practice', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await app.open({ hash: 'practice' });
+    await expect(page.locator('#nav button')).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Progress']);
+    await page.locator('#modeNav button[data-view="explore"]').click();
+    await expect(page.locator('#view-explore')).toHaveClass(/active/);
+    await expect(page.locator('#nav button[aria-current="page"]')).toHaveText('Practice');
+  });
+
+  test('a short landscape phone keeps the menu, because the bar would cost too much height', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 740, height: 360 });
+    await app.open();
+    await expect(page.locator('#bottomNav')).toBeHidden();
+    await expect(page.locator('#menuBtn')).toBeVisible();
+  });
+
+  test('revealing Learn content stops above the dock, which rides on the bar', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open({ hash: 'learn' });
+    await page.locator('#dock-kb-toggle').click(); // keys open: dock on top of the bar
+    const gap = await page.evaluate(async () => {
+      const e = window.__etude, p = document.createElement('div');
+      p.style.height = '40px'; e.$('view-learn').appendChild(p);
+      window.scrollTo(0, 0); e.learnReveal(p);
+      await new Promise(r => requestAnimationFrame(r));
+      const g = e.$('dock').getBoundingClientRect().top - p.getBoundingClientRect().bottom; p.remove(); return g;
+    });
+    expect(gap).toBeGreaterThanOrEqual(15);
+  });
+
+  test('the full-screen practice stage hides the bar', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open();
+    await page.evaluate(() => { document.body.dataset.stage = 'immersive'; });
+    await expect(page.locator('#bottomNav')).toBeHidden();
+  });
+});
+
+test.describe('score toolbar on phones', () => {
+  const CORE = ['#sc-start', '#score-play', '#score-stop', '#an-loop', '#score-speed', '#an-kb', '#tb-more'];
+  const MORE = ['#an-metro', '#pr-hands', '#pr-wait', '#sc-zoom-in', '#sc-look', '#sc-hl', '#an-mode'];
+  const openScore = async (app, width, height) => {
+    const page = app.page;
+    await page.setViewportSize({ width, height });
+    await app.open({ hash: 'analysis' });
+    await page.evaluate(async () => { await window.__etude.anLoadExample(window.__etude.PIECES[0].id); });
+    await expect(page.locator('#an-tbwrap')).toBeVisible();
+    return page;
+  };
+  const fitsAcross = page => page.locator('#an-toolbar').evaluate(tb => tb.scrollWidth <= tb.clientWidth + 1);
+
+  test('one row of essentials at thumb size, and nothing scrolled off the edge', async ({ app }) => {
+    const page = await openScore(app, 390, 844);
+    expect(await fitsAcross(page)).toBe(true);
+    for (const sel of CORE) {
+      await expect(page.locator(sel), sel).toBeVisible();
+      const r = await page.locator(sel).evaluate(el => el.getBoundingClientRect());
+      expect(r.height, sel).toBeGreaterThanOrEqual(40);
+      expect(r.right, sel).toBeLessThanOrEqual(390);
+    }
+    for (const sel of MORE) await expect(page.locator(sel), sel).toBeHidden();
+    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  for (const width of [360, 390]) {
+    test(`the essentials and More share one row at ${width}px`, async ({ app }) => {
+      const page = await openScore(app, width, 800);
+      const tops = await page.evaluate(sels => sels.map(s => Math.round(document.querySelector(s).getBoundingClientRect().top)), CORE);
+      expect(new Set(tops).size, `row tops ${tops}`).toBe(1);
+    });
+  }
+
+  test('the floating Analysis button steps aside while More is open', async ({ app }) => {
+    const page = await openScore(app, 390, 844);
+    await expect(page.locator('.an-fab')).toBeVisible();
+    await page.locator('#tb-more').click();
+    await expect(page.locator('.an-fab')).toBeHidden();
+    await page.locator('#tb-more').click();
+    await expect(page.locator('.an-fab')).toBeVisible();
+  });
+
+  test('More opens the other controls below the row, and they work from there', async ({ app }) => {
+    const page = await openScore(app, 390, 844);
+    const before = await page.locator('#an-tbwrap').evaluate(el => el.getBoundingClientRect().height);
+    await page.locator('#tb-more').click();
+    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'true');
+    for (const sel of MORE) {
+      await expect(page.locator(sel), sel).toBeVisible();
+      expect(await page.locator(sel).evaluate(el => el.getBoundingClientRect().right), sel).toBeLessThanOrEqual(390);
+    }
+    expect(await fitsAcross(page)).toBe(true);
+    await expect.poll(() => page.locator('#an-tbwrap').evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThan(before + 40);
+    await page.locator('#sc-look button[data-v="night"]').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SCORE.look)).toBe('night');
+    await page.locator('#tb-more').click();
+    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#sc-look')).toBeHidden();
+  });
+
+  test('Escape closes More and returns focus to it', async ({ app }) => {
+    const page = await openScore(app, 390, 844);
+    await page.locator('#tb-more').click();
+    await page.locator('#sc-hl').focus();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#tb-more')).toBeFocused();
+  });
+
+  test('a popover opened from More closes with it, and Escape closes the popover first', async ({ app }) => {
+    const page = await openScore(app, 390, 844);
+    await page.locator('#tb-more').click();
+    await page.locator('#an-mode button[data-score-mode="fall"]').click();
+    await expect(page.locator('#fall-opt')).toBeVisible();
+    await page.locator('#fall-opt').click();
+    await expect(page.locator('#fall-pop')).toBeVisible();
+    await page.locator('#fall-opt').focus();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#fall-pop')).toBeHidden();
+    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'true');
+    await page.locator('#fall-opt').click();
+    await expect(page.locator('#fall-pop')).toBeVisible();
+    await page.locator('#tb-more').click();
+    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#fall-pop')).toBeHidden();
+  });
+
+  test('wide screens keep the full toolbar and no More button', async ({ app }) => {
+    const page = await openScore(app, 1280, 800);
+    await expect(page.locator('#tb-more')).toBeHidden();
+    for (const sel of ['#pr-hands', '#sc-look', '#an-mode']) await expect(page.locator(sel), sel).toBeVisible();
+  });
 });

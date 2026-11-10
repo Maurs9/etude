@@ -1778,10 +1778,13 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    Without a choice the keys are open, except in Score & analysis on small screens, where the score needs the room; that default
    is settled once per visit, so resizing the window never flips the keyboard (or what its buttons do) behind the user's back.
    Falling notes draw their own keyboard, so that view shows neither the dock nor the rail and leaves the choice untouched.
-   A reading drill that asks its question on the keys (`force`) opens them while it runs, without changing the saved choice. */
+   A reading drill that asks its question on the keys (`force`) opens them while it runs, without changing the saved choice.
+   A session question answered on the keys (Play it, or By ear on the keys) opens them while no MIDI or Bluetooth piano is
+   connected, unless the user chose to hide them: Hide stays available and is saved as usual. */
 interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
 const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
 function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
+function sesNeedsKeys(v = view0()) { const q = SES.q; return SES.active && v === sesHome() && !!q && (q.mode !== 'ear' || ekWanted(q)) && !midiLive(); }
 function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 // The full-screen stage of a running reading drill or piece. With a MIDI or Bluetooth piano connected, the keys fold into the
 // rail there; showing or hiding them on the stage (`kb`) lasts until the stage closes and leaves the saved choice alone.
@@ -1791,8 +1794,19 @@ function midiLive() { return !!activeInputId || bleLive(); }
 function stageDock(v = view0()) { return STAGE.on && v === 'read' && (STAGE.kb != null || midiLive()); }
 function dockOpen(v = view0()) { if (dockForced(v))
     return true; if (stageDock(v))
-    return STAGE.kb ?? false; if (DOCK.pref != null)
+    return STAGE.kb ?? false; if (sesNeedsKeys(v))
+    return DOCK.pref !== false; if (DOCK.pref != null)
     return DOCK.pref; return false; }
+// Where the page stops being visible at the bottom: the top of the dock when it shows, else of the phone bottom bar
+// (the dock rides on the bar), else the end of the viewport.
+function fixedBottomTop() {
+    for (const el of [byId('dock'), byId('bottomNav')]) {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && getComputedStyle(el).display !== 'none')
+            return r.top;
+    }
+    return innerHeight;
+}
 function dockShown() { return document.body.classList.contains('kb') && !byId('dock').classList.contains('is-rail'); }
 // The dock's own button names the action it takes (Hide / Show keyboard).
 function dockLabels() {
@@ -2004,8 +2018,8 @@ function midiChipSync() {
         mt.textContent = midiMsg ? midiMsg.text : t('midi_connect');
         md.className = 'dot' + (midiMsg && midiMsg.cls ? ' ' + midiMsg.cls : '');
     }
-    if (STAGE.on)
-        dockSync();
+    if (STAGE.on || SES.active)
+        dockSync(); // a connected piano releases the keys a stage or drill opened
 }
 async function connectMidi()  {
     ensureAudio();
@@ -3001,6 +3015,7 @@ function endSession(toSummary: boolean) {
     SES.placement = false;
     byId('session').style.display = 'none';
     byId('session').classList.remove('on');
+    dockSync(); // keys a drill opened fold back to the saved choice
     kbClearAll();
     held.forEach((m) => audioNoteOff(m));
     held.clear();
@@ -3074,6 +3089,7 @@ function presentQuestion(q: TrainerQuestion) {
     else {
         presentPlay(q);
     }
+    dockSync(); // each question may answer on the keys or not
 }
 function earRoot(q: { key: number; }) { return 57 + (q.key % 12 <= 5 ? q.key : q.key - 12) + 5; } // mid register, kept playable
 function presentPlay(q: TrainerQuestion) {
@@ -3863,7 +3879,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
     }
     (document).querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + v));
     const group = navGroup(v);
-    queryAllHtml(document, '#nav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === group ? 'page' : 'false'));
+    queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === group ? 'page' : 'false'));
     dockSync();
     if (dockShown())
         reflowKeys(); // reposition once the dock is laid out
@@ -4319,8 +4335,7 @@ function cofRevealFingering() {
         const fing = (document).querySelector('#exp-circle .cof-fing');
         if (!fing || byId('exp-circle').hidden)
             return;
-        const dock = document.body.classList.contains('kb') ? byId('dock') : null, dockH = dock ? dock.getBoundingClientRect().height : 0;
-        const header = (document).querySelector('header'), top = (header ? header.getBoundingClientRect().bottom : 0) + 16, bottom = window.innerHeight - dockH - 24;
+        const header = (document).querySelector('header'), top = (header ? header.getBoundingClientRect().bottom : 0) + 16, bottom = fixedBottomTop() - 24;
         const rect = fing.getBoundingClientRect(), available = Math.max(0, bottom - top);
         const delta = rect.height > available || rect.top < top ? rect.top - top : rect.bottom > bottom ? rect.bottom - bottom : 0;
         if (Math.abs(delta) > 1)
@@ -5023,7 +5038,7 @@ function lqRender() {
     box.innerHTML = h;
 }
 function learnReveal(el: Element) {
-    const d = byId('dock'), dh = d && getComputedStyle(d).display !== 'none' ? d.getBoundingClientRect().height : 0, r = el.getBoundingClientRect(), lim = innerHeight - dh - 16;
+    const r = el.getBoundingClientRect(), lim = fixedBottomTop() - 16;
     if (r.bottom > lim)
         scrollBy(0, r.bottom - lim);
     else if (r.top < 80)
@@ -13583,7 +13598,9 @@ function anKeepPlace() {
 function anLayoutVars() {
     const st = document.documentElement.style, h = (el: HTMLElement|null) => el && !el.hidden ? Math.round(el.getBoundingClientRect().height) : 0, dock = byId('dock');
     st.setProperty('--hdr-h', h((document).querySelector('header')) + 'px');
-    st.setProperty('--dock-h', (document.body.classList.contains('kb') ? h(dock) : 0) + 'px');
+    const bnav = h(byId('bottomNav')); // 0 while the bar is not displayed (wide screens, short landscape, the practice stage)
+    st.setProperty('--bnav-h', bnav + 'px');
+    st.setProperty('--dock-h', ((document.body.classList.contains('kb') ? h(dock) : 0) + bnav) + 'px');
     st.setProperty('--an-tb-h', h(byId('an-tbwrap')) + 'px');
     st.setProperty('--an-sb-h', h(byId('an-status')) + 'px');
     st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
@@ -16173,6 +16190,19 @@ function scoreSeekBar(d: number) {
 }
 // Popovers under the toolbar: one open at a time, placed under their button, closed by Esc or a click outside.
 const AN_POPS = [['fall-pop', 'fall-opt'], ['an-keys-pop', 'an-keys-btn']];
+// Phones: More shows the toolbar controls that do not fit the one row of essentials (the layout is all CSS).
+function tbMoreSet(open: boolean, focusBack = false) {
+    const more = byId('tb-more'), tb = byId('an-toolbar');
+    if (!open) { // what a panel button opened goes with it, or it would be left without its button
+        AN_POPS.forEach(([p, b]) => { if (!byId(p).hidden && tb.contains(byId(b)))
+            anPop(p, false); });
+        anReconOpen(false);
+    }
+    tb.classList.toggle('is-more', open);
+    more.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (focusBack)
+        more.focus();
+}
 function anPop(id: string, open: boolean) {
     const pair = AN_POPS.find((x) => x[0] === id) || [id, id];
     const p = byId(id), b = byId(pair[1]);
@@ -16438,6 +16468,13 @@ function anInitControls() {
     } anSideSet(false); byId('an-side-btn').focus({ preventScroll: true }); });
     byId('an-fab').addEventListener('click', () => anSheet(true));
     byId('pr-opt').addEventListener('click', () => anOpenTab('practice'));
+    byId('tb-more').addEventListener('click', () => tbMoreSet(!byId('an-toolbar').classList.contains('is-more')));
+    // Esc closes More, but only once nothing it opened is still showing: the score shortcuts close those first.
+    byId('an-toolbar').addEventListener('keydown', (e) => { if (e.key === 'Escape' && byId('an-toolbar').classList.contains('is-more')
+        && AN_POPS.every(([p]) => byId(p).hidden) && byId('an-recon').hidden) {
+        e.stopPropagation();
+        tbMoreSet(false, true);
+    } });
     byId('an-now').addEventListener('focusout', (e) => { if (SIDE.deferred && !byId('an-now-body').contains(e.relatedTarget instanceof Node ? e.relatedTarget : null))
         requestAnimationFrame(anRenderNow); });
     // Now: the passage actions
@@ -16491,7 +16528,7 @@ function anInitControls() {
     const vars = () => { cancelAnimationFrame(rq); rq = requestAnimationFrame(anLayoutVars); };
     // border-box: a safe-area inset only changes padding, which a content-box observer would miss
     const ro = new ResizeObserver(vars);
-    [(document).querySelector('header'), byId('dock'), byId('an-tbwrap'), byId('an-status')].forEach((el) => { if (el)
+    [(document).querySelector('header'), byId('dock'), byId('bottomNav'), byId('an-tbwrap'), byId('an-status')].forEach((el) => { if (el)
         ro.observe(el, { box: 'border-box' }); });
     let lastW = 0, lastH = 0;
     new ResizeObserver((entries) => { const r = entries[0].contentRect, w = Math.round(r.width), h = Math.round(r.height); if (w === lastW && h === lastH)
@@ -17403,6 +17440,8 @@ function initControls() {
         show(b.dataset.view); });
     byId('modeNav').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
         show(b.dataset.view); });
+    byId('bottomNav').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
+        show(b.dataset.view); });
     document.querySelector('.brand')?.addEventListener('click', (e) => { e.preventDefault(); show('today'); });
     // midi chip + settings
     byId('midiChip').addEventListener('click', connectMidi);
@@ -17518,6 +17557,7 @@ function initControls() {
             return;
         if (SES.answered || q.mode !== 'ear') {
             ekToggleSync(q);
+            dockSync();
             return;
         }
         ekStop(q);

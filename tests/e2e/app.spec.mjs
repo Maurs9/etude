@@ -171,8 +171,15 @@ test.describe('Navigation accessibility', () => {
   });
 
   test('mobile menu follows its opener, focuses an option, and closes with Escape', async ({ app }) => {
-    const page = await app.open();
-    await page.setViewportSize({ width: 375, height: 700 });
+    const page = app.page, name = 'Yamaha Clavinova CLP-795GP Digital Piano MIDI 1';
+    await page.addInitScript(name => {
+      const input = { id: 'clp', name, type: 'input', state: 'connected', connection: 'open', onmidimessage: null };
+      Object.defineProperty(navigator, 'requestMIDIAccess', { configurable: true, value: async () => ({ inputs: new Map([[input.id, input]]), outputs: new Map(), sysexEnabled: false, onstatechange: null }) });
+    }, name);
+    await page.setViewportSize({ width: 900, height: 700 });
+    await app.open();
+    await page.locator('#midiChip').click();
+    await expect(page.locator('#midiText')).toHaveText(name);
     await page.locator('#menuBtn').click();
     await expect(page.locator('#mobileMenu button[aria-current="page"]')).toBeFocused();
     await page.keyboard.press('Tab');
@@ -201,7 +208,7 @@ test.describe('Navigation accessibility', () => {
     await expect(page).toHaveURL(/#practice$/);
     await expect(practice).toHaveAttribute('aria-current', 'page');
     await expect(scores).toHaveAttribute('aria-current', 'false');
-    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing']);
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Accompany', 'Transcribe']);
 
     await scores.click();
     await expect(page).toHaveURL(/#analysis$/);
@@ -211,14 +218,10 @@ test.describe('Navigation accessibility', () => {
     await page.evaluate(() => window.__etude.setLang('ro'));
     await expect(scores).toHaveText('Partituri');
     await page.setViewportSize({ width: 375, height: 700 });
-    await page.locator('#menuBtn').click();
-    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toHaveText('Partituri');
-    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toBeFocused();
-    await page.locator('#mobileMenu button[data-view="practice"]').click();
+    await expect(page.locator('#bottomNav button[aria-current="page"]')).toHaveText('Partituri');
+    await page.locator('#bottomNav button[data-view="practice"]').click();
     await expect(page.locator('#view-practice')).toHaveClass(/active/);
-    await page.locator('#menuBtn').click();
-    await page.locator('#mobileMenu button[data-view="analysis"]').click();
-    await expect(page.locator('#mobileMenu')).toBeHidden();
+    await page.locator('#bottomNav button[data-view="analysis"]').click();
     await expect(page.locator('#view-analysis')).toHaveClass(/active/);
   });
 
@@ -274,7 +277,7 @@ test.describe('Navigation accessibility', () => {
     expect(fit).toMatchObject({ tabs: false, menu: true });
     expect(fit.overflow).toBeLessThanOrEqual(0.5);
     await page.locator('#menuBtn').click();
-    await expect(page.locator('#mobileMenu button')).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Explore', 'Progress']);
+    await expect(page.locator('#mobileMenu button')).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Progress']);
     await page.keyboard.press('Escape');
     await expect(page.locator('#mobileMenu')).toBeHidden();
 
@@ -2709,12 +2712,14 @@ test('unused leftovers stay removed', () => {
 
 test('the fixed keyboard dock never covers the end of the page, whatever its measured height', async ({ app, page }) => {
   await app.open({ hash: 'explore' });
-  // Scrolled to the very end, the footer must end at or above the dock's top edge, and --dock-h must match the dock.
+  // Scrolled to the very end, the footer must end at or above the dock's top edge, and --dock-h must match the dock
+  // plus the phone bottom bar it rides on (0 where the bar is not shown).
   const fits = () => page.evaluate(async () => {
     window.scrollTo(0, document.documentElement.scrollHeight);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const dock = window.__etude.$('dock').getBoundingClientRect(), foot = document.querySelector('footer').getBoundingClientRect();
-    return { kb: document.body.classList.contains('kb'), synced: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dock-h')) === Math.round(dock.height), clear: foot.bottom <= dock.top + 1 };
+    const bar = Math.round(window.__etude.$('bottomNav').getBoundingClientRect().height);
+    return { kb: document.body.classList.contains('kb'), synced: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dock-h')) === Math.round(dock.height) + bar, clear: foot.bottom <= dock.top + 1 };
   });
   const ok = { kb: true, synced: true, clear: true };
   for (const [width, height] of [[320, 640], [1024, 640]]) {
@@ -2829,4 +2834,46 @@ test('falling notes keyboard range adapts responsively to screen width with a ba
   expect(res.mobileRange[1] - res.mobileRange[0]).toBeGreaterThanOrEqual(24);
   expect(res.desktopRange[0] % 12).toBe(0);
   expect(res.desktopRange[1] % 12).toBe(0);
+});
+
+test.describe('drills answered on the keys open the keyboard', () => {
+  const drill = async (page, mode) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.locator(`#pr-mode button[data-v="${mode}"]`).click();
+    await page.locator('#pr-start').click();
+    await expect(page.locator('#session')).toBeVisible();
+  };
+
+  for (const mode of ['play', 'keys']) {
+    test(`a ${mode} drill opens the keys without a piano and folds them back after End`, async ({ app }) => {
+      const page = await app.open({ hash: 'practice' });
+      await drill(page, mode);
+      await expect(page.locator('#dock')).not.toHaveClass(/\bis-rail\b/);
+      await expect(page.locator('#keys .white').first()).toBeVisible();
+      await expect(page.locator('#dock-kb-toggle')).toBeVisible(); // Hide stays available
+      await page.locator('#ses-end').click();
+      await expect(page.locator('#session')).toBeHidden();
+      await expect.poll(() => page.evaluate(() => document.body.classList.contains('kb'))).toBe(false);
+      expect(await page.evaluate(() => window.__etude.DOCK.pref)).toBeNull();
+    });
+  }
+
+  test('Hide during a drill is saved and respected by the next drill', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    await drill(page, 'play');
+    await page.locator('#dock-kb-toggle').click();
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    expect(await page.evaluate(() => window.__etude.DOCK.pref)).toBe(false);
+    await page.locator('#ses-end').click();
+    await page.locator('#pr-start').click();
+    await expect(page.locator('#session')).toBeVisible();
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+  });
+
+  test('a By ear drill keeps the saved choice: the keys stay folded', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    await drill(page, 'ear');
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    await expect(page.locator('#dock-kb-toggle')).toBeVisible();
+  });
 });

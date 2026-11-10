@@ -1361,6 +1361,7 @@ const payload: UIPayload = {
       "nav_analysis": "Partitura e análise",
       "nav_scores": "Partituras",
       "tb_label": "Controles da partitura",
+      "tb_more": "Mais controles",
       "tb_transport": "Reprodução",
       "tb_selection": "Seleção",
       "pr_group": "Prática",

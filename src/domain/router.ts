@@ -1,9 +1,8 @@
 export const NAV_GROUPS = {
   today: ['today'],
   learn: ['learn', 'songs', 'method'],
-  practice: ['practice', 'read', 'sing'],
+  practice: ['practice', 'read', 'sing', 'explore', 'accompany', 'transcribe'],
   scores: ['analysis'],
-  explore: ['explore', 'accompany', 'transcribe'],
   progress: ['progress'],
 } as const;
 

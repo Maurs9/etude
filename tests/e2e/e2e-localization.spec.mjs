@@ -222,7 +222,9 @@ test.describe('Tier 1: Feature Coverage across All 7 Locales', () => {
       await expect(page.locator('#nav button[data-view="learn"]')).toHaveText(loc.navLearn);
       await expect(page.locator('#nav button[data-view="practice"]')).toHaveText(loc.navPractice);
       await expect(page.locator('#nav button[data-view="analysis"]')).toHaveText(loc.navScores);
-      await expect(page.locator('#nav button[data-view="explore"]')).toHaveText(loc.navExplore);
+      await expect(page.locator('#bottomNav button[data-view="practice"]')).toHaveText(loc.navPractice);
+      await page.evaluate(() => window.__etude.show('practice', false));
+      await expect(page.locator('#modeNav button[data-view="explore"]')).toHaveText(loc.navExplore);
     }
   });
 
@@ -632,7 +634,8 @@ test.describe('Tier 4: Real-World Scenarios (Full User Journeys)', () => {
     await page.locator('#drawerClose').click();
 
     // 2. User navigates to Explore view
-    await page.locator('#nav button[data-view="explore"]').click();
+    await page.locator('#nav button[data-view="practice"]').click();
+    await page.locator('#modeNav button[data-view="explore"]').click();
     await expect(page.locator('#view-explore')).toBeVisible();
 
     // 3. Verifies Circle of Fifths and note spelling in German
