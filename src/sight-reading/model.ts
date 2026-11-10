@@ -1,7 +1,9 @@
 export const TICKS_PER_QUARTER = 480 as const;
 
 export type SightReadingHand = 'rh' | 'lh';
-export type SightReadingProfile = 'P1.a' | 'P1.b' | 'P1.c' | 'P2.a' | 'P2.b' | 'P2.c' | 'P3.a' | 'P3.b' | 'P3.c' | 'P3.d';
+export type SightReadingProfile = 'P1.a' | 'P1.b' | 'P1.c' | 'P2.a' | 'P2.b' | 'P2.c' | 'P3.a' | 'P3.b' | 'P3.c' | 'P3.d' | SightReadingRhythmProfile;
+// Rhythm levels: P4.a adds eighths, P4.b dotted quarters and eighth rests, P4.c syncopation and notes tied across a beat.
+export type SightReadingRhythmProfile = 'P4.a' | 'P4.b' | 'P4.c';
 export type SightReadingMeter = { readonly num: 3 | 4; readonly den: 4 };
 export type SightReadingPitch = { readonly midi: number; readonly spelling: string; readonly finger: number | null };
 export type SightReadingEvent = {
@@ -39,7 +41,9 @@ export type SightReadingExpectedConfig = {
   readonly latencyOffsetMs?: number;
 };
 
-const PROFILES: readonly SightReadingProfile[] = ['P1.a', 'P1.b', 'P1.c', 'P2.a', 'P2.b', 'P2.c', 'P3.a', 'P3.b', 'P3.c', 'P3.d'];
+const PROFILES: readonly SightReadingProfile[] = ['P1.a', 'P1.b', 'P1.c', 'P2.a', 'P2.b', 'P2.c', 'P3.a', 'P3.b', 'P3.c', 'P3.d', 'P4.a', 'P4.b', 'P4.c'];
+/** An eighth note in ticks: the finest grid a rhythm level uses. */
+export const TICKS_PER_EIGHTH = 240 as const;
 const MAJOR_PCS = [0, 2, 4, 5, 7, 9, 11] as const;
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'] as const;
 const NATURAL_PCS = [0, 2, 4, 5, 7, 9, 11] as const;
@@ -48,6 +52,10 @@ const MINOR_TONICS = ['Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#',
 
 export function isSightReadingProfile(value: string): value is SightReadingProfile {
   return PROFILES.some((profile) => profile === value);
+}
+
+export function srtIsRhythmProfile(profile: SightReadingProfile): profile is SightReadingRhythmProfile {
+  return profile === 'P4.a' || profile === 'P4.b' || profile === 'P4.c';
 }
 
 export function srtProfileLimits(profile: SightReadingProfile, hand: SightReadingHand = 'rh'): {
@@ -64,6 +72,8 @@ export function srtProfileLimits(profile: SightReadingProfile, hand: SightReadin
   if (profile === 'P3.c') return { min: 44 + offset, max: 96 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
   if (profile === 'P3.d') return { min: 48 + offset, max: 96 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
   if (profile === 'P2.c') return { min: 60 + offset, max: 72 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
+  // Rhythm levels stay in the five-finger C position, so the new note values are the only new thing to read.
+  if (srtIsRhythmProfile(profile)) return { min: 60 + offset, max: 67 + offset, leap: 2, rests: true, repeat: false, meter: 4 };
   return {
     min: 60 + offset,
     max: 67 + offset,
@@ -148,11 +158,13 @@ export function srtValidatePiece(piece: SightReadingPiece, profile: SightReading
   const totalTicks = piece.bars * barTicks;
   const ids = new Set<string>();
   const byHand: Record<SightReadingHand, SightReadingEvent[]> = { rh: [], lh: [] };
+  const rhythm = srtIsRhythmProfile(profile);
+  const grid = rhythm ? TICKS_PER_EIGHTH : TICKS_PER_QUARTER;
   for (const event of piece.events) {
     if (!event.id || ids.has(event.id) || (event.hand !== 'rh' && event.hand !== 'lh') ||
         !isInteger(event.onsetTick) || !isInteger(event.durationTick) ||
         event.onsetTick < 0 || event.durationTick <= 0 ||
-        event.onsetTick % TICKS_PER_QUARTER !== 0 || event.durationTick % TICKS_PER_QUARTER !== 0 ||
+        event.onsetTick % grid !== 0 || event.durationTick % grid !== 0 ||
         event.onsetTick + event.durationTick > totalTicks ||
         event.onsetTick % barTicks + event.durationTick > barTicks ||
         event.pitches.some((pitch) => !validPitch(pitch, piece.key))) return false;
@@ -164,8 +176,8 @@ export function srtValidatePiece(piece: SightReadingPiece, profile: SightReading
     const maxVoices = profile === 'P3.a' ? 2 : profile === 'P3.b' || profile === 'P3.c' || profile === 'P3.d' ? 3 : 1;
     if (event.pitches.length > maxVoices) return false;
     if (event.pitches.some((pitch) => pitch.midi < limits.min || pitch.midi > limits.max)) return false;
-    if (event.durationTick !== 480 && event.durationTick !== 960) return false;
-    if (event.pitches.length === 0 && (!limits.rests || (profile !== 'P2.c' && event.durationTick !== 480) ||
+    if (rhythm ? !srtValidRhythmEvent(profile, event) : event.durationTick !== 480 && event.durationTick !== 960) return false;
+    if (!rhythm && event.pitches.length === 0 && (!limits.rests || (profile !== 'P2.c' && event.durationTick !== 480) ||
         (profile === 'P2.c' && event.durationTick !== 480 && event.durationTick !== 960))) return false;
     byHand[event.hand].push(event);
   }
@@ -207,6 +219,14 @@ export function srtValidatePiece(piece: SightReadingPiece, profile: SightReading
         finalEvent.onsetTick !== totalTicks - 960) return false;
   }
   return byHand.rh.length > 0 || byHand.lh.length > 0;
+}
+
+// Rhythm levels: notes last an eighth, quarter, dotted quarter or half; rests last a quarter (or an eighth from P4.b)
+// and never cross a beat, so the score can show every rest without a tie.
+function srtValidRhythmEvent(profile: SightReadingRhythmProfile, event: SightReadingEvent): boolean {
+  if (event.pitches.length > 0) return [240, 480, 720, 960].includes(event.durationTick);
+  const restLengths = profile === 'P4.a' ? [480] : [240, 480];
+  return restLengths.includes(event.durationTick) && (event.onsetTick % TICKS_PER_QUARTER) + event.durationTick <= TICKS_PER_QUARTER;
 }
 
 export function srtToLegacyPiece(piece: SightReadingPiece): Record<string, unknown> {

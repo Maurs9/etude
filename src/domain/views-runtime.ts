@@ -37,6 +37,11 @@ import { SightReadingRecorder } from '../sight-reading/recorder.js';
 import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
+import { srtNotationSegments } from '../sight-reading/notation.js';
+import '../styles/sight-rhythm.css';
+import { SCALE_FINGERINGS } from './technique.js';
+import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
+import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
 
 let scoreLibrary: LibraryController | null = null;
@@ -3075,10 +3080,15 @@ function masteredCount() { return ITEMS.filter((it) => boxOf(it.id) >= 4).length
 interface EarKeysNote { m: number; t: number; }
 type EarKeysPrompt = { kind: 'iv'; target: number[]; n: number; } | { kind: 'ch'; target: number[]; inv: number; pcs: number[]; n: number; } | { kind: 'mel'; target: number[]; n: number; };
 type EarKeysState = EarKeysPrompt & { tries: number; seq: EarKeysNote[]; off: number; armAt: number; goT: ReturnType<typeof setTimeout> | number; won: boolean; warned: boolean; played?: number[]; };
-interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; }
+interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; }
+// A wrong answer: what was given against what was expected, both sounds for Hear both, and the item taken for this one (`pair`).
+interface TrainerGiven { text: string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
 interface TrainerSessionTarget { cat: string; mode: string; key: string; }
-interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; }
-const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0 };
+// contrast: a short drill on two items the last session mixed up (its question order, by item id).
+interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; contrast: { a: string; b: string; order: string[] } | null; }
+const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0, contrast: null };
+// Which items this session took for which (kept in memory only; a new session, but not its contrast drill, starts it over).
+const confusions = new ConfusionLog();
 function sesStopPrompt() { clearTimeout(SES.promptT); SES.promptT = 0; }
 function sesPrompt(q: TrainerQuestion, play: () => void) { sesStopPrompt(); SES.promptT = setTimeout(() => { SES.promptT = 0; if (SES.active && SES.q === q && !SES.answered)
     play(); }, 250); }
@@ -3142,11 +3152,15 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
         key = b < 1 ? randItem([0, 7, 5, 2, 9]) : Math.floor(Math.random() * 12); // start in friendly keys
     return { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
 }
-function startSession(targeted: TrainerSessionTarget|null) {
+function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
     ensureAudio();
     sesStopPrompt();
     SES.targeted = targeted || null;
     SES.placement = false;
+    SES.contrast = targeted ? contrast : null;
+    if (!SES.contrast)
+        confusions.clear();
+    contrastOfferHide();
     SES.queue = targeted ? Array.from({ length: 9999 }) : buildQueue(); // targeted = endless
     SES.idx = 0;
     SES.correct = 0;
@@ -3160,6 +3174,9 @@ function startPlacement() {
     sesStopPrompt();
     SES.targeted = null;
     SES.placement = true;
+    SES.contrast = null;
+    confusions.clear();
+    contrastOfferHide();
     SES.queue = PLACEMENT.map((id) => ITEM_BY_ID[id]).filter(Boolean).map(makeQuestion);
     SES.idx = 0;
     SES.correct = 0;
@@ -3196,6 +3213,9 @@ function endSession(toSummary: boolean) {
     }
     sesStopPrompt();
     ekStop(SES.q);
+    techniqueStop(techniqueHost);
+    const contrastRun = SES.contrast;
+    SES.contrast = null;
     SES.active = false;
     SES.placement = false;
     byId('session').style.display = 'none';
@@ -3208,35 +3228,53 @@ function endSession(toSummary: boolean) {
     stopMetro();
     stopDrone();
     if (SES.targeted) {
-        prRecordDrill();
+        if (!contrastRun)
+            prRecordDrill(); // a contrast drill leaves the last-drill record alone: nothing new is saved
         byId('pr-home').style.display = '';
         renderPracticeLast();
+        contrastOffer(byId('pr-last'), contrastRun ? { correct: SES.correct, total: SES.total } : null);
         if (toSummary)
             byId('pr-start').focus();
         return;
     }
-    if (toSummary)
+    if (toSummary) {
         showSummary(wasPlacement);
+        contrastOffer(byId('sum-note'), null);
+    }
     else {
         byId('today-home').style.display = 'block';
         refreshToday();
     }
 }
 function nextQuestion() {
-    if (!SES.targeted && SES.idx >= SES.queue.length) {
+    if ((!SES.targeted && SES.idx >= SES.queue.length) || (SES.contrast && SES.total >= SES.contrast.order.length)) {
         endSession(true);
         return;
     }
+    byId('q-both').hidden = true;
     sesStopPrompt();
     ekStop(SES.q);
     kbClearAll();
     SES.answered = false;
+    if (SES.targeted && SES.targeted.cat === TECHNIQUE_TOPIC) {
+        // The scale and arpeggio drill keeps its own runs; the placeholder question only keeps the keys open (Play it).
+        SES.q = { it: TECHNIQUE_ITEM, mode: 'play', key: 0, idx: 0, anchor: null, missed: false, hinted: false };
+        byId('ses-progress').style.width = '0%';
+        techniquePresent(techniqueHost, SES.targeted.key);
+        dockSync();
+        return;
+    }
+    techniqueStop(techniqueHost);
     const q = SES.targeted ? makeQuestion(pickTargetedItem()) : SES.queue[SES.idx];
     if (!q)
         return;
     SES.q = q;
     byId('ses-progress').style.width = SES.targeted ? '0%' : (100 * SES.idx / SES.queue.length) + '%';
     byId('ses-count').textContent = SES.targeted ? ('#' + (SES.total + 1) + (SES.total ? ' · ' + SES.correct + '/' + SES.total + ' ✓' : '')) : ((SES.idx + 1) + '/' + SES.queue.length);
+    if (SES.contrast) {
+        byId('ses-progress').style.width = (100 * SES.total / SES.contrast.order.length) + '%';
+        byId('ses-count').textContent = (SES.total + 1) + '/' + SES.contrast.order.length;
+    }
     byId('q-verdict').textContent = '';
     byId('q-verdict').className = 'verdict';
     byId('q-elab').textContent = '';
@@ -3247,9 +3285,21 @@ function nextQuestion() {
     byId('q-answers').innerHTML = '';
     presentQuestion(q);
 }
+/* Scale and arpeggio drill (technique-drill.ts): a targeted topic, so no review, daily-goal or streak change. */
+const TECHNIQUE_ITEM: ScaleTrainerItem = { id: TECHNIQUE_TOPIC, cat: 'scale', label: '', short: '', intro: 0, name: 'Major (Ionian)' };
+const techniqueHost: TechniqueHost = {
+    t: (key, ...args) => t(key, ...args),
+    spell: (letter, acc) => spelledName(notation, letter, acc),
+    mark: (midi, state) => kbState(midi, state, true),
+    clearMarks: () => kbClearAll(),
+    byId,
+};
 function pickTargetedItem() {
     if (!SES.targeted)
         throw new Error('Étude: no targeted drill');
+    const contrastItem = SES.contrast ? ITEM_BY_ID[SES.contrast.order[SES.total % SES.contrast.order.length]] : undefined;
+    if (contrastItem)
+        return contrastItem;
     const c = SES.targeted.cat;
     const pool = c === 'melody' ? ITEMS.filter((it) => it.cat === 'scale' && EK_MEL_SCALES.includes(it.name)) : ITEMS.filter((it) => it.cat === c); // weakness-weighted
     const w = pool.map((it) => { const s = data.srs[it.id] || { box: 0 }; return 1 / (1 + s.box); });
@@ -3323,17 +3373,19 @@ function presentEar(q: TrainerQuestion) {
         sesPrompt(q, () => playInterval(earRoot(q), it.semi, 'both'));
     }
     else if (it.cat === 'chord') {
-        opts = chordEarOptions(it).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
+        opts = (SES.contrast ? ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord') : chordEarOptions(it)).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
         sesPrompt(q, () => playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true));
     }
     else if (it.cat === 'scale') {
-        opts = scaleEarOptions(it.name).map((nm: string) => ({ k: nm, t: scaleDisp(nm) }));
+        opts = (SES.contrast ? Object.keys(SCALES) : scaleEarOptions(it.name)).map((nm: string) => ({ k: nm, t: scaleDisp(nm) }));
         sesPrompt(q, () => playScaleNotes(60 + q.key, SCALES[it.name], true));
     }
     else if (it.cat === 'prog') {
         opts = PROGS.map((p) => ({ k: p.name, t: p.name }));
         sesPrompt(q, () => playProg(q.key, it.ref));
     }
+    if (SES.contrast) // a contrast drill offers just the two answers it compares
+        opts = opts.filter((o) => SES.contrast && [SES.contrast.a, SES.contrast.b].includes(earOptionId(it.cat, o.k)));
     opts.forEach((o) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o.k); b.textContent = o.t; b.onclick = () => answerEar(q, o.k, b); box.appendChild(b); });
 }
 function playProg(rootPc: number, prog: theory.ProgressionTemplate) { ensureAudio(); stopPreviews(); if (!actx)
@@ -3381,6 +3433,7 @@ function answerEar(q: TrainerQuestion, k: number | string, btn: HTMLButtonElemen
         btn.classList.add('wrong');
         q.missed = true;
         markEarCorrect(q);
+        q.given = givenByEar(q, k);
         resolve(q, false);
     }
 }
@@ -3394,7 +3447,7 @@ function markEarCorrect(q: TrainerQuestion) { const it = q.it; const key = it.ca
 const EK_TRIES = 3, EK_MEL_SCALES = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Major pentatonic', 'Minor pentatonic'];
 const EK_CHORD_GAP = 300; // ms: a key joins the chord if another chord key is still down or it lands this close to the previous one
 function ekForced() { return !!(SES.targeted && SES.targeted.cat === 'melody'); }
-function ekWanted(q: TrainerQuestion | null) { return !!q && q.mode === 'ear' && !SES.placement && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
+function ekWanted(q: TrainerQuestion | null) { return !!q && q.mode === 'ear' && !SES.placement && !SES.contrast && q.it.cat !== 'prog' && (ekForced() || !!data.settings.earKeys); }
 // Spell like the key: minor-flavoured chords and scales on D, G, C, F, B♭, E♭ use flats, as do the flat major keys and the flat intervals.
 function ekFlat(q: TrainerQuestion) {
     const it = q.it, set = it.cat === 'chord' ? it.ref.pcset : it.cat === 'scale' ? SCALES[it.name] : null;
@@ -3579,6 +3632,7 @@ function ekIv(q: TrainerQuestion) {
         ekWin(q, [a.m, b.m]);
         return;
     }
+    q.given = givenInterval(q, a.m, b.m, a.m);
     ekMiss(q, [b.m], b.m < a.m ? t('ek_wrong_down') : t('ek_wrong_iv', intervalLabel(b.m - a.m)));
 }
 function ekCh(q: TrainerQuestion) {
@@ -3596,6 +3650,7 @@ function ekCh(q: TrainerQuestion) {
         return;
     }
     if (!isSubset(pcs, ek.pcs)) {
+        q.given = givenChord(q, ms, ek.target, null);
         ekMiss(q, ms.filter((m) => !ek.pcs.includes(pc(m))), t('ek_wrong_ch'));
         return;
     }
@@ -3625,6 +3680,7 @@ function ekMel(q: TrainerQuestion, m: number) {
     }
     const want = tg[i] + ek.off;
     if (m !== want) {
+        q.given = givenNote(ek.seq.slice(-2).map((x) => x.m), m, want);
         ekMiss(q, [m], t('ek_wrong_mel', i + 1, t(m > want ? 'ek_high' : 'ek_low')));
         return;
     }
@@ -3672,6 +3728,10 @@ function ekElab(q: TrainerQuestion) {
 }
 /* play-mode grading via held notes */
 function sesInput(midi: number) {
+    if (techniqueDrillActive() && SES.targeted?.cat === TECHNIQUE_TOPIC) {
+        techniqueInput(techniqueHost, midi, performance.now());
+        return;
+    }
     const q = SES.q;
     if (!q || SES.answered)
         return;
@@ -3709,6 +3769,7 @@ function gradeInterval(q: TrainerQuestion) {
         [lo, hi].forEach((m) => kbState(m, 'bad', true));
         setTimeout(() => kbClear('bad'), 500);
         q.missed = true;
+        q.given = givenInterval(q, lo, hi, pc(lo) === q.key ? lo : 60 + q.key);
         resolve(q, false);
     }
 }
@@ -3740,6 +3801,7 @@ function gradeChord(q: TrainerQuestion) {
         heldMidis().forEach((m) => kbState(m, 'bad', true));
         setTimeout(() => kbClear('bad'), 500);
         q.missed = true;
+        q.given = givenChord(q, heldMidis(), tpl.intervals.map((i) => 60 + q.key + i), null);
         resolve(q, false);
     }
 }
@@ -3771,6 +3833,7 @@ function gradeScaleNote(q: TrainerQuestion, midi: number | null | undefined) {
         kbState(midi, 'bad', true);
         setTimeout(() => kbClear('bad'), 420);
         q.missed = true;
+        q.given = givenNote(q.offs.slice(Math.max(0, q.idx - 2), q.idx).map((o) => (q.anchor ?? 0) + o), midi, want);
         resolve(q, false);
     }
 }
@@ -3799,8 +3862,112 @@ function gradeProgChord(q: TrainerQuestion) {
         heldMidis().forEach((m) => kbState(m, 'bad', true));
         setTimeout(() => kbClear('bad'), 420);
         q.missed = true;
+        q.given = givenChord(q, heldMidis(), tpl ? tpl.intervals.map((i) => 60 + root + i) : [], q.idx + 1);
         resolve(q, false);
     }
+}
+/* ---------- error-aware feedback: what was given against what was expected (feedback.ts) ---------- */
+function noteNames(ms: readonly number[]) { return ms.map((m) => rootName(pc(m))).join('–'); }
+function chordLabel(rootPc: number, ref: theory.ChordTemplate) { return rootName(rootPc) + dispSym(ref.symbol) + ' · ' + chordDisp(ref); }
+// The item id an ear answer stands for, as the item list names them.
+function earOptionId(cat: string, k: number | string) { return (cat === 'interval' ? 'iv:' : cat === 'chord' ? 'ch:' : cat === 'scale' ? 'sc:' : 'pr:') + k; }
+function progMidis(rootPc: number, prog: theory.ProgressionTemplate) { return prog.chords.map((ch) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); return tpl ? tpl.intervals.map((iv) => root + iv) : []; }); }
+function givenByEar(q: TrainerQuestion, k: number | string): TrainerGiven | null {
+    const it = q.it, pair = ITEM_BY_ID[earOptionId(it.cat, k)] ? earOptionId(it.cat, k) : undefined;
+    if (it.cat === 'interval' && typeof k === 'number') {
+        const r = earRoot(q);
+        return { text: t('fb_picked', ivName(k), ivName(it.semi)), given: feedbackBroken([r, r + k]), expected: feedbackBroken([r, r + it.semi]), pair };
+    }
+    if (it.cat === 'chord') {
+        const ref = CHORDS.find((c) => c.symbol === k);
+        if (!ref)
+            return null;
+        const base = 57 + q.key;
+        return { text: t('fb_picked', chordDisp(ref), chordDisp(it.ref)), given: feedbackBroken(ref.intervals.map((i) => base + i), 0.16, 1.1), expected: feedbackBroken(it.ref.intervals.map((i) => base + i), 0.16, 1.1), pair };
+    }
+    if (it.cat === 'scale' && typeof k === 'string' && SCALES[k]) {
+        const line = (name: string) => feedbackLine(SCALES[name].concat([12]).map((o) => 60 + q.key + o));
+        return { text: t('fb_picked', scaleDisp(k), scaleDisp(it.name)), given: line(k), expected: line(it.name), pair };
+    }
+    if (it.cat === 'prog') {
+        const prog = PROGS.find((p) => p.name === k);
+        if (!prog)
+            return null;
+        return { text: t('fb_picked', prog.name, it.ref.name), given: feedbackChords(progMidis(q.key, prog)), expected: feedbackChords(progMidis(q.key, it.ref)), pair };
+    }
+    return null;
+}
+// Two keys for an interval question; `from` is where the expected interval is sounded (the right start note when it was played).
+function givenInterval(q: TrainerQuestion, lo: number, hi: number, from: number): TrainerGiven | null {
+    const it = q.it;
+    if (it.cat !== 'interval')
+        return null;
+    const semi = hi - lo, rootOk = pc(lo) === q.key || (!!q.ek && pc(lo) === pc(q.ek.target[0]));
+    const given = rootOk ? intervalLabel(Math.abs(semi)) : noteNames([lo, hi]) + ' (' + intervalLabel(Math.abs(semi)) + ')';
+    const expected = rootOk ? ivName(it.semi) : ivName(it.semi) + ' ' + t('above') + ' ' + rootName(q.key);
+    const pair = rootOk && semi > 0 && ITEM_BY_ID['iv:' + semi] ? 'iv:' + semi : undefined;
+    return { text: t('fb_played', given, expected), given: feedbackBroken([lo, hi]), expected: feedbackBroken([from, from + it.semi]), pair };
+}
+// Keys for a chord question (or chord `chordNo` of a progression), named as a chord when they make one.
+function givenChord(q: TrainerQuestion, ms: readonly number[], expectedMidis: readonly number[], chordNo: number | null): TrainerGiven | null {
+    const sorted = [...ms].sort((a, b) => a - b), id = identifyChord(sorted);
+    const given = id ? chordLabel(id.rootPc, id.chord) : t('fb_notes', noteNames(sorted));
+    const it = q.it;
+    let expected = noteNames(expectedMidis), pair: string | undefined;
+    if (it.cat === 'chord' && chordNo === null) {
+        expected = chordLabel(q.key, it.ref);
+        if (id && id.rootPc === q.key && ITEM_BY_ID['ch:' + id.chord.symbol])
+            pair = 'ch:' + id.chord.symbol;
+    }
+    else if (it.cat === 'prog' && chordNo !== null) {
+        const ch = it.ref.chords[chordNo - 1], tpl = ch ? progChordTpl(ch[1]) : undefined;
+        if (ch && tpl)
+            expected = chordLabel((q.key + ch[0]) % 12, tpl);
+    }
+    const text = chordNo === null ? t('fb_played', given, expected) : t('fb_chord_n', given, chordNo, expected);
+    return { text, given: feedbackBroken(sorted, 0.16, 1.1), expected: feedbackBroken(expectedMidis, 0.16, 1.1), pair };
+}
+// A wrong note in a line (scale or melody), heard after the notes before it.
+function givenNote(before: readonly number[], midi: number, want: number): TrainerGiven {
+    return { text: t('fb_note', rootName(pc(midi)), rootName(pc(want))), given: feedbackLine([...before, midi]), expected: feedbackLine([...before, want]) };
+}
+function playGivenAndExpected(g: TrainerGiven) {
+    ensureAudio();
+    stopPreviews();
+    const start = actx?.currentTime ?? 0;
+    feedbackSchedule(g.given, g.expected).forEach((n) => previewNote(n.midi, start + n.at, n.dur));
+}
+// After a session: offer a short contrast drill when two items were mixed up more than once (and report one just finished).
+function contrastOfferHide() { const box = maybeById('ses-contrast'); if (box)
+    box.hidden = true; }
+function contrastOffer(anchor: HTMLElement, finished: { correct: number; total: number } | null) {
+    const pair = confusions.top(), a = pair ? ITEM_BY_ID[pair.expected] : undefined, b = pair ? ITEM_BY_ID[pair.given] : undefined;
+    let box = maybeById('ses-contrast');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'ses-contrast';
+        box.className = 'verdict neutral cf-offer';
+        box.setAttribute('role', 'status');
+    }
+    anchor.after(box);
+    const lines: string[] = [];
+    if (finished && finished.total)
+        lines.push(`<span>${rdEsc(t('cf_done', finished.correct, finished.total))}</span>`);
+    if (pair && a && b)
+        lines.push(`<span>${rdEsc(t('cf_offer', itemLabel(a), itemLabel(b), pair.count))}</span> <button type="button" class="btn sm primary" id="cf-start">${rdEsc(t('cf_start', CONTRAST_LENGTH))}</button>`);
+    box.innerHTML = lines.join('<br>');
+    box.hidden = !lines.length;
+    const go = maybeById('cf-start');
+    if (go && pair)
+        go.onclick = () => startContrast(pair);
+}
+function startContrast(pair: ConfusionPair) {
+    const a = ITEM_BY_ID[pair.expected], b = ITEM_BY_ID[pair.given];
+    if (!a || !b || a.cat !== b.cat)
+        return;
+    byId('summary').style.display = 'none';
+    show('practice');
+    startSession({ cat: a.cat, mode: 'ear', key: 'all' }, { a: a.id, b: b.id, order: contrastOrder(a.id, b.id) });
 }
 function neutral(msg: string|null) { const v = byId('q-verdict'); v.className = 'verdict neutral'; v.textContent = msg; }
 function resolve(q: TrainerQuestion, correct: boolean) {
@@ -3828,8 +3995,10 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     } // reproduced after a miss: counts as a lapse
     else {
         v.className = 'verdict bad';
-        v.textContent = t('notquite');
+        v.textContent = q.given ? q.given.text : t('notquite');
     }
+    if (!correct && q.given && q.given.pair && !SES.placement && !SES.contrast)
+        confusions.record(q.it.id, q.given.pair);
     if (q.ek) {
         ekStop(q);
         byId('q-ekreset').hidden = true;
@@ -3837,8 +4006,14 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     revealAnswerKeys(q);
     showElaboration(q);
     if (!good) {
-        setTimeout(() => { if (SES.active && SES.q === q && SES.answered)
+        const replay = setTimeout(() => { if (SES.active && SES.q === q && SES.answered)
             playQuestionSound(q); }, 600);
+        const given = correct ? null : q.given;
+        if (given) { // Hear both: the given sound, then the expected one (it replaces the replay still to come)
+            const both = byId('q-both');
+            both.hidden = false;
+            both.onclick = () => { clearTimeout(replay); playGivenAndExpected(given); };
+        }
     } // let the right answer be heard, not just seen
     byId('q-reveal').hidden = true;
     byId('q-next').hidden = false;
@@ -4358,19 +4533,8 @@ function updateExplore() {
     cofNow(notes);
 }
 /* ---------- CIRCLE OF FIFTHS (Explore › Circle tab) ---------- */
-// Standard one-octave fingerings, ascending, indexed by the tonic's pitch class (C=0 … B=11).
-// Sources: pianoscales.org (major, natural & harmonic minor). Melodic minor (ascending) follows the harmonic
-// fingering, except C♯/F♯/G♯ where the raised 6th/7th moves the thumb off a black key (ABRSM-style).
-const COF_FING = {
-    maj: { rh: ['12312345', '23123412', '12312345', '31234123', '12312345', '12341234', '23412312', '12312345', '34123123', '12312345', '21231234', '12312345'],
-        lh: ['54321321', '32143213', '54321321', '32143213', '54321321', '54321321', '43213214', '54321321', '32143213', '54321321', '32143213', '43214321'] },
-    natural: { rh: ['12312345', '34123123', '12312345', '31234123', '12312345', '12341234', '23123123', '12312345', '34123123', '12312345', '21231234', '12312345'],
-        lh: ['54321321', '32143213', '54321321', '21432132', '54321321', '54321321', '43213214', '54321321', '32132132', '54321321', '21321432', '43214321'] },
-    harmonic: { rh: ['12312345', '34123123', '12312345', '31234123', '12312345', '12341234', '23123123', '12312345', '23123123', '12312345', '21231234', '12312345'],
-        lh: ['54321321', '32143213', '54321321', '21432132', '54321321', '54321321', '43213214', '54321321', '32132143', '54321321', '21321432', '43214321'] },
-    melodic: { rh: ['12312345', '23123412', '12312345', '31234123', '12312345', '12341234', '23123412', '12312345', '34123123', '12312345', '21231234', '12312345'],
-        lh: ['54321321', '32143213', '54321321', '21432132', '54321321', '54321321', '43213214', '54321321', '32132143', '54321321', '21321432', '43214321'] },
-};
+// Standard one-octave fingerings, ascending, indexed by the tonic's pitch class (C=0 … B=11); the scale and arpeggio drill uses the same table.
+const COF_FING = SCALE_FINGERINGS;
 const COF_MAJ = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'], COF_MIN = ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'Bb', 'F', 'C', 'G', 'D'];
 const COF_COL = ['#e8c160', '#ecae4c', '#e79443', '#df7a3b', '#d2623a', '#bd4834', null, '#355895', '#3b6fa2', '#3f86a6', '#4b9ea6', '#62b3a6'];
 const COF_SCALE = { natural: 'Aeolian (Natural minor)', harmonic: 'Harmonic minor', melodic: 'Melodic minor' };
@@ -4916,8 +5080,8 @@ function learnPlanItems(tn: number) {
 /* cheat sheets: rows of [label, value]; each may be a string or [en,ro] */
 /* staff excerpts: compact note strings "C4q E4+G4h Rq" (w h q e s, d=dotted, t=triplet eighth) */
 const LDUR: Record<string, number> = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
-/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`. */
-type SrToken = [string | string[], number];
+/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`; `'tied'` marks a single note tied from the one before (chords are not tied). */
+type SrToken = [string | string[], number, 'tied'?];
 function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !== '|').map((tok: string): SrToken => { const m = tok.match(/^(.+?)(d?[whqest])$/); if (!m)
     throw new Error('Étude: bad staff token ' + tok); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
 /** What the grand-staff engraver (`srRender`) needs to draw a passage. */
@@ -6178,16 +6342,16 @@ const srtReleasedLeases = new WeakSet<SightReadingAttemptLease>();
 let srtExposurePromise: { fingerprint: string; promise: Promise<SightReadingLedgerResult> } | null = null;
 interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
 /** A note to engrave; beamed eighths also record their stem position once drawn. */
-interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
+interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; tied?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
 type SrEvent = SrRestEvent | SrNoteEvent;
 function srPitchStrict(s: string): SrPitch { const p = srPitch(s); if (!p)
     throw new TypeError('Étude: unreadable pitch ' + s); return p; }
 function srEvents(list: SrToken[]|undefined) { const ev: SrEvent[] = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
     ev.push({ rest: true, beat, dur: d });
 else if (Array.isArray(x[0]))
-    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 })));
+    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 }, x[2] === 'tied' && x[0].length === 1 ? { tied: true } : {})));
 else
-    ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d })); beat += d; }); return { ev, total: beat }; }
+    ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d }, x[2] === 'tied' ? { tied: true } : {})); beat += d; }); return { ev, total: beat }; }
 function srClef(clef: string, x: number, top: number) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
 function srKeySigG(clef: string, keyN: number, x: number, top: number) {
     const refStep = clef === 'bass' ? 18 : 30, bot = top + 48, yOf = (li: number, oct: number) => bot + (refStep - ssStepOf(li, oct)) * 6;
@@ -6236,6 +6400,11 @@ function srRest(x: number, top: number, dur: number) {
         return `<rect class="ss-glyph" x="${x - 6}" y="${top + 19}" width="12" height="5"/>`;
     return `<text class="ss-clef" x="${x - 6}" y="${top + 34}" style="font-size:30px">${dur <= 0.125 ? '\u{1D140}' : dur <= 0.25 ? '\u{1D13F}' : dur <= 0.5 ? '\u{1D13E}' : '\u{1D13D}'}</text>`;
 }
+/** A tie from the notehead at x1 to the one at x2 (same pitch, same y), on the side away from the stem. */
+function srTieArc(x1: number, x2: number, y: number, stemUp: boolean) {
+    const s = stemUp ? 1 : -1, a = x1 + 5, b = x2 - 5, m = (a + b) / 2, yb = y + s * 6;
+    return `<path class="ss-tie" d="M ${a},${yb} Q ${m},${y + s * 15} ${b},${yb} Q ${m},${y + s * 12} ${a},${yb} Z"/>`;
+}
 /** One staff of the system; `data` is filled from the hand's tokens right after the staves are laid out. */
 interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; data: { ev: SrEvent[]; total: number } }
 /** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
@@ -6272,6 +6441,9 @@ function srRender(piece: SrScore): SrRenderResult {
     const beats = [...beatSet].sort((a, b) => a - b);
     const notes: SrStaffNote[] = [], beatX: SrBeatX[] = [];
     let body = '', nid = 0;
+    // A tied note is not played again: it is drawn inside the group of the note it continues, which also lasts longer.
+    const lastNote: Partial<Record<SrHand, SrStaffNote>> = {}, tiedMarkup = new Map<number, string>();
+    let tiedKey = 0;
     // Beam pairs of eighths that start on a beat (simple meters only).
     if (piece.ts[1] === 4)
         staves.forEach((st) => {
@@ -6339,21 +6511,31 @@ function srRender(piece: SrScore): SrRenderResult {
                 if (e.chord)
                     return;
                 const y = st.top + 48 + (st.refStep - ssStepOf(e.li, e.oct)) * 6;
+                const from = e.tied ? lastNote[st.hand] : undefined;
+                const key = from ? -(++tiedKey) : nid;
                 let g = '';
-                if (e.acc !== keyAcc[e.li])
+                if (e.acc !== keyAcc[e.li] && !from)
                     g += ssAccGlyph(e.acc, keyAcc[e.li], nx - 13, y);
-                g += srLedger2(nx, y, st.top) + ssNotehead(nx, y, e.dur, (st.refStep - ssStepOf(e.li, e.oct)) % 2 === 0) + (e.beam ? `@@B${nid}@@` : srStem2(nx, y, e.dur, st.top + 24));
+                g += srLedger2(nx, y, st.top) + ssNotehead(nx, y, e.dur, (st.refStep - ssStepOf(e.li, e.oct)) % 2 === 0) + (e.beam ? `@@B${key}@@` : srStem2(nx, y, e.dur, st.top + 24));
                 if (e.beam)
-                    Object.assign(e, { nid, bx: nx, by: y, mid: st.top + 24 });
+                    Object.assign(e, { nid: key, bx: nx, by: y, mid: st.top + 24 });
+                if (from) {
+                    tiedMarkup.set(from.nid, (tiedMarkup.get(from.nid) ?? '') + `<g class="ss-tied">${g}</g>` + srTieArc(from.x, nx, y, y > st.top + 24));
+                    from.dur += e.dur;
+                    return;
+                }
                 const nm = srNamesVisible(piece) ? `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${pcName(pc(e.midi), (piece.keyN || 0) < 0)}</text>` : '';
-                body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}</g>`;
-                notes.push({ nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc });
+                body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}@@T${nid}@@</g>`;
+                const staffNote: SrStaffNote = { nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc };
+                notes.push(staffNote);
+                lastNote[st.hand] = staffNote;
                 nid++;
             });
         });
         beatX.push({ b, x: nx });
         x += 26 + Math.min(minDur, 4) * 14;
     });
+    body = body.replace(/@@T(\d+)@@/g, (_, id: string) => tiedMarkup.get(Number(id)) ?? '');
     staves.forEach((st) => st.data.ev.forEach((a) => {
         if (!a.beam || !a.beam.first)
             return;
@@ -7759,7 +7941,7 @@ function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min
 function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
 function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
-interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
+interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; after?: string; }
 interface ReadDrillLevel extends ReadDrillLevelSpec { u: string; n: number; id: string; custom?: boolean; }
 interface ReadDrillUnit { u: string; icon: string; lv: ReadDrillLevel[]; }
 const RD_UNITS: ReadDrillUnit[] = [], RD_LV: { [levelId: string]: ReadDrillLevel; } = {};
@@ -7846,7 +8028,12 @@ rdU('sr', '👁', [
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [-7, 7], bpm: 72 },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 68 },
     { ty: 'sr', clef: 'grand', lo: 'C3', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 64 },
-    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 }
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 },
+    // Rhythm levels (P4): five-finger C position, new note values one level at a time. They open after the rests level (sr4),
+    // not after the polyphonic levels before them in the list.
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths', after: 'sr4' },
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 72, tag: 'dotted' },
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 66, tag: 'sync' }
 ]);
 const RD_ALL = RD_UNITS.flatMap((u) => u.lv);
 /* ---- staff renderer for drills (whole-note columns, any clef, key signatures) ---- */
@@ -7973,7 +8160,9 @@ function rdArmLimit() {
 }
 function rdArcFx() { return RD.arcFx === 'bonus' ? t('rdx_ta_bonus') : RD.arcFx === 'faster' && RD.arc ? t('rdx_sv_faster', anNum(RD.arc.targetMs / 1000, 1)) : ''; }
 function rdClock(ms: number) { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-function rdLvPrev(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
+// The level that unlocks L: the one before it in its unit, unless L names another (`after`).
+function rdLvPrev(L: ReadDrillLevel) { if (L.after)
+    return RD_LV[L.after] || null; const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
 function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
 function rdUnlocked(L: ReadDrillLevel | null | undefined) { if (!L)
     return false; const p = rdLvPrev(L); return !p || (rdData().lv[p.id]?.s || 0) >= 1; }
@@ -9146,6 +9335,12 @@ interface RdSightLevel { keys: number[]; lo: string; hi: string; durs: number[];
 interface RdSightPiece { id: string; ephemeral: boolean; gen: string; comp: string; level: number; keyN: number; ts: number[]; bpm: number; t: { en: string; ro: string; }; minor?: boolean; rh?: SrToken[]; lh?: SrToken[]; }
 function isRdSightLevel(L: ReadDrillLevel): L is ReadDrillLevel & RdSightLevel { return Array.isArray(L.keys) && L.lo !== undefined && L.hi !== undefined && Array.isArray(L.durs) && L.bpm !== undefined; }
 function srtProfileForLevel(L: RdSightLevel): SightReadingProfile {
+    if (L.id === 'sr10')
+        return 'P4.a';
+    if (L.id === 'sr11')
+        return 'P4.b';
+    if (L.id === 'sr12')
+        return 'P4.c';
     if (L.id === 'sr6')
         return 'P3.a';
     if (L.id === 'sr7')
@@ -9233,10 +9428,12 @@ function srtRecentGeneratedFingerprints() {
 }
 function srtLegacyPiece(piece: SightReadingPiece, L: RdSightLevel): RdSightPiece {
     const hand = L.clef === 'bass' ? 'lh' : 'rh';
-    const events = (voice: 'rh'|'lh'): SrToken[] => piece.events
-        .filter((event) => event.hand === voice)
-        .sort((a, b) => a.onsetTick - b.onsetTick)
-        .map((event) => [event.pitches.length ? event.pitches.map((pitch) => pitch.spelling) : 'R', event.durationTick / 480]);
+    // A note that crosses a beat is written as tied notes; only the first one is played.
+    const events = (voice: 'rh'|'lh'): SrToken[] => srtNotationSegments(piece, voice)
+        .map((segment): SrToken => {
+            const sound: SrToken[0] = segment.event.pitches.length ? segment.event.pitches.map((pitch) => pitch.spelling) : 'R';
+            return segment.tied ? [sound, segment.durationTick / 480, 'tied'] : [sound, segment.durationTick / 480];
+        });
     const result: RdSightPiece = {
         id: 'gen', ephemeral: true, gen: L.id, comp: '', level: L.n, keyN: piece.key.keyN, minor: piece.key.mode !== 'major',
         ts: [piece.meter.num, 4], bpm: 60,
@@ -16909,6 +17106,14 @@ function updatePracticeModeHint() {
     const cat = (catEl as HTMLSelectElement).value;
     const mel = cat === 'melody';
     const prog = cat === 'prog';
+    if (cat === TECHNIQUE_TOPIC) {
+        hint.textContent = t('tq_pr_hint');
+        if (note) {
+            note.textContent = t('tq_pr_note');
+            note.hidden = false;
+        }
+        return;
+    }
     const pressed = pm.querySelector('button[aria-pressed="true"]');
     const mode = mel ? 'keys' : (pressed instanceof HTMLButtonElement ? pressed.dataset.v : 'play');
 
@@ -16941,18 +17146,19 @@ function syncPracticeCatAndMode() {
     const cat = (catEl as HTMLSelectElement).value;
     const mel = cat === 'melody';
     const prog = cat === 'prog';
+    const tech = cat === TECHNIQUE_TOPIC;
 
     queryAllHtml(pm, ':scope > *').forEach((x) => {
         if (x instanceof HTMLButtonElement) {
             const v = x.dataset.v;
-            // Melodies only support 'keys'; Progressions do NOT support 'keys'
-            const dis = (mel && v !== 'keys') || (prog && v === 'keys');
+            // Melodies only support 'keys'; Progressions do NOT support 'keys'; scales and arpeggios are played
+            const dis = (mel && v !== 'keys') || (prog && v === 'keys') || (tech && v !== 'play');
             x.disabled = dis;
         }
     });
 
     // If user's preference was 'keys', but topic is prog, fall back to 'ear'
-    let targetV = mel ? 'keys' : (practiceModePref || (data.settings.earKeys ? 'keys' : 'play'));
+    let targetV = mel ? 'keys' : tech ? 'play' : (practiceModePref || (data.settings.earKeys ? 'keys' : 'play'));
     if (prog && targetV === 'keys') {
         targetV = 'ear';
     }
