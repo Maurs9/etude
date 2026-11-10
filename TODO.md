@@ -28,8 +28,20 @@ Acest document centralizează:
   - Organizat `tests/` în `tests/unit/`, `tests/e2e/`, `tests/e2e/sight-reading/`, `tests/helpers/`, `tests/fixtures/`, `tests/golden/`.
   - Consolidat `i18n/` (`i18n/framework/`, `i18n/tests/`, `i18n/{de,es,fr,it,pt-BR}`, `i18n/i18n-extra.js`).
   - Organizat `docs/` în `docs/i18n/`, `docs/plans/`, `docs/runbooks/` și eliminat documentele istorice și duplicatele din rădăcină și `i18n/`.
+- [x] **Roadmap Faza 2 — Aplicația se simte nativă (#9):** fade de 120ms la schimbarea ecranului, texte de dispozitiv pe telefon și în aplicația instalată (`native.css`), sunetul se reia la revenire (`audio.resumeOnReturn`, `dom.onPageReturn`), verificare de versiune nouă la revenire.
+- [x] **Roadmap Faza 3 — Cântat de încredere (#10):** notele MIDI sunt judecate după ora evenimentului (`midi-timing.ts`), reconectare automată MIDI, calibrarea latenței per sursă în `data.latency` (0–500 ms), claviatură lată pe telefon ținut orizontal (`landscape.css`).
+- [x] **Roadmap Faza 4 — Mai mult pian (#11):** niveluri de ritm sr10–sr12 (optimi, note cu punct, sincope, legato de prelungire), exercițiu de game și arpegii (`technique.ts`), feedback care arată greșeala și un exercițiu de contrast (`feedback.ts`).
 
 ### Rămas de făcut (Următorii pași)
+- [ ] **Roadmap, amânate cu bună știință:** notarea ritmului bătut (tap), jurnalul de performanță și un planificator pe abilități, statistici salvate ale confuziilor. Toate adaugă date salvate, deci au nevoie de un pas în `PTT_MIGRATIONS`.
+- [ ] **Constatări deschise din review (Fazele 2–4):**
+  - Fullscreen-ul din browser poate fi tratat ca aplicație instalată.
+  - Pe ecran tactil, ascunderea indiciilor de taste ascunde și „sau cântă acordul” în exercițiile de citire.
+  - Pe orizontală, un exercițiu care forțează claviatura ascunde și butonul de ascundere și antetul.
+  - Resetarea progresului șterge și calibrarea (`data.latency`).
+  - Un pian Bluetooth asociat prin sistem vine prin Web MIDI și folosește offsetul `usb`.
+  - Exercițiul de game cere octava exactă, greu pe tastele pliate de pe ecran. Arpegiile au digitație doar în Do, Fa, Sol major și la, re, mi minor.
+  - Exercițiul de game folosește încă `performance.now()`, nu `inputTime()` din Faza 3.
 - [ ] **Rollout GitHub Pages & Verificare PWA pe dispozitiv real (Steps 2a / 2b / 3):**
   - Verificarea în **Settings → Pages → Build and deployment → Source: GitHub Actions**.
   - După deploy pe `main`, deschiderea PWA-ului instalat pe telefon/desktop întâi online (pentru preluarea noului Service Worker atomic), apoi în Airplane Mode.
