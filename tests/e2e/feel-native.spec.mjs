@@ -1,6 +1,6 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 
-// Phone and installed-app polish: browser-only wording, single Scores controls, audio after a return.
+// Phone and installed-app polish: browser-only wording, single Scores controls, audio and updates after a return.
 
 // Pretends the page went to the background and came back: the browser's own visibilitychange is not scriptable.
 const comeBack = page => page.evaluate(() => {
@@ -78,4 +78,26 @@ test('returning to the page resumes suspended audio, and shows the notice only w
   await comeBack(page);
   await expect(page.locator('#audioLock')).toBeHidden();
   expect(await page.evaluate(() => window.__etude.actx.state)).toBe('running');
+});
+
+test('coming back checks for a new version at most once every 30 minutes @sw', async ({ app, page }) => {
+  await page.addInitScript(() => {
+    const realNow = Date.now;
+    window.__skew = 0;
+    Date.now = () => realNow() + window.__skew;
+    window.__updates = 0;
+    ServiceWorkerRegistration.prototype.update = function update() { window.__updates++; return Promise.resolve(this); };
+  });
+  await app.open();
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await comeBack(page);
+  expect(await page.evaluate(() => window.__updates)).toBe(0);    // register() just checked
+  await page.evaluate(() => { window.__skew = 31 * 60 * 1000; });
+  await comeBack(page);
+  await expect.poll(() => page.evaluate(() => window.__updates)).toBe(1);
+  await comeBack(page);
+  expect(await page.evaluate(() => window.__updates)).toBe(1);
+  await page.evaluate(() => { window.__skew = 62 * 60 * 1000; });
+  await comeBack(page);
+  await expect.poll(() => page.evaluate(() => window.__updates)).toBe(2);
 });

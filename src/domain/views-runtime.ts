@@ -2482,7 +2482,7 @@ function pwaInit() {
         }
         PWA.sw = 'pending';
         const reg = () => navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
-            .then(() => navigator.serviceWorker.ready).then(() => { PWA.sw = 'ready'; pwaUi(); })
+            .then((registration) => { pwaWatchUpdates(registration); return navigator.serviceWorker.ready; }).then(() => { PWA.sw = 'ready'; pwaUi(); })
             .catch((err: unknown) => { PWA.sw = 'error'; PWA.err = (err instanceof Error && (err.name || err.message)) || '?'; console.warn('Service worker:', err); pwaUi(); });
         if (document.readyState === 'complete')
             reg();
@@ -2490,6 +2490,18 @@ function pwaInit() {
             window.addEventListener('load', reg, { once: true });
     }
     pwaUi();
+}
+/** An installed app can stay open for days. Coming back checks for a new version, at most every 30 minutes; sw.js activates it at once. */
+const PWA_UPDATE_GAP_MS = 30 * 60 * 1000;
+function pwaWatchUpdates(registration: ServiceWorkerRegistration) {
+    let last = Date.now(); // register() has just checked
+    onPageReturn(() => {
+        const now = Date.now();
+        if (now - last < PWA_UPDATE_GAP_MS)
+            return;
+        last = now;
+        void registration.update().catch(() => undefined); // offline: the next return tries again
+    });
 }
 function pwaUi() {
     const st = byId('set-pwa-status'), ib = byId('set-install');
