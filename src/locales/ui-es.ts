@@ -1104,7 +1104,7 @@ const payload: UIPayload = {
       "set_about_txt": "Étude emplea métodos con base científica: repetición espaciada, práctica de evocación, intercalación y feedback inmediato. Practica poco, a menudo.",
       "set_allowinv": "Aceptar inversiones de acordes",
       "set_any_octave": "Aceptar cualquier octava",
-      "set_any_octave_s": "en piezas a primera vista",
+      "set_any_octave_s": "en piezas a primera vista y escalas",
       "set_app": "Aplicación y pantalla",
       "set_backup": "Copia de seguridad",
       "set_backup_s": "progreso, ajustes e historial en un archivo",

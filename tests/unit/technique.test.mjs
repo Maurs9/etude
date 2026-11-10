@@ -118,4 +118,24 @@ describe('technique grading', () => {
     expect(grade.handSyncMs).toBe(Math.round((30 + 14 * 10) / 15));
     expect(grade.clean).toBe(true);
   });
+
+  it('takes a key of the right name in any octave only with Accept any octave', () => {
+    const strict = techniqueStart(techniqueSteps(spec));
+    expect(techniqueNoteOn(strict, 72, 0)).toBe('wrong');
+    const loose = techniqueStart(techniqueSteps(spec));
+    expect(techniqueNoteOn(loose, 72, 0, true)).toBe('step');
+    expect(techniqueNoteOn(loose, 61, 250, true)).toBe('wrong');
+    loose.steps.slice(1).forEach((step, index) => techniqueNoteOn(loose, step.notes[0].midi + 12, (index + 1) * 250, true));
+    const grade = techniqueGrade(loose);
+    expect(grade.notes).toBe(15);
+    expect(grade.wrong).toBe(1);
+  });
+
+  it('pairs an octave-shifted key with the nearer hand when both hands want the same note', () => {
+    const run = techniqueStart(techniqueSteps({ ...spec, hands: 'both' }));
+    expect([...run.pending].sort()).toEqual([48, 60]);
+    expect(techniqueNoteOn(run, 36, 0, true)).toBe('partial');
+    expect([...run.pending]).toEqual([60]); // the left hand's C3 took the C2
+    expect(techniqueNoteOn(run, 72, 10, true)).toBe('step');
+  });
 });

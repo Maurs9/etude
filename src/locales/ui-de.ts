@@ -815,7 +815,7 @@ const payload: UIPayload = {
       "set_newperday_s": "Täglich neu eingeführte Konzepte",
       "set_allowinv": "Akkordumkehrungen akzeptieren",
       "set_any_octave": "Jede Oktave akzeptieren",
-      "set_any_octave_s": "bei Stücken vom Blatt",
+      "set_any_octave_s": "bei Stücken vom Blatt und Tonleitern",
       "set_metronome": "Metronom beim Tonleiter-Üben",
       "set_weak_inject": "Intelligente Schwachstellen-Fokussierung",
       "set_about": "Über Étude",

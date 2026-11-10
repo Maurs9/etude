@@ -3296,6 +3296,7 @@ const techniqueHost: TechniqueHost = {
     mark: (midi, state) => kbState(midi, state, true),
     clearMarks: () => kbClearAll(),
     byId,
+    anyOctave: () => !!data.settings.anyOctave,
 };
 function pickTargetedItem() {
     if (!SES.targeted)

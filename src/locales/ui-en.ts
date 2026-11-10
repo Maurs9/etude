@@ -276,7 +276,7 @@ const payload: UIPayload = {
       "set_newperday_s": "fresh concepts introduced daily",
       "set_allowinv": "Accept chord inversions",
       "set_any_octave": "Accept any octave",
-      "set_any_octave_s": "in sight-reading pieces",
+      "set_any_octave_s": "in sight-reading pieces and scale drills",
       "set_metronome": "Metronome during scale practice",
       "set_weak_inject": "Smart weak-spot injection",
       "set_about": "About",

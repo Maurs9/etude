@@ -127,13 +127,26 @@ export function techniqueStart(steps: readonly TechniqueStep[]): TechniqueRun {
  * One key going down at `timeMs`. A right note completes its step (both notes, hands together); any other key is a wrong note.
  * The run waits for the right notes, so it always ends on the last step.
  */
-export function techniqueNoteOn(run: TechniqueRun, midi: number, timeMs: number): TechniqueInput {
+// With `anyOctave` (the setting Accept any octave), a key of the right note name counts in any octave: the exact key first,
+// else the nearest note of that name still to play, so hands together each hand keeps its own key.
+function pendingMatch(pending: ReadonlySet<number>, midi: number, anyOctave: boolean): number | null {
+  if (pending.has(midi)) return midi;
+  if (!anyOctave) return null;
+  let best: number | null = null;
+  for (const note of pending) {
+    if ((note - midi) % 12 === 0 && (best === null || Math.abs(note - midi) < Math.abs(best - midi))) best = note;
+  }
+  return best;
+}
+
+export function techniqueNoteOn(run: TechniqueRun, midi: number, timeMs: number, anyOctave = false): TechniqueInput {
   if (run.index >= run.steps.length) return 'ignored';
-  if (!run.pending.has(midi)) {
+  const hit = pendingMatch(run.pending, midi, anyOctave);
+  if (hit === null) {
     run.wrong.push({ midi, step: run.index });
     return 'wrong';
   }
-  run.pending.delete(midi);
+  run.pending.delete(hit);
   run.times.push(timeMs);
   if (run.pending.size) return 'partial';
   // The step sounds when its notes do: hands together, the mean of the two attacks.

@@ -276,7 +276,7 @@ const payload: UIPayload = {
       "set_newperday_s": "concepte noi introduse zilnic",
       "set_allowinv": "Acceptă răsturnările acordurilor",
       "set_any_octave": "Acceptă orice octavă",
-      "set_any_octave_s": "la piese la prima vedere",
+      "set_any_octave_s": "la piese la prima vedere și la game",
       "set_metronome": "Metronom la exersarea gamelor",
       "set_weak_inject": "Injecție inteligentă a punctelor slabe",
       "set_about": "Despre",

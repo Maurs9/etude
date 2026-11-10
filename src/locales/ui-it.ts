@@ -494,7 +494,7 @@ const payload: UIPayload = {
       "set_newperday_s": "Nuovi concetti introdotti ogni giorno",
       "set_allowinv": "Accetta rivolti degli accordi",
       "set_any_octave": "Accetta qualsiasi ottava",
-      "set_any_octave_s": "nei brani a prima vista",
+      "set_any_octave_s": "nei brani a prima vista e nelle scale",
       "set_metronome": "Metronomo durante la pratica delle scale",
       "set_weak_inject": "Focalizzazione intelligente sui punti deboli",
       "set_about": "Informazioni su Étude",

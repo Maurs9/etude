@@ -1104,7 +1104,7 @@ const payload: UIPayload = {
       "set_about_txt": "Étude utilise des méthodes fondées sur les sciences cognitives : répétition espacée, pratique de récupération, entrelacement et retour immédiat. Pratiquez peu, souvent.",
       "set_allowinv": "Accepter les renversements d’accords",
       "set_any_octave": "Accepter n’importe quelle octave",
-      "set_any_octave_s": "dans les pièces à première vue",
+      "set_any_octave_s": "dans les pièces à première vue et les gammes",
       "set_app": "Application et écran",
       "set_backup": "Sauvegarde",
       "set_backup_s": "progression, paramètres et historique dans un fichier",

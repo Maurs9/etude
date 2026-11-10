@@ -70,4 +70,18 @@ test.describe('Practice: scales and arpeggios', () => {
     await playRun(page, 280);
     await expect(page.locator('#q-elab')).toContainText('Hands together');
   });
+
+  test('takes the scale an octave up only with Accept any octave', async ({ app }) => {
+    const page = await openDrill(app, '0');
+    const up = await page.evaluate(() => [...document.querySelectorAll('#tq-drill .tq-cell')].map((cell) => Number(cell.dataset.m) + 12));
+    const play = async (midi) => {
+      await page.clock.runFor(300);
+      await page.evaluate((m) => { window.__etude.handleNoteOn(m, 90, 'test'); window.__etude.handleNoteOff(m, 'test'); }, midi);
+    };
+    await play(up[0]);
+    await expect(page.locator('#tq-drill .tq-live')).toContainText('Not that key'); // without the setting
+    await page.evaluate(() => { window.__etude.data.settings.anyOctave = true; });
+    for (const midi of [...up, ...up.slice(0, -1).reverse()]) await play(midi);
+    await expect(page.locator('#q-elab')).toContainText('Notes: 15 played · wrong keys: 1');
+  });
 });
