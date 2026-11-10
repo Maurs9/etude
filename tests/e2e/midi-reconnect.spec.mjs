@@ -83,6 +83,22 @@ test.describe('MIDI input comes back by itself', () => {
     expect(await page.evaluate(() => window.__etude.activeInputId)).toBe('piano');
   });
 
+  test('when the stand-in goes too, the first lost piano is still the one that takes over', async ({ app }) => {
+    const page = app.page;
+    await fakeMidi(page, [['piano', 'Grand'], ['pad', 'Drum Pad']]);
+    await app.open();
+    await connect(page, 'Grand');
+    await page.evaluate(() => window.__midi.unplug('piano'));
+    await expect(page.locator('#midiText')).toHaveText('Drum Pad');
+    await page.evaluate(() => window.__midi.unplug('pad'));
+    await expect(page.locator('#midiText')).toHaveText(fill(STRINGS.en.midi_waiting, 'Grand'));
+    await page.evaluate(() => window.__midi.plug('pad', 'Drum Pad'));
+    await expect(page.locator('#midiText')).toHaveText('Drum Pad');
+    await page.evaluate(() => window.__midi.plug('piano', 'Grand'));
+    await expect(page.locator('#midiText')).toHaveText('Grand');
+    expect(await page.evaluate(() => window.__etude.activeInputId)).toBe('piano');
+  });
+
   test('picking an input by hand forgets the lost one', async ({ app }) => {
     const page = app.page;
     await fakeMidi(page, [['piano', 'Grand'], ['pad', 'Drum Pad']]);

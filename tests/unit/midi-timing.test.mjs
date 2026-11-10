@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, latencyOffsets, median, readLatencyOffsets, setLatencyOffsets, useLatencyOffsets, withInputTime } from '../../src/domain/midi-timing.ts';
+import { BLE_MAX_LAG_MS, BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, latencyOffsets, median, readLatencyOffsets, setLatencyOffsets, useLatencyOffsets, withInputTime } from '../../src/domain/midi-timing.ts';
 
 // A seeded generator keeps the fake radio jitter the same on every run.
 function rng(seed) {
@@ -55,11 +55,11 @@ describe('dispatch context', () => {
     expect(latencyOffsets()).toEqual({ touch: 0, usb: 0, ble: 0 });
   });
 
-  it('reads offsets from a provider again only when it hands back another record', () => {
+  it('reads offsets from the provider on every call, also after an in-place change', () => {
     let rec = { usb: 20 };
     useLatencyOffsets(() => rec);
     expect(withInputTime(1000, 'usb', () => [inputTime(1010), inputEventTime(1010)])).toEqual([980, 1000]);
-    rec = { usb: 35 };
+    rec.usb = 35; // a cross-tab sync merges field by field
     expect(withInputTime(1000, 'usb', () => inputTime(1010))).toBe(965);
     rec = undefined;
     expect(latencyOffsets()).toEqual({ touch: 0, usb: 0, ble: 0 });
@@ -142,6 +142,16 @@ describe('BleClock with a fake event stream', () => {
     clock.observe(100, 52_000); // the piano was switched off and on: its clock restarted near 0
     expect(clock.map(100, 52_000)).toBe(52_000);
     expect(clock.map(90, 52_000)).toBe(51_990);
+  });
+
+  it('never maps further back than a few connection intervals, whatever the sender claims', () => {
+    const clock = new BleClock();
+    // a sender whose timestamp never moves: every packet claims the moment of the first one
+    for (let k = 0; k < 20; k++) {
+      const arrival = 50_000 + k * 300;
+      clock.observe(1234, arrival);
+      expect(arrival - clock.map(1234, arrival)).toBeLessThanOrEqual(BLE_MAX_LAG_MS);
+    }
   });
 
   it('maps nothing before the first packet and after a reset', () => {

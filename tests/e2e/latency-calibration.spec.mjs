@@ -74,6 +74,20 @@ test('a run without taps saves nothing and says so', async ({ app }) => {
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.latency)).toBeUndefined();
 });
 
+test('closing Settings ends a run, and the page gets the keys again', async ({ app }) => {
+  const page = await app.open({ hash: 'explore', dock: true });
+  await page.locator('#settingsBtn').click();
+  await page.locator('#set-lat').click();
+  await page.locator('#lat-go').click();
+  await expect(page.locator('#lat-go')).toHaveText(STRINGS.en.lat_stop);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#drawerClose')).toBeHidden();
+  const c4 = page.locator('#keys [data-midi="60"]'), box = await c4.boundingBox();
+  await c4.click({ position: { x: box.width / 2, y: box.height - 12 } }); // below the black keys
+  await expect(page.locator('#lat-go')).toHaveText(STRINGS.en.lat_start);
+  await expect(page.locator('#lat-result')).toHaveText('');
+});
+
 test('a malformed stored offset reads as 0', async ({ app }) => {
   const page = await app.open({ saved: { v: 3, lang: 'en', data: { latency: { usb: 'fast', ble: -20, touch: 9999 } } } });
   await page.locator('#settingsBtn').click();

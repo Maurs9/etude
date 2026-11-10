@@ -27,16 +27,9 @@ export function eventTime(stamp: unknown, now: number, maxAge = MAX_EVENT_AGE_MS
 
 /* ---------- dispatch context ---------- */
 let current: { at: number; src: InputSource | null } | null = null;
-// The offsets come from a provider (the app's stored record), read again whenever it hands back a different object.
-let offsetSource: () => unknown = () => null, offsetRaw: unknown = undefined, offsets: LatencyOffsets = { ...ZERO_OFFSETS };
-function currentOffsets(): LatencyOffsets {
-    const raw = offsetSource();
-    if (raw !== offsetRaw) {
-        offsetRaw = raw;
-        offsets = readLatencyOffsets(raw);
-    }
-    return offsets;
-}
+// The offsets come from a provider (the app's stored record), read on every call: a cross-tab sync merges it in place.
+let offsetSource: () => unknown = () => null;
+function currentOffsets(): LatencyOffsets { return readLatencyOffsets(offsetSource()); }
 
 function clockNow(): number { return performance.now(); }
 
@@ -68,13 +61,8 @@ export function inputLag(now = clockNow()): number { return now - inputTime(now)
 /** The source of the input being handled, or null. */
 export function inputSource(): InputSource | null { return current ? current.src : null; }
 
-/** Where the judges find the per-source offsets: `get` returns the stored record, read defensively (readLatencyOffsets).
-    Replace the record to change it: an object changed in place is not read again. */
-export function useLatencyOffsets(get: () => unknown): void {
-    offsetSource = get;
-    offsetRaw = undefined;
-    offsets = { ...ZERO_OFFSETS };
-}
+/** Where the judges find the per-source offsets: `get` returns the stored record, read defensively (readLatencyOffsets). */
+export function useLatencyOffsets(get: () => unknown): void { offsetSource = get; }
 
 /** Fixed offsets, for tests and callers without a store. */
 export function setLatencyOffsets(value: unknown): LatencyOffsets {
@@ -82,7 +70,7 @@ export function setLatencyOffsets(value: unknown): LatencyOffsets {
     return latencyOffsets();
 }
 
-export function latencyOffsets(): LatencyOffsets { return { ...currentOffsets() }; }
+export function latencyOffsets(): LatencyOffsets { return currentOffsets(); }
 
 /** Reads stored offsets defensively: missing, malformed or out-of-range fields are 0. */
 export function readLatencyOffsets(value: unknown): LatencyOffsets {
@@ -97,6 +85,9 @@ const BLE_WRAP = 8192;
 const BLE_DRIFT = 0.0005;
 /** A packet this much later than the mapping expects means the sender's clock restarted: map afresh. */
 const BLE_RESYNC_MS = 500;
+/** A mapped time is never more than this before the packet arrived: a few connection intervals. It bounds the harm of a sender
+    whose timestamps are frozen or wrong. */
+export const BLE_MAX_LAG_MS = 100;
 
 /** The 13-bit sender time of each timestamp byte in a BLE-MIDI packet, by byte index. Low bits that wrap raise the high bits. */
 export function bleTimestamps(p: Uint8Array): Map<number, number> {
@@ -126,7 +117,7 @@ export function bleTimestamps(p: Uint8Array): Map<number, number> {
 
 /* Maps sender milliseconds onto the local clock. The offset (local − sender) is the smallest seen so far: the packet that arrived
    fastest. It may creep up by BLE_DRIFT so a slower sender clock is followed. A mapped time is never after the packet arrived nor
-   more than MAX_EVENT_AGE_MS before it. */
+   more than BLE_MAX_LAG_MS before it. */
 export class BleClock {
     private offset: number | null = null;
     private lastArrival = 0;
@@ -159,7 +150,7 @@ export class BleClock {
         if (this.offset == null)
             return arrival;
         const t = this.unwrap(ms13, arrival) + this.offset;
-        return Math.max(arrival - MAX_EVENT_AGE_MS, Math.min(arrival, t));
+        return Math.max(arrival - BLE_MAX_LAG_MS, Math.min(arrival, t));
     }
 }
 

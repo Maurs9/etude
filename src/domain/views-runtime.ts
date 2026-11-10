@@ -1969,7 +1969,7 @@ function panic() { scorePause(); srtCancelAttempt('interrupted'); if (srtRecorde
     updateExplore(); }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
 function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
-    if (CAL.on) { // the timing wizard is listening: notes only sound, no drill sees them
+    if (calListening()) { // the timing wizard is listening: notes only sound, no drill sees them
         if (kind === 'on')
             calTap();
         return;
@@ -2108,7 +2108,8 @@ function autoReconnectMidi() {
     catch (_) { }
 }
 function onStateChange() { const was = activeInputId, ins = listInputs(), present = activeInputId && ins.some((i) => i.id === activeInputId); if (was && !present) {
-    midiLost = { id: was, name: activeInputName };
+    if (!midiLost) // a stand-in that goes too leaves the first lost input remembered
+        midiLost = { id: was, name: activeInputName };
     panic();
     activeInputId = null;
 } refreshDeviceList(false); }
@@ -2175,6 +2176,16 @@ function calUi() {
     buttonById('lat-reset').disabled = CAL.on;
     byId('lat-pad').classList.toggle('on', CAL.on);
 }
+// A run listens only while its panel shows in the open Settings drawer: closing either ends it, and input goes to the page again.
+function calListening() {
+    if (!CAL.on)
+        return false;
+    if (byId('drawer').classList.contains('on') && !byId('lat-panel').hidden)
+        return true;
+    calStop();
+    calSay('');
+    return false;
+}
 function calSay(text: string) { byId('lat-result').textContent = text; }
 function calStart() {
     ensureAudio();
@@ -2221,9 +2232,7 @@ function calStop() {
     calUi();
 }
 function calFinish() {
-    CAL.timers = [];
-    CAL.nodes = [];
-    CAL.on = false;
+    calStop(); // its timers and clicks are spent; this clears them and the running state
     const bs = 60000 / CAL_BPM, next: LatencyOffsets = readLatencyOffsets(calRecord().latency), said: string[] = [];
     let changed = false;
     CAL_SOURCES.forEach((src) => {
@@ -13482,7 +13491,7 @@ function pracInput(kind: string) {
                     B.group.filter((x) => x.n.midi === m).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
                 }
                 if ([...B.need].every((x) => B.got.has(x)))
-                    pracRelease(R, B, now);
+                    pracRelease(R, B, actx.currentTime); // the clock resumes from the real present, not the judged time
             }
             else {
                 const time = fallTime(now), tol = .22 * s.f;
