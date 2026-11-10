@@ -130,3 +130,14 @@ test('calibrated offsets survive an Export then Import round-trip', async ({ app
   await page.waitForFunction(() => typeof window.__etude?.show === 'function');
   await shows(page, OFFSETS);
 });
+
+test('Reset progress keeps the calibrated offsets, which belong to the device', async ({ app }) => {
+  const page = await app.open({ saved: { v: 3, lang: 'en', data: { totalReviews: 7, latency: OFFSETS } } });
+  page.on('dialog', dialog => dialog.accept());
+  await page.evaluate(() => window.__etude.show('progress'));
+  await page.locator('#resetBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__etude.data.totalReviews)).toBe(0);
+  expect(await stored(page)).toEqual(OFFSETS);
+  await page.locator('#settingsBtn').click();
+  await shows(page, OFFSETS);
+});

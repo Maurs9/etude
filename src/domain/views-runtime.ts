@@ -2160,7 +2160,7 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
    on-screen keys, is paired with its nearest click by its own event time; the median lateness per source (touch, USB MIDI,
    Bluetooth MIDI) becomes that source's offset. The judges subtract it through inputTime(). Notes played meanwhile only sound.
    Stored in data.latency ({ touch, usb, ble } in ms, each optional): settings are rebuilt from known keys on load and sync, which
-   would drop it. Read defensively: a finite number is clamped to 0–500 ms, anything else is 0. No schema migration: the key is optional. */
+   would drop it. Reset progress keeps it, as it keeps the settings. Read defensively: a finite number is clamped to 0–500 ms, anything else is 0. No schema migration: the key is optional. */
 const CAL_BEATS = 12, CAL_COUNT_IN = 4, CAL_BPM = 100, CAL_SOURCES: readonly InputSource[] = ['touch', 'usb', 'ble'];
 interface TimingCalibration { on: boolean; clicks: number[]; taps: { src: InputSource; t: number }[]; timers: number[]; nodes: OscillatorNode[] }
 const CAL: TimingCalibration = { on: false, clicks: [], taps: [], timers: [], nodes: [] };
@@ -18391,7 +18391,10 @@ function initControls() {
     byId('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
     byId('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
         void storeSnapshot('before-reset', backupJson()); // the copy is taken now, before the reset below
+        const latency = calRecord().latency; // the timing calibration belongs to the device, like the settings
         data = { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, learnDone: {}, learnSel: 0, settings: data.settings };
+        if (latency !== undefined)
+            calRecord().latency = latency;
         renderLearn._init = false;
         learnSel = 0;
         SYNC.gen = syncGen();
