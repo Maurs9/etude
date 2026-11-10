@@ -320,6 +320,7 @@ const payload: UIPayload = {
       "fall_mode": "Note căzătoare",
       "fall_hint": "Apasă o bară pentru a-i selecta nota · cântă pe clape sau pe claviatura MIDI",
       "tb_label": "Comenzile partiturii",
+      "tb_more": "Mai multe comenzi",
       "tb_transport": "Redare",
       "tb_selection": "Selecție",
       "sc_start_k": "Mergi la început (Home)",

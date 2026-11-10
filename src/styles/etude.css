@@ -1481,3 +1481,39 @@
   }
   body[data-stage=immersive] .bottomnav{display:none}
   @media (prefers-reduced-motion: reduce){ .bottomnav svg{transition:none} }
+/* ---------- score toolbar on phones: the essentials in one row, everything else behind More ----------
+   The groups flatten (display:contents) so each control can be ordered on its own, and nothing moves in the DOM, so
+   handlers, popovers and focus order stay as they are. The essentials carry data-core. More (.is-more on #an-toolbar)
+   shows the rest below a divider: plain toggles first, then the named controls (hands, zoom, look, view), one per row
+   with their own aria-label as the row's name above them and their buttons sharing the width. This replaces the sideways-scrolling row used up to now. */
+  .btn.tb-more{display:none}
+  @media (max-width:860px){
+    .an-tb{flex-wrap:wrap; overflow:visible; gap:0 2px; padding:5px 6px; -webkit-mask-image:none; mask-image:none}
+    .an-tb > .tb-g,.an-tb > .tb-end{display:contents}
+    .an-tb .tb-sep{display:none}
+    .an-tb [data-core]{order:1}
+    .an-tb .btn.tb-b[data-core]{height:40px; min-width:38px; padding:0 6px}
+    .an-tb .btn.tb-play{min-width:44px}
+    .an-tb .tb-speed{margin:0}
+    .an-tb .tb-speed > svg{display:none}   /* the menu's 100% already reads as tempo; the row needs the room */
+    .an-tb .tb-speed select{height:40px; padding-left:8px}
+    .btn.tb-more{display:inline-flex; order:2; margin-left:auto}
+    .an-tb > :not([data-core]),.an-tb > .tb-g > :not([data-core]),.an-tb > .tb-end > :not([data-core]){order:3}
+    .an-tb:not(.is-more) > :not([data-core]):not(.tb-g):not(.tb-end),
+    .an-tb:not(.is-more) > .tb-g > :not([data-core]),
+    .an-tb:not(.is-more) > .tb-end > :not([data-core]){display:none}
+    /* the divider under the essentials, which also breaks the line */
+    .an-tb.is-more::after{content:""; order:2; flex:0 0 calc(100% + 12px); margin:5px -6px 4px; border-top:1px solid var(--line)}
+    body:has(.an-tb.is-more) .an-fab{display:none}   /* it would sit on the open controls */
+    .btn.tb-more[aria-expanded="true"]{color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent)}
+    .an-tb.is-more .btn.tb-b:not([data-core]){height:40px; min-width:40px; margin-bottom:4px}
+    .an-tb.is-more .tb-wait .lbl,.an-tb.is-more #sc-hl .tb-hl-label,.an-tb.is-more #fall-opt .lbl{display:inline}
+    /* named controls: a full row each, its name above, its buttons sharing the width (long labels wrap) */
+    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode){order:4; flex:1 0 100%; display:flex; flex-wrap:wrap; align-items:stretch; height:auto; margin:4px 0 2px; border:0; border-radius:0; background:none; overflow:visible}
+    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode)::before{content:attr(aria-label); flex:0 0 100%; padding:0 0 4px; color:var(--muted); font:600 12.5px/1.2 var(--sans)}
+    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button{flex:1 1 0; min-width:0; height:auto; min-height:40px; padding:4px 8px; white-space:normal; line-height:1.15; border:1px solid var(--line); margin-left:-1px}
+    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button:not([aria-pressed="true"]){background:var(--card)}
+    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button:first-of-type{border-radius:10px 0 0 10px; margin-left:0}
+    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button:last-of-type{border-radius:0 10px 10px 0}
+    .an-tb.is-more #an-mode .lbl{position:static; width:auto; height:auto; overflow:visible; clip:auto}
+  }

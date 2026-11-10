@@ -128,6 +128,7 @@ const payload: UIPayload = {
       "an_file": "Datei öffnen",
       "an_example_label": "Beispiel",
       "tb_label": "Partitursteuerung",
+      "tb_more": "Weitere Steuerelemente",
       "tb_transport": "Wiedergabe",
       "sc_tempo": "Tempo",
       "tb_selection": "Auswahl",

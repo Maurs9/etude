@@ -16190,6 +16190,19 @@ function scoreSeekBar(d: number) {
 }
 // Popovers under the toolbar: one open at a time, placed under their button, closed by Esc or a click outside.
 const AN_POPS = [['fall-pop', 'fall-opt'], ['an-keys-pop', 'an-keys-btn']];
+// Phones: More shows the toolbar controls that do not fit the one row of essentials (the layout is all CSS).
+function tbMoreSet(open: boolean, focusBack = false) {
+    const more = byId('tb-more'), tb = byId('an-toolbar');
+    if (!open) { // what a panel button opened goes with it, or it would be left without its button
+        AN_POPS.forEach(([p, b]) => { if (!byId(p).hidden && tb.contains(byId(b)))
+            anPop(p, false); });
+        anReconOpen(false);
+    }
+    tb.classList.toggle('is-more', open);
+    more.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (focusBack)
+        more.focus();
+}
 function anPop(id: string, open: boolean) {
     const pair = AN_POPS.find((x) => x[0] === id) || [id, id];
     const p = byId(id), b = byId(pair[1]);
@@ -16455,6 +16468,13 @@ function anInitControls() {
     } anSideSet(false); byId('an-side-btn').focus({ preventScroll: true }); });
     byId('an-fab').addEventListener('click', () => anSheet(true));
     byId('pr-opt').addEventListener('click', () => anOpenTab('practice'));
+    byId('tb-more').addEventListener('click', () => tbMoreSet(!byId('an-toolbar').classList.contains('is-more')));
+    // Esc closes More, but only once nothing it opened is still showing: the score shortcuts close those first.
+    byId('an-toolbar').addEventListener('keydown', (e) => { if (e.key === 'Escape' && byId('an-toolbar').classList.contains('is-more')
+        && AN_POPS.every(([p]) => byId(p).hidden) && byId('an-recon').hidden) {
+        e.stopPropagation();
+        tbMoreSet(false, true);
+    } });
     byId('an-now').addEventListener('focusout', (e) => { if (SIDE.deferred && !byId('an-now-body').contains(e.relatedTarget instanceof Node ? e.relatedTarget : null))
         requestAnimationFrame(anRenderNow); });
     // Now: the passage actions

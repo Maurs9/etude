@@ -1034,6 +1034,7 @@ const payload: UIPayload = {
       "fall_mode": "Note in caduta",
       "fall_hint": "Fai clic su una battuta per selezionarne la nota · suona sulla tastiera a schermo o via MIDI",
       "tb_label": "Controlli della partitura",
+      "tb_more": "Altri comandi",
       "tb_transport": "Riproduzione",
       "tb_selection": "Selezione",
       "sc_start_k": "Torna all'inizio (Home)",
