@@ -100,6 +100,39 @@ export function writePttV3(storage: StorageLike, payload: PttV3Payload, key = PT
   return raw;
 }
 
+export type PttMigration = (payload: PttV3Payload) => PttV3Payload;
+
+// PTT_MIGRATIONS[n - 1] upgrades a schema n record to schema n + 1.
+// For each change to the saved format, append one entry and a fixture test.
+export const PTT_MIGRATIONS: readonly PttMigration[] = [];
+export const PTT_SCHEMA = PTT_MIGRATIONS.length + 1;
+
+/** Records written before the schema field existed are schema 1. */
+export function pttSchema(payload: PttV3Payload): number {
+  const schema = payload.schema;
+  return typeof schema === 'number' && Number.isInteger(schema) && schema >= 1 ? schema : 1;
+}
+
+export type PttMigrateResult =
+  | { status: 'current'; payload: PttV3Payload }
+  | { status: 'migrated'; payload: PttV3Payload; from: number }
+  | { status: 'too-new'; schema: number };
+
+/** Brings a record up to the current schema. A record from a newer build is reported, never changed. */
+export function migratePtt(payload: PttV3Payload, migrations: readonly PttMigration[] = PTT_MIGRATIONS): PttMigrateResult {
+  const target = migrations.length + 1, from = pttSchema(payload);
+  if (from > target) return { status: 'too-new', schema: from };
+  if (from === target) return { status: 'current', payload };
+  let next = payload;
+  for (let schema = from; schema < target; schema++) {
+    const step = migrations[schema - 1];
+    if (!step) throw new Error(`missing migration from schema ${schema}`);
+    next = step(next);
+    if (!isBackupPayload(next)) throw new Error(`migration from schema ${schema} returned an invalid record`);
+  }
+  return { status: 'migrated', payload: { ...next, schema: target }, from };
+}
+
 export function legacySettings(storage: StorageLike, key = 'ptt-settings-v2'): Record<string, unknown> | null {
   const raw = storage.getItem(key);
   if (!raw) return null;
