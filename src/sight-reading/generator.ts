@@ -1,4 +1,5 @@
 import {
+  srtIsRhythmProfile,
   srtProfileLimits,
   srtValidatePiece,
   TICKS_PER_QUARTER,
@@ -6,6 +7,7 @@ import {
   type SightReadingHand,
   type SightReadingPiece,
   type SightReadingProfile,
+  type SightReadingRhythmProfile,
 } from './model.js';
 
 type ProfileConfig = { readonly meter: 3 | 4; readonly min: number; readonly max: number; readonly leap: number; readonly rests: boolean; readonly repeat: boolean };
@@ -20,6 +22,9 @@ const configs: Record<SightReadingProfile, ProfileConfig> = {
   'P3.b': { meter: 4, min: 48, max: 88, leap: 2, rests: true, repeat: false },
   'P3.c': { meter: 4, min: 44, max: 88, leap: 2, rests: true, repeat: false },
   'P3.d': { meter: 4, min: 48, max: 96, leap: 2, rests: true, repeat: false },
+  'P4.a': { meter: 4, min: 60, max: 67, leap: 2, rests: true, repeat: false },
+  'P4.b': { meter: 4, min: 60, max: 67, leap: 2, rests: true, repeat: false },
+  'P4.c': { meter: 4, min: 60, max: 67, leap: 2, rests: true, repeat: false },
 };
 const SCALE = [0, 2, 4, 5, 7, 9, 11] as const;
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'] as const;
@@ -59,6 +64,61 @@ function durationsForBar(random: () => number, meter: 3 | 4, finalBar: boolean):
   if (finalBar) return meter === 4 ? [480, 480, 960] : [480, 960];
   if (meter === 4) return random() < 0.5 ? [480, 480, 480, 480] : [960, 960];
   return random() < 0.5 ? [480, 480, 480] : [960, 480];
+}
+
+// One slot of a rhythm cell: its length in ticks and whether it is a rest ('yes'), may become one ('maybe') or is always played ('no').
+type RhythmSlot = { readonly d: number; readonly rest: 'yes' | 'maybe' | 'no' };
+const q = (rest: RhythmSlot['rest'] = 'maybe'): RhythmSlot => ({ d: 480, rest });
+const e: RhythmSlot = { d: 240, rest: 'no' };
+const er: RhythmSlot = { d: 240, rest: 'yes' };
+const h: RhythmSlot = { d: 960, rest: 'no' };
+const dq: RhythmSlot = { d: 720, rest: 'no' };
+// Half-bar cells (two beats of 4/4). `plain` cells come from earlier levels; `feature` cells are what the level adds.
+const RHYTHM_CELLS: Record<SightReadingRhythmProfile, { readonly plain: readonly (readonly RhythmSlot[])[]; readonly feature: readonly (readonly RhythmSlot[])[] }> = {
+  'P4.a': {
+    plain: [[q(), q()], [h]],
+    feature: [[e, e, q()], [q(), e, e], [e, e, e, e]],
+  },
+  'P4.b': {
+    plain: [[q(), q()], [h], [e, e, q()], [q(), e, e], [e, e, e, e]],
+    feature: [[dq, e], [er, e, q()], [q(), e, er]],
+  },
+  'P4.c': {
+    plain: [[q(), q()], [h], [e, e, q()], [q(), e, e], [dq, e], [q(), e, er]],
+    // e q e is the syncopation; e q. is a note tied across the second beat.
+    feature: [[e, q('no'), e], [e, dq]],
+  },
+};
+// Whole-bar cells that only P4.c uses: a half note on beat 2 and a dotted quarter on beat 2 both cross the middle of the bar,
+// so the score ties them across beat 3.
+const RHYTHM_BAR_CELLS: readonly (readonly RhythmSlot[])[] = [[q(), h, q()], [q(), dq, e, q()]];
+
+function pick<T>(random: () => number, list: readonly T[]): T {
+  return list[Math.floor(random() * list.length)];
+}
+
+// The rhythm of the four bars, drawn before any pitch. One bar (the second or third) always opens with a feature cell,
+// so every piece of the level shows what the level teaches. The last bar ends on a half note, as on every level.
+function rhythmPlan(profile: SightReadingRhythmProfile, random: () => number): RhythmSlot[][] {
+  const cells = RHYTHM_CELLS[profile];
+  const featureBar = 1 + Math.floor(random() * 2);
+  const bars: RhythmSlot[][] = [];
+  for (let bar = 0; bar < 4; bar += 1) {
+    if (bar === 3) {
+      // Every rhythm piece needs a rest. Without an eighth rest or an on-beat quarter so far, the last bar offers a quarter.
+      // (The first note of the piece is never a rest, so it does not count.)
+      const restSlot = bars.flat().some((slot, index) => index > 0 && slot.rest !== 'no' && (slot.rest === 'yes' || slot.d === 480));
+      bars.push([...(restSlot ? pick(random, [...cells.plain, ...cells.feature]) : [q(), q()]), { d: 960, rest: 'no' }]);
+      continue;
+    }
+    if (profile === 'P4.c' && random() < 0.3) {
+      bars.push([...pick(random, RHYTHM_BAR_CELLS)]);
+      continue;
+    }
+    const first = bar === featureBar ? pick(random, cells.feature) : pick(random, random() < 0.5 ? cells.feature : cells.plain);
+    bars.push([...first, ...pick(random, random() < 0.4 ? cells.feature : cells.plain)]);
+  }
+  return bars;
 }
 
 function parseTonic(tonic: string): { readonly letter: number; readonly accidental: number } {
@@ -147,6 +207,8 @@ export function srtGenerate(profile: SightReadingProfile, seed: number, hand: Si
   if (!config || !Number.isInteger(seed) || (hand !== 'rh' && hand !== 'lh')) throw new Error(`Unknown sight-reading profile: ${profile}`);
   const random = mulberry32(seed);
   if (profile === 'P3.a' || profile === 'P3.b' || profile === 'P3.c' || profile === 'P3.d') return generatePolyphonic(profile, seed, random);
+  // Only the rhythm levels draw a rhythm plan, so the earlier levels keep their exact random sequence (and fingerprints).
+  const plan = srtIsRhythmProfile(profile) ? rhythmPlan(profile, random) : null;
   const offset = hand === 'rh' ? 0 : -12;
   const minMidi = config.min + offset;
   const maxMidi = config.max + offset;
@@ -161,20 +223,27 @@ export function srtGenerate(profile: SightReadingProfile, seed: number, hand: Si
   let hasRepeat = false;
   for (let bar = 0; bar < 4; bar += 1) {
     const barStart = bar * config.meter * TICKS_PER_QUARTER;
-    const durations = durationsForBar(random, config.meter, bar === 3);
+    const slots: readonly RhythmSlot[] | null = plan ? plan[bar] : null;
+    const durations = slots ? slots.map((slot) => slot.d) : durationsForBar(random, config.meter, bar === 3);
     let barCursor = barStart;
     for (let index = 0; index < durations.length; index += 1) {
       const durationTick = durations[index];
       const cadence = bar === 3 && index === durations.length - 1;
       const canRest = config.rests && !cadence && cursor > 0;
-      const rest = canRest && (profile === 'P2.c' || durationTick === 480) && random() < (restCount === 0 ? 0.24 : 0.13);
+      const slotRest = slots ? slots[index].rest : 'maybe';
+      const rest = slotRest === 'yes' ? canRest
+        : slotRest === 'maybe' && canRest && (profile === 'P2.c' || durationTick === 480) && random() < (restCount === 0 ? 0.24 : 0.13);
       let pitches: SightReadingPiece['events'][number]['pitches'] = [];
       if (rest) {
         restCount += 1;
       } else {
         let nextMidi = previousMidi;
-        if (cadence || (bar === 3 && ((config.meter === 4 && index <= 1) || (config.meter === 3 && index === 0))) || (profile === 'P1.a' && bar === 2)) {
+        const approach = !slots && bar === 3 && ((config.meter === 4 && index <= 1) || (config.meter === 3 && index === 0));
+        if (cadence || approach || (profile === 'P1.a' && bar === 2)) {
           nextMidi = minMidi;
+        } else if (slots && bar === 3 && pitchedCount > 0) {
+          // Rhythm levels walk down by step to the closing tonic, so the reader's attention stays on the rhythm.
+          nextMidi = previousMidi > minMidi ? midiAtScaleIndex(scaleIndex(previousMidi) - 1) : minMidi;
         } else if (config.repeat && pitchedCount > 0 && !hasRepeat && random() < 0.8) {
           nextMidi = previousMidi;
           hasRepeat = true;
@@ -199,7 +268,8 @@ export function srtGenerate(profile: SightReadingProfile, seed: number, hand: Si
     }
   }
   if (config.rests && restCount === 0) {
-    const index = events.findIndex((event) => event.onsetTick > 0 && event.pitches.length > 0 && event.durationTick === 480);
+    // On a rhythm level the quarter must start on a beat: a syncopated quarter turned rest would cross the beat.
+    const index = events.findIndex((event) => event.onsetTick > 0 && event.onsetTick % TICKS_PER_QUARTER === 0 && event.pitches.length > 0 && event.durationTick === 480);
     if (index >= 0) events[index] = { ...events[index], pitches: [] };
   }
   if (config.repeat && !hasRepeat) {
@@ -231,7 +301,7 @@ export function srtGenerate(profile: SightReadingProfile, seed: number, hand: Si
 }
 
 export function srtProfiles(): readonly SightReadingProfile[] {
-  return ['P1.a', 'P1.b', 'P1.c', 'P2.a', 'P2.b', 'P2.c', 'P3.a', 'P3.b', 'P3.c', 'P3.d'];
+  return ['P1.a', 'P1.b', 'P1.c', 'P2.a', 'P2.b', 'P2.c', 'P3.a', 'P3.b', 'P3.c', 'P3.d', 'P4.a', 'P4.b', 'P4.c'];
 }
 
 export function srtGeneratorConfig(profile: SightReadingProfile, hand: SightReadingHand = 'rh'): ProfileConfig & ReturnType<typeof srtProfileLimits> {

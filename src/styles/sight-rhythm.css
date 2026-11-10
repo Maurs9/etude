@@ -1,0 +1,10 @@
+/* Ties in generated sight-reading pieces. The tie and the tied note sit inside the group (.ss-n) of the note they
+   continue, so they take its colour when the note is marked now, good, near or bad. */
+.ss-tie { fill: var(--staffink); stroke: none; transition: fill .15s; }
+.ss-n[data-s=now] .ss-tie { fill: var(--gold); }
+.ss-n[data-s=good] .ss-tie { fill: #0d5a28; }
+.ss-n[data-s=near] .ss-tie { fill: #5b3b00; }
+.ss-n[data-s=bad] .ss-tie { fill: #8f2512; }
+:root[data-theme=dark] .ss-n[data-s=good] .ss-tie { fill: #b8f5c2; }
+:root[data-theme=dark] .ss-n[data-s=near] .ss-tie { fill: #f4d57b; }
+:root[data-theme=dark] .ss-n[data-s=bad] .ss-tie { fill: #ffb29a; }
