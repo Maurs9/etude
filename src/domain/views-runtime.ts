@@ -16,7 +16,8 @@ import * as scoreLibraryStore from './score-library-store.js';
 import '../styles/score-library.css';
 import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
 import * as router from './router.js';
-import { BleClock, bleTimestamps, eventTime, inputLag, inputTime, withInputTime } from './midi-timing.js';
+import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
+import '../styles/calibration.css';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml } from './dom.js';
 import type {
   EtudeSurface,
@@ -1735,25 +1736,29 @@ function keyAt(x: number, y: number) { const el = document.elementFromPoint(x, y
     if (k instanceof HTMLElement)
         return +(k.dataset.midi ?? 0);
 } return null; }
+// A touch or click on the screen, judged from its own event time less the calibrated touch latency.
+function touchInput(e: Event, fn: () => void) { withInputTime(eventTime(e.timeStamp, performance.now()), 'touch', fn); }
 function initPointer() {
     const kb = byId('keys');
     kb.addEventListener('pointerdown', (e) => { const m = keyAt(e.clientX, e.clientY); if (m == null)
         return; e.preventDefault(); try {
         kb.setPointerCapture(e.pointerId);
     }
-    catch (_) { } ; pointerKey.set(e.pointerId, m); handleNoteOn(m, 100, 'pointer:' + e.pointerId); });
+    catch (_) { } ; pointerKey.set(e.pointerId, m); touchInput(e, () => handleNoteOn(m, 100, 'pointer:' + e.pointerId)); });
     kb.addEventListener('pointermove', (e) => { if (!pointerKey.has(e.pointerId))
         return; const cur = pointerKey.get(e.pointerId), m = keyAt(e.clientX, e.clientY); if (m !== cur) {
-        if (cur != null)
-            handleNoteOff(cur, 'pointer:' + e.pointerId);
-        pointerKey.set(e.pointerId, m);
-        if (m != null)
-            handleNoteOn(m, 100, 'pointer:' + e.pointerId);
+        touchInput(e, () => {
+            if (cur != null)
+                handleNoteOff(cur, 'pointer:' + e.pointerId);
+            pointerKey.set(e.pointerId, m);
+            if (m != null)
+                handleNoteOn(m, 100, 'pointer:' + e.pointerId);
+        });
     } });
     const end = (e: PointerEvent) => { if (pointerKey.has(e.pointerId)) {
         const m = pointerKey.get(e.pointerId);
         if (m != null)
-            handleNoteOff(m, 'pointer:' + e.pointerId);
+            touchInput(e, () => handleNoteOff(m, 'pointer:' + e.pointerId));
         pointerKey.delete(e.pointerId);
     } };
     kb.addEventListener('pointerup', end);
@@ -1956,6 +1961,11 @@ function panic() { scorePause(); srtCancelAttempt('interrupted'); if (srtRecorde
     updateExplore(); }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
 function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
+    if (CAL.on) { // the timing wizard is listening: notes only sound, no drill sees them
+        if (kind === 'on')
+            calTap();
+        return;
+    }
     if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder) {
         srtRecorder.record(kind, midi, source, releaseKind, performance.now() - SR.t0);
     }
@@ -2123,6 +2133,117 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
         else if (d1 === 1 && lfoGain && actx)
             lfoGain.gain.setTargetAtTime((d2 / 127) * 35, actx.currentTime, .03);
     }
+}
+/* ---------- TIMING CALIBRATION: tap with the click (Settings → MIDI keyboard → Timing) ----------
+   A bar of count-in, then twelve clicks at 100 bpm. Every key played on a MIDI or Bluetooth piano, every touch on the pad or the
+   on-screen keys, is paired with its nearest click by its own event time; the median lateness per source (touch, USB MIDI,
+   Bluetooth MIDI) becomes that source's offset. The judges subtract it through inputTime(). Notes played meanwhile only sound.
+   Stored in data.latency ({ touch, usb, ble } in ms, each optional): settings are rebuilt from known keys on load and sync, which
+   would drop it. Read defensively: anything missing or out of range is 0. */
+const CAL_BEATS = 12, CAL_COUNT_IN = 4, CAL_BPM = 100, CAL_SOURCES: readonly InputSource[] = ['touch', 'usb', 'ble'];
+interface TimingCalibration { on: boolean; clicks: number[]; taps: { src: InputSource; t: number }[]; timers: number[]; nodes: OscillatorNode[] }
+const CAL: TimingCalibration = { on: false, clicks: [], taps: [], timers: [], nodes: [] };
+function calRecord(): Record<string, unknown> { return data; }
+useLatencyOffsets(() => calRecord().latency);
+function calLabel(src: InputSource) { return t('lat_' + src); }
+function initLatencyCalibration() {
+    const open = buttonById('set-lat'), panel = byId('lat-panel');
+    open.addEventListener('click', () => { panel.hidden = !panel.hidden; open.setAttribute('aria-expanded', String(!panel.hidden)); if (panel.hidden)
+        calStop(); });
+    buttonById('lat-go').addEventListener('click', () => { if (CAL.on)
+        calStop();
+    else
+        calStart(); });
+    buttonById('lat-reset').addEventListener('click', calReset);
+    byId('lat-pad').addEventListener('pointerdown', (e) => { e.preventDefault(); touchInput(e, calTap); });
+    calUi();
+}
+function calUi() {
+    const o = readLatencyOffsets(calRecord().latency);
+    CAL_SOURCES.forEach((src) => { byId('lat-v-' + src).textContent = String(o[src]); });
+    const go = buttonById('lat-go');
+    go.dataset.i18n = CAL.on ? 'lat_stop' : 'lat_start';
+    go.textContent = t(go.dataset.i18n);
+    buttonById('lat-reset').disabled = CAL.on;
+    byId('lat-pad').classList.toggle('on', CAL.on);
+}
+function calSay(text: string) { byId('lat-result').textContent = text; }
+function calStart() {
+    ensureAudio();
+    if (!actx)
+        return;
+    calStop();
+    const bs = 60 / CAL_BPM, lead = .3, act0 = actx.currentTime + lead, perf0 = performance.now() + lead * 1000;
+    CAL.on = true;
+    CAL.taps = [];
+    CAL.clicks = [];
+    for (let b = 0; b < CAL_COUNT_IN + CAL_BEATS; b++) {
+        const click = audioEngine.scheduleClick(act0 + b * bs, b % 4 === 0);
+        if (click?.oscs)
+            CAL.nodes.push(...click.oscs);
+        if (b >= CAL_COUNT_IN)
+            CAL.clicks.push(perf0 + b * bs * 1000);
+        CAL.timers.push(window.setTimeout(() => calBeat(b), lead * 1000 + b * bs * 1000));
+    }
+    CAL.timers.push(window.setTimeout(calFinish, lead * 1000 + (CAL_COUNT_IN + CAL_BEATS) * bs * 1000));
+    calSay(t('lat_countin'));
+    calUi();
+}
+function calBeat(b: number) {
+    const pad = byId('lat-pad');
+    pad.classList.remove('beat');
+    void pad.offsetWidth;
+    pad.classList.add('beat');
+    calSay(b < CAL_COUNT_IN ? t('lat_countin') : t('lat_beat', b - CAL_COUNT_IN + 1, CAL_BEATS));
+}
+function calTap() {
+    const src = inputSource();
+    if (CAL.on && src)
+        CAL.taps.push({ src, t: inputEventTime() });
+}
+function calStop() {
+    CAL.timers.forEach(clearTimeout);
+    CAL.timers = [];
+    CAL.nodes.forEach((n) => { try {
+        n.stop();
+    }
+    catch (_) { } });
+    CAL.nodes = [];
+    CAL.on = false;
+    calUi();
+}
+function calFinish() {
+    CAL.timers = [];
+    CAL.nodes = [];
+    CAL.on = false;
+    const bs = 60000 / CAL_BPM, next: LatencyOffsets = readLatencyOffsets(calRecord().latency), said: string[] = [];
+    let changed = false;
+    CAL_SOURCES.forEach((src) => {
+        const taps = CAL.taps.filter((x) => x.src === src).map((x) => x.t);
+        if (!taps.length)
+            return;
+        const r = calibrationOffset(taps, CAL.clicks, bs);
+        if (r.ok) {
+            next[src] = r.offset;
+            changed = true;
+            said.push(t('lat_set', calLabel(src), r.offset));
+        }
+        else
+            said.push(t(r.reason === 'few' ? 'lat_few' : 'lat_uneven', calLabel(src)));
+    });
+    if (changed) {
+        calRecord().latency = next;
+        saveAll();
+    }
+    calSay(said.length ? said.join(' · ') : t('lat_none'));
+    calUi();
+}
+function calReset() {
+    calStop();
+    delete calRecord().latency;
+    saveAll();
+    calSay(t('lat_cleared'));
+    calUi();
 }
 /* ---------- BLUETOOTH MIDI: BLE-MIDI straight from the piano over Web Bluetooth ----------
    Notifications are decoded and handed to midiIn() in the same event turn: no queue, timer or polling between the radio and the
@@ -9858,10 +9979,10 @@ function rdOnLocale() {
         const pad = eventClosest(e, '.rdx-tap');
         if (pad) {
             e.preventDefault();
-            rdRhPress('p' + e.pointerId, pad.dataset.hand || 'R');
+            touchInput(e, () => rdRhPress('p' + e.pointerId, pad.dataset.hand || 'R'));
         }
     });
-    const up = (e: PointerEvent) => { rdRhRelease('p' + e.pointerId); };
+    const up = (e: PointerEvent) => { touchInput(e, () => rdRhRelease('p' + e.pointerId)); };
     document.addEventListener('pointerup', up);
     document.addEventListener('pointercancel', up);
     document.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if (k === ' ' || k === 'enter' || k === 'f' || k === 'j')
@@ -17466,6 +17587,7 @@ function wiringSegment(e: Event): HTMLElement[] {
 function wiringDisabled(b: HTMLElement): boolean { return b instanceof HTMLButtonElement && b.disabled; }
 function initControls() {
     labelSettingsControls();
+    initLatencyCalibration(); // Settings → MIDI keyboard → Timing
     byId('skipLink').addEventListener('click', (e) => { e.preventDefault(); byId('main').focus({ preventScroll: true }); });
     // nav
     byId('nav').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)

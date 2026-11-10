@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BleClock, bleTimestamps, eventTime, inputLag, inputSource, inputTime, latencyOffsets, readLatencyOffsets, setLatencyOffsets, withInputTime } from '../../src/domain/midi-timing.ts';
+import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, latencyOffsets, median, readLatencyOffsets, setLatencyOffsets, useLatencyOffsets, withInputTime } from '../../src/domain/midi-timing.ts';
 
 // A seeded generator keeps the fake radio jitter the same on every run.
 function rng(seed) {
@@ -53,6 +53,17 @@ describe('dispatch context', () => {
     expect(withInputTime(1000, null, () => inputTime(1010))).toBe(1000);
     setLatencyOffsets(null);
     expect(latencyOffsets()).toEqual({ touch: 0, usb: 0, ble: 0 });
+  });
+
+  it('reads offsets from a provider again only when it hands back another record', () => {
+    let rec = { usb: 20 };
+    useLatencyOffsets(() => rec);
+    expect(withInputTime(1000, 'usb', () => [inputTime(1010), inputEventTime(1010)])).toEqual([980, 1000]);
+    rec = { usb: 35 };
+    expect(withInputTime(1000, 'usb', () => inputTime(1010))).toBe(965);
+    rec = undefined;
+    expect(latencyOffsets()).toEqual({ touch: 0, usb: 0, ble: 0 });
+    setLatencyOffsets(null);
   });
 
   it('reads stored offsets defensively', () => {
@@ -139,5 +150,36 @@ describe('BleClock with a fake event stream', () => {
     clock.observe(1234, 9000);
     clock.reset();
     expect(clock.map(1000, 9500)).toBe(9500);
+  });
+});
+
+describe('calibrationOffset', () => {
+  const beat = 600, clicks = Array.from({ length: 12 }, (_, i) => 10_000 + i * beat);
+
+  it('returns the median lateness of the taps', () => {
+    const late = [31, 28, 35, 30, 40, 29, 33, 27, 30, 32, 36, 30];
+    const r = calibrationOffset(clicks.map((c, i) => c + late[i]), clicks, beat);
+    expect(r).toMatchObject({ ok: true, offset: Math.round(median(late)), taps: 12 });
+  });
+
+  it('leaves out stray taps and keeps the closest tap per click', () => {
+    const taps = [...clicks.map((c) => c + 20), clicks[3] + 250, clicks[5] + 45, clicks[0] - 900];
+    expect(calibrationOffset(taps, clicks, beat)).toMatchObject({ ok: true, offset: 20, taps: 12 });
+  });
+
+  it('says when there are too few taps or they are too uneven', () => {
+    expect(calibrationOffset(clicks.slice(0, 5).map((c) => c + 20), clicks, beat)).toEqual({ ok: false, reason: 'few', taps: 5 });
+    const wild = clicks.map((c, i) => c + (i % 2 ? -150 : 150));
+    expect(calibrationOffset(wild, clicks, beat)).toEqual({ ok: false, reason: 'uneven', taps: 12 });
+  });
+
+  it('clamps an early player to 0 and a huge delay to the limit', () => {
+    expect(calibrationOffset(clicks.map((c) => c - 25), clicks, beat)).toMatchObject({ ok: true, offset: 0 });
+    expect(calibrationOffset(clicks.map((c) => c + 290), clicks, 1000)).toMatchObject({ ok: true, offset: 290 });
+  });
+
+  it('takes the middle of an even count', () => {
+    expect(median([1, 4, 2, 3])).toBe(2.5);
+    expect(Number.isNaN(median([]))).toBe(true);
   });
 });

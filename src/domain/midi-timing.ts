@@ -27,7 +27,16 @@ export function eventTime(stamp: unknown, now: number, maxAge = MAX_EVENT_AGE_MS
 
 /* ---------- dispatch context ---------- */
 let current: { at: number; src: InputSource | null } | null = null;
-let offsets: LatencyOffsets = { ...ZERO_OFFSETS };
+// The offsets come from a provider (the app's stored record), read again whenever it hands back a different object.
+let offsetSource: () => unknown = () => null, offsetRaw: unknown = undefined, offsets: LatencyOffsets = { ...ZERO_OFFSETS };
+function currentOffsets(): LatencyOffsets {
+    const raw = offsetSource();
+    if (raw !== offsetRaw) {
+        offsetRaw = raw;
+        offsets = readLatencyOffsets(raw);
+    }
+    return offsets;
+}
 
 function clockNow(): number { return performance.now(); }
 
@@ -47,8 +56,11 @@ export function withInputTime<T>(at: number, src: InputSource | null, fn: () => 
 export function inputTime(now = clockNow()): number {
     if (!current)
         return now;
-    return current.at - (current.src ? offsets[current.src] : 0);
+    return current.at - (current.src ? currentOffsets()[current.src] : 0);
 }
+
+/** The uncalibrated event time of the input being handled, else now. The calibration wizard measures with it. */
+export function inputEventTime(now = clockNow()): number { return current ? current.at : now; }
 
 /** How long ago (ms) the input being handled was judged to happen; 0 outside a dispatch. */
 export function inputLag(now = clockNow()): number { return now - inputTime(now); }
@@ -56,13 +68,21 @@ export function inputLag(now = clockNow()): number { return now - inputTime(now)
 /** The source of the input being handled, or null. */
 export function inputSource(): InputSource | null { return current ? current.src : null; }
 
-/** Sets the per-source offsets the judges subtract. Anything not a finite number within 0…MAX_OFFSET_MS counts as 0. */
-export function setLatencyOffsets(value: unknown): LatencyOffsets {
-    offsets = readLatencyOffsets(value);
-    return { ...offsets };
+/** Where the judges find the per-source offsets: `get` returns the stored record, read defensively (readLatencyOffsets).
+    Replace the record to change it: an object changed in place is not read again. */
+export function useLatencyOffsets(get: () => unknown): void {
+    offsetSource = get;
+    offsetRaw = undefined;
+    offsets = { ...ZERO_OFFSETS };
 }
 
-export function latencyOffsets(): LatencyOffsets { return { ...offsets }; }
+/** Fixed offsets, for tests and callers without a store. */
+export function setLatencyOffsets(value: unknown): LatencyOffsets {
+    useLatencyOffsets(() => value);
+    return latencyOffsets();
+}
+
+export function latencyOffsets(): LatencyOffsets { return { ...currentOffsets() }; }
 
 /** Reads stored offsets defensively: missing, malformed or out-of-range fields are 0. */
 export function readLatencyOffsets(value: unknown): LatencyOffsets {
@@ -141,4 +161,42 @@ export class BleClock {
         const t = this.unwrap(ms13, arrival) + this.offset;
         return Math.max(arrival - MAX_EVENT_AGE_MS, Math.min(arrival, t));
     }
+}
+
+/* ---------- calibration: tap with the click ---------- */
+/** Fewer taps than this in time with the clicks are not enough to measure. */
+export const CALIBRATION_MIN_TAPS = 6;
+/** Taps whose middle half spreads wider than this (ms) are too uneven to trust. */
+export const CALIBRATION_MAX_SPREAD_MS = 60;
+
+export function median(xs: readonly number[]): number {
+    if (!xs.length)
+        return NaN;
+    const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+export type CalibrationResult = { ok: true; offset: number; taps: number; spread: number } | { ok: false; reason: 'few' | 'uneven'; taps: number };
+
+/* Pairs each tap with its nearest click (within half a beat; one tap per click, the closest) and returns the median lateness,
+   clamped to 0…MAX_OFFSET_MS. Taps far from every click (a stray key, a missed beat) are left out. */
+export function calibrationOffset(taps: readonly number[], clicks: readonly number[], beatMs: number): CalibrationResult {
+    const best = new Map<number, number>();
+    taps.forEach((tap) => {
+        let k = -1, d = Infinity;
+        clicks.forEach((c, i) => { const x = tap - c; if (Math.abs(x) < Math.abs(d)) { d = x; k = i; } });
+        if (k < 0 || Math.abs(d) >= beatMs / 2)
+            return;
+        const prev = best.get(k);
+        if (prev == null || Math.abs(d) < Math.abs(prev))
+            best.set(k, d);
+    });
+    const ds = [...best.values()].sort((a, b) => a - b);
+    if (ds.length < CALIBRATION_MIN_TAPS)
+        return { ok: false, reason: 'few', taps: ds.length };
+    const q = (f: number) => ds[Math.min(ds.length - 1, Math.floor(f * ds.length))];
+    const spread = q(0.75) - q(0.25);
+    if (spread > CALIBRATION_MAX_SPREAD_MS)
+        return { ok: false, reason: 'uneven', taps: ds.length };
+    return { ok: true, offset: Math.round(Math.max(0, Math.min(MAX_OFFSET_MS, median(ds)))), taps: ds.length, spread };
 }
