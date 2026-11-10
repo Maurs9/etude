@@ -326,7 +326,10 @@ function applyI18n() {
     queryAllHtml(document, '[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n ?? ''); });
     queryAllHtml(document, '[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria ?? '')); });
     queryAllHtml(document, '[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle ?? ''); });
-    if (!activeInputId) {
+    // Without a live input the status is said again in the new language: a lost piano still waits to come back.
+    if (!activeInputId && midiLost)
+        setMidi(t('midi_waiting', midiLost.name || 'MIDI'), 'err');
+    else if (!activeInputId) {
         midiMsg = null;
         const ss = byId('set-midi-status');
         if (ss)
