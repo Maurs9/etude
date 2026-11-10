@@ -101,3 +101,57 @@ for (const activation of ['keyboard', 'pointer']) {
     await expect(page.locator('#rd-go')).toBeFocused();
   });
 }
+
+test('anyOctave setting accepts played notes in any octave and syncs with settings drawer', async ({ app, page }) => {
+  await app.open({ hash: 'read' });
+  await page.locator('#rdt-pieces').click();
+
+  const rdAnyOctave = page.locator('#rd-any-octave');
+  await expect(rdAnyOctave).not.toBeChecked();
+
+  // Turn on anyOctave from sight-reading controls
+  await rdAnyOctave.check();
+  await expect(rdAnyOctave).toBeChecked();
+  expect(await page.evaluate(() => window.__etude.SR.anyOctave)).toBe(true);
+  expect(await page.evaluate(() => window.__etude.data.settings.anyOctave)).toBe(true);
+
+  // Check Settings drawer reflection
+  await page.locator('#settingsBtn').click();
+  await expect(page.locator('#set-any-octave')).toBeChecked();
+  await page.keyboard.press('Escape');
+
+  // Select 5-finger warm-up (starts with C4 = MIDI 60) and select Right Hand
+  await page.locator('#rd-piece').selectOption('w5rh');
+  await page.locator('#rd-hands button[data-v="rh"]').click();
+  await page.locator('#rd-go').click();
+  expect(await page.evaluate(() => window.__etude.SR.active)).toBe(true);
+
+  // Play C3 (MIDI 48) - 1 octave lower than expected C4 (60)
+  const initialStep = await page.evaluate(() => window.__etude.SR.stepIdx);
+  expect(initialStep).toBe(0);
+
+  await page.evaluate(() => {
+    window.__etude.handleNoteOn(48, 100);
+    window.__etude.handleNoteOff(48);
+  });
+
+  // Step advances to 1 because C3 matches C4 modulo 12
+  await expect.poll(() => page.evaluate(() => window.__etude.SR.stepIdx)).toBe(1);
+  expect(await page.evaluate(() => window.__etude.SR.mistakes)).toBe(0);
+
+  // Now exit and toggle anyOctave off
+  await page.locator('#rd-stage-end').click();
+  await rdAnyOctave.uncheck();
+  expect(await page.evaluate(() => window.__etude.SR.anyOctave)).toBe(false);
+
+  // Start again and play C3 (48) when expecting C4 (60)
+  await page.locator('#rd-go').click();
+  await page.evaluate(() => {
+    window.__etude.handleNoteOn(48, 100);
+    window.__etude.handleNoteOff(48);
+  });
+
+  // Without anyOctave, step does not advance and counts as mistake
+  expect(await page.evaluate(() => window.__etude.SR.stepIdx)).toBe(0);
+  expect(await page.evaluate(() => window.__etude.SR.mistakes)).toBe(1);
+});

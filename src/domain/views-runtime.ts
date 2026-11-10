@@ -10,7 +10,7 @@ import type { AudioTone } from './audio.js';
 import * as notationApi from './notation.js';
 import { scoreOctaveMark, scoreStructuralMarks } from './score-svg-markings.js';
 import { recognizeScoreMarkings, SCORE_MARKING_TERMS } from './score-markings.js';
-import { normalizeScoreDirectionGlyphs, renderScoreNoteParentheses } from './score-xml-markings.js';
+import { normalizeScoreDirectionGlyphs, renderScoreNoteParentheses, scoreDetectPartHands } from './score-xml-markings.js';
 import { initScoreLibrary } from './score-library-ui.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import '../styles/score-library.css';
@@ -2795,7 +2795,7 @@ type StoredTrainerData = {
     learnSelId?: string;
     reading?: Partial<ReadDrillData>;
 };
-function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, weakSpotInjection: false } }; }
+function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, weakSpotInjection: false, anyOctave: false } }; }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
 function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 }); }
@@ -5943,7 +5943,7 @@ interface SrStep { beat: number; notes: SrStaffNote[]; closed?: boolean }
 /** A wrong key in Learn mode, classified (`k`) against the expected note `n`. */
 interface SrSlip { k: string; n: SrStaffNote; m: number }
 interface SrState {
-    piece: SrPiece | null; hands: string; modeSel: string; names: boolean; active: boolean; assessOn: boolean;
+    piece: SrPiece | null; hands: string; modeSel: string; names: boolean; anyOctave: boolean; active: boolean; assessOn: boolean;
     notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; hit: Set<number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
     beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
     bpm: number; t0: number; next: CoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
@@ -5952,7 +5952,7 @@ interface SrState {
     srtOwnerTabId?: string; srtAttemptStartedAt?: number; srtPreviewTimer?: number; srtCountdown?: number; srtLease?: SightReadingAttemptLease | null; srtPendingAttempt?: SightReadingAttempt | null;
     srtEvaluation?: SightReadingEvaluation | null; srtResultValue?: number | null; srtResultLevelId?: string | null; srtResultUnlockId?: string | null;
 }
-const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, active: false, assessOn: false,
+const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, anyOctave: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
     srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
@@ -6437,6 +6437,7 @@ function srPlayGap(fromBeat: number, toBeat: number) {
 function srCount() { const v = byId('rd-verdict'); v.className = 'verdict neutral'; v.textContent = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : ''); }
 function srLearnStart() {
     SR.active = true;
+    SR.anyOctave = !!data.settings.anyOctave;
     stageSync();
     SR.results = {};
     SR.stepIdx = 0;
@@ -7083,6 +7084,7 @@ function srAssessStart(operation?: number) {
     if (sel !== 'both' && srHandsAvail() === 'both')
         SR.notes.filter((n) => n.hand !== sel).forEach((n) => previewNote(n.midi, act0 + (ci + n.beat) * bs, Math.max(.15, n.dur * bs * .9), 78));
     SR.t0 = perf0 + ci * bs * 1000;
+    SR.anyOctave = !!data.settings.anyOctave;
     srtRecorder = new SightReadingRecorder({ durationMs: SR.totalBeats * bs * 1000 });
     SR.assessOn = false;
     if (SR.srtState?.name === 'preparing')
@@ -7129,7 +7131,7 @@ function srAssessFinish() {
     const restWindows = generated && SR.srtPiece ? SR.srtPiece.events
         .filter((event) => event.pitches.length === 0)
         .map((event) => ({ startMs: event.onsetTick * 60000 / SR.bpm / 480, endMs: (event.onsetTick + event.durationTick) * 60000 / SR.bpm / 480 })) : [];
-    const evaluated = srtEvaluate(expected, performed, { restWindows });
+    const evaluated = srtEvaluate(expected, performed, { restWindows, anyOctave: !!SR.anyOctave });
     if (evaluated) {
         const renderedNotes = SR.notes.filter((note) => srActiveHands() === 'both' || note.hand === srActiveHands());
         evaluated.noteResults.forEach((result, index) => {
@@ -7253,7 +7255,7 @@ function srKeyInput(m: number) {
         const st = SR.steps[SR.stepIdx];
         if (!st)
             return;
-        const need = st.notes.find((n: { nid: number; midi: number; }) => !SR.hit.has(n.nid) && n.midi === m);
+        const need = st.notes.find((n: { nid: number; midi: number; }) => !SR.hit.has(n.nid) && (SR.anyOctave ? pc(n.midi) === pc(m) : n.midi === m));
         if (need) {
             SR.hit.add(need.nid);
             SR.results[need.nid] = 'good';
@@ -8500,7 +8502,7 @@ function rdInput(m: number) {
     const src = [...(inputOwners.get(m) || [])], strict = src.some((s) => s === 'midi' || s === 'ble');
     // On-screen keys must be the exact key while the note is within the keyboard's octaves; beyond them the name is enough, as the folded mark shows.
     if (q.ty === 'play')
-        return rdAnswer(strict || (src.some((s) => /^(pointer|button):/.test(s)) && foldToView(q.midi) === q.midi) ? m === q.midi : pc(m) === pc(q.midi), { midi: m });
+        return rdAnswer(data.settings.anyOctave ? pc(m) === pc(q.midi) : (strict || (src.some((s) => /^(pointer|button):/.test(s)) && foldToView(q.midi) === q.midi) ? m === q.midi : pc(m) === pc(q.midi)), { midi: m });
     if (q.ty === 'name')
         return rdAnswer(pc(m) === pc(q.midi), { midi: m });
     // Key to staff answers with 1–4 or a click: a played note only sounds, since playing the lit key would answer without reading.
@@ -11078,7 +11080,7 @@ function anMotifs(ns: readonly AnNote[]) {
     }
     return [...map.values()].filter((v) => v.count >= 2).sort((x, y) => y.count - x.count).slice(0, 4);
 }
-function anHandOf(n: { hand?: AnHand|null; midi: number; }): AnHand { return n.hand || (n.midi >= 60 ? 'rh' : 'lh'); }
+function anHandOf(n: { hand?: AnHand|null; midi: number; staff?: number; }): AnHand { return n.hand || (n.staff === 2 ? 'lh' : (n.midi >= 60 ? 'rh' : 'lh')); }
 // Everything the workspace shows for one scope; strings are produced at render time so language and notation can change.
 function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
     const ck = AN.version + '|' + scopeKey, cached = AN.cache.get(ck);
@@ -11147,6 +11149,7 @@ interface ScoreXmlLine extends ScoreXmlMark { kind: string; }
 interface ScoreXmlDynamic { value?: number | null; hit?: number; }
 const SCORE_STEP: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 function scoreXmlNotes(doc: Document) {
+    const { hands: partHands, sisters: partSisterMap } = scoreDetectPartHands(doc);
     const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
     const linkOpen = new Map<string, ScoreXmlNote>(), linkPairs: { kind: string; a: ScoreXmlNote; b: ScoreXmlNote; style: string; }[] = [], lineEvents: ScoreXmlLine[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
     let malformed = false;
@@ -11263,7 +11266,7 @@ function scoreXmlNotes(doc: Document) {
                                 gracePending.set(key, list);
                             }
                             else {
-                                const hand = staves >= 2 ? (staff === 1 ? 'rh' : 'lh') : null, stop = [...node.querySelectorAll('tie')].some((t) => t.getAttribute('type') === 'stop');
+                                const hand = staves >= 2 ? (staff === 1 ? 'rh' : 'lh') : (staff === 2 ? 'lh' : (partHands.get(pi) ?? null)), stop = [...node.querySelectorAll('tie')].some((t) => t.getAttribute('type') === 'stop');
                                 const prev = stop && lastNote((n) => n.part === pi && n.staff === staff && n.voice === voice && n.midi === midi && Math.abs(n.end - start) < .001);
                                 const fg = number(node.querySelector('fingering')), nd = [...node.querySelectorAll('notations > dynamics')].map(dynamicInfo).find(Boolean), attr = dynamicValue(node.getAttribute('dynamics'));
                                 const arts = new Set([...node.querySelectorAll('notations > articulations > *')].map((a) => a.localName));
@@ -11347,6 +11350,22 @@ function scoreXmlNotes(doc: Document) {
                 seq = e.sequence;
             }
         });
+        if (last === -Infinity) {
+            const sister = partSisterMap.get(part);
+            if (sister != null) {
+                persistent.forEach((e) => {
+                    if (e.part !== sister || e.beat > beat + .001)
+                        return;
+                    const spec = e.staff === 0 ? 1 : 0;
+                    if (e.beat > last + .001 || (Math.abs(e.beat - last) < .001 && (spec > specificity || (spec === specificity && e.sequence > seq)))) {
+                        value = e.value;
+                        last = e.beat;
+                        specificity = spec;
+                        seq = e.sequence;
+                    }
+                });
+            }
+        }
         return value;
     };
     const open = new Map<string, ScoreXmlMark>(), wedges: { part: number; staff: number; start: number; end: number; from: number; to: number; }[] = [];
@@ -11409,7 +11428,9 @@ function scoreXmlNotes(doc: Document) {
     sorted.forEach((n) => {
         const key = n.part + ':' + n.staff + ':' + n.start, right = n.hand === 'rh' || (!n.hand && n.staff === 1), chordSize = sizeAt.get(key) || 1;
         const melody = right && (n.midi === topAt.get(key) || (n.voice === 1 && chordSize === 1)), accompaniment = n.hand === 'lh' || n.staff === 2 || n.voice > 1 || (n.type === '16th' && !melody);
-        const wedge = wedges.filter((w) => same(w, n) && n.start >= w.start - .001 && n.start <= w.end + .001).pop();
+        const sisterPart = partSisterMap.get(n.part);
+        const hasPartWedges = wedges.some((w) => w.part === n.part);
+        const wedge = wedges.filter((w) => (same(w, n) || (sisterPart != null && w.part === sisterPart && !hasPartWedges)) && n.start >= w.start - .001 && n.start <= w.end + .001).pop();
         let vel = n.explicitVel ?? transientAt(n) ?? levelAt(n.part, n.staff, n.start);
         if (wedge && n.explicitVel == null && n.dynamicHit == null && transientAt(n) == null) {
             const f = clamp((n.start - wedge.start) / (wedge.end - wedge.start), 0, 1);
@@ -11452,7 +11473,8 @@ function scoreXmlNotes(doc: Document) {
         nextSame.set(key, n.start);
     }
     sorted.forEach((n) => {
-        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => p.part === n.part && p.start <= n.start + .001 && p.end > n.start + .001);
+        const sister = partSisterMap.get(n.part);
+        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => (p.part === n.part || (sister != null && p.part === sister)) && p.start <= n.start + .001 && p.end > n.start + .001);
         if (pedal) {
             n.pedalEnd = pedal.end;
             soundEnd = Math.max(soundEnd, pedal.end);
@@ -11967,7 +11989,27 @@ function scorePaintEl(g: SVGElement) { const i = Number(g.dataset.i), look = SCO
     }
     shape.style.fill = color || shape.dataset.originalFill || '';
     shape.style.stroke = color || shape.dataset.originalStroke || '';
-} g.setAttribute('aria-pressed', selected ? 'true' : 'false'); }
+} g.setAttribute('aria-pressed', selected ? 'true' : 'false');
+const stave = g.closest('.vf-stavenote');
+if (stave) {
+    const heads = [...stave.querySelectorAll<SVGElement>('.vf-notehead')];
+    const allDimmed = heads.length > 0 && heads.every((h) => {
+        const idx = Number(h.dataset.i);
+        const note = AN.notes[idx];
+        return note && !pracMine(note) && !AN.selected.has(idx) && !PRAC.res.has(idx) && !(SCORE.hl && SCORE.lit.has(idx));
+    });
+    const stemColor = allDimmed ? look.dim : null;
+    stave.querySelectorAll<SVGElement>('.vf-stem, .vf-stem *, .vf-flag, .vf-flag *, .vf-modifiers path, .vf-modifiers text').forEach((extra) => {
+        if (!(extra instanceof SVGPathElement || extra instanceof SVGLineElement || extra instanceof SVGTextElement))
+            return;
+        if (!extra.hasAttribute('data-original-fill')) {
+            extra.dataset.originalFill = extra.style.fill || '';
+            extra.dataset.originalStroke = extra.style.stroke || '';
+        }
+        extra.style.fill = stemColor || extra.dataset.originalFill || '';
+        extra.style.stroke = stemColor || extra.dataset.originalStroke || '';
+    });
+} }
 function scorePaintIdx(i: number) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
 function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
@@ -17158,7 +17200,8 @@ function labelSettingsControl(controlId: string, labelKey: string|undefined, hel
 type SettingsControlLabel = [controlId: string, labelKey: string, helpKey?: string];
 function labelSettingsControls() {
     const controls: SettingsControlLabel[] = [['deviceSelect', 'set_input'], ['toneSel', 'set_tone'], ['set-goal', 'set_sessionlen'], ['set-new', 'set_newperday', 'set_newperday_s'],
-        ['set-wake', 'set_wake'], ['set-synth', 'set_localsynth'], ['set-drone', 'set_drone'], ['set-metronome', 'set_metronome'], ['set-inv', 'set_allowinv'], ['set-weak-inject', 'set_weak_inject']];
+        ['set-wake', 'set_wake'], ['set-synth', 'set_localsynth'], ['set-drone', 'set_drone'], ['set-metronome', 'set_metronome'], ['set-inv', 'set_allowinv'], ['set-weak-inject', 'set_weak_inject'],
+        ['set-any-octave', 'set_any_octave', 'set_any_octave_s']];
     controls.forEach(([controlId, labelKey, helpKey]) => labelSettingsControl(controlId, labelKey, helpKey));
 }
 function reflectSettingsUI() {
@@ -17173,6 +17216,11 @@ function reflectSettingsUI() {
     inputById('set-inv').checked = !!data.settings.allowInv;
     inputById('set-metronome').checked = !!data.settings.metronome;
     inputById('set-weak-inject').checked = !!data.settings.weakSpotInjection;
+    inputById('set-any-octave').checked = !!data.settings.anyOctave;
+    SR.anyOctave = !!data.settings.anyOctave;
+    const rdOct = maybeById('rd-any-octave');
+    if (rdOct instanceof HTMLInputElement)
+        rdOct.checked = !!data.settings.anyOctave;
     selectById('set-goal').value = String(data.settings.goal);
     selectById('set-new').value = String(data.settings.newPerDay);
     queryAllHtml(document, '#set-notation button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === notation ? 'true' : 'false'));
@@ -17572,6 +17620,15 @@ function initControls() {
         srStopAll();
         srDraw();
     });
+    maybeById('rd-any-octave')?.addEventListener('change', (e) => {
+        const checked = wiringInput(e).checked;
+        data.settings.anyOctave = checked;
+        SR.anyOctave = checked;
+        const setOct = maybeById('set-any-octave');
+        if (setOct instanceof HTMLInputElement)
+            setOct.checked = checked;
+        saveAll();
+    });
     byId('rd-bpm').addEventListener('input', (e) => { if (srtPendingSaveProtected()) {
         wiringField(e).value = String(SR.bpm);
         return;
@@ -17675,6 +17732,15 @@ function initControls() {
     byId('set-drone').addEventListener('change', (e) => { data.settings.drone = wiringInput(e).checked; saveAll(); });
     byId('set-metronome').addEventListener('change', (e) => { data.settings.metronome = wiringInput(e).checked; saveAll(); });
     byId('set-inv').addEventListener('change', (e) => { data.settings.allowInv = wiringInput(e).checked; saveAll(); });
+    byId('set-any-octave').addEventListener('change', (e) => {
+        const checked = wiringInput(e).checked;
+        data.settings.anyOctave = checked;
+        SR.anyOctave = checked;
+        const rdOct = maybeById('rd-any-octave');
+        if (rdOct instanceof HTMLInputElement)
+            rdOct.checked = checked;
+        saveAll();
+    });
     byId('set-weak-inject').addEventListener('change', (e) => { setWeakSpotInjection(wiringInput(e).checked); });
     byId('set-goal').addEventListener('change', (e) => { data.settings.goal = +wiringField(e).value; saveAll(); refreshToday(); });
     byId('set-new').addEventListener('change', (e) => { data.settings.newPerDay = +wiringField(e).value; saveAll(); refreshToday(); });
@@ -18499,6 +18565,7 @@ Object.defineProperty(__etude, "scoreXLines", { configurable: true, get: () => s
 Object.defineProperty(__etude, "scoreXmlEndings", { configurable: true, get: () => scoreXmlEndings });
 Object.defineProperty(__etude, "scoreXmlLayout", { configurable: true, get: () => scoreXmlLayout });
 Object.defineProperty(__etude, "scoreXmlNotes", { configurable: true, get: () => scoreXmlNotes });
+Object.defineProperty(__etude, "scoreDetectPartHands", { configurable: true, get: () => scoreDetectPartHands });
 Object.defineProperty(__etude, "scoreZoom", { configurable: true, get: () => scoreZoom });
 Object.defineProperty(__etude, "seedPlacement", { configurable: true, get: () => seedPlacement });
 Object.defineProperty(__etude, "sesHome", { configurable: true, get: () => sesHome });

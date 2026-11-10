@@ -76,6 +76,28 @@ describe('sight-reading evaluator', () => {
     expect(run([])).toMatchObject({ TP: 0, FP: 0, FN: 4, pitchF1: 0, rhythmAcc: 0, stars: 0 });
   });
 
+  it('supports anyOctave matching across different octaves', () => {
+    const shiftedInputs = [
+      { id: 'i-a', midi: 48, onMs: 0 },
+      { id: 'i-b', midi: 74, onMs: 400 },
+      { id: 'i-c', midi: 52, onMs: 800 },
+      { id: 'i-d', midi: 77, onMs: 1200 },
+    ];
+    const strictResult = srtEvaluate(expected, shiftedInputs);
+    expect(strictResult.TP).toBe(0);
+    expect(strictResult.FP).toBe(4);
+    expect(strictResult.FN).toBe(4);
+    expect(strictResult.perfect).toBe(false);
+
+    const anyOctaveResult = srtEvaluate(expected, shiftedInputs, { anyOctave: true });
+    expect(anyOctaveResult.TP).toBe(4);
+    expect(anyOctaveResult.FP).toBe(0);
+    expect(anyOctaveResult.FN).toBe(0);
+    expect(anyOctaveResult.G).toBe(4);
+    expect(anyOctaveResult.score).toBe(100);
+    expect(anyOctaveResult.perfect).toBe(true);
+  });
+
   it('honours inclusive timing boundaries, close repeats, chords, rests and invalid input', () => {
     expect(srtEvaluate([], []).status).toBe('invalid');
     const repeated = [

@@ -39,6 +39,7 @@ export type SightReadingEvaluateConfig = {
   readonly windowMs?: number;
   readonly chordWindowMs?: number;
   readonly restWindows?: readonly { readonly startMs: number; readonly endMs: number }[];
+  readonly anyOctave?: boolean;
 };
 
 type Pair = { readonly expected: SightReadingExpected; readonly input: SightReadingPerformed; readonly error: number };
@@ -48,13 +49,17 @@ function associationWindow(
   note: SightReadingExpected,
   expected: readonly SightReadingExpected[],
   windowMs: number,
+  anyOctave = false,
 ): number {
+  const isSamePitch = (a: number, b: number) =>
+    anyOctave ? ((a % 12 + 12) % 12 === (b % 12 + 12) % 12) : a === b;
   const samePitch = expected
-    .filter((candidate) => candidate.midi === note.midi)
+    .filter((candidate) => isSamePitch(candidate.midi, note.midi))
     .sort((a, b) => a.onMs - b.onMs || a.id.localeCompare(b.id));
   const index = samePitch.findIndex((candidate) => candidate.id === note.id);
   const neighbors = [samePitch[index - 1], samePitch[index + 1]]
-    .filter((candidate): candidate is SightReadingExpected => !!candidate);
+    .filter((candidate): candidate is SightReadingExpected => !!candidate)
+    .filter((candidate) => Math.abs(candidate.onMs - note.onMs) > 0.001);
   return neighbors.length === 0
     ? windowMs
     : Math.min(windowMs, 0.45 * Math.min(...neighbors.map((neighbor) => Math.abs(neighbor.onMs - note.onMs))));
@@ -63,8 +68,9 @@ function associationWindow(
 function buildAssociationWindows(
   expected: readonly SightReadingExpected[],
   windowMs: number,
+  anyOctave = false,
 ): ReadonlyMap<string, number> {
-  return new Map(expected.map((note) => [note.id, associationWindow(note, expected, windowMs)]));
+  return new Map(expected.map((note) => [note.id, associationWindow(note, expected, windowMs, anyOctave)]));
 }
 
 function compareTie(a: Path, b: Path): number {
@@ -168,11 +174,19 @@ export function srtEvaluate(
   const baseWindow = effectiveWindowMs(config.windowMs);
   const chordWindow = effectiveChordWindowMs(config.chordWindowMs);
   if (expected.length === 0) return emptyResult();
+  const anyOctave = !!config.anyOctave;
+  const pitchKey = (midi: number) => (anyOctave ? ((midi % 12 + 12) % 12) : midi);
   const byMidi = new Map<number, SightReadingExpected[]>();
   const inputByMidi = new Map<number, SightReadingPerformed[]>();
-  for (const note of expected) byMidi.set(note.midi, [...(byMidi.get(note.midi) ?? []), note]);
-  for (const input of performed) inputByMidi.set(input.midi, [...(inputByMidi.get(input.midi) ?? []), input]);
-  const associationWindows = buildAssociationWindows(expected, baseWindow);
+  for (const note of expected) {
+    const key = pitchKey(note.midi);
+    byMidi.set(key, [...(byMidi.get(key) ?? []), note]);
+  }
+  for (const input of performed) {
+    const key = pitchKey(input.midi);
+    inputByMidi.set(key, [...(inputByMidi.get(key) ?? []), input]);
+  }
+  const associationWindows = buildAssociationWindows(expected, baseWindow, anyOctave);
   let pairs: Pair[] = [];
   for (const [midi, notes] of byMidi) {
     const sorted = [...notes].sort((a, b) => a.onMs - b.onMs);

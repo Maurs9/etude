@@ -218,6 +218,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <div class="seg" id="rd-hands" role="group" aria-label="Hands" data-i18n-aria="rdx_hands_aria"><button data-v="both" data-i18n="rd_both" aria-pressed="true">Both hands</button><button data-v="rh" data-i18n="rd_rh" aria-pressed="false">Right hand</button><button data-v="lh" data-i18n="rd_lh" aria-pressed="false">Left hand</button></div>
           <div class="seg" id="rd-mode" role="group" aria-label="Mode" data-i18n-aria="rdx_mode_aria"><button data-v="learn" data-i18n="rd_m_learn" aria-pressed="true">Step by step</button><button data-v="assess" data-i18n="rd_m_assess" aria-pressed="false">Assessment</button></div>
           <label class="switch-inline"><input type="checkbox" id="rd-names"> <span data-i18n="rd_names">Note names</span></label>
+          <label class="switch-inline"><input type="checkbox" id="rd-any-octave"> <span data-i18n="rd_any_octave">Any octave</span></label>
         </div>
         <div id="rd-meta" class="lede" style="font-size:13px; margin-top:8px"></div>
         <div id="rd-srt-preview" class="panel" hidden>
@@ -765,6 +766,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="set-row"><label class="switch"><input type="checkbox" id="set-inv"><span class="track"></span></label><div class="lab" data-i18n="set_allowinv">Accept chord inversions</div></div>
       <div class="set-row"><label class="switch"><input type="checkbox" id="set-metronome"><span class="track"></span></label><div class="lab" data-i18n="set_metronome">Metronome during scale practice</div></div>
       <div class="set-row"><label class="switch"><input type="checkbox" id="set-weak-inject"><span class="track"></span></label><div class="lab" data-i18n="set_weak_inject">Smart weak-spot injection</div></div>
+      <div class="set-row"><label class="switch"><input type="checkbox" id="set-any-octave"><span class="track"></span></label><div class="lab"><span data-i18n="set_any_octave">Accept any octave</span> <small data-i18n="set_any_octave_s">in sight-reading pieces</small></div></div>
     </div>
 
     <div class="set-group">

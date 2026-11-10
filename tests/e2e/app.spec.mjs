@@ -765,6 +765,86 @@ test.describe('MusicXML expression and engraving', () => {
     expect(notes.every(n => n.pedalEnd === 4)).toBe(true);   // a pedal left down holds to the end of the part
   });
 
+  test('multi-part grand staff scores assign hands and companion dynamics across braced parts', async ({ app }) => {
+    const page = await app.open();
+    const TWO_PART_SCORE = '<?xml version="1.0" encoding="UTF-8"?>' +
+      '<score-partwise version="3.1">' +
+      '<part-list>' +
+      '  <part-group number="1" type="start"><group-symbol>brace</group-symbol></part-group>' +
+      '  <score-part id="P1"><part-name>Right Hand</part-name></score-part>' +
+      '  <score-part id="P2"><part-name>Left Hand</part-name></score-part>' +
+      '  <part-group number="1" type="stop"/>' +
+      '</part-list>' +
+      '<part id="P1">' +
+      '  <measure number="1">' +
+      '    <attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>' +
+      '    <direction placement="below"><direction-type><dynamics><mp/></dynamics></direction-type></direction>' +
+      '    <note><pitch><step>E</step><octave>5</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type></note>' +
+      '  </measure>' +
+      '</part>' +
+      '<part id="P2">' +
+      '  <measure number="1">' +
+      '    <attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>F</sign><line>4</line></clef></attributes>' +
+      '    <note><pitch><step>D</step><alter>1</alter><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type></note>' +
+      '  </measure>' +
+      '</part>' +
+      '</score-partwise>';
+
+    const evaluation = await page.evaluate(src => {
+      const doc = new DOMParser().parseFromString(src, 'application/xml');
+      const res = window.__etude.scoreXmlNotes(doc);
+      const rhNote = res.notes.find(n => n.midi === 76);
+      const lhNote = res.notes.find(n => n.midi === 63);
+      const anHandRh = window.__etude.anHandOf(rhNote);
+      const anHandLh = window.__etude.anHandOf(lhNote);
+      window.__etude.PRAC.hands = 'rh';
+      const mineUnderRh = window.__etude.pracMine(lhNote);
+      window.__etude.PRAC.hands = 'lh';
+      const mineUnderLh = window.__etude.pracMine(lhNote);
+      return {
+        rhNote: { midi: rhNote.midi, hand: rhNote.hand, vel: rhNote.vel, anHand: anHandRh },
+        lhNote: { midi: lhNote.midi, hand: lhNote.hand, vel: lhNote.vel, anHand: anHandLh, mineUnderRh, mineUnderLh },
+      };
+    }, TWO_PART_SCORE);
+
+    expect(evaluation.rhNote.hand).toBe('rh');
+    expect(evaluation.lhNote.hand).toBe('lh');
+    expect(evaluation.lhNote.anHand).toBe('lh');
+    expect(evaluation.lhNote.mineUnderRh).toBe(false);
+    expect(evaluation.lhNote.mineUnderLh).toBe(true);
+    expect(evaluation.lhNote.vel).toBeLessThan(evaluation.rhNote.vel);
+  });
+
+  test('sur-le-fil-yann-tiersen.mxl classifies high-register left hand notes as left hand', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const mxlBuffer = readFileSync(new URL('../../MIDI/sur-le-fil-yann-tiersen.mxl', import.meta.url));
+    const token = await page.evaluate(() => window.__etude.AN.loadToken);
+    await page.locator('#an-file').setInputFiles({ name: 'sur-le-fil.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: mxlBuffer });
+    await page.waitForFunction(t => window.__etude.AN.loadToken > t && !window.__etude.AN.loading && window.__etude.AN.notes.length > 50, token);
+
+    const result = await page.evaluate(() => {
+      const p1Notes = window.__etude.AN.notes.filter(n => n.part === 1);
+      const highNotesInPart1 = p1Notes.filter(n => n.midi >= 60);
+      window.__etude.PRAC.hands = 'lh';
+      const allActiveUnderLh = highNotesInPart1.every(n => window.__etude.pracMine(n));
+      window.__etude.PRAC.hands = 'rh';
+      const allDimmedUnderRh = highNotesInPart1.every(n => !window.__etude.pracMine(n));
+      return {
+        totalPart1: p1Notes.length,
+        totalHighInPart1: highNotesInPart1.length,
+        allLh: p1Notes.every(n => n.hand === 'lh'),
+        allActiveUnderLh,
+        allDimmedUnderRh,
+      };
+    });
+
+    expect(result.totalPart1).toBeGreaterThan(50);
+    expect(result.totalHighInPart1).toBeGreaterThan(20);
+    expect(result.allLh).toBe(true);
+    expect(result.allActiveUnderLh).toBe(true);
+    expect(result.allDimmedUnderRh).toBe(true);
+  });
+
   test('playback sounds the grace note, the dynamics, the rolled chord and the pedal', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     const token = await page.evaluate(() => window.__etude.AN.loadToken);
@@ -1693,7 +1773,7 @@ test('persisted settings are normalized to supported audio and session limits', 
     muted: false,
     reverbWet: 0.5,
     bpm: 180,
-    settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, earKeys: false, weakSpotInjection: false },
+    settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, earKeys: false, weakSpotInjection: false, anyOctave: false },
   });
 });
 
@@ -1720,7 +1800,7 @@ test('valid persisted settings are preserved', async ({ app }) => {
     muted: true,
     reverbWet: 0.3,
     bpm: 120,
-    settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true, weakSpotInjection: true },
+    settings: { goal: 24, newPerDay: 12, allowInv: true, metronome: true, drone: true, earKeys: true, weakSpotInjection: true, anyOctave: false },
   });
 });
 
@@ -2208,14 +2288,16 @@ test.describe('reading drills: arcade modes', () => {
 test('Settings controls receive localized programmatic labels', async ({ app }) => {
   const page = await app.open();
   await page.locator('#settingsBtn').click();
-  for (const id of ['deviceSelect', 'toneSel', 'set-goal', 'set-new', 'set-wake', 'set-synth', 'set-drone', 'set-metronome', 'set-inv', 'set-weak-inject']) {
+  for (const id of ['deviceSelect', 'toneSel', 'set-goal', 'set-new', 'set-wake', 'set-synth', 'set-drone', 'set-metronome', 'set-inv', 'set-weak-inject', 'set-any-octave']) {
     const control = page.locator('#' + id);
     await expect(control).toHaveAttribute('aria-labelledby', id + '-label');
     expect(await control.evaluate(el => document.getElementById(el.getAttribute('aria-labelledby'))?.textContent.trim())).toBeTruthy();
   }
   await expect(page.locator('#set-new')).toHaveAttribute('aria-describedby', 'set-new-help');
+  await expect(page.locator('#set-any-octave')).toHaveAttribute('aria-describedby', 'set-any-octave-help');
   const englishInputLabel = await page.locator('#deviceSelect').evaluate(el => document.getElementById(el.getAttribute('aria-labelledby')).textContent.trim());
   await page.locator('#set-lang button[data-v="ro"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
   const romanianInputLabel = await page.locator('#deviceSelect').evaluate(el => document.getElementById(el.getAttribute('aria-labelledby')).textContent.trim());
   expect(romanianInputLabel).not.toBe(englishInputLabel);
 });
