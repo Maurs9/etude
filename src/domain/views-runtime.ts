@@ -16,6 +16,7 @@ import * as scoreLibraryStore from './score-library-store.js';
 import '../styles/score-library.css';
 import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
 import * as router from './router.js';
+import { BleClock, bleTimestamps, eventTime, inputLag, inputTime, withInputTime } from './midi-timing.js';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml } from './dom.js';
 import type {
   EtudeSurface,
@@ -45,7 +46,7 @@ function runtimeErrorMessage(value: unknown): string {
 }
 
 /** The parts of Web Bluetooth the BLE-MIDI link uses (not yet in TypeScript's DOM library). */
-interface BleValueEvent { readonly target: BleMidiCharacteristic }
+interface BleValueEvent { readonly target: BleMidiCharacteristic; readonly timeStamp?: number }
 interface BleMidiCharacteristic {
   readonly value?: DataView;
   startNotifications(): Promise<unknown>;
@@ -2079,10 +2080,15 @@ function onStateChange() { const was = activeInputId, ins = listInputs(), presen
     activeInputId = null;
 } refreshDeviceList(false); }
 // A short message leaves the missing bytes NaN, which no comparison below matches (as `undefined` did).
+// The event's own timeStamp (performance.now() clock) is when the key went down; the handler can run a frame or more later.
 function onMidiMessage(e: MIDIMessageEvent) { if (!e.data)
-    return; const [st = NaN, d1 = NaN, d2 = NaN] = e.data; midiIn(st, d1, d2, 'midi'); }
+    return; const [st = NaN, d1 = NaN, d2 = NaN] = e.data; midiIn(st, d1, d2, 'midi', eventTime(e.timeStamp, performance.now())); }
 // One decoder for every transport (Web MIDI, Bluetooth MIDI): notes, sustain (CC64), mod wheel (CC1) and pitch bend.
-function midiIn(st: number, d1: number, d2: number, src: string) {
+// at: when the message happened (performance.now() ms). Judges read it, less the source's calibrated offset, through inputTime().
+function midiIn(st: number, d1: number, d2: number, src: string, at = performance.now()) {
+    withInputTime(at, src === 'ble' ? 'ble' : 'usb', () => midiDispatch(st, d1, d2, src));
+}
+function midiDispatch(st: number, d1: number, d2: number, src: string) {
     const cmd = st & 0xf0;
     if (cmd === 0x90 && d2 > 0) {
         handleNoteOn(d1, d2, src);
@@ -2112,9 +2118,10 @@ interface BleMidiState {
     dev: BleMidiDevice|null; chr: BleMidiCharacteristic|null; busy: boolean; want: boolean; gen: number; tries: number; retryT: number; guardT: number; timedOut: number;
     msg: string|null; cls: string; arg: string|null; saved: { id: string; name: string; auto: boolean }|null;
     run: number; need: number; n: number; d1: number; skip: number; sysex: boolean; pedal: boolean; bend: boolean; mod: boolean;
+    clock: BleClock; at: number; // the sender's clock mapped onto ours; the local time of the message being decoded
 }
 const BLE: BleMidiState = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, retryT: 0, guardT: 0, timedOut: 0, msg: null, cls: '', arg: null, saved: null,
-    run: 0, need: 0, n: 0, d1: 0, skip: 0, sysex: false, pedal: false, bend: false, mod: false };
+    run: 0, need: 0, n: 0, d1: 0, skip: 0, sysex: false, pedal: false, bend: false, mod: false, clock: new BleClock(), at: 0 };
 function bleCan() { return !!((navigator).bluetooth && (navigator).bluetooth.requestDevice); }
 function bleLive() { return !!(BLE.chr && BLE.dev && BLE.dev.gatt && BLE.dev.gatt.connected); }
 function bleName() { return (BLE.dev && BLE.dev.name) || (BLE.saved && BLE.saved.name) || t('ble_dev'); }
@@ -2367,23 +2374,30 @@ async function bleAutoReconnect()  {
         console.warn('Bluetooth MIDI:', err);
     }
 }
-function bleParserReset() { BLE.run = 0; BLE.need = 0; BLE.n = 0; BLE.skip = 0; BLE.sysex = false; }
+function bleParserReset() { BLE.run = 0; BLE.need = 0; BLE.n = 0; BLE.skip = 0; BLE.sysex = false; BLE.clock.reset(); }
 function bleOnValue(e: BleValueEvent) { const v = e.target.value; if (v && v.byteLength > 1)
-    bleParse(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); }
+    bleParse(new Uint8Array(v.buffer, v.byteOffset, v.byteLength), eventTime(e.timeStamp, performance.now())); }
 /* BLE-MIDI packet: [header 10hhhhhh] then messages, each normally led by a timestamp byte [1lllllll]. A byte with bit 7 set that
    directly follows a timestamp is a status byte; any other byte with bit 7 set is the next timestamp. Within a packet a message may
    drop its status (running status) and then also its timestamp, so several notes can share one notification. SysEx may span
-   packets (continuation packets carry only data after the header). Messages are dispatched as soon as their last byte is read;
-   the timestamps carry no information we need, because the packet is played the moment it arrives. */
-function bleParse(p: Uint8Array) {
+   packets (continuation packets carry only data after the header). Messages are dispatched (and sound) as soon as their last byte
+   is read. The timestamps tell the judges when each message was played: BLE.clock maps them onto the local clock, which takes the
+   radio's connection-interval jitter out of the judged time. */
+function bleParse(p: Uint8Array, arrival = performance.now()) {
     if ((p[0] & 0xC0) !== 0x80)
         return;
+    const stamps = bleTimestamps(p);
+    stamps.forEach((ms) => BLE.clock.observe(ms, arrival));
+    BLE.at = arrival;
     let ts = false;
     for (let i = 1; i < p.length; i++) {
         const b = p[i];
         if (b & 0x80) {
             if (!ts) {
                 ts = true;
+                const ms = stamps.get(i);
+                if (ms != null)
+                    BLE.at = BLE.clock.map(ms, arrival);
                 continue;
             }
             ts = false;
@@ -2449,7 +2463,7 @@ function bleMsg(st: number, d1: number, d2: number) {
     }
     else if (cmd === 0xE0)
         BLE.bend = ((d2 << 7) | d1) !== 8192;
-    midiIn(st, d1, d2, 'ble');
+    midiIn(st, d1, d2, 'ble', BLE.at);
 }
 /* ---------- INSTALLED APP: offline copy, install prompt, full screen and screen wake lock ---------- */
 interface InstalledAppState { sw: string; err: string; prompt: InstallPromptEvent|null; installed: boolean }
@@ -8391,7 +8405,7 @@ function rdAnsText(q: ReadQuestion) { if (q.ty === 'iv')
     return rdKeyLabel(q.ans) + ' / ' + rdKeyMinor(q.ans); return rdName(q.note, true); }
 interface ReadDrillGiven { btn?: Element; midi?: number; }
 function rdScore(q: ReadQuestion, ok: boolean, timeout = false) {
-    const now = performance.now(), ms = Math.round(now - RD.t0);
+    const now = performance.now(), ms = Math.max(0, Math.round(Math.min(now, inputTime(now)) - RD.t0)); // a played answer counts from its key's own time
     RD.n++;
     RD.ms += ms;
     if (ok) {
@@ -8778,7 +8792,7 @@ function rdRhPress(src: string, hand: string) {
         return;
     if (R.open.has(src))
         rdRhRelease(src);
-    const b = (performance.now() - R.t0) / 1000 / (60 / rdLevelBpm(L));
+    const b = (inputTime() - R.t0) / 1000 / (60 / rdLevelBpm(L)); // the key's own time, less its calibrated latency
     const p: RdRhythmPress = { src, hand: R.two && hand === 'L' ? 'L' : 'R', on: b, off: null };
     R.presses.push(p);
     R.open.set(src, p);
@@ -8793,7 +8807,7 @@ function rdRhPress(src: string, hand: string) {
 function rdRhRelease(src: string) { const R = RD.rh; if (!R)
     return; const p = R.open.get(src); if (!p)
     return; R.open.delete(src); const L = RD.L; if (R.playing && L)
-    p.off = (performance.now() - R.t0) / 1000 / (60 / rdLevelBpm(L)); }
+    p.off = Math.max(p.on, (inputTime() - R.t0) / 1000 / (60 / rdLevelBpm(L))); }
 function rdRhKey(kind: string, m: number) { if (kind === 'on')
     rdRhPress('m' + m, m < 60 ? 'L' : 'R');
 else
@@ -13310,7 +13324,8 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
 function pracInput(kind: string) {
     const R = SCORE.run;
     if (kind === 'on' && R && SCORE.playing && actx) {
-        const m = heldOrder[heldOrder.length - 1], now = actx.currentTime;
+        // The key's own time on the audio clock: the handler may run a frame or a radio interval after the note was played.
+        const m = heldOrder[heldOrder.length - 1], now = actx.currentTime - Math.max(0, inputLag()) / 1000;
         if (m != null && now >= R.segs[0].a0 - .05) {
             PRAC.active = true;
             const { s, t } = pracRaw(R, now), B = PRAC.bar;
@@ -13324,7 +13339,7 @@ function pracInput(kind: string) {
                     pracRelease(R, B, now);
             }
             else {
-                const time = fallTime(), tol = .22 * s.f;
+                const time = fallTime(now), tol = .22 * s.f;
                 let best: PracticeTimedNote | null = null;
                 for (const d of R.mine) {
                     if (d.start > time + tol)
@@ -15490,11 +15505,11 @@ function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE
     FALL.end = FALL.notes.length ? Math.max(...FALL.notes.map((n) => n.finish)) : 0;
 } return FALL.notes; }
 function fallEnd() { fallData(); return FALL.end; }
-function fallTime() {
+function fallTime(at?: number) {
     const R = SCORE.run;
     if (!SCORE.playing || !actx || !R)
         return FALL.position;
-    const { s, t } = pracRaw(R, actx.currentTime), B = PRAC.bar;
+    const { s, t } = pracRaw(R, at ?? actx.currentTime), B = PRAC.bar;
     let x = Math.min(t, s.t1);
     if (B && B.seg === s && x > B.t)
         x = B.t;
