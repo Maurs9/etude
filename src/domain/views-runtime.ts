@@ -14,6 +14,7 @@ import { normalizeScoreDirectionGlyphs, renderScoreNoteParentheses, scoreDetectP
 import { initScoreLibrary } from './score-library-ui.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import '../styles/score-library.css';
+import '../styles/native.css';
 import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
 import * as router from './router.js';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml } from './dom.js';
@@ -522,7 +523,8 @@ function syncAudioState() {
 function pianoStatus() {
     const message = t(pianoBank.status === 'ready' ? 'piano_ready' : pianoBank.status === 'error' ? 'piano_error' : 'piano_loading');
     const global = byId('piano-global-status');
-    if (global) global.textContent = message;
+    // Loading shows in the dock; the line above every view is only for a failure.
+    if (global) { global.hidden = pianoBank.status !== 'error'; global.textContent = message; }
     const dock = byId('piano-status');
     if (dock) { dock.hidden = pianoBank.status === 'ready'; dock.textContent = message; }
 }
@@ -2504,7 +2506,7 @@ function pwaUi() {
         : pwaLabels[PWA.sw] || 'pwa_pending';
     st.textContent = t(k, PWA.err);
     st.dataset.s = PWA.sw === 'error' ? 'err' : '';
-    ib.hidden = !PWA.prompt;
+    ib.hidden = !PWA.prompt || PWA.installed || pwaStandalone();
 }
 async function pwaInstall()  {
     const p = PWA.prompt;
@@ -14384,6 +14386,8 @@ function anPieceMeta(p: AnExamplePiece) {
     const n = p.keyN || 0, keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n);
     return [p.comp, anKeyName({ root: keyPc, minor: !!p.minor, fifths: n }), p.ts[0] + '/' + p.ts[1]].filter(Boolean).join(' · ');
 }
+// Touch screens can't drop files, so they get the open wording (native.css picks the span).
+function anDropTitle() { return `<span class="ctx-kbd">${xmlEsc(t('an_drop_t'))}</span><span class="ctx-touch">${xmlEsc(t('an_pick_t'))}</span>`; }
 function anRenderEmpty() {
     const box = byId('an-roll');
     box.classList.add('is-empty');
@@ -14391,7 +14395,7 @@ function anRenderEmpty() {
     box.setAttribute('aria-busy', 'false');
     box.hidden = FALL.mode !== 'score' && AN.notes.length > 0;
     const esc = xmlEsc, ex = AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter((p): p is AnExamplePiece => Boolean(p));
-    box.innerHTML = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${esc(t('an_drop_t'))}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
+    box.innerHTML = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${anDropTitle()}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
   <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div>
   <div class="an-exlist"><h2>${esc(t('an_examples'))}</h2><ul>${(ex).map((p) => `<li><button type="button" class="an-ex" data-piece="${p.id}"><span class="an-ex-t">${esc(srPieceTitle(p))}</span><span class="an-ex-m">${esc(anPieceMeta(p))}</span></button></li>`).join('')}</ul></div></div>`;
     anUpdateControls();
@@ -16510,7 +16514,10 @@ function anInitControls() {
     const files = (e: DragEvent): e is DragEvent & { dataTransfer: DataTransfer } => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
     const over = (on: boolean) => { const drop = maybeById('an-drop'), tt = maybeById('an-drop-t'); byId('an-roll').classList.toggle('is-over', on && !!SCORE.xml); if (drop)
         drop.classList.toggle('is-over', on); if (tt)
-        tt.textContent = t(on ? 'an_drop_over' : 'an_drop_t'); };
+    {
+        if (on) tt.textContent = t('an_drop_over');
+        else tt.innerHTML = anDropTitle();
+    } };
     window.addEventListener('dragenter', (e) => { if (view0() !== 'analysis' || !files(e))
         return; e.preventDefault(); depth++; over(true); });
     window.addEventListener('dragover', (e) => { if (view0() !== 'analysis' || !files(e))

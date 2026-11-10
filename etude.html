@@ -42,7 +42,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 </header>
 
 <main id="main" tabindex="-1">
-  <div class="wrap"><p id="piano-global-status" role="status" aria-live="polite" style="font-size:12px;color:var(--muted);margin:-10px 0 26px"></p></div>
+  <div class="wrap"><p id="piano-global-status" role="status" aria-live="polite" style="font-size:12px;color:var(--muted);margin:-10px 0 26px" hidden></p></div>
   <div class="wrap" id="modeBar" hidden><nav class="mode-nav" id="modeNav" aria-label="Sections" data-i18n-aria="nav_sections"></nav></div>
   <!-- ===================== TODAY ===================== -->
   <section class="view active" id="view-today">
@@ -122,7 +122,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <button class="btn ghost" id="q-reveal" data-i18n="show_answer">Show answer</button>
           <button class="btn primary" id="q-next" data-i18n="next" hidden>Next →</button>
         </div>
-        <p class="sub-lede" style="font-size:12px; margin:14px 0 0" data-i18n="ses_keys_hint">Shortcuts: 1–9 pick an answer · R hear again · N next</p>
+        <p class="sub-lede ctx-kbd" style="font-size:12px; margin:14px 0 0" data-i18n="ses_keys_hint">Shortcuts: 1–9 pick an answer · R hear again · N next</p>
       </div>
     </div>
 
@@ -717,7 +717,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <div class="drawer-in">
     <button class="iconbtn drawer-close" id="drawerClose" data-i18n-aria="close" aria-label="Close">✕</button>
     <h2 id="drawerTitle" data-i18n="settings">Settings</h2>
-    <p class="lede" style="font-size:13px" data-i18n="set_lede">Everything is saved in this browser.</p>
+    <p class="lede ctx-browser" style="font-size:13px" data-i18n="set_lede">Everything is saved in this browser.</p><p class="lede ctx-app" style="font-size:13px" data-i18n="set_lede_app">Everything is saved on this device.</p>
 
     <div class="set-group">
       <h3 data-i18n="set_lang">Language</h3>
@@ -734,7 +734,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="set-row"><div class="lab"><span data-i18n="set_device">Device</span> <small id="set-midi-status">Not connected</small></div>
         <button class="btn sm" id="set-connect" data-i18n="set_connect">Connect</button></div>
       <div class="set-row"><div class="lab" data-i18n="set_input">Input</div><select id="deviceSelect"><option>—</option></select></div>
-      <p class="lede" style="font-size:12px; margin-top:8px" data-i18n="set_midi_hint">On the Arturia MicroLab Mk3 keep Chord &amp; Hold OFF. No keyboard? Use the on-screen keys, mouse, or A–K / W–U (Z/X = octave).</p>
+      <details class="set-help"><summary data-i18n="set_midi_help">MIDI help</summary><p class="lede" style="font-size:12px" data-i18n="set_midi_hint">On the Arturia MicroLab Mk3 keep Chord &amp; Hold OFF. No keyboard? Use the on-screen keys, mouse, or A–K / W–U (Z/X = octave).</p></details>
       <div class="set-row"><div class="lab"><span data-i18n="set_ble">Bluetooth MIDI (direct)</span> <small id="set-ble-status" role="status" aria-live="polite">Not connected</small></div>
         <span class="set-btns"><button class="btn sm ghost" id="set-ble-re" data-i18n="ble_reconnect" hidden>Reconnect</button><button class="btn sm" id="set-ble" data-i18n="ble_connect">Connect</button></span></div>
       <p class="lede" style="font-size:12px; margin-top:8px" data-i18n="set_ble_hint">For compatible Bluetooth MIDI pianos and keyboards in Chrome or Edge on Android.</p>
@@ -811,7 +811,7 @@ Bundled third-party components inside the OpenSheetMusicDisplay distribution (MI
 - JSZip ? Copyright (c) Stuart Knightley, David Duponchel, Franz Buchinger, Ant?nio Afonso
 - loglevel ? Copyright (c) Tim Perry
 - typescript-collections ? Copyright (c) Mauricio Santos
-</pre></details><footer><span data-i18n="footer">Étude · single-file practice tool · Web MIDI + Web Audio · your progress never leaves this browser</span> · <a href="#method" id="footMethod" data-i18n="foot_method">the method</a> · <span data-i18n="foot_browser">best in Chrome / Edge</span></footer>
+</pre></details><footer><span class="ctx-browser" data-i18n="footer">Étude · single-file practice tool · Web MIDI + Web Audio · your progress never leaves this browser</span><span class="ctx-app" data-i18n="footer_app">Étude · Web MIDI + Web Audio · your progress never leaves this device</span> · <a href="#method" id="footMethod" data-i18n="foot_method">the method</a><span class="ctx-browser"> · <span data-i18n="foot_browser">best in Chrome / Edge</span></span></footer>
 
 <!-- etude: piano recordings are separate files -->
 <!-- etude: extracted osmd -->

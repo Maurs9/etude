@@ -1,0 +1,25 @@
+/* Phone and installed-app wording.
+   The installed app opens in fullscreen or standalone display mode (see manifest display_override).
+   .ctx-browser: only in a browser tab with a mouse. .ctx-app: only on touch or in the installed app.
+   .ctx-kbd: keyboard and drag-and-drop hints, hidden on touch. .ctx-touch: their touch wording. */
+@media (pointer:coarse), (display-mode:standalone), (display-mode:fullscreen){
+  .ctx-browser{display:none !important}
+}
+@media not ((pointer:coarse) or (display-mode:standalone) or (display-mode:fullscreen)){
+  .ctx-app{display:none !important}
+}
+@media (pointer:coarse){
+  .ctx-kbd, .st-keys, .rdx-kbd{display:none !important}
+}
+@media not (pointer:coarse){
+  .ctx-touch{display:none !important}
+}
+
+/* Collapsed help note in Settings (MIDI keyboard tips). */
+.set-help{padding:6px 0 2px}
+.set-help summary{cursor:pointer; font-size:13px; color:var(--muted); padding:12px 0}
+.set-help p{margin:0 0 8px}
+
+/* Scores: the empty state has its own Open file button and example list, so the source bar hides its copies. */
+#an-panel:has(#an-roll.is-empty:not([hidden])) .an-src .an-src-actions{display:none}
+#an-panel:has(#an-roll.is-empty:not([hidden])) .an-src:has(#an-name:empty):has(#an-msg:empty){display:none}
