@@ -85,7 +85,9 @@ test.describe('data safety', () => {
     await page.locator('#settingsBtn').click();
     await expect(page.locator('#set-snaps option')).toHaveCount(2);
     await expect(page.locator('#set-snaps option').first()).toHaveText(/before reset/);
+    const reloaded = page.waitForEvent('load');
     await page.locator('#set-snap-restore').click();
+    await reloaded;
     await page.waitForFunction(() => typeof window.__etude?.show === 'function' && window.__etude.data.totalReviews === 7);
     // The restore kept a copy of the reset state too.
     await expect.poll(() => snapshots(page)).toContain('before-restore');
@@ -167,4 +169,15 @@ test.describe('data safety', () => {
     });
     await expect.poll(() => snapshots(page)).toEqual(['daily']);
   });
+
+  test('a broken record while the strings are still loading boots without errors', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', err => errors.push(err.message));
+    // Hold the English strings back, so the backup copy of the broken record finishes first.
+    await page.route(/ui-en[^/]*\.(ts|js)(\?|$)/, async route => { await new Promise(r => setTimeout(r, 1500)); await route.continue(); });
+    await openRaw(page, '"hello world"');
+    await expect(page.locator('#storeNoteText')).toHaveText(/couldn't be read/);
+    expect(errors).toEqual([]);
+  });
 });
+

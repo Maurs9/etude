@@ -17278,7 +17278,11 @@ async function storeRefresh() {
     renderDataSafety();
     storeNote();
 }
+/** loadAll runs before the locale loads: render nothing until strings exist. applyI18n renders again. */
+function storeI18nReady() { return !!(STRINGS[lang] || STRINGS.en); }
 function renderDataSafety() {
+    if (!storeI18nReady())
+        return;
     const st = document.getElementById('set-storage-status'), age = document.getElementById('set-backup-age'), sel = document.getElementById('set-snaps'), btn = document.getElementById('set-snap-restore');
     if (!st || !age || !(sel instanceof HTMLSelectElement) || !(btn instanceof HTMLButtonElement))
         return;
@@ -17299,7 +17303,7 @@ function renderDataSafety() {
 }
 function storeNote() {
     const box = document.getElementById('storeNote'), txt = document.getElementById('storeNoteText');
-    if (!box || !txt)
+    if (!box || !txt || !storeI18nReady())
         return;
     const mode = STORE.blocked === 'too-new' ? 'too-new' : STORE.blocked === 'quarantine' ? 'stuck' : STORE.failed ? 'failed' : STORE.unreadable ? 'unreadable' : '';
     box.hidden = !mode;
