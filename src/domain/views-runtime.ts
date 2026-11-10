@@ -34,6 +34,8 @@ import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sig
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
 import '../styles/sight-rhythm.css';
+import { SCALE_FINGERINGS } from './technique.js';
+import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
 
 let scoreLibrary: LibraryController | null = null;
@@ -3013,6 +3015,7 @@ function endSession(toSummary: boolean) {
     }
     sesStopPrompt();
     ekStop(SES.q);
+    techniqueStop(techniqueHost);
     SES.active = false;
     SES.placement = false;
     byId('session').style.display = 'none';
@@ -3048,6 +3051,15 @@ function nextQuestion() {
     ekStop(SES.q);
     kbClearAll();
     SES.answered = false;
+    if (SES.targeted && SES.targeted.cat === TECHNIQUE_TOPIC) {
+        // The scale and arpeggio drill keeps its own runs; the placeholder question only keeps the keys open (Play it).
+        SES.q = { it: TECHNIQUE_ITEM, mode: 'play', key: 0, idx: 0, anchor: null, missed: false, hinted: false };
+        byId('ses-progress').style.width = '0%';
+        techniquePresent(techniqueHost, SES.targeted.key);
+        dockSync();
+        return;
+    }
+    techniqueStop(techniqueHost);
     const q = SES.targeted ? makeQuestion(pickTargetedItem()) : SES.queue[SES.idx];
     if (!q)
         return;
@@ -3064,6 +3076,15 @@ function nextQuestion() {
     byId('q-answers').innerHTML = '';
     presentQuestion(q);
 }
+/* Scale and arpeggio drill (technique-drill.ts): a targeted topic, so no review, daily-goal or streak change. */
+const TECHNIQUE_ITEM: ScaleTrainerItem = { id: TECHNIQUE_TOPIC, cat: 'scale', label: '', short: '', intro: 0, name: 'Major (Ionian)' };
+const techniqueHost: TechniqueHost = {
+    t: (key, ...args) => t(key, ...args),
+    spell: (letter, acc) => spelledName(notation, letter, acc),
+    mark: (midi, state) => kbState(midi, state, true),
+    clearMarks: () => kbClearAll(),
+    byId,
+};
 function pickTargetedItem() {
     if (!SES.targeted)
         throw new Error('Étude: no targeted drill');
@@ -3489,6 +3510,10 @@ function ekElab(q: TrainerQuestion) {
 }
 /* play-mode grading via held notes */
 function sesInput(midi: number) {
+    if (techniqueDrillActive() && SES.targeted?.cat === TECHNIQUE_TOPIC) {
+        techniqueInput(techniqueHost, midi, performance.now());
+        return;
+    }
     const q = SES.q;
     if (!q || SES.answered)
         return;
@@ -4175,19 +4200,8 @@ function updateExplore() {
     cofNow(notes);
 }
 /* ---------- CIRCLE OF FIFTHS (Explore › Circle tab) ---------- */
-// Standard one-octave fingerings, ascending, indexed by the tonic's pitch class (C=0 … B=11).
-// Sources: pianoscales.org (major, natural & harmonic minor). Melodic minor (ascending) follows the harmonic
-// fingering, except C♯/F♯/G♯ where the raised 6th/7th moves the thumb off a black key (ABRSM-style).
-const COF_FING = {
-    maj: { rh: ['12312345', '23123412', '12312345', '31234123', '12312345', '12341234', '23412312', '12312345', '34123123', '12312345', '21231234', '12312345'],
-        lh: ['54321321', '32143213', '54321321', '32143213', '54321321', '54321321', '43213214', '54321321', '32143213', '54321321', '32143213', '43214321'] },
-    natural: { rh: ['12312345', '34123123', '12312345', '31234123', '12312345', '12341234', '23123123', '12312345', '34123123', '12312345', '21231234', '12312345'],
-        lh: ['54321321', '32143213', '54321321', '21432132', '54321321', '54321321', '43213214', '54321321', '32132132', '54321321', '21321432', '43214321'] },
-    harmonic: { rh: ['12312345', '34123123', '12312345', '31234123', '12312345', '12341234', '23123123', '12312345', '23123123', '12312345', '21231234', '12312345'],
-        lh: ['54321321', '32143213', '54321321', '21432132', '54321321', '54321321', '43213214', '54321321', '32132143', '54321321', '21321432', '43214321'] },
-    melodic: { rh: ['12312345', '23123412', '12312345', '31234123', '12312345', '12341234', '23123412', '12312345', '34123123', '12312345', '21231234', '12312345'],
-        lh: ['54321321', '32143213', '54321321', '21432132', '54321321', '54321321', '43213214', '54321321', '32132143', '54321321', '21321432', '43214321'] },
-};
+// Standard one-octave fingerings, ascending, indexed by the tonic's pitch class (C=0 … B=11); the scale and arpeggio drill uses the same table.
+const COF_FING = SCALE_FINGERINGS;
 const COF_MAJ = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'], COF_MIN = ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'Bb', 'F', 'C', 'G', 'D'];
 const COF_COL = ['#e8c160', '#ecae4c', '#e79443', '#df7a3b', '#d2623a', '#bd4834', null, '#355895', '#3b6fa2', '#3f86a6', '#4b9ea6', '#62b3a6'];
 const COF_SCALE = { natural: 'Aeolian (Natural minor)', harmonic: 'Harmonic minor', melodic: 'Melodic minor' };
@@ -16750,6 +16764,14 @@ function updatePracticeModeHint() {
     const cat = (catEl as HTMLSelectElement).value;
     const mel = cat === 'melody';
     const prog = cat === 'prog';
+    if (cat === TECHNIQUE_TOPIC) {
+        hint.textContent = t('tq_pr_hint');
+        if (note) {
+            note.textContent = t('tq_pr_note');
+            note.hidden = false;
+        }
+        return;
+    }
     const pressed = pm.querySelector('button[aria-pressed="true"]');
     const mode = mel ? 'keys' : (pressed instanceof HTMLButtonElement ? pressed.dataset.v : 'play');
 
@@ -16782,18 +16804,19 @@ function syncPracticeCatAndMode() {
     const cat = (catEl as HTMLSelectElement).value;
     const mel = cat === 'melody';
     const prog = cat === 'prog';
+    const tech = cat === TECHNIQUE_TOPIC;
 
     queryAllHtml(pm, ':scope > *').forEach((x) => {
         if (x instanceof HTMLButtonElement) {
             const v = x.dataset.v;
-            // Melodies only support 'keys'; Progressions do NOT support 'keys'
-            const dis = (mel && v !== 'keys') || (prog && v === 'keys');
+            // Melodies only support 'keys'; Progressions do NOT support 'keys'; scales and arpeggios are played
+            const dis = (mel && v !== 'keys') || (prog && v === 'keys') || (tech && v !== 'play');
             x.disabled = dis;
         }
     });
 
     // If user's preference was 'keys', but topic is prog, fall back to 'ear'
-    let targetV = mel ? 'keys' : (practiceModePref || (data.settings.earKeys ? 'keys' : 'play'));
+    let targetV = mel ? 'keys' : tech ? 'play' : (practiceModePref || (data.settings.earKeys ? 'keys' : 'play'));
     if (prog && targetV === 'keys') {
         targetV = 'ear';
     }
