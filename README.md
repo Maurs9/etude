@@ -69,7 +69,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
   - `tests/e2e/sight-reading/` — Sight-Reading Playwright E2E specs
   - `tests/helpers/` — shared Playwright fixtures and score audit helpers
   - `tests/fixtures/` & `tests/golden/` — MusicXML/MXL fixtures and golden baselines
-- `docs/` — organized into `docs/i18n/`, `docs/plans/`, and `docs/runbooks/`
+- `docs/` — organized into `docs/i18n/`, `docs/plans/`, and `docs/runbooks/` (`device-smoke.md` is the real-phone check for storage, offline, audio and MIDI)
 - `TODO.md` — roadmap checklist and dependency inventory
 
 `npm run typecheck` runs the strict compiler gate for the typed domain modules.

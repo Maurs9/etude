@@ -17314,6 +17314,39 @@ function storeNote() {
     byId('storeNoteRestore').hidden = !(mode === 'unreadable' && restorable);
     byId('storeNoteOk').hidden = mode !== 'unreadable';
 }
+/** Plain-English facts for a bug report. Not translated: it is meant to be copied as is. */
+async function storeDiagnostics(): Promise<string> {
+    let version = 'not cached';
+    try {
+        const names = 'caches' in window ? (await caches.keys()).filter(n => n.startsWith('etude-') && n !== 'etude-active') : [];
+        if (names.length)
+            version = names.join(', ');
+    }
+    catch (_) { }
+    const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches;
+    const u = STORE.usage, snaps = STORE.snaps.filter(x => x.reason !== 'unreadable'), last = storeLastExport();
+    const inputs = midiAccess ? [...midiAccess.inputs.values()].map(i => (i.name || i.id) + (i.id === activeInputId ? ' (active)' : '')) : [];
+    const ctx = actx;
+    return [
+        'App version: ' + version,
+        'Service worker: ' + (PWA.sw || 'none') + (PWA.err ? ' (' + PWA.err + ')' : ''),
+        'Display: ' + (standalone ? 'installed app' : 'browser tab'),
+        'Storage: ' + STORE.persist + (u ? ', ' + storeSize(u.usage) + ' of ' + storeSize(u.quota) : ''),
+        'Saving: ' + (STORE.blocked ? 'stopped (' + STORE.blocked + ')' : STORE.failed ? 'failing' : 'ok') + (STORE.unreadable ? ', unreadable record kept' : ''),
+        'Automatic backups: ' + snaps.length + (snaps[0] ? ', newest ' + new Date(snaps[0].id).toISOString() : ''),
+        'Last export: ' + (last ? new Date(last).toISOString() : 'never'),
+        'MIDI: ' + (midiAccess ? (inputs.join(', ') || 'no inputs') : 'not connected'),
+        'Bluetooth MIDI: ' + (bleLive() ? bleName() : 'not connected'),
+        'Audio: ' + (ctx ? ctx.state + ', ' + ctx.sampleRate + ' Hz' + storeMs(', base ', ctx.baseLatency) + storeMs(', output ', ctx.outputLatency) : 'not started'),
+        'Browser: ' + navigator.userAgent,
+    ].join('\n');
+}
+function storeMs(label: string, seconds: unknown) { return typeof seconds === 'number' && Number.isFinite(seconds) ? label + Math.round(seconds * 1000) + ' ms' : ''; }
+async function storeDiagRender() {
+    const out = document.getElementById('set-diag-out');
+    if (out)
+        out.textContent = await storeDiagnostics();
+}
 /** Chrome grants persistent storage without a prompt, mostly to installed apps. Ask once, on the first tap or key. */
 function storeInit() {
     const sm = navigator.storage;
@@ -17731,6 +17764,10 @@ function initControls() {
         } };
         rd.readAsText(f);
     });
+    byId('set-diag').addEventListener('toggle', () => { if (byId('set-diag').hasAttribute('open'))
+        void storeRefresh().then(storeDiagRender); });
+    byId('set-diag-copy').addEventListener('click', () => { void storeDiagnostics().then((text) => { if (!navigator.clipboard)
+        throw new Error('no clipboard'); return navigator.clipboard.writeText(text); }).then(() => { const b = byId('set-diag-copy'); b.textContent = t('set_diag_copied'); setTimeout(() => { b.textContent = t('set_diag_copy'); }, 1500); }).catch(() => { }); });
     byId('storeNoteExport').addEventListener('click', () => byId('exportBtn').click());
     byId('storeNoteReload').addEventListener('click', () => location.reload());
     byId('storeNoteOk').addEventListener('click', () => { STORE.unreadable = false; storeNote(); });

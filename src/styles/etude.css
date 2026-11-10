@@ -497,6 +497,9 @@
   .set-row .lab small{display:block; color:var(--muted); font-size:12px}
   .set-row .lab small.backup-age.warn{color:var(--bad)}
   #set-snaps{max-width:13.5rem}
+  .set-diag{padding:9px 0}
+  .set-diag summary{cursor:pointer; font-size:14px; min-height:44px; display:flex; align-items:center}
+  .set-diag pre{white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; background:var(--paper2); border:1px solid var(--line); border-radius:8px; padding:10px; margin:8px 0}
 
   .method-hero{max-width:64ch; font-size:17px}
   .principles{display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:16px}

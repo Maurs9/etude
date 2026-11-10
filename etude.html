@@ -787,6 +787,10 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <input type="file" id="importFile" accept="application/json,.json" hidden>
       <div class="set-row"><div class="lab"><span data-i18n="set_snap">Automatic backups</span> <small data-i18n="set_snap_s">Kept on this device: one a day for the last 3 days, plus a copy before each reset, import or restore.</small></div>
         <span style="display:inline-flex; gap:8px"><select id="set-snaps" aria-label="Automatic backups" data-i18n-aria="set_snap"></select><button class="btn sm ghost" id="set-snap-restore" data-i18n="set_snap_restore">Restore</button></span></div>
+      <details class="set-diag" id="set-diag"><summary data-i18n="set_diag">Diagnostics</summary>
+        <p class="lede" style="font-size:12.5px" data-i18n="set_diag_s">What to check when something doesn't work: app version, storage, backups, MIDI and audio.</p>
+        <pre id="set-diag-out"></pre>
+        <button class="btn sm ghost" id="set-diag-copy" data-i18n="set_diag_copy">Copy</button></details>
     </div>
 
     <div class="set-group">

@@ -113,6 +113,19 @@ test.describe('data safety', () => {
     expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(before);
   });
 
+  test('the diagnostics panel lists storage, backups, MIDI and audio facts', async ({ app, page }) => {
+    await app.open({ saved });
+    await page.locator('#settingsBtn').click();
+    await page.locator('#set-diag summary').click();
+    const out = page.locator('#set-diag-out');
+    await expect(out).toContainText('App version: ');
+    await expect(out).toContainText(/Storage: (persisted|best-effort|unsupported)/);
+    await expect(out).toContainText('Saving: ok');
+    await expect(out).toContainText(/Automatic backups: 1, newest /);
+    await expect(out).toContainText('MIDI: ');
+    await expect(out).toContainText('Audio: ');
+  });
+
   test('with no room for a copy, an unreadable record blocks saving and the banner cannot be dismissed', async ({ page }) => {
     await page.addInitScript(() => {
       const real = Storage.prototype.setItem;
