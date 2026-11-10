@@ -1,6 +1,13 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 
-// Phone and installed-app polish: browser-only wording and single Scores controls.
+// Phone and installed-app polish: browser-only wording, single Scores controls, audio after a return.
+
+// Pretends the page went to the background and came back: the browser's own visibilitychange is not scriptable.
+const comeBack = page => page.evaluate(() => {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+  document.dispatchEvent(new Event('visibilitychange'));
+});
 
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 412, height: 915 } });
@@ -56,4 +63,19 @@ test('Scores shows one Open file button and one example picker at a time', async
   await expect(page.locator('#an-roll [data-an-open]')).toHaveCount(0);
   await expect(toolbarOpen).toBeVisible();
   await expect(dropdown).toBeVisible();
+});
+
+test('returning to the page resumes suspended audio, and shows the notice only while it stays locked', async ({ app, page }) => {
+  await app.open();
+  await page.evaluate(async () => {
+    window.__etude.ensureAudio();
+    await window.__etude.actx.suspend();
+    window.__etude.actx.resume = () => new Promise(() => {});   // the phone still holds the audio session
+  });
+  await comeBack(page);
+  await expect(page.locator('#audioLock')).toBeVisible();
+  await page.evaluate(() => { delete window.__etude.actx.resume; });
+  await comeBack(page);
+  await expect(page.locator('#audioLock')).toBeHidden();
+  expect(await page.evaluate(() => window.__etude.actx.state)).toBe('running');
 });

@@ -53,3 +53,12 @@ export function queryHtml(root: QueryRoot, selector: string): HTMLElement | null
 export function queryAllHtml(root: QueryRoot, selector: string): HTMLElement[] {
   return [...root.querySelectorAll(selector)].filter((el): el is HTMLElement => el instanceof HTMLElement);
 }
+
+type PageDocument = Pick<Document, 'visibilityState' | 'addEventListener'>;
+type PageWindow = Pick<Window, 'addEventListener'>;
+
+/** Runs `handler` when the page is shown again: the tab becomes visible, or the back/forward cache restores it. */
+export function onPageReturn(handler: () => void, doc: PageDocument = document, win: PageWindow = window): void {
+  doc.addEventListener('visibilitychange', () => { if (doc.visibilityState === 'visible') handler(); });
+  win.addEventListener('pageshow', (event) => { if (event.persisted) handler(); });
+}

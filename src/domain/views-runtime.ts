@@ -17,7 +17,7 @@ import '../styles/score-library.css';
 import '../styles/native.css';
 import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
 import * as router from './router.js';
-import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml } from './dom.js';
+import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from './dom.js';
 import type {
   EtudeSurface,
   ViewApplicationState,
@@ -17799,6 +17799,8 @@ function initControls() {
     // a hidden tab throttles timers and stops animation frames: timed playback, accompaniment, mic capture and drills stop cleanly (score playback pauses resumably)
     document.addEventListener('visibilitychange', () => { if (document.hidden)
         panic(); });
+    // coming back: restart audio the phone suspended in the background; the banner asks for a tap if it stays locked
+    onPageReturn(() => { void audioEngine.resumeOnReturn().then((state) => { if (state === 'running') audioLockSync(); else if (state) audioLockCheck(); }); });
     window.addEventListener('storage', (e) => { if (e.storageArea && e.storageArea !== localStorage || e.key !== null && e.key !== KEY)
         return; const got = syncPull(); if (got === 'old' || got === 'merge-save')
         syncWrite(); if (got)
