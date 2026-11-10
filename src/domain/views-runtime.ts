@@ -18,6 +18,7 @@ import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } f
 import * as router from './router.js';
 import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
 import '../styles/calibration.css';
+import '../styles/landscape.css';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml } from './dom.js';
 import type {
   EtudeSurface,
@@ -1588,7 +1589,10 @@ function clampTypeOctave() { const lo = view.low, maxLo = Math.max(lo, viewHigh(
 const whiteEl = new Map<number, HTMLButtonElement>(), blackEl = new Map<number, HTMLButtonElement>(), keyEl = new Map<number, HTMLButtonElement>();
 const BLACK_NUDGE: Record<number, number> = { 1: -.28, 3: .28, 6: -.30, 8: 0, 10: .30 };
 function viewHigh() { return view.low + view.oct * 12; }
-function chooseView() { const w = window.innerWidth; view.oct = w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
+// A phone on its side: the compact landscape layout of etude.css, and landscape.css while the keys are open (body.kb-land).
+const LAND_PHONE = matchMedia('(orientation: landscape) and (max-height: 560px)');
+// Three octaves on a phone on its side (four from 960 px), so the keys are wide enough to play; otherwise by width.
+function chooseView() { const w = window.innerWidth; view.oct = LAND_PHONE.matches ? (w >= 960 ? 4 : 3) : w < 560 ? 2 : w < 900 ? 3 : 4; view.low = Math.max(BASE_LOW, Math.min(view.low, BASE_HIGH - view.oct * 12)); clampTypeOctave(); }
 function buildKeyboard() {
     rdDockView();
     clampTypeOctave();
@@ -1826,11 +1830,14 @@ function dockLabels() {
 }
 function dockSync() {
     const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
+    // On a phone on its side the open keys take the header's room (landscape.css); Hide keyboard brings the header back.
+    const land = open && LAND_PHONE.matches, wasLand = document.body.classList.contains('kb-land');
     dock.classList.toggle('compact', v === 'analysis');
     byId('dock-kb-toggle').hidden = !on || dockForced(v); // a drill asking on the keys keeps them: Hide would do nothing
     dockLabels();
-    if (on === was && open === wasOpen)
+    if (on === was && open === wasOpen && land === wasLand)
         return;
+    document.body.classList.toggle('kb-land', land);
     document.body.classList.toggle('kb', on);
     dock.classList.toggle('is-rail', on && !open);
     if (open) {
@@ -1852,6 +1859,7 @@ function dockSync() {
     if (STAGE.on)
         stageRefit();
 }
+LAND_PHONE.addEventListener('change', () => dockSync());
 // Expanding from the rail, the keys rise out of it (not with reduced motion); transform and opacity only, so the layout is settled from the first frame.
 function dockReveal() { if (reduceMotion())
     return; const dock = byId('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = window.setTimeout(() => dock.classList.remove('is-opening'), 300); }
