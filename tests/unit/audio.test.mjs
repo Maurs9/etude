@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchPianoAudio, nearestPianoKey, PianoBank } from '../../src/domain/audio.ts';
+import { AudioEngine, fetchPianoAudio, nearestPianoKey, PianoBank } from '../../src/domain/audio.ts';
 
 describe('piano audio domain', () => {
   it('fetches only successful samples and decodes their bytes', async () => {
@@ -35,5 +35,26 @@ describe('piano audio domain', () => {
     fail = false;
     expect(await bank.prepare([48, 48])).toBe(true);
     expect(bank.status).toBe('ready');
+  });
+
+  it('resumes a suspended context when the page returns and reports the state', async () => {
+    const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+    expect(await engine.resumeOnReturn()).toBeNull();
+    const context = { state: 'suspended', resume: vi.fn(async () => { context.state = 'running'; }) };
+    engine.context = context;
+    expect(await engine.resumeOnReturn()).toBe('running');
+    expect(await engine.resumeOnReturn()).toBe('running');
+    expect(context.resume).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a context that stays locked, also when resume never settles', async () => {
+    const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+    engine.context = { state: 'interrupted', resume: vi.fn(async () => { throw new DOMException('no', 'InvalidStateError'); }) };
+    expect(await engine.resumeOnReturn()).toBe('interrupted');
+    engine.context = { state: 'suspended', resume: vi.fn(() => new Promise(() => {})) };
+    expect(await engine.resumeOnReturn(20)).toBe('suspended');
+    engine.context = { state: 'closed', resume: vi.fn() };
+    expect(await engine.resumeOnReturn()).toBeNull();
+    expect(engine.context.resume).not.toHaveBeenCalled();
   });
 });

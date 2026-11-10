@@ -73,7 +73,7 @@ async function assertNoAttemptLocks(page) {
 async function prepareAnalysisSelection(page) {
   await page.evaluate(() => window.__etude.show('analysis'));
   await expect(page.locator('#view-analysis')).toHaveClass(/active/);
-  await page.locator('#an-example').selectOption('twinkle');
+  await page.locator('#an-roll .an-ex[data-piece="twinkle"]').click();
   await expect.poll(() => page.evaluate(() => window.__etude.AN.notes.length)).toBeGreaterThan(0);
   await page.evaluate(() => {
     const api = window.__etude;

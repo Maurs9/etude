@@ -307,6 +307,25 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * Restarts the context after the page comes back. Phones suspend or interrupt audio while the app is in the
+   * background. resume() can stay pending while the OS holds the audio session, so the wait is capped.
+   * Resolves with the state after the attempt, or null when no context exists yet (the first gesture creates it).
+   */
+  async resumeOnReturn(waitMs = 1000): Promise<AudioContext['state'] | null> {
+    const context = this.context;
+    if (!context || context.state === 'closed') return null;
+    if (context.state !== 'running') {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        context.resume().catch(() => undefined),
+        new Promise<void>((resolve) => { timer = setTimeout(resolve, waitMs); }),
+      ]);
+      clearTimeout(timer);
+    }
+    return context.state;
+  }
+
   pianoStatus(): PianoStatus {
     return this.pianoBank.status;
   }

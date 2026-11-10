@@ -89,7 +89,7 @@
   .hdr-note .wrap{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding-block:7px}
   .hdr-note span{flex:1 1 220px; min-width:0}
   main{flex:1; padding:34px 0 150px}
-  .view{display:none; animation:rise .45s cubic-bezier(.2,.7,.2,1) backwards}
+  .view{display:none; animation:rise .12s ease-out backwards}
   .view.active{display:block}
   @keyframes rise{from{opacity:0} to{opacity:1}}
 
