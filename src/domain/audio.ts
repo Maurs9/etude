@@ -312,7 +312,7 @@ export class AudioEngine {
    * background. resume() can stay pending while the OS holds the audio session, so the wait is capped.
    * Resolves with the state after the attempt, or null when no context exists yet (the first gesture creates it).
    */
-  async resumeOnReturn(waitMs = 1000): Promise<string | null> {
+  async resumeOnReturn(waitMs = 1000): Promise<AudioContext['state'] | null> {
     const context = this.context;
     if (!context || context.state === 'closed') return null;
     if (context.state !== 'running') {

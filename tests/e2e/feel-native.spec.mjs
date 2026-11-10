@@ -78,6 +78,12 @@ test('returning to the page resumes suspended audio, and shows the notice only w
   await comeBack(page);
   await expect(page.locator('#audioLock')).toBeHidden();
   expect(await page.evaluate(() => window.__etude.actx.state)).toBe('running');
+  // the OS releases the audio session only after the wait: the late resume still clears the notice
+  await page.evaluate(async () => { await window.__etude.actx.suspend(); window.__etude.actx.resume = () => new Promise(() => {}); });
+  await comeBack(page);
+  await expect(page.locator('#audioLock')).toBeVisible();
+  await page.evaluate(async () => { delete window.__etude.actx.resume; await window.__etude.actx.resume(); });
+  await expect(page.locator('#audioLock')).toBeHidden();
 });
 
 test('coming back checks for a new version at most once every 30 minutes @sw', async ({ app, page }) => {
