@@ -208,6 +208,8 @@ const payload: UIPayload = {
       "rdx_keys0": "Ninguna (Do mayor)",
       "rdx_keys_acc": " · ♭ - · ♮ 0 · ♯ =",
       "rdx_keys_ch": "Teclas: 1–6, o toca el acorde",
+      "rdx_touch_ch": "O toca el acorde",
+      "rdx_touch_play": "Toca en MIDI o pulsa una tecla",
       "rdx_keys_iv": "Teclas: dígitos = número de intervalo",
       "rdx_keys_k2s": "Teclas: 1–4",
       "rdx_keys_ks": "Teclas: 1–6",

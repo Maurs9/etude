@@ -678,6 +678,8 @@ const payload: UIPayload = {
       "rdx_keys_k2s": "Keys: 1–4",
       "rdx_keys_iv": "Keys: digits = interval number",
       "rdx_keys_ch": "Keys: 1–6, or play the chord",
+      "rdx_touch_ch": "Or play the chord",
+      "rdx_touch_play": "Play on MIDI or tap a key",
       "rdx_keys_ks": "Keys: 1–6",
       "rdx_accl": "Accidental",
       "rdx_acc_t-1": "Flat (key -)",

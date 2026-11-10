@@ -102,6 +102,8 @@ const payload: UIPayload = {
       "rdx_keys_k2s": "Tasti: 1–4",
       "rdx_keys_iv": "Tasti: cifre = numero intervallo",
       "rdx_keys_ch": "Tasti: 1–6, oppure suona l'accordo",
+      "rdx_touch_ch": "Oppure suona l'accordo",
+      "rdx_touch_play": "Suona via MIDI o tocca un tasto",
       "rdx_keys_ks": "Tasti: 1–6",
       "rdx_accl": "Alterazione",
       "rdx_acc_t-1": "Bemolle (tasto -)",

@@ -678,6 +678,8 @@ const payload: UIPayload = {
       "rdx_keys_k2s": "Taste: 1–4",
       "rdx_keys_iv": "Taste: cifra = numărul intervalului",
       "rdx_keys_ch": "Taste: 1–6 sau cântă acordul",
+      "rdx_touch_ch": "Sau cântă acordul",
+      "rdx_touch_play": "Cântă la MIDI sau atinge o clapă",
       "rdx_keys_ks": "Taste: 1–6",
       "rdx_accl": "Alterație",
       "rdx_acc_t-1": "Bemol (tasta -)",

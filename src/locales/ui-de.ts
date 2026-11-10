@@ -445,6 +445,8 @@ const payload: UIPayload = {
       "rdx_keys_k2s": "Tasten: 1–4",
       "rdx_keys_iv": "Tasten: Ziffern = Intervallstufe",
       "rdx_keys_ch": "Tasten: 1–6, oder spiele den Akkord",
+      "rdx_touch_ch": "Oder spiele den Akkord",
+      "rdx_touch_play": "Auf MIDI spielen oder Taste antippen",
       "rdx_keys_ks": "Tasten: 1–6",
       "rdx_accl": "Versetzungszeichen",
       "rdx_acc_t-1": "Be (Taste -)",

@@ -24,6 +24,22 @@ test.describe('on a touch screen', () => {
     await expect(page.locator('#an-drop-t')).toHaveText('Open a MIDI or MusicXML file', { useInnerText: true });
     await expect(page.locator('#an-drop-t .ctx-kbd')).toBeHidden();
   });
+
+  test('a reading drill keeps the ways to answer that work on a touch screen', async ({ app, page }) => {
+    await app.open({ hash: 'read' });
+    const ask = ty => page.evaluate(ty => {
+      const e = window.__etude;
+      e.rdData().prefs.stage = false;
+      e.rdOpen(Object.values(e.RD_LV).find(l => l.ty === ty));
+      e.rdStart('practice');
+    }, ty);
+    await ask('ch');
+    await expect(page.locator('.rdx-kbd')).toBeHidden(); // the digit shortcuts need a computer keyboard
+    await expect(page.locator('.rdx-tools .ctx-touch')).toHaveText('Or play the chord');
+    await page.locator('#rdx-end').click();
+    await ask('play');
+    await expect(page.locator('.rdx-tools .ctx-touch')).toHaveText('Play on MIDI or tap a key');
+  });
 });
 
 test('a desktop browser keeps the browser wording and the shortcut hint', async ({ app, page }) => {
@@ -36,6 +52,15 @@ test('a desktop browser keeps the browser wording and the shortcut hint', async 
   await page.evaluate(() => window.__etude.show('analysis'));
   await expect(page.locator('#an-drop-t .ctx-kbd')).toBeVisible();
   await expect(page.locator('#an-drop-t .ctx-touch')).toBeHidden();
+  await page.evaluate(() => {
+    const e = window.__etude;
+    e.show('read');
+    e.rdData().prefs.stage = false;
+    e.rdOpen(Object.values(e.RD_LV).find(l => l.ty === 'ch'));
+    e.rdStart('practice');
+  });
+  await expect(page.locator('.rdx-kbd')).toHaveText('Keys: 1–6, or play the chord');
+  await expect(page.locator('.rdx-tools .ctx-touch')).toBeHidden();
 });
 
 test('the piano status line above every view stays hidden unless the recordings fail', async ({ app, page }) => {
