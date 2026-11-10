@@ -326,9 +326,9 @@ function applyI18n() {
     queryAllHtml(document, '[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n ?? ''); });
     queryAllHtml(document, '[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria ?? '')); });
     queryAllHtml(document, '[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle ?? ''); });
-    // Without a live input the status is said again in the new language: a lost piano still waits to come back.
-    if (!activeInputId && midiLost)
-        setMidi(t('midi_waiting', midiLost.name || 'MIDI'), 'err');
+    // A status kept as a string key is said again in the new language (a lost piano still waits to come back).
+    if (midiMsg?.key)
+        midiStatus(midiMsg.key, midiMsg.cls, ...(midiMsg.args ?? []));
     else if (!activeInputId) {
         midiMsg = null;
         const ss = byId('set-midi-status');
@@ -2036,10 +2036,15 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
 }
 function scheduleEval(fn: () => void, ms: number) { clearTimeout(evalTimer ?? undefined); evalTimer = window.setTimeout(fn, ms); }
 /* ---------- WEB MIDI ---------- */
-let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; }|null = null;
+let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; key?: string; args?: string[] }|null = null;
 // The input in use when it went away (a cable pulled, the piano switched off). It is attached again when it comes back: by id, or by
 // name when the system gives it a new id (Android does). Another input may stand in meanwhile; picking one by hand forgets the lost one.
 let midiLost: { id: string; name: string }|null = null, activeInputName = '', midiAuto = false;
+// A status in the user's language: the key and its arguments are kept so applyI18n can say it again after a language change.
+function midiStatus(key: string, cls: string, ...args: string[]) { setMidi(t(key, ...args), cls); if (midiMsg) {
+    midiMsg.key = key;
+    midiMsg.args = args;
+} }
 function setMidi(text: string|null, cls: string) { midiMsg = { text, cls }; const s = byId('set-midi-status'); if (s)
     s.textContent = text; midiChipSync(); }
 // The header chip names the Web MIDI input when one is live, else a live Bluetooth MIDI piano, else the Web MIDI status.
@@ -2061,11 +2066,11 @@ function midiChipSync() {
 async function connectMidi()  {
     ensureAudio();
     if (!navigator.requestMIDIAccess) {
-        setMidi(t('midi_unsupported'), 'err');
+        midiStatus('midi_unsupported', 'err');
         return;
     }
     if (!window.isSecureContext)
-        setMidi(t('midi_insecure'), 'err');
+        midiStatus('midi_insecure', 'err');
     try {
         midiAccess = await navigator.requestMIDIAccess({ sysex: false });
         midiAccess.onstatechange = onStateChange;
@@ -2073,8 +2078,8 @@ async function connectMidi()  {
     }
     catch (err) {
         console.error(err);
-        setMidi(runtimeErrorName(err) === 'SecurityError' ? t('midi_blocked') :
-            runtimeErrorName(err) === 'NotAllowedError' ? t('midi_denied') : t('midi_unavail'), 'err');
+        midiStatus(runtimeErrorName(err) === 'SecurityError' ? 'midi_blocked' :
+            runtimeErrorName(err) === 'NotAllowedError' ? 'midi_denied' : 'midi_unavail', 'err');
     }
 }
 // Chrome keeps an unplugged port in the map with state 'disconnected': it is not an input until it is back.
@@ -2089,7 +2094,10 @@ function refreshDeviceList(autoPick: boolean) {
     if (!ins.length) {
         sel.innerHTML = '<option>—</option>';
         activeInputId = null;
-        setMidi(midiLost ? t('midi_waiting', midiLost.name || 'MIDI') : t('midi_noinputs'), 'err');
+        if (midiLost)
+            midiStatus('midi_waiting', 'err', midiLost.name || 'MIDI');
+        else
+            midiStatus('midi_noinputs', 'err');
         return;
     }
     ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });

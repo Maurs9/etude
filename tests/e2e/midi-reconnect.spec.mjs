@@ -185,3 +185,14 @@ test('switching the language keeps the waiting status, in the new language', asy
   await page.evaluate(() => window.__midi.plug('usb-1', 'Digital Piano')); // it still comes back by itself
   await expect(page.locator('#midiText')).toHaveText(name);
 });
+
+test('switching the language says any other MIDI status again, in the new language', async ({ app }) => {
+  const page = app.page;
+  await fakeMidi(page, []);
+  await app.open();
+  await page.locator('#midiChip').click();
+  await expect(page.locator('#midiText')).toHaveText(STRINGS.en.midi_noinputs);
+  await page.evaluate(() => window.__etude.setLang('ro'));
+  await expect(page.locator('#midiText')).toHaveText(STRINGS.ro.midi_noinputs);
+  await expect(page.locator('#set-midi-status')).toHaveText(STRINGS.ro.midi_noinputs);
+});
