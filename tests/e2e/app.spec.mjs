@@ -817,7 +817,7 @@ test.describe('MusicXML expression and engraving', () => {
 
   test('sur-le-fil-yann-tiersen.mxl classifies high-register left hand notes as left hand', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
-    const mxlBuffer = readFileSync(new URL('../../MIDI/sur-le-fil-yann-tiersen.mxl', import.meta.url));
+    const mxlBuffer = readFileSync(new URL('../fixtures/sur-le-fil-yann-tiersen.mxl', import.meta.url));
     const token = await page.evaluate(() => window.__etude.AN.loadToken);
     await page.locator('#an-file').setInputFiles({ name: 'sur-le-fil.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: mxlBuffer });
     await page.waitForFunction(t => window.__etude.AN.loadToken > t && !window.__etude.AN.loading && window.__etude.AN.notes.length > 50, token);
