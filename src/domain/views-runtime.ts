@@ -1797,6 +1797,16 @@ function dockOpen(v = view0()) { if (dockForced(v))
     return STAGE.kb ?? false; if (sesNeedsKeys(v))
     return DOCK.pref !== false; if (DOCK.pref != null)
     return DOCK.pref; return false; }
+// Where the page stops being visible at the bottom: the top of the dock when it shows, else of the phone bottom bar
+// (the dock rides on the bar), else the end of the viewport.
+function fixedBottomTop() {
+    for (const el of [byId('dock'), byId('bottomNav')]) {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && getComputedStyle(el).display !== 'none')
+            return r.top;
+    }
+    return innerHeight;
+}
 function dockShown() { return document.body.classList.contains('kb') && !byId('dock').classList.contains('is-rail'); }
 // The dock's own button names the action it takes (Hide / Show keyboard).
 function dockLabels() {
@@ -3869,7 +3879,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
     }
     (document).querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + v));
     const group = navGroup(v);
-    queryAllHtml(document, '#nav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === group ? 'page' : 'false'));
+    queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === group ? 'page' : 'false'));
     dockSync();
     if (dockShown())
         reflowKeys(); // reposition once the dock is laid out
@@ -4325,8 +4335,7 @@ function cofRevealFingering() {
         const fing = (document).querySelector('#exp-circle .cof-fing');
         if (!fing || byId('exp-circle').hidden)
             return;
-        const dock = document.body.classList.contains('kb') ? byId('dock') : null, dockH = dock ? dock.getBoundingClientRect().height : 0;
-        const header = (document).querySelector('header'), top = (header ? header.getBoundingClientRect().bottom : 0) + 16, bottom = window.innerHeight - dockH - 24;
+        const header = (document).querySelector('header'), top = (header ? header.getBoundingClientRect().bottom : 0) + 16, bottom = fixedBottomTop() - 24;
         const rect = fing.getBoundingClientRect(), available = Math.max(0, bottom - top);
         const delta = rect.height > available || rect.top < top ? rect.top - top : rect.bottom > bottom ? rect.bottom - bottom : 0;
         if (Math.abs(delta) > 1)
@@ -5029,7 +5038,7 @@ function lqRender() {
     box.innerHTML = h;
 }
 function learnReveal(el: Element) {
-    const d = byId('dock'), dh = d && getComputedStyle(d).display !== 'none' ? d.getBoundingClientRect().height : 0, r = el.getBoundingClientRect(), lim = innerHeight - dh - 16;
+    const r = el.getBoundingClientRect(), lim = fixedBottomTop() - 16;
     if (r.bottom > lim)
         scrollBy(0, r.bottom - lim);
     else if (r.top < 80)
@@ -13589,7 +13598,9 @@ function anKeepPlace() {
 function anLayoutVars() {
     const st = document.documentElement.style, h = (el: HTMLElement|null) => el && !el.hidden ? Math.round(el.getBoundingClientRect().height) : 0, dock = byId('dock');
     st.setProperty('--hdr-h', h((document).querySelector('header')) + 'px');
-    st.setProperty('--dock-h', (document.body.classList.contains('kb') ? h(dock) : 0) + 'px');
+    const bnav = h(byId('bottomNav')); // 0 while the bar is not displayed (wide screens, short landscape, the practice stage)
+    st.setProperty('--bnav-h', bnav + 'px');
+    st.setProperty('--dock-h', ((document.body.classList.contains('kb') ? h(dock) : 0) + bnav) + 'px');
     st.setProperty('--an-tb-h', h(byId('an-tbwrap')) + 'px');
     st.setProperty('--an-sb-h', h(byId('an-status')) + 'px');
     st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
@@ -16497,7 +16508,7 @@ function anInitControls() {
     const vars = () => { cancelAnimationFrame(rq); rq = requestAnimationFrame(anLayoutVars); };
     // border-box: a safe-area inset only changes padding, which a content-box observer would miss
     const ro = new ResizeObserver(vars);
-    [(document).querySelector('header'), byId('dock'), byId('an-tbwrap'), byId('an-status')].forEach((el) => { if (el)
+    [(document).querySelector('header'), byId('dock'), byId('bottomNav'), byId('an-tbwrap'), byId('an-status')].forEach((el) => { if (el)
         ro.observe(el, { box: 'border-box' }); });
     let lastW = 0, lastH = 0;
     new ResizeObserver((entries) => { const r = entries[0].contentRect, w = Math.round(r.width), h = Math.round(r.height); if (w === lastW && h === lastH)
@@ -17408,6 +17419,8 @@ function initControls() {
     byId('nav').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
         show(b.dataset.view); });
     byId('modeNav').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
+        show(b.dataset.view); });
+    byId('bottomNav').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-view]'); if (b)
         show(b.dataset.view); });
     document.querySelector('.brand')?.addEventListener('click', (e) => { e.preventDefault(); show('today'); });
     // midi chip + settings

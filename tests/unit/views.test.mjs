@@ -5,6 +5,8 @@ describe('view routing domain', () => {
   it('keeps hash routing grouped and safely defaults unknown views', () => {
     expect(navGroup('analysis')).toBe('scores');
     expect(navGroup('read')).toBe('practice');
+    expect(navGroup('explore')).toBe('practice');
+    expect(navGroup('transcribe')).toBe('practice');
     expect(navGroup('songs')).toBe('learn');
     expect(navGroup('today')).toBe('today');
     expect(isAppView('not-a-view')).toBe(false);

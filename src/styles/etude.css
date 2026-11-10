@@ -345,7 +345,7 @@
   @media (max-width:680px){ .dock .legend{display:none} .dock.is-rail .dock-rail-note{display:none} }
   /* pages scroll under the fixed dock: the end of the document (licence, footer) stops exactly at the dock's measured top edge
      (the rail when the keys are hidden), and focus or in-page scrolling never parks an element beneath it */
-  body.kb{padding-bottom:var(--dock-h)}
+  body{padding-bottom:var(--dock-h)} /* the dock and, on phones, the bottom bar; 0 when neither shows */
   body.kb main{padding-bottom:40px}
   html{scroll-padding-top:calc(var(--hdr-h, 62px) + 8px); scroll-padding-bottom:var(--dock-h)}
   .legend{display:flex; gap:12px; flex-wrap:wrap}
@@ -1457,3 +1457,27 @@
   body[data-stage=immersive] .dock.is-rail{padding-top:2px; padding-bottom:calc(2px + env(safe-area-inset-bottom,0px))}
   body[data-stage=immersive] .dock.is-rail .dock-kb-toggle{height:24px; min-height:24px}
   @media (max-width:480px){ body[data-stage=immersive] .rdx-head{display:none} body[data-stage=immersive] .rdx-hud{flex:1} }
+/* ---------- bottom navigation: portrait phones and small tablets ----------
+   The header tabs fold away below 840px; here the five sections sit in a bar at the thumb instead of behind the menu.
+   Short landscape phones keep the menu, because a bar would cost a sixth of their height. The dock rides on top of the
+   bar, and --dock-h (measured in anLayoutVars) covers both, so every layout that reserves room for the dock also clears the bar. */
+  .bottomnav{display:none}
+  @media (max-width:840px) and (min-height:481px){
+    .bottomnav{position:fixed; left:0; right:0; bottom:0; z-index:31; display:grid; grid-template-columns:repeat(5,minmax(0,1fr));
+      padding:2px calc(4px + env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) calc(4px + env(safe-area-inset-left,0px));
+      background:var(--paper); border-top:1px solid var(--line)}
+    .bottomnav button{appearance:none; border:0; background:none; min-width:0; min-height:58px; padding:6px 2px 5px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+      color:var(--muted); font:600 12px/1.2 var(--sans); cursor:pointer; -webkit-tap-highlight-color:transparent}
+    .bottomnav button span{max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .bottomnav svg{width:24px; height:24px; padding:4px 16px; box-sizing:content-box; border-radius:999px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; transition:background-color .18s}
+    .bottomnav svg .fill{fill:currentColor; stroke:none}
+    .bottomnav button[aria-current="page"]{color:var(--ink)}
+    .bottomnav button[aria-current="page"] svg{color:var(--accent); background:color-mix(in srgb, var(--accent) 18%, transparent)}
+    .bottomnav button:focus-visible{outline:2px solid var(--accent); outline-offset:-3px; border-radius:12px}
+    .menu-btn,.bar.hdr-fold .menu-btn{display:none}
+    .dock{bottom:var(--bnav-h,0px)}
+    .dock,body.kb .dock{padding-bottom:12px} /* the bar below already clears the home indicator */
+    .dock.is-rail,body.kb .dock.is-rail{padding-bottom:6px}
+  }
+  body[data-stage=immersive] .bottomnav{display:none}
+  @media (prefers-reduced-motion: reduce){ .bottomnav svg{transition:none} }

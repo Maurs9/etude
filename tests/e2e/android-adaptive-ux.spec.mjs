@@ -1,5 +1,21 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 
+// Above 840px a header too full for its tabs folds them into the menu (phones use the bottom bar instead).
+// A long connected MIDI device name is a real way to get there.
+const foldedHeader = async (app) => {
+  const page = app.page, name = 'Yamaha Clavinova CLP-795GP Digital Piano MIDI 1';
+  await page.addInitScript(name => {
+    const input = { id: 'clp', name, type: 'input', state: 'connected', connection: 'open', onmidimessage: null };
+    Object.defineProperty(navigator, 'requestMIDIAccess', { configurable: true, value: async () => ({ inputs: new Map([[input.id, input]]), outputs: new Map(), sysexEnabled: false, onstatechange: null }) });
+  }, name);
+  await page.setViewportSize({ width: 900, height: 700 });
+  await app.open();
+  await page.locator('#midiChip').click();
+  await expect(page.locator('#midiText')).toHaveText(name);
+  await expect(page.locator('#menuBtn')).toBeVisible();
+  return page;
+};
+
 test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
 
   test('Viewport meta contains interactive-widget=resizes-content for Android edge-to-edge IME', async ({ app }) => {
@@ -43,10 +59,8 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     await expect(page.locator('#view-today')).toHaveClass(/active/);
   });
 
-  test('Navigation-event: Android back gesture closes Mobile Menu on mobile viewports', async ({ app }) => {
-    const page = app.page;
-    await page.setViewportSize({ width: 390, height: 844 });
-    await app.open();
+  test('Navigation-event: Android back gesture closes the folded-header menu', async ({ app }) => {
+    const page = await foldedHeader(app);
 
     // Open mobile menu
     await page.locator('#menuBtn').click();
@@ -90,18 +104,18 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     expect(hasHorizontalOverflow).toBe(false);
 
     // Check piano dock is visible and keys are properly positioned
-    await page.locator('header nav.tabs button[data-view="explore"]').click();
+    await page.locator('header nav.tabs button[data-view="practice"]').click();
+    await page.locator('#modeNav button[data-view="explore"]').click();
     await expect(page.locator('.dock')).toBeVisible();
     const whiteKeysCount = await page.locator('.key.white').count();
     expect(whiteKeysCount).toBeGreaterThan(15);
   });
 
-  test('Back after picking a view from the mobile menu goes to the previous view in one step', async ({ app }) => {
+  test('Back after picking a view from the bottom bar goes to the previous view in one step', async ({ app }) => {
     const page = app.page;
     await page.setViewportSize({ width: 390, height: 844 });
     await app.open();
-    await page.locator('#menuBtn').click();
-    await page.locator('#mobileMenu button[data-view="progress"]').click();
+    await page.locator('#bottomNav button[data-view="progress"]').click();
     await expect(page.locator('#view-progress')).toHaveClass(/active/);
     await page.goBack();
     await expect(page.locator('#view-today')).toHaveClass(/active/);
@@ -151,18 +165,14 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
   });
 
   test('Back restores focus after closing the mobile menu', async ({ app }) => {
-    const page=app.page;
-    await page.setViewportSize({width:390,height:844});
-    await app.open();
+    const page = await foldedHeader(app);
     await page.locator('#menuBtn').click();
     await page.goBack();
     await expect(page.locator('#menuBtn')).toBeFocused();
   });
 
   test('opening Help from the mobile menu does not leave a menu history entry', async ({ app }) => {
-    const page=app.page;
-    await page.setViewportSize({width:390,height:844});
-    await app.open();
+    const page = await foldedHeader(app);
     await page.locator('#menuBtn').click();
     await page.locator('#helpBtn').click();
     await expect(page.locator('#helpBox')).toHaveClass(/on/);
@@ -208,12 +218,10 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     expect(right).toBeLessThanOrEqual(681);
   });
 
-  test('rotating to a wider layout closes the mobile menu', async ({ app }) => {
-    const page = app.page;
-    await page.setViewportSize({ width: 390, height: 844 });
-    await app.open();
+  test('widening the window closes the mobile menu', async ({ app }) => {
+    const page = await foldedHeader(app);
     await page.locator('#menuBtn').click();
-    await page.setViewportSize({ width: 844, height: 390 });
+    await page.setViewportSize({ width: 1400, height: 800 });
     await expect(page.locator('#mobileMenu')).toBeHidden();
     await expect(page.locator('#menuBtn')).toHaveAttribute('aria-expanded', 'false');
   });
@@ -270,4 +278,97 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
     expect(display).toBe('none');
   });
 
+});
+
+test.describe('bottom navigation on phones', () => {
+  const rect = (page, sel) => page.locator(sel).evaluate(el => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, width: r.width, height: r.height }; });
+
+  test('a phone gets a five-section bottom bar instead of the menu, with thumb-sized targets', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open();
+    const bar = page.locator('#bottomNav'), items = bar.locator('button');
+    await expect(bar).toBeVisible();
+    await expect(page.locator('#menuBtn')).toBeHidden();
+    await expect(items).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Progress']);
+    for (let i = 0; i < 5; i++) {
+      const r = await items.nth(i).evaluate(el => el.getBoundingClientRect());
+      expect(r.height).toBeGreaterThanOrEqual(48);
+      expect(r.width).toBeGreaterThanOrEqual(48);
+    }
+    const b = await rect(page, '#bottomNav');
+    expect(Math.round(b.bottom)).toBe(844);
+    await expect(items.nth(0)).toHaveAttribute('aria-current', 'page');
+
+    await items.nth(3).click();
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+    await expect(bar.locator('button[aria-current="page"]')).toHaveText('Scores');
+    await page.goBack();
+    await expect(page.locator('#view-today')).toHaveClass(/active/);
+    await expect(bar.locator('button[aria-current="page"]')).toHaveText('Today');
+  });
+
+  test('wide screens keep the header tabs and no bottom bar', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await app.open();
+    await expect(page.locator('#bottomNav')).toBeHidden();
+    await expect(page.locator('#nav')).toBeVisible();
+  });
+
+  test('Explore lives under Practice, and the keyboard dock sits above the bar', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open({ hash: 'explore' });
+    await expect(page.locator('#bottomNav button[aria-current="page"]')).toHaveText('Practice');
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Accompany', 'Transcribe']);
+    await expect(page.locator('#modeNav button[aria-current="page"]')).toHaveText('Explore');
+    await expect(page.locator('#dock')).toBeVisible();
+    await expect.poll(async () => (await rect(page, '#dock')).bottom - (await rect(page, '#bottomNav')).top).toBeLessThanOrEqual(0.5);
+    // The page reserves room for both, so its last line can scroll clear of them.
+    const pad = await page.evaluate(() => parseFloat(getComputedStyle(document.body).paddingBottom));
+    const dock = await rect(page, '#dock'), nav = await rect(page, '#bottomNav');
+    expect(pad).toBeGreaterThanOrEqual(Math.round(dock.height + nav.height) - 1);
+  });
+
+  test('the header tabs drop Explore: it opens from Practice', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await app.open({ hash: 'practice' });
+    await expect(page.locator('#nav button')).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Progress']);
+    await page.locator('#modeNav button[data-view="explore"]').click();
+    await expect(page.locator('#view-explore')).toHaveClass(/active/);
+    await expect(page.locator('#nav button[aria-current="page"]')).toHaveText('Practice');
+  });
+
+  test('a short landscape phone keeps the menu, because the bar would cost too much height', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 740, height: 360 });
+    await app.open();
+    await expect(page.locator('#bottomNav')).toBeHidden();
+    await expect(page.locator('#menuBtn')).toBeVisible();
+  });
+
+  test('revealing Learn content stops above the dock, which rides on the bar', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open({ hash: 'learn' });
+    await page.locator('#dock-kb-toggle').click(); // keys open: dock on top of the bar
+    const gap = await page.evaluate(async () => {
+      const e = window.__etude, p = document.createElement('div');
+      p.style.height = '40px'; e.$('view-learn').appendChild(p);
+      window.scrollTo(0, 0); e.learnReveal(p);
+      await new Promise(r => requestAnimationFrame(r));
+      const g = e.$('dock').getBoundingClientRect().top - p.getBoundingClientRect().bottom; p.remove(); return g;
+    });
+    expect(gap).toBeGreaterThanOrEqual(15);
+  });
+
+  test('the full-screen practice stage hides the bar', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open();
+    await page.evaluate(() => { document.body.dataset.stage = 'immersive'; });
+    await expect(page.locator('#bottomNav')).toBeHidden();
+  });
 });

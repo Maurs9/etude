@@ -30,7 +30,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <button data-view="learn" data-i18n="nav_learn">Learn</button>
       <button data-view="practice" data-i18n="nav_practice">Practice</button>
       <button data-view="analysis" data-i18n="nav_scores">Scores</button>
-      <button data-view="explore" data-i18n="nav_explore">Explore</button>
       <button data-view="progress" data-i18n="nav_progress">Progress</button>
     </nav>
     <button class="midi-chip" id="midiChip"><span class="dot" id="midiDot"></span><span id="midiText">Connect MIDI</span></button>
@@ -653,6 +652,15 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     </div>
   </section>
 </main>
+
+<!-- bottom navigation (phones): the same sections as the header tabs, within thumb reach -->
+<nav class="bottomnav" id="bottomNav" aria-label="Sections" data-i18n-aria="nav_sections">
+  <button type="button" data-view="today" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15" r="1.7" class="fill"/></svg><span data-i18n="nav_today">Today</span></button>
+  <button type="button" data-view="learn" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5zM12 6.5v13"/></svg><span data-i18n="nav_learn">Learn</span></button>
+  <button type="button" data-view="practice" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3.5h5l4.5 17H5z"/><path d="M12 16l4.5-8.5M7.2 15.5h9.6"/></svg><span data-i18n="nav_practice">Practice</span></button>
+  <button type="button" data-view="analysis" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 11.5h8M8 15h8M12.3 15V9.5"/><circle cx="10.6" cy="15" r="1.7" class="fill"/></svg><span data-i18n="nav_scores">Scores</span></button>
+  <button type="button" data-view="progress" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-5M10 20v-9M15 20v-6M20 20V5"/></svg><span data-i18n="nav_progress">Progress</span></button>
+</nav>
 
 <!-- keyboard dock -->
 <div class="dock" id="dock">
