@@ -1840,13 +1840,16 @@ function dockLabels() {
 function dockSync() {
     const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
     // On a phone on its side the open keys take the header's room (landscape.css); Hide keyboard brings the header back.
+    // A drill asking on the keys hides that button, so the header stays (kb-forced): it is the way to the other views.
     const land = open && LAND_PHONE.matches, wasLand = document.body.classList.contains('kb-land');
+    const forced = land && dockForced(v), wasForced = document.body.classList.contains('kb-forced');
     dock.classList.toggle('compact', v === 'analysis');
     byId('dock-kb-toggle').hidden = !on || dockForced(v); // a drill asking on the keys keeps them: Hide would do nothing
     dockLabels();
-    if (on === was && open === wasOpen && land === wasLand)
+    if (on === was && open === wasOpen && land === wasLand && forced === wasForced)
         return;
     document.body.classList.toggle('kb-land', land);
+    document.body.classList.toggle('kb-forced', forced);
     document.body.classList.toggle('kb', on);
     dock.classList.toggle('is-rail', on && !open);
     if (open) {

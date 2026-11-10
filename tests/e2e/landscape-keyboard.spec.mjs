@@ -87,3 +87,44 @@ test.describe('landscape phone keyboard (915 × 412)', () => {
     expect(g.keysH).toBe(152);
   });
 });
+
+// A key-to-staff drill opens the keys and hides Hide keyboard while it runs (dockForced).
+test.describe('landscape phone keyboard: a drill that asks on the keys', () => {
+  const startKeyToStaff = (page, stage) => page.evaluate(stage => {
+    const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'k2s' && l.clef === 'treble');
+    e.rdData().prefs.stage = stage;
+    e.rdOpen(level);
+    e.rdStart('practice');
+  }, stage);
+
+  for (const pref of [false, true]) {
+    test(`without the full-screen stage the header stays (keys ${pref ? 'open' : 'folded'} before)`, async ({ app }) => {
+      const page = app.page;
+      await page.setViewportSize({ width: 915, height: 412 });
+      await app.open({ hash: 'read', dock: pref });
+      await startKeyToStaff(page, false);
+      await expect(page.locator('#dock')).not.toHaveClass(/\bis-rail\b/);
+      await expect(page.locator('#dock-kb-toggle')).toBeHidden();
+      const g = await settled(page);
+      expect(g.header).toBeGreaterThan(30); // with Hide keyboard gone, the header is the way to the other views
+      expect(g.hdrVar).toBeGreaterThanOrEqual(g.header);
+      expect(g.keysH).toBeGreaterThanOrEqual(120); // the keys keep their landscape height
+      await page.locator('#rdx-end').click();
+      await expect(page.locator('#dock-kb-toggle')).toBeVisible();
+      const after = (await settled(page)).header; // back to the saved choice: open keys fold the header, the rail shows it
+      if (pref) expect(after).toBe(0);
+      else expect(after).toBeGreaterThan(30);
+    });
+  }
+
+  test('on the full-screen stage the header stays folded, and End leaves', async ({ app }) => {
+    const page = app.page;
+    await page.setViewportSize({ width: 915, height: 412 });
+    await app.open({ hash: 'read', dock: false });
+    await startKeyToStaff(page, true);
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
+    const g = await settled(page);
+    expect(g.header).toBe(0);
+    await expect(page.locator('#rdx-end')).toBeVisible();
+  });
+});

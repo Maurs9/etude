@@ -2,10 +2,11 @@
    Loaded after etude.css, whose compact landscape block (same media query) makes the header 46px and the keys 76px.
    Here the keys get the header's room instead: the header folds away (its live status region stays, as on the practice stage),
    the keys grow, and the dock shows three or four octaves (chooseView). The header's and dock's measured heights feed
-   --hdr-h and --dock-h (anLayoutVars), so every layout that clears them follows. The bottom bar never shows this short. */
+   --hdr-h and --dock-h (anLayoutVars), so every layout that clears them follows. The bottom bar never shows this short.
+   A reading drill that asks on the keys hides Hide keyboard, so the header stays there (body.kb-forced). */
 @media (orientation: landscape) and (max-height: 560px){
-  body.kb-land header{position:static; background:none; backdrop-filter:none; border-bottom:0; padding-top:0}
-  body.kb-land header > :not([role=status]){display:none}
+  body.kb-land:not(.kb-forced) header{position:static; background:none; backdrop-filter:none; border-bottom:0; padding-top:0}
+  body.kb-land:not(.kb-forced) header > :not([role=status]){display:none}
   body.kb-land .bottomnav{display:none}
   body.kb-land .dock:not(.compact) .keys{height:min(132px, 32dvh)}
   body.kb-land .dock:not(.compact) .white .lbl{font-size:9px; bottom:5px}
