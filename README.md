@@ -6,12 +6,14 @@
 
 ## Features
 
-- Theory handbook, reading exercises, and score study
-- Targeted drills, accompaniment, sight-singing, and ear training
+- Theory handbook, reading exercises, and score study. Reading levels include eighths, dotted notes, syncopation and ties.
+- Targeted drills, a scale and arpeggio technique drill, accompaniment, sight-singing, and ear training
+- Wrong answers show what you gave against the answer, with a Hear both button. Repeated mix-ups get a short contrast drill at the end of the session.
 - Free play, progress tracking, and practice planning
-- USB MIDI and direct Web Bluetooth MIDI support for compatible digital pianos and keyboards
+- USB MIDI and direct Web Bluetooth MIDI support for compatible digital pianos and keyboards. Notes are judged by their event time, a dropped input re-attaches when it comes back, and **Settings → MIDI** calibrates input latency for touch, USB and Bluetooth.
+- On a phone held sideways, the keyboard dock gets wider, playable keys.
 - Progress stays on the device: Étude asks the browser to keep it, warns when a save fails, keeps 3 days of automatic backups plus a copy before each reset, import or restore, and refuses to overwrite progress saved by a newer version. Export and import a backup file in **Settings → Your data**.
-- Installable app shell (PWA) with offline support and Screen Wake Lock after an initial online visit
+- Installable app shell (PWA) with offline support and Screen Wake Lock after an initial online visit. When the app comes back to the screen, it resumes sound and checks for a new version.
 
 ## Digital piano and MIDI keyboard setup
 
@@ -57,9 +59,10 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 ## Project structure
 
 - `etude.html` — stable application shell
-- `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts` with the saved-record schema and its migrations, `data-safety.ts` for persistent storage and automatic backups, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`)
+- `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts` with the saved-record schema and its migrations, `data-safety.ts` for persistent storage and automatic backups, `midi-timing.ts` for input event times and latency offsets, `technique.ts` and `technique-drill.ts` for the scale and arpeggio drill, `feedback.ts` for error-aware feedback, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`)
+- `src/sight-reading/` — sight-reading generator, evaluation, ledger and notation
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
-- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings
+- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings. Feature styles sit in their own files (`native.css`, `landscape.css`, `calibration.css`, `sight-rhythm.css`, `technique.css`) instead of being appended to the order-sensitive `etude.css`.
 - `public/vendor/osmd-2.3.0.min.js`, `public/manifest.webmanifest`, `public/icons/` — static public assets and lazy-loaded OSMD 2.3.0 bundle
 - `i18n/` — supplementary multi-language pack (`de`, `es`, `fr`, `it`, `pt-BR`), runtime (`i18n/framework/`), and test suite (`i18n/tests/`)
 - `scripts/` — build (`build.mjs`, `build-standalone.mjs`, `generate-sw.mjs`), quality gates (`check-ts-suppressions.mjs`), emergency rollback (`sw-kill-switch.js`), and safe dependency updaters (`update-deps.mjs`, `update-osmd.mjs`)
