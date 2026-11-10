@@ -32,6 +32,8 @@ import { SightReadingRecorder } from '../sight-reading/recorder.js';
 import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
+import { srtNotationSegments } from '../sight-reading/notation.js';
+import '../styles/sight-rhythm.css';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
 
 let scoreLibrary: LibraryController | null = null;
@@ -4731,8 +4733,8 @@ function learnPlanItems(tn: number) {
 /* cheat sheets: rows of [label, value]; each may be a string or [en,ro] */
 /* staff excerpts: compact note strings "C4q E4+G4h Rq" (w h q e s, d=dotted, t=triplet eighth) */
 const LDUR: Record<string, number> = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
-/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`. */
-type SrToken = [string | string[], number];
+/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`; `'tied'` marks a single note tied from the one before (chords are not tied). */
+type SrToken = [string | string[], number, 'tied'?];
 function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !== '|').map((tok: string): SrToken => { const m = tok.match(/^(.+?)(d?[whqest])$/); if (!m)
     throw new Error('Étude: bad staff token ' + tok); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
 /** What the grand-staff engraver (`srRender`) needs to draw a passage. */
@@ -5993,16 +5995,16 @@ const srtReleasedLeases = new WeakSet<SightReadingAttemptLease>();
 let srtExposurePromise: { fingerprint: string; promise: Promise<SightReadingLedgerResult> } | null = null;
 interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
 /** A note to engrave; beamed eighths also record their stem position once drawn. */
-interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
+interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; tied?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
 type SrEvent = SrRestEvent | SrNoteEvent;
 function srPitchStrict(s: string): SrPitch { const p = srPitch(s); if (!p)
     throw new TypeError('Étude: unreadable pitch ' + s); return p; }
 function srEvents(list: SrToken[]|undefined) { const ev: SrEvent[] = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
     ev.push({ rest: true, beat, dur: d });
 else if (Array.isArray(x[0]))
-    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 })));
+    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 }, x[2] === 'tied' && x[0].length === 1 ? { tied: true } : {})));
 else
-    ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d })); beat += d; }); return { ev, total: beat }; }
+    ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d }, x[2] === 'tied' ? { tied: true } : {})); beat += d; }); return { ev, total: beat }; }
 function srClef(clef: string, x: number, top: number) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
 function srKeySigG(clef: string, keyN: number, x: number, top: number) {
     const refStep = clef === 'bass' ? 18 : 30, bot = top + 48, yOf = (li: number, oct: number) => bot + (refStep - ssStepOf(li, oct)) * 6;
@@ -6051,6 +6053,11 @@ function srRest(x: number, top: number, dur: number) {
         return `<rect class="ss-glyph" x="${x - 6}" y="${top + 19}" width="12" height="5"/>`;
     return `<text class="ss-clef" x="${x - 6}" y="${top + 34}" style="font-size:30px">${dur <= 0.125 ? '\u{1D140}' : dur <= 0.25 ? '\u{1D13F}' : dur <= 0.5 ? '\u{1D13E}' : '\u{1D13D}'}</text>`;
 }
+/** A tie from the notehead at x1 to the one at x2 (same pitch, same y), on the side away from the stem. */
+function srTieArc(x1: number, x2: number, y: number, stemUp: boolean) {
+    const s = stemUp ? 1 : -1, a = x1 + 5, b = x2 - 5, m = (a + b) / 2, yb = y + s * 6;
+    return `<path class="ss-tie" d="M ${a},${yb} Q ${m},${y + s * 15} ${b},${yb} Q ${m},${y + s * 12} ${a},${yb} Z"/>`;
+}
 /** One staff of the system; `data` is filled from the hand's tokens right after the staves are laid out. */
 interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; data: { ev: SrEvent[]; total: number } }
 /** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
@@ -6087,6 +6094,9 @@ function srRender(piece: SrScore): SrRenderResult {
     const beats = [...beatSet].sort((a, b) => a - b);
     const notes: SrStaffNote[] = [], beatX: SrBeatX[] = [];
     let body = '', nid = 0;
+    // A tied note is not played again: it is drawn inside the group of the note it continues, which also lasts longer.
+    const lastNote: Partial<Record<SrHand, SrStaffNote>> = {}, tiedMarkup = new Map<number, string>();
+    let tiedKey = 0;
     // Beam pairs of eighths that start on a beat (simple meters only).
     if (piece.ts[1] === 4)
         staves.forEach((st) => {
@@ -6154,21 +6164,31 @@ function srRender(piece: SrScore): SrRenderResult {
                 if (e.chord)
                     return;
                 const y = st.top + 48 + (st.refStep - ssStepOf(e.li, e.oct)) * 6;
+                const from = e.tied ? lastNote[st.hand] : undefined;
+                const key = from ? -(++tiedKey) : nid;
                 let g = '';
-                if (e.acc !== keyAcc[e.li])
+                if (e.acc !== keyAcc[e.li] && !from)
                     g += ssAccGlyph(e.acc, keyAcc[e.li], nx - 13, y);
-                g += srLedger2(nx, y, st.top) + ssNotehead(nx, y, e.dur, (st.refStep - ssStepOf(e.li, e.oct)) % 2 === 0) + (e.beam ? `@@B${nid}@@` : srStem2(nx, y, e.dur, st.top + 24));
+                g += srLedger2(nx, y, st.top) + ssNotehead(nx, y, e.dur, (st.refStep - ssStepOf(e.li, e.oct)) % 2 === 0) + (e.beam ? `@@B${key}@@` : srStem2(nx, y, e.dur, st.top + 24));
                 if (e.beam)
-                    Object.assign(e, { nid, bx: nx, by: y, mid: st.top + 24 });
+                    Object.assign(e, { nid: key, bx: nx, by: y, mid: st.top + 24 });
+                if (from) {
+                    tiedMarkup.set(from.nid, (tiedMarkup.get(from.nid) ?? '') + `<g class="ss-tied">${g}</g>` + srTieArc(from.x, nx, y, y > st.top + 24));
+                    from.dur += e.dur;
+                    return;
+                }
                 const nm = srNamesVisible(piece) ? `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${pcName(pc(e.midi), (piece.keyN || 0) < 0)}</text>` : '';
-                body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}</g>`;
-                notes.push({ nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc });
+                body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}@@T${nid}@@</g>`;
+                const staffNote: SrStaffNote = { nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc };
+                notes.push(staffNote);
+                lastNote[st.hand] = staffNote;
                 nid++;
             });
         });
         beatX.push({ b, x: nx });
         x += 26 + Math.min(minDur, 4) * 14;
     });
+    body = body.replace(/@@T(\d+)@@/g, (_, id: string) => tiedMarkup.get(Number(id)) ?? '');
     staves.forEach((st) => st.data.ev.forEach((a) => {
         if (!a.beam || !a.beam.first)
             return;
@@ -7661,7 +7681,11 @@ rdU('sr', '👁', [
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [-7, 7], bpm: 72 },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 68 },
     { ty: 'sr', clef: 'grand', lo: 'C3', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 64 },
-    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 }
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 },
+    // Rhythm levels (P4): five-finger C position, new note values one level at a time.
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths' },
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 72, tag: 'dotted' },
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 66, tag: 'sync' }
 ]);
 const RD_ALL = RD_UNITS.flatMap((u) => u.lv);
 /* ---- staff renderer for drills (whole-note columns, any clef, key signatures) ---- */
@@ -8961,6 +8985,12 @@ interface RdSightLevel { keys: number[]; lo: string; hi: string; durs: number[];
 interface RdSightPiece { id: string; ephemeral: boolean; gen: string; comp: string; level: number; keyN: number; ts: number[]; bpm: number; t: { en: string; ro: string; }; minor?: boolean; rh?: SrToken[]; lh?: SrToken[]; }
 function isRdSightLevel(L: ReadDrillLevel): L is ReadDrillLevel & RdSightLevel { return Array.isArray(L.keys) && L.lo !== undefined && L.hi !== undefined && Array.isArray(L.durs) && L.bpm !== undefined; }
 function srtProfileForLevel(L: RdSightLevel): SightReadingProfile {
+    if (L.id === 'sr10')
+        return 'P4.a';
+    if (L.id === 'sr11')
+        return 'P4.b';
+    if (L.id === 'sr12')
+        return 'P4.c';
     if (L.id === 'sr6')
         return 'P3.a';
     if (L.id === 'sr7')
@@ -9048,10 +9078,12 @@ function srtRecentGeneratedFingerprints() {
 }
 function srtLegacyPiece(piece: SightReadingPiece, L: RdSightLevel): RdSightPiece {
     const hand = L.clef === 'bass' ? 'lh' : 'rh';
-    const events = (voice: 'rh'|'lh'): SrToken[] => piece.events
-        .filter((event) => event.hand === voice)
-        .sort((a, b) => a.onsetTick - b.onsetTick)
-        .map((event) => [event.pitches.length ? event.pitches.map((pitch) => pitch.spelling) : 'R', event.durationTick / 480]);
+    // A note that crosses a beat is written as tied notes; only the first one is played.
+    const events = (voice: 'rh'|'lh'): SrToken[] => srtNotationSegments(piece, voice)
+        .map((segment): SrToken => {
+            const sound: SrToken[0] = segment.event.pitches.length ? segment.event.pitches.map((pitch) => pitch.spelling) : 'R';
+            return segment.tied ? [sound, segment.durationTick / 480, 'tied'] : [sound, segment.durationTick / 480];
+        });
     const result: RdSightPiece = {
         id: 'gen', ephemeral: true, gen: L.id, comp: '', level: L.n, keyN: piece.key.keyN, minor: piece.key.mode !== 'major',
         ts: [piece.meter.num, 4], bpm: 60,
