@@ -7756,7 +7756,7 @@ function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min
 function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
 function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
-interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
+interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; after?: string; }
 interface ReadDrillLevel extends ReadDrillLevelSpec { u: string; n: number; id: string; custom?: boolean; }
 interface ReadDrillUnit { u: string; icon: string; lv: ReadDrillLevel[]; }
 const RD_UNITS: ReadDrillUnit[] = [], RD_LV: { [levelId: string]: ReadDrillLevel; } = {};
@@ -7844,8 +7844,9 @@ rdU('sr', '👁', [
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 68 },
     { ty: 'sr', clef: 'grand', lo: 'C3', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 64 },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 },
-    // Rhythm levels (P4): five-finger C position, new note values one level at a time.
-    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths' },
+    // Rhythm levels (P4): five-finger C position, new note values one level at a time. They open after the rests level (sr4),
+    // not after the polyphonic levels before them in the list.
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths', after: 'sr4' },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 72, tag: 'dotted' },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 66, tag: 'sync' }
 ]);
@@ -7974,7 +7975,9 @@ function rdArmLimit() {
 }
 function rdArcFx() { return RD.arcFx === 'bonus' ? t('rdx_ta_bonus') : RD.arcFx === 'faster' && RD.arc ? t('rdx_sv_faster', anNum(RD.arc.targetMs / 1000, 1)) : ''; }
 function rdClock(ms: number) { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-function rdLvPrev(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
+// The level that unlocks L: the one before it in its unit, unless L names another (`after`).
+function rdLvPrev(L: ReadDrillLevel) { if (L.after)
+    return RD_LV[L.after] || null; const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
 function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
 function rdUnlocked(L: ReadDrillLevel | null | undefined) { if (!L)
     return false; const p = rdLvPrev(L); return !p || (rdData().lv[p.id]?.s || 0) >= 1; }
