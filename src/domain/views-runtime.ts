@@ -5871,40 +5871,68 @@ function srPitch(s: string): SrPitch | null { const m = /^([A-G])([#b]?)(\d)$/.e
 interface SrPiece extends SrScore { id: string; t: Localised<string>; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string; from?: { title: string; bars: string } }
 const PIECES: SrPiece[] = [
     { id: 'w5rh', t: { en: 'Five-finger warm-up (right hand)', ro: 'Încălzire pe cinci note (dreapta)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
-        rh: [['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['E4', 1], ['G4', 1], ['E4', 1], ['C4', 4]] },
+        rh: [['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['E4', 1], ['G4', 1], ['E4', 1], ['C4', 4]],
+        lh: [['C3', 4], ['G2', 4], ['C3', 2], ['G2', 2], ['C3', 4]] },
     { id: 'w5lh', t: { en: 'Five-finger warm-up (left hand)', ro: 'Încălzire pe cinci note (stânga)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
+        rh: [['C4', 4], ['G3', 4], ['C4', 2], ['G3', 2], ['C4', 4]],
         lh: [['C3', 1], ['D3', 1], ['E3', 1], ['F3', 1], ['G3', 1], ['F3', 1], ['E3', 1], ['D3', 1], ['C3', 1], ['E3', 1], ['G3', 1], ['E3', 1], ['C3', 4]] },
-    { id: 'mary', t: { en: 'Mary Had a Little Lamb', ro: 'Mary avea un mieluşel' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 96,
+    { id: 'clair', t: { en: 'Au clair de la lune', ro: 'Au clair de la lune' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 84,
+        rh: [['C4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 2], ['D4', 2], ['C4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['C4', 4]],
+        lh: [['C3', 4], ['C3', 2], ['G2', 2], ['C3', 2], ['G2', 2], ['C3', 4]] },
+    { id: 'mary', t: { en: 'Mary Had a Little Lamb', ro: 'Mary avea un mielușel' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 92,
         rh: [['E4', 1], ['D4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['E4', 2], ['D4', 1], ['D4', 1], ['D4', 2], ['E4', 1], ['G4', 1], ['G4', 2],
-            ['E4', 1], ['D4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['E4', 1], ['D4', 1], ['C4', 4]] },
-    { id: 'london', t: { en: 'London Bridge', ro: 'Podul Londrei (London Bridge)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 96,
-        rh: [['G4', 1.5], ['A4', 0.5], ['G4', 1], ['F4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['D4', 1], ['E4', 1], ['F4', 2], ['E4', 1], ['F4', 1], ['G4', 2],
-            ['G4', 1.5], ['A4', 0.5], ['G4', 1], ['F4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['D4', 2], ['G4', 2], ['E4', 1], ['C4', 3]] },
-    { id: 'ode', t: { en: 'Ode to Joy', ro: 'Odă bucuriei' }, comp: 'Beethoven', level: 1, keyN: 0, ts: [4, 4], bpm: 100,
-        rh: [['E4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1.5], ['D4', 0.5], ['D4', 2],
-            ['E4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['D4', 1.5], ['C4', 0.5], ['C4', 2]] },
-    { id: 'twinkle', t: { en: 'Twinkle, Twinkle, Little Star', ro: 'Sclipește, steluță (Twinkle)' }, comp: 'trad.', level: 2, keyN: 0, ts: [4, 4], bpm: 88,
+            ['E4', 1], ['D4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['E4', 1], ['D4', 1], ['C4', 4]],
+        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['G2', 2], ['D3', 2], ['C3', 2], ['G3', 2],
+            ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['G2', 2], ['G2', 2], ['C3', 4]] },
+    { id: 'twinkle', t: { en: 'Twinkle, Twinkle, Little Star', ro: 'Sclipește, steluță (Twinkle)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 88,
         rh: [['C4', 1], ['C4', 1], ['G4', 1], ['G4', 1], ['A4', 1], ['A4', 1], ['G4', 2], ['F4', 1], ['F4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['C4', 2]],
         lh: [['C3', 2], ['E3', 2], ['F3', 2], ['C3', 2], ['F3', 2], ['C3', 2], ['G3', 2], ['C3', 2]] },
-    { id: 'frere', t: { en: 'Frère Jacques', ro: 'Frère Jacques (Frate Ioane)' }, comp: 'trad.', level: 2, keyN: 0, ts: [4, 4], bpm: 100,
+    { id: 'frere', t: { en: 'Frère Jacques', ro: 'Frère Jacques (Frate Ioane)' }, comp: 'trad.', level: 2, keyN: 0, ts: [4, 4], bpm: 96,
         rh: [['C4', 1], ['D4', 1], ['E4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['C4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['E4', 1], ['F4', 1], ['G4', 2],
             ['G4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F4', 0.5], ['E4', 1], ['C4', 1], ['G4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F4', 0.5], ['E4', 1], ['C4', 1],
             ['C4', 1], ['G3', 1], ['C4', 2], ['C4', 1], ['G3', 1], ['C4', 2]],
-        lh: [['C3', 4], ['C3', 4], ['C3', 4], ['C3', 4], ['C3', 4], ['C3', 4], ['C3', 4], ['C3', 4]] },
+        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2],
+            ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G2', 2], ['C3', 4]] },
+    { id: 'ode', t: { en: 'Ode to Joy', ro: 'Odă bucuriei' }, comp: 'Beethoven', level: 2, keyN: 0, ts: [4, 4], bpm: 100,
+        rh: [['E4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1.5], ['D4', 0.5], ['D4', 2],
+            ['E4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['D4', 1.5], ['C4', 0.5], ['C4', 2]],
+        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G2', 2],
+            ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G2', 2], ['G2', 2], ['C3', 2]] },
+    { id: 'saints', t: { en: 'When the Saints Go Marching In', ro: 'Când sfinții mărșăluiesc' }, comp: 'trad.', level: 2, keyN: 0, ts: [4, 4], bpm: 104,
+        rh: [['C4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 4], ['C4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 4],
+            ['C4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['E4', 2], ['C4', 2], ['E4', 2], ['D4', 2], ['C4', 4]],
+        lh: [['C3', 2], ['E3', 2], ['G3', 2], ['E3', 2], ['C3', 2], ['E3', 2], ['G3', 2], ['E3', 2],
+            ['C3', 2], ['E3', 2], ['C3', 2], ['A2', 2], ['G2', 2], ['B2', 2], ['C3', 4]] },
     { id: 'jingle', t: { en: 'Jingle Bells (chorus)', ro: 'Clopoței (Jingle Bells)' }, comp: 'Pierpont', level: 2, keyN: 0, ts: [4, 4], bpm: 104,
         rh: [['E4', 1], ['E4', 1], ['E4', 2], ['E4', 1], ['E4', 1], ['E4', 2], ['E4', 1], ['G4', 1], ['C4', 1.5], ['D4', 0.5], ['E4', 4],
             ['F4', 1], ['F4', 1], ['F4', 1.5], ['F4', 0.5], ['F4', 1], ['E4', 1], ['E4', 1], ['E4', 0.5], ['E4', 0.5], ['E4', 1], ['D4', 1], ['D4', 1], ['E4', 1], ['D4', 2], ['G4', 2]],
-        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['C3', 2], ['C3', 2], ['G3', 2], ['F3', 2], ['F3', 2], ['C3', 2], ['C3', 2], ['G3', 2], ['G3', 2], ['G3', 2], ['G3', 2]] },
+        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['C3', 2], ['C3', 2], ['G3', 2],
+            ['F3', 2], ['F3', 2], ['C3', 2], ['C3', 2], ['G3', 2], ['G3', 2], ['G3', 2], ['G3', 2]] },
+    { id: 'london', t: { en: 'London Bridge', ro: 'Podul Londrei (London Bridge)' }, comp: 'trad.', level: 3, keyN: 0, ts: [4, 4], bpm: 96,
+        rh: [['G4', 1.5], ['A4', 0.5], ['G4', 1], ['F4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['D4', 1], ['E4', 1], ['F4', 2], ['E4', 1], ['F4', 1], ['G4', 2],
+            ['G4', 1.5], ['A4', 0.5], ['G4', 1], ['F4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['D4', 2], ['G4', 2], ['E4', 1], ['C4', 3]],
+        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['G2', 2], ['D3', 2], ['C3', 2], ['G3', 2],
+            ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['G2', 2], ['G2', 2], ['C3', 4]] },
     { id: 'minuet', t: { en: 'Minuet in G (Petzold)', ro: 'Menuet în Sol (Petzold)' }, comp: 'Petzold', level: 3, keyN: 1, ts: [3, 4], bpm: 104,
         rh: [['D5', 1], ['G4', 0.5], ['A4', 0.5], ['B4', 0.5], ['C5', 0.5], ['D5', 1], ['G4', 1], ['G4', 1], ['E5', 1], ['C5', 0.5], ['D5', 0.5], ['E5', 0.5], ['F#5', 0.5], ['G5', 1], ['G4', 1], ['G4', 1],
-            ['C5', 1], ['D5', 0.5], ['C5', 0.5], ['B4', 0.5], ['A4', 0.5], ['B4', 1], ['C5', 0.5], ['B4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F#4', 1], ['G4', 0.5], ['A4', 0.5], ['B4', 0.5], ['G4', 0.5], ['B4', 1], ['A4', 2]] },
+            ['C5', 1], ['D5', 0.5], ['C5', 0.5], ['B4', 0.5], ['A4', 0.5], ['B4', 1], ['C5', 0.5], ['B4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F#4', 1], ['G4', 0.5], ['A4', 0.5], ['B4', 0.5], ['G4', 0.5], ['B4', 1], ['A4', 2]],
+        lh: [['G3', 2], ['F#3', 1], ['G3', 2], ['B2', 1], ['C3', 2], ['B2', 1], ['A2', 2], ['G2', 1],
+            ['B2', 2], ['A2', 1], ['G2', 2], ['B2', 1], ['C3', 1], ['D3', 2], ['G2', 3]] },
     { id: 'elise', t: { en: 'Für Elise (opening)', ro: 'Für Elise (început)' }, comp: 'Beethoven', level: 3, keyN: 0, minor: true, ts: [3, 4], bpm: 88,
         rh: [['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['B4', 0.5], ['D5', 0.5], ['C5', 0.5], ['A4', 2],
             ['C4', 0.5], ['E4', 0.5], ['A4', 0.5], ['B4', 1.5], ['E4', 0.5], ['G#4', 0.5], ['B4', 0.5], ['C5', 1.5],
-            ['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['B4', 0.5], ['D5', 0.5], ['C5', 0.5], ['A4', 2]] },
+            ['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['B4', 0.5], ['D5', 0.5], ['C5', 0.5], ['A4', 2]],
+        lh: [['R', 3], ['A2', 1], ['E3', 1], ['A3', 1], ['E2', 1], ['E3', 1], ['G#3', 1],
+            ['A2', 1], ['E3', 1], ['A3', 1], ['R', 3], ['A2', 1], ['E3', 1], ['A3', 1]] },
+    { id: 'greensleeves', t: { en: 'Greensleeves', ro: 'Greensleeves' }, comp: 'trad.', level: 3, keyN: 0, minor: true, ts: [3, 4], bpm: 88, pickup: 1,
+        rh: [['A4', 1], ['C5', 2], ['D5', 1], ['E5', 1.5], ['F5', 0.5], ['E5', 1], ['D5', 2], ['B4', 1], ['G4', 1.5], ['A4', 0.5], ['B4', 1],
+            ['C5', 2], ['A4', 1], ['A4', 1.5], ['G#4', 0.5], ['A4', 1], ['B4', 2], ['G#4', 1], ['E4', 3]],
+        lh: [['R', 1], ['A2', 3], ['C3', 3], ['G2', 3], ['E2', 3],
+            ['A2', 3], ['F2', 3], ['E2', 3], ['A2', 3]] },
     { id: 'grace', t: { en: 'Amazing Grace', ro: 'Amazing Grace' }, comp: 'trad.', level: 3, keyN: 0, ts: [3, 4], bpm: 80, pickup: 1,
         rh: [['G3', 1], ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['C4', 2], ['A3', 1], ['G3', 2], ['G3', 1],
-            ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['G4', 3]] },
+            ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['G4', 3]],
+        lh: [['R', 1], ['C3', 3], ['C3', 2], ['G2', 1], ['F2', 2], ['C3', 1], ['G2', 3], ['C3', 3]] },
 ];
 /** One engraved note head, with the beat it falls on and where it was drawn. */
 interface SrStaffNote { nid: number; hand: SrHand; midi: number; beat: number; dur: number; x: number; y: number; li: number; oct: number; acc: number }
@@ -6097,7 +6125,7 @@ function srRender(piece: SrScore): SrRenderResult {
                         g += srStemLine(sx, it.y, up ? top.y - 32 : bot.y + 32, dur, up);
                     if (k === 0 && names)
                         g += `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${(st.hand === 'rh' ? pcName(pc(top.e.midi), (piece.keyN || 0) < 0) : pcName(pc(bot.e.midi), (piece.keyN || 0) < 0))}</text><title>${names}</title>`;
-                    body += `<g class="ss-n" data-nid="${nid}">${g}</g>`;
+                    body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}">${g}</g>`;
                     notes.push({ nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y: it.y, li: e.li, oct: e.oct, acc: e.acc });
                     nid++;
                 });
@@ -6118,7 +6146,7 @@ function srRender(piece: SrScore): SrRenderResult {
                 if (e.beam)
                     Object.assign(e, { nid, bx: nx, by: y, mid: st.top + 24 });
                 const nm = srNamesVisible(piece) ? `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${pcName(pc(e.midi), (piece.keyN || 0) < 0)}</text>` : '';
-                body += `<g class="ss-n" data-nid="${nid}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}</g>`;
+                body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}</g>`;
                 notes.push({ nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc });
                 nid++;
             });
@@ -6151,6 +6179,7 @@ function srRender(piece: SrScore): SrRenderResult {
         body = body.replace(`@@B${a.nid}@@`, stem(s1, a.by, e1)).replace(`@@B${b.nid}@@`, stem(s2, b.by, e2) + `<path class="ss-beam" d="M ${s1},${e1} L ${s2},${e2} L ${s2},${e2 + th} L ${s1},${e1 + th} Z"/>`);
     }));
     x += 8;
+    body += `<line class="ss-line" x1="${x - 5}" y1="${topY}" x2="${x - 5}" y2="${botY}" stroke="#1a1714" stroke-width="1.2"/>`;
     body += `<line class="ss-line" x1="${x}" y1="${topY}" x2="${x}" y2="${botY}" stroke="#1a1714" stroke-width="3"/>`;
     x += 6;
     beatX.push({ b: total, x });
@@ -6161,6 +6190,10 @@ function srRender(piece: SrScore): SrRenderResult {
         staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${W - 6}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
     } });
     staff += `<line class="ss-line" x1="8" y1="${topY}" x2="8" y2="${botY}" stroke="#1a1714" stroke-width="1.6"/>`;
+    if (staves.length > 1) {
+        const midY = (topY + botY) / 2;
+        staff += `<path class="ss-brace" d="M 6,${topY} C 1,${topY + 12} 7,${midY - 14} 1,${midY} C 7,${midY + 14} 1,${botY - 12} 6,${botY}"/>`;
+    }
     return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${staff}${head}${body}</svg>`, notes, beatX, total, W, yTop: topY - 8, yBot: botY + 8 };
 }
 /* ---- state, drawing, grading ---- */
@@ -6186,8 +6219,10 @@ function srDraw() {
     SR.beatX = r.beatX;
     SR.totalBeats = r.total;
     const concealed = srtScoreConcealed();
-    byId('rd-staff').setAttribute('aria-hidden', concealed ? 'true' : 'false');
-    byId('rd-staff').innerHTML = concealed ? '' : r.svg;
+    const staffEl = byId('rd-staff');
+    staffEl.setAttribute('aria-hidden', concealed ? 'true' : 'false');
+    staffEl.dataset.activeHand = srActiveHands();
+    staffEl.innerHTML = concealed ? '' : r.svg;
     srFit();
     srStepsBuild();
     if (!concealed) {
@@ -7432,11 +7467,15 @@ function srSelectPiece(id: string) {
     bp.value = String(SR.piece.bpm);
     byId('rd-bpmLbl').textContent = String(SR.piece.bpm);
     const avail = srHandsAvail();
-    [...byId('rd-hands').children].forEach((b) => {
-        if (!(b instanceof HTMLButtonElement))
+    [byId('rd-hands'), maybeById('rd-stage-hands')].forEach((container) => {
+        if (!container)
             return;
-        b.disabled = avail !== 'both';
-        b.setAttribute('aria-pressed', (avail === 'both' ? b.dataset.v === SR.hands : b.dataset.v === avail) ? 'true' : 'false');
+        [...container.children].forEach((b) => {
+            if (!(b instanceof HTMLButtonElement))
+                return;
+            b.disabled = avail !== 'both';
+            b.setAttribute('aria-pressed', (avail === 'both' ? b.dataset.v === SR.hands : b.dataset.v === avail) ? 'true' : 'false');
+        });
     });
     const consumedForLearn = srtConsumeOnLearnReveal();
     srDraw();
@@ -17488,17 +17527,32 @@ function initControls() {
     } acPlayLabel(); });
     // read & play (sheet music)
     byId('rd-piece').addEventListener('change', (e) => srSelectPiece(wiringField(e).value));
-    byId('rd-hands').addEventListener('click', (e) => {
+    const onHandsClick = (e: MouseEvent) => {
         const b = eventClosest(e, 'button');
         if (!b || wiringDisabled(b) || srtPendingSaveProtected())
             return;
-        SR.hands = b.dataset.v ?? SR.hands;
-        wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+        const v = b.dataset.v ?? SR.hands;
+        SR.hands = v;
+        [byId('rd-hands'), maybeById('rd-stage-hands')].forEach((container) => {
+            if (!container)
+                return;
+            [...container.children].forEach((x) => {
+                if (x instanceof HTMLElement)
+                    x.setAttribute('aria-pressed', x.dataset.v === v ? 'true' : 'false');
+            });
+        });
+        const staffEl = maybeById('rd-staff');
+        if (staffEl)
+            staffEl.dataset.activeHand = srActiveHands();
         srStopAll();
         srStepsBuild();
         srPaintAll();
+        srTargets();
+        srCoach();
         byId('rd-verdict').textContent = '';
-    });
+    };
+    byId('rd-hands').addEventListener('click', onHandsClick);
+    maybeById('rd-stage-hands')?.addEventListener('click', onHandsClick);
     byId('rd-mode').addEventListener('click', (e) => {
         const b = eventClosest(e, 'button');
         if (!b || srtPendingSaveProtected())
