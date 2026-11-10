@@ -1778,10 +1778,13 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    Without a choice the keys are open, except in Score & analysis on small screens, where the score needs the room; that default
    is settled once per visit, so resizing the window never flips the keyboard (or what its buttons do) behind the user's back.
    Falling notes draw their own keyboard, so that view shows neither the dock nor the rail and leaves the choice untouched.
-   A reading drill that asks its question on the keys (`force`) opens them while it runs, without changing the saved choice. */
+   A reading drill that asks its question on the keys (`force`) opens them while it runs, without changing the saved choice.
+   A session question answered on the keys (Play it, or By ear on the keys) opens them while no MIDI or Bluetooth piano is
+   connected, unless the user chose to hide them: Hide stays available and is saved as usual. */
 interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
 const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
 function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
+function sesNeedsKeys(v = view0()) { const q = SES.q; return SES.active && v === sesHome() && !!q && (q.mode !== 'ear' || ekWanted(q)) && !midiLive(); }
 function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 // The full-screen stage of a running reading drill or piece. With a MIDI or Bluetooth piano connected, the keys fold into the
 // rail there; showing or hiding them on the stage (`kb`) lasts until the stage closes and leaves the saved choice alone.
@@ -1791,7 +1794,8 @@ function midiLive() { return !!activeInputId || bleLive(); }
 function stageDock(v = view0()) { return STAGE.on && v === 'read' && (STAGE.kb != null || midiLive()); }
 function dockOpen(v = view0()) { if (dockForced(v))
     return true; if (stageDock(v))
-    return STAGE.kb ?? false; if (DOCK.pref != null)
+    return STAGE.kb ?? false; if (sesNeedsKeys(v))
+    return DOCK.pref !== false; if (DOCK.pref != null)
     return DOCK.pref; return false; }
 function dockShown() { return document.body.classList.contains('kb') && !byId('dock').classList.contains('is-rail'); }
 // The dock's own button names the action it takes (Hide / Show keyboard).
@@ -2004,8 +2008,8 @@ function midiChipSync() {
         mt.textContent = midiMsg ? midiMsg.text : t('midi_connect');
         md.className = 'dot' + (midiMsg && midiMsg.cls ? ' ' + midiMsg.cls : '');
     }
-    if (STAGE.on)
-        dockSync();
+    if (STAGE.on || SES.active)
+        dockSync(); // a connected piano releases the keys a stage or drill opened
 }
 async function connectMidi()  {
     ensureAudio();
@@ -3001,6 +3005,7 @@ function endSession(toSummary: boolean) {
     SES.placement = false;
     byId('session').style.display = 'none';
     byId('session').classList.remove('on');
+    dockSync(); // keys a drill opened fold back to the saved choice
     kbClearAll();
     held.forEach((m) => audioNoteOff(m));
     held.clear();
@@ -3074,6 +3079,7 @@ function presentQuestion(q: TrainerQuestion) {
     else {
         presentPlay(q);
     }
+    dockSync(); // each question may answer on the keys or not
 }
 function earRoot(q: { key: number; }) { return 57 + (q.key % 12 <= 5 ? q.key : q.key - 12) + 5; } // mid register, kept playable
 function presentPlay(q: TrainerQuestion) {
@@ -17518,6 +17524,7 @@ function initControls() {
             return;
         if (SES.answered || q.mode !== 'ear') {
             ekToggleSync(q);
+            dockSync();
             return;
         }
         ekStop(q);

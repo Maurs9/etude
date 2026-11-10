@@ -2830,3 +2830,45 @@ test('falling notes keyboard range adapts responsively to screen width with a ba
   expect(res.desktopRange[0] % 12).toBe(0);
   expect(res.desktopRange[1] % 12).toBe(0);
 });
+
+test.describe('drills answered on the keys open the keyboard', () => {
+  const drill = async (page, mode) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.locator(`#pr-mode button[data-v="${mode}"]`).click();
+    await page.locator('#pr-start').click();
+    await expect(page.locator('#session')).toBeVisible();
+  };
+
+  for (const mode of ['play', 'keys']) {
+    test(`a ${mode} drill opens the keys without a piano and folds them back after End`, async ({ app }) => {
+      const page = await app.open({ hash: 'practice' });
+      await drill(page, mode);
+      await expect(page.locator('#dock')).not.toHaveClass(/\bis-rail\b/);
+      await expect(page.locator('#keys .white').first()).toBeVisible();
+      await expect(page.locator('#dock-kb-toggle')).toBeVisible(); // Hide stays available
+      await page.locator('#ses-end').click();
+      await expect(page.locator('#session')).toBeHidden();
+      await expect.poll(() => page.evaluate(() => document.body.classList.contains('kb'))).toBe(false);
+      expect(await page.evaluate(() => window.__etude.DOCK.pref)).toBeNull();
+    });
+  }
+
+  test('Hide during a drill is saved and respected by the next drill', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    await drill(page, 'play');
+    await page.locator('#dock-kb-toggle').click();
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    expect(await page.evaluate(() => window.__etude.DOCK.pref)).toBe(false);
+    await page.locator('#ses-end').click();
+    await page.locator('#pr-start').click();
+    await expect(page.locator('#session')).toBeVisible();
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+  });
+
+  test('a By ear drill keeps the saved choice: the keys stay folded', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    await drill(page, 'ear');
+    await expect(page.locator('#dock')).toHaveClass(/\bis-rail\b/);
+    await expect(page.locator('#dock-kb-toggle')).toBeVisible();
+  });
+});
