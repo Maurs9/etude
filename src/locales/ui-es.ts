@@ -1345,6 +1345,7 @@ const payload: UIPayload = {
       "midi_denied": "Permiso denegado: haz clic en Conectar para volver a intentarlo",
       "midi_unavail": "MIDI no disponible",
       "midi_noinputs": "No hay entradas MIDI",
+      "midi_waiting": "%s se ha desconectado: se reconectará cuando vuelva",
       "theme_auto": "Automático",
       "theme_light": "Claro",
       "theme_dark": "Oscuro",

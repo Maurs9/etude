@@ -1013,6 +1013,7 @@ const payload: UIPayload = {
       "midi_denied": "Permesso negato — clicca su Connetti per riprovare",
       "midi_unavail": "MIDI non disponibile",
       "midi_noinputs": "Nessun ingresso MIDI",
+      "midi_waiting": "%s disconnesso — si riconnette appena torna disponibile",
       "theme_auto": "Automatico",
       "theme_light": "Chiaro",
       "theme_dark": "Scuro",

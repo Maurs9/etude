@@ -1103,6 +1103,7 @@ const payload: UIPayload = {
       "midi_denied": "Berechtigung verweigert — auf Verbinden klicken, um es erneut zu versuchen",
       "midi_unavail": "MIDI nicht verfügbar",
       "midi_noinputs": "Keine MIDI-Eingänge",
+      "midi_waiting": "%s getrennt — verbindet sich wieder, sobald es zurück ist",
       "theme_auto": "Automatisch",
       "theme_light": "Hell",
       "theme_dark": "Dunkel",

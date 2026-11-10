@@ -276,6 +276,7 @@ const payload: UIPayload = {
       "midi_denied": "Permisiune refuzată — apasă Conectează din nou",
       "midi_unavail": "MIDI indisponibil",
       "midi_noinputs": "Nicio intrare MIDI",
+      "midi_waiting": "%s s-a deconectat — se reconectează când revine",
       "set_theme": "Temă",
       "theme_auto": "Auto",
       "theme_light": "Luminoasă",

@@ -2004,6 +2004,9 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
 function scheduleEval(fn: () => void, ms: number) { clearTimeout(evalTimer ?? undefined); evalTimer = window.setTimeout(fn, ms); }
 /* ---------- WEB MIDI ---------- */
 let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; }|null = null;
+// The input in use when it went away (a cable pulled, the piano switched off). It is attached again when it comes back: by id, or by
+// name when the system gives it a new id (Android does). Another input may stand in meanwhile; picking one by hand forgets the lost one.
+let midiLost: { id: string; name: string }|null = null, activeInputName = '', midiAuto = false;
 function setMidi(text: string|null, cls: string) { midiMsg = { text, cls }; const s = byId('set-midi-status'); if (s)
     s.textContent = text; midiChipSync(); }
 // The header chip names the Web MIDI input when one is live, else a live Bluetooth MIDI piano, else the Web MIDI status.
@@ -2041,7 +2044,10 @@ async function connectMidi()  {
             runtimeErrorName(err) === 'NotAllowedError' ? t('midi_denied') : t('midi_unavail'), 'err');
     }
 }
-function listInputs() { return midiAccess ? [...midiAccess.inputs.values()] : []; }
+// Chrome keeps an unplugged port in the map with state 'disconnected': it is not an input until it is back.
+function listInputs() { return midiAccess ? [...midiAccess.inputs.values()].filter((i) => i.state !== 'disconnected') : []; }
+function midiFindLost(ins: MIDIInput[]) { const l = midiLost; if (!l)
+    return undefined; return ins.find((i) => i.id === l.id) || (l.name ? ins.find((i) => i.name === l.name) : undefined); }
 function pickArturia(ins: MIDIInput[]) { const c = ins.filter((i) => /microlab|arturia/i.test(i.name ?? '')); if (!c.length)
     return null; const g = c.filter((i) => !/daw|midiin2|control|thru/i.test(i.name ?? '')); return g[0] || c[0]; }
 function refreshDeviceList(autoPick: boolean) {
@@ -2050,21 +2056,29 @@ function refreshDeviceList(autoPick: boolean) {
     if (!ins.length) {
         sel.innerHTML = '<option>—</option>';
         activeInputId = null;
-        setMidi(t('midi_noinputs'), 'err');
+        setMidi(midiLost ? t('midi_waiting', midiLost.name || 'MIDI') : t('midi_noinputs'), 'err');
         return;
     }
     ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
     const still = activeInputId && ins.some((i) => i.id === activeInputId);
     const remembered = !still && savedDevice ? ins.find((i) => i.id === savedDevice) : undefined; // reconnect the device used last time
-    const chosen = (still ? ins.find((i) => i.id === activeInputId) : undefined) || remembered || ((autoPick || !activeInputId) ? (pickArturia(ins) || ins[0]) : ins[0]);
+    const chosen = midiFindLost(ins) || (still ? ins.find((i) => i.id === activeInputId) : undefined) || remembered || ((autoPick || !activeInputId) ? (pickArturia(ins) || ins[0]) : ins[0]);
     if (!chosen)
         return;
     sel.value = chosen.id;
-    attachInput(chosen.id);
+    midiAuto = true;
+    try {
+        attachInput(chosen.id);
+    }
+    finally {
+        midiAuto = false;
+    }
 }
 function attachInput(id: string) { if (activeInputId && activeInputId !== id)
     releaseLiveInput(); listInputs().forEach((i) => i.onmidimessage = null); const inp = listInputs().find((i) => i.id === id); if (!inp)
-    return; inp.onmidimessage = onMidiMessage; activeInputId = id; savedDevice = id; setMidi(inp.name, 'on'); saveAll(); }
+    return; const standIn = midiAuto && !!midiLost && midiFindLost([inp]) !== inp; if (!standIn)
+    midiLost = null; inp.onmidimessage = onMidiMessage; activeInputId = id; activeInputName = inp.name || ''; if (!standIn)
+    savedDevice = id; setMidi(inp.name, 'on'); saveAll(); } // a stand-in is not remembered for the next visit
 function autoReconnectMidi() {
     if (!navigator.permissions || !navigator.requestMIDIAccess)
         return;
@@ -2076,6 +2090,7 @@ function autoReconnectMidi() {
     catch (_) { }
 }
 function onStateChange() { const was = activeInputId, ins = listInputs(), present = activeInputId && ins.some((i) => i.id === activeInputId); if (was && !present) {
+    midiLost = { id: was, name: activeInputName };
     panic();
     activeInputId = null;
 } refreshDeviceList(false); }
@@ -2297,17 +2312,19 @@ function bleOnGone(e: BleDisconnectEvent) {
     else
         bleUi();
 }
-// After an unexpected drop, try the same device again a few times (no chooser needed), then hand over to the Reconnect button.
+// After an unexpected drop, try the same device again (no chooser needed), backing off for about a minute: long enough for a piano
+// that was switched off and on, or carried out of range and back. Then hand over to the Reconnect button.
+const BLE_RETRY_MS = [500, 1000, 2000, 4000, 8000, 15000, 30000];
 function bleRetry() {
     const dev = BLE.dev;
     if (!dev || !BLE.want)
         return;
-    if (BLE.tries >= 3) {
+    if (BLE.tries >= BLE_RETRY_MS.length) {
         BLE.want = false;
         bleSet('ble_gone', 'err');
         return;
     }
-    const wait = [500, 2000, 5000][BLE.tries++];
+    const wait = BLE_RETRY_MS[BLE.tries++];
     bleSet('ble_lost', 'err');
     clearTimeout(BLE.retryT);
     BLE.retryT = window.setTimeout(() => { if (BLE.want && BLE.dev === dev && !bleLive())
