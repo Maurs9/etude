@@ -123,6 +123,29 @@ test.describe('Read & play and Voice layout on wide windows', () => {
     await expect.poll(() => fill(page, 'rd-staff').then(f => f.overflow <= 1 && f.share >= 0.75 && f.share <= 1.001)).toBe(true);
   });
 
+  test('on the full-screen stage a short one-staff melody is drawn at least as tall as before the layout change', async ({ app, page }) => {
+    // Four bars of quarters on the treble staff, no ledger lines: the hugged score is short (about 100 units), and scaled to
+    // the stage's width it came out 154px tall, below the natural score's 150 units at the old stage scale (1.35).
+    await openGenerated(app, page, 1280, 800);
+    await page.locator('#rd-mode button[data-v="learn"]').click();
+    await page.evaluate(() => {
+      const a = window.__etude, bar = ['E4', 'G4', 'B4', 'D5'].map(n => [n, 1]);
+      a.SR.piece = Object.assign({}, a.SR.piece, { rh: [...bar, ...bar, ...bar, ...bar], lh: undefined, ts: [4, 4], keyN: 0, pickup: 0 });
+      a.srDraw();
+    });
+    await page.locator('#rd-go').click();
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
+    const geo = await page.locator('#rd-staff').evaluate((wrap) => {
+      const svg = wrap.querySelector('svg'), w = wrap.getBoundingClientRect(), s = svg.getBoundingClientRect(), r = window.__etude.SR.render;
+      return { h: s.height, systems: r.systems.length, scale: r.scale, inside: s.top >= w.top - 1 && s.bottom <= w.bottom + 1 && s.left >= w.left - 1 && s.right <= w.right + 1, overflow: wrap.scrollWidth - wrap.clientWidth };
+    });
+    expect(geo.systems).toBe(1);
+    expect(geo.scale).toBeGreaterThanOrEqual(1.35);
+    expect(geo.h).toBeGreaterThanOrEqual(150 * 1.35);
+    expect(geo.inside).toBe(true);
+    expect(geo.overflow).toBeLessThanOrEqual(1);
+  });
+
   test('the Learn staves and the inline Learn examples keep their natural size', async ({ app, page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await app.open({ hash: 'read' });
