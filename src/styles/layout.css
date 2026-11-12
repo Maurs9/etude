@@ -39,3 +39,18 @@
   #rdx-stats .rdx-stat-p:has(> .rdx-heat) > :not(.rdx-heat){grid-column:1 / -1}
   #rdx-stats .rdx-heat .rdx-svg{display:block; width:100%; max-width:640px; height:auto}
 }
+
+/* Learn: the lesson staves (lStaffFit sets --sw, the drawn width) grow to the panel width, up to 1.35 times; a staff
+   wider than the panel keeps its size and scrolls, as on a phone. */
+@media (min-width:1000px){
+  .learn-body .ss-wrap > .ss-svg[style*="--sw"]{width:max(var(--sw), min(100%, calc(var(--sw) * 1.35))); height:auto}
+}
+@media (min-width:1200px){
+  /* the glossary's short entries in two columns, still alphabetical down each column */
+  .learn-body .lg-list{columns:2; column-gap:32px}
+  .learn-body .lg-it{break-inside:avoid}
+  /* cheat sheets: the term column is as wide as the longest term, so each value sits next to its term */
+  .lsum dl,.lw-dl{grid-template-columns:fit-content(38%) minmax(0,1fr)}
+  .lsum dl > div,.lw-dl > div{grid-column:1 / -1; grid-template-columns:subgrid; column-gap:20px}
+  .lsum dt,.lw-dl dt{min-width:110px}
+}

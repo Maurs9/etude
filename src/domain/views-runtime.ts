@@ -5259,7 +5259,11 @@ function lStaffSvg(key: string) {
         svg = svg.replace(/viewBox="0 0 ([\d.]+) ([\d.]+)" width="([\d.]+)" height="([\d.]+)"/, (m: string, w: string, h: string) => { const H = Math.max(+h, needH); return 'viewBox="0 0 ' + w + ' ' + H + '" width="' + w + '" height="' + H + '"'; });
     svg = svg.replace(/<g class="ss-n" data-nid="(\d+)">/g, (m: string, id: string) => { const n = r.notes[+id]; return '<g class="ss-n" data-nid="' + id + '" tabindex="0" role="button" aria-label="' + t('lu_note_aria', noteName(n.midi, (P.keyN || 0) < 0), Math.floor(n.beat - (P.pickup || 0) + 1e-3) + 1) + '">'; });
     svg = svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="group" aria-label="' + LT(S.cap).replace(/"/g, '&quot;') + '"');
-    return svg.replace('</svg>', out + '</svg>');
+    return lStaffFit(svg.replace('</svg>', out + '</svg>'), r.W);
+}
+/** Gives a Learn staff its drawn width as --sw, so layout.css can let it grow to a wide lesson panel. */
+function lStaffFit(svg: string, w: number) {
+    return svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" style="--sw:' + w + 'px"');
 }
 function lStaffHTML(key: string) {
     const S = LSTAVES[key];
@@ -6001,7 +6005,7 @@ function lSp(li: number, acc: number) { return spelledName(notation, li, acc); }
 function lPitch(li: number, acc: number, midi: number) { return LLET[li] + (acc > 0 ? '#' : acc < 0 ? 'b' : '') + (Math.floor((midi - acc) / 12) - 1); }
 function lStaffSmall(piece: { rh: SrToken[]; lh?: SrToken[]; keyN?: number }, label: string) {
     const r = srRender(Object.assign({ ts: [4, 4], keyN: 0, noNames: true }, piece));
-    return '<div class="ss-wrap lw-staff">' + r.svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="img" aria-label="' + label.replace(/"/g, '&quot;') + '"') + '</div>';
+    return '<div class="ss-wrap lw-staff">' + lStaffFit(r.svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="img" aria-label="' + label.replace(/"/g, '&quot;') + '"'), r.W) + '</div>';
 }
 function lSel(wi: string, opts: (string|number)[][], cur: string|number, lab: string) { return '<label><span>' + lab + '</span><select data-wi="' + wi + '">' + opts.map((o) => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>'; }
 const LW_PRESETS = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor', 'Dorian', 'Major pentatonic', 'Minor pentatonic', 'Blues'];
