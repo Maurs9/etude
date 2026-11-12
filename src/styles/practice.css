@@ -36,8 +36,21 @@
 .pr-chip:hover{border-color:var(--accent); color:var(--accent)}
 .pr-chip[aria-checked="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 
+/* Direction (Intervals by ear) */
+#pr-dir button{min-height:44px}
+
 /* Start: names the choice, so a long label wraps */
 .pr-go{margin-top:24px; min-height:48px; justify-content:center; white-space:normal; text-align:center; line-height:1.3}
+
+/* Song hints (Intervals): the interval song book, folded until opened */
+.pr-songs{margin-top:14px}
+.pr-songs-sum{list-style:none; min-height:44px; display:flex; align-items:center; gap:8px; cursor:pointer; font:600 15px/1.3 var(--sans); color:var(--ink)}
+.pr-songs-sum::before{content:"▸"; color:var(--accent); transition:transform .12s}
+.pr-songs[open] > .pr-songs-sum::before{transform:rotate(90deg)}
+.pr-songs-sum::-webkit-details-marker{display:none}
+.pr-songs-lede{margin:6px 0 12px; font-size:14px}
+.pr-songs-ctl{align-items:center; margin-bottom:14px}
+.pr-songs-ctl .seg button{min-height:44px}
 
 @media (max-width:680px){
   #pr-home .pr-setup{padding:16px 14px}
@@ -48,5 +61,9 @@
   .pr-keys{flex-wrap:nowrap; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; scrollbar-width:thin}
   .pr-chip{scroll-snap-align:start}
   .pr-redo{width:100%}
+  #pr-dir{display:flex; width:100%}
+  #pr-dir button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center}
+  .pr-songs{padding:12px 14px}
+  .pr-songs .songs{grid-template-columns:minmax(0,1fr)}
 }
-@media (prefers-reduced-motion:reduce){ .pr-chip{transition:none} }
+@media (prefers-reduced-motion:reduce){ .pr-chip, .pr-songs-sum::before{transition:none} }

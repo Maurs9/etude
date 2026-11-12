@@ -15,7 +15,6 @@
     ['nav_sing','Cantar','Chanter','Singen','Canta','Cantar'],
     ['nav_accompany','Acompañar','Accompagner','Begleiten','Accompagna','Acompanhar'],
     ['nav_transcribe','Transcribir','Transcrire','Transkribieren','Trascrivi','Transcrever'],
-    ['nav_songs','Canciones','Chansons','Lieder','Canzoni','Canções'],
     ['nav_method','Método','Méthode','Methode','Metodo','Método'],
     ['menu','Menú','Menu','Menü','Menu','Menu'],
     ['help','Ayuda','Aide','Hilfe','Aiuto','Ajuda'],

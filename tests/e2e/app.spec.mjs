@@ -5,13 +5,21 @@ import { test, expect, todayN, APP } from '../helpers/fixtures.mjs';
 import { scorePedalCollisions } from '../helpers/score-audit-helpers.mjs';
 import { STRINGS } from '../../src/locales/index.js';
 
-const VIEWS = ['today', 'learn', 'songs', 'method', 'practice', 'read', 'sing', 'analysis', 'explore', 'accompany', 'transcribe', 'progress'];
+const VIEWS = ['today', 'learn', 'method', 'practice', 'read', 'sing', 'analysis', 'explore', 'accompany', 'transcribe', 'progress'];
+// Screens that moved into the Practice setup: their names still open it.
+const MOVED = ['songs'];
 
 test('boots and visits every view without uncaught errors', async ({ app }) => {
   const page = await app.open();
   for (const v of VIEWS) {
     await page.evaluate(v => window.__etude.show(v), v);
     await expect(page.locator('#view-' + v)).toHaveClass(/active/);
+  }
+  for (const v of MOVED) {
+    await page.evaluate(() => window.__etude.show('today'));
+    await page.evaluate(v => window.__etude.show(v), v);
+    await expect(page.locator('#view-practice')).toHaveClass(/active/);
+    await expect(page.locator('#view-' + v)).toHaveCount(0);
   }
 });
 

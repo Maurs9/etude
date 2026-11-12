@@ -1099,16 +1099,6 @@
     #view-learn .learn-extra .btn{justify-content:center; width:100%}
   }
   #view-learn h3[tabindex="-1"]:focus{outline:none}
-  .sq{margin-top:16px}
-  .sq-row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
-  .sq-score{margin-left:auto; font-size:13px; color:var(--muted); font-weight:600}
-  .sq-ans{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px}
-  .sq-ans button{appearance:none; border:1px solid var(--line); background:var(--paper); color:var(--ink); border-radius:9px; padding:7px 11px; font:600 13px var(--sans); cursor:pointer}
-  .sq-ans button:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
-  .sq-ans button[data-r="good"]{background:var(--good-bg); border-color:var(--good); color:var(--good)}
-  .sq-ans button[data-r="bad"]{border-color:var(--bad); color:var(--bad)}
-  .sq-ans button:disabled{cursor:default}
-  .songcard[data-hl="true"]{border-color:var(--gold); box-shadow:inset 0 0 0 1px var(--gold)}
   .ref-field{flex-wrap:wrap}
   #ac-chain .ch{display:inline-block; padding:2px 8px; border-radius:7px; transition:background .12s}
   #ac-chain .ch.on{background:var(--accent); color:var(--accent-ink)}
@@ -1135,7 +1125,6 @@
   details.osmd-lic + footer{border-top:none}
   @media (max-width:680px){
     .plan{padding:16px}
-    .sq-score{margin-left:0; flex-basis:100%}
   }
   @media (max-width:420px){
     .midi-chip{padding:6px 9px}

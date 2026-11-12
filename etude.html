@@ -423,11 +423,26 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="seg" id="pr-mode" role="group" aria-labelledby="pr-mode-h"><button type="button" data-v="play" data-i18n="pr_playit" aria-pressed="true">Play it</button><button type="button" data-v="ear" data-i18n="pr_byear" aria-pressed="false">By ear</button><button type="button" data-v="keys" data-i18n="pr_onkeys" aria-pressed="false">By ear, on keys</button></div>
         <p class="pr-mode-hint" id="pr-mode-hint" role="status" aria-live="polite"></p>
         <p class="pr-mode-note" id="pr-mode-note" role="status" aria-live="polite" hidden></p>
+        <!-- Intervals by ear: the direction the interval is played in (prSetDir). -->
+        <div id="pr-dir-row" hidden>
+          <h2 class="pr-sec" id="pr-dir-h" data-i18n="aria_dir">Direction</h2>
+          <div class="seg" id="pr-dir" role="group" aria-labelledby="pr-dir-h"><button type="button" data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button type="button" data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button><button type="button" data-v="both" data-i18n="dir_both" aria-pressed="false">Both</button></div>
+        </div>
         <h2 class="pr-sec" id="pr-key-h" data-i18n="pr_key">Key</h2>
         <div class="pr-keys" id="pr-keys" role="radiogroup" aria-labelledby="pr-key-h"></div>
         <select id="pr-key" hidden tabindex="-1" aria-hidden="true"></select>
         <button type="button" class="btn primary pr-go" id="pr-start">Start drilling</button>
       </div>
+      <!-- Intervals: the interval song book, famous tunes that open with each interval (renderSongs). -->
+      <details class="panel pr-songs" id="pr-songs" hidden>
+        <summary class="pr-songs-sum"><span data-i18n="pr_songs">Song hints</span></summary>
+        <p class="lede pr-songs-lede" data-i18n="songs_lede">Every interval, with famous tunes that open with it. Hum a song you know to lock in the sound. Click any title to hear the interval.</p>
+        <div class="row pr-songs-ctl">
+          <label class="field"><span data-i18n="songs_from">From</span> <select id="song-root" aria-label="Reference root" data-i18n-aria="aria_refroot"></select></label>
+          <div class="seg" id="song-dir" role="group" aria-label="Direction" data-i18n-aria="aria_dir"><button type="button" data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button type="button" data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button></div>
+        </div>
+        <div class="songs" id="songsList"></div>
+      </details>
       <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="pr_hint">The drill opens with the keyboard dock below. Answer by playing or by picking an option; press End to see your score.</p>
     </div>
   </section>
@@ -583,31 +598,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <label class="field"><span data-i18n="ex_keyctx">Key context</span> <select id="keyCtx"><option value="-1">none</option></select></label>
         </div>
       </div>
-    </div>
-  </section>
-
-  <!-- ===================== SONGS ===================== -->
-  <section class="view" id="view-songs">
-    <div class="wrap">
-      <div class="section-head">
-        <div><div class="eyebrow" data-i18n="songs_eyebrow">Ear training</div><h1 data-i18n="songs_title">Interval song book</h1></div>
-        <div class="row">
-          <label class="field"><span data-i18n="songs_from">From</span> <select id="song-root" aria-label="Reference root" data-i18n-aria="aria_refroot"></select></label>
-          <div class="seg" id="song-dir" role="group" aria-label="Direction" data-i18n-aria="aria_dir"><button data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button></div>
-        </div>
-      </div>
-      <p class="lede" data-i18n="songs_lede">Every interval, with famous tunes that open with it. Hum a song you know to lock in the sound. Click any title to hear the interval.</p>
-      <div class="panel sq" id="sq">
-        <div class="sq-row">
-          <div><div class="eyebrow" style="margin:0" data-i18n="sq_eyebrow">Ear check</div><b data-i18n="sq_title">Which interval is this?</b></div>
-          <button type="button" class="btn primary" id="sq-go" data-i18n="sq_start">▶ Play a random interval</button>
-          <button type="button" class="btn ghost" id="sq-again" data-i18n="hear_again" hidden>▶ Hear again</button>
-          <span class="sq-score num" id="sq-score" aria-live="polite"></span>
-        </div>
-        <div class="sq-ans" id="sq-ans" role="group" aria-label="Answers" data-i18n-aria="sq_answers" hidden></div>
-        <div class="verdict" id="sq-verdict" role="status" aria-live="polite"></div>
-      </div>
-      <div class="songs" id="songsList" style="margin-top:16px"></div>
     </div>
   </section>
 

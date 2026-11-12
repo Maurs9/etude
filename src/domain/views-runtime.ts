@@ -200,7 +200,7 @@ const KEY = storage.PTT_KEY, isBackupPayload = storage.isBackupPayload, isRecord
 const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = theory.SCALE_DEGREE_LABELS, anFnKey = theory.analysisFunction, anDiatonic = theory.anDiatonic, anIntervalName = theory.anIntervalName, anKeyRank = theory.anKeyRank, anPcWeights = theory.anPcWeights, anResolveKey = theory.anResolveKey, CHORD_TEMPLATES = theory.CHORD_TEMPLATES, chordDegreeMap = theory.chordDegreeMap, chordInversion = theory.chordInversion, chordPitches = theory.chordPitches, srKeyName = theory.circleKeyPitchClass, formatChordFormula = theory.formatChordFormula, formatScaleFormula = theory.formatScaleFormula, identifyChordDomain = theory.identifyChord, keyFifths = theory.keyFifths, keyFromFifths = theory.keyFromFifths, midiToFrequency = theory.midiToFrequency, pitchClass = theory.pitchClass, PROGRESSION_TEMPLATES = theory.PROGRESSION_TEMPLATES, rdSpellMidi = theory.readingSpelling, romanFor = theory.romanFor, SCALE_DEFINITIONS = theory.SCALE_DEFINITIONS, scorePitch = theory.scorePitchXml, spellMidi = theory.spellMidi;
 const AudioEngine = audio.AudioEngine;
 const createScoreRenderer = notationApi.createScoreRenderer, loadOsmd = notationApi.loadOsmd, mxlToXml = notationApi.mxlToXml, notationReloadMessage = notationApi.notationReloadMessage, scorePatchOsmd = notationApi.scorePatchOsmd;
-const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView;
+const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView, isMovedView = router.isMovedView;
 function t(k: string, ...args: Array<string | number | null | undefined>): string { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
     return k; if (!args.length)
     return v; if (args[0] != null)
@@ -417,8 +417,6 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     renderCircle();
     if (view0() === 'today')
         refreshToday();
-    else if (view0() === 'songs')
-        renderSongs();
     else if (view0() === 'progress')
         renderProgress();
     else if (view0() === 'explore')
@@ -3096,10 +3094,13 @@ function masteredCount() { return ITEMS.filter((it) => boxOf(it.id) >= 4).length
 interface EarKeysNote { m: number; t: number; }
 type EarKeysPrompt = { kind: 'iv'; target: number[]; n: number; } | { kind: 'ch'; target: number[]; inv: number; pcs: number[]; n: number; } | { kind: 'mel'; target: number[]; n: number; };
 type EarKeysState = EarKeysPrompt & { tries: number; seq: EarKeysNote[]; off: number; armAt: number; goT: ReturnType<typeof setTimeout> | number; won: boolean; warned: boolean; played?: number[]; };
-interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; }
+// dir: an interval by ear played downwards ('desc'); without it, upwards.
+interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; dir?: 'asc' | 'desc'; }
 // A wrong answer: what was given against what was expected, both sounds for Hear both, and the item taken for this one (`pair`).
 interface TrainerGiven { text: string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
-interface TrainerSessionTarget { cat: string; mode: string; key: string; }
+// dir: the Direction an Intervals by-ear drill plays its intervals in ('both' picks one per question).
+type IntervalDirection = 'asc' | 'desc' | 'both';
+interface TrainerSessionTarget { cat: string; mode: string; key: string; dir?: IntervalDirection; }
 // contrast: a short drill on two items the last session mixed up (its question order, by item id).
 interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; contrast: { a: string; b: string; order: string[] } | null; }
 const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0, contrast: null };
@@ -3166,7 +3167,11 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
         key = (+SES.targeted.key) || 0; // honour the key picked in Practice
     else
         key = b < 1 ? randItem([0, 7, 5, 2, 9]) : Math.floor(Math.random() * 12); // start in friendly keys
-    return { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
+    const q: TrainerQuestion = { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
+    const dir = it.cat === 'interval' && mode === 'ear' ? SES.targeted?.dir : undefined;
+    if (dir)
+        q.dir = dir === 'both' ? randItem<'asc' | 'desc'>(['asc', 'desc']) : dir;
+    return q;
 }
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
     ensureAudio();
@@ -3387,7 +3392,7 @@ function presentEar(q: TrainerQuestion) {
     let opts: { k: number | string; t: string; }[] = [];
     if (it.cat === 'interval') {
         opts = INTERVALS.map((iv) => ({ k: iv.semi, t: iv.short + ' · ' + ivName(iv.semi) }));
-        sesPrompt(q, () => playInterval(earRoot(q), it.semi, 'both'));
+        sesPrompt(q, () => playIvDir(earRoot(q), it.semi, q.dir ?? 'asc'));
     }
     else if (it.cat === 'chord') {
         opts = (SES.contrast ? ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord') : chordEarOptions(it)).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
@@ -3421,7 +3426,7 @@ function playQuestionSound(q: TrainerQuestion) {
         return;
     }
     if (it.cat === 'interval')
-        playInterval(earRoot(q), it.semi, 'both');
+        playIvDir(earRoot(q), it.semi, q.dir ?? 'asc');
     else if (it.cat === 'chord')
         playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true);
     else if (it.cat === 'scale')
@@ -3485,7 +3490,7 @@ function ekBuild(q: TrainerQuestion): EarKeysPrompt {
     const it = q.it;
     if (it.cat === 'interval') {
         const r = earRoot(q);
-        return { kind: 'iv', target: [r, r + it.semi], n: 2 };
+        return { kind: 'iv', target: q.dir === 'desc' ? [r + it.semi, r] : [r, r + it.semi], n: 2 };
     }
     if (it.cat === 'chord') {
         const ivs = [...new Set(it.ref.intervals)].sort((a, b) => a - b), n = ivs.length;
@@ -3620,13 +3625,13 @@ function ekIv(q: TrainerQuestion) {
     const ek = q.ek;
     if (!ek || SES.answered || SES.q !== q || !ek.seq.length)
         return;
-    const s = ek.seq, start = ek.target[0], semi = ek.target[1] - start;
+    const s = ek.seq, start = ek.target[0], semi = ek.target[1] - start; // semi < 0: a descending interval
     let a = s[0], b = s[1];
-    if (b && Math.abs(b.t - a.t) <= 80 && b.m < a.m) {
+    if (b && Math.abs(b.t - a.t) <= 80 && (semi < 0 ? b.m > a.m : b.m < a.m)) {
         const x = a;
         a = b;
         b = x;
-    } // struck together: the lower note is the start
+    } // struck together: the lower note is the start (the upper one when it descends)
     if (pc(a.m) !== pc(start)) {
         ekFlash([a.m], 'bad');
         setTimeout(() => { kbClear('bad'); if (SES.q === q && !SES.answered)
@@ -3650,7 +3655,8 @@ function ekIv(q: TrainerQuestion) {
         return;
     }
     q.given = givenInterval(q, a.m, b.m, a.m);
-    ekMiss(q, [b.m], b.m < a.m ? t('ek_wrong_down') : t('ek_wrong_iv', intervalLabel(b.m - a.m)));
+    const wrongWay = semi < 0 ? b.m > a.m : b.m < a.m;
+    ekMiss(q, [b.m], wrongWay ? t(semi < 0 ? 'ek_wrong_up' : 'ek_wrong_down') : t('ek_wrong_iv', intervalLabel(Math.abs(b.m - a.m))));
 }
 function ekCh(q: TrainerQuestion) {
     const ek = q.ek;
@@ -3892,8 +3898,8 @@ function progMidis(rootPc: number, prog: theory.ProgressionTemplate) { return pr
 function givenByEar(q: TrainerQuestion, k: number | string): TrainerGiven | null {
     const it = q.it, pair = ITEM_BY_ID[earOptionId(it.cat, k)] ? earOptionId(it.cat, k) : undefined;
     if (it.cat === 'interval' && typeof k === 'number') {
-        const r = earRoot(q);
-        return { text: t('fb_picked', ivName(k), ivName(it.semi)), given: feedbackBroken([r, r + k]), expected: feedbackBroken([r, r + it.semi]), pair };
+        const r = earRoot(q), two = (semi: number) => feedbackBroken(q.dir === 'desc' ? [r + semi, r] : [r, r + semi]);
+        return { text: t('fb_picked', ivName(k), ivName(it.semi)), given: two(k), expected: two(it.semi), pair };
     }
     if (it.cat === 'chord') {
         const ref = CHORDS.find((c) => c.symbol === k);
@@ -3919,11 +3925,11 @@ function givenInterval(q: TrainerQuestion, lo: number, hi: number, from: number)
     const it = q.it;
     if (it.cat !== 'interval')
         return null;
-    const semi = hi - lo, rootOk = pc(lo) === q.key || (!!q.ek && pc(lo) === pc(q.ek.target[0]));
+    const sign = q.dir === 'desc' ? -1 : 1, semi = hi - lo, rootOk = pc(lo) === q.key || (!!q.ek && pc(lo) === pc(q.ek.target[0]));
     const given = rootOk ? intervalLabel(Math.abs(semi)) : noteNames([lo, hi]) + ' (' + intervalLabel(Math.abs(semi)) + ')';
     const expected = rootOk ? ivName(it.semi) : ivName(it.semi) + ' ' + t('above') + ' ' + rootName(q.key);
-    const pair = rootOk && semi > 0 && ITEM_BY_ID['iv:' + semi] ? 'iv:' + semi : undefined;
-    return { text: t('fb_played', given, expected), given: feedbackBroken([lo, hi]), expected: feedbackBroken([from, from + it.semi]), pair };
+    const pair = rootOk && semi * sign > 0 && ITEM_BY_ID['iv:' + Math.abs(semi)] ? 'iv:' + Math.abs(semi) : undefined;
+    return { text: t('fb_played', given, expected), given: feedbackBroken([lo, hi]), expected: feedbackBroken([from, from + sign * it.semi]), pair };
 }
 // Keys for a chord question (or chord `chordNo` of a progression), named as a chord when they make one.
 function givenChord(q: TrainerQuestion, ms: readonly number[], expectedMidis: readonly number[], chordNo: number | null): TrainerGiven | null {
@@ -3987,6 +3993,16 @@ function startContrast(pair: ConfusionPair) {
     startSession({ cat: a.cat, mode: 'ear', key: 'all' }, { a: a.id, b: b.id, order: contrastOrder(a.id, b.id) });
 }
 function neutral(msg: string|null) { const v = byId('q-verdict'); v.className = 'verdict neutral'; v.textContent = msg; }
+// The Today plan's Ear check: right answers by ear today (earDay, earToday), in any drill and in the review session.
+function countEarAnswer() {
+    const tn = todayN();
+    if (data.earDay !== tn) {
+        data.earDay = tn;
+        data.earToday = 0;
+    }
+    data.earToday = (data.earToday || 0) + 1;
+    saveSoon();
+}
 function resolve(q: TrainerQuestion, correct: boolean) {
     if (SES.answered)
         return;
@@ -4001,6 +4017,8 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     SES.total++;
     if (good)
         SES.correct++;
+    if (good && q.mode === 'ear' && !SES.placement)
+        countEarAnswer();
     const v = byId('q-verdict');
     if (correct && !q.missed) {
         v.className = 'verdict good';
@@ -4063,7 +4081,7 @@ function showElaboration(q: TrainerQuestion) {
     const it = q.it, e = byId('q-elab');
     let html = '';
     if (it.cat === 'interval') {
-        const s = songsFor(it.semi, 'asc');
+        const s = songsFor(it.semi, q.dir ?? 'asc');
         html = '<b>' + ivName(it.semi) + '</b> = ' + it.semi + ' ' + t('el_semitones') + (s.length && !/^\(/.test(s[0]) ? ' · ' + t('el_soundslike') + ' “' + s[0] + '”' : '');
     }
     else if (it.cat === 'chord') {
@@ -4186,6 +4204,10 @@ function focusView(v: string) {
     target.focus({ preventScroll: true });
 }
 let show = function show(v: string|undefined, moveFocus = true) {
+    if (v !== undefined && isMovedView(v)) {
+        prOpenMoved(v, moveFocus);
+        return;
+    }
     if (v === undefined || !isAppView(v))
         return;
     const prev = _view;
@@ -4284,8 +4306,6 @@ let show = function show(v: string|undefined, moveFocus = true) {
         renderLearn();
     if (v === 'read')
         renderRead();
-    if (v === 'songs')
-        renderSongs();
     if (v === 'progress')
         renderProgress();
     if (v === 'accompany')
@@ -4335,7 +4355,7 @@ window.addEventListener('popstate', (e) => {
     if (modal !== 'drawer' && byId('drawer').classList.contains('on'))
         openDrawer(false, true);
     const v = location.hash.slice(1);
-    if (navGroup(v) && v !== _view) {
+    if ((navGroup(v) || isMovedView(v)) && v !== _view) {
         _routed = false;
         show(v);
     }
@@ -4859,11 +4879,12 @@ function initExploreControls() {
         return; cof.flavor = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
     byId('cof-play').addEventListener('click', () => { cofSyncRef(); cofPlay(); });
 }
-/* ---------- SONGS ---------- */
+/* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
 let songDir = 'asc';
+// Builds the 12 cards while the panel is open; opening it builds them (the panel's toggle event).
 function renderSongs() {
-    const box = byId('songsList');
-    if (!box)
+    const box = maybeById('songsList'), panel = maybeById('pr-songs');
+    if (!box || !(panel instanceof HTMLDetailsElement) || !panel.open || panel.hidden)
         return;
     box.innerHTML = '';
     const root = 60 + parseInt(selectById('song-root').value || '0', 10);
@@ -4872,8 +4893,6 @@ function renderSongs() {
         const card = (document).createElement('div');
         card.className = 'songcard';
         card.dataset.semi = String(semi);
-        if (SQ.answered && SQ.started && SQ.semi === semi)
-            card.dataset.hl = 'true';
         card.innerHTML = '<div class="hd"><b>' + ivName(semi) + '</b><span class="sh">' + iv.short + '</span></div>';
         const play = (document).createElement('button');
         play.type = 'button';
@@ -4889,80 +4908,6 @@ function renderSongs() {
         card.appendChild(ul);
         box.appendChild(card);
     }
-    sqRender();
-}
-/* interval ear check: a random interval in the chosen direction, answered from the 12 names */
-const SQ = { started: false, answered: true, semi: 0, root: 60, dir: 'asc', pick: 0, right: 0, total: 0 };
-function sqPlay() { ensureAudio(); playIvDir(SQ.root, SQ.semi, SQ.dir); }
-function sqNew() {
-    SQ.started = true;
-    SQ.answered = false;
-    SQ.pick = 0;
-    SQ.semi = 1 + Math.floor(Math.random() * 12);
-    SQ.root = 55 + Math.floor(Math.random() * 10);
-    SQ.dir = songDir;
-    (document).querySelectorAll('#songsList .songcard').forEach((c) => c.removeAttribute('data-hl'));
-    byId('sq-verdict').textContent = '';
-    byId('sq-verdict').className = 'verdict';
-    sqRender();
-    sqPlay();
-    const f = byId('sq-ans').querySelector('button');
-    if (f)
-        f.focus();
-}
-function sqRender() {
-    const a = byId('sq-ans');
-    if (!a)
-        return;
-    a.hidden = !SQ.started;
-    byId('sq-again').hidden = !SQ.started;
-    byId('sq-go').textContent = t(SQ.started ? 'sq_next' : 'sq_start');
-    byId('sq-score').textContent = SQ.total ? t('sq_score', SQ.right, SQ.total) : '';
-    if (!SQ.started)
-        return;
-    a.innerHTML = '';
-    for (let n = 1; n <= 12; n++) {
-        const b = (document).createElement('button');
-        b.type = 'button';
-        b.textContent = ivName(n);
-        b.dataset.semi = String(n);
-        if (SQ.answered) {
-            b.disabled = true;
-            if (n === SQ.semi)
-                b.dataset.r = 'good';
-            else if (n === SQ.pick)
-                b.dataset.r = 'bad';
-        }
-        a.appendChild(b);
-    }
-}
-function sqAnswer(n: number) {
-    if (SQ.answered || !SQ.started)
-        return;
-    SQ.answered = true;
-    SQ.pick = n;
-    SQ.total++;
-    const ok = n === SQ.semi;
-    if (ok)
-        SQ.right++;
-    const hook = songsFor(SQ.semi, SQ.dir).find((x) => !/^\(/.test(x)), v = byId('sq-verdict');
-    v.className = 'verdict ' + (ok ? 'good' : 'bad');
-    v.textContent = t(ok ? 'sq_good' : 'sq_bad', ivName(SQ.semi)) + (hook ? ' ' + t('sq_hook', hook) : '');
-    if (data.earDay !== todayN()) {
-        data.earDay = todayN();
-        data.earToday = 0;
-    }
-    if (ok)
-        data.earToday = (data.earToday || 0) + 1;
-    saveAll();
-    const card = queryHtml(document, '#songsList .songcard[data-semi="' + SQ.semi + '"]');
-    if (card)
-        card.dataset.hl = 'true';
-    sqRender();
-    byId('sq-go').focus();
-    if (!ok)
-        setTimeout(() => { if (view0() === 'songs')
-            sqPlay(); }, 450);
 }
 /* ============================================================================
    LEARN — bilingual theory handbook. Every demo button routes through the
@@ -17079,7 +17024,7 @@ function renderProgress() {
 }
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
-function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : 'nav_' + v); }
+function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : v === 'songs' ? 'pr_songs' : 'nav_' + v); }
 interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
 function renderPlan() {
     const list = byId('plan-list');
@@ -17093,7 +17038,7 @@ function renderPlan() {
                 startSession(null); } },
         ...learnPlanItems(tn),
         { id: 'read', done: td.read === tn, t: t('plan_read'), d: t('plan_read_d'), go: () => show('read') },
-        { id: 'ear', done: ear >= 5, partial: ear > 0 && ear < 5, prog: Math.min(1, ear / 5), pill: Math.min(ear, 5) + '/5', t: t('plan_ear'), d: ear ? t('plan_ear_dn', Math.min(ear, 5)) : t('plan_ear_d'), go: () => { show('songs'); byId('sq-go').focus(); } },
+        { id: 'ear', done: ear >= 5, partial: ear > 0 && ear < 5, prog: Math.min(1, ear / 5), pill: Math.min(ear, 5) + '/5', t: t('plan_ear'), d: ear ? t('plan_ear_dn', Math.min(ear, 5)) : t('plan_ear_d'), go: prEarCheck },
     ];
     const nextIdx = items.findIndex((i) => !i.done);
     list.innerHTML = '';
@@ -17126,7 +17071,7 @@ function renderPlan() {
         cb.textContent = t('plan_continue', nextIt.t);
         cb.onclick = nextIt.go;
     }
-    else if (lt && lt !== 'today' && navGroup(lt)) {
+    else if (lt && lt !== 'today' && (navGroup(lt) || isMovedView(lt))) {
         cb.hidden = false;
         cb.textContent = t('plan_continue', toolName(lt));
         cb.onclick = () => show(lt);
@@ -17141,7 +17086,8 @@ function prRecordDrill() { if (!SES.targeted || !SES.total)
 // The setup screen holds one choice: the topic in #pr-cat, the mode in #pr-mode (aria-pressed) and the key in #pr-key.
 // #pr-cat and #pr-key are hidden; the topic cards and key chips are their only visible controls. Every caller
 // (Today focus cards, Progress "Needs work", Learn links, Continue, tests) changes the choice through prSetTopic,
-// prSetMode and prSetKey, and reads it through prChoice.
+// prSetMode and prSetKey, and reads it through prChoice. Intervals by ear also take a Direction (prSetDir, #pr-dir),
+// and Intervals show the Song hints panel (#pr-songs, renderSongs).
 type PracticeMode = 'play' | 'ear' | 'keys';
 // The six topics, in the order of the #pr-cat options. The first four are the spaced-repetition categories (CATS).
 const PR_TOPICS: readonly string[] = ['interval', 'chord', 'scale', 'prog', 'melody', TECHNIQUE_TOPIC];
@@ -17156,6 +17102,7 @@ const PR_GLYPH: Record<string, string> = {
     [TECHNIQUE_TOPIC]: '<path d="M2.5 19 7 12l5-7 5 7 4.5 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="17" cy="12" r="2" fill="currentColor"/>',
 };
 let practiceModePref: PracticeMode = 'play';
+let prIvDir: IntervalDirection = 'asc';
 
 function isPracticeMode(v: string | undefined): v is PracticeMode { return v === 'play' || v === 'ear' || v === 'keys'; }
 function prTopicLabel(cat: string) { return cat === 'melody' ? t('cat_melody') : cat === TECHNIQUE_TOPIC ? t('cat_technique') : catLabel(cat); }
@@ -17188,6 +17135,17 @@ function prSetMode(v: PracticeMode) {
     }
     updatePracticeModeHint();
 }
+function isIntervalDirection(v: string | undefined): v is IntervalDirection { return v === 'asc' || v === 'desc' || v === 'both'; }
+function prDirLabel(dir: IntervalDirection) { return t(dir === 'desc' ? 'dir_desc' : dir === 'both' ? 'dir_both' : 'dir_asc'); }
+// Direction applies to Intervals by ear (tap or on the keys): the row shows only then, and only then goes with the drill.
+function prDirShown() { const { cat, mode } = prChoice(); return cat === 'interval' && mode !== 'play'; }
+function prSetDir(v: string) {
+    if (!isIntervalDirection(v))
+        return;
+    prIvDir = v;
+    queryAllHtml(byId('pr-dir'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+    updatePracticeModeHint();
+}
 function prSetKey(key: string) {
     const sel = selectById('pr-key');
     if (!PR_KEYS.includes(key) || ![...sel.options].some((o) => o.value === key))
@@ -17204,7 +17162,28 @@ function prStart() {
         saveAll();
     }
     show('practice');
-    startSession({ cat, mode: mode === 'play' ? 'play' : 'ear', key });
+    startSession({ cat, mode: mode === 'play' ? 'play' : 'ear', key, ...(prDirShown() ? { dir: prIvDir } : {}) });
+}
+// Today's Ear check: an Intervals · By ear drill in one tap.
+function prEarCheck() {
+    if (SES.active)
+        return;
+    prSetTopic('interval');
+    prSetMode('ear');
+    prStart();
+}
+// A screen that moved into this setup (an old link or saved lastTool): Practice, set up for it.
+function prOpenMoved(v: router.MovedView, moveFocus = true) {
+    if (SES.active && SES.targeted)
+        endSession(false);
+    show('practice', moveFocus);
+    if (v === 'songs') {
+        prSetTopic('interval');
+        const panel = byId('pr-songs');
+        if (panel instanceof HTMLDetailsElement)
+            panel.open = true;
+        renderSongs();
+    }
 }
 // Continue: the last drill again, with its topic, mode and key, in one tap.
 // The mode a saved drill ran in. Progressions never run on the keys, whatever the on-keys setting was.
@@ -17300,7 +17279,10 @@ function updatePracticeModeHint() {
     const why = cat === 'melody' ? t('pr_why_melody', prModeLabel('keys')) : cat === 'prog' ? t('pr_why_prog', prModeLabel('keys')) : tech ? t('pr_why_tech', prModeLabel('play')) + ' ' + t('tq_pr_note') : '';
     note.textContent = why;
     note.hidden = !why;
-    start.textContent = t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), prKeyLabel(key)].join(' · '));
+    const dirShown = prDirShown();
+    byId('pr-dir-row').hidden = !dirShown;
+    byId('pr-songs').hidden = cat !== 'interval';
+    start.textContent = t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), ...(dirShown ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
 }
 
 function syncPracticeCatAndMode() {
@@ -17352,6 +17334,7 @@ function renderPracticeSetup() {
     renderPracticeKeys();
     updatePracticeModeHint();
     renderPracticeLast();
+    renderSongs();
 }
 
 function renderPracticeLast() {
@@ -18185,8 +18168,6 @@ function applyNotation() {
     repaintHeld();
     if (view0() === 'explore')
         updateExplore();
-    if (view0() === 'songs')
-        renderSongs();
     if (view0() === 'accompany')
         updateAccompChain();
     if (view0() === 'read' && SR.piece) {
@@ -18407,6 +18388,7 @@ function initControls() {
     byId('pr-keys').addEventListener('keydown', (e) => prRadioKey(e, prSetKey));
     byId('pr-start').addEventListener('click', prStart);
     byId('pr-redo').addEventListener('click', prContinue);
+    byId('pr-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetDir(b.dataset.v ?? ''); });
     // accompaniment
     byId('ac-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
@@ -18533,11 +18515,7 @@ function initControls() {
     byId('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
     // songs
     byId('song-root').addEventListener('change', renderSongs);
-    byId('sq-go').addEventListener('click', sqNew);
-    byId('sq-again').addEventListener('click', () => { if (SQ.started)
-        sqPlay(); });
-    byId('sq-ans').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-semi]'); if (b)
-        sqAnswer(Number(b.dataset.semi)); });
+    byId('pr-songs').addEventListener('toggle', renderSongs);
     byId('song-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; songDir = b.dataset.v ?? songDir; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderSongs(); });
     // progress
@@ -18959,6 +18937,7 @@ Object.defineProperty(__etude, "dockWanted", { configurable: true, get: () => do
 Object.defineProperty(__etude, "drawExploreStaff", { configurable: true, get: () => drawExploreStaff });
 Object.defineProperty(__etude, "droneVoices", { configurable: true, get: () => droneVoices });
 Object.defineProperty(__etude, "dueItems", { configurable: true, get: () => dueItems });
+Object.defineProperty(__etude, "countEarAnswer", { configurable: true, get: () => countEarAnswer });
 Object.defineProperty(__etude, "earRoot", { configurable: true, get: () => earRoot });
 Object.defineProperty(__etude, "ekBuild", { configurable: true, get: () => ekBuild });
 Object.defineProperty(__etude, "ekCh", { configurable: true, get: () => ekCh });
@@ -19187,7 +19166,10 @@ Object.defineProperty(__etude, "playScaleNotes", { configurable: true, get: () =
 Object.defineProperty(__etude, "popModalState", { configurable: true, get: () => popModalState });
 Object.defineProperty(__etude, "positionBlacks", { configurable: true, get: () => positionBlacks });
 Object.defineProperty(__etude, "prChoice", { configurable: true, get: () => prChoice });
+Object.defineProperty(__etude, "prEarCheck", { configurable: true, get: () => prEarCheck });
+Object.defineProperty(__etude, "prOpenMoved", { configurable: true, get: () => prOpenMoved });
 Object.defineProperty(__etude, "prRecordDrill", { configurable: true, get: () => prRecordDrill });
+Object.defineProperty(__etude, "prSetDir", { configurable: true, get: () => prSetDir });
 Object.defineProperty(__etude, "prSetKey", { configurable: true, get: () => prSetKey });
 Object.defineProperty(__etude, "prSetTopic", { configurable: true, get: () => prSetTopic });
 Object.defineProperty(__etude, "pracAcc", { configurable: true, get: () => pracAcc });
@@ -19454,10 +19436,6 @@ Object.defineProperty(__etude, "songsFor", { configurable: true, get: () => song
 Object.defineProperty(__etude, "spellMidi", { configurable: true, get: () => spellMidi });
 Object.defineProperty(__etude, "spellName", { configurable: true, get: () => spellName });
 Object.defineProperty(__etude, "spelledName", { configurable: true, get: () => spelledName });
-Object.defineProperty(__etude, "sqAnswer", { configurable: true, get: () => sqAnswer });
-Object.defineProperty(__etude, "sqNew", { configurable: true, get: () => sqNew });
-Object.defineProperty(__etude, "sqPlay", { configurable: true, get: () => sqPlay });
-Object.defineProperty(__etude, "sqRender", { configurable: true, get: () => sqRender });
 Object.defineProperty(__etude, "srActiveHands", { configurable: true, get: () => srActiveHands });
 Object.defineProperty(__etude, "srAssessFinish", { configurable: true, get: () => srAssessFinish });
 Object.defineProperty(__etude, "srAssessLoop", { configurable: true, get: () => srAssessLoop });
@@ -19768,7 +19746,6 @@ Object.defineProperty(__etude, "SC_TERMS", { configurable: true, get: () => SC_T
 Object.defineProperty(__etude, "SES", { configurable: true, get: () => SES });
 Object.defineProperty(__etude, "SIDE", { configurable: true, get: () => SIDE });
 Object.defineProperty(__etude, "SONGS", { configurable: true, get: () => SONGS });
-Object.defineProperty(__etude, "SQ", { configurable: true, get: () => SQ });
 Object.defineProperty(__etude, "SR", { configurable: true, get: () => SR });
 Object.defineProperty(__etude, "SR_LET", { configurable: true, get: () => SR_LET });
 Object.defineProperty(__etude, "SS_FLAT_ORDER", { configurable: true, get: () => SS_FLAT_ORDER });

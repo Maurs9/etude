@@ -395,7 +395,7 @@ test.describe('Adversarial Stress Test: Network Offline Mode & Zero Network Depe
     const views = ['today', 'learn', 'practice', 'explore', 'songs', 'analysis'];
     for (const v of views) {
       await page.evaluate((viewName) => window.__etude.show(viewName), v);
-      expect(await page.evaluate(() => window.__etude.view0())).toBe(v);
+      expect(await page.evaluate(() => window.__etude.view0())).toBe(v === 'songs' ? 'practice' : v); // the song book is in Practice now
     }
 
     // 3. Audio synthesis offline test
