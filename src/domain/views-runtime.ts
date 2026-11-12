@@ -711,7 +711,8 @@ function accompStop(silent?: boolean) {
     kbClear('rh');
     stopPreviews();
     acChainHL(-1);
-    updatePracticeModeHint(); // the Practice Start button reads Play loop again
+    if (!silent) // a restart (accompStart) keeps the Stop label
+        updatePracticeModeHint(); // the Practice Start button reads Play loop again
 }
 /* ---------- TRANSCRIBE (hum → notes) ---------- */
 interface TranscribeNote { midi: number; start: number; dur: number }
@@ -4865,10 +4866,11 @@ function initExploreControls() {
 }
 /* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
 let songDir = 'asc';
-// Builds the 12 cards while the panel is open; opening it builds them (the panel's toggle event).
+// Builds the 12 cards while the panel is open (also while another topic hides it, so a language or note-name change
+// reaches them); opening it builds them (the panel's toggle event).
 function renderSongs() {
     const box = maybeById('songsList'), panel = maybeById('pr-songs');
-    if (!box || !(panel instanceof HTMLDetailsElement) || !panel.open || panel.hidden)
+    if (!box || !(panel instanceof HTMLDetailsElement) || !panel.open)
         return;
     box.innerHTML = '';
     const root = 60 + parseInt(selectById('song-root').value || '0', 10);
@@ -17142,10 +17144,8 @@ function prSetKey(key: string) {
     sel.value = key;
     renderPracticeKeys();
     updatePracticeModeHint();
-    if (prChoice().mode === 'along') {
-        updateAccompChain();
-        accompRestartIfPlaying();
-    }
+    if (prChoice().mode === 'along')
+        accompRestartIfPlaying(); // updatePracticeModeHint has redrawn the chord chain
 }
 function prStart() {
     const { cat, mode, key } = prChoice();
@@ -17167,12 +17167,12 @@ function prStart() {
     show('practice');
     startSession({ cat, mode: mode === 'play' ? 'play' : 'ear', key, ...(prDirShown() ? { dir: prIvDir } : {}) });
 }
-// Today's Ear check: an Intervals · By ear drill in one tap.
+// Today's Ear check: an Intervals · By ear drill in one tap, on the keys when that is the saved choice (settings.earKeys).
 function prEarCheck() {
     if (SES.active)
         return;
     prSetTopic('interval');
-    prSetMode('ear');
+    prSetMode(data.settings.earKeys ? 'keys' : 'ear');
     prStart();
 }
 // A screen that moved into this setup (an old link or saved lastTool): Practice, set up for it.
@@ -17184,8 +17184,7 @@ function prOpenMoved(v: router.MovedView, moveFocus = true) {
         prSetTopic('interval');
         const panel = byId('pr-songs');
         if (panel instanceof HTMLDetailsElement)
-            panel.open = true;
-        renderSongs();
+            panel.open = true; // its toggle event builds the cards
     }
     else {
         prSetTopic('prog');

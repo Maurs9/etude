@@ -44,10 +44,12 @@ test.describe('Song hints in the Practice setup', () => {
     await expect(panel).toBeVisible();
   });
 
-  test('the cards follow the language', async ({ app }) => {
+  test('the cards follow the language, also while another topic hides them', async ({ app }) => {
     const page = await app.open({ hash: 'practice' });
     await page.locator('#pr-songs summary').click();
+    await page.locator('#pr-t-chord').click();
     await page.evaluate(() => window.__etude.setLang('de'));
+    await page.locator('#pr-t-interval').click();
     await expect(page.locator('#pr-songs summary')).toHaveText('Merkhilfen aus Liedern');
     await expect(page.locator('#songsList .songcard')).toHaveCount(12);
     await expect(page.locator('#songsList .songcard .play').first()).toContainText('Hören');
@@ -187,6 +189,16 @@ test.describe('Ear check: right answers by ear today', () => {
     await expect(row).toContainText('5/5 named by ear today');
   });
 
+  test('the Ear row keeps the saved on-keys choice', async ({ app }) => {
+    const page = await app.open({ saved: { v: 3, lang: 'en', data: { settings: { earKeys: true } } }, dock: true });
+    expect(await page.evaluate(() => window.__etude.data.settings.earKeys)).toBe(true);
+    await page.locator('[data-plan="ear"]').click();
+    await expect(page.locator('#session')).toBeVisible();
+    expect(await page.evaluate(() => window.__etude.SES.targeted)).toEqual({ cat: 'interval', mode: 'ear', key: 'all', dir: 'asc' });
+    expect(await page.evaluate(() => window.__etude.data.settings.earKeys)).toBe(true);
+    expect(await page.evaluate(() => !!window.__etude.SES.q.ek)).toBe(true); // asked on the keys
+  });
+
   test('a wrong answer, Play it, and a placement do not count; a chord drill by ear and the review session do', async ({ app }) => {
     const page = await app.open({ hash: 'practice' });
     const ear = () => page.evaluate(() => window.__etude.data.earToday || 0);
@@ -287,6 +299,7 @@ test.describe('Progressions · Play along', () => {
       await page.evaluate(() => { window.__built = window.__etude.accomp.built; });
       await change();
       expect(await page.evaluate(() => window.__etude.accomp.on && window.__etude.accomp.built !== window.__built)).toBe(true);
+      await expect(page.locator('#pr-start')).toHaveText('Stop');
     };
     await restarted(() => page.locator('#ac-prog').selectOption('3'));
     await restarted(() => page.locator('#ac-pat').selectOption({ index: 2 }));

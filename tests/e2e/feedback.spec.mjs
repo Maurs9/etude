@@ -63,9 +63,11 @@ test.describe('Error-aware feedback', () => {
     }
     await expect(page.locator('#session')).toBeHidden();
     await expect(offer).toContainText('Contrast drill: 6 of 6 right.');
-    // The drill saved nothing: no new record, and reviews, goal and streak stay as they were.
+    // The drill saved nothing else: no new record, and reviews, goal and streak stay as they were.
+    // Its 6 right answers by ear count for the Today Ear check (earDay/earToday), as in any drill.
     // (A save may still run and renew the sync ids; the saved data must be the same.)
-    const record = (text) => { const value = JSON.parse(text); delete value.syncId; delete value.syncParent; return value; };
+    const record = (text) => { const value = JSON.parse(text); delete value.syncId; delete value.syncParent; delete value.data.earDay; delete value.data.earToday; return value; };
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.earToday)).toBe(6); // the two answers before were wrong
     expect(record(await page.evaluate(() => localStorage.getItem('ptt-v3')))).toEqual(record(saved));
     expect(await page.evaluate(() => ({ srs: JSON.stringify(window.__etude.data.srs), streak: window.__etude.data.streak, today: window.__etude.data.todayCount }))).toEqual(before);
   });
