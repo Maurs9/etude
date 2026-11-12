@@ -30,6 +30,7 @@ import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, 
 import '../styles/calibration.css';
 import '../styles/landscape.css';
 import '../styles/practice.css';
+import '../styles/explore.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint } from '../sight-reading/fingerprint.js';
@@ -4428,12 +4429,19 @@ interface ExploreStaffHead {
     y: number;
     lane: number;
 }
-function drawExploreStaff(midis: readonly number[], flat: boolean) {
+// With a key context its signature is drawn after each clef, notes are spelled in that key (E♯ in F♯ major), and a note shows
+// an accidental, a natural too, only where it differs from the signature.
+function drawExploreStaff(midis: readonly number[], flat: boolean, key: ExploreKey | null = exKeyCtx()) {
     const wrap = byId('ex-staff');
     if (!wrap)
         return;
     const names = flat ? ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const fifths = exKeyFifths(key), keyAcc = ssKeyAcc(fifths);
     const pitches: ExploreStaffPitch[] = [...new Set(midis)].map((m) => {
+        if (key) {
+            const sp = spellMidi(m, fifths, key.minor);
+            return { m, step: ssStepOf(sp.li, sp.oct), acc: sp.acc === keyAcc[sp.li] ? '' : sp.acc > 0 ? '#' : sp.acc < 0 ? 'b' : 'n' };
+        }
         const name = names[pc(m)], li = 'CDEFGAB'.indexOf(name[0]), oct = Math.floor(m / 12) - 1;
         return { m, step: ssStepOf(li, oct), acc: name.slice(1) };
     }).sort((a, b) => a.step - b.step || a.m - b.m);
@@ -4445,6 +4453,8 @@ function drawExploreStaff(midis: readonly number[], flat: boolean) {
         for (let i = 0; i < 5; i++)
             body += `<line class="ss-line" x1="${x0}" y1="${top + i * 12}" x2="${x1}" y2="${top + i * 12}" stroke-width="1.2"/>`;
         body += srClef(clef, x0 + 16, top);
+        if (fifths)
+            body += `<g class="ex-keysig">${srKeySigG(clef, fifths, x0 + 46, top).svg}</g>`;
         // Adjacent pitches use alternating head columns; accidentals have collision-free lanes.
         let prevStep = -Infinity, prevLane = 0;
         const accLanes: number[] = [], heads: ExploreStaffHead[] = [];
@@ -4475,7 +4485,7 @@ function drawExploreStaff(midis: readonly number[], flat: boolean) {
                 if (a < 0)
                     a = accLanes.length;
                 accLanes[a] = y;
-                accidental = p.acc === '#' ? ssSharp(x - 20 - a * 11, y) : ssFlat(x - 20 - a * 11, y);
+                accidental = (p.acc === '#' ? ssSharp : p.acc === 'n' ? ssNatural : ssFlat)(x - 20 - a * 11, y);
             }
             body += `<g class="ss-n" data-midi="${p.m}" data-clef="${clef}"><title>${noteName(p.m, flat)}</title>${accidental}${ssNotehead(x + lane * 13, y, 4)}</g>`;
         });
@@ -4500,7 +4510,16 @@ function fillRoots(sel: HTMLElement, withAll: boolean) { sel.innerHTML = ''; if 
     o.textContent = t('all_keys');
     sel.appendChild(o);
 } NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = n; sel.appendChild(o); }); }
-function fillKeyCtx() { const sel = byId('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = t('key_major', n); sel.appendChild(o); }); }
+// Key context values: "-1" none, "0"…"11" a major tonic, "m0"…"m11" a minor tonic (the circle's inner ring).
+function fillKeyCtx() { const sel = byId('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = t('key_major', n); sel.appendChild(o); });
+    for (let p = 0; p < 12; p++) { const o = (document).createElement('option'); o.value = 'm' + p; o.textContent = t('key_minor', cofKeyLabel(CIRCLE.indexOf((p + 3) % 12), true)); sel.appendChild(o); } }
+interface ExploreKey {
+    pc: number;
+    minor: boolean;
+}
+function exKeyCtx(): ExploreKey | null { const v = selectById('keyCtx').value, minor = v.startsWith('m'), pc = parseInt(minor ? v.slice(1) : v, 10); return pc >= 0 && pc < 12 ? { pc, minor } : null; }
+// Sharps (+) or flats (−) in the key signature of the chosen key context, as the rest of the app counts them; 0 without one.
+function exKeyFifths(k: ExploreKey | null = exKeyCtx()) { return k ? keyFifths(k.pc, k.minor) : 0; }
 function fillRefNames() {
     const rt = selectById('refType').value, sel = byId('refName');
     sel.innerHTML = '';
@@ -4520,16 +4539,20 @@ function updateExplore() {
     if (view0() !== 'explore')
         return;
     const notes = (held.size ? heldMidis() : explorePreview).slice().sort((a, b) => a - b);
-    const keyCtx = parseInt(selectById('keyCtx').value, 10);
-    let nameLabel = '—', roman = '—', spell = notes.length ? isFlatKey(pc(notes[0])) : false;
-    let degrees: Map<number, string> | null = null;
+    const keyCtx = exKeyCtx(), fifths = exKeyFifths(keyCtx);
+    // Without a chord to name, a key with a signature spells the notes its own way (G♭ in a flat key, F♯ in a sharp one).
+    let nameLabel = '—', roman = '—', spell = notes.length ? (fifths ? fifths < 0 : isFlatKey(pc(notes[0]))) : false;
+    let degrees: Map<number, string> | null = null, chord: ReturnType<typeof identifyChord> = null;
     if (notes.length >= 3) {
         const id = identifyChord(notes);
+        chord = id;
         if (id)
             spell = isFlatKey(id.rootPc);
         if (id) {
             nameLabel = slashLabel(id) + (id.inversion > 0 ? ' · ' + invName(id.inversion) : '');
-            roman = romanFor(keyCtx, id) || '—';
+            // Minor reads in natural minor, except on the raised leading tone, whose chord is vii°, not ♯vii°.
+            const minorScale = keyCtx && (id.rootPc - keyCtx.pc + 12) % 12 === 11 ? SCALES['Harmonic minor'] : SCALES['Aeolian (Natural minor)'];
+            roman = (keyCtx ? romanFor(keyCtx.pc, id, keyCtx.minor ? minorScale : undefined) : '') || '—';
             degrees = chordDegreeMap(notes, id.rootPc, id.chord.pcset);
         }
         else
@@ -4545,10 +4568,10 @@ function updateExplore() {
     byId('ro-notes').textContent = notes.length ? notes.map((m) => noteName(m, spell)).join('  ') : '—';
     byId('ro-name').textContent = nameLabel;
     byId('ro-roman').textContent = roman;
-    drawExploreStaff(notes, spell);
-    cofNow(notes);
+    drawExploreStaff(notes, spell, keyCtx);
+    cofNow(notes, chord);
 }
-/* ---------- CIRCLE OF FIFTHS (Explore › Circle tab) ---------- */
+/* ---------- CIRCLE OF FIFTHS (Explore: the key picker beside the staff) ---------- */
 // Standard one-octave fingerings, ascending, indexed by the tonic's pitch class (C=0 … B=11); the scale and arpeggio drill uses the same table.
 const COF_FING = SCALE_FINGERINGS;
 const COF_MAJ = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'], COF_MIN = ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'Bb', 'F', 'C', 'G', 'D'];
@@ -4571,7 +4594,6 @@ interface CofSignature {
 function isCofMode(v: string | undefined): v is CofMode { return v === 'scale' || v === 'chord'; }
 function isCofFlavor(v: string | undefined): v is CofFlavor { return v === 'natural' || v === 'harmonic' || v === 'melodic'; }
 const cof: CofSelection = { i: 0, minor: false, mode: 'scale', flavor: 'natural', picked: false };
-let exTabCur = 'free';
 const COF_SOL = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
 function cofSpell(letter: string, acc: number) { return spelledName(notation, 'CDEFGAB'.indexOf(letter), acc); }
 function cofParse(s: string) { return { L: s[0], acc: s[1] === '#' ? 1 : s[1] === 'b' ? -1 : 0 }; }
@@ -4600,15 +4622,17 @@ function cofPt(r: number, deg: number) { const a = (deg - 90) * Math.PI / 180; r
 function cofSector(r0: number, r1: number, d0: number, d1: number) { const a = cofPt(r1, d0), b = cofPt(r1, d1), c = cofPt(r0, d1), d = cofPt(r0, d0); return 'M' + a + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + b + 'L' + c + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + d + 'Z'; }
 function cofTint(i: number, pct: string|number) { return 'fill:color-mix(in srgb, ' + (COF_COL[i] || '#6d4f7a') + ' ' + pct + '%, var(--card))'; }
 function cofText(x: string, y: string, cls: string, lines: string[], lh: number) { return '<text class="' + cls + '" x="' + x + '" y="' + y + '">' + lines.map((s, k) => '<tspan x="' + x + '" dy="' + (k ? lh : -(lines.length - 1) * lh / 2) + '">' + s.replace(/([♯♭𝄪𝄫])/gu, '<tspan class="cof-g">$1</tspan>') + '</tspan>').join('') + '</text>'; }
-const cofMQ = window.matchMedia('(max-width:560px)');
-if (cofMQ)
-    cofMQ?.addEventListener('change', () => renderCircle());
+// A circle drawn smaller than this leaves out the signature labels around the rim and zooms in on the rings, so the
+// key names stay legible; it follows the circle's own width, which beside the staff is far less than the window's.
+const COF_COMPACT_W = 460;
+let cofCompact: boolean | null = null;
+function cofIsCompact(box: HTMLElement) { const w = box.getBoundingClientRect().width; return w > 0 ? w < COF_COMPACT_W : matchMedia('(max-width:560px)').matches; }
 function renderCircle() {
     const box = byId('circle');
     if (!box)
         return;
-    const compact = !!(cofMQ && cofMQ.matches);
-    let s = '<svg class="cof-svg" viewBox="' + (compact ? '92 92 516 516' : '-12 -12 724 724') + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
+    const compact = cofCompact = cofIsCompact(box);
+    let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + (compact ? '92 92 516 516' : '-12 -12 724 724') + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
         '<linearGradient id="cofSplit" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
         '<marker id="cofAhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
         '<marker id="cofAhDn" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#4a7fb0"/></marker>' +
@@ -4638,7 +4662,7 @@ function renderCircle() {
             acc += cofText(ax, (+ay + 6).toFixed(2), 'cof-acc', lines, 19).replace('<text ', '<text style="text-anchor:' + (side ? (sx > 0 ? 'start' : 'end') : 'middle') + '" ');
         }
     });
-    s += maj + min + acc + '<path class="cof-ring-rel" id="cof-rel" d=""/><path class="cof-ring-sel" id="cof-sel" d=""/>';
+    s += maj + min + acc + '<path class="cof-ring-rel" id="cof-rel" d=""/><path class="cof-ring-sel" id="cof-sel" d=""/><g class="cof-now" id="cof-now"></g>';
     s += '<circle class="cof-hub" cx="350" cy="350" r="99"/>' +
         '<path class="cof-arrow up" marker-end="url(#cofAhUp)" d="M' + cofPt(84, -38) + 'A84 84 0 0 1 ' + cofPt(84, 38) + '"/>' +
         '<path class="cof-arrow dn" marker-end="url(#cofAhDn)" d="M' + cofPt(84, 218) + 'A84 84 0 0 0 ' + cofPt(84, 142) + '"/>' +
@@ -4668,37 +4692,44 @@ function cofSel() {
     svg.querySelectorAll('.cof-k').forEach((g) => {
         if (!(g instanceof SVGElement))
             return;
-        const i = Number(g.dataset.i), mn = g.dataset.ring === 'min', on = i === cof.i && mn === cof.minor;
+        const i = Number(g.dataset.i), mn = g.dataset.ring === 'min', on = cof.picked && i === cof.i && mn === cof.minor;
         g.classList.toggle('on', on);
-        g.classList.toggle('rel', i === cof.i && !on);
+        g.classList.toggle('rel', cof.picked && i === cof.i && !on);
         g.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cofSector(150, 254, d0, d1), minD = cofSector(100, 150, d0, d1);
+    // No key context, no ring: the key card still describes the last key looked at.
+    const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cof.picked ? cofSector(150, 254, d0, d1) : '', minD = cof.picked ? cofSector(100, 150, d0, d1) : '';
     byId('cof-sel').setAttribute('d', cof.minor ? minD : majD);
     byId('cof-rel').setAttribute('d', cof.minor ? majD : minD);
 }
-// Keeps the circle in step with the "Key context" select from the Free-play tab (always a major key there).
-function circleSel() { const k = parseInt(selectById('keyCtx').value, 10); if (k >= 0) {
-    cof.i = CIRCLE.indexOf(k);
-    cof.minor = false;
+// Keeps the circle in step with the "Key context" select; "none" clears the circle's pick.
+function circleSel() { const k = exKeyCtx(); if (k) {
+    cof.i = CIRCLE.indexOf(k.minor ? (k.pc + 3) % 12 : k.pc);
+    cof.minor = k.minor;
     cof.picked = true;
-} cofSel(); cofInfo(); cofPaintDock(); }
+}
+else
+    cof.picked = false; cofSel(); cofInfo(); cofPaintDock(); }
 function cofPick(i: number, minor: boolean) {
     cof.i = i;
     cof.minor = minor;
     cof.picked = true;
-    selectById('keyCtx').value = String(CIRCLE[i]);
+    selectById('keyCtx').value = (minor ? 'm' : '') + cofTonicPc();
     cofSyncRef();
     cofSel();
     cofInfo();
     cofPaintDock();
+    updateExplore(); // the Roman numerals and the staff's signature follow the new key
     cofRevealFingering();
     cofPlay();
 }
+// One column (phones, narrow windows): the key card sits below the circle, so a pick brings its fingering into view.
+// Beside the staff, a pick leaves the page where it is.
+const EX_ONE_COLUMN = '(max-width:899px)';
 function cofRevealFingering() {
     requestAnimationFrame(() => {
-        const fing = (document).querySelector('#exp-circle .cof-fing');
-        if (!fing || byId('exp-circle').hidden)
+        const fing = (document).querySelector('#cof-info .cof-fing');
+        if (!fing || !matchMedia(EX_ONE_COLUMN).matches)
             return;
         const header = (document).querySelector('header'), top = (header ? header.getBoundingClientRect().bottom : 0) + 16, bottom = fixedBottomTop() - 24;
         const rect = fing.getBoundingClientRect(), available = Math.max(0, bottom - top);
@@ -4773,39 +4804,60 @@ function cofDiagram() {
     d.midis.forEach((m, k) => { const x = xOf(m), w = isW(m); s += badge('rh', x, w ? 40 : 14, d.rh[k]) + badge('lh', x, w ? TOP + WH + 18 : TOP + WH + 44, d.lh[k]); });
     box.innerHTML = s + '</svg>';
 }
-function cofNow(notes: readonly number[]) { const box = byId('cof-kb'); if (!box)
-    return; const set = new Set(notes); box.querySelectorAll('[data-m]').forEach((r) => r.classList.toggle('now', set.has(Number(r.getAttribute('data-m'))))); }
-function cofPaintDock() { if (view0() !== 'explore')
-    return; kbClear('target'); if (exTabCur !== 'circle')
-    return; cofData().midis.forEach((m) => kbState(m, 'target', true)); }
-function exTab(tab: string | undefined, focus?: boolean) {
-    exTabCur = tab === 'circle' ? 'circle' : 'free';
-    queryAllHtml(document, '#ex-tabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === exTabCur; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus)
-        b.focus(); });
-    byId('exp-free').hidden = exTabCur !== 'free';
-    byId('exp-circle').hidden = exTabCur !== 'circle';
-    cofPaintDock();
-}
-function initExploreTabs() {
-    const tl = byId('ex-tabs');
-    if (!tl)
+// Lights the held notes on the fingering diagram, and marks on the circle where they sit: a named chord on its root's
+// wedge (inner ring for a minor or diminished chord, as its numeral is lower case), one or two notes on their major keys.
+function cofNow(notes: readonly number[], chord: ReturnType<typeof identifyChord> = null) {
+    const box = byId('cof-kb');
+    if (box) {
+        const set = new Set(notes);
+        box.querySelectorAll('[data-m]').forEach((r) => r.classList.toggle('now', set.has(Number(r.getAttribute('data-m')))));
+    }
+    const g = maybeById('cof-now');
+    if (!g)
         return;
-    tl.addEventListener('click', (e) => { const b = eventClosest(e, '[role="tab"]'); if (b)
-        exTab(b.dataset.tab); });
-    tl.addEventListener('keydown', (e) => {
-        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End')
+    const at: string[] = [];
+    let s = '';
+    const wedge = (i: number, minor: boolean) => { const d0 = i * 30 - 15, d1 = i * 30 + 15; at.push((minor ? 'min' : 'maj') + i); s += '<path class="cof-ring-now" d="' + (minor ? cofSector(100, 150, d0, d1) : cofSector(150, 254, d0, d1)) + '"/>'; };
+    if (chord) {
+        const minor = /^m(?!aj)/.test(chord.chord.symbol) || chord.chord.symbol.startsWith('dim');
+        wedge(CIRCLE.indexOf(minor ? (chord.rootPc + 3) % 12 : chord.rootPc), minor);
+    }
+    else if (notes.length && notes.length < 3)
+        [...new Set(notes.map(pc))].forEach((p) => wedge(CIRCLE.indexOf(p), false));
+    g.innerHTML = s;
+    g.setAttribute('data-at', at.join(' '));
+}
+// The chosen key's scale or chord shows on the dock while a key context is set.
+function cofPaintDock() { if (view0() !== 'explore')
+    return; kbClear('target'); if (!cof.picked)
+    return; cofData().midis.forEach((m) => kbState(m, 'target', true)); }
+// Brings one part of Explore into view. Links written for the old tabs (data-extab="circle") still land here.
+function exTab(part: string | undefined) {
+    const circle = part === 'circle', el = byId(circle ? 'exp-circle' : 'exp-free');
+    requestAnimationFrame(() => {
+        if (view0() !== 'explore')
             return;
-        e.preventDefault();
-        exTab(e.key === 'Home' ? 'free' : e.key === 'End' ? 'circle' : exTabCur === 'free' ? 'circle' : 'free', true);
+        el.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
+        const key = circle ? el.querySelector('.cof-k.on') || el.querySelector('.cof-k') : null;
+        if (key instanceof SVGElement)
+            key.focus({ preventScroll: true });
     });
+}
+function initExploreControls() {
+    const circle = byId('circle');
+    if (!circle)
+        return;
+    // Redraw when the circle crosses the compact width (a window resize, the dock opening, the layout changing columns).
+    if (typeof ResizeObserver === 'function')
+        new ResizeObserver(() => { if (circle.getBoundingClientRect().width > 0 && cofIsCompact(circle) !== cofCompact) {
+            renderCircle();
+            updateExplore(); // repaints where the held notes sit on the new drawing
+        } }).observe(circle);
     byId('cof-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.mode || !isCofMode(v))
         return; cof.mode = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
     byId('cof-flavor').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.flavor || !isCofFlavor(v))
         return; cof.flavor = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
-    byId('cof-play').addEventListener('click', () => { if (!cof.picked) {
-        cof.picked = true;
-        cofSel();
-    } cofSyncRef(); cofPlay(); });
+    byId('cof-play').addEventListener('click', () => { cofSyncRef(); cofPlay(); });
 }
 /* ---------- SONGS ---------- */
 let songDir = 'asc';
@@ -18477,7 +18529,7 @@ function initControls() {
         playChordMidis(refMidis(), true);
     else
         playScaleNotes(60 + parseInt(selectById('refRoot').value, 10), SCALES[selectById('refName').value], true); });
-    byId('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => kbClear('target'), 2600)); });
+    byId('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => { kbClear('target'); cofPaintDock(); }, 2600)); });
     byId('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
     // songs
     byId('song-root').addEventListener('change', renderSongs);
@@ -18625,7 +18677,7 @@ chooseView();
 buildKeyboard();
 initPointer();
 initControls();
-initExploreTabs();
+initExploreControls();
 reflectSettingsUI();
 renderCircle();
 applyI18n();
@@ -18887,6 +18939,9 @@ Object.defineProperty(__etude, "cofSyncRef", { configurable: true, get: () => co
 Object.defineProperty(__etude, "cofText", { configurable: true, get: () => cofText });
 Object.defineProperty(__etude, "cofTint", { configurable: true, get: () => cofTint });
 Object.defineProperty(__etude, "cofTonicPc", { configurable: true, get: () => cofTonicPc });
+Object.defineProperty(__etude, "cofIsCompact", { configurable: true, get: () => cofIsCompact });
+Object.defineProperty(__etude, "exKeyCtx", { configurable: true, get: () => exKeyCtx });
+Object.defineProperty(__etude, "exKeyFifths", { configurable: true, get: () => exKeyFifths });
 Object.defineProperty(__etude, "comp", { configurable: true, get: () => comp });
 Object.defineProperty(__etude, "connectMidi", { configurable: true, get: () => connectMidi });
 Object.defineProperty(__etude, "currentStreak", { configurable: true, get: () => currentStreak });
@@ -18930,7 +18985,6 @@ Object.defineProperty(__etude, "endSession", { configurable: true, get: () => en
 Object.defineProperty(__etude, "ensureAudio", { configurable: true, get: () => ensureAudio });
 Object.defineProperty(__etude, "evalTimer", { configurable: true, get: () => evalTimer });
 Object.defineProperty(__etude, "exTab", { configurable: true, get: () => exTab });
-Object.defineProperty(__etude, "exTabCur", { configurable: true, get: () => exTabCur });
 Object.defineProperty(__etude, "explorePreview", { configurable: true, get: () => explorePreview });
 Object.defineProperty(__etude, "exploreSequence", { configurable: true, get: () => exploreSequence });
 Object.defineProperty(__etude, "exploreTimers", { configurable: true, get: () => exploreTimers });
@@ -18979,7 +19033,7 @@ Object.defineProperty(__etude, "heldPcs", { configurable: true, get: () => heldP
 Object.defineProperty(__etude, "identifyChord", { configurable: true, get: () => identifyChord });
 Object.defineProperty(__etude, "inField", { configurable: true, get: () => inField });
 Object.defineProperty(__etude, "initControls", { configurable: true, get: () => initControls });
-Object.defineProperty(__etude, "initExploreTabs", { configurable: true, get: () => initExploreTabs });
+Object.defineProperty(__etude, "initExploreControls", { configurable: true, get: () => initExploreControls });
 Object.defineProperty(__etude, "initPointer", { configurable: true, get: () => initPointer });
 Object.defineProperty(__etude, "intervalLabel", { configurable: true, get: () => intervalLabel });
 Object.defineProperty(__etude, "invName", { configurable: true, get: () => invName });
@@ -19744,7 +19798,6 @@ Object.defineProperty(__etude, "anDomQ", { configurable: true, get: () => anDomQ
 Object.defineProperty(__etude, "blackEl", { configurable: true, get: () => blackEl });
 Object.defineProperty(__etude, "coachText", { configurable: true, get: () => coachText });
 Object.defineProperty(__etude, "cof", { configurable: true, get: () => cof });
-Object.defineProperty(__etude, "cofMQ", { configurable: true, get: () => cofMQ });
 Object.defineProperty(__etude, "held", { configurable: true, get: () => held });
 Object.defineProperty(__etude, "heldOrder", { configurable: true, get: () => heldOrder });
 Object.defineProperty(__etude, "inputOwners", { configurable: true, get: () => inputOwners });
