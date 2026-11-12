@@ -983,8 +983,7 @@
   .learn-toc .lu-h{display:flex; align-items:center; gap:7px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; font-weight:800; color:var(--muted); margin:12px 12px 2px}
   .learn-toc .lu-h:first-child{margin-top:0}
   .learn-toc .lu-h .lu-nm{flex:1; min-width:0}
-  .learn-toc .lu-h .lu-c{letter-spacing:0; font-weight:700; text-transform:none}
-  .learn-toc .lu-h .lu-c{color:var(--good)}
+  .learn-toc .lu-h .lu-c{letter-spacing:0; font-weight:700; text-transform:none; color:var(--good)}
   .learn-toc button .due{color:var(--gold); margin-left:6px; font-weight:900}
   .learn-extra{display:flex; flex-direction:column; gap:8px; margin:12px 12px 0}
   .learn-extra .learn-pick{display:none}
