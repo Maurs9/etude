@@ -25,6 +25,16 @@
   .pc-list{grid-template-columns:minmax(0,1fr); padding-inline:12px}
 }
 
+/* The empty player (no piece open yet): on a wide window the drop zone is one row, the words beside the Open button,
+   instead of a tall panel that holds three short lines */
+@media (min-width:761px){
+  .an-empty .an-drop{display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"t b" "s b"; align-items:center; gap:4px 24px; min-height:0; padding:18px 24px}
+  .an-empty .an-drop-t{grid-area:t}
+  .an-empty .an-drop-s{grid-area:s; margin:0; max-width:none}
+  .an-empty .an-drop > .btn{grid-area:b}
+  .an-empty .an-drop-err{grid-column:1 / -1}
+}
+
 /* Run complete: the best accuracy saved for this piece, or one line on why the run saved nothing */
 .pr-sum-best{margin:2px 0 0; font-size:13.5px; font-weight:600; color:var(--ink2)}
 .pr-sum-best.is-new{color:var(--accent)}

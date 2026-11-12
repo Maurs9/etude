@@ -512,6 +512,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           </div>
           <div id="tr-msg" class="lede" style="font-size:13px; margin:10px 0 0"></div>
           <div id="tr-out" class="tr-out" style="margin-top:14px"></div>
+          <div class="tr-empty" id="tr-empty"><strong data-i18n="tr_empty_t">Your notes appear here</strong><ol><li data-i18n="tr_empty_1">Press Record and allow the microphone.</li><li data-i18n="tr_empty_2">Hum one note at a time, then press Stop.</li><li data-i18n="tr_empty_3">Play the notes back, or save them as MIDI or text.</li></ol></div>
           <div class="row" id="tr-actions" style="margin-top:12px; display:none">
             <button class="btn" id="tr-play" data-i18n="tr_play">▶ Play back</button>
             <button class="btn ghost" id="tr-midi" data-i18n="tr_midi">⬇ MIDI</button>
@@ -566,6 +567,12 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
               </div>
               <button type="button" class="btn sm" id="cof-play" data-i18n="ex_hear">▶ Hear</button>
             </div>
+            <!-- The key's seven diatonic chords with their Roman numerals; a pick plays one and lights it on the keys (cofChords). -->
+            <div class="cof-chords" aria-live="off">
+              <h3 class="cof-chords-h" id="cof-chords-h" data-i18n="cof_chords">Chords in this key</h3>
+              <div class="cof-chips" id="cof-chords" role="group" aria-labelledby="cof-chords-h"></div>
+              <p class="cof-chords-hint" data-i18n="cof_chords_hint">Pick a chord to hear it and see it on the keys.</p>
+            </div>
           </div>
           <figure class="cof-fing">
             <figcaption><b id="cof-fing-t">Fingering</b> <span id="cof-fing-s"></span></figcaption>
@@ -605,17 +612,26 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="prog-empty" id="prog-empty" hidden><p data-i18n="prog_empty">No reviews yet. Your stats, memory strength and practice calendar fill in as you answer questions.</p><button type="button" class="btn primary sm" id="prog-start" data-i18n="prog_empty_cta">Start today’s session →</button></div>
       <div class="stat-row" id="progStats"></div>
       <hr class="rule staff5" />
+      <!-- wide screens: mastery, the 7-day forecast and the practice history side by side (layout.css) -->
+      <div class="prog-top">
+      <div class="prog-col prog-mastery">
       <div class="eyebrow" style="margin-bottom:12px" data-i18n="mastery_head">Mastery by topic</div>
       <div class="mastery" id="masteryRows"></div>
       <div id="weak-wrap" hidden><div class="eyebrow" style="margin:18px 0 0" data-i18n="weak_head">Needs work</div><div class="weak" id="weakList"></div></div>
+      </div>
+      <div class="prog-col prog-fc">
       <hr class="rule" />
       <div class="eyebrow" style="margin-bottom:8px" data-i18n="forecast_head">Reviews due — next 7 days</div>
       <div class="forecast" id="forecast"></div>
       <p class="fc-none" id="fc-none" hidden data-i18n="fc_none">Nothing scheduled yet — reviews appear here once you start learning concepts.</p>
+      </div>
+      <div class="prog-col prog-heat">
       <hr class="rule" />
       <div class="eyebrow" style="margin-bottom:10px" data-i18n="heat_head">Practice history — last 12 weeks</div>
       <div class="heatmap" id="heatmap" role="img"></div>
       <div class="heat-meta" id="heat-meta"></div>
+      </div>
+      </div>
       <hr class="rule" />
       <div class="eyebrow" style="margin-bottom:4px"><span data-i18n="items_head">Every concept</span> <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0">· <span data-i18n="items_sub">warmer = stronger memory</span></span></div>
       <div id="itemGrid"></div>

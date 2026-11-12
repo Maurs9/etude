@@ -1,22 +1,32 @@
 /* ---------- Explore: one screen (etude.html #view-explore) ----------
    Loaded after etude.css, which keeps the circle's and the fingering diagram's own drawing styles.
    Wide (900px and up): the circle of fifths on the left picks the key and stays in view while the page scrolls; what you
-   hold, the staff and the key card stack on the right; the reference row runs below both.
+   hold, the staff, the key card and the reference row stack on the right (the circle's column spans them all, so the
+   sticky circle never slides over the reference row).
    Narrow: one column, in reading order: what you hold and the staff, the circle, the key card, the reference row.
    --ex-room is the height left between the header and the keyboard dock (both measured by anLayoutVars), so the circle and
    the staff shrink with the dock instead of pushing each other off the screen. */
+/* The room under the staff, read by exStaffFrame (views-runtime.ts) to size the drawing. Registered as a length, so the
+   computed value is in pixels; the initial value means no limit (one column, where the page scrolls). */
+@property --ex-staff-max{syntax:'<length>'; inherits:false; initial-value:100000px}
 #view-explore{--ex-room:calc(100dvh - var(--hdr-h, 63px) - var(--dock-h, 0px))}
 .ex-head{align-items:flex-end; gap:6px 28px; margin-bottom:14px}
 .ex-head .lede{margin:0; max-width:64ch; font-size:14.5px}
 .ex-layout{display:grid; gap:14px; grid-template-columns:minmax(0,1fr); grid-template-areas:"play" "circle" "key" "ref"}
 
 .ex-play{grid-area:play; padding:12px 16px 14px; min-width:0}
-.ex-play .readout{margin:0}
-.ex-play #ex-staff{margin-top:10px}
+/* What you hold: three values on one grid, each label under its value; one line each, so the staff below never moves. */
+.ex-play .readout{display:grid; grid-template-columns:minmax(0,5fr) minmax(0,4fr) minmax(0,2fr); gap:0; margin:0}
+.ex-play .readout .ro{min-width:0; padding:0 16px}
+.ex-play .readout .ro:first-child{padding-left:4px}
+.ex-play .readout .ro + .ro{border-left:1px solid var(--line)}
+.ex-play .ro b{white-space:nowrap; overflow-x:auto; scrollbar-width:thin}
+.ex-play #ex-staff{margin-top:10px; padding:10px 12px}
 .ex-staff-hint{font-size:12px; margin:8px 0 0}
 
 .ex-circle{grid-area:circle; padding:10px 12px 12px; min-width:0}
 .ex-circle .cof-figure{gap:6px}
+.ex-circle .cof-svg{max-width:none}
 /* The compact drawing (a small circle) zooms in on the rings, so its labels can be larger in viewBox units. */
 .cof-svg.compact .cof-maj{font-size:38px} .cof-svg.compact .cof-maj.sm{font-size:28px}
 .cof-svg.compact .cof-min{font-size:21px} .cof-svg.compact .cof-min.sm{font-size:16px}
@@ -27,21 +37,38 @@
 .ex-key{grid-area:key; padding:16px 16px 14px; gap:14px; min-width:0}
 .ex-key .cof-main{display:flex; flex-direction:column; gap:12px; min-width:0}
 .ex-key .cof-key{font-size:clamp(22px,2.6vw,30px)}
+/* The fingering diagram takes the card's width; its height is capped so a short chord diagram does not tower. */
+.ex-key .cof-kb{max-width:none; max-height:300px}
+
+/* The key's seven diatonic chords (cofChords): numeral above the chord name, one tap each. */
+.cof-chords{margin-top:4px; padding-top:12px; border-top:1px solid var(--line); min-width:0}
+.cof-chords-h{margin:0 0 8px; font:700 11px/1.3 var(--sans); letter-spacing:.13em; text-transform:uppercase; color:var(--muted)}
+.cof-chips{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px}
+.cof-chip{appearance:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-width:0; min-height:56px; padding:6px 2px;
+  border:1px solid var(--line); border-radius:10px; background:var(--paper2); color:var(--ink); font-family:inherit; cursor:pointer; transition:border-color .12s, background-color .12s}
+.cof-chip:hover{border-color:var(--accent)}
+.cof-chip:active{background:color-mix(in srgb, var(--gold) 26%, var(--paper2))}
+.cof-chip:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
+.cof-chip-rn{font:700 12px/1.1 var(--sans); color:var(--accent); letter-spacing:.02em}
+.cof-chip b{max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:600 18px/1.15 var(--serif)}
+.cof-chords-hint{margin:8px 0 0; font-size:12.5px; color:var(--muted)}
 
 .ex-ref{grid-area:ref; display:flex; flex-wrap:wrap; gap:10px 20px; align-items:center; justify-content:space-between; padding:10px 16px}
 
 @media (min-width:900px){
-  /* The circle's side is what the room leaves after the mode bar, the heading and the circle's own hint. */
-  #view-explore{--ex-cof:clamp(280px, calc(var(--ex-room) - 236px), 520px)}
-  .ex-layout{grid-template-columns:var(--ex-cof) minmax(0,1fr); grid-template-areas:"circle play" "circle key" "ref ref"; align-items:start}
-  .ex-circle{position:sticky; top:calc(var(--hdr-h, 63px) + 10px)}
-  /* The staff keeps its shape and centres in its paper when the height runs out first. */
-  #ex-staff svg{max-height:max(150px, calc(var(--ex-room) - 300px))}
+  /* A two-line lede beside the title keeps the heading short, which leaves the circle and the staff more height. */
+  .ex-head{margin-bottom:12px}
+  .ex-head .lede{flex:1 1 420px; max-width:110ch}
+  /* The circle's side is the room under the heading, less the panel's own padding; it may take at most 42% of the width. */
+  #view-explore{--ex-cof:clamp(280px, min(calc(var(--ex-room) - 180px), 42vw), 640px)}
+  .ex-layout{grid-template-columns:var(--ex-cof) minmax(0,1fr); grid-template-areas:"circle play" "circle key" "circle ref"; align-items:start}
+  .ex-circle{position:sticky; top:calc(var(--hdr-h, 63px) + 10px); padding:8px 8px 10px}
+  /* The staff paper hugs its drawing; the drawing may use what the room leaves under the readout. */
+  #ex-staff{--ex-staff-max:max(150px, calc(var(--ex-room) - 292px))}
 }
 @media (min-width:1100px){
-  /* A wide key card puts its name and switches beside the fingering. */
-  .ex-key{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.35fr); align-items:start}
-  .ex-key .cof-kb{max-width:400px}
+  /* A wide key card puts its name, switches and chords beside the fingering. */
+  .ex-key{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); align-items:start}
 }
 @media (max-width:899px){
   /* Below COF_COMPACT_W (460px), so a one-column circle always draws compact, never flipping on a pixel of rounding. */
@@ -50,7 +77,16 @@
   #view-explore .seg button,#view-explore .btn,#view-explore select{min-height:44px}
   .ex-ref{justify-content:flex-start}
 }
+@media (max-width:600px){
+  /* What you hold on its own row, the name and the numeral below it. */
+  .ex-play .readout{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); row-gap:10px}
+  .ex-play .readout .ro:first-child{grid-column:1 / -1; padding:0 4px}
+  .ex-play .readout .ro:nth-child(2){border-left:0; padding-left:4px}
+  .cof-chips{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 @media (max-width:560px){
   .ex-head .lede{font-size:13.5px}
   .ex-play,.ex-key,.ex-ref{padding-left:12px; padding-right:12px}
+  .ex-play #ex-staff{padding:8px}
 }
+@media (prefers-reduced-motion:reduce){ .cof-chip{transition:none} }

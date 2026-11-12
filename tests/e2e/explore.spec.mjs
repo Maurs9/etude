@@ -62,6 +62,52 @@ test('picking a key on the circle sets the key context, and the Roman numerals a
   await expect(page.locator('#ex-staff .ex-keysig')).toHaveCount(0);
 });
 
+// The staff's drawing fills its paper and the paper hugs the drawing; the circle takes the height its column allows.
+// Before this layout, at 1280×800 and 1440×900 with the keys open, the circle was 259 and 359 px and the staves spanned
+// about half of their paper (461 of 883 px, and 657 of 943 px).
+// The circle takes the height left over, so it differs by a few px between platforms with their font metrics (323 px on
+// macOS, 297 px on the Linux CI runner at 1280×800). The floors sit 10% over the old sizes, not at one platform's value.
+test('wide screens: the staff fills its paper, the paper hugs it, and the circle is larger', async ({ app, page }) => {
+  const sizes = [[1280, 800, 285], [1440, 900, 395], [900, 800, 0], [1100, 800, 0], [1600, 900, 0], [1920, 1080, 0]];
+  for (const [width, height, minCircle] of sizes) {
+    await page.setViewportSize({ width, height });
+    await app.open({ hash: 'explore', dock: true });
+    await hold(page, [50, 57, 62, 66, 69, 74]);
+    const where = `${width}×${height}`;
+    await expect.poll(async () => {
+      const r = await page.evaluate(() => {
+        const paper = document.querySelector('#ex-staff').getBoundingClientRect(), svg = document.querySelector('#ex-staff svg').getBoundingClientRect();
+        const lines = [...document.querySelectorAll('#ex-staff .ss-line')].map(l => l.getBoundingClientRect());
+        const span = Math.max(...lines.map(l => l.right)) - Math.min(...lines.map(l => l.left));
+        return { fill: span / paper.width, hug: paper.height / svg.height };
+      });
+      return r.fill >= 0.6 && r.hug <= 1.5;
+    }, where).toBe(true);
+    if (minCircle) expect((await box(page, '#circle')).width, where).toBeGreaterThanOrEqual(minCircle);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), where).toBe(true);
+  }
+});
+
+test('the key card lists the key’s seven chords with their numerals; a pick plays one and lights it on the keys', async ({ app, page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await app.open({ hash: 'explore', dock: true });
+  const chips = () => page.locator('#cof-chords .cof-chip').evaluateAll(els => els.map(b => b.querySelector('.cof-chip-rn').textContent + ' ' + b.querySelector('b').textContent));
+  await expect.poll(chips).toEqual(['I C', 'ii Dm', 'iii Em', 'IV F', 'V G', 'vi Am', 'vii° B°']);
+  await page.locator('#circle .cof-k[data-ring="maj"][data-i="2"]').click();       // D major
+  await expect.poll(chips).toEqual(['I D', 'ii Em', 'iii F♯m', 'IV G', 'V A', 'vi Bm', 'vii° C♯°']);
+  await page.locator('#circle .cof-k[data-ring="min"][data-i="0"]').click();       // A minor: natural minor
+  await expect.poll(chips).toEqual(['i Am', 'ii° B°', 'III C', 'iv Dm', 'v Em', 'VI F', 'VII G']);
+
+  // iv in A minor: D minor, rising from the tonic just below middle C (A3), so D4 F4 A4.
+  await page.locator('#cof-chords .cof-chip').nth(3).click();
+  await expect.poll(() => page.locator('#keys [data-s="target"]').evaluateAll(els => els.map(el => +el.dataset.midi).sort((a, b) => a - b))).toEqual([62, 65, 69]);
+  await expect(page.locator('#ro-name')).toHaveText('Dm');
+  await expect(page.locator('#ro-roman')).toHaveText('iv');
+  // Afterwards the dock goes back to the chosen key's scale.
+  await expect.poll(() => page.locator('#keys [data-s="target"]').count(), { timeout: 6000 }).toBe(8);
+  await expect(page.locator('#cof-chords .cof-chip').first()).toHaveAttribute('aria-label', /^i · A /);
+});
+
 for (const width of [390, 360]) {
   test(`${width}px phone: one column in reading order, no sideways scroll, thumb-sized controls`, async ({ app, page }) => {
     await page.setViewportSize({ width, height: 844 });
@@ -70,7 +116,7 @@ for (const width of [390, 360]) {
     const order = [];
     for (const sel of ['.readout', '#ex-staff', '#circle', '#cof-info', '#ex-ref']) order.push((await box(page, sel)).top);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    for (const sel of ['#cof-mode button', '#cof-play', '#refPlay', '#refShow', '#keyCtx', '#refType']) {
+    for (const sel of ['#cof-mode button', '#cof-play', '#cof-chords .cof-chip', '#refPlay', '#refShow', '#keyCtx', '#refType']) {
       for (const el of await page.locator(sel).all()) expect((await el.boundingBox()).height, sel).toBeGreaterThanOrEqual(44);
     }
   });

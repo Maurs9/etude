@@ -200,6 +200,26 @@ test.describe('Practice setup', () => {
     await expect.poll(async () => { const dark = await look(); return dark.bg !== light.bg && dark.ink !== light.ink; }).toBe(true);
   });
 
+  test('wide screens: the key chips sit beside How to answer, Start closes the form at the right, Play along fits', async ({ app, page }) => {
+    for (const [width, height, cols] of [[1280, 800, 3], [1440, 900, 3], [1920, 1080, 6]]) {
+      await page.setViewportSize({ width, height });
+      await app.open({ hash: 'practice' });
+      await page.locator('#pr-t-prog').click();
+      await page.locator('#pr-mode [data-v="along"]').click();
+      const r = await page.evaluate(() => {
+        const b = s => document.querySelector(s).getBoundingClientRect();
+        return { mode: b('#pr-mode-h'), key: b('#pr-key-h'), keys: b('#pr-keys'), start: b('#pr-start'), along: b('#pr-along'), panel: b('.pr-setup'), scroll: document.documentElement.scrollWidth };
+      });
+      const where = `${width}px`;
+      expect(Math.abs(r.mode.top - r.key.top), where).toBeLessThan(2);
+      expect(r.key.left, where).toBeGreaterThan(r.panel.left + r.panel.width / 2 - 1);
+      expect(r.along.top, where).toBeGreaterThan(r.keys.bottom);
+      expect(r.start.right, where).toBeGreaterThan(r.panel.right - 40);
+      expect(r.scroll, where).toBeLessThanOrEqual(width);
+      expect(await page.locator('#pr-topics').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), where).toBe(cols);
+    }
+  });
+
   test('the setup follows the language and the note names', async ({ app }) => {
     const page = await app.open({ hash: 'practice' });
     await page.locator('#pr-keys [data-v="10"]').click();
