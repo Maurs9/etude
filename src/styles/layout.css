@@ -1,0 +1,72 @@
+/* ---------- Screen layout on wide windows: Today, Progress, Learn, Method, Settings and Help ----------
+   Loaded after etude.css (imported in views-runtime.ts). Every rule here only rearranges what the screens already show,
+   so that a desktop window uses its width: groups that were full-width rows with one short line become columns, and
+   notation that sat small in a wide panel grows to fit it. Phones keep the etude.css layout: every rule is behind a
+   min-width query, except the Progress page width (it only matters above 1240px) and the Settings switch rows. */
+
+/* Today: the session card takes less of the row, so the plan's two columns of tasks have room for their lines. */
+@media (min-width:1200px){
+  .today-overview{grid-template-columns:minmax(0,.8fr) minmax(0,1.45fr)}
+}
+/* Today: "Other ways to practice" as a row of cards instead of full-width rows that each hold one short line. */
+@media (min-width:761px){
+  #view-today .tools{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; border-top:0}
+  #view-today .tools > li{display:flex; min-width:0}
+  #view-today .tool{flex:1; grid-template-columns:minmax(0,1fr) auto; grid-template-rows:auto 1fr; align-items:start; gap:4px 12px;
+    padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--card)}
+  #view-today .tool:hover{border-color:var(--accent)}
+  #view-today .tool-t{grid-column:1; grid-row:1}
+  #view-today .tool-d{grid-column:1; grid-row:2}
+  #view-today .tool-go{grid-column:2; grid-row:1 / span 2; align-self:center}
+}
+
+/* Progress is a dashboard, not a page of text: it gets the workspace width like Today. */
+#view-progress > .wrap{max-width:var(--work-max)}
+/* Mastery on the left; the 7-day forecast above the practice history on the right, behind a column line. */
+@media (min-width:1100px){
+  .prog-top{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-areas:"m f" "m h"; gap:0 32px; align-items:start}
+  .prog-mastery{grid-area:m}
+  .prog-fc{grid-area:f; align-self:stretch}
+  .prog-heat{grid-area:h; align-self:stretch}
+  .prog-fc > hr.rule{display:none}
+  .prog-heat > hr.rule{margin:22px 0}
+  .prog-fc,.prog-heat{padding-left:32px; border-left:1px solid var(--line)}
+  /* the heatmap cells grow with the column (13 weeks across), up to a readable size */
+  #view-progress .heatmap{grid-template-rows:repeat(7,auto); grid-auto-columns:minmax(0,1fr); max-width:340px}
+  #view-progress .heatmap i{width:auto; height:auto; aspect-ratio:1}
+  /* Reading → Note map: the treble and bass maps side by side, each scaled to its half of the panel */
+  #rdx-stats .rdx-stat-p:has(> .rdx-heat){display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 28px; align-items:start}
+  #rdx-stats .rdx-stat-p:has(> .rdx-heat) > :not(.rdx-heat){grid-column:1 / -1}
+  #rdx-stats .rdx-heat .rdx-svg{display:block; width:100%; max-width:640px; height:auto}
+}
+
+/* Learn: the lesson staves (lStaffFit sets --sw, the drawn width) grow to the panel width, up to 1.35 times; a staff
+   wider than the panel keeps its size and scrolls, as on a phone. */
+@media (min-width:1000px){
+  .learn-body .ss-wrap > .ss-svg[style*="--sw"]{width:max(var(--sw), min(100%, calc(var(--sw) * 1.35))); height:auto}
+}
+@media (min-width:1200px){
+  /* the glossary's short entries in two columns, still alphabetical down each column */
+  .learn-body .lg-list{columns:2; column-gap:32px}
+  .learn-body .lg-it{break-inside:avoid}
+  /* cheat sheets: the term column is as wide as the longest term, so each value sits next to its term */
+  .lsum dl,.lw-dl{grid-template-columns:fit-content(38%) minmax(0,1fr)}
+  .lsum dl > div,.lw-dl > div{grid-column:1 / -1; grid-template-columns:subgrid; column-gap:20px}
+  .lsum dt,.lw-dl dt{min-width:110px}
+}
+
+/* Method: six principles in two full rows of three instead of four and two. */
+@media (min-width:900px){
+  #view-method .principles{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* Settings: a row that starts with a switch keeps its label next to the switch, not at the far end of the row. */
+.set-row > .switch:first-child{flex:none}
+.set-row > .switch:first-child + .lab{margin-right:auto}
+
+/* Help: each shortcut in a fixed key column with its description beside it, instead of at the far right edge. */
+@media (min-width:600px){
+  .hk{display:grid; grid-template-columns:minmax(0,9.5em) minmax(0,1fr); justify-content:start}
+  .hk kbd{justify-self:start; max-width:100%; white-space:normal}
+  .hk span{text-align:left}
+}
