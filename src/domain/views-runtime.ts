@@ -34,6 +34,7 @@ import '../styles/practice.css';
 import '../styles/voice.css';
 import '../styles/explore.css';
 import '../styles/pieces.css';
+import '../styles/layout.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint } from '../sight-reading/fingerprint.js';

@@ -1,0 +1,21 @@
+/* ---------- Screen layout on wide windows: Today, Progress, Learn, Method, Settings and Help ----------
+   Loaded after etude.css (imported in views-runtime.ts). Every rule here only rearranges what the screens already show,
+   so that a desktop window uses its width: groups that were full-width rows with one short line become columns, and
+   notation that sat small in a wide panel grows to fit it. Phones keep the etude.css layout: every rule is behind a
+   min-width query, except the Progress page width (it only matters above 1240px) and the Settings switch rows. */
+
+/* Today: the session card takes less of the row, so the plan's two columns of tasks have room for their lines. */
+@media (min-width:1200px){
+  .today-overview{grid-template-columns:minmax(0,.8fr) minmax(0,1.45fr)}
+}
+/* Today: "Other ways to practice" as a row of cards instead of full-width rows that each hold one short line. */
+@media (min-width:761px){
+  #view-today .tools{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; border-top:0}
+  #view-today .tools > li{display:flex; min-width:0}
+  #view-today .tool{flex:1; grid-template-columns:minmax(0,1fr) auto; grid-template-rows:auto 1fr; align-items:start; gap:4px 12px;
+    padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--card)}
+  #view-today .tool:hover{border-color:var(--accent)}
+  #view-today .tool-t{grid-column:1; grid-row:1}
+  #view-today .tool-d{grid-column:1; grid-row:2}
+  #view-today .tool-go{grid-column:2; grid-row:1 / span 2; align-self:center}
+}
