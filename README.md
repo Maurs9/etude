@@ -7,7 +7,7 @@
 ## Features
 
 - Theory handbook with every lesson open in any order, and reading exercises with generated sight-reading melodies. Reading levels include eighths, dotted notes, syncopation and ties.
-- Pieces: 14 built-in pieces by level and your own MIDI or MusicXML files (My Library) play in one score player, with tempo, loops, hands separate and Wait for me. A run through the whole piece saves your best accuracy, and a full Wait for me pass marks a built-in piece as learned.
+- Pieces: 23 built-in pieces by level and your own MIDI or MusicXML files (My Library) play in one score player, with tempo, loops, hands separate, Wait for me, note names on the score and a full-window view. A run through the whole piece saves your best accuracy, also when you paused and resumed it, and a full Wait for me pass marks a built-in piece as learned.
 - Reading drills: every level is open in any order. Practice gives up to 3 stars from your last 20 answers, and the Challenge menu holds Time Attack, Survival and Marathon. Rhythm and sight-reading levels keep a graded run for their stars. Reading statistics are in Progress, under Reading.
 - Targeted drills, with song hints for intervals and a choice of direction by ear, a play-along accompaniment loop for progressions, a scale and arpeggio technique drill, and ear training
 - Voice: sight-sing a melody from the staff with live pitch feedback, or hum one and get the notes back as MIDI or text. Keys or MIDI can answer in place of the voice.

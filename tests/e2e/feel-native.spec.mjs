@@ -80,7 +80,7 @@ test('Pieces shows one Open file button at a time, and the built-in list stays a
   await app.open({ hash: 'analysis' });
   const toolbarOpen = page.locator('label[for="an-file"]'), twinkle = page.locator('#pc-list .pc-item[data-piece="twinkle"]');
   await expect(page.locator('#an-roll [data-an-open]')).toBeVisible();
-  await expect(page.locator('#pc-list .pc-item')).toHaveCount(14);
+  await expect(page.locator('#pc-list .pc-item')).toHaveCount(23);
   await expect(toolbarOpen).toBeHidden();
   await expect(page.locator('#an-example')).toHaveCount(0);
   await twinkle.click();
