@@ -29,6 +29,7 @@ import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
+import '../styles/reading.css';
 import '../styles/practice.css';
 import '../styles/explore.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
@@ -8155,27 +8156,34 @@ function rdSvg(o: ReadDrillSvgOptions) {
     return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0, H };
 }
 /* ---- drill engine ---- */
-const RD_TESTN = 20, RD_RUSH = 60;
-type ReadDrillMode = 'practice' | 'test' | 'rush' | SightReadingArcadeMode;
-const RD_MODES: readonly string[] = ['practice', 'test', 'rush', 'survival', 'timeAttack', 'marathon'];
+// Practice's star check: the last RD_CHECK_N answers of the run.
+const RD_CHECK_N = 20;
+// 'test' is the graded run of rhythm and sight-reading levels; the other levels earn their stars in Practice.
+type ReadDrillMode = 'practice' | 'test' | SightReadingArcadeMode;
+const RD_MODES: readonly string[] = ['practice', 'test', 'survival', 'timeAttack', 'marathon'];
 function isReadDrillMode(mode: string): mode is ReadDrillMode { return RD_MODES.includes(mode); }
-const RD_MODE_ICON: Record<ReadDrillMode, string> = { practice: '🎯', test: '📝', rush: '⚡', survival: '♥', timeAttack: '⏱', marathon: '🏃' };
+const RD_MODE_ICON: Record<ReadDrillMode, string> = { practice: '🎯', test: '📝', survival: '♥', timeAttack: '⏱', marathon: '🏃' };
 // arc: the arcade run (Survival, Time Attack, Marathon); bars: the Marathon length last chosen; limT: Survival's per-note time limit;
 // tout: the last answer was a timeout; arcFx: what the last answer earned (a Time Attack bonus or a faster Survival pace); limF: Survival's time bar when the note was answered.
-interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; arc: SightReadingArcadeState | null; bars: SightReadingMarathonBars; limT?: ReturnType<typeof setTimeout>; tout: boolean; arcFx: '' | 'bonus' | 'faster'; limF: number; }
-const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false, arc: null, bars: 16, tout: false, arcFx: '', limF: 1 };
-// Rhythm and sight-reading levels keep Practice and Test; Marathon reads one long line of notes, so only naming and playing levels have it.
+// chk: Practice's star check, the last RD_CHECK_N first answers (a hinted one counts as wrong); chkBest: the best stars it gave this run, null until it is full;
+// chkNew: stars just earned, still to announce; awT: hides the "earned" notice.
+interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; arc: SightReadingArcadeState | null; bars: SightReadingMarathonBars; limT?: ReturnType<typeof setTimeout>; tout: boolean; arcFx: '' | 'bonus' | 'faster'; limF: number; chk: { ok: boolean; ms: number; }[]; chkBest: number | null; chkNew: number; awT?: ReturnType<typeof setTimeout>; }
+const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false, arc: null, bars: 16, tout: false, arcFx: '', limF: 1, chk: [], chkBest: null, chkNew: 0 };
+// Rhythm and sight-reading levels keep Practice and their graded run; the others have Practice and the Challenge modes.
+// Marathon reads one long line of notes, so only naming and playing levels have it.
 function rdModes(L: ReadDrillLevel): ReadDrillMode[] {
-    if (L.ty === 'rh' || L.ty === 'sr')
+    if (!rdHasCheck(L))
         return ['practice', 'test'];
-    const modes: ReadDrillMode[] = ['practice', 'test', 'rush', 'survival', 'timeAttack'];
+    const modes: ReadDrillMode[] = ['practice', 'timeAttack', 'survival'];
     if (L.ty === 'name' || L.ty === 'play')
         modes.push('marathon');
     return modes;
 }
-// How many notes the run has (Test and Marathon), or null when it ends another way.
-function rdRunLen(): number | null { return RD.mode === 'test' ? RD_TESTN : RD.arc && RD.arc.total !== null ? RD.arc.total : null; }
-function rdTimeUp() { return (RD.mode === 'rush' || RD.mode === 'timeAttack') && performance.now() >= RD.rushEnd; }
+// Levels whose Practice runs the star check: all but rhythm and sight-reading, which earn stars in their graded run.
+function rdHasCheck(L: ReadDrillLevel | null) { return !!L && L.ty !== 'rh' && L.ty !== 'sr'; }
+// How many notes the run has (Marathon), or null when it ends another way.
+function rdRunLen(): number | null { return RD.arc && RD.arc.total !== null ? RD.arc.total : null; }
+function rdTimeUp() { return RD.mode === 'timeAttack' && performance.now() >= RD.rushEnd; }
 // Survival: a note still unanswered when its time window closes costs a life.
 function rdArmLimit() {
     clearTimeout(RD.limT);
@@ -8215,27 +8223,12 @@ function rdWeakItems<T>(items: T[], keyOf: (x: T) => string) {
 function rdPick<T>(items: T[]) {
     return items[Math.floor(Math.random() * items.length)];
 }
-// In test mode the bag holds shuffled indices into items; the same signature means the same keys in the same order.
 function rdPickFrom<T>(items: T[], keyOf: (x: T) => string) {
-    let r: T;
-    if (RD.mode === 'test') {
-        const sig = items.map((x) => keyOf(x)).join('|');
-        if (RD.bagSig !== sig || !RD.bag.length) {
-            RD.bagSig = sig;
-            RD.bag = rdShuffle(items.map((_, j) => j));
-        }
-        let i = RD.bag.findIndex((j) => keyOf(items[j]) !== RD.lastK);
-        if (i < 0)
-            i = 0;
-        r = items[RD.bag.splice(i, 1)[0]];
-    }
-    else {
-        let pool = items.filter((item) => keyOf(item) !== RD.lastK);
-        if (!pool.length)
-            pool = items;
-        const weak = (RD.mode === 'practice' || RD.mode === 'survival' || RD.mode === 'marathon') && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
-        r = rdPick(weak.length ? weak : pool);
-    }
+    let pool = items.filter((item) => keyOf(item) !== RD.lastK);
+    if (!pool.length)
+        pool = items;
+    const weak = (RD.mode === 'practice' || RD.mode === 'survival' || RD.mode === 'marathon') && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
+    const r = rdPick(weak.length ? weak : pool);
     RD.lastK = keyOf(r);
     return r;
 }
@@ -8624,8 +8617,11 @@ function rdFlowAnswer(ok: boolean, g: ReadDrillGiven, timeout = false) {
         rdScore(q, ok, timeout);
         q.state = ok ? 'good' : 'bad';
     }
-    if (ok)
-        return rdFlowAdvance(g);
+    if (ok) {
+        rdFlowAdvance(g);
+        rdCheckNotice();
+        return;
+    }
     RD.fix = true;
     if (q.ty === 'play' && g.midi != null)
         F.played = g.midi;
@@ -8639,6 +8635,7 @@ function rdFlowAnswer(ok: boolean, g: ReadDrillGiven, timeout = false) {
     sv.classList.add('flash-bad');
     byId('rdx-live').textContent = rdFlowMsg();
     rdHud();
+    rdCheckNotice();
     // A run that this mistake ended (no lives left, or the last Marathon note) closes after a moment to read the answer.
     if (RD.arc && RD.arc.completed)
         RD.timers.push(setTimeout(() => { if (RD.on)
@@ -8661,7 +8658,7 @@ function rdFlowAdvance(g: ReadDrillGiven) {
         rdFlowShow(false);
         rdHud();
         RD.timers.push(setTimeout(() => { if (RD.on)
-            rdFinish(); }, RD.mode === 'rush' || RD.mode === 'timeAttack' ? 0 : 400));
+            rdFinish(); }, RD.mode === 'timeAttack' ? 0 : 400));
         return;
     }
     rdFlowFill(F, F.cur + 1);
@@ -8809,6 +8806,8 @@ function rdScore(q: ReadQuestion, ok: boolean, timeout = false) {
             tt.ok++;
         tt.ms += ms;
     }
+    if (RD.mode === 'practice' && rdHasCheck(RD.L))
+        rdCheck(!q.hinted && ok, ms);
     RD.arcFx = '';
     const prev = RD.arc;
     if (!prev)
@@ -8844,12 +8843,77 @@ function rdAnswer(ok: boolean, given?: ReadDrillGiven, timeout = false) {
     rdScore(q, ok, timeout);
     rdFeedback(ok, given || {});
     rdHud();
-    const done = (RD.mode === 'test' && RD.n >= RD_TESTN) || !!(RD.arc && RD.arc.completed);
+    rdCheckNotice();
+    const done = !!(RD.arc && RD.arc.completed);
     RD.timers.push(setTimeout(() => { if (!RD.on)
         return; if (done || rdTimeUp())
         rdFinish();
     else
-        rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'rush' || RD.mode === 'timeAttack' ? 800 : 1500)));
+        rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'timeAttack' ? 800 : 1500)));
+}
+// The star check's thresholds: accuracy first, then the mean answer time against the level's target.
+function rdStarsFor(acc: number, avg: number, tg: number) { return acc >= 95 && avg <= tg ? 3 : acc >= 90 && avg <= tg * 1.6 ? 2 : acc >= 80 ? 1 : 0; }
+function rdCheckResult() {
+    const w = RD.chk, n = w.length, acc = n ? Math.round(100 * w.filter((x) => x.ok).length / n) : 0, avg = n ? w.reduce((a, x) => a + x.ms, 0) / n : 0;
+    return { acc, avg, stars: RD.L ? rdStarsFor(acc, avg, rdTarget(RD.L)) : 0 };
+}
+// Adds a first answer to the star check. Once it holds RD_CHECK_N answers, a result better than the level's saved one is saved on the spot.
+function rdCheck(ok: boolean, ms: number) {
+    const L = RD.L;
+    if (!L)
+        return;
+    RD.chk.push({ ok, ms });
+    if (RD.chk.length > RD_CHECK_N)
+        RD.chk.shift();
+    if (RD.chk.length < RD_CHECK_N)
+        return;
+    const r = rdCheckResult(), was = RD.chkBest;
+    RD.chkBest = Math.max(was ?? 0, r.stars);
+    if (L.custom) {
+        if (r.stars > (was ?? 0))
+            RD.chkNew = r.stars;
+        return;
+    }
+    const d = rdData(), rec = d.lv[L.id] ?? { s: 0, acc: 0, t: 0, n: 0, rush: 0 };
+    let save = false;
+    if (r.stars > (rec.s || 0)) {
+        rec.s = r.stars;
+        RD.chkNew = r.stars;
+        save = true;
+    }
+    if (r.acc > (rec.acc || 0)) {
+        rec.acc = r.acc;
+        save = true;
+    }
+    if (r.avg && r.acc >= 80 && (!rec.t || r.avg < rec.t)) {
+        rec.t = Math.round(r.avg);
+        save = true;
+    }
+    if (save) {
+        d.lv[L.id] = rec;
+        saveAll();
+    }
+}
+// Announces stars the check just earned, without stopping the drill.
+function rdCheckNotice() {
+    const s = RD.chkNew, aw = maybeById('rdx-award');
+    if (!s)
+        return;
+    RD.chkNew = 0;
+    byId('rdx-live').textContent = t('rdx_chk_live', t('rdx_stars_n', s));
+    if (!aw)
+        return;
+    aw.textContent = t('rdx_chk_earned', '★'.repeat(s));
+    aw.hidden = false;
+    clearTimeout(RD.awT);
+    RD.awT = setTimeout(() => { aw.hidden = true; }, 3000);
+}
+function rdCheckHud() {
+    const n = RD.chk.length;
+    if (n < RD_CHECK_N)
+        return t('rdx_chk_n', n, RD_CHECK_N);
+    const s = rdCheckResult().stars;
+    return t('rdx_chk_s', '★'.repeat(s) + '☆'.repeat(3 - s));
 }
 function rdFeedback(ok: boolean, g: ReadDrillGiven) {
     const q = RD.q;
@@ -8938,15 +9002,6 @@ function rdHud() {
         if (RD.mode === 'test')
             f = n / 4;
     }
-    else if (RD.mode === 'test') {
-        s = t('rdx_hud_q', Math.min(RD_TESTN, RD.n + (RD.answered ? 0 : 1)), RD_TESTN) + ' · ✓ ' + RD.ok;
-        f = RD.n / RD_TESTN;
-    }
-    else if (RD.mode === 'rush') {
-        const left = Math.max(0, Math.ceil((RD.rushEnd - performance.now()) / 1000));
-        s = '⏱ ' + left + 's · ✓ ' + RD.ok;
-        f = left / RD_RUSH;
-    }
     else if (RD.arc) {
         const arc = RD.arc, now = performance.now(), parts: string[] = [];
         if (arc.mode === 'survival') {
@@ -8969,8 +9024,11 @@ function rdHud() {
             parts.push('🔥 ' + arc.combo);
         s = parts.join(' · ');
     }
-    else
+    else {
         s = '✓ ' + RD.ok + '/' + RD.n + (RD.streak >= 2 ? ' · 🔥 ' + RD.streak : '');
+        if (RD.mode === 'practice' && rdHasCheck(RD.L))
+            s += ' · ' + rdCheckHud();
+    }
     if (RD.flow && RD.flow.gh)
         s += ' · 👻 ' + formatLead(RD.flow.gd);
     h.textContent = s;
@@ -9690,18 +9748,92 @@ function rdIntro() {
         const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
         prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
     }
-    const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}${r.sv ? `<span>♥ ${t('rdx_best_sv', anNum(r.sv, 0))}</span>` : ''}${r.ta ? `<span>⏱ ${t('rdx_best_ta', anNum(r.ta, 0))}</span>` : ''}${r.mn ? `<span>🏃 ${t('rdx_best_mn', r.mn)}</span>` : ''}</div>`;
-    const sfx = (L.ty === 'rh' || L.ty === 'sr') ? '_' + L.ty : '';
-    // Marathon is a group with one button per length; the other modes are a single button each.
-    const card = (m: ReadDrillMode) => m === 'marathon'
-        ? `<div class="rdx-mode rdx-mode-grp" role="group" aria-labelledby="rdx-m-marathon"><b id="rdx-m-marathon">${ic[m]} ${t('rdx_m_marathon')}</b><span>${t('rdx_md_marathon')}</span><div class="rdx-bars"><span>${t('rdx_bars')}</span>${[16, 32, 64].map((n) => `<button class="chip" data-mode="marathon" data-bars="${n}" aria-label="${rdEsc(t('rdx_m_marathon') + ', ' + t('rdx_bars') + ' ' + n)}">${n}</button>`).join('')}</div></div>`
-        : `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
-    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${modes.map(card).join('')}</div></div>`;
+    const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}</div>`;
+    const sfx = rdHasCheck(L) ? '' : '_' + L.ty;
+    const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
+    // Each Challenge mode shows its record; Marathon is a group with one item per length.
+    const best = (m: ReadDrillMode) => { const b = m === 'timeAttack' ? (r.ta ? t('rdx_best_ta', anNum(r.ta, 0)) : '') : m === 'survival' ? (r.sv ? t('rdx_best_sv', anNum(r.sv, 0)) : '') : r.mn ? t('rdx_best_mn', r.mn) : ''; return b ? `<em>🏆 ${rdEsc(b)}</em>` : ''; };
+    const item = (m: ReadDrillMode) => m === 'marathon'
+        ? `<div class="rdx-chal-grp" role="group" aria-labelledby="rdx-m-marathon"><b id="rdx-m-marathon">${ic[m]} ${t('rdx_m_marathon')}</b><span>${t('rdx_md_marathon')}</span>${best(m)}<div class="rdx-bars"><span aria-hidden="true">${t('rdx_bars')}</span>${[16, 32, 64].map((n) => `<button type="button" class="chip" role="menuitem" tabindex="-1" data-mode="marathon" data-bars="${n}" aria-label="${rdEsc(t('rdx_m_marathon') + ', ' + t('rdx_bars') + ' ' + n)}">${n}</button>`).join('')}</div></div>`
+        : `<button type="button" class="rdx-chal-it" role="menuitem" tabindex="-1" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m)}</span>${best(m)}</button>`;
+    const chal = modes.filter((m) => m !== 'practice');
+    // Practice first; then the Challenge menu, or the graded run for rhythm and sight-reading levels.
+    const more = rdHasCheck(L)
+        ? `<button type="button" class="rdx-mode rdx-chal-btn" id="rdx-chal" aria-haspopup="menu" aria-expanded="false" aria-controls="rdx-chal-menu"><b>🏁 ${t('rdx_challenge')} <i aria-hidden="true">▾</i></b><span>${rdEsc(chal.map((m) => t('rdx_m_' + m)).join(' · '))}</span></button><div class="rdx-chal-menu" id="rdx-chal-menu" role="menu" aria-labelledby="rdx-chal" hidden>${chal.map(item).join('')}</div>`
+        : card('test', '');
+    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${card('practice', ' rdx-mode-main')}${more}</div></div>`;
     rdCoach(true);
 }
-function rdStart(mode: string, bars?: number) {
+function rdChalItems() { return queryAllHtml(document, '#rdx-chal-menu [role=menuitem]'); }
+// Opens or closes the Challenge menu; on opening, focus goes to its first or last item.
+function rdChalOpen(open: boolean, focus?: 'first' | 'last') {
+    const b = maybeById('rdx-chal'), m = maybeById('rdx-chal-menu');
+    if (!b || !m)
+        return;
+    m.hidden = !open;
+    b.setAttribute('aria-expanded', String(open));
+    const it = rdChalItems();
+    if (open && focus && it.length)
+        it[focus === 'last' ? it.length - 1 : 0].focus({ preventScroll: true });
+    // The menu opens below the button; the page scrolls so the keyboard dock and the bottom bar do not cover it.
+    if (open) {
+        const tops = [maybeById('dock'), maybeById('bottomNav')].flatMap((el) => { const r = el?.getBoundingClientRect(); return r && r.height > 0 && r.top < innerHeight ? [r.top] : []; });
+        const over = m.getBoundingClientRect().bottom + 8 - Math.min(innerHeight, ...tops);
+        if (over > 0)
+            window.scrollBy(0, over);
+    }
+}
+// Arrow keys move through the Challenge menu, Home and End jump to its ends, Esc closes it and Tab leaves it.
+function rdChalKey(e: KeyboardEvent) {
+    const tg = eventElement(e), b = maybeById('rdx-chal');
+    if (!tg || !b)
+        return;
+    const open = b.getAttribute('aria-expanded') === 'true';
+    if (tg === b) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            rdChalOpen(true, e.key === 'ArrowUp' ? 'last' : 'first');
+        }
+        else if (e.key === 'Escape' && open) {
+            e.preventDefault();
+            e.stopPropagation();
+            rdChalOpen(false);
+        }
+        return;
+    }
+    if (!tg.closest('#rdx-chal-menu'))
+        return;
+    const it = rdChalItems(), i = tg instanceof HTMLElement ? it.indexOf(tg) : -1;
+    let n: HTMLElement | undefined;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight')
+        n = it[(i + 1) % it.length];
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft')
+        n = it[(i - 1 + it.length) % it.length];
+    else if (e.key === 'Home')
+        n = it[0];
+    else if (e.key === 'End')
+        n = it[it.length - 1];
+    else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        rdChalOpen(false);
+        b.focus();
+    }
+    else if (e.key === 'Tab')
+        rdChalOpen(false);
+    if (n) {
+        e.preventDefault();
+        e.stopPropagation();
+        n.focus();
+    }
+}
+function rdStart(mode0: string, bars?: number) {
     const L = RD.L;
-    if (!L || !isReadDrillMode(mode) || !rdModes(L).includes(mode))
+    if (!L)
+        return;
+    // Test and Note rush of older versions open Practice, where the star check now gives the stars.
+    const mode = isReadDrillMode(mode0) && rdModes(L).includes(mode0) ? mode0 : mode0 === 'test' || mode0 === 'rush' ? 'practice' : null;
+    if (!mode)
         return;
     ensureAudio();
     if (L.ty === 'sr') {
@@ -9712,17 +9844,15 @@ function rdStart(mode: string, bars?: number) {
         RD.bars = bars;
     rdClear();
     const now = performance.now();
-    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false, arc: srtIsArcadeMode(mode) ? srtArcadeStart(mode, now, { targetMs: rdTarget(L), marathonBars: RD.bars }) : null, tout: false, arcFx: '', limF: 1 });
+    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false, arc: srtIsArcadeMode(mode) ? srtArcadeStart(mode, now, { targetMs: rdTarget(L), marathonBars: RD.bars }) : null, tout: false, arcFx: '', limF: 1, chk: [], chkBest: null, chkNew: 0 });
     stageSync();
     rdCoach(true);
     const e = byId('rdx-end');
     e.hidden = false;
     e.textContent = t(mode === 'practice' ? 'rdx_end' : 'rdx_quit');
-    if (mode === 'rush')
-        RD.rushEnd = now + RD_RUSH * 1000;
     if (RD.arc && RD.arc.deadlineMs !== null)
         RD.rushEnd = RD.arc.deadlineMs;
-    if (mode === 'rush' || mode === 'timeAttack' || mode === 'survival')
+    if (mode === 'timeAttack' || mode === 'survival')
         RD.rushIv = window.setInterval(() => { if (!RD.on)
             return; rdHud(); if (rdTimeUp() && (!RD.answered || RD.fix))
             rdFinish(); }, 250);
@@ -9738,6 +9868,10 @@ function rdClear() {
     RD.timers = [];
     clearTimeout(RD.hintT);
     clearTimeout(RD.limT);
+    clearTimeout(RD.awT);
+    const aw = maybeById('rdx-award');
+    if (aw)
+        aw.hidden = true;
     clearInterval(RD.rushIv);
     RD.rushIv = 0;
     if (RD.flow)
@@ -9829,9 +9963,10 @@ function rdFinish() {
     byId('rdx-end').hidden = true;
     byId('rdx-meter').hidden = true;
     let acc = 0, avg = 0, stars = 0;
-    const score = RD.ok;
     if (!L)
         return;
+    // Practice shows the best stars its check gave this run, once it was full.
+    const chk = mode === 'practice' && rdHasCheck(L), shown = mode === 'test' || (chk && RD.chkBest !== null);
     const arc = RD.arc && (RD.arc = srtArcadeComplete(RD.arc, now)), sum = arc && srtArcadeSummary(arc, now);
     const npm = sum ? Math.round(sum.notesPerMinute ?? 0) : 0;
     if (L.ty === 'rh') {
@@ -9843,9 +9978,8 @@ function rdFinish() {
         acc = RD.n ? Math.round(100 * RD.ok / RD.n) : 0;
         // Arcade runs time only the right answers: a timeout is not a reading speed.
         avg = sum ? sum.averageReactionMs ?? 0 : RD.n ? RD.ms / RD.n : 0;
-        const tg = rdTarget(L);
-        if (mode === 'test')
-            stars = acc >= 95 && avg <= tg ? 3 : acc >= 90 && avg <= tg * 1.6 ? 2 : acc >= 80 ? 1 : 0;
+        if (chk)
+            stars = RD.chkBest ?? 0;
     }
     const d = rdData();
     d.tot.sess++;
@@ -9858,10 +9992,6 @@ function rdFinish() {
             rec.acc = Math.max(rec.acc || 0, acc);
             if (avg && acc >= 80 && (!rec.t || avg < rec.t))
                 rec.t = Math.round(avg);
-        }
-        if (mode === 'rush') {
-            newBest = score > (rec.rush || 0);
-            rec.rush = Math.max(rec.rush || 0, score);
         }
         if (sum) {
             const k = sum.mode === 'survival' ? 'sv' : sum.mode === 'timeAttack' ? 'ta' : 'mn', v = k === 'mn' ? npm : sum.score;
@@ -9877,10 +10007,10 @@ function rdFinish() {
         : sum && sum.mode === 'survival' ? [[pts, t('rdx_st_score')], [rdClock(sum.elapsedMs), t('rdx_st_survived')], [sum.correct, t('rdx_st_rush')], [avgS, t('rdx_st_time')]]
             : sum && sum.mode === 'timeAttack' ? [[pts, t('rdx_st_score')], [sum.correct, t('rdx_st_rush')], [acc + '%', t('rdx_st_acc')], [sum.bestCombo, t('rdx_st_streak')]]
                 : sum ? [[rdClock(sum.elapsedMs), t('rdx_st_total')], [acc + '%', t('rdx_st_acc')], [npm, t('rdx_st_npm')], [pts, t('rdx_st_score')]]
-                    : [[acc + '%', t('rdx_st_acc')], [avgS, t('rdx_st_time')], [mode === 'rush' ? score : RD.best, mode === 'rush' ? t('rdx_st_rush') : t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
+                    : [[acc + '%', t('rdx_st_acc')], [avgS, t('rdx_st_time')], [RD.best, t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
     const best = newBest ? ' · 🏆 ' + t('rdx_newbest') : '';
-    const head = mode === 'test' ? `<div class="rdx-sum-stars">${rdStars(stars)}</div><p class="rdx-sum-msg">${t(stars === 3 ? 'rdx_s3' : stars === 2 ? 'rdx_s2' : stars === 1 ? 'rdx_s1' : 'rdx_s0')}</p>`
-        : mode === 'rush' ? `<p class="rdx-sum-msg">⚡ ${t('rdx_rush_score', score)}${best}</p>`
+    const head = shown ? `<div class="rdx-sum-stars">${rdStars(stars)}</div><p class="rdx-sum-msg">${t(stars === 3 ? 'rdx_s3' : stars === 2 ? 'rdx_s2' : stars === 1 ? 'rdx_s1' : 'rdx_s0')}</p>`
+        : chk ? `<p class="rdx-sum-msg">${t('rdx_chk_wait', RD.chk.length, RD_CHECK_N)}</p>`
             : sum ? `<p class="rdx-sum-msg">${RD_MODE_ICON[mode]} ${sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)}${best}</p>` : `<p class="rdx-sum-msg">${t('rdx_sum_practice')}</p>`;
     const nx = rdLvNext(L);
     RD.next = rdNextStep(L, mode, acc, avg, stars, weak);
@@ -9890,7 +10020,7 @@ function rdFinish() {
     ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
     ${(RD).next ? `<div class="coach rdx-coach" id="rdx-next" data-kind="next">${coachHTML(t('coach_next'), (RD).next, 'rdx-next-act')}</div>` : ''}
     <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!L.custom && nx ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
-    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + (sum ? ' · ' + (sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
+    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (shown ? ' · ' + t('rdx_stars_n', stars) : '') + (sum ? ' · ' + (sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
     byId('rdx-hud').textContent = '';
     byId('rdx-meter').hidden = true;
     const s = maybeById('rdx-sum');
@@ -10154,6 +10284,11 @@ function rdOnLocale() {
             rdOpen(L);
             return;
         }
+        if (eventClosest(e, '#rdx-chal')) {
+            const open = byId('rdx-chal').getAttribute('aria-expanded') !== 'true';
+            rdChalOpen(open, open ? 'first' : undefined);
+            return;
+        }
         const md = eventClosest(e, '[data-mode]');
         if (md) {
             rdStart(md.dataset.mode ?? '', Number(md.dataset.bars) || undefined);
@@ -10220,6 +10355,10 @@ function rdOnLocale() {
         else if (id === 'rdx-c-go')
             rdCustomGo();
     });
+    dr.addEventListener('keydown', rdChalKey);
+    // A press outside the Challenge menu closes it.
+    document.addEventListener('pointerdown', (e) => { const m = maybeById('rdx-chal-menu'); if (m && !m.hidden && !eventClosest(e, '#rdx-chal, #rdx-chal-menu'))
+        rdChalOpen(false); });
     dr.addEventListener('pointerdown', (e) => {
         const pad = eventClosest(e, '.rdx-tap');
         if (pad) {
@@ -10556,12 +10695,10 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
     }
     if (!RD.n)
         return null;
-    const tg = rdTarget(L) / 1000, sec = avg / 1000;
-    if (mode === 'rush')
-        return RD.n - RD.ok >= 3 ? { k: 'rdn_rush' } : { k: 'rdn_ok' };
+    const tg = rdTarget(L) / 1000, sec = avg / 1000, timeAttack = { k: 'rdx_m_timeAttack', run: () => rdStart('timeAttack') };
     // A Survival run lost to the clock needs speed, not hints: timeouts also count against accuracy.
     if (mode === 'survival' && RD.arc && RD.arc.timeouts >= 2)
-        return { k: 'rdn_sv_time', act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
+        return { k: 'rdn_sv_time', act: timeAttack };
     if (acc < 80)
         return { k: 'rdn_hints', act: { k: 'rdn_act_hints', run: () => { rdData().prefs.hints = true; saveAll(); rdStart('practice'); } } };
     if (weak.length && acc < 95)
@@ -10569,11 +10706,11 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
     if (mode === 'timeAttack' && RD.arc && RD.arc.bestCombo < ARCADE_STREAK)
         return { k: 'rdn_ta' };
     if (sec > tg)
-        return { k: 'rdn_speed', args: () => [anNum(sec, 1), anNum(tg, 1)], act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
+        return { k: 'rdn_speed', args: () => [anNum(sec, 1), anNum(tg, 1)], act: timeAttack };
     if (srtIsArcadeMode(mode))
         return { k: 'rdn_ok' };
-    if (mode === 'practice')
-        return { k: 'rdn_test', act: { k: 'rdn_act_test', run: () => rdStart('test') } };
+    if (mode === 'practice' && RD.chkBest === null)
+        return { k: 'rdn_chk', args: () => [RD_CHECK_N] };
     if (stars < 3)
         return { k: 'rdn_star', args: () => [stars >= 2 ? 95 : 90, anNum(stars >= 2 ? tg : tg * 1.6, 1)] };
     const nx = rdLvNext(L);
@@ -19718,9 +19855,8 @@ Object.defineProperty(__etude, "RD_MAJ", { configurable: true, get: () => RD_MAJ
 Object.defineProperty(__etude, "RD_MIN", { configurable: true, get: () => RD_MIN });
 Object.defineProperty(__etude, "RD_REF", { configurable: true, get: () => RD_REF });
 Object.defineProperty(__etude, "RD_RHU", { configurable: true, get: () => RD_RHU });
-Object.defineProperty(__etude, "RD_RUSH", { configurable: true, get: () => RD_RUSH });
 Object.defineProperty(__etude, "RD_TARGET", { configurable: true, get: () => RD_TARGET });
-Object.defineProperty(__etude, "RD_TESTN", { configurable: true, get: () => RD_TESTN });
+Object.defineProperty(__etude, "RD_CHECK_N", { configurable: true, get: () => RD_CHECK_N });
 Object.defineProperty(__etude, "RD_UNITS", { configurable: true, get: () => RD_UNITS });
 Object.defineProperty(__etude, "ROMAN", { configurable: true, get: () => ROMAN });
 Object.defineProperty(__etude, "ROOT_NAMES", { configurable: true, get: () => ROOT_NAMES });

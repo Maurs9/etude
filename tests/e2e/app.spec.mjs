@@ -1993,9 +1993,10 @@ test.describe('reading drills: note stream', () => {
     await expect.poll(() => state(page)).toMatchObject({ cur: 1, n: 1, ok: 0 });
   });
 
-  test('a test run ends after 20 notes', async ({ app }) => {
+  test('Practice has no Test to end after 20 notes: its star check fills after 20 and the drill goes on', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
     await start(page, TREBLE_PLAY, 'test');
+    expect(await page.evaluate(() => window.__etude.RD.mode)).toBe('practice');
     await page.evaluate(() => {
       const e = window.__etude;
       for (let i = 0; i < 20; i++) {
@@ -2005,7 +2006,8 @@ test.describe('reading drills: note stream', () => {
       }
     });
     expect(await state(page)).toMatchObject({ n: 20, ok: 20 });
-    await expect(page.locator('#rdx-sum')).toBeVisible();
+    await expect(page.locator('#rdx-sum')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__etude.RD.on)).toBe(true);
   });
 
   test('with the stream turned off, play drills show one note at a time', async ({ app }) => {
@@ -2082,6 +2084,81 @@ test.describe('reading drills: note stream', () => {
   });
 });
 
+test.describe('reading drills: the Practice star check', () => {
+  const fill = (s, ...args) => args.reduce((r, a) => r.replace(/%[sab]/, String(a)), s);
+  const open = (page, flow = true) => page.evaluate(flow => {
+    const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'play' && l.clef === 'treble' && !l.acc && !l.keys);
+    e.rdData().prefs.flow = flow;
+    e.rdOpen(level);
+    e.rdStart('practice');
+    return level.id;
+  }, flow);
+  // Plays the right note n times; with hint, the hint is shown before each answer.
+  const answer = (page, n, hint = false) => page.evaluate(({ n, hint }) => {
+    const e = window.__etude;
+    for (let i = 0; i < n; i++) {
+      if (hint) e.rdHint();
+      const m = e.RD.q.midi;
+      e.midiIn(0x90, m, 100, 'midi');
+      e.midiIn(0x80, m, 0, 'midi');
+      if (!e.RD.flow) e.rdNext();
+    }
+  }, { n, hint });
+  const record = (page, id) => page.evaluate(id => window.__etude.rdData().lv[id], id);
+
+  test('20 first-try answers earn stars, saved at once without stopping the drill', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const en = STRINGS.en, hud = page.locator('#rdx-hud');
+    const id = await open(page);
+    await expect(hud).toContainText(fill(en.rdx_chk_n, 0, 20));
+    await answer(page, 14);
+    await expect(hud).toContainText(fill(en.rdx_chk_n, 14, 20));
+    expect(await record(page, id)).toBeUndefined();
+    await answer(page, 6);
+    expect(await record(page, id)).toMatchObject({ s: 3, acc: 100 });
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.reading.lv)).toHaveProperty(id);
+    await expect(page.locator('#rdx-award')).toBeVisible();
+    await expect(page.locator('#rdx-award')).toHaveText(fill(en.rdx_chk_earned, '★★★'));
+    await expect(page.locator('#rdx-live')).toHaveText(fill(en.rdx_chk_live, fill(en.rdx_stars_n, 3)));
+    await expect(hud).toContainText(fill(en.rdx_chk_s, '★★★'));
+    expect(await page.evaluate(() => window.__etude.RD.on)).toBe(true);
+    await expect(page.locator('#rdx-award')).toBeHidden({ timeout: 5000 });
+    await page.locator('#rdx-end').click();
+    await expect(page.locator('#rdx-sum .rdx-sum-stars')).toContainText('★★★');
+    await expect(page.locator('#rdx-live')).toContainText(fill(en.rdx_stars_n, 3));
+    // The level screen shows the saved stars.
+    await page.locator('#rdx-back').click();
+    await expect(page.locator(`#rdx-ladder .rdx-lv[data-lv="${id}"]`)).toHaveClass(/\bs3\b/);
+  });
+
+  test('a hinted answer counts as wrong, and a better window raises the saved stars', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const id = await open(page, false);
+    await answer(page, 20, true);
+    // Twenty hinted answers: 0% in the check, so nothing is saved, though every note was played right.
+    expect(await page.evaluate(() => [window.__etude.RD.ok, window.__etude.RD.chkBest])).toEqual([20, 0]);
+    expect(await record(page, id)).toBeUndefined();
+    await expect(page.locator('#rdx-award')).toBeHidden();
+    await answer(page, 18);
+    // 18 of the last 20 without a hint: 90%, two stars.
+    expect(await record(page, id)).toMatchObject({ s: 2, acc: 90 });
+    await expect(page.locator('#rdx-award')).toHaveText(fill(STRINGS.en.rdx_chk_earned, '★★'));
+    await answer(page, 2);
+    expect(await record(page, id)).toMatchObject({ s: 3, acc: 100 });
+  });
+
+  test('a run that ends before 20 answers shows how far the check got, and saves no stars', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const id = await open(page);
+    await answer(page, 5);
+    await page.locator('#rdx-end').click();
+    await expect(page.locator('#rdx-sum')).toContainText(fill(STRINGS.en.rdx_chk_wait, 5, 20));
+    await expect(page.locator('#rdx-sum .rdx-sum-stars')).toHaveCount(0);
+    await expect(page.locator('#rdx-next')).toContainText(fill(STRINGS.en.rdn_chk, 20));
+    expect((await record(page, id)).s).toBe(0);
+  });
+});
+
 test.describe('reading drills: arcade modes', () => {
   const TREBLE_PLAY = { ty: 'play', clef: 'treble' };
   const open = (page, spec) => page.evaluate(spec => {
@@ -2112,23 +2189,109 @@ test.describe('reading drills: arcade modes', () => {
   const record = (page, id) => page.evaluate(id => window.__etude.rdData().lv[id], id);
   const fill = (s, ...args) => args.reduce((r, a) => r.replace('%s', String(a)), s);
   const modes = page => page.locator('#rdx-body .rdx-modes [data-mode]').evaluateAll(els => els.map(el => el.dataset.mode + (el.dataset.bars ? ':' + el.dataset.bars : '')));
+  const challenge = ['timeAttack', 'survival'];
 
-  test('naming and playing levels offer Survival, Time Attack and Marathon; rhythm and sight-reading do not', async ({ app }) => {
+  test('a level shows Practice and a Challenge menu: Time Attack, Survival and, for naming and playing, Marathon', async ({ app }) => {
     const page = await app.open({ hash: 'read', lang: 'ro' });
-    const ro = STRINGS.ro, arcade = ['practice', 'test', 'rush', 'survival', 'timeAttack'];
+    const ro = STRINGS.ro, menu = page.locator('#rdx-chal-menu'), toggle = page.locator('#rdx-chal');
     await open(page, TREBLE_PLAY);
-    expect(await modes(page)).toEqual([...arcade, 'marathon:16', 'marathon:32', 'marathon:64']);
-    await expect(page.locator('#rdx-body [data-mode="survival"]')).toContainText(ro.rdx_m_survival);
-    await expect(page.locator('#rdx-body [data-mode="timeAttack"]')).toContainText(ro.rdx_m_timeAttack);
+    expect(await modes(page)).toEqual(['practice', ...challenge, 'marathon:16', 'marathon:32', 'marathon:64']);
+    await expect(page.locator('#rdx-body .rdx-mode-main[data-mode="practice"]')).toContainText(ro.rdx_m_practice);
+    await expect(menu).toBeHidden();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toContainText(ro.rdx_challenge);
+    await toggle.click();
+    await expect(menu).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('menuitem', { name: ro.rdx_m_survival })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: ro.rdx_m_timeAttack })).toBeVisible();
     await expect(page.getByRole('group', { name: ro.rdx_m_marathon })).toContainText(ro.rdx_bars);
     for (const n of [16, 32, 64])
-      await expect(page.getByRole('button', { name: `${ro.rdx_m_marathon}, ${ro.rdx_bars} ${n}`, exact: true })).toBeVisible();
-    for (const [ty, expected] of [['k2s', arcade], ['iv', arcade], ['rh', ['practice', 'test']], ['sr', ['practice', 'test']]]) {
-      await page.evaluate(ty => window.__etude.rdOpen(Object.values(window.__etude.RD_LV).find(l => l.ty === ty)), ty);
-      expect(await modes(page), ty).toEqual(expected);
+      await expect(page.getByRole('menuitem', { name: `${ro.rdx_m_marathon}, ${ro.rdx_bars} ${n}`, exact: true })).toBeVisible();
+    for (const item of await page.getByRole('menuitem').all()) {
+      const box = await item.boundingBox();
+      expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
     }
+    // A press outside closes the menu.
+    await page.locator('#rdx-title').click();
+    await expect(menu).toBeHidden();
+    for (const [ty, expected] of [['k2s', challenge], ['iv', challenge], ['ch', challenge], ['ks', challenge]]) {
+      await page.evaluate(ty => window.__etude.rdOpen(Object.values(window.__etude.RD_LV).find(l => l.ty === ty)), ty);
+      expect(await modes(page), ty).toEqual(['practice', ...expected]);
+    }
+    await page.evaluate(() => window.__etude.rdStart('rush'));
+    expect(await page.evaluate(() => [window.__etude.RD.on, window.__etude.RD.mode])).toEqual([true, 'practice']);
+  });
+
+  test('rhythm and sight-reading levels keep Practice and a Graded run, with no Challenge menu', async ({ app }) => {
+    const page = await app.open({ hash: 'read', lang: 'ro' });
+    for (const ty of ['rh', 'sr']) {
+      await page.evaluate(ty => window.__etude.rdOpen(Object.values(window.__etude.RD_LV).find(l => l.ty === ty)), ty);
+      expect(await modes(page), ty).toEqual(['practice', 'test']);
+      await expect(page.locator('#rdx-chal')).toHaveCount(0);
+      await expect(page.locator('#rdx-body [data-mode="test"]')).toContainText(STRINGS.ro.rdx_m_test);
+      await expect(page.locator('#rdx-body [data-mode="test"]')).toContainText(STRINGS.ro['rdx_md_test_' + ty]);
+    }
+    expect(STRINGS.en.rdx_m_test).toBe('Graded run');
     await page.evaluate(() => window.__etude.rdStart('survival'));
     expect(await page.evaluate(() => window.__etude.RD.on)).toBe(false);
+    await page.evaluate(() => window.__etude.rdOpen(Object.values(window.__etude.RD_LV).find(l => l.ty === 'rh')));
+    await page.locator('#rdx-body [data-mode="test"]').click();
+    expect(await page.evaluate(() => [window.__etude.RD.on, window.__etude.RD.mode])).toEqual([true, 'test']);
+  });
+
+  test('the Challenge menu works by keyboard', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const menu = page.locator('#rdx-chal-menu'), toggle = page.locator('#rdx-chal');
+    const focused = () => page.evaluate(() => { const a = document.activeElement; return a.id || a.dataset.mode + (a.dataset.bars ? ':' + a.dataset.bars : ''); });
+    await open(page, TREBLE_PLAY);
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(menu).toBeVisible();
+    expect(await focused()).toBe('timeAttack');
+    await page.keyboard.press('ArrowDown');
+    expect(await focused()).toBe('survival');
+    await page.keyboard.press('ArrowDown');
+    expect(await focused()).toBe('marathon:16');
+    await page.keyboard.press('End');
+    expect(await focused()).toBe('marathon:64');
+    await page.keyboard.press('ArrowDown');
+    expect(await focused()).toBe('timeAttack');
+    await page.keyboard.press('ArrowUp');
+    expect(await focused()).toBe('marathon:64');
+    await page.keyboard.press('Home');
+    expect(await focused()).toBe('timeAttack');
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(await focused()).toBe('rdx-chal');
+    await page.keyboard.press(' ');
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('ArrowUp');
+    expect(await focused()).toBe('marathon:64');
+    await page.keyboard.press('Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => [window.__etude.RD.on, window.__etude.RD.mode])).toEqual([true, 'survival']);
+  });
+
+  test('each Challenge mode shows its saved record, and an old Note rush record is kept but not shown', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const id = await page.evaluate(() => {
+      const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'play' && l.clef === 'treble' && !l.acc && !l.keys);
+      e.rdData().lv[level.id] = { s: 1, acc: 85, t: 2100, n: 3, rush: 17, sv: 1234, ta: 5678, mn: 42 };
+      e.rdOpen(level);
+      return level.id;
+    });
+    await page.locator('#rdx-chal').click();
+    const fill = (s, ...args) => args.reduce((r, a) => r.replace('%s', String(a)), s);
+    await expect(page.locator('#rdx-chal-menu [data-mode="survival"]')).toContainText(fill(STRINGS.en.rdx_best_sv, '1,234'));
+    await expect(page.locator('#rdx-chal-menu [data-mode="timeAttack"]')).toContainText(fill(STRINGS.en.rdx_best_ta, '5,678'));
+    await expect(page.locator('#rdx-chal-menu')).toContainText(fill(STRINGS.en.rdx_best_mn, 42));
+    await expect(page.locator('#rdx-body')).not.toContainText('⚡');
+    await expect(page.locator('#rdx-body')).not.toContainText('17');
+    expect((await record(page, id)).rush).toBe(17);
   });
 
   test('Survival: a wrong note or a note left too long costs a life, and the third ends the run', async ({ app }) => {
@@ -2187,7 +2350,8 @@ test.describe('reading drills: arcade modes', () => {
     const page = await app.open({ hash: 'read', lang: 'ro' });
     const ro = STRINGS.ro;
     const id = await open(page, TREBLE_PLAY);
-    await page.getByRole('button', { name: `${ro.rdx_m_marathon}, ${ro.rdx_bars} 16`, exact: true }).click();
+    await page.locator('#rdx-chal').click();
+    await page.getByRole('menuitem', { name: `${ro.rdx_m_marathon}, ${ro.rdx_bars} 16`, exact: true }).click();
     expect(await arc(page)).toMatchObject({ mode: 'marathon', marathonBars: 16, total: 64 });
     await expect(page.locator('#rdx-hud')).toContainText('1 / 64');
     expect(await page.locator('#rdx-staff .rdx-barline').count()).toBeGreaterThan(0);
@@ -2364,12 +2528,12 @@ test('weak-spot injection is opt-in and steers only practice, survival and marat
     // Math.random() = 0 draws the level's first note unless injection replaces it, so the last note is made the weak one.
     const first = pick('practice', 0, false), weakKey = pick('practice', 0.999, false);
     api.data.reading.nt[weakKey] = { n: 10, ok: 4, ms: 60000, e: 1, t: 6000 };
-    const picks = { first, weakKey, injected: pick('practice', 0, true), standard: pick('practice', 0, false), survival: pick('survival', 0, true), marathon: pick('marathon', 0, true), rush: pick('rush', 0, true) };
+    const picks = { first, weakKey, injected: pick('practice', 0, true), standard: pick('practice', 0, false), survival: pick('survival', 0, true), marathon: pick('marathon', 0, true), timeAttack: pick('timeAttack', 0, true) };
     api.rdClear();
     return picks;
   });
   expect(result.weakKey).not.toBe(result.first);
-  expect(result).toMatchObject({ injected: result.weakKey, standard: result.first, survival: result.weakKey, marathon: result.weakKey, rush: result.first });
+  expect(result).toMatchObject({ injected: result.weakKey, standard: result.first, survival: result.weakKey, marathon: result.weakKey, timeAttack: result.first });
 });
 
 test('leaving the window lets go of keys held on the computer keyboard or screen, and nothing else', async ({ app, page }) => {

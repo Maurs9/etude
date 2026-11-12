@@ -7,7 +7,7 @@
 ## Features
 
 - Theory handbook with every lesson open in any order, reading exercises, and score study. Reading levels include eighths, dotted notes, syncopation and ties.
-- Reading drills: every level is open in any order. Stars mark how well you read a level.
+- Reading drills: every level is open in any order. Practice gives up to 3 stars from your last 20 answers, and the Challenge menu holds Time Attack, Survival and Marathon. Rhythm and sight-reading levels keep a graded run for their stars.
 - Targeted drills, a scale and arpeggio technique drill, accompaniment, sight-singing, and ear training
 - Wrong answers show what you gave against the answer, with a Hear both button. Repeated mix-ups get a short contrast drill at the end of the session.
 - Explore: free play on one screen, with the circle of fifths beside the staff. Pick a key on the circle to read chords in Roman numerals and see its fingering.
@@ -64,7 +64,7 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 - `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts` with the saved-record schema and its migrations, `data-safety.ts` for persistent storage and automatic backups, `midi-timing.ts` for input event times and latency offsets, `technique.ts` and `technique-drill.ts` for the scale and arpeggio drill, `feedback.ts` for error-aware feedback, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`)
 - `src/sight-reading/` — sight-reading generator, evaluation, ledger and notation
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
-- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings. Feature styles sit in their own files (`native.css`, `landscape.css`, `calibration.css`, `sight-rhythm.css`, `technique.css`) instead of being appended to the order-sensitive `etude.css`.
+- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings. Feature styles sit in their own files (`native.css`, `landscape.css`, `calibration.css`, `sight-rhythm.css`, `technique.css`, `reading.css`) instead of being appended to the order-sensitive `etude.css`.
 - `public/vendor/osmd-2.3.0.min.js`, `public/manifest.webmanifest`, `public/icons/` — static public assets and lazy-loaded OSMD 2.3.0 bundle
 - `i18n/` — supplementary multi-language pack (`de`, `es`, `fr`, `it`, `pt-BR`), runtime (`i18n/framework/`), and test suite (`i18n/tests/`)
 - `scripts/` — build (`build.mjs`, `build-standalone.mjs`, `generate-sw.mjs`), quality gates (`check-ts-suppressions.mjs`), emergency rollback (`sw-kill-switch.js`), and safe dependency updaters (`update-deps.mjs`, `update-osmd.mjs`)
