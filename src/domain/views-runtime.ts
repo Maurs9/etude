@@ -1147,8 +1147,12 @@ function ssKeySig(ex: { clef: string; keyN: number; }, x: number) {
 }
 function ssTimeSig(ts: readonly number[], x: number) { return `<text class="ss-num" x="${x + 9}" y="64">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="90">${ts[1]}</text>`; }
 interface SightSingNotePosition { x: number; y: number; note: SightSingNote; idx: number }
-interface SightSingRender { svg: string; W: number; noteX: SightSingNotePosition[] }
-function ssRender(ex: SightSingExercise): SightSingRender {
+/** W is in SVG units; the staff is shown `scale` CSS pixels a unit. */
+interface SightSingRender { svg: string; W: number; noteX: SightSingNotePosition[]; scale: number }
+/** The most a sight-reading or sight-singing staff is enlarged to fill its paper, against its natural size. */
+const SR_SCALE_CAP = 2.2;
+/** `width` is the paper's inner width in CSS pixels: a short melody is enlarged to fill it (up to SR_SCALE_CAP); 0 keeps the natural size. */
+function ssRender(ex: SightSingExercise, width = 0): SightSingRender {
     const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: number, oct: number) => 94 + (refStep - ssStepOf(li, oct)) * 6, keyAcc = ssKeyAcc(ex.keyN);
     let x = 10, body = '', noteX: SightSingNotePosition[] = [], idx = 0;
     body += ex.clef === 'bass' ? ssBassClef(x) : ssTrebleClef(x);
@@ -1175,11 +1179,11 @@ function ssRender(ex: SightSingExercise): SightSingRender {
         body += `<line class="ss-line" x1="${x}" y1="46" x2="${x}" y2="94" stroke="#1a1714" stroke-width="1.3"/>`;
         x += 12;
     });
-    const W = Math.max(x + 4, 360);
+    const W = Math.max(x + 4, 360), k = width > 0 ? Math.max(1, Math.min(SR_SCALE_CAP, width / W)) : 1;
     let staff = '';
     [46, 58, 70, 82, 94].forEach((ly) => staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${W - 6}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`);
     staff += `<line class="ss-line" x1="8" y1="46" x2="8" y2="94" stroke="#1a1714" stroke-width="1.3"/>`;
-    return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} 150" width="${W}" height="150" xmlns="http://www.w3.org/2000/svg">${staff}${body}</svg>`, W, noteX };
+    return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} 150" width="${Math.floor(W * k)}" height="${Math.round(150 * k)}" xmlns="http://www.w3.org/2000/svg">${staff}${body}</svg>`, W, noteX, scale: k };
 }
 /* ---- state + draw ---- */
 interface SightSingState {
@@ -1208,8 +1212,13 @@ function requireSingFlat(): SightSingNote[] {
 }
 function ssFillLevels() { const sel = selectById('si-level'); if (!sel || sel._filled)
     return; SS_LEVELS.forEach((L, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = (i + 1) + ' · ' + L.name; sel.appendChild(o); }); sel._filled = true; }
+// The staff's paper; while it is hidden the staff is drawn at its natural size, and ssFit lays it out once it shows.
+let ssPaperSeen: SrLayout | undefined;
 function ssDraw() { if (!sing.ex)
-    return; const r = ssRender(sing.ex); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssPaint(); }
+    return; ssPaperSeen = srPaperOf(byId('si-staff')); const r = ssRender(sing.ex, ssPaperSeen?.width ?? 0); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssPaint(); }
+// Draws the staff again when its paper changed width; the cursor and the pitch trail come back on their next frame.
+function ssFit() { if (sing.render && srPaperChanged(ssPaperSeen, srPaperOf(byId('si-staff'))))
+    ssDraw(); }
 function ssPaint() { const svg = byId('si-staff').querySelector('svg'); if (!svg)
     return; svg.querySelectorAll('.ss-n').forEach((g) => { if (!(g instanceof SVGElement))
     return; const i = Number(g.dataset.i), res = sing.results[i]; if ((sing.mode === 'note') && sing.active && i === sing.idx)
@@ -1289,8 +1298,9 @@ function ssMoveCursor(x: number) { const c = ssCursorEl(); if (c) {
 } ssScrollToX(x); }
 function ssRemoveCursor() { const svg = ssSvg(), c = svg && svg.querySelector('.ss-playhead'); if (c)
     c.remove(); }
+// x is in SVG units, shown sing.render.scale pixels each.
 function ssScrollToX(x: number) { const w = byId('si-staff'); if (w.scrollWidth > w.clientWidth + 4)
-    w.scrollLeft = Math.max(0, x - w.clientWidth * 0.4); }
+    w.scrollLeft = Math.max(0, x * (sing.render?.scale ?? 1) - w.clientWidth * 0.4); }
 function ssScrollToCur() { const o = sing.render && sing.render.noteX[sing.idx]; if (o)
     ssScrollToX(o.x); }
 function ssPitchY(f: number) { const bottomMidi = requireSingExercise().clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
@@ -6464,10 +6474,19 @@ const PIECES: SrPiece[] = [
         lh: [['C4', 2], ['C4', 2], ['C4', 2], ['C4', 2], ['B3', 2], ['B3', 2], ['C4', 2], ['C4', 2],
             ['C4', 2], ['C4', 2], ['C4', 2], ['C4', 2], ['B3', 2], ['B3', 2], ['B3', 2], ['B3', 2]] },
 ];
-/** One engraved note head, with the beat it falls on and where it was drawn. */
-interface SrStaffNote { nid: number; hand: SrHand; midi: number; beat: number; dur: number; x: number; y: number; li: number; oct: number; acc: number }
-interface SrBeatX { b: number; x: number }
-interface SrRenderResult { svg: string; notes: SrStaffNote[]; beatX: SrBeatX[]; total: number; W: number; yTop: number; yBot: number }
+/** One engraved note head, with the beat it falls on, where it was drawn and on which system (line of music, `sy`). */
+interface SrStaffNote { nid: number; hand: SrHand; midi: number; beat: number; dur: number; x: number; y: number; li: number; oct: number; acc: number; sy: number }
+/** A playhead anchor: beat `b` sits at `x` on system `sy`. Each system but the last ends with an anchor on its closing barline. */
+interface SrBeatX { b: number; x: number; sy: number }
+/** One system's vertical extent, which the playhead spans. */
+interface SrSystem { yTop: number; yBot: number }
+/** W and H are in SVG units; the score is shown `scale` CSS pixels a unit (1 without a layout). yTop and yBot are the first system's. */
+interface SrRenderResult { svg: string; notes: SrStaffNote[]; beatX: SrBeatX[]; total: number; W: number; H: number; yTop: number; yBot: number; systems: SrSystem[]; scale: number }
+/** Fits a score to its paper: `width` (and `maxHeight`) is the paper's inner size in CSS pixels. Bars wrap into systems of
+ *  at most `maxBars` (4) bars, split evenly, and are scaled to fill the width, up to `cap` (SR_SCALE_CAP) times their natural size.
+ *  With a `maxHeight` (the stage) systems may hold more bars when fewer, longer systems let the score be drawn larger.
+ *  Without a layout a score is one system at its natural size (the Learn staves). */
+interface SrLayout { width: number; maxHeight?: number; cap?: number; maxBars?: number }
 /** The notes that sound together at one beat (one Learn-mode step). */
 interface SrStep { beat: number; notes: SrStaffNote[]; closed?: boolean }
 /** A wrong key in Learn mode, classified (`k`) against the expected note `n`. */
@@ -6570,28 +6589,20 @@ function srTieArc(x1: number, x2: number, y: number, stemUp: boolean) {
     return `<path class="ss-tie" d="M ${a},${yb} Q ${m},${y + s * 15} ${b},${yb} Q ${m},${y + s * 12} ${a},${yb} Z"/>`;
 }
 /** One staff of the system; `data` is filled from the hand's tokens right after the staves are laid out. */
-interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; data: { ev: SrEvent[]; total: number } }
+interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; rel: number; data: { ev: SrEvent[]; total: number } }
 /** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
 interface SrChordItem { e: SrNoteEvent; step: number; y: number; dx: number; ax?: number }
-function srRender(piece: SrScore): SrRenderResult {
+function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     const staves: SrStave[] = [];
     if (piece.rh)
-        staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46, data: { ev: [], total: 0 } });
+        staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46, rel: 0, data: { ev: [], total: 0 } });
     if (piece.lh)
-        staves.push({ hand: 'lh', clef: 'bass', refStep: 18, top: piece.rh ? 150 : 46, data: { ev: [], total: 0 } });
+        staves.push({ hand: 'lh', clef: 'bass', refStep: 18, top: piece.rh ? 150 : 46, rel: piece.rh ? 104 : 0, data: { ev: [], total: 0 } });
     staves.forEach((st) => { st.data = srEvents(piece[st.hand]); });
-    const keyAcc = ssKeyAcc(piece.keyN || 0);
+    const keyAcc = ssKeyAcc(piece.keyN || 0), names = srNamesVisible(piece), lastSt = staves[staves.length - 1];
     const cap = piece.ts[1] === 8 ? piece.ts[0] * 0.5 : piece.ts[0], pickup = piece.pickup || 0;
     const total = Math.max(...staves.map((s) => s.data.total));
-    const topY = staves[0].top, botY = staves[staves.length - 1].top + 48;
-    let x = 10, head = '';
-    staves.forEach((st) => { head += piece.perc ? rdPercClef(x + 4, st.top) : srClef(st.clef, x, st.top); });
-    x += 30;
-    let ksw = 6;
-    staves.forEach((st) => { const ks = srKeySigG(st.clef, piece.keyN || 0, x, st.top); head += ks.svg; ksw = Math.max(ksw, ks.w); });
-    x += ksw;
-    staves.forEach((st) => { head += srTimeSigG(piece.ts, x, st.top); });
-    x += 26;
+    const ksw = Math.max(6, ...staves.map((st) => srKeySigG(st.clef, piece.keyN || 0, 0, 0).w));
     const bounds: number[] = [];
     {
         let b = pickup > 0 ? pickup : cap;
@@ -6603,11 +6614,6 @@ function srRender(piece: SrScore): SrRenderResult {
     const beatSet = new Set<number>();
     staves.forEach((st) => st.data.ev.forEach((e) => beatSet.add(+e.beat.toFixed(4))));
     const beats = [...beatSet].sort((a, b) => a - b);
-    const notes: SrStaffNote[] = [], beatX: SrBeatX[] = [];
-    let body = '', nid = 0;
-    // A tied note is not played again: it is drawn inside the group of the note it continues, which also lasts longer.
-    const lastNote: Partial<Record<SrHand, SrStaffNote>> = {}, tiedMarkup = new Map<number, string>();
-    let tiedKey = 0;
     // Beam pairs of eighths that start on a beat (simple meters only).
     if (piece.ts[1] === 4)
         staves.forEach((st) => {
@@ -6621,14 +6627,118 @@ function srRender(piece: SrScore): SrRenderResult {
                 }
             }
         });
-    beats.forEach((b) => {
-        if (bounds.some((v) => Math.abs(v - b) < 1e-3)) {
+    // Each beat's column: its bar, how far it moves the pen (the shortest value there sets the room) and, per bar, how far the
+    // notes reach above and below the first staff line (stems, flags, ledger lines, result marks, note names).
+    const nBars = bounds.length + 1, barOf = beats.map((b) => bounds.filter((v) => v < b + 1e-3).length);
+    const adv = beats.map((b) => { let m = 4; staves.forEach((st) => st.data.ev.forEach((e) => { if (Math.abs(e.beat - b) < 1e-3)
+        m = Math.min(m, e.dur); })); return 26 + Math.min(m, 4) * 14; });
+    const barW = new Array<number>(nBars).fill(0), barTop = new Array<number>(nBars).fill(-14);
+    const barBot = new Array<number>(nBars).fill(Math.max(lastSt.rel + 48 + (lastSt.clef === 'treble' ? 18 : 10), names ? lastSt.rel + 84 : 0));
+    beats.forEach((b, i) => { barW[barOf[i]] += adv[i]; });
+    staves.forEach((st) => st.data.ev.forEach((e) => {
+        if (e.rest)
+            return;
+        const m = bounds.filter((v) => v < e.beat + 1e-3).length, y = st.rel + 48 + (st.refStep - ssStepOf(e.li, e.oct)) * 6, up = y > st.rel + 24;
+        barTop[m] = Math.min(barTop[m], up ? y - 40 : y - 20);
+        barBot[m] = Math.max(barBot[m], up ? y + 12 : y + 40);
+    }));
+    // Systems: `starts` holds each one's first bar. The first system carries the time signature.
+    const headW = (s: number) => 40 + ksw + (s === 0 ? 26 : 8);
+    const sysW = (s: number, a: number, z: number) => { let w = headW(s) + 18 * (z - a - 1) + (z === nBars ? 20 : 12); for (let m = a; m < z; m++)
+        w += barW[m]; return w; };
+    const ends = (starts: number[]) => starts.map((a, s) => s + 1 < starts.length ? starts[s + 1] : nBars);
+    const vert = (starts: number[]) => { const zs = ends(starts), top: number[] = [], bot: number[] = [], ys: number[] = []; let y = 6;
+        starts.forEach((a, s) => { let t = 0, u = 0; for (let m = a; m < zs[s]; m++) {
+            t = Math.min(t, barTop[m]);
+            u = Math.max(u, barBot[m]);
+        } top.push(t); bot.push(u); ys.push(y - t); y = y - t + u + 10; }); return { ys, H: y - 4 }; };
+    let starts = [0], zoom = 1, sysY = [46], H = 0;
+    const stretch: number[] = [1];
+    if (lay && lay.width > 0) {
+        const kCap = lay.cap ?? SR_SCALE_CAP, maxBars = Math.max(1, lay.maxBars ?? 4), maxH = lay.maxHeight || Infinity, kFloor = lay.maxHeight ? 0.65 : 1;
+        // Bars split evenly over the fewest systems that fit the width at the natural size; no system holds a single bar of
+        // several (too little width for that keeps one system, which then scrolls).
+        const plan = (per: number) => {
+            for (let n = Math.ceil(nBars / per); n <= Math.max(1, Math.floor(nBars / 2)); n++) {
+                const st = Array.from({ length: n }, (_, s) => Math.round(s * nBars / n)), zs = ends(st);
+                if (st.every((a, s) => sysW(s, a, zs[s]) <= lay.width))
+                    return st;
+            }
+            return null;
+        };
+        let best: { st: number[]; k: number } | null = null;
+        for (let per = maxBars; per <= Math.max(maxBars, nBars); per++) {
+            const st = plan(per);
+            if (!st)
+                continue;
+            const zs = ends(st), wide = Math.max(...st.map((a, s) => sysW(s, a, zs[s]))), kk = Math.min(kCap, lay.width / wide, maxH / vert(st).H);
+            if (!best || kk > best.k + 1e-3)
+                best = { st, k: kk };
+            if (maxH === Infinity)
+                break;
+        }
+        if (!best) {
+            const one = sysW(0, 0, nBars);
+            best = { st: [0], k: Math.min(kCap, lay.width / one, maxH / vert([0]).H) };
+        }
+        starts = best.st;
+        zoom = Math.max(kFloor, best.k);
+        // Every system but a short last one is spread to the full width; the spacing grows at most 1.8 times.
+        const zs = ends(starts), T = lay.width / zoom;
+        starts.forEach((a, s) => {
+            let sum = 0;
+            for (let m = a; m < zs[s]; m++)
+                sum += barW[m];
+            const nat = sysW(s, a, zs[s]), last = s === starts.length - 1;
+            stretch[s] = starts.length > 1 && nat < T && sum > 0 && (!last || nat >= 0.6 * T) ? Math.min(1.8, 1 + (T - nat) / sum) : 1;
+        });
+        const v = vert(starts);
+        sysY = v.ys;
+        H = v.H;
+    }
+    const sysOfBar = (m: number) => { let s = 0; while (s + 1 < starts.length && starts[s + 1] <= m)
+        s++; return s; };
+    const notes: SrStaffNote[] = [], beatX: SrBeatX[] = [], systems: SrSystem[] = [], sysEnd: number[] = [];
+    let body = '', head = '', nid = 0, x = 10, sy = 0;
+    const barline = (bx: number, w: number) => `<line class="ss-line" x1="${bx}" y1="${staves[0].top}" x2="${bx}" y2="${lastSt.top + 48}" stroke="#1a1714" stroke-width="${w}"/>`;
+    const openSystem = (s: number) => {
+        sy = s;
+        staves.forEach((st) => { st.top = sysY[s] + st.rel; });
+        x = 10;
+        staves.forEach((st) => { head += piece.perc ? rdPercClef(x + 4, st.top) : srClef(st.clef, x, st.top); });
+        x += 30;
+        staves.forEach((st) => { head += srKeySigG(st.clef, piece.keyN || 0, x, st.top).svg; });
+        x += ksw;
+        if (s === 0) {
+            staves.forEach((st) => { head += srTimeSigG(piece.ts, x, st.top); });
+            x += 26;
+        }
+        else
+            x += 8;
+        systems.push({ yTop: staves[0].top - 8, yBot: lastSt.top + 56 });
+    };
+    openSystem(0);
+    // A tied note is not played again: it is drawn inside the group of the note it continues, which also lasts longer.
+    const lastNote: Partial<Record<SrHand, SrStaffNote>> = {}, tiedMarkup = new Map<number, string>();
+    let tiedKey = 0;
+    beats.forEach((b, bi) => {
+        const s = sysOfBar(barOf[bi]);
+        if (s > sy) {
+            // Every system in turn, even one whose bars start no note.
+            while (sy < s) {
+                x += 6;
+                body += barline(x, 1.3);
+                beatX.push({ b, x, sy });
+                sysEnd[sy] = x;
+                openSystem(sy + 1);
+            }
+        }
+        else if (bounds.some((v) => Math.abs(v - b) < 1e-3)) {
             x += 6;
-            body += `<line class="ss-line" x1="${x}" y1="${topY}" x2="${x}" y2="${botY}" stroke="#1a1714" stroke-width="1.3"/>`;
+            body += barline(x, 1.3);
             x += 12;
         }
         const nx = x + 10;
-        let minDur = 4;
         staves.forEach((st) => {
             const here = st.data.ev.filter((e) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e): e is SrNoteEvent => !e.rest && !!e.chord);
             if (chord.length) {
@@ -6650,7 +6760,7 @@ function srRender(piece: SrScore): SrRenderResult {
                     it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
                 });
                 const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
-                const names = srNamesVisible(piece) ? items.map((it) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
+                const chordNames = names ? items.map((it) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
                 items.forEach((it, k) => {
                     const e = it.e;
                     let g = k === 0 ? `<rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>` : '';
@@ -6659,15 +6769,14 @@ function srRender(piece: SrScore): SrRenderResult {
                     g += srLedger2(nx + it.dx, it.y, st.top) + ssNotehead(nx + it.dx, it.y, dur, (st.refStep - it.step) % 2 === 0);
                     if (it === (up ? bot : top))
                         g += srStemLine(sx, it.y, up ? top.y - 32 : bot.y + 32, dur, up);
-                    if (k === 0 && names)
-                        g += `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${(st.hand === 'rh' ? pcName(pc(top.e.midi), (piece.keyN || 0) < 0) : pcName(pc(bot.e.midi), (piece.keyN || 0) < 0))}</text><title>${names}</title>`;
+                    if (k === 0 && chordNames)
+                        g += `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${(st.hand === 'rh' ? pcName(pc(top.e.midi), (piece.keyN || 0) < 0) : pcName(pc(bot.e.midi), (piece.keyN || 0) < 0))}</text><title>${chordNames}</title>`;
                     body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}">${g}</g>`;
-                    notes.push({ nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y: it.y, li: e.li, oct: e.oct, acc: e.acc });
+                    notes.push({ nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y: it.y, li: e.li, oct: e.oct, acc: e.acc, sy });
                     nid++;
                 });
             }
             here.forEach((e) => {
-                minDur = Math.min(minDur, e.dur);
                 if (e.rest) {
                     body += srRest(nx, st.top, e.dur);
                     return;
@@ -6684,20 +6793,23 @@ function srRender(piece: SrScore): SrRenderResult {
                 if (e.beam)
                     Object.assign(e, { nid: key, bx: nx, by: y, mid: st.top + 24 });
                 if (from) {
-                    tiedMarkup.set(from.nid, (tiedMarkup.get(from.nid) ?? '') + `<g class="ss-tied">${g}</g>` + srTieArc(from.x, nx, y, y > st.top + 24));
+                    // A tie over a system break leaves the first note towards the end of its line and reaches the second from the left.
+                    const arc = from.sy === sy ? srTieArc(from.x, nx, y, y > st.top + 24)
+                        : srTieArc(from.x, sysEnd[from.sy] - 2, from.y, from.y > sysY[from.sy] + st.rel + 24) + srTieArc(nx - 22, nx, y, y > st.top + 24);
+                    tiedMarkup.set(from.nid, (tiedMarkup.get(from.nid) ?? '') + `<g class="ss-tied">${g}</g>` + arc);
                     from.dur += e.dur;
                     return;
                 }
-                const nm = srNamesVisible(piece) ? `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${pcName(pc(e.midi), (piece.keyN || 0) < 0)}</text>` : '';
+                const nm = names ? `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${pcName(pc(e.midi), (piece.keyN || 0) < 0)}</text>` : '';
                 body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}@@T${nid}@@</g>`;
-                const staffNote: SrStaffNote = { nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc };
+                const staffNote: SrStaffNote = { nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc, sy };
                 notes.push(staffNote);
                 lastNote[st.hand] = staffNote;
                 nid++;
             });
         });
-        beatX.push({ b, x: nx });
-        x += 26 + Math.min(minDur, 4) * 14;
+        beatX.push({ b, x: nx, sy });
+        x += adv[bi] * stretch[sy];
     });
     body = body.replace(/@@T(\d+)@@/g, (_, id: string) => tiedMarkup.get(Number(id)) ?? '');
     staves.forEach((st) => st.data.ev.forEach((a) => {
@@ -6725,22 +6837,29 @@ function srRender(piece: SrScore): SrRenderResult {
         body = body.replace(`@@B${a.nid}@@`, stem(s1, a.by, e1)).replace(`@@B${b.nid}@@`, stem(s2, b.by, e2) + `<path class="ss-beam" d="M ${s1},${e1} L ${s2},${e2} L ${s2},${e2 + th} L ${s1},${e1 + th} Z"/>`);
     }));
     x += 8;
-    body += `<line class="ss-line" x1="${x - 5}" y1="${topY}" x2="${x - 5}" y2="${botY}" stroke="#1a1714" stroke-width="1.2"/>`;
-    body += `<line class="ss-line" x1="${x}" y1="${topY}" x2="${x}" y2="${botY}" stroke="#1a1714" stroke-width="3"/>`;
+    body += barline(x - 5, 1.2) + barline(x, 3);
     x += 6;
-    beatX.push({ b: total, x });
-    const W = Math.max(x + 6, 420), H = Math.max(botY + (srNamesVisible(piece) ? 38 : 22), 150);
+    beatX.push({ b: total, x, sy });
+    sysEnd[sy] = x;
+    const W = lay ? Math.max(...sysEnd) + 6 : Math.max(x + 6, 420);
+    if (!lay)
+        H = Math.max(lastSt.top + 48 + (names ? 38 : 22), 150);
     let staff = '';
-    staves.forEach((st) => { for (let k = 0; k < 5; k++) {
-        const ly = st.top + k * 12;
-        staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${W - 6}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
-    } });
-    staff += `<line class="ss-line" x1="8" y1="${topY}" x2="8" y2="${botY}" stroke="#1a1714" stroke-width="1.6"/>`;
-    if (staves.length > 1) {
-        const midY = (topY + botY) / 2;
-        staff += `<path class="ss-brace" d="M 6,${topY} C 1,${topY + 12} 7,${midY - 14} 1,${midY} C 7,${midY + 14} 1,${botY - 12} 6,${botY}"/>`;
-    }
-    return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${staff}${head}${body}</svg>`, notes, beatX, total, W, yTop: topY - 8, yBot: botY + 8 };
+    systems.forEach((_, s) => {
+        const top = sysY[s], bot = sysY[s] + lastSt.rel + 48, end = lay ? sysEnd[s] : W - 6;
+        staves.forEach((st) => { for (let k = 0; k < 5; k++) {
+            const ly = top + st.rel + k * 12;
+            staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${end}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
+        } });
+        staff += `<line class="ss-line" x1="8" y1="${top}" x2="8" y2="${bot}" stroke="#1a1714" stroke-width="1.6"/>`;
+        if (staves.length > 1) {
+            const midY = (top + bot) / 2;
+            staff += `<path class="ss-brace" d="M 6,${top} C 1,${top + 12} 7,${midY - 14} 1,${midY} C 7,${midY + 14} 1,${bot - 12} 6,${bot}"/>`;
+        }
+    });
+    const size = lay ? `width="${Math.floor(W * zoom)}" height="${Math.round(H * zoom)}"` : `width="${W}" height="${H}"`;
+    return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} ${H}" ${size} xmlns="http://www.w3.org/2000/svg">${staff}${head}${body}</svg>`, notes, beatX, total, W, H,
+        yTop: systems[0].yTop, yBot: systems[0].yBot, systems, scale: zoom };
 }
 /* ---- state, drawing, grading ---- */
 function srSvg() { return byId('rd-staff') ? byId('rd-staff').querySelector('svg') : null; }
@@ -6759,7 +6878,7 @@ function srDraw() {
     if (!SR.piece)
         return;
     srtConsumeOnLearnReveal();
-    const r = srRender(SR.piece);
+    const r = srRender(SR.piece, srPaper());
     SR.render = r;
     SR.notes = r.notes;
     SR.beatX = r.beatX;
@@ -6769,7 +6888,8 @@ function srDraw() {
     staffEl.setAttribute('aria-hidden', concealed ? 'true' : 'false');
     staffEl.dataset.activeHand = srActiveHands();
     staffEl.innerHTML = concealed ? '' : r.svg;
-    srFit();
+    srPaperSeen = srPaper();
+    srFollowSy = -1;
     srStepsBuild();
     if (!concealed) {
         srPaintAll();
@@ -6857,44 +6977,93 @@ function srScrollX(x: number) { const w = byId('rd-staff'), svg = srSvg(), W = S
     w.scrollLeft = Math.max(0, x * k - w.clientWidth * 0.4);
 else if (w)
     w.scrollLeft = 0; }
-// Fit short scores to the stage; longer scores scroll rather than shrinking below a readable scale.
+// The paper's inner size in CSS pixels, which the score is laid out for (see SrLayout). On the full-screen stage the height
+// counts too. A hidden paper has no size: the score is then drawn at its natural size, and srFit lays it out once it shows.
+function srPaperOf(wrap: HTMLElement | null): SrLayout | undefined {
+    if (!wrap || !wrap.clientWidth)
+        return undefined;
+    const cs = getComputedStyle(wrap), width = Math.floor(wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+    return STAGE.on ? { width, maxHeight: Math.floor(wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) } : { width };
+}
+function srPaper() { return srPaperOf(maybeById('rd-staff')); }
+/** Whether a staff laid out for paper `prev` needs laying out again for `next`. A hidden paper (undefined) keeps the last layout.
+ *  The paper growing by less than a scrollbar is ignored: a taller score can show the page's scrollbar, and laying out again
+ *  for the narrower paper must not hide it and grow the score back. */
+function srPaperChanged(prev: SrLayout | undefined, next: SrLayout | undefined) {
+    if (!next)
+        return false;
+    if (!prev || prev.maxHeight !== next.maxHeight)
+        return true;
+    return next.width < prev.width || next.width - prev.width >= 24;
+}
+let srPaperSeen: SrLayout | undefined;
+// Lays the score out again when its paper changed size (a resize, the full-screen stage, the tab coming into view). The marks
+// of a run in progress are painted again from its state; the playhead comes back on its next frame.
 function srFit() {
-    const svg = srSvg(), r = SR.render;
-    if (!svg || !r)
+    const lay = srPaper();
+    if (!SR.piece || !SR.render || !srPaperChanged(srPaperSeen, lay) || srtScoreConcealed())
         return;
-    const box = svg.viewBox.baseVal, H = box && box.height ? box.height : 150, wrap = byId('rd-staff');
-    if (!STAGE.on || wrap.closest('[hidden]')) {
-        svg.style.width = '';
-        svg.style.height = '';
-        return;
-    }
-    const availW = Math.max(280, wrap.clientWidth - 32);
-    const availH = Math.max(120, wrap.clientHeight - 20);
-    const kw = availW / r.W;
-    const kh = availH / H;
-    const k = Math.max(0.65, Math.min(1.35, kw, kh));
-    svg.style.width = Math.round(r.W * k) + 'px';
-    svg.style.height = Math.round(H * k) + 'px';
+    srPaperSeen = lay;
+    const r = srRender(SR.piece, lay), wrap = byId('rd-staff');
+    const closed = new Set(SR.steps.filter((s) => s.closed).map((s) => s.beat.toFixed(3)));
+    SR.render = r;
+    SR.notes = r.notes;
+    SR.beatX = r.beatX;
+    wrap.innerHTML = r.svg;
+    srFollowSy = -1;
+    srStepsBuild();
+    SR.steps.forEach((s) => { if (closed.has(s.beat.toFixed(3)))
+        s.closed = true; });
+    srPaintAll();
     if (SR.active && SR.modeSel === 'learn')
         srScrollStep();
     else if (!SR.active)
         wrap.scrollLeft = 0;
 }
-function srScrollStep() { const st = SR.steps[SR.stepIdx]; if (st)
-    srScrollX(st.notes[0].x); }
-function srBeatToX(beat: number) {
-    const pts = SR.beatX;
-    if (!pts || !pts.length)
-        return 10;
-    for (let i = 0; i < pts.length - 1; i++) {
-        if (beat >= pts[i].b && beat <= pts[i + 1].b) {
-            const f = (beat - pts[i].b) / Math.max(1e-3, pts[i + 1].b - pts[i].b);
-            return pts[i].x + f * (pts[i + 1].x - pts[i].x);
-        }
+// While a score of several systems plays, the page (or the stage's paper) scrolls so the system being read stays in view.
+let srFollowSy = -1;
+function srFollow(sy: number) {
+    const r = SR.render, svg = srSvg(), s = r?.systems[sy];
+    if (!r || !svg || !s || r.systems.length < 2 || sy === srFollowSy)
+        return;
+    srFollowSy = sy;
+    const box = svg.getBoundingClientRect(), k = box.height / r.H, wrap = byId('rd-staff');
+    if (!k)
+        return;
+    const top = box.top + s.yTop * k, bot = box.top + s.yBot * k;
+    if (wrap.scrollHeight > wrap.clientHeight + 4) {
+        const wr = wrap.getBoundingClientRect();
+        if (top < wr.top || bot > wr.bottom)
+            wrap.scrollTop += top - wr.top - 8;
+        return;
     }
-    return beat <= pts[0].b ? pts[0].x : pts[pts.length - 1].x;
+    const hd = document.querySelector('header'), upper = hd && getComputedStyle(hd).position === 'sticky' ? hd.getBoundingClientRect().bottom : 0;
+    const lower = Math.min(innerHeight, ...[maybeById('dock'), maybeById('bottomNav')].flatMap((el) => { const b = el?.getBoundingClientRect(); return b && b.height > 0 && b.top < innerHeight ? [b.top] : []; }));
+    if (top < upper + 8)
+        window.scrollBy(0, top - upper - 8);
+    else if (bot > lower - 8)
+        window.scrollBy(0, Math.min(bot - lower + 16, top - upper - 8));
 }
-function srCursor(x: number) {
+function srScrollStep() { const st = SR.steps[SR.stepIdx]; if (st) {
+    srScrollX(st.notes[0].x);
+    srFollow(st.notes[0].sy);
+} }
+/** Where `beat` falls on a drawn score: between the anchors around it, on their system. A beat on a system break starts the next system. */
+function srBeatPt(pts: readonly SrBeatX[], beat: number): SrBeatX {
+    if (!pts.length)
+        return { b: beat, x: 10, sy: 0 };
+    for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], c = pts[i + 1], brk = i + 2 < pts.length && pts[i + 2].sy !== c.sy;
+        if (a.sy !== c.sy || beat < a.b || beat > c.b || (brk && beat > c.b - 1e-3))
+            continue;
+        const f = (beat - a.b) / Math.max(1e-3, c.b - a.b);
+        return { b: beat, x: a.x + f * (c.x - a.x), sy: a.sy };
+    }
+    return beat <= pts[0].b ? pts[0] : pts[pts.length - 1];
+}
+function srBeatToX(beat: number) { return srBeatPt(SR.beatX, beat).x; }
+/** Moves the playhead to `x` on system `sy`. */
+function srCursor(x: number, sy = 0) {
     const svg = srSvg();
     if (!svg)
         return;
@@ -6902,13 +7071,15 @@ function srCursor(x: number) {
     if (!c) {
         c = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         c.setAttribute('class', 'ss-playhead');
-        c.setAttribute('y1', String(SR.render ? SR.render.yTop : 38));
-        c.setAttribute('y2', String(SR.render ? SR.render.yBot : 102));
         svg.appendChild(c);
     }
+    const s = SR.render?.systems[sy];
+    c.setAttribute('y1', String(s ? s.yTop : 38));
+    c.setAttribute('y2', String(s ? s.yBot : 102));
     c.setAttribute('x1', String(x));
     c.setAttribute('x2', String(x));
     srScrollX(x);
+    srFollow(sy);
 }
 function srTargets() {
     kbClear('target');
@@ -6954,6 +7125,7 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
     const svg = srSvg(), c = svg && svg.querySelector('.ss-playhead');
     if (c)
         c.remove();
+    srFollowSy = -1;
     if (!keep && !preservePendingResult) {
         SR.results = {};
         SR.stepIdx = 0;
@@ -7630,7 +7802,8 @@ function srAssessLoop(ts: number) {
         SR.assessOn = true;
         byId('rd-verdict').textContent = t('rd_play');
     }
-    srCursor(srBeatToX(Math.max(0, Math.min(bNow, SR.totalBeats))));
+    const at = srBeatPt(SR.beatX, Math.max(0, Math.min(bNow, SR.totalBeats)));
+    srCursor(at.x, at.sy);
     if (bNow >= SR.totalBeats + (0.25 / bs)) {
         srAssessFinish();
         return;
@@ -7815,8 +7988,10 @@ function srListen() {
     SR.listening = true;
     byId('rd-listen').textContent = t('rd_stop');
     const follow = () => { if (!SR.listening)
-        return; const b = (performance.now() - perf0) / 1000 / bs; if (b >= 0)
-        srCursor(srBeatToX(Math.min(b, SR.totalBeats))); SR.raf = requestAnimationFrame(follow); };
+        return; const b = (performance.now() - perf0) / 1000 / bs; if (b >= 0) {
+        const at = srBeatPt(SR.beatX, Math.min(b, SR.totalBeats));
+        srCursor(at.x, at.sy);
+    } SR.raf = requestAnimationFrame(follow); };
     SR.raf = requestAnimationFrame(follow);
     SR.timers.push(setTimeout(() => srStopAll(true), SR.totalBeats * bs * 1000 + 400));
     SR.notes.forEach((n) => {
@@ -8202,7 +8377,7 @@ function rdSvg(o: ReadDrillSvgOptions) {
     const hl = o.hl != null ? band(x0 + o.hl * colW, 'rdx-now') : '';
     const ghost = o.ghost ? `<g class="rdx-ghost">${band(-colW / 2, 'rdx-ghost-b')}<text x="0" y="${yA + 15}">👻</text></g>` : '';
     const notes = o.wrap ? `<g class="${o.wrap}" style="--dx:${colW}px">${body.join('')}</g>` : body.join('');
-    return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0, H };
+    return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" style="--w:${Math.round(W * sc)}px" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0, H };
 }
 /* ---- drill engine ---- */
 // Practice's star check: the last RD_CHECK_N answers of the run.
@@ -8621,7 +8796,8 @@ function rdFlowShow(slide: boolean) {
         F.geo = { x0: head, colW, n: per };
     }
     else {
-        const sc = STAGE.on ? Math.max(1, Math.min(wide, ah / H)) : RD_FLOW_SC;
+        // Off the stage the notes grow until the most a stream shows (12) fills the width, up to SR_SCALE_CAP.
+        const sc = STAGE.on ? Math.max(1, Math.min(wide, ah / H)) : Math.max(RD_FLOW_SC, Math.min(SR_SCALE_CAP, aw / (head + 10 + 12 * colW)));
         const n = streamVisible(aw, { scale: sc, colW, head });
         const start = streamStart(F.cur, n, total);
         rdFlowFill(F, start + n);
@@ -9180,7 +9356,7 @@ interface RdRhythmPiece { id: string; perc: boolean; noNames: boolean; ts: numbe
 interface RdRhythmPress { src: string; hand: 'L' | 'R'; on: number; off: number | null; }
 type RdRhythmGrade = RdRhythmTapGrade | RdRhythmAllGrade;
 // The rhythm exercise on show (RD.rh): what is written, how it was drawn, and the presses of the current run.
-interface RdRhythmState { ev: RdRhythmEvent[]; lh: RdRhythmEvent[] | null; r: RdRhythmRender; dur: boolean; two: boolean; on: number[]; taps: number[]; presses: RdRhythmPress[]; open: Map<string, RdRhythmPress>; playing: boolean; graded: RdRhythmGrade | null; raf: number; listen: boolean; t0: number; }
+interface RdRhythmState { ev: RdRhythmEvent[]; lh: RdRhythmEvent[] | null; r: RdRhythmRender; dur: boolean; two: boolean; on: number[]; taps: number[]; presses: RdRhythmPress[]; open: Map<string, RdRhythmPress>; playing: boolean; graded: RdRhythmGrade | null; raf: number; listen: boolean; t0: number; piece: RdRhythmPiece; paper: SrLayout | undefined; }
 function rdRhNew(keep?: boolean) {
     const L = RD.L, pr = rdRhPrefs(), old = keep && RD.rh;
     if (!L)
@@ -9190,7 +9366,7 @@ function rdRhNew(keep?: boolean) {
     if (lh)
         piece.lh = lh.map((e: RdRhythmEvent): [string, number] => [e.rest ? 'R' : 'D3', e.dur]);
     const r: RdRhythmRender = srRender(piece);
-    const rh: RdRhythmState = { ev, lh, r, dur: pr.dur, two: pr.two, on: ev.filter((e: RdRhythmEvent) => !e.rest).map((e: RdRhythmEvent) => e.beat), taps: [], presses: [], open: new Map(), playing: false, graded: null, raf: 0, listen: false, t0: 0 };
+    const rh: RdRhythmState = { ev, lh, r, dur: pr.dur, two: pr.two, on: ev.filter((e: RdRhythmEvent) => !e.rest).map((e: RdRhythmEvent) => e.beat), taps: [], presses: [], open: new Map(), playing: false, graded: null, raf: 0, listen: false, t0: 0, piece, paper: undefined };
     RD.rh = rh;
     const tst = RD.mode === 'test', pad = (h: string, lbl: string, k: string) => `<button class="rdx-tap" id="rdx-tap${h === 'L' ? 'L' : ''}" data-hand="${h}" aria-label="${rdEsc(lbl)}" aria-describedby="rdx-coach">${rdEsc(lbl)}<small>${rdEsc(k)}</small></button>`;
     const pads = pr.two ? pad('L', t('rdx_tap') + ' · ' + t('rdx_tap_l'), t('rdx_tap_lk')) + pad('R', t('rdx_tap') + ' · ' + t('rdx_tap_r'), t('rdx_tap_rk')) : pad('R', t('rdx_tap'), t('rdx_tap_k'));
@@ -9202,8 +9378,22 @@ function rdRhNew(keep?: boolean) {
     <div class="rdx-staff ss-wrap" id="rdx-staff">${r.svg}</div><div class="rdx-fb" id="rdx-fb">${t('rdx_rh_bpm', rdLevelBpm(L))}</div><div class="rdx-rhdet" id="rdx-rhdet"></div>
     <div class="rdx-rhbar"><button class="btn primary" id="rdx-rhgo">● ${t('rdx_rh_start')}</button>${tst ? '' : `<button class="btn ghost" id="rdx-rhlisten">▶ ${t('rd_listen')}</button>`}${pads}</div>
     <div class="rdx-tools" id="rdx-rhnext"></div></div>`;
+    rdRhFit();
     rdRhMarks(pr.two);
     rdHud();
+}
+// Lays the rhythm out for its paper once it is on the page, and again when the paper changes size; never while it plays or
+// once it is graded, since the marks live on the drawn notes.
+function rdRhFit() {
+    const R = RD.rh, wrap = maybeById('rdx-staff');
+    if (!R || !wrap || R.playing || R.graded || !wrap.closest('.rdx-rh'))
+        return;
+    const lay = srPaperOf(wrap);
+    if (!srPaperChanged(R.paper, lay))
+        return;
+    R.paper = lay;
+    R.r = srRender(R.piece, lay);
+    wrap.innerHTML = R.r.svg;
 }
 function rdRhOptsLock(on: boolean) { (document).querySelectorAll('#rdx-rhopts input,#rdx-rhopts button').forEach((x) => { if (x instanceof HTMLInputElement || x instanceof HTMLButtonElement)
     x.disabled = on; }); }
@@ -9789,12 +9979,8 @@ function rdIntro() {
     byId('rdx-meter').hidden = true;
     byId('rdx-end').hidden = true;
     const modes = rdModes(L), ic = RD_MODE_ICON;
-    let prev = '';
-    const clef = L.clef;
-    if (['name', 'play', 'k2s'].includes(L.ty) && clef !== 'mix' && clef !== undefined) {
-        const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
-        prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
-    }
+    const pool = ['name', 'play', 'k2s'].includes(L.ty) ? rdPoolSvg(L) : '';
+    const prev = pool ? `<div class="rdx-staff rdx-preview" aria-hidden="true">${pool}</div>` : '';
     const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}</div>`;
     const sfx = rdHasCheck(L) ? '' : '_' + L.ty;
     const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
@@ -9810,6 +9996,28 @@ function rdIntro() {
         : card('test', '');
     byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${card('practice', ' rdx-mode-main')}${more}</div></div>`;
     rdCoach(true);
+}
+// The notes a naming or playing level draws from, on its staff with their names; '' when the level mixes clefs.
+function rdPoolSvg(L: ReadDrillLevel) {
+    const clef = L.clef;
+    if (clef === 'mix' || clef === undefined || (!L.set && !(L.lo && L.hi)))
+        return '';
+    const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
+    return rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg;
+}
+// A picture of what a level asks: its notes, its widest interval or chord from the bottom of its range, or its largest key
+// signature. '' for rhythm and mixed-clef levels, which show their unit's icon instead.
+function rdLvSample(L: ReadDrillLevel) {
+    if (L.ty === 'ks')
+        return L.clef && L.clef !== 'mix' ? rdSvg({ clef: L.clef, keyN: L.kmax ?? 0, cols: [], minW: 150 }).svg : '';
+    if (L.ty === 'iv' || L.ty === 'ch') {
+        if (!L.lo || L.clef === undefined || L.clef === 'mix' || L.clef === 'grand')
+            return '';
+        const clef = rdStaffClef(L.clef), lo = rdStep(rdP(L.lo)), iv = L.ivs ? L.ivs[L.ivs.length - 1] : 5;
+        const cols = L.ty === 'iv' ? (L.harm === 1 ? [[rdFromStep(lo), rdFromStep(lo + iv - 1)]] : [[rdFromStep(lo)], [rdFromStep(lo + iv - 1)]]) : [[0, 2, 4].map((j) => rdFromStep(lo + j))];
+        return rdSvg({ clef, cols, colW: 72 }).svg;
+    }
+    return L.ty === 'rh' ? '' : rdPoolSvg(L);
 }
 function rdChalItems() { return queryAllHtml(document, '#rdx-chal-menu [role=menuitem]'); }
 // Opens or closes the Challenge menu; on opening, focus goes to its first or last item.
@@ -9983,6 +10191,7 @@ function stageRefit() {
     if (RD.on && RD.flow)
         rdFlowShow(false);
     srFit();
+    rdRhFit();
 }
 function stageResize() { clearTimeout(STAGE.rz); STAGE.rz = window.setTimeout(() => { if (STAGE.on)
     stageRefit(); }, 120); }
@@ -10084,10 +10293,17 @@ function rdSuggest() {
 }
 function rdRenderHome() {
     const d = rdData(), tot = d.tot, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0), cont = rdSuggest();
-    byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
-    <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${t('rdx_st_time')}</span></div></div>
-    <div class="rdx-hero-r"><button class="btn primary" data-lv="${cont.id}" id="rdx-cont">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}<small>${rdEsc(rdLvName(cont) + ' · ' + t('rdx_ty_' + cont.ty))}</small></button>
-      <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-flow"${d.prefs.flow ? ' checked' : ''}> <span>${t('rdx_flow')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-ghost"${d.prefs.ghost ? ' checked' : ''}${d.prefs.flow ? '' : ' disabled'}> <span>${t('rdx_ghost')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-stage-pref"${d.prefs.stage ? ' checked' : ''}> <span>${t('rdx_stage')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-weak-inject"${data.settings.weakSpotInjection ? ' checked' : ''}> <span>${t('rdx_weak_inject')}</span></label></div>`;
+    const unit = RD_UNITS.find((u) => u.lv.includes(cont)), rec: Partial<ReadDrillLevelStat> = d.lv[cont.id] || {}, sample = rdLvSample(cont);
+    const best = [rec.acc ? t('rdx_best_acc', rec.acc) : '', rec.t ? t('rdx_best_t', (rec.t / 1000).toFixed(1)) : ''].filter(Boolean).map((s) => `<span>${rdEsc(s)}</span>`).join('');
+    const opt = (id: string, on: boolean, key: string, off = false) => `<label class="switch-inline"><input type="checkbox" id="${id}"${on ? ' checked' : ''}${off ? ' disabled' : ''}> <span>${t(key)}</span></label>`;
+    // Stats, then the level to play next (a picture of it, its name, details and stars, and the button), then the options.
+    byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
+    <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${t('rdx_st_time')}</span></div></div></div>
+    <div class="rdx-next"><div class="rdx-next-pic" aria-hidden="true">${sample || `<span class="rdx-next-ic">${unit ? unit.icon : '🎯'}</span>`}</div>
+      <div class="rdx-next-txt"><span class="rdx-next-eye">${t(d.prefs.last ? 'rdx_hero_next' : 'rdx_hero_first')}</span><b class="rdx-next-name" id="rdx-next-name">${rdEsc(rdLvName(cont))}</b><span class="rdx-next-d" id="rdx-next-d">${rdEsc(rdLvDetail(cont))}</span></div>
+      <div class="rdx-next-go"><div class="rdx-rec">${rdStars(rec.s || 0)}${best}</div>
+      <button class="btn primary" data-lv="${cont.id}" id="rdx-cont" aria-describedby="rdx-next-name rdx-next-d">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}</button></div></div>
+    <div class="rdx-hero-r" role="group" aria-label="${rdEsc(t('rdx_hero_opts'))}">${opt('rdx-snd', !!d.prefs.sound, 'rdx_sound')}${opt('rdx-hints', !!d.prefs.hints, 'rdx_hints')}${opt('rdx-flow', !!d.prefs.flow, 'rdx_flow')}${opt('rdx-ghost', !!d.prefs.ghost, 'rdx_ghost', !d.prefs.flow)}${opt('rdx-stage-pref', !!d.prefs.stage, 'rdx_stage')}${opt('rdx-weak-inject', !!data.settings.weakSpotInjection, 'rdx_weak_inject')}</div>`;
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
@@ -18903,6 +19119,12 @@ function initControls() {
     byId('si-level').addEventListener('change', (e) => { singStopAll(); sing.level = +wiringField(e).value; ssNewExercise(); });
     byId('si-clef').addEventListener('change', (e) => { singStopAll(); sing.clef = wiringField(e).value; ssNewExercise(); });
     byId('si-solf').addEventListener('change', () => { byId('si-staff').classList.toggle('nosolf', !inputById('si-solf').checked); });
+    // The sight-reading, rhythm and sight-singing staves are laid out for the size of their paper (see SrLayout).
+    if (typeof ResizeObserver === 'function') {
+        let fitRaf = 0;
+        const fit = new ResizeObserver(() => { cancelAnimationFrame(fitRaf); fitRaf = requestAnimationFrame(() => { srFit(); rdRhFit(); ssFit(); }); });
+        ['rd-staff', 'rdx-body', 'si-staff'].forEach((id) => fit.observe(byId(id)));
+    }
     byId('si-new').addEventListener('click', () => { singStopAll(); ssNewExercise(); byId('si-verdict').textContent = ''; byId('si-hint').textContent = ''; });
     byId('si-go').addEventListener('click', singGo);
     byId('si-tonic').addEventListener('click', ssTonic);
@@ -19689,6 +19911,7 @@ Object.defineProperty(__etude, "rdRender", { configurable: true, get: () => rdRe
 Object.defineProperty(__etude, "rdRenderHome", { configurable: true, get: () => rdRenderHome });
 Object.defineProperty(__etude, "rdRenderStats", { configurable: true, get: () => rdRenderStats });
 Object.defineProperty(__etude, "rdRhDone", { configurable: true, get: () => rdRhDone });
+Object.defineProperty(__etude, "rdRhFit", { configurable: true, get: () => rdRhFit });
 Object.defineProperty(__etude, "rdRhGen", { configurable: true, get: () => rdRhGen });
 Object.defineProperty(__etude, "rdRhGenLH", { configurable: true, get: () => rdRhGenLH });
 Object.defineProperty(__etude, "rdRhGrade", { configurable: true, get: () => rdRhGrade });
@@ -19857,6 +20080,7 @@ Object.defineProperty(__etude, "srtStartPractice", { configurable: true, get: ()
 Object.defineProperty(__etude, "srtStartClaimedAttempt", { configurable: true, get: () => srtStartClaimedAttempt });
 Object.defineProperty(__etude, "srtSwitchToPractice", { configurable: true, get: () => srtSwitchToPractice });
 Object.defineProperty(__etude, "srBeatToX", { configurable: true, get: () => srBeatToX });
+Object.defineProperty(__etude, "srBeatPt", { configurable: true, get: () => srBeatPt });
 Object.defineProperty(__etude, "srEmptyUi", { configurable: true, get: () => srEmptyUi });
 Object.defineProperty(__etude, "srClef", { configurable: true, get: () => srClef });
 Object.defineProperty(__etude, "srClick", { configurable: true, get: () => srClick });
@@ -19864,6 +20088,7 @@ Object.defineProperty(__etude, "srCoach", { configurable: true, get: () => srCoa
 Object.defineProperty(__etude, "srCount", { configurable: true, get: () => srCount });
 Object.defineProperty(__etude, "srCursor", { configurable: true, get: () => srCursor });
 Object.defineProperty(__etude, "srDraw", { configurable: true, get: () => srDraw });
+Object.defineProperty(__etude, "srFit", { configurable: true, get: () => srFit });
 Object.defineProperty(__etude, "srEvents", { configurable: true, get: () => srEvents });
 Object.defineProperty(__etude, "srFocus", { configurable: true, get: () => srFocus });
 Object.defineProperty(__etude, "srGo", { configurable: true, get: () => srGo });
@@ -19912,6 +20137,7 @@ Object.defineProperty(__etude, "ssClearTrail", { configurable: true, get: () => 
 Object.defineProperty(__etude, "ssCurNote", { configurable: true, get: () => ssCurNote });
 Object.defineProperty(__etude, "ssCursorEl", { configurable: true, get: () => ssCursorEl });
 Object.defineProperty(__etude, "ssDraw", { configurable: true, get: () => ssDraw });
+Object.defineProperty(__etude, "ssFit", { configurable: true, get: () => ssFit });
 Object.defineProperty(__etude, "ssDrawTrail", { configurable: true, get: () => ssDrawTrail });
 Object.defineProperty(__etude, "ssDrone", { configurable: true, get: () => ssDrone });
 Object.defineProperty(__etude, "ssFillLevels", { configurable: true, get: () => ssFillLevels });

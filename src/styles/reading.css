@@ -24,3 +24,48 @@
 .rdx-award[hidden]{display:none}
 @keyframes rdxAward{from{opacity:0; transform:scale(.9)} to{opacity:1; transform:none}}
 @media (prefers-reduced-motion:reduce){ .rdx-award{animation:none} .rdx-chal-btn b i{transition:none} }
+
+/* ---------- Reading drills home: the hero (etude.html #rdx-hero, drawn by rdRenderHome) ----------
+   Wide: the stats on the left, the level to play next beside them (a picture of it, its name, details, stars and the
+   button), and the options in a wrapping grid on their own row. Below 860px the picture sits above the text; phone
+   (680px and below): one column, and the options are 44px tall. */
+.rdx-hero{display:grid; grid-template-columns:minmax(170px,max-content) minmax(0,1fr); grid-template-areas:"stats next" "opts opts"; gap:18px 26px; align-items:stretch}
+.rdx-hero-l{grid-area:stats; display:flex; flex-direction:column; justify-content:center; gap:16px}
+.rdx-next{grid-area:next; display:grid; grid-template-columns:minmax(0,1.4fr) minmax(200px,1fr) minmax(170px,auto); gap:12px 22px; align-items:center; padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--paper2)}
+.rdx-next-pic{display:flex; align-items:center; justify-content:center; min-height:132px; padding:8px 12px; border-radius:10px; background:var(--paper); overflow:hidden}
+.rdx-next-pic .rdx-svg{width:100%; max-height:180px}
+.rdx-next-ic{font-size:56px; line-height:1}
+.rdx-next-txt{display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:0}
+.rdx-next-eye{font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent)}
+.rdx-next-name{font-family:var(--serif); font-size:22px; font-weight:600; line-height:1.2; color:var(--ink)}
+.rdx-next-d{font-size:13px; color:var(--muted); line-height:1.4}
+.rdx-next-go{display:flex; flex-direction:column; align-items:stretch; gap:10px; padding-right:6px}
+.rdx-next .rdx-rec{justify-content:flex-start; gap:4px 12px}
+#rdx-cont{min-height:48px; padding-inline:22px; justify-content:center}
+.rdx-hero-r{grid-area:opts; display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:2px 18px; padding-top:12px; border-top:1px solid var(--line)}
+.rdx-hero-r .switch-inline{min-height:36px; white-space:normal}
+@media (max-width:1100px){
+  .rdx-next{grid-template-columns:minmax(0,1.15fr) minmax(220px,1fr)}
+  .rdx-next-pic{grid-row:span 2}
+  .rdx-next-go{grid-column:2; align-items:flex-start}
+}
+@media (max-width:860px){ .rdx-next{grid-template-columns:minmax(0,1fr)} .rdx-next-pic{grid-row:auto} .rdx-next-go{grid-column:auto} }
+@media (max-width:680px){
+  .rdx-hero{grid-template-columns:minmax(0,1fr); grid-template-areas:"stats" "next" "opts"; gap:14px}
+  .rdx-hero-l{flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:space-between}
+  .rdx-next-pic{min-height:104px}
+  #rdx-cont{width:100%; justify-content:center}
+  .rdx-hero-r{grid-template-columns:minmax(0,1fr)}
+  .rdx-hero-r .switch-inline{min-height:44px}
+}
+/* The level ladder: the units flow down balanced columns at least 300px wide, so a short unit leaves no hole beside a long one. */
+.rdx-ladder{columns:300px; column-gap:14px; margin-top:16px}
+.rdx-unit{break-inside:avoid; margin-bottom:14px}
+/* A level's screen, and a drill question off the stage: the staff is drawn 1.6 times its size (--w, set by rdSvg) where the
+   window has room, never wider than its box. The stage sizes the question's staff to its own height. */
+@media (min-width:900px){ .rdx-intro .rdx-preview{align-self:stretch; display:flex; justify-content:center} .rdx-intro .rdx-preview .rdx-svg{width:calc(var(--w) * 1.6); max-width:100%} .rdx-intro .rdx-desc{max-width:760px} .rdx-intro .rdx-modes{max-width:860px} }
+@media (min-width:900px) and (min-height:640px){ body:not([data-stage=immersive]) .rdx-q .rdx-staff:not(.rdx-flow):not(.ss-wrap) > .rdx-svg{width:calc(var(--w) * 1.6); max-width:100%} }
+/* Tap the rhythm: the staff is scaled to its box (srRender's layout) and drawn on white paper in both themes. On the stage the
+   box takes the free height, and the paper hugs the staff inside it. */
+.rdx-q.rdx-rh .rdx-staff{align-self:stretch; background:none; border-color:transparent; box-shadow:none; padding:6px 0; overflow-x:auto}
+.rdx-rh .rdx-staff > svg{background:#fdfbf7; border-radius:10px; box-shadow:0 0 0 1px #dfd7c6, 0 2px 10px rgba(0,0,0,.08)}
