@@ -165,8 +165,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <p class="lede" data-i18n="rd_lede">Learn to read music fluently: short daily drills for notes, intervals, chords, key signatures and rhythm, then sight-read real pieces. Use MIDI, the on-screen keys, or A–K.</p>
       <div class="rdx-tabs" id="rd-tabs" role="tablist" aria-label="Reading" data-i18n-aria="rdx_tabs_aria">
         <button role="tab" id="rdt-drills" data-tab="drills" aria-selected="true" aria-controls="rdp-drills" tabindex="0"><span aria-hidden="true">🎯</span> <span data-i18n="rdx_tab_drills">Reading drills</span></button>
-        <button role="tab" id="rdt-pieces" data-tab="pieces" aria-selected="false" aria-controls="rdp-pieces" tabindex="-1"><span aria-hidden="true">🎼</span> <span data-i18n="rdx_tab_pieces">Pieces &amp; sight-reading</span></button>
-        <button role="tab" id="rdt-stats" data-tab="stats" aria-selected="false" aria-controls="rdp-stats" tabindex="-1"><span aria-hidden="true">📊</span> <span data-i18n="rdx_tab_stats">Statistics</span></button>
+        <button role="tab" id="rdt-pieces" data-tab="pieces" aria-selected="false" aria-controls="rdp-pieces" tabindex="-1"><span aria-hidden="true">🎼</span> <span data-i18n="rdx_tab_pieces">Sight-reading</span></button>
       </div>
       <div id="rdp-drills" role="tabpanel" aria-labelledby="rdt-drills">
         <div id="rdx-home">
@@ -251,7 +250,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         </div>
       </div>
       </div>
-      <div id="rdp-stats" role="tabpanel" aria-labelledby="rdt-stats" hidden><div id="rdx-stats"></div></div>
     </div>
   </section>
 
@@ -640,6 +638,9 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <hr class="rule" />
       <div class="eyebrow" style="margin-bottom:4px"><span data-i18n="items_head">Every concept</span> <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0">· <span data-i18n="items_sub">warmer = stronger memory</span></span></div>
       <div id="itemGrid"></div>
+      <hr class="rule" />
+      <section aria-labelledby="prog-reading-h"><div class="eyebrow" style="margin-bottom:10px" id="prog-reading-h" data-i18n="prog_reading">Reading</div>
+      <div id="rdx-stats"></div></section>
     </div>
   </section>
 

@@ -10095,7 +10095,7 @@ function rdCustomGo() {
     }
     rdOpen(L);
 }
-/* ---- statistics: per-note heatmap on the staff, skills, weakest items ---- */
+/* ---- statistics, shown in Progress under Reading: per-note heatmap on the staff, skills, weakest items ---- */
 function rdAgg(c: string, li: number, oct: number) {
     let n = 0, ok = 0, ms = 0;
     const re = /^([tban]):([A-G])([#b]?)(\d)$/;
@@ -10122,6 +10122,9 @@ function rdHeat(clef: 'treble' | 'bass' | 'alto' | 'tenor', lo: string, hi: stri
 }
 function rdBars(rows: readonly { l: string; n: number; ok: number; }[]) { return rows.map((r) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + r.n + '×' : '—'}</em></div>`).join(''); }
 function rdRenderStats() {
+    const box = maybeById('rdx-stats');
+    if (!box)
+        return;
     const d = rdData(), tot = d.tot, nt = d.nt, g = (k: string) => nt[k] || { n: 0, ok: 0 };
     const lvDone = RD_ALL.filter((L) => ((d.lv[L.id] || {}).s || 0) > 0).length, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0);
     const weak = Object.entries(nt).filter(([k, s]) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
@@ -10131,7 +10134,7 @@ function rdRenderStats() {
             ks.push({ l: rdKeyLabel(k), ...g('ks:' + k) });
     const rh = (RD_UNITS.find((u) => u.u === 'rh')?.lv ?? []).filter((L: ReadDrillLevel) => g('rh:' + L.id).n).map((L: ReadDrillLevel) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
     const extra = (['alto', 'tenor'] as const).filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
-    byId('rdx-stats').innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+    box.innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     <div class="panel rdx-stat-p"><h3>${t('rdx_heat')}</h3><p class="rdx-desc">${t('rdx_heat_d')}</p>
       <div class="rdx-staff rdx-heat">${rdHeat('treble', 'A3', 'C6')}</div><div class="rdx-staff rdx-heat">${rdHeat('bass', 'C2', 'E4')}</div>
       ${extra.map((c) => `<div class="rdx-staff rdx-heat">${rdHeat(c, c === 'alto' ? 'C3' : 'A2', c === 'alto' ? 'D5' : 'B4')}</div>`).join('')}</div>
@@ -10144,7 +10147,8 @@ function rdRenderStats() {
 }
 /* ---- tabs, wiring, locale ---- */
 function rdTab(tab: string|undefined) {
-    if (tab === undefined || !['drills', 'pieces', 'stats'].includes(tab))
+    // A saved tab that no longer exists (the old Statistics tab, now in Progress) opens the drills.
+    if (tab === undefined || !['drills', 'pieces'].includes(tab))
         tab = 'drills';
     if (tab !== 'pieces' && srtPendingSaveProtected()) {
         if (SR.srtState?.name === 'pendingSave') {
@@ -10157,7 +10161,7 @@ function rdTab(tab: string|undefined) {
     }
     rdData().prefs.tab = tab;
     queryAllHtml(document, '#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
-    ['drills', 'pieces', 'stats'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
+    ['drills', 'pieces'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
         p.hidden = x !== tab; });
     if (tab !== 'drills' && RD.on) {
         rdAbort();
@@ -10165,9 +10169,7 @@ function rdTab(tab: string|undefined) {
     }
     if (tab !== 'pieces')
         srStopAll(true, false, 'navigate');
-    if (tab === 'stats')
-        rdRenderStats();
-    else if (tab === 'drills' && byId('rdx-stage').hidden)
+    if (tab === 'drills' && byId('rdx-stage').hidden)
         rdRenderHome();
     stageSync();
 }
@@ -10417,7 +10419,7 @@ function rdOnLocale() {
         else if (/^rdx-c-/.test(id))
             rdCustomRead();
     });
-    byId('rdp-stats').addEventListener('click', (e) => { if (eventElement(e)?.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
+    byId('rdx-stats').addEventListener('click', (e) => { if (eventElement(e)?.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
         const d = rdData();
         d.nt = {};
         d.tot = { n: 0, ok: 0, ms: 0, sess: 0 };
@@ -17185,6 +17187,8 @@ function renderProgress() {
         sec.appendChild(grid);
         g.appendChild(sec);
     });
+    // Reading: the reading drills' statistics, with their own Reset button.
+    rdRenderStats();
 }
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */

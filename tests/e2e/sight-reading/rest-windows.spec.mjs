@@ -105,7 +105,7 @@ test.describe('Sight-reading iteration 14 regressions', () => {
   test('keeps Read navigation pendingSave visible until abandonment succeeds', async ({ app }) => {
     const page = await blockedPendingSave(app);
     const fingerprint = await page.evaluate(() => window.__etude.SR.srtFingerprint);
-    await page.locator('#rdt-stats').click();
+    await page.locator('#rdt-drills').click();
     await expect.poll(() => pendingSnapshot(page)).toMatchObject({
       state: 'pendingSave',
       fingerprint,
@@ -119,8 +119,8 @@ test.describe('Sight-reading iteration 14 regressions', () => {
     await restoreStorage(page);
     await page.locator('#rd-srt-continue').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('abandoned');
-    await page.locator('#rdt-stats').click();
-    await expect(page.locator('#rdp-stats')).toBeVisible();
+    await page.locator('#rdt-drills').click();
+    await expect(page.locator('#rdp-drills')).toBeVisible();
     expect(await pendingSnapshot(page)).toMatchObject({
       state: 'abandoned',
       claims: 0,

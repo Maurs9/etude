@@ -5,8 +5,7 @@ const payload: UIPayload = {
     "it": {
       "rdx_tabs_aria": "Sezioni di lettura",
       "rdx_tab_drills": "Esercizi di lettura",
-      "rdx_tab_pieces": "Brani e lettura a prima vista",
-      "rdx_tab_stats": "Statistiche",
+      "rdx_tab_pieces": "Lettura a prima vista",
       "rdx_hands_aria": "Mani",
       "rdx_mode_aria": "Modalità di esercizio",
       "rdx_sheet_aria": "Spartito",
@@ -1048,6 +1047,7 @@ const payload: UIPayload = {
       "dir_desc": "Discendente",
       "prog_eyebrow": "Il tuo percorso",
       "prog_title": "Progressi",
+      "prog_reading": "Lettura",
       "reset": "Azzera progressi",
       "st_streak": "Giorni consecutivi",
       "st_mastered": "Padroneggiati",

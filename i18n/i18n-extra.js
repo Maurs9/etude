@@ -61,7 +61,6 @@
     ['rdx_tabs_aria','Secciones de lectura','Sections de lecture','Bereiche zum Notenlesen','Sezioni di lettura','Seções de leitura'],
     ['rdx_tab_drills','Ejercicios de lectura','Exercices de lecture','Leseübungen','Esercizi di lettura','Exercícios de leitura'],
     ['rdx_tab_pieces','Piezas y lectura a primera vista','Morceaux et déchiffrage','Stücke und Blattspiel','Brani e lettura a prima vista','Peças e leitura à primeira vista'],
-    ['rdx_tab_stats','Estadísticas','Statistiques','Statistiken','Statistiche','Estatísticas'],
     ['rdx_custom','Ejercicio personalizado','Exercice personnalisé','Eigene Übung','Esercizio personalizzato','Exercício personalizado'],
     ['rdx_c_type','Ejercicio','Exercice','Übung','Esercizio','Exercício'],
     ['rdx_ty_name','Nombra la nota','Nommer la note','Note benennen','Nomina la nota','Nomeie a nota'],

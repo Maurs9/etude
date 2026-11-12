@@ -1837,6 +1837,53 @@ test.describe('reading drills: every level is open', () => {
   });
 });
 
+test.describe('reading statistics in Progress', () => {
+  const reading = {
+    lv: { tr1: { s: 1, acc: 85, t: 2400, n: 3, rush: 31 } },
+    nt: { 't:C4': { n: 6, ok: 3, ms: 12000, e: 0.6, t: 2500 }, 'iv:3': { n: 4, ok: 4, ms: 8000, e: 0.1, t: 2000 } },
+    tot: { n: 10, ok: 7, ms: 20000, sess: 2 },
+  };
+
+  test('Progress has a Reading section with the totals, note map, skills, weakest items and Reset', async ({ app, page }) => {
+    await app.open({ hash: 'progress', saved: { v: 3, lang: 'en', data: { reading } } });
+    const en = STRINGS.en, section = page.getByRole('region', { name: en.prog_reading });
+    await expect(section).toBeVisible();
+    await expect(section.locator('.rdx-tiles-lg')).toContainText('70%');
+    await expect(section.locator('.rdx-tiles-lg')).toContainText(en.rdx_st_sess);
+    expect(await section.locator('.rdx-heat svg').count()).toBeGreaterThanOrEqual(2);
+    for (const head of [en.rdx_heat, en.rdx_u_iv, en.rdx_u_ch, en.rdx_u_ks, en.rdx_u_rh, en.rdx_weakest])
+      await expect(section.getByRole('heading', { name: head, exact: true })).toBeVisible();
+    await expect(section.locator('.rdx-weak .rdx-tag')).toHaveCount(2);
+    page.on('dialog', dialog => dialog.accept());
+    await section.getByRole('button', { name: en.rdx_reset }).click();
+    await expect(section.locator('.rdx-weak')).toHaveCount(0);
+    await expect(section).toContainText(en.rdx_nodata);
+    expect(await page.evaluate(() => {
+      const r = JSON.parse(localStorage.getItem('ptt-v3')).data.reading;
+      return { nt: r.nt, tot: r.tot, stars: r.lv.tr1.s };
+    })).toEqual({ nt: {}, tot: { n: 0, ok: 0, ms: 0, sess: 0 }, stars: 1 });
+  });
+
+  test('an old save with the Statistics tab, a Note rush record and a last level opens the drills cleanly', async ({ app, page }) => {
+    await app.open({ hash: 'read', saved: { v: 3, lang: 'en', data: { reading: { ...reading, prefs: { tab: 'stats', last: 'tr1' } } } } });
+    await expect(page.locator('#rdp-drills')).toBeVisible();
+    await expect(page.locator('#rd-tabs [role=tab]')).toHaveCount(2);
+    await expect(page.locator('#rdt-drills')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#rdt-pieces')).toHaveText(new RegExp(STRINGS.en.rdx_tab_pieces));
+    expect(STRINGS.en.rdx_tab_pieces).toBe('Sight-reading');
+    await expect(page.locator('#rdt-stats, #rdp-stats')).toHaveCount(0);
+    await page.locator('#rdx-cont').click();
+    expect(await page.evaluate(() => window.__etude.RD.L.id)).toBe('tr1');
+    for (const old of ['test', 'rush']) {
+      await page.evaluate(mode => window.__etude.rdStart(mode), old);
+      expect(await page.evaluate(() => [window.__etude.RD.on, window.__etude.RD.mode]), old).toEqual([true, 'practice']);
+      await page.locator('#rdx-end').click();
+    }
+    expect(await page.evaluate(() => window.__etude.rdData().lv.tr1.rush)).toBe(31);
+    expect(await page.evaluate(() => window.__etude.rdData().prefs.tab)).toBe('drills');
+  });
+});
+
 test.describe('reading drills: key to staff', () => {
   const start = (page, clef) => page.evaluate(clef => {
     const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'k2s' && l.clef === clef);

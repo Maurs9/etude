@@ -274,9 +274,9 @@ test.describe('Sight-reading cancellation races', () => {
     await page.evaluate(() => window.__etude.panic());
   });
 
-  test('abandons a preview when leaving Pieces for Stats and never runs it in the background', async ({ app }) => {
+  test('abandons a preview when leaving Pieces for the drills and never runs it in the background', async ({ app }) => {
     const page = await startPreview(app);
-    await page.locator('#rdt-stats').click();
+    await page.locator('#rdt-drills').click();
     expect(await terminalSnapshot(page)).toMatchObject({ state: 'abandoned', active: false, previewHidden: true });
     await expectTerminalAttempt(page, ['abandoned']);
     await page.clock.runFor(70_000);
@@ -291,7 +291,7 @@ test.describe('Sight-reading cancellation races', () => {
     await holdLedger(page);
     await page.locator('#rd-go').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('claiming');
-    await page.locator('#rdt-stats').click();
+    await page.locator('#rdt-drills').click();
     expect(await terminalSnapshot(page)).toMatchObject({ state: 'abandoned', active: false, previewHidden: true });
     await releaseLedger(page);
     await expectTerminalAttempt(page, ['abandoned']);
@@ -355,7 +355,7 @@ test.describe('Sight-reading cancellation races', () => {
 
   test('abandons pendingSave on navigation and releases its claim and lease', async ({ app }) => {
     const page = await startPendingSave(app);
-    await page.locator('#rdt-stats').click();
+    await page.locator('#rdt-drills').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('abandoned');
     await expectTerminalAttempt(page, ['abandoned']);
     expect(await page.locator('#rd-srt-pending').isHidden()).toBe(true);

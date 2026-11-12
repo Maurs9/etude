@@ -7,7 +7,7 @@
 ## Features
 
 - Theory handbook with every lesson open in any order, reading exercises, and score study. Reading levels include eighths, dotted notes, syncopation and ties.
-- Reading drills: every level is open in any order. Practice gives up to 3 stars from your last 20 answers, and the Challenge menu holds Time Attack, Survival and Marathon. Rhythm and sight-reading levels keep a graded run for their stars.
+- Reading drills: every level is open in any order. Practice gives up to 3 stars from your last 20 answers, and the Challenge menu holds Time Attack, Survival and Marathon. Rhythm and sight-reading levels keep a graded run for their stars. Reading statistics are in Progress, under Reading.
 - Targeted drills, a scale and arpeggio technique drill, accompaniment, sight-singing, and ear training
 - Wrong answers show what you gave against the answer, with a Hear both button. Repeated mix-ups get a short contrast drill at the end of the session.
 - Explore: free play on one screen, with the circle of fifths beside the staff. Pick a key on the circle to read chords in Roman numerals and see its fingering.
