@@ -1,5 +1,5 @@
 /* ---------- Practice setup ("Drill one thing"): Continue strip, topic cards, How to answer, key chips, Start ----------
-   Loaded after etude.css. The topic cards reuse the Today focus cards (.focus-grid, .focus). The phone width is the
+   Loaded after etude.css. The topic cards take the card look of .focus (etude.css). The phone width is the
    app's 680px: two cards across, the key chips scroll sideways inside their own row, Start and Drill again (#pr-redo) are full width
    (etude.css already makes #pr-mode and #pr-start full width there). */
 #pr-home .pr-setup{margin-top:18px}
@@ -15,7 +15,7 @@
 .pr-redo{flex:none; min-height:44px; justify-content:center}
 
 /* Topic cards: a radio group, one card checked */
-.pr-topics{grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:0}
+.pr-topics{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:0}
 .pr-topic{position:relative; min-width:0; padding:14px 14px 12px; overflow-wrap:break-word}
 .pr-topic-top{display:flex; align-items:center; gap:10px; min-width:0; padding-right:20px}
 .pr-glyph{flex:none; width:24px; height:24px; color:var(--accent)}

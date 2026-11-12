@@ -3255,7 +3255,7 @@ function endSession(toSummary: boolean) {
         renderPracticeLast();
         contrastOffer(byId('pr-last'), contrastRun ? { correct: SES.correct, total: SES.total } : null);
         if (toSummary)
-            byId('pr-start').focus();
+            prFocusAfterDrill();
         return;
     }
     if (toSummary) {
@@ -4394,20 +4394,6 @@ function refreshToday() {
     byId('startBtn').textContent = caughtUp ? t('start_caught') : t('start');
     byId('hero-title').textContent = caughtUp ? t('hero_caught') : t('hero_session');
     byId('why-text').textContent = caughtUp ? t('why_caught') : t('why_due');
-    // focus grid
-    const fg = byId('focusGrid');
-    fg.innerHTML = '';
-    Object.keys(CATS).forEach((cat) => {
-        const items = ITEMS.filter((it) => it.cat === cat);
-        const mastered = items.filter((it) => boxOf(it.id) >= 4).length;
-        const seen = items.filter((it) => !isNew(it.id)).length;
-        const card = (document).createElement('button');
-        card.type = 'button';
-        card.className = 'focus';
-        card.onclick = () => { show('practice'); prSetTopic(cat); byId('pr-start').focus(); };
-        card.innerHTML = '<div class="k">' + catLabel(cat) + '</div><div class="m">' + mastered + ' ' + t('mastered_lc') + ' · ' + seen + '/' + items.length + ' ' + t('started') + '</div><div class="bar"><i style="width:' + Math.round(100 * mastered / items.length) + '%"></i></div>';
-        fg.appendChild(card);
-    });
     renderPlan();
 }
 /* ---------- EXPLORE ---------- */
@@ -17036,6 +17022,7 @@ function renderPlan() {
                 startSession(null); } },
         ...learnPlanItems(tn),
         { id: 'read', done: td.read === tn, t: t('plan_read'), d: t('plan_read_d'), go: () => show('read') },
+        { id: 'piece', done: td.piece === tn, t: t('plan_piece'), d: t('plan_piece_d'), go: () => show('analysis') }, // toolDay.piece: a piece run completed today
         { id: 'ear', done: ear >= 5, partial: ear > 0 && ear < 5, prog: Math.min(1, ear / 5), pill: Math.min(ear, 5) + '/5', t: t('plan_ear'), d: ear ? t('plan_ear_dn', Math.min(ear, 5)) : t('plan_ear_d'), go: prEarCheck },
     ];
     const nextIdx = items.findIndex((i) => !i.done);
@@ -17083,7 +17070,7 @@ function prRecordDrill() { if (!SES.targeted || !SES.total)
 /* ---------- PRACTICE: setup mode and hints ---------- */
 // The setup screen holds one choice: the topic in #pr-cat, the mode in #pr-mode (aria-pressed) and the key in #pr-key.
 // #pr-cat and #pr-key are hidden; the topic cards and key chips are their only visible controls. Every caller
-// (Today focus cards, Progress "Needs work", Learn links, Continue, tests) changes the choice through prSetTopic,
+// (the Today Ear row, Progress "Needs work", Learn links, Continue, tests) changes the choice through prSetTopic,
 // prSetMode and prSetKey, and reads it through prChoice. Intervals by ear also take a Direction (prSetDir, #pr-dir),
 // and Intervals show the Song hints panel (#pr-songs, renderSongs). Progressions add a fourth mode, Play along: no drill,
 // the accompaniment loop (#pr-along), started and stopped by the Start button.
@@ -17245,7 +17232,7 @@ function prRadioKey(e: KeyboardEvent, pick: (v: string) => void) {
     pick(next.dataset.v ?? '');
     next.focus();
 }
-// The topic cards: the look of the Today focus cards, with the same mastered counts for the four review topics.
+// The topic cards (the .focus card look), with mastered counts for the four review topics.
 function renderPracticeTopics() {
     const box = maybeById('pr-topics'), sel = maybeById('pr-cat');
     if (!box || !(sel instanceof HTMLSelectElement))
@@ -17367,6 +17354,20 @@ function renderPracticeSetup() {
     renderSongs();
 }
 
+// After a drill: the contrast offer when it shows (its Start button, else its text), else the Last drill strip's button.
+function prFocusAfterDrill() {
+    const offer = maybeById('ses-contrast'), go = maybeById('cf-start');
+    if (offer && !offer.hidden) {
+        if (go && offer.contains(go))
+            go.focus();
+        else {
+            offer.tabIndex = -1;
+            offer.focus();
+        }
+    }
+    else
+        byId(byId('pr-last').hidden ? 'pr-start' : 'pr-redo').focus();
+}
 function renderPracticeLast() {
     const el = maybeById('pr-last'), txt = maybeById('pr-last-txt');
     if (!el || !txt)
@@ -19181,6 +19182,7 @@ Object.defineProperty(__etude, "positionBlacks", { configurable: true, get: () =
 Object.defineProperty(__etude, "prAlongWanted", { configurable: true, get: () => prAlongWanted });
 Object.defineProperty(__etude, "prChoice", { configurable: true, get: () => prChoice });
 Object.defineProperty(__etude, "prEarCheck", { configurable: true, get: () => prEarCheck });
+Object.defineProperty(__etude, "prFocusAfterDrill", { configurable: true, get: () => prFocusAfterDrill });
 Object.defineProperty(__etude, "prOpenMoved", { configurable: true, get: () => prOpenMoved });
 Object.defineProperty(__etude, "prRecordDrill", { configurable: true, get: () => prRecordDrill });
 Object.defineProperty(__etude, "prSetDir", { configurable: true, get: () => prSetDir });

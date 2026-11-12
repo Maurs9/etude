@@ -147,7 +147,6 @@
   .btn:disabled{opacity:.45; cursor:not-allowed}
   .btn.sm{padding:7px 12px; font-size:13px}
 
-  .focus-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-top:18px}
   .focus{display:flex; flex-direction:column; gap:6px; text-align:left; align-items:flex-start; padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--ink); font-family:inherit; cursor:pointer; transition:.15s}
   .focus:hover{border-color:var(--accent); transform:translateY(-2px)}
   .focus .k{font-family:var(--serif); font-size:18px; font-weight:600}

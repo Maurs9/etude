@@ -31,7 +31,7 @@ test.describe('Practice setup', () => {
       expect(await page.evaluate(() => window.__etude.prChoice().cat)).toBe(cat);
       await expect(page.locator('#pr-mode-note')).toBeVisible({ visible: RULES[cat].off.length > 0 });
     }
-    // The four review topics show the same mastered counts as the Today focus cards; the other two show none.
+    // The four review topics show their mastered counts; the other two show none.
     for (const cat of TOPICS.slice(0, 4)) await expect(page.locator(`#pr-t-${cat}-m`)).toContainText(/^\d+ mastered of \d+$/);
     for (const cat of TOPICS.slice(4)) await expect(page.locator(`#pr-t-${cat}-m`)).toBeHidden();
   });
@@ -99,13 +99,17 @@ test.describe('Practice setup', () => {
     await expect(page.locator('#pr-last')).toBeHidden();
   });
 
-  test('a Today focus card opens Practice on its topic', async ({ app }) => {
+  // The Today focus cards are gone; the topic cards replace them (practice-moved.spec.mjs checks Today).
+  test('from Today, the Practice tab and a topic card set up that topic', async ({ app }) => {
     const page = await app.open();
-    await page.locator('#focusGrid button').nth(3).click(); // Progressions
+    await expect(page.locator('#focusGrid')).toHaveCount(0);
+    await page.locator('#nav button[data-view="practice"]').click();
     await expect(page.locator('#view-practice')).toHaveClass(/active/);
+    await page.locator('#pr-t-prog').click();
     expect(await checkedTopic(page)).toEqual(['prog']);
     await expect(page.locator('#pr-mode button[data-v="keys"]')).toBeDisabled();
-    await expect(page.locator('#pr-start')).toBeFocused();
+    await expect(page.locator('#pr-topics')).not.toHaveClass(/focus-grid/);
+    expect(await page.locator('#pr-topics').evaluate(el => getComputedStyle(el).display)).toBe('grid');
   });
 
   test('a Progress "Needs work" item opens Practice on its topic, with the topic rules applied', async ({ app }) => {

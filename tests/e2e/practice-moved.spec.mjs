@@ -1,7 +1,8 @@
 import { test, expect, todayN } from '../helpers/fixtures.mjs';
 
 // Screens that moved into the Practice setup: the interval song book (Song hints, Intervals), its ear check
-// (Intervals · By ear, with a Direction) and Accompany (Progressions · Play along).
+// (Intervals · By ear, with a Direction) and Accompany (Progressions · Play along). Then Today without its focus grid,
+// and where focus goes when a drill ends.
 
 const checkedTopic = page => page.evaluate(() => [...document.querySelectorAll('#pr-topics [role=radio][aria-checked=true]')].map(b => b.dataset.v));
 // Records each interval the app sounds (the root and the signed size: below 0 it descends).
@@ -351,5 +352,91 @@ test.describe('Progressions · Play along', () => {
       const sizes = await page.locator(sel).evaluateAll(els => els.map(el => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); }));
       for (const s of sizes) expect(s, sel).toBeGreaterThanOrEqual(44);
     }
+  });
+});
+
+test.describe('Today', () => {
+  test('no focus grid and no Accompany entry; nothing scrolls sideways at 390px', async ({ app, page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open();
+    await expect(page.locator('#plan-list')).toBeVisible();
+    await expect(page.locator('#focusGrid, .focus-grid')).toHaveCount(0);
+    await expect(page.locator('#today-home hr.rule')).toHaveCount(1);
+    await expect(page.locator('#tools button')).toHaveText([/^Score & analysis/, /^Read & play/, /^Sing/, /^Transcribe/]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+  });
+
+  test('the Play a piece row follows toolDay.piece, sits after Note reading, and opens Score & analysis', async ({ app }) => {
+    const tn = todayN();
+    const page = await app.open({ saved: { v: 3, lang: 'en', data: { toolDay: { piece: tn - 1 } } } });
+    const ids = await page.locator('#plan-list .plan-item').evaluateAll(els => els.map(el => el.dataset.plan));
+    expect(ids.indexOf('piece')).toBe(ids.indexOf('read') + 1);
+    const row = page.locator('[data-plan="piece"]');
+    await expect(row).toHaveAttribute('data-done', 'false'); // a run yesterday does not count
+    await expect(row).toContainText('Play a piece');
+    await page.evaluate(tn => { window.__etude.data.toolDay.piece = tn; window.__etude.renderPlan(); }, tn);
+    await expect(row).toHaveAttribute('data-done', 'true');
+    await row.click();
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+    expect(await page.evaluate(() => window.__etude.data.toolDay.piece)).toBe(tn); // opening the screen sets nothing
+  });
+});
+
+test.describe('Focus when a drill ends on Practice', () => {
+  // Two wrong answers that take a fifth (iv:7) for a fourth (iv:5) make a contrast offer.
+  const mixUp = page => page.evaluate(() => {
+    const api = window.__etude, q = api.makeQuestion(api.ITEMS.find(x => x.id === 'iv:7'));
+    api.SES.q = q;
+    api.SES.answered = false;
+    api.presentQuestion(q);
+    [...document.querySelectorAll('#q-answers button')].find(b => b.dataset.k === '5').click();
+  });
+
+  test('with a contrast offer, focus goes to its Start button', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    await page.locator('#pr-mode button[data-v="ear"]').click();
+    await page.locator('#pr-start').click();
+    await expect(page.locator('#q-answers')).toBeVisible();
+    await mixUp(page);
+    await page.locator('#q-next').click();
+    await mixUp(page);
+    await page.locator('#ses-end').click();
+    await expect(page.locator('#ses-contrast')).toBeVisible();
+    await expect(page.locator('#cf-start')).toBeFocused();
+    // Its contrast drill: when it ends, the offer shows its result and offers it again; focus goes to Start again.
+    await page.locator('#cf-start').click();
+    for (let i = 0; i < 6; i++) {
+      await expect(page.locator('#q-answers')).toBeVisible();
+      await answerRight(page);
+      await page.locator('#q-next').click();
+    }
+    await expect(page.locator('#ses-contrast')).toContainText('Contrast drill: 6 of 6 right.');
+    await expect(page.locator('#cf-start')).toBeFocused();
+  });
+
+  test('an offer with only a result takes the focus itself', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    // A contrast drill with no mix-ups recorded: at its end the offer only reports the result.
+    await page.evaluate(() => window.__etude.startSession({ cat: 'interval', mode: 'ear', key: 'all' }, { a: 'iv:7', b: 'iv:5', order: ['iv:7', 'iv:5', 'iv:5', 'iv:7', 'iv:7', 'iv:5'] }));
+    for (let i = 0; i < 6; i++) {
+      await expect(page.locator('#q-answers')).toBeVisible();
+      await answerRight(page);
+      await page.locator('#q-next').click();
+    }
+    await expect(page.locator('#ses-contrast')).toBeVisible();
+    await expect(page.locator('#cf-start')).toHaveCount(0);
+    await expect(page.locator('#ses-contrast')).toBeFocused();
+  });
+
+  test('without an offer, focus goes to the Last drill button', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    await page.locator('#pr-mode button[data-v="ear"]').click();
+    await page.locator('#pr-start').click();
+    await expect(page.locator('#q-answers')).toBeVisible();
+    await answerRight(page);
+    await page.locator('#ses-end').click();
+    await expect(page.locator('#pr-last')).toBeVisible();
+    await expect(page.locator('#ses-contrast')).toBeHidden();
+    await expect(page.locator('#pr-redo')).toBeFocused();
   });
 });

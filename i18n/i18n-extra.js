@@ -29,7 +29,6 @@
     ['place','Evaluación rápida · 2 min','Évaluation rapide · 2 min','Schnelle Einstufung · 2 Min.','Valutazione rapida · 2 min','Avaliação rápida · 2 min'],
     ['why_link','Por qué funciona →','Pourquoi ça marche →','Warum das funktioniert →','Perché funziona →','Por que funciona →'],
     ['plan_title','Plan de hoy','Programme du jour','Heutiger Plan','Programma di oggi','Plano de hoje'],
-    ['drill_eyebrow','O practica un tema','Ou travailler un point précis','Oder gezielt üben','Oppure esercitati su un argomento','Ou pratique um tema'],
     ['today_tools','Otras formas de practicar','Autres façons de pratiquer','Weitere Übungsmöglichkeiten','Altri modi per esercitarsi','Outras formas de praticar'],
     ['an_title','Partitura y análisis','Partition et analyse','Partitur und Analyse','Partitura e analisi','Partitura e análise'],
     ['tool_analysis_d','Abre un archivo MIDI o MusicXML y estudia sus tonalidades, acordes y armonía.','Ouvrez un fichier MIDI ou MusicXML et étudiez ses tonalités, accords et harmonies.','Öffne eine MIDI- oder MusicXML-Datei und untersuche Tonarten, Akkorde und Harmonie.','Apri un file MIDI o MusicXML e studiane tonalità, accordi e armonia.','Abra um arquivo MIDI ou MusicXML e estude suas tonalidades, acordes e harmonia.'],

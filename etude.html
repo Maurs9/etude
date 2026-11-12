@@ -86,9 +86,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       </div>
 
       <hr class="rule" />
-      <div class="eyebrow-sec" data-i18n="drill_eyebrow">Or drill one focus</div>
-      <div class="focus-grid" id="focusGrid"></div>
-      <hr class="rule" />
       <h2 class="eyebrow-sec" id="tools-h" data-i18n="today_tools">Other ways to practice</h2>
       <ul class="tools" id="tools" aria-labelledby="tools-h">
         <li><button type="button" class="tool" data-view="analysis"><span class="tool-t" data-i18n="an_title">Score &amp; analysis</span><span class="tool-d" data-i18n="tool_analysis_d">Open a MIDI or MusicXML file and study its keys, chords and harmony.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
@@ -416,7 +413,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <!-- #pr-cat and #pr-key hold the choice; the cards and chips are their only visible controls (prSetTopic, prSetKey). -->
       <div class="panel pr-setup">
         <h2 class="pr-sec" id="pr-topic-h" data-i18n="pr_topic">Topic</h2>
-        <div class="focus-grid pr-topics" id="pr-topics" role="radiogroup" aria-labelledby="pr-topic-h"></div>
+        <div class="pr-topics" id="pr-topics" role="radiogroup" aria-labelledby="pr-topic-h"></div>
         <select id="pr-cat" hidden tabindex="-1" aria-hidden="true"><option value="interval" data-i18n="cat_interval">Intervals</option><option value="chord" data-i18n="cat_chord">Chords</option><option value="scale" data-i18n="cat_scale">Scales</option><option value="prog" data-i18n="cat_prog">Progressions</option><option value="melody" data-i18n="cat_melody">Melodies (on keys)</option><option value="technique" data-i18n="cat_technique">Scales &amp; arpeggios</option></select>
         <h2 class="pr-sec" id="pr-mode-h" data-i18n="pr_answer">How to answer</h2>
         <div class="seg" id="pr-mode" role="group" aria-labelledby="pr-mode-h"><button type="button" data-v="play" data-i18n="pr_playit" aria-pressed="true">Play it</button><button type="button" data-v="ear" data-i18n="pr_byear" aria-pressed="false">By ear</button><button type="button" data-v="keys" data-i18n="pr_onkeys" aria-pressed="false">By ear, on keys</button><button type="button" data-v="along" data-i18n="pr_along" aria-pressed="false" hidden>Play along</button></div>
