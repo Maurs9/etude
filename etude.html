@@ -90,8 +90,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <ul class="tools" id="tools" aria-labelledby="tools-h">
         <li><button type="button" class="tool" data-view="analysis"><span class="tool-t" data-i18n="an_title">Score &amp; analysis</span><span class="tool-d" data-i18n="tool_analysis_d">Open a MIDI or MusicXML file and study its keys, chords and harmony.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
         <li><button type="button" class="tool" data-view="read"><span class="tool-t" data-i18n="rd_title">Read &amp; play</span><span class="tool-d" data-i18n="tool_read_d">Learn short pieces from sheet music, step by step.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
-        <li><button type="button" class="tool" data-view="sing"><span class="tool-t" data-i18n="nav_sing">Sing</span><span class="tool-d" data-i18n="tool_sing_d">Sight-sing a melody with live pitch feedback.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
-        <li><button type="button" class="tool" data-view="transcribe"><span class="tool-t" data-i18n="nav_transcribe">Transcribe</span><span class="tool-d" data-i18n="tool_transcribe_d">Hum a melody and get the notes back.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
+        <li><button type="button" class="tool" data-view="sing"><span class="tool-t" data-i18n="nav_sing">Voice</span><span class="tool-d" data-i18n="tool_sing_d">Sight-sing a melody, or hum one and get the notes back.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
       </ul>
     </div>
 
@@ -456,67 +455,70 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     </div>
   </section>
 
-  <!-- ===================== TRANSCRIBE ===================== -->
-  <section class="view" id="view-transcribe">
-    <div class="wrap">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="tr_eyebrow">Hum to notes</div><h1 data-i18n="tr_title">Sing a melody, get the notes</h1></div></div>
-      <p class="lede" data-i18n="tr_lede">Hum or sing one clear note at a time into your mic. It works for a single melody line — not chords. Steady “la-la-la” or “da-da” lands better than words.</p>
-      <div class="panel" style="margin-top:18px">
-        <div class="row" style="align-items:center">
-          <button class="btn primary" id="tr-rec" data-i18n="tr_rec">● Record</button>
-          <div id="tr-live" class="tr-live" aria-live="polite">—</div>
-          <span style="margin-left:auto"></span>
-          <label class="switch-inline"><input type="checkbox" id="tr-snap" checked> <span data-i18n="tr_snap">Snap to key</span></label>
-          <label class="field"><span data-i18n="tr_key">Key</span> <select id="tr-skey"></select></label>
-          <label class="field"><span data-i18n="tr_scale">Scale</span> <select id="tr-sscale"></select></label>
-        </div>
-        <div class="row" style="margin-top:12px; align-items:center">
-          <label class="switch-inline"><input type="checkbox" id="tr-quant" checked> <span data-i18n="tr_quant">Snap to beat</span></label>
-          <label class="field" style="min-width:180px"><span data-i18n="tr_tempo">Tempo</span> <small><span id="tr-bpmLbl">90</span> BPM</small><input id="tr-bpm" type="range" min="40" max="200" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
-          <label class="field"><span data-i18n="tr_grid">Grid</span> <select id="tr-gridSel"><option value="4">1/4</option><option value="8" selected>1/8</option><option value="16">1/16</option></select></label>
-        </div>
-        <div id="tr-msg" class="lede" style="font-size:13px; margin:10px 0 0"></div>
-        <div id="tr-out" class="tr-out" style="margin-top:14px"></div>
-        <div class="row" id="tr-actions" style="margin-top:12px; display:none">
-          <button class="btn" id="tr-play" data-i18n="tr_play">▶ Play back</button>
-          <button class="btn ghost" id="tr-midi" data-i18n="tr_midi">⬇ MIDI</button>
-          <button class="btn ghost" id="tr-txt" data-i18n="tr_txt">⬇ Notes (text)</button>
-          <button class="btn ghost" id="tr-clear" data-i18n="tr_clear">Clear</button>
-        </div>
-      </div>
-      <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="tr_hint">Tip: a hum lands roughly an octave below where a piano plays it. Turn off “Snap to key” to see the raw pitches, or pick the key to clean up stray notes.</p>
-    </div>
-  </section>
-
-  <!-- ===================== SING (sight-singing) ===================== -->
+  <!-- ===================== VOICE (sight-singing + hum to notes) ===================== -->
   <section class="view" id="view-sing">
     <div class="wrap">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="si_eyebrow">Sight-singing</div><h1 data-i18n="si_title">Read it, sing it</h1></div></div>
-      <p class="lede" data-i18n="si_lede">Sing the melody on the staff into your mic — or play it on your keyboard / MIDI if you can’t sing out loud. Start with two notes and grow from there.</p>
-      <div class="panel" style="margin-top:18px">
-        <div class="row" style="align-items:center">
-          <div class="seg" id="si-mode" role="group" aria-label="Mode" data-i18n-aria="aria_mode"><button data-v="note" data-i18n="si_m_note" aria-pressed="true">Note-by-note</button><button data-v="phrase" data-i18n="si_m_phrase" aria-pressed="false">Phrase</button><button data-v="free" data-i18n="si_m_free" aria-pressed="false">Free</button></div>
-          <label class="field"><span data-i18n="si_level">Level</span> <select id="si-level"></select></label>
-          <label class="field"><span data-i18n="si_clef">Clef</span> <select id="si-clef"><option value="treble" data-i18n="si_treble">Treble</option><option value="bass" data-i18n="si_bass">Bass</option></select></label>
-          <label class="switch-inline"><input type="checkbox" id="si-solf" checked> <span data-i18n="si_solfege">Solfège</span></label>
-        </div>
-        <div class="ss-wrap" id="si-staff" role="img" aria-label="Music staff" data-i18n-aria="aria_staff"></div>
-        <div id="si-verdict" class="verdict neutral" style="margin-top:6px" role="status" aria-live="polite"></div>
-        <div class="row" id="si-live-row" style="align-items:center; margin-top:6px">
-          <div id="si-live" class="tr-live">—</div>
-          <div id="si-hint" class="si-hint" aria-live="polite"></div>
-        </div>
-        <div class="row" id="si-controls" style="margin-top:12px; align-items:center; flex-wrap:wrap; gap:8px">
-          <button class="btn primary" id="si-go" data-i18n="si_listen">● Listen &amp; sing</button>
-          <button class="btn ghost" id="si-tonic" data-i18n="si_tonic">♪ Tonic</button>
-          <button class="btn ghost" id="si-playit" data-i18n="si_playit">▶ Play it for me</button>
-          <label class="switch-inline"><input type="checkbox" id="si-drone"> <span data-i18n="si_dronelbl">Drone</span></label>
-          <label class="field" id="si-tempo-wrap" style="min-width:170px"><span data-i18n="si_tempo">Tempo</span> <small><span id="si-bpmLbl">80</span> BPM</small><input id="si-bpm" type="range" min="40" max="160" value="80" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
-          <span style="margin-left:auto"></span>
-          <button class="btn ghost" id="si-new" data-i18n="si_new">↺ New melody</button>
-        </div>
+      <div class="section-head"><div><h1 data-i18n="nav_sing">Voice</h1></div></div>
+      <div class="vo-switch" id="vo-switch" role="tablist" aria-label="Activity" data-i18n-aria="vo_switch_aria">
+        <button type="button" role="tab" id="vo-tab-sing" data-act="sing" aria-selected="true" aria-controls="vo-sing" tabindex="0" data-i18n="vo_sing">Sing from the staff</button>
+        <button type="button" role="tab" id="vo-tab-hum" data-act="hum" aria-selected="false" aria-controls="vo-hum" tabindex="-1" data-i18n="vo_hum">Hum to notes</button>
       </div>
-      <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="si_hint_foot">Tip: tap “Tonic” to hear home base before you start. Pitch matching ignores which octave you’re in, so basses and sopranos can both use it.</p>
+      <!-- Sing from the staff (sight-singing) -->
+      <div class="vo-panel" id="vo-sing" role="tabpanel" aria-labelledby="vo-tab-sing">
+        <p class="lede" data-i18n="si_lede">Sing the melody on the staff into your mic — or play it on your keyboard / MIDI if you can’t sing out loud. Start with two notes and grow from there.</p>
+        <div class="panel" style="margin-top:18px">
+          <div class="row" style="align-items:center">
+            <div class="seg" id="si-mode" role="group" aria-label="Mode" data-i18n-aria="aria_mode"><button data-v="note" data-i18n="si_m_note" aria-pressed="true">Note-by-note</button><button data-v="phrase" data-i18n="si_m_phrase" aria-pressed="false">Phrase</button><button data-v="free" data-i18n="si_m_free" aria-pressed="false">Free</button></div>
+            <label class="field"><span data-i18n="si_level">Level</span> <select id="si-level"></select></label>
+            <label class="field"><span data-i18n="si_clef">Clef</span> <select id="si-clef"><option value="treble" data-i18n="si_treble">Treble</option><option value="bass" data-i18n="si_bass">Bass</option></select></label>
+            <label class="switch-inline"><input type="checkbox" id="si-solf" checked> <span data-i18n="si_solfege">Solfège</span></label>
+          </div>
+          <div class="ss-wrap" id="si-staff" role="img" aria-label="Music staff" data-i18n-aria="aria_staff"></div>
+          <div id="si-verdict" class="verdict neutral" style="margin-top:6px" role="status" aria-live="polite"></div>
+          <div class="row" id="si-live-row" style="align-items:center; margin-top:6px">
+            <div id="si-live" class="tr-live">—</div>
+            <div id="si-hint" class="si-hint" aria-live="polite"></div>
+          </div>
+          <div class="row" id="si-controls" style="margin-top:12px; align-items:center; flex-wrap:wrap; gap:8px">
+            <button class="btn primary" id="si-go" data-i18n="si_listen">● Listen &amp; sing</button>
+            <button class="btn ghost" id="si-tonic" data-i18n="si_tonic">♪ Tonic</button>
+            <button class="btn ghost" id="si-playit" data-i18n="si_playit">▶ Play it for me</button>
+            <label class="switch-inline"><input type="checkbox" id="si-drone"> <span data-i18n="si_dronelbl">Drone</span></label>
+            <label class="field" id="si-tempo-wrap" style="min-width:170px"><span data-i18n="si_tempo">Tempo</span> <small><span id="si-bpmLbl">80</span> BPM</small><input id="si-bpm" type="range" min="40" max="160" value="80" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
+            <span style="margin-left:auto"></span>
+            <button class="btn ghost" id="si-new" data-i18n="si_new">↺ New melody</button>
+          </div>
+        </div>
+        <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="si_hint_foot">Tip: tap “Tonic” to hear home base before you start. Pitch matching ignores which octave you’re in, so basses and sopranos can both use it.</p>
+      </div>
+      <!-- Hum to notes (transcribe) -->
+      <div class="vo-panel" id="vo-hum" role="tabpanel" aria-labelledby="vo-tab-hum" hidden>
+        <p class="lede" data-i18n="tr_lede">Hum or sing one clear note at a time into your mic. It works for a single melody line — not chords. Steady “la-la-la” or “da-da” lands better than words.</p>
+        <div class="panel" style="margin-top:18px">
+          <div class="row" style="align-items:center">
+            <button class="btn primary" id="tr-rec" data-i18n="tr_rec">● Record</button>
+            <div id="tr-live" class="tr-live" aria-live="polite">—</div>
+            <span style="margin-left:auto"></span>
+            <label class="switch-inline"><input type="checkbox" id="tr-snap" checked> <span data-i18n="tr_snap">Snap to key</span></label>
+            <label class="field"><span data-i18n="tr_key">Key</span> <select id="tr-skey"></select></label>
+            <label class="field"><span data-i18n="tr_scale">Scale</span> <select id="tr-sscale"></select></label>
+          </div>
+          <div class="row" style="margin-top:12px; align-items:center">
+            <label class="switch-inline"><input type="checkbox" id="tr-quant" checked> <span data-i18n="tr_quant">Snap to beat</span></label>
+            <label class="field" style="min-width:180px"><span data-i18n="tr_tempo">Tempo</span> <small><span id="tr-bpmLbl">90</span> BPM</small><input id="tr-bpm" type="range" min="40" max="200" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
+            <label class="field"><span data-i18n="tr_grid">Grid</span> <select id="tr-gridSel"><option value="4">1/4</option><option value="8" selected>1/8</option><option value="16">1/16</option></select></label>
+          </div>
+          <div id="tr-msg" class="lede" style="font-size:13px; margin:10px 0 0"></div>
+          <div id="tr-out" class="tr-out" style="margin-top:14px"></div>
+          <div class="row" id="tr-actions" style="margin-top:12px; display:none">
+            <button class="btn" id="tr-play" data-i18n="tr_play">▶ Play back</button>
+            <button class="btn ghost" id="tr-midi" data-i18n="tr_midi">⬇ MIDI</button>
+            <button class="btn ghost" id="tr-txt" data-i18n="tr_txt">⬇ Notes (text)</button>
+            <button class="btn ghost" id="tr-clear" data-i18n="tr_clear">Clear</button>
+          </div>
+        </div>
+        <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="tr_hint">Tip: a hum lands roughly an octave below where a piano plays it. Turn off “Snap to key” to see the raw pitches, or pick the key to clean up stray notes.</p>
+      </div>
     </div>
   </section>
 

@@ -5,9 +5,12 @@ import { test, expect, todayN, APP } from '../helpers/fixtures.mjs';
 import { scorePedalCollisions } from '../helpers/score-audit-helpers.mjs';
 import { STRINGS } from '../../src/locales/index.js';
 
-const VIEWS = ['today', 'learn', 'method', 'practice', 'read', 'sing', 'analysis', 'explore', 'transcribe', 'progress'];
+const VIEWS = ['today', 'learn', 'method', 'practice', 'read', 'sing', 'analysis', 'explore', 'progress'];
 // Screens that moved into the Practice setup: their names still open it.
 const MOVED = ['songs', 'accompany'];
+// Voice (view sing) shows one of two activities; Transcribe is its Hum to notes side now.
+const VOICE_ACTS = ['sing', 'hum'];
+const showVoice = (page, act) => page.evaluate(a => { window.__etude.show('sing'); window.__etude.voiceSetAct(a); }, act);
 
 test('boots and visits every view without uncaught errors', async ({ app }) => {
   const page = await app.open();
@@ -21,6 +24,11 @@ test('boots and visits every view without uncaught errors', async ({ app }) => {
     await expect(page.locator('#view-practice')).toHaveClass(/active/);
     await expect(page.locator('#view-' + v)).toHaveCount(0);
   }
+  await page.evaluate(() => window.__etude.show('today'));
+  await page.evaluate(() => window.__etude.show('transcribe'));
+  await expect(page.locator('#view-sing')).toHaveClass(/active/);
+  await expect(page.locator('#vo-hum')).toBeVisible();
+  await expect(page.locator('#view-transcribe')).toHaveCount(0);
 });
 
 test.describe('i18n', () => {
@@ -217,7 +225,7 @@ test.describe('Navigation accessibility', () => {
     await expect(page).toHaveURL(/#practice$/);
     await expect(practice).toHaveAttribute('aria-current', 'page');
     await expect(scores).toHaveAttribute('aria-current', 'false');
-    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Transcribe']);
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Voice', 'Explore']);
 
     await scores.click();
     await expect(page).toHaveURL(/#analysis$/);
@@ -1329,6 +1337,11 @@ for (const lang of ['en', 'ro']) {
         const dimensions=await page.evaluate(() => ({scroll:document.documentElement.scrollWidth,visible:document.documentElement.clientWidth}));
         expect(dimensions.scroll,`${lang}, ${view}, ${width}px`).toBeLessThanOrEqual(dimensions.visible+1);
       }
+      for (const act of VOICE_ACTS) {
+        await showVoice(page, act);
+        const dimensions=await page.evaluate(() => ({scroll:document.documentElement.scrollWidth,visible:document.documentElement.clientWidth}));
+        expect(dimensions.scroll,`${lang}, voice ${act}, ${width}px`).toBeLessThanOrEqual(dimensions.visible+1);
+      }
     }
   });
 }
@@ -1388,6 +1401,10 @@ test('320px phone: no view scrolls sideways and the Explore staff fits its panel
   for (const v of VIEWS) {
     await page.evaluate(v => window.__etude.show(v), v);
     expect(await page.evaluate(() => document.documentElement.scrollWidth), v).toBeLessThanOrEqual(320);
+  }
+  for (const act of VOICE_ACTS) {
+    await showVoice(page, act);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), 'voice ' + act).toBeLessThanOrEqual(320);
   }
   await page.evaluate(() => { window.__etude.show('explore'); window.__etude.$('refShow').click(); });
   const fit = await page.locator('#view-explore svg.ss-svg').first().evaluate(svg => svg.getBoundingClientRect().right <= svg.parentElement.getBoundingClientRect().right + 1);
