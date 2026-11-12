@@ -65,8 +65,10 @@ test('picking a key on the circle sets the key context, and the Roman numerals a
 // The staff's drawing fills its paper and the paper hugs the drawing; the circle takes the height its column allows.
 // Before this layout, at 1280×800 and 1440×900 with the keys open, the circle was 259 and 359 px and the staves spanned
 // about half of their paper (461 of 883 px, and 657 of 943 px).
+// The circle takes the height left over, so it differs by a few px between platforms with their font metrics (323 px on
+// macOS, 297 px on the Linux CI runner at 1280×800). The floors sit 10% over the old sizes, not at one platform's value.
 test('wide screens: the staff fills its paper, the paper hugs it, and the circle is larger', async ({ app, page }) => {
-  const sizes = [[1280, 800, 300], [1440, 900, 400], [900, 800, 0], [1100, 800, 0], [1600, 900, 0], [1920, 1080, 0]];
+  const sizes = [[1280, 800, 285], [1440, 900, 395], [900, 800, 0], [1100, 800, 0], [1600, 900, 0], [1920, 1080, 0]];
   for (const [width, height, minCircle] of sizes) {
     await page.setViewportSize({ width, height });
     await app.open({ hash: 'explore', dock: true });
