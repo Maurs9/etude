@@ -6,10 +6,11 @@
 
 ## Features
 
-- Theory handbook, reading exercises, and score study. Reading levels include eighths, dotted notes, syncopation and ties.
+- Theory handbook with every lesson open in any order, reading exercises, and score study. Reading levels include eighths, dotted notes, syncopation and ties.
 - Targeted drills, a scale and arpeggio technique drill, accompaniment, sight-singing, and ear training
 - Wrong answers show what you gave against the answer, with a Hear both button. Repeated mix-ups get a short contrast drill at the end of the session.
-- Free play, progress tracking, and practice planning
+- Explore: free play on one screen, with the circle of fifths beside the staff. Pick a key on the circle to read chords in Roman numerals and see its fingering.
+- Progress tracking and practice planning
 - USB MIDI and direct Web Bluetooth MIDI support for compatible digital pianos and keyboards. Notes are judged by their event time, a dropped input re-attaches when it comes back, and **Settings → MIDI** calibrates input latency for touch, USB and Bluetooth.
 - On a phone held sideways, the keyboard dock gets wider, playable keys.
 - Progress stays on the device: Étude asks the browser to keep it, warns when a save fails, keeps 3 days of automatic backups plus a copy before each reset, import or restore, and refuses to overwrite progress saved by a newer version. Export and import a backup file in **Settings → Your data**.
