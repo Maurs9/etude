@@ -29,6 +29,11 @@ import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
+import '../styles/reading.css';
+import '../styles/practice.css';
+import '../styles/voice.css';
+import '../styles/explore.css';
+import '../styles/pieces.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint } from '../sight-reading/fingerprint.js';
@@ -198,7 +203,8 @@ const KEY = storage.PTT_KEY, isBackupPayload = storage.isBackupPayload, isRecord
 const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = theory.SCALE_DEGREE_LABELS, anFnKey = theory.analysisFunction, anDiatonic = theory.anDiatonic, anIntervalName = theory.anIntervalName, anKeyRank = theory.anKeyRank, anPcWeights = theory.anPcWeights, anResolveKey = theory.anResolveKey, CHORD_TEMPLATES = theory.CHORD_TEMPLATES, chordDegreeMap = theory.chordDegreeMap, chordInversion = theory.chordInversion, chordPitches = theory.chordPitches, srKeyName = theory.circleKeyPitchClass, formatChordFormula = theory.formatChordFormula, formatScaleFormula = theory.formatScaleFormula, identifyChordDomain = theory.identifyChord, keyFifths = theory.keyFifths, keyFromFifths = theory.keyFromFifths, midiToFrequency = theory.midiToFrequency, pitchClass = theory.pitchClass, PROGRESSION_TEMPLATES = theory.PROGRESSION_TEMPLATES, rdSpellMidi = theory.readingSpelling, romanFor = theory.romanFor, SCALE_DEFINITIONS = theory.SCALE_DEFINITIONS, scorePitch = theory.scorePitchXml, spellMidi = theory.spellMidi;
 const AudioEngine = audio.AudioEngine;
 const createScoreRenderer = notationApi.createScoreRenderer, loadOsmd = notationApi.loadOsmd, mxlToXml = notationApi.mxlToXml, notationReloadMessage = notationApi.notationReloadMessage, scorePatchOsmd = notationApi.scorePatchOsmd;
-const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView;
+const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView, isMovedView = router.isMovedView;
+const isMergedView = router.isMergedView, MERGED_VIEWS = router.MERGED_VIEWS;
 function t(k: string, ...args: Array<string | number | null | undefined>): string { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
     return k; if (!args.length)
     return v; if (args[0] != null)
@@ -345,7 +351,7 @@ function applyI18n() {
     renderDataSafety();
     fsUi();
     scoreLibrary?.localize();
-    updatePracticeModeHint();
+    renderPracticeSetup();
     fitHeader();
 }
 async function setLang(l: string|undefined, synchronized = false): Promise<void> {
@@ -415,8 +421,6 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     renderCircle();
     if (view0() === 'today')
         refreshToday();
-    else if (view0() === 'songs')
-        renderSongs();
     else if (view0() === 'progress')
         renderProgress();
     else if (view0() === 'explore')
@@ -424,10 +428,8 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     else if (view0() === 'learn')
         renderLearn();
     else if (view0() === 'read') {
-        fillPieces();
         if (SR.piece) {
             srMeta();
-            srBest();
             if (SR.srtEvaluation && SR.srtState && ['completed', 'pendingSave', 'saved'].includes(SR.srtState.name))
                 srRenderAssessResult();
             srPaintAll();
@@ -711,9 +713,8 @@ function accompStop(silent?: boolean) {
     kbClear('rh');
     stopPreviews();
     acChainHL(-1);
-    const pb = (document).getElementById('ac-play');
-    if (pb)
-        pb.textContent = t('ac_play');
+    if (!silent) // a restart (accompStart) keeps the Stop label
+        updatePracticeModeHint(); // the Practice Start button reads Play loop again
 }
 /* ---------- TRANSCRIBE (hum → notes) ---------- */
 interface TranscribeNote { midi: number; start: number; dur: number }
@@ -772,40 +773,71 @@ function trxAutoCorrelate(buf: Float32Array, sr: number) {
     const f = sr / T;
     return (f > 70 && f < 1300) ? f : -1;
 }
+/* ---------- VOICE microphone: the one path both activities (Sing from the staff, Hum to notes) listen through ---------- */
+interface MicTap { stream: MediaStream; src: MediaStreamAudioSourceNode; analyser: AnalyserNode; buf: Float32Array<ArrayBuffer> }
+// The raw mic (no echo cancellation, noise suppression or gain control) into an analyser that is not connected to the
+// speakers, so nothing feeds back. 'stale' when the caller stopped wanting it while the browser asked: nothing stays open then.
+async function micOpen(wanted: () => boolean): Promise<MicTap | 'fail' | 'stale'> {
+    ensureAudio();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+        return 'fail';
+    let stream: MediaStream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    }
+    catch (_) {
+        return wanted() ? 'fail' : 'stale';
+    }
+    if (!wanted()) {
+        stream.getTracks().forEach((tr) => tr.stop());
+        return 'stale';
+    }
+    try {
+        const ac = requireAudioContext(), src = ac.createMediaStreamSource(stream), analyser = ac.createAnalyser();
+        analyser.fftSize = 2048;
+        src.connect(analyser);
+        return { stream, src, analyser, buf: new Float32Array(analyser.fftSize) };
+    }
+    catch (_) {
+        stream.getTracks().forEach((tr) => tr.stop());
+        return 'fail';
+    }
+}
+function micClose(src: MediaStreamAudioSourceNode | null, stream: MediaStream | null) {
+    if (src) {
+        try {
+            src.disconnect();
+        }
+        catch (_) { }
+    }
+    if (stream)
+        stream.getTracks().forEach((tr) => tr.stop());
+}
+// The live pitch readout both activities show (.tr-live): the note, and how many cents off it when they are given.
+function livePitch(el: HTMLElement, midi: number, cents?: number) {
+    el.classList.add('rec');
+    el.innerHTML = noteName(midi, false) + (cents === undefined ? '' : '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>');
+}
 async function trxStart()  {
     if (trx.on || trx.pending)
         return;
-    ensureAudio();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        byId('tr-msg').textContent = t('tr_micfail');
-        return;
-    }
     const request = ++trx.micRequest;
     trx.pending = true;
     byId('tr-rec').textContent = t('tr_stop');
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-        if (request !== trx.micRequest || view0() !== 'transcribe') {
-            stream.getTracks().forEach((t) => t.stop());
-            return;
-        }
-        trx.stream = stream;
-        trx.pending = false;
-    }
-    catch (e) {
-        if (request === trx.micRequest) {
-            trx.pending = false;
-            byId('tr-rec').textContent = t('tr_rec');
-            byId('tr-msg').textContent = t('tr_micfail');
-        }
+    const tap = await micOpen(() => request === trx.micRequest && voiceActive('hum'));
+    if (tap === 'stale')
+        return;
+    trx.pending = false;
+    if (tap === 'fail') {
+        byId('tr-rec').textContent = t('tr_rec');
+        byId('tr-msg').textContent = t('tr_micfail');
         return;
     }
     byId('tr-msg').textContent = '';
-    trx.src = requireAudioContext().createMediaStreamSource(trx.stream);
-    trx.analyser = requireAudioContext().createAnalyser();
-    trx.analyser.fftSize = 2048;
-    trx.buf = new Float32Array(trx.analyser.fftSize);
-    trx.src.connect(trx.analyser); // not connected to destination → no feedback
+    trx.stream = tap.stream;
+    trx.src = tap.src;
+    trx.analyser = tap.analyser;
+    trx.buf = tap.buf;
     trx.on = true;
     trx.notes = [];
     trx.display = null;
@@ -845,7 +877,7 @@ function trxLoop() {
         if (trx.ring.length > 5)
             trx.ring.shift();
         const sm = trxMedian(), cents = Math.round(1200 * Math.log2(f / midiToFreq(sm)));
-        byId('tr-live').innerHTML = noteName(sm, false) + '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>';
+        livePitch(byId('tr-live'), sm, cents);
         if (trx.ring.length >= 3) {
             if (trx.curMidi == null) {
                 trx.curMidi = sm;
@@ -869,17 +901,10 @@ function trxStop() {
     trx.on = false;
     cancelAnimationFrame(trx.raf);
     trxCloseNote(actx ? actx.currentTime : 0);
-    if (trx.src) {
-        try {
-            trx.src.disconnect();
-        }
-        catch (_) { }
-        trx.src = null;
-    }
-    if (trx.stream) {
-        trx.stream.getTracks().forEach((t) => t.stop());
-        trx.stream = null;
-    }
+    micClose(trx.src, trx.stream);
+    trx.src = null;
+    trx.stream = null;
+    trx.analyser = null;
     byId('tr-rec').classList.remove('rec-on');
     byId('tr-rec').textContent = t('tr_rec');
     byId('tr-live').classList.remove('rec');
@@ -1226,29 +1251,21 @@ function singStopAll() {
 function ssModeUI() { const m = sing.mode; const tw = byId('si-tempo-wrap'); if (tw)
     tw.style.display = (m === 'note') ? 'none' : 'flex'; const go = byId('si-go'); if (go)
     go.textContent = t(m === 'free' ? 'si_play' : 'si_listen'); }
-/* ---- pitch input (mic, shared with Transcribe's autocorrelation) ---- */
+/* ---- pitch input (the Voice mic path and Transcribe's autocorrelation) ---- */
 function ssMicStart() {
-    ensureAudio();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
-        return Promise.resolve(false);
     const request = ++sing.micRequest;
-    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
-        .then((st) => { if (request !== sing.micRequest || !sing.active || view0() !== 'sing') {
-        st.getTracks().forEach((t) => t.stop());
-        return false;
-    } sing.stream = st; sing.src = requireAudioContext().createMediaStreamSource(st); sing.analyser = requireAudioContext().createAnalyser(); sing.analyser.fftSize = 2048; sing.buf = new Float32Array(sing.analyser.fftSize); sing.src.connect(sing.analyser); return true; }).catch(() => false);
+    return micOpen(() => request === sing.micRequest && sing.active && voiceActive('sing')).then((tap) => {
+        if (typeof tap === 'string')
+            return false;
+        sing.stream = tap.stream;
+        sing.src = tap.src;
+        sing.analyser = tap.analyser;
+        sing.buf = tap.buf;
+        return true;
+    });
 }
 function ssMicMaybe() { return sing.analyser ? Promise.resolve(true) : ssMicStart(); }
-function ssMicStop() { sing.runId++; sing.micRequest++; if (sing.src) {
-    try {
-        sing.src.disconnect();
-    }
-    catch (_) { }
-    sing.src = null;
-} if (sing.stream) {
-    sing.stream.getTracks().forEach((t) => t.stop());
-    sing.stream = null;
-} sing.analyser = null; }
+function ssMicStop() { sing.runId++; sing.micRequest++; micClose(sing.src, sing.stream); sing.src = null; sing.stream = null; sing.analyser = null; }
 function ssReadPitch() { if (!sing.analyser || !sing.buf)
     return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, requireAudioContext().sampleRate); if (f < 0)
     return null; const midi = Math.round(69 + 12 * Math.log2(f / 440)), cents = Math.round(1200 * Math.log2(f / (440 * Math.pow(2, (midi - 69) / 12)))); return { f, midi, cents }; }
@@ -1359,8 +1376,7 @@ function ssNoteLoop(ts: number) {
         return;
     const cur = ssCurNote(), tgt = cur ? pc(cur.midi) : -1, p = ssReadPitch(), lv = byId('si-live');
     if (p) {
-        lv.classList.add('rec');
-        lv.innerHTML = noteName(p.midi, false) + '<small>' + (p.cents >= 0 ? '+' : '') + p.cents + '¢</small>';
+        livePitch(lv, p.midi, p.cents);
         if (pc(p.midi) === tgt && Math.abs(p.cents) < 42) {
             if (!sing.holdT)
                 sing.holdT = ts;
@@ -1473,10 +1489,8 @@ function ssPhraseLoop(ts: number) {
         if (p)
             sing.samples.push({ t: tt, pc: pc(p.midi), cents: p.cents });
         const lv = byId('si-live');
-        if (p) {
-            lv.classList.add('rec');
-            lv.innerHTML = noteName(p.midi, false);
-        }
+        if (p)
+            livePitch(lv, p.midi);
         else
             lv.classList.remove('rec');
         ssMoveCursor(ssBeatToX(tt / beatSec));
@@ -1543,8 +1557,7 @@ function ssFreeLoop(ts: number) {
     ssMoveCursor(x);
     const p = ssReadPitch(), lv = byId('si-live');
     if (p) {
-        lv.classList.add('rec');
-        lv.innerHTML = noteName(p.midi, false) + '<small>' + (p.cents >= 0 ? '+' : '') + p.cents + '¢</small>';
+        livePitch(lv, p.midi, p.cents);
         sing.trail.push([x, ssPitchY(p.f)]);
         if (sing.trail.length > 400)
             sing.trail.shift();
@@ -1592,6 +1605,42 @@ function ssBumpProgress(good: number, tot: number) { if (sing.mode !== 'free' &&
     data.singCleared[sing.level] = true;
     saveAll();
 } }
+/* ---------- VOICE: one screen (view sing) with two activities ----------
+   Sing from the staff (sight-singing, above) or Hum to notes (Transcribe). One shows at a time. The choice lasts while the
+   page is open and is not saved; #transcribe (an old link or a saved lastTool) opens the Hum to notes side. */
+type VoiceAct = 'sing' | 'hum';
+const VOICE_ACTS: readonly VoiceAct[] = ['sing', 'hum'];
+const voice: { act: VoiceAct } = { act: 'sing' };
+function voiceActive(a: VoiceAct) { return view0() === 'sing' && voice.act === a; }
+// Switching activity or leaving the screen: the microphone is off, and the playback and key lights of both activities stop.
+function voiceStop() {
+    singStopAll();
+    trxStop();
+    trx.hlTimers.forEach(clearTimeout);
+    trx.hlTimers = [];
+    kbClear('rh');
+}
+function voiceSync() {
+    queryAllHtml(document, '#vo-switch [role=tab]').forEach((b) => { const on = b.dataset.act === voice.act; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
+    byId('vo-sing').hidden = voice.act !== 'sing';
+    byId('vo-hum').hidden = voice.act !== 'hum';
+}
+function renderVoice() {
+    voiceSync();
+    if (voice.act === 'sing')
+        renderSing();
+    else
+        renderTranscribe();
+}
+function voiceSetAct(a: VoiceAct) {
+    if (a !== voice.act && view0() === 'sing') // off the screen nothing of Voice runs: leaving it stopped everything
+        voiceStop();
+    voice.act = a;
+    if (view0() === 'sing')
+        renderVoice();
+    else
+        voiceSync();
+}
 /* ---------- KEYBOARD ---------- */
 const BASE_LOW = 24, BASE_HIGH = 96;
 const view = { low: 48, oct: 4 };
@@ -1805,7 +1854,7 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    connected, unless the user chose to hide them: Hide stays available and is saved as usual. */
 interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
 const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
-function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
+function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || prAlongWanted(v) || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
 function sesNeedsKeys(v = view0()) { const q = SES.q; return SES.active && v === sesHome() && !!q && (q.mode !== 'ear' || ekWanted(q)) && !midiLive(); }
 function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 // The full-screen stage of a running reading drill or piece. With a MIDI or Bluetooth piano connected, the keys fold into the
@@ -3094,10 +3143,13 @@ function masteredCount() { return ITEMS.filter((it) => boxOf(it.id) >= 4).length
 interface EarKeysNote { m: number; t: number; }
 type EarKeysPrompt = { kind: 'iv'; target: number[]; n: number; } | { kind: 'ch'; target: number[]; inv: number; pcs: number[]; n: number; } | { kind: 'mel'; target: number[]; n: number; };
 type EarKeysState = EarKeysPrompt & { tries: number; seq: EarKeysNote[]; off: number; armAt: number; goT: ReturnType<typeof setTimeout> | number; won: boolean; warned: boolean; played?: number[]; };
-interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; }
+// dir: an interval by ear played downwards ('desc'); without it, upwards.
+interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; dir?: 'asc' | 'desc'; }
 // A wrong answer: what was given against what was expected, both sounds for Hear both, and the item taken for this one (`pair`).
 interface TrainerGiven { text: string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
-interface TrainerSessionTarget { cat: string; mode: string; key: string; }
+// dir: the Direction an Intervals by-ear drill plays its intervals in ('both' picks one per question).
+type IntervalDirection = 'asc' | 'desc' | 'both';
+interface TrainerSessionTarget { cat: string; mode: string; key: string; dir?: IntervalDirection; }
 // contrast: a short drill on two items the last session mixed up (its question order, by item id).
 interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; contrast: { a: string; b: string; order: string[] } | null; }
 const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0, contrast: null };
@@ -3164,11 +3216,17 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
         key = (+SES.targeted.key) || 0; // honour the key picked in Practice
     else
         key = b < 1 ? randItem([0, 7, 5, 2, 9]) : Math.floor(Math.random() * 12); // start in friendly keys
-    return { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
+    const q: TrainerQuestion = { it, mode, key, idx: 0, anchor: null, missed: false, hinted: false };
+    const dir = it.cat === 'interval' && mode === 'ear' ? SES.targeted?.dir : undefined;
+    if (dir)
+        q.dir = dir === 'both' ? randItem<'asc' | 'desc'>(['asc', 'desc']) : dir;
+    return q;
 }
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
     ensureAudio();
     sesStopPrompt();
+    if (accomp.on)
+        accompStop(); // Play along is not a drill
     SES.targeted = targeted || null;
     SES.placement = false;
     SES.contrast = targeted ? contrast : null;
@@ -3248,7 +3306,7 @@ function endSession(toSummary: boolean) {
         renderPracticeLast();
         contrastOffer(byId('pr-last'), contrastRun ? { correct: SES.correct, total: SES.total } : null);
         if (toSummary)
-            byId('pr-start').focus();
+            prFocusAfterDrill();
         return;
     }
     if (toSummary) {
@@ -3385,7 +3443,7 @@ function presentEar(q: TrainerQuestion) {
     let opts: { k: number | string; t: string; }[] = [];
     if (it.cat === 'interval') {
         opts = INTERVALS.map((iv) => ({ k: iv.semi, t: iv.short + ' · ' + ivName(iv.semi) }));
-        sesPrompt(q, () => playInterval(earRoot(q), it.semi, 'both'));
+        sesPrompt(q, () => playIvDir(earRoot(q), it.semi, q.dir ?? 'asc'));
     }
     else if (it.cat === 'chord') {
         opts = (SES.contrast ? ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord') : chordEarOptions(it)).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
@@ -3419,7 +3477,7 @@ function playQuestionSound(q: TrainerQuestion) {
         return;
     }
     if (it.cat === 'interval')
-        playInterval(earRoot(q), it.semi, 'both');
+        playIvDir(earRoot(q), it.semi, q.dir ?? 'asc');
     else if (it.cat === 'chord')
         playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true);
     else if (it.cat === 'scale')
@@ -3483,7 +3541,7 @@ function ekBuild(q: TrainerQuestion): EarKeysPrompt {
     const it = q.it;
     if (it.cat === 'interval') {
         const r = earRoot(q);
-        return { kind: 'iv', target: [r, r + it.semi], n: 2 };
+        return { kind: 'iv', target: q.dir === 'desc' ? [r + it.semi, r] : [r, r + it.semi], n: 2 };
     }
     if (it.cat === 'chord') {
         const ivs = [...new Set(it.ref.intervals)].sort((a, b) => a - b), n = ivs.length;
@@ -3618,13 +3676,13 @@ function ekIv(q: TrainerQuestion) {
     const ek = q.ek;
     if (!ek || SES.answered || SES.q !== q || !ek.seq.length)
         return;
-    const s = ek.seq, start = ek.target[0], semi = ek.target[1] - start;
+    const s = ek.seq, start = ek.target[0], semi = ek.target[1] - start; // semi < 0: a descending interval
     let a = s[0], b = s[1];
-    if (b && Math.abs(b.t - a.t) <= 80 && b.m < a.m) {
+    if (b && Math.abs(b.t - a.t) <= 80 && (semi < 0 ? b.m > a.m : b.m < a.m)) {
         const x = a;
         a = b;
         b = x;
-    } // struck together: the lower note is the start
+    } // struck together: the lower note is the start (the upper one when it descends)
     if (pc(a.m) !== pc(start)) {
         ekFlash([a.m], 'bad');
         setTimeout(() => { kbClear('bad'); if (SES.q === q && !SES.answered)
@@ -3648,7 +3706,8 @@ function ekIv(q: TrainerQuestion) {
         return;
     }
     q.given = givenInterval(q, a.m, b.m, a.m);
-    ekMiss(q, [b.m], b.m < a.m ? t('ek_wrong_down') : t('ek_wrong_iv', intervalLabel(b.m - a.m)));
+    const wrongWay = semi < 0 ? b.m > a.m : b.m < a.m;
+    ekMiss(q, [b.m], wrongWay ? t(semi < 0 ? 'ek_wrong_up' : 'ek_wrong_down') : t('ek_wrong_iv', intervalLabel(Math.abs(b.m - a.m))));
 }
 function ekCh(q: TrainerQuestion) {
     const ek = q.ek;
@@ -3890,8 +3949,8 @@ function progMidis(rootPc: number, prog: theory.ProgressionTemplate) { return pr
 function givenByEar(q: TrainerQuestion, k: number | string): TrainerGiven | null {
     const it = q.it, pair = ITEM_BY_ID[earOptionId(it.cat, k)] ? earOptionId(it.cat, k) : undefined;
     if (it.cat === 'interval' && typeof k === 'number') {
-        const r = earRoot(q);
-        return { text: t('fb_picked', ivName(k), ivName(it.semi)), given: feedbackBroken([r, r + k]), expected: feedbackBroken([r, r + it.semi]), pair };
+        const r = earRoot(q), two = (semi: number) => feedbackBroken(q.dir === 'desc' ? [r + semi, r] : [r, r + semi]);
+        return { text: t('fb_picked', ivName(k), ivName(it.semi)), given: two(k), expected: two(it.semi), pair };
     }
     if (it.cat === 'chord') {
         const ref = CHORDS.find((c) => c.symbol === k);
@@ -3917,11 +3976,11 @@ function givenInterval(q: TrainerQuestion, lo: number, hi: number, from: number)
     const it = q.it;
     if (it.cat !== 'interval')
         return null;
-    const semi = hi - lo, rootOk = pc(lo) === q.key || (!!q.ek && pc(lo) === pc(q.ek.target[0]));
+    const sign = q.dir === 'desc' ? -1 : 1, semi = hi - lo, rootOk = pc(lo) === q.key || (!!q.ek && pc(lo) === pc(q.ek.target[0]));
     const given = rootOk ? intervalLabel(Math.abs(semi)) : noteNames([lo, hi]) + ' (' + intervalLabel(Math.abs(semi)) + ')';
     const expected = rootOk ? ivName(it.semi) : ivName(it.semi) + ' ' + t('above') + ' ' + rootName(q.key);
-    const pair = rootOk && semi > 0 && ITEM_BY_ID['iv:' + semi] ? 'iv:' + semi : undefined;
-    return { text: t('fb_played', given, expected), given: feedbackBroken([lo, hi]), expected: feedbackBroken([from, from + it.semi]), pair };
+    const pair = rootOk && semi * sign > 0 && ITEM_BY_ID['iv:' + Math.abs(semi)] ? 'iv:' + Math.abs(semi) : undefined;
+    return { text: t('fb_played', given, expected), given: feedbackBroken([lo, hi]), expected: feedbackBroken([from, from + sign * it.semi]), pair };
 }
 // Keys for a chord question (or chord `chordNo` of a progression), named as a chord when they make one.
 function givenChord(q: TrainerQuestion, ms: readonly number[], expectedMidis: readonly number[], chordNo: number | null): TrainerGiven | null {
@@ -3985,6 +4044,16 @@ function startContrast(pair: ConfusionPair) {
     startSession({ cat: a.cat, mode: 'ear', key: 'all' }, { a: a.id, b: b.id, order: contrastOrder(a.id, b.id) });
 }
 function neutral(msg: string|null) { const v = byId('q-verdict'); v.className = 'verdict neutral'; v.textContent = msg; }
+// The Today plan's Ear check: right answers by ear today (earDay, earToday), in any drill and in the review session.
+function countEarAnswer() {
+    const tn = todayN();
+    if (data.earDay !== tn) {
+        data.earDay = tn;
+        data.earToday = 0;
+    }
+    data.earToday = (data.earToday || 0) + 1;
+    saveSoon();
+}
 function resolve(q: TrainerQuestion, correct: boolean) {
     if (SES.answered)
         return;
@@ -3999,6 +4068,8 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     SES.total++;
     if (good)
         SES.correct++;
+    if (good && q.mode === 'ear' && !SES.placement)
+        countEarAnswer();
     const v = byId('q-verdict');
     if (correct && !q.missed) {
         v.className = 'verdict good';
@@ -4061,7 +4132,7 @@ function showElaboration(q: TrainerQuestion) {
     const it = q.it, e = byId('q-elab');
     let html = '';
     if (it.cat === 'interval') {
-        const s = songsFor(it.semi, 'asc');
+        const s = songsFor(it.semi, q.dir ?? 'asc');
         html = '<b>' + ivName(it.semi) + '</b> = ' + it.semi + ' ' + t('el_semitones') + (s.length && !/^\(/.test(s[0]) ? ' · ' + t('el_soundslike') + ' “' + s[0] + '”' : '');
     }
     else if (it.cat === 'chord') {
@@ -4184,6 +4255,13 @@ function focusView(v: string) {
     target.focus({ preventScroll: true });
 }
 let show = function show(v: string|undefined, moveFocus = true) {
+    const hum = v !== undefined && isMergedView(v); // transcribe, the one merged view: the Hum to notes side of Voice
+    if (v !== undefined && isMergedView(v))
+        v = MERGED_VIEWS[v];
+    if (v !== undefined && isMovedView(v)) {
+        prOpenMoved(v, moveFocus);
+        return;
+    }
     if (v === undefined || !isAppView(v))
         return;
     const prev = _view;
@@ -4197,8 +4275,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
             }
             void srtAbandonClaim('abandoned', false).then((result) => {
                 if (result.ok || SR.srtState?.name !== 'pendingSave') {
-                    srtPendingSelection = null;
-                    show(v, moveFocus);
+                    show(hum ? 'transcribe' : v, moveFocus);
                 }
                 else if (location.hash.slice(1) !== prev) {
                     try {
@@ -4233,6 +4310,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
         scoreStop();
         anKeysClear();
         anSheet(false, true);
+        pcStageSet(false, true);
     }
     if (prev !== v) {
         releaseLiveInput();
@@ -4242,12 +4320,15 @@ let show = function show(v: string|undefined, moveFocus = true) {
     }
     _view = v;
     stageSync();
-    if (prev === 'accompany' && v !== 'accompany')
+    if (prev === 'practice' && v !== 'practice' && accomp.on)
         accompStop();
-    if (prev === 'transcribe' && v !== 'transcribe')
-        trxStop();
     if (prev === 'sing' && v !== 'sing')
-        singStopAll();
+        voiceStop();
+    if (hum && voice.act !== 'hum') { // set before renderVoice below draws the screen
+        if (prev === 'sing')
+            voiceStop();
+        voice.act = 'hum';
+    }
     if (prev === 'read' && v !== 'read') {
         srStopAll(undefined, false, 'navigate');
         rdAbort();
@@ -4277,21 +4358,16 @@ let show = function show(v: string|undefined, moveFocus = true) {
         anLibraryNavigationResume = null;
         anLibrarySuspended = false;
         anDraw();
+        pcRender();
     }
     if (v === 'learn')
         renderLearn();
     if (v === 'read')
         renderRead();
-    if (v === 'songs')
-        renderSongs();
     if (v === 'progress')
         renderProgress();
-    if (v === 'accompany')
-        renderAccompany();
-    if (v === 'transcribe')
-        renderTranscribe();
     if (v === 'sing')
-        renderSing();
+        renderVoice();
     if (v === 'practice' && !SES.active) {
         stopMetro();
         syncPracticeCatAndMode();
@@ -4333,7 +4409,7 @@ window.addEventListener('popstate', (e) => {
     if (modal !== 'drawer' && byId('drawer').classList.contains('on'))
         openDrawer(false, true);
     const v = location.hash.slice(1);
-    if (navGroup(v) && v !== _view) {
+    if ((navGroup(v) || isMovedView(v) || isMergedView(v)) && v !== _view) {
         _routed = false;
         show(v);
     }
@@ -4374,20 +4450,6 @@ function refreshToday() {
     byId('startBtn').textContent = caughtUp ? t('start_caught') : t('start');
     byId('hero-title').textContent = caughtUp ? t('hero_caught') : t('hero_session');
     byId('why-text').textContent = caughtUp ? t('why_caught') : t('why_due');
-    // focus grid
-    const fg = byId('focusGrid');
-    fg.innerHTML = '';
-    Object.keys(CATS).forEach((cat) => {
-        const items = ITEMS.filter((it) => it.cat === cat);
-        const mastered = items.filter((it) => boxOf(it.id) >= 4).length;
-        const seen = items.filter((it) => !isNew(it.id)).length;
-        const card = (document).createElement('button');
-        card.type = 'button';
-        card.className = 'focus';
-        card.onclick = () => { show('practice'); selectById('pr-cat').value = cat; byId('pr-cat').dispatchEvent(new Event('change')); byId('pr-start').focus(); };
-        card.innerHTML = '<div class="k">' + catLabel(cat) + '</div><div class="m">' + mastered + ' ' + t('mastered_lc') + ' · ' + seen + '/' + items.length + ' ' + t('started') + '</div><div class="bar"><i style="width:' + Math.round(100 * mastered / items.length) + '%"></i></div>';
-        fg.appendChild(card);
-    });
     renderPlan();
 }
 /* ---------- EXPLORE ---------- */
@@ -4427,12 +4489,19 @@ interface ExploreStaffHead {
     y: number;
     lane: number;
 }
-function drawExploreStaff(midis: readonly number[], flat: boolean) {
+// With a key context its signature is drawn after each clef, notes are spelled in that key (E♯ in F♯ major), and a note shows
+// an accidental, a natural too, only where it differs from the signature.
+function drawExploreStaff(midis: readonly number[], flat: boolean, key: ExploreKey | null = exKeyCtx()) {
     const wrap = byId('ex-staff');
     if (!wrap)
         return;
     const names = flat ? ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const fifths = exKeyFifths(key), keyAcc = ssKeyAcc(fifths);
     const pitches: ExploreStaffPitch[] = [...new Set(midis)].map((m) => {
+        if (key) {
+            const sp = spellMidi(m, fifths, key.minor);
+            return { m, step: ssStepOf(sp.li, sp.oct), acc: sp.acc === keyAcc[sp.li] ? '' : sp.acc > 0 ? '#' : sp.acc < 0 ? 'b' : 'n' };
+        }
         const name = names[pc(m)], li = 'CDEFGAB'.indexOf(name[0]), oct = Math.floor(m / 12) - 1;
         return { m, step: ssStepOf(li, oct), acc: name.slice(1) };
     }).sort((a, b) => a.step - b.step || a.m - b.m);
@@ -4444,6 +4513,8 @@ function drawExploreStaff(midis: readonly number[], flat: boolean) {
         for (let i = 0; i < 5; i++)
             body += `<line class="ss-line" x1="${x0}" y1="${top + i * 12}" x2="${x1}" y2="${top + i * 12}" stroke-width="1.2"/>`;
         body += srClef(clef, x0 + 16, top);
+        if (fifths)
+            body += `<g class="ex-keysig">${srKeySigG(clef, fifths, x0 + 46, top).svg}</g>`;
         // Adjacent pitches use alternating head columns; accidentals have collision-free lanes.
         let prevStep = -Infinity, prevLane = 0;
         const accLanes: number[] = [], heads: ExploreStaffHead[] = [];
@@ -4474,7 +4545,7 @@ function drawExploreStaff(midis: readonly number[], flat: boolean) {
                 if (a < 0)
                     a = accLanes.length;
                 accLanes[a] = y;
-                accidental = p.acc === '#' ? ssSharp(x - 20 - a * 11, y) : ssFlat(x - 20 - a * 11, y);
+                accidental = (p.acc === '#' ? ssSharp : p.acc === 'n' ? ssNatural : ssFlat)(x - 20 - a * 11, y);
             }
             body += `<g class="ss-n" data-midi="${p.m}" data-clef="${clef}"><title>${noteName(p.m, flat)}</title>${accidental}${ssNotehead(x + lane * 13, y, 4)}</g>`;
         });
@@ -4499,7 +4570,16 @@ function fillRoots(sel: HTMLElement, withAll: boolean) { sel.innerHTML = ''; if 
     o.textContent = t('all_keys');
     sel.appendChild(o);
 } NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = n; sel.appendChild(o); }); }
-function fillKeyCtx() { const sel = byId('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = t('key_major', n); sel.appendChild(o); }); }
+// Key context values: "-1" none, "0"…"11" a major tonic, "m0"…"m11" a minor tonic (the circle's inner ring).
+function fillKeyCtx() { const sel = byId('keyCtx'); sel.innerHTML = '<option value="-1">' + t('none_ctx') + '</option>'; NOTE_SYS[notation].root.forEach((n, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = t('key_major', n); sel.appendChild(o); });
+    for (let p = 0; p < 12; p++) { const o = (document).createElement('option'); o.value = 'm' + p; o.textContent = t('key_minor', cofKeyLabel(CIRCLE.indexOf((p + 3) % 12), true)); sel.appendChild(o); } }
+interface ExploreKey {
+    pc: number;
+    minor: boolean;
+}
+function exKeyCtx(): ExploreKey | null { const v = selectById('keyCtx').value, minor = v.startsWith('m'), pc = parseInt(minor ? v.slice(1) : v, 10); return pc >= 0 && pc < 12 ? { pc, minor } : null; }
+// Sharps (+) or flats (−) in the key signature of the chosen key context, as the rest of the app counts them; 0 without one.
+function exKeyFifths(k: ExploreKey | null = exKeyCtx()) { return k ? keyFifths(k.pc, k.minor) : 0; }
 function fillRefNames() {
     const rt = selectById('refType').value, sel = byId('refName');
     sel.innerHTML = '';
@@ -4519,16 +4599,20 @@ function updateExplore() {
     if (view0() !== 'explore')
         return;
     const notes = (held.size ? heldMidis() : explorePreview).slice().sort((a, b) => a - b);
-    const keyCtx = parseInt(selectById('keyCtx').value, 10);
-    let nameLabel = '—', roman = '—', spell = notes.length ? isFlatKey(pc(notes[0])) : false;
-    let degrees: Map<number, string> | null = null;
+    const keyCtx = exKeyCtx(), fifths = exKeyFifths(keyCtx);
+    // Without a chord to name, a key with a signature spells the notes its own way (G♭ in a flat key, F♯ in a sharp one).
+    let nameLabel = '—', roman = '—', spell = notes.length ? (fifths ? fifths < 0 : isFlatKey(pc(notes[0]))) : false;
+    let degrees: Map<number, string> | null = null, chord: ReturnType<typeof identifyChord> = null;
     if (notes.length >= 3) {
         const id = identifyChord(notes);
+        chord = id;
         if (id)
             spell = isFlatKey(id.rootPc);
         if (id) {
             nameLabel = slashLabel(id) + (id.inversion > 0 ? ' · ' + invName(id.inversion) : '');
-            roman = romanFor(keyCtx, id) || '—';
+            // Minor reads in natural minor, except on the raised leading tone, whose chord is vii°, not ♯vii°.
+            const minorScale = keyCtx && (id.rootPc - keyCtx.pc + 12) % 12 === 11 ? SCALES['Harmonic minor'] : SCALES['Aeolian (Natural minor)'];
+            roman = (keyCtx ? romanFor(keyCtx.pc, id, keyCtx.minor ? minorScale : undefined) : '') || '—';
             degrees = chordDegreeMap(notes, id.rootPc, id.chord.pcset);
         }
         else
@@ -4544,10 +4628,10 @@ function updateExplore() {
     byId('ro-notes').textContent = notes.length ? notes.map((m) => noteName(m, spell)).join('  ') : '—';
     byId('ro-name').textContent = nameLabel;
     byId('ro-roman').textContent = roman;
-    drawExploreStaff(notes, spell);
-    cofNow(notes);
+    drawExploreStaff(notes, spell, keyCtx);
+    cofNow(notes, chord);
 }
-/* ---------- CIRCLE OF FIFTHS (Explore › Circle tab) ---------- */
+/* ---------- CIRCLE OF FIFTHS (Explore: the key picker beside the staff) ---------- */
 // Standard one-octave fingerings, ascending, indexed by the tonic's pitch class (C=0 … B=11); the scale and arpeggio drill uses the same table.
 const COF_FING = SCALE_FINGERINGS;
 const COF_MAJ = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'], COF_MIN = ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'Bb', 'F', 'C', 'G', 'D'];
@@ -4570,7 +4654,6 @@ interface CofSignature {
 function isCofMode(v: string | undefined): v is CofMode { return v === 'scale' || v === 'chord'; }
 function isCofFlavor(v: string | undefined): v is CofFlavor { return v === 'natural' || v === 'harmonic' || v === 'melodic'; }
 const cof: CofSelection = { i: 0, minor: false, mode: 'scale', flavor: 'natural', picked: false };
-let exTabCur = 'free';
 const COF_SOL = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
 function cofSpell(letter: string, acc: number) { return spelledName(notation, 'CDEFGAB'.indexOf(letter), acc); }
 function cofParse(s: string) { return { L: s[0], acc: s[1] === '#' ? 1 : s[1] === 'b' ? -1 : 0 }; }
@@ -4599,15 +4682,17 @@ function cofPt(r: number, deg: number) { const a = (deg - 90) * Math.PI / 180; r
 function cofSector(r0: number, r1: number, d0: number, d1: number) { const a = cofPt(r1, d0), b = cofPt(r1, d1), c = cofPt(r0, d1), d = cofPt(r0, d0); return 'M' + a + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + b + 'L' + c + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + d + 'Z'; }
 function cofTint(i: number, pct: string|number) { return 'fill:color-mix(in srgb, ' + (COF_COL[i] || '#6d4f7a') + ' ' + pct + '%, var(--card))'; }
 function cofText(x: string, y: string, cls: string, lines: string[], lh: number) { return '<text class="' + cls + '" x="' + x + '" y="' + y + '">' + lines.map((s, k) => '<tspan x="' + x + '" dy="' + (k ? lh : -(lines.length - 1) * lh / 2) + '">' + s.replace(/([♯♭𝄪𝄫])/gu, '<tspan class="cof-g">$1</tspan>') + '</tspan>').join('') + '</text>'; }
-const cofMQ = window.matchMedia('(max-width:560px)');
-if (cofMQ)
-    cofMQ?.addEventListener('change', () => renderCircle());
+// A circle drawn smaller than this leaves out the signature labels around the rim and zooms in on the rings, so the
+// key names stay legible; it follows the circle's own width, which beside the staff is far less than the window's.
+const COF_COMPACT_W = 460;
+let cofCompact: boolean | null = null;
+function cofIsCompact(box: HTMLElement) { const w = box.getBoundingClientRect().width; return w > 0 ? w < COF_COMPACT_W : matchMedia('(max-width:560px)').matches; }
 function renderCircle() {
     const box = byId('circle');
     if (!box)
         return;
-    const compact = !!(cofMQ && cofMQ.matches);
-    let s = '<svg class="cof-svg" viewBox="' + (compact ? '92 92 516 516' : '-12 -12 724 724') + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
+    const compact = cofCompact = cofIsCompact(box);
+    let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + (compact ? '92 92 516 516' : '-12 -12 724 724') + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
         '<linearGradient id="cofSplit" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
         '<marker id="cofAhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
         '<marker id="cofAhDn" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#4a7fb0"/></marker>' +
@@ -4637,7 +4722,7 @@ function renderCircle() {
             acc += cofText(ax, (+ay + 6).toFixed(2), 'cof-acc', lines, 19).replace('<text ', '<text style="text-anchor:' + (side ? (sx > 0 ? 'start' : 'end') : 'middle') + '" ');
         }
     });
-    s += maj + min + acc + '<path class="cof-ring-rel" id="cof-rel" d=""/><path class="cof-ring-sel" id="cof-sel" d=""/>';
+    s += maj + min + acc + '<path class="cof-ring-rel" id="cof-rel" d=""/><path class="cof-ring-sel" id="cof-sel" d=""/><g class="cof-now" id="cof-now"></g>';
     s += '<circle class="cof-hub" cx="350" cy="350" r="99"/>' +
         '<path class="cof-arrow up" marker-end="url(#cofAhUp)" d="M' + cofPt(84, -38) + 'A84 84 0 0 1 ' + cofPt(84, 38) + '"/>' +
         '<path class="cof-arrow dn" marker-end="url(#cofAhDn)" d="M' + cofPt(84, 218) + 'A84 84 0 0 0 ' + cofPt(84, 142) + '"/>' +
@@ -4667,37 +4752,44 @@ function cofSel() {
     svg.querySelectorAll('.cof-k').forEach((g) => {
         if (!(g instanceof SVGElement))
             return;
-        const i = Number(g.dataset.i), mn = g.dataset.ring === 'min', on = i === cof.i && mn === cof.minor;
+        const i = Number(g.dataset.i), mn = g.dataset.ring === 'min', on = cof.picked && i === cof.i && mn === cof.minor;
         g.classList.toggle('on', on);
-        g.classList.toggle('rel', i === cof.i && !on);
+        g.classList.toggle('rel', cof.picked && i === cof.i && !on);
         g.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cofSector(150, 254, d0, d1), minD = cofSector(100, 150, d0, d1);
+    // No key context, no ring: the key card still describes the last key looked at.
+    const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cof.picked ? cofSector(150, 254, d0, d1) : '', minD = cof.picked ? cofSector(100, 150, d0, d1) : '';
     byId('cof-sel').setAttribute('d', cof.minor ? minD : majD);
     byId('cof-rel').setAttribute('d', cof.minor ? majD : minD);
 }
-// Keeps the circle in step with the "Key context" select from the Free-play tab (always a major key there).
-function circleSel() { const k = parseInt(selectById('keyCtx').value, 10); if (k >= 0) {
-    cof.i = CIRCLE.indexOf(k);
-    cof.minor = false;
+// Keeps the circle in step with the "Key context" select; "none" clears the circle's pick.
+function circleSel() { const k = exKeyCtx(); if (k) {
+    cof.i = CIRCLE.indexOf(k.minor ? (k.pc + 3) % 12 : k.pc);
+    cof.minor = k.minor;
     cof.picked = true;
-} cofSel(); cofInfo(); cofPaintDock(); }
+}
+else
+    cof.picked = false; cofSel(); cofInfo(); cofPaintDock(); }
 function cofPick(i: number, minor: boolean) {
     cof.i = i;
     cof.minor = minor;
     cof.picked = true;
-    selectById('keyCtx').value = String(CIRCLE[i]);
+    selectById('keyCtx').value = (minor ? 'm' : '') + cofTonicPc();
     cofSyncRef();
     cofSel();
     cofInfo();
     cofPaintDock();
+    updateExplore(); // the Roman numerals and the staff's signature follow the new key
     cofRevealFingering();
     cofPlay();
 }
+// One column (phones, narrow windows): the key card sits below the circle, so a pick brings its fingering into view.
+// Beside the staff, a pick leaves the page where it is.
+const EX_ONE_COLUMN = '(max-width:899px)';
 function cofRevealFingering() {
     requestAnimationFrame(() => {
-        const fing = (document).querySelector('#exp-circle .cof-fing');
-        if (!fing || byId('exp-circle').hidden)
+        const fing = (document).querySelector('#cof-info .cof-fing');
+        if (!fing || !matchMedia(EX_ONE_COLUMN).matches)
             return;
         const header = (document).querySelector('header'), top = (header ? header.getBoundingClientRect().bottom : 0) + 16, bottom = fixedBottomTop() - 24;
         const rect = fing.getBoundingClientRect(), available = Math.max(0, bottom - top);
@@ -4772,45 +4864,68 @@ function cofDiagram() {
     d.midis.forEach((m, k) => { const x = xOf(m), w = isW(m); s += badge('rh', x, w ? 40 : 14, d.rh[k]) + badge('lh', x, w ? TOP + WH + 18 : TOP + WH + 44, d.lh[k]); });
     box.innerHTML = s + '</svg>';
 }
-function cofNow(notes: readonly number[]) { const box = byId('cof-kb'); if (!box)
-    return; const set = new Set(notes); box.querySelectorAll('[data-m]').forEach((r) => r.classList.toggle('now', set.has(Number(r.getAttribute('data-m'))))); }
-function cofPaintDock() { if (view0() !== 'explore')
-    return; kbClear('target'); if (exTabCur !== 'circle')
-    return; cofData().midis.forEach((m) => kbState(m, 'target', true)); }
-function exTab(tab: string | undefined, focus?: boolean) {
-    exTabCur = tab === 'circle' ? 'circle' : 'free';
-    queryAllHtml(document, '#ex-tabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === exTabCur; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus)
-        b.focus(); });
-    byId('exp-free').hidden = exTabCur !== 'free';
-    byId('exp-circle').hidden = exTabCur !== 'circle';
-    cofPaintDock();
-}
-function initExploreTabs() {
-    const tl = byId('ex-tabs');
-    if (!tl)
+// Lights the held notes on the fingering diagram, and marks on the circle where they sit: a named chord on its root's
+// wedge (inner ring for a minor or diminished chord, as its numeral is lower case), one or two notes on their major keys.
+function cofNow(notes: readonly number[], chord: ReturnType<typeof identifyChord> = null) {
+    const box = byId('cof-kb');
+    if (box) {
+        const set = new Set(notes);
+        box.querySelectorAll('[data-m]').forEach((r) => r.classList.toggle('now', set.has(Number(r.getAttribute('data-m')))));
+    }
+    const g = maybeById('cof-now');
+    if (!g)
         return;
-    tl.addEventListener('click', (e) => { const b = eventClosest(e, '[role="tab"]'); if (b)
-        exTab(b.dataset.tab); });
-    tl.addEventListener('keydown', (e) => {
-        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End')
+    const at: string[] = [];
+    let s = '';
+    const wedge = (i: number, minor: boolean) => { const d0 = i * 30 - 15, d1 = i * 30 + 15; at.push((minor ? 'min' : 'maj') + i); s += '<path class="cof-ring-now" d="' + (minor ? cofSector(100, 150, d0, d1) : cofSector(150, 254, d0, d1)) + '"/>'; };
+    if (chord) {
+        const minor = /^m(?!aj)/.test(chord.chord.symbol) || chord.chord.symbol.startsWith('dim');
+        wedge(CIRCLE.indexOf(minor ? (chord.rootPc + 3) % 12 : chord.rootPc), minor);
+    }
+    else if (notes.length && notes.length < 3)
+        [...new Set(notes.map(pc))].forEach((p) => wedge(CIRCLE.indexOf(p), false));
+    g.innerHTML = s;
+    g.setAttribute('data-at', at.join(' '));
+}
+// The chosen key's scale or chord shows on the dock while a key context is set.
+function cofPaintDock() { if (view0() !== 'explore')
+    return; kbClear('target'); if (!cof.picked)
+    return; cofData().midis.forEach((m) => kbState(m, 'target', true)); }
+// Brings one part of Explore into view. Links written for the old tabs (data-extab="circle") still land here.
+function exTab(part: string | undefined) {
+    const circle = part === 'circle', el = byId(circle ? 'exp-circle' : 'exp-free');
+    requestAnimationFrame(() => {
+        if (view0() !== 'explore')
             return;
-        e.preventDefault();
-        exTab(e.key === 'Home' ? 'free' : e.key === 'End' ? 'circle' : exTabCur === 'free' ? 'circle' : 'free', true);
+        el.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
+        const key = circle ? el.querySelector('.cof-k.on') || el.querySelector('.cof-k') : null;
+        if (key instanceof SVGElement)
+            key.focus({ preventScroll: true });
     });
+}
+function initExploreControls() {
+    const circle = byId('circle');
+    if (!circle)
+        return;
+    // Redraw when the circle crosses the compact width (a window resize, the dock opening, the layout changing columns).
+    if (typeof ResizeObserver === 'function')
+        new ResizeObserver(() => { if (circle.getBoundingClientRect().width > 0 && cofIsCompact(circle) !== cofCompact) {
+            renderCircle();
+            updateExplore(); // repaints where the held notes sit on the new drawing
+        } }).observe(circle);
     byId('cof-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.mode || !isCofMode(v))
         return; cof.mode = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
     byId('cof-flavor').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.flavor || !isCofFlavor(v))
         return; cof.flavor = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
-    byId('cof-play').addEventListener('click', () => { if (!cof.picked) {
-        cof.picked = true;
-        cofSel();
-    } cofSyncRef(); cofPlay(); });
+    byId('cof-play').addEventListener('click', () => { cofSyncRef(); cofPlay(); });
 }
-/* ---------- SONGS ---------- */
+/* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
 let songDir = 'asc';
+// Builds the 12 cards while the panel is open (also while another topic hides it, so a language or note-name change
+// reaches them); opening it builds them (the panel's toggle event).
 function renderSongs() {
-    const box = byId('songsList');
-    if (!box)
+    const box = maybeById('songsList'), panel = maybeById('pr-songs');
+    if (!box || !(panel instanceof HTMLDetailsElement) || !panel.open)
         return;
     box.innerHTML = '';
     const root = 60 + parseInt(selectById('song-root').value || '0', 10);
@@ -4819,8 +4934,6 @@ function renderSongs() {
         const card = (document).createElement('div');
         card.className = 'songcard';
         card.dataset.semi = String(semi);
-        if (SQ.answered && SQ.started && SQ.semi === semi)
-            card.dataset.hl = 'true';
         card.innerHTML = '<div class="hd"><b>' + ivName(semi) + '</b><span class="sh">' + iv.short + '</span></div>';
         const play = (document).createElement('button');
         play.type = 'button';
@@ -4836,80 +4949,6 @@ function renderSongs() {
         card.appendChild(ul);
         box.appendChild(card);
     }
-    sqRender();
-}
-/* interval ear check: a random interval in the chosen direction, answered from the 12 names */
-const SQ = { started: false, answered: true, semi: 0, root: 60, dir: 'asc', pick: 0, right: 0, total: 0 };
-function sqPlay() { ensureAudio(); playIvDir(SQ.root, SQ.semi, SQ.dir); }
-function sqNew() {
-    SQ.started = true;
-    SQ.answered = false;
-    SQ.pick = 0;
-    SQ.semi = 1 + Math.floor(Math.random() * 12);
-    SQ.root = 55 + Math.floor(Math.random() * 10);
-    SQ.dir = songDir;
-    (document).querySelectorAll('#songsList .songcard').forEach((c) => c.removeAttribute('data-hl'));
-    byId('sq-verdict').textContent = '';
-    byId('sq-verdict').className = 'verdict';
-    sqRender();
-    sqPlay();
-    const f = byId('sq-ans').querySelector('button');
-    if (f)
-        f.focus();
-}
-function sqRender() {
-    const a = byId('sq-ans');
-    if (!a)
-        return;
-    a.hidden = !SQ.started;
-    byId('sq-again').hidden = !SQ.started;
-    byId('sq-go').textContent = t(SQ.started ? 'sq_next' : 'sq_start');
-    byId('sq-score').textContent = SQ.total ? t('sq_score', SQ.right, SQ.total) : '';
-    if (!SQ.started)
-        return;
-    a.innerHTML = '';
-    for (let n = 1; n <= 12; n++) {
-        const b = (document).createElement('button');
-        b.type = 'button';
-        b.textContent = ivName(n);
-        b.dataset.semi = String(n);
-        if (SQ.answered) {
-            b.disabled = true;
-            if (n === SQ.semi)
-                b.dataset.r = 'good';
-            else if (n === SQ.pick)
-                b.dataset.r = 'bad';
-        }
-        a.appendChild(b);
-    }
-}
-function sqAnswer(n: number) {
-    if (SQ.answered || !SQ.started)
-        return;
-    SQ.answered = true;
-    SQ.pick = n;
-    SQ.total++;
-    const ok = n === SQ.semi;
-    if (ok)
-        SQ.right++;
-    const hook = songsFor(SQ.semi, SQ.dir).find((x) => !/^\(/.test(x)), v = byId('sq-verdict');
-    v.className = 'verdict ' + (ok ? 'good' : 'bad');
-    v.textContent = t(ok ? 'sq_good' : 'sq_bad', ivName(SQ.semi)) + (hook ? ' ' + t('sq_hook', hook) : '');
-    if (data.earDay !== todayN()) {
-        data.earDay = todayN();
-        data.earToday = 0;
-    }
-    if (ok)
-        data.earToday = (data.earToday || 0) + 1;
-    saveAll();
-    const card = queryHtml(document, '#songsList .songcard[data-semi="' + SQ.semi + '"]');
-    if (card)
-        card.dataset.hl = 'true';
-    sqRender();
-    byId('sq-go').focus();
-    if (!ok)
-        setTimeout(() => { if (view0() === 'songs')
-            sqPlay(); }, 450);
 }
 /* ============================================================================
    LEARN — bilingual theory handbook. Every demo button routes through the
@@ -4952,6 +4991,7 @@ function learnData(): LearnProgressStore {
         d.learnRev = rev;
         Object.keys(done).forEach((id) => { rev[id] = { last: done[id], n: 0 }; });
     }
+    // learnUnlock is no longer read: every unit is open. The field stays so saves from older versions load and merge unchanged.
     if (!d.learnUnlock || typeof d.learnUnlock !== 'object')
         d.learnUnlock = {};
     if (!hasLearnProgress(d))
@@ -4960,18 +5000,6 @@ function learnData(): LearnProgressStore {
 }
 function learnUnitOf(id: string) { return LEARN_UNITS.findIndex((u) => u.ls.includes(id)); }
 function learnUnitDone(i: number) { const u = LEARN_UNITS[i], d = learnData().learnDone; return u ? u.ls.filter((id) => d[id]).length : 0; }
-function learnUnitOpen(i: number): boolean {
-    if (i <= 0)
-        return true;
-    const u = LEARN_UNITS[i], D = learnData();
-    if (!u)
-        return true;
-    if (D.learnUnlock[u.id] || u.ls.some((id) => D.learnDone[id]))
-        return true;
-    const p = LEARN_UNITS[i - 1];
-    return learnUnitOpen(i - 1) && p.ls.every((id) => D.learnDone[id]);
-}
-function learnLessonOpen(L: Lesson) { return learnUnitOpen(learnUnitOf(L.id)); }
 function learnGap(id: string) { const r = learnData().learnRev[id]; return LEARN_GAPS[Math.min(r ? (r.n | 0) : 0, LEARN_GAPS.length - 1)]; }
 function learnDueDays(id: string) {
     const D = learnData();
@@ -5075,7 +5103,7 @@ function learnLight(ms: number[], dur: number) {
 }
 function learnPlanItems(tn: number) {
     const D = learnData(), ld = D.learnDone;
-    const nextL = LESSONS.find((L) => !ld[L.id] && learnLessonOpen(L)), learnToday = Object.keys(ld).some((k) => ld[k] === tn);
+    const nextL = LESSONS.find((L) => !ld[L.id]), learnToday = Object.keys(ld).some((k) => ld[k] === tn);
     const out = [{ id: 'learn', done: learnToday || !nextL, t: t('plan_learn'), d: nextL ? t('plan_learn_d', learnTitle(nextL)) : t('plan_learn_all'),
             go: () => { if (nextL)
                 learnGoId(nextL.id);
@@ -5497,18 +5525,10 @@ function learnInput() {
         learnSay(t('lu_q_got', q.got.length, tot));
     }
 }
-function learnRdLevel(u: LearnUnit) {
-    const units = RD_UNITS.filter((x) => u.rd.includes(x.u));
-    let pick: ReadDrillLevel | null = null;
-    units.some((x) => x.lv.some((L) => { if (rdUnlocked(L) && (rdData().lv[L.id]?.s || 0) < 1) {
-        pick = L;
-        return true;
-    } return false; }));
-    if (!pick) {
-        const all = units.flatMap((x) => x.lv).filter(rdUnlocked);
-        pick = all[all.length - 1] || (units[0] && units[0].lv[0]);
-    }
-    return pick;
+// The unit's first level without a star; every level is open, so with all of them starred it is the last one.
+function learnRdLevel(u: LearnUnit): ReadDrillLevel | null {
+    const all = RD_UNITS.filter((x) => u.rd.includes(x.u)).flatMap((x) => x.lv);
+    return all.find((L) => (rdData().lv[L.id]?.s || 0) < 1) || all[all.length - 1] || null;
 }
 function learnSide() {
     const toc = byId('learnToc');
@@ -5519,15 +5539,15 @@ function learnSide() {
     byId('learnProg').style.width = Math.round(100 * nDone / LESSONS.length) + '%';
     let h = '', opt = '';
     LEARN_UNITS.forEach((u, ui) => {
-        const open = learnUnitOpen(ui), nm = (u[lang] || u.en);
-        h += '<div class="lu-h" data-open="' + open + '"><span aria-hidden="true">' + u.icon + '</span><span class="lu-nm">' + nm + '</span><span class="lu-c">' + (open ? t('lu_done_n', learnUnitDone(ui), u.ls.length) : '<span role="img" aria-label="' + t('lu_locked') + '">🔒</span>') + '</span></div>';
-        opt += '<optgroup label="' + nm + (open ? '' : ' 🔒') + '">';
+        const nm = (u[lang] || u.en);
+        h += '<div class="lu-h"><span aria-hidden="true">' + u.icon + '</span><span class="lu-nm">' + nm + '</span><span class="lu-c">' + t('lu_done_n', learnUnitDone(ui), u.ls.length) + '</span></div>';
+        opt += '<optgroup label="' + nm + '">';
         u.ls.forEach((id) => {
             const i = LESSONS.findIndex((L) => L.id === id);
             if (i < 0)
                 return;
             const L = LESSONS[i], due = learnDueDays(id) != null;
-            h += '<button type="button" data-li="' + i + '" aria-current="' + (i === learnSel && !learnGloss) + '"' + (open ? '' : ' data-locked="true"') + '><span class="ic" aria-hidden="true">' + L.icon + '</span>' + learnTitle(L) +
+            h += '<button type="button" data-li="' + i + '" aria-current="' + (i === learnSel && !learnGloss) + '"><span class="ic" aria-hidden="true">' + L.icon + '</span>' + learnTitle(L) +
                 (due ? '<span class="due" role="img" aria-label="' + t('lu_due') + '">↻</span>' : done[id] ? '<span class="done" role="img" aria-label="' + t('learn_done_aria') + '">✓</span>' : '') + '</button>';
             opt += '<option value="' + i + '"' + (i === learnSel ? ' selected' : '') + '>' + learnTitle(L) + (done[id] ? ' ✓' : '') + '</option>';
         });
@@ -5617,18 +5637,9 @@ let renderLearn: { (fromLoad?: boolean): void; _init?: boolean } = function rend
         lgFilter();
         return;
     }
-    const L = LESSONS[learnSel], ui = learnUnitOf(L.id), u = LEARN_UNITS[ui], open = learnUnitOpen(ui), rl = u ? learnRdLevel(u) : null;
+    const L = LESSONS[learnSel], ui = learnUnitOf(L.id), u = LEARN_UNITS[ui], rl = u ? learnRdLevel(u) : null;
     let h = '<div class="lu-bar"><span class="lu-unit"><span aria-hidden="true">' + (u ? u.icon : '') + '</span> ' + t('lu_unit', ui + 1, LEARN_UNITS.length) + ' · <b>' + (u ? (u[lang] || u.en) : '') + '</b></span>' +
-        (rl && open ? '<button type="button" class="btn ghost sm" data-rd="' + rl.id + '" aria-label="' + t('lu_practise_aria') + ': ' + rdLvName(rl) + '">' + t('lu_practise', rdLvName(rl)) + ' →</button>' : '') + '</div><h3>' + learnTitle(L) + '</h3>';
-    if (!open) {
-        const prev = LEARN_UNITS[ui - 1], firstOpen = LESSONS.findIndex((x) => prev.ls.includes(x.id) && !learnData().learnDone[x.id]);
-        h += '<div class="lu-lock"><p class="lu-lock-t">🔒 ' + t('lu_locked_t') + '</p><p>' + t('lu_locked_d', (prev[lang] || prev.en)) + '</p><div class="lq-act">' +
-            (firstOpen >= 0 ? '<button type="button" class="btn primary" data-li="' + firstOpen + '">' + t('lu_goto', learnTitle(LESSONS[firstOpen])) + '</button>' : '') +
-            '<button type="button" class="btn ghost sm" data-ln="unlock">' + t('lu_unlock') + '</button></div></div><div class="learn-nav"></div>';
-        body.innerHTML = h;
-        learnNavRender();
-        return;
-    }
+        (rl ? '<button type="button" class="btn ghost sm" data-rd="' + rl.id + '" aria-label="' + t('lu_practise_aria') + ': ' + rdLvName(rl) + '">' + t('lu_practise', rdLvName(rl)) + ' →</button>' : '') + '</div><h3>' + learnTitle(L) + '</h3>';
     h += '<div class="learn-content">' + learnBodyHTML(L) + '</div>';
     const sum: LearnSummaryRow[] | undefined = LSUM[L.id];
     if (sum)
@@ -5659,8 +5670,8 @@ function learnClick(e: Event) {
         show(g.dataset.go);
         if (g.dataset.extab)
             exTab(g.dataset.extab);
-        if (c && byId('pr-cat'))
-            selectById('pr-cat').value = c;
+        if (c)
+            prSetTopic(c);
         return;
     }
     if (eventClosest(e, '[data-lgback]')) {
@@ -5701,12 +5712,6 @@ function learnClick(e: Event) {
             lqRender();
             learnNavRender();
         }
-        else if (a === 'unlock') {
-            const u = LEARN_UNITS[learnUnitOf(L.id)];
-            learnData().learnUnlock[u.id] = todayN();
-            saveAll();
-            renderLearn();
-        }
         return;
     }
     const lq = eventClosest(e, '[data-lq]');
@@ -5742,14 +5747,13 @@ function learnClick(e: Event) {
         const L = RD_LV[rd.dataset.rd ?? ''];
         show('read');
         rdTab('drills');
-        if (L && rdUnlocked(L))
+        if (L)
             rdOpen(L);
         return;
     }
     const an = eventClosest(e, '[data-an]');
     if (an) {
-        show('analysis');
-        anLoadExample(an.dataset.an ?? '');
+        void pcOpen(an.dataset.an ?? '');
         return;
     }
     const w = eventClosest(e, '[data-w]');
@@ -6239,15 +6243,16 @@ function lgFilter() {
         o.textContent = n ? t('lg_n', n) : t('lg_none', q ? q.value.trim() : '');
 }
 /* ============================================================================
-   READ & PLAY — sheet-music trainer. Grand staff engraver (reuses the ss glyphs)
-   + graded repertoire + step-by-step / assessment / listen modes.
+   READ & PLAY — the sight-reading engine. Grand staff engraver (reuses the ss glyphs)
+   + step-by-step / assessment / listen modes for generated melodies.
+   The graded repertoire (PIECES) is played in the Pieces screen (view `analysis`).
    ============================================================================ */
 const SR_LET = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 /** A spelled pitch: letter index (C = 0), octave, accidental (-1, 0, 1) and MIDI number. */
 interface SrPitch { li: number; oct: number; acc: number; midi: number }
 function srPitch(s: string): SrPitch | null { const m = /^([A-G])([#b]?)(\d)$/.exec(s); if (!m) return null; const li = SR_LET.indexOf(m[1]), acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, oct = +m[3]; return { li, oct, acc, midi: ssMidiOf(li, oct, acc) }; }
-/** A Read & Play piece: a score plus its catalogue details. */
-interface SrPiece extends SrScore { id: string; t: Localised<string>; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string; from?: { title: string; bars: string } }
+/** A piece: a score plus its catalogue details. Built-in pieces open in Pieces; generated melodies play in Read & Play. */
+interface SrPiece extends SrScore { id: string; t: Localised<string>; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string }
 const PIECES: SrPiece[] = [
     { id: 'w5rh', t: { en: 'Five-finger warm-up (right hand)', ro: 'Încălzire pe cinci note (dreapta)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
         rh: [['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['E4', 1], ['G4', 1], ['E4', 1], ['C4', 4]],
@@ -6266,6 +6271,23 @@ const PIECES: SrPiece[] = [
     { id: 'twinkle', t: { en: 'Twinkle, Twinkle, Little Star', ro: 'Sclipește, steluță (Twinkle)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 88,
         rh: [['C4', 1], ['C4', 1], ['G4', 1], ['G4', 1], ['A4', 1], ['A4', 1], ['G4', 2], ['F4', 1], ['F4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['C4', 2]],
         lh: [['C3', 2], ['E3', 2], ['F3', 2], ['C3', 2], ['F3', 2], ['C3', 2], ['G3', 2], ['C3', 2]] },
+    // The tune twice (two verses); the second time the left hand plays open fifths.
+    { id: 'hotcross', t: { en: 'Hot Cross Buns', ro: 'Chifle cu cruce (Hot Cross Buns)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 84,
+        rh: [['E4', 1], ['D4', 1], ['C4', 2], ['E4', 1], ['D4', 1], ['C4', 2], ['C4', 0.5], ['C4', 0.5], ['C4', 0.5], ['C4', 0.5], ['D4', 0.5], ['D4', 0.5], ['D4', 0.5], ['D4', 0.5], ['E4', 1], ['D4', 1], ['C4', 2],
+            ['E4', 1], ['D4', 1], ['C4', 2], ['E4', 1], ['D4', 1], ['C4', 2], ['C4', 0.5], ['C4', 0.5], ['C4', 0.5], ['C4', 0.5], ['D4', 0.5], ['D4', 0.5], ['D4', 0.5], ['D4', 0.5], ['E4', 1], ['D4', 1], ['C4', 2]],
+        lh: [['C3', 4], ['C3', 4], ['C3', 2], ['G2', 2], ['C3', 4],
+            [['C3', 'G3'], 4], [['C3', 'G3'], 4], [['C3', 'G3'], 2], [['G2', 'D3'], 2], [['C3', 'G3'], 4]] },
+    { id: 'lightly', t: { en: 'Lightly Row', ro: 'Vâslim ușor (Lightly Row)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 96,
+        rh: [['G4', 1], ['E4', 1], ['E4', 2], ['F4', 1], ['D4', 1], ['D4', 2], ['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 1], ['G4', 2],
+            ['G4', 1], ['E4', 1], ['E4', 2], ['F4', 1], ['D4', 1], ['D4', 2], ['C4', 1], ['E4', 1], ['G4', 1], ['G4', 1], ['C4', 4],
+            ['D4', 1], ['D4', 1], ['D4', 1], ['D4', 1], ['D4', 1], ['E4', 1], ['F4', 2], ['E4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['F4', 1], ['G4', 2],
+            ['G4', 1], ['E4', 1], ['E4', 2], ['F4', 1], ['D4', 1], ['D4', 2], ['C4', 1], ['E4', 1], ['G4', 1], ['G4', 1], ['C4', 4]],
+        lh: [['C3', 4], ['G2', 4], ['C3', 4], ['C3', 2], ['G2', 2], ['C3', 4], ['G2', 4], ['C3', 2], ['G2', 2], [['C3', 'G3'], 4],
+            ['G2', 4], ['G2', 4], ['C3', 4], ['C3', 2], ['G2', 2], ['C3', 4], ['G2', 4], ['C3', 2], ['G2', 2], [['C3', 'G3'], 4]] },
+    { id: 'rhody', t: { en: 'Go Tell Aunt Rhody', ro: 'Spune-i mătușii Rhody (Go Tell Aunt Rhody)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 92,
+        rh: [['E4', 2], ['E4', 1], ['D4', 1], ['C4', 2], ['C4', 2], ['D4', 2], ['D4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 2],
+            ['G4', 2], ['G4', 1], ['F4', 1], ['E4', 2], ['E4', 2], ['D4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['C4', 4]],
+        lh: [['C3', 4], [['C3', 'G3'], 4], ['G2', 4], ['G2', 2], ['C3', 2], ['C3', 4], [['C3', 'G3'], 4], ['G2', 4], [['C3', 'G3'], 4]] },
     { id: 'frere', t: { en: 'Frère Jacques', ro: 'Frère Jacques (Frate Ioane)' }, comp: 'trad.', level: 2, keyN: 0, ts: [4, 4], bpm: 96,
         rh: [['C4', 1], ['D4', 1], ['E4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['C4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['E4', 1], ['F4', 1], ['G4', 2],
             ['G4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F4', 0.5], ['E4', 1], ['C4', 1], ['G4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F4', 0.5], ['E4', 1], ['C4', 1],
@@ -6287,6 +6309,24 @@ const PIECES: SrPiece[] = [
             ['F4', 1], ['F4', 1], ['F4', 1.5], ['F4', 0.5], ['F4', 1], ['E4', 1], ['E4', 1], ['E4', 0.5], ['E4', 0.5], ['E4', 1], ['D4', 1], ['D4', 1], ['E4', 1], ['D4', 2], ['G4', 2]],
         lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['C3', 2], ['C3', 2], ['G3', 2],
             ['F3', 2], ['F3', 2], ['C3', 2], ['C3', 2], ['G3', 2], ['G3', 2], ['G3', 2], ['G3', 2]] },
+    // The verse only, in even quarters; the chorus is left out.
+    { id: 'susanna', t: { en: 'Oh! Susanna (verse)', ro: 'Oh! Susanna (strofa)' }, comp: 'Foster', level: 2, keyN: 0, ts: [4, 4], bpm: 112, pickup: 2,
+        rh: [['C4', 1], ['D4', 1], ['E4', 1], ['G4', 1], ['G4', 1], ['A4', 1], ['G4', 1], ['E4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['D4', 2], ['C4', 1], ['D4', 1],
+            ['E4', 1], ['G4', 1], ['G4', 1], ['A4', 1], ['G4', 1], ['E4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['C4', 4]],
+        lh: [['R', 2], ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['G2', 1], ['D3', 1], ['B2', 1], ['D3', 1],
+            ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['G2', 1], ['D3', 1], [['C3', 'G3'], 4]] },
+    // The verse only (the tune of "Love Me Tender"), twice; the second time ends with the seventh in the left hand.
+    { id: 'auralee', t: { en: 'Aura Lee (verse)', ro: 'Aura Lee (strofa)' }, comp: 'Poulton', level: 2, keyN: 1, ts: [4, 4], bpm: 76,
+        rh: [['D4', 1], ['G4', 1], ['F#4', 1], ['G4', 1], ['A4', 1], ['E4', 1], ['A4', 2], ['G4', 1], ['F#4', 1], ['E4', 1], ['F#4', 1], ['G4', 4],
+            ['D4', 1], ['G4', 1], ['F#4', 1], ['G4', 1], ['A4', 1], ['E4', 1], ['A4', 2], ['G4', 1], ['F#4', 1], ['E4', 1], ['F#4', 1], ['G4', 4]],
+        lh: [['G2', 1], ['D3', 1], ['B2', 1], ['D3', 1], ['A2', 1], ['E3', 1], ['G3', 1], ['E3', 1], ['D3', 1], ['A3', 1], ['F#3', 1], ['A3', 1], ['G2', 1], ['D3', 1], ['B2', 1], ['D3', 1],
+            ['G2', 1], ['D3', 1], ['B2', 1], ['D3', 1], ['A2', 1], ['E3', 1], ['G3', 1], ['E3', 1], ['D3', 1], ['A3', 1], ['C4', 1], ['A3', 1], ['G2', 1], ['D3', 1], ['G3', 2]] },
+    // The first eight bars, with the dotted rhythms of bars 3 and 7 in even quarters.
+    { id: 'brahms', t: { en: 'Lullaby, Op. 49 No. 4 (opening)', ro: 'Cântec de leagăn, op. 49 nr. 4 (început)' }, comp: 'Brahms', level: 2, keyN: -1, ts: [3, 4], bpm: 72, pickup: 1,
+        rh: [['A4', 0.5], ['A4', 0.5], ['C5', 2], ['A4', 0.5], ['A4', 0.5], ['C5', 2], ['A4', 0.5], ['C5', 0.5], ['F5', 1], ['E5', 1], ['D5', 1], ['D5', 1], ['C5', 1], ['G4', 0.5], ['A4', 0.5],
+            ['Bb4', 2], ['G4', 0.5], ['A4', 0.5], ['Bb4', 2], ['G4', 0.5], ['Bb4', 0.5], ['E5', 1], ['D5', 1], ['C5', 1], ['E5', 1], ['F5', 2]],
+        lh: [['R', 1], ['F2', 1], ['C3', 1], ['A3', 1], ['F2', 1], ['C3', 1], ['A3', 1], ['Bb2', 1], ['D3', 1], ['F3', 1], ['F2', 1], ['C3', 1], ['A3', 1],
+            ['C3', 1], ['G3', 1], ['Bb3', 1], ['C3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['Bb3', 1], ['F2', 1], [['C3', 'A3'], 2]] },
     { id: 'london', t: { en: 'London Bridge', ro: 'Podul Londrei (London Bridge)' }, comp: 'trad.', level: 3, keyN: 0, ts: [4, 4], bpm: 96,
         rh: [['G4', 1.5], ['A4', 0.5], ['G4', 1], ['F4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['D4', 1], ['E4', 1], ['F4', 2], ['E4', 1], ['F4', 1], ['G4', 2],
             ['G4', 1.5], ['A4', 0.5], ['G4', 1], ['F4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['D4', 2], ['G4', 2], ['E4', 1], ['C4', 3]],
@@ -6311,7 +6351,34 @@ const PIECES: SrPiece[] = [
     { id: 'grace', t: { en: 'Amazing Grace', ro: 'Amazing Grace' }, comp: 'trad.', level: 3, keyN: 0, ts: [3, 4], bpm: 80, pickup: 1,
         rh: [['G3', 1], ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['C4', 2], ['A3', 1], ['G3', 2], ['G3', 1],
             ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['G4', 3]],
-        lh: [['R', 1], ['C3', 3], ['C3', 2], ['G2', 1], ['F2', 2], ['C3', 1], ['G2', 3], ['C3', 3]] },
+        lh: [['R', 1], ['C3', 3], ['C3', 2], ['G2', 1], ['F2', 2], ['C3', 1], ['G2', 3], ['C3', 3], ['G2', 3], ['G2', 3]] }, // bars 6–7 (G) complete the left hand
+    // Over the ground bass: the theme in halves, then in quarters, then the line that moves twice as fast; a D chord ends it.
+    { id: 'canon', t: { en: 'Canon in D (main theme)', ro: 'Canon în Re (tema principală)' }, comp: 'Pachelbel', level: 3, keyN: 2, ts: [4, 4], bpm: 72,
+        rh: [['F#5', 2], ['E5', 2], ['D5', 2], ['C#5', 2], ['B4', 2], ['A4', 2], ['B4', 2], ['C#5', 2],
+            ['D5', 2], ['C#5', 2], ['B4', 2], ['A4', 2], ['G4', 2], ['F#4', 2], ['G4', 2], ['E4', 2],
+            ['D5', 1], ['F#5', 1], ['A5', 1], ['G5', 1], ['F#5', 1], ['D5', 1], ['F#5', 1], ['E5', 1], ['D5', 1], ['B4', 1], ['D5', 1], ['A4', 1], ['G4', 1], ['B4', 1], ['A4', 1], ['G4', 1],
+            [['F#4', 'A4', 'D5'], 4]],
+        lh: [['D3', 2], ['A2', 2], ['B2', 2], ['F#2', 2], ['G2', 2], ['D2', 2], ['G2', 2], ['A2', 2],
+            ['D3', 1], ['A3', 1], ['A2', 1], ['E3', 1], ['B2', 1], ['F#3', 1], ['F#2', 1], ['C#3', 1], ['G2', 1], ['D3', 1], ['D2', 1], ['A2', 1], ['G2', 1], ['D3', 1], ['A2', 1], ['E3', 1],
+            ['D3', 1], ['A3', 1], ['A2', 1], ['E3', 1], ['B2', 1], ['F#3', 1], ['F#2', 1], ['C#3', 1], ['G2', 1], ['D3', 1], ['D2', 1], ['A2', 1], ['G2', 1], ['D3', 1], ['A2', 1], ['E3', 1],
+            [['D2', 'D3'], 4]] },
+    // Four bars of the rocking accompaniment (G major 7, D major 7), then the first phrase of the tune.
+    { id: 'gymno', t: { en: 'Gymnopédie No. 1 (opening)', ro: 'Gymnopédie nr. 1 (început)' }, comp: 'Satie', level: 3, keyN: 2, ts: [3, 4], bpm: 72,
+        rh: [['R', 3], ['R', 3], ['R', 3], ['R', 3], ['R', 1], ['F#5', 1], ['A5', 1], ['G5', 1], ['F#5', 1], ['C#5', 1], ['B4', 1], ['C#5', 1], ['D5', 1], ['A4', 3]],
+        lh: [['G2', 1], [['B3', 'D4', 'F#4'], 2], ['D2', 1], [['A3', 'C#4', 'F#4'], 2], ['G2', 1], [['B3', 'D4', 'F#4'], 2], ['D2', 1], [['A3', 'C#4', 'F#4'], 2],
+            ['G2', 1], [['B3', 'D4', 'F#4'], 2], ['D2', 1], [['A3', 'C#4', 'F#4'], 2], ['G2', 1], [['B3', 'D4', 'F#4'], 2], ['D2', 1], [['A3', 'C#4', 'F#4'], 2]] },
+    // Each half bar: the left hand holds the bass note, the right hand plays the seven sixteenths above it.
+    { id: 'prelude', t: { en: 'Prelude in C, BWV 846 (opening)', ro: 'Preludiu în Do, BWV 846 (început)' }, comp: 'J. S. Bach', level: 3, keyN: 0, ts: [4, 4], bpm: 60,
+        rh: [['R', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['R', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25],
+            ['R', 0.25], ['D4', 0.25], ['A4', 0.25], ['D5', 0.25], ['F5', 0.25], ['A4', 0.25], ['D5', 0.25], ['F5', 0.25], ['R', 0.25], ['D4', 0.25], ['A4', 0.25], ['D5', 0.25], ['F5', 0.25], ['A4', 0.25], ['D5', 0.25], ['F5', 0.25],
+            ['R', 0.25], ['D4', 0.25], ['G4', 0.25], ['D5', 0.25], ['F5', 0.25], ['G4', 0.25], ['D5', 0.25], ['F5', 0.25], ['R', 0.25], ['D4', 0.25], ['G4', 0.25], ['D5', 0.25], ['F5', 0.25], ['G4', 0.25], ['D5', 0.25], ['F5', 0.25],
+            ['R', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['R', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25],
+            ['R', 0.25], ['E4', 0.25], ['A4', 0.25], ['E5', 0.25], ['A5', 0.25], ['A4', 0.25], ['E5', 0.25], ['A5', 0.25], ['R', 0.25], ['E4', 0.25], ['A4', 0.25], ['E5', 0.25], ['A5', 0.25], ['A4', 0.25], ['E5', 0.25], ['A5', 0.25],
+            ['R', 0.25], ['D4', 0.25], ['F#4', 0.25], ['A4', 0.25], ['D5', 0.25], ['F#4', 0.25], ['A4', 0.25], ['D5', 0.25], ['R', 0.25], ['D4', 0.25], ['F#4', 0.25], ['A4', 0.25], ['D5', 0.25], ['F#4', 0.25], ['A4', 0.25], ['D5', 0.25],
+            ['R', 0.25], ['D4', 0.25], ['G4', 0.25], ['D5', 0.25], ['G5', 0.25], ['G4', 0.25], ['D5', 0.25], ['G5', 0.25], ['R', 0.25], ['D4', 0.25], ['G4', 0.25], ['D5', 0.25], ['G5', 0.25], ['G4', 0.25], ['D5', 0.25], ['G5', 0.25],
+            ['R', 0.25], ['C4', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['R', 0.25], ['C4', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25]],
+        lh: [['C4', 2], ['C4', 2], ['C4', 2], ['C4', 2], ['B3', 2], ['B3', 2], ['C4', 2], ['C4', 2],
+            ['C4', 2], ['C4', 2], ['C4', 2], ['C4', 2], ['B3', 2], ['B3', 2], ['B3', 2], ['B3', 2]] },
 ];
 /** One engraved note head, with the beat it falls on and where it was drawn. */
 interface SrStaffNote { nid: number; hand: SrHand; midi: number; beat: number; dur: number; x: number; y: number; li: number; oct: number; acc: number }
@@ -6326,25 +6393,23 @@ interface SrState {
     notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; hit: Set<number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
     beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
     bpm: number; t0: number; next: CoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
-    excerpt?: SrPiece | null; gen?: SrPiece | null; listening?: boolean;
+    gen?: SrPiece | null; listening?: boolean;
     srtPiece?: SightReadingPiece | null; srtFingerprint?: string | null; srtState?: SightReadingState;
     srtOwnerTabId?: string; srtAttemptStartedAt?: number; srtPreviewTimer?: number; srtCountdown?: number; srtLease?: SightReadingAttemptLease | null; srtPendingAttempt?: SightReadingAttempt | null;
-    srtEvaluation?: SightReadingEvaluation | null; srtResultValue?: number | null; srtResultLevelId?: string | null; srtResultUnlockId?: string | null;
+    srtEvaluation?: SightReadingEvaluation | null; srtResultValue?: number | null; srtResultLevelId?: string | null;
 }
 const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, anyOctave: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
     srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
     srtOwnerTabId: `tab-${Math.random().toString(36).slice(2)}`, srtAttemptStartedAt: 0, srtPreviewTimer: 0, srtCountdown: 0, srtLease: null, srtPendingAttempt: null,
-    srtEvaluation: null, srtResultValue: null, srtResultLevelId: null, srtResultUnlockId: null };
+    srtEvaluation: null, srtResultValue: null, srtResultLevelId: null };
 let srtRecorder: SightReadingRecorder | null = null;
 let srtOperationEpoch = 0;
 let srtCountInEpoch = 0;
 let srtCountInAttemptId: string | null = null;
 let srtClaimIssuedAttemptId: string | null = null;
 let srtClaimDurableAttemptId: string | null = null;
-let srtPendingSelection: string | null = null;
-let srtPendingAbandonment: Promise<SightReadingLedgerResult> | null = null;
 type SrtAttemptCleanup = {
     readonly attemptId: string;
     readonly ownerTabId: string;
@@ -6865,16 +6930,8 @@ function srLearnFinish() {
         v.textContent = t('rd_done_learn', SR.mistakes);
     }
     v.textContent += rdSightDone('learn', SR.mistakes);
-    if (!SR.piece)
-        throw new Error('Étude: no piece selected');
-    if (!SR.piece.ephemeral) {
-        const rec = data.sheet[SR.piece.id] || (data.sheet[SR.piece.id] = {});
-        rec.learned = true;
-    }
     touchDay();
     saveAll();
-    srBest();
-    fillPieces();
 }
 function srtSetState(event: Parameters<typeof srtTransition>[1]) {
     const previous = SR.srtState || SRT_INITIAL_STATE;
@@ -7072,25 +7129,10 @@ function srtClearPendingAttempt(attemptId: string) {
     if (SR.srtPendingAttempt?.attemptId === attemptId)
         SR.srtPendingAttempt = null;
 }
-function srtAbandonPendingSelection() {
-    if (srtPendingAbandonment)
-        return;
-    const operation = srtAbandonClaim('abandoned', false);
-    srtPendingAbandonment = operation;
-    void operation.then((result) => {
-        if (srtPendingAbandonment === operation)
-            srtPendingAbandonment = null;
-        const selection = srtPendingSelection;
-        srtPendingSelection = null;
-        if (result.ok && selection && SR.srtState?.name === 'abandoned')
-            srSelectPiece(selection);
-    });
-}
 async function srtRetryPendingSave() {
     const attempt = SR.srtPendingAttempt;
     if (!attempt)
         return;
-    srtPendingSelection = null;
     const epoch = srtOperationEpoch;
     const state = SR.srtState;
     const lease = SR.srtLease ?? null;
@@ -7139,8 +7181,7 @@ async function srtRetryPendingSave() {
 async function srtContinueWithoutSave() {
     if (SR.srtState?.name !== 'pendingSave')
         return;
-    srtPendingSelection = null;
-    const result = await (srtPendingAbandonment ?? srtAbandonClaim('abandoned', false));
+    const result = await srtAbandonClaim('abandoned', false);
     void result;
 }
 function srtAttemptId() {
@@ -7457,7 +7498,6 @@ function srAssessStart(operation?: number) {
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
     SR.srtResultLevelId = null;
-    SR.srtResultUnlockId = null;
     SR.next = null;
     srCoach();
     SR.steps.forEach((s) => s.closed = false);
@@ -7548,11 +7588,8 @@ function srAssessFinish() {
     SR.srtEvaluation = evaluated;
     SR.srtResultValue = pct;
     SR.srtResultLevelId = SR.piece?.gen ?? null;
-    const nextLevel = SR.srtResultLevelId ? rdLvNext(RD_LV[SR.srtResultLevelId]) : null;
-    const wasUnlocked = nextLevel ? rdUnlocked(nextLevel) : false;
     if (SR.piece?.gen)
         rdSightDone('assess', pct);
-    SR.srtResultUnlockId = nextLevel && !wasUnlocked && rdUnlocked(nextLevel) ? nextLevel.id : null;
     srRenderAssessResult();
     if (evaluated && generated && SR.srtState?.attemptId && SR.srtFingerprint && SR.srtOwnerTabId) {
         const attempt: SightReadingAttempt = {
@@ -7611,17 +7648,8 @@ function srAssessFinish() {
     }
     srPaintAll();
     srtRecorder = null;
-    if (!SR.piece)
-        throw new Error('Étude: no piece selected');
-    if (!SR.piece.ephemeral) {
-        const rec = data.sheet[SR.piece.id] || (data.sheet[SR.piece.id] = {});
-        if (!rec.best || pct > rec.best)
-            rec.best = pct;
-    }
     touchDay();
     saveAll();
-    srBest();
-    fillPieces();
 }
 function srRenderAssessResult() {
     const evaluated = SR.srtEvaluation;
@@ -7639,8 +7667,6 @@ function srRenderAssessResult() {
         ' · ' + t('rd_srt_summary', Math.round(evaluated.pitchF1 ?? 0), evaluated.TP, evaluated.N, evaluated.FP, Math.round(evaluated.rhythmAcc ?? 0), Math.round(evaluated.meanOffsetMs ?? 0));
     if (SR.wrongExtra)
         text += '  ·  ' + t('rd_extra', SR.wrongExtra);
-    if (SR.srtResultUnlockId && RD_LV[SR.srtResultUnlockId])
-        text += ' · 🔓 ' + t('rdx_unlocked', rdLvName(RD_LV[SR.srtResultUnlockId]));
     if (SR.srtState?.name === 'pendingSave')
         text += ' · ' + t('rd_srt_unsaved');
     v.textContent = text;
@@ -7765,25 +7791,19 @@ function srGo() {
         srAssessStart();
 }
 function srMeta() {
-    const p = SR.piece;
-    if (!p)
+    const p = SR.piece, titleEl = maybeById('rd-gen-title');
+    if (!p) {
+        byId('rd-meta').textContent = '';
+        if (titleEl)
+            titleEl.textContent = '';
         return;
+    }
     const n = p.keyN || 0;
     const keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n), key = pcName(keyPc, n < 0) + ' ' + (p.minor ? t('rd_min') : t('rd_maj'));
-    let metaText = '';
-    if (p.gen) {
-        metaText = t('rdx_sr_meta', key, p.bpm) + ' · ' + p.ts[0] + '/' + p.ts[1];
-    }
-    else if (p.ephemeral) {
-        const from = p.from;
-        if (!from)
-            throw new TypeError('Étude: excerpt piece has no source');
-        metaText = t('rd_excerpt_from', from.title) + ' · ' + from.bars + ' · ' + key + ' · ' + p.ts[0] + '/' + p.ts[1] + ' · ' + t('rd_excerpt_simpl');
-    }
-    else {
-        metaText = t('rd_level') + ' ' + p.level + ' · ' + rootName(keyPc) + ' ' + (p.minor ? t('rd_min') : t('rd_maj')) + ' · ' + p.ts[0] + '/' + p.ts[1] + (p.comp ? (' · ' + p.comp) : '');
-    }
+    const metaText = (p.gen ? t('rdx_sr_meta', key, p.bpm) : key) + ' · ' + p.ts[0] + '/' + p.ts[1];
     byId('rd-meta').textContent = metaText;
+    if (titleEl)
+        titleEl.textContent = srPieceTitle(p);
     const tEl = maybeById('rd-stage-title'), sEl = maybeById('rd-stage-sub');
     if (tEl)
         tEl.textContent = srPieceTitle(p);
@@ -7791,80 +7811,44 @@ function srMeta() {
         sEl.textContent = metaText;
 }
 function srPieceTitle(p: { t?: Localised<string>; }) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
-function srBest() { const rec = SR.piece && !SR.piece.ephemeral && data.sheet[SR.piece.id]; byId('rd-best').textContent = rec && rec.best ? (t('rd_best', rec.best) + (rec.learned ? ' · ✓ ' + t('rd_learned') : '')) : (rec && rec.learned ? ('✓ ' + t('rd_learned')) : ''); }
-function fillPieces() {
-    const sel = selectById('rd-piece');
-    if (!sel)
-        return;
-    const cur = sel.value;
-    sel.innerHTML = '';
-    if (SR.excerpt) {
-        const og = (document).createElement('optgroup');
-        og.label = t('rd_excerpt_group');
-        const o = (document).createElement('option');
-        o.value = SR.excerpt.id;
-        o.textContent = srPieceTitle(SR.excerpt);
-        og.appendChild(o);
-        sel.appendChild(og);
-    }
-    if (SR.gen) {
-        const og = (document).createElement('optgroup');
-        og.label = t('rdx_u_sr');
-        const o = (document).createElement('option');
-        o.value = SR.gen.id;
-        o.textContent = srPieceTitle(SR.gen);
-        og.appendChild(o);
-        sel.appendChild(og);
-    }
-    const lv: { [level: string]: (typeof PIECES)[number][]; } = {};
-    PIECES.forEach((p) => { (lv[p.level] = lv[p.level] || []).push(p); });
-    Object.keys(lv).sort().forEach((L) => {
-        const og = (document).createElement('optgroup');
-        og.label = t('rd_level') + ' ' + L;
-        lv[L].forEach((p) => {
-            const o = (document).createElement('option');
-            o.value = p.id;
-            const rec = data.sheet[p.id];
-            o.textContent = srPieceTitle(p) + (rec && rec.best ? (' · ' + rec.best + '%') : (rec && rec.learned ? ' · ✓' : ''));
-            og.appendChild(o);
-        });
-        sel.appendChild(og);
-    });
-    sel.value = (cur && (PIECES.some((p) => p.id === cur) || (SR.excerpt && SR.excerpt.id === cur) || (SR.gen && SR.gen.id === cur))) ? cur : PIECES[0].id;
+// Before the first melody the tab offers only the generator (and a way to the built-in pieces).
+function srEmptyUi() {
+    const none = !SR.piece;
+    buttonById('rd-go').disabled = none;
+    buttonById('rd-listen').disabled = none;
+    const empty = maybeById('rd-empty');
+    if (empty)
+        empty.hidden = !none;
 }
+// Shows the generated sight-reading melody (`id` is its id); a result waiting to be saved keeps the current one.
 function srSelectPiece(id: string) {
-    if (srtPendingSaveProtected()) {
-        const currentId = SR.piece?.id;
-        if (currentId)
-            selectById('rd-piece').value = currentId;
-        if (SR.srtState?.name === 'pendingSave') {
-            srtPendingSelection = id;
-            srtAbandonPendingSelection();
-        }
+    if (srtPendingSaveProtected() || !SR.gen || id !== SR.gen.id)
         return;
-    }
-    srtPendingSelection = null;
-    if (id === SR.gen?.id && !SR.srtPiece && RD.L && isRdSightLevel(RD.L)) {
+    if (!SR.srtPiece && RD.L && isRdSightLevel(RD.L)) {
         rdSightStart(SR.modeSel === 'assess' ? 'test' : 'practice');
         return;
     }
+    srShowPiece(SR.gen);
+}
+// Draws a piece in the engine: the generated melody, or a fixture piece loaded through the test surface.
+function srShowPiece(piece: SrPiece) {
+    if (srtPendingSaveProtected())
+        return;
     srStopAll(undefined, false, 'navigate');
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
     SR.srtResultLevelId = null;
-    SR.srtResultUnlockId = null;
-    SR.piece = (SR.excerpt && SR.excerpt.id === id ? SR.excerpt : null) || (SR.gen && SR.gen.id === id ? SR.gen : null) || PIECES.find((p) => p.id === id) || PIECES[0];
+    SR.piece = piece;
     if (!SR.gen) {
         SR.srtPiece = null;
         SR.srtFingerprint = null;
         SR.srtState = SRT_INITIAL_STATE;
         SR.srtPendingAttempt = null;
     }
-    SR.bpm = SR.piece.bpm;
-    selectById('rd-piece').value = SR.piece.id;
+    SR.bpm = piece.bpm;
     const bp = inputById('rd-bpm');
-    bp.value = String(SR.piece.bpm);
-    byId('rd-bpmLbl').textContent = String(SR.piece.bpm);
+    bp.value = String(piece.bpm);
+    byId('rd-bpmLbl').textContent = String(piece.bpm);
     const avail = srHandsAvail();
     [byId('rd-hands'), maybeById('rd-stage-hands')].forEach((container) => {
         if (!container)
@@ -7879,7 +7863,7 @@ function srSelectPiece(id: string) {
     const consumedForLearn = srtConsumeOnLearnReveal();
     srDraw();
     srMeta();
-    srBest();
+    srEmptyUi();
     byId('rd-verdict').textContent = '';
     srtNotice(null);
     if (!consumedForLearn && srtGeneratedSelected() && (SR.srtState?.mode === 'practice' || SR.srtState?.name === 'abandoned' || SR.srtState?.name === 'interrupted')) {
@@ -7890,18 +7874,14 @@ function srSelectPiece(id: string) {
             byId('rd-verdict').textContent = message;
         }
     }
-    if (!SR.piece)
-        throw new Error('Étude: no piece selected');
-    if (SR.piece.ephemeral && typeof rdTab === 'function')
-        rdTab('pieces');
 }
-function renderRead() { fillPieces(); if (!SR.piece)
-    srSelectPiece(selectById('rd-piece').value);
-else {
-    srDraw();
+function renderRead() {
+    if (SR.piece)
+        srDraw();
     srMeta();
-    srBest();
-} rdRender(); }
+    srEmptyUi();
+    rdRender();
+}
 /* ============================================================================
    READING DRILLS (V3) — a structured, CMRT-style reading curriculum:
    note naming / playing, key→staff, intervals, chords, key signatures, rhythm,
@@ -7956,7 +7936,7 @@ function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min
 function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
 function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
-interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; after?: string; }
+interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
 interface ReadDrillLevel extends ReadDrillLevelSpec { u: string; n: number; id: string; custom?: boolean; }
 interface ReadDrillUnit { u: string; icon: string; lv: ReadDrillLevel[]; }
 const RD_UNITS: ReadDrillUnit[] = [], RD_LV: { [levelId: string]: ReadDrillLevel; } = {};
@@ -8044,9 +8024,8 @@ rdU('sr', '👁', [
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 68 },
     { ty: 'sr', clef: 'grand', lo: 'C3', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 64 },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 },
-    // Rhythm levels (P4): five-finger C position, new note values one level at a time. They open after the rests level (sr4),
-    // not after the polyphonic levels before them in the list.
-    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths', after: 'sr4' },
+    // Rhythm levels (P4): five-finger C position, new note values one level at a time.
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths' },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 72, tag: 'dotted' },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 66, tag: 'sync' }
 ]);
@@ -8142,27 +8121,34 @@ function rdSvg(o: ReadDrillSvgOptions) {
     return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0, H };
 }
 /* ---- drill engine ---- */
-const RD_TESTN = 20, RD_RUSH = 60;
-type ReadDrillMode = 'practice' | 'test' | 'rush' | SightReadingArcadeMode;
-const RD_MODES: readonly string[] = ['practice', 'test', 'rush', 'survival', 'timeAttack', 'marathon'];
+// Practice's star check: the last RD_CHECK_N answers of the run.
+const RD_CHECK_N = 20;
+// 'test' is the graded run of rhythm and sight-reading levels; the other levels earn their stars in Practice.
+type ReadDrillMode = 'practice' | 'test' | SightReadingArcadeMode;
+const RD_MODES: readonly string[] = ['practice', 'test', 'survival', 'timeAttack', 'marathon'];
 function isReadDrillMode(mode: string): mode is ReadDrillMode { return RD_MODES.includes(mode); }
-const RD_MODE_ICON: Record<ReadDrillMode, string> = { practice: '🎯', test: '📝', rush: '⚡', survival: '♥', timeAttack: '⏱', marathon: '🏃' };
+const RD_MODE_ICON: Record<ReadDrillMode, string> = { practice: '🎯', test: '📝', survival: '♥', timeAttack: '⏱', marathon: '🏃' };
 // arc: the arcade run (Survival, Time Attack, Marathon); bars: the Marathon length last chosen; limT: Survival's per-note time limit;
 // tout: the last answer was a timeout; arcFx: what the last answer earned (a Time Attack bonus or a faster Survival pace); limF: Survival's time bar when the note was answered.
-interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; arc: SightReadingArcadeState | null; bars: SightReadingMarathonBars; limT?: ReturnType<typeof setTimeout>; tout: boolean; arcFx: '' | 'bonus' | 'faster'; limF: number; }
-const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false, arc: null, bars: 16, tout: false, arcFx: '', limF: 1 };
-// Rhythm and sight-reading levels keep Practice and Test; Marathon reads one long line of notes, so only naming and playing levels have it.
+// chk: Practice's star check, the last RD_CHECK_N first answers (a hinted one counts as wrong); chkBest: the best stars it gave this run, null until it is full;
+// chkNew: stars just earned, still to announce; awT: hides the "earned" notice.
+interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; arc: SightReadingArcadeState | null; bars: SightReadingMarathonBars; limT?: ReturnType<typeof setTimeout>; tout: boolean; arcFx: '' | 'bonus' | 'faster'; limF: number; chk: { ok: boolean; ms: number; }[]; chkBest: number | null; chkNew: number; awT?: ReturnType<typeof setTimeout>; }
+const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false, arc: null, bars: 16, tout: false, arcFx: '', limF: 1, chk: [], chkBest: null, chkNew: 0 };
+// Rhythm and sight-reading levels keep Practice and their graded run; the others have Practice and the Challenge modes.
+// Marathon reads one long line of notes, so only naming and playing levels have it.
 function rdModes(L: ReadDrillLevel): ReadDrillMode[] {
-    if (L.ty === 'rh' || L.ty === 'sr')
+    if (!rdHasCheck(L))
         return ['practice', 'test'];
-    const modes: ReadDrillMode[] = ['practice', 'test', 'rush', 'survival', 'timeAttack'];
+    const modes: ReadDrillMode[] = ['practice', 'timeAttack', 'survival'];
     if (L.ty === 'name' || L.ty === 'play')
         modes.push('marathon');
     return modes;
 }
-// How many notes the run has (Test and Marathon), or null when it ends another way.
-function rdRunLen(): number | null { return RD.mode === 'test' ? RD_TESTN : RD.arc && RD.arc.total !== null ? RD.arc.total : null; }
-function rdTimeUp() { return (RD.mode === 'rush' || RD.mode === 'timeAttack') && performance.now() >= RD.rushEnd; }
+// Levels whose Practice runs the star check: all but rhythm and sight-reading, which earn stars in their graded run.
+function rdHasCheck(L: ReadDrillLevel | null) { return !!L && L.ty !== 'rh' && L.ty !== 'sr'; }
+// How many notes the run has (Marathon), or null when it ends another way.
+function rdRunLen(): number | null { return RD.arc && RD.arc.total !== null ? RD.arc.total : null; }
+function rdTimeUp() { return RD.mode === 'timeAttack' && performance.now() >= RD.rushEnd; }
 // Survival: a note still unanswered when its time window closes costs a life.
 function rdArmLimit() {
     clearTimeout(RD.limT);
@@ -8175,12 +8161,7 @@ function rdArmLimit() {
 }
 function rdArcFx() { return RD.arcFx === 'bonus' ? t('rdx_ta_bonus') : RD.arcFx === 'faster' && RD.arc ? t('rdx_sv_faster', anNum(RD.arc.targetMs / 1000, 1)) : ''; }
 function rdClock(ms: number) { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-// The level that unlocks L: the one before it in its unit, unless L names another (`after`).
-function rdLvPrev(L: ReadDrillLevel) { if (L.after)
-    return RD_LV[L.after] || null; const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
 function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
-function rdUnlocked(L: ReadDrillLevel | null | undefined) { if (!L)
-    return false; const p = rdLvPrev(L); return !p || (rdData().lv[p.id]?.s || 0) >= 1; }
 function rdTarget(L: ReadDrillLevel | null) { if (!L)
     throw new Error('Étude: no reading level'); return (RD_TARGET[L.ty] || 3000) + ((L.clef === 'grand' || L.clef === 'mix') ? 800 : 0) + ((L.acc || L.keys) ? 1000 : 0); }
 function rdStat(k: string, ok: boolean, ms: number) {
@@ -8207,27 +8188,12 @@ function rdWeakItems<T>(items: T[], keyOf: (x: T) => string) {
 function rdPick<T>(items: T[]) {
     return items[Math.floor(Math.random() * items.length)];
 }
-// In test mode the bag holds shuffled indices into items; the same signature means the same keys in the same order.
 function rdPickFrom<T>(items: T[], keyOf: (x: T) => string) {
-    let r: T;
-    if (RD.mode === 'test') {
-        const sig = items.map((x) => keyOf(x)).join('|');
-        if (RD.bagSig !== sig || !RD.bag.length) {
-            RD.bagSig = sig;
-            RD.bag = rdShuffle(items.map((_, j) => j));
-        }
-        let i = RD.bag.findIndex((j) => keyOf(items[j]) !== RD.lastK);
-        if (i < 0)
-            i = 0;
-        r = items[RD.bag.splice(i, 1)[0]];
-    }
-    else {
-        let pool = items.filter((item) => keyOf(item) !== RD.lastK);
-        if (!pool.length)
-            pool = items;
-        const weak = (RD.mode === 'practice' || RD.mode === 'survival' || RD.mode === 'marathon') && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
-        r = rdPick(weak.length ? weak : pool);
-    }
+    let pool = items.filter((item) => keyOf(item) !== RD.lastK);
+    if (!pool.length)
+        pool = items;
+    const weak = (RD.mode === 'practice' || RD.mode === 'survival' || RD.mode === 'marathon') && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
+    const r = rdPick(weak.length ? weak : pool);
     RD.lastK = keyOf(r);
     return r;
 }
@@ -8616,8 +8582,11 @@ function rdFlowAnswer(ok: boolean, g: ReadDrillGiven, timeout = false) {
         rdScore(q, ok, timeout);
         q.state = ok ? 'good' : 'bad';
     }
-    if (ok)
-        return rdFlowAdvance(g);
+    if (ok) {
+        rdFlowAdvance(g);
+        rdCheckNotice();
+        return;
+    }
     RD.fix = true;
     if (q.ty === 'play' && g.midi != null)
         F.played = g.midi;
@@ -8631,6 +8600,7 @@ function rdFlowAnswer(ok: boolean, g: ReadDrillGiven, timeout = false) {
     sv.classList.add('flash-bad');
     byId('rdx-live').textContent = rdFlowMsg();
     rdHud();
+    rdCheckNotice();
     // A run that this mistake ended (no lives left, or the last Marathon note) closes after a moment to read the answer.
     if (RD.arc && RD.arc.completed)
         RD.timers.push(setTimeout(() => { if (RD.on)
@@ -8653,7 +8623,7 @@ function rdFlowAdvance(g: ReadDrillGiven) {
         rdFlowShow(false);
         rdHud();
         RD.timers.push(setTimeout(() => { if (RD.on)
-            rdFinish(); }, RD.mode === 'rush' || RD.mode === 'timeAttack' ? 0 : 400));
+            rdFinish(); }, RD.mode === 'timeAttack' ? 0 : 400));
         return;
     }
     rdFlowFill(F, F.cur + 1);
@@ -8801,6 +8771,8 @@ function rdScore(q: ReadQuestion, ok: boolean, timeout = false) {
             tt.ok++;
         tt.ms += ms;
     }
+    if (RD.mode === 'practice' && rdHasCheck(RD.L))
+        rdCheck(!q.hinted && ok, ms);
     RD.arcFx = '';
     const prev = RD.arc;
     if (!prev)
@@ -8836,12 +8808,77 @@ function rdAnswer(ok: boolean, given?: ReadDrillGiven, timeout = false) {
     rdScore(q, ok, timeout);
     rdFeedback(ok, given || {});
     rdHud();
-    const done = (RD.mode === 'test' && RD.n >= RD_TESTN) || !!(RD.arc && RD.arc.completed);
+    rdCheckNotice();
+    const done = !!(RD.arc && RD.arc.completed);
     RD.timers.push(setTimeout(() => { if (!RD.on)
         return; if (done || rdTimeUp())
         rdFinish();
     else
-        rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'rush' || RD.mode === 'timeAttack' ? 800 : 1500)));
+        rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'timeAttack' ? 800 : 1500)));
+}
+// The star check's thresholds: accuracy first, then the mean answer time against the level's target.
+function rdStarsFor(acc: number, avg: number, tg: number) { return acc >= 95 && avg <= tg ? 3 : acc >= 90 && avg <= tg * 1.6 ? 2 : acc >= 80 ? 1 : 0; }
+function rdCheckResult() {
+    const w = RD.chk, n = w.length, acc = n ? Math.round(100 * w.filter((x) => x.ok).length / n) : 0, avg = n ? w.reduce((a, x) => a + x.ms, 0) / n : 0;
+    return { acc, avg, stars: RD.L ? rdStarsFor(acc, avg, rdTarget(RD.L)) : 0 };
+}
+// Adds a first answer to the star check. Once it holds RD_CHECK_N answers, a result better than the level's saved one is saved on the spot.
+function rdCheck(ok: boolean, ms: number) {
+    const L = RD.L;
+    if (!L)
+        return;
+    RD.chk.push({ ok, ms });
+    if (RD.chk.length > RD_CHECK_N)
+        RD.chk.shift();
+    if (RD.chk.length < RD_CHECK_N)
+        return;
+    const r = rdCheckResult(), was = RD.chkBest;
+    RD.chkBest = Math.max(was ?? 0, r.stars);
+    if (L.custom) {
+        if (r.stars > (was ?? 0))
+            RD.chkNew = r.stars;
+        return;
+    }
+    const d = rdData(), rec = d.lv[L.id] ?? { s: 0, acc: 0, t: 0, n: 0, rush: 0 };
+    let save = false;
+    if (r.stars > (rec.s || 0)) {
+        rec.s = r.stars;
+        RD.chkNew = r.stars;
+        save = true;
+    }
+    if (r.acc > (rec.acc || 0)) {
+        rec.acc = r.acc;
+        save = true;
+    }
+    if (r.avg && r.acc >= 80 && (!rec.t || r.avg < rec.t)) {
+        rec.t = Math.round(r.avg);
+        save = true;
+    }
+    if (save) {
+        d.lv[L.id] = rec;
+        saveAll();
+    }
+}
+// Announces stars the check just earned, without stopping the drill.
+function rdCheckNotice() {
+    const s = RD.chkNew, aw = maybeById('rdx-award');
+    if (!s)
+        return;
+    RD.chkNew = 0;
+    byId('rdx-live').textContent = t('rdx_chk_live', t('rdx_stars_n', s));
+    if (!aw)
+        return;
+    aw.textContent = t('rdx_chk_earned', '★'.repeat(s));
+    aw.hidden = false;
+    clearTimeout(RD.awT);
+    RD.awT = setTimeout(() => { aw.hidden = true; }, 3000);
+}
+function rdCheckHud() {
+    const n = RD.chk.length;
+    if (n < RD_CHECK_N)
+        return t('rdx_chk_n', n, RD_CHECK_N);
+    const s = rdCheckResult().stars;
+    return t('rdx_chk_s', '★'.repeat(s) + '☆'.repeat(3 - s));
 }
 function rdFeedback(ok: boolean, g: ReadDrillGiven) {
     const q = RD.q;
@@ -8930,15 +8967,6 @@ function rdHud() {
         if (RD.mode === 'test')
             f = n / 4;
     }
-    else if (RD.mode === 'test') {
-        s = t('rdx_hud_q', Math.min(RD_TESTN, RD.n + (RD.answered ? 0 : 1)), RD_TESTN) + ' · ✓ ' + RD.ok;
-        f = RD.n / RD_TESTN;
-    }
-    else if (RD.mode === 'rush') {
-        const left = Math.max(0, Math.ceil((RD.rushEnd - performance.now()) / 1000));
-        s = '⏱ ' + left + 's · ✓ ' + RD.ok;
-        f = left / RD_RUSH;
-    }
     else if (RD.arc) {
         const arc = RD.arc, now = performance.now(), parts: string[] = [];
         if (arc.mode === 'survival') {
@@ -8961,8 +8989,11 @@ function rdHud() {
             parts.push('🔥 ' + arc.combo);
         s = parts.join(' · ');
     }
-    else
+    else {
         s = '✓ ' + RD.ok + '/' + RD.n + (RD.streak >= 2 ? ' · 🔥 ' + RD.streak : '');
+        if (RD.mode === 'practice' && rdHasCheck(RD.L))
+            s += ' · ' + rdCheckHud();
+    }
     if (RD.flow && RD.flow.gh)
         s += ' · 👻 ' + formatLead(RD.flow.gd);
     h.textContent = s;
@@ -9563,7 +9594,6 @@ function rdSightStart(mode: string, injectedSeed?: number) {
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
     SR.srtResultLevelId = null;
-    SR.srtResultUnlockId = null;
     srtPreviewUi(false);
     srtPendingUi(false);
     srtNotice(null);
@@ -9571,7 +9601,6 @@ function rdSightStart(mode: string, injectedSeed?: number) {
     SR.gen = srtLegacyPiece(srtPiece, L);
     RD.on = false;
     rdTab('pieces');
-    fillPieces();
     SR.modeSel = mode === 'test' ? 'assess' : 'learn';
     [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
     srSelectPiece('gen');
@@ -9594,12 +9623,12 @@ function rdSightDone(kind: string, val: number) {
         return '';
     const steps = SR.steps.length || 1, acc = kind === 'assess' ? val : Math.max(0, Math.round(100 * (1 - val / steps)));
     const stars = kind === 'assess' ? (val >= 95 ? 3 : val >= 80 ? 2 : val >= 60 ? 1 : 0) : (val === 0 ? 2 : val <= Math.max(1, steps * 0.15) ? 1 : 0);
-    const d = rdData(), nx = rdLvNext(L), was = rdUnlocked(nx), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
+    const d = rdData(), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
     rec.n++;
     rec.s = Math.max(rec.s, stars);
     rec.acc = Math.max(rec.acc, acc);
     d.tot.sess++;
-    return (kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars)) + (nx && !was && rdUnlocked(nx) ? ' · 🔓 ' + t('rdx_unlocked', rdLvName(nx)) : '');
+    return kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars);
 }
 /* ---- sessions: intro → questions → summary ---- */
 function rdLvName(L: ReadDrillLevel) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
@@ -9682,18 +9711,93 @@ function rdIntro() {
         const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
         prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
     }
-    const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}${r.sv ? `<span>♥ ${t('rdx_best_sv', anNum(r.sv, 0))}</span>` : ''}${r.ta ? `<span>⏱ ${t('rdx_best_ta', anNum(r.ta, 0))}</span>` : ''}${r.mn ? `<span>🏃 ${t('rdx_best_mn', r.mn)}</span>` : ''}</div>`;
-    const sfx = (L.ty === 'rh' || L.ty === 'sr') ? '_' + L.ty : '';
-    // Marathon is a group with one button per length; the other modes are a single button each.
-    const card = (m: ReadDrillMode) => m === 'marathon'
-        ? `<div class="rdx-mode rdx-mode-grp" role="group" aria-labelledby="rdx-m-marathon"><b id="rdx-m-marathon">${ic[m]} ${t('rdx_m_marathon')}</b><span>${t('rdx_md_marathon')}</span><div class="rdx-bars"><span>${t('rdx_bars')}</span>${[16, 32, 64].map((n) => `<button class="chip" data-mode="marathon" data-bars="${n}" aria-label="${rdEsc(t('rdx_m_marathon') + ', ' + t('rdx_bars') + ' ' + n)}">${n}</button>`).join('')}</div></div>`
-        : `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
-    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${modes.map(card).join('')}</div></div>`;
+    const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}</div>`;
+    const sfx = rdHasCheck(L) ? '' : '_' + L.ty;
+    const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
+    // Each Challenge mode shows its record; Marathon is a group with one item per length.
+    const best = (m: ReadDrillMode) => { const b = m === 'timeAttack' ? (r.ta ? t('rdx_best_ta', anNum(r.ta, 0)) : '') : m === 'survival' ? (r.sv ? t('rdx_best_sv', anNum(r.sv, 0)) : '') : r.mn ? t('rdx_best_mn', r.mn) : ''; return b ? `<em>🏆 ${rdEsc(b)}</em>` : ''; };
+    const item = (m: ReadDrillMode) => m === 'marathon'
+        ? `<div class="rdx-chal-grp" role="group" aria-labelledby="rdx-m-marathon"><b id="rdx-m-marathon">${ic[m]} ${t('rdx_m_marathon')}</b><span>${t('rdx_md_marathon')}</span>${best(m)}<div class="rdx-bars"><span aria-hidden="true">${t('rdx_bars')}</span>${[16, 32, 64].map((n) => `<button type="button" class="chip" role="menuitem" tabindex="-1" data-mode="marathon" data-bars="${n}" aria-label="${rdEsc(t('rdx_m_marathon') + ', ' + t('rdx_bars') + ' ' + n)}">${n}</button>`).join('')}</div></div>`
+        : `<button type="button" class="rdx-chal-it" role="menuitem" tabindex="-1" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m)}</span>${best(m)}</button>`;
+    const chal = modes.filter((m) => m !== 'practice');
+    // Practice first; then the Challenge menu, or the graded run for rhythm and sight-reading levels.
+    const more = rdHasCheck(L)
+        ? `<button type="button" class="rdx-mode rdx-chal-btn" id="rdx-chal" aria-haspopup="menu" aria-expanded="false" aria-controls="rdx-chal-menu"><b>🏁 ${t('rdx_challenge')} <i aria-hidden="true">▾</i></b><span>${rdEsc(chal.map((m) => t('rdx_m_' + m)).join(' · '))}</span></button><div class="rdx-chal-menu" id="rdx-chal-menu" role="menu" aria-labelledby="rdx-chal" hidden>${chal.map(item).join('')}</div>`
+        : card('test', '');
+    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${card('practice', ' rdx-mode-main')}${more}</div></div>`;
     rdCoach(true);
 }
-function rdStart(mode: string, bars?: number) {
+function rdChalItems() { return queryAllHtml(document, '#rdx-chal-menu [role=menuitem]'); }
+// Opens or closes the Challenge menu; on opening, focus goes to its first or last item.
+function rdChalOpen(open: boolean, focus?: 'first' | 'last') {
+    const b = maybeById('rdx-chal'), m = maybeById('rdx-chal-menu');
+    if (!b || !m)
+        return;
+    m.hidden = !open;
+    b.setAttribute('aria-expanded', String(open));
+    const it = rdChalItems();
+    if (open && focus && it.length)
+        it[focus === 'last' ? it.length - 1 : 0].focus({ preventScroll: true });
+    // The menu opens below the button; the page scrolls so the keyboard dock and the bottom bar do not cover it.
+    if (open) {
+        const tops = [maybeById('dock'), maybeById('bottomNav')].flatMap((el) => { const r = el?.getBoundingClientRect(); return r && r.height > 0 && r.top < innerHeight ? [r.top] : []; });
+        const over = m.getBoundingClientRect().bottom + 8 - Math.min(innerHeight, ...tops);
+        if (over > 0)
+            window.scrollBy(0, over);
+    }
+}
+// Arrow keys move through the Challenge menu, Home and End jump to its ends, Esc closes it and Tab leaves it.
+function rdChalKey(e: KeyboardEvent) {
+    const tg = eventElement(e), b = maybeById('rdx-chal');
+    if (!tg || !b)
+        return;
+    const open = b.getAttribute('aria-expanded') === 'true';
+    if (tg === b) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            rdChalOpen(true, e.key === 'ArrowUp' ? 'last' : 'first');
+        }
+        else if (e.key === 'Escape' && open) {
+            e.preventDefault();
+            e.stopPropagation();
+            rdChalOpen(false);
+        }
+        return;
+    }
+    if (!tg.closest('#rdx-chal-menu'))
+        return;
+    const it = rdChalItems(), i = tg instanceof HTMLElement ? it.indexOf(tg) : -1;
+    let n: HTMLElement | undefined;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight')
+        n = it[(i + 1) % it.length];
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft')
+        n = it[(i - 1 + it.length) % it.length];
+    else if (e.key === 'Home')
+        n = it[0];
+    else if (e.key === 'End')
+        n = it[it.length - 1];
+    else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        rdChalOpen(false);
+        b.focus();
+    }
+    else if (e.key === 'Tab')
+        rdChalOpen(false);
+    if (n) {
+        e.preventDefault();
+        e.stopPropagation();
+        n.focus();
+    }
+}
+function rdStart(mode0: string, bars?: number) {
     const L = RD.L;
-    if (!L || !isReadDrillMode(mode) || !rdModes(L).includes(mode))
+    if (!L)
+        return;
+    // Test and Note rush of older versions open Practice, where the star check now gives the stars.
+    const mode = isReadDrillMode(mode0) && rdModes(L).includes(mode0) ? mode0 : mode0 === 'test' || mode0 === 'rush' ? 'practice' : null;
+    if (!mode)
         return;
     ensureAudio();
     if (L.ty === 'sr') {
@@ -9704,17 +9808,15 @@ function rdStart(mode: string, bars?: number) {
         RD.bars = bars;
     rdClear();
     const now = performance.now();
-    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false, arc: srtIsArcadeMode(mode) ? srtArcadeStart(mode, now, { targetMs: rdTarget(L), marathonBars: RD.bars }) : null, tout: false, arcFx: '', limF: 1 });
+    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false, arc: srtIsArcadeMode(mode) ? srtArcadeStart(mode, now, { targetMs: rdTarget(L), marathonBars: RD.bars }) : null, tout: false, arcFx: '', limF: 1, chk: [], chkBest: null, chkNew: 0 });
     stageSync();
     rdCoach(true);
     const e = byId('rdx-end');
     e.hidden = false;
     e.textContent = t(mode === 'practice' ? 'rdx_end' : 'rdx_quit');
-    if (mode === 'rush')
-        RD.rushEnd = now + RD_RUSH * 1000;
     if (RD.arc && RD.arc.deadlineMs !== null)
         RD.rushEnd = RD.arc.deadlineMs;
-    if (mode === 'rush' || mode === 'timeAttack' || mode === 'survival')
+    if (mode === 'timeAttack' || mode === 'survival')
         RD.rushIv = window.setInterval(() => { if (!RD.on)
             return; rdHud(); if (rdTimeUp() && (!RD.answered || RD.fix))
             rdFinish(); }, 250);
@@ -9730,6 +9832,10 @@ function rdClear() {
     RD.timers = [];
     clearTimeout(RD.hintT);
     clearTimeout(RD.limT);
+    clearTimeout(RD.awT);
+    const aw = maybeById('rdx-award');
+    if (aw)
+        aw.hidden = true;
     clearInterval(RD.rushIv);
     RD.rushIv = 0;
     if (RD.flow)
@@ -9821,9 +9927,10 @@ function rdFinish() {
     byId('rdx-end').hidden = true;
     byId('rdx-meter').hidden = true;
     let acc = 0, avg = 0, stars = 0;
-    const score = RD.ok;
     if (!L)
         return;
+    // Practice shows the best stars its check gave this run, once it was full.
+    const chk = mode === 'practice' && rdHasCheck(L), shown = mode === 'test' || (chk && RD.chkBest !== null);
     const arc = RD.arc && (RD.arc = srtArcadeComplete(RD.arc, now)), sum = arc && srtArcadeSummary(arc, now);
     const npm = sum ? Math.round(sum.notesPerMinute ?? 0) : 0;
     if (L.ty === 'rh') {
@@ -9835,15 +9942,14 @@ function rdFinish() {
         acc = RD.n ? Math.round(100 * RD.ok / RD.n) : 0;
         // Arcade runs time only the right answers: a timeout is not a reading speed.
         avg = sum ? sum.averageReactionMs ?? 0 : RD.n ? RD.ms / RD.n : 0;
-        const tg = rdTarget(L);
-        if (mode === 'test')
-            stars = acc >= 95 && avg <= tg ? 3 : acc >= 90 && avg <= tg * 1.6 ? 2 : acc >= 80 ? 1 : 0;
+        if (chk)
+            stars = RD.chkBest ?? 0;
     }
     const d = rdData();
     d.tot.sess++;
-    let unl: ReadDrillLevel | null = null, newBest = false;
+    let newBest = false;
     if (!L.custom) {
-        const nx = rdLvNext(L), was = rdUnlocked(nx), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
+        const rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
         rec.n++;
         if (mode === 'test') {
             rec.s = Math.max(rec.s || 0, stars);
@@ -9851,17 +9957,11 @@ function rdFinish() {
             if (avg && acc >= 80 && (!rec.t || avg < rec.t))
                 rec.t = Math.round(avg);
         }
-        if (mode === 'rush') {
-            newBest = score > (rec.rush || 0);
-            rec.rush = Math.max(rec.rush || 0, score);
-        }
         if (sum) {
             const k = sum.mode === 'survival' ? 'sv' : sum.mode === 'timeAttack' ? 'ta' : 'mn', v = k === 'mn' ? npm : sum.score;
             newBest = v > (rec[k] || 0);
             rec[k] = Math.max(rec[k] || 0, v);
         }
-        if (nx && !was && rdUnlocked(nx))
-            unl = nx;
     }
     touchDay();
     saveAll();
@@ -9871,20 +9971,20 @@ function rdFinish() {
         : sum && sum.mode === 'survival' ? [[pts, t('rdx_st_score')], [rdClock(sum.elapsedMs), t('rdx_st_survived')], [sum.correct, t('rdx_st_rush')], [avgS, t('rdx_st_time')]]
             : sum && sum.mode === 'timeAttack' ? [[pts, t('rdx_st_score')], [sum.correct, t('rdx_st_rush')], [acc + '%', t('rdx_st_acc')], [sum.bestCombo, t('rdx_st_streak')]]
                 : sum ? [[rdClock(sum.elapsedMs), t('rdx_st_total')], [acc + '%', t('rdx_st_acc')], [npm, t('rdx_st_npm')], [pts, t('rdx_st_score')]]
-                    : [[acc + '%', t('rdx_st_acc')], [avgS, t('rdx_st_time')], [mode === 'rush' ? score : RD.best, mode === 'rush' ? t('rdx_st_rush') : t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
+                    : [[acc + '%', t('rdx_st_acc')], [avgS, t('rdx_st_time')], [RD.best, t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
     const best = newBest ? ' · 🏆 ' + t('rdx_newbest') : '';
-    const head = mode === 'test' ? `<div class="rdx-sum-stars">${rdStars(stars)}</div><p class="rdx-sum-msg">${t(stars === 3 ? 'rdx_s3' : stars === 2 ? 'rdx_s2' : stars === 1 ? 'rdx_s1' : 'rdx_s0')}</p>`
-        : mode === 'rush' ? `<p class="rdx-sum-msg">⚡ ${t('rdx_rush_score', score)}${best}</p>`
+    const head = shown ? `<div class="rdx-sum-stars">${rdStars(stars)}</div><p class="rdx-sum-msg">${t(stars === 3 ? 'rdx_s3' : stars === 2 ? 'rdx_s2' : stars === 1 ? 'rdx_s1' : 'rdx_s0')}</p>`
+        : chk ? `<p class="rdx-sum-msg">${t('rdx_chk_wait', RD.chk.length, RD_CHECK_N)}</p>`
             : sum ? `<p class="rdx-sum-msg">${RD_MODE_ICON[mode]} ${sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)}${best}</p>` : `<p class="rdx-sum-msg">${t('rdx_sum_practice')}</p>`;
     const nx = rdLvNext(L);
     RD.next = rdNextStep(L, mode, acc, avg, stars, weak);
     rdCoach(false);
-    byId('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}${unl ? `<p class="rdx-unl">🔓 ${t('rdx_unlocked', rdEsc(rdLvName(unl)))}</p>` : ''}
+    byId('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}
     <div class="rdx-tiles">${tiles.map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
     ${(RD).next ? `<div class="coach rdx-coach" id="rdx-next" data-kind="next">${coachHTML(t('coach_next'), (RD).next, 'rdx-next-act')}</div>` : ''}
-    <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!(L)?.custom && nx && rdUnlocked(nx) ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
-    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + (sum ? ' · ' + (sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
+    <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!L.custom && nx ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
+    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (shown ? ' · ' + t('rdx_stars_n', stars) : '') + (sum ? ' · ' + (sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
     byId('rdx-hud').textContent = '';
     byId('rdx-meter').hidden = true;
     const s = maybeById('rdx-sum');
@@ -9894,9 +9994,9 @@ function rdFinish() {
 /* ---- home: progress hero, level ladder, custom drill ---- */
 function rdSuggest() {
     const d = rdData(), last = RD_LV[d.prefs.last ?? ''];
-    if (last && rdUnlocked(last) && ((d.lv[last.id] || {}).s || 0) < 2)
+    if (last && ((d.lv[last.id] || {}).s || 0) < 2)
         return last;
-    return RD_ALL.find((L) => rdUnlocked(L) && !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
+    return RD_ALL.find((L) => !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
 }
 function rdRenderHome() {
     const d = rdData(), tot = d.tot, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0), cont = rdSuggest();
@@ -9907,8 +10007,8 @@ function rdRenderHome() {
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
-            const r = d.lv[L.id] || {}, ok = rdUnlocked(L), s = r.s || 0;
-            return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}"${ok ? '' : ' aria-disabled="true"'} title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (ok ? '' : ' — ' + t('rdx_locked')) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${ok ? L.n : '🔒'}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
+            const r = d.lv[L.id] || {}, s = r.s || 0;
+            return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}" title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${L.n}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
         }).join('')}</div></section>`;
     }).join('');
     rdCustomFill();
@@ -9959,7 +10059,7 @@ function rdCustomGo() {
     }
     rdOpen(L);
 }
-/* ---- statistics: per-note heatmap on the staff, skills, weakest items ---- */
+/* ---- statistics, shown in Progress under Reading: per-note heatmap on the staff, skills, weakest items ---- */
 function rdAgg(c: string, li: number, oct: number) {
     let n = 0, ok = 0, ms = 0;
     const re = /^([tban]):([A-G])([#b]?)(\d)$/;
@@ -9986,6 +10086,9 @@ function rdHeat(clef: 'treble' | 'bass' | 'alto' | 'tenor', lo: string, hi: stri
 }
 function rdBars(rows: readonly { l: string; n: number; ok: number; }[]) { return rows.map((r) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + r.n + '×' : '—'}</em></div>`).join(''); }
 function rdRenderStats() {
+    const box = maybeById('rdx-stats');
+    if (!box)
+        return;
     const d = rdData(), tot = d.tot, nt = d.nt, g = (k: string) => nt[k] || { n: 0, ok: 0 };
     const lvDone = RD_ALL.filter((L) => ((d.lv[L.id] || {}).s || 0) > 0).length, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0);
     const weak = Object.entries(nt).filter(([k, s]) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
@@ -9995,7 +10098,7 @@ function rdRenderStats() {
             ks.push({ l: rdKeyLabel(k), ...g('ks:' + k) });
     const rh = (RD_UNITS.find((u) => u.u === 'rh')?.lv ?? []).filter((L: ReadDrillLevel) => g('rh:' + L.id).n).map((L: ReadDrillLevel) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
     const extra = (['alto', 'tenor'] as const).filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
-    byId('rdx-stats').innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+    box.innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     <div class="panel rdx-stat-p"><h3>${t('rdx_heat')}</h3><p class="rdx-desc">${t('rdx_heat_d')}</p>
       <div class="rdx-staff rdx-heat">${rdHeat('treble', 'A3', 'C6')}</div><div class="rdx-staff rdx-heat">${rdHeat('bass', 'C2', 'E4')}</div>
       ${extra.map((c) => `<div class="rdx-staff rdx-heat">${rdHeat(c, c === 'alto' ? 'C3' : 'A2', c === 'alto' ? 'D5' : 'B4')}</div>`).join('')}</div>
@@ -10008,7 +10111,8 @@ function rdRenderStats() {
 }
 /* ---- tabs, wiring, locale ---- */
 function rdTab(tab: string|undefined) {
-    if (tab === undefined || !['drills', 'pieces', 'stats'].includes(tab))
+    // A saved tab that no longer exists (the old Statistics tab, now in Progress) opens the drills.
+    if (tab === undefined || !['drills', 'pieces'].includes(tab))
         tab = 'drills';
     if (tab !== 'pieces' && srtPendingSaveProtected()) {
         if (SR.srtState?.name === 'pendingSave') {
@@ -10021,7 +10125,7 @@ function rdTab(tab: string|undefined) {
     }
     rdData().prefs.tab = tab;
     queryAllHtml(document, '#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
-    ['drills', 'pieces', 'stats'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
+    ['drills', 'pieces'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
         p.hidden = x !== tab; });
     if (tab !== 'drills' && RD.on) {
         rdAbort();
@@ -10029,9 +10133,7 @@ function rdTab(tab: string|undefined) {
     }
     if (tab !== 'pieces')
         srStopAll(true, false, 'navigate');
-    if (tab === 'stats')
-        rdRenderStats();
-    else if (tab === 'drills' && byId('rdx-stage').hidden)
+    if (tab === 'drills' && byId('rdx-stage').hidden)
         rdRenderHome();
     stageSync();
 }
@@ -10094,9 +10196,7 @@ function rdOnLocale() {
     }
     if (SR.gen) {
         SR.gen.t = { en: tl('en', 'rdx_sr_title', SR.gen.level), ro: tl('ro', 'rdx_sr_title', SR.gen.level) };
-        fillPieces();
-        if (SR.piece)
-            selectById('rd-piece').value = SR.piece.id;
+        srMeta();
     }
     if (!byId('rdx-stage').hidden && RD.L) {
         byId('rdx-title').textContent = rdLvName(RD.L);
@@ -10145,14 +10245,12 @@ function rdOnLocale() {
             const L = RD_LV[lv.dataset.lv ?? ''];
             if (!L)
                 return;
-            if (lv.getAttribute('aria-disabled') === 'true') {
-                byId('rdx-live').textContent = t('rdx_locked_msg');
-                lv.classList.remove('shake');
-                void lv.offsetWidth;
-                lv.classList.add('shake');
-                return;
-            }
             rdOpen(L);
+            return;
+        }
+        if (eventClosest(e, '#rdx-chal')) {
+            const open = byId('rdx-chal').getAttribute('aria-expanded') !== 'true';
+            rdChalOpen(open, open ? 'first' : undefined);
             return;
         }
         const md = eventClosest(e, '[data-mode]');
@@ -10221,6 +10319,10 @@ function rdOnLocale() {
         else if (id === 'rdx-c-go')
             rdCustomGo();
     });
+    dr.addEventListener('keydown', rdChalKey);
+    // A press outside the Challenge menu closes it.
+    document.addEventListener('pointerdown', (e) => { const m = maybeById('rdx-chal-menu'); if (m && !m.hidden && !eventClosest(e, '#rdx-chal, #rdx-chal-menu'))
+        rdChalOpen(false); });
     dr.addEventListener('pointerdown', (e) => {
         const pad = eventClosest(e, '.rdx-tap');
         if (pad) {
@@ -10279,7 +10381,7 @@ function rdOnLocale() {
         else if (/^rdx-c-/.test(id))
             rdCustomRead();
     });
-    byId('rdp-stats').addEventListener('click', (e) => { if (eventElement(e)?.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
+    byId('rdx-stats').addEventListener('click', (e) => { if (eventElement(e)?.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
         const d = rdData();
         d.nt = {};
         d.tot = { n: 0, ok: 0, ms: 0, sess: 0 };
@@ -10378,9 +10480,8 @@ function srFocus(): CoachTip | null {
     const p = SR.piece;
     if (!p)
         return null;
-    const rec = p.ephemeral ? null : data.sheet[p.id];
     if (SR.modeSel === 'assess')
-        return { k: srShape().rhythm && !(rec && rec.best) ? 'rc_rhythm' : 'rc_ahead' };
+        return { k: srShape().rhythm ? 'rc_rhythm' : 'rc_ahead' };
     const top = SR.active && srTopSlip();
     if (top === 'key' && SR.slipKey) {
         const s = SR.slipKey;
@@ -10389,8 +10490,6 @@ function srFocus(): CoachTip | null {
     if (top)
         return { k: 'rc_e_' + top };
     const f = srShape();
-    if (p.level === 1 && !rec && !p.ephemeral)
-        return { k: 'rc_anchor' };
     if (f.chords)
         return { k: 'rc_chord' };
     if (p.keyN)
@@ -10418,7 +10517,7 @@ function srNextAssess(pct: number): CoachTip | null {
     const p = SR.piece;
     if (!p)
         return null;
-    const bpm = SR.bpm, rec = p.ephemeral ? null : data.sheet[p.id], bad = (n: SrStaffNote) => SR.results[n.nid] !== 'good';
+    const bpm = SR.bpm, bad = (n: SrStaffNote) => SR.results[n.nid] !== 'good';
     if (pct >= 95)
         return bpm <= 150 ? { k: 'rn_a_clean', args: () => [pct, bpm + 10], act: { k: 'rn_act_bpm', args: () => [bpm + 10], run: () => srSetBpm(bpm + 10) } } : { k: 'rn_a_top' };
     const cat = { leaps: [0, 0], chords: [0, 0], acc: [0, 0] }, last: { rh?: SrStaffNote[]; lh?: SrStaffNote[]; } = {};
@@ -10449,8 +10548,6 @@ function srNextAssess(pct: number): CoachTip | null {
     }));
     if (SR.wrongExtra >= 3 && SR.wrongExtra >= miss)
         return { k: 'rn_a_extra', args: () => [SR.wrongExtra] };
-    if (pct < 60 && !(rec && rec.learned) && !p.gen)
-        return { k: 'rn_a_learn', act: { k: 'rn_act_learn', run: () => srSetMode('learn') } };
     const rate = miss / Math.max(1, all);
     let top: string | null = null, best = 0;
     for (const [k, [b, n]] of Object.entries(cat)) {
@@ -10557,12 +10654,10 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
     }
     if (!RD.n)
         return null;
-    const tg = rdTarget(L) / 1000, sec = avg / 1000;
-    if (mode === 'rush')
-        return RD.n - RD.ok >= 3 ? { k: 'rdn_rush' } : { k: 'rdn_ok' };
+    const tg = rdTarget(L) / 1000, sec = avg / 1000, timeAttack = { k: 'rdx_m_timeAttack', run: () => rdStart('timeAttack') };
     // A Survival run lost to the clock needs speed, not hints: timeouts also count against accuracy.
     if (mode === 'survival' && RD.arc && RD.arc.timeouts >= 2)
-        return { k: 'rdn_sv_time', act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
+        return { k: 'rdn_sv_time', act: timeAttack };
     if (acc < 80)
         return { k: 'rdn_hints', act: { k: 'rdn_act_hints', run: () => { rdData().prefs.hints = true; saveAll(); rdStart('practice'); } } };
     if (weak.length && acc < 95)
@@ -10570,15 +10665,15 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
     if (mode === 'timeAttack' && RD.arc && RD.arc.bestCombo < ARCADE_STREAK)
         return { k: 'rdn_ta' };
     if (sec > tg)
-        return { k: 'rdn_speed', args: () => [anNum(sec, 1), anNum(tg, 1)], act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
+        return { k: 'rdn_speed', args: () => [anNum(sec, 1), anNum(tg, 1)], act: timeAttack };
     if (srtIsArcadeMode(mode))
         return { k: 'rdn_ok' };
-    if (mode === 'practice')
-        return { k: 'rdn_test', act: { k: 'rdn_act_test', run: () => rdStart('test') } };
+    if (mode === 'practice' && RD.chkBest === null)
+        return { k: 'rdn_chk', args: () => [RD_CHECK_N] };
     if (stars < 3)
         return { k: 'rdn_star', args: () => [stars >= 2 ? 95 : 90, anNum(stars >= 2 ? tg : tg * 1.6, 1)] };
     const nx = rdLvNext(L);
-    if (!L.custom && nx && rdUnlocked(nx))
+    if (!L.custom && nx)
         return { k: 'rdn_next', args: () => [rdLvName(nx)] };
     return { k: 'rdn_ok' };
 }
@@ -10646,7 +10741,7 @@ function pracLoopBars(i: number, j: number) {
     if (AN.selected.size)
         scoreLoopStart();
 }
-function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number | null; a: number; b: number; }): CoachTip | null {
+function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number | null; origin?: number; a: number; b: number; }): CoachTip | null {
     const st = PRAC.stats, acc = st && pracAcc(st);
     if (acc == null || !st)
         return null;
@@ -10654,7 +10749,7 @@ function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number 
     const again = () => { pracSumClose(); if (R.sel && AN.selected.size)
         scorePlay(true);
     else
-        scorePlay(false, R.from); };
+        scorePlay(false, R.origin ?? R.from); };
     if (acc >= .95 && st.wrong <= 1) {
         const sel = selectById('score-speed'), next = [...sel.options].map((o) => +o.value).find((v) => v > Math.round(f * 100) && v <= 100);
         if (next)
@@ -10753,7 +10848,7 @@ interface AnState {
 }
 const AN: AnState = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
-const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000, AN_PRACTICE_BARS = 32, AN_EXAMPLES = ['minuet', 'elise', 'ode', 'twinkle', 'jingle'];
+const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000;
 // Library records own original bytes; parsed/engraved objects remain disposable runtime state.
 let anLibraryActive: { id: string; source: AnSource } | null = null;
 let anLibrarySuspended = false;
@@ -10998,11 +11093,12 @@ function anParse(buffer: ArrayBuffer) {
     return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes: notes.sort((x, y) => x.start - y.start || x.midi - y.midi) };
 }
 // Built-in pieces become the same parsed structure as a MIDI file: one "track" per hand, beats in quarter notes.
+// An upbeat stays at beat 0; anRebuild engraves it as a short bar 0 (see scoreFromMidi).
 function anPieceToParsed(p: (typeof PIECES)[number]): AnParsedMidi {
-    const cap = p.ts[1] === 8 ? p.ts[0] * 0.5 : p.ts[0] * 4 / p.ts[1], shift = p.pickup ? (cap - p.pickup) % cap : 0, notes: AnParsedNote[] = [];
+    const notes: AnParsedNote[] = [];
     ([['rh', 0], ['lh', 1]] as const).forEach(([hand, track]) => { if (!p[hand])
         return; srEvents(p[hand]).ev.forEach((e) => { if (!e.rest)
-        notes.push({ midi: e.midi, start: e.beat + shift, end: e.beat + shift + e.dur, vel: hand === 'rh' ? 92 : 74, track, channel: track, srcHand: hand }); }); });
+        notes.push({ midi: e.midi, start: e.beat, end: e.beat + e.dur, vel: hand === 'rh' ? 92 : 74, track, channel: track, srcHand: hand }); }); });
     notes.sort((x, y) => x.start - y.start || x.midi - y.midi);
     return { ppq: 480, format: 1, tracks: notes.some((n) => n.track === 1) ? 2 : 1, names: ['Right hand', 'Left hand'], notes,
         meta: [{ type: 'tempo', beat: 0, bpm: p.bpm }, { type: 'time', beat: 0, num: p.ts[0], den: p.ts[1] }, { type: 'key', beat: 0, fifths: p.keyN || 0, minor: !!p.minor }] };
@@ -11530,7 +11626,7 @@ interface ScoreState {
     xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoopState | null;
     tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
     heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
-    geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
+    geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; run?: PracticeCarry | null; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
     followSys: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
     markGeo?: ScoreGeometry | null; markSig?: string;
 }
@@ -11920,13 +12016,14 @@ function scoreXmlNotes(doc: Document) {
 const XML_ESC: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' };
 function xmlEsc(s: string) { return String(s).replace(/[<>&"']/g, (c) => XML_ESC[c]); }
 // MIDI (or a built-in piece) → MusicXML. `opt.grid` is the quantization per quarter note (2, 4 or 8); divisions grow when a meter needs finer units.
+// `opt.pickup` (quarter notes) makes the first bar an upbeat: an implicit bar 0 of that length, as the score is written.
 interface ScoreMidiNote { midi: number; start: number; end: number; vel: number; track: number; channel: number; hand: AnHand; }
 type ScoreMidiTime = Extract<AnMidiMeta, { type: 'time' }>;
 type ScoreMidiChange = ScoreMidiTime | { type: 'key'; beat: number; fifths: number; minor: boolean; };
 interface ScoreEngraveGroup { staff: number; start: number; end: number; notes: (ScoreMidiNote & { staff: number; })[]; }
 interface ScoreEngraveVoice { groups: ScoreEngraveGroup[]; staff: number; secondary: boolean; stem: string; }
 interface ScoreEngraveEvent { group: ScoreEngraveGroup | null; pos: number; d: number; type: string; dot: number; from: boolean; to: boolean; beam?: string; }
-function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, title: string, opt: { grid: number; keys: { beat: number; fifths: number; minor: boolean; }[]; composer?: string; }) {
+function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, title: string, opt: { grid: number; keys: { beat: number; fifths: number; minor: boolean; }[]; composer?: string; pickup?: number; }) {
     const isTime = (e: AnMidiMeta): e is ScoreMidiTime => e.type === 'time';
     const grid = opt.grid || 4, events = parsed.meta || [], timeEvents = events.filter(isTime);
     let div = grid;
@@ -11987,6 +12084,7 @@ function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, 
     const meters: ScoreMidiChange[] = events.filter(isTime).map((e) => ({ ...e }));
     const changes = meters.concat((opt.keys || []).map((e): ScoreMidiChange => ({ type: 'key', beat: e.beat, fifths: e.fifths, minor: !!e.minor })))
         .map((e) => ({ ...e, pos: Math.round(e.beat * div) })).sort((a, b) => a.pos - b.pos);
+    const upbeat = opt.pickup && opt.pickup > 0 ? Math.round(opt.pickup * div) : 0;
     let at = 0, number = 1, xml = '', fifths = 0, minor = false, num = 4, den = 4, ci = 0;
     while (at < end) {
         const beat = at / div;
@@ -12004,12 +12102,13 @@ function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, 
                 den = e.den;
             }
         }
-        const next = changes[ci], length = Math.min(num * 4 * div / den, next ? next.pos - at : Infinity);
+        const bar = upbeat && number === 1 ? Math.min(upbeat, num * 4 * div / den) : num * 4 * div / den;
+        const next = changes[ci], length = Math.min(bar, next ? next.pos - at : Infinity), label = upbeat ? number - 1 : number;
         if (length <= 0 || !Number.isInteger(length))
             throw anError('meter');
         const stop = at + length;
-        SCORE.measures.push({ number: String(number), start: at / div, end: stop / div, num, den });
-        xml += '<measure number="' + number + '">';
+        SCORE.measures.push({ number: String(label), start: at / div, end: stop / div, num, den });
+        xml += '<measure number="' + label + '"' + (upbeat && number === 1 ? ' implicit="yes"' : '') + '>';
         if (number === 1 || keyChanged || timeChanged)
             xml += '<attributes>' + (number === 1 ? '<divisions>' + div + '</divisions>' : '') + (keyChanged ? '<key><fifths>' + fifths + '</fifths><mode>' + (minor ? 'minor' : 'major') + '</mode></key>' : '') + (timeChanged ? '<time><beats>' + num + '</beats><beat-type>' + den + '</beat-type></time>' : '') + (number === 1 ? (single ? (used[0] === 2 ? '<clef><sign>F</sign><line>4</line></clef>' : '<clef><sign>G</sign><line>2</line></clef>') : '<staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef>') : '') + '</attributes>';
         for (const t of SCORE.tempos.filter((e) => e.beat >= beat - 1e-9 && e.beat < stop / div))
@@ -12101,7 +12200,8 @@ function anRebuild() {
     const parsed = src.parsed, hands = anAssignHands(parsed.notes, AN.recon.hands);
     const notes = parsed.notes.map((n, i): ScoreMidiNote => ({ midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i] }));
     const key = anResolveKey({ meta: parsed.meta.filter((e): e is AnMidiKeyMeta => e.type === 'key') }, AN.recon.key, notes);
-    const xml = scoreFromMidi({ meta: parsed.meta, notes }, src.title, { grid: AN.recon.grid, keys: key.events, composer: src.comp });
+    const pickup = src.kind === 'example' ? PIECES.find((p) => p.id === src.id)?.pickup : undefined;
+    const xml = scoreFromMidi({ meta: parsed.meta, notes }, src.title, { grid: AN.recon.grid, keys: key.events, composer: src.comp, pickup });
     AN.notes = notes;
     SCORE.xml = xml;
     AN.hands = hands;
@@ -12353,14 +12453,19 @@ function scoreNightSweep(box: HTMLElement, ink: string) {
     });
 }
 // Bind each source note to its rendered notehead, retaining individual selection in chords. One tab stop; arrows move between notes.
+let scoreBindGen = 0; // counts bindings: each new layout has new noteheads
+// How each bound notehead is spelled on the page (the file's own spelling for MusicXML), for the Note names layer.
+let scoreHeadSpell = new WeakMap<SVGElement, { letter: number; alter: number }>();
 function scoreBind(engine: notationApi.ScoreRenderer) {
     SCORE.heads = new Map();
+    scoreBindGen++;
+    scoreHeadSpell = new WeakMap();
     const grid = SCORE.midiGrid || 0, startOf = (n: AnNote) => grid ? Math.round(n.start * grid) / grid : n.start, endOf = (n: AnNote) => grid ? Math.max(startOf(n) + 1 / grid, Math.round(n.end * grid) / grid) : n.end;
     const byMidi = new Map<number, number[]>();
     AN.notes.forEach((n, i) => { let list = byMidi.get(n.midi); if (!list)
         byMidi.set(n.midi, list = []); list.push(i); });
     let bound = new Set<number>(), boundBeat: number | null = null;
-    engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g }) => {
+    engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g, spelling }) => {
         if (boundBeat !== beat) {
             boundBeat = beat;
             bound = new Set();
@@ -12377,6 +12482,8 @@ function scoreBind(engine: notationApi.ScoreRenderer) {
             return;
         bound.add(i);
         g.dataset.i = String(i);
+        if (spelling)
+            scoreHeadSpell.set(g, spelling);
         if (AN.notes[i].parenthesizedAt?.some(start => Math.abs(start - beat) < .001)) g.dataset.parenthesized = 'yes';
         g.style.cursor = 'pointer';
         g.style.pointerEvents = 'all';
@@ -12424,7 +12531,58 @@ if (stave) {
     });
 } }
 function scorePaintIdx(i: number) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
-function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
+function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreNamesSync(); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
+// Note names (the toolbar's Note names toggle, saved with the player settings): each bound notehead gets its name just
+// right of it, spelled in the key and in the app's note naming. One layer per page SVG, drawn again after each layout
+// or naming change; the noteheads keep their own labels for screen readers, so the layer is hidden from them.
+let scoreNamesSig = '';
+function scoreNamesSync() {
+    const box = byId('an-roll'), on = PRAC.names && FALL.mode === 'score' && SCORE.heads.size > 0;
+    const sig = on ? [scoreBindGen, notation, AN.version].join('|') : '';
+    if (sig === scoreNamesSig)
+        return;
+    if (on && !box.getClientRects().length)
+        return; // measured only while on screen: the next paint after it shows draws them
+    scoreNamesSig = sig;
+    box.querySelectorAll('.sc-nn-layer').forEach((el) => el.remove());
+    if (!on)
+        return;
+    const NS = 'http://www.w3.org/2000/svg', layers = new Map<SVGSVGElement, SVGGElement>();
+    SCORE.heads.forEach((list, i) => {
+        const n = AN.notes[i];
+        if (!n)
+            return;
+        const k = anKeyAt(n.start), sp = spellMidi(n.midi, k.fifths, k.minor), keyName = spelledName(notation, sp.li, sp.acc);
+        list.forEach((g) => {
+            const own = scoreHeadSpell.get(g), name = own ? spelledName(notation, own.letter, own.alter) : keyName;
+            const svg = g.ownerSVGElement, ctm = g instanceof SVGGraphicsElement ? g.getScreenCTM() : null, page = svg && svg.getScreenCTM();
+            if (!svg || !ctm || !page || !(g instanceof SVGGraphicsElement))
+                return;
+            const b = g.getBBox();
+            if (!b.width || !b.height)
+                return;
+            // From the notehead's own units to its page's: the right edge, halfway up, and the notehead's height.
+            const m = page.inverse().multiply(ctm), p = new DOMPoint(b.x + b.width, b.y + b.height / 2).matrixTransform(m), h = b.height * Math.hypot(m.b, m.d);
+            let layer = layers.get(svg);
+            if (!layer) {
+                layer = document.createElementNS(NS, 'g');
+                layer.setAttribute('class', 'sc-nn-layer');
+                layer.setAttribute('aria-hidden', 'true');
+                svg.append(layer);
+                layers.set(svg, layer);
+            }
+            const tx = document.createElementNS(NS, 'text');
+            tx.setAttribute('class', 'sc-nn');
+            tx.setAttribute('x', (p.x + h * .3).toFixed(1));
+            tx.setAttribute('y', p.y.toFixed(1));
+            tx.setAttribute('font-size', (h * 1.05).toFixed(1));
+            tx.setAttribute('stroke-width', (h * .28).toFixed(1));
+            tx.dataset.nn = String(i);
+            tx.textContent = name;
+            layer.append(tx);
+        });
+    });
+}
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
     const copy = notationReloadMessage(lang === 'ro' ? 'ro' : 'en'), box = (document).createElement('div');
@@ -13390,7 +13548,7 @@ function anSelStart() {
 }
 function scoreStop() { scoreHalt(); SCORE.resume = null; FALL.position = AN.notes.length ? anSelStart() : 0; scoreIdle(); }
 function scorePause() { if (!SCORE.playing)
-    return; const at = fallTime(), sel = SCORE.sel && !SCORE.loop; scoreHalt(); SCORE.paused = true; SCORE.resume = { sel }; FALL.position = at; scoreIdle(); }
+    return; const at = fallTime(), sel = SCORE.sel && !SCORE.loop, run = pracCarry(at); scoreHalt(); SCORE.paused = true; SCORE.resume = { sel, run }; FALL.position = at; scoreIdle(); }
 // Space / ▶: pause while playing, otherwise resume from the cursor (a paused selection resumes as a selection).
 function scoreToggle() {
     if (!AN.notes.length || AN.loading)
@@ -13401,7 +13559,7 @@ function scoreToggle() {
     }
     const r = SCORE.resume;
     SCORE.resume = null;
-    scorePlay(!!(r && r.sel && AN.selected.size), FALL.position);
+    scorePlay(!!(r && r.sel && AN.selected.size), FALL.position, r ? r.run : null);
 }
 function scoreHome() {
     if (!AN.notes.length)
@@ -13431,11 +13589,17 @@ interface PracticeSegment { a0: number; t0: number; t1: number; f: number; first
 interface PracticeBarrier { t: number; need: Set<number>; got: Set<number>; group: PracticeTimedNote[]; seg: PracticeSegment; since: number }
 interface PracticeBeat { t: number; acc: boolean }
 interface PracticeCountIn { t: number; n: number; sec: number }
-interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string }
+interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string; carry?: PracticeCarry | null }
 // A running practice: its clock segments, scheduling cursors (ni notes, bi beats, mi my next note), the judgements and the tick timer.
+// origin: where a run resumed after a pause first started (its from is where it resumed).
 interface PracticeRun extends PracticeStartOptions {
     segs: PracticeSegment[]; ni: number; beats: PracticeBeat[]; bi: number; beat0: number; wt: number; pass: number; mine: PracticeTimedNote[]; mi: number;
-    judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean;
+    judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean; origin?: number;
+}
+// A whole-piece run held over a pause: what Play needs to carry on with the same run (pracStart), if nothing else changed.
+interface PracticeCarry {
+    notes: AnNote[]; src: AnSource | null; at: number; origin: number; hands: string; wait: boolean; f: number;
+    judged: Map<number, string>; stats: PracticeStats; active: boolean; res: Map<number, string>;
 }
 // The coaching tip shown after a run, with its optional one-click action.
 interface PracticeNextStep { k: string; args?: () => (string | number)[]; act?: { k: string; args?: () => (string | number)[]; run: () => void } | null }
@@ -13443,17 +13607,18 @@ interface PracticeState {
     hands: string; wait: boolean; metro: boolean; countIn: boolean; acc: boolean; hear: boolean; ramp: boolean; A: number | null; B: number | null;
     labels: string; pal: string; range: string; fx: boolean; bar: PracticeBarrier | null; active: boolean; stats: PracticeStats | null;
     res: Map<number, string>; judge: string; judgeT: number; next: PracticeNextStep | null;
+    names: boolean; // note names on the engraved score (scoreNamesSync)
 }
 const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, countIn: false, acc: true, hear: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
-    bar: null, active: false, stats: null, res: new Map(), judge: '', judgeT: 0, next: null };
-const PRAC_FLAGS = ['wait', 'metro', 'countIn', 'acc', 'hear', 'ramp', 'fx'] as const;
+    bar: null, active: false, stats: null, res: new Map(), judge: '', judgeT: 0, next: null, names: false };
+const PRAC_FLAGS = ['wait', 'metro', 'countIn', 'acc', 'hear', 'ramp', 'fx', 'names'] as const;
 const PRAC_CHOICES = ['hands', 'labels', 'pal', 'range'] as const;
 function isPracFlag(k: string): k is typeof PRAC_FLAGS[number] { return PRAC_FLAGS.some((f) => f === k); }
 function isPracChoice(k: string): k is typeof PRAC_CHOICES[number] { return PRAC_CHOICES.some((f) => f === k); }
 const PRAC_KEY = 'etude-practice-v3';
 function pracSave() { try {
-    const { hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx } = PRAC;
-    localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, zoom: FALL.zoom }));
+    const { hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, names } = PRAC;
+    localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, names, zoom: FALL.zoom }));
     anLibrarySchedule();
 }
 catch (e) { } }
@@ -13489,12 +13654,13 @@ function pracBeats() {
     if (FALL.beatSrc === fallData() && FALL.beatTempo === SCORE.tempoList && FALL.beats)
         return FALL.beats;
     const out: PracticeBeat[] = [];
-    for (const m of anMeasures()) {
-        const u = anBeatUnit(m);
-        let k = 0;
+    anMeasures().forEach((m, i) => {
+        const u = anBeatUnit(m), full = m.num * 4 / m.den, short = full - (m.end - m.start);
+        // An upbeat (a short first bar) holds the last beats of a bar, so its first click is not the accented downbeat.
+        let k = i === 0 && short > 1e-6 ? Math.round(short / u) : 0;
         for (let b = m.start; b < m.end - 1e-6; b += u, k++)
             out.push({ t: scoreSeconds(b), acc: k === 0 });
-    }
+    });
     FALL.beatSrc = fallData();
     FALL.beatTempo = SCORE.tempoList;
     FALL.beats = out;
@@ -13530,10 +13696,19 @@ async function pracStart(o: PracticeStartOptions)  {
         a0 = now + n * sec;
     }
     const beats: PracticeBeat[] = pracBeats(), first = (t: number) => { const i = beats.findIndex((b) => b.t >= t - 1e-6); return i < 0 ? beats.length : i; };
-    const mine = o.notes.filter((d) => pracMine(d.n));
-    const R: PracticeRun = { ...o, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
+    // Resuming a paused whole run keeps it one run: the judgements so far, and my whole part, so a note skipped before the
+    // pause still counts as missed. Anything changed meanwhile (cursor, hands, Wait for me, tempo, the score) starts a new run.
+    const c = o.carry, resumed = !!c && !o.sel && !o.loop && c.notes === AN.notes && c.src === AN.source && c.hands === PRAC.hands && c.wait === PRAC.wait && c.f === f && Math.abs(c.at - o.from) < .01;
+    const mine = (resumed ? fallData().slice().sort((x, y) => x.start - y.start || x.n.midi - y.n.midi) : o.notes).filter((d) => pracMine(d.n));
+    const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
     if (R.mi < 0 || !mine.some((d) => d.start >= o.from - 1e-6))
         R.mi = mine.length;
+    if (resumed && c) {
+        R.origin = c.origin;
+        R.judged = new Map(c.judged);
+        const next = mine.findIndex((d) => !R.judged.has(d.i));
+        R.mi = next < 0 ? mine.length : next;
+    }
     SCORE.run = R;
     SCORE.playing = true;
     SCORE.sel = o.sel;
@@ -13544,12 +13719,27 @@ async function pracStart(o: PracticeStartOptions)  {
     FALL.factor = f;
     SCORE.followSys = -1;
     pracStatsReset();
+    if (resumed && c) {
+        PRAC.stats = { ...c.stats };
+        PRAC.active = c.active || PRAC.wait;
+        PRAC.res = new Map(c.res);
+        if (FALL.mode === 'score')
+            PRAC.res.forEach((_, i) => scorePaintIdx(i));
+        pracHud();
+    }
     pracTick();
     R.timer = setInterval(pracTick, 25);
     scoreStateText();
     anUpdateControls();
     fallDraw();
     scoreFollow();
+}
+// What a pause keeps of the running whole-piece run (no loop or selection) so that Play carries it on.
+function pracCarry(at: number): PracticeCarry | null {
+    const R = SCORE.run, st = PRAC.stats;
+    if (!R || R.loop || R.sel || !st)
+        return null;
+    return { notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: PRAC.wait, f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res) };
 }
 function pracTick() {
     const R = SCORE.run;
@@ -13612,8 +13802,11 @@ function pracTick() {
     if (PRAC.active && !PRAC.wait)
         pracMisses(R, time);
     const s0 = R.segs[0];
-    if (!R.loop && time >= R.b - 1e-6 && now >= s0.a0 + (R.b - s0.t0) / s0.f + .3)
+    if (!R.loop && time >= R.b - 1e-6 && now >= s0.a0 + (R.b - s0.t0) / s0.f + .3) {
+        if (PRAC.active && !PRAC.wait)
+            pracMisses(R, Infinity); // the end of the piece: a note still not played is missed, however short
         pracFinish(R);
+    }
 }
 // Loop: the next pass is 1 step faster (up to 100%) when the pass was clean, or always when no one is playing along.
 function pracRamp(R: PracticeRun, s: PracticeSegment) {
@@ -13651,12 +13844,13 @@ function pracPassEnd(R: PracticeRun) {
 }
 function pracNextBar(R: PracticeRun, s: PracticeSegment) {
     const from = Math.max(R.wt, s.t0);
-    const d = R.mine.find((x) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6));
+    // Notes already judged (a chord partly played before a pause) are not asked for again.
+    const d = R.mine.find((x) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6) && !R.judged.has(x.i));
     if (!d) {
         R.wt = Infinity;
         return;
     }
-    const group = R.mine.filter((x) => Math.abs(x.start - d.start) < .03);
+    const group = R.mine.filter((x) => Math.abs(x.start - d.start) < .03 && !R.judged.has(x.i));
     PRAC.bar = { t: d.start, need: new Set(group.map((x) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
 }
 function pracRelease(R: PracticeRun, B: PracticeBarrier, now: number) {
@@ -13704,6 +13898,17 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
     PRAC.judgeT = performance.now();
     pracHud();
 }
+// "Accept any octave" (the shared setting) lets a key count for the same note name in another octave.
+function pracSame(want: number, played: number) { return want === played || (!!data.settings.anyOctave && pc(want) === pc(played)); }
+// The awaited key a played key stands for: the key itself, else (any octave) an unplayed one with its note name.
+function pracNeedKey(B: PracticeBarrier, m: number) {
+    if (B.need.has(m))
+        return m;
+    if (!data.settings.anyOctave)
+        return null;
+    const same = [...B.need].filter((x) => pc(x) === pc(m));
+    return same.find((x) => !B.got.has(x)) ?? same[0] ?? null;
+}
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
 function pracInput(kind: string) {
     const R = SCORE.run;
@@ -13712,12 +13917,12 @@ function pracInput(kind: string) {
         const m = heldOrder[heldOrder.length - 1], now = actx.currentTime - Math.max(0, inputLag()) / 1000;
         if (m != null && now >= R.segs[0].a0 - .05) {
             PRAC.active = true;
-            const { s, t } = pracRaw(R, now), B = PRAC.bar;
-            if (B && B.seg === s && t >= B.t - .3 * s.f && B.need.has(m)) {
-                if (!B.got.has(m)) {
-                    B.got.add(m);
+            const { s, t } = pracRaw(R, now), B = PRAC.bar, key = B && B.seg === s && t >= B.t - .3 * s.f ? pracNeedKey(B, m) : null;
+            if (B && key != null) {
+                if (!B.got.has(key)) {
+                    B.got.add(key);
                     const late = Math.max(0, t - B.t) / s.f;
-                    B.group.filter((x) => x.n.midi === m).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
+                    B.group.filter((x) => x.n.midi === key && !R.judged.has(x.i)).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
                 }
                 if ([...B.need].every((x) => B.got.has(x)))
                     pracRelease(R, B, actx.currentTime); // the clock resumes from the real present, not the judged time
@@ -13728,7 +13933,7 @@ function pracInput(kind: string) {
                 for (const d of R.mine) {
                     if (d.start > time + tol)
                         break;
-                    if (d.n.midi !== m || R.judged.has(d.i) || d.start < time - tol)
+                    if (!pracSame(d.n.midi, m) || R.judged.has(d.i) || d.start < time - tol)
                         continue;
                     if (!best || Math.abs(d.start - time) < Math.abs(best.start - time))
                         best = d;
@@ -13772,17 +13977,90 @@ function pracFinish(R: PracticeRun) {
     FALL.position = sel ? a : end;
     scoreIdle();
     byId('pr-hud').hidden = true;
-    if (PRAC.active && PRAC.stats)
-        pracSummary(R);
+    if (PRAC.active && PRAC.stats) {
+        const saved = pracRecord(R);
+        pracSummary(R, saved, saved || !AN.source ? '' : pracWhyNot(R));
+    }
 }
-function pracSummary(R: PracticeRun) {
+// What a finished run saved, for the summary card: the best accuracy, whether it was beaten, and a first full Wait-for-me pass.
+interface PracticeSaved { best: number | null; newBest: boolean; learned: boolean; pending?: Promise<PracticeSaved | null> }
+// A run counts as progress only when it covers the whole piece: no selection, loop or A–B range, every hand the piece has,
+// and it starts at the first note (a run paused and resumed counts from where it first started). pracNotWhole names the
+// rule a run breaks, as the Run complete card's pc_why_* line.
+function pracNotWhole(R: PracticeRun) {
+    if (R.sel)
+        return 'pc_why_sel';
+    if (R.loop || R.ab)
+        return 'pc_why_loop';
+    const all = fallData();
+    if (!all.length)
+        return 'pc_why_part';
+    if (PRAC.hands !== 'both' && all.some((d) => !pracMine(d.n)))
+        return 'pc_why_hand';
+    const first = Math.min(...all.map((d) => d.start)), last = Math.max(...all.map((d) => d.finish));
+    return (R.origin ?? R.from) <= first + .05 && R.b >= last - .05 ? '' : 'pc_why_part';
+}
+function pracWholePiece(R: PracticeRun) { return !pracNotWhole(R); }
+// Every note of my part judged: what a Wait for me pass needs to be complete, and a paused and resumed run to count.
+function pracEveryNote(R: PracticeRun) { return R.mine.length > 0 && R.mine.every((d) => R.judged.has(d.i)); }
+// Why a finished run saved nothing: a broken whole-piece rule, else notes left unplayed.
+function pracWhyNot(R: PracticeRun) { return pracNotWhole(R) || 'pc_why_gaps'; }
+// A timed run keeps the best accuracy; a complete "Wait for me" pass marks a built-in piece as learned.
+// Built-in pieces write data.sheet (the fields Read & Play used); library files keep theirs in the library record.
+function pracRecord(R: PracticeRun): PracticeSaved | null {
+    const st = PRAC.stats, src = AN.source, acc = st ? pracAcc(st) : null;
+    if (!st || !src || !pracWholePiece(R))
+        return null;
+    const every = pracEveryNote(R), waited = PRAC.wait, complete = waited && every;
+    if (waited ? !complete : acc == null || (R.origin != null && !every))
+        return null;
+    // The accuracy of a timed run; a waiting run plays at your pace, so it sets no best.
+    const pct = !waited && acc != null ? Math.round(acc * 100) : null;
+    let saved: PracticeSaved = { best: null, newBest: false, learned: false };
+    if (src.kind === 'example') {
+        const rec = data.sheet[src.id] || (data.sheet[src.id] = {}), old = rec.best || 0, beaten = pct != null && pct > old;
+        if (beaten)
+            rec.best = pct;
+        if (complete)
+            rec.learned = true;
+        saved = { best: rec.best || null, newBest: beaten, learned: complete };
+    }
+    else if (anLibraryActive && anLibraryActive.source === src) {
+        const id = anLibraryActive.id;
+        saved.pending = scoreLibraryStore.libraryRecordPlay(id, todayN(), pct).then(async (r) => {
+            await scoreLibrary?.refresh();
+            return r ? { best: r.item.best ?? null, newBest: pct != null && pct > (r.previousBest ?? 0), learned: false } : null;
+        }).catch(() => { scoreLibrary?.notice('save_failed'); return null; });
+    }
+    touchDay();
+    const tv = data.toolDay || (data.toolDay = {});
+    tv.piece = todayN();
+    saveAll();
+    pcRender();
+    return saved;
+}
+function pracSavedText(saved: PracticeSaved | null) {
+    if (!saved)
+        return '';
+    const best = saved.best == null ? '' : t(saved.newBest ? 'pc_best_new' : 'rd_best', saved.best);
+    return [saved.learned ? '✓ ' + t('pc_learned') : '', best].filter(Boolean).join(' · ');
+}
+let pracSumGen = 0;
+function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '') {
     const st = PRAC.stats;
     if (!st)
         return;
-    const acc = pracAcc(st);
+    const acc = pracAcc(st), gen = ++pracSumGen, bestEl = byId('pr-sum-best'), whyEl = byId('pr-sum-why');
+    whyEl.textContent = why ? t(why) : '';
+    whyEl.hidden = !why;
     PRAC.next = pracNextStep(R);
     pracNextRender();
     byId('pr-sum-acc').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
+    const showSaved = (v: PracticeSaved | null) => { const txt = pracSavedText(v); bestEl.textContent = txt; bestEl.hidden = !txt; bestEl.classList.toggle('is-new', !!v && v.newBest); };
+    showSaved(saved);
+    if (saved && saved.pending)
+        void saved.pending.then((v) => { if (gen === pracSumGen && !byId('pr-sum').hidden)
+            showSaved(v); });
     (['perfect', 'good', 'miss', 'wrong'] as const).forEach((k) => { byId('pr-sum-' + k).textContent = String(st[k]); });
     byId('pr-sum-note').textContent = t('pr_sum_note', st.best, Math.round(pracFactor() * 100) + '%');
     byId('pr-sum').hidden = false;
@@ -13830,7 +14108,7 @@ function pracSet(k: string, v: string|boolean) {
         if (SCORE.loop)
             scoreLoopStart();
         else
-            scorePlay(SCORE.sel, at);
+            scorePlay(SCORE.sel, at, k === 'acc' || k === 'hear' ? pracCarry(at) : null); // what sounds keeps the run; hands or Wait for me start a new one
     }
     anUpdateControls();
     if (FALL.mode === 'fall')
@@ -13859,7 +14137,7 @@ function pracSetAB(which: string) {
 }
 function pracClearAB() { PRAC.A = PRAC.B = null; if (SCORE.loop && SCORE.loop.ab)
     scoreStop(); anUpdateControls(); anTlUpdate(); }
-async function scorePlay(selection = false, from: number | null = null)  {
+async function scorePlay(selection = false, from: number | null = null, carry: PracticeCarry | null = null)  {
     if (!AN.notes.length)
         return;
     const all: PracticeTimedNote[] = fallData(), chosen = selection ? all.filter((d) => AN.selected.has(d.i)) : all;
@@ -13875,7 +14153,7 @@ async function scorePlay(selection = false, from: number | null = null)  {
         scoreIdle();
         return;
     }
-    await pracStart({ notes, a, b, loop: false, sel: selection, from: position });
+    await pracStart({ notes, a, b, loop: false, sel: selection, from: position, carry });
 }
 // Loop the selected notes, else the A–B range (whole bars).
 async function scoreLoopStart()  {
@@ -14005,11 +14283,32 @@ function anLayoutVars() {
     st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
     anPinToolbarLater();
 }
-// Keep transport reachable while the page is scrolled below the score card's title row.
+/* Pieces: the full window. The player fills the window while practising: the toolbar button turns it on and off, Esc and
+   leaving Pieces turn it off. body[data-stage=pieces] (pieces.css) hides everything around the player, and the size
+   observers re-fit the score. The reading drills' stage (STAGE, data-stage=immersive) is separate. */
+const PC_STAGE = { on: false };
+function pcStageSet(on: boolean, quiet = false) {
+    const want = on && view0() === 'analysis' && AN.notes.length > 0;
+    if (want === PC_STAGE.on)
+        return;
+    PC_STAGE.on = want;
+    if (want)
+        document.body.dataset.stage = 'pieces';
+    else if (document.body.dataset.stage === 'pieces')
+        delete document.body.dataset.stage;
+    byId('an-tbwrap').classList.remove('is-floating');
+    if (want)
+        window.scrollTo(0, 0);
+    anLayoutVars();
+    anUpdateControls();
+    if (!want && !quiet)
+        anFocusStage();
+}
+// Keep transport reachable while the page is scrolled below the score card's title row (not needed in the full window).
 function anPinToolbar() {
     AN.pinRaf = 0;
     const tb = byId('an-tbwrap');
-    const active = view0() === 'analysis' && AN.notes.length && !tb.hidden;
+    const active = view0() === 'analysis' && AN.notes.length && !tb.hidden && !PC_STAGE.on;
     if (!active) {
         tb.classList.remove('is-floating');
         return;
@@ -14143,8 +14442,6 @@ function anKeysCenter() {
 }
 /* analysis workspace */
 function anOriginText() { const o = AN.keyOrigin; return t(o === 'file' ? (AN.source && AN.source.kind === 'example' ? 'an_origin_piece' : 'an_origin_file') : o === 'manual' ? 'an_origin_manual' : o === 'mode' ? 'an_origin_mode' : 'an_origin_auto'); }
-// The passage the Practice tab and Read & Play work on: the selected bars or notes, else the whole piece.
-function anScopeNotes() { const f = anFocus(false); return f && f.kind !== 'cursor' ? anFocusNotes(f) : AN.notes; }
 function anBarsLabel(ns: { start: number }[], L?: string) {
     const a = anMeasureAt(Math.min(...ns.map((n) => n.start))).number, b = anMeasureAt(Math.max(...ns.map((n) => n.start))).number;
     return a === b ? tl(L || lang, 'an_bar1', a) : tl(L || lang, 'an_bars', a, b);
@@ -14256,6 +14553,18 @@ function anUpdateControls() {
     hl.setAttribute('aria-pressed', SCORE.hl ? 'true' : 'false');
     hl.setAttribute('aria-label', t('sc_hl'));
     hl.title = t('sc_hl_t');
+    const nn = buttonById('sc-names');
+    nn.disabled = !sheet;
+    nn.setAttribute('aria-pressed', PRAC.names ? 'true' : 'false');
+    nn.setAttribute('aria-label', t('pc_names'));
+    nn.title = t('pc_names_t');
+    if (!has)
+        pcStageSet(false);
+    const stg = buttonById('sc-stage');
+    stg.disabled = !has;
+    stg.setAttribute('aria-pressed', PC_STAGE.on ? 'true' : 'false');
+    stg.setAttribute('aria-label', t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage'));
+    stg.title = t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage_t');
     // The toolbar toggle is named Keyboard and reports expanded or collapsed; the dock's own button names the action it takes.
     const open = sheet && dockOpen(), kb = buttonById('an-kb');
     kb.disabled = !sheet;
@@ -14268,7 +14577,7 @@ function anUpdateControls() {
     byId('score-credit').hidden = !has || fall;
     byId('st-hint').textContent = t(fall ? 'fall_hint' : 'an_hint');
     // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to the falling-notes display options
-    queryAllHtml(document, '#an-toolbar .an-zoom,#sc-look,#sc-hl,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
+    queryAllHtml(document, '#an-toolbar .an-zoom,#sc-look,#sc-hl,#sc-names,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
     byId('fall-opt').hidden = !(fall && has);
     if (fall && has)
         byId('an-kb').setAttribute('aria-expanded', 'false');
@@ -14294,12 +14603,12 @@ function anUpdateControls() {
     byId('fall-finger-note').textContent = t(has && !anHasFinger() ? 'fall_finger_none' : 'fall_finger_note');
     dockSync();
     anSideSync();
+    scoreNamesSync();
     scoreMarks();
     byId('an-now-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
     byId('pt-start').textContent = t(playing ? 'pt_stop' : 'pt_start');
     buttonById('pt-start').disabled = !has || busy;
-    selectById('an-example').disabled = busy;
-    (document).querySelectorAll('#an-roll .an-ex,#an-roll [data-an-open]').forEach((b) => { if ('disabled' in b)
+    (document).querySelectorAll('#an-roll [data-an-open],#pc-list .pc-item').forEach((b) => { if ('disabled' in b)
         b.disabled = busy; });
     if (has) {
         anStatusSel();
@@ -14340,12 +14649,12 @@ interface AnPanelSide {
     sheet: boolean;
     drag: boolean;
     nowSig: string;
-    ptSig: string;
     liveT: ReturnType<typeof setTimeout> | number;
     handScroll: number;
     deferred: boolean;
 }
-const SIDE: AnPanelSide = { open: true, tab: 'now', w: 340, sheet: false, drag: false, nowSig: '', ptSig: '', liveT: 0, handScroll: 0, deferred: false };
+// The harmony panel starts closed; the toolbar button or a saved choice (anSide.open) opens it.
+const SIDE: AnPanelSide = { open: false, tab: 'now', w: 340, sheet: false, drag: false, nowSig: '', liveT: 0, handScroll: 0, deferred: false };
 const AN_TABS = ['now', 'piece', 'practice'];
 function anNarrow() { return (window).matchMedia('(max-width: 999px)').matches; }
 function anSideVisible(tab?: string) { const side = byId('an-side'); return !!side && !side.hidden && (anNarrow() ? SIDE.sheet : SIDE.open) && (!tab || SIDE.tab === tab); }
@@ -14362,8 +14671,27 @@ function anSideSync() {
     btn.title = t(open ? 'an_side_hide' : 'an_side_show');
     fab.hidden = !has || !narrow || SIDE.sheet || !byId('pr-sum').hidden;
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+    pcFabLater();
     const pt = byId('pr-opt');
     pt.setAttribute('aria-expanded', open && SIDE.tab === 'practice' ? 'true' : 'false');
+}
+// On phones the floating Analysis button would cover the built-in pieces or My Library while their list is open on
+// screen, so it steps aside (pc-fab-off) until the list scrolls away or closes.
+let pcFabRaf = 0;
+function pcFabLater() { if (!pcFabRaf)
+    pcFabRaf = requestAnimationFrame(pcFabSync); }
+function pcFabSync() {
+    pcFabRaf = 0;
+    const fab = byId('an-fab');
+    fab.classList.remove('pc-fab-off');
+    if (fab.hidden || view0() !== 'analysis')
+        return;
+    const f = fab.getBoundingClientRect();
+    if (!f.height)
+        return;
+    const over = ['pc-pick', 'score-library'].some((id) => { const el = maybeById(id); if (!(el instanceof HTMLDetailsElement) || !el.open)
+        return false; const r = el.getBoundingClientRect(); return r.bottom > f.top && r.top < f.bottom && r.right > f.left && r.left < f.right; });
+    fab.classList.toggle('pc-fab-off', over);
 }
 function anSideSet(open: boolean) { SIDE.open = !!open; saveAll(); anSideSync(); }
 // The sheet is not modal: the score above it stays live. Opening moves focus to the active tab; closing returns it to the button.
@@ -14606,7 +14934,7 @@ function anNowAnnounce(f: AnPanelFocus, head: string, segs: AnPanelSpanRow[]) {
     }
     SIDE.liveT = setTimeout(() => { byId('an-now-live').textContent = txt; }, 900);
 }
-// Practice: what Start will play, the A–B range and whether the passage fits Read & Play.
+// Practice: what Start will play and the A–B range.
 function anRenderPractice() {
     if (!AN.notes.length)
         return;
@@ -14622,13 +14950,6 @@ function anRenderPractice() {
     byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : abBars ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
     byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
     byId('pt-abv').textContent = abBars ? t('pt_ab_v', range(...abBars)) : t('pt_ab_none');
-    const ns = anScopeNotes(), sig = [AN.version, lang, ns.length, AN.index.get(ns[0]), AN.index.get(ns[ns.length - 1])].join('|');
-    if (SIDE.ptSig !== sig) {
-        SIDE.ptSig = sig;
-        const chk = anPracticeCheck(ns);
-        buttonById('an-practice').disabled = !chk.ok;
-        byId('an-practice-note').textContent = chk.ok ? t('an_practice_hint') : chk.msg ?? null;
-    }
 }
 // Start in the Practice tab: the selection (or A–B) loops with the practice settings; otherwise the piece plays from the cursor.
 function anPracticeStart() {
@@ -14791,16 +15112,35 @@ function anRenderEmpty() {
     box.classList.remove('is-loading', 'is-over');
     box.setAttribute('aria-busy', 'false');
     box.hidden = FALL.mode !== 'score' && AN.notes.length > 0;
-    const esc = xmlEsc, ex = AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter((p): p is AnExamplePiece => Boolean(p));
+    const esc = xmlEsc;
     box.innerHTML = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${anDropTitle()}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
-  <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div>
-  <div class="an-exlist"><h2>${esc(t('an_examples'))}</h2><ul>${(ex).map((p) => `<li><button type="button" class="an-ex" data-piece="${p.id}"><span class="an-ex-t">${esc(srPieceTitle(p))}</span><span class="an-ex-m">${esc(anPieceMeta(p))}</span></button></li>`).join('')}</ul></div></div>`;
+  <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div></div>`;
     anUpdateControls();
 }
-function anFillExamples() {
-    const sel = selectById('an-example'), cur = AN.source && AN.source.kind === 'example' ? AN.source.id : '';
-    sel.innerHTML = `<option value="">${xmlEsc(t('an_example_pick'))}</option>` + AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter((p): p is AnExamplePiece => Boolean(p)).map((p) => `<option value="${p.id}">${xmlEsc(srPieceTitle(p))}</option>`).join('');
-    sel.value = cur;
+/* Pieces: the built-in repertoire, by level, above My Library. Each piece opens in this player through anLoadExample. */
+function pcRender() {
+    const list = maybeById('pc-list'), sum = maybeById('pc-sum');
+    if (!list)
+        return;
+    if (sum)
+        sum.textContent = t('pc_builtin', PIECES.length);
+    const esc = xmlEsc, cur = AN.source && AN.source.kind === 'example' ? AN.source.id : '', busy = AN.loading;
+    const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement.dataset.piece : undefined;
+    const levels = [...new Set(PIECES.map((p) => p.level))].sort((a, b) => a - b);
+    list.innerHTML = levels.map((L) => `<div class="pc-level"><h3 class="pc-level-h" id="pc-lv-${L}">${esc(t('rd_level') + ' ' + L)}</h3><ul class="pc-items" aria-labelledby="pc-lv-${L}">${PIECES.filter((p) => p.level === L).map((p) => {
+        const rec = data.sheet[p.id], best = rec && rec.best ? rec.best : 0, learned = !!(rec && rec.learned);
+        const status = learned || best ? `<span class="pc-s">${learned ? `<span class="pc-ok"><span aria-hidden="true">✓</span><span class="visually-hidden">${esc(t('rd_learned'))}</span></span>` : ''}${best ? `<span class="pc-best">${esc(t('rd_best', best))}</span>` : ''}</span>` : '';
+        return `<li><button type="button" class="pc-item" data-piece="${p.id}" aria-current="${p.id === cur ? 'true' : 'false'}"${busy ? ' disabled' : ''}><span class="pc-t">${esc(srPieceTitle(p))}</span><span class="pc-m">${esc(anPieceMeta(p))}</span>${status}</button></li>`;
+    }).join('')}</ul></div>`).join('');
+    // The list is rebuilt, so keyboard focus moves to the same piece's new button.
+    if (focused)
+        queryHtml(list, `.pc-item[data-piece="${focused}"]`)?.focus({ preventScroll: true });
+}
+// Opens a built-in piece in Pieces from anywhere (Learn links, other screens).
+function pcOpen(id: string) {
+    if (view0() !== 'analysis')
+        show('analysis');
+    return anLoadExample(id);
 }
 function anReconUI() {
     const src = AN.source, on = !!src && src.kind !== 'xml';
@@ -14848,7 +15188,7 @@ function anReset() {
     anIndex();
     byId('an-name').textContent = '';
     anReconUI();
-    anFillExamples();
+    pcRender();
     anRenderEmpty();
     fallReset();
     anAnalyze();
@@ -15515,7 +15855,7 @@ async function anCommit(src: AnSource, token: number)  {
     }
     anIndex();
     anReconUI();
-    anFillExamples();
+    pcRender();
     byId('an-name').textContent = src.label || src.title;
     let ok = false;
     try {
@@ -15538,6 +15878,10 @@ async function anCommit(src: AnSource, token: number)  {
     AN.kbCenter = true;
     if (anKeysShown())
         anKeysCenter(); // a collapsed keyboard is centred when it is first shown
+    // The open score takes the room; the built-in list folds to its summary line (one click shows it again).
+    const pick = maybeById('pc-pick');
+    if (pick instanceof HTMLDetailsElement)
+        pick.open = false;
     anFocusStage();
 }
 async function anReconChange()  {
@@ -15577,7 +15921,7 @@ async function anReconChange()  {
 }
 // Language or notation changed: localise generated controls, and re-title a built-in example.
 function anLocalize() {
-    anFillExamples();
+    pcRender();
     anReconUI();
     const src = AN.source;
     // Examples are re-titled and MIDI scores get the localized part name ("Piano"/"Pian"): both need a rebuild.
@@ -15747,112 +16091,6 @@ function scorePointer(e: PointerEvent) {
     window.addEventListener('pointercancel', done);
 }
 function anRove(g: Element) { byId('an-roll').querySelectorAll('[data-i][tabindex="0"]').forEach((x) => x.setAttribute('tabindex', '-1')); g.setAttribute('tabindex', '0'); }
-/* practice transfer: an ephemeral Read & Play piece (one line or chord stack per hand, bars kept, rhythm on a 16th grid) */
-interface AnExcerptPiece { id: string; ephemeral: boolean; t: Localised<string>; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number;
-    from: { title: string; bars: string; }; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; }
-type AnReadPieceResult = { piece: AnExcerptPiece; error?: undefined; } | { error: 'none' | 'long' | 'range'; piece?: undefined; };
-function anToReadPiece(ns: readonly AnNote[]): AnReadPieceResult {
-    if (!ns.length)
-        return { error: 'none' };
-    const notes = ns.slice().sort((a, b) => a.start - b.start || a.midi - b.midi), meas = anMeasures(), A = notes[0].start;
-    const m0 = anMeasureAt(A), m1 = anMeasureAt(notes[notes.length - 1].start), i0 = meas.indexOf(m0), i1 = meas.indexOf(m1);
-    if (i1 - i0 + 1 > AN_PRACTICE_BARS || notes.length > 600)
-        return { error: 'long' };
-    let ts = [m0.num, m0.den];
-    if (![4, 8].includes(m0.den)) {
-        const q = m0.num * 4 / m0.den;
-        ts = Number.isInteger(q) ? [q, 4] : [Math.round(q * 2), 8];
-    }
-    const cap = ts[1] === 8 ? ts[0] * 0.5 : ts[0], grid = SCORE.midiGrid === 8 ? 8 : 4, q = (v: number) => Math.round(v * grid) / grid;
-    const origin = q(A), offset = q(origin - m0.start), pickup = offset > 1e-6 && offset < cap - 1e-6 ? q(cap - offset) : 0, total = q(m1.end - origin);
-    if (total <= 0)
-        return { error: 'none' };
-    const key = anKeyAt(A), spellSR = (m: number) => { const s = spellMidi(m, key.fifths, key.minor); return s.oct < 0 || s.oct > 9 ? null : SR_LET[s.li] + (s.acc > 0 ? '#' : s.acc < 0 ? 'b' : '') + s.oct; };
-    const VAL = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9), RVAL = [4, 2, 1, 0.5, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9);
-    const nextBar = (p: number) => { let b = pickup > 0 ? pickup : cap; while (b <= p + 1e-6)
-        b += cap; return b; };
-    const rests = (list: SrToken[], from: number, to: number) => { let p = from; while (p < to - 1e-6) {
-        const len = Math.min(to, nextBar(p)) - p, v = RVAL.find((x) => x <= len + 1e-6) || 1 / grid;
-        list.push(['R', v]);
-        p = q(p + v);
-    } };
-    let bad = false;
-    const build = (hand: string) => {
-        const own = notes.filter((n) => anHandOf(n) === hand);
-        if (!own.length)
-            return null;
-        const on = new Map<string, { s: number; ms: Set<number>; end: number; }>();
-        own.forEach((n) => { const s = q(n.start - origin); if (s < 0 || s >= total - 1e-6)
-            return; const k = s.toFixed(4); if (!on.has(k))
-            on.set(k, { s, ms: new Set(), end: 0 }); const o = on.get(k); if (!o)
-            return; o.ms.add(n.midi); o.end = Math.max(o.end, Math.min(total, Math.max(s + 1 / grid, q(n.end - origin)))); });
-        const list: SrToken[] = [], os = [...on.values()].sort((a, b) => a.s - b.s);
-        let p = 0;
-        os.forEach((o, i) => {
-            if (o.s > p + 1e-6)
-                rests(list, p, o.s);
-            const len = Math.min(o.end, i + 1 < os.length ? os[i + 1].s : total, nextBar(o.s)) - o.s, v = VAL.find((x) => x <= len + 1e-6) || 1 / grid;
-            const ps = [...o.ms].sort((a, b) => a - b).map(spellSR), names = ps.filter((x): x is string => !!x);
-            if (names.length !== ps.length)
-                bad = true;
-            list.push([names.length === 1 ? names[0] : names, v]);
-            p = q(o.s + v);
-        });
-        if (p < total - 1e-6)
-            rests(list, p, total);
-        return list;
-    };
-    const rh = build('rh'), lh = build('lh');
-    if (bad)
-        return { error: 'range' };
-    if (!rh && !lh)
-        return { error: 'none' };
-    const src = AN.source;
-    if (!src)
-        throw new TypeError('Étude: no piece is loaded');
-    const ex = src.kind === 'example' ? PIECES.find((p) => p.id === src.id) : undefined;
-    if (src.kind === 'example' && !ex)
-        throw new Error(`Étude: missing example piece ${src.id}`);
-    const titles = { en: ex ? ex.t.en : src.title, ro: ex ? ex.t.ro : src.title, [lang]: ex ? srPieceTitle(ex) : src.title };
-    const bars = { en: anBarsLabel(notes, 'en'), ro: anBarsLabel(notes, 'ro'), [lang]: anBarsLabel(notes, lang) }, tempoAt = SCORE.tempoList.filter((e) => e.beat <= A + 1e-6).pop() || SCORE.tempoList[0];
-    const piece: AnExcerptPiece = { id: 'excerpt', ephemeral: true, t: { en: tl('en', 'rd_excerpt', titles.en, bars.en), ro: tl('ro', 'rd_excerpt', titles.ro, bars.ro), [lang]: tl(lang, 'rd_excerpt', titles[lang] || titles.en, bars[lang] || bars.en) }, comp: '', level: 0, keyN: key.fifths, minor: key.minor, ts,
-        bpm: Math.max(40, Math.min(160, Math.round(tempoAt.bpm))), from: { title: titles[lang] || titles.en, bars: bars[lang] || bars.en } };
-    if (pickup)
-        piece.pickup = pickup;
-    if (rh)
-        piece.rh = rh;
-    if (lh)
-        piece.lh = lh;
-    return { piece };
-}
-function anPracticeCheck(ns: readonly AnNote[]): { ok: true; piece: AnExcerptPiece; } | { ok: false; msg: string; } {
-    const r = anToReadPiece(ns);
-    if (r.piece)
-        return { ok: true, piece: r.piece };
-    return { ok: false, msg: r.error === 'long' ? t('an_practice_long', AN_PRACTICE_BARS) : r.error === 'range' ? t('an_practice_range') : '' };
-}
-function anPractice() {
-    const chk = anPracticeCheck(anScopeNotes());
-    if (!chk.ok) {
-        const note = byId('an-practice-note');
-        if (note)
-            note.textContent = chk.msg;
-        return;
-    }
-    scoreStop();
-    SR.excerpt = chk.piece;
-    fillPieces();
-    srSelectPiece(chk.piece.id);
-    SR.modeSel = 'learn';
-    SR.hands = 'both';
-    [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.getAttribute('data-v') === 'learn' ? 'true' : 'false'));
-    show('read');
-    const v = byId('rd-verdict');
-    v.className = 'verdict neutral';
-    v.textContent = t('rd_excerpt_ready');
-    byId('rd-go').focus({ preventScroll: true }); // bring the staff and Start above the keyboard dock
-    window.scrollTo({ top: Math.max(0, byId('rd-meta').getBoundingClientRect().top + window.scrollY - 80), behavior: 'auto' });
-}
 /* falling notes: a dark stage with lanes, bar lines and an integrated keyboard; notes coloured by hand */
 interface FallTimedNote { n: AnNote; i: number; start: number; finish: number; sound: number; }
 interface FallKeyRect { x: number; w: number; black: boolean; }
@@ -16484,6 +16722,12 @@ function anShortcut(e: KeyboardEvent) {
             anSheet(false);
             return;
         }
+        if (PC_STAGE.on) {
+            e.preventDefault();
+            pcStageSet(false);
+            byId('sc-stage').focus({ preventScroll: true });
+            return;
+        }
         if (anClearSelection())
             e.preventDefault();
         return;
@@ -16687,10 +16931,10 @@ function anInitControls() {
         return; if (el.closest('[data-an-open]')) {
         byId('an-file').click();
         return;
-    } const ex = el.closest('.an-ex'); if (ex instanceof HTMLButtonElement && !ex.disabled && ex.dataset.piece != null)
-        anLoadExample(ex.dataset.piece); });
-    byId('an-example').addEventListener('change', (e) => { if (e.target instanceof HTMLSelectElement && e.target.value)
-        anLoadExample(e.target.value); });
+    } });
+    byId('pc-list').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-piece]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.piece)
+        void anLoadExample(b.dataset.piece); });
+    pcRender();
     ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => byId(id).addEventListener('change', anReconChange));
     byId('an-recon-btn').addEventListener('click', () => anReconOpen(!!byId('an-recon').hidden));
     document.addEventListener('pointerdown', (e) => {
@@ -16752,6 +16996,8 @@ function anInitControls() {
     byId('sc-look').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.v != null)
         scoreSetLook(b.dataset.v); });
     byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
+    byId('sc-names').addEventListener('click', () => pracSet('names', !PRAC.names));
+    byId('sc-stage').addEventListener('click', () => pcStageSet(!PC_STAGE.on));
     byId('an-kb').addEventListener('click', () => dockSet(!dockOpen()));
     const seek = byId('fall-seek');
     seek.addEventListener('input', fallSeek);
@@ -16902,7 +17148,6 @@ function anInitControls() {
     byId('pt-metro').addEventListener('change', (e) => { if (e.target instanceof HTMLInputElement)
         pracSet('metro', e.target.checked); });
     byId('pt-start').addEventListener('click', anPracticeStart);
-    byId('an-practice').addEventListener('click', anPractice);
     anSideResizer();
     anTab(SIDE.tab);
     (window).matchMedia('(max-width: 999px)').addEventListener('change', () => { SIDE.sheet = false; anSideSync(); anLayoutVars(); });
@@ -16939,6 +17184,11 @@ function anInitControls() {
         return; lastW = w; lastH = h; anStageFit(); }).observe(byId('an-stage'));
     window.addEventListener('resize', vars);
     window.addEventListener('scroll', anPinToolbarLater, { passive: true });
+    window.addEventListener('scroll', pcFabLater, { passive: true });
+    window.addEventListener('resize', pcFabLater);
+    // details toggle events do not bubble; the capture phase still sees them
+    document.addEventListener('toggle', (e) => { if (e.target instanceof HTMLDetailsElement && (e.target.id === 'pc-pick' || e.target.id === 'score-library'))
+        pcFabLater(); }, true);
     const dpr = () => (matchMedia)('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)').addEventListener('change', () => { if (FALL.mode === 'fall')
         fallDraw(); dpr(); }, { once: true });
     dpr();
@@ -16977,7 +17227,7 @@ function renderProgress() {
     byId('weak-wrap').hidden = !weak.length;
     const wl = byId('weakList');
     wl.innerHTML = '';
-    weak.forEach(({ it, r }) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); selectById('pr-cat').value = it.cat; byId('pr-start').focus(); }); wl.appendChild(b); });
+    weak.forEach(({ it, r }) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); prSetTopic(it.cat); byId('pr-start').focus(); }); wl.appendChild(b); });
     // forecast next 7 days
     const fc = byId('forecast');
     fc.innerHTML = '';
@@ -17049,10 +17299,12 @@ function renderProgress() {
         sec.appendChild(grid);
         g.appendChild(sec);
     });
+    // Reading: the reading drills' statistics, with their own Reset button.
+    rdRenderStats();
 }
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
-function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : 'nav_' + v); }
+function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : v === 'songs' ? 'pr_songs' : v === 'accompany' ? 'pr_along' : 'nav_' + (isMergedView(v) ? MERGED_VIEWS[v] : v)); }
 interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
 function renderPlan() {
     const list = byId('plan-list');
@@ -17066,7 +17318,8 @@ function renderPlan() {
                 startSession(null); } },
         ...learnPlanItems(tn),
         { id: 'read', done: td.read === tn, t: t('plan_read'), d: t('plan_read_d'), go: () => show('read') },
-        { id: 'ear', done: ear >= 5, partial: ear > 0 && ear < 5, prog: Math.min(1, ear / 5), pill: Math.min(ear, 5) + '/5', t: t('plan_ear'), d: ear ? t('plan_ear_dn', Math.min(ear, 5)) : t('plan_ear_d'), go: () => { show('songs'); byId('sq-go').focus(); } },
+        { id: 'piece', done: td.piece === tn, t: t('plan_piece'), d: t('plan_piece_d'), go: () => show('analysis') }, // toolDay.piece: a piece run completed today
+        { id: 'ear', done: ear >= 5, partial: ear > 0 && ear < 5, prog: Math.min(1, ear / 5), pill: Math.min(ear, 5) + '/5', t: t('plan_ear'), d: ear ? t('plan_ear_dn', Math.min(ear, 5)) : t('plan_ear_d'), go: prEarCheck },
     ];
     const nextIdx = items.findIndex((i) => !i.done);
     list.innerHTML = '';
@@ -17099,7 +17352,7 @@ function renderPlan() {
         cb.textContent = t('plan_continue', nextIt.t);
         cb.onclick = nextIt.go;
     }
-    else if (lt && lt !== 'today' && navGroup(lt)) {
+    else if (lt && lt !== 'today' && (navGroup(lt) || isMovedView(lt) || isMergedView(lt))) {
         cb.hidden = false;
         cb.textContent = t('plan_continue', toolName(lt));
         cb.onclick = () => show(lt);
@@ -17111,48 +17364,233 @@ function renderPlan() {
 function prRecordDrill() { if (!SES.targeted || !SES.total)
     return; const tg = SES.targeted; data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, c: SES.correct, n: SES.total, day: todayN() }; saveAll(); }
 /* ---------- PRACTICE: setup mode and hints ---------- */
-let practiceModePref: 'play' | 'ear' | 'keys' = 'play';
+// The setup screen holds one choice: the topic in #pr-cat, the mode in #pr-mode (aria-pressed) and the key in #pr-key.
+// #pr-cat and #pr-key are hidden; the topic cards and key chips are their only visible controls. Every caller
+// (the Today Ear row, Progress "Needs work", Learn links, Continue, tests) changes the choice through prSetTopic,
+// prSetMode and prSetKey, and reads it through prChoice. Intervals by ear also take a Direction (prSetDir, #pr-dir),
+// and Intervals show the Song hints panel (#pr-songs, renderSongs). Progressions add a fourth mode, Play along: no drill,
+// the accompaniment loop (#pr-along), started and stopped by the Start button.
+type PracticeMode = 'play' | 'ear' | 'keys' | 'along';
+// The six topics, in the order of the #pr-cat options. The first four are the spaced-repetition categories (CATS).
+const PR_TOPICS: readonly string[] = ['interval', 'chord', 'scale', 'prog', 'melody', TECHNIQUE_TOPIC];
+const PR_KEYS: readonly string[] = ['all', ...Array.from({ length: 12 }, (_, i) => String(i))];
+// A small glyph per topic card (24 × 24, drawn in currentColor).
+const PR_GLYPH: Record<string, string> = {
+    interval: '<ellipse cx="7.5" cy="17" rx="3.4" ry="2.5" fill="currentColor"/><ellipse cx="16.5" cy="7" rx="3.4" ry="2.5" fill="currentColor"/><path d="M9.5 14.6 14.5 9.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="1.5 2.4"/>',
+    chord: '<ellipse cx="12" cy="5.5" rx="3.6" ry="2.5" fill="currentColor"/><ellipse cx="12" cy="12" rx="3.6" ry="2.5" fill="currentColor"/><ellipse cx="12" cy="18.5" rx="3.6" ry="2.5" fill="currentColor"/>',
+    scale: '<circle cx="4.5" cy="19" r="2.4" fill="currentColor"/><circle cx="9.5" cy="14.5" r="2.4" fill="currentColor"/><circle cx="14.5" cy="10" r="2.4" fill="currentColor"/><circle cx="19.5" cy="5.5" r="2.4" fill="currentColor"/>',
+    prog: '<rect x="2.5" y="9" width="5" height="11" rx="1.4" fill="currentColor"/><rect x="9.5" y="4" width="5" height="16" rx="1.4" fill="currentColor" opacity=".7"/><rect x="16.5" y="11" width="5" height="9" rx="1.4" fill="currentColor"/>',
+    melody: '<path d="M8.5 17.5V6.2l11-2.4v11.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><ellipse cx="6" cy="17.6" rx="3" ry="2.3" fill="currentColor"/><ellipse cx="17" cy="15.4" rx="3" ry="2.3" fill="currentColor"/>',
+    [TECHNIQUE_TOPIC]: '<path d="M2.5 19 7 12l5-7 5 7 4.5 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="17" cy="12" r="2" fill="currentColor"/>',
+};
+let practiceModePref: PracticeMode = 'play';
+let prIvDir: IntervalDirection = 'asc';
 
-function updatePracticeModeHint() {
-    const hint = byId('pr-mode-hint');
-    const note = byId('pr-mode-note');
-    const catEl = byId('pr-cat');
-    const pm = byId('pr-mode');
-    if (!hint || !pm || !catEl) return;
-    const cat = (catEl as HTMLSelectElement).value;
-    const mel = cat === 'melody';
-    const prog = cat === 'prog';
-    if (cat === TECHNIQUE_TOPIC) {
-        hint.textContent = t('tq_pr_hint');
-        if (note) {
-            note.textContent = t('tq_pr_note');
-            note.hidden = false;
+function isPracticeMode(v: string | undefined): v is PracticeMode { return v === 'play' || v === 'ear' || v === 'keys' || v === 'along'; }
+function prTopicLabel(cat: string) { return cat === 'melody' ? t('cat_melody') : cat === TECHNIQUE_TOPIC ? t('cat_technique') : catLabel(cat); }
+function prModeLabel(mode: PracticeMode) { return t(mode === 'keys' ? 'pr_onkeys' : mode === 'ear' ? 'pr_byear' : mode === 'along' ? 'pr_along' : 'pr_playit'); }
+function prKeyLabel(key: string | null | undefined) { return key == null || key === '' || key === 'all' ? t('all_keys') : rootName(+key || 0); }
+
+/** The chosen topic, mode and key. Melodies are always on the keys; scales and arpeggios are always Play it. */
+function prChoice(): { cat: string; mode: PracticeMode; key: string } {
+    const cat = selectById('pr-cat').value;
+    const v = queryHtml(byId('pr-mode'), 'button[aria-pressed="true"]')?.dataset.v;
+    const mode: PracticeMode = cat === 'melody' ? 'keys' : cat === TECHNIQUE_TOPIC ? 'play' : isPracticeMode(v) && (v !== 'along' || cat === 'prog') ? v : 'play';
+    return { cat, mode, key: selectById('pr-key').value || 'all' };
+}
+function prSetTopic(cat: string) {
+    if (!PR_TOPICS.includes(cat))
+        return;
+    selectById('pr-cat').value = cat;
+    syncPracticeCatAndMode();
+}
+// Picking an ear mode saves the on-keys choice (settings.earKeys); a mode the topic does not allow is ignored.
+function prSetMode(v: PracticeMode) {
+    const pm = byId('pr-mode'), b = queryHtml(pm, `button[data-v="${v}"]`);
+    if (!(b instanceof HTMLButtonElement) || b.disabled)
+        return;
+    queryAllHtml(pm, 'button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+    if (v !== 'along') // Play along is not kept: back on Practice, or from a topic link, the setup offers the last drill mode
+        practiceModePref = v;
+    if (v === 'ear' || v === 'keys') {
+        data.settings.earKeys = v === 'keys';
+        saveAll();
+    }
+    updatePracticeModeHint();
+}
+// Play along chosen on the Practice screen, with no drill running: the keys light up there.
+function prAlongWanted(v = view0()) { return v === 'practice' && !SES.active && prChoice().mode === 'along'; }
+function isIntervalDirection(v: string | undefined): v is IntervalDirection { return v === 'asc' || v === 'desc' || v === 'both'; }
+function prDirLabel(dir: IntervalDirection) { return t(dir === 'desc' ? 'dir_desc' : dir === 'both' ? 'dir_both' : 'dir_asc'); }
+// Direction applies to Intervals by ear (tap or on the keys): the row shows only then, and only then goes with the drill.
+function prDirShown() { const { cat, mode } = prChoice(); return cat === 'interval' && mode !== 'play'; }
+function prSetDir(v: string) {
+    if (!isIntervalDirection(v))
+        return;
+    prIvDir = v;
+    queryAllHtml(byId('pr-dir'), 'button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false'));
+    updatePracticeModeHint();
+}
+function prSetKey(key: string) {
+    const sel = selectById('pr-key');
+    if (!PR_KEYS.includes(key) || ![...sel.options].some((o) => o.value === key))
+        return;
+    sel.value = key;
+    renderPracticeKeys();
+    updatePracticeModeHint();
+    if (prChoice().mode === 'along')
+        accompRestartIfPlaying(); // updatePracticeModeHint has redrawn the chord chain
+}
+function prStart() {
+    const { cat, mode, key } = prChoice();
+    if (mode === 'along') { // not a drill: the loop starts or stops, and no last-drill record is written
+        if (accomp.on)
+            accompStop();
+        else {
+            accompSync();
+            accompStart();
+            updatePracticeModeHint();
         }
         return;
     }
-    const pressed = pm.querySelector('button[aria-pressed="true"]');
-    const mode = mel ? 'keys' : (pressed instanceof HTMLButtonElement ? pressed.dataset.v : 'play');
-
-    if (mode === 'keys') {
-        hint.textContent = 'Listen to the sound and play the notes back on the keyboard.';
-    } else if (mode === 'ear') {
-        hint.textContent = 'Listen to the sound and identify it from multiple choices.';
-    } else {
-        hint.textContent = 'Read the prompt and play the notes or choose the answer.';
+    practiceModePref = mode;
+    if (mode !== 'play' && cat !== 'melody') {
+        data.settings.earKeys = mode === 'keys';
+        saveAll();
     }
-
-    if (note) {
-        if (mel) {
-            note.textContent = 'Melodies are ear training exercises played directly on the keyboard.';
-            note.hidden = false;
-        } else if (prog) {
-            note.textContent = 'Progressions by ear are identified by name from multiple choices.';
-            note.hidden = false;
-        } else {
-            note.textContent = '';
-            note.hidden = true;
+    show('practice');
+    startSession({ cat, mode: mode === 'play' ? 'play' : 'ear', key, ...(prDirShown() ? { dir: prIvDir } : {}) });
+}
+// Today's Ear check: an Intervals · By ear drill in one tap, on the keys when that is the saved choice (settings.earKeys).
+function prEarCheck() {
+    if (SES.active)
+        return;
+    prSetTopic('interval');
+    prSetMode(data.settings.earKeys ? 'keys' : 'ear');
+    prStart();
+}
+// A screen that moved into this setup (an old link or saved lastTool): Practice, set up for it.
+function prOpenMoved(v: router.MovedView, moveFocus = true) {
+    if (SES.active && SES.targeted)
+        endSession(false);
+    show('practice', moveFocus);
+    if (v === 'songs') {
+        prSetTopic('interval');
+        const panel = byId('pr-songs');
+        if (panel instanceof HTMLDetailsElement)
+            panel.open = true; // its toggle event builds the cards
+    }
+    else {
+        prSetTopic('prog');
+        prSetMode('along');
+    }
+}
+// Continue: the last drill again, with its topic, mode and key, in one tap.
+// The mode a saved drill ran in. Progressions never run on the keys, whatever the on-keys setting was.
+function prDrillMode(d: StoredLastDrill): PracticeMode { return d.cat === 'melody' ? 'keys' : d.mode !== 'ear' ? 'play' : d.keys && d.cat !== 'prog' ? 'keys' : 'ear'; }
+function prDrillKey(d: StoredLastDrill) { return PR_KEYS.includes(String(d.key)) ? String(d.key) : 'all'; }
+function prContinue() {
+    const d = data.lastDrill;
+    if (!d)
+        return;
+    prSetTopic(d.cat);
+    if (d.cat !== 'melody') // melodies are always on the keys, and leave the saved ear choice alone
+        prSetMode(prDrillMode(d));
+    prSetKey(prDrillKey(d));
+    prStart();
+}
+// Arrow keys, Home and End move through a radio group and select (WAI-ARIA radio group); Space and Enter click.
+function prRadioKey(e: KeyboardEvent, pick: (v: string) => void) {
+    const group = e.currentTarget, cur = eventClosest(e, '[role=radio]');
+    if (!(group instanceof HTMLElement) || !cur)
+        return;
+    const radios = queryAllHtml(group, '[role=radio]'), i = radios.indexOf(cur), n = radios.length;
+    if (i < 0)
+        return;
+    let to: number;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown')
+        to = (i + 1) % n;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+        to = (i - 1 + n) % n;
+    else if (e.key === 'Home')
+        to = 0;
+    else if (e.key === 'End')
+        to = n - 1;
+    else
+        return;
+    e.preventDefault();
+    const next = radios[to];
+    if (!next)
+        return;
+    pick(next.dataset.v ?? '');
+    next.focus();
+}
+// The topic cards (the .focus card look), with mastered counts for the four review topics.
+function renderPracticeTopics() {
+    const box = maybeById('pr-topics'), sel = maybeById('pr-cat');
+    if (!box || !(sel instanceof HTMLSelectElement))
+        return;
+    if (box.children.length !== PR_TOPICS.length)
+        box.innerHTML = PR_TOPICS.map((c) => `<button type="button" role="radio" class="focus pr-topic" id="pr-t-${c}" data-v="${c}" aria-checked="false" tabindex="-1" aria-labelledby="pr-t-${c}-n" aria-describedby="pr-t-${c}-d pr-t-${c}-m"><span class="pr-topic-top"><svg class="pr-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${PR_GLYPH[c] ?? ''}</svg><span class="k" id="pr-t-${c}-n"></span></span><span class="m" id="pr-t-${c}-d"></span><span class="pr-mast" id="pr-t-${c}-m"></span></button>`).join('');
+    const cat = PR_TOPICS.includes(sel.value) ? sel.value : PR_TOPICS[0];
+    PR_TOPICS.forEach((c) => {
+        const card = byId('pr-t-' + c), on = c === cat, mast = byId('pr-t-' + c + '-m');
+        card.setAttribute('aria-checked', on ? 'true' : 'false');
+        card.tabIndex = on ? 0 : -1;
+        byId('pr-t-' + c + '-n').textContent = prTopicLabel(c);
+        byId('pr-t-' + c + '-d').textContent = t('pr_d_' + c);
+        if (isCatKey(c)) {
+            const items = ITEMS.filter((it) => it.cat === c), mastered = items.filter((it) => boxOf(it.id) >= 4).length;
+            mast.innerHTML = '<span class="bar"><i style="width:' + (items.length ? Math.round(100 * mastered / items.length) : 0) + '%"></i></span><span class="pr-mast-t">' + rdEsc(t('pr_mastered', mastered, items.length)) + '</span>';
+            mast.hidden = false;
         }
+        else {
+            mast.textContent = '';
+            mast.hidden = true;
+        }
+    });
+}
+// The key chips: All keys and the 12 roots, in the chosen note names. On a phone the row scrolls sideways.
+function renderPracticeKeys() {
+    const box = maybeById('pr-keys'), sel = maybeById('pr-key');
+    if (!box || !(sel instanceof HTMLSelectElement))
+        return;
+    if (box.children.length !== PR_KEYS.length)
+        box.innerHTML = PR_KEYS.map((k) => `<button type="button" role="radio" class="pr-chip" data-v="${k}" aria-checked="false" tabindex="-1"></button>`).join('');
+    const key = sel.value || 'all';
+    queryAllHtml(box, '[role=radio]').forEach((b) => {
+        const v = b.dataset.v ?? 'all', is = v === key;
+        b.textContent = prKeyLabel(v);
+        b.setAttribute('aria-checked', is ? 'true' : 'false');
+        b.tabIndex = is ? 0 : -1;
+    });
+    const chip = queryHtml(box, '[aria-checked="true"]');
+    if (chip && box.clientWidth && box.scrollWidth > box.clientWidth && (chip.offsetLeft < box.scrollLeft || chip.offsetLeft + chip.offsetWidth > box.scrollLeft + box.clientWidth))
+        box.scrollLeft = chip.offsetLeft - (box.clientWidth - chip.offsetWidth) / 2;
+}
+
+// One line on what the chosen mode asks of you, one on why the topic turns a mode off, and the Start label.
+function updatePracticeModeHint() {
+    const hint = maybeById('pr-mode-hint'), note = maybeById('pr-mode-note'), start = maybeById('pr-start');
+    if (!hint || !note || !start || !maybeById('pr-cat') || !maybeById('pr-mode'))
+        return;
+    const { cat, mode, key } = prChoice(), tech = cat === TECHNIQUE_TOPIC;
+    hint.textContent = tech ? t('tq_pr_hint') : t(mode === 'keys' ? 'pr_hint_keys' : mode === 'ear' ? 'pr_hint_ear' : 'pr_hint_play');
+    const why = cat === 'melody' ? t('pr_why_melody', prModeLabel('keys')) : cat === 'prog' ? t('pr_why_prog', prModeLabel('keys')) : tech ? t('pr_why_tech', prModeLabel('play')) + ' ' + t('tq_pr_note') : '';
+    note.textContent = why;
+    note.hidden = !why;
+    const dirShown = prDirShown(), along = mode === 'along';
+    byId('pr-dir-row').hidden = !dirShown;
+    byId('pr-songs').hidden = cat !== 'interval';
+    byId('pr-along').hidden = byId('pr-along-out').hidden = !along;
+    if (along) {
+        hint.textContent = t('ac_lede') + (key === 'all' ? ' ' + t('pr_along_c', rootName(0)) : '');
+        renderAccompany();
     }
+    else if (accomp.on)
+        accompStop(); // another topic or mode: the loop stops
+    start.textContent = along ? t(accomp.on ? 'ac_stop' : 'ac_play') : t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), ...(dirShown ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
+    dockSync(); // Play along brings the keys
 }
 
 function syncPracticeCatAndMode() {
@@ -17167,9 +17605,11 @@ function syncPracticeCatAndMode() {
     queryAllHtml(pm, ':scope > *').forEach((x) => {
         if (x instanceof HTMLButtonElement) {
             const v = x.dataset.v;
-            // Melodies only support 'keys'; Progressions do NOT support 'keys'; scales and arpeggios are played
-            const dis = (mel && v !== 'keys') || (prog && v === 'keys') || (tech && v !== 'play');
+            // Melodies only support 'keys'; Progressions do NOT support 'keys'; scales and arpeggios are played;
+            // Play along is for Progressions only, and hidden elsewhere
+            const dis = (mel && v !== 'keys') || (prog && v === 'keys') || (tech && v !== 'play') || (!prog && v === 'along');
             x.disabled = dis;
+            x.hidden = !prog && v === 'along';
         }
     });
 
@@ -17194,22 +17634,45 @@ function syncPracticeCatAndMode() {
         }
     }
 
+    renderPracticeTopics();
+    renderPracticeKeys();
     updatePracticeModeHint();
 }
+// The whole setup screen in the current language and note names (applyI18n, applyNotation).
+function renderPracticeSetup() {
+    renderPracticeTopics();
+    renderPracticeKeys();
+    updatePracticeModeHint();
+    renderPracticeLast();
+    renderSongs();
+}
 
+// After a drill: the contrast offer when it shows (its Start button, else its text), else the Last drill strip's button.
+function prFocusAfterDrill() {
+    const offer = maybeById('ses-contrast'), go = maybeById('cf-start');
+    if (offer && !offer.hidden) {
+        if (go && offer.contains(go))
+            go.focus();
+        else {
+            offer.tabIndex = -1;
+            offer.focus();
+        }
+    }
+    else
+        byId(byId('pr-last').hidden ? 'pr-start' : 'pr-redo').focus();
+}
 function renderPracticeLast() {
-    const el = byId('pr-last');
-    if (!el)
+    const el = maybeById('pr-last'), txt = maybeById('pr-last-txt');
+    if (!el || !txt)
         return;
     const d = data.lastDrill;
     if (!d || !d.n || (!(isCatKey(d.cat) && CATS[d.cat]) && d.cat !== 'melody')) {
         el.hidden = true;
         return;
     }
-    const pct = Math.round(100 * d.c / d.n);
+    const pct = Math.round(100 * d.c / d.n), mode = prDrillMode(d);
     el.hidden = false;
-    el.className = 'verdict ' + (pct >= 80 ? 'good' : 'neutral');
-    el.textContent = t('pr_last', (d.cat === 'melody' ? t('cat_melody') : catLabel(d.cat)) + ' · ' + t(d.keys ? 'pr_onkeys' : d.mode === 'ear' ? 'pr_byear' : 'pr_playit')) + ' — ' + t('pr_last_res', d.c, d.n) + ' (' + pct + '%)';
+    txt.innerHTML = rdEsc(t('pr_last', [prTopicLabel(d.cat), prModeLabel(mode), prKeyLabel(prDrillKey(d))].join(' · '))) + ' — <b class="' + (pct >= 80 ? 'good' : 'neutral') + '">' + rdEsc(t('pr_last_res', d.c, d.n) + ' (' + pct + '%)') + '</b>';
 }
 /* ---------- SUMMARY ---------- */
 function showSummary(..._args: unknown[]) {
@@ -17532,7 +17995,7 @@ function syncRefresh() {
     else if (view0() === 'progress')
         renderProgress();
     else if (view0() === 'practice' && !SES.active)
-        renderPracticeLast();
+        renderPracticeSetup();
 }
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
@@ -18016,21 +18479,14 @@ function applyNotation() {
     selectById('refRoot').value = String(refR || 0);
     selectById('song-root').value = String(sr || 0);
     selectById('pr-key').value = pk || 'all';
+    renderPracticeSetup();
     selectById('keyCtx').value = kc || '-1';
-    const ak = selectById('ac-key');
-    if (ak) {
-        const av = ak.value;
-        fillRoots(ak, false);
-        ak.value = String(av || accomp.key || 0);
-    }
     renderCircle();
     buildKeyboard();
     repaintHeld();
     if (view0() === 'explore')
         updateExplore();
-    if (view0() === 'songs')
-        renderSongs();
-    if (view0() === 'accompany')
+    if (view0() === 'practice')
         updateAccompChain();
     if (view0() === 'read' && SR.piece) {
         srStopAll();
@@ -18042,7 +18498,7 @@ function applyNotation() {
         anDraw();
     coachRefresh();
 }
-/* ---------- ACCOMPANIMENT UI ---------- */
+/* ---------- ACCOMPANIMENT UI: Progressions · Play along in the Practice setup ---------- */
 /** A `<select>` whose options are built once; `_filled` marks it as built. */
 type AccompFilledSelect = HTMLSelectElement & { _filled?: boolean };
 function renderAccompany() {
@@ -18056,18 +18512,14 @@ function renderAccompany() {
         Object.keys(ACCOMP_PATTERNS).forEach((k) => { const o = (document).createElement('option'); o.value = k; o.textContent = ACCOMP_PATTERNS[k][lang] || ACCOMP_PATTERNS[k].en; pt.appendChild(o); });
         pt._filled = true;
     }
-    const ak = selectById('ac-key');
-    if (ak && !ak.options.length) {
-        fillRoots(ak, false);
-        ak.value = String(accomp.key || 0);
-    }
     updateAccompChain();
 }
+// The loop's key: the Practice key chip, or C when All keys is chosen.
+function accompKey() { const k = prChoice().key; return k === 'all' ? 0 : (+k || 0); }
 function updateAccompChain() { const el = byId('ac-chain'); if (!el)
     return; const prog = ACCOMP_PROGS[+(selectById('ac-prog').value || 0)]; if (!prog)
-    return; const key = +(selectById('ac-key').value || 0); el.innerHTML = prog.chords.map((ch) => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
-function accompSync() { accomp.progIdx = +(selectById('ac-prog').value || 0); accomp.key = +(selectById('ac-key').value || 0); accomp.pattern = selectById('ac-pat').value || 'block'; accomp.bpm = +(inputById('ac-bpm').value || 90); const hb = queryHtml(byId('ac-hands'), '[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v ?? accomp.hands : 'both'; accomp.click = inputById('ac-click').checked; }
-function acPlayLabel() { byId('ac-play').textContent = accomp.on ? t('ac_stop') : t('ac_play'); }
+    return; const key = accompKey(); el.innerHTML = prog.chords.map((ch) => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
+function accompSync() { accomp.progIdx = +(selectById('ac-prog').value || 0); accomp.key = accompKey(); accomp.pattern = selectById('ac-pat').value || 'block'; accomp.bpm = +(inputById('ac-bpm').value || 90); const hb = queryHtml(byId('ac-hands'), '[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v ?? accomp.hands : 'both'; accomp.click = inputById('ac-click').checked; }
 function accompRestartIfPlaying() { if (accomp.on) {
     accompSync();
     accompStart();
@@ -18239,47 +18691,27 @@ function initControls() {
     byId('pr-mode').addEventListener('click', (e) => {
         const b = eventClosest(e, 'button');
         if (!b || wiringDisabled(b)) return;
-        wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-        const v = b.dataset.v as 'play' | 'ear' | 'keys' | undefined;
-        if (v) {
-            practiceModePref = v;
-            if (v !== 'play') {
-                data.settings.earKeys = v === 'keys';
-                saveAll();
-            }
-            updatePracticeModeHint();
-        }
+        const v = b.dataset.v;
+        if (isPracticeMode(v)) prSetMode(v);
     });
     byId('pr-cat').addEventListener('change', syncPracticeCatAndMode);
-    byId('pr-start').addEventListener('click', () => {
-        const cat = selectById('pr-cat').value;
-        const mb = queryHtml(byId('pr-mode'), '[aria-pressed="true"]');
-        const v = cat === 'melody' ? 'keys' : (mb ? mb.dataset.v : 'play');
-        const key = selectById('pr-key').value;
-        if (v) practiceModePref = v as 'play' | 'ear' | 'keys';
-        if (v !== 'play' && cat !== 'melody') {
-            data.settings.earKeys = v === 'keys';
-            saveAll();
-        }
-        show('practice');
-        startSession({ cat, mode: v === 'play' ? 'play' : 'ear', key });
-    });
+    byId('pr-key').addEventListener('change', () => { renderPracticeKeys(); updatePracticeModeHint(); });
+    byId('pr-topics').addEventListener('click', (e) => { const r = eventClosest(e, '[role=radio]'); if (r?.dataset.v) prSetTopic(r.dataset.v); });
+    byId('pr-topics').addEventListener('keydown', (e) => prRadioKey(e, prSetTopic));
+    byId('pr-keys').addEventListener('click', (e) => { const r = eventClosest(e, '[role=radio]'); if (r?.dataset.v) prSetKey(r.dataset.v); });
+    byId('pr-keys').addEventListener('keydown', (e) => prRadioKey(e, prSetKey));
+    byId('pr-start').addEventListener('click', prStart);
+    byId('pr-redo').addEventListener('click', prContinue);
+    byId('pr-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetDir(b.dataset.v ?? ''); });
     // accompaniment
     byId('ac-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
-    ['ac-prog', 'ac-pat', 'ac-key'].forEach((id) => byId(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
+    ['ac-prog', 'ac-pat'].forEach((id) => byId(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
     byId('ac-bpm').addEventListener('input', (e) => { byId('ac-bpmLbl').textContent = wiringField(e).value; });
     byId('ac-bpm').addEventListener('change', accompRestartIfPlaying);
     byId('ac-click').addEventListener('change', accompRestartIfPlaying);
-    byId('ac-play').addEventListener('click', () => { if (accomp.on) {
-        accompStop();
-    }
-    else {
-        accompSync();
-        accompStart();
-    } acPlayLabel(); });
     // read & play (sheet music)
-    byId('rd-piece').addEventListener('change', (e) => srSelectPiece(wiringField(e).value));
+    byId('rd-to-pieces').addEventListener('click', () => show('analysis'));
     const onHandsClick = (e: MouseEvent) => {
         const b = eventClosest(e, 'button');
         if (!b || wiringDisabled(b) || srtPendingSaveProtected())
@@ -18294,6 +18726,8 @@ function initControls() {
                     x.setAttribute('aria-pressed', x.dataset.v === v ? 'true' : 'false');
             });
         });
+        if (!SR.piece)
+            return; // no melody yet: the choice applies to the next one
         const staffEl = maybeById('rd-staff');
         if (staffEl)
             staffEl.dataset.activeHand = srActiveHands();
@@ -18354,6 +18788,18 @@ function initControls() {
     byId('rd-coach').addEventListener('click', (e) => { if (eventClosest(e, '#rd-coach-act') && SR.next && SR.next.act)
         SR.next.act.run(); });
     byId('rd-listen').addEventListener('click', srListen);
+    // voice: the activity switch is a tab list (arrows, Home and End move along it and choose)
+    byId('vo-switch').addEventListener('click', (e) => { const b = eventClosest(e, '[role=tab]'), a = VOICE_ACTS.find((x) => x === b?.dataset.act); if (a)
+        voiceSetAct(a); });
+    byId('vo-switch').addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End')
+            return;
+        e.preventDefault();
+        const i = VOICE_ACTS.indexOf(voice.act), n = VOICE_ACTS.length;
+        const a = e.key === 'Home' ? VOICE_ACTS[0] : e.key === 'End' ? VOICE_ACTS[n - 1] : VOICE_ACTS[(i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n];
+        voiceSetAct(a);
+        byId('vo-tab-' + a).focus();
+    });
     // transcribe
     byId('tr-rec').addEventListener('click', () => { if (trx.on || trx.pending)
         trxStop();
@@ -18386,15 +18832,11 @@ function initControls() {
         playChordMidis(refMidis(), true);
     else
         playScaleNotes(60 + parseInt(selectById('refRoot').value, 10), SCALES[selectById('refName').value], true); });
-    byId('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => kbClear('target'), 2600)); });
+    byId('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => { kbClear('target'); cofPaintDock(); }, 2600)); });
     byId('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
     // songs
     byId('song-root').addEventListener('change', renderSongs);
-    byId('sq-go').addEventListener('click', sqNew);
-    byId('sq-again').addEventListener('click', () => { if (SQ.started)
-        sqPlay(); });
-    byId('sq-ans').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-semi]'); if (b)
-        sqAnswer(Number(b.dataset.semi)); });
+    byId('pr-songs').addEventListener('toggle', renderSongs);
     byId('song-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; songDir = b.dataset.v ?? songDir; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderSongs(); });
     // progress
@@ -18534,7 +18976,7 @@ chooseView();
 buildKeyboard();
 initPointer();
 initControls();
-initExploreTabs();
+initExploreControls();
 reflectSettingsUI();
 renderCircle();
 applyI18n();
@@ -18575,8 +19017,8 @@ Object.defineProperty(__etude, "_routed", { configurable: true, get: () => _rout
 Object.defineProperty(__etude, "_saveT", { configurable: true, get: () => _saveT });
 Object.defineProperty(__etude, "_view", { configurable: true, get: () => _view });
 Object.defineProperty(__etude, "acChainHL", { configurable: true, get: () => acChainHL });
-Object.defineProperty(__etude, "acPlayLabel", { configurable: true, get: () => acPlayLabel });
 Object.defineProperty(__etude, "accompHL", { configurable: true, get: () => accompHL });
+Object.defineProperty(__etude, "accompKey", { configurable: true, get: () => accompKey });
 Object.defineProperty(__etude, "accompRestartIfPlaying", { configurable: true, get: () => accompRestartIfPlaying });
 Object.defineProperty(__etude, "accompStart", { configurable: true, get: () => accompStart });
 Object.defineProperty(__etude, "accompStop", { configurable: true, get: () => accompStop });
@@ -18610,7 +19052,6 @@ Object.defineProperty(__etude, "anDockWanted", { configurable: true, get: () => 
 Object.defineProperty(__etude, "anDraw", { configurable: true, get: () => anDraw });
 Object.defineProperty(__etude, "anError", { configurable: true, get: () => anError });
 Object.defineProperty(__etude, "anErrorKey", { configurable: true, get: () => anErrorKey });
-Object.defineProperty(__etude, "anFillExamples", { configurable: true, get: () => anFillExamples });
 Object.defineProperty(__etude, "anFit", { configurable: true, get: () => anFit });
 Object.defineProperty(__etude, "anFitImplied", { configurable: true, get: () => anFitImplied });
 Object.defineProperty(__etude, "anFnKey", { configurable: true, get: () => anFnKey });
@@ -18662,13 +19103,15 @@ Object.defineProperty(__etude, "anOriginText", { configurable: true, get: () => 
 Object.defineProperty(__etude, "anParse", { configurable: true, get: () => anParse });
 Object.defineProperty(__etude, "anPcWeights", { configurable: true, get: () => anPcWeights });
 Object.defineProperty(__etude, "anPieceMeta", { configurable: true, get: () => anPieceMeta });
+Object.defineProperty(__etude, "pcRender", { configurable: true, get: () => pcRender });
+Object.defineProperty(__etude, "pcOpen", { configurable: true, get: () => pcOpen });
+Object.defineProperty(__etude, "pcStageSet", { configurable: true, get: () => pcStageSet });
+Object.defineProperty(__etude, "PC_STAGE", { configurable: true, get: () => PC_STAGE });
 Object.defineProperty(__etude, "anPieceToParsed", { configurable: true, get: () => anPieceToParsed });
 Object.defineProperty(__etude, "anPinToolbar", { configurable: true, get: () => anPinToolbar });
 Object.defineProperty(__etude, "anPinToolbarLater", { configurable: true, get: () => anPinToolbarLater });
 Object.defineProperty(__etude, "anPoly", { configurable: true, get: () => anPoly });
 Object.defineProperty(__etude, "anPop", { configurable: true, get: () => anPop });
-Object.defineProperty(__etude, "anPractice", { configurable: true, get: () => anPractice });
-Object.defineProperty(__etude, "anPracticeCheck", { configurable: true, get: () => anPracticeCheck });
 Object.defineProperty(__etude, "anPracticeStart", { configurable: true, get: () => anPracticeStart });
 Object.defineProperty(__etude, "anRate", { configurable: true, get: () => anRate });
 Object.defineProperty(__etude, "anReadXml", { configurable: true, get: () => anReadXml });
@@ -18687,7 +19130,6 @@ Object.defineProperty(__etude, "anRevealPieceRow", { configurable: true, get: ()
 Object.defineProperty(__etude, "anRoman", { configurable: true, get: () => anRoman });
 Object.defineProperty(__etude, "anRove", { configurable: true, get: () => anRove });
 Object.defineProperty(__etude, "anRowsHTML", { configurable: true, get: () => anRowsHTML });
-Object.defineProperty(__etude, "anScopeNotes", { configurable: true, get: () => anScopeNotes });
 Object.defineProperty(__etude, "anSegAt", { configurable: true, get: () => anSegAt });
 Object.defineProperty(__etude, "anSegIndexAt", { configurable: true, get: () => anSegIndexAt });
 Object.defineProperty(__etude, "anSelStart", { configurable: true, get: () => anSelStart });
@@ -18711,7 +19153,6 @@ Object.defineProperty(__etude, "anSyncTimeline", { configurable: true, get: () =
 Object.defineProperty(__etude, "anTab", { configurable: true, get: () => anTab });
 Object.defineProperty(__etude, "anTempoAt", { configurable: true, get: () => anTempoAt });
 Object.defineProperty(__etude, "anTlUpdate", { configurable: true, get: () => anTlUpdate });
-Object.defineProperty(__etude, "anToReadPiece", { configurable: true, get: () => anToReadPiece });
 Object.defineProperty(__etude, "anUnion", { configurable: true, get: () => anUnion });
 Object.defineProperty(__etude, "anUnits", { configurable: true, get: () => anUnits });
 Object.defineProperty(__etude, "anUpdateControls", { configurable: true, get: () => anUpdateControls });
@@ -18796,6 +19237,9 @@ Object.defineProperty(__etude, "cofSyncRef", { configurable: true, get: () => co
 Object.defineProperty(__etude, "cofText", { configurable: true, get: () => cofText });
 Object.defineProperty(__etude, "cofTint", { configurable: true, get: () => cofTint });
 Object.defineProperty(__etude, "cofTonicPc", { configurable: true, get: () => cofTonicPc });
+Object.defineProperty(__etude, "cofIsCompact", { configurable: true, get: () => cofIsCompact });
+Object.defineProperty(__etude, "exKeyCtx", { configurable: true, get: () => exKeyCtx });
+Object.defineProperty(__etude, "exKeyFifths", { configurable: true, get: () => exKeyFifths });
 Object.defineProperty(__etude, "comp", { configurable: true, get: () => comp });
 Object.defineProperty(__etude, "connectMidi", { configurable: true, get: () => connectMidi });
 Object.defineProperty(__etude, "currentStreak", { configurable: true, get: () => currentStreak });
@@ -18813,6 +19257,7 @@ Object.defineProperty(__etude, "dockWanted", { configurable: true, get: () => do
 Object.defineProperty(__etude, "drawExploreStaff", { configurable: true, get: () => drawExploreStaff });
 Object.defineProperty(__etude, "droneVoices", { configurable: true, get: () => droneVoices });
 Object.defineProperty(__etude, "dueItems", { configurable: true, get: () => dueItems });
+Object.defineProperty(__etude, "countEarAnswer", { configurable: true, get: () => countEarAnswer });
 Object.defineProperty(__etude, "earRoot", { configurable: true, get: () => earRoot });
 Object.defineProperty(__etude, "ekBuild", { configurable: true, get: () => ekBuild });
 Object.defineProperty(__etude, "ekCh", { configurable: true, get: () => ekCh });
@@ -18839,7 +19284,6 @@ Object.defineProperty(__etude, "endSession", { configurable: true, get: () => en
 Object.defineProperty(__etude, "ensureAudio", { configurable: true, get: () => ensureAudio });
 Object.defineProperty(__etude, "evalTimer", { configurable: true, get: () => evalTimer });
 Object.defineProperty(__etude, "exTab", { configurable: true, get: () => exTab });
-Object.defineProperty(__etude, "exTabCur", { configurable: true, get: () => exTabCur });
 Object.defineProperty(__etude, "explorePreview", { configurable: true, get: () => explorePreview });
 Object.defineProperty(__etude, "exploreSequence", { configurable: true, get: () => exploreSequence });
 Object.defineProperty(__etude, "exploreTimers", { configurable: true, get: () => exploreTimers });
@@ -18867,7 +19311,6 @@ Object.defineProperty(__etude, "fallSelect", { configurable: true, get: () => fa
 Object.defineProperty(__etude, "fallTime", { configurable: true, get: () => fallTime });
 Object.defineProperty(__etude, "feelDisp", { configurable: true, get: () => feelDisp });
 Object.defineProperty(__etude, "fillKeyCtx", { configurable: true, get: () => fillKeyCtx });
-Object.defineProperty(__etude, "fillPieces", { configurable: true, get: () => fillPieces });
 Object.defineProperty(__etude, "fillRefNames", { configurable: true, get: () => fillRefNames });
 Object.defineProperty(__etude, "fillRoots", { configurable: true, get: () => fillRoots });
 Object.defineProperty(__etude, "focusView", { configurable: true, get: () => focusView });
@@ -18888,7 +19331,7 @@ Object.defineProperty(__etude, "heldPcs", { configurable: true, get: () => heldP
 Object.defineProperty(__etude, "identifyChord", { configurable: true, get: () => identifyChord });
 Object.defineProperty(__etude, "inField", { configurable: true, get: () => inField });
 Object.defineProperty(__etude, "initControls", { configurable: true, get: () => initControls });
-Object.defineProperty(__etude, "initExploreTabs", { configurable: true, get: () => initExploreTabs });
+Object.defineProperty(__etude, "initExploreControls", { configurable: true, get: () => initExploreControls });
 Object.defineProperty(__etude, "initPointer", { configurable: true, get: () => initPointer });
 Object.defineProperty(__etude, "intervalLabel", { configurable: true, get: () => intervalLabel });
 Object.defineProperty(__etude, "invName", { configurable: true, get: () => invName });
@@ -18938,7 +19381,6 @@ Object.defineProperty(__etude, "learnGoId", { configurable: true, get: () => lea
 Object.defineProperty(__etude, "learnHalt", { configurable: true, get: () => learnHalt });
 Object.defineProperty(__etude, "learnInitSel", { configurable: true, get: () => learnInitSel });
 Object.defineProperty(__etude, "learnInput", { configurable: true, get: () => learnInput });
-Object.defineProperty(__etude, "learnLessonOpen", { configurable: true, get: () => learnLessonOpen });
 Object.defineProperty(__etude, "learnLight", { configurable: true, get: () => learnLight });
 Object.defineProperty(__etude, "learnMark", { configurable: true, get: () => learnMark });
 Object.defineProperty(__etude, "learnNavRender", { configurable: true, get: () => learnNavRender });
@@ -18952,7 +19394,6 @@ Object.defineProperty(__etude, "learnTimer", { configurable: true, get: () => le
 Object.defineProperty(__etude, "learnTitle", { configurable: true, get: () => learnTitle });
 Object.defineProperty(__etude, "learnUnitDone", { configurable: true, get: () => learnUnitDone });
 Object.defineProperty(__etude, "learnUnitOf", { configurable: true, get: () => learnUnitOf });
-Object.defineProperty(__etude, "learnUnitOpen", { configurable: true, get: () => learnUnitOpen });
 Object.defineProperty(__etude, "learnWire", { configurable: true, get: () => learnWire });
 Object.defineProperty(__etude, "lfo", { configurable: true, get: () => lfo });
 Object.defineProperty(__etude, "lfoGain", { configurable: true, get: () => lfoGain });
@@ -19043,14 +19484,28 @@ Object.defineProperty(__etude, "playQuestionSound", { configurable: true, get: (
 Object.defineProperty(__etude, "playScaleNotes", { configurable: true, get: () => playScaleNotes });
 Object.defineProperty(__etude, "popModalState", { configurable: true, get: () => popModalState });
 Object.defineProperty(__etude, "positionBlacks", { configurable: true, get: () => positionBlacks });
+Object.defineProperty(__etude, "prAlongWanted", { configurable: true, get: () => prAlongWanted });
+Object.defineProperty(__etude, "prChoice", { configurable: true, get: () => prChoice });
+Object.defineProperty(__etude, "prEarCheck", { configurable: true, get: () => prEarCheck });
+Object.defineProperty(__etude, "prFocusAfterDrill", { configurable: true, get: () => prFocusAfterDrill });
+Object.defineProperty(__etude, "prOpenMoved", { configurable: true, get: () => prOpenMoved });
 Object.defineProperty(__etude, "prRecordDrill", { configurable: true, get: () => prRecordDrill });
+Object.defineProperty(__etude, "prSetDir", { configurable: true, get: () => prSetDir });
+Object.defineProperty(__etude, "prSetKey", { configurable: true, get: () => prSetKey });
+Object.defineProperty(__etude, "prSetTopic", { configurable: true, get: () => prSetTopic });
 Object.defineProperty(__etude, "pracAcc", { configurable: true, get: () => pracAcc });
 Object.defineProperty(__etude, "pracBeats", { configurable: true, get: () => pracBeats });
 Object.defineProperty(__etude, "pracClearAB", { configurable: true, get: () => pracClearAB });
 Object.defineProperty(__etude, "pracFinish", { configurable: true, get: () => pracFinish });
+Object.defineProperty(__etude, "pracRecord", { configurable: true, get: () => pracRecord });
+Object.defineProperty(__etude, "pracSavedText", { configurable: true, get: () => pracSavedText });
+Object.defineProperty(__etude, "pracWholePiece", { configurable: true, get: () => pracWholePiece });
+Object.defineProperty(__etude, "pracWhyNot", { configurable: true, get: () => pracWhyNot });
 Object.defineProperty(__etude, "pracFrame", { configurable: true, get: () => pracFrame });
 Object.defineProperty(__etude, "pracHud", { configurable: true, get: () => pracHud });
 Object.defineProperty(__etude, "pracInput", { configurable: true, get: () => pracInput });
+Object.defineProperty(__etude, "pracNeedKey", { configurable: true, get: () => pracNeedKey });
+Object.defineProperty(__etude, "pracSame", { configurable: true, get: () => pracSame });
 Object.defineProperty(__etude, "pracJudge", { configurable: true, get: () => pracJudge });
 Object.defineProperty(__etude, "pracLoad", { configurable: true, get: () => pracLoad });
 Object.defineProperty(__etude, "pracLoopBars", { configurable: true, get: () => pracLoopBars });
@@ -19130,7 +19585,6 @@ Object.defineProperty(__etude, "rdLetter", { configurable: true, get: () => rdLe
 Object.defineProperty(__etude, "rdLvDetail", { configurable: true, get: () => rdLvDetail });
 Object.defineProperty(__etude, "rdLvName", { configurable: true, get: () => rdLvName });
 Object.defineProperty(__etude, "rdLvNext", { configurable: true, get: () => rdLvNext });
-Object.defineProperty(__etude, "rdLvPrev", { configurable: true, get: () => rdLvPrev });
 Object.defineProperty(__etude, "rdLvSub", { configurable: true, get: () => rdLvSub });
 Object.defineProperty(__etude, "rdMidi", { configurable: true, get: () => rdMidi });
 Object.defineProperty(__etude, "rdName", { configurable: true, get: () => rdName });
@@ -19183,7 +19637,6 @@ Object.defineProperty(__etude, "rdTab", { configurable: true, get: () => rdTab }
 Object.defineProperty(__etude, "rdTap", { configurable: true, get: () => rdTap });
 Object.defineProperty(__etude, "rdTarget", { configurable: true, get: () => rdTarget });
 Object.defineProperty(__etude, "rdU", { configurable: true, get: () => rdU });
-Object.defineProperty(__etude, "rdUnlocked", { configurable: true, get: () => rdUnlocked });
 Object.defineProperty(__etude, "refMidis", { configurable: true, get: () => refMidis });
 Object.defineProperty(__etude, "reflectSettingsUI", { configurable: true, get: () => reflectSettingsUI });
 Object.defineProperty(__etude, "reflowKeys", { configurable: true, get: () => reflowKeys });
@@ -19203,6 +19656,7 @@ Object.defineProperty(__etude, "renderRead", { configurable: true, get: () => re
 Object.defineProperty(__etude, "renderSing", { configurable: true, get: () => renderSing });
 Object.defineProperty(__etude, "renderSongs", { configurable: true, get: () => renderSongs });
 Object.defineProperty(__etude, "renderTranscribe", { configurable: true, get: () => renderTranscribe });
+Object.defineProperty(__etude, "renderVoice", { configurable: true, get: () => renderVoice });
 Object.defineProperty(__etude, "repaintHeld", { configurable: true, get: () => repaintHeld });
 Object.defineProperty(__etude, "resolve", { configurable: true, get: () => resolve });
 Object.defineProperty(__etude, "revealAnswerKeys", { configurable: true, get: () => revealAnswerKeys });
@@ -19308,10 +19762,6 @@ Object.defineProperty(__etude, "songsFor", { configurable: true, get: () => song
 Object.defineProperty(__etude, "spellMidi", { configurable: true, get: () => spellMidi });
 Object.defineProperty(__etude, "spellName", { configurable: true, get: () => spellName });
 Object.defineProperty(__etude, "spelledName", { configurable: true, get: () => spelledName });
-Object.defineProperty(__etude, "sqAnswer", { configurable: true, get: () => sqAnswer });
-Object.defineProperty(__etude, "sqNew", { configurable: true, get: () => sqNew });
-Object.defineProperty(__etude, "sqPlay", { configurable: true, get: () => sqPlay });
-Object.defineProperty(__etude, "sqRender", { configurable: true, get: () => sqRender });
 Object.defineProperty(__etude, "srActiveHands", { configurable: true, get: () => srActiveHands });
 Object.defineProperty(__etude, "srAssessFinish", { configurable: true, get: () => srAssessFinish });
 Object.defineProperty(__etude, "srAssessLoop", { configurable: true, get: () => srAssessLoop });
@@ -19322,7 +19772,7 @@ Object.defineProperty(__etude, "srtStartPractice", { configurable: true, get: ()
 Object.defineProperty(__etude, "srtStartClaimedAttempt", { configurable: true, get: () => srtStartClaimedAttempt });
 Object.defineProperty(__etude, "srtSwitchToPractice", { configurable: true, get: () => srtSwitchToPractice });
 Object.defineProperty(__etude, "srBeatToX", { configurable: true, get: () => srBeatToX });
-Object.defineProperty(__etude, "srBest", { configurable: true, get: () => srBest });
+Object.defineProperty(__etude, "srEmptyUi", { configurable: true, get: () => srEmptyUi });
 Object.defineProperty(__etude, "srClef", { configurable: true, get: () => srClef });
 Object.defineProperty(__etude, "srClick", { configurable: true, get: () => srClick });
 Object.defineProperty(__etude, "srCoach", { configurable: true, get: () => srCoach });
@@ -19353,6 +19803,7 @@ Object.defineProperty(__etude, "srRest", { configurable: true, get: () => srRest
 Object.defineProperty(__etude, "srScrollStep", { configurable: true, get: () => srScrollStep });
 Object.defineProperty(__etude, "srScrollX", { configurable: true, get: () => srScrollX });
 Object.defineProperty(__etude, "srSelectPiece", { configurable: true, get: () => srSelectPiece });
+Object.defineProperty(__etude, "srShowPiece", { configurable: true, get: () => srShowPiece });
 Object.defineProperty(__etude, "srSetBpm", { configurable: true, get: () => srSetBpm });
 Object.defineProperty(__etude, "srSetMode", { configurable: true, get: () => srSetMode });
 Object.defineProperty(__etude, "srShape", { configurable: true, get: () => srShape });
@@ -19463,6 +19914,9 @@ Object.defineProperty(__etude, "toolName", { configurable: true, get: () => tool
 Object.defineProperty(__etude, "touchDay", { configurable: true, get: () => touchDay });
 Object.defineProperty(__etude, "trapFocus", { configurable: true, get: () => trapFocus });
 Object.defineProperty(__etude, "trxAutoCorrelate", { configurable: true, get: () => trxAutoCorrelate });
+Object.defineProperty(__etude, "micClose", { configurable: true, get: () => micClose });
+Object.defineProperty(__etude, "micOpen", { configurable: true, get: () => micOpen });
+Object.defineProperty(__etude, "livePitch", { configurable: true, get: () => livePitch });
 Object.defineProperty(__etude, "trxBuildMidi", { configurable: true, get: () => trxBuildMidi });
 Object.defineProperty(__etude, "trxClear", { configurable: true, get: () => trxClear });
 Object.defineProperty(__etude, "trxCloseNote", { configurable: true, get: () => trxCloseNote });
@@ -19484,6 +19938,10 @@ Object.defineProperty(__etude, "updateAccompChain", { configurable: true, get: (
 Object.defineProperty(__etude, "updateExplore", { configurable: true, get: () => updateExplore });
 Object.defineProperty(__etude, "view0", { configurable: true, get: () => view0 });
 Object.defineProperty(__etude, "viewHigh", { configurable: true, get: () => viewHigh });
+Object.defineProperty(__etude, "voiceActive", { configurable: true, get: () => voiceActive });
+Object.defineProperty(__etude, "voiceSetAct", { configurable: true, get: () => voiceSetAct });
+Object.defineProperty(__etude, "voiceStop", { configurable: true, get: () => voiceStop });
+Object.defineProperty(__etude, "voiceSync", { configurable: true, get: () => voiceSync });
 Object.defineProperty(__etude, "wakeArm", { configurable: true, get: () => wakeArm });
 Object.defineProperty(__etude, "wakeCan", { configurable: true, get: () => wakeCan });
 Object.defineProperty(__etude, "wakeDrop", { configurable: true, get: () => wakeDrop });
@@ -19501,12 +19959,10 @@ Object.defineProperty(__etude, "ACCOMP_PROGS", { configurable: true, get: () => 
 Object.defineProperty(__etude, "AN", { configurable: true, get: () => AN });
 Object.defineProperty(__etude, "AN_CHORDS", { configurable: true, get: () => AN_CHORDS });
 Object.defineProperty(__etude, "AN_DIA", { configurable: true, get: () => AN_DIA });
-Object.defineProperty(__etude, "AN_EXAMPLES", { configurable: true, get: () => AN_EXAMPLES });
 Object.defineProperty(__etude, "AN_MAX_BYTES", { configurable: true, get: () => AN_MAX_BYTES });
 Object.defineProperty(__etude, "AN_MAX_NOTES", { configurable: true, get: () => AN_MAX_NOTES });
 Object.defineProperty(__etude, "AN_MAX_XML_CHARS", { configurable: true, get: () => AN_MAX_XML_CHARS });
 Object.defineProperty(__etude, "AN_POPS", { configurable: true, get: () => AN_POPS });
-Object.defineProperty(__etude, "AN_PRACTICE_BARS", { configurable: true, get: () => AN_PRACTICE_BARS });
 Object.defineProperty(__etude, "AN_PROFILE", { configurable: true, get: () => AN_PROFILE });
 Object.defineProperty(__etude, "AN_SMUFL_NOTES", { configurable: true, get: () => AN_SMUFL_NOTES });
 Object.defineProperty(__etude, "AN_TABS", { configurable: true, get: () => AN_TABS });
@@ -19602,9 +20058,8 @@ Object.defineProperty(__etude, "RD_MAJ", { configurable: true, get: () => RD_MAJ
 Object.defineProperty(__etude, "RD_MIN", { configurable: true, get: () => RD_MIN });
 Object.defineProperty(__etude, "RD_REF", { configurable: true, get: () => RD_REF });
 Object.defineProperty(__etude, "RD_RHU", { configurable: true, get: () => RD_RHU });
-Object.defineProperty(__etude, "RD_RUSH", { configurable: true, get: () => RD_RUSH });
 Object.defineProperty(__etude, "RD_TARGET", { configurable: true, get: () => RD_TARGET });
-Object.defineProperty(__etude, "RD_TESTN", { configurable: true, get: () => RD_TESTN });
+Object.defineProperty(__etude, "RD_CHECK_N", { configurable: true, get: () => RD_CHECK_N });
 Object.defineProperty(__etude, "RD_UNITS", { configurable: true, get: () => RD_UNITS });
 Object.defineProperty(__etude, "ROMAN", { configurable: true, get: () => ROMAN });
 Object.defineProperty(__etude, "ROOT_NAMES", { configurable: true, get: () => ROOT_NAMES });
@@ -19622,7 +20077,6 @@ Object.defineProperty(__etude, "SC_TERMS", { configurable: true, get: () => SC_T
 Object.defineProperty(__etude, "SES", { configurable: true, get: () => SES });
 Object.defineProperty(__etude, "SIDE", { configurable: true, get: () => SIDE });
 Object.defineProperty(__etude, "SONGS", { configurable: true, get: () => SONGS });
-Object.defineProperty(__etude, "SQ", { configurable: true, get: () => SQ });
 Object.defineProperty(__etude, "SR", { configurable: true, get: () => SR });
 Object.defineProperty(__etude, "SR_LET", { configurable: true, get: () => SR_LET });
 Object.defineProperty(__etude, "SS_FLAT_ORDER", { configurable: true, get: () => SS_FLAT_ORDER });
@@ -19652,7 +20106,6 @@ Object.defineProperty(__etude, "anDomQ", { configurable: true, get: () => anDomQ
 Object.defineProperty(__etude, "blackEl", { configurable: true, get: () => blackEl });
 Object.defineProperty(__etude, "coachText", { configurable: true, get: () => coachText });
 Object.defineProperty(__etude, "cof", { configurable: true, get: () => cof });
-Object.defineProperty(__etude, "cofMQ", { configurable: true, get: () => cofMQ });
 Object.defineProperty(__etude, "held", { configurable: true, get: () => held });
 Object.defineProperty(__etude, "heldOrder", { configurable: true, get: () => heldOrder });
 Object.defineProperty(__etude, "inputOwners", { configurable: true, get: () => inputOwners });
@@ -19680,6 +20133,7 @@ Object.defineProperty(__etude, "todayN", { configurable: true, get: () => todayN
 Object.defineProperty(__etude, "trx", { configurable: true, get: () => trx });
 Object.defineProperty(__etude, "typingDown", { configurable: true, get: () => typingDown });
 Object.defineProperty(__etude, "view", { configurable: true, get: () => view });
+Object.defineProperty(__etude, "voice", { configurable: true, get: () => voice });
 Object.defineProperty(__etude, "whiteEl", { configurable: true, get: () => whiteEl });
 // These hooks are intentionally mutable because a few browser regressions
 // replace an app dependency in-place and verify the caller's behavior.

@@ -13,6 +13,14 @@ async function advanceSteps(page, count) {
   }, count);
 }
 
+// Read & Play plays generated melodies only; a built-in piece's notes serve as a longer fixture for the engine.
+async function showFixture(page, id) {
+  await page.evaluate(pieceId => {
+    const app = window.__etude, piece = app.PIECES.find(p => p.id === pieceId);
+    app.srShowPiece({ ...piece, ephemeral: true });
+  }, id);
+}
+
 async function expectCurrentNoteVisible(page) {
   await expect.poll(() => page.evaluate(() => {
     const wrap = document.querySelector('#rd-staff').getBoundingClientRect();
@@ -28,7 +36,7 @@ test('active non-immersive piece keeps its current note visible after resize', a
   await page.setViewportSize({ width: 390, height: 844 });
   await app.open({ hash: 'read' });
   await page.locator('#rdt-pieces').click();
-  await page.locator('#rd-piece').selectOption('minuet');
+  await showFixture(page, 'minuet');
   await page.evaluate(() => { window.__etude.rdData().prefs.stage = false; });
   await page.locator('#rd-go').click();
   await advanceSteps(page, 15);
@@ -47,7 +55,7 @@ for (const width of [320, 390]) {
       await page.setViewportSize({ width, height: 844 });
       await app.open({ hash: 'read' });
       await page.locator('#rdt-pieces').click();
-      await page.locator('#rd-piece').selectOption(piece);
+      await showFixture(page, piece);
       await page.locator('#rd-go').click();
       await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
       const music = await page.locator('#rd-staff').evaluate(wrap => {
@@ -86,6 +94,8 @@ for (const activation of ['keyboard', 'pointer']) {
   test(`Finish restores the piece start focus after ${activation} activation`, async ({ app, page }) => {
     await app.open({ hash: 'read' });
     await page.locator('#rdt-pieces').click();
+    await page.locator('#rd-mode button[data-v="learn"]').click();
+    await page.locator('#rd-gen').click();
     await page.locator('#rd-go').click();
     await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
     const finish = page.locator('#rd-stage-end');
@@ -120,8 +130,8 @@ test('anyOctave setting accepts played notes in any octave and syncs with settin
   await expect(page.locator('#set-any-octave')).toBeChecked();
   await page.keyboard.press('Escape');
 
-  // Select 5-finger warm-up (starts with C4 = MIDI 60) and select Right Hand
-  await page.locator('#rd-piece').selectOption('w5rh');
+  // Load the 5-finger warm-up as a fixture (starts with C4 = MIDI 60) and select Right Hand
+  await showFixture(page, 'w5rh');
   await page.locator('#rd-hands button[data-v="rh"]').click();
   await page.locator('#rd-go').click();
   expect(await page.evaluate(() => window.__etude.SR.active)).toBe(true);

@@ -1,5 +1,14 @@
 import { test, expect } from '../../helpers/fixtures.mjs';
 
+// Read & Play plays generated melodies only; a built-in piece's notes load as a non-generated fixture for the engine.
+async function showFixture(page, id) {
+  await page.evaluate((pieceId) => {
+    const api = window.__etude, piece = api.PIECES.find((p) => p.id === pieceId);
+    api.srShowPiece({ ...piece, ephemeral: true });
+  }, id);
+}
+
+
 async function openAssessGenerator(app) {
   const page = await app.open({ hash: 'read', dock: true });
   await page.locator('#rdt-pieces').click();
@@ -105,7 +114,7 @@ test.describe('Sight-reading iteration 14 regressions', () => {
   test('keeps Read navigation pendingSave visible until abandonment succeeds', async ({ app }) => {
     const page = await blockedPendingSave(app);
     const fingerprint = await page.evaluate(() => window.__etude.SR.srtFingerprint);
-    await page.locator('#rdt-stats').click();
+    await page.locator('#rdt-drills').click();
     await expect.poll(() => pendingSnapshot(page)).toMatchObject({
       state: 'pendingSave',
       fingerprint,
@@ -119,8 +128,8 @@ test.describe('Sight-reading iteration 14 regressions', () => {
     await restoreStorage(page);
     await page.locator('#rd-srt-continue').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('abandoned');
-    await page.locator('#rdt-stats').click();
-    await expect(page.locator('#rdp-stats')).toBeVisible();
+    await page.locator('#rdt-drills').click();
+    await expect(page.locator('#rdp-drills')).toBeVisible();
     expect(await pendingSnapshot(page)).toMatchObject({
       state: 'abandoned',
       claims: 0,
@@ -237,9 +246,9 @@ test.describe('Sight-reading iteration 14 regressions', () => {
 
   test('reselects a generated piece without exposing an unclaimed score', async ({ app }) => {
     const page = await openAssessGenerator(app);
-    await page.locator('#rd-piece').selectOption('w5rh');
+    await showFixture(page, 'w5rh');
     expect(await page.locator('#rd-staff .ss-n').count()).toBeGreaterThan(0);
-    await page.locator('#rd-piece').selectOption('gen');
+    await page.evaluate(() => window.__etude.srSelectPiece('gen'));
     expect(await page.locator('#rd-staff .ss-n').count()).toBe(0);
     await page.locator('#rd-go').click();
     await expect(page.locator('#rd-srt-preview')).toBeVisible();

@@ -57,7 +57,7 @@ type VendorStaffEntry = {
 };
 type VendorNote = {
   isRest?: () => boolean;
-  Pitch?: { Frequency?: number };
+  Pitch?: { Frequency?: number; FundamentalNote?: number; AccidentalHalfTones?: number };
   ParentStaffEntry?: { ParentStaff?: { Id?: number; ParentInstrument?: unknown } };
   ParentVoiceEntry?: { ParentVoice?: { VoiceId?: number } };
 };
@@ -70,6 +70,15 @@ export interface RenderedNote {
   voice: number | undefined;
   beat: number;
   element: SVGElement;
+  /** The pitch as engraved: letter index (C = 0 … B = 6) and alteration in semitones, when the engraver gives it. */
+  spelling?: { letter: number; alter: number };
+}
+
+// OSMD's NoteEnum is the letter's pitch class (C = 0, D = 2 … B = 11).
+const LETTER_OF_PC: Readonly<Record<number, number>> = { 0: 0, 2: 1, 4: 2, 5: 3, 7: 4, 9: 5, 11: 6 };
+function engravedSpelling(pitch: VendorNote['Pitch']): RenderedNote['spelling'] {
+  const letter = pitch?.FundamentalNote != null ? LETTER_OF_PC[pitch.FundamentalNote] : undefined, alter = pitch?.AccidentalHalfTones;
+  return letter != null && typeof alter === 'number' && Number.isInteger(alter) && Math.abs(alter) <= 2 ? { letter, alter } : undefined;
 }
 
 export interface LayoutReader {
@@ -175,6 +184,7 @@ class OsmdScoreRenderer implements ScoreRenderer {
             voice,
             beat,
             element,
+            spelling: engravedSpelling(note.Pitch),
           });
         }
       }

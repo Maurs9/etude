@@ -124,7 +124,7 @@ for (const source of ['local', 'remote']) {
 test('locale split: Settings refreshes generated reading titles only after the delayed language commits', async ({ app, page }) => {
   await app.open({ hash: 'read' });
   await page.evaluate(() => window.__etude.rdGenMelody());
-  const title = page.locator('#rd-piece option:checked');
+  const title = page.locator('#rd-gen-title');
   await expect(title).toContainText('Sight-reading');
   let release, intercepted = false;
   const gate = new Promise(resolve => { release = resolve; });

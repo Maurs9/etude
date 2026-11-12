@@ -25,6 +25,16 @@ export interface LibraryItem extends LibraryMetadata {
   lastOpenedAt: number | null;
   favorite: boolean;
   resume: LibraryResume | null;
+  /** Best accuracy (0–100) of a timed run through the whole score. Absent until the first one; older records lack it. */
+  best?: number;
+  /** Day number (days since 1970-01-01, local calendar) of the last whole-score practice run. Absent in older records. */
+  lastPlayedDay?: number;
+}
+
+/** A recorded practice run: the updated record and the best accuracy it had before. */
+export interface LibraryPlayResult {
+  item: LibraryItem;
+  previousBest: number | null;
 }
 
 export interface LibraryImportResult {

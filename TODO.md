@@ -33,10 +33,18 @@ Acest document centralizează:
 - [x] **Roadmap Faza 4 — Mai mult pian (#11):** niveluri de ritm sr10–sr12 (optimi, note cu punct, sincope, legato de prelungire), exercițiu de game și arpegii (`technique.ts`), feedback care arată greșeala și un exercițiu de contrast (`feedback.ts`).
 - [x] **Constatări din review, Fazele 2–4 (#13):** antetul rămâne pe orizontală când un exercițiu forțează claviatura, exercițiul de game respectă „Accept any octave” și cere două clape la mâini împreună, judecă după `inputTime()` și nu ia o clapă înaintea pasului precedent. Resetarea progresului păstrează `data.latency`. Pe ecran tactil rămân „sau cântă acordul” și „cântă la MIDI sau atinge o clapă”. Orice stare MIDI se traduce din nou la schimbarea limbii.
 - [x] **Practice Redesign — Complete Music Trainer Experience ([2026-11-09-practice-redesign-plan.md](./docs/plans/2026-11-09-practice-redesign-plan.md)):** toate cele 7 faze sunt în `main`: tab-ul Scores, Full-screen Stage, șirul de note și fantoma, Supraviețuire, Contra cronometru și Maraton (`arcade.ts`), polifonie și grand staff în toate armurile, injecția notelor slabe din Setări, cu traduceri în 7 limbi și teste.
+- [x] **Focus pass (ramurile `feat/focus-pass` și `feat/focus-pass-2`, neîmbinate în `main`):** Explore pe un singur ecran (cercul cvintelor lângă portativ), toate lecțiile Learn deschise, Practice cu carduri de subiect. Apoi: Pieces (piesele incluse și fișierele proprii într-un singur player, cu rezultate salvate), 9 piese noi din domeniul public (23 în total), exerciții de citire cu un buton Practice și un meniu Challenge (Test și Note rush comasate, toate nivelurile deschise), statisticile de citire mutate în Progress, cartea de cântece pentru intervale și acompaniamentul mutate în Practice, ecranul Voice (Sing + Transcribe), grila „Or drill one focus” scoasă din Today.
 
 ### Rămas de făcut (Următorii pași)
 - [ ] **Roadmap, amânate cu bună știință:** notarea ritmului bătut (tap), jurnalul de performanță și un planificator pe abilități, statistici salvate ale confuziilor. Toate adaugă date salvate, deci au nevoie de un pas în `PTT_MIGRATIONS`.
 - [ ] **Constatări deschise:**
+  - Pieces: o rulare cu o singură mână nu salvează nici „best”, nici „learned” (vechiul player salva). Regula „Accept any octave” există în trei copii.
+  - Pieces: notele pieselor noi nu au fost verificate la pian. Oh! Susanna și Aura Lee au doar strofa, Brahms Lullaby are ritmul simplificat, Scarborough Fair a fost lăsată deoparte.
+  - Citire: fereastra de 20 de răspunsuri poate umfla stelele la rulări lungi, iar injecția de puncte slabe schimbă eșantionul notat.
+  - Voice: săgețile pe comutatorul de activitate opresc o înregistrare în curs.
+  - Explore: țintele de pe inelul interior al cercului au aproximativ 32px la 360px lățime.
+  - Teste sensibile la încărcarea mașinii: cele două teste de timp din `technique.spec.mjs` și testul de schimbare rapidă a limbii din `challenger-adversarial.spec.mjs`. Trec rulate singure.
+  - Fișierele `i18n/*.json` păstrează chei vechi. Nu intră în build.
   - Un pian Bluetooth asociat prin sistem vine prin Web MIDI și folosește offsetul `usb`. Trebuie un offset per dispozitiv.
   - Arpegiile au digitație doar în Do, Fa, Sol major și la, re, mi minor. Celelalte tonalități au nevoie de o sursă verificată.
   - Într-o fereastră de desktop sub 680px, fără ecran tactil, un exercițiu de acorduri nu arată niciun indiciu.

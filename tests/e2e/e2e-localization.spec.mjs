@@ -21,7 +21,7 @@ const LOCALES = [
     navLearn: 'Learn',
     navPractice: 'Practice',
     navExplore: 'Explore',
-    navScores: 'Scores',
+    navScores: 'Pieces',
     unit1Title: 'Fundamentals',
     scaleMajor: 'Major (Ionian)',
     accentsSample: 'pitch & phrasing',
@@ -37,7 +37,7 @@ const LOCALES = [
     navLearn: 'Învață',
     navPractice: 'Exersează',
     navExplore: 'Explorează',
-    navScores: 'Partituri',
+    navScores: 'Piese',
     unit1Title: 'Fundamente',
     scaleMajor: 'Majoră (ioniană)',
     accentsSample: 'Înălțimea și claviatura',
@@ -53,7 +53,7 @@ const LOCALES = [
     navLearn: 'Aprender',
     navPractice: 'Practicar',
     navExplore: 'Explorar',
-    navScores: 'Partituras',
+    navScores: 'Piezas',
     unit1Title: 'Fundamentos',
     scaleMajor: 'Mayor (jónica)',
     accentsSample: 'Las sesiones cortas y espaciadas',
@@ -69,7 +69,7 @@ const LOCALES = [
     navLearn: 'Apprendre',
     navPractice: 'Pratiquer',
     navExplore: 'Explorer',
-    navScores: 'Partitions',
+    navScores: 'Morceaux',
     unit1Title: /Fondamentaux|bases/i,
     scaleMajor: 'Majeure (ionienne)',
     accentsSample: 'séances courtes et espacées',
@@ -85,7 +85,7 @@ const LOCALES = [
     navLearn: 'Lernen',
     navPractice: 'Üben',
     navExplore: 'Entdecken',
-    navScores: 'Partituren',
+    navScores: 'Stücke',
     unit1Title: 'Grundlagen',
     scaleMajor: 'Dur (Ionisch)',
     accentsSample: 'Kurze, verteilte Einheiten',
@@ -101,7 +101,7 @@ const LOCALES = [
     navLearn: 'Impara',
     navPractice: 'Esercitati',
     navExplore: 'Esplora',
-    navScores: 'Spartiti',
+    navScores: 'Brani',
     unit1Title: /fondamenti/i,
     scaleMajor: 'Maggiore (ionica)',
     accentsSample: 'Sessioni brevi e distanziate',
@@ -117,7 +117,7 @@ const LOCALES = [
     navLearn: 'Aprender',
     navPractice: 'Praticar',
     navExplore: 'Explorar',
-    navScores: 'Partituras',
+    navScores: 'Peças',
     unit1Title: 'Fundamentos',
     scaleMajor: 'Maior (jônica)',
     accentsSample: 'Sessões curtas e espaçadas',
@@ -127,8 +127,10 @@ const LOCALES = [
 const ALL_VIEWS = [
   'today', 'learn', 'songs', 'method', 'practice',
   'read', 'sing', 'analysis', 'explore', 'accompany',
-  'transcribe', 'progress'
+  'progress'
 ];
+// Voice (view sing) shows one of two activities: Sing from the staff, or Hum to notes (the old Transcribe screen).
+const VOICE_ACTS = ['sing', 'hum'];
 
 /** Helper to open settings drawer */
 async function openSettings(page) {
@@ -328,7 +330,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
     expect(scrollWidth).toBeLessThanOrEqual(320);
   });
 
-  test('T2.2: mobile 320px viewport: all 12 views display without horizontal scrolling across all locales', async ({ app, page }) => {
+  test('T2.2: mobile 320px viewport: every view and both Voice activities display without horizontal scrolling across all locales', async ({ app, page }) => {
     await page.setViewportSize({ width: 320, height: 700 });
     await app.open();
 
@@ -341,6 +343,11 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
         await page.evaluate(v => window.__etude.show(v), view);
         const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
         expect(scrollWidth, `View ${view} in locale ${loc.code} should not overflow 320px width`).toBeLessThanOrEqual(320);
+      }
+      for (const act of VOICE_ACTS) {
+        await page.evaluate(a => { window.__etude.show('sing'); window.__etude.voiceSetAct(a); }, act);
+        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(scrollWidth, `Voice ${act} in locale ${loc.code} should not overflow 320px width`).toBeLessThanOrEqual(320);
       }
     }
   });

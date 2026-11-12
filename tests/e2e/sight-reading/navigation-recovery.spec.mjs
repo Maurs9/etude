@@ -1,5 +1,14 @@
 import { test, expect } from '../../helpers/fixtures.mjs';
 
+// Read & Play plays generated melodies only; a built-in piece's notes load as a non-generated fixture for the engine.
+async function showFixture(page, id) {
+  await page.evaluate((pieceId) => {
+    const api = window.__etude, piece = api.PIECES.find((p) => p.id === pieceId);
+    api.srShowPiece({ ...piece, ephemeral: true });
+  }, id);
+}
+
+
 const LANGUAGES = ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'];
 
 async function openRead(app) {
@@ -166,24 +175,22 @@ test.describe('Sight-reading iteration 15 regressions', () => {
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#read');
   });
 
-  test('keeps the piece control synchronized when pending-save selection is refused', async ({ app }) => {
+  test('keeps the generated melody when a piece switch is refused during pending save', async ({ app }) => {
     const page = await startPendingSave(app);
     const before = await page.evaluate(() => ({
       model: window.__etude.SR.piece?.id ?? null,
-      control: document.querySelector('#rd-piece')?.value ?? null,
     }));
-    expect(before).toEqual({ model: 'gen', control: 'gen' });
+    expect(before).toEqual({ model: 'gen' });
 
-    await page.locator('#rd-piece').selectOption('w5rh');
-    await expect(page.locator('#rd-piece')).toHaveValue('gen');
+    await showFixture(page, 'w5rh');
+    expect(await page.evaluate(() => window.__etude.SR.piece?.id)).toBe('gen');
     expect(await page.evaluate(() => window.__etude.SR.piece?.id)).toBe('gen');
 
     await restoreLedger(page);
     await page.locator('#rd-srt-continue').click();
     await expect.poll(() => page.evaluate(() => ({
       model: window.__etude.SR.piece?.id,
-      control: document.querySelector('#rd-piece')?.value,
-    }))).toEqual({ model: 'gen', control: 'gen' });
+    }))).toEqual({ model: 'gen' });
   });
 
   test('recovers a failed Switch to practice without holding locks', async ({ app }) => {
@@ -222,8 +229,8 @@ test.describe('Sight-reading iteration 15 regressions', () => {
 
   test('keeps abandoned and interrupted scores visible with practice-only status', async ({ app }) => {
     const page = await startPreview(app);
-    await page.locator('#rdt-stats').click();
-    await expect(page.locator('#rdp-stats')).toBeVisible();
+    await page.locator('#rdt-drills').click();
+    await expect(page.locator('#rdp-drills')).toBeVisible();
     await page.locator('#rdt-pieces').click();
     await assertPracticeOnly(page);
   });
@@ -268,12 +275,12 @@ test.describe('Sight-reading iteration 15 regressions', () => {
     await assertPracticeOnly(page);
   });
 
-  test('preserves eligible and exposed generated pieces across repertoire round trips', async ({ app }) => {
+  test('preserves eligible and exposed generated pieces across round trips through another piece', async ({ app }) => {
     const page = await openRead(app);
     const eligibleFingerprint = await exposeInjected(page, 'test', 0);
     expect(await page.locator('#rd-staff .ss-n').count()).toBe(0);
-    await page.locator('#rd-piece').selectOption('w5rh');
-    await page.locator('#rd-piece').selectOption('gen');
+    await showFixture(page, 'w5rh');
+    await page.evaluate(() => window.__etude.srSelectPiece('gen'));
     await expect.poll(() => page.evaluate(() => ({
       fingerprint: window.__etude.SR.srtFingerprint,
       state: window.__etude.SR.srtState.name,
@@ -292,8 +299,8 @@ test.describe('Sight-reading iteration 15 regressions', () => {
     await expect.poll(() => page.evaluate((value) =>
       window.__etude.srtReadLedger(localStorage).exposures[value]?.reason ?? null, exposedFingerprint)).toBe('learn');
     const exposureCount = await page.evaluate(() => Object.keys(window.__etude.srtReadLedger(localStorage).exposures).length);
-    await page.locator('#rd-piece').selectOption('w5rh');
-    await page.locator('#rd-piece').selectOption('gen');
+    await showFixture(page, 'w5rh');
+    await page.evaluate(() => window.__etude.srSelectPiece('gen'));
     await expect.poll(() => page.evaluate(() => ({
       fingerprint: window.__etude.SR.srtFingerprint,
       mode: window.__etude.SR.srtState.mode,

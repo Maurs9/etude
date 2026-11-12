@@ -76,18 +76,18 @@ test('the MIDI keyboard tip sits in a collapsed help note', async ({ app, page }
   await expect(help.locator('[data-i18n="set_midi_hint"]')).toContainText('Arturia MicroLab Mk3');
 });
 
-test('Scores shows one Open file button and one example picker at a time', async ({ app, page }) => {
+test('Pieces shows one Open file button at a time, and the built-in list stays above the player', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
-  const toolbarOpen = page.locator('label[for="an-file"]'), dropdown = page.locator('#an-example');
+  const toolbarOpen = page.locator('label[for="an-file"]'), twinkle = page.locator('#pc-list .pc-item[data-piece="twinkle"]');
   await expect(page.locator('#an-roll [data-an-open]')).toBeVisible();
-  await expect(page.locator('#an-roll .an-ex').first()).toBeVisible();
+  await expect(page.locator('#pc-list .pc-item')).toHaveCount(23);
   await expect(toolbarOpen).toBeHidden();
-  await expect(dropdown).toBeHidden();
-  await page.locator('#an-roll .an-ex[data-piece="twinkle"]').click();
+  await expect(page.locator('#an-example')).toHaveCount(0);
+  await twinkle.click();
   await expect.poll(() => page.evaluate(() => window.__etude.AN.notes.length)).toBeGreaterThan(0);
   await expect(page.locator('#an-roll [data-an-open]')).toHaveCount(0);
   await expect(toolbarOpen).toBeVisible();
-  await expect(dropdown).toBeVisible();
+  await expect(twinkle).toHaveAttribute('aria-current', 'true');
 });
 
 test('returning to the page resumes suspended audio, and shows the notice only while it stays locked', async ({ app, page }) => {

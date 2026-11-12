@@ -73,7 +73,7 @@ async function assertNoAttemptLocks(page) {
 async function prepareAnalysisSelection(page) {
   await page.evaluate(() => window.__etude.show('analysis'));
   await expect(page.locator('#view-analysis')).toHaveClass(/active/);
-  await page.locator('#an-roll .an-ex[data-piece="twinkle"]').click();
+  await page.locator('#pc-list .pc-item[data-piece="twinkle"]').click();
   await expect.poll(() => page.evaluate(() => window.__etude.AN.notes.length)).toBeGreaterThan(0);
   await page.evaluate(() => {
     const api = window.__etude;
@@ -83,27 +83,22 @@ async function prepareAnalysisSelection(page) {
 }
 
 test.describe('Sight-reading iteration 17 regressions', () => {
-  test('keeps the retained Assess generation eligible when Analysis opens an excerpt', async ({ app }) => {
+  test('keeps the retained Assess generation eligible while a piece is studied and played in Pieces', async ({ app }) => {
     const page = await openFixedAssess(app, 17017);
     const fingerprint = await page.evaluate(() => window.__etude.SR.srtFingerprint);
     expect(await page.locator('#rd-staff')).toHaveAttribute('aria-hidden', 'true');
     expect(await page.locator('#rd-staff .ss-n').count()).toBe(0);
 
     await prepareAnalysisSelection(page);
-    const practice = page.locator('#an-practice');
-    if (await practice.isVisible() && await practice.isEnabled())
-      await practice.click();
-    else
-      await page.evaluate(() => window.__etude.anPractice());
+    await page.evaluate(() => window.__etude.scoreLoopStart());
+    await expect.poll(() => page.evaluate(() => window.__etude.SCORE.playing)).toBe(true);
+    await page.evaluate(() => window.__etude.show('read'));
+    await page.locator('#rdt-pieces').click();
 
     await expect(page).toHaveURL(/#read$/);
-    await expect(page.locator('#rd-piece')).toHaveValue('excerpt');
-    await expect(page.locator('#rd-staff')).toHaveAttribute('aria-hidden', 'false');
-    await expect(page.locator('#rd-go')).toBeFocused();
-    await expect(page.locator('#rd-verdict')).toHaveText(
-      await page.evaluate(() => window.__etude.t('rd_excerpt_ready')),
-    );
-    expect(await page.locator('#rd-staff .ss-n').count()).toBeGreaterThan(0);
+    expect(await page.evaluate(() => window.__etude.SCORE.playing)).toBe(false);
+    await expect(page.locator('#rd-staff')).toHaveAttribute('aria-hidden', 'true');
+    expect(await page.locator('#rd-staff .ss-n').count()).toBe(0);
     expect(await page.evaluate((value) => {
       const api = window.__etude;
       const exposure = api.srtReadLedger(localStorage).exposures[value];
@@ -114,8 +109,8 @@ test.describe('Sight-reading iteration 17 regressions', () => {
         exposure,
       };
     }, fingerprint)).toEqual({
-      piece: 'excerpt',
-      mode: 'learn',
+      piece: 'gen',
+      mode: 'assess',
       state: {
         name: 'idle',
         mode: 'firstSight',
@@ -125,9 +120,6 @@ test.describe('Sight-reading iteration 17 regressions', () => {
       exposure: undefined,
     });
 
-    await page.locator('#rd-mode button[data-v="assess"]').click();
-    await page.locator('#rd-piece').selectOption('gen');
-    await expect(page.locator('#rd-staff')).toHaveAttribute('aria-hidden', 'true');
     await page.locator('#rd-go').click();
     await expect(page.locator('#rd-srt-preview')).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('preview');
