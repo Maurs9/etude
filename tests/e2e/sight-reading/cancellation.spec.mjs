@@ -1,5 +1,14 @@
 import { test, expect } from '../../helpers/fixtures.mjs';
 
+// Read & Play plays generated melodies only; a built-in piece's notes load as a non-generated fixture for the engine.
+async function showFixture(page, id) {
+  await page.evaluate((pieceId) => {
+    const api = window.__etude, piece = api.PIECES.find((p) => p.id === pieceId);
+    api.srShowPiece({ ...piece, ephemeral: true });
+  }, id);
+}
+
+
 async function openAssessGenerator(app) {
   const page = await app.open({ hash: 'read' });
   await page.locator('#rdt-pieces').click();
@@ -241,10 +250,10 @@ test.describe('Sight-reading cancellation races', () => {
     expect(await page.evaluate(() => window.__etude.SR.active)).toBe(false);
   });
 
-  test('restores legacy assessment on a built-in piece on a fresh Read open', async ({ app }) => {
+  test('restores legacy assessment on a non-generated fixture piece on a fresh Read open', async ({ app }) => {
     const page = await app.open({ hash: 'read', dock: true });
     await page.locator('#rdt-pieces').click();
-    await page.locator('#rd-piece').selectOption('w5rh');
+    await showFixture(page, 'w5rh');
     await page.locator('#rd-mode button[data-v="assess"]').click();
     await page.locator('#rd-go').click();
     await expect.poll(() => page.evaluate(() => ({
@@ -259,7 +268,7 @@ test.describe('Sight-reading cancellation races', () => {
     const page = await startPreview(app);
     await page.locator('#rd-srt-practice').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.mode)).toBe('practice');
-    await page.locator('#rd-piece').selectOption('w5rh');
+    await showFixture(page, 'w5rh');
     await page.locator('#rd-mode button[data-v="assess"]').click();
     await page.locator('#rd-go').click();
     await expect.poll(() => page.evaluate(() => ({
@@ -363,17 +372,13 @@ test.describe('Sight-reading cancellation races', () => {
     expect(snapshot).toMatchObject({ state: 'abandoned', pendingAttempt: null, claims: 0, heldAttemptLocks: 0, lease: false });
   });
 
-  test('abandons pendingSave when another repertoire piece is selected', async ({ app }) => {
+  test('keeps pendingSave and its melody when the engine is asked to show another piece', async ({ app }) => {
     const page = await startPendingSave(app);
-    await page.locator('#rd-piece').selectOption('w5rh');
-    await expect.poll(async () => (await pendingSnapshot(page)).statuses).toEqual(['abandoned']);
-    expect(await pendingSnapshot(page)).toMatchObject({
-      state: 'abandoned',
-      pendingAttempt: null,
-      claims: 0,
-      heldAttemptLocks: 0,
-      lease: false,
-    });
+    await showFixture(page, 'w5rh');
+    await page.evaluate(() => window.__etude.srSelectPiece('gen'));
+    expect(await page.evaluate(() => ({ piece: window.__etude.SR.piece?.id, state: window.__etude.SR.srtState.name })))
+      .toEqual({ piece: 'gen', state: 'pendingSave' });
+    await expect(page.locator('#rd-srt-pending')).toBeVisible();
   });
 
   test('abandons pendingSave before generating another sight-reading piece', async ({ app }) => {

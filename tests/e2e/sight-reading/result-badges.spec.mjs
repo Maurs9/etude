@@ -1,5 +1,14 @@
 import { test, expect } from '../../helpers/fixtures.mjs';
 
+// Read & Play plays generated melodies only; a built-in piece's notes load as a non-generated fixture for the engine.
+async function showFixture(page, id) {
+  await page.evaluate((pieceId) => {
+    const api = window.__etude, piece = api.PIECES.find((p) => p.id === pieceId);
+    api.srShowPiece({ ...piece, ephemeral: true });
+  }, id);
+}
+
+
 async function openRead(app) {
   const page = await app.open({ hash: 'read', dock: true });
   await page.locator('#rdt-pieces').click();
@@ -105,9 +114,9 @@ test.describe('Sight-reading iteration 16 regressions', () => {
     expect(await page.locator('#rd-staff .ss-n').count()).toBe(0);
     expect(await page.evaluate(() => Object.keys(window.__etude.srtReadLedger(localStorage).exposures))).toHaveLength(0);
 
-    await page.locator('#rd-piece').selectOption('w5rh');
+    await showFixture(page, 'w5rh');
     await page.locator('#rd-mode button[data-v="learn"]').click();
-    await page.locator('#rd-piece').selectOption('gen');
+    await page.evaluate(() => window.__etude.srSelectPiece('gen'));
     await expect.poll(() => page.evaluate((value) => {
       const api = window.__etude;
       const exposure = api.srtReadLedger(localStorage).exposures[value];
@@ -155,8 +164,8 @@ test.describe('Sight-reading iteration 16 regressions', () => {
     await learnRoundTrip.locator('#rd-mode button[data-v="learn"]').click();
     await learnRoundTrip.locator('#rd-gen').click();
     const learnFingerprint = await learnRoundTrip.evaluate(() => window.__etude.SR.srtFingerprint);
-    await learnRoundTrip.locator('#rd-piece').selectOption('w5rh');
-    await learnRoundTrip.locator('#rd-piece').selectOption('gen');
+    await showFixture(learnRoundTrip, 'w5rh');
+    await learnRoundTrip.evaluate(() => window.__etude.srSelectPiece('gen'));
     await expect.poll(() => learnRoundTrip.evaluate((value) => ({
       mode: window.__etude.SR.srtState.mode,
       reason: window.__etude.srtReadLedger(localStorage).exposures[value]?.reason ?? null,
@@ -179,8 +188,8 @@ test.describe('Sight-reading iteration 16 regressions', () => {
     const second = await page.evaluate(() => window.__etude.SR.srtFingerprint);
     expect(second).not.toBe(first);
 
-    await page.locator('#rd-piece').selectOption('w5rh');
-    await page.locator('#rd-piece').selectOption('gen');
+    await showFixture(page, 'w5rh');
+    await page.evaluate(() => window.__etude.srSelectPiece('gen'));
     await expect(page.locator('#rd-srt-notice')).toHaveText(
       await page.evaluate(() => window.__etude.t('rd_srt_error_already_exposed')),
     );
@@ -290,62 +299,60 @@ test.describe('Sight-reading iteration 16 regressions', () => {
     );
   });
 
-  test('keeps refused selections and Generate actions refused after Retry or Continue', async ({ app }) => {
+  test('keeps refused piece switches and Generate actions refused after Retry or Continue', async ({ app }) => {
     const retry = await startPendingSave(app);
     const before = await retry.evaluate(() => ({
       evaluation: JSON.stringify(window.__etude.SR.srtEvaluation),
       value: window.__etude.SR.srtResultValue,
       fingerprint: window.__etude.SR.srtFingerprint,
     }));
-    await retry.locator('#rd-piece').selectOption('w5rh');
-    await expect(retry.locator('#rd-piece')).toHaveValue('gen');
+    await showFixture(retry, 'w5rh');
+    expect(await retry.evaluate(() => window.__etude.SR.piece?.id)).toBe('gen');
     await restoreLedger(retry);
     await retry.locator('#rd-srt-retry').click();
     await expect.poll(() => retry.evaluate(() => window.__etude.SR.srtState.name)).toBe('saved');
     await expect.poll(() => retry.evaluate(() => ({
       model: window.__etude.SR.piece?.id,
-      control: document.querySelector('#rd-piece')?.value,
       evaluation: JSON.stringify(window.__etude.SR.srtEvaluation),
       value: window.__etude.SR.srtResultValue,
       fingerprint: window.__etude.SR.srtFingerprint,
-    }))).toEqual({ model: 'gen', control: 'gen', ...before });
+    }))).toEqual({ model: 'gen', ...before });
 
     const continued = await startPendingSave(app);
     const continuedFingerprint = await continued.evaluate(() => window.__etude.SR.srtFingerprint);
     await continued.evaluate(() => { window.__srtLedgerFailureWrites = 0; });
-    await continued.locator('#rd-piece').selectOption('w5rh');
-    await expect.poll(() => continued.evaluate(() => window.__srtLedgerFailureWrites)).toBeGreaterThan(0);
-    await continued.evaluate(() => { window.__srtLedgerFailureWrites = 0; });
+    await showFixture(continued, 'w5rh');
+    expect(await continued.evaluate(() => window.__etude.SR.piece?.id)).toBe('gen');
     await continued.locator('#rd-gen').click();
-    await expect(continued.locator('#rd-piece')).toHaveValue('gen');
+    expect(await continued.evaluate(() => window.__etude.SR.piece?.id)).toBe('gen');
     await expect.poll(() => continued.evaluate(() => window.__srtLedgerFailureWrites)).toBeGreaterThan(0);
     await restoreLedger(continued);
     await continued.locator('#rd-srt-continue').click();
     await expect.poll(() => continued.evaluate(() => ({
       name: window.__etude.SR.srtState.name,
       model: window.__etude.SR.piece?.id,
-      control: document.querySelector('#rd-piece')?.value,
       fingerprint: window.__etude.SR.srtFingerprint,
     }))).toEqual({
       name: 'abandoned',
       model: 'gen',
-      control: 'gen',
       fingerprint: continuedFingerprint,
     });
 
     const immediate = await startPendingSave(app);
+    const pendingFingerprint = await immediate.evaluate(() => window.__etude.SR.srtFingerprint);
     await restoreLedger(immediate);
-    await immediate.locator('#rd-piece').selectOption('w5rh');
-    await expect.poll(() => immediate.evaluate(() => ({
+    await immediate.locator('#rd-gen').click();
+    await expect.poll(() => immediate.evaluate((value) => ({
       model: window.__etude.SR.piece?.id,
-      control: document.querySelector('#rd-piece')?.value,
-    }))).toEqual({ model: 'w5rh', control: 'w5rh' });
+      fresh: window.__etude.SR.srtFingerprint !== value,
+      state: window.__etude.SR.srtState.name,
+    }), pendingFingerprint)).toEqual({ model: 'gen', fresh: true, state: 'idle' });
   });
 
   test('derives result badges from the displayed piece and actual attempt', async ({ app }) => {
     const freshRepertoire = await openRead(app);
     await freshRepertoire.locator('#rd-mode button[data-v="assess"]').click();
-    await freshRepertoire.locator('#rd-piece').selectOption('w5rh');
+    await showFixture(freshRepertoire, 'w5rh');
     await finishCurrentAssess(freshRepertoire);
     for (const language of ['en', 'ro']) {
       await freshRepertoire.evaluate((value) => window.__etude.setLang(value), language);
@@ -355,7 +362,7 @@ test.describe('Sight-reading iteration 16 regressions', () => {
     }
 
     const retained = await openAssessGenerator(app);
-    await retained.locator('#rd-piece').selectOption('w5rh');
+    await showFixture(retained, 'w5rh');
     await finishCurrentAssess(retained);
     await expect(retained.locator('#rd-verdict')).not.toContainText(
       await retained.evaluate(() => window.__etude.t('rd_srt_first_sight')),

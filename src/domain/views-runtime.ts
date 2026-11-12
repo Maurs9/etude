@@ -32,6 +32,7 @@ import '../styles/landscape.css';
 import '../styles/reading.css';
 import '../styles/practice.css';
 import '../styles/explore.css';
+import '../styles/pieces.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint } from '../sight-reading/fingerprint.js';
@@ -425,10 +426,8 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     else if (view0() === 'learn')
         renderLearn();
     else if (view0() === 'read') {
-        fillPieces();
         if (SR.piece) {
             srMeta();
-            srBest();
             if (SR.srtEvaluation && SR.srtState && ['completed', 'pendingSave', 'saved'].includes(SR.srtState.name))
                 srRenderAssessResult();
             srPaintAll();
@@ -4223,7 +4222,6 @@ let show = function show(v: string|undefined, moveFocus = true) {
             }
             void srtAbandonClaim('abandoned', false).then((result) => {
                 if (result.ok || SR.srtState?.name !== 'pendingSave') {
-                    srtPendingSelection = null;
                     show(v, moveFocus);
                 }
                 else if (location.hash.slice(1) !== prev) {
@@ -4303,6 +4301,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
         anLibraryNavigationResume = null;
         anLibrarySuspended = false;
         anDraw();
+        pcRender();
     }
     if (v === 'learn')
         renderLearn();
@@ -5699,8 +5698,7 @@ function learnClick(e: Event) {
     }
     const an = eventClosest(e, '[data-an]');
     if (an) {
-        show('analysis');
-        anLoadExample(an.dataset.an ?? '');
+        void pcOpen(an.dataset.an ?? '');
         return;
     }
     const w = eventClosest(e, '[data-w]');
@@ -6190,15 +6188,16 @@ function lgFilter() {
         o.textContent = n ? t('lg_n', n) : t('lg_none', q ? q.value.trim() : '');
 }
 /* ============================================================================
-   READ & PLAY — sheet-music trainer. Grand staff engraver (reuses the ss glyphs)
-   + graded repertoire + step-by-step / assessment / listen modes.
+   READ & PLAY — the sight-reading engine. Grand staff engraver (reuses the ss glyphs)
+   + step-by-step / assessment / listen modes for generated melodies.
+   The graded repertoire (PIECES) is played in the Pieces screen (view `analysis`).
    ============================================================================ */
 const SR_LET = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 /** A spelled pitch: letter index (C = 0), octave, accidental (-1, 0, 1) and MIDI number. */
 interface SrPitch { li: number; oct: number; acc: number; midi: number }
 function srPitch(s: string): SrPitch | null { const m = /^([A-G])([#b]?)(\d)$/.exec(s); if (!m) return null; const li = SR_LET.indexOf(m[1]), acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, oct = +m[3]; return { li, oct, acc, midi: ssMidiOf(li, oct, acc) }; }
-/** A Read & Play piece: a score plus its catalogue details. */
-interface SrPiece extends SrScore { id: string; t: Localised<string>; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string; from?: { title: string; bars: string } }
+/** A piece: a score plus its catalogue details. Built-in pieces open in Pieces; generated melodies play in Read & Play. */
+interface SrPiece extends SrScore { id: string; t: Localised<string>; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string }
 const PIECES: SrPiece[] = [
     { id: 'w5rh', t: { en: 'Five-finger warm-up (right hand)', ro: 'Încălzire pe cinci note (dreapta)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
         rh: [['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['E4', 1], ['G4', 1], ['E4', 1], ['C4', 4]],
@@ -6262,7 +6261,7 @@ const PIECES: SrPiece[] = [
     { id: 'grace', t: { en: 'Amazing Grace', ro: 'Amazing Grace' }, comp: 'trad.', level: 3, keyN: 0, ts: [3, 4], bpm: 80, pickup: 1,
         rh: [['G3', 1], ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['C4', 2], ['A3', 1], ['G3', 2], ['G3', 1],
             ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['G4', 3]],
-        lh: [['R', 1], ['C3', 3], ['C3', 2], ['G2', 1], ['F2', 2], ['C3', 1], ['G2', 3], ['C3', 3]] },
+        lh: [['R', 1], ['C3', 3], ['C3', 2], ['G2', 1], ['F2', 2], ['C3', 1], ['G2', 3], ['C3', 3], ['G2', 3], ['G2', 3]] }, // bars 6–7 (G) complete the left hand
 ];
 /** One engraved note head, with the beat it falls on and where it was drawn. */
 interface SrStaffNote { nid: number; hand: SrHand; midi: number; beat: number; dur: number; x: number; y: number; li: number; oct: number; acc: number }
@@ -6277,7 +6276,7 @@ interface SrState {
     notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; hit: Set<number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
     beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
     bpm: number; t0: number; next: CoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
-    excerpt?: SrPiece | null; gen?: SrPiece | null; listening?: boolean;
+    gen?: SrPiece | null; listening?: boolean;
     srtPiece?: SightReadingPiece | null; srtFingerprint?: string | null; srtState?: SightReadingState;
     srtOwnerTabId?: string; srtAttemptStartedAt?: number; srtPreviewTimer?: number; srtCountdown?: number; srtLease?: SightReadingAttemptLease | null; srtPendingAttempt?: SightReadingAttempt | null;
     srtEvaluation?: SightReadingEvaluation | null; srtResultValue?: number | null; srtResultLevelId?: string | null; srtResultUnlockId?: string | null;
@@ -6294,8 +6293,6 @@ let srtCountInEpoch = 0;
 let srtCountInAttemptId: string | null = null;
 let srtClaimIssuedAttemptId: string | null = null;
 let srtClaimDurableAttemptId: string | null = null;
-let srtPendingSelection: string | null = null;
-let srtPendingAbandonment: Promise<SightReadingLedgerResult> | null = null;
 type SrtAttemptCleanup = {
     readonly attemptId: string;
     readonly ownerTabId: string;
@@ -6816,16 +6813,8 @@ function srLearnFinish() {
         v.textContent = t('rd_done_learn', SR.mistakes);
     }
     v.textContent += rdSightDone('learn', SR.mistakes);
-    if (!SR.piece)
-        throw new Error('Étude: no piece selected');
-    if (!SR.piece.ephemeral) {
-        const rec = data.sheet[SR.piece.id] || (data.sheet[SR.piece.id] = {});
-        rec.learned = true;
-    }
     touchDay();
     saveAll();
-    srBest();
-    fillPieces();
 }
 function srtSetState(event: Parameters<typeof srtTransition>[1]) {
     const previous = SR.srtState || SRT_INITIAL_STATE;
@@ -7023,25 +7012,10 @@ function srtClearPendingAttempt(attemptId: string) {
     if (SR.srtPendingAttempt?.attemptId === attemptId)
         SR.srtPendingAttempt = null;
 }
-function srtAbandonPendingSelection() {
-    if (srtPendingAbandonment)
-        return;
-    const operation = srtAbandonClaim('abandoned', false);
-    srtPendingAbandonment = operation;
-    void operation.then((result) => {
-        if (srtPendingAbandonment === operation)
-            srtPendingAbandonment = null;
-        const selection = srtPendingSelection;
-        srtPendingSelection = null;
-        if (result.ok && selection && SR.srtState?.name === 'abandoned')
-            srSelectPiece(selection);
-    });
-}
 async function srtRetryPendingSave() {
     const attempt = SR.srtPendingAttempt;
     if (!attempt)
         return;
-    srtPendingSelection = null;
     const epoch = srtOperationEpoch;
     const state = SR.srtState;
     const lease = SR.srtLease ?? null;
@@ -7090,8 +7064,7 @@ async function srtRetryPendingSave() {
 async function srtContinueWithoutSave() {
     if (SR.srtState?.name !== 'pendingSave')
         return;
-    srtPendingSelection = null;
-    const result = await (srtPendingAbandonment ?? srtAbandonClaim('abandoned', false));
+    const result = await srtAbandonClaim('abandoned', false);
     void result;
 }
 function srtAttemptId() {
@@ -7559,17 +7532,8 @@ function srAssessFinish() {
     }
     srPaintAll();
     srtRecorder = null;
-    if (!SR.piece)
-        throw new Error('Étude: no piece selected');
-    if (!SR.piece.ephemeral) {
-        const rec = data.sheet[SR.piece.id] || (data.sheet[SR.piece.id] = {});
-        if (!rec.best || pct > rec.best)
-            rec.best = pct;
-    }
     touchDay();
     saveAll();
-    srBest();
-    fillPieces();
 }
 function srRenderAssessResult() {
     const evaluated = SR.srtEvaluation;
@@ -7711,25 +7675,19 @@ function srGo() {
         srAssessStart();
 }
 function srMeta() {
-    const p = SR.piece;
-    if (!p)
+    const p = SR.piece, titleEl = maybeById('rd-gen-title');
+    if (!p) {
+        byId('rd-meta').textContent = '';
+        if (titleEl)
+            titleEl.textContent = '';
         return;
+    }
     const n = p.keyN || 0;
     const keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n), key = pcName(keyPc, n < 0) + ' ' + (p.minor ? t('rd_min') : t('rd_maj'));
-    let metaText = '';
-    if (p.gen) {
-        metaText = t('rdx_sr_meta', key, p.bpm) + ' · ' + p.ts[0] + '/' + p.ts[1];
-    }
-    else if (p.ephemeral) {
-        const from = p.from;
-        if (!from)
-            throw new TypeError('Étude: excerpt piece has no source');
-        metaText = t('rd_excerpt_from', from.title) + ' · ' + from.bars + ' · ' + key + ' · ' + p.ts[0] + '/' + p.ts[1] + ' · ' + t('rd_excerpt_simpl');
-    }
-    else {
-        metaText = t('rd_level') + ' ' + p.level + ' · ' + rootName(keyPc) + ' ' + (p.minor ? t('rd_min') : t('rd_maj')) + ' · ' + p.ts[0] + '/' + p.ts[1] + (p.comp ? (' · ' + p.comp) : '');
-    }
+    const metaText = (p.gen ? t('rdx_sr_meta', key, p.bpm) : key) + ' · ' + p.ts[0] + '/' + p.ts[1];
     byId('rd-meta').textContent = metaText;
+    if (titleEl)
+        titleEl.textContent = srPieceTitle(p);
     const tEl = maybeById('rd-stage-title'), sEl = maybeById('rd-stage-sub');
     if (tEl)
         tEl.textContent = srPieceTitle(p);
@@ -7737,80 +7695,45 @@ function srMeta() {
         sEl.textContent = metaText;
 }
 function srPieceTitle(p: { t?: Localised<string>; }) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
-function srBest() { const rec = SR.piece && !SR.piece.ephemeral && data.sheet[SR.piece.id]; byId('rd-best').textContent = rec && rec.best ? (t('rd_best', rec.best) + (rec.learned ? ' · ✓ ' + t('rd_learned') : '')) : (rec && rec.learned ? ('✓ ' + t('rd_learned')) : ''); }
-function fillPieces() {
-    const sel = selectById('rd-piece');
-    if (!sel)
-        return;
-    const cur = sel.value;
-    sel.innerHTML = '';
-    if (SR.excerpt) {
-        const og = (document).createElement('optgroup');
-        og.label = t('rd_excerpt_group');
-        const o = (document).createElement('option');
-        o.value = SR.excerpt.id;
-        o.textContent = srPieceTitle(SR.excerpt);
-        og.appendChild(o);
-        sel.appendChild(og);
-    }
-    if (SR.gen) {
-        const og = (document).createElement('optgroup');
-        og.label = t('rdx_u_sr');
-        const o = (document).createElement('option');
-        o.value = SR.gen.id;
-        o.textContent = srPieceTitle(SR.gen);
-        og.appendChild(o);
-        sel.appendChild(og);
-    }
-    const lv: { [level: string]: (typeof PIECES)[number][]; } = {};
-    PIECES.forEach((p) => { (lv[p.level] = lv[p.level] || []).push(p); });
-    Object.keys(lv).sort().forEach((L) => {
-        const og = (document).createElement('optgroup');
-        og.label = t('rd_level') + ' ' + L;
-        lv[L].forEach((p) => {
-            const o = (document).createElement('option');
-            o.value = p.id;
-            const rec = data.sheet[p.id];
-            o.textContent = srPieceTitle(p) + (rec && rec.best ? (' · ' + rec.best + '%') : (rec && rec.learned ? ' · ✓' : ''));
-            og.appendChild(o);
-        });
-        sel.appendChild(og);
-    });
-    sel.value = (cur && (PIECES.some((p) => p.id === cur) || (SR.excerpt && SR.excerpt.id === cur) || (SR.gen && SR.gen.id === cur))) ? cur : PIECES[0].id;
+// Before the first melody the tab offers only the generator (and a way to the built-in pieces).
+function srEmptyUi() {
+    const none = !SR.piece;
+    buttonById('rd-go').disabled = none;
+    buttonById('rd-listen').disabled = none;
+    const empty = maybeById('rd-empty');
+    if (empty)
+        empty.hidden = !none;
 }
+// Shows the generated sight-reading melody (`id` is its id); a result waiting to be saved keeps the current one.
 function srSelectPiece(id: string) {
-    if (srtPendingSaveProtected()) {
-        const currentId = SR.piece?.id;
-        if (currentId)
-            selectById('rd-piece').value = currentId;
-        if (SR.srtState?.name === 'pendingSave') {
-            srtPendingSelection = id;
-            srtAbandonPendingSelection();
-        }
+    if (srtPendingSaveProtected() || !SR.gen || id !== SR.gen.id)
         return;
-    }
-    srtPendingSelection = null;
-    if (id === SR.gen?.id && !SR.srtPiece && RD.L && isRdSightLevel(RD.L)) {
+    if (!SR.srtPiece && RD.L && isRdSightLevel(RD.L)) {
         rdSightStart(SR.modeSel === 'assess' ? 'test' : 'practice');
         return;
     }
+    srShowPiece(SR.gen);
+}
+// Draws a piece in the engine: the generated melody, or a fixture piece loaded through the test surface.
+function srShowPiece(piece: SrPiece) {
+    if (srtPendingSaveProtected())
+        return;
     srStopAll(undefined, false, 'navigate');
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
     SR.srtResultLevelId = null;
     SR.srtResultUnlockId = null;
-    SR.piece = (SR.excerpt && SR.excerpt.id === id ? SR.excerpt : null) || (SR.gen && SR.gen.id === id ? SR.gen : null) || PIECES.find((p) => p.id === id) || PIECES[0];
+    SR.piece = piece;
     if (!SR.gen) {
         SR.srtPiece = null;
         SR.srtFingerprint = null;
         SR.srtState = SRT_INITIAL_STATE;
         SR.srtPendingAttempt = null;
     }
-    SR.bpm = SR.piece.bpm;
-    selectById('rd-piece').value = SR.piece.id;
+    SR.bpm = piece.bpm;
     const bp = inputById('rd-bpm');
-    bp.value = String(SR.piece.bpm);
-    byId('rd-bpmLbl').textContent = String(SR.piece.bpm);
+    bp.value = String(piece.bpm);
+    byId('rd-bpmLbl').textContent = String(piece.bpm);
     const avail = srHandsAvail();
     [byId('rd-hands'), maybeById('rd-stage-hands')].forEach((container) => {
         if (!container)
@@ -7825,7 +7748,7 @@ function srSelectPiece(id: string) {
     const consumedForLearn = srtConsumeOnLearnReveal();
     srDraw();
     srMeta();
-    srBest();
+    srEmptyUi();
     byId('rd-verdict').textContent = '';
     srtNotice(null);
     if (!consumedForLearn && srtGeneratedSelected() && (SR.srtState?.mode === 'practice' || SR.srtState?.name === 'abandoned' || SR.srtState?.name === 'interrupted')) {
@@ -7836,18 +7759,14 @@ function srSelectPiece(id: string) {
             byId('rd-verdict').textContent = message;
         }
     }
-    if (!SR.piece)
-        throw new Error('Étude: no piece selected');
-    if (SR.piece.ephemeral && typeof rdTab === 'function')
-        rdTab('pieces');
 }
-function renderRead() { fillPieces(); if (!SR.piece)
-    srSelectPiece(selectById('rd-piece').value);
-else {
-    srDraw();
+function renderRead() {
+    if (SR.piece)
+        srDraw();
     srMeta();
-    srBest();
-} rdRender(); }
+    srEmptyUi();
+    rdRender();
+}
 /* ============================================================================
    READING DRILLS (V3) — a structured, CMRT-style reading curriculum:
    note naming / playing, key→staff, intervals, chords, key signatures, rhythm,
@@ -9568,7 +9487,6 @@ function rdSightStart(mode: string, injectedSeed?: number) {
     SR.gen = srtLegacyPiece(srtPiece, L);
     RD.on = false;
     rdTab('pieces');
-    fillPieces();
     SR.modeSel = mode === 'test' ? 'assess' : 'learn';
     [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
     srSelectPiece('gen');
@@ -10164,9 +10082,7 @@ function rdOnLocale() {
     }
     if (SR.gen) {
         SR.gen.t = { en: tl('en', 'rdx_sr_title', SR.gen.level), ro: tl('ro', 'rdx_sr_title', SR.gen.level) };
-        fillPieces();
-        if (SR.piece)
-            selectById('rd-piece').value = SR.piece.id;
+        srMeta();
     }
     if (!byId('rdx-stage').hidden && RD.L) {
         byId('rdx-title').textContent = rdLvName(RD.L);
@@ -10450,9 +10366,8 @@ function srFocus(): CoachTip | null {
     const p = SR.piece;
     if (!p)
         return null;
-    const rec = p.ephemeral ? null : data.sheet[p.id];
     if (SR.modeSel === 'assess')
-        return { k: srShape().rhythm && !(rec && rec.best) ? 'rc_rhythm' : 'rc_ahead' };
+        return { k: srShape().rhythm ? 'rc_rhythm' : 'rc_ahead' };
     const top = SR.active && srTopSlip();
     if (top === 'key' && SR.slipKey) {
         const s = SR.slipKey;
@@ -10461,8 +10376,6 @@ function srFocus(): CoachTip | null {
     if (top)
         return { k: 'rc_e_' + top };
     const f = srShape();
-    if (p.level === 1 && !rec && !p.ephemeral)
-        return { k: 'rc_anchor' };
     if (f.chords)
         return { k: 'rc_chord' };
     if (p.keyN)
@@ -10490,7 +10403,7 @@ function srNextAssess(pct: number): CoachTip | null {
     const p = SR.piece;
     if (!p)
         return null;
-    const bpm = SR.bpm, rec = p.ephemeral ? null : data.sheet[p.id], bad = (n: SrStaffNote) => SR.results[n.nid] !== 'good';
+    const bpm = SR.bpm, bad = (n: SrStaffNote) => SR.results[n.nid] !== 'good';
     if (pct >= 95)
         return bpm <= 150 ? { k: 'rn_a_clean', args: () => [pct, bpm + 10], act: { k: 'rn_act_bpm', args: () => [bpm + 10], run: () => srSetBpm(bpm + 10) } } : { k: 'rn_a_top' };
     const cat = { leaps: [0, 0], chords: [0, 0], acc: [0, 0] }, last: { rh?: SrStaffNote[]; lh?: SrStaffNote[]; } = {};
@@ -10521,8 +10434,6 @@ function srNextAssess(pct: number): CoachTip | null {
     }));
     if (SR.wrongExtra >= 3 && SR.wrongExtra >= miss)
         return { k: 'rn_a_extra', args: () => [SR.wrongExtra] };
-    if (pct < 60 && !(rec && rec.learned) && !p.gen)
-        return { k: 'rn_a_learn', act: { k: 'rn_act_learn', run: () => srSetMode('learn') } };
     const rate = miss / Math.max(1, all);
     let top: string | null = null, best = 0;
     for (const [k, [b, n]] of Object.entries(cat)) {
@@ -10823,7 +10734,7 @@ interface AnState {
 }
 const AN: AnState = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
-const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000, AN_PRACTICE_BARS = 32, AN_EXAMPLES = ['minuet', 'elise', 'ode', 'twinkle', 'jingle'];
+const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000;
 // Library records own original bytes; parsed/engraved objects remain disposable runtime state.
 let anLibraryActive: { id: string; source: AnSource } | null = null;
 let anLibrarySuspended = false;
@@ -11068,11 +10979,12 @@ function anParse(buffer: ArrayBuffer) {
     return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes: notes.sort((x, y) => x.start - y.start || x.midi - y.midi) };
 }
 // Built-in pieces become the same parsed structure as a MIDI file: one "track" per hand, beats in quarter notes.
+// An upbeat stays at beat 0; anRebuild engraves it as a short bar 0 (see scoreFromMidi).
 function anPieceToParsed(p: (typeof PIECES)[number]): AnParsedMidi {
-    const cap = p.ts[1] === 8 ? p.ts[0] * 0.5 : p.ts[0] * 4 / p.ts[1], shift = p.pickup ? (cap - p.pickup) % cap : 0, notes: AnParsedNote[] = [];
+    const notes: AnParsedNote[] = [];
     ([['rh', 0], ['lh', 1]] as const).forEach(([hand, track]) => { if (!p[hand])
         return; srEvents(p[hand]).ev.forEach((e) => { if (!e.rest)
-        notes.push({ midi: e.midi, start: e.beat + shift, end: e.beat + shift + e.dur, vel: hand === 'rh' ? 92 : 74, track, channel: track, srcHand: hand }); }); });
+        notes.push({ midi: e.midi, start: e.beat, end: e.beat + e.dur, vel: hand === 'rh' ? 92 : 74, track, channel: track, srcHand: hand }); }); });
     notes.sort((x, y) => x.start - y.start || x.midi - y.midi);
     return { ppq: 480, format: 1, tracks: notes.some((n) => n.track === 1) ? 2 : 1, names: ['Right hand', 'Left hand'], notes,
         meta: [{ type: 'tempo', beat: 0, bpm: p.bpm }, { type: 'time', beat: 0, num: p.ts[0], den: p.ts[1] }, { type: 'key', beat: 0, fifths: p.keyN || 0, minor: !!p.minor }] };
@@ -11990,13 +11902,14 @@ function scoreXmlNotes(doc: Document) {
 const XML_ESC: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' };
 function xmlEsc(s: string) { return String(s).replace(/[<>&"']/g, (c) => XML_ESC[c]); }
 // MIDI (or a built-in piece) → MusicXML. `opt.grid` is the quantization per quarter note (2, 4 or 8); divisions grow when a meter needs finer units.
+// `opt.pickup` (quarter notes) makes the first bar an upbeat: an implicit bar 0 of that length, as the score is written.
 interface ScoreMidiNote { midi: number; start: number; end: number; vel: number; track: number; channel: number; hand: AnHand; }
 type ScoreMidiTime = Extract<AnMidiMeta, { type: 'time' }>;
 type ScoreMidiChange = ScoreMidiTime | { type: 'key'; beat: number; fifths: number; minor: boolean; };
 interface ScoreEngraveGroup { staff: number; start: number; end: number; notes: (ScoreMidiNote & { staff: number; })[]; }
 interface ScoreEngraveVoice { groups: ScoreEngraveGroup[]; staff: number; secondary: boolean; stem: string; }
 interface ScoreEngraveEvent { group: ScoreEngraveGroup | null; pos: number; d: number; type: string; dot: number; from: boolean; to: boolean; beam?: string; }
-function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, title: string, opt: { grid: number; keys: { beat: number; fifths: number; minor: boolean; }[]; composer?: string; }) {
+function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, title: string, opt: { grid: number; keys: { beat: number; fifths: number; minor: boolean; }[]; composer?: string; pickup?: number; }) {
     const isTime = (e: AnMidiMeta): e is ScoreMidiTime => e.type === 'time';
     const grid = opt.grid || 4, events = parsed.meta || [], timeEvents = events.filter(isTime);
     let div = grid;
@@ -12057,6 +11970,7 @@ function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, 
     const meters: ScoreMidiChange[] = events.filter(isTime).map((e) => ({ ...e }));
     const changes = meters.concat((opt.keys || []).map((e): ScoreMidiChange => ({ type: 'key', beat: e.beat, fifths: e.fifths, minor: !!e.minor })))
         .map((e) => ({ ...e, pos: Math.round(e.beat * div) })).sort((a, b) => a.pos - b.pos);
+    const upbeat = opt.pickup && opt.pickup > 0 ? Math.round(opt.pickup * div) : 0;
     let at = 0, number = 1, xml = '', fifths = 0, minor = false, num = 4, den = 4, ci = 0;
     while (at < end) {
         const beat = at / div;
@@ -12074,12 +11988,13 @@ function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, 
                 den = e.den;
             }
         }
-        const next = changes[ci], length = Math.min(num * 4 * div / den, next ? next.pos - at : Infinity);
+        const bar = upbeat && number === 1 ? Math.min(upbeat, num * 4 * div / den) : num * 4 * div / den;
+        const next = changes[ci], length = Math.min(bar, next ? next.pos - at : Infinity), label = upbeat ? number - 1 : number;
         if (length <= 0 || !Number.isInteger(length))
             throw anError('meter');
         const stop = at + length;
-        SCORE.measures.push({ number: String(number), start: at / div, end: stop / div, num, den });
-        xml += '<measure number="' + number + '">';
+        SCORE.measures.push({ number: String(label), start: at / div, end: stop / div, num, den });
+        xml += '<measure number="' + label + '"' + (upbeat && number === 1 ? ' implicit="yes"' : '') + '>';
         if (number === 1 || keyChanged || timeChanged)
             xml += '<attributes>' + (number === 1 ? '<divisions>' + div + '</divisions>' : '') + (keyChanged ? '<key><fifths>' + fifths + '</fifths><mode>' + (minor ? 'minor' : 'major') + '</mode></key>' : '') + (timeChanged ? '<time><beats>' + num + '</beats><beat-type>' + den + '</beat-type></time>' : '') + (number === 1 ? (single ? (used[0] === 2 ? '<clef><sign>F</sign><line>4</line></clef>' : '<clef><sign>G</sign><line>2</line></clef>') : '<staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef>') : '') + '</attributes>';
         for (const t of SCORE.tempos.filter((e) => e.beat >= beat - 1e-9 && e.beat < stop / div))
@@ -12171,7 +12086,8 @@ function anRebuild() {
     const parsed = src.parsed, hands = anAssignHands(parsed.notes, AN.recon.hands);
     const notes = parsed.notes.map((n, i): ScoreMidiNote => ({ midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i] }));
     const key = anResolveKey({ meta: parsed.meta.filter((e): e is AnMidiKeyMeta => e.type === 'key') }, AN.recon.key, notes);
-    const xml = scoreFromMidi({ meta: parsed.meta, notes }, src.title, { grid: AN.recon.grid, keys: key.events, composer: src.comp });
+    const pickup = src.kind === 'example' ? PIECES.find((p) => p.id === src.id)?.pickup : undefined;
+    const xml = scoreFromMidi({ meta: parsed.meta, notes }, src.title, { grid: AN.recon.grid, keys: key.events, composer: src.comp, pickup });
     AN.notes = notes;
     SCORE.xml = xml;
     AN.hands = hands;
@@ -13559,12 +13475,13 @@ function pracBeats() {
     if (FALL.beatSrc === fallData() && FALL.beatTempo === SCORE.tempoList && FALL.beats)
         return FALL.beats;
     const out: PracticeBeat[] = [];
-    for (const m of anMeasures()) {
-        const u = anBeatUnit(m);
-        let k = 0;
+    anMeasures().forEach((m, i) => {
+        const u = anBeatUnit(m), full = m.num * 4 / m.den, short = full - (m.end - m.start);
+        // An upbeat (a short first bar) holds the last beats of a bar, so its first click is not the accented downbeat.
+        let k = i === 0 && short > 1e-6 ? Math.round(short / u) : 0;
         for (let b = m.start; b < m.end - 1e-6; b += u, k++)
             out.push({ t: scoreSeconds(b), acc: k === 0 });
-    }
+    });
     FALL.beatSrc = fallData();
     FALL.beatTempo = SCORE.tempoList;
     FALL.beats = out;
@@ -13774,6 +13691,17 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
     PRAC.judgeT = performance.now();
     pracHud();
 }
+// "Accept any octave" (the shared setting) lets a key count for the same note name in another octave.
+function pracSame(want: number, played: number) { return want === played || (!!data.settings.anyOctave && pc(want) === pc(played)); }
+// The awaited key a played key stands for: the key itself, else (any octave) an unplayed one with its note name.
+function pracNeedKey(B: PracticeBarrier, m: number) {
+    if (B.need.has(m))
+        return m;
+    if (!data.settings.anyOctave)
+        return null;
+    const same = [...B.need].filter((x) => pc(x) === pc(m));
+    return same.find((x) => !B.got.has(x)) ?? same[0] ?? null;
+}
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
 function pracInput(kind: string) {
     const R = SCORE.run;
@@ -13782,12 +13710,12 @@ function pracInput(kind: string) {
         const m = heldOrder[heldOrder.length - 1], now = actx.currentTime - Math.max(0, inputLag()) / 1000;
         if (m != null && now >= R.segs[0].a0 - .05) {
             PRAC.active = true;
-            const { s, t } = pracRaw(R, now), B = PRAC.bar;
-            if (B && B.seg === s && t >= B.t - .3 * s.f && B.need.has(m)) {
-                if (!B.got.has(m)) {
-                    B.got.add(m);
+            const { s, t } = pracRaw(R, now), B = PRAC.bar, key = B && B.seg === s && t >= B.t - .3 * s.f ? pracNeedKey(B, m) : null;
+            if (B && key != null) {
+                if (!B.got.has(key)) {
+                    B.got.add(key);
                     const late = Math.max(0, t - B.t) / s.f;
-                    B.group.filter((x) => x.n.midi === m).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
+                    B.group.filter((x) => x.n.midi === key).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
                 }
                 if ([...B.need].every((x) => B.got.has(x)))
                     pracRelease(R, B, actx.currentTime); // the clock resumes from the real present, not the judged time
@@ -13798,7 +13726,7 @@ function pracInput(kind: string) {
                 for (const d of R.mine) {
                     if (d.start > time + tol)
                         break;
-                    if (d.n.midi !== m || R.judged.has(d.i) || d.start < time - tol)
+                    if (!pracSame(d.n.midi, m) || R.judged.has(d.i) || d.start < time - tol)
                         continue;
                     if (!best || Math.abs(d.start - time) < Math.abs(best.start - time))
                         best = d;
@@ -13843,16 +13771,75 @@ function pracFinish(R: PracticeRun) {
     scoreIdle();
     byId('pr-hud').hidden = true;
     if (PRAC.active && PRAC.stats)
-        pracSummary(R);
+        pracSummary(R, pracRecord(R));
 }
-function pracSummary(R: PracticeRun) {
+// What a finished run saved, for the summary card: the best accuracy, whether it was beaten, and a first full Wait-for-me pass.
+interface PracticeSaved { best: number | null; newBest: boolean; learned: boolean; pending?: Promise<PracticeSaved | null> }
+// A run counts as progress only when it covers the whole piece: no selection, loop or A–B range, every hand the piece has,
+// and it starts at the first note.
+function pracWholePiece(R: PracticeRun) {
+    if (R.sel || R.loop || R.ab)
+        return false;
+    const all = fallData();
+    if (!all.length || (PRAC.hands !== 'both' && all.some((d) => !pracMine(d.n))))
+        return false;
+    const first = Math.min(...all.map((d) => d.start)), last = Math.max(...all.map((d) => d.finish));
+    return R.from <= first + .05 && R.b >= last - .05;
+}
+// A timed run keeps the best accuracy; a complete "Wait for me" pass marks a built-in piece as learned.
+// Built-in pieces write data.sheet (the fields Read & Play used); library files keep theirs in the library record.
+function pracRecord(R: PracticeRun): PracticeSaved | null {
+    const st = PRAC.stats, src = AN.source, acc = st ? pracAcc(st) : null;
+    if (!st || !src || !pracWholePiece(R))
+        return null;
+    const waited = PRAC.wait, complete = waited && R.mine.length > 0 && R.mine.every((d) => R.judged.has(d.i));
+    if (waited ? !complete : acc == null)
+        return null;
+    // The accuracy of a timed run; a waiting run plays at your pace, so it sets no best.
+    const pct = !waited && acc != null ? Math.round(acc * 100) : null;
+    let saved: PracticeSaved = { best: null, newBest: false, learned: false };
+    if (src.kind === 'example') {
+        const rec = data.sheet[src.id] || (data.sheet[src.id] = {}), old = rec.best || 0, beaten = pct != null && pct > old;
+        if (beaten)
+            rec.best = pct;
+        if (complete)
+            rec.learned = true;
+        saved = { best: rec.best || null, newBest: beaten, learned: complete };
+    }
+    else if (anLibraryActive && anLibraryActive.source === src) {
+        const id = anLibraryActive.id;
+        saved.pending = scoreLibraryStore.libraryRecordPlay(id, todayN(), pct).then(async (r) => {
+            await scoreLibrary?.refresh();
+            return r ? { best: r.item.best ?? null, newBest: pct != null && pct > (r.previousBest ?? 0), learned: false } : null;
+        }).catch(() => { scoreLibrary?.notice('save_failed'); return null; });
+    }
+    touchDay();
+    const tv = data.toolDay || (data.toolDay = {});
+    tv.piece = todayN();
+    saveAll();
+    pcRender();
+    return saved;
+}
+function pracSavedText(saved: PracticeSaved | null) {
+    if (!saved)
+        return '';
+    const best = saved.best == null ? '' : t(saved.newBest ? 'pc_best_new' : 'rd_best', saved.best);
+    return [saved.learned ? '✓ ' + t('pc_learned') : '', best].filter(Boolean).join(' · ');
+}
+let pracSumGen = 0;
+function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null) {
     const st = PRAC.stats;
     if (!st)
         return;
-    const acc = pracAcc(st);
+    const acc = pracAcc(st), gen = ++pracSumGen, bestEl = byId('pr-sum-best');
     PRAC.next = pracNextStep(R);
     pracNextRender();
     byId('pr-sum-acc').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
+    const showSaved = (v: PracticeSaved | null) => { const txt = pracSavedText(v); bestEl.textContent = txt; bestEl.hidden = !txt; bestEl.classList.toggle('is-new', !!v && v.newBest); };
+    showSaved(saved);
+    if (saved && saved.pending)
+        void saved.pending.then((v) => { if (gen === pracSumGen && !byId('pr-sum').hidden)
+            showSaved(v); });
     (['perfect', 'good', 'miss', 'wrong'] as const).forEach((k) => { byId('pr-sum-' + k).textContent = String(st[k]); });
     byId('pr-sum-note').textContent = t('pr_sum_note', st.best, Math.round(pracFactor() * 100) + '%');
     byId('pr-sum').hidden = false;
@@ -14213,8 +14200,6 @@ function anKeysCenter() {
 }
 /* analysis workspace */
 function anOriginText() { const o = AN.keyOrigin; return t(o === 'file' ? (AN.source && AN.source.kind === 'example' ? 'an_origin_piece' : 'an_origin_file') : o === 'manual' ? 'an_origin_manual' : o === 'mode' ? 'an_origin_mode' : 'an_origin_auto'); }
-// The passage the Practice tab and Read & Play work on: the selected bars or notes, else the whole piece.
-function anScopeNotes() { const f = anFocus(false); return f && f.kind !== 'cursor' ? anFocusNotes(f) : AN.notes; }
 function anBarsLabel(ns: { start: number }[], L?: string) {
     const a = anMeasureAt(Math.min(...ns.map((n) => n.start))).number, b = anMeasureAt(Math.max(...ns.map((n) => n.start))).number;
     return a === b ? tl(L || lang, 'an_bar1', a) : tl(L || lang, 'an_bars', a, b);
@@ -14368,8 +14353,7 @@ function anUpdateControls() {
     byId('an-now-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
     byId('pt-start').textContent = t(playing ? 'pt_stop' : 'pt_start');
     buttonById('pt-start').disabled = !has || busy;
-    selectById('an-example').disabled = busy;
-    (document).querySelectorAll('#an-roll .an-ex,#an-roll [data-an-open]').forEach((b) => { if ('disabled' in b)
+    (document).querySelectorAll('#an-roll [data-an-open],#pc-list .pc-item').forEach((b) => { if ('disabled' in b)
         b.disabled = busy; });
     if (has) {
         anStatusSel();
@@ -14410,12 +14394,12 @@ interface AnPanelSide {
     sheet: boolean;
     drag: boolean;
     nowSig: string;
-    ptSig: string;
     liveT: ReturnType<typeof setTimeout> | number;
     handScroll: number;
     deferred: boolean;
 }
-const SIDE: AnPanelSide = { open: true, tab: 'now', w: 340, sheet: false, drag: false, nowSig: '', ptSig: '', liveT: 0, handScroll: 0, deferred: false };
+// The harmony panel starts closed; the toolbar button or a saved choice (anSide.open) opens it.
+const SIDE: AnPanelSide = { open: false, tab: 'now', w: 340, sheet: false, drag: false, nowSig: '', liveT: 0, handScroll: 0, deferred: false };
 const AN_TABS = ['now', 'piece', 'practice'];
 function anNarrow() { return (window).matchMedia('(max-width: 999px)').matches; }
 function anSideVisible(tab?: string) { const side = byId('an-side'); return !!side && !side.hidden && (anNarrow() ? SIDE.sheet : SIDE.open) && (!tab || SIDE.tab === tab); }
@@ -14676,7 +14660,7 @@ function anNowAnnounce(f: AnPanelFocus, head: string, segs: AnPanelSpanRow[]) {
     }
     SIDE.liveT = setTimeout(() => { byId('an-now-live').textContent = txt; }, 900);
 }
-// Practice: what Start will play, the A–B range and whether the passage fits Read & Play.
+// Practice: what Start will play and the A–B range.
 function anRenderPractice() {
     if (!AN.notes.length)
         return;
@@ -14692,13 +14676,6 @@ function anRenderPractice() {
     byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : abBars ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
     byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
     byId('pt-abv').textContent = abBars ? t('pt_ab_v', range(...abBars)) : t('pt_ab_none');
-    const ns = anScopeNotes(), sig = [AN.version, lang, ns.length, AN.index.get(ns[0]), AN.index.get(ns[ns.length - 1])].join('|');
-    if (SIDE.ptSig !== sig) {
-        SIDE.ptSig = sig;
-        const chk = anPracticeCheck(ns);
-        buttonById('an-practice').disabled = !chk.ok;
-        byId('an-practice-note').textContent = chk.ok ? t('an_practice_hint') : chk.msg ?? null;
-    }
 }
 // Start in the Practice tab: the selection (or A–B) loops with the practice settings; otherwise the piece plays from the cursor.
 function anPracticeStart() {
@@ -14861,16 +14838,35 @@ function anRenderEmpty() {
     box.classList.remove('is-loading', 'is-over');
     box.setAttribute('aria-busy', 'false');
     box.hidden = FALL.mode !== 'score' && AN.notes.length > 0;
-    const esc = xmlEsc, ex = AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter((p): p is AnExamplePiece => Boolean(p));
+    const esc = xmlEsc;
     box.innerHTML = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${anDropTitle()}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
-  <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div>
-  <div class="an-exlist"><h2>${esc(t('an_examples'))}</h2><ul>${(ex).map((p) => `<li><button type="button" class="an-ex" data-piece="${p.id}"><span class="an-ex-t">${esc(srPieceTitle(p))}</span><span class="an-ex-m">${esc(anPieceMeta(p))}</span></button></li>`).join('')}</ul></div></div>`;
+  <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div></div>`;
     anUpdateControls();
 }
-function anFillExamples() {
-    const sel = selectById('an-example'), cur = AN.source && AN.source.kind === 'example' ? AN.source.id : '';
-    sel.innerHTML = `<option value="">${xmlEsc(t('an_example_pick'))}</option>` + AN_EXAMPLES.map((id) => PIECES.find((p) => p.id === id)).filter((p): p is AnExamplePiece => Boolean(p)).map((p) => `<option value="${p.id}">${xmlEsc(srPieceTitle(p))}</option>`).join('');
-    sel.value = cur;
+/* Pieces: the built-in repertoire, by level, above My Library. Each piece opens in this player through anLoadExample. */
+function pcRender() {
+    const list = maybeById('pc-list'), sum = maybeById('pc-sum');
+    if (!list)
+        return;
+    if (sum)
+        sum.textContent = t('pc_builtin', PIECES.length);
+    const esc = xmlEsc, cur = AN.source && AN.source.kind === 'example' ? AN.source.id : '', busy = AN.loading;
+    const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement.dataset.piece : undefined;
+    const levels = [...new Set(PIECES.map((p) => p.level))].sort((a, b) => a - b);
+    list.innerHTML = levels.map((L) => `<div class="pc-level"><h3 class="pc-level-h" id="pc-lv-${L}">${esc(t('rd_level') + ' ' + L)}</h3><ul class="pc-items" aria-labelledby="pc-lv-${L}">${PIECES.filter((p) => p.level === L).map((p) => {
+        const rec = data.sheet[p.id], best = rec && rec.best ? rec.best : 0, learned = !!(rec && rec.learned);
+        const status = learned || best ? `<span class="pc-s">${learned ? `<span class="pc-ok"><span aria-hidden="true">✓</span><span class="visually-hidden">${esc(t('rd_learned'))}</span></span>` : ''}${best ? `<span class="pc-best">${esc(t('rd_best', best))}</span>` : ''}</span>` : '';
+        return `<li><button type="button" class="pc-item" data-piece="${p.id}" aria-current="${p.id === cur ? 'true' : 'false'}"${busy ? ' disabled' : ''}><span class="pc-t">${esc(srPieceTitle(p))}</span><span class="pc-m">${esc(anPieceMeta(p))}</span>${status}</button></li>`;
+    }).join('')}</ul></div>`).join('');
+    // The list is rebuilt, so keyboard focus moves to the same piece's new button.
+    if (focused)
+        queryHtml(list, `.pc-item[data-piece="${focused}"]`)?.focus({ preventScroll: true });
+}
+// Opens a built-in piece in Pieces from anywhere (Learn links, other screens).
+function pcOpen(id: string) {
+    if (view0() !== 'analysis')
+        show('analysis');
+    return anLoadExample(id);
 }
 function anReconUI() {
     const src = AN.source, on = !!src && src.kind !== 'xml';
@@ -14918,7 +14914,7 @@ function anReset() {
     anIndex();
     byId('an-name').textContent = '';
     anReconUI();
-    anFillExamples();
+    pcRender();
     anRenderEmpty();
     fallReset();
     anAnalyze();
@@ -15585,7 +15581,7 @@ async function anCommit(src: AnSource, token: number)  {
     }
     anIndex();
     anReconUI();
-    anFillExamples();
+    pcRender();
     byId('an-name').textContent = src.label || src.title;
     let ok = false;
     try {
@@ -15608,6 +15604,10 @@ async function anCommit(src: AnSource, token: number)  {
     AN.kbCenter = true;
     if (anKeysShown())
         anKeysCenter(); // a collapsed keyboard is centred when it is first shown
+    // The open score takes the room; the built-in list folds to its summary line (one click shows it again).
+    const pick = maybeById('pc-pick');
+    if (pick instanceof HTMLDetailsElement)
+        pick.open = false;
     anFocusStage();
 }
 async function anReconChange()  {
@@ -15647,7 +15647,7 @@ async function anReconChange()  {
 }
 // Language or notation changed: localise generated controls, and re-title a built-in example.
 function anLocalize() {
-    anFillExamples();
+    pcRender();
     anReconUI();
     const src = AN.source;
     // Examples are re-titled and MIDI scores get the localized part name ("Piano"/"Pian"): both need a rebuild.
@@ -15817,112 +15817,6 @@ function scorePointer(e: PointerEvent) {
     window.addEventListener('pointercancel', done);
 }
 function anRove(g: Element) { byId('an-roll').querySelectorAll('[data-i][tabindex="0"]').forEach((x) => x.setAttribute('tabindex', '-1')); g.setAttribute('tabindex', '0'); }
-/* practice transfer: an ephemeral Read & Play piece (one line or chord stack per hand, bars kept, rhythm on a 16th grid) */
-interface AnExcerptPiece { id: string; ephemeral: boolean; t: Localised<string>; comp: string; level: number; keyN: number; minor: boolean; ts: number[]; bpm: number;
-    from: { title: string; bars: string; }; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; }
-type AnReadPieceResult = { piece: AnExcerptPiece; error?: undefined; } | { error: 'none' | 'long' | 'range'; piece?: undefined; };
-function anToReadPiece(ns: readonly AnNote[]): AnReadPieceResult {
-    if (!ns.length)
-        return { error: 'none' };
-    const notes = ns.slice().sort((a, b) => a.start - b.start || a.midi - b.midi), meas = anMeasures(), A = notes[0].start;
-    const m0 = anMeasureAt(A), m1 = anMeasureAt(notes[notes.length - 1].start), i0 = meas.indexOf(m0), i1 = meas.indexOf(m1);
-    if (i1 - i0 + 1 > AN_PRACTICE_BARS || notes.length > 600)
-        return { error: 'long' };
-    let ts = [m0.num, m0.den];
-    if (![4, 8].includes(m0.den)) {
-        const q = m0.num * 4 / m0.den;
-        ts = Number.isInteger(q) ? [q, 4] : [Math.round(q * 2), 8];
-    }
-    const cap = ts[1] === 8 ? ts[0] * 0.5 : ts[0], grid = SCORE.midiGrid === 8 ? 8 : 4, q = (v: number) => Math.round(v * grid) / grid;
-    const origin = q(A), offset = q(origin - m0.start), pickup = offset > 1e-6 && offset < cap - 1e-6 ? q(cap - offset) : 0, total = q(m1.end - origin);
-    if (total <= 0)
-        return { error: 'none' };
-    const key = anKeyAt(A), spellSR = (m: number) => { const s = spellMidi(m, key.fifths, key.minor); return s.oct < 0 || s.oct > 9 ? null : SR_LET[s.li] + (s.acc > 0 ? '#' : s.acc < 0 ? 'b' : '') + s.oct; };
-    const VAL = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9), RVAL = [4, 2, 1, 0.5, 0.25, 0.125].filter((v) => v * grid >= 1 - 1e-9);
-    const nextBar = (p: number) => { let b = pickup > 0 ? pickup : cap; while (b <= p + 1e-6)
-        b += cap; return b; };
-    const rests = (list: SrToken[], from: number, to: number) => { let p = from; while (p < to - 1e-6) {
-        const len = Math.min(to, nextBar(p)) - p, v = RVAL.find((x) => x <= len + 1e-6) || 1 / grid;
-        list.push(['R', v]);
-        p = q(p + v);
-    } };
-    let bad = false;
-    const build = (hand: string) => {
-        const own = notes.filter((n) => anHandOf(n) === hand);
-        if (!own.length)
-            return null;
-        const on = new Map<string, { s: number; ms: Set<number>; end: number; }>();
-        own.forEach((n) => { const s = q(n.start - origin); if (s < 0 || s >= total - 1e-6)
-            return; const k = s.toFixed(4); if (!on.has(k))
-            on.set(k, { s, ms: new Set(), end: 0 }); const o = on.get(k); if (!o)
-            return; o.ms.add(n.midi); o.end = Math.max(o.end, Math.min(total, Math.max(s + 1 / grid, q(n.end - origin)))); });
-        const list: SrToken[] = [], os = [...on.values()].sort((a, b) => a.s - b.s);
-        let p = 0;
-        os.forEach((o, i) => {
-            if (o.s > p + 1e-6)
-                rests(list, p, o.s);
-            const len = Math.min(o.end, i + 1 < os.length ? os[i + 1].s : total, nextBar(o.s)) - o.s, v = VAL.find((x) => x <= len + 1e-6) || 1 / grid;
-            const ps = [...o.ms].sort((a, b) => a - b).map(spellSR), names = ps.filter((x): x is string => !!x);
-            if (names.length !== ps.length)
-                bad = true;
-            list.push([names.length === 1 ? names[0] : names, v]);
-            p = q(o.s + v);
-        });
-        if (p < total - 1e-6)
-            rests(list, p, total);
-        return list;
-    };
-    const rh = build('rh'), lh = build('lh');
-    if (bad)
-        return { error: 'range' };
-    if (!rh && !lh)
-        return { error: 'none' };
-    const src = AN.source;
-    if (!src)
-        throw new TypeError('Étude: no piece is loaded');
-    const ex = src.kind === 'example' ? PIECES.find((p) => p.id === src.id) : undefined;
-    if (src.kind === 'example' && !ex)
-        throw new Error(`Étude: missing example piece ${src.id}`);
-    const titles = { en: ex ? ex.t.en : src.title, ro: ex ? ex.t.ro : src.title, [lang]: ex ? srPieceTitle(ex) : src.title };
-    const bars = { en: anBarsLabel(notes, 'en'), ro: anBarsLabel(notes, 'ro'), [lang]: anBarsLabel(notes, lang) }, tempoAt = SCORE.tempoList.filter((e) => e.beat <= A + 1e-6).pop() || SCORE.tempoList[0];
-    const piece: AnExcerptPiece = { id: 'excerpt', ephemeral: true, t: { en: tl('en', 'rd_excerpt', titles.en, bars.en), ro: tl('ro', 'rd_excerpt', titles.ro, bars.ro), [lang]: tl(lang, 'rd_excerpt', titles[lang] || titles.en, bars[lang] || bars.en) }, comp: '', level: 0, keyN: key.fifths, minor: key.minor, ts,
-        bpm: Math.max(40, Math.min(160, Math.round(tempoAt.bpm))), from: { title: titles[lang] || titles.en, bars: bars[lang] || bars.en } };
-    if (pickup)
-        piece.pickup = pickup;
-    if (rh)
-        piece.rh = rh;
-    if (lh)
-        piece.lh = lh;
-    return { piece };
-}
-function anPracticeCheck(ns: readonly AnNote[]): { ok: true; piece: AnExcerptPiece; } | { ok: false; msg: string; } {
-    const r = anToReadPiece(ns);
-    if (r.piece)
-        return { ok: true, piece: r.piece };
-    return { ok: false, msg: r.error === 'long' ? t('an_practice_long', AN_PRACTICE_BARS) : r.error === 'range' ? t('an_practice_range') : '' };
-}
-function anPractice() {
-    const chk = anPracticeCheck(anScopeNotes());
-    if (!chk.ok) {
-        const note = byId('an-practice-note');
-        if (note)
-            note.textContent = chk.msg;
-        return;
-    }
-    scoreStop();
-    SR.excerpt = chk.piece;
-    fillPieces();
-    srSelectPiece(chk.piece.id);
-    SR.modeSel = 'learn';
-    SR.hands = 'both';
-    [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x.getAttribute('data-v') === 'learn' ? 'true' : 'false'));
-    show('read');
-    const v = byId('rd-verdict');
-    v.className = 'verdict neutral';
-    v.textContent = t('rd_excerpt_ready');
-    byId('rd-go').focus({ preventScroll: true }); // bring the staff and Start above the keyboard dock
-    window.scrollTo({ top: Math.max(0, byId('rd-meta').getBoundingClientRect().top + window.scrollY - 80), behavior: 'auto' });
-}
 /* falling notes: a dark stage with lanes, bar lines and an integrated keyboard; notes coloured by hand */
 interface FallTimedNote { n: AnNote; i: number; start: number; finish: number; sound: number; }
 interface FallKeyRect { x: number; w: number; black: boolean; }
@@ -16757,10 +16651,10 @@ function anInitControls() {
         return; if (el.closest('[data-an-open]')) {
         byId('an-file').click();
         return;
-    } const ex = el.closest('.an-ex'); if (ex instanceof HTMLButtonElement && !ex.disabled && ex.dataset.piece != null)
-        anLoadExample(ex.dataset.piece); });
-    byId('an-example').addEventListener('change', (e) => { if (e.target instanceof HTMLSelectElement && e.target.value)
-        anLoadExample(e.target.value); });
+    } });
+    byId('pc-list').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-piece]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.piece)
+        void anLoadExample(b.dataset.piece); });
+    pcRender();
     ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => byId(id).addEventListener('change', anReconChange));
     byId('an-recon-btn').addEventListener('click', () => anReconOpen(!!byId('an-recon').hidden));
     document.addEventListener('pointerdown', (e) => {
@@ -16972,7 +16866,6 @@ function anInitControls() {
     byId('pt-metro').addEventListener('change', (e) => { if (e.target instanceof HTMLInputElement)
         pracSet('metro', e.target.checked); });
     byId('pt-start').addEventListener('click', anPracticeStart);
-    byId('an-practice').addEventListener('click', anPractice);
     anSideResizer();
     anTab(SIDE.tab);
     (window).matchMedia('(max-width: 999px)').addEventListener('change', () => { SIDE.sheet = false; anSideSync(); anLayoutVars(); });
@@ -18531,7 +18424,7 @@ function initControls() {
     byId('ac-bpm').addEventListener('change', accompRestartIfPlaying);
     byId('ac-click').addEventListener('change', accompRestartIfPlaying);
     // read & play (sheet music)
-    byId('rd-piece').addEventListener('change', (e) => srSelectPiece(wiringField(e).value));
+    byId('rd-to-pieces').addEventListener('click', () => show('analysis'));
     const onHandsClick = (e: MouseEvent) => {
         const b = eventClosest(e, 'button');
         if (!b || wiringDisabled(b) || srtPendingSaveProtected())
@@ -18546,6 +18439,8 @@ function initControls() {
                     x.setAttribute('aria-pressed', x.dataset.v === v ? 'true' : 'false');
             });
         });
+        if (!SR.piece)
+            return; // no melody yet: the choice applies to the next one
         const staffEl = maybeById('rd-staff');
         if (staffEl)
             staffEl.dataset.activeHand = srActiveHands();
@@ -18858,7 +18753,6 @@ Object.defineProperty(__etude, "anDockWanted", { configurable: true, get: () => 
 Object.defineProperty(__etude, "anDraw", { configurable: true, get: () => anDraw });
 Object.defineProperty(__etude, "anError", { configurable: true, get: () => anError });
 Object.defineProperty(__etude, "anErrorKey", { configurable: true, get: () => anErrorKey });
-Object.defineProperty(__etude, "anFillExamples", { configurable: true, get: () => anFillExamples });
 Object.defineProperty(__etude, "anFit", { configurable: true, get: () => anFit });
 Object.defineProperty(__etude, "anFitImplied", { configurable: true, get: () => anFitImplied });
 Object.defineProperty(__etude, "anFnKey", { configurable: true, get: () => anFnKey });
@@ -18910,13 +18804,13 @@ Object.defineProperty(__etude, "anOriginText", { configurable: true, get: () => 
 Object.defineProperty(__etude, "anParse", { configurable: true, get: () => anParse });
 Object.defineProperty(__etude, "anPcWeights", { configurable: true, get: () => anPcWeights });
 Object.defineProperty(__etude, "anPieceMeta", { configurable: true, get: () => anPieceMeta });
+Object.defineProperty(__etude, "pcRender", { configurable: true, get: () => pcRender });
+Object.defineProperty(__etude, "pcOpen", { configurable: true, get: () => pcOpen });
 Object.defineProperty(__etude, "anPieceToParsed", { configurable: true, get: () => anPieceToParsed });
 Object.defineProperty(__etude, "anPinToolbar", { configurable: true, get: () => anPinToolbar });
 Object.defineProperty(__etude, "anPinToolbarLater", { configurable: true, get: () => anPinToolbarLater });
 Object.defineProperty(__etude, "anPoly", { configurable: true, get: () => anPoly });
 Object.defineProperty(__etude, "anPop", { configurable: true, get: () => anPop });
-Object.defineProperty(__etude, "anPractice", { configurable: true, get: () => anPractice });
-Object.defineProperty(__etude, "anPracticeCheck", { configurable: true, get: () => anPracticeCheck });
 Object.defineProperty(__etude, "anPracticeStart", { configurable: true, get: () => anPracticeStart });
 Object.defineProperty(__etude, "anRate", { configurable: true, get: () => anRate });
 Object.defineProperty(__etude, "anReadXml", { configurable: true, get: () => anReadXml });
@@ -18935,7 +18829,6 @@ Object.defineProperty(__etude, "anRevealPieceRow", { configurable: true, get: ()
 Object.defineProperty(__etude, "anRoman", { configurable: true, get: () => anRoman });
 Object.defineProperty(__etude, "anRove", { configurable: true, get: () => anRove });
 Object.defineProperty(__etude, "anRowsHTML", { configurable: true, get: () => anRowsHTML });
-Object.defineProperty(__etude, "anScopeNotes", { configurable: true, get: () => anScopeNotes });
 Object.defineProperty(__etude, "anSegAt", { configurable: true, get: () => anSegAt });
 Object.defineProperty(__etude, "anSegIndexAt", { configurable: true, get: () => anSegIndexAt });
 Object.defineProperty(__etude, "anSelStart", { configurable: true, get: () => anSelStart });
@@ -18959,7 +18852,6 @@ Object.defineProperty(__etude, "anSyncTimeline", { configurable: true, get: () =
 Object.defineProperty(__etude, "anTab", { configurable: true, get: () => anTab });
 Object.defineProperty(__etude, "anTempoAt", { configurable: true, get: () => anTempoAt });
 Object.defineProperty(__etude, "anTlUpdate", { configurable: true, get: () => anTlUpdate });
-Object.defineProperty(__etude, "anToReadPiece", { configurable: true, get: () => anToReadPiece });
 Object.defineProperty(__etude, "anUnion", { configurable: true, get: () => anUnion });
 Object.defineProperty(__etude, "anUnits", { configurable: true, get: () => anUnits });
 Object.defineProperty(__etude, "anUpdateControls", { configurable: true, get: () => anUpdateControls });
@@ -19118,7 +19010,6 @@ Object.defineProperty(__etude, "fallSelect", { configurable: true, get: () => fa
 Object.defineProperty(__etude, "fallTime", { configurable: true, get: () => fallTime });
 Object.defineProperty(__etude, "feelDisp", { configurable: true, get: () => feelDisp });
 Object.defineProperty(__etude, "fillKeyCtx", { configurable: true, get: () => fillKeyCtx });
-Object.defineProperty(__etude, "fillPieces", { configurable: true, get: () => fillPieces });
 Object.defineProperty(__etude, "fillRefNames", { configurable: true, get: () => fillRefNames });
 Object.defineProperty(__etude, "fillRoots", { configurable: true, get: () => fillRoots });
 Object.defineProperty(__etude, "focusView", { configurable: true, get: () => focusView });
@@ -19305,9 +19196,14 @@ Object.defineProperty(__etude, "pracAcc", { configurable: true, get: () => pracA
 Object.defineProperty(__etude, "pracBeats", { configurable: true, get: () => pracBeats });
 Object.defineProperty(__etude, "pracClearAB", { configurable: true, get: () => pracClearAB });
 Object.defineProperty(__etude, "pracFinish", { configurable: true, get: () => pracFinish });
+Object.defineProperty(__etude, "pracRecord", { configurable: true, get: () => pracRecord });
+Object.defineProperty(__etude, "pracSavedText", { configurable: true, get: () => pracSavedText });
+Object.defineProperty(__etude, "pracWholePiece", { configurable: true, get: () => pracWholePiece });
 Object.defineProperty(__etude, "pracFrame", { configurable: true, get: () => pracFrame });
 Object.defineProperty(__etude, "pracHud", { configurable: true, get: () => pracHud });
 Object.defineProperty(__etude, "pracInput", { configurable: true, get: () => pracInput });
+Object.defineProperty(__etude, "pracNeedKey", { configurable: true, get: () => pracNeedKey });
+Object.defineProperty(__etude, "pracSame", { configurable: true, get: () => pracSame });
 Object.defineProperty(__etude, "pracJudge", { configurable: true, get: () => pracJudge });
 Object.defineProperty(__etude, "pracLoad", { configurable: true, get: () => pracLoad });
 Object.defineProperty(__etude, "pracLoopBars", { configurable: true, get: () => pracLoopBars });
@@ -19573,7 +19469,7 @@ Object.defineProperty(__etude, "srtStartPractice", { configurable: true, get: ()
 Object.defineProperty(__etude, "srtStartClaimedAttempt", { configurable: true, get: () => srtStartClaimedAttempt });
 Object.defineProperty(__etude, "srtSwitchToPractice", { configurable: true, get: () => srtSwitchToPractice });
 Object.defineProperty(__etude, "srBeatToX", { configurable: true, get: () => srBeatToX });
-Object.defineProperty(__etude, "srBest", { configurable: true, get: () => srBest });
+Object.defineProperty(__etude, "srEmptyUi", { configurable: true, get: () => srEmptyUi });
 Object.defineProperty(__etude, "srClef", { configurable: true, get: () => srClef });
 Object.defineProperty(__etude, "srClick", { configurable: true, get: () => srClick });
 Object.defineProperty(__etude, "srCoach", { configurable: true, get: () => srCoach });
@@ -19604,6 +19500,7 @@ Object.defineProperty(__etude, "srRest", { configurable: true, get: () => srRest
 Object.defineProperty(__etude, "srScrollStep", { configurable: true, get: () => srScrollStep });
 Object.defineProperty(__etude, "srScrollX", { configurable: true, get: () => srScrollX });
 Object.defineProperty(__etude, "srSelectPiece", { configurable: true, get: () => srSelectPiece });
+Object.defineProperty(__etude, "srShowPiece", { configurable: true, get: () => srShowPiece });
 Object.defineProperty(__etude, "srSetBpm", { configurable: true, get: () => srSetBpm });
 Object.defineProperty(__etude, "srSetMode", { configurable: true, get: () => srSetMode });
 Object.defineProperty(__etude, "srShape", { configurable: true, get: () => srShape });
@@ -19752,12 +19649,10 @@ Object.defineProperty(__etude, "ACCOMP_PROGS", { configurable: true, get: () => 
 Object.defineProperty(__etude, "AN", { configurable: true, get: () => AN });
 Object.defineProperty(__etude, "AN_CHORDS", { configurable: true, get: () => AN_CHORDS });
 Object.defineProperty(__etude, "AN_DIA", { configurable: true, get: () => AN_DIA });
-Object.defineProperty(__etude, "AN_EXAMPLES", { configurable: true, get: () => AN_EXAMPLES });
 Object.defineProperty(__etude, "AN_MAX_BYTES", { configurable: true, get: () => AN_MAX_BYTES });
 Object.defineProperty(__etude, "AN_MAX_NOTES", { configurable: true, get: () => AN_MAX_NOTES });
 Object.defineProperty(__etude, "AN_MAX_XML_CHARS", { configurable: true, get: () => AN_MAX_XML_CHARS });
 Object.defineProperty(__etude, "AN_POPS", { configurable: true, get: () => AN_POPS });
-Object.defineProperty(__etude, "AN_PRACTICE_BARS", { configurable: true, get: () => AN_PRACTICE_BARS });
 Object.defineProperty(__etude, "AN_PROFILE", { configurable: true, get: () => AN_PROFILE });
 Object.defineProperty(__etude, "AN_SMUFL_NOTES", { configurable: true, get: () => AN_SMUFL_NOTES });
 Object.defineProperty(__etude, "AN_TABS", { configurable: true, get: () => AN_TABS });

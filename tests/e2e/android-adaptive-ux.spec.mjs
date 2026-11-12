@@ -290,7 +290,7 @@ test.describe('bottom navigation on phones', () => {
     const bar = page.locator('#bottomNav'), items = bar.locator('button');
     await expect(bar).toBeVisible();
     await expect(page.locator('#menuBtn')).toBeHidden();
-    await expect(items).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Progress']);
+    await expect(items).toHaveText(['Today', 'Learn', 'Practice', 'Pieces', 'Progress']);
     for (let i = 0; i < 5; i++) {
       const r = await items.nth(i).evaluate(el => el.getBoundingClientRect());
       expect(r.height).toBeGreaterThanOrEqual(48);
@@ -302,7 +302,7 @@ test.describe('bottom navigation on phones', () => {
 
     await items.nth(3).click();
     await expect(page.locator('#view-analysis')).toHaveClass(/active/);
-    await expect(bar.locator('button[aria-current="page"]')).toHaveText('Scores');
+    await expect(bar.locator('button[aria-current="page"]')).toHaveText('Pieces');
     await page.goBack();
     await expect(page.locator('#view-today')).toHaveClass(/active/);
     await expect(bar.locator('button[aria-current="page"]')).toHaveText('Today');
@@ -335,7 +335,7 @@ test.describe('bottom navigation on phones', () => {
     const page = app.page;
     await page.setViewportSize({ width: 1280, height: 800 });
     await app.open({ hash: 'practice' });
-    await expect(page.locator('#nav button')).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Progress']);
+    await expect(page.locator('#nav button')).toHaveText(['Today', 'Learn', 'Practice', 'Pieces', 'Progress']);
     await page.locator('#modeNav button[data-view="explore"]').click();
     await expect(page.locator('#view-explore')).toHaveClass(/active/);
     await expect(page.locator('#nav button[aria-current="page"]')).toHaveText('Practice');

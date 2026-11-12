@@ -1,4 +1,4 @@
-import type { LibraryImportResult, LibraryItem, LibraryMetadata, LibraryRestoreResult, LibraryResume } from './score-library-types.js';
+import type { LibraryImportResult, LibraryItem, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume } from './score-library-types.js';
 
 const DB_NAME = 'etude-score-library-v1';
 const MAX_FILE = 2 * 1024 * 1024;
@@ -71,11 +71,20 @@ function itemValue(value: unknown): LibraryItem {
   const v = record(value);
   const id = text(v.id, 64);
   if (!/^[a-f0-9]{64}$/u.test(id)) invalid('Invalid score hash.');
-  return {
+  const item: LibraryItem = {
     ...validateLibraryMetadata(v), id, name: filename(v.name), size: fileSize(v.size),
     addedAt: number(v.addedAt), lastOpenedAt: v.lastOpenedAt === null ? null : number(v.lastOpenedAt),
     favorite: boolean(v.favorite), resume: validateLibraryResume(v.resume),
   };
+  // Practice progress is optional: records saved before it existed have neither field.
+  if (v.best !== undefined) item.best = number(v.best, 0, 100);
+  if (v.lastPlayedDay !== undefined) item.lastPlayedDay = dayNumber(v.lastPlayedDay);
+  return item;
+}
+function dayNumber(value: unknown): number {
+  const day = number(value, 0, 1e6);
+  if (!Number.isInteger(day)) invalid('Invalid library day.');
+  return day;
 }
 function checkFile(file: File): void {
   if (!(file instanceof File)) invalid('Expected a score file.');
@@ -190,6 +199,21 @@ export async function libraryUpdate(id: string, patch: { favorite?: boolean; las
     const item = { ...itemValue(old), ...clean };
     await request(store.put(item, id));
     return item;
+  });
+}
+/** Records a whole-score practice run: the day, and the accuracy (0–100) of a timed run, kept when it beats the best so far. */
+export async function libraryRecordPlay(id: string, day: number, accuracy: number | null): Promise<LibraryPlayResult | null> {
+  const playedDay = dayNumber(day);
+  const pct = accuracy === null ? null : Math.round(number(accuracy, 0, 100));
+  return transaction('readwrite', async tx => {
+    const store = tx.objectStore('metadata');
+    const old: unknown = await request(store.get(id));
+    if (!old) return null; // Never resurrect a score deleted by another tab.
+    const item = itemValue(old), previousBest = item.best ?? null;
+    item.lastPlayedDay = Math.max(item.lastPlayedDay ?? 0, playedDay);
+    if (pct !== null && pct > (previousBest ?? 0)) item.best = pct; // as for built-in pieces, 0% sets no best
+    await request(store.put(item, id));
+    return { item, previousBest };
   });
 }
 export async function libraryRemove(id: string): Promise<void> {
