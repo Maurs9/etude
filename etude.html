@@ -516,39 +516,29 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== EXPLORE ===================== -->
   <section class="view" id="view-explore">
     <div class="wrap">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="ex_eyebrow">Free play</div><h1 data-i18n="ex_title">Explore</h1></div></div>
-      <p class="lede" data-i18n="ex_lede">Play anything — Étude names what you hold in real time. Pick a key on the circle to read chords in Roman numerals.</p>
-      <div class="rdx-tabs ex-tabs" id="ex-tabs" role="tablist" aria-label="Explore" data-i18n-aria="ex_tabs_aria">
-        <button type="button" role="tab" id="ext-free" data-tab="free" aria-selected="true" aria-controls="exp-free" tabindex="0" data-i18n="ex_tab_free">Free play</button>
-        <button type="button" role="tab" id="ext-circle" data-tab="circle" aria-selected="false" aria-controls="exp-circle" tabindex="-1" data-i18n="ex_tab_circle">Circle of fifths</button>
-      </div>
-      <div class="panel" id="exp-free" role="tabpanel" aria-labelledby="ext-free">
-        <div class="readout">
-          <div class="ro"><b id="ro-notes">—</b><span data-i18n="ro_notes">Notes held</span></div>
-          <div class="ro"><b id="ro-name">—</b><span data-i18n="ro_name">Interval / Chord</span></div>
-          <div class="ro"><b id="ro-roman">—</b><span data-i18n="ro_roman">Roman / degree</span></div>
-        </div>
-        <div class="ss-wrap" id="ex-staff" role="img" aria-label="Treble and bass clef notation" data-i18n-aria="aria_exstaff"></div>
-        <p class="lede" style="font-size:12px; margin:8px 0 0" data-i18n="ex_staff_hint">The same notes in both clefs — bass on the left, treble on the right, as on the keyboard. Notes too high or too low for a staff are named beside an arrow.</p>
-        <hr class="rule" />
-        <div class="row" style="justify-content:space-between">
-          <label class="field ref-field"><span data-i18n="ex_ref">Reference</span>
-            <select id="refType"><option value="chord" data-i18n="opt_chord">Chord</option><option value="scale" data-i18n="opt_scale">Scale</option></select>
-            <select id="refRoot" aria-label="Reference root" data-i18n-aria="aria_refroot"></select>
-            <select id="refName" aria-label="Reference name" data-i18n-aria="aria_refname"></select>
-            <button class="btn sm" id="refPlay" data-i18n="ex_hear">▶ Hear</button>
-            <button class="btn sm ghost" id="refShow" data-i18n="ex_show">Show on keys</button>
-          </label>
-          <label class="field"><span data-i18n="ex_keyctx">Key context</span> <select id="keyCtx"><option value="-1">none</option></select></label>
-        </div>
-      </div>
-      <div class="panel cof-panel" id="exp-circle" role="tabpanel" aria-labelledby="ext-circle" hidden>
-        <div class="cof-layout">
+      <div class="section-head ex-head"><div><div class="eyebrow" data-i18n="ex_eyebrow">Free play</div><h1 data-i18n="ex_title">Explore</h1></div>
+        <p class="lede" data-i18n="ex_lede">Play anything — Étude names what you hold and shows it on the staff and on the circle. Pick a key on the circle to read chords in Roman numerals and to see its fingering.</p></div>
+      <!-- One screen: the circle picks the key (left on wide screens); what you hold, the staff and the key card sit beside it. -->
+      <div class="ex-layout" id="ex-layout">
+        <section class="panel ex-play" id="exp-free" aria-labelledby="ex-play-h">
+          <h2 class="visually-hidden" id="ex-play-h" data-i18n="ex_tab_free">Free play</h2>
+          <div class="readout">
+            <div class="ro"><b id="ro-notes">—</b><span data-i18n="ro_notes">Notes held</span></div>
+            <div class="ro"><b id="ro-name">—</b><span data-i18n="ro_name">Interval / Chord</span></div>
+            <div class="ro"><b id="ro-roman">—</b><span data-i18n="ro_roman">Roman / degree</span></div>
+          </div>
+          <div class="ss-wrap" id="ex-staff" role="img" aria-label="Treble and bass clef notation" data-i18n-aria="aria_exstaff"></div>
+          <p class="lede ex-staff-hint" data-i18n="ex_staff_hint">The same notes in both clefs — bass on the left, treble on the right, as on the keyboard. Notes too high or too low for a staff are named beside an arrow.</p>
+        </section>
+        <section class="panel ex-circle" id="exp-circle" aria-labelledby="ex-circle-h">
+          <h2 class="visually-hidden" id="ex-circle-h" data-i18n="ex_tab_circle">Circle of fifths</h2>
           <div class="cof-figure">
             <div id="circle"></div>
-            <p class="cof-hint" data-i18n="ex_circle">Outer ring: major keys · inner ring: their relative minors. Click a key to hear it and see the fingering.</p>
+            <p class="cof-hint" data-i18n="ex_circle">Outer ring: major keys · inner ring: their relative minors. Pick a key to hear it, see its fingering and read chords in that key.</p>
           </div>
-          <div class="cof-info" id="cof-info" aria-live="polite">
+        </section>
+        <section class="panel ex-key cof-info" id="cof-info" aria-labelledby="cof-key" aria-live="polite">
+          <div class="cof-main">
             <div class="cof-head">
               <h2 class="cof-key" id="cof-key">C major</h2>
               <p class="cof-sig" id="cof-sig"></p>
@@ -565,16 +555,26 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
               </div>
               <button type="button" class="btn sm" id="cof-play" data-i18n="ex_hear">▶ Hear</button>
             </div>
-            <figure class="cof-fing">
-              <figcaption><b id="cof-fing-t">Fingering</b> <span id="cof-fing-s"></span></figcaption>
-              <div id="cof-kb"></div>
-              <div class="cof-legend">
-                <span class="cof-lg rh"><i aria-hidden="true">1</i><span data-i18n="cof_rh">Right hand (above)</span></span>
-                <span class="cof-lg lh"><i aria-hidden="true">1</i><span data-i18n="cof_lh">Left hand (below)</span></span>
-              </div>
-              <p class="cof-note" id="cof-note"></p>
-            </figure>
           </div>
+          <figure class="cof-fing">
+            <figcaption><b id="cof-fing-t">Fingering</b> <span id="cof-fing-s"></span></figcaption>
+            <div id="cof-kb"></div>
+            <div class="cof-legend">
+              <span class="cof-lg rh"><i aria-hidden="true">1</i><span data-i18n="cof_rh">Right hand (above)</span></span>
+              <span class="cof-lg lh"><i aria-hidden="true">1</i><span data-i18n="cof_lh">Left hand (below)</span></span>
+            </div>
+            <p class="cof-note" id="cof-note"></p>
+          </figure>
+        </section>
+        <div class="panel ex-ref" id="ex-ref">
+          <label class="field ref-field"><span data-i18n="ex_ref">Reference</span>
+            <select id="refType"><option value="chord" data-i18n="opt_chord">Chord</option><option value="scale" data-i18n="opt_scale">Scale</option></select>
+            <select id="refRoot" aria-label="Reference root" data-i18n-aria="aria_refroot"></select>
+            <select id="refName" aria-label="Reference name" data-i18n-aria="aria_refname"></select>
+            <button class="btn sm" id="refPlay" data-i18n="ex_hear">▶ Hear</button>
+            <button class="btn sm ghost" id="refShow" data-i18n="ex_show">Show on keys</button>
+          </label>
+          <label class="field"><span data-i18n="ex_keyctx">Key context</span> <select id="keyCtx"><option value="-1">none</option></select></label>
         </div>
       </div>
     </div>

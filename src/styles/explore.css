@@ -1,0 +1,56 @@
+/* ---------- Explore: one screen (etude.html #view-explore) ----------
+   Loaded after etude.css, which keeps the circle's and the fingering diagram's own drawing styles.
+   Wide (900px and up): the circle of fifths on the left picks the key and stays in view while the page scrolls; what you
+   hold, the staff and the key card stack on the right; the reference row runs below both.
+   Narrow: one column, in reading order: what you hold and the staff, the circle, the key card, the reference row.
+   --ex-room is the height left between the header and the keyboard dock (both measured by anLayoutVars), so the circle and
+   the staff shrink with the dock instead of pushing each other off the screen. */
+#view-explore{--ex-room:calc(100dvh - var(--hdr-h, 63px) - var(--dock-h, 0px))}
+.ex-head{align-items:flex-end; gap:6px 28px; margin-bottom:14px}
+.ex-head .lede{margin:0; max-width:64ch; font-size:14.5px}
+.ex-layout{display:grid; gap:14px; grid-template-columns:minmax(0,1fr); grid-template-areas:"play" "circle" "key" "ref"}
+
+.ex-play{grid-area:play; padding:12px 16px 14px; min-width:0}
+.ex-play .readout{margin:0}
+.ex-play #ex-staff{margin-top:10px}
+.ex-staff-hint{font-size:12px; margin:8px 0 0}
+
+.ex-circle{grid-area:circle; padding:10px 12px 12px; min-width:0}
+.ex-circle .cof-figure{gap:6px}
+/* The compact drawing (a small circle) zooms in on the rings, so its labels can be larger in viewBox units. */
+.cof-svg.compact .cof-maj{font-size:38px} .cof-svg.compact .cof-maj.sm{font-size:28px}
+.cof-svg.compact .cof-min{font-size:21px} .cof-svg.compact .cof-min.sm{font-size:16px}
+.cof-svg.compact .cof-cnt{font-size:17px}
+/* Where the held chord or notes sit: a gold outline over the wedge, under the pointer so picking still works. */
+.cof-ring-now{fill:color-mix(in srgb, var(--gold) 22%, transparent); stroke:var(--gold); stroke-width:5; stroke-linejoin:round; pointer-events:none}
+
+.ex-key{grid-area:key; padding:16px 16px 14px; gap:14px; min-width:0}
+.ex-key .cof-main{display:flex; flex-direction:column; gap:12px; min-width:0}
+.ex-key .cof-key{font-size:clamp(22px,2.6vw,30px)}
+
+.ex-ref{grid-area:ref; display:flex; flex-wrap:wrap; gap:10px 20px; align-items:center; justify-content:space-between; padding:10px 16px}
+
+@media (min-width:900px){
+  /* The circle's side is what the room leaves after the mode bar, the heading and the circle's own hint. */
+  #view-explore{--ex-cof:clamp(280px, calc(var(--ex-room) - 236px), 520px)}
+  .ex-layout{grid-template-columns:var(--ex-cof) minmax(0,1fr); grid-template-areas:"circle play" "circle key" "ref ref"; align-items:start}
+  .ex-circle{position:sticky; top:calc(var(--hdr-h, 63px) + 10px)}
+  /* The staff keeps its shape and centres in its paper when the height runs out first. */
+  #ex-staff svg{max-height:max(150px, calc(var(--ex-room) - 300px))}
+}
+@media (min-width:1100px){
+  /* A wide key card puts its name and switches beside the fingering. */
+  .ex-key{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.35fr); align-items:start}
+  .ex-key .cof-kb{max-width:400px}
+}
+@media (max-width:899px){
+  /* Below COF_COMPACT_W (460px), so a one-column circle always draws compact, never flipping on a pixel of rounding. */
+  .ex-circle .cof-figure #circle{max-width:440px; margin:0 auto}
+  /* Thumb-sized controls on a phone or a narrow window. */
+  #view-explore .seg button,#view-explore .btn,#view-explore select{min-height:44px}
+  .ex-ref{justify-content:flex-start}
+}
+@media (max-width:560px){
+  .ex-head .lede{font-size:13.5px}
+  .ex-play,.ex-key,.ex-ref{padding-left:12px; padding-right:12px}
+}
