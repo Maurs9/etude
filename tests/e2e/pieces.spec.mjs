@@ -2,7 +2,13 @@ import { test, expect, todayN } from '../helpers/fixtures.mjs';
 
 // Pieces (view `analysis`): the built-in pieces and My Library play in one player, and whole-piece runs save progress.
 
-const BARS = { w5rh: 4, w5lh: 4, clair: 4, mary: 8, twinkle: 4, frere: 8, ode: 8, saints: 8, jingle: 8, london: 8, minuet: 8, elise: 6, greensleeves: 9, grace: 8 };
+// Engraved bars per piece; an upbeat is bar 0 and counts as one.
+const BARS = { w5rh: 4, w5lh: 4, clair: 4, mary: 8, twinkle: 4, hotcross: 8, lightly: 16, rhody: 8, frere: 8, ode: 8, saints: 8, jingle: 8, susanna: 9, auralee: 8, brahms: 9,
+  london: 8, minuet: 8, elise: 6, greensleeves: 9, grace: 8, canon: 13, gymno: 8, prelude: 8 };
+const UPBEAT = ['susanna', 'brahms', 'greensleeves', 'grace'];
+const THREE_FOUR = ['brahms', 'minuet', 'elise', 'greensleeves', 'grace', 'gymno'];
+// Key signature (fifths) of each piece as engraved.
+const FIFTHS = { auralee: 1, brahms: -1, minuet: 1, canon: 2, gymno: 2 };
 
 async function openPiece(page, id) {
   await page.evaluate(pieceId => window.__etude.pcOpen(pieceId), id);
@@ -33,9 +39,36 @@ const progress = (page, id) => page.evaluate(pieceId => {
   return { sheet: d.sheet[pieceId] ?? null, piece: d.toolDay?.piece ?? null, todayDay: d.todayDay, streak: d.streak };
 }, id);
 
-test('all 14 built-in pieces open in Pieces with their bars, upbeats, meter and both hands', async ({ app, page }) => {
+// The data of every built-in piece: ids, levels, pitches within the 88 keys, both hands the same length, whole bars after an upbeat.
+test('every built-in piece is well formed', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
-  await expect(page.locator('#pc-list .pc-item')).toHaveCount(14);
+  const pieces = await page.evaluate(() => window.__etude.PIECES.map(p => ({ id: p.id, level: p.level, ts: p.ts, pickup: p.pickup || 0, rh: p.rh, lh: p.lh, title: p.t.en, ro: p.t.ro })));
+  expect(pieces.length).toBe(Object.keys(BARS).length);
+  expect(new Set(pieces.map(p => p.id)).size).toBe(pieces.length);
+  const midi = name => {
+    const m = /^([A-G])([#b]?)(\d)$/.exec(name);
+    return m ? 12 * (+m[3] + 1) + [0, 2, 4, 5, 7, 9, 11]['CDEFGAB'.indexOf(m[1])] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) : NaN;
+  };
+  for (const p of pieces) {
+    expect([1, 2, 3], p.id).toContain(p.level);
+    expect(p.title && p.ro, p.id).toBeTruthy();
+    const beats = hand => hand.reduce((sum, [, d]) => sum + d, 0), bar = p.ts[1] === 8 ? p.ts[0] / 2 : p.ts[0];
+    expect(beats(p.rh), p.id).toBe(beats(p.lh));
+    expect(Number.isInteger((beats(p.rh) - p.pickup) / bar), p.id).toBe(true);
+    for (const [pitch] of [...p.rh, ...p.lh]) {
+      if (pitch === 'R') continue;
+      for (const name of [].concat(pitch)) {
+        const m = midi(name);
+        expect(m >= 21 && m <= 108, `${p.id}: ${name}`).toBe(true);
+      }
+    }
+  }
+});
+
+test('all built-in pieces open in Pieces with their bars, upbeats, meter, key and both hands', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await expect(page.locator('#pc-list .pc-item')).toHaveCount(Object.keys(BARS).length);
+  await expect(page.locator('#pc-sum')).toHaveText(`Built-in pieces (${Object.keys(BARS).length})`);
   await expect(page.locator('#pc-list .pc-level-h')).toHaveText(['Level 1', 'Level 2', 'Level 3']);
   await expect(page.locator('#an-side')).toBeHidden(); // the harmony panel starts closed
   for (const [id, bars] of Object.entries(BARS)) {
@@ -52,17 +85,22 @@ test('all 14 built-in pieces open in Pieces with their bars, upbeats, meter and 
         first: api.SCORE.measures[0].number,
         implicit: doc.querySelector('measure')?.getAttribute('implicit') ?? null,
         time: doc.querySelector('time beats').textContent + '/' + doc.querySelector('time beat-type').textContent,
+        fifths: +doc.querySelector('key fifths').textContent,
+        staves: document.querySelectorAll('#an-roll .vf-stave').length,
         hands: [...hands].sort(),
         lastBarLh: api.AN.notes.some(n => api.anHandOf(n) === 'lh' && n.start >= last.start - 1e-6),
         current: document.querySelector('#pc-list .pc-item[aria-current="true"]')?.dataset.piece,
       };
     });
-    expect(shape, id).toMatchObject({ bars, hands: ['lh', 'rh'], lastBarLh: true, current: id });
-    const upbeat = id === 'greensleeves' || id === 'grace';
+    expect(shape, id).toMatchObject({ bars, hands: ['lh', 'rh'], lastBarLh: true, current: id, fifths: FIFTHS[id] ?? 0 });
+    // Both staves are engraved for every bar: a treble and a bass staff per bar.
+    expect(shape.staves, id).toBe(bars * 2);
+    const upbeat = UPBEAT.includes(id);
     expect(shape.first, id).toBe(upbeat ? '0' : '1');
     expect(shape.implicit, id).toBe(upbeat ? 'yes' : null);
-    expect(shape.time, id).toBe(['minuet', 'elise', 'greensleeves', 'grace'].includes(id) ? '3/4' : '4/4');
+    expect(shape.time, id).toBe(THREE_FOUR.includes(id) ? '3/4' : '4/4');
   }
+  expect(app.errors.map(e => e.message)).toEqual([]);
 });
 
 test('Learn links and the Read & Play tab lead to the piece in Pieces', async ({ app, page }) => {
