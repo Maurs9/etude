@@ -28,8 +28,8 @@ test.describe('i18n', () => {
   }
 
   // `pr_start` used to be defined twice (Practice button and score prompt): the later one won, so the
-  // Practice page's "Start drilling" button read "Press Space or ▶ to start".
-  for (const [lang, label] of [['en', 'Start drilling'], ['ro', 'Începe exersarea']]) {
+  // Practice page's "Start drilling" button read "Press Space or ▶ to start". It now names the choice (`pr_start_sel`).
+  for (const [lang, label] of [['en', 'Start: Intervals · Play it · All keys'], ['ro', 'Începe: Intervale · Cântă · Toate tonalitățile']]) {
     test(`Practice start button keeps its own label (${lang})`, async ({ app }) => {
       const page = await app.open({ lang, hash: 'practice' });
       await expect(page.locator('#pr-start')).toHaveText(label);
@@ -2584,7 +2584,7 @@ test.describe('several open tabs', () => {
 
     await page.evaluate(() => window.__etude.endSession(false));
     await expect.poll(() => page.evaluate(() => window.__etude.lang), { timeout: 5000 }).toBe('ro');
-    await expect(page.locator('#pr-start')).toHaveText('Începe exersarea');
+    await expect(page.locator('#pr-start')).toHaveText(/^Începe: /);
     expect(errors).toEqual([]);
     await tab.close();
   });

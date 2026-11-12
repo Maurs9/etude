@@ -1,0 +1,52 @@
+/* ---------- Practice setup ("Drill one thing"): Continue strip, topic cards, How to answer, key chips, Start ----------
+   Loaded after etude.css. The topic cards reuse the Today focus cards (.focus-grid, .focus). The phone width is the
+   app's 680px: two cards across, the key chips scroll sideways inside their own row, Start and Drill again (#pr-redo) are full width
+   (etude.css already makes #pr-mode and #pr-start full width there). */
+#pr-home .pr-setup{margin-top:18px}
+.pr-sec{font-family:var(--sans); font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:24px 0 10px}
+.pr-setup > .pr-sec:first-child{margin-top:0}
+
+/* Continue: the last drill and one tap to run it again */
+.pr-continue{display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin-top:18px; padding:12px 14px 12px 16px; border:1px solid var(--line); border-left:3px solid var(--good); border-radius:12px; background:var(--card); box-shadow:var(--shadow)}
+.pr-continue-txt{flex:1 1 260px; min-width:0; margin:0; font-size:14px; line-height:1.45; color:var(--ink2)}
+.pr-continue-txt b{white-space:nowrap}
+.pr-continue-txt b.good{color:var(--good)}
+.pr-continue-txt b.neutral{color:var(--ink)}
+.pr-redo{flex:none; min-height:44px; justify-content:center}
+
+/* Topic cards: a radio group, one card checked */
+.pr-topics{grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:0}
+.pr-topic{position:relative; min-width:0; padding:14px 14px 12px; overflow-wrap:break-word}
+.pr-topic-top{display:flex; align-items:center; gap:10px; min-width:0; padding-right:20px}
+.pr-glyph{flex:none; width:24px; height:24px; color:var(--accent)}
+.pr-topic .k{min-width:0; font-size:17px; line-height:1.2; hyphens:auto}
+.pr-topic .m{line-height:1.4}
+.pr-mast{display:block; width:100%; margin-top:auto}
+.pr-mast .bar{margin-top:4px}
+.pr-mast-t{display:block; margin-top:5px; font-size:12px; color:var(--muted)}
+.pr-topic[aria-checked="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--card); background:color-mix(in srgb, var(--accent) 7%, var(--card))}
+.pr-topic[aria-checked="true"]::after{content:"✓"; position:absolute; top:10px; right:10px; display:grid; place-items:center; width:18px; height:18px; border-radius:50%; background:var(--accent); color:var(--accent-ink); font:700 11px/1 var(--sans)}
+
+/* How to answer */
+.pr-setup #pr-mode{max-width:100%}
+
+/* Key chips: a radio group; the padding keeps the focus ring inside the scrolling row */
+.pr-keys{position:relative; display:flex; flex-wrap:wrap; gap:8px; padding:4px; margin:-4px}
+.pr-chip{appearance:none; flex:none; min-width:44px; min-height:44px; padding:0 14px; border:1px solid var(--line); border-radius:22px; background:var(--card); color:var(--ink2); font:600 14px/1 var(--sans); cursor:pointer; transition:.12s}
+.pr-chip:hover{border-color:var(--accent); color:var(--accent)}
+.pr-chip[aria-checked="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+
+/* Start: names the choice, so a long label wraps */
+.pr-go{margin-top:24px; min-height:48px; justify-content:center; white-space:normal; text-align:center; line-height:1.3}
+
+@media (max-width:680px){
+  #pr-home .pr-setup{padding:16px 14px}
+  .pr-topics{grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
+  .pr-topic{padding:12px 11px 10px}
+  .pr-topic-top{flex-direction:column; align-items:flex-start; gap:6px; padding-right:0}
+  .pr-topic .k{font-size:16px}
+  .pr-keys{flex-wrap:nowrap; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; scrollbar-width:thin}
+  .pr-chip{scroll-snap-align:start}
+  .pr-redo{width:100%}
+}
+@media (prefers-reduced-motion:reduce){ .pr-chip{transition:none} }

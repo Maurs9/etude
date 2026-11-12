@@ -19,10 +19,10 @@ async function playRun(page, gap, { wrongAt = -1, lateAt = -1 } = {}) {
 async function openDrill(app, key = '0') {
   const page = await app.open({ hash: 'practice', dock: true });
   await page.clock.install();
-  await page.locator('#pr-cat').selectOption('technique');
+  await page.locator('#pr-t-technique').click();
   await expect(page.locator('#pr-mode button[data-v="ear"]')).toBeDisabled();
   await expect(page.locator('#pr-mode-note')).toBeVisible();
-  await page.locator('#pr-key').selectOption(key);
+  await page.locator(`#pr-keys [data-v="${key}"]`).click();
   await page.locator('#pr-start').click();
   await expect(page.locator('#tq-drill')).toBeVisible();
   return page;

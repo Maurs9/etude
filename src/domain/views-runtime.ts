@@ -29,6 +29,7 @@ import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
+import '../styles/practice.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint } from '../sight-reading/fingerprint.js';
@@ -345,7 +346,7 @@ function applyI18n() {
     renderDataSafety();
     fsUi();
     scoreLibrary?.localize();
-    updatePracticeModeHint();
+    renderPracticeSetup();
     fitHeader();
 }
 async function setLang(l: string|undefined, synchronized = false): Promise<void> {
@@ -4384,7 +4385,7 @@ function refreshToday() {
         const card = (document).createElement('button');
         card.type = 'button';
         card.className = 'focus';
-        card.onclick = () => { show('practice'); selectById('pr-cat').value = cat; byId('pr-cat').dispatchEvent(new Event('change')); byId('pr-start').focus(); };
+        card.onclick = () => { show('practice'); prSetTopic(cat); byId('pr-start').focus(); };
         card.innerHTML = '<div class="k">' + catLabel(cat) + '</div><div class="m">' + mastered + ' ' + t('mastered_lc') + ' · ' + seen + '/' + items.length + ' ' + t('started') + '</div><div class="bar"><i style="width:' + Math.round(100 * mastered / items.length) + '%"></i></div>';
         fg.appendChild(card);
     });
@@ -5639,8 +5640,8 @@ function learnClick(e: Event) {
         show(g.dataset.go);
         if (g.dataset.extab)
             exTab(g.dataset.extab);
-        if (c && byId('pr-cat'))
-            selectById('pr-cat').value = c;
+        if (c)
+            prSetTopic(c);
         return;
     }
     if (eventClosest(e, '[data-lgback]')) {
@@ -16951,7 +16952,7 @@ function renderProgress() {
     byId('weak-wrap').hidden = !weak.length;
     const wl = byId('weakList');
     wl.innerHTML = '';
-    weak.forEach(({ it, r }) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); selectById('pr-cat').value = it.cat; byId('pr-start').focus(); }); wl.appendChild(b); });
+    weak.forEach(({ it, r }) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); prSetTopic(it.cat); byId('pr-start').focus(); }); wl.appendChild(b); });
     // forecast next 7 days
     const fc = byId('forecast');
     fc.innerHTML = '';
@@ -17085,48 +17086,169 @@ function renderPlan() {
 function prRecordDrill() { if (!SES.targeted || !SES.total)
     return; const tg = SES.targeted; data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, c: SES.correct, n: SES.total, day: todayN() }; saveAll(); }
 /* ---------- PRACTICE: setup mode and hints ---------- */
-let practiceModePref: 'play' | 'ear' | 'keys' = 'play';
+// The setup screen holds one choice: the topic in #pr-cat, the mode in #pr-mode (aria-pressed) and the key in #pr-key.
+// #pr-cat and #pr-key are hidden; the topic cards and key chips are their only visible controls. Every caller
+// (Today focus cards, Progress "Needs work", Learn links, Continue, tests) changes the choice through prSetTopic,
+// prSetMode and prSetKey, and reads it through prChoice.
+type PracticeMode = 'play' | 'ear' | 'keys';
+// The six topics, in the order of the #pr-cat options. The first four are the spaced-repetition categories (CATS).
+const PR_TOPICS: readonly string[] = ['interval', 'chord', 'scale', 'prog', 'melody', TECHNIQUE_TOPIC];
+const PR_KEYS: readonly string[] = ['all', ...Array.from({ length: 12 }, (_, i) => String(i))];
+// A small glyph per topic card (24 × 24, drawn in currentColor).
+const PR_GLYPH: Record<string, string> = {
+    interval: '<ellipse cx="7.5" cy="17" rx="3.4" ry="2.5" fill="currentColor"/><ellipse cx="16.5" cy="7" rx="3.4" ry="2.5" fill="currentColor"/><path d="M9.5 14.6 14.5 9.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="1.5 2.4"/>',
+    chord: '<ellipse cx="12" cy="5.5" rx="3.6" ry="2.5" fill="currentColor"/><ellipse cx="12" cy="12" rx="3.6" ry="2.5" fill="currentColor"/><ellipse cx="12" cy="18.5" rx="3.6" ry="2.5" fill="currentColor"/>',
+    scale: '<circle cx="4.5" cy="19" r="2.4" fill="currentColor"/><circle cx="9.5" cy="14.5" r="2.4" fill="currentColor"/><circle cx="14.5" cy="10" r="2.4" fill="currentColor"/><circle cx="19.5" cy="5.5" r="2.4" fill="currentColor"/>',
+    prog: '<rect x="2.5" y="9" width="5" height="11" rx="1.4" fill="currentColor"/><rect x="9.5" y="4" width="5" height="16" rx="1.4" fill="currentColor" opacity=".7"/><rect x="16.5" y="11" width="5" height="9" rx="1.4" fill="currentColor"/>',
+    melody: '<path d="M8.5 17.5V6.2l11-2.4v11.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><ellipse cx="6" cy="17.6" rx="3" ry="2.3" fill="currentColor"/><ellipse cx="17" cy="15.4" rx="3" ry="2.3" fill="currentColor"/>',
+    [TECHNIQUE_TOPIC]: '<path d="M2.5 19 7 12l5-7 5 7 4.5 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="17" cy="12" r="2" fill="currentColor"/>',
+};
+let practiceModePref: PracticeMode = 'play';
 
-function updatePracticeModeHint() {
-    const hint = byId('pr-mode-hint');
-    const note = byId('pr-mode-note');
-    const catEl = byId('pr-cat');
-    const pm = byId('pr-mode');
-    if (!hint || !pm || !catEl) return;
-    const cat = (catEl as HTMLSelectElement).value;
-    const mel = cat === 'melody';
-    const prog = cat === 'prog';
-    if (cat === TECHNIQUE_TOPIC) {
-        hint.textContent = t('tq_pr_hint');
-        if (note) {
-            note.textContent = t('tq_pr_note');
-            note.hidden = false;
-        }
+function isPracticeMode(v: string | undefined): v is PracticeMode { return v === 'play' || v === 'ear' || v === 'keys'; }
+function prTopicLabel(cat: string) { return cat === 'melody' ? t('cat_melody') : cat === TECHNIQUE_TOPIC ? t('cat_technique') : catLabel(cat); }
+function prModeLabel(mode: PracticeMode) { return t(mode === 'keys' ? 'pr_onkeys' : mode === 'ear' ? 'pr_byear' : 'pr_playit'); }
+function prKeyLabel(key: string | null | undefined) { return key == null || key === '' || key === 'all' ? t('all_keys') : rootName(+key || 0); }
+
+/** The chosen topic, mode and key. Melodies are always on the keys; scales and arpeggios are always Play it. */
+function prChoice(): { cat: string; mode: PracticeMode; key: string } {
+    const cat = selectById('pr-cat').value;
+    const v = queryHtml(byId('pr-mode'), 'button[aria-pressed="true"]')?.dataset.v;
+    const mode: PracticeMode = cat === 'melody' ? 'keys' : cat === TECHNIQUE_TOPIC ? 'play' : isPracticeMode(v) ? v : 'play';
+    return { cat, mode, key: selectById('pr-key').value || 'all' };
+}
+function prSetTopic(cat: string) {
+    if (!PR_TOPICS.includes(cat))
         return;
+    selectById('pr-cat').value = cat;
+    syncPracticeCatAndMode();
+}
+// Picking an ear mode saves the on-keys choice (settings.earKeys); a mode the topic does not allow is ignored.
+function prSetMode(v: PracticeMode) {
+    const pm = byId('pr-mode'), b = queryHtml(pm, `button[data-v="${v}"]`);
+    if (!(b instanceof HTMLButtonElement) || b.disabled)
+        return;
+    queryAllHtml(pm, 'button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+    practiceModePref = v;
+    if (v !== 'play') {
+        data.settings.earKeys = v === 'keys';
+        saveAll();
     }
-    const pressed = pm.querySelector('button[aria-pressed="true"]');
-    const mode = mel ? 'keys' : (pressed instanceof HTMLButtonElement ? pressed.dataset.v : 'play');
-
-    if (mode === 'keys') {
-        hint.textContent = 'Listen to the sound and play the notes back on the keyboard.';
-    } else if (mode === 'ear') {
-        hint.textContent = 'Listen to the sound and identify it from multiple choices.';
-    } else {
-        hint.textContent = 'Read the prompt and play the notes or choose the answer.';
+    updatePracticeModeHint();
+}
+function prSetKey(key: string) {
+    const sel = selectById('pr-key');
+    if (!PR_KEYS.includes(key) || ![...sel.options].some((o) => o.value === key))
+        return;
+    sel.value = key;
+    renderPracticeKeys();
+    updatePracticeModeHint();
+}
+function prStart() {
+    const { cat, mode, key } = prChoice();
+    practiceModePref = mode;
+    if (mode !== 'play' && cat !== 'melody') {
+        data.settings.earKeys = mode === 'keys';
+        saveAll();
     }
-
-    if (note) {
-        if (mel) {
-            note.textContent = 'Melodies are ear training exercises played directly on the keyboard.';
-            note.hidden = false;
-        } else if (prog) {
-            note.textContent = 'Progressions by ear are identified by name from multiple choices.';
-            note.hidden = false;
-        } else {
-            note.textContent = '';
-            note.hidden = true;
+    show('practice');
+    startSession({ cat, mode: mode === 'play' ? 'play' : 'ear', key });
+}
+// Continue: the last drill again, with its topic, mode and key, in one tap.
+// The mode a saved drill ran in. Progressions never run on the keys, whatever the on-keys setting was.
+function prDrillMode(d: StoredLastDrill): PracticeMode { return d.cat === 'melody' ? 'keys' : d.mode !== 'ear' ? 'play' : d.keys && d.cat !== 'prog' ? 'keys' : 'ear'; }
+function prDrillKey(d: StoredLastDrill) { return PR_KEYS.includes(String(d.key)) ? String(d.key) : 'all'; }
+function prContinue() {
+    const d = data.lastDrill;
+    if (!d)
+        return;
+    prSetTopic(d.cat);
+    if (d.cat !== 'melody') // melodies are always on the keys, and leave the saved ear choice alone
+        prSetMode(prDrillMode(d));
+    prSetKey(prDrillKey(d));
+    prStart();
+}
+// Arrow keys, Home and End move through a radio group and select (WAI-ARIA radio group); Space and Enter click.
+function prRadioKey(e: KeyboardEvent, pick: (v: string) => void) {
+    const group = e.currentTarget, cur = eventClosest(e, '[role=radio]');
+    if (!(group instanceof HTMLElement) || !cur)
+        return;
+    const radios = queryAllHtml(group, '[role=radio]'), i = radios.indexOf(cur), n = radios.length;
+    if (i < 0)
+        return;
+    let to: number;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown')
+        to = (i + 1) % n;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+        to = (i - 1 + n) % n;
+    else if (e.key === 'Home')
+        to = 0;
+    else if (e.key === 'End')
+        to = n - 1;
+    else
+        return;
+    e.preventDefault();
+    const next = radios[to];
+    if (!next)
+        return;
+    pick(next.dataset.v ?? '');
+    next.focus();
+}
+// The topic cards: the look of the Today focus cards, with the same mastered counts for the four review topics.
+function renderPracticeTopics() {
+    const box = maybeById('pr-topics'), sel = maybeById('pr-cat');
+    if (!box || !(sel instanceof HTMLSelectElement))
+        return;
+    if (box.children.length !== PR_TOPICS.length)
+        box.innerHTML = PR_TOPICS.map((c) => `<button type="button" role="radio" class="focus pr-topic" id="pr-t-${c}" data-v="${c}" aria-checked="false" tabindex="-1" aria-labelledby="pr-t-${c}-n" aria-describedby="pr-t-${c}-d pr-t-${c}-m"><span class="pr-topic-top"><svg class="pr-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${PR_GLYPH[c] ?? ''}</svg><span class="k" id="pr-t-${c}-n"></span></span><span class="m" id="pr-t-${c}-d"></span><span class="pr-mast" id="pr-t-${c}-m"></span></button>`).join('');
+    const cat = PR_TOPICS.includes(sel.value) ? sel.value : PR_TOPICS[0];
+    PR_TOPICS.forEach((c) => {
+        const card = byId('pr-t-' + c), on = c === cat, mast = byId('pr-t-' + c + '-m');
+        card.setAttribute('aria-checked', on ? 'true' : 'false');
+        card.tabIndex = on ? 0 : -1;
+        byId('pr-t-' + c + '-n').textContent = prTopicLabel(c);
+        byId('pr-t-' + c + '-d').textContent = t('pr_d_' + c);
+        if (isCatKey(c)) {
+            const items = ITEMS.filter((it) => it.cat === c), mastered = items.filter((it) => boxOf(it.id) >= 4).length;
+            mast.innerHTML = '<span class="bar"><i style="width:' + (items.length ? Math.round(100 * mastered / items.length) : 0) + '%"></i></span><span class="pr-mast-t">' + rdEsc(t('pr_mastered', mastered, items.length)) + '</span>';
+            mast.hidden = false;
         }
-    }
+        else {
+            mast.textContent = '';
+            mast.hidden = true;
+        }
+    });
+}
+// The key chips: All keys and the 12 roots, in the chosen note names. On a phone the row scrolls sideways.
+function renderPracticeKeys() {
+    const box = maybeById('pr-keys'), sel = maybeById('pr-key');
+    if (!box || !(sel instanceof HTMLSelectElement))
+        return;
+    if (box.children.length !== PR_KEYS.length)
+        box.innerHTML = PR_KEYS.map((k) => `<button type="button" role="radio" class="pr-chip" data-v="${k}" aria-checked="false" tabindex="-1"></button>`).join('');
+    const key = sel.value || 'all';
+    queryAllHtml(box, '[role=radio]').forEach((b) => {
+        const v = b.dataset.v ?? 'all', is = v === key;
+        b.textContent = prKeyLabel(v);
+        b.setAttribute('aria-checked', is ? 'true' : 'false');
+        b.tabIndex = is ? 0 : -1;
+    });
+    const chip = queryHtml(box, '[aria-checked="true"]');
+    if (chip && box.clientWidth && box.scrollWidth > box.clientWidth && (chip.offsetLeft < box.scrollLeft || chip.offsetLeft + chip.offsetWidth > box.scrollLeft + box.clientWidth))
+        box.scrollLeft = chip.offsetLeft - (box.clientWidth - chip.offsetWidth) / 2;
+}
+
+// One line on what the chosen mode asks of you, one on why the topic turns a mode off, and the Start label.
+function updatePracticeModeHint() {
+    const hint = maybeById('pr-mode-hint'), note = maybeById('pr-mode-note'), start = maybeById('pr-start');
+    if (!hint || !note || !start || !maybeById('pr-cat') || !maybeById('pr-mode'))
+        return;
+    const { cat, mode, key } = prChoice(), tech = cat === TECHNIQUE_TOPIC;
+    hint.textContent = tech ? t('tq_pr_hint') : t(mode === 'keys' ? 'pr_hint_keys' : mode === 'ear' ? 'pr_hint_ear' : 'pr_hint_play');
+    const why = cat === 'melody' ? t('pr_why_melody', prModeLabel('keys')) : cat === 'prog' ? t('pr_why_prog', prModeLabel('keys')) : tech ? t('pr_why_tech', prModeLabel('play')) + ' ' + t('tq_pr_note') : '';
+    note.textContent = why;
+    note.hidden = !why;
+    start.textContent = t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), prKeyLabel(key)].join(' · '));
 }
 
 function syncPracticeCatAndMode() {
@@ -17168,22 +17290,30 @@ function syncPracticeCatAndMode() {
         }
     }
 
+    renderPracticeTopics();
+    renderPracticeKeys();
     updatePracticeModeHint();
+}
+// The whole setup screen in the current language and note names (applyI18n, applyNotation).
+function renderPracticeSetup() {
+    renderPracticeTopics();
+    renderPracticeKeys();
+    updatePracticeModeHint();
+    renderPracticeLast();
 }
 
 function renderPracticeLast() {
-    const el = byId('pr-last');
-    if (!el)
+    const el = maybeById('pr-last'), txt = maybeById('pr-last-txt');
+    if (!el || !txt)
         return;
     const d = data.lastDrill;
     if (!d || !d.n || (!(isCatKey(d.cat) && CATS[d.cat]) && d.cat !== 'melody')) {
         el.hidden = true;
         return;
     }
-    const pct = Math.round(100 * d.c / d.n);
+    const pct = Math.round(100 * d.c / d.n), mode = prDrillMode(d);
     el.hidden = false;
-    el.className = 'verdict ' + (pct >= 80 ? 'good' : 'neutral');
-    el.textContent = t('pr_last', (d.cat === 'melody' ? t('cat_melody') : catLabel(d.cat)) + ' · ' + t(d.keys ? 'pr_onkeys' : d.mode === 'ear' ? 'pr_byear' : 'pr_playit')) + ' — ' + t('pr_last_res', d.c, d.n) + ' (' + pct + '%)';
+    txt.innerHTML = rdEsc(t('pr_last', [prTopicLabel(d.cat), prModeLabel(mode), prKeyLabel(prDrillKey(d))].join(' · '))) + ' — <b class="' + (pct >= 80 ? 'good' : 'neutral') + '">' + rdEsc(t('pr_last_res', d.c, d.n) + ' (' + pct + '%)') + '</b>';
 }
 /* ---------- SUMMARY ---------- */
 function showSummary(..._args: unknown[]) {
@@ -17506,7 +17636,7 @@ function syncRefresh() {
     else if (view0() === 'progress')
         renderProgress();
     else if (view0() === 'practice' && !SES.active)
-        renderPracticeLast();
+        renderPracticeSetup();
 }
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
@@ -17990,6 +18120,7 @@ function applyNotation() {
     selectById('refRoot').value = String(refR || 0);
     selectById('song-root').value = String(sr || 0);
     selectById('pr-key').value = pk || 'all';
+    renderPracticeSetup();
     selectById('keyCtx').value = kc || '-1';
     const ak = selectById('ac-key');
     if (ak) {
@@ -18213,31 +18344,17 @@ function initControls() {
     byId('pr-mode').addEventListener('click', (e) => {
         const b = eventClosest(e, 'button');
         if (!b || wiringDisabled(b)) return;
-        wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-        const v = b.dataset.v as 'play' | 'ear' | 'keys' | undefined;
-        if (v) {
-            practiceModePref = v;
-            if (v !== 'play') {
-                data.settings.earKeys = v === 'keys';
-                saveAll();
-            }
-            updatePracticeModeHint();
-        }
+        const v = b.dataset.v;
+        if (isPracticeMode(v)) prSetMode(v);
     });
     byId('pr-cat').addEventListener('change', syncPracticeCatAndMode);
-    byId('pr-start').addEventListener('click', () => {
-        const cat = selectById('pr-cat').value;
-        const mb = queryHtml(byId('pr-mode'), '[aria-pressed="true"]');
-        const v = cat === 'melody' ? 'keys' : (mb ? mb.dataset.v : 'play');
-        const key = selectById('pr-key').value;
-        if (v) practiceModePref = v as 'play' | 'ear' | 'keys';
-        if (v !== 'play' && cat !== 'melody') {
-            data.settings.earKeys = v === 'keys';
-            saveAll();
-        }
-        show('practice');
-        startSession({ cat, mode: v === 'play' ? 'play' : 'ear', key });
-    });
+    byId('pr-key').addEventListener('change', () => { renderPracticeKeys(); updatePracticeModeHint(); });
+    byId('pr-topics').addEventListener('click', (e) => { const r = eventClosest(e, '[role=radio]'); if (r?.dataset.v) prSetTopic(r.dataset.v); });
+    byId('pr-topics').addEventListener('keydown', (e) => prRadioKey(e, prSetTopic));
+    byId('pr-keys').addEventListener('click', (e) => { const r = eventClosest(e, '[role=radio]'); if (r?.dataset.v) prSetKey(r.dataset.v); });
+    byId('pr-keys').addEventListener('keydown', (e) => prRadioKey(e, prSetKey));
+    byId('pr-start').addEventListener('click', prStart);
+    byId('pr-redo').addEventListener('click', prContinue);
     // accompaniment
     byId('ac-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
@@ -19015,7 +19132,10 @@ Object.defineProperty(__etude, "playQuestionSound", { configurable: true, get: (
 Object.defineProperty(__etude, "playScaleNotes", { configurable: true, get: () => playScaleNotes });
 Object.defineProperty(__etude, "popModalState", { configurable: true, get: () => popModalState });
 Object.defineProperty(__etude, "positionBlacks", { configurable: true, get: () => positionBlacks });
+Object.defineProperty(__etude, "prChoice", { configurable: true, get: () => prChoice });
 Object.defineProperty(__etude, "prRecordDrill", { configurable: true, get: () => prRecordDrill });
+Object.defineProperty(__etude, "prSetKey", { configurable: true, get: () => prSetKey });
+Object.defineProperty(__etude, "prSetTopic", { configurable: true, get: () => prSetTopic });
 Object.defineProperty(__etude, "pracAcc", { configurable: true, get: () => pracAcc });
 Object.defineProperty(__etude, "pracBeats", { configurable: true, get: () => pracBeats });
 Object.defineProperty(__etude, "pracClearAB", { configurable: true, get: () => pracClearAB });

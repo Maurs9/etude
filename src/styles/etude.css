@@ -1184,12 +1184,9 @@
   .bar.hdr-notag .brand .tag{display:none}
   .bar.hdr-fold nav.tabs{display:none} .bar.hdr-fold .menu-btn{display:grid}
   @media (max-width:680px){
-    #pr-home .row{flex-direction:column; align-items:stretch; gap:12px}
-    #pr-home .row label.field{width:100%; justify-content:space-between}
-    #pr-home .row label.field select{flex:1; max-width:60%}
     #pr-mode{display:flex; width:100%}
     #pr-mode button{flex:1 1 0; min-width:0; padding:10px 4px; font-size:12.5px; text-align:center; line-height:1.25; white-space:normal}
-    #pr-start{width:100%; margin-top:4px}
+    #pr-start{width:100%}
     .wrap{padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px))} .keys{height:126px} .white .lbl{font-size:8px; bottom:5px} .white .dg{bottom:20px} }
   @media (max-width:480px){ .dock-tools{flex-wrap:wrap; gap:6px} .dock-tools > span[style]{display:none} }
   /* ---- Reading drills (V3) ---- */
