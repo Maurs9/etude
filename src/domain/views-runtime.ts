@@ -9792,6 +9792,7 @@ function rdChalKey(e: KeyboardEvent) {
     if (tg === b) {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
+            e.stopPropagation();
             rdChalOpen(true, e.key === 'ArrowUp' ? 'last' : 'first');
         }
         else if (e.key === 'Escape' && open) {
