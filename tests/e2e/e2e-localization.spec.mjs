@@ -127,8 +127,10 @@ const LOCALES = [
 const ALL_VIEWS = [
   'today', 'learn', 'songs', 'method', 'practice',
   'read', 'sing', 'analysis', 'explore', 'accompany',
-  'transcribe', 'progress'
+  'progress'
 ];
+// Voice (view sing) shows one of two activities: Sing from the staff, or Hum to notes (the old Transcribe screen).
+const VOICE_ACTS = ['sing', 'hum'];
 
 /** Helper to open settings drawer */
 async function openSettings(page) {
@@ -328,7 +330,7 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
     expect(scrollWidth).toBeLessThanOrEqual(320);
   });
 
-  test('T2.2: mobile 320px viewport: all 12 views display without horizontal scrolling across all locales', async ({ app, page }) => {
+  test('T2.2: mobile 320px viewport: every view and both Voice activities display without horizontal scrolling across all locales', async ({ app, page }) => {
     await page.setViewportSize({ width: 320, height: 700 });
     await app.open();
 
@@ -341,6 +343,11 @@ test.describe('Tier 2: Boundary & Corner Cases', () => {
         await page.evaluate(v => window.__etude.show(v), view);
         const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
         expect(scrollWidth, `View ${view} in locale ${loc.code} should not overflow 320px width`).toBeLessThanOrEqual(320);
+      }
+      for (const act of VOICE_ACTS) {
+        await page.evaluate(a => { window.__etude.show('sing'); window.__etude.voiceSetAct(a); }, act);
+        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(scrollWidth, `Voice ${act} in locale ${loc.code} should not overflow 320px width`).toBeLessThanOrEqual(320);
       }
     }
   });

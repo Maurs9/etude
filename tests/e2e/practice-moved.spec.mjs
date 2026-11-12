@@ -351,7 +351,7 @@ test.describe('Progressions · Play along', () => {
     await expect(page.locator('#pr-mode button[data-v="along"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#pr-along')).toBeVisible();
     await expect(page.locator('#dock')).toBeVisible();
-    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Transcribe']);
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Voice', 'Explore']);
     await expect(page.locator('#view-accompany')).toHaveCount(0);
     await expect(page.locator('#tools [data-view="accompany"]')).toHaveCount(0);
   });
@@ -375,7 +375,7 @@ test.describe('Today', () => {
     await expect(page.locator('#plan-list')).toBeVisible();
     await expect(page.locator('#focusGrid, .focus-grid')).toHaveCount(0);
     await expect(page.locator('#today-home hr.rule')).toHaveCount(1);
-    await expect(page.locator('#tools button')).toHaveText([/^Score & analysis/, /^Read & play/, /^Sing/, /^Transcribe/]);
+    await expect(page.locator('#tools button')).toHaveText([/^Score & analysis/, /^Read & play/, /^Voice/]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   });
 

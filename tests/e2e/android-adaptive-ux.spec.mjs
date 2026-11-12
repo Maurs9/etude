@@ -321,7 +321,7 @@ test.describe('bottom navigation on phones', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await app.open({ hash: 'explore' });
     await expect(page.locator('#bottomNav button[aria-current="page"]')).toHaveText('Practice');
-    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Transcribe']);
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Voice', 'Explore']);
     await expect(page.locator('#modeNav button[aria-current="page"]')).toHaveText('Explore');
     await expect(page.locator('#dock')).toBeVisible();
     await expect.poll(async () => (await rect(page, '#dock')).bottom - (await rect(page, '#bottomNav')).top).toBeLessThanOrEqual(0.5);
