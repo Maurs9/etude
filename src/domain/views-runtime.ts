@@ -30,6 +30,7 @@ import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, 
 import '../styles/calibration.css';
 import '../styles/landscape.css';
 import '../styles/practice.css';
+import '../styles/voice.css';
 import '../styles/explore.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
@@ -201,6 +202,7 @@ const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = th
 const AudioEngine = audio.AudioEngine;
 const createScoreRenderer = notationApi.createScoreRenderer, loadOsmd = notationApi.loadOsmd, mxlToXml = notationApi.mxlToXml, notationReloadMessage = notationApi.notationReloadMessage, scorePatchOsmd = notationApi.scorePatchOsmd;
 const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView, isMovedView = router.isMovedView;
+const isMergedView = router.isMergedView, MERGED_VIEWS = router.MERGED_VIEWS;
 function t(k: string, ...args: Array<string | number | null | undefined>): string { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
     return k; if (!args.length)
     return v; if (args[0] != null)
@@ -771,40 +773,71 @@ function trxAutoCorrelate(buf: Float32Array, sr: number) {
     const f = sr / T;
     return (f > 70 && f < 1300) ? f : -1;
 }
+/* ---------- VOICE microphone: the one path both activities (Sing from the staff, Hum to notes) listen through ---------- */
+interface MicTap { stream: MediaStream; src: MediaStreamAudioSourceNode; analyser: AnalyserNode; buf: Float32Array<ArrayBuffer> }
+// The raw mic (no echo cancellation, noise suppression or gain control) into an analyser that is not connected to the
+// speakers, so nothing feeds back. 'stale' when the caller stopped wanting it while the browser asked: nothing stays open then.
+async function micOpen(wanted: () => boolean): Promise<MicTap | 'fail' | 'stale'> {
+    ensureAudio();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+        return 'fail';
+    let stream: MediaStream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    }
+    catch (_) {
+        return wanted() ? 'fail' : 'stale';
+    }
+    if (!wanted()) {
+        stream.getTracks().forEach((tr) => tr.stop());
+        return 'stale';
+    }
+    try {
+        const ac = requireAudioContext(), src = ac.createMediaStreamSource(stream), analyser = ac.createAnalyser();
+        analyser.fftSize = 2048;
+        src.connect(analyser);
+        return { stream, src, analyser, buf: new Float32Array(analyser.fftSize) };
+    }
+    catch (_) {
+        stream.getTracks().forEach((tr) => tr.stop());
+        return 'fail';
+    }
+}
+function micClose(src: MediaStreamAudioSourceNode | null, stream: MediaStream | null) {
+    if (src) {
+        try {
+            src.disconnect();
+        }
+        catch (_) { }
+    }
+    if (stream)
+        stream.getTracks().forEach((tr) => tr.stop());
+}
+// The live pitch readout both activities show (.tr-live): the note, and how many cents off it when they are given.
+function livePitch(el: HTMLElement, midi: number, cents?: number) {
+    el.classList.add('rec');
+    el.innerHTML = noteName(midi, false) + (cents === undefined ? '' : '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>');
+}
 async function trxStart()  {
     if (trx.on || trx.pending)
         return;
-    ensureAudio();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        byId('tr-msg').textContent = t('tr_micfail');
-        return;
-    }
     const request = ++trx.micRequest;
     trx.pending = true;
     byId('tr-rec').textContent = t('tr_stop');
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-        if (request !== trx.micRequest || view0() !== 'transcribe') {
-            stream.getTracks().forEach((t) => t.stop());
-            return;
-        }
-        trx.stream = stream;
-        trx.pending = false;
-    }
-    catch (e) {
-        if (request === trx.micRequest) {
-            trx.pending = false;
-            byId('tr-rec').textContent = t('tr_rec');
-            byId('tr-msg').textContent = t('tr_micfail');
-        }
+    const tap = await micOpen(() => request === trx.micRequest && voiceActive('hum'));
+    if (tap === 'stale')
+        return;
+    trx.pending = false;
+    if (tap === 'fail') {
+        byId('tr-rec').textContent = t('tr_rec');
+        byId('tr-msg').textContent = t('tr_micfail');
         return;
     }
     byId('tr-msg').textContent = '';
-    trx.src = requireAudioContext().createMediaStreamSource(trx.stream);
-    trx.analyser = requireAudioContext().createAnalyser();
-    trx.analyser.fftSize = 2048;
-    trx.buf = new Float32Array(trx.analyser.fftSize);
-    trx.src.connect(trx.analyser); // not connected to destination → no feedback
+    trx.stream = tap.stream;
+    trx.src = tap.src;
+    trx.analyser = tap.analyser;
+    trx.buf = tap.buf;
     trx.on = true;
     trx.notes = [];
     trx.display = null;
@@ -844,7 +877,7 @@ function trxLoop() {
         if (trx.ring.length > 5)
             trx.ring.shift();
         const sm = trxMedian(), cents = Math.round(1200 * Math.log2(f / midiToFreq(sm)));
-        byId('tr-live').innerHTML = noteName(sm, false) + '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>';
+        livePitch(byId('tr-live'), sm, cents);
         if (trx.ring.length >= 3) {
             if (trx.curMidi == null) {
                 trx.curMidi = sm;
@@ -868,17 +901,10 @@ function trxStop() {
     trx.on = false;
     cancelAnimationFrame(trx.raf);
     trxCloseNote(actx ? actx.currentTime : 0);
-    if (trx.src) {
-        try {
-            trx.src.disconnect();
-        }
-        catch (_) { }
-        trx.src = null;
-    }
-    if (trx.stream) {
-        trx.stream.getTracks().forEach((t) => t.stop());
-        trx.stream = null;
-    }
+    micClose(trx.src, trx.stream);
+    trx.src = null;
+    trx.stream = null;
+    trx.analyser = null;
     byId('tr-rec').classList.remove('rec-on');
     byId('tr-rec').textContent = t('tr_rec');
     byId('tr-live').classList.remove('rec');
@@ -1225,29 +1251,21 @@ function singStopAll() {
 function ssModeUI() { const m = sing.mode; const tw = byId('si-tempo-wrap'); if (tw)
     tw.style.display = (m === 'note') ? 'none' : 'flex'; const go = byId('si-go'); if (go)
     go.textContent = t(m === 'free' ? 'si_play' : 'si_listen'); }
-/* ---- pitch input (mic, shared with Transcribe's autocorrelation) ---- */
+/* ---- pitch input (the Voice mic path and Transcribe's autocorrelation) ---- */
 function ssMicStart() {
-    ensureAudio();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
-        return Promise.resolve(false);
     const request = ++sing.micRequest;
-    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
-        .then((st) => { if (request !== sing.micRequest || !sing.active || view0() !== 'sing') {
-        st.getTracks().forEach((t) => t.stop());
-        return false;
-    } sing.stream = st; sing.src = requireAudioContext().createMediaStreamSource(st); sing.analyser = requireAudioContext().createAnalyser(); sing.analyser.fftSize = 2048; sing.buf = new Float32Array(sing.analyser.fftSize); sing.src.connect(sing.analyser); return true; }).catch(() => false);
+    return micOpen(() => request === sing.micRequest && sing.active && voiceActive('sing')).then((tap) => {
+        if (typeof tap === 'string')
+            return false;
+        sing.stream = tap.stream;
+        sing.src = tap.src;
+        sing.analyser = tap.analyser;
+        sing.buf = tap.buf;
+        return true;
+    });
 }
 function ssMicMaybe() { return sing.analyser ? Promise.resolve(true) : ssMicStart(); }
-function ssMicStop() { sing.runId++; sing.micRequest++; if (sing.src) {
-    try {
-        sing.src.disconnect();
-    }
-    catch (_) { }
-    sing.src = null;
-} if (sing.stream) {
-    sing.stream.getTracks().forEach((t) => t.stop());
-    sing.stream = null;
-} sing.analyser = null; }
+function ssMicStop() { sing.runId++; sing.micRequest++; micClose(sing.src, sing.stream); sing.src = null; sing.stream = null; sing.analyser = null; }
 function ssReadPitch() { if (!sing.analyser || !sing.buf)
     return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, requireAudioContext().sampleRate); if (f < 0)
     return null; const midi = Math.round(69 + 12 * Math.log2(f / 440)), cents = Math.round(1200 * Math.log2(f / (440 * Math.pow(2, (midi - 69) / 12)))); return { f, midi, cents }; }
@@ -1358,8 +1376,7 @@ function ssNoteLoop(ts: number) {
         return;
     const cur = ssCurNote(), tgt = cur ? pc(cur.midi) : -1, p = ssReadPitch(), lv = byId('si-live');
     if (p) {
-        lv.classList.add('rec');
-        lv.innerHTML = noteName(p.midi, false) + '<small>' + (p.cents >= 0 ? '+' : '') + p.cents + '¢</small>';
+        livePitch(lv, p.midi, p.cents);
         if (pc(p.midi) === tgt && Math.abs(p.cents) < 42) {
             if (!sing.holdT)
                 sing.holdT = ts;
@@ -1472,10 +1489,8 @@ function ssPhraseLoop(ts: number) {
         if (p)
             sing.samples.push({ t: tt, pc: pc(p.midi), cents: p.cents });
         const lv = byId('si-live');
-        if (p) {
-            lv.classList.add('rec');
-            lv.innerHTML = noteName(p.midi, false);
-        }
+        if (p)
+            livePitch(lv, p.midi);
         else
             lv.classList.remove('rec');
         ssMoveCursor(ssBeatToX(tt / beatSec));
@@ -1542,8 +1557,7 @@ function ssFreeLoop(ts: number) {
     ssMoveCursor(x);
     const p = ssReadPitch(), lv = byId('si-live');
     if (p) {
-        lv.classList.add('rec');
-        lv.innerHTML = noteName(p.midi, false) + '<small>' + (p.cents >= 0 ? '+' : '') + p.cents + '¢</small>';
+        livePitch(lv, p.midi, p.cents);
         sing.trail.push([x, ssPitchY(p.f)]);
         if (sing.trail.length > 400)
             sing.trail.shift();
@@ -1591,6 +1605,42 @@ function ssBumpProgress(good: number, tot: number) { if (sing.mode !== 'free' &&
     data.singCleared[sing.level] = true;
     saveAll();
 } }
+/* ---------- VOICE: one screen (view sing) with two activities ----------
+   Sing from the staff (sight-singing, above) or Hum to notes (Transcribe). One shows at a time. The choice lasts while the
+   page is open and is not saved; #transcribe (an old link or a saved lastTool) opens the Hum to notes side. */
+type VoiceAct = 'sing' | 'hum';
+const VOICE_ACTS: readonly VoiceAct[] = ['sing', 'hum'];
+const voice: { act: VoiceAct } = { act: 'sing' };
+function voiceActive(a: VoiceAct) { return view0() === 'sing' && voice.act === a; }
+// Switching activity or leaving the screen: the microphone is off, and the playback and key lights of both activities stop.
+function voiceStop() {
+    singStopAll();
+    trxStop();
+    trx.hlTimers.forEach(clearTimeout);
+    trx.hlTimers = [];
+    kbClear('rh');
+}
+function voiceSync() {
+    queryAllHtml(document, '#vo-switch [role=tab]').forEach((b) => { const on = b.dataset.act === voice.act; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
+    byId('vo-sing').hidden = voice.act !== 'sing';
+    byId('vo-hum').hidden = voice.act !== 'hum';
+}
+function renderVoice() {
+    voiceSync();
+    if (voice.act === 'sing')
+        renderSing();
+    else
+        renderTranscribe();
+}
+function voiceSetAct(a: VoiceAct) {
+    if (a !== voice.act && view0() === 'sing') // off the screen nothing of Voice runs: leaving it stopped everything
+        voiceStop();
+    voice.act = a;
+    if (view0() === 'sing')
+        renderVoice();
+    else
+        voiceSync();
+}
 /* ---------- KEYBOARD ---------- */
 const BASE_LOW = 24, BASE_HIGH = 96;
 const view = { low: 48, oct: 4 };
@@ -1804,7 +1854,7 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    connected, unless the user chose to hide them: Hide stays available and is saved as usual. */
 interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
 const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
-function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || prAlongWanted(v) || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
+function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || prAlongWanted(v) || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
 function sesNeedsKeys(v = view0()) { const q = SES.q; return SES.active && v === sesHome() && !!q && (q.mode !== 'ear' || ekWanted(q)) && !midiLive(); }
 function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 // The full-screen stage of a running reading drill or piece. With a MIDI or Bluetooth piano connected, the keys fold into the
@@ -4205,6 +4255,9 @@ function focusView(v: string) {
     target.focus({ preventScroll: true });
 }
 let show = function show(v: string|undefined, moveFocus = true) {
+    const hum = v !== undefined && isMergedView(v); // transcribe, the one merged view: the Hum to notes side of Voice
+    if (v !== undefined && isMergedView(v))
+        v = MERGED_VIEWS[v];
     if (v !== undefined && isMovedView(v)) {
         prOpenMoved(v, moveFocus);
         return;
@@ -4223,7 +4276,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
             void srtAbandonClaim('abandoned', false).then((result) => {
                 if (result.ok || SR.srtState?.name !== 'pendingSave') {
                     srtPendingSelection = null;
-                    show(v, moveFocus);
+                    show(hum ? 'transcribe' : v, moveFocus);
                 }
                 else if (location.hash.slice(1) !== prev) {
                     try {
@@ -4269,10 +4322,13 @@ let show = function show(v: string|undefined, moveFocus = true) {
     stageSync();
     if (prev === 'practice' && v !== 'practice' && accomp.on)
         accompStop();
-    if (prev === 'transcribe' && v !== 'transcribe')
-        trxStop();
     if (prev === 'sing' && v !== 'sing')
-        singStopAll();
+        voiceStop();
+    if (hum && voice.act !== 'hum') { // set before renderVoice below draws the screen
+        if (prev === 'sing')
+            voiceStop();
+        voice.act = 'hum';
+    }
     if (prev === 'read' && v !== 'read') {
         srStopAll(undefined, false, 'navigate');
         rdAbort();
@@ -4309,10 +4365,8 @@ let show = function show(v: string|undefined, moveFocus = true) {
         renderRead();
     if (v === 'progress')
         renderProgress();
-    if (v === 'transcribe')
-        renderTranscribe();
     if (v === 'sing')
-        renderSing();
+        renderVoice();
     if (v === 'practice' && !SES.active) {
         stopMetro();
         syncPracticeCatAndMode();
@@ -4354,7 +4408,7 @@ window.addEventListener('popstate', (e) => {
     if (modal !== 'drawer' && byId('drawer').classList.contains('on'))
         openDrawer(false, true);
     const v = location.hash.slice(1);
-    if ((navGroup(v) || isMovedView(v)) && v !== _view) {
+    if ((navGroup(v) || isMovedView(v) || isMergedView(v)) && v !== _view) {
         _routed = false;
         show(v);
     }
@@ -17010,7 +17064,7 @@ function renderProgress() {
 }
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
-function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : v === 'songs' ? 'pr_songs' : v === 'accompany' ? 'pr_along' : 'nav_' + v); }
+function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : v === 'songs' ? 'pr_songs' : v === 'accompany' ? 'pr_along' : 'nav_' + (isMergedView(v) ? MERGED_VIEWS[v] : v)); }
 interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
 function renderPlan() {
     const list = byId('plan-list');
@@ -17058,7 +17112,7 @@ function renderPlan() {
         cb.textContent = t('plan_continue', nextIt.t);
         cb.onclick = nextIt.go;
     }
-    else if (lt && lt !== 'today' && (navGroup(lt) || isMovedView(lt))) {
+    else if (lt && lt !== 'today' && (navGroup(lt) || isMovedView(lt) || isMergedView(lt))) {
         cb.hidden = false;
         cb.textContent = t('plan_continue', toolName(lt));
         cb.onclick = () => show(lt);
@@ -18492,6 +18546,18 @@ function initControls() {
     byId('rd-coach').addEventListener('click', (e) => { if (eventClosest(e, '#rd-coach-act') && SR.next && SR.next.act)
         SR.next.act.run(); });
     byId('rd-listen').addEventListener('click', srListen);
+    // voice: the activity switch is a tab list (arrows, Home and End move along it and choose)
+    byId('vo-switch').addEventListener('click', (e) => { const b = eventClosest(e, '[role=tab]'), a = VOICE_ACTS.find((x) => x === b?.dataset.act); if (a)
+        voiceSetAct(a); });
+    byId('vo-switch').addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End')
+            return;
+        e.preventDefault();
+        const i = VOICE_ACTS.indexOf(voice.act), n = VOICE_ACTS.length;
+        const a = e.key === 'Home' ? VOICE_ACTS[0] : e.key === 'End' ? VOICE_ACTS[n - 1] : VOICE_ACTS[(i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n];
+        voiceSetAct(a);
+        byId('vo-tab-' + a).focus();
+    });
     // transcribe
     byId('tr-rec').addEventListener('click', () => { if (trx.on || trx.pending)
         trxStop();
@@ -19346,6 +19412,7 @@ Object.defineProperty(__etude, "renderRead", { configurable: true, get: () => re
 Object.defineProperty(__etude, "renderSing", { configurable: true, get: () => renderSing });
 Object.defineProperty(__etude, "renderSongs", { configurable: true, get: () => renderSongs });
 Object.defineProperty(__etude, "renderTranscribe", { configurable: true, get: () => renderTranscribe });
+Object.defineProperty(__etude, "renderVoice", { configurable: true, get: () => renderVoice });
 Object.defineProperty(__etude, "repaintHeld", { configurable: true, get: () => repaintHeld });
 Object.defineProperty(__etude, "resolve", { configurable: true, get: () => resolve });
 Object.defineProperty(__etude, "revealAnswerKeys", { configurable: true, get: () => revealAnswerKeys });
@@ -19602,6 +19669,9 @@ Object.defineProperty(__etude, "toolName", { configurable: true, get: () => tool
 Object.defineProperty(__etude, "touchDay", { configurable: true, get: () => touchDay });
 Object.defineProperty(__etude, "trapFocus", { configurable: true, get: () => trapFocus });
 Object.defineProperty(__etude, "trxAutoCorrelate", { configurable: true, get: () => trxAutoCorrelate });
+Object.defineProperty(__etude, "micClose", { configurable: true, get: () => micClose });
+Object.defineProperty(__etude, "micOpen", { configurable: true, get: () => micOpen });
+Object.defineProperty(__etude, "livePitch", { configurable: true, get: () => livePitch });
 Object.defineProperty(__etude, "trxBuildMidi", { configurable: true, get: () => trxBuildMidi });
 Object.defineProperty(__etude, "trxClear", { configurable: true, get: () => trxClear });
 Object.defineProperty(__etude, "trxCloseNote", { configurable: true, get: () => trxCloseNote });
@@ -19623,6 +19693,10 @@ Object.defineProperty(__etude, "updateAccompChain", { configurable: true, get: (
 Object.defineProperty(__etude, "updateExplore", { configurable: true, get: () => updateExplore });
 Object.defineProperty(__etude, "view0", { configurable: true, get: () => view0 });
 Object.defineProperty(__etude, "viewHigh", { configurable: true, get: () => viewHigh });
+Object.defineProperty(__etude, "voiceActive", { configurable: true, get: () => voiceActive });
+Object.defineProperty(__etude, "voiceSetAct", { configurable: true, get: () => voiceSetAct });
+Object.defineProperty(__etude, "voiceStop", { configurable: true, get: () => voiceStop });
+Object.defineProperty(__etude, "voiceSync", { configurable: true, get: () => voiceSync });
 Object.defineProperty(__etude, "wakeArm", { configurable: true, get: () => wakeArm });
 Object.defineProperty(__etude, "wakeCan", { configurable: true, get: () => wakeCan });
 Object.defineProperty(__etude, "wakeDrop", { configurable: true, get: () => wakeDrop });
@@ -19817,6 +19891,7 @@ Object.defineProperty(__etude, "todayN", { configurable: true, get: () => todayN
 Object.defineProperty(__etude, "trx", { configurable: true, get: () => trx });
 Object.defineProperty(__etude, "typingDown", { configurable: true, get: () => typingDown });
 Object.defineProperty(__etude, "view", { configurable: true, get: () => view });
+Object.defineProperty(__etude, "voice", { configurable: true, get: () => voice });
 Object.defineProperty(__etude, "whiteEl", { configurable: true, get: () => whiteEl });
 // These hooks are intentionally mutable because a few browser regressions
 // replace an app dependency in-place and verify the caller's behavior.
