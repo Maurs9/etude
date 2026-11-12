@@ -29,6 +29,7 @@ import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
 import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
+import '../styles/reading.css';
 import '../styles/practice.css';
 import '../styles/explore.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
@@ -5470,18 +5471,10 @@ function learnInput() {
         learnSay(t('lu_q_got', q.got.length, tot));
     }
 }
-function learnRdLevel(u: LearnUnit) {
-    const units = RD_UNITS.filter((x) => u.rd.includes(x.u));
-    let pick: ReadDrillLevel | null = null;
-    units.some((x) => x.lv.some((L) => { if (rdUnlocked(L) && (rdData().lv[L.id]?.s || 0) < 1) {
-        pick = L;
-        return true;
-    } return false; }));
-    if (!pick) {
-        const all = units.flatMap((x) => x.lv).filter(rdUnlocked);
-        pick = all[all.length - 1] || (units[0] && units[0].lv[0]);
-    }
-    return pick;
+// The unit's first level without a star; every level is open, so with all of them starred it is the last one.
+function learnRdLevel(u: LearnUnit): ReadDrillLevel | null {
+    const all = RD_UNITS.filter((x) => u.rd.includes(x.u)).flatMap((x) => x.lv);
+    return all.find((L) => (rdData().lv[L.id]?.s || 0) < 1) || all[all.length - 1] || null;
 }
 function learnSide() {
     const toc = byId('learnToc');
@@ -5700,7 +5693,7 @@ function learnClick(e: Event) {
         const L = RD_LV[rd.dataset.rd ?? ''];
         show('read');
         rdTab('drills');
-        if (L && rdUnlocked(L))
+        if (L)
             rdOpen(L);
         return;
     }
@@ -7506,11 +7499,8 @@ function srAssessFinish() {
     SR.srtEvaluation = evaluated;
     SR.srtResultValue = pct;
     SR.srtResultLevelId = SR.piece?.gen ?? null;
-    const nextLevel = SR.srtResultLevelId ? rdLvNext(RD_LV[SR.srtResultLevelId]) : null;
-    const wasUnlocked = nextLevel ? rdUnlocked(nextLevel) : false;
     if (SR.piece?.gen)
         rdSightDone('assess', pct);
-    SR.srtResultUnlockId = nextLevel && !wasUnlocked && rdUnlocked(nextLevel) ? nextLevel.id : null;
     srRenderAssessResult();
     if (evaluated && generated && SR.srtState?.attemptId && SR.srtFingerprint && SR.srtOwnerTabId) {
         const attempt: SightReadingAttempt = {
@@ -7597,8 +7587,6 @@ function srRenderAssessResult() {
         ' · ' + t('rd_srt_summary', Math.round(evaluated.pitchF1 ?? 0), evaluated.TP, evaluated.N, evaluated.FP, Math.round(evaluated.rhythmAcc ?? 0), Math.round(evaluated.meanOffsetMs ?? 0));
     if (SR.wrongExtra)
         text += '  ·  ' + t('rd_extra', SR.wrongExtra);
-    if (SR.srtResultUnlockId && RD_LV[SR.srtResultUnlockId])
-        text += ' · 🔓 ' + t('rdx_unlocked', rdLvName(RD_LV[SR.srtResultUnlockId]));
     if (SR.srtState?.name === 'pendingSave')
         text += ' · ' + t('rd_srt_unsaved');
     v.textContent = text;
@@ -7914,7 +7902,7 @@ function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min
 function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
 function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
-interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; after?: string; }
+interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
 interface ReadDrillLevel extends ReadDrillLevelSpec { u: string; n: number; id: string; custom?: boolean; }
 interface ReadDrillUnit { u: string; icon: string; lv: ReadDrillLevel[]; }
 const RD_UNITS: ReadDrillUnit[] = [], RD_LV: { [levelId: string]: ReadDrillLevel; } = {};
@@ -8002,9 +7990,8 @@ rdU('sr', '👁', [
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 68 },
     { ty: 'sr', clef: 'grand', lo: 'C3', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 64 },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 },
-    // Rhythm levels (P4): five-finger C position, new note values one level at a time. They open after the rests level (sr4),
-    // not after the polyphonic levels before them in the list.
-    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths', after: 'sr4' },
+    // Rhythm levels (P4): five-finger C position, new note values one level at a time.
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths' },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 72, tag: 'dotted' },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 66, tag: 'sync' }
 ]);
@@ -8100,27 +8087,34 @@ function rdSvg(o: ReadDrillSvgOptions) {
     return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0, H };
 }
 /* ---- drill engine ---- */
-const RD_TESTN = 20, RD_RUSH = 60;
-type ReadDrillMode = 'practice' | 'test' | 'rush' | SightReadingArcadeMode;
-const RD_MODES: readonly string[] = ['practice', 'test', 'rush', 'survival', 'timeAttack', 'marathon'];
+// Practice's star check: the last RD_CHECK_N answers of the run.
+const RD_CHECK_N = 20;
+// 'test' is the graded run of rhythm and sight-reading levels; the other levels earn their stars in Practice.
+type ReadDrillMode = 'practice' | 'test' | SightReadingArcadeMode;
+const RD_MODES: readonly string[] = ['practice', 'test', 'survival', 'timeAttack', 'marathon'];
 function isReadDrillMode(mode: string): mode is ReadDrillMode { return RD_MODES.includes(mode); }
-const RD_MODE_ICON: Record<ReadDrillMode, string> = { practice: '🎯', test: '📝', rush: '⚡', survival: '♥', timeAttack: '⏱', marathon: '🏃' };
+const RD_MODE_ICON: Record<ReadDrillMode, string> = { practice: '🎯', test: '📝', survival: '♥', timeAttack: '⏱', marathon: '🏃' };
 // arc: the arcade run (Survival, Time Attack, Marathon); bars: the Marathon length last chosen; limT: Survival's per-note time limit;
 // tout: the last answer was a timeout; arcFx: what the last answer earned (a Time Attack bonus or a faster Survival pace); limF: Survival's time bar when the note was answered.
-interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; bag: number[]; bagSig: string; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; arc: SightReadingArcadeState | null; bars: SightReadingMarathonBars; limT?: ReturnType<typeof setTimeout>; tout: boolean; arcFx: '' | 'bonus' | 'faster'; limF: number; }
-const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], bag: [], bagSig: '', lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false, arc: null, bars: 16, tout: false, arcFx: '', limF: 1 };
-// Rhythm and sight-reading levels keep Practice and Test; Marathon reads one long line of notes, so only naming and playing levels have it.
+// chk: Practice's star check, the last RD_CHECK_N first answers (a hinted one counts as wrong); chkBest: the best stars it gave this run, null until it is full;
+// chkNew: stars just earned, still to announce; awT: hides the "earned" notice.
+interface ReadDrillState { on: boolean; L: ReadDrillLevel | null; mode: ReadDrillMode; q: ReadQuestion | null; n: number; ok: number; ms: number; streak: number; best: number; t0: number; answered: boolean; timers: ReturnType<typeof setTimeout>[]; lastK: string | null; accSel: number; miss: { [questionKey: string]: number; }; rushEnd: number; rushIv: ReturnType<typeof setInterval> | number; rh: RdRhythmState | null; rhP: number[]; rhM: number[]; next: ReturnType<typeof rdNextStep>; nodes: OscillatorNode[]; hintT?: ReturnType<typeof setTimeout>; flow: ReadDrillFlow | null; fix: boolean; arc: SightReadingArcadeState | null; bars: SightReadingMarathonBars; limT?: ReturnType<typeof setTimeout>; tout: boolean; arcFx: '' | 'bonus' | 'faster'; limF: number; chk: { ok: boolean; ms: number; }[]; chkBest: number | null; chkNew: number; awT?: ReturnType<typeof setTimeout>; }
+const RD: ReadDrillState = { on: false, L: null, mode: 'practice', q: null, n: 0, ok: 0, ms: 0, streak: 0, best: 0, t0: 0, answered: false, timers: [], lastK: null, accSel: 0, miss: {}, rushEnd: 0, rushIv: 0, rh: null, rhP: [], rhM: [], next: null, nodes: [], flow: null, fix: false, arc: null, bars: 16, tout: false, arcFx: '', limF: 1, chk: [], chkBest: null, chkNew: 0 };
+// Rhythm and sight-reading levels keep Practice and their graded run; the others have Practice and the Challenge modes.
+// Marathon reads one long line of notes, so only naming and playing levels have it.
 function rdModes(L: ReadDrillLevel): ReadDrillMode[] {
-    if (L.ty === 'rh' || L.ty === 'sr')
+    if (!rdHasCheck(L))
         return ['practice', 'test'];
-    const modes: ReadDrillMode[] = ['practice', 'test', 'rush', 'survival', 'timeAttack'];
+    const modes: ReadDrillMode[] = ['practice', 'timeAttack', 'survival'];
     if (L.ty === 'name' || L.ty === 'play')
         modes.push('marathon');
     return modes;
 }
-// How many notes the run has (Test and Marathon), or null when it ends another way.
-function rdRunLen(): number | null { return RD.mode === 'test' ? RD_TESTN : RD.arc && RD.arc.total !== null ? RD.arc.total : null; }
-function rdTimeUp() { return (RD.mode === 'rush' || RD.mode === 'timeAttack') && performance.now() >= RD.rushEnd; }
+// Levels whose Practice runs the star check: all but rhythm and sight-reading, which earn stars in their graded run.
+function rdHasCheck(L: ReadDrillLevel | null) { return !!L && L.ty !== 'rh' && L.ty !== 'sr'; }
+// How many notes the run has (Marathon), or null when it ends another way.
+function rdRunLen(): number | null { return RD.arc && RD.arc.total !== null ? RD.arc.total : null; }
+function rdTimeUp() { return RD.mode === 'timeAttack' && performance.now() >= RD.rushEnd; }
 // Survival: a note still unanswered when its time window closes costs a life.
 function rdArmLimit() {
     clearTimeout(RD.limT);
@@ -8133,12 +8127,7 @@ function rdArmLimit() {
 }
 function rdArcFx() { return RD.arcFx === 'bonus' ? t('rdx_ta_bonus') : RD.arcFx === 'faster' && RD.arc ? t('rdx_sv_faster', anNum(RD.arc.targetMs / 1000, 1)) : ''; }
 function rdClock(ms: number) { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-// The level that unlocks L: the one before it in its unit, unless L names another (`after`).
-function rdLvPrev(L: ReadDrillLevel) { if (L.after)
-    return RD_LV[L.after] || null; const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
 function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
-function rdUnlocked(L: ReadDrillLevel | null | undefined) { if (!L)
-    return false; const p = rdLvPrev(L); return !p || (rdData().lv[p.id]?.s || 0) >= 1; }
 function rdTarget(L: ReadDrillLevel | null) { if (!L)
     throw new Error('Étude: no reading level'); return (RD_TARGET[L.ty] || 3000) + ((L.clef === 'grand' || L.clef === 'mix') ? 800 : 0) + ((L.acc || L.keys) ? 1000 : 0); }
 function rdStat(k: string, ok: boolean, ms: number) {
@@ -8165,27 +8154,12 @@ function rdWeakItems<T>(items: T[], keyOf: (x: T) => string) {
 function rdPick<T>(items: T[]) {
     return items[Math.floor(Math.random() * items.length)];
 }
-// In test mode the bag holds shuffled indices into items; the same signature means the same keys in the same order.
 function rdPickFrom<T>(items: T[], keyOf: (x: T) => string) {
-    let r: T;
-    if (RD.mode === 'test') {
-        const sig = items.map((x) => keyOf(x)).join('|');
-        if (RD.bagSig !== sig || !RD.bag.length) {
-            RD.bagSig = sig;
-            RD.bag = rdShuffle(items.map((_, j) => j));
-        }
-        let i = RD.bag.findIndex((j) => keyOf(items[j]) !== RD.lastK);
-        if (i < 0)
-            i = 0;
-        r = items[RD.bag.splice(i, 1)[0]];
-    }
-    else {
-        let pool = items.filter((item) => keyOf(item) !== RD.lastK);
-        if (!pool.length)
-            pool = items;
-        const weak = (RD.mode === 'practice' || RD.mode === 'survival' || RD.mode === 'marathon') && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
-        r = rdPick(weak.length ? weak : pool);
-    }
+    let pool = items.filter((item) => keyOf(item) !== RD.lastK);
+    if (!pool.length)
+        pool = items;
+    const weak = (RD.mode === 'practice' || RD.mode === 'survival' || RD.mode === 'marathon') && data.settings.weakSpotInjection && Math.random() < 0.3 ? rdWeakItems(pool, keyOf) : [];
+    const r = rdPick(weak.length ? weak : pool);
     RD.lastK = keyOf(r);
     return r;
 }
@@ -8574,8 +8548,11 @@ function rdFlowAnswer(ok: boolean, g: ReadDrillGiven, timeout = false) {
         rdScore(q, ok, timeout);
         q.state = ok ? 'good' : 'bad';
     }
-    if (ok)
-        return rdFlowAdvance(g);
+    if (ok) {
+        rdFlowAdvance(g);
+        rdCheckNotice();
+        return;
+    }
     RD.fix = true;
     if (q.ty === 'play' && g.midi != null)
         F.played = g.midi;
@@ -8589,6 +8566,7 @@ function rdFlowAnswer(ok: boolean, g: ReadDrillGiven, timeout = false) {
     sv.classList.add('flash-bad');
     byId('rdx-live').textContent = rdFlowMsg();
     rdHud();
+    rdCheckNotice();
     // A run that this mistake ended (no lives left, or the last Marathon note) closes after a moment to read the answer.
     if (RD.arc && RD.arc.completed)
         RD.timers.push(setTimeout(() => { if (RD.on)
@@ -8611,7 +8589,7 @@ function rdFlowAdvance(g: ReadDrillGiven) {
         rdFlowShow(false);
         rdHud();
         RD.timers.push(setTimeout(() => { if (RD.on)
-            rdFinish(); }, RD.mode === 'rush' || RD.mode === 'timeAttack' ? 0 : 400));
+            rdFinish(); }, RD.mode === 'timeAttack' ? 0 : 400));
         return;
     }
     rdFlowFill(F, F.cur + 1);
@@ -8759,6 +8737,8 @@ function rdScore(q: ReadQuestion, ok: boolean, timeout = false) {
             tt.ok++;
         tt.ms += ms;
     }
+    if (RD.mode === 'practice' && rdHasCheck(RD.L))
+        rdCheck(!q.hinted && ok, ms);
     RD.arcFx = '';
     const prev = RD.arc;
     if (!prev)
@@ -8794,12 +8774,77 @@ function rdAnswer(ok: boolean, given?: ReadDrillGiven, timeout = false) {
     rdScore(q, ok, timeout);
     rdFeedback(ok, given || {});
     rdHud();
-    const done = (RD.mode === 'test' && RD.n >= RD_TESTN) || !!(RD.arc && RD.arc.completed);
+    rdCheckNotice();
+    const done = !!(RD.arc && RD.arc.completed);
     RD.timers.push(setTimeout(() => { if (!RD.on)
         return; if (done || rdTimeUp())
         rdFinish();
     else
-        rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'rush' || RD.mode === 'timeAttack' ? 800 : 1500)));
+        rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'timeAttack' ? 800 : 1500)));
+}
+// The star check's thresholds: accuracy first, then the mean answer time against the level's target.
+function rdStarsFor(acc: number, avg: number, tg: number) { return acc >= 95 && avg <= tg ? 3 : acc >= 90 && avg <= tg * 1.6 ? 2 : acc >= 80 ? 1 : 0; }
+function rdCheckResult() {
+    const w = RD.chk, n = w.length, acc = n ? Math.round(100 * w.filter((x) => x.ok).length / n) : 0, avg = n ? w.reduce((a, x) => a + x.ms, 0) / n : 0;
+    return { acc, avg, stars: RD.L ? rdStarsFor(acc, avg, rdTarget(RD.L)) : 0 };
+}
+// Adds a first answer to the star check. Once it holds RD_CHECK_N answers, a result better than the level's saved one is saved on the spot.
+function rdCheck(ok: boolean, ms: number) {
+    const L = RD.L;
+    if (!L)
+        return;
+    RD.chk.push({ ok, ms });
+    if (RD.chk.length > RD_CHECK_N)
+        RD.chk.shift();
+    if (RD.chk.length < RD_CHECK_N)
+        return;
+    const r = rdCheckResult(), was = RD.chkBest;
+    RD.chkBest = Math.max(was ?? 0, r.stars);
+    if (L.custom) {
+        if (r.stars > (was ?? 0))
+            RD.chkNew = r.stars;
+        return;
+    }
+    const d = rdData(), rec = d.lv[L.id] ?? { s: 0, acc: 0, t: 0, n: 0, rush: 0 };
+    let save = false;
+    if (r.stars > (rec.s || 0)) {
+        rec.s = r.stars;
+        RD.chkNew = r.stars;
+        save = true;
+    }
+    if (r.acc > (rec.acc || 0)) {
+        rec.acc = r.acc;
+        save = true;
+    }
+    if (r.avg && r.acc >= 80 && (!rec.t || r.avg < rec.t)) {
+        rec.t = Math.round(r.avg);
+        save = true;
+    }
+    if (save) {
+        d.lv[L.id] = rec;
+        saveAll();
+    }
+}
+// Announces stars the check just earned, without stopping the drill.
+function rdCheckNotice() {
+    const s = RD.chkNew, aw = maybeById('rdx-award');
+    if (!s)
+        return;
+    RD.chkNew = 0;
+    byId('rdx-live').textContent = t('rdx_chk_live', t('rdx_stars_n', s));
+    if (!aw)
+        return;
+    aw.textContent = t('rdx_chk_earned', '★'.repeat(s));
+    aw.hidden = false;
+    clearTimeout(RD.awT);
+    RD.awT = setTimeout(() => { aw.hidden = true; }, 3000);
+}
+function rdCheckHud() {
+    const n = RD.chk.length;
+    if (n < RD_CHECK_N)
+        return t('rdx_chk_n', n, RD_CHECK_N);
+    const s = rdCheckResult().stars;
+    return t('rdx_chk_s', '★'.repeat(s) + '☆'.repeat(3 - s));
 }
 function rdFeedback(ok: boolean, g: ReadDrillGiven) {
     const q = RD.q;
@@ -8888,15 +8933,6 @@ function rdHud() {
         if (RD.mode === 'test')
             f = n / 4;
     }
-    else if (RD.mode === 'test') {
-        s = t('rdx_hud_q', Math.min(RD_TESTN, RD.n + (RD.answered ? 0 : 1)), RD_TESTN) + ' · ✓ ' + RD.ok;
-        f = RD.n / RD_TESTN;
-    }
-    else if (RD.mode === 'rush') {
-        const left = Math.max(0, Math.ceil((RD.rushEnd - performance.now()) / 1000));
-        s = '⏱ ' + left + 's · ✓ ' + RD.ok;
-        f = left / RD_RUSH;
-    }
     else if (RD.arc) {
         const arc = RD.arc, now = performance.now(), parts: string[] = [];
         if (arc.mode === 'survival') {
@@ -8919,8 +8955,11 @@ function rdHud() {
             parts.push('🔥 ' + arc.combo);
         s = parts.join(' · ');
     }
-    else
+    else {
         s = '✓ ' + RD.ok + '/' + RD.n + (RD.streak >= 2 ? ' · 🔥 ' + RD.streak : '');
+        if (RD.mode === 'practice' && rdHasCheck(RD.L))
+            s += ' · ' + rdCheckHud();
+    }
     if (RD.flow && RD.flow.gh)
         s += ' · 👻 ' + formatLead(RD.flow.gd);
     h.textContent = s;
@@ -9552,12 +9591,12 @@ function rdSightDone(kind: string, val: number) {
         return '';
     const steps = SR.steps.length || 1, acc = kind === 'assess' ? val : Math.max(0, Math.round(100 * (1 - val / steps)));
     const stars = kind === 'assess' ? (val >= 95 ? 3 : val >= 80 ? 2 : val >= 60 ? 1 : 0) : (val === 0 ? 2 : val <= Math.max(1, steps * 0.15) ? 1 : 0);
-    const d = rdData(), nx = rdLvNext(L), was = rdUnlocked(nx), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
+    const d = rdData(), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
     rec.n++;
     rec.s = Math.max(rec.s, stars);
     rec.acc = Math.max(rec.acc, acc);
     d.tot.sess++;
-    return (kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars)) + (nx && !was && rdUnlocked(nx) ? ' · 🔓 ' + t('rdx_unlocked', rdLvName(nx)) : '');
+    return kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars);
 }
 /* ---- sessions: intro → questions → summary ---- */
 function rdLvName(L: ReadDrillLevel) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
@@ -9640,18 +9679,93 @@ function rdIntro() {
         const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
         prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
     }
-    const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}${r.rush ? `<span>⚡ ${t('rdx_best_rush', r.rush)}</span>` : ''}${r.sv ? `<span>♥ ${t('rdx_best_sv', anNum(r.sv, 0))}</span>` : ''}${r.ta ? `<span>⏱ ${t('rdx_best_ta', anNum(r.ta, 0))}</span>` : ''}${r.mn ? `<span>🏃 ${t('rdx_best_mn', r.mn)}</span>` : ''}</div>`;
-    const sfx = (L.ty === 'rh' || L.ty === 'sr') ? '_' + L.ty : '';
-    // Marathon is a group with one button per length; the other modes are a single button each.
-    const card = (m: ReadDrillMode) => m === 'marathon'
-        ? `<div class="rdx-mode rdx-mode-grp" role="group" aria-labelledby="rdx-m-marathon"><b id="rdx-m-marathon">${ic[m]} ${t('rdx_m_marathon')}</b><span>${t('rdx_md_marathon')}</span><div class="rdx-bars"><span>${t('rdx_bars')}</span>${[16, 32, 64].map((n) => `<button class="chip" data-mode="marathon" data-bars="${n}" aria-label="${rdEsc(t('rdx_m_marathon') + ', ' + t('rdx_bars') + ' ' + n)}">${n}</button>`).join('')}</div></div>`
-        : `<button class="rdx-mode" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
-    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${modes.map(card).join('')}</div></div>`;
+    const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}</div>`;
+    const sfx = rdHasCheck(L) ? '' : '_' + L.ty;
+    const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
+    // Each Challenge mode shows its record; Marathon is a group with one item per length.
+    const best = (m: ReadDrillMode) => { const b = m === 'timeAttack' ? (r.ta ? t('rdx_best_ta', anNum(r.ta, 0)) : '') : m === 'survival' ? (r.sv ? t('rdx_best_sv', anNum(r.sv, 0)) : '') : r.mn ? t('rdx_best_mn', r.mn) : ''; return b ? `<em>🏆 ${rdEsc(b)}</em>` : ''; };
+    const item = (m: ReadDrillMode) => m === 'marathon'
+        ? `<div class="rdx-chal-grp" role="group" aria-labelledby="rdx-m-marathon"><b id="rdx-m-marathon">${ic[m]} ${t('rdx_m_marathon')}</b><span>${t('rdx_md_marathon')}</span>${best(m)}<div class="rdx-bars"><span aria-hidden="true">${t('rdx_bars')}</span>${[16, 32, 64].map((n) => `<button type="button" class="chip" role="menuitem" tabindex="-1" data-mode="marathon" data-bars="${n}" aria-label="${rdEsc(t('rdx_m_marathon') + ', ' + t('rdx_bars') + ' ' + n)}">${n}</button>`).join('')}</div></div>`
+        : `<button type="button" class="rdx-chal-it" role="menuitem" tabindex="-1" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m)}</span>${best(m)}</button>`;
+    const chal = modes.filter((m) => m !== 'practice');
+    // Practice first; then the Challenge menu, or the graded run for rhythm and sight-reading levels.
+    const more = rdHasCheck(L)
+        ? `<button type="button" class="rdx-mode rdx-chal-btn" id="rdx-chal" aria-haspopup="menu" aria-expanded="false" aria-controls="rdx-chal-menu"><b>🏁 ${t('rdx_challenge')} <i aria-hidden="true">▾</i></b><span>${rdEsc(chal.map((m) => t('rdx_m_' + m)).join(' · '))}</span></button><div class="rdx-chal-menu" id="rdx-chal-menu" role="menu" aria-labelledby="rdx-chal" hidden>${chal.map(item).join('')}</div>`
+        : card('test', '');
+    byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${card('practice', ' rdx-mode-main')}${more}</div></div>`;
     rdCoach(true);
 }
-function rdStart(mode: string, bars?: number) {
+function rdChalItems() { return queryAllHtml(document, '#rdx-chal-menu [role=menuitem]'); }
+// Opens or closes the Challenge menu; on opening, focus goes to its first or last item.
+function rdChalOpen(open: boolean, focus?: 'first' | 'last') {
+    const b = maybeById('rdx-chal'), m = maybeById('rdx-chal-menu');
+    if (!b || !m)
+        return;
+    m.hidden = !open;
+    b.setAttribute('aria-expanded', String(open));
+    const it = rdChalItems();
+    if (open && focus && it.length)
+        it[focus === 'last' ? it.length - 1 : 0].focus({ preventScroll: true });
+    // The menu opens below the button; the page scrolls so the keyboard dock and the bottom bar do not cover it.
+    if (open) {
+        const tops = [maybeById('dock'), maybeById('bottomNav')].flatMap((el) => { const r = el?.getBoundingClientRect(); return r && r.height > 0 && r.top < innerHeight ? [r.top] : []; });
+        const over = m.getBoundingClientRect().bottom + 8 - Math.min(innerHeight, ...tops);
+        if (over > 0)
+            window.scrollBy(0, over);
+    }
+}
+// Arrow keys move through the Challenge menu, Home and End jump to its ends, Esc closes it and Tab leaves it.
+function rdChalKey(e: KeyboardEvent) {
+    const tg = eventElement(e), b = maybeById('rdx-chal');
+    if (!tg || !b)
+        return;
+    const open = b.getAttribute('aria-expanded') === 'true';
+    if (tg === b) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            rdChalOpen(true, e.key === 'ArrowUp' ? 'last' : 'first');
+        }
+        else if (e.key === 'Escape' && open) {
+            e.preventDefault();
+            e.stopPropagation();
+            rdChalOpen(false);
+        }
+        return;
+    }
+    if (!tg.closest('#rdx-chal-menu'))
+        return;
+    const it = rdChalItems(), i = tg instanceof HTMLElement ? it.indexOf(tg) : -1;
+    let n: HTMLElement | undefined;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight')
+        n = it[(i + 1) % it.length];
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft')
+        n = it[(i - 1 + it.length) % it.length];
+    else if (e.key === 'Home')
+        n = it[0];
+    else if (e.key === 'End')
+        n = it[it.length - 1];
+    else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        rdChalOpen(false);
+        b.focus();
+    }
+    else if (e.key === 'Tab')
+        rdChalOpen(false);
+    if (n) {
+        e.preventDefault();
+        e.stopPropagation();
+        n.focus();
+    }
+}
+function rdStart(mode0: string, bars?: number) {
     const L = RD.L;
-    if (!L || !isReadDrillMode(mode) || !rdModes(L).includes(mode))
+    if (!L)
+        return;
+    // Test and Note rush of older versions open Practice, where the star check now gives the stars.
+    const mode = isReadDrillMode(mode0) && rdModes(L).includes(mode0) ? mode0 : mode0 === 'test' || mode0 === 'rush' ? 'practice' : null;
+    if (!mode)
         return;
     ensureAudio();
     if (L.ty === 'sr') {
@@ -9662,17 +9776,15 @@ function rdStart(mode: string, bars?: number) {
         RD.bars = bars;
     rdClear();
     const now = performance.now();
-    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, bag: [], bagSig: '', lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false, arc: srtIsArcadeMode(mode) ? srtArcadeStart(mode, now, { targetMs: rdTarget(L), marathonBars: RD.bars }) : null, tout: false, arcFx: '', limF: 1 });
+    Object.assign(RD, { on: true, mode, n: 0, ok: 0, ms: 0, streak: 0, best: 0, miss: {}, lastK: null, rhP: [], rhM: [], answered: false, next: null, flow: null, fix: false, arc: srtIsArcadeMode(mode) ? srtArcadeStart(mode, now, { targetMs: rdTarget(L), marathonBars: RD.bars }) : null, tout: false, arcFx: '', limF: 1, chk: [], chkBest: null, chkNew: 0 });
     stageSync();
     rdCoach(true);
     const e = byId('rdx-end');
     e.hidden = false;
     e.textContent = t(mode === 'practice' ? 'rdx_end' : 'rdx_quit');
-    if (mode === 'rush')
-        RD.rushEnd = now + RD_RUSH * 1000;
     if (RD.arc && RD.arc.deadlineMs !== null)
         RD.rushEnd = RD.arc.deadlineMs;
-    if (mode === 'rush' || mode === 'timeAttack' || mode === 'survival')
+    if (mode === 'timeAttack' || mode === 'survival')
         RD.rushIv = window.setInterval(() => { if (!RD.on)
             return; rdHud(); if (rdTimeUp() && (!RD.answered || RD.fix))
             rdFinish(); }, 250);
@@ -9688,6 +9800,10 @@ function rdClear() {
     RD.timers = [];
     clearTimeout(RD.hintT);
     clearTimeout(RD.limT);
+    clearTimeout(RD.awT);
+    const aw = maybeById('rdx-award');
+    if (aw)
+        aw.hidden = true;
     clearInterval(RD.rushIv);
     RD.rushIv = 0;
     if (RD.flow)
@@ -9779,9 +9895,10 @@ function rdFinish() {
     byId('rdx-end').hidden = true;
     byId('rdx-meter').hidden = true;
     let acc = 0, avg = 0, stars = 0;
-    const score = RD.ok;
     if (!L)
         return;
+    // Practice shows the best stars its check gave this run, once it was full.
+    const chk = mode === 'practice' && rdHasCheck(L), shown = mode === 'test' || (chk && RD.chkBest !== null);
     const arc = RD.arc && (RD.arc = srtArcadeComplete(RD.arc, now)), sum = arc && srtArcadeSummary(arc, now);
     const npm = sum ? Math.round(sum.notesPerMinute ?? 0) : 0;
     if (L.ty === 'rh') {
@@ -9793,15 +9910,14 @@ function rdFinish() {
         acc = RD.n ? Math.round(100 * RD.ok / RD.n) : 0;
         // Arcade runs time only the right answers: a timeout is not a reading speed.
         avg = sum ? sum.averageReactionMs ?? 0 : RD.n ? RD.ms / RD.n : 0;
-        const tg = rdTarget(L);
-        if (mode === 'test')
-            stars = acc >= 95 && avg <= tg ? 3 : acc >= 90 && avg <= tg * 1.6 ? 2 : acc >= 80 ? 1 : 0;
+        if (chk)
+            stars = RD.chkBest ?? 0;
     }
     const d = rdData();
     d.tot.sess++;
-    let unl: ReadDrillLevel | null = null, newBest = false;
+    let newBest = false;
     if (!L.custom) {
-        const nx = rdLvNext(L), was = rdUnlocked(nx), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
+        const rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
         rec.n++;
         if (mode === 'test') {
             rec.s = Math.max(rec.s || 0, stars);
@@ -9809,17 +9925,11 @@ function rdFinish() {
             if (avg && acc >= 80 && (!rec.t || avg < rec.t))
                 rec.t = Math.round(avg);
         }
-        if (mode === 'rush') {
-            newBest = score > (rec.rush || 0);
-            rec.rush = Math.max(rec.rush || 0, score);
-        }
         if (sum) {
             const k = sum.mode === 'survival' ? 'sv' : sum.mode === 'timeAttack' ? 'ta' : 'mn', v = k === 'mn' ? npm : sum.score;
             newBest = v > (rec[k] || 0);
             rec[k] = Math.max(rec[k] || 0, v);
         }
-        if (nx && !was && rdUnlocked(nx))
-            unl = nx;
     }
     touchDay();
     saveAll();
@@ -9829,20 +9939,20 @@ function rdFinish() {
         : sum && sum.mode === 'survival' ? [[pts, t('rdx_st_score')], [rdClock(sum.elapsedMs), t('rdx_st_survived')], [sum.correct, t('rdx_st_rush')], [avgS, t('rdx_st_time')]]
             : sum && sum.mode === 'timeAttack' ? [[pts, t('rdx_st_score')], [sum.correct, t('rdx_st_rush')], [acc + '%', t('rdx_st_acc')], [sum.bestCombo, t('rdx_st_streak')]]
                 : sum ? [[rdClock(sum.elapsedMs), t('rdx_st_total')], [acc + '%', t('rdx_st_acc')], [npm, t('rdx_st_npm')], [pts, t('rdx_st_score')]]
-                    : [[acc + '%', t('rdx_st_acc')], [avgS, t('rdx_st_time')], [mode === 'rush' ? score : RD.best, mode === 'rush' ? t('rdx_st_rush') : t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
+                    : [[acc + '%', t('rdx_st_acc')], [avgS, t('rdx_st_time')], [RD.best, t('rdx_st_streak')], [RD.ok + '/' + RD.n, t('rdx_st_ans')]];
     const best = newBest ? ' · 🏆 ' + t('rdx_newbest') : '';
-    const head = mode === 'test' ? `<div class="rdx-sum-stars">${rdStars(stars)}</div><p class="rdx-sum-msg">${t(stars === 3 ? 'rdx_s3' : stars === 2 ? 'rdx_s2' : stars === 1 ? 'rdx_s1' : 'rdx_s0')}</p>`
-        : mode === 'rush' ? `<p class="rdx-sum-msg">⚡ ${t('rdx_rush_score', score)}${best}</p>`
+    const head = shown ? `<div class="rdx-sum-stars">${rdStars(stars)}</div><p class="rdx-sum-msg">${t(stars === 3 ? 'rdx_s3' : stars === 2 ? 'rdx_s2' : stars === 1 ? 'rdx_s1' : 'rdx_s0')}</p>`
+        : chk ? `<p class="rdx-sum-msg">${t('rdx_chk_wait', RD.chk.length, RD_CHECK_N)}</p>`
             : sum ? `<p class="rdx-sum-msg">${RD_MODE_ICON[mode]} ${sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)}${best}</p>` : `<p class="rdx-sum-msg">${t('rdx_sum_practice')}</p>`;
     const nx = rdLvNext(L);
     RD.next = rdNextStep(L, mode, acc, avg, stars, weak);
     rdCoach(false);
-    byId('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}${unl ? `<p class="rdx-unl">🔓 ${t('rdx_unlocked', rdEsc(rdLvName(unl)))}</p>` : ''}
+    byId('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}
     <div class="rdx-tiles">${tiles.map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
     ${(RD).next ? `<div class="coach rdx-coach" id="rdx-next" data-kind="next">${coachHTML(t('coach_next'), (RD).next, 'rdx-next-act')}</div>` : ''}
-    <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!(L)?.custom && nx && rdUnlocked(nx) ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
-    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + (sum ? ' · ' + (sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
+    <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!L.custom && nx ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
+    byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (shown ? ' · ' + t('rdx_stars_n', stars) : '') + (sum ? ' · ' + (sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
     byId('rdx-hud').textContent = '';
     byId('rdx-meter').hidden = true;
     const s = maybeById('rdx-sum');
@@ -9852,9 +9962,9 @@ function rdFinish() {
 /* ---- home: progress hero, level ladder, custom drill ---- */
 function rdSuggest() {
     const d = rdData(), last = RD_LV[d.prefs.last ?? ''];
-    if (last && rdUnlocked(last) && ((d.lv[last.id] || {}).s || 0) < 2)
+    if (last && ((d.lv[last.id] || {}).s || 0) < 2)
         return last;
-    return RD_ALL.find((L) => rdUnlocked(L) && !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
+    return RD_ALL.find((L) => !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
 }
 function rdRenderHome() {
     const d = rdData(), tot = d.tot, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0), cont = rdSuggest();
@@ -9865,8 +9975,8 @@ function rdRenderHome() {
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
-            const r = d.lv[L.id] || {}, ok = rdUnlocked(L), s = r.s || 0;
-            return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}"${ok ? '' : ' aria-disabled="true"'} title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (ok ? '' : ' — ' + t('rdx_locked')) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${ok ? L.n : '🔒'}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
+            const r = d.lv[L.id] || {}, s = r.s || 0;
+            return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}" title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${L.n}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
         }).join('')}</div></section>`;
     }).join('');
     rdCustomFill();
@@ -9917,7 +10027,7 @@ function rdCustomGo() {
     }
     rdOpen(L);
 }
-/* ---- statistics: per-note heatmap on the staff, skills, weakest items ---- */
+/* ---- statistics, shown in Progress under Reading: per-note heatmap on the staff, skills, weakest items ---- */
 function rdAgg(c: string, li: number, oct: number) {
     let n = 0, ok = 0, ms = 0;
     const re = /^([tban]):([A-G])([#b]?)(\d)$/;
@@ -9944,6 +10054,9 @@ function rdHeat(clef: 'treble' | 'bass' | 'alto' | 'tenor', lo: string, hi: stri
 }
 function rdBars(rows: readonly { l: string; n: number; ok: number; }[]) { return rows.map((r) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + r.n + '×' : '—'}</em></div>`).join(''); }
 function rdRenderStats() {
+    const box = maybeById('rdx-stats');
+    if (!box)
+        return;
     const d = rdData(), tot = d.tot, nt = d.nt, g = (k: string) => nt[k] || { n: 0, ok: 0 };
     const lvDone = RD_ALL.filter((L) => ((d.lv[L.id] || {}).s || 0) > 0).length, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0);
     const weak = Object.entries(nt).filter(([k, s]) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
@@ -9953,7 +10066,7 @@ function rdRenderStats() {
             ks.push({ l: rdKeyLabel(k), ...g('ks:' + k) });
     const rh = (RD_UNITS.find((u) => u.u === 'rh')?.lv ?? []).filter((L: ReadDrillLevel) => g('rh:' + L.id).n).map((L: ReadDrillLevel) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
     const extra = (['alto', 'tenor'] as const).filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
-    byId('rdx-stats').innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+    box.innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     <div class="panel rdx-stat-p"><h3>${t('rdx_heat')}</h3><p class="rdx-desc">${t('rdx_heat_d')}</p>
       <div class="rdx-staff rdx-heat">${rdHeat('treble', 'A3', 'C6')}</div><div class="rdx-staff rdx-heat">${rdHeat('bass', 'C2', 'E4')}</div>
       ${extra.map((c) => `<div class="rdx-staff rdx-heat">${rdHeat(c, c === 'alto' ? 'C3' : 'A2', c === 'alto' ? 'D5' : 'B4')}</div>`).join('')}</div>
@@ -9966,7 +10079,8 @@ function rdRenderStats() {
 }
 /* ---- tabs, wiring, locale ---- */
 function rdTab(tab: string|undefined) {
-    if (tab === undefined || !['drills', 'pieces', 'stats'].includes(tab))
+    // A saved tab that no longer exists (the old Statistics tab, now in Progress) opens the drills.
+    if (tab === undefined || !['drills', 'pieces'].includes(tab))
         tab = 'drills';
     if (tab !== 'pieces' && srtPendingSaveProtected()) {
         if (SR.srtState?.name === 'pendingSave') {
@@ -9979,7 +10093,7 @@ function rdTab(tab: string|undefined) {
     }
     rdData().prefs.tab = tab;
     queryAllHtml(document, '#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
-    ['drills', 'pieces', 'stats'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
+    ['drills', 'pieces'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
         p.hidden = x !== tab; });
     if (tab !== 'drills' && RD.on) {
         rdAbort();
@@ -9987,9 +10101,7 @@ function rdTab(tab: string|undefined) {
     }
     if (tab !== 'pieces')
         srStopAll(true, false, 'navigate');
-    if (tab === 'stats')
-        rdRenderStats();
-    else if (tab === 'drills' && byId('rdx-stage').hidden)
+    if (tab === 'drills' && byId('rdx-stage').hidden)
         rdRenderHome();
     stageSync();
 }
@@ -10103,14 +10215,12 @@ function rdOnLocale() {
             const L = RD_LV[lv.dataset.lv ?? ''];
             if (!L)
                 return;
-            if (lv.getAttribute('aria-disabled') === 'true') {
-                byId('rdx-live').textContent = t('rdx_locked_msg');
-                lv.classList.remove('shake');
-                void lv.offsetWidth;
-                lv.classList.add('shake');
-                return;
-            }
             rdOpen(L);
+            return;
+        }
+        if (eventClosest(e, '#rdx-chal')) {
+            const open = byId('rdx-chal').getAttribute('aria-expanded') !== 'true';
+            rdChalOpen(open, open ? 'first' : undefined);
             return;
         }
         const md = eventClosest(e, '[data-mode]');
@@ -10179,6 +10289,10 @@ function rdOnLocale() {
         else if (id === 'rdx-c-go')
             rdCustomGo();
     });
+    dr.addEventListener('keydown', rdChalKey);
+    // A press outside the Challenge menu closes it.
+    document.addEventListener('pointerdown', (e) => { const m = maybeById('rdx-chal-menu'); if (m && !m.hidden && !eventClosest(e, '#rdx-chal, #rdx-chal-menu'))
+        rdChalOpen(false); });
     dr.addEventListener('pointerdown', (e) => {
         const pad = eventClosest(e, '.rdx-tap');
         if (pad) {
@@ -10237,7 +10351,7 @@ function rdOnLocale() {
         else if (/^rdx-c-/.test(id))
             rdCustomRead();
     });
-    byId('rdp-stats').addEventListener('click', (e) => { if (eventElement(e)?.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
+    byId('rdx-stats').addEventListener('click', (e) => { if (eventElement(e)?.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
         const d = rdData();
         d.nt = {};
         d.tot = { n: 0, ok: 0, ms: 0, sess: 0 };
@@ -10515,12 +10629,10 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
     }
     if (!RD.n)
         return null;
-    const tg = rdTarget(L) / 1000, sec = avg / 1000;
-    if (mode === 'rush')
-        return RD.n - RD.ok >= 3 ? { k: 'rdn_rush' } : { k: 'rdn_ok' };
+    const tg = rdTarget(L) / 1000, sec = avg / 1000, timeAttack = { k: 'rdx_m_timeAttack', run: () => rdStart('timeAttack') };
     // A Survival run lost to the clock needs speed, not hints: timeouts also count against accuracy.
     if (mode === 'survival' && RD.arc && RD.arc.timeouts >= 2)
-        return { k: 'rdn_sv_time', act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
+        return { k: 'rdn_sv_time', act: timeAttack };
     if (acc < 80)
         return { k: 'rdn_hints', act: { k: 'rdn_act_hints', run: () => { rdData().prefs.hints = true; saveAll(); rdStart('practice'); } } };
     if (weak.length && acc < 95)
@@ -10528,15 +10640,15 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
     if (mode === 'timeAttack' && RD.arc && RD.arc.bestCombo < ARCADE_STREAK)
         return { k: 'rdn_ta' };
     if (sec > tg)
-        return { k: 'rdn_speed', args: () => [anNum(sec, 1), anNum(tg, 1)], act: { k: 'rdn_act_rush', run: () => rdStart('rush') } };
+        return { k: 'rdn_speed', args: () => [anNum(sec, 1), anNum(tg, 1)], act: timeAttack };
     if (srtIsArcadeMode(mode))
         return { k: 'rdn_ok' };
-    if (mode === 'practice')
-        return { k: 'rdn_test', act: { k: 'rdn_act_test', run: () => rdStart('test') } };
+    if (mode === 'practice' && RD.chkBest === null)
+        return { k: 'rdn_chk', args: () => [RD_CHECK_N] };
     if (stars < 3)
         return { k: 'rdn_star', args: () => [stars >= 2 ? 95 : 90, anNum(stars >= 2 ? tg : tg * 1.6, 1)] };
     const nx = rdLvNext(L);
-    if (!L.custom && nx && rdUnlocked(nx))
+    if (!L.custom && nx)
         return { k: 'rdn_next', args: () => [rdLvName(nx)] };
     return { k: 'rdn_ok' };
 }
@@ -17007,6 +17119,8 @@ function renderProgress() {
         sec.appendChild(grid);
         g.appendChild(sec);
     });
+    // Reading: the reading drills' statistics, with their own Reset button.
+    rdRenderStats();
 }
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
@@ -19273,7 +19387,6 @@ Object.defineProperty(__etude, "rdLetter", { configurable: true, get: () => rdLe
 Object.defineProperty(__etude, "rdLvDetail", { configurable: true, get: () => rdLvDetail });
 Object.defineProperty(__etude, "rdLvName", { configurable: true, get: () => rdLvName });
 Object.defineProperty(__etude, "rdLvNext", { configurable: true, get: () => rdLvNext });
-Object.defineProperty(__etude, "rdLvPrev", { configurable: true, get: () => rdLvPrev });
 Object.defineProperty(__etude, "rdLvSub", { configurable: true, get: () => rdLvSub });
 Object.defineProperty(__etude, "rdMidi", { configurable: true, get: () => rdMidi });
 Object.defineProperty(__etude, "rdName", { configurable: true, get: () => rdName });
@@ -19326,7 +19439,6 @@ Object.defineProperty(__etude, "rdTab", { configurable: true, get: () => rdTab }
 Object.defineProperty(__etude, "rdTap", { configurable: true, get: () => rdTap });
 Object.defineProperty(__etude, "rdTarget", { configurable: true, get: () => rdTarget });
 Object.defineProperty(__etude, "rdU", { configurable: true, get: () => rdU });
-Object.defineProperty(__etude, "rdUnlocked", { configurable: true, get: () => rdUnlocked });
 Object.defineProperty(__etude, "refMidis", { configurable: true, get: () => refMidis });
 Object.defineProperty(__etude, "reflectSettingsUI", { configurable: true, get: () => reflectSettingsUI });
 Object.defineProperty(__etude, "reflowKeys", { configurable: true, get: () => reflowKeys });
@@ -19741,9 +19853,8 @@ Object.defineProperty(__etude, "RD_MAJ", { configurable: true, get: () => RD_MAJ
 Object.defineProperty(__etude, "RD_MIN", { configurable: true, get: () => RD_MIN });
 Object.defineProperty(__etude, "RD_REF", { configurable: true, get: () => RD_REF });
 Object.defineProperty(__etude, "RD_RHU", { configurable: true, get: () => RD_RHU });
-Object.defineProperty(__etude, "RD_RUSH", { configurable: true, get: () => RD_RUSH });
 Object.defineProperty(__etude, "RD_TARGET", { configurable: true, get: () => RD_TARGET });
-Object.defineProperty(__etude, "RD_TESTN", { configurable: true, get: () => RD_TESTN });
+Object.defineProperty(__etude, "RD_CHECK_N", { configurable: true, get: () => RD_CHECK_N });
 Object.defineProperty(__etude, "RD_UNITS", { configurable: true, get: () => RD_UNITS });
 Object.defineProperty(__etude, "ROMAN", { configurable: true, get: () => ROMAN });
 Object.defineProperty(__etude, "ROOT_NAMES", { configurable: true, get: () => ROOT_NAMES });

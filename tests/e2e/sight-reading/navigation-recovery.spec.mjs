@@ -222,8 +222,8 @@ test.describe('Sight-reading iteration 15 regressions', () => {
 
   test('keeps abandoned and interrupted scores visible with practice-only status', async ({ app }) => {
     const page = await startPreview(app);
-    await page.locator('#rdt-stats').click();
-    await expect(page.locator('#rdp-stats')).toBeVisible();
+    await page.locator('#rdt-drills').click();
+    await expect(page.locator('#rdp-drills')).toBeVisible();
     await page.locator('#rdt-pieces').click();
     await assertPracticeOnly(page);
   });

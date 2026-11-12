@@ -1,0 +1,26 @@
+/* ---------- Reading drills: the level's mode picker and the star-check notice (etude.html #rdx-stage) ----------
+   Practice is the main button; the Challenge button opens a menu of the timed modes (Time Attack, Survival, Marathon)
+   on the row below both buttons, so it pushes the page down instead of covering it. Every item is at least 44px high.
+   Colours come from the theme tokens, so the dark theme needs no rules here. */
+/* Two buttons side by side, one above the other on a phone; the menu spans the whole row. */
+.rdx-intro .rdx-modes{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.rdx-mode-main{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.rdx-mode-main b{color:var(--accent)}
+.rdx-chal-btn b i{font-style:normal; font-size:12px; color:var(--muted); display:inline-block; transition:transform .12s}
+.rdx-chal-btn[aria-expanded=true]{border-color:var(--accent)}
+.rdx-chal-btn[aria-expanded=true] b i{transform:rotate(180deg)}
+.rdx-chal-menu{grid-column:1 / -1; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:6px; padding:6px; border:1px solid var(--line); border-radius:12px; background:var(--card); box-shadow:var(--shadow); text-align:left}
+.rdx-chal-menu[hidden]{display:none}
+.rdx-chal-it,.rdx-chal-grp{display:flex; flex-direction:column; gap:3px; min-height:44px; padding:10px 12px; border:1px solid transparent; border-radius:9px; color:var(--ink); font:inherit; text-align:left}
+.rdx-chal-it{appearance:none; background:none; cursor:pointer}
+.rdx-chal-it:hover,.rdx-chal-it:focus-visible{background:var(--paper2); border-color:var(--accent)}
+.rdx-chal-it:focus-visible,.rdx-chal-grp .chip:focus-visible{outline:2.5px solid var(--accent); outline-offset:1px}
+.rdx-chal-it b,.rdx-chal-grp b{font-size:14.5px}
+.rdx-chal-it span,.rdx-chal-grp > span{font-size:12px; color:var(--muted); line-height:1.4}
+.rdx-chal-it em,.rdx-chal-grp em{font-style:normal; font-size:12px; font-weight:650; color:var(--ink2)}
+.rdx-chal-grp .rdx-bars .chip{min-width:44px; min-height:44px}
+/* The stars the check just earned, beside the HUD for a few seconds. */
+.rdx-award{font-weight:700; font-size:14px; color:var(--ink); border:1px solid var(--gold); border-radius:999px; padding:4px 12px; background:var(--paper2); animation:rdxAward .3s ease-out}
+.rdx-award[hidden]{display:none}
+@keyframes rdxAward{from{opacity:0; transform:scale(.9)} to{opacity:1; transform:none}}
+@media (prefers-reduced-motion:reduce){ .rdx-award{animation:none} .rdx-chal-btn b i{transition:none} }
