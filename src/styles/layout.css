@@ -54,3 +54,19 @@
   .lsum dl > div,.lw-dl > div{grid-column:1 / -1; grid-template-columns:subgrid; column-gap:20px}
   .lsum dt,.lw-dl dt{min-width:110px}
 }
+
+/* Method: six principles in two full rows of three instead of four and two. */
+@media (min-width:900px){
+  #view-method .principles{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* Settings: a row that starts with a switch keeps its label next to the switch, not at the far end of the row. */
+.set-row > .switch:first-child{flex:none}
+.set-row > .switch:first-child + .lab{margin-right:auto}
+
+/* Help: each shortcut in a fixed key column with its description beside it, instead of at the far right edge. */
+@media (min-width:600px){
+  .hk{display:grid; grid-template-columns:minmax(0,9.5em) minmax(0,1fr); justify-content:start}
+  .hk kbd{justify-self:start; max-width:100%; white-space:normal}
+  .hk span{text-align:left}
+}
