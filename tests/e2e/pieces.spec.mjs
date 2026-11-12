@@ -130,6 +130,7 @@ test('a whole timed run keeps the best accuracy, counts the day and sets the Tod
   await endRun(page, { perfect: 9, miss: 1 });
   await expect(page.locator('#pr-sum')).toBeVisible();
   await expect(page.locator('#pr-sum-best')).toHaveText('New best: 90%');
+  await expect(page.locator('#pr-sum-why')).toBeHidden();
   expect(await progress(page, 'w5rh')).toEqual({ sheet: { best: 90 }, piece: todayN(), todayDay: todayN(), streak: 1 });
   await expect(page.locator('#pc-list .pc-item[data-piece="w5rh"] .pc-best')).toHaveText('Best: 90%');
 
@@ -152,6 +153,7 @@ test('a complete Wait for me pass marks the piece learned; an unfinished one doe
   await endRun(page, { perfect: 1 });
   expect((await progress(page, 'twinkle')).sheet).toBeNull();
   await expect(page.locator('#pr-sum-best')).toBeHidden();
+  await expect(page.locator('#pr-sum-why')).toHaveText('Not saved: some notes were not played.');
 
   await page.locator('#pr-close').click();
   await startRun(page, { wait: true });
@@ -161,12 +163,14 @@ test('a complete Wait for me pass marks the piece learned; an unfinished one doe
   await expect(page.locator('#pc-list .pc-item[data-piece="twinkle"] .pc-ok')).toBeAttached();
 });
 
-test('a selection, an A–B loop or a run from the middle of the piece saves nothing', async ({ app, page }) => {
+test('a selection, an A–B loop or a run from the middle of the piece saves nothing, and the card says why', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   await openPiece(page, 'ode');
+  const why = page.locator('#pr-sum-why');
   await page.evaluate(() => { const api = window.__etude; api.AN.selected = new Set([0, 1, 2, 3]); api.anSelectionChanged(); });
   await startRun(page, { selection: true });
   await endRun(page, { perfect: 4 });
+  await expect(why).toHaveText('Not saved: a selection is not the whole piece.');
 
   await page.evaluate(() => window.__etude.anClearSelection());
   await page.evaluate(async () => {
@@ -177,17 +181,22 @@ test('a selection, an A–B loop or a run from the middle of the piece saves not
   });
   await expect.poll(() => page.evaluate(() => !!window.__etude.SCORE.run?.loop)).toBe(true);
   await endRun(page, { perfect: 8 });
+  await expect(why).toHaveText('Not saved: loops and A–B ranges are not a whole run.');
 
   const middle = await page.evaluate(() => window.__etude.scoreSeconds(8));
   await startRun(page, { from: middle });
   await endRun(page, { perfect: 8 });
+  await expect(why).toHaveText('Not saved: the run did not go from the first note to the last.');
 
   // One hand of a two-hand piece is practice, not the whole piece.
   await page.evaluate(() => window.__etude.pracSet('hands', 'rh'));
   await startRun(page, { wait: true });
   await endRun(page, { all: true });
+  await expect(why).toHaveText('Not saved: play both hands for the run to count.');
+  await expect(page.locator('#pr-sum-best')).toBeHidden();
   await startRun(page);
   await endRun(page, { perfect: 8 });
+  await expect(why).toHaveText('Not saved: play both hands for the run to count.');
   expect(await progress(page, 'ode')).toMatchObject({ sheet: null, piece: null });
   expect(await page.evaluate(() => window.__etude.data.todayDay)).not.toBe(todayN());
 });
@@ -225,6 +234,182 @@ test('Accept any octave lets Wait for me and timed runs take a key an octave awa
   await page.evaluate(m => { window.__etude.handleNoteOn(m - 12, 100); window.__etude.handleNoteOff(m - 12); }, need);
   await expect.poll(() => page.evaluate(() => window.__etude.PRAC.stats.perfect + window.__etude.PRAC.stats.good)).toBe(1);
   await page.evaluate(() => window.__etude.scoreStop());
+});
+
+test('a whole run paused and resumed still saves a best, but only when every note of the piece was judged', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'w5rh');
+  // Pause after the first beats, then carry on from the same spot with Play (Space).
+  const pauseAndResume = async () => {
+    await startRun(page);
+    await expect.poll(() => page.evaluate(() => window.__etude.fallTime()), { timeout: 15_000 }).toBeGreaterThan(1);
+    await page.evaluate(() => window.__etude.scorePause());
+    expect(await page.evaluate(() => !!window.__etude.SCORE.resume?.run)).toBe(true);
+    await page.evaluate(() => window.__etude.scoreToggle());
+    await expect.poll(() => page.evaluate(() => !!window.__etude.SCORE.run)).toBe(true);
+    return page.evaluate(() => { const R = window.__etude.SCORE.run; return { from: R.from, origin: R.origin, mine: R.mine.length, all: window.__etude.AN.notes.length }; });
+  };
+  const run = await pauseAndResume();
+  expect(run.from).toBeGreaterThan(1);
+  expect(run.origin).toBe(0);
+  expect(run.mine).toBe(run.all); // my whole part, not only what was left after the pause
+  // Turning the accompaniment off mid-run restarts the sound, not the run.
+  await page.evaluate(() => window.__etude.pracSet('acc', false));
+  await expect.poll(() => page.evaluate(() => window.__etude.SCORE.run?.origin)).toBe(0);
+  await page.evaluate(() => window.__etude.pracSet('acc', true));
+  await expect.poll(() => page.evaluate(() => window.__etude.SCORE.run?.origin)).toBe(0);
+  // Nothing was judged before the pause: the run does not count, and the card says why.
+  await endRun(page, { perfect: 5 });
+  await expect(page.locator('#pr-sum-best')).toBeHidden();
+  await expect(page.locator('#pr-sum-why')).toHaveText('Not saved: some notes were not played.');
+  expect((await progress(page, 'w5rh')).sheet).toBeNull();
+
+  await page.locator('#pr-close').click();
+  await pauseAndResume();
+  await endRun(page, { all: true });
+  await expect(page.locator('#pr-sum-best')).toHaveText('New best: 100%');
+  await expect(page.locator('#pr-sum-why')).toBeHidden();
+  expect(await progress(page, 'w5rh')).toEqual({ sheet: { best: 100 }, piece: todayN(), todayDay: todayN(), streak: 1 });
+});
+
+test('a paused run moved to another bar before Play starts a new run, which does not count', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'w5rh');
+  await startRun(page);
+  await expect.poll(() => page.evaluate(() => window.__etude.fallTime()), { timeout: 15_000 }).toBeGreaterThan(1);
+  await page.evaluate(() => { const api = window.__etude; api.scorePause(); api.FALL.position = api.scoreSeconds(8); api.scoreToggle(); });
+  await expect.poll(() => page.evaluate(() => !!window.__etude.SCORE.run)).toBe(true);
+  expect(await page.evaluate(() => window.__etude.SCORE.run.origin)).toBeUndefined();
+  await endRun(page, { all: true });
+  await expect(page.locator('#pr-sum-why')).toHaveText('Not saved: the run did not go from the first note to the last.');
+  expect((await progress(page, 'w5rh')).sheet).toBeNull();
+});
+
+test('Note names writes each note’s name beside it in the note-name setting, and the choice is remembered', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'brahms');
+  const names = page.locator('#an-roll .sc-nn'), btn = page.locator('#sc-names');
+  const texts = () => names.evaluateAll(list => [...new Set(list.map(n => n.textContent))].sort());
+  const heads = () => page.evaluate(() => [...window.__etude.SCORE.heads.values()].reduce((n, list) => n + list.length, 0));
+  await expect(names).toHaveCount(0);
+  await expect(btn).toHaveAttribute('aria-pressed', 'false');
+  await btn.click();
+  await expect(btn).toHaveAttribute('aria-pressed', 'true');
+  await expect(names).toHaveCount(await heads());
+  expect(await texts()).toEqual(['A', 'B♭', 'C', 'D', 'E', 'F', 'G']);
+  // Each name sits just right of its notehead, level with it.
+  const placed = await page.evaluate(() => [...document.querySelectorAll('#an-roll .sc-nn')].every(n => {
+    const head = window.__etude.SCORE.heads.get(+n.dataset.nn).map(h => h.getBoundingClientRect()), r = n.getBoundingClientRect(), mid = (r.top + r.bottom) / 2;
+    return head.some(h => r.left >= h.right - 1 && r.left - h.right < h.height && mid > h.top && mid < h.bottom);
+  }));
+  expect(placed).toBe(true);
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('etude-practice-v3'))).names).toBe(true);
+
+  await page.reload();
+  await page.waitForFunction(() => typeof window.__etude?.show === 'function');
+  await openPiece(page, 'brahms');
+  await expect(btn).toHaveAttribute('aria-pressed', 'true');
+  await expect(names).toHaveCount(await heads());
+
+  await page.evaluate(() => { window.__etude.notation = 'solfege'; window.__etude.applyNotation(); });
+  await expect.poll(texts).toEqual(['Do', 'Fa', 'La', 'Mi', 'Re', 'Si♭', 'Sol']);
+  await page.evaluate(() => { window.__etude.notation = 'german'; window.__etude.applyNotation(); });
+  await expect.poll(texts).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+
+  await btn.click();
+  await expect(names).toHaveCount(0);
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('etude-practice-v3'))).names).toBe(false);
+});
+
+test('Note names spell a MusicXML note as the file writes it, not as the key would', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  // C major, with a G flat (the key alone would call it F sharp).
+  const xml = '<?xml version="1.0"?><score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>'
+    + [['C', 0], ['G', -1], ['E', 0], ['C', 0]].map(([step, alter]) => `<note><pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ''}<octave>4</octave></pitch><duration>1</duration><type>quarter</type>${alter ? '<accidental>flat</accidental>' : ''}</note>`).join('')
+    + '</measure></part></score-partwise>';
+  await page.locator('#an-file').setInputFiles({ name: 'flat.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
+  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'xml' && !!window.__etude.SCORE.geo);
+  await page.locator('#sc-names').click();
+  await expect(page.locator('#an-roll .sc-nn')).toHaveText(['C', 'G♭', 'E', 'C']);
+});
+
+test('Full window fills the window with the player; Esc and leaving Pieces end it', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'canon');
+  const btn = page.locator('#sc-stage'), stage = () => page.evaluate(() => document.body.dataset.stage ?? null);
+  // The Note names and Full window toggles sit in the status bar, so the toolbar keeps its one row at laptop widths.
+  for (const width of [1280, 1440]) {
+    await page.setViewportSize({ width, height: 720 });
+    await expect.poll(() => page.locator('#an-toolbar').evaluate(el => el.getBoundingClientRect().height), { message: `toolbar at ${width}px` }).toBeLessThan(60);
+  }
+  const before = await page.locator('#an-roll').evaluate(el => el.getBoundingClientRect().height);
+  await btn.click();
+  expect(await stage()).toBe('pieces');
+  await expect(btn).toHaveAttribute('aria-pressed', 'true');
+  for (const id of ['#pc-pick', '#score-library-root', '#an-src', '#nav'])
+    await expect(page.locator(id)).toBeHidden();
+  await expect.poll(() => page.evaluate(() => {
+    const p = document.querySelector('#an-panel').getBoundingClientRect(), dock = document.querySelector('#dock'), d = dock.getBoundingClientRect();
+    const floor = d.height && getComputedStyle(dock).display !== 'none' ? d.top : innerHeight;
+    return Math.abs(p.top) < 4 && p.left === 0 && Math.round(p.width) === innerWidth && Math.abs(p.bottom - floor) < 6 && document.documentElement.scrollWidth <= innerWidth;
+  })).toBe(true);
+  expect(await page.locator('#an-roll').evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThan(before);
+
+  await page.keyboard.press('Escape');
+  expect(await stage()).toBeNull();
+  await expect(btn).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#pc-pick')).toBeVisible();
+
+  await btn.click();
+  expect(await stage()).toBe('pieces');
+  await page.evaluate(() => window.__etude.show('today'));
+  expect(await stage()).toBeNull();
+  await expect(page.locator('#nav')).toBeVisible();
+});
+
+test('on a phone the full window keeps its way out on screen', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'canon');
+  const btn = page.locator('#sc-stage');
+  await btn.click();
+  expect(await page.evaluate(() => document.body.dataset.stage)).toBe('pieces');
+  await expect(btn).toBeInViewport();
+  await expect(btn).toHaveAttribute('aria-label', 'Leave full window (Esc)');
+  await expect(page.locator('#bottomNav')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await btn.click();
+  expect(await page.evaluate(() => document.body.dataset.stage ?? null)).toBeNull();
+});
+
+test('on a phone the Analysis button never covers the open built-in list', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'twinkle');
+  const fab = page.locator('#an-fab'), pick = page.locator('#pc-pick');
+  await page.locator('#an-stage').scrollIntoViewIfNeeded();
+  await expect(fab).toBeVisible();
+  if (!await pick.evaluate(d => d.open))
+    await page.locator('#pc-sum').click();
+  await pick.evaluate(d => d.scrollIntoView({ block: 'start' }));
+  await expect(fab).toBeHidden();
+  // Every piece on screen can be tapped: what sits at its right end is the piece's own button.
+  const covered = await page.evaluate(() => {
+    const top = document.querySelector('header').getBoundingClientRect().bottom;
+    const floor = Math.min(...['dock', 'bottomNav'].map(id => { const el = document.getElementById(id), r = el.getBoundingClientRect(); return r.height && getComputedStyle(el).display !== 'none' ? r.top : innerHeight; }));
+    return [...document.querySelectorAll('#pc-list .pc-item')].filter(b => {
+      const r = b.getBoundingClientRect();
+      if (r.top < top || r.bottom > floor)
+        return false;
+      const el = document.elementFromPoint(r.right - 12, r.top + r.height / 2);
+      return !el || !b.contains(el);
+    }).map(b => b.dataset.piece);
+  });
+  expect(covered).toEqual([]);
+  // Closed again, the list no longer needs the room.
+  await page.locator('#pc-sum').click();
+  await page.locator('#an-stage').scrollIntoViewIfNeeded();
+  await expect(fab).toBeVisible();
 });
 
 const xmlScore = (title) => `<?xml version="1.0"?><score-partwise version="4.0"><work><work-title>${title}</work-title></work><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">${Array.from({ length: 2 }, (_, bar) => `<measure number="${bar + 1}">${bar ? '' : '<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>'}${Array.from({ length: 4 }, () => '<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>').join('')}</measure>`).join('')}</part></score-partwise>`;

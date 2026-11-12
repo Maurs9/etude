@@ -4257,6 +4257,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
         scoreStop();
         anKeysClear();
         anSheet(false, true);
+        pcStageSet(false, true);
     }
     if (prev !== v) {
         releaseLiveInput();
@@ -10689,7 +10690,7 @@ function pracLoopBars(i: number, j: number) {
     if (AN.selected.size)
         scoreLoopStart();
 }
-function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number | null; a: number; b: number; }): CoachTip | null {
+function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number | null; origin?: number; a: number; b: number; }): CoachTip | null {
     const st = PRAC.stats, acc = st && pracAcc(st);
     if (acc == null || !st)
         return null;
@@ -10697,7 +10698,7 @@ function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number 
     const again = () => { pracSumClose(); if (R.sel && AN.selected.size)
         scorePlay(true);
     else
-        scorePlay(false, R.from); };
+        scorePlay(false, R.origin ?? R.from); };
     if (acc >= .95 && st.wrong <= 1) {
         const sel = selectById('score-speed'), next = [...sel.options].map((o) => +o.value).find((v) => v > Math.round(f * 100) && v <= 100);
         if (next)
@@ -11574,7 +11575,7 @@ interface ScoreState {
     xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoopState | null;
     tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
     heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
-    geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
+    geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; run?: PracticeCarry | null; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
     followSys: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
     markGeo?: ScoreGeometry | null; markSig?: string;
 }
@@ -12401,14 +12402,19 @@ function scoreNightSweep(box: HTMLElement, ink: string) {
     });
 }
 // Bind each source note to its rendered notehead, retaining individual selection in chords. One tab stop; arrows move between notes.
+let scoreBindGen = 0; // counts bindings: each new layout has new noteheads
+// How each bound notehead is spelled on the page (the file's own spelling for MusicXML), for the Note names layer.
+let scoreHeadSpell = new WeakMap<SVGElement, { letter: number; alter: number }>();
 function scoreBind(engine: notationApi.ScoreRenderer) {
     SCORE.heads = new Map();
+    scoreBindGen++;
+    scoreHeadSpell = new WeakMap();
     const grid = SCORE.midiGrid || 0, startOf = (n: AnNote) => grid ? Math.round(n.start * grid) / grid : n.start, endOf = (n: AnNote) => grid ? Math.max(startOf(n) + 1 / grid, Math.round(n.end * grid) / grid) : n.end;
     const byMidi = new Map<number, number[]>();
     AN.notes.forEach((n, i) => { let list = byMidi.get(n.midi); if (!list)
         byMidi.set(n.midi, list = []); list.push(i); });
     let bound = new Set<number>(), boundBeat: number | null = null;
-    engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g }) => {
+    engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g, spelling }) => {
         if (boundBeat !== beat) {
             boundBeat = beat;
             bound = new Set();
@@ -12425,6 +12431,8 @@ function scoreBind(engine: notationApi.ScoreRenderer) {
             return;
         bound.add(i);
         g.dataset.i = String(i);
+        if (spelling)
+            scoreHeadSpell.set(g, spelling);
         if (AN.notes[i].parenthesizedAt?.some(start => Math.abs(start - beat) < .001)) g.dataset.parenthesized = 'yes';
         g.style.cursor = 'pointer';
         g.style.pointerEvents = 'all';
@@ -12472,7 +12480,58 @@ if (stave) {
     });
 } }
 function scorePaintIdx(i: number) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
-function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
+function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreNamesSync(); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
+// Note names (the toolbar's Note names toggle, saved with the player settings): each bound notehead gets its name just
+// right of it, spelled in the key and in the app's note naming. One layer per page SVG, drawn again after each layout
+// or naming change; the noteheads keep their own labels for screen readers, so the layer is hidden from them.
+let scoreNamesSig = '';
+function scoreNamesSync() {
+    const box = byId('an-roll'), on = PRAC.names && FALL.mode === 'score' && SCORE.heads.size > 0;
+    const sig = on ? [scoreBindGen, notation, AN.version].join('|') : '';
+    if (sig === scoreNamesSig)
+        return;
+    if (on && !box.getClientRects().length)
+        return; // measured only while on screen: the next paint after it shows draws them
+    scoreNamesSig = sig;
+    box.querySelectorAll('.sc-nn-layer').forEach((el) => el.remove());
+    if (!on)
+        return;
+    const NS = 'http://www.w3.org/2000/svg', layers = new Map<SVGSVGElement, SVGGElement>();
+    SCORE.heads.forEach((list, i) => {
+        const n = AN.notes[i];
+        if (!n)
+            return;
+        const k = anKeyAt(n.start), sp = spellMidi(n.midi, k.fifths, k.minor), keyName = spelledName(notation, sp.li, sp.acc);
+        list.forEach((g) => {
+            const own = scoreHeadSpell.get(g), name = own ? spelledName(notation, own.letter, own.alter) : keyName;
+            const svg = g.ownerSVGElement, ctm = g instanceof SVGGraphicsElement ? g.getScreenCTM() : null, page = svg && svg.getScreenCTM();
+            if (!svg || !ctm || !page || !(g instanceof SVGGraphicsElement))
+                return;
+            const b = g.getBBox();
+            if (!b.width || !b.height)
+                return;
+            // From the notehead's own units to its page's: the right edge, halfway up, and the notehead's height.
+            const m = page.inverse().multiply(ctm), p = new DOMPoint(b.x + b.width, b.y + b.height / 2).matrixTransform(m), h = b.height * Math.hypot(m.b, m.d);
+            let layer = layers.get(svg);
+            if (!layer) {
+                layer = document.createElementNS(NS, 'g');
+                layer.setAttribute('class', 'sc-nn-layer');
+                layer.setAttribute('aria-hidden', 'true');
+                svg.append(layer);
+                layers.set(svg, layer);
+            }
+            const tx = document.createElementNS(NS, 'text');
+            tx.setAttribute('class', 'sc-nn');
+            tx.setAttribute('x', (p.x + h * .3).toFixed(1));
+            tx.setAttribute('y', p.y.toFixed(1));
+            tx.setAttribute('font-size', (h * 1.05).toFixed(1));
+            tx.setAttribute('stroke-width', (h * .28).toFixed(1));
+            tx.dataset.nn = String(i);
+            tx.textContent = name;
+            layer.append(tx);
+        });
+    });
+}
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
     const copy = notationReloadMessage(lang === 'ro' ? 'ro' : 'en'), box = (document).createElement('div');
@@ -13438,7 +13497,7 @@ function anSelStart() {
 }
 function scoreStop() { scoreHalt(); SCORE.resume = null; FALL.position = AN.notes.length ? anSelStart() : 0; scoreIdle(); }
 function scorePause() { if (!SCORE.playing)
-    return; const at = fallTime(), sel = SCORE.sel && !SCORE.loop; scoreHalt(); SCORE.paused = true; SCORE.resume = { sel }; FALL.position = at; scoreIdle(); }
+    return; const at = fallTime(), sel = SCORE.sel && !SCORE.loop, run = pracCarry(at); scoreHalt(); SCORE.paused = true; SCORE.resume = { sel, run }; FALL.position = at; scoreIdle(); }
 // Space / ▶: pause while playing, otherwise resume from the cursor (a paused selection resumes as a selection).
 function scoreToggle() {
     if (!AN.notes.length || AN.loading)
@@ -13449,7 +13508,7 @@ function scoreToggle() {
     }
     const r = SCORE.resume;
     SCORE.resume = null;
-    scorePlay(!!(r && r.sel && AN.selected.size), FALL.position);
+    scorePlay(!!(r && r.sel && AN.selected.size), FALL.position, r ? r.run : null);
 }
 function scoreHome() {
     if (!AN.notes.length)
@@ -13479,11 +13538,17 @@ interface PracticeSegment { a0: number; t0: number; t1: number; f: number; first
 interface PracticeBarrier { t: number; need: Set<number>; got: Set<number>; group: PracticeTimedNote[]; seg: PracticeSegment; since: number }
 interface PracticeBeat { t: number; acc: boolean }
 interface PracticeCountIn { t: number; n: number; sec: number }
-interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string }
+interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string; carry?: PracticeCarry | null }
 // A running practice: its clock segments, scheduling cursors (ni notes, bi beats, mi my next note), the judgements and the tick timer.
+// origin: where a run resumed after a pause first started (its from is where it resumed).
 interface PracticeRun extends PracticeStartOptions {
     segs: PracticeSegment[]; ni: number; beats: PracticeBeat[]; bi: number; beat0: number; wt: number; pass: number; mine: PracticeTimedNote[]; mi: number;
-    judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean;
+    judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean; origin?: number;
+}
+// A whole-piece run held over a pause: what Play needs to carry on with the same run (pracStart), if nothing else changed.
+interface PracticeCarry {
+    notes: AnNote[]; src: AnSource | null; at: number; origin: number; hands: string; wait: boolean; f: number;
+    judged: Map<number, string>; stats: PracticeStats; active: boolean; res: Map<number, string>;
 }
 // The coaching tip shown after a run, with its optional one-click action.
 interface PracticeNextStep { k: string; args?: () => (string | number)[]; act?: { k: string; args?: () => (string | number)[]; run: () => void } | null }
@@ -13491,17 +13556,18 @@ interface PracticeState {
     hands: string; wait: boolean; metro: boolean; countIn: boolean; acc: boolean; hear: boolean; ramp: boolean; A: number | null; B: number | null;
     labels: string; pal: string; range: string; fx: boolean; bar: PracticeBarrier | null; active: boolean; stats: PracticeStats | null;
     res: Map<number, string>; judge: string; judgeT: number; next: PracticeNextStep | null;
+    names: boolean; // note names on the engraved score (scoreNamesSync)
 }
 const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, countIn: false, acc: true, hear: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
-    bar: null, active: false, stats: null, res: new Map(), judge: '', judgeT: 0, next: null };
-const PRAC_FLAGS = ['wait', 'metro', 'countIn', 'acc', 'hear', 'ramp', 'fx'] as const;
+    bar: null, active: false, stats: null, res: new Map(), judge: '', judgeT: 0, next: null, names: false };
+const PRAC_FLAGS = ['wait', 'metro', 'countIn', 'acc', 'hear', 'ramp', 'fx', 'names'] as const;
 const PRAC_CHOICES = ['hands', 'labels', 'pal', 'range'] as const;
 function isPracFlag(k: string): k is typeof PRAC_FLAGS[number] { return PRAC_FLAGS.some((f) => f === k); }
 function isPracChoice(k: string): k is typeof PRAC_CHOICES[number] { return PRAC_CHOICES.some((f) => f === k); }
 const PRAC_KEY = 'etude-practice-v3';
 function pracSave() { try {
-    const { hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx } = PRAC;
-    localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, zoom: FALL.zoom }));
+    const { hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, names } = PRAC;
+    localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, names, zoom: FALL.zoom }));
     anLibrarySchedule();
 }
 catch (e) { } }
@@ -13579,10 +13645,19 @@ async function pracStart(o: PracticeStartOptions)  {
         a0 = now + n * sec;
     }
     const beats: PracticeBeat[] = pracBeats(), first = (t: number) => { const i = beats.findIndex((b) => b.t >= t - 1e-6); return i < 0 ? beats.length : i; };
-    const mine = o.notes.filter((d) => pracMine(d.n));
-    const R: PracticeRun = { ...o, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
+    // Resuming a paused whole run keeps it one run: the judgements so far, and my whole part, so a note skipped before the
+    // pause still counts as missed. Anything changed meanwhile (cursor, hands, Wait for me, tempo, the score) starts a new run.
+    const c = o.carry, resumed = !!c && !o.sel && !o.loop && c.notes === AN.notes && c.src === AN.source && c.hands === PRAC.hands && c.wait === PRAC.wait && c.f === f && Math.abs(c.at - o.from) < .01;
+    const mine = (resumed ? fallData().slice().sort((x, y) => x.start - y.start || x.n.midi - y.n.midi) : o.notes).filter((d) => pracMine(d.n));
+    const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
     if (R.mi < 0 || !mine.some((d) => d.start >= o.from - 1e-6))
         R.mi = mine.length;
+    if (resumed && c) {
+        R.origin = c.origin;
+        R.judged = new Map(c.judged);
+        const next = mine.findIndex((d) => !R.judged.has(d.i));
+        R.mi = next < 0 ? mine.length : next;
+    }
     SCORE.run = R;
     SCORE.playing = true;
     SCORE.sel = o.sel;
@@ -13593,12 +13668,27 @@ async function pracStart(o: PracticeStartOptions)  {
     FALL.factor = f;
     SCORE.followSys = -1;
     pracStatsReset();
+    if (resumed && c) {
+        PRAC.stats = { ...c.stats };
+        PRAC.active = c.active || PRAC.wait;
+        PRAC.res = new Map(c.res);
+        if (FALL.mode === 'score')
+            PRAC.res.forEach((_, i) => scorePaintIdx(i));
+        pracHud();
+    }
     pracTick();
     R.timer = setInterval(pracTick, 25);
     scoreStateText();
     anUpdateControls();
     fallDraw();
     scoreFollow();
+}
+// What a pause keeps of the running whole-piece run (no loop or selection) so that Play carries it on.
+function pracCarry(at: number): PracticeCarry | null {
+    const R = SCORE.run, st = PRAC.stats;
+    if (!R || R.loop || R.sel || !st)
+        return null;
+    return { notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: PRAC.wait, f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res) };
 }
 function pracTick() {
     const R = SCORE.run;
@@ -13661,8 +13751,11 @@ function pracTick() {
     if (PRAC.active && !PRAC.wait)
         pracMisses(R, time);
     const s0 = R.segs[0];
-    if (!R.loop && time >= R.b - 1e-6 && now >= s0.a0 + (R.b - s0.t0) / s0.f + .3)
+    if (!R.loop && time >= R.b - 1e-6 && now >= s0.a0 + (R.b - s0.t0) / s0.f + .3) {
+        if (PRAC.active && !PRAC.wait)
+            pracMisses(R, Infinity); // the end of the piece: a note still not played is missed, however short
         pracFinish(R);
+    }
 }
 // Loop: the next pass is 1 step faster (up to 100%) when the pass was clean, or always when no one is playing along.
 function pracRamp(R: PracticeRun, s: PracticeSegment) {
@@ -13700,12 +13793,13 @@ function pracPassEnd(R: PracticeRun) {
 }
 function pracNextBar(R: PracticeRun, s: PracticeSegment) {
     const from = Math.max(R.wt, s.t0);
-    const d = R.mine.find((x) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6));
+    // Notes already judged (a chord partly played before a pause) are not asked for again.
+    const d = R.mine.find((x) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6) && !R.judged.has(x.i));
     if (!d) {
         R.wt = Infinity;
         return;
     }
-    const group = R.mine.filter((x) => Math.abs(x.start - d.start) < .03);
+    const group = R.mine.filter((x) => Math.abs(x.start - d.start) < .03 && !R.judged.has(x.i));
     PRAC.bar = { t: d.start, need: new Set(group.map((x) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
 }
 function pracRelease(R: PracticeRun, B: PracticeBarrier, now: number) {
@@ -13777,7 +13871,7 @@ function pracInput(kind: string) {
                 if (!B.got.has(key)) {
                     B.got.add(key);
                     const late = Math.max(0, t - B.t) / s.f;
-                    B.group.filter((x) => x.n.midi === key).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
+                    B.group.filter((x) => x.n.midi === key && !R.judged.has(x.i)).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
                 }
                 if ([...B.need].every((x) => B.got.has(x)))
                     pracRelease(R, B, actx.currentTime); // the clock resumes from the real present, not the judged time
@@ -13832,30 +13926,42 @@ function pracFinish(R: PracticeRun) {
     FALL.position = sel ? a : end;
     scoreIdle();
     byId('pr-hud').hidden = true;
-    if (PRAC.active && PRAC.stats)
-        pracSummary(R, pracRecord(R));
+    if (PRAC.active && PRAC.stats) {
+        const saved = pracRecord(R);
+        pracSummary(R, saved, saved || !AN.source ? '' : pracWhyNot(R));
+    }
 }
 // What a finished run saved, for the summary card: the best accuracy, whether it was beaten, and a first full Wait-for-me pass.
 interface PracticeSaved { best: number | null; newBest: boolean; learned: boolean; pending?: Promise<PracticeSaved | null> }
 // A run counts as progress only when it covers the whole piece: no selection, loop or A–B range, every hand the piece has,
-// and it starts at the first note.
-function pracWholePiece(R: PracticeRun) {
-    if (R.sel || R.loop || R.ab)
-        return false;
+// and it starts at the first note (a run paused and resumed counts from where it first started). pracNotWhole names the
+// rule a run breaks, as the Run complete card's pc_why_* line.
+function pracNotWhole(R: PracticeRun) {
+    if (R.sel)
+        return 'pc_why_sel';
+    if (R.loop || R.ab)
+        return 'pc_why_loop';
     const all = fallData();
-    if (!all.length || (PRAC.hands !== 'both' && all.some((d) => !pracMine(d.n))))
-        return false;
+    if (!all.length)
+        return 'pc_why_part';
+    if (PRAC.hands !== 'both' && all.some((d) => !pracMine(d.n)))
+        return 'pc_why_hand';
     const first = Math.min(...all.map((d) => d.start)), last = Math.max(...all.map((d) => d.finish));
-    return R.from <= first + .05 && R.b >= last - .05;
+    return (R.origin ?? R.from) <= first + .05 && R.b >= last - .05 ? '' : 'pc_why_part';
 }
+function pracWholePiece(R: PracticeRun) { return !pracNotWhole(R); }
+// Every note of my part judged: what a Wait for me pass needs to be complete, and a paused and resumed run to count.
+function pracEveryNote(R: PracticeRun) { return R.mine.length > 0 && R.mine.every((d) => R.judged.has(d.i)); }
+// Why a finished run saved nothing: a broken whole-piece rule, else notes left unplayed.
+function pracWhyNot(R: PracticeRun) { return pracNotWhole(R) || 'pc_why_gaps'; }
 // A timed run keeps the best accuracy; a complete "Wait for me" pass marks a built-in piece as learned.
 // Built-in pieces write data.sheet (the fields Read & Play used); library files keep theirs in the library record.
 function pracRecord(R: PracticeRun): PracticeSaved | null {
     const st = PRAC.stats, src = AN.source, acc = st ? pracAcc(st) : null;
     if (!st || !src || !pracWholePiece(R))
         return null;
-    const waited = PRAC.wait, complete = waited && R.mine.length > 0 && R.mine.every((d) => R.judged.has(d.i));
-    if (waited ? !complete : acc == null)
+    const every = pracEveryNote(R), waited = PRAC.wait, complete = waited && every;
+    if (waited ? !complete : acc == null || (R.origin != null && !every))
         return null;
     // The accuracy of a timed run; a waiting run plays at your pace, so it sets no best.
     const pct = !waited && acc != null ? Math.round(acc * 100) : null;
@@ -13889,11 +13995,13 @@ function pracSavedText(saved: PracticeSaved | null) {
     return [saved.learned ? '✓ ' + t('pc_learned') : '', best].filter(Boolean).join(' · ');
 }
 let pracSumGen = 0;
-function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null) {
+function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '') {
     const st = PRAC.stats;
     if (!st)
         return;
-    const acc = pracAcc(st), gen = ++pracSumGen, bestEl = byId('pr-sum-best');
+    const acc = pracAcc(st), gen = ++pracSumGen, bestEl = byId('pr-sum-best'), whyEl = byId('pr-sum-why');
+    whyEl.textContent = why ? t(why) : '';
+    whyEl.hidden = !why;
     PRAC.next = pracNextStep(R);
     pracNextRender();
     byId('pr-sum-acc').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
@@ -13949,7 +14057,7 @@ function pracSet(k: string, v: string|boolean) {
         if (SCORE.loop)
             scoreLoopStart();
         else
-            scorePlay(SCORE.sel, at);
+            scorePlay(SCORE.sel, at, k === 'acc' || k === 'hear' ? pracCarry(at) : null); // what sounds keeps the run; hands or Wait for me start a new one
     }
     anUpdateControls();
     if (FALL.mode === 'fall')
@@ -13978,7 +14086,7 @@ function pracSetAB(which: string) {
 }
 function pracClearAB() { PRAC.A = PRAC.B = null; if (SCORE.loop && SCORE.loop.ab)
     scoreStop(); anUpdateControls(); anTlUpdate(); }
-async function scorePlay(selection = false, from: number | null = null)  {
+async function scorePlay(selection = false, from: number | null = null, carry: PracticeCarry | null = null)  {
     if (!AN.notes.length)
         return;
     const all: PracticeTimedNote[] = fallData(), chosen = selection ? all.filter((d) => AN.selected.has(d.i)) : all;
@@ -13994,7 +14102,7 @@ async function scorePlay(selection = false, from: number | null = null)  {
         scoreIdle();
         return;
     }
-    await pracStart({ notes, a, b, loop: false, sel: selection, from: position });
+    await pracStart({ notes, a, b, loop: false, sel: selection, from: position, carry });
 }
 // Loop the selected notes, else the A–B range (whole bars).
 async function scoreLoopStart()  {
@@ -14124,11 +14232,32 @@ function anLayoutVars() {
     st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
     anPinToolbarLater();
 }
-// Keep transport reachable while the page is scrolled below the score card's title row.
+/* Pieces: the full window. The player fills the window while practising: the toolbar button turns it on and off, Esc and
+   leaving Pieces turn it off. body[data-stage=pieces] (pieces.css) hides everything around the player, and the size
+   observers re-fit the score. The reading drills' stage (STAGE, data-stage=immersive) is separate. */
+const PC_STAGE = { on: false };
+function pcStageSet(on: boolean, quiet = false) {
+    const want = on && view0() === 'analysis' && AN.notes.length > 0;
+    if (want === PC_STAGE.on)
+        return;
+    PC_STAGE.on = want;
+    if (want)
+        document.body.dataset.stage = 'pieces';
+    else if (document.body.dataset.stage === 'pieces')
+        delete document.body.dataset.stage;
+    byId('an-tbwrap').classList.remove('is-floating');
+    if (want)
+        window.scrollTo(0, 0);
+    anLayoutVars();
+    anUpdateControls();
+    if (!want && !quiet)
+        anFocusStage();
+}
+// Keep transport reachable while the page is scrolled below the score card's title row (not needed in the full window).
 function anPinToolbar() {
     AN.pinRaf = 0;
     const tb = byId('an-tbwrap');
-    const active = view0() === 'analysis' && AN.notes.length && !tb.hidden;
+    const active = view0() === 'analysis' && AN.notes.length && !tb.hidden && !PC_STAGE.on;
     if (!active) {
         tb.classList.remove('is-floating');
         return;
@@ -14373,6 +14502,18 @@ function anUpdateControls() {
     hl.setAttribute('aria-pressed', SCORE.hl ? 'true' : 'false');
     hl.setAttribute('aria-label', t('sc_hl'));
     hl.title = t('sc_hl_t');
+    const nn = buttonById('sc-names');
+    nn.disabled = !sheet;
+    nn.setAttribute('aria-pressed', PRAC.names ? 'true' : 'false');
+    nn.setAttribute('aria-label', t('pc_names'));
+    nn.title = t('pc_names_t');
+    if (!has)
+        pcStageSet(false);
+    const stg = buttonById('sc-stage');
+    stg.disabled = !has;
+    stg.setAttribute('aria-pressed', PC_STAGE.on ? 'true' : 'false');
+    stg.setAttribute('aria-label', t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage'));
+    stg.title = t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage_t');
     // The toolbar toggle is named Keyboard and reports expanded or collapsed; the dock's own button names the action it takes.
     const open = sheet && dockOpen(), kb = buttonById('an-kb');
     kb.disabled = !sheet;
@@ -14385,7 +14526,7 @@ function anUpdateControls() {
     byId('score-credit').hidden = !has || fall;
     byId('st-hint').textContent = t(fall ? 'fall_hint' : 'an_hint');
     // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to the falling-notes display options
-    queryAllHtml(document, '#an-toolbar .an-zoom,#sc-look,#sc-hl,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
+    queryAllHtml(document, '#an-toolbar .an-zoom,#sc-look,#sc-hl,#sc-names,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
     byId('fall-opt').hidden = !(fall && has);
     if (fall && has)
         byId('an-kb').setAttribute('aria-expanded', 'false');
@@ -14411,6 +14552,7 @@ function anUpdateControls() {
     byId('fall-finger-note').textContent = t(has && !anHasFinger() ? 'fall_finger_none' : 'fall_finger_note');
     dockSync();
     anSideSync();
+    scoreNamesSync();
     scoreMarks();
     byId('an-now-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
     byId('pt-start').textContent = t(playing ? 'pt_stop' : 'pt_start');
@@ -14478,8 +14620,27 @@ function anSideSync() {
     btn.title = t(open ? 'an_side_hide' : 'an_side_show');
     fab.hidden = !has || !narrow || SIDE.sheet || !byId('pr-sum').hidden;
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+    pcFabLater();
     const pt = byId('pr-opt');
     pt.setAttribute('aria-expanded', open && SIDE.tab === 'practice' ? 'true' : 'false');
+}
+// On phones the floating Analysis button would cover the built-in pieces or My Library while their list is open on
+// screen, so it steps aside (pc-fab-off) until the list scrolls away or closes.
+let pcFabRaf = 0;
+function pcFabLater() { if (!pcFabRaf)
+    pcFabRaf = requestAnimationFrame(pcFabSync); }
+function pcFabSync() {
+    pcFabRaf = 0;
+    const fab = byId('an-fab');
+    fab.classList.remove('pc-fab-off');
+    if (fab.hidden || view0() !== 'analysis')
+        return;
+    const f = fab.getBoundingClientRect();
+    if (!f.height)
+        return;
+    const over = ['pc-pick', 'score-library'].some((id) => { const el = maybeById(id); if (!(el instanceof HTMLDetailsElement) || !el.open)
+        return false; const r = el.getBoundingClientRect(); return r.bottom > f.top && r.top < f.bottom && r.right > f.left && r.left < f.right; });
+    fab.classList.toggle('pc-fab-off', over);
 }
 function anSideSet(open: boolean) { SIDE.open = !!open; saveAll(); anSideSync(); }
 // The sheet is not modal: the score above it stays live. Opening moves focus to the active tab; closing returns it to the button.
@@ -16510,6 +16671,12 @@ function anShortcut(e: KeyboardEvent) {
             anSheet(false);
             return;
         }
+        if (PC_STAGE.on) {
+            e.preventDefault();
+            pcStageSet(false);
+            byId('sc-stage').focus({ preventScroll: true });
+            return;
+        }
         if (anClearSelection())
             e.preventDefault();
         return;
@@ -16778,6 +16945,8 @@ function anInitControls() {
     byId('sc-look').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.v != null)
         scoreSetLook(b.dataset.v); });
     byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
+    byId('sc-names').addEventListener('click', () => pracSet('names', !PRAC.names));
+    byId('sc-stage').addEventListener('click', () => pcStageSet(!PC_STAGE.on));
     byId('an-kb').addEventListener('click', () => dockSet(!dockOpen()));
     const seek = byId('fall-seek');
     seek.addEventListener('input', fallSeek);
@@ -16964,6 +17133,11 @@ function anInitControls() {
         return; lastW = w; lastH = h; anStageFit(); }).observe(byId('an-stage'));
     window.addEventListener('resize', vars);
     window.addEventListener('scroll', anPinToolbarLater, { passive: true });
+    window.addEventListener('scroll', pcFabLater, { passive: true });
+    window.addEventListener('resize', pcFabLater);
+    // details toggle events do not bubble; the capture phase still sees them
+    document.addEventListener('toggle', (e) => { if (e.target instanceof HTMLDetailsElement && (e.target.id === 'pc-pick' || e.target.id === 'score-library'))
+        pcFabLater(); }, true);
     const dpr = () => (matchMedia)('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)').addEventListener('change', () => { if (FALL.mode === 'fall')
         fallDraw(); dpr(); }, { once: true });
     dpr();
@@ -18868,6 +19042,8 @@ Object.defineProperty(__etude, "anPcWeights", { configurable: true, get: () => a
 Object.defineProperty(__etude, "anPieceMeta", { configurable: true, get: () => anPieceMeta });
 Object.defineProperty(__etude, "pcRender", { configurable: true, get: () => pcRender });
 Object.defineProperty(__etude, "pcOpen", { configurable: true, get: () => pcOpen });
+Object.defineProperty(__etude, "pcStageSet", { configurable: true, get: () => pcStageSet });
+Object.defineProperty(__etude, "PC_STAGE", { configurable: true, get: () => PC_STAGE });
 Object.defineProperty(__etude, "anPieceToParsed", { configurable: true, get: () => anPieceToParsed });
 Object.defineProperty(__etude, "anPinToolbar", { configurable: true, get: () => anPinToolbar });
 Object.defineProperty(__etude, "anPinToolbarLater", { configurable: true, get: () => anPinToolbarLater });
@@ -19261,6 +19437,7 @@ Object.defineProperty(__etude, "pracFinish", { configurable: true, get: () => pr
 Object.defineProperty(__etude, "pracRecord", { configurable: true, get: () => pracRecord });
 Object.defineProperty(__etude, "pracSavedText", { configurable: true, get: () => pracSavedText });
 Object.defineProperty(__etude, "pracWholePiece", { configurable: true, get: () => pracWholePiece });
+Object.defineProperty(__etude, "pracWhyNot", { configurable: true, get: () => pracWhyNot });
 Object.defineProperty(__etude, "pracFrame", { configurable: true, get: () => pracFrame });
 Object.defineProperty(__etude, "pracHud", { configurable: true, get: () => pracHud });
 Object.defineProperty(__etude, "pracInput", { configurable: true, get: () => pracInput });

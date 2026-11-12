@@ -25,9 +25,44 @@
   .pc-list{grid-template-columns:minmax(0,1fr); padding-inline:12px}
 }
 
-/* Run complete: the best accuracy saved for this piece */
+/* Run complete: the best accuracy saved for this piece, or one line on why the run saved nothing */
 .pr-sum-best{margin:2px 0 0; font-size:13.5px; font-weight:600; color:var(--ink2)}
 .pr-sum-best.is-new{color:var(--accent)}
+.pr-sum-why{margin:2px 0 0; font-size:13px; line-height:1.4; color:var(--muted)}
+
+/* Note names on the engraved score (scoreNamesSync): each name right of its notehead, with a halo in the page colour */
+.an-score .sc-nn{font-family:var(--sans); font-weight:700; fill:#a2401f; stroke:#fffefa; paint-order:stroke; stroke-linejoin:round; dominant-baseline:central; pointer-events:none}
+.an-score[data-look="night"] .sc-nn{fill:#ffab86; stroke:#1d1a17}
+/* the status bar's view toggles (Note names, Full window): the toolbar has no room left at laptop widths */
+.st-tg{appearance:none; flex:none; display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border:1px solid var(--line); border-radius:6px; background:none; color:var(--muted); font:600 11px/1.4 var(--sans); white-space:nowrap; cursor:pointer}
+.st-tg svg{width:12px; height:12px; flex:none}
+.st-tg:hover:not(:disabled){color:var(--ink); border-color:var(--line2)}
+.st-tg[aria-pressed="true"]{color:var(--accent); border-color:color-mix(in srgb, var(--accent) 45%, transparent); background:color-mix(in srgb, var(--accent) 12%, transparent)}
+.st-tg:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.st-tg:disabled{opacity:.4; cursor:not-allowed}
+.st-tg[hidden]{display:none}
+
+/* Phones: the floating Analysis button steps aside while it would cover an open piece list (pcFabSync) */
+.an-fab.pc-fab-off{display:none}
+
+/* Full window (body[data-stage=pieces], pcStageSet): only the player, from the toolbar to the status bar, fills the window */
+body[data-stage=pieces] header{position:static; background:none; backdrop-filter:none; border-bottom:0}
+body[data-stage=pieces] header > :not([role=status]),
+body[data-stage=pieces] #modeBar,
+body[data-stage=pieces] main > .wrap:first-child,
+body[data-stage=pieces] #view-analysis .section-head,
+body[data-stage=pieces] #view-analysis > .wrap > .lede,
+body[data-stage=pieces] #pc-pick,
+body[data-stage=pieces] #score-library-root,
+body[data-stage=pieces] #an-src,
+body[data-stage=pieces] .an-about,
+body[data-stage=pieces] #score-credit,
+body[data-stage=pieces] footer,
+body[data-stage=pieces] .bottomnav{display:none}
+body[data-stage=pieces] main{padding:0}
+body[data-stage=pieces] #view-analysis > .wrap{max-width:none; padding:0}
+body[data-stage=pieces] #an-panel{margin-top:0 !important; border-radius:0; border-left:0; border-right:0}
+@media (pointer:coarse){ .st-tg{min-height:28px; padding:3px 9px} }
 
 /* Read & Play: the generated melody's title, and the tab before the first melody */
 .rd-gen-title{margin:12px 0 0; font:600 19px/1.25 var(--serif); color:var(--ink)}
