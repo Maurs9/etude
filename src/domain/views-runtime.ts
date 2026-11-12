@@ -6396,14 +6396,14 @@ interface SrState {
     gen?: SrPiece | null; listening?: boolean;
     srtPiece?: SightReadingPiece | null; srtFingerprint?: string | null; srtState?: SightReadingState;
     srtOwnerTabId?: string; srtAttemptStartedAt?: number; srtPreviewTimer?: number; srtCountdown?: number; srtLease?: SightReadingAttemptLease | null; srtPendingAttempt?: SightReadingAttempt | null;
-    srtEvaluation?: SightReadingEvaluation | null; srtResultValue?: number | null; srtResultLevelId?: string | null; srtResultUnlockId?: string | null;
+    srtEvaluation?: SightReadingEvaluation | null; srtResultValue?: number | null; srtResultLevelId?: string | null;
 }
 const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, anyOctave: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
     srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
     srtOwnerTabId: `tab-${Math.random().toString(36).slice(2)}`, srtAttemptStartedAt: 0, srtPreviewTimer: 0, srtCountdown: 0, srtLease: null, srtPendingAttempt: null,
-    srtEvaluation: null, srtResultValue: null, srtResultLevelId: null, srtResultUnlockId: null };
+    srtEvaluation: null, srtResultValue: null, srtResultLevelId: null };
 let srtRecorder: SightReadingRecorder | null = null;
 let srtOperationEpoch = 0;
 let srtCountInEpoch = 0;
@@ -7498,7 +7498,6 @@ function srAssessStart(operation?: number) {
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
     SR.srtResultLevelId = null;
-    SR.srtResultUnlockId = null;
     SR.next = null;
     srCoach();
     SR.steps.forEach((s) => s.closed = false);
@@ -7839,7 +7838,6 @@ function srShowPiece(piece: SrPiece) {
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
     SR.srtResultLevelId = null;
-    SR.srtResultUnlockId = null;
     SR.piece = piece;
     if (!SR.gen) {
         SR.srtPiece = null;
@@ -9596,7 +9594,6 @@ function rdSightStart(mode: string, injectedSeed?: number) {
     SR.srtEvaluation = null;
     SR.srtResultValue = null;
     SR.srtResultLevelId = null;
-    SR.srtResultUnlockId = null;
     srtPreviewUi(false);
     srtPendingUi(false);
     srtNotice(null);
