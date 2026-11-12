@@ -605,17 +605,26 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="prog-empty" id="prog-empty" hidden><p data-i18n="prog_empty">No reviews yet. Your stats, memory strength and practice calendar fill in as you answer questions.</p><button type="button" class="btn primary sm" id="prog-start" data-i18n="prog_empty_cta">Start today’s session →</button></div>
       <div class="stat-row" id="progStats"></div>
       <hr class="rule staff5" />
+      <!-- wide screens: mastery, the 7-day forecast and the practice history side by side (layout.css) -->
+      <div class="prog-top">
+      <div class="prog-col prog-mastery">
       <div class="eyebrow" style="margin-bottom:12px" data-i18n="mastery_head">Mastery by topic</div>
       <div class="mastery" id="masteryRows"></div>
       <div id="weak-wrap" hidden><div class="eyebrow" style="margin:18px 0 0" data-i18n="weak_head">Needs work</div><div class="weak" id="weakList"></div></div>
+      </div>
+      <div class="prog-col prog-fc">
       <hr class="rule" />
       <div class="eyebrow" style="margin-bottom:8px" data-i18n="forecast_head">Reviews due — next 7 days</div>
       <div class="forecast" id="forecast"></div>
       <p class="fc-none" id="fc-none" hidden data-i18n="fc_none">Nothing scheduled yet — reviews appear here once you start learning concepts.</p>
+      </div>
+      <div class="prog-col prog-heat">
       <hr class="rule" />
       <div class="eyebrow" style="margin-bottom:10px" data-i18n="heat_head">Practice history — last 12 weeks</div>
       <div class="heatmap" id="heatmap" role="img"></div>
       <div class="heat-meta" id="heat-meta"></div>
+      </div>
+      </div>
       <hr class="rule" />
       <div class="eyebrow" style="margin-bottom:4px"><span data-i18n="items_head">Every concept</span> <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0">· <span data-i18n="items_sub">warmer = stronger memory</span></span></div>
       <div id="itemGrid"></div>

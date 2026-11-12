@@ -19,3 +19,23 @@
   #view-today .tool-d{grid-column:1; grid-row:2}
   #view-today .tool-go{grid-column:2; grid-row:1 / span 2; align-self:center}
 }
+
+/* Progress is a dashboard, not a page of text: it gets the workspace width like Today. */
+#view-progress > .wrap{max-width:var(--work-max)}
+/* Mastery on the left; the 7-day forecast above the practice history on the right, behind a column line. */
+@media (min-width:1100px){
+  .prog-top{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-areas:"m f" "m h"; gap:0 32px; align-items:start}
+  .prog-mastery{grid-area:m}
+  .prog-fc{grid-area:f; align-self:stretch}
+  .prog-heat{grid-area:h; align-self:stretch}
+  .prog-fc > hr.rule{display:none}
+  .prog-heat > hr.rule{margin:22px 0}
+  .prog-fc,.prog-heat{padding-left:32px; border-left:1px solid var(--line)}
+  /* the heatmap cells grow with the column (13 weeks across), up to a readable size */
+  #view-progress .heatmap{grid-template-rows:repeat(7,auto); grid-auto-columns:minmax(0,1fr); max-width:340px}
+  #view-progress .heatmap i{width:auto; height:auto; aspect-ratio:1}
+  /* Reading → Note map: the treble and bass maps side by side, each scaled to its half of the panel */
+  #rdx-stats .rdx-stat-p:has(> .rdx-heat){display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 28px; align-items:start}
+  #rdx-stats .rdx-stat-p:has(> .rdx-heat) > :not(.rdx-heat){grid-column:1 / -1}
+  #rdx-stats .rdx-heat .rdx-svg{display:block; width:100%; max-width:640px; height:auto}
+}
