@@ -989,8 +989,7 @@
   .learn-toc .lu-h:first-child{margin-top:0}
   .learn-toc .lu-h .lu-nm{flex:1; min-width:0}
   .learn-toc .lu-h .lu-c{letter-spacing:0; font-weight:700; text-transform:none}
-  .learn-toc .lu-h[data-open="true"] .lu-c{color:var(--good)}
-  .learn-toc button[data-locked="true"]{opacity:.55}
+  .learn-toc .lu-h .lu-c{color:var(--good)}
   .learn-toc button .due{color:var(--gold); margin-left:6px; font-weight:900}
   .learn-extra{display:flex; flex-direction:column; gap:8px; margin:12px 12px 0}
   .learn-extra .learn-pick{display:none}
@@ -1000,8 +999,6 @@
   .learn-body ol{margin:0 0 12px; padding-left:22px; color:var(--ink2); font-size:15px; line-height:1.65; max-width:66ch}
   .lu-bar{display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; justify-content:space-between; margin:-6px 0 14px; padding-bottom:10px; border-bottom:1px dashed var(--line); font-size:13px; color:var(--muted)}
   .lu-bar b{color:var(--ink2)}
-  .lu-lock{border:1px dashed var(--line); border-radius:14px; padding:18px; background:var(--paper)}
-  .lu-lock .lu-lock-t{font-weight:800; color:var(--ink); margin-bottom:6px}
   .lsum{margin:22px 0 0; border:1px solid var(--line); border-radius:12px; padding:4px 16px 10px; background:var(--paper)}
   .lsum h4{margin-top:12px}
   .lsum dl,.lw-dl{margin:0; display:grid; gap:2px}

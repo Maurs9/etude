@@ -4952,6 +4952,7 @@ function learnData(): LearnProgressStore {
         d.learnRev = rev;
         Object.keys(done).forEach((id) => { rev[id] = { last: done[id], n: 0 }; });
     }
+    // learnUnlock is no longer read: every unit is open. The field stays so saves from older versions load and merge unchanged.
     if (!d.learnUnlock || typeof d.learnUnlock !== 'object')
         d.learnUnlock = {};
     if (!hasLearnProgress(d))
@@ -4960,18 +4961,6 @@ function learnData(): LearnProgressStore {
 }
 function learnUnitOf(id: string) { return LEARN_UNITS.findIndex((u) => u.ls.includes(id)); }
 function learnUnitDone(i: number) { const u = LEARN_UNITS[i], d = learnData().learnDone; return u ? u.ls.filter((id) => d[id]).length : 0; }
-function learnUnitOpen(i: number): boolean {
-    if (i <= 0)
-        return true;
-    const u = LEARN_UNITS[i], D = learnData();
-    if (!u)
-        return true;
-    if (D.learnUnlock[u.id] || u.ls.some((id) => D.learnDone[id]))
-        return true;
-    const p = LEARN_UNITS[i - 1];
-    return learnUnitOpen(i - 1) && p.ls.every((id) => D.learnDone[id]);
-}
-function learnLessonOpen(L: Lesson) { return learnUnitOpen(learnUnitOf(L.id)); }
 function learnGap(id: string) { const r = learnData().learnRev[id]; return LEARN_GAPS[Math.min(r ? (r.n | 0) : 0, LEARN_GAPS.length - 1)]; }
 function learnDueDays(id: string) {
     const D = learnData();
@@ -5075,7 +5064,7 @@ function learnLight(ms: number[], dur: number) {
 }
 function learnPlanItems(tn: number) {
     const D = learnData(), ld = D.learnDone;
-    const nextL = LESSONS.find((L) => !ld[L.id] && learnLessonOpen(L)), learnToday = Object.keys(ld).some((k) => ld[k] === tn);
+    const nextL = LESSONS.find((L) => !ld[L.id]), learnToday = Object.keys(ld).some((k) => ld[k] === tn);
     const out = [{ id: 'learn', done: learnToday || !nextL, t: t('plan_learn'), d: nextL ? t('plan_learn_d', learnTitle(nextL)) : t('plan_learn_all'),
             go: () => { if (nextL)
                 learnGoId(nextL.id);
@@ -5519,15 +5508,15 @@ function learnSide() {
     byId('learnProg').style.width = Math.round(100 * nDone / LESSONS.length) + '%';
     let h = '', opt = '';
     LEARN_UNITS.forEach((u, ui) => {
-        const open = learnUnitOpen(ui), nm = (u[lang] || u.en);
-        h += '<div class="lu-h" data-open="' + open + '"><span aria-hidden="true">' + u.icon + '</span><span class="lu-nm">' + nm + '</span><span class="lu-c">' + (open ? t('lu_done_n', learnUnitDone(ui), u.ls.length) : '<span role="img" aria-label="' + t('lu_locked') + '">🔒</span>') + '</span></div>';
-        opt += '<optgroup label="' + nm + (open ? '' : ' 🔒') + '">';
+        const nm = (u[lang] || u.en);
+        h += '<div class="lu-h"><span aria-hidden="true">' + u.icon + '</span><span class="lu-nm">' + nm + '</span><span class="lu-c">' + t('lu_done_n', learnUnitDone(ui), u.ls.length) + '</span></div>';
+        opt += '<optgroup label="' + nm + '">';
         u.ls.forEach((id) => {
             const i = LESSONS.findIndex((L) => L.id === id);
             if (i < 0)
                 return;
             const L = LESSONS[i], due = learnDueDays(id) != null;
-            h += '<button type="button" data-li="' + i + '" aria-current="' + (i === learnSel && !learnGloss) + '"' + (open ? '' : ' data-locked="true"') + '><span class="ic" aria-hidden="true">' + L.icon + '</span>' + learnTitle(L) +
+            h += '<button type="button" data-li="' + i + '" aria-current="' + (i === learnSel && !learnGloss) + '"><span class="ic" aria-hidden="true">' + L.icon + '</span>' + learnTitle(L) +
                 (due ? '<span class="due" role="img" aria-label="' + t('lu_due') + '">↻</span>' : done[id] ? '<span class="done" role="img" aria-label="' + t('learn_done_aria') + '">✓</span>' : '') + '</button>';
             opt += '<option value="' + i + '"' + (i === learnSel ? ' selected' : '') + '>' + learnTitle(L) + (done[id] ? ' ✓' : '') + '</option>';
         });
@@ -5617,18 +5606,9 @@ let renderLearn: { (fromLoad?: boolean): void; _init?: boolean } = function rend
         lgFilter();
         return;
     }
-    const L = LESSONS[learnSel], ui = learnUnitOf(L.id), u = LEARN_UNITS[ui], open = learnUnitOpen(ui), rl = u ? learnRdLevel(u) : null;
+    const L = LESSONS[learnSel], ui = learnUnitOf(L.id), u = LEARN_UNITS[ui], rl = u ? learnRdLevel(u) : null;
     let h = '<div class="lu-bar"><span class="lu-unit"><span aria-hidden="true">' + (u ? u.icon : '') + '</span> ' + t('lu_unit', ui + 1, LEARN_UNITS.length) + ' · <b>' + (u ? (u[lang] || u.en) : '') + '</b></span>' +
-        (rl && open ? '<button type="button" class="btn ghost sm" data-rd="' + rl.id + '" aria-label="' + t('lu_practise_aria') + ': ' + rdLvName(rl) + '">' + t('lu_practise', rdLvName(rl)) + ' →</button>' : '') + '</div><h3>' + learnTitle(L) + '</h3>';
-    if (!open) {
-        const prev = LEARN_UNITS[ui - 1], firstOpen = LESSONS.findIndex((x) => prev.ls.includes(x.id) && !learnData().learnDone[x.id]);
-        h += '<div class="lu-lock"><p class="lu-lock-t">🔒 ' + t('lu_locked_t') + '</p><p>' + t('lu_locked_d', (prev[lang] || prev.en)) + '</p><div class="lq-act">' +
-            (firstOpen >= 0 ? '<button type="button" class="btn primary" data-li="' + firstOpen + '">' + t('lu_goto', learnTitle(LESSONS[firstOpen])) + '</button>' : '') +
-            '<button type="button" class="btn ghost sm" data-ln="unlock">' + t('lu_unlock') + '</button></div></div><div class="learn-nav"></div>';
-        body.innerHTML = h;
-        learnNavRender();
-        return;
-    }
+        (rl ? '<button type="button" class="btn ghost sm" data-rd="' + rl.id + '" aria-label="' + t('lu_practise_aria') + ': ' + rdLvName(rl) + '">' + t('lu_practise', rdLvName(rl)) + ' →</button>' : '') + '</div><h3>' + learnTitle(L) + '</h3>';
     h += '<div class="learn-content">' + learnBodyHTML(L) + '</div>';
     const sum: LearnSummaryRow[] | undefined = LSUM[L.id];
     if (sum)
@@ -5700,12 +5680,6 @@ function learnClick(e: Event) {
             learnSide();
             lqRender();
             learnNavRender();
-        }
-        else if (a === 'unlock') {
-            const u = LEARN_UNITS[learnUnitOf(L.id)];
-            learnData().learnUnlock[u.id] = todayN();
-            saveAll();
-            renderLearn();
         }
         return;
     }
@@ -18938,7 +18912,6 @@ Object.defineProperty(__etude, "learnGoId", { configurable: true, get: () => lea
 Object.defineProperty(__etude, "learnHalt", { configurable: true, get: () => learnHalt });
 Object.defineProperty(__etude, "learnInitSel", { configurable: true, get: () => learnInitSel });
 Object.defineProperty(__etude, "learnInput", { configurable: true, get: () => learnInput });
-Object.defineProperty(__etude, "learnLessonOpen", { configurable: true, get: () => learnLessonOpen });
 Object.defineProperty(__etude, "learnLight", { configurable: true, get: () => learnLight });
 Object.defineProperty(__etude, "learnMark", { configurable: true, get: () => learnMark });
 Object.defineProperty(__etude, "learnNavRender", { configurable: true, get: () => learnNavRender });
@@ -18952,7 +18925,6 @@ Object.defineProperty(__etude, "learnTimer", { configurable: true, get: () => le
 Object.defineProperty(__etude, "learnTitle", { configurable: true, get: () => learnTitle });
 Object.defineProperty(__etude, "learnUnitDone", { configurable: true, get: () => learnUnitDone });
 Object.defineProperty(__etude, "learnUnitOf", { configurable: true, get: () => learnUnitOf });
-Object.defineProperty(__etude, "learnUnitOpen", { configurable: true, get: () => learnUnitOpen });
 Object.defineProperty(__etude, "learnWire", { configurable: true, get: () => learnWire });
 Object.defineProperty(__etude, "lfo", { configurable: true, get: () => lfo });
 Object.defineProperty(__etude, "lfoGain", { configurable: true, get: () => lfoGain });
