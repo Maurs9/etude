@@ -63,6 +63,31 @@
 .pr-songs-ctl{align-items:center; margin-bottom:14px}
 .pr-songs-ctl .seg button{min-height:44px}
 
+/* Wide: How to answer (and Direction) on the left, the key chips beside it on the right, so the two choices read as one row;
+   Play along and Start run the full width below. Placement is by element, so the DOM (and the tab order) stays as written:
+   the left column's parts flow into rows 3 on, the key heading takes row 3 beside How to answer, the chips rows 4 to 7. */
+@media (min-width:1000px){
+  #pr-home .pr-setup{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:40px; align-items:start}
+  .pr-setup > *{grid-column:1 / -1}
+  .pr-setup > #pr-mode-h,.pr-setup > #pr-mode,.pr-setup > #pr-mode-hint,.pr-setup > #pr-mode-note,.pr-setup > #pr-dir-row{grid-column:1}
+  .pr-setup > #pr-mode{justify-self:start}
+  .pr-setup > #pr-key-h{grid-column:2; grid-row:3}
+  .pr-setup > #pr-keys{grid-column:2; grid-row:4 / span 4; align-self:start}
+  /* Play along: every control on one line while it fits. */
+  .pr-along{display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px; margin-top:20px; padding-top:16px; border-top:1px solid var(--line)}
+  .pr-along-row{display:contents}
+  .pr-tempo{flex:1 1 220px; max-width:360px}
+  /* Start closes the form at the right, under the key chips; a line marks the end of the choices. */
+  .pr-setup > #pr-start{justify-self:end; min-width:min(100%,320px); margin-top:20px}
+  .pr-setup > #pr-along-out{margin-top:4px}
+  /* Song hints: twelve cards in tidy rows (4 × 3, or 6 × 2 where they fit). */
+  .pr-songs .songs{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .pr-songs-lede{max-width:80ch}
+}
+@media (min-width:1400px){ .pr-songs .songs{grid-template-columns:repeat(6,minmax(0,1fr))} }
+/* Very wide: the six topic cards in one row instead of two half-empty ones. */
+@media (min-width:1600px){ .pr-topics{grid-template-columns:repeat(6,minmax(0,1fr))} }
+
 @media (max-width:680px){
   #pr-home .pr-setup{padding:16px 14px}
   .pr-topics{grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
