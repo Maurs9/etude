@@ -5539,18 +5539,10 @@ function learnInput() {
         learnSay(t('lu_q_got', q.got.length, tot));
     }
 }
-function learnRdLevel(u: LearnUnit) {
-    const units = RD_UNITS.filter((x) => u.rd.includes(x.u));
-    let pick: ReadDrillLevel | null = null;
-    units.some((x) => x.lv.some((L) => { if (rdUnlocked(L) && (rdData().lv[L.id]?.s || 0) < 1) {
-        pick = L;
-        return true;
-    } return false; }));
-    if (!pick) {
-        const all = units.flatMap((x) => x.lv).filter(rdUnlocked);
-        pick = all[all.length - 1] || (units[0] && units[0].lv[0]);
-    }
-    return pick;
+// The unit's first level without a star; every level is open, so with all of them starred it is the last one.
+function learnRdLevel(u: LearnUnit): ReadDrillLevel | null {
+    const all = RD_UNITS.filter((x) => u.rd.includes(x.u)).flatMap((x) => x.lv);
+    return all.find((L) => (rdData().lv[L.id]?.s || 0) < 1) || all[all.length - 1] || null;
 }
 function learnSide() {
     const toc = byId('learnToc');
@@ -5769,7 +5761,7 @@ function learnClick(e: Event) {
         const L = RD_LV[rd.dataset.rd ?? ''];
         show('read');
         rdTab('drills');
-        if (L && rdUnlocked(L))
+        if (L)
             rdOpen(L);
         return;
     }
@@ -7575,11 +7567,8 @@ function srAssessFinish() {
     SR.srtEvaluation = evaluated;
     SR.srtResultValue = pct;
     SR.srtResultLevelId = SR.piece?.gen ?? null;
-    const nextLevel = SR.srtResultLevelId ? rdLvNext(RD_LV[SR.srtResultLevelId]) : null;
-    const wasUnlocked = nextLevel ? rdUnlocked(nextLevel) : false;
     if (SR.piece?.gen)
         rdSightDone('assess', pct);
-    SR.srtResultUnlockId = nextLevel && !wasUnlocked && rdUnlocked(nextLevel) ? nextLevel.id : null;
     srRenderAssessResult();
     if (evaluated && generated && SR.srtState?.attemptId && SR.srtFingerprint && SR.srtOwnerTabId) {
         const attempt: SightReadingAttempt = {
@@ -7666,8 +7655,6 @@ function srRenderAssessResult() {
         ' · ' + t('rd_srt_summary', Math.round(evaluated.pitchF1 ?? 0), evaluated.TP, evaluated.N, evaluated.FP, Math.round(evaluated.rhythmAcc ?? 0), Math.round(evaluated.meanOffsetMs ?? 0));
     if (SR.wrongExtra)
         text += '  ·  ' + t('rd_extra', SR.wrongExtra);
-    if (SR.srtResultUnlockId && RD_LV[SR.srtResultUnlockId])
-        text += ' · 🔓 ' + t('rdx_unlocked', rdLvName(RD_LV[SR.srtResultUnlockId]));
     if (SR.srtState?.name === 'pendingSave')
         text += ' · ' + t('rd_srt_unsaved');
     v.textContent = text;
@@ -7983,7 +7970,7 @@ function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min
 function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
 function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
-interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; after?: string; }
+interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
 interface ReadDrillLevel extends ReadDrillLevelSpec { u: string; n: number; id: string; custom?: boolean; }
 interface ReadDrillUnit { u: string; icon: string; lv: ReadDrillLevel[]; }
 const RD_UNITS: ReadDrillUnit[] = [], RD_LV: { [levelId: string]: ReadDrillLevel; } = {};
@@ -8071,9 +8058,8 @@ rdU('sr', '👁', [
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 68 },
     { ty: 'sr', clef: 'grand', lo: 'C3', hi: 'E6', durs: [1, 2], keys: [-7, 7], bpm: 64 },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'C6', durs: [1, 2], keys: [0], bpm: 64 },
-    // Rhythm levels (P4): five-finger C position, new note values one level at a time. They open after the rests level (sr4),
-    // not after the polyphonic levels before them in the list.
-    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths', after: 'sr4' },
+    // Rhythm levels (P4): five-finger C position, new note values one level at a time.
+    { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5], keys: [0], bpm: 72, tag: 'eighths' },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 72, tag: 'dotted' },
     { ty: 'sr', clef: 'treble', lo: 'C4', hi: 'G4', durs: [1, 2, 0.5, 1.5], keys: [0], bpm: 66, tag: 'sync' }
 ]);
@@ -8202,12 +8188,7 @@ function rdArmLimit() {
 }
 function rdArcFx() { return RD.arcFx === 'bonus' ? t('rdx_ta_bonus') : RD.arcFx === 'faster' && RD.arc ? t('rdx_sv_faster', anNum(RD.arc.targetMs / 1000, 1)) : ''; }
 function rdClock(ms: number) { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-// The level that unlocks L: the one before it in its unit, unless L names another (`after`).
-function rdLvPrev(L: ReadDrillLevel) { if (L.after)
-    return RD_LV[L.after] || null; const u = RD_UNITS.find((x) => x.u === L.u); return u && L.n > 1 ? u.lv[L.n - 2] : null; }
 function rdLvNext(L: ReadDrillLevel) { const u = RD_UNITS.find((x) => x.u === L.u); return u ? u.lv[L.n] || null : null; }
-function rdUnlocked(L: ReadDrillLevel | null | undefined) { if (!L)
-    return false; const p = rdLvPrev(L); return !p || (rdData().lv[p.id]?.s || 0) >= 1; }
 function rdTarget(L: ReadDrillLevel | null) { if (!L)
     throw new Error('Étude: no reading level'); return (RD_TARGET[L.ty] || 3000) + ((L.clef === 'grand' || L.clef === 'mix') ? 800 : 0) + ((L.acc || L.keys) ? 1000 : 0); }
 function rdStat(k: string, ok: boolean, ms: number) {
@@ -9621,12 +9602,12 @@ function rdSightDone(kind: string, val: number) {
         return '';
     const steps = SR.steps.length || 1, acc = kind === 'assess' ? val : Math.max(0, Math.round(100 * (1 - val / steps)));
     const stars = kind === 'assess' ? (val >= 95 ? 3 : val >= 80 ? 2 : val >= 60 ? 1 : 0) : (val === 0 ? 2 : val <= Math.max(1, steps * 0.15) ? 1 : 0);
-    const d = rdData(), nx = rdLvNext(L), was = rdUnlocked(nx), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
+    const d = rdData(), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
     rec.n++;
     rec.s = Math.max(rec.s, stars);
     rec.acc = Math.max(rec.acc, acc);
     d.tot.sess++;
-    return (kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars)) + (nx && !was && rdUnlocked(nx) ? ' · 🔓 ' + t('rdx_unlocked', rdLvName(nx)) : '');
+    return kind === 'assess' ? '' : ' · ' + '★'.repeat(stars) + '☆'.repeat(3 - stars);
 }
 /* ---- sessions: intro → questions → summary ---- */
 function rdLvName(L: ReadDrillLevel) { return L.custom ? t('rdx_custom') : t('rdx_u_' + L.u) + ' · ' + L.n; }
@@ -9868,9 +9849,9 @@ function rdFinish() {
     }
     const d = rdData();
     d.tot.sess++;
-    let unl: ReadDrillLevel | null = null, newBest = false;
+    let newBest = false;
     if (!L.custom) {
-        const nx = rdLvNext(L), was = rdUnlocked(nx), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
+        const rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
         rec.n++;
         if (mode === 'test') {
             rec.s = Math.max(rec.s || 0, stars);
@@ -9887,8 +9868,6 @@ function rdFinish() {
             newBest = v > (rec[k] || 0);
             rec[k] = Math.max(rec[k] || 0, v);
         }
-        if (nx && !was && rdUnlocked(nx))
-            unl = nx;
     }
     touchDay();
     saveAll();
@@ -9906,11 +9885,11 @@ function rdFinish() {
     const nx = rdLvNext(L);
     RD.next = rdNextStep(L, mode, acc, avg, stars, weak);
     rdCoach(false);
-    byId('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}${unl ? `<p class="rdx-unl">🔓 ${t('rdx_unlocked', rdEsc(rdLvName(unl)))}</p>` : ''}
+    byId('rdx-body').innerHTML = `<div class="rdx-sum" tabindex="-1" id="rdx-sum"${(RD).next ? ' aria-describedby="rdx-next"' : ''}><h2>${t('rdx_sum_title')}</h2>${head}
     <div class="rdx-tiles">${tiles.map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
     ${weak.length ? `<div class="rdx-weak"><span>${t('rdx_review')}</span>${weak.map(([k, c]) => `<i class="rdx-tag">${rdEsc(rdKeyText(k))}${c > 1 ? ' ×' + c : ''}</i>`).join('')}</div>` : ''}
     ${(RD).next ? `<div class="coach rdx-coach" id="rdx-next" data-kind="next">${coachHTML(t('coach_next'), (RD).next, 'rdx-next-act')}</div>` : ''}
-    <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!(L)?.custom && nx && rdUnlocked(nx) ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
+    <div class="row rdx-sum-btns"><button class="btn primary" data-act="again">↺ ${t('rdx_again')}</button>${!L.custom && nx ? `<button class="btn" data-act="next">${t('rdx_next_lv')} →</button>` : ''}<button class="btn ghost" data-act="levels">${t('rdx_levels')}</button></div></div>`;
     byId('rdx-live').textContent = t('rdx_sum_title') + ': ' + acc + '%' + (mode === 'test' ? ' · ' + t('rdx_stars_n', stars) : '') + (sum ? ' · ' + (sum.mode === 'marathon' ? t('rdx_npm', npm) : t('rdx_arc_score', pts)) : '') + ((RD).next ? '. ' + t('coach_next') + ' ' + coachText((RD).next) : '');
     byId('rdx-hud').textContent = '';
     byId('rdx-meter').hidden = true;
@@ -9921,9 +9900,9 @@ function rdFinish() {
 /* ---- home: progress hero, level ladder, custom drill ---- */
 function rdSuggest() {
     const d = rdData(), last = RD_LV[d.prefs.last ?? ''];
-    if (last && rdUnlocked(last) && ((d.lv[last.id] || {}).s || 0) < 2)
+    if (last && ((d.lv[last.id] || {}).s || 0) < 2)
         return last;
-    return RD_ALL.find((L) => rdUnlocked(L) && !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
+    return RD_ALL.find((L) => !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
 }
 function rdRenderHome() {
     const d = rdData(), tot = d.tot, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0), cont = rdSuggest();
@@ -9934,8 +9913,8 @@ function rdRenderHome() {
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
-            const r = d.lv[L.id] || {}, ok = rdUnlocked(L), s = r.s || 0;
-            return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}"${ok ? '' : ' aria-disabled="true"'} title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (ok ? '' : ' — ' + t('rdx_locked')) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${ok ? L.n : '🔒'}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
+            const r = d.lv[L.id] || {}, s = r.s || 0;
+            return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}" title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${L.n}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
         }).join('')}</div></section>`;
     }).join('');
     rdCustomFill();
@@ -10172,13 +10151,6 @@ function rdOnLocale() {
             const L = RD_LV[lv.dataset.lv ?? ''];
             if (!L)
                 return;
-            if (lv.getAttribute('aria-disabled') === 'true') {
-                byId('rdx-live').textContent = t('rdx_locked_msg');
-                lv.classList.remove('shake');
-                void lv.offsetWidth;
-                lv.classList.add('shake');
-                return;
-            }
             rdOpen(L);
             return;
         }
@@ -10605,7 +10577,7 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
     if (stars < 3)
         return { k: 'rdn_star', args: () => [stars >= 2 ? 95 : 90, anNum(stars >= 2 ? tg : tg * 1.6, 1)] };
     const nx = rdLvNext(L);
-    if (!L.custom && nx && rdUnlocked(nx))
+    if (!L.custom && nx)
         return { k: 'rdn_next', args: () => [rdLvName(nx)] };
     return { k: 'rdn_ok' };
 }
@@ -19276,7 +19248,6 @@ Object.defineProperty(__etude, "rdLetter", { configurable: true, get: () => rdLe
 Object.defineProperty(__etude, "rdLvDetail", { configurable: true, get: () => rdLvDetail });
 Object.defineProperty(__etude, "rdLvName", { configurable: true, get: () => rdLvName });
 Object.defineProperty(__etude, "rdLvNext", { configurable: true, get: () => rdLvNext });
-Object.defineProperty(__etude, "rdLvPrev", { configurable: true, get: () => rdLvPrev });
 Object.defineProperty(__etude, "rdLvSub", { configurable: true, get: () => rdLvSub });
 Object.defineProperty(__etude, "rdMidi", { configurable: true, get: () => rdMidi });
 Object.defineProperty(__etude, "rdName", { configurable: true, get: () => rdName });
@@ -19329,7 +19300,6 @@ Object.defineProperty(__etude, "rdTab", { configurable: true, get: () => rdTab }
 Object.defineProperty(__etude, "rdTap", { configurable: true, get: () => rdTap });
 Object.defineProperty(__etude, "rdTarget", { configurable: true, get: () => rdTarget });
 Object.defineProperty(__etude, "rdU", { configurable: true, get: () => rdU });
-Object.defineProperty(__etude, "rdUnlocked", { configurable: true, get: () => rdUnlocked });
 Object.defineProperty(__etude, "refMidis", { configurable: true, get: () => refMidis });
 Object.defineProperty(__etude, "reflectSettingsUI", { configurable: true, get: () => reflectSettingsUI });
 Object.defineProperty(__etude, "reflowKeys", { configurable: true, get: () => reflowKeys });

@@ -1807,6 +1807,36 @@ test('valid persisted settings are preserved', async ({ app }) => {
   });
 });
 
+test.describe('reading drills: every level is open', () => {
+  test('on a fresh save no level is locked, and any level opens in any order', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    const levels = page.locator('#rdx-ladder .rdx-lv');
+    expect(await levels.count()).toBe(await page.evaluate(() => Object.keys(window.__etude.RD_LV).length));
+    await expect(page.locator('#rdx-ladder [aria-disabled]')).toHaveCount(0);
+    await expect(page.locator('#rdx-ladder')).not.toContainText('🔒');
+    const last = await levels.last().getAttribute('data-lv');
+    await levels.last().click();
+    await expect(page.locator('#rdx-stage')).toBeVisible();
+    expect(await page.evaluate(() => window.__etude.RD.L.id)).toBe(last);
+    for (const key of ['rdx_locked', 'rdx_locked_msg', 'rdx_unlocked']) expect(STRINGS.en[key], key).toBeUndefined();
+  });
+
+  test('a summary offers the next level without a star, and says nothing about unlocking it', async ({ app }) => {
+    const page = await app.open({ hash: 'read' });
+    await page.evaluate(() => {
+      const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'name' && l.n === 1);
+      e.rdOpen(level);
+      e.rdStart('practice');
+      e.rdAnswer(false, {});
+      e.rdFinish();
+    });
+    await expect(page.locator('#rdx-sum [data-act="next"]')).toBeVisible();
+    await expect(page.locator('#rdx-sum')).not.toContainText('🔓');
+    await page.locator('#rdx-sum [data-act="next"]').click();
+    expect(await page.evaluate(() => window.__etude.RD.L.n)).toBe(2);
+  });
+});
+
 test.describe('reading drills: key to staff', () => {
   const start = (page, clef) => page.evaluate(clef => {
     const e = window.__etude, level = Object.values(e.RD_LV).find(l => l.ty === 'k2s' && l.clef === clef);

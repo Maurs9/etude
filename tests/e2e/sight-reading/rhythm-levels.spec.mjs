@@ -39,15 +39,17 @@ test.describe('Sight-reading rhythm levels', () => {
     }
   });
 
-  test('opens the first rhythm level after the rests level, not after the polyphonic levels', async ({ app }) => {
+  test('the rhythm levels are open on a fresh save, without a star on the rests level', async ({ app }) => {
     const page = await app.open({ hash: 'read', dock: true });
-    const unlock = await page.evaluate(() => {
-      const api = window.__etude;
-      const before = { prev: api.rdLvPrev(api.RD_LV.sr10).id, sr10: api.rdUnlocked(api.RD_LV.sr10), sr11: api.rdUnlocked(api.RD_LV.sr11) };
-      api.rdData().lv.sr4 = { s: 1, acc: 80, t: 0, n: 1, rush: 0 };
-      return { ...before, after: api.rdUnlocked(api.RD_LV.sr10), sr11prev: api.rdLvPrev(api.RD_LV.sr11).id };
-    });
-    expect(unlock).toEqual({ prev: 'sr4', sr10: false, sr11: false, after: true, sr11prev: 'sr10' });
+    for (const id of ['sr10', 'sr11', 'sr12']) {
+      const button = page.locator(`#rdx-ladder .rdx-lv[data-lv="${id}"]`);
+      await expect(button).not.toHaveAttribute('aria-disabled', /./);
+      await button.click();
+      await expect(page.locator('#rdx-stage')).toBeVisible();
+      await expect(page.locator('#rdx-body [data-mode="test"]')).toBeVisible();
+      await page.locator('#rdx-back').click();
+    }
+    expect(await page.evaluate(() => window.__etude.rdData().lv.sr4)).toBeUndefined();
   });
 
   test('names the rhythm a level teaches in its description', async ({ app }) => {
