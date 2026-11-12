@@ -24,3 +24,8 @@
 .rdx-award[hidden]{display:none}
 @keyframes rdxAward{from{opacity:0; transform:scale(.9)} to{opacity:1; transform:none}}
 @media (prefers-reduced-motion:reduce){ .rdx-award{animation:none} .rdx-chal-btn b i{transition:none} }
+
+/* Tap the rhythm: the staff is scaled to its box (srRender's layout) and drawn on white paper in both themes. On the stage the
+   box takes the free height, and the paper hugs the staff inside it. */
+.rdx-q.rdx-rh .rdx-staff{align-self:stretch; background:none; border-color:transparent; box-shadow:none; padding:6px 0; overflow-x:auto}
+.rdx-rh .rdx-staff > svg{background:#fdfbf7; border-radius:10px; box-shadow:0 0 0 1px #dfd7c6, 0 2px 10px rgba(0,0,0,.08)}
