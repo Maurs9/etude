@@ -12,7 +12,7 @@
 - Targeted drills, with song hints for intervals and a choice of direction by ear, a play-along accompaniment loop for progressions, a scale and arpeggio technique drill, and ear training
 - Voice: sight-sing a melody from the staff with live pitch feedback, or hum one and get the notes back as MIDI or text. Keys or MIDI can answer in place of the voice.
 - Wrong answers show what you gave against the answer, with a Hear both button. Repeated mix-ups get a short contrast drill at the end of the session.
-- Explore: free play on one screen, with the circle of fifths beside the staff. Pick a key on the circle to read chords in Roman numerals and see its fingering.
+- Explore: free play on one screen, with the circle of fifths beside the staff. Pick a key on the circle to read chords in Roman numerals and see its fingering. The key card lists the seven chords of the key: tap one to hear it and see it on the keys.
 - Progress tracking and practice planning
 - USB MIDI and direct Web Bluetooth MIDI support for compatible digital pianos and keyboards. Notes are judged by their event time, a dropped input re-attaches when it comes back, and **Settings → MIDI** calibrates input latency for touch, USB and Bluetooth.
 - On a phone held sideways, the keyboard dock gets wider, playable keys.
