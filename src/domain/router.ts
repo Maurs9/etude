@@ -1,14 +1,14 @@
 export const NAV_GROUPS = {
   today: ['today'],
   learn: ['learn', 'method'],
-  practice: ['practice', 'read', 'sing', 'explore', 'accompany', 'transcribe'],
+  practice: ['practice', 'read', 'sing', 'explore', 'transcribe'],
   scores: ['analysis'],
   progress: ['progress'],
 } as const;
 
 // Screens that moved into the Practice setup. An old link or a saved lastTool still names them: Practice opens set up
-// for them (Intervals with the Song hints open).
-export const MOVED_VIEWS = ['songs'] as const;
+// for them (Intervals with the Song hints open, Progressions with Play along).
+export const MOVED_VIEWS = ['songs', 'accompany'] as const;
 
 export type AppView = typeof NAV_GROUPS[keyof typeof NAV_GROUPS][number];
 export type ViewGroup = keyof typeof NAV_GROUPS;

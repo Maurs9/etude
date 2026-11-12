@@ -18,5 +18,9 @@ describe('view routing domain', () => {
     expect(isMovedView('songs')).toBe(true);
     expect(isMovedView('learn')).toBe(false);
     expect(viewFromHash('#songs')).toBe('songs');
+    // So did Accompany (Progressions · Play along).
+    expect(navGroup('accompany')).toBeUndefined();
+    expect(isMovedView('accompany')).toBe(true);
+    expect(viewFromHash('#accompany')).toBe('accompany');
   });
 });

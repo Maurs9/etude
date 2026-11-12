@@ -1,7 +1,7 @@
 import { test, expect, todayN } from '../helpers/fixtures.mjs';
 
-// Screens that moved into the Practice setup: the interval song book (Song hints, Intervals) and its ear check
-// (Intervals · By ear, with a Direction).
+// Screens that moved into the Practice setup: the interval song book (Song hints, Intervals), its ear check
+// (Intervals · By ear, with a Direction) and Accompany (Progressions · Play along).
 
 const checkedTopic = page => page.evaluate(() => [...document.querySelectorAll('#pr-topics [role=radio][aria-checked=true]')].map(b => b.dataset.v));
 // Records each interval the app sounds (the root and the signed size: below 0 it descends).
@@ -228,5 +228,128 @@ test.describe('Ear check: right answers by ear today', () => {
     expect(await page.evaluate(() => window.__etude.SES.q.mode)).toBe('ear');
     await answerRight(page);
     expect(await ear()).toBe(2);
+  });
+});
+
+// Progressions · Play along: the accompaniment loop that replaced the Accompany screen. Nothing is judged.
+const loop = page => page.evaluate(() => { const a = window.__etude.accomp; return { on: a.on, prog: a.progIdx, pattern: a.pattern, key: a.key, bpm: a.bpm, hands: a.hands, click: a.click }; });
+const litKeys = page => page.evaluate(() => document.querySelectorAll('#keys .key[data-s="lh"], #keys .key[data-s="rh"]').length);
+const alongOn = async page => {
+  await page.locator('#pr-t-prog').click();
+  await page.locator('#pr-mode button[data-v="along"]').click();
+};
+
+test.describe('Progressions · Play along', () => {
+  test('Play along is offered for Progressions only, with every progression and pattern', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    const along = page.locator('#pr-mode button[data-v="along"]');
+    for (const cat of ['interval', 'chord', 'scale', 'melody', 'technique']) {
+      await page.locator(`#pr-t-${cat}`).click();
+      await expect(along, cat).toBeHidden();
+    }
+    await page.locator('#pr-t-prog').click();
+    await expect(along).toBeVisible();
+    await expect(page.locator('#pr-along')).toBeHidden();
+    await along.click();
+    await expect(page.locator('#pr-along')).toBeVisible();
+    await expect(page.locator('#ac-prog option')).toHaveCount(15);
+    await expect(page.locator('#ac-pat option')).toHaveCount(6);
+    const names = await page.evaluate(() => ({ progs: window.__etude.ACCOMP_PROGS.map(p => p.name), pats: Object.keys(window.__etude.ACCOMP_PATTERNS) }));
+    await expect(page.locator('#ac-prog option')).toHaveText(names.progs);
+    expect(await page.locator('#ac-pat option').evaluateAll(os => os.map(o => o.value))).toEqual(names.pats);
+    await expect(page.locator('#ac-hands button')).toHaveText(['Both hands', 'Left only', 'Right only']);
+    await expect(page.locator('#ac-bpm')).toHaveAttribute('min', '40');
+    await expect(page.locator('#ac-bpm')).toHaveAttribute('max', '180');
+    await expect(page.locator('#ac-click')).toBeVisible();
+    await expect(page.locator('#pr-start')).toHaveText('Play loop');
+    // All keys plays in C, and says so.
+    await expect(page.locator('#pr-mode-hint')).toContainText('With All keys, the loop plays in C.');
+    await expect(page.locator('#ac-chain .ch').first()).toHaveText('C');
+    await page.locator('#pr-keys [data-v="7"]').click();
+    await expect(page.locator('#pr-mode-hint')).not.toContainText('All keys');
+    await expect(page.locator('#ac-chain .ch').first()).toHaveText('G');
+  });
+
+  test('Play loop starts the loop and lights the dock keys; a control change restarts it; Stop stops it', async ({ app }) => {
+    const page = await app.open({ hash: 'practice', dock: true });
+    await alongOn(page);
+    await expect(page.locator('#dock')).toBeVisible();
+    expect(await page.evaluate(() => window.__etude.dockWanted())).toBe(true);
+    await page.locator('#pr-start').click();
+    await expect(page.locator('#pr-start')).toHaveText('Stop');
+    expect(await loop(page)).toMatchObject({ on: true, prog: 0, pattern: 'block', key: 0, bpm: 90, hands: 'both', click: false });
+    await expect.poll(() => litKeys(page)).toBeGreaterThan(0);
+    await expect(page.locator('#pr-along-out')).toBeVisible();
+    await expect.poll(() => page.locator('#ac-chain .ch.on').count()).toBe(1);
+    // Each control restarts the running loop (a new build) with its new value.
+    const restarted = async change => {
+      await page.evaluate(() => { window.__built = window.__etude.accomp.built; });
+      await change();
+      expect(await page.evaluate(() => window.__etude.accomp.on && window.__etude.accomp.built !== window.__built)).toBe(true);
+    };
+    await restarted(() => page.locator('#ac-prog').selectOption('3'));
+    await restarted(() => page.locator('#ac-pat').selectOption({ index: 2 }));
+    await restarted(() => page.locator('#ac-hands button[data-v="left"]').click());
+    await restarted(async () => { await page.locator('#ac-bpm').fill('120'); await page.locator('#ac-bpm').dispatchEvent('change'); });
+    await restarted(() => page.locator('#ac-click').check());
+    await restarted(() => page.locator('#pr-keys [data-v="5"]').click());
+    const pat2 = await page.locator('#ac-pat option').nth(2).getAttribute('value');
+    expect(await loop(page)).toMatchObject({ on: true, prog: 3, pattern: pat2, key: 5, bpm: 120, hands: 'left', click: true });
+    await expect(page.locator('#ac-bpmLbl')).toHaveText('120');
+    await expect.poll(() => litKeys(page)).toBeGreaterThan(0);
+    await page.locator('#pr-start').click();
+    expect((await loop(page)).on).toBe(false);
+    await expect(page.locator('#pr-start')).toHaveText('Play loop');
+    expect(await litKeys(page)).toBe(0);
+    // Play along is not a drill: no last-drill record.
+    expect(await page.evaluate(() => window.__etude.data.lastDrill)).toBeUndefined();
+    await expect(page.locator('#pr-last')).toBeHidden();
+  });
+
+  test('leaving the screen, another topic or another mode stops the loop', async ({ app }) => {
+    const page = await app.open({ hash: 'practice', dock: true });
+    await alongOn(page);
+    const play = async () => { await page.locator('#pr-start').click(); expect((await loop(page)).on).toBe(true); };
+    await play();
+    await page.evaluate(() => window.__etude.show('today'));
+    expect((await loop(page)).on).toBe(false);
+    await page.evaluate(() => window.__etude.show('practice'));
+    // Back on Practice the setup offers the last drill mode again.
+    await expect(page.locator('#pr-mode button[data-v="along"]')).toHaveAttribute('aria-pressed', 'false');
+    await page.locator('#pr-mode button[data-v="along"]').click();
+    await play();
+    await page.locator('#pr-t-chord').click();
+    expect((await loop(page)).on).toBe(false);
+    await alongOn(page);
+    await play();
+    await page.locator('#pr-mode button[data-v="ear"]').click();
+    expect((await loop(page)).on).toBe(false);
+    await expect(page.locator('#pr-along')).toBeHidden();
+    expect(await page.evaluate(() => window.__etude.dockWanted())).toBe(false);
+    expect(await page.evaluate(() => window.__etude.data.lastDrill)).toBeUndefined();
+  });
+
+  test('an old #accompany link opens Practice on Progressions with Play along chosen', async ({ app }) => {
+    const page = await app.open({ hash: 'accompany', dock: true });
+    await expect(page.locator('#view-practice')).toHaveClass(/active/);
+    await expect(page).toHaveURL(/#practice$/);
+    expect(await checkedTopic(page)).toEqual(['prog']);
+    await expect(page.locator('#pr-mode button[data-v="along"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#pr-along')).toBeVisible();
+    await expect(page.locator('#dock')).toBeVisible();
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Transcribe']);
+    await expect(page.locator('#view-accompany')).toHaveCount(0);
+    await expect(page.locator('#tools [data-view="accompany"]')).toHaveCount(0);
+  });
+
+  test('at 390px the play-along controls fit without sideways scroll, with 44px targets', async ({ app, page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open({ hash: 'accompany' });
+    await expect(page.locator('#pr-along')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    for (const sel of ['#pr-mode button:not([hidden])', '#ac-hands button', '#pr-start']) {
+      const sizes = await page.locator(sel).evaluateAll(els => els.map(el => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); }));
+      for (const s of sizes) expect(s, sel).toBeGreaterThanOrEqual(44);
+    }
   });
 });

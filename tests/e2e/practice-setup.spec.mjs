@@ -11,7 +11,8 @@ const RULES = {
   melody: { off: ['play', 'ear'], pressed: 'keys' },
   technique: { off: ['ear', 'keys'], pressed: 'play' },
 };
-const modeState = page => page.evaluate(() => [...document.querySelectorAll('#pr-mode button')].map(b => ({ v: b.dataset.v, off: b.disabled, on: b.getAttribute('aria-pressed') === 'true' })));
+// Play along shows for Progressions only (practice-moved.spec.mjs); the hidden button is left out here.
+const modeState = page => page.evaluate(() => [...document.querySelectorAll('#pr-mode button:not([hidden])')].map(b => ({ v: b.dataset.v, off: b.disabled, on: b.getAttribute('aria-pressed') === 'true' })));
 const checkedTopic = page => page.evaluate(() => [...document.querySelectorAll('#pr-topics [role=radio][aria-checked=true]')].map(b => b.dataset.v));
 const noPageScroll = page => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const lastDrill = { cat: 'chord', mode: 'ear', keys: false, key: '2', c: 4, n: 5, day: todayN() };
@@ -176,7 +177,7 @@ test.describe('Practice setup', () => {
       const start = await page.locator('#pr-start').boundingBox(), panel = await page.locator('.pr-setup').boundingBox();
       expect(start.width).toBeGreaterThan(panel.width - 50); // full width inside the panel
       // Touch targets: 44px or more.
-      for (const sel of ['#pr-topics [role=radio]', '#pr-keys [role=radio]', '#pr-mode button', '#pr-start', '#pr-redo']) {
+      for (const sel of ['#pr-topics [role=radio]', '#pr-keys [role=radio]', '#pr-mode button:not([hidden])', '#pr-start', '#pr-redo']) {
         const sizes = await page.locator(sel).evaluateAll(els => els.map(el => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); }));
         for (const s of sizes) expect(s, sel).toBeGreaterThanOrEqual(44);
       }

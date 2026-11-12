@@ -94,7 +94,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <li><button type="button" class="tool" data-view="analysis"><span class="tool-t" data-i18n="an_title">Score &amp; analysis</span><span class="tool-d" data-i18n="tool_analysis_d">Open a MIDI or MusicXML file and study its keys, chords and harmony.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
         <li><button type="button" class="tool" data-view="read"><span class="tool-t" data-i18n="rd_title">Read &amp; play</span><span class="tool-d" data-i18n="tool_read_d">Learn short pieces from sheet music, step by step.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
         <li><button type="button" class="tool" data-view="sing"><span class="tool-t" data-i18n="nav_sing">Sing</span><span class="tool-d" data-i18n="tool_sing_d">Sight-sing a melody with live pitch feedback.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
-        <li><button type="button" class="tool" data-view="accompany"><span class="tool-t" data-i18n="nav_accompany">Accompany</span><span class="tool-d" data-i18n="tool_accompany_d">Loop a progression in a playing pattern and play along.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
         <li><button type="button" class="tool" data-view="transcribe"><span class="tool-t" data-i18n="nav_transcribe">Transcribe</span><span class="tool-d" data-i18n="tool_transcribe_d">Hum a melody and get the notes back.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
       </ul>
     </div>
@@ -420,7 +419,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="focus-grid pr-topics" id="pr-topics" role="radiogroup" aria-labelledby="pr-topic-h"></div>
         <select id="pr-cat" hidden tabindex="-1" aria-hidden="true"><option value="interval" data-i18n="cat_interval">Intervals</option><option value="chord" data-i18n="cat_chord">Chords</option><option value="scale" data-i18n="cat_scale">Scales</option><option value="prog" data-i18n="cat_prog">Progressions</option><option value="melody" data-i18n="cat_melody">Melodies (on keys)</option><option value="technique" data-i18n="cat_technique">Scales &amp; arpeggios</option></select>
         <h2 class="pr-sec" id="pr-mode-h" data-i18n="pr_answer">How to answer</h2>
-        <div class="seg" id="pr-mode" role="group" aria-labelledby="pr-mode-h"><button type="button" data-v="play" data-i18n="pr_playit" aria-pressed="true">Play it</button><button type="button" data-v="ear" data-i18n="pr_byear" aria-pressed="false">By ear</button><button type="button" data-v="keys" data-i18n="pr_onkeys" aria-pressed="false">By ear, on keys</button></div>
+        <div class="seg" id="pr-mode" role="group" aria-labelledby="pr-mode-h"><button type="button" data-v="play" data-i18n="pr_playit" aria-pressed="true">Play it</button><button type="button" data-v="ear" data-i18n="pr_byear" aria-pressed="false">By ear</button><button type="button" data-v="keys" data-i18n="pr_onkeys" aria-pressed="false">By ear, on keys</button><button type="button" data-v="along" data-i18n="pr_along" aria-pressed="false" hidden>Play along</button></div>
         <p class="pr-mode-hint" id="pr-mode-hint" role="status" aria-live="polite"></p>
         <p class="pr-mode-note" id="pr-mode-note" role="status" aria-live="polite" hidden></p>
         <!-- Intervals by ear: the direction the interval is played in (prSetDir). -->
@@ -428,10 +427,26 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <h2 class="pr-sec" id="pr-dir-h" data-i18n="aria_dir">Direction</h2>
           <div class="seg" id="pr-dir" role="group" aria-labelledby="pr-dir-h"><button type="button" data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button type="button" data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button><button type="button" data-v="both" data-i18n="dir_both" aria-pressed="false">Both</button></div>
         </div>
+        <!-- Progressions · Play along: the accompaniment loop (accompSync); its key comes from the key chips. Nothing is judged. -->
+        <div class="pr-along" id="pr-along" hidden>
+          <div class="row pr-along-row">
+            <label class="field"><span data-i18n="ac_prog">Progression</span> <select id="ac-prog"></select></label>
+            <label class="field"><span data-i18n="ac_pattern">Pattern</span> <select id="ac-pat"></select></label>
+          </div>
+          <div class="row pr-along-row">
+            <div class="seg" id="ac-hands" role="group" aria-label="Hands" data-i18n-aria="aria_hands"><button type="button" data-v="both" data-i18n="ac_both" aria-pressed="true">Both hands</button><button type="button" data-v="left" data-i18n="ac_lh" aria-pressed="false">Left only</button><button type="button" data-v="right" data-i18n="ac_rh" aria-pressed="false">Right only</button></div>
+            <label class="field pr-tempo"><span data-i18n="ac_tempo">Tempo</span> <small><span id="ac-bpmLbl">90</span> BPM</small><input id="ac-bpm" type="range" min="40" max="180" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
+            <label class="switch-inline"><input type="checkbox" id="ac-click"> <span data-i18n="ac_click">Metronome</span></label>
+          </div>
+        </div>
         <h2 class="pr-sec" id="pr-key-h" data-i18n="pr_key">Key</h2>
         <div class="pr-keys" id="pr-keys" role="radiogroup" aria-labelledby="pr-key-h"></div>
         <select id="pr-key" hidden tabindex="-1" aria-hidden="true"></select>
         <button type="button" class="btn primary pr-go" id="pr-start">Start drilling</button>
+        <div id="pr-along-out" hidden>
+          <div id="ac-chain" class="verdict neutral pr-chain"></div>
+          <p class="pr-along-hint" data-i18n="ac_hint">Use the keyboard below to play along. Shift its octave with the ◀ Oct / Oct ▶ buttons if the lit keys are off-screen.</p>
+        </div>
       </div>
       <!-- Intervals: the interval song book, famous tunes that open with each interval (renderSongs). -->
       <details class="panel pr-songs" id="pr-songs" hidden>
@@ -444,29 +459,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="songs" id="songsList"></div>
       </details>
       <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="pr_hint">The drill opens with the keyboard dock below. Answer by playing or by picking an option; press End to see your score.</p>
-    </div>
-  </section>
-
-  <!-- ===================== ACCOMPANY ===================== -->
-  <section class="view" id="view-accompany">
-    <div class="wrap">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="ac_eyebrow">Accompaniment</div><h1 data-i18n="ac_title">Play along with patterns</h1></div></div>
-      <p class="lede" data-i18n="ac_lede">Pick a progression and a playing pattern, then loop it at your tempo. The keys light up in rhythm — blue for the left hand, purple for the right — so you can play along. Set Hands to mute one part and play it yourself.</p>
-      <div class="panel" style="margin-top:18px">
-        <div class="row">
-          <label class="field"><span data-i18n="ac_prog">Progression</span> <select id="ac-prog"></select></label>
-          <label class="field"><span data-i18n="ac_pattern">Pattern</span> <select id="ac-pat"></select></label>
-          <label class="field"><span data-i18n="ac_key">Key</span> <select id="ac-key"></select></label>
-        </div>
-        <div class="row" style="margin-top:12px; align-items:center">
-          <div class="seg" id="ac-hands" role="group" aria-label="Hands" data-i18n-aria="aria_hands"><button data-v="both" data-i18n="ac_both" aria-pressed="true">Both hands</button><button data-v="left" data-i18n="ac_lh" aria-pressed="false">Left only</button><button data-v="right" data-i18n="ac_rh" aria-pressed="false">Right only</button></div>
-          <label class="field" style="min-width:200px"><span data-i18n="ac_tempo">Tempo</span> <small><span id="ac-bpmLbl">90</span> BPM</small><input id="ac-bpm" type="range" min="40" max="180" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
-          <label class="switch-inline"><input type="checkbox" id="ac-click"> <span data-i18n="ac_click">Metronome</span></label>
-          <button class="btn primary" id="ac-play" data-i18n="ac_play" style="margin-left:auto">Play loop</button>
-        </div>
-        <div id="ac-chain" class="verdict neutral" style="margin-top:14px"></div>
-      </div>
-      <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="ac_hint">Use the keyboard below to play along. Shift its octave with the ◀ Oct / Oct ▶ buttons if the lit keys are off-screen.</p>
     </div>
   </section>
 

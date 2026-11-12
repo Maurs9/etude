@@ -39,6 +39,17 @@
 /* Direction (Intervals by ear) */
 #pr-dir button{min-height:44px}
 
+/* Play along (Progressions): the accompaniment controls; the chord chain lights up while the loop plays */
+.pr-along{margin-top:16px}
+.pr-along-row{gap:10px 16px}
+.pr-along-row + .pr-along-row{margin-top:12px}
+#ac-hands button{min-height:44px}
+.pr-tempo{min-width:200px}
+.pr-tempo input{flex:1 1 auto; min-width:0}
+.pr-along .switch-inline{min-height:44px}
+.pr-chain{margin-top:14px; line-height:1.9}
+.pr-along-hint{margin:8px 0 0; font-size:13px; color:var(--muted)}
+
 /* Start: names the choice, so a long label wraps */
 .pr-go{margin-top:24px; min-height:48px; justify-content:center; white-space:normal; text-align:center; line-height:1.3}
 
@@ -61,6 +72,11 @@
   .pr-keys{flex-wrap:nowrap; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; scrollbar-width:thin}
   .pr-chip{scroll-snap-align:start}
   .pr-redo{width:100%}
+  .pr-along .field{width:100%; justify-content:space-between}
+  .pr-along .field select{flex:1 1 auto}
+  .pr-tempo{min-width:0}
+  #ac-hands{display:flex; width:100%}
+  #ac-hands button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center}
   #pr-dir{display:flex; width:100%}
   #pr-dir button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center}
   .pr-songs{padding:12px 14px}

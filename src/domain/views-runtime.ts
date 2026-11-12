@@ -711,9 +711,7 @@ function accompStop(silent?: boolean) {
     kbClear('rh');
     stopPreviews();
     acChainHL(-1);
-    const pb = (document).getElementById('ac-play');
-    if (pb)
-        pb.textContent = t('ac_play');
+    updatePracticeModeHint(); // the Practice Start button reads Play loop again
 }
 /* ---------- TRANSCRIBE (hum → notes) ---------- */
 interface TranscribeNote { midi: number; start: number; dur: number }
@@ -1805,7 +1803,7 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    connected, unless the user chose to hide them: Hide stays available and is saved as usual. */
 interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
 const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
-function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || v === 'accompany' || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
+function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || prAlongWanted(v) || v === 'transcribe' || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
 function sesNeedsKeys(v = view0()) { const q = SES.q; return SES.active && v === sesHome() && !!q && (q.mode !== 'ear' || ekWanted(q)) && !midiLive(); }
 function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 // The full-screen stage of a running reading drill or piece. With a MIDI or Bluetooth piano connected, the keys fold into the
@@ -3176,6 +3174,8 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
     ensureAudio();
     sesStopPrompt();
+    if (accomp.on)
+        accompStop(); // Play along is not a drill
     SES.targeted = targeted || null;
     SES.placement = false;
     SES.contrast = targeted ? contrast : null;
@@ -4266,7 +4266,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
     }
     _view = v;
     stageSync();
-    if (prev === 'accompany' && v !== 'accompany')
+    if (prev === 'practice' && v !== 'practice' && accomp.on)
         accompStop();
     if (prev === 'transcribe' && v !== 'transcribe')
         trxStop();
@@ -4308,8 +4308,6 @@ let show = function show(v: string|undefined, moveFocus = true) {
         renderRead();
     if (v === 'progress')
         renderProgress();
-    if (v === 'accompany')
-        renderAccompany();
     if (v === 'transcribe')
         renderTranscribe();
     if (v === 'sing')
@@ -17024,7 +17022,7 @@ function renderProgress() {
 }
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
-function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : v === 'songs' ? 'pr_songs' : 'nav_' + v); }
+function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : v === 'songs' ? 'pr_songs' : v === 'accompany' ? 'pr_along' : 'nav_' + v); }
 interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
 function renderPlan() {
     const list = byId('plan-list');
@@ -17087,8 +17085,9 @@ function prRecordDrill() { if (!SES.targeted || !SES.total)
 // #pr-cat and #pr-key are hidden; the topic cards and key chips are their only visible controls. Every caller
 // (Today focus cards, Progress "Needs work", Learn links, Continue, tests) changes the choice through prSetTopic,
 // prSetMode and prSetKey, and reads it through prChoice. Intervals by ear also take a Direction (prSetDir, #pr-dir),
-// and Intervals show the Song hints panel (#pr-songs, renderSongs).
-type PracticeMode = 'play' | 'ear' | 'keys';
+// and Intervals show the Song hints panel (#pr-songs, renderSongs). Progressions add a fourth mode, Play along: no drill,
+// the accompaniment loop (#pr-along), started and stopped by the Start button.
+type PracticeMode = 'play' | 'ear' | 'keys' | 'along';
 // The six topics, in the order of the #pr-cat options. The first four are the spaced-repetition categories (CATS).
 const PR_TOPICS: readonly string[] = ['interval', 'chord', 'scale', 'prog', 'melody', TECHNIQUE_TOPIC];
 const PR_KEYS: readonly string[] = ['all', ...Array.from({ length: 12 }, (_, i) => String(i))];
@@ -17104,16 +17103,16 @@ const PR_GLYPH: Record<string, string> = {
 let practiceModePref: PracticeMode = 'play';
 let prIvDir: IntervalDirection = 'asc';
 
-function isPracticeMode(v: string | undefined): v is PracticeMode { return v === 'play' || v === 'ear' || v === 'keys'; }
+function isPracticeMode(v: string | undefined): v is PracticeMode { return v === 'play' || v === 'ear' || v === 'keys' || v === 'along'; }
 function prTopicLabel(cat: string) { return cat === 'melody' ? t('cat_melody') : cat === TECHNIQUE_TOPIC ? t('cat_technique') : catLabel(cat); }
-function prModeLabel(mode: PracticeMode) { return t(mode === 'keys' ? 'pr_onkeys' : mode === 'ear' ? 'pr_byear' : 'pr_playit'); }
+function prModeLabel(mode: PracticeMode) { return t(mode === 'keys' ? 'pr_onkeys' : mode === 'ear' ? 'pr_byear' : mode === 'along' ? 'pr_along' : 'pr_playit'); }
 function prKeyLabel(key: string | null | undefined) { return key == null || key === '' || key === 'all' ? t('all_keys') : rootName(+key || 0); }
 
 /** The chosen topic, mode and key. Melodies are always on the keys; scales and arpeggios are always Play it. */
 function prChoice(): { cat: string; mode: PracticeMode; key: string } {
     const cat = selectById('pr-cat').value;
     const v = queryHtml(byId('pr-mode'), 'button[aria-pressed="true"]')?.dataset.v;
-    const mode: PracticeMode = cat === 'melody' ? 'keys' : cat === TECHNIQUE_TOPIC ? 'play' : isPracticeMode(v) ? v : 'play';
+    const mode: PracticeMode = cat === 'melody' ? 'keys' : cat === TECHNIQUE_TOPIC ? 'play' : isPracticeMode(v) && (v !== 'along' || cat === 'prog') ? v : 'play';
     return { cat, mode, key: selectById('pr-key').value || 'all' };
 }
 function prSetTopic(cat: string) {
@@ -17128,13 +17127,16 @@ function prSetMode(v: PracticeMode) {
     if (!(b instanceof HTMLButtonElement) || b.disabled)
         return;
     queryAllHtml(pm, 'button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-    practiceModePref = v;
-    if (v !== 'play') {
+    if (v !== 'along') // Play along is not kept: back on Practice, or from a topic link, the setup offers the last drill mode
+        practiceModePref = v;
+    if (v === 'ear' || v === 'keys') {
         data.settings.earKeys = v === 'keys';
         saveAll();
     }
     updatePracticeModeHint();
 }
+// Play along chosen on the Practice screen, with no drill running: the keys light up there.
+function prAlongWanted(v = view0()) { return v === 'practice' && !SES.active && prChoice().mode === 'along'; }
 function isIntervalDirection(v: string | undefined): v is IntervalDirection { return v === 'asc' || v === 'desc' || v === 'both'; }
 function prDirLabel(dir: IntervalDirection) { return t(dir === 'desc' ? 'dir_desc' : dir === 'both' ? 'dir_both' : 'dir_asc'); }
 // Direction applies to Intervals by ear (tap or on the keys): the row shows only then, and only then goes with the drill.
@@ -17153,9 +17155,23 @@ function prSetKey(key: string) {
     sel.value = key;
     renderPracticeKeys();
     updatePracticeModeHint();
+    if (prChoice().mode === 'along') {
+        updateAccompChain();
+        accompRestartIfPlaying();
+    }
 }
 function prStart() {
     const { cat, mode, key } = prChoice();
+    if (mode === 'along') { // not a drill: the loop starts or stops, and no last-drill record is written
+        if (accomp.on)
+            accompStop();
+        else {
+            accompSync();
+            accompStart();
+            updatePracticeModeHint();
+        }
+        return;
+    }
     practiceModePref = mode;
     if (mode !== 'play' && cat !== 'melody') {
         data.settings.earKeys = mode === 'keys';
@@ -17183,6 +17199,10 @@ function prOpenMoved(v: router.MovedView, moveFocus = true) {
         if (panel instanceof HTMLDetailsElement)
             panel.open = true;
         renderSongs();
+    }
+    else {
+        prSetTopic('prog');
+        prSetMode('along');
     }
 }
 // Continue: the last drill again, with its topic, mode and key, in one tap.
@@ -17279,10 +17299,18 @@ function updatePracticeModeHint() {
     const why = cat === 'melody' ? t('pr_why_melody', prModeLabel('keys')) : cat === 'prog' ? t('pr_why_prog', prModeLabel('keys')) : tech ? t('pr_why_tech', prModeLabel('play')) + ' ' + t('tq_pr_note') : '';
     note.textContent = why;
     note.hidden = !why;
-    const dirShown = prDirShown();
+    const dirShown = prDirShown(), along = mode === 'along';
     byId('pr-dir-row').hidden = !dirShown;
     byId('pr-songs').hidden = cat !== 'interval';
-    start.textContent = t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), ...(dirShown ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
+    byId('pr-along').hidden = byId('pr-along-out').hidden = !along;
+    if (along) {
+        hint.textContent = t('ac_lede') + (key === 'all' ? ' ' + t('pr_along_c', rootName(0)) : '');
+        renderAccompany();
+    }
+    else if (accomp.on)
+        accompStop(); // another topic or mode: the loop stops
+    start.textContent = along ? t(accomp.on ? 'ac_stop' : 'ac_play') : t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), ...(dirShown ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
+    dockSync(); // Play along brings the keys
 }
 
 function syncPracticeCatAndMode() {
@@ -17297,9 +17325,11 @@ function syncPracticeCatAndMode() {
     queryAllHtml(pm, ':scope > *').forEach((x) => {
         if (x instanceof HTMLButtonElement) {
             const v = x.dataset.v;
-            // Melodies only support 'keys'; Progressions do NOT support 'keys'; scales and arpeggios are played
-            const dis = (mel && v !== 'keys') || (prog && v === 'keys') || (tech && v !== 'play');
+            // Melodies only support 'keys'; Progressions do NOT support 'keys'; scales and arpeggios are played;
+            // Play along is for Progressions only, and hidden elsewhere
+            const dis = (mel && v !== 'keys') || (prog && v === 'keys') || (tech && v !== 'play') || (!prog && v === 'along');
             x.disabled = dis;
+            x.hidden = !prog && v === 'along';
         }
     });
 
@@ -18157,18 +18187,12 @@ function applyNotation() {
     selectById('pr-key').value = pk || 'all';
     renderPracticeSetup();
     selectById('keyCtx').value = kc || '-1';
-    const ak = selectById('ac-key');
-    if (ak) {
-        const av = ak.value;
-        fillRoots(ak, false);
-        ak.value = String(av || accomp.key || 0);
-    }
     renderCircle();
     buildKeyboard();
     repaintHeld();
     if (view0() === 'explore')
         updateExplore();
-    if (view0() === 'accompany')
+    if (view0() === 'practice')
         updateAccompChain();
     if (view0() === 'read' && SR.piece) {
         srStopAll();
@@ -18180,7 +18204,7 @@ function applyNotation() {
         anDraw();
     coachRefresh();
 }
-/* ---------- ACCOMPANIMENT UI ---------- */
+/* ---------- ACCOMPANIMENT UI: Progressions · Play along in the Practice setup ---------- */
 /** A `<select>` whose options are built once; `_filled` marks it as built. */
 type AccompFilledSelect = HTMLSelectElement & { _filled?: boolean };
 function renderAccompany() {
@@ -18194,18 +18218,14 @@ function renderAccompany() {
         Object.keys(ACCOMP_PATTERNS).forEach((k) => { const o = (document).createElement('option'); o.value = k; o.textContent = ACCOMP_PATTERNS[k][lang] || ACCOMP_PATTERNS[k].en; pt.appendChild(o); });
         pt._filled = true;
     }
-    const ak = selectById('ac-key');
-    if (ak && !ak.options.length) {
-        fillRoots(ak, false);
-        ak.value = String(accomp.key || 0);
-    }
     updateAccompChain();
 }
+// The loop's key: the Practice key chip, or C when All keys is chosen.
+function accompKey() { const k = prChoice().key; return k === 'all' ? 0 : (+k || 0); }
 function updateAccompChain() { const el = byId('ac-chain'); if (!el)
     return; const prog = ACCOMP_PROGS[+(selectById('ac-prog').value || 0)]; if (!prog)
-    return; const key = +(selectById('ac-key').value || 0); el.innerHTML = prog.chords.map((ch) => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
-function accompSync() { accomp.progIdx = +(selectById('ac-prog').value || 0); accomp.key = +(selectById('ac-key').value || 0); accomp.pattern = selectById('ac-pat').value || 'block'; accomp.bpm = +(inputById('ac-bpm').value || 90); const hb = queryHtml(byId('ac-hands'), '[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v ?? accomp.hands : 'both'; accomp.click = inputById('ac-click').checked; }
-function acPlayLabel() { byId('ac-play').textContent = accomp.on ? t('ac_stop') : t('ac_play'); }
+    return; const key = accompKey(); el.innerHTML = prog.chords.map((ch) => '<span class="ch">' + rootName(((key + ch[0]) % 12 + 12) % 12) + dispSym(ch[1]) + '</span>').join('<span class="sep" aria-hidden="true">·</span>'); }
+function accompSync() { accomp.progIdx = +(selectById('ac-prog').value || 0); accomp.key = accompKey(); accomp.pattern = selectById('ac-pat').value || 'block'; accomp.bpm = +(inputById('ac-bpm').value || 90); const hb = queryHtml(byId('ac-hands'), '[aria-pressed="true"]'); accomp.hands = hb ? hb.dataset.v ?? accomp.hands : 'both'; accomp.click = inputById('ac-click').checked; }
 function accompRestartIfPlaying() { if (accomp.on) {
     accompSync();
     accompStart();
@@ -18392,17 +18412,10 @@ function initControls() {
     // accompaniment
     byId('ac-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); accompRestartIfPlaying(); });
-    ['ac-prog', 'ac-pat', 'ac-key'].forEach((id) => byId(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
+    ['ac-prog', 'ac-pat'].forEach((id) => byId(id).addEventListener('change', () => { updateAccompChain(); accompRestartIfPlaying(); }));
     byId('ac-bpm').addEventListener('input', (e) => { byId('ac-bpmLbl').textContent = wiringField(e).value; });
     byId('ac-bpm').addEventListener('change', accompRestartIfPlaying);
     byId('ac-click').addEventListener('change', accompRestartIfPlaying);
-    byId('ac-play').addEventListener('click', () => { if (accomp.on) {
-        accompStop();
-    }
-    else {
-        accompSync();
-        accompStart();
-    } acPlayLabel(); });
     // read & play (sheet music)
     byId('rd-piece').addEventListener('change', (e) => srSelectPiece(wiringField(e).value));
     const onHandsClick = (e: MouseEvent) => {
@@ -18696,8 +18709,8 @@ Object.defineProperty(__etude, "_routed", { configurable: true, get: () => _rout
 Object.defineProperty(__etude, "_saveT", { configurable: true, get: () => _saveT });
 Object.defineProperty(__etude, "_view", { configurable: true, get: () => _view });
 Object.defineProperty(__etude, "acChainHL", { configurable: true, get: () => acChainHL });
-Object.defineProperty(__etude, "acPlayLabel", { configurable: true, get: () => acPlayLabel });
 Object.defineProperty(__etude, "accompHL", { configurable: true, get: () => accompHL });
+Object.defineProperty(__etude, "accompKey", { configurable: true, get: () => accompKey });
 Object.defineProperty(__etude, "accompRestartIfPlaying", { configurable: true, get: () => accompRestartIfPlaying });
 Object.defineProperty(__etude, "accompStart", { configurable: true, get: () => accompStart });
 Object.defineProperty(__etude, "accompStop", { configurable: true, get: () => accompStop });
@@ -19165,6 +19178,7 @@ Object.defineProperty(__etude, "playQuestionSound", { configurable: true, get: (
 Object.defineProperty(__etude, "playScaleNotes", { configurable: true, get: () => playScaleNotes });
 Object.defineProperty(__etude, "popModalState", { configurable: true, get: () => popModalState });
 Object.defineProperty(__etude, "positionBlacks", { configurable: true, get: () => positionBlacks });
+Object.defineProperty(__etude, "prAlongWanted", { configurable: true, get: () => prAlongWanted });
 Object.defineProperty(__etude, "prChoice", { configurable: true, get: () => prChoice });
 Object.defineProperty(__etude, "prEarCheck", { configurable: true, get: () => prEarCheck });
 Object.defineProperty(__etude, "prOpenMoved", { configurable: true, get: () => prOpenMoved });

@@ -5,9 +5,9 @@ import { test, expect, todayN, APP } from '../helpers/fixtures.mjs';
 import { scorePedalCollisions } from '../helpers/score-audit-helpers.mjs';
 import { STRINGS } from '../../src/locales/index.js';
 
-const VIEWS = ['today', 'learn', 'method', 'practice', 'read', 'sing', 'analysis', 'explore', 'accompany', 'transcribe', 'progress'];
+const VIEWS = ['today', 'learn', 'method', 'practice', 'read', 'sing', 'analysis', 'explore', 'transcribe', 'progress'];
 // Screens that moved into the Practice setup: their names still open it.
-const MOVED = ['songs'];
+const MOVED = ['songs', 'accompany'];
 
 test('boots and visits every view without uncaught errors', async ({ app }) => {
   const page = await app.open();
@@ -216,7 +216,7 @@ test.describe('Navigation accessibility', () => {
     await expect(page).toHaveURL(/#practice$/);
     await expect(practice).toHaveAttribute('aria-current', 'page');
     await expect(scores).toHaveAttribute('aria-current', 'false');
-    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Accompany', 'Transcribe']);
+    await expect(page.locator('#modeNav button')).toHaveText(['Exercises', 'Read', 'Sing', 'Explore', 'Transcribe']);
 
     await scores.click();
     await expect(page).toHaveURL(/#analysis$/);
