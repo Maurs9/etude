@@ -8293,7 +8293,7 @@ function rdSvg(o: ReadDrillSvgOptions) {
     const hl = o.hl != null ? band(x0 + o.hl * colW, 'rdx-now') : '';
     const ghost = o.ghost ? `<g class="rdx-ghost">${band(-colW / 2, 'rdx-ghost-b')}<text x="0" y="${yA + 15}">👻</text></g>` : '';
     const notes = o.wrap ? `<g class="${o.wrap}" style="--dx:${colW}px">${body.join('')}</g>` : body.join('');
-    return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0, H };
+    return { svg: `<svg class="rdx-svg" viewBox="0 ${yA} ${W} ${H}" width="${Math.round(W * sc)}" height="${Math.round(H * sc)}" style="--w:${Math.round(W * sc)}px" xmlns="http://www.w3.org/2000/svg" role="img"${o.aria ? ` aria-label="${rdEsc(o.aria)}"` : ''}>${hl}${staff}${head}${ghost}${notes}</svg>`, heads, W, x0, H };
 }
 /* ---- drill engine ---- */
 // Practice's star check: the last RD_CHECK_N answers of the run.
@@ -8712,7 +8712,8 @@ function rdFlowShow(slide: boolean) {
         F.geo = { x0: head, colW, n: per };
     }
     else {
-        const sc = STAGE.on ? Math.max(1, Math.min(wide, ah / H)) : RD_FLOW_SC;
+        // Off the stage the notes grow until the most a stream shows (12) fills the width, up to SR_SCALE_CAP.
+        const sc = STAGE.on ? Math.max(1, Math.min(wide, ah / H)) : Math.max(RD_FLOW_SC, Math.min(SR_SCALE_CAP, aw / (head + 10 + 12 * colW)));
         const n = streamVisible(aw, { scale: sc, colW, head });
         const start = streamStart(F.cur, n, total);
         rdFlowFill(F, start + n);
@@ -9894,12 +9895,8 @@ function rdIntro() {
     byId('rdx-meter').hidden = true;
     byId('rdx-end').hidden = true;
     const modes = rdModes(L), ic = RD_MODE_ICON;
-    let prev = '';
-    const clef = L.clef;
-    if (['name', 'play', 'k2s'].includes(L.ty) && clef !== 'mix' && clef !== undefined) {
-        const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
-        prev = `<div class="rdx-staff rdx-preview" aria-hidden="true">${rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg}</div>`;
-    }
+    const pool = ['name', 'play', 'k2s'].includes(L.ty) ? rdPoolSvg(L) : '';
+    const prev = pool ? `<div class="rdx-staff rdx-preview" aria-hidden="true">${pool}</div>` : '';
     const rec = L.custom ? '' : `<div class="rdx-rec">${rdStars(r.s || 0)}${r.acc ? `<span>${t('rdx_best_acc', r.acc)}</span>` : ''}${r.t ? `<span>${t('rdx_best_t', (r.t / 1000).toFixed(1))}</span>` : ''}</div>`;
     const sfx = rdHasCheck(L) ? '' : '_' + L.ty;
     const card = (m: ReadDrillMode, cls: string) => `<button type="button" class="rdx-mode${cls}" data-mode="${m}"><b>${ic[m]} ${t('rdx_m_' + m)}</b><span>${t('rdx_md_' + m + sfx)}</span></button>`;
@@ -9915,6 +9912,28 @@ function rdIntro() {
         : card('test', '');
     byId('rdx-body').innerHTML = `<div class="rdx-intro"><p class="rdx-desc">${t('rdx_d_' + L.ty + (rdFlowOk(L) ? '_flow' : ''))}</p>${prev}${rec}<div class="rdx-modes">${card('practice', ' rdx-mode-main')}${more}</div></div>`;
     rdCoach(true);
+}
+// The notes a naming or playing level draws from, on its staff with their names; '' when the level mixes clefs.
+function rdPoolSvg(L: ReadDrillLevel) {
+    const clef = L.clef;
+    if (clef === 'mix' || clef === undefined || (!L.set && !(L.lo && L.hi)))
+        return '';
+    const pool = rdPool(L).filter((n) => !n.acc).sort((a, b) => rdStep(a) - rdStep(b));
+    return rdSvg({ clef, cols: pool.map((n) => [n]), colW: pool.length > 16 ? 22 : 28, dur: 1, scale: 1.1, lbl: pool.map((n) => rdName(n)) }).svg;
+}
+// A picture of what a level asks: its notes, its widest interval or chord from the bottom of its range, or its largest key
+// signature. '' for rhythm and mixed-clef levels, which show their unit's icon instead.
+function rdLvSample(L: ReadDrillLevel) {
+    if (L.ty === 'ks')
+        return L.clef && L.clef !== 'mix' ? rdSvg({ clef: L.clef, keyN: L.kmax ?? 0, cols: [], minW: 150 }).svg : '';
+    if (L.ty === 'iv' || L.ty === 'ch') {
+        if (!L.lo || L.clef === undefined || L.clef === 'mix' || L.clef === 'grand')
+            return '';
+        const clef = rdStaffClef(L.clef), lo = rdStep(rdP(L.lo)), iv = L.ivs ? L.ivs[L.ivs.length - 1] : 5;
+        const cols = L.ty === 'iv' ? (L.harm === 1 ? [[rdFromStep(lo), rdFromStep(lo + iv - 1)]] : [[rdFromStep(lo)], [rdFromStep(lo + iv - 1)]]) : [[0, 2, 4].map((j) => rdFromStep(lo + j))];
+        return rdSvg({ clef, cols, colW: 72 }).svg;
+    }
+    return L.ty === 'rh' ? '' : rdPoolSvg(L);
 }
 function rdChalItems() { return queryAllHtml(document, '#rdx-chal-menu [role=menuitem]'); }
 // Opens or closes the Challenge menu; on opening, focus goes to its first or last item.
@@ -10190,10 +10209,17 @@ function rdSuggest() {
 }
 function rdRenderHome() {
     const d = rdData(), tot = d.tot, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0), cont = rdSuggest();
-    byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
-    <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${t('rdx_st_time')}</span></div></div>
-    <div class="rdx-hero-r"><button class="btn primary" data-lv="${cont.id}" id="rdx-cont">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}<small>${rdEsc(rdLvName(cont) + ' · ' + t('rdx_ty_' + cont.ty))}</small></button>
-      <label class="switch-inline"><input type="checkbox" id="rdx-snd"${d.prefs.sound ? ' checked' : ''}> <span>${t('rdx_sound')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-hints"${d.prefs.hints ? ' checked' : ''}> <span>${t('rdx_hints')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-flow"${d.prefs.flow ? ' checked' : ''}> <span>${t('rdx_flow')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-ghost"${d.prefs.ghost ? ' checked' : ''}${d.prefs.flow ? '' : ' disabled'}> <span>${t('rdx_ghost')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-stage-pref"${d.prefs.stage ? ' checked' : ''}> <span>${t('rdx_stage')}</span></label><label class="switch-inline"><input type="checkbox" id="rdx-weak-inject"${data.settings.weakSpotInjection ? ' checked' : ''}> <span>${t('rdx_weak_inject')}</span></label></div>`;
+    const unit = RD_UNITS.find((u) => u.lv.includes(cont)), rec: Partial<ReadDrillLevelStat> = d.lv[cont.id] || {}, sample = rdLvSample(cont);
+    const best = [rec.acc ? t('rdx_best_acc', rec.acc) : '', rec.t ? t('rdx_best_t', (rec.t / 1000).toFixed(1)) : ''].filter(Boolean).map((s) => `<span>${rdEsc(s)}</span>`).join('');
+    const opt = (id: string, on: boolean, key: string, off = false) => `<label class="switch-inline"><input type="checkbox" id="${id}"${on ? ' checked' : ''}${off ? ' disabled' : ''}> <span>${t(key)}</span></label>`;
+    // Stats, then the level to play next (a picture of it, its name, details and stars, and the button), then the options.
+    byId('rdx-hero').innerHTML = `<div class="rdx-hero-l"><div><div class="rdx-big">★ ${st}<small> / ${RD_ALL.length * 3}</small></div><div class="rdx-hero-s">${t('rdx_hero_stars')}</div></div>
+    <div class="rdx-hero-m"><div><b>${tot.n}</b><span>${t('rdx_st_ans')}</span></div><div><b>${tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—'}</b><span>${t('rdx_st_acc')}</span></div><div><b>${tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—'}</b><span>${t('rdx_st_time')}</span></div></div></div>
+    <div class="rdx-next"><div class="rdx-next-pic" aria-hidden="true">${sample || `<span class="rdx-next-ic">${unit ? unit.icon : '🎯'}</span>`}</div>
+      <div class="rdx-next-txt"><span class="rdx-next-eye">${t(d.prefs.last ? 'rdx_hero_next' : 'rdx_hero_first')}</span><b class="rdx-next-name" id="rdx-next-name">${rdEsc(rdLvName(cont))}</b><span class="rdx-next-d" id="rdx-next-d">${rdEsc(rdLvDetail(cont))}</span></div>
+      <div class="rdx-next-go"><div class="rdx-rec">${rdStars(rec.s || 0)}${best}</div>
+      <button class="btn primary" data-lv="${cont.id}" id="rdx-cont" aria-describedby="rdx-next-name rdx-next-d">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}</button></div></div>
+    <div class="rdx-hero-r" role="group" aria-label="${rdEsc(t('rdx_hero_opts'))}">${opt('rdx-snd', !!d.prefs.sound, 'rdx_sound')}${opt('rdx-hints', !!d.prefs.hints, 'rdx_hints')}${opt('rdx-flow', !!d.prefs.flow, 'rdx_flow')}${opt('rdx-ghost', !!d.prefs.ghost, 'rdx_ghost', !d.prefs.flow)}${opt('rdx-stage-pref', !!d.prefs.stage, 'rdx_stage')}${opt('rdx-weak-inject', !!data.settings.weakSpotInjection, 'rdx_weak_inject')}</div>`;
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
         const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {

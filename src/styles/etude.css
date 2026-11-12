@@ -1167,7 +1167,6 @@
   .rdx-tabs [role=tab]:hover{color:var(--ink)}
   .rdx-tabs [role=tab][aria-selected=true]{color:var(--accent); border-bottom-color:var(--accent)}
   .rdx-tabs [role=tab]:focus-visible,.rdx-lv:focus-visible,.rdx-mode:focus-visible,.rdx-a:focus-visible,.rdx-tap:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
-  .rdx-hero{display:grid; grid-template-columns:auto 1fr auto; gap:22px; align-items:center}
   .rdx-big{font-family:var(--serif); font-size:34px; font-weight:600; color:var(--gold); line-height:1}
   .rdx-big small{font-size:16px; color:var(--muted); font-family:var(--sans)}
   .rdx-hero-s{font-size:12.5px; color:var(--muted); margin-top:4px}
@@ -1175,10 +1174,6 @@
   .rdx-hero-m div,.rdx-tiles div{display:flex; flex-direction:column}
   .rdx-hero-m b,.rdx-tiles b{font-size:20px; font-variant-numeric:tabular-nums; color:var(--ink)}
   .rdx-hero-m span,.rdx-tiles span{font-size:12px; color:var(--muted)}
-  .rdx-hero-r{display:flex; flex-direction:column; gap:8px; align-items:flex-start}
-  #rdx-cont{display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left}
-  #rdx-cont small{font-size:11.5px; font-weight:500; opacity:.85}
-  .rdx-ladder{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; margin-top:16px}
   .rdx-unit{border:1px solid var(--line); border-radius:14px; background:var(--card); padding:14px 14px 12px; box-shadow:var(--shadow)}
   .rdx-unit h3{display:flex; align-items:center; gap:8px; margin:0; font-size:16px; font-family:var(--serif); font-weight:600}
   .rdx-unit h3 .ic{display:inline-grid; place-items:center; min-width:30px; height:30px; padding:0 4px; border-radius:8px; background:var(--paper); color:var(--accent); font-size:18px; font-family:var(--sans)}
@@ -1280,8 +1275,6 @@
   .rdx-bar-t i{display:block; height:100%; background:var(--good)}
   .rdx-bar em{font-style:normal; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums}
   @media (max-width:680px){
-    .rdx-hero{grid-template-columns:1fr; gap:14px}
-    .rdx-ladder{grid-template-columns:1fr}
     .rdx-tabs{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none}
     .rdx-tabs [role=tab]{padding:9px 9px 10px; font-size:13.5px; white-space:nowrap; flex:none}
     .rdx-a{min-width:44px; font-size:16px; padding:8px 10px}
