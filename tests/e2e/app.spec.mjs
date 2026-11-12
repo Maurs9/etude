@@ -195,11 +195,12 @@ test.describe('Navigation accessibility', () => {
     await expect(page.locator('#greet-title')).toBeFocused();
   });
 
-  test('Score & analysis is its own top-level Scores section, and old #analysis links still open it', async ({ app }) => {
+  test('Pieces is its own top-level section, and old #analysis links still open it', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     const scores = page.locator('#nav button[data-view="analysis"]'), practice = page.locator('#nav button[data-view="practice"]');
     await expect(page.locator('#view-analysis')).toHaveClass(/active/);
-    await expect(scores).toHaveText('Scores');
+    await expect(scores).toHaveText('Pieces');
+    await expect(page.locator('#view-analysis h1')).toHaveText('Pieces');
     await expect(scores).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('#nav button[aria-current="page"]')).toHaveCount(1);
     await expect(page.locator('#modeBar')).toBeHidden();
@@ -216,9 +217,9 @@ test.describe('Navigation accessibility', () => {
     await expect(scores).toHaveAttribute('aria-current', 'page');
 
     await page.evaluate(() => window.__etude.setLang('ro'));
-    await expect(scores).toHaveText('Partituri');
+    await expect(scores).toHaveText('Piese');
     await page.setViewportSize({ width: 375, height: 700 });
-    await expect(page.locator('#bottomNav button[aria-current="page"]')).toHaveText('Partituri');
+    await expect(page.locator('#bottomNav button[aria-current="page"]')).toHaveText('Piese');
     await page.locator('#bottomNav button[data-view="practice"]').click();
     await expect(page.locator('#view-practice')).toHaveClass(/active/);
     await page.locator('#bottomNav button[data-view="analysis"]').click();
@@ -277,7 +278,7 @@ test.describe('Navigation accessibility', () => {
     expect(fit).toMatchObject({ tabs: false, menu: true });
     expect(fit.overflow).toBeLessThanOrEqual(0.5);
     await page.locator('#menuBtn').click();
-    await expect(page.locator('#mobileMenu button')).toHaveText(['Today', 'Learn', 'Practice', 'Scores', 'Progress']);
+    await expect(page.locator('#mobileMenu button')).toHaveText(['Today', 'Learn', 'Practice', 'Pieces', 'Progress']);
     await page.keyboard.press('Escape');
     await expect(page.locator('#mobileMenu')).toBeHidden();
 
@@ -1353,7 +1354,7 @@ for (const lang of ['en', 'ro']) {
   test(`a loaded score stays above the keyboard after resizing (${lang})`, async ({ app, page }) => {
     await page.setViewportSize({width:1920,height:1000});
     await app.open({hash:'analysis',lang});
-    await page.locator('#an-roll .an-ex').first().click();
+    await page.locator('#pc-list .pc-item').first().click();
     await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.notes.length>0 && !!document.querySelector('#an-roll svg'));
     const before=await page.evaluate(() => ({id:window.__etude.AN.source.id,notes:window.__etude.AN.notes.length}));
     await page.setViewportSize({width:390,height:844});
@@ -2256,6 +2257,8 @@ test.describe('reading drills: arcade modes', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await app.open({ hash: 'read' });
     await page.locator('#rdt-pieces').click();
+    await page.locator('#rd-mode button[data-v="learn"]').click();
+    await page.locator('#rd-gen').click();
     await page.locator('#rd-go').click();
     await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
     await expect(page.locator('#rd-staff svg')).toBeVisible();

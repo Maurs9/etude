@@ -1,0 +1,39 @@
+/* ---------- Pieces (etude.html #view-analysis) and the Read & Play sight-reading tab ----------
+   Loaded after etude.css. The built-in pieces sit above My Library in a disclosure like the library's own, one column per
+   level; the open piece is marked. The Run complete card shows the saved best. Read & Play keeps only generated melodies:
+   a title for the current one, and an empty state before the first. */
+.pc-pick{margin-top:16px; min-width:0; color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:var(--rad, 12px); font-family:var(--sans)}
+.pc-pick > summary{min-height:48px; padding:12px 16px; cursor:pointer; font-weight:700}
+.pc-pick > summary::marker{color:var(--accent)}
+.pc-pick > summary:focus-visible{outline:3px solid var(--accent); outline-offset:3px}
+.pc-list{display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px 18px; padding:0 16px 16px; min-width:0}
+.pc-level{min-width:0}
+.pc-level-h{margin:0 0 6px; font:700 13px var(--sans); color:var(--ink2)}
+.pc-items{list-style:none; margin:0; padding:0; border-top:1px solid var(--line)}
+.pc-item{appearance:none; width:100%; min-height:44px; display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"t s" "m s"; align-items:center; gap:1px 10px;
+  padding:10px 8px; border:none; border-bottom:1px solid var(--line); border-radius:0; background:none; color:var(--ink); text-align:left; font-family:inherit; cursor:pointer}
+.pc-item:hover{background:var(--paper)}
+.pc-item:hover .pc-t{color:var(--accent)}
+.pc-item[aria-current="true"]{background:color-mix(in srgb, var(--accent) 8%, transparent); box-shadow:inset 3px 0 0 var(--accent)}
+.pc-item:focus-visible{outline:3px solid var(--accent); outline-offset:-3px}
+.pc-item:disabled{opacity:.5; cursor:progress}
+.pc-t{grid-area:t; min-width:0; font-family:var(--serif); font-size:16px; font-weight:600; overflow-wrap:anywhere}
+.pc-m{grid-area:m; min-width:0; font-size:12.5px; color:var(--muted)}
+.pc-s{grid-area:s; display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap}
+.pc-ok{color:var(--good); font-weight:700}
+@media (max-width:680px){
+  .pc-list{grid-template-columns:minmax(0,1fr); padding-inline:12px}
+}
+
+/* Run complete: the best accuracy saved for this piece */
+.pr-sum-best{margin:2px 0 0; font-size:13.5px; font-weight:600; color:var(--ink2)}
+.pr-sum-best.is-new{color:var(--accent)}
+
+/* Read & Play: the generated melody's title, and the tab before the first melody */
+.rd-gen-title{margin:12px 0 0; font:600 19px/1.25 var(--serif); color:var(--ink)}
+.rd-gen-title:empty{display:none}
+.rd-empty{margin-top:12px; padding:14px 16px; border:1.5px dashed var(--line2); border-radius:12px; color:var(--muted); font-size:14px}
+.rd-empty p{margin:0}
+.rd-empty p + p{margin-top:8px}
+.rd-empty[hidden]{display:none}
+body[data-stage=immersive] .rd-gen-title{display:none}

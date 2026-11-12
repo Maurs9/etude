@@ -29,7 +29,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <button data-view="today" data-i18n="nav_today" aria-current="page">Today</button>
       <button data-view="learn" data-i18n="nav_learn">Learn</button>
       <button data-view="practice" data-i18n="nav_practice">Practice</button>
-      <button data-view="analysis" data-i18n="nav_scores">Scores</button>
+      <button data-view="analysis" data-i18n="nav_scores">Pieces</button>
       <button data-view="progress" data-i18n="nav_progress">Progress</button>
     </nav>
     <button class="midi-chip" id="midiChip"><span class="dot" id="midiDot"></span><span id="midiText">Connect MIDI</span></button>
@@ -213,14 +213,15 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <button class="btn ghost sm" id="rd-stage-end" data-i18n="rdx_end" aria-keyshortcuts="Escape">Finish</button>
         </div>
         <div class="row" id="rd-pieces-controls" style="align-items:center">
-          <label class="field"><span data-i18n="rd_piece">Piece</span> <select id="rd-piece"></select></label>
           <button class="btn sm" id="rd-gen" data-i18n="rdx_gen">🎲 New sight-reading melody</button>
           <div class="seg" id="rd-hands" role="group" aria-label="Hands" data-i18n-aria="rdx_hands_aria"><button data-v="both" data-i18n="rd_both" aria-pressed="true">Both hands</button><button data-v="rh" data-i18n="rd_rh" aria-pressed="false">Right hand</button><button data-v="lh" data-i18n="rd_lh" aria-pressed="false">Left hand</button></div>
           <div class="seg" id="rd-mode" role="group" aria-label="Mode" data-i18n-aria="rdx_mode_aria"><button data-v="learn" data-i18n="rd_m_learn" aria-pressed="true">Step by step</button><button data-v="assess" data-i18n="rd_m_assess" aria-pressed="false">Assessment</button></div>
           <label class="switch-inline"><input type="checkbox" id="rd-names"> <span data-i18n="rd_names">Note names</span></label>
           <label class="switch-inline"><input type="checkbox" id="rd-any-octave"> <span data-i18n="rd_any_octave">Any octave</span></label>
         </div>
+        <h2 class="rd-gen-title" id="rd-gen-title"></h2>
         <div id="rd-meta" class="lede" style="font-size:13px; margin-top:8px"></div>
+        <div class="rd-empty" id="rd-empty"><p data-i18n="rd_gen_empty">Generate a fresh melody to sight-read with the button above. Sight-reading levels in the drills open here too.</p><p><span data-i18n="rd_gen_pieces">Built-in pieces are in Pieces.</span> <button type="button" class="btn sm ghost" id="rd-to-pieces" data-i18n="rd_gen_pieces_go">Open Pieces</button></p></div>
         <div id="rd-srt-preview" class="panel" hidden>
           <strong data-i18n="rd_srt_preview_title">First attempt</strong>
           <span id="rd-srt-countdown" data-i18n="rd_srt_preview_hint">You have 20 seconds to preview this piece.</span>
@@ -245,7 +246,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <button class="btn ghost" id="rd-listen" data-i18n="rd_listen">▶ Listen</button>
           <label class="field" style="min-width:180px"><span data-i18n="rd_tempo">Tempo</span> <small><span id="rd-bpmLbl">90</span> BPM</small><input id="rd-bpm" type="range" min="40" max="160" value="90" aria-label="Tempo" data-i18n-aria="rd_tempo"></label>
           <span style="margin-left:auto"></span>
-          <span id="rd-best" class="lede" style="font-size:13px"></span>
           <button class="btn ghost sm stage-fs" id="rd-fs" type="button" hidden aria-label="Full screen" title="Full screen">⛶</button>
         </div>
       </div>
@@ -255,15 +255,15 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   </section>
 
   <section class="view" id="view-analysis"><div class="wrap">
-    <div class="section-head"><div><div class="eyebrow" data-i18n="an_eyebrow">Score study</div><h1 data-i18n="an_title">Score &amp; analysis</h1></div></div>
-    <p class="lede" data-i18n="an_desc">Open a MIDI or MusicXML file, or start with an example. Select notes to study keys, chords and harmony. Everything stays on this device.</p>
+    <div class="section-head"><div><div class="eyebrow" data-i18n="an_eyebrow">Score study</div><h1 data-i18n="an_title">Pieces</h1></div></div>
+    <p class="lede" data-i18n="an_desc">Pick a built-in piece or open your own MIDI or MusicXML file, then play it with the score. Select notes to study keys, chords and harmony. Everything stays on this device.</p>
+    <details class="pc-pick" id="pc-pick" open><summary id="pc-sum">Built-in pieces</summary><div class="pc-list" id="pc-list"></div></details>
     <div id="score-library-root"></div>
     <div class="panel an-panel" id="an-panel" style="margin-top:18px">
       <div class="an-src" id="an-src">
         <div class="an-src-text"><span id="an-name" class="an-name"></span><span id="an-msg" class="an-msg" role="status" aria-live="polite"></span></div>
         <div class="an-src-actions">
           <label class="btn sm primary" for="an-file"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></label><input type="file" id="an-file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi" class="visually-hidden">
-          <label class="field"><span data-i18n="an_example_label">Example</span> <select id="an-example"></select></label>
         </div>
       </div>
       <div class="an-tbwrap" id="an-tbwrap" hidden>
@@ -329,7 +329,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="an-tl" id="an-tl" hidden><span id="fall-clock" class="fall-time">0:00</span><div class="tl-track"><div class="tl-ticks" id="tl-ticks" aria-hidden="true"></div><div class="tl-loop" id="tl-loop" hidden></div><div class="tl-ab" id="tl-a" data-l="A" hidden></div><div class="tl-ab" id="tl-b" data-l="B" hidden></div><input id="fall-seek" type="range" min="0" max="1" step="0.05" value="0" aria-label="Playback position" data-i18n-aria="fall_pos"></div><span id="tl-bar" class="tl-bar"></span><span id="fall-total" class="fall-time">0:00</span></div>
         <div class="pr-hud" id="pr-hud" aria-hidden="true" hidden><span class="pr-judge" id="pr-judge"></span><span class="pr-k"><b id="pr-acc-v">–</b><span data-i18n="pr_accuracy">Accuracy</span></span><span class="pr-k"><b id="pr-streak">0</b><span data-i18n="pr_streak">Streak</span></span><span class="pr-k pr-k-x"><b id="pr-pass">1</b><span data-i18n="pr_pass">Pass</span></span><span class="pr-k pr-k-x"><b id="pr-tempo">100%</b><span data-i18n="sc_tempo">Tempo</span></span></div>
         <div class="pr-count" id="pr-count" aria-hidden="true" hidden></div>
-        <div class="pr-sum" id="pr-sum" role="dialog" aria-modal="false" aria-labelledby="pr-sum-h" aria-describedby="pr-sum-next" hidden><div class="pr-sum-card"><h2 id="pr-sum-h" data-i18n="pr_sum_h">Run complete</h2><div class="pr-sum-acc" id="pr-sum-acc">0%</div><div class="pr-sum-grid"><span><b id="pr-sum-perfect">0</b><span data-i18n="pr_perfect">Perfect</span></span><span><b id="pr-sum-good">0</b><span data-i18n="pr_good">Good</span></span><span><b id="pr-sum-miss">0</b><span data-i18n="pr_miss">Missed</span></span><span><b id="pr-sum-wrong">0</b><span data-i18n="pr_wrong">Wrong</span></span></div><p class="pop-note" id="pr-sum-note"></p><div class="coach" id="pr-sum-next" data-kind="next" hidden></div><div class="pr-sum-act"><button type="button" class="btn primary" id="pr-again" data-i18n="pr_again">Again</button><button type="button" class="btn" id="pr-slower" data-i18n="pr_slower">Slower</button><button type="button" class="btn" id="pr-close" data-i18n="pr_close">Close</button></div></div></div>
+        <div class="pr-sum" id="pr-sum" role="dialog" aria-modal="false" aria-labelledby="pr-sum-h" aria-describedby="pr-sum-next" hidden><div class="pr-sum-card"><h2 id="pr-sum-h" data-i18n="pr_sum_h">Run complete</h2><div class="pr-sum-acc" id="pr-sum-acc">0%</div><p class="pr-sum-best" id="pr-sum-best" hidden></p><div class="pr-sum-grid"><span><b id="pr-sum-perfect">0</b><span data-i18n="pr_perfect">Perfect</span></span><span><b id="pr-sum-good">0</b><span data-i18n="pr_good">Good</span></span><span><b id="pr-sum-miss">0</b><span data-i18n="pr_miss">Missed</span></span><span><b id="pr-sum-wrong">0</b><span data-i18n="pr_wrong">Wrong</span></span></div><p class="pop-note" id="pr-sum-note"></p><div class="coach" id="pr-sum-next" data-kind="next" hidden></div><div class="pr-sum-act"><button type="button" class="btn primary" id="pr-again" data-i18n="pr_again">Again</button><button type="button" class="btn" id="pr-slower" data-i18n="pr_slower">Slower</button><button type="button" class="btn" id="pr-close" data-i18n="pr_close">Close</button></div></div></div>
         <div class="an-pop an-keys" id="an-keys-pop" role="group" aria-labelledby="an-keys-h" hidden style="top:auto; bottom:52px"><span class="an-pop-h" id="an-keys-h" data-i18n="ks_h">Keyboard shortcuts</span><dl>
           <dt><kbd>Space</kbd></dt><dd data-i18n="ks_space">Play / pause</dd>
           <dt><kbd>Home</kbd> <kbd>End</kbd></dt><dd data-i18n="ks_home">Start / end</dd>
@@ -385,8 +385,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <h4 id="pt-ab-h" data-i18n="pr_ab">A–B loop</h4>
           <div class="an-pt-ab" role="group" aria-labelledby="pt-ab-h"><button type="button" class="btn sm" id="pr-seta" data-i18n="pr_seta">Set A ([)</button><button type="button" class="btn sm" id="pr-setb" data-i18n="pr_setb">Set B (])</button><button type="button" class="btn sm" id="pr-clrab" data-i18n="pr_clrab">Clear</button></div>
           <p class="an-pt-abv" id="pt-abv"></p>
-          <h4 data-i18n="rd_title">Read &amp; play</h4>
-          <div class="an-practice"><button type="button" class="btn sm" id="an-practice" aria-describedby="an-practice-note" data-i18n="an_practice">Practice this passage in Read &amp; Play</button><p class="an-practice-note" id="an-practice-note"></p></div>
           <p class="an-pt-note" data-i18n="pr_note">Play along on a MIDI keyboard, the on-screen keys or your computer keyboard (A W S E D … K, Z/X octave). Wait for me pauses at each of your notes until you play them.</p>
         </section>
       </aside>
@@ -667,7 +665,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <button type="button" data-view="today" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15" r="1.7" class="fill"/></svg><span data-i18n="nav_today">Today</span></button>
   <button type="button" data-view="learn" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5zM12 6.5v13"/></svg><span data-i18n="nav_learn">Learn</span></button>
   <button type="button" data-view="practice" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3.5h5l4.5 17H5z"/><path d="M12 16l4.5-8.5M7.2 15.5h9.6"/></svg><span data-i18n="nav_practice">Practice</span></button>
-  <button type="button" data-view="analysis" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 11.5h8M8 15h8M12.3 15V9.5"/><circle cx="10.6" cy="15" r="1.7" class="fill"/></svg><span data-i18n="nav_scores">Scores</span></button>
+  <button type="button" data-view="analysis" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 11.5h8M8 15h8M12.3 15V9.5"/><circle cx="10.6" cy="15" r="1.7" class="fill"/></svg><span data-i18n="nav_scores">Pieces</span></button>
   <button type="button" data-view="progress" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-5M10 20v-9M15 20v-6M20 20V5"/></svg><span data-i18n="nav_progress">Progress</span></button>
 </nav>
 

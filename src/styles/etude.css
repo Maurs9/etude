@@ -747,20 +747,13 @@
   .an-hover:not(:empty) + .st-hint{display:none}
   .an-credit{font-size:11px; margin:10px 2px 0; color:var(--faint)}
   /* empty state */
-  .an-empty{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:18px; padding:4px 18px 20px}
+  .an-empty{display:grid; grid-template-columns:minmax(0,1fr); gap:18px; padding:4px 18px 20px}
   .an-drop{display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:6px; min-height:210px; padding:22px 24px; border:1.5px dashed var(--line2); border-radius:12px; background:var(--card); transition:border-color .15s, background-color .15s}
   .an-drop.is-over{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 7%, var(--card))}
   .an-drop-t{margin:0; font-family:var(--serif); font-size:20px; font-weight:600; line-height:1.25; color:var(--ink)}
   .an-drop-s{margin:0 0 10px; font-size:13px; color:var(--muted); max-width:44ch}
   .an-drop-err{margin:6px 0 0; font-size:13px; font-weight:600; color:var(--bad)}
   .an-drop-err:empty{display:none}
-  .an-exlist h2{margin:0 0 6px; font-family:var(--sans); font-size:13px; font-weight:700; color:var(--ink2)}
-  .an-exlist ul{list-style:none; margin:0; padding:0; border-top:1px solid var(--line)}
-  .an-ex{appearance:none; width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left; border:none; border-bottom:1px solid var(--line); background:none; color:var(--ink); padding:11px 8px; cursor:pointer; font-family:inherit; border-radius:0}
-  .an-ex:hover{background:var(--card)} .an-ex:hover .an-ex-t{color:var(--accent)}
-  .an-ex-t{font-family:var(--serif); font-size:16px; font-weight:600}
-  .an-ex-m{font-size:12.5px; color:var(--muted)}
-  .an-ex:disabled{opacity:.5; cursor:progress}
   /* analysis panel: beside the score on wide screens (between the toolbar and the status bar), a bottom sheet on narrow ones */
   .an-side{position:relative; display:flex; flex-direction:column; min-width:0; min-height:0; border-left:1px solid var(--line); background:var(--card)}
   .an-side-head{flex:none; display:flex; align-items:center; gap:4px; padding:0 6px 0 6px; border-bottom:1px solid var(--line)}
@@ -828,9 +821,6 @@
   .an-pt-ab .btn.sm{padding:5px 10px; font-size:12.5px}
   .an-pt-abv{margin:6px 0 0; font-size:12px; color:var(--muted)}
   .an-pt-start{width:100%; justify-content:center; margin:0 0 8px}
-  .an-pt .an-practice{display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin-top:4px}
-  .an-practice-note{margin:0; font-size:12px; color:var(--muted); line-height:1.45}
-  .an-practice-note:empty{display:none}
   .an-pt-note{margin:14px 0 0; font-size:12px; color:var(--muted); line-height:1.45}
   .an-sel{margin-top:14px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; background:var(--paper); font-size:13.5px; color:var(--ink2); display:flex; flex-wrap:wrap; gap:4px 18px}
   .an-sel b{color:var(--ink); font-weight:700}
@@ -878,7 +868,7 @@
   .tool-d{font-size:13.5px; color:var(--muted)}
   .tool-go{color:var(--muted); font-size:15px}
   @media (max-width:760px){
-    .an-empty{grid-template-columns:1fr; padding:12px}
+    .an-empty{padding:12px}
     .an-drop{min-height:0; padding:18px}
     .an-src{padding:12px 12px 11px}
     .an-tb{gap:6px; padding:6px 8px}
