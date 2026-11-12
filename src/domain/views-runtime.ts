@@ -6695,6 +6695,13 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
         const v = vert(starts);
         sysY = v.ys;
         H = v.H;
+        // The stage's paper is a fixed box: there the score keeps at least the natural score's 150 units of height (centred),
+        // as far as the box allows, so a short one-staff melody is never drawn shorter than before the layout.
+        const pad = lay.maxHeight ? Math.min(150, lay.maxHeight / zoom) - H : 0;
+        if (pad > 0) {
+            sysY = sysY.map((y) => y + pad / 2);
+            H += pad;
+        }
     }
     const sysOfBar = (m: number) => { let s = 0; while (s + 1 < starts.length && starts[s + 1] <= m)
         s++; return s; };
