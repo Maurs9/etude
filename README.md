@@ -6,7 +6,8 @@
 
 ## Features
 
-- Theory handbook with every lesson open in any order, reading exercises, and score study. Reading levels include eighths, dotted notes, syncopation and ties.
+- Theory handbook with every lesson open in any order, and reading exercises with generated sight-reading melodies. Reading levels include eighths, dotted notes, syncopation and ties.
+- Pieces: 14 built-in pieces by level and your own MIDI or MusicXML files (My Library) play in one score player, with tempo, loops, hands separate and Wait for me. A run through the whole piece saves your best accuracy, and a full Wait for me pass marks a built-in piece as learned.
 - Targeted drills, a scale and arpeggio technique drill, accompaniment, sight-singing, and ear training
 - Wrong answers show what you gave against the answer, with a Hear both button. Repeated mix-ups get a short contrast drill at the end of the session.
 - Explore: free play on one screen, with the circle of fifths beside the staff. Pick a key on the circle to read chords in Roman numerals and see its fingering.

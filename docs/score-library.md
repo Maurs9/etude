@@ -1,6 +1,6 @@
 # Biblioteca locală de partituri
 
-În **Score & analysis / Partitură și analiză → Biblioteca mea**, adaugă o dată fișierele MusicXML, MXL sau MIDI de pe dispozitiv. Se pot selecta mai multe fișiere. Biblioteca păstrează copiile originale în IndexedDB și funcționează fără cont sau server de fișiere.
+În **Pieces / Piese → Biblioteca mea**, adaugă o dată fișierele MusicXML, MXL sau MIDI de pe dispozitiv. Se pot selecta mai multe fișiere. Biblioteca păstrează copiile originale în IndexedDB și funcționează fără cont sau server de fișiere.
 
 ## Utilizare
 
@@ -8,6 +8,7 @@
 - Deschiderea obișnuită prin **Open file** salvează și ea originalul, după încărcarea reușită a partiturii. Dacă browserul refuză stocarea, partitura rămâne deschisă și apare un avertisment, nu o confirmare falsă de salvare.
 - Caută după titlu, compozitor sau numele fișierului; filtrează favoritele și piesele deschise recent.
 - **Continuă** reîncarcă originalul din bibliotecă și restabilește poziția, viteza procentuală, mâna studiată, așteptarea, metronomul și afișarea. Poziția se salvează la interacțiuni și periodic în timpul studiului; nu se reia automat sunetul.
+- O rundă de exersare prin toată partitura (fără selecție, buclă sau A–B) salvează în înregistrare ziua ultimei exersări și, la o rundă cu tempo (fără „Așteaptă-mă”), cea mai bună acuratețe. Lista le afișează. Înregistrările mai vechi, fără aceste câmpuri, se încarcă normal.
 - **Descarcă originalul** exportă exact fișierul importat, nu XML-ul normalizat de motorul de gravură.
 - **Șterge** cere confirmare și elimină numai copia din bibliotecă. Fișierul din folderul original și partitura deja deschisă nu sunt șterse.
 
