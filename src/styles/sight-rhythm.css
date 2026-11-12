@@ -5,6 +5,6 @@
 .ss-n[data-s=good] .ss-tie { fill: #0d5a28; }
 .ss-n[data-s=near] .ss-tie { fill: #5b3b00; }
 .ss-n[data-s=bad] .ss-tie { fill: #8f2512; }
-:root[data-theme=dark] .ss-n[data-s=good] .ss-tie { fill: #b8f5c2; }
-:root[data-theme=dark] .ss-n[data-s=near] .ss-tie { fill: #f4d57b; }
-:root[data-theme=dark] .ss-n[data-s=bad] .ss-tie { fill: #ffb29a; }
+:root[data-theme=dark] .rdx-svg .ss-n[data-s=good] .ss-tie { fill: #b8f5c2; }
+:root[data-theme=dark] .rdx-svg .ss-n[data-s=near] .ss-tie { fill: #f4d57b; }
+:root[data-theme=dark] .rdx-svg .ss-n[data-s=bad] .ss-tie { fill: #ffb29a; }

@@ -136,3 +136,37 @@ test('the Learn link that opened the old circle tab lands on Explore with the ci
   }).toBe(true);
   await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('#circle .cof-k'))).toBe(true);
 });
+
+test('360px phone: minor ring is enlarged and hub labels fit inside the center circle across locales', async ({ app, page }) => {
+  await page.setViewportSize({ width: 360, height: 844 });
+  await app.open({ hash: 'explore' });
+  const ring = await page.evaluate(() => {
+    const hubR = Number(document.querySelector('#circle .cof-hub')?.getAttribute('r') || 0);
+    const minPath = document.querySelector('#circle .cof-k[data-ring="min"] path.cof-w')?.getAttribute('d') || '';
+    const radii = [...minPath.matchAll(/A(\d+(?:\.\d+)?)\s+\d+(?:\.\d+)?\s+0\s+0\s+[01]/g)].map(m => Number(m[1]));
+    return { hubR, innerR: Math.min(...radii), outerR: Math.max(...radii) };
+  });
+  expect(ring.hubR).toBe(89);
+  expect(ring.outerR - ring.innerR).toBeGreaterThanOrEqual(68);
+
+  for (const lang of ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR']) {
+    await page.evaluate(value => window.__etude.setLang(value), lang);
+    const fits = await page.evaluate(() => {
+      const hub = document.querySelector('#circle .cof-hub');
+      const cx = Number(hub.getAttribute('cx')), cy = Number(hub.getAttribute('cy')), r = Number(hub.getAttribute('r'));
+      return [...document.querySelectorAll('#circle .cof-title, #circle .cof-iv, #circle .cof-st')].map(el => {
+        const b = el.getBBox();
+        const maxDist = Math.max(
+          Math.hypot(b.x - cx, b.y - cy),
+          Math.hypot(b.x + b.width - cx, b.y - cy),
+          Math.hypot(b.x - cx, b.y + b.height - cy),
+          Math.hypot(b.x + b.width - cx, b.y + b.height - cy),
+        );
+        return { text: el.textContent, width: b.width, maxDist, r };
+      });
+    });
+    for (const item of fits) {
+      expect(item.maxDist, `${lang} hub label "${item.text}"`).toBeLessThanOrEqual(item.r);
+    }
+  }
+});

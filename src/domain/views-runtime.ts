@@ -4727,6 +4727,7 @@ function cofText(x: string, y: string, cls: string, lines: string[], lh: number)
 // A circle drawn smaller than this leaves out the signature labels around the rim and zooms in on the rings, so the
 // key names stay legible; it follows the circle's own width, which beside the staff is far less than the window's.
 const COF_COMPACT_W = 460;
+const COF_R_MIN0 = 90, COF_R_MIN1 = 158, COF_R_CNT1 = 182, COF_R_MAJ1 = 256;
 let cofCompact: boolean | null = null;
 function cofIsCompact(box: HTMLElement) { const w = box.getBoundingClientRect().width; return w > 0 ? w < COF_COMPACT_W : matchMedia('(max-width:560px)').matches; }
 function renderCircle() {
@@ -4744,18 +4745,19 @@ function renderCircle() {
     if (!compact)
         s += '<text class="cof-arc flat"><textPath href="#cofArcF" startOffset="50%" text-anchor="middle">♭ ' + t('cof_flats') + '</textPath></text>';
     let maj = '', min = '', acc = '';
+    const rMajMid = (COF_R_CNT1 + COF_R_MAJ1) / 2, rCntMid = (COF_R_MIN1 + COF_R_CNT1) / 2, rMinMid = (COF_R_MIN0 + COF_R_MIN1) / 2;
     CIRCLE.forEach((p, i) => {
         const d0 = i * 30 - 15, d1 = i * 30 + 15, sig = cofSigList(i), light = i <= 4 || i >= 10;
         const fill = i === 6 ? 'fill:url(#cofSplit)' : 'fill:' + COF_COL[i], txt = light ? '#1a1714' : '#fffaf2';
-        const [mx, my] = cofPt(215, i * 30), [cx, cy] = cofPt(163, i * 30), [nx, ny] = cofPt(125, i * 30);
+        const [mx, my] = cofPt(rMajMid, i * 30), [cx, cy] = cofPt(rCntMid, i * 30), [nx, ny] = cofPt(rMinMid, i * 30);
         const majL = i === 6 ? [cofName('F#'), cofName('Gb')] : [cofName(COF_MAJ[i])], minL = i === 6 ? [cofName('D#') + 'm', cofName('Eb') + 'm'] : [cofName(COF_MIN[i]) + 'm'];
         const cnt = i === 0 ? '0' : i < 6 ? i + '♯' : i === 6 ? '6♯ 6♭' : (12 - i) + '♭';
         maj += '<g class="cof-k" data-i="' + i + '" data-ring="maj" tabindex="0" role="button" aria-pressed="false" aria-label="' + t('cof_aria_maj', cofKeyLabel(i, false)) + (sig.n ? ', ' + sig.n + (sig.sharp ? '♯' : '♭') : '') + '">' +
-            '<path class="cof-w" d="' + cofSector(176, 254, d0, d1) + '" style="' + fill + '"/><path class="cof-w" d="' + cofSector(150, 176, d0, d1) + '" style="' + cofTint(i, 44) + '"/>' +
+            '<path class="cof-w" d="' + cofSector(COF_R_CNT1, COF_R_MAJ1, d0, d1) + '" style="' + fill + '"/><path class="cof-w" d="' + cofSector(COF_R_MIN1, COF_R_CNT1, d0, d1) + '" style="' + cofTint(i, 44) + '"/>' +
             cofText(mx, my, 'cof-maj' + (i === 6 ? ' sm' : ''), majL, 28).replace('<text ', '<text style="fill:' + txt + '" ') +
             '<text class="cof-cnt" x="' + cx + '" y="' + cy + '">' + cnt + '</text></g>';
         min += '<g class="cof-k" data-i="' + i + '" data-ring="min" tabindex="0" role="button" aria-pressed="false" aria-label="' + t('cof_aria_min', cofKeyLabel(i, true)) + '">' +
-            '<path class="cof-w" d="' + cofSector(100, 150, d0, d1) + '" style="' + cofTint(i, 24) + '"/>' + cofText(nx, ny, 'cof-min' + (i === 6 ? ' sm' : ''), minL, 17) + '</g>';
+            '<path class="cof-w" d="' + cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) + '" style="' + cofTint(i, 24) + '"/>' + cofText(nx, ny, 'cof-min' + (i === 6 ? ' sm' : ''), minL, 17) + '</g>';
         if (sig.n && !compact) {
             const items = sig.list.split(', '), lines: string[] = [];
             for (let k = 0; k < items.length; k += 3)
@@ -4765,12 +4767,12 @@ function renderCircle() {
         }
     });
     s += maj + min + acc + '<path class="cof-ring-rel" id="cof-rel" d=""/><path class="cof-ring-sel" id="cof-sel" d=""/><g class="cof-now" id="cof-now"></g>';
-    s += '<circle class="cof-hub" cx="350" cy="350" r="99"/>' +
-        '<path class="cof-arrow up" marker-end="url(#cofAhUp)" d="M' + cofPt(84, -38) + 'A84 84 0 0 1 ' + cofPt(84, 38) + '"/>' +
-        '<path class="cof-arrow dn" marker-end="url(#cofAhDn)" d="M' + cofPt(84, 218) + 'A84 84 0 0 0 ' + cofPt(84, 142) + '"/>' +
-        '<text class="cof-iv up" x="350" y="308">' + t('cof_5th') + '</text><text class="cof-st" x="350" y="326">' + t('cof_7st') + '</text>' +
-        '<text class="cof-title" x="350" y="358">' + t('ex_tab_circle') + '</text>' +
-        '<text class="cof-iv dn" x="350" y="386">' + t('cof_4th') + '</text><text class="cof-st" x="350" y="404">' + t('cof_5st') + '</text></svg>';
+    s += '<circle class="cof-hub" cx="350" cy="350" r="89"/>' +
+        '<path class="cof-arrow up" marker-end="url(#cofAhUp)" d="M' + cofPt(78, -34) + 'A78 78 0 0 1 ' + cofPt(78, 34) + '"/>' +
+        '<path class="cof-arrow dn" marker-end="url(#cofAhDn)" d="M' + cofPt(78, 214) + 'A78 78 0 0 0 ' + cofPt(78, 146) + '"/>' +
+        '<text class="cof-iv up" x="350" y="311">' + t('cof_5th') + '</text><text class="cof-st" x="350" y="327">' + t('cof_7st') + '</text>' +
+        '<text class="cof-title" x="350" y="355">' + t('ex_tab_circle') + '</text>' +
+        '<text class="cof-iv dn" x="350" y="381">' + t('cof_4th') + '</text><text class="cof-st" x="350" y="397">' + t('cof_5st') + '</text></svg>';
     box.innerHTML = s;
     box.querySelectorAll('.cof-k').forEach((g) => {
         if (!(g instanceof SVGElement))
@@ -4800,7 +4802,7 @@ function cofSel() {
         g.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     // No key context, no ring: the key card still describes the last key looked at.
-    const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cof.picked ? cofSector(150, 254, d0, d1) : '', minD = cof.picked ? cofSector(100, 150, d0, d1) : '';
+    const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cof.picked ? cofSector(COF_R_MIN1, COF_R_MAJ1, d0, d1) : '', minD = cof.picked ? cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) : '';
     byId('cof-sel').setAttribute('d', cof.minor ? minD : majD);
     byId('cof-rel').setAttribute('d', cof.minor ? majD : minD);
 }
@@ -4963,7 +4965,7 @@ function cofNow(notes: readonly number[], chord: ReturnType<typeof identifyChord
         return;
     const at: string[] = [];
     let s = '';
-    const wedge = (i: number, minor: boolean) => { const d0 = i * 30 - 15, d1 = i * 30 + 15; at.push((minor ? 'min' : 'maj') + i); s += '<path class="cof-ring-now" d="' + (minor ? cofSector(100, 150, d0, d1) : cofSector(150, 254, d0, d1)) + '"/>'; };
+    const wedge = (i: number, minor: boolean) => { const d0 = i * 30 - 15, d1 = i * 30 + 15; at.push((minor ? 'min' : 'maj') + i); s += '<path class="cof-ring-now" d="' + (minor ? cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) : cofSector(COF_R_MIN1, COF_R_MAJ1, d0, d1)) + '"/>'; };
     if (chord) {
         const minor = /^m(?!aj)/.test(chord.chord.symbol) || chord.chord.symbol.startsWith('dim');
         wedge(CIRCLE.indexOf(minor ? (chord.rootPc + 3) % 12 : chord.rootPc), minor);

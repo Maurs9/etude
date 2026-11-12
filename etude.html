@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 <title>Étude — a piano theory method for the ear & hand</title>
-<meta name="description" content="Étude — a single-file piano theory trainer: spaced repetition, ear training, MIDI, sight-singing and hum-to-notes transcription." />
+<meta name="description" content="Étude — an offline-ready piano theory trainer: spaced repetition, ear training, score study, sight-reading, MIDI, sight-singing and hum-to-notes transcription." />
 <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#171412" media="(prefers-color-scheme: dark)" />
 <meta name="application-name" content="Étude" />
@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <script>/* The web app manifest only means something over http(s); opened as a file it would just log a CORS error. */
 if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='manifest'; l.href='manifest.webmanifest'; document.head.appendChild(l); }</script>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B9%3C/text%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23f7f3ec' stroke='%23ded6c8' stroke-width='2'/%3E%3Ctext x='29' y='46' text-anchor='middle' font-family='Georgia,serif' font-weight='900' font-size='40' fill='%231a1714'%3E%C3%89%3C/text%3E%3Ccircle cx='49' cy='43' r='4.5' fill='%238c2b2b'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="./src/styles/fonts.css">
 <!-- etude: extracted style --><link rel="stylesheet" href="./src/styles/etude.css">
 </head>
@@ -32,17 +32,17 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <button data-view="analysis" data-i18n="nav_scores">Pieces</button>
       <button data-view="progress" data-i18n="nav_progress">Progress</button>
     </nav>
-    <button class="midi-chip" id="midiChip"><span class="dot" id="midiDot"></span><span id="midiText">Connect MIDI</span></button>
-    <button class="iconbtn menu-btn" id="menuBtn" data-i18n-aria="menu" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu">☰</button>
+    <button class="midi-chip" id="midiChip"><span class="dot" id="midiDot"></span><svg class="midi-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><circle cx="5" cy="8.5" r=".7" fill="currentColor" stroke="none"/><circle cx="6.2" cy="5.8" r=".7" fill="currentColor" stroke="none"/><circle cx="8" cy="4.8" r=".7" fill="currentColor" stroke="none"/><circle cx="9.8" cy="5.8" r=".7" fill="currentColor" stroke="none"/><circle cx="11" cy="8.5" r=".7" fill="currentColor" stroke="none"/></svg><span id="midiText">Connect MIDI</span></button>
+    <button class="iconbtn menu-btn" id="menuBtn" data-i18n-aria="menu" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.2h11M2.5 8h11M2.5 11.8h11"/></svg></button>
     <div class="mobilemenu" id="mobileMenu" hidden></div>
-    <button class="iconbtn" id="helpBtn" data-i18n-aria="help" aria-label="Help">?</button>
-    <button class="iconbtn" id="settingsBtn" data-i18n-aria="settings" aria-label="Settings">⚙</button>
+    <button class="iconbtn" id="helpBtn" data-i18n-aria="help" aria-label="Help"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.7 5.8a2.4 2.4 0 0 1 4.6.8c0 1.5-2.3 1.9-2.3 3.4"/><circle cx="8" cy="12.6" r=".8" fill="currentColor" stroke="none"/></svg></button>
+    <button class="iconbtn" id="settingsBtn" data-i18n-aria="settings" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M6.8 1.9h2.4l.4 1.5a4.8 4.8 0 0 1 1.2.7l1.4-.5 1.2 2.1-1.1 1a4.8 4.8 0 0 1 0 1.4l1.1 1-1.2 2.1-1.4-.5a4.8 4.8 0 0 1-1.2.7l-.4 1.5H6.8l-.4-1.5a4.8 4.8 0 0 1-1.2-.7l-1.4.5-1.2-2.1 1.1-1a4.8 4.8 0 0 1 0-1.4l-1.1-1 1.2-2.1 1.4.5a4.8 4.8 0 0 1 1.2-.7z"/></svg></button>
   </div>
   <div role="status" aria-live="polite"><div class="hdr-note" id="audioLock" hidden><div class="wrap"><span data-i18n="audio_locked">Sound is off: the browser keeps audio locked until you click or press a key on this page. Notes from a MIDI or Bluetooth keyboard do not unlock it.</span><button type="button" class="btn sm" id="audioLockBtn" data-i18n="audio_unlock">Turn sound on</button></div></div><div class="hdr-note" id="syncNote" hidden><div class="wrap"><span data-i18n="sync_replaced">Progress was reset or restored in another tab, so this tab now uses that record. Anything you are doing here keeps going.</span><button type="button" class="btn sm ghost" id="syncNoteBtn" data-i18n="sync_ok">OK</button></div></div><div class="hdr-note" id="storeNote" hidden><div class="wrap"><span id="storeNoteText"></span><button type="button" class="btn sm" id="storeNoteExport" data-i18n="store_export">Export backup</button><button type="button" class="btn sm" id="storeNoteRestore" data-i18n="store_restore" hidden>Restore backup</button><button type="button" class="btn sm" id="storeNoteReload" data-i18n="store_reload" hidden>Reload</button><button type="button" class="btn sm ghost" id="storeNoteOk" data-i18n="sync_ok" hidden>OK</button></div></div></div>
 </header>
 
 <main id="main" tabindex="-1">
-  <div class="wrap"><p id="piano-global-status" role="status" aria-live="polite" style="font-size:12px;color:var(--muted);margin:-10px 0 26px" hidden></p></div>
+  <div class="wrap"><p id="piano-global-status" class="piano-global-status" role="status" aria-live="polite" hidden></p></div>
   <div class="wrap" id="modeBar" hidden><nav class="mode-nav" id="modeNav" aria-label="Sections" data-i18n-aria="nav_sections"></nav></div>
   <!-- ===================== TODAY ===================== -->
   <section class="view active" id="view-today">
@@ -74,7 +74,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
             <button class="btn ghost" id="placeBtn" data-i18n="place" hidden>Quick placement · 2 min</button>
           </div>
         </div>
-        <div style="padding:9px 20px; border-top:1px solid var(--line); background:var(--paper)">
+        <div class="hero-why">
           <span class="why">✦ <span id="why-text">Spaced repetition schedules each idea just before you’d forget it — that’s when review sticks best.</span> <a href="#method" id="whyLink" data-i18n="why_link">Why this works →</a></span>
         </div>
       </div>
@@ -118,22 +118,22 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <button class="btn ghost" id="q-reveal" data-i18n="show_answer">Show answer</button>
           <button class="btn primary" id="q-next" data-i18n="next" hidden>Next →</button>
         </div>
-        <p class="sub-lede ctx-kbd" style="font-size:12px; margin:14px 0 0" data-i18n="ses_keys_hint">Shortcuts: 1–9 pick an answer · R hear again · N next</p>
+        <p class="sub-lede ctx-kbd ses-keys-hint" data-i18n="ses_keys_hint">Shortcuts: 1–9 pick an answer · R hear again · N next</p>
       </div>
     </div>
 
     <!-- summary -->
     <div class="wrap summary" id="summary" style="display:none">
       <div class="eyebrow-sec" data-i18n="sum_complete">Session complete</div>
-      <h1 id="sum-title" style="font-size:38px; margin:.1em 0 0">Well done.</h1>
+      <h2 id="sum-title">Well done.</h2>
       <svg class="ring" width="120" height="120" viewBox="0 0 120 120" id="sum-ring" aria-hidden="true"></svg>
       <div class="sum-stats">
         <div class="s"><b class="num" id="sum-acc">0%</b><span data-i18n="sum_acc">Accuracy</span></div>
         <div class="s"><b class="num" id="sum-rev">0</b><span data-i18n="sum_rev">Reviewed</span></div>
         <div class="s"><b class="num" id="sum-streak">0</b><span data-i18n="sum_streakL">Day streak</span></div>
       </div>
-      <p class="sub-lede" id="sum-note" style="margin:0 auto 22px"></p>
-      <div class="row" style="justify-content:center">
+      <p class="sub-lede sum-note" id="sum-note"></p>
+      <div class="row sum-actions">
         <button class="btn primary" id="sum-again" data-i18n="again">Another session</button>
         <button class="btn ghost" id="sum-done" data-i18n="donefor">Done for now</button>
       </div>
@@ -673,7 +673,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 <!-- keyboard dock -->
 <div class="dock" id="dock">
   <div class="wrap">
-    <p id="piano-status" role="status" aria-live="polite" style="font-size:12px;color:var(--muted);margin:0" hidden></p>
+    <p id="piano-status" class="piano-status" role="status" aria-live="polite" hidden></p>
     <div class="dock-tools">
       <div class="legend" aria-hidden="true">
         <span class="lg"><span class="sw" style="background:#f4c450"></span><span data-i18n="lg_playing">Playing</span></span>
@@ -699,7 +699,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 
 <!-- help -->
 <div class="helpbox" id="helpBox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="helpTitle" inert>
-  <button class="btn sm" id="helpClose" data-i18n="close" style="float:right; margin-left:12px">Close</button>
+  <button class="btn sm help-close" id="helpClose" data-i18n="close">Close</button>
   <h2 id="helpTitle" data-i18n="help_title">Shortcuts &amp; input</h2>
   <p class="lede" data-i18n="help_sub">Everything works with mouse, touch, computer keys or a MIDI keyboard.</p>
   <div class="hk"><kbd data-i18n="hk_mouse_k">Click / drag</kbd><span data-i18n="hk_mouse">Play the on-screen keys — drag for glissando</span></div>
@@ -721,9 +721,9 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 <div class="scrim" id="scrim"></div>
 <div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true" inert>
   <div class="drawer-in">
-    <button class="iconbtn drawer-close" id="drawerClose" data-i18n-aria="close" aria-label="Close">✕</button>
+    <button class="iconbtn drawer-close" id="drawerClose" data-i18n-aria="close" aria-label="Close"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg></button>
     <h2 id="drawerTitle" data-i18n="settings">Settings</h2>
-    <p class="lede ctx-browser" style="font-size:13px" data-i18n="set_lede">Everything is saved in this browser.</p><p class="lede ctx-app" style="font-size:13px" data-i18n="set_lede_app">Everything is saved on this device.</p>
+    <p class="lede ctx-browser set-sub" data-i18n="set_lede">Everything is saved in this browser.</p><p class="lede ctx-app set-sub" data-i18n="set_lede_app">Everything is saved on this device.</p>
 
     <div class="set-group">
       <h3 data-i18n="set_lang">Language</h3>
@@ -739,15 +739,15 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <h3 data-i18n="set_midi">MIDI keyboard</h3>
       <div class="set-row"><div class="lab"><span data-i18n="set_device">Device</span> <small id="set-midi-status">Not connected</small></div>
         <button class="btn sm" id="set-connect" data-i18n="set_connect">Connect</button></div>
-      <div class="set-row"><div class="lab" data-i18n="set_input">Input</div><select id="deviceSelect"><option>—</option></select></div>
-      <details class="set-help"><summary data-i18n="set_midi_help">MIDI help</summary><p class="lede" style="font-size:12px" data-i18n="set_midi_hint">On the Arturia MicroLab Mk3 keep Chord &amp; Hold OFF. No keyboard? Use the on-screen keys, mouse, or A–K / W–U (Z/X = octave).</p></details>
+      <div class="set-row"><label class="lab" for="deviceSelect" data-i18n="set_input">Input</label><select id="deviceSelect"><option>—</option></select></div>
+      <details class="set-help"><summary data-i18n="set_midi_help">MIDI help</summary><p class="lede set-note" data-i18n="set_midi_hint">On the Arturia MicroLab Mk3 keep Chord &amp; Hold OFF. No keyboard? Use the on-screen keys, mouse, or A–K / W–U (Z/X = octave).</p></details>
       <div class="set-row"><div class="lab"><span data-i18n="set_ble">Bluetooth MIDI (direct)</span> <small id="set-ble-status" role="status" aria-live="polite">Not connected</small></div>
         <span class="set-btns"><button class="btn sm ghost" id="set-ble-re" data-i18n="ble_reconnect" hidden>Reconnect</button><button class="btn sm" id="set-ble" data-i18n="ble_connect">Connect</button></span></div>
-      <p class="lede" style="font-size:12px; margin-top:8px" data-i18n="set_ble_hint">For compatible Bluetooth MIDI pianos and keyboards in Chrome or Edge on Android.</p>
+      <p class="lede set-note set-note-top" data-i18n="set_ble_hint">For compatible Bluetooth MIDI pianos and keyboards in Chrome or Edge on Android.</p>
       <div class="set-row"><div class="lab"><span data-i18n="set_latency">Timing</span> <small id="set-lat-status"><span data-i18n="lat_touch">Touch</span> <span id="lat-v-touch">0</span> ms · <span data-i18n="lat_usb">USB MIDI</span> <span id="lat-v-usb">0</span> ms · <span data-i18n="lat_ble">Bluetooth MIDI</span> <span id="lat-v-ble">0</span> ms</small></div>
         <button class="btn sm" id="set-lat" aria-expanded="false" aria-controls="lat-panel" data-i18n="lat_calibrate">Calibrate</button></div>
       <div class="lat-panel" id="lat-panel" hidden>
-        <p class="lede" style="font-size:12px; margin:0" data-i18n="lat_hint">Press Start, then play any key on the piano with each click, or tap the pad. Each way of playing is measured on its own.</p>
+        <p class="lede set-note set-note-flush" data-i18n="lat_hint">Press Start, then play any key on the piano with each click, or tap the pad. Each way of playing is measured on its own.</p>
         <button type="button" class="lat-pad" id="lat-pad" data-i18n="lat_pad">Tap here</button>
         <p class="lat-result" id="lat-result" role="status" aria-live="polite"></p>
         <span class="set-btns"><button class="btn sm ghost" id="lat-reset" data-i18n="lat_reset">Reset</button><button class="btn sm" id="lat-go" data-i18n="lat_start">Start</button></span>
@@ -756,7 +756,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 
     <div class="set-group">
       <h3 data-i18n="set_app">App &amp; screen</h3>
-      <div class="set-row"><label class="switch"><input type="checkbox" id="set-wake"><span class="track"></span></label><div class="lab"><span data-i18n="set_wake">Keep the screen on</span> <small id="set-wake-status" role="status" aria-live="polite"></small></div></div>
+      <div class="set-row"><label class="switch"><input type="checkbox" id="set-wake"><span class="track"></span></label><label class="lab" for="set-wake"><span data-i18n="set_wake">Keep the screen on</span> <small id="set-wake-status" role="status" aria-live="polite"></small></label></div>
       <div class="set-row"><div class="lab"><span data-i18n="set_full">Full screen</span> <small data-i18n="set_full_s">hide the browser bars on a tablet</small></div><button class="btn sm" id="set-full" data-i18n="full_enter">Enter</button></div>
       <div class="set-row"><div class="lab"><span data-i18n="set_install">Install as an app</span> <small id="set-pwa-status" role="status" aria-live="polite"></small></div><button class="btn sm" id="set-install" data-i18n="install_btn" hidden>Install</button></div>
     </div>
@@ -771,46 +771,46 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 
     <div class="set-group">
       <h3 data-i18n="set_sound">Sound</h3>
-      <div class="set-row"><div class="lab" data-i18n="set_tone">Tone</div>
+      <div class="set-row"><label class="lab" for="toneSel" data-i18n="set_tone">Tone</label>
         <select id="toneSel"><option value="piano" data-i18n="tone_piano">Real grand piano</option><option value="piano-synth" data-i18n="tone_piano_synth">Synthesized piano</option><option value="soft" data-i18n="tone_soft">Soft</option><option value="bright" data-i18n="tone_bright">Bright</option><option value="organ" data-i18n="tone_organ">Organ</option><option value="mellow" data-i18n="tone_mellow">Mellow</option><option value="glass" data-i18n="tone_glass">Glass</option></select></div>
-      <p class="lede" style="font-size:12px" data-i18n="piano_info">Stereo piano recordings included in this file. Works offline.</p>
-      <div class="set-row"><div class="lab" data-i18n="set_volume">Volume</div><input id="volume" type="range" min="0" max="100" value="72" aria-label="Volume" data-i18n-aria="set_volume"></div>
-      <div class="set-row"><div class="lab"><span data-i18n="set_reverb">Room ambience</span> <small data-i18n="set_reverb_s">a touch of concert-hall air</small></div><input id="reverb" type="range" min="0" max="100" value="25" aria-label="Room ambience" data-i18n-aria="set_reverb"></div>
-      <div class="set-row"><label class="switch"><input type="checkbox" id="set-synth" checked><span class="track"></span></label><div class="lab" data-i18n="set_localsynth">Local synth sound</div></div>
-      <div class="set-row"><div class="lab"><span data-i18n="set_metrotempo">Metronome tempo</span> <small><span id="bpmLbl">90</span> BPM</small></div><input id="bpm" type="range" min="50" max="180" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></div>
-      <div class="set-row"><label class="switch"><input type="checkbox" id="set-drone"><span class="track"></span></label><div class="lab" data-i18n="set_drone">Drone on scale practice</div></div>
+      <p class="lede set-note" data-i18n="piano_info">Stereo piano recordings included in this file. Works offline.</p>
+      <div class="set-row"><label class="lab" for="volume" data-i18n="set_volume">Volume</label><input id="volume" type="range" min="0" max="100" value="72" aria-label="Volume" data-i18n-aria="set_volume"></div>
+      <div class="set-row"><label class="lab" for="reverb"><span data-i18n="set_reverb">Room ambience</span> <small data-i18n="set_reverb_s">a touch of concert-hall air</small></label><input id="reverb" type="range" min="0" max="100" value="25" aria-label="Room ambience" data-i18n-aria="set_reverb"></div>
+      <div class="set-row"><label class="switch"><input type="checkbox" id="set-synth" checked><span class="track"></span></label><label class="lab" for="set-synth" data-i18n="set_localsynth">Local synth sound</label></div>
+      <div class="set-row"><label class="lab" for="bpm"><span data-i18n="set_metrotempo">Metronome tempo</span> <small><span id="bpmLbl">90</span> BPM</small></label><input id="bpm" type="range" min="50" max="180" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></div>
+      <div class="set-row"><label class="switch"><input type="checkbox" id="set-drone"><span class="track"></span></label><label class="lab" for="set-drone" data-i18n="set_drone">Drone on scale practice</label></div>
     </div>
 
     <div class="set-group">
       <h3 data-i18n="set_learning">Learning</h3>
-      <div class="set-row"><div class="lab" data-i18n="set_sessionlen">Session length</div>
+      <div class="set-row"><label class="lab" for="set-goal" data-i18n="set_sessionlen">Session length</label>
         <select id="set-goal"><option value="8">8</option><option value="12" selected>12</option><option value="16">16</option><option value="24">24</option></select></div>
-      <div class="set-row"><div class="lab"><span data-i18n="set_newperday">New per day</span> <small data-i18n="set_newperday_s">fresh concepts introduced daily</small></div>
+      <div class="set-row"><label class="lab" for="set-new"><span data-i18n="set_newperday">New per day</span> <small data-i18n="set_newperday_s">fresh concepts introduced daily</small></label>
         <select id="set-new"><option value="3">3</option><option value="5" selected>5</option><option value="8">8</option><option value="12">12</option></select></div>
-      <div class="set-row"><label class="switch"><input type="checkbox" id="set-inv"><span class="track"></span></label><div class="lab" data-i18n="set_allowinv">Accept chord inversions</div></div>
-      <div class="set-row"><label class="switch"><input type="checkbox" id="set-metronome"><span class="track"></span></label><div class="lab" data-i18n="set_metronome">Metronome during scale practice</div></div>
-      <div class="set-row"><label class="switch"><input type="checkbox" id="set-weak-inject"><span class="track"></span></label><div class="lab" data-i18n="set_weak_inject">Smart weak-spot injection</div></div>
-      <div class="set-row"><label class="switch"><input type="checkbox" id="set-any-octave"><span class="track"></span></label><div class="lab"><span data-i18n="set_any_octave">Accept any octave</span> <small data-i18n="set_any_octave_s">in sight-reading pieces</small></div></div>
+      <div class="set-row"><label class="switch"><input type="checkbox" id="set-inv"><span class="track"></span></label><label class="lab" for="set-inv" data-i18n="set_allowinv">Accept chord inversions</label></div>
+      <div class="set-row"><label class="switch"><input type="checkbox" id="set-metronome"><span class="track"></span></label><label class="lab" for="set-metronome" data-i18n="set_metronome">Metronome during scale practice</label></div>
+      <div class="set-row"><label class="switch"><input type="checkbox" id="set-weak-inject"><span class="track"></span></label><label class="lab" for="set-weak-inject" data-i18n="set_weak_inject">Smart weak-spot injection</label></div>
+      <div class="set-row"><label class="switch"><input type="checkbox" id="set-any-octave"><span class="track"></span></label><label class="lab" for="set-any-octave"><span data-i18n="set_any_octave">Accept any octave</span> <small data-i18n="set_any_octave_s">in sight-reading pieces</small></label></div>
     </div>
 
     <div class="set-group">
       <h3 data-i18n="set_data">Your data</h3>
       <div class="set-row"><div class="lab"><span data-i18n="set_storage">Storage on this device</span> <small id="set-storage-status"></small></div></div>
       <div class="set-row"><div class="lab"><span data-i18n="set_backup">Backup</span> <small data-i18n="set_backup_s">progress, settings &amp; history as a file</small> <small class="backup-age" id="set-backup-age"></small></div>
-        <span style="display:inline-flex; gap:8px"><button class="btn sm" id="exportBtn" data-i18n="set_export">Export</button><button class="btn sm ghost" id="importBtn" data-i18n="set_import">Import</button></span></div>
+        <span class="set-btns"><button class="btn sm" id="exportBtn" data-i18n="set_export">Export</button><button class="btn sm ghost" id="importBtn" data-i18n="set_import">Import</button></span></div>
       <input type="file" id="importFile" accept="application/json,.json" hidden>
       <div class="set-row"><div class="lab"><span data-i18n="set_snap">Automatic backups</span> <small data-i18n="set_snap_s">Kept on this device: one a day for the last 3 days, plus a copy before each reset, import or restore.</small></div>
-        <span style="display:inline-flex; gap:8px"><select id="set-snaps" aria-label="Automatic backups" data-i18n-aria="set_snap"></select><button class="btn sm ghost" id="set-snap-restore" data-i18n="set_snap_restore">Restore</button></span></div>
+        <span class="set-btns"><select id="set-snaps" aria-label="Automatic backups" data-i18n-aria="set_snap"></select><button class="btn sm ghost" id="set-snap-restore" data-i18n="set_snap_restore">Restore</button></span></div>
       <details class="set-diag" id="set-diag"><summary data-i18n="set_diag">Diagnostics</summary>
-        <p class="lede" style="font-size:12.5px" data-i18n="set_diag_s">What to check when something doesn't work: app version, storage, backups, MIDI and audio.</p>
+        <p class="lede set-diag-s" data-i18n="set_diag_s">What to check when something doesn't work: app version, storage, backups, MIDI and audio.</p>
         <pre id="set-diag-out"></pre>
         <button class="btn sm ghost" id="set-diag-copy" data-i18n="set_diag_copy">Copy</button></details>
     </div>
 
     <div class="set-group">
       <h3 data-i18n="set_about">About</h3>
-      <p class="lede" style="font-size:12.5px" data-i18n="set_about_txt">Étude uses evidence-based methods: spaced repetition, retrieval practice, interleaving, and immediate feedback. Practice a little, often.</p>
-      <p class="lede" style="font-size:12px">Piano: <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noopener">Salamander Grand Piano v3 — Alexander Holm</a> · <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. MP3: <a href="https://github.com/Tonejs/audio/tree/master/salamander" target="_blank" rel="noopener">Tone.js</a>. <span data-i18n="piano_adapted">Recordings embedded; pitch, dynamics and release adapted during playback.</span></p>
+      <p class="lede set-diag-s" data-i18n="set_about_txt">Étude uses evidence-based methods: spaced repetition, retrieval practice, interleaving, and immediate feedback. Practice a little, often.</p>
+      <p class="lede set-note">Piano: <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noopener">Salamander Grand Piano v3 — Alexander Holm</a> · <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. MP3: <a href="https://github.com/Tonejs/audio/tree/master/salamander" target="_blank" rel="noopener">Tone.js</a>. <span data-i18n="piano_adapted">Recordings embedded; pitch, dynamics and release adapted during playback.</span></p>
     </div>
   </div>
 </div>
@@ -828,10 +828,10 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Bundled third-party components inside the OpenSheetMusicDisplay distribution (MIT License):
-- VexFlow ? Copyright (c) Mohit Muthanna Cheppudira
-- JSZip ? Copyright (c) Stuart Knightley, David Duponchel, Franz Buchinger, Ant?nio Afonso
-- loglevel ? Copyright (c) Tim Perry
-- typescript-collections ? Copyright (c) Mauricio Santos
+- VexFlow — Copyright (c) Mohit Muthanna Cheppudira
+- JSZip — Copyright (c) Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso
+- loglevel — Copyright (c) Tim Perry
+- typescript-collections — Copyright (c) Mauricio Santos
 </pre></details><footer><span class="ctx-browser" data-i18n="footer">Étude · single-file practice tool · Web MIDI + Web Audio · your progress never leaves this browser</span><span class="ctx-app" data-i18n="footer_app">Étude · Web MIDI + Web Audio · your progress never leaves this device</span> · <a href="#method" id="footMethod" data-i18n="foot_method">the method</a><span class="ctx-browser"> · <span data-i18n="foot_browser">best in Chrome / Edge</span></span></footer>
 
 <!-- etude: piano recordings are separate files -->
