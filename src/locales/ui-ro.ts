@@ -1895,6 +1895,8 @@ const payload: UIPayload = {
       "last_opened": "Ultima deschidere: {date}",
       "never_opened": "Încă nedeschisă",
       "position": "Continuă: măsura {measure}, {time}",
+      "best": "Record: {best}%",
+      "last_played": "Ultima exersare: {date}",
       "import_result": "Adăugate: {added}. Deja stocate: {duplicates}. Eșuate: {errors}.",
       "restore_result": "Copie îmbinată. Adăugate: {added}. Deja stocate: {duplicates}.",
       "protected": "Protecția stocării a fost acordată. Păstrează o copie; aceasta nu este sincronizare în cloud.",

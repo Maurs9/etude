@@ -1665,6 +1665,8 @@ const payload: UIPayload = {
       "last_opened": "Last opened: {date}",
       "never_opened": "Not opened yet",
       "position": "Resume: measure {measure}, {time}",
+      "best": "Best: {best}%",
+      "last_played": "Last played: {date}",
       "import_result": "Added: {added}. Already stored: {duplicates}. Failed: {errors}.",
       "restore_result": "Backup merged. Added: {added}. Already stored: {duplicates}.",
       "protected": "Browser storage protection granted. Still keep a backup; this is not cloud sync.",

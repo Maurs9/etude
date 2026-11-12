@@ -1895,6 +1895,8 @@ const payload: UIPayload = {
       "last_opened": "Ultima apertura: {date}",
       "never_opened": "Mai aperto",
       "position": "Riprendi: battuta {measure}, {time}",
+      "best": "Record: {best}%",
+      "last_played": "Ultimo esercizio: {date}",
       "import_result": "Aggiunti: {added}. Già salvati: {duplicates}. Non riusciti: {errors}.",
       "restore_result": "Backup unito. Aggiunti: {added}. Già salvati: {duplicates}.",
       "protected": "Protezione dello spazio concessa. Conserva comunque un backup; non è sincronizzazione cloud.",

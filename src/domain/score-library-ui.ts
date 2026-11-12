@@ -96,7 +96,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let statusCopy: { key: LibraryTextKey; values?: Values } | null = null;
   let protectedStorage: boolean | null = null;
   let readSequence = 0;
-  type Row = { node: HTMLLIElement; title: HTMLElement; composer: HTMLElement; name: HTMLElement; position: HTMLElement; last: HTMLElement; open: HTMLButtonElement; favorite: HTMLButtonElement; download: HTMLButtonElement; remove: HTMLButtonElement };
+  type Row = { node: HTMLLIElement; title: HTMLElement; composer: HTMLElement; name: HTMLElement; position: HTMLElement; last: HTMLElement; progress: HTMLElement; open: HTMLButtonElement; favorite: HTMLButtonElement; download: HTMLButtonElement; remove: HTMLButtonElement };
   const rows = new Map<string, Row>();
   function notice(key: LibraryTextKey, values?: Values): void {
     statusCopy = { key, values };
@@ -140,7 +140,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const name = element('p', 'score-library-note');
     const last = element('p', 'score-library-note');
     const position = element('p', 'score-library-note');
-    info.append(title, composer, name, last, position);
+    const progress = element('p', 'score-library-note score-library-progress');
+    info.append(title, composer, name, last, position, progress);
     const actions = element('div', 'score-library-actions');
     const makeButton = (action: string): HTMLButtonElement => {
       const button = element('button');
@@ -188,7 +189,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         search.focus();
       });
     });
-    return { node, title, composer, name, last, position, open, favorite, download: original, remove };
+    return { node, title, composer, name, last, position, progress, open, favorite, download: original, remove };
   }
   function render(): void {
     summary.textContent = t('heading', { count: items.length });
@@ -219,6 +220,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
         row.position.textContent = t('position', { measure: item.resume.measure || '—', time });
       }
+      // Practice progress from whole-score runs in the player; older records have none.
+      const progress: string[] = [];
+      if (item.best !== undefined) progress.push(t('best', { best: item.best }));
+      if (item.lastPlayedDay !== undefined) progress.push(t('last_played', {
+        date: new Date(item.lastPlayedDay * 86_400_000).toLocaleDateString(host.language(), { timeZone: 'UTC' }),
+      }));
+      row.progress.hidden = !progress.length;
+      row.progress.textContent = progress.join(' · ');
       row.open.textContent = t(item.resume ? 'resume' : 'open');
       row.open.setAttribute('aria-label', `${t(item.resume ? 'resume' : 'open')}: ${title}`);
       row.favorite.textContent = item.favorite ? '★' : '☆';

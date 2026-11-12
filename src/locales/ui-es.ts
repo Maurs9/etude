@@ -1895,6 +1895,8 @@ const payload: UIPayload = {
       "last_opened": "Última apertura: {date}",
       "never_opened": "Aún no abierta",
       "position": "Continuar: compás {measure}, {time}",
+      "best": "Récord: {best}%",
+      "last_played": "Última práctica: {date}",
       "import_result": "Añadidas: {added}. Ya guardadas: {duplicates}. Fallidas: {errors}.",
       "restore_result": "Copia combinada. Añadidas: {added}. Ya guardadas: {duplicates}.",
       "protected": "Protección de almacenamiento concedida. Guarda una copia; esto no es sincronización en la nube.",

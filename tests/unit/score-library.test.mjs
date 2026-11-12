@@ -30,7 +30,7 @@ describe('library localized copy', () => {
       expect(Object.keys(copy).sort()).toEqual(Object.keys(libraryTranslations.en).sort());
       for (const [key, text] of Object.entries(copy)) {
         expect(text.trim(), key).not.toBe('');
-        const filled = libraryText(language, key, { count: 2, title: 'Test', date: 'Today', measure: '4', time: '0:12', added: 2, duplicates: 1, errors: 0 });
+        const filled = libraryText(language, key, { count: 2, title: 'Test', date: 'Today', measure: '4', time: '0:12', added: 2, duplicates: 1, errors: 0, best: 92 });
         expect(filled, key).not.toMatch(/\{\w+\}/);
       }
     });
