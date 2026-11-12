@@ -1506,6 +1506,8 @@ const payload: UIPayload = {
       "cof_fing_chord_s": "trison în poziție fundamentală",
       "cof_note_scale": "Digitație standard (ABRSM / pianoscales.org). La coborâre, citește aceleași cifre de la dreapta la stânga.",
       "cof_note_mel": "Minorul melodic e arătat la urcare (treptele 6 și 7 urcate); în stil clasic coboară ca minor natural.",
+      "cof_chords": "Acordurile tonalității",
+      "cof_chords_hint": "Alege un acord ca să-l auzi și să-l vezi pe clape.",
       "cof_note_chord": "Trison în poziție fundamentală: mâna dreaptă 1-3-5, mâna stângă 5-3-1.",
       "cof_aria_maj": "%s major",
       "cof_aria_min": "%s minor",

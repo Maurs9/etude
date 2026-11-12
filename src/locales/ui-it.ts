@@ -1565,6 +1565,8 @@ const payload: UIPayload = {
       "cof_fing_chord_s": "triade in stato fondamentale",
       "cof_note_scale": "Diteggiatura standard (ABRSM / pianoscales.org). In senso discendente leggi le stesse cifre da destra a sinistra.",
       "cof_note_mel": "Minore melodica mostrata in senso ascendente (6° e 7° grado alterati); nella tradizione classica scende come minore naturale.",
+      "cof_chords": "Accordi della tonalità",
+      "cof_chords_hint": "Scegli un accordo per ascoltarlo e vederlo sui tasti.",
       "cof_note_chord": "Triade in stato fondamentale: mano destra 1-3-5, mano sinistra 5-3-1.",
       "cof_aria_maj": "%s maggiore",
       "cof_aria_min": "%s minore",

@@ -4489,12 +4489,41 @@ interface ExploreStaffHead {
     y: number;
     lane: number;
 }
+// The frame fills its paper: the drawing scales with the paper's width up to EX_STAFF_ZOOM, or less where the room under it
+// (--ex-staff-max, explore.css) runs out first; any width left over lengthens both staves. It follows the paper, never the notes.
+const EX_STAFF_W = 520, EX_STAFF_H = 234, EX_STAFF_ZOOM = 1.5;
+interface ExploreStaffFrame {
+    w: number;
+    zoom: number;
+}
+let exStaffLast = '';
+function exStaffFrame(wrap: HTMLElement): ExploreStaffFrame | null {
+    // The unrounded width, so the drawing never comes out a fraction wider than its paper and scrolls.
+    const cs = getComputedStyle(wrap), px = (v: string) => parseFloat(v) || 0;
+    const inner = wrap.getBoundingClientRect().width - px(cs.borderLeftWidth) - px(cs.borderRightWidth) - px(cs.paddingLeft) - px(cs.paddingRight);
+    if (!(inner > 0))
+        return null; // not laid out (another view): drawn at the default frame, refitted once it shows
+    const maxH = parseFloat(cs.getPropertyValue('--ex-staff-max')) || Infinity;
+    const zoom = Math.max(0.1, Math.min(EX_STAFF_ZOOM, inner / EX_STAFF_W, maxH / EX_STAFF_H));
+    return { w: Math.max(EX_STAFF_W, Math.floor(inner / zoom + 1e-6)), zoom };
+}
+// Redraws when the paper's width or the room under it changes (a resize, the dock opening or closing).
+function exStaffRefit() {
+    const wrap = maybeById('ex-staff');
+    if (!wrap || view0() !== 'explore')
+        return;
+    const f = exStaffFrame(wrap);
+    if (f && f.w + '|' + f.zoom !== exStaffLast)
+        updateExplore();
+}
 // With a key context its signature is drawn after each clef, notes are spelled in that key (E♯ in F♯ major), and a note shows
 // an accidental, a natural too, only where it differs from the signature.
 function drawExploreStaff(midis: readonly number[], flat: boolean, key: ExploreKey | null = exKeyCtx()) {
     const wrap = byId('ex-staff');
     if (!wrap)
         return;
+    const frame = exStaffFrame(wrap);
+    exStaffLast = frame ? frame.w + '|' + frame.zoom : '';
     const names = flat ? ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const fifths = exKeyFifths(key), keyAcc = ssKeyAcc(fifths);
     const pitches: ExploreStaffPitch[] = [...new Set(midis)].map((m) => {
@@ -4505,10 +4534,11 @@ function drawExploreStaff(midis: readonly number[], flat: boolean, key: ExploreK
         const name = names[pc(m)], li = 'CDEFGAB'.indexOf(name[0]), oct = Math.floor(m / 12) - 1;
         return { m, step: ssStepOf(li, oct), acc: name.slice(1) };
     }).sort((a, b) => a.step - b.step || a.m - b.m);
-    const W = 520, H = 234, top = 94, room = EX_LEDGERS * 12 + 6;
+    const W = frame ? frame.w : EX_STAFF_W, H = EX_STAFF_H, top = 94, room = EX_LEDGERS * 12 + 6, half = W / 2;
     let body = '';
-    ([['bass', 16, 250], ['treble', 270, 504]] as const).forEach(([clef, x0, x1]) => {
-        const treble = clef === 'treble', ref = treble ? 30 : 18, x = x0 + 146, far: { up: string[]; down: string[] } = { up: [], down: [] };
+    // The notes stand where they do on the narrowest frame, plus half of any extra staff length.
+    ([['bass', 16, half - 10], ['treble', half + 10, W - 16]] as const).forEach(([clef, x0, x1]) => {
+        const treble = clef === 'treble', ref = treble ? 30 : 18, x = x0 + 146 + (x1 - x0 - 234) / 2, far: { up: string[]; down: string[] } = { up: [], down: [] };
         body += `<g class="ex-stave" data-clef="${clef}"><text class="ss-syl" x="${x0 + 24}" y="${top - 24}">${t(treble ? 'si_treble' : 'si_bass')}</text>`;
         for (let i = 0; i < 5; i++)
             body += `<line class="ss-line" x1="${x0}" y1="${top + i * 12}" x2="${x1}" y2="${top + i * 12}" stroke-width="1.2"/>`;
@@ -4562,7 +4592,8 @@ function drawExploreStaff(midis: readonly number[], flat: boolean, key: ExploreK
         body += `<text class="ss-syl" x="${W / 2}" y="${top + 88}">${t('ex_staff_empty')}</text>`;
     const label = t('ex_staff_label') + (midis.length ? ': ' + midis.map((m) => noteName(m, flat)).join(', ') : '');
     wrap.setAttribute('aria-label', label);
-    wrap.innerHTML = `<svg class="ss-svg" role="img" aria-label="${label}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:100%; height:auto; max-width:700px; margin:auto" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+    const size = frame ? `width="${(W * frame.zoom).toFixed(2)}" height="${(H * frame.zoom).toFixed(2)}" style="margin:auto"` : `width="${W}" height="${H}" style="width:100%; height:auto; margin:auto"`;
+    wrap.innerHTML = `<svg class="ss-svg" role="img" aria-label="${label}" viewBox="0 0 ${W} ${H}" ${size} xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
 function fillRoots(sel: HTMLElement, withAll: boolean) { sel.innerHTML = ''; if (withAll) {
     const o = (document).createElement('option');
@@ -4692,7 +4723,7 @@ function renderCircle() {
     if (!box)
         return;
     const compact = cofCompact = cofIsCompact(box);
-    let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + (compact ? '92 92 516 516' : '-12 -12 724 724') + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
+    let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + (compact ? '92 92 516 516' : '-12 20 724 650') + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
         '<linearGradient id="cofSplit" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
         '<marker id="cofAhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
         '<marker id="cofAhDn" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#4a7fb0"/></marker>' +
@@ -4827,6 +4858,50 @@ function cofInfo() {
     byId('cof-fing-s').textContent = '· ' + t(ch ? 'cof_fing_chord_s' : 'cof_fing_scale_s');
     byId('cof-note').textContent = t(ch ? 'cof_note_chord' : 'cof_note_scale') + (!ch && cof.minor && cof.flavor === 'melodic' ? ' ' + t('cof_note_mel') : '');
     cofDiagram();
+    cofChords();
+}
+// The key card's seven diatonic triads (a minor key in natural minor), each with its Roman numeral, rising from the tonic
+// in the octave from G3 to F♯4. A pick plays the chord and lights it on the dock, as Show on keys does.
+interface CofChord {
+    roman: string;
+    name: string;
+    label: string;
+    midis: number[];
+}
+function cofChordList(): CofChord[] {
+    const tp = cofTonicPc(), minor = cof.minor, scale = SCALES[minor ? 'Aeolian (Natural minor)' : 'Major (Ionian)'];
+    const names = cofSpellDegrees((minor ? COF_MIN : COF_MAJ)[cof.i], scale, [0, 1, 2, 3, 4, 5, 6]), base = 60 + tp - (tp > 6 ? 12 : 0);
+    return anDiatonic({ root: tp, minor, fifths: keyFifths(tp, minor) }).slice(0, 7).flatMap((d, k) => {
+        const sym = d.p[1] === 4 ? 'maj' : d.p[2] === 6 ? 'dim' : 'm', tpl = CHORDS.find((c) => c.symbol === sym);
+        if (!tpl)
+            return [];
+        const root = base + scale[k];
+        return [{ roman: romanFor(tp, { rootPc: d.root, chord: tpl }, scale), name: names[k] + (sym === 'maj' ? '' : sym === 'm' ? 'm' : '°'),
+            label: names[k] + ' ' + chordDisp(tpl), midis: tpl.intervals.map((i) => root + i) }];
+    });
+}
+function cofChords() {
+    const box = maybeById('cof-chords');
+    if (!box)
+        return;
+    box.innerHTML = '';
+    cofChordList().forEach((c) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cof-chip';
+        b.dataset.midis = c.midis.join(' ');
+        b.setAttribute('aria-label', c.roman + ' · ' + c.label);
+        b.innerHTML = '<span class="cof-chip-rn" aria-hidden="true">' + c.roman + '</span><b aria-hidden="true">' + c.name + '</b>';
+        box.appendChild(b);
+    });
+}
+function cofChordPlay(midis: number[]) {
+    kbClear('target');
+    midis.forEach((m) => kbState(m, 'target', true));
+    playChordMidis(midis, false);
+    // The readout and the staff show the chord as long as the keys do; this also clears an earlier pick's timers.
+    exploreSequence([{ at: 0, notes: midis }, { at: 2600, notes: [] }]);
+    exploreTimers.push(setTimeout(() => { kbClear('target'); cofPaintDock(); }, 2600));
 }
 function cofDiagram() {
     const box = byId('cof-kb');
@@ -4913,11 +4988,15 @@ function initExploreControls() {
             renderCircle();
             updateExplore(); // repaints where the held notes sit on the new drawing
         } }).observe(circle);
+    if (typeof ResizeObserver === 'function')
+        new ResizeObserver(exStaffRefit).observe(byId('ex-staff'));
     byId('cof-mode').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.mode || !isCofMode(v))
         return; cof.mode = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
     byId('cof-flavor').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || v === cof.flavor || !isCofFlavor(v))
         return; cof.flavor = v; cofSyncRef(); cofInfo(); cofPaintDock(); cofPlay(); });
     byId('cof-play').addEventListener('click', () => { cofSyncRef(); cofPlay(); });
+    byId('cof-chords').addEventListener('click', (e) => { const ms = eventClosest(e, '.cof-chip')?.dataset.midis; if (ms)
+        cofChordPlay(ms.split(' ').map(Number)); });
 }
 /* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
 let songDir = 'asc';
@@ -14282,6 +14361,7 @@ function anLayoutVars() {
     st.setProperty('--an-sb-h', h(byId('an-status')) + 'px');
     st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
     anPinToolbarLater();
+    exStaffRefit(); // Explore's staff is sized from the room these leave
 }
 /* Pieces: the full window. The player fills the window while practising: the toolbar button turns it on and off, Esc and
    leaving Pieces turn it off. body[data-stage=pieces] (pieces.css) hides everything around the player, and the size

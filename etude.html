@@ -566,6 +566,12 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
               </div>
               <button type="button" class="btn sm" id="cof-play" data-i18n="ex_hear">▶ Hear</button>
             </div>
+            <!-- The key's seven diatonic chords with their Roman numerals; a pick plays one and lights it on the keys (cofChords). -->
+            <div class="cof-chords" aria-live="off">
+              <h3 class="cof-chords-h" id="cof-chords-h" data-i18n="cof_chords">Chords in this key</h3>
+              <div class="cof-chips" id="cof-chords" role="group" aria-labelledby="cof-chords-h"></div>
+              <p class="cof-chords-hint" data-i18n="cof_chords_hint">Pick a chord to hear it and see it on the keys.</p>
+            </div>
           </div>
           <figure class="cof-fing">
             <figcaption><b id="cof-fing-t">Fingering</b> <span id="cof-fing-s"></span></figcaption>

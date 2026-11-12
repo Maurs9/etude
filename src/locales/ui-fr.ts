@@ -925,6 +925,8 @@ const payload: UIPayload = {
       "cof_natural": "Naturelle",
       "cof_note_chord": "Accord parfait à l’état fondamental : main droite 1-3-5, main gauche 5-3-1.",
       "cof_note_mel": "Mineure mélodique montrée en montant (6e et 7e degrés haussés) ; le style classique redescend en mineure naturelle.",
+      "cof_chords": "Accords de la tonalité",
+      "cof_chords_hint": "Choisissez un accord pour l’entendre et le voir sur les touches.",
       "cof_note_scale": "Doigté standard (ABRSM / pianoscales.org). En descendant, lisez les mêmes chiffres de droite à gauche.",
       "cof_rel_maj": "Relative majeure : %s",
       "cof_rel_min": "Relative mineure : %s",

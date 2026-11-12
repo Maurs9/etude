@@ -925,6 +925,8 @@ const payload: UIPayload = {
       "cof_natural": "Natural",
       "cof_note_chord": "Tríade em posição fundamental: mão direita 1-3-5, mão esquerda 5-3-1.",
       "cof_note_mel": "Menor melódica exibida na subida (graus 6 e 7 elevados); na tradição clássica desce como menor natural.",
+      "cof_chords": "Acordes da tonalidade",
+      "cof_chords_hint": "Escolha um acorde para ouvi-lo e vê-lo nas teclas.",
       "cof_note_scale": "Dedilhado padrão (ABRSM / pianoscales.org). Na descida, leia os mesmos números da direita para a esquerda.",
       "cof_rel_maj": "Relativa maior: %s",
       "cof_rel_min": "Relativa menor: %s",

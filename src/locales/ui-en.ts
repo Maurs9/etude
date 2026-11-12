@@ -1506,6 +1506,8 @@ const payload: UIPayload = {
       "cof_fing_chord_s": "root-position triad",
       "cof_note_scale": "Standard fingering (ABRSM / pianoscales.org). Coming down, read the same numbers right to left.",
       "cof_note_mel": "Melodic minor shown ascending (raised 6th & 7th); classical style comes down in natural minor.",
+      "cof_chords": "Chords in this key",
+      "cof_chords_hint": "Pick a chord to hear it and see it on the keys.",
       "cof_note_chord": "Root-position triad: right hand 1-3-5, left hand 5-3-1.",
       "cof_aria_maj": "%s major",
       "cof_aria_min": "%s minor",

@@ -215,9 +215,6 @@
   .switch input:checked + .track::after{transform:translateX(17px)}
   .switch input:focus-visible + .track{outline:2px solid var(--accent); outline-offset:2px}
 
-  .readout{display:flex; gap:30px; flex-wrap:wrap; justify-content:center; margin:6px 0}
-  .readout .ro{min-width:0}
-  .readout .ro:first-child{flex:1 1 350px; max-width:520px}
   .ro b{font-family:var(--serif); font-size:26px; font-weight:600; display:block; min-height:32px}
   #ro-notes{overflow-x:auto; white-space:nowrap; scrollbar-width:thin}
   .ro span{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted)}

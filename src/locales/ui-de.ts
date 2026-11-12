@@ -1565,6 +1565,8 @@ const payload: UIPayload = {
       "cof_fing_chord_s": "Dreiklang in Grundstellung",
       "cof_note_scale": "Standard-Fingersatz (ABRSM / pianoscales.org). Abwärts dieselben Ziffern von rechts nach links lesen.",
       "cof_note_mel": "Melodisches Moll aufsteigend dargestellt (erhöhte 6. & 7. Stufe); klassisch abwärts als natürliches Moll.",
+      "cof_chords": "Akkorde der Tonart",
+      "cof_chords_hint": "Wähle einen Akkord, um ihn zu hören und auf den Tasten zu sehen.",
       "cof_note_chord": "Dreiklang in Grundstellung: rechte Hand 1-3-5, linke Hand 5-3-1.",
       "cof_aria_maj": "%s-Dur",
       "cof_aria_min": "%s-Moll",

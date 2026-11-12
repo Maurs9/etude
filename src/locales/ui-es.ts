@@ -925,6 +925,8 @@ const payload: UIPayload = {
       "cof_natural": "Natural",
       "cof_note_chord": "Tríada en estado fundamental: mano derecha 1-3-5, mano izquierda 5-3-1.",
       "cof_note_mel": "Menor melódica mostrada ascendente (grados 6 y 7 elevados); en música clásica desciende como menor natural.",
+      "cof_chords": "Acordes de la tonalidad",
+      "cof_chords_hint": "Elige un acorde para oírlo y verlo en las teclas.",
       "cof_note_scale": "Digitación estándar (ABRSM / pianoscales.org). Al descender, lee los mismos números de derecha a izquierda.",
       "cof_rel_maj": "Relativa mayor: %s",
       "cof_rel_min": "Relativa menor: %s",
