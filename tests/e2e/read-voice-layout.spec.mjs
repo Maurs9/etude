@@ -170,6 +170,7 @@ test.describe('Read & play and Voice layout on wide windows', () => {
     test(`at ${width}px the drills hero has no empty gap wider than a third of it`, async ({ app, page }) => {
       await page.setViewportSize({ width, height: 900 });
       await app.open({ hash: 'read' });
+      await page.locator('#rdt-drills').click();
       const gap = await page.evaluate(() => {
         const hero = document.getElementById('rdx-hero'), hb = hero.getBoundingClientRect(), cs = getComputedStyle(hero);
         const left = hb.left + parseFloat(cs.paddingLeft), right = hb.right - parseFloat(cs.paddingRight);
@@ -195,6 +196,7 @@ test.describe('Read & play and Voice layout on wide windows', () => {
   test('the hero keeps every option and control', async ({ app, page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await app.open({ hash: 'read' });
+    await page.locator('#rdt-drills').click();
     for (const id of ['rdx-cont', 'rdx-snd', 'rdx-hints', 'rdx-flow', 'rdx-ghost', 'rdx-stage-pref', 'rdx-weak-inject'])
       await expect(page.locator('#rdx-hero #' + id)).toBeVisible();
     await expect(page.locator('#rdx-next-name')).toHaveText('Treble clef · 1');

@@ -1,0 +1,112 @@
+/* Read home: Today, the book, Warm-up and Progress, and the player header and result card of level pieces.
+   Layout (spec section 12): two columns from 1100px (340px right column), Today and Warm-up side by side from 700 to
+   1099px, one column below 700px. Every control is at least 44px high. Colours come from the app's theme variables. */
+.rdn-home{margin-top:6px}
+.rdn-grid{display:grid; gap:16px; grid-template-columns:minmax(0,1fr)}
+.rdn-col{display:grid; gap:16px; align-content:start; min-width:0}
+@media (min-width:700px) and (max-width:1099.98px){
+  .rdn-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .rdn-col{display:contents}
+  .rdn-today{order:1}
+  .rdn-warm{order:2}
+  .rdn-book{order:3; grid-column:1 / -1}
+  .rdn-progress{order:4; grid-column:1 / -1}
+}
+@media (min-width:1100px){ .rdn-grid{grid-template-columns:minmax(0,1fr) 340px} }
+
+.rdn-card{background:var(--card); border:1px solid var(--line); border-radius:var(--rad); box-shadow:var(--shadow); padding:18px; min-width:0}
+.rdn-card h2{font-family:var(--serif); font-size:22px; font-weight:600; letter-spacing:-.01em; margin:0}
+.rdn-eyebrow{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--gold-ink); font-weight:700; margin-bottom:4px}
+.rdn-sub{color:var(--muted); margin:4px 0 0; overflow-wrap:anywhere}
+.rdn-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px}
+.rdn-sp{margin-left:auto}
+.rdn-home .btn,.rdn-phead .btn,.rdn-result .btn,.rdn-backrow .btn{min-height:44px; justify-content:center}
+.rdn-link{color:var(--accent); text-decoration:underline; text-underline-offset:3px}
+.rdn-home button:focus-visible,.rdn-home summary:focus-visible,.rdn-phead button:focus-visible,.rdn-result button:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
+
+/* Today */
+.rdn-slots{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin-top:12px}
+.rdn-slot{appearance:none; min-height:56px; border-radius:10px; border:1px solid var(--line2); background:var(--paper2); color:var(--ink); font:inherit;
+  display:grid; place-items:center; padding:4px 2px; line-height:1.15; cursor:pointer; min-width:0}
+.rdn-slot b{font-family:var(--serif); font-size:18px}
+.rdn-slot small{font-size:11.5px; color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rdn-slot.done{background:var(--good-bg); border-color:transparent; color:var(--good)}
+.rdn-slot.done small{color:var(--good); font-weight:700}
+
+/* The book */
+.rdn-book{container-type:inline-size}
+.rdn-lab{font-size:13px; font-weight:700; color:var(--ink2); margin:16px 0 8px}
+.rdn-levels{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:6px}
+.rdn-lv,.rdn-key,.rdn-num{appearance:none; font:inherit; color:var(--ink); border-radius:10px; border:1px solid var(--line2); background:var(--paper2); cursor:pointer; min-width:0}
+.rdn-lv{min-height:48px; font-weight:700; padding:0}
+.rdn-lv[aria-pressed=true],.rdn-key[aria-pressed=true]{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.rdn-lvdesc{margin:10px 0 0; color:var(--ink2); font-size:14px; overflow-wrap:anywhere}
+.rdn-lvdesc b{font-family:var(--serif); font-size:16px}
+.rdn-pat{color:var(--gold-ink); font-size:13px}
+.rdn-keys{display:grid; grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:6px}
+.rdn-key{min-height:48px; padding:3px 2px; display:grid; place-items:center; line-height:1.15}
+.rdn-key b{font-weight:700}
+.rdn-key small{font-size:11px; color:var(--muted); font-weight:400}
+.rdn-key[aria-pressed=true] small{color:inherit; opacity:.8}
+.rdn-key.rdn-mix{grid-column:span 2}
+.rdn-key[data-m="1"]{box-shadow:inset 0 -4px 0 var(--gold)}
+.rdn-key[data-m="2"]{box-shadow:inset 0 -4px 0 var(--good)}
+.rdn-more{margin-top:6px}
+.rdn-more summary{min-height:44px; display:flex; align-items:center; cursor:pointer; color:var(--accent); font-weight:700}
+.rdn-legend{display:flex; gap:14px; font-size:12px; color:var(--muted); margin-top:8px; flex-wrap:wrap}
+.rdn-legend i{display:inline-block; width:14px; height:4px; border-radius:2px; vertical-align:middle; margin-right:5px}
+.rdn-lg-secure{background:var(--good)}
+.rdn-lg-started{background:var(--gold)}
+.rdn-bookhead{display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; margin:18px 0 12px; padding-top:16px; border-top:1px solid var(--line)}
+.rdn-bookhead h3{font-family:var(--serif); font-size:18px; font-weight:600; margin:0}
+.rdn-bookhead .rdn-sub{margin:0}
+.rdn-units{display:grid; gap:14px 22px; grid-template-columns:minmax(0,1fr)}
+@container (min-width:860px){ .rdn-units{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+.rdn-uh{display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; margin-bottom:6px; font-size:14px}
+.rdn-uh span{color:var(--muted)}
+.rdn-uh .rdn-uc{margin-left:auto}
+.rdn-tag{font-size:11px; background:var(--good-bg); color:var(--good) !important; border-radius:99px; padding:1px 8px}
+.rdn-nums8{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:5px}
+@container (max-width:479.98px){ .rdn-nums8{grid-template-columns:repeat(4,minmax(0,1fr))} }
+.rdn-nums{display:grid; grid-template-columns:repeat(auto-fill,minmax(64px,1fr)); gap:6px}
+.rdn-num{min-height:56px; display:grid; place-items:center; padding:2px; line-height:1.1}
+.rdn-num b{font-family:var(--serif); font-size:17px}
+.rdn-num small{font-size:11px; color:var(--gold-ink); letter-spacing:1px; min-height:12px}
+.rdn-num.next{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset}
+
+/* Progress */
+.rdn-stats{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:12px}
+.rdn-stats div{border:1px solid var(--line); border-radius:10px; padding:10px 6px; text-align:center; min-width:0}
+.rdn-stats b{display:block; font-family:var(--serif); font-size:22px}
+.rdn-stats span{font-size:12px; color:var(--muted); overflow-wrap:anywhere}
+.rdn-suggest{margin-top:12px; padding:12px; border-radius:10px; background:var(--good-bg); color:var(--good); display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+
+/* The old tabs: at the top of the drills and melody screens, a quiet row under "More" on the home */
+.rdn-more-h{font-family:var(--serif); font-size:16px; font-weight:600; color:var(--ink2); margin:26px 0 0}
+#view-read[data-rdn=home] .rdx-tabs{border-bottom:0; gap:8px; margin:8px 0 0; flex-wrap:wrap; overflow:visible}
+#view-read[data-rdn=home] .rdx-tabs [role=tab]{min-height:44px; border:1px solid var(--line2); border-radius:10px; margin:0; padding:8px 14px;
+  background:var(--paper2); color:var(--ink2); font-size:14px; white-space:normal}
+#view-read[data-rdn=home] .rdx-tabs [role=tab]:hover{color:var(--accent); border-color:var(--accent)}
+.rdn-backrow{margin:10px 0 0}
+
+/* The player */
+.rdn-phead{display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; margin-bottom:12px}
+.rdn-phead-t{min-width:0}
+.rdn-phead h2{font-family:var(--serif); font-size:22px; font-weight:600; margin:0}
+.rdn-phead .rdn-sub{display:block; margin:2px 0 0}
+#view-read[data-rdn=player] #rd-gen-title,#view-read[data-rdn=player] #rd-meta{display:none}
+body[data-stage=immersive] #rdn-player-head,body[data-stage=immersive] #rdn-result{display:none !important}
+.rdn-check{margin:8px 0 10px; padding-left:20px; color:var(--ink2)}
+.rdn-check li{margin:2px 0}
+.rdn-result{margin-top:10px; padding:14px 16px; border:1px solid var(--line2); border-radius:var(--rad); background:var(--card); box-shadow:var(--shadow)}
+.rdn-r-top{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+.rdn-r-top h3{font-family:var(--serif); font-size:26px; margin:0}
+.rdn-r-top .rdx-stars{font-size:22px; color:var(--gold); letter-spacing:2px}
+.rdn-res{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:12px 0 0}
+.rdn-res div{text-align:center; border:1px solid var(--line); border-radius:10px; padding:8px 4px; min-width:0}
+.rdn-res b{display:block; font-family:var(--serif); font-size:18px; overflow-wrap:anywhere}
+.rdn-res span{font-size:12px; color:var(--muted)}
+@media (max-width:479.98px){ .rdn-res{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.rdn-check-pref{display:inline-flex; gap:8px; align-items:center; min-height:44px; cursor:pointer}
+.rdn-auto{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px; color:var(--accent); font-weight:700}
+body[data-stage=immersive] #rdn-backrow,body[data-stage=immersive] #rdn-home,body[data-stage=immersive] #rdn-more-h{display:none !important}

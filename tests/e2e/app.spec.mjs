@@ -1836,6 +1836,7 @@ test('valid persisted settings are preserved', async ({ app }) => {
 test.describe('reading drills: every level is open', () => {
   test('on a fresh save no level is locked, and any level opens in any order', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
+    await page.locator('#rdt-drills').click();
     const levels = page.locator('#rdx-ladder .rdx-lv');
     expect(await levels.count()).toBe(await page.evaluate(() => Object.keys(window.__etude.RD_LV).length));
     await expect(page.locator('#rdx-ladder [aria-disabled]')).toHaveCount(0);
@@ -1892,6 +1893,7 @@ test.describe('reading statistics in Progress', () => {
 
   test('an old save with the Statistics tab, a Note rush record and a last level opens the drills cleanly', async ({ app, page }) => {
     await app.open({ hash: 'read', saved: { v: 3, lang: 'en', data: { reading: { ...reading, prefs: { tab: 'stats', last: 'tr1' } } } } });
+    await page.locator('#rdt-drills').click();
     await expect(page.locator('#rdp-drills')).toBeVisible();
     await expect(page.locator('#rd-tabs [role=tab]')).toHaveCount(2);
     await expect(page.locator('#rdt-drills')).toHaveAttribute('aria-selected', 'true');
@@ -2131,6 +2133,7 @@ test.describe('reading drills: note stream', () => {
 
   test('turning the stream off on the drills page also turns off the ghost option', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
+    await page.locator('#rdt-drills').click();
     const flow = page.locator('#rdx-flow'), ghost = page.locator('#rdx-ghost');
     await expect(flow).toBeChecked();
     await expect(ghost).toBeEnabled();
@@ -2468,6 +2471,7 @@ test.describe('reading drills: arcade modes', () => {
 
   test('turning the stage off keeps a running drill inside the page', async ({ app }) => {
     const page = await app.open({ hash: 'read' });
+    await page.locator('#rdt-drills').click();
     await page.locator('#rdx-stage-pref').uncheck();
     expect(await page.evaluate(() => window.__etude.rdData().prefs.stage)).toBe(false);
     await start(page, TREBLE_PLAY, 'survival');
@@ -2597,6 +2601,7 @@ test('Settings row labels use for= associations and toggle switches when clicked
 
 test('weak-spot injection is opt-in and steers only practice, survival and marathon', async ({ app, page }) => {
   await app.open({ hash: 'read' });
+  await page.locator('#rdt-drills').click();
   await expect(page.locator('#rdx-weak-inject')).not.toBeChecked();
   await page.locator('#settingsBtn').click();
   await page.locator('label:has(#set-weak-inject)').click();

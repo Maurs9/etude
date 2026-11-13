@@ -158,6 +158,9 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     <div class="wrap">
       <div class="section-head"><div><div class="eyebrow" data-i18n="rd_eyebrow">Sheet music</div><h1 data-i18n="rd_title">Read &amp; play</h1></div></div>
       <p class="lede" data-i18n="rd_lede">Learn to read music fluently: short daily drills for notes, intervals, chords, key signatures and rhythm, then sight-read real pieces. Use MIDI, the on-screen keys, or A–K.</p>
+      <div class="rdn-backrow" id="rdn-backrow" hidden><button class="btn ghost" type="button" id="rdn-home-back" data-i18n="rdn_back_read">← Back to Read</button></div>
+      <div class="rdn-home" id="rdn-home" hidden></div>
+      <h2 class="rdn-more-h" id="rdn-more-h" hidden data-i18n="rdn_more">More</h2>
       <div class="rdx-tabs" id="rd-tabs" role="tablist" aria-label="Reading" data-i18n-aria="rdx_tabs_aria">
         <button role="tab" id="rdt-drills" data-tab="drills" aria-selected="true" aria-controls="rdp-drills" tabindex="0"><span aria-hidden="true">🎯</span> <span data-i18n="rdx_tab_drills">Reading drills</span></button>
         <button role="tab" id="rdt-pieces" data-tab="pieces" aria-selected="false" aria-controls="rdp-pieces" tabindex="-1"><span aria-hidden="true">🎼</span> <span data-i18n="rdx_tab_pieces">Sight-reading</span></button>
@@ -197,6 +200,13 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       </div>
       <div id="rdp-pieces" role="tabpanel" aria-labelledby="rdt-pieces" hidden>
       <div class="panel" style="margin-top:4px">
+        <div class="rdn-phead" id="rdn-player-head" hidden>
+          <button class="btn ghost" type="button" id="rdn-back" data-i18n="rdn_back">← Back</button>
+          <div class="rdn-phead-t"><h2 id="rdn-p-title"></h2><span class="rdn-sub" id="rdn-p-sub"></span></div>
+          <span class="rdn-sp"></span>
+          <button class="btn ghost" type="button" id="rdn-prev" data-i18n="rdn_prev" aria-keyshortcuts="ArrowLeft">← Prev</button>
+          <button class="btn" type="button" id="rdn-next" data-i18n="rdn_next_btn" aria-keyshortcuts="ArrowRight">Next →</button>
+        </div>
         <div class="rd-stage-top" id="rd-stage-top" hidden>
           <div class="rdx-head">
             <div id="rd-stage-title" class="rdx-title"></div>
@@ -220,6 +230,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div id="rd-srt-preview" class="panel" hidden>
           <strong data-i18n="rd_srt_preview_title">First attempt</strong>
           <span id="rd-srt-countdown" data-i18n="rd_srt_preview_hint">You have 20 seconds to preview this piece.</span>
+          <ul class="rdn-check" id="rdn-checklist" hidden></ul>
           <div class="row">
             <button class="btn primary" id="rd-srt-start" data-i18n="rd_srt_start">Start now</button>
             <button class="btn ghost" id="rd-srt-practice" data-i18n="rd_srt_practice">Switch to practice</button>
@@ -236,6 +247,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="ss-wrap" id="rd-staff" style="margin-top:10px" role="img" aria-label="Sheet music" data-i18n-aria="rdx_sheet_aria"></div>
         <div class="coach" id="rd-coach" aria-live="polite"></div>
         <div id="rd-verdict" class="verdict neutral" style="min-height:24px; margin-top:6px" role="status" aria-live="polite"></div>
+        <section class="rdn-result" id="rdn-result" hidden aria-labelledby="rdn-r-score"></section>
         <div class="row" style="margin-top:10px; align-items:center">
           <button class="btn primary" id="rd-go" data-i18n="rd_start" aria-describedby="rd-coach">● Start</button>
           <button class="btn ghost" id="rd-listen" data-i18n="rd_listen">▶ Listen</button>
