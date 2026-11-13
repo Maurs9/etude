@@ -18,6 +18,9 @@
 .rdn-card h2{font-family:var(--serif); font-size:22px; font-weight:600; letter-spacing:-.01em; margin:0}
 .rdn-eyebrow{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--gold-ink); font-weight:700; margin-bottom:4px}
 .rdn-sub{color:var(--muted); margin:4px 0 0; overflow-wrap:anywhere}
+.rdn-stays{color:var(--gold-ink); font-size:13.5px}
+.rdn-hint{color:var(--muted); font-size:13px}
+.rdn-card h2:focus,.rdn-phead h2:focus{outline:none}
 .rdn-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px}
 .rdn-sp{margin-left:auto}
 .rdn-home .btn,.rdn-phead .btn,.rdn-result .btn,.rdn-backrow .btn{min-height:44px; justify-content:center}
@@ -37,6 +40,8 @@
 .rdn-book{container-type:inline-size}
 .rdn-lab{font-size:13px; font-weight:700; color:var(--ink2); margin:16px 0 8px}
 .rdn-levels{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:6px}
+/* Narrow phones: two rows of four, so each level button stays at least 44px wide. */
+@media (max-width:479.98px){ .rdn-levels{grid-template-columns:repeat(4,minmax(0,1fr))} }
 .rdn-lv,.rdn-key,.rdn-num{appearance:none; font:inherit; color:var(--ink); border-radius:10px; border:1px solid var(--line2); background:var(--paper2); cursor:pointer; min-width:0}
 .rdn-lv{min-height:48px; font-weight:700; padding:0}
 .rdn-lv[aria-pressed=true],.rdn-key[aria-pressed=true]{background:var(--ink); color:var(--paper); border-color:var(--ink)}
@@ -44,7 +49,14 @@
 .rdn-lvdesc b{font-family:var(--serif); font-size:16px}
 .rdn-pat{color:var(--gold-ink); font-size:13px}
 .rdn-keys{display:grid; grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:6px}
-.rdn-key{min-height:48px; padding:3px 2px; display:grid; place-items:center; line-height:1.15}
+.rdn-key{min-height:48px; padding:3px 2px; display:grid; place-items:center; line-height:1.15; position:relative}
+/* The status in a sign as well as a colour: a check for secure, a dot for started (the chip's label says it in words). */
+.rdn-mk{font-size:11px; line-height:1; font-weight:700}
+.rdn-key .rdn-mk{position:absolute; top:4px; right:5px}
+.rdn-mk-secure{color:var(--good)}
+.rdn-mk-started{color:var(--gold-ink); font-size:8px}
+.rdn-key[aria-pressed=true] .rdn-mk{color:inherit}
+.rdn-legend .rdn-mk{margin-right:4px}
 .rdn-key b{font-weight:700}
 .rdn-key small{font-size:11px; color:var(--muted); font-weight:400}
 .rdn-key[aria-pressed=true] small{color:inherit; opacity:.8}
@@ -84,9 +96,11 @@
 /* The old tabs: at the top of the drills and melody screens, a quiet row under "More" on the home */
 .rdn-more-h{font-family:var(--serif); font-size:16px; font-weight:600; color:var(--ink2); margin:26px 0 0}
 #view-read[data-rdn=home] .rdx-tabs{border-bottom:0; gap:8px; margin:8px 0 0; flex-wrap:wrap; overflow:visible}
-#view-read[data-rdn=home] .rdx-tabs [role=tab]{min-height:44px; border:1px solid var(--line2); border-radius:10px; margin:0; padding:8px 14px;
+/* On the home the two buttons have no tab role (see rdnTabRoles), so they are styled here by data-tab. */
+#view-read[data-rdn=home] .rdx-tabs [data-tab]{appearance:none; font:inherit; font-weight:650; cursor:pointer; min-height:44px; border:1px solid var(--line2); border-radius:10px; margin:0; padding:8px 14px;
   background:var(--paper2); color:var(--ink2); font-size:14px; white-space:normal}
-#view-read[data-rdn=home] .rdx-tabs [role=tab]:hover{color:var(--accent); border-color:var(--accent)}
+#view-read[data-rdn=home] .rdx-tabs [data-tab]:hover{color:var(--accent); border-color:var(--accent)}
+#view-read[data-rdn=home] .rdx-tabs [data-tab]:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px}
 .rdn-backrow{margin:10px 0 0}
 
 /* The player */

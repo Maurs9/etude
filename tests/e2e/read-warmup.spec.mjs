@@ -181,6 +181,8 @@ test.describe('Read warm-up', () => {
     expect(await page.evaluate(() => window.__etude.RD.on)).toBe(true);
     await page.locator('#rdn-w-back').click();
     await expect(page.locator('#rdn-home')).toBeVisible();
+    // Focus goes back to the button that started the warm-up.
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('rdn-warm-go');
     expect(await warm(page)).toMatchObject({ on: false, phase: 'idle' });
     expect(await page.evaluate(() => ({ on: window.__etude.RD.on, timer: window.__etude.WARM.timer }))).toEqual({ on: false, timer: 0 });
     await expect(page.locator('#rdn-warm-done')).toHaveCount(0);

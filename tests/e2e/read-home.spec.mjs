@@ -127,7 +127,70 @@ test.describe('Read home', () => {
     await expect(f.locator('small')).toHaveText('1♭');
     await expect(c.locator('small')).toHaveText(STRINGS.en.rdn_sig_none);
     await expect(g).toHaveAttribute('aria-label', /G major, 1 sharp, secure/);
+    await expect(f).toHaveAttribute('aria-label', /F major, 1 flat, started/);
     expect(await g.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
+    // Not by colour alone: a check for secure, a dot for started, on the chip and in the legend (decorative signs).
+    await expect(g.locator('.rdn-mk')).toHaveText('✓');
+    await expect(f.locator('.rdn-mk')).toHaveText('●');
+    await expect(c.locator('.rdn-mk')).toHaveCount(0);
+    await expect(g.locator('.rdn-mk')).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator('.rdn-legend .rdn-mk-secure')).toHaveText('✓');
+    await expect(page.locator('.rdn-legend .rdn-mk-started')).toHaveText('●');
+  });
+
+  test('a piece played without a star is not announced as 0 stars', async ({ app }) => {
+    const page = await openHome(app, withBook({ v: 1, level: 1, focusKey: null, pieces: { 'b1.1': { best: 30, stars: 0, tries: 1, first: 30 } }, recent: {}, daily: null, days: [] }));
+    await expect(page.locator('[data-rdn-n="1"]')).toHaveAttribute('aria-label', fill(STRINGS.en.rdn_num_aria_star0, 1));
+    for (const lang of Object.keys(STRINGS).filter((k) => STRINGS[k].rdn_today_title)) {
+      expect(STRINGS[lang].rdn_num_aria_star0, lang).not.toMatch(/0/);
+      expect(STRINGS[lang].rdn_stars_none, lang).toBeTruthy();
+    }
+  });
+
+  test('strings: German Prev, French agreement and terms, one Romanian key count for every number', async ({ app }) => {
+    expect(STRINGS.de.rdn_prev).toBe('← Vorheriges');
+    expect(STRINGS.de.rdn_prev).not.toBe(STRINGS.de.rdn_back);
+    expect(STRINGS.fr.rdn_not_played).toBe('pas joué');
+    expect(STRINGS.fr.rdn_today_key).toBe('Tous en %s.');
+    expect(STRINGS.fr.rdn_lv1_name).toBe('Degrés conjoints');
+    expect(STRINGS.fr.rdn_pat_stepRun).toBe('mouvement conjoint');
+    for (const n of [5, 9, 13, 17, 24])
+      expect(fill(STRINGS.ro.rdn_mixed_sub, n)).toBe(`Tonalități: ${n}`);
+    const page = await openHome(app);
+    await page.evaluate(() => window.__etude.setLang('ro'));
+    await expect(page.locator('.rdn-mix small')).toHaveText(/^Tonalități: \d+$/);
+  });
+
+  test("a set that cannot be made shows No set today and never breaks the home", async ({ app, page }) => {
+    await openHome(app);
+    await page.evaluate(() => { window.__etude.rdnEnsureDailyOf = () => { throw new Error('No new piece for a test'); }; });
+    await page.locator('[data-rdn-lv="2"]').click();
+    await expect(page.locator('[data-rdn-lv="2"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#rdn-no-set')).toHaveText(STRINGS.en.rdn_no_set);
+    await expect(page.locator('#rdn-today-go')).toBeDisabled();
+    await expect(page.locator('.rdn-slot')).toHaveCount(0);
+    expect((await book(page)).level).toBe(2);
+    await page.evaluate(() => window.__etude.show('practice'));
+    await page.evaluate(() => window.__etude.show('read'));
+    await expect(page.locator('#rdn-home')).toBeVisible();
+    await expect(page.locator('#rdn-no-set')).toBeVisible();
+  });
+
+  test('on the home the More row is two plain buttons in a group; on the old screens they are tabs again', async ({ app, page }) => {
+    await openHome(app);
+    await expect(page.locator('#rd-tabs')).toHaveAttribute('role', 'group');
+    await expect(page.getByRole('group', { name: STRINGS.en.rdn_more })).toBeVisible();
+    await expect(page.locator('#rd-tabs [role=tab]')).toHaveCount(0);
+    await expect(page.locator('#rdt-drills')).not.toHaveAttribute('aria-selected', /.*/);
+    // Arrow keys do not open a screen from the home.
+    await page.locator('#rdt-drills').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('#rdn-home')).toBeVisible();
+    await page.locator('#rdt-pieces').click();
+    await expect(page.locator('#rd-tabs')).toHaveAttribute('role', 'tablist');
+    await expect(page.locator('#rdt-pieces')).toHaveAttribute('role', 'tab');
+    await expect(page.locator('#rdt-pieces')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#rdt-drills')).toHaveAttribute('aria-controls', 'rdp-drills');
   });
 
   test("Today's set: five chips, fixed for the day, drawn again when the level changes", async ({ app, page }) => {
@@ -170,24 +233,27 @@ test.describe('Read home', () => {
     await expect(page.locator('.rdn-lvdesc')).toContainText(STRINGS.ro.rdn_lv1_name);
   });
 
-  for (const [width, height] of [[390, 844], [820, 1180], [1180, 820], [1440, 900]]) {
+  for (const [width, height] of [[360, 740], [390, 844], [820, 1180], [1180, 820], [1440, 900]]) {
     test(`fits ${width}px: no sideways scroll, every control at least 44px`, async ({ app, page }) => {
       await page.setViewportSize({ width, height });
       await openHome(app);
       await page.locator('[data-rdn-lv="8"]').click(); // the longest key row and pattern list
       const facts = await page.evaluate(() => {
         const visible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
-        const controls = [...document.querySelectorAll('#rdn-home button, #rdn-home summary, #rd-tabs [role=tab]')].filter(visible);
+        const controls = [...document.querySelectorAll('#rdn-home button, #rdn-home summary, #rd-tabs button')].filter(visible);
         const box = (sel) => document.querySelector(sel).getBoundingClientRect();
         return {
           overflow: document.documentElement.scrollWidth - window.innerWidth,
           small: controls.filter((el) => el.getBoundingClientRect().height < 44).map((el) => el.outerHTML.slice(0, 80)),
+          // The level buttons: two rows of four below 480px, so none is narrower than 44px either.
+          narrow: [...document.querySelectorAll('.rdn-lv')].filter((el) => el.getBoundingClientRect().width < 44).map((el) => el.dataset.rdnLv),
           count: controls.length,
           today: box('.rdn-today'), warm: box('.rdn-warm'), bookCard: box('.rdn-book'), progress: box('.rdn-progress'),
         };
       });
       expect(facts.overflow).toBeLessThanOrEqual(0);
       expect(facts.small).toEqual([]);
+      expect(facts.narrow).toEqual([]);
       expect(facts.count).toBeGreaterThan(100);
       if (width >= 1100) {
         // Two columns: Warm-up beside Today, Progress under Warm-up, the book under Today.

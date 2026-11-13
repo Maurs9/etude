@@ -7,7 +7,31 @@ const en = STRINGS.en;
 const fill = (s, ...args) => args.reduce((out, value, i) => { const mark = ['%a', '%b'][i]; return out.replace(mark && out.includes(mark) ? mark : '%s', String(value)); }, s);
 const book = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.reading?.book ?? null);
 const srtState = (page) => page.evaluate(() => window.__etude.SR.srtState.name);
-const withBook = (bookState) => ({ v: 3, lang: 'en', data: { reading: { book: { v: 1, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [], ...bookState } } } });
+const withBook = (bookState, prefs) => ({ v: 3, lang: 'en', data: { reading: { book: { v: 1, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [], ...bookState }, ...(prefs ? { prefs } : {}) } } });
+const title = (page) => page.locator('#rdn-p-title');
+const focusedId = (page) => page.evaluate(() => document.activeElement?.id || document.activeElement?.dataset.rdnFocus || document.activeElement?.tagName);
+// A first-sight result that cannot be saved: writes to the ledger fail until restoreLedger.
+const installLedgerFailure = (page) => page.evaluate(() => {
+  const original = Storage.prototype.setItem;
+  window.__srtOriginalSetItem = original;
+  Storage.prototype.setItem = function setItem(key, value) {
+    if (key === 'etude-sight-v1') throw new DOMException('blocked', 'QuotaExceededError');
+    return original.call(this, key, value);
+  };
+});
+const restoreLedger = (page) => page.evaluate(() => { Storage.prototype.setItem = window.__srtOriginalSetItem; });
+// Opens the first level-5 book piece where both hands start a note on the same beat.
+const openTwoHandPiece = (page) => page.evaluate(() => {
+  const api = window.__etude;
+  for (let k = 1; k <= 20; k++) {
+    api.rdnOpen({ kind: 'book', level: 5, number: k });
+    const ev = api.SR.lvPiece.events.filter((e) => e.pitches.length > 0);
+    const starts = new Set(ev.filter((e) => e.hand === 'rh').map((e) => e.onsetTick));
+    if (ev.some((e) => e.hand === 'lh' && starts.has(e.onsetTick)))
+      return k;
+  }
+  return 0;
+});
 
 async function openHome(app, saved) {
   const page = await app.open({ hash: 'read', saved });
@@ -149,13 +173,21 @@ test.describe('Read player', () => {
     await expect.poll(() => srtState(page)).toBe('countIn');
     await page.evaluate(() => window.__etude.srAssessFinish());
     await expect(page.locator('#rdn-result')).toBeVisible();
-    // The practice run played nothing, so it earned no star: no auto-next.
+    // The practice run played nothing, so it earned no star: no auto-next, and the stars say "No stars", not "0".
     await expect(page.locator('#rdn-auto')).toBeHidden();
+    await expect(page.locator('#rdn-result .rdx-stars')).toHaveAttribute('aria-label', en.rdn_stars_none);
     await page.locator('#rdn-retry').click();
     await expect.poll(() => srtState(page)).toBe('countIn');
     await perform(page);
     await expect(page.locator('#rdn-auto')).toBeVisible();
     await expect(page.locator('#rdn-auto')).toContainText(fill(en.rdn_auto_in, 3));
+    // Announced once: the visible number is no live region, the spoken line keeps its first text.
+    await expect(page.locator('#rdn-auto-say')).toHaveText(fill(en.rdn_auto_say, 3));
+    await expect(page.locator('#rdn-auto-say')).toHaveAttribute('aria-live', 'polite');
+    await expect(page.locator('#rdn-auto [aria-live]')).toHaveCount(1);
+    await expect(page.locator('#rdn-auto-t')).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator('#rdn-auto-t')).toHaveText(fill(en.rdn_auto_in, 2), { timeout: 2500 });
+    await expect(page.locator('#rdn-auto-say')).toHaveText(fill(en.rdn_auto_say, 3));
     await page.locator('#rdn-auto-cancel').click();
     await expect(page.locator('#rdn-auto')).toBeHidden();
     await page.waitForTimeout(3500);
@@ -305,6 +337,205 @@ test.describe('Read player', () => {
     await expect(page.locator('#rdn-result')).toBeHidden();
     await expect(page.locator('#rd-verdict')).toBeVisible();
     expect(await page.evaluate(() => [window.__etude.SR.modeSel, window.__etude.SR.active])).toEqual(['learn', true]);
+  });
+
+  test("Today's set keeps its level after a level change once a piece of it is played", async ({ app }) => {
+    const page = await openHome(app, withBook({ level: 3 }));
+    await page.locator('#rdn-today-go').click();
+    await playAttempt(page);
+    await page.locator('#rdn-back').click();
+    await page.locator('[data-rdn-lv="4"]').click();
+    await expect(page.locator('[data-rdn-lv="4"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.rdn-today .rdn-sub').first()).toContainText(fill(en.rdn_today_level, 3));
+    await expect(page.locator('#rdn-today-stays')).toHaveText(fill(en.rdn_today_stays, 3));
+    await expect(page.locator('.rdn-slot').first()).toHaveClass(/\bdone\b/);
+    await page.locator('[data-rdn-slot="1"]').click();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_today, 2, 5));
+    expect(await page.evaluate(() => window.__etude.SR.lvPiece.level)).toBe(3);
+  });
+
+  test('auto-next waits for the first-sight save and stops when another control is used', async ({ app }) => {
+    const page = await openHome(app, withBook({}, { autoNext: true }));
+    await page.locator('#rdn-book-go').click();
+    await playAttempt(page);
+    // The save of the first-sight result comes first, then the countdown.
+    await expect(page.locator('#rdn-auto')).toBeVisible();
+    await page.locator('#rd-listen').click();
+    await expect(page.locator('#rdn-auto')).toBeHidden();
+    await page.waitForTimeout(3500);
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 1, 96));
+    // A key the page handles stops it too.
+    await page.locator('#rd-listen').click(); // stops listening
+    await page.locator('#rdn-retry').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await perform(page);
+    await expect(page.locator('#rdn-auto')).toBeVisible();
+    await page.keyboard.press('a');
+    await expect(page.locator('#rdn-auto')).toBeHidden();
+    await page.waitForTimeout(3500);
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 1, 96));
+  });
+
+  test('auto-next does not run while a first-sight result is not saved, and starts once it is', async ({ app }) => {
+    const page = await openHome(app, withBook({}, { autoNext: true }));
+    await page.locator('#rdn-book-go').click();
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('preview');
+    await page.locator('#rd-srt-start').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await installLedgerFailure(page);
+    await perform(page);
+    await expect.poll(() => srtState(page)).toBe('pendingSave');
+    await expect(page.locator('#rd-srt-pending')).toBeVisible();
+    await expect(page.locator('#rdn-result')).toBeVisible();
+    await page.waitForTimeout(3500);
+    await expect(page.locator('#rdn-auto')).toBeHidden();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 1, 96));
+    await restoreLedger(page);
+    await page.locator('#rd-srt-retry').click();
+    await expect.poll(() => srtState(page)).toBe('saved');
+    await expect(page.locator('#rdn-auto')).toBeVisible();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 2, 96), { timeout: 6000 });
+  });
+
+  test('Prev, Next and the arrow keys wait while an attempt runs', async ({ app, page }) => {
+    await openHome(app);
+    await page.evaluate(() => window.__etude.rdnOpen({ kind: 'book', level: 1, number: 3 }));
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('preview');
+    await expect(page.locator('#rdn-next')).toBeDisabled();
+    await expect(page.locator('#rdn-prev')).toBeDisabled();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowLeft');
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 3, 96));
+    expect(await srtState(page)).toBe('preview');
+    await page.locator('#rd-srt-start').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await expect(page.locator('#rdn-next')).toBeDisabled();
+    await perform(page);
+    await expect(page.locator('#rdn-next')).toBeEnabled();
+    await expect(page.locator('#rdn-prev')).toBeEnabled();
+  });
+
+  test('a piece already seen says it is practice, and the status line follows the language', async ({ app, page }) => {
+    await openHome(app);
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rd-verdict')).toHaveText(en.rdn_ready);
+    await page.evaluate(() => window.__etude.setLang('ro'));
+    await expect(page.locator('#rd-verdict')).toHaveText(STRINGS.ro.rdn_ready);
+    await page.evaluate(() => window.__etude.setLang('en'));
+    await playAttempt(page);
+    await page.locator('#rdn-back').click();
+    await page.locator('[data-rdn-n="1"]').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.mode)).toBe('practice');
+    await expect(page.locator('#rd-verdict')).toHaveText(en.rdn_seen);
+    await page.evaluate(() => window.__etude.setLang('de'));
+    await expect(page.locator('#rd-verdict')).toHaveText(STRINGS.de.rdn_seen);
+  });
+
+  test('one hand on a level 5 piece is practice: no first-sight claim, and the next piece starts with both hands', async ({ app }) => {
+    const page = await openHome(app, withBook({ level: 5 }));
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rdn-hands-hint')).toBeHidden();
+    await page.locator('#rd-hands button[data-v="rh"]').click();
+    await expect(page.locator('#rdn-hands-hint')).toBeVisible();
+    await expect(page.locator('#rdn-hands-hint')).toHaveText(en.rdn_hands_first);
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    expect(await page.evaluate(() => window.__etude.SR.srtState.mode)).toBe('practice');
+    await perform(page, ['rh']);
+    const saved = await book(page);
+    expect(saved.pieces['b5.1'].first ?? null).toBeNull();
+    expect(saved.recent['5'] ?? []).toEqual([]);
+    const ledger = await page.evaluate(() => { const l = window.__etude.srtReadLedger(localStorage); return { claims: Object.values(l.exposures).filter((x) => x.claim).length, attempts: Object.keys(l.attempts).length }; });
+    expect(ledger).toEqual({ claims: 0, attempts: 0 });
+    await page.locator('#rdn-r-next').click();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 2, 96));
+    await expect(page.locator('#rd-hands button[data-v="both"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#rdn-hands-hint')).toBeHidden();
+  });
+
+  test('the old melody screen keeps its mode after a book piece', async ({ app, page }) => {
+    await openHome(app);
+    await page.locator('#rdt-pieces').click();
+    await page.locator('#rd-mode button[data-v="learn"]').click();
+    await page.locator('#rdn-home-back').click();
+    await page.locator('#rdn-book-go').click();
+    expect(await page.evaluate(() => window.__etude.SR.modeSel)).toBe('assess');
+    await page.locator('#rdn-back').click();
+    await page.locator('#rdt-pieces').click();
+    await expect(page.locator('#rd-mode button[data-v="learn"]')).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => window.__etude.SR.modeSel)).toBe('learn');
+  });
+
+  test('two hands 80 ms apart on one beat both count as hit', async ({ app }) => {
+    const page = await openHome(app, withBook({ level: 5 }));
+    expect(await openTwoHandPiece(page)).toBeGreaterThan(0);
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('preview');
+    await page.locator('#rd-srt-start').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    const facts = await page.evaluate(() => {
+      const api = window.__etude;
+      api.srtSetState({ type: 'countInDone' });
+      const expected = api.srtLevelExpected(api.SR.lvPiece, { bpm: api.SR.bpm, hand: 'both' });
+      const late = (n) => (n.hand === 'lh' ? 80 : 0);
+      const performed = [];
+      expected.flatMap((n) => [['on', n.midi, n.onMs + late(n)], ['off', n.midi, Math.max(n.onMs + late(n) + 1, n.offMs - 20)]])
+        .sort((a, b) => a[2] - b[2] || (a[0] === 'off' ? -1 : 1))
+        .forEach(([kind, midi, ms]) => api.srtRecorder.record(kind, midi, 'typing:a', kind === 'off' ? 'physical' : null, ms));
+      const rhStarts = new Set(expected.filter((n) => n.hand === 'rh').map((n) => n.onMs));
+      const shared = new Set(expected.filter((n) => rhStarts.has(n.onMs) && expected.some((m) => m.hand === 'lh' && m.onMs === n.onMs)).map((n) => n.id));
+      api.srAssessFinish();
+      const results = api.SR.srtEvaluation.noteResults.filter((r) => shared.has(r.expectedId)).map((r) => r.classification);
+      // The same notes with the default 60 ms window would not count.
+      expected.forEach((n) => performed.push({ id: n.id + 'p', midi: n.midi, onMs: n.onMs + late(n), offMs: n.offMs - 20 + late(n) }));
+      const strict = api.srtEvaluate(expected, performed, {}).noteResults.filter((r) => shared.has(r.expectedId)).map((r) => r.classification);
+      return { results, strict };
+    });
+    expect(facts.results.length).toBeGreaterThan(1);
+    expect(facts.results.every((c) => c === 'good' || c === 'near')).toBe(true);
+    expect(facts.strict.some((c) => c !== 'good' && c !== 'near')).toBe(true);
+  });
+
+  test('the stars label is escaped and stays the same text', async ({ app, page }) => {
+    await page.route('**/ui-en-*.js', async (route) => {
+      const response = await route.fetch();
+      const body = (await response.text()).replace('%s of 3 stars', '%s of 3 "stars" & <b>');
+      await route.fulfill({ response, body });
+    });
+    await openHome(app);
+    await page.locator('#rdn-book-go').click();
+    await playAttempt(page);
+    await expect(page.locator('#rdn-result .rdx-stars')).toHaveAttribute('aria-label', '3 of 3 "stars" & <b>');
+    await expect(page.locator('#rdn-result .rdx-stars b')).toHaveCount(0);
+  });
+
+  test('focus: the title on opening, the pressed button on Next with the title announced, the opener on Back', async ({ app, page }) => {
+    await openHome(app);
+    await page.locator('#rdn-book-go').click();
+    await expect.poll(() => focusedId(page)).toBe('rdn-p-title');
+    await page.locator('#rdn-next').click();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 2, 96));
+    await expect.poll(() => focusedId(page)).toBe('rdn-next');
+    await expect(page.locator('#rdn-p-live')).toHaveText(fill(en.rdn_title_no, 2, 96));
+    await page.locator('#rdn-back').click();
+    await expect.poll(() => focusedId(page)).toBe('rdn-book-go');
+    // The old screens: Back to Read returns to the button that opened them.
+    await page.locator('#rdt-drills').click();
+    await page.locator('#rdn-home-back').click();
+    await expect.poll(() => focusedId(page)).toBe('rdt-drills');
+    // The result card takes the focus only when it was lost.
+    await page.locator('.rdn-num[data-rdn-n="1"]').click();
+    await playAttempt(page);
+    await expect.poll(() => focusedId(page)).toBe('rdn-r-next');
+    // Retry closes the card: its focus goes to Start, and the next result card leaves it there.
+    await page.locator('#rdn-retry').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    expect(await focusedId(page)).toBe('rd-go');
+    await perform(page);
+    await expect(page.locator('#rdn-result')).toBeVisible();
+    expect(await focusedId(page)).toBe('rd-go');
   });
 
   test('fits 390px: no sideways scroll, header and result controls at least 44px', async ({ app, page }) => {
