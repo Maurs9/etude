@@ -61,7 +61,7 @@ Pieces are assembled from named patterns. A pattern is a shape the eye can take 
 
 | Level | New patterns |
 |---|---|
-| 1 | step run, repeated note |
+| 1 | step run, repeated note, long note (a half note or longer) |
 | 2 | skip, neighbour figure (step away and back) |
 | 3 | broken triad, leap of a fifth, eighth-note run, sequence (a pattern repeated one step higher or lower) |
 | 4 | held note under a moving hand, tie |
@@ -110,7 +110,7 @@ The pool of keys in the default mix grows with the level, the way the exam sylla
 
 ## 6. Generator rules
 
-Each rule has an automatic check. The checks run over 200 seeds × 24 keys × 8 levels in the unit tests.
+Each rule has an automatic check. The unit tests build 11,520 pieces (60 seeds × 24 keys × 8 levels) and run every check on each piece. Each check is also tested on hand-written pieces that break its rule.
 
 | Rule | Statement | Check passes when |
 |---|---|---|
@@ -121,18 +121,18 @@ Each rule has an automatic check. The checks run over 200 seeds × 24 keys × 8 
 | G5 Step bias | At least 60% of melodic moves are steps or repeats. | Counted per piece. |
 | G6 Leap recovery | A leap of a fifth or more is followed by a step in the opposite direction. | No violation in any piece. |
 | G7 One high point | From level 4 up, the highest note appears once, after the first bar. | Counted per piece. |
-| G8 Start and end | The melody starts on degree 1, 3 or 5. It ends on the tonic, approached by step. The last note is a half note or longer. | Checked on the first and last events. |
-| G9 Phrase form | The first half ends on degree 2, 5 or 7. The second half reuses the rhythm of bar 1 and ends on degree 1. | Checked on bar boundaries. |
-| G10 Rhythm economy | A 4-bar piece uses at most 2 different bar rhythms before the final bar. An 8-bar piece uses at most 3. | Counted per piece. |
-| G11 Two hands | The left hand is derived from the melody and the chord plan. On strong beats the hands form a third, fifth, sixth, octave or tenth. At level 4 only one hand moves at a time. | No violation in any piece. |
-| G12 Playability | Each hand stays inside its span. Position shifts do not exceed the level limit and happen after a rest or a note of a quarter or longer. | A fingering pass finds a valid hand position for every note. |
+| G8 Start and end | The melody starts on degree 1, 3 or 5. It ends on the tonic, approached by step. The last note is a half note or longer, or the whole bar when the bar is shorter. From level 4 the bass ends on the tonic too. | Checked on the first and last events. |
+| G9 Phrase form | A piece of 4 or 6 bars has two phrases. A longer piece has phrases of 4 bars. Every phrase but the last ends on degree 2, 5 or 7 (2 or 5 in a minor key). Every later phrase starts with the rhythm of the first full bar. | Checked on phrase boundaries. |
+| G10 Rhythm economy | Before the final bar the melody uses at most 2 different bar rhythms in 4 bars, 3 in 6 or 8 bars, and 4 in 12 bars. An upbeat bar is not counted. | Counted per piece. |
+| G11 Two hands | The second hand is derived from the melody and the chord plan. On strong beats the bass and the melody form a third, fifth, sixth, octave or tenth. The hands never cross. At level 4 only one hand moves at a time. | No violation in any piece. |
+| G12 Playability | A hand covers a fifth without moving, and a sixth from level 5. It may move after a rest, after a note of a quarter or longer, at the start of a bar, or between two notes a step apart (thumb under). The right hand moves at most 1, 2 and 3 times per four bars at levels 6, 7 and 8. The left hand moves at most twice per four bars at level 6, then once per bar. A chord is no wider than a sixth. | A fingering pass finds the fewest moves for every hand. |
 | G13 Spelling | Notes follow the key signature. Accidentals appear only where the level allows them. No double accidentals. | Every pitch is spelled from the key, and the accidental count is within the limit. |
 | G14 Difficulty band | A score from leaps, direction changes, rhythm variety, shifts and accidentals falls in the level's band. Inside a unit the pieces rise from the lower to the upper part of the band. | The score is inside the band for every accepted piece. |
 | G15 Uniqueness | All numbered pieces of a level are different. A daily piece never repeats a book piece or a piece in the ledger. | Fingerprints are distinct. The existing 32-retry rule is kept. |
-| G16 Patterns | Every bar is built from patterns of the level's list or of earlier levels. Each piece uses a new pattern of its level at least once. The piece stores the pattern name for each bar. | A recogniser run on the notes finds each stored pattern in its bar. |
+| G16 Patterns | Every bar shows at least one pattern of the level's list or of earlier levels. Each piece shows a new pattern of its level at least once. The piece stores the pattern names of each bar. | The recognisers, run on the notes, give exactly the stored names. Each recogniser is tested on hand-written bars. |
 
 One check cannot be automated: whether the pieces sound like music.
-Manual gate: I produce a sample sheet of 20 pieces per level, and you play or listen and approve it before the UI work starts.
+Manual gate, still open: you play or listen to pieces of each level and approve them. The Read page itself serves as the sample sheet.
 
 Notes on the evidence behind the rules:
 
@@ -151,7 +151,7 @@ Notes on the evidence behind the rules:
   - **Level check**: the last unit, a mix across the whole pool of the level.
 - Unit order: a level that follows another level opens with a mix in the three easiest keys, so the new patterns are met in familiar keys. Then each new key gets its unit, with a mix after every second new key. Mix units fill the rest.
 - Level 1 as an example: C, G, mix, F, A minor, mix, D minor, mix, mix, mix, mix, level check.
-- **Same shape, new key.** In each mix unit, pieces 3 and 4 use the same pattern plan in two different keys.
+- **Same shape, new key.** In each unit with several keys, piece 4 is piece 3 in another key of the same mode. About 1 pair in 10 does not fit the other key (the hands would cross), and piece 4 is then a new piece.
 - Each piece keeps: best score, stars, attempts, and the first-sight result.
 
 **Key focus**
@@ -163,13 +163,30 @@ Notes on the evidence behind the rules:
 
 - 5 pieces: 1 a level below as a warm start, 3 at the current level, 1 a level above as a stretch. The stretch does not count toward promotion.
 - With "Mixed", the 3 level pieces are in 3 different keys: the newest key, the weakest key, and one more from the pool. With a key pinned, all 5 pieces are in that key.
-- The set is created at the first visit of the day and stays fixed for that day. The seed is date + level + slot.
+- The set is created at the first visit of the day and stays fixed for that day. The seed is date + level + slot + key.
 - Each piece is a first sight: preview, count-in, one assessed attempt. Replays count as practice.
 
 **Suggested next step**
 
 - The app suggests the next level when the mean of the last 16 first-sight scores in mixed keys at the level is 85% or more.
 - A suggestion is a card with one button. The user can ignore it.
+
+### As built (steps 2 to 4)
+
+| File | Content |
+|---|---|
+| `src/sight-reading/levels.ts` | levels, keys, hand positions, the level-limits check (G2) |
+| `src/sight-reading/patterns.ts` | the notes of each hand as scale degrees, and a recogniser for each of the 22 patterns |
+| `src/sight-reading/rules.ts` | the checks for G2 to G16, the difficulty score and the band of each level |
+| `src/sight-reading/melody.ts` | the generator: `srtGenerateLevelPiece(level, key, seed)` |
+| `src/sight-reading/book.ts` | `srtBookUnits`, `srtBookEntry`, `srtBookPiece`, `srtFocusPiece`, `srtDailyPlan`, `srtDailyPiece` |
+| `src/sight-reading/fingerprint.ts` | `srtLevelFingerprint`, with the prefix `v2` |
+
+- **How a piece is made.** The generator picks a meter and a bar count, a rhythm for each bar, and a chord plan. A bounded search then finds a melody in scale degrees that follows the plan. The second hand is added: long notes, chords, a broken chord, or the melody in parallel or contrary motion. The piece is kept only when every rule holds. On average 2 to 4 attempts are needed.
+- **Chords.** I, IV and V up to level 5. Levels 6 to 8 add ii and vi. A minor key uses iv in place of ii.
+- **Difficulty score.** It counts leaps, changes of direction, different note values, position changes, accidentals and notes per beat. The band of a level runs from the 3rd to the 97th percentile of 1,440 generated pieces. A score compares pieces of one level, not levels with each other.
+- **The book is pinned.** A test holds the fingerprints of pieces 1, 48 and 96 of every level. A change to the generator that would change the book fails that test.
+- **Speed.** One piece takes 0.2 to 1.3 ms on a laptop. The first opening of a level's book builds its 96 pieces once.
 
 ## 8. Player
 
