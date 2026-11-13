@@ -109,6 +109,10 @@ test.describe('Read player', () => {
     await expect(page.locator('#rdn-result')).toBeVisible();
     await expect(page.locator('#rdn-r-score')).toHaveText('100%');
     await expect(page.locator('#rdn-result')).toContainText('100%');
+    // The result card replaces the one-line verdict, also as the live region that announces the result.
+    await expect(page.locator('#rd-verdict')).toBeHidden();
+    await expect(page.locator('#rdn-result [role=status]')).toContainText('100%');
+    await expect(page.locator('#rdn-lede')).toHaveText(en.rdn_lede);
     const key = await page.evaluate(() => window.__etude.SR.lvPiece.key);
     await expect(page.locator('#rdn-result')).toContainText(`${key.tonic.replace('b', '♭').replace('#', '♯')} ${key.mode}`);
     let saved = await book(page);
@@ -263,8 +267,44 @@ test.describe('Read player', () => {
     await expect(page.locator('#rd-srt-countdown')).toContainText('20');
     await expect(page.locator('#rdn-checklist')).toBeHidden();
     await page.locator('#rd-srt-practice').click();
+    // The old path keeps its verdict line and shows no result card.
+    // Practice starts at once; finishing it gives the old one-line verdict.
+    await expect.poll(() => page.evaluate(() => [window.__etude.SR.srtState.mode, window.__etude.SR.active])).toEqual(['practice', true]);
+    await page.evaluate(() => window.__etude.srAssessFinish());
+    await expect(page.locator('#rd-verdict')).toBeVisible();
+    await expect(page.locator('#rd-verdict')).not.toBeEmpty();
+    await expect(page.locator('#rdn-result')).toBeHidden();
+    await expect(page.locator('#rd-lede')).toHaveText(en.rd_lede);
     await page.locator('#rdn-home-back').click();
     await expect(page.locator('#rdn-home')).toBeVisible();
+  });
+
+  test('a finished Step-by-step run shows the result card, with dashes for what it does not measure', async ({ app, page }) => {
+    await openHome(app);
+    await page.locator('#rdn-book-go').click();
+    await page.locator('#rd-mode button[data-v="learn"]').click();
+    await expect.poll(() => page.locator('#rd-staff .ss-n').count()).toBeGreaterThan(0);
+    await page.locator('#rd-go').click();
+    await page.evaluate(() => {
+      const api = window.__etude;
+      while (api.SR.active) {
+        const step = api.SR.steps[api.SR.stepIdx];
+        for (const note of step.notes) { api.handleNoteOn(note.midi, 100); api.handleNoteOff(note.midi); }
+      }
+    });
+    await expect(page.locator('#rdn-result')).toBeVisible();
+    await expect(page.locator('#rdn-r-score')).toHaveText('100%');
+    await expect(page.locator('#rdn-result .rdx-stars')).toHaveAttribute('aria-label', /2/);
+    const cells = await page.locator('#rdn-result .rdn-res b').allTextContents();
+    expect(cells.slice(0, 3)).toEqual(['—', '—', '—']);
+    await expect(page.locator('#rd-verdict')).toBeHidden();
+    expect((await book(page)).pieces['b1.1']).toMatchObject({ best: 100, stars: 2 });
+    // No auto-next after practice; Retry goes step by step again and brings the verdict line back.
+    await expect(page.locator('#rdn-auto')).toBeHidden();
+    await page.locator('#rdn-retry').click();
+    await expect(page.locator('#rdn-result')).toBeHidden();
+    await expect(page.locator('#rd-verdict')).toBeVisible();
+    expect(await page.evaluate(() => [window.__etude.SR.modeSel, window.__etude.SR.active])).toEqual(['learn', true]);
   });
 
   test('fits 390px: no sideways scroll, header and result controls at least 44px', async ({ app, page }) => {

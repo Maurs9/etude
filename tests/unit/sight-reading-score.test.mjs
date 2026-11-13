@@ -101,6 +101,7 @@ describe('warm-up', () => {
         const bar = card.score.ts[1] === 4 ? card.score.ts[0] : card.score.ts[0] / 2;
         expect(sum(tokens)).toBeCloseTo(bar, 9);
         expect(card.notes.length).toBeGreaterThanOrEqual(3);
+        expect(card.notes.every((entry) => entry.length === 1)).toBe(true);
         expect(card.notes.length).toBe(tokens.filter((token) => token[0] !== 'R').length);
         expect(card.patterns.length).toBeGreaterThan(0);
         expect(card.score.engrave).toBe(2);

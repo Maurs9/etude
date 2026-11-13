@@ -44,6 +44,7 @@ import { SRT_BOOK_PIECES, SRT_DAILY_PIECES, SRT_FOCUS_PIECES, SRT_UNIT_PIECES, s
 import { srtBookId, srtBookTally, srtChooseLevel, srtDailyId, srtEnsureDaily, srtFocusId, srtFocusTally, srtKeyStatus, srtLevelAverage, srtLevelReady, srtNormalizeBookState, srtPiecesRead, srtRecordResult, srtStreak, type PieceStat, type ReadingBookState } from '../sight-reading/progress.js';
 import { srtLevelClicks, srtLevelDurationMs, srtLevelExpected, srtLevelScore } from '../sight-reading/score.js';
 import { srtMelodyRhythm } from '../sight-reading/patterns.js';
+import { SRT_FLASH_MS, srtFlashMatches, srtWarmupPlan, type FlashCard, type WarmupStep } from '../sight-reading/warmup.js';
 import type { GeneratedPiece } from '../sight-reading/rules.js';
 import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder } from '../sight-reading/recorder.js';
@@ -2075,6 +2076,10 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
         const m = heldOrder[heldOrder.length - 1];
         if (m != null)
             singKeyInput(m);
+        return;
+    }
+    if (view0() === 'read' && kind === 'on' && WARM.on && WARM.phase === 'play') {
+        rdnWarmNote(midi);
         return;
     }
     if (view0() === 'read' && RD.on && RD.L && RD.L.ty === 'rh') {
@@ -6524,10 +6529,21 @@ const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false
     srtEvaluation: null, srtResultValue: null, srtResultLevelId: null, lvPiece: null };
 /** The Read tab's screens: the home (the default each time the tab opens), the old drills and melody screens, and the
  *  player of a level piece. `ctx` says which numbered piece the player shows. */
-type RdnScreen = 'home' | 'drills' | 'melody' | 'player';
+type RdnScreen = 'home' | 'drills' | 'melody' | 'player' | 'warmup';
 type RdnCtx = { kind: 'book'; level: number; number: number } | { kind: 'focus'; level: number; key: ReadingKeyId; number: number } | { kind: 'daily'; date: string; slot: number };
-interface RdnState { screen: RdnScreen; fresh: boolean; ctx: RdnCtx | null; autoTimer: number; autoLeft: number; retries: number }
-const RDN: RdnState = { screen: 'home', fresh: true, ctx: null, autoTimer: 0, autoLeft: 0, retries: 0 };
+/** `learn`: the score and stars of a finished Step-by-step run, shown on the result card instead of an evaluation. */
+interface RdnState { screen: RdnScreen; fresh: boolean; ctx: RdnCtx | null; autoTimer: number; autoLeft: number; retries: number; learn: { acc: number; stars: 0 | 1 | 2 | 3 } | null }
+const RDN: RdnState = { screen: 'home', fresh: true, ctx: null, autoTimer: 0, autoLeft: 0, retries: 0, learn: null };
+/** The warm-up (spec section 9): its steps, where it is, and the flash card in play. `phase` is 'show' (the bar is visible),
+ *  'play' (hidden, notes are collected), 'result' (shown again with a mark), 'drill' (an existing drill runs the step), or
+ *  'idle'. `limit` is how many answers (or rhythm exercises) end a drill step. */
+type RdnWarmPhase = 'idle' | 'show' | 'play' | 'result' | 'drill';
+interface RdnWarmState { on: boolean; level: number; key: string; steps: readonly WarmupStep[]; step: number; card: number; phase: RdnWarmPhase;
+    again: boolean; clean: number; played: number[][]; lastAt: number; strict: boolean; ok: boolean; timer: number; chordTimer: number; limit: number; tally: number[] }
+const WARM: RdnWarmState = { on: false, level: 1, key: 'C', steps: [], step: 0, card: 0, phase: 'idle', again: false, clean: 0, played: [], lastAt: 0, strict: false, ok: false, timer: 0, chordTimer: 0, limit: 0, tally: [] };
+/** Warm-up timing in ms: how long a card shows, how long its mark stays, and how close notes must be to form one chord.
+ *  Mutable so tests can shorten the waits. */
+const RDN_WARM_MS = { flash: SRT_FLASH_MS, result: 1200, chord: 60 };
 let srtRecorder: SightReadingRecorder | null = null;
 let srtOperationEpoch = 0;
 let srtCountInEpoch = 0;
@@ -7488,6 +7504,9 @@ function srLearnFinish() {
         const grade = srLearnGrade(SR.mistakes, SR.steps.length || 1);
         rdnRecord(grade.acc, grade.stars, false);
         v.textContent += ' · ' + '★'.repeat(grade.stars) + '☆'.repeat(3 - grade.stars);
+        RDN.learn = { acc: grade.acc, stars: grade.stars };
+        // Practice never moves on by itself: no auto-next after a Step-by-step run.
+        rdnResultShow(false);
     }
     else
         v.textContent += rdSightDone('learn', SR.mistakes);
@@ -8504,7 +8523,7 @@ interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rus
 interface ReadDrillNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
 interface ReadDrillTotals { n: number; ok: number; ms: number; sess: number; }
 interface ReadDrillCustom { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
-interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; stage: boolean; autoNext?: boolean; }
+interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; stage: boolean; autoNext?: boolean; warmDone?: string; }
 /** `book`: the Read home's book, key runs and daily set (src/sight-reading/progress.ts), read through srtNormalizeBookState. */
 interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { [noteKey: string]: ReadDrillNoteStat; }; tot: ReadDrillTotals; prefs: ReadDrillPrefs; book?: ReadingBookState; }
 function rdData(): ReadDrillData {
@@ -8535,7 +8554,7 @@ function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min
 function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
 function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
-interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
+interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; keyN?: number; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
 interface ReadDrillLevel extends ReadDrillLevelSpec { u: string; n: number; id: string; custom?: boolean; }
 interface ReadDrillUnit { u: string; icon: string; lv: ReadDrillLevel[]; }
 const RD_UNITS: ReadDrillUnit[] = [], RD_LV: { [levelId: string]: ReadDrillLevel; } = {};
@@ -8911,11 +8930,15 @@ function rdGen(L: ReadDrillLevel): ReadQuestion {
     }
     else
         pool = rdPool(L);
-    if (L.keys) {
+    // `keyN` fixes one key signature (the warm-up's hand position); `keys` draws one up to that many sharps or flats.
+    if (L.keyN !== undefined || L.keys) {
         const keys = L.keys;
-        if (typeof keys !== 'number')
+        if (L.keyN !== undefined)
+            keyN = L.keyN;
+        else if (typeof keys !== 'number')
             throw new Error('Étude: note drills take a key-signature range, not a list');
-        keyN = Math.floor(Math.random() * (2 * keys + 1)) - keys;
+        else
+            keyN = Math.floor(Math.random() * (2 * keys + 1)) - keys;
         const kA = ssKeyAcc(keyN);
         pool = pool.map((n) => Object.assign({}, n, { acc: kA[n.li] }));
     }
@@ -9039,7 +9062,7 @@ function rdTools(q: ReadQuestion) { return `<div class="rdx-tools">${RD.mode ===
 // g0: when the pacer ghost set off; gd: notes the player leads it by; gh: the ghost is shown; rm: reduced motion.
 interface ReadDrillFlow { items: ReadQuestionNote[]; cur: number; start: number; played: number | null; wrong: string[]; ext: ReadDrillPitch[]; g0: number; raf: number; gd: number; gh: boolean; rm: boolean; geo: { x0: number; colW: number; n: number; }; }
 const RD_FLOW_W = 52, RD_FLOW_SC = 1.35, RD_GHOST_MAX = 3;
-function rdFlowOk(L: ReadDrillLevel | null | undefined) { return !!L && rdData().prefs.flow && (L.ty === 'name' || L.ty === 'play') && L.clef !== 'mix' && !L.keys; }
+function rdFlowOk(L: ReadDrillLevel | null | undefined) { return !!L && rdData().prefs.flow && (L.ty === 'name' || L.ty === 'play') && L.clef !== 'mix' && !L.keys && L.keyN === undefined; }
 function rdFlowFill(F: ReadDrillFlow, upTo: number) {
     const L = RD.L;
     if (!L)
@@ -9411,7 +9434,7 @@ function rdAnswer(ok: boolean, given?: ReadDrillGiven, timeout = false) {
     rdCheckNotice();
     const done = !!(RD.arc && RD.arc.completed);
     RD.timers.push(setTimeout(() => { if (!RD.on)
-        return; if (done || rdTimeUp())
+        return; if (done || rdTimeUp() || rdnWarmLimit())
         rdFinish();
     else
         rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'timeAttack' ? 800 : 1500)));
@@ -9985,6 +10008,9 @@ function rdRhDone(endBeat: number) {
         else
             byId('rdx-rhnext').innerHTML = `<button class="btn primary" data-act="rhnew">${t('rdx_next_ex')} →</button>`;
     }
+    else if (rdnWarmLimit())
+        RD.timers.push(setTimeout(() => { if (RD.on)
+            rdFinish(); }, 1600));
     else
         byId('rdx-rhnext').innerHTML = `<button class="btn ghost" data-act="rhagain">↺ ${t('rdx_again_same')}</button><button class="btn primary" data-act="rhnew">🎲 ${t('rdx_new_rh')}</button>`;
     rdHud();
@@ -10499,6 +10525,8 @@ function rdClear() {
 function rdAbort() { rdClear(); RD.on = false; stageSync(); }
 function rdEndClick() { if (RD.on && RD.mode === 'practice' && RD.n > 0)
     rdFinish();
+else if (rdnWarmSkip())
+    return;
 else {
     rdAbort();
     rdIntro();
@@ -10548,7 +10576,8 @@ function stageKey(e: KeyboardEvent) {
     e.preventDefault();
     if (RD.on) {
         rdEndClick();
-        const back = byId('rdx-back');
+        // The warm-up hides the drill's own Back: its header's Back takes the focus instead.
+        const back = byId(RDN.screen === 'warmup' ? 'rdn-w-back' : 'rdx-back');
         if (!byId('rdx-stage').contains(document.activeElement) || document.activeElement?.closest('[hidden]'))
             back.focus({ preventScroll: true });
     }
@@ -10604,6 +10633,9 @@ function rdFinish() {
     }
     touchDay();
     saveAll();
+    // In a warm-up the run counts as above, then the warm-up goes on instead of showing the summary.
+    if (rdnWarmDrillDone())
+        return;
     const weak = Object.entries(RD.miss).sort((a, b) => b[1] - a[1]).slice(0, 8);
     const pts = sum ? anNum(sum.score, 0) : '', avgS = (avg / 1000).toFixed(1) + 's';
     const tiles = L.ty === 'rh' ? [[acc + '%', t('rdx_st_rh')], [RD.rhP.length, t('rdx_st_ex')]]
@@ -10694,6 +10726,10 @@ function rdCustomRead() {
 function rdCustomGo() {
     const c = rdCustomRead();
     saveAll();
+    rdOpen(rdCustomLevel(c));
+}
+/** The level a custom drill configuration describes (the form's, or the warm-up's). `keyN` fixes the key signature. */
+function rdCustomLevel(c: ReadDrillCustom, keyN?: number): ReadDrillLevel {
     const ty = c.ty, clef = c.clef;
     if (!isReadDrillType(ty) || !isReadClef(clef))
         throw new TypeError('Étude: unknown custom drill ' + ty + ' / ' + clef);
@@ -10703,7 +10739,9 @@ function rdCustomGo() {
         if (set.length >= 2)
             L.set = set;
     }
-    rdOpen(L);
+    if (keyN !== undefined)
+        L.keyN = keyN;
+    return L;
 }
 /* ---- statistics, shown in Progress under Reading: per-note heatmap on the staff, skills, weakest items ---- */
 function rdAgg(c: string, li: number, oct: number) {
@@ -10788,7 +10826,11 @@ function rdTab(tab: string|undefined, screen: 'melody' | 'player' = 'melody') {
 }
 // Draws the Read tab's current screen. The home is the first screen each time the tab opens (see renderRead).
 function rdRender() {
-    if (RDN.screen === 'home') {
+    if (RDN.screen === 'warmup' && WARM.on) {
+        rdnWarmLocale();
+        return;
+    }
+    if (RDN.screen === 'home' || RDN.screen === 'warmup') {
         rdnHome();
         return;
     }
@@ -11119,17 +11161,27 @@ function rdnShowScreen(screen: RdnScreen) {
         if (SR.lvPiece)
             rdnDropLevelPiece();
     }
+    if (screen !== 'warmup' && WARM.on)
+        rdnWarmStop();
     RDN.screen = screen;
     const view = maybeById('view-read');
     if (view)
         view.dataset.rdn = screen;
-    const home = screen === 'home', player = screen === 'player';
+    const home = screen === 'home', player = screen === 'player', warm = screen === 'warmup';
     byId('rdn-home').hidden = !home;
     byId('rdn-more-h').hidden = !home;
-    byId('rdn-backrow').hidden = home || player;
-    byId('rd-tabs').hidden = player;
+    byId('rdn-backrow').hidden = home || player || warm;
+    byId('rd-tabs').hidden = player || warm;
     byId('rdn-player-head').hidden = !player;
+    byId('rdn-warm').hidden = !warm;
     byId('rd-gen').hidden = player;
+    // The new screens have their own lede; the older drills and melody screens keep theirs.
+    byId('rd-lede').hidden = home || player || warm;
+    byId('rdn-lede').hidden = !(home || player || warm);
+    if (warm) {
+        byId('rdp-drills').hidden = true;
+        byId('rdp-pieces').hidden = true;
+    }
     if (home) {
         byId('rdp-drills').hidden = true;
         byId('rdp-pieces').hidden = true;
@@ -11172,11 +11224,8 @@ function rdnHome() {
 function rdnLeaveView() {
     RDN.fresh = !(RDN.screen === 'melody' && !!SR.srtPiece && !!SR.gen);
     rdnAutoCancel();
-}
-/** The warm-up button. It opens the classic drills for now; the warm-up player replaces this function. */
-function rdnWarmupStart() {
-    rdTab('drills');
-    saveAll();
+    if (WARM.on)
+        rdnWarmStop();
 }
 /* ---- the home ---- */
 function rdnChoose(level: number, key: string | null) {
@@ -11287,9 +11336,11 @@ function rdnBookHtml(state: ReadingBookState, moreOpen: boolean) {
         `<div class="rdn-bookhead">${head}</div>${body}</section>`;
 }
 function rdnWarmHtml() {
-    const e = rdEsc;
+    const e = rdEsc, lv = rdnBook().level, done = rdData().prefs.warmDone === rdnToday();
+    const mark = done ? `<span class="rdn-warm-done" id="rdn-warm-done"><span aria-hidden="true">✓</span> ${e(t('rdn_warm_done'))}</span>` : '';
     return `<section class="rdn-card rdn-warm" aria-labelledby="rdn-warm-h"><div class="rdn-eyebrow">${e(t('rdn_warm_eyebrow'))}</div>` +
-        `<h2 id="rdn-warm-h">${e(t('rdn_warm_title'))}</h2><p class="rdn-sub">${e(t('rdn_warm_text'))}</p>` +
+        `<div class="rdn-warm-h"><h2 id="rdn-warm-h">${e(t('rdn_warm_title'))}</h2>${mark}</div>` +
+        `<p class="rdn-sub" id="rdn-warm-text">${e(t(lv >= 6 ? 'rdn_warm_text_ch' : 'rdn_warm_text', lv))}</p>` +
         `<div class="rdn-row"><button type="button" class="btn" id="rdn-warm-go" data-rdn-focus="warm-go">${e(t('rdn_warm_go'))}</button>` +
         `<button type="button" class="btn ghost rdn-link" id="rdn-all-drills" data-rdn-focus="all-drills">${e(t('rdn_all_drills'))}</button></div></section>`;
 }
@@ -11341,6 +11392,294 @@ function rdnHomeClick(e: MouseEvent) {
     }
     else if (id === 'rdn-suggest-go' && state.level < 8)
         rdnChoose(state.level + 1, null);
+}
+/* ---- the warm-up: flash cards, then a few existing drills, one after another ---- */
+/** How many answers end a drill step of the warm-up: rhythm exercises, and questions of the other drills (chords). */
+const RDN_WARM_LIMIT = { rh: 2, other: 5 };
+function rdnWarmClear() {
+    window.clearTimeout(WARM.timer);
+    window.clearTimeout(WARM.chordTimer);
+    WARM.timer = 0;
+    WARM.chordTimer = 0;
+}
+/** Starts the warm-up of the book's level, in the pinned key or else the key of today's level piece. */
+function rdnWarmupStart() {
+    if (!rdnWhenSaved(rdnWarmupStart))
+        return;
+    const today = rdnToday();
+    let state = rdnBook();
+    const ensured = srtEnsureDaily(state, today, rdnSeen());
+    if (ensured !== state) {
+        state = ensured;
+        rdnSetBook(state);
+    }
+    const slots = state.daily?.slots ?? [], slot = slots.find((x) => x.role === 'level') ?? slots[1] ?? slots[0];
+    const level = state.level, key: string = state.focusKey ?? slot?.key ?? srtKeyPool(level)[0].id;
+    if (RD.on)
+        rdAbort();
+    srStopAll(true, false, 'navigate');
+    rdnWarmClear();
+    WARM.on = true;
+    WARM.level = level;
+    WARM.key = key;
+    WARM.steps = srtWarmupPlan(level, key, `${today}|${level}|${key}`);
+    WARM.step = 0;
+    WARM.tally = [];
+    WARM.phase = 'idle';
+    rdnShowScreen('warmup');
+    rdnWarmRun();
+    stageSync();
+    window.scrollTo(0, 0);
+    byId('rdn-w-back').focus({ preventScroll: true });
+}
+function rdnWarmStepName(step: WarmupStep | undefined) {
+    if (!step)
+        return '';
+    if (step.kind === 'flash')
+        return t('rdn_w_flash');
+    if (step.kind === 'position')
+        return t(step.hand === 'rh' ? 'rdn_w_pos_rh' : 'rdn_w_pos_lh');
+    return t(step.id.startsWith('ch') ? 'rdn_w_chords' : 'rdn_w_rhythm');
+}
+function rdnWarmHead() {
+    byId('rdn-w-step').textContent = t('rdn_w_step', Math.min(WARM.step + 1, WARM.steps.length), WARM.steps.length) + ' · ' + rdnWarmStepName(WARM.steps[WARM.step]);
+    const tally = byId('rdn-w-tally');
+    tally.textContent = WARM.tally.length ? t('rdn_w_tally', WARM.tally[0], WARM.tally[1]) : '';
+    tally.hidden = !WARM.tally.length;
+    // A drill step names itself on the drill's stage (a custom drill would say "Custom drill").
+    if (WARM.phase === 'drill')
+        byId('rdx-title').textContent = rdnWarmStepName(WARM.steps[WARM.step]);
+}
+/** Runs the current step: the flash cards here, the other steps in the drill engine (practice mode, a few answers). */
+function rdnWarmRun() {
+    rdnWarmClear();
+    if (!WARM.on)
+        return;
+    const step = WARM.steps[WARM.step], flash = byId('rdn-w-flash');
+    if (!step) {
+        rdnWarmFinish();
+        return;
+    }
+    rdnWarmHead();
+    if (step.kind === 'flash') {
+        byId('rdp-drills').hidden = true;
+        flash.hidden = false;
+        WARM.card = 0;
+        WARM.clean = 0;
+        rdnWarmCard();
+        return;
+    }
+    // Focus on the card (its Next button, say) moves to the header's Back before the card goes.
+    const lost = flash.contains(document.activeElement);
+    flash.hidden = true;
+    flash.innerHTML = '';
+    if (lost)
+        byId('rdn-w-back').focus({ preventScroll: true });
+    const L: ReadDrillLevel | undefined = step.kind === 'position'
+        ? rdCustomLevel({ ty: 'play', clef: step.clef, lo: step.low, hi: step.high, acc: 0, keys: 0, land: false }, step.keyN)
+        : RD_LV[step.id];
+    if (!L) {
+        rdnWarmNext();
+        return;
+    }
+    WARM.phase = 'drill';
+    WARM.limit = step.kind === 'position' ? step.count : L.ty === 'rh' ? RDN_WARM_LIMIT.rh : RDN_WARM_LIMIT.other;
+    byId('rdp-drills').hidden = false;
+    rdAbort();
+    RD.L = L;
+    byId('rdx-home').hidden = true;
+    byId('rdx-stage').hidden = false;
+    rdIntro();
+    rdStart('practice');
+    rdnWarmHead();
+}
+function rdnWarmNext() {
+    WARM.step++;
+    rdnWarmRun();
+}
+/** True once a drill step of the warm-up has had its answers: the drill then ends its run as usual (see rdFinish). */
+function rdnWarmLimit() { return WARM.on && WARM.phase === 'drill' && RD.n >= WARM.limit; }
+/** Called by rdFinish after a run was counted: in a warm-up the next step starts instead of the drill's summary. */
+function rdnWarmDrillDone() {
+    if (!WARM.on || WARM.phase !== 'drill')
+        return false;
+    rdnWarmNext();
+    return true;
+}
+/** End before any answer in a warm-up drill step: the step is skipped. */
+function rdnWarmSkip() {
+    if (!WARM.on || WARM.phase !== 'drill')
+        return false;
+    rdAbort();
+    rdnWarmNext();
+    return true;
+}
+/** The drills screen as the warm-up found it: no run, the stage closed, the ladder showing. */
+function rdnWarmDrillsReset() {
+    if (RD.on)
+        rdAbort();
+    RD.L = null;
+    byId('rdx-stage').hidden = true;
+    byId('rdx-home').hidden = false;
+}
+/** Abandons the warm-up (Back, another screen, another tab): no timer, no drill run and no flash card stay behind. */
+function rdnWarmStop() {
+    rdnWarmClear();
+    const touched = WARM.step > 0 || WARM.phase === 'drill';
+    WARM.on = false;
+    WARM.phase = 'idle';
+    WARM.played = [];
+    const flash = maybeById('rdn-w-flash');
+    if (flash) {
+        flash.hidden = true;
+        flash.innerHTML = '';
+    }
+    if (touched)
+        rdnWarmDrillsReset();
+}
+function rdnWarmFinish() {
+    rdnWarmStop();
+    rdData().prefs.warmDone = rdnToday();
+    saveAll();
+    rdnHome();
+    const go = maybeById('rdn-warm-go');
+    if (go)
+        go.focus({ preventScroll: true });
+}
+/* flash cards */
+function rdnWarmCards(): readonly FlashCard[] {
+    const step = WARM.steps[WARM.step];
+    return step && step.kind === 'flash' ? step.cards : [];
+}
+/** The card's bar for the engraver: only the hand that plays it, and never with note names. */
+function rdnFlashScore(card: FlashCard): SrScore {
+    const sc = card.score;
+    return { ts: [...sc.ts], keyN: sc.keyN, engrave: 2, noNames: true, rh: card.hand === 'rh' ? sc.rh : undefined, lh: card.hand === 'lh' ? sc.lh : undefined };
+}
+function rdnWarmCard() {
+    const cards = rdnWarmCards();
+    if (WARM.card >= cards.length) {
+        WARM.tally = [WARM.clean, cards.length];
+        rdnWarmNext();
+        return;
+    }
+    WARM.again = false;
+    rdnWarmShow(true);
+}
+function rdnWarmShow(draw: boolean) {
+    rdnWarmClear();
+    WARM.phase = 'show';
+    WARM.played = [];
+    WARM.lastAt = 0;
+    WARM.strict = false;
+    rdnWarmFlashUi(draw);
+    // The bar runs out while the card shows (a still bar with reduced motion). Only a new showing restarts it.
+    const bar = maybeById('rdn-f-bar');
+    if (bar) {
+        bar.style.setProperty('--flash', RDN_WARM_MS.flash + 'ms');
+        bar.classList.remove('run');
+        void bar.offsetWidth;
+        if (!reduceMotion())
+            bar.classList.add('run');
+    }
+    WARM.timer = window.setTimeout(rdnWarmHide, RDN_WARM_MS.flash);
+}
+function rdnWarmHide() {
+    rdnWarmClear();
+    WARM.phase = 'play';
+    rdnWarmFlashUi(false);
+}
+/** A note from the app's normal input while a card waits to be played. Notes closer than RDN_WARM_MS.chord form one chord. */
+function rdnWarmNote(midi: number) {
+    const card = rdnWarmCards()[WARM.card];
+    if (!card)
+        return;
+    const now = performance.now(), src = [...(inputOwners.get(midi) || [])], last = WARM.played[WARM.played.length - 1];
+    if (src.some((x) => x === 'midi' || x === 'ble'))
+        WARM.strict = true;
+    if (last && now - WARM.lastAt <= RDN_WARM_MS.chord)
+        last.push(midi);
+    else
+        WARM.played.push([midi]);
+    WARM.lastAt = now;
+    window.clearTimeout(WARM.chordTimer);
+    if (WARM.played.length >= card.notes.length)
+        WARM.chordTimer = window.setTimeout(rdnWarmJudge, Math.max(0, RDN_WARM_MS.chord));
+}
+/** Checks what was played (any octave unless it came from a MIDI or Bluetooth piano, as in the drills) and shows the mark. */
+function rdnWarmJudge() {
+    const card = rdnWarmCards()[WARM.card];
+    if (!card || WARM.phase !== 'play')
+        return;
+    WARM.ok = srtFlashMatches(card, WARM.played, !!data.settings.anyOctave || !WARM.strict);
+    if (WARM.ok && !WARM.again)
+        WARM.clean++;
+    rdnWarmClear();
+    WARM.phase = 'result';
+    rdnWarmFlashUi(false);
+    WARM.timer = window.setTimeout(rdnWarmAdvance, RDN_WARM_MS.result);
+}
+function rdnWarmAdvance() {
+    rdnWarmClear();
+    WARM.card++;
+    rdnWarmCard();
+}
+/** Draws the card (`draw`) or updates it for the phase: the prompt (a polite live region), the bar, the mark and the buttons. */
+function rdnWarmFlashUi(draw: boolean) {
+    const box = maybeById('rdn-w-flash'), cards = rdnWarmCards(), card = cards[WARM.card], e = rdEsc;
+    if (!box || !card)
+        return;
+    if (draw || !box.querySelector('#rdn-f-staff')) {
+        box.innerHTML = `<div class="rdn-f-top"><span class="rdn-f-count" id="rdn-f-count"></span><span class="rdn-f-prompt" id="rdn-f-prompt" role="status"></span></div>` +
+            `<div class="ss-wrap rdn-f-staff" id="rdn-f-staff" role="img"></div><div class="rdn-f-bar" id="rdn-f-bar" aria-hidden="true"><i></i></div>` +
+            `<div class="rdn-row rdn-f-btns"><button type="button" class="btn" id="rdn-f-again"></button><button type="button" class="btn primary" id="rdn-f-next"></button></div>`;
+        const wrap = byId('rdn-f-staff');
+        wrap.innerHTML = srRender(rdnFlashScore(card), srPaperOf(wrap)).svg;
+    }
+    const phase = WARM.phase, wrap = byId('rdn-f-staff'), bar = byId('rdn-f-bar'), again = buttonById('rdn-f-again'), next = buttonById('rdn-f-next');
+    byId('rdn-f-count').textContent = t('rdn_f_card', WARM.card + 1, cards.length);
+    const prompt = byId('rdn-f-prompt');
+    prompt.dataset.s = phase === 'result' ? (WARM.ok ? 'good' : 'bad') : phase;
+    prompt.innerHTML = phase === 'result'
+        ? `<span aria-hidden="true">${WARM.ok ? '✓' : '✗'}</span> ${e(t(WARM.ok ? 'rdn_f_right' : 'rdn_f_wrong'))}`
+        : e(t(phase === 'play' ? 'rdn_f_play' : 'rdn_f_look'));
+    wrap.setAttribute('aria-label', t('rdn_f_staff_aria'));
+    wrap.toggleAttribute('data-hidden', phase === 'play');
+    if (phase === 'result')
+        wrap.dataset.mark = WARM.ok ? 'good' : 'bad';
+    else
+        delete wrap.dataset.mark;
+    wrap.querySelectorAll('.ss-n').forEach((n) => { if (!(n instanceof SVGElement))
+        return; if (phase === 'result')
+        n.dataset.s = WARM.ok ? 'good' : 'bad';
+    else
+        delete n.dataset.s; });
+    bar.hidden = phase !== 'show';
+    again.textContent = t('rdn_f_again');
+    next.textContent = t('rdn_f_next');
+    const focused = document.activeElement;
+    again.hidden = phase !== 'play';
+    next.hidden = phase !== 'result';
+    // A button that hides while it has focus hands it to the card, so focus is never lost to the page.
+    if ((focused === again && again.hidden) || (focused === next && next.hidden))
+        box.focus({ preventScroll: true });
+}
+function rdnWarmFlashClick(e: MouseEvent) {
+    const id = eventClosest(e, 'button')?.id;
+    if (id === 'rdn-f-again' && WARM.phase === 'play') {
+        WARM.again = true;
+        rdnWarmShow(false);
+    }
+    else if (id === 'rdn-f-next' && WARM.phase === 'result')
+        rdnWarmAdvance();
+}
+/** After a language change: the header, and the card's texts. */
+function rdnWarmLocale() {
+    if (!WARM.on)
+        return;
+    rdnWarmHead();
+    if (WARM.phase === 'show' || WARM.phase === 'play' || WARM.phase === 'result')
+        rdnWarmFlashUi(false);
 }
 /* ---- the player ---- */
 function rdnPieceOf(ctx: RdnCtx): GeneratedPiece | null {
@@ -11568,25 +11907,35 @@ function rdnResultHide() {
         box.hidden = true;
         box.innerHTML = '';
     }
+    RDN.learn = null;
+    rdnVerdictShown(true);
     rdnAutoCancel();
 }
+/** The one-line verdict under the score. A level piece's result card replaces it, also for screen readers. */
+function rdnVerdictShown(on: boolean) {
+    const v = maybeById('rd-verdict');
+    if (v)
+        v.hidden = !on;
+}
 function rdnResultShow(startAuto: boolean) {
-    const box = maybeById('rdn-result'), ev = SR.srtEvaluation, p = SR.lvPiece, e = rdEsc;
+    const box = maybeById('rdn-result'), ev = SR.srtEvaluation, p = SR.lvPiece, learn = RDN.learn, e = rdEsc;
     if (!box)
         return;
-    if (!p || !ev) {
+    if (!p || (!ev && !learn)) {
         rdnResultHide();
         return;
     }
-    const pct = SR.srtResultValue ?? Math.round(ev.score ?? 0), stars = rdnStars(ev.stars), auto = !!rdData().prefs.autoNext;
+    // A Step-by-step run measures neither pitch accuracy, rhythm nor timing: those cells show a dash.
+    const pct = learn ? learn.acc : SR.srtResultValue ?? Math.round(ev?.score ?? 0), stars = learn ? learn.stars : rdnStars(ev?.stars ?? 0), auto = !!rdData().prefs.autoNext;
     const cells: [string, string][] = [
-        [Math.round(ev.pitchF1 ?? 0) + '%', t('rdn_res_pitch')],
-        [Math.round(ev.rhythmAcc ?? 0) + '%', t('rdn_res_rhythm')],
-        [ev.meanOffsetMs == null ? '—' : t('rdn_res_ms', Math.round(ev.meanOffsetMs)), t('rdn_res_timing')],
+        [!ev || learn ? '—' : Math.round(ev.pitchF1 ?? 0) + '%', t('rdn_res_pitch')],
+        [!ev || learn ? '—' : Math.round(ev.rhythmAcc ?? 0) + '%', t('rdn_res_rhythm')],
+        [!ev || learn || ev.meanOffsetMs == null ? '—' : t('rdn_res_ms', Math.round(ev.meanOffsetMs)), t('rdn_res_timing')],
         [rdnKeyName(p.key), t('rdn_res_key')],
     ];
-    box.innerHTML = `<div class="rdn-r-top"><h3 id="rdn-r-score">${pct}%</h3>${rdStars(stars)}</div>` +
-        `<div class="rdn-res">${cells.map(([v, l]) => `<div><b>${e(v)}</b><span>${e(l)}</span></div>`).join('')}</div>` +
+    // The score and the cells are the live region: a new result is announced once, without the buttons.
+    box.innerHTML = `<div class="rdn-r-live" role="status" aria-atomic="true"><div class="rdn-r-top"><h3 id="rdn-r-score">${pct}%</h3>${rdStars(stars)}</div>` +
+        `<div class="rdn-res">${cells.map(([v, l]) => `<div><b>${e(v)}</b><span>${e(l)}</span></div>`).join('')}</div></div>` +
         `<div class="rdn-row"><button type="button" class="btn" id="rdn-retry">${e(t('rdn_retry'))}</button>` +
         `<button type="button" class="btn" id="rdn-listen">${e(t('rdn_listen'))}</button>` +
         `<button type="button" class="btn primary" id="rdn-r-next">${e(t('rdn_next_btn'))}</button>` +
@@ -11594,6 +11943,7 @@ function rdnResultShow(startAuto: boolean) {
         `<div class="rdn-auto" id="rdn-auto" hidden><span id="rdn-auto-t" aria-live="polite"></span>` +
         `<button type="button" class="btn ghost" id="rdn-auto-cancel">${e(t('rdn_cancel'))}</button></div>`;
     box.hidden = false;
+    rdnVerdictShown(false);
     if (startAuto && auto && stars >= 1)
         rdnAutoStart();
     else if (RDN.autoTimer)
@@ -11628,7 +11978,8 @@ function rdnAutoCancel() {
 }
 function rdnRetry() {
     rdnAutoCancel();
-    if (SR.modeSel !== 'assess')
+    // Retry after a Step-by-step run goes step by step again; otherwise it is an assessed attempt.
+    if (SR.modeSel !== 'assess' && !RDN.learn)
         srSetMode('assess');
     srGo();
 }
@@ -11639,6 +11990,8 @@ function rdnRetry() {
     home.addEventListener('click', rdnHomeClick);
     byId('rdn-home-back').addEventListener('click', () => { rdnHome(); saveAll(); });
     byId('rdn-back').addEventListener('click', rdnHome);
+    byId('rdn-w-back').addEventListener('click', rdnHome);
+    byId('rdn-w-flash').addEventListener('click', rdnWarmFlashClick);
     byId('rdn-prev').addEventListener('click', () => rdnStep(-1));
     byId('rdn-next').addEventListener('click', () => rdnStep(1));
     const result = byId('rdn-result');
@@ -21448,6 +21801,8 @@ Object.defineProperty(__etude, "rdnStep", { configurable: true, get: () => rdnSt
 Object.defineProperty(__etude, "rdnRenderHome", { configurable: true, get: () => rdnRenderHome });
 Object.defineProperty(__etude, "rdnWarmupStart", { configurable: true, get: () => rdnWarmupStart });
 Object.defineProperty(__etude, "rdnToday", { configurable: true, get: () => rdnToday });
+Object.defineProperty(__etude, "WARM", { configurable: true, get: () => WARM });
+Object.defineProperty(__etude, "RDN_WARM_MS", { configurable: true, get: () => RDN_WARM_MS });
 Object.defineProperty(__etude, "srtLevelExpected", { configurable: true, value: srtLevelExpected });
 Object.defineProperty(__etude, "srtLedgerUpdate", { configurable: true, value: srtLedgerUpdate });
 Object.defineProperty(__etude, "srtReadLedger", { configurable: true, value: srtReadLedger });

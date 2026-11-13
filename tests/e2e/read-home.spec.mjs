@@ -49,12 +49,18 @@ test.describe('Read home', () => {
     await expect(page.locator('#rdp-pieces')).toBeHidden();
   });
 
-  test('Warm-up and All drills open the drills screen', async ({ app }) => {
+  test('Warm-up opens the warm-up, All drills opens the drills screen, and each screen has its lede', async ({ app }) => {
     const page = await openHome(app);
+    await expect(page.locator('#rdn-lede')).toHaveText(STRINGS.en.rdn_lede);
+    await expect(page.locator('#rd-lede')).toBeHidden();
     await page.locator('#rdn-warm-go').click();
-    await expect(page.locator('#rdx-ladder')).toBeVisible();
-    await page.locator('#rdn-home-back').click();
+    await expect(page.locator('#rdn-warm')).toBeVisible();
+    await expect(page.locator('#rdx-ladder')).toBeHidden();
+    await page.locator('#rdn-w-back').click();
+    await expect(page.locator('#rdn-home')).toBeVisible();
     await page.locator('#rdn-all-drills').click();
+    await expect(page.locator('#rd-lede')).toHaveText(STRINGS.en.rd_lede);
+    await expect(page.locator('#rdn-lede')).toBeHidden();
     await expect(page.locator('#rdx-ladder')).toBeVisible();
     await expect(page.locator('#rdt-drills')).toHaveAttribute('aria-selected', 'true');
   });

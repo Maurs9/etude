@@ -14,12 +14,15 @@ export type FlashCard = {
   readonly hand: SightReadingHand;
   /** One bar for the engraver. The other hand is left out. */
   readonly score: LevelScore;
-  /** The notes to play, in order. A chord is one entry with several MIDI numbers. */
+  /** The notes to play, in order: one MIDI number per entry. */
   readonly notes: readonly (readonly number[])[];
   readonly patterns: readonly ReadingPatternId[];
 };
 
-/** One bar of a piece as a flash card, or null when the hand has fewer than three notes in it or a note runs past it. */
+/**
+ * One bar of a piece as a flash card, or null when the bar does not suit: fewer than three notes in the hand,
+ * a note that runs past the bar, or a chord (the on-screen keys cannot play two notes at once).
+ */
 function cardFromBar(piece: LevelPiece & { readonly patterns: readonly (readonly ReadingPatternId[])[] }, bar: number, hand: SightReadingHand): FlashCard | null {
   const { bar: ticks } = srtMeterTicks(piece.meter);
   const start = bar * ticks;
@@ -27,7 +30,7 @@ function cardFromBar(piece: LevelPiece & { readonly patterns: readonly (readonly
     .sort((a, b) => a.onsetTick - b.onsetTick);
   const sounding = events.filter((event) => event.pitches.length > 0);
   const whole = events.reduce((sum, event) => sum + event.durationTick, 0) === ticks && events[0]?.onsetTick === start;
-  if (sounding.length < 3 || !whole) return null;
+  if (sounding.length < 3 || !whole || sounding.some((event) => event.pitches.length > 1)) return null;
   const tokens: LevelScoreToken[] = events.map((event) => {
     const names = event.pitches.map((pitch) => pitch.spelling);
     return [names.length === 0 ? 'R' : names.length === 1 ? names[0] : names, event.durationTick / 480];
