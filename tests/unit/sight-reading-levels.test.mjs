@@ -88,6 +88,14 @@ function withBar(piece, hand, bar, cells) {
   return { ...piece, events: [...kept, ...line(piece.key, hand, from, cells)] };
 }
 
+/** The scale degree of a one-note event, read back from its spelling (for fixtures in a major key without accidentals). */
+function pitchDegree(key, event) {
+  const names = srtKeyScale(key);
+  const tonic = srtDegreePitch(key, event.hand, 0).midi;
+  const pitch = event.pitches[0];
+  return names.indexOf(pitch.spelling.replace(/-?\d+$/, '')) + 7 * Math.floor((pitch.midi - tonic) / 12);
+}
+
 const codes = (piece) => [...new Set(srtLevelViolations(piece).map((violation) => violation.code))];
 
 describe('reading keys', () => {
@@ -201,6 +209,24 @@ describe('reading levels', () => {
     expect(LEVEL_IDS.filter((id) => srtLevel(id).tieOverBar)).toEqual([4, 5, 6, 7, 8]);
     expect(LEVEL_IDS.filter((id) => srtLevel(id).syncopation)).toEqual([8]);
     expect(LEVEL_IDS.filter((id) => srtLevel(id).upbeat)).toEqual([7, 8]);
+    expect(values(4)).toBe(values(3));
+    expect(values(7)).toBe(values(6));
+    expect(values(8)).toBe(values(6));
+    expect(LEVEL_IDS.map((id) => srtLevel(id).gridTicks)).toEqual([480, 480, 240, 240, 240, 120, 120, 120]);
+    expect(LEVEL_IDS.map((id) => srtLevel(id).bpm)).toEqual([66, 66, 72, 63, 66, 66, 60, 72]);
+    expect(LEVEL_IDS.map((id) => srtLevel(id).newPatterns.join(' '))).toEqual([
+      'stepRun repeatedNote',
+      'skip neighbour',
+      'brokenTriad leapFifth eighthRun sequence',
+      'heldNote tie',
+      'parallelMotion contraryMotion dottedFigure',
+      'scaleShift twoNoteChord sixteenthRun',
+      'chromaticNeighbour brokenChordBass upbeat',
+      'syncopation chordsBothHands',
+    ]);
+    expect(Object.isFrozen(srtLevel(1))).toBe(true);
+    expect(Object.isFrozen(srtLevel(1).noteTicks)).toBe(true);
+    expect(Object.isFrozen(srtReadingKey('C'))).toBe(true);
     expect(LEVEL_IDS.filter((id) => srtLevel(id).leadingTone)).toEqual([6, 7, 8]);
     expect(LEVEL_IDS.map((id) => srtLevel(id).maxChromatic)).toEqual([0, 0, 0, 0, 0, 0, 2, 3]);
     expect(LEVEL_IDS.map((id) => `${srtLevel(id).chord.rh}${srtLevel(id).chord.lh}`)).toEqual(['11', '11', '11', '11', '11', '12', '12', '22']);
@@ -247,19 +273,16 @@ describe('level limits (G2)', () => {
     }
   });
 
-  it('keeps every note of a valid piece inside the range of its hand', () => {
-    for (const levelId of LEVEL_IDS) {
-      for (const keyId of KEY_IDS) {
-        const piece = validPiece(levelId, keyId);
-        for (const event of piece.events) {
-          const range = srtLevelRange(srtLevel(levelId), piece.key, event.hand);
-          for (const pitch of event.pitches) {
-            expect(pitch.midi).toBeGreaterThanOrEqual(range.min);
-            expect(pitch.midi).toBeLessThanOrEqual(range.max);
-          }
-        }
-      }
-    }
+  it('gives each level the written range of the spec', () => {
+    const range = (levelId, keyId, hand) => { const r = srtLevelRange(srtLevel(levelId), srtReadingKey(keyId), hand); return `${r.min}-${r.max}`; };
+    expect(range(1, 'C', 'rh')).toBe('60-67');
+    expect(range(1, 'G', 'lh')).toBe('43-50');
+    expect(range(5, 'F', 'rh')).toBe('65-74');
+    expect(range(6, 'Am', 'lh')).toBe('45-57');
+    expect(range(7, 'C', 'rh')).toBe('59-72');
+    expect(range(8, 'C', 'rh')).toBe('57-76');
+    expect(range(8, 'C', 'lh')).toBe('45-64');
+    expect(() => srtDegreePitch(srtReadingKey('C'), 'both', 0)).toThrow(RangeError);
   });
 
   it('rejects a wrong schema, level, key or seed', () => {
@@ -347,13 +370,6 @@ describe('level limits (G2)', () => {
       expect(codes(withBar(validPiece(6, keyId), 'rh', 1, seventh)), keyId).toContain('leap');
       expect(codes(withBar(validPiece(7, keyId), 'rh', 1, [[0, Q], [6, Q], [5, Q], [4, Q]])), keyId).not.toContain('leap');
     }
-  });
-
-  it('does not count a leap across a bar in which the hand waits', () => {
-    const piece = validPiece(3, 'C');
-    // Right hand: bar 1 ends on degree 1, bar 2 is a rest, bar 3 starts on degree 4.
-    expect(codes(withBar(piece, 'rh', 2, [[4, Q], [3, Q], [2, Q], [1, Q]]))).toEqual([]);
-    expect(codes(withBar(validPiece(1, 'C'), 'lh', 2, [[4, Q], [3, Q], [2, Q], [1, Q]]))).toEqual([]);
   });
 
   it('rejects the wrong use of the hands', () => {
@@ -532,6 +548,136 @@ describe('level limits (G2)', () => {
     const flat = { ...piece, events: piece.events.map((event) => event.hand === 'rh' && event.onsetTick === 2 * Q
       ? { ...event, pitches: [{ midi: 64, spelling: 'Fb4', finger: null }] } : event) };
     expect(codes(flat)).toEqual(['accidental']);
+  });
+
+  it('reports malformed input instead of throwing', () => {
+    const piece = validPiece(8, 'C');
+    const first = piece.events[0];
+    const withPitches = (pitches) => ({ ...piece, events: piece.events.map((event) => event === first ? { ...event, pitches } : event) });
+    expect(codes(withPitches([null, null]))).toContain('pitch');
+    expect(codes(withPitches([first.pitches[0], undefined]))).toContain('pitch');
+    expect(codes(withPitches([{ midi: 60, spelling: 'C04', finger: null }]))).toContain('pitch');
+    expect(codes({ ...piece, bars: 2 ** 32 })).toEqual(['schema']);
+    expect(codes({ ...piece, bars: 65 })).toEqual(['schema']);
+    expect(codes(null)).toEqual(['schema']);
+    expect(codes({ ...piece, events: [null, ...piece.events] })).toContain('event');
+  });
+
+  it('lets either hand start at levels 1 and 2', () => {
+    const piece = validPiece(1, 'C');
+    const swapped = { ...piece, events: piece.events.map((event) => ({
+      ...event, hand: event.hand === 'rh' ? 'lh' : 'rh',
+      pitches: event.pitches.map(() => srtDegreePitch(piece.key, event.hand === 'rh' ? 'lh' : 'rh', pitchDegree(piece.key, event))),
+    })) };
+    expect(codes(swapped)).toEqual([]);
+  });
+
+  it('rejects a bar in which no hand plays, at level 3', () => {
+    const piece = validPiece(3, 'C');
+    // Right hand: bars 1 and 4. Left hand: bar 3. Bar 2 is empty.
+    const silent = withBar(withBar(withBar(withBar(piece, 'lh', 1, REST), 'lh', 2, MOVE), 'rh', 2, REST), 'rh', 3, CLOSE);
+    expect(codes(withBar(silent, 'lh', 3, REST))).toEqual(['hands']);
+  });
+
+  it('accepts a waiting hand in bar 1 only when the piece starts with a rest', () => {
+    for (const levelId of [7, 8]) {
+      expect(codes(withBar(validPiece(levelId, 'C'), 'lh', 0, REST))).toEqual(expect.arrayContaining(['hands', 'restValue']));
+      expect(codes(withBar(validPiece(levelId, 'C'), 'lh', 0, [[null, 2 * Q], [null, 2 * Q]]))).toContain('hands');
+    }
+  });
+
+  it('keeps a rest shorter than a beat inside its beat, and a rest inside its bar', () => {
+    const S = Q / 4;
+    const E = Q / 2;
+    const crossing = [[0, S], [1, S], [2, S], [null, E], [1, S], [2, S], [1, S], [0, 2 * Q]];
+    expect(codes(withBar(validPiece(6, 'C'), 'rh', 0, crossing))).toEqual(['restValue']);
+    const inside = [[0, S], [1, S], [null, E], [2, Q], [1, 2 * Q]];
+    expect(codes(withBar(validPiece(6, 'C'), 'rh', 0, inside))).toEqual([]);
+    // 3/4 at level 3: a half rest from beat 3 would run over the barline.
+    const key = srtReadingKey('C');
+    const bar = 3 * Q;
+    const over = {
+      schemaVersion: 1, generatorVersion: 2, level: 3, seed: 5, meter: { num: 3, den: 4 }, ticksPerQuarter: 480, key, bars: 4,
+      events: [
+        ...line(key, 'rh', 0, [[0, Q], [1, Q], [null, 2 * Q], [0, Q], [1, Q], [null, bar], [0, bar]]),
+        ...line(key, 'lh', 0, [[null, bar], [null, bar], [0, Q], [1, Q], [2, Q], [null, bar]]),
+      ],
+    };
+    expect(codes(over)).toEqual(['restValue']);
+  });
+
+  it('checks every written part of a tied note', () => {
+    const piece = validPiece(5, 'Bb');
+    const kept = piece.events.filter((event) => event.hand !== 'rh' || event.onsetTick >= 2 * BAR);
+    // A whole note tied to a half-plus-eighth: the first part is fine, the second is not a note value.
+    const tie = { ...piece, events: [...kept, ...line(piece.key, 'rh', 0, [[0, 6.5 * Q], [1, Q / 2], [2, Q]])] };
+    expect(codes(tie)).toEqual(['noteValue']);
+  });
+
+  it('treats a tie from a weak beat as syncopation, in every meter', () => {
+    const fromBeatFour = (levelId) => {
+      const piece = validPiece(levelId, 'C');
+      const kept = piece.events.filter((event) => event.hand !== 'rh' || event.onsetTick >= 2 * BAR);
+      return { ...piece, events: [...kept, ...line(piece.key, 'rh', 0, [[0, Q], [1, Q], [2, Q], [1, 2 * Q], [2, Q], [1, Q], [0, Q]])] };
+    };
+    expect(codes(fromBeatFour(7))).toEqual(['offbeat']);
+    expect(codes(fromBeatFour(8))).toEqual([]);
+    const key = srtReadingKey('C');
+    const short = (num, rhCells) => ({
+      schemaVersion: 1, generatorVersion: 2, level: 5, seed: 6, meter: { num, den: 4 }, ticksPerQuarter: 480, key, bars: 8,
+      events: [
+        ...line(key, 'rh', 0, [...rhCells, ...Array.from({ length: 6 }, () => [0, num * Q])]),
+        ...Array.from({ length: 8 }, (_, index) => line(key, 'lh', index * num * Q, [[0, num === 3 ? 3 * Q : 2 * Q]])).flat(),
+      ],
+    });
+    // 3/4: a half note from beat 3. 2/4: a half note from beat 2.
+    expect(codes(short(3, [[0, Q], [1, Q], [2, 2 * Q], [1, Q], [0, Q]]))).toEqual(['offbeat']);
+    expect(codes(short(2, [[0, Q], [1, 2 * Q], [0, Q]]))).toEqual(['offbeat']);
+    // From beat 1 the same tie is plain.
+    expect(codes(short(3, [[0, 4 * Q], [1, Q], [0, Q]]))).toEqual([]);
+    expect(codes(short(2, [[0, 3 * Q], [0, Q]]))).toEqual([]);
+  });
+
+  it('treats a note that splits a compound beat as syncopation', () => {
+    const key = srtReadingKey('C');
+    const E = Q / 2;
+    const bar = 6 * E;
+    const sixEight = (levelId, first) => ({
+      schemaVersion: 1, generatorVersion: 2, level: levelId, seed: 7, meter: { num: 6, den: 8 }, ticksPerQuarter: 480, key, bars: 8,
+      events: Array.from({ length: 8 }, (_, index) => [
+        ...line(key, 'rh', index * bar, index === 0 ? first : index === 7 ? [[0, bar]] : [[0, E], [1, E], [2, E], [1, Q], [0, E]]),
+        ...line(key, 'lh', index * bar, [[0, 3 * E], [4, 3 * E]]),
+      ]).flat(),
+    });
+    expect(codes(sixEight(7, [[0, 2 * Q], [1, Q]]))).toEqual(['offbeat']);
+    expect(codes(sixEight(8, [[0, 2 * Q], [1, Q]]))).toEqual([]);
+    expect(codes(sixEight(7, [[0, 3 * E], [1, 3 * E]]))).toEqual([]);
+  });
+
+  it('exempts only a raised seventh that rises to the tonic', () => {
+    const base = validPiece(6, 'Am');
+    const from = (base.bars - 1) * BAR;
+    const kept = base.events.filter((event) => event.hand !== 'rh' || event.onsetTick < from - BAR);
+    const ending = (cells) => ({ ...base, events: [...kept,
+      ...line(base.key, 'rh', from - BAR, [[1, Q], [2, Q], [3, Q], [4, Q]]),
+      ...cells.map(([degree, alter, at, ticks]) => ev('rh', from + at, ticks, [srtDegreePitch(base.key, 'rh', degree, alter)]))] });
+    expect(codes(ending([[5, 0, 0, Q], [6, 1, Q, Q], [7, 0, 2 * Q, 2 * Q]]))).toEqual([]);
+    // Raised seventh that falls back instead of rising: an ordinary chromatic note, and level 6 has none.
+    expect(codes(ending([[5, 0, 0, Q], [6, 1, Q, Q], [5, 0, 2 * Q, 2 * Q]]))).toEqual(['accidental']);
+    // Raised seventh as the last note: never resolved.
+    expect(codes(ending([[4, 0, 0, Q], [5, 0, Q, Q], [6, 1, 2 * Q, 2 * Q]]))).toEqual(['accidental']);
+    // A raised fourth and a lowered seventh are chromatic notes.
+    expect(codes(ending([[3, 1, 0, Q], [4, 0, Q, Q], [4, 0, 2 * Q, 2 * Q]]))).toEqual(['accidental']);
+    expect(codes(ending([[5, 0, 0, Q], [6, -1, Q, Q], [7, 0, 2 * Q, 2 * Q]]))).toEqual(['accidental']);
+  });
+
+  it('measures a leap on the top note of the right hand and the bottom note of the left', () => {
+    const piece = validPiece(8, 'C');
+    const right = withBar(piece, 'rh', 0, [[[-2, 9], Q], [[7, 8], Q], [4, Q], [1, Q]]);
+    expect(codes(right)).toEqual([]);
+    const left = withBar(piece, 'lh', 0, [[[-2, 9], 2 * Q], [[-1, 0], 2 * Q]]);
+    expect(codes(left)).toEqual([]);
+    expect(codes(withBar(piece, 'rh', 0, [[[0, 1], Q], [[2, 9], Q], [8, Q], [7, Q]]))).toContain('leap');
   });
 
   it('rejects gaps, overlaps, duplicate ids and notes past the end', () => {

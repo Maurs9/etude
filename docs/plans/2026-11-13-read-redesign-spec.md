@@ -48,14 +48,14 @@ Eight levels. Each level adds one difficulty and one or two patterns, and keeps 
 
 | Level | Name | Hands | Range and motion | Rhythm added | Meter | Bars | Near |
 |---|---|---|---|---|---|---|---|
-| 1 | Steps | one hand at a time (right 2 bars, left 2 bars) | five-finger position, steps and repeats | whole, half, quarter | 4/4 | 4 | pre-Initial |
+| 1 | Steps | one hand at a time (one hand plays the first half, the other the second half) | five-finger position, steps and repeats | whole, half, quarter | 4/4 | 4 | pre-Initial |
 | 2 | Skips | one hand at a time | adds thirds | dotted half, quarter rest | 4/4, 3/4 | 4 | ABRSM Initial |
 | 3 | Fifths and eighths | hands alternate inside the phrase | leaps up to a fifth | eighth-note pairs, half rest | adds 2/4 | 4 or 6 | Initial to Grade 1 |
 | 4 | Together, one moves | together: one hand moves, the other holds | five-finger position | ties | same | 4 or 6 | Grade 2 |
 | 5 | Together, both move | parallel and contrary motion | one extension to a sixth | dotted quarter plus eighth | same | 8 | Grade 2 |
 | 6 | Out of position | melody plus held roots or 2-note chords | an octave, one position shift per hand | simple sixteenths | adds 3/8 | 8 | Grade 3 |
 | 7 | Chromatic and compound | melody plus broken-chord accompaniment | chromatic neighbour notes, upbeat start | all earlier values | adds 6/8 | 8 | Grade 4 |
-| 8 | Chords and syncopation | 2-note chords in either hand | octave and more | syncopation, ties over the barline | same | 8 or 12 | Grade 5 |
+| 8 | Chords and syncopation | 2-note chords in either hand | octave and more | syncopation, ties from a weak beat | same | 8 or 12 | Grade 5 |
 
 Pieces are assembled from named patterns. A pattern is a shape the eye can take in as one unit.
 
@@ -81,11 +81,13 @@ Their content is covered by the new levels: P1 → levels 1 and 2, P2 → levels
 - **Rests:** quarter from level 2, half from level 3, eighth from level 5. 3/8 and 6/8 also have the dotted-quarter rest. A whole-bar rest is used only where a hand waits: levels 1 to 3, and the upbeat bar.
 - **Rest placement:** a rest shorter than a beat stays inside its beat. A longer rest starts on a multiple of its own length.
 - **Ties:** a note may be tied over the barline from level 4. Each written part must be a note value of the level.
-- **Syncopation (level 8 only):** a note that starts off the beat and is held past the next beat, or in 4/4 a note on beat 2 or 4 that lasts longer than a beat.
-- **Upbeat (levels 7 and 8):** written as a first bar that starts with rests. One hand may wait in that bar.
-- **Accidentals:** none up to level 5. The raised leading note of a minor key from level 6. Up to 2 chromatic notes at level 7 and 3 at level 8. No double accidentals, so G♯ minor has no raised leading note (F double-sharp). This is open decision D6.
+- **Hands:** at levels 1 and 2 either hand may start, and the hands change once, at the middle. At level 3 one hand plays at a time, a hand plays in every bar, and the hands change at least twice. At level 4 both hands play in every bar and one of them only holds notes of a half or longer. From level 5 both hands play in every bar.
+- **Syncopation (level 8 only)** is any of these: a note that starts off the beat and is held past the next beat. In 4/4, a note on beat 2 or 4 that lasts longer than a beat. A note tied over the barline from a weak beat. In 3/8 and 6/8, a note from the beat that ends inside a later beat.
+- **Upbeat (levels 7 and 8):** written as a first bar in which both hands start with a rest. One hand may wait for that whole bar.
+- **Accidentals:** none up to level 5. The raised leading note of a minor key from level 6, when the next note of that hand is the tonic above it. Anywhere else it counts as a chromatic note. Up to 2 chromatic notes at level 7 and 3 at level 8. No double accidentals, so G♯ minor has no raised leading note (F double-sharp). This is open decision D6.
 - **Notes at once:** one per hand up to level 5, two in the left hand at levels 6 and 7, two in each hand at level 8.
 - **Tempo:** 66, 66, 72, 63, 66, 66, 60 and 72 bpm for levels 1 to 8.
+- **Left for step 3 (two hands and playability):** no check yet that the hands do not cross, that a chord fits under the hand, or that level 5 leaves the five-finger position only once.
 
 ## 5. Keys
 
@@ -113,7 +115,7 @@ Each rule has an automatic check. The checks run over 200 seeds × 24 keys × 8 
 | Rule | Statement | Check passes when |
 |---|---|---|
 | G1 Deterministic | The same level, key and number always give the same piece. | Two runs give equal fingerprints. |
-| G2 Level limits | Range, largest interval, note values, meter, bar count and hand use match the level table. | `srtValidatePiece` (extended) accepts every piece. |
+| G2 Level limits | Range, largest interval, note values, meter, bar count and hand use match the level table. | `srtLevelViolations` returns no violation for every piece. |
 | G3 Chord plan | Every bar has a chord from the level's progressions. The piece ends V to I. | The plan is stored on the piece and the last two chords are V and I. |
 | G4 Strong beats | Notes on strong beats are chord notes. | Every strong-beat pitch class is in the bar's chord. |
 | G5 Step bias | At least 60% of melodic moves are steps or repeats. | Counted per piece. |

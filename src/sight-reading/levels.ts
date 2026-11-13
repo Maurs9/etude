@@ -91,7 +91,19 @@ const M38: ReadingMeter = { num: 3, den: 8 };
 const M68: ReadingMeter = { num: 6, den: 8 };
 const ONE_NOTE = { rh: 1, lh: 1 } as const;
 
-const LEVELS: readonly ReadingLevel[] = [
+/** Freezes a table and everything in it, so a caller cannot change the limits of a level. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value) as unknown[]) deepFreeze(child);
+  }
+  return value;
+}
+
+/** Longest piece the check will look at. The levels use 12 bars at most. */
+const MAX_BARS = 64;
+
+const LEVELS: readonly ReadingLevel[] = deepFreeze([
   {
     id: 1, hands: 'blocks', degrees: [0, 4], maxLeap: 1,
     noteTicks: [WHOLE, HALF, QUARTER], restTicks: [], gridTicks: QUARTER,
@@ -148,10 +160,10 @@ const LEVELS: readonly ReadingLevel[] = [
     tieOverBar: true, upbeat: true, syncopation: true, leadingTone: true, maxChromatic: 3, chord: { rh: 2, lh: 2 },
     newKeys: ['B', 'Db', 'F#', 'C#m', 'G#m', 'Bbm', 'Ebm'], newPatterns: ['syncopation', 'chordsBothHands'],
   },
-];
+]);
 
 // In learning order: fewest sharps or flats first.
-const KEYS: readonly ReadingKey[] = [
+const KEYS: readonly ReadingKey[] = deepFreeze([
   { id: 'C', tonic: 'C', mode: 'major', keyN: 0 },
   { id: 'G', tonic: 'G', mode: 'major', keyN: 1 },
   { id: 'F', tonic: 'F', mode: 'major', keyN: -1 },
@@ -176,7 +188,7 @@ const KEYS: readonly ReadingKey[] = [
   { id: 'G#m', tonic: 'G#', mode: 'minor', keyN: 5 },
   { id: 'Bbm', tonic: 'Bb', mode: 'minor', keyN: -5 },
   { id: 'Ebm', tonic: 'Eb', mode: 'minor', keyN: -6 },
-];
+]);
 
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'] as const;
 const NATURAL_PCS = [0, 2, 4, 5, 7, 9, 11] as const;
@@ -267,6 +279,7 @@ export function srtKeyScale(key: ReadingKey): readonly string[] {
  */
 export function srtDegreePitch(key: ReadingKey, hand: SightReadingHand, degree: number, alter = 0): SightReadingPitch {
   if (!Number.isInteger(degree) || !Number.isInteger(alter)) throw new RangeError(`Invalid degree: ${degree}/${alter}`);
+  if (hand !== 'rh' && hand !== 'lh') throw new RangeError(`Invalid hand: ${String(hand)}`);
   const data = keyData(key);
   const index = mod(degree, 7);
   const note = data.scale[index];
@@ -301,7 +314,7 @@ function isList(value: unknown): boolean {
 function pitchPlace(pitch: SightReadingPitch, key: ReadingKey, hand: SightReadingHand): { readonly degree: number; readonly alter: number } | null {
   if (!pitch || typeof pitch.spelling !== 'string' || !isInteger(pitch.midi) || pitch.midi < 0 || pitch.midi > 127) return null;
   if (pitch.finger !== null && !(isInteger(pitch.finger) && pitch.finger >= 1 && pitch.finger <= 5)) return null;
-  const match = /^([A-G])([#b]?)(-?\d+)$/.exec(pitch.spelling);
+  const match = /^([A-G])([#b]?)(-1|\d)$/.exec(pitch.spelling);
   if (!match) return null;
   const letter = LETTERS.indexOf(match[1] as typeof LETTERS[number]);
   const accidental = match[2] === '#' ? 1 : match[2] === 'b' ? -1 : 0;
@@ -327,17 +340,23 @@ function writtenParts(onset: number, duration: number, bar: number): readonly nu
 type Placed = {
   readonly event: SightReadingEvent;
   readonly pitched: boolean;
-  /** The degree the hand's line passes through: the top note for the right hand, the bottom note for the left. */
+  /** The scale degrees of the notes, and the degree the hand's line passes through: top note right, bottom note left. */
+  readonly degrees: readonly number[];
   readonly line: number | null;
-  readonly wholeBarRest: boolean;
+  /** Degrees of raised sevenths of a minor key. Each must rise to the tonic in the next notes of the hand. */
+  readonly leading: readonly number[];
 };
 
-function handsViolation(level: ReadingLevel, bars: number, bar: number, byHand: Readonly<Record<SightReadingHand, readonly Placed[]>>): string | null {
+function handsViolation(
+  level: ReadingLevel, bars: number, bar: number, upbeatBar: boolean,
+  byHand: Readonly<Record<SightReadingHand, readonly Placed[]>>,
+): string | null {
   const sounding = (hand: SightReadingHand): readonly SightReadingEvent[] => byHand[hand].filter((item) => item.pitched).map((item) => item.event);
   const notes = { rh: sounding('rh'), lh: sounding('lh') };
   const inBar = (hand: SightReadingHand, index: number): readonly SightReadingEvent[] =>
     notes[hand].filter((event) => event.onsetTick < (index + 1) * bar && event.onsetTick + event.durationTick > index * bar);
   const barIndexes = Array.from({ length: bars }, (_, index) => index);
+  const waiting = (index: number): number => HANDS.filter((hand) => inBar(hand, index).length === 0).length;
   if (level.hands === 'blocks') {
     const playing = barIndexes.map((index) => HANDS.filter((hand) => inBar(hand, index).length > 0));
     if (playing.some((hands) => hands.length !== 1)) return 'each bar belongs to exactly one hand';
@@ -349,13 +368,13 @@ function handsViolation(level: ReadingLevel, bars: number, bar: number, byHand: 
     const overlap = notes.rh.some((right) => notes.lh.some((left) =>
       right.onsetTick < left.onsetTick + left.durationTick && left.onsetTick < right.onsetTick + right.durationTick));
     if (overlap) return 'only one hand plays at a time';
+    if (barIndexes.some((index) => waiting(index) === 2)) return 'a hand plays in every bar';
     const order = [...notes.rh, ...notes.lh].sort((a, b) => a.onsetTick - b.onsetTick).map((event) => event.hand);
     const changes = order.filter((hand, index) => index > 0 && hand !== order[index - 1]).length;
     return changes >= 2 ? null : 'the hands change at least twice';
   }
-  const waiting = (index: number): number => HANDS.filter((hand) => inBar(hand, index).length === 0).length;
   // In an upbeat bar one hand may wait.
-  if (barIndexes.some((index) => waiting(index) > (level.upbeat && index === 0 ? 1 : 0))) return 'both hands play in every bar';
+  if (barIndexes.some((index) => waiting(index) > (upbeatBar && index === 0 ? 1 : 0))) return 'both hands play in every bar';
   if (level.hands === 'oneMoves') {
     const holds = (hand: SightReadingHand, index: number): boolean => inBar(hand, index).every((event) => event.durationTick >= HALF);
     if (barIndexes.some((index) => !HANDS.some((hand) => holds(hand, index)))) return 'in every bar one hand only holds long notes';
@@ -371,7 +390,7 @@ export function srtLevelViolations(piece: LevelPiece): readonly LevelViolation[]
       piece.ticksPerQuarter !== TICKS_PER_QUARTER || !isInteger(piece.seed) || !isList(piece.events) ||
       key.tonic !== piece.key.tonic || key.mode !== piece.key.mode || key.keyN !== piece.key.keyN ||
       !piece.meter || ![2, 3, 4, 6].includes(piece.meter.num) || ![4, 8].includes(piece.meter.den) ||
-      !isInteger(piece.bars) || piece.bars < 1) {
+      !isInteger(piece.bars) || piece.bars < 1 || piece.bars > MAX_BARS) {
     return [{ code: 'schema', detail: 'not a version 2 piece of a known level and key' }];
   }
   const out: LevelViolation[] = [];
@@ -385,6 +404,9 @@ export function srtLevelViolations(piece: LevelPiece): readonly LevelViolation[]
   const { bar, beat } = srtMeterTicks(piece.meter);
   const total = piece.bars * bar;
   const waitingHand = level.hands === 'blocks' || level.hands === 'alternate';
+  // The first bar is an upbeat bar when the level has upbeats and the piece starts with a rest in both hands.
+  const upbeatBar = level.upbeat && !piece.events.some((event) => event && isList(event.pitches) && event.pitches.length > 0 && event.onsetTick === 0);
+  const strongOnsets = piece.meter.num === 4 && piece.meter.den === 4 ? [0, 2 * beat] : piece.meter.num === 6 ? [0, beat] : [0];
   const ids = new Set<string>();
   const byHand: Record<SightReadingHand, Placed[]> = { rh: [], lh: [] };
   let chromatic = 0;
@@ -407,7 +429,7 @@ export function srtLevelViolations(piece: LevelPiece): readonly LevelViolation[]
     const offset = onset % beat;
     if (event.pitches.length === 0) {
       const wholeBar = duration === bar && onset % bar === 0;
-      const mayWait = waitingHand || (level.upbeat && onset === 0);
+      const mayWait = waitingHand || (upbeatBar && onset === 0);
       // Compound time also has the one-beat rest (a dotted quarter).
       const known = level.restTicks.includes(duration) || (piece.meter.den === 8 && duration === beat);
       // A short rest stays inside its beat. A longer one starts on a multiple of its own length, so it never
@@ -418,54 +440,63 @@ export function srtLevelViolations(piece: LevelPiece): readonly LevelViolation[]
       if (wholeBar ? !mayWait : parts.length > 1 || !known || !placed) {
         add('restValue', 'rest not allowed at this level or in this place', event.id);
       }
-      byHand[event.hand].push({ event, pitched: false, line: null, wholeBarRest: wholeBar });
+      byHand[event.hand].push({ event, pitched: false, degrees: [], line: null, leading: [] });
       continue;
     }
     if (parts.length > 1 && !level.tieOverBar) add('crossBar', 'note tied over the barline', event.id);
     if (parts.some((part) => !level.noteTicks.includes(part))) add('noteValue', 'note value not used at this level', event.id);
-    // Without syncopation a note that starts off the beat ends by the next beat, and in 4/4 a note on beat 2 or 4
-    // lasts one beat at most.
-    const weakBeat = piece.meter.num === 4 && piece.meter.den === 4 && (onset % bar) % (2 * beat) === beat;
-    if (!level.syncopation && (offset !== 0 ? offset + duration > beat : weakBeat && duration > beat)) {
-      add('offbeat', 'note held across a stronger beat', event.id);
-    }
-    const ascending = event.pitches.every((pitch, index) => index === 0 || event.pitches[index - 1].midi < pitch.midi);
+    // Syncopation is one of four things:
+    // a note that starts off the beat and is held past the next beat;
+    // in 4/4, a note on beat 2 or 4 that lasts longer than a beat;
+    // a note tied over the barline from anywhere but a strong beat;
+    // in compound time, a note from the beat that ends inside a later beat.
+    const inBar = onset % bar;
+    const syncopated = offset !== 0
+      ? offset + duration > beat
+      : (duration > beat && !strongOnsets.includes(inBar) && (parts.length > 1 || strongOnsets.length > 1)) ||
+        (piece.meter.den === 8 && duration > beat && duration % beat !== 0);
+    if (syncopated && !level.syncopation) add('offbeat', 'note held across a stronger beat', event.id);
+    const places = event.pitches.map((pitch) => pitchPlace(pitch, key, event.hand));
+    if (places.includes(null)) add('pitch', 'midi, spelling and finger do not agree', event.id);
+    const ascending = places.includes(null) ||
+      event.pitches.every((pitch, index) => index === 0 || event.pitches[index - 1].midi < pitch.midi);
     if (event.pitches.length > level.chord[event.hand] || !ascending) add('chord', 'too many notes at once, or notes out of order', event.id);
     const degrees: number[] = [];
-    for (const pitch of event.pitches) {
-      const place = pitchPlace(pitch, key, event.hand);
-      if (!place) {
-        add('pitch', 'midi, spelling and finger do not agree', event.id);
-        continue;
-      }
+    const leading: number[] = [];
+    for (const place of places) {
+      if (!place) continue;
       degrees.push(place.degree);
       if (place.degree < level.degrees[0] || place.degree > level.degrees[1]) add('range', 'outside the range of the level', event.id);
-      const leadingTone = level.leadingTone && key.mode === 'minor' && place.alter === 1 && mod(place.degree, 7) === 6;
       if (Math.abs(place.alter) > 1) add('accidental', 'two semitones away from its scale degree', event.id);
-      else if (place.alter !== 0 && !leadingTone) chromatic += 1;
+      else if (level.leadingTone && key.mode === 'minor' && place.alter === 1 && mod(place.degree, 7) === 6) leading.push(place.degree);
+      else if (place.alter !== 0) chromatic += 1;
     }
     const line = degrees.length === 0 ? null : event.hand === 'rh' ? Math.max(...degrees) : Math.min(...degrees);
-    byHand[event.hand].push({ event, pitched: true, line, wholeBarRest: false });
+    byHand[event.hand].push({ event, pitched: true, degrees, line, leading });
   }
-  if (chromatic > level.maxChromatic) add('accidental', `${chromatic} notes outside the key, level ${level.id} allows ${level.maxChromatic}`);
 
   for (const hand of HANDS) {
     byHand[hand].sort((a, b) => a.event.onsetTick - b.event.onsetTick);
     let cursor = 0;
     let previous: number | null = null;
     let gapless = true;
+    let unresolved: readonly number[] = [];
     for (const item of byHand[hand]) {
       if (item.event.onsetTick !== cursor) gapless = false;
       cursor = item.event.onsetTick + item.event.durationTick;
-      // A bar in which the hand waits starts a new line: the next note is found by position, not by interval.
-      if (item.wholeBarRest) previous = null;
+      if (!item.pitched) continue;
+      // A raised seventh that does not rise to the tonic is an ordinary chromatic note.
+      chromatic += unresolved.filter((degree) => !item.degrees.includes(degree + 1)).length;
+      unresolved = item.leading;
       if (item.line === null) continue;
       if (previous !== null && Math.abs(item.line - previous) > level.maxLeap) add('leap', 'leap larger than the level allows', item.event.id);
       previous = item.line;
     }
+    chromatic += unresolved.length;
     if (!gapless || cursor !== total) add('tiling', `${hand} does not fill the piece without gaps or overlaps`);
   }
-  const hands = handsViolation(level, piece.bars, bar, byHand);
+  if (chromatic > level.maxChromatic) add('accidental', `${chromatic} notes outside the key, level ${level.id} allows ${level.maxChromatic}`);
+  const hands = handsViolation(level, piece.bars, bar, upbeatBar, byHand);
   if (hands) add('hands', hands);
   return out;
 }
