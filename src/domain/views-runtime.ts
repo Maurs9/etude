@@ -5215,12 +5215,14 @@ function learnPlanItems(tn: number) {
 /* cheat sheets: rows of [label, value]; each may be a string or [en,ro] */
 /* staff excerpts: compact note strings "C4q E4+G4h Rq" (w h q e s, d=dotted, t=triplet eighth) */
 const LDUR: Record<string, number> = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
-/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`; `'tied'` marks a single note tied from the one before (chords are not tied). */
+/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`; `'tied'` marks a single note tied from the one before (a chord is tied only with `engrave: 2`). */
 type SrToken = [string | string[], number, 'tied'?];
 function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !== '|').map((tok: string): SrToken => { const m = tok.match(/^(.+?)(d?[whqest])$/); if (!m)
     throw new Error('Étude: bad staff token ' + tok); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
 /** What the grand-staff engraver (`srRender`) needs to draw a passage. */
-interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; perc?: boolean }
+/** `engrave: 2` (level pieces) opts in to beams in every meter, whole-bar and dotted rests, accidentals that hold for the bar,
+ *  tied chords, spelled note names and room for accidentals; without it the engraver draws exactly as before. */
+interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; perc?: boolean; engrave?: 2 }
 type SrHand = 'rh' | 'lh';
 /** An annotation drawn over a Learn staff: kind, beat, then kind-specific values. */
 type LStaffMark =
@@ -6527,14 +6529,18 @@ const srtReleasedLeases = new WeakSet<SightReadingAttemptLease>();
 let srtExposurePromise: { fingerprint: string; promise: Promise<SightReadingLedgerResult> } | null = null;
 interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
 /** A note to engrave; beamed eighths also record their stem position once drawn. */
-interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; tied?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
+interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; tied?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number; showAcc?: boolean; bcol?: SrBeamCol }
+/** engrave 2: one beat of a beamed group (a note or a chord); its stem position is recorded once drawn. */
+interface SrBeamCol { id: number; beat: number; dur: number; steps: number[]; grp?: SrBeamGroup; x?: number; yHi?: number; yLo?: number }
+/** engrave 2: beamed columns of one hand inside one beat group, with the stem direction they share. */
+interface SrBeamGroup { cols: SrBeamCol[]; up: boolean }
 type SrEvent = SrRestEvent | SrNoteEvent;
 function srPitchStrict(s: string): SrPitch { const p = srPitch(s); if (!p)
     throw new TypeError('Étude: unreadable pitch ' + s); return p; }
-function srEvents(list: SrToken[]|undefined) { const ev: SrEvent[] = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
+function srEvents(list: SrToken[]|undefined, chordTies = false) { const ev: SrEvent[] = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
     ev.push({ rest: true, beat, dur: d });
 else if (Array.isArray(x[0]))
-    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 }, x[2] === 'tied' && x[0].length === 1 ? { tied: true } : {})));
+    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 }, x[2] === 'tied' && (x[0].length === 1 || chordTies) ? { tied: true } : {})));
 else
     ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d }, x[2] === 'tied' ? { tied: true } : {})); beat += d; }); return { ev, total: beat }; }
 function srClef(clef: string, x: number, top: number) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
@@ -6590,6 +6596,164 @@ function srTieArc(x1: number, x2: number, y: number, stemUp: boolean) {
     const s = stemUp ? 1 : -1, a = x1 + 5, b = x2 - 5, m = (a + b) / 2, yb = y + s * 6;
     return `<path class="ss-tie" d="M ${a},${yb} Q ${m},${y + s * 15} ${b},${yb} Q ${m},${y + s * 12} ${a},${yb} Z"/>`;
 }
+/** engrave 2: a rest drawn with shapes (no music font), with its dot when dotted. */
+function srLevelRest(x: number, top: number, dur: number) {
+    const dotted = [0.375, 0.75, 1.5, 3].includes(dur), base = dotted ? dur / 1.5 : dur;
+    let s: string;
+    if (base >= 4)
+        s = `<rect class="ss-glyph ss-rest ss-rest-whole" x="${x - 6}" y="${top + 12}" width="12" height="5"/>`;
+    else if (base >= 2)
+        s = `<rect class="ss-glyph ss-rest ss-rest-half" x="${x - 6}" y="${top + 19}" width="12" height="5"/>`;
+    else if (base >= 1)
+        s = `<path class="ss-glyph ss-rest ss-rest-q" stroke-width="3.2" stroke-linejoin="bevel" d="M ${x - 2},${top + 7} L ${x + 4},${top + 15} L ${x - 1},${top + 22} L ${x + 4},${top + 30}"/><path class="ss-glyph" stroke-width="2" stroke-linecap="round" d="M ${x + 4},${top + 30} C ${x - 3},${top + 26} ${x - 5},${top + 34} ${x + 1},${top + 40}"/>`;
+    else if (base >= 0.5)
+        s = `<path class="ss-glyph ss-rest ss-rest-8" stroke-width="1.5" stroke-linecap="round" d="M ${x - 3},${top + 17} Q ${x + 1},${top + 21} ${x + 4},${top + 15} L ${x - 1},${top + 33}"/><circle class="ss-glyph" cx="${x - 3}" cy="${top + 16.5}" r="2.4"/>`;
+    else
+        s = `<path class="ss-glyph ss-rest ss-rest-16" stroke-width="1.5" stroke-linecap="round" d="M ${x - 3},${top + 17} Q ${x + 1},${top + 21} ${x + 4},${top + 15} L ${x - 3},${top + 40} M ${x - 5.5},${top + 27} Q ${x - 1.5},${top + 31} ${x + 1.2},${top + 25}"/><circle class="ss-glyph" cx="${x - 3}" cy="${top + 16.5}" r="2.4"/><circle class="ss-glyph" cx="${x - 5.5}" cy="${top + 26.5}" r="2.4"/>`;
+    return dotted ? s + `<circle class="ss-glyph ss-rest-dot" cx="${x + 9}" cy="${top + 18}" r="1.7"/>` : s;
+}
+/** engrave 2: a note's name from its spelling (letter and accidental), not from its pitch class. */
+function srSpellName(li: number, acc: number) {
+    const sys = NOTE_SYS[notation];
+    if (notation === 'german' && li === 6 && acc < 0)
+        return sys.flat[10];
+    return sys.sharp[SS_LETSEMI[li]] + (acc > 0 ? '#' : acc < 0 ? 'b' : '');
+}
+/** engrave 2: how many beams a note value takes (a dotted value counts as its undotted base). */
+function srBeamCount(dur: number) { const base = [0.375, 0.75, 1.5, 3].includes(dur) ? dur / 1.5 : dur; return base <= 0.125 ? 3 : base <= 0.25 ? 2 : 1; }
+/** engrave 2, before drawing: checks each tie against the note before, decides which accidentals show (an accidental holds
+ *  for its staff position until the barline; a tied note shows none), groups eighths and shorter into beams per beat group
+ *  (a quarter in x/4, the whole bar in 3/8, a dotted quarter in 6/8) and returns the extra room each beat needs for its signs. */
+function srLevelPrep(ts: number[], staves: SrStave[], bounds: number[], cap: number, pickup: number, keyAcc: number[]) {
+    const groups: SrBeamGroup[] = [], room = new Map<number, number>();
+    const barOf = (b: number) => bounds.filter((v) => v < b + 1e-3).length;
+    const barStart = (m: number) => m === 0 ? (pickup > 0 ? pickup - cap : 0) : bounds[m - 1];
+    const span = ts[1] === 8 ? (ts[0] % 3 === 0 ? 1.5 : cap) : 1;
+    let colId = 0;
+    staves.forEach((st) => {
+        const cols: { evs: SrEvent[]; beat: number }[] = [];
+        st.data.ev.forEach((e) => { const c = cols[cols.length - 1]; if (c && Math.abs(c.beat - e.beat) < 1e-3)
+            c.evs.push(e);
+        else
+            cols.push({ evs: [e], beat: e.beat }); });
+        let mem = new Map<number, number>(), bar = -1, prev: SrNoteEvent[] = [];
+        cols.forEach((c) => {
+            const m = barOf(c.beat);
+            if (m !== bar) {
+                bar = m;
+                mem = new Map<number, number>();
+            }
+            const ns = c.evs.filter((e): e is SrNoteEvent => !e.rest);
+            let shown = 0;
+            ns.forEach((e) => {
+                if (e.tied && !prev.some((p) => p.li === e.li && p.oct === e.oct && p.acc === e.acc))
+                    e.tied = false;
+                if (e.tied) {
+                    e.showAcc = false;
+                    return;
+                }
+                const step = ssStepOf(e.li, e.oct);
+                e.showAcc = e.acc !== (mem.get(step) ?? keyAcc[e.li]);
+                mem.set(step, e.acc);
+                if (e.showAcc)
+                    shown++;
+            });
+            prev = ns;
+            const k = Math.round(c.beat * 1000);
+            room.set(k, Math.max(room.get(k) ?? 0, Math.min(shown, 2) * 6));
+        });
+        let run: SrBeamCol[] = [], runKey = '';
+        const midStep = st.refStep + 4;
+        const flush = () => {
+            if (run.length > 1) {
+                const steps = run.flatMap((c) => c.steps), hi = Math.max(...steps), lo = Math.min(...steps);
+                const grp: SrBeamGroup = { cols: run, up: midStep - lo > hi - midStep };
+                run.forEach((c) => { c.grp = grp; });
+                groups.push(grp);
+            }
+            run = [];
+        };
+        cols.forEach((c) => {
+            const ns = c.evs.filter((e): e is SrNoteEvent => !e.rest), dur = c.evs[0].dur;
+            if (!ns.length || ns.length !== c.evs.length || dur >= 1 - 1e-6) {
+                flush();
+                return;
+            }
+            const m = barOf(c.beat), key = m + ':' + Math.floor((c.beat - barStart(m)) / span + 1e-6), last = run[run.length - 1];
+            if (!last || key !== runKey || Math.abs(last.beat + last.dur - c.beat) > 1e-3) {
+                flush();
+                runKey = key;
+            }
+            const col: SrBeamCol = { id: colId++, beat: c.beat, dur, steps: ns.map((e) => ssStepOf(e.li, e.oct)) };
+            ns.forEach((e) => { e.bcol = col; });
+            run.push(col);
+        });
+        flush();
+    });
+    return { groups, room };
+}
+/** engrave 2, after drawing: each beamed group's stems and beams (a second beam, or a short one, for sixteenths). The markup
+ *  for a group of two eighths is the one the engraver draws for an on-beat pair without the flag. */
+function srLevelBeams(body: string, groups: SrBeamGroup[]) {
+    groups.forEach((gr) => {
+        const cs = gr.cols, n = cs.length, up = gr.up;
+        const pos: { sx: number; hi: number; lo: number }[] = [];
+        for (const c of cs) {
+            if (c.x === undefined || c.yHi === undefined || c.yLo === undefined)
+                return;
+            pos.push({ sx: up ? c.x + 5.6 : c.x - 5.6, hi: c.yHi, lo: c.yLo });
+        }
+        let e1 = up ? pos[0].hi - 32 : pos[0].lo + 32, e2 = up ? pos[n - 1].hi - 32 : pos[n - 1].lo + 32;
+        const d = e2 - e1;
+        if (up) {
+            if (d > 6)
+                e2 = e1 + 6;
+            else if (d < -6)
+                e1 = e2 + 6;
+        }
+        else {
+            if (d > 6)
+                e1 = e2 - 6;
+            else if (d < -6)
+                e2 = e1 - 6;
+        } // limit the slope by lengthening stems only
+        const x1 = pos[0].sx, x2 = pos[n - 1].sx, nb = cs.map((c) => srBeamCount(c.dur));
+        const lineY = (x: number) => x2 === x1 ? e1 : e1 + (e2 - e1) * (x - x1) / (x2 - x1);
+        const at = (i: number) => i === 0 ? e1 : i === n - 1 ? e2 : lineY(pos[i].sx);
+        // Every stem reaches past its furthest note by a full stem, a little more under extra beams.
+        let shift = 0;
+        pos.forEach((p, i) => { const need = 32 + 3 * (nb[i] - 1); shift = Math.max(shift, up ? at(i) - (p.hi - need) : (p.lo + need) - at(i)); });
+        if (shift > 1e-6) {
+            e1 = up ? e1 - shift : e1 + shift;
+            e2 = up ? e2 - shift : e2 + shift;
+        }
+        const th = up ? 5 : -5, stem = (sx: number, y: number, ey: number) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
+        const beam = (cls: string, a: number, b: number, off: number) => { const ya = lineY(a) + off, yb = lineY(b) + off; return `<path class="${cls}" d="M ${a},${ya} L ${b},${yb} L ${b},${yb + th} L ${a},${ya + th} Z"/>`; };
+        let beams = `<path class="ss-beam" d="M ${x1},${e1} L ${x2},${e2} L ${x2},${e2 + th} L ${x1},${e1 + th} Z"/>`;
+        for (let k = 2; k <= Math.max(...nb); k++) {
+            const off = (up ? 7 : -7) * (k - 1);
+            for (let i = 0; i < n; i++) {
+                if (nb[i] < k)
+                    continue;
+                let j = i;
+                while (j + 1 < n && nb[j + 1] >= k)
+                    j++;
+                if (j > i)
+                    beams += beam('ss-beam ss-beam2', pos[i].sx, pos[j].sx, off);
+                else {
+                    const dir = i === 0 ? 1 : -1;
+                    beams += beam('ss-beam ss-beam2', Math.min(pos[i].sx, pos[i].sx + dir * 9), Math.max(pos[i].sx, pos[i].sx + dir * 9), off);
+                }
+                i = j;
+            }
+        }
+        cs.forEach((c, i) => {
+            const p = pos[i];
+            body = body.replace(`@@G${c.id}@@`, stem(p.sx, up ? p.lo : p.hi, at(i)) + (i === n - 1 ? beams : ''));
+        });
+    });
+    return body;
+}
 /** One staff of the system; `data` is filled from the hand's tokens right after the staves are laid out. */
 interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; rel: number; data: { ev: SrEvent[]; total: number } }
 /** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
@@ -6600,7 +6764,8 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
         staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46, rel: 0, data: { ev: [], total: 0 } });
     if (piece.lh)
         staves.push({ hand: 'lh', clef: 'bass', refStep: 18, top: piece.rh ? 150 : 46, rel: piece.rh ? 104 : 0, data: { ev: [], total: 0 } });
-    staves.forEach((st) => { st.data = srEvents(piece[st.hand]); });
+    const v2 = piece.engrave === 2;
+    staves.forEach((st) => { st.data = srEvents(piece[st.hand], v2); });
     const keyAcc = ssKeyAcc(piece.keyN || 0), names = srNamesVisible(piece), lastSt = staves[staves.length - 1];
     const cap = piece.ts[1] === 8 ? piece.ts[0] * 0.5 : piece.ts[0], pickup = piece.pickup || 0;
     const total = Math.max(...staves.map((s) => s.data.total));
@@ -6616,8 +6781,10 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     const beatSet = new Set<number>();
     staves.forEach((st) => st.data.ev.forEach((e) => beatSet.add(+e.beat.toFixed(4))));
     const beats = [...beatSet].sort((a, b) => a - b);
+    // engrave 2: ties, accidentals and beam groups are worked out before drawing (see srLevelPrep).
+    const lv = v2 ? srLevelPrep(piece.ts, staves, bounds, cap, pickup, keyAcc) : null;
     // Beam pairs of eighths that start on a beat (simple meters only).
-    if (piece.ts[1] === 4)
+    if (!lv && piece.ts[1] === 4)
         staves.forEach((st) => {
             const ev = st.data.ev;
             for (let i = 0; i + 1 < ev.length; i++) {
@@ -6632,8 +6799,9 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     // Each beat's column: its bar, how far it moves the pen (the shortest value there sets the room) and, per bar, how far the
     // notes reach above and below the first staff line (stems, flags, ledger lines, result marks, note names).
     const nBars = bounds.length + 1, barOf = beats.map((b) => bounds.filter((v) => v < b + 1e-3).length);
-    const adv = beats.map((b) => { let m = 4; staves.forEach((st) => st.data.ev.forEach((e) => { if (Math.abs(e.beat - b) < 1e-3)
-        m = Math.min(m, e.dur); })); return 26 + Math.min(m, 4) * 14; });
+    // engrave 2 also leaves room before a beat for its accidentals.
+    const adv = beats.map((b, i) => { let m = 4; staves.forEach((st) => st.data.ev.forEach((e) => { if (Math.abs(e.beat - b) < 1e-3)
+        m = Math.min(m, e.dur); })); const w = 26 + Math.min(m, 4) * 14; return lv && i + 1 < beats.length ? w + (lv.room.get(Math.round(beats[i + 1] * 1000)) ?? 0) : w; });
     const barW = new Array<number>(nBars).fill(0), barTop = new Array<number>(nBars).fill(-14);
     const barBot = new Array<number>(nBars).fill(Math.max(lastSt.rel + 48 + (lastSt.clef === 'treble' ? 18 : 10), names ? lastSt.rel + 84 : 0));
     beats.forEach((b, i) => { barW[barOf[i]] += adv[i]; });
@@ -6730,6 +6898,93 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     // A tied note is not played again: it is drawn inside the group of the note it continues, which also lasts longer.
     const lastNote: Partial<Record<SrHand, SrStaffNote>> = {}, tiedMarkup = new Map<number, string>();
     let tiedKey = 0;
+    // Each bar's left edge (its barline, or the end of the system's header) and right barline, for centring whole-bar rests.
+    const barX0: number[] = [], barX1: number[] = [];
+    let barLeft = x;
+    // engrave 2: the noteheads each hand drew last (a tie starts from them), and the whole-bar rests to centre once drawn.
+    const lastCol: Partial<Record<SrHand, { note: SrStaffNote; e: SrNoteEvent; x: number; y: number; sy: number }[]>> = {};
+    const barRests: { m: number; top: number }[] = [];
+    /** engrave 2: one hand's notes or rest at one beat. A note, or a chord, takes the same path; see srLevelPrep for what
+     *  is decided before drawing. The markup of a plain note is the one drawn without the flag. */
+    const drawLevel = (st: SrStave, here: SrEvent[], nx: number, m: number) => {
+        here.forEach((e) => {
+            if (!e.rest)
+                return;
+            lastCol[st.hand] = [];
+            const start = m === 0 ? 0 : bounds[m - 1], len = m === 0 && pickup > 0 ? pickup : cap;
+            if (Math.abs(e.beat - start) < 1e-3 && Math.abs(e.dur - len) < 1e-3) {
+                body += `@@W${barRests.length}@@`;
+                barRests.push({ m, top: st.top });
+            }
+            else
+                body += srLevelRest(nx, st.top, e.dur);
+        });
+        const evs = here.filter((e): e is SrNoteEvent => !e.rest);
+        if (!evs.length)
+            return;
+        const items = evs.map((e): SrChordItem => ({ e, step: ssStepOf(e.li, e.oct), y: 0, dx: 0 })).sort((p, q) => p.step - q.step);
+        items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
+        const col = evs[0].bcol, grp = col?.grp, dur = items[0].e.dur;
+        const up = grp ? grp.up : items.reduce((sum, it) => sum + it.y, 0) / items.length > st.top + 24;
+        let prev: SrChordItem|null = null;
+        (up ? items : items.slice().reverse()).forEach((it) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
+        const lanes: number[][] = [];
+        items.slice().reverse().forEach((it) => {
+            if (!it.e.showAcc)
+                return;
+            let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
+            if (a < 0) {
+                a = lanes.length;
+                lanes.push([]);
+            }
+            lanes[a].push(it.y);
+            it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
+        });
+        const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
+        let stem = '';
+        if (col && grp) {
+            Object.assign(col, { x: nx, yHi: top.y, yLo: bot.y });
+            stem = `@@G${col.id}@@`;
+        }
+        else
+            stem = srStemLine(sx, (up ? bot : top).y, up ? top.y - 32 : bot.y + 32, dur, up);
+        const from0 = lastCol[st.hand] ?? [], ends: { note: SrStaffNote; e: SrNoteEvent; x: number; y: number; sy: number }[] = [];
+        const chord = items.length > 1, chordNames = names && chord ? items.map((it) => srSpellName(it.e.li, it.e.acc)).join(' ') : '';
+        let fresh = true;
+        items.forEach((it) => {
+            const e = it.e, from = e.tied ? from0.find((p) => p.e.li === e.li && p.e.oct === e.oct && p.e.acc === e.acc) : undefined;
+            let g = !from && fresh ? `<rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>` : '';
+            if (it.ax != null)
+                g += ssAccGlyph(e.acc, keyAcc[e.li], it.ax, it.y);
+            g += srLedger2(nx + it.dx, it.y, st.top) + ssNotehead(nx + it.dx, it.y, dur, (st.refStep - it.step) % 2 === 0);
+            if (it === (up ? bot : top))
+                g += stem;
+            if (from) {
+                // The tie bends away from the stem (outwards on a chord); over a system break it is drawn in two halves.
+                const below = chord ? it === bot : up;
+                const arc = from.sy === sy ? srTieArc(from.x, nx, it.y, below)
+                    : srTieArc(from.x, sysEnd[from.sy] - 2, from.y, below) + srTieArc(nx - 22, nx, it.y, below);
+                tiedMarkup.set(from.note.nid, (tiedMarkup.get(from.note.nid) ?? '') + `<g class="ss-tied">${g}</g>` + arc);
+                from.note.dur += e.dur;
+                ends.push({ note: from.note, e, x: nx, y: it.y, sy });
+                return;
+            }
+            let nm = '';
+            if (names && !chord)
+                nm = `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${srSpellName(e.li, e.acc)}</text>`;
+            else if (names && fresh) {
+                const lab = st.hand === 'rh' ? top.e : bot.e;
+                nm = `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${srSpellName(lab.li, lab.acc)}</text><title>${chordNames}</title>`;
+            }
+            fresh = false;
+            body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}">${g}${nm}@@T${nid}@@</g>`;
+            const staffNote: SrStaffNote = { nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y: it.y, li: e.li, oct: e.oct, acc: e.acc, sy };
+            notes.push(staffNote);
+            ends.push({ note: staffNote, e, x: nx, y: it.y, sy });
+            nid++;
+        });
+        lastCol[st.hand] = ends;
+    };
     beats.forEach((b, bi) => {
         const s = sysOfBar(barOf[bi]);
         if (s > sy) {
@@ -6737,19 +6992,27 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
             while (sy < s) {
                 x += 6;
                 body += barline(x, 1.3);
+                barX1[barOf[bi] - 1] = x;
                 beatX.push({ b, x, sy });
                 sysEnd[sy] = x;
                 openSystem(sy + 1);
             }
+            barLeft = x;
         }
         else if (bounds.some((v) => Math.abs(v - b) < 1e-3)) {
             x += 6;
             body += barline(x, 1.3);
+            barX1[barOf[bi] - 1] = barLeft = x;
             x += 12;
         }
+        barX0[barOf[bi]] = barLeft;
         const nx = x + 10;
         staves.forEach((st) => {
             const here = st.data.ev.filter((e) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e): e is SrNoteEvent => !e.rest && !!e.chord);
+            if (lv) {
+                drawLevel(st, here, nx, barOf[bi]);
+                return;
+            }
             if (chord.length) {
                 const items = chord.map((e): SrChordItem => ({ e, step: ssStepOf(e.li, e.oct), y: 0, dx: 0 })).sort((p, q) => p.step - q.step);
                 items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
@@ -6850,6 +7113,14 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     x += 6;
     beatX.push({ b: total, x, sy });
     sysEnd[sy] = x;
+    barX1[nBars - 1] = x - 11;
+    if (lv) {
+        body = srLevelBeams(body, lv.groups);
+        body = body.replace(/@@W(\d+)@@/g, (_, i: string) => {
+            const r = barRests[Number(i)], c = (barX0[r.m] + barX1[r.m]) / 2;
+            return `<rect class="ss-glyph ss-rest ss-rest-bar" x="${c - 6}" y="${r.top + 12}" width="12" height="5"/>`;
+        });
+    }
     const W = lay ? Math.max(...sysEnd) + 6 : Math.max(x + 6, 420);
     if (!lay)
         H = Math.max(lastSt.top + 48 + (names ? 38 : 22), 150);
@@ -20473,6 +20744,8 @@ Object.defineProperty(__etude, "show", { configurable: true, get: () => show, se
 Object.defineProperty(__etude, "theme", { configurable: true, get: () => theme, set: (value) => { theme = value; } });
 Object.defineProperty(__etude, "srtEvaluate", { configurable: true, value: srtEvaluate });
 Object.defineProperty(__etude, "srtGenerate", { configurable: true, value: srtGenerate });
+// For tests: the markup the engraver draws for a score, laid out for the Read paper (or a given layout).
+Object.defineProperty(__etude, "srRenderScore", { configurable: true, value: (score: SrScore, layout?: SrLayout) => srRender(score, layout ?? srPaper()).svg });
 Object.defineProperty(__etude, "srtFingerprint", { configurable: true, value: srtFingerprint });
 Object.defineProperty(__etude, "srtBuildExpected", { configurable: true, value: srtBuildExpected });
 Object.defineProperty(__etude, "srtLedgerUpdate", { configurable: true, value: srtLedgerUpdate });
