@@ -6,6 +6,7 @@ import {
 import { srtFingerprint, srtLevelFingerprint } from '../../src/sight-reading/fingerprint.ts';
 import { srtGenerate } from '../../src/sight-reading/generator.ts';
 import { srtKeyPool, srtLevel, srtReadingKey } from '../../src/sight-reading/levels.ts';
+import { srtHashText } from '../../src/sight-reading/melody.ts';
 import { srtMelodyLine } from '../../src/sight-reading/patterns.ts';
 import { srtRuleViolations, srtSubBand } from '../../src/sight-reading/rules.ts';
 
@@ -52,6 +53,18 @@ describe('the book of a level', () => {
         });
       }
     }
+    // Every key of a level's pool comes up in its book, and a mix starts with the keys that are new since the last one.
+    for (const level of LEVEL_IDS) {
+      const used = new Set(Array.from({ length: SRT_BOOK_PIECES }, (_, index) => srtBookEntry(level, index + 1).key));
+      expect([...used].sort(), `level ${level}`).toEqual(srtKeyPool(level).map((key) => key.id).sort());
+    }
+    const unitKeys = (level, unit) => Array.from({ length: 8 }, (_, position) => srtBookEntry(level, unit * 8 + position + 1).key);
+    expect(unitKeys(8, 3).slice(0, 2)).toEqual(['B', 'Db']);
+    expect(unitKeys(3, 3).slice(0, 2)).toEqual(['D', 'Bb']);
+    expect(unitKeys(1, 2)).toEqual(['C', 'G', 'C', 'G', 'C', 'G', 'C', 'G']);
+    expect(new Set(unitKeys(2, 0))).toEqual(new Set(['C', 'G', 'F']));
+    // Two mixes in a row do not serve the same keys again while others wait.
+    expect(new Set([...unitKeys(8, 3), ...unitKeys(8, 6), ...unitKeys(8, 9), ...unitKeys(8, 11)]).size).toBeGreaterThan(20);
     expect(() => srtBookEntry(1, 0)).toThrow(RangeError);
     expect(() => srtBookEntry(1, 97)).toThrow(RangeError);
     expect(() => srtBookEntry(1, 1.5)).toThrow(RangeError);
@@ -100,26 +113,36 @@ describe('the book of a level', () => {
       }
     }
     expect(twins).toBeGreaterThan(60);
-    // A few twins cannot be moved (the hands would cross): those are new pieces.
-    expect(exact / twins).toBeGreaterThan(0.85);
+    // A twin that cannot be moved (it would repeat a piece, or the hands would cross) is a new piece.
+    expect(exact / twins).toBeGreaterThan(0.95);
     expect(srtBookEntry(1, 20).twinOf).toBe(19);
     expect(srtBookEntry(1, 4).twinOf).toBeNull();
   }, LONG);
 
-  it('pins the generator: the book does not change unless these fingerprints are changed on purpose', () => {
-    const pins = LEVEL_IDS.map((level) => [1, 48, 96].map((number) => srtLevelFingerprint(srtBookPiece(level, number))).join(' '));
+  it('pins the generator: the books do not change unless these numbers are changed on purpose', () => {
+    // One number per level, made from the fingerprints of all 96 pieces.
+    const pins = LEVEL_IDS.map((level) => srtHashText(srtBook(level).map(srtLevelFingerprint).join()));
     expect(pins).toMatchInlineSnapshot(`
       [
-        "v2:5ca9acc3827471b5 v2:31a6ccff7491d460 v2:26fa4f03396a4049",
-        "v2:7f595a5d6906976c v2:41b5e246a542ac7c v2:c3200a85e890682f",
-        "v2:718c8345065aaa07 v2:04097095cbfb770f v2:433a1b9b5de1e58a",
-        "v2:eaf19f0b2a1b5b6f v2:d1a292011c866d39 v2:fc2b1781fd399e5e",
-        "v2:2c1f4e14bc0d4b24 v2:706ee2f29b3f6604 v2:497018f75112e1ba",
-        "v2:1cfdcd4481e09ebb v2:df4a4bd33cec68b8 v2:5985681d94cd4d67",
-        "v2:6255836b20fc2edc v2:6b3e38254464ef99 v2:ff15e3969caa2c1d",
-        "v2:11f5beb2890f2654 v2:4ae5e1b03f47ef95 v2:a4eee3ba01e5a2a5",
+        2214465659,
+        2624147564,
+        1857671205,
+        1365136171,
+        3710978033,
+        4167660912,
+        3084527163,
+        2382519365,
       ]
     `);
+  }, LONG);
+
+  it('builds only the pieces up to the one that is asked for', () => {
+    const early = srtBookPiece(5, 3);
+    expect(early.key.id).toBe(srtBookEntry(5, 3).key);
+    expect(srtBook(5)[2]).toBe(early);
+    expect(Object.isFrozen(early)).toBe(true);
+    expect(Object.isFrozen(early.events)).toBe(true);
+    expect(Object.isFrozen(early.events[0].pitches)).toBe(true);
   }, LONG);
 });
 
@@ -162,15 +185,20 @@ describe('the daily set', () => {
     }
   });
 
-  it('puts the newest key and the weakest key among the three level pieces', () => {
-    const plan = srtDailyPlan('2026-11-13', 3, { scores: { C: 95, G: 60, F: 90, D: 88 } });
+  it('leans on the newest and the weakest key that are not secure yet', () => {
+    const plan = srtDailyPlan('2026-11-13', 3, { scores: { C: 95, G: 60, F: 90, D: 70 } });
     expect(plan[1].key).toBe('D');
     expect(plan[2].key).toBe('G');
     expect(['C', 'F', 'Am', 'Dm', 'Bb', 'Em', 'Gm']).toContain(plan[3].key);
-    // Only one key played: it is both the newest and the weakest, and the pool fills the rest.
-    const one = srtDailyPlan('2026-11-13', 3, { scores: { C: 70 } });
+    // Only one key needs work: it comes first, and the pool fills the rest.
+    const one = srtDailyPlan('2026-11-13', 3, { scores: { C: 70, G: 90 } });
     expect(one[1].key).toBe('C');
     expect(new Set(one.slice(1, 4).map((slot) => slot.key)).size).toBe(3);
+    // Every key secure: the keys change from day to day.
+    const secure = Object.fromEntries(srtKeyPool(1).map((key) => [key.id, 95]));
+    const days = ['2026-11-13', '2026-11-14', '2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18'];
+    expect(new Set(days.map((day) => srtDailyPlan(day, 1, { scores: secure })[1].key)).size).toBeGreaterThan(1);
+    expect(new Set(days.map((day) => srtDailyPlan(day, 1, { scores: secure }).slice(1, 4).map((slot) => slot.key).join())).size).toBeGreaterThan(2);
   });
 
   it('keeps every piece in a pinned key', () => {
@@ -191,21 +219,31 @@ describe('the daily set', () => {
     expect(() => srtDailyPiece('today', srtDailyPlan('2026-11-13', 5)[0])).toThrow(RangeError);
   }, LONG);
 
-  it('G15: never repeats a piece of the book or a piece already seen', () => {
-    for (const level of [1, 4, 8]) {
-      for (const day of ['2026-11-13', '2026-12-01', '2027-01-20']) {
-        for (const slot of srtDailyPlan(day, level)) {
-          const piece = srtDailyPiece(day, slot);
-          const print = srtLevelFingerprint(piece);
-          expect(piece.level).toBe(slot.level);
-          expect(piece.key.id).toBe(slot.key);
-          expect(srtRuleViolations(piece)).toEqual([]);
-          expect(srtBook(slot.level).map(srtLevelFingerprint)).not.toContain(print);
-          const again = srtDailyPiece(day, slot, new Set([print]));
-          expect(srtLevelFingerprint(again)).not.toBe(print);
+  it('G15: never repeats a piece inside a set, a piece already seen, or a piece of a low level book', () => {
+    for (const level of [1, 2, 4, 8]) {
+      for (const day of ['2026-08-23', '2026-10-31', '2026-11-13', '2027-01-20']) {
+        for (const options of [{}, { focusKey: 'C' }]) {
+          const plan = srtDailyPlan(day, level, options);
+          const pieces = plan.map((slot) => srtDailyPiece(day, slot));
+          const prints = pieces.map(srtLevelFingerprint);
+          expect(new Set(prints).size, `${level} ${day}`).toBe(5);
+          pieces.forEach((piece, index) => {
+            expect(piece.level).toBe(plan[index].level);
+            expect(piece.key.id).toBe(plan[index].key);
+            expect(srtRuleViolations(piece)).toEqual([]);
+            if (piece.level <= 3) expect(srtBook(piece.level).map(srtLevelFingerprint)).not.toContain(prints[index]);
+          });
+          // The same plan gives the same pieces, whatever has been seen since.
+          expect(plan.map((slot) => srtLevelFingerprint(srtDailyPiece(day, slot)))).toEqual(prints);
+          // A plan made after those pieces were seen avoids every one of them.
+          const later = srtDailyPlan(day, level, { ...options, seen: new Set(prints) });
+          expect(later.map((slot) => slot.key)).toEqual(plan.map((slot) => slot.key));
+          expect(later.some((slot, index) => slot.salt !== plan[index].salt)).toBe(true);
+          for (const slot of later) expect(prints).not.toContain(srtLevelFingerprint(srtDailyPiece(day, slot)));
         }
       }
     }
+    for (const slot of srtDailyPlan('2026-11-13', 5)) expect(Number.isInteger(slot.salt) && slot.salt >= 0).toBe(true);
   }, LONG);
 });
 

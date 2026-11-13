@@ -19,7 +19,7 @@ describe('pattern recognisers', () => {
       ['leapFifth', quarters(0, 4, 3, 2), quarters(0, 3, 2, 1)],
       ['eighthRun', [[0, E], [1, E], [2, Q], [1, 2 * Q]], [[0, E], [2, E], [2, Q], [1, 2 * Q]]],
       ['dottedFigure', [[0, 3 * E], [1, E], [2, 2 * Q]], [[0, Q], [1, Q], [2, 2 * Q]]],
-      ['scaleShift', [0, 1, 2, 3, 4, 5, 6, 7].map((degree) => [degree, E]), [0, 1, 2, 3, 4, 3, 2, 1].map((degree) => [degree, E])],
+      ['scaleShift', [0, 1, 2, 3, 4, 5, 6, 7].map((degree) => [degree, E]), [0, 1, 2, 3, 4, 5, 4, 3].map((degree) => [degree, E])],
       ['sixteenthRun', [[0, S], [1, S], [2, S], [3, S], [4, Q], [3, 2 * Q]], [[0, S], [2, S], [1, S], [3, S], [4, Q], [3, 2 * Q]]],
       ['syncopation', [[0, E], [1, Q], [2, E], [1, 2 * Q]], [[0, Q], [1, Q], [2, 2 * Q]]],
       ['chromaticNeighbour', [[4, Q], [3, Q, 1], [4, Q], [2, Q]], quarters(4, 3, 4, 2)],
@@ -38,6 +38,10 @@ describe('pattern recognisers', () => {
   it('finds a long note, and none in a bar of short notes', () => {
     expect(found({ rh: [[[0, 2 * Q], [1, 2 * Q]], W], lh: [quarters(0, 0, 0, 0), W] })).toContain('longNote');
     expect(found({ rh: [quarters(0, 1, 2, 3), W], lh: [quarters(0, 1, 2, 3), W] })).not.toContain('longNote');
+    // It is the melody that counts: a held note under a moving melody is not a bar of long notes.
+    expect(found({ rh: [quarters(0, 1, 2, 3), W], lh: [W, W] })).not.toContain('longNote');
+    expect(found({ rh: [[[0, 2 * Q], [1, Q], [2, Q]], W], lh: [W, W] })).not.toContain('longNote');
+    expect(found({ rh: [W, W], lh: [quarters(0, 1, 2, 3), W], melody: ['lh', 'rh'] })).not.toContain('longNote');
     // In 3/8 the longest note is the bar itself.
     expect(found({ meter: [3, 8], rh: [[[0, 3 * E]], [[0, 3 * E]]], lh: [[[0, 3 * E]], [[0, 3 * E]]] })).toContain('longNote');
   });
@@ -93,15 +97,27 @@ describe('pattern recognisers', () => {
     expect(found({ rh: [pickup, W], lh: [undefined, W], upbeat: true }, 1)).not.toContain('upbeat');
   });
 
+  it('finds a scale run of seven notes that starts in the bar before', () => {
+    const lh = [W, W];
+    const across = { rh: [quarters(2, 0, 1, 2), quarters(3, 4, 5, 6)], lh };
+    expect(found(across, 1)).toContain('scaleShift');
+    expect(found(across, 0)).not.toContain('scaleShift');
+    // Six notes fit under the hand: no change of position.
+    expect(found({ rh: [quarters(2, 2, 1, 2), quarters(3, 4, 5, 6)], lh }, 1)).not.toContain('scaleShift');
+    // A rest breaks the run.
+    expect(found({ rh: [quarters(2, 0, 1, 2), [[3, Q], [null, Q], [4, Q], [5, Q]]], lhFlat: [[0, 8 * Q]] }, 1)).not.toContain('scaleShift');
+    expect(found({ rh: [quarters(2, 7, 6, 5), quarters(4, 3, 2, 1)], lh }, 1)).toContain('scaleShift');
+  });
+
   it('does not call the raised leading note of a minor key a chromatic neighbour', () => {
     expect(found({ key: 'Am', rh: [[[7, Q], [6, Q, 1], [7, Q], [5, Q]], W], lh: [W, W] })).not.toContain('chromaticNeighbour');
   });
 
   it('lists only the patterns the level knows', () => {
-    const skips = { bars: 4, rh: [quarters(0, 2, 0, 2), quarters(0, 1, 2, 1)], lh: [undefined, undefined, quarters(0, 1, 2, 1), W] };
+    const skips = { bars: 4, melody: ['rh', 'rh', 'lh', 'lh'], rh: [quarters(0, 2, 0, 2), quarters(0, 1, 2, 1)], lh: [undefined, undefined, quarters(0, 1, 2, 1), W] };
     expect(srtBarPatterns(planned({ level: 1, ...skips }))[0]).toEqual([]);
     expect(srtBarPatterns(planned({ level: 2, ...skips }))[0]).toEqual(['skip']);
-    expect(srtBarPatterns(planned({ level: 1, ...skips }))[1]).toEqual(['stepRun']);
+    expect(srtBarPatterns(planned({ level: 1, ...skips }))[1]).toEqual(['stepRun', 'neighbour']);
     expect(srtBarPatterns(planned({ level: 1, ...skips }))[3]).toEqual(['longNote']);
   });
 });

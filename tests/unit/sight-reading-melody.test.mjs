@@ -88,9 +88,14 @@ describe('level piece generator', () => {
   it('raises the seventh of a minor key from level 6, and never in G sharp minor', () => {
     const raised = (piece) => srtMelodyLine(piece).some((note) => note.alter === 1 && ((note.line % 7) + 7) % 7 === 6);
     const minor = (level) => ofLevel(level).filter((piece) => piece.key.mode === 'minor' && piece.key.id !== 'G#m');
-    expect(share(minor(6), raised)).toBeGreaterThan(0.12);
-    expect(share(minor(7), raised)).toBeGreaterThan(0.5);
-    expect(share(minor(8), raised)).toBeGreaterThan(0.5);
+    expect(share(minor(6), raised)).toBeGreaterThan(0.06);
+    expect(share(minor(7), raised)).toBeGreaterThan(0.35);
+    expect(share(minor(8), raised)).toBeGreaterThan(0.35);
+    // A piece has only a few raised sevenths: at most one for every four bars.
+    for (const piece of pieces().filter((item) => item.key.mode === 'minor')) {
+      const count = srtMelodyLine(piece).filter((note) => note.alter === 1 && ((note.line % 7) + 7) % 7 === 6).length;
+      expect(count).toBeLessThanOrEqual(Math.ceil(piece.bars / 4));
+    }
     expect(share(minor(5), raised)).toBe(0);
     for (const piece of pieces().filter((item) => item.key.id === 'G#m')) expect(raised(piece)).toBe(false);
     // The left hand leaves the seventh of a minor key to the melody.

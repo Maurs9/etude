@@ -2,10 +2,10 @@
 // Each rule is a function that returns what is wrong with a piece: an empty list means the rule holds.
 import {
   srtLevel, srtLevelViolations, srtMeterTicks, srtStrongOnsets,
-  type ReadingLevel, type ReadingPatternId,
+  type ReadingLevel, type ReadingMeter, type ReadingPatternId,
 } from './levels.js';
 import {
-  srtBarPatterns, srtChordAt, srtChordTones, srtHandLine, srtMelodyLine, srtMelodyRhythm,
+  srtBarPatterns, srtChordAt, srtChordTones, srtHandLine, srtIsPassing, srtMelodyLine, srtMelodyRhythm,
   type LineNote, type PlannedPiece,
 } from './patterns.js';
 
@@ -20,9 +20,18 @@ export type RuleViolation = { readonly rule: RuleId; readonly detail: string };
 
 const HALF = 960;
 const QUARTER = 480;
+const EIGHTH = 240;
 const mod7 = (value: number): number => ((value % 7) + 7) % 7;
 /** Intervals between the bass and the melody that sound settled: unison or octave, third, fifth, sixth (and tenth). */
 const CONSONANT = [0, 2, 4, 5];
+
+/**
+ * The places in a bar where a note must be a note of the chord. Level 1 moves by step only, and two chord notes
+ * are never a step apart, so there only the first beat counts.
+ */
+export function srtChordBeats(levelId: number, meter: ReadingMeter): readonly number[] {
+  return levelId === 1 ? [0] : srtStrongOnsets(meter);
+}
 
 /** The first bar that is not an upbeat bar. */
 const firstFullBar = (piece: PlannedPiece): number => (piece.upbeat ? 1 : 0);
@@ -50,7 +59,7 @@ export function srtHandSpan(level: ReadingLevel): number {
 
 /**
  * The fewest position changes a hand needs for its notes, or null when no fingering exists.
- * A hand may change position after a rest, after a note of a quarter or longer, at the start of a bar,
+ * A hand may change position after a rest, after a note of a quarter or longer, at a barline after an eighth,
  * or between two notes a step apart (the thumb passes under, as in a scale).
  */
 export function srtMinShifts(notes: readonly LineNote[], span: number): number | null {
@@ -60,7 +69,8 @@ export function srtMinShifts(notes: readonly LineNote[], span: number): number |
   best[0] = 0;
   for (let start = 0; start < count; start += 1) {
     if (!Number.isFinite(best[start])) continue;
-    if (start > 0 && !(notes[start].afterRest || notes[start - 1].duration >= QUARTER || notes[start].bar !== notes[start - 1].bar ||
+    if (start > 0 && !(notes[start].afterRest || notes[start - 1].duration >= QUARTER ||
+        (notes[start].bar !== notes[start - 1].bar && notes[start - 1].duration >= EIGHTH) ||
         Math.abs(notes[start].line - notes[start - 1].line) === 1)) continue;
     let low = Number.POSITIVE_INFINITY;
     let high = Number.NEGATIVE_INFINITY;
@@ -107,14 +117,14 @@ export function srtDifficulty(piece: PlannedPiece): number {
  * A score compares pieces of one level. It does not compare levels.
  */
 export const SRT_LEVEL_BANDS: Readonly<Record<number, readonly [number, number, number, number]>> = {
-  1: [2, 2.5, 2.75, 3.25],
-  2: [1.99, 2.58, 3.02, 3.6],
-  3: [3.83, 4.47, 5.03, 6.1],
-  4: [4.42, 5.85, 6.65, 8.13],
-  5: [6.04, 7.55, 8.48, 10.24],
-  6: [7.73, 9.85, 11.16, 13.22],
-  7: [8.47, 11.86, 14.37, 18.48],
-  8: [8.64, 11.26, 13.1, 16.43],
+  1: [2.25, 2.63, 2.88, 3.13],
+  2: [1.99, 2.65, 3.08, 3.68],
+  3: [3.85, 4.46, 4.93, 5.94],
+  4: [4.22, 5.8, 6.63, 7.9],
+  5: [6.04, 7.34, 8.15, 9.53],
+  6: [7.78, 9.95, 11.05, 13.03],
+  7: [7.68, 10.86, 12.9, 17.04],
+  8: [7.85, 10.48, 12.13, 15.26],
 };
 
 /** The score range of a third of a level's band: 0 is the easiest third, 2 the hardest. */
@@ -141,10 +151,14 @@ const CHECKS: Readonly<Record<RuleId, Check>> = {
 
   G4: (piece) => {
     const { bar } = srtMeterTicks(piece.meter);
-    const strong = srtStrongOnsets(piece.meter);
-    return [srtHandLine(piece, 'rh'), srtHandLine(piece, 'lh')].flat()
-      .filter((note) => strong.includes(note.onset % bar) &&
-        note.degrees.some((degree) => !srtChordTones(srtChordAt(piece, note.onset)).includes(mod7(degree))))
+    const strong = srtChordBeats(piece.level, piece.meter);
+    // An altered note is not a chord note, except the raised seventh of a minor key: it is the third of V.
+    const fits = (degree: number, alter: number, tones: readonly number[]): boolean => tones.includes(mod7(degree)) &&
+      (alter === 0 || (piece.key.mode === 'minor' && alter === 1 && mod7(degree) === 6));
+    // On the second strong beat of a bar a passing note inside a run by step is allowed.
+    return [srtHandLine(piece, 'rh'), srtHandLine(piece, 'lh')].flatMap((line) => line.filter((note, at) =>
+      strong.includes(note.onset % bar) && !(note.onset % bar !== 0 && srtIsPassing(line, at)) &&
+      note.degrees.some((degree, index) => !fits(degree, note.alters[index], srtChordTones(srtChordAt(piece, note.onset))))))
       .map((note) => `strong-beat note outside the chord at tick ${note.onset}`);
   },
 
@@ -222,7 +236,7 @@ const CHECKS: Readonly<Record<RuleId, Check>> = {
     const level = srtLevel(piece.level);
     if (level.hands !== 'oneMoves' && level.hands !== 'together') return [];
     const { bar } = srtMeterTicks(piece.meter);
-    const strong = srtStrongOnsets(piece.meter);
+    const strong = srtChordBeats(piece.level, piece.meter);
     const right = srtHandLine(piece, 'rh');
     const left = srtHandLine(piece, 'lh');
     const sounding = (line: readonly LineNote[], tick: number): LineNote | undefined =>
@@ -234,7 +248,13 @@ const CHECKS: Readonly<Record<RuleId, Check>> = {
       const lower = sounding(left, tick);
       if (!upper || !lower) continue;
       if (Math.min(...upper.midis) <= Math.max(...lower.midis)) out.push(`the hands cross at tick ${tick}`);
-      if (strong.includes(tick % bar) && !CONSONANT.includes(mod7(upper.line - lower.line))) out.push(`dissonance between the hands at tick ${tick}`);
+      // The same note with two different accidentals at once (G sharp over G): a false relation.
+      if (upper.degrees.some((degree, i) => lower.degrees.some((other, j) => mod7(degree) === mod7(other) && upper.alters[i] !== lower.alters[j]))) {
+        out.push(`the hands disagree on an accidental at tick ${tick}`);
+      }
+      const passing = tick % bar !== 0 && ((upper.onset === tick && srtIsPassing(right, right.indexOf(upper))) ||
+        (lower.onset === tick && srtIsPassing(left, left.indexOf(lower))));
+      if (strong.includes(tick % bar) && !passing && !CONSONANT.includes(mod7(upper.line - lower.line))) out.push(`dissonance between the hands at tick ${tick}`);
     }
     return out;
   },

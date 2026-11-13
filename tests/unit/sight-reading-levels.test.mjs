@@ -215,8 +215,8 @@ describe('reading levels', () => {
     expect(LEVEL_IDS.map((id) => srtLevel(id).gridTicks)).toEqual([480, 480, 240, 240, 240, 120, 120, 120]);
     expect(LEVEL_IDS.map((id) => srtLevel(id).bpm)).toEqual([66, 66, 72, 63, 66, 66, 60, 72]);
     expect(LEVEL_IDS.map((id) => srtLevel(id).newPatterns.join(' '))).toEqual([
-      'stepRun repeatedNote longNote',
-      'skip neighbour',
+      'stepRun repeatedNote longNote neighbour',
+      'skip',
       'brokenTriad leapFifth eighthRun sequence',
       'heldNote tie',
       'parallelMotion contraryMotion dottedFigure',
@@ -245,7 +245,7 @@ describe('reading levels', () => {
   it('gives every level new patterns and keeps the earlier ones', () => {
     const all = srtLevelPatterns(8);
     expect(new Set(all).size).toBe(all.length);
-    expect(srtLevel(1).newPatterns).toEqual(['stepRun', 'repeatedNote', 'longNote']);
+    expect(srtLevel(1).newPatterns).toEqual(['stepRun', 'repeatedNote', 'longNote', 'neighbour']);
     for (const id of LEVEL_IDS) {
       expect(srtLevel(id).newPatterns.length, `level ${id}`).toBeGreaterThan(0);
       const expected = LEVEL_IDS.filter((other) => other <= id).flatMap((other) => srtLevel(other).newPatterns);

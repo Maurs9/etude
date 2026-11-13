@@ -38,7 +38,7 @@ const mod7 = (value: number): number => ((value % 7) + 7) % 7;
 
 /** In canonical order: the order in which a bar lists its patterns. */
 const ALL_PATTERNS: readonly ReadingPatternId[] = [
-  'stepRun', 'repeatedNote', 'longNote', 'skip', 'neighbour', 'brokenTriad', 'leapFifth', 'eighthRun', 'sequence',
+  'stepRun', 'repeatedNote', 'longNote', 'neighbour', 'skip', 'brokenTriad', 'leapFifth', 'eighthRun', 'sequence',
   'heldNote', 'tie', 'parallelMotion', 'contraryMotion', 'dottedFigure', 'scaleShift', 'twoNoteChord', 'sixteenthRun',
   'chromaticNeighbour', 'brokenChordBass', 'upbeat', 'syncopation', 'chordsBothHands',
 ];
@@ -93,6 +93,19 @@ function readHandLine(piece: LevelPiece, hand: SightReadingHand): readonly LineN
     afterRest = false;
   }
   return notes;
+}
+
+/**
+ * True for a passing note: a note reached by step and left by step in the same direction, with no rest around it.
+ * Inside a run by step such a note may fall on the second strong beat of a bar without being a note of the chord.
+ */
+export function srtIsPassing(line: readonly LineNote[], index: number): boolean {
+  const note = line[index];
+  const before = line[index - 1];
+  const after = line[index + 1];
+  if (!note || !before || !after || note.afterRest || after.afterRest || note.degrees.length !== 1) return false;
+  const step = note.line - before.line;
+  return Math.abs(step) === 1 && after.line - note.line === step && note.alter === 0;
 }
 
 /** The melody of the piece: in each bar, the notes of the hand that carries it. */
@@ -162,7 +175,11 @@ export function srtMelodyRhythm(piece: PlannedPiece, bar: number): string {
 const RECOGNISERS: Readonly<Record<ReadingPatternId, (view: BarView) => boolean>> = {
   stepRun: (view) => [view.rh, view.lh].some((notes) => hasRun(notes, 3, sameMove([1, -1]))),
   repeatedNote: (view) => [view.rh, view.lh].some((notes) => hasRun(notes, 2, (a, b) => move(a, b) === 0 && a.alter === b.alter)),
-  longNote: (view) => [...view.rh, ...view.lh].some((note) => note.duration >= Math.min(HALF, view.end - view.start)),
+  // A bar of long notes: every note of the melody is a half note or longer (or fills the bar when the bar is shorter).
+  longNote: (view) => {
+    const notes = view.piece.melody[view.index] === 'lh' ? view.lh : view.rh;
+    return notes.length > 0 && notes.every((note) => note.duration >= Math.min(HALF, view.end - view.start));
+  },
   skip: (view) => [view.rh, view.lh].some((notes) => hasRun(notes, 2, (a, b) => Math.abs(move(a, b)) === 2)),
   neighbour: (view) => [view.rh, view.lh].some((notes) => notes.some((note, index) => index >= 2 && !note.afterRest && !notes[index - 1].afterRest &&
     note.line === notes[index - 2].line && Math.abs(move(notes[index - 1], note)) === 1 &&
@@ -191,8 +208,20 @@ const RECOGNISERS: Readonly<Record<ReadingPatternId, (view: BarView) => boolean>
   contraryMotion: (view) => movesTogether(view, -1),
   dottedFigure: (view) => view.piece.meter.den === 4 && [view.rh, view.lh].some((notes) =>
     hasRun(notes, 2, (a, b) => a.duration === 3 * EIGHTH && b.duration === EIGHTH)),
-  scaleShift: (view) => [view.rh, view.lh].some((notes) => notes.length > 0 &&
-    Math.max(...notes.map((note) => note.line)) - Math.min(...notes.map((note) => note.line)) >= 5 && hasRun(notes, 4, sameMove([1, -1]))),
+  // Seven notes by step in one direction, the seventh in this bar: one more than the hand covers without moving,
+  // so the hand changes position inside the run. The run may begin in the bar before.
+  scaleShift: (view) => (['rh', 'lh'] as const).some((hand) => {
+    const line = view.lines[hand];
+    return line.some((note, index) => {
+      if (note.bar !== view.index || index < 6) return false;
+      const step = note.line - line[index - 1].line;
+      if (Math.abs(step) !== 1) return false;
+      for (let back = 0; back < 6; back += 1) {
+        if (line[index - back].afterRest || line[index - back].line - line[index - back - 1].line !== step) return false;
+      }
+      return true;
+    });
+  }),
   twoNoteChord: (view) => [...view.rh, ...view.lh].some((note) => note.degrees.length === 2),
   sixteenthRun: (view) => [view.rh, view.lh].some((notes) =>
     hasRun(notes, 4, (a, b) => a.duration === SIXTEENTH && b.duration === SIXTEENTH && Math.abs(move(a, b)) === 1)),

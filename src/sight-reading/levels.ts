@@ -18,8 +18,8 @@ export type ReadingKeyId =
 /** keyN counts the sharps (positive) or flats (negative) of the signature. A minor key is written in its natural form. */
 export type ReadingKey = { readonly id: ReadingKeyId; readonly tonic: string; readonly mode: 'major' | 'minor'; readonly keyN: number };
 export type ReadingPatternId =
-  | 'stepRun' | 'repeatedNote' | 'longNote'
-  | 'skip' | 'neighbour'
+  | 'stepRun' | 'repeatedNote' | 'longNote' | 'neighbour'
+  | 'skip'
   | 'brokenTriad' | 'leapFifth' | 'eighthRun' | 'sequence'
   | 'heldNote' | 'tie'
   | 'parallelMotion' | 'contraryMotion' | 'dottedFigure'
@@ -92,10 +92,10 @@ const M68: ReadingMeter = { num: 6, den: 8 };
 const ONE_NOTE = { rh: 1, lh: 1 } as const;
 
 /** Freezes a table and everything in it, so a caller cannot change the limits of a level. */
-function deepFreeze<T>(value: T): T {
+export function srtDeepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value);
-    for (const child of Object.values(value) as unknown[]) deepFreeze(child);
+    for (const child of Object.values(value) as unknown[]) srtDeepFreeze(child);
   }
   return value;
 }
@@ -103,20 +103,20 @@ function deepFreeze<T>(value: T): T {
 /** Longest piece the check will look at. The levels use 12 bars at most. */
 const MAX_BARS = 64;
 
-const LEVELS: readonly ReadingLevel[] = deepFreeze([
+const LEVELS: readonly ReadingLevel[] = srtDeepFreeze([
   {
     id: 1, hands: 'blocks', degrees: [0, 4], maxLeap: 1,
     noteTicks: [WHOLE, HALF, QUARTER], restTicks: [], gridTicks: QUARTER,
     meters: [M44], bars: [4], bpm: 66,
     tieOverBar: false, upbeat: false, syncopation: false, leadingTone: false, maxChromatic: 0, chord: ONE_NOTE,
-    newKeys: ['C', 'G', 'F', 'Am', 'Dm'], newPatterns: ['stepRun', 'repeatedNote', 'longNote'],
+    newKeys: ['C', 'G', 'F', 'Am', 'Dm'], newPatterns: ['stepRun', 'repeatedNote', 'longNote', 'neighbour'],
   },
   {
     id: 2, hands: 'blocks', degrees: [0, 4], maxLeap: 2,
     noteTicks: [WHOLE, DOTTED_HALF, HALF, QUARTER], restTicks: [QUARTER], gridTicks: QUARTER,
     meters: [M44, M34], bars: [4], bpm: 66,
     tieOverBar: false, upbeat: false, syncopation: false, leadingTone: false, maxChromatic: 0, chord: ONE_NOTE,
-    newKeys: [], newPatterns: ['skip', 'neighbour'],
+    newKeys: [], newPatterns: ['skip'],
   },
   {
     id: 3, hands: 'alternate', degrees: [0, 4], maxLeap: 4,
@@ -163,7 +163,7 @@ const LEVELS: readonly ReadingLevel[] = deepFreeze([
 ]);
 
 // In learning order: fewest sharps or flats first.
-const KEYS: readonly ReadingKey[] = deepFreeze([
+const KEYS: readonly ReadingKey[] = srtDeepFreeze([
   { id: 'C', tonic: 'C', mode: 'major', keyN: 0 },
   { id: 'G', tonic: 'G', mode: 'major', keyN: 1 },
   { id: 'F', tonic: 'F', mode: 'major', keyN: -1 },

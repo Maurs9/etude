@@ -1,6 +1,6 @@
 // What the Read page remembers about the book, the key runs and the daily set. Everything here is a pure function of
 // a state object: the app keeps the state under `data.reading.book` and saves it with the rest of its data.
-import { SRT_BOOK_PIECES, SRT_DAILY_PIECES, SRT_FOCUS_PIECES, srtDailyPlan, type DailySlot } from './book.js';
+import { SRT_BOOK_PIECES, SRT_DAILY_PIECES, SRT_FOCUS_PIECES, SRT_SECURE_SCORE, srtDailyPlan, type DailySlot } from './book.js';
 import { srtKeyPool, srtReadingKeys, type ReadingKeyId } from './levels.js';
 
 export type PieceStat = {
@@ -50,8 +50,7 @@ export type ReadingResult = {
   readonly date: string;
 };
 
-/** The score a key or a level must reach, on average, to count as secure. */
-export const SRT_SECURE_SCORE = 85;
+export { SRT_SECURE_SCORE };
 const KEY_SCORES = 8;
 const LEVEL_SCORES = 16;
 const MIN_KEY_SCORES = 4;
@@ -83,7 +82,8 @@ function readDaily(value: unknown): DailyState | null {
   const slots = asList(value.slots).flatMap((item, index): DailySlot[] => {
     if (!isRecord(item) || !isLevel(item.level) || !isKey(item.key)) return [];
     const role = item.role === 'easier' || item.role === 'stretch' ? item.role : 'level';
-    return [{ slot: index, role, level: item.level, key: item.key }];
+    const salt = typeof item.salt === 'number' && Number.isInteger(item.salt) && item.salt >= 0 ? item.salt : 0;
+    return [{ slot: index, role, level: item.level, key: item.key, salt }];
   });
   if (slots.length !== SRT_DAILY_PIECES) return null;
   const done = asList(value.done);
@@ -224,11 +224,15 @@ export function srtStreak(state: ReadingBookState, today: string): number {
 /**
  * The state with the daily set of a date. A set stays as it is for the whole day.
  * It is drawn again only when the reader changes the level or the pinned key.
+ * `seen` holds the fingerprints of the pieces the reader has seen: a new set avoids them.
  */
-export function srtEnsureDaily(state: ReadingBookState, date: string): ReadingBookState {
+export function srtEnsureDaily(state: ReadingBookState, date: string, seen?: ReadonlySet<string>): ReadingBookState {
   const daily = state.daily;
   if (daily && daily.date === date && daily.level === state.level && daily.focusKey === state.focusKey) return state;
-  const slots = srtDailyPlan(date, state.level, state.focusKey ? { focusKey: state.focusKey } : { scores: srtKeyScores(state, state.level) });
+  const slots = srtDailyPlan(date, state.level, {
+    ...(state.focusKey ? { focusKey: state.focusKey } : { scores: srtKeyScores(state, state.level) }),
+    ...(seen ? { seen } : {}),
+  });
   return { ...state, daily: { date, level: state.level, focusKey: state.focusKey, slots, done: slots.map(() => null) } };
 }
 

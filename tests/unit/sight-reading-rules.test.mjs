@@ -39,6 +39,23 @@ describe('rules G3 to G10: chords and melody', () => {
   it('G4: a note on a strong beat is a note of the chord', () => {
     expect(broken('G4', base({ rh: [quarters(1, 1, 2, 1), undefined, quarters(1, 2, 1, 2)] }))).toBe(true);
     expect(broken('G4', base({ rh: [quarters(0, 1, 3, 1), undefined, quarters(1, 2, 1, 2)] }))).toBe(true);
+    // On beat 3 a note outside the chord may pass through a run by step. On beat 1 it may not.
+    expect(broken('G4', base({ rh: [quarters(2, 2, 3, 4), undefined, quarters(1, 2, 1, 2)] }))).toBe(false);
+    expect(broken('G4', base({ rh: [quarters(4, 4, 3, 2), undefined, quarters(1, 2, 1, 2)] }))).toBe(false);
+    expect(broken('G4', base({ rh: [quarters(2, 2, 3, 2), undefined, quarters(1, 2, 1, 2)] }))).toBe(true);
+    expect(broken('G4', base({ rh: [quarters(2, 1, 3, 2), undefined, quarters(1, 2, 1, 2)] }))).toBe(true);
+    expect(broken('G4', base({ rh: [quarters(1, 2, 2, 1), undefined, quarters(1, 2, 1, 2)] }))).toBe(true);
+    // An altered note is not a chord note, except the raised seventh of a minor key over V.
+    const altered = (key, degree, alter) => generated({ level: 8, key, bars: 2, chords: [[4, 4], [0, 0]], rh: [[[degree, 4 * Q, alter]], W], lh: [[[4, 4 * Q]], W] });
+    expect(broken('G4', altered('C', 4, 1))).toBe(true);
+    expect(broken('G4', altered('C', 4, 0))).toBe(false);
+    expect(broken('G4', altered('Am', 6, 1))).toBe(false);
+    expect(broken('G4', altered('C', 6, 1))).toBe(true);
+    // Level 1 moves by step only, so only beat 1 must be a chord note.
+    const one = (third) => generated({ level: 1, bars: 4, melody: ['rh', 'rh', 'lh', 'lh'], chords: [[0, 0], [4, 4], [4, 4], [0, 0]],
+      rh: [quarters(0, 1, third, 1), quarters(1, 2, 1, 1)], lh: [undefined, undefined, quarters(1, 2, 1, 2), CLOSE] });
+    expect(broken('G4', one(1))).toBe(false);
+    expect(broken('G4', { ...one(1), level: 2 })).toBe(true);
     // Beats 2 and 4 are free.
     expect(broken('G4', base({ rh: [quarters(0, 3, 2, 3), undefined, quarters(1, 2, 1, 2)] }))).toBe(false);
     // The chord of the second half of the bar governs beat 3.
@@ -126,6 +143,15 @@ describe('rules G11 to G13: two hands, fingering, spelling', () => {
     // In C the hands are an octave apart: left-hand degree 7 is middle C, the note of the right hand.
     expect(srtCheckRule('G11', two([[7, 4 * Q]])).join()).toContain('cross');
     expect(broken('G11', two([[7, 4 * Q]], 'G'))).toBe(false);
+    // The same note with two different accidentals at once.
+    const clash = (alter) => generated({ level: 8, key: 'G', bars: 2, chords: [[4, 4], [0, 0]], rh: [[[4, 2 * Q], [4, 2 * Q, alter]], W], lh: [[[4, 2 * Q], [4, 2 * Q]], W] });
+    expect(srtCheckRule('G11', clash(1)).join()).toContain('accidental');
+    expect(broken('G11', clash(0))).toBe(false);
+    // A passing note on beat 3 is not measured against the bass.
+    expect(broken('G11', two([[0, 4 * Q]]))).toBe(false);
+    const passing = (rh) => generated({ level: 6, bars: 2, rh: [rh, W], lh: [[[0, 2 * Q], [0, 2 * Q]], W] });
+    expect(broken('G11', passing(quarters(2, 2, 3, 4)))).toBe(false);
+    expect(broken('G11', passing(quarters(2, 2, 3, 2)))).toBe(true);
     // One hand at a time: nothing to compare.
     expect(broken('G11', { ...two([[4, 4 * Q]]), level: 3 })).toBe(false);
   });
@@ -157,6 +183,10 @@ describe('rules G11 to G13: two hands, fingering, spelling', () => {
     expect(shifts(quarters(0, 5, 0, 5), 5)).toBe(0);
     expect(shifts([[0, E], [5, E], [0, 3 * Q]])).toBe(null);
     expect(shifts([[0, E], [null, E], [7, 3 * Q]])).toBe(1);
+    // At a barline the hand may move after an eighth, not after a sixteenth.
+    const over = (ticks) => srtMinShifts(srtHandLine(generated({ level: 8, bars: 2, rhFlat: [[0, 4 * Q - ticks], [1, ticks], [9, 4 * Q]], lh: [W, W] }), 'rh'), 4);
+    expect(over(E)).toBe(1);
+    expect(over(E / 2)).toBe(null);
     expect(srtMinShifts([], 4)).toBe(0);
     expect([1, 4, 5, 6, 8].map((id) => srtHandSpan(srtLevel(id)))).toEqual([4, 4, 5, 5, 5]);
     expect([5, 6, 7, 8].map((id) => srtShiftLimit(srtLevel(id), 8))).toEqual([0, 2, 4, 6]);
@@ -208,7 +238,7 @@ describe('rules G14 and G16: difficulty and patterns', () => {
     expect(srtCheckRule('G16', sequence)).toEqual([]);
     expect(srtCheckRule('G16', { ...sequence, patterns: sequence.patterns.map((bar) => bar.filter((pattern) => pattern !== 'sequence')) }).join()).toContain('stored patterns');
     expect(srtCheckRule('G16', base()).join()).toContain('no new pattern');
-    const zigzag = generated({ level: 1, bars: 4, melody: ['rh', 'rh', 'lh', 'lh'], rh: [quarters(0, 1, 0, 1), quarters(0, 1, 2, 2)], lh: [undefined, undefined, quarters(2, 1, 2, 1), CLOSE] });
+    const zigzag = generated({ level: 1, bars: 4, melody: ['rh', 'rh', 'lh', 'lh'], rh: [quarters(0, 2, 0, 2), quarters(0, 1, 2, 2)], lh: [undefined, undefined, quarters(2, 1, 2, 1), CLOSE] });
     expect(srtCheckRule('G16', zigzag).join()).toContain('bar 1 shows no pattern');
   });
 

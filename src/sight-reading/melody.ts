@@ -2,12 +2,12 @@
 // hand), spells it in the key, and keeps it only when every rule of rules.ts holds.
 // The same level, key and seed always give the same piece (rule G1).
 import {
-  srtDegreePitch, srtLevel, srtMeterTicks, srtPitchPlace, srtReadingKey, srtStrongOnsets,
+  srtDeepFreeze, srtDegreePitch, srtLevel, srtMeterTicks, srtPitchPlace, srtReadingKey,
   type ReadingKey, type ReadingLevel, type ReadingMeter,
 } from './levels.js';
 import type { SightReadingEvent, SightReadingHand } from './model.js';
 import { srtBarPatterns, srtChordTones, type PlannedPiece } from './patterns.js';
-import { srtDifficulty, srtPhraseBars, srtRuleViolations, type GeneratedPiece } from './rules.js';
+import { srtChordBeats, srtDifficulty, srtPhraseBars, srtRuleViolations, type GeneratedPiece } from './rules.js';
 
 export type GenerateOptions = {
   /** A narrower difficulty range than the band of the level. */
@@ -81,7 +81,7 @@ const BODY: Readonly<Record<string, readonly Cell[]>> = {
     cell(2, 'dh q', 2), cell(2, 'q q q -q', 2), cell(2, 'h q -q', 2),
     cell(3, 'e e q q q', 3), cell(3, 'q q e e q', 3), cell(3, 'e e q h', 3), cell(3, 'q e e h', 3), cell(3, 'e e e e h', 3), cell(3, 'e e q e e q', 3),
     cell(5, 'dq e q q', 5), cell(5, 'dq e h', 5), cell(5, 'q q dq e', 5), cell(5, 'dq e dq e', 5), cell(5, 'dq e e e q', 5),
-    cell(6, 's s s s q h', 6), cell(6, 'q s s s s h', 6), cell(6, 's s s s e e h', 6), cell(6, 'e s s q h', 6), cell(6, 's s s s q q q', 6), cell(6, 'e e s s s s q q', 6),
+    cell(6, 's s s s q h', 6), cell(6, 'q s s s s h', 6), cell(6, 's s s s e e h', 6), cell(6, 'e s s q h', 6), cell(6, 's s s s q q q', 6), cell(6, 'e e s s s s q q', 6), cell(6, 'e e e e e e e e', 6),
     cell(8, 'e q e h', 8), cell(8, 'e q e q q', 8), cell(8, 'q h q', 8), cell(8, 'e q q q e', 8), cell(8, 'q q e q e', 8),
   ],
   '3/4': [
@@ -159,7 +159,7 @@ function planRhythm(level: ReadingLevel, meter: ReadingMeter, bars: number, upbe
 // ---------------------------------------------------------------- chords
 
 type ChordBars = readonly (readonly number[])[];
-const OPEN2: readonly ChordBars[] = [[[0], [4]], [[0], [3, 4]], [[0], [0, 4]]];
+const OPEN2: readonly ChordBars[] = [[[0], [4]], [[0], [3, 4]], [[0], [0, 4]], [[0], [3]], [[0], [0]]];
 const CLOSE2: readonly ChordBars[] = [[[4], [0]], [[3, 4], [0]], [[0, 4], [0]]];
 const OPEN3: readonly ChordBars[] = [[[0], [3], [4]], [[0], [0], [4]], [[0], [0, 3], [4]]];
 const CLOSE3: readonly ChordBars[] = [[[0], [4], [0]], [[3], [4], [0]], [[0], [3, 4], [0]]];
@@ -169,11 +169,11 @@ const MIDDLE4: readonly ChordBars[] = [[[3], [0], [3], [4]], [[0], [5], [1], [4]
 const CLOSE4: readonly ChordBars[] = [[[0], [3], [4], [0]], [[0], [3], [0, 4], [0]], [[3], [0], [4], [0]], [[0], [4], [4], [0]]];
 const CLOSE4_RICH: readonly ChordBars[] = [[[0], [1], [4], [0]], [[5], [3], [4], [0]]];
 
-function planChords(level: ReadingLevel, meter: ReadingMeter, bars: number, minor: boolean, random: Random): readonly (readonly [number, number])[] {
+function planChords(level: ReadingLevel, meter: ReadingMeter, bars: number, minor: boolean, upbeat: boolean, random: Random): readonly (readonly [number, number])[] {
   const phrase = srtPhraseBars(bars);
   const rich = level.id >= 6;
   // Only meters with two strong places in the bar change chord in the middle of it.
-  const twoSlots = srtStrongOnsets(meter).length > 1 || meterKey(meter) === '2/4';
+  const twoSlots = srtChordBeats(level.id, meter).length > 1;
   const out: (readonly [number, number])[] = [];
   for (let start = 0; start < bars; start += phrase) {
     const last = start + phrase >= bars;
@@ -181,7 +181,9 @@ function planChords(level: ReadingLevel, meter: ReadingMeter, bars: number, mino
       : phrase === 3 ? (last ? CLOSE3 : OPEN3)
         : last ? (rich ? [...CLOSE4, ...CLOSE4_RICH] : CLOSE4)
           : start === 0 ? (rich ? [...OPEN4, ...OPEN4_RICH] : OPEN4) : MIDDLE4;
-    for (const slots of pick(random, options)) {
+    // After an upbeat bar the first full bar is the home chord: the phrase is the upbeat bar and three more.
+    const chosen: ChordBars = upbeat && start === 0 && phrase === 4 ? [[0], ...pick(random, OPEN3)] : pick(random, options);
+    for (const slots of chosen) {
       // In a minor key the chord on the second degree is diminished: the fourth degree takes its place.
       const roots = slots.map((root) => (minor && root === 1 ? 3 : root));
       const second = roots[roots.length - 1];
@@ -199,6 +201,7 @@ type Rule =
   | { readonly kind: 'back' }
   | { readonly kind: 'again' }
   | { readonly kind: 'copy'; readonly from: number; readonly shift: number }
+  | { readonly kind: 'at'; readonly degree: number }
   | { readonly kind: 'chroma' };
 
 type Slot = {
@@ -229,11 +232,13 @@ type Frame = {
   readonly raise: boolean;
   /** The shape a level 3 piece sets out to show. */
   readonly wish: string;
+  /** Set when a scale run is planted: its top note is the one high point of the melody. */
+  scalePeak: { readonly index: number; readonly degree: number } | null;
   readonly random: Random;
 };
 
 function buildSlots(frame: Frame): { readonly slots: Slot[]; readonly byBar: number[][] } {
-  const strong = srtStrongOnsets(frame.meter);
+  const strong = srtChordBeats(frame.level.id, frame.meter);
   const slots: Slot[] = [];
   const byBar: number[][] = [];
   frame.cells.forEach((ticks, bar) => {
@@ -310,13 +315,37 @@ function plantShapes(frame: Frame, slots: Slot[], byBar: readonly (readonly numb
       return true;
     }
     if (shape === 'scale') {
-      const bars = barsWith(6);
-      if (bars.length === 0) return false;
-      const indexes = byBar[pick(random, bars)];
-      indexes.forEach((index, position) => {
-        if (position === 1) slots[index].rule = { kind: 'delta', values: [1, -1] };
-        else if (position > 1) slots[index].rule = { kind: 'again' };
+      // Seven or eight notes by step in one direction, ending with a bar: more than the hand covers, so it must
+      // change position. The run may start in the bar before. Its notes are fixed here, and its top note becomes
+      // the high point of the whole melody.
+      const [low, high] = level.degrees;
+      const ends = byBar.map((_, bar) => bar).filter((bar) => bar > (frame.upbeat ? 1 : 0) && bar < frame.bars - 1 &&
+        byBar[bar].length + byBar[bar - 1].length >= 7 && byBar[bar].length <= 8 &&
+        [...byBar[bar - 1], ...byBar[bar]].every((index) => !slots[index].phraseEnd && (slots[index].rule === null || slots[index].rule?.kind === 'delta')) &&
+        [...byBar[bar - 1], ...byBar[bar]].every((index, at, all) => at === 0 || slots[all[at - 1]].on + slots[all[at - 1]].dur === slots[index].on));
+      const plans: { readonly run: readonly number[]; readonly up: boolean; readonly top: number }[] = [];
+      for (const bar of ends) {
+        const run = [...byBar[bar - 1], ...byBar[bar]].slice(-Math.min(8, byBar[bar - 1].length + byBar[bar].length));
+        for (const up of [true, false]) {
+          // A minor key with a raised seventh cannot climb through it by step, and the top of a falling run must not sit in the first bar.
+          if ((up && frame.raise) || (!up && slots[run[0]].bar <= (frame.upbeat ? 1 : 0))) continue;
+          for (let top = low + run.length - 1; top <= high; top += 1) {
+            const fits = run.every((index, position) => {
+              const degree = up ? top - (run.length - 1) + position : top - position;
+              const slot = slots[index];
+              if (slot.on % frame.barTicks === 0 && !srtChordTones(slot.root).includes(mod7(degree))) return false;
+              return !(frame.minor && mod7(degree) === 6 && slot.strong);
+            });
+            if (fits) plans.push({ run, up, top });
+          }
+        }
+      }
+      if (plans.length === 0) return false;
+      const plan = pick(random, plans);
+      plan.run.forEach((index, position) => {
+        slots[index].rule = { kind: 'at', degree: plan.up ? plan.top - (plan.run.length - 1) + position : plan.top - position };
       });
+      frame.scalePeak = { index: plan.up ? plan.run[plan.run.length - 1] : plan.run[0], degree: plan.top };
       return true;
     }
     if (shape === 'chroma') {
@@ -330,14 +359,14 @@ function plantShapes(frame: Frame, slots: Slot[], byBar: readonly (readonly numb
     }
     return false;
   };
-  if (level.id === 1 && random() < 0.5) plant('repeat');
+  if (level.id === 1 && random() < 0.25) plant('repeat');
   if (level.id === 2) {
     plant('skip');
-    if (random() < 0.5) plant(random() < 0.5 ? 'skip' : 'neighbour');
+    if (random() < 0.5) plant('skip');
   }
   if (level.id === 3) plant(frame.wish);
   if (level.id >= 4 && random() < 0.5) plant(weighted(random, [['triad', 2], ['fifth', 1], ['sequence', 2], ['skip', 2], ['neighbour', 1]]));
-  if (level.id === 6 && random() < 0.7) plant('scale');
+  if (level.id >= 6 && random() < (level.id === 6 ? 0.5 : 0.15)) plant('scale');
   if (level.id >= 7 && random() < (level.id === 7 ? 0.7 : 0.35)) plant('chroma');
 }
 
@@ -362,8 +391,13 @@ function solveMelody(frame: Frame, slots: readonly Slot[]): { readonly degrees: 
   // From level 4 the melody has one highest note (rule G7): choose it and its place before the search.
   let peak = Number.POSITIVE_INFINITY;
   let peakIndex = -1;
-  if (level.id >= 4) {
-    peak = high - Math.floor(random() * Math.min(3, Math.max(1, Math.floor((high - low) / 2))));
+  if (frame.scalePeak) {
+    peak = frame.scalePeak.degree;
+    peakIndex = frame.scalePeak.index;
+  } else if (level.id >= 4) {
+    // The high point lies in the upper half of the range, not always at its top.
+    const lowest = Math.min(high, Math.ceil((low + high) / 2) + 1);
+    peak = lowest + Math.floor(random() * (high - lowest + 1));
     // A minor key likes its upper tonic as the high point: the raised seventh leads into it.
     const upperTonic = high - mod7(high);
     if (frame.raise && upperTonic > low + 2 && random() < 0.6) peak = upperTonic;
@@ -371,7 +405,7 @@ function solveMelody(frame: Frame, slots: readonly Slot[]): { readonly degrees: 
     const places = slots.map((_, index) => index).filter((index) => {
       const slot = slots[index];
       // The last note may be the highest one when it is the upper tonic.
-      return slot.bar > (frame.upbeat ? 1 : 0) && (!slot.last || mod7(peak) === 0) && slot.rule === null && slot.echo === null &&
+      return slot.bar > (frame.upbeat ? 1 : 0) && (!slot.last || mod7(peak) === 0) && slot.rule === null && slot.echo === null && slot.dur >= EIGHTH &&
         (!slot.strong || srtChordTones(slot.root).includes(mod7(peak))) &&
         (!slot.phraseEnd || (frame.minor ? [1, 4] : [1, 4, 6]).includes(mod7(peak)));
     });
@@ -391,11 +425,13 @@ function solveMelody(frame: Frame, slots: readonly Slot[]): { readonly degrees: 
     if (rule?.kind === 'chroma') {
       if (before === null || slot.strong || slot.last || slot.phraseEnd || forced[index] !== null) return [];
       // The note below, raised to a semitone under the main note: the usual chromatic neighbour.
-      return before - 1 >= low && semitones(before - 1, before) === 2 && spellable(before - 1, 1)
+      // In a minor key the note under the tonic is the leading note, not a chromatic neighbour: leave it out.
+      return before - 1 >= low && !(frame.minor && mod7(before - 1) === 6) && semitones(before - 1, before) === 2 && spellable(before - 1, 1)
         ? [{ degree: before - 1, alter: 1, next: before }] : [];
     }
     let pool: number[] = [];
     if (rule?.kind === 'copy') pool = alters[rule.from] === 0 ? [degrees[rule.from] + rule.shift] : [];
+    else if (rule?.kind === 'at') pool = [rule.degree];
     else if (rule?.kind === 'delta') pool = before === null ? [] : rule.values.map((value) => before + value);
     else if (rule?.kind === 'same') pool = before === null ? [] : [before];
     else if (rule?.kind === 'back') pool = earlier === null ? [] : [earlier];
@@ -409,10 +445,19 @@ function solveMelody(frame: Frame, slots: readonly Slot[]): { readonly degrees: 
       if (index < peakIndex && peak - degree > (peakIndex - index) * level.maxLeap) continue;
       const step = before === null ? 0 : degree - before;
       if (before !== null && Math.abs(step) > level.maxLeap) continue;
+      // No sevenths, and no leap of a sixth or more out of a short note.
+      if (Math.abs(step) === 6 || (Math.abs(step) >= 5 && slots[index - 1].dur < QUARTER)) continue;
       if (forced[index] !== null && degree !== forced[index]) continue;
       if (before !== null && earlier !== null && Math.abs(before - earlier) >= 4 && step !== -Math.sign(before - earlier)) continue;
       const tone = mod7(degree);
-      if (slot.strong && !tones.includes(tone)) continue;
+      // On the second strong beat of a bar a note outside the chord may pass through by step: it must then go on
+      // by step in the same direction.
+      const passing = slot.strong && !tones.includes(tone);
+      const onward = degree + step;
+      const joined = index > 0 && index + 1 < count && slots[index - 1].on + slots[index - 1].dur === slot.on &&
+        slots[index + 1].on === slot.on + slot.dur && slots[index - 1].bar === slot.bar && slots[index + 1].bar === slot.bar;
+      if (passing && (!joined || slot.on % frame.barTicks === 0 || before === null || Math.abs(step) !== 1 || slot.last || slot.phraseEnd ||
+          forced[index] !== null || onward < low || onward > high || onward >= peak || (frame.minor && (tone === 6 || mod7(onward) === 6)))) continue;
       if (slot.first && ![0, 2, 4].includes(tone)) continue;
       if (slot.last && (tone !== 0 || before === null || Math.abs(step) !== 1)) continue;
       if (slot.phraseEnd && !(frame.minor ? [1, 4] : [1, 4, 6]).includes(tone)) continue;
@@ -434,12 +479,16 @@ function solveMelody(frame: Frame, slots: readonly Slot[]): { readonly degrees: 
         }
         // A seventh in a minor key either passes down from the tonic, or is raised and rises to the tonic.
         if (before === degree + 1 && !slot.strong && !slot.last && degree - 1 >= low) weightedChoices.push([{ degree, alter: 0, next: degree - 1 }, weight]);
-        if (!slot.last && !slot.phraseEnd && degree + 1 <= high) {
+        // The raised seventh is reached from the tonic above or from the fifth degree below (never by an augmented
+        // second from the sixth), and a piece has only a few of them.
+        const raisedSoFar = alters.slice(0, index).filter((alter, at) => alter === 1 && mod7(degrees[at]) === 6).length;
+        const reached = before === degree + 1 || before === degree - 2;
+        if (reached && raisedSoFar < Math.ceil(frame.bars / 4) && !slot.last && !slot.phraseEnd && degree + 1 <= high) {
           weightedChoices.push([{ degree, alter: 1, next: degree + 1 }, weight * (index + 1 === peakIndex && degree + 1 === peak ? 40 : 1.5)]);
         }
         continue;
       }
-      weightedChoices.push([{ degree, alter: 0, next: null }, weight]);
+      weightedChoices.push([{ degree, alter: 0, next: passing ? onward : null }, weight]);
     }
     return ordered(random, weightedChoices);
   };
@@ -477,7 +526,7 @@ type Hands = { readonly rh: Item[]; readonly lh: Item[]; readonly melody: SightR
 function buildHands(frame: Frame, melodyBars: readonly (readonly Item[])[]): Hands | null {
   const { level, random, barTicks, bars, chords } = frame;
   const [low, high] = level.degrees;
-  const strong = srtStrongOnsets(frame.meter);
+  const strong = srtChordBeats(frame.level.id, frame.meter);
   const melodyAll = melodyBars.flat();
   const isStrong = (tick: number): boolean => strong.includes(tick % barTicks);
   const chordAt = (tick: number): number => chords[Math.floor(tick / barTicks)][tick % barTicks >= barTicks / 2 ? 1 : 0];
@@ -506,6 +555,8 @@ function buildHands(frame: Frame, melodyBars: readonly (readonly Item[])[]): Han
   const settlesAt = (tick: number, on: number, degree: number, below: boolean): boolean => {
     const sung = soundingAt(melodyAll, tick);
     if (!sung || (tick !== on && sung.on !== tick)) return true;
+    // A melody note outside the chord on the second strong beat is a passing note: it is not measured.
+    if (tick % barTicks !== 0 && sung.on === tick && !srtChordTones(chordAt(tick)).includes(mod7(top(sung)))) return true;
     return CONSONANT.includes(mod7(below ? top(sung) - degree : degree - bottom(sung)));
   };
   const near = (previous: number | null, degree: number): boolean => previous === null || Math.abs(degree - previous) <= level.maxLeap;
@@ -575,11 +626,13 @@ function buildHands(frame: Frame, melodyBars: readonly (readonly Item[])[]): Han
   cap = lowered;
   let previous: number | null = null;
   const voicing = (root: number): { readonly low: number; readonly third: number | null; readonly fifth: number | null } | null => {
-    const place = [root - 7, root, root + 7].find((degree) => degree >= low && degree <= lowered);
-    if (place === undefined) return null;
-    const inRange = (degree: number): number | null => (degree <= lowered ? degree : degree - 7 >= low ? degree - 7 : null);
-    const third = inRange(place + 2);
-    return { low: place, third: third !== null && frame.minor && mod7(third) === 6 ? null : third, fifth: inRange(place + 4) };
+    // The root goes to the lowest place where the fifth still fits above it. The other notes never drop under the root.
+    const places = [root - 7, root, root + 7].filter((degree) => degree >= low && degree <= lowered);
+    if (places.length === 0) return null;
+    const place = places.find((degree) => degree + 4 <= lowered) ?? places[0];
+    const above = (degree: number): number | null => (degree <= lowered ? degree : null);
+    const third = above(place + 2);
+    return { low: place, third: third !== null && frame.minor && mod7(third) === 6 ? null : third, fifth: above(place + 4) };
   };
   const textures: Readonly<Record<string, (bar: number) => Item[] | null>> = {
     hold: (bar) => hold(bar, true, previous, true),
@@ -593,7 +646,7 @@ function buildHands(frame: Frame, melodyBars: readonly (readonly Item[])[]): Han
         if (uppers.length === 0 || !settles(on, dur, shape.low, true) || !near(last, shape.low)) return null;
         const upper = uppers.length > 1 && random() < 0.4 ? uppers[1] : uppers[0];
         // A waltz bar: the bass note alone, then the chord twice.
-        if (meterKey(frame.meter) === '3/4' && random() < 0.6) {
+        if (meterKey(frame.meter) === '3/4' && bar !== bars - 1 && random() < 0.6) {
           out.push(note(on, QUARTER, shape.low), { on: on + QUARTER, dur: QUARTER, degrees: [shape.low, upper], alters: [0, 0] },
             { on: on + 2 * QUARTER, dur: QUARTER, degrees: [shape.low, upper], alters: [0, 0] });
         } else out.push({ on, dur, degrees: [shape.low, upper], alters: [0, 0] });
@@ -606,11 +659,11 @@ function buildHands(frame: Frame, melodyBars: readonly (readonly Item[])[]): Han
       const key = meterKey(frame.meter);
       for (const [on, dur, root] of chordParts(bar, true)) {
         const shape = voicing(root);
-        if (!shape || shape.fifth === null || !near(out.length > 0 ? bottom(out[out.length - 1]) : previous, shape.low)) return null;
-        const mid = shape.third ?? shape.low;
-        const figure = key === '4/4' ? (dur === barTicks ? [shape.low, shape.fifth, mid, shape.fifth] : [shape.low, shape.fifth])
-          : key === '2/4' ? (dur === barTicks ? [shape.low, shape.fifth, mid, shape.fifth] : [shape.low, shape.fifth])
-            : [shape.low, shape.third ?? shape.fifth, shape.fifth];
+        const upper = shape ? shape.fifth ?? shape.third : null;
+        if (!shape || upper === null || !near(out.length > 0 ? bottom(out[out.length - 1]) : previous, shape.low)) return null;
+        const middle = shape.fifth !== null && shape.third !== null ? shape.third : shape.low;
+        const figure = key === '4/4' || key === '2/4' ? (dur === barTicks ? [shape.low, upper, middle, upper] : [shape.low, upper])
+          : middle === shape.low ? [shape.low, upper, shape.low] : [shape.low, middle, upper];
         // A whole 6/8 bar on one chord plays the figure twice: three quarters would cut across the beat.
         if (key === '6/8' && dur === barTicks) figure.push(...figure);
         const length = dur / figure.length;
@@ -652,8 +705,9 @@ function buildHands(frame: Frame, melodyBars: readonly (readonly Item[])[]): Han
           }
           if (before) at -= top(item) - top(before);
           before = item;
-          fine = at >= low && at <= lowered && !(frame.minor && mod7(at) === 6) &&
-            (!isStrong(item.on) || (srtChordTones(chordAt(item.on)).includes(mod7(at)) && CONSONANT.includes(mod7(top(item) - at))));
+          // The two hands strike together on every note here, so every pair must settle, not only the strong beats.
+          fine = at >= low && at <= lowered && !(frame.minor && mod7(at) === 6) && CONSONANT.includes(mod7(top(item) - at)) &&
+            (!isStrong(item.on) || srtChordTones(chordAt(item.on)).includes(mod7(at)));
           if (!fine) break;
           out.push(note(item.on, item.dur, at));
         }
@@ -739,7 +793,7 @@ function toEvents(key: ReadingKey, hand: SightReadingHand, items: readonly Item[
 
 /** Adds the patterns and the difficulty score to a planned piece. */
 function finish(planned: PlannedPiece): GeneratedPiece {
-  return { ...planned, patterns: srtBarPatterns(planned), difficulty: srtDifficulty(planned) };
+  return srtDeepFreeze({ ...planned, patterns: srtBarPatterns(planned), difficulty: srtDifficulty(planned) });
 }
 
 function attempt(level: ReadingLevel, key: ReadingKey, seed: number, random: Random): GeneratedPiece | string {
@@ -752,10 +806,10 @@ function attempt(level: ReadingLevel, key: ReadingKey, seed: number, random: Ran
   const minor = key.mode === 'minor';
   const wish = level.id === 3 ? weighted(random, [['triad', 3], ['fifth', 2], ['sequence', 3], ['none', 1]]) : 'none';
   const frame: Frame = {
-    level, key, meter, bars, barTicks, upbeat, minor, random, wish,
+    level, key, meter, bars, barTicks, upbeat, minor, random, wish, scalePeak: null,
     raise: minor && level.leadingTone && key.id !== 'G#m',
     cells: planRhythm(level, meter, bars, upbeat, wish === 'sequence', random),
-    chords: planChords(level, meter, bars, minor, random),
+    chords: planChords(level, meter, bars, minor, upbeat, random),
   };
   const { slots, byBar } = buildSlots(frame);
   plantShapes(frame, slots, byBar);

@@ -1,7 +1,7 @@
 // The numbered book of each reading level, the runs in one key, and the daily set
 // (section 7 of docs/plans/2026-11-13-read-redesign-spec.md). Nothing here is stored: every piece is generated.
 import { srtLevelFingerprint } from './fingerprint.js';
-import { srtKeyPool, srtLevel, srtReadingKey, type ReadingKeyId } from './levels.js';
+import { srtDegreePitch, srtKeyPool, srtLevel, srtReadingKey, type ReadingKey, type ReadingKeyId } from './levels.js';
 import { srtGenerateLevelPiece, srtHashText, srtTransposeLevelPiece } from './melody.js';
 import { srtSubBand, type GeneratedPiece } from './rules.js';
 
@@ -10,6 +10,13 @@ export const SRT_UNIT_PIECES = 8;
 export const SRT_BOOK_PIECES = SRT_BOOK_UNITS * SRT_UNIT_PIECES;
 export const SRT_FOCUS_PIECES = 20;
 export const SRT_DAILY_PIECES = 5;
+/** The score a key or a level must reach, on average, to count as secure. */
+export const SRT_SECURE_SCORE = 85;
+/**
+ * Up to this level a new piece is also compared with every piece of the level's book. The lower levels have few
+ * possible pieces, so a chance repeat is real there. Above it the number of possible pieces makes one negligible.
+ */
+const SMALL_LEVELS = 3;
 
 /** easy: the three easiest keys. newKey: one key that is new at the level. mix: every key met so far. check: the whole pool. */
 export type BookUnitKind = 'easy' | 'newKey' | 'mix' | 'check';
@@ -24,7 +31,10 @@ export type BookEntry = {
   readonly key: ReadingKeyId;
   /** Which third of the level's difficulty band the piece is drawn from: a unit rises from 0 to 2. */
   readonly third: 0 | 1 | 2;
-  /** The number of the piece this one repeats in another key ("same shape, new key"), or null. */
+  /**
+   * The number of the piece this one is meant to repeat in another key ("same shape, new key"), or null.
+   * A few pieces cannot be moved to the other key: such a piece is then a new one.
+   */
   readonly twinOf: number | null;
 };
 
@@ -45,12 +55,53 @@ export function srtBookUnits(levelId: number): readonly BookUnit[] {
   return units.slice(0, SRT_BOOK_UNITS).map((unit, index) => ({ ...unit, index }));
 }
 
-/** The keys of a unit in a fixed shuffled order: the order is part of the book. */
-function unitKeyOrder(levelId: number, unit: BookUnit): readonly ReadingKeyId[] {
-  return unit.keys
-    .map((key) => ({ key, rank: srtHashText(`order|${levelId}|${unit.index}|${key}`) }))
-    .sort((a, b) => a.rank - b.rank)
-    .map((item) => item.key);
+/** How many octaves lie between the two hand positions of a key. A piece moves best to a key with the same distance. */
+function handDistance(key: ReadingKey): number {
+  return Math.round((srtDegreePitch(key, 'rh', 0).midi - srtDegreePitch(key, 'lh', 0).midi) / 12);
+}
+
+const UNIT_KEYS = new Map<number, readonly (readonly ReadingKeyId[])[]>();
+
+/**
+ * The key of each of the 8 pieces of every unit of a level. A unit with several keys starts with the keys that are
+ * new since the last such unit, then takes the keys that have waited longest, so every key of the pool comes round.
+ * Its fourth piece is in a key that can repeat the third: the same mode, and the same distance between the hands.
+ */
+function unitKeys(levelId: number): readonly (readonly ReadingKeyId[])[] {
+  const known = UNIT_KEYS.get(levelId);
+  if (known) return known;
+  const rank = (key: ReadingKeyId): number => srtHashText(`rank|${levelId}|${key}`);
+  const lastUsed = new Map<ReadingKeyId, number>();
+  let clock = 0;
+  let newSince: ReadingKeyId[] = [];
+  const out = srtBookUnits(levelId).map((unit) => {
+    let keys: ReadingKeyId[];
+    if (unit.kind === 'newKey') {
+      newSince.push(unit.keys[0]);
+      keys = Array.from({ length: SRT_UNIT_PIECES }, () => unit.keys[0]);
+    } else {
+      const first = unit.kind === 'easy' ? [] : newSince.slice(0, SRT_UNIT_PIECES);
+      const waiting = unit.keys.filter((key) => !first.includes(key))
+        .sort((a, b) => (lastUsed.get(a) ?? -1) - (lastUsed.get(b) ?? -1) || rank(a) - rank(b));
+      const source = waiting.length > 0 ? waiting : first;
+      keys = [...first];
+      for (let index = 0; keys.length < SRT_UNIT_PIECES; index += 1) keys.push(source[index % source.length]);
+      if (unit.kind !== 'easy') newSince = [];
+      // The fourth piece repeats the third in another key.
+      const model = srtReadingKey(keys[2]);
+      const twins = unit.keys.filter((key) => key !== model.id && key !== 'G#m' && srtReadingKey(key).mode === model.mode);
+      const near = twins.filter((key) => handDistance(srtReadingKey(key)) === handDistance(model));
+      const options = near.length > 0 ? near : twins;
+      if (model.id !== 'G#m' && options.length > 0) keys[3] = options.includes(keys[3]) ? keys[3] : options[0];
+    }
+    for (const key of keys) {
+      lastUsed.set(key, clock);
+      clock += 1;
+    }
+    return keys;
+  });
+  UNIT_KEYS.set(levelId, out);
+  return out;
 }
 
 /** Where a numbered piece sits in the book, and in which key. */
@@ -59,97 +110,120 @@ export function srtBookEntry(levelId: number, number: number): BookEntry {
   if (!Number.isInteger(number) || number < 1 || number > SRT_BOOK_PIECES) throw new RangeError(`No piece ${number} in the book`);
   const unit = srtBookUnits(level.id)[Math.floor((number - 1) / SRT_UNIT_PIECES)];
   const position = (number - 1) % SRT_UNIT_PIECES;
-  const order = unitKeyOrder(level.id, unit);
-  const keyAt = (place: number): ReadingKeyId => order[place % order.length];
-  let key = keyAt(position);
-  let twinOf: number | null = null;
-  // In a unit with several keys, the fourth piece repeats the third in another key of the same mode.
-  if (unit.keys.length > 1 && position === 3) {
-    const model = srtReadingKey(keyAt(2));
-    const other = order.find((candidate) => candidate !== model.id && candidate !== 'G#m' && srtReadingKey(candidate).mode === model.mode);
-    if (other && model.id !== 'G#m') {
-      key = other;
-      twinOf = number - 1;
-    }
-  }
-  return { level: level.id, number, unit, position, key, third: position < 3 ? 0 : position < 6 ? 1 : 2, twinOf };
+  const keys = unitKeys(level.id)[unit.index];
+  const key = keys[position];
+  const twin = unit.keys.length > 1 && position === 3 && keys[2] !== key && keys[2] !== 'G#m' && key !== 'G#m' &&
+    srtReadingKey(keys[2]).mode === srtReadingKey(key).mode;
+  return { level: level.id, number, unit, position, key, third: position < 3 ? 0 : position < 6 ? 1 : 2, twinOf: twin ? number - 1 : null };
 }
 
-const BOOKS = new Map<number, readonly GeneratedPiece[]>();
-const FOCUS = new Map<string, readonly GeneratedPiece[]>();
+/** A candidate piece for a name and a counter, or null when the generator finds none. */
+function candidate(levelId: number, key: ReadingKeyId, name: string, salt: number, band?: readonly [number, number]): GeneratedPiece | null {
+  try {
+    return srtGenerateLevelPiece(levelId, key, srtHashText(`${name}|${salt}`), band ? { band } : {});
+  } catch (error) {
+    if (error instanceof RangeError) throw error;
+    return null;
+  }
+}
 
 /** A new piece whose fingerprint is not in `seen`. The name gives the seed, and a counter is added until the piece is new. */
 function fresh(levelId: number, key: ReadingKeyId, name: string, band: readonly [number, number] | undefined, seen: ReadonlySet<string>): GeneratedPiece {
   for (let salt = 0; salt < 200; salt += 1) {
-    const piece = srtGenerateLevelPiece(levelId, key, srtHashText(`${name}|${salt}`), band ? { band } : {});
-    if (!seen.has(srtLevelFingerprint(piece))) return piece;
+    const piece = candidate(levelId, key, name, salt, band);
+    if (piece && !seen.has(srtLevelFingerprint(piece))) return piece;
   }
   throw new Error(`No new piece for ${name}`);
 }
 
-/** All 96 pieces of a level's book. They are built once, in order, so that no two are the same. */
-export function srtBook(levelId: number): readonly GeneratedPiece[] {
-  const level = srtLevel(levelId);
-  const known = BOOKS.get(level.id);
-  if (known) return known;
-  const pieces: GeneratedPiece[] = [];
-  const seen = new Set<string>();
-  for (let number = 1; number <= SRT_BOOK_PIECES; number += 1) {
-    const entry = srtBookEntry(level.id, number);
-    const twin = entry.twinOf === null ? null : srtTransposeLevelPiece(pieces[entry.twinOf - 1], entry.key);
-    const piece = twin && !seen.has(srtLevelFingerprint(twin)) ? twin
-      : fresh(level.id, entry.key, `book|${level.id}|${number}`, srtSubBand(level.id, entry.third), seen);
-    seen.add(srtLevelFingerprint(piece));
-    pieces.push(piece);
+type Shelf = { readonly pieces: GeneratedPiece[]; readonly seen: Set<string> };
+const BOOKS = new Map<number, Shelf>();
+const RUNS = new Map<string, Shelf>();
+
+/** The first pieces of a level's book, up to a number. They are built in order, so that no two are the same. */
+function bookUpTo(levelId: number, number: number): Shelf {
+  const shelf = BOOKS.get(levelId) ?? { pieces: [], seen: new Set<string>() };
+  BOOKS.set(levelId, shelf);
+  while (shelf.pieces.length < number) {
+    const entry = srtBookEntry(levelId, shelf.pieces.length + 1);
+    const twin = entry.twinOf === null ? null : srtTransposeLevelPiece(shelf.pieces[entry.twinOf - 1], entry.key);
+    const piece = twin && !shelf.seen.has(srtLevelFingerprint(twin)) ? twin
+      : fresh(levelId, entry.key, `book|${levelId}|${entry.number}`, srtSubBand(levelId, entry.third), shelf.seen);
+    shelf.seen.add(srtLevelFingerprint(piece));
+    shelf.pieces.push(piece);
   }
-  BOOKS.set(level.id, pieces);
-  return pieces;
+  return shelf;
 }
 
-/** Piece 1 to 96 of a level's book. A number always gives the same piece. */
+/** All 96 pieces of a level's book. */
+export function srtBook(levelId: number): readonly GeneratedPiece[] {
+  return bookUpTo(srtLevel(levelId).id, SRT_BOOK_PIECES).pieces;
+}
+
+/**
+ * Piece 1 to 96 of a level's book. A number always gives the same piece.
+ * Only the pieces up to that number are built, so opening an early piece is quick.
+ */
 export function srtBookPiece(levelId: number, number: number): GeneratedPiece {
-  return srtBook(levelId)[srtBookEntry(levelId, number).number - 1];
+  const entry = srtBookEntry(levelId, number);
+  return bookUpTo(entry.level, entry.number).pieces[entry.number - 1];
+}
+
+/** The fingerprints of a level's book, for the levels where a chance repeat is real. */
+function bookPrints(levelId: number): ReadonlySet<string> {
+  return levelId <= SMALL_LEVELS ? bookUpTo(levelId, SRT_BOOK_PIECES).seen : new Set<string>();
+}
+
+function runUpTo(levelId: number, key: ReadingKeyId, number: number): Shelf {
+  const name = `${levelId}|${key}`;
+  const shelf = RUNS.get(name) ?? { pieces: [], seen: new Set(bookPrints(levelId)) };
+  RUNS.set(name, shelf);
+  while (shelf.pieces.length < number) {
+    const next = shelf.pieces.length + 1;
+    const piece = fresh(levelId, key, `focus|${name}|${next}`, srtSubBand(levelId, next <= 7 ? 0 : next <= 14 ? 1 : 2), shelf.seen);
+    shelf.seen.add(srtLevelFingerprint(piece));
+    shelf.pieces.push(piece);
+  }
+  return shelf;
 }
 
 /** The 20 pieces of a level in one key. They are not pieces of the book. */
 export function srtFocusRun(levelId: number, keyId: string): readonly GeneratedPiece[] {
-  const level = srtLevel(levelId);
-  const key = srtReadingKey(keyId);
-  const name = `${level.id}|${key.id}`;
-  const known = FOCUS.get(name);
-  if (known) return known;
-  const seen = new Set(srtBook(level.id).map(srtLevelFingerprint));
-  const pieces: GeneratedPiece[] = [];
-  for (let number = 1; number <= SRT_FOCUS_PIECES; number += 1) {
-    const third = number <= 7 ? 0 : number <= 14 ? 1 : 2;
-    const piece = fresh(level.id, key.id, `focus|${name}|${number}`, srtSubBand(level.id, third), seen);
-    seen.add(srtLevelFingerprint(piece));
-    pieces.push(piece);
-  }
-  FOCUS.set(name, pieces);
-  return pieces;
+  return runUpTo(srtLevel(levelId).id, srtReadingKey(keyId).id, SRT_FOCUS_PIECES).pieces;
 }
 
 /** Piece 1 to 20 of a level in one key. */
 export function srtFocusPiece(levelId: number, keyId: string, number: number): GeneratedPiece {
   if (!Number.isInteger(number) || number < 1 || number > SRT_FOCUS_PIECES) throw new RangeError(`No piece ${number} in a key run`);
-  return srtFocusRun(levelId, keyId)[number - 1];
+  return runUpTo(srtLevel(levelId).id, srtReadingKey(keyId).id, number).pieces[number - 1];
 }
 
 export type DailyRole = 'easier' | 'level' | 'stretch';
-export type DailySlot = { readonly slot: number; readonly role: DailyRole; readonly level: number; readonly key: ReadingKeyId };
+export type DailySlot = {
+  readonly slot: number;
+  readonly role: DailyRole;
+  readonly level: number;
+  readonly key: ReadingKeyId;
+  /** The counter that, with the date, the level, the slot and the key, gives the piece. */
+  readonly salt: number;
+};
 export type DailyOptions = {
   /** A pinned key: every piece of the set is in it. */
   readonly focusKey?: string;
   /** The mean first-sight score of each key at the level, 0 to 100. A key without a score has not been played. */
   readonly scores?: Readonly<Partial<Record<ReadingKeyId, number>>>;
+  /** Fingerprints of the pieces the reader has seen: the set avoids them. */
+  readonly seen?: ReadonlySet<string>;
 };
 
 const isDate = (date: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(date);
+const dailyName = (date: string, slot: Omit<DailySlot, 'salt'>): string => `daily|${date}|${slot.level}|${slot.slot}|${slot.key}`;
 
 /**
  * The five pieces of a day: one a level below, three at the level, one a level above.
- * In mixed keys the three level pieces use the newest key played, the weakest key, and one more key of the pool.
+ * In mixed keys the three level pieces lean on the keys that need work: the newest key that is not secure yet,
+ * the weakest key that is not secure, and then keys of the pool in an order that changes every day.
+ * No piece of the set is one the reader has seen, a piece of the book of a low level, or another piece of the set.
  */
 export function srtDailyPlan(date: string, levelId: number, options: DailyOptions = {}): readonly DailySlot[] {
   if (!isDate(date)) throw new RangeError(`Invalid date: ${date}`);
@@ -157,36 +231,49 @@ export function srtDailyPlan(date: string, levelId: number, options: DailyOption
   const below = Math.max(1, level.id - 1);
   const above = Math.min(8, level.id + 1);
   const levels: readonly (readonly [DailyRole, number])[] = [['easier', below], ['level', level.id], ['level', level.id], ['level', level.id], ['stretch', above]];
+  let keys: ReadingKeyId[];
   if (options.focusKey !== undefined) {
     const key = srtReadingKey(options.focusKey).id;
-    return levels.map(([role, slotLevel], slot) => ({ slot, role, level: slotLevel, key }));
+    keys = levels.map(() => key);
+  } else {
+    const pool = srtKeyPool(level.id).map((key) => key.id);
+    const scores = options.scores ?? {};
+    const open = pool.filter((key) => (scores[key] ?? SRT_SECURE_SCORE) < SRT_SECURE_SCORE);
+    const chosen: ReadingKeyId[] = [];
+    const take = (key: ReadingKeyId | undefined): void => {
+      if (key !== undefined && !chosen.includes(key)) chosen.push(key);
+    };
+    take(open[open.length - 1]);
+    take([...open].sort((a, b) => (scores[a] ?? 0) - (scores[b] ?? 0)).find((key) => !chosen.includes(key)));
+    const shuffled = pool.map((key) => ({ key, rank: srtHashText(`daily|${date}|${level.id}|${key}`) })).sort((a, b) => a.rank - b.rank).map((item) => item.key);
+    for (const key of shuffled) {
+      if (chosen.length < 3) take(key);
+    }
+    const from = (list: readonly ReadingKeyId[], name: string): ReadingKeyId => list[srtHashText(`daily|${date}|${name}`) % list.length];
+    keys = [
+      from(srtKeyPool(below).map((key) => key.id), 'easier'), chosen[0], chosen[1 % chosen.length], chosen[2 % chosen.length],
+      from(srtKeyPool(above).map((key) => key.id).slice(0, 3), 'stretch'),
+    ];
   }
-  const pool = srtKeyPool(level.id).map((key) => key.id);
-  const scores = options.scores ?? {};
-  const played = pool.filter((key) => scores[key] !== undefined);
-  const chosen: ReadingKeyId[] = [];
-  const take = (key: ReadingKeyId | undefined): void => {
-    if (key !== undefined && !chosen.includes(key)) chosen.push(key);
-  };
-  take(played[played.length - 1]);
-  take([...played].sort((a, b) => (scores[a] ?? 0) - (scores[b] ?? 0)).find((key) => !chosen.includes(key)));
-  const shuffled = pool.map((key) => ({ key, rank: srtHashText(`daily|${date}|${level.id}|${key}`) })).sort((a, b) => a.rank - b.rank).map((item) => item.key);
-  for (const key of shuffled) {
-    if (chosen.length < 3) take(key);
-  }
-  const from = (keys: readonly ReadingKeyId[], name: string): ReadingKeyId => keys[srtHashText(`daily|${date}|${name}`) % keys.length];
-  const easier = from(srtKeyPool(below).map((key) => key.id), 'easier');
-  const stretch = from(srtKeyPool(above).map((key) => key.id).slice(0, 3), 'stretch');
-  const keys = [easier, chosen[0], chosen[1 % chosen.length], chosen[2 % chosen.length], stretch];
-  return levels.map(([role, slotLevel], slot) => ({ slot, role, level: slotLevel, key: keys[slot] }));
+  const taken = new Set<string>();
+  return levels.map(([role, slotLevel], slot) => {
+    const base = { slot, role, level: slotLevel, key: keys[slot] };
+    const book = bookPrints(slotLevel);
+    for (let salt = 0; salt < 200; salt += 1) {
+      const piece = candidate(slotLevel, base.key, dailyName(date, base), salt);
+      const print = piece ? srtLevelFingerprint(piece) : null;
+      if (print === null || taken.has(print) || book.has(print) || options.seen?.has(print)) continue;
+      taken.add(print);
+      return { ...base, salt };
+    }
+    throw new Error(`No new piece for ${dailyName(date, base)}`);
+  });
 }
 
-/**
- * The piece of one slot of a day. It is never a piece of the book, and never a piece whose fingerprint is in `avoid`
- * (the pieces the reader has already seen).
- */
-export function srtDailyPiece(date: string, slot: DailySlot, avoid: ReadonlySet<string> = new Set()): GeneratedPiece {
+/** The piece of one slot of a day's plan. The same slot always gives the same piece. */
+export function srtDailyPiece(date: string, slot: DailySlot): GeneratedPiece {
   if (!isDate(date)) throw new RangeError(`Invalid date: ${date}`);
-  const seen = new Set([...srtBook(slot.level).map(srtLevelFingerprint), ...avoid]);
-  return fresh(slot.level, slot.key, `daily|${date}|${slot.level}|${slot.slot}|${slot.key}`, undefined, seen);
+  const piece = candidate(slot.level, slot.key, dailyName(date, slot), slot.salt);
+  if (!piece) throw new Error(`No piece for ${dailyName(date, slot)}`);
+  return piece;
 }
