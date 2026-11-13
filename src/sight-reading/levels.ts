@@ -18,7 +18,7 @@ export type ReadingKeyId =
 /** keyN counts the sharps (positive) or flats (negative) of the signature. A minor key is written in its natural form. */
 export type ReadingKey = { readonly id: ReadingKeyId; readonly tonic: string; readonly mode: 'major' | 'minor'; readonly keyN: number };
 export type ReadingPatternId =
-  | 'stepRun' | 'repeatedNote'
+  | 'stepRun' | 'repeatedNote' | 'longNote'
   | 'skip' | 'neighbour'
   | 'brokenTriad' | 'leapFifth' | 'eighthRun' | 'sequence'
   | 'heldNote' | 'tie'
@@ -109,7 +109,7 @@ const LEVELS: readonly ReadingLevel[] = deepFreeze([
     noteTicks: [WHOLE, HALF, QUARTER], restTicks: [], gridTicks: QUARTER,
     meters: [M44], bars: [4], bpm: 66,
     tieOverBar: false, upbeat: false, syncopation: false, leadingTone: false, maxChromatic: 0, chord: ONE_NOTE,
-    newKeys: ['C', 'G', 'F', 'Am', 'Dm'], newPatterns: ['stepRun', 'repeatedNote'],
+    newKeys: ['C', 'G', 'F', 'Am', 'Dm'], newPatterns: ['stepRun', 'repeatedNote', 'longNote'],
   },
   {
     id: 2, hands: 'blocks', degrees: [0, 4], maxLeap: 2,
@@ -301,6 +301,30 @@ export function srtMeterTicks(meter: ReadingMeter): { readonly bar: number; read
     : { bar: meter.num * EIGHTH, beat: DOTTED_QUARTER };
 }
 
+/** The ticks inside a bar that carry a strong beat: beats 1 and 3 of 4/4, both beats of 6/8, beat 1 elsewhere. */
+export function srtStrongOnsets(meter: ReadingMeter): readonly number[] {
+  const { beat } = srtMeterTicks(meter);
+  return meter.num === 4 && meter.den === 4 ? [0, 2 * beat] : meter.num === 6 ? [0, beat] : [0];
+}
+
+/**
+ * Syncopation is one of four things:
+ * a note that starts off the beat and is held past the next beat;
+ * in 4/4, a note on beat 2 or 4 that lasts longer than a beat;
+ * a note tied over the barline from anywhere but a strong beat;
+ * in compound time, a note from the beat that ends inside a later beat.
+ */
+export function srtIsSyncopated(meter: ReadingMeter, onset: number, duration: number): boolean {
+  const { bar, beat } = srtMeterTicks(meter);
+  const offset = onset % beat;
+  if (offset !== 0) return offset + duration > beat;
+  const strong = srtStrongOnsets(meter);
+  const inBar = onset % bar;
+  const crossesBar = inBar + duration > bar;
+  return (duration > beat && !strong.includes(inBar) && (crossesBar || strong.length > 1)) ||
+    (meter.den === 8 && duration > beat && duration % beat !== 0);
+}
+
 function isInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value);
 }
@@ -311,7 +335,7 @@ function isList(value: unknown): boolean {
 }
 
 /** Where a written note sits in its key: its degree under the hand, and how far it is altered from the scale. */
-function pitchPlace(pitch: SightReadingPitch, key: ReadingKey, hand: SightReadingHand): { readonly degree: number; readonly alter: number } | null {
+export function srtPitchPlace(pitch: SightReadingPitch, key: ReadingKey, hand: SightReadingHand): { readonly degree: number; readonly alter: number } | null {
   if (!pitch || typeof pitch.spelling !== 'string' || !isInteger(pitch.midi) || pitch.midi < 0 || pitch.midi > 127) return null;
   if (pitch.finger !== null && !(isInteger(pitch.finger) && pitch.finger >= 1 && pitch.finger <= 5)) return null;
   const match = /^([A-G])([#b]?)(-1|\d)$/.exec(pitch.spelling);
@@ -406,7 +430,6 @@ export function srtLevelViolations(piece: LevelPiece): readonly LevelViolation[]
   const waitingHand = level.hands === 'blocks' || level.hands === 'alternate';
   // The first bar is an upbeat bar when the level has upbeats and the piece starts with a rest in both hands.
   const upbeatBar = level.upbeat && !piece.events.some((event) => event && isList(event.pitches) && event.pitches.length > 0 && event.onsetTick === 0);
-  const strongOnsets = piece.meter.num === 4 && piece.meter.den === 4 ? [0, 2 * beat] : piece.meter.num === 6 ? [0, beat] : [0];
   const ids = new Set<string>();
   const byHand: Record<SightReadingHand, Placed[]> = { rh: [], lh: [] };
   let chromatic = 0;
@@ -445,18 +468,8 @@ export function srtLevelViolations(piece: LevelPiece): readonly LevelViolation[]
     }
     if (parts.length > 1 && !level.tieOverBar) add('crossBar', 'note tied over the barline', event.id);
     if (parts.some((part) => !level.noteTicks.includes(part))) add('noteValue', 'note value not used at this level', event.id);
-    // Syncopation is one of four things:
-    // a note that starts off the beat and is held past the next beat;
-    // in 4/4, a note on beat 2 or 4 that lasts longer than a beat;
-    // a note tied over the barline from anywhere but a strong beat;
-    // in compound time, a note from the beat that ends inside a later beat.
-    const inBar = onset % bar;
-    const syncopated = offset !== 0
-      ? offset + duration > beat
-      : (duration > beat && !strongOnsets.includes(inBar) && (parts.length > 1 || strongOnsets.length > 1)) ||
-        (piece.meter.den === 8 && duration > beat && duration % beat !== 0);
-    if (syncopated && !level.syncopation) add('offbeat', 'note held across a stronger beat', event.id);
-    const places = event.pitches.map((pitch) => pitchPlace(pitch, key, event.hand));
+    if (!level.syncopation && srtIsSyncopated(piece.meter, onset, duration)) add('offbeat', 'note held across a stronger beat', event.id);
+    const places = event.pitches.map((pitch) => srtPitchPlace(pitch, key, event.hand));
     if (places.includes(null)) add('pitch', 'midi, spelling and finger do not agree', event.id);
     const ascending = places.includes(null) ||
       event.pitches.every((pitch, index) => index === 0 || event.pitches[index - 1].midi < pitch.midi);
