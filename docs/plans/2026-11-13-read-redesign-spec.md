@@ -1,6 +1,6 @@
 # Read tab redesign: spec
 
-Status: proposal, waiting for approval. No app code is changed by this document.
+Status: built on the branch `feat/read-redesign`, not merged. Open: your approval of the pieces by ear, and decisions D1 to D6 (section 14). Section 16 lists what was built differently from the proposal.
 Mockup: [2026-11-13-read-redesign-mockup.html](2026-11-13-read-redesign-mockup.html) (open it in a browser).
 
 ## 1. Goal
@@ -295,3 +295,36 @@ Each step ends with its check. I pause for your OK after each step.
 - Other tools reviewed for features only: Sight Reading Factory, Piano Marvel SASR, Read Ahead, ABRSM Sight-Reading Trainer.
 - Not verified: the claim that mixed keys teach better than one key at a time. It rests on the general research on interleaved practice, which was not part of the search for this spec.
 - Not found: Trinity sight-reading parameters, a controlled study of note-naming flashcards, and evidence for a specific daily session length.
+
+## 16. As built: steps 5 to 9
+
+**Page**
+
+- The Read tab opens on the new home: Today, The book, Warm-up, Progress.
+- The old screens are kept whole and are reached from a row "More" at the bottom of the home: "Reading drills" (the ladder, the custom drill, the challenge modes) and "Sight-reading" (the older melody generator). "All drills" on the Warm-up card opens the same drills screen. A new catalogue of 9 topic rows was not built: the existing ladder is the catalogue.
+- The older "Sight-reading" unit of the ladder (12 levels, most in C major) stays. Existing tests and saved statistics depend on it.
+- There is no separate Options sheet. Hands, mode, note names, any octave and tempo stay in the player, and Auto-next sits on the result card.
+
+**Player**
+
+- A level piece is shown in the existing sight-reading panel through its own path next to the older melodies: it uses the level's tempo, a 30-second preview with a checklist, one metronome click per beat in every meter, and results mapped to notes by id.
+- The engraver draws level pieces with beams in every meter, dotted and whole-bar rests, accidentals that hold for the bar, and ties for chords. This is switched on by a flag on the score (`engrave: 2`). Lessons, rhythm drills and older melodies are drawn exactly as before.
+- A step-by-step run is recorded as practice, never as first sight.
+- A piece that was seen before opens as practice.
+
+**State**
+
+- The page keeps its state under `data.reading.book` (see `src/sight-reading/progress.ts`). It needs no migration: a saved record without it gets the defaults.
+- On sync, `tries` of a piece add up and `best` and `stars` take the higher value. The rest of the book state follows the last writer.
+- Once a piece of today's set was played, the set stays for the day, also when another level or key is chosen. Before that, a new choice draws it again.
+
+**Warm-up**
+
+- Six flash cards of one bar without chords, each shown for 2 seconds and then played from memory. "Show again" shows the bar once more, and the card then does not count as read at first glance.
+- Then 5 position notes for each hand, 2 rhythm exercises, and from level 6 five chord questions. These steps use the existing drill engine and count in the drills' own statistics.
+- The warm-up uses the pinned key, or the key of the first level piece of today's set.
+
+**Languages**
+
+- Every string of the page exists in English, Romanian, Spanish, French, German, Italian and Brazilian Portuguese. The translations were written by the assistant and were not checked by a native speaker.
+

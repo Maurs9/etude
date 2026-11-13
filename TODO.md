@@ -10,6 +10,18 @@ Acest document centralizează:
 
 ## 1. Status & Checklist TODO
 
+### Redesign tab Read — pe ramura `feat/read-redesign` (nu este în `main`)
+Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesign-spec.md](./docs/plans/2026-11-13-read-redesign-spec.md).
+- [x] **Pasul 1 — Model de niveluri:** 8 niveluri, 24 de tonalități, verificarea limitelor (`src/sight-reading/levels.ts`).
+- [x] **Pașii 2–3 — Generator:** tipare, reguli G2–G16, melodie, mâna a doua (`patterns.ts`, `rules.ts`, `melody.ts`). Testele verifică fiecare regulă pe 11.520 de piese.
+- [x] **Pasul 4 — Carte și set zilnic:** 96 de piese pe nivel, serii de 20 pe o tonalitate, 5 piese pe zi (`book.ts`).
+- [x] **Pașii 5, 6, 8 — Pagina Read și player-ul:** ecran nou, stare salvată în `reading.book`, gravor cu `engrave: 2`, card de rezultat, Prev / Next / auto-next.
+- [x] **Pasul 7 — Încălzire:** carduri flash de o măsură, poziția mâinilor, ritm, acorduri de la nivelul 6.
+- [x] **Pasul 9 — Documentație:** README, specificația „as built”, acest fișier.
+- [ ] **Aprobare la ascultare:** piesele generate trebuie cântate și aprobate pe fiecare nivel.
+- [ ] **Deciziile D1–D6** din specificație (exercițiile Kravchuk, mărime, previzualizare, plafon, raft de piese din domeniul public, sol diez minor).
+- [ ] **Pull request și îmbinare în `main`** după aprobare.
+
 ### Finalizat (Verificat local & în teste)
 - [x] **Step 0 — Plasa de siguranță (Safety Net):** Suita Playwright stabilă, separare proiecte `app` și `sw` (`@sw`), teste golden pentru cele 30 de înregistrări MP3 (`tests/golden/piano-recordings.json`) și pentru gravura partiturilor (`tests/golden/scores/*.json`, inclusiv baseline-uri `darwin`, `linux` și `win32`).
 - [x] **Step 1 — Upgrade OpenSheetMusicDisplay (OSMD) la `2.3.0`:**
