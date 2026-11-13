@@ -1131,7 +1131,7 @@
     .plan{padding:16px}
   }
   @media (max-width:680px), (pointer:coarse){
-    .iconbtn,.dock-tools .btn,.btn.dock-kb-toggle{position:relative}
+    .iconbtn:not(.drawer-close),.dock-tools .btn,.btn.dock-kb-toggle{position:relative}
     .iconbtn::after,.dock-tools .btn::after,.btn.dock-kb-toggle::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:44px; width:100%; height:100%}
   }
   @media (max-width:420px){
@@ -1336,7 +1336,8 @@
     .bar{height:46px}
     .brand .mark{font-size:20px}
     .brand .tag{display:none}
-    .iconbtn{width:36px; height:36px; font-size:15px; position:relative}
+    .iconbtn{width:36px; height:36px; font-size:15px}
+    .iconbtn:not(.drawer-close){position:relative}
     .iconbtn::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:44px; width:100%; height:100%}
     main{padding:12px 0 calc(var(--dock-h, 96px) + 52px)}
     .dock:not(.is-rail){padding-top:4px; padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}

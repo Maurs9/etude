@@ -280,6 +280,46 @@ test.describe('Android UX, Adaptive and Navigation-Event verification', () => {
 
 });
 
+// The touch-target rules give icon buttons position:relative for their 44px ::after; the Settings close button
+// must stay absolutely positioned in the drawer's top-right corner and still get the 44px target.
+for (const c of [
+  { name: 'phone with touch', viewport: { width: 390, height: 844 }, hasTouch: true },
+  { name: 'desktop with touch', viewport: { width: 1280, height: 800 }, hasTouch: true },
+  { name: 'short landscape phone with touch', viewport: { width: 844, height: 390 }, hasTouch: true },
+  { name: 'desktop with a mouse', viewport: { width: 1280, height: 800 }, hasTouch: false },
+]) {
+  test.describe(`Settings close button (${c.name})`, () => {
+    test.use({ viewport: c.viewport, hasTouch: c.hasTouch });
+
+    test('stays in the drawer top-right corner with a thumb-sized target', async ({ app }) => {
+      const page = await app.open();
+      await page.locator('#settingsBtn').click();
+      await expect(page.locator('#drawer')).toHaveClass(/on/);
+      const measure = () => page.evaluate(() => {
+        const btn = document.getElementById('drawerClose'), d = document.getElementById('drawer').getBoundingClientRect();
+        const b = btn.getBoundingClientRect(), cs = getComputedStyle(btn), after = getComputedStyle(btn, '::after');
+        const hasAfter = after.content !== 'none' && after.content !== 'normal';
+        return {
+          position: cs.position,
+          fromRight: Math.round(d.right - b.right), fromTop: Math.round(b.top - d.top),
+          tapW: Math.max(b.width, hasAfter ? parseFloat(after.width) || 0 : 0),
+          tapH: Math.max(b.height, hasAfter ? parseFloat(after.height) || 0 : 0),
+        };
+      });
+      await expect.poll(async () => (await measure()).fromRight).toBeLessThanOrEqual(30);   // waits out the slide-in
+      const m = await measure();
+      expect(m.position).toBe('absolute');
+      expect(m.fromRight).toBeGreaterThanOrEqual(0);
+      expect(m.fromTop).toBeGreaterThanOrEqual(0);
+      expect(m.fromTop).toBeLessThanOrEqual(30);
+      if (c.hasTouch) {
+        expect(m.tapW).toBeGreaterThanOrEqual(44);
+        expect(m.tapH).toBeGreaterThanOrEqual(44);
+      }
+    });
+  });
+}
+
 test.describe('bottom navigation on phones', () => {
   const rect = (page, sel) => page.locator(sel).evaluate(el => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, width: r.width, height: r.height }; });
 
