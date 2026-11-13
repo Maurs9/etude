@@ -50,12 +50,12 @@ Eight levels. Each level adds one difficulty and one or two patterns, and keeps 
 |---|---|---|---|---|---|---|---|
 | 1 | Steps | one hand at a time (right 2 bars, left 2 bars) | five-finger position, steps and repeats | whole, half, quarter | 4/4 | 4 | pre-Initial |
 | 2 | Skips | one hand at a time | adds thirds | dotted half, quarter rest | 4/4, 3/4 | 4 | ABRSM Initial |
-| 3 | Fifths and eighths | hands alternate inside the phrase | leaps up to a fifth | eighth-note pairs, half rest | adds 2/4 | 4 to 6 | Initial to Grade 1 |
-| 4 | Together, one moves | together: one hand moves, the other holds | five-finger position | ties | same | 4 to 6 | Grade 2 |
+| 3 | Fifths and eighths | hands alternate inside the phrase | leaps up to a fifth | eighth-note pairs, half rest | adds 2/4 | 4 or 6 | Initial to Grade 1 |
+| 4 | Together, one moves | together: one hand moves, the other holds | five-finger position | ties | same | 4 or 6 | Grade 2 |
 | 5 | Together, both move | parallel and contrary motion | one extension to a sixth | dotted quarter plus eighth | same | 8 | Grade 2 |
 | 6 | Out of position | melody plus held roots or 2-note chords | an octave, one position shift per hand | simple sixteenths | adds 3/8 | 8 | Grade 3 |
 | 7 | Chromatic and compound | melody plus broken-chord accompaniment | chromatic neighbour notes, upbeat start | all earlier values | adds 6/8 | 8 | Grade 4 |
-| 8 | Chords and syncopation | 2-note chords in either hand | octave and more | syncopation, ties over the barline | same | 8 to 12 | Grade 5 |
+| 8 | Chords and syncopation | 2-note chords in either hand | octave and more | syncopation, ties over the barline | same | 8 or 12 | Grade 5 |
 
 Pieces are assembled from named patterns. A pattern is a shape the eye can take in as one unit.
 
@@ -72,6 +72,20 @@ Pieces are assembled from named patterns. A pattern is a shape the eye can take 
 
 The existing 13 profiles stay in the generator unchanged, so stored fingerprints stay valid.
 Their content is covered by the new levels: P1 → levels 1 and 2, P2 → levels 2 and 3, P4 → levels 3, 5 and 8. The P3 block-chord pieces become the "Chords at sight" warm-up item.
+
+### Limits as built (step 1, `src/sight-reading/levels.ts`)
+
+- **Hand positions.** The right-hand tonic lies from C4 to B4. The left-hand tonic lies from F2 to E3. The hands are one octave apart in the keys of C to E and two octaves apart in the keys of F to B.
+- **Range in scale degrees from the tonic (0):** levels 1 to 4 use 0 to 4, level 5 uses 0 to 5, level 6 uses 0 to 7, level 7 uses -1 to 7, level 8 uses -2 to 9.
+- **Largest leap:** a second at level 1, a third at level 2, a fifth at levels 3 to 5, a sixth at level 6, an octave at levels 7 and 8.
+- **Rests:** quarter from level 2, half from level 3, eighth from level 5. 3/8 and 6/8 also have the dotted-quarter rest. A whole-bar rest is used only where a hand waits: levels 1 to 3, and the upbeat bar.
+- **Rest placement:** a rest shorter than a beat stays inside its beat. A longer rest starts on a multiple of its own length.
+- **Ties:** a note may be tied over the barline from level 4. Each written part must be a note value of the level.
+- **Syncopation (level 8 only):** a note that starts off the beat and is held past the next beat, or in 4/4 a note on beat 2 or 4 that lasts longer than a beat.
+- **Upbeat (levels 7 and 8):** written as a first bar that starts with rests. One hand may wait in that bar.
+- **Accidentals:** none up to level 5. The raised leading note of a minor key from level 6. Up to 2 chromatic notes at level 7 and 3 at level 8. No double accidentals, so G♯ minor has no raised leading note (F double-sharp). This is open decision D6.
+- **Notes at once:** one per hand up to level 5, two in the left hand at levels 6 and 7, two in each hand at level 8.
+- **Tempo:** 66, 66, 72, 63, 66, 66, 60 and 72 bpm for levels 1 to 8.
 
 ## 5. Keys
 
@@ -244,6 +258,7 @@ Each step ends with its check. I pause for your OK after each step.
 - **D3 Preview and tempo.** 30-second preview and the level's tempo for first sight. Recommendation: accept.
 - **D4 Ceiling.** Level 8 is near ABRSM Grade 5. Higher levels can follow later. Recommendation: accept.
 - **D5 Public-domain shelf.** Czerny and classical pieces as a later, separate step. Recommendation: later.
+- **D6 G♯ minor.** Its leading note is F double-sharp. Recommendation: keep the ban on double accidentals and close G♯ minor pieces without the raised note, until the score renderer is checked for double sharps.
 
 ## 15. Sources and their limits
 
