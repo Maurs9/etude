@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Read tab redesign mockup</title>
+<style>
+  :root{
+    --paper:#f7f3ec; --paper2:#fffdf8; --card:#fffdf8;
+    --ink:#1a1714; --ink2:#3f3a32; --muted:#6b6358;
+    --accent:#8c2b2b; --accent-ink:#fbf3ee;
+    --gold:#b0852f; --gold-ink:#846017;
+    --good:#3e6f4e; --good-bg:#e4ede2;
+    --line:#ded6c8; --line2:#cfc5b3;
+    --shadow:0 1px 0 rgba(26,23,20,.04), 0 12px 30px -18px rgba(26,23,20,.30);
+    --staffink:#1a1714;
+    --serif:'Fraunces', Georgia, 'Times New Roman', serif;
+    --sans:'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --rad:12px;
+  }
+  :root[data-theme=dark]{
+    --paper:#171412; --paper2:#201c18; --card:#211d19;
+    --ink:#ece5d8; --ink2:#cfc6b6; --muted:#9d9384;
+    --accent:#c96a58; --accent-ink:#2b120d;
+    --gold:#cfa14b; --gold-ink:#cfa14b;
+    --good:#8db996; --good-bg:#25332a;
+    --line:#3b352c; --line2:#4c4437;
+    --shadow:0 1px 0 rgba(0,0,0,.2), 0 12px 30px -18px rgba(0,0,0,.6);
+    --staffink:#e8e1d4;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:16px; line-height:1.45; overflow-x:hidden}
+  h1,h2,h3{font-family:var(--serif); font-weight:600; letter-spacing:-.01em; margin:0}
+  button{font-family:inherit; font-size:inherit; color:inherit; cursor:pointer}
+  button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .mock{background:var(--gold); color:#1a1714; font-size:13px; text-align:center; padding:4px 12px}
+  header.top{display:flex; align-items:center; gap:16px; padding:10px clamp(16px,2.5vw,32px); border-bottom:1px solid var(--line); flex-wrap:wrap}
+  .brand{font-family:var(--serif); font-weight:900; font-size:22px}
+  nav.main{display:flex; gap:4px; flex-wrap:wrap}
+  nav.main span{padding:10px 12px; border-radius:8px; color:var(--muted); font-size:14px}
+  nav.main span[aria-current]{color:var(--ink); background:var(--paper2); border:1px solid var(--line)}
+  .top .sp{margin-left:auto}
+  .wrap{max-width:1480px; margin:0 auto; padding:20px clamp(16px,2.5vw,32px) 48px}
+  .pagehead{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:16px}
+  .pagehead h1{font-size:clamp(26px,3vw,34px)}
+  .pagehead p{margin:0; color:var(--muted)}
+  .grid{display:grid; gap:16px; grid-template-columns:1fr}
+  .col{display:grid; gap:16px; align-content:start; min-width:0}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--rad); box-shadow:var(--shadow); padding:18px; min-width:0}
+  .eyebrow{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--gold-ink); font-weight:700; margin-bottom:4px}
+  .card h2{font-size:22px}
+  .sub{color:var(--muted); margin:4px 0 0}
+  .btn{min-height:44px; padding:0 16px; border-radius:10px; border:1px solid var(--line2); background:var(--paper2)}
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:700}
+  .btn.link{border:0; background:none; color:var(--accent); padding:0 4px; text-decoration:underline}
+  .btn[disabled]{opacity:.45; cursor:not-allowed}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .today{display:grid; gap:14px}
+  .dots{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .dot{font-size:12px; padding:4px 10px; border-radius:99px; border:1px solid var(--line2); color:var(--ink2); white-space:nowrap}
+  .dot.at{background:var(--good-bg); border-color:transparent; color:var(--good)}
+  .lab{font-size:13px; font-weight:700; color:var(--ink2); margin:16px 0 8px}
+  .levels{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:6px}
+  .lv{min-height:48px; border-radius:10px; border:1px solid var(--line2); background:var(--paper2); font-weight:700; padding:0}
+  .lv[aria-pressed=true],.key[aria-pressed=true]{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .lvdesc{margin:8px 0 0; color:var(--ink2); font-size:14px; min-height:42px}
+  .lvdesc b{font-family:var(--serif); font-size:16px}
+  .keys{display:grid; grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:6px}
+  .key.mix{grid-column:span 2}
+  details.more summary{min-height:44px; display:flex; align-items:center; cursor:pointer; color:var(--accent); font-weight:700}
+  .pat{color:var(--gold-ink); font-size:13px}
+  .units{display:grid; gap:14px 22px; grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr))}
+  .uh{display:flex; gap:8px; align-items:baseline; margin-bottom:6px; font-size:14px}
+  .uh span{color:var(--muted)}
+  .uh .uc{margin-left:auto}
+  .uh .tag{font-size:11px; background:var(--good-bg); color:var(--good); border-radius:99px; padding:1px 8px}
+  .nums8{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:5px}
+  .nums8 .num b{font-size:16px}
+  @media (max-width:479.98px){ .nums8{grid-template-columns:repeat(4,minmax(0,1fr))} }
+  .key{min-height:48px; border-radius:10px; border:1px solid var(--line2); background:var(--paper2); padding:2px 0; display:grid; place-items:center; line-height:1.1}
+  .key small{font-size:11px; color:var(--muted); font-weight:400}
+  .key[aria-pressed=true] small{color:inherit; opacity:.75}
+  .key b{font-weight:700}
+  .key[data-m="1"]{box-shadow:inset 0 -4px 0 var(--gold)}
+  .key[data-m="2"]{box-shadow:inset 0 -4px 0 var(--good)}
+  .legend{display:flex; gap:14px; font-size:12px; color:var(--muted); margin-top:8px; flex-wrap:wrap}
+  .legend i{display:inline-block; width:14px; height:4px; border-radius:2px; vertical-align:middle; margin-right:5px}
+  .bookhead{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:18px 0 10px; padding-top:16px; border-top:1px solid var(--line)}
+  .bookhead h3{font-size:18px}
+  .bookhead .sp{margin-left:auto}
+  .nums{display:grid; grid-template-columns:repeat(auto-fill,minmax(64px,1fr)); gap:6px}
+  .num{min-height:56px; border-radius:10px; border:1px solid var(--line2); background:var(--paper2); display:grid; place-items:center; padding:2px; line-height:1.1}
+  .num b{font-family:var(--serif); font-size:18px}
+  .num small{font-size:11px; color:var(--gold-ink); letter-spacing:1px}
+  .num.next{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset}
+  .stat{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px}
+  .stat div{border:1px solid var(--line); border-radius:10px; padding:10px; text-align:center}
+  .stat b{display:block; font-family:var(--serif); font-size:22px}
+  .stat span{font-size:12px; color:var(--muted)}
+  .suggest{margin-top:12px; padding:12px; border-radius:10px; background:var(--good-bg); color:var(--good); display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .suggest .sp{margin-left:auto}
+  details.drills{margin-top:12px; border-top:1px solid var(--line); padding-top:8px}
+  details.drills summary{min-height:44px; display:flex; align-items:center; cursor:pointer; color:var(--accent); font-weight:700}
+  .topic{display:flex; align-items:center; gap:10px; min-height:44px; border-bottom:1px solid var(--line); width:100%; background:none; border-left:0; border-right:0; border-top:0; text-align:left; padding:0}
+  .topic span{flex:1}
+  .pips{display:flex; gap:3px; flex-wrap:wrap; justify-content:flex-end; max-width:120px}
+  .pips i{width:8px; height:8px; border-radius:50%; background:var(--line2)}
+  .pips i.d{background:var(--good)}
+  /* player */
+  .player{display:none}
+  body[data-screen=player] .home{display:none}
+  body[data-screen=player] .player{display:block}
+  .phead{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px}
+  .phead h2{font-size:22px}
+  .phead .sp{margin-left:auto}
+  .stage{position:relative; background:var(--paper2); border:1px solid var(--line); border-radius:var(--rad); padding:10px; box-shadow:var(--shadow)}
+  .stage svg{display:block; width:100%; height:auto}
+  .stage.hidden-score svg .notes{filter:blur(7px); opacity:.35}
+  .overlay{display:grid; place-items:center; padding:12px 0 2px}
+  .overlay:empty{display:none}
+  .panel{background:var(--card); border:1px solid var(--line2); border-radius:var(--rad); box-shadow:var(--shadow); padding:16px 18px; max-width:520px; width:100%}
+  .panel h3{font-size:20px}
+  .panel ul{margin:10px 0 14px; padding-left:20px; color:var(--ink2)}
+  .count{font-family:var(--serif); font-size:34px; font-weight:700; color:var(--accent)}
+  .res{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0}
+  .res div{text-align:center; border:1px solid var(--line); border-radius:10px; padding:8px 4px}
+  .res b{display:block; font-family:var(--serif); font-size:20px}
+  .res span{font-size:12px; color:var(--muted)}
+  .stars{color:var(--gold); font-size:24px; letter-spacing:3px}
+  .bar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px}
+  .seg{display:inline-flex; border:1px solid var(--line2); border-radius:10px; overflow:hidden}
+  .seg button{min-height:44px; padding:0 12px; border:0; background:var(--paper2)}
+  .seg button[aria-pressed=true]{background:var(--ink); color:var(--paper)}
+  .tempo{display:inline-flex; align-items:center; gap:6px}
+  .tempo output{min-width:64px; text-align:center}
+  .opts{display:none; margin-top:10px}
+  .opts.open{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:6px 18px}
+  .opts label{display:flex; gap:8px; align-items:center; min-height:44px}
+  .cursor{stroke:var(--accent); stroke-width:3; opacity:0}
+  .playing .cursor{opacity:.8; animation:sweep 3s linear forwards}
+  @keyframes sweep{from{transform:translateX(0)} to{transform:translateX(830px)}}
+  @media (prefers-reduced-motion:reduce){.playing .cursor{animation:none; opacity:0}}
+  @media (min-width:700px) and (max-width:1099.98px){
+    .grid{grid-template-columns:1fr 1fr}
+    .col{display:contents}
+    .card.today{order:1}
+    .card.warm{order:2}
+    .card.book{order:3; grid-column:1 / -1}
+    .card.progress{order:4; grid-column:1 / -1}
+  }
+  @media (min-width:1100px){ .grid{grid-template-columns:minmax(0,1fr) 340px} }
+</style>
+</head>
+<body data-screen="home">
+<div class="mock">Mockup for the Read tab redesign. Sample data. Not connected to the app.</div>
+<header class="top">
+  <span class="brand">Étude</span>
+  <nav class="main" aria-label="Main"><span>Today</span><span>Learn</span><span>Practice</span><span aria-current="page">Read</span><span>Pieces</span><span>Progress</span></nav>
+  <span class="sp"></span>
+  <button class="btn" id="theme" type="button">Dark theme</button>
+</header>
+
+<main class="wrap home">
+  <div class="pagehead"><h1>Read &amp; play</h1><p>Play it at first sight, in time, without stopping.</p></div>
+  <div class="grid">
+    <div class="col main">
+      <section class="card today" aria-labelledby="t-h">
+          <div><div class="eyebrow">Today</div><h2 id="t-h">Today's set</h2><p class="sub">5 new pieces, about 6 minutes. <span id="t-sel"></span> <span id="t-keys"></span></p></div>
+          <div class="dots"><span class="dot">1 easier</span><span class="dot at">3 at your level</span><span class="dot">1 stretch</span></div>
+          <div class="row"><button class="btn primary" id="t-go" type="button">Start today's set</button><span class="sub" style="margin:0">New set every day.</span></div>
+      </section>
+      <section class="card book" aria-labelledby="b-h">
+        <div class="eyebrow">The book</div>
+        <h2 id="b-h">Pick a level</h2>
+        <div class="lab" id="lv-lab">Level</div>
+        <div class="levels" id="levels" role="group" aria-labelledby="lv-lab"></div>
+        <p class="lvdesc" id="lvdesc"></p>
+        <div class="lab" id="k-lab">Keys</div>
+        <div class="keys" id="keys" role="group" aria-labelledby="k-lab"></div>
+        <details class="more" id="more"><summary>Other keys</summary><div class="keys" id="morekeys" role="group" aria-label="Other keys"></div></details>
+        <div class="legend"><span><i style="background:var(--good)"></i>secure at this level</span><span><i style="background:var(--gold)"></i>started</span></div>
+        <div class="bookhead"><h3 id="bk-title"></h3><span class="sub" id="bk-done" style="margin:0"></span><span class="sp"></span><button class="btn primary" id="bk-cont" type="button"></button></div>
+        <div id="book"></div>
+      </section>
+    </div>
+    <div class="col rail">
+      <section class="card warm" aria-labelledby="w-h">
+        <div class="eyebrow">Warm-up</div>
+        <h2 id="w-h">2-minute warm-up</h2>
+        <p class="sub" id="w-sub"></p>
+        <div class="row" style="margin-top:12px"><button class="btn" type="button">Start warm-up</button></div>
+        <details class="drills">
+          <summary>All drills (9 topics)</summary>
+          <div id="topics"></div>
+          <div class="row" style="margin-top:10px"><button class="btn" type="button">Custom drill</button><button class="btn" type="button">Challenges</button></div>
+        </details>
+      </section>
+      <section class="card progress" aria-labelledby="p-h">
+        <div class="eyebrow">Progress</div>
+        <h2 id="p-h">Your reading</h2>
+        <div class="stat"><div><b>6</b><span>day streak</span></div><div><b>88%</b><span>first sight, last 10</span></div><div><b>143</b><span>pieces read</span></div></div>
+        <div class="suggest" id="sg"><span>88% in mixed keys. <b id="sg-key"></b> is ready when you are.</span><span class="sp"></span><button class="btn" id="sg-go" type="button">Go</button></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<main class="wrap player">
+  <div class="phead">
+    <button class="btn" id="back" type="button">← Back</button>
+    <h2 id="p-title"></h2><span class="sub" id="p-sub" style="margin:0"></span>
+    <span class="sp"></span>
+    <button class="btn" id="prev" type="button">← Prev</button><button class="btn" id="next" type="button">Next →</button>
+  </div>
+  <div class="stage hidden-score" id="stage">
+    <svg id="score" viewBox="0 0 1000 222" role="img" aria-label="Sample score"></svg>
+    <div class="overlay" id="overlay"></div>
+  </div>
+  <p class="sub" style="font-size:13px">Illustration only. The real pieces follow the generator rules in the spec.</p>
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Hands" id="hands"><button type="button" aria-pressed="true">Both</button><button type="button" aria-pressed="false">Right</button><button type="button" aria-pressed="false">Left</button></div>
+    <div class="tempo"><button class="btn" type="button" id="t-dn" aria-label="Slower">−</button><output id="bpm">72 bpm</output><button class="btn" type="button" id="t-up" aria-label="Faster">+</button></div>
+    <button class="btn" type="button" id="listen" disabled>Listen</button>
+    <button class="btn" type="button" id="optb" aria-expanded="false">Options</button>
+  </div>
+  <div class="opts card" id="opts">
+    <label><input type="checkbox"> Note names</label><label><input type="checkbox"> Accept any octave</label>
+    <label><input type="checkbox"> Step-by-step mode</label><label><input type="checkbox" checked> Sound</label>
+    <label><input type="checkbox" checked> Auto-next after a pass</label><label><input type="checkbox"> Immersive stage</label>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const LEVELS = [
+    ['Steps', 'One hand at a time. Five-finger position, steps and repeats. Whole, half and quarter notes.'],
+    ['Skips', 'One hand at a time. Adds thirds, the dotted half note and quarter rests. 4/4 and 3/4.'],
+    ['Fifths and eighths', 'Hands alternate inside the phrase. Leaps up to a fifth. Adds eighth-note pairs.'],
+    ['Together, one moves', 'Hands together: one hand moves while the other holds. Adds ties.'],
+    ['Together, both move', 'Parallel and contrary motion. Adds the dotted quarter. 8 bars.'],
+    ['Out of position', 'Range of an octave with one position shift. Left hand holds roots or 2-note chords. Adds 3/8.'],
+    ['Chromatic and compound', 'Melody over a broken-chord left hand. Adds accidentals, upbeats and 6/8.'],
+    ['Chords and syncopation', '2-note chords in either hand. Syncopation and ties over the barline. 8 to 12 bars.'],
+  ];
+  // [label, tonic letter index C=0, signature (+sharps / -flats), minor]
+  const KEYS = [
+    ['C',0,0,0],['G',4,1,0],['F',3,-1,0],['D',1,2,0],['B♭',6,-2,0],['A',5,3,0],['E♭',2,-3,0],['E',2,4,0],['A♭',5,-4,0],['B',6,5,0],['D♭',1,-5,0],['F♯',3,6,0],
+    ['Am',5,0,1],['Em',2,1,1],['Dm',1,-1,1],['Bm',6,2,1],['Gm',4,-2,1],['F♯m',3,3,1],['Cm',0,-3,1],['C♯m',0,4,1],['Fm',3,-4,1],['G♯m',4,5,1],['B♭m',6,-5,1],['E♭m',2,-6,1],
+  ];
+  const TOPICS = [['Treble clef',11,9],['Bass clef',11,7],['Grand staff',6,3],['Accidentals',5,2],['Key signatures',5,3],['Intervals',4,2],['Chords',4,1],['Rhythm',5,4],['C clefs',3,0]];
+  const NEW = [[0, 1, 2, 12, 14], [], [3, 4, 13, 16], [], [5, 6, 15, 18], [], [7, 8, 17, 20], [9, 10, 11, 19, 21, 22, 23]];
+  const PATTERNS = ['step run, repeated note', 'skip, neighbour figure', 'broken triad, leap of a fifth, eighth-note run, sequence', 'held note under a moving hand, tie', 'parallel motion, contrary motion, dotted figure', 'position shift, 2-note chord, sixteenth run', 'chromatic neighbour, broken-chord left hand, upbeat', 'syncopated figure, chords in both hands'];
+  const CUR = 2; // sample data: the user is working at Level 3
+  const state = { lv: CUR, key: -1, n: 1, today: 0, pkey: 0, more: false };
+  const rng = (seed) => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const sig = (k) => k[2] === 0 ? 'no ♯ or ♭' : Math.abs(k[2]) + (k[2] > 0 ? '♯' : '♭');
+  const keyName = (k) => k[3] ? k[0].replace('m', ' minor') : k[0] + ' major';
+  const pool = (lv) => NEW.slice(0, lv + 1).flat();
+  const units = (lv) => {
+    const met = lv ? pool(lv - 1) : [], out = [];
+    if (met.length) out.push({ t: 'Easy keys', keys: [0, 1, 2], kind: 'mix' });
+    NEW[lv].forEach((k, i) => { met.push(k); out.push({ t: keyName(KEYS[k]), keys: [k], kind: 'new' }); if (i % 2 === 1) out.push({ t: 'Mix', keys: met.slice(), kind: 'mix' }); });
+    while (out.length < 12) out.push({ t: 'Mix', keys: met.slice(), kind: 'mix' });
+    out[11].t = 'Level check';
+    return out;
+  };
+  const pieceKey = (lv, n) => { const u = units(lv)[Math.floor((n - 1) / 8)]; return u.keys[Math.floor(rng(lv * 500 + n * 7)() * u.keys.length)]; };
+  const doneFocus = (lv, key) => { if (lv > CUR) return 0; const r = rng(lv * 97 + key * 13 + 5)(); return r < .35 ? 20 : r < .6 ? Math.floor(r * 30) : 0; };
+  const total = () => state.key < 0 ? 96 : 20;
+  const done = () => state.key < 0 ? (state.lv < CUR ? 96 : state.lv === CUR ? 21 : 0) : doneFocus(state.lv, state.key);
+  const keyChip = (i) => { const k = KEYS[i], d = doneFocus(state.lv, i); return `<button type="button" class="key" data-key="${i}" data-m="${d >= 16 ? 2 : d > 0 ? 1 : 0}" aria-pressed="${i === state.key}" aria-label="${keyName(k)}"><b>${k[0]}</b><small>${sig(k)}</small></button>`; };
+  const numChip = (n, d, nxt, r) => { const st = n <= d ? (r() < .55 ? 3 : 2) : 0; return `<button type="button" class="num${n === nxt ? ' next' : ''}" data-n="${n}" aria-label="Exercise ${n}${st ? ', ' + st + ' stars' : ', not played'}"><b>${n}</b><small>${st ? '★'.repeat(st) + '☆'.repeat(3 - st) : '&nbsp;'}</small></button>`; };
+
+  function renderHome() {
+    const lv = state.lv, p = pool(lv), rest = KEYS.map((_, i) => i).filter((i) => !p.includes(i));
+    $('levels').innerHTML = LEVELS.map((l, i) => `<button type="button" class="lv" data-lv="${i}" aria-pressed="${i === lv}" aria-label="Level ${i + 1}: ${l[0]}">${i + 1}</button>`).join('');
+    $('lvdesc').innerHTML = `<b>Level ${lv + 1} · ${LEVELS[lv][0]}</b><br>${LEVELS[lv][1]}<br><span class="pat">New patterns: ${PATTERNS[lv]}.</span>`;
+    $('keys').innerHTML = `<button type="button" class="key mix" data-key="-1" aria-pressed="${state.key < 0}"><b>Mixed</b><small>${p.length} keys, recommended</small></button>` + p.map(keyChip).join('');
+    $('more').hidden = !rest.length; $('more').open = state.more || rest.includes(state.key); $('morekeys').innerHTML = rest.map(keyChip).join('');
+    const d = done(), tot = total(), nxt = d >= tot ? 0 : d + 1, r = rng(lv * 31 + state.key + 3);
+    $('bk-title').textContent = state.key < 0 ? `Level ${lv + 1} book` : `Key focus · ${keyName(KEYS[state.key])}`;
+    $('bk-done').textContent = `${d} of ${tot} done`;
+    $('bk-cont').textContent = d === 0 ? 'Start · No. 1' : d >= tot ? 'Replay · No. 1' : `Continue · No. ${nxt}`;
+    $('bk-cont').dataset.n = nxt || 1;
+    if (state.key < 0) $('book').innerHTML = '<div class="units">' + units(lv).map((u, i) => { const a = i * 8, ud = Math.max(0, Math.min(8, d - a)); return `<section class="unit" aria-label="Unit ${i + 1}"><div class="uh"><b>Unit ${i + 1}</b><span>${u.t}${u.kind === 'mix' ? ' · ' + u.keys.length + ' keys' : ''}</span>${u.kind === 'new' ? '<span class="tag">new key</span>' : ''}<span class="uc">${ud}/8</span></div><div class="nums8">${Array.from({ length: 8 }, (_, j) => numChip(a + j + 1, d, nxt, r)).join('')}</div></section>`; }).join('') + '</div>';
+    else $('book').innerHTML = `<div class="nums">${Array.from({ length: 20 }, (_, j) => numChip(j + 1, d, nxt, r)).join('')}</div>`;
+    $('t-sel').textContent = `Level ${lv + 1}.`;
+    $('t-keys').textContent = state.key < 0 ? 'Mixed keys, chosen from your newest and your weakest.' : `All in ${keyName(KEYS[state.key])} (key focus).`;
+    $('w-sub').textContent = `Built for Level ${lv + 1}. Pattern flash: one bar shows for 2 seconds, then you play it. Then position notes and rhythm.`;
+    $('topics').innerHTML = TOPICS.map((t) => `<button type="button" class="topic"><span>${t[0]}</span><span class="pips" aria-label="${t[2]} of ${t[1]} levels done">${Array.from({ length: t[1] }, (_, i) => `<i class="${i < t[2] ? 'd' : ''}"></i>`).join('')}</span></button>`).join('');
+    $('sg').hidden = lv >= 7; $('sg-key').textContent = `Level ${lv + 2}`;
+  }
+
+  // --- illustrative score (not the real generator) ---
+  const SH_T = [0, 3, -1, 2, 5, 1], FL_T = [4, 1, 5, 2, 6, 3];
+  function drawScore() {
+    const k = KEYS[state.pkey], lv = state.lv, r = rng(lv * 1000 + state.pkey * 50 + state.n + state.today * 7);
+    const TY = 40, BY = 150, H = 6, ink = 'var(--staffink)';
+    let s = '';
+    for (const y0 of [TY, BY]) for (let i = 0; i < 5; i++) s += `<line x1="20" x2="980" y1="${y0 + i * 12}" y2="${y0 + i * 12}" stroke="${ink}" stroke-width="1"/>`;
+    s += `<line x1="20" x2="20" y1="${TY}" y2="${BY + 48}" stroke="${ink}" stroke-width="2"/>`;
+    s += `<text x="26" y="${TY + 40}" font-size="52" fill="${ink}" font-family="serif">𝄞</text><text x="28" y="${BY + 36}" font-size="44" fill="${ink}" font-family="serif">𝄢</text>`;
+    const n = Math.abs(k[2]), pos = k[2] > 0 ? SH_T : FL_T, ch = k[2] > 0 ? '♯' : '♭';
+    for (let i = 0; i < n; i++) for (const [y0, off] of [[TY, 0], [BY, 2]]) s += `<text x="${72 + i * 11}" y="${y0 + (pos[i] + off) * H + 6}" font-size="20" fill="${ink}">${ch}</text>`;
+    const x0 = 80 + n * 11 + 8;
+    s += `<text x="${x0}" y="${TY + 22}" font-size="26" font-weight="700" fill="${ink}" font-family="serif">4</text><text x="${x0}" y="${TY + 46}" font-size="26" font-weight="700" fill="${ink}" font-family="serif">4</text>`;
+    s += `<text x="${x0}" y="${BY + 22}" font-size="26" font-weight="700" fill="${ink}" font-family="serif">4</text><text x="${x0}" y="${BY + 46}" font-size="26" font-weight="700" fill="${ink}" font-family="serif">4</text>`;
+    const start = x0 + 34, bw = (980 - start) / 4;
+    const span = lv >= 5 ? 7 : 4, maxLeap = lv === 0 ? 1 : lv === 1 ? 2 : 4;
+    const cells = [[1, 1, 1, 1], [2, 1, 1], [1, 1, 2], [2, 2]].concat(lv >= 2 ? [[.5, .5, 1, 2], [1, .5, .5, 1, 1]] : []);
+    const tonT = 28 + k[1] + (k[1] >= 5 ? -7 : 0), tonB = tonT - 7 - (k[1] <= 1 ? 0 : 0);
+    let g = '<g class="notes">', deg = [0, 2, 4][Math.floor(r() * 3)];
+    const note = (x, diat, dur, bass) => {
+      const y0 = bass ? BY : TY, p = (bass ? 26 : 38) - diat, y = y0 + p * H, up = p > 4, fill = dur >= 2 ? 'none' : ink;
+      let o = '';
+      for (let q = 10; q <= p; q += 2) o += `<line x1="${x - 11}" x2="${x + 11}" y1="${y0 + q * H}" y2="${y0 + q * H}" stroke="${ink}"/>`;
+      for (let q = -2; q >= p; q -= 2) o += `<line x1="${x - 11}" x2="${x + 11}" y1="${y0 + q * H}" y2="${y0 + q * H}" stroke="${ink}"/>`;
+      o += `<ellipse cx="${x}" cy="${y}" rx="7.5" ry="5.2" transform="rotate(-18 ${x} ${y})" fill="${fill}" stroke="${ink}" stroke-width="1.6"/>`;
+      if (dur < 4) o += `<line x1="${up ? x + 7 : x - 7}" x2="${up ? x + 7 : x - 7}" y1="${y}" y2="${up ? y - 34 : y + 34}" stroke="${ink}" stroke-width="1.5"/>`;
+      return [o, up ? x + 7 : x - 7, up ? y - 34 : y + 34];
+    };
+    const rest = (x, y0) => `<rect x="${x - 8}" y="${y0 + 12}" width="16" height="6" fill="${ink}"/>`;
+    for (let b = 0; b < 4; b++) {
+      const bx = start + b * bw, last = b === 3;
+      const rhOn = lv <= 1 ? b < 2 : lv === 2 ? b % 2 === 0 : true, lhMel = lv <= 2 && !rhOn;
+      const cell = last ? [2, 2] : cells[Math.floor(r() * cells.length)];
+      let t = 0, prev = null;
+      cell.forEach((d, i) => {
+        const x = bx + 22 + (t / 4) * (bw - 30); t += d;
+        if (last && i === cell.length - 1) deg = 0;
+        else { const st = r() < .7 ? 1 : Math.min(maxLeap, 2 + Math.floor(r() * 3)); deg += (r() < .5 || deg <= 0 ? 1 : -1) * st; if (deg > span) deg -= 2 * st; deg = Math.max(0, Math.min(span, deg)); }
+        const [o, sx, sy] = note(x, (lhMel ? tonB : tonT) + deg, d, lhMel); g += o;
+        if (d === .5 && prev) g += `<line x1="${prev[0]}" x2="${sx}" y1="${prev[1]}" y2="${sy}" stroke="${ink}" stroke-width="5"/>`;
+        prev = d === .5 && !prev ? [sx, sy] : null;
+      });
+      if (lv <= 2) g += rest(bx + bw / 2, lhMel ? TY : BY);
+      else g += note(bx + 22, tonB + (last ? 0 : [0, 3, 4, 0][b]), 4, true)[0];
+      s += `<line x1="${bx + bw}" x2="${bx + bw}" y1="${TY}" y2="${BY + 48}" stroke="${ink}" stroke-width="${last ? 3 : 1}"/>`;
+    }
+    s += g + `</g><line class="cursor" x1="${start}" x2="${start}" y1="${TY - 12}" y2="${BY + 60}"/>`;
+    $('score').innerHTML = s;
+  }
+
+  let timer = null, left = 30;
+  function setPhase(phase) {
+    clearInterval(timer);
+    const st = $('stage'), ov = $('overlay'), k = KEYS[state.pkey];
+    st.classList.toggle('playing', phase === 'play');
+    st.classList.toggle('hidden-score', phase === 'ready');
+    $('listen').disabled = phase !== 'result';
+    if (phase === 'ready') ov.innerHTML = `<div class="panel"><h3>First sight</h3><p class="sub">You get 30 seconds to look, then one attempt in time.</p><div class="row" style="margin-top:12px"><button class="btn primary" data-ph="preview" type="button">Show the score</button><button class="btn" data-ph="play" type="button">Practice instead</button></div></div>`;
+    else if (phase === 'preview') {
+      left = 30;
+      ov.innerHTML = `<div class="panel"><div class="row"><span class="count" id="cnt" aria-live="off">30</span><b>Look through</b></div><ul><li>Key signature and time</li><li>First note and hand position</li><li>Pattern: broken triad in bar 2</li><li>Bars 1 and 3 share a rhythm</li></ul><button class="btn primary" data-ph="play" type="button">Start now</button></div>`;
+      timer = setInterval(() => { left--; const c = $('cnt'); if (c) c.textContent = left; if (left <= 0) setPhase('play'); }, 1000);
+    } else if (phase === 'play') { ov.innerHTML = ''; timer = setTimeout(() => setPhase('result'), 3000); }
+    else if (phase === 'result') ov.innerHTML = `<div class="panel"><div class="row"><h3>92%</h3><span class="stars" aria-label="2 of 3 stars">★★☆</span><span class="dot at">First sight saved</span><span class="dot">${keyName(k)}</span></div><div class="res"><div><b>96%</b><span>pitch</span></div><div><b>92%</b><span>rhythm</span></div><div><b>41 ms</b><span>timing</span></div><div><b>0</b><span>stops</span></div></div><div class="row"><button class="btn" data-ph="play" type="button">Retry as practice</button><button class="btn primary" data-go="next" type="button">Next →</button></div></div>`;
+  }
+  function openPlayer(n, today) {
+    state.n = n; state.today = today || 0;
+    const lv = state.lv, p = pool(lv), mixed = state.key < 0, ui = Math.floor((n - 1) / 8);
+    state.pkey = !mixed ? state.key : today ? [0, p[p.length - 1], p[1], p[2], 0][today - 1] : pieceKey(lv, n);
+    $('p-title').textContent = today ? `Today · ${today} of 5` : `No. ${n} of ${total()}`;
+    $('p-sub').textContent = `Level ${lv + 1} · ${LEVELS[lv][0]}` + (today ? '' : mixed ? ` · Unit ${ui + 1} · ${units(lv)[ui].t}` : ` · ${keyName(KEYS[state.key])}`);
+    $('hands').style.display = lv >= 3 ? '' : 'none';
+    $('prev').style.display = today ? 'none' : '';
+    $('prev').disabled = n <= 1;
+    document.body.dataset.screen = 'player';
+    drawScore(); setPhase('ready'); window.scrollTo(0, 0);
+  }
+  function step(d) {
+    if (state.today) { if (state.today >= 5) return home(); return openPlayer(state.n + 1, state.today + 1); }
+    const n = state.n + d; if (n < 1) return; if (n > total()) return home(); openPlayer(n, 0);
+  }
+  function home() { clearInterval(timer); document.body.dataset.screen = 'home'; renderHome(); }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.lv) { state.lv = +b.dataset.lv; renderHome(); }
+    else if (b.dataset.key) { state.key = +b.dataset.key; renderHome(); }
+    else if (b.dataset.n) openPlayer(+b.dataset.n, 0);
+    else if (b.dataset.ph) setPhase(b.dataset.ph);
+    else if (b.dataset.go === 'next') step(1);
+    else if (b.parentElement.id === 'hands') [...b.parentElement.children].forEach((x) => x.setAttribute('aria-pressed', x === b));
+  });
+  $('t-go').onclick = () => openPlayer(100, 1);
+  $('back').onclick = home; $('next').onclick = () => step(1); $('prev').onclick = () => step(-1);
+  $('sg-go').onclick = () => { state.lv = Math.min(7, state.lv + 1); state.key = -1; renderHome(); };
+  $('more').addEventListener('toggle', () => { state.more = $('more').open; });
+  let bpm = 72; const setBpm = (d) => { bpm = Math.max(40, Math.min(160, bpm + d)); $('bpm').textContent = bpm + ' bpm'; };
+  $('t-dn').onclick = () => setBpm(-4); $('t-up').onclick = () => setBpm(4);
+  $('optb').onclick = () => { const o = $('opts').classList.toggle('open'); $('optb').setAttribute('aria-expanded', o); };
+  $('theme').onclick = () => { const d = document.documentElement.dataset.theme === 'dark'; document.documentElement.dataset.theme = d ? 'light' : 'dark'; $('theme').textContent = d ? 'Dark theme' : 'Light theme'; };
+  renderHome();
+})();
+</script>
+</body>
+</html>
