@@ -103,4 +103,10 @@ describe('CI workflow', () => {
   it('cancels superseded runs except on main', () => {
     expect(block(workflow, 'concurrency')).toContain("cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}");
   });
+
+  it('builds the single-file app before the dev-server suite, which opens it over file://', () => {
+    const dev = job('e2e-dev');
+    expect(dev.indexOf('npm run build:standalone')).toBeGreaterThan(-1);
+    expect(dev.indexOf('npm run build:standalone')).toBeLessThan(dev.indexOf('npm run test:dev'));
+  });
 });

@@ -107,6 +107,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # tests/e2e/standalone.spec.mjs opens dist/etude-standalone.html over file://. The dev server does not build it.
+      - run: npm run build:standalone
       - run: npm run test:dev -- --shard=${{ matrix.shard }}/2
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
