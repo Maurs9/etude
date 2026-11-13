@@ -136,8 +136,10 @@ export function srtRecordResult(state: ReadingBookState, result: ReadingResult):
   if (result.firstSight && (before?.first ?? null) === null) {
     const add = (name: string, keep: number): void => { recent[name] = [...(recent[name] ?? []), score].slice(-keep); };
     add(`${result.level}|${result.key}`, KEY_SCORES);
-    // A piece played with a pinned key says nothing about reading in mixed keys.
-    if (!result.id.startsWith('f')) add(`${result.level}`, LEVEL_SCORES);
+    // A piece played with a pinned key says nothing about reading in mixed keys: a piece of a key run, or a piece
+    // of a daily set that was drawn with a pinned key.
+    const pinnedDaily = state.daily !== null && state.daily.focusKey !== null && result.id.startsWith(`d${state.daily.date}.`);
+    if (!result.id.startsWith('f') && !pinnedDaily) add(`${result.level}`, LEVEL_SCORES);
   }
   let daily = state.daily;
   if (daily && result.id.startsWith(`d${daily.date}.`)) {
@@ -222,13 +224,15 @@ export function srtStreak(state: ReadingBookState, today: string): number {
 }
 
 /**
- * The state with the daily set of a date. A set stays as it is for the whole day.
- * It is drawn again only when the reader changes the level or the pinned key.
+ * The state with the daily set of a date. Once a piece of the set has been played, the set stays as it is for the
+ * rest of the day, whatever level or key is chosen afterwards: its results are kept under its own ids.
+ * Before that, a change of level or of the pinned key draws the set again.
  * `seen` holds the fingerprints of the pieces the reader has seen: a new set avoids them.
  */
 export function srtEnsureDaily(state: ReadingBookState, date: string, seen?: ReadonlySet<string>): ReadingBookState {
   const daily = state.daily;
-  if (daily && daily.date === date && daily.level === state.level && daily.focusKey === state.focusKey) return state;
+  const started = daily !== null && daily.done.some((score) => score !== null);
+  if (daily && daily.date === date && (started || (daily.level === state.level && daily.focusKey === state.focusKey))) return state;
   const slots = srtDailyPlan(date, state.level, {
     ...(state.focusKey ? { focusKey: state.focusKey } : { scores: srtKeyScores(state, state.level) }),
     ...(seen ? { seen } : {}),

@@ -78,11 +78,15 @@ export function srtLevelExpected(piece: LevelPiece, config: SightReadingExpected
     })));
 }
 
-/** The moments of the metronome: one click per beat, with the first beat of each bar marked. */
+/**
+ * The moments of the metronome, with the first click of each bar marked: one click per beat.
+ * In 3/8 the beat is the whole bar, so there the metronome clicks the three eighths.
+ */
 export function srtLevelClicks(piece: LevelPiece, bpm: number): readonly { readonly ms: number; readonly accent: boolean }[] {
   const { bar, beat } = srtMeterTicks(piece.meter);
   const msPerTick = 60000 / bpm / TICKS_PER_QUARTER;
   const clicks: { ms: number; accent: boolean }[] = [];
-  for (let tick = 0; tick < piece.bars * bar; tick += beat) clicks.push({ ms: Math.round(tick * msPerTick * 1000) / 1000, accent: tick % bar === 0 });
+  const step = beat === bar && piece.meter.den === 8 ? beat / 3 : beat;
+  for (let tick = 0; tick < piece.bars * bar; tick += step) clicks.push({ ms: Math.round(tick * msPerTick * 1000) / 1000, accent: tick % bar === 0 });
   return clicks;
 }

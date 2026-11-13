@@ -78,7 +78,11 @@ describe('level piece timing', () => {
     expect(clicks([4, 4], 2, 60).map((click) => click.ms)).toEqual([0, 1000, 2000, 3000, 4000, 5000, 6000, 7000]);
     expect(clicks([4, 4], 2, 60).map((click) => click.accent)).toEqual([true, false, false, false, true, false, false, false]);
     expect(clicks([6, 8], 2, 60)).toEqual([{ ms: 0, accent: true }, { ms: 1500, accent: false }, { ms: 3000, accent: true }, { ms: 4500, accent: false }]);
-    expect(clicks([3, 8], 3, 60)).toEqual([{ ms: 0, accent: true }, { ms: 1500, accent: true }, { ms: 3000, accent: true }]);
+    // In 3/8 the bar is one beat: the metronome clicks the eighths, so a count-in bar has three clicks.
+    expect(clicks([3, 8], 2, 60)).toEqual([
+      { ms: 0, accent: true }, { ms: 500, accent: false }, { ms: 1000, accent: false },
+      { ms: 1500, accent: true }, { ms: 2000, accent: false }, { ms: 2500, accent: false },
+    ]);
     expect(clicks([3, 4], 1, 120).map((click) => click.ms)).toEqual([0, 500, 1000]);
   });
 });

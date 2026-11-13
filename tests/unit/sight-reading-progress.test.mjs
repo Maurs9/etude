@@ -113,15 +113,25 @@ describe('reading book state', () => {
     expect(srtEnsureDaily(played, DAY)).toBe(played);
     expect(play(played, { id: srtDailyId(DAY, 1), score: 60, firstSight: false }).daily.done[1]).toBe(88);
     expect(srtEnsureDaily(played, '2026-11-14').daily).toMatchObject({ date: '2026-11-14', done: [null, null, null, null, null] });
-    const pinned = srtEnsureDaily(srtChooseLevel(played, 3, 'Em'), DAY);
+    // Before a piece of the set is played, another level or a pinned key draws the set again.
+    const pinned = srtEnsureDaily(srtChooseLevel(first, 3, 'Em'), DAY);
     expect(pinned.daily.slots.map((slot) => slot.key)).toEqual(['Em', 'Em', 'Em', 'Em', 'Em']);
     expect(pinned.daily.done).toEqual([null, null, null, null, null]);
-    expect(srtEnsureDaily(srtChooseLevel(played, 4), DAY).daily.level).toBe(4);
+    expect(srtEnsureDaily(srtChooseLevel(first, 4), DAY).daily.level).toBe(4);
+    // After a piece of the set was played, the set stays for the day: its ids keep meaning the same pieces.
+    const other = srtChooseLevel(played, 4, 'Em');
+    expect(srtEnsureDaily(other, DAY)).toBe(other);
+    expect(other.daily).toMatchObject({ level: 3, focusKey: null, done: [null, 88, null, null, null] });
+    expect(srtEnsureDaily(other, '2026-11-14').daily).toMatchObject({ level: 4, focusKey: 'Em' });
     // A result of another day's set does not mark today's.
     expect(play(first, { id: srtDailyId('2026-11-12', 1) }).daily.done).toEqual([null, null, null, null, null]);
     expect(() => srtChooseLevel(state, 9)).toThrow(RangeError);
     expect(() => srtChooseLevel(state, 3, 'H')).toThrow(RangeError);
     expect(srtChooseLevel(pinned, 5).focusKey).toBe('Em');
+    // A daily set in a pinned key counts for the key, not for reading in mixed keys.
+    const inKey = play(pinned, { id: srtDailyId(DAY, 1), key: 'Em', score: 91 });
+    expect(inKey.recent).toEqual({ '3|Em': [91] });
+    expect(play(first, { id: srtDailyId(DAY, 1), key: 'G', score: 91 }).recent).toEqual({ '3|G': [91], 3: [91] });
     expect(srtChooseLevel(pinned, 5, null).focusKey).toBeNull();
   });
 
