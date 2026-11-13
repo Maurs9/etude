@@ -2574,6 +2574,27 @@ test('Settings controls receive localized programmatic labels', async ({ app }) 
   expect(romanianInputLabel).not.toBe(englishInputLabel);
 });
 
+test('Settings row labels use for= associations and toggle switches when clicked', async ({ app }) => {
+  const page = await app.open();
+  await page.locator('#settingsBtn').click();
+  const broken = await page.evaluate(() => {
+    const labels = [...document.querySelectorAll('#drawer label.lab[for]')];
+    return {
+      count: labels.length,
+      missing: labels.map(l => l.getAttribute('for')).filter(id => !document.getElementById(id)),
+    };
+  });
+  expect(broken.count).toBeGreaterThanOrEqual(10);
+  expect(broken.missing).toEqual([]);
+
+  const sw = page.locator('#set-weak-inject');
+  const before = await sw.isChecked();
+  await page.locator('#drawer label.lab[for="set-weak-inject"]').click();
+  expect(await sw.isChecked()).toBe(!before);
+  await page.locator('#drawer label.lab[for="set-weak-inject"]').click();
+  expect(await sw.isChecked()).toBe(before);
+});
+
 test('weak-spot injection is opt-in and steers only practice, survival and marathon', async ({ app, page }) => {
   await app.open({ hash: 'read' });
   await expect(page.locator('#rdx-weak-inject')).not.toBeChecked();

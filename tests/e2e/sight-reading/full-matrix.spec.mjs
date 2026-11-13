@@ -632,7 +632,8 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
       await page.evaluate(() => window.__etude.srPaintAll());
       const contrast = await page.evaluate(() => {
         const symbol = document.querySelector('.ss-result-symbol');
-        return { fill: getComputedStyle(symbol).fill, background: getComputedStyle(document.documentElement).getPropertyValue('--paper2').trim() };
+        const surface = symbol.closest('.ss-wrap') || document.documentElement;
+        return { fill: getComputedStyle(symbol).fill, background: getComputedStyle(surface).backgroundColor };
       });
       expect(contrastRatio(contrast.fill, contrast.background)).toBeGreaterThanOrEqual(4.5);
       expect(await page.locator('.ss-n[data-s="bad"] title').textContent()).toContain('✗');

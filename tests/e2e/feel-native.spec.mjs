@@ -132,3 +132,58 @@ test('coming back checks for a new version at most once every 30 minutes @sw', a
   await comeBack(page);
   await expect.poll(() => page.evaluate(() => window.__updates)).toBe(2);
 });
+
+test('compact header at 360px shows the MIDI DIN icon while visually hiding #midiText without overflow', async ({ app, page }) => {
+  await page.setViewportSize({ width: 360, height: 844 });
+  await app.open();
+  await expect(page.locator('#midiChip .midi-ic')).toBeVisible();
+  const layout = await page.evaluate(() => {
+    const text = document.getElementById('midiText').getBoundingClientRect();
+    const settings = document.getElementById('settingsBtn').getBoundingClientRect();
+    return {
+      textW: text.width,
+      textH: text.height,
+      settingsRight: settings.right,
+      scrollW: document.documentElement.scrollWidth,
+    };
+  });
+  expect(layout.textW).toBeLessThanOrEqual(1);
+  expect(layout.textH).toBeLessThanOrEqual(1);
+  expect(layout.settingsRight).toBeLessThanOrEqual(360);
+  expect(layout.scrollW).toBeLessThanOrEqual(360);
+});
+
+test('dark theme keeps ivory-paper staff notes on dark ink while dark-paper Reading drills use pastels', async ({ app, page }) => {
+  await app.open({ hash: 'read' });
+  await page.evaluate(() => {
+    window.__etude.theme = 'dark';
+    window.__etude.applyTheme();
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  // Ivory-paper staff (#rd-staff) stays on dark ink (#0d5a28 -> rgb(13, 90, 40)).
+  await page.locator('#rdt-pieces').click();
+  await page.locator('#rd-mode button[data-v="learn"]').click();
+  await page.locator('#rd-gen').click();
+  await page.evaluate(() => {
+    const head = document.querySelector('#rd-staff .ss-n .ss-head:not(.ss-hollow)');
+    head.closest('.ss-n').setAttribute('data-s', 'good');
+    head.closest('.ss-n').id = 'test-ivory-good';
+  });
+  await expect(page.locator('#test-ivory-good .ss-head')).toHaveCSS('fill', 'rgb(13, 90, 40)');
+
+  // Dark-paper Reading drill (.rdx-q:not(.rdx-rh) .rdx-staff .rdx-svg) uses bright pastel (#b8f5c2 -> rgb(184, 245, 194)).
+  await page.locator('#rdt-drills').click();
+  await page.evaluate(() => {
+    const e = window.__etude;
+    e.rdData().prefs.stage = false;
+    e.rdOpen(Object.values(e.RD_LV).find(l => l.ty === 'name'));
+    e.rdStart('practice');
+  });
+  await page.evaluate(() => {
+    const head = document.querySelector('.rdx-q:not(.rdx-rh) .rdx-staff .rdx-svg .ss-n .ss-head:not(.ss-hollow)');
+    head.closest('.ss-n').setAttribute('data-s', 'good');
+    head.closest('.ss-n').id = 'test-dark-good';
+  });
+  await expect(page.locator('#test-dark-good .ss-head')).toHaveCSS('fill', 'rgb(184, 245, 194)');
+});
