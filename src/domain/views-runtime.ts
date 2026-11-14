@@ -18394,7 +18394,7 @@ function fallDraw() {
     let G = FALL.geo;
     if (!G || G.lo !== lo || G.hi !== hi || G.W !== W)
         G = FALL.geo = fallKeys(lo, hi, W);
-    const kh = Math.round(Math.min(H * .24, Math.max(56, G.kw * 4.4))), hitY = H - kh, span = FALL_SEC / FALL.zoom, pps = hitY / span;
+    const kh = Math.round(Math.min(H * .28, Math.max(76, G.kw * 5.0))), hitY = H - kh, span = FALL_SEC / FALL.zoom, pps = hitY / span;
     G.hitY = hitY;
     G.kh = kh;
     const time = fallTime(), rm = reduceMotion(), fx = PRAC.fx && !rm, P = fallPalette(PRAC.pal), solo = PRAC.hands !== 'both';
@@ -18621,7 +18621,136 @@ function fallParticles(ctx: CanvasRenderingContext2D, dt: number) {
     }
     ctx.restore();
 }
-// Realistic keys: white keys with a soft gradient and front lip, glossy black keys; pressed keys light up in the hand colour and dip.
+// Draws one black key with cast shadow, outer side bevels, lacquered top face, and sloped front face matching the main dock.
+function fallDrawBlackKey(ctx: CanvasRenderingContext2D, x: number, top: number, w: number, bh: number, br: number, c: string[] | null, isWait: boolean, pulse: number) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.38)';
+    ctx.shadowBlur = c ? 2.5 : 8;
+    ctx.shadowOffsetX = c ? 1.5 : 4.5;
+    ctx.shadowOffsetY = c ? 1.5 : 3;
+    ctx.fillStyle = '#030303';
+    fallKeyPath(ctx, x, top, w, bh, br);
+    ctx.fill();
+    ctx.restore();
+    if (c) {
+        const g = ctx.createLinearGradient(0, top, 0, top + bh);
+        if (c === FALL_YOU) {
+            g.addColorStop(0, '#e5b344');
+            g.addColorStop(.55, '#c48c22');
+            g.addColorStop(.88, '#a16f15');
+            g.addColorStop(1, '#78500c');
+        }
+        else {
+            g.addColorStop(0, c[1]);
+            g.addColorStop(1, c[0]);
+        }
+        ctx.fillStyle = g;
+    }
+    else {
+        const side = ctx.createLinearGradient(x, 0, x + w, 0);
+        side.addColorStop(0, '#3e3e3e');
+        side.addColorStop(.05, '#242424');
+        side.addColorStop(.12, '#131313');
+        side.addColorStop(.88, '#0e0e0e');
+        side.addColorStop(.95, '#060606');
+        side.addColorStop(1, '#101010');
+        ctx.fillStyle = side;
+    }
+    fallKeyPath(ctx, x, top, w, bh, br);
+    ctx.fill();
+    ctx.strokeStyle = c ? (c === FALL_YOU ? 'rgba(255,245,190,.5)' : 'rgba(0,0,0,.6)') : '#030303';
+    ctx.lineWidth = 1;
+    fallKeyPath(ctx, x, top, w, bh, br);
+    ctx.stroke();
+
+    const lx = x + w * .12, lw = w * .76, lh = bh * .915, lbr = Math.min(3, lw * .2);
+    if (c) {
+        const tg = ctx.createLinearGradient(0, top, 0, top + lh);
+        tg.addColorStop(0, 'rgba(0,0,0,.2)');
+        tg.addColorStop(.65, 'rgba(0,0,0,.04)');
+        tg.addColorStop(.92, 'rgba(255,255,255,.18)');
+        tg.addColorStop(.98, 'rgba(255,255,255,.42)');
+        tg.addColorStop(1, 'rgba(255,255,255,.2)');
+        ctx.fillStyle = tg;
+        fallKeyPath(ctx, lx, top, lw, lh, lbr);
+        ctx.fill();
+    }
+    else {
+        const tg = ctx.createLinearGradient(0, top, 0, top + lh);
+        tg.addColorStop(0, '#0a0a0a');
+        tg.addColorStop(.45, '#111111');
+        tg.addColorStop(.78, '#151515');
+        tg.addColorStop(.92, '#1b1b1b');
+        tg.addColorStop(.98, '#262626');
+        tg.addColorStop(1, '#2e2e2e');
+        ctx.fillStyle = tg;
+        fallKeyPath(ctx, lx, top, lw, lh, lbr);
+        ctx.fill();
+        const rec = ctx.createLinearGradient(0, top, 0, top + lh * .22);
+        rec.addColorStop(0, 'rgba(0,0,0,.6)');
+        rec.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = rec;
+        fallKeyPath(ctx, lx, top, lw, lh, lbr);
+        ctx.fill();
+        const spec = ctx.createLinearGradient(lx, 0, lx + lw, 0);
+        spec.addColorStop(0, 'rgba(255,255,255,0)');
+        spec.addColorStop(.17, 'rgba(255,255,255,0)');
+        spec.addColorStop(.22, 'rgba(255,255,255,.12)');
+        spec.addColorStop(.26, 'rgba(255,255,255,.12)');
+        spec.addColorStop(.31, 'rgba(255,255,255,0)');
+        spec.addColorStop(.84, 'rgba(255,255,255,0)');
+        spec.addColorStop(.95, 'rgba(255,255,255,.03)');
+        spec.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = spec;
+        fallKeyPath(ctx, lx, top, lw, lh, lbr);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.42)';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(lx + lbr, top + lh - .6);
+        ctx.lineTo(lx + lw - lbr, top + lh - .6);
+        ctx.stroke();
+    }
+
+    const fy0 = top + lh, fy1 = top + bh, fyMid = fy0 + (fy1 - fy0) * .78;
+    ctx.beginPath();
+    ctx.moveTo(lx, fy0);
+    ctx.lineTo(lx + lw, fy0);
+    ctx.lineTo(x + w, fyMid);
+    ctx.lineTo(x + w * .96, fy1);
+    ctx.lineTo(x + w * .04, fy1);
+    ctx.lineTo(x, fyMid);
+    ctx.closePath();
+    if (c) {
+        const fg = ctx.createLinearGradient(0, fy0, 0, fy1);
+        fg.addColorStop(0, 'rgba(255,255,255,.22)');
+        fg.addColorStop(.35, 'rgba(0,0,0,.2)');
+        fg.addColorStop(1, 'rgba(0,0,0,.42)');
+        ctx.fillStyle = fg;
+        ctx.fill();
+    }
+    else {
+        const fg = ctx.createLinearGradient(0, fy0, 0, fy1);
+        fg.addColorStop(0, '#3c3c3c');
+        fg.addColorStop(.2, '#272727');
+        fg.addColorStop(.55, '#191919');
+        fg.addColorStop(1, '#0f0f0f');
+        ctx.fillStyle = fg;
+        ctx.fill();
+        const fl = ctx.createLinearGradient(x, 0, x + w, 0);
+        fl.addColorStop(0, 'rgba(255,255,255,.08)');
+        fl.addColorStop(.4, 'rgba(255,255,255,0)');
+        fl.addColorStop(1, 'rgba(0,0,0,.3)');
+        ctx.fillStyle = fl;
+        ctx.fill();
+    }
+    if (isWait) {
+        ctx.fillStyle = 'rgba(255,196,64,' + (.45 + .4 * pulse).toFixed(3) + ')';
+        fallKeyPath(ctx, x, top, w, bh, br);
+        ctx.fill();
+    }
+}
+// Realistic keys: warm ivory white keys with crisp seams, 3D lacquered black keys matching the main dock; pressed keys light up and dip.
 // Keys you hold yourself show in gold; keys "Wait for me" is waiting for pulse.
 function fallKeyboard(ctx: CanvasRenderingContext2D, G: FallGeo, y: number, kh: number, W: number, active: Map<number, 'rh' | 'lh'>, P: FallPalette, need: number[], ms: number) {
     P = P || FALL_COL;
@@ -18629,14 +18758,15 @@ function fallKeyboard(ctx: CanvasRenderingContext2D, G: FallGeo, y: number, kh: 
     const tint = (m: number) => { const h = active.get(m); if (h)
         return P[h].key; if (mineHeld.has(m))
         return FALL_YOU; return null; };
-    ctx.fillStyle = '#110e0c';
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    ctx.fillStyle = dark ? '#0a0908' : '#1d1915';
     ctx.fillRect(0, y, W, kh);
-    const r = Math.min(4, G.kw * .12), lab = labelMode !== 'none', dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const r = Math.min(5, G.kw * .14), lab = labelMode !== 'none';
     for (const m of G.whites) {
         const k = G.keys.get(m);
         if (!k)
             continue;
-        const c = tint(m), dip = c ? 3.5 : 0, x = k.x + .75, w = k.w - 1.5, h = kh - 1 - dip, g = ctx.createLinearGradient(0, y + dip, 0, y + dip + h);
+        const c = tint(m), dip = c ? 2.5 : 0, x = k.x + .5, w = k.w - 1, h = kh - 3 - dip, g = ctx.createLinearGradient(0, y + dip, 0, y + dip + h);
         if (c) {
             if (c === FALL_YOU) {
                 g.addColorStop(0, '#fff8e2');
@@ -18649,109 +18779,62 @@ function fallKeyboard(ctx: CanvasRenderingContext2D, G: FallGeo, y: number, kh: 
                 g.addColorStop(1, c[1]);
             }
         }
-        else if (dark) {
-            g.addColorStop(0, '#ece5d8');
-            g.addColorStop(.3, '#ded6c8');
-            g.addColorStop(.8, '#d2c7b5');
-            g.addColorStop(1, '#c4b7a2');
-        }
         else {
-            g.addColorStop(0, '#ffffff');
-            g.addColorStop(.3, '#fdfcf9');
-            g.addColorStop(.8, '#f5eee1');
-            g.addColorStop(1, '#ebe0ce');
+            g.addColorStop(0, '#fefae8');
+            g.addColorStop(.75, '#fdf6df');
+            g.addColorStop(1, '#f8efcf');
         }
         ctx.fillStyle = g;
         fallKeyPath(ctx, x, y + dip, w, h, r);
         ctx.fill();
-        ctx.strokeStyle = c ? (c === FALL_YOU ? '#cca02d' : 'rgba(0,0,0,.25)') : (dark ? '#2a2520' : '#c2b8a7');
-        ctx.lineWidth = 1;
-        fallKeyPath(ctx, x, y + dip, w, h, r);
-        ctx.stroke();
+        if (c === FALL_YOU) {
+            ctx.strokeStyle = '#cca02d';
+            ctx.lineWidth = 1;
+            fallKeyPath(ctx, x, y + dip, w, h, r);
+            ctx.stroke();
+        }
         if (wait.has(m)) {
             ctx.fillStyle = 'rgba(255,196,64,' + (.35 + .4 * pulse).toFixed(3) + ')';
             fallKeyPath(ctx, x, y + dip, w, h, r);
             ctx.fill();
         }
-        const lip = ctx.createLinearGradient(0, y + dip + h - 7, 0, y + dip + h);
+        if (w > 4) {
+            ctx.fillStyle = 'rgba(255,255,255,.75)';
+            ctx.fillRect(x, y + dip, 1, Math.max(0, h - r));
+            ctx.fillStyle = 'rgba(0,0,0,.07)';
+            ctx.fillRect(x + w - 1, y + dip, 1, Math.max(0, h - r));
+        }
+        const lip = ctx.createLinearGradient(0, y + dip + h - 5, 0, y + dip + h);
         lip.addColorStop(0, 'rgba(0,0,0,0)');
-        lip.addColorStop(1, dark ? 'rgba(85,75,65,.35)' : 'rgba(180,165,140,.35)');
+        lip.addColorStop(1, 'rgba(165,145,105,.22)');
         ctx.fillStyle = lip;
-        ctx.fillRect(x + 1, y + dip + h - 7, w - 2, 7);
+        ctx.fillRect(x + 1, y + dip + h - 5, Math.max(0, w - 2), 5);
         if (lab && (pc(m) === 0 || labelMode === 'all') && k.w >= 14) {
             const nm = noteName(m, false);
-            ctx.font = '600 ' + Math.round(Math.min(11, Math.max(8, k.w * .3))) + 'px ' + FALL_FONT;
+            ctx.font = '700 ' + Math.round(Math.min(11, Math.max(8, k.w * .3))) + 'px ' + FALL_FONT;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'alphabetic';
             ctx.fillStyle = c ? (dark ? '#3a2402' : '#523502') : (dark ? '#645b4c' : '#8c816f');
-            ctx.fillText(pc(m) === 0 ? nm : nm.replace(/-?\d+$/, ''), x + w / 2, y + dip + h - 8, w - 2);
+            ctx.fillText(pc(m) === 0 ? nm : nm.replace(/-?\d+$/, ''), x + w / 2, y + dip + h - 7, w - 2);
         }
     }
     for (const [m, k] of G.keys) {
         if (!k.black)
             continue;
-        const c = tint(m), dip = c ? 4 : 0, bh = Math.round(kh * .62) - dip, x = k.x, w = k.w, br = Math.min(3, w * .15);
-        ctx.save();
-        ctx.shadowColor = 'rgba(0,0,0,.45)';
-        ctx.shadowBlur = 6;
-        ctx.shadowOffsetY = 3.5;
-        ctx.fillStyle = 'rgba(0,0,0,.35)';
-        fallKeyPath(ctx, x - 1, y + dip, w + 2, bh, br);
-        ctx.fill();
-        ctx.restore();
-        const g = ctx.createLinearGradient(0, y + dip, 0, y + dip + bh);
-        if (c) {
-            if (c === FALL_YOU) {
-                g.addColorStop(0, '#e5b344');
-                g.addColorStop(.55, '#c48c22');
-                g.addColorStop(.88, '#a16f15');
-                g.addColorStop(1, '#78500c');
-            }
-            else {
-                g.addColorStop(0, c[1]);
-                g.addColorStop(1, c[0]);
-            }
-        }
-        else {
-            g.addColorStop(0, '#36302a');
-            g.addColorStop(.45, '#24201c');
-            g.addColorStop(.78, '#181513');
-            g.addColorStop(.92, '#2a2520');
-            g.addColorStop(1, '#141210');
-        }
-        ctx.fillStyle = g;
-        fallKeyPath(ctx, x, y + dip, w, bh, br);
-        ctx.fill();
-        ctx.strokeStyle = c ? (c === FALL_YOU ? 'rgba(255,245,190,.5)' : 'rgba(0,0,0,.6)') : '#0d0b09';
-        ctx.lineWidth = 1;
-        fallKeyPath(ctx, x, y + dip, w, bh, br);
-        ctx.stroke();
-        if (wait.has(m)) {
-            ctx.fillStyle = 'rgba(255,196,64,' + (.45 + .4 * pulse).toFixed(3) + ')';
-            fallKeyPath(ctx, x, y + dip, w, bh, Math.min(3, w * .15));
-            ctx.fill();
-        }
-        if (!c) {
-            ctx.strokeStyle = 'rgba(255,255,255,.16)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(x + 1, y + dip + bh - br);
-            ctx.lineTo(x + 1, y + dip + 1);
-            ctx.lineTo(x + w - 1, y + dip + 1);
-            ctx.stroke();
-        }
+        const c = tint(m), dip = c ? 2.5 : 0, bh = Math.round(kh * .66) - dip, br = Math.min(3, k.w * .15);
+        fallDrawBlackKey(ctx, k.x, y + dip, k.w, bh, br, c, wait.has(m), pulse);
     }
-    const felt = ctx.createLinearGradient(0, y, 0, y + 3.5);
-    felt.addColorStop(0, '#621919');
-    felt.addColorStop(.5, '#8d2525');
-    felt.addColorStop(1, '#461212');
+    const felt = ctx.createLinearGradient(0, y, 0, y + 4);
+    felt.addColorStop(0, '#7a1818');
+    felt.addColorStop(.5, '#982121');
+    felt.addColorStop(1, '#581010');
     ctx.fillStyle = felt;
-    ctx.fillRect(0, y, W, 3.5);
-    const feltShadow = ctx.createLinearGradient(0, y + 3.5, 0, y + 7.5);
+    ctx.fillRect(0, y, W, 4);
+    const feltShadow = ctx.createLinearGradient(0, y + 4, 0, y + 10);
     feltShadow.addColorStop(0, 'rgba(0,0,0,.45)');
     feltShadow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = feltShadow;
-    ctx.fillRect(0, y + 3.5, W, 4);
+    ctx.fillRect(0, y + 4, W, 6);
 }
 // Timeline under the stage: clock, bar ticks, loop region, A/B markers, seek slider and the current bar.
 function anTlUpdate(time?: number | null) {
