@@ -9,9 +9,9 @@ const text = (value, language) => Array.isArray(value) ? value[language === 'ro'
 
 describe('on-demand locale payloads', () => {
   it('verifies reproducible generated files without rewriting them', () => {
-    const files = ['catalog', ...languages.flatMap(language => [`ui-${language}`, `learn-${language}`])].map(name => new URL(`../../src/locales/${name}.ts`, import.meta.url));
+    const files = ['catalog', 'ui-base', ...languages.flatMap(language => [`ui-${language}`, `learn-${language}`])].map(name => new URL(`../../src/locales/${name}.ts`, import.meta.url));
     const mtimes = files.map(file => statSync(file).mtimeMs);
-    expect(execFileSync(process.execPath, ['scripts/split-locales.mjs', '--check'], { encoding: 'utf8' })).toContain('Verified 15 generated locale files.');
+    expect(execFileSync(process.execPath, ['scripts/split-locales.mjs', '--check'], { encoding: 'utf8' })).toContain('Verified 16 generated locale files.');
     expect(files.map(file => statSync(file).mtimeMs)).toEqual(mtimes);
   });
   it('keeps compatibility aggregates outside the browser runtime static graph', () => {
@@ -26,11 +26,12 @@ describe('on-demand locale payloads', () => {
     expect(LEARN_UNITS).toEqual(original.LEARN_UNITS);
     expect(JSON.stringify(LESSONS)).not.toContain('"b":');
   });
-  it('loads exactly the requested UI/music language plus English fallback with complete fidelity', async () => {
+  it('loads exactly the requested language: its own strings, and the English music terms and library copy under it', async () => {
     const { loadUI } = await import('../../src/locales/loader.ts');
     for (const language of languages) {
       const payload = await loadUI(language);
-      expect(payload.STRINGS).toEqual(language === 'en' ? { en: ui.STRINGS.en } : { en: ui.STRINGS.en, [language]: ui.STRINGS[language] });
+      // English interface strings load only for English: every other language has every string of its own.
+      expect(payload.STRINGS).toEqual({ [language]: ui.STRINGS[language] });
       for (const [category, translations] of Object.entries(ui.I18N_MUSIC)) {
         expect(payload.I18N_MUSIC[category]).toEqual(Object.fromEntries(Object.entries(translations).filter(([key]) => key === 'en' || key === language)));
       }
