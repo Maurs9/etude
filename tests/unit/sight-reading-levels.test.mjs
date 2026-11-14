@@ -9,6 +9,7 @@ import {
   srtLevels,
   srtLevelViolations,
   srtMeterTicks,
+  srtPhraseBars,
   srtReadingKey,
   srtReadingKeys,
   srtValidateLevelPiece,
@@ -56,9 +57,12 @@ function validPiece(levelId, keyId, bars = srtLevel(levelId).bars[0]) {
   for (let bar = 0; bar < bars; bar += 1) {
     const last = bar === bars - 1;
     if (level.hands === 'blocks') {
-      const right = bar < bars / 2;
-      rh.push(right ? (bar === bars / 2 - 1 ? CLOSE : MOVE) : REST);
-      lh.push(right ? REST : (last ? CLOSE : MOVE));
+      // The hands take the phrases in turn, the right hand first.
+      const phrase = srtPhraseBars(bars);
+      const right = Math.floor(bar / phrase) % 2 === 0;
+      const closing = last || (bar + 1) % phrase === 0;
+      rh.push(right ? (closing ? CLOSE : MOVE) : REST);
+      lh.push(right ? REST : (closing ? CLOSE : MOVE));
     } else if (level.hands === 'alternate') {
       const right = bar % 2 === 0;
       rh.push(right ? MOVE : REST);
@@ -191,14 +195,14 @@ describe('reading levels', () => {
       return [level.hands, level.degrees.join('..'), level.maxLeap, level.meters.map((m) => `${m.num}/${m.den}`).join(' '), level.bars.join('|')].join(' · ');
     };
     expect(LEVEL_IDS.map(row)).toEqual([
-      'blocks · 0..4 · 1 · 4/4 · 4',
-      'blocks · 0..4 · 2 · 4/4 3/4 · 4',
-      'alternate · 0..4 · 4 · 4/4 3/4 2/4 · 4|6',
-      'oneMoves · 0..4 · 4 · 4/4 3/4 2/4 · 4|6',
-      'together · 0..5 · 4 · 4/4 3/4 2/4 · 8',
-      'together · 0..7 · 5 · 4/4 3/4 2/4 3/8 · 8',
-      'together · -1..7 · 7 · 4/4 3/4 2/4 3/8 6/8 · 8',
-      'together · -2..9 · 7 · 4/4 3/4 2/4 3/8 6/8 · 8|12',
+      'blocks · 0..4 · 1 · 4/4 · 8',
+      'blocks · 0..4 · 2 · 4/4 3/4 · 8',
+      'alternate · 0..4 · 4 · 4/4 3/4 2/4 · 8',
+      'oneMoves · 0..4 · 4 · 4/4 3/4 2/4 · 8|12',
+      'together · 0..5 · 4 · 4/4 3/4 2/4 · 12',
+      'together · 0..7 · 5 · 4/4 3/4 2/4 3/8 · 12',
+      'together · -1..7 · 7 · 4/4 3/4 2/4 3/8 6/8 · 16',
+      'together · -2..9 · 7 · 4/4 3/4 2/4 3/8 6/8 · 16',
     ]);
     const values = (id) => `${srtLevel(id).noteTicks.join(',')} / ${srtLevel(id).restTicks.join(',')}`;
     expect(values(1)).toBe('1920,960,480 / ');
@@ -305,9 +309,9 @@ describe('level limits (G2)', () => {
     const waltz = validPiece(2, 'C');
     const threeFour = { ...waltz, meter: { num: 3, den: 4 }, events: [] };
     const rows = [[[0, Q], [1, Q], [2, Q]], [[1, 2 * Q], [0, Q]]];
-    threeFour.events = [0, 1, 2, 3].flatMap((bar) => [
-      ...line(waltz.key, bar < 2 ? 'rh' : 'lh', bar * 3 * Q, rows[bar % 2]),
-      ...line(waltz.key, bar < 2 ? 'lh' : 'rh', bar * 3 * Q, [[null, 3 * Q]]),
+    threeFour.events = [0, 1, 2, 3, 4, 5, 6, 7].flatMap((bar) => [
+      ...line(waltz.key, bar < 4 ? 'rh' : 'lh', bar * 3 * Q, rows[bar % 2]),
+      ...line(waltz.key, bar < 4 ? 'lh' : 'rh', bar * 3 * Q, [[null, 3 * Q]]),
     ]);
     expect(codes(threeFour)).toEqual([]);
   });
@@ -373,10 +377,15 @@ describe('level limits (G2)', () => {
   });
 
   it('rejects the wrong use of the hands', () => {
-    // Levels 1 and 2: one hand at a time, one change at the middle.
+    // Levels 1 and 2: one hand at a time, and the hands take the 4-bar phrases in turn.
     expect(codes(withBar(validPiece(1, 'F'), 'lh', 0, MOVE))).toEqual(['hands']);
-    const swappedLate = withBar(withBar(validPiece(1, 'F'), 'rh', 2, MOVE), 'lh', 2, REST);
+    const swappedLate = withBar(withBar(validPiece(1, 'F'), 'rh', 4, MOVE), 'lh', 4, REST);
     expect(codes(swappedLate)).toEqual(['hands']);
+    // Twelve bars: right, left, right. One change only, at the middle, breaks the rule.
+    expect(codes(validPiece(1, 'F', 12))).toEqual(['bars']);
+    let once = validPiece(1, 'F', 12);
+    for (const bar of [6, 7, 8, 9, 10, 11]) once = withBar(withBar(once, 'rh', bar, REST), 'lh', bar, bar === 11 ? CLOSE : MOVE);
+    expect(codes(once)).toEqual(['bars', 'hands']);
     // Level 3: never both hands at once, and at least two changes of hand.
     expect(codes(withBar(validPiece(3, 'F'), 'lh', 0, MOVE))).toEqual(['hands']);
     const oneChange = { ...validPiece(1, 'F'), level: 3 };
@@ -470,16 +479,19 @@ describe('level limits (G2)', () => {
 
   it('accepts every bar count and the short meters of a level', () => {
     for (const keyId of KEY_IDS) {
-      expect(codes(validPiece(3, keyId, 6)), keyId).toEqual([]);
-      expect(codes(validPiece(4, keyId, 6)), keyId).toEqual([]);
-      expect(codes(validPiece(8, keyId, 12)), keyId).toEqual([]);
+      for (const levelId of LEVEL_IDS) {
+        for (const bars of srtLevel(levelId).bars) expect(codes(validPiece(levelId, keyId, bars)), `${levelId} ${bars} ${keyId}`).toEqual([]);
+      }
+      expect(codes(validPiece(4, keyId, 12)), keyId).toEqual([]);
+      expect(codes(validPiece(3, keyId, 6)), keyId).toEqual(['bars']);
+      expect(codes(validPiece(8, keyId, 12)), keyId).toEqual(['bars']);
       expect(codes(validPiece(8, keyId, 10)), keyId).toEqual(['bars']);
     }
     const key = srtReadingKey('Em');
     const twoFour = {
-      schemaVersion: 1, generatorVersion: 2, level: 3, seed: 2, meter: { num: 2, den: 4 }, ticksPerQuarter: 480, key, bars: 6,
-      events: [0, 1, 2, 3, 4, 5].flatMap((bar) => [
-        ...line(key, bar % 2 ? 'lh' : 'rh', bar * 2 * Q, bar === 5 ? [[0, 2 * Q]] : [[0, Q], [1, Q]]),
+      schemaVersion: 1, generatorVersion: 2, level: 3, seed: 2, meter: { num: 2, den: 4 }, ticksPerQuarter: 480, key, bars: 8,
+      events: [0, 1, 2, 3, 4, 5, 6, 7].flatMap((bar) => [
+        ...line(key, bar % 2 ? 'lh' : 'rh', bar * 2 * Q, bar === 7 ? [[0, 2 * Q]] : [[0, Q], [1, Q]]),
         ...line(key, bar % 2 ? 'rh' : 'lh', bar * 2 * Q, [[null, 2 * Q]]),
       ]),
     };
@@ -487,9 +499,9 @@ describe('level limits (G2)', () => {
     expect(codes({ ...twoFour, level: 2, bars: 6 })).toEqual(expect.arrayContaining(['meter', 'bars']));
     const E = Q / 2;
     const threeEight = {
-      schemaVersion: 1, generatorVersion: 2, level: 6, seed: 3, meter: { num: 3, den: 8 }, ticksPerQuarter: 480, key, bars: 8,
-      events: [0, 1, 2, 3, 4, 5, 6, 7].flatMap((bar) => [
-        ...line(key, 'rh', bar * 3 * E, bar === 7 ? [[0, 3 * E]] : [[0, E], [1, E], [2, E]]),
+      schemaVersion: 1, generatorVersion: 2, level: 6, seed: 3, meter: { num: 3, den: 8 }, ticksPerQuarter: 480, key, bars: 12,
+      events: Array.from({ length: 12 }, (_, bar) => bar).flatMap((bar) => [
+        ...line(key, 'rh', bar * 3 * E, bar === 11 ? [[0, 3 * E]] : [[0, E], [1, E], [2, E]]),
         ...line(key, 'lh', bar * 3 * E, [[0, 3 * E]]),
       ]),
     };
@@ -514,9 +526,9 @@ describe('level limits (G2)', () => {
     const E = Q / 2;
     const bar = 6 * E;
     const sixEight = (first) => ({
-      schemaVersion: 1, generatorVersion: 2, level: 7, seed: 7, meter: { num: 6, den: 8 }, ticksPerQuarter: 480, key, bars: 8,
-      events: Array.from({ length: 8 }, (_, index) => [
-        ...line(key, 'rh', index * bar, index === 0 ? first : index === 7 ? [[0, bar]] : [[0, E], [1, E], [2, E], [1, Q], [0, E]]),
+      schemaVersion: 1, generatorVersion: 2, level: 7, seed: 7, meter: { num: 6, den: 8 }, ticksPerQuarter: 480, key, bars: 16,
+      events: Array.from({ length: 16 }, (_, index) => [
+        ...line(key, 'rh', index * bar, index === 0 ? first : index === 15 ? [[0, bar]] : [[0, E], [1, E], [2, E], [1, Q], [0, E]]),
         ...line(key, 'lh', index * bar, [[0, 3 * E], [4, 3 * E]]),
       ]).flat(),
     });
@@ -534,10 +546,10 @@ describe('level limits (G2)', () => {
     // In 3/4 a half note on beat 2 is an ordinary rhythm.
     const key = srtReadingKey('F');
     const waltz = {
-      schemaVersion: 1, generatorVersion: 2, level: 2, seed: 4, meter: { num: 3, den: 4 }, ticksPerQuarter: 480, key, bars: 4,
-      events: [0, 1, 2, 3].flatMap((bar) => [
-        ...line(key, bar < 2 ? 'rh' : 'lh', bar * 3 * Q, [[0, Q], [1, 2 * Q]]),
-        ...line(key, bar < 2 ? 'lh' : 'rh', bar * 3 * Q, [[null, 3 * Q]]),
+      schemaVersion: 1, generatorVersion: 2, level: 2, seed: 4, meter: { num: 3, den: 4 }, ticksPerQuarter: 480, key, bars: 8,
+      events: [0, 1, 2, 3, 4, 5, 6, 7].flatMap((bar) => [
+        ...line(key, bar < 4 ? 'rh' : 'lh', bar * 3 * Q, [[0, Q], [1, 2 * Q]]),
+        ...line(key, bar < 4 ? 'lh' : 'rh', bar * 3 * Q, [[null, 3 * Q]]),
       ]),
     };
     expect(codes(waltz)).toEqual([]);
@@ -597,10 +609,10 @@ describe('level limits (G2)', () => {
     const key = srtReadingKey('C');
     const bar = 3 * Q;
     const over = {
-      schemaVersion: 1, generatorVersion: 2, level: 3, seed: 5, meter: { num: 3, den: 4 }, ticksPerQuarter: 480, key, bars: 4,
+      schemaVersion: 1, generatorVersion: 2, level: 3, seed: 5, meter: { num: 3, den: 4 }, ticksPerQuarter: 480, key, bars: 8,
       events: [
-        ...line(key, 'rh', 0, [[0, Q], [1, Q], [null, 2 * Q], [0, Q], [1, Q], [null, bar], [0, bar]]),
-        ...line(key, 'lh', 0, [[null, bar], [null, bar], [0, Q], [1, Q], [2, Q], [null, bar]]),
+        ...line(key, 'rh', 0, [[0, Q], [1, Q], [null, 2 * Q], [0, Q], [1, Q], [null, bar], [0, bar], [null, bar], [0, bar], [null, bar], [0, bar]]),
+        ...line(key, 'lh', 0, [[null, bar], [null, bar], [0, Q], [1, Q], [2, Q], [null, bar], [0, bar], [null, bar], [0, bar], [null, bar]]),
       ],
     };
     expect(codes(over)).toEqual(['restValue']);
@@ -624,10 +636,10 @@ describe('level limits (G2)', () => {
     expect(codes(fromBeatFour(8))).toEqual([]);
     const key = srtReadingKey('C');
     const short = (num, rhCells) => ({
-      schemaVersion: 1, generatorVersion: 2, level: 5, seed: 6, meter: { num, den: 4 }, ticksPerQuarter: 480, key, bars: 8,
+      schemaVersion: 1, generatorVersion: 2, level: 5, seed: 6, meter: { num, den: 4 }, ticksPerQuarter: 480, key, bars: 12,
       events: [
-        ...line(key, 'rh', 0, [...rhCells, ...Array.from({ length: 6 }, () => [0, num * Q])]),
-        ...Array.from({ length: 8 }, (_, index) => line(key, 'lh', index * num * Q, [[0, num === 3 ? 3 * Q : 2 * Q]])).flat(),
+        ...line(key, 'rh', 0, [...rhCells, ...Array.from({ length: 10 }, () => [0, num * Q])]),
+        ...Array.from({ length: 12 }, (_, index) => line(key, 'lh', index * num * Q, [[0, num === 3 ? 3 * Q : 2 * Q]])).flat(),
       ],
     });
     // 3/4: a half note from beat 3. 2/4: a half note from beat 2.
@@ -643,9 +655,9 @@ describe('level limits (G2)', () => {
     const E = Q / 2;
     const bar = 6 * E;
     const sixEight = (levelId, first) => ({
-      schemaVersion: 1, generatorVersion: 2, level: levelId, seed: 7, meter: { num: 6, den: 8 }, ticksPerQuarter: 480, key, bars: 8,
-      events: Array.from({ length: 8 }, (_, index) => [
-        ...line(key, 'rh', index * bar, index === 0 ? first : index === 7 ? [[0, bar]] : [[0, E], [1, E], [2, E], [1, Q], [0, E]]),
+      schemaVersion: 1, generatorVersion: 2, level: levelId, seed: 7, meter: { num: 6, den: 8 }, ticksPerQuarter: 480, key, bars: 16,
+      events: Array.from({ length: 16 }, (_, index) => [
+        ...line(key, 'rh', index * bar, index === 0 ? first : index === 15 ? [[0, bar]] : [[0, E], [1, E], [2, E], [1, Q], [0, E]]),
         ...line(key, 'lh', index * bar, [[0, 3 * E], [4, 3 * E]]),
       ]).flat(),
     });
@@ -697,9 +709,9 @@ describe('level limits (G2)', () => {
     const bar = 6 * E;
     const rhBar = [[0, E], [1, E], [2, E], [1, Q], [0, E]];
     const piece = {
-      schemaVersion: 1, generatorVersion: 2, level: 7, seed: 7, meter: { num: 6, den: 8 }, ticksPerQuarter: 480, key, bars: 8,
-      events: Array.from({ length: 8 }, (_, index) => [
-        ...line(key, 'rh', index * bar, index === 7 ? [[0, bar]] : rhBar),
+      schemaVersion: 1, generatorVersion: 2, level: 7, seed: 7, meter: { num: 6, den: 8 }, ticksPerQuarter: 480, key, bars: 16,
+      events: Array.from({ length: 16 }, (_, index) => [
+        ...line(key, 'rh', index * bar, index === 15 ? [[0, bar]] : rhBar),
         ...line(key, 'lh', index * bar, [[0, 3 * E], [4, 3 * E]]),
       ]).flat(),
     };

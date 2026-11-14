@@ -124,14 +124,14 @@ describe('the book of a level', () => {
     const pins = LEVEL_IDS.map((level) => srtHashText(srtBook(level).map(srtLevelFingerprint).join()));
     expect(pins).toMatchInlineSnapshot(`
       [
-        2214465659,
-        2624147564,
-        1857671205,
-        1365136171,
-        3710978033,
-        4167660912,
-        3084527163,
-        2382519365,
+        158432758,
+        2314948011,
+        4204720137,
+        4179980320,
+        754222590,
+        942936267,
+        3580869761,
+        976423524,
       ]
     `);
   }, LONG);
@@ -253,7 +253,7 @@ describe('fingerprints', () => {
     const print = srtLevelFingerprint(piece);
     expect(print).toMatch(/^v2:[0-9a-f]{16}$/);
     expect(srtLevelFingerprint({ ...piece, seed: 99, level: 3, difficulty: 0 })).toBe(print);
-    expect(srtLevelFingerprint({ ...piece, bars: 8 })).not.toBe(print);
+    expect(srtLevelFingerprint({ ...piece, bars: piece.bars + 4 })).not.toBe(print);
     expect(srtLevelFingerprint({ ...piece, events: piece.events.slice(1) })).not.toBe(print);
     expect(srtLevelFingerprint({ ...piece, events: [...piece.events].reverse() })).toBe(print);
     expect(srtFingerprint(srtGenerate('P1.a', 1))).toMatch(/^v1:[0-9a-f]{16}$/);

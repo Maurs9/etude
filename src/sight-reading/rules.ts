@@ -1,7 +1,7 @@
 // The rules a generated piece must keep, G2 to G16 of docs/plans/2026-11-13-read-redesign-spec.md.
 // Each rule is a function that returns what is wrong with a piece: an empty list means the rule holds.
 import {
-  srtLevel, srtLevelViolations, srtMeterTicks, srtStrongOnsets,
+  srtLevel, srtLevelViolations, srtMeterTicks, srtPhraseBars, srtStrongOnsets,
   type ReadingLevel, type ReadingMeter, type ReadingPatternId,
 } from './levels.js';
 import {
@@ -35,13 +35,13 @@ export function srtChordBeats(levelId: number, meter: ReadingMeter): readonly nu
 
 /** The first bar that is not an upbeat bar. */
 const firstFullBar = (piece: PlannedPiece): number => (piece.upbeat ? 1 : 0);
-/** A piece of 4 or 6 bars has two phrases. A longer piece has phrases of 4 bars. */
-export function srtPhraseBars(bars: number): number {
-  return bars <= 6 ? Math.max(1, Math.floor(bars / 2)) : 4;
-}
-/** How many different bar rhythms the melody may use before the final bar. */
+export { srtPhraseBars };
+/**
+ * How many different bar rhythms the melody may use before the final bar. A 16-bar piece has two middle phrases:
+ * each may bring its own new rhythm, so the piece does not repeat the same cells four times over.
+ */
 export function srtRhythmLimit(bars: number): number {
-  return bars <= 4 ? 2 : bars <= 8 ? 3 : 4;
+  return bars <= 4 ? 2 : bars <= 8 ? 3 : bars <= 12 ? 4 : 5;
 }
 /**
  * How many times a hand may move to a new position in a piece. The right hand gets 1, 2 and 3 moves per four bars
@@ -113,18 +113,19 @@ export function srtDifficulty(piece: PlannedPiece): number {
 
 /**
  * The score a piece of each level must fall in (rule G14). Measured on 1,440 generated pieces per level
- * (24 keys, 60 seeds): the band runs from the 3rd to the 97th percentile, and the two inner numbers split it in thirds.
+ * (24 keys, 60 seeds) with the band check switched off: the band runs from the 3rd to the 97th percentile, and the
+ * two inner numbers split it in thirds by percentile. Measured again for the lengths of 2026-11-14 (8 to 16 bars).
  * A score compares pieces of one level. It does not compare levels.
  */
 export const SRT_LEVEL_BANDS: Readonly<Record<number, readonly [number, number, number, number]>> = {
-  1: [2.25, 2.63, 2.88, 3.13],
-  2: [1.99, 2.65, 3.08, 3.68],
-  3: [3.85, 4.46, 4.93, 5.94],
-  4: [4.22, 5.8, 6.63, 7.9],
-  5: [6.04, 7.34, 8.15, 9.53],
-  6: [7.78, 9.95, 11.05, 13.03],
-  7: [7.68, 10.86, 12.9, 17.04],
-  8: [7.85, 10.48, 12.13, 15.26],
+  1: [2.44, 2.81, 3.06, 3.56],
+  2: [2.49, 3.06, 3.39, 3.94],
+  3: [3.93, 4.76, 5.16, 6.11],
+  4: [4.63, 6.03, 6.73, 7.8],
+  5: [6.45, 7.56, 8.19, 9.56],
+  6: [8.02, 9.83, 10.84, 12.58],
+  7: [8.52, 11.11, 12.99, 16.45],
+  8: [8.96, 11.28, 12.67, 15.34],
 };
 
 /** The score range of a third of a level's band: 0 is the easiest third, 2 the hardest. */

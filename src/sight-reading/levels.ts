@@ -5,7 +5,7 @@ import { TICKS_PER_QUARTER, type SightReadingEvent, type SightReadingHand, type 
 export type ReadingLevelId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 /**
  * How the two hands share a piece.
- * blocks: one hand plays the first half, the other the second half.
+ * blocks: one hand at a time, changing at each phrase: the hands take the phrases in turn.
  * alternate: one hand at a time, changing at least twice.
  * oneMoves: both hands in every bar, and in every bar one of them only holds long notes.
  * together: both hands in every bar.
@@ -100,63 +100,63 @@ export function srtDeepFreeze<T>(value: T): T {
   return value;
 }
 
-/** Longest piece the check will look at. The levels use 12 bars at most. */
+/** Longest piece the check will look at. The levels use 16 bars at most. */
 const MAX_BARS = 64;
 
 const LEVELS: readonly ReadingLevel[] = srtDeepFreeze([
   {
     id: 1, hands: 'blocks', degrees: [0, 4], maxLeap: 1,
     noteTicks: [WHOLE, HALF, QUARTER], restTicks: [], gridTicks: QUARTER,
-    meters: [M44], bars: [4], bpm: 66,
+    meters: [M44], bars: [8], bpm: 66,
     tieOverBar: false, upbeat: false, syncopation: false, leadingTone: false, maxChromatic: 0, chord: ONE_NOTE,
     newKeys: ['C', 'G', 'F', 'Am', 'Dm'], newPatterns: ['stepRun', 'repeatedNote', 'longNote', 'neighbour'],
   },
   {
     id: 2, hands: 'blocks', degrees: [0, 4], maxLeap: 2,
     noteTicks: [WHOLE, DOTTED_HALF, HALF, QUARTER], restTicks: [QUARTER], gridTicks: QUARTER,
-    meters: [M44, M34], bars: [4], bpm: 66,
+    meters: [M44, M34], bars: [8], bpm: 66,
     tieOverBar: false, upbeat: false, syncopation: false, leadingTone: false, maxChromatic: 0, chord: ONE_NOTE,
     newKeys: [], newPatterns: ['skip'],
   },
   {
     id: 3, hands: 'alternate', degrees: [0, 4], maxLeap: 4,
     noteTicks: [WHOLE, DOTTED_HALF, HALF, QUARTER, EIGHTH], restTicks: [HALF, QUARTER], gridTicks: EIGHTH,
-    meters: [M44, M34, M24], bars: [4, 6], bpm: 72,
+    meters: [M44, M34, M24], bars: [8], bpm: 72,
     tieOverBar: false, upbeat: false, syncopation: false, leadingTone: false, maxChromatic: 0, chord: ONE_NOTE,
     newKeys: ['D', 'Bb', 'Em', 'Gm'], newPatterns: ['brokenTriad', 'leapFifth', 'eighthRun', 'sequence'],
   },
   {
     id: 4, hands: 'oneMoves', degrees: [0, 4], maxLeap: 4,
     noteTicks: [WHOLE, DOTTED_HALF, HALF, QUARTER, EIGHTH], restTicks: [HALF, QUARTER], gridTicks: EIGHTH,
-    meters: [M44, M34, M24], bars: [4, 6], bpm: 63,
+    meters: [M44, M34, M24], bars: [8, 12], bpm: 63,
     tieOverBar: true, upbeat: false, syncopation: false, leadingTone: false, maxChromatic: 0, chord: ONE_NOTE,
     newKeys: [], newPatterns: ['heldNote', 'tie'],
   },
   {
     id: 5, hands: 'together', degrees: [0, 5], maxLeap: 4,
     noteTicks: [WHOLE, DOTTED_HALF, HALF, DOTTED_QUARTER, QUARTER, EIGHTH], restTicks: [HALF, QUARTER, EIGHTH], gridTicks: EIGHTH,
-    meters: [M44, M34, M24], bars: [8], bpm: 66,
+    meters: [M44, M34, M24], bars: [12], bpm: 66,
     tieOverBar: true, upbeat: false, syncopation: false, leadingTone: false, maxChromatic: 0, chord: ONE_NOTE,
     newKeys: ['A', 'Eb', 'Bm', 'Cm'], newPatterns: ['parallelMotion', 'contraryMotion', 'dottedFigure'],
   },
   {
     id: 6, hands: 'together', degrees: [0, 7], maxLeap: 5,
     noteTicks: [WHOLE, DOTTED_HALF, HALF, DOTTED_QUARTER, QUARTER, EIGHTH, SIXTEENTH], restTicks: [HALF, QUARTER, EIGHTH], gridTicks: SIXTEENTH,
-    meters: [M44, M34, M24, M38], bars: [8], bpm: 66,
+    meters: [M44, M34, M24, M38], bars: [12], bpm: 66,
     tieOverBar: true, upbeat: false, syncopation: false, leadingTone: true, maxChromatic: 0, chord: { rh: 1, lh: 2 },
     newKeys: [], newPatterns: ['scaleShift', 'twoNoteChord', 'sixteenthRun'],
   },
   {
     id: 7, hands: 'together', degrees: [-1, 7], maxLeap: 7,
     noteTicks: [WHOLE, DOTTED_HALF, HALF, DOTTED_QUARTER, QUARTER, EIGHTH, SIXTEENTH], restTicks: [HALF, QUARTER, EIGHTH], gridTicks: SIXTEENTH,
-    meters: [M44, M34, M24, M38, M68], bars: [8], bpm: 60,
+    meters: [M44, M34, M24, M38, M68], bars: [16], bpm: 60,
     tieOverBar: true, upbeat: true, syncopation: false, leadingTone: true, maxChromatic: 2, chord: { rh: 1, lh: 2 },
     newKeys: ['E', 'Ab', 'F#m', 'Fm'], newPatterns: ['chromaticNeighbour', 'brokenChordBass', 'upbeat'],
   },
   {
     id: 8, hands: 'together', degrees: [-2, 9], maxLeap: 7,
     noteTicks: [WHOLE, DOTTED_HALF, HALF, DOTTED_QUARTER, QUARTER, EIGHTH, SIXTEENTH], restTicks: [HALF, QUARTER, EIGHTH], gridTicks: SIXTEENTH,
-    meters: [M44, M34, M24, M38, M68], bars: [8, 12], bpm: 72,
+    meters: [M44, M34, M24, M38, M68], bars: [16], bpm: 72,
     tieOverBar: true, upbeat: true, syncopation: true, leadingTone: true, maxChromatic: 3, chord: { rh: 2, lh: 2 },
     newKeys: ['B', 'Db', 'F#', 'C#m', 'G#m', 'Bbm', 'Ebm'], newPatterns: ['syncopation', 'chordsBothHands'],
   },
@@ -233,6 +233,11 @@ function keyData(key: ReadingKey): KeyData {
   const data = KEY_DATA.get(key.id);
   if (!data) throw new RangeError(`Unknown reading key: ${String(key.id)}`);
   return data;
+}
+
+/** A piece of 4 or 6 bars has two phrases. A longer piece has phrases of 4 bars. */
+export function srtPhraseBars(bars: number): number {
+  return bars <= 6 ? Math.max(1, Math.floor(bars / 2)) : 4;
 }
 
 export function srtLevels(): readonly ReadingLevel[] {
@@ -384,9 +389,9 @@ function handsViolation(
   if (level.hands === 'blocks') {
     const playing = barIndexes.map((index) => HANDS.filter((hand) => inBar(hand, index).length > 0));
     if (playing.some((hands) => hands.length !== 1)) return 'each bar belongs to exactly one hand';
-    const half = Math.floor(bars / 2);
+    const phrase = srtPhraseBars(bars);
     const first = playing[0][0];
-    return playing.every((hands, index) => (hands[0] === first) === (index < half)) ? null : 'the hands change once, at the middle';
+    return playing.every((hands, index) => (hands[0] === first) === (Math.floor(index / phrase) % 2 === 0)) ? null : 'the hands change at each phrase';
   }
   if (level.hands === 'alternate') {
     const overlap = notes.rh.some((right) => notes.lh.some((left) =>
