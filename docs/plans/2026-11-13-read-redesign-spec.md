@@ -335,7 +335,7 @@ Each step ends with its check. I pause for your OK after each step.
 **Pieces**
 
 - A level piece has 8 bars at levels 1 to 3, 8 or 12 at level 4, 12 at levels 5 and 6, and 16 at levels 7 and 8, in 4-bar phrases. `srtGenerateLevelPiece` takes `bars`, `meter` and `upbeat: false` to pin a choice.
-- A long piece (`progressive.ts`) is 3 or 4 sections in one meter and key, 24 to 48 bars. Each section is a valid level piece of its own level. For level L of 3 or more the sections are (L-2, hard third), (L-1, middle third), (L, easy third), (L, hard third). Level 1 uses its own thirds, level 2 starts at level 1. A section below L is used only when the key is in that level's pool. Its tempo is the slowest of its sections' levels.
+- A long piece (`progressive.ts`) is 3 or 4 sections in one meter and key, 24 to 48 bars. Each section is a valid level piece of its own level. For level L of 3 or more the sections are (L-2, hard third), (L-1, middle third), (L, easy third), (L, hard third). Level 1 uses its own thirds, level 2 starts at level 1. A section below L is used only when the key is in that level's pool. Its tempo is the slowest of its sections' levels. No hand leaps into a section further than that section's level allows; `srtProgressiveViolations` reports a join that does.
 - A long piece is stored under `l{date}.{index}`. Its score counts for neither the key nor the level average: part of it is below the level.
 - Markings (`markings.ts`) are decoration: nothing scores them, and the fingerprint ignores them. Level 1 has one dynamic and the first finger of each hand. A second dynamic comes from level 2; hairpins, staccato and slurs from level 3; accents from level 5. A long piece has a dynamic at each section.
 - Scoring reads when a key goes down, never how long it stays down, so a staccato note played short costs nothing.
@@ -356,5 +356,4 @@ Each step ends with its check. I pause for your OK after each step.
 **Open**
 
 - Results stored before the pieces grew longer sit under the same book numbers, which now hold other pieces.
-- A long piece does not check the leap between the last note of a section and the first note of the next.
 - The longer pieces, the long piece and the markings were checked by tests and on screen, not by ear.

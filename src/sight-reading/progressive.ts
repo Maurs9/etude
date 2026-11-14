@@ -1,12 +1,12 @@
 // A long exercise whose difficulty rises inside the piece: a ramp of sections, each a valid level piece of its own,
 // joined into one piece in one key and one meter. The sections can be sliced back out and checked like any piece.
 import {
-  srtDeepFreeze, srtKeyPool, srtLevel, srtMeterTicks, srtReadingKey,
-  type ReadingKey, type ReadingLevelId, type ReadingMeter,
+  srtDeepFreeze, srtKeyPool, srtLevel, srtMeterTicks, srtPhraseBars, srtReadingKey,
+  type LevelPiece, type ReadingKey, type ReadingLevelId, type ReadingMeter,
 } from './levels.js';
 import { meterKey, srtGenerateLevelPiece, srtHashText } from './melody.js';
 import type { SightReadingEvent, SightReadingHand } from './model.js';
-import type { PlannedPiece } from './patterns.js';
+import { srtHandLine, type PlannedPiece } from './patterns.js';
 import { srtDifficulty, srtRuleViolations, srtSubBand, type GeneratedPiece, type RuleId } from './rules.js';
 
 /** One section of a long piece: its level, the third of that level's band, and where it sits, in bars. */
@@ -50,19 +50,45 @@ export function srtProgressivePlan(levelId: number, keyId: string): readonly Pla
 }
 
 const CANDIDATES = 8;
+/** More candidates are drawn, up to this many in all, while none of them joins the section before. */
+const JOIN_CANDIDATES = 32;
+
+/**
+ * The leaps from the end of one section into the next that are larger than `maxLeap` scale steps, one text per hand.
+ * A hand's last note before the join is compared with its first note after it. A hand that rests for a whole phrase
+ * at the end of the first section or at the start of the second is not compared.
+ */
+function joinLeaps(before: LevelPiece, after: LevelPiece, maxLeap: number): readonly string[] {
+  const { bar } = srtMeterTicks(before.meter);
+  const out: string[] = [];
+  for (const hand of HANDS) {
+    const last = srtHandLine(before, hand).at(-1);
+    const next = srtHandLine(after, hand)[0];
+    if (!last || !next) continue;
+    if (before.bars * bar - (last.onset + last.duration) >= srtPhraseBars(before.bars) * bar || next.onset >= srtPhraseBars(after.bars) * bar) continue;
+    const leap = Math.abs(next.line - last.line);
+    if (leap > maxLeap) out.push(`${hand}: a leap of ${leap} scale steps, the level allows ${maxLeap}`);
+  }
+  return out;
+}
 
 /**
  * A section piece of its level, in its first length, the shared meter and without an upbeat, drawn from the third of
  * the band. The band is applied by choosing among candidates rather than by the generator's band option: with the
  * meter pinned, a third can be rare (level 8 in 3/8), and the band option would spend its whole attempt budget before
  * it fails. When no candidate falls in the third, the one nearest to it is kept: still inside the level's band (G14).
+ * A candidate that joins the section before without a leap larger than its level allows comes first. While none of the
+ * first candidates does, more are drawn, up to JOIN_CANDIDATES; when none does even then, the nearest of all is kept.
  * Returns null when the generator finds no piece at all in this meter.
  */
-function sectionPiece(step: PlanStep, key: ReadingKey, bars: number, meter: ReadingMeter, seedText: string): GeneratedPiece | null {
+function sectionPiece(step: PlanStep, key: ReadingKey, bars: number, meter: ReadingMeter, seedText: string, before: GeneratedPiece | null): GeneratedPiece | null {
   const [low, high] = srtSubBand(step.level, step.third);
+  const maxLeap = srtLevel(step.level).maxLeap;
   const distance = (piece: GeneratedPiece): number => Math.max(0, low - piece.difficulty, piece.difficulty - high);
+  const joins = (piece: GeneratedPiece): boolean => !before || joinLeaps(before, piece, maxLeap).length === 0;
   let nearest: GeneratedPiece | null = null;
-  for (let salt = 0; salt < CANDIDATES; salt += 1) {
+  let nearestJoined: GeneratedPiece | null = null;
+  for (let salt = 0; salt < CANDIDATES || (!nearestJoined && salt < JOIN_CANDIDATES); salt += 1) {
     let piece: GeneratedPiece;
     try {
       piece = srtGenerateLevelPiece(step.level, key.id, srtHashText(`${seedText}|${salt}`), { bars, meter, upbeat: false });
@@ -70,10 +96,12 @@ function sectionPiece(step: PlanStep, key: ReadingKey, bars: number, meter: Read
       if (error instanceof RangeError) throw error;
       continue;
     }
-    if (distance(piece) === 0) return piece;
+    const joined = joins(piece);
+    if (joined && distance(piece) === 0) return piece;
+    if (joined && (!nearestJoined || distance(piece) < distance(nearestJoined))) nearestJoined = piece;
     if (!nearest || distance(piece) < distance(nearest)) nearest = piece;
   }
-  return nearest;
+  return nearestJoined ?? nearest;
 }
 
 /**
@@ -95,8 +123,10 @@ export function srtGenerateProgressivePiece(levelId: number, keyId: string, seed
   let parts: GeneratedPiece[] = [];
   for (let turn = 0; turn < shared.length && meter === null; turn += 1) {
     const candidate = shared[(first + turn) % shared.length];
-    const made = plan.map((step, index) =>
-      sectionPiece(step, key, srtLevel(step.level).bars[0], candidate, `long-section|${top.id}|${key.id}|${seed}|${index}`));
+    const made: (GeneratedPiece | null)[] = [];
+    plan.forEach((step, index) => {
+      made.push(sectionPiece(step, key, srtLevel(step.level).bars[0], candidate, `long-section|${top.id}|${key.id}|${seed}|${index}`, made[index - 1] ?? null));
+    });
     if (made.every((part): part is GeneratedPiece => part !== null)) {
       meter = candidate;
       parts = made;
@@ -149,7 +179,8 @@ function sliceSection(piece: ProgressivePiece, section: ProgressiveSection): Gen
 /**
  * Everything wrong with a long piece: each section, cut back out, is checked with the normal validator and rules of
  * its own level, and the joins are checked too (the sections tile the piece, no note crosses a join, ids are unique,
- * one meter). An empty list means the piece may be shown.
+ * one meter, and no hand leaps into a section further than that section's level allows). An empty list means the
+ * piece may be shown.
  */
 export function srtProgressiveViolations(piece: ProgressivePiece): readonly ProgressiveViolation[] {
   const out: ProgressiveViolation[] = [];
@@ -190,8 +221,12 @@ export function srtProgressiveViolations(piece: ProgressivePiece): readonly Prog
     if (!level.meters.some((meter) => meterKey(meter) === meterKey(piece.meter))) join(`level ${level.id} has no ${meterKey(piece.meter)}`);
   }
   if (out.length > 0) return out;
-  piece.sections.forEach((section, index) => {
-    for (const broken of srtRuleViolations(sliceSection(piece, section))) out.push({ section: index, rule: broken.rule, detail: broken.detail });
+  const slices = piece.sections.map((section) => sliceSection(piece, section));
+  slices.forEach((slice, index) => {
+    for (const broken of srtRuleViolations(slice)) out.push({ section: index, rule: broken.rule, detail: broken.detail });
+    if (index === 0) return;
+    const at = piece.sections[index].startBar + 1;
+    for (const leap of joinLeaps(slices[index - 1], slice, srtLevel(piece.sections[index].level).maxLeap)) join(`join at bar ${at}, ${leap}`);
   });
   return out;
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { srtLongPiece } from '../../src/sight-reading/book.ts';
 import { srtLevelFingerprint } from '../../src/sight-reading/fingerprint.ts';
-import { srtKeyPool, srtLevel, srtMeterTicks, srtReadingKeys } from '../../src/sight-reading/levels.ts';
+import { srtDegreePitch, srtKeyPool, srtLevel, srtMeterTicks, srtReadingKeys } from '../../src/sight-reading/levels.ts';
+import { srtHandLine } from '../../src/sight-reading/patterns.ts';
 import { srtLongId } from '../../src/sight-reading/progress.ts';
 import {
   SRT_LONG_MAX_BARS, srtGenerateProgressivePiece, srtProgressivePlan, srtProgressiveViolations,
@@ -142,6 +143,48 @@ describe('a long piece', () => {
     const wrong = srtProgressiveViolations({ ...piece, sections: piece.sections.map((section, index) => (index === 0 ? { ...section, level: 5 } : section)) });
     expect(wrong.some((item) => item.section === 0)).toBe(true);
     expect(srtProgressiveViolations(null)).toEqual([{ section: null, rule: 'join', detail: 'not a long piece' }]);
+  });
+});
+
+describe('the joins of a long piece', () => {
+  // The hand's last note before a join and its first note after it, from the piece's own line.
+  const around = (piece, index, hand) => {
+    const { bar } = srtMeterTicks(piece.meter);
+    const join = piece.sections[index].startBar * bar;
+    const line = srtHandLine(piece, hand);
+    return { join, bar, last: line.filter((note) => note.onset < join).at(-1), next: line.find((note) => note.onset >= join) };
+  };
+  const leaps = (piece) => srtProgressiveViolations(piece).filter((item) => item.rule === 'join' && /a leap of/.test(item.detail));
+
+  it('never leaps into a section further than its level allows', () => {
+    for (const piece of pieces()) {
+      for (let index = 1; index < piece.sections.length; index += 1) {
+        for (const hand of ['rh', 'lh']) {
+          const { join, bar, last, next } = around(piece, index, hand);
+          if (!last || !next || join - (last.onset + last.duration) >= 4 * bar || next.onset - join >= 4 * bar) continue;
+          expect(Math.abs(next.line - last.line), `${piece.level} ${piece.key.id} ${piece.seed} ${hand} join ${index}`)
+            .toBeLessThanOrEqual(srtLevel(piece.sections[index].level).maxLeap);
+        }
+      }
+    }
+  }, LONG);
+
+  it('reports a leap at a join, but not for a hand that rests a whole phrase after it', () => {
+    const piece = srtGenerateProgressivePiece(6, 'C', 3);
+    const index = 1;
+    const hand = ['rh', 'lh'].find((item) => { const { last, next } = around(piece, index, item); return last && next; });
+    const { join, bar, last, next } = around(piece, index, hand);
+    expect(leaps(piece)).toEqual([]);
+    const limit = srtLevel(piece.sections[index].level).maxLeap;
+    const far = srtDegreePitch(piece.key, hand, last.line + limit + 1);
+    const first = piece.events.find((event) => event.hand === hand && event.onsetTick === next.onset);
+    const leaping = { ...piece, events: piece.events.map((event) => (event === first ? { ...event, pitches: [far] } : event)) };
+    const found = leaps(leaping);
+    expect(found).toHaveLength(1);
+    expect(found[0].detail).toBe(`join at bar ${piece.sections[index].startBar + 1}, ${hand}: a leap of ${limit + 1} scale steps, the level allows ${limit}`);
+    // The same leap after a hand rests for the first phrase of the section is a new start, not a leap.
+    const rested = { ...leaping, events: leaping.events.map((event) => (event.hand === hand && event.onsetTick >= join && event.onsetTick < join + 4 * bar ? { ...event, pitches: [] } : event)) };
+    expect(leaps(rested)).toEqual([]);
   });
 });
 
