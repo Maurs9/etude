@@ -241,7 +241,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div id="rd-srt-preview" class="panel" hidden>
           <strong data-i18n="rd_srt_preview_title">First attempt</strong>
           <span id="rd-srt-countdown" data-i18n="rd_srt_preview_hint">You have 20 seconds to preview this piece.</span>
-          <ul class="rdn-check" id="rdn-checklist" hidden></ul>
           <div class="row">
             <button class="btn primary" id="rd-srt-start" data-i18n="rd_srt_start">Start now</button>
             <button class="btn ghost" id="rd-srt-practice" data-i18n="rd_srt_practice">Switch to practice</button>
@@ -255,6 +254,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           </div>
         </div>
         <p id="rd-srt-notice" class="lede" hidden role="status"></p>
+        <ul class="rdn-check" id="rdn-checklist" hidden></ul>
         <div class="ss-wrap" id="rd-staff" style="margin-top:10px" role="img" aria-label="Sheet music" data-i18n-aria="rdx_sheet_aria"></div>
         <div class="coach" id="rd-coach" aria-live="polite"></div>
         <div id="rd-verdict" class="verdict neutral" style="min-height:24px; margin-top:6px" role="status" aria-live="polite"></div>

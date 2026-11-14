@@ -1,7 +1,7 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 import { STRINGS } from '../../src/locales/index.js';
 
-// The player of level pieces (spec section 8): the header, the preview checklist, an assessed attempt with its result
+// The player of level pieces (spec section 8): the header, the checklist, an assessed attempt with its result
 // card, the saved book state, Prev / Next, Today's set, and the old melody path next to it.
 const en = STRINGS.en;
 const fill = (s, ...args) => args.reduce((out, value, i) => { const mark = ['%a', '%b'][i]; return out.replace(mark && out.includes(mark) ? mark : '%s', String(value)); }, s);
@@ -38,7 +38,7 @@ async function openHome(app, saved) {
   await expect(page.locator('#rdn-home')).toBeVisible();
   return page;
 }
-// Plays the attempt from the Start button: first sight goes through the preview, practice straight to the count-in.
+// Plays the attempt from the Start button: a level piece goes straight to the count-in (an older melody has a preview).
 // `hands` picks which notes are played, all exactly on time.
 async function playAttempt(page, hands = ['rh', 'lh']) {
   await page.locator('#rd-go').click();
@@ -84,13 +84,14 @@ test.describe('Read player', () => {
     expect(text).not.toMatch(/\b(major|minor)\b/);
   });
 
-  test('the preview shows a checklist for 30 seconds and the score is engraved, one note group per note', async ({ app }) => {
+  test('a piece opens with its score and checklist: no timed look, one note group per note, and Start goes to the count-in', async ({ app }) => {
     const page = await openHome(app);
     await page.locator('#rdn-book-go').click();
-    await expect(page.locator('#rd-staff .ss-n')).toHaveCount(0); // hidden until the preview
-    await page.locator('#rd-go').click();
-    await expect.poll(() => srtState(page)).toBe('preview');
-    await expect(page.locator('#rd-srt-countdown')).toContainText('30');
+    // The score is on the page before Start, and nothing is claimed yet.
+    await expect(page.locator('#rd-staff .ss-n').first()).toBeVisible();
+    expect(await srtState(page)).toBe('idle');
+    await expect(page.locator('#rd-srt-preview')).toBeHidden();
+    await expect(page.locator('#rd-verdict')).toHaveText(en.rdn_ready);
     const items = page.locator('#rdn-checklist li');
     await expect(items.first()).toHaveText(en.rdn_check_sig);
     await expect(items.nth(1)).toHaveText(en.rdn_check_first);
@@ -100,7 +101,65 @@ test.describe('Read player', () => {
       notes: window.__etude.srtLevelExpected(window.__etude.SR.lvPiece).length,
     }));
     expect(counts.drawn).toBe(counts.notes);
-    await page.locator('#rd-srt-practice').click();
+    // Looking is free: leaving the piece before an attempt keeps its first sight.
+    const fingerprint = await page.evaluate(() => window.__etude.SR.srtFingerprint);
+    expect(await page.evaluate((fp) => !!JSON.parse(localStorage.getItem('etude-sight-v1') || '{}').exposures?.[fp], fingerprint)).toBe(false);
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await expect(page.locator('#rd-srt-preview')).toBeHidden();
+    await expect(page.locator('#rdn-checklist')).toBeHidden();
+    expect(await page.evaluate((fp) => !!JSON.parse(localStorage.getItem('etude-sight-v1')).exposures[fp], fingerprint)).toBe(true);
+  });
+
+  test('a piano starts the attempt with the first right note: no count-in, and that note is the first one played', async ({ app }) => {
+    const page = await openHome(app);
+    await page.locator('#rdn-book-go').click();
+    const first = await page.evaluate(() => window.__etude.srtLevelExpected(window.__etude.SR.lvPiece)[0]);
+    expect(first.onMs).toBe(0);
+    // A wrong key, and the right key from the computer keyboard, start nothing.
+    await page.evaluate((midi) => { const api = window.__etude; api.handleNoteOn(midi + 1, 90, 'midi'); api.handleNoteOff(midi + 1, 'midi'); api.handleNoteOn(midi, 90, 'typing:a'); api.handleNoteOff(midi, 'typing:a'); }, first.midi);
+    // (A piece just opened waits 600 ms before a key can start it: a key still down from the piece before is not a start.)
+    await page.waitForTimeout(700);
+    expect(await srtState(page)).toBe('idle');
+    // The right key from the piano starts it.
+    await page.evaluate((midi) => window.__etude.handleNoteOn(midi, 90, 'midi'), first.midi);
+    await expect.poll(() => srtState(page)).toBe('playing');
+    const started = await page.evaluate(() => {
+      const api = window.__etude;
+      return { inputs: api.srtRecorder.inputs.map((i) => ({ midi: i.midi, onMs: i.onMs })), sinceT0: performance.now() - api.SR.t0, active: api.SR.active };
+    });
+    expect(started.active).toBe(true);
+    expect(started.inputs).toEqual([{ midi: first.midi, onMs: 0 }]);
+    expect(started.sinceT0).toBeGreaterThanOrEqual(0);
+    expect(started.sinceT0).toBeLessThan(1500);
+    await expect(page.locator('#rdn-checklist')).toBeHidden();
+    // The rest played on time: a full score, saved as a first sight.
+    await perform(page);
+    await expect.poll(() => srtState(page)).toBe('saved');
+    expect((await book(page)).pieces['b1.1']).toMatchObject({ best: 100, stars: 3, first: 100 });
+    // Seen now: the first note starts a practice run the same way.
+    await page.evaluate((midi) => window.__etude.handleNoteOff(midi, 'midi'), first.midi);
+    await page.waitForTimeout(1100);
+    await page.evaluate((midi) => window.__etude.handleNoteOn(midi, 90, 'midi'), first.midi);
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.active)).toBe(true);
+    expect(await page.evaluate(() => window.__etude.SR.srtState.mode)).toBe('practice');
+    expect(await page.evaluate(() => window.__etude.srtRecorder.inputs.length)).toBe(1);
+  });
+
+  test('both hands on the first beat: the second key, played while the first sight is claimed, is kept', async ({ app }) => {
+    const page = await openHome(app, withBook({ level: 5 }));
+    expect(await openTwoHandPiece(page)).toBeGreaterThan(0);
+    const firsts = await page.evaluate(() => {
+      const expected = window.__etude.srtLevelExpected(window.__etude.SR.lvPiece);
+      return expected.filter((n) => n.onMs === expected[0].onMs).map((n) => n.midi);
+    });
+    test.skip(firsts.length < 2, 'this piece does not start with both hands');
+    await page.waitForTimeout(700);
+    await page.evaluate((keys) => keys.forEach((midi) => window.__etude.handleNoteOn(midi, 90, 'ble')), firsts);
+    await expect.poll(() => srtState(page)).toBe('playing');
+    const inputs = await page.evaluate(() => window.__etude.srtRecorder.inputs.map((i) => ({ midi: i.midi, onMs: i.onMs })));
+    expect(inputs.map((i) => i.midi).sort()).toEqual([...firsts].sort());
+    inputs.forEach((i) => { expect(i.onMs).toBeGreaterThanOrEqual(0); expect(i.onMs).toBeLessThan(120); });
   });
 
   test('a level 6 piece is drawn with beams, and the Hands control shows from level 4', async ({ app }) => {
@@ -380,8 +439,6 @@ test.describe('Read player', () => {
     const page = await openHome(app, withBook({}, { autoNext: true }));
     await page.locator('#rdn-book-go').click();
     await page.locator('#rd-go').click();
-    await expect.poll(() => srtState(page)).toBe('preview');
-    await page.locator('#rd-srt-start').click();
     await expect.poll(() => srtState(page)).toBe('countIn');
     await installLedgerFailure(page);
     await perform(page);
@@ -401,17 +458,17 @@ test.describe('Read player', () => {
   test('Prev, Next and the arrow keys wait while an attempt runs', async ({ app, page }) => {
     await openHome(app);
     await page.evaluate(() => window.__etude.rdnOpen({ kind: 'book', level: 1, number: 3 }));
+    // Before an attempt the piece only shows: Prev and Next are free.
+    await expect(page.locator('#rdn-next')).toBeEnabled();
+    await expect(page.locator('#rdn-prev')).toBeEnabled();
     await page.locator('#rd-go').click();
-    await expect.poll(() => srtState(page)).toBe('preview');
+    await expect.poll(() => srtState(page)).toBe('countIn');
     await expect(page.locator('#rdn-next')).toBeDisabled();
     await expect(page.locator('#rdn-prev')).toBeDisabled();
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowLeft');
     await expect(title(page)).toHaveText(fill(en.rdn_title_no, 3, 96));
-    expect(await srtState(page)).toBe('preview');
-    await page.locator('#rd-srt-start').click();
-    await expect.poll(() => srtState(page)).toBe('countIn');
-    await expect(page.locator('#rdn-next')).toBeDisabled();
+    expect(await srtState(page)).toBe('countIn');
     await perform(page);
     await expect(page.locator('#rdn-next')).toBeEnabled();
     await expect(page.locator('#rdn-prev')).toBeEnabled();
@@ -472,8 +529,6 @@ test.describe('Read player', () => {
     const page = await openHome(app, withBook({ level: 5 }));
     expect(await openTwoHandPiece(page)).toBeGreaterThan(0);
     await page.locator('#rd-go').click();
-    await expect.poll(() => srtState(page)).toBe('preview');
-    await page.locator('#rd-srt-start').click();
     await expect.poll(() => srtState(page)).toBe('countIn');
     const facts = await page.evaluate(() => {
       const api = window.__etude;
@@ -528,10 +583,11 @@ test.describe('Read player', () => {
     await page.locator('#rdt-drills').click();
     await page.locator('#rdn-home-back').click();
     await expect.poll(() => focusedId(page)).toBe('rdt-drills');
-    // The result card takes the focus only when it was lost.
+    // The result card takes the focus only when it was lost: an attempt started with Start leaves it on that button.
     await page.locator('.rdn-num[data-rdn-n="1"]').click();
     await playAttempt(page);
-    await expect.poll(() => focusedId(page)).toBe('rdn-r-next');
+    await expect(page.locator('#rdn-result')).toBeVisible();
+    expect(await focusedId(page)).toBe('rd-go');
     // Retry closes the card: its focus goes to Start, and the next result card leaves it there.
     await page.locator('#rdn-retry').click();
     await expect.poll(() => srtState(page)).toBe('countIn');

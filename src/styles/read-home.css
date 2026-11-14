@@ -110,8 +110,8 @@
 .rdn-phead .rdn-sub{display:block; margin:2px 0 0}
 #view-read[data-rdn=player] #rd-gen-title,#view-read[data-rdn=player] #rd-meta{display:none}
 body[data-stage=immersive] #rdn-player-head,body[data-stage=immersive] #rdn-result{display:none !important}
-.rdn-check{margin:8px 0 10px; padding-left:20px; color:var(--ink2)}
-.rdn-check li{margin:2px 0}
+.rdn-check{display:flex; flex-wrap:wrap; gap:2px 26px; margin:8px 0 2px; padding-left:20px; color:var(--ink2); font-size:14px}
+.rdn-check li{margin:0}
 .rdn-result{margin-top:10px; padding:14px 16px; border:1px solid var(--line2); border-radius:var(--rad); background:var(--card); box-shadow:var(--shadow)}
 .rdn-r-top{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
 .rdn-r-top h3{font-family:var(--serif); font-size:26px; margin:0}

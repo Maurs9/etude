@@ -47,7 +47,7 @@ import { srtMelodyRhythm } from '../sight-reading/patterns.js';
 import { SRT_FLASH_MS, srtFlashMatches, srtWarmupPlan, type FlashCard, type WarmupStep } from '../sight-reading/warmup.js';
 import type { GeneratedPiece } from '../sight-reading/rules.js';
 import { srtGenerate } from '../sight-reading/generator.js';
-import { SightReadingRecorder } from '../sight-reading/recorder.js';
+import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
 import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
@@ -2057,6 +2057,9 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
             calTap();
         return;
     }
+    // A waiting level piece starts on its first note; the keys played while its first sight is claimed are kept for the recorder.
+    if (!(SR.active && srtRecorder) && srNoteStartInput(kind, midi, source, releaseKind))
+        return;
     if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder) {
         srtRecorder.record(kind, midi, source, releaseKind, performance.now() - SR.t0);
     }
@@ -7240,7 +7243,9 @@ function srtWatchAudioContext(context: AudioContext) {
     });
 }
 function srNamesVisible(piece: SrScore) {
-    return SR.names && !piece.noNames && !srtScoreConcealed() && !srtEligibleFirstSightActive() && SR.srtState?.name !== 'claiming';
+    // A level piece shows before its first attempt: its note names wait until it is practice.
+    const lvFirst = !!SR.lvPiece && srtGeneratedSelected() && SR.srtState?.mode === 'firstSight';
+    return SR.names && !piece.noNames && !srtScoreConcealed() && !lvFirst && !srtEligibleFirstSightActive() && SR.srtState?.name !== 'claiming';
 }
 function srPaintAll() {
     const svg = srSvg();
@@ -7583,6 +7588,9 @@ function srtLedgerFailureMessage(reason: SrtLedgerFailureReason, context: SrtLed
     return t('rd_srt_error_' + reason);
 }
 function srtScoreConcealed() {
+    // A level piece is on the page from the moment it opens: there is no timed look, its first attempt is its first sight.
+    if (SR.lvPiece && srtGeneratedSelected())
+        return false;
     if (srtExposurePromise?.fingerprint === SR.srtFingerprint)
         return true;
     const state = SR.srtState;
@@ -7995,9 +8003,14 @@ async function srtStartFirstSight() {
     }
     srtSetState({ type: 'claimed' });
     srDraw();
+    if (SR.lvPiece) {
+        // A level piece was on the page already: the claimed attempt starts at once (a count-in, or the note that started it).
+        srtStartClaimedAttempt(operation);
+        return;
+    }
     srtPreviewUi(true);
-    // A level piece gets the 30 seconds of the exam; the older melodies keep 20.
-    SR.srtCountdown = SR.lvPiece ? 30 : 20;
+    // The older melodies get 20 seconds to look.
+    SR.srtCountdown = 20;
     byId('rd-srt-countdown').textContent = t('rd_srt_countdown', SR.srtCountdown);
     window.clearInterval(SR.srtPreviewTimer);
     const previewOperation = srtOperationEpoch;
@@ -8106,10 +8119,19 @@ function srAssessStart(operation?: number) {
     const bs = 60 / SR.bpm, cap = SR.piece.ts[1] === 8 ? SR.piece.ts[0] * 0.5 : SR.piece.ts[0], ci = cap, pk = SR.piece.pickup || 0;
     if (!actx)
         return;
-    const act0 = actx.currentTime + 0.15, perf0 = performance.now() + 150;
+    let act0 = actx.currentTime + 0.15, perf0 = performance.now() + 150;
     // The count-in lasts one bar. A level piece clicks once per beat of its meter (so 3/8 and 6/8 count right).
     let lead = ci * bs;
-    if (lvPiece) {
+    const first = lvPiece ? srFirstNotes() : null, noteStart = first ? srNoteStartTake() : null;
+    if (lvPiece && noteStart && first) {
+        // Started by its first note: no count-in. That note is the first onset of the piece, and the clicks go on from it.
+        lead = 0;
+        perf0 = noteStart.perf - first.beat * bs * 1000;
+        act0 = actx.currentTime - (performance.now() - perf0) / 1000;
+        const from = actx.currentTime + 0.03;
+        srtLevelClicks(lvPiece, SR.bpm).filter((c) => act0 + c.ms / 1000 > from).forEach((c) => srClick(act0 + c.ms / 1000, c.accent));
+    }
+    else if (lvPiece) {
         const clicks = srtLevelClicks(lvPiece, SR.bpm), barMs = srtLevelDurationMs(lvPiece, SR.bpm) / lvPiece.bars;
         lead = barMs / 1000;
         clicks.filter((c) => c.ms < barMs - 1e-6).forEach((c) => srClick(act0 + c.ms / 1000, c.accent));
@@ -8129,10 +8151,19 @@ function srAssessStart(operation?: number) {
     SR.t0 = perf0 + lead * 1000;
     SR.anyOctave = !!data.settings.anyOctave;
     srtRecorder = new SightReadingRecorder({ durationMs: lvPiece ? srtLevelDurationMs(lvPiece, SR.bpm) : SR.totalBeats * bs * 1000 });
+    // The note that started the attempt, and what was played while the first sight was being claimed, belong to it.
+    if (noteStart)
+        for (const ev of noteStart.events)
+            srtRecorder.record(ev.kind, ev.midi, ev.source, ev.releaseKind, ev.perf - SR.t0);
+    const checklist = maybeById('rdn-checklist');
+    if (checklist)
+        checklist.hidden = true;
     SR.assessOn = false;
     if (SR.srtState?.name === 'preparing')
         srtSetState({ type: 'startPreview' });
-    if (SR.srtState?.name === 'countIn')
+    if (SR.srtState?.name === 'countIn' && noteStart)
+        srtSetState({ type: 'countInDone' });
+    else if (SR.srtState?.name === 'countIn')
         SR.timers.push(setTimeout(() => {
             if (SR.active && SR.srtState?.name === 'countIn')
                 srtSetState({ type: 'countInDone' });
@@ -8144,6 +8175,64 @@ function srAssessStart(operation?: number) {
     SR.raf = requestAnimationFrame(srAssessLoop);
 }
 function srTol() { return Math.min(0.55, 0.3 * SR.bpm / 60); }
+/* ---- a level piece starts on its first note ---- */
+/** The first notes the active hands play: their beat and their keys. */
+function srFirstNotes(): { beat: number; midis: number[] } | null {
+    const sel = srActiveHands(), mine = SR.notes.filter((n) => sel === 'both' || n.hand === sel);
+    if (!mine.length)
+        return null;
+    const beat = Math.min(...mine.map((n) => n.beat));
+    return { beat, midis: mine.filter((n) => Math.abs(n.beat - beat) < 1e-3).map((n) => n.midi) };
+}
+type SrNoteStartEvent = { kind: 'on' | 'off'; midi: number; source: string; releaseKind: 'physical' | 'focus' | 'reset' | null; perf: number };
+/** The key that started an attempt, when it went down, and every key event since: a first sight is claimed before the recorder exists. */
+let srNoteStart: { perf: number; events: SrNoteStartEvent[] } | null = null;
+/** No note starts an attempt before this time: a key still sounding from the last piece is not a start. */
+let srNoteArmAt = 0;
+const SR_NOTE_START_MS = 1500;
+function srNoteStartHold(ms = 600) { srNoteArmAt = performance.now() + ms; }
+/** True when a piano key may start the attempt: a level piece is waiting in Assessment and a MIDI or Bluetooth piano plays. */
+function srNoteStartArmed(source: string) {
+    const family = srtInputFamily(source);
+    if (family !== 'midi' && family !== 'ble')
+        return false;
+    if (view0() !== 'read' || RDN.screen !== 'player' || !SR.piece || !SR.lvPiece || !srtGeneratedSelected())
+        return false;
+    if (SR.active || SR.listening || SR.modeSel !== 'assess' || WARM.on || srtPendingSaveProtected() || performance.now() < srNoteArmAt)
+        return false;
+    const state = SR.srtState;
+    return !(state && (state.name === 'preparing' || state.name === 'claiming' || state.name === 'preview' || state.name === 'countIn' ||
+        state.name === 'playing' || state.name === 'pendingSave' || state.name === 'completed' && SR.srtPendingAttempt?.attemptId === state.attemptId));
+}
+/** A key went down or came up. Returns true when the event belongs to a start by the first note (it starts one, or one is being claimed). */
+function srNoteStartInput(kind: 'on' | 'off', midi: number, source: string, releaseKind: 'physical' | 'focus' | 'reset' | null) {
+    const now = performance.now();
+    if (srNoteStart && now - srNoteStart.perf > SR_NOTE_START_MS)
+        srNoteStart = null;
+    if (srNoteStart) {
+        srNoteStart.events.push({ kind, midi, source, releaseKind, perf: now });
+        return true;
+    }
+    if (kind !== 'on' || !srNoteStartArmed(source))
+        return false;
+    const first = srFirstNotes(), anyOctave = !!data.settings.anyOctave;
+    if (!first || !first.midis.some((m) => anyOctave ? (m - midi) % 12 === 0 : m === midi))
+        return false;
+    rdnAutoCancel();
+    srNoteStart = { perf: now, events: [{ kind, midi, source, releaseKind, perf: now }] };
+    srGo();
+    // Nothing started (and no first sight is being claimed): the key was only a key.
+    const name = SR.srtState?.name;
+    if (!SR.active && name !== 'preparing' && name !== 'claiming')
+        srNoteStart = null;
+    return true;
+}
+/** Hands the pending start by a note to the attempt that begins now (null when there is none, or it is too old to keep time by). */
+function srNoteStartTake() {
+    const start = srNoteStart;
+    srNoteStart = null;
+    return start && performance.now() - start.perf <= SR_NOTE_START_MS ? start : null;
+}
 function srAssessLoop(ts: number) {
     if (!SR.active || SR.modeSel !== 'assess')
         return;
@@ -8161,6 +8250,8 @@ function srAssessLoop(ts: number) {
     SR.raf = requestAnimationFrame(srAssessLoop);
 }
 function srAssessFinish() {
+    // A key played just past the end is the end of this attempt, not the start of the next.
+    srNoteStartHold(1000);
     const generated = srtGeneratedSelected();
     const lvPiece = generated ? SR.lvPiece ?? null : null;
     const firstSight = SR.srtState?.mode === 'firstSight' && !!SR.srtState.attemptId;
@@ -11816,7 +11907,8 @@ function rdnNavUi() {
 }
 /** The status line before an attempt: first sight, or practice for a piece already seen. */
 function rdnReadyText() {
-    return t(SR.srtState?.mode === 'practice' ? 'rdn_seen' : 'rdn_ready');
+    const note = midiLive() ? '_note' : '';
+    return t((SR.srtState?.mode === 'practice' ? 'rdn_seen' : 'rdn_ready') + note);
 }
 /** The hint next to Hands: a level piece's first sight is played with both hands. */
 function rdnHandsHint() {
@@ -11871,6 +11963,7 @@ function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title') {
     srtNotice(null);
     void srtLedgerUpdate(localStorage, { type: 'recoverOrphanClaims', generation: srtReadLedger(localStorage).generation });
     SR.gen = rdnDrawable(piece);
+    srNoteStartHold();
     rdTab('pieces', 'player');
     SR.modeSel = 'assess';
     [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
@@ -11982,7 +12075,8 @@ function rdnChecklist() {
     if (!ul)
         return;
     const p = SR.lvPiece;
-    ul.hidden = !p;
+    // What to look at before the first attempt: gone once an attempt starts, and for a piece already seen.
+    ul.hidden = !p || SR.srtState?.mode !== 'firstSight' || SR.active;
     if (!p) {
         ul.innerHTML = '';
         return;
