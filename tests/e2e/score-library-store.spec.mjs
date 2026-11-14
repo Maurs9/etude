@@ -212,3 +212,28 @@ test('write promises resolve after transaction commit; versionchange closes cach
   }, modulePath);
   expect(result).toEqual({ completedWhenResolved: true, reloaded: [], missing: null });
 });
+
+test('organization fields (title, composer, level, tags) update, clear, and round-trip through backup', async ({ page }) => {
+  const result = await page.evaluate(async path => {
+    const lib = await import(path);
+    const saved = (await lib.librarySave(new File(['org test'], 'org.musicxml'), { title: 'Old', composer: '' })).item;
+    const updated = await lib.libraryUpdate(saved.id, {
+      title: 'New Title',
+      composer: 'Bach',
+      level: '  Level 2  ',
+      tags: ['Baroque', 'Exam', 'baroque'],
+    });
+    const backup = await lib.libraryExport();
+    await lib.libraryUpdate(saved.id, { level: null, tags: [] });
+    const cleared = (await lib.libraryGet(saved.id)).item;
+    await lib.libraryRemove(saved.id);
+    const restored = await lib.libraryRestore(backup, async () => ({ title: 'Ignored', composer: '' }));
+    const fromBackup = (await lib.libraryGet(saved.id)).item;
+    return { updated, cleared, restored, fromBackup };
+  }, modulePath);
+  expect(result.updated).toMatchObject({ title: 'New Title', composer: 'Bach', level: 'Level 2', tags: ['Baroque', 'Exam'] });
+  expect(result.cleared.level).toBeUndefined();
+  expect(result.cleared.tags).toBeUndefined();
+  expect(result.restored).toEqual({ added: 1, duplicates: 0 });
+  expect(result.fromBackup).toMatchObject({ title: 'New Title', composer: 'Bach', level: 'Level 2', tags: ['Baroque', 'Exam'] });
+});

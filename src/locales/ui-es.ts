@@ -2059,7 +2059,30 @@ const payload: UIPayload = {
       "resume_failed": "No se pudo restaurar la posición de práctica.",
       "working": "Procesando…",
       "backup_saved": "Descarga de la copia preparada.",
-      "deleted": "Partitura eliminada de la biblioteca."
+      "deleted": "Partitura eliminada de la biblioteca.",
+      "composer_filter": "Compositor",
+      "all_composers": "Todos los compositores",
+      "unknown_composer": "Sin compositor",
+      "level_filter": "Nivel",
+      "all_levels": "Todos los niveles",
+      "no_level": "Sin nivel",
+      "tag_filter": "Etiqueta / colección",
+      "all_tags": "Todas las etiquetas",
+      "untagged": "Sin etiquetas",
+      "group_by": "Agrupar por",
+      "group_none": "Sin agrupar",
+      "group_composer": "Compositor",
+      "group_level": "Nivel",
+      "group_tag": "Etiqueta / colección",
+      "group_heading": "{group} ({count})",
+      "edit": "Organizar",
+      "edit_title": "Título",
+      "edit_composer": "Compositor",
+      "edit_level": "Nivel (ej. Principiante, Nivel 2)",
+      "edit_tags": "Etiquetas / colecciones (separadas por comas)",
+      "save_edit": "Guardar",
+      "cancel_edit": "Cancelar",
+      "level_badge": "Nivel: {level}"
     }
   }
 };

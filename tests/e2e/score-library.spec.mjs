@@ -211,7 +211,7 @@ for (const width of [320, 600, 1024]) {
     await expect(rows(page).locator('h3')).toHaveText(title);
     expect(await rows(page).locator('img,script').count()).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const controls = await page.locator('#score-library button,#library-files,#library-search,#library-filter,#library-restore').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
+    const controls = await page.locator('#score-library button,#library-files,#library-search,#library-filter,#library-composer-filter,#library-level-filter,#library-tag-filter,#library-group,#library-restore').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
     expect(controls.every(control => control.height >= 43 && control.right <= width + 1)).toBe(true);
     await page.evaluate(() => window.__etude.setLang('fr'));
     await expect(page.locator('#score-library summary')).toContainText('Ma bibliothèque');
@@ -235,4 +235,84 @@ test('a saved score reopens offline after the installed app is warm @sw', async 
     expect(await page.evaluate(() => window.__etude.AN.notes.length)).toBe(16);
     await page.evaluate(() => window.__etude.anLibraryFlush());
   } finally { await page.context().setOffline(false); }
+});
+
+test('library supports inline organization, filtering and grouping by composer, level and tag', async ({ app, page, browser }) => {
+  await app.open({ hash: 'analysis', lang: 'ro' });
+  await library(page);
+  await page.locator('#library-files').setInputFiles([
+    file('bach-1.xml', score('Prelude in C', 'J. S. Bach', 'C')),
+    file('chopin-1.xml', score('Waltz in A Minor', 'F. Chopin', 'E')),
+    file('untitled-1.xml', score('Warmup Study', '', 'G')),
+  ]);
+  await expect(rows(page)).toHaveCount(3);
+
+  await row(page, 'Prelude in C').locator('[data-library-action=edit]').click();
+  const editor1 = row(page, 'Prelude in C').locator('.score-library-editor');
+  await editor1.locator('[data-library-field=level]').fill('Nivel 2');
+  await editor1.locator('[data-library-field=tags]').fill('Baroc, Examen, baroc');
+  await editor1.locator('[data-library-action=save-edit]').click();
+  await settled(page);
+
+  await row(page, 'Warmup Study').locator('[data-library-action=edit]').click();
+  const editor2 = row(page, 'Warmup Study').locator('.score-library-editor');
+  await editor2.locator('[data-library-field=composer]').fill('J. S. Bach');
+  await editor2.locator('[data-library-field=level]').fill('Nivel 1');
+  await editor2.locator('[data-library-field=tags]').fill('Încălzire');
+  await editor2.locator('[data-library-action=save-edit]').click();
+  await settled(page);
+
+  await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Nivel: Nivel 2');
+  await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Baroc');
+  await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Examen');
+
+  await page.locator('#library-composer-filter').selectOption('J. S. Bach');
+  await expect(rows(page)).toHaveCount(2);
+  await page.locator('#library-level-filter').selectOption('Nivel 2');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).locator('h3')).toHaveText('Prelude in C');
+  await page.locator('#library-level-filter').selectOption('');
+  await page.locator('#library-composer-filter').selectOption('');
+
+  await page.locator('#library-tag-filter').selectOption('Examen');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).locator('h3')).toHaveText('Prelude in C');
+  await page.locator('#library-tag-filter').selectOption('');
+
+  await page.locator('#library-group').selectOption('composer');
+  const composerHeadings = await rows(page).locator('.score-library-group-heading:not([hidden])').allTextContents();
+  expect(composerHeadings).toEqual(['F. Chopin (1)', 'J. S. Bach (2)']);
+
+  await page.locator('#library-group').selectOption('level');
+  const levelHeadings = await rows(page).locator('.score-library-group-heading:not([hidden])').allTextContents();
+  expect(levelHeadings).toEqual(['Nivel 1 (1)', 'Nivel 2 (1)', 'Fără nivel (1)']);
+
+  await page.locator('#library-group').selectOption('tag');
+  const tagHeadings = await rows(page).locator('.score-library-group-heading:not([hidden])').allTextContents();
+  expect(tagHeadings).toEqual(['Baroc (1)', 'Încălzire (1)', 'Fără etichete (1)']);
+
+  await page.reload();
+  await page.waitForFunction(() => !!window.__etude?.show);
+  await library(page);
+  await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Nivel: Nivel 2');
+  await expect(row(page, 'Warmup Study').locator('p').first()).toHaveText('J. S. Bach');
+
+  const pending = page.waitForEvent('download');
+  await page.locator('#library-backup').click();
+  const backup = await pending;
+  const bytes = readFileSync(await backup.path());
+  await settled(page);
+
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  try {
+    const other = await context.newPage();
+    await other.goto(page.url());
+    await other.waitForFunction(() => !!window.__etude?.show);
+    await library(other);
+    await other.locator('#library-restore').setInputFiles({ name: 'etude-library.json', mimeType: 'application/json', buffer: bytes });
+    await settled(other);
+    await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('Level: Nivel 2');
+    await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('Baroc');
+    await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('Examen');
+  } finally { await context.close(); }
 });

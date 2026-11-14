@@ -1829,7 +1829,30 @@ const payload: UIPayload = {
       "resume_failed": "Could not restore the saved practice position.",
       "working": "Working…",
       "backup_saved": "Library backup download prepared.",
-      "deleted": "Score deleted from this library."
+      "deleted": "Score deleted from this library.",
+      "composer_filter": "Composer",
+      "all_composers": "All composers",
+      "unknown_composer": "No composer",
+      "level_filter": "Level",
+      "all_levels": "All levels",
+      "no_level": "No level",
+      "tag_filter": "Tag / collection",
+      "all_tags": "All tags",
+      "untagged": "No tags",
+      "group_by": "Group by",
+      "group_none": "No grouping",
+      "group_composer": "Composer",
+      "group_level": "Level",
+      "group_tag": "Tag / collection",
+      "group_heading": "{group} ({count})",
+      "edit": "Organize",
+      "edit_title": "Title",
+      "edit_composer": "Composer",
+      "edit_level": "Level (e.g. Beginner, Level 2)",
+      "edit_tags": "Tags / collections (comma-separated)",
+      "save_edit": "Save",
+      "cancel_edit": "Cancel",
+      "level_badge": "Level: {level}"
     }
   }
 };

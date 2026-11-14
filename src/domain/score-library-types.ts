@@ -29,6 +29,20 @@ export interface LibraryItem extends LibraryMetadata {
   best?: number;
   /** Day number (days since 1970-01-01, local calendar) of the last whole-score practice run. Absent in older records. */
   lastPlayedDay?: number;
+  /** Optional difficulty/study level label (e.g. 'Beginner', 'Intermediate', 'Advanced', 'Level 1'). Absent when unset. */
+  level?: string;
+  /** Optional user-defined tags / collection names (up to 20 tags, each 1–64 chars). Absent when empty. */
+  tags?: string[];
+}
+
+export interface LibraryUpdatePatch {
+  favorite?: boolean;
+  lastOpenedAt?: number;
+  resume?: LibraryResume | null;
+  title?: string;
+  composer?: string;
+  level?: string | null;
+  tags?: string[] | null;
 }
 
 /** A recorded practice run: the updated record and the best accuracy it had before. */

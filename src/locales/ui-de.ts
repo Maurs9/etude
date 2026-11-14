@@ -2065,7 +2065,30 @@ const payload: UIPayload = {
       "resume_failed": "Gespeicherte Übungsposition konnte nicht wiederhergestellt werden.",
       "working": "Verarbeitung…",
       "backup_saved": "Sicherungsdownload vorbereitet.",
-      "deleted": "Noten aus der Bibliothek gelöscht."
+      "deleted": "Noten aus der Bibliothek gelöscht.",
+      "composer_filter": "Komponist",
+      "all_composers": "Alle Komponisten",
+      "unknown_composer": "Ohne Komponist",
+      "level_filter": "Stufe",
+      "all_levels": "Alle Stufen",
+      "no_level": "Ohne Stufe",
+      "tag_filter": "Tag / Sammlung",
+      "all_tags": "Alle Tags",
+      "untagged": "Ohne Tags",
+      "group_by": "Gruppieren nach",
+      "group_none": "Keine Gruppierung",
+      "group_composer": "Komponist",
+      "group_level": "Stufe",
+      "group_tag": "Tag / Sammlung",
+      "group_heading": "{group} ({count})",
+      "edit": "Ordnen",
+      "edit_title": "Titel",
+      "edit_composer": "Komponist",
+      "edit_level": "Stufe (z. B. Anfänger, Stufe 2)",
+      "edit_tags": "Tags / Sammlungen (kommagetrennt)",
+      "save_edit": "Speichern",
+      "cancel_edit": "Abbrechen",
+      "level_badge": "Stufe: {level}"
     }
   }
 };

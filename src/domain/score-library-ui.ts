@@ -59,7 +59,33 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     return { key, option };
   });
   filterLabel.append(filterText, filter);
-  toolbar.append(importLabel, searchLabel, filterLabel);
+  const composerLabel = element('label', 'score-library-filter');
+  const composerText = element('span');
+  const composerFilter = element('select');
+  composerFilter.id = 'library-composer-filter';
+  composerLabel.append(composerText, composerFilter);
+  const levelLabel = element('label', 'score-library-filter');
+  const levelText = element('span');
+  const levelFilter = element('select');
+  levelFilter.id = 'library-level-filter';
+  levelLabel.append(levelText, levelFilter);
+  const tagLabel = element('label', 'score-library-filter');
+  const tagText = element('span');
+  const tagFilter = element('select');
+  tagFilter.id = 'library-tag-filter';
+  tagLabel.append(tagText, tagFilter);
+  const groupLabel = element('label', 'score-library-filter');
+  const groupText = element('span');
+  const group = element('select');
+  group.id = 'library-group';
+  const groupOptions = (['none', 'composer', 'level', 'tag'] as const).map(key => {
+    const option = element('option');
+    option.value = key;
+    group.append(option);
+    return { key, option };
+  });
+  groupLabel.append(groupText, group);
+  toolbar.append(importLabel, searchLabel, filterLabel, composerLabel, levelLabel, tagLabel, groupLabel);
   const protection = element('p', 'score-library-note');
   protection.id = 'library-protection';
   const status = element('p', 'score-library-status');
@@ -96,7 +122,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let statusCopy: { key: LibraryTextKey; values?: Values } | null = null;
   let protectedStorage: boolean | null = null;
   let readSequence = 0;
-  type Row = { node: HTMLLIElement; title: HTMLElement; composer: HTMLElement; name: HTMLElement; position: HTMLElement; last: HTMLElement; progress: HTMLElement; open: HTMLButtonElement; favorite: HTMLButtonElement; download: HTMLButtonElement; remove: HTMLButtonElement };
+  let editingId: string | null = null;
+  type Editor = { form: HTMLFormElement; titleText: HTMLElement; composerText: HTMLElement; levelText: HTMLElement; tagsText: HTMLElement; save: HTMLButtonElement; cancel: HTMLButtonElement };
+  type Row = { node: HTMLLIElement; groupHeading: HTMLElement; title: HTMLElement; composer: HTMLElement; badges: HTMLElement; name: HTMLElement; position: HTMLElement; last: HTMLElement; progress: HTMLElement; open: HTMLButtonElement; favorite: HTMLButtonElement; edit: HTMLButtonElement; download: HTMLButtonElement; remove: HTMLButtonElement; editor: Editor | null };
   const rows = new Map<string, Row>();
   function notice(key: LibraryTextKey, values?: Values): void {
     statusCopy = { key, values };
@@ -108,6 +136,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     content.setAttribute('aria-busy', String(value));
     files.disabled = restore.disabled = backup.disabled = value;
     for (const button of list.querySelectorAll('button')) button.disabled = value;
+    for (const input of list.querySelectorAll('input')) input.disabled = value;
   }
   async function run(action: () => Promise<void>, errorKey: LibraryTextKey = 'action_failed'): Promise<void> {
     if (busy) return;
@@ -124,6 +153,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const next = await libraryList();
       if (sequence !== readSequence) return;
       items = next;
+      if (editingId !== null && !items.some(item => item.id === editingId)) editingId = null;
       loaded = true;
       render();
     } catch {
@@ -131,17 +161,116 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (sequence === readSequence) notice('unavailable');
     }
   }
+  function syncSelectOptions(select: HTMLSelectElement, allLabel: string, values: string[], noneLabel: string, hasNone: boolean): void {
+    const previous = select.value;
+    const valid = new Set<string>(['', ...values, ...(hasNone ? ['__none__'] : [])]);
+    const nextOptions: HTMLOptionElement[] = [];
+    const makeOption = (value: string, label: string): HTMLOptionElement => {
+      const option = element('option');
+      option.value = value;
+      option.textContent = label;
+      return option;
+    };
+    nextOptions.push(makeOption('', allLabel));
+    for (const value of values) nextOptions.push(makeOption(value, value));
+    if (hasNone) nextOptions.push(makeOption('__none__', noneLabel));
+    select.replaceChildren(...nextOptions);
+    select.value = valid.has(previous) ? previous : '';
+  }
+  function syncFilterOptions(): void {
+    const locale = host.language();
+    const composers = new Set<string>();
+    let hasEmptyComposer = false;
+    const levels = new Set<string>();
+    let hasEmptyLevel = false;
+    const tags = new Set<string>();
+    let hasEmptyTag = false;
+    for (const item of items) {
+      const composer = item.composer.trim();
+      if (composer) composers.add(composer);
+      else hasEmptyComposer = true;
+      if (item.level) levels.add(item.level);
+      else hasEmptyLevel = true;
+      if (item.tags?.length) {
+        for (const tag of item.tags) tags.add(tag);
+      } else {
+        hasEmptyTag = true;
+      }
+    }
+    syncSelectOptions(composerFilter, t('all_composers'), [...composers].sort((a, b) => a.localeCompare(b, locale)), t('unknown_composer'), hasEmptyComposer);
+    syncSelectOptions(levelFilter, t('all_levels'), [...levels].sort((a, b) => a.localeCompare(b, locale, { numeric: true })), t('no_level'), hasEmptyLevel);
+    syncSelectOptions(tagFilter, t('all_tags'), [...tags].sort((a, b) => a.localeCompare(b, locale)), t('untagged'), hasEmptyTag);
+  }
+  function createEditor(id: string, item: LibraryItem, row: Row): Editor {
+    const form = element('form', 'score-library-editor');
+    const makeField = (field: string, value: string, maxLength?: number): { text: HTMLElement; input: HTMLInputElement } => {
+      const label = element('label');
+      const text = element('span');
+      const input = element('input');
+      input.type = 'text';
+      input.dataset.libraryField = field;
+      input.value = value;
+      if (maxLength) input.maxLength = maxLength;
+      input.disabled = busy;
+      label.append(text, input);
+      form.append(label);
+      return { text, input };
+    };
+    const titleField = makeField('title', item.title, 512);
+    const composerField = makeField('composer', item.composer, 512);
+    const levelField = makeField('level', item.level ?? '', 64);
+    const tagsField = makeField('tags', (item.tags ?? []).join(', '));
+    const editorActions = element('div', 'score-library-editor-actions');
+    const save = element('button');
+    save.type = 'submit';
+    save.dataset.libraryAction = 'save-edit';
+    save.disabled = busy;
+    const cancel = element('button');
+    cancel.type = 'button';
+    cancel.dataset.libraryAction = 'cancel-edit';
+    cancel.disabled = busy;
+    editorActions.append(save, cancel);
+    form.append(editorActions);
+    cancel.addEventListener('click', () => {
+      if (busy) return;
+      editingId = null;
+      render();
+      row.edit.focus();
+    });
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (busy) return;
+      const tags = tagsField.input.value.split(',').map(part => part.trim()).filter(Boolean);
+      void run(async () => {
+        const updated = await libraryUpdate(id, {
+          title: titleField.input.value.trim(),
+          composer: composerField.input.value.trim(),
+          level: levelField.input.value.trim(),
+          tags,
+        });
+        if (!updated) throw new Error('missing');
+        editingId = null;
+        await refresh();
+        notice('saved');
+      });
+    });
+    return { form, titleText: titleField.text, composerText: composerField.text, levelText: levelField.text, tagsText: tagsField.text, save, cancel };
+  }
   function createRow(id: string): Row {
     const node = element('li', 'score-library-item');
     node.dataset.libraryId = id;
+    const groupHeading = element('div', 'score-library-group-heading');
+    groupHeading.hidden = true;
     const info = element('div', 'score-library-info');
     const title = element('h3');
     const composer = element('p');
+    const badges = element('div', 'score-library-badges');
+    badges.hidden = true;
     const name = element('p', 'score-library-note');
     const last = element('p', 'score-library-note');
     const position = element('p', 'score-library-note');
     const progress = element('p', 'score-library-note score-library-progress');
-    info.append(title, composer, name, last, position, progress);
+    info.append(title, composer, badges, name, last, position, progress);
     const actions = element('div', 'score-library-actions');
     const makeButton = (action: string): HTMLButtonElement => {
       const button = element('button');
@@ -153,9 +282,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     };
     const open = makeButton('open');
     const favorite = makeButton('favorite');
+    const edit = makeButton('edit');
     const original = makeButton('download');
     const remove = makeButton('delete');
-    node.append(info, actions);
+    node.append(groupHeading, info, actions);
     open.addEventListener('click', () => { void run(async () => {
       await host.flush();
       const stored = await libraryGet(id);
@@ -172,6 +302,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       await refresh();
       if (statusCopy?.key === 'working') { statusCopy = null; status.textContent = ''; }
     }); });
+    edit.addEventListener('click', () => {
+      if (busy) return;
+      editingId = editingId === id ? null : id;
+      render();
+      if (editingId === id) rows.get(id)?.editor?.form.querySelector('input')?.focus();
+    });
     original.addEventListener('click', () => { void run(async () => {
       const stored = await libraryGet(id);
       if (!stored) throw new Error('missing');
@@ -189,26 +325,106 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         search.focus();
       });
     });
-    return { node, title, composer, name, last, position, progress, open, favorite, download: original, remove };
+    return { node, groupHeading, title, composer, badges, name, last, position, progress, open, favorite, edit, download: original, remove, editor: null };
+  }
+  function groupMeta(item: LibraryItem): { label: string; empty: boolean } {
+    if (group.value === 'composer') {
+      const value = item.composer.trim();
+      return { label: value || t('unknown_composer'), empty: !value };
+    }
+    if (group.value === 'level') {
+      const value = item.level ?? '';
+      return { label: value || t('no_level'), empty: !value };
+    }
+    if (group.value === 'tag') {
+      if (tagFilter.value && tagFilter.value !== '__none__' && item.tags?.includes(tagFilter.value)) {
+        return { label: tagFilter.value, empty: false };
+      }
+      const value = item.tags?.[0] ?? '';
+      return { label: value || t('untagged'), empty: !value };
+    }
+    return { label: '', empty: true };
   }
   function render(): void {
     summary.textContent = t('heading', { count: items.length });
+    syncFilterOptions();
     const query = search.value.trim().toLocaleLowerCase();
-    const shown = items.filter(item =>
-      (!query || `${item.title}\n${item.composer}\n${item.name}`.toLocaleLowerCase().includes(query)) &&
-      (filter.value !== 'favorites' || item.favorite) && (filter.value !== 'recent' || item.lastOpenedAt !== null));
-    if (filter.value === 'recent') shown.sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0));
+    const shown = items.filter(item => {
+      if (query) {
+        const haystack = `${item.title}\n${item.composer}\n${item.name}\n${item.level ?? ''}\n${(item.tags ?? []).join('\n')}`.toLocaleLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      if (filter.value === 'favorites' && !item.favorite) return false;
+      if (filter.value === 'recent' && item.lastOpenedAt === null) return false;
+      if (composerFilter.value === '__none__' && item.composer.trim()) return false;
+      if (composerFilter.value && composerFilter.value !== '__none__' && item.composer.trim() !== composerFilter.value) return false;
+      if (levelFilter.value === '__none__' && item.level) return false;
+      if (levelFilter.value && levelFilter.value !== '__none__' && item.level !== levelFilter.value) return false;
+      if (tagFilter.value === '__none__' && item.tags?.length) return false;
+      if (tagFilter.value && tagFilter.value !== '__none__' && !item.tags?.includes(tagFilter.value)) return false;
+      return true;
+    });
+    const compareItems = (a: LibraryItem, b: LibraryItem): number =>
+      filter.value === 'recent'
+        ? (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0)
+        : (b.addedAt - a.addedAt || a.id.localeCompare(b.id));
+    if (group.value !== 'none') {
+      const locale = host.language();
+      shown.sort((a, b) => {
+        const ga = groupMeta(a);
+        const gb = groupMeta(b);
+        if (ga.empty !== gb.empty) return ga.empty ? 1 : -1;
+        const labelCmp = ga.label.localeCompare(gb.label, locale, { numeric: true });
+        if (labelCmp !== 0) return labelCmp;
+        return compareItems(a, b);
+      });
+    } else if (filter.value === 'recent') {
+      shown.sort(compareItems);
+    }
+    const groupCounts = new Map<string, number>();
+    if (group.value !== 'none') {
+      for (const item of shown) {
+        const { label } = groupMeta(item);
+        groupCounts.set(label, (groupCounts.get(label) ?? 0) + 1);
+      }
+    }
     const visible = new Set(shown.map(item => item.id));
     for (const [id, row] of rows) {
       if (!visible.has(id)) { row.node.remove(); rows.delete(id); }
     }
     let index = 0;
+    let previousGroup: string | null = null;
     for (const item of shown) {
       let row = rows.get(item.id);
       if (!row) { row = createRow(item.id); rows.set(item.id, row); }
+      if (group.value !== 'none') {
+        const { label } = groupMeta(item);
+        if (label !== previousGroup) {
+          row.groupHeading.hidden = false;
+          row.groupHeading.textContent = t('group_heading', { group: label, count: groupCounts.get(label) ?? 1 });
+          previousGroup = label;
+        } else {
+          row.groupHeading.hidden = true;
+        }
+      } else {
+        row.groupHeading.hidden = true;
+      }
       const title = item.title || item.name;
       row.title.textContent = title;
       row.composer.textContent = item.composer;
+      const badgeNodes: HTMLElement[] = [];
+      if (item.level) {
+        const badge = element('span', 'score-library-badge score-library-badge-level');
+        badge.textContent = t('level_badge', { level: item.level });
+        badgeNodes.push(badge);
+      }
+      for (const tag of item.tags ?? []) {
+        const badge = element('span', 'score-library-badge score-library-badge-tag');
+        badge.textContent = tag;
+        badgeNodes.push(badge);
+      }
+      row.badges.replaceChildren(...badgeNodes);
+      row.badges.hidden = !badgeNodes.length;
       const extension = item.name.split('.').pop()?.toUpperCase() ?? '';
       row.name.textContent = `${item.name} · ${extension}`;
       row.last.textContent = item.lastOpenedAt === null ? t('never_opened') : t('last_opened', {
@@ -234,10 +450,28 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       row.favorite.setAttribute('aria-pressed', String(item.favorite));
       row.favorite.title = t('favorite', { title });
       row.favorite.setAttribute('aria-label', row.favorite.title);
+      row.edit.textContent = t('edit');
+      row.edit.setAttribute('aria-pressed', String(editingId === item.id));
+      row.edit.setAttribute('aria-label', `${t('edit')}: ${title}`);
       row.download.textContent = t('download');
       row.download.setAttribute('aria-label', `${t('download')}: ${item.name}`);
       row.remove.textContent = t('delete');
       row.remove.setAttribute('aria-label', `${t('delete')}: ${title}`);
+      if (editingId === item.id) {
+        if (!row.editor) {
+          row.editor = createEditor(item.id, item, row);
+          row.node.append(row.editor.form);
+        }
+        row.editor.titleText.textContent = t('edit_title');
+        row.editor.composerText.textContent = t('edit_composer');
+        row.editor.levelText.textContent = t('edit_level');
+        row.editor.tagsText.textContent = t('edit_tags');
+        row.editor.save.textContent = t('save_edit');
+        row.editor.cancel.textContent = t('cancel_edit');
+      } else if (row.editor) {
+        row.editor.form.remove();
+        row.editor = null;
+      }
       // Do not detach focused controls when their row has not moved.
       if (list.children[index] !== row.node) list.insertBefore(row.node, list.children[index] ?? null);
       index++;
@@ -254,6 +488,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     search.placeholder = t('search');
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);
+    composerText.textContent = t('composer_filter');
+    levelText.textContent = t('level_filter');
+    tagText.textContent = t('tag_filter');
+    groupText.textContent = t('group_by');
+    for (const { key, option } of groupOptions) option.textContent = t(`group_${key}`);
     backup.textContent = t('backup');
     restoreText.textContent = t('restore');
     restore.setAttribute('aria-label', t('restore'));
@@ -314,6 +553,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   }); });
   search.addEventListener('input', render);
   filter.addEventListener('change', render);
+  composerFilter.addEventListener('change', render);
+  levelFilter.addEventListener('change', render);
+  tagFilter.addEventListener('change', render);
+  group.addEventListener('change', render);
   window.addEventListener('focus', () => { if (!busy) void refresh(); });
   window.addEventListener('beforeunload', event => {
     if (busy) { event.preventDefault(); event.returnValue = ''; }

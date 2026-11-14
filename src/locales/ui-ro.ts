@@ -2059,7 +2059,30 @@ const payload: UIPayload = {
       "resume_failed": "Poziția de studiu salvată nu a putut fi restabilită.",
       "working": "Se procesează…",
       "backup_saved": "Descărcarea copiei bibliotecii este pregătită.",
-      "deleted": "Partitură ștearsă din bibliotecă."
+      "deleted": "Partitură ștearsă din bibliotecă.",
+      "composer_filter": "Compozitor",
+      "all_composers": "Toți compozitorii",
+      "unknown_composer": "Fără compozitor",
+      "level_filter": "Nivel",
+      "all_levels": "Toate nivelele",
+      "no_level": "Fără nivel",
+      "tag_filter": "Etichetă / colecție",
+      "all_tags": "Toate etichetele",
+      "untagged": "Fără etichete",
+      "group_by": "Grupează după",
+      "group_none": "Fără grupare",
+      "group_composer": "Compozitor",
+      "group_level": "Nivel",
+      "group_tag": "Etichetă / colecție",
+      "group_heading": "{group} ({count})",
+      "edit": "Organizează",
+      "edit_title": "Titlu",
+      "edit_composer": "Compozitor",
+      "edit_level": "Nivel (ex. Începător, Nivel 2)",
+      "edit_tags": "Etichete / colecții (separate prin virgulă)",
+      "save_edit": "Salvează",
+      "cancel_edit": "Anulează",
+      "level_badge": "Nivel: {level}"
     }
   }
 };

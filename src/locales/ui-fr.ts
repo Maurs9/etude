@@ -2059,7 +2059,30 @@ const payload: UIPayload = {
       "resume_failed": "Impossible de rétablir la position de travail.",
       "working": "Traitement…",
       "backup_saved": "Téléchargement de la sauvegarde préparé.",
-      "deleted": "Partition supprimée de la bibliothèque."
+      "deleted": "Partition supprimée de la bibliothèque.",
+      "composer_filter": "Compositeur",
+      "all_composers": "Tous les compositeurs",
+      "unknown_composer": "Sans compositeur",
+      "level_filter": "Niveau",
+      "all_levels": "Tous les niveaux",
+      "no_level": "Sans niveau",
+      "tag_filter": "Étiquette / collection",
+      "all_tags": "Toutes les étiquettes",
+      "untagged": "Sans étiquette",
+      "group_by": "Grouper par",
+      "group_none": "Aucun groupement",
+      "group_composer": "Compositeur",
+      "group_level": "Niveau",
+      "group_tag": "Étiquette / collection",
+      "group_heading": "{group} ({count})",
+      "edit": "Organiser",
+      "edit_title": "Titre",
+      "edit_composer": "Compositeur",
+      "edit_level": "Niveau (ex. Débutant, Niveau 2)",
+      "edit_tags": "Étiquettes / collections (séparées par des virgules)",
+      "save_edit": "Enregistrer",
+      "cancel_edit": "Annuler",
+      "level_badge": "Niveau : {level}"
     }
   }
 };

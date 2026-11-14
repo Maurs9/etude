@@ -1,4 +1,4 @@
-import type { LibraryImportResult, LibraryItem, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume } from './score-library-types.js';
+import type { LibraryImportResult, LibraryItem, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume, LibraryUpdatePatch } from './score-library-types.js';
 
 const DB_NAME = 'etude-score-library-v1';
 const MAX_FILE = 2 * 1024 * 1024;
@@ -46,6 +46,27 @@ export function validateLibraryMetadata(value: unknown): LibraryMetadata {
   const v = record(value);
   return { title: text(v.title, 512), composer: text(v.composer, 512) };
 }
+export function validateLibraryLevel(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const trimmed = text(value, 64).trim();
+  return trimmed || undefined;
+}
+export function validateLibraryTags(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > 20) invalid('Invalid library tags.');
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const entry of value) {
+    const tag = text(entry, 64).trim();
+    if (!tag) continue;
+    const key = tag.toLocaleLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(tag);
+    }
+  }
+  return unique.length ? unique : undefined;
+}
 export function validateLibraryResume(value: unknown): LibraryResume | null {
   if (value === null) return null;
   const v = record(value);
@@ -79,6 +100,10 @@ function itemValue(value: unknown): LibraryItem {
   // Practice progress is optional: records saved before it existed have neither field.
   if (v.best !== undefined) item.best = number(v.best, 0, 100);
   if (v.lastPlayedDay !== undefined) item.lastPlayedDay = dayNumber(v.lastPlayedDay);
+  const level = validateLibraryLevel(v.level);
+  if (level !== undefined) item.level = level;
+  const tags = validateLibraryTags(v.tags);
+  if (tags !== undefined) item.tags = tags;
   return item;
 }
 function dayNumber(value: unknown): number {
@@ -186,17 +211,31 @@ export async function librarySave(file: File, meta: LibraryMetadata): Promise<Li
     return { item, duplicate: false };
   });
 }
-export async function libraryUpdate(id: string, patch: { favorite?: boolean; lastOpenedAt?: number; resume?: LibraryResume | null }): Promise<LibraryItem | null> {
+export async function libraryUpdate(id: string, patch: LibraryUpdatePatch): Promise<LibraryItem | null> {
   const v = record(patch);
   const clean: Partial<LibraryItem> = {};
   if (v.favorite !== undefined) clean.favorite = boolean(v.favorite);
   if (v.lastOpenedAt !== undefined) clean.lastOpenedAt = number(v.lastOpenedAt);
   if (v.resume !== undefined) clean.resume = validateLibraryResume(v.resume);
+  if (v.title !== undefined) clean.title = text(v.title, 512).trim();
+  if (v.composer !== undefined) clean.composer = text(v.composer, 512).trim();
+  const hasLevel = v.level !== undefined;
+  const nextLevel = hasLevel ? validateLibraryLevel(v.level) : undefined;
+  const hasTags = v.tags !== undefined;
+  const nextTags = hasTags ? validateLibraryTags(v.tags) : undefined;
   return transaction('readwrite', async tx => {
     const store = tx.objectStore('metadata');
     const old: unknown = await request(store.get(id));
     if (!old) return null; // Never resurrect a score deleted by another tab.
-    const item = { ...itemValue(old), ...clean };
+    const item: LibraryItem = { ...itemValue(old), ...clean };
+    if (hasLevel) {
+      if (nextLevel !== undefined) item.level = nextLevel;
+      else delete item.level;
+    }
+    if (hasTags) {
+      if (nextTags !== undefined) item.tags = nextTags;
+      else delete item.tags;
+    }
     await request(store.put(item, id));
     return item;
   });
