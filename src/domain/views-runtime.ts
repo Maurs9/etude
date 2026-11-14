@@ -6507,7 +6507,7 @@ interface SrRenderResult { svg: string; notes: SrStaffNote[]; beatX: SrBeatX[]; 
  *  at most `maxBars` (4) bars, split evenly, and are scaled to fill the width, up to `cap` (SR_SCALE_CAP) times their natural size.
  *  With a `maxHeight` (the stage) systems may hold more bars when fewer, longer systems let the score be drawn larger.
  *  Without a layout a score is one system at its natural size (the Learn staves). */
-interface SrLayout { width: number; maxHeight?: number; cap?: number; maxBars?: number }
+interface SrLayout { width: number; maxHeight?: number; cap?: number; maxBars?: number; floor?: number; justify?: boolean }
 /** The notes that sound together at one beat (one Learn-mode step). */
 interface SrStep { beat: number; notes: SrStaffNote[]; closed?: boolean }
 /** A wrong key in Learn mode, classified (`k`) against the expected note `n`. */
@@ -6867,7 +6867,7 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     let starts = [0], zoom = 1, sysY = [46], H = 0;
     const stretch: number[] = [1];
     if (lay && lay.width > 0) {
-        const kCap = lay.cap ?? SR_SCALE_CAP, maxBars = Math.max(1, lay.maxBars ?? 4), maxH = lay.maxHeight || Infinity, kFloor = lay.maxHeight ? 0.65 : 1;
+        const kCap = lay.cap ?? SR_SCALE_CAP, maxBars = Math.max(1, lay.maxBars ?? 4), maxH = lay.maxHeight || Infinity, kFloor = lay.floor ?? (lay.maxHeight ? 0.65 : 1);
         // Bars split evenly over the fewest systems that fit the width at the natural size; no system holds a single bar of
         // several (too little width for that keeps one system, which then scrolls).
         const plan = (per: number) => {
@@ -6902,7 +6902,9 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
             for (let m = a; m < zs[s]; m++)
                 sum += barW[m];
             const nat = sysW(s, a, zs[s]), last = s === starts.length - 1;
-            stretch[s] = starts.length > 1 && nat < T && sum > 0 && (!last || nat >= 0.6 * T) ? Math.min(1.8, 1 + (T - nat) / sum) : 1;
+            // A page (`justify`) spreads further, and its last system too when it holds as many bars as the first.
+            const full = lay.justify ? zs[s] - a >= zs[0] - starts[0] : nat >= 0.6 * T;
+            stretch[s] = starts.length > 1 && nat < T && sum > 0 && (!last || full) ? Math.min(lay.justify ? 3 : 1.8, 1 + (T - nat) / sum) : 1;
         });
         const v = vert(starts);
         sysY = v.ys;
@@ -7201,7 +7203,8 @@ function srDraw() {
     if (!SR.piece)
         return;
     srtConsumeOnLearnReveal();
-    const r = srRender(SR.piece, srPaper());
+    const lay = srPageLayout(SR.piece, srPaper());
+    const r = srRender(SR.piece, lay);
     SR.render = r;
     SR.notes = r.notes;
     SR.beatX = r.beatX;
@@ -7211,7 +7214,7 @@ function srDraw() {
     staffEl.setAttribute('aria-hidden', concealed ? 'true' : 'false');
     staffEl.dataset.activeHand = srActiveHands();
     staffEl.innerHTML = concealed ? '' : r.svg;
-    srPaperSeen = srPaper();
+    srPaperSeen = lay;
     srFollowSy = -1;
     srStepsBuild();
     if (!concealed) {
@@ -7311,6 +7314,19 @@ function srPaperOf(wrap: HTMLElement | null): SrLayout | undefined {
     return STAGE.on ? { width, maxHeight: Math.floor(wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) } : { width };
 }
 function srPaper() { return srPaperOf(maybeById('rd-staff')); }
+// A level piece is laid out like a printed page: four bars a system, and as large as lets the whole piece show without
+// scrolling, between SR_PAGE_MIN (still easy to read) and SR_PAGE_MAX times its natural size. A long piece scrolls.
+const SR_PAGE_MIN = 0.85, SR_PAGE_MAX = 1.4, SR_PAGE_BELOW = 215;
+function srPageLayout(piece: SrPiece, lay: SrLayout | undefined): SrLayout | undefined {
+    const wrap = maybeById('rd-staff');
+    if (!lay || lay.maxHeight || piece.engrave !== 2 || !SR.lvPiece || !srtGeneratedSelected() || !wrap)
+        return lay;
+    // The height the paper may take: the window, less what is above the paper and the controls below it.
+    const room = Math.max(280, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - SR_PAGE_BELOW);
+    const natural = srRender(piece, { width: lay.width, cap: 1 }).H;
+    const cap = Math.max(SR_PAGE_MIN, Math.min(SR_PAGE_MAX, room / Math.max(1, natural)));
+    return { ...lay, cap, floor: Math.min(1, cap), justify: true };
+}
 /** Whether a staff laid out for paper `prev` needs laying out again for `next`. A hidden paper (undefined) keeps the last layout.
  *  The paper growing by less than a scrollbar is ignored: a taller score can show the page's scrollbar, and laying out again
  *  for the narrower paper must not hide it and grow the score back. */
@@ -7319,14 +7335,19 @@ function srPaperChanged(prev: SrLayout | undefined, next: SrLayout | undefined) 
         return false;
     if (!prev || prev.maxHeight !== next.maxHeight)
         return true;
+    // A page (a level piece) is sized by the room under it as well: that changes when the things above it do.
+    if (Math.abs((prev.cap ?? 0) - (next.cap ?? 0)) > 0.02)
+        return true;
     return next.width < prev.width || next.width - prev.width >= 24;
 }
 let srPaperSeen: SrLayout | undefined;
 // Lays the score out again when its paper changed size (a resize, the full-screen stage, the tab coming into view). The marks
 // of a run in progress are painted again from its state; the playhead comes back on its next frame.
 function srFit() {
-    const lay = srPaper();
-    if (!SR.piece || !SR.render || !srPaperChanged(srPaperSeen, lay) || srtScoreConcealed())
+    if (!SR.piece || !SR.render || srtScoreConcealed())
+        return;
+    const lay = srPageLayout(SR.piece, srPaper());
+    if (!srPaperChanged(srPaperSeen, lay))
         return;
     srPaperSeen = lay;
     const r = srRender(SR.piece, lay), wrap = byId('rd-staff');
@@ -11978,6 +11999,8 @@ function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title') {
         v.textContent = RDN.ready = rdnReadyText();
     }
     window.scrollTo(0, 0);
+    // The page is sized by the room under it: laid out again now that everything above the paper is in place.
+    srFit();
     const active = document.activeElement;
     if (focus === 'title' || !(active instanceof HTMLElement) || active === document.body || !active.getClientRects().length)
         byId('rdn-p-title').focus({ preventScroll: true });
