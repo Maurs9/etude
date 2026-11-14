@@ -1279,11 +1279,15 @@ const payload: LearnPayload = {
       ],
       [
         "Tonalidades con sostenidos",
-        "Sol Re La Mi Si Fa♯ (G D A E B F♯)"
+        "Sol Re La Mi Si Fa♯ Do♯ (G D A E B F♯ C♯)"
       ],
       [
         "Tonalidades con bemoles",
-        "Fa Si♭ Mi♭ La♭ Re♭ Sol♭ (F B♭ E♭ A♭ D♭ G♭)"
+        "Fa Si♭ Mi♭ La♭ Re♭ Sol♭ Do♭ (F B♭ E♭ A♭ D♭ G♭ C♭)"
+      ],
+      [
+        "Orden de ♯ / ♭",
+        "♯: Fa Do Sol Re La Mi Si · ♭: Si Mi La Re Sol Do Fa"
       ],
       [
         "Truco",

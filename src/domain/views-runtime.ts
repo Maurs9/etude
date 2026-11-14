@@ -1668,7 +1668,7 @@ let labelMode = 'c';
 let typeOctave = 60;
 function clampTypeOctave() { const lo = view.low, maxLo = Math.max(lo, viewHigh() - 12); typeOctave = Math.max(lo, Math.min(maxLo, Math.round(typeOctave / 12) * 12)); }
 const whiteEl = new Map<number, HTMLButtonElement>(), blackEl = new Map<number, HTMLButtonElement>(), keyEl = new Map<number, HTMLButtonElement>();
-const BLACK_NUDGE: Record<number, number> = { 1: -.28, 3: .28, 6: -.30, 8: 0, 10: .30 };
+const BLACK_NUDGE: Record<number, number> = { 1: 0, 3: 0, 6: 0, 8: 0, 10: 0 };
 function viewHigh() { return view.low + view.oct * 12; }
 // A phone on its side: the compact landscape layout of etude.css, and landscape.css while the keys are open (body.kb-land).
 const LAND_PHONE = matchMedia('(orientation: landscape) and (max-height: 560px)');
@@ -1785,7 +1785,7 @@ function kbDegrees(src: Map<number,string>|null) {
     });
 }
 function positionBlacks() { blackEl.forEach((el, bm) => { const w = whiteEl.get(bm - 1); if (!w || !w.offsetWidth)
-    return; const bw = w.offsetWidth * .62, seam = w.offsetLeft + w.offsetWidth, n = (BLACK_NUDGE[pc(bm)] || 0) * bw; el.style.width = bw + 'px'; el.style.left = (seam - bw / 2 + n) + 'px'; }); syncKeyboardPan(); }
+    return; const bw = w.offsetWidth * .58, seam = w.offsetLeft + w.offsetWidth + .75, n = (BLACK_NUDGE[pc(bm)] || 0) * bw; el.style.width = bw + 'px'; el.style.left = (seam - bw / 2 + n) + 'px'; }); syncKeyboardPan(); }
 function syncKeyboardPan() { const scroll = byId('dock-keys'), pan = inputById('kb-pan'), max = Math.max(0, scroll.scrollWidth - scroll.clientWidth); pan.max = String(max); pan.value = String(scroll.scrollLeft); pan.hidden = !dockShown() || max < 1; }
 // On narrow screens the keys scroll sideways: bring a key into sight, unless focus is on the keys (the focused key stays in sight then).
 function dockKeyInSight(m: number) { const key = keyEl.get(m), scroll = byId('dock-keys'); if (!key || !dockShown() || byId('keys').contains(document.activeElement))
@@ -4880,8 +4880,11 @@ function cofInfo() {
     const i = cof.i, sig = cofSigList(i), rel = cofKeyLabel(i, !cof.minor);
     byId('cof-key').textContent = t(cof.minor ? 'key_minor' : 'key_major', cofKeyLabel(i, cof.minor));
     const sigTxt = (g: CofSignature) => g.n ? t(g.sharp ? 'cof_sig_s' : 'cof_sig_f', String(g.n), '<b>' + g.list + '</b>') : t('cof_sig0');
-    const fl6: CofSignature = { n: 6, sharp: false, list: [...'BEADGC'].map((L) => cofSpell(L, -1)).join(', ') };
-    byId('cof-sig').innerHTML = sigTxt(sig) + (i === 6 ? ' / ' + sigTxt(fl6) : '') + ' · ' + t(cof.minor ? 'cof_rel_maj' : 'cof_rel_min', t(cof.minor ? 'key_major' : 'key_minor', rel));
+    const enhSigOf = (letters: string, sharp: boolean): CofSignature => ({ n: letters.length, sharp, list: [...letters].map((L) => cofSpell(L, sharp ? 1 : -1)).join(', ') });
+    const enhSig = i === 6 ? enhSigOf('BEADGC', false) : i === 5 ? enhSigOf('BEADGCF', false) : i === 7 ? enhSigOf('FCGDAEB', true) : null;
+    const enhKey = i === 5 ? cofName(cof.minor ? 'Ab' : 'Cb') : i === 7 ? cofName(cof.minor ? 'A#' : 'C#') : '';
+    const enhTxt = enhSig ? ' / ' + (enhKey ? t(cof.minor ? 'key_minor' : 'key_major', enhKey) + ' (' + sigTxt(enhSig) + ')' : sigTxt(enhSig)) : '';
+    byId('cof-sig').innerHTML = sigTxt(sig) + enhTxt + ' · ' + t(cof.minor ? 'cof_rel_maj' : 'cof_rel_min', t(cof.minor ? 'key_major' : 'key_minor', rel));
     queryAllHtml(document, '#cof-mode button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.mode ? 'true' : 'false'));
     queryAllHtml(document, '#cof-flavor button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.flavor ? 'true' : 'false'));
     byId('cof-flavor').hidden = !(cof.minor && cof.mode === 'scale');
@@ -5241,7 +5244,7 @@ function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !=
 /** What the grand-staff engraver (`srRender`) needs to draw a passage. */
 /** `engrave: 2` (level pieces) opts in to beams in every meter, whole-bar and dotted rests, accidentals that hold for the bar,
  *  tied chords, spelled note names and room for accidentals; without it the engraver draws exactly as before. */
-interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; perc?: boolean; engrave?: 2;
+interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; noTs?: boolean; compact?: boolean; perc?: boolean; engrave?: 2;
     /** engrave 2: the printed-page markings of a level piece (dynamics, fingering, articulation, slurs), drawn over the notes. */
     marks?: LevelMarkings }
 type SrHand = 'rh' | 'lh';
@@ -5263,7 +5266,7 @@ const LSTAVES: Record<string, LStaffSpec> = {
     dyn1: { p: { rh: LP('C4q D4q E4q F4q G4q F4q E4q D4q C4w'), ts: [4, 4] }, bpm: 100, marks: [['dyn', 0, 'p'], ['cr', 0.3, 3.7], ['dyn', 4, 'f'], ['dim', 4.3, 7.7], ['dyn', 8, 'pp']], cap: ['p → crescendo → f → diminuendo → pp. Press play and listen to the volume follow the marks.', 'p → crescendo → f → diminuendo → pp. Apasă play și ascultă cum volumul urmează semnele.'] },
     dyn2: { p: { rh: LP('G4q G4q G4q G4q E4q E4q E4h'), ts: [4, 4] }, bpm: 100, marks: [['dyn', 0, 'mf'], ['acc', 0], ['stac', 1], ['stac', 2], ['stac', 3], ['dyn', 4, 'sfz'], ['ten', 5], ['fer', 6]], cap: ['Accent >, staccato dots, sfz, tenuto – and a fermata 𝄐 at the end.', 'Accent >, puncte de staccato, sfz, tenuto – și o coroană 𝄐 la final.'] },
     rh1: { p: { rh: LP('C5w C5h C5h C5q C5q C5q C5q C5e C5e C5e C5e C5e C5e C5e C5e'), ts: [4, 4] }, bpm: 80, click: true, cap: ['Whole, halves, quarters, eighths — each bar is 4 beats. The click marks the beat.', 'Notă întreagă, doimi, pătrimi, optimi — fiecare măsură are 4 timpi. Clicul marchează timpul.'] },
-    iv1: { p: { rh: LP('C4+D4h C4+E4h C4+F4h C4+G4h C4+A4h C4+B4h C4+C5w'), ts: [4, 4] }, bpm: 72, marks: [['txt', 0, ['M2', '2M']], ['txt', 2, ['M3', '3M']], ['txt', 4, ['P4', '4p']], ['txt', 6, ['P5', '5p']], ['txt', 8, ['M6', '6M']], ['txt', 10, ['M7', '7M']], ['txt', 12, ['P8', '8p']]], cap: ['Intervals from C. Tap each note, or play the whole row.', 'Intervale de la Do. Atinge fiecare notă sau cântă tot rândul.'] },
+    iv1: { p: { rh: LP('C4+D4h C4+E4h C4+F4h C4+G4h C4+A4h C4+B4h C4+C5w'), ts: [4, 4] }, bpm: 72, marks: [['txt', 0, ['M2', '2M']], ['txt', 2, ['M3', '3M']], ['txt', 4, ['P4', '4P']], ['txt', 6, ['P5', '5P']], ['txt', 8, ['M6', '6M']], ['txt', 10, ['M7', '7M']], ['txt', 12, ['P8', '8P']]], cap: ['Intervals from C. Tap each note, or play the whole row.', 'Intervale de la Do. Atinge fiecare notă sau cântă tot rândul.'] },
     ch_inv: { p: { rh: LP('C4+E4+G4h E4+G4+C5h G4+C5+E5w'), ts: [4, 4] }, bpm: 72, marks: [['txt', 0, ['root', 'fund.']], ['txt', 2, ['1st inv.', 'răst. I']], ['txt', 4, ['2nd inv.', 'răst. II']]], cap: ['C major in root position and its two inversions — same notes, new bass.', 'Do major în poziție fundamentală și cele două răsturnări — aceleași note, alt bas.'] },
     pr1: { p: { rh: LP('C4+E4+G4w B3+D4+G4w C4+E4+A4w C4+F4+A4w'), lh: LP('C3w G2w A2w F2w'), ts: [4, 4] }, bpm: 96, marks: [['rn', 0, 'I'], ['rn', 4, 'V'], ['rn', 8, 'vi'], ['rn', 12, 'IV']], cap: ['I – V – vi – IV in C with smooth voice leading: the right hand barely moves.', 'I – V – vi – IV în Do cu conducere lină a vocilor: mâna dreaptă abia se mișcă.'] },
     sym1: { p: { rh: LP('E4q F4q G4h G4q F4q E4h D4q E4q F4q D4q C4w'), ts: [4, 4] }, bpm: 100, seq: [[0, 8], [0, 16]],
@@ -6036,7 +6039,7 @@ function demoBeat(kind: string, btn: HTMLElement) {
 /** Settings of each Learn widget, kept on its element as `_s`. */
 interface LwScaleState { root: number; st: number[] }
 interface LwChordState { root: number; q: string; inv: number; bass: number }
-interface LwCofState { i: number }
+interface LwCofState { i: number; enh?: boolean; minor?: boolean }
 interface LwMetroState { bpm: number; meter: string }
 type LwState = LwScaleState | LwChordState | LwCofState | LwMetroState;
 /** A mounted `[data-widget]` element. */
@@ -6118,7 +6121,7 @@ const LSPF = [[0, 0], [1, -1], [1, 0], [2, -1], [2, 0], [3, 0], [3, 1], [4, 0], 
 function lSp(li: number, acc: number) { return spelledName(notation, li, acc); }
 function lPitch(li: number, acc: number, midi: number) { return LLET[li] + (acc > 0 ? '#' : acc < 0 ? 'b' : '') + (Math.floor((midi - acc) / 12) - 1); }
 function lStaffSmall(piece: { rh: SrToken[]; lh?: SrToken[]; keyN?: number }, label: string) {
-    const r = srRender(Object.assign({ ts: [4, 4], keyN: 0, noNames: true }, piece));
+    const r = srRender(Object.assign({ ts: [4, 4], keyN: 0, noNames: true, noTs: true, compact: true }, piece));
     return '<div class="ss-wrap lw-staff">' + lStaffFit(r.svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="img" aria-label="' + label.replace(/"/g, '&quot;') + '"'), r.W) + '</div>';
 }
 function lSel(wi: string, opts: (string|number)[][], cur: string|number, lab: string) { return '<label><span>' + lab + '</span><select data-wi="' + wi + '">' + opts.map((o) => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></label>'; }
@@ -6182,19 +6185,35 @@ function lwChord(el: LearnWidgetEl) {
         lStaffSmall({ rh: [[D.tones.map((x) => lPitch(x.li, x.acc, x.midi)), 4]], lh: [[lPitch(D.bass.li, D.bass.acc, D.bass.midi), 4]] }, D.symbol) +
         '<div class="lw-row"><button type="button" class="btn primary sm" data-w="cplay">▶ ' + t('lw_play') + '</button></div>';
 }
-function lCofKey(i: number) { const n = i <= 6 ? i : i - 12, ka = ssKeyAcc(n), li = n >= 0 ? (4 * n) % 7 : (3 * -n) % 7, mli = (li + 5) % 7; return { n, li, acc: ka[li], mli, macc: ka[mli], ka }; }
+function lCofN(i: number, enh?: boolean) { return enh && i === 5 ? -7 : enh && i === 6 ? -6 : enh && i === 7 ? 7 : i <= 6 ? i : i - 12; }
+function lCofKey(i: number, enh?: boolean) { const n = lCofN(i, enh), ka = ssKeyAcc(n), li = n >= 0 ? (4 * n) % 7 : (3 * -n) % 7, mli = (li + 5) % 7; return { n, li, acc: ka[li], mli, macc: ka[mli], ka }; }
+function lCofTriad(K: ReturnType<typeof lCofKey>, minor?: boolean) {
+    const rLi = minor ? K.mli : K.li, oct = rLi >= 5 ? -12 : 0;
+    const tones = [0, 2, 4].map((d) => { const li = (rLi + d) % 7, acc = K.ka[li], midi = 60 + LNAT[li] + acc + (li < rLi ? 12 : 0) + oct; return { pitch: lPitch(li, acc, midi), midi }; });
+    return { pitches: tones.map((x) => x.pitch), midis: tones.map((x) => x.midi) };
+}
 function lwCof(el: LearnWidgetEl) {
-    const s = lwIsCof(el._s) ? el._s : (el._s = { i: 0 }), K = lCofKey(s.i), cnt = Math.abs(K.n), ord = (K.n >= 0 ? SS_SHARP_ORDER : SS_FLAT_ORDER).slice(0, cnt).map((li) => lSp(li, K.n > 0 ? 1 : -1));
-    const tri = [0, 2, 4].map((d) => { const li = (K.li + d) % 7, acc = K.ka[li], midi = 60 + LNAT[li] + acc + (li < K.li ? 12 : 0) + (K.li >= 5 ? -12 : 0); return lPitch(li, acc, midi); });
+    const s = lwIsCof(el._s) ? el._s : (el._s = { i: 0 });
+    const hasEnh = s.i >= 5 && s.i <= 7, enh = hasEnh && !!s.enh, minor = !!s.minor;
+    const K = lCofKey(s.i, enh), altK = hasEnh ? lCofKey(s.i, !enh) : null;
+    const cnt = Math.abs(K.n), ord = (K.n >= 0 ? SS_SHARP_ORDER : SS_FLAT_ORDER).slice(0, cnt).map((li) => lSp(li, K.n > 0 ? 1 : -1));
+    const tri = lCofTriad(K, minor);
     let btns = '';
     for (let i = 0; i < 12; i++) {
-        const k = lCofKey(i), a = i * Math.PI / 6, x = 50 + 40 * Math.sin(a), y = 50 - 40 * Math.cos(a);
-        btns += '<button type="button" data-w="cof" data-k="' + i + '" aria-pressed="' + (i === s.i) + '" style="left:' + x.toFixed(1) + '%;top:' + y.toFixed(1) + '%"><b>' + lSp(k.li, k.acc) + (i === 6 ? '/' + lSp(4, -1) : '') + '</b><small>' + lSp(k.mli, k.macc) + 'm</small></button>';
+        const k = lCofKey(i), kn = i === 6 ? lCofKey(i, true) : null, a = i * Math.PI / 6, x = 50 + 40 * Math.sin(a), y = 50 - 40 * Math.cos(a);
+        const majL = lSp(k.li, k.acc) + (kn ? '/' + lSp(kn.li, kn.acc) : '');
+        const minL = lSp(k.mli, k.macc) + (kn ? '/' + lSp(kn.mli, kn.macc) : '') + 'm';
+        btns += '<button type="button" data-w="cof" data-k="' + i + '" aria-pressed="' + (i === s.i) + '" style="left:' + x.toFixed(1) + '%;top:' + y.toFixed(1) + '%"><b>' + majL + '</b><small>' + minL + '</small></button>';
     }
-    const sig = cnt ? t(K.n > 0 ? 'lw_sig_s' : 'lw_sig_f', cnt, ord.join(' ')) : t('lw_sig0'), key = lSp(K.li, K.acc) + ' ' + (t('rd_maj') || 'major');
+    const sig = cnt ? t(K.n > 0 ? 'lw_sig_s' : 'lw_sig_f', cnt, ord.join(' ')) : t('lw_sig0');
+    const name = minor ? lSp(K.mli, K.macc) : lSp(K.li, K.acc), key = t(minor ? 'key_minor' : 'key_major', name);
+    const relName = minor ? lSp(K.li, K.acc) : lSp(K.mli, K.macc), relKey = t(minor ? 'key_major' : 'key_minor', relName);
+    const relHtml = minor ? t('cof_rel_maj', '<b>' + relKey + '</b>') : t('lw_rel', '<b>' + relKey + '</b>');
+    const togBtns = '<button type="button" class="btn ghost sm" data-w="cofmin">' + relKey + '</button>' +
+        (altK ? '<button type="button" class="btn ghost sm" data-w="cofenh">' + lSp(minor ? altK.mli : altK.li, minor ? altK.macc : altK.acc) + ' (' + Math.abs(altK.n) + (altK.n > 0 ? '♯' : '♭') + ')</button>' : '');
     el.innerHTML = '<h4>⭕ ' + t('lw_cof') + '</h4><p class="lw-hint">' + t('lw_cof_d') + '</p><div class="lw-cof-wrap"><div class="lw-cof" role="group" aria-label="' + t('lw_cof') + '">' + btns + '<div class="lw-cof-c" aria-hidden="true">' + (K.n > 0 ? '♯' : K.n < 0 ? '♭' : '♮') + '<br>' + cnt + '</div></div>' +
-        '<div class="lw-cof-info" aria-live="polite"><p><b>' + key + '</b></p><p>' + sig + '</p><p>' + t('lw_rel', '<b>' + lSp(K.mli, K.macc) + ' minor</b>') + '</p>' +
-        lStaffSmall({ rh: [[tri, 4]], keyN: K.n }, key + '. ' + sig) + '<button type="button" class="btn primary sm" data-w="cofplay">▶ ' + t('lw_play') + '</button></div></div>';
+        '<div class="lw-cof-info" aria-live="polite"><p><b>' + key + '</b></p><p>' + sig + '</p><p>' + relHtml + '</p>' +
+        lStaffSmall({ rh: [[tri.pitches, 4]], keyN: K.n }, key + '. ' + sig) + '<div class="lw-row"><button type="button" class="btn primary sm" data-w="cofplay">▶ ' + t('lw_play') + '</button>' + togBtns + '</div></div></div>';
 }
 const LW_R: Record<string, ((el: LearnWidgetEl) => void) | undefined> = { scale: lwScale, chord: lwChord, cof: lwCof, metro: lwMetro };
 function lwMount(el: LearnWidgetEl) { el.classList.add('lw'); const f = LW_R[el.dataset.widget ?? '']; if (f)
@@ -6298,19 +6317,30 @@ async function lwClick(w: HTMLElement) {
         return lwScalePlay(el);
     if (a === 'cplay')
         return lwChordPlay(el);
-    if (a === 'cofplay' || a === 'cof') {
+    if (a === 'cofplay' || a === 'cof' || a === 'cofmin' || a === 'cofenh') {
         const s = lwCofState(el);
         if (a === 'cof') {
-            s.i = Number(w.dataset.k);
+            const k = Number(w.dataset.k);
+            if (k !== s.i)
+                s.enh = false;
+            s.i = k;
             lwRefocus(el, '[data-w="cof"][data-k="' + s.i + '"]');
         }
-        const K = lCofKey(s.i), r = 48 + ((K.n * 7) % 12 + 12) % 12;
+        else if (a === 'cofmin') {
+            s.minor = !s.minor;
+            lwRefocus(el, '[data-w="cofmin"]');
+        }
+        else if (a === 'cofenh') {
+            s.enh = !s.enh;
+            lwRefocus(el, '[data-w="cofenh"]');
+        }
+        const K = lCofKey(s.i, s.i >= 5 && s.i <= 7 && !!s.enh), tri = lCofTriad(K, !!s.minor);
         learnHalt();
         ensureAudio();
         if (!await preparePiano())
             return;
-        playChordMidis([r, r + 4, r + 7, r + 12], true);
-        learnLight([r, r + 4, r + 7, r + 12], 2200);
+        playChordMidis(tri.midis, true);
+        learnLight(tri.midis, 2200);
         return;
     }
     if (a === 'w' || a === 'h' || a === 'wh') {
@@ -6873,8 +6903,8 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
         else
             barBot[m] += 14;
     });
-    // Systems: `starts` holds each one's first bar. The first system carries the time signature.
-    const headW = (s: number) => 40 + ksw + (s === 0 ? 26 : 8);
+    // Systems: `starts` holds each one's first bar. The first system carries the time signature unless `noTs` omits it.
+    const headW = (s: number) => 40 + ksw + (s === 0 && !piece.noTs ? 26 : 8);
     const sysW = (s: number, a: number, z: number) => { let w = headW(s) + 18 * (z - a - 1) + (z === nBars ? 20 : 12); for (let m = a; m < z; m++)
         w += barW[m]; return w; };
     const ends = (starts: number[]) => starts.map((a, s) => s + 1 < starts.length ? starts[s + 1] : nBars);
@@ -6949,7 +6979,7 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
         x += 30;
         staves.forEach((st) => { head += srKeySigG(st.clef, piece.keyN || 0, x, st.top).svg; });
         x += ksw;
-        if (s === 0) {
+        if (s === 0 && !piece.noTs) {
             staves.forEach((st) => { head += srTimeSigG(piece.ts, x, st.top); });
             x += 26;
         }
@@ -7191,12 +7221,12 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     }
     if (marks)
         body += srLevelMarks(marks, markCols, (beat) => srBeatPt(beatX, beat), sysEnd, sysX0, (s) => sysY[s] + (lastSt.rel + 48) / 2);
-    const W = lay ? Math.max(...sysEnd) + 6 : Math.max(x + 6, 420);
+    const W = lay ? Math.max(...sysEnd) + 6 : piece.compact ? x + 2 : Math.max(x + 6, 420);
     if (!lay)
         H = Math.max(lastSt.top + 48 + (names ? 38 : 22), 150);
     let staff = '';
     systems.forEach((_, s) => {
-        const top = sysY[s], bot = sysY[s] + lastSt.rel + 48, end = lay ? sysEnd[s] : W - 6;
+        const top = sysY[s], bot = sysY[s] + lastSt.rel + 48, end = lay ? sysEnd[s] : piece.compact ? x - 6 : W - 6;
         staves.forEach((st) => { for (let k = 0; k < 5; k++) {
             const ly = top + st.rel + k * 12;
             staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${end}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;

@@ -1279,11 +1279,15 @@ const payload: LearnPayload = {
       ],
       [
         "Kreuz-Tonarten",
-        "G D A E H Fis"
+        "G D A E H Fis Cis"
       ],
       [
         "Be-Tonarten",
-        "F B Es As Des Ges"
+        "F B Es As Des Ges Ces"
+      ],
+      [
+        "Reihenfolge ♯ / ♭",
+        "♯: F C G D A E H · ♭: H E A D G C F"
       ],
       [
         "Merkregel",

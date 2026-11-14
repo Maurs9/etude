@@ -38,11 +38,16 @@ export interface TechniqueStep { readonly notes: readonly TechniqueNote[] }
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const HARMONIC_MINOR = [0, 2, 3, 5, 7, 8, 11];
 
+const WHITE_KEY_PCS: readonly number[] = [0, 2, 4, 5, 7, 9, 11];
+
 /**
- * Arpeggios use the white-key triads only (C, F and G major; A, D and E minor). For them the usual root-position
- * fingering is 1 2 3 5 in the right hand and 5 4 2 1 in the left; keys with black-key roots need other fingerings.
+ * Arpeggios cover all 7 white-key triads in major and minor. Right-hand fingering is 1 2 3 5; left-hand uses
+ * 5 4 2 1 when the 3rd is a white key and 5 3 2 1 when the 3rd is a black key (D, E, A, B major; C, F, G minor).
  */
-export const ARPEGGIO_TONICS: Readonly<Record<'arpMajor' | 'arpMinor', readonly number[]>> = { arpMajor: [0, 5, 7], arpMinor: [9, 2, 4] };
+export const ARPEGGIO_TONICS: Readonly<Record<'arpMajor' | 'arpMinor', readonly number[]>> = {
+  arpMajor: WHITE_KEY_PCS,
+  arpMinor: WHITE_KEY_PCS,
+};
 
 export function techniqueKeyAllowed(kind: TechniqueKind, tonicPc: number): boolean {
   return kind === 'major' || kind === 'minor' || ARPEGGIO_TONICS[kind].includes(tonicPc);
@@ -73,9 +78,10 @@ export function techniqueSpellDegree(kind: TechniqueKind, tonicPc: number, degre
 // Ascending fingers for one hand over 1 or 2 octaves, ending on the top tonic.
 function ascendingFingers(kind: TechniqueKind, tonicPc: number, hand: TechniqueHand, octaves: 1 | 2): number[] {
   if (kind === 'arpMajor' || kind === 'arpMinor') {
-    // 1 2 3 5 / 1 2 3 1 2 3 5 (right), 5 4 2 1 / 5 4 2 1 4 2 1 (left).
     if (hand === 'rh') return octaves === 1 ? [1, 2, 3, 5] : [1, 2, 3, 1, 2, 3, 5];
-    return octaves === 1 ? [5, 4, 2, 1] : [5, 4, 2, 1, 4, 2, 1];
+    const thirdPc = (tonicPc + (kind === 'arpMajor' ? 4 : 3)) % 12;
+    const mid = WHITE_KEY_PCS.includes(thirdPc) ? 4 : 3;
+    return octaves === 1 ? [5, mid, 2, 1] : [5, mid, 2, 1, mid, 2, 1];
   }
   const table = kind === 'major' ? SCALE_FINGERINGS.maj : SCALE_FINGERINGS.harmonic;
   const one = [...table[hand][tonicPc]].map(Number);

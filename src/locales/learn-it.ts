@@ -1279,11 +1279,15 @@ const payload: LearnPayload = {
       ],
       [
         "Tonalità con diesis",
-        "G D A E B F♯ (Sol Re La Mi Si Fa♯)"
+        "G D A E B F♯ C♯ (Sol Re La Mi Si Fa♯ Do♯)"
       ],
       [
         "Tonalità con bemolli",
-        "F B♭ E♭ A♭ D♭ G♭ (Fa Si♭ Mi♭ La♭ Re♭ Sol♭)"
+        "F B♭ E♭ A♭ D♭ G♭ C♭ (Fa Si♭ Mi♭ La♭ Re♭ Sol♭ Do♭)"
+      ],
+      [
+        "Ordine di ♯ / ♭",
+        "♯: Fa Do Sol Re La Mi Si · ♭: Si Mi La Re Sol Do Fa"
       ],
       [
         "Regola pratica",

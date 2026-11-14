@@ -1672,7 +1672,7 @@ const payload: UIPayload = {
       "cof_fing_scale_s": "o octavă, urcând",
       "cof_fing_chord": "Digitație",
       "cof_fing_chord_s": "trison în poziție fundamentală",
-      "cof_note_scale": "Digitație standard (ABRSM / pianoscales.org). La coborâre, citește aceleași cifre de la dreapta la stânga.",
+      "cof_note_scale": "Digitație standard (ABRSM / pianoscales.org). La coborâre, citește aceleași cifre de la dreapta la stânga. Sfat: degetul 4 apare o singură dată pe octavă (în Do–Mi major: dreapta treapta 7, stânga treapta 2; la bemoli, dreapta pe Si♭).",
       "cof_note_mel": "Minorul melodic e arătat la urcare (treptele 6 și 7 urcate); în stil clasic coboară ca minor natural.",
       "cof_chords": "Acordurile tonalității",
       "cof_chords_hint": "Alege un acord ca să-l auzi și să-l vezi pe clape.",

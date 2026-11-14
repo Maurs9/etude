@@ -53,9 +53,19 @@ describe('technique exercises', () => {
     const two = techniqueSteps({ kind: 'arpMajor', tonicPc: 7, octaves: 2, hands: 'rh' });
     expect(midis(two, 'rh').slice(0, 7)).toEqual([67, 71, 74, 79, 83, 86, 91]);
     expect(fingers(two, 'rh')).toBe('1231235321321');
+    expect(ARPEGGIO_TONICS.arpMajor).toEqual([0, 2, 4, 5, 7, 9, 11]);
+    expect(ARPEGGIO_TONICS.arpMinor).toEqual([0, 2, 4, 5, 7, 9, 11]);
     expect(ARPEGGIO_TONICS.arpMajor.every((pc) => techniqueKeyAllowed('arpMajor', pc))).toBe(true);
+    expect(ARPEGGIO_TONICS.arpMinor.every((pc) => techniqueKeyAllowed('arpMinor', pc))).toBe(true);
     expect(techniqueKeyAllowed('arpMajor', 3)).toBe(false);
     expect(techniqueKeyAllowed('minor', 3)).toBe(true);
+    const dMaj = techniqueSteps({ kind: 'arpMajor', tonicPc: 2, octaves: 1, hands: 'both' });
+    expect(fingers(dMaj, 'lh')).toBe('5321235');
+    expect(fingers(dMaj, 'rh')).toBe('1235321');
+    const cMin = techniqueSteps({ kind: 'arpMinor', tonicPc: 0, octaves: 2, hands: 'lh' });
+    expect(fingers(cMin, 'lh')).toBe('5321321231235');
+    const bMin = techniqueSteps({ kind: 'arpMinor', tonicPc: 11, octaves: 1, hands: 'lh' });
+    expect(fingers(bMin, 'lh')).toBe('5421245');
   });
 
   it('spells degrees on consecutive letters', () => {

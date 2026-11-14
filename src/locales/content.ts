@@ -7,11 +7,11 @@ export const LESSONS: Lesson[] = [
     "icon": "♪",
     "en": {
       "t": "The keyboard & note names",
-      "b": "\n<p>Music uses just <b>12 different notes</b>. After the twelfth, the pattern starts over — the same note, higher up. That distance is an <b>octave</b>, and the piano is simply the same 12-key pattern repeated over and over.</p>\n<p>The white keys are named <b>C D E F G A B</b> (Do Re Mi Fa Sol La Si). The black keys sit between them and borrow their names: the black key above C is <b>C♯</b> (“C sharp”); the same key seen from D is <b>D♭</b> (“D flat”). One key, two names — that’s called <i>enharmonic</i> spelling.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:60\">Middle C</button><button class=\"demo\" data-demo=\"n:61\">C♯ / D♭</button><button class=\"demo\" data-demo=\"iv:60:12\">An octave: C to C</button></div>\n<h4>Half steps &amp; whole steps</h4>\n<p>From any key to its closest neighbour (black or white) is a <b>half step</b> (semitone) — the smallest distance we use. Two half steps make a <b>whole step</b>. Notice that <b>E–F</b> and <b>B–C</b> have no black key between them: those are natural half steps, and they’re what gives every scale its shape.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:64:1\">Half step: E→F</button><button class=\"demo\" data-demo=\"iv:60:2\">Whole step: C→D</button></div>\n<p class=\"learn-note\">To find any C: look for the group of two black keys — C is the white key just to their left. Middle C (C4) sits closest to the centre of the piano.</p>"
+      "b": "\n<p>Music uses just <b>12 different notes</b>. After the twelfth, the pattern starts over — the same note, higher up. That distance is an <b>octave</b>, and the piano is simply the same 12-key pattern repeated over and over.</p>\n<p>The white keys are named <b>C D E F G A B</b> (Do Re Mi Fa Sol La Si). The black keys sit between them and borrow their names: the black key above C is <b>C♯</b> (“C sharp”); the same key seen from D is <b>D♭</b> (“D flat”). One key, two names — that’s called <i>enharmonic</i> spelling.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:60\">Middle C</button><button class=\"demo\" data-demo=\"n:61\">C♯ / D♭</button><button class=\"demo\" data-demo=\"iv:60:12\">An octave: C to C</button></div>\n<h4>Half steps &amp; whole steps</h4>\n<p>From any key to its closest neighbour (black or white) is a <b>half step</b> (semitone) — the smallest distance we use. Two half steps make a <b>whole step</b>. Notice that <b>E–F</b> and <b>B–C</b> have no black key between them: those are natural half steps, and they’re what gives every scale its shape.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:64:1\">Half step: E→F</button><button class=\"demo\" data-demo=\"iv:60:2\">Whole step: C→D</button></div>\n<h4>Diatonic vs. chromatic half steps &amp; octaves</h4>\n<p>A half step between two notes with the <b>same letter</b> (C→C♯) is <b>chromatic</b>; between adjacent letters (E→F or C♯→D) it is <b>diatonic</b> — essential for spelling scales cleanly. Across a piano, octaves are numbered around <b>Middle C = C4</b> (upwards C5–C7, downwards C3–C1).</p>\n<p class=\"learn-note\">To find any C: look for the group of two black keys — C is the white key just to their left. Middle C (C4) sits closest to the centre of the piano.</p>"
     },
     "ro": {
       "t": "Claviatura și numele notelor",
-      "b": "\n<p>Muzica folosește doar <b>12 note diferite</b>. După a douăsprezecea, tiparul se reia — aceeași notă, mai sus. Distanța aceasta e o <b>octavă</b>, iar pianul e același tipar de 12 clape repetat iar și iar.</p>\n<p>Clapele albe se numesc <b>Do Re Mi Fa Sol La Si</b> (C D E F G A B). Clapele negre stau între ele și le împrumută numele: clapa neagră de deasupra lui Do e <b>Do♯</b> (diez); aceeași clapă, văzută dinspre Re, e <b>Re♭</b> (bemol). O clapă, două nume — se numește scriere <i>enarmonică</i>.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:60\">Do central</button><button class=\"demo\" data-demo=\"n:61\">Do♯ / Re♭</button><button class=\"demo\" data-demo=\"iv:60:12\">O octavă: Do la Do</button></div>\n<h4>Semitonuri și tonuri</h4>\n<p>De la orice clapă la vecina ei cea mai apropiată (albă sau neagră) e un <b>semiton</b> — cea mai mică distanță folosită. Două semitonuri fac un <b>ton</b>. Observă că între <b>Mi–Fa</b> și <b>Si–Do</b> nu există clapă neagră: sunt semitonuri naturale, și ele dau forma fiecărei game.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:64:1\">Semiton: Mi→Fa</button><button class=\"demo\" data-demo=\"iv:60:2\">Ton: Do→Re</button></div>\n<p class=\"learn-note\">Ca să găsești orice Do: caută grupul de două clape negre — Do e clapa albă din stânga lor. Do central (C4) stă aproape de mijlocul pianului.</p>"
+      "b": "\n<p>Muzica folosește doar <b>12 note diferite</b>. După a douăsprezecea, tiparul se reia — aceeași notă, mai sus. Distanța aceasta e o <b>octavă</b>, iar pianul e același tipar de 12 clape repetat iar și iar.</p>\n<p>Clapele albe se numesc <b>Do Re Mi Fa Sol La Si</b> (C D E F G A B). Clapele negre stau între ele și le împrumută numele: clapa neagră de deasupra lui Do e <b>Do♯</b> (diez); aceeași clapă, văzută dinspre Re, e <b>Re♭</b> (bemol). O clapă, două nume — se numește scriere <i>enarmonică</i>.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:60\">Do central</button><button class=\"demo\" data-demo=\"n:61\">Do♯ / Re♭</button><button class=\"demo\" data-demo=\"iv:60:12\">O octavă: Do la Do</button></div>\n<h4>Semitonuri și tonuri</h4>\n<p>De la orice clapă la vecina ei cea mai apropiată (albă sau neagră) e un <b>semiton</b> — cea mai mică distanță folosită. Două semitonuri fac un <b>ton</b>. Observă că între <b>Mi–Fa</b> și <b>Si–Do</b> nu există clapă neagră: sunt semitonuri naturale, și ele dau forma fiecărei game.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:64:1\">Semiton: Mi→Fa</button><button class=\"demo\" data-demo=\"iv:60:2\">Ton: Do→Re</button></div>\n<h4>Semiton diatonic vs. cromatic și octavele</h4>\n<p>Un semiton între două note cu <b>același nume</b> (Do→Do♯) este <b>cromatic</b>; între două trepte vecine (Mi→Fa sau Do♯→Re) este <b>diatonic</b> — esențial pentru scrierea corectă a gamelor. Pe pian, octavele se numerotează în jurul lui <b>Do central = C4</b> (octava 1 în notația clasică; dedesubt mică, mare, contra).</p>\n<p class=\"learn-note\">Ca să găsești orice Do: caută grupul de două clape negre — Do e clapa albă din stânga lor. Do central (C4) stă aproape de mijlocul pianului.</p>"
     },
     "es": {
       "t": "El teclado y los nombres de las notas",
@@ -39,11 +39,11 @@ export const LESSONS: Lesson[] = [
     "icon": "✦",
     "en": {
       "t": "How to learn it all",
-      "b": "\n<p>Theory sticks when it moves through your <b>ears and hands</b>, not just your eyes. Étude’s whole design follows a few rules you can use anywhere:</p>\n<ul>\n<li><b>Recall, don’t reread.</b> Always try to produce the answer — play it, sing it, name it — before you peek.</li>\n<li><b>Anchor sounds to songs.</b> Every interval hides at the start of a tune you already know.</li>\n<li><b>Sing everything.</b> If you can sing a third, you own it. Humming counts.</li>\n<li><b>All keys, small doses.</b> Ideas, not fingerings: a chord you only know in C is a quarter of a chord.</li>\n<li><b>Daily beats weekly.</b> Five minutes a day outruns an hour on Sunday — that’s the spacing effect.</li>\n</ul>\n<p class=\"learn-note\">The science behind this is in <a href=\"#\" data-go=\"method\">Method</a>. When you’re ready: <a href=\"#\" data-go=\"today\">today’s session →</a></p>"
+      "b": "\n<p>Theory sticks when it moves through your <b>ears and hands</b>, not just your eyes. Étude’s whole design follows a few rules you can use anywhere:</p>\n<ul>\n<li><b>Recall, don’t reread.</b> Always try to produce the answer — play it, sing it, name it — before you peek.</li>\n<li><b>Anchor sounds to songs.</b> Every interval hides at the start of a tune you already know.</li>\n<li><b>Sing everything.</b> If you can sing a third, you own it. Humming counts.</li>\n<li><b>All keys, small doses.</b> Ideas, not fingerings: a chord you only know in C is a quarter of a chord.</li>\n<li><b>Daily beats weekly.</b> Five minutes a day outruns an hour on Sunday — that’s the spacing effect.</li>\n<li><b>Analyze before you play.</b> First map the key signature, meter, form, repeating motifs and cadences away from the keys; then play through in time without stopping for small slips.</li>\n<li><b>Inner-ear drill (6 steps).</b> Look at a bar → hear it mentally → sing it → touch the silent keys → play aloud → check by ear.</li>\n</ul>\n<p class=\"learn-note\">The science behind this is in <a href=\"#\" data-go=\"method\">Method</a>. When you’re ready: <a href=\"#\" data-go=\"today\">today’s session →</a></p>"
     },
     "ro": {
       "t": "Cum le înveți pe toate",
-      "b": "\n<p>Teoria se lipește când trece prin <b>urechi și mâini</b>, nu doar prin ochi. Tot designul Étude urmează câteva reguli pe care le poți folosi oriunde:</p>\n<ul>\n<li><b>Amintește-ți, nu reciti.</b> Încearcă mereu să produci răspunsul — cântă-l, intonează-l, numește-l — înainte să tragi cu ochiul.</li>\n<li><b>Leagă sunetele de melodii.</b> Fiecare interval se ascunde la începutul unei piese pe care o știi deja.</li>\n<li><b>Cântă tot cu vocea.</b> Dacă poți intona o terță, e a ta. Fredonatul se pune.</li>\n<li><b>Toate tonalitățile, doze mici.</b> Idei, nu digitații: un acord știut doar în Do e un sfert de acord.</li>\n<li><b>Zilnic bate săptămânal.</b> Cinci minute pe zi întrec o oră duminica — efectul eșalonării.</li>\n</ul>\n<p class=\"learn-note\">Știința din spate e în <a href=\"#\" data-go=\"method\">Metodă</a>. Când ești gata: <a href=\"#\" data-go=\"today\">sesiunea de azi →</a></p>"
+      "b": "\n<p>Teoria se lipește când trece prin <b>urechi și mâini</b>, nu doar prin ochi. Tot designul Étude urmează câteva reguli pe care le poți folosi oriunde:</p>\n<ul>\n<li><b>Amintește-ți, nu reciti.</b> Încearcă mereu să produci răspunsul — cântă-l, intonează-l, numește-l — înainte să tragi cu ochiul.</li>\n<li><b>Leagă sunetele de melodii.</b> Fiecare interval se ascunde la începutul unei piese pe care o știi deja.</li>\n<li><b>Cântă tot cu vocea.</b> Dacă poți intona o terță, e a ta. Fredonatul se pune.</li>\n<li><b>Toate tonalitățile, doze mici.</b> Idei, nu digitații: un acord știut doar în Do e un sfert de acord.</li>\n<li><b>Zilnic bate săptămânal.</b> Cinci minute pe zi întrec o oră duminica — efectul eșalonării.</li>\n<li><b>Analizează înainte să cânți.</b> Citește mai întâi armura, măsura, forma, motivele repetate și cadențele departe de claviatură; abia apoi parcurge piesa cursiv, fără să te oprești la mici ezitări.</li>\n<li><b>Exercițiu de auz intern (6 pași).</b> Privește măsura → auzi-o în gând → intoneaz-o → atinge clapele fără sunet → cânt-o → verifică cu urechea.</li>\n</ul>\n<p class=\"learn-note\">Știința din spate e în <a href=\"#\" data-go=\"method\">Metodă</a>. Când ești gata: <a href=\"#\" data-go=\"today\">sesiunea de azi →</a></p>"
     },
     "es": {
       "t": "Cómo aprender cualquier cosa",
@@ -71,11 +71,11 @@ export const LESSONS: Lesson[] = [
     "icon": "𝄞",
     "en": {
       "t": "Reading sheet music",
-      "b": "\n<p>Written music is a graph: <b>time flows left to right, pitch runs up and down</b>. Notes sit on a grid of five lines — the <b>staff</b>. Every line and every space is one letter name; move up one position and the name moves up one letter.</p>\n<h4>Two clefs, one keyboard</h4>\n<p>The <b>treble clef</b> (𝄞) marks the staff for higher notes — usually the right hand. Its curl wraps the <b>G4</b> line. The <b>bass clef</b> (𝄢) is for lower notes — the left hand — and its two dots hug the <b>F3</b> line. <b>Middle C sits exactly between the two staves</b>, on its own little ledger line.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:67\">G4 — the treble line</button><button class=\"demo\" data-demo=\"n:53\">F3 — the bass line</button><button class=\"demo\" data-demo=\"n:60\">Middle C — in between</button></div>\n<div data-staff=\"n_clefs\"></div>\n<h4>Read patterns, not letters</h4>\n<p>Good readers don’t spell out every note — they read <b>intervals on the page</b>: line to the next line (or space to space) is a 3rd; line to the neighbouring space is a 2nd. Learn a few anchor notes and step from them.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:60.62.64.65.67\">Steps: C D E F G</button><button class=\"demo\" data-demo=\"run:60.64.67.72\">Skips: C E G C</button></div>\n<div data-staff=\"n_steps\"></div>\n<h4>Ledger lines, accidentals & the key signature</h4>\n<p>Notes above or below the staff ride on short <b>ledger lines</b>. A <b>♯ or ♭ written before a note</b> lasts to the end of that bar. The cluster of sharps or flats at the very start — the <b>key signature</b> — applies to the whole piece and names its key.</p>\n<div data-staff=\"n_acc\"></div>\n<p class=\"learn-note\">Put it into practice in <a href=\"#\" data-go=\"read\">Read &amp; play</a> — step-by-step mode waits for the right key, then Assessment scores you against the beat.</p>"
+      "b": "\n<p>Written music is a graph: <b>time flows left to right, pitch runs up and down</b>. Notes sit on a grid of five lines — the <b>staff</b>. Every line and every space is one letter name; move up one position and the name moves up one letter.</p>\n<h4>Two clefs, one keyboard</h4>\n<p>The <b>treble clef</b> (𝄞) marks the staff for higher notes — usually the right hand. Its curl wraps the <b>G4</b> line. The <b>bass clef</b> (𝄢) is for lower notes — the left hand — and its two dots hug the <b>F3</b> line. <b>Middle C sits exactly between the two staves</b>, on its own little ledger line — together, both five-line staves come from a single historic <b>11-line grand staff</b> whose middle line (line 6) is Middle C.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:67\">G4 — the treble line</button><button class=\"demo\" data-demo=\"n:53\">F3 — the bass line</button><button class=\"demo\" data-demo=\"n:60\">Middle C — in between</button></div>\n<div data-staff=\"n_clefs\"></div>\n<h4>Read patterns, not letters</h4>\n<p>Good readers don’t spell out every note — they read <b>intervals on the page</b>: odd intervals (3rd, 5th, 7th) go <b>line–to–line</b> or <b>space–to–space</b>; even intervals (2nd, 4th, 6th, 8ve) mix <b>line–to–space</b>. Learn a few anchor notes and step from them.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:60.62.64.65.67\">Steps: C D E F G</button><button class=\"demo\" data-demo=\"run:60.64.67.72\">Skips: C E G C</button></div>\n<div data-staff=\"n_steps\"></div>\n<h4>Ledger lines, accidentals & the key signature</h4>\n<p>Notes above or below the staff ride on short <b>ledger lines</b>. A <b>♯ or ♭ written before a note</b> lasts to the end of that bar. The cluster of sharps or flats at the very start — the <b>key signature</b> — applies to the whole piece and names its key.</p>\n<div data-staff=\"n_acc\"></div>\n<p class=\"learn-note\">Put it into practice in <a href=\"#\" data-go=\"read\">Read &amp; play</a> — step-by-step mode waits for the right key, then Assessment scores you against the beat.</p>"
     },
     "ro": {
       "t": "Citirea partiturii",
-      "b": "\n<p>Muzica scrisă e un grafic: <b>timpul curge de la stânga la dreapta, înălțimea urcă și coboară</b>. Notele stau pe o grilă de cinci linii — <b>portativul</b>. Fiecare linie și fiecare spațiu e un nume de notă; urci o poziție și numele urcă o treaptă.</p>\n<h4>Două chei, o singură claviatură</h4>\n<p><b>Cheia sol</b> (𝄞) marchează portativul notelor înalte — de obicei mâna dreaptă. Bucla ei înconjoară linia lui <b>Sol4</b>. <b>Cheia fa</b> (𝄢) e pentru notele joase — mâna stângă — iar cele două puncte ale ei încadrează linia lui <b>Fa3</b>. <b>Do central stă exact între cele două portative</b>, pe propria lui liniuță suplimentară.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:67\">Sol4 — linia cheii sol</button><button class=\"demo\" data-demo=\"n:53\">Fa3 — linia cheii fa</button><button class=\"demo\" data-demo=\"n:60\">Do central — între ele</button></div>\n<div data-staff=\"n_clefs\"></div>\n<h4>Citește tipare, nu litere</h4>\n<p>Cititorii buni nu silabisesc fiecare notă — citesc <b>intervale pe pagină</b>: de pe o linie pe linia următoare (sau spațiu–spațiu) e o terță; de pe linie pe spațiul vecin e o secundă. Învață câteva note-ancoră și pășește de la ele.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:60.62.64.65.67\">Trepte: Do Re Mi Fa Sol</button><button class=\"demo\" data-demo=\"run:60.64.67.72\">Salturi: Do Mi Sol Do</button></div>\n<div data-staff=\"n_steps\"></div>\n<h4>Liniuțe suplimentare, alterații și armura</h4>\n<p>Notele de deasupra sau dedesubtul portativului stau pe <b>liniuțe suplimentare</b> scurte. Un <b>♯ sau ♭ scris înaintea unei note</b> ține până la finalul măsurii. Grupul de diezi sau bemoli de la început — <b>armura</b> — e valabil pentru toată piesa și îi numește tonalitatea.</p>\n<div data-staff=\"n_acc\"></div>\n<p class=\"learn-note\">Pune totul în practică în <a href=\"#\" data-go=\"read\">Citește și cântă</a> — modul „pas cu pas” așteaptă clapa corectă, apoi Evaluarea te punctează pe ritm.</p>"
+      "b": "\n<p>Muzica scrisă e un grafic: <b>timpul curge de la stânga la dreapta, înălțimea urcă și coboară</b>. Notele stau pe o grilă de cinci linii — <b>portativul</b>. Fiecare linie și fiecare spațiu e un nume de notă; urci o poziție și numele urcă o treaptă.</p>\n<h4>Două chei, o singură claviatură</h4>\n<p><b>Cheia sol</b> (𝄞) marchează portativul notelor înalte — de obicei mâna dreaptă. Bucla ei înconjoară linia lui <b>Sol4</b>. <b>Cheia fa</b> (𝄢) e pentru notele joase — mâna stângă — iar cele două puncte ale ei încadrează linia lui <b>Fa3</b>. <b>Do central stă exact între cele două portative</b>, pe propria lui liniuță suplimentară — împreună, cele două portative provin dintr-un <b>sistem unic de 11 linii</b> a cărui linie mijlocie (linia 6) este Do central.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"n:67\">Sol4 — linia cheii sol</button><button class=\"demo\" data-demo=\"n:53\">Fa3 — linia cheii fa</button><button class=\"demo\" data-demo=\"n:60\">Do central — între ele</button></div>\n<div data-staff=\"n_clefs\"></div>\n<h4>Citește tipare, nu litere</h4>\n<p>Cititorii buni nu silabisesc fiecare notă — citesc <b>intervale pe pagină</b>: intervalele impare (3, 5, 7) sar de pe <b>linie pe linie</b> sau <b>spațiu pe spațiu</b>; cele pare (2, 4, 6, 8) merg <b>linie–spațiu</b>. Învață câteva note-ancoră și pășește de la ele.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:60.62.64.65.67\">Trepte: Do Re Mi Fa Sol</button><button class=\"demo\" data-demo=\"run:60.64.67.72\">Salturi: Do Mi Sol Do</button></div>\n<div data-staff=\"n_steps\"></div>\n<h4>Liniuțe suplimentare, alterații și armura</h4>\n<p>Notele de deasupra sau dedesubtul portativului stau pe <b>liniuțe suplimentare</b> scurte. Un <b>♯ sau ♭ scris înaintea unei note</b> ține până la finalul măsurii. Grupul de diezi sau bemoli de la început — <b>armura</b> — e valabil pentru toată piesa și îi numește tonalitatea.</p>\n<div data-staff=\"n_acc\"></div>\n<p class=\"learn-note\">Pune totul în practică în <a href=\"#\" data-go=\"read\">Citește și cântă</a> — modul „pas cu pas” așteaptă clapa corectă, apoi Evaluarea te punctează pe ritm.</p>"
     },
     "es": {
       "t": "Lectura de partituras",
@@ -263,11 +263,11 @@ export const LESSONS: Lesson[] = [
     "icon": "⇅",
     "en": {
       "t": "Interval qualities, inversions & compounds",
-      "b": "\n<p>An interval has two names: the <b>number</b> (count letter names, both ends included: C up to E = C-D-E = a 3rd) and the <b>quality</b> (count half steps). The number comes from the page; the quality from the keyboard.</p>\n<ul>\n<li><b>Perfect</b> intervals — unison, 4th, 5th, octave. Make them one half step bigger → <b>augmented</b>; smaller → <b>diminished</b>.</li>\n<li><b>Major/minor</b> intervals — 2nd, 3rd, 6th, 7th. Major minus a half step = minor; minor minus another = diminished; major plus one = augmented.</li>\n</ul>\n<p>So the same key distance can have two spellings: F–B is an <b>augmented 4th</b>, B–F a <b>diminished 5th</b> — both are the 6-half-step <i>tritone</i>. C–E♭ (minor 3rd) and C–D♯ (augmented 2nd) sound identical, but they mean different things in a key.</p>\n<div data-staff=\"iv2a\"></div>\n<h4>Inversion — flip it over</h4>\n<p>Move the bottom note up an octave and the interval inverts. The numbers always add to <b>9</b>, and the qualities swap: major ↔ minor, augmented ↔ diminished, perfect stays perfect. A major 3rd (C–E) inverts to a minor 6th (E–C).</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:4\">M3: C–E</button><button class=\"demo\" data-demo=\"iv:64:8\">m6: E–C</button><button class=\"demo\" data-demo=\"iv:60:7\">P5: C–G</button><button class=\"demo\" data-demo=\"iv:67:5\">P4: G–C</button></div>\n<h4>Compound intervals</h4>\n<p>Intervals larger than an octave are <b>compound</b>: subtract 7 to find the simple interval. A 9th is an octave + a 2nd, a 10th an octave + a 3rd. Jazz chord names (9, 11, 13) use these numbers.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:14\">9th: C–D'</button><button class=\"demo\" data-demo=\"iv:60:16\">10th: C–E'</button></div>\n<p class=\"learn-note\">Quick check for any interval: count letters for the number, then compare with the major scale of the bottom note — if the top note is in that scale, the interval is major or perfect.</p>"
+      "b": "\n<p>An interval has two names: the <b>number</b> (count letter names, both ends included: C up to E = C-D-E = a 3rd) and the <b>quality</b> (count half steps). The number comes from the page; the quality from the keyboard.</p>\n<ul>\n<li><b>Perfect</b> intervals — unison, 4th, 5th, octave. Make them one half step bigger → <b>augmented</b>; smaller → <b>diminished</b> (the unison cannot be diminished — lowering the upper note produces a downward augmented unison).</li>\n<li><b>Major/minor</b> intervals — 2nd, 3rd, 6th, 7th. Major minus a half step = minor; minor minus another = diminished; major plus one = augmented.</li>\n</ul>\n<p>So the same key distance can have two spellings: F–B is an <b>augmented 4th</b>, B–F a <b>diminished 5th</b> — both are the 6-half-step <i>tritone</i>. C–E♭ (minor 3rd) and C–D♯ (augmented 2nd) sound identical, but they mean different things in a key.</p>\n<div data-staff=\"iv2a\"></div>\n<h4>Inversion — flip it over</h4>\n<p>Move the bottom note up an octave and the interval inverts. The numbers always add to <b>9</b>, and the qualities swap: major ↔ minor, augmented ↔ diminished, perfect stays perfect. A major 3rd (C–E) inverts to a minor 6th (E–C).</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:4\">M3: C–E</button><button class=\"demo\" data-demo=\"iv:64:8\">m6: E–C</button><button class=\"demo\" data-demo=\"iv:60:7\">P5: C–G</button><button class=\"demo\" data-demo=\"iv:67:5\">P4: G–C</button></div>\n<h4>Compound intervals</h4>\n<p>Intervals larger than an octave are <b>compound</b>: subtract 7 to find the simple interval. A 9th is an octave + a 2nd, a 10th an octave + a 3rd. Jazz chord names (9, 11, 13) use these numbers.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:14\">9th: C–D'</button><button class=\"demo\" data-demo=\"iv:60:16\">10th: C–E'</button></div>\n<p class=\"learn-note\">Quick check for any interval: count letters for the number, then compare with the major scale of the bottom note — if the top note is in that scale, the interval is major or perfect.</p>"
     },
     "ro": {
       "t": "Calitatea intervalelor, răsturnări și intervale compuse",
-      "b": "\n<p>Un interval are două nume: <b>numărul</b> (numeri treptele, cu ambele capete: Do până la Mi = Do-Re-Mi = terță) și <b>calitatea</b> (numeri semitonurile). Numărul vine din partitură, calitatea de pe claviatură.</p>\n<ul>\n<li>Intervalele <b>perfecte</b> — prima, cvarta, cvinta, octava. Mai mari cu un semiton → <b>mărite</b>; mai mici → <b>micșorate</b>.</li>\n<li>Intervalele <b>mari/mici</b> — secunda, terța, sexta, septima. Mare minus un semiton = mică; mică minus încă unul = micșorată; mare plus unul = mărită.</li>\n</ul>\n<p>Aceeași distanță pe claviatură poate avea două scrieri: Fa–Si e o <b>cvartă mărită</b>, Si–Fa o <b>cvintă micșorată</b> — ambele sunt <i>tritonul</i> de 6 semitonuri. Do–Mi♭ (terță mică) și Do–Re♯ (secundă mărită) sună identic, dar înseamnă lucruri diferite într-o tonalitate.</p>\n<div data-staff=\"iv2a\"></div>\n<h4>Răsturnarea — întoarce-l pe dos</h4>\n<p>Mută nota de jos cu o octavă mai sus și intervalul se răstoarnă. Numerele însumează mereu <b>9</b>, iar calitățile se schimbă: mare ↔ mică, mărită ↔ micșorată, perfectă rămâne perfectă. O terță mare (Do–Mi) devine sextă mică (Mi–Do).</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:4\">3M: Do–Mi</button><button class=\"demo\" data-demo=\"iv:64:8\">6m: Mi–Do</button><button class=\"demo\" data-demo=\"iv:60:7\">5P: Do–Sol</button><button class=\"demo\" data-demo=\"iv:67:5\">4P: Sol–Do</button></div>\n<h4>Intervale compuse</h4>\n<p>Intervalele mai mari decât octava sunt <b>compuse</b>: scazi 7 ca să afli intervalul simplu. Nona e o octavă + o secundă, decima o octavă + o terță. Numele acordurilor din jazz (9, 11, 13) folosesc aceste numere.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:14\">Nona: Do–Re'</button><button class=\"demo\" data-demo=\"iv:60:16\">Decima: Do–Mi'</button></div>\n<p class=\"learn-note\">Verificare rapidă pentru orice interval: numeri treptele pentru număr, apoi compari cu gama majoră a notei de jos — dacă nota de sus e în acea gamă, intervalul e mare sau perfect.</p>"
+      "b": "\n<p>Un interval are două nume: <b>numărul</b> (numeri treptele, cu ambele capete: Do până la Mi = Do-Re-Mi = terță) și <b>calitatea</b> (numeri semitonurile). Numărul vine din partitură, calitatea de pe claviatură.</p>\n<ul>\n<li>Intervalele <b>perfecte</b> — prima, cvarta, cvinta, octava. Mai mari cu un semiton → <b>mărite</b>; mai mici → <b>micșorate</b> (prima nu poate fi micșorată — coborârea notei de sus devine primă mărită descendentă).</li>\n<li>Intervalele <b>mari/mici</b> — secunda, terța, sexta, septima. Mare minus un semiton = mică; mică minus încă unul = micșorată; mare plus unul = mărită.</li>\n</ul>\n<p>Aceeași distanță pe claviatură poate avea două scrieri: Fa–Si e o <b>cvartă mărită</b>, Si–Fa o <b>cvintă micșorată</b> — ambele sunt <i>tritonul</i> de 6 semitonuri. Do–Mi♭ (terță mică) și Do–Re♯ (secundă mărită) sună identic, dar înseamnă lucruri diferite într-o tonalitate.</p>\n<div data-staff=\"iv2a\"></div>\n<h4>Răsturnarea — întoarce-l pe dos</h4>\n<p>Mută nota de jos cu o octavă mai sus și intervalul se răstoarnă. Numerele însumează mereu <b>9</b>, iar calitățile se schimbă: mare ↔ mică, mărită ↔ micșorată, perfectă rămâne perfectă. O terță mare (Do–Mi) devine sextă mică (Mi–Do).</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:4\">3M: Do–Mi</button><button class=\"demo\" data-demo=\"iv:64:8\">6m: Mi–Do</button><button class=\"demo\" data-demo=\"iv:60:7\">5P: Do–Sol</button><button class=\"demo\" data-demo=\"iv:67:5\">4P: Sol–Do</button></div>\n<h4>Intervale compuse</h4>\n<p>Intervalele mai mari decât octava sunt <b>compuse</b>: scazi 7 ca să afli intervalul simplu. Nona e o octavă + o secundă, decima o octavă + o terță. Numele acordurilor din jazz (9, 11, 13) folosesc aceste numere.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"iv:60:14\">Nona: Do–Re'</button><button class=\"demo\" data-demo=\"iv:60:16\">Decima: Do–Mi'</button></div>\n<p class=\"learn-note\">Verificare rapidă pentru orice interval: numeri treptele pentru număr, apoi compari cu gama majoră a notei de jos — dacă nota de sus e în acea gamă, intervalul e mare sau perfect.</p>"
     },
     "es": {
       "t": "Cualidades, inversiones e intervalos compuestos",
@@ -295,11 +295,11 @@ export const LESSONS: Lesson[] = [
     "icon": "♬",
     "en": {
       "t": "Scales & keys",
-      "b": "\n<p>A <b>scale</b> is a ladder of whole (W) and half (H) steps. The pattern is what matters — start it on any note and you get the same flavour, just higher or lower. The <b>major scale</b> is the sound of “Do Re Mi”:</p>\n<p><span class=\"fm\">W · W · H · W · W · W · H</span></p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Major (Ionian)\">C major</button><button class=\"demo\" data-demo=\"sc:67:Major (Ionian)\">G major — same shape</button></div>\n<p>The <b>natural minor</b> scale rearranges the same steps for a darker mood: <span class=\"fm\">W · H · W · W · H · W · W</span>. Every major scale hides a minor one that uses exactly the same notes, starting from its 6th degree — <b>A minor</b> is the <i>relative minor</i> of C major.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:57:Aeolian (Natural minor)\">A minor</button><button class=\"demo\" data-demo=\"sc:60:Major pentatonic\">C major pentatonic</button><button class=\"demo\" data-demo=\"sc:60:Blues\">C blues</button></div>\n<div data-widget=\"scale\"></div>\n<h4>So what is a “key”?</h4>\n<p>Saying a song is “in C major” means the C major scale is its home base: its notes feel right, and the note C feels like <b>home</b>. The sharps or flats that scale needs are written once at the start of the staff — the <b>key signature</b>.</p>\n<p class=\"learn-note\">Pentatonic scales drop the two “spicy” degrees (4 and 7) — five notes that sound good in almost any order, which is why they’re everywhere from folk to rock solos. <a href=\"#\" data-go=\"practice\" data-cat=\"scale\">Drill scales →</a></p>"
+      "b": "\n<p>A <b>scale</b> is a ladder of whole (W) and half (H) steps. The pattern is what matters — start it on any note and you get the same flavour, just higher or lower. The <b>major scale</b> is the sound of “Do Re Mi”:</p>\n<p><span class=\"fm\">W · W · H · W · W · W · H</span></p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Major (Ionian)\">C major</button><button class=\"demo\" data-demo=\"sc:67:Major (Ionian)\">G major — same shape</button></div>\n<p>The <b>natural minor</b> scale rearranges the same steps for a darker mood: <span class=\"fm\">W · H · W · W · H · W · W</span>. Every major scale hides a minor one that uses exactly the same notes, starting from its 6th degree — <b>A minor</b> is the <i>relative minor</i> of C major.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:57:Aeolian (Natural minor)\">A minor</button><button class=\"demo\" data-demo=\"sc:60:Major pentatonic\">C major pentatonic</button><button class=\"demo\" data-demo=\"sc:60:Blues\">C blues</button></div>\n<div data-widget=\"scale\"></div>\n<p><b>The finger-4 landmark on piano scales:</b> in sharp major scales (C, G, D, A, E), right-hand finger <b>4</b> falls once per octave on degree <b>7</b> (the leading tone) and left-hand finger <b>4</b> on degree <b>2</b> (or degree <b>4</b> in F major); in flat keys, RH finger 4 tracks <b>B♭</b>.</p>\n<h4>So what is a “key”?</h4>\n<p>Saying a song is “in C major” means the C major scale is its home base: its notes feel right, and the note C feels like <b>home</b>. The sharps or flats that scale needs are written once at the start of the staff — the <b>key signature</b>.</p>\n<p class=\"learn-note\">Pentatonic scales drop the two “spicy” degrees (4 and 7) — five notes that sound good in almost any order, which is why they’re everywhere from folk to rock solos. <a href=\"#\" data-go=\"practice\" data-cat=\"scale\">Drill scales →</a></p>"
     },
     "ro": {
       "t": "Game și tonalități",
-      "b": "\n<p>O <b>gamă</b> e o scară de tonuri (T) și semitonuri (S). Tiparul contează — pornește-l de pe orice notă și obții aceeași culoare, doar mai sus sau mai jos. <b>Gama majoră</b> e sunetul lui „Do Re Mi”:</p>\n<p><span class=\"fm\">T · T · S · T · T · T · S</span></p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Major (Ionian)\">Do major</button><button class=\"demo\" data-demo=\"sc:67:Major (Ionian)\">Sol major — aceeași formă</button></div>\n<p><b>Minorul natural</b> rearanjează aceiași pași pentru o culoare mai întunecată: <span class=\"fm\">T · S · T · T · S · T · T</span>. Fiecare gamă majoră ascunde una minoră cu exact aceleași note, pornind de pe treapta a 6-a — <b>La minor</b> e <i>relativa minoră</i> a lui Do major.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:57:Aeolian (Natural minor)\">La minor</button><button class=\"demo\" data-demo=\"sc:60:Major pentatonic\">Do pentatonic major</button><button class=\"demo\" data-demo=\"sc:60:Blues\">Do blues</button></div>\n<div data-widget=\"scale\"></div>\n<h4>Ce e o „tonalitate”?</h4>\n<p>Când spunem că o piesă e „în Do major”, gama Do major e casa ei: notele ei sună firesc, iar nota Do e <b>acasă</b>. Diezii sau bemolii gamei se scriu o singură dată, la începutul portativului — <b>armura</b>.</p>\n<p class=\"learn-note\">Pentatonicele renunță la cele două trepte „picante” (4 și 7) — cinci note care sună bine aproape în orice ordine; de aceea apar peste tot, de la folclor la solouri rock. <a href=\"#\" data-go=\"practice\" data-cat=\"scale\">Exersează gamele →</a></p>"
+      "b": "\n<p>O <b>gamă</b> e o scară de tonuri (T) și semitonuri (S). Tiparul contează — pornește-l de pe orice notă și obții aceeași culoare, doar mai sus sau mai jos. <b>Gama majoră</b> e sunetul lui „Do Re Mi”:</p>\n<p><span class=\"fm\">T · T · S · T · T · T · S</span></p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Major (Ionian)\">Do major</button><button class=\"demo\" data-demo=\"sc:67:Major (Ionian)\">Sol major — aceeași formă</button></div>\n<p><b>Minorul natural</b> rearanjează aceiași pași pentru o culoare mai întunecată: <span class=\"fm\">T · S · T · T · S · T · T</span>. Fiecare gamă majoră ascunde una minoră cu exact aceleași note, pornind de pe treapta a 6-a — <b>La minor</b> e <i>relativa minoră</i> a lui Do major.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:57:Aeolian (Natural minor)\">La minor</button><button class=\"demo\" data-demo=\"sc:60:Major pentatonic\">Do pentatonic major</button><button class=\"demo\" data-demo=\"sc:60:Blues\">Do blues</button></div>\n<div data-widget=\"scale\"></div>\n<p><b>Regula degetului 4 în game:</b> la majorurile pe clape albe cu diezi (Do, Sol, Re, La, Mi), degetul <b>4</b> la mâna dreaptă cade o singură dată pe octavă, pe treapta a <b>7-a</b> (sensibila), iar la stânga pe treapta a <b>2-a</b> (sau a <b>4-a</b> în Fa major); în gamele cu bemoli, dreapta fixează degetul 4 pe <b>Si♭</b>.</p>\n<h4>Ce e o „tonalitate”?</h4>\n<p>Când spunem că o piesă e „în Do major”, gama Do major e casa ei: notele ei sună firesc, iar nota Do e <b>acasă</b>. Diezii sau bemolii gamei se scriu o singură dată, la începutul portativului — <b>armura</b>.</p>\n<p class=\"learn-note\">Pentatonicele renunță la cele două trepte „picante” (4 și 7) — cinci note care sună bine aproape în orice ordine; de aceea apar peste tot, de la folclor la solouri rock. <a href=\"#\" data-go=\"practice\" data-cat=\"scale\">Exersează gamele →</a></p>"
     },
     "es": {
       "t": "Escalas y tonalidades",
@@ -359,11 +359,11 @@ export const LESSONS: Lesson[] = [
     "icon": "◎",
     "en": {
       "t": "The circle of fifths",
-      "b": "\n<p>Line up the 12 keys so each step is a <b>perfect 5th</b> and they close into a circle: C → G → D → A… all the way back to C. This is the <b>circle of fifths</b> — the subway map of harmony.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:48.55.62.69\">C → G → D → A</button></div>\n<div data-widget=\"cof\"></div>\n<p>Why it matters:</p>\n<ul>\n<li><b>Key signatures:</b> each step clockwise adds one sharp (G has 1, D has 2…); each step counter-clockwise adds one flat.</li>\n<li><b>Neighbouring diatonic scales (major or natural minor) share 6 of 7 notes</b>. Harmonic and melodic minor alter notes and can change that count; moving one step is generally one of the smoothest key changes.</li>\n<li><b>Chord movement by 5ths feels inevitable</b> — the V → I cadence, the jazz ii–V–I, and the endless “circle” progressions all walk this wheel.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:Circle of 5ths vi–ii–V–I\">Circle progression: vi–ii–V–I</button></div>\n<p class=\"learn-note\">The interactive circle lives in <a href=\"#\" data-go=\"explore\" data-extab=\"circle\">Explore › Circle of fifths</a> — click any key to hear its scale or chord, see the fingering for both hands and set the Roman-numeral context.</p>"
+      "b": "\n<p>Line up the 12 keys so each step is a <b>perfect 5th</b> and they close into a circle: C → G → D → A… all the way back to C. This is the <b>circle of fifths</b> — the subway map of harmony.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:48.55.62.69\">C → G → D → A</button></div>\n<div data-widget=\"cof\"></div>\n<p>Why it matters:</p>\n<ul>\n<li><b>Key signatures &amp; order of accidentals:</b> sharps climb clockwise by fifths (<b>F♯ C♯ G♯ D♯ A♯ E♯ B♯</b>); flats mirror them counter-clockwise (<b>B♭ E♭ A♭ D♭ G♭ C♭ F♭</b>). Including the three enharmonic overlaps at the bottom (B/C♭, F♯/G♭, C♯/D♭) gives all <b>15 signatures — 30 keys</b> (15 major + 15 minor).</li>\n<li><b>Quick reading tricks:</b> for sharp keys, the <i>last sharp + 1 semitone</i> names the major tonic; for flat keys, the <i>second-to-last flat</i> is the major tonic (1♭ = F). Count down 3 semitones for the relative minor.</li>\n<li><b>Neighbouring diatonic scales (major or natural minor) share 6 of 7 notes</b>. Harmonic and melodic minor alter notes and can change that count; moving one step is generally one of the smoothest key changes.</li>\n<li><b>Chord movement by 5ths feels inevitable</b> — the V → I cadence, the jazz ii–V–I, and the endless “circle” progressions all walk this wheel.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:Circle of 5ths vi–ii–V–I\">Circle progression: vi–ii–V–I</button></div>\n<p class=\"learn-note\">The interactive circle lives in <a href=\"#\" data-go=\"explore\" data-extab=\"circle\">Explore › Circle of fifths</a> — click any key to hear its scale or chord, see the fingering for both hands and set the Roman-numeral context.</p>"
     },
     "ro": {
       "t": "Cercul cvintelor",
-      "b": "\n<p>Așază cele 12 tonalități astfel încât fiecare pas să fie o <b>cvintă perfectă</b> și se închid într-un cerc: Do → Sol → Re → La… până înapoi la Do. Acesta e <b>cercul cvintelor</b> — harta de metrou a armoniei.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:48.55.62.69\">Do → Sol → Re → La</button></div>\n<div data-widget=\"cof\"></div>\n<p>De ce contează:</p>\n<ul>\n<li><b>Armurile:</b> fiecare pas în sensul acelor de ceasornic adaugă un diez (Sol are 1, Re are 2…); fiecare pas invers adaugă un bemol.</li>\n<li><b>Gamele diatonice vecine (majore sau minore naturale) au 6 din 7 note comune</b>. Minorul armonic și melodic alterează note și pot schimba acest număr; un pas este, în general, una dintre cele mai line schimbări de tonalitate.</li>\n<li><b>Mișcarea acordurilor prin cvinte sună inevitabil</b> — cadența V → I, ii–V–I din jazz și nesfârșitele progresii „în cerc” merg toate pe această roată.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:Circle of 5ths vi–ii–V–I\">Progresie în cerc: vi–ii–V–I</button></div>\n<p class=\"learn-note\">Cercul interactiv e în <a href=\"#\" data-go=\"explore\" data-extab=\"circle\">Explorează › Cercul cvintelor</a> — apasă orice tonalitate ca să-i auzi gama sau acordul, să vezi digitația pentru ambele mâini și să setezi cifrajul roman.</p>"
+      "b": "\n<p>Așază cele 12 tonalități astfel încât fiecare pas să fie o <b>cvintă perfectă</b> și se închid într-un cerc: Do → Sol → Re → La… până înapoi la Do. Acesta e <b>cercul cvintelor</b> — harta de metrou a armoniei.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"run:48.55.62.69\">Do → Sol → Re → La</button></div>\n<div data-widget=\"cof\"></div>\n<p>De ce contează:</p>\n<ul>\n<li><b>Armurile și ordinea alterațiilor:</b> diezii urcă orar din cvintă în cvintă (<b>Fa♯ Do♯ Sol♯ Re♯ La♯ Mi♯ Si♯</b>); bemolii vin în ordine inversă, antiorar (<b>Si♭ Mi♭ La♭ Re♭ Sol♭ Do♭ Fa♭</b>). Cu cele trei suprapuneri enarmonice de jos (Si/Do♭, Fa♯/Sol♭, Do♯/Re♭), obținem toate cele <b>15 armuri — 30 de tonalități</b> (15 majore + 15 minore).</li>\n<li><b>Truc rapid de citire:</b> la diezi, <i>ultimul ♯ + un semiton</i> dă tonica majoră; la bemoli, <i>penultimul ♭</i> este tonica majoră (1♭ = Fa). Coboară 3 semitonuri pentru relativa minoră.</li>\n<li><b>Gamele diatonice vecine (majore sau minore naturale) au 6 din 7 note comune</b>. Minorul armonic și melodic alterează note și pot schimba acest număr; un pas este, în general, una dintre cele mai line schimbări de tonalitate.</li>\n<li><b>Mișcarea acordurilor prin cvinte sună inevitabil</b> — cadența V → I, ii–V–I din jazz și nesfârșitele progresii „în cerc” merg toate pe această roată.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:Circle of 5ths vi–ii–V–I\">Progresie în cerc: vi–ii–V–I</button></div>\n<p class=\"learn-note\">Cercul interactiv e în <a href=\"#\" data-go=\"explore\" data-extab=\"circle\">Explorează › Cercul cvintelor</a> — apasă orice tonalitate ca să-i auzi gama sau acordul, să vezi digitația pentru ambele mâini și să setezi cifrajul roman.</p>"
     },
     "es": {
       "t": "El círculo de quintas",
@@ -423,11 +423,11 @@ export const LESSONS: Lesson[] = [
     "icon": "♯",
     "en": {
       "t": "Chords",
-      "b": "\n<p>A <b>chord</b> is three or more notes sounding together. The basic unit is the <b>triad</b>: a root, a third and a fifth — built by skipping every other scale note. Its two building blocks are just intervals stacked:</p>\n<ul>\n<li><b>Major</b> — 4 + 3 half steps · bright, resolved</li>\n<li><b>Minor</b> — 3 + 4 · darker, melancholy</li>\n<li><b>Diminished</b> — 3 + 3 · tense, unstable</li>\n<li><b>Augmented</b> — 4 + 4 · dreamlike</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj\">C major</button><button class=\"demo\" data-demo=\"ch:60:m\">C minor</button><button class=\"demo\" data-demo=\"ch:60:dim\">C dim</button><button class=\"demo\" data-demo=\"ch:60:aug\">C aug</button></div>\n<h4>Beyond the triad</h4>\n<p>Add one more third and you get <b>7th chords</b> — the sound of jazz, soul and gospel. Swap the third for its neighbour and you get floating <b>sus</b> chords.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Cmaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">C7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Cm7</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Csus4</button></div>\n<h4>Inversions</h4>\n<p>The same notes in a different order are still the same chord. Put E or G at the bottom of C major and you have an <b>inversion</b> — smoother to reach, same identity.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ms:60.64.67\">C — root position</button><button class=\"demo\" data-demo=\"ms:64.67.72\">C/E — 1st inversion</button><button class=\"demo\" data-demo=\"ms:67.72.76\">C/G — 2nd inversion</button></div>\n<div data-staff=\"ch_inv\"></div>\n<div data-widget=\"chord\"></div>\n<p class=\"learn-note\">Hold any chord in <a href=\"#\" data-go=\"explore\">Explore</a> and Étude names it live — inversions included. <a href=\"#\" data-go=\"practice\" data-cat=\"chord\">Drill chords →</a></p>"
+      "b": "\n<p>A <b>chord</b> is three or more notes sounding together. The basic unit is the <b>triad</b>: a root, a third and a fifth — built by skipping every other scale note. Its two building blocks are just intervals stacked:</p>\n<ul>\n<li><b>Major</b> — 4 + 3 half steps · bright, resolved</li>\n<li><b>Minor</b> — 3 + 4 · darker, melancholy</li>\n<li><b>Diminished</b> — 3 + 3 · tense, unstable</li>\n<li><b>Augmented</b> — 4 + 4 · dreamlike</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj\">C major</button><button class=\"demo\" data-demo=\"ch:60:m\">C minor</button><button class=\"demo\" data-demo=\"ch:60:dim\">C dim</button><button class=\"demo\" data-demo=\"ch:60:aug\">C aug</button></div>\n<h4>Beyond the triad</h4>\n<p>Add one more third and you get <b>7th chords</b> — the sound of jazz, soul and gospel. Swap the third for its neighbour and you get floating <b>sus</b> chords.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Cmaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">C7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Cm7</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Csus4</button></div>\n<h4>Inversions</h4>\n<p>The same notes in a different order are still the same chord. Put E or G at the bottom of C major and you have an <b>inversion</b> — smoother to reach, same identity. On the staff, each shape stands out cleanly: <b>root position</b> stacks two 3rds (3+3, figured bass <i>5/3</i>); <b>1st inversion</b> puts the wider 4th on top (3+4, figure <i>6</i>); <b>2nd inversion</b> puts the 4th on the bottom (4+3, figure <i>6/4</i>).</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ms:60.64.67\">C — root position</button><button class=\"demo\" data-demo=\"ms:64.67.72\">C/E — 1st inversion</button><button class=\"demo\" data-demo=\"ms:67.72.76\">C/G — 2nd inversion</button></div>\n<div data-staff=\"ch_inv\"></div>\n<div data-widget=\"chord\"></div>\n<p class=\"learn-note\">Hold any chord in <a href=\"#\" data-go=\"explore\">Explore</a> and Étude names it live — inversions included. <a href=\"#\" data-go=\"practice\" data-cat=\"chord\">Drill chords →</a></p>"
     },
     "ro": {
       "t": "Acordurile",
-      "b": "\n<p>Un <b>acord</b> înseamnă trei sau mai multe note cântate împreună. Unitatea de bază e <b>trisonul</b>: fundamentală, terță și cvintă — construit sărind câte o notă din gamă. Cărămizile lui sunt două intervale suprapuse:</p>\n<ul>\n<li><b>Major</b> — 4 + 3 semitonuri · luminos, stabil</li>\n<li><b>Minor</b> — 3 + 4 · mai întunecat, melancolic</li>\n<li><b>Micșorat</b> — 3 + 3 · tensionat, instabil</li>\n<li><b>Mărit</b> — 4 + 4 · oniric</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj\">Do major</button><button class=\"demo\" data-demo=\"ch:60:m\">Do minor</button><button class=\"demo\" data-demo=\"ch:60:dim\">Do micșorat</button><button class=\"demo\" data-demo=\"ch:60:aug\">Do mărit</button></div>\n<h4>Dincolo de trison</h4>\n<p>Mai adaugă o terță și obții <b>acordurile de septimă</b> — sunetul jazzului, soulului și gospelului. Înlocuiește terța cu vecina ei și obții acordurile plutitoare <b>sus</b>.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Domaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">Do7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Dom7</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Dosus4</button></div>\n<h4>Răsturnări</h4>\n<p>Aceleași note în altă ordine rămân același acord. Pune Mi sau Sol la bas în Do major și ai o <b>răsturnare</b> — mai comod de cântat, aceeași identitate.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ms:60.64.67\">Do — poziția de bază</button><button class=\"demo\" data-demo=\"ms:64.67.72\">Do/Mi — răsturnarea 1</button><button class=\"demo\" data-demo=\"ms:67.72.76\">Do/Sol — răsturnarea a 2-a</button></div>\n<div data-staff=\"ch_inv\"></div>\n<div data-widget=\"chord\"></div>\n<p class=\"learn-note\">Ține apăsat orice acord în <a href=\"#\" data-go=\"explore\">Explorează</a> și Étude îl numește pe loc — inclusiv răsturnările. <a href=\"#\" data-go=\"practice\" data-cat=\"chord\">Exersează acordurile →</a></p>"
+      "b": "\n<p>Un <b>acord</b> înseamnă trei sau mai multe note cântate împreună. Unitatea de bază e <b>trisonul</b>: fundamentală, terță și cvintă — construit sărind câte o notă din gamă. Cărămizile lui sunt două intervale suprapuse:</p>\n<ul>\n<li><b>Major</b> — 4 + 3 semitonuri · luminos, stabil</li>\n<li><b>Minor</b> — 3 + 4 · mai întunecat, melancolic</li>\n<li><b>Micșorat</b> — 3 + 3 · tensionat, instabil</li>\n<li><b>Mărit</b> — 4 + 4 · oniric</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj\">Do major</button><button class=\"demo\" data-demo=\"ch:60:m\">Do minor</button><button class=\"demo\" data-demo=\"ch:60:dim\">Do micșorat</button><button class=\"demo\" data-demo=\"ch:60:aug\">Do mărit</button></div>\n<h4>Dincolo de trison</h4>\n<p>Mai adaugă o terță și obții <b>acordurile de septimă</b> — sunetul jazzului, soulului și gospelului. Înlocuiește terța cu vecina ei și obții acordurile plutitoare <b>sus</b>.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Domaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">Do7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Dom7</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Dosus4</button></div>\n<h4>Răsturnări</h4>\n<p>Aceleași note în altă ordine rămân același acord. Pune Mi sau Sol la bas în Do major și ai o <b>răsturnare</b> — mai comod de cântat, aceeași identitate. Pe portativ se recunosc după siluetă: <b>poziția fundamentală</b> suprapune două terțe (3+3, cifraj clasic <i>5/3</i>); <b>răsturnarea 1</b> are cvarta sus (3+4, <i>6</i>); <b>răsturnarea a 2-a</b> are cvarta jos (4+3, <i>6/4</i>).</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ms:60.64.67\">Do — poziția de bază</button><button class=\"demo\" data-demo=\"ms:64.67.72\">Do/Mi — răsturnarea 1</button><button class=\"demo\" data-demo=\"ms:67.72.76\">Do/Sol — răsturnarea a 2-a</button></div>\n<div data-staff=\"ch_inv\"></div>\n<div data-widget=\"chord\"></div>\n<p class=\"learn-note\">Ține apăsat orice acord în <a href=\"#\" data-go=\"explore\">Explorează</a> și Étude îl numește pe loc — inclusiv răsturnările. <a href=\"#\" data-go=\"practice\" data-cat=\"chord\">Exersează acordurile →</a></p>"
     },
     "es": {
       "t": "Los acordes",
@@ -455,11 +455,11 @@ export const LESSONS: Lesson[] = [
     "icon": "𝄪",
     "en": {
       "t": "Seventh chords, colour chords & slash chords",
-      "b": "\n<p>Stack a fourth note — a 7th above the root — and the chord gains colour and direction. Five seventh chords cover almost all music:</p>\n<ul>\n<li><b>maj7</b> (major triad + major 7th) — soft, lush: the I and IV chords in jazz and bossa.</li>\n<li><b>7</b> (major triad + minor 7th) — the <b>dominant seventh</b>, tension that wants to resolve: V7.</li>\n<li><b>m7</b> (minor triad + minor 7th) — mellow: ii7, vi7.</li>\n<li><b>m7♭5</b> (diminished triad + minor 7th), “half-diminished” ø — the ii of a minor key.</li>\n<li><b>dim7</b> (diminished triad + diminished 7th) — all minor 3rds, maximum suspense: vii°7 in minor.</li>\n</ul>\n<div data-staff=\"ch7a\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Cmaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">C7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Cm7</button><button class=\"demo\" data-demo=\"ch:60:m7♭5\">Cm7♭5</button><button class=\"demo\" data-demo=\"ch:59:dim7\">Bdim7</button></div>\n<h4>Colour chords</h4>\n<p><b>sus2 / sus4</b> replace the 3rd with the 2nd or 4th — neither major nor minor, open and floating. <b>6</b> adds the 6th to a major triad (a warm, old-fashioned ending). <b>add9</b> adds the 9th <i>without</i> the 7th — the sparkle of countless pop ballads.</p>\n<div data-staff=\"ch7b\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:sus2\">Csus2</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Csus4</button><button class=\"demo\" data-demo=\"ch:60:6\">C6</button><button class=\"demo\" data-demo=\"ch:60:add9\">Cadd9</button></div>\n<h4>Slash chords</h4>\n<p><b>C/E</b> means “C chord over an E bass”. It may be an inversion (E is in the chord) or a different bass entirely, like <b>C/B♭</b> or <b>F/G</b> (a soft dominant). Slash chords let the bass walk smoothly: C – C/B – Am – Am/G – F.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|47.64.67.72|45.64.69.72|43.64.69.72|41.65.69.72\">C – C/B – Am – Am/G – F</button></div>\n<p class=\"learn-note\">Try every quality and slash bass with the chord builder in <i>Chords</i>. Lead sheets write exactly these symbols over the melody.</p>"
+      "b": "\n<p>Stack a fourth note — a 7th above the root — and the chord gains colour and direction. Five seventh chords cover almost all music:</p>\n<ul>\n<li><b>maj7</b> (major triad + major 7th) — soft, lush: the I and IV chords in jazz and bossa.</li>\n<li><b>7</b> (major triad + minor 7th) — the <b>dominant seventh</b>, tension that wants to resolve: V7.</li>\n<li><b>m7</b> (minor triad + minor 7th) — mellow: ii7, vi7.</li>\n<li><b>m7♭5</b> (diminished triad + minor 7th), “half-diminished” ø — the ii of a minor key.</li>\n<li><b>dim7</b> (diminished triad + diminished 7th) — all minor 3rds, maximum suspense: vii°7 in minor.</li>\n</ul>\n<div data-staff=\"ch7a\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Cmaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">C7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Cm7</button><button class=\"demo\" data-demo=\"ch:60:m7♭5\">Cm7♭5</button><button class=\"demo\" data-demo=\"ch:59:dim7\">Bdim7</button></div>\n<h4>Colour chords</h4>\n<p><b>sus2 / sus4</b> replace the 3rd with the 2nd or 4th — neither major nor minor, open and floating. <b>6</b> adds the 6th to a major triad (a warm, old-fashioned ending). <b>add9</b> adds the 9th <i>without</i> the 7th — the sparkle of countless pop ballads.</p>\n<div data-staff=\"ch7b\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:sus2\">Csus2</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Csus4</button><button class=\"demo\" data-demo=\"ch:60:6\">C6</button><button class=\"demo\" data-demo=\"ch:60:add9\">Cadd9</button></div>\n<h4>Slash chords</h4>\n<p><b>C/E</b> means “C chord over an E bass”. It may be an inversion (E is in the chord) or a different bass entirely, like <b>C/B♭</b> or <b>F/G</b> (a soft dominant). Slash chords let the bass walk smoothly: C – C/B – Am – Am/G – F.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|47.64.67.72|45.64.69.72|43.64.69.72|41.65.69.72\">C – C/B – Am – Am/G – F</button></div>\n<p><b>Classical figured bass for 7th inversions:</b> root position = <b>7</b> (C7), 1st inversion = <b>6/5</b> (C7/E), 2nd inversion = <b>4/3</b> (C7/G), 3rd inversion = <b>2</b> (C7/B♭, 7th in the bass resolving down by step).</p>\n<p class=\"learn-note\">Try every quality and slash bass with the chord builder in <i>Chords</i>. Lead sheets write exactly these symbols over the melody.</p>"
     },
     "ro": {
       "t": "Acorduri de septimă, acorduri „de culoare” și acorduri cu bas",
-      "b": "\n<p>Suprapune o a patra notă — o septimă peste fundamentală — și acordul capătă culoare și direcție. Cinci acorduri de septimă acoperă aproape toată muzica:</p>\n<ul>\n<li><b>maj7</b> (trison major + septimă mare) — moale, bogat: acordurile I și IV în jazz și bossa.</li>\n<li><b>7</b> (trison major + septimă mică) — <b>septima de dominantă</b>, tensiune care cere rezolvare: V7.</li>\n<li><b>m7</b> (trison minor + septimă mică) — catifelat: ii7, vi7.</li>\n<li><b>m7♭5</b> (trison micșorat + septimă mică), „semimicșorat” ø — treapta ii în minor.</li>\n<li><b>dim7</b> (trison micșorat + septimă micșorată) — numai terțe mici, suspans maxim: vii°7 în minor.</li>\n</ul>\n<div data-staff=\"ch7a\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Domaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">Do7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Dom7</button><button class=\"demo\" data-demo=\"ch:60:m7♭5\">Dom7♭5</button><button class=\"demo\" data-demo=\"ch:59:dim7\">Sidim7</button></div>\n<h4>Acorduri „de culoare”</h4>\n<p><b>sus2 / sus4</b> înlocuiesc terța cu secunda sau cvarta — nici major, nici minor, deschis și plutitor. <b>6</b> adaugă sexta la un trison major (un final cald, de modă veche). <b>add9</b> adaugă nona <i>fără</i> septimă — sclipirea a nenumărate balade pop.</p>\n<div data-staff=\"ch7b\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:sus2\">Dosus2</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Dosus4</button><button class=\"demo\" data-demo=\"ch:60:6\">Do6</button><button class=\"demo\" data-demo=\"ch:60:add9\">Doadd9</button></div>\n<h4>Acorduri cu bas specificat</h4>\n<p><b>Do/Mi</b> înseamnă „acordul Do peste basul Mi”. Poate fi o răsturnare (Mi e în acord) sau un bas cu totul diferit, ca <b>Do/Si♭</b> sau <b>Fa/Sol</b> (o dominantă moale). Ele lasă basul să meargă lin: Do – Do/Si – Lam – Lam/Sol – Fa.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|47.64.67.72|45.64.69.72|43.64.69.72|41.65.69.72\">Do – Do/Si – Lam – Lam/Sol – Fa</button></div>\n<p class=\"learn-note\">Încearcă fiecare calitate și fiecare bas cu constructorul de acorduri din <i>Acordurile</i>. Lead sheet-urile scriu exact aceste simboluri deasupra melodiei.</p>"
+      "b": "\n<p>Suprapune o a patra notă — o septimă peste fundamentală — și acordul capătă culoare și direcție. Cinci acorduri de septimă acoperă aproape toată muzica:</p>\n<ul>\n<li><b>maj7</b> (trison major + septimă mare) — moale, bogat: acordurile I și IV în jazz și bossa.</li>\n<li><b>7</b> (trison major + septimă mică) — <b>septima de dominantă</b>, tensiune care cere rezolvare: V7.</li>\n<li><b>m7</b> (trison minor + septimă mică) — catifelat: ii7, vi7.</li>\n<li><b>m7♭5</b> (trison micșorat + septimă mică), „semimicșorat” ø — treapta ii în minor.</li>\n<li><b>dim7</b> (trison micșorat + septimă micșorată) — numai terțe mici, suspans maxim: vii°7 în minor.</li>\n</ul>\n<div data-staff=\"ch7a\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:maj7\">Domaj7</button><button class=\"demo\" data-demo=\"ch:60:7\">Do7</button><button class=\"demo\" data-demo=\"ch:60:m7\">Dom7</button><button class=\"demo\" data-demo=\"ch:60:m7♭5\">Dom7♭5</button><button class=\"demo\" data-demo=\"ch:59:dim7\">Sidim7</button></div>\n<h4>Acorduri „de culoare”</h4>\n<p><b>sus2 / sus4</b> înlocuiesc terța cu secunda sau cvarta — nici major, nici minor, deschis și plutitor. <b>6</b> adaugă sexta la un trison major (un final cald, de modă veche). <b>add9</b> adaugă nona <i>fără</i> septimă — sclipirea a nenumărate balade pop.</p>\n<div data-staff=\"ch7b\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"ch:60:sus2\">Dosus2</button><button class=\"demo\" data-demo=\"ch:60:sus4\">Dosus4</button><button class=\"demo\" data-demo=\"ch:60:6\">Do6</button><button class=\"demo\" data-demo=\"ch:60:add9\">Doadd9</button></div>\n<h4>Acorduri cu bas specificat</h4>\n<p><b>Do/Mi</b> înseamnă „acordul Do peste basul Mi”. Poate fi o răsturnare (Mi e în acord) sau un bas cu totul diferit, ca <b>Do/Si♭</b> sau <b>Fa/Sol</b> (o dominantă moale). Ele lasă basul să meargă lin: Do – Do/Si – Lam – Lam/Sol – Fa.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|47.64.67.72|45.64.69.72|43.64.69.72|41.65.69.72\">Do – Do/Si – Lam – Lam/Sol – Fa</button></div>\n<p><b>Cifrajul clasic pentru răsturnările acordului de septimă:</b> stare directă = <b>7</b> (Do7), răsturnarea 1 = <b>6/5</b> (Do7/Mi), răsturnarea a 2-a = <b>4/3</b> (Do7/Sol), răsturnarea a 3-a = <b>2</b> (Do7/Si♭, septima în bas coboară treptat).</p>\n<p class=\"learn-note\">Încearcă fiecare calitate și fiecare bas cu constructorul de acorduri din <i>Acordurile</i>. Lead sheet-urile scriu exact aceste simboluri deasupra melodiei.</p>"
     },
     "es": {
       "t": "Acordes de 7.ª, acordes con color y acordes con barra",
@@ -487,11 +487,11 @@ export const LESSONS: Lesson[] = [
     "icon": "Ⅴ",
     "en": {
       "t": "Progressions & Roman numerals",
-      "b": "\n<p>Build a triad on each degree of the major scale, using only that scale’s notes, and you get the <b>diatonic chords</b> — the palette of a key. We label them with Roman numerals so the pattern works in every key: uppercase = major, lowercase = minor, ° = diminished.</p>\n<p><span class=\"fm\">I</span><span class=\"fm\">ii</span><span class=\"fm\">iii</span><span class=\"fm\">IV</span><span class=\"fm\">V</span><span class=\"fm\">vi</span><span class=\"fm\">vii°</span></p>\n<h4>Chords have jobs</h4>\n<ul>\n<li><b>Home (tonic):</b> I and vi — rest, arrival.</li>\n<li><b>Away (subdominant):</b> IV and ii — motion, lift.</li>\n<li><b>Tension (dominant):</b> V and vii° — they pull hard back to I. The V→I move is the <b>cadence</b>, music’s full stop.</li>\n</ul>\n<p>A <b>progression</b> is a loop through those jobs. A handful of them power most songs you know:</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:I–IV–V\">I–IV–V</button><button class=\"demo\" data-demo=\"pr:0:I–V–vi–IV (pop)\">I–V–vi–IV (pop)</button><button class=\"demo\" data-demo=\"pr:0:ii–V–I (jazz)\">ii–V–I (jazz)</button><button class=\"demo\" data-demo=\"blues:0\">12-bar blues</button></div>\n<div data-bars=\"blues\"></div>\n<div data-staff=\"pr1\"></div>\n<p class=\"learn-note\">Loop any of these with left-hand patterns in <a href=\"#\" data-go=\"accompany\">Accompany</a>, or <a href=\"#\" data-go=\"practice\" data-cat=\"prog\">drill them →</a></p>"
+      "b": "\n<p>Build a triad on each degree of the major scale, using only that scale’s notes, and you get the <b>diatonic chords</b> — the palette of a key. We label them with Roman numerals so the pattern works in every key: uppercase = major, lowercase = minor, ° = diminished.</p>\n<p><span class=\"fm\">I</span><span class=\"fm\">ii</span><span class=\"fm\">iii</span><span class=\"fm\">IV</span><span class=\"fm\">V</span><span class=\"fm\">vi</span><span class=\"fm\">vii°</span></p>\n<h4>Chords have jobs</h4>\n<ul>\n<li><b>Home (tonic):</b> I and vi — rest, arrival.</li>\n<li><b>Away (subdominant):</b> IV and ii — motion, lift.</li>\n<li><b>Tension (dominant):</b> V and vii° — they pull hard back to I. The V→I move is the <b>cadence</b>, music’s full stop.</li>\n</ul>\n<p>Notice the <b>fifth symmetry around the tonic</b>: <b>IV</b> sits one 5th <i>below</i> I (F←C), while <b>V</b> sits one 5th <i>above</i> I (C→G). Meanwhile <b>I</b> shares two common tones with its 3rd-relatives <b>vi</b> and <b>iii</b> — which is why <i>vi</i> sounds natural as a softer tonic or deceptive cadence target (V→vi).</p>\n<p>A <b>progression</b> is a loop through those jobs. A handful of them power most songs you know:</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:I–IV–V\">I–IV–V</button><button class=\"demo\" data-demo=\"pr:0:I–V–vi–IV (pop)\">I–V–vi–IV (pop)</button><button class=\"demo\" data-demo=\"pr:0:ii–V–I (jazz)\">ii–V–I (jazz)</button><button class=\"demo\" data-demo=\"blues:0\">12-bar blues</button></div>\n<div data-bars=\"blues\"></div>\n<div data-staff=\"pr1\"></div>\n<p class=\"learn-note\">Loop any of these with left-hand patterns in <a href=\"#\" data-go=\"accompany\">Accompany</a>, or <a href=\"#\" data-go=\"practice\" data-cat=\"prog\">drill them →</a></p>"
     },
     "ro": {
       "t": "Progresii și cifrajul roman",
-      "b": "\n<p>Construiește un trison pe fiecare treaptă a gamei majore, doar cu notele gamei, și obții <b>acordurile diatonice</b> — paleta unei tonalități. Le notăm cu cifre romane ca tiparul să meargă în orice tonalitate: majusculele = major, minusculele = minor, ° = micșorat.</p>\n<p><span class=\"fm\">I</span><span class=\"fm\">ii</span><span class=\"fm\">iii</span><span class=\"fm\">IV</span><span class=\"fm\">V</span><span class=\"fm\">vi</span><span class=\"fm\">vii°</span></p>\n<h4>Acordurile au roluri</h4>\n<ul>\n<li><b>Acasă (tonică):</b> I și vi — odihnă, sosire.</li>\n<li><b>Plecare (subdominantă):</b> IV și ii — mișcare, elan.</li>\n<li><b>Tensiune (dominantă):</b> V și vii° — trag puternic înapoi spre I. Mișcarea V→I e <b>cadența</b>, punctul de la finalul frazei muzicale.</li>\n</ul>\n<p>O <b>progresie</b> e o buclă prin aceste roluri. Câteva dintre ele alimentează majoritatea pieselor pe care le știi:</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:I–IV–V\">I–IV–V</button><button class=\"demo\" data-demo=\"pr:0:I–V–vi–IV (pop)\">I–V–vi–IV (pop)</button><button class=\"demo\" data-demo=\"pr:0:ii–V–I (jazz)\">ii–V–I (jazz)</button><button class=\"demo\" data-demo=\"blues:0\">Blues de 12 măsuri</button></div>\n<div data-bars=\"blues\"></div>\n<div data-staff=\"pr1\"></div>\n<p class=\"learn-note\">Pune-le în buclă cu tipare de mâna stângă în <a href=\"#\" data-go=\"accompany\">Acompaniază</a>, sau <a href=\"#\" data-go=\"practice\" data-cat=\"prog\">exersează-le →</a></p>"
+      "b": "\n<p>Construiește un trison pe fiecare treaptă a gamei majore, doar cu notele gamei, și obții <b>acordurile diatonice</b> — paleta unei tonalități. Le notăm cu cifre romane ca tiparul să meargă în orice tonalitate: majusculele = major, minusculele = minor, ° = micșorat.</p>\n<p><span class=\"fm\">I</span><span class=\"fm\">ii</span><span class=\"fm\">iii</span><span class=\"fm\">IV</span><span class=\"fm\">V</span><span class=\"fm\">vi</span><span class=\"fm\">vii°</span></p>\n<h4>Acordurile au roluri</h4>\n<ul>\n<li><b>Acasă (tonică):</b> I și vi — odihnă, sosire.</li>\n<li><b>Plecare (subdominantă):</b> IV și ii — mișcare, elan.</li>\n<li><b>Tensiune (dominantă):</b> V și vii° — trag puternic înapoi spre I. Mișcarea V→I e <b>cadența</b>, punctul de la finalul frazei muzicale.</li>\n</ul>\n<p>Observă <b>simetria de cvintă față de tonică</b>: <b>IV</b> stă o cvintă <i>sub</i> I (Fa←Do), iar <b>V</b> stă o cvintă <i>deasupra</i> lui I (Do→Sol). În plus, <b>I</b> împarte două note comune cu vecinii la terță <b>vi</b> și <b>iii</b> — de aceea <i>vi</i> funcționează firesc ca tonică blândă sau țintă a cadenței întrerupte (V→vi).</p>\n<p>O <b>progresie</b> e o buclă prin aceste roluri. Câteva dintre ele alimentează majoritatea pieselor pe care le știi:</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"pr:0:I–IV–V\">I–IV–V</button><button class=\"demo\" data-demo=\"pr:0:I–V–vi–IV (pop)\">I–V–vi–IV (pop)</button><button class=\"demo\" data-demo=\"pr:0:ii–V–I (jazz)\">ii–V–I (jazz)</button><button class=\"demo\" data-demo=\"blues:0\">Blues de 12 măsuri</button></div>\n<div data-bars=\"blues\"></div>\n<div data-staff=\"pr1\"></div>\n<p class=\"learn-note\">Pune-le în buclă cu tipare de mâna stângă în <a href=\"#\" data-go=\"accompany\">Acompaniază</a>, sau <a href=\"#\" data-go=\"practice\" data-cat=\"prog\">exersează-le →</a></p>"
     },
     "es": {
       "t": "Progresiones y números romanos",
@@ -5581,10 +5581,10 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
         "ro": {
           "q": "Ce mod e o gamă majoră cu ♭7?",
           "o": [
-            "Mixolydian",
-            "Lydian",
-            "Phrygian",
-            "Locrian"
+            "Mixolidic",
+            "Lidic",
+            "Frigic",
+            "Locric"
           ]
         },
         "es": {
@@ -5637,7 +5637,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
     {
       "q": [
         "Lydian’s signature note is…",
-        "Nota caracteristică a lidianului este…"
+        "Nota caracteristică a modului lidic este…"
       ],
       "o": [
         [
@@ -5668,7 +5668,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           ]
         },
         "ro": {
-          "q": "Nota caracteristică a lidianului este…",
+          "q": "Nota caracteristică a modului lidic este…",
           "o": [
             "♯4",
             "♭2",
@@ -8868,7 +8868,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
         ],
         [
           "Block chords",
-          "Acorduri plaquè"
+          "Acorduri bloc"
         ],
         [
           "Ballad arpeggio",
@@ -8890,7 +8890,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "o": [
             "Vals (bas – acord – acord)",
             "Alberti",
-            "Acorduri plaquè",
+            "Acorduri bloc",
             "Arpegiu de baladă"
           ]
         },
@@ -9473,14 +9473,14 @@ export const LSUM: Record<string, LearnSummaryRow[]> = {
       ],
       [
         "m2 1 · M2 2 · m3 3 · M3 4 · P4 5 · TT 6",
-        "2m 1 · 2M 2 · 3m 3 · 3M 4 · 4p 5 · TT 6"
+        "2m 1 · 2M 2 · 3m 3 · 3M 4 · 4P 5 · TT 6"
       ]
     ],
     [
       "",
       [
         "P5 7 · m6 8 · M6 9 · m7 10 · M7 11 · P8 12",
-        "5p 7 · 6m 8 · 6M 9 · 7m 10 · 7M 11 · 8p 12"
+        "5P 7 · 6m 8 · 6M 9 · 7m 10 · 7M 11 · 8P 12"
       ]
     ],
     [
@@ -9508,7 +9508,7 @@ export const LSUM: Record<string, LearnSummaryRow[]> = {
     [
       [
         "Inversion",
-        "Inversare"
+        "Răsturnare"
       ],
       [
         "numbers add to 9 · M↔m · aug↔dim · P stays P",
@@ -9667,8 +9667,8 @@ export const LSUM: Record<string, LearnSummaryRow[]> = {
         "Tonalități cu diezi"
       ],
       [
-        "G D A E B F♯",
-        "Sol Re La Mi Si Fa♯"
+        "G D A E B F♯ C♯",
+        "Sol Re La Mi Si Fa♯ Do♯"
       ]
     ],
     [
@@ -9677,8 +9677,18 @@ export const LSUM: Record<string, LearnSummaryRow[]> = {
         "Tonalități cu bemoli"
       ],
       [
-        "F B♭ E♭ A♭ D♭ G♭",
-        "Fa Si♭ Mi♭ La♭ Re♭ Sol♭"
+        "F B♭ E♭ A♭ D♭ G♭ C♭",
+        "Fa Si♭ Mi♭ La♭ Re♭ Sol♭ Do♭"
+      ]
+    ],
+    [
+      [
+        "Order of ♯ / ♭",
+        "Ordinea ♯ / ♭"
+      ],
+      [
+        "♯: F C G D A E B · ♭: B E A D G C F",
+        "♯: Fa Do Sol Re La Mi Si · ♭: Si Mi La Re Sol Do Fa"
       ]
     ],
     [
@@ -9726,7 +9736,7 @@ export const LSUM: Record<string, LearnSummaryRow[]> = {
     [
       [
         "Lydian",
-        "Lidian"
+        "Lidic"
       ],
       [
         "major, ♯4",
@@ -9746,7 +9756,7 @@ export const LSUM: Record<string, LearnSummaryRow[]> = {
     [
       [
         "Aeolian · Locrian",
-        "Eolian · Locrian"
+        "Eolic · Locric"
       ],
       [
         "natural minor · ♭2 ♭5",
@@ -10093,7 +10103,7 @@ export const LSUM: Record<string, LearnSummaryRow[]> = {
     [
       [
         "Block",
-        "Plaquè"
+        "Bloc"
       ],
       [
         "whole chord on the beat",
@@ -11017,7 +11027,7 @@ export const GLOSS: GlossaryEntry[] = [
       "6 semitones: augmented 4th / diminished 5th (C–F♯)."
     ],
     "ro": [
-      "Tritonus",
+      "Triton",
       "6 semitonuri: cvartă mărită / cvintă micșorată (Do–Fa♯)."
     ],
     "es": [
@@ -11262,11 +11272,11 @@ export const GLOSS: GlossaryEntry[] = [
     "l": "cof",
     "en": [
       "Circle of fifths",
-      "Keys arranged by perfect fifths; each step adds one sharp or flat."
+      "Keys arranged by fifths; clockwise adds one sharp (up a P5), counter-clockwise adds one flat (up a P4)."
     ],
     "ro": [
       "Cercul cvintelor",
-      "Tonalitățile așezate din cvintă în cvintă; fiecare pas adaugă un diez sau un bemol."
+      "Tonalitățile așezate din cvintă în cvintă; în sens orar adaugă un diez (+5P), în sens antiorar un bemol (+4P)."
     ],
     "es": [
       "Círculo de quintas",
@@ -12085,11 +12095,15 @@ export const LSUM_I18N: LearnSummaryTranslations = {
       ],
       [
         "Tonalidades con sostenidos",
-        "Sol Re La Mi Si Fa♯ (G D A E B F♯)"
+        "Sol Re La Mi Si Fa♯ Do♯ (G D A E B F♯ C♯)"
       ],
       [
         "Tonalidades con bemoles",
-        "Fa Si♭ Mi♭ La♭ Re♭ Sol♭ (F B♭ E♭ A♭ D♭ G♭)"
+        "Fa Si♭ Mi♭ La♭ Re♭ Sol♭ Do♭ (F B♭ E♭ A♭ D♭ G♭ C♭)"
+      ],
+      [
+        "Orden de ♯ / ♭",
+        "♯: Fa Do Sol Re La Mi Si · ♭: Si Mi La Re Sol Do Fa"
       ],
       [
         "Truco",
@@ -12531,11 +12545,15 @@ export const LSUM_I18N: LearnSummaryTranslations = {
       ],
       [
         "Tonalités avec dièses",
-        "Sol Ré La Mi Si Fa♯ (G D A E B F♯)"
+        "Sol Ré La Mi Si Fa♯ Do♯ (G D A E B F♯ C♯)"
       ],
       [
         "Tonalités avec bémols",
-        "Fa Si♭ Mi♭ La♭ Ré♭ Sol♭ (F B♭ E♭ A♭ D♭ G♭)"
+        "Fa Si♭ Mi♭ La♭ Ré♭ Sol♭ Do♭ (F B♭ E♭ A♭ D♭ G♭ C♭)"
+      ],
+      [
+        "Ordre des ♯ / ♭",
+        "♯ : Fa Do Sol Ré La Mi Si · ♭ : Si Mi La Ré Sol Do Fa"
       ],
       [
         "Astuce",
@@ -12977,11 +12995,15 @@ export const LSUM_I18N: LearnSummaryTranslations = {
       ],
       [
         "Kreuz-Tonarten",
-        "G D A E H Fis"
+        "G D A E H Fis Cis"
       ],
       [
         "Be-Tonarten",
-        "F B Es As Des Ges"
+        "F B Es As Des Ges Ces"
+      ],
+      [
+        "Reihenfolge ♯ / ♭",
+        "♯: F C G D A E H · ♭: H E A D G C F"
       ],
       [
         "Merkregel",
@@ -13423,11 +13445,15 @@ export const LSUM_I18N: LearnSummaryTranslations = {
       ],
       [
         "Tonalità con diesis",
-        "G D A E B F♯ (Sol Re La Mi Si Fa♯)"
+        "G D A E B F♯ C♯ (Sol Re La Mi Si Fa♯ Do♯)"
       ],
       [
         "Tonalità con bemolli",
-        "F B♭ E♭ A♭ D♭ G♭ (Fa Si♭ Mi♭ La♭ Re♭ Sol♭)"
+        "F B♭ E♭ A♭ D♭ G♭ C♭ (Fa Si♭ Mi♭ La♭ Re♭ Sol♭ Do♭)"
+      ],
+      [
+        "Ordine di ♯ / ♭",
+        "♯: Fa Do Sol Re La Mi Si · ♭: Si Mi La Re Sol Do Fa"
       ],
       [
         "Regola pratica",
@@ -13869,11 +13895,15 @@ export const LSUM_I18N: LearnSummaryTranslations = {
       ],
       [
         "Tonalidades com sustenidos",
-        "Sol Ré Lá Mi Si Fá♯ (G D A E B F♯)"
+        "Sol Ré Lá Mi Si Fá♯ Dó♯ (G D A E B F♯ C♯)"
       ],
       [
         "Tonalidades com bemóis",
-        "Fá Si♭ Mi♭ Lá♭ Ré♭ Sol♭ (F B♭ E♭ A♭ D♭ G♭)"
+        "Fá Si♭ Mi♭ Lá♭ Ré♭ Sol♭ Dó♭ (F B♭ E♭ A♭ D♭ G♭ C♭)"
+      ],
+      [
+        "Ordem de ♯ / ♭",
+        "♯: Fá Dó Sol Ré Lá Mi Si · ♭: Si Mi Lá Ré Sol Dó Fá"
       ],
       [
         "Dica",

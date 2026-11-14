@@ -1279,11 +1279,15 @@ const payload: LearnPayload = {
       ],
       [
         "Tonalités avec dièses",
-        "Sol Ré La Mi Si Fa♯ (G D A E B F♯)"
+        "Sol Ré La Mi Si Fa♯ Do♯ (G D A E B F♯ C♯)"
       ],
       [
         "Tonalités avec bémols",
-        "Fa Si♭ Mi♭ La♭ Ré♭ Sol♭ (F B♭ E♭ A♭ D♭ G♭)"
+        "Fa Si♭ Mi♭ La♭ Ré♭ Sol♭ Do♭ (F B♭ E♭ A♭ D♭ G♭ C♭)"
+      ],
+      [
+        "Ordre des ♯ / ♭",
+        "♯ : Fa Do Sol Ré La Mi Si · ♭ : Si Mi La Ré Sol Do Fa"
       ],
       [
         "Astuce",
