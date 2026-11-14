@@ -2085,7 +2085,12 @@ const payload: UIPayload = {
       "level_badge": "Livello: {level}",
       "search_label": "Cerca",
       "reset_filters": "Reimposta filtri",
-      "level_presets": "Principiante, Intermedio, Avanzato, Livello 1, Livello 2, Livello 3, Livello 4, Livello 5"
+      "level_presets": "Principiante, Intermedio, Avanzato, Livello 1, Livello 2, Livello 3, Livello 4, Livello 5",
+      "select_all": "Seleziona tutto ({count})",
+      "select_score": "Seleziona: {title}",
+      "delete_selected": "Elimina selezionati ({count})",
+      "delete_selected_confirm": "Eliminare {count} spartiti selezionati dalla biblioteca di questo dispositivo? Le copie scaricate non saranno eliminate.",
+      "deleted_many": "{count} spartiti eliminati dalla biblioteca."
     }
   }
 };

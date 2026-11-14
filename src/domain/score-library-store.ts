@@ -261,6 +261,23 @@ export async function libraryRemove(id: string): Promise<void> {
     await request(tx.objectStore('blobs').delete(id));
   });
 }
+export async function libraryRemoveMany(ids: readonly string[]): Promise<number> {
+  const unique = [...new Set(ids.filter(id => typeof id === 'string' && /^[a-f0-9]{64}$/u.test(id)))];
+  if (!unique.length) return 0;
+  return transaction('readwrite', async tx => {
+    const metaStore = tx.objectStore('metadata');
+    const blobStore = tx.objectStore('blobs');
+    let removed = 0;
+    for (const id of unique) {
+      const existing: unknown = await request(metaStore.get(id));
+      if (!existing) continue;
+      await request(metaStore.delete(id));
+      await request(blobStore.delete(id));
+      removed++;
+    }
+    return removed;
+  });
+}
 
 function decode(value: unknown, size: number): Uint8Array<ArrayBuffer> {
   if (!Array.isArray(value) || value.length !== size ||

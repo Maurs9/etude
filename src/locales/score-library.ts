@@ -28,6 +28,11 @@ const en = {
   save_edit: 'Save', cancel_edit: 'Cancel', level_badge: 'Level: {level}',
   search_label: 'Search', reset_filters: 'Reset filters',
   level_presets: 'Beginner, Intermediate, Advanced, Level 1, Level 2, Level 3, Level 4, Level 5',
+  select_all: 'Select all ({count})',
+  select_score: 'Select: {title}',
+  delete_selected: 'Delete selected ({count})',
+  delete_selected_confirm: 'Delete {count} selected scores from this device library? Your downloaded copies are not deleted.',
+  deleted_many: 'Deleted {count} scores from this library.',
 } as const;
 export type LibraryTextKey = keyof typeof en;
 type Copy = { [K in LibraryTextKey]: string };
@@ -46,6 +51,11 @@ const ro: Copy = {
   save_edit: 'Salvează', cancel_edit: 'Anulează', level_badge: 'Nivel: {level}',
   search_label: 'Caută', reset_filters: 'Resetează filtrele',
   level_presets: 'Începător, Intermediar, Avansat, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5',
+  select_all: 'Selectează tot ({count})',
+  select_score: 'Selectează: {title}',
+  delete_selected: 'Șterge selectate ({count})',
+  delete_selected_confirm: 'Ștergi {count} partituri selectate din biblioteca acestui dispozitiv? Copiile descărcate nu vor fi șterse.',
+  deleted_many: 'Au fost șterse {count} partituri din bibliotecă.',
 };
 const es: Copy = {
   heading: 'Mi biblioteca ({count})', import: 'Añadir partituras', search: 'Buscar título, compositor o archivo', filter: 'Mostrar partituras', all: 'Todas las partituras', favorites: 'Favoritas', recent: 'Abiertas recientemente', backup: 'Descargar copia de la biblioteca', restore: 'Combinar copia de la biblioteca',
@@ -62,6 +72,11 @@ const es: Copy = {
   save_edit: 'Guardar', cancel_edit: 'Cancelar', level_badge: 'Nivel: {level}',
   search_label: 'Buscar', reset_filters: 'Restablecer filtros',
   level_presets: 'Principiante, Intermedio, Avanzado, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5',
+  select_all: 'Seleccionar todo ({count})',
+  select_score: 'Seleccionar: {title}',
+  delete_selected: 'Eliminar seleccionadas ({count})',
+  delete_selected_confirm: '¿Eliminar {count} partituras seleccionadas de la biblioteca de este dispositivo? Las copias descargadas no se eliminan.',
+  deleted_many: 'Se eliminaron {count} partituras de la biblioteca.',
 };
 const fr: Copy = {
   heading: 'Ma bibliothèque ({count})', import: 'Ajouter des partitions', search: 'Rechercher titre, compositeur ou fichier', filter: 'Afficher les partitions', all: 'Toutes les partitions', favorites: 'Favorites', recent: 'Ouvertes récemment', backup: 'Télécharger la sauvegarde', restore: 'Fusionner une sauvegarde',
@@ -78,6 +93,11 @@ const fr: Copy = {
   save_edit: 'Enregistrer', cancel_edit: 'Annuler', level_badge: 'Niveau : {level}',
   search_label: 'Rechercher', reset_filters: 'Réinitialiser les filtres',
   level_presets: 'Débutant, Intermédiaire, Avancé, Niveau 1, Niveau 2, Niveau 3, Niveau 4, Niveau 5',
+  select_all: 'Tout sélectionner ({count})',
+  select_score: 'Sélectionner : {title}',
+  delete_selected: 'Supprimer la sélection ({count})',
+  delete_selected_confirm: 'Supprimer {count} partitions sélectionnées de la bibliothèque de cet appareil ? Les copies téléchargées ne seront pas supprimées.',
+  deleted_many: '{count} partitions supprimées de la bibliothèque.',
 };
 const de: Copy = {
   heading: 'Meine Bibliothek ({count})', import: 'Noten hinzufügen', search: 'Titel, Komponist oder Dateiname suchen', filter: 'Noten anzeigen', all: 'Alle Noten', favorites: 'Favoriten', recent: 'Zuletzt geöffnet', backup: 'Bibliothekssicherung herunterladen', restore: 'Bibliothekssicherung zusammenführen',
@@ -94,6 +114,11 @@ const de: Copy = {
   save_edit: 'Speichern', cancel_edit: 'Abbrechen', level_badge: 'Stufe: {level}',
   search_label: 'Suchen', reset_filters: 'Filter zurücksetzen',
   level_presets: 'Anfänger, Mittelstufe, Fortgeschritten, Stufe 1, Stufe 2, Stufe 3, Stufe 4, Stufe 5',
+  select_all: 'Alle auswählen ({count})',
+  select_score: 'Auswählen: {title}',
+  delete_selected: 'Auswahl löschen ({count})',
+  delete_selected_confirm: '{count} ausgewählte Noten aus der Bibliothek dieses Geräts löschen? Heruntergeladene Kopien bleiben erhalten.',
+  deleted_many: '{count} Noten aus der Bibliothek gelöscht.',
 };
 const it: Copy = {
   heading: 'La mia biblioteca ({count})', import: 'Aggiungi spartiti', search: 'Cerca titolo, compositore o file', filter: 'Mostra spartiti', all: 'Tutti gli spartiti', favorites: 'Preferiti', recent: 'Aperti di recente', backup: 'Scarica backup della biblioteca', restore: 'Unisci backup della biblioteca',
@@ -110,6 +135,11 @@ const it: Copy = {
   save_edit: 'Salva', cancel_edit: 'Annulla', level_badge: 'Livello: {level}',
   search_label: 'Cerca', reset_filters: 'Reimposta filtri',
   level_presets: 'Principiante, Intermedio, Avanzato, Livello 1, Livello 2, Livello 3, Livello 4, Livello 5',
+  select_all: 'Seleziona tutto ({count})',
+  select_score: 'Seleziona: {title}',
+  delete_selected: 'Elimina selezionati ({count})',
+  delete_selected_confirm: 'Eliminare {count} spartiti selezionati dalla biblioteca di questo dispositivo? Le copie scaricate non saranno eliminate.',
+  deleted_many: '{count} spartiti eliminati dalla biblioteca.',
 };
 const ptBR: Copy = {
   heading: 'Minha biblioteca ({count})', import: 'Adicionar partituras', search: 'Buscar título, compositor ou arquivo', filter: 'Mostrar partituras', all: 'Todas as partituras', favorites: 'Favoritas', recent: 'Abertas recentemente', backup: 'Baixar backup da biblioteca', restore: 'Mesclar backup da biblioteca',
@@ -126,6 +156,11 @@ const ptBR: Copy = {
   save_edit: 'Salvar', cancel_edit: 'Cancelar', level_badge: 'Nível: {level}',
   search_label: 'Buscar', reset_filters: 'Limpar filtros',
   level_presets: 'Iniciante, Intermediário, Avançado, Nível 1, Nível 2, Nível 3, Nível 4, Nível 5',
+  select_all: 'Selecionar tudo ({count})',
+  select_score: 'Selecionar: {title}',
+  delete_selected: 'Excluir selecionadas ({count})',
+  delete_selected_confirm: 'Excluir {count} partituras selecionadas da biblioteca deste dispositivo? As cópias baixadas não serão excluídas.',
+  deleted_many: '{count} partituras excluídas da biblioteca.',
 };
 export const libraryTranslations: Readonly<Record<string, Copy>> = { en, ro, es, fr, de, it, 'pt-BR': ptBR };
 const tokens = (value: string): string => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort().join(',');

@@ -2085,7 +2085,12 @@ const payload: UIPayload = {
       "level_badge": "Nivel: {level}",
       "search_label": "Buscar",
       "reset_filters": "Restablecer filtros",
-      "level_presets": "Principiante, Intermedio, Avanzado, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5"
+      "level_presets": "Principiante, Intermedio, Avanzado, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5",
+      "select_all": "Seleccionar todo ({count})",
+      "select_score": "Seleccionar: {title}",
+      "delete_selected": "Eliminar seleccionadas ({count})",
+      "delete_selected_confirm": "¿Eliminar {count} partituras seleccionadas de la biblioteca de este dispositivo? Las copias descargadas no se eliminan.",
+      "deleted_many": "Se eliminaron {count} partituras de la biblioteca."
     }
   }
 };

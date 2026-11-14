@@ -2085,7 +2085,12 @@ const payload: UIPayload = {
       "level_badge": "Nivel: {level}",
       "search_label": "Caută",
       "reset_filters": "Resetează filtrele",
-      "level_presets": "Începător, Intermediar, Avansat, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5"
+      "level_presets": "Începător, Intermediar, Avansat, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5",
+      "select_all": "Selectează tot ({count})",
+      "select_score": "Selectează: {title}",
+      "delete_selected": "Șterge selectate ({count})",
+      "delete_selected_confirm": "Ștergi {count} partituri selectate din biblioteca acestui dispozitiv? Copiile descărcate nu vor fi șterse.",
+      "deleted_many": "Au fost șterse {count} partituri din bibliotecă."
     }
   }
 };

@@ -2091,7 +2091,12 @@ const payload: UIPayload = {
       "level_badge": "Stufe: {level}",
       "search_label": "Suchen",
       "reset_filters": "Filter zurücksetzen",
-      "level_presets": "Anfänger, Mittelstufe, Fortgeschritten, Stufe 1, Stufe 2, Stufe 3, Stufe 4, Stufe 5"
+      "level_presets": "Anfänger, Mittelstufe, Fortgeschritten, Stufe 1, Stufe 2, Stufe 3, Stufe 4, Stufe 5",
+      "select_all": "Alle auswählen ({count})",
+      "select_score": "Auswählen: {title}",
+      "delete_selected": "Auswahl löschen ({count})",
+      "delete_selected_confirm": "{count} ausgewählte Noten aus der Bibliothek dieses Geräts löschen? Heruntergeladene Kopien bleiben erhalten.",
+      "deleted_many": "{count} Noten aus der Bibliothek gelöscht."
     }
   }
 };

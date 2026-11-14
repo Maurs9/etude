@@ -1,5 +1,5 @@
 import type { LibraryController, LibraryHost, LibraryItem } from './score-library-types.js';
-import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRestore, librarySave, libraryUpdate } from './score-library-store.js';
+import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate } from './score-library-store.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
 
 const controllers = new WeakMap<HTMLElement, LibraryController>();
@@ -103,6 +103,18 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const failures = element('ul', 'score-library-note');
   failures.id = 'library-failures';
   failures.hidden = true;
+  const bulkBar = element('div', 'score-library-bulk');
+  const selectAllLabel = element('label', 'score-library-select-all');
+  const selectAll = element('input');
+  selectAll.id = 'library-select-all';
+  selectAll.type = 'checkbox';
+  const selectAllText = element('span');
+  selectAllLabel.append(selectAll, selectAllText);
+  const deleteSelected = element('button', 'score-library-delete-selected');
+  deleteSelected.id = 'library-delete-selected';
+  deleteSelected.type = 'button';
+  deleteSelected.dataset.libraryAction = 'delete-selected';
+  bulkBar.append(selectAllLabel, deleteSelected);
   const list = element('ul', 'score-library-list');
   list.id = 'library-items';
   const empty = element('p', 'score-library-note');
@@ -130,8 +142,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let protectedStorage: boolean | null = null;
   let readSequence = 0;
   let editingId: string | null = null;
+  const selectedIds = new Set<string>();
   type Editor = { form: HTMLFormElement; titleText: HTMLElement; composerText: HTMLElement; levelText: HTMLElement; tagsText: HTMLElement; levelList: HTMLDataListElement; save: HTMLButtonElement; cancel: HTMLButtonElement };
-  type Row = { node: HTMLLIElement; groupHeading: HTMLElement; title: HTMLElement; composer: HTMLElement; badges: HTMLElement; name: HTMLElement; position: HTMLElement; last: HTMLElement; progress: HTMLElement; open: HTMLButtonElement; favorite: HTMLButtonElement; edit: HTMLButtonElement; download: HTMLButtonElement; remove: HTMLButtonElement; editor: Editor | null };
+  type Row = { node: HTMLLIElement; groupHeading: HTMLElement; select: HTMLInputElement; title: HTMLElement; composer: HTMLElement; badges: HTMLElement; name: HTMLElement; position: HTMLElement; last: HTMLElement; progress: HTMLElement; open: HTMLButtonElement; favorite: HTMLButtonElement; edit: HTMLButtonElement; download: HTMLButtonElement; remove: HTMLButtonElement; editor: Editor | null };
   const rows = new Map<string, Row>();
   function notice(key: LibraryTextKey, values?: Values): void {
     statusCopy = { key, values };
@@ -141,7 +154,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    files.disabled = restore.disabled = backup.disabled = resetFilters.disabled = value;
+    files.disabled = restore.disabled = backup.disabled = resetFilters.disabled = selectAll.disabled = value;
+    deleteSelected.disabled = value || selectedIds.size === 0;
     for (const button of list.querySelectorAll('button')) button.disabled = value;
     for (const input of list.querySelectorAll('input')) input.disabled = value;
   }
@@ -292,16 +306,21 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     node.dataset.libraryId = id;
     const groupHeading = element('div', 'score-library-group-heading');
     groupHeading.hidden = true;
+    const select = element('input', 'score-library-check');
+    select.type = 'checkbox';
+    select.dataset.libraryAction = 'select';
     const info = element('div', 'score-library-info');
     const title = element('h3');
-    const composer = element('p');
+    const composer = element('p', 'score-library-composer');
     const badges = element('div', 'score-library-badges');
     badges.hidden = true;
+    const metaBreak = element('div', 'score-library-meta-break');
+    metaBreak.setAttribute('aria-hidden', 'true');
     const name = element('p', 'score-library-note');
     const last = element('p', 'score-library-note');
     const position = element('p', 'score-library-note');
     const progress = element('p', 'score-library-note score-library-progress');
-    info.append(title, composer, badges, name, last, position, progress);
+    info.append(title, composer, badges, metaBreak, name, last, position, progress);
     const actions = element('div', 'score-library-actions');
     const makeButton = (action: string): HTMLButtonElement => {
       const button = element('button');
@@ -316,7 +335,13 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const edit = makeButton('edit');
     const original = makeButton('download');
     const remove = makeButton('delete');
-    node.append(groupHeading, info, actions);
+    node.append(groupHeading, select, info, actions);
+    select.addEventListener('change', () => {
+      if (busy) return;
+      if (select.checked) selectedIds.add(id);
+      else selectedIds.delete(id);
+      render();
+    });
     open.addEventListener('click', () => { void run(async () => {
       await host.flush();
       const stored = await libraryGet(id);
@@ -356,7 +381,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         search.focus();
       });
     });
-    return { node, groupHeading, title, composer, badges, name, last, position, progress, open, favorite, edit, download: original, remove, editor: null };
+    return { node, groupHeading, select, title, composer, badges, name, last, position, progress, open, favorite, edit, download: original, remove, editor: null };
   }
   function groupMeta(item: LibraryItem): { label: string; empty: boolean } {
     if (group.value === 'composer') {
@@ -432,6 +457,22 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       }
     }
     const visible = new Set(shown.map(item => item.id));
+    for (const id of selectedIds) {
+      if (!visible.has(id)) selectedIds.delete(id);
+    }
+    if (shown.length > 0) {
+      if (!bulkBar.isConnected) content.insertBefore(bulkBar, list);
+      selectAllText.textContent = t('select_all', { count: shown.length });
+      selectAll.setAttribute('aria-label', selectAllText.textContent);
+      const allSelected = shown.every(item => selectedIds.has(item.id));
+      selectAll.checked = allSelected;
+      selectAll.indeterminate = !allSelected && selectedIds.size > 0;
+      selectAll.disabled = busy;
+      deleteSelected.textContent = t('delete_selected', { count: selectedIds.size });
+      deleteSelected.disabled = busy || selectedIds.size === 0;
+    } else if (bulkBar.isConnected) {
+      bulkBar.remove();
+    }
     for (const [id, row] of rows) {
       if (!visible.has(id)) { row.node.remove(); rows.delete(id); }
     }
@@ -453,8 +494,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         row.groupHeading.hidden = true;
       }
       const title = item.title || item.name;
+      row.select.checked = selectedIds.has(item.id);
+      row.select.disabled = busy;
+      row.select.setAttribute('aria-label', t('select_score', { title }));
       row.title.textContent = title;
       row.composer.textContent = item.composer;
+      row.composer.hidden = !item.composer.trim();
       const badgeNodes: HTMLElement[] = [];
       if (item.level) {
         const badge = element('span', 'score-library-badge score-library-badge-level');
@@ -612,6 +657,26 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     tagFilter.value = '';
     group.value = 'none';
     render();
+  });
+  selectAll.addEventListener('change', () => {
+    if (busy) return;
+    const shownIds = Array.from(rows.keys());
+    const allChecked = shownIds.length > 0 && shownIds.every(id => selectedIds.has(id));
+    if (allChecked) selectedIds.clear();
+    else for (const id of shownIds) selectedIds.add(id);
+    render();
+  });
+  deleteSelected.addEventListener('click', () => {
+    const ids = [...selectedIds];
+    if (!ids.length || busy || !window.confirm(t('delete_selected_confirm', { count: ids.length }))) return;
+    void run(async () => {
+      await host.flush();
+      const removed = await libraryRemoveMany(ids);
+      selectedIds.clear();
+      await refresh();
+      if (statusCopy?.key !== 'unavailable') notice('deleted_many', { count: removed });
+      search.focus();
+    });
   });
   window.addEventListener('focus', () => { if (!busy) void refresh(); });
   window.addEventListener('beforeunload', event => {

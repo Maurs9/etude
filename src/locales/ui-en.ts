@@ -1855,7 +1855,12 @@ const payload: UIPayload = {
       "level_badge": "Level: {level}",
       "search_label": "Search",
       "reset_filters": "Reset filters",
-      "level_presets": "Beginner, Intermediate, Advanced, Level 1, Level 2, Level 3, Level 4, Level 5"
+      "level_presets": "Beginner, Intermediate, Advanced, Level 1, Level 2, Level 3, Level 4, Level 5",
+      "select_all": "Select all ({count})",
+      "select_score": "Select: {title}",
+      "delete_selected": "Delete selected ({count})",
+      "delete_selected_confirm": "Delete {count} selected scores from this device library? Your downloaded copies are not deleted.",
+      "deleted_many": "Deleted {count} scores from this library."
     }
   }
 };

@@ -2085,7 +2085,12 @@ const payload: UIPayload = {
       "level_badge": "Niveau : {level}",
       "search_label": "Rechercher",
       "reset_filters": "Réinitialiser les filtres",
-      "level_presets": "Débutant, Intermédiaire, Avancé, Niveau 1, Niveau 2, Niveau 3, Niveau 4, Niveau 5"
+      "level_presets": "Débutant, Intermédiaire, Avancé, Niveau 1, Niveau 2, Niveau 3, Niveau 4, Niveau 5",
+      "select_all": "Tout sélectionner ({count})",
+      "select_score": "Sélectionner : {title}",
+      "delete_selected": "Supprimer la sélection ({count})",
+      "delete_selected_confirm": "Supprimer {count} partitions sélectionnées de la bibliothèque de cet appareil ? Les copies téléchargées ne seront pas supprimées.",
+      "deleted_many": "{count} partitions supprimées de la bibliothèque."
     }
   }
 };
