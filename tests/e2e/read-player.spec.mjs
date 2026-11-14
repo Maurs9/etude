@@ -133,6 +133,8 @@ test.describe('Read player', () => {
     expect(started.sinceT0).toBeGreaterThanOrEqual(0);
     expect(started.sinceT0).toBeLessThan(1500);
     await expect(page.locator('#rdn-checklist')).toBeHidden();
+    // The start by that note is handed to the attempt: nothing is left pending.
+    expect(await page.evaluate(() => window.__etude.srNoteStart)).toBe(null);
     // The rest played on time: a full score, saved as a first sight.
     await perform(page);
     await expect.poll(() => srtState(page)).toBe('saved');
@@ -337,6 +339,51 @@ test.describe('Read player', () => {
     expect(marks.length).toBeGreaterThan(0);
     expect(marks.filter(([hand]) => hand === 'rh').every(([, s]) => s === 'good')).toBe(true);
     expect(marks.filter(([hand]) => hand === 'lh').every(([, s]) => s === 'bad')).toBe(true);
+  });
+
+  test('note names wait for the first sight of a level piece, and show once it is played', async ({ app }) => {
+    const page = await openHome(app);
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rd-staff .ss-n').first()).toBeVisible();
+    await page.locator('#rd-names').check();
+    await expect(page.locator('#rd-staff .ss-n').first()).toBeVisible();
+    expect(await page.locator('#rd-staff .ss-syl').count()).toBe(0);
+    await page.locator('#rd-names').uncheck();
+    await playAttempt(page);
+    await expect.poll(() => srtState(page)).toBe('saved');
+    await page.locator('#rd-names').check();
+    await expect(page.locator('#rd-staff .ss-syl').first()).toBeVisible();
+  });
+
+  test('the score stays where it is when an attempt starts: the checklist goes out of sight but keeps its room', async ({ app }) => {
+    // Without the full-screen stage, which lays the page out anew.
+    const page = await openHome(app, withBook({}, { stage: false }));
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rdn-checklist li').first()).toBeVisible();
+    // On the page, not in the window: the window follows the score once it plays.
+    const top = () => page.evaluate(() => document.querySelector('#rd-staff').getBoundingClientRect().top + window.scrollY);
+    const before = await top();
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await expect(page.locator('#rdn-checklist')).toBeHidden();
+    expect(await top()).toBe(before);
+  });
+
+  test('a start by the first note is dropped once its first sight is no longer being claimed: the next keys go through', async ({ app }) => {
+    const page = await openHome(app);
+    await page.locator('#rdn-book-go').click();
+    const first = await page.evaluate(() => window.__etude.srtLevelExpected(window.__etude.SR.lvPiece)[0]);
+    await page.waitForTimeout(700); // a piece just opened does not take a key as its start
+    // The first note starts the claim; the claim ends without an attempt (here: abandoned) before the next key.
+    const facts = await page.evaluate((midi) => {
+      const api = window.__etude;
+      api.handleNoteOn(midi, 90, 'midi');
+      const claimed = { state: api.SR.srtState.name, pending: api.srNoteStart?.events.length ?? 0 };
+      api.srtSetState({ type: 'abandon' });
+      api.handleNoteOff(midi, 'midi');
+      return { claimed, state: api.SR.srtState.name, active: api.SR.active, pending: api.srNoteStart };
+    }, first.midi);
+    expect(facts).toEqual({ claimed: { state: 'claiming', pending: 1 }, state: 'abandoned', active: false, pending: null });
   });
 
   test('the old melody path still works next to the player', async ({ app, page }) => {

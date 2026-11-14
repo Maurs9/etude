@@ -1389,6 +1389,7 @@
   body[data-stage=immersive] #view-read > .wrap > .lede,
   body[data-stage=immersive] .rdx-tabs,
   body[data-stage=immersive] details.osmd-lic,
+  body[data-stage=immersive] #rdn-checklist,
   body[data-stage=immersive] footer{display:none}
   body[data-stage=immersive] main{padding:0}
   body[data-stage=immersive] .stage-fs:not([hidden]){display:inline-flex}

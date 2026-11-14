@@ -62,6 +62,16 @@ test.describe('Read at the piano', () => {
     expect(saved['b1.2']).toMatchObject({ best: 100, stars: 3, first: 100 });
   });
 
+  test('the status line of a waiting piece follows a piano that connects', async ({ app, page }) => {
+    await fakePiano(page);
+    await app.open({ hash: 'read', saved: withBook({}) });
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rd-verdict')).toHaveText(en.rdn_ready);
+    await page.locator('#midiChip').click();
+    await expect(page.locator('#midiText')).toHaveText('Digital Piano');
+    await expect(page.locator('#rd-verdict')).toHaveText(en.rdn_ready_note);
+  });
+
   test('without a piano auto-next is off until it is chosen', async ({ app, page }) => {
     await app.open({ hash: 'read', saved: withBook({}) });
     await page.locator('#rdn-book-go').click();

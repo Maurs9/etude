@@ -2136,6 +2136,7 @@ function midiChipSync() {
         mt.textContent = midiMsg ? midiMsg.text : t('midi_connect');
         md.className = 'dot' + (midiMsg && midiMsg.cls ? ' ' + midiMsg.cls : '');
     }
+    rdnReadySync();
     if (STAGE.on || SES.active)
         dockSync(); // a connected piano releases the keys a stage or drill opened
 }
@@ -6861,8 +6862,12 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     }));
     // engrave 2 with markings: a finger number sits above the right hand and below the left, so its bar takes more room.
     const marks = v2 ? piece.marks : undefined;
+    const fingerRoom = new Set<string>();
     marks?.fingering.forEach((f) => {
         const m = Math.min(nBars - 1, bounds.filter((v) => v < f.beat + 1e-3).length);
+        if (fingerRoom.has(f.hand + m))
+            return;
+        fingerRoom.add(f.hand + m);
         if (f.hand === 'rh')
             barTop[m] -= 12;
         else
@@ -7344,7 +7349,7 @@ function srtWatchAudioContext(context: AudioContext) {
 }
 function srNamesVisible(piece: SrScore) {
     // A level piece shows before its first attempt: its note names wait until it is practice.
-    const lvFirst = !!SR.lvPiece && srtGeneratedSelected() && SR.srtState?.mode === 'firstSight';
+    const state = SR.srtState, lvFirst = !!SR.lvPiece && srtGeneratedSelected() && state?.mode === 'firstSight' && (state.name === 'idle' || state.name === 'blocked');
     return SR.names && !piece.noNames && !srtScoreConcealed() && !lvFirst && !srtEligibleFirstSightActive() && SR.srtState?.name !== 'claiming';
 }
 function srPaintAll() {
@@ -7414,13 +7419,17 @@ function srPaper() { return srPaperOf(maybeById('rd-staff')); }
 // A level piece is laid out like a printed page: four bars a system, and as large as lets the whole piece show without
 // scrolling, between SR_PAGE_MIN (still easy to read) and SR_PAGE_MAX times its natural size. A long piece scrolls.
 const SR_PAGE_MIN = 0.85, SR_PAGE_MAX = 1.4, SR_PAGE_BELOW = 215;
+/** The height of a piece at its natural size, for the width and the note-names setting it was measured with. */
+const srPageNatural = new WeakMap<SrScore, { width: number; names: boolean; H: number }>();
 function srPageLayout(piece: SrPiece, lay: SrLayout | undefined): SrLayout | undefined {
     const wrap = maybeById('rd-staff');
     if (!lay || lay.maxHeight || piece.engrave !== 2 || !SR.lvPiece || !srtGeneratedSelected() || !wrap)
         return lay;
     // The height the paper may take: the window, less what is above the paper and the controls below it.
     const room = Math.max(280, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - SR_PAGE_BELOW);
-    const natural = srRender(piece, { width: lay.width, cap: 1 }).H;
+    const names = srNamesVisible(piece), seen = srPageNatural.get(piece);
+    const natural = seen && seen.width === lay.width && seen.names === names ? seen.H : srRender(piece, { width: lay.width, cap: 1 }).H;
+    srPageNatural.set(piece, { width: lay.width, names, H: natural });
     const cap = Math.max(SR_PAGE_MIN, Math.min(SR_PAGE_MAX, room / Math.max(1, natural)));
     return { ...lay, cap, floor: Math.min(1, cap), justify: true };
 }
@@ -8273,9 +8282,10 @@ function srAssessStart(operation?: number) {
     if (noteStart)
         for (const ev of noteStart.events)
             srtRecorder.record(ev.kind, ev.midi, ev.source, ev.releaseKind, ev.perf - SR.t0);
+    // The checklist goes out of sight but keeps its room: the score must not move under the first note.
     const checklist = maybeById('rdn-checklist');
     if (checklist)
-        checklist.hidden = true;
+        checklist.style.visibility = 'hidden';
     SR.assessOn = false;
     if (SR.srtState?.name === 'preparing')
         srtSetState({ type: 'startPreview' });
@@ -8324,8 +8334,9 @@ function srNoteStartArmed(source: string) {
 }
 /** A key went down or came up. Returns true when the event belongs to a start by the first note (it starts one, or one is being claimed). */
 function srNoteStartInput(kind: 'on' | 'off', midi: number, source: string, releaseKind: 'physical' | 'focus' | 'reset' | null) {
-    const now = performance.now();
-    if (srNoteStart && now - srNoteStart.perf > SR_NOTE_START_MS)
+    const now = performance.now(), claiming = SR.srtState?.name === 'preparing' || SR.srtState?.name === 'claiming';
+    // A pending start is kept only while its first sight is being claimed, and only while it can still keep time.
+    if (srNoteStart && (!claiming || now - srNoteStart.perf > SR_NOTE_START_MS))
         srNoteStart = null;
     if (srNoteStart) {
         srNoteStart.events.push({ kind, midi, source, releaseKind, perf: now });
@@ -12105,6 +12116,12 @@ function rdnReadyText() {
     const note = midiLive() ? '_note' : '';
     return t((SR.srtState?.mode === 'practice' ? 'rdn_seen' : 'rdn_ready') + note);
 }
+/** The status line again, when it still shows: after a language change, or a piano that connected or went away. */
+function rdnReadySync() {
+    const v = maybeById('rd-verdict');
+    if (v && RDN.screen === 'player' && SR.lvPiece && RDN.ready && v.textContent === RDN.ready)
+        v.textContent = RDN.ready = rdnReadyText();
+}
 /** The hint next to Hands: a level piece's first sight is played with both hands. */
 function rdnHandsHint() {
     const hint = maybeById('rdn-hands-hint'), hands = maybeById('rd-hands');
@@ -12285,7 +12302,8 @@ function rdnChecklist() {
         return;
     const p = SR.lvPiece;
     // What to look at before the first attempt: gone once an attempt starts, and for a piece already seen.
-    ul.hidden = !p || SR.srtState?.mode !== 'firstSight' || SR.active;
+    ul.hidden = !p || SR.srtState?.mode !== 'firstSight';
+    ul.style.visibility = SR.active ? 'hidden' : '';
     if (!p) {
         ul.innerHTML = '';
         return;
@@ -22303,5 +22321,6 @@ Object.defineProperty(__etude, "srtAcquireAttemptLease", { configurable: true, v
 Object.defineProperty(__etude, "srtLedgerReadStatus", { configurable: true, value: srtLedgerReadStatus });
 Object.defineProperty(__etude, "isBackupPayload", { configurable: true, value: isBackupPayload });
 Object.defineProperty(__etude, "srtRecorder", { configurable: true, get: () => srtRecorder });
+Object.defineProperty(__etude, "srNoteStart", { configurable: true, get: () => srNoteStart });
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;
