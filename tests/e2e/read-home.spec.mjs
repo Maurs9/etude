@@ -132,7 +132,7 @@ test.describe('Read home', () => {
   });
 
   test('key chips show the signature and the status colour from the saved scores', async ({ app }) => {
-    const page = await openHome(app, withBook({ v: 1, level: 1, focusKey: null, pieces: {}, recent: { '1|G': [90, 92, 88, 95], '1|F': [40] }, daily: null, days: [] }));
+    const page = await openHome(app, withBook({ v: 2, level: 1, focusKey: null, pieces: {}, recent: { '1|G': [90, 92, 88, 95], '1|F': [40] }, daily: null, days: [] }));
     const g = page.locator('[data-rdn-key="G"]'), f = page.locator('[data-rdn-key="F"]'), c = page.locator('[data-rdn-key="C"]');
     await expect(g).toHaveAttribute('data-m', '2');
     await expect(f).toHaveAttribute('data-m', '1');
@@ -153,7 +153,7 @@ test.describe('Read home', () => {
   });
 
   test('a piece played without a star is not announced as 0 stars', async ({ app }) => {
-    const page = await openHome(app, withBook({ v: 1, level: 1, focusKey: null, pieces: { 'b1.1': { best: 30, stars: 0, tries: 1, first: 30 } }, recent: {}, daily: null, days: [] }));
+    const page = await openHome(app, withBook({ v: 2, level: 1, focusKey: null, pieces: { 'b1.1': { best: 30, stars: 0, tries: 1, first: 30 } }, recent: {}, daily: null, days: [] }));
     await expect(page.locator('[data-rdn-n="1"]')).toHaveAttribute('aria-label', fill(STRINGS.en.rdn_num_aria_star0, 1));
     for (const lang of Object.keys(STRINGS).filter((k) => STRINGS[k].rdn_today_title)) {
       expect(STRINGS[lang].rdn_num_aria_star0, lang).not.toMatch(/0/);
@@ -225,7 +225,7 @@ test.describe('Read home', () => {
   });
 
   test('suggests the next level after 16 first-sight scores of 90', async ({ app, page }) => {
-    await openHome(app, withBook({ v: 1, level: 3, focusKey: null, pieces: {}, recent: { 3: Array(16).fill(90) }, daily: null, days: [] }));
+    await openHome(app, withBook({ v: 2, level: 3, focusKey: null, pieces: {}, recent: { 3: Array(16).fill(90) }, daily: null, days: [] }));
     await expect(page.locator('#rdn-suggest')).toBeVisible();
     await expect(page.locator('#rdn-suggest')).toContainText(fill(STRINGS.en.rdn_suggest, 4));
     await expect(page.locator('.rdn-stats')).toContainText('90%');

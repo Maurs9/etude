@@ -7,7 +7,7 @@ const en = STRINGS.en;
 const fill = (s, ...args) => args.reduce((out, value, i) => { const mark = ['%a', '%b'][i]; return out.replace(mark && out.includes(mark) ? mark : '%s', String(value)); }, s);
 const book = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.reading?.book ?? null);
 const srtState = (page) => page.evaluate(() => window.__etude.SR.srtState.name);
-const withBook = (bookState, prefs) => ({ v: 3, lang: 'en', data: { reading: { book: { v: 1, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [], ...bookState }, ...(prefs ? { prefs } : {}) } } });
+const withBook = (bookState, prefs) => ({ v: 3, lang: 'en', data: { reading: { book: { v: 2, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [], ...bookState }, ...(prefs ? { prefs } : {}) } } });
 const title = (page) => page.locator('#rdn-p-title');
 const focusedId = (page) => page.evaluate(() => document.activeElement?.id || document.activeElement?.dataset.rdnFocus || document.activeElement?.tagName);
 // A first-sight result that cannot be saved: writes to the ledger fail until restoreLedger.

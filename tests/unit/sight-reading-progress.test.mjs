@@ -12,7 +12,7 @@ const many = (state, count, changes = () => ({})) => Array.from({ length: count 
 
 describe('reading book state', () => {
   it('starts empty at level 1 in mixed keys', () => {
-    expect(srtBookStateDefault()).toEqual({ v: 1, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [] });
+    expect(srtBookStateDefault()).toEqual({ v: 2, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [] });
     expect(srtBookId(3, 17)).toBe('b3.17');
     expect(srtFocusId(3, 'F#m', 2)).toBe('f3.F#m.2');
     expect(srtDailyId(DAY, 4)).toBe('d2026-11-13.4');
@@ -157,19 +157,34 @@ describe('reading book state from storage', () => {
     expect(srtNormalizeBookState('x')).toEqual(srtBookStateDefault());
     expect(srtNormalizeBookState([])).toEqual(srtBookStateDefault());
     const raw = {
-      v: 7, level: 12, focusKey: 'H', extra: true,
+      v: 2, level: 12, focusKey: 'H', extra: true,
       pieces: { 'b3.1': { best: 90, stars: 5, tries: 0, first: 'x' }, bad: { best: 'x' }, 'b3.2': { best: 50, stars: 2, tries: 3, first: 45 }, 'b3.3': 7 },
       recent: { 3: [50, 'x', 120, 70], '3|C': Array.from({ length: 12 }, (_, index) => index), junk: 'x', empty: [] },
       daily: { date: 'yesterday' },
       days: ['2026-11-13', 'x', '2026-11-12', '2026-11-13'],
     };
     expect(srtNormalizeBookState(raw)).toEqual({
-      v: 1, level: 1, focusKey: null,
+      v: 2, level: 1, focusKey: null,
       pieces: { 'b3.1': { best: 90, stars: 0, tries: 1, first: null }, 'b3.2': { best: 50, stars: 2, tries: 3, first: 45 } },
       recent: { 3: [50, 70], '3|C': [4, 5, 6, 7, 8, 9, 10, 11] },
       daily: null,
       days: ['2026-11-12', '2026-11-13'],
     });
+  });
+
+  it('drops the results of an older version, and keeps the level, the pinned key and the streak days', () => {
+    const old = {
+      v: 1, level: 3, focusKey: 'G',
+      pieces: { 'b3.1': { best: 90, stars: 2, tries: 1, first: 90 } },
+      recent: { 3: [90], '3|G': [90] },
+      daily: srtEnsureDaily(srtBookStateDefault(), DAY).daily,
+      days: ['2026-11-12', '2026-11-13'],
+    };
+    expect(srtNormalizeBookState(old)).toEqual({ v: 2, level: 3, focusKey: 'G', pieces: {}, recent: {}, daily: null, days: ['2026-11-12', '2026-11-13'] });
+    // A state with no version at all is an older one too.
+    expect(srtNormalizeBookState({ level: 2, pieces: old.pieces }).pieces).toEqual({});
+    // The same state under the current version keeps everything.
+    expect(srtNormalizeBookState({ ...old, v: 2 }).pieces).toEqual(old.pieces);
   });
 
   it('reads back a state it wrote', () => {

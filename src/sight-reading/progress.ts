@@ -22,7 +22,8 @@ export type DailyState = {
 };
 
 export type ReadingBookState = {
-  readonly v: 1;
+  /** 2 since the level pieces grew to 8 to 16 bars: results stored under version 1 belong to other pieces. */
+  readonly v: 2;
   /** The level the reader works at. */
   readonly level: number;
   /** A pinned key, or null for mixed keys. */
@@ -72,7 +73,7 @@ const asList = (value: unknown): readonly unknown[] => (Array.isArray(value) ? (
 const mean = (scores: readonly number[]): number => scores.reduce((sum, score) => sum + score, 0) / scores.length;
 
 export function srtBookStateDefault(): ReadingBookState {
-  return { v: 1, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [] };
+  return { v: 2, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [] };
 }
 
 function readStars(value: unknown): 0 | 1 | 2 | 3 {
@@ -98,6 +99,10 @@ function readDaily(value: unknown): DailyState | null {
 /** A state read back from storage, with everything that is missing or malformed replaced by its default. */
 export function srtNormalizeBookState(raw: unknown): ReadingBookState {
   if (!isRecord(raw)) return srtBookStateDefault();
+  // An older version numbered other pieces: its results, scores and daily set are dropped. The level, the pinned key
+  // and the days of the streak are the reader's own and stay.
+  if (raw.v !== 2) raw = { level: raw.level, focusKey: raw.focusKey, days: raw.days };
+  if (!isRecord(raw)) return srtBookStateDefault();
   const pieces: Record<string, PieceStat> = {};
   if (isRecord(raw.pieces)) {
     for (const [id, value] of Object.entries(raw.pieces)) {
@@ -114,7 +119,7 @@ export function srtNormalizeBookState(raw: unknown): ReadingBookState {
     }
   }
   return {
-    v: 1,
+    v: 2,
     level: isLevel(raw.level) ? raw.level : 1,
     focusKey: isKey(raw.focusKey) ? raw.focusKey : null,
     pieces,

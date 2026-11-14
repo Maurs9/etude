@@ -5,7 +5,7 @@ import { STRINGS } from '../../src/locales/index.js';
 // hand positions, the rhythm and (from level 6) the chords, run as one guided sequence over the existing drills.
 const en = STRINGS.en;
 const fill = (s, ...args) => args.reduce((out, value, i) => { const mark = ['%a', '%b'][i]; return out.replace(mark && out.includes(mark) ? mark : '%s', String(value)); }, s);
-const withBook = (bookState, prefs) => ({ v: 3, lang: 'en', data: { reading: { book: { v: 1, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [], ...bookState }, ...(prefs ? { prefs } : {}) } } });
+const withBook = (bookState, prefs) => ({ v: 3, lang: 'en', data: { reading: { book: { v: 2, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [], ...bookState }, ...(prefs ? { prefs } : {}) } } });
 const warm = (page) => page.evaluate(() => {
   const w = window.__etude.WARM;
   return { on: w.on, step: w.step, card: w.card, phase: w.phase, clean: w.clean, key: w.key, level: w.level, steps: w.steps.map((s) => (s.kind === 'drill' ? s.id : s.kind)) };

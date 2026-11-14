@@ -6,7 +6,7 @@ import { STRINGS } from '../../src/locales/index.js';
 const en = STRINGS.en;
 const fill = (s, ...args) => args.reduce((out, value) => out.replace('%s', String(value)), s);
 const srtState = (page) => page.evaluate(() => window.__etude.SR.srtState.name);
-const withBook = (bookState) => ({ v: 3, lang: 'en', data: { reading: { book: { v: 1, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [], ...bookState } } } });
+const withBook = (bookState) => ({ v: 3, lang: 'en', data: { reading: { book: { v: 2, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [], ...bookState } } } });
 
 // A Web MIDI piano the test plays: window.__midi.press(midi) and release(midi) go through the port the app listens to.
 const fakePiano = (page) => page.addInitScript(() => {
