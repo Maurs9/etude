@@ -2082,7 +2082,10 @@ const payload: UIPayload = {
       "edit_tags": "Étiquettes / collections (séparées par des virgules)",
       "save_edit": "Enregistrer",
       "cancel_edit": "Annuler",
-      "level_badge": "Niveau : {level}"
+      "level_badge": "Niveau : {level}",
+      "search_label": "Rechercher",
+      "reset_filters": "Réinitialiser les filtres",
+      "level_presets": "Débutant, Intermédiaire, Avancé, Niveau 1, Niveau 2, Niveau 3, Niveau 4, Niveau 5"
     }
   }
 };

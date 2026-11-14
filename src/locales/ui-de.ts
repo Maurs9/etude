@@ -2088,7 +2088,10 @@ const payload: UIPayload = {
       "edit_tags": "Tags / Sammlungen (kommagetrennt)",
       "save_edit": "Speichern",
       "cancel_edit": "Abbrechen",
-      "level_badge": "Stufe: {level}"
+      "level_badge": "Stufe: {level}",
+      "search_label": "Suchen",
+      "reset_filters": "Filter zurücksetzen",
+      "level_presets": "Anfänger, Mittelstufe, Fortgeschritten, Stufe 1, Stufe 2, Stufe 3, Stufe 4, Stufe 5"
     }
   }
 };

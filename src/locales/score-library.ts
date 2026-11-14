@@ -26,6 +26,8 @@ const en = {
   edit: 'Organize', edit_title: 'Title', edit_composer: 'Composer',
   edit_level: 'Level (e.g. Beginner, Level 2)', edit_tags: 'Tags / collections (comma-separated)',
   save_edit: 'Save', cancel_edit: 'Cancel', level_badge: 'Level: {level}',
+  search_label: 'Search', reset_filters: 'Reset filters',
+  level_presets: 'Beginner, Intermediate, Advanced, Level 1, Level 2, Level 3, Level 4, Level 5',
 } as const;
 export type LibraryTextKey = keyof typeof en;
 type Copy = { [K in LibraryTextKey]: string };
@@ -42,6 +44,8 @@ const ro: Copy = {
   edit: 'Organizează', edit_title: 'Titlu', edit_composer: 'Compozitor',
   edit_level: 'Nivel (ex. Începător, Nivel 2)', edit_tags: 'Etichete / colecții (separate prin virgulă)',
   save_edit: 'Salvează', cancel_edit: 'Anulează', level_badge: 'Nivel: {level}',
+  search_label: 'Caută', reset_filters: 'Resetează filtrele',
+  level_presets: 'Începător, Intermediar, Avansat, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5',
 };
 const es: Copy = {
   heading: 'Mi biblioteca ({count})', import: 'Añadir partituras', search: 'Buscar título, compositor o archivo', filter: 'Mostrar partituras', all: 'Todas las partituras', favorites: 'Favoritas', recent: 'Abiertas recientemente', backup: 'Descargar copia de la biblioteca', restore: 'Combinar copia de la biblioteca',
@@ -56,6 +60,8 @@ const es: Copy = {
   edit: 'Organizar', edit_title: 'Título', edit_composer: 'Compositor',
   edit_level: 'Nivel (ej. Principiante, Nivel 2)', edit_tags: 'Etiquetas / colecciones (separadas por comas)',
   save_edit: 'Guardar', cancel_edit: 'Cancelar', level_badge: 'Nivel: {level}',
+  search_label: 'Buscar', reset_filters: 'Restablecer filtros',
+  level_presets: 'Principiante, Intermedio, Avanzado, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5',
 };
 const fr: Copy = {
   heading: 'Ma bibliothèque ({count})', import: 'Ajouter des partitions', search: 'Rechercher titre, compositeur ou fichier', filter: 'Afficher les partitions', all: 'Toutes les partitions', favorites: 'Favorites', recent: 'Ouvertes récemment', backup: 'Télécharger la sauvegarde', restore: 'Fusionner une sauvegarde',
@@ -70,6 +76,8 @@ const fr: Copy = {
   edit: 'Organiser', edit_title: 'Titre', edit_composer: 'Compositeur',
   edit_level: 'Niveau (ex. Débutant, Niveau 2)', edit_tags: 'Étiquettes / collections (séparées par des virgules)',
   save_edit: 'Enregistrer', cancel_edit: 'Annuler', level_badge: 'Niveau : {level}',
+  search_label: 'Rechercher', reset_filters: 'Réinitialiser les filtres',
+  level_presets: 'Débutant, Intermédiaire, Avancé, Niveau 1, Niveau 2, Niveau 3, Niveau 4, Niveau 5',
 };
 const de: Copy = {
   heading: 'Meine Bibliothek ({count})', import: 'Noten hinzufügen', search: 'Titel, Komponist oder Dateiname suchen', filter: 'Noten anzeigen', all: 'Alle Noten', favorites: 'Favoriten', recent: 'Zuletzt geöffnet', backup: 'Bibliothekssicherung herunterladen', restore: 'Bibliothekssicherung zusammenführen',
@@ -84,6 +92,8 @@ const de: Copy = {
   edit: 'Ordnen', edit_title: 'Titel', edit_composer: 'Komponist',
   edit_level: 'Stufe (z. B. Anfänger, Stufe 2)', edit_tags: 'Tags / Sammlungen (kommagetrennt)',
   save_edit: 'Speichern', cancel_edit: 'Abbrechen', level_badge: 'Stufe: {level}',
+  search_label: 'Suchen', reset_filters: 'Filter zurücksetzen',
+  level_presets: 'Anfänger, Mittelstufe, Fortgeschritten, Stufe 1, Stufe 2, Stufe 3, Stufe 4, Stufe 5',
 };
 const it: Copy = {
   heading: 'La mia biblioteca ({count})', import: 'Aggiungi spartiti', search: 'Cerca titolo, compositore o file', filter: 'Mostra spartiti', all: 'Tutti gli spartiti', favorites: 'Preferiti', recent: 'Aperti di recente', backup: 'Scarica backup della biblioteca', restore: 'Unisci backup della biblioteca',
@@ -98,6 +108,8 @@ const it: Copy = {
   edit: 'Organizza', edit_title: 'Titolo', edit_composer: 'Compositore',
   edit_level: 'Livello (es. Principiante, Livello 2)', edit_tags: 'Etichette / raccolte (separate da virgola)',
   save_edit: 'Salva', cancel_edit: 'Annulla', level_badge: 'Livello: {level}',
+  search_label: 'Cerca', reset_filters: 'Reimposta filtri',
+  level_presets: 'Principiante, Intermedio, Avanzato, Livello 1, Livello 2, Livello 3, Livello 4, Livello 5',
 };
 const ptBR: Copy = {
   heading: 'Minha biblioteca ({count})', import: 'Adicionar partituras', search: 'Buscar título, compositor ou arquivo', filter: 'Mostrar partituras', all: 'Todas as partituras', favorites: 'Favoritas', recent: 'Abertas recentemente', backup: 'Baixar backup da biblioteca', restore: 'Mesclar backup da biblioteca',
@@ -112,6 +124,8 @@ const ptBR: Copy = {
   edit: 'Organizar', edit_title: 'Título', edit_composer: 'Compositor',
   edit_level: 'Nível (ex. Iniciante, Nível 2)', edit_tags: 'Tags / coleções (separadas por vírgula)',
   save_edit: 'Salvar', cancel_edit: 'Cancelar', level_badge: 'Nível: {level}',
+  search_label: 'Buscar', reset_filters: 'Limpar filtros',
+  level_presets: 'Iniciante, Intermediário, Avançado, Nível 1, Nível 2, Nível 3, Nível 4, Nível 5',
 };
 export const libraryTranslations: Readonly<Record<string, Copy>> = { en, ro, es, fr, de, it, 'pt-BR': ptBR };
 const tokens = (value: string): string => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort().join(',');

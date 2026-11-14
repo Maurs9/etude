@@ -2082,7 +2082,10 @@ const payload: UIPayload = {
       "edit_tags": "Etichette / raccolte (separate da virgola)",
       "save_edit": "Salva",
       "cancel_edit": "Annulla",
-      "level_badge": "Livello: {level}"
+      "level_badge": "Livello: {level}",
+      "search_label": "Cerca",
+      "reset_filters": "Reimposta filtri",
+      "level_presets": "Principiante, Intermedio, Avanzato, Livello 1, Livello 2, Livello 3, Livello 4, Livello 5"
     }
   }
 };

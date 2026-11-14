@@ -83,7 +83,10 @@ const payload: UIPayload = {
       "edit_tags": "Tags / collections (comma-separated)",
       "save_edit": "Save",
       "cancel_edit": "Cancel",
-      "level_badge": "Level: {level}"
+      "level_badge": "Level: {level}",
+      "search_label": "Search",
+      "reset_filters": "Reset filters",
+      "level_presets": "Beginner, Intermediate, Advanced, Level 1, Level 2, Level 3, Level 4, Level 5"
     }
   }
 };

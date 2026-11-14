@@ -2082,7 +2082,10 @@ const payload: UIPayload = {
       "edit_tags": "Etichete / colecții (separate prin virgulă)",
       "save_edit": "Salvează",
       "cancel_edit": "Anulează",
-      "level_badge": "Nivel: {level}"
+      "level_badge": "Nivel: {level}",
+      "search_label": "Caută",
+      "reset_filters": "Resetează filtrele",
+      "level_presets": "Începător, Intermediar, Avansat, Nivel 1, Nivel 2, Nivel 3, Nivel 4, Nivel 5"
     }
   }
 };

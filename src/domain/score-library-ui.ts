@@ -85,7 +85,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     return { key, option };
   });
   groupLabel.append(groupText, group);
-  toolbar.append(importLabel, searchLabel, filterLabel, composerLabel, levelLabel, tagLabel, groupLabel);
+  const resetFilters = element('button', 'score-library-reset');
+  resetFilters.id = 'library-reset-filters';
+  resetFilters.type = 'button';
+  const toolbarMain = element('div', 'score-library-toolbar-main');
+  toolbarMain.append(importLabel, searchLabel, groupLabel);
+  const toolbarFilters = element('div', 'score-library-toolbar-filters');
+  toolbarFilters.append(filterLabel, composerLabel, levelLabel, tagLabel);
+  toolbar.append(toolbarMain, toolbarFilters);
   const protection = element('p', 'score-library-note');
   protection.id = 'library-protection';
   const status = element('p', 'score-library-status');
@@ -123,7 +130,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let protectedStorage: boolean | null = null;
   let readSequence = 0;
   let editingId: string | null = null;
-  type Editor = { form: HTMLFormElement; titleText: HTMLElement; composerText: HTMLElement; levelText: HTMLElement; tagsText: HTMLElement; save: HTMLButtonElement; cancel: HTMLButtonElement };
+  type Editor = { form: HTMLFormElement; titleText: HTMLElement; composerText: HTMLElement; levelText: HTMLElement; tagsText: HTMLElement; levelList: HTMLDataListElement; save: HTMLButtonElement; cancel: HTMLButtonElement };
   type Row = { node: HTMLLIElement; groupHeading: HTMLElement; title: HTMLElement; composer: HTMLElement; badges: HTMLElement; name: HTMLElement; position: HTMLElement; last: HTMLElement; progress: HTMLElement; open: HTMLButtonElement; favorite: HTMLButtonElement; edit: HTMLButtonElement; download: HTMLButtonElement; remove: HTMLButtonElement; editor: Editor | null };
   const rows = new Map<string, Row>();
   function notice(key: LibraryTextKey, values?: Values): void {
@@ -134,7 +141,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    files.disabled = restore.disabled = backup.disabled = value;
+    files.disabled = restore.disabled = backup.disabled = resetFilters.disabled = value;
     for (const button of list.querySelectorAll('button')) button.disabled = value;
     for (const input of list.querySelectorAll('input')) input.disabled = value;
   }
@@ -201,6 +208,25 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     syncSelectOptions(levelFilter, t('all_levels'), [...levels].sort((a, b) => a.localeCompare(b, locale, { numeric: true })), t('no_level'), hasEmptyLevel);
     syncSelectOptions(tagFilter, t('all_tags'), [...tags].sort((a, b) => a.localeCompare(b, locale)), t('untagged'), hasEmptyTag);
   }
+  function syncLevelPresets(datalist: HTMLDataListElement): void {
+    const seen = new Set<string>();
+    const optionsList: HTMLOptionElement[] = [];
+    const addPreset = (label: string): void => {
+      const trimmed = label.trim();
+      if (!trimmed) return;
+      const key = trimmed.toLocaleLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      const option = element('option');
+      option.value = trimmed;
+      optionsList.push(option);
+    };
+    for (const preset of t('level_presets').split(',')) addPreset(preset);
+    for (const item of items) {
+      if (item.level) addPreset(item.level);
+    }
+    datalist.replaceChildren(...optionsList);
+  }
   function createEditor(id: string, item: LibraryItem, row: Row): Editor {
     const form = element('form', 'score-library-editor');
     const makeField = (field: string, value: string, maxLength?: number): { text: HTMLElement; input: HTMLInputElement } => {
@@ -219,6 +245,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const titleField = makeField('title', item.title, 512);
     const composerField = makeField('composer', item.composer, 512);
     const levelField = makeField('level', item.level ?? '', 64);
+    const levelList = element('datalist');
+    levelList.id = 'library-level-presets';
+    levelField.input.setAttribute('list', levelList.id);
+    syncLevelPresets(levelList);
+    form.append(levelList);
     const tagsField = makeField('tags', (item.tags ?? []).join(', '));
     const editorActions = element('div', 'score-library-editor-actions');
     const save = element('button');
@@ -254,7 +285,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         notice('saved');
       });
     });
-    return { form, titleText: titleField.text, composerText: composerField.text, levelText: levelField.text, tagsText: tagsField.text, save, cancel };
+    return { form, titleText: titleField.text, composerText: composerField.text, levelText: levelField.text, tagsText: tagsField.text, levelList, save, cancel };
   }
   function createRow(id: string): Row {
     const node = element('li', 'score-library-item');
@@ -349,6 +380,18 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     summary.textContent = t('heading', { count: items.length });
     syncFilterOptions();
     const query = search.value.trim().toLocaleLowerCase();
+    search.dataset.active = String(Boolean(query));
+    filter.dataset.active = String(filter.value !== 'all');
+    composerFilter.dataset.active = String(Boolean(composerFilter.value));
+    levelFilter.dataset.active = String(Boolean(levelFilter.value));
+    tagFilter.dataset.active = String(Boolean(tagFilter.value));
+    group.dataset.active = String(group.value !== 'none');
+    const hasActiveFilters = Boolean(query || filter.value !== 'all' || composerFilter.value || levelFilter.value || tagFilter.value || group.value !== 'none');
+    if (hasActiveFilters) {
+      if (!resetFilters.isConnected) toolbarFilters.append(resetFilters);
+    } else if (resetFilters.isConnected) {
+      resetFilters.remove();
+    }
     const shown = items.filter(item => {
       if (query) {
         const haystack = `${item.title}\n${item.composer}\n${item.name}\n${item.level ?? ''}\n${(item.tags ?? []).join('\n')}`.toLocaleLowerCase();
@@ -466,6 +509,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         row.editor.composerText.textContent = t('edit_composer');
         row.editor.levelText.textContent = t('edit_level');
         row.editor.tagsText.textContent = t('edit_tags');
+        syncLevelPresets(row.editor.levelList);
         row.editor.save.textContent = t('save_edit');
         row.editor.cancel.textContent = t('cancel_edit');
       } else if (row.editor) {
@@ -484,8 +528,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     transferNote.textContent = t('transfer');
     importText.textContent = t('import');
     files.setAttribute('aria-label', t('import'));
-    searchText.textContent = t('search');
+    searchText.textContent = t('search_label');
     search.placeholder = t('search');
+    search.setAttribute('aria-label', t('search'));
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);
     composerText.textContent = t('composer_filter');
@@ -493,6 +538,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     tagText.textContent = t('tag_filter');
     groupText.textContent = t('group_by');
     for (const { key, option } of groupOptions) option.textContent = t(`group_${key}`);
+    resetFilters.textContent = t('reset_filters');
     backup.textContent = t('backup');
     restoreText.textContent = t('restore');
     restore.setAttribute('aria-label', t('restore'));
@@ -557,6 +603,16 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   levelFilter.addEventListener('change', render);
   tagFilter.addEventListener('change', render);
   group.addEventListener('change', render);
+  resetFilters.addEventListener('click', () => {
+    if (busy) return;
+    search.value = '';
+    filter.value = 'all';
+    composerFilter.value = '';
+    levelFilter.value = '';
+    tagFilter.value = '';
+    group.value = 'none';
+    render();
+  });
   window.addEventListener('focus', () => { if (!busy) void refresh(); });
   window.addEventListener('beforeunload', event => {
     if (busy) { event.preventDefault(); event.returnValue = ''; }

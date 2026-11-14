@@ -213,6 +213,11 @@ for (const width of [320, 600, 1024]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const controls = await page.locator('#score-library button,#library-files,#library-search,#library-filter,#library-composer-filter,#library-level-filter,#library-tag-filter,#library-group,#library-restore').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
     expect(controls.every(control => control.height >= 43 && control.right <= width + 1)).toBe(true);
+    if (width === 1024) {
+      const bottoms = await page.locator('#library-files,#library-search,#library-group').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().bottom));
+      expect(Math.abs(bottoms[0] - bottoms[1])).toBeLessThanOrEqual(1);
+      expect(Math.abs(bottoms[1] - bottoms[2])).toBeLessThanOrEqual(1);
+    }
     await page.evaluate(() => window.__etude.setLang('fr'));
     await expect(page.locator('#score-library summary')).toContainText('Ma bibliothèque');
     await page.screenshot({ path: info.outputPath(`library-${width}.png`), fullPage: true });
@@ -249,6 +254,9 @@ test('library supports inline organization, filtering and grouping by composer, 
 
   await row(page, 'Prelude in C').locator('[data-library-action=edit]').click();
   const editor1 = row(page, 'Prelude in C').locator('.score-library-editor');
+  const presets = await editor1.locator('#library-level-presets option').evaluateAll(nodes => nodes.map(node => node.value));
+  expect(presets).toContain('Începător');
+  expect(presets).toContain('Nivel 2');
   await editor1.locator('[data-library-field=level]').fill('Nivel 2');
   await editor1.locator('[data-library-field=tags]').fill('Baroc, Examen, baroc');
   await editor1.locator('[data-library-action=save-edit]').click();
@@ -266,13 +274,17 @@ test('library supports inline organization, filtering and grouping by composer, 
   await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Baroc');
   await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Examen');
 
+  await expect(page.locator('#library-reset-filters')).toHaveCount(0);
   await page.locator('#library-composer-filter').selectOption('J. S. Bach');
+  await expect(page.locator('#library-composer-filter')).toHaveAttribute('data-active', 'true');
+  await expect(page.locator('#library-reset-filters')).toHaveCount(1);
   await expect(rows(page)).toHaveCount(2);
   await page.locator('#library-level-filter').selectOption('Nivel 2');
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).locator('h3')).toHaveText('Prelude in C');
-  await page.locator('#library-level-filter').selectOption('');
-  await page.locator('#library-composer-filter').selectOption('');
+  await page.locator('#library-reset-filters').click();
+  await expect(page.locator('#library-reset-filters')).toHaveCount(0);
+  await expect(rows(page)).toHaveCount(3);
 
   await page.locator('#library-tag-filter').selectOption('Examen');
   await expect(rows(page)).toHaveCount(1);
