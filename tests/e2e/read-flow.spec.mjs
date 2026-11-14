@@ -75,6 +75,58 @@ test.describe('Read at the piano', () => {
     await expect(page.locator('#rdn-auto')).toBeHidden();
   });
 
+  test('a long piece: opens from the plan, rises through its sections, is saved, and Next brings another', async ({ app, page }) => {
+    await app.open({ hash: 'read', saved: withBook({ level: 3 }) });
+    await expect(page.locator('#rdn-plan-long')).toHaveAttribute('data-done', 'false');
+    await page.locator('#rdn-plan-long').click();
+    await expect(page.locator('#rdn-p-title')).toHaveText(en.rdn_long);
+    await expect(page.locator('#rdn-prev')).toBeHidden();
+    const piece = await page.evaluate(() => {
+      const api = window.__etude, p = api.SR.lvPiece, bar = p.meter.num * (4 / p.meter.den);
+      const perBar = (hand) => Array.from({ length: p.bars }, (_, b) => api.SR.notes.filter((n) => n.hand === hand && n.beat >= b * bar - 1e-6 && n.beat < (b + 1) * bar - 1e-6).length);
+      return { level: p.level, bars: p.bars, bpm: p.bpm, sliderBpm: Number(document.querySelector('#rd-bpm').value), sections: p.sections,
+        systems: api.SR.render.systems.length, drawn: document.querySelectorAll('#rd-staff .ss-n').length, expected: api.srtLevelExpected(p).length,
+        notesPerBar: perBar('rh').map((n, i) => n + perBar('lh')[i]), sub: document.querySelector('#rdn-p-sub').textContent };
+    });
+    expect(piece.level).toBe(3);
+    expect(piece.bars).toBeGreaterThanOrEqual(24);
+    expect(piece.bars).toBeLessThanOrEqual(48);
+    expect(piece.sub).toContain(en.rdn_long_sub.replace('%s', String(piece.bars)));
+    // The sections tile the piece, start below the level and end on it.
+    expect(piece.sections.reduce((sum, sec) => sum + sec.bars, 0)).toBe(piece.bars);
+    expect(piece.sections[0].level).toBeLessThan(3);
+    expect(piece.sections.at(-1)).toMatchObject({ level: 3, third: 2 });
+    expect(piece.sections.map((sec) => sec.level)).toEqual([...piece.sections.map((sec) => sec.level)].sort((a, b) => a - b));
+    // Drawn as a page of four-bar systems, every note once, at the piece's own tempo; no bar is empty.
+    expect(piece.systems).toBe(Math.ceil(piece.bars / 4));
+    expect(piece.drawn).toBe(piece.expected);
+    expect(piece.sliderBpm).toBe(piece.bpm);
+    expect(piece.notesPerBar.every((n) => n > 0)).toBe(true);
+
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    expect(await page.evaluate(() => window.__etude.SR.bpm)).toBe(piece.bpm);
+    await page.evaluate(() => window.__etude.srtSetState({ type: 'countInDone' }));
+    await playRest(page);
+    await expect.poll(() => srtState(page)).toBe('saved');
+    await expect(page.locator('#rdn-r-score')).toHaveText('100%');
+    const today = await page.evaluate(() => window.__etude.rdnToday());
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.reading.book.pieces);
+    expect(saved[`l${today}.0`]).toMatchObject({ best: 100, stars: 3, first: 100 });
+
+    // Next is another long piece, with other notes.
+    const before = await page.evaluate(() => window.__etude.SR.srtFingerprint);
+    await page.locator('#rdn-next').click();
+    await expect(page.locator('#rdn-p-title')).toHaveText(en.rdn_long_n.replace('%s', '2'));
+    expect(await page.evaluate(() => window.__etude.SR.srtFingerprint)).not.toBe(before);
+    // Back home the step is done, and the plan counts it.
+    await page.locator('#rdn-back').click();
+    await expect(page.locator('#rdn-plan-long')).toHaveAttribute('data-done', 'true');
+    await expect(page.locator('#rdn-plan-long .ck')).toHaveText('✓');
+    await expect(page.locator('#rdn-plan-long .pd')).toHaveText(en.rdn_long_again);
+    await expect(page.locator('#rdn-plan-sub')).toHaveText(en.plan_sub.replace('%a', '1').replace('%b', '3'));
+  });
+
   test('a level piece is a page: four bars a system, every system the full width, the whole piece and Start in view', async ({ app, page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await app.open({ hash: 'read', saved: withBook({}) });
@@ -87,7 +139,7 @@ test.describe('Read at the piano', () => {
       const ends = r.systems.map((_, sy) => Math.max(...r.beatX.filter((b) => b.sy === sy).map((b) => b.x)));
       return { bars: api.SR.lvPiece.bars, systems: r.systems.length, scale: r.scale, ends, W: r.W,
         fits: wrap.scrollWidth <= wrap.clientWidth + 1, svgW: svg.getBoundingClientRect().width, paperW: paper.width,
-        paperBottom: paper.bottom, goBottom: go.bottom, viewport: window.innerHeight, heading: document.querySelector('#view-read .section-head').getBoundingClientRect().height };
+        paperBottom: paper.bottom, goBottom: go.bottom, viewport: window.innerHeight, heading: document.querySelector('#view-read .rdn-head').getBoundingClientRect().height };
     });
     expect(facts.bars).toBe(8);
     expect(facts.systems).toBe(2);

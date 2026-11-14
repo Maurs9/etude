@@ -1,18 +1,27 @@
 /* Read home: Today, the book, Warm-up and Progress, and the player header and result card of level pieces.
-   Layout (spec section 12): two columns from 1100px (340px right column), Today and Warm-up side by side from 700 to
-   1099px, one column below 700px. Every control is at least 44px high. Colours come from the app's theme variables. */
+   Layout: the same as the Today page (its classes, from etude.css): the session card beside the day's plan from 960px,
+   one column below; then the book and the other ways to practice, full width. Every control is at least 44px high. Colours come from the app's theme variables. */
 .rdn-home{margin-top:6px}
-.rdn-grid{display:grid; gap:16px; grid-template-columns:minmax(0,1fr)}
-.rdn-col{display:grid; gap:16px; align-content:start; min-width:0}
-@media (min-width:700px) and (max-width:1099.98px){
-  .rdn-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-  .rdn-col{display:contents}
-  .rdn-today{order:1}
-  .rdn-warm{order:2}
-  .rdn-book{order:3; grid-column:1 / -1}
-  .rdn-progress{order:4; grid-column:1 / -1}
+/* The home is laid out like Today: the session card and the day's plan side by side, then the book, then the tools. */
+#view-read:not([data-rdn=home]) #rdn-streak{display:none}
+.rdn-overview .plan-list{grid-template-columns:minmax(0,1fr)}
+.rdn-hero .rdn-stats{margin-bottom:6px}
+.rdn-hero .nextup{margin:0 0 4px}
+.rdn-hero .rdn-slots{margin:10px 0 12px}
+.rdn-hero .hero-why{display:grid; gap:8px}
+.rdn-home .eyebrow-sec{margin:0 0 12px}
+.rdn-book-t{font-family:var(--serif); font-size:20px; font-weight:600; letter-spacing:-.01em; margin:0}
+.rdn-book-t:focus,.rdn-plan h2:focus,.rdn-hero h2:focus{outline:none}
+@media (min-width:761px){
+  .rdn-home .tools{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; border-top:0}
+  .rdn-home .tools > li{display:flex; min-width:0}
+  .rdn-home .tool{flex:1; grid-template-columns:minmax(0,1fr) auto; grid-template-rows:auto 1fr; align-items:start; gap:4px 12px;
+    padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--card)}
+  .rdn-home .tool:hover{border-color:var(--accent)}
+  .rdn-home .tool-t{grid-column:1; grid-row:1}
+  .rdn-home .tool-d{grid-column:1; grid-row:2}
+  .rdn-home .tool-go{grid-column:2; grid-row:1 / span 2; align-self:center}
 }
-@media (min-width:1100px){ .rdn-grid{grid-template-columns:minmax(0,1fr) 340px} }
 
 .rdn-card{background:var(--card); border:1px solid var(--line); border-radius:var(--rad); box-shadow:var(--shadow); padding:18px; min-width:0}
 .rdn-card h2{font-family:var(--serif); font-size:22px; font-weight:600; letter-spacing:-.01em; margin:0}
@@ -87,10 +96,6 @@
 .rdn-num.next{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset}
 
 /* Progress */
-.rdn-stats{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:12px}
-.rdn-stats div{border:1px solid var(--line); border-radius:10px; padding:10px 6px; text-align:center; min-width:0}
-.rdn-stats b{display:block; font-family:var(--serif); font-size:22px}
-.rdn-stats span{font-size:12px; color:var(--muted); overflow-wrap:anywhere}
 .rdn-suggest{margin-top:12px; padding:12px; border-radius:10px; background:var(--good-bg); color:var(--good); display:flex; gap:10px; align-items:center; flex-wrap:wrap}
 
 /* The old tabs: at the top of the drills and melody screens, a quiet row under "More" on the home */
@@ -108,9 +113,9 @@
 .rdn-phead-t{min-width:0}
 .rdn-phead h2{font-family:var(--serif); font-size:22px; font-weight:600; margin:0}
 .rdn-phead .rdn-sub{display:block; margin:2px 0 0}
-#view-read[data-rdn=player] #rd-gen-title,#view-read[data-rdn=player] #rd-meta,#view-read[data-rdn=player] #rdn-lede{display:none}
+#view-read[data-rdn=player] #rd-gen-title,#view-read[data-rdn=player] #rd-meta{display:none}
 /* In the player the page's own heading gives its room to the score (it stays for screen readers). */
-#view-read[data-rdn=player] .section-head{position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap}
+#view-read[data-rdn=player] .rdn-head{position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap}
 body[data-stage=immersive] #rdn-player-head,body[data-stage=immersive] #rdn-result{display:none !important}
 .rdn-check{display:flex; flex-wrap:wrap; gap:2px 26px; margin:8px 0 2px; padding-left:20px; color:var(--ink2); font-size:14px}
 .rdn-check li{margin:0}

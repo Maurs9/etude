@@ -14,13 +14,27 @@ async function openHome(app, saved) {
 }
 
 test.describe('Read home', () => {
-  test('shows Today, the book, Warm-up and Progress, with the old screens under More', async ({ app }) => {
+  test('is laid out like Today: the set card, the plan, the book and the other ways, with the old screens under More', async ({ app }) => {
     const page = await openHome(app);
-    for (const card of ['.rdn-today', '.rdn-book', '.rdn-warm', '.rdn-progress']) {
+    for (const card of ['.rdn-today', '.rdn-plan', '.rdn-book']) {
       const section = page.locator(`#rdn-home section${card}`);
       await expect(section).toBeVisible();
-      await expect(section.locator('h2')).toHaveCount(1);
+      await expect(section.locator('h2, h3.rdn-book-t')).toHaveCount(1);
     }
+    // The plan: three numbered steps, the first one next, and a Continue button that names it.
+    const steps = page.locator('#rdn-plan .plan-item');
+    await expect(steps).toHaveCount(3);
+    await expect(steps.nth(0)).toHaveAttribute('data-next', 'true');
+    await expect(steps.nth(0).locator('.ck')).toHaveText('1');
+    await expect(page.locator('#rdn-plan-sub')).toHaveText(STRINGS.en.plan_sub.replace('%a', '0').replace('%b', '3'));
+    await expect(page.locator('#rdn-plan-segs i')).toHaveCount(3);
+    await expect(page.locator('#rdn-plan-continue')).toHaveText(STRINGS.en.plan_continue.replace('%s', STRINGS.en.rdn_warm_title));
+    await expect(steps.nth(1).locator('.plan-pill')).toHaveText('0/5');
+    // The head's right side: the streak and today's set as five dots.
+    await expect(page.locator('#rdn-streak-n')).toHaveText('0');
+    await expect(page.locator('#rdn-streak .goaldots i')).toHaveCount(5);
+    // Other ways to practice: three cards.
+    await expect(page.locator('#rdn-home .tools .tool')).toHaveCount(3);
     await expect(page.locator('#rdp-drills')).toBeHidden();
     await expect(page.locator('#rdp-pieces')).toBeHidden();
     await expect(page.locator('#rdn-more-h')).toBeVisible();
@@ -248,28 +262,26 @@ test.describe('Read home', () => {
           // The level buttons: two rows of four below 480px, so none is narrower than 44px either.
           narrow: [...document.querySelectorAll('.rdn-lv')].filter((el) => el.getBoundingClientRect().width < 44).map((el) => el.dataset.rdnLv),
           count: controls.length,
-          today: box('.rdn-today'), warm: box('.rdn-warm'), bookCard: box('.rdn-book'), progress: box('.rdn-progress'),
+          today: box('.rdn-today'), plan: box('.rdn-plan'), bookCard: box('.rdn-book'), tools: box('#rdn-home .tools'),
         };
       });
       expect(facts.overflow).toBeLessThanOrEqual(0);
       expect(facts.small).toEqual([]);
       expect(facts.narrow).toEqual([]);
       expect(facts.count).toBeGreaterThan(100);
-      if (width >= 1100) {
-        // Two columns: Warm-up beside Today, Progress under Warm-up, the book under Today.
-        expect(facts.warm.left).toBeGreaterThan(facts.today.right);
-        expect(Math.round(facts.warm.width)).toBe(340);
-        expect(facts.progress.left).toBe(facts.warm.left);
-        expect(facts.bookCard.left).toBe(facts.today.left);
-      } else if (width >= 700) {
-        // Today and Warm-up share the first row; the book and Progress are full width.
-        expect(facts.warm.top).toBe(facts.today.top);
-        expect(facts.warm.left).toBeGreaterThan(facts.today.right);
+      // The book and the other ways come after the first row, full width.
+      expect(facts.bookCard.top).toBeGreaterThan(Math.max(facts.today.bottom, facts.plan.bottom) - 1);
+      expect(facts.tools.top).toBeGreaterThan(facts.bookCard.bottom - 1);
+      if (width >= 960) {
+        // As on Today: the set card and the plan share the first row, the plan the wider of the two.
+        expect(facts.plan.top).toBe(facts.today.top);
+        expect(facts.plan.left).toBeGreaterThan(facts.today.right);
+        expect(facts.plan.width).toBeGreaterThan(facts.today.width);
         expect(facts.bookCard.width).toBeGreaterThan(facts.today.width * 1.8);
-        expect(facts.progress.width).toBeCloseTo(facts.bookCard.width, 0);
       } else {
-        expect(facts.warm.left).toBe(facts.today.left);
-        expect(facts.warm.top).toBeGreaterThan(facts.bookCard.bottom - 1);
+        // One column: the plan under the set card.
+        expect(facts.plan.left).toBe(facts.today.left);
+        expect(facts.plan.top).toBeGreaterThan(facts.today.bottom - 1);
       }
     });
   }

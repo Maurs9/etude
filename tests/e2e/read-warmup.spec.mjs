@@ -273,6 +273,7 @@ test.describe('Read warm-up', () => {
     await expect(page.locator('#rdn-lede')).toHaveText(ro.rdn_lede);
     await page.locator('#rdn-w-back').click();
     await expect(page.locator('#rdn-warm-h')).toHaveText(ro.rdn_warm_title);
-    await expect(page.locator('#rdn-warm-go')).toHaveText(ro.rdn_warm_go);
+    // The warm-up is a step of today's plan now: the step carries its title and its text.
+    await expect(page.locator('#rdn-warm-go')).toContainText(ro.rdn_warm_title);
   });
 });

@@ -1379,6 +1379,7 @@
   body[data-stage=immersive] #modeBar,
   body[data-stage=immersive] main > .wrap:first-child,
   body[data-stage=immersive] #view-read .section-head,
+  body[data-stage=immersive] #view-read .rdn-head,
   body[data-stage=immersive] #view-read > .wrap > .lede,
   body[data-stage=immersive] .rdx-tabs,
   body[data-stage=immersive] details.osmd-lic,

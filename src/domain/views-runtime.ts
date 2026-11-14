@@ -40,8 +40,8 @@ import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } 
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint, srtLevelFingerprint } from '../sight-reading/fingerprint.js';
 import { srtKeyPool, srtLevel, srtLevelPatterns, srtLevels, srtReadingKey, srtReadingKeys, type ReadingKey, type ReadingKeyId, type ReadingPatternId } from '../sight-reading/levels.js';
-import { SRT_BOOK_PIECES, SRT_DAILY_PIECES, SRT_FOCUS_PIECES, SRT_UNIT_PIECES, srtBookPiece, srtBookUnits, srtDailyPiece, srtFocusPiece, type BookUnit } from '../sight-reading/book.js';
-import { srtBookId, srtBookTally, srtChooseLevel, srtDailyId, srtEnsureDaily, srtFocusId, srtFocusTally, srtKeyStatus, srtLevelAverage, srtLevelReady, srtNormalizeBookState, srtPiecesRead, srtRecordResult, srtStreak, type PieceStat, type ReadingBookState } from '../sight-reading/progress.js';
+import { SRT_BOOK_PIECES, SRT_DAILY_PIECES, SRT_FOCUS_PIECES, SRT_UNIT_PIECES, srtBookPiece, srtBookUnits, srtDailyPiece, srtFocusPiece, srtLongPiece, type BookUnit } from '../sight-reading/book.js';
+import { srtBookId, srtBookTally, srtChooseLevel, srtDailyId, srtEnsureDaily, srtFocusId, srtFocusTally, srtKeyStatus, srtLevelAverage, srtLevelReady, srtLongId, srtNormalizeBookState, srtPiecesRead, srtRecordResult, srtStreak, type PieceStat, type ReadingBookState } from '../sight-reading/progress.js';
 import { srtLevelClicks, srtLevelDurationMs, srtLevelExpected, srtLevelScore } from '../sight-reading/score.js';
 import { srtMelodyRhythm } from '../sight-reading/patterns.js';
 import { SRT_FLASH_MS, srtFlashMatches, srtWarmupPlan, type FlashCard, type WarmupStep } from '../sight-reading/warmup.js';
@@ -6533,7 +6533,9 @@ const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false
 /** The Read tab's screens: the home (the default each time the tab opens), the old drills and melody screens, and the
  *  player of a level piece. `ctx` says which numbered piece the player shows. */
 type RdnScreen = 'home' | 'drills' | 'melody' | 'player' | 'warmup';
-type RdnCtx = { kind: 'book'; level: number; number: number } | { kind: 'focus'; level: number; key: ReadingKeyId; number: number } | { kind: 'daily'; date: string; slot: number };
+type RdnCtx = { kind: 'book'; level: number; number: number } | { kind: 'focus'; level: number; key: ReadingKeyId; number: number } | { kind: 'daily'; date: string; slot: number }
+    // A long piece that gets harder as it goes: the `index`-th of the day.
+    | { kind: 'long'; date: string; level: number; key: ReadingKeyId; index: number };
 /** `learn`: the score and stars of a finished Step-by-step run, shown on the result card instead of an evaluation. */
 /** `autoWait`: auto-next waits for a first-sight result to be saved. `melodyMode`: the old melody screen's mode, kept while
  *  the player shows a level piece. `opener`: a selector for the control that left the home, focused again on the way back.
@@ -8134,7 +8136,7 @@ function srAssessStart(operation?: number) {
         throw new Error('Étude: no piece selected');
     const lvPiece = srtGeneratedSelected() ? SR.lvPiece ?? null : null;
     // First sight: a level piece is played at its level's tempo, an older melody at 60.
-    SR.bpm = SR.srtState?.mode === 'firstSight' ? (lvPiece ? srtLevel(lvPiece.level).bpm : 60) : +(inputById('rd-bpm').value || SR.piece.bpm);
+    SR.bpm = SR.srtState?.mode === 'firstSight' ? (lvPiece ? rdnBpm(lvPiece) : 60) : +(inputById('rd-bpm').value || SR.piece.bpm);
     inputById('rd-bpm').value = String(SR.bpm);
     byId('rd-bpmLbl').textContent = String(SR.bpm);
     const bs = 60 / SR.bpm, cap = SR.piece.ts[1] === 8 ? SR.piece.ts[0] * 0.5 : SR.piece.ts[0], ci = cap, pk = SR.piece.pickup || 0;
@@ -11437,26 +11439,43 @@ function rdnRenderHome() {
     const active = document.activeElement, focusKey = active instanceof HTMLElement && box.contains(active) ? active.dataset.rdnFocus ?? '' : '';
     const more = box.querySelector('#rdn-more-keys');
     const moreOpen = more instanceof HTMLDetailsElement && more.open;
-    box.innerHTML = `<div class="rdn-grid"><div class="rdn-col rdn-main">${rdnTodayHtml(state)}${rdnBookHtml(state, moreOpen)}</div>` +
-        `<div class="rdn-col rdn-rail">${rdnWarmHtml()}${rdnProgressHtml(state, today)}</div></div>`;
+    // The same order as Today: the session card and the day's plan, then the book, then the other ways to practice.
+    box.innerHTML = `<div class="today-overview rdn-overview">${rdnHeroHtml(state)}${rdnPlanHtml(state, today)}</div>` +
+        `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-book-sec">${rdEsc(t('rdn_book_eyebrow'))}</h2>${rdnBookHtml(state, moreOpen)}` +
+        `<hr class="rule"><h2 class="eyebrow-sec" id="rdn-tools-h">${rdEsc(t('today_tools'))}</h2>${rdnToolsHtml()}`;
+    rdnStreakUi(state, today);
     if (focusKey) {
         const again = box.querySelector(`[data-rdn-focus="${focusKey}"]`);
         if (again instanceof HTMLElement)
             again.focus({ preventScroll: true });
     }
 }
-function rdnTodayHtml(state: ReadingBookState) {
-    // The card describes the set (its level and keys), which stays for the day once a piece of it was played.
-    const daily = RDN.noDaily ? null : state.daily, e = rdEsc;
-    const slots = daily ? daily.slots : [], done = daily ? daily.done : [];
-    const played = done.filter((x) => x !== null).length, total = slots.length;
+/** Today's set in one line: how many pieces, their level and their keys. */
+function rdnSetLine(state: ReadingBookState) {
+    const daily = RDN.noDaily ? null : state.daily;
     const setKey = daily ? daily.focusKey : state.focusKey, setLevel = daily ? daily.level : state.level;
     const keys = setKey ? t('rdn_today_key', rdnKeyName(srtReadingKey(setKey))) : t('rdn_today_mixed');
+    return t('rdn_today_sub') + ' · ' + t('rdn_today_level', setLevel) + '. ' + keys;
+}
+/** The first long piece of today that was not played yet, in the chosen key (or one of the level's keys, by the day). */
+function rdnLongCtx(state: ReadingBookState, today: string): RdnCtx {
+    let index = 0;
+    while (index < 99 && state.pieces[srtLongId(today, index)])
+        index++;
+    const pool = srtKeyPool(state.level);
+    const pick = [...(today + '|' + index)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % pool.length;
+    return { kind: 'long', date: today, level: state.level, key: state.focusKey ?? pool[pick].id, index };
+}
+/** The home's first card, laid out like Today's session card: the reader's numbers, today's set and its two ways in. */
+function rdnHeroHtml(state: ReadingBookState) {
+    // The card describes the set (its level and keys), which stays for the day once a piece of it was played.
+    const daily = RDN.noDaily ? null : state.daily, e = rdEsc, lv = state.level, avg = srtLevelAverage(state, lv);
+    const slots = daily ? daily.slots : [], done = daily ? daily.done : [];
+    const played = done.filter((x) => x !== null).length, total = slots.length;
     const stays = !daily ? '' : daily.level !== state.level ? t('rdn_today_stays', daily.level) : daily.focusKey !== state.focusKey ? t('rdn_today_stays_key') : '';
-    if (!daily)
-        return `<section class="rdn-card rdn-today" aria-labelledby="rdn-today-h"><div class="rdn-eyebrow">${e(t('rdn_today_eyebrow'))}</div>` +
-            `<h2 id="rdn-today-h" tabindex="-1">${e(t('rdn_today_title'))}</h2><p class="rdn-sub" id="rdn-no-set">${e(t('rdn_no_set'))}</p>` +
-            `<div class="rdn-row"><button type="button" class="btn primary" id="rdn-today-go" data-rdn-focus="today-go" disabled>${e(t('rdn_today_start'))}</button></div></section>`;
+    const counts = `<div class="counts rdn-stats"><div class="count due"><b class="num">${lv}</b><span>${e(t('rdn_c_level'))}</span></div>` +
+        `<div class="count new"><b class="num">${avg === null ? '—' : avg + '%'}</b><span>${e(t('rdn_stat_first'))}</span></div>` +
+        `<div class="count mastered"><b class="num">${srtPiecesRead(state)}</b><span>${e(t('rdn_stat_read'))}</span></div></div>`;
     const chips = slots.map((slot, i) => {
         const score = done[i], role = t('rdn_role_' + slot.role);
         const label = t('rdn_slot_aria', i + 1, role) + ', ' + (score === null ? t('rdn_not_played') : t('rdn_score_n', score));
@@ -11464,12 +11483,72 @@ function rdnTodayHtml(state: ReadingBookState) {
             `<b>${i + 1}</b><small>${e(score === null ? role : score + '%')}</small></button>`;
     }).join('');
     const go = played === 0 ? 'rdn_today_start' : played >= total ? 'rdn_today_done' : 'rdn_today_continue';
-    return `<section class="rdn-card rdn-today" aria-labelledby="rdn-today-h"><div class="rdn-eyebrow">${e(t('rdn_today_eyebrow'))}</div>` +
-        `<h2 id="rdn-today-h" tabindex="-1">${e(t('rdn_today_title'))}</h2>` +
-        `<p class="rdn-sub">${e(t('rdn_today_sub'))} · ${e(t('rdn_today_level', setLevel))}. ${e(keys)}</p>` +
+    const suggest = srtLevelReady(state, lv)
+        ? `<div class="rdn-suggest" id="rdn-suggest"><span>${e(t('rdn_suggest', lv + 1))}</span><span class="rdn-sp"></span>` +
+            `<button type="button" class="btn" id="rdn-suggest-go" data-rdn-focus="suggest">${e(t('rdn_suggest_go', lv + 1))}</button></div>`
+        : '';
+    return `<section class="hero rdn-hero rdn-today" aria-labelledby="rdn-today-h"><div class="hero-top">` +
+        `<h2 id="rdn-today-h" tabindex="-1">${e(t('rdn_today_title'))}</h2>${counts}` +
+        (daily ? `<p class="nextup rdn-sub">${e(rdnSetLine(state))}</p>` : `<p class="nextup rdn-sub" id="rdn-no-set">${e(t('rdn_no_set'))}</p>`) +
         (stays ? `<p class="rdn-sub rdn-stays" id="rdn-today-stays">${e(stays)}</p>` : '') +
-        `<div class="rdn-slots" role="group" aria-label="${e(t('rdn_today_title'))}">${chips}</div>` +
-        `<div class="rdn-row"><button type="button" class="btn primary" id="rdn-today-go" data-rdn-focus="today-go"${played >= total ? ' disabled' : ''}>${e(t(go))}</button></div></section>`;
+        (daily ? `<div class="rdn-slots" role="group" aria-label="${e(t('rdn_today_title'))}">${chips}</div>` : '') +
+        `<div class="hero-actions"><button type="button" class="btn primary lg" id="rdn-today-go" data-rdn-focus="today-go"${!daily || played >= total ? ' disabled' : ''}>${e(t(daily ? go : 'rdn_today_start'))}</button>` +
+        `<button type="button" class="btn ghost" id="rdn-long-go" data-rdn-focus="long-go">${e(t('rdn_long'))}</button></div></div>` +
+        `<div class="hero-why"><span class="why">✦ ${e(t('rdn_why'))}</span>${suggest}</div></section>`;
+}
+/** A step of today's reading. `off`: it cannot be done today (no set could be made). */
+type RdnPlanItem = { id: string; focus: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; dId?: string; off?: boolean };
+function rdnPlanItems(state: ReadingBookState, today: string): RdnPlanItem[] {
+    const lv = state.level, daily = RDN.noDaily ? null : state.daily;
+    const total = daily ? daily.slots.length : 0, played = daily ? daily.done.filter((x) => x !== null).length : 0;
+    const long = !!state.pieces[srtLongId(today, 0)];
+    return [
+        { id: 'rdn-warm-go', focus: 'warm-go', done: rdData().prefs.warmDone === today, t: t('rdn_warm_title'), d: t(lv >= 6 ? 'rdn_warm_text_ch' : 'rdn_warm_text', lv), dId: 'rdn-warm-text' },
+        { id: 'rdn-plan-set', focus: 'plan-set', done: total > 0 && played >= total, partial: played > 0 && played < total, prog: total ? played / total : 0,
+            pill: total ? played + '/' + total : undefined, t: t('rdn_today_title'), d: daily ? rdnSetLine(state) : t('rdn_no_set'), off: !daily },
+        { id: 'rdn-plan-long', focus: 'plan-long', done: long, t: t('rdn_long'), d: t(long ? 'rdn_long_again' : 'rdn_long_d') },
+    ];
+}
+/** Today's reading as numbered steps, laid out like Today's plan: the warm-up, today's set, a long piece. */
+function rdnPlanHtml(state: ReadingBookState, today: string) {
+    const e = rdEsc, items = rdnPlanItems(state, today), nextIdx = items.findIndex((it) => !it.done && !it.off);
+    const rows = items.map((it, idx) => {
+        const part = !it.done && !!it.partial, warm = it.id === 'rdn-warm-go';
+        return `<li><button type="button" class="plan-item${warm ? ' rdn-warm' : ''}" id="${it.id}" data-rdn-focus="${it.focus}" data-done="${it.done}"` +
+            `${idx === nextIdx ? ' data-next="true"' : ''}${part ? ' data-partial="true"' : ''}${it.off ? ' disabled' : ''}>` +
+            `<span class="ck" aria-hidden="true">${it.done ? '✓' : idx + 1}</span>` +
+            `<span class="pt"><span${warm ? ' id="rdn-warm-h"' : ''}>${e(it.t)}</span>${it.done ? `<span class="visually-hidden"${warm ? ' id="rdn-warm-done"' : ''}> — ${e(t(warm ? 'rdn_warm_done' : 'done_today'))}</span>` : ''}</span>` +
+            `<span class="pd"${it.dId ? ` id="${it.dId}"` : ''}>${e(it.d)}</span>` +
+            `<span class="plan-end" aria-hidden="true">${it.pill ? `<span class="plan-pill">${e(it.pill)}</span>` : ''}<span class="plan-go">→</span></span>` +
+            (part && it.prog ? `<span class="plan-bar" aria-hidden="true"><i style="width:${Math.round(it.prog * 100)}%"></i></span>` : '') + '</button></li>';
+    }).join('');
+    const segs = items.map((it, idx) => `<i data-state="${it.done ? 'done' : it.partial ? 'partial' : idx === nextIdx ? 'next' : 'todo'}"></i>`).join('');
+    const next = nextIdx >= 0 ? items[nextIdx] : null;
+    return `<section class="plan rdn-plan" id="rdn-plan" aria-labelledby="rdn-plan-h"><div class="plan-head"><div><h2 id="rdn-plan-h" tabindex="-1">${e(t('rdn_plan_title'))}</h2>` +
+        `<div class="plan-meta"><span class="sub" id="rdn-plan-sub">${e(t('plan_sub', items.filter((it) => it.done).length, items.length))}</span>` +
+        `<div class="plan-segs" id="rdn-plan-segs" aria-hidden="true">${segs}</div></div></div>` +
+        (next ? `<button type="button" class="btn sm" id="rdn-plan-continue" data-rdn-focus="plan-continue" data-rdn-run="${next.id}">${e(t('plan_continue', next.t))}</button>` : '') +
+        `</div><ul class="plan-list">${rows}</ul></section>`;
+}
+/** Other ways to practice, as on Today: the reading drills, the pieces, the voice. */
+function rdnToolsHtml() {
+    const e = rdEsc, tool = (attrs: string, title: string, text: string) => `<li><button type="button" class="tool" ${attrs}><span class="tool-t">${e(title)}</span>` +
+        `<span class="tool-d">${e(text)}</span><span class="tool-go" aria-hidden="true">→</span></button></li>`;
+    return `<ul class="tools" aria-labelledby="rdn-tools-h">` +
+        tool('id="rdn-all-drills" data-rdn-focus="all-drills"', t('rdn_tool_drills'), t('rdn_tool_drills_d')) +
+        tool('data-rdn-view="analysis" data-rdn-focus="tool-pieces"', t('an_title'), t('tool_analysis_d')) +
+        tool('data-rdn-view="sing" data-rdn-focus="tool-voice"', t('nav_sing'), t('tool_sing_d')) + '</ul>';
+}
+/** The page head's right side, as on Today: the day streak, and today's set as dots. */
+function rdnStreakUi(state: ReadingBookState, today: string) {
+    const box = maybeById('rdn-streak');
+    if (!box)
+        return;
+    const daily = RDN.noDaily ? null : state.daily, total = daily ? daily.slots.length : SRT_DAILY_PIECES, played = daily ? daily.done.filter((x) => x !== null).length : 0;
+    const dots = Array.from({ length: total }, (_, i) => `<i${i < played ? ' class="on"' : ''}></i>`).join('');
+    box.innerHTML = `<div><span class="big num" id="rdn-streak-n">${srtStreak(state, today)}</span><small class="streak-l">${rdEsc(t('streak_label'))}</small></div>` +
+        `<div class="goaldots" role="img" aria-label="${rdEsc(t('rdn_goal_aria', played, total))}">${dots}</div><small class="goal-txt num">${rdEsc(t('goal_txt', played, total))}</small>`;
+    box.hidden = false;
 }
 function rdnNumChip(n: number, stat: PieceStat | undefined, next: boolean) {
     const label = !stat ? t('rdn_num_aria_none', n) : stat.stars === 0 ? t('rdn_num_aria_star0', n) : stat.stars === 1 ? t('rdn_num_aria_star1', n) : t('rdn_num_aria_stars', n, stat.stars);
@@ -11528,8 +11607,8 @@ function rdnBookHtml(state: ReadingBookState, moreOpen: boolean) {
             .map((n) => rdnNumChip(n, state.pieces[srtFocusId(lv, focus, n)], n === next)).join('')}</div>`;
     }
     const patterns = level.newPatterns.map(rdnPattern).join(', ');
-    return `<section class="rdn-card rdn-book" aria-labelledby="rdn-book-h"><div class="rdn-eyebrow">${e(t('rdn_book_eyebrow'))}</div>` +
-        `<h2 id="rdn-book-h" tabindex="-1">${e(t('rdn_book_title'))}</h2>` +
+    return `<section class="rdn-card rdn-book" aria-labelledby="rdn-book-h">` +
+        `<h3 class="rdn-book-t" id="rdn-book-h" tabindex="-1">${e(t('rdn_book_title'))}</h3>` +
         `<div class="rdn-lab" id="rdn-lv-lab">${e(t('rdn_level_label'))}</div><div class="rdn-levels" role="group" aria-labelledby="rdn-lv-lab">${levels}</div>` +
         `<p class="rdn-lvdesc"><b>${e(t('rdn_level_head', lv, rdnLevelName(lv)))}</b><br>${e(t('rdn_lv' + lv + '_desc'))}<br>` +
         `<span class="rdn-pat">${e(t('rdn_new_patterns', patterns))}</span></p>` +
@@ -11537,26 +11616,6 @@ function rdnBookHtml(state: ReadingBookState, moreOpen: boolean) {
         others +
         `<div class="rdn-legend"><span><i class="rdn-lg-secure"></i>${rdnMark('secure')}${e(t('rdn_legend_secure'))}</span><span><i class="rdn-lg-started"></i>${rdnMark('started')}${e(t('rdn_legend_started'))}</span></div>` +
         `<div class="rdn-bookhead">${head}</div>${body}</section>`;
-}
-function rdnWarmHtml() {
-    const e = rdEsc, lv = rdnBook().level, done = rdData().prefs.warmDone === rdnToday();
-    const mark = done ? `<span class="rdn-warm-done" id="rdn-warm-done"><span aria-hidden="true">✓</span> ${e(t('rdn_warm_done'))}</span>` : '';
-    return `<section class="rdn-card rdn-warm" aria-labelledby="rdn-warm-h"><div class="rdn-eyebrow">${e(t('rdn_warm_eyebrow'))}</div>` +
-        `<div class="rdn-warm-h"><h2 id="rdn-warm-h" tabindex="-1">${e(t('rdn_warm_title'))}</h2>${mark}</div>` +
-        `<p class="rdn-sub" id="rdn-warm-text">${e(t(lv >= 6 ? 'rdn_warm_text_ch' : 'rdn_warm_text', lv))}</p>` +
-        `<div class="rdn-row"><button type="button" class="btn" id="rdn-warm-go" data-rdn-focus="warm-go">${e(t('rdn_warm_go'))}</button>` +
-        `<button type="button" class="btn ghost rdn-link" id="rdn-all-drills" data-rdn-focus="all-drills">${e(t('rdn_all_drills'))}</button></div></section>`;
-}
-function rdnProgressHtml(state: ReadingBookState, today: string) {
-    const e = rdEsc, lv = state.level, avg = srtLevelAverage(state, lv);
-    const stats: [string | number, string][] = [[srtStreak(state, today), t('rdn_stat_streak')], [avg === null ? '—' : avg + '%', t('rdn_stat_first')], [srtPiecesRead(state), t('rdn_stat_read')]];
-    const suggest = srtLevelReady(state, lv)
-        ? `<div class="rdn-suggest" id="rdn-suggest"><span>${e(t('rdn_suggest', lv + 1))}</span><span class="rdn-sp"></span>` +
-            `<button type="button" class="btn" id="rdn-suggest-go" data-rdn-focus="suggest">${e(t('rdn_suggest_go', lv + 1))}</button></div>`
-        : '';
-    return `<section class="rdn-card rdn-progress" aria-labelledby="rdn-progress-h"><div class="rdn-eyebrow">${e(t('rdn_progress_eyebrow'))}</div>` +
-        `<h2 id="rdn-progress-h" tabindex="-1">${e(t('rdn_progress_title'))}</h2>` +
-        `<div class="rdn-stats">${stats.map(([v, l]) => `<div><b>${e(v)}</b><span>${e(l)}</span></div>`).join('')}</div>${suggest}</section>`;
 }
 function rdnHomeClick(e: MouseEvent) {
     const state = rdnBook();
@@ -11581,12 +11640,21 @@ function rdnHomeClick(e: MouseEvent) {
         rdnOpen({ kind: 'daily', date: state.daily.date, slot: Number(slot.dataset.rdnSlot) });
         return;
     }
-    const b = eventClosest(e, 'button'), id = b ? b.id : '';
-    if (id === 'rdn-today-go' && state.daily) {
-        const first = state.daily.done.findIndex((x) => x === null);
-        if (first >= 0)
-            rdnOpen({ kind: 'daily', date: state.daily.date, slot: first });
+    const b = eventClosest(e, 'button'), view = b?.dataset.rdnView;
+    // Continue runs the step it names.
+    const id = b ? (b.id === 'rdn-plan-continue' ? b.dataset.rdnRun ?? '' : b.id) : '';
+    if (view) {
+        show(view);
+        return;
     }
+    if ((id === 'rdn-today-go' || id === 'rdn-plan-set') && state.daily) {
+        // The first piece not played yet; a finished set opens at its first piece, as practice.
+        const first = state.daily.done.findIndex((x) => x === null);
+        if (first >= 0 || id === 'rdn-plan-set')
+            rdnOpen({ kind: 'daily', date: state.daily.date, slot: Math.max(0, first) });
+    }
+    else if (id === 'rdn-long-go' || id === 'rdn-plan-long')
+        rdnOpen(rdnLongCtx(state, rdnToday()));
     else if (id === 'rdn-warm-go')
         rdnWarmupStart();
     else if (id === 'rdn-all-drills') {
@@ -11890,6 +11958,15 @@ function rdnPieceOf(ctx: RdnCtx): GeneratedPiece | null {
         return srtBookPiece(ctx.level, ctx.number);
     if (ctx.kind === 'focus')
         return srtFocusPiece(ctx.level, ctx.key, ctx.number);
+    if (ctx.kind === 'long') {
+        // A long piece is several sections in one meter: when none can be made for this key, there is no piece to open.
+        try {
+            return srtLongPiece(ctx.level, ctx.key, ctx.date, ctx.index);
+        }
+        catch {
+            return null;
+        }
+    }
     const daily = rdnBook().daily, slot = daily && daily.date === ctx.date ? daily.slots[ctx.slot] : undefined;
     return slot ? srtDailyPiece(ctx.date, slot) : null;
 }
@@ -11898,6 +11975,8 @@ function rdnHeadText(): { title: string; sub: string } {
     if (!c || !p)
         return { title: '', sub: '' };
     const level = t('rdn_level_head', p.level, rdnLevelName(p.level));
+    if (c.kind === 'long')
+        return { title: c.index ? t('rdn_long_n', c.index + 1) : t('rdn_long'), sub: t('rdn_long_sub', p.bars) + ' · ' + level };
     if (c.kind === 'daily')
         return { title: t('rdn_title_today', c.slot + 1, SRT_DAILY_PIECES), sub: level };
     if (c.kind === 'focus')
@@ -11910,7 +11989,7 @@ function rdnPlayerHead() {
     const h = rdnHeadText(), c = RDN.ctx;
     byId('rdn-p-title').textContent = h.title;
     byId('rdn-p-sub').textContent = h.sub;
-    buttonById('rdn-prev').hidden = !c || c.kind === 'daily';
+    buttonById('rdn-prev').hidden = !c || c.kind === 'daily' || c.kind === 'long';
     rdnNavUi();
 }
 /** True while an attempt of the level piece runs: its preview, count-in or playing (or a Step-by-step run). */
@@ -11922,7 +12001,7 @@ function rdnBusy() {
 function rdnNavUi() {
     const c = RDN.ctx, busy = rdnBusy(), prev = maybeById('rdn-prev'), next = maybeById('rdn-next');
     if (prev instanceof HTMLButtonElement)
-        prev.disabled = busy || !c || c.kind === 'daily' || c.number <= 1;
+        prev.disabled = busy || !c || c.kind === 'daily' || c.kind === 'long' || c.number <= 1;
     if (next instanceof HTMLButtonElement)
         next.disabled = busy || !c;
 }
@@ -11937,10 +12016,14 @@ function rdnHandsHint() {
     if (hint)
         hint.hidden = !SR.lvPiece || !hands || hands.hidden || SR.hands === 'both';
 }
+/** The tempo of a level piece's first sight: its level's, or a long piece's own (the slowest of its sections). */
+function rdnBpm(piece: GeneratedPiece) {
+    return 'bpm' in piece && typeof piece.bpm === 'number' ? piece.bpm : srtLevel(piece.level).bpm;
+}
 /** The drawable score of a level piece: the engraver's level notation (engrave: 2) with the player's title. */
 function rdnDrawable(piece: GeneratedPiece): SrPiece {
     const score = srtLevelScore(piece);
-    return { id: 'lvl', ephemeral: true, gen: 'lv' + piece.level, comp: '', level: piece.level, keyN: score.keyN, minor: score.minor, bpm: score.bpm,
+    return { id: 'lvl', ephemeral: true, gen: 'lv' + piece.level, comp: '', level: piece.level, keyN: score.keyN, minor: score.minor, bpm: rdnBpm(piece),
         ts: score.ts, engrave: 2, rh: score.rh, lh: score.lh, t: { en: rdnHeadText().title } };
 }
 /** The Hands control only for the levels where both hands play together. */
@@ -12018,6 +12101,14 @@ function rdnStep(dir: 1 | -1) {
         if (c.slot + 1 < SRT_DAILY_PIECES)
             next = { ...c, slot: c.slot + 1 };
     }
+    else if (c.kind === 'long') {
+        // Next is another long piece: the first of today not played yet.
+        if (dir < 0)
+            return;
+        next = rdnLongCtx(rdnBook(), c.date);
+        if (next.kind === 'long' && next.index <= c.index)
+            next = { ...next, index: c.index + 1 };
+    }
     else {
         const n = c.number + dir, total = c.kind === 'book' ? SRT_BOOK_PIECES : SRT_FOCUS_PIECES;
         if (n < 1)
@@ -12043,7 +12134,7 @@ function rdnKey(e: KeyboardEvent) {
         return false;
     if (view0() !== 'read' || RDN.screen !== 'player' || !RDN.ctx || SR.active || SR.listening || inField() || rdnBusy())
         return false;
-    if (e.key === 'ArrowLeft' && (RDN.ctx.kind === 'daily' || RDN.ctx.number <= 1))
+    if (e.key === 'ArrowLeft' && (RDN.ctx.kind === 'daily' || RDN.ctx.kind === 'long' || RDN.ctx.number <= 1))
         return false;
     e.preventDefault();
     rdnStep(e.key === 'ArrowRight' ? 1 : -1);
@@ -12155,7 +12246,7 @@ function rdnRecord(score: number, stars: 0 | 1 | 2 | 3, firstSight: boolean) {
     const p = SR.lvPiece, c = RDN.ctx;
     if (!p || !c)
         return;
-    const id = c.kind === 'book' ? srtBookId(c.level, c.number) : c.kind === 'focus' ? srtFocusId(c.level, c.key, c.number) : srtDailyId(c.date, c.slot);
+    const id = c.kind === 'book' ? srtBookId(c.level, c.number) : c.kind === 'focus' ? srtFocusId(c.level, c.key, c.number) : c.kind === 'long' ? srtLongId(c.date, c.index) : srtDailyId(c.date, c.slot);
     rdnSetBook(srtRecordResult(rdnBook(), { id, level: p.level, key: p.key.id, score, stars, firstSight, date: rdnToday() }));
 }
 /* ---- the result card and auto-next ---- */
