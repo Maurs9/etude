@@ -43,6 +43,11 @@ describe('reading book state', () => {
     // A run in a pinned key counts for the key, not for reading in mixed keys.
     state = play(state, { id: srtFocusId(3, 'G', 1), key: 'G', score: 70 });
     expect(state.recent).toEqual({ '3|C': [80], '3|G': [60, 70], 3: [80, 60] });
+    // A long piece is partly below its level: it is stored like any piece, but counts for neither the key nor the level.
+    const before = state.recent;
+    state = play(state, { id: 'l2026-11-14.0', key: 'C', score: 100 });
+    expect(state.pieces['l2026-11-14.0']).toEqual({ best: 100, stars: 2, tries: 1, first: 100 });
+    expect(state.recent).toEqual(before);
     const long = many(srtBookStateDefault(), 20, (index) => ({ score: index }));
     expect(long.recent['3|C']).toEqual([12, 13, 14, 15, 16, 17, 18, 19]);
     expect(long.recent[3]).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);

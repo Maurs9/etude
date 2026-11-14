@@ -4,6 +4,7 @@ import { srtLevelFingerprint } from './fingerprint.js';
 import { srtDegreePitch, srtKeyPool, srtLevel, srtReadingKey, type ReadingKey, type ReadingKeyId } from './levels.js';
 import { srtGenerateLevelPiece, srtHashText, srtTransposeLevelPiece } from './melody.js';
 import { srtSubBand, type GeneratedPiece } from './rules.js';
+import { srtGenerateProgressivePiece, type ProgressivePiece } from './progressive.js';
 
 export const SRT_BOOK_UNITS = 12;
 export const SRT_UNIT_PIECES = 8;
@@ -276,4 +277,16 @@ export function srtDailyPiece(date: string, slot: DailySlot): GeneratedPiece {
   const piece = candidate(slot.level, slot.key, dailyName(date, slot), slot.salt);
   if (!piece) throw new Error(`No piece for ${dailyName(date, slot)}`);
   return piece;
+}
+
+/**
+ * A long piece whose difficulty rises up to a level, for a day. The date, the level, the index and the key make the
+ * seed: the same values always give the same piece.
+ */
+export function srtLongPiece(level: number, key: ReadingKeyId, date: string, index: number): ProgressivePiece {
+  if (!isDate(date)) throw new RangeError(`Invalid date: ${date}`);
+  if (!Number.isInteger(index) || index < 0) throw new RangeError(`Invalid index: ${index}`);
+  const levelId = srtLevel(level).id;
+  const keyId = srtReadingKey(key).id;
+  return srtGenerateProgressivePiece(levelId, keyId, srtHashText(`long|${date}|${levelId}|${index}|${keyId}`));
 }

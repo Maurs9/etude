@@ -60,6 +60,8 @@ const KEY_IDS: readonly string[] = srtReadingKeys().map((key) => key.id);
 export const srtBookId = (level: number, number: number): string => `b${level}.${number}`;
 export const srtFocusId = (level: number, key: string, number: number): string => `f${level}.${key}.${number}`;
 export const srtDailyId = (date: string, slot: number): string => `d${date}.${slot}`;
+/** The id of a long piece of a day (book.ts srtLongPiece). Its result is stored under this id like any other piece. */
+export const srtLongId = (date: string, index: number): string => `l${date}.${index}`;
 
 const isDate = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 const isLevel = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 8;
@@ -133,7 +135,8 @@ export function srtRecordResult(state: ReadingBookState, result: ReadingResult):
     first: before?.first ?? (result.firstSight ? score : null),
   };
   const recent = { ...state.recent };
-  if (result.firstSight && (before?.first ?? null) === null) {
+  // A long piece (srtLongId) is partly below its level: its score says nothing about reading at the level or in the key.
+  if (result.firstSight && (before?.first ?? null) === null && !result.id.startsWith('l')) {
     const add = (name: string, keep: number): void => { recent[name] = [...(recent[name] ?? []), score].slice(-keep); };
     add(`${result.level}|${result.key}`, KEY_SCORES);
     // A piece played with a pinned key says nothing about reading in mixed keys: a piece of a key run, or a piece
