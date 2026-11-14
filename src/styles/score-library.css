@@ -12,8 +12,9 @@
 #score-library .score-library-content { padding: 0 16px 16px; min-width: 0; }
 #score-library p { margin: 4px 0; }
 #score-library .score-library-note { color: var(--muted); font-size: .875rem; }
+#score-library .score-library-note:empty { display: none; }
 #score-library .score-library-toolbar {
-  display: flex; flex-direction: column; gap: 12px; margin-block: 16px;
+  display: flex; flex-direction: column; gap: 10px; margin: 12px 0 8px;
 }
 #score-library .score-library-toolbar-main {
   display: grid; grid-template-columns: minmax(200px, 1fr) minmax(170px, 230px) minmax(200px, 260px);
@@ -92,9 +93,10 @@
   outline: 3px solid var(--accent); outline-offset: 3px;
 }
 #score-library .score-library-status { min-height: 1.5em; margin-block: 8px; }
+#score-library .score-library-status:empty { min-height: 0; margin: 0; }
 #score-library .score-library-bulk {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-  gap: 10px; padding: 6px 14px 6px 0; margin-top: 4px;
+  gap: 10px; padding: 6px 14px 6px 0; margin-top: 0;
   border-top: 1px solid var(--line);
 }
 #score-library label.score-library-select-all {
