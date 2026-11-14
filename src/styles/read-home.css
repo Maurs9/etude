@@ -116,8 +116,9 @@ body[data-stage=immersive] #rdn-player-head,body[data-stage=immersive] #rdn-resu
 .rdn-check li{margin:0}
 .rdn-result{margin-top:10px; padding:14px 16px; border:1px solid var(--line2); border-radius:var(--rad); background:var(--card); box-shadow:var(--shadow)}
 .rdn-r-top{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
-.rdn-r-top h3{font-family:var(--serif); font-size:26px; margin:0}
-.rdn-r-top .rdx-stars{font-size:22px; color:var(--gold); letter-spacing:2px}
+.rdn-r-top h3{font-family:var(--serif); font-size:30px; margin:0}
+.rdn-r-top .rdx-stars{font-size:40px; line-height:1; color:var(--gold); letter-spacing:4px}
+.rdn-r-msg{margin:6px 0 0; color:var(--ink2)}
 /* The paper of a level piece: a page, centred, no wider than four bars read well. */
 #view-read[data-rdn=player] #rd-staff{max-width:1120px; margin-inline:auto}
 body[data-stage=immersive] #view-read[data-rdn=player] #rd-staff{max-width:none}

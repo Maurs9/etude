@@ -12188,7 +12188,7 @@ function rdnResultShow(startAuto: boolean) {
         return;
     }
     // A Step-by-step run measures neither pitch accuracy, rhythm nor timing: those cells show a dash.
-    const pct = learn ? learn.acc : SR.srtResultValue ?? Math.round(ev?.score ?? 0), stars = learn ? learn.stars : rdnStars(ev?.stars ?? 0), auto = !!rdData().prefs.autoNext;
+    const pct = learn ? learn.acc : SR.srtResultValue ?? Math.round(ev?.score ?? 0), stars = learn ? learn.stars : rdnStars(ev?.stars ?? 0), auto = rdnAutoNextOn();
     const cells: [string, string][] = [
         [!ev || learn ? '—' : Math.round(ev.pitchF1 ?? 0) + '%', t('rdn_res_pitch')],
         [!ev || learn ? '—' : Math.round(ev.rhythmAcc ?? 0) + '%', t('rdn_res_rhythm')],
@@ -12197,6 +12197,8 @@ function rdnResultShow(startAuto: boolean) {
     ];
     // The score and the cells are the live region: a new result is announced once, without the buttons.
     box.innerHTML = `<div class="rdn-r-live" role="status" aria-atomic="true"><div class="rdn-r-top"><h3 id="rdn-r-score">${pct}%</h3>${rdStars(stars, stars ? undefined : t('rdn_stars_none'))}</div>` +
+        // What the stars of an assessed attempt mean, and what the next one takes (a Step-by-step run has its own rule).
+        (learn ? '' : `<p class="rdn-r-msg">${e(t('rdn_r_s' + stars))}</p>`) +
         `<div class="rdn-res">${cells.map(([v, l]) => `<div><b>${e(v)}</b><span>${e(l)}</span></div>`).join('')}</div></div>` +
         `<div class="rdn-row"><button type="button" class="btn" id="rdn-retry">${e(t('rdn_retry'))}</button>` +
         `<button type="button" class="btn" id="rdn-listen">${e(t('rdn_listen'))}</button>` +
@@ -12221,6 +12223,11 @@ function rdnResultShow(startAuto: boolean) {
     if (!(active instanceof HTMLElement) || active === document.body || !active.getClientRects().length)
         byId('rdn-r-next').focus({ preventScroll: true });
 }
+/** Auto-next: the reader's choice once made; until then it is on while a MIDI or Bluetooth piano is connected. */
+function rdnAutoNextOn() {
+    const pref = rdData().prefs.autoNext;
+    return pref === undefined ? midiLive() : !!pref;
+}
 function rdnAutoShow() {
     const row = maybeById('rdn-auto'), text = maybeById('rdn-auto-t'), say = maybeById('rdn-auto-say');
     if (row)
@@ -12236,7 +12243,7 @@ function rdnAutoAfterSave() {
     if (!RDN.autoWait)
         return;
     RDN.autoWait = false;
-    if (RDN.screen === 'player' && SR.lvPiece && !maybeById('rdn-result')?.hidden && rdData().prefs.autoNext)
+    if (RDN.screen === 'player' && SR.lvPiece && !maybeById('rdn-result')?.hidden && rdnAutoNextOn())
         rdnAutoStart();
 }
 function rdnAutoStart() {
