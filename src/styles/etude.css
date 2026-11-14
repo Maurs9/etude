@@ -357,7 +357,7 @@
   .kbscroll{overflow-x:auto; overflow-y:hidden; border-radius:4px 4px 6px 6px}
   #kb-pan{width:calc(100% - 32px); height:24px; margin:0 16px; touch-action:pan-x}
   .keys{position:relative; height:152px; display:flex; gap:1.5px; min-width:100%; touch-action:none; user-select:none; padding:0 0 3px; background:#181512; border-radius:4px 4px 6px 6px; box-shadow:0 3px 10px rgba(0,0,0,.28)}
-  .keys::before{content:""; position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(180deg,#7a1818 0%,#982121 50%,#581010 100%); box-shadow:0 1px 2px rgba(0,0,0,.45); z-index:10; pointer-events:none}
+  .keys::before{content:""; position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(180deg,#7a1818 0%,#982121 50%,#581010 100%); box-shadow:0 1px 1px rgba(0,0,0,.45), 0 3px 5px rgba(0,0,0,.22), 0 8px 14px rgba(0,0,0,.10); z-index:10; pointer-events:none}
   .key{padding:0; cursor:pointer}
   .white{position:relative; flex:1 1 0; min-width:26px; border:none; border-radius:0 0 5px 5px;
     background:linear-gradient(180deg,#fefae8 0%,#fdf6df 75%,#f8efcf 100%);
@@ -365,20 +365,25 @@
     transform-origin:top center;
     transition:transform .1s cubic-bezier(.25,1,.5,1), box-shadow .1s cubic-bezier(.25,1,.5,1), background .08s ease-out}
   .white .lbl{position:absolute; bottom:7px; left:0; right:0; text-align:center; font-size:9px; color:#8c816f; font-weight:700; font-family:var(--sans); letter-spacing:.02em; pointer-events:none; text-shadow:0 1px 0 rgba(255,255,255,.6)}
-  /* black keys: a matte top that lightens a little towards the front, thin grey side bevels, a light seam, then a short
-     front lip; a soft shadow falls to the right onto the white keys */
+  /* black keys, lit from the top left: lacquered top with a soft lengthwise reflection, a bright rim where it rounds into the
+     front, side walls (the left one catches the light), a sloped front face, and a shadow falling right onto the white keys */
   .black{position:absolute; top:0; height:66%; width:22px; border-radius:0 0 3px 3px;
-    background:linear-gradient(90deg,#2e2e2e 0%,#181818 8%,#101010 16%,#101010 84%,#181818 92%,#2e2e2e 100%);
+    background:linear-gradient(90deg,#444 0%,#262626 5%,#141414 12%,#0f0f0f 88%,#070707 95%,#121212 100%);
     border:1px solid #000; border-top:none; z-index:5;
-    box-shadow:8px 4px 9px -2px rgba(0,0,0,.34), 3px 2px 3px rgba(0,0,0,.26);
+    box-shadow:9px 4px 10px -3px rgba(0,0,0,.40), 4px 2px 4px -1px rgba(0,0,0,.30), 1px 1px 1px rgba(0,0,0,.45);
     transform-origin:top center;
     transition:transform .1s cubic-bezier(.25,1,.5,1), box-shadow .1s cubic-bezier(.25,1,.5,1), background .08s ease-out}
-  .black::before{content:""; position:absolute; top:0; left:10%; right:10%; bottom:9%; border-radius:0 0 2px 2px; pointer-events:none; z-index:2;
-    background:linear-gradient(180deg,#0a0a0a 0%,#101010 60%,#171717 76%,#252525 90%,#363636 100%);
-    box-shadow:0 1px 0 rgba(255,255,255,.22)}
+  .black::before{content:""; position:absolute; top:0; left:12%; right:12%; bottom:9%; border-radius:0 0 3px 3px; pointer-events:none; z-index:2;
+    background:
+      linear-gradient(180deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,0) 22%),
+      linear-gradient(90deg,rgba(255,255,255,0) 6%,rgba(255,255,255,.09) 24%,rgba(255,255,255,.035) 40%,rgba(255,255,255,0) 56%,rgba(255,255,255,0) 82%,rgba(255,255,255,.03) 94%),
+      linear-gradient(180deg,#0b0b0b 0%,#121212 45%,#171717 72%,#202020 88%,#2c2c2c 97%,#3a3a3a 100%);
+    box-shadow:inset 0 -2px 1.5px -1px rgba(255,255,255,.38), inset 1px 0 0 rgba(255,255,255,.05), 0 1px 0 rgba(0,0,0,.7)}
   .black::after{content:""; position:absolute; left:0; right:0; bottom:0; height:9%; border-radius:0 0 2px 2px; pointer-events:none; z-index:1;
-    clip-path:polygon(10% 0, 90% 0, 100% 100%, 0 100%);
-    background:linear-gradient(180deg,#5a5a5a 0%,#3a3a3a 35%,#262626 75%,#161616 100%)}
+    clip-path:polygon(12% 0, 88% 0, 100% 100%, 0 100%);
+    background:
+      linear-gradient(90deg,rgba(255,255,255,.07) 0%,rgba(255,255,255,0) 45%,rgba(0,0,0,.25) 100%),
+      linear-gradient(180deg,#505050 0%,#363636 22%,#232323 60%,#141414 100%)}
   .black[data-s]::before{background:linear-gradient(180deg,rgba(0,0,0,.2) 0%,rgba(0,0,0,.04) 65%,rgba(255,255,255,.18) 92%,rgba(255,255,255,.42) 98%,rgba(255,255,255,.2) 100%);
     box-shadow:-1px 0 0 rgba(0,0,0,.35), 1px 0 0 rgba(0,0,0,.35), 0 1px 1px rgba(0,0,0,.45)}
   .black[data-s]::after{background:linear-gradient(180deg,rgba(255,255,255,.22) 0%,rgba(0,0,0,.2) 35%,rgba(0,0,0,.42) 100%)}
@@ -387,7 +392,10 @@
     box-shadow:inset 0 3px 4px rgba(0,0,0,.22), inset 1px 0 2px rgba(0,0,0,.12), inset -1px 0 2px rgba(0,0,0,.12), 0 1px 1px rgba(0,0,0,.4)}
   .black.pressed{transform:translateY(2.5px);
     box-shadow:1.5px 2px 2.5px rgba(0,0,0,.28), 0 1px 1px rgba(0,0,0,.4)}
-  .black:not([data-s]).pressed::before{background:linear-gradient(180deg,#040404 0%,#080808 55%,#111 82%,#1f1f1f 93%,#3d3d3d 98%,#222 100%)}
+  .black:not([data-s]).pressed::before{background:
+      linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,0) 26%),
+      linear-gradient(90deg,rgba(255,255,255,0) 6%,rgba(255,255,255,.06) 24%,rgba(255,255,255,.02) 40%,rgba(255,255,255,0) 56%),
+      linear-gradient(180deg,#070707 0%,#0d0d0d 50%,#141414 80%,#1d1d1d 94%,#2a2a2a 100%)}
   .white[data-s=active]{border-color:#cca02d; background:linear-gradient(180deg,#fff8e2 0%,#fde492 35%,#f4c450 78%,#df9f20 100%);
     box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset -1px 0 0 rgba(160,110,15,.25), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -6px 8px -2px rgba(180,120,20,.4), 0 2px 4px rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.1)}
   .white[data-s=active] .lbl{color:#523502; font-weight:800; text-shadow:0 1px 0 rgba(255,255,255,.6)}
