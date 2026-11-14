@@ -434,6 +434,12 @@
   .ss-svg{display:block}
   .ss-line{stroke:var(--staffink); stroke-opacity:.62}
   .ss-glyph{fill:var(--staffink)}
+  /* The markings of a level piece (dynamics, finger numbers, staccato, accents, slurs, hairpins). */
+  .ss-marks{pointer-events:none}
+  .ss-dyn{fill:var(--staffink); font-family:var(--serif); font-style:italic; font-weight:700; font-size:17px; text-anchor:middle}
+  .ss-finger{fill:var(--staffink); font-family:var(--sans); font-size:10.5px; font-weight:600; text-anchor:middle}
+  .ss-art,.ss-slur{fill:var(--staffink)}
+  .ss-accent,.ss-hairpin{fill:none; stroke:var(--staffink); stroke-width:1.3}
   .ss-glyph line{stroke:var(--staffink)}
   path.ss-glyph{fill:none; stroke:var(--staffink)}
   .ss-clef{fill:var(--staffink); dominant-baseline:alphabetic}

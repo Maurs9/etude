@@ -48,6 +48,7 @@ import { SRT_FLASH_MS, srtFlashMatches, srtWarmupPlan, type FlashCard, type Warm
 import type { GeneratedPiece } from '../sight-reading/rules.js';
 import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
+import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
 import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
@@ -5239,7 +5240,9 @@ function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !=
 /** What the grand-staff engraver (`srRender`) needs to draw a passage. */
 /** `engrave: 2` (level pieces) opts in to beams in every meter, whole-bar and dotted rests, accidentals that hold for the bar,
  *  tied chords, spelled note names and room for accidentals; without it the engraver draws exactly as before. */
-interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; perc?: boolean; engrave?: 2 }
+interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; perc?: boolean; engrave?: 2;
+    /** engrave 2: the printed-page markings of a level piece (dynamics, fingering, articulation, slurs), drawn over the notes. */
+    marks?: LevelMarkings }
 type SrHand = 'rh' | 'lh';
 /** An annotation drawn over a Learn staff: kind, beat, then kind-specific values. */
 type LStaffMark =
@@ -6856,6 +6859,15 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
         barTop[m] = Math.min(barTop[m], up ? y - 40 : y - 20);
         barBot[m] = Math.max(barBot[m], up ? y + 12 : y + 40);
     }));
+    // engrave 2 with markings: a finger number sits above the right hand and below the left, so its bar takes more room.
+    const marks = v2 ? piece.marks : undefined;
+    marks?.fingering.forEach((f) => {
+        const m = Math.min(nBars - 1, bounds.filter((v) => v < f.beat + 1e-3).length);
+        if (f.hand === 'rh')
+            barTop[m] -= 12;
+        else
+            barBot[m] += 14;
+    });
     // Systems: `starts` holds each one's first bar. The first system carries the time signature.
     const headW = (s: number) => 40 + ksw + (s === 0 ? 26 : 8);
     const sysW = (s: number, a: number, z: number) => { let w = headW(s) + 18 * (z - a - 1) + (z === nBars ? 20 : 12); for (let m = a; m < z; m++)
@@ -6938,8 +6950,11 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
         }
         else
             x += 8;
+        sysX0[s] = x;
         systems.push({ yTop: staves[0].top - 8, yBot: lastSt.top + 56 });
     };
+    // Where each system's music starts (after its clefs and signatures), and where each hand's notes were drawn (for the markings).
+    const sysX0: number[] = [], markCols = new Map<string, SrMarkCol>();
     openSystem(0);
     // A tied note is not played again: it is drawn inside the group of the note it continues, which also lasts longer.
     const lastNote: Partial<Record<SrHand, SrStaffNote>> = {}, tiedMarkup = new Map<number, string>();
@@ -6987,6 +7002,8 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
             it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
         });
         const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
+        if (marks)
+            markCols.set(st.hand + '|' + items[0].e.beat.toFixed(3), { x: nx, hi: top.y, lo: bot.y, up, sy, top: st.top });
         let stem = '';
         if (col && grp) {
             Object.assign(col, { x: nx, yHi: top.y, yLo: bot.y });
@@ -7167,6 +7184,8 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
             return `<rect class="ss-glyph ss-rest ss-rest-bar" x="${c - 6}" y="${r.top + 12}" width="12" height="5"/>`;
         });
     }
+    if (marks)
+        body += srLevelMarks(marks, markCols, (beat) => srBeatPt(beatX, beat), sysEnd, sysX0, (s) => sysY[s] + (lastSt.rel + 48) / 2);
     const W = lay ? Math.max(...sysEnd) + 6 : Math.max(x + 6, 420);
     if (!lay)
         H = Math.max(lastSt.top + 48 + (names ? 38 : 22), 150);
@@ -7186,6 +7205,82 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     const size = lay ? `width="${Math.floor(W * zoom)}" height="${Math.round(H * zoom)}"` : `width="${W}" height="${H}"`;
     return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} ${H}" ${size} xmlns="http://www.w3.org/2000/svg">${staff}${head}${body}</svg>`, notes, beatX, total, W, H,
         yTop: systems[0].yTop, yBot: systems[0].yBot, systems, scale: zoom };
+}
+/** engrave 2: where one hand's note or chord at a beat was drawn: its x, its highest and lowest notehead, its stem's
+ *  direction, its system and its staff's top line. */
+interface SrMarkCol { x: number; hi: number; lo: number; up: boolean; sy: number; top: number }
+/** engrave 2: the markings of a level piece as one group drawn over the notes, the way a printed page shows them: dynamics
+ *  and hairpins between the staves, a finger number above the right hand and below the left, a staccato dot or an accent
+ *  on the notehead side, slurs on the notehead side too. They are decoration: no note group changes, and nothing is scored. */
+function srLevelMarks(marks: LevelMarkings, cols: ReadonlyMap<string, SrMarkCol>, at: (beat: number) => SrBeatX, sysEnd: readonly number[],
+    sysX0: readonly number[], midY: (sy: number) => number): string {
+    const col = (hand: string, beat: number) => cols.get(hand + '|' + beat.toFixed(3));
+    const key = (hand: string, beat: number, below: boolean) => hand + '|' + beat.toFixed(3) + '|' + (below ? 'b' : 'a');
+    // What already sits above or below a note: a finger number moves out of its way.
+    const taken = new Set<string>();
+    let out = '';
+    for (const s of marks.slurs) {
+        const a = col(s.hand, s.from), b = col(s.hand, s.to);
+        if (!a || !b)
+            continue;
+        // Under the noteheads when the stems go up, over them otherwise.
+        const below = a.up && b.up, d = below ? 1 : -1, ya = below ? a.lo + 9 : a.hi - 9, yb = below ? b.lo + 9 : b.hi - 9;
+        const arc = (x1: number, y1: number, x2: number, y2: number) => {
+            const m = (x1 + x2) / 2, c = (y1 + y2) / 2 + d * Math.min(26, 10 + (x2 - x1) * 0.1);
+            return `<path class="ss-slur" d="M ${x1},${y1} Q ${m},${c} ${x2},${y2} Q ${m},${c - d * 3} ${x1},${y1} Z"/>`;
+        };
+        // Over a system break it is drawn in two halves, like a tie.
+        out += a.sy === b.sy ? arc(a.x, ya, b.x, yb) : arc(a.x, ya, sysEnd[a.sy] - 3, ya + d * 2) + arc(sysX0[b.sy] - 6, yb + d * 2, b.x, yb);
+        taken.add(key(s.hand, s.from, below));
+        taken.add(key(s.hand, s.to, below));
+    }
+    for (const a of marks.articulations) {
+        const c = col(a.hand, a.beat);
+        if (!c)
+            continue;
+        const d = c.up ? 1 : -1, head = c.up ? c.lo : c.hi;
+        if (a.kind === 'staccato') {
+            // The dot sits in a space: the next one for a notehead in a space, the one after its line for a notehead on a line.
+            const rel = head - c.top, onLine = rel > -1 && rel < 49 && Math.abs(rel / 12 - Math.round(rel / 12)) < 0.05;
+            out += `<circle class="ss-art" cx="${c.x}" cy="${head + d * (onLine ? 18 : 12)}" r="2.1"/>`;
+        }
+        else {
+            // The accent stays outside the staff.
+            const y = c.up ? Math.max(head + 16, c.top + 60) : Math.min(head - 16, c.top - 12);
+            out += `<path class="ss-art ss-accent" d="M ${c.x - 5.5},${y - 4} L ${c.x + 5.5},${y} L ${c.x - 5.5},${y + 4}"/>`;
+        }
+        taken.add(key(a.hand, a.beat, c.up));
+    }
+    for (const f of marks.fingering) {
+        const c = col(f.hand, f.beat);
+        if (!c)
+            continue;
+        // Above the right hand's note, stem and staff; below the left hand's.
+        const below = f.hand === 'lh', free = taken.has(key(f.hand, f.beat, below)) ? 12 : 0;
+        const y = below ? Math.max(c.top + 48, c.up ? c.lo + 6 : c.lo + 32) + 15 + free : Math.min(c.top, c.up ? c.hi - 32 : c.hi - 6) - 6 - free;
+        out += `<text class="ss-finger" x="${c.x}" y="${y}">${f.finger}</text>`;
+    }
+    const dynAt = (beat: number) => marks.dynamics.some((d) => Math.abs(d.beat - beat) < 1e-3);
+    for (const d of marks.dynamics) {
+        const p = at(d.beat);
+        out += `<text class="ss-dyn" x="${p.x}" y="${midY(p.sy) + 6}">${d.mark}</text>`;
+    }
+    for (const h of marks.hairpins) {
+        const a = at(h.from), b = at(h.to), x1 = a.x + (dynAt(h.from) ? 18 : -4), x2 = b.x - (dynAt(h.to) ? 18 : 8);
+        // One wedge a system; over a break each part goes on from where the last one stopped.
+        const parts: { sy: number; x1: number; x2: number }[] = [];
+        for (let s = a.sy; s <= b.sy; s++) {
+            const p = { sy: s, x1: s === a.sy ? x1 : sysX0[s], x2: s === b.sy ? x2 : sysEnd[s] - 6 };
+            if (p.x2 - p.x1 >= 10)
+                parts.push(p);
+        }
+        const from = h.kind === 'cresc' ? 0 : 6, to = h.kind === 'cresc' ? 6 : 0;
+        parts.forEach((p, i) => {
+            const y = midY(p.sy), h1 = from + (to - from) * i / parts.length, h2 = from + (to - from) * (i + 1) / parts.length;
+            out += `<path class="ss-hairpin" d="M ${p.x1},${y - h1} L ${p.x2},${y - h2} M ${p.x1},${y + h1} L ${p.x2},${y + h2}"/>`;
+        });
+    }
+    return out ? `<g class="ss-marks" aria-hidden="true">${out}</g>` : '';
 }
 /* ---- state, drawing, grading ---- */
 function srSvg() { return byId('rd-staff') ? byId('rd-staff').querySelector('svg') : null; }
@@ -12024,7 +12119,7 @@ function rdnBpm(piece: GeneratedPiece) {
 function rdnDrawable(piece: GeneratedPiece): SrPiece {
     const score = srtLevelScore(piece);
     return { id: 'lvl', ephemeral: true, gen: 'lv' + piece.level, comp: '', level: piece.level, keyN: score.keyN, minor: score.minor, bpm: rdnBpm(piece),
-        ts: score.ts, engrave: 2, rh: score.rh, lh: score.lh, t: { en: rdnHeadText().title } };
+        ts: score.ts, engrave: 2, marks: srtLevelMarkings(piece), rh: score.rh, lh: score.lh, t: { en: rdnHeadText().title } };
 }
 /** The Hands control only for the levels where both hands play together. */
 function rdnHandsUi() {

@@ -127,6 +127,72 @@ test.describe('Read at the piano', () => {
     await expect(page.locator('#rdn-plan-sub')).toHaveText(en.plan_sub.replace('%a', '1').replace('%b', '3'));
   });
 
+  test('a level piece carries printed-page markings, drawn over the notes without changing them', async ({ app, page }) => {
+    await app.open({ hash: 'read', saved: withBook({ level: 5 }) });
+    // The first level-5 book piece with staccato, a slur and a finger number.
+    const found = await page.evaluate(() => {
+      const api = window.__etude;
+      for (let n = 1; n <= 40; n++) {
+        api.rdnOpen({ kind: 'book', level: 5, number: n });
+        const m = api.SR.piece.marks;
+        if (m.articulations.some((a) => a.kind === 'staccato') && m.slurs.length && m.fingering.length)
+          return n;
+      }
+      return 0;
+    });
+    expect(found).toBeGreaterThan(0);
+    const facts = await page.evaluate(() => {
+      const api = window.__etude, m = api.SR.piece.marks, svg = document.querySelector('#rd-staff svg'), g = svg.querySelector('.ss-marks');
+      const num = (el, name) => Number(el.getAttribute(name));
+      const colOf = (hand, beat) => api.SR.notes.filter((n) => n.hand === hand && Math.abs(n.beat - beat) < 1e-3);
+      const dots = [...g.querySelectorAll('circle.ss-art')].map((c) => ({ x: num(c, 'cx'), y: num(c, 'cy') }));
+      const staccato = m.articulations.filter((a) => a.kind === 'staccato');
+      return {
+        counts: { dyn: m.dynamics.length, fing: m.fingering.length, staccato: staccato.length, accents: m.articulations.length - staccato.length, slurs: m.slurs.length, hairpins: m.hairpins.length },
+        drawn: { dyn: g.querySelectorAll('.ss-dyn').length, fing: g.querySelectorAll('.ss-finger').length, dots: dots.length, accents: g.querySelectorAll('.ss-accent').length,
+          slurs: g.querySelectorAll('.ss-slur').length, hairpins: g.querySelectorAll('.ss-hairpin').length },
+        hidden: g.getAttribute('aria-hidden'), inert: getComputedStyle(g).pointerEvents,
+        fingers: [...g.querySelectorAll('.ss-finger')].map((el) => el.textContent),
+        firstDyn: { text: g.querySelector('.ss-dyn').textContent, x: num(g.querySelector('.ss-dyn'), 'x'), noteX: Math.min(...api.SR.notes.filter((n) => n.beat < 1e-3).map((n) => n.x)) },
+        // Every staccato dot sits one space, or a space and a half, from a notehead of its own note or chord.
+        dotsPlaced: staccato.every((a) => colOf(a.hand, a.beat).some((n) => dots.some((d) => Math.abs(d.x - n.x) < 0.5 && [12, 18].includes(Math.round(Math.abs(d.y - n.y)))))),
+        // A finger number is above the right hand's note and below the left hand's.
+        fingersPlaced: m.fingering.every((f) => { const col = colOf(f.hand, f.beat), el = [...g.querySelectorAll('.ss-finger')].find((t) => col.some((n) => Math.abs(num(t, 'x') - n.x) < 0.5) && t.textContent === String(f.finger));
+          return !!el && (f.hand === 'rh' ? num(el, 'y') < Math.min(...col.map((n) => n.y)) : num(el, 'y') > Math.max(...col.map((n) => n.y))); }),
+        groups: svg.querySelectorAll('.ss-n').length, expected: api.srtLevelExpected(api.SR.lvPiece).length, inMarks: g.querySelectorAll('.ss-n').length,
+      };
+    });
+    expect(facts.drawn.dyn).toBe(facts.counts.dyn);
+    expect(facts.drawn.fing).toBe(facts.counts.fing);
+    expect(facts.drawn.dots).toBe(facts.counts.staccato);
+    expect(facts.drawn.accents).toBe(facts.counts.accents);
+    expect(facts.drawn.slurs).toBeGreaterThanOrEqual(facts.counts.slurs); // a slur over a system break is two arcs
+    expect(facts.drawn.hairpins).toBeGreaterThanOrEqual(facts.counts.hairpins);
+    expect(facts.hidden).toBe('true');
+    expect(facts.inert).toBe('none');
+    facts.fingers.forEach((f) => expect(f).toMatch(/^[1-5]$/));
+    expect(facts.firstDyn.text).toMatch(/^(p|mp|mf|f)$/);
+    expect(Math.abs(facts.firstDyn.x - facts.firstDyn.noteX)).toBeLessThan(1);
+    expect(facts.dotsPlaced).toBe(true);
+    expect(facts.fingersPlaced).toBe(true);
+    // The notes are the same groups as without markings: one per expected note, none inside the markings.
+    expect(facts.groups).toBe(facts.expected);
+    expect(facts.inMarks).toBe(0);
+    // A staccato note played short costs nothing: the score reads when a key goes down, not how long it stays down.
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await page.evaluate(() => {
+      const api = window.__etude;
+      api.srtSetState({ type: 'countInDone' });
+      api.srtLevelExpected(api.SR.lvPiece, { bpm: api.SR.bpm, hand: 'both' })
+        .flatMap((note) => [['on', note.midi, note.onMs], ['off', note.midi, note.onMs + 40]])
+        .sort((a, b) => a[2] - b[2] || (a[0] === 'off' ? -1 : 1))
+        .forEach(([kind, midi, ms]) => api.srtRecorder.record(kind, midi, 'midi', kind === 'off' ? 'physical' : null, ms));
+      api.srAssessFinish();
+    });
+    await expect(page.locator('#rdn-r-score')).toHaveText('100%');
+  });
+
   test('a level piece is a page: four bars a system, every system the full width, the whole piece and Start in view', async ({ app, page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await app.open({ hash: 'read', saved: withBook({}) });
