@@ -1,6 +1,6 @@
 # Read tab redesign: spec
 
-Status: built on the branch `feat/read-redesign`, not merged. Open: your approval of the pieces by ear, and decisions D1 to D6 (section 14). Section 16 lists what was built differently from the proposal.
+Status: built on the branch `feat/read-redesign`, not merged. Open: your approval of the pieces by ear, and decisions D1 to D6 (section 14). Section 16 lists what was built differently from the proposal. Section 17 is the practice flow as it is now: where it differs from an earlier section, section 17 is right.
 Mockup: [2026-11-13-read-redesign-mockup.html](2026-11-13-read-redesign-mockup.html) (open it in a browser).
 
 ## 1. Goal
@@ -48,14 +48,14 @@ Eight levels. Each level adds one difficulty and one or two patterns, and keeps 
 
 | Level | Name | Hands | Range and motion | Rhythm added | Meter | Bars | Near |
 |---|---|---|---|---|---|---|---|
-| 1 | Steps | one hand at a time (one hand plays the first half, the other the second half) | five-finger position, steps and repeats | whole, half, quarter | 4/4 | 4 | pre-Initial |
-| 2 | Skips | one hand at a time | adds thirds | dotted half, quarter rest | 4/4, 3/4 | 4 | ABRSM Initial |
-| 3 | Fifths and eighths | hands alternate inside the phrase | leaps up to a fifth | eighth-note pairs, half rest | adds 2/4 | 4 or 6 | Initial to Grade 1 |
-| 4 | Together, one moves | together: one hand moves, the other holds | five-finger position | ties | same | 4 or 6 | Grade 2 |
-| 5 | Together, both move | parallel and contrary motion | one extension to a sixth | dotted quarter plus eighth | same | 8 | Grade 2 |
-| 6 | Out of position | melody plus held roots or 2-note chords | an octave, one position shift per hand | simple sixteenths | adds 3/8 | 8 | Grade 3 |
-| 7 | Chromatic and compound | melody plus broken-chord accompaniment | chromatic neighbour notes, upbeat start | all earlier values | adds 6/8 | 8 | Grade 4 |
-| 8 | Chords and syncopation | 2-note chords in either hand | octave and more | syncopation, ties from a weak beat | same | 8 or 12 | Grade 5 |
+| 1 | Steps | one hand at a time (the hands take the 4-bar phrases in turn) | five-finger position, steps and repeats | whole, half, quarter | 4/4 | 8 | pre-Initial |
+| 2 | Skips | one hand at a time | adds thirds | dotted half, quarter rest | 4/4, 3/4 | 8 | ABRSM Initial |
+| 3 | Fifths and eighths | hands alternate inside the phrase | leaps up to a fifth | eighth-note pairs, half rest | adds 2/4 | 8 | Initial to Grade 1 |
+| 4 | Together, one moves | together: one hand moves, the other holds | five-finger position | ties | same | 8 or 12 | Grade 2 |
+| 5 | Together, both move | parallel and contrary motion | one extension to a sixth | dotted quarter plus eighth | same | 12 | Grade 2 |
+| 6 | Out of position | melody plus held roots or 2-note chords | an octave, one position shift per hand | simple sixteenths | adds 3/8 | 12 | Grade 3 |
+| 7 | Chromatic and compound | melody plus broken-chord accompaniment | chromatic neighbour notes, upbeat start | all earlier values | adds 6/8 | 16 | Grade 4 |
+| 8 | Chords and syncopation | 2-note chords in either hand | octave and more | syncopation, ties from a weak beat | same | 16 | Grade 5 |
 
 Pieces are assembled from named patterns. A pattern is a shape the eye can take in as one unit.
 
@@ -81,7 +81,7 @@ Their content is covered by the new levels: P1 → levels 1 and 2, P2 → levels
 - **Rests:** quarter from level 2, half from level 3, eighth from level 5. 3/8 and 6/8 also have the dotted-quarter rest. A whole-bar rest is used only where a hand waits: levels 1 to 3, and the upbeat bar.
 - **Rest placement:** a rest shorter than a beat stays inside its beat. A longer rest starts on a multiple of its own length.
 - **Ties:** a note may be tied over the barline from level 4. Each written part must be a note value of the level.
-- **Hands:** at levels 1 and 2 either hand may start, and the hands change once, at the middle. At level 3 one hand plays at a time, a hand plays in every bar, and the hands change at least twice. At level 4 both hands play in every bar and one of them only holds notes of a half or longer. From level 5 both hands play in every bar.
+- **Hands:** at levels 1 and 2 either hand may start, and the hands change at each 4-bar phrase. At level 3 one hand plays at a time, a hand plays in every bar, and the hands change at least twice. At level 4 both hands play in every bar and one of them only holds notes of a half or longer. From level 5 both hands play in every bar.
 - **Syncopation (level 8 only)** is any of these: a note that starts off the beat and is held past the next beat. In 4/4, a note on beat 2 or 4 that lasts longer than a beat. A note tied over the barline from a weak beat. In 3/8 and 6/8, a note from the beat that ends inside a later beat.
 - **Upbeat (levels 7 and 8):** written as a first bar in which both hands start with a rest. One hand may wait for that whole bar.
 - **Accidentals:** none up to level 5. The raised leading note of a minor key from level 6, when the next note of that hand is the tonic above it. Anywhere else it counts as a chromatic note. Up to 2 chromatic notes at level 7 and 3 at level 8. No double accidentals, so G♯ minor has no raised leading note (F double-sharp). This is open decision D6.
@@ -181,6 +181,8 @@ Notes on the evidence behind the rules:
 | `src/sight-reading/melody.ts` | the generator: `srtGenerateLevelPiece(level, key, seed)` |
 | `src/sight-reading/book.ts` | `srtBookUnits`, `srtBookEntry`, `srtBookPiece`, `srtFocusPiece`, `srtDailyPlan`, `srtDailyPiece` |
 | `src/sight-reading/fingerprint.ts` | `srtLevelFingerprint`, with the prefix `v2` |
+| `src/sight-reading/progressive.ts` | the long piece: `srtGenerateProgressivePiece`, `srtProgressivePlan`, `srtProgressiveViolations` |
+| `src/sight-reading/markings.ts` | `srtLevelMarkings`: dynamics, hairpins, finger numbers, staccato, accents and slurs of a piece |
 
 - **How a piece is made.** The generator picks a meter and a bar count, a rhythm for each bar, and a chord plan. A bounded search then finds a melody in scale degrees that follows the plan. The second hand is added: long notes, chords, a broken chord, or the melody in parallel or contrary motion. The piece is kept only when every rule holds. On average 2 to 4 attempts are needed.
 - **Chords.** I, IV and V up to level 5. Levels 6 to 8 add ii and vi. A minor key uses iv in place of ii. The chord may change in the middle of a bar only in 4/4 and 6/8. After an upbeat bar the first full bar is the home chord.
@@ -188,7 +190,7 @@ Notes on the evidence behind the rules:
 - **Minor keys.** The raised seventh is reached from the tonic above or from the fifth degree below, never by an augmented second. A piece has at most one for every four bars. The left hand leaves the seventh to the melody.
 - **Difficulty score.** It counts leaps, changes of direction, different note values, position changes, accidentals and notes per beat. The band of a level runs from the 3rd to the 97th percentile of 1,440 generated pieces. A score compares pieces of one level, not levels with each other.
 - **The book is pinned.** A test holds one number per level, made from the fingerprints of all 96 pieces. A change to the generator that would change any book fails that test.
-- **Speed.** One piece takes 0.3 to 1.3 ms on a laptop. A book is built only up to the number that is opened: the first piece of a level takes about 10 ms, and a whole book 0.1 to 0.5 s. A daily set takes under 0.2 s.
+- **Speed.** One piece takes 0.2 to 1.4 ms on a laptop, and a long piece 2 to 45 ms (worst cases up to 0.5 s). A book is built only up to the number that is opened: the first piece of a level takes about 10 ms, and a whole book 0.1 to 0.5 s. A daily set takes under 0.2 s.
 - **Pieces are frozen.** A generated piece cannot be changed by the code that receives it.
 
 ## 8. Player
@@ -328,3 +330,30 @@ Each step ends with its check. I pause for your OK after each step.
 
 - Every string of the page exists in English, Romanian, Spanish, French, German, Italian and Brazilian Portuguese. The translations were written by the assistant and were not checked by a native speaker.
 
+## 17. As built: the practice flow
+
+**Pieces**
+
+- A level piece has 8 bars at levels 1 to 3, 8 or 12 at level 4, 12 at levels 5 and 6, and 16 at levels 7 and 8, in 4-bar phrases. `srtGenerateLevelPiece` takes `bars`, `meter` and `upbeat: false` to pin a choice.
+- A long piece (`progressive.ts`) is 3 or 4 sections in one meter and key, 24 to 48 bars. Each section is a valid level piece of its own level. For level L of 3 or more the sections are (L-2, hard third), (L-1, middle third), (L, easy third), (L, hard third). Level 1 uses its own thirds, level 2 starts at level 1. A section below L is used only when the key is in that level's pool. Its tempo is the slowest of its sections' levels. No hand leaps into a section further than that section's level allows; `srtProgressiveViolations` reports a join that does.
+- The book state has version 2. A state of an older version numbered other pieces: on load its results, recent scores and daily set are dropped, and the level, the pinned key and the streak days stay.
+- A long piece is stored under `l{date}.{index}`. Its score counts for neither the key nor the level average: part of it is below the level.
+- Markings (`markings.ts`) are decoration: nothing scores them, and the fingerprint ignores them. Level 1 has one dynamic and the first finger of each hand. A second dynamic comes from level 2; hairpins, staccato and slurs from level 3; accents from level 5. A long piece has a dynamic at each section.
+- Scoring reads when a key goes down, never how long it stays down, so a staccato note played short costs nothing.
+
+**Player**
+
+- A level piece is drawn as soon as it opens, with its checklist above it. There is no timed look and no preview panel. Looking claims nothing: the first attempt is the first sight. Older melodies keep their 20-second preview.
+- Start goes to a one-bar count-in. With a MIDI or Bluetooth piano the first right note (any octave when that option is on) starts the attempt with no count-in: that note is the first onset and the clicks go on from it. A piece just opened waits 600 ms, and a finished attempt 1 s, before a key can start one.
+- The score is a page: four bars a system, every system the full width, on a paper of at most 1120 px. It is sized by the room under it, between 0.85 and 1.4 times its natural size. An 8-bar piece and the Start button show without scrolling at 1440 by 900. Longer pieces scroll with the playhead.
+- The engraver draws the markings as one group over the notes (`srLevelMarks`): dynamics and hairpins between the staves, a finger number above the right hand and below the left, a staccato dot or an accent on the notehead side, slurs on the notehead side.
+- The result card shows the stars large with one line on what the next star takes: 60, 80, and 95 with no wrong note. Auto-next is the reader's choice once made; until then it is on while a piano is connected.
+
+**Home**
+
+- The home uses Today's layout and classes: the set card (level, first-sight average, pieces read, today's five pieces) beside a plan of three numbered steps (warm-up, today's set, long piece) from 960 px, one column below. The head shows the day streak and the set as five dots.
+- Below: the level book, then "Other ways to practice" (reading drills, Pieces, Voice). The row "More" with the old screens stays at the bottom.
+
+**Open**
+
+- The longer pieces, the long piece and the markings were checked by tests and on screen, not by ear.

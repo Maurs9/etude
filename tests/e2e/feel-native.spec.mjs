@@ -165,6 +165,8 @@ test('dark theme keeps ivory-paper staff notes on dark ink while dark-paper Read
   await page.locator('#rdt-pieces').click();
   await page.locator('#rd-mode button[data-v="learn"]').click();
   await page.locator('#rd-gen').click();
+  // Learn mode records the exposure asynchronously; the staff stays empty until it settles.
+  await expect(page.locator('#rd-staff .ss-n .ss-head:not(.ss-hollow)').first()).toBeVisible();
   await page.evaluate(() => {
     const head = document.querySelector('#rd-staff .ss-n .ss-head:not(.ss-hollow)');
     head.closest('.ss-n').setAttribute('data-s', 'good');

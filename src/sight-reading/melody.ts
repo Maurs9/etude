@@ -14,7 +14,16 @@ export type GenerateOptions = {
   readonly band?: readonly [number, number];
   /** Called for every attempt that was dropped, with the reason: for tuning and tests. */
   readonly trace?: (reason: string) => void;
+  /** One of the level's lengths, in bars. Any other number throws. */
+  readonly bars?: number;
+  /** One of the level's meters. Any other meter throws. */
+  readonly meter?: ReadingMeter;
+  /** false: the piece starts on the first beat, even at a level that has upbeats. */
+  readonly upbeat?: false;
 };
+
+/** The choices of GenerateOptions that pin what the seed would otherwise choose. */
+type Pins = Pick<GenerateOptions, 'bars' | 'meter' | 'upbeat'>;
 
 const MAX_ATTEMPTS = 600;
 const HALF = 960;
@@ -26,9 +35,10 @@ const MAJOR_STEPS = [0, 2, 4, 5, 7, 9, 11];
 const MINOR_STEPS = [0, 2, 3, 5, 7, 8, 10];
 const mod7 = (value: number): number => ((value % 7) + 7) % 7;
 
-type Random = () => number;
+export type Random = () => number;
 
-function mulberry32(seed: number): Random {
+/** mulberry32: a seeded random generator. The same seed always gives the same numbers. */
+export function mulberry32(seed: number): Random {
   let value = seed >>> 0;
   return () => {
     value = (value + 0x6d2b79f5) >>> 0;
@@ -105,10 +115,14 @@ const BODY: Readonly<Record<string, readonly Cell[]>> = {
     cell(8, 'q q q', 8),
   ],
 };
-/** The last bar: it ends on a long note. */
+/**
+ * The last bar: it ends on a long note. Its first note sits on the tonic chord and the last note is the tonic reached
+ * by step, so the last note cannot be the second note of the bar on a strong beat ('h h' and, in 3/4, 'q h' could
+ * never be filled, and only spent the search budget).
+ */
 const FINAL: Readonly<Record<string, readonly Cell[]>> = {
-  '4/4': [cell(1, 'q q h'), cell(1, 'h h'), cell(1, 'w')],
-  '3/4': [cell(2, 'dh'), cell(2, 'q h')],
+  '4/4': [cell(1, 'q q h'), cell(1, 'w')],
+  '3/4': [cell(2, 'dh')],
   '2/4': [cell(3, 'h')],
   '3/8': [cell(6, 'dq')],
   '6/8': [cell(7, 'dh')],
@@ -130,7 +144,8 @@ const UPBEAT: Readonly<Record<string, readonly Cell[]>> = {
   '6/8': [cell(7, '-dq -q e')],
 };
 const METER_WEIGHT: Readonly<Record<string, number>> = { '4/4': 4, '3/4': 2, '2/4': 1.5, '3/8': 1.5, '6/8': 2.5 };
-const meterKey = (meter: ReadingMeter): string => `${meter.num}/${meter.den}`;
+/** A meter as text, such as 3/4. */
+export const meterKey = (meter: ReadingMeter): string => `${meter.num}/${meter.den}`;
 
 function planRhythm(level: ReadingLevel, meter: ReadingMeter, bars: number, upbeat: boolean, repeat: boolean, random: Random): readonly (readonly number[])[] {
   const key = meterKey(meter);
@@ -142,15 +157,21 @@ function planRhythm(level: ReadingLevel, meter: ReadingMeter, bars: number, upbe
   const third = pick(random, body);
   const halfClose = pick(random, usable(HALF_CLOSE[key]));
   const final = pick(random, usable(FINAL[key]));
+  // A piece with two middle phrases (16 bars) gives the second one a rhythm of its own (see srtRhythmLimit).
+  const fourth = bars > 12 ? pick(random, body) : third;
   const phrase = srtPhraseBars(bars);
   const out: (readonly number[])[] = [];
+  let middles = 0;
   for (let start = 0; start < bars; start += phrase) {
     const last = start + phrase >= bars;
     const close = last ? final : halfClose;
     if (phrase === 2) out.push(first.ticks, last ? final.ticks : second.ticks);
     else if (phrase === 3) out.push(first.ticks, second.ticks, close.ticks);
     else if (start === 0 || last) out.push(first.ticks, second.ticks, (last && random() < 0.5 ? second : first).ticks, close.ticks);
-    else out.push(first.ticks, third.ticks, first.ticks, close.ticks);
+    else {
+      middles += 1;
+      out.push(first.ticks, (middles === 1 ? third : fourth).ticks, first.ticks, close.ticks);
+    }
   }
   if (upbeat) out.splice(0, 4, pick(random, usable(UPBEAT[key])).ticks, first.ticks, second.ticks, halfClose.ticks);
   return out;
@@ -166,6 +187,8 @@ const CLOSE3: readonly ChordBars[] = [[[0], [4], [0]], [[3], [4], [0]], [[0], [3
 const OPEN4: readonly ChordBars[] = [[[0], [3], [0], [4]], [[0], [4], [0], [4]], [[0], [0], [3], [4]], [[0], [3, 4], [0], [4]]];
 const OPEN4_RICH: readonly ChordBars[] = [[[0], [5], [3], [4]], [[0], [5], [1], [4]]];
 const MIDDLE4: readonly ChordBars[] = [[[3], [0], [3], [4]], [[0], [5], [1], [4]], [[5], [3], [0], [4]]];
+/** Middle phrases below level 6, which knows only I, IV and V (rule G3). */
+const MIDDLE4_PLAIN: readonly ChordBars[] = [[[3], [0], [3], [4]], [[0], [3], [0], [4]], [[3], [3], [0], [4]], [[0], [4], [0], [4]]];
 const CLOSE4: readonly ChordBars[] = [[[0], [3], [4], [0]], [[0], [3], [0, 4], [0]], [[3], [0], [4], [0]], [[0], [4], [4], [0]]];
 const CLOSE4_RICH: readonly ChordBars[] = [[[0], [1], [4], [0]], [[5], [3], [4], [0]]];
 
@@ -180,7 +203,7 @@ function planChords(level: ReadingLevel, meter: ReadingMeter, bars: number, mino
     const options = phrase === 2 ? (last ? CLOSE2 : OPEN2)
       : phrase === 3 ? (last ? CLOSE3 : OPEN3)
         : last ? (rich ? [...CLOSE4, ...CLOSE4_RICH] : CLOSE4)
-          : start === 0 ? (rich ? [...OPEN4, ...OPEN4_RICH] : OPEN4) : MIDDLE4;
+          : start === 0 ? (rich ? [...OPEN4, ...OPEN4_RICH] : OPEN4) : rich ? MIDDLE4 : MIDDLE4_PLAIN;
     // After an upbeat bar the first full bar is the home chord: the phrase is the upbeat bar and three more.
     const chosen: ChordBars = upbeat && start === 0 && phrase === 4 ? [[0], ...pick(random, OPEN3)] : pick(random, options);
     for (const slots of chosen) {
@@ -359,13 +382,17 @@ function plantShapes(frame: Frame, slots: Slot[], byBar: readonly (readonly numb
     }
     return false;
   };
-  if (level.id === 1 && random() < 0.25) plant('repeat');
-  if (level.id === 2) {
-    plant('skip');
-    if (random() < 0.5) plant('skip');
+  // The shapes of a level come once in every eight bars, so a long piece shows them in both halves.
+  const periods = Math.max(1, Math.round(frame.bars / 8));
+  for (let period = 0; period < periods; period += 1) {
+    if (level.id === 1 && random() < 0.25) plant('repeat');
+    if (level.id === 2) {
+      plant('skip');
+      if (random() < 0.5) plant('skip');
+    }
+    if (level.id === 3) plant(frame.wish);
+    if (level.id >= 4 && random() < 0.5) plant(weighted(random, [['triad', 2], ['fifth', 1], ['sequence', 2], ['skip', 2], ['neighbour', 1]]));
   }
-  if (level.id === 3) plant(frame.wish);
-  if (level.id >= 4 && random() < 0.5) plant(weighted(random, [['triad', 2], ['fifth', 1], ['sequence', 2], ['skip', 2], ['neighbour', 1]]));
   if (level.id >= 6 && random() < (level.id === 6 ? 0.5 : 0.15)) plant('scale');
   if (level.id >= 7 && random() < (level.id === 7 ? 0.7 : 0.35)) plant('chroma');
 }
@@ -415,7 +442,8 @@ function solveMelody(frame: Frame, slots: readonly Slot[]): { readonly degrees: 
   const degrees: number[] = Array.from({ length: count }, () => 0);
   const alters: number[] = Array.from({ length: count }, () => 0);
   const forced: (number | null)[] = Array.from({ length: count + 1 }, () => null);
-  let budget = 1500;
+  // A longer piece has more notes to place: the budget grows with them.
+  let budget = Math.max(1500, 15 * count);
 
   const choices = (index: number): Choice[] => {
     const slot = slots[index];
@@ -589,9 +617,11 @@ function buildHands(frame: Frame, melodyBars: readonly (readonly Item[])[]): Han
   if (level.hands === 'blocks' || level.hands === 'alternate') {
     const first: SightReadingHand = random() < 0.5 ? 'rh' : 'lh';
     const other: SightReadingHand = first === 'rh' ? 'lh' : 'rh';
+    const phrase = srtPhraseBars(bars);
     let turn = first;
     for (let bar = 0; bar < bars; bar += 1) {
-      if (level.hands === 'blocks') turn = bar < bars / 2 ? first : other;
+      // Level 1 and 2: the hands take the phrases in turn.
+      if (level.hands === 'blocks') turn = Math.floor(bar / phrase) % 2 === 0 ? first : other;
       else if (bar > 0 && (bar === 1 || random() < 0.6)) turn = turn === 'rh' ? 'lh' : 'rh';
       melody.push(turn);
     }
@@ -767,14 +797,22 @@ function tieHolds(frame: Frame, items: readonly Item[]): Item[] {
  */
 function thicken(frame: Frame, items: readonly Item[], chordBars: readonly number[], reach: number): Item[] {
   const { random, barTicks, chords, level } = frame;
-  if (chordBars.length === 0 || random() < 0.3) return [...items];
-  const chosen = new Set(ordered(random, chordBars.map((bar): readonly [number, number] => [bar, 1])).slice(0, random() < 0.5 ? 1 : 2));
-  return items.map((item) => {
+  // In 3/8 the bar is one beat, so a level 8 piece cannot show syncopation: its chords are the only new pattern it has.
+  if (chordBars.length === 0 || (random() < 0.3 && meterKey(frame.meter) !== '3/8')) return [...items];
+  /** The note added under a melody note, or undefined when none fits. */
+  const added = (item: Item): number | undefined => {
     const bar = Math.floor(item.on / barTicks);
-    if (!chosen.has(bar) || item.degrees.length !== 1 || item.alters[0] !== 0 || item.dur < QUARTER || item.on % QUARTER !== 0) return item;
+    // The place in the bar counts, not the tick: a 3/8 bar starts on an eighth of the piece.
+    if (item.degrees.length !== 1 || item.alters[0] !== 0 || item.dur < QUARTER || (item.on % barTicks) % QUARTER !== 0) return undefined;
     const tones = srtChordTones(chords[bar][item.on % barTicks >= barTicks / 2 ? 1 : 0]);
-    const under = [item.degrees[0] - 2, item.degrees[0] - 5].find((degree) => degree >= level.degrees[0] && degree > reach && tones.includes(mod7(degree)) &&
+    return [item.degrees[0] - 2, item.degrees[0] - 5].find((degree) => degree >= level.degrees[0] && degree > reach && tones.includes(mod7(degree)) &&
       tones.includes(mod7(item.degrees[0])) && !(frame.minor && mod7(degree) === 6));
+  };
+  // Only bars where a note can take a second note are chosen.
+  const usable = chordBars.filter((bar) => items.some((item) => Math.floor(item.on / barTicks) === bar && added(item) !== undefined));
+  const chosen = new Set(ordered(random, usable.map((bar): readonly [number, number] => [bar, 1])).slice(0, random() < 0.5 ? 1 : 2));
+  return items.map((item) => {
+    const under = chosen.has(Math.floor(item.on / barTicks)) ? added(item) : undefined;
     return under === undefined ? item : { ...item, degrees: [under, item.degrees[0]], alters: [0, 0] };
   });
 }
@@ -796,12 +834,15 @@ function finish(planned: PlannedPiece): GeneratedPiece {
   return srtDeepFreeze({ ...planned, patterns: srtBarPatterns(planned), difficulty: srtDifficulty(planned) });
 }
 
-function attempt(level: ReadingLevel, key: ReadingKey, seed: number, random: Random): GeneratedPiece | string {
+function attempt(level: ReadingLevel, key: ReadingKey, seed: number, random: Random, pins: Pins): GeneratedPiece | string {
   const earlier = level.id > 1 ? srtLevel(level.id - 1).meters.map(meterKey) : [];
-  const meter = weighted(random, level.meters.map((item): readonly [ReadingMeter, number] =>
+  // The seed draws every choice even when it is pinned, so a pin that matches the draw gives the unpinned piece.
+  const drawnMeter = weighted(random, level.meters.map((item): readonly [ReadingMeter, number] =>
     [item, METER_WEIGHT[meterKey(item)] * (level.id > 1 && !earlier.includes(meterKey(item)) ? 2 : 1)]));
-  const bars = weighted(random, level.bars.map((count, index): readonly [number, number] => [count, index === 0 ? 2 : 1]));
-  const upbeat = level.upbeat && random() < 0.3;
+  const meter = pins.meter ? level.meters.find((item) => meterKey(item) === meterKey(pins.meter as ReadingMeter)) ?? drawnMeter : drawnMeter;
+  const drawnBars = weighted(random, level.bars.map((count, index): readonly [number, number] => [count, index === 0 ? 2 : 1]));
+  const bars = pins.bars ?? drawnBars;
+  const upbeat = level.upbeat && random() < 0.3 && pins.upbeat !== false;
   const { bar: barTicks } = srtMeterTicks(meter);
   const minor = key.mode === 'minor';
   const wish = level.id === 3 ? weighted(random, [['triad', 3], ['fifth', 2], ['sequence', 3], ['none', 1]]) : 'none';
@@ -854,9 +895,16 @@ export function srtGenerateLevelPiece(levelId: number, keyId: string, seed: numb
   const level = srtLevel(levelId);
   const key = srtReadingKey(keyId);
   if (!Number.isInteger(seed)) throw new RangeError(`Invalid seed: ${seed}`);
+  if (options.bars !== undefined && !level.bars.includes(options.bars)) throw new RangeError(`Level ${level.id} has no ${options.bars}-bar pieces`);
+  const meter = options.meter;
+  if (meter !== undefined && !level.meters.some((item) => meterKey(item) === meterKey(meter))) {
+    throw new RangeError(`Level ${level.id} has no ${String(meter?.num)}/${String(meter?.den)} pieces`);
+  }
+  if (options.upbeat !== undefined && options.upbeat !== false) throw new RangeError('upbeat may only be pinned to false');
+  const pins: Pins = { bars: options.bars, meter, upbeat: options.upbeat };
   const base = srtHashText(`${level.id}|${key.id}|${seed}`);
   for (let index = 0; index < MAX_ATTEMPTS; index += 1) {
-    const piece = attempt(level, key, seed, mulberry32(base + Math.imul(index, 0x9e3779b1)));
+    const piece = attempt(level, key, seed, mulberry32(base + Math.imul(index, 0x9e3779b1)), pins);
     if (typeof piece === 'string') {
       options.trace?.(piece);
       continue;

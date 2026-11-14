@@ -434,6 +434,12 @@
   .ss-svg{display:block}
   .ss-line{stroke:var(--staffink); stroke-opacity:.62}
   .ss-glyph{fill:var(--staffink)}
+  /* The markings of a level piece (dynamics, finger numbers, staccato, accents, slurs, hairpins). */
+  .ss-marks{pointer-events:none}
+  .ss-dyn{fill:var(--staffink); font-family:var(--serif); font-style:italic; font-weight:700; font-size:17px; text-anchor:middle}
+  .ss-finger{fill:var(--staffink); font-family:var(--sans); font-size:10.5px; font-weight:600; text-anchor:middle}
+  .ss-art,.ss-slur{fill:var(--staffink)}
+  .ss-accent,.ss-hairpin{fill:none; stroke:var(--staffink); stroke-width:1.3}
   .ss-glyph line{stroke:var(--staffink)}
   path.ss-glyph{fill:none; stroke:var(--staffink)}
   .ss-clef{fill:var(--staffink); dominant-baseline:alphabetic}
@@ -1379,9 +1385,11 @@
   body[data-stage=immersive] #modeBar,
   body[data-stage=immersive] main > .wrap:first-child,
   body[data-stage=immersive] #view-read .section-head,
+  body[data-stage=immersive] #view-read .rdn-head,
   body[data-stage=immersive] #view-read > .wrap > .lede,
   body[data-stage=immersive] .rdx-tabs,
   body[data-stage=immersive] details.osmd-lic,
+  body[data-stage=immersive] #rdn-checklist,
   body[data-stage=immersive] footer{display:none}
   body[data-stage=immersive] main{padding:0}
   body[data-stage=immersive] .stage-fs:not([hidden]){display:inline-flex}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { srtLevel, srtLevelViolations, srtReadingKeys } from '../../src/sight-reading/levels.ts';
 import { srtGenerateLevelPiece, srtHashText, srtPieceText, srtTransposeLevelPiece } from '../../src/sight-reading/melody.ts';
-import { srtHandLine, srtMelodyLine } from '../../src/sight-reading/patterns.ts';
+import { srtHandLine, srtMelodyLine, srtMelodyRhythm } from '../../src/sight-reading/patterns.ts';
 import { SRT_LEVEL_BANDS, SRT_RULE_IDS, srtCheckRule, srtRuleViolations } from '../../src/sight-reading/rules.ts';
 
 const LEVEL_IDS = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -153,11 +153,68 @@ describe('level piece generator', () => {
     expect(srtTransposeLevelPiece(minor, 'Bm')).not.toBeNull();
   }, LONG);
 
+  it('writes each level at its own lengths: 8 bars at levels 1 to 3, up to 16 at levels 7 and 8', () => {
+    const lengths = { 1: [8], 2: [8], 3: [8], 4: [8, 12], 5: [12], 6: [12], 7: [16], 8: [16] };
+    for (const level of LEVEL_IDS) {
+      expect([...srtLevel(level).bars], `level ${level}`).toEqual(lengths[level]);
+      for (const piece of ofLevel(level)) {
+        expect(lengths[level], `${level} ${piece.key.id} ${piece.seed}`).toContain(piece.bars);
+        expect(piece.chords).toHaveLength(piece.bars);
+        expect(piece.melody).toHaveLength(piece.bars);
+        expect(piece.patterns).toHaveLength(piece.bars);
+      }
+    }
+  }, LONG);
+
+  it('levels 1 and 2 give each 4-bar phrase to one hand, the hands taking turns', () => {
+    for (const piece of [...ofLevel(1), ...ofLevel(2)]) {
+      const first = piece.melody[0];
+      piece.melody.forEach((hand, bar) => expect(hand === first, `${piece.level} ${piece.key.id} ${piece.seed} bar ${bar}`).toBe(Math.floor(bar / 4) % 2 === 0));
+    }
+  }, LONG);
+
+  it('gives a 16-bar piece more bar rhythms than an 8-bar one, within the limit of G10', () => {
+    const rhythms = (piece) => new Set(Array.from({ length: piece.bars - 1 }, (_, bar) => bar)
+      .filter((bar) => !(piece.upbeat && bar === 0)).map((bar) => srtMelodyRhythm(piece, bar))).size;
+    const mean = (list) => list.reduce((sum, piece) => sum + rhythms(piece), 0) / list.length;
+    const long = [...ofLevel(7), ...ofLevel(8)];
+    for (const piece of long) expect(rhythms(piece)).toBeLessThanOrEqual(5);
+    expect(mean(long)).toBeGreaterThan(mean(ofLevel(3)));
+    expect(share(long, (piece) => rhythms(piece) >= 4)).toBeGreaterThan(0.5);
+  }, LONG);
+
+  it('pins the length, the meter and the upbeat on request', () => {
+    for (const [level, bars] of [[4, 12], [4, 8], [8, 16]]) {
+      for (const seed of [1, 2, 3]) expect(srtGenerateLevelPiece(level, 'G', seed, { bars }).bars).toBe(bars);
+    }
+    for (const meter of srtLevel(7).meters) {
+      const piece = srtGenerateLevelPiece(7, 'Em', 4, { meter: { num: meter.num, den: meter.den } });
+      expect(piece.meter).toEqual(meter);
+      expect(srtRuleViolations(piece)).toEqual([]);
+    }
+    for (const level of [7, 8]) {
+      for (let seed = 0; seed < 40; seed += 1) {
+        const piece = srtGenerateLevelPiece(level, 'C', seed, { upbeat: false });
+        expect(piece.upbeat).toBe(false);
+        expect(piece.events.some((event) => event.onsetTick === 0 && event.pitches.length > 0)).toBe(true);
+      }
+    }
+    // A pin that matches what the seed would choose gives the same piece.
+    const free = srtGenerateLevelPiece(5, 'D', 9);
+    expect(srtGenerateLevelPiece(5, 'D', 9, { bars: free.bars, meter: free.meter, upbeat: false })).toEqual(free);
+    expect(srtGenerateLevelPiece(3, 'D', 9, { band: SRT_LEVEL_BANDS[3].slice(0, 2), bars: 8, meter: { num: 2, den: 4 } }).meter).toEqual({ num: 2, den: 4 });
+    expect(() => srtGenerateLevelPiece(1, 'C', 1, { bars: 4 })).toThrow(RangeError);
+    expect(() => srtGenerateLevelPiece(8, 'C', 1, { bars: 12 })).toThrow(RangeError);
+    expect(() => srtGenerateLevelPiece(1, 'C', 1, { meter: { num: 3, den: 4 } })).toThrow(RangeError);
+    expect(() => srtGenerateLevelPiece(5, 'C', 1, { meter: { num: 6, den: 8 } })).toThrow(RangeError);
+    expect(() => srtGenerateLevelPiece(7, 'C', 1, { upbeat: true })).toThrow(RangeError);
+  });
+
   it('writes a piece as text', () => {
     const piece = srtGenerateLevelPiece(1, 'C', 2);
     const text = srtPieceText(piece);
-    expect(text.rh.split(' | ')).toHaveLength(4);
-    expect(text.lh.split(' | ')).toHaveLength(4);
+    expect(text.rh.split(' | ')).toHaveLength(8);
+    expect(text.lh.split(' | ')).toHaveLength(8);
     expect(`${text.rh} ${text.lh}`).toMatch(/^([A-G][#b]?\d\.(w|h|q)|R\.w|\|| )+$/);
     expect(srtHashText('abc')).toBe(srtHashText('abc'));
     expect(srtHashText('abc')).not.toBe(srtHashText('abd'));

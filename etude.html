@@ -156,9 +156,10 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== READ (sheet music) ===================== -->
 <section class="view" id="view-read">
     <div class="wrap">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="rd_eyebrow">Sheet music</div><h1 data-i18n="rd_title">Read &amp; play</h1></div></div>
+      <div class="today-head rdn-head"><div class="greet"><div class="eyebrow" data-i18n="rd_eyebrow">Sheet music</div><h1 data-i18n="rd_title">Read &amp; play</h1>
       <p class="lede" id="rd-lede" data-i18n="rd_lede" hidden>Learn to read music fluently: short daily drills for notes, intervals, chords, key signatures and rhythm, then sight-read real pieces. Use MIDI, the on-screen keys, or A–K.</p>
-      <p class="lede" id="rdn-lede" data-i18n="rdn_lede">Read a new piece every day: at first sight, in time, without stopping.</p>
+      <p class="lede" id="rdn-lede" data-i18n="rdn_lede">Read a new piece every day: at first sight, in time, without stopping.</p></div>
+      <div class="streak" id="rdn-streak" hidden></div></div>
       <div class="rdn-backrow" id="rdn-backrow" hidden><button class="btn ghost" type="button" id="rdn-home-back" data-i18n="rdn_back_read">← Back to Read</button></div>
       <div class="rdn-home" id="rdn-home" hidden></div>
       <h2 class="rdn-more-h" id="rdn-more-h" hidden data-i18n="rdn_more">More</h2>
@@ -241,7 +242,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div id="rd-srt-preview" class="panel" hidden>
           <strong data-i18n="rd_srt_preview_title">First attempt</strong>
           <span id="rd-srt-countdown" data-i18n="rd_srt_preview_hint">You have 20 seconds to preview this piece.</span>
-          <ul class="rdn-check" id="rdn-checklist" hidden></ul>
           <div class="row">
             <button class="btn primary" id="rd-srt-start" data-i18n="rd_srt_start">Start now</button>
             <button class="btn ghost" id="rd-srt-practice" data-i18n="rd_srt_practice">Switch to practice</button>
@@ -255,6 +255,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           </div>
         </div>
         <p id="rd-srt-notice" class="lede" hidden role="status"></p>
+        <ul class="rdn-check" id="rdn-checklist" hidden></ul>
         <div class="ss-wrap" id="rd-staff" style="margin-top:10px" role="img" aria-label="Sheet music" data-i18n-aria="rdx_sheet_aria"></div>
         <div class="coach" id="rd-coach" aria-live="polite"></div>
         <div id="rd-verdict" class="verdict neutral" style="min-height:24px; margin-top:6px" role="status" aria-live="polite"></div>

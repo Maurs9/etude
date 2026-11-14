@@ -21,9 +21,11 @@ const broken = (rule, piece) => srtCheckRule(rule, piece).length > 0;
 
 describe('rules G3 to G10: chords and melody', () => {
   it('finds nothing wrong with a well-formed piece', () => {
-    for (const rule of ['G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12', 'G13']) {
+    for (const rule of ['G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12', 'G13']) {
       expect(srtCheckRule(rule, base()), rule).toEqual([]);
     }
+    // The fixture keeps 4 bars to stay readable. Level 3 pieces now have 8, so G2 reports the length and nothing else.
+    expect(srtCheckRule('G2', base())).toEqual(['bars: 4 bars is not a length of level 3']);
   });
 
   it('G3: the chords belong to the level and the piece ends V to I', () => {
@@ -126,8 +128,8 @@ describe('rules G3 to G10: chords and melody', () => {
     expect(broken('G10', rhythms([[2, 2 * Q], [1, Q], [2, Q]], [[2, Q], [1, Q], [2, 2 * Q]]))).toBe(true);
     // A rest in place of a note is a different rhythm.
     expect(broken('G10', rhythms([[2, Q], [1, Q], [2, Q], [null, Q]], [[2, 2 * Q], [1, Q], [2, Q]]))).toBe(true);
-    expect([4, 6, 8, 12].map(srtRhythmLimit)).toEqual([2, 3, 3, 4]);
-    expect([4, 6, 8, 12].map(srtPhraseBars)).toEqual([2, 3, 4, 4]);
+    expect([4, 6, 8, 12, 16].map(srtRhythmLimit)).toEqual([2, 3, 3, 4, 5]);
+    expect([4, 6, 8, 12, 16].map(srtPhraseBars)).toEqual([2, 3, 4, 4, 4]);
   });
 });
 
@@ -192,6 +194,7 @@ describe('rules G11 to G13: two hands, fingering, spelling', () => {
     expect([5, 6, 7, 8].map((id) => srtShiftLimit(srtLevel(id), 8))).toEqual([0, 2, 4, 6]);
     expect([5, 6, 7, 8].map((id) => srtShiftLimit(srtLevel(id), 8, 'lh'))).toEqual([0, 4, 8, 8]);
     expect(srtShiftLimit(srtLevel(8), 12)).toBe(9);
+    expect(srtShiftLimit(srtLevel(8), 16)).toBe(12);
   });
 
   it('G13: accidentals only where the level has them', () => {
