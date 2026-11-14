@@ -18,6 +18,8 @@ Specificație, mockup și harta de integrare: [docs/plans/2026-11-13-read-redesi
 - [x] **Pașii 5, 6, 8 — Pagina Read și player-ul:** ecran nou, stare salvată în `reading.book`, gravor cu `engrave: 2`, card de rezultat, Prev / Next / auto-next.
 - [x] **Pasul 7 — Încălzire:** carduri flash de o măsură, poziția mâinilor, ritm, acorduri de la nivelul 6.
 - [x] **Pasul 9 — Documentație:** README, specificația „as built”, acest fișier.
+- [x] **Fluxul de exersare (specificația, secțiunea 17):** partitura apare la deschidere și pornește la prima notă a pianului, piese de 8-16 măsuri așezate ca o pagină tipărită, cu dinamică, digitație, staccato și legato, piesa lungă cu dificultate crescătoare (`progressive.ts`), stele mari și auto-next cu pianul conectat, ecranul Read organizat ca pagina Today.
+- [ ] **Rezultate vechi din carte:** numerele din carte indică acum alte piese, mai lungi. De hotărât: păstrate sau șterse.
 - [ ] **Aprobare la ascultare:** piesele generate trebuie cântate și aprobate pe fiecare nivel.
 - [ ] **Deciziile D1–D6** din specificație (exercițiile Kravchuk, mărime, previzualizare, plafon, raft de piese din domeniul public, sol diez minor).
 - [ ] **Pull request și îmbinare în `main`** după aprobare.
