@@ -499,9 +499,12 @@ test.describe('Read player', () => {
   });
 
   test('the stars label is escaped and stays the same text', async ({ app, page }) => {
-    await page.route('**/ui-en-*.js', async (route) => {
+    // The built app serves a hashed .js chunk, the dev server the .ts source: match both.
+    await page.route(/ui-en(?:-[^/?]+)?\.(?:js|ts)(?:\?.*)?$/, async (route) => {
       const response = await route.fetch();
-      const body = (await response.text()).replace('%s of 3 stars', '%s of 3 "stars" & <b>');
+      // The string sits in a JavaScript literal: escape the quote character that literal uses.
+      const body = (await response.text()).replace(/(["'`])%s of 3 stars\1/, (_, quote) =>
+        `${quote}${'%s of 3 "stars" & <b>'.split(quote).join(`\\${quote}`)}${quote}`);
       await route.fulfill({ response, body });
     });
     await openHome(app);
