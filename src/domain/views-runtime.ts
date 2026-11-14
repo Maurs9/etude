@@ -13108,7 +13108,9 @@ function anLibraryInit() {
     });
 }
 function anError(code: string, detail?: string) { const e = Object.assign(new Error(detail || code), { code }); return e; }
-function tl(L: string, k: string, a?: string|number|null, b?: string|number|null) { const own = L === 'en' || L === 'ro' ? STRINGS[L] : undefined; let v = (own && own[k] != null) ? own[k] : STRINGS.en[k]; if (v == null)
+function tl(L: string, k: string, a?: string|number|null, b?: string|number|null) {
+    // The table of language L when it is loaded, else the interface language's own (English strings load only for English).
+    const own = L === 'en' || L === 'ro' ? STRINGS[L] : undefined, base = STRINGS[lang] || STRINGS.en; let v = (own && own[k] != null) ? own[k] : base ? base[k] : undefined; if (v == null)
     return k; if (a != null)
     v = v.replace('%s', String(a)).replace('%a', String(a)); if (b != null)
     v = v.replace('%b', String(b)); return v; }
@@ -17231,7 +17233,7 @@ function anSetLoading(on: boolean, msg?: string) { AN.loading = on; if (on) {
     anStatus(msg);
 } anUpdateControls(); }
 function anErrorKey(err: unknown, fallback: string) { const code: unknown = typeof err === 'object' && err !== null && 'code' in err ? err.code : undefined; if (!err || !code)
-    console.error(err); return 'an_err_' + (code && STRINGS.en['an_err_' + String(code)] ? String(code) : fallback); }
+    console.error(err); return 'an_err_' + (code && (STRINGS[lang] || STRINGS.en)?.['an_err_' + String(code)] ? String(code) : fallback); }
 type AnExamplePiece = (typeof PIECES)[number];
 function anPieceMeta(p: AnExamplePiece) {
     const n = p.keyN || 0, keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n);

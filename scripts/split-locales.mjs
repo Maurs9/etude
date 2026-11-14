@@ -35,6 +35,9 @@ for (const language of languages) {
     LIBRARY: { [language]: libraryTranslations[language] },
   };
   await output(`src/locales/ui-${language}.ts`, `import type { UIPayload } from './payload-types.js';\nconst payload: UIPayload = ${json(payload)};\nexport default payload;\n`);
+  // Another language starts with the English music terms, step labels and library copy under it, without the English
+  // interface strings: every language has every string (tests/unit/locales.test.mjs), so those would only be overwritten.
+  if (language === 'en') await output('src/locales/ui-base.ts', `import type { UIPayload } from './payload-types.js';\nconst payload: UIPayload = ${json({ ...payload, STRINGS: {} })};\nexport default payload;\n`);
   const text = value => Array.isArray(value) ? value[language === 'ro' ? 1 : 0] : value;
   const learn = {
     LESSONS: Object.fromEntries(content.LESSONS.map(lesson => [lesson.id, lesson[language] || lesson.en])),
