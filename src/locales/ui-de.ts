@@ -2096,7 +2096,29 @@ const payload: UIPayload = {
       "select_score": "Auswählen: {title}",
       "delete_selected": "Auswahl löschen ({count})",
       "delete_selected_confirm": "{count} ausgewählte Noten aus der Bibliothek dieses Geräts löschen? Heruntergeladene Kopien bleiben erhalten.",
-      "deleted_many": "{count} Noten aus der Bibliothek gelöscht."
+      "deleted_many": "{count} Noten aus der Bibliothek gelöscht.",
+      "in_progress": "In Arbeit",
+      "mastered": "Gemeistert",
+      "status_none": "Nicht begonnen",
+      "status_in_progress": "In Arbeit",
+      "status_mastered": "Gemeistert",
+      "status_cycle": "Übungsstatus ({status}): {title}",
+      "toggle_filters": "Filter",
+      "toggle_filters_count": "Filter ({count})",
+      "sort_by": "Sortieren nach",
+      "sort_added": "Zuletzt hinzugefügt",
+      "sort_recent": "Zuletzt geöffnet",
+      "sort_title": "Titel (A–Z)",
+      "sort_composer": "Komponist (A–Z)",
+      "sort_level": "Stufe",
+      "sort_progress_desc": "Fortschritt (absteigend)",
+      "sort_progress_asc": "Fortschritt (aufsteigend)",
+      "group_status": "Übungsstatus",
+      "progress_badge": "Fortschritt: {progress}%",
+      "note_line": "Notiz: {notes}",
+      "edit_status": "Übungsstatus",
+      "edit_progress": "Fortschritt (0–100%)",
+      "edit_notes": "Übungsnotizen (z. B. Takte, Hände, Zieltempo)"
     }
   }
 };

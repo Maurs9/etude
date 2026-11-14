@@ -36,9 +36,9 @@ test('library multi-import is persistent, searchable, duplicate-safe, and resume
   expect(await page.evaluate(() => window.__etude.AN.source)).toBeNull();
   await row(page, 'Library Alpha').locator('[data-library-action=favorite]').click();
   await expect(row(page, 'Library Alpha').locator('[data-library-action=favorite]')).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('#library-filter').selectOption('favorites');
+  await page.locator('[data-library-tab=favorites]').click();
   await expect(rows(page)).toHaveCount(1);
-  await page.locator('#library-filter').selectOption('all');
+  await page.locator('[data-library-tab=all]').click();
   await page.locator('#library-search').fill('composer beta');
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).locator('h3')).toHaveText('Library Beta');
@@ -68,7 +68,7 @@ test('library multi-import is persistent, searchable, duplicate-safe, and resume
   await openRow(page, 'Library Alpha');
   await expect(page.locator('#score-speed')).toHaveValue('75');
   expect(await page.evaluate(() => ({ position: window.__etude.FALL.position, hands: window.__etude.PRAC.hands, wait: window.__etude.PRAC.wait, metro: window.__etude.PRAC.metro, look: window.__etude.SCORE.look }))).toEqual({ position: 3.25, hands: 'lh', wait: true, metro: true, look: 'night' });
-  await page.locator('#library-filter').selectOption('recent');
+  await page.locator('[data-library-tab=recent]').click();
   await expect(rows(page)).toHaveCount(1);
 });
 
@@ -211,10 +211,15 @@ for (const width of [320, 600, 1024]) {
     await expect(rows(page).locator('h3')).toHaveText(title);
     expect(await rows(page).locator('img,script').count()).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const controls = await page.locator('#score-library button,#library-files,#library-search,#library-filter,#library-composer-filter,#library-level-filter,#library-tag-filter,#library-group,#library-restore').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
+    const controls = await page.locator('#score-library button:visible,#library-files,#library-search,#library-sort,#library-restore').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
     expect(controls.every(control => control.height >= 43 && control.right <= width + 1)).toBe(true);
+    await page.locator('#library-toggle-filters').click();
+    const secondaryControls = await page.locator('#library-filter,#library-composer-filter,#library-level-filter,#library-tag-filter,#library-group').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { height: r.height, right: r.right }; }));
+    expect(secondaryControls.every(control => control.height >= 43 && control.right <= width + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator('#library-toggle-filters').click();
     if (width === 1024) {
-      const bottoms = await page.locator('#library-files,#library-search,#library-group').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().bottom));
+      const bottoms = await page.locator('#library-search,#library-sort,#library-files').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().bottom));
       expect(Math.abs(bottoms[0] - bottoms[1])).toBeLessThanOrEqual(1);
       expect(Math.abs(bottoms[1] - bottoms[2])).toBeLessThanOrEqual(1);
     }
@@ -242,7 +247,7 @@ test('a saved score reopens offline after the installed app is warm @sw', async 
   } finally { await page.context().setOffline(false); }
 });
 
-test('library supports inline organization, filtering and grouping by composer, level and tag', async ({ app, page, browser }) => {
+test('library supports inline organization, study status, progress, notes, sorting, filtering and grouping', async ({ app, page, browser }) => {
   await app.open({ hash: 'analysis', lang: 'ro' });
   await library(page);
   await page.locator('#library-files').setInputFiles([
@@ -252,6 +257,14 @@ test('library supports inline organization, filtering and grouping by composer, 
   ]);
   await expect(rows(page)).toHaveCount(3);
 
+  await row(page, 'Waltz in A Minor').locator('[data-library-action=status]').click();
+  await settled(page);
+  await expect(row(page, 'Waltz in A Minor').locator('.score-library-badge-status')).toContainText('În lucru');
+  await page.locator('[data-library-tab=in_progress]').click();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).locator('h3')).toHaveText('Waltz in A Minor');
+  await page.locator('[data-library-tab=all]').click();
+
   await row(page, 'Prelude in C').locator('[data-library-action=edit]').click();
   const editor1 = row(page, 'Prelude in C').locator('.score-library-editor');
   const presets = await editor1.locator('#library-level-presets option').evaluateAll(nodes => nodes.map(node => node.value));
@@ -259,6 +272,9 @@ test('library supports inline organization, filtering and grouping by composer, 
   expect(presets).toContain('Nivel 2');
   await editor1.locator('[data-library-field=level]').fill('Nivel 2');
   await editor1.locator('[data-library-field=tags]').fill('Baroc, Examen, baroc');
+  await editor1.locator('[data-library-field=status]').selectOption('in_progress');
+  await editor1.locator('[data-library-field=progress]').fill('65');
+  await editor1.locator('[data-library-field=notes]').fill('Măsurile 1-4 mâna stângă lent');
   await editor1.locator('[data-library-action=save-edit]').click();
   await settled(page);
 
@@ -267,18 +283,39 @@ test('library supports inline organization, filtering and grouping by composer, 
   await editor2.locator('[data-library-field=composer]').fill('J. S. Bach');
   await editor2.locator('[data-library-field=level]').fill('Nivel 1');
   await editor2.locator('[data-library-field=tags]').fill('Încălzire');
+  await editor2.locator('[data-library-field=status]').selectOption('mastered');
+  await editor2.locator('[data-library-field=progress]').fill('100');
   await editor2.locator('[data-library-action=save-edit]').click();
   await settled(page);
 
+  await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('În lucru');
+  await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Progres: 65%');
   await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Nivel: Nivel 2');
   await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Baroc');
   await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Examen');
+  await expect(row(page, 'Prelude in C').locator('.score-library-user-note')).toContainText('Notiță: Măsurile 1-4 mâna stângă lent');
+
+  await page.locator('[data-library-tab=mastered]').click();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).locator('h3')).toHaveText('Warmup Study');
+  await page.locator('[data-library-tab=all]').click();
+
+  await page.locator('#library-sort').selectOption('title');
+  expect(await rows(page).locator('h3').allTextContents()).toEqual(['Prelude in C', 'Waltz in A Minor', 'Warmup Study']);
+  await page.locator('#library-sort').selectOption('progress_desc');
+  expect(await rows(page).locator('h3').allTextContents()).toEqual(['Warmup Study', 'Prelude in C', 'Waltz in A Minor']);
+  await page.locator('#library-sort').selectOption('added');
 
   await expect(page.locator('#library-reset-filters')).toHaveCount(0);
+  await page.locator('#library-toggle-filters').click();
   await page.locator('#library-composer-filter').selectOption('J. S. Bach');
   await expect(page.locator('#library-composer-filter')).toHaveAttribute('data-active', 'true');
   await expect(page.locator('#library-reset-filters')).toHaveCount(1);
   await expect(rows(page)).toHaveCount(2);
+  await page.locator('#library-toggle-filters').click();
+  await expect(page.locator('#library-active-chips')).toBeVisible();
+  await expect(page.locator('#library-toggle-filters')).toContainText('Filtre (1)');
+  await page.locator('#library-toggle-filters').click();
   await page.locator('#library-level-filter').selectOption('Nivel 2');
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).locator('h3')).toHaveText('Prelude in C');
@@ -303,10 +340,17 @@ test('library supports inline organization, filtering and grouping by composer, 
   const tagHeadings = await rows(page).locator('.score-library-group-heading:not([hidden])').allTextContents();
   expect(tagHeadings).toEqual(['Baroc (1)', 'Încălzire (1)', 'Fără etichete (1)']);
 
+  await page.locator('#library-group').selectOption('status');
+  const statusHeadings = await rows(page).locator('.score-library-group-heading:not([hidden])').allTextContents();
+  expect(statusHeadings).toEqual(['În lucru (2)', 'Stăpânită (1)']);
+
   await page.reload();
   await page.waitForFunction(() => !!window.__etude?.show);
   await library(page);
+  await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('În lucru');
+  await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Progres: 65%');
   await expect(row(page, 'Prelude in C').locator('.score-library-badges')).toContainText('Nivel: Nivel 2');
+  await expect(row(page, 'Prelude in C').locator('.score-library-user-note')).toContainText('Măsurile 1-4 mâna stângă lent');
   await expect(row(page, 'Warmup Study').locator('p').first()).toHaveText('J. S. Bach');
 
   const pending = page.waitForEvent('download');
@@ -323,8 +367,11 @@ test('library supports inline organization, filtering and grouping by composer, 
     await library(other);
     await other.locator('#library-restore').setInputFiles({ name: 'etude-library.json', mimeType: 'application/json', buffer: bytes });
     await settled(other);
+    await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('In progress');
+    await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('Progress: 65%');
     await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('Level: Nivel 2');
     await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('Baroc');
     await expect(row(other, 'Prelude in C').locator('.score-library-badges')).toContainText('Examen');
+    await expect(row(other, 'Prelude in C').locator('.score-library-user-note')).toContainText('Note: Măsurile 1-4 mâna stângă lent');
   } finally { await context.close(); }
 });

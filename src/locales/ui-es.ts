@@ -2090,7 +2090,29 @@ const payload: UIPayload = {
       "select_score": "Seleccionar: {title}",
       "delete_selected": "Eliminar seleccionadas ({count})",
       "delete_selected_confirm": "¿Eliminar {count} partituras seleccionadas de la biblioteca de este dispositivo? Las copias descargadas no se eliminan.",
-      "deleted_many": "Se eliminaron {count} partituras de la biblioteca."
+      "deleted_many": "Se eliminaron {count} partituras de la biblioteca.",
+      "in_progress": "En curso",
+      "mastered": "Dominadas",
+      "status_none": "Sin iniciar",
+      "status_in_progress": "En curso",
+      "status_mastered": "Dominada",
+      "status_cycle": "Estado de estudio ({status}): {title}",
+      "toggle_filters": "Filtros",
+      "toggle_filters_count": "Filtros ({count})",
+      "sort_by": "Ordenar por",
+      "sort_added": "Añadidas recientemente",
+      "sort_recent": "Abiertas recientemente",
+      "sort_title": "Título (A–Z)",
+      "sort_composer": "Compositor (A–Z)",
+      "sort_level": "Nivel",
+      "sort_progress_desc": "Progreso (mayor a menor)",
+      "sort_progress_asc": "Progreso (menor a mayor)",
+      "group_status": "Estado de estudio",
+      "progress_badge": "Progreso: {progress}%",
+      "note_line": "Nota: {notes}",
+      "edit_status": "Estado de estudio",
+      "edit_progress": "Progreso (0–100%)",
+      "edit_notes": "Notas de estudio (ej. compases, manos, tempo)"
     }
   }
 };

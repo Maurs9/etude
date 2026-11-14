@@ -91,7 +91,29 @@ const payload: UIPayload = {
       "select_score": "Select: {title}",
       "delete_selected": "Delete selected ({count})",
       "delete_selected_confirm": "Delete {count} selected scores from this device library? Your downloaded copies are not deleted.",
-      "deleted_many": "Deleted {count} scores from this library."
+      "deleted_many": "Deleted {count} scores from this library.",
+      "in_progress": "In progress",
+      "mastered": "Mastered",
+      "status_none": "Not started",
+      "status_in_progress": "In progress",
+      "status_mastered": "Mastered",
+      "status_cycle": "Study status ({status}): {title}",
+      "toggle_filters": "Filters",
+      "toggle_filters_count": "Filters ({count})",
+      "sort_by": "Sort by",
+      "sort_added": "Recently added",
+      "sort_recent": "Recently opened",
+      "sort_title": "Title (A–Z)",
+      "sort_composer": "Composer (A–Z)",
+      "sort_level": "Level",
+      "sort_progress_desc": "Progress (high to low)",
+      "sort_progress_asc": "Progress (low to high)",
+      "group_status": "Study status",
+      "progress_badge": "Progress: {progress}%",
+      "note_line": "Note: {notes}",
+      "edit_status": "Study status",
+      "edit_progress": "Progress (0–100%)",
+      "edit_notes": "Study notes (e.g. measures, hands, tempo goal)"
     }
   }
 };

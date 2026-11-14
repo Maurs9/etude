@@ -213,7 +213,7 @@ test('write promises resolve after transaction commit; versionchange closes cach
   expect(result).toEqual({ completedWhenResolved: true, reloaded: [], missing: null });
 });
 
-test('organization fields (title, composer, level, tags) update, clear, and round-trip through backup', async ({ page }) => {
+test('organization fields (title, composer, level, tags, status, progress, notes) update, clear, and round-trip through backup', async ({ page }) => {
   const result = await page.evaluate(async path => {
     const lib = await import(path);
     const saved = (await lib.librarySave(new File(['org test'], 'org.musicxml'), { title: 'Old', composer: '' })).item;
@@ -222,18 +222,40 @@ test('organization fields (title, composer, level, tags) update, clear, and roun
       composer: 'Bach',
       level: '  Level 2  ',
       tags: ['Baroque', 'Exam', 'baroque'],
+      status: 'in_progress',
+      progress: 45,
+      notes: '  Focus on bars 9-16  ',
     });
     const backup = await lib.libraryExport();
-    await lib.libraryUpdate(saved.id, { level: null, tags: [] });
+    await lib.libraryUpdate(saved.id, { level: null, tags: [], status: null, progress: null, notes: null });
     const cleared = (await lib.libraryGet(saved.id)).item;
     await lib.libraryRemove(saved.id);
     const restored = await lib.libraryRestore(backup, async () => ({ title: 'Ignored', composer: '' }));
     const fromBackup = (await lib.libraryGet(saved.id)).item;
     return { updated, cleared, restored, fromBackup };
   }, modulePath);
-  expect(result.updated).toMatchObject({ title: 'New Title', composer: 'Bach', level: 'Level 2', tags: ['Baroque', 'Exam'] });
+  expect(result.updated).toMatchObject({
+    title: 'New Title',
+    composer: 'Bach',
+    level: 'Level 2',
+    tags: ['Baroque', 'Exam'],
+    status: 'in_progress',
+    progress: 45,
+    notes: 'Focus on bars 9-16',
+  });
   expect(result.cleared.level).toBeUndefined();
   expect(result.cleared.tags).toBeUndefined();
+  expect(result.cleared.status).toBeUndefined();
+  expect(result.cleared.progress).toBeUndefined();
+  expect(result.cleared.notes).toBeUndefined();
   expect(result.restored).toEqual({ added: 1, duplicates: 0 });
-  expect(result.fromBackup).toMatchObject({ title: 'New Title', composer: 'Bach', level: 'Level 2', tags: ['Baroque', 'Exam'] });
+  expect(result.fromBackup).toMatchObject({
+    title: 'New Title',
+    composer: 'Bach',
+    level: 'Level 2',
+    tags: ['Baroque', 'Exam'],
+    status: 'in_progress',
+    progress: 45,
+    notes: 'Focus on bars 9-16',
+  });
 });

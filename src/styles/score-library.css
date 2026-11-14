@@ -16,8 +16,36 @@
   display: flex; flex-direction: column; gap: 12px; margin-block: 16px;
 }
 #score-library .score-library-toolbar-main {
-  display: grid; grid-template-columns: minmax(200px, 250px) minmax(200px, 1fr) minmax(160px, 220px);
+  display: grid; grid-template-columns: minmax(200px, 1fr) minmax(170px, 230px) minmax(200px, 260px);
   gap: 12px; align-items: end;
+}
+#score-library .score-library-toolbar-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px 12px;
+}
+#score-library .score-library-tabs {
+  display: flex; flex-wrap: wrap; gap: 6px; min-width: 0;
+}
+#score-library .score-library-tab {
+  min-height: 44px; padding: 6px 12px; border-radius: 999px;
+  font-size: .85rem; font-weight: 600;
+}
+#score-library .score-library-tab[aria-pressed=true] {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+}
+#score-library .score-library-toolbar-bar-actions {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+#score-library .score-library-toggle-filters[data-active=true] {
+  border-color: var(--accent); color: var(--accent);
+}
+#score-library .score-library-active-chips {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+#score-library .score-library-chip {
+  min-height: 44px; padding: 6px 12px; border-radius: 999px; font-size: .82rem;
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
 #score-library .score-library-toolbar-filters {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
@@ -33,11 +61,12 @@
   font-size: .82rem; font-weight: 600; color: var(--muted);
   line-height: 1.25; overflow-wrap: anywhere;
 }
-#score-library input, #score-library select, #score-library button {
+#score-library input, #score-library select, #score-library textarea, #score-library button {
   min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid var(--line);
   border-radius: 8px; background: var(--card); color: var(--ink); font: inherit;
 }
-#score-library input, #score-library select { width: 100%; padding: 8px; }
+#score-library input, #score-library select, #score-library textarea { width: 100%; padding: 8px; }
+#score-library textarea { resize: vertical; }
 #score-library :is(input, select)[data-active=true] {
   border-color: var(--accent);
 }
@@ -56,8 +85,10 @@
 #score-library button { padding: 9px 12px; cursor: pointer; }
 #score-library button:hover:not(:disabled) { border-color: var(--accent); }
 #score-library button[aria-pressed=true] { color: var(--accent); border-color: var(--accent); }
-#score-library button:disabled, #score-library input:disabled { opacity: .65; cursor: wait; }
-#score-library :is(button, input, select, summary):focus-visible {
+#score-library button:disabled, #score-library input:disabled, #score-library select:disabled, #score-library textarea:disabled {
+  opacity: .65; cursor: wait;
+}
+#score-library :is(button, input, select, textarea, summary):focus-visible {
   outline: 3px solid var(--accent); outline-offset: 3px;
 }
 #score-library .score-library-status { min-height: 1.5em; margin-block: 8px; }
@@ -92,9 +123,32 @@
   display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .78rem;
   border: 1px solid var(--line); background: var(--paper); color: var(--ink);
 }
+#score-library .score-library-badge-status[data-status=in_progress] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 14%, var(--paper));
+  font-weight: 600;
+}
+#score-library .score-library-badge-status[data-status=mastered] {
+  border-color: #3c8f57;
+  background: color-mix(in srgb, #3c8f57 16%, var(--paper));
+  font-weight: 600;
+}
+#score-library .score-library-badge-progress {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+#score-library .score-library-progress-bar {
+  display: inline-block; width: 44px; height: 6px; border-radius: 999px;
+  background: var(--line); overflow: hidden;
+}
+#score-library .score-library-progress-bar > span {
+  display: block; height: 100%; border-radius: 999px; background: var(--accent);
+}
 #score-library .score-library-editor {
   flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px; align-items: end; padding-top: 10px; border-top: 1px dashed var(--line);
+}
+#score-library .score-library-editor label:has(textarea) {
+  grid-column: 1 / -1;
 }
 #score-library .score-library-editor-actions {
   grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px;
@@ -108,8 +162,16 @@
 #score-library .score-library-info .score-library-note + .score-library-note:not([hidden])::before {
   content: "· ";
 }
+#score-library .score-library-user-note {
+  flex-basis: 100%; margin: 2px 0 0; font-size: .82rem; line-height: 1.35;
+  color: var(--ink); opacity: .9; border-left: 2px solid var(--accent); padding-left: 8px;
+}
 #score-library .score-library-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 #score-library .score-library-actions button { padding: 6px 10px; font-size: .85rem; }
+#score-library .score-library-actions button[data-library-action=status] { min-width: 44px; font-size: 1.05rem; }
+#score-library .score-library-actions button[data-library-action=status][data-status=mastered] {
+  color: #3c8f57; border-color: #3c8f57;
+}
 #score-library .score-library-actions button[data-library-action=favorite] { min-width: 44px; font-size: 1.2rem; }
 #score-library .score-library-transfer {
   display: flex; flex-wrap: wrap; align-items: end; gap: 12px;

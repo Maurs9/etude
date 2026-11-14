@@ -2090,7 +2090,29 @@ const payload: UIPayload = {
       "select_score": "Sélectionner : {title}",
       "delete_selected": "Supprimer la sélection ({count})",
       "delete_selected_confirm": "Supprimer {count} partitions sélectionnées de la bibliothèque de cet appareil ? Les copies téléchargées ne seront pas supprimées.",
-      "deleted_many": "{count} partitions supprimées de la bibliothèque."
+      "deleted_many": "{count} partitions supprimées de la bibliothèque.",
+      "in_progress": "En cours",
+      "mastered": "Maîtrisées",
+      "status_none": "Non commencée",
+      "status_in_progress": "En cours",
+      "status_mastered": "Maîtrisée",
+      "status_cycle": "Statut d’étude ({status}) : {title}",
+      "toggle_filters": "Filtres",
+      "toggle_filters_count": "Filtres ({count})",
+      "sort_by": "Trier par",
+      "sort_added": "Ajoutées récemment",
+      "sort_recent": "Ouvertes récemment",
+      "sort_title": "Titre (A–Z)",
+      "sort_composer": "Compositeur (A–Z)",
+      "sort_level": "Niveau",
+      "sort_progress_desc": "Progression (décroissante)",
+      "sort_progress_asc": "Progression (croissante)",
+      "group_status": "Statut d’étude",
+      "progress_badge": "Progression : {progress}%",
+      "note_line": "Note : {notes}",
+      "edit_status": "Statut d’étude",
+      "edit_progress": "Progression (0–100%)",
+      "edit_notes": "Notes d’étude (ex. mesures, mains, tempo cible)"
     }
   }
 };

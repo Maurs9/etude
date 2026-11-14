@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { LibraryError, validateLibraryLevel, validateLibraryMetadata, validateLibraryResume, validateLibraryTags } from '../../src/domain/score-library-store.ts';
+import {
+  LibraryError,
+  validateLibraryLevel,
+  validateLibraryMetadata,
+  validateLibraryNotes,
+  validateLibraryProgress,
+  validateLibraryResume,
+  validateLibraryStatus,
+  validateLibraryTags,
+} from '../../src/domain/score-library-store.ts';
 import { libraryText, libraryTranslations } from '../../src/locales/score-library.ts';
 
 const resume = { position: 12.5, measure: '4', speed: 75, hands: 'lh', wait: true, metronome: false, view: 'cont', look: 'night', zoom: 1.2 };
@@ -38,6 +47,31 @@ describe('local library validation boundary', () => {
   it.each(['not-array', {}, [123], ['x'.repeat(65)], ['bad\0tag'], Array.from({ length: 21 }, (_, i) => `tag-${i}`)])('rejects invalid tags %#', value => {
     expect(() => validateLibraryTags(value)).toThrow(LibraryError);
   });
+  it('normalizes and validates optional status, progress and notes', () => {
+    expect(validateLibraryStatus(undefined)).toBeUndefined();
+    expect(validateLibraryStatus(null)).toBeUndefined();
+    expect(validateLibraryStatus('')).toBeUndefined();
+    expect(validateLibraryStatus('in_progress')).toBe('in_progress');
+    expect(validateLibraryStatus('mastered')).toBe('mastered');
+    expect(validateLibraryProgress(undefined)).toBeUndefined();
+    expect(validateLibraryProgress(null)).toBeUndefined();
+    expect(validateLibraryProgress(0)).toBe(0);
+    expect(validateLibraryProgress(65)).toBe(65);
+    expect(validateLibraryProgress(100)).toBe(100);
+    expect(validateLibraryNotes(undefined)).toBeUndefined();
+    expect(validateLibraryNotes(null)).toBeUndefined();
+    expect(validateLibraryNotes('   ')).toBeUndefined();
+    expect(validateLibraryNotes('  Hands separate bars 1-8  ')).toBe('Hands separate bars 1-8');
+  });
+  it.each(['paused', 'done', 1, {}])('rejects invalid status %#', value => {
+    expect(() => validateLibraryStatus(value)).toThrow(LibraryError);
+  });
+  it.each([-1, 101, 50.5, NaN, Infinity, '50'])('rejects invalid progress %#', value => {
+    expect(() => validateLibraryProgress(value)).toThrow(LibraryError);
+  });
+  it.each([123, {}, [], 'x'.repeat(1001), 'bad\0note'])('rejects invalid notes %#', value => {
+    expect(() => validateLibraryNotes(value)).toThrow(LibraryError);
+  });
 });
 
 describe('library localized copy', () => {
@@ -46,7 +80,11 @@ describe('library localized copy', () => {
       expect(Object.keys(copy).sort()).toEqual(Object.keys(libraryTranslations.en).sort());
       for (const [key, text] of Object.entries(copy)) {
         expect(text.trim(), key).not.toBe('');
-        const filled = libraryText(language, key, { count: 2, title: 'Test', date: 'Today', measure: '4', time: '0:12', added: 2, duplicates: 1, errors: 0, best: 92, group: 'Bach', level: '2' });
+        const filled = libraryText(language, key, {
+          count: 2, title: 'Test', date: 'Today', measure: '4', time: '0:12',
+          added: 2, duplicates: 1, errors: 0, best: 92, group: 'Bach', level: '2',
+          progress: 65, notes: 'Legato', status: 'In progress',
+        });
         expect(filled, key).not.toMatch(/\{\w+\}/);
       }
     });

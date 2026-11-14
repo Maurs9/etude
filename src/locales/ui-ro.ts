@@ -2090,7 +2090,29 @@ const payload: UIPayload = {
       "select_score": "Selectează: {title}",
       "delete_selected": "Șterge selectate ({count})",
       "delete_selected_confirm": "Ștergi {count} partituri selectate din biblioteca acestui dispozitiv? Copiile descărcate nu vor fi șterse.",
-      "deleted_many": "Au fost șterse {count} partituri din bibliotecă."
+      "deleted_many": "Au fost șterse {count} partituri din bibliotecă.",
+      "in_progress": "În lucru",
+      "mastered": "Stăpânite",
+      "status_none": "Neîncepută",
+      "status_in_progress": "În lucru",
+      "status_mastered": "Stăpânită",
+      "status_cycle": "Status studiu ({status}): {title}",
+      "toggle_filters": "Filtre",
+      "toggle_filters_count": "Filtre ({count})",
+      "sort_by": "Ordonează după",
+      "sort_added": "Adăugate recent",
+      "sort_recent": "Deschise recent",
+      "sort_title": "Titlu (A–Z)",
+      "sort_composer": "Compozitor (A–Z)",
+      "sort_level": "Nivel",
+      "sort_progress_desc": "Progres (mare → mic)",
+      "sort_progress_asc": "Progres (mic → mare)",
+      "group_status": "Status de studiu",
+      "progress_badge": "Progres: {progress}%",
+      "note_line": "Notiță: {notes}",
+      "edit_status": "Status de studiu",
+      "edit_progress": "Progres (0–100%)",
+      "edit_notes": "Notițe de studiu (ex. măsuri, mâini, tempo țintă)"
     }
   }
 };

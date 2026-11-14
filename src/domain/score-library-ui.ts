@@ -1,4 +1,4 @@
-import type { LibraryController, LibraryHost, LibraryItem } from './score-library-types.js';
+import type { LibraryController, LibraryHost, LibraryItem, LibraryStudyStatus } from './score-library-types.js';
 import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate } from './score-library-store.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
 
@@ -52,13 +52,26 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const filterText = element('span');
   const filter = element('select');
   filter.id = 'library-filter';
-  const options = (['all', 'favorites', 'recent'] as const).map(key => {
+  const viewKeys = ['all', 'in_progress', 'mastered', 'favorites', 'recent'] as const;
+  const options = viewKeys.map(key => {
     const option = element('option');
     option.value = key;
     filter.append(option);
     return { key, option };
   });
   filterLabel.append(filterText, filter);
+  const sortKeys = ['added', 'recent', 'title', 'composer', 'level', 'progress_desc', 'progress_asc'] as const;
+  const sortLabel = element('label', 'score-library-filter score-library-sort');
+  const sortText = element('span');
+  const sort = element('select');
+  sort.id = 'library-sort';
+  const sortOptions = sortKeys.map(key => {
+    const option = element('option');
+    option.value = key;
+    sort.append(option);
+    return { key, option };
+  });
+  sortLabel.append(sortText, sort);
   const composerLabel = element('label', 'score-library-filter');
   const composerText = element('span');
   const composerFilter = element('select');
@@ -78,21 +91,45 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const groupText = element('span');
   const group = element('select');
   group.id = 'library-group';
-  const groupOptions = (['none', 'composer', 'level', 'tag'] as const).map(key => {
+  const groupOptions = (['none', 'status', 'composer', 'level', 'tag'] as const).map(key => {
     const option = element('option');
     option.value = key;
     group.append(option);
     return { key, option };
   });
   groupLabel.append(groupText, group);
+  const tabsGroup = element('div', 'score-library-tabs');
+  tabsGroup.setAttribute('role', 'group');
+  const tabButtons = viewKeys.map(key => {
+    const button = element('button', 'score-library-tab');
+    button.type = 'button';
+    button.dataset.libraryTab = key;
+    button.setAttribute('aria-pressed', String(key === 'all'));
+    tabsGroup.append(button);
+    return { key, button };
+  });
+  const toggleFilters = element('button', 'score-library-toggle-filters');
+  toggleFilters.id = 'library-toggle-filters';
+  toggleFilters.type = 'button';
+  toggleFilters.setAttribute('aria-expanded', 'false');
+  toggleFilters.setAttribute('aria-controls', 'library-filters-panel');
   const resetFilters = element('button', 'score-library-reset');
   resetFilters.id = 'library-reset-filters';
   resetFilters.type = 'button';
   const toolbarMain = element('div', 'score-library-toolbar-main');
-  toolbarMain.append(importLabel, searchLabel, groupLabel);
+  toolbarMain.append(searchLabel, sortLabel, importLabel);
+  const toolbarBarActions = element('div', 'score-library-toolbar-bar-actions');
+  toolbarBarActions.append(toggleFilters);
+  const toolbarBar = element('div', 'score-library-toolbar-bar');
+  toolbarBar.append(tabsGroup, toolbarBarActions);
+  const activeChips = element('div', 'score-library-active-chips');
+  activeChips.id = 'library-active-chips';
+  activeChips.hidden = true;
   const toolbarFilters = element('div', 'score-library-toolbar-filters');
-  toolbarFilters.append(filterLabel, composerLabel, levelLabel, tagLabel);
-  toolbar.append(toolbarMain, toolbarFilters);
+  toolbarFilters.id = 'library-filters-panel';
+  toolbarFilters.hidden = true;
+  toolbarFilters.append(filterLabel, composerLabel, levelLabel, tagLabel, groupLabel);
+  toolbar.append(toolbarMain, toolbarBar, activeChips, toolbarFilters);
   const protection = element('p', 'score-library-note');
   protection.id = 'library-protection';
   const status = element('p', 'score-library-status');
@@ -142,9 +179,42 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let protectedStorage: boolean | null = null;
   let readSequence = 0;
   let editingId: string | null = null;
+  let filtersOpen = false;
   const selectedIds = new Set<string>();
-  type Editor = { form: HTMLFormElement; titleText: HTMLElement; composerText: HTMLElement; levelText: HTMLElement; tagsText: HTMLElement; levelList: HTMLDataListElement; save: HTMLButtonElement; cancel: HTMLButtonElement };
-  type Row = { node: HTMLLIElement; groupHeading: HTMLElement; select: HTMLInputElement; title: HTMLElement; composer: HTMLElement; badges: HTMLElement; name: HTMLElement; position: HTMLElement; last: HTMLElement; progress: HTMLElement; open: HTMLButtonElement; favorite: HTMLButtonElement; edit: HTMLButtonElement; download: HTMLButtonElement; remove: HTMLButtonElement; editor: Editor | null };
+  type Editor = {
+    form: HTMLFormElement;
+    titleText: HTMLElement;
+    composerText: HTMLElement;
+    levelText: HTMLElement;
+    tagsText: HTMLElement;
+    statusText: HTMLElement;
+    statusOptions: { value: '' | LibraryStudyStatus; option: HTMLOptionElement }[];
+    progressText: HTMLElement;
+    notesText: HTMLElement;
+    levelList: HTMLDataListElement;
+    save: HTMLButtonElement;
+    cancel: HTMLButtonElement;
+  };
+  type Row = {
+    node: HTMLLIElement;
+    groupHeading: HTMLElement;
+    select: HTMLInputElement;
+    title: HTMLElement;
+    composer: HTMLElement;
+    badges: HTMLElement;
+    name: HTMLElement;
+    last: HTMLElement;
+    position: HTMLElement;
+    progress: HTMLElement;
+    userNote: HTMLElement;
+    open: HTMLButtonElement;
+    statusBtn: HTMLButtonElement;
+    favorite: HTMLButtonElement;
+    edit: HTMLButtonElement;
+    download: HTMLButtonElement;
+    remove: HTMLButtonElement;
+    editor: Editor | null;
+  };
   const rows = new Map<string, Row>();
   function notice(key: LibraryTextKey, values?: Values): void {
     statusCopy = { key, values };
@@ -154,10 +224,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    files.disabled = restore.disabled = backup.disabled = resetFilters.disabled = selectAll.disabled = value;
+    files.disabled = restore.disabled = backup.disabled = sort.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
+    filter.disabled = composerFilter.disabled = levelFilter.disabled = tagFilter.disabled = group.disabled = value;
+    for (const { button } of tabButtons) button.disabled = value;
+    for (const button of activeChips.querySelectorAll('button')) button.disabled = value;
     deleteSelected.disabled = value || selectedIds.size === 0;
-    for (const button of list.querySelectorAll('button')) button.disabled = value;
-    for (const input of list.querySelectorAll('input')) input.disabled = value;
+    for (const control of list.querySelectorAll('button, input, select, textarea')) {
+      (control as HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).disabled = value;
+    }
   }
   async function run(action: () => Promise<void>, errorKey: LibraryTextKey = 'action_failed'): Promise<void> {
     if (busy) return;
@@ -243,18 +317,21 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   }
   function createEditor(id: string, item: LibraryItem, row: Row): Editor {
     const form = element('form', 'score-library-editor');
-    const makeField = (field: string, value: string, maxLength?: number): { text: HTMLElement; input: HTMLInputElement } => {
+    const makeLabel = (control: HTMLElement): HTMLElement => {
       const label = element('label');
       const text = element('span');
+      label.append(text, control);
+      form.append(label);
+      return text;
+    };
+    const makeField = (field: string, value: string, maxLength?: number, type: 'text' | 'number' = 'text'): { text: HTMLElement; input: HTMLInputElement } => {
       const input = element('input');
-      input.type = 'text';
+      input.type = type;
       input.dataset.libraryField = field;
       input.value = value;
       if (maxLength) input.maxLength = maxLength;
       input.disabled = busy;
-      label.append(text, input);
-      form.append(label);
-      return { text, input };
+      return { text: makeLabel(input), input };
     };
     const titleField = makeField('title', item.title, 512);
     const composerField = makeField('composer', item.composer, 512);
@@ -265,6 +342,28 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     syncLevelPresets(levelList);
     form.append(levelList);
     const tagsField = makeField('tags', (item.tags ?? []).join(', '));
+    const statusSelect = element('select');
+    statusSelect.dataset.libraryField = 'status';
+    statusSelect.disabled = busy;
+    const statusOptions = (['', 'in_progress', 'mastered'] as const).map(value => {
+      const option = element('option');
+      option.value = value;
+      statusSelect.append(option);
+      return { value, option };
+    });
+    statusSelect.value = item.status ?? '';
+    const statusText = makeLabel(statusSelect);
+    const progressField = makeField('progress', item.progress === undefined ? '' : String(item.progress), undefined, 'number');
+    progressField.input.min = '0';
+    progressField.input.max = '100';
+    progressField.input.step = '1';
+    const notesInput = element('textarea');
+    notesInput.dataset.libraryField = 'notes';
+    notesInput.rows = 2;
+    notesInput.maxLength = 1000;
+    notesInput.value = item.notes ?? '';
+    notesInput.disabled = busy;
+    const notesText = makeLabel(notesInput);
     const editorActions = element('div', 'score-library-editor-actions');
     const save = element('button');
     save.type = 'submit';
@@ -286,12 +385,20 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       event.preventDefault();
       if (busy) return;
       const tags = tagsField.input.value.split(',').map(part => part.trim()).filter(Boolean);
+      const rawProgress = progressField.input.value.trim();
+      const parsedProgress = rawProgress === '' ? null : Math.max(0, Math.min(100, Math.round(Number(rawProgress))));
+      const progress = parsedProgress !== null && Number.isNaN(parsedProgress) ? null : parsedProgress;
+      const nextStatus = (statusSelect.value || null) as LibraryStudyStatus | null;
+      const nextNotes = notesInput.value.trim() || null;
       void run(async () => {
         const updated = await libraryUpdate(id, {
           title: titleField.input.value.trim(),
           composer: composerField.input.value.trim(),
           level: levelField.input.value.trim(),
           tags,
+          status: nextStatus,
+          progress,
+          notes: nextNotes,
         });
         if (!updated) throw new Error('missing');
         editingId = null;
@@ -299,7 +406,20 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         notice('saved');
       });
     });
-    return { form, titleText: titleField.text, composerText: composerField.text, levelText: levelField.text, tagsText: tagsField.text, levelList, save, cancel };
+    return {
+      form,
+      titleText: titleField.text,
+      composerText: composerField.text,
+      levelText: levelField.text,
+      tagsText: tagsField.text,
+      statusText,
+      statusOptions,
+      progressText: progressField.text,
+      notesText,
+      levelList,
+      save,
+      cancel,
+    };
   }
   function createRow(id: string): Row {
     const node = element('li', 'score-library-item');
@@ -320,7 +440,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const last = element('p', 'score-library-note');
     const position = element('p', 'score-library-note');
     const progress = element('p', 'score-library-note score-library-progress');
-    info.append(title, composer, badges, metaBreak, name, last, position, progress);
+    const userNote = element('p', 'score-library-user-note');
+    userNote.hidden = true;
+    info.append(title, composer, badges, metaBreak, name, last, position, progress, userNote);
     const actions = element('div', 'score-library-actions');
     const makeButton = (action: string): HTMLButtonElement => {
       const button = element('button');
@@ -331,6 +453,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       return button;
     };
     const open = makeButton('open');
+    const statusBtn = makeButton('status');
     const favorite = makeButton('favorite');
     const edit = makeButton('edit');
     const original = makeButton('download');
@@ -347,6 +470,18 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const stored = await libraryGet(id);
       if (!stored || !await host.open(stored.item, stored.file)) throw new Error('open');
       // The host owns checkpoints; refreshing here reflects its successful open.
+      await refresh();
+      if (statusCopy?.key === 'working') { statusCopy = null; status.textContent = ''; }
+    }); });
+    statusBtn.addEventListener('click', () => { void run(async () => {
+      const current = items.find(item => item.id === id);
+      if (!current) throw new Error('missing');
+      const nextStatus: LibraryStudyStatus | null =
+        current.status === undefined ? 'in_progress'
+        : current.status === 'in_progress' ? 'mastered'
+        : null;
+      const updated = await libraryUpdate(id, { status: nextStatus });
+      if (!updated) throw new Error('missing');
       await refresh();
       if (statusCopy?.key === 'working') { statusCopy = null; status.textContent = ''; }
     }); });
@@ -381,47 +516,116 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         search.focus();
       });
     });
-    return { node, groupHeading, select, title, composer, badges, name, last, position, progress, open, favorite, edit, download: original, remove, editor: null };
+    return { node, groupHeading, select, title, composer, badges, name, last, position, progress, userNote, open, statusBtn, favorite, edit, download: original, remove, editor: null };
   }
-  function groupMeta(item: LibraryItem): { label: string; empty: boolean } {
+  function statusLabel(value: LibraryStudyStatus | undefined): string {
+    if (value === 'in_progress') return t('status_in_progress');
+    if (value === 'mastered') return t('status_mastered');
+    return t('status_none');
+  }
+  function groupMeta(item: LibraryItem): { label: string; empty: boolean; order: number } {
+    if (group.value === 'status') {
+      const order = item.status === 'in_progress' ? 0 : item.status === 'mastered' ? 1 : 2;
+      return { label: statusLabel(item.status), empty: !item.status, order };
+    }
     if (group.value === 'composer') {
       const value = item.composer.trim();
-      return { label: value || t('unknown_composer'), empty: !value };
+      return { label: value || t('unknown_composer'), empty: !value, order: 0 };
     }
     if (group.value === 'level') {
       const value = item.level ?? '';
-      return { label: value || t('no_level'), empty: !value };
+      return { label: value || t('no_level'), empty: !value, order: 0 };
     }
     if (group.value === 'tag') {
       if (tagFilter.value && tagFilter.value !== '__none__' && item.tags?.includes(tagFilter.value)) {
-        return { label: tagFilter.value, empty: false };
+        return { label: tagFilter.value, empty: false, order: 0 };
       }
       const value = item.tags?.[0] ?? '';
-      return { label: value || t('untagged'), empty: !value };
+      return { label: value || t('untagged'), empty: !value, order: 0 };
     }
-    return { label: '', empty: true };
+    return { label: '', empty: true, order: 0 };
+  }
+  function syncActiveChips(): void {
+    const specs: { active: boolean; label: string; clear: () => void }[] = [
+      {
+        active: Boolean(composerFilter.value),
+        label: `${t('composer_filter')}: ${composerFilter.value === '__none__' ? t('unknown_composer') : composerFilter.value}`,
+        clear: () => { composerFilter.value = ''; },
+      },
+      {
+        active: Boolean(levelFilter.value),
+        label: `${t('level_filter')}: ${levelFilter.value === '__none__' ? t('no_level') : levelFilter.value}`,
+        clear: () => { levelFilter.value = ''; },
+      },
+      {
+        active: Boolean(tagFilter.value),
+        label: `${t('tag_filter')}: ${tagFilter.value === '__none__' ? t('untagged') : tagFilter.value}`,
+        clear: () => { tagFilter.value = ''; },
+      },
+      {
+        active: group.value !== 'none',
+        label: `${t('group_by')}: ${t(`group_${group.value}` as LibraryTextKey)}`,
+        clear: () => { group.value = 'none'; },
+      },
+    ];
+    const active = specs.filter(spec => spec.active);
+    if (filtersOpen || !active.length) {
+      activeChips.hidden = true;
+      activeChips.replaceChildren();
+      return;
+    }
+    const buttons = active.map(spec => {
+      const chip = element('button', 'score-library-chip');
+      chip.type = 'button';
+      chip.textContent = `${spec.label} ×`;
+      chip.disabled = busy;
+      chip.setAttribute('aria-label', `${t('reset_filters')}: ${spec.label}`);
+      chip.addEventListener('click', () => {
+        if (busy) return;
+        spec.clear();
+        render();
+      });
+      return chip;
+    });
+    activeChips.replaceChildren(...buttons);
+    activeChips.hidden = false;
   }
   function render(): void {
+    const locale = host.language();
     summary.textContent = t('heading', { count: items.length });
     syncFilterOptions();
     const query = search.value.trim().toLocaleLowerCase();
     search.dataset.active = String(Boolean(query));
+    sort.dataset.active = String(sort.value !== 'added');
     filter.dataset.active = String(filter.value !== 'all');
     composerFilter.dataset.active = String(Boolean(composerFilter.value));
     levelFilter.dataset.active = String(Boolean(levelFilter.value));
     tagFilter.dataset.active = String(Boolean(tagFilter.value));
     group.dataset.active = String(group.value !== 'none');
-    const hasActiveFilters = Boolean(query || filter.value !== 'all' || composerFilter.value || levelFilter.value || tagFilter.value || group.value !== 'none');
+    for (const { key, button } of tabButtons) {
+      const active = filter.value === key;
+      button.setAttribute('aria-pressed', String(active));
+      button.dataset.active = String(active);
+    }
+    const secondaryCount = [composerFilter.value, levelFilter.value, tagFilter.value, group.value !== 'none' ? group.value : ''].filter(Boolean).length;
+    toolbarFilters.hidden = !filtersOpen;
+    toggleFilters.setAttribute('aria-expanded', String(filtersOpen));
+    toggleFilters.dataset.active = String(filtersOpen || secondaryCount > 0);
+    toggleFilters.textContent = secondaryCount > 0 ? t('toggle_filters_count', { count: secondaryCount }) : t('toggle_filters');
+    syncActiveChips();
+    const hasActiveFilters = Boolean(query || filter.value !== 'all' || sort.value !== 'added' || secondaryCount > 0);
     if (hasActiveFilters) {
-      if (!resetFilters.isConnected) toolbarFilters.append(resetFilters);
+      if (!resetFilters.isConnected) toolbarBarActions.append(resetFilters);
     } else if (resetFilters.isConnected) {
       resetFilters.remove();
     }
     const shown = items.filter(item => {
       if (query) {
-        const haystack = `${item.title}\n${item.composer}\n${item.name}\n${item.level ?? ''}\n${(item.tags ?? []).join('\n')}`.toLocaleLowerCase();
+        const haystack = `${item.title}\n${item.composer}\n${item.name}\n${item.level ?? ''}\n${(item.tags ?? []).join('\n')}\n${item.notes ?? ''}`.toLocaleLowerCase();
         if (!haystack.includes(query)) return false;
       }
+      if (filter.value === 'in_progress' && item.status !== 'in_progress') return false;
+      if (filter.value === 'mastered' && item.status !== 'mastered') return false;
       if (filter.value === 'favorites' && !item.favorite) return false;
       if (filter.value === 'recent' && item.lastOpenedAt === null) return false;
       if (composerFilter.value === '__none__' && item.composer.trim()) return false;
@@ -432,21 +636,51 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (tagFilter.value && tagFilter.value !== '__none__' && !item.tags?.includes(tagFilter.value)) return false;
       return true;
     });
-    const compareItems = (a: LibraryItem, b: LibraryItem): number =>
-      filter.value === 'recent'
-        ? (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0)
-        : (b.addedAt - a.addedAt || a.id.localeCompare(b.id));
+    const compareByTitle = (a: LibraryItem, b: LibraryItem): number =>
+      (a.title || a.name).localeCompare(b.title || b.name, locale, { numeric: true }) || a.id.localeCompare(b.id);
+    const effectiveSort = filter.value === 'recent' && sort.value === 'added' ? 'recent' : sort.value;
+    const compareItems = (a: LibraryItem, b: LibraryItem): number => {
+      if (effectiveSort === 'recent') {
+        return (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0) || b.addedAt - a.addedAt || a.id.localeCompare(b.id);
+      }
+      if (effectiveSort === 'title') return compareByTitle(a, b);
+      if (effectiveSort === 'composer') {
+        const ca = a.composer.trim();
+        const cb = b.composer.trim();
+        if (!ca !== !cb) return ca ? -1 : 1;
+        return ca.localeCompare(cb, locale, { numeric: true }) || compareByTitle(a, b);
+      }
+      if (effectiveSort === 'level') {
+        const la = a.level ?? '';
+        const lb = b.level ?? '';
+        if (!la !== !lb) return la ? -1 : 1;
+        return la.localeCompare(lb, locale, { numeric: true }) || compareByTitle(a, b);
+      }
+      if (effectiveSort === 'progress_desc' || effectiveSort === 'progress_asc') {
+        const pa = a.progress;
+        const pb = b.progress;
+        if ((pa === undefined) !== (pb === undefined)) return pa === undefined ? 1 : -1;
+        if (pa !== undefined && pb !== undefined && pa !== pb) {
+          return effectiveSort === 'progress_desc' ? pb - pa : pa - pb;
+        }
+        return compareByTitle(a, b);
+      }
+      return b.addedAt - a.addedAt || a.id.localeCompare(b.id);
+    };
     if (group.value !== 'none') {
-      const locale = host.language();
       shown.sort((a, b) => {
         const ga = groupMeta(a);
         const gb = groupMeta(b);
+        if (group.value === 'status') {
+          if (ga.order !== gb.order) return ga.order - gb.order;
+          return compareItems(a, b);
+        }
         if (ga.empty !== gb.empty) return ga.empty ? 1 : -1;
         const labelCmp = ga.label.localeCompare(gb.label, locale, { numeric: true });
         if (labelCmp !== 0) return labelCmp;
         return compareItems(a, b);
       });
-    } else if (filter.value === 'recent') {
+    } else {
       shown.sort(compareItems);
     }
     const groupCounts = new Map<string, number>();
@@ -500,7 +734,26 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       row.title.textContent = title;
       row.composer.textContent = item.composer;
       row.composer.hidden = !item.composer.trim();
+      const statusText = statusLabel(item.status);
       const badgeNodes: HTMLElement[] = [];
+      if (item.status) {
+        const badge = element('span', 'score-library-badge score-library-badge-status');
+        badge.dataset.status = item.status;
+        badge.textContent = statusText;
+        badgeNodes.push(badge);
+      }
+      if (item.progress !== undefined) {
+        const badge = element('span', 'score-library-badge score-library-badge-progress');
+        const textSpan = element('span');
+        textSpan.textContent = t('progress_badge', { progress: item.progress });
+        const track = element('span', 'score-library-progress-bar');
+        track.setAttribute('aria-hidden', 'true');
+        const fill = element('span');
+        fill.style.width = `${item.progress}%`;
+        track.append(fill);
+        badge.append(textSpan, track);
+        badgeNodes.push(badge);
+      }
       if (item.level) {
         const badge = element('span', 'score-library-badge score-library-badge-level');
         badge.textContent = t('level_badge', { level: item.level });
@@ -516,7 +769,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const extension = item.name.split('.').pop()?.toUpperCase() ?? '';
       row.name.textContent = `${item.name} · ${extension}`;
       row.last.textContent = item.lastOpenedAt === null ? t('never_opened') : t('last_opened', {
-        date: new Date(item.lastOpenedAt).toLocaleString(host.language()),
+        date: new Date(item.lastOpenedAt).toLocaleString(locale),
       });
       row.position.hidden = !item.resume;
       if (item.resume) {
@@ -528,12 +781,19 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const progress: string[] = [];
       if (item.best !== undefined) progress.push(t('best', { best: item.best }));
       if (item.lastPlayedDay !== undefined) progress.push(t('last_played', {
-        date: new Date(item.lastPlayedDay * 86_400_000).toLocaleDateString(host.language(), { timeZone: 'UTC' }),
+        date: new Date(item.lastPlayedDay * 86_400_000).toLocaleDateString(locale, { timeZone: 'UTC' }),
       }));
       row.progress.hidden = !progress.length;
       row.progress.textContent = progress.join(' · ');
+      row.userNote.hidden = !item.notes;
+      if (item.notes) row.userNote.textContent = t('note_line', { notes: item.notes });
       row.open.textContent = t(item.resume ? 'resume' : 'open');
       row.open.setAttribute('aria-label', `${t(item.resume ? 'resume' : 'open')}: ${title}`);
+      row.statusBtn.textContent = item.status === 'in_progress' ? '◐' : item.status === 'mastered' ? '●' : '○';
+      row.statusBtn.dataset.status = item.status ?? 'none';
+      row.statusBtn.setAttribute('aria-pressed', String(Boolean(item.status)));
+      row.statusBtn.title = t('status_cycle', { status: statusText, title });
+      row.statusBtn.setAttribute('aria-label', row.statusBtn.title);
       row.favorite.textContent = item.favorite ? '★' : '☆';
       row.favorite.setAttribute('aria-pressed', String(item.favorite));
       row.favorite.title = t('favorite', { title });
@@ -554,6 +814,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         row.editor.composerText.textContent = t('edit_composer');
         row.editor.levelText.textContent = t('edit_level');
         row.editor.tagsText.textContent = t('edit_tags');
+        row.editor.statusText.textContent = t('edit_status');
+        for (const { value, option } of row.editor.statusOptions) {
+          option.textContent = statusLabel(value || undefined);
+        }
+        row.editor.progressText.textContent = t('edit_progress');
+        row.editor.notesText.textContent = t('edit_notes');
         syncLevelPresets(row.editor.levelList);
         row.editor.save.textContent = t('save_edit');
         row.editor.cancel.textContent = t('cancel_edit');
@@ -576,8 +842,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     searchText.textContent = t('search_label');
     search.placeholder = t('search');
     search.setAttribute('aria-label', t('search'));
+    sortText.textContent = t('sort_by');
+    for (const { key, option } of sortOptions) option.textContent = t(`sort_${key}`);
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);
+    for (const { key, button } of tabButtons) button.textContent = t(key);
     composerText.textContent = t('composer_filter');
     levelText.textContent = t('level_filter');
     tagText.textContent = t('tag_filter');
@@ -643,14 +912,28 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     notice('backup_saved');
   }); });
   search.addEventListener('input', render);
+  sort.addEventListener('change', render);
   filter.addEventListener('change', render);
   composerFilter.addEventListener('change', render);
   levelFilter.addEventListener('change', render);
   tagFilter.addEventListener('change', render);
   group.addEventListener('change', render);
+  for (const { key, button } of tabButtons) {
+    button.addEventListener('click', () => {
+      if (busy) return;
+      filter.value = key;
+      render();
+    });
+  }
+  toggleFilters.addEventListener('click', () => {
+    if (busy) return;
+    filtersOpen = !filtersOpen;
+    render();
+  });
   resetFilters.addEventListener('click', () => {
     if (busy) return;
     search.value = '';
+    sort.value = 'added';
     filter.value = 'all';
     composerFilter.value = '';
     levelFilter.value = '';

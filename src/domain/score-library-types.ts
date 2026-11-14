@@ -17,6 +17,8 @@ export interface LibraryMetadata {
   composer: string;
 }
 
+export type LibraryStudyStatus = 'in_progress' | 'mastered';
+
 export interface LibraryItem extends LibraryMetadata {
   id: string;
   name: string;
@@ -33,6 +35,12 @@ export interface LibraryItem extends LibraryMetadata {
   level?: string;
   /** Optional user-defined tags / collection names (up to 20 tags, each 1–64 chars). Absent when empty. */
   tags?: string[];
+  /** Optional study status: 'in_progress' (working on it) or 'mastered' (completed). Absent when unset. */
+  status?: LibraryStudyStatus;
+  /** Optional manual study progress percentage (integer 0–100). Absent when unset. */
+  progress?: number;
+  /** Optional personal study notes (1–1000 chars). Absent when empty. */
+  notes?: string;
 }
 
 export interface LibraryUpdatePatch {
@@ -43,6 +51,9 @@ export interface LibraryUpdatePatch {
   composer?: string;
   level?: string | null;
   tags?: string[] | null;
+  status?: LibraryStudyStatus | null;
+  progress?: number | null;
+  notes?: string | null;
 }
 
 /** A recorded practice run: the updated record and the best accuracy it had before. */

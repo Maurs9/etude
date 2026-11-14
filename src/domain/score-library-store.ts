@@ -1,4 +1,4 @@
-import type { LibraryImportResult, LibraryItem, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume, LibraryUpdatePatch } from './score-library-types.js';
+import type { LibraryImportResult, LibraryItem, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume, LibraryStudyStatus, LibraryUpdatePatch } from './score-library-types.js';
 
 const DB_NAME = 'etude-score-library-v1';
 const MAX_FILE = 2 * 1024 * 1024;
@@ -67,6 +67,21 @@ export function validateLibraryTags(value: unknown): string[] | undefined {
   }
   return unique.length ? unique : undefined;
 }
+export function validateLibraryStatus(value: unknown): LibraryStudyStatus | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  return choice(value, ['in_progress', 'mastered'] as const);
+}
+export function validateLibraryProgress(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const pct = number(value, 0, 100);
+  if (!Number.isInteger(pct)) invalid('Invalid library progress.');
+  return pct;
+}
+export function validateLibraryNotes(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const trimmed = text(value, 1000).trim();
+  return trimmed || undefined;
+}
 export function validateLibraryResume(value: unknown): LibraryResume | null {
   if (value === null) return null;
   const v = record(value);
@@ -104,6 +119,12 @@ function itemValue(value: unknown): LibraryItem {
   if (level !== undefined) item.level = level;
   const tags = validateLibraryTags(v.tags);
   if (tags !== undefined) item.tags = tags;
+  const status = validateLibraryStatus(v.status);
+  if (status !== undefined) item.status = status;
+  const progress = validateLibraryProgress(v.progress);
+  if (progress !== undefined) item.progress = progress;
+  const notes = validateLibraryNotes(v.notes);
+  if (notes !== undefined) item.notes = notes;
   return item;
 }
 function dayNumber(value: unknown): number {
@@ -223,6 +244,12 @@ export async function libraryUpdate(id: string, patch: LibraryUpdatePatch): Prom
   const nextLevel = hasLevel ? validateLibraryLevel(v.level) : undefined;
   const hasTags = v.tags !== undefined;
   const nextTags = hasTags ? validateLibraryTags(v.tags) : undefined;
+  const hasStatus = v.status !== undefined;
+  const nextStatus = hasStatus ? validateLibraryStatus(v.status) : undefined;
+  const hasProgress = v.progress !== undefined;
+  const nextProgress = hasProgress ? validateLibraryProgress(v.progress) : undefined;
+  const hasNotes = v.notes !== undefined;
+  const nextNotes = hasNotes ? validateLibraryNotes(v.notes) : undefined;
   return transaction('readwrite', async tx => {
     const store = tx.objectStore('metadata');
     const old: unknown = await request(store.get(id));
@@ -235,6 +262,18 @@ export async function libraryUpdate(id: string, patch: LibraryUpdatePatch): Prom
     if (hasTags) {
       if (nextTags !== undefined) item.tags = nextTags;
       else delete item.tags;
+    }
+    if (hasStatus) {
+      if (nextStatus !== undefined) item.status = nextStatus;
+      else delete item.status;
+    }
+    if (hasProgress) {
+      if (nextProgress !== undefined) item.progress = nextProgress;
+      else delete item.progress;
+    }
+    if (hasNotes) {
+      if (nextNotes !== undefined) item.notes = nextNotes;
+      else delete item.notes;
     }
     await request(store.put(item, id));
     return item;

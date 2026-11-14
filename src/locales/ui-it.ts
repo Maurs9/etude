@@ -2090,7 +2090,29 @@ const payload: UIPayload = {
       "select_score": "Seleziona: {title}",
       "delete_selected": "Elimina selezionati ({count})",
       "delete_selected_confirm": "Eliminare {count} spartiti selezionati dalla biblioteca di questo dispositivo? Le copie scaricate non saranno eliminate.",
-      "deleted_many": "{count} spartiti eliminati dalla biblioteca."
+      "deleted_many": "{count} spartiti eliminati dalla biblioteca.",
+      "in_progress": "In corso",
+      "mastered": "Padroneggiati",
+      "status_none": "Non iniziato",
+      "status_in_progress": "In corso",
+      "status_mastered": "Padroneggiato",
+      "status_cycle": "Stato di studio ({status}): {title}",
+      "toggle_filters": "Filtri",
+      "toggle_filters_count": "Filtri ({count})",
+      "sort_by": "Ordina per",
+      "sort_added": "Aggiunti di recente",
+      "sort_recent": "Aperti di recente",
+      "sort_title": "Titolo (A–Z)",
+      "sort_composer": "Compositore (A–Z)",
+      "sort_level": "Livello",
+      "sort_progress_desc": "Progresso (decrescente)",
+      "sort_progress_asc": "Progresso (crescente)",
+      "group_status": "Stato di studio",
+      "progress_badge": "Progresso: {progress}%",
+      "note_line": "Nota: {notes}",
+      "edit_status": "Stato di studio",
+      "edit_progress": "Progresso (0–100%)",
+      "edit_notes": "Note di studio (es. battute, mani, tempo)"
     }
   }
 };
