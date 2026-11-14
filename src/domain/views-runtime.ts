@@ -30,6 +30,7 @@ import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, 
 import '../styles/calibration.css';
 import '../styles/landscape.css';
 import '../styles/reading.css';
+import '../styles/read-home.css';
 import '../styles/practice.css';
 import '../styles/voice.css';
 import '../styles/explore.css';
@@ -37,7 +38,14 @@ import '../styles/pieces.css';
 import '../styles/layout.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
-import { srtFingerprint } from '../sight-reading/fingerprint.js';
+import { srtFingerprint, srtLevelFingerprint } from '../sight-reading/fingerprint.js';
+import { srtKeyPool, srtLevel, srtLevelPatterns, srtLevels, srtReadingKey, srtReadingKeys, type ReadingKey, type ReadingKeyId, type ReadingPatternId } from '../sight-reading/levels.js';
+import { SRT_BOOK_PIECES, SRT_DAILY_PIECES, SRT_FOCUS_PIECES, SRT_UNIT_PIECES, srtBookPiece, srtBookUnits, srtDailyPiece, srtFocusPiece, type BookUnit } from '../sight-reading/book.js';
+import { srtBookId, srtBookTally, srtChooseLevel, srtDailyId, srtEnsureDaily, srtFocusId, srtFocusTally, srtKeyStatus, srtLevelAverage, srtLevelReady, srtNormalizeBookState, srtPiecesRead, srtRecordResult, srtStreak, type PieceStat, type ReadingBookState } from '../sight-reading/progress.js';
+import { srtLevelClicks, srtLevelDurationMs, srtLevelExpected, srtLevelScore } from '../sight-reading/score.js';
+import { srtMelodyRhythm } from '../sight-reading/patterns.js';
+import { SRT_FLASH_MS, srtFlashMatches, srtWarmupPlan, type FlashCard, type WarmupStep } from '../sight-reading/warmup.js';
+import type { GeneratedPiece } from '../sight-reading/rules.js';
 import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder } from '../sight-reading/recorder.js';
 import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
@@ -2070,6 +2078,10 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
             singKeyInput(m);
         return;
     }
+    if (view0() === 'read' && kind === 'on' && WARM.on && WARM.phase === 'play') {
+        rdnWarmNote(midi);
+        return;
+    }
     if (view0() === 'read' && RD.on && RD.L && RD.L.ty === 'rh') {
         if (midi != null)
             rdRhKey(kind, midi);
@@ -2959,7 +2971,7 @@ document.addEventListener('keydown', (e) => {
         openHelp(!byId('helpBox').classList.contains('on'));
         return;
     }
-    if (stageKey(e) || rdKey(e, k))
+    if (stageKey(e) || rdKey(e, k) || rdnKey(e))
         return;
     if (SES.active && SES.q) { // session shortcuts: digits pick an answer, R replays, N advances
         if (/^[1-9]$/.test(k) && !SES.answered && SES.q.mode === 'ear') {
@@ -4323,6 +4335,8 @@ let show = function show(v: string|undefined, moveFocus = true) {
         anSheet(false, true);
         pcStageSet(false, true);
     }
+    if (prev === 'read' && v !== 'read')
+        rdnLeaveView();
     if (prev !== v) {
         releaseLiveInput();
         stopPreviews();
@@ -5215,12 +5229,14 @@ function learnPlanItems(tn: number) {
 /* cheat sheets: rows of [label, value]; each may be a string or [en,ro] */
 /* staff excerpts: compact note strings "C4q E4+G4h Rq" (w h q e s, d=dotted, t=triplet eighth) */
 const LDUR: Record<string, number> = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
-/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`; `'tied'` marks a single note tied from the one before (chords are not tied). */
+/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`; `'tied'` marks a single note tied from the one before (a chord is tied only with `engrave: 2`). */
 type SrToken = [string | string[], number, 'tied'?];
 function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !== '|').map((tok: string): SrToken => { const m = tok.match(/^(.+?)(d?[whqest])$/); if (!m)
     throw new Error('Étude: bad staff token ' + tok); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
 /** What the grand-staff engraver (`srRender`) needs to draw a passage. */
-interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; perc?: boolean }
+/** `engrave: 2` (level pieces) opts in to beams in every meter, whole-bar and dotted rests, accidentals that hold for the bar,
+ *  tied chords, spelled note names and room for accidentals; without it the engraver draws exactly as before. */
+interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; perc?: boolean; engrave?: 2 }
 type SrHand = 'rh' | 'lh';
 /** An annotation drawn over a Learn staff: kind, beat, then kind-specific values. */
 type LStaffMark =
@@ -6502,13 +6518,38 @@ interface SrState {
     srtPiece?: SightReadingPiece | null; srtFingerprint?: string | null; srtState?: SightReadingState;
     srtOwnerTabId?: string; srtAttemptStartedAt?: number; srtPreviewTimer?: number; srtCountdown?: number; srtLease?: SightReadingAttemptLease | null; srtPendingAttempt?: SightReadingAttempt | null;
     srtEvaluation?: SightReadingEvaluation | null; srtResultValue?: number | null; srtResultLevelId?: string | null;
+    /** A level piece of the book, a key run or the daily set (the Read home's player); null for the older melodies. */
+    lvPiece?: GeneratedPiece | null;
 }
 const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, anyOctave: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
     srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
     srtOwnerTabId: `tab-${Math.random().toString(36).slice(2)}`, srtAttemptStartedAt: 0, srtPreviewTimer: 0, srtCountdown: 0, srtLease: null, srtPendingAttempt: null,
-    srtEvaluation: null, srtResultValue: null, srtResultLevelId: null };
+    srtEvaluation: null, srtResultValue: null, srtResultLevelId: null, lvPiece: null };
+/** The Read tab's screens: the home (the default each time the tab opens), the old drills and melody screens, and the
+ *  player of a level piece. `ctx` says which numbered piece the player shows. */
+type RdnScreen = 'home' | 'drills' | 'melody' | 'player' | 'warmup';
+type RdnCtx = { kind: 'book'; level: number; number: number } | { kind: 'focus'; level: number; key: ReadingKeyId; number: number } | { kind: 'daily'; date: string; slot: number };
+/** `learn`: the score and stars of a finished Step-by-step run, shown on the result card instead of an evaluation. */
+/** `autoWait`: auto-next waits for a first-sight result to be saved. `melodyMode`: the old melody screen's mode, kept while
+ *  the player shows a level piece. `opener`: a selector for the control that left the home, focused again on the way back.
+ *  `noDaily`: today's set could not be made. `ready`: the status line the player shows before an attempt. */
+interface RdnState { screen: RdnScreen; fresh: boolean; ctx: RdnCtx | null; autoTimer: number; autoLeft: number; retries: number; learn: { acc: number; stars: 0 | 1 | 2 | 3 } | null;
+    autoWait: boolean; melodyMode: string | null; opener: string; noDaily: boolean; ready: string }
+const RDN: RdnState = { screen: 'home', fresh: true, ctx: null, autoTimer: 0, autoLeft: 0, retries: 0, learn: null, autoWait: false, melodyMode: null, opener: '', noDaily: false, ready: '' };
+/** The warm-up (spec section 9): its steps, where it is, and the flash card in play. `phase` is 'show' (the bar is visible),
+ *  'play' (hidden, notes are collected), 'result' (shown again with a mark), 'drill' (an existing drill runs the step), or
+ *  'idle'. `limit` is how many answers (or rhythm exercises) end a drill step. */
+type RdnWarmPhase = 'idle' | 'show' | 'play' | 'result' | 'drill';
+interface RdnWarmState { on: boolean; level: number; key: string; steps: readonly WarmupStep[]; step: number; card: number; phase: RdnWarmPhase;
+    again: boolean; clean: number; played: number[][]; lastAt: number; strict: boolean; ok: boolean; timer: number; chordTimer: number; limit: number; tally: number[] }
+const WARM: RdnWarmState = { on: false, level: 1, key: 'C', steps: [], step: 0, card: 0, phase: 'idle', again: false, clean: 0, played: [], lastAt: 0, strict: false, ok: false, timer: 0, chordTimer: 0, limit: 0, tally: [] };
+/** Warm-up timing in ms: how long a card shows, how long its mark stays, and how close notes must be to form one chord.
+ *  Mutable so tests can shorten the waits. */
+const RDN_WARM_MS = { flash: SRT_FLASH_MS, result: 1200, chord: 60 };
+/** The window, in ms, inside which the notes of one beat of a level piece (both hands) count as played together. */
+const RDN_CHORD_WINDOW_MS = 120;
 let srtRecorder: SightReadingRecorder | null = null;
 let srtOperationEpoch = 0;
 let srtCountInEpoch = 0;
@@ -6527,14 +6568,18 @@ const srtReleasedLeases = new WeakSet<SightReadingAttemptLease>();
 let srtExposurePromise: { fingerprint: string; promise: Promise<SightReadingLedgerResult> } | null = null;
 interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
 /** A note to engrave; beamed eighths also record their stem position once drawn. */
-interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; tied?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number }
+interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; tied?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number; showAcc?: boolean; bcol?: SrBeamCol }
+/** engrave 2: one beat of a beamed group (a note or a chord); its stem position is recorded once drawn. */
+interface SrBeamCol { id: number; beat: number; dur: number; steps: number[]; grp?: SrBeamGroup; x?: number; yHi?: number; yLo?: number }
+/** engrave 2: beamed columns of one hand inside one beat group, with the stem direction they share. */
+interface SrBeamGroup { cols: SrBeamCol[]; up: boolean }
 type SrEvent = SrRestEvent | SrNoteEvent;
 function srPitchStrict(s: string): SrPitch { const p = srPitch(s); if (!p)
     throw new TypeError('Étude: unreadable pitch ' + s); return p; }
-function srEvents(list: SrToken[]|undefined) { const ev: SrEvent[] = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
+function srEvents(list: SrToken[]|undefined, chordTies = false) { const ev: SrEvent[] = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
     ev.push({ rest: true, beat, dur: d });
 else if (Array.isArray(x[0]))
-    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 }, x[2] === 'tied' && x[0].length === 1 ? { tied: true } : {})));
+    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 }, x[2] === 'tied' && (x[0].length === 1 || chordTies) ? { tied: true } : {})));
 else
     ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d }, x[2] === 'tied' ? { tied: true } : {})); beat += d; }); return { ev, total: beat }; }
 function srClef(clef: string, x: number, top: number) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
@@ -6590,6 +6635,164 @@ function srTieArc(x1: number, x2: number, y: number, stemUp: boolean) {
     const s = stemUp ? 1 : -1, a = x1 + 5, b = x2 - 5, m = (a + b) / 2, yb = y + s * 6;
     return `<path class="ss-tie" d="M ${a},${yb} Q ${m},${y + s * 15} ${b},${yb} Q ${m},${y + s * 12} ${a},${yb} Z"/>`;
 }
+/** engrave 2: a rest drawn with shapes (no music font), with its dot when dotted. */
+function srLevelRest(x: number, top: number, dur: number) {
+    const dotted = [0.375, 0.75, 1.5, 3].includes(dur), base = dotted ? dur / 1.5 : dur;
+    let s: string;
+    if (base >= 4)
+        s = `<rect class="ss-glyph ss-rest ss-rest-whole" x="${x - 6}" y="${top + 12}" width="12" height="5"/>`;
+    else if (base >= 2)
+        s = `<rect class="ss-glyph ss-rest ss-rest-half" x="${x - 6}" y="${top + 19}" width="12" height="5"/>`;
+    else if (base >= 1)
+        s = `<path class="ss-glyph ss-rest ss-rest-q" stroke-width="3.2" stroke-linejoin="bevel" d="M ${x - 2},${top + 7} L ${x + 4},${top + 15} L ${x - 1},${top + 22} L ${x + 4},${top + 30}"/><path class="ss-glyph" stroke-width="2" stroke-linecap="round" d="M ${x + 4},${top + 30} C ${x - 3},${top + 26} ${x - 5},${top + 34} ${x + 1},${top + 40}"/>`;
+    else if (base >= 0.5)
+        s = `<path class="ss-glyph ss-rest ss-rest-8" stroke-width="1.5" stroke-linecap="round" d="M ${x - 3},${top + 17} Q ${x + 1},${top + 21} ${x + 4},${top + 15} L ${x - 1},${top + 33}"/><circle class="ss-glyph" cx="${x - 3}" cy="${top + 16.5}" r="2.4"/>`;
+    else
+        s = `<path class="ss-glyph ss-rest ss-rest-16" stroke-width="1.5" stroke-linecap="round" d="M ${x - 3},${top + 17} Q ${x + 1},${top + 21} ${x + 4},${top + 15} L ${x - 3},${top + 40} M ${x - 5.5},${top + 27} Q ${x - 1.5},${top + 31} ${x + 1.2},${top + 25}"/><circle class="ss-glyph" cx="${x - 3}" cy="${top + 16.5}" r="2.4"/><circle class="ss-glyph" cx="${x - 5.5}" cy="${top + 26.5}" r="2.4"/>`;
+    return dotted ? s + `<circle class="ss-glyph ss-rest-dot" cx="${x + 9}" cy="${top + 18}" r="1.7"/>` : s;
+}
+/** engrave 2: a note's name from its spelling (letter and accidental), not from its pitch class. */
+function srSpellName(li: number, acc: number) {
+    const sys = NOTE_SYS[notation];
+    if (notation === 'german' && li === 6 && acc < 0)
+        return sys.flat[10];
+    return sys.sharp[SS_LETSEMI[li]] + (acc > 0 ? '#' : acc < 0 ? 'b' : '');
+}
+/** engrave 2: how many beams a note value takes (a dotted value counts as its undotted base). */
+function srBeamCount(dur: number) { const base = [0.375, 0.75, 1.5, 3].includes(dur) ? dur / 1.5 : dur; return base <= 0.125 ? 3 : base <= 0.25 ? 2 : 1; }
+/** engrave 2, before drawing: checks each tie against the note before, decides which accidentals show (an accidental holds
+ *  for its staff position until the barline; a tied note shows none), groups eighths and shorter into beams per beat group
+ *  (a quarter in x/4, the whole bar in 3/8, a dotted quarter in 6/8) and returns the extra room each beat needs for its signs. */
+function srLevelPrep(ts: number[], staves: SrStave[], bounds: number[], cap: number, pickup: number, keyAcc: number[]) {
+    const groups: SrBeamGroup[] = [], room = new Map<number, number>();
+    const barOf = (b: number) => bounds.filter((v) => v < b + 1e-3).length;
+    const barStart = (m: number) => m === 0 ? (pickup > 0 ? pickup - cap : 0) : bounds[m - 1];
+    const span = ts[1] === 8 ? (ts[0] % 3 === 0 ? 1.5 : cap) : 1;
+    let colId = 0;
+    staves.forEach((st) => {
+        const cols: { evs: SrEvent[]; beat: number }[] = [];
+        st.data.ev.forEach((e) => { const c = cols[cols.length - 1]; if (c && Math.abs(c.beat - e.beat) < 1e-3)
+            c.evs.push(e);
+        else
+            cols.push({ evs: [e], beat: e.beat }); });
+        let mem = new Map<number, number>(), bar = -1, prev: SrNoteEvent[] = [];
+        cols.forEach((c) => {
+            const m = barOf(c.beat);
+            if (m !== bar) {
+                bar = m;
+                mem = new Map<number, number>();
+            }
+            const ns = c.evs.filter((e): e is SrNoteEvent => !e.rest);
+            let shown = 0;
+            ns.forEach((e) => {
+                if (e.tied && !prev.some((p) => p.li === e.li && p.oct === e.oct && p.acc === e.acc))
+                    e.tied = false;
+                if (e.tied) {
+                    e.showAcc = false;
+                    return;
+                }
+                const step = ssStepOf(e.li, e.oct);
+                e.showAcc = e.acc !== (mem.get(step) ?? keyAcc[e.li]);
+                mem.set(step, e.acc);
+                if (e.showAcc)
+                    shown++;
+            });
+            prev = ns;
+            const k = Math.round(c.beat * 1000);
+            room.set(k, Math.max(room.get(k) ?? 0, Math.min(shown, 2) * 6));
+        });
+        let run: SrBeamCol[] = [], runKey = '';
+        const midStep = st.refStep + 4;
+        const flush = () => {
+            if (run.length > 1) {
+                const steps = run.flatMap((c) => c.steps), hi = Math.max(...steps), lo = Math.min(...steps);
+                const grp: SrBeamGroup = { cols: run, up: midStep - lo > hi - midStep };
+                run.forEach((c) => { c.grp = grp; });
+                groups.push(grp);
+            }
+            run = [];
+        };
+        cols.forEach((c) => {
+            const ns = c.evs.filter((e): e is SrNoteEvent => !e.rest), dur = c.evs[0].dur;
+            if (!ns.length || ns.length !== c.evs.length || dur >= 1 - 1e-6) {
+                flush();
+                return;
+            }
+            const m = barOf(c.beat), key = m + ':' + Math.floor((c.beat - barStart(m)) / span + 1e-6), last = run[run.length - 1];
+            if (!last || key !== runKey || Math.abs(last.beat + last.dur - c.beat) > 1e-3) {
+                flush();
+                runKey = key;
+            }
+            const col: SrBeamCol = { id: colId++, beat: c.beat, dur, steps: ns.map((e) => ssStepOf(e.li, e.oct)) };
+            ns.forEach((e) => { e.bcol = col; });
+            run.push(col);
+        });
+        flush();
+    });
+    return { groups, room };
+}
+/** engrave 2, after drawing: each beamed group's stems and beams (a second beam, or a short one, for sixteenths). The markup
+ *  for a group of two eighths is the one the engraver draws for an on-beat pair without the flag. */
+function srLevelBeams(body: string, groups: SrBeamGroup[]) {
+    groups.forEach((gr) => {
+        const cs = gr.cols, n = cs.length, up = gr.up;
+        const pos: { sx: number; hi: number; lo: number }[] = [];
+        for (const c of cs) {
+            if (c.x === undefined || c.yHi === undefined || c.yLo === undefined)
+                return;
+            pos.push({ sx: up ? c.x + 5.6 : c.x - 5.6, hi: c.yHi, lo: c.yLo });
+        }
+        let e1 = up ? pos[0].hi - 32 : pos[0].lo + 32, e2 = up ? pos[n - 1].hi - 32 : pos[n - 1].lo + 32;
+        const d = e2 - e1;
+        if (up) {
+            if (d > 6)
+                e2 = e1 + 6;
+            else if (d < -6)
+                e1 = e2 + 6;
+        }
+        else {
+            if (d > 6)
+                e1 = e2 - 6;
+            else if (d < -6)
+                e2 = e1 - 6;
+        } // limit the slope by lengthening stems only
+        const x1 = pos[0].sx, x2 = pos[n - 1].sx, nb = cs.map((c) => srBeamCount(c.dur));
+        const lineY = (x: number) => x2 === x1 ? e1 : e1 + (e2 - e1) * (x - x1) / (x2 - x1);
+        const at = (i: number) => i === 0 ? e1 : i === n - 1 ? e2 : lineY(pos[i].sx);
+        // Every stem reaches past its furthest note by a full stem, a little more under extra beams.
+        let shift = 0;
+        pos.forEach((p, i) => { const need = 32 + 3 * (nb[i] - 1); shift = Math.max(shift, up ? at(i) - (p.hi - need) : (p.lo + need) - at(i)); });
+        if (shift > 1e-6) {
+            e1 = up ? e1 - shift : e1 + shift;
+            e2 = up ? e2 - shift : e2 + shift;
+        }
+        const th = up ? 5 : -5, stem = (sx: number, y: number, ey: number) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
+        const beam = (cls: string, a: number, b: number, off: number) => { const ya = lineY(a) + off, yb = lineY(b) + off; return `<path class="${cls}" d="M ${a},${ya} L ${b},${yb} L ${b},${yb + th} L ${a},${ya + th} Z"/>`; };
+        let beams = `<path class="ss-beam" d="M ${x1},${e1} L ${x2},${e2} L ${x2},${e2 + th} L ${x1},${e1 + th} Z"/>`;
+        for (let k = 2; k <= Math.max(...nb); k++) {
+            const off = (up ? 7 : -7) * (k - 1);
+            for (let i = 0; i < n; i++) {
+                if (nb[i] < k)
+                    continue;
+                let j = i;
+                while (j + 1 < n && nb[j + 1] >= k)
+                    j++;
+                if (j > i)
+                    beams += beam('ss-beam ss-beam2', pos[i].sx, pos[j].sx, off);
+                else {
+                    const dir = i === 0 ? 1 : -1;
+                    beams += beam('ss-beam ss-beam2', Math.min(pos[i].sx, pos[i].sx + dir * 9), Math.max(pos[i].sx, pos[i].sx + dir * 9), off);
+                }
+                i = j;
+            }
+        }
+        cs.forEach((c, i) => {
+            const p = pos[i];
+            body = body.replace(`@@G${c.id}@@`, stem(p.sx, up ? p.lo : p.hi, at(i)) + (i === n - 1 ? beams : ''));
+        });
+    });
+    return body;
+}
 /** One staff of the system; `data` is filled from the hand's tokens right after the staves are laid out. */
 interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; rel: number; data: { ev: SrEvent[]; total: number } }
 /** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
@@ -6600,7 +6803,8 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
         staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46, rel: 0, data: { ev: [], total: 0 } });
     if (piece.lh)
         staves.push({ hand: 'lh', clef: 'bass', refStep: 18, top: piece.rh ? 150 : 46, rel: piece.rh ? 104 : 0, data: { ev: [], total: 0 } });
-    staves.forEach((st) => { st.data = srEvents(piece[st.hand]); });
+    const v2 = piece.engrave === 2;
+    staves.forEach((st) => { st.data = srEvents(piece[st.hand], v2); });
     const keyAcc = ssKeyAcc(piece.keyN || 0), names = srNamesVisible(piece), lastSt = staves[staves.length - 1];
     const cap = piece.ts[1] === 8 ? piece.ts[0] * 0.5 : piece.ts[0], pickup = piece.pickup || 0;
     const total = Math.max(...staves.map((s) => s.data.total));
@@ -6616,8 +6820,10 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     const beatSet = new Set<number>();
     staves.forEach((st) => st.data.ev.forEach((e) => beatSet.add(+e.beat.toFixed(4))));
     const beats = [...beatSet].sort((a, b) => a - b);
+    // engrave 2: ties, accidentals and beam groups are worked out before drawing (see srLevelPrep).
+    const lv = v2 ? srLevelPrep(piece.ts, staves, bounds, cap, pickup, keyAcc) : null;
     // Beam pairs of eighths that start on a beat (simple meters only).
-    if (piece.ts[1] === 4)
+    if (!lv && piece.ts[1] === 4)
         staves.forEach((st) => {
             const ev = st.data.ev;
             for (let i = 0; i + 1 < ev.length; i++) {
@@ -6632,8 +6838,9 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     // Each beat's column: its bar, how far it moves the pen (the shortest value there sets the room) and, per bar, how far the
     // notes reach above and below the first staff line (stems, flags, ledger lines, result marks, note names).
     const nBars = bounds.length + 1, barOf = beats.map((b) => bounds.filter((v) => v < b + 1e-3).length);
-    const adv = beats.map((b) => { let m = 4; staves.forEach((st) => st.data.ev.forEach((e) => { if (Math.abs(e.beat - b) < 1e-3)
-        m = Math.min(m, e.dur); })); return 26 + Math.min(m, 4) * 14; });
+    // engrave 2 also leaves room before a beat for its accidentals.
+    const adv = beats.map((b, i) => { let m = 4; staves.forEach((st) => st.data.ev.forEach((e) => { if (Math.abs(e.beat - b) < 1e-3)
+        m = Math.min(m, e.dur); })); const w = 26 + Math.min(m, 4) * 14; return lv && i + 1 < beats.length ? w + (lv.room.get(Math.round(beats[i + 1] * 1000)) ?? 0) : w; });
     const barW = new Array<number>(nBars).fill(0), barTop = new Array<number>(nBars).fill(-14);
     const barBot = new Array<number>(nBars).fill(Math.max(lastSt.rel + 48 + (lastSt.clef === 'treble' ? 18 : 10), names ? lastSt.rel + 84 : 0));
     beats.forEach((b, i) => { barW[barOf[i]] += adv[i]; });
@@ -6730,6 +6937,93 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     // A tied note is not played again: it is drawn inside the group of the note it continues, which also lasts longer.
     const lastNote: Partial<Record<SrHand, SrStaffNote>> = {}, tiedMarkup = new Map<number, string>();
     let tiedKey = 0;
+    // Each bar's left edge (its barline, or the end of the system's header) and right barline, for centring whole-bar rests.
+    const barX0: number[] = [], barX1: number[] = [];
+    let barLeft = x;
+    // engrave 2: the noteheads each hand drew last (a tie starts from them), and the whole-bar rests to centre once drawn.
+    const lastCol: Partial<Record<SrHand, { note: SrStaffNote; e: SrNoteEvent; x: number; y: number; sy: number }[]>> = {};
+    const barRests: { m: number; top: number }[] = [];
+    /** engrave 2: one hand's notes or rest at one beat. A note, or a chord, takes the same path; see srLevelPrep for what
+     *  is decided before drawing. The markup of a plain note is the one drawn without the flag. */
+    const drawLevel = (st: SrStave, here: SrEvent[], nx: number, m: number) => {
+        here.forEach((e) => {
+            if (!e.rest)
+                return;
+            lastCol[st.hand] = [];
+            const start = m === 0 ? 0 : bounds[m - 1], len = m === 0 && pickup > 0 ? pickup : cap;
+            if (Math.abs(e.beat - start) < 1e-3 && Math.abs(e.dur - len) < 1e-3) {
+                body += `@@W${barRests.length}@@`;
+                barRests.push({ m, top: st.top });
+            }
+            else
+                body += srLevelRest(nx, st.top, e.dur);
+        });
+        const evs = here.filter((e): e is SrNoteEvent => !e.rest);
+        if (!evs.length)
+            return;
+        const items = evs.map((e): SrChordItem => ({ e, step: ssStepOf(e.li, e.oct), y: 0, dx: 0 })).sort((p, q) => p.step - q.step);
+        items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
+        const col = evs[0].bcol, grp = col?.grp, dur = items[0].e.dur;
+        const up = grp ? grp.up : items.reduce((sum, it) => sum + it.y, 0) / items.length > st.top + 24;
+        let prev: SrChordItem|null = null;
+        (up ? items : items.slice().reverse()).forEach((it) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
+        const lanes: number[][] = [];
+        items.slice().reverse().forEach((it) => {
+            if (!it.e.showAcc)
+                return;
+            let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
+            if (a < 0) {
+                a = lanes.length;
+                lanes.push([]);
+            }
+            lanes[a].push(it.y);
+            it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
+        });
+        const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
+        let stem = '';
+        if (col && grp) {
+            Object.assign(col, { x: nx, yHi: top.y, yLo: bot.y });
+            stem = `@@G${col.id}@@`;
+        }
+        else
+            stem = srStemLine(sx, (up ? bot : top).y, up ? top.y - 32 : bot.y + 32, dur, up);
+        const from0 = lastCol[st.hand] ?? [], ends: { note: SrStaffNote; e: SrNoteEvent; x: number; y: number; sy: number }[] = [];
+        const chord = items.length > 1, chordNames = names && chord ? items.map((it) => srSpellName(it.e.li, it.e.acc)).join(' ') : '';
+        let fresh = true;
+        items.forEach((it) => {
+            const e = it.e, from = e.tied ? from0.find((p) => p.e.li === e.li && p.e.oct === e.oct && p.e.acc === e.acc) : undefined;
+            let g = !from && fresh ? `<rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>` : '';
+            if (it.ax != null)
+                g += ssAccGlyph(e.acc, keyAcc[e.li], it.ax, it.y);
+            g += srLedger2(nx + it.dx, it.y, st.top) + ssNotehead(nx + it.dx, it.y, dur, (st.refStep - it.step) % 2 === 0);
+            if (it === (up ? bot : top))
+                g += stem;
+            if (from) {
+                // The tie bends away from the stem (outwards on a chord); over a system break it is drawn in two halves.
+                const below = chord ? it === bot : up;
+                const arc = from.sy === sy ? srTieArc(from.x, nx, it.y, below)
+                    : srTieArc(from.x, sysEnd[from.sy] - 2, from.y, below) + srTieArc(nx - 22, nx, it.y, below);
+                tiedMarkup.set(from.note.nid, (tiedMarkup.get(from.note.nid) ?? '') + `<g class="ss-tied">${g}</g>` + arc);
+                from.note.dur += e.dur;
+                ends.push({ note: from.note, e, x: nx, y: it.y, sy });
+                return;
+            }
+            let nm = '';
+            if (names && !chord)
+                nm = `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${srSpellName(e.li, e.acc)}</text>`;
+            else if (names && fresh) {
+                const lab = st.hand === 'rh' ? top.e : bot.e;
+                nm = `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${srSpellName(lab.li, lab.acc)}</text><title>${chordNames}</title>`;
+            }
+            fresh = false;
+            body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}">${g}${nm}@@T${nid}@@</g>`;
+            const staffNote: SrStaffNote = { nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y: it.y, li: e.li, oct: e.oct, acc: e.acc, sy };
+            notes.push(staffNote);
+            ends.push({ note: staffNote, e, x: nx, y: it.y, sy });
+            nid++;
+        });
+        lastCol[st.hand] = ends;
+    };
     beats.forEach((b, bi) => {
         const s = sysOfBar(barOf[bi]);
         if (s > sy) {
@@ -6737,19 +7031,27 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
             while (sy < s) {
                 x += 6;
                 body += barline(x, 1.3);
+                barX1[barOf[bi] - 1] = x;
                 beatX.push({ b, x, sy });
                 sysEnd[sy] = x;
                 openSystem(sy + 1);
             }
+            barLeft = x;
         }
         else if (bounds.some((v) => Math.abs(v - b) < 1e-3)) {
             x += 6;
             body += barline(x, 1.3);
+            barX1[barOf[bi] - 1] = barLeft = x;
             x += 12;
         }
+        barX0[barOf[bi]] = barLeft;
         const nx = x + 10;
         staves.forEach((st) => {
             const here = st.data.ev.filter((e) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e): e is SrNoteEvent => !e.rest && !!e.chord);
+            if (lv) {
+                drawLevel(st, here, nx, barOf[bi]);
+                return;
+            }
             if (chord.length) {
                 const items = chord.map((e): SrChordItem => ({ e, step: ssStepOf(e.li, e.oct), y: 0, dx: 0 })).sort((p, q) => p.step - q.step);
                 items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
@@ -6850,6 +7152,14 @@ function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
     x += 6;
     beatX.push({ b: total, x, sy });
     sysEnd[sy] = x;
+    barX1[nBars - 1] = x - 11;
+    if (lv) {
+        body = srLevelBeams(body, lv.groups);
+        body = body.replace(/@@W(\d+)@@/g, (_, i: string) => {
+            const r = barRests[Number(i)], c = (barX0[r.m] + barX1[r.m]) / 2;
+            return `<rect class="ss-glyph ss-rest ss-rest-bar" x="${c - 6}" y="${r.top + 12}" width="12" height="5"/>`;
+        });
+    }
     const W = lay ? Math.max(...sysEnd) + 6 : Math.max(x + 6, 420);
     if (!lay)
         H = Math.max(lastSt.top + 48 + (names ? 38 : 22), 150);
@@ -6875,6 +7185,7 @@ function srSvg() { return byId('rd-staff') ? byId('rd-staff').querySelector('svg
 function srHandsAvail() { const p = SR.piece; if (!p)
     throw new Error('Étude: no piece selected'); return p.rh && p.lh ? 'both' : (p.rh ? 'rh' : 'lh'); }
 function srActiveHands() { const a = srHandsAvail(); return a === 'both' ? SR.hands : a; }
+function srHandSel(): 'rh' | 'lh' | 'both' { const a = srActiveHands(); return a === 'rh' || a === 'lh' ? a : 'both'; }
 function srStepsBuild() {
     const sel = srActiveHands();
     const ns = SR.notes.filter((n) => sel === 'both' || n.hand === sel);
@@ -6910,7 +7221,7 @@ function srDraw() {
     srCoach();
 }
 function srtGeneratedSelected() {
-    return !!SR.srtPiece && !!SR.gen && SR.piece?.id === SR.gen.id;
+    return (!!SR.srtPiece || !!SR.lvPiece) && !!SR.gen && SR.piece?.id === SR.gen.id;
 }
 function srtEligibleFirstSightActive() {
     return srtGeneratedSelected() && SR.srtState?.mode === 'firstSight' &&
@@ -7115,6 +7426,7 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
     const preservePendingResult = srtPendingSaveProtected();
     SR.active = false;
     stageSync();
+    rdnNavUi();
     SR.assessOn = false;
     if (SR.raf)
         cancelAnimationFrame(SR.raf);
@@ -7163,9 +7475,11 @@ function srPlayGap(fromBeat: number, toBeat: number) {
 }
 function srCount() { const v = byId('rd-verdict'); v.className = 'verdict neutral'; v.textContent = SR.stepIdx + ' / ' + SR.steps.length + (SR.mistakes ? '  ·  ✗ ' + SR.mistakes : ''); }
 function srLearnStart() {
+    rdnResultHide();
     SR.active = true;
     SR.anyOctave = !!data.settings.anyOctave;
     stageSync();
+    rdnNavUi();
     SR.results = {};
     SR.stepIdx = 0;
     SR.hit.clear();
@@ -7194,7 +7508,16 @@ function srLearnFinish() {
         v.className = 'verdict neutral';
         v.textContent = t('rd_done_learn', SR.mistakes);
     }
-    v.textContent += rdSightDone('learn', SR.mistakes);
+    if (SR.lvPiece && srtGeneratedSelected()) {
+        const grade = srLearnGrade(SR.mistakes, SR.steps.length || 1);
+        rdnRecord(grade.acc, grade.stars, false);
+        v.textContent += ' · ' + '★'.repeat(grade.stars) + '☆'.repeat(3 - grade.stars);
+        RDN.learn = { acc: grade.acc, stars: grade.stars };
+        // Practice never moves on by itself: no auto-next after a Step-by-step run.
+        rdnResultShow(false);
+    }
+    else
+        v.textContent += rdSightDone('learn', SR.mistakes);
     touchDay();
     saveAll();
 }
@@ -7219,6 +7542,9 @@ function srtSetState(event: Parameters<typeof srtTransition>[1]) {
     }
     if (SR.piece && (previous.name !== next.name || previous.mode !== next.mode))
         srDraw();
+    rdnNavUi();
+    if (next.name === 'saved' && previous.name !== 'saved')
+        rdnAutoAfterSave();
 }
 function srtPreviewUi(show: boolean) {
     const panel = maybeById('rd-srt-preview');
@@ -7297,7 +7623,7 @@ function srtRecordExposure(reason: string, kind: 'exposure' | 'listen' = 'exposu
     return operation;
 }
 function srtExposeForPractice(reason: string, kind: 'exposure' | 'listen' = 'exposure', redraw = true) {
-    if (!SR.srtPiece || !SR.srtFingerprint)
+    if ((!SR.srtPiece && !SR.lvPiece) || !SR.srtFingerprint)
         return;
     const state = SR.srtState;
     if (state?.mode === 'firstSight' &&
@@ -7336,7 +7662,7 @@ function srtOperationStillCurrent(epoch: number, state: SightReadingState | unde
         (attemptId === null || SR.srtState?.attemptId === attemptId);
 }
 function srtCaptureAttempt(state: SightReadingState | undefined): SrtAttemptCleanup | null {
-    if (!state?.attemptId || !SR.srtOwnerTabId || !SR.srtPiece || !SR.srtFingerprint)
+    if (!state?.attemptId || !SR.srtOwnerTabId || (!SR.srtPiece && !SR.lvPiece) || !SR.srtFingerprint)
         return null;
     return {
         attemptId: state.attemptId,
@@ -7552,7 +7878,7 @@ function srtStartPractice() {
     srAssessStart(operation);
 }
 async function srtStartFirstSight() {
-    if (!SR.srtPiece || !SR.srtFingerprint)
+    if ((!SR.srtPiece && !SR.lvPiece) || !SR.srtFingerprint)
         return;
     if (SR.srtState?.name !== 'idle' || SR.srtState.mode !== 'firstSight')
         return;
@@ -7670,7 +7996,8 @@ async function srtStartFirstSight() {
     srtSetState({ type: 'claimed' });
     srDraw();
     srtPreviewUi(true);
-    SR.srtCountdown = 20;
+    // A level piece gets the 30 seconds of the exam; the older melodies keep 20.
+    SR.srtCountdown = SR.lvPiece ? 30 : 20;
     byId('rd-srt-countdown').textContent = t('rd_srt_countdown', SR.srtCountdown);
     window.clearInterval(SR.srtPreviewTimer);
     const previewOperation = srtOperationEpoch;
@@ -7758,6 +8085,7 @@ function srAssessStart(operation?: number) {
         return;
     SR.active = true;
     stageSync();
+    rdnNavUi();
     SR.results = {};
     SR.wrongExtra = 0;
     SR.srtEvaluation = null;
@@ -7765,29 +8093,42 @@ function srAssessStart(operation?: number) {
     SR.srtResultLevelId = null;
     SR.next = null;
     srCoach();
+    rdnResultHide();
     SR.steps.forEach((s) => s.closed = false);
     srPaintAll();
     if (!SR.piece)
         throw new Error('Étude: no piece selected');
-    SR.bpm = SR.srtState?.mode === 'firstSight' ? 60 : +(inputById('rd-bpm').value || SR.piece.bpm);
+    const lvPiece = srtGeneratedSelected() ? SR.lvPiece ?? null : null;
+    // First sight: a level piece is played at its level's tempo, an older melody at 60.
+    SR.bpm = SR.srtState?.mode === 'firstSight' ? (lvPiece ? srtLevel(lvPiece.level).bpm : 60) : +(inputById('rd-bpm').value || SR.piece.bpm);
     inputById('rd-bpm').value = String(SR.bpm);
     byId('rd-bpmLbl').textContent = String(SR.bpm);
     const bs = 60 / SR.bpm, cap = SR.piece.ts[1] === 8 ? SR.piece.ts[0] * 0.5 : SR.piece.ts[0], ci = cap, pk = SR.piece.pickup || 0;
     if (!actx)
         return;
     const act0 = actx.currentTime + 0.15, perf0 = performance.now() + 150;
-    for (let b = 0; b < ci; b++)
-        srClick(act0 + b * bs, b === 0);
-    for (let b = 0; b <= SR.totalBeats + 1e-3; b++) {
-        const rel = b - pk;
-        srClick(act0 + (ci + b) * bs, rel >= 0 && Math.abs(rel % cap) < 1e-3);
+    // The count-in lasts one bar. A level piece clicks once per beat of its meter (so 3/8 and 6/8 count right).
+    let lead = ci * bs;
+    if (lvPiece) {
+        const clicks = srtLevelClicks(lvPiece, SR.bpm), barMs = srtLevelDurationMs(lvPiece, SR.bpm) / lvPiece.bars;
+        lead = barMs / 1000;
+        clicks.filter((c) => c.ms < barMs - 1e-6).forEach((c) => srClick(act0 + c.ms / 1000, c.accent));
+        clicks.forEach((c) => srClick(act0 + lead + c.ms / 1000, c.accent));
+    }
+    else {
+        for (let b = 0; b < ci; b++)
+            srClick(act0 + b * bs, b === 0);
+        for (let b = 0; b <= SR.totalBeats + 1e-3; b++) {
+            const rel = b - pk;
+            srClick(act0 + (ci + b) * bs, rel >= 0 && Math.abs(rel % cap) < 1e-3);
+        }
     }
     const sel = srActiveHands();
     if (sel !== 'both' && srHandsAvail() === 'both')
-        SR.notes.filter((n) => n.hand !== sel).forEach((n) => previewNote(n.midi, act0 + (ci + n.beat) * bs, Math.max(.15, n.dur * bs * .9), 78));
-    SR.t0 = perf0 + ci * bs * 1000;
+        SR.notes.filter((n) => n.hand !== sel).forEach((n) => previewNote(n.midi, act0 + lead + n.beat * bs, Math.max(.15, n.dur * bs * .9), 78));
+    SR.t0 = perf0 + lead * 1000;
     SR.anyOctave = !!data.settings.anyOctave;
-    srtRecorder = new SightReadingRecorder({ durationMs: SR.totalBeats * bs * 1000 });
+    srtRecorder = new SightReadingRecorder({ durationMs: lvPiece ? srtLevelDurationMs(lvPiece, SR.bpm) : SR.totalBeats * bs * 1000 });
     SR.assessOn = false;
     if (SR.srtState?.name === 'preparing')
         srtSetState({ type: 'startPreview' });
@@ -7795,7 +8136,7 @@ function srAssessStart(operation?: number) {
         SR.timers.push(setTimeout(() => {
             if (SR.active && SR.srtState?.name === 'countIn')
                 srtSetState({ type: 'countInDone' });
-        }, ci * bs * 1000));
+        }, lead * 1000));
     const v = byId('rd-verdict');
     v.className = 'verdict neutral';
     v.textContent = t('rd_count');
@@ -7821,7 +8162,11 @@ function srAssessLoop(ts: number) {
 }
 function srAssessFinish() {
     const generated = srtGeneratedSelected();
-    const expected = generated && SR.srtPiece
+    const lvPiece = generated ? SR.lvPiece ?? null : null;
+    const firstSight = SR.srtState?.mode === 'firstSight' && !!SR.srtState.attemptId;
+    const expected = lvPiece
+        ? srtLevelExpected(lvPiece, { bpm: SR.bpm, hand: srHandSel() })
+        : generated && SR.srtPiece
         ? srtBuildExpected(SR.srtPiece, { bpm: SR.bpm, hand: srActiveHands() as 'rh' | 'lh' })
         : SR.notes.map((note): SightReadingExpected => ({
             id: String(note.nid), midi: note.midi, hand: note.hand,
@@ -7831,14 +8176,19 @@ function srAssessFinish() {
     const performed = srtRecorder?.finish().map((input): SightReadingPerformed => ({
         id: input.id, midi: input.midi, onMs: input.onMs, offMs: input.offMs,
     })) ?? [];
-    const restWindows = generated && SR.srtPiece ? SR.srtPiece.events
+    const restWindows = lvPiece ? rdnRestWindows(lvPiece, SR.bpm, srHandSel()) : generated && SR.srtPiece ? SR.srtPiece.events
         .filter((event) => event.pitches.length === 0)
         .map((event) => ({ startMs: event.onsetTick * 60000 / SR.bpm / 480, endMs: (event.onsetTick + event.durationTick) * 60000 / SR.bpm / 480 })) : [];
-    const evaluated = srtEvaluate(expected, performed, { restWindows, anyOctave: !!SR.anyOctave });
+    // A level piece allows 120 ms between the notes of one beat (two hands rarely land closer); the old path keeps 60.
+    const evaluated = srtEvaluate(expected, performed, { restWindows, anyOctave: !!SR.anyOctave, ...(lvPiece ? { chordWindowMs: RDN_CHORD_WINDOW_MS } : {}) });
     if (evaluated) {
         const renderedNotes = SR.notes.filter((note) => srActiveHands() === 'both' || note.hand === srActiveHands());
+        // A level piece lists the right hand first and may start both hands together: its results find their notes by id.
+        const idMap = lvPiece ? rdnDrawnIds(lvPiece, expected) : null;
         evaluated.noteResults.forEach((result, index) => {
-            const nid = renderedNotes[index]?.nid ?? Number(result.expectedId);
+            const nid = idMap ? idMap.get(result.expectedId) : renderedNotes[index]?.nid ?? Number(result.expectedId);
+            if (nid === undefined)
+                return;
             SR.results[nid] = result.classification === 'good' || result.classification === 'near'
                 ? result.classification
                 : 'bad';
@@ -7857,6 +8207,10 @@ function srAssessFinish() {
     if (SR.piece?.gen)
         rdSightDone('assess', pct);
     srRenderAssessResult();
+    if (lvPiece && evaluated && evaluated.score != null) {
+        rdnRecord(pct, rdnStars(evaluated.stars), firstSight);
+        rdnResultShow(true);
+    }
     if (evaluated && generated && SR.srtState?.attemptId && SR.srtFingerprint && SR.srtOwnerTabId) {
         const attempt: SightReadingAttempt = {
             ...evaluated,
@@ -8037,6 +8391,11 @@ function srGo() {
     SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
     if (SR.modeSel === 'learn')
         srLearnStart();
+    else if (srtGeneratedSelected() && SR.lvPiece && SR.srtState?.mode === 'firstSight' && SR.srtState.name === 'idle' && srHandSel() !== 'both') {
+        // A level piece's first sight is played with both hands: one hand is practice, with no first-sight claim.
+        srtExposeForPractice('hands');
+        srtStartPractice();
+    }
     else if (srtGeneratedSelected() && SR.srtState?.mode === 'firstSight' && SR.srtState.name === 'idle')
         void srtStartFirstSight();
     else if (srtGeneratedSelected()) {
@@ -8068,7 +8427,9 @@ function srMeta() {
     }
     const n = p.keyN || 0;
     const keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n), key = pcName(keyPc, n < 0) + ' ' + (p.minor ? t('rd_min') : t('rd_maj'));
-    const metaText = (p.gen ? t('rdx_sr_meta', key, p.bpm) : key) + ' · ' + p.ts[0] + '/' + p.ts[1];
+    // A level piece never names its key here: in mixed keys, reading the signature is part of the task.
+    const lvHead = SR.lvPiece && srtGeneratedSelected() ? rdnHeadText() : null;
+    const metaText = lvHead ? lvHead.sub + ' · ' + p.ts[0] + '/' + p.ts[1] : (p.gen ? t('rdx_sr_meta', key, p.bpm) : key) + ' · ' + p.ts[0] + '/' + p.ts[1];
     byId('rd-meta').textContent = metaText;
     if (titleEl)
         titleEl.textContent = srPieceTitle(p);
@@ -8109,6 +8470,7 @@ function srShowPiece(piece: SrPiece) {
     SR.piece = piece;
     if (!SR.gen) {
         SR.srtPiece = null;
+        SR.lvPiece = null;
         SR.srtFingerprint = null;
         SR.srtState = SRT_INITIAL_STATE;
         SR.srtPendingAttempt = null;
@@ -8117,6 +8479,7 @@ function srShowPiece(piece: SrPiece) {
     const bp = inputById('rd-bpm');
     bp.value = String(piece.bpm);
     byId('rd-bpmLbl').textContent = String(piece.bpm);
+    rdnHandsUi();
     const avail = srHandsAvail();
     [byId('rd-hands'), maybeById('rd-stage-hands')].forEach((container) => {
         if (!container)
@@ -8144,6 +8507,10 @@ function srShowPiece(piece: SrPiece) {
     }
 }
 function renderRead() {
+    if (RDN.fresh) {
+        RDN.fresh = false;
+        RDN.screen = 'home';
+    }
     if (SR.piece)
         srDraw();
     srMeta();
@@ -8174,8 +8541,9 @@ interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rus
 interface ReadDrillNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
 interface ReadDrillTotals { n: number; ok: number; ms: number; sess: number; }
 interface ReadDrillCustom { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
-interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; stage: boolean; }
-interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { [noteKey: string]: ReadDrillNoteStat; }; tot: ReadDrillTotals; prefs: ReadDrillPrefs; }
+interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; stage: boolean; autoNext?: boolean; warmDone?: string; }
+/** `book`: the Read home's book, key runs and daily set (src/sight-reading/progress.ts), read through srtNormalizeBookState. */
+interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { [noteKey: string]: ReadDrillNoteStat; }; tot: ReadDrillTotals; prefs: ReadDrillPrefs; book?: ReadingBookState; }
 function rdData(): ReadDrillData {
     if (!data.reading || typeof data.reading !== 'object')
         data.reading = {};
@@ -8204,7 +8572,7 @@ function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min
 function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
 function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
-interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
+interface ReadDrillLevelSpec { ty: ReadDrillType; clef?: ReadClef; set?: string[]; tag?: string; lo?: string; hi?: string; acc?: number; keys?: number | number[]; keyN?: number; kmax?: number; ivs?: number[]; harm?: number; q?: ReadDrillChordQuality[]; inv?: number; units?: string[]; bpm?: number; durs?: number[]; }
 interface ReadDrillLevel extends ReadDrillLevelSpec { u: string; n: number; id: string; custom?: boolean; }
 interface ReadDrillUnit { u: string; icon: string; lv: ReadDrillLevel[]; }
 const RD_UNITS: ReadDrillUnit[] = [], RD_LV: { [levelId: string]: ReadDrillLevel; } = {};
@@ -8580,11 +8948,15 @@ function rdGen(L: ReadDrillLevel): ReadQuestion {
     }
     else
         pool = rdPool(L);
-    if (L.keys) {
+    // `keyN` fixes one key signature (the warm-up's hand position); `keys` draws one up to that many sharps or flats.
+    if (L.keyN !== undefined || L.keys) {
         const keys = L.keys;
-        if (typeof keys !== 'number')
+        if (L.keyN !== undefined)
+            keyN = L.keyN;
+        else if (typeof keys !== 'number')
             throw new Error('Étude: note drills take a key-signature range, not a list');
-        keyN = Math.floor(Math.random() * (2 * keys + 1)) - keys;
+        else
+            keyN = Math.floor(Math.random() * (2 * keys + 1)) - keys;
         const kA = ssKeyAcc(keyN);
         pool = pool.map((n) => Object.assign({}, n, { acc: kA[n.li] }));
     }
@@ -8708,7 +9080,7 @@ function rdTools(q: ReadQuestion) { return `<div class="rdx-tools">${RD.mode ===
 // g0: when the pacer ghost set off; gd: notes the player leads it by; gh: the ghost is shown; rm: reduced motion.
 interface ReadDrillFlow { items: ReadQuestionNote[]; cur: number; start: number; played: number | null; wrong: string[]; ext: ReadDrillPitch[]; g0: number; raf: number; gd: number; gh: boolean; rm: boolean; geo: { x0: number; colW: number; n: number; }; }
 const RD_FLOW_W = 52, RD_FLOW_SC = 1.35, RD_GHOST_MAX = 3;
-function rdFlowOk(L: ReadDrillLevel | null | undefined) { return !!L && rdData().prefs.flow && (L.ty === 'name' || L.ty === 'play') && L.clef !== 'mix' && !L.keys; }
+function rdFlowOk(L: ReadDrillLevel | null | undefined) { return !!L && rdData().prefs.flow && (L.ty === 'name' || L.ty === 'play') && L.clef !== 'mix' && !L.keys && L.keyN === undefined; }
 function rdFlowFill(F: ReadDrillFlow, upTo: number) {
     const L = RD.L;
     if (!L)
@@ -9080,7 +9452,7 @@ function rdAnswer(ok: boolean, given?: ReadDrillGiven, timeout = false) {
     rdCheckNotice();
     const done = !!(RD.arc && RD.arc.completed);
     RD.timers.push(setTimeout(() => { if (!RD.on)
-        return; if (done || rdTimeUp())
+        return; if (done || rdTimeUp() || rdnWarmLimit())
         rdFinish();
     else
         rdNext(); }, ok ? (RD.mode === 'practice' ? 650 : 380) : (RD.mode === 'timeAttack' ? 800 : 1500)));
@@ -9654,6 +10026,9 @@ function rdRhDone(endBeat: number) {
         else
             byId('rdx-rhnext').innerHTML = `<button class="btn primary" data-act="rhnew">${t('rdx_next_ex')} →</button>`;
     }
+    else if (rdnWarmLimit())
+        RD.timers.push(setTimeout(() => { if (RD.on)
+            rdFinish(); }, 1600));
     else
         byId('rdx-rhnext').innerHTML = `<button class="btn ghost" data-act="rhagain">↺ ${t('rdx_again_same')}</button><button class="btn primary" data-act="rhnew">🎲 ${t('rdx_new_rh')}</button>`;
     rdHud();
@@ -9852,6 +10227,7 @@ function rdSightStart(mode: string, injectedSeed?: number) {
         return;
     }
     srStopAll(undefined, false, 'navigate');
+    rdnForgetLevelPiece();
     rdData().prefs.srLv = L.id;
     if (!isRdSightLevel(L))
         throw new TypeError('Étude: ' + L.id + ' is not a sight-reading level');
@@ -9897,6 +10273,10 @@ function rdSightStart(mode: string, injectedSeed?: number) {
         g.focus();
 }
 function rdGenMelody() { const L = RD_LV[rdData().prefs.srLv ?? ''] || RD_LV.sr1; RD.L = L; rdSightStart(SR.modeSel === 'assess' ? 'test' : 'practice'); }
+/** A Step by step run: accuracy from the mistakes per step, and up to 2 stars (none after many slips). */
+function srLearnGrade(mistakes: number, steps: number): { acc: number; stars: 0 | 1 | 2 } {
+    return { acc: Math.max(0, Math.round(100 * (1 - mistakes / steps))), stars: mistakes === 0 ? 2 : mistakes <= Math.max(1, steps * 0.15) ? 1 : 0 };
+}
 function rdSightDone(kind: string, val: number) {
     const p = SR.piece;
     if (!p || !p.gen)
@@ -9904,8 +10284,8 @@ function rdSightDone(kind: string, val: number) {
     const L = RD_LV[p.gen];
     if (!L)
         return '';
-    const steps = SR.steps.length || 1, acc = kind === 'assess' ? val : Math.max(0, Math.round(100 * (1 - val / steps)));
-    const stars = kind === 'assess' ? (val >= 95 ? 3 : val >= 80 ? 2 : val >= 60 ? 1 : 0) : (val === 0 ? 2 : val <= Math.max(1, steps * 0.15) ? 1 : 0);
+    const steps = SR.steps.length || 1, grade = srLearnGrade(val, steps), acc = kind === 'assess' ? val : grade.acc;
+    const stars = kind === 'assess' ? (val >= 95 ? 3 : val >= 80 ? 2 : val >= 60 ? 1 : 0) : grade.stars;
     const d = rdData(), rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
     rec.n++;
     rec.s = Math.max(rec.s, stars);
@@ -9953,7 +10333,7 @@ function rdLvDetail(L: ReadDrillLevel) {
     return p.join(' · ');
 }
 function rdLvSub(L: ReadDrillLevel) { return rdLvDetail(L).split(' · ').slice(1).join(' · '); }
-function rdStars(s: number) { return `<span class="rdx-stars" role="img" aria-label="${t('rdx_stars_n', s)}">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span>`; }
+function rdStars(s: number, label?: string) { return `<span class="rdx-stars" role="img" aria-label="${rdEsc(label ?? t('rdx_stars_n', s))}">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span>`; }
 function rdKeyText(k: string) {
     const clefOf: Record<string, string> = { t: 'treble', b: 'bass', a: 'alto', n: 'tenor' };
     let m = /^([tban]):([A-G])([#b]?)(\d)$/.exec(k);
@@ -9972,7 +10352,8 @@ function rdKeyText(k: string) {
 function rdScroll() { const tb = byId('rd-tabs'); if (!tb)
     return; const hd = (document).querySelector('header'), y = tb.getBoundingClientRect().top + window.scrollY - (hd ? hd.offsetHeight : 0) - 10; if (window.scrollY > y + 4 || tb.getBoundingClientRect().top > window.innerHeight * 0.3)
     window.scrollTo({ top: Math.max(0, y), behavior: 'auto' }); }
-function rdOpen(L: ReadDrillLevel) { rdAbort(); RD.L = L; if (!L.custom)
+function rdOpen(L: ReadDrillLevel) { if (RDN.screen !== 'drills')
+    rdTab('drills'); rdAbort(); RD.L = L; if (!L.custom)
     rdData().prefs.last = L.id; byId('rdx-home').hidden = true; byId('rdx-stage').hidden = false; rdIntro(); rdScroll(); const b = byId('rdx-back'); if (b)
     b.focus({ preventScroll: true }); }
 function rdIntro() {
@@ -10162,6 +10543,8 @@ function rdClear() {
 function rdAbort() { rdClear(); RD.on = false; stageSync(); }
 function rdEndClick() { if (RD.on && RD.mode === 'practice' && RD.n > 0)
     rdFinish();
+else if (rdnWarmSkip())
+    return;
 else {
     rdAbort();
     rdIntro();
@@ -10211,7 +10594,8 @@ function stageKey(e: KeyboardEvent) {
     e.preventDefault();
     if (RD.on) {
         rdEndClick();
-        const back = byId('rdx-back');
+        // The warm-up hides the drill's own Back: its header's Back takes the focus instead.
+        const back = byId(RDN.screen === 'warmup' ? 'rdn-w-back' : 'rdx-back');
         if (!byId('rdx-stage').contains(document.activeElement) || document.activeElement?.closest('[hidden]'))
             back.focus({ preventScroll: true });
     }
@@ -10267,6 +10651,9 @@ function rdFinish() {
     }
     touchDay();
     saveAll();
+    // In a warm-up the run counts as above, then the warm-up goes on instead of showing the summary.
+    if (rdnWarmDrillDone())
+        return;
     const weak = Object.entries(RD.miss).sort((a, b) => b[1] - a[1]).slice(0, 8);
     const pts = sum ? anNum(sum.score, 0) : '', avgS = (avg / 1000).toFixed(1) + 's';
     const tiles = L.ty === 'rh' ? [[acc + '%', t('rdx_st_rh')], [RD.rhP.length, t('rdx_st_ex')]]
@@ -10357,6 +10744,10 @@ function rdCustomRead() {
 function rdCustomGo() {
     const c = rdCustomRead();
     saveAll();
+    rdOpen(rdCustomLevel(c));
+}
+/** The level a custom drill configuration describes (the form's, or the warm-up's). `keyN` fixes the key signature. */
+function rdCustomLevel(c: ReadDrillCustom, keyN?: number): ReadDrillLevel {
     const ty = c.ty, clef = c.clef;
     if (!isReadDrillType(ty) || !isReadClef(clef))
         throw new TypeError('Étude: unknown custom drill ' + ty + ' / ' + clef);
@@ -10366,7 +10757,9 @@ function rdCustomGo() {
         if (set.length >= 2)
             L.set = set;
     }
-    rdOpen(L);
+    if (keyN !== undefined)
+        L.keyN = keyN;
+    return L;
 }
 /* ---- statistics, shown in Progress under Reading: per-note heatmap on the staff, skills, weakest items ---- */
 function rdAgg(c: string, li: number, oct: number) {
@@ -10419,19 +10812,22 @@ function rdRenderStats() {
       <div class="row" style="margin-top:14px"><button class="btn ghost sm" id="rdx-reset">${t('rdx_reset')}</button></div></div>`;
 }
 /* ---- tabs, wiring, locale ---- */
-function rdTab(tab: string|undefined) {
+// `screen` picks between the old sight-reading screen (melody) and the player of a level piece; both use the pieces panel.
+function rdTab(tab: string|undefined, screen: 'melody' | 'player' = 'melody') {
     // A saved tab that no longer exists (the old Statistics tab, now in Progress) opens the drills.
     if (tab === undefined || !['drills', 'pieces'].includes(tab))
         tab = 'drills';
-    if (tab !== 'pieces' && srtPendingSaveProtected()) {
+    const leavesPlayer = !!SR.lvPiece && (tab !== 'pieces' || screen !== 'player');
+    if ((tab !== 'pieces' || leavesPlayer) && srtPendingSaveProtected()) {
         if (SR.srtState?.name === 'pendingSave') {
             void srtAbandonClaim('abandoned', false).then((result) => {
                 if (result.ok || SR.srtState?.name !== 'pendingSave')
-                    rdTab(tab);
+                    rdTab(tab, screen);
             });
         }
         return;
     }
+    rdnShowScreen(tab === 'pieces' ? screen : 'drills');
     rdData().prefs.tab = tab;
     queryAllHtml(document, '#rd-tabs [role=tab]').forEach((b) => { const on = b.dataset.tab === tab; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
     ['drills', 'pieces'].forEach((x) => { const p = maybeById('rdp-' + x); if (p)
@@ -10446,7 +10842,23 @@ function rdTab(tab: string|undefined) {
         rdRenderHome();
     stageSync();
 }
-function rdRender() { rdTab(rdData().prefs.tab); }
+// Draws the Read tab's current screen. The home is the first screen each time the tab opens (see renderRead).
+function rdRender() {
+    if (RDN.screen === 'warmup' && WARM.on) {
+        rdnWarmLocale();
+        return;
+    }
+    if (RDN.screen === 'home' || RDN.screen === 'warmup') {
+        rdnHome();
+        return;
+    }
+    if (RDN.screen === 'player' && SR.lvPiece) {
+        rdTab('pieces', 'player');
+        rdnPlayerHead();
+        return;
+    }
+    rdTab(RDN.screen === 'melody' || RDN.screen === 'player' ? 'pieces' : 'drills');
+}
 function rdKey(e: KeyboardEvent, k: string) {
     if (view0() !== 'read' || byId('rdp-drills').hidden || !RD.on)
         return false;
@@ -10503,7 +10915,19 @@ function rdOnLocale() {
         if (l)
             l.textContent = t('rd_stop');
     }
-    if (SR.gen) {
+    if (SR.gen && SR.lvPiece) {
+        SR.gen.t = { en: rdnHeadText().title };
+        rdnPlayerHead();
+        rdnChecklist();
+        // The status line before an attempt follows the language.
+        const v = byId('rd-verdict');
+        if (RDN.ready && v.textContent === RDN.ready)
+            v.textContent = RDN.ready = rdnReadyText();
+        if (!byId('rdn-result').hidden)
+            rdnResultShow(false);
+        srMeta();
+    }
+    else if (SR.gen) {
         SR.gen.t = { en: tl('en', 'rdx_sr_title', SR.gen.level), ro: tl('ro', 'rdx_sr_title', SR.gen.level) };
         srMeta();
     }
@@ -10533,7 +10957,7 @@ function rdOnLocale() {
     const dr = byId('rdp-drills');
     if (!dr)
         return;
-    byId('rd-tabs').addEventListener('click', (e) => { const b = eventClosest(e, '[role=tab]'); if (b) {
+    byId('rd-tabs').addEventListener('click', (e) => { const b = eventClosest(e, '[data-tab]'); if (b) {
         rdTab(b.dataset.tab);
         saveAll();
     } });
@@ -10702,6 +11126,1077 @@ function rdOnLocale() {
         g.addEventListener('click', rdGenMelody);
     ['set-notation'].forEach((id) => { const el = maybeById(id); if (el)
         el.addEventListener('click', () => setTimeout(rdOnLocale, 0)); });
+})();
+/* ============================================================================
+   READ HOME — the Read tab's home (Today, the book, Warm-up, Progress) and the player of level pieces
+   (docs/plans/2026-11-13-read-redesign-spec.md, sections 3, 7, 8 and 12). The music comes from the pure modules in
+   src/sight-reading; this part keeps the screens, the saved book state and the player around the shared engine.
+   ============================================================================ */
+const rdnNormalized = new WeakSet<object>();
+/** The saved book state, read through srtNormalizeBookState once per stored object. */
+function rdnBook(): ReadingBookState {
+    const r = rdData(), known = r.book;
+    if (known && typeof known === 'object' && rdnNormalized.has(known))
+        return known;
+    const state = srtNormalizeBookState(known);
+    r.book = state;
+    rdnNormalized.add(state);
+    return state;
+}
+function rdnSetBook(state: ReadingBookState) {
+    rdData().book = state;
+    rdnNormalized.add(state);
+    saveAll();
+}
+/** Today as a local YYYY-MM-DD date. */
+function rdnToday() {
+    const d = new Date(), p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+/** The fingerprints of every piece the reader has seen (the first-sight ledger): a new daily set avoids them. */
+function rdnSeen(): ReadonlySet<string> {
+    try {
+        return new Set(Object.keys(srtReadLedger(localStorage).exposures));
+    }
+    catch {
+        return new Set();
+    }
+}
+function rdnLevelName(level: number) { return t('rdn_lv' + level + '_name'); }
+function rdnKeyName(key: ReadingKey) { return rdSpell(key.tonic) + ' ' + t(key.mode === 'minor' ? 'rd_min' : 'rd_maj'); }
+function rdnKeyShort(key: ReadingKey) { return rdSpell(key.tonic) + (key.mode === 'minor' ? 'm' : ''); }
+function rdnSig(keyN: number) { return keyN === 0 ? t('rdn_sig_none') : t(keyN > 0 ? 'rdn_sig_sharps' : 'rdn_sig_flats', Math.abs(keyN)); }
+function rdnSigWords(keyN: number) {
+    const n = Math.abs(keyN);
+    if (n === 0)
+        return t('rdn_sig_aria_none');
+    return keyN > 0 ? (n === 1 ? t('rdn_sig_aria_sharp1') : t('rdn_sig_aria_sharps', n)) : (n === 1 ? t('rdn_sig_aria_flat1') : t('rdn_sig_aria_flats', n));
+}
+function rdnPattern(id: ReadingPatternId) { return t('rdn_pat_' + id); }
+function rdnCap(s: string) { return s ? s.charAt(0).toLocaleUpperCase(lang) + s.slice(1) : s; }
+function rdnStars(n: number): 0 | 1 | 2 | 3 { return n >= 3 ? 3 : n >= 2 ? 2 : n >= 1 ? 1 : 0; }
+function rdnStarText(n: number) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
+/* ---- screens ---- */
+function rdnShowScreen(screen: RdnScreen) {
+    if (screen !== 'player') {
+        rdnAutoCancel();
+        if (SR.lvPiece)
+            rdnDropLevelPiece();
+    }
+    if (screen !== 'warmup' && WARM.on)
+        rdnWarmStop();
+    if (RDN.screen === 'home' && screen !== 'home')
+        RDN.opener = rdnFocusKey(document.activeElement);
+    RDN.screen = screen;
+    const view = maybeById('view-read');
+    if (view)
+        view.dataset.rdn = screen;
+    const home = screen === 'home', player = screen === 'player', warm = screen === 'warmup';
+    byId('rdn-home').hidden = !home;
+    byId('rdn-more-h').hidden = !home;
+    byId('rdn-backrow').hidden = home || player || warm;
+    byId('rd-tabs').hidden = player || warm;
+    byId('rdn-player-head').hidden = !player;
+    byId('rdn-warm').hidden = !warm;
+    byId('rd-gen').hidden = player;
+    // The new screens have their own lede; the older drills and melody screens keep theirs.
+    byId('rd-lede').hidden = home || player || warm;
+    byId('rdn-lede').hidden = !(home || player || warm);
+    if (warm) {
+        byId('rdp-drills').hidden = true;
+        byId('rdp-pieces').hidden = true;
+    }
+    if (home) {
+        byId('rdp-drills').hidden = true;
+        byId('rdp-pieces').hidden = true;
+    }
+    rdnTabRoles(home);
+}
+/** On the home the old tabs are two plain buttons in a group named by the "More" heading; on the older screens, tabs. */
+function rdnTabRoles(home: boolean) {
+    const list = byId('rd-tabs');
+    if (home) {
+        list.setAttribute('role', 'group');
+        list.setAttribute('aria-labelledby', 'rdn-more-h');
+    }
+    else {
+        list.setAttribute('role', 'tablist');
+        list.removeAttribute('aria-labelledby');
+    }
+    queryAllHtml(list, '[data-tab]').forEach((b) => {
+        if (home) {
+            b.removeAttribute('role');
+            b.removeAttribute('aria-selected');
+            b.removeAttribute('aria-controls');
+            b.tabIndex = 0;
+        }
+        else {
+            b.setAttribute('role', 'tab');
+            b.setAttribute('aria-controls', 'rdp-' + (b.dataset.tab ?? ''));
+        }
+    });
+}
+/** A selector that finds a control again after the home is drawn anew: its data-rdn-focus key, or its id. */
+function rdnFocusKey(el: Element | null) {
+    if (!(el instanceof HTMLElement) || el === document.body)
+        return '';
+    if (el.dataset.rdnFocus)
+        return `[data-rdn-focus="${el.dataset.rdnFocus}"]`;
+    return el.id ? '#' + el.id : '';
+}
+/** Back on the home: focus the control that left it if it is still there, otherwise the home's first heading. */
+function rdnFocusHome() {
+    const again = RDN.opener ? document.querySelector(RDN.opener) : null;
+    RDN.opener = '';
+    const target = again instanceof HTMLElement && again.getClientRects().length ? again : maybeById('rdn-today-h');
+    if (target)
+        target.focus({ preventScroll: true });
+}
+/** Runs `then` once no first-sight result is waiting to be saved. A result that could not be saved is given up first. */
+function rdnWhenSaved(then: () => void) {
+    if (!srtPendingSaveProtected()) {
+        RDN.retries = 0;
+        return true;
+    }
+    if (SR.srtState?.name === 'pendingSave') {
+        void srtAbandonClaim('abandoned', false).then((result) => {
+            if (result.ok || SR.srtState?.name !== 'pendingSave')
+                then();
+        });
+    }
+    else if (RDN.retries < 40) {
+        RDN.retries++;
+        window.setTimeout(then, 50);
+    }
+    return false;
+}
+function rdnHome(focus = false) {
+    if (!rdnWhenSaved(() => rdnHome(focus)))
+        return;
+    if (RD.on) {
+        rdAbort();
+        rdIntro();
+    }
+    srStopAll(true, false, 'navigate');
+    rdnShowScreen('home');
+    rdnRenderHome();
+    stageSync();
+    if (focus === true)
+        rdnFocusHome();
+}
+// Leaving Read: the home comes back next time, except over an older melody that is still loaded, whose screen comes back
+// as it was (an interrupted first sight then shows its practice score there).
+function rdnLeaveView() {
+    RDN.fresh = !(RDN.screen === 'melody' && !!SR.srtPiece && !!SR.gen);
+    rdnAutoCancel();
+    if (WARM.on)
+        rdnWarmStop();
+}
+/* ---- the home ---- */
+/** srtEnsureDaily, settable by tests through window.__etude. */
+let rdnEnsureDailyOf = srtEnsureDaily;
+/** Today's set for the state. A set that cannot be made (no new piece left) keeps the previous one and sets RDN.noDaily. */
+function rdnEnsureDaily(state: ReadingBookState, today: string) {
+    try {
+        const ensured = rdnEnsureDailyOf(state, today, rdnSeen());
+        RDN.noDaily = false;
+        return ensured;
+    }
+    catch {
+        RDN.noDaily = true;
+        return state;
+    }
+}
+function rdnChoose(level: number, key: string | null) {
+    rdnSetBook(rdnEnsureDaily(srtChooseLevel(rdnBook(), level, key), rdnToday()));
+    rdnRenderHome();
+}
+function rdnRenderHome() {
+    const box = maybeById('rdn-home');
+    if (!box)
+        return;
+    const today = rdnToday();
+    let state = rdnBook();
+    const ensured = rdnEnsureDaily(state, today);
+    if (ensured !== state) {
+        state = ensured;
+        rdnSetBook(state);
+    }
+    const active = document.activeElement, focusKey = active instanceof HTMLElement && box.contains(active) ? active.dataset.rdnFocus ?? '' : '';
+    const more = box.querySelector('#rdn-more-keys');
+    const moreOpen = more instanceof HTMLDetailsElement && more.open;
+    box.innerHTML = `<div class="rdn-grid"><div class="rdn-col rdn-main">${rdnTodayHtml(state)}${rdnBookHtml(state, moreOpen)}</div>` +
+        `<div class="rdn-col rdn-rail">${rdnWarmHtml()}${rdnProgressHtml(state, today)}</div></div>`;
+    if (focusKey) {
+        const again = box.querySelector(`[data-rdn-focus="${focusKey}"]`);
+        if (again instanceof HTMLElement)
+            again.focus({ preventScroll: true });
+    }
+}
+function rdnTodayHtml(state: ReadingBookState) {
+    // The card describes the set (its level and keys), which stays for the day once a piece of it was played.
+    const daily = RDN.noDaily ? null : state.daily, e = rdEsc;
+    const slots = daily ? daily.slots : [], done = daily ? daily.done : [];
+    const played = done.filter((x) => x !== null).length, total = slots.length;
+    const setKey = daily ? daily.focusKey : state.focusKey, setLevel = daily ? daily.level : state.level;
+    const keys = setKey ? t('rdn_today_key', rdnKeyName(srtReadingKey(setKey))) : t('rdn_today_mixed');
+    const stays = !daily ? '' : daily.level !== state.level ? t('rdn_today_stays', daily.level) : daily.focusKey !== state.focusKey ? t('rdn_today_stays_key') : '';
+    if (!daily)
+        return `<section class="rdn-card rdn-today" aria-labelledby="rdn-today-h"><div class="rdn-eyebrow">${e(t('rdn_today_eyebrow'))}</div>` +
+            `<h2 id="rdn-today-h" tabindex="-1">${e(t('rdn_today_title'))}</h2><p class="rdn-sub" id="rdn-no-set">${e(t('rdn_no_set'))}</p>` +
+            `<div class="rdn-row"><button type="button" class="btn primary" id="rdn-today-go" data-rdn-focus="today-go" disabled>${e(t('rdn_today_start'))}</button></div></section>`;
+    const chips = slots.map((slot, i) => {
+        const score = done[i], role = t('rdn_role_' + slot.role);
+        const label = t('rdn_slot_aria', i + 1, role) + ', ' + (score === null ? t('rdn_not_played') : t('rdn_score_n', score));
+        return `<button type="button" class="rdn-slot${score === null ? '' : ' done'}" data-rdn-slot="${i}" data-rdn-focus="slot${i}" aria-label="${e(label)}">` +
+            `<b>${i + 1}</b><small>${e(score === null ? role : score + '%')}</small></button>`;
+    }).join('');
+    const go = played === 0 ? 'rdn_today_start' : played >= total ? 'rdn_today_done' : 'rdn_today_continue';
+    return `<section class="rdn-card rdn-today" aria-labelledby="rdn-today-h"><div class="rdn-eyebrow">${e(t('rdn_today_eyebrow'))}</div>` +
+        `<h2 id="rdn-today-h" tabindex="-1">${e(t('rdn_today_title'))}</h2>` +
+        `<p class="rdn-sub">${e(t('rdn_today_sub'))} · ${e(t('rdn_today_level', setLevel))}. ${e(keys)}</p>` +
+        (stays ? `<p class="rdn-sub rdn-stays" id="rdn-today-stays">${e(stays)}</p>` : '') +
+        `<div class="rdn-slots" role="group" aria-label="${e(t('rdn_today_title'))}">${chips}</div>` +
+        `<div class="rdn-row"><button type="button" class="btn primary" id="rdn-today-go" data-rdn-focus="today-go"${played >= total ? ' disabled' : ''}>${e(t(go))}</button></div></section>`;
+}
+function rdnNumChip(n: number, stat: PieceStat | undefined, next: boolean) {
+    const label = !stat ? t('rdn_num_aria_none', n) : stat.stars === 0 ? t('rdn_num_aria_star0', n) : stat.stars === 1 ? t('rdn_num_aria_star1', n) : t('rdn_num_aria_stars', n, stat.stars);
+    return `<button type="button" class="rdn-num${stat ? ' played' : ''}${next ? ' next' : ''}" data-rdn-n="${n}" data-rdn-focus="n${n}" aria-label="${rdEsc(label)}">` +
+        `<b>${n}</b><small aria-hidden="true">${stat ? rdnStarText(stat.stars) : ''}</small></button>`;
+}
+/** The sign next to the colour of a key's status (the words are in the chip's label): a check for secure, a dot for started. */
+function rdnMark(status: string) {
+    return status === 'secure' ? '<span class="rdn-mk rdn-mk-secure" aria-hidden="true">✓</span>' : status === 'started' ? '<span class="rdn-mk rdn-mk-started" aria-hidden="true">●</span>' : '';
+}
+function rdnUnitLabel(unit: BookUnit, named: boolean) {
+    if (unit.kind === 'easy')
+        return t('rdn_unit_easy');
+    if (unit.kind === 'newKey')
+        return named ? rdnKeyName(srtReadingKey(unit.keys[0])) : t('rdn_unit_newkey');
+    return t(unit.kind === 'check' ? 'rdn_unit_check' : 'rdn_unit_mix');
+}
+function rdnBookHtml(state: ReadingBookState, moreOpen: boolean) {
+    const e = rdEsc, lv = state.level, level = srtLevel(lv), focus = state.focusKey;
+    const levels = srtLevels().map((l) => `<button type="button" class="rdn-lv" data-rdn-lv="${l.id}" data-rdn-focus="lv${l.id}" aria-pressed="${l.id === lv}" ` +
+        `aria-label="${e(t('rdn_level_aria', l.id, rdnLevelName(l.id)))}">${l.id}</button>`).join('');
+    const pool = srtKeyPool(lv), poolIds: readonly string[] = pool.map((k) => k.id), rest = srtReadingKeys().filter((k) => !poolIds.includes(k.id));
+    const chip = (k: ReadingKey) => {
+        const st = srtKeyStatus(state, lv, k.id);
+        const label = rdnKeyName(k) + ', ' + rdnSigWords(k.keyN) + (st === 'new' ? '' : ', ' + t('rdn_status_' + st));
+        return `<button type="button" class="rdn-key" data-rdn-key="${k.id}" data-rdn-focus="key-${k.id}" data-m="${st === 'secure' ? 2 : st === 'started' ? 1 : 0}" ` +
+            `aria-pressed="${focus === k.id}" aria-label="${e(label)}"><b>${e(rdnKeyShort(k))}</b><small>${e(rdnSig(k.keyN))}</small>${rdnMark(st)}</button>`;
+    };
+    const mixed = `<button type="button" class="rdn-key rdn-mix" data-rdn-key="mix" data-rdn-focus="key-mix" aria-pressed="${focus === null}">` +
+        `<b>${e(t('rdn_mixed'))}</b><small>${e(t('rdn_mixed_sub', pool.length))}</small></button>`;
+    const open = moreOpen || (focus !== null && !poolIds.includes(focus));
+    const others = rest.length ? `<details class="rdn-more" id="rdn-more-keys"${open ? ' open' : ''}><summary data-rdn-focus="more">${e(t('rdn_other_keys'))}</summary>` +
+        `<div class="rdn-keys" role="group" aria-label="${e(t('rdn_other_keys'))}">${rest.map(chip).join('')}</div></details>` : '';
+    let head = '', body = '';
+    if (focus === null) {
+        const tally = srtBookTally(state, lv), next = tally.next;
+        const go = tally.done === 0 ? t('rdn_go_start', 1) : next === null ? t('rdn_go_replay', 1) : t('rdn_go_continue', next);
+        head = `<h3>${e(t('rdn_book_head', lv))}</h3><span class="rdn-sub" id="rdn-book-done">${e(t('rdn_done_of', tally.done, SRT_BOOK_PIECES))}</span>` +
+            `<span class="rdn-sp"></span><button type="button" class="btn primary" id="rdn-book-go" data-rdn-n="${next ?? 1}" data-rdn-focus="book-go">${e(go)}</button>`;
+        body = '<div class="rdn-units">' + srtBookUnits(lv).map((unit) => {
+            const first = unit.index * SRT_UNIT_PIECES + 1;
+            const nums = Array.from({ length: SRT_UNIT_PIECES }, (_, i) => first + i);
+            const played = nums.filter((n) => state.pieces[srtBookId(lv, n)]).length;
+            return `<section class="rdn-unit" aria-label="${e(t('rdn_unit', unit.index + 1) + ', ' + rdnUnitLabel(unit, true))}"><div class="rdn-uh"><b>${e(t('rdn_unit', unit.index + 1))}</b>` +
+                `<span>${e(rdnUnitLabel(unit, true))}</span>${unit.kind === 'newKey' ? `<span class="rdn-tag">${e(t('rdn_new_key'))}</span>` : ''}` +
+                `<span class="rdn-uc">${played}/${SRT_UNIT_PIECES}</span></div><div class="rdn-nums8">` +
+                nums.map((n) => rdnNumChip(n, state.pieces[srtBookId(lv, n)], n === next)).join('') + '</div></section>';
+        }).join('') + '</div>';
+    }
+    else {
+        const key = srtReadingKey(focus), tally = srtFocusTally(state, lv, focus), next = tally.next;
+        const go = tally.done === 0 ? t('rdn_go_start', 1) : next === null ? t('rdn_go_replay', 1) : t('rdn_go_continue', next);
+        head = `<h3>${e(t('rdn_focus_head', rdnKeyName(key)))}</h3><span class="rdn-sub" id="rdn-book-done">${e(t('rdn_done_of', tally.done, SRT_FOCUS_PIECES))}</span>` +
+            `<span class="rdn-sp"></span><button type="button" class="btn primary" id="rdn-book-go" data-rdn-n="${next ?? 1}" data-rdn-focus="book-go">${e(go)}</button>`;
+        body = `<div class="rdn-nums">${Array.from({ length: SRT_FOCUS_PIECES }, (_, i) => i + 1)
+            .map((n) => rdnNumChip(n, state.pieces[srtFocusId(lv, focus, n)], n === next)).join('')}</div>`;
+    }
+    const patterns = level.newPatterns.map(rdnPattern).join(', ');
+    return `<section class="rdn-card rdn-book" aria-labelledby="rdn-book-h"><div class="rdn-eyebrow">${e(t('rdn_book_eyebrow'))}</div>` +
+        `<h2 id="rdn-book-h" tabindex="-1">${e(t('rdn_book_title'))}</h2>` +
+        `<div class="rdn-lab" id="rdn-lv-lab">${e(t('rdn_level_label'))}</div><div class="rdn-levels" role="group" aria-labelledby="rdn-lv-lab">${levels}</div>` +
+        `<p class="rdn-lvdesc"><b>${e(t('rdn_level_head', lv, rdnLevelName(lv)))}</b><br>${e(t('rdn_lv' + lv + '_desc'))}<br>` +
+        `<span class="rdn-pat">${e(t('rdn_new_patterns', patterns))}</span></p>` +
+        `<div class="rdn-lab" id="rdn-k-lab">${e(t('rdn_keys'))}</div><div class="rdn-keys" role="group" aria-labelledby="rdn-k-lab">${mixed}${pool.map(chip).join('')}</div>` +
+        others +
+        `<div class="rdn-legend"><span><i class="rdn-lg-secure"></i>${rdnMark('secure')}${e(t('rdn_legend_secure'))}</span><span><i class="rdn-lg-started"></i>${rdnMark('started')}${e(t('rdn_legend_started'))}</span></div>` +
+        `<div class="rdn-bookhead">${head}</div>${body}</section>`;
+}
+function rdnWarmHtml() {
+    const e = rdEsc, lv = rdnBook().level, done = rdData().prefs.warmDone === rdnToday();
+    const mark = done ? `<span class="rdn-warm-done" id="rdn-warm-done"><span aria-hidden="true">✓</span> ${e(t('rdn_warm_done'))}</span>` : '';
+    return `<section class="rdn-card rdn-warm" aria-labelledby="rdn-warm-h"><div class="rdn-eyebrow">${e(t('rdn_warm_eyebrow'))}</div>` +
+        `<div class="rdn-warm-h"><h2 id="rdn-warm-h" tabindex="-1">${e(t('rdn_warm_title'))}</h2>${mark}</div>` +
+        `<p class="rdn-sub" id="rdn-warm-text">${e(t(lv >= 6 ? 'rdn_warm_text_ch' : 'rdn_warm_text', lv))}</p>` +
+        `<div class="rdn-row"><button type="button" class="btn" id="rdn-warm-go" data-rdn-focus="warm-go">${e(t('rdn_warm_go'))}</button>` +
+        `<button type="button" class="btn ghost rdn-link" id="rdn-all-drills" data-rdn-focus="all-drills">${e(t('rdn_all_drills'))}</button></div></section>`;
+}
+function rdnProgressHtml(state: ReadingBookState, today: string) {
+    const e = rdEsc, lv = state.level, avg = srtLevelAverage(state, lv);
+    const stats: [string | number, string][] = [[srtStreak(state, today), t('rdn_stat_streak')], [avg === null ? '—' : avg + '%', t('rdn_stat_first')], [srtPiecesRead(state), t('rdn_stat_read')]];
+    const suggest = srtLevelReady(state, lv)
+        ? `<div class="rdn-suggest" id="rdn-suggest"><span>${e(t('rdn_suggest', lv + 1))}</span><span class="rdn-sp"></span>` +
+            `<button type="button" class="btn" id="rdn-suggest-go" data-rdn-focus="suggest">${e(t('rdn_suggest_go', lv + 1))}</button></div>`
+        : '';
+    return `<section class="rdn-card rdn-progress" aria-labelledby="rdn-progress-h"><div class="rdn-eyebrow">${e(t('rdn_progress_eyebrow'))}</div>` +
+        `<h2 id="rdn-progress-h" tabindex="-1">${e(t('rdn_progress_title'))}</h2>` +
+        `<div class="rdn-stats">${stats.map(([v, l]) => `<div><b>${e(v)}</b><span>${e(l)}</span></div>`).join('')}</div>${suggest}</section>`;
+}
+function rdnHomeClick(e: MouseEvent) {
+    const state = rdnBook();
+    const lv = eventClosest(e, '[data-rdn-lv]');
+    if (lv) {
+        rdnChoose(Number(lv.dataset.rdnLv), state.focusKey);
+        return;
+    }
+    const key = eventClosest(e, '[data-rdn-key]');
+    if (key) {
+        rdnChoose(state.level, key.dataset.rdnKey === 'mix' ? null : key.dataset.rdnKey ?? null);
+        return;
+    }
+    const num = eventClosest(e, '[data-rdn-n]');
+    if (num) {
+        const n = Number(num.dataset.rdnN);
+        rdnOpen(state.focusKey ? { kind: 'focus', level: state.level, key: state.focusKey, number: n } : { kind: 'book', level: state.level, number: n });
+        return;
+    }
+    const slot = eventClosest(e, '[data-rdn-slot]');
+    if (slot && state.daily) {
+        rdnOpen({ kind: 'daily', date: state.daily.date, slot: Number(slot.dataset.rdnSlot) });
+        return;
+    }
+    const b = eventClosest(e, 'button'), id = b ? b.id : '';
+    if (id === 'rdn-today-go' && state.daily) {
+        const first = state.daily.done.findIndex((x) => x === null);
+        if (first >= 0)
+            rdnOpen({ kind: 'daily', date: state.daily.date, slot: first });
+    }
+    else if (id === 'rdn-warm-go')
+        rdnWarmupStart();
+    else if (id === 'rdn-all-drills') {
+        rdTab('drills');
+        saveAll();
+    }
+    else if (id === 'rdn-suggest-go' && state.level < 8)
+        rdnChoose(state.level + 1, null);
+}
+/* ---- the warm-up: flash cards, then a few existing drills, one after another ---- */
+/** How many answers end a drill step of the warm-up: rhythm exercises, and questions of the other drills (chords). */
+const RDN_WARM_LIMIT = { rh: 2, other: 5 };
+function rdnWarmClear() {
+    window.clearTimeout(WARM.timer);
+    window.clearTimeout(WARM.chordTimer);
+    WARM.timer = 0;
+    WARM.chordTimer = 0;
+}
+/** Starts the warm-up of the book's level, in the pinned key or else the key of today's level piece. */
+function rdnWarmupStart() {
+    if (!rdnWhenSaved(rdnWarmupStart))
+        return;
+    const today = rdnToday();
+    let state = rdnBook();
+    const ensured = rdnEnsureDaily(state, today);
+    if (ensured !== state) {
+        state = ensured;
+        rdnSetBook(state);
+    }
+    const slots = state.daily?.slots ?? [], slot = slots.find((x) => x.role === 'level') ?? slots[1] ?? slots[0];
+    const level = state.level, key: string = state.focusKey ?? slot?.key ?? srtKeyPool(level)[0].id;
+    if (RD.on)
+        rdAbort();
+    srStopAll(true, false, 'navigate');
+    rdnWarmClear();
+    WARM.on = true;
+    WARM.level = level;
+    WARM.key = key;
+    WARM.steps = srtWarmupPlan(level, key, `${today}|${level}|${key}`);
+    WARM.step = 0;
+    WARM.tally = [];
+    WARM.phase = 'idle';
+    rdnShowScreen('warmup');
+    rdnWarmRun();
+    stageSync();
+    window.scrollTo(0, 0);
+    byId('rdn-w-back').focus({ preventScroll: true });
+}
+function rdnWarmStepName(step: WarmupStep | undefined) {
+    if (!step)
+        return '';
+    if (step.kind === 'flash')
+        return t('rdn_w_flash');
+    if (step.kind === 'position')
+        return t(step.hand === 'rh' ? 'rdn_w_pos_rh' : 'rdn_w_pos_lh');
+    return t(step.id.startsWith('ch') ? 'rdn_w_chords' : 'rdn_w_rhythm');
+}
+function rdnWarmHead() {
+    byId('rdn-w-step').textContent = t('rdn_w_step', Math.min(WARM.step + 1, WARM.steps.length), WARM.steps.length) + ' · ' + rdnWarmStepName(WARM.steps[WARM.step]);
+    const tally = byId('rdn-w-tally');
+    tally.textContent = WARM.tally.length ? t('rdn_w_tally', WARM.tally[0], WARM.tally[1]) : '';
+    tally.hidden = !WARM.tally.length;
+    // A drill step names itself on the drill's stage (a custom drill would say "Custom drill").
+    if (WARM.phase === 'drill')
+        byId('rdx-title').textContent = rdnWarmStepName(WARM.steps[WARM.step]);
+}
+/** Runs the current step: the flash cards here, the other steps in the drill engine (practice mode, a few answers). */
+function rdnWarmRun() {
+    rdnWarmClear();
+    if (!WARM.on)
+        return;
+    const step = WARM.steps[WARM.step], flash = byId('rdn-w-flash');
+    if (!step) {
+        rdnWarmFinish();
+        return;
+    }
+    rdnWarmHead();
+    if (step.kind === 'flash') {
+        byId('rdp-drills').hidden = true;
+        flash.hidden = false;
+        WARM.card = 0;
+        WARM.clean = 0;
+        rdnWarmCard();
+        return;
+    }
+    // Focus on the card (its Next button, say) moves to the header's Back before the card goes.
+    const lost = flash.contains(document.activeElement);
+    flash.hidden = true;
+    flash.innerHTML = '';
+    if (lost)
+        byId('rdn-w-back').focus({ preventScroll: true });
+    const L: ReadDrillLevel | undefined = step.kind === 'position'
+        ? rdCustomLevel({ ty: 'play', clef: step.clef, lo: step.low, hi: step.high, acc: 0, keys: 0, land: false }, step.keyN)
+        : RD_LV[step.id];
+    if (!L) {
+        rdnWarmNext();
+        return;
+    }
+    WARM.phase = 'drill';
+    WARM.limit = step.kind === 'position' ? step.count : L.ty === 'rh' ? RDN_WARM_LIMIT.rh : RDN_WARM_LIMIT.other;
+    byId('rdp-drills').hidden = false;
+    rdAbort();
+    RD.L = L;
+    byId('rdx-home').hidden = true;
+    byId('rdx-stage').hidden = false;
+    rdIntro();
+    rdStart('practice');
+    rdnWarmHead();
+}
+function rdnWarmNext() {
+    WARM.step++;
+    rdnWarmRun();
+}
+/** True once a drill step of the warm-up has had its answers: the drill then ends its run as usual (see rdFinish). */
+function rdnWarmLimit() { return WARM.on && WARM.phase === 'drill' && RD.n >= WARM.limit; }
+/** Called by rdFinish after a run was counted: in a warm-up the next step starts instead of the drill's summary. */
+function rdnWarmDrillDone() {
+    if (!WARM.on || WARM.phase !== 'drill')
+        return false;
+    rdnWarmNext();
+    return true;
+}
+/** End before any answer in a warm-up drill step: the step is skipped. */
+function rdnWarmSkip() {
+    if (!WARM.on || WARM.phase !== 'drill')
+        return false;
+    rdAbort();
+    rdnWarmNext();
+    return true;
+}
+/** The drills screen as the warm-up found it: no run, the stage closed, the ladder showing. */
+function rdnWarmDrillsReset() {
+    if (RD.on)
+        rdAbort();
+    RD.L = null;
+    byId('rdx-stage').hidden = true;
+    byId('rdx-home').hidden = false;
+}
+/** Abandons the warm-up (Back, another screen, another tab): no timer, no drill run and no flash card stay behind. */
+function rdnWarmStop() {
+    rdnWarmClear();
+    const touched = WARM.step > 0 || WARM.phase === 'drill';
+    WARM.on = false;
+    WARM.phase = 'idle';
+    WARM.played = [];
+    const flash = maybeById('rdn-w-flash');
+    if (flash) {
+        flash.hidden = true;
+        flash.innerHTML = '';
+    }
+    if (touched)
+        rdnWarmDrillsReset();
+}
+function rdnWarmFinish() {
+    rdnWarmStop();
+    rdData().prefs.warmDone = rdnToday();
+    saveAll();
+    rdnHome();
+    const go = maybeById('rdn-warm-go');
+    if (go)
+        go.focus({ preventScroll: true });
+}
+/* flash cards */
+function rdnWarmCards(): readonly FlashCard[] {
+    const step = WARM.steps[WARM.step];
+    return step && step.kind === 'flash' ? step.cards : [];
+}
+/** The card's bar for the engraver: only the hand that plays it, and never with note names. */
+function rdnFlashScore(card: FlashCard): SrScore {
+    const sc = card.score;
+    return { ts: [...sc.ts], keyN: sc.keyN, engrave: 2, noNames: true, rh: card.hand === 'rh' ? sc.rh : undefined, lh: card.hand === 'lh' ? sc.lh : undefined };
+}
+function rdnWarmCard() {
+    const cards = rdnWarmCards();
+    if (WARM.card >= cards.length) {
+        WARM.tally = [WARM.clean, cards.length];
+        rdnWarmNext();
+        return;
+    }
+    WARM.again = false;
+    rdnWarmShow(true);
+}
+function rdnWarmShow(draw: boolean) {
+    rdnWarmClear();
+    WARM.phase = 'show';
+    WARM.played = [];
+    WARM.lastAt = 0;
+    WARM.strict = false;
+    rdnWarmFlashUi(draw);
+    // The bar runs out while the card shows (a still bar with reduced motion). Only a new showing restarts it.
+    const bar = maybeById('rdn-f-bar');
+    if (bar) {
+        bar.style.setProperty('--flash', RDN_WARM_MS.flash + 'ms');
+        bar.classList.remove('run');
+        void bar.offsetWidth;
+        if (!reduceMotion())
+            bar.classList.add('run');
+    }
+    WARM.timer = window.setTimeout(rdnWarmHide, RDN_WARM_MS.flash);
+}
+function rdnWarmHide() {
+    rdnWarmClear();
+    WARM.phase = 'play';
+    rdnWarmFlashUi(false);
+}
+/** A note from the app's normal input while a card waits to be played. Notes closer than RDN_WARM_MS.chord form one chord. */
+function rdnWarmNote(midi: number) {
+    const card = rdnWarmCards()[WARM.card];
+    if (!card)
+        return;
+    const now = performance.now(), src = [...(inputOwners.get(midi) || [])], last = WARM.played[WARM.played.length - 1];
+    if (src.some((x) => x === 'midi' || x === 'ble'))
+        WARM.strict = true;
+    if (last && now - WARM.lastAt <= RDN_WARM_MS.chord)
+        last.push(midi);
+    else
+        WARM.played.push([midi]);
+    WARM.lastAt = now;
+    window.clearTimeout(WARM.chordTimer);
+    if (WARM.played.length >= card.notes.length)
+        WARM.chordTimer = window.setTimeout(rdnWarmJudge, Math.max(0, RDN_WARM_MS.chord));
+}
+/** Checks what was played (any octave unless it came from a MIDI or Bluetooth piano, as in the drills) and shows the mark. */
+function rdnWarmJudge() {
+    const card = rdnWarmCards()[WARM.card];
+    if (!card || WARM.phase !== 'play')
+        return;
+    WARM.ok = srtFlashMatches(card, WARM.played, !!data.settings.anyOctave || !WARM.strict);
+    if (WARM.ok && !WARM.again)
+        WARM.clean++;
+    rdnWarmClear();
+    WARM.phase = 'result';
+    rdnWarmFlashUi(false);
+    WARM.timer = window.setTimeout(rdnWarmAdvance, RDN_WARM_MS.result);
+}
+function rdnWarmAdvance() {
+    rdnWarmClear();
+    WARM.card++;
+    rdnWarmCard();
+}
+/** Draws the card (`draw`) or updates it for the phase: the prompt (a polite live region), the bar, the mark and the buttons. */
+function rdnWarmFlashUi(draw: boolean) {
+    const box = maybeById('rdn-w-flash'), cards = rdnWarmCards(), card = cards[WARM.card], e = rdEsc;
+    if (!box || !card)
+        return;
+    if (draw || !box.querySelector('#rdn-f-staff')) {
+        box.innerHTML = `<div class="rdn-f-top"><span class="rdn-f-count" id="rdn-f-count"></span><span class="rdn-f-prompt" id="rdn-f-prompt" role="status"></span></div>` +
+            `<div class="ss-wrap rdn-f-staff" id="rdn-f-staff" role="img"></div><div class="rdn-f-bar" id="rdn-f-bar" aria-hidden="true"><i></i></div>` +
+            `<div class="rdn-row rdn-f-btns"><button type="button" class="btn" id="rdn-f-again"></button><button type="button" class="btn primary" id="rdn-f-next"></button></div>`;
+        const wrap = byId('rdn-f-staff');
+        wrap.innerHTML = srRender(rdnFlashScore(card), srPaperOf(wrap)).svg;
+    }
+    const phase = WARM.phase, wrap = byId('rdn-f-staff'), bar = byId('rdn-f-bar'), again = buttonById('rdn-f-again'), next = buttonById('rdn-f-next');
+    byId('rdn-f-count').textContent = t('rdn_f_card', WARM.card + 1, cards.length);
+    const prompt = byId('rdn-f-prompt');
+    prompt.dataset.s = phase === 'result' ? (WARM.ok ? 'good' : 'bad') : phase;
+    prompt.innerHTML = phase === 'result'
+        ? `<span aria-hidden="true">${WARM.ok ? '✓' : '✗'}</span> ${e(t(WARM.ok ? 'rdn_f_right' : 'rdn_f_wrong'))}`
+        : e(t(phase === 'play' ? 'rdn_f_play' : 'rdn_f_look'));
+    wrap.setAttribute('aria-label', t('rdn_f_staff_aria'));
+    wrap.toggleAttribute('data-hidden', phase === 'play');
+    if (phase === 'result')
+        wrap.dataset.mark = WARM.ok ? 'good' : 'bad';
+    else
+        delete wrap.dataset.mark;
+    wrap.querySelectorAll('.ss-n').forEach((n) => { if (!(n instanceof SVGElement))
+        return; if (phase === 'result')
+        n.dataset.s = WARM.ok ? 'good' : 'bad';
+    else
+        delete n.dataset.s; });
+    bar.hidden = phase !== 'show';
+    again.textContent = t('rdn_f_again');
+    next.textContent = t('rdn_f_next');
+    const focused = document.activeElement;
+    again.hidden = phase !== 'play';
+    next.hidden = phase !== 'result';
+    // A button that hides while it has focus hands it to the card, so focus is never lost to the page.
+    if ((focused === again && again.hidden) || (focused === next && next.hidden))
+        box.focus({ preventScroll: true });
+}
+function rdnWarmFlashClick(e: MouseEvent) {
+    const id = eventClosest(e, 'button')?.id;
+    if (id === 'rdn-f-again' && WARM.phase === 'play') {
+        WARM.again = true;
+        rdnWarmShow(false);
+    }
+    else if (id === 'rdn-f-next' && WARM.phase === 'result')
+        rdnWarmAdvance();
+}
+/** After a language change: the header, and the card's texts. */
+function rdnWarmLocale() {
+    if (!WARM.on)
+        return;
+    rdnWarmHead();
+    if (WARM.phase === 'show' || WARM.phase === 'play' || WARM.phase === 'result')
+        rdnWarmFlashUi(false);
+}
+/* ---- the player ---- */
+function rdnPieceOf(ctx: RdnCtx): GeneratedPiece | null {
+    if (ctx.kind === 'book')
+        return srtBookPiece(ctx.level, ctx.number);
+    if (ctx.kind === 'focus')
+        return srtFocusPiece(ctx.level, ctx.key, ctx.number);
+    const daily = rdnBook().daily, slot = daily && daily.date === ctx.date ? daily.slots[ctx.slot] : undefined;
+    return slot ? srtDailyPiece(ctx.date, slot) : null;
+}
+function rdnHeadText(): { title: string; sub: string } {
+    const c = RDN.ctx, p = SR.lvPiece;
+    if (!c || !p)
+        return { title: '', sub: '' };
+    const level = t('rdn_level_head', p.level, rdnLevelName(p.level));
+    if (c.kind === 'daily')
+        return { title: t('rdn_title_today', c.slot + 1, SRT_DAILY_PIECES), sub: level };
+    if (c.kind === 'focus')
+        return { title: t('rdn_title_no', c.number, SRT_FOCUS_PIECES), sub: level + ' · ' + rdnKeyName(srtReadingKey(c.key)) };
+    // A book piece names its unit but never its key: in a mix, reading the signature is part of the task.
+    const unit = srtBookUnits(c.level)[Math.floor((c.number - 1) / SRT_UNIT_PIECES)];
+    return { title: t('rdn_title_no', c.number, SRT_BOOK_PIECES), sub: level + ' · ' + t('rdn_unit', unit.index + 1) + ' · ' + rdnUnitLabel(unit, false) };
+}
+function rdnPlayerHead() {
+    const h = rdnHeadText(), c = RDN.ctx;
+    byId('rdn-p-title').textContent = h.title;
+    byId('rdn-p-sub').textContent = h.sub;
+    buttonById('rdn-prev').hidden = !c || c.kind === 'daily';
+    rdnNavUi();
+}
+/** True while an attempt of the level piece runs: its preview, count-in or playing (or a Step-by-step run). */
+function rdnBusy() {
+    const name = SR.srtState?.name;
+    return !!SR.lvPiece && (SR.active || name === 'preparing' || name === 'claiming' || name === 'preview' || name === 'countIn' || name === 'playing');
+}
+/** Prev and Next: off during an attempt, so they never abandon it; Prev also off on the first piece and in today's set. */
+function rdnNavUi() {
+    const c = RDN.ctx, busy = rdnBusy(), prev = maybeById('rdn-prev'), next = maybeById('rdn-next');
+    if (prev instanceof HTMLButtonElement)
+        prev.disabled = busy || !c || c.kind === 'daily' || c.number <= 1;
+    if (next instanceof HTMLButtonElement)
+        next.disabled = busy || !c;
+}
+/** The status line before an attempt: first sight, or practice for a piece already seen. */
+function rdnReadyText() {
+    return t(SR.srtState?.mode === 'practice' ? 'rdn_seen' : 'rdn_ready');
+}
+/** The hint next to Hands: a level piece's first sight is played with both hands. */
+function rdnHandsHint() {
+    const hint = maybeById('rdn-hands-hint'), hands = maybeById('rd-hands');
+    if (hint)
+        hint.hidden = !SR.lvPiece || !hands || hands.hidden || SR.hands === 'both';
+}
+/** The drawable score of a level piece: the engraver's level notation (engrave: 2) with the player's title. */
+function rdnDrawable(piece: GeneratedPiece): SrPiece {
+    const score = srtLevelScore(piece);
+    return { id: 'lvl', ephemeral: true, gen: 'lv' + piece.level, comp: '', level: piece.level, keyN: score.keyN, minor: score.minor, bpm: score.bpm,
+        ts: score.ts, engrave: 2, rh: score.rh, lh: score.lh, t: { en: rdnHeadText().title } };
+}
+/** The Hands control only for the levels where both hands play together. */
+function rdnHandsUi() {
+    const p = SR.lvPiece, mode = p ? srtLevel(p.level).hands : null;
+    const show = !mode || mode === 'oneMoves' || mode === 'together';
+    [maybeById('rd-hands'), maybeById('rd-stage-hands')].forEach((c) => { if (c)
+        c.hidden = !show; });
+    if (!show)
+        SR.hands = 'both';
+    rdnHandsHint();
+}
+/** Opens a level piece. `focus`: 'title' moves focus to the piece's title (from the home), 'keep' leaves it where it is
+ *  (Prev, Next and the arrow keys), unless the focused control went away. */
+function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title') {
+    if (!rdnWhenSaved(() => rdnOpen(ctx, focus)))
+        return;
+    const piece = rdnPieceOf(ctx);
+    if (!piece)
+        return;
+    rdnAutoCancel();
+    srStopAll(undefined, false, 'navigate');
+    // The old melody screen's mode comes back when the player is left.
+    if (!SR.lvPiece && RDN.melodyMode === null)
+        RDN.melodyMode = SR.modeSel;
+    SR.srtPiece = null;
+    SR.lvPiece = piece;
+    // A new piece starts with both hands: a one-hand choice does not carry over.
+    SR.hands = 'both';
+    RDN.ctx = ctx;
+    SR.srtFingerprint = srtLevelFingerprint(piece);
+    // A piece already seen (an earlier attempt, or Listen) is practice from the start.
+    const seen = !!srtReadLedger(localStorage).exposures[SR.srtFingerprint];
+    SR.srtState = { ...SRT_INITIAL_STATE, mode: seen ? 'practice' : 'firstSight', fingerprint: SR.srtFingerprint };
+    SR.srtPendingAttempt = null;
+    SR.srtEvaluation = null;
+    SR.srtResultValue = null;
+    SR.srtResultLevelId = null;
+    srtPreviewUi(false);
+    srtPendingUi(false);
+    srtNotice(null);
+    void srtLedgerUpdate(localStorage, { type: 'recoverOrphanClaims', generation: srtReadLedger(localStorage).generation });
+    SR.gen = rdnDrawable(piece);
+    rdTab('pieces', 'player');
+    SR.modeSel = 'assess';
+    [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
+    rdnResultHide();
+    srShowPiece(SR.gen);
+    rdnPlayerHead();
+    rdnChecklist();
+    const v = byId('rd-verdict');
+    RDN.ready = '';
+    if (!v.textContent) {
+        v.className = 'verdict neutral';
+        v.textContent = RDN.ready = rdnReadyText();
+    }
+    window.scrollTo(0, 0);
+    const active = document.activeElement;
+    if (focus === 'title' || !(active instanceof HTMLElement) || active === document.body || !active.getClientRects().length)
+        byId('rdn-p-title').focus({ preventScroll: true });
+}
+/** Next (+1) or previous (-1) piece. Past the last piece of a run, and after the fifth piece of the day, the home comes back. */
+function rdnStep(dir: 1 | -1) {
+    const c = RDN.ctx;
+    if (!c || rdnBusy())
+        return;
+    rdnAutoCancel();
+    let next: RdnCtx | null = null;
+    if (c.kind === 'daily') {
+        if (dir < 0)
+            return;
+        if (c.slot + 1 < SRT_DAILY_PIECES)
+            next = { ...c, slot: c.slot + 1 };
+    }
+    else {
+        const n = c.number + dir, total = c.kind === 'book' ? SRT_BOOK_PIECES : SRT_FOCUS_PIECES;
+        if (n < 1)
+            return;
+        if (n <= total)
+            next = { ...c, number: n };
+    }
+    if (!next) {
+        rdnHome(true);
+        return;
+    }
+    rdnOpen(next, 'keep');
+    // Focus stays on the pressed button: the new title is announced instead.
+    const live = maybeById('rdn-p-live');
+    if (live && RDN.ctx === next)
+        live.textContent = rdnHeadText().title;
+}
+function rdnKey(e: KeyboardEvent) {
+    // A key the page reacts to stops the auto-next countdown (Tab only moves focus).
+    if (RDN.autoTimer && e.key !== 'Tab' && view0() === 'read' && RDN.screen === 'player')
+        rdnAutoCancel();
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')
+        return false;
+    if (view0() !== 'read' || RDN.screen !== 'player' || !RDN.ctx || SR.active || SR.listening || inField() || rdnBusy())
+        return false;
+    if (e.key === 'ArrowLeft' && (RDN.ctx.kind === 'daily' || RDN.ctx.number <= 1))
+        return false;
+    e.preventDefault();
+    rdnStep(e.key === 'ArrowRight' ? 1 : -1);
+    return true;
+}
+/** Leaves the level piece without touching the engine (a new melody or piece takes its place). */
+function rdnForgetLevelPiece() {
+    SR.lvPiece = null;
+    RDN.ctx = null;
+    RDN.ready = '';
+    rdnAutoCancel();
+    rdnResultHide();
+    rdnChecklist();
+    rdnHandsUi();
+    rdnNavUi();
+    if (RDN.melodyMode !== null) {
+        SR.modeSel = RDN.melodyMode;
+        RDN.melodyMode = null;
+        [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
+    }
+}
+/** Leaves the player: the attempt stops and the pieces panel is empty again, as before any melody. */
+function rdnDropLevelPiece() {
+    if (!SR.lvPiece)
+        return;
+    srStopAll(undefined, false, 'navigate');
+    rdnForgetLevelPiece();
+    SR.piece = null;
+    SR.gen = null;
+    SR.srtPiece = null;
+    SR.srtFingerprint = null;
+    SR.srtState = SRT_INITIAL_STATE;
+    SR.srtPendingAttempt = null;
+    SR.srtEvaluation = null;
+    SR.srtResultValue = null;
+    SR.srtResultLevelId = null;
+    SR.render = null;
+    SR.notes = [];
+    SR.steps = [];
+    srtPreviewUi(false);
+    srtPendingUi(false);
+    srtNotice(null);
+    byId('rd-staff').innerHTML = '';
+    byId('rd-verdict').textContent = '';
+    srMeta();
+    srEmptyUi();
+    srCoach();
+}
+/** The preview checklist: what to look at first, then up to two patterns of the piece (the level's new ones first). */
+function rdnChecklist() {
+    const ul = maybeById('rdn-checklist');
+    if (!ul)
+        return;
+    const p = SR.lvPiece;
+    ul.hidden = !p;
+    if (!p) {
+        ul.innerHTML = '';
+        return;
+    }
+    const items = [t('rdn_check_sig'), t('rdn_check_first')];
+    const own = srtLevel(p.level).newPatterns, order = [...own, ...srtLevelPatterns(p.level).filter((x) => !own.includes(x))];
+    for (const pattern of order) {
+        if (items.length >= 4)
+            break;
+        const bar = p.patterns.findIndex((names) => names.includes(pattern));
+        if (bar >= 0)
+            items.push(rdnCap(t('rdn_check_pattern', rdnPattern(pattern), bar + 1)));
+    }
+    // Two bars (before the last, after an upbeat bar) with the same melody rhythm.
+    const from = p.upbeat ? 1 : 0, last = p.bars - 1;
+    outer: for (let a = from; a < last; a++)
+        for (let b = a + 1; b < last; b++)
+            if (srtMelodyRhythm(p, a) === srtMelodyRhythm(p, b)) {
+                items.push(t('rdn_check_rhythm', a + 1, b + 1));
+                break outer;
+            }
+    ul.innerHTML = items.map((x) => `<li>${rdEsc(x)}</li>`).join('');
+}
+/** Silence for the active hands: the gaps between their sounding notes, where a played note counts against the reader. */
+function rdnRestWindows(piece: GeneratedPiece, bpm: number, hand: 'rh' | 'lh' | 'both') {
+    const msPerTick = 60000 / bpm / piece.ticksPerQuarter, end = srtLevelDurationMs(piece, bpm);
+    const sounding = piece.events.filter((ev) => ev.pitches.length > 0 && (hand === 'both' || ev.hand === hand))
+        .map((ev) => [ev.onsetTick * msPerTick, (ev.onsetTick + ev.durationTick) * msPerTick]).sort((a, b) => a[0] - b[0]);
+    const out: { startMs: number; endMs: number }[] = [];
+    let at = 0;
+    for (const [start, stop] of sounding) {
+        if (start > at + 1e-6)
+            out.push({ startMs: at, endMs: start });
+        at = Math.max(at, stop);
+    }
+    if (end > at + 1e-6)
+        out.push({ startMs: at, endMs: end });
+    return out;
+}
+/** Each expected note of a level piece and the drawn note it belongs to (same hand, onset and pitch). */
+function rdnDrawnIds(piece: GeneratedPiece, expected: readonly SightReadingExpected[]) {
+    const drawn = new Map<string, number>(), events = new Map(piece.events.map((ev) => [ev.id, ev])), out = new Map<string, number>();
+    SR.notes.forEach((n) => drawn.set(`${n.hand}|${n.beat.toFixed(3)}|${n.midi}`, n.nid));
+    expected.forEach((x) => {
+        const ev = events.get(x.id.slice(0, x.id.lastIndexOf(':')));
+        const nid = ev ? drawn.get(`${x.hand}|${(ev.onsetTick / piece.ticksPerQuarter).toFixed(3)}|${x.midi}`) : undefined;
+        if (nid !== undefined)
+            out.set(x.id, nid);
+    });
+    return out;
+}
+function rdnRecord(score: number, stars: 0 | 1 | 2 | 3, firstSight: boolean) {
+    const p = SR.lvPiece, c = RDN.ctx;
+    if (!p || !c)
+        return;
+    const id = c.kind === 'book' ? srtBookId(c.level, c.number) : c.kind === 'focus' ? srtFocusId(c.level, c.key, c.number) : srtDailyId(c.date, c.slot);
+    rdnSetBook(srtRecordResult(rdnBook(), { id, level: p.level, key: p.key.id, score, stars, firstSight, date: rdnToday() }));
+}
+/* ---- the result card and auto-next ---- */
+function rdnResultHide() {
+    const box = maybeById('rdn-result');
+    if (box) {
+        // Focus on the card (Retry, say) moves to Start before the card goes.
+        const lost = !box.hidden && box.contains(document.activeElement);
+        box.hidden = true;
+        box.innerHTML = '';
+        if (lost)
+            byId('rd-go').focus({ preventScroll: true });
+    }
+    RDN.learn = null;
+    rdnVerdictShown(true);
+    rdnAutoCancel();
+}
+/** The one-line verdict under the score. A level piece's result card replaces it, also for screen readers. */
+function rdnVerdictShown(on: boolean) {
+    const v = maybeById('rd-verdict');
+    if (v)
+        v.hidden = !on;
+}
+function rdnResultShow(startAuto: boolean) {
+    const box = maybeById('rdn-result'), ev = SR.srtEvaluation, p = SR.lvPiece, learn = RDN.learn, e = rdEsc;
+    if (!box)
+        return;
+    if (!p || (!ev && !learn)) {
+        rdnResultHide();
+        return;
+    }
+    // A Step-by-step run measures neither pitch accuracy, rhythm nor timing: those cells show a dash.
+    const pct = learn ? learn.acc : SR.srtResultValue ?? Math.round(ev?.score ?? 0), stars = learn ? learn.stars : rdnStars(ev?.stars ?? 0), auto = !!rdData().prefs.autoNext;
+    const cells: [string, string][] = [
+        [!ev || learn ? '—' : Math.round(ev.pitchF1 ?? 0) + '%', t('rdn_res_pitch')],
+        [!ev || learn ? '—' : Math.round(ev.rhythmAcc ?? 0) + '%', t('rdn_res_rhythm')],
+        [!ev || learn || ev.meanOffsetMs == null ? '—' : t('rdn_res_ms', Math.round(ev.meanOffsetMs)), t('rdn_res_timing')],
+        [rdnKeyName(p.key), t('rdn_res_key')],
+    ];
+    // The score and the cells are the live region: a new result is announced once, without the buttons.
+    box.innerHTML = `<div class="rdn-r-live" role="status" aria-atomic="true"><div class="rdn-r-top"><h3 id="rdn-r-score">${pct}%</h3>${rdStars(stars, stars ? undefined : t('rdn_stars_none'))}</div>` +
+        `<div class="rdn-res">${cells.map(([v, l]) => `<div><b>${e(v)}</b><span>${e(l)}</span></div>`).join('')}</div></div>` +
+        `<div class="rdn-row"><button type="button" class="btn" id="rdn-retry">${e(t('rdn_retry'))}</button>` +
+        `<button type="button" class="btn" id="rdn-listen">${e(t('rdn_listen'))}</button>` +
+        `<button type="button" class="btn primary" id="rdn-r-next">${e(t('rdn_next_btn'))}</button>` +
+        `<label class="rdn-check-pref"><input type="checkbox" id="rdn-autonext"${auto ? ' checked' : ''}> <span>${e(t('rdn_autonext'))}</span></label></div>` +
+        `<div class="rdn-auto" id="rdn-auto" hidden><span id="rdn-auto-t" aria-hidden="true"></span><span class="visually-hidden" id="rdn-auto-say" aria-live="polite"></span>` +
+        `<button type="button" class="btn ghost" id="rdn-auto-cancel">${e(t('rdn_cancel'))}</button></div>`;
+    box.hidden = false;
+    rdnVerdictShown(false);
+    // Auto-next waits until a first-sight result is saved (see srtSetState): its save is still running, or failed.
+    const state = SR.srtState, unsaved = state?.mode === 'firstSight' && !!state.attemptId && state.name !== 'saved';
+    if (startAuto && auto && stars >= 1) {
+        if (unsaved || srtPendingSaveProtected())
+            RDN.autoWait = true;
+        else
+            rdnAutoStart();
+    }
+    else if (RDN.autoTimer)
+        rdnAutoShow();
+    // Focus that was lost (on the page, or on a control that went away) goes to Next; a control the reader is on keeps it.
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || active === document.body || !active.getClientRects().length)
+        byId('rdn-r-next').focus({ preventScroll: true });
+}
+function rdnAutoShow() {
+    const row = maybeById('rdn-auto'), text = maybeById('rdn-auto-t'), say = maybeById('rdn-auto-say');
+    if (row)
+        row.hidden = !RDN.autoTimer;
+    if (text)
+        text.textContent = RDN.autoTimer ? t('rdn_auto_in', RDN.autoLeft) : '';
+    // Announced once: the number that counts down is not a live region.
+    if (say && (!RDN.autoTimer || RDN.autoLeft === 3))
+        say.textContent = RDN.autoTimer ? t('rdn_auto_say', RDN.autoLeft) : '';
+}
+/** After a first-sight result was saved: the auto-next that waited for it starts. */
+function rdnAutoAfterSave() {
+    if (!RDN.autoWait)
+        return;
+    RDN.autoWait = false;
+    if (RDN.screen === 'player' && SR.lvPiece && !maybeById('rdn-result')?.hidden && rdData().prefs.autoNext)
+        rdnAutoStart();
+}
+function rdnAutoStart() {
+    rdnAutoCancel();
+    RDN.autoLeft = 3;
+    RDN.autoTimer = window.setInterval(() => {
+        RDN.autoLeft--;
+        if (RDN.autoLeft <= 0) {
+            rdnAutoCancel();
+            rdnStep(1);
+            return;
+        }
+        rdnAutoShow();
+    }, 1000);
+    rdnAutoShow();
+}
+function rdnAutoCancel() {
+    if (RDN.autoTimer)
+        window.clearInterval(RDN.autoTimer);
+    RDN.autoTimer = 0;
+    RDN.autoWait = false;
+    rdnAutoShow();
+}
+function rdnRetry() {
+    rdnAutoCancel();
+    // Retry after a Step-by-step run goes step by step again; otherwise it is an assessed attempt.
+    if (SR.modeSel !== 'assess' && !RDN.learn)
+        srSetMode('assess');
+    srGo();
+}
+(function rdnInit() {
+    const home = maybeById('rdn-home');
+    if (!home)
+        return;
+    home.addEventListener('click', rdnHomeClick);
+    byId('rdn-home-back').addEventListener('click', () => { rdnHome(true); saveAll(); });
+    byId('rdn-back').addEventListener('click', () => rdnHome(true));
+    byId('rdn-w-back').addEventListener('click', () => rdnHome(true));
+    byId('rdn-w-flash').addEventListener('click', rdnWarmFlashClick);
+    byId('rdn-prev').addEventListener('click', () => rdnStep(-1));
+    byId('rdn-next').addEventListener('click', () => rdnStep(1));
+    // Any other control of the player stops the auto-next countdown (the result card's and the unsaved result's buttons
+    // handle it themselves).
+    const read = byId('view-read'), stopAuto = (e: Event) => {
+        if (!RDN.autoTimer && !RDN.autoWait)
+            return;
+        const el = e.target instanceof Element ? e.target.closest('button, input, select, summary, label, [role=button]') : null;
+        // Retry save keeps a waiting auto-next: it starts once the result is saved.
+        if (el && !el.closest('#rdn-result, #rd-srt-pending'))
+            rdnAutoCancel();
+    };
+    read.addEventListener('click', stopAuto, true);
+    read.addEventListener('input', stopAuto, true);
+    read.addEventListener('change', stopAuto, true);
+    const result = byId('rdn-result');
+    result.addEventListener('click', (e) => {
+        const id = eventClosest(e, 'button')?.id;
+        if (id === 'rdn-retry')
+            rdnRetry();
+        else if (id === 'rdn-listen') {
+            rdnAutoCancel();
+            srListen();
+        }
+        else if (id === 'rdn-r-next')
+            rdnStep(1);
+        else if (id === 'rdn-auto-cancel')
+            rdnAutoCancel();
+    });
+    result.addEventListener('change', (e) => {
+        const el = e.target;
+        if (!(el instanceof HTMLInputElement) || el.id !== 'rdn-autonext')
+            return;
+        rdData().prefs.autoNext = el.checked;
+        saveAll();
+        if (!el.checked)
+            rdnAutoCancel();
+    });
 })();
 /* ---------- COACHING: one short tip per surface, chosen from what is on screen and how the last attempt went ----------
    Read & play keeps a "Reading focus" line under the score (piece, mode, hands and the slips made so far) that becomes a
@@ -18037,8 +19532,9 @@ interface SyncState {
 }
 interface SyncNoBase { readonly syncNoBase?: undefined }
 const SYNC: SyncState = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_NONE: SyncNoBase = {}, SYNC_ID = /^[a-z0-9_-]{1,48}$/i; // SYNC_NONE: no shared base, so counters keep the larger side instead of adding
-const SYNC_ADD = /^(totalReviews|totalCorrect|history\.\d+|reading\.tot\.\w+|reading\.nt\..+\.(n|ok|ms)|reading\.lv\..+\.n|learnRev\..+\.n)$/;
-const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush|sv|ta|mn))$/;
+// reading.book.pieces.<id>: tries add up, the best score and the stars keep the higher side; the rest of reading.book is last-writer.
+const SYNC_ADD = /^(totalReviews|totalCorrect|history\.\d+|reading\.tot\.\w+|reading\.nt\..+\.(n|ok|ms)|reading\.lv\..+\.n|reading\.book\.pieces\..+\.tries|learnRev\..+\.n)$/;
+const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush|sv|ta|mn)|reading\.book\.pieces\..+\.(best|stars))$/;
 const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
 const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
 function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }
@@ -19036,6 +20532,7 @@ function initControls() {
                     x.setAttribute('aria-pressed', x.dataset.v === v ? 'true' : 'false');
             });
         });
+        rdnHandsHint();
         if (!SR.piece)
             return; // no melody yet: the choice applies to the next one
         const staffEl = maybeById('rd-staff');
@@ -20473,8 +21970,22 @@ Object.defineProperty(__etude, "show", { configurable: true, get: () => show, se
 Object.defineProperty(__etude, "theme", { configurable: true, get: () => theme, set: (value) => { theme = value; } });
 Object.defineProperty(__etude, "srtEvaluate", { configurable: true, value: srtEvaluate });
 Object.defineProperty(__etude, "srtGenerate", { configurable: true, value: srtGenerate });
+// For tests: the markup the engraver draws for a score, laid out for the Read paper (or a given layout).
+Object.defineProperty(__etude, "srRenderScore", { configurable: true, value: (score: SrScore, layout?: SrLayout) => srRender(score, layout ?? srPaper()).svg });
 Object.defineProperty(__etude, "srtFingerprint", { configurable: true, value: srtFingerprint });
 Object.defineProperty(__etude, "srtBuildExpected", { configurable: true, value: srtBuildExpected });
+Object.defineProperty(__etude, "RDN", { configurable: true, get: () => RDN });
+Object.defineProperty(__etude, "rdnOpen", { configurable: true, get: () => rdnOpen });
+Object.defineProperty(__etude, "rdnHome", { configurable: true, get: () => rdnHome });
+Object.defineProperty(__etude, "rdnBook", { configurable: true, get: () => rdnBook });
+Object.defineProperty(__etude, "rdnStep", { configurable: true, get: () => rdnStep });
+Object.defineProperty(__etude, "rdnRenderHome", { configurable: true, get: () => rdnRenderHome });
+Object.defineProperty(__etude, "rdnWarmupStart", { configurable: true, get: () => rdnWarmupStart });
+Object.defineProperty(__etude, "rdnToday", { configurable: true, get: () => rdnToday });
+Object.defineProperty(__etude, "rdnEnsureDailyOf", { configurable: true, get: () => rdnEnsureDailyOf, set: (value) => { rdnEnsureDailyOf = value; } });
+Object.defineProperty(__etude, "WARM", { configurable: true, get: () => WARM });
+Object.defineProperty(__etude, "RDN_WARM_MS", { configurable: true, get: () => RDN_WARM_MS });
+Object.defineProperty(__etude, "srtLevelExpected", { configurable: true, value: srtLevelExpected });
 Object.defineProperty(__etude, "srtLedgerUpdate", { configurable: true, value: srtLedgerUpdate });
 Object.defineProperty(__etude, "srtReadLedger", { configurable: true, value: srtReadLedger });
 Object.defineProperty(__etude, "srtCreateLedger", { configurable: true, value: srtCreateLedger });

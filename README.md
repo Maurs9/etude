@@ -7,8 +7,9 @@
 ## Features
 
 - Theory handbook with every lesson open in any order, and reading exercises with generated sight-reading melodies. Reading levels include eighths, dotted notes, syncopation and ties.
+- Read: sight-reading in 8 levels and 24 keys. Each level has a book of 96 generated pieces in mixed keys, any key can be pinned for a run of 20 pieces, and Today's set gives 5 new pieces a day. A piece is played at first sight after a 30-second preview, then scored for pitch, rhythm and timing. A 2-minute warm-up starts with one-bar flash cards that are shown for a moment and played from memory.
 - Pieces: 23 built-in pieces by level and your own MIDI or MusicXML files (My Library) play in one score player, with tempo, loops, hands separate, Wait for me, note names on the score and a full-window view. A run through the whole piece saves your best accuracy, also when you paused and resumed it, and a full Wait for me pass marks a built-in piece as learned.
-- Reading drills: every level is open in any order. Practice gives up to 3 stars from your last 20 answers, and the Challenge menu holds Time Attack, Survival and Marathon. Rhythm and sight-reading levels keep a graded run for their stars. Reading statistics are in Progress, under Reading.
+- Reading drills (on the Read page, under More): every level is open in any order. Practice gives up to 3 stars from your last 20 answers, and the Challenge menu holds Time Attack, Survival and Marathon. Rhythm and sight-reading levels keep a graded run for their stars. Reading statistics are in Progress, under Reading.
 - Targeted drills, with song hints for intervals and a choice of direction by ear, a play-along accompaniment loop for progressions, a scale and arpeggio technique drill, and ear training
 - Voice: sight-sing a melody from the staff with live pitch feedback, or hum one and get the notes back as MIDI or text. Keys or MIDI can answer in place of the voice.
 - Wrong answers show what you gave against the answer, with a Hear both button. Repeated mix-ups get a short contrast drill at the end of the session.
@@ -64,9 +65,9 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 
 - `etude.html` — stable application shell
 - `src/domain/` — strict TypeScript modules (`views.ts`, `views-runtime.ts`, `router.ts`, `storage.ts` with the saved-record schema and its migrations, `data-safety.ts` for persistent storage and automatic backups, `midi-timing.ts` for input event times and latency offsets, `technique.ts` and `technique-drill.ts` for the scale and arpeggio drill, `feedback.ts` for error-aware feedback, `theory.ts`, `audio.ts`, `notation.ts`, `dom.ts`)
-- `src/sight-reading/` — sight-reading generator, evaluation, ledger and notation
+- `src/sight-reading/` — sight-reading generators, evaluation, ledger and notation. The level pieces of the Read page are in `levels.ts` (levels, keys, limits), `patterns.ts`, `rules.ts`, `melody.ts` (generator), `book.ts` (books, key runs, daily set), `progress.ts` (saved state), `score.ts` (engraver tokens and timing) and `warmup.ts`
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
-- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings. Feature styles sit in their own files (`native.css`, `landscape.css`, `calibration.css`, `sight-rhythm.css`, `technique.css`, `reading.css`) instead of being appended to the order-sensitive `etude.css`.
+- `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings. Feature styles sit in their own files (`native.css`, `landscape.css`, `calibration.css`, `sight-rhythm.css`, `technique.css`, `reading.css`, `read-home.css`) instead of being appended to the order-sensitive `etude.css`.
 - `public/vendor/osmd-2.3.0.min.js`, `public/manifest.webmanifest`, `public/icons/` — static public assets and lazy-loaded OSMD 2.3.0 bundle
 - `i18n/` — supplementary multi-language pack (`de`, `es`, `fr`, `it`, `pt-BR`), runtime (`i18n/framework/`), and test suite (`i18n/tests/`)
 - `scripts/` — build (`build.mjs`, `build-standalone.mjs`, `generate-sw.mjs`), quality gates (`check-ts-suppressions.mjs`), emergency rollback (`sw-kill-switch.js`), and safe dependency updaters (`update-deps.mjs`, `update-osmd.mjs`)

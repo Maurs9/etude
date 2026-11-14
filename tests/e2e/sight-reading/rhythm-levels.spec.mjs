@@ -41,6 +41,7 @@ test.describe('Sight-reading rhythm levels', () => {
 
   test('the rhythm levels are open on a fresh save, without a star on the rests level', async ({ app }) => {
     const page = await app.open({ hash: 'read', dock: true });
+    await page.locator('#rdt-drills').click();
     for (const id of ['sr10', 'sr11', 'sr12']) {
       const button = page.locator(`#rdx-ladder .rdx-lv[data-lv="${id}"]`);
       await expect(button).not.toHaveAttribute('aria-disabled', /./);
