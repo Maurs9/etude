@@ -365,18 +365,20 @@
     transform-origin:top center;
     transition:transform .1s cubic-bezier(.25,1,.5,1), box-shadow .1s cubic-bezier(.25,1,.5,1), background .08s ease-out}
   .white .lbl{position:absolute; bottom:7px; left:0; right:0; text-align:center; font-size:9px; color:#8c816f; font-weight:700; font-family:var(--sans); letter-spacing:.02em; pointer-events:none; text-shadow:0 1px 0 rgba(255,255,255,.6)}
-  .black{position:absolute; top:0; height:64%; width:22px; border-radius:0 0 2px 2px;
-    background:linear-gradient(180deg,#0e0e0e 0%,#171717 55%,#323232 78%,#646464 88%,#3a3a3a 95%,#0a0a0a 100%);
+  /* black keys: a matte top that lightens a little towards the front, thin grey side bevels, a light seam, then a short
+     front lip; a soft shadow falls to the right onto the white keys */
+  .black{position:absolute; top:0; height:66%; width:22px; border-radius:0 0 3px 3px;
+    background:linear-gradient(90deg,#2e2e2e 0%,#181818 8%,#101010 16%,#101010 84%,#181818 92%,#2e2e2e 100%);
     border:1px solid #000; border-top:none; z-index:5;
-    box-shadow:3px 3px 4px rgba(0,0,0,.22), 1px 2px 2px rgba(0,0,0,.3), inset 1px 0 0 rgba(255,255,255,.08), inset -1px 0 0 rgba(255,255,255,.08), inset 0 -1px 0 #000;
+    box-shadow:8px 4px 9px -2px rgba(0,0,0,.34), 3px 2px 3px rgba(0,0,0,.26);
     transform-origin:top center;
     transition:transform .1s cubic-bezier(.25,1,.5,1), box-shadow .1s cubic-bezier(.25,1,.5,1), background .08s ease-out}
-  .black::before{content:""; position:absolute; top:0; left:13%; right:13%; bottom:10.5%; border-radius:0 0 2.5px 2.5px; pointer-events:none; z-index:2;
-    background:linear-gradient(180deg,#050505 0%,#0b0b0b 48%,#171717 75%,#2b2b2b 89%,#5e5e5e 97%,#787878 100%);
-    box-shadow:-1px 0 0 rgba(0,0,0,.88), 1px 0 0 rgba(0,0,0,.88), 0 1px 0 rgba(0,0,0,.75)}
-  .black::after{content:""; position:absolute; left:3.5%; right:3.5%; bottom:1.5%; height:9.5%; pointer-events:none; z-index:1;
+  .black::before{content:""; position:absolute; top:0; left:10%; right:10%; bottom:9%; border-radius:0 0 2px 2px; pointer-events:none; z-index:2;
+    background:linear-gradient(180deg,#0a0a0a 0%,#101010 60%,#171717 76%,#252525 90%,#363636 100%);
+    box-shadow:0 1px 0 rgba(255,255,255,.22)}
+  .black::after{content:""; position:absolute; left:0; right:0; bottom:0; height:9%; border-radius:0 0 2px 2px; pointer-events:none; z-index:1;
     clip-path:polygon(10% 0, 90% 0, 100% 100%, 0 100%);
-    background:linear-gradient(180deg,#4a4a4a 0%,#262626 25%,#1b1b1b 70%,#2c2c2c 90%,#0f0f0f 100%)}
+    background:linear-gradient(180deg,#5a5a5a 0%,#3a3a3a 35%,#262626 75%,#161616 100%)}
   .black[data-s]::before{background:linear-gradient(180deg,rgba(0,0,0,.2) 0%,rgba(0,0,0,.04) 65%,rgba(255,255,255,.18) 92%,rgba(255,255,255,.42) 98%,rgba(255,255,255,.2) 100%);
     box-shadow:-1px 0 0 rgba(0,0,0,.35), 1px 0 0 rgba(0,0,0,.35), 0 1px 1px rgba(0,0,0,.45)}
   .black[data-s]::after{background:linear-gradient(180deg,rgba(255,255,255,.22) 0%,rgba(0,0,0,.2) 35%,rgba(0,0,0,.42) 100%)}
