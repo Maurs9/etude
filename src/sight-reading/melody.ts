@@ -35,9 +35,10 @@ const MAJOR_STEPS = [0, 2, 4, 5, 7, 9, 11];
 const MINOR_STEPS = [0, 2, 3, 5, 7, 8, 10];
 const mod7 = (value: number): number => ((value % 7) + 7) % 7;
 
-type Random = () => number;
+export type Random = () => number;
 
-function mulberry32(seed: number): Random {
+/** mulberry32: a seeded random generator. The same seed always gives the same numbers. */
+export function mulberry32(seed: number): Random {
   let value = seed >>> 0;
   return () => {
     value = (value + 0x6d2b79f5) >>> 0;
@@ -143,7 +144,8 @@ const UPBEAT: Readonly<Record<string, readonly Cell[]>> = {
   '6/8': [cell(7, '-dq -q e')],
 };
 const METER_WEIGHT: Readonly<Record<string, number>> = { '4/4': 4, '3/4': 2, '2/4': 1.5, '3/8': 1.5, '6/8': 2.5 };
-const meterKey = (meter: ReadingMeter): string => `${meter.num}/${meter.den}`;
+/** A meter as text, such as 3/4. */
+export const meterKey = (meter: ReadingMeter): string => `${meter.num}/${meter.den}`;
 
 function planRhythm(level: ReadingLevel, meter: ReadingMeter, bars: number, upbeat: boolean, repeat: boolean, random: Random): readonly (readonly number[])[] {
   const key = meterKey(meter);

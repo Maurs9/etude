@@ -2,7 +2,7 @@
 // like a graded sight-reading page. They are decoration only: the notes, the scoring and the fingerprint never read them.
 import { srtLevelFingerprint } from './fingerprint.js';
 import { srtLevel, srtMeterTicks } from './levels.js';
-import { srtHashText } from './melody.js';
+import { mulberry32, srtHashText, type Random } from './melody.js';
 import { TICKS_PER_QUARTER, type SightReadingHand } from './model.js';
 import { srtHandLine, srtMelodyLine, type LineNote } from './patterns.js';
 import type { GeneratedPiece } from './rules.js';
@@ -25,24 +25,12 @@ export type LevelMarkings = {
 type Mark = LevelMarkings['dynamics'][number]['mark'];
 type Finger = LevelMarkings['fingering'][number]['finger'];
 type Section = { readonly level: number; readonly startBar: number; readonly bars: number };
-type Random = () => number;
 
 const QUARTER = 480;
 const EIGHTH = 240;
 const HANDS: readonly SightReadingHand[] = ['rh', 'lh'];
 const PHRASE = 4;
 const beatOf = (tick: number): number => tick / TICKS_PER_QUARTER;
-
-/** mulberry32: the same seed always gives the same marks. */
-function random32(seed: number): Random {
-  let value = seed >>> 0;
-  return () => {
-    value = (value + 0x6d2b79f5) >>> 0;
-    let result = Math.imul(value ^ (value >>> 15), 1 | value);
-    result ^= result + Math.imul(result ^ (result >>> 7), 61 | result);
-    return ((result ^ (result >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 const pick = <T>(random: Random, list: readonly T[]): T => list[Math.floor(random() * list.length)];
 
@@ -123,7 +111,7 @@ function rampMarks(count: number): readonly Mark[] {
  * gets a dynamic at every section start.
  */
 export function srtLevelMarkings(piece: GeneratedPiece): LevelMarkings {
-  const random = random32(srtHashText(`marks|${piece.seed}|${srtLevelFingerprint(piece)}`));
+  const random = mulberry32(srtHashText(`marks|${piece.seed}|${srtLevelFingerprint(piece)}`));
   const { bar, beat: meterBeat } = srtMeterTicks(piece.meter);
   const sections = sectionsOf(piece);
   const long = sections.length > 1 || (piece as { readonly sections?: unknown }).sections !== undefined;

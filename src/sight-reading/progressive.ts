@@ -4,7 +4,7 @@ import {
   srtDeepFreeze, srtKeyPool, srtLevel, srtMeterTicks, srtReadingKey,
   type ReadingKey, type ReadingLevelId, type ReadingMeter,
 } from './levels.js';
-import { srtGenerateLevelPiece, srtHashText } from './melody.js';
+import { meterKey, srtGenerateLevelPiece, srtHashText } from './melody.js';
 import type { SightReadingEvent, SightReadingHand } from './model.js';
 import type { PlannedPiece } from './patterns.js';
 import { srtDifficulty, srtRuleViolations, srtSubBand, type GeneratedPiece, type RuleId } from './rules.js';
@@ -25,7 +25,6 @@ export const SRT_LONG_MAX_BARS = 48;
 
 type PlanStep = { readonly level: number; readonly third: 0 | 1 | 2 };
 const HANDS: readonly SightReadingHand[] = ['rh', 'lh'];
-const meterKey = (meter: ReadingMeter): string => `${meter.num}/${meter.den}`;
 
 function inPool(levelId: number, key: ReadingKey): boolean {
   return srtKeyPool(levelId).some((candidate) => candidate.id === key.id);
