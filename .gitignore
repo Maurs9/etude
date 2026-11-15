@@ -6,3 +6,16 @@ __pycache__/
 *.py[cod]
 dist/
 MIDI/
+android-twa/*.keystore
+android-twa/*.jks
+android-twa/*.apk
+android-twa/*.aab
+android-twa/app/
+android-twa/gradle/
+android-twa/.gradle/
+android-twa/build/
+android-twa/gradlew
+android-twa/gradlew.bat
+android-twa/build.gradle
+android-twa/gradle.properties
+android-twa/settings.gradle

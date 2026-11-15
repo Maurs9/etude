@@ -1,0 +1,163 @@
+name: Android TWA Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Release version (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+      version_code:
+        description: 'Android integer versionCode (must increase for every update)'
+        required: true
+        default: '1'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli@1.27.0
+
+      - name: Configure Bubblewrap paths
+        run: |
+          bubblewrap updateConfig \
+            --jdkPath="$JAVA_HOME" \
+            --androidSdkPath="$ANDROID_SDK_ROOT"
+
+      - name: Validate signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASS" ] || [ -z "$KEY_PASS" ]; then
+            echo "::error::Missing signing secrets. Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, and ANDROID_KEY_PASSWORD (and optional ANDROID_KEY_ALIAS, default 'etude') in Repo Settings -> Secrets and variables -> Actions. See docs/runbooks/android-twa.md."
+            exit 1
+          fi
+
+      - name: Decode signing keystore
+        working-directory: android-twa
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 --decode > android.keystore
+
+      - name: Resolve version and update twa-manifest.json
+        working-directory: android-twa
+        env:
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          node - <<'EOF'
+          const fs = require('node:fs');
+          const refName = process.env.GITHUB_REF_NAME || '';
+          const isTag = process.env.GITHUB_REF_TYPE === 'tag';
+          const versionName = isTag
+            ? refName.replace(/^v/, '')
+            : (process.env.INPUT_VERSION_NAME || '1.0.0').replace(/^v/, '');
+          const versionCode = isTag
+            ? Number(process.env.GITHUB_RUN_NUMBER || 1)
+            : Number(process.env.INPUT_VERSION_CODE || process.env.GITHUB_RUN_NUMBER || 1);
+          const alias = process.env.KEY_ALIAS || 'etude';
+
+          const manifest = JSON.parse(fs.readFileSync('twa-manifest.json', 'utf8'));
+          manifest.appVersionName = versionName;
+          manifest.appVersion = versionName;
+          manifest.appVersionCode = versionCode;
+          manifest.signingKey = { path: './android.keystore', alias };
+          fs.writeFileSync('twa-manifest.json', JSON.stringify(manifest, null, 2) + '\n');
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version_name=${versionName}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version_code=${versionCode}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag_name=v${versionName}\n`);
+          EOF
+        id: meta
+
+      - name: Generate Android TWA project and build APK/AAB
+        working-directory: android-twa
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          bubblewrap update --skipVersionUpgrade --manifest=twa-manifest.json
+          bubblewrap build --skipPwaValidation --manifest=twa-manifest.json
+
+      - name: Extract SHA-256 fingerprint and generate assetlinks.json
+        working-directory: android-twa
+        env:
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          ALIAS="${KEY_ALIAS:-etude}"
+          SHA256=$(keytool -list -v -keystore android.keystore -alias "$ALIAS" -storepass "$KEYSTORE_PASS" \
+            | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)
+          if [ -z "$SHA256" ]; then
+            echo "::error::Could not extract SHA-256 fingerprint from android.keystore for alias '$ALIAS'."
+            exit 1
+          fi
+          cat <<EOF > assetlinks.json
+          [
+            {
+              "relation": ["delegate_permission/common.handle_all_urls"],
+              "target": {
+                "namespace": "android_app",
+                "package_name": "io.github.maurs9.etude",
+                "sha256_cert_fingerprints": [
+                  "$SHA256"
+                ]
+              }
+            }
+          ]
+          EOF
+          echo "### Digital Asset Links (\`assetlinks.json\`)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Host this at \`https://maurs9.github.io/.well-known/assetlinks.json\` (in repo \`Maurs9/maurs9.github.io\`):" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat assetlinks.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stage release artifacts
+        working-directory: android-twa
+        run: |
+          mkdir -p release-assets
+          cp app-release-signed.apk "release-assets/etude-android-v${{ steps.meta.outputs.version_name }}.apk"
+          cp app-release-bundle.aab "release-assets/etude-android-v${{ steps.meta.outputs.version_name }}.aab"
+          cp assetlinks.json release-assets/assetlinks.json
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: "Étude Android v${{ steps.meta.outputs.version_name }}"
+          generate_release_notes: true
+          files: |
+            android-twa/release-assets/etude-android-v${{ steps.meta.outputs.version_name }}.apk
+            android-twa/release-assets/etude-android-v${{ steps.meta.outputs.version_name }}.aab
+            android-twa/release-assets/assetlinks.json
