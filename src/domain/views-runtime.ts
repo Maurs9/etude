@@ -21252,8 +21252,11 @@ function initControls() {
                 const header = document.querySelector('header') || document.body;
                 const topLimit = Math.max(0, header.getBoundingClientRect().bottom) + byId('an-tbwrap').getBoundingClientRect().height;
                 const clipDock = work.top < dockTop && work.bottom > dockTop && work.bottom > 0;
+                // A negative top means the reader has scrolled past the start of the score.
+                // Keep that reading position, even if the score's lower edge is still visible.
+                const atScore = work.top >= 0 && work.top < dockTop;
                 const clipTop = work.top < topLimit - 2 && work.bottom > topLimit + 8;
-                if (AN.notes.length && !PC_STAGE.on && (flipped || clipDock || clipTop))
+                if (AN.notes.length && !PC_STAGE.on && (clipDock || (atScore && (flipped || clipTop))))
                     anFocusStage();
                 else if (PC_STAGE.on)
                     window.scrollTo(0, 0);

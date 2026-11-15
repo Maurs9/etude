@@ -85,8 +85,19 @@ test.describe('Read at the piano', () => {
     await expect(page.locator('#rdn-auto')).toBeHidden();
   });
 
+  test('a long piece in a newly introduced key starts in its own level', async ({ app, page }) => {
+    await app.open({ hash: 'read', saved: withBook({ level: 3, focusKey: 'D' }) });
+    await page.locator('#rdn-plan-long').click();
+    const piece = await page.evaluate(() => ({ key: window.__etude.SR.lvPiece.key.id, sections: window.__etude.SR.lvPiece.sections }));
+    expect(piece.key).toBe('D');
+    expect(piece.sections.map(sec => sec.level)).toEqual([3, 3, 3, 3]);
+    expect(piece.sections[0].third).toBe(0);
+    expect(piece.sections.at(-1).third).toBe(2);
+  });
+
+  // C belongs to the earlier levels, so this test always exercises a ramp across levels.
   test('a long piece: opens from the plan, rises through its sections, is saved, and Next brings another', async ({ app, page }) => {
-    await app.open({ hash: 'read', saved: withBook({ level: 3 }) });
+    await app.open({ hash: 'read', saved: withBook({ level: 3, focusKey: 'C' }) });
     await expect(page.locator('#rdn-plan-long')).toHaveAttribute('data-done', 'false');
     await page.locator('#rdn-plan-long').click();
     await expect(page.locator('#rdn-p-title')).toHaveText(en.rdn_long);

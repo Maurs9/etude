@@ -89,7 +89,12 @@ test('/etude/ opens the app, keeping the query and the hash', async ({ page }) =
   const errors = [], failed = [];
   page.on('pageerror', err => errors.push(err.message));
   page.on('response', res => { if (res.url().startsWith(base) && res.status() >= 400) failed.push(`${res.status()} ${res.url()}`); });
-  page.on('requestfailed', req => { if (req.url().startsWith(base)) failed.push(`failed ${req.url()}`); });
+  page.on('requestfailed', req => {
+    // The entry document replaces itself with etude.html. Chromium may report that
+    // successful client-side redirect as an aborted navigation before its body finishes.
+    const entryRedirect = req.isNavigationRequest() && req.url() === base + '?from=test' && req.failure()?.errorText === 'net::ERR_ABORTED';
+    if (req.url().startsWith(base) && !entryRedirect) failed.push(`failed ${req.url()}`);
+  });
   await page.goto(base + '?from=test#explore');
   await expect(page).toHaveURL(base + 'etude.html?from=test#explore');
   await booted(page);
