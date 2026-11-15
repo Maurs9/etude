@@ -50,7 +50,7 @@ URLs and outputs:
 - Before `npm run test:dev`, run `npm run build:standalone`; standalone specs require that artifact even when testing the development server.
 - Run the complete automated validation with `npm run typecheck && npm run lint && npm run test:unit && npm run test:i18n && npm run build && npm test && npm run test:dev`.
 
-Use a full-history checkout for unit tests: `tests/unit/split-etude.test.mjs` reads the immutable `32a184b:etude.html` anchor.
+Use a full-history checkout for unit tests: `tests/unit/split-etude.test.mjs` reads the immutable `32a184b:etude.html` anchor. On Windows, use LF line endings (`git config core.autocrlf false`) so `tests/unit/ci-config.test.mjs` and `tests/unit/locale-loader.test.mjs` do not fail on `\r\n` mismatches.
 
 ## 3. Directory Map
 
@@ -82,8 +82,10 @@ Use a full-history checkout for unit tests: `tests/unit/split-etude.test.mjs` re
 | `tests/e2e/` | Playwright integration and browser tests, named `*.spec.mjs`. |
 | `tests/helpers/` | Shared browser fixtures and score-audit helpers. |
 | `tests/fixtures/`, `tests/golden/` | Input fixtures, storage compatibility records, and reviewed baselines. |
-| `docs/plans/`, `docs/runbooks/`, `docs/performance/` | Architecture plans, device/recovery procedures, and benchmark evidence. |
+| `docs/plans/`, `docs/runbooks/`, `docs/performance/` | Architecture plans, device/recovery/Android-TWA procedures, and benchmark evidence. |
+| `android-twa/twa-manifest.json` | Bubblewrap Trusted Web Activity configuration (`io.github.maurs9.etude`) wrapping the live GitHub Pages PWA. |
 | `.github/workflows/test.yml` | Validation and GitHub Pages deployment. |
+| `.github/workflows/android-release.yml` | Android TWA `.apk`/`.aab` build and GitHub Release workflow (triggered on `v*` tags or `workflow_dispatch`). |
 
 Keep new UI behavior in the existing DOM/view architecture. Do not invent React components, API routes, ORM schemas, or server infrastructure.
 
@@ -152,7 +154,8 @@ Keep new UI behavior in the existing DOM/view architecture. Do not invent React 
 - Preserve piano recordings and the pinned OSMD bundle during unrelated work.
 - Never rewrite historical storage migrations or the pre-split invariant anchor. Append a migration when persisted format changes.
 - Never hand-edit `package-lock.json`. Update it through npm only for an intentional dependency change.
-- Never commit credentials, `.env` secrets, personal score libraries, or user backup exports.
+- Never commit credentials, `.env` secrets, Android release keystores (`.keystore`/`.jks`), `.apk`/`.aab` binaries, personal score libraries, or user backup exports.
+- Preserve `packageId` (`io.github.maurs9.etude`) and `signingKey` in `android-twa/twa-manifest.json` across updates; Digital Asset Links live at `Maurs9/maurs9.github.io/.well-known/assetlinks.json`.
 - Do not force-add ignored files or overwrite another session's changes.
 
 ### Dependencies and architecture
@@ -184,15 +187,15 @@ Keep new UI behavior in the existing DOM/view architecture. Do not invent React 
 - Preserve relative asset paths, exact filename casing, the `/etude/` deployment layout, and standalone `file://` behavior.
 - For performance work, compare equivalent profiles using `docs/performance/README.md`; run benchmarks without concurrent builds or browser suites.
 - Never stop a server you did not start. Avoid concurrent builds that write the same `dist/` directory.
-- Follow `.github/copilot-instructions.md`: the owner pushes through GitHub Desktop from another account. Keep completed work local; do not retry denied pushes or work around repository permissions.
-- Do not add another Pages deployment workflow. The existing Tests workflow publishes only after all required jobs pass.
+- Push to `origin` when the current machine has write access and the task requests it; if `git push` is denied (403/404 on read-only environments), keep completed work local and do not retry denied pushes or work around repository permissions.
+- Do not add another Pages deployment workflow. The existing Tests workflow publishes only after all required jobs pass (`.github/workflows/android-release.yml` only builds Android release binaries).
 
 ## 7. Workflow Protocol
 
-1. **Understand:** Read this file, applicable nested instructions, `.github/copilot-instructions.md`, relevant code, tests, and plans. Inspect `git status`; preserve unrelated work. Use executable configs and tests to resolve stale documentation.
+1. **Understand:** Read this file, applicable nested instructions, relevant code, tests, and plans. Inspect `git status`; preserve unrelated work. Use executable configs and tests to resolve stale documentation.
 2. **Plan:** Identify the owning modules, behavior change, compatibility risks, and required checks. Keep scope limited to the requested task.
 3. **Implement:** Add the regression test when applicable, make the smallest coherent change, update authoritative inputs, and regenerate derived files through their scripts.
 4. **Type-check and lint:** Run `npm run typecheck` and `npm run lint`; fix causes without weakening gates.
 5. **Test:** Run focused tests first, then unit, localization, build, built-site E2E, and development E2E checks. Build standalone output before development E2E. Run relevant golden, worker, and locale-generation checks.
 6. **Review:** Inspect the final diff and `git diff --check`. Confirm compatibility, asset paths, localization, and absence of generated artifacts or accidental dependency changes.
-7. **Complete:** Report what changed, commands run, results, and remaining device checks or blockers. Do not claim unrun checks passed. Keep commits scoped on the local session branch and tell the owner when work is ready for GitHub Desktop.
+7. **Complete:** Report what changed, commands run, results, and remaining device checks or blockers. Do not claim unrun checks passed. Keep commits scoped; push if requested and permitted, otherwise leave local commits ready to push.
