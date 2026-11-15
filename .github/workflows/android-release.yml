@@ -48,9 +48,14 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
           echo "$SDK_DIR/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$SDK_DIR/platform-tools" >> "$GITHUB_PATH"
-          bubblewrap updateConfig \
-            --jdkPath="$JAVA_HOME" \
-            --androidSdkPath="$SDK_DIR"
+          mkdir -p "$HOME/.bubblewrap"
+          cat <<EOF > "$HOME/.bubblewrap/config.json"
+          {
+            "jdkPath": "$JAVA_HOME",
+            "androidSdkPath": "$SDK_DIR"
+          }
+          EOF
+          bubblewrap doctor
 
       - name: Validate signing secrets
         env:
