@@ -1,5 +1,6 @@
 
   :root{
+    color-scheme:light dark;
     --paper:#f7f3ec; --paper2:#fffdf8; --card:#fffdf8;
     --ink:#1a1714; --ink2:#3f3a32; --muted:#6b6358; --faint:#6e665a;
     --accent:#8c2b2b;          /* claret */
@@ -19,7 +20,9 @@
     --work-max:1680px;
     --page-gutter:clamp(16px, 2.5vw, 32px);
   }
+  :root[data-theme=light]{color-scheme:only light}
   :root[data-theme=dark]{
+    color-scheme:dark;
     --paper:#171412; --paper2:#201c18; --card:#211d19;
     --ink:#ece5d8; --ink2:#cfc6b6; --muted:#9d9384; --faint:#918778;
     --accent:#c96a58; --accent-ink:#2b120d;
@@ -439,6 +442,7 @@
   .tr-note .dl{font-size:11px; color:var(--muted); font-weight:700}
   /* sight-singing & score staff: authentic paper sheet */
   .ss-wrap{
+    color-scheme:only light;
     --staffink:#1a1714;
     --gold:#8d6b26;
     margin-top:14px;
@@ -451,6 +455,10 @@
     box-shadow:0 2px 10px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
     padding:10px 14px;
   }
+  .ss-wrap,
+  .ss-wrap svg,
+  body[data-stage=immersive] #rd-staff,
+  body[data-stage=immersive] #rd-staff svg{color-scheme:only light}
   .ss-brace{fill:none; stroke:var(--staffink); stroke-width:2.4; stroke-linecap:round}
   .ss-svg{display:block}
   .ss-line{stroke:var(--staffink); stroke-opacity:.62}
@@ -699,6 +707,11 @@
   .an-sheet > div:last-child{margin-bottom:0}
   .an-score[data-look="night"] .an-sheet > div{background:#1d1a17; box-shadow:0 0 0 1px #2e2a25, 0 14px 32px -14px rgba(0,0,0,.9)}
   .an-score.is-loading .an-sheet:empty{width:min(794px, 100%); aspect-ratio:210 / 297; background:#fffefa; box-shadow:0 1px 2px rgba(0,0,0,.16), 0 12px 30px -14px rgba(0,0,0,.5)}
+  .an-score[data-look="paper"],
+  .an-score[data-look="paper"] .an-sheet,
+  .an-score[data-look="paper"] .an-sheet > div,
+  .an-score[data-look="paper"] svg,
+  .an-score.is-loading .an-sheet:empty{color-scheme:only light}
   .an-score.is-loading .an-sheet:empty::before{content:""; display:block; height:150px; margin:96px 8% 0; opacity:.55; background:repeating-linear-gradient(#cfc8bb 0 1px, transparent 1px 8px) 0 0/100% 33px no-repeat, repeating-linear-gradient(#cfc8bb 0 1px, transparent 1px 8px) 0 84px/100% 33px no-repeat}
   /* playback position: one thin blue line through the system (width set from the zoom); paused or stopped it stays, subdued */
   .sc-cursor{position:absolute; left:0; top:0; z-index:2; width:2px; pointer-events:none; background:none; border-left:2px solid #1a6fe0; opacity:.42; will-change:transform; transition:opacity .15s}
@@ -1497,7 +1510,7 @@
    shows the rest below a divider: plain toggles first, then the named controls (hands, zoom, look, view), one per row
    with their own aria-label as the row's name above them and their buttons sharing the width. This replaces the sideways-scrolling row used up to now. */
   .btn.tb-more{display:none}
-  @media (max-width:860px){
+  @media (max-width:860px), (orientation: landscape) and (max-height: 560px) and (max-width: 1020px){
     .an-tb{flex-wrap:wrap; overflow:visible; gap:0 2px; padding:5px 6px; -webkit-mask-image:none; mask-image:none}
     .an-tb > .tb-g,.an-tb > .tb-end{display:contents}
     .an-tb .tb-sep{display:none}
@@ -1526,4 +1539,20 @@
     .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button:first-of-type{border-radius:10px 0 0 10px; margin-left:0}
     .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button:last-of-type{border-radius:0 10px 10px 0}
     .an-tb.is-more #an-mode .lbl{position:static; width:auto; height:auto; overflow:visible; clip:auto}
+  }
+  @media (orientation: landscape) and (max-height: 560px){
+    :has(#view-analysis.active) .keys{height:clamp(60px, 18dvh, 76px)}
+    .an-tb{padding:3px 6px}
+    .an-tb .btn.tb-b,.an-tb .btn.tb-b[data-core],.an-tb .tb-speed select{height:34px}
+    .an-tb .btn.tb-b,.an-tb .btn.tb-b[data-core]{min-width:34px}
+    .an-tb .btn.tb-play{min-width:40px}
+    .an-tl{height:30px; padding:0 10px; gap:8px; font-size:11px}
+    .tl-track{height:22px}
+    .an-status{min-height:24px; padding:3px 10px; gap:2px 8px; font-size:11px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none}
+    .an-status > *{flex:none}
+    .st-hint{display:none}
+    .an-score{padding:6px 10px 10px}
+    .an-sheet > div{margin-bottom:12px}
+    .an-work{height:max(min(200px, 50dvh), calc(100dvh - var(--hdr-h) - var(--dock-h) - var(--an-tb-h) - var(--an-low) - 2px))}
+    .an-fab{min-height:34px; padding:0 11px 0 9px; font-size:12px; right:10px; bottom:calc(var(--dock-h) + var(--an-sb-h) + 34px)}
   }

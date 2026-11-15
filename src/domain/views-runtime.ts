@@ -14494,6 +14494,7 @@ async function scoreRender()  {
 }
 // View, zoom and appearance only need a new layout, not a new load; selection, cursor and highlights are repainted afterwards.
 // Page view: A4 sheets on the desk, as wide as 794 px × zoom but never wider than the desk (the music reflows instead of panning).
+const SCORE_BASE_MARGINS = new WeakMap<object, { top?: number; title?: number }>();
 function scoreLayout() {
     const engine = SCORE.engine, box = byId('an-roll');
     if (!engine)
@@ -14505,6 +14506,15 @@ function scoreLayout() {
         return;
     }
     const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R: ScoreEngravingRules = {}, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
+    let baseMargins = SCORE_BASE_MARGINS.get(engine);
+    if (!baseMargins) {
+        const cur = engine.readRules();
+        baseMargins = {
+            top: typeof cur.PageTopMargin === 'number' ? cur.PageTopMargin : undefined,
+            title: typeof cur.TitleTopDistance === 'number' ? cur.TitleTopDistance : undefined,
+        };
+        SCORE_BASE_MARGINS.set(engine, baseMargins);
+    }
     box.dataset.layout = SCORE.layout;
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const sourceLayout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
@@ -14513,6 +14523,17 @@ function scoreLayout() {
     engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: cont ? 'Endless' : 'A4_P', renderSingleHorizontalStaffline: cont, drawTitle: !cont, drawSubtitle: !cont, drawComposer: !cont, drawLyricist: !cont });
     if (!cont && sourceLayout)
         engine.setCustomPageFormat(sourceLayout.pageWidth, sourceLayout.pageHeight);
+    const landShort = !cont && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
+    if (landShort) {
+        R.PageTopMargin = Math.min(baseMargins.top ?? 6, 1.5);
+        R.TitleTopDistance = Math.min(baseMargins.title ?? 4, 1.2);
+    }
+    else {
+        if (baseMargins.top != null)
+            R.PageTopMargin = baseMargins.top;
+        if (baseMargins.title != null)
+            R.TitleTopDistance = baseMargins.title;
+    }
     R.StaffLineColor = look.staff;
     R.RenderMeasureNumbersOnlyAtSystemStart = !cont;
     R.MeasureNumberLabelOffset = cont ? 1 : 2;
@@ -16430,10 +16451,24 @@ function anKeysShown() { return view0() === 'analysis' && dockShown(); }
 function anKeepPlace() {
     const stage = byId('an-stage'), r = stage.getBoundingClientRect(), root = document.documentElement;
     const header = document.querySelector('header') || document.body;
+    const headBefore = header.getBoundingClientRect().height;
+    const tbBefore = byId('an-tbwrap').getBoundingClientRect().height;
     const below = r.height > 0 && r.bottom < (header.getBoundingClientRect().bottom + innerHeight) / 2; // same split in both states, so a round trip returns to the same place
+    const atStageTop = !below && r.top <= headBefore + tbBefore + 4;
     root.style.overflowAnchor = 'none'; // the browser's own scroll anchoring would hold the score and push what follows down
-    return () => { const now = stage.getBoundingClientRect(), d = below ? now.bottom - r.bottom : now.top - r.top; if (Math.abs(d) >= .5)
-        window.scrollBy(0, d); requestAnimationFrame(() => { root.style.overflowAnchor = ''; }); };
+    return () => {
+        const now = stage.getBoundingClientRect();
+        const headAfter = header.getBoundingClientRect().height;
+        if (atStageTop && Math.abs(headAfter - headBefore) > 2) {
+            anFocusStage();
+        }
+        else {
+            const d = below ? now.bottom - r.bottom : now.top - r.top;
+            if (Math.abs(d) >= .5)
+                window.scrollBy(0, d);
+        }
+        requestAnimationFrame(() => { root.style.overflowAnchor = ''; });
+    };
 }
 // The score viewport is sized in CSS from these: 100dvh − header − toolbar − status bar − dock (when shown).
 function anLayoutVars() {
@@ -16478,7 +16513,7 @@ function anPinToolbar() {
         tb.classList.remove('is-floating');
         return;
     }
-    const header = document.querySelector('header') || document.body, headBottom = header.getBoundingClientRect().bottom;
+    const header = document.querySelector('header') || document.body, headBottom = Math.max(0, header.getBoundingClientRect().bottom);
     const source = byId('an-src').getBoundingClientRect(), section = byId('view-analysis').getBoundingClientRect();
     const pin = source.bottom <= headBottom + 1 && section.bottom > headBottom + tb.offsetHeight + 12;
     if (pin) {
@@ -16497,8 +16532,11 @@ function anFocusStage(smooth = false) {
     anLayoutVars();
     const header = document.querySelector('header') || document.body;
     const y = byId('an-stage').getBoundingClientRect().top + window.scrollY - header.getBoundingClientRect().height - byId('an-tbwrap').getBoundingClientRect().height;
-    if (Math.abs(window.scrollY - y) > 1)
+    if (Math.abs(window.scrollY - y) > 1) {
         window.scrollTo({ top: Math.max(0, Math.round(y)), behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
+        if (!smooth)
+            anPinToolbar();
+    }
 }
 /* status bar: the position text is not a live region (no announcements while playing); selection changes are announced once, debounced */
 function anTempoAt(beat: number) { let bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
@@ -21177,9 +21215,13 @@ function initControls() {
         openHelp(false);
     } });
     let rz: ReturnType<typeof setTimeout> | null = null;
+    let lastPortrait = window.innerHeight >= window.innerWidth;
     function handleScreenChange() {
         clearTimeout(rz ?? undefined);
         rz = setTimeout(() => {
+            const portrait = window.innerHeight >= window.innerWidth;
+            const flipped = portrait !== lastPortrait;
+            lastPortrait = portrait;
             if (!byId('mobileMenu').hidden && getComputedStyle(byId('menuBtn')).display === 'none') {
                 const hadFocus = byId('mobileMenu').contains(document.activeElement);
                 closeMobileMenu();
@@ -21204,10 +21246,17 @@ function initControls() {
             if (view0() === 'analysis') {
                 anLayoutVars();
                 anStageFit();
-                // Re-align a visible score obscured by the dock, not a user reading elsewhere.
-                const work = byId('an-work').getBoundingClientRect(), dock = byId('dock').getBoundingClientRect();
-                if (AN.notes.length && document.body.classList.contains('kb') && work.top < dock.top && work.bottom > dock.top && work.bottom > 0)
+                // Re-align on orientation flip or when a visible score is obscured by the toolbar or dock, not a user reading elsewhere.
+                const work = byId('an-work').getBoundingClientRect();
+                const dockTop = document.body.classList.contains('kb') ? byId('dock').getBoundingClientRect().top : window.innerHeight;
+                const header = document.querySelector('header') || document.body;
+                const topLimit = Math.max(0, header.getBoundingClientRect().bottom) + byId('an-tbwrap').getBoundingClientRect().height;
+                const clipDock = work.top < dockTop && work.bottom > dockTop && work.bottom > 0;
+                const clipTop = work.top < topLimit - 2 && work.bottom > topLimit + 8;
+                if (AN.notes.length && !PC_STAGE.on && (flipped || clipDock || clipTop))
                     anFocusStage();
+                else if (PC_STAGE.on)
+                    window.scrollTo(0, 0);
             }
         }, 100);
     }
