@@ -49,8 +49,8 @@ jobs:
           echo "$SDK_DIR/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$SDK_DIR/platform-tools" >> "$GITHUB_PATH"
           yes | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-          "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "build-tools;34.0.0" "platforms;android-34"
-          ls -la "$SDK_DIR"
+          "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "build-tools;36.1.0" "platforms;android-36"
+          ln -sfn "$SDK_DIR/cmdline-tools/latest/bin" "$SDK_DIR/bin"
           mkdir -p "$HOME/.bubblewrap"
           cat <<EOF > "$HOME/.bubblewrap/config.json"
           {
@@ -58,7 +58,7 @@ jobs:
             "androidSdkPath": "$SDK_DIR"
           }
           EOF
-          bubblewrap doctor || true
+          bubblewrap doctor
 
       - name: Validate signing secrets
         env:
