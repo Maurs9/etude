@@ -1314,6 +1314,8 @@ const payload: UIPayload = {
       "an_deg_dia": "diatonic",
       "an_deg_chr": "chromatic",
       "an_role_root": "root",
+      "an_role_2nd": "suspended 2nd",
+      "an_role_4th": "suspended 4th",
       "an_role_3rd": "chord 3rd",
       "an_role_5th": "chord 5th",
       "an_role_7th": "chord 7th",

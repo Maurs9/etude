@@ -15306,11 +15306,12 @@ function anSelChordHTML(a: ChordSelectionAnalysis) {
     let body = '';
     if (a.segs.length) {
         body = `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${a.segs.map((s) => {
-            const lab = anChordLabel(s, key), rn = anRoman(key, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
+            const sKey = anKeyAt(s.start);
+            const lab = anChordLabel(s, sKey), rn = anRoman(sKey, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
             const inv = anInv(s), slash = s.bass !== s.ch.root;
-            const fn = [anFunctionOf(key, s, rn), open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + (s.bass ?? 0), key)) : ''].filter(Boolean).join(' · ');
-            const alts = s.ch.alts.map((alt) => spellName(60 + alt.root, key) + alt.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
-            const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, key), cad = s.cad ? t('an_cad_' + s.cad) : '';
+            const fn = [anFunctionOf(sKey, s, rn), open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + (s.bass ?? 0), sKey)) : ''].filter(Boolean).join(' · ');
+            const alts = s.ch.alts.map((alt) => spellName(60 + alt.root, sKey) + alt.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, sKey);
+            const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, sKey), cad = s.cad ? t('an_cad_' + s.cad) : '';
             return `<li><div class="an-sel-ch" data-conf="${esc(conf)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</div>${cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : ''}</li>`;
         }).join('')}</ul>`;
     } else if (a.directChord) {
@@ -15385,7 +15386,9 @@ function anRenderNow() {
     else
         html += `<div class="an-prog" role="group" aria-label="${esc(t('an_prog_label'))}">${anRowsHTML(segs)}</div>`;
     const fe = document.activeElement;
-    const k = (fe instanceof HTMLElement || fe instanceof SVGElement) && body.contains(fe) ? fe.dataset.k : null;
+    const inBody = (fe instanceof HTMLElement || fe instanceof SVGElement) && body.contains(fe);
+    const k = inBody ? fe.dataset.k : null;
+    const wasNb = fe instanceof HTMLElement && body.contains(fe) && fe.classList.contains('an-nb-btn');
     body.innerHTML = html;
     SIDE.nowSig = sig;
     AN.playSig = '';
@@ -15396,6 +15399,13 @@ function anRenderNow() {
     if (k) {
         const el = queryHtml(body, '.an-ch[data-k="' + k + '"]');
         (el || byId('an-now')).focus({ preventScroll: true });
+    }
+    else if (wasNb) {
+        const el = queryHtml(body, '.an-nb-btn[data-nb-idx]');
+        (el || byId('an-now')).focus({ preventScroll: true });
+    }
+    else if (inBody) {
+        byId('an-now').focus({ preventScroll: true });
     }
     const both = new Set(notes.map(anHandOf)).size > 1, hb = byId('an-now-hands').children;
     acts.forEach((b) => { b.disabled = !notes.length; });
@@ -15419,7 +15429,7 @@ function anNowAnnounce(f: AnPanelFocus, head: string, segs: AnPanelSpanRow[], se
         } else if (selAnalysis.kind === 'interval') {
             txt += ': ' + intervalLabel(Math.abs(selAnalysis.semitones));
         } else if (selAnalysis.segs.length) {
-            const s = selAnalysis.segs[0], key = selAnalysis.key, rn = anRoman(key, s);
+            const s = selAnalysis.segs[0], key = anKeyAt(s.start), rn = anRoman(key, s);
             txt += ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ');
         } else if (selAnalysis.directChord) {
             const dc = selAnalysis.directChord;

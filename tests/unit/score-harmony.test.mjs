@@ -193,6 +193,42 @@ describe('analyzeScoreSelection for isolated notes, intervals, and partial chord
     const labelTemplate = sel.segs[0]?.ch.c ?? sel.directChord?.template;
     expect(labelTemplate?.s).toBe(AN_CHORDS[0].s); // major triad, not maj7
   });
+
+  it('assigns quality-aware roles for sus4, sus2, and power chords instead of labeling them chord 3rd', () => {
+    const sus4Notes = [note(48, 0, 4), note(53, 0, 4), note(55, 0, 4)]; // C3, F3, G3
+    const sus4Segs = anHarmony(sus4Notes, false, { measures: [M1], keyMap: [{ ...C_MAJOR, beat: 0 }] });
+    expect(sus4Segs[0].ch.c.s).toBe('sus4');
+    const fRole = analyzeScoreSelection([sus4Notes[1]], sus4Notes, sus4Segs, { measures: [M1], keyMap: [{ ...C_MAJOR, beat: 0 }] });
+    expect(fRole?.kind === 'note' && fRole.chordRole).toBe('4th');
+
+    const sus2Notes = [note(48, 0, 4), note(50, 0, 4), note(55, 0, 4)]; // C3, D3, G3
+    const sus2Segs = anHarmony(sus2Notes, false, { measures: [M1], keyMap: [{ ...C_MAJOR, beat: 0 }] });
+    expect(sus2Segs[0].ch.c.s).toBe('sus2');
+    const dRole = analyzeScoreSelection([sus2Notes[1]], sus2Notes, sus2Segs, { measures: [M1], keyMap: [{ ...C_MAJOR, beat: 0 }] });
+    expect(dRole?.kind === 'note' && dRole.chordRole).toBe('2nd');
+
+    const powNotes = [note(48, 0, 4), note(55, 0, 4)]; // C3, G3 -> C5
+    const powSegs = anHarmony(powNotes, false, { measures: [M1], keyMap: [{ ...C_MAJOR, beat: 0 }] });
+    expect(powSegs[0].ch.c.s).toBe('5');
+    const gRole = analyzeScoreSelection([powNotes[1]], powNotes, powSegs, { measures: [M1], keyMap: [{ ...C_MAJOR, beat: 0 }] });
+    expect(gRole?.kind === 'note' && gRole.chordRole).toBe('5th');
+  });
+
+  it('does not pull intervening non-overlapping notes into simultaneous neighbors or context chord', () => {
+    const separated = [
+      note(60, 0, 1), // C4 beat 1
+      note(64, 1, 2), // E4 beat 2 (between C and G, does not overlap either)
+      note(67, 2, 3), // G4 beat 3
+    ];
+    const sel = analyzeScoreSelection([separated[0], separated[2]], separated, [], {
+      measures: [M1],
+      keyMap: [{ ...C_MAJOR, beat: 0 }],
+    });
+    expect(sel?.kind).toBe('interval');
+    if (sel?.kind !== 'interval') return;
+    expect(sel.neighbors.simultaneous).toEqual([]);
+    expect(sel.neighbors.contextChord).toBeNull();
+  });
 });
 
 describe('lasso free-shape geometry helpers', () => {

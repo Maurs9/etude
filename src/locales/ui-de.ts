@@ -935,6 +935,8 @@ const payload: UIPayload = {
       "an_deg_dia": "diatonisch",
       "an_deg_chr": "chromatisch",
       "an_role_root": "Grundton",
+      "an_role_2nd": "Vorhaltsekunde (sus2)",
+      "an_role_4th": "Vorhaltquarte (sus4)",
       "an_role_3rd": "Terz des Akkords",
       "an_role_5th": "Quinte des Akkords",
       "an_role_7th": "Septime des Akkords",

@@ -1008,7 +1008,7 @@ export interface SelectionNeighborSummary {
   } | null;
 }
 
-export type ChordToneRole = 'root' | '3rd' | '5th' | '7th' | 'ext' | 'nct' | null;
+export type ChordToneRole = 'root' | '2nd' | '3rd' | '4th' | '5th' | '7th' | 'ext' | 'nct' | null;
 
 export interface IsolatedNoteAnalysis {
   kind: 'note';
@@ -1084,8 +1084,16 @@ function chordToneRole(
   const c = seg.ch.c;
   const rel = theory.normalizeSemitones(p - seg.ch.root);
   if (rel === 0) return { role: 'root', nctType: null };
-  if (rel === c.p[1]) return { role: '3rd', nctType: null };
-  if (c.p[2] != null && rel === c.p[2]) return { role: '5th', nctType: null };
+  if (c.q === 'P') {
+    if (rel === 7) return { role: '5th', nctType: null };
+  } else if (c.q === 'S') {
+    if (rel === 2) return { role: '2nd', nctType: null };
+    if (rel === 5) return { role: '4th', nctType: null };
+    if (c.p[2] != null && rel === c.p[2]) return { role: '5th', nctType: null };
+  } else {
+    if (rel === c.p[1]) return { role: '3rd', nctType: null };
+    if (c.p[2] != null && rel === c.p[2]) return { role: '5th', nctType: null };
+  }
   if (c.x && c.p[3] != null && rel === c.p[3]) return { role: '7th', nctType: null };
   if (seg.ch.tones.includes(p)) return { role: 'ext', nctType: null };
   const nct = seg.nct?.find((x) => x.note === selectedNote);
@@ -1101,8 +1109,6 @@ function collectSelectionNeighbors(
 ): SelectionNeighborSummary {
   const eps = 1e-4;
   const selSet = new Set(sel);
-  const selMin = Math.min(...sel.map((n) => n.start));
-  const selMaxEnd = Math.max(...sel.map((n) => n.end));
   const idxOf = (n: AnNote) => ctx.noteIndex?.get(n);
 
   const m = anMeasureForBeat(measures, refNote.start) ?? anDefaultMeasures(allNotes)[0];
@@ -1117,7 +1123,7 @@ function collectSelectionNeighbors(
   for (const n of allNotes) {
     if (selSet.has(n)) continue;
     const nSoundEnd = Math.max(n.end, n.soundEnd ?? n.end);
-    const overlapsTime = n.start < selMaxEnd - eps && n.end > selMin + eps;
+    const overlapsTime = sel.some((s) => n.start < s.end - eps && n.end > s.start + eps);
     const pedallyOverlaps =
       sel.length === 1 && n.start <= refNote.start + eps && nSoundEnd > refNote.start + eps;
     if (overlapsTime || pedallyOverlaps) {

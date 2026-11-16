@@ -853,6 +853,8 @@ const payload: UIPayload = {
       "an_deg_dia": "diatónico",
       "an_deg_chr": "cromático",
       "an_role_root": "fundamental",
+      "an_role_2nd": "2.ª suspendida",
+      "an_role_4th": "4.ª suspendida",
       "an_role_3rd": "3.ª del acorde",
       "an_role_5th": "5.ª del acorde",
       "an_role_7th": "7.ª del acorde",

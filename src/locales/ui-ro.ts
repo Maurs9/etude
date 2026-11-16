@@ -1314,6 +1314,8 @@ const payload: UIPayload = {
       "an_deg_dia": "diatonică",
       "an_deg_chr": "cromatică",
       "an_role_root": "fundamentală",
+      "an_role_2nd": "secundă suspendată",
+      "an_role_4th": "cvartă suspendată",
       "an_role_3rd": "terța acordului",
       "an_role_5th": "cvinta acordului",
       "an_role_7th": "septima acordului",

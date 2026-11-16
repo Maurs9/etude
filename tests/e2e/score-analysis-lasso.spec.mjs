@@ -195,3 +195,81 @@ test('lasso selection is default, supports closed-loop free-shape circling and p
   await page.mouse.up();
   await expect(page.locator('.an-marquee')).toHaveCount(0);
 });
+
+test('neighbor keyboard activation preserves focus and selection across a key change labels each segment in its own key', async ({ app, page }) => {
+  await app.open({ hash: 'analysis', dock: false });
+  const keyChangeXml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <work><work-title>Key Modulation</work-title></work>
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>0</fifths><mode>major</mode></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>2</staves>
+        <clef number="1"><sign>G</sign><line>2</line></clef>
+        <clef number="2"><sign>F</sign><line>4</line></clef>
+      </attributes>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <note><chord/><pitch><step>G</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>4</duration></backup>
+      <note><pitch><step>C</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice><type>whole</type><staff>2</staff></note>
+    </measure>
+    <measure number="2">
+      <attributes>
+        <key><fifths>1</fifths><mode>major</mode></key>
+      </attributes>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <note><chord/><pitch><step>D</step><octave>5</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>4</duration></backup>
+      <note><pitch><step>G</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice><type>whole</type><staff>2</staff></note>
+    </measure>
+  </part>
+</score-partwise>`;
+
+  await page.locator('#an-file').setInputFiles({
+    name: 'key-change.musicxml',
+    mimeType: 'application/xml',
+    buffer: Buffer.from(keyChangeXml),
+  });
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo && window.__etude.AN.notes.length === 6);
+
+  if (!await page.locator('#an-side').isVisible()) {
+    const btn = page.locator('#an-side-btn');
+    if (await btn.isVisible()) await btn.click();
+    else await page.locator('#an-fab').click();
+  }
+
+  // Select first note (a hollow whole note), navigate to its neighbor button with keyboard Enter, and verify focus stays inside #an-side (not <body>)
+  const n0Head = page.locator('#an-roll [data-i="0"]').first();
+  await n0Head.scrollIntoViewIfNeeded();
+  await n0Head.click();
+  await expect(page.locator('#an-now-body .an-note-card')).toBeVisible();
+  const nbBtn = page.locator('#an-now-body .an-nb-btn[data-nb-idx]').first();
+  await nbBtn.focus();
+  await page.keyboard.press('Enter');
+  const activeTag = await page.evaluate(() => ({
+    tag: document.activeElement?.tagName,
+    inSide: !!document.getElementById('an-side')?.contains(document.activeElement),
+    notBody: document.activeElement !== document.body,
+  }));
+  expect(activeTag.inSide).toBe(true);
+  expect(activeTag.notBody).toBe(true);
+
+  // Select all notes spanning C major (bar 1) -> G major (bar 2): bar 2 G chord must read I / Tonic in G major, not V / Dominant in C major
+  await page.evaluate(() => {
+    const api = window.__etude;
+    api.AN.selected = new Set(api.AN.notes.map((_, i) => i));
+    api.anSelectionChanged();
+  });
+  const cards = page.locator('#an-now-body .an-sel-ch');
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toContainText('C');
+  await expect(cards.nth(0)).toContainText('Tonic');
+  await expect(cards.nth(1)).toContainText('G');
+  await expect(cards.nth(1)).toContainText('I');
+  await expect(cards.nth(1)).toContainText('Tonic');
+  await expect(cards.nth(1)).not.toContainText('Dominant');
+});
