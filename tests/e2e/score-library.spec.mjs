@@ -375,3 +375,59 @@ test('library supports inline organization, study status, progress, notes, sorti
     await expect(row(other, 'Prelude in C').locator('.score-library-user-note')).toContainText('Note: Măsurile 1-4 mâna stângă lent');
   } finally { await context.close(); }
 });
+
+test('library search preserves filter controls and keyboard focus on an active filter chip', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await library(page);
+  await page.locator('#library-files').setInputFiles(file('alpha.musicxml'));
+  await settled(page);
+  await page.locator('#library-toggle-filters').click();
+  await page.locator('#library-composer-filter').selectOption('Composer Alpha');
+  await page.locator('#library-toggle-filters').click();
+  const chip = page.locator('.score-library-chip').first();
+  await chip.focus();
+  const stable = await page.evaluate(() => {
+    const option = document.querySelector('#library-composer-filter option'), focused = document.activeElement;
+    const search = document.querySelector('#library-search');
+    search.value = 'alpha'; search.dispatchEvent(new Event('input', { bubbles: true }));
+    return { option: option === document.querySelector('#library-composer-filter option'), focus: document.activeElement === focused };
+  });
+  expect(stable).toEqual({ option: true, focus: true });
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.score-library-chip')).toHaveCount(0);
+  await expect(page.locator('#library-toggle-filters')).toBeFocused();
+});
+
+test('new search rows remain disabled until an in-flight library operation finishes', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await library(page);
+  await page.locator('#library-files').setInputFiles(file('alpha.musicxml'));
+  await settled(page);
+  const state = await page.evaluate(() => {
+    document.querySelector('[data-library-action=favorite]').click();
+    const search = document.querySelector('#library-search');
+    for (const value of ['no match anywhere', '']) {
+      search.value = value; search.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    return { busy: document.querySelector('.score-library-content').getAttribute('aria-busy'), disabled: document.querySelector('[data-library-action=select]').disabled };
+  });
+  expect(state).toEqual({ busy: 'true', disabled: true });
+  await settled(page);
+  await expect(row(page, 'Library Alpha').locator('[data-library-action=select]')).toBeEnabled();
+  await expect(row(page, 'Library Alpha').locator('[data-library-action=favorite]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('library selection has a full touch target and actions fit narrow screens', async ({ app, page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await app.open({ hash: 'analysis', lang: 'ro' });
+  await library(page);
+  await page.locator('#library-files').setInputFiles(file('alpha.musicxml'));
+  await settled(page);
+  const target = page.locator('.score-library-row-select');
+  const bounds = await target.boundingBox();
+  expect(bounds.width).toBeGreaterThanOrEqual(44);
+  expect(bounds.height).toBeGreaterThanOrEqual(44);
+  await target.click();
+  await expect(page.locator('[data-library-action=select]')).toBeChecked();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
