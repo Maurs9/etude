@@ -57,4 +57,52 @@ describe('piano audio domain', () => {
     expect(await engine.resumeOnReturn()).toBeNull();
     expect(engine.context.resume).not.toHaveBeenCalled();
   });
+
+  it('caps retained PCM bytes in PianoBank using LRU eviction', async () => {
+    const context = {
+      decodeAudioData: async (data) => ({ length: data.byteLength, numberOfChannels: 2, duration: 1 }),
+    };
+    const keys = [36, 48, 60, 72, 84];
+    const urls = Object.fromEntries(keys.map(k => [k, `/piano/${k}.mp3`]));
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => new ArrayBuffer(100), // 100 * 2 * 4 = 800 B per buffer
+    })));
+    const bank = new PianoBank(keys, urls, () => context);
+    bank.maxPcmBytes = 2000; // allows at most 2 buffers (1600 B)
+    bank.warmRange = [48, 72];
+    expect(await bank.ensure(keys)).toBe(true);
+    expect(bank.pcmBytes()).toBeLessThanOrEqual(bank.maxPcmBytes);
+    expect(bank.buffers.size).toBe(2);
+    // warmRange keys (60, 72) should be preferred over out-of-range keys (36, 84) when evicting
+    expect(bank.buffers.has(60) || bank.buffers.has(72)).toBe(true);
+  });
+
+  it('cancels idle warmup cleanly and skips idle warmup when page is hidden', async () => {
+    vi.useFakeTimers();
+    const originalDoc = globalThis.document;
+    vi.stubGlobal('document', { hidden: false, addEventListener: vi.fn() });
+    const context = { decodeAudioData: async () => ({ length: 10, numberOfChannels: 1, duration: 1 }) };
+    const urls = { 48: '/48.mp3', 60: '/60.mp3' };
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => new ArrayBuffer(10),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const bank = new PianoBank([48, 60], urls, () => context);
+    bank.ctx = context;
+    bank.warmIdle(60);
+    bank.cancelWarmIdle();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    globalThis.document.hidden = true;
+    bank.warmIdle(60);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.useRealTimers();
+    vi.stubGlobal('document', originalDoc);
+  });
 });

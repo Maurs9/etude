@@ -31,31 +31,76 @@ export function workerSource(manifest) {
 'use strict';
 const CACHE_PREFIX = 'etude-';
 const META_CACHE = 'etude-active';
-const NETWORK_TIMEOUT_MS = 8000;
+const INSTALL_CONCURRENCY = 6;
+const NETWORK_TIMEOUT_MS = 2500;
 const PRECACHE = ${JSON.stringify(manifest)};
 const SCOPE = new URL(self.registration.scope);
-const CACHE_NAME = CACHE_PREFIX + PRECACHE.map(entry => entry.hash).join('').slice(0, 24);
+function manifestId(entries) {
+  let h1 = 0xdeadbeef ^ entries.length;
+  let h2 = 0x41c6ce57 ^ entries.length;
+  let h3 = 0x9e3779b9 ^ entries.length;
+  const str = entries.map(entry => entry.url + ':' + entry.hash).join('|');
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 2246822507);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  h3 = Math.imul(h3 ^ (h3 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h2 >>> 13), 3266489909);
+  return [h1, h2, h3].map(v => (v >>> 0).toString(16).padStart(8, '0')).join('');
+}
+const CACHE_NAME = CACHE_PREFIX + manifestId(PRECACHE);
 const META_URL = new URL('__etude_active__', SCOPE).href;
 const SHELL_URL = new URL('etude.html', SCOPE).href;
 const PRECACHE_URLS = new Map(PRECACHE.map(entry => [new URL(entry.url, SCOPE).href, entry.hash]));
+const verifiedHits = new Set();
+
+function verifiedKey(name, url, hash) {
+  return name + '|' + url + '|' + (hash || '');
+}
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     try {
       const cache = await caches.open(CACHE_NAME);
-      for (const entry of PRECACHE) {
+      let nextIndex = 0;
+      async function precacheEntry(entry) {
         const url = new URL(entry.url, SCOPE).href;
-        const old = await findCached(url, entry.hash);
+        const already = await cache.match(url);
+        if (already) {
+          const vKey = verifiedKey(CACHE_NAME, url, entry.hash);
+          if (verifiedHits.has(vKey) || await digest(already.clone()) === entry.hash) {
+            verifiedHits.add(vKey);
+            return;
+          }
+        }
+        const old = await findCached(url, entry.hash, true);
         if (old) {
           await cache.put(url, old.clone());
-          continue;
+          verifiedHits.add(verifiedKey(CACHE_NAME, url, entry.hash));
+          return;
         }
         const response = await fetch(new Request(url, { cache: 'no-cache' }));
         await putChecked(cache, url, response, entry.hash);
       }
+      const workers = Array.from(
+        { length: Math.min(INSTALL_CONCURRENCY, PRECACHE.length) },
+        async () => {
+          while (nextIndex < PRECACHE.length) {
+            const entry = PRECACHE[nextIndex++];
+            await precacheEntry(entry);
+          }
+        },
+      );
+      await Promise.all(workers);
       await self.skipWaiting();
     } catch (error) {
-      await caches.delete(CACHE_NAME);
+      const meta = await readMeta();
+      if (meta?.active !== CACHE_NAME && meta?.previous !== CACHE_NAME) {
+        await caches.delete(CACHE_NAME);
+      }
       throw error;
     }
   })());
@@ -112,19 +157,34 @@ async function navigation(event) {
 }
 
 async function asset(request, url, expectedHash) {
-  const hit = await findCached(url, expectedHash);
+  const hit = await findCached(url, expectedHash, false);
   if (hit) return hit;
   return fetch(request);
 }
 
-async function findCached(url, expectedHash) {
+async function findCached(url, expectedHash, verify = true) {
+  const primary = await caches.open(CACHE_NAME);
+  const direct = await primary.match(url);
+  if (direct) {
+    const vKey = verifiedKey(CACHE_NAME, url, expectedHash);
+    if (!expectedHash || !verify || verifiedHits.has(vKey)) return direct;
+    if (await digest(direct.clone()) === expectedHash) {
+      verifiedHits.add(vKey);
+      return direct;
+    }
+  }
   const keys = await caches.keys();
-  const names = keys.filter(key => key.startsWith(CACHE_PREFIX));
+  const names = keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME && key !== META_CACHE);
   for (const name of names) {
     const cache = await caches.open(name);
     const hit = await cache.match(url);
     if (!hit) continue;
-    if (!expectedHash || await digest(hit.clone()) === expectedHash) return hit;
+    const vKey = verifiedKey(name, url, expectedHash);
+    if (!expectedHash || verifiedHits.has(vKey)) return hit;
+    if (await digest(hit.clone()) === expectedHash) {
+      verifiedHits.add(vKey);
+      return hit;
+    }
   }
   return null;
 }
@@ -142,6 +202,7 @@ async function putChecked(cache, url, response, expectedHash) {
   if (!response.ok || response.type === 'opaque') throw new Error('Precache request failed: ' + url);
   if (await digest(response.clone()) !== expectedHash) throw new Error('Precache hash mismatch: ' + url);
   await cache.put(url, response.clone());
+  verifiedHits.add(verifiedKey(CACHE_NAME, url, expectedHash));
 }
 
 async function digest(response) {

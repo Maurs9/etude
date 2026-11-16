@@ -12,8 +12,14 @@ import * as notationApi from './notation.js';
 import { scoreOctaveMark, scoreStructuralMarks } from './score-svg-markings.js';
 import { recognizeScoreMarkings, SCORE_MARKING_TERMS } from './score-markings.js';
 import { normalizeScoreDirectionGlyphs, renderScoreNoteParentheses, scoreDetectPartHands } from './score-xml-markings.js';
-import { initScoreLibrary } from './score-library-ui.js';
 import * as scoreLibraryStore from './score-library-store.js';
+import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
+import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, LSTAVES, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
+import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
+import { isScoreOsmdSheet, scoreFixFingerings, scoreFixPedalsDefault, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreVendorField, scoreVendorList, type ScoreInkBox, type ScoreOsmdLabel, type ScoreOsmdMeasure, type ScoreOsmdNote, type ScoreOsmdSheet, type ScoreOsmdStaffEntry, type ScoreOsmdStaffLine, type ScoreOsmdSystem, type ScoreOsmdVexNote, type ScoreOsmdVoiceEntry, type ScorePedalBox } from './score-svg-post.js';
+import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
+import { anAssignHands, scoreBeams, scoreMidiToXml, type ScoreEngraveEvent, type ScoreEngraveGroup, type ScoreEngraveVoice, type ScoreMidiChange, type ScoreMidiNote, type ScoreMidiTime } from './score-midi.js';
+import { AN_SMUFL_NOTES, SCORE_STEP, anMxlPreflight as importMxlPreflight, anParse, anReadXml as importReadXml, anXmlTidy, defaultInflatedSize, scoreXmlEndings, scoreXmlEngraving, scoreXmlLayout, scoreXmlNotes } from './score-import.js';
 import '../styles/score-library.css';
 import '../styles/native.css';
 import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
@@ -133,20 +139,6 @@ type RuntimeLanguage = InterfaceLanguage;
 const RUNTIME_LANGUAGES: readonly RuntimeLanguage[] = ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'];
 function isRuntimeLanguage(value: unknown): value is RuntimeLanguage { return RUNTIME_LANGUAGES.some((l) => l === value); }
 type LocaleStrings = Record<string, Record<string, string>>;
-type IntervalDefinition = { semi: number; name: string; short: string };
-type AccompanimentChord = { bass: number; fifth: number; right: number[] };
-type AccompanimentEvent = { beat: number; midi: number; durB: number; hand: 'L' | 'R' };
-type AccompanimentPattern = {
-  beats: number;
-  en: string;
-  ro: string;
-  es?: string;
-  fr?: string;
-  de?: string;
-  it?: string;
-  'pt-BR'?: string;
-  gen(events: AccompanimentEvent[], beat: number, chord: AccompanimentChord): void;
-};
 /**
  * Behaviour-preserving browser runtime for the typed view boundary in
  * `views.ts`. New public view contracts belong in the TypeScript entry point;
@@ -228,16 +220,6 @@ function t(k: string, ...args: Array<string | number | null | undefined>): strin
    spaced-repetition learning core and an editorial UI.
    ============================================================================ */
 /* ---------- DATA ---------- */
-const PC_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const PC_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-const ROOT_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-const NOTE_SYS = {
-    letter: { sharp: PC_SHARP, flat: PC_FLAT, root: ROOT_NAMES },
-    german: { sharp: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'H'], flat: ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'B', 'H'], root: ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'B', 'H'] },
-    solfege: { sharp: ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'],
-        flat: ['Do', 'Reb', 'Re', 'Mib', 'Mi', 'Fa', 'Solb', 'Sol', 'Lab', 'La', 'Sib', 'Si'],
-        root: ['Do', 'Do#', 'Re', 'Mib', 'Mi', 'Fa', 'Fa#', 'Sol', 'Lab', 'La', 'Sib', 'Si'] },
-};
 let notation: 'letter' | 'german' | 'solfege' = 'letter';
 /* ---------- THEME ---------- */
 let theme: 'auto' | 'light' | 'dark' = 'auto';
@@ -253,70 +235,11 @@ function applyTheme() {
 if (themeMQ && themeMQ.addEventListener)
     themeMQ.addEventListener('change', () => { if (theme === 'auto')
         applyTheme(); });
-const INTERVALS: IntervalDefinition[] = [
-    { semi: 1, name: 'Minor 2nd', short: 'm2' }, { semi: 2, name: 'Major 2nd', short: 'M2' }, { semi: 3, name: 'Minor 3rd', short: 'm3' },
-    { semi: 4, name: 'Major 3rd', short: 'M3' }, { semi: 5, name: 'Perfect 4th', short: 'P4' }, { semi: 6, name: 'Tritone', short: 'TT' },
-    { semi: 7, name: 'Perfect 5th', short: 'P5' }, { semi: 8, name: 'Minor 6th', short: 'm6' }, { semi: 9, name: 'Major 6th', short: 'M6' },
-    { semi: 10, name: 'Minor 7th', short: 'm7' }, { semi: 11, name: 'Major 7th', short: 'M7' }, { semi: 12, name: 'Octave', short: 'P8' },
-];
-const COMPOUND: Record<number, string> = { 1: 'Minor 2nd', 2: 'Major 2nd', 3: 'Minor 3rd', 4: 'Major 3rd', 5: 'Perfect 4th', 6: 'Tritone', 7: 'Perfect 5th', 8: 'Minor 6th', 9: 'Major 6th', 10: 'Minor 7th', 11: 'Major 7th', 12: 'Octave', 13: 'Minor 9th', 14: 'Major 9th', 15: 'Minor 10th', 16: 'Major 10th', 17: 'Perfect 11th', 18: 'Augmented 11th', 19: 'Perfect 12th', 20: 'Minor 13th', 21: 'Major 13th', 22: 'Minor 14th', 23: 'Major 14th', 24: 'Two octaves' };
-const RO_IV = COMPOUND;
-const SONGS: Record<number, Record<string, string[]>> = {
-    1: { asc: ['Jaws (theme)', 'Stormy Weather'], desc: ['Für Elise'] },
-    2: { asc: ['Happy Birthday', 'Frère Jacques', 'Silent Night'], desc: ['Mary Had a Little Lamb', 'Three Blind Mice', 'Yesterday'] },
-    3: { asc: ['Greensleeves', 'Smoke on the Water'], desc: ['Hey Jude', 'This Old Man', 'Star-Spangled Banner'] },
-    4: { asc: ['Oh When the Saints', 'Kumbaya', 'The Blue Danube'], desc: ['Beethoven’s 5th', 'Swing Low, Sweet Chariot'] },
-    5: { asc: ['Here Comes the Bride', 'Amazing Grace', 'Auld Lang Syne'], desc: ['Born Free', 'O Come All Ye Faithful'] },
-    6: { asc: ['The Simpsons', 'Maria (West Side Story)'], desc: ['(uncommon)'] },
-    7: { asc: ['Twinkle Twinkle', 'Star Wars', '2001 (Zarathustra)'], desc: ['The Flintstones', 'Feelings'] },
-    8: { asc: ['Love Story (theme)', 'Black Orpheus', 'We’ve Only Just Begun'], desc: ['Music of the Night'] },
-    9: { asc: ['My Bonnie Lies Over the Ocean', 'Dashing Through the Snow'], desc: ['Nobody Knows the Trouble I’ve Seen'] },
-    10: { asc: ['Somewhere (West Side Story)', 'Star Trek (TOS)'], desc: ['(uncommon)'] },
-    11: { asc: ['Take On Me (chorus)', 'Bali Ha’i'], desc: ['(rare)'] },
-    12: { asc: ['Over the Rainbow', 'Singin’ in the Rain'], desc: ['Willow Weep for Me'] },
-};
 const SCALES = SCALE_DEFINITIONS;
 const CHORDS = CHORD_TEMPLATES;
-const CHORD_FEEL: Record<string, string> = { maj: 'bright, resolved', m: 'darker, melancholy', dim: 'tense, unstable', aug: 'dreamlike', sus2: 'open, airy', sus4: 'suspended', maj7: 'lush, jazzy', '7': 'bluesy, wants to resolve', m7: 'smooth, mellow', 'm7♭5': 'dark, cinematic', dim7: 'very tense', mMaj7: 'noir', 6: 'sweet, vintage', m6: 'wistful', '9': 'funky', maj9: 'dreamy', m9: 'soulful' };
-const INV_NAMES = ['root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion'];
 const SCALE_DEG = SCALE_DEGREE_LABELS;
 const CHORD_DEG = CHORD_DEGREE_LABELS;
-const MAJOR = [0, 2, 4, 5, 7, 9, 11], ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 const PROGS = PROGRESSION_TEMPLATES;
-function progChordTpl(sym: string) { return CHORDS.find((c) => c.symbol === sym); }
-function dispSym(s: string) { return s === 'maj' ? '' : s; }
-/* Accompaniment: extra popular progressions + rhythmic playing patterns. */
-const ACCOMP_PROGS = PROGS.concat([
-    { name: 'I–V–vi–iii–IV–I (Pachelbel pop)', chords: [[0, 'maj', 'I'], [7, 'maj', 'V'], [9, 'm', 'vi'], [4, 'm', 'iii'], [5, 'maj', 'IV'], [0, 'maj', 'I']] },
-    { name: 'Andalusian i–♭VII–♭VI–V', chords: [[0, 'm', 'i'], [10, 'maj', '♭VII'], [8, 'maj', '♭VI'], [7, 'maj', 'V']] },
-    { name: 'Jazz turnaround I–vi–ii–V', chords: [[0, 'maj7', 'I'], [9, 'm7', 'vi'], [2, 'm7', 'ii'], [7, '7', 'V']] },
-    { name: 'Circle of 5ths vi–ii–V–I', chords: [[9, 'm7', 'vi'], [2, 'm7', 'ii'], [7, '7', 'V'], [0, 'maj7', 'I']] },
-    { name: 'Ballad I–iii–IV–V', chords: [[0, 'maj', 'I'], [4, 'm', 'iii'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
-]);
-const ACCOMP_PATTERNS: Record<string, AccompanimentPattern> = {
-    block: { beats: 4, en: 'Block chords', ro: 'Acorduri bloc', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); c.right.forEach((m) => ev.push({ beat: b, midi: m, durB: 4, hand: 'R' })); } },
-    arp: { beats: 4, en: 'Arpeggio (broken)', ro: 'Arpegiu (frânt)', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); const up = c.right, seq = up.concat(up.slice(0, -1).reverse()); for (let i = 0; i < 8; i++)
-            ev.push({ beat: b + i * 0.5, midi: seq[i % seq.length], durB: 0.55, hand: 'R' }); } },
-    alberti: { beats: 4, en: 'Alberti bass', ro: 'Bas Alberti', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); const r = c.right, fig = [r[0], r[r.length - 1], r[1] || r[0], r[r.length - 1]]; for (let i = 0; i < 8; i++)
-            ev.push({ beat: b + i * 0.5, midi: fig[i % 4], durB: 0.55, hand: 'R' }); } },
-    waltz: { beats: 3, en: 'Waltz (3/4)', ro: 'Vals (3/4)', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 1, hand: 'L' }); [1, 2].forEach((k) => c.right.forEach((m) => ev.push({ beat: b + k, midi: m, durB: 1, hand: 'R' }))); } },
-    ballad: { beats: 4, en: 'Pop ballad', ro: 'Baladă pop', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 4, hand: 'L' }); const r = c.right; for (let i = 0; i < 4; i++)
-            ev.push({ beat: b + i, midi: r[i % r.length], durB: 4 - i, hand: 'R' }); } },
-    boomchick: { beats: 4, en: 'Boom-chick', ro: 'Boom-chick', gen(ev, b, c) { ev.push({ beat: b, midi: c.bass, durB: 1, hand: 'L' }); ev.push({ beat: b + 2, midi: c.fifth, durB: 1, hand: 'L' }); [1, 3].forEach((k) => c.right.forEach((m) => ev.push({ beat: b + k, midi: m, durB: 0.85, hand: 'R' }))); } },
-};
-const ACCOMP_I18N = {
-    block: { es: 'Acordes en bloque', fr: 'Accords plaqués', de: 'Blockakkorde', it: 'Accordi a blocchi', 'pt-BR': 'Acordes em bloco' },
-    arp: { es: 'Arpegio (quebrado)', fr: 'Arpège (brisé)', de: 'Arpeggio (gebrochen)', it: 'Arpeggio (spezzato)', 'pt-BR': 'Arpejo (quebrado)' },
-    alberti: { es: 'Bajo Alberti', fr: 'Basse d’Alberti', de: 'Alberti-Bass', it: 'Basso albertino', 'pt-BR': 'Baixo de Alberti' },
-    waltz: { es: 'Vals (3/4)', fr: 'Valse (3/4)', de: 'Walzer (3/4)', it: 'Valzer (3/4)', 'pt-BR': 'Valsa (3/4)' },
-    ballad: { es: 'Balada pop', fr: 'Ballade pop', de: 'Pop-Ballade', it: 'Ballata pop', 'pt-BR': 'Balada pop' },
-    boomchick: { es: 'Boom-chick', fr: 'Boom-chick', de: 'Boom-chick', it: 'Boom-chick', 'pt-BR': 'Boom-chick' },
-};
-for (const [k, obj] of Object.entries(ACCOMP_I18N)) {
-    if (ACCOMP_PATTERNS[k])
-        Object.assign(ACCOMP_PATTERNS[k], obj);
-}
-const CIRCLE = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
 /* ---------- i18n ---------- */
 let lang: RuntimeLanguage = 'en';
 function ivName(semi: number) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
@@ -573,12 +496,12 @@ function makeVoice(frequency: number, velocity: number, when: number|undefined, 
     syncAudioState();
     return voice;
 }
-function ensureAudio() {
+function ensureAudio(warm = true) {
     const context = audioEngine.ensureAudio();
     syncAudioState();
     if (context) {
         srtWatchAudioContext(context);
-        void preparePiano();
+        if (warm) void preparePiano();
     }
     return context;
 }
@@ -1034,166 +957,6 @@ function renderTranscribe() {
    SIGHT-SINGING — pure-SVG staff engraver + on-demand exercise generator.
    Notes carry letter+octave so spelling/staff-position is exact. Offline.
    ============================================================================ */
-const SS_LETSEMI = [0, 2, 4, 5, 7, 9, 11];
-const SS_SYL_MAJ = ['do', 're', 'mi', 'fa', 'sol', 'la', 'ti'], SS_SYL_MIN = ['la', 'ti', 'do', 're', 'mi', 'fa', 'sol'];
-const SS_MAJ: Record<number, { r: number; n: number }> = { 0: { r: 0, n: 0 }, 7: { r: 4, n: 1 }, 2: { r: 1, n: 2 }, 9: { r: 5, n: 3 }, 4: { r: 2, n: 4 }, 11: { r: 6, n: 5 }, 5: { r: 3, n: -1 }, 10: { r: 6, n: -2 }, 3: { r: 2, n: -3 }, 8: { r: 5, n: -4 }, 1: { r: 1, n: -5 } };
-const SS_MIN: Record<number, number> = { 9: 5, 4: 2, 2: 1, 11: 6, 7: 4, 0: 0, 5: 3 }; // minor tonic pc -> tonic letter index
-const SS_SHARP_ORDER = [3, 0, 4, 1, 5, 2, 6], SS_FLAT_ORDER = [6, 2, 5, 1, 4, 0, 3];
-function ssKeyAcc(n: number) { const a = [0, 0, 0, 0, 0, 0, 0]; if (n > 0)
-    for (let i = 0; i < n; i++)
-        a[SS_SHARP_ORDER[i]] = 1;
-else
-    for (let i = 0; i < -n; i++)
-        a[SS_FLAT_ORDER[i]] = -1; return a; }
-function ssStepOf(li: number, oct: number) { return oct * 7 + li; }
-function ssMidiOf(li: number, oct: number, acc: number) { return (oct + 1) * 12 + SS_LETSEMI[li] + (acc || 0); }
-interface SightSingLevel { name: string; degs: number[]; durs: number[]; ts: number[][]; bars: number; keys: number[]; step: number; bpm: number; octaveUp?: boolean; minor?: boolean; raise7?: number }
-interface SightSingNote { li: number; oct: number; acc: number; dur: number; p: number; midi: number; tBeat: number }
-interface SightSingExercise { clef: string; keyPc: number; minor: boolean; keyN: number; ts: number[]; cap: number; measures: SightSingNote[][]; bpm: number; level: number; totalBeats: number; syl: string[]; tonicMidi: number }
-const SS_LEVELS: SightSingLevel[] = [
-    { name: 'sol–mi', degs: [2, 4], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.85, bpm: 72 },
-    { name: '+ la', degs: [2, 4, 5], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.8, bpm: 74 },
-    { name: 'pentatonic', degs: [0, 1, 2, 4, 5], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7], step: 0.78, bpm: 76 },
-    { name: 'major scale', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7, 5], step: 0.75, bpm: 78, octaveUp: true },
-    { name: 'triad leaps', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7, 5, 2], step: 0.5, bpm: 80, octaveUp: true },
-    { name: 'minor keys', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [9, 4, 2], step: 0.7, bpm: 80, minor: true, raise7: 0.5, octaveUp: true },
-    { name: 'rhythm & meter', degs: [0, 1, 2, 3, 4, 5, 6], durs: [2, 1.5, 1, 0.5], ts: [[4, 4], [3, 4], [6, 8]], bars: 4, keys: [0, 7, 5, 2, 10], step: 0.62, bpm: 84, octaveUp: true },
-];
-function ssPick<T>(a: ArrayLike<T>) { return a[Math.floor(Math.random() * a.length)]; }
-function ssNextDeg(prev: number, allowed: number[], step: number) {
-    const w = allowed.map((p) => { const d = Math.abs(p - prev); return (d === 0 ? 0.12 : d <= 1 ? step : d <= 2 ? (1 - step) * 0.6 : (1 - step) * 0.3) + 0.01; });
-    let tot = w.reduce((a, b) => a + b, 0), r = Math.random() * tot;
-    for (let i = 0; i < allowed.length; i++) {
-        r -= w[i];
-        if (r <= 0)
-            return allowed[i];
-    }
-    return allowed[0];
-}
-function ssMakeNote(p: number, tonicLi: number, baseOct: number, acc: number[], minor: boolean, dur: number, raise7: number|undefined) {
-    const li = ((tonicLi + p) % 7 + 7) % 7, oct = baseOct + Math.floor((tonicLi + p) / 7);
-    let a = acc[li];
-    if (minor && (((p % 7) + 7) % 7) === 6 && Math.random() < (raise7 || 0))
-        a = a + 1; // harmonic-minor raised 7th
-    return { li, oct, acc: a, dur, p, midi: ssMidiOf(li, oct, a) };
-}
-function ssGen(level: number, clef: string, rangeShift: number): SightSingExercise {
-    const L = SS_LEVELS[Math.max(0, Math.min(SS_LEVELS.length - 1, level))], minor = !!L.minor;
-    const keyPc = ssPick(L.keys), tonicLi = minor ? SS_MIN[keyPc] : SS_MAJ[keyPc].r, n = minor ? SS_MAJ[(keyPc + 3) % 12].n : SS_MAJ[keyPc].n, acc = ssKeyAcc(n);
-    const ts = ssPick(L.ts), cap = ts[1] === 8 ? ts[0] * 0.5 : ts[0];
-    const allowed = L.degs.slice();
-    if (L.octaveUp)
-        allowed.push(7);
-    let baseOct = (clef === 'bass' ? 3 : 4) + (rangeShift || 0);
-    const measures: SightSingNote[][] = [];
-    let prev = 0, beat = 0;
-    for (let m = 0; m < L.bars; m++) {
-        const notes: SightSingNote[] = [];
-        let rem = cap;
-        while (rem > 1e-6) {
-            const choices = L.durs.filter((d) => d <= rem + 1e-6);
-            const dur = ssPick(choices.length ? choices : [rem]);
-            const p = (m === 0 && !notes.length) ? 0 : ssNextDeg(prev, allowed, L.step);
-            prev = p;
-            const note = Object.assign(ssMakeNote(p, tonicLi, baseOct, acc, minor, dur, L.raise7), { tBeat: beat });
-            beat += dur;
-            notes.push(note);
-            rem -= dur;
-        }
-        measures.push(notes);
-    }
-    const lm = measures[measures.length - 1], lastN = lm[lm.length - 1];
-    const repl = Object.assign(ssMakeNote(0, tonicLi, baseOct, acc, minor, lastN.dur, 0), { tBeat: lastN.tBeat });
-    lm[lm.length - 1] = repl;
-    return { clef, keyPc, minor, keyN: n, ts, cap, measures, bpm: L.bpm, level, totalBeats: beat, syl: minor ? SS_SYL_MIN : SS_SYL_MAJ, tonicMidi: ssMidiOf(tonicLi, baseOct, acc[tonicLi]) };
-}
-/* ---- SVG glyphs ---- */
-// Clefs are drawn as outlines anchored to their staff line (G or F), so they look the same on every device instead of depending on a system font's music glyphs.
-// Outlines: Bravura gClef/fClef, © Steinberg Media Technologies GmbH, SIL Open Font License 1.1. Font units: 250 per staff space, y up, origin on the clef's line.
-const CLEF_G = 'M376 415C374 427 376 428 382 434C398 449 419 470 438 491C522 583 572 702 572 815C572 902 548 988 507 1048C492 1070 466 1098 455 1098C441 1098 410 1072 390 1050C316 968 292 843 292 739C292 681 299 616 306 575C308 563 309 561 297 551C233 498 164 437 112 373C43 287 0 194 0 87C0 -87 119 -252 364 -252C387 -252 413 -250 433 -246C444 -244 446 -243 448 -255C460 -322 475 -409 475 -456C475 -604 375 -622 316 -622C262 -622 236 -606 236 -593C236 -586 245 -583 268 -576C299 -567 335 -540 335 -482C335 -427 300 -380 239 -380C172 -380 132 -433 132 -495C132 -560 171 -658 322 -658C389 -658 519 -628 519 -458C519 -401 501 -306 490 -244C488 -232 489 -233 503 -227C604 -187 671 -102 671 11C671 139 577 252 430 252C404 252 404 252 401 270ZM470 943C503 943 530 916 530 861C530 792 497 728 419 650C403 634 379 611 356 591C349 585 345 586 343 599C339 625 337 659 337 691C337 847 409 943 470 943ZM361 262C364 243 364 244 346 238C258 208 201 129 201 44C201 -46 248 -110 316 -133C324 -136 336 -139 343 -139C351 -139 355 -134 355 -128C355 -121 347 -118 340 -115C298 -97 268 -54 268 -8C268 49 307 92 368 109C384 113 386 112 388 101L438 -197C440 -208 439 -208 424 -211C408 -214 388 -216 368 -216C193 -216 80 -119 80 20C80 79 90 158 173 252C233 319 279 356 326 394C336 402 338 401 340 390ZM430 103C428 115 429 118 441 117C522 110 589 42 589 -46C589 -109 551 -160 495 -188C483 -194 481 -194 479 -182Z';
-const CLEF_F = 'M252 262C78 262 0 135 0 39C0 -41 42 -110 123 -110C186 -110 229 -66 229 -4C229 60 182 100 133 100C106 100 96 93 83 93C70 93 67 101 67 111C67 151 127 224 229 224C335 224 381 120 381 -37C381 -140 359 -260 297 -356C237 -449 134 -534 10 -605C1 -610 -5 -615 -5 -623C-5 -629 -1 -635 8 -635C13 -635 19 -633 25 -630C158 -565 286 -489 392 -375C479 -281 531 -159 531 -28C531 146 425 262 252 262ZM629 180C598 180 574 156 574 125C574 94 598 70 629 70C660 70 684 94 684 125C684 156 660 180 629 180ZM630 -71C599 -71 576 -94 576 -125C576 -156 599 -179 630 -179C661 -179 684 -156 684 -125C684 -94 661 -71 630 -71Z';
-const CLEF_SCALE = 0.044;
-function ssTrebleClef(x: number) { return srClef('treble', x, 46); }
-function ssBassClef(x: number) { return srClef('bass', x, 46); }
-function ssSharp(x: number, y: number) { return `<g class="ss-glyph"><line x1="${x}" y1="${y - 6}" x2="${x}" y2="${y + 6}" stroke="#1a1714" stroke-width="1"/><line x1="${x + 3.4}" y1="${y - 7}" x2="${x + 3.4}" y2="${y + 5}" stroke="#1a1714" stroke-width="1"/><line x1="${x - 2}" y1="${y - 2}" x2="${x + 5.4}" y2="${y - 3.2}" stroke="#1a1714" stroke-width="1.7"/><line x1="${x - 2}" y1="${y + 2.6}" x2="${x + 5.4}" y2="${y + 1.4}" stroke="#1a1714" stroke-width="1.7"/></g>`; }
-function ssFlat(x: number, y: number) { return `<path class="ss-glyph" fill="none" stroke="#1a1714" stroke-width="1.4" stroke-linecap="round" d="M ${x - 1},${y - 9} L ${x - 1},${y + 4} C ${x + 5},${y - 1} ${x + 4},${y - 5} ${x - 1},${y - 1.5}"/>`; }
-function ssNatural(x: number, y: number) { return `<g class="ss-glyph"><line x1="${x}" y1="${y - 7}" x2="${x}" y2="${y + 4}" stroke="#1a1714" stroke-width="1"/><line x1="${x + 4}" y1="${y - 4}" x2="${x + 4}" y2="${y + 7}" stroke="#1a1714" stroke-width="1"/><line x1="${x}" y1="${y - 3.5}" x2="${x + 4}" y2="${y - 4.7}" stroke="#1a1714" stroke-width="1.5"/><line x1="${x}" y1="${y + 2.2}" x2="${x + 4}" y2="${y + 1}" stroke="#1a1714" stroke-width="1.5"/></g>`; }
-function ssAccGlyph(a: number, k: number, x: number, y: number) { return a > 0 ? ssSharp(x, y) : a < 0 ? ssFlat(x, y) : ssNatural(x, y); }
-function ssNotehead(x: number, y: number, dur: number, onLine?: boolean) {
-    const filled = dur < 2, rot = `rotate(-20 ${x} ${y})`;
-    const e = `<ellipse class="ss-head${filled ? '' : ' ss-hollow'}" cx="${x}" cy="${y}" rx="6" ry="4.4" transform="${rot}"/>`;
-    const dot = [0.375, 0.75, 1.5, 3].includes(dur) ? `<circle class="ss-head" cx="${x + 10}" cy="${onLine ? y - 6 : y - 1}" r="1.7"/>` : '';
-    return e + dot;
-}
-function ssStem(x: number, y: number, dur: number) {
-    if (dur >= 4)
-        return '';
-    const up = y > 70, sx = up ? x + 5.6 : x - 5.6, ey = up ? y - 32 : y + 32;
-    let s = `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
-    if (dur <= 0.5)
-        s += up ? `<path class="ss-flag" fill="none" stroke="#1a1714" stroke-width="1.8" d="M ${sx},${ey} C ${sx + 9},${ey + 5} ${sx + 9},${ey + 13} ${sx + 3},${ey + 17}"/>` : `<path class="ss-flag" fill="none" stroke="#1a1714" stroke-width="1.8" d="M ${sx},${ey} C ${sx + 9},${ey - 5} ${sx + 9},${ey - 13} ${sx + 3},${ey - 17}"/>`;
-    return s;
-}
-function ssLedger(x: number, y: number) { let s = ''; if (y > 94) {
-    for (let ly = 106; ly <= y + 1; ly += 12)
-        s += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
-} if (y < 46) {
-    for (let ly = 34; ly >= y - 1; ly -= 12)
-        s += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
-} return s; }
-function ssKeySig(ex: { clef: string; keyN: number; }, x: number) {
-    const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: number, oct: number) => 94 + (refStep - ssStepOf(li, oct)) * 6;
-    const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]];
-    const sB = [[3, 3], [0, 3], [4, 3], [1, 3], [5, 2], [2, 3], [6, 2]], fB = [[6, 2], [2, 3], [5, 2], [1, 3], [4, 2], [0, 3], [3, 2]];
-    const n = ex.keyN, cnt = Math.abs(n), list = n > 0 ? (ex.clef === 'bass' ? sB : sT) : (ex.clef === 'bass' ? fB : fT);
-    let svg = '', xx = x;
-    for (let i = 0; i < cnt; i++) {
-        const y = yOf(list[i][0], list[i][1]);
-        svg += n > 0 ? ssSharp(xx + 3, y) : ssFlat(xx + 3, y);
-        xx += 9;
-    }
-    return { svg, w: cnt ? cnt * 9 + 6 : 6 };
-}
-function ssTimeSig(ts: readonly number[], x: number) { return `<text class="ss-num" x="${x + 9}" y="64">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="90">${ts[1]}</text>`; }
-interface SightSingNotePosition { x: number; y: number; note: SightSingNote; idx: number }
-/** W is in SVG units; the staff is shown `scale` CSS pixels a unit. */
-interface SightSingRender { svg: string; W: number; noteX: SightSingNotePosition[]; scale: number }
-/** The most a sight-reading or sight-singing staff is enlarged to fill its paper, against its natural size. */
-const SR_SCALE_CAP = 2.2;
-/** `width` is the paper's inner width in CSS pixels: a short melody is enlarged to fill it (up to SR_SCALE_CAP); 0 keeps the natural size. */
-function ssRender(ex: SightSingExercise, width = 0): SightSingRender {
-    const refStep = ex.clef === 'bass' ? 18 : 30, yOf = (li: number, oct: number) => 94 + (refStep - ssStepOf(li, oct)) * 6, keyAcc = ssKeyAcc(ex.keyN);
-    let x = 10, body = '', noteX: SightSingNotePosition[] = [], idx = 0;
-    body += ex.clef === 'bass' ? ssBassClef(x) : ssTrebleClef(x);
-    x += 30;
-    const ks = ssKeySig(ex, x);
-    body += ks.svg;
-    x += ks.w;
-    body += ssTimeSig(ex.ts, x);
-    x += 26;
-    ex.measures.forEach((meas) => {
-        meas.forEach((note) => {
-            const y = yOf(note.li, note.oct), nx = x + 10;
-            let g = '';
-            if (note.acc !== keyAcc[note.li])
-                g += ssAccGlyph(note.acc, keyAcc[note.li], nx - 13, y);
-            g += ssLedger(nx, y) + ssNotehead(nx, y, note.dur) + ssStem(nx, y, note.dur);
-            const syl = ex.syl[((note.p % 7) + 7) % 7];
-            body += `<g class="ss-n" data-i="${idx}"><rect class="ss-box" x="${nx - 12}" y="40" width="24" height="58" rx="4"/>${g}<text class="ss-syl" x="${nx}" y="126">${syl}</text></g>`;
-            noteX.push({ x: nx, y, note, idx });
-            x += 26 + note.dur * 15;
-            idx++;
-        });
-        x += 6;
-        body += `<line class="ss-line" x1="${x}" y1="46" x2="${x}" y2="94" stroke="#1a1714" stroke-width="1.3"/>`;
-        x += 12;
-    });
-    const W = Math.max(x + 4, 360), k = width > 0 ? Math.max(1, Math.min(SR_SCALE_CAP, width / W)) : 1;
-    let staff = '';
-    [46, 58, 70, 82, 94].forEach((ly) => staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${W - 6}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`);
-    staff += `<line class="ss-line" x1="8" y1="46" x2="8" y2="94" stroke="#1a1714" stroke-width="1.3"/>`;
-    return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} 150" width="${Math.floor(W * k)}" height="${Math.round(150 * k)}" xmlns="http://www.w3.org/2000/svg">${staff}${body}</svg>`, W, noteX, scale: k };
-}
 /* ---- state + draw ---- */
 interface SightSingState {
     ex: SightSingExercise | null; render: SightSingRender | null; level: number; clef: string; mode: string; idx: number; active: boolean; results: string[]; bpm: number;
@@ -2046,7 +1809,7 @@ function releaseFocusInput() {
     if (fell && !FALL.raf)
         fallDraw();
 }
-function panic() { scorePause(); srtCancelAttempt('interrupted'); if (srtRecorder)
+function panic() { pianoBank.cancelWarmIdle(); scorePause(); srtCancelAttempt('interrupted'); if (srtRecorder)
     srtRecorder.releaseAll('reset', performance.now() - SR.t0); releaseLiveInput(); trxStop(); accompStop(); trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; singStopAll(); srStopAll(true, true); held.forEach((m) => audioNoteOff(m)); held.clear(); heldOrder.length = 0; sustained.forEach((m) => audioNoteOff(m)); sustained.clear(); liveVoices.forEach((v) => v.stop()); liveVoices.clear(); stopPreviews(); stopDrone(); pointerKey.clear(); typingDown.clear(); pedalDown = false; bendSemitones = 0; if (lfoGain && actx)
     lfoGain.gain.setTargetAtTime(0, actx.currentTime, .02); keyEl.forEach((el) => { el.classList.remove('pressed'); if (el.dataset.s === 'active')
     delete el.dataset.s; }); if (view0() === 'explore')
@@ -4383,6 +4146,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
         cofPaintDock();
     }
     if (v === 'analysis') {
+        void anLibraryEnsure();
         if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
             anLibraryRestoreResume(anLibraryNavigationResume);
         anLibraryNavigationResume = null;
@@ -5236,61 +5000,6 @@ function learnPlanItems(tn: number) {
 /* quiz: o = options (first listed = correct unless a is given); hear = demo spec; pcs = play these pitch classes (any octave, any order); seq = play these pitch classes in order */
 /* cheat sheets: rows of [label, value]; each may be a string or [en,ro] */
 /* staff excerpts: compact note strings "C4q E4+G4h Rq" (w h q e s, d=dotted, t=triplet eighth) */
-const LDUR: Record<string, number> = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3, dh: 3, dq: 1.5, de: 0.75 };
-/** A note, chord (several pitches) or rest (`'R'`) with its length in beats, e.g. `['C4', 1]`; `'tied'` marks a single note tied from the one before (a chord is tied only with `engrave: 2`). */
-type SrToken = [string | string[], number, 'tied'?];
-function LP(s: string) { return s.trim().split(/\s+/).filter((x: string) => x !== '|').map((tok: string): SrToken => { const m = tok.match(/^(.+?)(d?[whqest])$/); if (!m)
-    throw new Error('Étude: bad staff token ' + tok); const d = LDUR[m[2]]; const p = m[1].split('+'); return [p[0] === 'R' ? 'R' : (p.length > 1 ? p : p[0]), d]; }); }
-/** What the grand-staff engraver (`srRender`) needs to draw a passage. */
-/** `engrave: 2` (level pieces) opts in to beams in every meter, whole-bar and dotted rests, accidentals that hold for the bar,
- *  tied chords, spelled note names and room for accidentals; without it the engraver draws exactly as before. */
-interface SrScore { ts: number[]; keyN?: number; pickup?: number; rh?: SrToken[]; lh?: SrToken[]; noNames?: boolean; noTs?: boolean; compact?: boolean; perc?: boolean; engrave?: 2;
-    /** engrave 2: the printed-page markings of a level piece (dynamics, fingering, articulation, slurs), drawn over the notes. */
-    marks?: LevelMarkings }
-type SrHand = 'rh' | 'lh';
-/** An annotation drawn over a Learn staff: kind, beat, then kind-specific values. */
-type LStaffMark =
-    | ['dyn', number, string]
-    | ['cr' | 'dim' | 'tri' | 'ped', number, number]
-    | ['acc' | 'stac' | 'ten' | 'fer' | 'tr', number, SrHand?]
-    | ['fing', number, string, SrHand?]
-    | ['slur' | 'tie', number, number, SrHand?]
-    | ['txt', number, LearnText]
-    | ['rn', number, string]
-    | ['rs' | 're', number];
-interface LStaffSpec { p: SrScore; bpm: number; cap: string[]; marks?: LStaffMark[]; click?: boolean; seq?: [number, number][] }
-const LSTAVES: Record<string, LStaffSpec> = {
-    n_clefs: { p: { rh: LP('C4h G4h C5w'), lh: LP('C4h F3h C3w'), ts: [4, 4] }, bpm: 84, cap: ['Treble clef for the right hand, bass clef for the left. Middle C sits on a ledger line between them.', 'Cheia Sol pentru mâna dreaptă, cheia Fa pentru stânga. Do central stă pe o linie suplimentară între ele.'] },
-    n_steps: { p: { rh: LP('C4q D4q E4q F4q G4q A4q B4q C5q'), ts: [4, 4] }, bpm: 96, cap: ['Line, space, line, space: each step up the staff is the next letter.', 'Linie, spațiu, linie, spațiu: fiecare treaptă în sus pe portativ e nota următoare.'] },
-    n_acc: { p: { rh: LP('C4q C#4q D4q Eb4q E4h F#4h'), ts: [4, 4] }, bpm: 84, cap: ['Sharps raise, flats lower — C, C♯, D, E♭, E, F♯.', 'Diezii urcă, bemolii coboară — Do, Do♯, Re, Mi♭, Mi, Fa♯.'] },
-    dyn1: { p: { rh: LP('C4q D4q E4q F4q G4q F4q E4q D4q C4w'), ts: [4, 4] }, bpm: 100, marks: [['dyn', 0, 'p'], ['cr', 0.3, 3.7], ['dyn', 4, 'f'], ['dim', 4.3, 7.7], ['dyn', 8, 'pp']], cap: ['p → crescendo → f → diminuendo → pp. Press play and listen to the volume follow the marks.', 'p → crescendo → f → diminuendo → pp. Apasă play și ascultă cum volumul urmează semnele.'] },
-    dyn2: { p: { rh: LP('G4q G4q G4q G4q E4q E4q E4h'), ts: [4, 4] }, bpm: 100, marks: [['dyn', 0, 'mf'], ['acc', 0], ['stac', 1], ['stac', 2], ['stac', 3], ['dyn', 4, 'sfz'], ['ten', 5], ['fer', 6]], cap: ['Accent >, staccato dots, sfz, tenuto – and a fermata 𝄐 at the end.', 'Accent >, puncte de staccato, sfz, tenuto – și o coroană 𝄐 la final.'] },
-    rh1: { p: { rh: LP('C5w C5h C5h C5q C5q C5q C5q C5e C5e C5e C5e C5e C5e C5e C5e'), ts: [4, 4] }, bpm: 80, click: true, cap: ['Whole, halves, quarters, eighths — each bar is 4 beats. The click marks the beat.', 'Notă întreagă, doimi, pătrimi, optimi — fiecare măsură are 4 timpi. Clicul marchează timpul.'] },
-    iv1: { p: { rh: LP('C4+D4h C4+E4h C4+F4h C4+G4h C4+A4h C4+B4h C4+C5w'), ts: [4, 4] }, bpm: 72, marks: [['txt', 0, ['M2', '2M']], ['txt', 2, ['M3', '3M']], ['txt', 4, ['P4', '4P']], ['txt', 6, ['P5', '5P']], ['txt', 8, ['M6', '6M']], ['txt', 10, ['M7', '7M']], ['txt', 12, ['P8', '8P']]], cap: ['Intervals from C. Tap each note, or play the whole row.', 'Intervale de la Do. Atinge fiecare notă sau cântă tot rândul.'] },
-    ch_inv: { p: { rh: LP('C4+E4+G4h E4+G4+C5h G4+C5+E5w'), ts: [4, 4] }, bpm: 72, marks: [['txt', 0, ['root', 'fund.']], ['txt', 2, ['1st inv.', 'răst. I']], ['txt', 4, ['2nd inv.', 'răst. II']]], cap: ['C major in root position and its two inversions — same notes, new bass.', 'Do major în poziție fundamentală și cele două răsturnări — aceleași note, alt bas.'] },
-    pr1: { p: { rh: LP('C4+E4+G4w B3+D4+G4w C4+E4+A4w C4+F4+A4w'), lh: LP('C3w G2w A2w F2w'), ts: [4, 4] }, bpm: 96, marks: [['rn', 0, 'I'], ['rn', 4, 'V'], ['rn', 8, 'vi'], ['rn', 12, 'IV']], cap: ['I – V – vi – IV in C with smooth voice leading: the right hand barely moves.', 'I – V – vi – IV în Do cu conducere lină a vocilor: mâna dreaptă abia se mișcă.'] },
-    sym1: { p: { rh: LP('E4q F4q G4h G4q F4q E4h D4q E4q F4q D4q C4w'), ts: [4, 4] }, bpm: 100, seq: [[0, 8], [0, 16]],
-        marks: [['rs', 0], ['re', 8], ['fing', 0, '3'], ['fing', 1, '4'], ['fing', 2, '5'], ['tr', 6], ['fer', 12], ['txt', 12, 'Fine'], ['ped', 8, 11.8], ['slur', 8, 11]],
-        cap: ['Repeat signs: bars 1–2 play twice. Also fingering, a trill (tr), a slur, pedal and a fermata.', 'Semne de repetiție: măsurile 1–2 se cântă de două ori. Plus digitație, un tril (tr), legato, pedală și o coroană.'] },
-    rh2a: { p: { rh: LP('C5q Rq C5q Rq C5h Rh C5h C5h C5w'), ts: [4, 4] }, bpm: 84, click: true, marks: [['tie', 10, 12]], cap: ['Rests are counted silences; the tie joins the last two notes into one 6-beat sound.', 'Pauzele sunt tăceri numărate; legato-ul de prelungire unește ultimele două note într-un sunet de 6 timpi.'] },
-    rh2b: { p: { rh: LP('C5q C5q C5q C5q C5t C5t C5t C5t C5t C5t C5h C5e C5q C5e C5q C5q'), ts: [4, 4] }, bpm: 76, click: true, marks: [['tri', 4, 4.67], ['tri', 5, 5.67], ['acc', 8.5], ['acc', 9.5]], cap: ['Bar 2: triplets (3 in the time of 2). Bar 3: syncopation — the accents fall between the clicks.', 'Măsura 2: triolete (3 în timpul a 2). Măsura 3: sincopă — accentele cad între clicuri.'] },
-    rh2c: { p: { rh: LP('C5e D5e E5e F5e E5e D5e C5dq G4dq C5e D5e E5e C5dq'), ts: [6, 8] }, bpm: 108, click: true, cap: ['6/8: two dotted-quarter beats per bar, each split in three.', '6/8: doi timpi de pătrime cu punct pe măsură, fiecare împărțit în trei.'] },
-    iv2a: { p: { rh: LP('F4+B4h B4+F5h C4+Eb4h C4+D#4h'), ts: [4, 4] }, bpm: 72, marks: [['txt', 0, ['A4', '4+']], ['txt', 2, ['d5', '5−']], ['txt', 4, ['m3', '3m']], ['txt', 6, ['A2', '2+']]], cap: ['Same sounds, different spellings: tritone as A4 / d5, and m3 vs A2.', 'Aceleași sunete, scrieri diferite: tritonul ca 4+ / 5−, și 3m vs 2+.'] },
-    minor1: { p: { rh: LP('A4e B4e C5e D5e E5e F5e G5e A5e A4e B4e C5e D5e E5e F5e G#5e A5e A4e B4e C5e D5e E5e F#5e G#5e A5e'), ts: [4, 4] }, bpm: 100, marks: [['txt', 0, ['natural', 'natural']], ['txt', 4, ['harmonic', 'armonic']], ['txt', 8, ['melodic ↑', 'melodic ↑']]], cap: ['A minor three ways — watch the 6th and 7th change.', 'La minor în trei feluri — urmărește cum se schimbă treptele 6 și 7.'] },
-    ch7a: { p: { rh: LP('C4+E4+G4+B4h C4+E4+G4+Bb4h C4+Eb4+G4+Bb4h C4+Eb4+Gb4+Bb4h C4+Eb4+Gb4+A4w'), ts: [4, 4] }, bpm: 66, marks: [['txt', 0, ['Cmaj7', 'Domaj7']], ['txt', 2, ['C7', 'Do7']], ['txt', 4, ['Cm7', 'Dom7']], ['txt', 6, ['Cm7♭5', 'Dom7♭5']], ['txt', 8, ['Cdim7', 'Dodim7']]], cap: ['Five seventh chords on C (the dim7’s top note is written A for B𝄫).', 'Cinci acorduri de septimă pe Do (nota de sus a lui dim7 e scrisă La în loc de Si𝄫).'] },
-    ch7b: { p: { rh: LP('C4+D4+G4h C4+F4+G4h C4+E4+G4+A4h C4+E4+G4+D5h C4+E4+G4w'), lh: LP('C3h C3h C3h C3h E3w'), ts: [4, 4] }, bpm: 66, marks: [['txt', 0, ['Csus2', 'Dosus2']], ['txt', 2, ['Csus4', 'Dosus4']], ['txt', 4, ['C6', 'Do6']], ['txt', 6, ['Cadd9', 'Doadd9']], ['txt', 8, ['C/E', 'Do/Mi']]], cap: ['Colour chords, ending with a slash chord: C over E in the bass.', 'Acorduri de culoare, apoi un acord slash: Do cu Mi în bas.'] },
-    cad1: { p: { rh: LP('D4+G4+B4h C4+E4+G4h C4+F4+A4h C4+E4+G4h C4+E4+G4h D4+G4+B4h D4+G4+B4h C4+E4+A4h'), lh: LP('G2h C3h F2h C3h C3h G2h G2h A2h'), ts: [4, 4] }, bpm: 72,
-        marks: [['txt', 0, ['Perfect', 'Perfectă']], ['txt', 4, ['Plagal', 'Plagală']], ['txt', 8, ['Half', 'Semicadență']], ['txt', 12, ['Deceptive', 'Întreruptă']], ['rn', 0, 'V'], ['rn', 2, 'I'], ['rn', 4, 'IV'], ['rn', 6, 'I'], ['rn', 8, 'I'], ['rn', 10, 'V'], ['rn', 12, 'V'], ['rn', 14, 'vi']], cap: ['The four cadences, one per bar. Tap a chord or play them all.', 'Cele patru cadențe, câte una pe măsură. Atinge un acord sau cântă-le pe toate.'] },
-    minh1: { p: { rh: LP('C4+E4+A4w D4+F4+A4w B3+E4+G#4w C4+E4+A4w'), lh: LP('A2w D3w E3w A2w'), ts: [4, 4] }, bpm: 84, marks: [['rn', 0, 'i'], ['rn', 4, 'iv'], ['rn', 8, 'V'], ['rn', 12, 'i'], ['txt', 8, ['G♯ = leading tone', 'Sol♯ = sensibila']]], cap: ['i – iv – V – i in A minor. The G♯ makes V major.', 'i – iv – V – i în La minor. Sol♯ face ca V să fie major.'] },
-    elise1: { p: { rh: LP('E5s D#5s E5s D#5s E5s B4s D5s C5s A4e Rs C4s E4s A4s B4e Rs E4s G#4s B4s C5e Rs E4s E5s D#5s'), lh: LP('Re Rdq A2s E3s A3s Rde E2s E3s G#3s Rde A2s E3s A3s Rde'), ts: [3, 8], pickup: 0.5 }, bpm: 66,
-        marks: [['dyn', 0, 'pp'], ['rn', 2, 'i'], ['rn', 3.5, 'V'], ['rn', 5, 'i']], cap: ['Für Elise, bars 1–4 (Beethoven): A minor i – V – i. Hear the G♯ in bar 3.', 'Für Elise, măsurile 1–4 (Beethoven): La minor i – V – i. Ascultă Sol♯ din măsura 3.'] },
-    nct1: { p: { rh: LP('E4q F4q G4h E4q F4q E4h C5h B4h D5h C5h'), lh: LP('C3+G3w C3+G3w G2+D3w C3+G3w'), ts: [4, 4] }, bpm: 76,
-        marks: [['txt', 1, ['P', 'T']], ['txt', 5, ['N', 'B']], ['txt', 8, ['S', 'Î']], ['txt', 12, ['App', 'Ap']], ['acc', 12]], cap: ['Passing tone, neighbour, suspension (4–3) and appoggiatura over simple chords.', 'Notă de trecere, broderie, întârziere (4–3) și apogiatură peste acorduri simple.'] },
-    sd1: { p: { rh: LP('C4+E4+G4w C4+D4+F#4+A4w B3+D4+G4w C4+E4+G4w'), lh: LP('C3w D3w G2w C3w'), ts: [4, 4] }, bpm: 84, marks: [['rn', 0, 'I'], ['rn', 4, 'V/V'], ['rn', 8, 'V'], ['rn', 12, 'I'], ['txt', 4, 'F♯']], cap: ['I – V/V – V – I in C: the F♯ leans into G.', 'I – V/V – V – I în Do: Fa♯ trage spre Sol.'] },
-    form1: { p: { rh: LP('C4q E4q G4q E4q F4q A4q G4h E4q C4q D4q F4q E4q D4q D4h C4q E4q G4q E4q F4q A4q G4h E4q G4q F4q D4q C4w'), lh: LP('C3w F3h C3h C3h G2h G2w C3w F3h C3h G2w C3w'), ts: [4, 4] }, bpm: 108,
-        marks: [['txt', 0, ['Antecedent', 'Antecedent']], ['txt', 16, ['Consequent', 'Consecvent']], ['slur', 0, 14], ['slur', 16, 28], ['rn', 12, 'V'], ['rn', 28, 'I']], cap: ['An 8-bar period: question (ends on V, half cadence) and answer (ends on I).', 'O perioadă de 8 măsuri: întrebare (se termină pe V, semicadență) și răspuns (se termină pe I).'] },
-    acc1: { p: { rh: LP('E5h D5h C5w'), lh: LP('C3e G3e E3e G3e B2e G3e D3e G3e C3e G3e E3e G3e C3e G3e E3e G3e'), ts: [4, 4] }, bpm: 96, marks: [['txt', 0, ['Alberti bass: 1-5-3-5', 'Bas Alberti: 1-5-3-5']]], cap: ['A simple melody over an Alberti bass — the left hand breaks each chord low-high-middle-high.', 'O melodie simplă peste un bas Alberti — mâna stângă desface acordul jos-sus-mijloc-sus.'] },
-};
 const LSR: Record<string, SrRenderResult> = {};
 function lStaffSvg(key: string) {
     const S = LSTAVES[key];
@@ -5896,7 +5605,6 @@ function lBarsHTML() {
     const rn: Record<number, string> = { 0: 'I7', 5: 'IV7', 7: 'V7' };
     return '<div class="lbars" role="list" aria-label="' + t('lw_blues') + '">' + LBLUES.map((d, i) => '<span role="listitem" data-bar="' + i + '"><b>' + rn[d] + '</b><small>' + pcName(d, d === 5) + '7</small></span>').join('') + '</div>';
 }
-const LACC_CH = [{ bass: 48, right: [60, 64, 67], fifth: 55 }, { bass: 45, right: [60, 64, 69], fifth: 52 }, { bass: 41, right: [60, 65, 69], fifth: 48 }, { bass: 43, right: [59, 62, 67], fifth: 50 }];
 async function runDemo(spec: string|undefined, btn: HTMLElement) {
     ensureAudio();
     learnHalt();
@@ -6396,152 +6104,6 @@ function lgFilter() {
    + step-by-step / assessment / listen modes for generated melodies.
    The graded repertoire (PIECES) is played in the Pieces screen (view `analysis`).
    ============================================================================ */
-const SR_LET = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-/** A spelled pitch: letter index (C = 0), octave, accidental (-1, 0, 1) and MIDI number. */
-interface SrPitch { li: number; oct: number; acc: number; midi: number }
-function srPitch(s: string): SrPitch | null { const m = /^([A-G])([#b]?)(\d)$/.exec(s); if (!m) return null; const li = SR_LET.indexOf(m[1]), acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, oct = +m[3]; return { li, oct, acc, midi: ssMidiOf(li, oct, acc) }; }
-/** A piece: a score plus its catalogue details. Built-in pieces open in Pieces; generated melodies play in Read & Play. */
-interface SrPiece extends SrScore { id: string; t: Localised<string>; comp: string; level: number; keyN: number; bpm: number; minor?: boolean; ephemeral?: boolean; gen?: string }
-const PIECES: SrPiece[] = [
-    { id: 'w5rh', t: { en: 'Five-finger warm-up (right hand)', ro: 'Încălzire pe cinci note (dreapta)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
-        rh: [['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['E4', 1], ['G4', 1], ['E4', 1], ['C4', 4]],
-        lh: [['C3', 4], ['G2', 4], ['C3', 2], ['G2', 2], ['C3', 4]] },
-    { id: 'w5lh', t: { en: 'Five-finger warm-up (left hand)', ro: 'Încălzire pe cinci note (stânga)' }, comp: '', level: 1, keyN: 0, ts: [4, 4], bpm: 80,
-        rh: [['C4', 4], ['G3', 4], ['C4', 2], ['G3', 2], ['C4', 4]],
-        lh: [['C3', 1], ['D3', 1], ['E3', 1], ['F3', 1], ['G3', 1], ['F3', 1], ['E3', 1], ['D3', 1], ['C3', 1], ['E3', 1], ['G3', 1], ['E3', 1], ['C3', 4]] },
-    { id: 'clair', t: { en: 'Au clair de la lune', ro: 'Au clair de la lune' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 84,
-        rh: [['C4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 2], ['D4', 2], ['C4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['C4', 4]],
-        lh: [['C3', 4], ['C3', 2], ['G2', 2], ['C3', 2], ['G2', 2], ['C3', 4]] },
-    { id: 'mary', t: { en: 'Mary Had a Little Lamb', ro: 'Mary avea un mielușel' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 92,
-        rh: [['E4', 1], ['D4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['E4', 2], ['D4', 1], ['D4', 1], ['D4', 2], ['E4', 1], ['G4', 1], ['G4', 2],
-            ['E4', 1], ['D4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['E4', 1], ['D4', 1], ['C4', 4]],
-        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['G2', 2], ['D3', 2], ['C3', 2], ['G3', 2],
-            ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['G2', 2], ['G2', 2], ['C3', 4]] },
-    { id: 'twinkle', t: { en: 'Twinkle, Twinkle, Little Star', ro: 'Sclipește, steluță (Twinkle)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 88,
-        rh: [['C4', 1], ['C4', 1], ['G4', 1], ['G4', 1], ['A4', 1], ['A4', 1], ['G4', 2], ['F4', 1], ['F4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['C4', 2]],
-        lh: [['C3', 2], ['E3', 2], ['F3', 2], ['C3', 2], ['F3', 2], ['C3', 2], ['G3', 2], ['C3', 2]] },
-    // The tune twice (two verses); the second time the left hand plays open fifths.
-    { id: 'hotcross', t: { en: 'Hot Cross Buns', ro: 'Chifle cu cruce (Hot Cross Buns)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 84,
-        rh: [['E4', 1], ['D4', 1], ['C4', 2], ['E4', 1], ['D4', 1], ['C4', 2], ['C4', 0.5], ['C4', 0.5], ['C4', 0.5], ['C4', 0.5], ['D4', 0.5], ['D4', 0.5], ['D4', 0.5], ['D4', 0.5], ['E4', 1], ['D4', 1], ['C4', 2],
-            ['E4', 1], ['D4', 1], ['C4', 2], ['E4', 1], ['D4', 1], ['C4', 2], ['C4', 0.5], ['C4', 0.5], ['C4', 0.5], ['C4', 0.5], ['D4', 0.5], ['D4', 0.5], ['D4', 0.5], ['D4', 0.5], ['E4', 1], ['D4', 1], ['C4', 2]],
-        lh: [['C3', 4], ['C3', 4], ['C3', 2], ['G2', 2], ['C3', 4],
-            [['C3', 'G3'], 4], [['C3', 'G3'], 4], [['C3', 'G3'], 2], [['G2', 'D3'], 2], [['C3', 'G3'], 4]] },
-    { id: 'lightly', t: { en: 'Lightly Row', ro: 'Vâslim ușor (Lightly Row)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 96,
-        rh: [['G4', 1], ['E4', 1], ['E4', 2], ['F4', 1], ['D4', 1], ['D4', 2], ['C4', 1], ['D4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 1], ['G4', 2],
-            ['G4', 1], ['E4', 1], ['E4', 2], ['F4', 1], ['D4', 1], ['D4', 2], ['C4', 1], ['E4', 1], ['G4', 1], ['G4', 1], ['C4', 4],
-            ['D4', 1], ['D4', 1], ['D4', 1], ['D4', 1], ['D4', 1], ['E4', 1], ['F4', 2], ['E4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['E4', 1], ['F4', 1], ['G4', 2],
-            ['G4', 1], ['E4', 1], ['E4', 2], ['F4', 1], ['D4', 1], ['D4', 2], ['C4', 1], ['E4', 1], ['G4', 1], ['G4', 1], ['C4', 4]],
-        lh: [['C3', 4], ['G2', 4], ['C3', 4], ['C3', 2], ['G2', 2], ['C3', 4], ['G2', 4], ['C3', 2], ['G2', 2], [['C3', 'G3'], 4],
-            ['G2', 4], ['G2', 4], ['C3', 4], ['C3', 2], ['G2', 2], ['C3', 4], ['G2', 4], ['C3', 2], ['G2', 2], [['C3', 'G3'], 4]] },
-    { id: 'rhody', t: { en: 'Go Tell Aunt Rhody', ro: 'Spune-i mătușii Rhody (Go Tell Aunt Rhody)' }, comp: 'trad.', level: 1, keyN: 0, ts: [4, 4], bpm: 92,
-        rh: [['E4', 2], ['E4', 1], ['D4', 1], ['C4', 2], ['C4', 2], ['D4', 2], ['D4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 2],
-            ['G4', 2], ['G4', 1], ['F4', 1], ['E4', 2], ['E4', 2], ['D4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['C4', 4]],
-        lh: [['C3', 4], [['C3', 'G3'], 4], ['G2', 4], ['G2', 2], ['C3', 2], ['C3', 4], [['C3', 'G3'], 4], ['G2', 4], [['C3', 'G3'], 4]] },
-    { id: 'frere', t: { en: 'Frère Jacques', ro: 'Frère Jacques (Frate Ioane)' }, comp: 'trad.', level: 2, keyN: 0, ts: [4, 4], bpm: 96,
-        rh: [['C4', 1], ['D4', 1], ['E4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['C4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['E4', 1], ['F4', 1], ['G4', 2],
-            ['G4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F4', 0.5], ['E4', 1], ['C4', 1], ['G4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F4', 0.5], ['E4', 1], ['C4', 1],
-            ['C4', 1], ['G3', 1], ['C4', 2], ['C4', 1], ['G3', 1], ['C4', 2]],
-        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2],
-            ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G2', 2], ['C3', 4]] },
-    { id: 'ode', t: { en: 'Ode to Joy', ro: 'Odă bucuriei' }, comp: 'Beethoven', level: 2, keyN: 0, ts: [4, 4], bpm: 100,
-        rh: [['E4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1.5], ['D4', 0.5], ['D4', 2],
-            ['E4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 1], ['F4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['D4', 1.5], ['C4', 0.5], ['C4', 2]],
-        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G2', 2],
-            ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['G2', 2], ['G2', 2], ['C3', 2]] },
-    { id: 'saints', t: { en: 'When the Saints Go Marching In', ro: 'Când sfinții mărșăluiesc' }, comp: 'trad.', level: 2, keyN: 0, ts: [4, 4], bpm: 104,
-        rh: [['C4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 4], ['C4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['G4', 4],
-            ['C4', 1], ['E4', 1], ['F4', 1], ['G4', 1], ['E4', 2], ['C4', 2], ['E4', 2], ['D4', 2], ['C4', 4]],
-        lh: [['C3', 2], ['E3', 2], ['G3', 2], ['E3', 2], ['C3', 2], ['E3', 2], ['G3', 2], ['E3', 2],
-            ['C3', 2], ['E3', 2], ['C3', 2], ['A2', 2], ['G2', 2], ['B2', 2], ['C3', 4]] },
-    { id: 'jingle', t: { en: 'Jingle Bells (chorus)', ro: 'Clopoței (Jingle Bells)' }, comp: 'Pierpont', level: 2, keyN: 0, ts: [4, 4], bpm: 104,
-        rh: [['E4', 1], ['E4', 1], ['E4', 2], ['E4', 1], ['E4', 1], ['E4', 2], ['E4', 1], ['G4', 1], ['C4', 1.5], ['D4', 0.5], ['E4', 4],
-            ['F4', 1], ['F4', 1], ['F4', 1.5], ['F4', 0.5], ['F4', 1], ['E4', 1], ['E4', 1], ['E4', 0.5], ['E4', 0.5], ['E4', 1], ['D4', 1], ['D4', 1], ['E4', 1], ['D4', 2], ['G4', 2]],
-        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['C3', 2], ['C3', 2], ['C3', 2], ['G3', 2],
-            ['F3', 2], ['F3', 2], ['C3', 2], ['C3', 2], ['G3', 2], ['G3', 2], ['G3', 2], ['G3', 2]] },
-    // The verse only, in even quarters; the chorus is left out.
-    { id: 'susanna', t: { en: 'Oh! Susanna (verse)', ro: 'Oh! Susanna (strofa)' }, comp: 'Foster', level: 2, keyN: 0, ts: [4, 4], bpm: 112, pickup: 2,
-        rh: [['C4', 1], ['D4', 1], ['E4', 1], ['G4', 1], ['G4', 1], ['A4', 1], ['G4', 1], ['E4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['C4', 1], ['D4', 2], ['C4', 1], ['D4', 1],
-            ['E4', 1], ['G4', 1], ['G4', 1], ['A4', 1], ['G4', 1], ['E4', 1], ['C4', 1], ['D4', 1], ['E4', 1], ['E4', 1], ['D4', 1], ['D4', 1], ['C4', 4]],
-        lh: [['R', 2], ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['G2', 1], ['D3', 1], ['B2', 1], ['D3', 1],
-            ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['G2', 1], ['D3', 1], [['C3', 'G3'], 4]] },
-    // The verse only (the tune of "Love Me Tender"), twice; the second time ends with the seventh in the left hand.
-    { id: 'auralee', t: { en: 'Aura Lee (verse)', ro: 'Aura Lee (strofa)' }, comp: 'Poulton', level: 2, keyN: 1, ts: [4, 4], bpm: 76,
-        rh: [['D4', 1], ['G4', 1], ['F#4', 1], ['G4', 1], ['A4', 1], ['E4', 1], ['A4', 2], ['G4', 1], ['F#4', 1], ['E4', 1], ['F#4', 1], ['G4', 4],
-            ['D4', 1], ['G4', 1], ['F#4', 1], ['G4', 1], ['A4', 1], ['E4', 1], ['A4', 2], ['G4', 1], ['F#4', 1], ['E4', 1], ['F#4', 1], ['G4', 4]],
-        lh: [['G2', 1], ['D3', 1], ['B2', 1], ['D3', 1], ['A2', 1], ['E3', 1], ['G3', 1], ['E3', 1], ['D3', 1], ['A3', 1], ['F#3', 1], ['A3', 1], ['G2', 1], ['D3', 1], ['B2', 1], ['D3', 1],
-            ['G2', 1], ['D3', 1], ['B2', 1], ['D3', 1], ['A2', 1], ['E3', 1], ['G3', 1], ['E3', 1], ['D3', 1], ['A3', 1], ['C4', 1], ['A3', 1], ['G2', 1], ['D3', 1], ['G3', 2]] },
-    // The first eight bars, with the dotted rhythms of bars 3 and 7 in even quarters.
-    { id: 'brahms', t: { en: 'Lullaby, Op. 49 No. 4 (opening)', ro: 'Cântec de leagăn, op. 49 nr. 4 (început)' }, comp: 'Brahms', level: 2, keyN: -1, ts: [3, 4], bpm: 72, pickup: 1,
-        rh: [['A4', 0.5], ['A4', 0.5], ['C5', 2], ['A4', 0.5], ['A4', 0.5], ['C5', 2], ['A4', 0.5], ['C5', 0.5], ['F5', 1], ['E5', 1], ['D5', 1], ['D5', 1], ['C5', 1], ['G4', 0.5], ['A4', 0.5],
-            ['Bb4', 2], ['G4', 0.5], ['A4', 0.5], ['Bb4', 2], ['G4', 0.5], ['Bb4', 0.5], ['E5', 1], ['D5', 1], ['C5', 1], ['E5', 1], ['F5', 2]],
-        lh: [['R', 1], ['F2', 1], ['C3', 1], ['A3', 1], ['F2', 1], ['C3', 1], ['A3', 1], ['Bb2', 1], ['D3', 1], ['F3', 1], ['F2', 1], ['C3', 1], ['A3', 1],
-            ['C3', 1], ['G3', 1], ['Bb3', 1], ['C3', 1], ['E3', 1], ['G3', 1], ['C3', 1], ['G3', 1], ['Bb3', 1], ['F2', 1], [['C3', 'A3'], 2]] },
-    { id: 'london', t: { en: 'London Bridge', ro: 'Podul Londrei (London Bridge)' }, comp: 'trad.', level: 3, keyN: 0, ts: [4, 4], bpm: 96,
-        rh: [['G4', 1.5], ['A4', 0.5], ['G4', 1], ['F4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['D4', 1], ['E4', 1], ['F4', 2], ['E4', 1], ['F4', 1], ['G4', 2],
-            ['G4', 1.5], ['A4', 0.5], ['G4', 1], ['F4', 1], ['E4', 1], ['F4', 1], ['G4', 2], ['D4', 2], ['G4', 2], ['E4', 1], ['C4', 3]],
-        lh: [['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['G2', 2], ['D3', 2], ['C3', 2], ['G3', 2],
-            ['C3', 2], ['G3', 2], ['C3', 2], ['G3', 2], ['G2', 2], ['G2', 2], ['C3', 4]] },
-    { id: 'minuet', t: { en: 'Minuet in G (Petzold)', ro: 'Menuet în Sol (Petzold)' }, comp: 'Petzold', level: 3, keyN: 1, ts: [3, 4], bpm: 104,
-        rh: [['D5', 1], ['G4', 0.5], ['A4', 0.5], ['B4', 0.5], ['C5', 0.5], ['D5', 1], ['G4', 1], ['G4', 1], ['E5', 1], ['C5', 0.5], ['D5', 0.5], ['E5', 0.5], ['F#5', 0.5], ['G5', 1], ['G4', 1], ['G4', 1],
-            ['C5', 1], ['D5', 0.5], ['C5', 0.5], ['B4', 0.5], ['A4', 0.5], ['B4', 1], ['C5', 0.5], ['B4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F#4', 1], ['G4', 0.5], ['A4', 0.5], ['B4', 0.5], ['G4', 0.5], ['B4', 1], ['A4', 2]],
-        lh: [['G3', 2], ['F#3', 1], ['G3', 2], ['B2', 1], ['C3', 2], ['B2', 1], ['A2', 2], ['G2', 1],
-            ['B2', 2], ['A2', 1], ['G2', 2], ['B2', 1], ['C3', 1], ['D3', 2], ['G2', 3]] },
-    { id: 'elise', t: { en: 'Für Elise (opening)', ro: 'Für Elise (început)' }, comp: 'Beethoven', level: 3, keyN: 0, minor: true, ts: [3, 4], bpm: 88,
-        rh: [['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['B4', 0.5], ['D5', 0.5], ['C5', 0.5], ['A4', 2],
-            ['C4', 0.5], ['E4', 0.5], ['A4', 0.5], ['B4', 1.5], ['E4', 0.5], ['G#4', 0.5], ['B4', 0.5], ['C5', 1.5],
-            ['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['D#5', 0.5], ['E5', 0.5], ['B4', 0.5], ['D5', 0.5], ['C5', 0.5], ['A4', 2]],
-        lh: [['R', 3], ['A2', 1], ['E3', 1], ['A3', 1], ['E2', 1], ['E3', 1], ['G#3', 1],
-            ['A2', 1], ['E3', 1], ['A3', 1], ['R', 3], ['A2', 1], ['E3', 1], ['A3', 1]] },
-    { id: 'greensleeves', t: { en: 'Greensleeves', ro: 'Greensleeves' }, comp: 'trad.', level: 3, keyN: 0, minor: true, ts: [3, 4], bpm: 88, pickup: 1,
-        rh: [['A4', 1], ['C5', 2], ['D5', 1], ['E5', 1.5], ['F5', 0.5], ['E5', 1], ['D5', 2], ['B4', 1], ['G4', 1.5], ['A4', 0.5], ['B4', 1],
-            ['C5', 2], ['A4', 1], ['A4', 1.5], ['G#4', 0.5], ['A4', 1], ['B4', 2], ['G#4', 1], ['E4', 3]],
-        lh: [['R', 1], ['A2', 3], ['C3', 3], ['G2', 3], ['E2', 3],
-            ['A2', 3], ['F2', 3], ['E2', 3], ['A2', 3]] },
-    { id: 'grace', t: { en: 'Amazing Grace', ro: 'Amazing Grace' }, comp: 'trad.', level: 3, keyN: 0, ts: [3, 4], bpm: 80, pickup: 1,
-        rh: [['G3', 1], ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['C4', 2], ['A3', 1], ['G3', 2], ['G3', 1],
-            ['C4', 2], ['E4', 0.5], ['C4', 0.5], ['E4', 2], ['D4', 1], ['G4', 3]],
-        lh: [['R', 1], ['C3', 3], ['C3', 2], ['G2', 1], ['F2', 2], ['C3', 1], ['G2', 3], ['C3', 3], ['G2', 3], ['G2', 3]] }, // bars 6–7 (G) complete the left hand
-    // Over the ground bass: the theme in halves, then in quarters, then the line that moves twice as fast; a D chord ends it.
-    { id: 'canon', t: { en: 'Canon in D (main theme)', ro: 'Canon în Re (tema principală)' }, comp: 'Pachelbel', level: 3, keyN: 2, ts: [4, 4], bpm: 72,
-        rh: [['F#5', 2], ['E5', 2], ['D5', 2], ['C#5', 2], ['B4', 2], ['A4', 2], ['B4', 2], ['C#5', 2],
-            ['D5', 2], ['C#5', 2], ['B4', 2], ['A4', 2], ['G4', 2], ['F#4', 2], ['G4', 2], ['E4', 2],
-            ['D5', 1], ['F#5', 1], ['A5', 1], ['G5', 1], ['F#5', 1], ['D5', 1], ['F#5', 1], ['E5', 1], ['D5', 1], ['B4', 1], ['D5', 1], ['A4', 1], ['G4', 1], ['B4', 1], ['A4', 1], ['G4', 1],
-            [['F#4', 'A4', 'D5'], 4]],
-        lh: [['D3', 2], ['A2', 2], ['B2', 2], ['F#2', 2], ['G2', 2], ['D2', 2], ['G2', 2], ['A2', 2],
-            ['D3', 1], ['A3', 1], ['A2', 1], ['E3', 1], ['B2', 1], ['F#3', 1], ['F#2', 1], ['C#3', 1], ['G2', 1], ['D3', 1], ['D2', 1], ['A2', 1], ['G2', 1], ['D3', 1], ['A2', 1], ['E3', 1],
-            ['D3', 1], ['A3', 1], ['A2', 1], ['E3', 1], ['B2', 1], ['F#3', 1], ['F#2', 1], ['C#3', 1], ['G2', 1], ['D3', 1], ['D2', 1], ['A2', 1], ['G2', 1], ['D3', 1], ['A2', 1], ['E3', 1],
-            [['D2', 'D3'], 4]] },
-    // Four bars of the rocking accompaniment (G major 7, D major 7), then the first phrase of the tune.
-    { id: 'gymno', t: { en: 'Gymnopédie No. 1 (opening)', ro: 'Gymnopédie nr. 1 (început)' }, comp: 'Satie', level: 3, keyN: 2, ts: [3, 4], bpm: 72,
-        rh: [['R', 3], ['R', 3], ['R', 3], ['R', 3], ['R', 1], ['F#5', 1], ['A5', 1], ['G5', 1], ['F#5', 1], ['C#5', 1], ['B4', 1], ['C#5', 1], ['D5', 1], ['A4', 3]],
-        lh: [['G2', 1], [['B3', 'D4', 'F#4'], 2], ['D2', 1], [['A3', 'C#4', 'F#4'], 2], ['G2', 1], [['B3', 'D4', 'F#4'], 2], ['D2', 1], [['A3', 'C#4', 'F#4'], 2],
-            ['G2', 1], [['B3', 'D4', 'F#4'], 2], ['D2', 1], [['A3', 'C#4', 'F#4'], 2], ['G2', 1], [['B3', 'D4', 'F#4'], 2], ['D2', 1], [['A3', 'C#4', 'F#4'], 2]] },
-    // Each half bar: the left hand holds the bass note, the right hand plays the seven sixteenths above it.
-    { id: 'prelude', t: { en: 'Prelude in C, BWV 846 (opening)', ro: 'Preludiu în Do, BWV 846 (început)' }, comp: 'J. S. Bach', level: 3, keyN: 0, ts: [4, 4], bpm: 60,
-        rh: [['R', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['R', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25],
-            ['R', 0.25], ['D4', 0.25], ['A4', 0.25], ['D5', 0.25], ['F5', 0.25], ['A4', 0.25], ['D5', 0.25], ['F5', 0.25], ['R', 0.25], ['D4', 0.25], ['A4', 0.25], ['D5', 0.25], ['F5', 0.25], ['A4', 0.25], ['D5', 0.25], ['F5', 0.25],
-            ['R', 0.25], ['D4', 0.25], ['G4', 0.25], ['D5', 0.25], ['F5', 0.25], ['G4', 0.25], ['D5', 0.25], ['F5', 0.25], ['R', 0.25], ['D4', 0.25], ['G4', 0.25], ['D5', 0.25], ['F5', 0.25], ['G4', 0.25], ['D5', 0.25], ['F5', 0.25],
-            ['R', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['R', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25], ['G4', 0.25], ['C5', 0.25], ['E5', 0.25],
-            ['R', 0.25], ['E4', 0.25], ['A4', 0.25], ['E5', 0.25], ['A5', 0.25], ['A4', 0.25], ['E5', 0.25], ['A5', 0.25], ['R', 0.25], ['E4', 0.25], ['A4', 0.25], ['E5', 0.25], ['A5', 0.25], ['A4', 0.25], ['E5', 0.25], ['A5', 0.25],
-            ['R', 0.25], ['D4', 0.25], ['F#4', 0.25], ['A4', 0.25], ['D5', 0.25], ['F#4', 0.25], ['A4', 0.25], ['D5', 0.25], ['R', 0.25], ['D4', 0.25], ['F#4', 0.25], ['A4', 0.25], ['D5', 0.25], ['F#4', 0.25], ['A4', 0.25], ['D5', 0.25],
-            ['R', 0.25], ['D4', 0.25], ['G4', 0.25], ['D5', 0.25], ['G5', 0.25], ['G4', 0.25], ['D5', 0.25], ['G5', 0.25], ['R', 0.25], ['D4', 0.25], ['G4', 0.25], ['D5', 0.25], ['G5', 0.25], ['G4', 0.25], ['D5', 0.25], ['G5', 0.25],
-            ['R', 0.25], ['C4', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['R', 0.25], ['C4', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25], ['E4', 0.25], ['G4', 0.25], ['C5', 0.25]],
-        lh: [['C4', 2], ['C4', 2], ['C4', 2], ['C4', 2], ['B3', 2], ['B3', 2], ['C4', 2], ['C4', 2],
-            ['C4', 2], ['C4', 2], ['C4', 2], ['C4', 2], ['B3', 2], ['B3', 2], ['B3', 2], ['B3', 2]] },
-];
-/** One engraved note head, with the beat it falls on, where it was drawn and on which system (line of music, `sy`). */
-interface SrStaffNote { nid: number; hand: SrHand; midi: number; beat: number; dur: number; x: number; y: number; li: number; oct: number; acc: number; sy: number }
-/** A playhead anchor: beat `b` sits at `x` on system `sy`. Each system but the last ends with an anchor on its closing barline. */
-interface SrBeatX { b: number; x: number; sy: number }
-/** One system's vertical extent, which the playhead spans. */
-interface SrSystem { yTop: number; yBot: number }
-/** W and H are in SVG units; the score is shown `scale` CSS pixels a unit (1 without a layout). yTop and yBot are the first system's. */
-interface SrRenderResult { svg: string; notes: SrStaffNote[]; beatX: SrBeatX[]; total: number; W: number; H: number; yTop: number; yBot: number; systems: SrSystem[]; scale: number }
-/** Fits a score to its paper: `width` (and `maxHeight`) is the paper's inner size in CSS pixels. Bars wrap into systems of
- *  at most `maxBars` (4) bars, split evenly, and are scaled to fill the width, up to `cap` (SR_SCALE_CAP) times their natural size.
- *  With a `maxHeight` (the stage) systems may hold more bars when fewer, longer systems let the score be drawn larger.
- *  Without a layout a score is one system at its natural size (the Learn staves). */
-interface SrLayout { width: number; maxHeight?: number; cap?: number; maxBars?: number; floor?: number; justify?: boolean }
 /** The notes that sound together at one beat (one Learn-mode step). */
 interface SrStep { beat: number; notes: SrStaffNote[]; closed?: boolean }
 /** A wrong key in Learn mode, classified (`k`) against the expected note `n`. */
@@ -6605,717 +6167,8 @@ type SrtAttemptCleanup = {
 const srtCleanupPromises = new Map<string, Promise<SightReadingLedgerResult>>();
 const srtReleasedLeases = new WeakSet<SightReadingAttemptLease>();
 let srtExposurePromise: { fingerprint: string; promise: Promise<SightReadingLedgerResult> } | null = null;
-interface SrRestEvent { rest: true; beat: number; dur: number; chord?: undefined; beam?: undefined }
-/** A note to engrave; beamed eighths also record their stem position once drawn. */
-interface SrNoteEvent extends SrPitch { rest?: undefined; beat: number; dur: number; chord?: boolean; tied?: boolean; beam?: { first: boolean; mate: SrNoteEvent }; nid?: number; bx?: number; by?: number; mid?: number; showAcc?: boolean; bcol?: SrBeamCol }
-/** engrave 2: one beat of a beamed group (a note or a chord); its stem position is recorded once drawn. */
-interface SrBeamCol { id: number; beat: number; dur: number; steps: number[]; grp?: SrBeamGroup; x?: number; yHi?: number; yLo?: number }
-/** engrave 2: beamed columns of one hand inside one beat group, with the stem direction they share. */
-interface SrBeamGroup { cols: SrBeamCol[]; up: boolean }
-type SrEvent = SrRestEvent | SrNoteEvent;
-function srPitchStrict(s: string): SrPitch { const p = srPitch(s); if (!p)
-    throw new TypeError('Étude: unreadable pitch ' + s); return p; }
-function srEvents(list: SrToken[]|undefined, chordTies = false) { const ev: SrEvent[] = []; let beat = 0; (list || []).forEach((x) => { const d = x[1]; if (x[0] === 'R')
-    ev.push({ rest: true, beat, dur: d });
-else if (Array.isArray(x[0]))
-    x[0].forEach((n) => ev.push(Object.assign(srPitchStrict(n), { beat, dur: d, chord: x[0].length > 1 }, x[2] === 'tied' && (x[0].length === 1 || chordTies) ? { tied: true } : {})));
-else
-    ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d }, x[2] === 'tied' ? { tied: true } : {})); beat += d; }); return { ev, total: beat }; }
-function srClef(clef: string, x: number, top: number) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
-function srKeySigG(clef: string, keyN: number, x: number, top: number) {
-    const refStep = clef === 'bass' ? 18 : 30, bot = top + 48, yOf = (li: number, oct: number) => bot + (refStep - ssStepOf(li, oct)) * 6;
-    const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]];
-    const sB = [[3, 3], [0, 3], [4, 3], [1, 3], [5, 2], [2, 3], [6, 2]], fB = [[6, 2], [2, 3], [5, 2], [1, 3], [4, 2], [0, 3], [3, 2]];
-    const cnt = Math.abs(keyN), list = keyN > 0 ? (clef === 'bass' ? sB : sT) : (clef === 'bass' ? fB : fT);
-    let svg = '', xx = x;
-    for (let i = 0; i < cnt; i++) {
-        const y = yOf(list[i][0], list[i][1]);
-        svg += keyN > 0 ? ssSharp(xx + 3, y) : ssFlat(xx + 3, y);
-        xx += 9;
-    }
-    return { svg, w: cnt ? cnt * 9 + 6 : 6 };
-}
-function srTimeSigG(ts: number[], x: number, top: number) { return `<text class="ss-num" x="${x + 9}" y="${top + 18}">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="${top + 44}">${ts[1]}</text>`; }
-function srStem2(x: number, y: number, dur: number, mid: number) { if (dur >= 4)
-    return ''; const up = y > mid, sx = up ? x + 5.6 : x - 5.6, ey = up ? y - 32 : y + 32; return srStemLine(sx, y, ey, dur, up); }
-function srStemLine(sx: number, y: number, ey: number, dur: number, up: boolean) {
-    if (dur >= 4)
-        return '';
-    const base = [0.375, 0.75, 1.5, 3].includes(dur) ? dur / 1.5 : dur, flags = base <= 0.125 ? 3 : base <= 0.25 ? 2 : base <= 0.5 ? 1 : 0;
-    let s = `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
-    for (let i = 0; i < flags; i++) {
-        const fy = up ? ey + i * 7 : ey - i * 7;
-        s += up ? `<path class="ss-flag" fill="none" stroke="#1a1714" stroke-width="1.8" d="M ${sx},${fy} C ${sx + 9},${fy + 5} ${sx + 9},${fy + 13} ${sx + 3},${fy + 17}"/>` : `<path class="ss-flag" fill="none" stroke="#1a1714" stroke-width="1.8" d="M ${sx},${fy} C ${sx + 9},${fy - 5} ${sx + 9},${fy - 13} ${sx + 3},${fy - 17}"/>`;
-    }
-    return s;
-}
-function srLedger2(x: number, y: number, top: number) {
-    const bot = top + 48;
-    let s = '';
-    if (y > bot) {
-        for (let ly = bot + 12; ly <= y + 1; ly += 12)
-            s += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
-    }
-    if (y < top) {
-        for (let ly = top - 12; ly >= y - 1; ly -= 12)
-            s += `<line class="ss-ledger" x1="${x - 9}" y1="${ly}" x2="${x + 9}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
-    }
-    return s;
-}
-function srRest(x: number, top: number, dur: number) {
-    if (dur >= 4)
-        return `<rect class="ss-glyph" x="${x - 6}" y="${top + 12}" width="12" height="5"/>`;
-    if (dur >= 2)
-        return `<rect class="ss-glyph" x="${x - 6}" y="${top + 19}" width="12" height="5"/>`;
-    return `<text class="ss-clef" x="${x - 6}" y="${top + 34}" style="font-size:30px">${dur <= 0.125 ? '\u{1D140}' : dur <= 0.25 ? '\u{1D13F}' : dur <= 0.5 ? '\u{1D13E}' : '\u{1D13D}'}</text>`;
-}
-/** A tie from the notehead at x1 to the one at x2 (same pitch, same y), on the side away from the stem. */
-function srTieArc(x1: number, x2: number, y: number, stemUp: boolean) {
-    const s = stemUp ? 1 : -1, a = x1 + 5, b = x2 - 5, m = (a + b) / 2, yb = y + s * 6;
-    return `<path class="ss-tie" d="M ${a},${yb} Q ${m},${y + s * 15} ${b},${yb} Q ${m},${y + s * 12} ${a},${yb} Z"/>`;
-}
-/** engrave 2: a rest drawn with shapes (no music font), with its dot when dotted. */
-function srLevelRest(x: number, top: number, dur: number) {
-    const dotted = [0.375, 0.75, 1.5, 3].includes(dur), base = dotted ? dur / 1.5 : dur;
-    let s: string;
-    if (base >= 4)
-        s = `<rect class="ss-glyph ss-rest ss-rest-whole" x="${x - 6}" y="${top + 12}" width="12" height="5"/>`;
-    else if (base >= 2)
-        s = `<rect class="ss-glyph ss-rest ss-rest-half" x="${x - 6}" y="${top + 19}" width="12" height="5"/>`;
-    else if (base >= 1)
-        s = `<path class="ss-glyph ss-rest ss-rest-q" stroke-width="3.2" stroke-linejoin="bevel" d="M ${x - 2},${top + 7} L ${x + 4},${top + 15} L ${x - 1},${top + 22} L ${x + 4},${top + 30}"/><path class="ss-glyph" stroke-width="2" stroke-linecap="round" d="M ${x + 4},${top + 30} C ${x - 3},${top + 26} ${x - 5},${top + 34} ${x + 1},${top + 40}"/>`;
-    else if (base >= 0.5)
-        s = `<path class="ss-glyph ss-rest ss-rest-8" stroke-width="1.5" stroke-linecap="round" d="M ${x - 3},${top + 17} Q ${x + 1},${top + 21} ${x + 4},${top + 15} L ${x - 1},${top + 33}"/><circle class="ss-glyph" cx="${x - 3}" cy="${top + 16.5}" r="2.4"/>`;
-    else
-        s = `<path class="ss-glyph ss-rest ss-rest-16" stroke-width="1.5" stroke-linecap="round" d="M ${x - 3},${top + 17} Q ${x + 1},${top + 21} ${x + 4},${top + 15} L ${x - 3},${top + 40} M ${x - 5.5},${top + 27} Q ${x - 1.5},${top + 31} ${x + 1.2},${top + 25}"/><circle class="ss-glyph" cx="${x - 3}" cy="${top + 16.5}" r="2.4"/><circle class="ss-glyph" cx="${x - 5.5}" cy="${top + 26.5}" r="2.4"/>`;
-    return dotted ? s + `<circle class="ss-glyph ss-rest-dot" cx="${x + 9}" cy="${top + 18}" r="1.7"/>` : s;
-}
-/** engrave 2: a note's name from its spelling (letter and accidental), not from its pitch class. */
-function srSpellName(li: number, acc: number) {
-    const sys = NOTE_SYS[notation];
-    if (notation === 'german' && li === 6 && acc < 0)
-        return sys.flat[10];
-    return sys.sharp[SS_LETSEMI[li]] + (acc > 0 ? '#' : acc < 0 ? 'b' : '');
-}
-/** engrave 2: how many beams a note value takes (a dotted value counts as its undotted base). */
-function srBeamCount(dur: number) { const base = [0.375, 0.75, 1.5, 3].includes(dur) ? dur / 1.5 : dur; return base <= 0.125 ? 3 : base <= 0.25 ? 2 : 1; }
-/** engrave 2, before drawing: checks each tie against the note before, decides which accidentals show (an accidental holds
- *  for its staff position until the barline; a tied note shows none), groups eighths and shorter into beams per beat group
- *  (a quarter in x/4, the whole bar in 3/8, a dotted quarter in 6/8) and returns the extra room each beat needs for its signs. */
-function srLevelPrep(ts: number[], staves: SrStave[], bounds: number[], cap: number, pickup: number, keyAcc: number[]) {
-    const groups: SrBeamGroup[] = [], room = new Map<number, number>();
-    const barOf = (b: number) => bounds.filter((v) => v < b + 1e-3).length;
-    const barStart = (m: number) => m === 0 ? (pickup > 0 ? pickup - cap : 0) : bounds[m - 1];
-    const span = ts[1] === 8 ? (ts[0] % 3 === 0 ? 1.5 : cap) : 1;
-    let colId = 0;
-    staves.forEach((st) => {
-        const cols: { evs: SrEvent[]; beat: number }[] = [];
-        st.data.ev.forEach((e) => { const c = cols[cols.length - 1]; if (c && Math.abs(c.beat - e.beat) < 1e-3)
-            c.evs.push(e);
-        else
-            cols.push({ evs: [e], beat: e.beat }); });
-        let mem = new Map<number, number>(), bar = -1, prev: SrNoteEvent[] = [];
-        cols.forEach((c) => {
-            const m = barOf(c.beat);
-            if (m !== bar) {
-                bar = m;
-                mem = new Map<number, number>();
-            }
-            const ns = c.evs.filter((e): e is SrNoteEvent => !e.rest);
-            let shown = 0;
-            ns.forEach((e) => {
-                if (e.tied && !prev.some((p) => p.li === e.li && p.oct === e.oct && p.acc === e.acc))
-                    e.tied = false;
-                if (e.tied) {
-                    e.showAcc = false;
-                    return;
-                }
-                const step = ssStepOf(e.li, e.oct);
-                e.showAcc = e.acc !== (mem.get(step) ?? keyAcc[e.li]);
-                mem.set(step, e.acc);
-                if (e.showAcc)
-                    shown++;
-            });
-            prev = ns;
-            const k = Math.round(c.beat * 1000);
-            room.set(k, Math.max(room.get(k) ?? 0, Math.min(shown, 2) * 6));
-        });
-        let run: SrBeamCol[] = [], runKey = '';
-        const midStep = st.refStep + 4;
-        const flush = () => {
-            if (run.length > 1) {
-                const steps = run.flatMap((c) => c.steps), hi = Math.max(...steps), lo = Math.min(...steps);
-                const grp: SrBeamGroup = { cols: run, up: midStep - lo > hi - midStep };
-                run.forEach((c) => { c.grp = grp; });
-                groups.push(grp);
-            }
-            run = [];
-        };
-        cols.forEach((c) => {
-            const ns = c.evs.filter((e): e is SrNoteEvent => !e.rest), dur = c.evs[0].dur;
-            if (!ns.length || ns.length !== c.evs.length || dur >= 1 - 1e-6) {
-                flush();
-                return;
-            }
-            const m = barOf(c.beat), key = m + ':' + Math.floor((c.beat - barStart(m)) / span + 1e-6), last = run[run.length - 1];
-            if (!last || key !== runKey || Math.abs(last.beat + last.dur - c.beat) > 1e-3) {
-                flush();
-                runKey = key;
-            }
-            const col: SrBeamCol = { id: colId++, beat: c.beat, dur, steps: ns.map((e) => ssStepOf(e.li, e.oct)) };
-            ns.forEach((e) => { e.bcol = col; });
-            run.push(col);
-        });
-        flush();
-    });
-    return { groups, room };
-}
-/** engrave 2, after drawing: each beamed group's stems and beams (a second beam, or a short one, for sixteenths). The markup
- *  for a group of two eighths is the one the engraver draws for an on-beat pair without the flag. */
-function srLevelBeams(body: string, groups: SrBeamGroup[]) {
-    groups.forEach((gr) => {
-        const cs = gr.cols, n = cs.length, up = gr.up;
-        const pos: { sx: number; hi: number; lo: number }[] = [];
-        for (const c of cs) {
-            if (c.x === undefined || c.yHi === undefined || c.yLo === undefined)
-                return;
-            pos.push({ sx: up ? c.x + 5.6 : c.x - 5.6, hi: c.yHi, lo: c.yLo });
-        }
-        let e1 = up ? pos[0].hi - 32 : pos[0].lo + 32, e2 = up ? pos[n - 1].hi - 32 : pos[n - 1].lo + 32;
-        const d = e2 - e1;
-        if (up) {
-            if (d > 6)
-                e2 = e1 + 6;
-            else if (d < -6)
-                e1 = e2 + 6;
-        }
-        else {
-            if (d > 6)
-                e1 = e2 - 6;
-            else if (d < -6)
-                e2 = e1 - 6;
-        } // limit the slope by lengthening stems only
-        const x1 = pos[0].sx, x2 = pos[n - 1].sx, nb = cs.map((c) => srBeamCount(c.dur));
-        const lineY = (x: number) => x2 === x1 ? e1 : e1 + (e2 - e1) * (x - x1) / (x2 - x1);
-        const at = (i: number) => i === 0 ? e1 : i === n - 1 ? e2 : lineY(pos[i].sx);
-        // Every stem reaches past its furthest note by a full stem, a little more under extra beams.
-        let shift = 0;
-        pos.forEach((p, i) => { const need = 32 + 3 * (nb[i] - 1); shift = Math.max(shift, up ? at(i) - (p.hi - need) : (p.lo + need) - at(i)); });
-        if (shift > 1e-6) {
-            e1 = up ? e1 - shift : e1 + shift;
-            e2 = up ? e2 - shift : e2 + shift;
-        }
-        const th = up ? 5 : -5, stem = (sx: number, y: number, ey: number) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
-        const beam = (cls: string, a: number, b: number, off: number) => { const ya = lineY(a) + off, yb = lineY(b) + off; return `<path class="${cls}" d="M ${a},${ya} L ${b},${yb} L ${b},${yb + th} L ${a},${ya + th} Z"/>`; };
-        let beams = `<path class="ss-beam" d="M ${x1},${e1} L ${x2},${e2} L ${x2},${e2 + th} L ${x1},${e1 + th} Z"/>`;
-        for (let k = 2; k <= Math.max(...nb); k++) {
-            const off = (up ? 7 : -7) * (k - 1);
-            for (let i = 0; i < n; i++) {
-                if (nb[i] < k)
-                    continue;
-                let j = i;
-                while (j + 1 < n && nb[j + 1] >= k)
-                    j++;
-                if (j > i)
-                    beams += beam('ss-beam ss-beam2', pos[i].sx, pos[j].sx, off);
-                else {
-                    const dir = i === 0 ? 1 : -1;
-                    beams += beam('ss-beam ss-beam2', Math.min(pos[i].sx, pos[i].sx + dir * 9), Math.max(pos[i].sx, pos[i].sx + dir * 9), off);
-                }
-                i = j;
-            }
-        }
-        cs.forEach((c, i) => {
-            const p = pos[i];
-            body = body.replace(`@@G${c.id}@@`, stem(p.sx, up ? p.lo : p.hi, at(i)) + (i === n - 1 ? beams : ''));
-        });
-    });
-    return body;
-}
-/** One staff of the system; `data` is filled from the hand's tokens right after the staves are laid out. */
-interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; rel: number; data: { ev: SrEvent[]; total: number } }
-/** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
-interface SrChordItem { e: SrNoteEvent; step: number; y: number; dx: number; ax?: number }
 function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
-    const staves: SrStave[] = [];
-    if (piece.rh)
-        staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46, rel: 0, data: { ev: [], total: 0 } });
-    if (piece.lh)
-        staves.push({ hand: 'lh', clef: 'bass', refStep: 18, top: piece.rh ? 150 : 46, rel: piece.rh ? 104 : 0, data: { ev: [], total: 0 } });
-    const v2 = piece.engrave === 2;
-    staves.forEach((st) => { st.data = srEvents(piece[st.hand], v2); });
-    const keyAcc = ssKeyAcc(piece.keyN || 0), names = srNamesVisible(piece), lastSt = staves[staves.length - 1];
-    const cap = piece.ts[1] === 8 ? piece.ts[0] * 0.5 : piece.ts[0], pickup = piece.pickup || 0;
-    const total = Math.max(...staves.map((s) => s.data.total));
-    const ksw = Math.max(6, ...staves.map((st) => srKeySigG(st.clef, piece.keyN || 0, 0, 0).w));
-    const bounds: number[] = [];
-    {
-        let b = pickup > 0 ? pickup : cap;
-        while (b < total - 1e-4) {
-            bounds.push(b);
-            b += cap;
-        }
-    }
-    const beatSet = new Set<number>();
-    staves.forEach((st) => st.data.ev.forEach((e) => beatSet.add(+e.beat.toFixed(4))));
-    const beats = [...beatSet].sort((a, b) => a - b);
-    // engrave 2: ties, accidentals and beam groups are worked out before drawing (see srLevelPrep).
-    const lv = v2 ? srLevelPrep(piece.ts, staves, bounds, cap, pickup, keyAcc) : null;
-    // Beam pairs of eighths that start on a beat (simple meters only).
-    if (!lv && piece.ts[1] === 4)
-        staves.forEach((st) => {
-            const ev = st.data.ev;
-            for (let i = 0; i + 1 < ev.length; i++) {
-                const a = ev[i], b = ev[i + 1], rel = a.beat - (pickup % 1);
-                if (!a.rest && !b.rest && !a.chord && !b.chord && a.dur === 0.5 && b.dur === 0.5 && Math.abs(rel - Math.round(rel)) < 1e-3 && Math.abs(b.beat - a.beat - 0.5) < 1e-3) {
-                    a.beam = { first: true, mate: b };
-                    b.beam = { first: false, mate: a };
-                    i++;
-                }
-            }
-        });
-    // Each beat's column: its bar, how far it moves the pen (the shortest value there sets the room) and, per bar, how far the
-    // notes reach above and below the first staff line (stems, flags, ledger lines, result marks, note names).
-    const nBars = bounds.length + 1, barOf = beats.map((b) => bounds.filter((v) => v < b + 1e-3).length);
-    // engrave 2 also leaves room before a beat for its accidentals.
-    const adv = beats.map((b, i) => { let m = 4; staves.forEach((st) => st.data.ev.forEach((e) => { if (Math.abs(e.beat - b) < 1e-3)
-        m = Math.min(m, e.dur); })); const w = 26 + Math.min(m, 4) * 14; return lv && i + 1 < beats.length ? w + (lv.room.get(Math.round(beats[i + 1] * 1000)) ?? 0) : w; });
-    const barW = new Array<number>(nBars).fill(0), barTop = new Array<number>(nBars).fill(-14);
-    const barBot = new Array<number>(nBars).fill(Math.max(lastSt.rel + 48 + (lastSt.clef === 'treble' ? 18 : 10), names ? lastSt.rel + 84 : 0));
-    beats.forEach((b, i) => { barW[barOf[i]] += adv[i]; });
-    staves.forEach((st) => st.data.ev.forEach((e) => {
-        if (e.rest)
-            return;
-        const m = bounds.filter((v) => v < e.beat + 1e-3).length, y = st.rel + 48 + (st.refStep - ssStepOf(e.li, e.oct)) * 6, up = y > st.rel + 24;
-        barTop[m] = Math.min(barTop[m], up ? y - 40 : y - 20);
-        barBot[m] = Math.max(barBot[m], up ? y + 12 : y + 40);
-    }));
-    // engrave 2 with markings: a finger number sits above the right hand and below the left, so its bar takes more room.
-    const marks = v2 ? piece.marks : undefined;
-    const fingerRoom = new Set<string>();
-    marks?.fingering.forEach((f) => {
-        const m = Math.min(nBars - 1, bounds.filter((v) => v < f.beat + 1e-3).length);
-        if (fingerRoom.has(f.hand + m))
-            return;
-        fingerRoom.add(f.hand + m);
-        if (f.hand === 'rh')
-            barTop[m] -= 12;
-        else
-            barBot[m] += 14;
-    });
-    // Systems: `starts` holds each one's first bar. The first system carries the time signature unless `noTs` omits it.
-    const headW = (s: number) => 40 + ksw + (s === 0 && !piece.noTs ? 26 : 8);
-    const sysW = (s: number, a: number, z: number) => { let w = headW(s) + 18 * (z - a - 1) + (z === nBars ? 20 : 12); for (let m = a; m < z; m++)
-        w += barW[m]; return w; };
-    const ends = (starts: number[]) => starts.map((a, s) => s + 1 < starts.length ? starts[s + 1] : nBars);
-    const vert = (starts: number[]) => { const zs = ends(starts), top: number[] = [], bot: number[] = [], ys: number[] = []; let y = 6;
-        starts.forEach((a, s) => { let t = 0, u = 0; for (let m = a; m < zs[s]; m++) {
-            t = Math.min(t, barTop[m]);
-            u = Math.max(u, barBot[m]);
-        } top.push(t); bot.push(u); ys.push(y - t); y = y - t + u + 10; }); return { ys, H: y - 4 }; };
-    let starts = [0], zoom = 1, sysY = [46], H = 0;
-    const stretch: number[] = [1];
-    if (lay && lay.width > 0) {
-        const kCap = lay.cap ?? SR_SCALE_CAP, maxBars = Math.max(1, lay.maxBars ?? 4), maxH = lay.maxHeight || Infinity, kFloor = lay.floor ?? (lay.maxHeight ? 0.65 : 1);
-        // Bars split evenly over the fewest systems that fit the width at the natural size; no system holds a single bar of
-        // several (too little width for that keeps one system, which then scrolls).
-        const plan = (per: number) => {
-            for (let n = Math.ceil(nBars / per); n <= Math.max(1, Math.floor(nBars / 2)); n++) {
-                const st = Array.from({ length: n }, (_, s) => Math.round(s * nBars / n)), zs = ends(st);
-                if (st.every((a, s) => sysW(s, a, zs[s]) <= lay.width))
-                    return st;
-            }
-            return null;
-        };
-        let best: { st: number[]; k: number } | null = null;
-        for (let per = maxBars; per <= Math.max(maxBars, nBars); per++) {
-            const st = plan(per);
-            if (!st)
-                continue;
-            const zs = ends(st), wide = Math.max(...st.map((a, s) => sysW(s, a, zs[s]))), kk = Math.min(kCap, lay.width / wide, maxH / vert(st).H);
-            if (!best || kk > best.k + 1e-3)
-                best = { st, k: kk };
-            if (maxH === Infinity)
-                break;
-        }
-        if (!best) {
-            const one = sysW(0, 0, nBars);
-            best = { st: [0], k: Math.min(kCap, lay.width / one, maxH / vert([0]).H) };
-        }
-        starts = best.st;
-        zoom = Math.max(kFloor, best.k);
-        // Every system but a short last one is spread to the full width; the spacing grows at most 1.8 times.
-        const zs = ends(starts), T = lay.width / zoom;
-        starts.forEach((a, s) => {
-            let sum = 0;
-            for (let m = a; m < zs[s]; m++)
-                sum += barW[m];
-            const nat = sysW(s, a, zs[s]), last = s === starts.length - 1;
-            // A page (`justify`) spreads further, and its last system too when it holds as many bars as the first.
-            const full = lay.justify ? zs[s] - a >= zs[0] - starts[0] : nat >= 0.6 * T;
-            stretch[s] = starts.length > 1 && nat < T && sum > 0 && (!last || full) ? Math.min(lay.justify ? 3 : 1.8, 1 + (T - nat) / sum) : 1;
-        });
-        const v = vert(starts);
-        sysY = v.ys;
-        H = v.H;
-        // The stage's paper is a fixed box: there the score keeps at least the natural score's 150 units of height (centred),
-        // as far as the box allows, so a short one-staff melody is never drawn shorter than before the layout.
-        const pad = lay.maxHeight ? Math.min(150, lay.maxHeight / zoom) - H : 0;
-        if (pad > 0) {
-            sysY = sysY.map((y) => y + pad / 2);
-            H += pad;
-        }
-    }
-    const sysOfBar = (m: number) => { let s = 0; while (s + 1 < starts.length && starts[s + 1] <= m)
-        s++; return s; };
-    const notes: SrStaffNote[] = [], beatX: SrBeatX[] = [], systems: SrSystem[] = [], sysEnd: number[] = [];
-    let body = '', head = '', nid = 0, x = 10, sy = 0;
-    const barline = (bx: number, w: number) => `<line class="ss-line" x1="${bx}" y1="${staves[0].top}" x2="${bx}" y2="${lastSt.top + 48}" stroke="#1a1714" stroke-width="${w}"/>`;
-    const openSystem = (s: number) => {
-        sy = s;
-        staves.forEach((st) => { st.top = sysY[s] + st.rel; });
-        x = 10;
-        staves.forEach((st) => { head += piece.perc ? rdPercClef(x + 4, st.top) : srClef(st.clef, x, st.top); });
-        x += 30;
-        staves.forEach((st) => { head += srKeySigG(st.clef, piece.keyN || 0, x, st.top).svg; });
-        x += ksw;
-        if (s === 0 && !piece.noTs) {
-            staves.forEach((st) => { head += srTimeSigG(piece.ts, x, st.top); });
-            x += 26;
-        }
-        else
-            x += 8;
-        sysX0[s] = x;
-        systems.push({ yTop: staves[0].top - 8, yBot: lastSt.top + 56 });
-    };
-    // Where each system's music starts (after its clefs and signatures), and where each hand's notes were drawn (for the markings).
-    const sysX0: number[] = [], markCols = new Map<string, SrMarkCol>();
-    openSystem(0);
-    // A tied note is not played again: it is drawn inside the group of the note it continues, which also lasts longer.
-    const lastNote: Partial<Record<SrHand, SrStaffNote>> = {}, tiedMarkup = new Map<number, string>();
-    let tiedKey = 0;
-    // Each bar's left edge (its barline, or the end of the system's header) and right barline, for centring whole-bar rests.
-    const barX0: number[] = [], barX1: number[] = [];
-    let barLeft = x;
-    // engrave 2: the noteheads each hand drew last (a tie starts from them), and the whole-bar rests to centre once drawn.
-    const lastCol: Partial<Record<SrHand, { note: SrStaffNote; e: SrNoteEvent; x: number; y: number; sy: number }[]>> = {};
-    const barRests: { m: number; top: number }[] = [];
-    /** engrave 2: one hand's notes or rest at one beat. A note, or a chord, takes the same path; see srLevelPrep for what
-     *  is decided before drawing. The markup of a plain note is the one drawn without the flag. */
-    const drawLevel = (st: SrStave, here: SrEvent[], nx: number, m: number) => {
-        here.forEach((e) => {
-            if (!e.rest)
-                return;
-            lastCol[st.hand] = [];
-            const start = m === 0 ? 0 : bounds[m - 1], len = m === 0 && pickup > 0 ? pickup : cap;
-            if (Math.abs(e.beat - start) < 1e-3 && Math.abs(e.dur - len) < 1e-3) {
-                body += `@@W${barRests.length}@@`;
-                barRests.push({ m, top: st.top });
-            }
-            else
-                body += srLevelRest(nx, st.top, e.dur);
-        });
-        const evs = here.filter((e): e is SrNoteEvent => !e.rest);
-        if (!evs.length)
-            return;
-        const items = evs.map((e): SrChordItem => ({ e, step: ssStepOf(e.li, e.oct), y: 0, dx: 0 })).sort((p, q) => p.step - q.step);
-        items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
-        const col = evs[0].bcol, grp = col?.grp, dur = items[0].e.dur;
-        const up = grp ? grp.up : items.reduce((sum, it) => sum + it.y, 0) / items.length > st.top + 24;
-        let prev: SrChordItem|null = null;
-        (up ? items : items.slice().reverse()).forEach((it) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
-        const lanes: number[][] = [];
-        items.slice().reverse().forEach((it) => {
-            if (!it.e.showAcc)
-                return;
-            let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
-            if (a < 0) {
-                a = lanes.length;
-                lanes.push([]);
-            }
-            lanes[a].push(it.y);
-            it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
-        });
-        const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
-        if (marks)
-            markCols.set(st.hand + '|' + items[0].e.beat.toFixed(3), { x: nx, hi: top.y, lo: bot.y, up, sy, top: st.top });
-        let stem = '';
-        if (col && grp) {
-            Object.assign(col, { x: nx, yHi: top.y, yLo: bot.y });
-            stem = `@@G${col.id}@@`;
-        }
-        else
-            stem = srStemLine(sx, (up ? bot : top).y, up ? top.y - 32 : bot.y + 32, dur, up);
-        const from0 = lastCol[st.hand] ?? [], ends: { note: SrStaffNote; e: SrNoteEvent; x: number; y: number; sy: number }[] = [];
-        const chord = items.length > 1, chordNames = names && chord ? items.map((it) => srSpellName(it.e.li, it.e.acc)).join(' ') : '';
-        let fresh = true;
-        items.forEach((it) => {
-            const e = it.e, from = e.tied ? from0.find((p) => p.e.li === e.li && p.e.oct === e.oct && p.e.acc === e.acc) : undefined;
-            let g = !from && fresh ? `<rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>` : '';
-            if (it.ax != null)
-                g += ssAccGlyph(e.acc, keyAcc[e.li], it.ax, it.y);
-            g += srLedger2(nx + it.dx, it.y, st.top) + ssNotehead(nx + it.dx, it.y, dur, (st.refStep - it.step) % 2 === 0);
-            if (it === (up ? bot : top))
-                g += stem;
-            if (from) {
-                // The tie bends away from the stem (outwards on a chord); over a system break it is drawn in two halves.
-                const below = chord ? it === bot : up;
-                const arc = from.sy === sy ? srTieArc(from.x, nx, it.y, below)
-                    : srTieArc(from.x, sysEnd[from.sy] - 2, from.y, below) + srTieArc(nx - 22, nx, it.y, below);
-                tiedMarkup.set(from.note.nid, (tiedMarkup.get(from.note.nid) ?? '') + `<g class="ss-tied">${g}</g>` + arc);
-                from.note.dur += e.dur;
-                ends.push({ note: from.note, e, x: nx, y: it.y, sy });
-                return;
-            }
-            let nm = '';
-            if (names && !chord)
-                nm = `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${srSpellName(e.li, e.acc)}</text>`;
-            else if (names && fresh) {
-                const lab = st.hand === 'rh' ? top.e : bot.e;
-                nm = `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${srSpellName(lab.li, lab.acc)}</text><title>${chordNames}</title>`;
-            }
-            fresh = false;
-            body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}">${g}${nm}@@T${nid}@@</g>`;
-            const staffNote: SrStaffNote = { nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y: it.y, li: e.li, oct: e.oct, acc: e.acc, sy };
-            notes.push(staffNote);
-            ends.push({ note: staffNote, e, x: nx, y: it.y, sy });
-            nid++;
-        });
-        lastCol[st.hand] = ends;
-    };
-    beats.forEach((b, bi) => {
-        const s = sysOfBar(barOf[bi]);
-        if (s > sy) {
-            // Every system in turn, even one whose bars start no note.
-            while (sy < s) {
-                x += 6;
-                body += barline(x, 1.3);
-                barX1[barOf[bi] - 1] = x;
-                beatX.push({ b, x, sy });
-                sysEnd[sy] = x;
-                openSystem(sy + 1);
-            }
-            barLeft = x;
-        }
-        else if (bounds.some((v) => Math.abs(v - b) < 1e-3)) {
-            x += 6;
-            body += barline(x, 1.3);
-            barX1[barOf[bi] - 1] = barLeft = x;
-            x += 12;
-        }
-        barX0[barOf[bi]] = barLeft;
-        const nx = x + 10;
-        staves.forEach((st) => {
-            const here = st.data.ev.filter((e) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e): e is SrNoteEvent => !e.rest && !!e.chord);
-            if (lv) {
-                drawLevel(st, here, nx, barOf[bi]);
-                return;
-            }
-            if (chord.length) {
-                const items = chord.map((e): SrChordItem => ({ e, step: ssStepOf(e.li, e.oct), y: 0, dx: 0 })).sort((p, q) => p.step - q.step);
-                items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
-                const up = items.reduce((sum, it) => sum + it.y, 0) / items.length > st.top + 24, dur = items[0].e.dur;
-                let prev: SrChordItem|null = null;
-                (up ? items : items.slice().reverse()).forEach((it) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
-                const lanes: number[][] = [];
-                items.slice().reverse().forEach((it) => {
-                    if (it.e.acc === keyAcc[it.e.li])
-                        return;
-                    let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
-                    if (a < 0) {
-                        a = lanes.length;
-                        lanes.push([]);
-                    }
-                    lanes[a].push(it.y);
-                    it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
-                });
-                const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
-                const chordNames = names ? items.map((it) => pcName(pc(it.e.midi), (piece.keyN || 0) < 0)).join(' ') : '';
-                items.forEach((it, k) => {
-                    const e = it.e;
-                    let g = k === 0 ? `<rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>` : '';
-                    if (it.ax != null)
-                        g += ssAccGlyph(e.acc, keyAcc[e.li], it.ax, it.y);
-                    g += srLedger2(nx + it.dx, it.y, st.top) + ssNotehead(nx + it.dx, it.y, dur, (st.refStep - it.step) % 2 === 0);
-                    if (it === (up ? bot : top))
-                        g += srStemLine(sx, it.y, up ? top.y - 32 : bot.y + 32, dur, up);
-                    if (k === 0 && chordNames)
-                        g += `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${(st.hand === 'rh' ? pcName(pc(top.e.midi), (piece.keyN || 0) < 0) : pcName(pc(bot.e.midi), (piece.keyN || 0) < 0))}</text><title>${chordNames}</title>`;
-                    body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}">${g}</g>`;
-                    notes.push({ nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y: it.y, li: e.li, oct: e.oct, acc: e.acc, sy });
-                    nid++;
-                });
-            }
-            here.forEach((e) => {
-                if (e.rest) {
-                    body += srRest(nx, st.top, e.dur);
-                    return;
-                }
-                if (e.chord)
-                    return;
-                const y = st.top + 48 + (st.refStep - ssStepOf(e.li, e.oct)) * 6;
-                const from = e.tied ? lastNote[st.hand] : undefined;
-                const key = from ? -(++tiedKey) : nid;
-                let g = '';
-                if (e.acc !== keyAcc[e.li] && !from)
-                    g += ssAccGlyph(e.acc, keyAcc[e.li], nx - 13, y);
-                g += srLedger2(nx, y, st.top) + ssNotehead(nx, y, e.dur, (st.refStep - ssStepOf(e.li, e.oct)) % 2 === 0) + (e.beam ? `@@B${key}@@` : srStem2(nx, y, e.dur, st.top + 24));
-                if (e.beam)
-                    Object.assign(e, { nid: key, bx: nx, by: y, mid: st.top + 24 });
-                if (from) {
-                    // A tie over a system break leaves the first note towards the end of its line and reaches the second from the left.
-                    const arc = from.sy === sy ? srTieArc(from.x, nx, y, y > st.top + 24)
-                        : srTieArc(from.x, sysEnd[from.sy] - 2, from.y, from.y > sysY[from.sy] + st.rel + 24) + srTieArc(nx - 22, nx, y, y > st.top + 24);
-                    tiedMarkup.set(from.nid, (tiedMarkup.get(from.nid) ?? '') + `<g class="ss-tied">${g}</g>` + arc);
-                    from.dur += e.dur;
-                    return;
-                }
-                const nm = names ? `<text class="ss-syl" x="${nx}" y="${st.top + 78}">${pcName(pc(e.midi), (piece.keyN || 0) < 0)}</text>` : '';
-                body += `<g class="ss-n" data-nid="${nid}" data-hand="${st.hand}"><rect class="ss-box" x="${nx - 12}" y="${st.top - 6}" width="24" height="60" rx="4"/>${g}${nm}@@T${nid}@@</g>`;
-                const staffNote: SrStaffNote = { nid, hand: st.hand, midi: e.midi, beat: e.beat, dur: e.dur, x: nx, y, li: e.li, oct: e.oct, acc: e.acc, sy };
-                notes.push(staffNote);
-                lastNote[st.hand] = staffNote;
-                nid++;
-            });
-        });
-        beatX.push({ b, x: nx, sy });
-        x += adv[bi] * stretch[sy];
-    });
-    body = body.replace(/@@T(\d+)@@/g, (_, id: string) => tiedMarkup.get(Number(id)) ?? '');
-    staves.forEach((st) => st.data.ev.forEach((a) => {
-        if (!a.beam || !a.beam.first)
-            return;
-        const b = a.beam.mate;
-        if (a.by === undefined || a.bx === undefined || a.mid === undefined || b.by === undefined || b.bx === undefined)
-            return;
-        const up = (a.by + b.by) / 2 > a.mid;
-        let e1 = up ? a.by - 32 : a.by + 32, e2 = up ? b.by - 32 : b.by + 32;
-        const d = e2 - e1;
-        if (up) {
-            if (d > 6)
-                e2 = e1 + 6;
-            else if (d < -6)
-                e1 = e2 + 6;
-        }
-        else {
-            if (d > 6)
-                e1 = e2 - 6;
-            else if (d < -6)
-                e2 = e1 - 6;
-        } // limit the slope by lengthening stems only
-        const s1 = up ? a.bx + 5.6 : a.bx - 5.6, s2 = up ? b.bx + 5.6 : b.bx - 5.6, th = up ? 5 : -5, stem = (sx: number, y: number, ey: number) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
-        body = body.replace(`@@B${a.nid}@@`, stem(s1, a.by, e1)).replace(`@@B${b.nid}@@`, stem(s2, b.by, e2) + `<path class="ss-beam" d="M ${s1},${e1} L ${s2},${e2} L ${s2},${e2 + th} L ${s1},${e1 + th} Z"/>`);
-    }));
-    x += 8;
-    body += barline(x - 5, 1.2) + barline(x, 3);
-    x += 6;
-    beatX.push({ b: total, x, sy });
-    sysEnd[sy] = x;
-    barX1[nBars - 1] = x - 11;
-    if (lv) {
-        body = srLevelBeams(body, lv.groups);
-        body = body.replace(/@@W(\d+)@@/g, (_, i: string) => {
-            const r = barRests[Number(i)], c = (barX0[r.m] + barX1[r.m]) / 2;
-            return `<rect class="ss-glyph ss-rest ss-rest-bar" x="${c - 6}" y="${r.top + 12}" width="12" height="5"/>`;
-        });
-    }
-    if (marks)
-        body += srLevelMarks(marks, markCols, (beat) => srBeatPt(beatX, beat), sysEnd, sysX0, (s) => sysY[s] + (lastSt.rel + 48) / 2);
-    const W = lay ? Math.max(...sysEnd) + 6 : piece.compact ? x + 2 : Math.max(x + 6, 420);
-    if (!lay)
-        H = Math.max(lastSt.top + 48 + (names ? 38 : 22), 150);
-    let staff = '';
-    systems.forEach((_, s) => {
-        const top = sysY[s], bot = sysY[s] + lastSt.rel + 48, end = lay ? sysEnd[s] : piece.compact ? x - 6 : W - 6;
-        staves.forEach((st) => { for (let k = 0; k < 5; k++) {
-            const ly = top + st.rel + k * 12;
-            staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${end}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
-        } });
-        staff += `<line class="ss-line" x1="8" y1="${top}" x2="8" y2="${bot}" stroke="#1a1714" stroke-width="1.6"/>`;
-        if (staves.length > 1) {
-            const midY = (top + bot) / 2;
-            staff += `<path class="ss-brace" d="M 6,${top} C 1,${top + 12} 7,${midY - 14} 1,${midY} C 7,${midY + 14} 1,${bot - 12} 6,${bot}"/>`;
-        }
-    });
-    const size = lay ? `width="${Math.floor(W * zoom)}" height="${Math.round(H * zoom)}"` : `width="${W}" height="${H}"`;
-    return { svg: `<svg class="ss-svg" viewBox="0 0 ${W} ${H}" ${size} xmlns="http://www.w3.org/2000/svg">${staff}${head}${body}</svg>`, notes, beatX, total, W, H,
-        yTop: systems[0].yTop, yBot: systems[0].yBot, systems, scale: zoom };
-}
-/** engrave 2: where one hand's note or chord at a beat was drawn: its x, its highest and lowest notehead, its stem's
- *  direction, its system and its staff's top line. */
-interface SrMarkCol { x: number; hi: number; lo: number; up: boolean; sy: number; top: number }
-/** engrave 2: the markings of a level piece as one group drawn over the notes, the way a printed page shows them: dynamics
- *  and hairpins between the staves, a finger number above the right hand and below the left, a staccato dot or an accent
- *  on the notehead side, slurs on the notehead side too. They are decoration: no note group changes, and nothing is scored. */
-function srLevelMarks(marks: LevelMarkings, cols: ReadonlyMap<string, SrMarkCol>, at: (beat: number) => SrBeatX, sysEnd: readonly number[],
-    sysX0: readonly number[], midY: (sy: number) => number): string {
-    const col = (hand: string, beat: number) => cols.get(hand + '|' + beat.toFixed(3));
-    const key = (hand: string, beat: number, below: boolean) => hand + '|' + beat.toFixed(3) + '|' + (below ? 'b' : 'a');
-    // What already sits above or below a note: a finger number moves out of its way.
-    const taken = new Set<string>();
-    let out = '';
-    for (const s of marks.slurs) {
-        const a = col(s.hand, s.from), b = col(s.hand, s.to);
-        if (!a || !b)
-            continue;
-        // Under the noteheads when the stems go up, over them otherwise.
-        const below = a.up && b.up, d = below ? 1 : -1, ya = below ? a.lo + 9 : a.hi - 9, yb = below ? b.lo + 9 : b.hi - 9;
-        const arc = (x1: number, y1: number, x2: number, y2: number) => {
-            const m = (x1 + x2) / 2, c = (y1 + y2) / 2 + d * Math.min(26, 10 + (x2 - x1) * 0.1);
-            return `<path class="ss-slur" d="M ${x1},${y1} Q ${m},${c} ${x2},${y2} Q ${m},${c - d * 3} ${x1},${y1} Z"/>`;
-        };
-        // Over a system break it is drawn in two halves, like a tie.
-        out += a.sy === b.sy ? arc(a.x, ya, b.x, yb) : arc(a.x, ya, sysEnd[a.sy] - 3, ya + d * 2) + arc(sysX0[b.sy] - 6, yb + d * 2, b.x, yb);
-        taken.add(key(s.hand, s.from, below));
-        taken.add(key(s.hand, s.to, below));
-    }
-    for (const a of marks.articulations) {
-        const c = col(a.hand, a.beat);
-        if (!c)
-            continue;
-        const d = c.up ? 1 : -1, head = c.up ? c.lo : c.hi;
-        if (a.kind === 'staccato') {
-            // The dot sits in a space: the next one for a notehead in a space, the one after its line for a notehead on a line.
-            const rel = head - c.top, onLine = rel > -1 && rel < 49 && Math.abs(rel / 12 - Math.round(rel / 12)) < 0.05;
-            out += `<circle class="ss-art" cx="${c.x}" cy="${head + d * (onLine ? 18 : 12)}" r="2.1"/>`;
-        }
-        else {
-            // The accent stays outside the staff.
-            const y = c.up ? Math.max(head + 16, c.top + 60) : Math.min(head - 16, c.top - 12);
-            out += `<path class="ss-art ss-accent" d="M ${c.x - 5.5},${y - 4} L ${c.x + 5.5},${y} L ${c.x - 5.5},${y + 4}"/>`;
-        }
-        taken.add(key(a.hand, a.beat, c.up));
-    }
-    for (const f of marks.fingering) {
-        const c = col(f.hand, f.beat);
-        if (!c)
-            continue;
-        // Above the right hand's note, stem and staff; below the left hand's.
-        const below = f.hand === 'lh', free = taken.has(key(f.hand, f.beat, below)) ? 12 : 0;
-        const y = below ? Math.max(c.top + 48, c.up ? c.lo + 6 : c.lo + 32) + 15 + free : Math.min(c.top, c.up ? c.hi - 32 : c.hi - 6) - 6 - free;
-        out += `<text class="ss-finger" x="${c.x}" y="${y}">${f.finger}</text>`;
-    }
-    const dynAt = (beat: number) => marks.dynamics.some((d) => Math.abs(d.beat - beat) < 1e-3);
-    for (const d of marks.dynamics) {
-        const p = at(d.beat);
-        out += `<text class="ss-dyn" x="${p.x}" y="${midY(p.sy) + 6}">${d.mark}</text>`;
-    }
-    for (const h of marks.hairpins) {
-        const a = at(h.from), b = at(h.to), x1 = a.x + (dynAt(h.from) ? 18 : -4), x2 = b.x - (dynAt(h.to) ? 18 : 8);
-        // One wedge a system; over a break each part goes on from where the last one stopped.
-        const parts: { sy: number; x1: number; x2: number }[] = [];
-        for (let s = a.sy; s <= b.sy; s++) {
-            const p = { sy: s, x1: s === a.sy ? x1 : sysX0[s], x2: s === b.sy ? x2 : sysEnd[s] - 6 };
-            if (p.x2 - p.x1 >= 10)
-                parts.push(p);
-        }
-        const from = h.kind === 'cresc' ? 0 : 6, to = h.kind === 'cresc' ? 6 : 0;
-        parts.forEach((p, i) => {
-            const y = midY(p.sy), h1 = from + (to - from) * i / parts.length, h2 = from + (to - from) * (i + 1) / parts.length;
-            out += `<path class="ss-hairpin" d="M ${p.x1},${y - h1} L ${p.x2},${y - h2} M ${p.x1},${y + h1} L ${p.x2},${y + h2}"/>`;
-        });
-    }
-    return out ? `<g class="ss-marks" aria-hidden="true">${out}</g>` : '';
+    return renderGrandStaff(piece, lay, { namesVisible: srNamesVisible(piece), notation });
 }
 /* ---- state, drawing, grading ---- */
 function srSvg() { return byId('rd-staff') ? byId('rd-staff').querySelector('svg') : null; }
@@ -7530,19 +6383,6 @@ function srScrollStep() { const st = SR.steps[SR.stepIdx]; if (st) {
     srScrollX(st.notes[0].x);
     srFollow(st.notes[0].sy);
 } }
-/** Where `beat` falls on a drawn score: between the anchors around it, on their system. A beat on a system break starts the next system. */
-function srBeatPt(pts: readonly SrBeatX[], beat: number): SrBeatX {
-    if (!pts.length)
-        return { b: beat, x: 10, sy: 0 };
-    for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i], c = pts[i + 1], brk = i + 2 < pts.length && pts[i + 2].sy !== c.sy;
-        if (a.sy !== c.sy || beat < a.b || beat > c.b || (brk && beat > c.b - 1e-3))
-            continue;
-        const f = (beat - a.b) / Math.max(1e-3, c.b - a.b);
-        return { b: beat, x: a.x + f * (c.x - a.x), sy: a.sy };
-    }
-    return beat <= pts[0].b ? pts[0] : pts[pts.length - 1];
-}
 function srBeatToX(beat: number) { return srBeatPt(SR.beatX, beat).x; }
 /** Moves the playhead to `x` on system `sy`. */
 function srCursor(x: number, sy = 0) {
@@ -8921,7 +7761,6 @@ function rdCClef(x: number, cy: number) {
     const p = (s: number) => `<path class="rdx-cc" d="M ${x + 9},${cy} C ${x + 13},${cy - 3 * s} ${x + 14},${cy - 8 * s} ${x + 15},${cy - 11 * s} C ${x + 18},${cy - 8 * s} ${x + 24},${cy - 10 * s} ${x + 24},${cy - 17 * s} C ${x + 24},${cy - 25 * s} ${x + 16},${cy - 26 * s} ${x + 12},${cy - 21 * s}"/>`;
     return `<g class="rdx-cclef"><rect x="${x}" y="${cy - 24}" width="4.5" height="48"/><rect x="${x + 6.5}" y="${cy - 24}" width="1.6" height="48"/>${p(1)}${p(-1)}</g>`;
 }
-function rdPercClef(x: number, top: number) { return `<g class="rdx-cclef"><rect x="${x}" y="${top + 12}" width="4" height="24"/><rect x="${x + 8}" y="${top + 12}" width="4" height="24"/></g>`; }
 function rdKsSvg(clef: ReadClefStaff, keyN: number, x: number, top: number) {
     const bot = top + 48, ref = RD_REF[clef], off = ({ treble: 0, bass: -2, alto: -1, tenor: -1 } )[clef];
     const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]], sTn = [[3, 4], [0, 5], [4, 4], [1, 5], [5, 4], [2, 5], [6, 4]];
@@ -12961,40 +11800,6 @@ function coachRefresh() { srCoach(); if (RD.L && !byId('rdx-coach').hidden)
     rdCoach(true); rdNextRender(); if (!byId('pr-sum').hidden)
     pracNextRender(); }
 /* ---------- SCORE & ANALYSIS ---------- */
-type AnHand = 'rh' | 'lh';
-interface ScoreNoteArticulation { staccato: boolean; staccatissimo: boolean; accent: boolean; strongAccent: boolean; tenuto: boolean; }
-interface ScoreGraceNote { midi: number; vel: number; tieStart?: boolean; tiedToPrincipal?: boolean; }
-// A note of the loaded piece: MIDI and built-in pieces fill the timing and hand; MusicXML adds its notation and performance details.
-interface AnNote {
-    midi: number; start: number; end: number; vel: number;
-    track?: number; channel?: number; hand?: AnHand | null; srcHand?: AnHand;
-    part?: number; staff?: number; voice?: number; type?: string; art?: ScoreNoteArticulation; arpeggiate?: boolean;
-    finger?: number; explicitVel?: number; dynamicHit?: number; graces?: ScoreGraceNote[]; warm?: boolean; soundRatio?: number;
-    roll?: number; nextSame?: number; pedalEnd?: number; soundEnd?: number; parenthesizedAt?: number[];
-}
-interface ScoreXmlNote extends AnNote { hand: AnHand | null; part: number; staff: number; voice: number; type: string; art: ScoreNoteArticulation; arpeggiate: boolean; }
-interface AnParsedNote { midi: number; start: number; end: number; vel: number; track: number; channel: number; srcHand?: AnHand; }
-type AnMidiMeta = { type: 'tempo'; beat: number; bpm: number } | { type: 'time'; beat: number; num: number; den: number } | AnMidiKeyMeta;
-interface AnMidiKeyMeta { type: 'key'; beat: number; fifths: number; minor: boolean; }
-interface AnParsedMidi { ppq: number; format: number; tracks: number; names: string[]; meta: AnMidiMeta[]; notes: AnParsedNote[]; }
-interface ScoreXmlLayout {
-    base: number; width: number; pageWidth: number; pageHeight: number;
-    left?: number; right?: number; top?: number; bottom?: number;
-    titleSize?: number; subtitleSize?: number; composerSize?: number;
-    titleRuns?: { text: string | null; style: string; weight: string }[];
-    staffGap?: number | null; systemGap?: number | null;
-}
-interface ScoreMeasure { number: string; start: number; end: number; num: number; den: number; }
-interface ScoreXmlKey { beat: number; fifths: number; mode: 'major' | 'minor' | null; }
-interface ScoreXmlLink { kind: string; a: number; b: number; style: string; }
-type AnSource =
-    | { kind: 'xml'; title: string; label: string; xml: string; layout: ScoreXmlLayout | null; notes: ScoreXmlNote[]; tempos: { beat: number; bpm: number }[]; measures: ScoreMeasure[]; keys: ScoreXmlKey[]; links: ScoreXmlLink[] }
-    | { kind: 'midi'; title: string; label: string; parsed: AnParsedMidi; comp?: undefined }
-    | { kind: 'example'; id: string; title: string; label: string; comp: string; parsed: AnParsedMidi };
-type AnHandAssignment =
-    | { of: AnHand[]; how: 'split' | 'one' | 'fallback'; split: number }
-    | { of: AnHand[]; how: 'piece' }
-    | { of: AnHand[]; how: 'tracks'; groups: number };
 // Everything the analysis workspace shows for one scope (see anCompute).
 interface AnAnalysisModel {
     ns: AnNote[]; lo: number; hi: number; pitches: number[]; poly: { avg: number; max: number }; implied: boolean; segs: AnHarmonySeg[]; ms: ScoreMeasure[];
@@ -13010,7 +11815,6 @@ interface AnState {
 }
 const AN: AnState = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
-const AN_MAX_XML_CHARS = 33554432, AN_MAX_BYTES = 2097152, AN_MAX_NOTES = 5000;
 // Library records own original bytes; parsed/engraved objects remain disposable runtime state.
 let anLibraryActive: { id: string; source: AnSource } | null = null;
 let anLibrarySuspended = false;
@@ -13108,10 +11912,25 @@ function anLibraryRestoreResume(resume: LibraryResume) {
 async function anLibraryOpen(item: LibraryItem, file: File): Promise<boolean> {
     return anOpenFile(file, item);
 }
+let scoreLibraryLoading: Promise<LibraryController> | null = null;
+function anLibraryEnsure(): Promise<LibraryController> {
+    if (scoreLibrary)
+        return Promise.resolve(scoreLibrary);
+    if (!scoreLibraryLoading) {
+        scoreLibraryLoading = import('./score-library-ui.js').then(({ initScoreLibrary }) => {
+            if (!scoreLibrary) {
+                scoreLibrary = initScoreLibrary(byId('score-library-root'), {
+                    language: () => lang, inspect: anLibraryInspect, open: anLibraryOpen, flush: () => anLibraryFlush(),
+                });
+            }
+            return scoreLibrary;
+        });
+    }
+    return scoreLibraryLoading;
+}
 function anLibraryInit() {
-    scoreLibrary = initScoreLibrary(byId('score-library-root'), {
-        language: () => lang, inspect: anLibraryInspect, open: anLibraryOpen, flush: () => anLibraryFlush(),
-    });
+    if (viewFromHash(location.hash) === 'analysis')
+        void anLibraryEnsure();
     document.addEventListener('change', (event) => {
         if (eventElement(event)?.closest('#an-toolbar,#an-recon,#an-pt,#fall-pop,#fall-seek'))
             anLibrarySchedule();
@@ -13137,125 +11956,12 @@ function anLibraryInit() {
         event.returnValue = '';
     });
 }
-function anError(code: string, detail?: string) { const e = Object.assign(new Error(detail || code), { code }); return e; }
 function tl(L: string, k: string, a?: string|number|null, b?: string|number|null) {
     // The table of language L when it is loaded, else the interface language's own (English strings load only for English).
     const own = L === 'en' || L === 'ro' ? STRINGS[L] : undefined, base = STRINGS[lang] || STRINGS.en; let v = (own && own[k] != null) ? own[k] : base ? base[k] : undefined; if (v == null)
     return k; if (a != null)
     v = v.replace('%s', String(a)).replace('%a', String(a)); if (b != null)
     v = v.replace('%b', String(b)); return v; }
-function anParse(buffer: ArrayBuffer) {
-    const a = new Uint8Array(buffer), v = new DataView(buffer);
-    let pos = 0;
-    const need = (n: number) => { if (n < 0 || pos + n > a.length)
-        throw anError('midi', 'truncated'); };
-    const u8 = () => { need(1); return a[pos++]; }, u16 = () => { need(2); const n = v.getUint16(pos); pos += 2; return n; }, u32 = () => { need(4); const n = v.getUint32(pos); pos += 4; return n; };
-    const tag = () => String.fromCharCode(u8(), u8(), u8(), u8());
-    const vlq = () => { let n = 0; for (let i = 0; i < 4; i++) {
-        const b = u8();
-        n = n * 128 + (b & 127);
-        if (!(b & 128))
-            return n;
-    } throw anError('midi', 'VLQ'); };
-    if (tag() !== 'MThd')
-        throw anError('midi', 'header');
-    const len = u32();
-    if (len < 6)
-        throw anError('midi', 'header');
-    const format = u16(), tracks = u16(), ppq = u16();
-    if (format > 1 || !tracks || tracks > 128 || !ppq || (ppq & 0x8000))
-        throw anError('midi', 'format');
-    need(len - 6);
-    pos += len - 6;
-    const notes: AnParsedNote[] = [], meta: AnMidiMeta[] = [], names: string[] = [];
-    for (let ti = 0; ti < tracks; ti++) {
-        if (tag() !== 'MTrk')
-            throw anError('midi', 'track');
-        const size = u32();
-        need(size);
-        const end = pos + size;
-        let tick = 0, running = 0;
-        const active = new Map<string, { start: number; midi: number; vel: number }[]>();
-        while (pos < end) {
-            tick += vlq();
-            let status = u8(), first: number | null = null;
-            if (status < 128) {
-                if (!running)
-                    throw anError('midi', 'running');
-                first = status;
-                status = running;
-            }
-            else if (status < 240)
-                running = status;
-            else
-                running = 0;
-            if (status === 255) {
-                const type = u8(), n = vlq();
-                need(n);
-                const beat = tick / ppq;
-                if (type === 3 && n && names[ti] == null)
-                    names[ti] = String.fromCharCode(...a.subarray(pos, pos + Math.min(n, 64))).trim();
-                if (type === 81 && n === 3) {
-                    const us = a[pos] * 65536 + a[pos + 1] * 256 + a[pos + 2];
-                    if (us)
-                        meta.push({ type: 'tempo', beat, bpm: 60000000 / us });
-                }
-                if (type === 88 && n >= 2 && a[pos] > 0 && a[pos + 1] <= 5)
-                    meta.push({ type: 'time', beat, num: a[pos], den: 2 ** a[pos + 1] });
-                if (type === 89 && n >= 2) {
-                    const fifths = (a[pos] << 24) >> 24;
-                    if (Math.abs(fifths) <= 7)
-                        meta.push({ type: 'key', beat, fifths, minor: a[pos + 1] === 1 });
-                }
-                pos += n;
-            }
-            else if (status === 240 || status === 247) {
-                const n = vlq();
-                need(n);
-                pos += n;
-            }
-            else if (status >= 240)
-                throw anError('midi', 'system');
-            else {
-                const cmd = status & 240, ch = status & 15, d1 = first === null ? u8() : first, d2 = (cmd === 192 || cmd === 208) ? 0 : u8();
-                if (d1 > 127 || d2 > 127)
-                    throw anError('midi', 'data');
-                if (ch !== 9 && (cmd === 144 || cmd === 128)) {
-                    const k = ch + ':' + d1;
-                    if (cmd === 144 && d2 > 0) {
-                        let q = active.get(k);
-                        if (!q) {
-                            q = [];
-                            active.set(k, q);
-                        }
-                        q.push({ start: tick, midi: d1, vel: d2 });
-                    }
-                    else {
-                        const q = active.get(k);
-                        if (q && q.length) {
-                            const n = q.shift();
-                            if (n && tick > n.start)
-                                notes.push({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: ch });
-                            if (notes.length > AN_MAX_NOTES)
-                                throw anError('notes');
-                        }
-                    }
-                }
-            }
-            if (pos > end)
-                throw anError('midi', 'track boundary');
-        }
-        for (const [k, q] of active)
-            for (const n of q)
-                if (tick > n.start)
-                    notes.push({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: +k.split(':')[0] }); // note-on without note-off: close at track end
-    }
-    if (!notes.length)
-        throw anError('nonotes');
-    if (notes.length > AN_MAX_NOTES)
-        throw anError('notes');
-    return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes: notes.sort((x, y) => x.start - y.start || x.midi - y.midi) };
-}
 // Built-in pieces become the same parsed structure as a MIDI file: one "track" per hand, beats in quarter notes.
 // An upbeat stays at beat 0; anRebuild engraves it as a short bar 0 (see scoreFromMidi).
 function anPieceToParsed(p: (typeof PIECES)[number]): AnParsedMidi {
@@ -13786,13 +12492,14 @@ function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
     return model;
 }
 /* notation import / generation */
+interface ScoreCursorStyleState { w: string; h: string; transform: string; playing: boolean; }
 interface ScoreState {
     xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoopState | null;
     tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
     heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
     geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; run?: PracticeCarry | null; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
     followSys: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
-    markGeo?: ScoreGeometry | null; markSig?: string;
+    markGeo?: ScoreGeometry | null; markSig?: string; renderedSig?: string; pedalsOk?: boolean; hasPaint?: boolean; cursorStyle?: ScoreCursorStyleState | null;
 }
 const SCORE: ScoreState = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playing: false, sel: false, loop: null, tempos: [{ beat: 0, bpm: 120 }], tempoList: [{ beat: 0, bpm: 120 }], tempoFromFile: false,
     measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: 'page', stale: false, layoutWidth: 0,
@@ -13816,545 +12523,17 @@ function scoreBeatAt(sec: number) { let acc = 0, last = 0, bpm = SCORE.tempoList
     last = e.beat;
     bpm = e.bpm;
 } return last + (sec - acc) * bpm / 60; }
-interface ScoreXmlLevel { part: number; staff: number; beat: number; value: number; sequence: number; }
-interface ScoreXmlMark { part: number; staff: number; beat: number; type: string; number: string; sequence: number; }
-interface ScoreXmlLine extends ScoreXmlMark { kind: string; }
-interface ScoreXmlDynamic { value?: number | null; hit?: number; }
-const SCORE_STEP: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-function scoreXmlNotes(doc: Document) {
-    const { hands: partHands, sisters: partSisterMap } = scoreDetectPartHands(doc);
-    const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
-    const linkOpen = new Map<string, ScoreXmlNote>(), linkPairs: { kind: string; a: ScoreXmlNote; b: ScoreXmlNote; style: string; }[] = [], lineEvents: ScoreXmlLine[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
-    let malformed = false;
-    const lastNote = (match: (n: ScoreXmlNote) => boolean) => { for (let i = notes.length - 1; i >= 0; i--)
-        if (match(notes[i]))
-            return notes[i]; return undefined; };
-    const DYN: Record<string, number> = { ppp: 28, pp: 42, p: 56, mp: 70, mf: 84, f: 98, ff: 112, fff: 122, sfz: 115, fz: 115, rfz: 115 };
-    const direct = (node: Element, name: string) => [...node.children].filter((c) => c.localName === name), child = (node: Element, name: string): Element | null => direct(node, name)[0] || null;
-    const number = (node: Element | null, fallback = 0) => { const n = +(node?.textContent || ''); return Number.isFinite(n) ? n : fallback; };
-    const span = (node: Element | null) => { const n = +(node?.textContent || 0); if (!Number.isFinite(n))
-        malformed = true; return n; }; // durations must be numbers
-    const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-    const dynamicValue = (value: string|null, percent = false) => { if (value == null || value === '')
-        return null; const n = +value; return Number.isFinite(n) ? clamp(percent && n <= 100 ? n * .9 : n, 1, 127) : null; };
-    const dynamicInfo = (box: Element): ScoreXmlDynamic | null => {
-        const named = [...box.children].find((el) => DYN[el.localName?.toLowerCase()] != null || el.localName === 'other-dynamics');
-        const name = ((named?.localName === 'other-dynamics' ? named.textContent : named?.localName) || '').trim().toLowerCase();
-        if (name === 'fp')
-            return { value: 56, hit: 105 };
-        if (['sfz', 'fz', 'rfz'].includes(name))
-            return { hit: DYN[name] };
-        return DYN[name] != null ? { value: DYN[name] } : null;
-    };
-    let sequence = 0;
-    const pushDynamic = (part: number, staff: number, beat: number, info: ScoreXmlDynamic | null) => {
-        if (!info)
-            return;
-        if (info.value != null)
-            dynamics.push({ part, staff, beat, value: info.value, sequence: sequence++ });
-        if (info.hit != null)
-            transients.push({ part, staff, beat, value: info.hit, sequence: sequence++ });
-    };
-    const addSound = (sound: Element, part: number, staff: number, beat: number) => {
-        if (sound.hasAttribute('tempo')) {
-            const bpm = Number(sound.getAttribute('tempo'));
-            if (bpm > 0 && Number.isFinite(bpm))
-                tempos.push({ beat: Math.max(0, beat), bpm });
-        }
-        if (sound.hasAttribute('dynamics'))
-            pushDynamic(part, staff, beat, { value: dynamicValue(sound.getAttribute('dynamics'), true) });
-        const damper = (sound.getAttribute('damper-pedal') || '').toLowerCase();
-        if (['yes', 'on', '1'].includes(damper))
-            pedalEvents.push({ part, staff, beat, type: 'start', sequence: sequence++ });
-        if (['no', 'off', '0'].includes(damper))
-            pedalEvents.push({ part, staff, beat, type: 'stop', sequence: sequence++ });
-    };
-    [...doc.querySelectorAll('score-partwise > part')].forEach((part, pi) => {
-        let measureStart = 0, num = 4, den = 4, staves = 1, division = 1;
-        const gracePending = new Map<string, ScoreGraceNote[]>();
-        const graceKey = (staff: number, voice: number) => staff + ':' + voice;
-        for (const measure of part.children) {
-            if (measure.localName !== 'measure')
-                continue;
-            let at = measureStart, lastStart = at, max = at;
-            for (const node of measure.children) {
-                const name = node.localName;
-                if (name === 'attributes') {
-                    const d = child(node, 'divisions');
-                    if (d) {
-                        division = number(d, 1) || 1;
-                        if (!(division > 0))
-                            malformed = true;
-                    }
-                    const tm = child(node, 'time');
-                    if (tm) {
-                        num = number(child(tm, 'beats'), num) || num;
-                        den = number(child(tm, 'beat-type'), den) || den;
-                    }
-                    const st = child(node, 'staves');
-                    if (st)
-                        staves = number(st, staves) || staves;
-                    const key = child(node, 'key');
-                    if (key && pi === 0 && child(key, 'fifths')) {
-                        const f = number(child(key, 'fifths'));
-                        const mode = (child(key, 'mode')?.textContent || '').trim();
-                        if (Math.abs(f) <= 7)
-                            keys.push({ beat: at, fifths: f, mode: mode === 'major' || mode === 'minor' ? mode : null });
-                    }
-                }
-                if (name === 'direction') {
-                    const offset = number(child(node, 'offset')) / division, beat = at + offset, staff = number(child(node, 'staff'));
-                    direct(node, 'direction-type').forEach((dt) => {
-                        direct(dt, 'dynamics').forEach((d) => pushDynamic(pi, 0, beat, dynamicInfo(d)));
-                        direct(dt, 'wedge').forEach((w) => { const type = (w.getAttribute('type') || '').toLowerCase(); if (['crescendo', 'diminuendo', 'stop'].includes(type))
-                            wedgeEvents.push({ part: pi, staff: 0, beat, type, number: w.getAttribute('number') || '1', sequence: sequence++ }); });
-                        direct(dt, 'pedal').forEach((p) => { const type = (p.getAttribute('type') || '').toLowerCase(); if (['start', 'change', 'stop'].includes(type))
-                            pedalEvents.push({ part: pi, staff, beat, type, sequence: sequence++ }); });
-                        for (const kind of ['dashes', 'bracket'])
-                            direct(dt, kind).forEach((l) => { const type = (l.getAttribute('type') || '').toLowerCase(); if (type === 'start' || type === 'stop')
-                                lineEvents.push({ part: pi, staff: staff || 1, beat, kind, type, number: l.getAttribute('number') || '1', sequence: sequence++ }); });
-                        const words = direct(dt, 'words').map((w) => w.textContent).join(' ');
-                        if (/\bdolce|dolcissimo/i.test(words))
-                            dolces.push({ part: pi, staff: 0, beat, on: !/\bnon\s+dolce/i.test(words), sequence: sequence++ });
-                    });
-                    direct(node, 'sound').forEach((sound) => addSound(sound, pi, 0, beat));
-                }
-                if (name === 'sound')
-                    addSound(node, pi, 0, at);
-                if (name === 'backup')
-                    at -= span(child(node, 'duration')) / division;
-                if (name === 'forward')
-                    at += span(child(node, 'duration')) / division;
-                if (name === 'note') {
-                    const grace = !!child(node, 'grace'), duration = span(child(node, 'duration')) / division, chord = !!child(node, 'chord'), start = chord ? lastStart : at;
-                    const voice = number(child(node, 'voice'), 1) || 1, staff = number(child(node, 'staff'), 1) || 1, pitch = child(node, 'pitch'), key = graceKey(staff, voice);
-                    if (pitch) {
-                        const step = child(pitch, 'step')?.textContent, oct = number(child(pitch, 'octave')), alter = number(child(pitch, 'alter')), midi = (oct + 1) * 12 + (step == null ? NaN : SCORE_STEP[step]) + alter;
-                        if (Number.isFinite(midi)) {
-                            if (grace) {
-                                const list = gracePending.get(key) || [], g: ScoreGraceNote = { midi, vel: 84 };
-                                if ([...node.querySelectorAll('tie')].some((t) => t.getAttribute('type') === 'start'))
-                                    g.tieStart = true;
-                                list.push(g);
-                                gracePending.set(key, list);
-                            }
-                            else {
-                                const hand = staves >= 2 ? (staff === 1 ? 'rh' : 'lh') : (staff === 2 ? 'lh' : (partHands.get(pi) ?? null)), stop = [...node.querySelectorAll('tie')].some((t) => t.getAttribute('type') === 'stop');
-                                const prev = stop && lastNote((n) => n.part === pi && n.staff === staff && n.voice === voice && n.midi === midi && Math.abs(n.end - start) < .001);
-                                const fg = number(node.querySelector('fingering')), nd = [...node.querySelectorAll('notations > dynamics')].map(dynamicInfo).find(Boolean), attr = dynamicValue(node.getAttribute('dynamics'));
-                                const arts = new Set([...node.querySelectorAll('notations > articulations > *')].map((a) => a.localName));
-                                let own: ScoreXmlNote | null = null;
-                                if (prev) {
-                                    prev.end = start + duration;
-                                    own = prev;
-                                }
-                                else if (duration > 0) {
-                                    const n: ScoreXmlNote = { midi, start, end: start + duration, vel: 90, hand, part: pi, staff, voice, type: child(node, 'type')?.textContent || '', art: {
-                                            staccato: arts.has('staccato'), staccatissimo: arts.has('staccatissimo'), accent: arts.has('accent'), strongAccent: arts.has('strong-accent'), tenuto: arts.has('tenuto')
-                                        },
-                                        arpeggiate: !!node.querySelector('notations > arpeggiate') };
-                                    if (fg > 0 && fg < 6)
-                                        n.finger = fg;
-                                    if (nd?.value != null)
-                                        n.explicitVel = nd.value;
-                                    else if (attr != null)
-                                        n.explicitVel = attr;
-                                    if (nd?.hit != null)
-                                        n.dynamicHit = nd.hit;
-                                    const graces = gracePending.get(key);
-                                    if (!chord && graces) {
-                                        n.graces = graces;
-                                        gracePending.delete(key);
-                                        const last = graces[graces.length - 1];
-                                        if (stop && last.tieStart && last.midi === midi)
-                                            last.tiedToPrincipal = true;
-                                    }
-                                    notes.push(n);
-                                    own = n;
-                                }
-                                if (own && node.querySelector(':scope > notehead[parentheses="yes"]'))
-                                    (own.parenthesizedAt ??= []).push(start);
-                                if (own)
-                                    node.querySelectorAll('notations > slur, notations > glissando, notations > slide').forEach((l) => {
-                                        const type = (l.getAttribute('type') || '').toLowerCase(), key = pi + ':' + l.localName + ':' + (l.getAttribute('number') || '1');
-                                        if (type === 'start')
-                                            linkOpen.set(key, own);
-                                        else if (type === 'stop') {
-                                            const a = linkOpen.get(key);
-                                            if (a) {
-                                                linkOpen.delete(key);
-                                                if (a !== own)
-                                                    linkPairs.push({ kind: l.localName, a, b: own, style: l.getAttribute('line-type') || '' });
-                                            }
-                                        }
-                                    });
-                            }
-                        }
-                    }
-                    if (!grace && !chord) {
-                        lastStart = at;
-                        at += duration;
-                    }
-                    max = Math.max(max, at, start + (grace ? 0 : duration));
-                }
-            }
-            if (pi === 0)
-                measures.push({ number: measure.getAttribute('number') || String(measures.length + 1), start: measureStart, end: max, num, den });
-            measureStart = max;
-        }
-        partEnds[pi] = measureStart;
-    });
-    // Malformed numbers (a NaN duration, a zero or negative meter…) would otherwise poison every later position.
-    if (malformed || notes.some((n) => !Number.isFinite(n.start) || !Number.isFinite(n.end)) || measures.some((m) => !Number.isFinite(m.start) || !Number.isFinite(m.end) || !(m.num > 0 && Number.isInteger(m.num)) || !(m.den > 0 && Number.isInteger(m.den))))
-        throw anError('xml');
-    const sorted = notes.sort((a, b) => a.start - b.start || a.midi - b.midi), byTime = (a: { beat: number; sequence: number; }, b: { beat: number; sequence: number; }) => a.beat - b.beat || a.sequence - b.sequence;
-    const same = (event: { part: number; staff: number; }, n: { part: number; staff: number; }) => event.part === n.part && (event.staff === 0 || event.staff === n.staff);
-    const persistent = dynamics.slice().sort(byTime), explicit = persistent.slice();
-    const levelAt = (part: number, staff: number, beat: number) => {
-        let value = 90, last = -Infinity, specificity = -1, seq = -1;
-        persistent.forEach((e) => {
-            if (e.part !== part || (e.staff !== 0 && e.staff !== staff) || e.beat > beat + .001)
-                return;
-            const spec = e.staff === staff ? 2 : 1;
-            if (e.beat > last + .001 || (Math.abs(e.beat - last) < .001 && (spec > specificity || (spec === specificity && e.sequence > seq)))) {
-                value = e.value;
-                last = e.beat;
-                specificity = spec;
-                seq = e.sequence;
-            }
-        });
-        if (last === -Infinity) {
-            const sister = partSisterMap.get(part);
-            if (sister != null) {
-                persistent.forEach((e) => {
-                    if (e.part !== sister || e.beat > beat + .001)
-                        return;
-                    const spec = e.staff === 0 ? 1 : 0;
-                    if (e.beat > last + .001 || (Math.abs(e.beat - last) < .001 && (spec > specificity || (spec === specificity && e.sequence > seq)))) {
-                        value = e.value;
-                        last = e.beat;
-                        specificity = spec;
-                        seq = e.sequence;
-                    }
-                });
-            }
-        }
-        return value;
-    };
-    const open = new Map<string, ScoreXmlMark>(), wedges: { part: number; staff: number; start: number; end: number; from: number; to: number; }[] = [];
-    wedgeEvents.sort(byTime).forEach((e) => {
-        const key = e.part + ':' + e.staff + ':' + e.number;
-        if (e.type === 'crescendo' || e.type === 'diminuendo')
-            open.set(key, e);
-        else {
-            let begin = open.get(key);
-            if (!begin)
-                begin = [...open.values()].reverse().find((x) => x.part === e.part && x.number === e.number && (x.staff === e.staff || x.staff === 0 || e.staff === 0));
-            if (!begin || e.beat <= begin.beat + .001)
-                return;
-            open.delete(begin.part + ':' + begin.staff + ':' + begin.number);
-            const target = explicit.find((d) => d.part === begin.part && (d.staff === 0 || d.staff === begin.staff) && d.beat >= e.beat - .001 && d.beat <= e.beat + 4);
-            const from = levelAt(begin.part, begin.staff, begin.beat), to = target ? target.value : clamp(from + (begin.type === 'crescendo' ? 16 : -16), 1, 127);
-            wedges.push({ part: begin.part, staff: begin.staff, start: begin.beat, end: e.beat, from, to });
-            persistent.push({ part: begin.part, staff: begin.staff, beat: e.beat, value: to, sequence: sequence++ });
-        }
-    });
-    persistent.sort(byTime);
-    const pedalSegments: { part: number; start: number; end: number; }[] = [];
-    for (const part of [...new Set(pedalEvents.map((e) => e.part))]) {
-        let active: { start: number; } | null = null;
-        for (const e of pedalEvents.filter((e) => e.part === part).sort(byTime)) {
-            if (e.type === 'start') {
-                if (active && e.beat > active.start + .001)
-                    pedalSegments.push({ part, start: active.start, end: e.beat });
-                active = { start: e.beat };
-            }
-            else if (e.type === 'change') {
-                if (active)
-                    pedalSegments.push({ part, start: active.start, end: e.beat });
-                active = { start: e.beat };
-            }
-            else if (active) {
-                pedalSegments.push({ part, start: active.start, end: e.beat });
-                active = null;
-            }
-        }
-        if (active && partEnds[part] > active.start + .001)
-            pedalSegments.push({ part, start: active.start, end: partEnds[part] });
-    }
-    const topAt = new Map<string, number>(), sizeAt = new Map<string, number>();
-    sorted.forEach((n) => { const key = n.part + ':' + n.staff + ':' + n.start, top = topAt.get(key); if (top == null || n.midi > top)
-        topAt.set(key, n.midi); sizeAt.set(key, (sizeAt.get(key) || 0) + 1); });
-    const measureAt = (beat: number) => measures.find((m) => beat >= m.start - .001 && beat < m.end - .001);
-    const dolceAt = (n: ScoreXmlNote) => { let on = false, last = -Infinity, seq = -1; dolces.forEach((d) => { if (!same(d, n) || d.beat > n.start + .001)
-        return; if (d.beat > last + .001 || (Math.abs(d.beat - last) < .001 && d.sequence > seq)) {
-        on = d.on;
-        last = d.beat;
-        seq = d.sequence;
-    } }); return on; };
-    const transientAt = (n: ScoreXmlNote) => { let hit: number | undefined = n.dynamicHit, last = -Infinity, seq = -1; transients.forEach((e) => { if (!same(e, n) || Math.abs(e.beat - n.start) > .012)
-        return; if (e.beat > last + .001 || (Math.abs(e.beat - last) < .001 && e.sequence > seq)) {
-        hit = e.value;
-        last = e.beat;
-        seq = e.sequence;
-    } }); return hit; };
-    sorted.forEach((n) => {
-        const key = n.part + ':' + n.staff + ':' + n.start, right = n.hand === 'rh' || (!n.hand && n.staff === 1), chordSize = sizeAt.get(key) || 1;
-        const melody = right && (n.midi === topAt.get(key) || (n.voice === 1 && chordSize === 1)), accompaniment = n.hand === 'lh' || n.staff === 2 || n.voice > 1 || (n.type === '16th' && !melody);
-        const sisterPart = partSisterMap.get(n.part);
-        const hasPartWedges = wedges.some((w) => w.part === n.part);
-        const wedge = wedges.filter((w) => (same(w, n) || (sisterPart != null && w.part === sisterPart && !hasPartWedges)) && n.start >= w.start - .001 && n.start <= w.end + .001).pop();
-        let vel = n.explicitVel ?? transientAt(n) ?? levelAt(n.part, n.staff, n.start);
-        if (wedge && n.explicitVel == null && n.dynamicHit == null && transientAt(n) == null) {
-            const f = clamp((n.start - wedge.start) / (wedge.end - wedge.start), 0, 1);
-            vel = wedge.from + (wedge.to - wedge.from) * f;
-        }
-        if (n.art.accent)
-            vel += 12;
-        if (n.art.strongAccent)
-            vel += 18;
-        if (n.art.tenuto)
-            vel += 4;
-        if (melody)
-            vel += 7;
-        else if (accompaniment) {
-            vel += n.hand === 'lh' || n.staff === 2 ? -8 : -6;
-            const m = measureAt(n.start), unit = m ? 4 / m.den : 1, beat = (n.start - (m?.start || 0)) / unit;
-            if (Math.abs(beat) < .01)
-                vel += 4;
-            else if (Math.abs(beat - Math.round(beat)) < .01)
-                vel -= 2;
-        }
-        n.warm = dolceAt(n);
-        if (n.warm && accompaniment)
-            vel -= 5;
-        n.vel = Math.round(clamp(vel, 1, 127));
-        n.soundRatio = n.art.staccatissimo ? .3 : n.art.staccato ? .45 : 1;
-    });
-    const arpeggios = new Map<string, boolean>();
-    sorted.forEach((n) => { if (n.arpeggiate) {
-        const key = n.part + ':' + n.staff + ':' + n.voice + ':' + n.start;
-        arpeggios.set(key, true);
-    } });
-    sorted.forEach((n) => { const key = n.part + ':' + n.staff + ':' + n.voice + ':' + n.start; if (arpeggios.has(key))
-        n.roll = 0; });
-    [...arpeggios.keys()].forEach((key) => sorted.filter((n) => n.part + ':' + n.staff + ':' + n.voice + ':' + n.start === key).sort((a, b) => a.midi - b.midi).forEach((n, i) => n.roll = i * .022));
-    const nextSame = new Map<string, number>();
-    for (let i = sorted.length - 1; i >= 0; i--) {
-        const n = sorted[i], key = n.part + ':' + n.midi;
-        n.nextSame = nextSame.get(key);
-        nextSame.set(key, n.start);
-    }
-    sorted.forEach((n) => {
-        const sister = partSisterMap.get(n.part);
-        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => (p.part === n.part || (sister != null && p.part === sister)) && p.start <= n.start + .001 && p.end > n.start + .001);
-        if (pedal) {
-            n.pedalEnd = pedal.end;
-            soundEnd = Math.max(soundEnd, pedal.end);
-        }
-        if (n.nextSame != null && n.nextSame > n.start + .001)
-            soundEnd = Math.min(soundEnd, n.nextSame);
-        n.soundEnd = Math.max(n.start + .03, soundEnd);
-        delete n.nextSame;
-    });
-    // Lines between the hands: cross-staff slurs, glissandi and slides (OSMD leaves them out) and dashed or bracketed
-    // voice-leading lines that start on one staff and end on the other, from the first note after the start to the last before the stop.
-    const lineOpen = new Map<string, ScoreXmlLine>();
-    lineEvents.sort(byTime).forEach((e) => {
-        const key = e.part + ':' + e.kind + ':' + e.number;
-        if (e.type === 'start') {
-            lineOpen.set(key, e);
-            return;
-        }
-        const a0 = lineOpen.get(key);
-        lineOpen.delete(key);
-        if (!a0 || a0.staff === e.staff)
-            return;
-        const a = sorted.find((n) => n.part === a0.part && n.staff === a0.staff && n.start >= a0.beat - .001), b = sorted.filter((n) => n.part === e.part && n.staff === e.staff && n.start <= e.beat + .001 && n.start >= a0.beat - .001).pop();
-        if (a && b && a !== b)
-            linkPairs.push({ kind: e.kind, a, b, style: 'dashed' });
-    });
-    const links = linkPairs.filter((l) => l.a.staff !== l.b.staff).map((l) => ({ kind: l.kind, a: sorted.indexOf(l.a), b: sorted.indexOf(l.b), style: l.style })).filter((l) => l.a >= 0 && l.b >= 0);
-    return { notes: sorted, tempos: tempos.filter((e) => e.bpm > 0 && Number.isFinite(e.bpm) && Number.isFinite(e.beat)), measures, keys, links };
-}
-const XML_ESC: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' };
-function xmlEsc(s: string) { return String(s).replace(/[<>&"']/g, (c) => XML_ESC[c]); }
 // MIDI (or a built-in piece) → MusicXML. `opt.grid` is the quantization per quarter note (2, 4 or 8); divisions grow when a meter needs finer units.
 // `opt.pickup` (quarter notes) makes the first bar an upbeat: an implicit bar 0 of that length, as the score is written.
-interface ScoreMidiNote { midi: number; start: number; end: number; vel: number; track: number; channel: number; hand: AnHand; }
-type ScoreMidiTime = Extract<AnMidiMeta, { type: 'time' }>;
-type ScoreMidiChange = ScoreMidiTime | { type: 'key'; beat: number; fifths: number; minor: boolean; };
-interface ScoreEngraveGroup { staff: number; start: number; end: number; notes: (ScoreMidiNote & { staff: number; })[]; }
-interface ScoreEngraveVoice { groups: ScoreEngraveGroup[]; staff: number; secondary: boolean; stem: string; }
-interface ScoreEngraveEvent { group: ScoreEngraveGroup | null; pos: number; d: number; type: string; dot: number; from: boolean; to: boolean; beam?: string; }
 function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, title: string, opt: { grid: number; keys: { beat: number; fifths: number; minor: boolean; }[]; composer?: string; pickup?: number; }) {
-    const isTime = (e: AnMidiMeta): e is ScoreMidiTime => e.type === 'time';
-    const grid = opt.grid || 4, events = parsed.meta || [], timeEvents = events.filter(isTime);
-    let div = grid;
-    while (timeEvents.some((e) => (4 * div) % e.den) && div < grid * 64)
-        div *= 2;
-    const k = div / grid;
-    SCORE.midiGrid = grid;
+    SCORE.midiGrid = opt.grid || 4;
     SCORE.measures = [];
-    const tempos = events.filter((e): e is Extract<AnMidiMeta, { type: 'tempo' }> => e.type === 'tempo').map((e) => ({ beat: e.beat, bpm: e.bpm }));
-    scoreSetTempos(tempos);
-    SCORE.tempoFromFile = tempos.length > 0;
-    const notes = parsed.notes.map((n) => { const s = Math.round(n.start * grid) * k; return { ...n, start: s, end: Math.max(s + k, Math.round(n.end * grid) * k), staff: n.hand === 'lh' ? 2 : 1 }; }).sort((a, b) => a.start - b.start || a.midi - b.midi);
-    const end = Math.max(...notes.map((n) => n.end));
-    if (end > 200000)
-        throw anError('long');
-    // Played legato overlaps of up to a sixteenth would spawn extra voices; trim them for the engraving only.
-    const trim = k * Math.max(1, grid / 4);
-    for (const staff of [1, 2]) {
-        const own = notes.filter((n) => n.staff === staff), onsets = [...new Set(own.map((n) => n.start))].sort((a, b) => a - b);
-        let j = 0;
-        for (const n of own) {
-            while (j < onsets.length && onsets[j] <= n.start)
-                j++;
-            const next = onsets[j];
-            if (next != null && n.end > next && n.end - next <= trim)
-                n.end = next;
-        }
-    }
-    const groups = new Map<string, ScoreEngraveGroup>();
-    for (const n of notes) {
-        const key = n.staff + ':' + n.start + ':' + n.end;
-        let group = groups.get(key);
-        if (!group)
-            groups.set(key, group = { staff: n.staff, start: n.start, end: n.end, notes: [] });
-        group.notes.push(n);
-    }
-    // The highest lane becomes the stem-up main voice so a melody is never engraved underneath its accompaniment.
-    const used = [...new Set(notes.map((n) => n.staff))], single = used.length === 1, staves = single ? used : [1, 2]; // one hand only → one staff
-    const globalVoices: ScoreEngraveVoice[] = [];
-    for (const staff of staves) {
-        const lanes: (ScoreEngraveVoice & { end: number; })[] = [];
-        for (const group of [...groups.values()].filter((g) => g.staff === staff)) {
-            let lane = lanes.find((l) => l.end <= group.start);
-            if (!lane) {
-                lane = { end: 0, groups: [], staff, secondary: false, stem: '' };
-                lanes.push(lane);
-            }
-            lane.groups.push(group);
-            lane.end = group.end;
-        }
-        const avg = (l: ScoreEngraveVoice) => { let s = 0, c = 0; l.groups.forEach((g) => g.notes.forEach((n) => { s += n.midi; c++; })); return c ? s / c : 0; };
-        lanes.sort((a, b) => avg(b) - avg(a));
-        lanes.forEach((l, i) => { l.secondary = i > 0; l.stem = lanes.length > 1 ? (i ? 'down' : 'up') : ''; });
-        globalVoices.push(...(lanes.length ? lanes : [{ groups: [], staff, secondary: false, stem: '' }]));
-    }
-    const VALUE_TABLE: [number, string, number][] = [[4, 'whole', 0], [3, 'half', 1], [2, 'half', 0], [1.5, 'quarter', 1], [1, 'quarter', 0], [0.75, 'eighth', 1], [0.5, 'eighth', 0], [0.375, '16th', 1], [0.25, '16th', 0], [0.1875, '32nd', 1], [0.125, '32nd', 0], [0.0625, '64th', 0], [0.03125, '128th', 0], [0.015625, '256th', 0]];
-    const VALUES = VALUE_TABLE.map(([q, type, dot]): [number, string, number] => [q * div, type, dot]).filter(([d]) => Number.isInteger(d) && d >= 1);
-    const meters: ScoreMidiChange[] = events.filter(isTime).map((e) => ({ ...e }));
-    const changes = meters.concat((opt.keys || []).map((e): ScoreMidiChange => ({ type: 'key', beat: e.beat, fifths: e.fifths, minor: !!e.minor })))
-        .map((e) => ({ ...e, pos: Math.round(e.beat * div) })).sort((a, b) => a.pos - b.pos);
-    const upbeat = opt.pickup && opt.pickup > 0 ? Math.round(opt.pickup * div) : 0;
-    let at = 0, number = 1, xml = '', fifths = 0, minor = false, num = 4, den = 4, ci = 0;
-    while (at < end) {
-        const beat = at / div;
-        let keyChanged = number === 1, timeChanged = number === 1;
-        while (ci < changes.length && changes[ci].pos <= at) {
-            const e = changes[ci++];
-            if (e.type === 'key') {
-                keyChanged = keyChanged || fifths !== e.fifths || minor !== e.minor;
-                fifths = e.fifths;
-                minor = e.minor;
-            }
-            else {
-                timeChanged = timeChanged || num !== e.num || den !== e.den;
-                num = e.num;
-                den = e.den;
-            }
-        }
-        const bar = upbeat && number === 1 ? Math.min(upbeat, num * 4 * div / den) : num * 4 * div / den;
-        const next = changes[ci], length = Math.min(bar, next ? next.pos - at : Infinity), label = upbeat ? number - 1 : number;
-        if (length <= 0 || !Number.isInteger(length))
-            throw anError('meter');
-        const stop = at + length;
-        SCORE.measures.push({ number: String(label), start: at / div, end: stop / div, num, den });
-        xml += '<measure number="' + label + '"' + (upbeat && number === 1 ? ' implicit="yes"' : '') + '>';
-        if (number === 1 || keyChanged || timeChanged)
-            xml += '<attributes>' + (number === 1 ? '<divisions>' + div + '</divisions>' : '') + (keyChanged ? '<key><fifths>' + fifths + '</fifths><mode>' + (minor ? 'minor' : 'major') + '</mode></key>' : '') + (timeChanged ? '<time><beats>' + num + '</beats><beat-type>' + den + '</beat-type></time>' : '') + (number === 1 ? (single ? (used[0] === 2 ? '<clef><sign>F</sign><line>4</line></clef>' : '<clef><sign>G</sign><line>2</line></clef>') : '<staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef>') : '') + '</attributes>';
-        for (const t of SCORE.tempos.filter((e) => e.beat >= beat - 1e-9 && e.beat < stop / div))
-            xml += '<direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>' + Math.round(t.bpm) + '</per-minute></metronome></direction-type><offset>' + Math.round((t.beat - beat) * div) + '</offset><sound tempo="' + (Math.round(t.bpm * 100) / 100) + '"/></direction>';
-        const beamLen = den === 8 && num % 3 === 0 ? 1.5 * div : den === 2 ? 2 * div : div; // beam per beat: a dotted quarter in compound meters, a half in x/2
-        globalVoices.forEach((voice, vi) => {
-            if (vi)
-                xml += '<backup><duration>' + length + '</duration></backup>';
-            let cursor = at;
-            const evs: ScoreEngraveEvent[] = [];
-            const emit = (group: ScoreEngraveGroup | null, start: number, duration: number) => { let left = duration, offset = 0; while (left > 0) {
-                const value = VALUES.find((v) => v[0] <= left);
-                if (!value)
-                    throw anError('meter');
-                const [d, type, dot] = value;
-                evs.push({ group, pos: start + offset, d, type, dot, from: !!group && start + offset > group.start, to: !!group && start + offset + d < group.end });
-                left -= d;
-                offset += d;
-            } };
-            for (const group of voice.groups.filter((g) => g.start < stop && g.end > at)) {
-                const start = Math.max(at, group.start), finish = Math.min(stop, group.end);
-                if (start > cursor)
-                    emit(null, cursor, start - cursor);
-                emit(group, start, finish - start);
-                cursor = finish;
-            }
-            if (cursor < stop)
-                emit(null, cursor, stop - cursor);
-            scoreBeams(evs, at, beamLen);
-            evs.forEach(({ group, d, type, dot, from, to, beam }) => { const chord = group ? group.notes : [null]; chord.forEach((n, index) => { xml += '<note' + (!group && voice.secondary ? ' print-object="no" print-spacing="yes"' : '') + '>' + (index ? '<chord/>' : '') + (n ? scorePitch(n.midi, fifths, minor) : '<rest/>') + '<duration>' + d + '</duration>' + (from ? '<tie type="stop"/>' : '') + (to ? '<tie type="start"/>' : '') + '<voice>' + (vi + 1) + '</voice><type>' + type + '</type>' + (dot ? '<dot/>' : '') + (n && voice.stem ? '<stem>' + voice.stem + '</stem>' : '') + '<staff>' + (single ? 1 : voice.staff) + '</staff>' + (beam && !index ? '<beam number="1">' + beam + '</beam>' : '') + (from || to ? '<notations>' + (from ? '<tied type="stop"/>' : '') + (to ? '<tied type="start"/>' : '') + '</notations>' : '') + '</note>'; }); });
-        });
-        xml += (stop >= end ? '<barline location="right"><bar-style>light-heavy</bar-style></barline>' : '') + '</measure>';
-        at = stop;
-        number++;
-        if (number > 2000)
-            throw anError('long');
-    }
-    return '<?xml version="1.0"?><score-partwise version="3.1">' + (title ? '<work><work-title>' + xmlEsc(title) + '</work-title></work>' : '') + (opt.composer ? '<identification><creator type="composer">' + xmlEsc(opt.composer) + '</creator></identification>' : '') + '<part-list><score-part id="P1"><part-name>' + xmlEsc(t('sc_part')) + '</part-name></score-part></part-list><part id="P1">' + xml + '</part></score-partwise>';
-}
-// Beam runs of eighths and shorter inside one beat group of the bar; rests and longer values break a run.
-function scoreBeams(evs: ScoreEngraveEvent[], at: number, len: number) {
-    let run: ScoreEngraveEvent[] = [];
-    const flush = () => { if (run.length > 1)
-        run.forEach((e, i) => { e.beam = i ? (i === run.length - 1 ? 'end' : 'continue') : 'begin'; }); run = []; };
-    evs.forEach((e) => {
-        const g0 = Math.floor((e.pos - at) / len), prev = run[run.length - 1];
-        if (!e.group || !/^(eighth|16th|32nd|64th)$/.test(e.type) || Math.floor((e.pos - at + e.d - 1) / len) !== g0) {
-            flush();
-            return;
-        }
-        if (prev && (Math.floor((prev.pos - at) / len) !== g0 || prev.pos + prev.d !== e.pos))
-            flush();
-        run.push(e);
-    });
-    flush();
-}
-// Hands: MIDI tracks (or channels) when their median pitches separate cleanly, otherwise a pitch split. Track order is never trusted.
-function anAssignHands(notes: AnParsedNote[], mode: string): AnHandAssignment {
-    const split = (s: number) => notes.map((n): AnHand => n.midi >= s ? 'rh' : 'lh');
-    if (/^\d+$/.test(mode))
-        return { of: split(+mode), how: 'split', split: +mode };
-    if (mode === 'auto' && notes.every((n): n is AnParsedNote & { srcHand: AnHand; } => !!n.srcHand))
-        return { of: notes.map((n) => n.srcHand), how: 'piece' };
-    const field = new Set(notes.map((n) => n.track)).size > 1 ? 'track' : new Set(notes.map((n) => n.channel)).size > 1 ? 'channel' : null;
-    if (!field)
-        return { of: split(60), how: 'one', split: 60 };
-    const groups = new Map<number, number[]>();
-    notes.forEach((n) => { const g = n[field]; let ms = groups.get(g); if (!ms)
-        groups.set(g, ms = []); ms.push(n.midi); });
-    const list = [...groups].map(([g, ms]) => { const s = ms.slice().sort((a, b) => a - b); return { g, count: ms.length, median: s[s.length >> 1] }; }).sort((a, b) => b.median - a.median);
-    let cut = 1, gap = -1;
-    for (let i = 1; i < list.length; i++) {
-        const d = list[i - 1].median - list[i].median;
-        if (d > gap) {
-            gap = d;
-            cut = i;
-        }
-    }
-    const upper = new Set(list.slice(0, cut).map((x) => x.g)), share = list.slice(0, cut).reduce((s, x) => s + x.count, 0) / notes.length;
-    if (mode === 'auto' && !(gap >= 5 && share >= 0.05 && share <= 0.95))
-        return { of: split(60), how: 'fallback', split: 60 };
-    return { of: notes.map((n) => upper.has(n[field]) ? 'rh' : 'lh'), how: 'tracks', groups: list.length };
+    const res = scoreMidiToXml(parsed, title, opt, t('sc_part'));
+    SCORE.midiGrid = res.midiGrid;
+    SCORE.measures = res.measures;
+    scoreSetTempos(res.tempos);
+    SCORE.tempoFromFile = res.tempoFromFile;
+    return res.xml;
 }
 // Rebuild notes + notation from the stored MIDI/example source; analysis timing stays the unquantized source timing.
 function anRebuild() {
@@ -14395,7 +12574,6 @@ function anXmlKeyMap(src: { keys: ScoreXmlKey[]; notes: readonly theory.TheoryNo
     return map;
 }
 /* rendering, selection painting, transport */
-const SC_PAGE_W = 794, SC_BASE = 0.75; // an A4 page is 794 CSS px wide at 100%; OSMD draws 10 px per staff space at zoom 1, so 0.75 ≈ MuseScore's default staff size
 // Beam groups for OSMD's auto-beaming (only used for MusicXML written without beams): one beat, or a dotted quarter in compound meters.
 function scoreBeamGroups() { const m = (SCORE.measures || [])[0] || { num: 4, den: 4 }; return m.den === 8 && m.num % 3 === 0 ? [[3, 8]] : m.den === 2 ? [[2, 4]] : [[1, 4]]; }
 // The engraving rules Étude sets on OSMD (a type alias, so it passes as the renderer's rule record).
@@ -14421,6 +12599,9 @@ async function scoreRender()  {
     SCORE.engine = null;
     SCORE.geo = null;
     SCORE.syms = [];
+    SCORE.renderedSig = '';
+    SCORE.hasPaint = false;
+    SCORE.cursorStyle = null;
     await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))); // let the loading state paint before the engraver blocks
     if (version !== SCORE.version)
         return false;
@@ -14520,10 +12701,21 @@ function scoreLayout() {
     const sourceLayout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
     const sheetW = Math.max(240, Math.round(Math.min(pageW * SCORE.zoom, avail)));
     if (sheet instanceof HTMLElement) sheet.style.width = cont ? '' : sheetW + 'px';
+    const landShort = !cont && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
+    const xmlBreaks = !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml);
+    const renderSig = [SCORE.version, SCORE.layout, SCORE.look, SCORE.zoom, avail, landShort ? 1 : 0, xmlBreaks ? 1 : 0].join('|');
+    if (!SCORE.stale && SCORE.renderedSig === renderSig && box.querySelector('svg')) {
+        SCORE.layoutWidth = box.clientWidth;
+        box.classList.remove('is-loading', 'is-empty');
+        box.setAttribute('aria-busy', 'false');
+        box.dataset.look = SCORE.look;
+        box.hidden = FALL.mode !== 'score';
+        scorePaint();
+        return SCORE.pedalsOk ?? true;
+    }
     engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: cont ? 'Endless' : 'A4_P', renderSingleHorizontalStaffline: cont, drawTitle: !cont, drawSubtitle: !cont, drawComposer: !cont, drawLyricist: !cont });
     if (!cont && sourceLayout)
         engine.setCustomPageFormat(sourceLayout.pageWidth, sourceLayout.pageHeight);
-    const landShort = !cont && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
     if (landShort) {
         R.PageTopMargin = Math.min(baseMargins.top ?? 6, 1.5);
         R.TitleTopDistance = Math.min(baseMargins.title ?? 4, 1.2);
@@ -14542,12 +12734,13 @@ function scoreLayout() {
     // system keeps its bars and every page its systems whatever the panel width.
     engine.setZoom(cont ? SCORE.zoom * base : sheetW / pageW * base);
     scoreRingFit(engine.getZoom());
-    scoreFitRender(engine, !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml), SCORE.zoom + '|' + avail);
+    scoreFitRender(engine, xmlBreaks, SCORE.zoom + '|' + avail);
     scoreStyleHeader(engine, sourceLayout);
     scoreFixFingerings(box, engine);
     if (SCORE.look === 'night')
         scoreNightSweep(box, look.ink);
     SCORE.stale = false;
+    SCORE.renderedSig = renderSig;
     SCORE.layoutWidth = box.clientWidth;
     box.classList.remove('is-loading', 'is-empty');
     box.setAttribute('aria-busy', 'false');
@@ -14556,9 +12749,11 @@ function scoreLayout() {
     renderScoreNoteParentheses(box, look.ink);
     scoreXLines();
     const pedalsOk = scoreFixPedals(box);
+    SCORE.pedalsOk = pedalsOk;
     scoreGeo(engine);
     scoreSyms(engine);
     box.hidden = FALL.mode !== 'score';
+    SCORE.hasPaint = false;
     scorePaint();
     if (!pedalsOk) {
         anSetLoading(false);
@@ -14567,16 +12762,6 @@ function scoreLayout() {
     return pedalsOk;
 }
 // OSMD's title label is plain text. Restore safe MusicXML italic/bold runs after each layout (never inject markup).
-function scoreStyleHeader(engine: notationApi.ScoreRenderer, layout: ScoreXmlLayout | null) {
-    const node = engine.getTitleNode(), runs = layout && layout.titleRuns;
-    if (!node || !runs || !runs.length)
-        return;
-    const text = node.localName === 'text' ? node : node.querySelector('text');
-    if (!text || (text.textContent || '').trim() !== runs.map((r) => r.text).join('').trim())
-        return;
-    const spans = runs.map((r) => { const span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan'); span.textContent = r.text; span.setAttribute('font-style', r.style); span.setAttribute('font-weight', r.weight); return span; });
-    text.replaceChildren(...spans);
-}
 // Page view of an imported file keeps its own <print new-system / new-page> breaks (MuseScore's 3–4 bars a line).
 // Those breaks only help while the bars fit: note spacing tightens a step at a time until the engraver needs no
 // extra break; past the last step it fills the lines itself rather than leave a lone bar after every forced break.
@@ -14604,11 +12789,28 @@ function scoreFitRender(engine: notationApi.ScoreRenderer, xmlBreaks: boolean, k
         engine.render();
         return;
     }
-    for (let i = 0; i < SC_FIT.length; i++) {
-        set(i, true);
+    set(0, true);
+    engine.render();
+    if (!scoreExtraBreaks(engine)) {
+        SCORE.fit = { key, step: 0, on: true };
+        return;
+    }
+    const last = SC_FIT.length - 1;
+    if (last > 0) {
+        set(last, true);
         engine.render();
         if (!scoreExtraBreaks(engine)) {
-            SCORE.fit = { key, step: i, on: true };
+            if (last > 1) {
+                set(1, true);
+                engine.render();
+                if (!scoreExtraBreaks(engine)) {
+                    SCORE.fit = { key, step: 1, on: true };
+                    return;
+                }
+                set(last, true);
+                engine.render();
+            }
+            SCORE.fit = { key, step: last, on: true };
             return;
         }
     }
@@ -14621,23 +12823,6 @@ function scoreExtraBreaks(engine: notationApi.ScoreRenderer) {
 }
 // Anything OSMD still draws in pure black (connectors, brackets, text without a colour rule) follows the night ink too.
 // The keyboard-focus ring around a notehead is measured in the score's own units: about 1 px of page colour, then 1.6 px of blue.
-function scoreRingFit(z: number) { (document).querySelectorAll('.sc-defs feMorphology').forEach((f) => { if (f instanceof SVGElement)
-    f.setAttribute('radius', (Number(f.dataset.px) / (z || SC_BASE)).toFixed(2)); }); }
-function scoreNightSweep(box: HTMLElement, ink: string) {
-    const black = /^(#000|#000000|black|rgb\(0,\s*0,\s*0\))$/i;
-    box.querySelectorAll('svg *').forEach((el) => {
-        for (const a of ['fill', 'stroke'] as const) {
-            const v = el.getAttribute(a);
-            if (v && black.test(v.trim()))
-                el.setAttribute(a, ink);
-            if ((el instanceof SVGElement || el instanceof HTMLElement) && el.style[a] && black.test(el.style[a].trim()))
-                el.style[a] = ink;
-        }
-        if (el.localName === 'text' && !el.getAttribute('fill'))
-            el.setAttribute('fill', ink);
-    });
-}
-// Bind each source note to its rendered notehead, retaining individual selection in chords. One tab stop; arrows move between notes.
 let scoreBindGen = 0; // counts bindings: each new layout has new noteheads
 // How each bound notehead is spelled on the page (the file's own spelling for MusicXML), for the Note names layer.
 let scoreHeadSpell = new WeakMap<SVGElement, { letter: number; alter: number }>();
@@ -14646,9 +12831,26 @@ function scoreBind(engine: notationApi.ScoreRenderer) {
     scoreBindGen++;
     scoreHeadSpell = new WeakMap();
     const grid = SCORE.midiGrid || 0, startOf = (n: AnNote) => grid ? Math.round(n.start * grid) / grid : n.start, endOf = (n: AnNote) => grid ? Math.max(startOf(n) + 1 / grid, Math.round(n.end * grid) / grid) : n.end;
-    const byMidi = new Map<number, number[]>();
-    AN.notes.forEach((n, i) => { let list = byMidi.get(n.midi); if (!list)
-        byMidi.set(n.midi, list = []); list.push(i); });
+    const byMidi = new Map<number, number[]>(), maxDurByMidi = new Map<number, number>(), keyCache = new Map<number, ReturnType<typeof anKeyAt>>();
+    AN.notes.forEach((n, i) => {
+        let list = byMidi.get(n.midi);
+        if (!list) byMidi.set(n.midi, list = []);
+        list.push(i);
+        const dur = endOf(n) - startOf(n);
+        if (dur > (maxDurByMidi.get(n.midi) ?? 0)) maxDurByMidi.set(n.midi, dur);
+    });
+    byMidi.forEach((list) => {
+        if (list.length > 1) list.sort((a, b) => startOf(AN.notes[a]) - startOf(AN.notes[b]) || a - b);
+    });
+    const lowerBound = (list: number[], target: number) => {
+        let lo = 0, hi = list.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (startOf(AN.notes[list[mid]]) < target) lo = mid + 1;
+            else hi = mid;
+        }
+        return lo;
+    };
     let bound = new Set<number>(), boundBeat: number | null = null;
     engine.forEachRenderedNote(({ midi, beat, part, staff, voice, element: g, spelling }) => {
         if (boundBeat !== beat) {
@@ -14659,22 +12861,66 @@ function scoreBind(engine: notationApi.ScoreRenderer) {
         if (!cands)
             return;
         const same = (j: number) => { const n = AN.notes[j]; return (n.part == null || n.part === part) && (n.staff == null || n.staff === staff) && (n.voice == null || n.voice === voice); };
-        const match = (pred: (j: number) => boolean) => { const a = cands.filter(pred); return a.find((j) => same(j) && !bound.has(j)) ?? a.find((j) => !bound.has(j)) ?? a.find(same) ?? a[0]; };
-        const exact = (j: number) => Math.abs(startOf(AN.notes[j]) - beat) < .01, sustained = (j: number) => startOf(AN.notes[j]) <= beat + .001 && endOf(AN.notes[j]) > beat + .001;
-        // A tied continuation belongs to its own voice, even when another voice starts the same pitch here.
-        const i = match((j) => same(j) && exact(j)) ?? match((j) => same(j) && sustained(j)) ?? match(exact) ?? match(sustained);
+        let exactSameUnbound: number | undefined;
+        let exactSameBound: number | undefined;
+        let exactAnyUnbound: number | undefined;
+        let exactAnyBound: number | undefined;
+        const kExact0 = lowerBound(cands, beat - 0.01);
+        for (let k = kExact0; k < cands.length; k++) {
+            const j = cands[k], ns = startOf(AN.notes[j]);
+            if (ns >= beat + 0.01) break;
+            if (Math.abs(ns - beat) < 0.01) {
+                const isSame = same(j), isUnbound = !bound.has(j);
+                if (isSame) {
+                    if (isUnbound) { exactSameUnbound = j; break; }
+                    if (exactSameBound == null) exactSameBound = j;
+                } else {
+                    if (isUnbound && exactAnyUnbound == null) exactAnyUnbound = j;
+                    if (exactAnyBound == null) exactAnyBound = j;
+                }
+            }
+        }
+        let i = exactSameUnbound ?? exactSameBound;
+        if (i == null) {
+            let sustSameUnbound: number | undefined;
+            let sustSameBound: number | undefined;
+            let sustAnyUnbound: number | undefined;
+            let sustAnyBound: number | undefined;
+            const maxDur = maxDurByMidi.get(midi) ?? 0;
+            const kSust0 = lowerBound(cands, beat - maxDur - 0.002);
+            for (let k = kSust0; k < cands.length; k++) {
+                const j = cands[k], n = AN.notes[j], ns = startOf(n);
+                if (ns > beat + 0.001) break;
+                if (endOf(n) > beat + 0.001) {
+                    const isSame = same(j), isUnbound = !bound.has(j);
+                    if (isSame) {
+                        if (isUnbound && sustSameUnbound == null) sustSameUnbound = j;
+                        if (sustSameBound == null) sustSameBound = j;
+                    } else {
+                        if (isUnbound && sustAnyUnbound == null) sustAnyUnbound = j;
+                        if (sustAnyBound == null) sustAnyBound = j;
+                    }
+                }
+            }
+            i = sustSameUnbound ?? sustSameBound ?? exactAnyUnbound ?? exactAnyBound ?? sustAnyUnbound ?? sustAnyBound;
+        }
         if (i == null)
             return;
         bound.add(i);
         g.dataset.i = String(i);
         if (spelling)
             scoreHeadSpell.set(g, spelling);
-        if (AN.notes[i].parenthesizedAt?.some(start => Math.abs(start - beat) < .001)) g.dataset.parenthesized = 'yes';
-        g.style.cursor = 'pointer';
-        g.style.pointerEvents = 'all';
+        const note = AN.notes[i];
+        if (note.parenthesizedAt?.some(start => Math.abs(start - beat) < .001)) g.dataset.parenthesized = 'yes';
         g.setAttribute('tabindex', '-1');
         g.setAttribute('role', 'button');
-        g.setAttribute('aria-label', spellName(AN.notes[i].midi, anKeyAt(AN.notes[i].start), true));
+        g.setAttribute('aria-pressed', 'false');
+        let noteKey = keyCache.get(note.start);
+        if (!noteKey) {
+            noteKey = anKeyAt(note.start);
+            keyCache.set(note.start, noteKey);
+        }
+        g.setAttribute('aria-label', spellName(note.midi, noteKey, true));
         let heads = SCORE.heads.get(i);
         if (!heads)
             SCORE.heads.set(i, heads = []);
@@ -14715,8 +12961,21 @@ if (stave) {
         extra.style.stroke = stemColor || extra.dataset.originalStroke || '';
     });
 } }
-function scorePaintIdx(i: number) { (SCORE.heads.get(i) || []).forEach(scorePaintEl); }
-function scorePaint() { SCORE.heads.forEach((list) => list.forEach(scorePaintEl)); scoreNamesSync(); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
+function scorePaintIdx(i: number) {
+    if (AN.selected.has(i) || PRAC.res.has(i) || (SCORE.hl && SCORE.lit.has(i)) || PRAC.hands !== 'both') SCORE.hasPaint = true;
+    (SCORE.heads.get(i) || []).forEach(scorePaintEl);
+}
+function scorePaint() {
+    const needsPaint = PRAC.hands !== 'both' || AN.selected.size > 0 || PRAC.res.size > 0 || (SCORE.hl && SCORE.lit.size > 0);
+    if (needsPaint || SCORE.hasPaint) {
+        SCORE.heads.forEach((list) => list.forEach(scorePaintEl));
+        SCORE.hasPaint = needsPaint;
+    }
+    scoreNamesSync();
+    scoreMarks();
+    scoreCursorUpdate(false);
+    anAnalyze();
+}
 // Note names (the toolbar's Note names toggle, saved with the player settings): each bound notehead gets its name just
 // right of it, spelled in the key and in the app's note naming. One layer per page SVG, drawn again after each layout
 // or naming change; the noteheads keep their own labels for screen readers, so the layer is hidden from them.
@@ -14786,116 +13045,7 @@ function showNotationReloadPrompt() {
 // Text-pedal skylines can miss ledger notes, and a release with no staff entry can land on its press glyph.
 // Place actual glyph ink without changing event timing. Recompute from native positions on every call.
 // One property of an OSMD object (Étude doesn't type the engraver's internals); callers narrow what comes back.
-function scoreVendorField(v: unknown, k: string): unknown { return typeof v === 'object' && v !== null ? Reflect.get(v, k) : undefined; }
-function scoreVendorList(v: unknown): unknown[] { return Array.isArray(v) ? v : []; }
-interface ScorePedalBox { left: number; right: number; top: number; bottom: number; group?: Element | null; press?: boolean; }
-let scoreFixPedals = function scoreFixPedals(box: HTMLElement) {
-    let unresolved = 0;
-    box.querySelectorAll('svg').forEach((svg) => {
-        const marks = [...svg.querySelectorAll('.vf-sc-pedal path')].filter((p) => p instanceof SVGElement), ctm = svg.getScreenCTM();
-        if (!marks.length || !ctm || !ctm.d)
-            return;
-        marks.forEach((p) => {
-            if (p.dataset.pedalUnresolved) {
-                p.style.visibility = '';
-                delete p.dataset.pedalUnresolved;
-            }
-            if (!p.hasAttribute('data-pedal-base-transform'))
-                p.dataset.pedalBaseTransform = p.getAttribute('transform') || '';
-            const base = p.dataset.pedalBaseTransform;
-            if (base)
-                p.setAttribute('transform', base);
-            else
-                p.removeAttribute('transform');
-        });
-        const gap = Math.max(1, Math.abs(ctm.d) * 2.5), limit = Math.abs(ctm.a) * 40, page = svg.getBoundingClientRect(), placed: ScorePedalBox[] = [];
-        const cross = (a: ScorePedalBox, b: ScorePedalBox, pad = gap) => a.right + pad > b.left && a.left - pad < b.right && a.bottom + pad > b.top && a.top - pad < b.bottom;
-        const obstacles: ScorePedalBox[] = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,.sc-note-parentheses path,text')].filter((n) => !n.closest('.vf-sc-pedal')).flatMap((n) => {
-            const r = n.getBoundingClientRect(), s = getComputedStyle(n), pad = s.stroke !== 'none' ? Math.max(.5, parseFloat(s.strokeWidth) * Math.abs(ctm.d) / 2 || .5) : 0;
-            if (n.matches('.sc-xline,.vf-stavetie path,path.vf-stavetie') && n instanceof SVGGeometryElement) {
-                const len = n.getTotalLength(), m = n.getScreenCTM() ?? undefined, out: ScorePedalBox[] = [];
-                let a = n.getPointAtLength(0);
-                a = new DOMPoint(a.x, a.y).matrixTransform(m);
-                for (let i = 1, count = Math.max(1, Math.ceil(len / 2)); i <= count; i++) {
-                    const q = n.getPointAtLength(len * i / count), z = new DOMPoint(q.x, q.y).matrixTransform(m);
-                    out.push({ left: Math.min(a.x, z.x) - pad, right: Math.max(a.x, z.x) + pad, top: Math.min(a.y, z.y) - pad, bottom: Math.max(a.y, z.y) + pad });
-                    a = z;
-                }
-                return out;
-            }
-            return [{ left: r.left - pad, right: r.right + pad, top: r.top - pad, bottom: r.bottom + pad }];
-        });
-        const inkBottoms = new Map<unknown, number>();
-        marks.forEach((p) => {
-            const r = p.getBoundingClientRect();
-            if (r.width < .1)
-                return;
-            const group = p.closest('.vf-sc-pedal'), release = r.width < r.height * 1.3, rect = (x: number, y: number) => ({ left: r.left + x, right: r.right + x, top: r.top + y, bottom: r.bottom + y });
-            let dx = 0, dy = 0;
-            const V = scoreVendorField, owner = V(group, 'scPedalOwner'), sys = V(V(owner, 'staffLine'), 'ParentMusicSystem');
-            const pos = (s: unknown) => { const at = V(V(s, 'PositionAndShape'), 'AbsolutePosition'); return at ? { x: Number(V(at, 'x')), y: Number(V(at, 'y')) } : null; };
-            const systems = scoreVendorList(V(V(sys, 'Parent'), 'MusicSystems')), next = systems[systems.indexOf(sys) + 1];
-            const pedal = V(owner, 'pedal'), measureOf = (entry: unknown) => V(V(entry, 'parentStaffEntry'), 'parentMeasure');
-            const endpoint = pedal && (release ? V(pedal, 'endMeasure') || measureOf(V(pedal, 'endVfVoiceEntry')) : measureOf(V(pedal, 'startVfVoiceEntry')));
-            const measures = scoreVendorList(V(V(owner, 'staffLine'), 'Measures')), measure = endpoint && V(V(endpoint, 'ParentStaffLine'), 'ParentMusicSystem') === sys ? endpoint : (release ? measures[measures.length - 1] : measures[0]);
-            const mp = pos(measure), sp = pos(sys), np = pos(next);
-            const ml = mp ? ctm.e + mp.x * 10 * ctm.a - limit : -Infinity, mr = mp ? ctm.e + (mp.x + Number(V(V(V(measure, 'PositionAndShape'), 'Size'), 'width'))) * 10 * ctm.a + limit : Infinity;
-            const line = V(owner, 'staffLine'), local = measures.find((m) => V(m, 'parentSourceMeasure') === V(measure, 'parentSourceMeasure')) || measure;
-            const lp = pos(line), staffHeight = Number(V(line, 'StaffHeight'));
-            const staffBottom = lp && Number.isFinite(staffHeight) ? ctm.f + (lp.y + staffHeight) * 10 * ctm.d : null;
-            let inkBottom = inkBottoms.get(local);
-            if (staffBottom != null && inkBottom == null) {
-                inkBottom = staffBottom;
-                const nodes: SVGElement[] = [];
-                scoreVendorList(V(local, 'staffEntries')).forEach((entry) => {
-                    scoreVendorList(V(entry, 'FingeringEntries')).forEach((f) => { const n = V(f, 'SVGNode'); if (n instanceof SVGElement) nodes.push(n); });
-                    scoreVendorList(V(entry, 'graphicalVoiceEntries')).forEach((voice) => {
-                        const vf = V(voice, 'vfStaveNote') || V(voice, 'mVexFlowStaveNote'), get = V(vf, 'getAttribute');
-                        const n: unknown = typeof get === 'function' ? get.call(vf, 'el') : null;
-                        if (n instanceof SVGElement)
-                            nodes.push(...n.querySelectorAll<SVGElement>('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-modifiers'));
-                    });
-                });
-                nodes.forEach((n) => { const b = n.getBoundingClientRect(); if (b.width || b.height) inkBottom = Math.max(inkBottom ?? staffBottom, b.bottom); });
-                inkBottoms.set(local, inkBottom);
-            }
-            // OSMD uses one skyline for the entire system, even when a low fingering is in another bar.
-            // Anchor each endpoint to its own bass ink instead of preserving that unnecessarily distant row.
-            // Keep the native press/release baseline difference and search only below the owning staff.
-            const preferred = inkBottom == null ? 0 : inkBottom + gap + (release ? Math.abs(ctm.d) * 3 : 0) - r.top;
-            const minY = Math.max(page.top + gap - r.top, -Math.abs(ctm.d) * 40, staffBottom == null ? -Infinity : staffBottom + gap - r.top, sp ? ctm.f + sp.y * 10 * ctm.d - r.top : -Infinity);
-            const maxY = Math.min(page.bottom - gap - r.bottom, Math.abs(ctm.d) * 40, np ? ctm.f + np.y * 10 * ctm.d - gap - r.bottom : Infinity);
-            const all = obstacles.concat(placed), ys = [...new Set([preferred, 0, minY, maxY, ...all.flatMap((o) => [o.bottom + gap - r.top, o.top - gap - r.bottom])])].filter((y) => y >= minY && y <= maxY).sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
-            let found = false;
-            for (const y of ys) {
-                const row = all.filter((o) => r.bottom + y + gap > o.top && r.top + y - gap < o.bottom), afterPress = release && row.some((o) => o.group === group && o.press);
-                const xs = [...new Set([0, ...row.flatMap((o) => [o.right + gap - r.left, o.left - gap - r.right])])].filter((x) => Math.abs(x) <= limit && r.left + x >= page.left + gap && r.right + x <= page.right - gap && r.right + x >= ml && r.left + x <= mr && !row.some((o) => cross(rect(x, y), o)));
-                xs.sort((a, b) => (Math.abs(a) + (afterPress && a < 0 ? limit + 1 : 0)) - (Math.abs(b) + (afterPress && b < 0 ? limit + 1 : 0)));
-                if (xs.length) {
-                    dx = xs[0];
-                    dy = y;
-                    found = true;
-                    break;
-                }
-            }
-            ;
-            // Fail closed: no clipped/colliding ink or invented musical location. A fresh layout retries natively.
-            if (!found) {
-                unresolved++;
-                p.dataset.pedalUnresolved = 'no-safe-slot';
-                p.style.visibility = 'hidden';
-                console.warn('Score pedal: no-safe-slot', owner);
-                return;
-            }
-            const base = p.dataset.pedalBaseTransform;
-            if (Math.abs(dx) > .1 || Math.abs(dy) > .1)
-                p.setAttribute('transform', (base ? base + ' ' : '') + 'translate(' + (dx / ctm.a).toFixed(3) + ' ' + (dy / ctm.d).toFixed(3) + ')');
-            placed.push({ ...rect(dx, dy), group, press: !release });
-        });
-    });
-    box.dataset.pedalUnresolved = String(unresolved);
-    return unresolved === 0;
-};
+let scoreFixPedals = scoreFixPedalsDefault;
 // SVG user units of the page a node sits on, from screen pixels (OSMD draws 10 units per staff space).
 function scoreToUser(svg: SVGSVGElement, x: number, y: number) { const m = svg.getScreenCTM(); if (!m)
     return null; const p = svg.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(m.inverse()); }
@@ -14985,146 +13135,6 @@ function scoreXLines() {
     });
 }
 // The parts of OSMD's engraved sheet the score passes read. OSMD ships no types for these, so isScoreOsmdSheet checks the root.
-interface ScoreOsmdLabel { SVGNode?: SVGElement | null; Label?: { text?: string } }
-interface ScoreOsmdVexNote {
-    getAttribute?(name: 'el'): SVGElement | undefined;
-    duration?: string;
-    modifiers?: { getCategory?(): string; type: string }[];
-}
-interface ScoreOsmdNote {
-    sourceNote?: { isRest(): boolean; PrintObject?: boolean; TypeLength?: { RealValue: number }; DotsXml?: number; IsGraceNote?: boolean };
-    vfnote?: readonly [unknown, number];
-    getNoteheadSVGs?(): SVGElement[];
-    getSVGGElement?(): SVGElement;
-}
-interface ScoreOsmdVoiceEntry { vfStaveNote?: ScoreOsmdVexNote; mVexFlowStaveNote?: ScoreOsmdVexNote; notes?: ScoreOsmdNote[] }
-interface ScoreOsmdStaffEntry { FingeringEntries?: ScoreOsmdLabel[]; graphicalChordContainers?: { GraphicalLabel?: ScoreOsmdLabel }[]; graphicalVoiceEntries?: ScoreOsmdVoiceEntry[] }
-interface ScoreOsmdMeasure {
-    staffEntries?: ScoreOsmdStaffEntry[];
-    ParentMusicSystem: ScoreOsmdSystem;
-    parentSourceMeasure: { AbsoluteTimestamp: { RealValue: number }; Duration: { RealValue: number } };
-    PositionAndShape: { AbsolutePosition: { x: number }; Size: { width: number } };
-    beginInstructionsWidth?: number;
-}
-interface ScoreOsmdStaffLine {
-    Measures: ScoreOsmdMeasure[];
-    AbstractExpressions?: { lines?: { SVGElement?: SVGElement }[]; expression?: { dynamicType?: number | null } }[];
-    PositionAndShape: { RelativePosition: { y: number } };
-    StaffHeight: number;
-}
-interface ScoreOsmdSystem { StaffLines: ScoreOsmdStaffLine[]; PositionAndShape: { AbsolutePosition: { y: number } } }
-interface ScoreOsmdSheet {
-    MusicPages: { PageNumber: number; MusicSystems: ScoreOsmdSystem[] }[];
-    MeasureList: (ScoreOsmdMeasure | undefined)[][];
-    title?: ScoreOsmdLabel; subtitle?: ScoreOsmdLabel; composer?: ScoreOsmdLabel; lyricist?: ScoreOsmdLabel; copyright?: ScoreOsmdLabel;
-}
-function isScoreOsmdSheet(v: unknown): v is ScoreOsmdSheet {
-    return typeof v === 'object' && v !== null && 'MusicPages' in v && Array.isArray(v.MusicPages) && 'MeasureList' in v && Array.isArray(v.MeasureList);
-}
-// A marking's inked area in screen pixels: left, right, top, bottom.
-interface ScoreInkBox { l: number; r: number; t: number; b: number }
-// Chord fingerings stacked one above the other must never touch: each column is re-stacked from the notes outwards,
-// clear of its noteheads, stems and the digits already placed on that staff, above or below as OSMD chose.
-function scoreFixFingerings(box: HTMLElement, engine: import('./notation.js').ScoreRenderer | null) {
-    const sheet = engine && engine.readLayout().graphicSheet, gs = isScoreOsmdSheet(sheet) ? sheet : null;
-    if (!gs || !box)
-        return;
-    const ink = (r: DOMRect): ScoreInkBox => ({ l: r.left + r.width * .08, r: r.right - r.width * .08, t: r.top + r.height * .18, b: r.bottom - r.height * .2 });
-    const crossX = (a: ScoreInkBox, b: ScoreInkBox) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > .5;
-    gs.MusicPages.forEach((pg) => pg.MusicSystems.forEach((sys) => sys.StaffLines.forEach((sl) => {
-        const placed: ScoreInkBox[] = [];
-        sl.Measures.forEach((gm) => (gm.staffEntries || []).forEach((gse) => {
-            const labels = (gse.FingeringEntries || []).map((f) => f.SVGNode).filter((n): n is SVGElement => !!n && !!n.ownerSVGElement);
-            if (!labels.length)
-                return;
-            const obstacles: ScoreInkBox[] = [];
-            let mid = 0, nh = 0;
-            (gse.graphicalVoiceEntries || []).forEach((gve) => {
-                const vf = gve.vfStaveNote || gve.mVexFlowStaveNote, g = (vf && vf.getAttribute && vf.getAttribute('el')) || (gve.notes || []).map((n) => n.getSVGGElement && n.getSVGGElement()).find(Boolean);
-                if (!g || !g.querySelectorAll)
-                    return;
-                g.querySelectorAll('.vf-notehead').forEach((h) => { const r = h.getBoundingClientRect(); if (!r.width)
-                    return; obstacles.push({ l: r.left, r: r.right, t: r.top, b: r.bottom }); mid += r.top + r.height / 2; nh++; });
-                g.querySelectorAll('.vf-stem').forEach((s) => { const r = s.getBoundingClientRect(); if (r.height)
-                    obstacles.push({ l: r.left - 1, r: r.right + 1, t: r.top, b: r.bottom }); });
-            });
-            if (!nh)
-                return;
-            mid /= nh;
-            const svg = labels[0].ownerSVGElement, ctm = svg && svg.getScreenCTM();
-            if (!ctm || !ctm.d)
-                return;
-            const gap = Math.max(1, ctm.d * 2.5), cap = ctm.d * 40; // about 0.25 and 4 staff spaces in screen pixels
-            const items = labels.map((n) => { const r = n.getBoundingClientRect(); return { n, box: ink(r), up: r.top + r.height / 2 < mid }; });
-            for (const up of [true, false]) {
-                items.filter((it) => it.up === up).sort((a, b) => up ? b.box.b - a.box.b : a.box.t - b.box.t).forEach((it) => {
-                    let dy = 0;
-                    for (let k = 0; k < 16; k++) {
-                        const bx = { l: it.box.l, r: it.box.r, t: it.box.t + dy, b: it.box.b + dy };
-                        const hit = [...obstacles, ...placed].find((o) => crossX(bx, o) && bx.b + gap > o.t && bx.t - gap < o.b);
-                        if (!hit)
-                            break;
-                        dy += up ? hit.t - gap - bx.b : hit.b + gap - bx.t;
-                    }
-                    if (Math.abs(dy) > cap)
-                        dy = Math.sign(dy) * cap;
-                    if (Math.abs(dy) > .25)
-                        scoreShiftY(it.n, dy / ctm.d);
-                    placed.push({ l: it.box.l, r: it.box.r, t: it.box.t + dy, b: it.box.b + dy });
-                });
-            }
-        }));
-    })));
-    // A chord symbol raised over the upper staff must not sit on the words there ("dolce", "rit."):
-    // the words move above it. Text equality is not semantic equality (harmony C and rehearsal C differ).
-    const chords = new Set<Element>(), fings = new Set<Element>();
-    gs.MeasureList.forEach((list) => (list || []).forEach((gm) => gm && (gm.staffEntries || []).forEach((gse) => { (gse.graphicalChordContainers || []).forEach((c) => { const n = c.GraphicalLabel && c.GraphicalLabel.SVGNode; if (n)
-        chords.add(n); }); (gse.FingeringEntries || []).forEach((f) => { if (f.SVGNode)
-        fings.add(f.SVGNode); }); })));
-    box.querySelectorAll('svg').forEach((svg) => {
-        const ctm = svg.getScreenCTM();
-        if (!ctm || !ctm.d)
-            return;
-        const chordBoxes: ScoreInkBox[] = [], words: { x: SVGTextElement; b: ScoreInkBox; }[] = [];
-        svg.querySelectorAll('text').forEach((x) => {
-            const r = x.getBoundingClientRect(), s = (x.textContent ?? '').trim();
-            if (!s || !r.width)
-                return;
-            if ([...chords].some((c) => c === x || c.contains(x)))
-                chordBoxes.push(ink(r));
-            else if (![...fings].some((f) => f === x || f.contains(x)) && !x.closest('.measure-number,.osmd-measure-number,.vf-repetition,.vf-stavesection'))
-                words.push({ x, b: ink(r) });
-        });
-        words.forEach(({ x, b }) => {
-            const hit = chordBoxes.find((c) => crossX(b, c) && b.b + ctm.d * 5 > c.t && b.t < c.b);
-            if (!hit || b.t > hit.t)
-                return;
-            scoreShiftY(x, (hit.t - ctm.d * 5 - b.b) / ctm.d);
-        });
-        // Repetition instructions combine text and a music glyph. OSMD's estimated skyline can miss
-        // their actual ink (segno by high notes, D.S. al by a ledger note, Coda by a chord symbol).
-        // Move the complete semantic group, never its glyph alone or the note it points to.
-        const navigation = '.vf-repetition,.vf-stavesection,.osmd-tempo,.vf-stavetempo';
-        const obstacles = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.osmd-fingering,.osmd-chord-symbol')].map((n) => ({ n, r: n.getBoundingClientRect() }));
-        svg.querySelectorAll<SVGElement>(navigation).forEach((mark) => {
-            const r = mark.getBoundingClientRect(), gap = Math.abs(ctm.d) * 2.5;
-            if (!r.width || !r.height)
-                return;
-            const blocks = obstacles.filter(({ n, r: o }) => !mark.contains(n) && !n.contains(mark) && o.width + o.height > 0 && r.right + gap > o.left && r.left - gap < o.right).map((o) => o.r);
-            let dy = 0;
-            for (let step = 0; step < blocks.length; step++) {
-                const hits = blocks.filter((o) => r.bottom + dy + gap > o.top && r.top + dy - gap < o.bottom);
-                if (!hits.length)
-                    break;
-                dy = Math.min(...hits.map((o) => o.top)) - gap - r.bottom - .01;
-            }
-            if (Math.abs(dy) > .1)
-                scoreShiftY(mark, dy / ctm.d);
-        });
-    });
-}
-// Adds to any vertical shift already applied, so the pass can run again on a page it has already tidied.
-function scoreShiftY(n: Element, dy: number) { const m = /^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform') || ''); n.setAttribute('transform', `translate(0 ${((m ? +m[1] : 0) + dy).toFixed(2)})`); }
 // Every marking on the page that the hover can explain: its box (relative to its page, which only moves as a whole), kind and value.
 const SC_DYN = /^(ppp|pp|p|mp|mf|f|ff|fff|sfz|fz|rfz|fp|sf|sfp)$/;
 // Keep the diagnostic surface derived from the same vocabulary as the parser.
@@ -15138,7 +13148,6 @@ type ScoreSymRect = Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom' | 'width' 
 // A marking the hover can explain: its element, kind and value, boxed relative to its page.
 interface ScoreSym { kind: string | undefined; val: string | ScoreRestSym; el: Element | null; loose: boolean; page: Element; x0: number; y0: number; x1: number; y1: number }
 // A lookup-table key check, so a value read from the engraving can index one of the tables here.
-function scoreHasKey<T extends object>(table: T, key: PropertyKey): key is keyof T { return Object.prototype.hasOwnProperty.call(table, key); }
 function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
     const sheet = engine && engine.readLayout().graphicSheet;
     const box = byId('an-roll'), list: ScoreSym[] = [], gs = isScoreOsmdSheet(sheet) ? sheet : null;
@@ -15148,20 +13157,29 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
     if (!gs)
         return;
     const pageRects = new Map<Element, DOMRect>(), pageOf = (el: Element | null | undefined) => el && el.closest && el.closest('[id^="osmdCanvasPage"]');
+    const symMarked = new Set<Element>();
+    const hasSymAncestor = (el: Element) => {
+        for (let cur: Element | null = el; cur && cur !== box; cur = cur.parentElement) {
+            if (symMarked.has(cur) || cur.hasAttribute('data-sym')) return true;
+        }
+        return false;
+    };
+    const pendingSyms: { el: HTMLElement | SVGElement; idx: number; label: string }[] = [];
+    const graceFixes: { el: SVGElement; tab: string | null; label: string }[] = [];
     const add = (el: Element | null, kind: string | undefined, val: string | ScoreRestSym = '', rect?: ScoreSymRect | null, loose = true, ref?: Element) => {
         const r = rect || (el && el.getBoundingClientRect()), page = pageOf(el || ref);
         if (!r || (!r.width && !r.height) || !page)
             return;
-        if (!pageRects.has(page))
-            pageRects.set(page, page.getBoundingClientRect());
-        const pr = pageRects.get(page) || page.getBoundingClientRect();
+        let pr = pageRects.get(page);
+        if (!pr) {
+            pr = page.getBoundingClientRect();
+            pageRects.set(page, pr);
+        }
         const i = list.length;
         list.push({ kind, val, el, loose, page, x0: r.left - pr.left, y0: r.top - pr.top, x1: r.right - pr.left, y1: r.bottom - pr.top });
         if (el instanceof HTMLElement || el instanceof SVGElement) {
-            el.dataset.sym = String(i);
-            el.style.cursor = 'help';
-            el.tabIndex = 0;
-            el.setAttribute('aria-label', scoreSymText({ kind, val }).line);
+            symMarked.add(el);
+            pendingSyms.push({ el, idx: i, label: scoreSymText({ kind, val }).line });
         }
     };
     const seen = new Set<Element>(); // the title block is not a marking
@@ -15196,9 +13214,7 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
                             head.dataset.grace = 'yes';
                             add(head, 'grace');
                             if (selectable) {
-                                head.style.cursor = 'pointer';
-                                head.setAttribute('tabindex', tab ?? '-1');
-                                head.setAttribute('aria-label', (label ? label + ' · ' : '') + t('sym_grace'));
+                                graceFixes.push({ el: head, tab, label: (label ? label + ' · ' : '') + t('sym_grace') });
                             }
                         }
                     }
@@ -15211,8 +13227,10 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
                     const type = src.TypeLength && src.TypeLength.RealValue === 0 ? 'measure' : ((dur != null && scoreHasKey(restNames, dur) ? restNames[dur] : undefined) || 'other');
                     add(g, 'rest', { type, dots: src.DotsXml || 0 });
                 });
+                if (!vf || !vf.modifiers || !vf.modifiers.length)
+                    return;
                 const mg = el && el.querySelector && el.querySelector('.vf-modifiers');
-                if (!mg || !vf || !vf.modifiers)
+                if (!mg)
                     return;
                 // Grace groups emit nested notes/ledgers, not one modifier path.
                 // Exclude both sides of that structural group before pairing glyphs.
@@ -15239,7 +13257,7 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
         // on different lines. Preserve that word boundary without separating a decimal suffix.
         const texts = [...element.querySelectorAll('text')];
         const s = (texts.length ? texts.map(text => text.textContent?.trim() ?? '').filter(Boolean).join(' ') : element.textContent ?? '').replace(/\s+/g, ' ').replace(/(\d)\s+([.,]\d)/g, '$1$2').trim();
-        if (!s || element.closest('[data-sym]')) return;
+        if (!s || hasSymAncestor(element)) return;
         texts.forEach(text => seen.add(text));
         if (SC_DYN.test(s)) add(element, 'dyn', s);
         else if (/^[A-G](?:[#♯b♭])?(?:m(?:aj)?|dim|aug|sus[24]?)?\d*(?:\/[A-G][#♯b♭]?)?$/.test(s) && element.classList.contains('osmd-words')) add(element, 'chord', s);
@@ -15247,7 +13265,7 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
         else add(element, scoreTermParts(s).length ? 'text' : 'direction', s);
     });
     box.querySelectorAll('svg text').forEach((x) => {
-        if (seen.has(x) || x.closest('[data-sym],.measure-number,.osmd-measure-number'))
+        if (seen.has(x) || hasSymAncestor(x) || x.closest('.measure-number,.osmd-measure-number'))
             return;
         const s = (x.textContent || '').replace(/\s+/g, ' ').trim();
         if (!s)
@@ -15275,7 +13293,12 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
             const sy = g.systems[m.sys], pe = g.pages[sy.page];
             if (!pe)
                 continue;
-            const pr = pe.getBoundingClientRect(), ux = (cx - pr.left) / g.scale, uy = (cy - pr.top) / g.scale;
+            let pr = pageRects.get(pe);
+            if (!pr) {
+                pr = pe.getBoundingClientRect();
+                pageRects.set(pe, pr);
+            }
+            const ux = (cx - pr.left) / g.scale, uy = (cy - pr.top) / g.scale;
             if (ux >= m.x0 - .2 && ux <= m.x1 && uy >= sy.top - 3 && uy <= sy.bottom + 3)
                 return m.b0;
         }
@@ -15298,6 +13321,17 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
         const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top)), b = Math.max(...rs.map((r) => r.bottom)), w = rs[0].width, h0: Element[] = SCORE.heads.get(ix[0]) || [];
         add(null, 'arpeggio', '', { left: l - w * 1.4, right: l - w * .15, top: t - w * .3, bottom: b + w * .3, width: w, height: b - t }, true, h0[0]);
     });
+    for (const sym of pendingSyms) {
+        sym.el.dataset.sym = String(sym.idx);
+        sym.el.style.cursor = 'help';
+        sym.el.tabIndex = 0;
+        sym.el.setAttribute('aria-label', sym.label);
+    }
+    for (const fix of graceFixes) {
+        fix.el.style.cursor = 'pointer';
+        fix.el.setAttribute('tabindex', fix.tab ?? '-1');
+        fix.el.setAttribute('aria-label', fix.label);
+    }
 }
 function scoreTermParts(s: string) {
     return recognizeScoreMarkings(s, { context: 'direction' }).map(part => t(part.key, ...part.params));
@@ -15555,19 +13589,33 @@ function scoreAnchorAt(A: ScoreGeoAnchor[], beat: number, sys: number): ScoreCur
 function scoreCursorUpdate(follow: boolean) {
     const el = scoreCursorEl(), g: ScoreGeometry | null = SCORE.geo, p = g && AN.notes.length && FALL.mode === 'score' ? scoreCursorAt(scoreBeatAt(fallTime())) : null, s = g && p ? g.systems[p.sys] : null, page = g && s ? g.pages[s.page] : null;
     if (!g || !p || !s || !page) {
-        el.remove();
+        if (el.parentNode) el.remove();
+        SCORE.cursorStyle = null;
         return;
     }
-    if (el.parentNode !== page)
-        page.appendChild(el);
-    const w = Math.max(1.5, Math.min(3, 2 * SCORE.zoom)), pad = 2 * g.scale; // 2 px at 100%
-    el.style.width = w.toFixed(1) + 'px';
-    el.style.borderLeftWidth = w.toFixed(1) + 'px';
-    el.style.height = ((s.bottom - s.top) * g.scale + 2 * pad).toFixed(1) + 'px';
-    el.style.transform = 'translate(' + (p.x * g.scale - w / 2).toFixed(1) + 'px,' + (s.top * g.scale - pad).toFixed(1) + 'px)';
-    el.classList.toggle('is-playing', SCORE.playing);
     if (follow)
         scoreCursorFollow(p, s, page, g);
+    if (el.parentNode !== page) {
+        page.appendChild(el);
+        SCORE.cursorStyle = null;
+    }
+    const wVal = Math.max(1.5, Math.min(3, 2 * SCORE.zoom)), pad = 2 * g.scale; // 2 px at 100%
+    const wStr = wVal.toFixed(1) + 'px';
+    const hStr = ((s.bottom - s.top) * g.scale + 2 * pad).toFixed(1) + 'px';
+    const trStr = 'translate(' + (p.x * g.scale - wVal / 2).toFixed(1) + 'px,' + (s.top * g.scale - pad).toFixed(1) + 'px)';
+    const playing = !!SCORE.playing;
+    const prev = SCORE.cursorStyle;
+    if (!prev || prev.w !== wStr) {
+        el.style.width = wStr;
+        el.style.borderLeftWidth = wStr;
+    }
+    if (!prev || prev.h !== hStr)
+        el.style.height = hStr;
+    if (!prev || prev.transform !== trStr)
+        el.style.transform = trStr;
+    if (!prev || prev.playing !== playing)
+        el.classList.toggle('is-playing', playing);
+    SCORE.cursorStyle = { w: wStr, h: hStr, transform: trStr, playing };
 }
 // Keep the cursor in view: vertically by system in page view, horizontally in continuous view.
 function scoreCursorFollow(p: ScoreCursorPos, s: ScoreGeoSystem, page: HTMLElement, g: ScoreGeometry) {
@@ -16374,9 +14422,20 @@ function scoreFollow() {
         return;
     }
     const time = fallTime(), now = new Set<number>(), sel = SCORE.sel ? AN.selected : null, all: PracticeTimedNote[] = fallData();
-    all.forEach(({ i, start, finish }) => { if (time >= start && time < finish && (!sel || sel.has(i)))
-        now.add(i); });
-    if (now.size !== SCORE.lit.size || [...now].some((i) => !SCORE.lit.has(i))) {
+    const startIdx = FALL.sorted ? fallStartIndex(all, time - (FALL.maxDur ?? 0) - 0.01) : 0;
+    for (let idx = startIdx; idx < all.length; idx++) {
+        const d = all[idx];
+        if (FALL.sorted && d.start > time) break;
+        if (time >= d.start && time < d.finish && (!sel || sel.has(d.i)))
+            now.add(d.i);
+    }
+    let changed = now.size !== SCORE.lit.size;
+    if (!changed) {
+        for (const i of now) {
+            if (!SCORE.lit.has(i)) { changed = true; break; }
+        }
+    }
+    if (changed) {
         const old = SCORE.lit;
         SCORE.lit = now;
         if (FALL.mode === 'score' && SCORE.hl) {
@@ -17400,542 +15459,20 @@ function anReset() {
 // Walk the directory the way it will (last end-of-directory record, signed 32-bit fields, the same record and local-header
 // reads), refuse anything it could not unpack anyway, and cap what every entry declares. Entries big enough to expand
 // past the cap (deflate tops out near 1032:1) are inflated once as a counted stream, so a lying header fails here.
-interface AnZipEntry { method: number; C: number; U: number; off: number; }
-interface AnZipEntryData extends AnZipEntry { data: Uint8Array<ArrayBuffer>; }
-async function anMxlPreflight(buf: ArrayBuffer)  {
-    const u = new Uint8Array(buf), N = u.length, CAP = AN_MAX_XML_CHARS, bad = () => anError('mxl');
-    let zero = 0;
-    const fits = (i: number, n: number) => i >= 0 && n >= 0 && zero + i + n <= N;
-    const int = (i: number, n: number) => { if (!fits(i, n))
-        throw bad(); let v = 0; for (let k = n - 1; k >= 0; k--)
-        v = (v << 8) + u[zero + i + k]; return v; };
-    const int8 = (i: number) => { const lo = int(i, 4); if (int(i + 4, 4))
-        throw bad(); return lo; }; // JSZip drops the high half of 64-bit fields
-    const sig = (i: number, c: number, d: number) => fits(i, 4) && u[zero + i] === 80 && u[zero + i + 1] === 75 && u[zero + i + 2] === c && u[zero + i + 3] === d;
-    const last = (c: number, d: number) => { for (let r = N - 4; r >= 0; r--)
-        if (u[r] === 80 && u[r + 1] === 75 && u[r + 2] === c && u[r + 3] === d)
-            return r - zero; return -1; };
-    const eocd = last(5, 6);
-    if (eocd < 0)
-        throw bad();
-    const recs16 = [int(eocd + 4, 2), int(eocd + 6, 2), int(eocd + 8, 2), int(eocd + 10, 2)];
-    let cdSize = int(eocd + 12, 4), cdOff = int(eocd + 16, 4), expected = 0;
-    if (!fits(eocd + 22, int(eocd + 20, 2)))
-        throw bad();
-    if (recs16.includes(65535) || cdSize === -1 || cdOff === -1) {
-        const loc = last(6, 7);
-        if (loc < 0 || int(loc + 16, 4) > 1)
-            throw bad();
-        let z = int8(loc + 8);
-        if (!fits(z, 4))
-            throw bad();
-        if (!sig(z, 6, 6)) {
-            z = last(6, 6);
-            if (z < 0)
-                throw bad();
-        }
-        const size = int8(z + 4);
-        if (size < 0 || size > 44)
-            throw bad(); // JSZip cannot read zip64 extensible data
-        cdSize = int8(z + 40);
-        cdOff = int8(z + 48);
-        expected = 32 + size;
-    }
-    if (cdSize < 0 || cdOff < 0)
-        throw bad();
-    const extra = eocd - (cdOff + cdSize + expected);
-    if (extra < 0)
-        throw bad();
-    if (extra > 0)
-        zero = extra; // bytes prepended to the archive shift every offset
-    const heads: AnZipEntry[] = [];
-    let p = cdOff;
-    if (!fits(p, 0))
-        throw bad();
-    for (;;) {
-        if (!fits(p, 4))
-            throw bad();
-        if (!sig(p, 1, 2))
-            break;
-        const flag = int(p + 8, 2), method = int(p + 10, 2), nl = int(p + 28, 2), xl = int(p + 30, 2), cl = int(p + 32, 2);
-        let C = int(p + 20, 4), U = int(p + 24, 4), off = int(p + 42, 4), i = p + 46 + nl, z64: { i: number; end: number } | null = null;
-        if (flag & 1 || !fits(i, 0))
-            throw bad();
-        const xend = i + xl;
-        while (i + 4 < xend) {
-            const id = int(i, 2), l = int(i + 2, 2);
-            i += 4;
-            if (!fits(i, l))
-                throw bad();
-            if (id === 1)
-                z64 = { i, end: i + l };
-            i += l;
-        }
-        if (!fits(xend, 0))
-            throw bad();
-        i = xend;
-        if (z64) {
-            const z = z64;
-            const r8 = () => { if (z.i + 8 > z.end)
-                throw bad(); const v = int8(z.i); z.i += 8; return v; };
-            if (U === -1)
-                U = r8();
-            if (C === -1)
-                C = r8();
-            if (off === -1)
-                off = r8();
-        }
-        if (!fits(i, cl))
-            throw bad();
-        p = i + cl;
-        heads.push({ method, C, U, off });
-    }
-    if (!heads.length)
-        throw bad();
-    const ents: AnZipEntryData[] = heads.map((e) => {
-        if (!sig(e.off, 3, 4) || e.C < 0 || e.U < 0 || (e.method !== 0 && e.method !== 8))
-            throw bad();
-        const nl = int(e.off + 26, 2), start = e.off + 30 + nl + int(e.off + 28, 2);
-        if (!fits(e.off + 30, nl) || !fits(start, e.C))
-            throw bad();
-        return { ...e, data: u.subarray(zero + start, zero + start + e.C) };
-    });
-    const TOTAL_CAP = 4 * CAP;
-    let declared = 0, possible = 0;
-    for (const e of ents) {
-        if (e.U > CAP)
-            throw anError('mxlbig');
-        declared += e.U;
-        if (declared > TOTAL_CAP)
-            throw anError('mxlbig');
-        possible += e.method === 8 ? e.C * 1032 : e.C;
-    }
-    // A single entry can exceed the per-entry cap even when the archive total looks safe. If every entry looks safe
-    // alone but their worst-case expansion is not, count every deflated entry before JSZip gets a chance to allocate it.
-    const countAll = possible > TOTAL_CAP;
-    let left = TOTAL_CAP;
-    for (const e of ents) {
-        if (e.method === 0) {
-            if (e.C !== e.U)
-                throw bad();
-            left -= e.U;
-            continue;
-        }
-        if (!countAll && e.C * 1032 <= CAP)
-            continue;
-        if (e.U > left)
-            throw anError('mxlbig');
-        const n = await anInflatedSize(e.data, e.U);
-        if (n === null)
-            throw anError('mxlbig'); // without a stream, this archive cannot be proven safe before JSZip inflates it
-        if (n !== e.U)
-            throw bad();
-        left -= n;
-    }
+async function anMxlPreflight(buf: ArrayBuffer) {
+    return importMxlPreflight(buf, anInflatedSize);
 }
 // Inflates raw-deflate bytes as a stream, counting and discarding the output; stops as soon as it passes `limit`.
 // Resolves to the byte count (limit+something when over), or null when this browser has no raw-deflate stream.
-let anInflatedSize = async function anInflatedSize(bytes: Uint8Array<ArrayBuffer>, limit: number): Promise<number | null> {
-    let ds: DecompressionStream;
-    try {
-        ds = new DecompressionStream('deflate-raw');
-    }
-    catch (_) {
-        return null;
-    }
-    const w = ds.writable.getWriter(), r = ds.readable.getReader();
-    let n = 0, stop = false;
-    (async ()  => { for (let i = 0; i < bytes.length && !stop; i += 4096)
-        await w.write(bytes.subarray(i, i + 4096)); if (!stop)
-        await w.close(); })().catch(() => { });
-    try {
-        for (;;) {
-            const { done, value } = await r.read();
-            if (done)
-                break;
-            n += value.byteLength;
-            if (n > limit) {
-                stop = true;
-                r.cancel().catch(() => { });
-                break;
-            }
-        }
-    }
-    catch (_) {
-        stop = true;
-    } // corrupt data or junk after the end: the count so far decides
-    return n;
-};
-// MusicXML distances are tenths of a staff space; OSMD distances are staff spaces.
-// Keep physical page/staff sizing when supplied, with bounded fallbacks for incomplete or malformed layout hints.
-interface AnXmlTitleRun { text: string; style: string; weight: string; }
-interface AnXmlPageLayout {
-    base: number; width: number; pageWidth: number; pageHeight: number;
-    left?: number; right?: number; top?: number; bottom?: number;
-    titleSize?: number; subtitleSize?: number; composerSize?: number;
-    titleRuns?: AnXmlTitleRun[];
-    staffGap?: number | null; systemGap?: number | null;
-}
-function scoreXmlLayout(doc: Document): AnXmlPageLayout | null {
-    const root = doc.documentElement, defaults = root.querySelector(':scope > defaults');
-    if (!defaults)
-        return null;
-    const number = (el: Element | null, selector: string, min: number, max: number) => { const node = el && el.querySelector(selector), value = node ? parseFloat(node.textContent) : NaN; return Number.isFinite(value) && value >= min && value <= max ? value : null; };
-    const mm = number(defaults, 'scaling > millimeters', .1, 100), tenths = number(defaults, 'scaling > tenths', 1, 1000), unit = mm && tenths ? mm / tenths : null;
-    const base = unit && unit * 96 / 25.4 >= .3 && unit * 96 / 25.4 <= 1.5 ? unit * 96 / 25.4 : SC_BASE;
-    const pw = number(defaults, 'page-layout > page-width', 100, 10000), ph = number(defaults, 'page-layout > page-height', 100, 20000);
-    const width = unit && pw ? pw * unit : 210, height = unit && ph ? ph * unit : 297;
-    const pageWidth = width >= 50 && width <= 600 ? width : 210, pageHeight = height >= 50 && height <= 1200 ? height : 297;
-    const margins = defaults.querySelector('page-margins[type="both"],page-margins[type="odd"]') || defaults.querySelector('page-margins'), out: AnXmlPageLayout = { base, width: pageWidth * 96 / 25.4, pageWidth, pageHeight };
-    for (const [side, prop] of [['Left', 'left'], ['Right', 'right'], ['Top', 'top'], ['Bottom', 'bottom']] as const) {
-        const value = number(margins, prop + '-margin', 0, 400);
-        if (value != null && value < ((side === 'Left' || side === 'Right' ? pw : ph) ?? 0) / 3)
-            out[prop] = value / 10;
-    }
-    for (const [kind, prop] of [['title', 'titleSize'], ['subtitle', 'subtitleSize'], ['composer', 'composerSize']] as const) {
-        const credit = [...root.querySelectorAll(':scope > credit')].find((c) => c.querySelector('credit-type')?.textContent.trim() === kind && (c.getAttribute('page') || '1') === '1');
-        const words = credit && [...credit.querySelectorAll('credit-words')], size = words && words[0] ? parseFloat(words[0].getAttribute('font-size') ?? '') : NaN;
-        if (Number.isFinite(size) && size >= 6 && size <= 48)
-            out[prop] = size;
-        if (kind === 'title' && words) {
-            let style = 'normal', weight = 'normal';
-            out.titleRuns = words.map((w) => { const fs = w.getAttribute('font-style'), fw = w.getAttribute('font-weight'); if (fs === 'normal' || fs === 'italic')
-                style = fs; if (fw === 'normal' || fw === 'bold')
-                weight = fw; return { text: w.textContent, style, weight }; });
-        }
-    }
-    // These rules are global minima, not a command to repeat the first system's (often unusually large) spacing.
-    const minimum = (selector: string, max: number) => { const values = [...root.querySelectorAll(selector)].map((n) => Number(n.textContent)).filter((v) => Number.isFinite(v) && v >= 10 && v <= max); return values.length ? Math.min(...values) / 10 : null; };
-    out.staffGap = minimum('part > measure > print > staff-layout > staff-distance', 200);
-    out.systemGap = minimum('part > measure > print > system-layout > system-distance', 400);
-    return out;
-}
-// Normalize engraving-only export artifacts without changing any note, direction, or repeat timing.
-function scoreXmlEngraving(doc: Document) {
-    doc.querySelectorAll('direction').forEach((direction) => {
-        const values = [...direction.querySelectorAll(':scope > direction-type > metronome > per-minute')];
-        const suffixes = [...direction.querySelectorAll(':scope > direction-type > words')].filter((w) => /^\.\d+$/.test(w.textContent.trim()));
-        if (values.length !== 1 || suffixes.length !== 1 || !/^\d+$/.test(values[0].textContent.trim()))
-            return;
-        // A decimal may be split into a metronome integer and bold words in the SAME direction.
-        // Concatenate the written value, never infer it from <sound> (dotted-half beats have different BPM).
-        values[0].textContent = values[0].textContent.trim() + suffixes[0].textContent.trim();
-        const type = suffixes[0].parentElement;
-        suffixes[0].remove();
-        if (type && !type.children.length)
-            type.remove();
+let anInflatedSize = defaultInflatedSize;
+async function anReadXml(file: File, title: string) {
+    return importReadXml(file, title, {
+        inflatedSize: anInflatedSize,
+        loadMxlToXml: async (buf: ArrayBuffer) => {
+            await loadOsmd();
+            return mxlToXml(buf);
+        },
     });
-    const signature = (el: Element): string => JSON.stringify([el.localName, [...el.attributes].map((a) => [a.name, a.value]).sort((a, b) => a[0].localeCompare(b[0])), [...el.children].map(signature), el.children.length ? '' : el.textContent.trim()]);
-    doc.querySelectorAll('part').forEach((part) => {
-        let divisions = 1;
-        [...part.children].filter((n) => n.localName === 'measure').forEach((measure) => {
-            let at = 0;
-            const harmonies = new Set<string>();
-            [...measure.children].forEach((node) => {
-                if (node.localName === 'attributes')
-                    divisions = Number(node.querySelector('divisions')?.textContent) || divisions;
-                else if (node.localName === 'harmony') {
-                    // Some exporters write the identical harmony twice before the same note (Ballade, bar 17).
-                    // Compare the complete element, including staff and offset; repeats at later onsets stay intact.
-                    const key = at + '|' + signature(node);
-                    if (harmonies.has(key))
-                        node.remove();
-                    else
-                        harmonies.add(key);
-                }
-                else if (node.localName === 'backup' || node.localName === 'forward')
-                    at += Number(node.querySelector('duration')?.textContent || 0) / divisions * (node.localName === 'backup' ? -1 : 1);
-                else if (node.localName === 'note' && !node.querySelector('chord,grace'))
-                    at += Number(node.querySelector('duration')?.textContent || 0) / divisions;
-            });
-        });
-    });
-    doc.querySelectorAll('ending').forEach((ending) => {
-        let label = ending.textContent;
-        if (!/(?:&lt;|<)\/?(?:font|b|i|u|span)\b/i.test(label))
-            return;
-        const entities: Record<string, string> = { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' };
-        for (let i = 0; i < 3; i++) {
-            const decoded = label.replace(/&([a-z]+|#x[\da-f]+|#\d+);/gi, (entity, key: string) => {
-                if (key[0] !== '#')
-                    return entities[key.toLowerCase()] ?? entity;
-                const value = key[1].toLowerCase() === 'x' ? parseInt(key.slice(2), 16) : Number(key.slice(1));
-                return value > 0 && value <= 0x10ffff ? String.fromCodePoint(value) : entity;
-            });
-            if (decoded === label)
-                break;
-            label = decoded;
-        }
-        // XML parsing is inert: neither markup nor event attributes enter the live document. Keep only text.
-        const parsed = new DOMParser().parseFromString('<label>' + label + '</label>', 'application/xml');
-        if (!parsed.querySelector('parsererror'))
-            ending.textContent = parsed.documentElement.textContent;
-    });
-}
-async function anReadXml(file: File, title: string)  {
-    let xml: string;
-    if (/\.mxl$/i.test(file.name)) {
-        const buf = await file.arrayBuffer();
-        await anMxlPreflight(buf);
-        await loadOsmd();
-        try {
-            xml = await mxlToXml(buf);
-        }
-        catch (err) {
-            console.error(err);
-            throw anError('mxl');
-        }
-        if (xml.length > AN_MAX_XML_CHARS)
-            throw anError('mxlbig');
-    }
-    else
-        xml = await file.text();
-    const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    if (doc.querySelector('parsererror') || doc.documentElement.localName !== 'score-partwise' || doc.querySelector('script'))
-        throw anError('xml');
-    const layout = scoreXmlLayout(doc);
-    scoreXmlEngraving(doc);
-    const clean = anXmlTidy(doc, title);
-    xml = new XMLSerializer().serializeToString(doc);
-    const r = scoreXmlNotes(doc);
-    if (!r.notes.length)
-        throw anError('nonotes');
-    if (r.notes.length > AN_MAX_NOTES)
-        throw anError('notes');
-    return { kind: 'xml' as const, title: clean || title, label: file.name, xml, layout, ...r };
-}
-// MuseScore exports read cleanly in the engraver: real title and composer in the header (not the file name),
-// no editorial footnotes over the first staff, SMuFL note glyphs readable in web fonts, no generic "Instr. P1"
-// label and "Ped. … *" marks instead of pedal lines that collide with the left hand's fingering.
-const AN_SMUFL_NOTES = { '\uE1D2': '\uD834\uDD5D', '\uECA2': '\uD834\uDD5D', '\uE1D3': '\uD834\uDD5E', '\uECA3': '\uD834\uDD5E', '\uE1D5': '\u2669', '\uECA5': '\u2669',
-    '\uE1D4': '\uD834\uDD5E', '\uECA4': '\uD834\uDD5E', '\uE1D6': '\u2669', '\uECA6': '\u2669',
-    '\uE1D7': '\u266A', '\uECA7': '\u266A', '\uE1D8': '\u266A', '\uECA8': '\u266A', '\uE1D9': '\u266C', '\uECA9': '\u266C', '\uE1DA': '\u266C', '\uECAA': '\u266C', '\uE1E7': '.', '\uECB7': '.', '\uE520': 'p', '\uE522': 'f' };
-// Some exports leave an open last ending before the next forward repeat. Do not let it span the next section.
-// Explicit stop/discontinue pairs always win, including multi-measure endings crossing a repeat boundary.
-function scoreXmlEndings(doc: Document) {
-    doc.querySelectorAll('score-partwise > part').forEach((part) => {
-        const endings = [...part.querySelectorAll('barline > ending')], open = new Map<string, Element>(), unclosed = new Set<Element>();
-        endings.forEach((e) => {
-            const key = e.getAttribute('number') || '1';
-            if (e.getAttribute('type') === 'start') {
-                open.set(key, e);
-                unclosed.add(e);
-            }
-            else {
-                const started = open.get(key);
-                if (started) {
-                    unclosed.delete(started);
-                    open.delete(key);
-                }
-            }
-        });
-        open.clear();
-        const measures = [...part.children].filter((e) => e.localName === 'measure');
-        measures.forEach((m, i) => {
-            if (i && m.querySelector(':scope > barline[location="left"] > repeat[direction="forward"]')) {
-                open.forEach((e, key) => {
-                    const prev = measures[i - 1];
-                    let bar = prev.querySelector(':scope > barline[location="right"], :scope > barline:not([location])');
-                    if (!bar) {
-                        bar = doc.createElementNS(part.namespaceURI, 'barline');
-                        bar.setAttribute('location', 'right');
-                        prev.appendChild(bar);
-                    }
-                    const stop = doc.createElementNS(part.namespaceURI, 'ending');
-                    stop.setAttribute('number', key);
-                    stop.setAttribute('type', 'discontinue');
-                    bar.insertBefore(stop, bar.querySelector('repeat'));
-                });
-                open.clear();
-            }
-            m.querySelectorAll(':scope > barline > ending').forEach((e) => { if (unclosed.has(e))
-                open.set(e.getAttribute('number') || '1', e); });
-        });
-    });
-}
-function anXmlTidy(doc: Document, fallback: string) {
-    normalizeScoreDirectionGlyphs(doc);
-    const root = doc.documentElement, kids = (el: Element) => [...el.children], one = (el: Element, name: string) => kids(el).find((c) => c.localName === name);
-    const smufl = new Map(Object.entries(AN_SMUFL_NOTES));
-    const text = (el: Element | null | undefined) => (el && el.textContent || '').replace(/\s+/g, ' ').trim(), same = (a: string, b: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
-    // 1. Note glyphs in tempo and credit text; "Lento ( = 60 bpm)" gains its missing quarter note.
-    //    A text split over several <words> ("Lento (", glyph, " = 60 bpm)") is one line in MuseScore, not a stack.
-    doc.querySelectorAll('direction').forEach((dir) => {
-        const dts = kids(dir).filter((c) => c.localName === 'direction-type');
-        if (dts.length < 2 || !dts.every((dt) => dt.children.length && kids(dt).every((c) => c.localName === 'words')))
-            return;
-        const ws = dts.flatMap((dt) => kids(dt)), first = ws[0];
-        first.textContent = ws.map((w) => w.textContent).reduce((t, u) => t + (/[^\s(\uE000-\uF8FF\u2669\u266A\u266C]$/.test(t) && /^[\p{L}\d]/u.test(u) ? ' ' : '') + u);
-        dts.slice(1).forEach((dt) => dt.remove());
-        kids(dts[0]).slice(1).forEach((w) => w.remove());
-    });
-    doc.querySelectorAll('words,credit-words,rehearsal').forEach((w) => {
-        const t = w.textContent;
-        let u = t.replace(/[\uE1D2-\uE1E7\uECA2-\uECB7\uE520\uE522]/g, (c) => smufl.get(c) ?? '');
-        u = u.replace(/\(\s*=\s*(\d)/g, '(\u2669 = $1');
-        if (/^\s*=\s*\d/.test(u)) {
-            const prev = w.closest('direction-type')?.previousElementSibling, pt = prev?.querySelector('words')?.textContent || '';
-            if (!/[\u2669\u266A\u266C\uDD5D\uDD5E]\s*$/.test(pt) && !(prev && prev.querySelector('metronome')))
-                u = u.replace(/^(\s*)=/, '$1\u2669 =');
-        }
-        if (u !== t) {
-            w.textContent = u;
-            if (/MScore\s*Text/i.test(w.getAttribute('font-family') || ''))
-                w.removeAttribute('font-family');
-        }
-    });
-    // 2. Title and composer from the header, the credits, or (last) the file name.
-    const credits = kids(root).filter((c) => c.localName === 'credit'), ctype = (c: Element) => text(one(c, 'credit-type')).toLowerCase(), cwords = (c: Element) => [...c.querySelectorAll('credit-words')].map(text).filter(Boolean).join(' ');
-    const workEl = one(root, 'work'), workTitle = workEl && one(workEl, 'work-title'), mvt = one(root, 'movement-title');
-    let title = text(workTitle) || text(mvt);
-    if (!title) {
-        const typed = credits.find((c) => ctype(c) === 'title');
-        if (typed)
-            title = cwords(typed);
-    }
-    if (!title) {
-        let best: string | null = null, size = -1, y = -1;
-        credits.filter((c) => (c.getAttribute('page') || '1') === '1' && !ctype(c)).forEach((c) => {
-            const w = c.querySelector('credit-words');
-            if (!w)
-                return;
-            const t = text(w);
-            if (!t || t.length > 80)
-                return;
-            const fs = parseFloat(w.getAttribute('font-size') ?? '') || 0, dy = parseFloat(w.getAttribute('default-y') ?? '') || 0;
-            if (fs > size || (fs === size && dy > y)) {
-                best = t;
-                size = fs;
-                y = dy;
-            }
-        });
-        if (best)
-            title = best;
-    }
-    if (!title)
-        title = fallback;
-    const ident = one(root, 'identification'), creator = ident && [...ident.children].find((c) => c.localName === 'creator' && c.getAttribute('type') === 'composer');
-    let composer = text(creator), composerFromSubtitle = false;
-    // Identification often flattens a printed two-line composer credit. Prefer its line structure when the text agrees.
-    const composerCredit = credits.find((c) => ctype(c) === 'composer'), printedComposer = composerCredit && [...composerCredit.querySelectorAll('credit-words')].map((w) => w.textContent.trim()).filter(Boolean).join('\n');
-    if (printedComposer && (!composer || printedComposer.replace(/\s/g, '').toLowerCase() === composer.replace(/\s/g, '').toLowerCase()))
-        composer = printedComposer;
-    if (!composer) {
-        const typed = credits.find((c) => ctype(c) === 'composer');
-        if (typed)
-            composer = cwords(typed);
-    }
-    if (!composer) {
-        const sub = credits.find((c) => ctype(c) === 'subtitle');
-        if (sub && /\b(m[uú]si(c|k|que|ca)|music|by|von|de|di|composed|compos)/i.test(cwords(sub))) {
-            composer = cwords(sub);
-            composerFromSubtitle = true;
-        }
-    }
-    const before = (names: string[]) => kids(root).find((c) => names.includes(c.localName)) || null;
-    let work = workEl;
-    if (!work) {
-        work = doc.createElement('work');
-        root.insertBefore(work, root.firstElementChild);
-    }
-    let wt = one(work, 'work-title');
-    if (!wt) {
-        wt = doc.createElement('work-title');
-        work.insertBefore(wt, one(work, 'opus') || null);
-    }
-    wt.textContent = title;
-    if (mvt && (same(text(mvt), title) || !text(mvt)))
-        mvt.remove(); // a repeated movement title would print as a subtitle
-    if (composer) {
-        let id = one(root, 'identification');
-        if (!id) {
-            id = doc.createElement('identification');
-            root.insertBefore(id, before(['defaults', 'credit', 'part-list']));
-        }
-        let cr = [...id.children].find((c) => c.localName === 'creator' && c.getAttribute('type') === 'composer');
-        if (!cr) {
-            cr = doc.createElement('creator');
-            cr.setAttribute('type', 'composer');
-            id.insertBefore(cr, id.firstElementChild);
-        }
-        cr.textContent = composer;
-    }
-    // 3. Credits the header already shows, and long editorial notes, leave the page; so do long words over the staves.
-    const editorial = (t: string) => t.length >= 90 || /(^|\s)(edi[cç][aã]o|edici[oó]n|edition|correc[cç]|correction|nota(s)? d[aoe]|editor'?s note|note de l'[ée]diteur)/i.test(t);
-    //    Version, arrangement and transcription notes ("Versão revista…", "arr. de…") go too when they read as a
-    //    footnote: a sentence rather than a label, or set low on the page / far under the bass staff, where they
-    //    would push the "Ped. … *" marks down.
-    const versionNote = /(^|(?:\s|\(|\[))(vers[aã]o|versi[oó]n|version|vers\.|arr\.|arranj|arranged by|arrangement|transcr|adapt\.|adapta[cç]|adapted|revis[aã]o|revisi[oó]n|revised|revision)/i;
-    const yOf = (el: Element | null) => { for (const a of ['default-y', 'relative-y']) {
-        const v = el ? parseFloat(el.getAttribute(a) ?? '') : NaN;
-        if (!isNaN(v))
-            return v;
-    } return NaN; };
-    const footnote = (t: string, low: boolean) => versionNote.test(t) && (t.length >= 24 || low);
-    credits.forEach((c) => {
-        const ty = ctype(c), t = cwords(c), raw = [...c.querySelectorAll('credit-words')].map((w) => w.textContent).join('\n'), cy = yOf(c.querySelector('credit-words'));
-        if (ty === 'title' || (ty !== 'composer' && (same(t, title) || same(t, composer))) || (composerFromSubtitle && ty === 'subtitle') || editorial(t) || footnote(t, cy < 200) || raw.split('\n').filter((s) => s.trim()).length >= 3)
-            c.remove();
-    });
-    doc.querySelectorAll('direction > direction-type > words').forEach((w) => {
-        const t = text(w), y = yOf(w);
-        // Length/position alone must not delete a verified musical instruction (e.g. Beethoven's
-        // complete "Si deve suonare..." direction). The recognizer rejects unknown editorial prose.
-        if (!t || recognizeScoreMarkings(t, { context: 'direction' }).length || !(t.length >= 60 || editorial(t) || footnote(t, y <= -80) || (t.length >= 20 && y <= -90) || w.textContent.split('\n').filter((s: string) => s.trim()).length >= 3))
-            return;
-        const dt = w.parentElement, dir = dt && dt.parentElement;
-        if (!dt || !dir)
-            return;
-        w.remove();
-        if (dt.children.length)
-            return;
-        if ([...dir.children].some((c) => c !== dt && c.localName === 'direction-type'))
-            dt.remove();
-        else if (dir.querySelector(':scope > sound'))
-            dt.appendChild(doc.createElement('words'));
-        else
-            dir.remove();
-    });
-    // 4. Chord symbols sit above the upper staff: a <harmony> tied to the left hand would print between the staves,
-    //    on top of the dynamics and hairpins.
-    doc.querySelectorAll('harmony > staff').forEach((st) => { if ((parseInt(text(st)) || 1) > 1)
-        st.textContent = '1'; });
-    // 5. A lone piano part, or a generic label, needs no instrument name at the left of the system.
-    const parts = [...root.querySelectorAll('part-list > score-part')], generic = /^(p\s*\d*|instr\.?\s*p?\s*\d*|piano(forte)?|pian|pianoforte|klavier|grand piano|acoustic grand piano)$/i;
-    parts.forEach((p) => {
-        const pn = one(p, 'part-name'), pa = one(p, 'part-abbreviation');
-        if (pn && (parts.length === 1 || !text(pn) || generic.test(text(pn)))) {
-            pn.setAttribute('print-object', 'no');
-            if (pa)
-                pa.setAttribute('print-object', 'no');
-        }
-    });
-    // 6. Pedal marks as "Ped. … *": OSMD draws line="yes" as a bracket under the bass staff, where fingering lives.
-    //    It drops type="change" on text pedals, so a change becomes a release and a new press at the same moment.
-    doc.querySelectorAll('direction-type > pedal').forEach((p) => {
-        const ty = p.getAttribute('type');
-        if (ty === 'continue')
-            return;
-        p.setAttribute('line', 'no');
-        p.setAttribute('sign', 'yes');
-        if (ty === 'change') {
-            p.setAttribute('type', 'stop');
-            const dt = p.parentElement, dir = dt && dt.parentElement;
-            if (!dt || !dir)
-                return;
-            const again = dir.cloneNode(false);
-            if (!(again instanceof Element))
-                return;
-            [...dir.children].forEach((c) => { if (c === dt)
-                again.appendChild(c.cloneNode(true));
-            else if (['offset', 'voice', 'staff'].includes(c.localName))
-                again.appendChild(c.cloneNode(true)); });
-            again.querySelector('pedal')?.setAttribute('type', 'start');
-            dir.after(again);
-        }
-    });
-    scoreXmlEndings(doc);
-    return title;
 }
 // The single entry point for the file input and drag & drop.
 async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolean> {
@@ -17984,6 +15521,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
     await anCommit(src, token);
     if (token !== AN.loadToken || AN.source !== src || AN.error || !SCORE.engine)
         return false;
+    await anLibraryEnsure().catch(() => null);
     anLibrarySaving++;
     scoreLibrary?.notice('saving');
     try {
@@ -18305,7 +15843,8 @@ interface FallState { mode: 'score' | 'fall'; raf: number; position: number; ori
     geo: FallGeo | null; particles: FallParticle[]; flashes: FallFlash[]; lastT: number | null; lastFrame: number; resume: { sel: boolean; } | null;
     fingerSrc?: readonly AnNote[]; hasFinger?: boolean; source?: readonly AnNote[]; tempoSource?: readonly { beat: number; bpm: number; }[]; end: number;
     laneSrc?: readonly AnNote[]; lanes: Set<number>; tickSrc?: FallTimedNote[]; tickTempo?: readonly { beat: number; bpm: number; }[]; tickEnd?: number;
-    beatSrc?: FallTimedNote[]; beatTempo?: readonly { beat: number; bpm: number; }[]; beats?: { t: number; acc: boolean; }[]; press?: Map<number, number>; }
+    beatSrc?: FallTimedNote[]; beatTempo?: readonly { beat: number; bpm: number; }[]; beats?: { t: number; acc: boolean; }[]; press?: Map<number, number>;
+    maxDur?: number; sorted?: boolean; }
 const FALL: FallState = { mode: 'score', raf: 0, position: 0, origin: 0, audioStart: 0, factor: 1, notes: [], hits: [], zoom: 1, geo: null, particles: [], flashes: [], lastT: null, lastFrame: 0, resume: null, end: 0, lanes: new Set() };
 const FALL_SEC = 3.2, FALL_FONT = '"Hanken Grotesk",system-ui,sans-serif', FALL_SEL = '#6aa8ff', FALL_BLACK = new Set([1, 3, 6, 8, 10]), FALL_NUDGE: Readonly<Record<number, number>> = { 1: -.12, 3: .12, 6: -.16, 8: 0, 10: .16 };
 // Right hand: warm coral from the app's accent family; left hand: cool teal. lit = sounding.
@@ -18325,11 +15864,30 @@ function anHasFinger() { if (FALL.fingerSrc !== AN.notes) {
     FALL.fingerSrc = AN.notes;
     FALL.hasFinger = AN.notes.some((n) => n.finger);
 } return FALL.hasFinger; }
+function fallStartIndex(data: readonly { start: number }[], minStart: number): number {
+    let lo = 0, hi = data.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (data[mid].start < minStart) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo;
+}
 function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE.tempoList) {
     FALL.source = AN.notes;
     FALL.tempoSource = SCORE.tempoList;
-    FALL.notes = AN.notes.map((n, i) => ({ n, i, start: scoreSeconds(n.start), finish: scoreSeconds(n.end), sound: scoreSeconds(n.soundEnd ?? n.end) }));
-    FALL.end = FALL.notes.length ? Math.max(...FALL.notes.map((n) => n.finish)) : 0;
+    let maxEnd = 0, maxDur = 0, prevStart = -Infinity, sorted = true;
+    FALL.notes = AN.notes.map((n, i) => {
+        const start = scoreSeconds(n.start), finish = scoreSeconds(n.end), sound = scoreSeconds(n.soundEnd ?? n.end);
+        if (start < prevStart) sorted = false;
+        prevStart = start;
+        if (finish > maxEnd) maxEnd = finish;
+        if (finish - start > maxDur) maxDur = finish - start;
+        return { n, i, start, finish, sound };
+    });
+    FALL.end = maxEnd;
+    FALL.maxDur = maxDur;
+    FALL.sorted = sorted;
 } return FALL.notes; }
 function fallEnd() { fallData(); return FALL.end; }
 function fallTime(at?: number) {
@@ -18497,7 +16055,10 @@ function fallDraw() {
     if (from != null && from > time)
         from = SCORE.loop ? SCORE.loop.a - 1e-3 : null; // the loop wrapped around
     FALL.hits = [];
-    for (const d of fallData()) {
+    const fallNotes = fallData();
+    const fallStart = FALL.sorted ? fallStartIndex(fallNotes, time - (FALL.maxDur ?? 0) - 0.35) : 0;
+    for (let idx = fallStart; idx < fallNotes.length; idx++) {
+        const d = fallNotes[idx];
         if (d.start > time + span)
             break;
         if (d.finish <= time)
@@ -21169,7 +18730,8 @@ function initControls() {
         liveVoices.forEach((v) => v.stop());
         liveVoices.clear();
     } saveAll(); });
-    byId('reverb').addEventListener('input', (e) => { reverbWet = Number(wiringField(e).value) / 100 * 0.5; if (reverbGain && actx)
+    byId('reverb').addEventListener('input', (e) => { reverbWet = Number(wiringField(e).value) / 100 * 0.5; if (reverbWet > 0)
+        audioEngine.ensureReverbBuffer(); if (reverbGain && actx)
         reverbGain.gain.setTargetAtTime(reverbWet, actx.currentTime, 0.05); saveSoon(); });
     byId('set-labels').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; labelMode = b.dataset.v ?? labelMode; (document).querySelectorAll('#set-labels button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); buildKeyboard(); repaintHeld(); saveAll(); });
@@ -21302,7 +18864,13 @@ wakeInit();
 kbdLayoutLabels();
 // Decode embedded recordings ahead of the first note; AudioContext resumes on a gesture.
 try {
-    ensureAudio();
+    ensureAudio(false);
+    setTimeout(() => {
+        if (typeof document !== 'undefined' && document.hidden)
+            return;
+        if (pianoBank.status === 'idle')
+            void preparePiano();
+    }, 300);
 }
 catch (err) {
     pianoBank.status = 'error';
@@ -21311,1142 +18879,1147 @@ catch (err) {
 }
 /* @generated etude test surface */
 const __etude: EtudeSurface = {};
-Object.defineProperty(__etude, 'LESSONS', { configurable: true, get: () => LESSONS });
-Object.defineProperty(__etude, 'learnReady', { configurable: true, get: () => learnLoading ?? Promise.resolve() });
-Object.defineProperty(__etude, 'scoreLibraryStore', { configurable: true, get: () => scoreLibraryStore });
-Object.defineProperty(__etude, 'anLibraryFlush', { configurable: true, get: () => anLibraryFlush });
-Object.defineProperty(__etude, "LGEN", { configurable: true, get: () => LGEN });
-Object.defineProperty(__etude, "LP", { configurable: true, get: () => LP });
-Object.defineProperty(__etude, "LQ", { configurable: true, get: () => LQ });
-Object.defineProperty(__etude, "_modalAfterBack", { configurable: true, get: () => _modalAfterBack });
-Object.defineProperty(__etude, "_modalBackPending", { configurable: true, get: () => _modalBackPending });
-Object.defineProperty(__etude, "_noiseBuf", { configurable: true, get: () => _noiseBuf });
-Object.defineProperty(__etude, "_routed", { configurable: true, get: () => _routed });
-Object.defineProperty(__etude, "_saveT", { configurable: true, get: () => _saveT });
-Object.defineProperty(__etude, "_view", { configurable: true, get: () => _view });
-Object.defineProperty(__etude, "acChainHL", { configurable: true, get: () => acChainHL });
-Object.defineProperty(__etude, "accompHL", { configurable: true, get: () => accompHL });
-Object.defineProperty(__etude, "accompKey", { configurable: true, get: () => accompKey });
-Object.defineProperty(__etude, "accompRestartIfPlaying", { configurable: true, get: () => accompRestartIfPlaying });
-Object.defineProperty(__etude, "accompStart", { configurable: true, get: () => accompStart });
-Object.defineProperty(__etude, "accompStop", { configurable: true, get: () => accompStop });
-Object.defineProperty(__etude, "accompSync", { configurable: true, get: () => accompSync });
-Object.defineProperty(__etude, "accompTick", { configurable: true, get: () => accompTick });
-Object.defineProperty(__etude, "accompTimer", { configurable: true, get: () => accompTimer });
-Object.defineProperty(__etude, "accompVoicing", { configurable: true, get: () => accompVoicing });
-Object.defineProperty(__etude, "activeInputId", { configurable: true, get: () => activeInputId });
-Object.defineProperty(__etude, "actx", { configurable: true, get: () => actx });
-Object.defineProperty(__etude, "anAccent", { configurable: true, get: () => anAccent });
-Object.defineProperty(__etude, "anActiveChord", { configurable: true, get: () => anActiveChord });
-Object.defineProperty(__etude, "anAnalyze", { configurable: true, get: () => anAnalyze });
-Object.defineProperty(__etude, "anAssignHands", { configurable: true, get: () => anAssignHands });
-Object.defineProperty(__etude, "anBarsLabel", { configurable: true, get: () => anBarsLabel });
-Object.defineProperty(__etude, "anBeatText", { configurable: true, get: () => anBeatText });
-Object.defineProperty(__etude, "anBeatUnit", { configurable: true, get: () => anBeatUnit });
-Object.defineProperty(__etude, "anCadences", { configurable: true, get: () => anCadences });
-Object.defineProperty(__etude, "anCands", { configurable: true, get: () => anCands });
-Object.defineProperty(__etude, "anChipHTML", { configurable: true, get: () => anChipHTML });
-Object.defineProperty(__etude, "anChordLabel", { configurable: true, get: () => anChordLabel });
-Object.defineProperty(__etude, "anClassifyNonChord", { configurable: true, get: () => anClassifyNonChord });
-Object.defineProperty(__etude, "anClearSelection", { configurable: true, get: () => anClearSelection });
-Object.defineProperty(__etude, "anClock", { configurable: true, get: () => anClock });
-Object.defineProperty(__etude, "anCoach", { configurable: true, get: () => anCoach });
-Object.defineProperty(__etude, "anCommit", { configurable: true, get: () => anCommit });
-Object.defineProperty(__etude, "anCommitFocus", { configurable: true, get: () => anCommitFocus });
-Object.defineProperty(__etude, "anCompute", { configurable: true, get: () => anCompute });
-Object.defineProperty(__etude, "anDetText", { configurable: true, get: () => anDetText });
-Object.defineProperty(__etude, "anDiatonic", { configurable: true, get: () => anDiatonic });
-Object.defineProperty(__etude, "anDockWanted", { configurable: true, get: () => anDockWanted });
-Object.defineProperty(__etude, "anDraw", { configurable: true, get: () => anDraw });
-Object.defineProperty(__etude, "anError", { configurable: true, get: () => anError });
-Object.defineProperty(__etude, "anErrorKey", { configurable: true, get: () => anErrorKey });
-Object.defineProperty(__etude, "anFit", { configurable: true, get: () => anFit });
-Object.defineProperty(__etude, "anFitImplied", { configurable: true, get: () => anFitImplied });
-Object.defineProperty(__etude, "anFnKey", { configurable: true, get: () => anFnKey });
-Object.defineProperty(__etude, "anFocus", { configurable: true, get: () => anFocus });
-Object.defineProperty(__etude, "anFocusNotes", { configurable: true, get: () => anFocusNotes });
-Object.defineProperty(__etude, "anFocusStage", { configurable: true, get: () => anFocusStage });
-Object.defineProperty(__etude, "anFunctionOf", { configurable: true, get: () => anFunctionOf });
-Object.defineProperty(__etude, "anGrid", { configurable: true, get: () => anGrid });
-Object.defineProperty(__etude, "anHandOf", { configurable: true, get: () => anHandOf });
-Object.defineProperty(__etude, "anHandsSource", { configurable: true, get: () => anHandsSource });
-Object.defineProperty(__etude, "anHandsText", { configurable: true, get: () => anHandsText });
-Object.defineProperty(__etude, "anHarmony", { configurable: true, get: () => anHarmony });
-Object.defineProperty(__etude, "anHasFinger", { configurable: true, get: () => anHasFinger });
-Object.defineProperty(__etude, "anHover", { configurable: true, get: () => anHover });
-Object.defineProperty(__etude, "anInView", { configurable: true, get: () => anInView });
-Object.defineProperty(__etude, "anIndex", { configurable: true, get: () => anIndex });
-Object.defineProperty(__etude, "anInflatedSize", { configurable: true, get: () => anInflatedSize });
-Object.defineProperty(__etude, "anInitControls", { configurable: true, get: () => anInitControls });
-Object.defineProperty(__etude, "anIntervalName", { configurable: true, get: () => anIntervalName });
-Object.defineProperty(__etude, "anInv", { configurable: true, get: () => anInv });
-Object.defineProperty(__etude, "anKeepPlace", { configurable: true, get: () => anKeepPlace });
-Object.defineProperty(__etude, "anKeepVisible", { configurable: true, get: () => anKeepVisible });
-Object.defineProperty(__etude, "anKeyAt", { configurable: true, get: () => anKeyAt });
-Object.defineProperty(__etude, "anKeyInfo", { configurable: true, get: () => anKeyInfo });
-Object.defineProperty(__etude, "anKeyName", { configurable: true, get: () => anKeyName });
-Object.defineProperty(__etude, "anKeyRank", { configurable: true, get: () => anKeyRank });
-Object.defineProperty(__etude, "anKeysCenter", { configurable: true, get: () => anKeysCenter });
-Object.defineProperty(__etude, "anKeysClear", { configurable: true, get: () => anKeysClear });
-Object.defineProperty(__etude, "anKeysPaint", { configurable: true, get: () => anKeysPaint });
-Object.defineProperty(__etude, "anKeysShown", { configurable: true, get: () => anKeysShown });
-Object.defineProperty(__etude, "anLayoutVars", { configurable: true, get: () => anLayoutVars });
-Object.defineProperty(__etude, "anLoadExample", { configurable: true, get: () => anLoadExample });
-Object.defineProperty(__etude, "anLoadedText", { configurable: true, get: () => anLoadedText });
-Object.defineProperty(__etude, "anLocalize", { configurable: true, get: () => anLocalize });
-Object.defineProperty(__etude, "anMarkActive", { configurable: true, get: () => anMarkActive });
-Object.defineProperty(__etude, "anMeasureAt", { configurable: true, get: () => anMeasureAt });
-Object.defineProperty(__etude, "anMeasures", { configurable: true, get: () => anMeasures });
-Object.defineProperty(__etude, "anMotifs", { configurable: true, get: () => anMotifs });
-Object.defineProperty(__etude, "anMxlPreflight", { configurable: true, get: () => anMxlPreflight });
-Object.defineProperty(__etude, "anNarrow", { configurable: true, get: () => anNarrow });
-Object.defineProperty(__etude, "anNctText", { configurable: true, get: () => anNctText });
-Object.defineProperty(__etude, "anNoteInfo", { configurable: true, get: () => anNoteInfo });
-Object.defineProperty(__etude, "anNowAnnounce", { configurable: true, get: () => anNowAnnounce });
-Object.defineProperty(__etude, "anNowCard", { configurable: true, get: () => anNowCard });
-Object.defineProperty(__etude, "anNum", { configurable: true, get: () => anNum });
-Object.defineProperty(__etude, "anOpenFile", { configurable: true, get: () => anOpenFile });
-Object.defineProperty(__etude, "anOpenTab", { configurable: true, get: () => anOpenTab });
-Object.defineProperty(__etude, "anOriginText", { configurable: true, get: () => anOriginText });
-Object.defineProperty(__etude, "anParse", { configurable: true, get: () => anParse });
-Object.defineProperty(__etude, "anPcWeights", { configurable: true, get: () => anPcWeights });
-Object.defineProperty(__etude, "anPieceMeta", { configurable: true, get: () => anPieceMeta });
-Object.defineProperty(__etude, "pcRender", { configurable: true, get: () => pcRender });
-Object.defineProperty(__etude, "pcOpen", { configurable: true, get: () => pcOpen });
-Object.defineProperty(__etude, "pcStageSet", { configurable: true, get: () => pcStageSet });
-Object.defineProperty(__etude, "PC_STAGE", { configurable: true, get: () => PC_STAGE });
-Object.defineProperty(__etude, "anPieceToParsed", { configurable: true, get: () => anPieceToParsed });
-Object.defineProperty(__etude, "anPinToolbar", { configurable: true, get: () => anPinToolbar });
-Object.defineProperty(__etude, "anPinToolbarLater", { configurable: true, get: () => anPinToolbarLater });
-Object.defineProperty(__etude, "anPoly", { configurable: true, get: () => anPoly });
-Object.defineProperty(__etude, "anPop", { configurable: true, get: () => anPop });
-Object.defineProperty(__etude, "anPracticeStart", { configurable: true, get: () => anPracticeStart });
-Object.defineProperty(__etude, "anRate", { configurable: true, get: () => anRate });
-Object.defineProperty(__etude, "anReadXml", { configurable: true, get: () => anReadXml });
-Object.defineProperty(__etude, "anRebuild", { configurable: true, get: () => anRebuild });
-Object.defineProperty(__etude, "anReconChange", { configurable: true, get: () => anReconChange });
-Object.defineProperty(__etude, "anReconOpen", { configurable: true, get: () => anReconOpen });
-Object.defineProperty(__etude, "anReconUI", { configurable: true, get: () => anReconUI });
-Object.defineProperty(__etude, "anRenderEmpty", { configurable: true, get: () => anRenderEmpty });
-Object.defineProperty(__etude, "anRenderNow", { configurable: true, get: () => anRenderNow });
-Object.defineProperty(__etude, "anRenderPractice", { configurable: true, get: () => anRenderPractice });
-Object.defineProperty(__etude, "anRenderSelection", { configurable: true, get: () => anRenderSelection });
-Object.defineProperty(__etude, "anRenderWorkspace", { configurable: true, get: () => anRenderWorkspace });
-Object.defineProperty(__etude, "anReset", { configurable: true, get: () => anReset });
-Object.defineProperty(__etude, "anResolveKey", { configurable: true, get: () => anResolveKey });
-Object.defineProperty(__etude, "anRevealPieceRow", { configurable: true, get: () => anRevealPieceRow });
-Object.defineProperty(__etude, "anRoman", { configurable: true, get: () => anRoman });
-Object.defineProperty(__etude, "anRove", { configurable: true, get: () => anRove });
-Object.defineProperty(__etude, "anRowsHTML", { configurable: true, get: () => anRowsHTML });
-Object.defineProperty(__etude, "anSegAt", { configurable: true, get: () => anSegAt });
-Object.defineProperty(__etude, "anSegIndexAt", { configurable: true, get: () => anSegIndexAt });
-Object.defineProperty(__etude, "anSelStart", { configurable: true, get: () => anSelStart });
-Object.defineProperty(__etude, "anSelectChord", { configurable: true, get: () => anSelectChord });
-Object.defineProperty(__etude, "anSelectNotes", { configurable: true, get: () => anSelectNotes });
-Object.defineProperty(__etude, "anSelectionChanged", { configurable: true, get: () => anSelectionChanged });
-Object.defineProperty(__etude, "anSetLoading", { configurable: true, get: () => anSetLoading });
-Object.defineProperty(__etude, "anSheet", { configurable: true, get: () => anSheet });
-Object.defineProperty(__etude, "anShortcut", { configurable: true, get: () => anShortcut });
-Object.defineProperty(__etude, "anShowError", { configurable: true, get: () => anShowError });
-Object.defineProperty(__etude, "anSideResizer", { configurable: true, get: () => anSideResizer });
-Object.defineProperty(__etude, "anSideSet", { configurable: true, get: () => anSideSet });
-Object.defineProperty(__etude, "anSideSync", { configurable: true, get: () => anSideSync });
-Object.defineProperty(__etude, "anSideVisible", { configurable: true, get: () => anSideVisible });
-Object.defineProperty(__etude, "anSpan", { configurable: true, get: () => anSpan });
-Object.defineProperty(__etude, "anStageFit", { configurable: true, get: () => anStageFit });
-Object.defineProperty(__etude, "anStatus", { configurable: true, get: () => anStatus });
-Object.defineProperty(__etude, "anStatusPos", { configurable: true, get: () => anStatusPos });
-Object.defineProperty(__etude, "anStatusSel", { configurable: true, get: () => anStatusSel });
-Object.defineProperty(__etude, "anSyncTimeline", { configurable: true, get: () => anSyncTimeline });
-Object.defineProperty(__etude, "anTab", { configurable: true, get: () => anTab });
-Object.defineProperty(__etude, "anTempoAt", { configurable: true, get: () => anTempoAt });
-Object.defineProperty(__etude, "anTlUpdate", { configurable: true, get: () => anTlUpdate });
-Object.defineProperty(__etude, "anUnion", { configurable: true, get: () => anUnion });
-Object.defineProperty(__etude, "anUnits", { configurable: true, get: () => anUnits });
-Object.defineProperty(__etude, "anUpdateControls", { configurable: true, get: () => anUpdateControls });
-Object.defineProperty(__etude, "anVoiceNeighbors", { configurable: true, get: () => anVoiceNeighbors });
-Object.defineProperty(__etude, "anXmlKeyMap", { configurable: true, get: () => anXmlKeyMap });
-Object.defineProperty(__etude, "anXmlTidy", { configurable: true, get: () => anXmlTidy });
-Object.defineProperty(__etude, "anZoomNow", { configurable: true, get: () => anZoomNow });
-Object.defineProperty(__etude, "answerEar", { configurable: true, get: () => answerEar });
-Object.defineProperty(__etude, "applyI18n", { configurable: true, get: () => applyI18n });
-Object.defineProperty(__etude, "applyNotation", { configurable: true, get: () => applyNotation });
-Object.defineProperty(__etude, "applyTheme", { configurable: true, get: () => applyTheme });
-Object.defineProperty(__etude, "attachInput", { configurable: true, get: () => attachInput });
-Object.defineProperty(__etude, "audioLockCheck", { configurable: true, get: () => audioLockCheck });
-Object.defineProperty(__etude, "audioLockSync", { configurable: true, get: () => audioLockSync });
-Object.defineProperty(__etude, "audioLockT", { configurable: true, get: () => audioLockT });
-Object.defineProperty(__etude, "audioNoteOff", { configurable: true, get: () => audioNoteOff });
-Object.defineProperty(__etude, "audioNoteOn", { configurable: true, get: () => audioNoteOn });
-Object.defineProperty(__etude, "audioUnlock", { configurable: true, get: () => audioUnlock });
-Object.defineProperty(__etude, "autoReconnectMidi", { configurable: true, get: () => autoReconnectMidi });
-Object.defineProperty(__etude, "bendSemitones", { configurable: true, get: () => bendSemitones });
-Object.defineProperty(__etude, "bindKeyA11y", { configurable: true, get: () => bindKeyA11y });
-Object.defineProperty(__etude, "bleAutoReconnect", { configurable: true, get: () => bleAutoReconnect });
-Object.defineProperty(__etude, "bleCan", { configurable: true, get: () => bleCan });
-Object.defineProperty(__etude, "bleChoose", { configurable: true, get: () => bleChoose });
-Object.defineProperty(__etude, "bleClick", { configurable: true, get: () => bleClick });
-Object.defineProperty(__etude, "bleData", { configurable: true, get: () => bleData });
-Object.defineProperty(__etude, "bleDisconnect", { configurable: true, get: () => bleDisconnect });
-Object.defineProperty(__etude, "bleErr", { configurable: true, get: () => bleErr });
-Object.defineProperty(__etude, "bleLive", { configurable: true, get: () => bleLive });
-Object.defineProperty(__etude, "bleMsg", { configurable: true, get: () => bleMsg });
-Object.defineProperty(__etude, "bleName", { configurable: true, get: () => bleName });
-Object.defineProperty(__etude, "bleOnGone", { configurable: true, get: () => bleOnGone });
-Object.defineProperty(__etude, "bleOnValue", { configurable: true, get: () => bleOnValue });
-Object.defineProperty(__etude, "bleOpen", { configurable: true, get: () => bleOpen });
-Object.defineProperty(__etude, "bleParse", { configurable: true, get: () => bleParse });
-Object.defineProperty(__etude, "bleParserReset", { configurable: true, get: () => bleParserReset });
-Object.defineProperty(__etude, "bleReconnect", { configurable: true, get: () => bleReconnect });
-Object.defineProperty(__etude, "bleReleaseInput", { configurable: true, get: () => bleReleaseInput });
-Object.defineProperty(__etude, "bleRetry", { configurable: true, get: () => bleRetry });
-Object.defineProperty(__etude, "bleSet", { configurable: true, get: () => bleSet });
-Object.defineProperty(__etude, "bleStale", { configurable: true, get: () => bleStale });
-Object.defineProperty(__etude, "bleStatus", { configurable: true, get: () => bleStatus });
-Object.defineProperty(__etude, "bleUi", { configurable: true, get: () => bleUi });
-Object.defineProperty(__etude, "bleUnhook", { configurable: true, get: () => bleUnhook });
-Object.defineProperty(__etude, "boxOf", { configurable: true, get: () => boxOf });
-Object.defineProperty(__etude, "buildAccomp", { configurable: true, get: () => buildAccomp });
-Object.defineProperty(__etude, "buildKeyboard", { configurable: true, get: () => buildKeyboard });
-Object.defineProperty(__etude, "buildQueue", { configurable: true, get: () => buildQueue });
-Object.defineProperty(__etude, "catLabel", { configurable: true, get: () => catLabel });
-Object.defineProperty(__etude, "chooseView", { configurable: true, get: () => chooseView });
-Object.defineProperty(__etude, "chordDegreeMap", { configurable: true, get: () => chordDegreeMap });
-Object.defineProperty(__etude, "chordDisp", { configurable: true, get: () => chordDisp });
-Object.defineProperty(__etude, "chordEarOptions", { configurable: true, get: () => chordEarOptions });
-Object.defineProperty(__etude, "chordFormula", { configurable: true, get: () => chordFormula });
-Object.defineProperty(__etude, "chordTargetPcs", { configurable: true, get: () => chordTargetPcs });
-Object.defineProperty(__etude, "circleSel", { configurable: true, get: () => circleSel });
-Object.defineProperty(__etude, "clampPersistedNumber", { configurable: true, get: () => clampPersistedNumber });
-Object.defineProperty(__etude, "clampTypeOctave", { configurable: true, get: () => clampTypeOctave });
-Object.defineProperty(__etude, "clearExplorePreview", { configurable: true, get: () => clearExplorePreview });
-Object.defineProperty(__etude, "closeMobileMenu", { configurable: true, get: () => closeMobileMenu });
-Object.defineProperty(__etude, "coachHTML", { configurable: true, get: () => coachHTML });
-Object.defineProperty(__etude, "coachList", { configurable: true, get: () => coachList });
-Object.defineProperty(__etude, "coachRefresh", { configurable: true, get: () => coachRefresh });
-Object.defineProperty(__etude, "cofData", { configurable: true, get: () => cofData });
-Object.defineProperty(__etude, "cofDiagram", { configurable: true, get: () => cofDiagram });
-Object.defineProperty(__etude, "cofInfo", { configurable: true, get: () => cofInfo });
-Object.defineProperty(__etude, "cofKeyLabel", { configurable: true, get: () => cofKeyLabel });
-Object.defineProperty(__etude, "cofName", { configurable: true, get: () => cofName });
-Object.defineProperty(__etude, "cofNow", { configurable: true, get: () => cofNow });
-Object.defineProperty(__etude, "cofPaintDock", { configurable: true, get: () => cofPaintDock });
-Object.defineProperty(__etude, "cofParse", { configurable: true, get: () => cofParse });
-Object.defineProperty(__etude, "cofPick", { configurable: true, get: () => cofPick });
-Object.defineProperty(__etude, "cofPlay", { configurable: true, get: () => cofPlay });
-Object.defineProperty(__etude, "cofPt", { configurable: true, get: () => cofPt });
-Object.defineProperty(__etude, "cofRevealFingering", { configurable: true, get: () => cofRevealFingering });
-Object.defineProperty(__etude, "cofSector", { configurable: true, get: () => cofSector });
-Object.defineProperty(__etude, "cofSel", { configurable: true, get: () => cofSel });
-Object.defineProperty(__etude, "cofSigList", { configurable: true, get: () => cofSigList });
-Object.defineProperty(__etude, "cofSpell", { configurable: true, get: () => cofSpell });
-Object.defineProperty(__etude, "cofSpellDegrees", { configurable: true, get: () => cofSpellDegrees });
-Object.defineProperty(__etude, "cofSyncRef", { configurable: true, get: () => cofSyncRef });
-Object.defineProperty(__etude, "cofText", { configurable: true, get: () => cofText });
-Object.defineProperty(__etude, "cofTint", { configurable: true, get: () => cofTint });
-Object.defineProperty(__etude, "cofTonicPc", { configurable: true, get: () => cofTonicPc });
-Object.defineProperty(__etude, "cofIsCompact", { configurable: true, get: () => cofIsCompact });
-Object.defineProperty(__etude, "exKeyCtx", { configurable: true, get: () => exKeyCtx });
-Object.defineProperty(__etude, "exKeyFifths", { configurable: true, get: () => exKeyFifths });
-Object.defineProperty(__etude, "comp", { configurable: true, get: () => comp });
-Object.defineProperty(__etude, "connectMidi", { configurable: true, get: () => connectMidi });
-Object.defineProperty(__etude, "currentStreak", { configurable: true, get: () => currentStreak });
-Object.defineProperty(__etude, "data", { configurable: true, get: () => data });
-Object.defineProperty(__etude, "demoBeat", { configurable: true, get: () => demoBeat });
-Object.defineProperty(__etude, "dispSym", { configurable: true, get: () => dispSym });
-Object.defineProperty(__etude, "dockKeepEnd", { configurable: true, get: () => dockKeepEnd });
-Object.defineProperty(__etude, "dockLabels", { configurable: true, get: () => dockLabels });
-Object.defineProperty(__etude, "dockOpen", { configurable: true, get: () => dockOpen });
-Object.defineProperty(__etude, "dockReveal", { configurable: true, get: () => dockReveal });
-Object.defineProperty(__etude, "dockSet", { configurable: true, get: () => dockSet });
-Object.defineProperty(__etude, "dockShown", { configurable: true, get: () => dockShown });
-Object.defineProperty(__etude, "dockSync", { configurable: true, get: () => dockSync });
-Object.defineProperty(__etude, "dockWanted", { configurable: true, get: () => dockWanted });
-Object.defineProperty(__etude, "drawExploreStaff", { configurable: true, get: () => drawExploreStaff });
-Object.defineProperty(__etude, "droneVoices", { configurable: true, get: () => droneVoices });
-Object.defineProperty(__etude, "dueItems", { configurable: true, get: () => dueItems });
-Object.defineProperty(__etude, "countEarAnswer", { configurable: true, get: () => countEarAnswer });
-Object.defineProperty(__etude, "earRoot", { configurable: true, get: () => earRoot });
-Object.defineProperty(__etude, "ekBuild", { configurable: true, get: () => ekBuild });
-Object.defineProperty(__etude, "ekCh", { configurable: true, get: () => ekCh });
-Object.defineProperty(__etude, "ekElab", { configurable: true, get: () => ekElab });
-Object.defineProperty(__etude, "ekFlash", { configurable: true, get: () => ekFlash });
-Object.defineProperty(__etude, "ekFlat", { configurable: true, get: () => ekFlat });
-Object.defineProperty(__etude, "ekForced", { configurable: true, get: () => ekForced });
-Object.defineProperty(__etude, "ekIv", { configurable: true, get: () => ekIv });
-Object.defineProperty(__etude, "ekMel", { configurable: true, get: () => ekMel });
-Object.defineProperty(__etude, "ekMiss", { configurable: true, get: () => ekMiss });
-Object.defineProperty(__etude, "ekName", { configurable: true, get: () => ekName });
-Object.defineProperty(__etude, "ekOff", { configurable: true, get: () => ekOff });
-Object.defineProperty(__etude, "ekOn", { configurable: true, get: () => ekOn });
-Object.defineProperty(__etude, "ekPlay", { configurable: true, get: () => ekPlay });
-Object.defineProperty(__etude, "ekProg", { configurable: true, get: () => ekProg });
-Object.defineProperty(__etude, "ekReset", { configurable: true, get: () => ekReset });
-Object.defineProperty(__etude, "ekSound", { configurable: true, get: () => ekSound });
-Object.defineProperty(__etude, "ekStop", { configurable: true, get: () => ekStop });
-Object.defineProperty(__etude, "ekToggleSync", { configurable: true, get: () => ekToggleSync });
-Object.defineProperty(__etude, "ekUiReset", { configurable: true, get: () => ekUiReset });
-Object.defineProperty(__etude, "ekWanted", { configurable: true, get: () => ekWanted });
-Object.defineProperty(__etude, "ekWin", { configurable: true, get: () => ekWin });
-Object.defineProperty(__etude, "endSession", { configurable: true, get: () => endSession });
-Object.defineProperty(__etude, "ensureAudio", { configurable: true, get: () => ensureAudio });
-Object.defineProperty(__etude, "evalTimer", { configurable: true, get: () => evalTimer });
-Object.defineProperty(__etude, "exTab", { configurable: true, get: () => exTab });
-Object.defineProperty(__etude, "explorePreview", { configurable: true, get: () => explorePreview });
-Object.defineProperty(__etude, "exploreSequence", { configurable: true, get: () => exploreSequence });
-Object.defineProperty(__etude, "exploreTimers", { configurable: true, get: () => exploreTimers });
-Object.defineProperty(__etude, "fallBurst", { configurable: true, get: () => fallBurst });
-Object.defineProperty(__etude, "fallData", { configurable: true, get: () => fallData });
-Object.defineProperty(__etude, "fallDraw", { configurable: true, get: () => fallDraw });
-Object.defineProperty(__etude, "fallEnd", { configurable: true, get: () => fallEnd });
-Object.defineProperty(__etude, "fallHit", { configurable: true, get: () => fallHit });
-Object.defineProperty(__etude, "fallHover", { configurable: true, get: () => fallHover });
-Object.defineProperty(__etude, "fallKeyAt", { configurable: true, get: () => fallKeyAt });
-Object.defineProperty(__etude, "fallKeyDown", { configurable: true, get: () => fallKeyDown });
-Object.defineProperty(__etude, "fallKeyPath", { configurable: true, get: () => fallKeyPath });
-Object.defineProperty(__etude, "fallKeyUp", { configurable: true, get: () => fallKeyUp });
-Object.defineProperty(__etude, "fallKeyboard", { configurable: true, get: () => fallKeyboard });
-Object.defineProperty(__etude, "fallKeys", { configurable: true, get: () => fallKeys });
-Object.defineProperty(__etude, "fallMode", { configurable: true, get: () => fallMode });
-Object.defineProperty(__etude, "fallName", { configurable: true, get: () => fallName });
-Object.defineProperty(__etude, "fallParticles", { configurable: true, get: () => fallParticles });
-Object.defineProperty(__etude, "fallRR", { configurable: true, get: () => fallRR });
-Object.defineProperty(__etude, "fallRange", { configurable: true, get: () => fallRange });
-Object.defineProperty(__etude, "fallReset", { configurable: true, get: () => fallReset });
-Object.defineProperty(__etude, "fallSeek", { configurable: true, get: () => fallSeek });
-Object.defineProperty(__etude, "fallSeekEnd", { configurable: true, get: () => fallSeekEnd });
-Object.defineProperty(__etude, "fallSelect", { configurable: true, get: () => fallSelect });
-Object.defineProperty(__etude, "fallTime", { configurable: true, get: () => fallTime });
-Object.defineProperty(__etude, "feelDisp", { configurable: true, get: () => feelDisp });
-Object.defineProperty(__etude, "fillKeyCtx", { configurable: true, get: () => fillKeyCtx });
-Object.defineProperty(__etude, "fillRefNames", { configurable: true, get: () => fillRefNames });
-Object.defineProperty(__etude, "fillRoots", { configurable: true, get: () => fillRoots });
-Object.defineProperty(__etude, "focusView", { configurable: true, get: () => focusView });
-Object.defineProperty(__etude, "foldToView", { configurable: true, get: () => foldToView });
-Object.defineProperty(__etude, "freshData", { configurable: true, get: () => freshData });
-Object.defineProperty(__etude, "fsCan", { configurable: true, get: () => fsCan });
-Object.defineProperty(__etude, "fsToggle", { configurable: true, get: () => fsToggle });
-Object.defineProperty(__etude, "fsUi", { configurable: true, get: () => fsUi });
-Object.defineProperty(__etude, "gradeChord", { configurable: true, get: () => gradeChord });
-Object.defineProperty(__etude, "gradeInterval", { configurable: true, get: () => gradeInterval });
-Object.defineProperty(__etude, "gradeProgChord", { configurable: true, get: () => gradeProgChord });
-Object.defineProperty(__etude, "gradeScaleNote", { configurable: true, get: () => gradeScaleNote });
-Object.defineProperty(__etude, "greeting", { configurable: true, get: () => greeting });
-Object.defineProperty(__etude, "handleNoteOff", { configurable: true, get: () => handleNoteOff });
-Object.defineProperty(__etude, "handleNoteOn", { configurable: true, get: () => handleNoteOn });
-Object.defineProperty(__etude, "heldMidis", { configurable: true, get: () => heldMidis });
-Object.defineProperty(__etude, "heldPcs", { configurable: true, get: () => heldPcs });
-Object.defineProperty(__etude, "identifyChord", { configurable: true, get: () => identifyChord });
-Object.defineProperty(__etude, "inField", { configurable: true, get: () => inField });
-Object.defineProperty(__etude, "initControls", { configurable: true, get: () => initControls });
-Object.defineProperty(__etude, "initExploreControls", { configurable: true, get: () => initExploreControls });
-Object.defineProperty(__etude, "initPointer", { configurable: true, get: () => initPointer });
-Object.defineProperty(__etude, "intervalLabel", { configurable: true, get: () => intervalLabel });
-Object.defineProperty(__etude, "invName", { configurable: true, get: () => invName });
-Object.defineProperty(__etude, "inversionOf", { configurable: true, get: () => inversionOf });
-Object.defineProperty(__etude, "isDue", { configurable: true, get: () => isDue });
-Object.defineProperty(__etude, "isNew", { configurable: true, get: () => isNew });
-Object.defineProperty(__etude, "isSubset", { configurable: true, get: () => isSubset });
-Object.defineProperty(__etude, "itemLabel", { configurable: true, get: () => itemLabel });
-Object.defineProperty(__etude, "ivName", { configurable: true, get: () => ivName });
-Object.defineProperty(__etude, "kbClear", { configurable: true, get: () => kbClear });
-Object.defineProperty(__etude, "kbClearAll", { configurable: true, get: () => kbClearAll });
-Object.defineProperty(__etude, "kbDegSrc", { configurable: true, get: () => kbDegSrc });
-Object.defineProperty(__etude, "kbDegrees", { configurable: true, get: () => kbDegrees });
-Object.defineProperty(__etude, "kbPress", { configurable: true, get: () => kbPress });
-Object.defineProperty(__etude, "kbState", { configurable: true, get: () => kbState });
-Object.defineProperty(__etude, "kbdLayoutLabels", { configurable: true, get: () => kbdLayoutLabels });
-Object.defineProperty(__etude, "keyAt", { configurable: true, get: () => keyAt });
-Object.defineProperty(__etude, "keyFifths", { configurable: true, get: () => keyFifths });
-Object.defineProperty(__etude, "keyFromFifths", { configurable: true, get: () => keyFromFifths });
-Object.defineProperty(__etude, "lBarsHTML", { configurable: true, get: () => lBarsHTML });
-Object.defineProperty(__etude, "lCofKey", { configurable: true, get: () => lCofKey });
-Object.defineProperty(__etude, "lDots", { configurable: true, get: () => lDots });
-Object.defineProperty(__etude, "lPitch", { configurable: true, get: () => lPitch });
-Object.defineProperty(__etude, "lSel", { configurable: true, get: () => lSel });
-Object.defineProperty(__etude, "lSeqLight", { configurable: true, get: () => lSeqLight });
-Object.defineProperty(__etude, "lSp", { configurable: true, get: () => lSp });
-Object.defineProperty(__etude, "lStaffHTML", { configurable: true, get: () => lStaffHTML });
-Object.defineProperty(__etude, "lStaffNote", { configurable: true, get: () => lStaffNote });
-Object.defineProperty(__etude, "lStaffPlay", { configurable: true, get: () => lStaffPlay });
-Object.defineProperty(__etude, "lStaffSmall", { configurable: true, get: () => lStaffSmall });
-Object.defineProperty(__etude, "lStaffSvg", { configurable: true, get: () => lStaffSvg });
-Object.defineProperty(__etude, "lVel", { configurable: true, get: () => lVel });
-Object.defineProperty(__etude, "labelMode", { configurable: true, get: () => labelMode });
-Object.defineProperty(__etude, "labelSettingsControl", { configurable: true, get: () => labelSettingsControl });
-Object.defineProperty(__etude, "labelSettingsControls", { configurable: true, get: () => labelSettingsControls });
-Object.defineProperty(__etude, "lang", { configurable: true, get: () => lang });
-Object.defineProperty(__etude, "learnBodyHTML", { configurable: true, get: () => learnBodyHTML });
-Object.defineProperty(__etude, "learnClick", { configurable: true, get: () => learnClick });
-Object.defineProperty(__etude, "learnComplete", { configurable: true, get: () => learnComplete });
-Object.defineProperty(__etude, "learnData", { configurable: true, get: () => learnData });
-Object.defineProperty(__etude, "learnDueDays", { configurable: true, get: () => learnDueDays });
-Object.defineProperty(__etude, "learnDueList", { configurable: true, get: () => learnDueList });
-Object.defineProperty(__etude, "learnGap", { configurable: true, get: () => learnGap });
-Object.defineProperty(__etude, "learnGloss", { configurable: true, get: () => learnGloss });
-Object.defineProperty(__etude, "learnGo", { configurable: true, get: () => learnGo });
-Object.defineProperty(__etude, "learnGoId", { configurable: true, get: () => learnGoId });
-Object.defineProperty(__etude, "learnHalt", { configurable: true, get: () => learnHalt });
-Object.defineProperty(__etude, "learnInitSel", { configurable: true, get: () => learnInitSel });
-Object.defineProperty(__etude, "learnInput", { configurable: true, get: () => learnInput });
-Object.defineProperty(__etude, "learnLight", { configurable: true, get: () => learnLight });
-Object.defineProperty(__etude, "learnMark", { configurable: true, get: () => learnMark });
-Object.defineProperty(__etude, "learnNavRender", { configurable: true, get: () => learnNavRender });
-Object.defineProperty(__etude, "learnPlanItems", { configurable: true, get: () => learnPlanItems });
-Object.defineProperty(__etude, "learnRdLevel", { configurable: true, get: () => learnRdLevel });
-Object.defineProperty(__etude, "learnReveal", { configurable: true, get: () => learnReveal });
-Object.defineProperty(__etude, "learnSay", { configurable: true, get: () => learnSay });
-Object.defineProperty(__etude, "learnSel", { configurable: true, get: () => learnSel });
-Object.defineProperty(__etude, "learnSide", { configurable: true, get: () => learnSide });
-Object.defineProperty(__etude, "learnTimer", { configurable: true, get: () => learnTimer });
-Object.defineProperty(__etude, "learnTitle", { configurable: true, get: () => learnTitle });
-Object.defineProperty(__etude, "learnUnitDone", { configurable: true, get: () => learnUnitDone });
-Object.defineProperty(__etude, "learnUnitOf", { configurable: true, get: () => learnUnitOf });
-Object.defineProperty(__etude, "learnWire", { configurable: true, get: () => learnWire });
-Object.defineProperty(__etude, "lfo", { configurable: true, get: () => lfo });
-Object.defineProperty(__etude, "lfoGain", { configurable: true, get: () => lfoGain });
-Object.defineProperty(__etude, "lgFilter", { configurable: true, get: () => lgFilter });
-Object.defineProperty(__etude, "lgHTML", { configurable: true, get: () => lgHTML });
-Object.defineProperty(__etude, "lgNorm", { configurable: true, get: () => lgNorm });
-Object.defineProperty(__etude, "listInputs", { configurable: true, get: () => listInputs });
-Object.defineProperty(__etude, "lmDots", { configurable: true, get: () => lmDots });
-Object.defineProperty(__etude, "lmMeter", { configurable: true, get: () => lmMeter });
-Object.defineProperty(__etude, "lmStart", { configurable: true, get: () => lmStart });
-Object.defineProperty(__etude, "lmStop", { configurable: true, get: () => lmStop });
-Object.defineProperty(__etude, "lmTerm", { configurable: true, get: () => lmTerm });
-Object.defineProperty(__etude, "loadAll", { configurable: true, get: () => loadAll });
-Object.defineProperty(__etude, "localSynth", { configurable: true, get: () => localSynth });
-Object.defineProperty(__etude, "lqAnswer", { configurable: true, get: () => lqAnswer });
-Object.defineProperty(__etude, "lqFocus", { configurable: true, get: () => lqFocus });
-Object.defineProperty(__etude, "lqLabel", { configurable: true, get: () => lqLabel });
-Object.defineProperty(__etude, "lqMidis", { configurable: true, get: () => lqMidis });
-Object.defineProperty(__etude, "lqNeed", { configurable: true, get: () => lqNeed });
-Object.defineProperty(__etude, "lqNext", { configurable: true, get: () => lqNext });
-Object.defineProperty(__etude, "lqPick", { configurable: true, get: () => lqPick });
-Object.defineProperty(__etude, "lqRender", { configurable: true, get: () => lqRender });
-Object.defineProperty(__etude, "lqShow", { configurable: true, get: () => lqShow });
-Object.defineProperty(__etude, "lqStart", { configurable: true, get: () => lqStart });
-Object.defineProperty(__etude, "lwChord", { configurable: true, get: () => lwChord });
-Object.defineProperty(__etude, "lwChordData", { configurable: true, get: () => lwChordData });
-Object.defineProperty(__etude, "lwChordPlay", { configurable: true, get: () => lwChordPlay });
-Object.defineProperty(__etude, "lwClick", { configurable: true, get: () => lwClick });
-Object.defineProperty(__etude, "lwCof", { configurable: true, get: () => lwCof });
-Object.defineProperty(__etude, "lwInput", { configurable: true, get: () => lwInput });
-Object.defineProperty(__etude, "lwMetro", { configurable: true, get: () => lwMetro });
-Object.defineProperty(__etude, "lwMount", { configurable: true, get: () => lwMount });
-Object.defineProperty(__etude, "lwRefocus", { configurable: true, get: () => lwRefocus });
-Object.defineProperty(__etude, "lwScale", { configurable: true, get: () => lwScale });
-Object.defineProperty(__etude, "lwScalePlay", { configurable: true, get: () => lwScalePlay });
-Object.defineProperty(__etude, "lwStepLab", { configurable: true, get: () => lwStepLab });
-Object.defineProperty(__etude, "makeIR", { configurable: true, get: () => makeIR });
-Object.defineProperty(__etude, "makePianoVoice", { configurable: true, get: () => makePianoVoice });
-Object.defineProperty(__etude, "makeQuestion", { configurable: true, get: () => makeQuestion });
-Object.defineProperty(__etude, "makeVoice", { configurable: true, get: () => makeVoice });
-Object.defineProperty(__etude, "markEarCorrect", { configurable: true, get: () => markEarCorrect });
-Object.defineProperty(__etude, "master", { configurable: true, get: () => master });
-Object.defineProperty(__etude, "masterFilter", { configurable: true, get: () => masterFilter });
-Object.defineProperty(__etude, "masterRamp", { configurable: true, get: () => masterRamp });
-Object.defineProperty(__etude, "masterVol", { configurable: true, get: () => masterVol });
-Object.defineProperty(__etude, "masteredCount", { configurable: true, get: () => masteredCount });
-Object.defineProperty(__etude, "metroClick", { configurable: true, get: () => metroClick });
-Object.defineProperty(__etude, "metroSched", { configurable: true, get: () => metroSched });
-Object.defineProperty(__etude, "midiAccess", { configurable: true, get: () => midiAccess });
-Object.defineProperty(__etude, "midiChipSync", { configurable: true, get: () => midiChipSync });
-Object.defineProperty(__etude, "midiIn", { configurable: true, get: () => midiIn });
-Object.defineProperty(__etude, "midiMsg", { configurable: true, get: () => midiMsg });
-Object.defineProperty(__etude, "muted", { configurable: true, get: () => muted });
-Object.defineProperty(__etude, "neutral", { configurable: true, get: () => neutral });
-Object.defineProperty(__etude, "newItemsAvail", { configurable: true, get: () => newItemsAvail });
-Object.defineProperty(__etude, "newQuotaLeft", { configurable: true, get: () => newQuotaLeft });
-Object.defineProperty(__etude, "nextQuestion", { configurable: true, get: () => nextQuestion });
-Object.defineProperty(__etude, "noiseBuffer", { configurable: true, get: () => noiseBuffer });
-Object.defineProperty(__etude, "notation", { configurable: true, get: () => notation });
-Object.defineProperty(__etude, "noteName", { configurable: true, get: () => noteName });
-Object.defineProperty(__etude, "onInputChange", { configurable: true, get: () => onInputChange });
-Object.defineProperty(__etude, "onMidiMessage", { configurable: true, get: () => onMidiMessage });
-Object.defineProperty(__etude, "onStateChange", { configurable: true, get: () => onStateChange });
-Object.defineProperty(__etude, "openDrawer", { configurable: true, get: () => openDrawer });
-Object.defineProperty(__etude, "openHelp", { configurable: true, get: () => openHelp });
-Object.defineProperty(__etude, "openMobileMenu", { configurable: true, get: () => openMobileMenu });
-Object.defineProperty(__etude, "openSessionUI", { configurable: true, get: () => openSessionUI });
-Object.defineProperty(__etude, "overlaysOpen", { configurable: true, get: () => overlaysOpen });
-Object.defineProperty(__etude, "panic", { configurable: true, get: () => panic });
-Object.defineProperty(__etude, "pcName", { configurable: true, get: () => pcName });
-Object.defineProperty(__etude, "pedalDown", { configurable: true, get: () => pedalDown });
-Object.defineProperty(__etude, "pedalUp", { configurable: true, get: () => pedalUp });
-Object.defineProperty(__etude, "physKey", { configurable: true, get: () => physKey });
-Object.defineProperty(__etude, "pianoDecode", { configurable: true, get: () => pianoDecode });
-Object.defineProperty(__etude, "pianoEnsure", { configurable: true, get: () => pianoEnsure });
-Object.defineProperty(__etude, "pianoFail", { configurable: true, get: () => pianoFail });
-Object.defineProperty(__etude, "pianoIdleWarm", { configurable: true, get: () => pianoIdleWarm });
-Object.defineProperty(__etude, "pianoKeys", { configurable: true, get: () => pianoKeys });
-Object.defineProperty(__etude, "pianoNearest", { configurable: true, get: () => pianoNearest });
-Object.defineProperty(__etude, "pianoStatus", { configurable: true, get: () => pianoStatus });
-Object.defineProperty(__etude, "pickArturia", { configurable: true, get: () => pickArturia });
-Object.defineProperty(__etude, "pickTargetedItem", { configurable: true, get: () => pickTargetedItem });
-Object.defineProperty(__etude, "playChordMidis", { configurable: true, get: () => playChordMidis });
-Object.defineProperty(__etude, "playInterval", { configurable: true, get: () => playInterval });
-Object.defineProperty(__etude, "playIvDir", { configurable: true, get: () => playIvDir });
-Object.defineProperty(__etude, "playProg", { configurable: true, get: () => playProg });
-Object.defineProperty(__etude, "playQuestionSound", { configurable: true, get: () => playQuestionSound });
-Object.defineProperty(__etude, "playScaleNotes", { configurable: true, get: () => playScaleNotes });
-Object.defineProperty(__etude, "popModalState", { configurable: true, get: () => popModalState });
-Object.defineProperty(__etude, "positionBlacks", { configurable: true, get: () => positionBlacks });
-Object.defineProperty(__etude, "prAlongWanted", { configurable: true, get: () => prAlongWanted });
-Object.defineProperty(__etude, "prChoice", { configurable: true, get: () => prChoice });
-Object.defineProperty(__etude, "prEarCheck", { configurable: true, get: () => prEarCheck });
-Object.defineProperty(__etude, "prFocusAfterDrill", { configurable: true, get: () => prFocusAfterDrill });
-Object.defineProperty(__etude, "prOpenMoved", { configurable: true, get: () => prOpenMoved });
-Object.defineProperty(__etude, "prRecordDrill", { configurable: true, get: () => prRecordDrill });
-Object.defineProperty(__etude, "prSetDir", { configurable: true, get: () => prSetDir });
-Object.defineProperty(__etude, "prSetKey", { configurable: true, get: () => prSetKey });
-Object.defineProperty(__etude, "prSetTopic", { configurable: true, get: () => prSetTopic });
-Object.defineProperty(__etude, "pracAcc", { configurable: true, get: () => pracAcc });
-Object.defineProperty(__etude, "pracBeats", { configurable: true, get: () => pracBeats });
-Object.defineProperty(__etude, "pracClearAB", { configurable: true, get: () => pracClearAB });
-Object.defineProperty(__etude, "pracFinish", { configurable: true, get: () => pracFinish });
-Object.defineProperty(__etude, "pracRecord", { configurable: true, get: () => pracRecord });
-Object.defineProperty(__etude, "pracSavedText", { configurable: true, get: () => pracSavedText });
-Object.defineProperty(__etude, "pracWholePiece", { configurable: true, get: () => pracWholePiece });
-Object.defineProperty(__etude, "pracWhyNot", { configurable: true, get: () => pracWhyNot });
-Object.defineProperty(__etude, "pracFrame", { configurable: true, get: () => pracFrame });
-Object.defineProperty(__etude, "pracHud", { configurable: true, get: () => pracHud });
-Object.defineProperty(__etude, "pracInput", { configurable: true, get: () => pracInput });
-Object.defineProperty(__etude, "pracNeedKey", { configurable: true, get: () => pracNeedKey });
-Object.defineProperty(__etude, "pracSame", { configurable: true, get: () => pracSame });
-Object.defineProperty(__etude, "pracJudge", { configurable: true, get: () => pracJudge });
-Object.defineProperty(__etude, "pracLoad", { configurable: true, get: () => pracLoad });
-Object.defineProperty(__etude, "pracLoopBars", { configurable: true, get: () => pracLoopBars });
-Object.defineProperty(__etude, "pracMisses", { configurable: true, get: () => pracMisses });
-Object.defineProperty(__etude, "pracNextBar", { configurable: true, get: () => pracNextBar });
-Object.defineProperty(__etude, "pracNextRender", { configurable: true, get: () => pracNextRender });
-Object.defineProperty(__etude, "pracNextStep", { configurable: true, get: () => pracNextStep });
-Object.defineProperty(__etude, "pracPassEnd", { configurable: true, get: () => pracPassEnd });
-Object.defineProperty(__etude, "pracRamp", { configurable: true, get: () => pracRamp });
-Object.defineProperty(__etude, "pracRaw", { configurable: true, get: () => pracRaw });
-Object.defineProperty(__etude, "pracRelease", { configurable: true, get: () => pracRelease });
-Object.defineProperty(__etude, "pracSave", { configurable: true, get: () => pracSave });
-Object.defineProperty(__etude, "pracSegAt", { configurable: true, get: () => pracSegAt });
-Object.defineProperty(__etude, "pracSet", { configurable: true, get: () => pracSet });
-Object.defineProperty(__etude, "pracSetAB", { configurable: true, get: () => pracSetAB });
-Object.defineProperty(__etude, "pracStart", { configurable: true, get: () => pracStart });
-Object.defineProperty(__etude, "pracStatsReset", { configurable: true, get: () => pracStatsReset });
-Object.defineProperty(__etude, "pracSumClose", { configurable: true, get: () => pracSumClose });
-Object.defineProperty(__etude, "pracSummary", { configurable: true, get: () => pracSummary });
-Object.defineProperty(__etude, "pracTick", { configurable: true, get: () => pracTick });
-Object.defineProperty(__etude, "pracWeakHand", { configurable: true, get: () => pracWeakHand });
-Object.defineProperty(__etude, "preparePiano", { configurable: true, get: () => preparePiano });
-Object.defineProperty(__etude, "presentEar", { configurable: true, get: () => presentEar });
-Object.defineProperty(__etude, "presentEarKeys", { configurable: true, get: () => presentEarKeys });
-Object.defineProperty(__etude, "presentPlay", { configurable: true, get: () => presentPlay });
-Object.defineProperty(__etude, "presentQuestion", { configurable: true, get: () => presentQuestion });
-Object.defineProperty(__etude, "previewNote", { configurable: true, get: () => previewNote });
-Object.defineProperty(__etude, "previewVoices", { configurable: true, get: () => previewVoices });
-Object.defineProperty(__etude, "progChordTpl", { configurable: true, get: () => progChordTpl });
-Object.defineProperty(__etude, "pushModalState", { configurable: true, get: () => pushModalState });
-Object.defineProperty(__etude, "pwaInit", { configurable: true, get: () => pwaInit });
-Object.defineProperty(__etude, "pwaInstall", { configurable: true, get: () => pwaInstall });
-Object.defineProperty(__etude, "pwaStandalone", { configurable: true, get: () => pwaStandalone });
-Object.defineProperty(__etude, "pwaUi", { configurable: true, get: () => pwaUi });
-Object.defineProperty(__etude, "randItem", { configurable: true, get: () => randItem });
-Object.defineProperty(__etude, "rdAbort", { configurable: true, get: () => rdAbort });
-Object.defineProperty(__etude, "rdAccSym", { configurable: true, get: () => rdAccSym });
-Object.defineProperty(__etude, "rdAgg", { configurable: true, get: () => rdAgg });
-Object.defineProperty(__etude, "rdAnsText", { configurable: true, get: () => rdAnsText });
-Object.defineProperty(__etude, "rdAnswer", { configurable: true, get: () => rdAnswer });
-Object.defineProperty(__etude, "rdBack", { configurable: true, get: () => rdBack });
-Object.defineProperty(__etude, "rdBars", { configurable: true, get: () => rdBars });
-Object.defineProperty(__etude, "rdBeatX", { configurable: true, get: () => rdBeatX });
-Object.defineProperty(__etude, "rdBtn", { configurable: true, get: () => rdBtn });
-Object.defineProperty(__etude, "rdCClef", { configurable: true, get: () => rdCClef });
-Object.defineProperty(__etude, "rdChLabel", { configurable: true, get: () => rdChLabel });
-Object.defineProperty(__etude, "rdClear", { configurable: true, get: () => rdClear });
-Object.defineProperty(__etude, "rdClick", { configurable: true, get: () => rdClick });
-Object.defineProperty(__etude, "rdClickAns", { configurable: true, get: () => rdClickAns });
-Object.defineProperty(__etude, "rdCoach", { configurable: true, get: () => rdCoach });
-Object.defineProperty(__etude, "rdCustomFill", { configurable: true, get: () => rdCustomFill });
-Object.defineProperty(__etude, "rdCustomGo", { configurable: true, get: () => rdCustomGo });
-Object.defineProperty(__etude, "rdCustomRead", { configurable: true, get: () => rdCustomRead });
-Object.defineProperty(__etude, "rdData", { configurable: true, get: () => rdData });
-Object.defineProperty(__etude, "rdEndClick", { configurable: true, get: () => rdEndClick });
-Object.defineProperty(__etude, "STAGE", { configurable: true, get: () => STAGE });
-Object.defineProperty(__etude, "stageSync", { configurable: true, get: () => stageSync });
-Object.defineProperty(__etude, "rdEsc", { configurable: true, get: () => rdEsc });
-Object.defineProperty(__etude, "rdFeedback", { configurable: true, get: () => rdFeedback });
-Object.defineProperty(__etude, "rdFinish", { configurable: true, get: () => rdFinish });
-Object.defineProperty(__etude, "rdFocus", { configurable: true, get: () => rdFocus });
-Object.defineProperty(__etude, "rdFromStep", { configurable: true, get: () => rdFromStep });
-Object.defineProperty(__etude, "rdGen", { configurable: true, get: () => rdGen });
-Object.defineProperty(__etude, "rdGenMelody", { configurable: true, get: () => rdGenMelody });
-Object.defineProperty(__etude, "rdHeat", { configurable: true, get: () => rdHeat });
-Object.defineProperty(__etude, "rdHint", { configurable: true, get: () => rdHint });
-Object.defineProperty(__etude, "rdHud", { configurable: true, get: () => rdHud });
-Object.defineProperty(__etude, "rdInput", { configurable: true, get: () => rdInput });
-Object.defineProperty(__etude, "rdIntro", { configurable: true, get: () => rdIntro });
-Object.defineProperty(__etude, "rdIvName", { configurable: true, get: () => rdIvName });
-Object.defineProperty(__etude, "rdKey", { configurable: true, get: () => rdKey });
-Object.defineProperty(__etude, "rdKeyLabel", { configurable: true, get: () => rdKeyLabel });
-Object.defineProperty(__etude, "rdKeyMinor", { configurable: true, get: () => rdKeyMinor });
-Object.defineProperty(__etude, "rdKeyText", { configurable: true, get: () => rdKeyText });
-Object.defineProperty(__etude, "rdKsSvg", { configurable: true, get: () => rdKsSvg });
-Object.defineProperty(__etude, "rdLetter", { configurable: true, get: () => rdLetter });
-Object.defineProperty(__etude, "rdLvDetail", { configurable: true, get: () => rdLvDetail });
-Object.defineProperty(__etude, "rdLvName", { configurable: true, get: () => rdLvName });
-Object.defineProperty(__etude, "rdLvNext", { configurable: true, get: () => rdLvNext });
-Object.defineProperty(__etude, "rdLvSub", { configurable: true, get: () => rdLvSub });
-Object.defineProperty(__etude, "rdMidi", { configurable: true, get: () => rdMidi });
-Object.defineProperty(__etude, "rdName", { configurable: true, get: () => rdName });
-Object.defineProperty(__etude, "rdNext", { configurable: true, get: () => rdNext });
-Object.defineProperty(__etude, "rdNextRender", { configurable: true, get: () => rdNextRender });
-Object.defineProperty(__etude, "rdNextStep", { configurable: true, get: () => rdNextStep });
-Object.defineProperty(__etude, "rdNk", { configurable: true, get: () => rdNk });
-Object.defineProperty(__etude, "rdOnLocale", { configurable: true, get: () => rdOnLocale });
-Object.defineProperty(__etude, "rdOpen", { configurable: true, get: () => rdOpen });
-Object.defineProperty(__etude, "rdP", { configurable: true, get: () => rdP });
-Object.defineProperty(__etude, "rdPercClef", { configurable: true, get: () => rdPercClef });
-Object.defineProperty(__etude, "rdPickFrom", { configurable: true, get: () => rdPickFrom });
-Object.defineProperty(__etude, "rdPool", { configurable: true, get: () => rdPool });
-Object.defineProperty(__etude, "rdQSvg", { configurable: true, get: () => rdQSvg });
-Object.defineProperty(__etude, "rdRangeTxt", { configurable: true, get: () => rdRangeTxt });
-Object.defineProperty(__etude, "rdRender", { configurable: true, get: () => rdRender });
-Object.defineProperty(__etude, "rdRenderHome", { configurable: true, get: () => rdRenderHome });
-Object.defineProperty(__etude, "rdRenderStats", { configurable: true, get: () => rdRenderStats });
-Object.defineProperty(__etude, "rdRhDone", { configurable: true, get: () => rdRhDone });
-Object.defineProperty(__etude, "rdRhFit", { configurable: true, get: () => rdRhFit });
-Object.defineProperty(__etude, "rdRhGen", { configurable: true, get: () => rdRhGen });
-Object.defineProperty(__etude, "rdRhGenLH", { configurable: true, get: () => rdRhGenLH });
-Object.defineProperty(__etude, "rdRhGrade", { configurable: true, get: () => rdRhGrade });
-Object.defineProperty(__etude, "rdRhGradeAll", { configurable: true, get: () => rdRhGradeAll });
-Object.defineProperty(__etude, "rdRhGradeHand", { configurable: true, get: () => rdRhGradeHand });
-Object.defineProperty(__etude, "rdRhHandLine", { configurable: true, get: () => rdRhHandLine });
-Object.defineProperty(__etude, "rdRhKey", { configurable: true, get: () => rdRhKey });
-Object.defineProperty(__etude, "rdRhMarks", { configurable: true, get: () => rdRhMarks });
-Object.defineProperty(__etude, "rdRhNew", { configurable: true, get: () => rdRhNew });
-Object.defineProperty(__etude, "rdRhNoteTip", { configurable: true, get: () => rdRhNoteTip });
-Object.defineProperty(__etude, "rdRhOptsLock", { configurable: true, get: () => rdRhOptsLock });
-Object.defineProperty(__etude, "rdRhPrefs", { configurable: true, get: () => rdRhPrefs });
-Object.defineProperty(__etude, "rdRhPress", { configurable: true, get: () => rdRhPress });
-Object.defineProperty(__etude, "rdRhRelease", { configurable: true, get: () => rdRhRelease });
-Object.defineProperty(__etude, "rdRhRun", { configurable: true, get: () => rdRhRun });
-Object.defineProperty(__etude, "rdRhStrokes", { configurable: true, get: () => rdRhStrokes });
-Object.defineProperty(__etude, "rdScroll", { configurable: true, get: () => rdScroll });
-Object.defineProperty(__etude, "rdSightDone", { configurable: true, get: () => rdSightDone });
-Object.defineProperty(__etude, "rdSightGen", { configurable: true, get: () => rdSightGen });
-Object.defineProperty(__etude, "rdSightStart", { configurable: true, get: () => rdSightStart });
-Object.defineProperty(__etude, "rdSound", { configurable: true, get: () => rdSound });
-Object.defineProperty(__etude, "rdSpell", { configurable: true, get: () => rdSpell });
-Object.defineProperty(__etude, "rdSpellMidi", { configurable: true, get: () => rdSpellMidi });
-Object.defineProperty(__etude, "rdStars", { configurable: true, get: () => rdStars });
-Object.defineProperty(__etude, "rdStart", { configurable: true, get: () => rdStart });
-Object.defineProperty(__etude, "rdStat", { configurable: true, get: () => rdStat });
-Object.defineProperty(__etude, "rdStep", { configurable: true, get: () => rdStep });
-Object.defineProperty(__etude, "rdSuggest", { configurable: true, get: () => rdSuggest });
-Object.defineProperty(__etude, "rdSvg", { configurable: true, get: () => rdSvg });
-Object.defineProperty(__etude, "rdTab", { configurable: true, get: () => rdTab });
-Object.defineProperty(__etude, "rdTap", { configurable: true, get: () => rdTap });
-Object.defineProperty(__etude, "rdTarget", { configurable: true, get: () => rdTarget });
-Object.defineProperty(__etude, "rdU", { configurable: true, get: () => rdU });
-Object.defineProperty(__etude, "refMidis", { configurable: true, get: () => refMidis });
-Object.defineProperty(__etude, "reflectSettingsUI", { configurable: true, get: () => reflectSettingsUI });
-Object.defineProperty(__etude, "reflowKeys", { configurable: true, get: () => reflowKeys });
-Object.defineProperty(__etude, "refreshDeviceList", { configurable: true, get: () => refreshDeviceList });
-Object.defineProperty(__etude, "refreshToday", { configurable: true, get: () => refreshToday });
-Object.defineProperty(__etude, "releaseFocusInput", { configurable: true, get: () => releaseFocusInput });
-Object.defineProperty(__etude, "releaseLiveInput", { configurable: true, get: () => releaseLiveInput });
-Object.defineProperty(__etude, "releaseTypingKeys", { configurable: true, get: () => releaseTypingKeys });
-Object.defineProperty(__etude, "renderAccompany", { configurable: true, get: () => renderAccompany });
-Object.defineProperty(__etude, "renderCircle", { configurable: true, get: () => renderCircle });
-Object.defineProperty(__etude, "renderLearn", { configurable: true, get: () => renderLearn });
-Object.defineProperty(__etude, "renderModeNav", { configurable: true, get: () => renderModeNav });
-Object.defineProperty(__etude, "renderPlan", { configurable: true, get: () => renderPlan });
-Object.defineProperty(__etude, "renderPracticeLast", { configurable: true, get: () => renderPracticeLast });
-Object.defineProperty(__etude, "renderProgress", { configurable: true, get: () => renderProgress });
-Object.defineProperty(__etude, "renderRead", { configurable: true, get: () => renderRead });
-Object.defineProperty(__etude, "renderSing", { configurable: true, get: () => renderSing });
-Object.defineProperty(__etude, "renderSongs", { configurable: true, get: () => renderSongs });
-Object.defineProperty(__etude, "renderTranscribe", { configurable: true, get: () => renderTranscribe });
-Object.defineProperty(__etude, "renderVoice", { configurable: true, get: () => renderVoice });
-Object.defineProperty(__etude, "repaintHeld", { configurable: true, get: () => repaintHeld });
-Object.defineProperty(__etude, "resolve", { configurable: true, get: () => resolve });
-Object.defineProperty(__etude, "revealAnswerKeys", { configurable: true, get: () => revealAnswerKeys });
-Object.defineProperty(__etude, "reverbGain", { configurable: true, get: () => reverbGain });
-Object.defineProperty(__etude, "reverbNode", { configurable: true, get: () => reverbNode });
-Object.defineProperty(__etude, "reverbWet", { configurable: true, get: () => reverbWet });
-Object.defineProperty(__etude, "reviewItem", { configurable: true, get: () => reviewItem });
-Object.defineProperty(__etude, "romanFor", { configurable: true, get: () => romanFor });
-Object.defineProperty(__etude, "runDemo", { configurable: true, get: () => runDemo });
-Object.defineProperty(__etude, "sampledPianoVoice", { configurable: true, get: () => sampledPianoVoice });
-Object.defineProperty(__etude, "saveAll", { configurable: true, get: () => saveAll });
-Object.defineProperty(__etude, "saveSoon", { configurable: true, get: () => saveSoon });
-Object.defineProperty(__etude, "savedDevice", { configurable: true, get: () => savedDevice });
-Object.defineProperty(__etude, "scaleDisp", { configurable: true, get: () => scaleDisp });
-Object.defineProperty(__etude, "scaleEarOptions", { configurable: true, get: () => scaleEarOptions });
-Object.defineProperty(__etude, "scaleFormula", { configurable: true, get: () => scaleFormula });
-Object.defineProperty(__etude, "scheduleAccompAt", { configurable: true, get: () => scheduleAccompAt });
-Object.defineProperty(__etude, "scheduleEval", { configurable: true, get: () => scheduleEval });
-Object.defineProperty(__etude, "scoreAnchorAt", { configurable: true, get: () => scoreAnchorAt });
-Object.defineProperty(__etude, "scoreBeamGroups", { configurable: true, get: () => scoreBeamGroups });
-Object.defineProperty(__etude, "scoreBeams", { configurable: true, get: () => scoreBeams });
-Object.defineProperty(__etude, "scoreBeatAt", { configurable: true, get: () => scoreBeatAt });
-Object.defineProperty(__etude, "scoreBind", { configurable: true, get: () => scoreBind });
-Object.defineProperty(__etude, "scoreCoralBars", { configurable: true, get: () => scoreCoralBars });
-Object.defineProperty(__etude, "scoreCursorAt", { configurable: true, get: () => scoreCursorAt });
-Object.defineProperty(__etude, "scoreCursorEl", { configurable: true, get: () => scoreCursorEl });
-Object.defineProperty(__etude, "scoreCursorFollow", { configurable: true, get: () => scoreCursorFollow });
-Object.defineProperty(__etude, "scoreCursorUpdate", { configurable: true, get: () => scoreCursorUpdate });
-Object.defineProperty(__etude, "scoreExtraBreaks", { configurable: true, get: () => scoreExtraBreaks });
-Object.defineProperty(__etude, "scoreFitRender", { configurable: true, get: () => scoreFitRender });
-Object.defineProperty(__etude, "scoreFixFingerings", { configurable: true, get: () => scoreFixFingerings });
-Object.defineProperty(__etude, "scoreFixPedals", { configurable: true, get: () => scoreFixPedals });
-Object.defineProperty(__etude, "scoreFollow", { configurable: true, get: () => scoreFollow });
-Object.defineProperty(__etude, "scoreFromMidi", { configurable: true, get: () => scoreFromMidi });
-Object.defineProperty(__etude, "scoreGeo", { configurable: true, get: () => scoreGeo });
-Object.defineProperty(__etude, "scoreHalt", { configurable: true, get: () => scoreHalt });
-Object.defineProperty(__etude, "scoreHome", { configurable: true, get: () => scoreHome });
-Object.defineProperty(__etude, "scoreIdle", { configurable: true, get: () => scoreIdle });
-Object.defineProperty(__etude, "scoreLayout", { configurable: true, get: () => scoreLayout });
-Object.defineProperty(__etude, "scoreLoopStart", { configurable: true, get: () => scoreLoopStart });
-Object.defineProperty(__etude, "scoreMarks", { configurable: true, get: () => scoreMarks });
-Object.defineProperty(__etude, "scoreMeasureAt", { configurable: true, get: () => scoreMeasureAt });
-Object.defineProperty(__etude, "scoreNightSweep", { configurable: true, get: () => scoreNightSweep });
-Object.defineProperty(__etude, "scorePaint", { configurable: true, get: () => scorePaint });
-Object.defineProperty(__etude, "scorePaintEl", { configurable: true, get: () => scorePaintEl });
-Object.defineProperty(__etude, "scorePaintIdx", { configurable: true, get: () => scorePaintIdx });
-Object.defineProperty(__etude, "scorePause", { configurable: true, get: () => scorePause });
-Object.defineProperty(__etude, "scorePitch", { configurable: true, get: () => scorePitch });
-Object.defineProperty(__etude, "scorePlay", { configurable: true, get: () => scorePlay });
-Object.defineProperty(__etude, "scorePointer", { configurable: true, get: () => scorePointer });
-Object.defineProperty(__etude, "scoreRender", { configurable: true, get: () => scoreRender });
-Object.defineProperty(__etude, "scoreRingFit", { configurable: true, get: () => scoreRingFit });
-Object.defineProperty(__etude, "scoreSeconds", { configurable: true, get: () => scoreSeconds });
-Object.defineProperty(__etude, "scoreSeekBar", { configurable: true, get: () => scoreSeekBar });
-Object.defineProperty(__etude, "scoreSeekTo", { configurable: true, get: () => scoreSeekTo });
-Object.defineProperty(__etude, "scoreSelectMeasures", { configurable: true, get: () => scoreSelectMeasures });
-Object.defineProperty(__etude, "scoreSelectRange", { configurable: true, get: () => scoreSelectRange });
-Object.defineProperty(__etude, "scoreSetHl", { configurable: true, get: () => scoreSetHl });
-Object.defineProperty(__etude, "scoreSetLook", { configurable: true, get: () => scoreSetLook });
-Object.defineProperty(__etude, "scoreSetTempos", { configurable: true, get: () => scoreSetTempos });
-Object.defineProperty(__etude, "scoreSetView", { configurable: true, get: () => scoreSetView });
-Object.defineProperty(__etude, "scoreShiftY", { configurable: true, get: () => scoreShiftY });
-Object.defineProperty(__etude, "scoreStateText", { configurable: true, get: () => scoreStateText });
-Object.defineProperty(__etude, "scoreStop", { configurable: true, get: () => scoreStop });
-Object.defineProperty(__etude, "scoreStyleHeader", { configurable: true, get: () => scoreStyleHeader });
-Object.defineProperty(__etude, "scoreSymAt", { configurable: true, get: () => scoreSymAt });
-Object.defineProperty(__etude, "scoreSymText", { configurable: true, get: () => scoreSymText });
-Object.defineProperty(__etude, "scoreSyms", { configurable: true, get: () => scoreSyms });
-Object.defineProperty(__etude, "scoreTermParts", { configurable: true, get: () => scoreTermParts });
-Object.defineProperty(__etude, "scoreTip", { configurable: true, get: () => scoreTip });
-Object.defineProperty(__etude, "scoreToUser", { configurable: true, get: () => scoreToUser });
-Object.defineProperty(__etude, "scoreToggle", { configurable: true, get: () => scoreToggle });
-Object.defineProperty(__etude, "scoreUnlight", { configurable: true, get: () => scoreUnlight });
-Object.defineProperty(__etude, "scoreXLines", { configurable: true, get: () => scoreXLines });
-Object.defineProperty(__etude, "scoreXmlEndings", { configurable: true, get: () => scoreXmlEndings });
-Object.defineProperty(__etude, "scoreXmlLayout", { configurable: true, get: () => scoreXmlLayout });
-Object.defineProperty(__etude, "scoreXmlNotes", { configurable: true, get: () => scoreXmlNotes });
-Object.defineProperty(__etude, "scoreDetectPartHands", { configurable: true, get: () => scoreDetectPartHands });
-Object.defineProperty(__etude, "scoreZoom", { configurable: true, get: () => scoreZoom });
-Object.defineProperty(__etude, "seedPlacement", { configurable: true, get: () => seedPlacement });
-Object.defineProperty(__etude, "sesHome", { configurable: true, get: () => sesHome });
-Object.defineProperty(__etude, "sesInput", { configurable: true, get: () => sesInput });
-Object.defineProperty(__etude, "sesPrompt", { configurable: true, get: () => sesPrompt });
-Object.defineProperty(__etude, "sesStopPrompt", { configurable: true, get: () => sesStopPrompt });
-Object.defineProperty(__etude, "setBendFromValue", { configurable: true, get: () => setBendFromValue });
-Object.defineProperty(__etude, "setEq", { configurable: true, get: () => setEq });
-Object.defineProperty(__etude, "setLang", { configurable: true, get: () => setLang });
-Object.defineProperty(__etude, "setMidi", { configurable: true, get: () => setMidi });
-Object.defineProperty(__etude, "setOverlay", { configurable: true, get: () => setOverlay });
-Object.defineProperty(__etude, "shiftTypeOctave", { configurable: true, get: () => shiftTypeOctave });
-Object.defineProperty(__etude, "show", { configurable: true, get: () => show });
-Object.defineProperty(__etude, "showElaboration", { configurable: true, get: () => showElaboration });
-Object.defineProperty(__etude, "showNotationReloadPrompt", { configurable: true, get: () => showNotationReloadPrompt });
-Object.defineProperty(__etude, "showProgTarget", { configurable: true, get: () => showProgTarget });
-Object.defineProperty(__etude, "showSummary", { configurable: true, get: () => showSummary });
-Object.defineProperty(__etude, "shuffle", { configurable: true, get: () => shuffle });
-Object.defineProperty(__etude, "singGo", { configurable: true, get: () => singGo });
-Object.defineProperty(__etude, "singKeyInput", { configurable: true, get: () => singKeyInput });
-Object.defineProperty(__etude, "singStopAll", { configurable: true, get: () => singStopAll });
-Object.defineProperty(__etude, "slashLabel", { configurable: true, get: () => slashLabel });
-Object.defineProperty(__etude, "songDir", { configurable: true, get: () => songDir });
-Object.defineProperty(__etude, "songsFor", { configurable: true, get: () => songsFor });
-Object.defineProperty(__etude, "spellMidi", { configurable: true, get: () => spellMidi });
-Object.defineProperty(__etude, "spellName", { configurable: true, get: () => spellName });
-Object.defineProperty(__etude, "spelledName", { configurable: true, get: () => spelledName });
-Object.defineProperty(__etude, "srActiveHands", { configurable: true, get: () => srActiveHands });
-Object.defineProperty(__etude, "srAssessFinish", { configurable: true, get: () => srAssessFinish });
-Object.defineProperty(__etude, "srAssessLoop", { configurable: true, get: () => srAssessLoop });
-Object.defineProperty(__etude, "srAssessStart", { configurable: true, get: () => srAssessStart });
-Object.defineProperty(__etude, "srtSetState", { configurable: true, get: () => srtSetState });
-Object.defineProperty(__etude, "srtStartFirstSight", { configurable: true, get: () => srtStartFirstSight });
-Object.defineProperty(__etude, "srtStartPractice", { configurable: true, get: () => srtStartPractice });
-Object.defineProperty(__etude, "srtStartClaimedAttempt", { configurable: true, get: () => srtStartClaimedAttempt });
-Object.defineProperty(__etude, "srtSwitchToPractice", { configurable: true, get: () => srtSwitchToPractice });
-Object.defineProperty(__etude, "srBeatToX", { configurable: true, get: () => srBeatToX });
-Object.defineProperty(__etude, "srBeatPt", { configurable: true, get: () => srBeatPt });
-Object.defineProperty(__etude, "srEmptyUi", { configurable: true, get: () => srEmptyUi });
-Object.defineProperty(__etude, "srClef", { configurable: true, get: () => srClef });
-Object.defineProperty(__etude, "srClick", { configurable: true, get: () => srClick });
-Object.defineProperty(__etude, "srCoach", { configurable: true, get: () => srCoach });
-Object.defineProperty(__etude, "srCount", { configurable: true, get: () => srCount });
-Object.defineProperty(__etude, "srCursor", { configurable: true, get: () => srCursor });
-Object.defineProperty(__etude, "srDraw", { configurable: true, get: () => srDraw });
-Object.defineProperty(__etude, "srFit", { configurable: true, get: () => srFit });
-Object.defineProperty(__etude, "srEvents", { configurable: true, get: () => srEvents });
-Object.defineProperty(__etude, "srFocus", { configurable: true, get: () => srFocus });
-Object.defineProperty(__etude, "srGo", { configurable: true, get: () => srGo });
-Object.defineProperty(__etude, "srHandsAvail", { configurable: true, get: () => srHandsAvail });
-Object.defineProperty(__etude, "srKeyInput", { configurable: true, get: () => srKeyInput });
-Object.defineProperty(__etude, "srKeyName", { configurable: true, get: () => srKeyName });
-Object.defineProperty(__etude, "srKeyNames", { configurable: true, get: () => srKeyNames });
-Object.defineProperty(__etude, "srKeySigG", { configurable: true, get: () => srKeySigG });
-Object.defineProperty(__etude, "srLearnFinish", { configurable: true, get: () => srLearnFinish });
-Object.defineProperty(__etude, "srLearnStart", { configurable: true, get: () => srLearnStart });
-Object.defineProperty(__etude, "srLedger2", { configurable: true, get: () => srLedger2 });
-Object.defineProperty(__etude, "srListen", { configurable: true, get: () => srListen });
-Object.defineProperty(__etude, "srMeta", { configurable: true, get: () => srMeta });
-Object.defineProperty(__etude, "srNextAssess", { configurable: true, get: () => srNextAssess });
-Object.defineProperty(__etude, "srNextLearn", { configurable: true, get: () => srNextLearn });
-Object.defineProperty(__etude, "srPaintAll", { configurable: true, get: () => srPaintAll });
-Object.defineProperty(__etude, "srPieceTitle", { configurable: true, get: () => srPieceTitle });
-Object.defineProperty(__etude, "srPitch", { configurable: true, get: () => srPitch });
-Object.defineProperty(__etude, "srPlayGap", { configurable: true, get: () => srPlayGap });
-Object.defineProperty(__etude, "srRender", { configurable: true, get: () => srRender });
-Object.defineProperty(__etude, "srRest", { configurable: true, get: () => srRest });
-Object.defineProperty(__etude, "srScrollStep", { configurable: true, get: () => srScrollStep });
-Object.defineProperty(__etude, "srScrollX", { configurable: true, get: () => srScrollX });
-Object.defineProperty(__etude, "srSelectPiece", { configurable: true, get: () => srSelectPiece });
-Object.defineProperty(__etude, "srShowPiece", { configurable: true, get: () => srShowPiece });
-Object.defineProperty(__etude, "srSetBpm", { configurable: true, get: () => srSetBpm });
-Object.defineProperty(__etude, "srSetMode", { configurable: true, get: () => srSetMode });
-Object.defineProperty(__etude, "srShape", { configurable: true, get: () => srShape });
-Object.defineProperty(__etude, "srSlip", { configurable: true, get: () => srSlip });
-Object.defineProperty(__etude, "srSlipNote", { configurable: true, get: () => srSlipNote });
-Object.defineProperty(__etude, "srStem2", { configurable: true, get: () => srStem2 });
-Object.defineProperty(__etude, "srStemLine", { configurable: true, get: () => srStemLine });
-Object.defineProperty(__etude, "srStepsBuild", { configurable: true, get: () => srStepsBuild });
-Object.defineProperty(__etude, "srStopAll", { configurable: true, get: () => srStopAll });
-Object.defineProperty(__etude, "srSvg", { configurable: true, get: () => srSvg });
-Object.defineProperty(__etude, "srTargets", { configurable: true, get: () => srTargets });
-Object.defineProperty(__etude, "srTimeSigG", { configurable: true, get: () => srTimeSigG });
-Object.defineProperty(__etude, "srTol", { configurable: true, get: () => srTol });
-Object.defineProperty(__etude, "srTopSlip", { configurable: true, get: () => srTopSlip });
-Object.defineProperty(__etude, "srsOf", { configurable: true, get: () => srsOf });
-Object.defineProperty(__etude, "ssAccGlyph", { configurable: true, get: () => ssAccGlyph });
-Object.defineProperty(__etude, "ssBassClef", { configurable: true, get: () => ssBassClef });
-Object.defineProperty(__etude, "ssBeatToX", { configurable: true, get: () => ssBeatToX });
-Object.defineProperty(__etude, "ssBumpProgress", { configurable: true, get: () => ssBumpProgress });
-Object.defineProperty(__etude, "ssClearTrail", { configurable: true, get: () => ssClearTrail });
-Object.defineProperty(__etude, "ssCurNote", { configurable: true, get: () => ssCurNote });
-Object.defineProperty(__etude, "ssCursorEl", { configurable: true, get: () => ssCursorEl });
-Object.defineProperty(__etude, "ssDraw", { configurable: true, get: () => ssDraw });
-Object.defineProperty(__etude, "ssFit", { configurable: true, get: () => ssFit });
-Object.defineProperty(__etude, "ssDrawTrail", { configurable: true, get: () => ssDrawTrail });
-Object.defineProperty(__etude, "ssDrone", { configurable: true, get: () => ssDrone });
-Object.defineProperty(__etude, "ssFillLevels", { configurable: true, get: () => ssFillLevels });
-Object.defineProperty(__etude, "ssFlash", { configurable: true, get: () => ssFlash });
-Object.defineProperty(__etude, "ssFlat", { configurable: true, get: () => ssFlat });
-Object.defineProperty(__etude, "ssFreeLoop", { configurable: true, get: () => ssFreeLoop });
-Object.defineProperty(__etude, "ssFreeStart", { configurable: true, get: () => ssFreeStart });
-Object.defineProperty(__etude, "ssGen", { configurable: true, get: () => ssGen });
-Object.defineProperty(__etude, "ssHintBump", { configurable: true, get: () => ssHintBump });
-Object.defineProperty(__etude, "ssKeyAcc", { configurable: true, get: () => ssKeyAcc });
-Object.defineProperty(__etude, "ssKeySig", { configurable: true, get: () => ssKeySig });
-Object.defineProperty(__etude, "ssLedger", { configurable: true, get: () => ssLedger });
-Object.defineProperty(__etude, "ssMakeNote", { configurable: true, get: () => ssMakeNote });
-Object.defineProperty(__etude, "ssMicMaybe", { configurable: true, get: () => ssMicMaybe });
-Object.defineProperty(__etude, "ssMicStart", { configurable: true, get: () => ssMicStart });
-Object.defineProperty(__etude, "ssMicStop", { configurable: true, get: () => ssMicStop });
-Object.defineProperty(__etude, "ssMidiOf", { configurable: true, get: () => ssMidiOf });
-Object.defineProperty(__etude, "ssModeUI", { configurable: true, get: () => ssModeUI });
-Object.defineProperty(__etude, "ssMoveCursor", { configurable: true, get: () => ssMoveCursor });
-Object.defineProperty(__etude, "ssNatural", { configurable: true, get: () => ssNatural });
-Object.defineProperty(__etude, "ssNeed", { configurable: true, get: () => ssNeed });
-Object.defineProperty(__etude, "ssNewExercise", { configurable: true, get: () => ssNewExercise });
-Object.defineProperty(__etude, "ssNextDeg", { configurable: true, get: () => ssNextDeg });
-Object.defineProperty(__etude, "ssNoteCorrect", { configurable: true, get: () => ssNoteCorrect });
-Object.defineProperty(__etude, "ssNoteFinish", { configurable: true, get: () => ssNoteFinish });
-Object.defineProperty(__etude, "ssNoteLoop", { configurable: true, get: () => ssNoteLoop });
-Object.defineProperty(__etude, "ssNoteStart", { configurable: true, get: () => ssNoteStart });
-Object.defineProperty(__etude, "ssNotehead", { configurable: true, get: () => ssNotehead });
-Object.defineProperty(__etude, "ssPaint", { configurable: true, get: () => ssPaint });
-Object.defineProperty(__etude, "ssPhraseGrade", { configurable: true, get: () => ssPhraseGrade });
-Object.defineProperty(__etude, "ssPhraseLoop", { configurable: true, get: () => ssPhraseLoop });
-Object.defineProperty(__etude, "ssPhraseStart", { configurable: true, get: () => ssPhraseStart });
-Object.defineProperty(__etude, "ssPick", { configurable: true, get: () => ssPick });
-Object.defineProperty(__etude, "ssPitchY", { configurable: true, get: () => ssPitchY });
-Object.defineProperty(__etude, "ssPlayIt", { configurable: true, get: () => ssPlayIt });
-Object.defineProperty(__etude, "ssReadPitch", { configurable: true, get: () => ssReadPitch });
-Object.defineProperty(__etude, "ssRemoveCursor", { configurable: true, get: () => ssRemoveCursor });
-Object.defineProperty(__etude, "ssRender", { configurable: true, get: () => ssRender });
-Object.defineProperty(__etude, "ssScrollToCur", { configurable: true, get: () => ssScrollToCur });
-Object.defineProperty(__etude, "ssScrollToX", { configurable: true, get: () => ssScrollToX });
-Object.defineProperty(__etude, "ssSharp", { configurable: true, get: () => ssSharp });
-Object.defineProperty(__etude, "ssStem", { configurable: true, get: () => ssStem });
-Object.defineProperty(__etude, "ssStepOf", { configurable: true, get: () => ssStepOf });
-Object.defineProperty(__etude, "ssSvg", { configurable: true, get: () => ssSvg });
-Object.defineProperty(__etude, "ssTimeSig", { configurable: true, get: () => ssTimeSig });
-Object.defineProperty(__etude, "ssTonic", { configurable: true, get: () => ssTonic });
-Object.defineProperty(__etude, "ssTrebleClef", { configurable: true, get: () => ssTrebleClef });
-Object.defineProperty(__etude, "startDrone", { configurable: true, get: () => startDrone });
-Object.defineProperty(__etude, "startMetro", { configurable: true, get: () => startMetro });
-Object.defineProperty(__etude, "startPlacement", { configurable: true, get: () => startPlacement });
-Object.defineProperty(__etude, "startSession", { configurable: true, get: () => startSession });
-Object.defineProperty(__etude, "statHTML", { configurable: true, get: () => statHTML });
-Object.defineProperty(__etude, "stopDrone", { configurable: true, get: () => stopDrone });
-Object.defineProperty(__etude, "stopMetro", { configurable: true, get: () => stopMetro });
-Object.defineProperty(__etude, "stopPreviews", { configurable: true, get: () => stopPreviews });
-Object.defineProperty(__etude, "syncAfter", { configurable: true, get: () => syncAfter });
-Object.defineProperty(__etude, "syncBusy", { configurable: true, get: () => syncBusy });
-Object.defineProperty(__etude, "syncCurrent", { configurable: true, get: () => syncCurrent });
-Object.defineProperty(__etude, "syncData", { configurable: true, get: () => syncData });
-Object.defineProperty(__etude, "syncGen", { configurable: true, get: () => syncGen });
-Object.defineProperty(__etude, "syncId", { configurable: true, get: () => syncId });
-Object.defineProperty(__etude, "syncIdle", { configurable: true, get: () => syncIdle });
-Object.defineProperty(__etude, "syncInitial", { configurable: true, get: () => syncInitial });
-Object.defineProperty(__etude, "syncInto", { configurable: true, get: () => syncInto });
-Object.defineProperty(__etude, "syncKeyboardPan", { configurable: true, get: () => syncKeyboardPan });
-Object.defineProperty(__etude, "syncNewCollisions", { configurable: true, get: () => syncNewCollisions });
-Object.defineProperty(__etude, "syncNote", { configurable: true, get: () => syncNote });
-Object.defineProperty(__etude, "syncPair", { configurable: true, get: () => syncPair });
-Object.defineProperty(__etude, "syncPick", { configurable: true, get: () => syncPick });
-Object.defineProperty(__etude, "syncPref", { configurable: true, get: () => syncPref });
-Object.defineProperty(__etude, "syncPull", { configurable: true, get: () => syncPull });
-Object.defineProperty(__etude, "syncRefresh", { configurable: true, get: () => syncRefresh });
-Object.defineProperty(__etude, "syncRemember", { configurable: true, get: () => syncRemember });
-Object.defineProperty(__etude, "syncSame", { configurable: true, get: () => syncSame });
-Object.defineProperty(__etude, "syncScrim", { configurable: true, get: () => syncScrim });
-Object.defineProperty(__etude, "syncSrs", { configurable: true, get: () => syncSrs });
-Object.defineProperty(__etude, "syncSrsPair", { configurable: true, get: () => syncSrsPair });
-Object.defineProperty(__etude, "syncWrite", { configurable: true, get: () => syncWrite });
-Object.defineProperty(__etude, "t", { configurable: true, get: () => t });
-Object.defineProperty(__etude, "tf", { configurable: true, get: () => tf });
-Object.defineProperty(__etude, "theme", { configurable: true, get: () => theme });
-Object.defineProperty(__etude, "tl", { configurable: true, get: () => tl });
-Object.defineProperty(__etude, "tone", { configurable: true, get: () => tone });
-Object.defineProperty(__etude, "toolName", { configurable: true, get: () => toolName });
-Object.defineProperty(__etude, "touchDay", { configurable: true, get: () => touchDay });
-Object.defineProperty(__etude, "trapFocus", { configurable: true, get: () => trapFocus });
-Object.defineProperty(__etude, "trxAutoCorrelate", { configurable: true, get: () => trxAutoCorrelate });
-Object.defineProperty(__etude, "micClose", { configurable: true, get: () => micClose });
-Object.defineProperty(__etude, "micOpen", { configurable: true, get: () => micOpen });
-Object.defineProperty(__etude, "livePitch", { configurable: true, get: () => livePitch });
-Object.defineProperty(__etude, "trxBuildMidi", { configurable: true, get: () => trxBuildMidi });
-Object.defineProperty(__etude, "trxClear", { configurable: true, get: () => trxClear });
-Object.defineProperty(__etude, "trxCloseNote", { configurable: true, get: () => trxCloseNote });
-Object.defineProperty(__etude, "trxDownload", { configurable: true, get: () => trxDownload });
-Object.defineProperty(__etude, "trxDurLabel", { configurable: true, get: () => trxDurLabel });
-Object.defineProperty(__etude, "trxExportMidi", { configurable: true, get: () => trxExportMidi });
-Object.defineProperty(__etude, "trxExportTxt", { configurable: true, get: () => trxExportTxt });
-Object.defineProperty(__etude, "trxFreqToMidi", { configurable: true, get: () => trxFreqToMidi });
-Object.defineProperty(__etude, "trxLoop", { configurable: true, get: () => trxLoop });
-Object.defineProperty(__etude, "trxMedian", { configurable: true, get: () => trxMedian });
-Object.defineProperty(__etude, "trxPlay", { configurable: true, get: () => trxPlay });
-Object.defineProperty(__etude, "trxPushVar", { configurable: true, get: () => trxPushVar });
-Object.defineProperty(__etude, "trxRender", { configurable: true, get: () => trxRender });
-Object.defineProperty(__etude, "trxSnap", { configurable: true, get: () => trxSnap });
-Object.defineProperty(__etude, "trxStart", { configurable: true, get: () => trxStart });
-Object.defineProperty(__etude, "trxStop", { configurable: true, get: () => trxStop });
-Object.defineProperty(__etude, "typeOctave", { configurable: true, get: () => typeOctave });
-Object.defineProperty(__etude, "updateAccompChain", { configurable: true, get: () => updateAccompChain });
-Object.defineProperty(__etude, "updateExplore", { configurable: true, get: () => updateExplore });
-Object.defineProperty(__etude, "view0", { configurable: true, get: () => view0 });
-Object.defineProperty(__etude, "viewHigh", { configurable: true, get: () => viewHigh });
-Object.defineProperty(__etude, "voiceActive", { configurable: true, get: () => voiceActive });
-Object.defineProperty(__etude, "voiceSetAct", { configurable: true, get: () => voiceSetAct });
-Object.defineProperty(__etude, "voiceStop", { configurable: true, get: () => voiceStop });
-Object.defineProperty(__etude, "voiceSync", { configurable: true, get: () => voiceSync });
-Object.defineProperty(__etude, "wakeArm", { configurable: true, get: () => wakeArm });
-Object.defineProperty(__etude, "wakeCan", { configurable: true, get: () => wakeCan });
-Object.defineProperty(__etude, "wakeDrop", { configurable: true, get: () => wakeDrop });
-Object.defineProperty(__etude, "wakeGet", { configurable: true, get: () => wakeGet });
-Object.defineProperty(__etude, "wakeInit", { configurable: true, get: () => wakeInit });
-Object.defineProperty(__etude, "wakeOnGesture", { configurable: true, get: () => wakeOnGesture });
-Object.defineProperty(__etude, "wakePing", { configurable: true, get: () => wakePing });
-Object.defineProperty(__etude, "wakeSet", { configurable: true, get: () => wakeSet });
-Object.defineProperty(__etude, "wakeUi", { configurable: true, get: () => wakeUi });
-Object.defineProperty(__etude, "xmlEsc", { configurable: true, get: () => xmlEsc });
-Object.defineProperty(__etude, "$", { configurable: true, get: () => maybeById });
-Object.defineProperty(__etude, "ACCOMP_I18N", { configurable: true, get: () => ACCOMP_I18N });
-Object.defineProperty(__etude, "ACCOMP_PATTERNS", { configurable: true, get: () => ACCOMP_PATTERNS });
-Object.defineProperty(__etude, "ACCOMP_PROGS", { configurable: true, get: () => ACCOMP_PROGS });
-Object.defineProperty(__etude, "AN", { configurable: true, get: () => AN });
-Object.defineProperty(__etude, "AN_CHORDS", { configurable: true, get: () => AN_CHORDS });
-Object.defineProperty(__etude, "AN_DIA", { configurable: true, get: () => AN_DIA });
-Object.defineProperty(__etude, "AN_MAX_BYTES", { configurable: true, get: () => AN_MAX_BYTES });
-Object.defineProperty(__etude, "AN_MAX_NOTES", { configurable: true, get: () => AN_MAX_NOTES });
-Object.defineProperty(__etude, "AN_MAX_XML_CHARS", { configurable: true, get: () => AN_MAX_XML_CHARS });
-Object.defineProperty(__etude, "AN_POPS", { configurable: true, get: () => AN_POPS });
-Object.defineProperty(__etude, "AN_PROFILE", { configurable: true, get: () => AN_PROFILE });
-Object.defineProperty(__etude, "AN_SMUFL_NOTES", { configurable: true, get: () => AN_SMUFL_NOTES });
-Object.defineProperty(__etude, "AN_TABS", { configurable: true, get: () => AN_TABS });
-Object.defineProperty(__etude, "BASE_HIGH", { configurable: true, get: () => BASE_HIGH });
-Object.defineProperty(__etude, "BASE_LOW", { configurable: true, get: () => BASE_LOW });
-Object.defineProperty(__etude, "BLACK_NUDGE", { configurable: true, get: () => BLACK_NUDGE });
-Object.defineProperty(__etude, "BLE", { configurable: true, get: () => BLE });
-Object.defineProperty(__etude, "BLE_MIDI_CHR", { configurable: true, get: () => BLE_MIDI_CHR });
-Object.defineProperty(__etude, "BLE_MIDI_SVC", { configurable: true, get: () => BLE_MIDI_SVC });
-Object.defineProperty(__etude, "CATS", { configurable: true, get: () => CATS });
-Object.defineProperty(__etude, "CHORDS", { configurable: true, get: () => CHORDS });
-Object.defineProperty(__etude, "CHORD_DEG", { configurable: true, get: () => CHORD_DEG });
-Object.defineProperty(__etude, "CHORD_FEEL", { configurable: true, get: () => CHORD_FEEL });
-Object.defineProperty(__etude, "CIRCLE", { configurable: true, get: () => CIRCLE });
-Object.defineProperty(__etude, "CLEF_F", { configurable: true, get: () => CLEF_F });
-Object.defineProperty(__etude, "CLEF_G", { configurable: true, get: () => CLEF_G });
-Object.defineProperty(__etude, "CLEF_SCALE", { configurable: true, get: () => CLEF_SCALE });
-Object.defineProperty(__etude, "COF_COL", { configurable: true, get: () => COF_COL });
-Object.defineProperty(__etude, "COF_FING", { configurable: true, get: () => COF_FING });
-Object.defineProperty(__etude, "COF_MAJ", { configurable: true, get: () => COF_MAJ });
-Object.defineProperty(__etude, "COF_MIN", { configurable: true, get: () => COF_MIN });
-Object.defineProperty(__etude, "COF_SCALE", { configurable: true, get: () => COF_SCALE });
-Object.defineProperty(__etude, "COF_SOL", { configurable: true, get: () => COF_SOL });
-Object.defineProperty(__etude, "COMPOUND", { configurable: true, get: () => COMPOUND });
-Object.defineProperty(__etude, "DOCK", { configurable: true, get: () => DOCK });
-Object.defineProperty(__etude, "EK_CHORD_GAP", { configurable: true, get: () => EK_CHORD_GAP });
-Object.defineProperty(__etude, "EK_MEL_SCALES", { configurable: true, get: () => EK_MEL_SCALES });
-Object.defineProperty(__etude, "EK_TRIES", { configurable: true, get: () => EK_TRIES });
-Object.defineProperty(__etude, "EX_LEDGERS", { configurable: true, get: () => EX_LEDGERS });
-Object.defineProperty(__etude, "FALL", { configurable: true, get: () => FALL });
-Object.defineProperty(__etude, "FALL_BLACK", { configurable: true, get: () => FALL_BLACK });
-Object.defineProperty(__etude, "FALL_COL", { configurable: true, get: () => FALL_COL });
-Object.defineProperty(__etude, "FALL_FONT", { configurable: true, get: () => FALL_FONT });
-Object.defineProperty(__etude, "FALL_NUDGE", { configurable: true, get: () => FALL_NUDGE });
-Object.defineProperty(__etude, "FALL_PAL", { configurable: true, get: () => FALL_PAL });
-Object.defineProperty(__etude, "FALL_SEC", { configurable: true, get: () => FALL_SEC });
-Object.defineProperty(__etude, "FALL_SEL", { configurable: true, get: () => FALL_SEL });
-Object.defineProperty(__etude, "FALL_YOU", { configurable: true, get: () => FALL_YOU });
-Object.defineProperty(__etude, "INTERVALS", { configurable: true, get: () => INTERVALS });
-Object.defineProperty(__etude, "INTRO_CH", { configurable: true, get: () => INTRO_CH });
-Object.defineProperty(__etude, "INTRO_IV", { configurable: true, get: () => INTRO_IV });
-Object.defineProperty(__etude, "INTRO_SC", { configurable: true, get: () => INTRO_SC });
-Object.defineProperty(__etude, "INV_NAMES", { configurable: true, get: () => INV_NAMES });
-Object.defineProperty(__etude, "ITEMS", { configurable: true, get: () => ITEMS });
-Object.defineProperty(__etude, "ITEM_BY_ID", { configurable: true, get: () => ITEM_BY_ID });
-Object.defineProperty(__etude, "IVL", { configurable: true, get: () => IVL });
-Object.defineProperty(__etude, "KEYMAP", { configurable: true, get: () => KEYMAP });
-Object.defineProperty(__etude, "KEY_MAJ_FIFTHS", { configurable: true, get: () => KEY_MAJ_FIFTHS });
-Object.defineProperty(__etude, "LACC_CH", { configurable: true, get: () => LACC_CH });
-Object.defineProperty(__etude, "LBLUES", { configurable: true, get: () => LBLUES });
-Object.defineProperty(__etude, "LDUR", { configurable: true, get: () => LDUR });
-Object.defineProperty(__etude, "LEARN_GAPS", { configurable: true, get: () => LEARN_GAPS });
-Object.defineProperty(__etude, "LEARN_OLD_ORDER", { configurable: true, get: () => LEARN_OLD_ORDER });
-Object.defineProperty(__etude, "LETTERS", { configurable: true, get: () => LETTERS });
-Object.defineProperty(__etude, "LETTER_PC", { configurable: true, get: () => LETTER_PC });
-Object.defineProperty(__etude, "LLET", { configurable: true, get: () => LLET });
-Object.defineProperty(__etude, "LM", { configurable: true, get: () => LM });
-Object.defineProperty(__etude, "LNAT", { configurable: true, get: () => LNAT });
-Object.defineProperty(__etude, "LSPF", { configurable: true, get: () => LSPF });
-Object.defineProperty(__etude, "LSPS", { configurable: true, get: () => LSPS });
-Object.defineProperty(__etude, "LSR", { configurable: true, get: () => LSR });
-Object.defineProperty(__etude, "LSTAVES", { configurable: true, get: () => LSTAVES });
-Object.defineProperty(__etude, "LT", { configurable: true, get: () => LT });
-Object.defineProperty(__etude, "LTEMPO", { configurable: true, get: () => LTEMPO });
-Object.defineProperty(__etude, "LVEL", { configurable: true, get: () => LVEL });
-Object.defineProperty(__etude, "LW_PRESETS", { configurable: true, get: () => LW_PRESETS });
-Object.defineProperty(__etude, "LW_Q", { configurable: true, get: () => LW_Q });
-Object.defineProperty(__etude, "LW_R", { configurable: true, get: () => LW_R });
-Object.defineProperty(__etude, "LW_STEP", { configurable: true, get: () => LW_STEP });
-Object.defineProperty(__etude, "MAJOR", { configurable: true, get: () => MAJOR });
-Object.defineProperty(__etude, "NOTE_SYS", { configurable: true, get: () => NOTE_SYS });
-Object.defineProperty(__etude, "PC_FLAT", { configurable: true, get: () => PC_FLAT });
-Object.defineProperty(__etude, "PC_SHARP", { configurable: true, get: () => PC_SHARP });
-Object.defineProperty(__etude, "PIANO_KEYS", { configurable: true, get: () => PIANO_KEYS });
-Object.defineProperty(__etude, "PIANO_URLS", { configurable: true, get: () => PIANO_URLS });
-Object.defineProperty(__etude, "PIANO_WARM", { configurable: true, get: () => PIANO_WARM });
-Object.defineProperty(__etude, "PIECES", { configurable: true, get: () => PIECES });
-Object.defineProperty(__etude, "PLACEMENT", { configurable: true, get: () => PLACEMENT });
-Object.defineProperty(__etude, "PRAC", { configurable: true, get: () => PRAC });
-Object.defineProperty(__etude, "PRAC_KEY", { configurable: true, get: () => PRAC_KEY });
-Object.defineProperty(__etude, "PROGS", { configurable: true, get: () => PROGS });
-Object.defineProperty(__etude, "PWA", { configurable: true, get: () => PWA });
-Object.defineProperty(__etude, "RD", { configurable: true, get: () => RD });
-Object.defineProperty(__etude, "RD_ALL", { configurable: true, get: () => RD_ALL });
-Object.defineProperty(__etude, "RD_ALLIV", { configurable: true, get: () => RD_ALLIV });
-Object.defineProperty(__etude, "RD_CDEF", { configurable: true, get: () => RD_CDEF });
-Object.defineProperty(__etude, "RD_CHQ", { configurable: true, get: () => RD_CHQ });
-Object.defineProperty(__etude, "RD_CLEFC", { configurable: true, get: () => RD_CLEFC });
-Object.defineProperty(__etude, "RD_LH_PAT", { configurable: true, get: () => RD_LH_PAT });
-Object.defineProperty(__etude, "RD_LM", { configurable: true, get: () => RD_LM });
-Object.defineProperty(__etude, "RD_LV", { configurable: true, get: () => RD_LV });
-Object.defineProperty(__etude, "RD_MAJ", { configurable: true, get: () => RD_MAJ });
-Object.defineProperty(__etude, "RD_MIN", { configurable: true, get: () => RD_MIN });
-Object.defineProperty(__etude, "RD_REF", { configurable: true, get: () => RD_REF });
-Object.defineProperty(__etude, "RD_RHU", { configurable: true, get: () => RD_RHU });
-Object.defineProperty(__etude, "RD_TARGET", { configurable: true, get: () => RD_TARGET });
-Object.defineProperty(__etude, "RD_CHECK_N", { configurable: true, get: () => RD_CHECK_N });
-Object.defineProperty(__etude, "RD_UNITS", { configurable: true, get: () => RD_UNITS });
-Object.defineProperty(__etude, "ROMAN", { configurable: true, get: () => ROMAN });
-Object.defineProperty(__etude, "ROOT_NAMES", { configurable: true, get: () => ROOT_NAMES });
-Object.defineProperty(__etude, "SCALES", { configurable: true, get: () => SCALES });
-Object.defineProperty(__etude, "SCALE_DEG", { configurable: true, get: () => SCALE_DEG });
-Object.defineProperty(__etude, "SCALE_EAR_POOL", { configurable: true, get: () => SCALE_EAR_POOL });
-Object.defineProperty(__etude, "SCORE", { configurable: true, get: () => SCORE });
-Object.defineProperty(__etude, "SCORE_LOOK", { configurable: true, get: () => SCORE_LOOK });
-Object.defineProperty(__etude, "SC_ARTS", { configurable: true, get: () => SC_ARTS });
-Object.defineProperty(__etude, "SC_BASE", { configurable: true, get: () => SC_BASE });
-Object.defineProperty(__etude, "SC_DYN", { configurable: true, get: () => SC_DYN });
-Object.defineProperty(__etude, "SC_FIT", { configurable: true, get: () => SC_FIT });
-Object.defineProperty(__etude, "SC_PAGE_W", { configurable: true, get: () => SC_PAGE_W });
-Object.defineProperty(__etude, "SC_TERMS", { configurable: true, get: () => SC_TERMS });
-Object.defineProperty(__etude, "SES", { configurable: true, get: () => SES });
-Object.defineProperty(__etude, "SIDE", { configurable: true, get: () => SIDE });
-Object.defineProperty(__etude, "SONGS", { configurable: true, get: () => SONGS });
-Object.defineProperty(__etude, "SR", { configurable: true, get: () => SR });
-Object.defineProperty(__etude, "SR_LET", { configurable: true, get: () => SR_LET });
-Object.defineProperty(__etude, "SS_FLAT_ORDER", { configurable: true, get: () => SS_FLAT_ORDER });
-Object.defineProperty(__etude, "SS_LETSEMI", { configurable: true, get: () => SS_LETSEMI });
-Object.defineProperty(__etude, "SS_LEVELS", { configurable: true, get: () => SS_LEVELS });
-Object.defineProperty(__etude, "SS_MAJ", { configurable: true, get: () => SS_MAJ });
-Object.defineProperty(__etude, "SS_MIN", { configurable: true, get: () => SS_MIN });
-Object.defineProperty(__etude, "SS_SHARP_ORDER", { configurable: true, get: () => SS_SHARP_ORDER });
-Object.defineProperty(__etude, "SS_SYL_MAJ", { configurable: true, get: () => SS_SYL_MAJ });
-Object.defineProperty(__etude, "SS_SYL_MIN", { configurable: true, get: () => SS_SYL_MIN });
-Object.defineProperty(__etude, "SYNC", { configurable: true, get: () => SYNC });
-Object.defineProperty(__etude, "STORE", { configurable: true, get: () => STORE });
-Object.defineProperty(__etude, "storeRefresh", { configurable: true, get: () => storeRefresh });
-Object.defineProperty(__etude, "backupJson", { configurable: true, get: () => backupJson });
-Object.defineProperty(__etude, "SYNC_ADD", { configurable: true, get: () => SYNC_ADD });
-Object.defineProperty(__etude, "SYNC_ID", { configurable: true, get: () => SYNC_ID });
-Object.defineProperty(__etude, "SYNC_MAX", { configurable: true, get: () => SYNC_MAX });
-Object.defineProperty(__etude, "SYNC_NONE", { configurable: true, get: () => SYNC_NONE });
-Object.defineProperty(__etude, "SYNC_PREFS", { configurable: true, get: () => SYNC_PREFS });
-Object.defineProperty(__etude, "TONES", { configurable: true, get: () => TONES });
-Object.defineProperty(__etude, "TRX_VALS", { configurable: true, get: () => TRX_VALS });
-Object.defineProperty(__etude, "WAKE", { configurable: true, get: () => WAKE });
-Object.defineProperty(__etude, "WAKE_IDLE_MS", { configurable: true, get: () => WAKE_IDLE_MS });
-Object.defineProperty(__etude, "_modalStack", { configurable: true, get: () => _modalStack });
-Object.defineProperty(__etude, "accomp", { configurable: true, get: () => accomp });
-Object.defineProperty(__etude, "anDomQ", { configurable: true, get: () => anDomQ });
-Object.defineProperty(__etude, "blackEl", { configurable: true, get: () => blackEl });
-Object.defineProperty(__etude, "coachText", { configurable: true, get: () => coachText });
-Object.defineProperty(__etude, "cof", { configurable: true, get: () => cof });
-Object.defineProperty(__etude, "held", { configurable: true, get: () => held });
-Object.defineProperty(__etude, "heldOrder", { configurable: true, get: () => heldOrder });
-Object.defineProperty(__etude, "inputOwners", { configurable: true, get: () => inputOwners });
-Object.defineProperty(__etude, "isFlatKey", { configurable: true, get: () => isFlatKey });
-Object.defineProperty(__etude, "keyEl", { configurable: true, get: () => keyEl });
-Object.defineProperty(__etude, "liveVoices", { configurable: true, get: () => liveVoices });
-Object.defineProperty(__etude, "metro", { configurable: true, get: () => metro });
-Object.defineProperty(__etude, "midiToFreq", { configurable: true, get: () => midiToFreq });
-Object.defineProperty(__etude, "overlayReturn", { configurable: true, get: () => overlayReturn });
-Object.defineProperty(__etude, "pc", { configurable: true, get: () => pc });
-Object.defineProperty(__etude, "pianoBank", { configurable: true, get: () => pianoBank });
-Object.defineProperty(__etude, "pointerKey", { configurable: true, get: () => pointerKey });
-Object.defineProperty(__etude, "pracFactor", { configurable: true, get: () => pracFactor });
-Object.defineProperty(__etude, "pracMine", { configurable: true, get: () => pracMine });
-Object.defineProperty(__etude, "pracSounds", { configurable: true, get: () => pracSounds });
-Object.defineProperty(__etude, "rdS", { configurable: true, get: () => rdS });
-Object.defineProperty(__etude, "reduceMotion", { configurable: true, get: () => reduceMotion });
-Object.defineProperty(__etude, "rootName", { configurable: true, get: () => rootName });
-Object.defineProperty(__etude, "sing", { configurable: true, get: () => sing });
-Object.defineProperty(__etude, "srSlipNames", { configurable: true, get: () => srSlipNames });
-Object.defineProperty(__etude, "srStepNo", { configurable: true, get: () => srStepNo });
-Object.defineProperty(__etude, "sustained", { configurable: true, get: () => sustained });
-Object.defineProperty(__etude, "themeMQ", { configurable: true, get: () => themeMQ });
-Object.defineProperty(__etude, "todayN", { configurable: true, get: () => todayN });
-Object.defineProperty(__etude, "trx", { configurable: true, get: () => trx });
-Object.defineProperty(__etude, "typingDown", { configurable: true, get: () => typingDown });
-Object.defineProperty(__etude, "view", { configurable: true, get: () => view });
-Object.defineProperty(__etude, "voice", { configurable: true, get: () => voice });
-Object.defineProperty(__etude, "whiteEl", { configurable: true, get: () => whiteEl });
+const __etudeGetters: Record<string, () => unknown> = {
+  "LESSONS": () => LESSONS,
+  "learnReady": () => learnLoading ?? Promise.resolve(),
+  "scoreLibraryStore": () => scoreLibraryStore,
+  "anLibraryFlush": () => anLibraryFlush,
+  "LGEN": () => LGEN,
+  "LP": () => LP,
+  "LQ": () => LQ,
+  "_modalAfterBack": () => _modalAfterBack,
+  "_modalBackPending": () => _modalBackPending,
+  "_noiseBuf": () => _noiseBuf,
+  "_routed": () => _routed,
+  "_saveT": () => _saveT,
+  "_view": () => _view,
+  "acChainHL": () => acChainHL,
+  "accompHL": () => accompHL,
+  "accompKey": () => accompKey,
+  "accompRestartIfPlaying": () => accompRestartIfPlaying,
+  "accompStart": () => accompStart,
+  "accompStop": () => accompStop,
+  "accompSync": () => accompSync,
+  "accompTick": () => accompTick,
+  "accompTimer": () => accompTimer,
+  "accompVoicing": () => accompVoicing,
+  "activeInputId": () => activeInputId,
+  "actx": () => actx,
+  "anAccent": () => anAccent,
+  "anActiveChord": () => anActiveChord,
+  "anAnalyze": () => anAnalyze,
+  "anAssignHands": () => anAssignHands,
+  "anBarsLabel": () => anBarsLabel,
+  "anBeatText": () => anBeatText,
+  "anBeatUnit": () => anBeatUnit,
+  "anCadences": () => anCadences,
+  "anCands": () => anCands,
+  "anChipHTML": () => anChipHTML,
+  "anChordLabel": () => anChordLabel,
+  "anClassifyNonChord": () => anClassifyNonChord,
+  "anClearSelection": () => anClearSelection,
+  "anClock": () => anClock,
+  "anCoach": () => anCoach,
+  "anCommit": () => anCommit,
+  "anCommitFocus": () => anCommitFocus,
+  "anCompute": () => anCompute,
+  "anDetText": () => anDetText,
+  "anDiatonic": () => anDiatonic,
+  "anDockWanted": () => anDockWanted,
+  "anDraw": () => anDraw,
+  "anError": () => anError,
+  "anErrorKey": () => anErrorKey,
+  "anFit": () => anFit,
+  "anFitImplied": () => anFitImplied,
+  "anFnKey": () => anFnKey,
+  "anFocus": () => anFocus,
+  "anFocusNotes": () => anFocusNotes,
+  "anFocusStage": () => anFocusStage,
+  "anFunctionOf": () => anFunctionOf,
+  "anGrid": () => anGrid,
+  "anHandOf": () => anHandOf,
+  "anHandsSource": () => anHandsSource,
+  "anHandsText": () => anHandsText,
+  "anHarmony": () => anHarmony,
+  "anHasFinger": () => anHasFinger,
+  "anHover": () => anHover,
+  "anInView": () => anInView,
+  "anIndex": () => anIndex,
+  "anInflatedSize": () => anInflatedSize,
+  "anInitControls": () => anInitControls,
+  "anIntervalName": () => anIntervalName,
+  "anInv": () => anInv,
+  "anKeepPlace": () => anKeepPlace,
+  "anKeepVisible": () => anKeepVisible,
+  "anKeyAt": () => anKeyAt,
+  "anKeyInfo": () => anKeyInfo,
+  "anKeyName": () => anKeyName,
+  "anKeyRank": () => anKeyRank,
+  "anKeysCenter": () => anKeysCenter,
+  "anKeysClear": () => anKeysClear,
+  "anKeysPaint": () => anKeysPaint,
+  "anKeysShown": () => anKeysShown,
+  "anLayoutVars": () => anLayoutVars,
+  "anLoadExample": () => anLoadExample,
+  "anLoadedText": () => anLoadedText,
+  "anLocalize": () => anLocalize,
+  "anMarkActive": () => anMarkActive,
+  "anMeasureAt": () => anMeasureAt,
+  "anMeasures": () => anMeasures,
+  "anMotifs": () => anMotifs,
+  "anMxlPreflight": () => anMxlPreflight,
+  "anNarrow": () => anNarrow,
+  "anNctText": () => anNctText,
+  "anNoteInfo": () => anNoteInfo,
+  "anNowAnnounce": () => anNowAnnounce,
+  "anNowCard": () => anNowCard,
+  "anNum": () => anNum,
+  "anOpenFile": () => anOpenFile,
+  "anOpenTab": () => anOpenTab,
+  "anOriginText": () => anOriginText,
+  "anParse": () => anParse,
+  "anPcWeights": () => anPcWeights,
+  "anPieceMeta": () => anPieceMeta,
+  "pcRender": () => pcRender,
+  "pcOpen": () => pcOpen,
+  "pcStageSet": () => pcStageSet,
+  "PC_STAGE": () => PC_STAGE,
+  "anPieceToParsed": () => anPieceToParsed,
+  "anPinToolbar": () => anPinToolbar,
+  "anPinToolbarLater": () => anPinToolbarLater,
+  "anPoly": () => anPoly,
+  "anPop": () => anPop,
+  "anPracticeStart": () => anPracticeStart,
+  "anRate": () => anRate,
+  "anReadXml": () => anReadXml,
+  "anRebuild": () => anRebuild,
+  "anReconChange": () => anReconChange,
+  "anReconOpen": () => anReconOpen,
+  "anReconUI": () => anReconUI,
+  "anRenderEmpty": () => anRenderEmpty,
+  "anRenderNow": () => anRenderNow,
+  "anRenderPractice": () => anRenderPractice,
+  "anRenderSelection": () => anRenderSelection,
+  "anRenderWorkspace": () => anRenderWorkspace,
+  "anReset": () => anReset,
+  "anResolveKey": () => anResolveKey,
+  "anRevealPieceRow": () => anRevealPieceRow,
+  "anRoman": () => anRoman,
+  "anRove": () => anRove,
+  "anRowsHTML": () => anRowsHTML,
+  "anSegAt": () => anSegAt,
+  "anSegIndexAt": () => anSegIndexAt,
+  "anSelStart": () => anSelStart,
+  "anSelectChord": () => anSelectChord,
+  "anSelectNotes": () => anSelectNotes,
+  "anSelectionChanged": () => anSelectionChanged,
+  "anSetLoading": () => anSetLoading,
+  "anSheet": () => anSheet,
+  "anShortcut": () => anShortcut,
+  "anShowError": () => anShowError,
+  "anSideResizer": () => anSideResizer,
+  "anSideSet": () => anSideSet,
+  "anSideSync": () => anSideSync,
+  "anSideVisible": () => anSideVisible,
+  "anSpan": () => anSpan,
+  "anStageFit": () => anStageFit,
+  "anStatus": () => anStatus,
+  "anStatusPos": () => anStatusPos,
+  "anStatusSel": () => anStatusSel,
+  "anSyncTimeline": () => anSyncTimeline,
+  "anTab": () => anTab,
+  "anTempoAt": () => anTempoAt,
+  "anTlUpdate": () => anTlUpdate,
+  "anUnion": () => anUnion,
+  "anUnits": () => anUnits,
+  "anUpdateControls": () => anUpdateControls,
+  "anVoiceNeighbors": () => anVoiceNeighbors,
+  "anXmlKeyMap": () => anXmlKeyMap,
+  "anXmlTidy": () => anXmlTidy,
+  "anZoomNow": () => anZoomNow,
+  "answerEar": () => answerEar,
+  "applyI18n": () => applyI18n,
+  "applyNotation": () => applyNotation,
+  "applyTheme": () => applyTheme,
+  "attachInput": () => attachInput,
+  "audioLockCheck": () => audioLockCheck,
+  "audioLockSync": () => audioLockSync,
+  "audioLockT": () => audioLockT,
+  "audioNoteOff": () => audioNoteOff,
+  "audioNoteOn": () => audioNoteOn,
+  "audioUnlock": () => audioUnlock,
+  "autoReconnectMidi": () => autoReconnectMidi,
+  "bendSemitones": () => bendSemitones,
+  "bindKeyA11y": () => bindKeyA11y,
+  "bleAutoReconnect": () => bleAutoReconnect,
+  "bleCan": () => bleCan,
+  "bleChoose": () => bleChoose,
+  "bleClick": () => bleClick,
+  "bleData": () => bleData,
+  "bleDisconnect": () => bleDisconnect,
+  "bleErr": () => bleErr,
+  "bleLive": () => bleLive,
+  "bleMsg": () => bleMsg,
+  "bleName": () => bleName,
+  "bleOnGone": () => bleOnGone,
+  "bleOnValue": () => bleOnValue,
+  "bleOpen": () => bleOpen,
+  "bleParse": () => bleParse,
+  "bleParserReset": () => bleParserReset,
+  "bleReconnect": () => bleReconnect,
+  "bleReleaseInput": () => bleReleaseInput,
+  "bleRetry": () => bleRetry,
+  "bleSet": () => bleSet,
+  "bleStale": () => bleStale,
+  "bleStatus": () => bleStatus,
+  "bleUi": () => bleUi,
+  "bleUnhook": () => bleUnhook,
+  "boxOf": () => boxOf,
+  "buildAccomp": () => buildAccomp,
+  "buildKeyboard": () => buildKeyboard,
+  "buildQueue": () => buildQueue,
+  "catLabel": () => catLabel,
+  "chooseView": () => chooseView,
+  "chordDegreeMap": () => chordDegreeMap,
+  "chordDisp": () => chordDisp,
+  "chordEarOptions": () => chordEarOptions,
+  "chordFormula": () => chordFormula,
+  "chordTargetPcs": () => chordTargetPcs,
+  "circleSel": () => circleSel,
+  "clampPersistedNumber": () => clampPersistedNumber,
+  "clampTypeOctave": () => clampTypeOctave,
+  "clearExplorePreview": () => clearExplorePreview,
+  "closeMobileMenu": () => closeMobileMenu,
+  "coachHTML": () => coachHTML,
+  "coachList": () => coachList,
+  "coachRefresh": () => coachRefresh,
+  "cofData": () => cofData,
+  "cofDiagram": () => cofDiagram,
+  "cofInfo": () => cofInfo,
+  "cofKeyLabel": () => cofKeyLabel,
+  "cofName": () => cofName,
+  "cofNow": () => cofNow,
+  "cofPaintDock": () => cofPaintDock,
+  "cofParse": () => cofParse,
+  "cofPick": () => cofPick,
+  "cofPlay": () => cofPlay,
+  "cofPt": () => cofPt,
+  "cofRevealFingering": () => cofRevealFingering,
+  "cofSector": () => cofSector,
+  "cofSel": () => cofSel,
+  "cofSigList": () => cofSigList,
+  "cofSpell": () => cofSpell,
+  "cofSpellDegrees": () => cofSpellDegrees,
+  "cofSyncRef": () => cofSyncRef,
+  "cofText": () => cofText,
+  "cofTint": () => cofTint,
+  "cofTonicPc": () => cofTonicPc,
+  "cofIsCompact": () => cofIsCompact,
+  "exKeyCtx": () => exKeyCtx,
+  "exKeyFifths": () => exKeyFifths,
+  "comp": () => comp,
+  "connectMidi": () => connectMidi,
+  "currentStreak": () => currentStreak,
+  "data": () => data,
+  "demoBeat": () => demoBeat,
+  "dispSym": () => dispSym,
+  "dockKeepEnd": () => dockKeepEnd,
+  "dockLabels": () => dockLabels,
+  "dockOpen": () => dockOpen,
+  "dockReveal": () => dockReveal,
+  "dockSet": () => dockSet,
+  "dockShown": () => dockShown,
+  "dockSync": () => dockSync,
+  "dockWanted": () => dockWanted,
+  "drawExploreStaff": () => drawExploreStaff,
+  "droneVoices": () => droneVoices,
+  "dueItems": () => dueItems,
+  "countEarAnswer": () => countEarAnswer,
+  "earRoot": () => earRoot,
+  "ekBuild": () => ekBuild,
+  "ekCh": () => ekCh,
+  "ekElab": () => ekElab,
+  "ekFlash": () => ekFlash,
+  "ekFlat": () => ekFlat,
+  "ekForced": () => ekForced,
+  "ekIv": () => ekIv,
+  "ekMel": () => ekMel,
+  "ekMiss": () => ekMiss,
+  "ekName": () => ekName,
+  "ekOff": () => ekOff,
+  "ekOn": () => ekOn,
+  "ekPlay": () => ekPlay,
+  "ekProg": () => ekProg,
+  "ekReset": () => ekReset,
+  "ekSound": () => ekSound,
+  "ekStop": () => ekStop,
+  "ekToggleSync": () => ekToggleSync,
+  "ekUiReset": () => ekUiReset,
+  "ekWanted": () => ekWanted,
+  "ekWin": () => ekWin,
+  "endSession": () => endSession,
+  "ensureAudio": () => ensureAudio,
+  "evalTimer": () => evalTimer,
+  "exTab": () => exTab,
+  "explorePreview": () => explorePreview,
+  "exploreSequence": () => exploreSequence,
+  "exploreTimers": () => exploreTimers,
+  "fallBurst": () => fallBurst,
+  "fallData": () => fallData,
+  "fallDraw": () => fallDraw,
+  "fallEnd": () => fallEnd,
+  "fallHit": () => fallHit,
+  "fallHover": () => fallHover,
+  "fallKeyAt": () => fallKeyAt,
+  "fallKeyDown": () => fallKeyDown,
+  "fallKeyPath": () => fallKeyPath,
+  "fallKeyUp": () => fallKeyUp,
+  "fallKeyboard": () => fallKeyboard,
+  "fallKeys": () => fallKeys,
+  "fallMode": () => fallMode,
+  "fallName": () => fallName,
+  "fallParticles": () => fallParticles,
+  "fallRR": () => fallRR,
+  "fallRange": () => fallRange,
+  "fallReset": () => fallReset,
+  "fallSeek": () => fallSeek,
+  "fallSeekEnd": () => fallSeekEnd,
+  "fallSelect": () => fallSelect,
+  "fallTime": () => fallTime,
+  "feelDisp": () => feelDisp,
+  "fillKeyCtx": () => fillKeyCtx,
+  "fillRefNames": () => fillRefNames,
+  "fillRoots": () => fillRoots,
+  "focusView": () => focusView,
+  "foldToView": () => foldToView,
+  "freshData": () => freshData,
+  "fsCan": () => fsCan,
+  "fsToggle": () => fsToggle,
+  "fsUi": () => fsUi,
+  "gradeChord": () => gradeChord,
+  "gradeInterval": () => gradeInterval,
+  "gradeProgChord": () => gradeProgChord,
+  "gradeScaleNote": () => gradeScaleNote,
+  "greeting": () => greeting,
+  "handleNoteOff": () => handleNoteOff,
+  "handleNoteOn": () => handleNoteOn,
+  "heldMidis": () => heldMidis,
+  "heldPcs": () => heldPcs,
+  "identifyChord": () => identifyChord,
+  "inField": () => inField,
+  "initControls": () => initControls,
+  "initExploreControls": () => initExploreControls,
+  "initPointer": () => initPointer,
+  "intervalLabel": () => intervalLabel,
+  "invName": () => invName,
+  "inversionOf": () => inversionOf,
+  "isDue": () => isDue,
+  "isNew": () => isNew,
+  "isSubset": () => isSubset,
+  "itemLabel": () => itemLabel,
+  "ivName": () => ivName,
+  "kbClear": () => kbClear,
+  "kbClearAll": () => kbClearAll,
+  "kbDegSrc": () => kbDegSrc,
+  "kbDegrees": () => kbDegrees,
+  "kbPress": () => kbPress,
+  "kbState": () => kbState,
+  "kbdLayoutLabels": () => kbdLayoutLabels,
+  "keyAt": () => keyAt,
+  "keyFifths": () => keyFifths,
+  "keyFromFifths": () => keyFromFifths,
+  "lBarsHTML": () => lBarsHTML,
+  "lCofKey": () => lCofKey,
+  "lDots": () => lDots,
+  "lPitch": () => lPitch,
+  "lSel": () => lSel,
+  "lSeqLight": () => lSeqLight,
+  "lSp": () => lSp,
+  "lStaffHTML": () => lStaffHTML,
+  "lStaffNote": () => lStaffNote,
+  "lStaffPlay": () => lStaffPlay,
+  "lStaffSmall": () => lStaffSmall,
+  "lStaffSvg": () => lStaffSvg,
+  "lVel": () => lVel,
+  "labelMode": () => labelMode,
+  "labelSettingsControl": () => labelSettingsControl,
+  "labelSettingsControls": () => labelSettingsControls,
+  "lang": () => lang,
+  "learnBodyHTML": () => learnBodyHTML,
+  "learnClick": () => learnClick,
+  "learnComplete": () => learnComplete,
+  "learnData": () => learnData,
+  "learnDueDays": () => learnDueDays,
+  "learnDueList": () => learnDueList,
+  "learnGap": () => learnGap,
+  "learnGloss": () => learnGloss,
+  "learnGo": () => learnGo,
+  "learnGoId": () => learnGoId,
+  "learnHalt": () => learnHalt,
+  "learnInitSel": () => learnInitSel,
+  "learnInput": () => learnInput,
+  "learnLight": () => learnLight,
+  "learnMark": () => learnMark,
+  "learnNavRender": () => learnNavRender,
+  "learnPlanItems": () => learnPlanItems,
+  "learnRdLevel": () => learnRdLevel,
+  "learnReveal": () => learnReveal,
+  "learnSay": () => learnSay,
+  "learnSel": () => learnSel,
+  "learnSide": () => learnSide,
+  "learnTimer": () => learnTimer,
+  "learnTitle": () => learnTitle,
+  "learnUnitDone": () => learnUnitDone,
+  "learnUnitOf": () => learnUnitOf,
+  "learnWire": () => learnWire,
+  "lfo": () => lfo,
+  "lfoGain": () => lfoGain,
+  "lgFilter": () => lgFilter,
+  "lgHTML": () => lgHTML,
+  "lgNorm": () => lgNorm,
+  "listInputs": () => listInputs,
+  "lmDots": () => lmDots,
+  "lmMeter": () => lmMeter,
+  "lmStart": () => lmStart,
+  "lmStop": () => lmStop,
+  "lmTerm": () => lmTerm,
+  "loadAll": () => loadAll,
+  "localSynth": () => localSynth,
+  "lqAnswer": () => lqAnswer,
+  "lqFocus": () => lqFocus,
+  "lqLabel": () => lqLabel,
+  "lqMidis": () => lqMidis,
+  "lqNeed": () => lqNeed,
+  "lqNext": () => lqNext,
+  "lqPick": () => lqPick,
+  "lqRender": () => lqRender,
+  "lqShow": () => lqShow,
+  "lqStart": () => lqStart,
+  "lwChord": () => lwChord,
+  "lwChordData": () => lwChordData,
+  "lwChordPlay": () => lwChordPlay,
+  "lwClick": () => lwClick,
+  "lwCof": () => lwCof,
+  "lwInput": () => lwInput,
+  "lwMetro": () => lwMetro,
+  "lwMount": () => lwMount,
+  "lwRefocus": () => lwRefocus,
+  "lwScale": () => lwScale,
+  "lwScalePlay": () => lwScalePlay,
+  "lwStepLab": () => lwStepLab,
+  "makeIR": () => makeIR,
+  "makePianoVoice": () => makePianoVoice,
+  "makeQuestion": () => makeQuestion,
+  "makeVoice": () => makeVoice,
+  "markEarCorrect": () => markEarCorrect,
+  "master": () => master,
+  "masterFilter": () => masterFilter,
+  "masterRamp": () => masterRamp,
+  "masterVol": () => masterVol,
+  "masteredCount": () => masteredCount,
+  "metroClick": () => metroClick,
+  "metroSched": () => metroSched,
+  "midiAccess": () => midiAccess,
+  "midiChipSync": () => midiChipSync,
+  "midiIn": () => midiIn,
+  "midiMsg": () => midiMsg,
+  "muted": () => muted,
+  "neutral": () => neutral,
+  "newItemsAvail": () => newItemsAvail,
+  "newQuotaLeft": () => newQuotaLeft,
+  "nextQuestion": () => nextQuestion,
+  "noiseBuffer": () => noiseBuffer,
+  "notation": () => notation,
+  "noteName": () => noteName,
+  "onInputChange": () => onInputChange,
+  "onMidiMessage": () => onMidiMessage,
+  "onStateChange": () => onStateChange,
+  "openDrawer": () => openDrawer,
+  "openHelp": () => openHelp,
+  "openMobileMenu": () => openMobileMenu,
+  "openSessionUI": () => openSessionUI,
+  "overlaysOpen": () => overlaysOpen,
+  "panic": () => panic,
+  "pcName": () => pcName,
+  "pedalDown": () => pedalDown,
+  "pedalUp": () => pedalUp,
+  "physKey": () => physKey,
+  "pianoDecode": () => pianoDecode,
+  "pianoEnsure": () => pianoEnsure,
+  "pianoFail": () => pianoFail,
+  "pianoIdleWarm": () => pianoIdleWarm,
+  "pianoKeys": () => pianoKeys,
+  "pianoNearest": () => pianoNearest,
+  "pianoStatus": () => pianoStatus,
+  "pickArturia": () => pickArturia,
+  "pickTargetedItem": () => pickTargetedItem,
+  "playChordMidis": () => playChordMidis,
+  "playInterval": () => playInterval,
+  "playIvDir": () => playIvDir,
+  "playProg": () => playProg,
+  "playQuestionSound": () => playQuestionSound,
+  "playScaleNotes": () => playScaleNotes,
+  "popModalState": () => popModalState,
+  "positionBlacks": () => positionBlacks,
+  "prAlongWanted": () => prAlongWanted,
+  "prChoice": () => prChoice,
+  "prEarCheck": () => prEarCheck,
+  "prFocusAfterDrill": () => prFocusAfterDrill,
+  "prOpenMoved": () => prOpenMoved,
+  "prRecordDrill": () => prRecordDrill,
+  "prSetDir": () => prSetDir,
+  "prSetKey": () => prSetKey,
+  "prSetTopic": () => prSetTopic,
+  "pracAcc": () => pracAcc,
+  "pracBeats": () => pracBeats,
+  "pracClearAB": () => pracClearAB,
+  "pracFinish": () => pracFinish,
+  "pracRecord": () => pracRecord,
+  "pracSavedText": () => pracSavedText,
+  "pracWholePiece": () => pracWholePiece,
+  "pracWhyNot": () => pracWhyNot,
+  "pracFrame": () => pracFrame,
+  "pracHud": () => pracHud,
+  "pracInput": () => pracInput,
+  "pracNeedKey": () => pracNeedKey,
+  "pracSame": () => pracSame,
+  "pracJudge": () => pracJudge,
+  "pracLoad": () => pracLoad,
+  "pracLoopBars": () => pracLoopBars,
+  "pracMisses": () => pracMisses,
+  "pracNextBar": () => pracNextBar,
+  "pracNextRender": () => pracNextRender,
+  "pracNextStep": () => pracNextStep,
+  "pracPassEnd": () => pracPassEnd,
+  "pracRamp": () => pracRamp,
+  "pracRaw": () => pracRaw,
+  "pracRelease": () => pracRelease,
+  "pracSave": () => pracSave,
+  "pracSegAt": () => pracSegAt,
+  "pracSet": () => pracSet,
+  "pracSetAB": () => pracSetAB,
+  "pracStart": () => pracStart,
+  "pracStatsReset": () => pracStatsReset,
+  "pracSumClose": () => pracSumClose,
+  "pracSummary": () => pracSummary,
+  "pracTick": () => pracTick,
+  "pracWeakHand": () => pracWeakHand,
+  "preparePiano": () => preparePiano,
+  "presentEar": () => presentEar,
+  "presentEarKeys": () => presentEarKeys,
+  "presentPlay": () => presentPlay,
+  "presentQuestion": () => presentQuestion,
+  "previewNote": () => previewNote,
+  "previewVoices": () => previewVoices,
+  "progChordTpl": () => progChordTpl,
+  "pushModalState": () => pushModalState,
+  "pwaInit": () => pwaInit,
+  "pwaInstall": () => pwaInstall,
+  "pwaStandalone": () => pwaStandalone,
+  "pwaUi": () => pwaUi,
+  "randItem": () => randItem,
+  "rdAbort": () => rdAbort,
+  "rdAccSym": () => rdAccSym,
+  "rdAgg": () => rdAgg,
+  "rdAnsText": () => rdAnsText,
+  "rdAnswer": () => rdAnswer,
+  "rdBack": () => rdBack,
+  "rdBars": () => rdBars,
+  "rdBeatX": () => rdBeatX,
+  "rdBtn": () => rdBtn,
+  "rdCClef": () => rdCClef,
+  "rdChLabel": () => rdChLabel,
+  "rdClear": () => rdClear,
+  "rdClick": () => rdClick,
+  "rdClickAns": () => rdClickAns,
+  "rdCoach": () => rdCoach,
+  "rdCustomFill": () => rdCustomFill,
+  "rdCustomGo": () => rdCustomGo,
+  "rdCustomRead": () => rdCustomRead,
+  "rdData": () => rdData,
+  "rdEndClick": () => rdEndClick,
+  "STAGE": () => STAGE,
+  "stageSync": () => stageSync,
+  "rdEsc": () => rdEsc,
+  "rdFeedback": () => rdFeedback,
+  "rdFinish": () => rdFinish,
+  "rdFocus": () => rdFocus,
+  "rdFromStep": () => rdFromStep,
+  "rdGen": () => rdGen,
+  "rdGenMelody": () => rdGenMelody,
+  "rdHeat": () => rdHeat,
+  "rdHint": () => rdHint,
+  "rdHud": () => rdHud,
+  "rdInput": () => rdInput,
+  "rdIntro": () => rdIntro,
+  "rdIvName": () => rdIvName,
+  "rdKey": () => rdKey,
+  "rdKeyLabel": () => rdKeyLabel,
+  "rdKeyMinor": () => rdKeyMinor,
+  "rdKeyText": () => rdKeyText,
+  "rdKsSvg": () => rdKsSvg,
+  "rdLetter": () => rdLetter,
+  "rdLvDetail": () => rdLvDetail,
+  "rdLvName": () => rdLvName,
+  "rdLvNext": () => rdLvNext,
+  "rdLvSub": () => rdLvSub,
+  "rdMidi": () => rdMidi,
+  "rdName": () => rdName,
+  "rdNext": () => rdNext,
+  "rdNextRender": () => rdNextRender,
+  "rdNextStep": () => rdNextStep,
+  "rdNk": () => rdNk,
+  "rdOnLocale": () => rdOnLocale,
+  "rdOpen": () => rdOpen,
+  "rdP": () => rdP,
+  "rdPercClef": () => rdPercClef,
+  "rdPickFrom": () => rdPickFrom,
+  "rdPool": () => rdPool,
+  "rdQSvg": () => rdQSvg,
+  "rdRangeTxt": () => rdRangeTxt,
+  "rdRender": () => rdRender,
+  "rdRenderHome": () => rdRenderHome,
+  "rdRenderStats": () => rdRenderStats,
+  "rdRhDone": () => rdRhDone,
+  "rdRhFit": () => rdRhFit,
+  "rdRhGen": () => rdRhGen,
+  "rdRhGenLH": () => rdRhGenLH,
+  "rdRhGrade": () => rdRhGrade,
+  "rdRhGradeAll": () => rdRhGradeAll,
+  "rdRhGradeHand": () => rdRhGradeHand,
+  "rdRhHandLine": () => rdRhHandLine,
+  "rdRhKey": () => rdRhKey,
+  "rdRhMarks": () => rdRhMarks,
+  "rdRhNew": () => rdRhNew,
+  "rdRhNoteTip": () => rdRhNoteTip,
+  "rdRhOptsLock": () => rdRhOptsLock,
+  "rdRhPrefs": () => rdRhPrefs,
+  "rdRhPress": () => rdRhPress,
+  "rdRhRelease": () => rdRhRelease,
+  "rdRhRun": () => rdRhRun,
+  "rdRhStrokes": () => rdRhStrokes,
+  "rdScroll": () => rdScroll,
+  "rdSightDone": () => rdSightDone,
+  "rdSightGen": () => rdSightGen,
+  "rdSightStart": () => rdSightStart,
+  "rdSound": () => rdSound,
+  "rdSpell": () => rdSpell,
+  "rdSpellMidi": () => rdSpellMidi,
+  "rdStars": () => rdStars,
+  "rdStart": () => rdStart,
+  "rdStat": () => rdStat,
+  "rdStep": () => rdStep,
+  "rdSuggest": () => rdSuggest,
+  "rdSvg": () => rdSvg,
+  "rdTab": () => rdTab,
+  "rdTap": () => rdTap,
+  "rdTarget": () => rdTarget,
+  "rdU": () => rdU,
+  "refMidis": () => refMidis,
+  "reflectSettingsUI": () => reflectSettingsUI,
+  "reflowKeys": () => reflowKeys,
+  "refreshDeviceList": () => refreshDeviceList,
+  "refreshToday": () => refreshToday,
+  "releaseFocusInput": () => releaseFocusInput,
+  "releaseLiveInput": () => releaseLiveInput,
+  "releaseTypingKeys": () => releaseTypingKeys,
+  "renderAccompany": () => renderAccompany,
+  "renderCircle": () => renderCircle,
+  "renderLearn": () => renderLearn,
+  "renderModeNav": () => renderModeNav,
+  "renderPlan": () => renderPlan,
+  "renderPracticeLast": () => renderPracticeLast,
+  "renderProgress": () => renderProgress,
+  "renderRead": () => renderRead,
+  "renderSing": () => renderSing,
+  "renderSongs": () => renderSongs,
+  "renderTranscribe": () => renderTranscribe,
+  "renderVoice": () => renderVoice,
+  "repaintHeld": () => repaintHeld,
+  "resolve": () => resolve,
+  "revealAnswerKeys": () => revealAnswerKeys,
+  "reverbGain": () => reverbGain,
+  "reverbNode": () => reverbNode,
+  "reverbWet": () => reverbWet,
+  "reviewItem": () => reviewItem,
+  "romanFor": () => romanFor,
+  "runDemo": () => runDemo,
+  "sampledPianoVoice": () => sampledPianoVoice,
+  "saveAll": () => saveAll,
+  "saveSoon": () => saveSoon,
+  "savedDevice": () => savedDevice,
+  "scaleDisp": () => scaleDisp,
+  "scaleEarOptions": () => scaleEarOptions,
+  "scaleFormula": () => scaleFormula,
+  "scheduleAccompAt": () => scheduleAccompAt,
+  "scheduleEval": () => scheduleEval,
+  "scoreAnchorAt": () => scoreAnchorAt,
+  "scoreBeamGroups": () => scoreBeamGroups,
+  "scoreBeams": () => scoreBeams,
+  "scoreBeatAt": () => scoreBeatAt,
+  "scoreBind": () => scoreBind,
+  "scoreCoralBars": () => scoreCoralBars,
+  "scoreCursorAt": () => scoreCursorAt,
+  "scoreCursorEl": () => scoreCursorEl,
+  "scoreCursorFollow": () => scoreCursorFollow,
+  "scoreCursorUpdate": () => scoreCursorUpdate,
+  "scoreExtraBreaks": () => scoreExtraBreaks,
+  "scoreFitRender": () => scoreFitRender,
+  "scoreFixFingerings": () => scoreFixFingerings,
+  "scoreFixPedals": () => scoreFixPedals,
+  "scoreFollow": () => scoreFollow,
+  "scoreFromMidi": () => scoreFromMidi,
+  "scoreGeo": () => scoreGeo,
+  "scoreHalt": () => scoreHalt,
+  "scoreHome": () => scoreHome,
+  "scoreIdle": () => scoreIdle,
+  "scoreLayout": () => scoreLayout,
+  "scoreLoopStart": () => scoreLoopStart,
+  "scoreMarks": () => scoreMarks,
+  "scoreMeasureAt": () => scoreMeasureAt,
+  "scoreNightSweep": () => scoreNightSweep,
+  "scorePaint": () => scorePaint,
+  "scorePaintEl": () => scorePaintEl,
+  "scorePaintIdx": () => scorePaintIdx,
+  "scorePause": () => scorePause,
+  "scorePitch": () => scorePitch,
+  "scorePlay": () => scorePlay,
+  "scorePointer": () => scorePointer,
+  "scoreRender": () => scoreRender,
+  "scoreRingFit": () => scoreRingFit,
+  "scoreSeconds": () => scoreSeconds,
+  "scoreSeekBar": () => scoreSeekBar,
+  "scoreSeekTo": () => scoreSeekTo,
+  "scoreSelectMeasures": () => scoreSelectMeasures,
+  "scoreSelectRange": () => scoreSelectRange,
+  "scoreSetHl": () => scoreSetHl,
+  "scoreSetLook": () => scoreSetLook,
+  "scoreSetTempos": () => scoreSetTempos,
+  "scoreSetView": () => scoreSetView,
+  "scoreShiftY": () => scoreShiftY,
+  "scoreStateText": () => scoreStateText,
+  "scoreStop": () => scoreStop,
+  "scoreStyleHeader": () => scoreStyleHeader,
+  "scoreSymAt": () => scoreSymAt,
+  "scoreSymText": () => scoreSymText,
+  "scoreSyms": () => scoreSyms,
+  "scoreTermParts": () => scoreTermParts,
+  "scoreTip": () => scoreTip,
+  "scoreToUser": () => scoreToUser,
+  "scoreToggle": () => scoreToggle,
+  "scoreUnlight": () => scoreUnlight,
+  "scoreXLines": () => scoreXLines,
+  "scoreXmlEndings": () => scoreXmlEndings,
+  "scoreXmlLayout": () => scoreXmlLayout,
+  "scoreXmlNotes": () => scoreXmlNotes,
+  "scoreDetectPartHands": () => scoreDetectPartHands,
+  "scoreZoom": () => scoreZoom,
+  "seedPlacement": () => seedPlacement,
+  "sesHome": () => sesHome,
+  "sesInput": () => sesInput,
+  "sesPrompt": () => sesPrompt,
+  "sesStopPrompt": () => sesStopPrompt,
+  "setBendFromValue": () => setBendFromValue,
+  "setEq": () => setEq,
+  "setLang": () => setLang,
+  "setMidi": () => setMidi,
+  "setOverlay": () => setOverlay,
+  "shiftTypeOctave": () => shiftTypeOctave,
+  "show": () => show,
+  "showElaboration": () => showElaboration,
+  "showNotationReloadPrompt": () => showNotationReloadPrompt,
+  "showProgTarget": () => showProgTarget,
+  "showSummary": () => showSummary,
+  "shuffle": () => shuffle,
+  "singGo": () => singGo,
+  "singKeyInput": () => singKeyInput,
+  "singStopAll": () => singStopAll,
+  "slashLabel": () => slashLabel,
+  "songDir": () => songDir,
+  "songsFor": () => songsFor,
+  "spellMidi": () => spellMidi,
+  "spellName": () => spellName,
+  "spelledName": () => spelledName,
+  "srActiveHands": () => srActiveHands,
+  "srAssessFinish": () => srAssessFinish,
+  "srAssessLoop": () => srAssessLoop,
+  "srAssessStart": () => srAssessStart,
+  "srtSetState": () => srtSetState,
+  "srtStartFirstSight": () => srtStartFirstSight,
+  "srtStartPractice": () => srtStartPractice,
+  "srtStartClaimedAttempt": () => srtStartClaimedAttempt,
+  "srtSwitchToPractice": () => srtSwitchToPractice,
+  "srBeatToX": () => srBeatToX,
+  "srBeatPt": () => srBeatPt,
+  "srEmptyUi": () => srEmptyUi,
+  "srClef": () => srClef,
+  "srClick": () => srClick,
+  "srCoach": () => srCoach,
+  "srCount": () => srCount,
+  "srCursor": () => srCursor,
+  "srDraw": () => srDraw,
+  "srFit": () => srFit,
+  "srEvents": () => srEvents,
+  "srFocus": () => srFocus,
+  "srGo": () => srGo,
+  "srHandsAvail": () => srHandsAvail,
+  "srKeyInput": () => srKeyInput,
+  "srKeyName": () => srKeyName,
+  "srKeyNames": () => srKeyNames,
+  "srKeySigG": () => srKeySigG,
+  "srLearnFinish": () => srLearnFinish,
+  "srLearnStart": () => srLearnStart,
+  "srLedger2": () => srLedger2,
+  "srListen": () => srListen,
+  "srMeta": () => srMeta,
+  "srNextAssess": () => srNextAssess,
+  "srNextLearn": () => srNextLearn,
+  "srPaintAll": () => srPaintAll,
+  "srPieceTitle": () => srPieceTitle,
+  "srPitch": () => srPitch,
+  "srPlayGap": () => srPlayGap,
+  "srRender": () => srRender,
+  "srRest": () => srRest,
+  "srScrollStep": () => srScrollStep,
+  "srScrollX": () => srScrollX,
+  "srSelectPiece": () => srSelectPiece,
+  "srShowPiece": () => srShowPiece,
+  "srSetBpm": () => srSetBpm,
+  "srSetMode": () => srSetMode,
+  "srShape": () => srShape,
+  "srSlip": () => srSlip,
+  "srSlipNote": () => srSlipNote,
+  "srStem2": () => srStem2,
+  "srStemLine": () => srStemLine,
+  "srStepsBuild": () => srStepsBuild,
+  "srStopAll": () => srStopAll,
+  "srSvg": () => srSvg,
+  "srTargets": () => srTargets,
+  "srTimeSigG": () => srTimeSigG,
+  "srTol": () => srTol,
+  "srTopSlip": () => srTopSlip,
+  "srsOf": () => srsOf,
+  "ssAccGlyph": () => ssAccGlyph,
+  "ssBassClef": () => ssBassClef,
+  "ssBeatToX": () => ssBeatToX,
+  "ssBumpProgress": () => ssBumpProgress,
+  "ssClearTrail": () => ssClearTrail,
+  "ssCurNote": () => ssCurNote,
+  "ssCursorEl": () => ssCursorEl,
+  "ssDraw": () => ssDraw,
+  "ssFit": () => ssFit,
+  "ssDrawTrail": () => ssDrawTrail,
+  "ssDrone": () => ssDrone,
+  "ssFillLevels": () => ssFillLevels,
+  "ssFlash": () => ssFlash,
+  "ssFlat": () => ssFlat,
+  "ssFreeLoop": () => ssFreeLoop,
+  "ssFreeStart": () => ssFreeStart,
+  "ssGen": () => ssGen,
+  "ssHintBump": () => ssHintBump,
+  "ssKeyAcc": () => ssKeyAcc,
+  "ssKeySig": () => ssKeySig,
+  "ssLedger": () => ssLedger,
+  "ssMakeNote": () => ssMakeNote,
+  "ssMicMaybe": () => ssMicMaybe,
+  "ssMicStart": () => ssMicStart,
+  "ssMicStop": () => ssMicStop,
+  "ssMidiOf": () => ssMidiOf,
+  "ssModeUI": () => ssModeUI,
+  "ssMoveCursor": () => ssMoveCursor,
+  "ssNatural": () => ssNatural,
+  "ssNeed": () => ssNeed,
+  "ssNewExercise": () => ssNewExercise,
+  "ssNextDeg": () => ssNextDeg,
+  "ssNoteCorrect": () => ssNoteCorrect,
+  "ssNoteFinish": () => ssNoteFinish,
+  "ssNoteLoop": () => ssNoteLoop,
+  "ssNoteStart": () => ssNoteStart,
+  "ssNotehead": () => ssNotehead,
+  "ssPaint": () => ssPaint,
+  "ssPhraseGrade": () => ssPhraseGrade,
+  "ssPhraseLoop": () => ssPhraseLoop,
+  "ssPhraseStart": () => ssPhraseStart,
+  "ssPick": () => ssPick,
+  "ssPitchY": () => ssPitchY,
+  "ssPlayIt": () => ssPlayIt,
+  "ssReadPitch": () => ssReadPitch,
+  "ssRemoveCursor": () => ssRemoveCursor,
+  "ssRender": () => ssRender,
+  "ssScrollToCur": () => ssScrollToCur,
+  "ssScrollToX": () => ssScrollToX,
+  "ssSharp": () => ssSharp,
+  "ssStem": () => ssStem,
+  "ssStepOf": () => ssStepOf,
+  "ssSvg": () => ssSvg,
+  "ssTimeSig": () => ssTimeSig,
+  "ssTonic": () => ssTonic,
+  "ssTrebleClef": () => ssTrebleClef,
+  "startDrone": () => startDrone,
+  "startMetro": () => startMetro,
+  "startPlacement": () => startPlacement,
+  "startSession": () => startSession,
+  "statHTML": () => statHTML,
+  "stopDrone": () => stopDrone,
+  "stopMetro": () => stopMetro,
+  "stopPreviews": () => stopPreviews,
+  "syncAfter": () => syncAfter,
+  "syncBusy": () => syncBusy,
+  "syncCurrent": () => syncCurrent,
+  "syncData": () => syncData,
+  "syncGen": () => syncGen,
+  "syncId": () => syncId,
+  "syncIdle": () => syncIdle,
+  "syncInitial": () => syncInitial,
+  "syncInto": () => syncInto,
+  "syncKeyboardPan": () => syncKeyboardPan,
+  "syncNewCollisions": () => syncNewCollisions,
+  "syncNote": () => syncNote,
+  "syncPair": () => syncPair,
+  "syncPick": () => syncPick,
+  "syncPref": () => syncPref,
+  "syncPull": () => syncPull,
+  "syncRefresh": () => syncRefresh,
+  "syncRemember": () => syncRemember,
+  "syncSame": () => syncSame,
+  "syncScrim": () => syncScrim,
+  "syncSrs": () => syncSrs,
+  "syncSrsPair": () => syncSrsPair,
+  "syncWrite": () => syncWrite,
+  "t": () => t,
+  "tf": () => tf,
+  "theme": () => theme,
+  "tl": () => tl,
+  "tone": () => tone,
+  "toolName": () => toolName,
+  "touchDay": () => touchDay,
+  "trapFocus": () => trapFocus,
+  "trxAutoCorrelate": () => trxAutoCorrelate,
+  "micClose": () => micClose,
+  "micOpen": () => micOpen,
+  "livePitch": () => livePitch,
+  "trxBuildMidi": () => trxBuildMidi,
+  "trxClear": () => trxClear,
+  "trxCloseNote": () => trxCloseNote,
+  "trxDownload": () => trxDownload,
+  "trxDurLabel": () => trxDurLabel,
+  "trxExportMidi": () => trxExportMidi,
+  "trxExportTxt": () => trxExportTxt,
+  "trxFreqToMidi": () => trxFreqToMidi,
+  "trxLoop": () => trxLoop,
+  "trxMedian": () => trxMedian,
+  "trxPlay": () => trxPlay,
+  "trxPushVar": () => trxPushVar,
+  "trxRender": () => trxRender,
+  "trxSnap": () => trxSnap,
+  "trxStart": () => trxStart,
+  "trxStop": () => trxStop,
+  "typeOctave": () => typeOctave,
+  "updateAccompChain": () => updateAccompChain,
+  "updateExplore": () => updateExplore,
+  "view0": () => view0,
+  "viewHigh": () => viewHigh,
+  "voiceActive": () => voiceActive,
+  "voiceSetAct": () => voiceSetAct,
+  "voiceStop": () => voiceStop,
+  "voiceSync": () => voiceSync,
+  "wakeArm": () => wakeArm,
+  "wakeCan": () => wakeCan,
+  "wakeDrop": () => wakeDrop,
+  "wakeGet": () => wakeGet,
+  "wakeInit": () => wakeInit,
+  "wakeOnGesture": () => wakeOnGesture,
+  "wakePing": () => wakePing,
+  "wakeSet": () => wakeSet,
+  "wakeUi": () => wakeUi,
+  "xmlEsc": () => xmlEsc,
+  "$": () => maybeById,
+  "ACCOMP_I18N": () => ACCOMP_I18N,
+  "ACCOMP_PATTERNS": () => ACCOMP_PATTERNS,
+  "ACCOMP_PROGS": () => ACCOMP_PROGS,
+  "AN": () => AN,
+  "AN_CHORDS": () => AN_CHORDS,
+  "AN_DIA": () => AN_DIA,
+  "AN_MAX_BYTES": () => AN_MAX_BYTES,
+  "AN_MAX_NOTES": () => AN_MAX_NOTES,
+  "AN_MAX_XML_CHARS": () => AN_MAX_XML_CHARS,
+  "AN_POPS": () => AN_POPS,
+  "AN_PROFILE": () => AN_PROFILE,
+  "AN_SMUFL_NOTES": () => AN_SMUFL_NOTES,
+  "AN_TABS": () => AN_TABS,
+  "BASE_HIGH": () => BASE_HIGH,
+  "BASE_LOW": () => BASE_LOW,
+  "BLACK_NUDGE": () => BLACK_NUDGE,
+  "BLE": () => BLE,
+  "BLE_MIDI_CHR": () => BLE_MIDI_CHR,
+  "BLE_MIDI_SVC": () => BLE_MIDI_SVC,
+  "CATS": () => CATS,
+  "CHORDS": () => CHORDS,
+  "CHORD_DEG": () => CHORD_DEG,
+  "CHORD_FEEL": () => CHORD_FEEL,
+  "CIRCLE": () => CIRCLE,
+  "CLEF_F": () => CLEF_F,
+  "CLEF_G": () => CLEF_G,
+  "CLEF_SCALE": () => CLEF_SCALE,
+  "COF_COL": () => COF_COL,
+  "COF_FING": () => COF_FING,
+  "COF_MAJ": () => COF_MAJ,
+  "COF_MIN": () => COF_MIN,
+  "COF_SCALE": () => COF_SCALE,
+  "COF_SOL": () => COF_SOL,
+  "COMPOUND": () => COMPOUND,
+  "DOCK": () => DOCK,
+  "EK_CHORD_GAP": () => EK_CHORD_GAP,
+  "EK_MEL_SCALES": () => EK_MEL_SCALES,
+  "EK_TRIES": () => EK_TRIES,
+  "EX_LEDGERS": () => EX_LEDGERS,
+  "FALL": () => FALL,
+  "FALL_BLACK": () => FALL_BLACK,
+  "FALL_COL": () => FALL_COL,
+  "FALL_FONT": () => FALL_FONT,
+  "FALL_NUDGE": () => FALL_NUDGE,
+  "FALL_PAL": () => FALL_PAL,
+  "FALL_SEC": () => FALL_SEC,
+  "FALL_SEL": () => FALL_SEL,
+  "FALL_YOU": () => FALL_YOU,
+  "INTERVALS": () => INTERVALS,
+  "INTRO_CH": () => INTRO_CH,
+  "INTRO_IV": () => INTRO_IV,
+  "INTRO_SC": () => INTRO_SC,
+  "INV_NAMES": () => INV_NAMES,
+  "ITEMS": () => ITEMS,
+  "ITEM_BY_ID": () => ITEM_BY_ID,
+  "IVL": () => IVL,
+  "KEYMAP": () => KEYMAP,
+  "KEY_MAJ_FIFTHS": () => KEY_MAJ_FIFTHS,
+  "LACC_CH": () => LACC_CH,
+  "LBLUES": () => LBLUES,
+  "LDUR": () => LDUR,
+  "LEARN_GAPS": () => LEARN_GAPS,
+  "LEARN_OLD_ORDER": () => LEARN_OLD_ORDER,
+  "LETTERS": () => LETTERS,
+  "LETTER_PC": () => LETTER_PC,
+  "LLET": () => LLET,
+  "LM": () => LM,
+  "LNAT": () => LNAT,
+  "LSPF": () => LSPF,
+  "LSPS": () => LSPS,
+  "LSR": () => LSR,
+  "LSTAVES": () => LSTAVES,
+  "LT": () => LT,
+  "LTEMPO": () => LTEMPO,
+  "LVEL": () => LVEL,
+  "LW_PRESETS": () => LW_PRESETS,
+  "LW_Q": () => LW_Q,
+  "LW_R": () => LW_R,
+  "LW_STEP": () => LW_STEP,
+  "MAJOR": () => MAJOR,
+  "NOTE_SYS": () => NOTE_SYS,
+  "PC_FLAT": () => PC_FLAT,
+  "PC_SHARP": () => PC_SHARP,
+  "PIANO_KEYS": () => PIANO_KEYS,
+  "PIANO_URLS": () => PIANO_URLS,
+  "PIANO_WARM": () => PIANO_WARM,
+  "PIECES": () => PIECES,
+  "PLACEMENT": () => PLACEMENT,
+  "PRAC": () => PRAC,
+  "PRAC_KEY": () => PRAC_KEY,
+  "PROGS": () => PROGS,
+  "PWA": () => PWA,
+  "RD": () => RD,
+  "RD_ALL": () => RD_ALL,
+  "RD_ALLIV": () => RD_ALLIV,
+  "RD_CDEF": () => RD_CDEF,
+  "RD_CHQ": () => RD_CHQ,
+  "RD_CLEFC": () => RD_CLEFC,
+  "RD_LH_PAT": () => RD_LH_PAT,
+  "RD_LM": () => RD_LM,
+  "RD_LV": () => RD_LV,
+  "RD_MAJ": () => RD_MAJ,
+  "RD_MIN": () => RD_MIN,
+  "RD_REF": () => RD_REF,
+  "RD_RHU": () => RD_RHU,
+  "RD_TARGET": () => RD_TARGET,
+  "RD_CHECK_N": () => RD_CHECK_N,
+  "RD_UNITS": () => RD_UNITS,
+  "ROMAN": () => ROMAN,
+  "ROOT_NAMES": () => ROOT_NAMES,
+  "SCALES": () => SCALES,
+  "SCALE_DEG": () => SCALE_DEG,
+  "SCALE_EAR_POOL": () => SCALE_EAR_POOL,
+  "SCORE": () => SCORE,
+  "SCORE_LOOK": () => SCORE_LOOK,
+  "SC_ARTS": () => SC_ARTS,
+  "SC_BASE": () => SC_BASE,
+  "SC_DYN": () => SC_DYN,
+  "SC_FIT": () => SC_FIT,
+  "SC_PAGE_W": () => SC_PAGE_W,
+  "SC_TERMS": () => SC_TERMS,
+  "SES": () => SES,
+  "SIDE": () => SIDE,
+  "SONGS": () => SONGS,
+  "SR": () => SR,
+  "SR_LET": () => SR_LET,
+  "SS_FLAT_ORDER": () => SS_FLAT_ORDER,
+  "SS_LETSEMI": () => SS_LETSEMI,
+  "SS_LEVELS": () => SS_LEVELS,
+  "SS_MAJ": () => SS_MAJ,
+  "SS_MIN": () => SS_MIN,
+  "SS_SHARP_ORDER": () => SS_SHARP_ORDER,
+  "SS_SYL_MAJ": () => SS_SYL_MAJ,
+  "SS_SYL_MIN": () => SS_SYL_MIN,
+  "SYNC": () => SYNC,
+  "STORE": () => STORE,
+  "storeRefresh": () => storeRefresh,
+  "backupJson": () => backupJson,
+  "SYNC_ADD": () => SYNC_ADD,
+  "SYNC_ID": () => SYNC_ID,
+  "SYNC_MAX": () => SYNC_MAX,
+  "SYNC_NONE": () => SYNC_NONE,
+  "SYNC_PREFS": () => SYNC_PREFS,
+  "TONES": () => TONES,
+  "TRX_VALS": () => TRX_VALS,
+  "WAKE": () => WAKE,
+  "WAKE_IDLE_MS": () => WAKE_IDLE_MS,
+  "_modalStack": () => _modalStack,
+  "accomp": () => accomp,
+  "anDomQ": () => anDomQ,
+  "blackEl": () => blackEl,
+  "coachText": () => coachText,
+  "cof": () => cof,
+  "held": () => held,
+  "heldOrder": () => heldOrder,
+  "inputOwners": () => inputOwners,
+  "isFlatKey": () => isFlatKey,
+  "keyEl": () => keyEl,
+  "liveVoices": () => liveVoices,
+  "metro": () => metro,
+  "midiToFreq": () => midiToFreq,
+  "overlayReturn": () => overlayReturn,
+  "pc": () => pc,
+  "pianoBank": () => pianoBank,
+  "pointerKey": () => pointerKey,
+  "pracFactor": () => pracFactor,
+  "pracMine": () => pracMine,
+  "pracSounds": () => pracSounds,
+  "rdS": () => rdS,
+  "reduceMotion": () => reduceMotion,
+  "rootName": () => rootName,
+  "sing": () => sing,
+  "srSlipNames": () => srSlipNames,
+  "srStepNo": () => srStepNo,
+  "sustained": () => sustained,
+  "themeMQ": () => themeMQ,
+  "todayN": () => todayN,
+  "trx": () => trx,
+  "typingDown": () => typingDown,
+  "view": () => view,
+  "voice": () => voice,
+  "whiteEl": () => whiteEl,
+};
+for (const [key, get] of Object.entries(__etudeGetters)) {
+  Object.defineProperty(__etude, key, { configurable: true, get });
+}
 // These hooks are intentionally mutable because a few browser regressions
 // replace an app dependency in-place and verify the caller's behavior.
 Object.defineProperty(__etude, "anInflatedSize", { configurable: true, get: () => anInflatedSize, set: (value) => { anInflatedSize = value; } });

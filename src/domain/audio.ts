@@ -51,6 +51,11 @@ export class PianoBank {
   promise: Promise<boolean> | null = null;
   status: PianoStatus = 'idle';
   idle: number | ReturnType<typeof setTimeout> = 0;
+  maxPcmBytes = 64 * 1024 * 1024;
+  warmRange: readonly [number, number] = [48, 75];
+  private idleMode: 'ric' | 'timeout' | null = null;
+  private idleGeneration = 0;
+  private visibilityBound = false;
 
   constructor(
     keys: readonly number[],
@@ -66,16 +71,78 @@ export class PianoBank {
     this.statusChanged();
   }
 
+  pcmBytes(): number {
+    let total = 0;
+    for (const buffer of this.buffers.values()) {
+      const channels = typeof buffer.numberOfChannels === 'number' && buffer.numberOfChannels > 0
+        ? buffer.numberOfChannels
+        : 1;
+      total += buffer.length * channels * 4;
+    }
+    return total;
+  }
+
+  touch(key: number): AudioBuffer | undefined {
+    const existing = this.buffers.get(key);
+    if (!existing) return undefined;
+    this.buffers.delete(key);
+    this.buffers.set(key, existing);
+    return existing;
+  }
+
+  trimBuffers(protectedKeys: ReadonlySet<number> = new Set()): void {
+    const [warmLow, warmHigh] = this.warmRange;
+    while (this.pcmBytes() > this.maxPcmBytes && this.buffers.size > 1) {
+      let victim: number | undefined;
+      for (const key of this.buffers.keys()) {
+        if (!protectedKeys.has(key) && (key < warmLow || key > warmHigh)) {
+          victim = key;
+          break;
+        }
+      }
+      if (victim === undefined) {
+        for (const key of this.buffers.keys()) {
+          if (!protectedKeys.has(key)) {
+            victim = key;
+            break;
+          }
+        }
+      }
+      if (victim === undefined) {
+        victim = this.buffers.keys().next().value;
+      }
+      if (victim === undefined) break;
+      this.buffers.delete(victim);
+    }
+  }
+
+  cancelWarmIdle(): void {
+    this.idleGeneration += 1;
+    if (this.idle) {
+      const cancelIdle = (globalThis as typeof globalThis & {
+        cancelIdleCallback?: (id: number) => void;
+      }).cancelIdleCallback;
+      if (this.idleMode === 'ric' && cancelIdle && typeof this.idle === 'number') {
+        cancelIdle(this.idle);
+      } else {
+        clearTimeout(this.idle);
+      }
+      this.idle = 0;
+      this.idleMode = null;
+    }
+  }
+
   decode(key: number): Promise<AudioBuffer> {
     const context = this.getContext();
     if (!context) return Promise.reject(new Error('Audio is not ready'));
     if (this.ctx !== context) {
+      this.cancelWarmIdle();
       this.ctx = context;
       this.buffers = new Map();
       this.pending = new Map();
       this.promise = null;
     }
-    const cached = this.buffers.get(key);
+    const cached = this.touch(key);
     if (cached) return Promise.resolve(cached);
     const pending = this.pending.get(key);
     if (pending) return pending;
@@ -83,7 +150,11 @@ export class PianoBank {
     if (!url) return Promise.reject(new Error(`No piano recording for ${key}`));
     const job = fetchPianoAudio(url, context)
       .then(audio => {
-        if (this.ctx === context) this.buffers.set(key, audio);
+        if (this.ctx === context) {
+          this.buffers.delete(key);
+          this.buffers.set(key, audio);
+          this.trimBuffers(new Set([key]));
+        }
         return audio;
       })
       .finally(() => {
@@ -94,6 +165,7 @@ export class PianoBank {
   }
 
   fail(error: unknown): void {
+    this.cancelWarmIdle();
     this.promise = null;
     this.status = 'idle';
     this.notify();
@@ -105,7 +177,10 @@ export class PianoBank {
     if (!context) return Promise.resolve(false);
     const keys = [...new Set(midis.map(midi => nearest(midi, this.keys)))];
     return Promise.all(keys.map(key => this.decode(key))).then(
-      () => true,
+      () => {
+        if (this.ctx === context) this.trimBuffers();
+        return true;
+      },
       error => {
         if (context === this.getContext() && this.ctx === context) this.fail(error);
         return false;
@@ -113,33 +188,59 @@ export class PianoBank {
     );
   }
 
-  warmIdle(): void {
+  warmIdle(centerMidi = 66): void {
     const context = this.getContext();
     if (!context) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    if (!this.visibilityBound && typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      this.visibilityBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) this.cancelWarmIdle();
+      });
+    }
+    this.cancelWarmIdle();
+    const generation = this.idleGeneration;
     const keys = this.keys
       .filter(key => !this.buffers.has(key))
-      .sort((a, b) => Math.abs(a - 66) - Math.abs(b - 66));
+      .sort((a, b) => Math.abs(a - centerMidi) - Math.abs(b - centerMidi));
     const step = (): void => {
-      if (context !== this.getContext() || this.status === 'error') return;
+      this.idle = 0;
+      this.idleMode = null;
+      if (generation !== this.idleGeneration || context !== this.getContext() || this.status === 'error') return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const estEntryBytes = this.buffers.size ? this.pcmBytes() / this.buffers.size : 0;
+      if (this.pcmBytes() + estEntryBytes > this.maxPcmBytes) return;
       const key = keys.shift();
       if (key == null) return;
-      this.decode(key).then(schedule, error => {
+      this.decode(key).then(() => {
+        if (generation === this.idleGeneration) schedule();
+      }, error => {
         if (context === this.getContext() && this.ctx === context) this.fail(error);
       });
     };
     const schedule = (): void => {
+      if (generation !== this.idleGeneration || !keys.length) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
       const idle = (globalThis as typeof globalThis & {
         requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
       }).requestIdleCallback;
-      this.idle = idle ? idle(step, { timeout: 4000 }) : setTimeout(step, 120);
+      if (idle) {
+        this.idleMode = 'ric';
+        this.idle = idle(step, { timeout: 4000 });
+      } else {
+        this.idleMode = 'timeout';
+        this.idle = setTimeout(step, 120);
+      }
     };
     schedule();
   }
 
   prepare(warmRange: readonly [number, number]): Promise<boolean> {
+    this.warmRange = warmRange;
     const context = this.getContext();
     if (!context) return Promise.resolve(false);
     if (this.ctx === context && this.promise) return this.promise;
+    this.cancelWarmIdle();
     this.ctx = context;
     this.buffers = new Map();
     this.pending = new Map();
@@ -273,7 +374,6 @@ export class AudioEngine {
 
     try {
       this.reverbNode = context.createConvolver();
-      this.reverbNode.buffer = this.makeImpulseResponse(1.7, 2.4);
       this.reverbGain = context.createGain();
       this.reverbGain.gain.value = this.reverbWet;
       this.masterFilter.connect(this.reverbNode).connect(this.reverbGain).connect(this.compressor);
@@ -343,6 +443,15 @@ export class AudioEngine {
     return this.pianoBank.decode(key);
   }
 
+  ensureReverbBuffer(): void {
+    if (!this.reverbNode || this.reverbNode.buffer || !this.context) return;
+    try {
+      this.reverbNode.buffer = this.makeImpulseResponse(1.7, 2.4);
+    } catch {
+      /* ignore if context closed */
+    }
+  }
+
   private makeImpulseResponse(seconds: number, decay: number): AudioBuffer {
     const context = this.context;
     if (!context) throw new Error('Audio is not ready');
@@ -386,6 +495,7 @@ export class AudioEngine {
     const context = this.context;
     const master = this.master;
     if (!context || !master) throw new Error('Audio is not ready');
+    if (this.reverbWet > 0) this.ensureReverbBuffer();
     const midi = 69 + 12 * Math.log2(frequency / 440);
     const nearest = this.pianoBank.keys.reduce(
       (best, key) => Math.abs(key - midi) < Math.abs(best - midi) ? key : best,
@@ -467,7 +577,7 @@ export class AudioEngine {
       }
     };
 
-    const ready = this.pianoBank.buffers.get(nearest);
+    const ready = this.pianoBank.touch(nearest);
     if (ready) start(ready);
     else if (when == null) {
       const keys = [...this.pianoBank.buffers.keys()];
@@ -476,7 +586,7 @@ export class AudioEngine {
         null,
       );
       if (fallback != null && Math.abs(fallback - midi) <= 12) {
-        const buffer = this.pianoBank.buffers.get(fallback);
+        const buffer = this.pianoBank.touch(fallback);
         if (buffer) start(buffer, fallback);
       } else {
         voice.inner = hooks.fallbackVoice
@@ -498,6 +608,7 @@ export class AudioEngine {
     const context = this.context;
     const master = this.master;
     if (!context || !master) throw new Error('Audio is not ready');
+    if (this.reverbWet > 0) this.ensureReverbBuffer();
     const startAt = when ?? context.currentTime;
     const normalizedVelocity = clamp((velocity || 100) / 127, 0.06, 1);
     const output = context.createGain();
@@ -579,6 +690,7 @@ export class AudioEngine {
     const context = this.context;
     const master = this.master;
     if (!context || !master) throw new Error('Audio is not ready');
+    if (this.reverbWet > 0) this.ensureReverbBuffer();
     const startAt = when ?? context.currentTime;
     const definition = TONES[this.tone] ?? TONES.soft;
     const gain = context.createGain();
@@ -667,6 +779,7 @@ export class AudioEngine {
 
   setReverbWet(value: number): void {
     this.reverbWet = clamp(value, 0, 1);
+    if (this.reverbWet > 0) this.ensureReverbBuffer();
     if (this.reverbGain && this.context) {
       this.reverbGain.gain.setTargetAtTime(this.reverbWet, this.context.currentTime, 0.05);
     }

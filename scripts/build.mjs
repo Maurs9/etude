@@ -38,13 +38,28 @@ async function prepareOutDir(outDir) {
 export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html'), singleFile = false } = {}) {
   outDir = resolve(outDir);
   await prepareOutDir(outDir);
+  const chunkOutput = singleFile
+    ? { output: { codeSplitting: false } }
+    : resolve(input) === resolve(join(ROOT, 'etude.html'))
+      ? {
+          output: {
+            manualChunks(id) {
+              const norm = id.replaceAll('\\', '/');
+              if (norm.includes('/src/domain/score-library-ui')) return undefined;
+              if (norm.includes('/src/sight-reading/') || norm.includes('/src/domain/technique')) return 'sight-reading';
+              if (norm.includes('/src/domain/score-') || norm.includes('/src/domain/repertoire-data') || norm.includes('/src/domain/grand-staff') || norm.includes('/src/domain/sightsing-render') || norm.includes('/src/domain/notation') || norm.includes('/src/domain/melody') || norm.includes('/src/domain/theory')) return 'music-domain';
+              if (norm.includes('/src/domain/audio') || norm.includes('/src/domain/feedback') || norm.includes('/src/domain/midi-timing') || norm.includes('/src/domain/progressive') || norm.includes('/src/domain/storage') || norm.includes('/src/domain/data-safety') || norm.includes('/src/domain/dom') || norm.includes('/src/domain/router') || norm.includes('/src/locales/catalog') || norm.includes('/src/locales/library-runtime') || norm.includes('/src/locales/loader')) return 'app-core';
+            },
+          },
+        }
+      : {};
   await viteBuild({
     configFile: join(ROOT, 'vite.config.mjs'),
     root: dirname(input),
     build: {
       outDir,
       emptyOutDir: false,
-      rolldownOptions: { input, ...(singleFile ? { output: { codeSplitting: false } } : {}) },
+      rolldownOptions: { input, ...chunkOutput },
     },
   });
   await writeFile(join(outDir, 'index.html'), INDEX_HTML);
