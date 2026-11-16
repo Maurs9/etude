@@ -14,8 +14,13 @@ export function scoreStyleHeader(engine: ScoreRenderer, layout: ScoreXmlLayout |
 
 export function scoreRingFit(z: number) { (document).querySelectorAll('.sc-defs feMorphology').forEach((f) => { if (f instanceof SVGElement)
     f.setAttribute('radius', (Number(f.dataset.px) / (z || SC_BASE)).toFixed(2)); }); }
+const svgEpochs = new WeakMap<SVGSVGElement, number>();
+export function bumpScoreSvgEpoch(svg: SVGSVGElement | null | undefined): void {
+    if (svg) svgEpochs.set(svg, (svgEpochs.get(svg) ?? 0) + 1);
+}
 export function scoreNightSweep(box: HTMLElement, ink: string) {
     const black = /^(#000|#000000|black|rgb\(0,\s*0,\s*0\))$/i;
+    box.querySelectorAll('svg').forEach(bumpScoreSvgEpoch);
     box.querySelectorAll('svg *').forEach((el) => {
         for (const a of ['fill', 'stroke'] as const) {
             const v = el.getAttribute(a);
@@ -36,7 +41,7 @@ export interface ScorePedalBox { left: number; right: number; top: number; botto
 const pedalLayouts = new WeakMap<SVGSVGElement, string>();
 function pedalLayoutSignature(svg: SVGSVGElement): string {
     const ctm = svg.getScreenCTM();
-    return [ctm?.a, ctm?.b, ctm?.c, ctm?.d, svg.innerHTML].join('|');
+    return [ctm?.a, ctm?.b, ctm?.c, ctm?.d, svg.childElementCount, svgEpochs.get(svg) ?? 0].join('|');
 }
 export function rememberScorePedalLayout(box: HTMLElement): void {
     if (box.dataset.pedalUnresolved !== '0') return;
@@ -204,6 +209,7 @@ export function scoreFixFingerings(box: HTMLElement, engine: import('./notation.
         return;
     const ink = (r: DOMRect): ScoreInkBox => ({ l: r.left + r.width * .08, r: r.right - r.width * .08, t: r.top + r.height * .18, b: r.bottom - r.height * .2 });
     const crossX = (a: ScoreInkBox, b: ScoreInkBox) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > .5;
+    const shifts: { n: Element; dy: number }[] = [];
     gs.MusicPages.forEach((pg) => pg.MusicSystems.forEach((sys) => sys.StaffLines.forEach((sl) => {
         const placed: ScoreInkBox[] = [];
         sl.Measures.forEach((gm) => (gm.staffEntries || []).forEach((gse) => {
@@ -242,12 +248,14 @@ export function scoreFixFingerings(box: HTMLElement, engine: import('./notation.
                     if (Math.abs(dy) > cap)
                         dy = Math.sign(dy) * cap;
                     if (Math.abs(dy) > .25)
-                        scoreShiftY(it.n, dy / ctm.d);
+                        shifts.push({ n: it.n, dy: dy / ctm.d });
                     placed.push({ l: it.box.l, r: it.box.r, t: it.box.t + dy, b: it.box.b + dy });
                 });
             }
         }));
     })));
+    for (const s of shifts)
+        scoreShiftY(s.n, s.dy);
     // A chord symbol raised over the upper staff must not sit on the words there ("dolce", "rit."):
     // the words move above it. Text equality is not semantic equality (harmony C and rehearsal C differ).
     const chords = new Set<Element>(), fings = new Set<Element>();
@@ -255,11 +263,13 @@ export function scoreFixFingerings(box: HTMLElement, engine: import('./notation.
         chords.add(n); }); (gse.FingeringEntries || []).forEach((f) => { if (f.SVGNode)
         fings.add(f.SVGNode); }); })));
     const chordArr = [...chords], fingArr = [...fings];
-    box.querySelectorAll('svg').forEach((svg) => {
-        const ctm = svg.getScreenCTM();
-        if (!ctm || !ctm.d)
-            return;
-        if (chordArr.length) {
+    const svgs = [...box.querySelectorAll('svg')];
+    if (chordArr.length) {
+        const wordShifts: { n: Element; dy: number }[] = [];
+        svgs.forEach((svg) => {
+            const ctm = svg.getScreenCTM();
+            if (!ctm || !ctm.d)
+                return;
             const chordBoxes: ScoreInkBox[] = [], words: { x: SVGTextElement; b: ScoreInkBox; }[] = [];
             svg.querySelectorAll('text').forEach((x) => {
                 const r = x.getBoundingClientRect(), s = (x.textContent ?? '').trim();
@@ -274,13 +284,21 @@ export function scoreFixFingerings(box: HTMLElement, engine: import('./notation.
                 const hit = chordBoxes.find((c) => crossX(b, c) && b.b + ctm.d * 5 > c.t && b.t < c.b);
                 if (!hit || b.t > hit.t)
                     return;
-                scoreShiftY(x, (hit.t - ctm.d * 5 - b.b) / ctm.d);
+                wordShifts.push({ n: x, dy: (hit.t - ctm.d * 5 - b.b) / ctm.d });
             });
-        }
-        // Repetition instructions combine text and a music glyph. OSMD's estimated skyline can miss
-        // their actual ink (segno by high notes, D.S. al by a ledger note, Coda by a chord symbol).
-        // Move the complete semantic group, never its glyph alone or the note it points to.
-        const navigation = '.vf-repetition,.vf-stavesection,.osmd-tempo,.vf-stavetempo';
+        });
+        for (const s of wordShifts)
+            scoreShiftY(s.n, s.dy);
+    }
+    // Repetition instructions combine text and a music glyph. OSMD's estimated skyline can miss
+    // their actual ink (segno by high notes, D.S. al by a ledger note, Coda by a chord symbol).
+    // Move the complete semantic group, never its glyph alone or the note it points to.
+    const navigation = '.vf-repetition,.vf-stavesection,.osmd-tempo,.vf-stavetempo';
+    const navShifts: { n: Element; dy: number }[] = [];
+    svgs.forEach((svg) => {
+        const ctm = svg.getScreenCTM();
+        if (!ctm || !ctm.d)
+            return;
         const marks = svg.querySelectorAll<SVGElement>(navigation);
         if (!marks.length)
             return;
@@ -298,9 +316,15 @@ export function scoreFixFingerings(box: HTMLElement, engine: import('./notation.
                 dy = Math.min(...hits.map((o) => o.top)) - gap - r.bottom - .01;
             }
             if (Math.abs(dy) > .1)
-                scoreShiftY(mark, dy / ctm.d);
+                navShifts.push({ n: mark, dy: dy / ctm.d });
         });
     });
+    for (const s of navShifts)
+        scoreShiftY(s.n, s.dy);
 }
 // Adds to any vertical shift already applied, so the pass can run again on a page it has already tidied.
-export function scoreShiftY(n: Element, dy: number) { const m = /^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform') || ''); n.setAttribute('transform', `translate(0 ${((m ? +m[1] : 0) + dy).toFixed(2)})`); }
+export function scoreShiftY(n: Element, dy: number) {
+    const m = /^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform') || '');
+    n.setAttribute('transform', `translate(0 ${((m ? +m[1] : 0) + dy).toFixed(2)})`);
+    if (n instanceof SVGElement) bumpScoreSvgEpoch(n.ownerSVGElement);
+}

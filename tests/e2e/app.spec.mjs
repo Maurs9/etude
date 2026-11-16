@@ -3173,3 +3173,123 @@ test.describe('drills answered on the keys open the keyboard', () => {
     await expect(page.locator('#dock-kb-toggle')).toBeVisible();
   });
 });
+
+test.describe('UI/UX polish, accessibility, contrast and runtime regressions', () => {
+  test('narrow desktop preserves .rdx-kbd hint, while coarse-pointer touch hides it', async ({ app, browser }) => {
+    const startDrill = page => page.evaluate(() => {
+      const e = window.__etude;
+      e.rdData().prefs.stage = false;
+      e.rdOpen(Object.values(e.RD_LV).find(l => l.ty === 'ch'));
+      e.rdStart('practice');
+    });
+
+    await app.page.setViewportSize({ width: 640, height: 800 });
+    await app.open({ hash: 'read' });
+    await startDrill(app.page);
+    await expect(app.page.locator('.rdx-kbd')).toBeVisible();
+
+    const touchContext = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+    try {
+      const touchPage = await touchContext.newPage();
+      await touchPage.goto(app.page.url());
+      await touchPage.waitForFunction(() => typeof window.__etude?.show === 'function');
+      await startDrill(touchPage);
+      await expect(touchPage.locator('.rdx-kbd')).toBeHidden();
+    } finally {
+      await touchContext.close();
+    }
+  });
+
+  test('immersive #rd-stage-top wraps without horizontal overflow at 360px', async ({ app, page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await app.open({ hash: 'read', saved: { v: 3, lang: 'en', data: { reading: { book: { v: 2, level: 1, focusKey: null, pieces: {}, recent: {}, daily: null, days: [] } } } } });
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rdp-pieces')).toBeVisible();
+    await expect(page.locator('#rd-go')).toBeEnabled();
+    await page.evaluate(() => {
+      window.__etude.rdData().prefs.stage = true;
+    });
+    await page.locator('#rd-go').click();
+    await expect(page.locator('body')).toHaveAttribute('data-stage', 'immersive');
+    await expect(page.locator('#rd-stage-top')).toBeVisible();
+    const layout = await page.evaluate(() => ({
+      scrollW: document.documentElement.scrollWidth,
+      innerW: window.innerWidth,
+      topRect: document.querySelector('#rd-stage-top').getBoundingClientRect().toJSON(),
+    }));
+    expect(layout.scrollW).toBeLessThanOrEqual(layout.innerW);
+    expect(layout.topRect.right).toBeLessThanOrEqual(layout.innerW + 1);
+  });
+
+  test('score library selects retain chevron background-image and tabs expose an accessible name', async ({ app, page }) => {
+    await app.open({ hash: 'analysis' });
+    const details = page.locator('#score-library');
+    if (!await details.evaluate(node => node.open)) await details.locator('summary').click();
+    await expect(page.locator('#score-library .score-library-tabs')).toHaveAttribute('aria-label', /\S+/);
+    const bgImg = await page.locator('#library-sort').evaluate(el => getComputedStyle(el).backgroundImage);
+    expect(bgImg).toContain('linear-gradient');
+  });
+
+  test('dark-theme accent and recording controls meet WCAG AA 4.5:1 contrast and .seg focus rings are not clipped', async ({ app, page }) => {
+    await app.open({ hash: 'practice', saved: { v: 3, theme: 'dark', gen: '', data: {} } });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.locator('#pr-start').hover();
+    await expect.poll(async () => page.evaluate(() => getComputedStyle(document.querySelector('#pr-start')).backgroundColor))
+      .toBe('rgb(222, 141, 125)');
+    const results = await page.evaluate(() => {
+      const parseRgb = str => {
+        const srgb = str.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+        if (srgb) return [srgb[1], srgb[2], srgb[3]].map(Number);
+        const rgb = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        return rgb ? [rgb[1], rgb[2], rgb[3]].map(n => Number(n) / 255) : null;
+      };
+      const lum = ([r, g, b]) => [r, g, b].map(c => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+        .reduce((acc, c, i) => acc + c * [0.2126, 0.7152, 0.0722][i], 0);
+      const contrast = (fg, bg) => {
+        const l1 = lum(fg), l2 = lum(bg);
+        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      };
+
+      const pBtn = document.querySelector('#pr-start');
+      const recBtn = document.createElement('button');
+      recBtn.className = 'btn rec-on';
+      recBtn.textContent = 'Rec';
+      const liveSpan = document.createElement('span');
+      liveSpan.className = 'tr-live rec';
+      liveSpan.textContent = 'Rec';
+      document.body.append(recBtn, liveSpan);
+
+      const bodyBg = parseRgb(getComputedStyle(document.body).backgroundColor);
+      const pFg = parseRgb(getComputedStyle(pBtn).color), pBg = parseRgb(getComputedStyle(pBtn).backgroundColor);
+      const rFg = parseRgb(getComputedStyle(recBtn).color), rBg = parseRgb(getComputedStyle(recBtn).backgroundColor);
+      const lFg = parseRgb(getComputedStyle(liveSpan).color);
+
+      recBtn.remove(); liveSpan.remove();
+      const segOverflow = getComputedStyle(document.querySelector('#pr-mode')).overflow;
+      return {
+        primaryHover: contrast(pFg, pBg),
+        recOn: contrast(rFg, rBg),
+        liveRec: contrast(lFg, bodyBg),
+        segOverflow,
+      };
+    });
+    expect(results.primaryHover).toBeGreaterThanOrEqual(4.5);
+    expect(results.recOn).toBeGreaterThanOrEqual(4.5);
+    expect(results.liveRec).toBeGreaterThanOrEqual(4.5);
+    expect(results.segOverflow).toBe('visible');
+  });
+
+  test('Explore reference group uses ARIA role=group, Voice view has eyebrow, and t() preserves dollar signs', async ({ app, page }) => {
+    await app.open({ hash: 'explore' });
+    const refGroup = page.locator('#ex-ref .ref-field');
+    await expect(refGroup).toHaveAttribute('role', 'group');
+    await expect(refGroup).toHaveAttribute('aria-labelledby', 'ex-ref-lbl');
+    expect(await refGroup.evaluate(el => el.tagName)).toBe('DIV');
+
+    await page.evaluate(() => window.__etude.show('sing'));
+    await expect(page.locator('#view-sing .section-head .eyebrow')).toBeVisible();
+
+    const interpolated = await page.evaluate(() => window.__etude.t('snap_item', '$&', "$$ $1 $'"));
+    expect(interpolated).toBe("$& ($$ $1 $')");
+  });
+});

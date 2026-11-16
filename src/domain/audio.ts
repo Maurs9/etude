@@ -316,6 +316,7 @@ export class AudioEngine {
   private noiseBuffer: AudioBuffer | null = null;
   private metroTimer: ReturnType<typeof setInterval> | null = null;
   private metroOn = false;
+  private metroBpm = 90;
   private metroNext = 0;
   private metroBeat = 0;
   readonly droneVoices: AudioVoice[] = [];
@@ -743,7 +744,7 @@ export class AudioEngine {
 
   noteOn(midi: number, velocity = 100, hooks: PianoVoiceHooks = {}): void {
     if (!this.localSynth) return;
-    this.ensureAudio();
+    if (!this.ensureAudio()) return;
     if (this.liveVoices.has(midi)) this.liveVoices.get(midi)?.stop();
     this.liveVoices.set(midi, this.makeVoice(midiToFrequency(midi), velocity, undefined, undefined, hooks));
   }
@@ -798,10 +799,11 @@ export class AudioEngine {
   startMetro(bpm: number): void {
     const context = this.ensureAudio();
     if (!context) return;
+    this.metroBpm = bpm;
     this.metroOn = true;
     this.metroNext = context.currentTime + 0.12;
     this.metroBeat = 0;
-    if (!this.metroTimer) this.metroTimer = setInterval(() => this.metroSchedule(bpm), 25);
+    if (!this.metroTimer) this.metroTimer = setInterval(() => this.metroSchedule(), 25);
   }
 
   stopMetro(): void {
@@ -810,7 +812,7 @@ export class AudioEngine {
     this.metroTimer = null;
   }
 
-  private metroSchedule(bpm: number): void {
+  private metroSchedule(): void {
     const context = this.context;
     if (!this.metroOn || !context || !this.master) return;
     if (context.currentTime - this.metroNext > 0.5) {
@@ -820,7 +822,7 @@ export class AudioEngine {
     while (this.metroNext < context.currentTime + 0.1) {
       this.metroClick(this.metroNext, this.metroBeat % 4 === 0);
       this.metroBeat += 1;
-      this.metroNext += 60 / bpm;
+      this.metroNext += 60 / this.metroBpm;
     }
   }
 
@@ -867,8 +869,8 @@ export class AudioEngine {
   }
 
   startDrone(rootPitchClass: number): void {
-    this.ensureAudio();
     this.stopDrone();
+    if (!this.ensureAudio()) return;
     [36 + rootPitchClass, 43 + rootPitchClass].forEach(midi => {
       this.droneVoices.push(this.makeVoice(midiToFrequency(midi), 52));
     });

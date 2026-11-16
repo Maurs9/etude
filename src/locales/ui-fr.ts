@@ -1404,6 +1404,7 @@ const payload: UIPayload = {
       "nav_today": "Aujourd’hui",
       "nav_practice": "Pratiquer",
       "nav_sing": "Voix",
+      "vo_eyebrow": "Voix et oreille",
       "vo_sing": "Chanter la portée",
       "vo_hum": "Du fredonnement aux notes",
       "vo_switch_aria": "Activité",

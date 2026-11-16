@@ -179,5 +179,124 @@ test.describe('data safety', () => {
     await expect(page.locator('#storeNoteText')).toHaveText(/couldn't be read/);
     expect(errors).toEqual([]);
   });
-});
 
+  test('an import failure on ptt-v3 rolls back the sight-reading ledger instead of leaving split state', async ({ app, page }) => {
+    await app.open({ saved });
+    const initialLedger = await page.evaluate(() => {
+      const ledger = window.__etude.srtCreateLedger();
+      localStorage.setItem('etude-sight-v1', JSON.stringify(ledger));
+      return localStorage.getItem('etude-sight-v1');
+    });
+    const beforePtt = await page.evaluate(() => localStorage.getItem('ptt-v3'));
+
+    const importedLedger = await page.evaluate(() => {
+      const ledger = window.__etude.srtCreateLedger();
+      const attempt = {
+        attemptId: 'imp-1', fingerprint: 'v1:x', ownerTabId: 'tab', generation: ledger.generation, status: 'completed', finishedAt: 10,
+        scoringVersion: 1, N: 1, TP: 1, FP: 0, FN: 0, G: 1, Q: 0, lateOrEarlyCount: 0, restViolations: 0, pitchPrecision: 1, pitchRecall: 1,
+        pitchF1: 100, rhythmAcc: 100, score: 100, stars: 3, perfect: true, meanOffsetMs: 0, meanAbsoluteOffsetMs: 0,
+        noteResults: [{ expectedId: 'n', classification: 'good', matchedInputId: 'i', errorMs: 0 }], extraInputs: [],
+      };
+      return { ...ledger, attempts: { 'imp-1': attempt } };
+    });
+
+    await page.evaluate(() => {
+      const real = Storage.prototype.setItem;
+      window.__realSetItem = real;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'ptt-v3') throw new DOMException('full', 'QuotaExceededError');
+        return real.call(this, key, value);
+      };
+    });
+
+    const msg = new Promise(resolve => page.on('dialog', dialog => {
+      const text = dialog.message();
+      void dialog.accept();
+      if (/Étude backup|failed|error/i.test(text)) resolve(text);
+    }));
+    await page.locator('#importFile').setInputFiles({
+      name: 'backup.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ v: 3, data: { totalReviews: 99, sightLedger: importedLedger } })),
+    });
+    await expect(msg).resolves.toBeTruthy();
+
+    await page.evaluate(() => { Storage.prototype.setItem = window.__realSetItem; });
+    expect(await page.evaluate(() => localStorage.getItem('etude-sight-v1'))).toBe(initialLedger);
+    expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(beforePtt);
+  });
+
+  test('failed backup rollback captures snapshot under lock and preserves concurrent exposures', async ({ app, page, context }) => {
+    await app.open({ saved });
+    const seed = await page.evaluate(() => {
+      const ledger = window.__etude.srtCreateLedger();
+      localStorage.setItem('etude-sight-v1', JSON.stringify(ledger));
+      return ledger;
+    });
+    const importedLedger = {
+      ...seed,
+      exposures: { 'fp-backup': { firstSeenAt: 50, reason: 'listen' } },
+    };
+
+    const secondTab = await context.newPage();
+    await secondTab.goto(page.url());
+    await secondTab.waitForFunction(() => typeof window.__etude?.srtLedgerUpdate === 'function');
+    const beforePtt = await page.evaluate(() => localStorage.getItem('ptt-v3'));
+
+    // Hold the exclusive ledger lock from tab 2, kick off backup import on tab 1,
+    // record a concurrent exposure in tab 2, and fail ptt-v3 write on tab 1.
+    await secondTab.evaluate(() => {
+      window.__releaseLock = null;
+      window.__lockAcquired = new Promise(resolve => {
+        void navigator.locks.request('etude-sight-ledger-v1', { mode: 'exclusive' }, async () => {
+          resolve();
+          await new Promise(done => { window.__releaseLock = done; });
+        });
+      });
+    });
+    await secondTab.evaluate(() => window.__lockAcquired);
+
+    await page.evaluate(() => {
+      const real = Storage.prototype.setItem;
+      window.__realSetItem = real;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'ptt-v3') throw new DOMException('full', 'QuotaExceededError');
+        return real.call(this, key, value);
+      };
+    });
+
+    const msg = new Promise(resolve => page.on('dialog', dialog => {
+      const text = dialog.message();
+      void dialog.accept();
+      if (/Étude backup|failed|error/i.test(text)) resolve(text);
+    }));
+    await page.locator('#importFile').setInputFiles({
+      name: 'backup.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ v: 3, data: { totalReviews: 99, sightLedger: importedLedger } })),
+    });
+
+    // While import waits for the lock (after pre-lock snapshot steps), tab 2 commits a concurrent exposure.
+    await secondTab.evaluate(async (generation) => {
+      const release = window.__releaseLock;
+      const queued = window.__etude.srtLedgerUpdate(localStorage, {
+        type: 'recordExposure',
+        fingerprint: 'fp-concurrent-tab2',
+        reason: 'learn',
+        generation,
+      });
+      release();
+      const res = await queued;
+      if (!res.ok) throw new Error('concurrent write failed: ' + res.reason);
+    }, seed.generation);
+
+    await expect(msg).resolves.toBeTruthy();
+    await page.evaluate(() => { Storage.prototype.setItem = window.__realSetItem; });
+
+    const ledgerAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('etude-sight-v1')));
+    expect(ledgerAfter.exposures['fp-concurrent-tab2']).toBeTruthy();
+    expect(ledgerAfter.exposures['fp-backup']).toBeUndefined();
+    expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(beforePtt);
+    await secondTab.close();
+  });
+});

@@ -342,9 +342,20 @@ export async function libraryExport(): Promise<Blob> {
     return entries;
   });
   const files: BackupEntry[] = [];
+  let encodedSize = '{"app":"etude-score-library","version":1,"files":[]}'.length;
   for (const { item, blob } of entries) {
     if (await digest(blob) !== item.id) throw new LibraryError('backup', 'Stored score hash mismatch.');
-    files.push({ item, data: Array.from(new Uint8Array(await blob.arrayBuffer())) });
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    encodedSize += '{"item":,"data":[]},'.length + JSON.stringify(item).length;
+    if (bytes.length) {
+      encodedSize += bytes.length - 1;
+      for (let i = 0; i < bytes.length; i++) {
+        const b = bytes[i];
+        encodedSize += b >= 100 ? 3 : b >= 10 ? 2 : 1;
+      }
+    }
+    if (encodedSize > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
+    files.push({ item, data: Array.from(bytes) });
   }
   const backup = new Blob([JSON.stringify({ app: 'etude-score-library', version: 1, files })], { type: 'application/json' });
   if (backup.size > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');

@@ -88,7 +88,7 @@ export interface LayoutReader {
   readonly sheet: unknown;
 }
 
-export type AppLanguage = 'en' | 'ro';
+export type AppLanguage = 'en' | 'ro' | 'de' | 'es' | 'fr' | 'it' | 'pt-BR';
 
 let osmdPromise: Promise<OsmdModule> | null = null;
 
@@ -118,6 +118,7 @@ export interface ScoreRenderer {
 
 class OsmdScoreRenderer implements ScoreRenderer {
   private renderGeneration = 0;
+  private restoreDrawer: (() => void) | null = null;
   constructor(private readonly vendor: VendorRenderer) {
     // Preserve 1.9.9 SVG group structure (.vf-notehead, .vf-sc-pedal) and cross-staff slur handling (scoreXLines) across OSMD 2.x+.
     if ('SVGMergeSingleChildGroups' in this.vendor.EngravingRules) {
@@ -137,13 +138,25 @@ class OsmdScoreRenderer implements ScoreRenderer {
   setCustomPageFormat(width: number, height: number): void { this.vendor.setCustomPageFormat(width, height); }
   getZoom(): number { return this.vendor.Zoom; }
   setZoom(value: number): void { this.vendor.Zoom = value; }
-  render(): void { this.renderGeneration++; this.vendor.render(); }
+  render(): void {
+    this.restoreDrawer?.();
+    this.restoreDrawer = null;
+    this.renderGeneration++;
+    this.vendor.render();
+  }
   async renderProgressively(current: () => boolean): Promise<boolean> {
+    this.restoreDrawer?.();
+    this.restoreDrawer = null;
     const generation = ++this.renderGeneration;
     const setup = this.vendor.createOrRefreshRenderBackend;
     if (!setup) { if (!current()) return false; this.vendor.render(); return true; }
     const jobs: (() => void)[] = [];
     const restore: (() => void)[] = [];
+    const restoreAll = () => {
+      if (this.restoreDrawer === restoreAll) this.restoreDrawer = null;
+      while (restore.length) restore.pop()?.();
+    };
+    this.restoreDrawer = restoreAll;
     // Keep OSMD's complete A4 layout and pagination. Its growing renderNext API
     // forces endless pages, so only defer drawing after the normal layout pass.
     this.vendor.createOrRefreshRenderBackend = () => {
@@ -172,7 +185,7 @@ class OsmdScoreRenderer implements ScoreRenderer {
         do { jobs[index++](); } while (index < jobs.length && performance.now() < deadline);
       }
       return current() && generation === this.renderGeneration;
-    } finally { restore.forEach(reset => reset()); }
+    } finally { restoreAll(); }
   }
 
   readLayout(): LayoutReader {
@@ -301,9 +314,22 @@ export async function mxlToXml(data: ArrayBuffer): Promise<string> {
 }
 
 export function notationReloadMessage(language: AppLanguage): { message: string; button: string } {
-  return language === 'ro'
-    ? { message: 'Partitura nu s-a putut încărca. Reîncarcă pagina.', button: 'Reîncarcă' }
-    : { message: 'The score could not load. Reload the page.', button: 'Reload' };
+  switch (language) {
+    case 'ro':
+      return { message: 'Partitura nu s-a putut încărca. Reîncarcă pagina.', button: 'Reîncarcă' };
+    case 'de':
+      return { message: 'Die Partitur konnte nicht geladen werden. Seite neu laden.', button: 'Neu laden' };
+    case 'es':
+      return { message: 'No se pudo cargar la partitura. Recarga la página.', button: 'Recargar' };
+    case 'fr':
+      return { message: 'La partition n’a pas pu se charger. Rechargez la page.', button: 'Recharger' };
+    case 'it':
+      return { message: 'Impossibile caricare lo spartito. Ricarica la pagina.', button: 'Ricarica' };
+    case 'pt-BR':
+      return { message: 'Não foi possível carregar a partitura. Recarregue a página.', button: 'Recarregar' };
+    default:
+      return { message: 'The score could not load. Reload the page.', button: 'Reload' };
+  }
 }
 
 function hasOrphanSystemBeforeForcedPageBreak(pages: readonly unknown[]): boolean {

@@ -47,7 +47,7 @@ export function anParse(buffer: ArrayBuffer) {
         const size = u32();
         need(size);
         const end = pos + size;
-        let tick = 0, running = 0;
+        let tick = 0, running = 0, activeCount = 0;
         const active = new Map<string, { start: number; midi: number; vel: number }[]>();
         while (pos < end) {
             tick += vlq();
@@ -96,17 +96,21 @@ export function anParse(buffer: ArrayBuffer) {
                 if (ch !== 9 && (cmd === 144 || cmd === 128)) {
                     const k = ch + ':' + d1;
                     if (cmd === 144 && d2 > 0) {
+                        if (notes.length + activeCount >= AN_MAX_NOTES)
+                            throw anError('notes');
                         let q = active.get(k);
                         if (!q) {
                             q = [];
                             active.set(k, q);
                         }
                         q.push({ start: tick, midi: d1, vel: d2 });
+                        activeCount++;
                     }
                     else {
                         const q = active.get(k);
                         if (q && q.length) {
                             const n = q.shift();
+                            activeCount--;
                             if (n && tick > n.start)
                                 notes.push({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: ch });
                             if (notes.length > AN_MAX_NOTES)
@@ -120,8 +124,11 @@ export function anParse(buffer: ArrayBuffer) {
         }
         for (const [k, q] of active)
             for (const n of q)
-                if (tick > n.start)
+                if (tick > n.start) {
                     notes.push({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: +k.split(':')[0] }); // note-on without note-off: close at track end
+                    if (notes.length > AN_MAX_NOTES)
+                        throw anError('notes');
+                }
     }
     if (!notes.length)
         throw anError('nonotes');

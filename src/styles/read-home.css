@@ -163,3 +163,6 @@ body[data-stage=immersive] #rdn-backrow,body[data-stage=immersive] #rdn-home,bod
 #view-read[data-rdn=warmup] #rdx-back{display:none}
 #view-read[data-rdn=warmup] #rdp-drills{margin-top:4px}
 #view-read[data-rdn=warmup] #rdx-stage button{min-height:44px}
+#rd-srt-preview:not([hidden]),#rd-srt-pending:not([hidden]){margin-top:12px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; background:var(--paper2); box-shadow:none}
+#rd-srt-preview strong,#rd-srt-pending strong{font-size:15px}
+#rd-srt-countdown{font-size:13.5px; color:var(--muted)}

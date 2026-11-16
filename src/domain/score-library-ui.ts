@@ -481,7 +481,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         : current.status === 'in_progress' ? 'mastered'
         : null;
       const updated = await libraryUpdate(id, { status: nextStatus });
-      if (!updated) throw new Error('missing');
+      if (!updated) { await refresh(); throw new Error('missing'); }
       await refresh();
       if (statusCopy?.key === 'working') { statusCopy = null; status.textContent = ''; }
     }); });
@@ -489,7 +489,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const current = items.find(item => item.id === id);
       if (!current) throw new Error('missing');
       const updated = await libraryUpdate(id, { favorite: !current.favorite });
-      if (!updated) throw new Error('missing');
+      if (!updated) { await refresh(); throw new Error('missing'); }
       await refresh();
       if (statusCopy?.key === 'working') { statusCopy = null; status.textContent = ''; }
     }); });
@@ -582,8 +582,13 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       chip.setAttribute('aria-label', `${t('reset_filters')}: ${spec.label}`);
       chip.addEventListener('click', () => {
         if (busy) return;
+        const wasFocused = document.activeElement === chip;
         spec.clear();
         render();
+        if (wasFocused) {
+          const fallback = activeChips.querySelector<HTMLButtonElement>('button') ?? toggleFilters;
+          fallback.focus();
+        }
       });
       return chip;
     });
@@ -846,6 +851,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     for (const { key, option } of sortOptions) option.textContent = t(`sort_${key}`);
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);
+    tabsGroup.setAttribute('aria-label', t('filter'));
     for (const { key, button } of tabButtons) button.textContent = t(key);
     composerText.textContent = t('composer_filter');
     levelText.textContent = t('level_filter');
@@ -873,7 +879,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   restore.addEventListener('click', requestProtection);
   files.addEventListener('change', () => {
     const selected = Array.from(files.files ?? []);
-    if (!selected.length || busy) return;
+    if (!selected.length || busy) { files.value = ''; return; }
     void run(async () => {
       let added = 0; let duplicates = 0; let errors = 0;
       for (const file of selected) {
@@ -896,7 +902,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   });
   restore.addEventListener('change', () => {
     const file = restore.files?.[0];
-    if (!file || busy) return;
+    if (!file || busy) { restore.value = ''; return; }
     void run(async () => {
       try {
         await host.flush();
@@ -932,6 +938,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   });
   resetFilters.addEventListener('click', () => {
     if (busy) return;
+    const wasFocused = document.activeElement === resetFilters;
     search.value = '';
     sort.value = 'added';
     filter.value = 'all';
@@ -940,6 +947,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     tagFilter.value = '';
     group.value = 'none';
     render();
+    if (wasFocused) search.focus();
   });
   selectAll.addEventListener('change', () => {
     if (busy) return;

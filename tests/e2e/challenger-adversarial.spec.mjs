@@ -22,6 +22,7 @@ test.describe('Adversarial Stress Test: Rapid Language Switching', () => {
 
     // Warm up one switch to allow lazy one-time select/circle initialization
     await page.locator('#set-lang button[data-v="ro"]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
     // The language buttons defer part of that work (the Read view's range selects) with setTimeout(…, 0);
     // let it run so the baseline isn't taken halfway through the first fill.
     await page.evaluate(() => new Promise(r => setTimeout(r, 0)));
@@ -54,6 +55,7 @@ test.describe('Adversarial Stress Test: Rapid Language Switching', () => {
 
     // Settle on German ('de')
     await page.locator('#set-lang button[data-v="de"]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 
     // Verify DOM consistency
     const domIntegrity = await page.evaluate(() => {

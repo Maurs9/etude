@@ -46,6 +46,7 @@ export type SightReadingLedgerOperation =
 export interface SightReadingStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
 }
 
 export type SightReadingAttemptLease = {
@@ -465,6 +466,45 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, prefs: { ...ledger.prefs, ...operation.prefs } });
     }
     return { ok: false, reason: 'unsupported' };
+  });
+}
+
+export async function srtImportLedgerTransaction(
+  storage: SightReadingStorage,
+  imported: SightReadingLedger,
+  commit: () => void | Promise<void>,
+): Promise<SightReadingLedgerResult> {
+  return withLedgerLock(async () => {
+    let prevRaw: string | null = null;
+    try {
+      prevRaw = storage.getItem(SRT_LEDGER_KEY);
+    } catch {
+      return { ok: false, reason: 'storage' };
+    }
+    const raw = readRaw(storage);
+    if (isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA)
+      return { ok: false, reason: 'unsupported' };
+    const ledger = isLedger(raw)
+      ? normalizeLedger(raw)
+      : (volatileLedgers.get(storage) ?? srtCreateLedger());
+    const merged = mergeImported(ledger, imported);
+    if (!merged.ok) return merged;
+    const saved = saveLedger(storage, merged.ledger);
+    if (!saved.ok) return saved;
+    try {
+      await commit();
+      return saved;
+    } catch (err) {
+      try {
+        if (prevRaw === null) {
+          storage.removeItem?.(SRT_LEDGER_KEY);
+        } else {
+          storage.setItem(SRT_LEDGER_KEY, prevRaw);
+        }
+        volatileLedgers.delete(storage);
+      } catch { }
+      throw err;
+    }
   });
 }
 

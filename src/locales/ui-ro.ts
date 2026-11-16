@@ -168,6 +168,7 @@ const payload: UIPayload = {
       "nav_today": "Azi",
       "nav_practice": "Exersează",
       "nav_sing": "Voce",
+      "vo_eyebrow": "Voce și ureche",
       "vo_sing": "Cântă de pe portativ",
       "vo_hum": "Fredonează în note",
       "vo_switch_aria": "Activitate",

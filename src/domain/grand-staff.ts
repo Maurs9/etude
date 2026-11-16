@@ -34,12 +34,22 @@ import {
 export function srBeatPt(pts: readonly SrBeatX[], beat: number): SrBeatX {
     if (!pts.length)
         return { b: beat, x: 10, sy: 0 };
-    for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i], c = pts[i + 1], brk = i + 2 < pts.length && pts[i + 2].sy !== c.sy;
-        if (a.sy !== c.sy || beat < a.b || beat > c.b || (brk && beat > c.b - 1e-3))
-            continue;
-        const f = (beat - a.b) / Math.max(1e-3, c.b - a.b);
-        return { b: beat, x: a.x + f * (c.x - a.x), sy: a.sy };
+    if (pts.length >= 2) {
+        let lo = 0, hi = pts.length - 2;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (pts[mid + 1].b < beat)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        for (let i = lo; i < pts.length - 1 && pts[i].b <= beat; i++) {
+            const a = pts[i], c = pts[i + 1], brk = i + 2 < pts.length && pts[i + 2].sy !== c.sy;
+            if (a.sy !== c.sy || beat < a.b || beat > c.b || (brk && beat > c.b - 1e-3))
+                continue;
+            const f = (beat - a.b) / Math.max(1e-3, c.b - a.b);
+            return { b: beat, x: a.x + f * (c.x - a.x), sy: a.sy };
+        }
     }
     return beat <= pts[0].b ? pts[0] : pts[pts.length - 1];
 }
