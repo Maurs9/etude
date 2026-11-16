@@ -42,6 +42,7 @@ import '../styles/voice.css';
 import '../styles/explore.css';
 import '../styles/pieces.css';
 import '../styles/score-fullscreen.css';
+import { endingPasses, repeatRanges, type RepeatBar } from './score-repeats.js';
 import '../styles/layout.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
@@ -13986,7 +13987,7 @@ function scoreGeo(engine: import('./notation.js').ScoreRenderer) {
             return; const n = (document).createElement('span'); n.className = 'sc-pnum' + (i % 2 ? ' is-left' : ''); n.textContent = String(i + 1); n.style.fontSize = (1.7 * geo.scale).toFixed(1) + 'px'; n.setAttribute('aria-hidden', 'true'); el.appendChild(n); });
 }
 // Playback position: a thin blue line over the whole system. Its speed follows the tempo map.
-// Fixed-width bars use one steady rail per bar; natural-width bars move between the drawn note onsets.
+// Each bar uses one steady rail; engraving space between individual notes must not modulate the speed.
 function scoreCursorEl(): HTMLElement { const cur: HTMLElement | null = SCORE.cursorEl; if (cur)
     return cur;
     const el = (document).createElement('div');
@@ -14023,11 +14024,6 @@ function scoreCursorAt(beat: number): ScoreCursorPos | null {
     const m = M[i];
     if (!m)
         return null;
-    if (!SCORE.fixedWidth) {
-        const p = scoreAnchorAt(g.anchors, beat, m.sys);
-        if (p)
-            return p;
-    }
     const n = M[i + 1], x0 = m.cx ?? m.xs, x1 = n && n.sys === m.sys ? (n.cx ?? n.xs) : m.x1 - .9;
     const t0 = scoreSeconds(m.b0), t1 = scoreSeconds(m.b1), at = Math.min(t1, Math.max(t0, scoreSeconds(beat)));
     const f = t1 > t0 ? (at - t0) / (t1 - t0) : 0;
@@ -14314,11 +14310,15 @@ interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: numbe
 // A running practice: its clock segments, scheduling cursors (ni notes, bi beats, mi my next note), the judgements and the tick timer.
 // origin: where a run resumed after a pause first started (its from is where it resumed).
 interface PracticeRun extends PracticeStartOptions {
+    completed?: Set<number>;
+    route?: { a: number; b: number }[];
     segs: PracticeSegment[]; ni: number; beats: PracticeBeat[]; bi: number; beat0: number; wt: number; pass: number; mine: PracticeTimedNote[]; mi: number;
     judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean; origin?: number;
 }
 // A whole-piece run held over a pause: what Play needs to carry on with the same run (pracStart), if nothing else changed.
 interface PracticeCarry {
+    completed?: Set<number>;
+    route?: { a: number; b: number }[];
     notes: AnNote[]; src: AnSource | null; at: number; origin: number; hands: string; wait: boolean; f: number;
     judged: Map<number, string>; stats: PracticeStats; active: boolean; res: Map<number, string>;
 }
@@ -14397,6 +14397,24 @@ function pracStatsReset() {
     pracHud();
 }
 function pracAcc(st: PracticeStats) { const all = st.perfect + st.good + st.miss + st.wrong; return all ? (st.perfect + st.good) / all : null; }
+function scoreRepeatRoute(from: number) {
+    if (AN.source?.kind !== 'xml' || !SCORE.xml) return undefined;
+    const doc = new DOMParser().parseFromString(SCORE.xml, 'application/xml');
+    const written = [...doc.querySelectorAll('score-partwise > part:first-of-type > measure')];
+    let ending: number[] | undefined;
+    const bars: RepeatBar[] = SCORE.measures.map((m, i) => {
+        const el = written[i], mark = el?.querySelector('ending[type="start"]');
+        if (mark) ending = endingPasses(mark.getAttribute('number') ?? '');
+        const bar: RepeatBar = { start: scoreSeconds(m.start), end: scoreSeconds(m.end), ending,
+            forward: !!el?.querySelector('repeat[direction="forward"]'),
+            backward: el?.querySelector('repeat[direction="backward"]') ? Number(el.querySelector('repeat[direction="backward"]')?.getAttribute('times') || 2) || 2 : undefined };
+        if (el?.querySelector('ending[type="stop"],ending[type="discontinue"]')) ending = undefined;
+        return bar;
+    });
+    const route = repeatRanges(bars);
+    const first = route.findIndex(r => from >= r.a - 1e-6 && from < r.b - 1e-6);
+    return first < 0 ? undefined : route.slice(first).map((r, i) => ({ a: i ? r.a : from, b: r.b }));
+}
 async function pracStart(o: PracticeStartOptions)  {
     scoreHalt();
     SCORE.resume = null;
@@ -14422,9 +14440,14 @@ async function pracStart(o: PracticeStartOptions)  {
     const c = o.carry, resumed = !!c && !o.sel && !o.loop && c.notes === AN.notes && c.src === AN.source && c.hands === PRAC.hands && c.wait === PRAC.wait && c.f === f && Math.abs(c.at - o.from) < .01;
     const mine = (resumed ? fallData().slice().sort((x, y) => x.start - y.start || x.n.midi - y.n.midi) : o.notes).filter((d) => pracMine(d.n));
     const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
+    if (!o.loop && !o.sel) {
+        const route = resumed && c?.route ? c.route.map(r => ({ ...r })) : scoreRepeatRoute(o.from);
+        if (route?.length) { R.segs[0].t1 = route[0].b; R.b = route[route.length - 1].b; R.route = route.slice(1); }
+    }
     if (R.mi < 0 || !mine.some((d) => d.start >= o.from - 1e-6))
         R.mi = mine.length;
     if (resumed && c) {
+        R.completed = c.completed ? new Set(c.completed) : undefined;
         R.origin = c.origin;
         R.judged = new Map(c.judged);
         const next = mine.findIndex((d) => !R.judged.has(d.i));
@@ -14461,7 +14484,8 @@ function pracCarry(at: number): PracticeCarry | null {
     const R = SCORE.run, st = PRAC.stats;
     if (!R || R.loop || R.sel || !st)
         return null;
-    return { notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: PRAC.wait, f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res) };
+    const index = Math.max(0, R.segs.indexOf(pracSegAt(R, actx?.currentTime ?? 0)));
+    return { notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: PRAC.wait, f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined };
 }
 function pracTick() {
     const R = SCORE.run;
@@ -14484,7 +14508,7 @@ function pracTick() {
                 continue; // a note already sounding when playback starts plays its remainder
             if (!pracSounds(d.n))
                 continue;
-            const st = Math.max(d.start, s.t0), en = R.loop ? Math.min(sound, s.t1) : sound, roll = d.n.roll || 0, onset = at(st) + roll;
+            const st = Math.max(d.start, s.t0), en = R.loop || R.route ? Math.min(sound, s.t1) : sound, roll = d.n.roll || 0, onset = at(st) + roll;
             const opt = { warm: !!d.n.warm, hold: !!d.n.pedalEnd && d.n.soundEnd !== undefined && d.n.soundEnd > d.n.end + .001 }, graces = st > d.start + 1e-6 ? [] : (d.n.graces || []), duration = Math.max(.05, (en - st) / s.f - roll);
             let carried = false;
             graces.forEach((g, i) => {
@@ -14504,6 +14528,14 @@ function pracTick() {
             if (PRAC.metro && b.t >= s.t0 - 1e-6 && b.t < s.t1 - 1e-6)
                 metroClick(Math.max(now, at(b.t)), b.acc);
         }
+        if (R.route?.length && !B && horizon >= s.t1) {
+            const range = R.route.shift();
+            if (range) {
+                R.segs.push({ a0: at(s.t1), t0: range.a, t1: range.b, f: s.f, first: false });
+                R.ni = 0; R.bi = Math.max(0, R.beats.findIndex(b => b.t >= range.a - 1e-6)); R.wt = range.a;
+                continue;
+            }
+        }
         if (R.loop && !B && horizon >= s.t1) {
             const next = { a0: at(s.t1), t0: R.a, t1: R.b, f: pracRamp(R, s), first: false }, L: ScoreLoopState | null = SCORE.loop;
             R.segs.push(next);
@@ -14517,14 +14549,20 @@ function pracTick() {
         break;
     }
     while (R.segs.length > 1 && R.segs[1].a0 <= now) {
+        if (R.route) {
+            if (PRAC.active && !PRAC.wait) pracMisses(R, R.segs[0].t1 + .3);
+            R.completed ??= new Set();
+            R.judged.forEach((_, i) => R.completed?.add(i));
+        }
         R.segs.shift();
         pracPassEnd(R);
+        if (R.route) { const i = R.mine.findIndex(d => d.start >= R.segs[0].t0 - 1e-6); R.mi = i < 0 ? R.mine.length : i; }
     }
     const time = fallTime();
     if (PRAC.active && !PRAC.wait)
         pracMisses(R, time);
     const s0 = R.segs[0];
-    if (!R.loop && time >= R.b - 1e-6 && now >= s0.a0 + (R.b - s0.t0) / s0.f + .3) {
+    if (!R.loop && !R.route?.length && R.segs.length === 1 && time >= R.b - 1e-6 && now >= s0.a0 + (R.b - s0.t0) / s0.f + .3) {
         if (PRAC.active && !PRAC.wait)
             pracMisses(R, Infinity); // the end of the piece: a note still not played is missed, however short
         pracFinish(R);
@@ -14593,7 +14631,8 @@ function pracRelease(R: PracticeRun, B: PracticeBarrier, now: number) {
 }
 function pracMisses(R: PracticeRun, time: number) {
     const tol = .22 * (R.segs[0].f || 1);
-    while (R.mi < R.mine.length && R.mine[R.mi].start < time - tol) {
+    const limit = Math.min(time - tol, R.route ? R.segs[0].t1 : Infinity);
+    while (R.mi < R.mine.length && R.mine[R.mi].start < limit) {
         const d = R.mine[R.mi++];
         if (!R.judged.has(d.i))
             pracJudge(R, d, 'miss');
@@ -14728,7 +14767,7 @@ function pracNotWhole(R: PracticeRun) {
 }
 function pracWholePiece(R: PracticeRun) { return !pracNotWhole(R); }
 // Every note of my part judged: what a Wait for me pass needs to be complete, and a paused and resumed run to count.
-function pracEveryNote(R: PracticeRun) { return R.mine.length > 0 && R.mine.every((d) => R.judged.has(d.i)); }
+function pracEveryNote(R: PracticeRun) { return R.mine.length > 0 && R.mine.every((d) => R.judged.has(d.i) || R.completed?.has(d.i)); }
 // Why a finished run saved nothing: a broken whole-piece rule, else notes left unplayed.
 function pracWhyNot(R: PracticeRun) { return pracNotWhole(R) || 'pc_why_gaps'; }
 // A timed run keeps the best accuracy; a complete "Wait for me" pass marks a built-in piece as learned.
@@ -14873,7 +14912,7 @@ async function scorePlay(selection = false, from: number | null = null, carry: P
     let position = from != null ? from : selection ? a : FALL.position;
     if (position >= b - .05 || position < a - 1e-6)
         position = a; // at the end, or outside the selection: start over
-    const notes = chosen.filter((d) => d.finish > position).sort((x, y) => x.start - y.start || x.n.midi - y.n.midi);
+    const notes = chosen.filter((d) => !selection || d.finish > position).sort((x, y) => x.start - y.start || x.n.midi - y.n.midi);
     if (!notes.length) {
         scoreHalt();
         scoreIdle();
