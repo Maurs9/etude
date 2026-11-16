@@ -1,0 +1,34 @@
+{
+  "cpuSlowdown": 4,
+  "network": "unthrottled local HTTP",
+  "samples": [
+    {
+      "wallMs": 906.7999999821186,
+      "ticks": 8,
+      "maxTimerGapMs": 350,
+      "maxLongTaskMs": 180,
+      "notes": 2048,
+      "bound": 2048,
+      "pages": 8
+    },
+    {
+      "wallMs": 910.8000000119209,
+      "ticks": 6,
+      "maxTimerGapMs": 376.90000000596046,
+      "maxLongTaskMs": 158,
+      "notes": 2048,
+      "bound": 2048,
+      "pages": 8
+    },
+    {
+      "wallMs": 745.2999999821186,
+      "ticks": 8,
+      "maxTimerGapMs": 216.90000000596046,
+      "maxLongTaskMs": 156,
+      "notes": 2048,
+      "bound": 2048,
+      "pages": 8
+    }
+  ],
+  "errors": []
+}

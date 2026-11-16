@@ -308,6 +308,7 @@ export class AudioEngine {
   compressor: DynamicsCompressorNode | null = null;
   lfoGain: GainNode | null = null;
   reverbNode: ConvolverNode | null = null;
+  private reverbPreparing: ConvolverNode | null = null;
   reverbGain: GainNode | null = null;
 
   private readonly options: AudioEngineOptions;
@@ -444,28 +445,29 @@ export class AudioEngine {
   }
 
   ensureReverbBuffer(): void {
-    if (!this.reverbNode || this.reverbNode.buffer || !this.context) return;
-    try {
-      this.reverbNode.buffer = this.makeImpulseResponse(1.7, 2.4);
-    } catch {
-      /* ignore if context closed */
-    }
-  }
-
-  private makeImpulseResponse(seconds: number, decay: number): AudioBuffer {
-    const context = this.context;
-    if (!context) throw new Error('Audio is not ready');
-    const length = Math.max(1, Math.floor(context.sampleRate * seconds));
-    const buffer = context.createBuffer(2, length, context.sampleRate);
-    for (let channel = 0; channel < 2; channel += 1) {
-      const data = buffer.getChannelData(channel);
-      let last = 0;
-      for (let index = 0; index < length; index += 1) {
-        last = last * 0.62 + (Math.random() * 2 - 1) * 0.38;
-        data[index] = last * Math.pow(1 - index / length, decay);
+    const context = this.context, node = this.reverbNode;
+    if (!node || node.buffer || !context || this.reverbPreparing === node) return;
+    this.reverbPreparing = node;
+    // Voices play dry immediately. Generate only a small slice per task, never in an input handler.
+    let buffer: AudioBuffer | null = null, channel = 0, index = 0, last = 0;
+    const step = (): void => {
+      if (this.context !== context || context.state === 'closed' || this.reverbNode !== node) {
+        if (this.reverbPreparing === node) this.reverbPreparing = null;
+        return;
       }
-    }
-    return buffer;
+      try {
+        buffer ??= context.createBuffer(2, Math.max(1, Math.floor(context.sampleRate * 1.7)), context.sampleRate);
+        const data = buffer.getChannelData(channel), end = Math.min(index + 2048, data.length);
+        for (; index < end; index++) {
+          last = last * 0.62 + (Math.random() * 2 - 1) * 0.38;
+          data[index] = last * Math.pow(1 - index / data.length, 2.4);
+        }
+        if (index === data.length) { channel++; index = 0; last = 0; }
+        if (channel === 2) { node.buffer = buffer; this.reverbPreparing = null; }
+        else setTimeout(step, 0);
+      } catch { this.reverbPreparing = null; }
+    };
+    setTimeout(step, 0);
   }
 
   private noise(): AudioBuffer {

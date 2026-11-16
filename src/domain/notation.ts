@@ -37,6 +37,8 @@ type VendorRenderer = {
   setOptions(options: Record<string, unknown>): void;
   setCustomPageFormat(width: number, height: number): void;
   render(): void;
+  createOrRefreshRenderBackend?(): void;
+  Drawer?: { drawPage(page: unknown): void; drawMusicSystem(system: unknown): void };
   Zoom: number;
 };
 type VendorCursor = {
@@ -98,6 +100,7 @@ export interface OsmdModule {
 }
 
 export interface ScoreRenderer {
+  renderProgressively?(current: () => boolean): Promise<boolean>;
   updateRules(updates: Readonly<Record<string, unknown>>): void;
   readRules(): Readonly<Record<string, unknown>>;
   load(xml: string): Promise<void>;
@@ -114,6 +117,7 @@ export interface ScoreRenderer {
 }
 
 class OsmdScoreRenderer implements ScoreRenderer {
+  private renderGeneration = 0;
   constructor(private readonly vendor: VendorRenderer) {
     // Preserve 1.9.9 SVG group structure (.vf-notehead, .vf-sc-pedal) and cross-staff slur handling (scoreXLines) across OSMD 2.x+.
     if ('SVGMergeSingleChildGroups' in this.vendor.EngravingRules) {
@@ -133,7 +137,44 @@ class OsmdScoreRenderer implements ScoreRenderer {
   setCustomPageFormat(width: number, height: number): void { this.vendor.setCustomPageFormat(width, height); }
   getZoom(): number { return this.vendor.Zoom; }
   setZoom(value: number): void { this.vendor.Zoom = value; }
-  render(): void { this.vendor.render(); }
+  render(): void { this.renderGeneration++; this.vendor.render(); }
+  async renderProgressively(current: () => boolean): Promise<boolean> {
+    const generation = ++this.renderGeneration;
+    const setup = this.vendor.createOrRefreshRenderBackend;
+    if (!setup) { if (!current()) return false; this.vendor.render(); return true; }
+    const jobs: (() => void)[] = [];
+    const restore: (() => void)[] = [];
+    // Keep OSMD's complete A4 layout and pagination. Its growing renderNext API
+    // forces endless pages, so only defer drawing after the normal layout pass.
+    this.vendor.createOrRefreshRenderBackend = () => {
+      setup.call(this.vendor);
+      const drawer = this.vendor.Drawer;
+      if (!drawer) return;
+      const continuous = this.vendor.EngravingRules.RenderSingleHorizontalStaffline === true;
+      if (continuous) {
+        const draw = drawer.drawMusicSystem;
+        drawer.drawMusicSystem = system => { jobs.push(() => draw.call(drawer, system)); };
+        restore.push(() => { drawer.drawMusicSystem = draw; });
+      } else {
+        const draw = drawer.drawPage;
+        drawer.drawPage = page => { jobs.push(() => draw.call(drawer, page)); };
+        restore.push(() => { drawer.drawPage = draw; });
+      }
+    };
+    try {
+      try { this.vendor.render(); }
+      finally { this.vendor.createOrRefreshRenderBackend = setup; }
+      let index = 0;
+      while (index < jobs.length) {
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        if (!current() || generation !== this.renderGeneration) return false;
+        const deadline = performance.now() + 8;
+        do { jobs[index++](); } while (index < jobs.length && performance.now() < deadline);
+      }
+      return current() && generation === this.renderGeneration;
+    } finally { restore.forEach(reset => reset()); }
+  }
+
   readLayout(): LayoutReader {
     return { graphicSheet: this.vendor.GraphicSheet, sheet: this.vendor.Sheet };
   }

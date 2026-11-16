@@ -2,6 +2,39 @@ import { describe, expect, it, vi } from 'vitest';
 import { AudioEngine, fetchPianoAudio, nearestPianoKey, PianoBank } from '../../src/domain/audio.ts';
 
 describe('piano audio domain', () => {
+  it('prepares reverb in bounded tasks without allocating in the input handler', async () => {
+    vi.useFakeTimers();
+    try {
+      const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+      const channels = [new Float32Array(5000), new Float32Array(5000)];
+      const buffer = { getChannelData: i => channels[i] };
+      const createBuffer = vi.fn(() => buffer);
+      engine.context = { state: 'running', sampleRate: 3000, createBuffer };
+      const node = { buffer: null };
+      engine.reverbNode = node;
+      engine.ensureReverbBuffer();
+      engine.ensureReverbBuffer();
+      expect(createBuffer).not.toHaveBeenCalled();
+      await vi.runAllTimersAsync();
+      expect(createBuffer).toHaveBeenCalledTimes(1);
+      expect(node.buffer).toBe(buffer);
+      expect(channels.every(channel => channel.some(value => value !== 0))).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('abandons reverb preparation when the audio context is replaced', async () => {
+    vi.useFakeTimers();
+    try {
+      const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+      const createBuffer = vi.fn();
+      engine.context = { state: 'running', sampleRate: 3000, createBuffer };
+      engine.reverbNode = { buffer: null };
+      engine.ensureReverbBuffer();
+      engine.context = null;
+      await vi.runAllTimersAsync();
+      expect(createBuffer).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
   it('fetches only successful samples and decodes their bytes', async () => {
     const bytes = new Uint8Array([1, 2, 3]).buffer;
     const decodeAudioData = vi.fn(async value => ({ length: value.byteLength, duration: 1 }));

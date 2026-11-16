@@ -381,7 +381,8 @@ test.describe('Sight-singing without a microphone', () => {
 
 test.describe('MusicXML import', () => {
   const xml = body => `<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>P</part-name></score-part></part-list><part id="P1">${body}</part></score-partwise>`;
-  const parse = (page, src) => page.evaluate(src => {
+  const parse = (page, src) => page.evaluate(async src => {
+    await window.__etude.ensureAnalysisModules();
     try { const r = window.__etude.scoreXmlNotes(new DOMParser().parseFromString(src, 'application/xml')); return { ok: true, notes: r.notes.length, tempos: r.tempos }; }
     catch (e) { return { ok: false, code: e.code }; }
   }, src);
@@ -472,7 +473,7 @@ test.describe('MusicXML rest explanations', () => {
       await pause.focus();
       await expect(page.locator('#an-hover')).toContainText(names[2]);
       expect(await page.evaluate(() => window.__etude.AN.notes.map(n => n.midi))).toEqual([72]); // rests never enter playback or chord analysis
-      await page.evaluate(() => { window.__etude.SCORE.look = 'night'; window.__etude.scoreLayout(); });
+      await page.evaluate(() => { window.__etude.SCORE.look = 'night'; return window.__etude.scoreLayout(); });
       expect(await page.evaluate(() => window.__etude.SCORE.syms.filter(s => s.kind === 'rest').length)).toBe(5);
     });
   }
@@ -632,7 +633,7 @@ test.describe('MusicXML pedal collision regression', () => {
     const stable = await page.evaluate(() => { const values = () => [...document.querySelectorAll('#an-roll .vf-sc-pedal path')].map(p => p.getAttribute('transform')); const before = values(); window.__etude.scoreFixPedals(window.__etude.$('an-roll')); return { before, after: values() }; });
     expect(stable.after).toEqual(stable.before);
     for (const layout of ['cont', 'page']) {
-      await page.evaluate(layout => { window.__etude.SCORE.layout = layout; window.__etude.SCORE.look = 'night'; window.__etude.scoreLayout(); }, layout);
+      await page.evaluate(layout => { window.__etude.SCORE.layout = layout; window.__etude.SCORE.look = 'night'; return window.__etude.scoreLayout(); }, layout);
       expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
     }
     await page.setViewportSize({ width: 700, height: 900 });
@@ -730,7 +731,7 @@ test.describe('MusicXML source layout fidelity', () => {
     expect(before.titlePx).toBeCloseTo(22 * 96 / 72, 1);
     expect(before.subtitlePx).toBeCloseTo(16 * 96 / 72, 1);
     expect(before.runs).toEqual([['Für Elise', 'italic'], [' in A Minor', 'normal']]);
-    await page.evaluate(() => { window.__etude.SCORE.look = 'night'; window.__etude.scoreLayout(); });
+    await page.evaluate(() => { window.__etude.SCORE.look = 'night'; return window.__etude.scoreLayout(); });
     expect(await typography()).toEqual(before);
   });
   test('varying source spacing supplies a minimum instead of imposing the first system on every page', async ({ app }) => {
@@ -772,7 +773,7 @@ test.describe('MusicXML expression and engraving', () => {
     '<backup><duration>4</duration></backup>' + whole('C') + whole('G', '<chord/>') + '</measure></part></score-partwise>';
 
   test('dynamics, articulation, grace notes, arpeggios and the pedal shape each note', async ({ app }) => {
-    const page = await app.open();
+    const page = await app.open({ hash: 'analysis' });
     const notes = await page.evaluate(src => window.__etude.scoreXmlNotes(new DOMParser().parseFromString(src, 'application/xml')).notes
       .map(n => ({ midi: n.midi, vel: n.vel, soundRatio: n.soundRatio, graces: n.graces?.map(g => g.midi), roll: n.roll, pedalEnd: n.pedalEnd })), EXPRESSIVE);
     expect(notes.map(n => n.midi)).toEqual([48, 55, 72, 74, 76, 77]);
@@ -786,7 +787,7 @@ test.describe('MusicXML expression and engraving', () => {
   });
 
   test('multi-part grand staff scores assign hands and companion dynamics across braced parts', async ({ app }) => {
-    const page = await app.open();
+    const page = await app.open({ hash: 'analysis' });
     const TWO_PART_SCORE = '<?xml version="1.0" encoding="UTF-8"?>' +
       '<score-partwise version="3.1">' +
       '<part-list>' +

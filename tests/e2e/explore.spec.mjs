@@ -83,7 +83,7 @@ test('wide screens: the staff fills its paper, the paper hugs it, and the circle
       });
       return r.fill >= 0.6 && r.hug <= 1.5;
     }, where).toBe(true);
-    if (minCircle) expect((await box(page, '#circle')).width, where).toBeGreaterThanOrEqual(minCircle);
+    if (minCircle) await expect.poll(async () => (await box(page, '#circle')).width, where).toBeGreaterThanOrEqual(minCircle);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), where).toBe(true);
   }
 });

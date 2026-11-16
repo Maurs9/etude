@@ -45,6 +45,7 @@ export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html')
           output: {
             manualChunks(id) {
               const norm = id.replaceAll('\\', '/');
+              if (/\/src\/domain\/score-(import|svg-post|midi)\.ts$/.test(norm)) return 'score-tools';
               if (norm.includes('/src/domain/score-library-ui')) return undefined;
               if (norm.includes('/src/sight-reading/') || norm.includes('/src/domain/technique')) return 'sight-reading';
               if (norm.includes('/src/domain/score-') || norm.includes('/src/domain/repertoire-data') || norm.includes('/src/domain/grand-staff') || norm.includes('/src/domain/sightsing-render') || norm.includes('/src/domain/notation') || norm.includes('/src/domain/melody') || norm.includes('/src/domain/theory')) return 'music-domain';

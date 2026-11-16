@@ -1,5 +1,5 @@
 import { loadUI, loadLearn } from '../locales/loader.js';
-import { installLibraryCopy } from '../locales/library-runtime.js';
+import { installLibraryCopy, libraryText } from '../locales/library-runtime.js';
 import { LESSONS, LEARN_UNITS } from '../locales/catalog.js';
 import type { LearnPayload, UIPayload } from '../locales/payload-types.js';
 import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, LearnSummaryTranslations, LearnText, LearnUnit, LessonMetadata as Lesson, Localised, MusicTranslations, StepLabels } from '../locales/content-types.js';
@@ -16,10 +16,10 @@ import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, LSTAVES, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
 import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
-import { isScoreOsmdSheet, scoreFixFingerings, scoreFixPedalsDefault, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreVendorField, scoreVendorList, type ScoreInkBox, type ScoreOsmdLabel, type ScoreOsmdMeasure, type ScoreOsmdNote, type ScoreOsmdSheet, type ScoreOsmdStaffEntry, type ScoreOsmdStaffLine, type ScoreOsmdSystem, type ScoreOsmdVexNote, type ScoreOsmdVoiceEntry, type ScorePedalBox } from './score-svg-post.js';
+import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
 import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
-import { anAssignHands, scoreBeams, scoreMidiToXml, type ScoreEngraveEvent, type ScoreEngraveGroup, type ScoreEngraveVoice, type ScoreMidiChange, type ScoreMidiNote, type ScoreMidiTime } from './score-midi.js';
-import { AN_SMUFL_NOTES, SCORE_STEP, anMxlPreflight as importMxlPreflight, anParse, anReadXml as importReadXml, anXmlTidy, defaultInflatedSize, scoreXmlEndings, scoreXmlEngraving, scoreXmlLayout, scoreXmlNotes } from './score-import.js';
+import type { ScoreEngraveEvent, ScoreEngraveGroup, ScoreEngraveVoice, ScoreMidiChange, ScoreMidiNote, ScoreMidiTime } from './score-midi.js';
+
 import '../styles/score-library.css';
 import '../styles/native.css';
 import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
@@ -64,6 +64,44 @@ import { SCALE_FINGERINGS } from './technique.js';
 import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
 import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
+
+let AN_SMUFL_NOTES: typeof import('./score-import.js').AN_SMUFL_NOTES;
+let SCORE_STEP: typeof import('./score-import.js').SCORE_STEP;
+let importMxlPreflight: typeof import('./score-import.js').anMxlPreflight;
+let anParse: typeof import('./score-import.js').anParse;
+let importReadXml: typeof import('./score-import.js').anReadXml;
+let anXmlTidy: typeof import('./score-import.js').anXmlTidy;
+let defaultInflatedSize: typeof import('./score-import.js').defaultInflatedSize;
+let scoreXmlEndings: typeof import('./score-import.js').scoreXmlEndings;
+let scoreXmlEngraving: typeof import('./score-import.js').scoreXmlEngraving;
+let scoreXmlLayout: typeof import('./score-import.js').scoreXmlLayout;
+let scoreXmlNotes: typeof import('./score-import.js').scoreXmlNotes;
+let isScoreOsmdSheet: typeof import('./score-svg-post.js').isScoreOsmdSheet;
+let scoreFixFingerings: typeof import('./score-svg-post.js').scoreFixFingerings;
+let scoreFixPedalsDefault: typeof import('./score-svg-post.js').scoreFixPedalsDefault;
+let rememberScorePedalLayout: typeof import('./score-svg-post.js').rememberScorePedalLayout;
+let scoreNightSweep: typeof import('./score-svg-post.js').scoreNightSweep;
+let scoreRingFit: typeof import('./score-svg-post.js').scoreRingFit;
+let scoreShiftY: typeof import('./score-svg-post.js').scoreShiftY;
+let scoreStyleHeader: typeof import('./score-svg-post.js').scoreStyleHeader;
+let scoreVendorField: typeof import('./score-svg-post.js').scoreVendorField;
+let scoreVendorList: typeof import('./score-svg-post.js').scoreVendorList;
+let anAssignHands: typeof import('./score-midi.js').anAssignHands;
+let scoreBeams: typeof import('./score-midi.js').scoreBeams;
+let scoreMidiToXml: typeof import('./score-midi.js').scoreMidiToXml;
+let analysisModulesReady = false;
+let analysisModulesLoading: Promise<void> | null = null;
+function ensureAnalysisModules(): Promise<void> {
+    if (!analysisModulesLoading) {
+        analysisModulesLoading = Promise.all([import('./score-import.js'), import('./score-svg-post.js'), import('./score-midi.js')]).then(([scoreImport, scoreSvgPost, scoreMidi]) => {
+        ({ AN_SMUFL_NOTES, SCORE_STEP, anMxlPreflight: importMxlPreflight, anParse, anReadXml: importReadXml, anXmlTidy, defaultInflatedSize, scoreXmlEndings, scoreXmlEngraving, scoreXmlLayout, scoreXmlNotes } = scoreImport);
+        ({ isScoreOsmdSheet, scoreFixFingerings, scoreFixPedalsDefault, rememberScorePedalLayout, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreVendorField, scoreVendorList } = scoreSvgPost);
+        ({ anAssignHands, scoreBeams, scoreMidiToXml } = scoreMidi);
+        analysisModulesReady = true;
+    }).catch((error: unknown) => { analysisModulesLoading = null; throw error; });
+    }
+    return analysisModulesLoading;
+}
 
 let scoreLibrary: LibraryController | null = null;
 
@@ -4045,7 +4083,14 @@ function focusView(v: string) {
     target.tabIndex = -1;
     target.focus({ preventScroll: true });
 }
-let show = function show(v: string|undefined, moveFocus = true) {
+let featureNavigation = 0;
+let show = function show(v: string|undefined, moveFocus = true): void | Promise<void> {
+    const navigation = ++featureNavigation;
+    if (v === 'analysis' && !analysisModulesReady) {
+        return ensureAnalysisModules().then(() => {
+            if (navigation === featureNavigation) return show(v, moveFocus);
+        }).catch(() => { showNotationReloadPrompt(); });
+    }
     const hum = v !== undefined && isMergedView(v); // transcribe, the one merged view: the Hum to notes side of Voice
     if (v !== undefined && isMergedView(v))
         v = MERGED_VIEWS[v];
@@ -4146,7 +4191,7 @@ let show = function show(v: string|undefined, moveFocus = true) {
         cofPaintDock();
     }
     if (v === 'analysis') {
-        void anLibraryEnsure();
+        void anLibraryEnsure().catch(() => {});
         if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
             anLibraryRestoreResume(anLibraryNavigationResume);
         anLibraryNavigationResume = null;
@@ -11919,18 +11964,30 @@ function anLibraryEnsure(): Promise<LibraryController> {
     if (!scoreLibraryLoading) {
         scoreLibraryLoading = import('./score-library-ui.js').then(({ initScoreLibrary }) => {
             if (!scoreLibrary) {
+                byId('score-library-root').replaceChildren();
                 scoreLibrary = initScoreLibrary(byId('score-library-root'), {
                     language: () => lang, inspect: anLibraryInspect, open: anLibraryOpen, flush: () => anLibraryFlush(),
                 });
             }
             return scoreLibrary;
+        }).catch((error: unknown) => {
+            scoreLibraryLoading = null;
+            const root = byId('score-library-root'), message = document.createElement('p'), retry = document.createElement('button');
+            message.setAttribute('role', 'status');
+            message.textContent = libraryText(lang, 'unavailable');
+            retry.type = 'button';
+            retry.className = 'btn';
+            retry.textContent = t('rdn_retry');
+            retry.addEventListener('click', () => { void anLibraryEnsure().catch(() => {}); });
+            root.replaceChildren(message, retry);
+            throw error;
         });
     }
     return scoreLibraryLoading;
 }
 function anLibraryInit() {
     if (viewFromHash(location.hash) === 'analysis')
-        void anLibraryEnsure();
+        void anLibraryEnsure().catch(() => {});
     document.addEventListener('change', (event) => {
         if (eventElement(event)?.closest('#an-toolbar,#an-recon,#an-pt,#fall-pop,#fall-seek'))
             anLibrarySchedule();
@@ -12585,6 +12642,7 @@ type ScoreEngravingRules = {
     StaffLineColor?: string; RenderMeasureNumbersOnlyAtSystemStart?: boolean; MeasureNumberLabelOffset?: number;
 };
 async function scoreRender()  {
+    scoreLayoutGeneration++; scorePendingSignature = ''; scoreLayoutPending = null;
     const version = ++SCORE.version, box = byId('an-roll');
     if (!SCORE.xml) {
         anRenderEmpty();
@@ -12671,10 +12729,19 @@ async function scoreRender()  {
     if (version !== SCORE.version)
         return false;
     SCORE.engine = engine;
-    return scoreLayout() !== false;
+    const result = scoreLayout();
+    let ready = result !== false;
+    while (scoreLayoutPending && version === SCORE.version) {
+        const pending = scoreLayoutPending;
+        ready = await pending;
+    }
+    return version === SCORE.version && ready;
 }
 // View, zoom and appearance only need a new layout, not a new load; selection, cursor and highlights are repainted afterwards.
 // Page view: A4 sheets on the desk, as wide as 794 px × zoom but never wider than the desk (the music reflows instead of panning).
+let scoreLayoutGeneration = 0;
+let scorePendingSignature = '';
+let scoreLayoutPending: Promise<boolean> | null = null;
 const SCORE_BASE_MARGINS = new WeakMap<object, { top?: number; title?: number }>();
 function scoreLayout() {
     const engine = SCORE.engine, box = byId('an-roll');
@@ -12704,6 +12771,7 @@ function scoreLayout() {
     const landShort = !cont && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
     const xmlBreaks = !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml);
     const renderSig = [SCORE.version, SCORE.layout, SCORE.look, SCORE.zoom, avail, landShort ? 1 : 0, xmlBreaks ? 1 : 0].join('|');
+    if (scorePendingSignature === renderSig) return scoreLayoutPending ?? true;
     if (!SCORE.stale && SCORE.renderedSig === renderSig && box.querySelector('svg')) {
         SCORE.layoutWidth = box.clientWidth;
         box.classList.remove('is-loading', 'is-empty');
@@ -12734,32 +12802,59 @@ function scoreLayout() {
     // system keeps its bars and every page its systems whatever the panel width.
     engine.setZoom(cont ? SCORE.zoom * base : sheetW / pageW * base);
     scoreRingFit(engine.getZoom());
-    scoreFitRender(engine, xmlBreaks, SCORE.zoom + '|' + avail);
-    scoreStyleHeader(engine, sourceLayout);
-    scoreFixFingerings(box, engine);
-    if (SCORE.look === 'night')
-        scoreNightSweep(box, look.ink);
-    SCORE.stale = false;
-    SCORE.renderedSig = renderSig;
-    SCORE.layoutWidth = box.clientWidth;
-    box.classList.remove('is-loading', 'is-empty');
-    box.setAttribute('aria-busy', 'false');
-    box.dataset.look = SCORE.look;
-    scoreBind(engine);
-    renderScoreNoteParentheses(box, look.ink);
-    scoreXLines();
-    const pedalsOk = scoreFixPedals(box);
-    SCORE.pedalsOk = pedalsOk;
-    scoreGeo(engine);
-    scoreSyms(engine);
-    box.hidden = FALL.mode !== 'score';
-    SCORE.hasPaint = false;
-    scorePaint();
-    if (!pedalsOk) {
-        anSetLoading(false);
-        anShowError('an_err_render');
+    const finish = () => {
+        scoreStyleHeader(engine, sourceLayout);
+        scoreFixFingerings(box, engine);
+        if (SCORE.look === 'night')
+            scoreNightSweep(box, look.ink);
+        SCORE.stale = false;
+        SCORE.renderedSig = renderSig;
+        SCORE.layoutWidth = box.clientWidth;
+        box.classList.remove('is-loading', 'is-empty');
+        box.setAttribute('aria-busy', 'false');
+        box.dataset.look = SCORE.look;
+        scoreBind(engine);
+        renderScoreNoteParentheses(box, look.ink);
+        scoreXLines();
+        const pedalsOk = scoreFixPedals(box);
+        SCORE.pedalsOk = pedalsOk;
+        scoreGeo(engine);
+        scoreSyms(engine);
+        box.hidden = FALL.mode !== 'score';
+        SCORE.hasPaint = false;
+        scorePaint();
+        scoreXLineSignature = scoreXLinesCurrentSignature();
+        rememberScorePedalLayout(box);
+        if (!pedalsOk) {
+            anSetLoading(false);
+            anShowError('an_err_render');
+        }
+        return pedalsOk;
+    };
+    const generation = ++scoreLayoutGeneration;
+    if (AN.notes.length > 1024 && engine.renderProgressively) {
+        scorePendingSignature = renderSig;
+        box.setAttribute('aria-busy', 'true');
+        const current = () => generation === scoreLayoutGeneration && engine === SCORE.engine;
+        scoreLayoutPending = scoreFitRenderProgressively(engine, xmlBreaks, SCORE.zoom + '|' + avail, current).then((ok) => {
+            if (!current()) return false;
+            scorePendingSignature = '';
+            scoreLayoutPending = null;
+            return ok ? finish() : false;
+        }).catch(() => {
+            if (!current()) return false;
+            scorePendingSignature = '';
+            scoreLayoutPending = null;
+            box.setAttribute('aria-busy', 'false');
+            anShowError('an_err_render');
+            return false;
+        });
+        return scoreLayoutPending;
     }
-    return pedalsOk;
+    scorePendingSignature = '';
+    scoreLayoutPending = null;
+    scoreFitRender(engine, xmlBreaks, SCORE.zoom + '|' + avail);
+    return finish();
 }
 // OSMD's title label is plain text. Restore safe MusicXML italic/bold runs after each layout (never inject markup).
 // Page view of an imported file keeps its own <print new-system / new-page> breaks (MuseScore's 3–4 bars a line).
@@ -12817,6 +12912,23 @@ function scoreFitRender(engine: notationApi.ScoreRenderer, xmlBreaks: boolean, k
     set(0, false);
     engine.render();
     SCORE.fit = { key, step: 0, on: false };
+}
+async function scoreFitRenderProgressively(engine: notationApi.ScoreRenderer, xmlBreaks: boolean, key: string, current: () => boolean): Promise<boolean> {
+    const render = engine.renderProgressively;
+    if (!render) return false;
+    const known = SCORE.fit?.key === key ? SCORE.fit : null;
+    const steps = !xmlBreaks ? [{ step: 0, on: false }] : known ? [known] : [...SC_FIT.map((_, step) => ({ step, on: true })), { step: 0, on: false }];
+    for (const candidate of steps) {
+        if (!current()) return false;
+        const f = SC_FIT[candidate.step];
+        engine.updateRules({ VoiceSpacingMultiplierVexflow: f[0], VoiceSpacingAddendVexflow: f[1], MinNoteDistance: f[2], NewSystemAtXMLNewSystemAttribute: candidate.on, NewSystemAtXMLNewPageAttribute: candidate.on, NewPageAtXMLNewPageAttribute: candidate.on });
+        if (!await render.call(engine, current)) return false;
+        if (!candidate.on || !scoreExtraBreaks(engine)) {
+            SCORE.fit = { key, ...candidate };
+            return true;
+        }
+    }
+    return false;
 }
 function scoreExtraBreaks(engine: notationApi.ScoreRenderer) {
     return engine.hasExtraBreaks();
@@ -13045,13 +13157,18 @@ function showNotationReloadPrompt() {
 // Text-pedal skylines can miss ledger notes, and a release with no staff entry can land on its press glyph.
 // Place actual glyph ink without changing event timing. Recompute from native positions on every call.
 // One property of an OSMD object (Étude doesn't type the engraver's internals); callers narrow what comes back.
-let scoreFixPedals = scoreFixPedalsDefault;
+let scoreFixPedals = (box: HTMLElement) => scoreFixPedalsDefault(box);
 // SVG user units of the page a node sits on, from screen pixels (OSMD draws 10 units per staff space).
 function scoreToUser(svg: SVGSVGElement, x: number, y: number) { const m = svg.getScreenCTM(); if (!m)
     return null; const p = svg.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(m.inverse()); }
 // A line the source file draws from note index a to note index b, with its kind and line style.
 interface ScoreCrossLink { a: number; b: number; kind: string; style?: string }
 // Lines between the hands that OSMD leaves out: cross-staff slurs, glissandi and slides, dashed voice-leading lines.
+let scoreXLineSignature = '';
+function scoreXLinesCurrentSignature(): string {
+    if (AN.source?.kind !== 'xml' || !AN.source.links.length) return '';
+    return [SCORE.version, SCORE.look, SCORE.engine?.getZoom(), ...[...byId('an-roll').querySelectorAll('svg')].map(svg => svg.innerHTML)].join('|');
+}
 function scoreXLines() {
     if (!scoreHasKey(SCORE_LOOK, SCORE.look))
         return;
@@ -13062,6 +13179,8 @@ function scoreXLines() {
     if (!isScoreOsmdSheet(sheet))
         return;
     const svgs = [...byId('an-roll').querySelectorAll('svg')];
+    const signature = scoreXLinesCurrentSignature;
+    if (scoreXLineSignature === signature()) return;
     svgs.forEach((svg) => svg.querySelectorAll('.sc-xline').forEach((n) => n.remove()));
     const systems = sheet.MusicPages.flatMap((page, pi) => page.MusicSystems.map((sys) => ({ sys, svg: svgs[pi] })));
     const systemOf = (note: AnNote) => sheet.MeasureList.find((list) => list.some((gm) => gm && note.start >= gm.parentSourceMeasure.AbsoluteTimestamp.RealValue * 4 - .001 && note.start < (gm.parentSourceMeasure.AbsoluteTimestamp.RealValue + gm.parentSourceMeasure.Duration.RealValue) * 4 - .001))?.find(Boolean)?.ParentMusicSystem;
@@ -13133,6 +13252,7 @@ function scoreXLines() {
             svg.appendChild(el);
         }
     });
+    scoreXLineSignature = signature();
 }
 // The parts of OSMD's engraved sheet the score passes read. OSMD ships no types for these, so isScoreOsmdSheet checks the root.
 // Every marking on the page that the hover can explain: its box (relative to its page, which only moves as a whole), kind and value.
@@ -15439,6 +15559,7 @@ function anReset() {
     AN.view = null;
     AN.playSeg = -1;
     AN.playSig = '';
+    scoreLayoutGeneration++; scorePendingSignature = ''; scoreLayoutPending = null;
     SCORE.xml = '';
     SCORE.measures = [];
     SCORE.engine = null;
@@ -15460,12 +15581,17 @@ function anReset() {
 // reads), refuse anything it could not unpack anyway, and cap what every entry declares. Entries big enough to expand
 // past the cap (deflate tops out near 1032:1) are inflated once as a counted stream, so a lying header fails here.
 async function anMxlPreflight(buf: ArrayBuffer) {
+    await ensureAnalysisModules();
     return importMxlPreflight(buf, anInflatedSize);
 }
 // Inflates raw-deflate bytes as a stream, counting and discarding the output; stops as soon as it passes `limit`.
 // Resolves to the byte count (limit+something when over), or null when this browser has no raw-deflate stream.
-let anInflatedSize = defaultInflatedSize;
+let anInflatedSize: typeof import('./score-import.js').defaultInflatedSize = async (...args) => {
+    await ensureAnalysisModules();
+    return defaultInflatedSize(...args);
+};
 async function anReadXml(file: File, title: string) {
+    await ensureAnalysisModules();
     return importReadXml(file, title, {
         inflatedSize: anInflatedSize,
         loadMxlToXml: async (buf: ArrayBuffer) => {
@@ -15503,6 +15629,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
         return false;
     let src: AnSource;
     try {
+        await ensureAnalysisModules();
         src = kind === 'midi' ? { kind: 'midi', title, label: name, parsed: anParse(await file.arrayBuffer()) } : await anReadXml(file, title);
     }
     catch (err) {
@@ -15552,6 +15679,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
     return token === AN.loadToken && AN.source === src && !AN.error;
 }
 async function anLoadExample(id: string)  {
+    await ensureAnalysisModules();
     const p = PIECES.find((x) => x.id === id);
     if (!p)
         return;
@@ -15561,6 +15689,8 @@ async function anLoadExample(id: string)  {
     await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
 }
 async function anCommit(src: AnSource, token: number)  {
+    await ensureAnalysisModules();
+    if (token !== AN.loadToken) return;
     anLibraryDetach();
     scoreStop();
     AN.source = src;
@@ -18834,8 +18964,10 @@ function initControls() {
     }
 }
 /* boot */
+document.documentElement.setAttribute('data-app-pending', '');
 loadAll();
 await bootLocale();
+if (viewFromHash(location.hash) === 'analysis') await ensureAnalysisModules().catch(() => {});
 applyTheme();
 fillRoots(byId('refRoot'), false);
 fillRoots(byId('song-root'), false);
@@ -18880,6 +19012,7 @@ catch (err) {
 /* @generated etude test surface */
 const __etude: EtudeSurface = {};
 const __etudeGetters: Record<string, () => unknown> = {
+  "ensureAnalysisModules": () => ensureAnalysisModules,
   "LESSONS": () => LESSONS,
   "learnReady": () => learnLoading ?? Promise.resolve(),
   "scoreLibraryStore": () => scoreLibraryStore,
@@ -20064,3 +20197,4 @@ Object.defineProperty(__etude, "srtRecorder", { configurable: true, get: () => s
 Object.defineProperty(__etude, "srNoteStart", { configurable: true, get: () => srNoteStart });
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;
+document.documentElement.removeAttribute('data-app-pending');

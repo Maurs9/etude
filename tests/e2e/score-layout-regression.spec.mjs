@@ -87,7 +87,7 @@ test.describe('Real MusicXML engraving regressions', () => {
     const originalCount = await page.locator('.vf-sc-pedal path').count();
     expect(originalCount).toBe(132);
     for (const layout of ['page', 'cont', 'page']) {
-      await page.evaluate(layout => { window.__etude.SCORE.layout = layout; window.__etude.scoreLayout(); }, layout);
+      await page.evaluate(layout => { window.__etude.SCORE.layout = layout; return window.__etude.scoreLayout(); }, layout);
       const lanes = await page.evaluate(pedalLanes);
       expect(lanes.every(l => l.visible), JSON.stringify(lanes.filter(l => !l.visible))).toBe(true);
       expect(lanes.filter(l => l.measure === 11).every(l => l.distance >= 0 && l.distance < l.space * 1.5), JSON.stringify(lanes.filter(l => l.measure === 11))).toBe(true);
@@ -98,7 +98,7 @@ test.describe('Real MusicXML engraving regressions', () => {
       expect(await page.locator('.vf-sc-pedal path').evaluateAll(nodes => nodes.map(n => n.getAttribute('transform')))).toEqual(before);
     }
     await page.setViewportSize({ width: 700, height: 900 });
-    await page.evaluate(() => { window.__etude.SCORE.zoom = 1.25; window.__etude.scoreLayout(); });
+    await page.evaluate(() => { window.__etude.SCORE.zoom = 1.25; return window.__etude.scoreLayout(); });
     expect(await page.evaluate(scorePedalCollisions)).toEqual([]);
     expect((await page.evaluate(pedalLanes)).every(l => l.visible)).toBe(true);
   });
@@ -139,7 +139,7 @@ test.describe('Real MusicXML engraving regressions', () => {
       const page = await app.open({ hash: 'analysis' });
       await load(page, file);
       for (const layout of ['page', 'cont']) {
-        await page.evaluate(layout => { window.__etude.SCORE.layout = layout; window.__etude.scoreLayout(); }, layout);
+        await page.evaluate(layout => { window.__etude.SCORE.layout = layout; return window.__etude.scoreLayout(); }, layout);
         expect(await page.evaluate(scoreNavigationCollisions), layout + ' navigation').toEqual([]);
         expect(await page.evaluate(scorePedalCollisions), layout + ' pedal ink').toEqual([]);
       }

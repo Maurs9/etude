@@ -33,12 +33,28 @@ export function scoreNightSweep(box: HTMLElement, ink: string) {
 export function scoreVendorField(v: unknown, k: string): unknown { return typeof v === 'object' && v !== null ? Reflect.get(v, k) : undefined; }
 export function scoreVendorList(v: unknown): unknown[] { return Array.isArray(v) ? v : []; }
 export interface ScorePedalBox { left: number; right: number; top: number; bottom: number; group?: Element | null; press?: boolean; }
+const pedalLayouts = new WeakMap<SVGSVGElement, string>();
+function pedalLayoutSignature(svg: SVGSVGElement): string {
+    const ctm = svg.getScreenCTM();
+    return [ctm?.a, ctm?.b, ctm?.c, ctm?.d, svg.innerHTML].join('|');
+}
+export function rememberScorePedalLayout(box: HTMLElement): void {
+    if (box.dataset.pedalUnresolved !== '0') return;
+    box.querySelectorAll('svg').forEach(svg => {
+        if (pedalLayouts.has(svg)) pedalLayouts.set(svg, pedalLayoutSignature(svg));
+    });
+}
 export function scoreFixPedalsDefault(box: HTMLElement) {
     let unresolved = 0;
     box.querySelectorAll('svg').forEach((svg) => {
         const marks = [...svg.querySelectorAll('.vf-sc-pedal path')].filter((p) => p instanceof SVGElement), ctm = svg.getScreenCTM();
         if (!marks.length || !ctm || !ctm.d)
             return;
+        const signature = () => pedalLayoutSignature(svg);
+        // Keep an already solved, unchanged SVG exact. Measuring rounded transforms
+        // again introduces subpixel drift; changed ink or scale still gets a fresh pass.
+        if (pedalLayouts.get(svg) === signature()) return;
+        const unresolvedBefore = unresolved;
         marks.forEach((p) => {
             if (p.dataset.pedalUnresolved) {
                 p.style.visibility = '';
@@ -136,6 +152,7 @@ export function scoreFixPedalsDefault(box: HTMLElement) {
                 p.setAttribute('transform', (base ? base + ' ' : '') + 'translate(' + (dx / ctm.a).toFixed(3) + ' ' + (dy / ctm.d).toFixed(3) + ')');
             placed.push({ ...rect(dx, dy), group, press: !release });
         });
+        if (unresolved === unresolvedBefore) pedalLayouts.set(svg, signature());
     });
     box.dataset.pedalUnresolved = String(unresolved);
     return unresolved === 0;

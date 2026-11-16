@@ -120,7 +120,7 @@ test('cross-system slur stays complete and local when its starting voice is abse
       await page.evaluate(({ layout, zoom }) => {
         window.__etude.SCORE.layout = layout;
         window.__etude.SCORE.zoom = zoom;
-        window.__etude.scoreLayout();
+        return window.__etude.scoreLayout();
       }, { layout, zoom });
       const result = await page.evaluate(continuationGeometry);
       expect(result.links).toEqual([{
