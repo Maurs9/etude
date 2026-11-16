@@ -337,7 +337,7 @@ test('Full window fills the window with the player; Esc and leaving Pieces end i
   await app.open({ hash: 'analysis' });
   await openPiece(page, 'canon');
   const btn = page.locator('#sc-stage'), stage = () => page.evaluate(() => document.body.dataset.stage ?? null);
-  // The Note names and Full window toggles sit in the status bar, so the toolbar keeps its one row at laptop widths.
+  // Expanding stays in the compact toolbar; the laptop layout still keeps its controls in one row.
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 720 });
     await expect.poll(() => page.locator('#an-toolbar').evaluate(el => el.getBoundingClientRect().height), { message: `toolbar at ${width}px` }).toBeLessThan(60);

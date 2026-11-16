@@ -434,6 +434,7 @@ const payload: UIPayload = {
       "pc_learned": "Imparato",
       "pc_names": "Nomi delle note",
       "pc_names_t": "Nomi delle note: scrive il nome di ogni nota accanto a essa nello spartito, secondo la tua impostazione dei nomi delle note",
+      "score_fit": "Adatta alla larghezza",
       "pc_stage": "Finestra intera",
       "pc_stage_t": "Finestra intera: il lettore occupa tutta la finestra mentre ti eserciti (Esc per uscire)",
       "pc_stage_exit": "Esci dalla finestra intera (Esc)",

@@ -557,6 +557,7 @@ const payload: UIPayload = {
       "pc_learned": "Învățată",
       "pc_names": "Numele notelor",
       "pc_names_t": "Numele notelor: scrie numele fiecărei note lângă ea în partitură, după setarea ta pentru numele notelor",
+      "score_fit": "Potrivește lățimea",
       "pc_stage": "Fereastră întreagă",
       "pc_stage_t": "Fereastră întreagă: playerul ocupă toată fereastra cât exersezi (Esc iese)",
       "pc_stage_exit": "Ieși din fereastra întreagă (Esc)",

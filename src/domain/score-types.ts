@@ -80,8 +80,9 @@ export interface SrRenderResult { svg: string; notes: SrStaffNote[]; beatX: SrBe
 /** Fits a score to its paper: `width` (and `maxHeight`) is the paper's inner size in CSS pixels. Bars wrap into systems of
  *  at most `maxBars` (4) bars, split evenly, and are scaled to fill the width, up to `cap` (SR_SCALE_CAP) times their natural size.
  *  With a `maxHeight` (the stage) systems may hold more bars when fewer, longer systems let the score be drawn larger.
+ *  `minBars` defaults to 2; 1 allows one bar per system on narrow, vertically scrolling paper.
  *  Without a layout a score is one system at its natural size (the Learn staves). */
-export interface SrLayout { width: number; maxHeight?: number; cap?: number; maxBars?: number; floor?: number; justify?: boolean }
+export interface SrLayout { width: number; maxHeight?: number; cap?: number; maxBars?: number; minBars?: number; floor?: number; justify?: boolean }
 export type AnHand = 'rh' | 'lh';
 export interface ScoreNoteArticulation { staccato: boolean; staccatissimo: boolean; accent: boolean; strongAccent: boolean; tenuto: boolean; }
 export interface ScoreGraceNote { midi: number; vel: number; tieStart?: boolean; tiedToPrincipal?: boolean; }

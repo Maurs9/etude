@@ -40,6 +40,8 @@ Before you start, open **Settings → Your data → Diagnostics** and tap **Copy
 
 ## Record the result
 
+Score fullscreen follow-up (physical Android/TWA and iOS Safari still pending): in Pieces and Read, expand the score before Start and during playback, rotate the device, zoom and fit the width, and show/hide the keyboard. Exit using the visible button and the system Back/Escape gesture; the current run must continue. Complete a Read attempt and verify its result and Next controls appear. Check screen cutouts and navigation bars in the installed PWA/TWA. Browser tests cover layout, native-API rejection/fallback and lifecycle, but do not verify system bars or gestures on physical devices.
+
 Performance follow-up (physical Android/TWA still required): play the first piano note immediately after opening, check that reverb joins without delaying the attack, then switch apps and return. Open a large score, resize/rotate while it is being drawn, and check the last measures, cursor, selection and audio in both page and continuous views. Browser emulation covers recovery and drawing completeness; it does not verify physical audio latency or Android battery use.
 
 Write the date, the Diagnostics text and any step that failed in TODO.md under the device rollout item.

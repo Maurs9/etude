@@ -41,6 +41,7 @@ import '../styles/practice.css';
 import '../styles/voice.css';
 import '../styles/explore.css';
 import '../styles/pieces.css';
+import '../styles/score-fullscreen.css';
 import '../styles/layout.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
@@ -321,6 +322,7 @@ function applyI18n() {
     pwaUi();
     renderDataSafety();
     fsUi();
+    scoreFocusUi();
     scoreLibrary?.localize();
     renderPracticeSetup();
     fitHeader();
@@ -1774,6 +1776,7 @@ function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 // rail there; showing or hiding them on the stage (`kb`) lasts until the stage closes and leaves the saved choice alone.
 interface PracticeStageState { on: boolean; kb: boolean | null; rz: number }
 const STAGE: PracticeStageState = { on: false, kb: null, rz: 0 };
+const SCORE_FOCUS: { owner: 'analysis' | 'read' | null; native: boolean; token: number; returnTo: HTMLElement | null; scroll: number; readOverride: boolean | null; zoom: number } = { owner: null, native: false, token: 0, returnTo: null, scroll: 0, readOverride: null, zoom: 1 };
 function midiLive() { return !!activeInputId || bleLive(); }
 function stageDock(v = view0()) { return STAGE.on && v === 'read' && (STAGE.kb != null || midiLive()); }
 function dockOpen(v = view0()) { if (dockForced(v))
@@ -1801,6 +1804,7 @@ function dockLabels() {
     if (label) label.textContent = act;
     const name = STAGE.on && midiLive() ? (activeInputId && midiMsg?.text) || bleName() : null;
     byId('dock-rail-note').textContent = name ? t('stage_rail_midi', name) : t('kb_rail_note');
+    scoreFocusUi();
 }
 function dockSync() {
     const dock = byId('dock'), v = view0(), on = dockWanted(v), open = on && dockOpen(v), was = document.body.classList.contains('kb'), wasOpen = dockShown();
@@ -2700,7 +2704,7 @@ async function pwaInstall()  {
 function fsCan() { return !!(document.fullscreenEnabled && document.documentElement.requestFullscreen); }
 function fsUi() {
     const on = !!document.fullscreenElement;
-    queryAllHtml(document, '.stage-fs').forEach((s) => { s.hidden = !fsCan(); s.setAttribute('aria-label', t(on ? 'stage_fs_exit' : 'stage_fs')); s.title = t(on ? 'stage_fs_exit' : 'stage_fs'); });
+    queryAllHtml(document, '.stage-fs:not(.score-expand)').forEach((s) => { s.hidden = !fsCan(); s.setAttribute('aria-label', t(on ? 'stage_fs_exit' : 'stage_fs')); s.title = t(on ? 'stage_fs_exit' : 'stage_fs'); });
     const b = byId('set-full'); if (!b)
     return; const row = b.closest('.set-row'); if (row instanceof HTMLElement)
     row.hidden = !fsCan(); b.textContent = t(document.fullscreenElement ? 'full_exit' : 'full_enter'); }
@@ -2710,6 +2714,79 @@ function fsToggle() {
         return;
     }
     document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch((err) => console.warn('Full screen:', err));
+}
+// Both score players share one expand action. Native fullscreen is optional;
+// ownership prevents leaving fullscreen opened independently in Settings.
+function scoreFocusUi() {
+    for (const id of ['rd-fs', 'rd-top-fs']) {
+        const button = maybeById(id);
+        if (!button) continue;
+        const on = SCORE_FOCUS.owner === 'read';
+        button.hidden = false;
+        button.setAttribute('aria-pressed', String(on));
+        button.setAttribute('aria-label', t(on ? 'pc_stage_exit' : 'pc_stage'));
+        button.title = t(on ? 'pc_stage_exit' : 'pc_stage_t');
+        button.textContent = id === 'rd-top-fs' ? '⛶' : '⛶ ' + t(on ? 'pc_stage_exit' : 'pc_stage');
+        button.setAttribute('aria-disabled', String(!SR.piece));
+    }
+    const kb = maybeById('rd-focus-kb');
+    kb?.setAttribute('aria-expanded', String(dockOpen()));
+    if (kb) { kb.textContent = t(dockOpen() ? 'kb_hide' : 'kb_show'); }
+}
+function readScoreZoom(value = SCORE_FOCUS.zoom) {
+    SCORE_FOCUS.zoom = Math.round(Math.max(.7, Math.min(2, value)) * 10) / 10;
+    const svg = srSvg();
+    if (svg) svg.style.setProperty('zoom', String(SCORE_FOCUS.zoom));
+    const reset = maybeById('rd-focus-fit');
+    if (reset) reset.textContent = t('score_fit');
+    buttonById('rd-focus-out').disabled = SCORE_FOCUS.zoom <= .7;
+    buttonById('rd-focus-in').disabled = SCORE_FOCUS.zoom >= 2;
+}
+function scoreFocusExit(quiet = false) {
+    const owner = SCORE_FOCUS.owner;
+    if (!owner) return;
+    const native = SCORE_FOCUS.native, target = SCORE_FOCUS.returnTo, scroll = SCORE_FOCUS.scroll;
+    SCORE_FOCUS.owner = null; SCORE_FOCUS.native = false; SCORE_FOCUS.token++;
+    delete document.body.dataset.scoreFocus;
+    if (owner === 'analysis') pcStageSet(false, true);
+    else { SCORE_FOCUS.readOverride = false; stageSync(); }
+    if (native && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    scoreFocusUi();
+    if (!quiet) requestAnimationFrame(() => {
+        if (SCORE_FOCUS.owner || view0() !== owner) return;
+        window.scrollTo(0, scroll);
+        target?.focus({ preventScroll: true });
+    });
+}
+function scoreFocusToggle(owner: 'analysis' | 'read', target: HTMLElement) {
+    const on = owner === 'analysis' ? PC_STAGE.on : SCORE_FOCUS.owner === 'read';
+    if (on) {
+        if (SCORE_FOCUS.owner) scoreFocusExit();
+        else pcStageSet(false);
+        return;
+    }
+    if (owner === 'analysis' ? !AN.notes.length : !SR.piece || byId('rdp-pieces').hidden) return;
+    document.body.dataset.scoreFocus = owner;
+    SCORE_FOCUS.owner = owner; SCORE_FOCUS.returnTo = target; SCORE_FOCUS.scroll = scrollY;
+    const token = ++SCORE_FOCUS.token;
+    if (owner === 'analysis') { anSheet(false, true); pcStageSet(true); }
+    else { SCORE_FOCUS.readOverride = true; stageSync(); }
+    scoreFocusUi();
+    if (owner === 'read') byId('rd-top-fs').focus({ preventScroll: true });
+    if (fsCan() && !document.fullscreenElement) {
+        SCORE_FOCUS.native = true;
+        void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+            if (token !== SCORE_FOCUS.token && document.fullscreenElement) {
+                // A quick exit/re-entry adopts the pending request; a cancelled session releases it.
+                if (SCORE_FOCUS.owner) SCORE_FOCUS.native = true;
+                else void document.exitFullscreen().catch(() => {});
+            }
+        }).catch(() => { if (token === SCORE_FOCUS.token) SCORE_FOCUS.native = false; });
+    }
+}
+function scoreFocusFullscreenChanged() {
+    if (SCORE_FOCUS.native && !document.fullscreenElement) scoreFocusExit();
+    fsUi(); scoreFocusUi();
 }
 // Screen Wake Lock: a remembered choice, held while the page is in front, given back after 30 minutes without playing or touching,
 // taken again on the next note or tap. The browser drops the lock whenever the page is hidden; it is re-requested on return.
@@ -4223,6 +4300,8 @@ let show = function show(v: string|undefined, moveFocus = true): void | Promise<
         }
         return;
     }
+    if (SCORE_FOCUS.owner && v !== SCORE_FOCUS.owner) scoreFocusExit(true);
+    if (v !== 'read') SCORE_FOCUS.readOverride = null;
     viewState.view = v;
     if (location.hash.slice(1) !== v) {
         const viaModal = _modalStack.length > 0;
@@ -6342,6 +6421,8 @@ function srDraw() {
     staffEl.setAttribute('aria-hidden', concealed ? 'true' : 'false');
     staffEl.dataset.activeHand = srActiveHands();
     staffEl.innerHTML = concealed ? '' : r.svg;
+    readScoreZoom();
+    scoreFocusUi();
     srPaperSeen = lay;
     srFollowSy = -1;
     srStepsBuild();
@@ -6511,6 +6592,9 @@ const SR_PAGE_MIN = 0.85, SR_PAGE_MAX = 1.4, SR_PAGE_BELOW = 215;
 const srPageNatural = new WeakMap<SrScore, { width: number; names: boolean; H: number }>();
 function srPageLayout(piece: SrPiece, lay: SrLayout | undefined): SrLayout | undefined {
     const wrap = maybeById('rd-staff');
+    // Manual expansion uses readable systems and vertical scrolling instead of shrinking the whole piece to its height.
+    if (lay && SCORE_FOCUS.owner === 'read')
+        return { width: lay.width, minBars: 1, cap: SR_PAGE_MAX, floor: .5, justify: true };
     if (!lay || lay.maxHeight || piece.engrave !== 2 || !SR.lvPiece || !srtGeneratedSelected() || !wrap)
         return lay;
     // The height the paper may take: the window, less what is above the paper and the controls below it.
@@ -6545,11 +6629,13 @@ function srFit() {
         return;
     srPaperSeen = lay;
     const r = srRender(SR.piece, lay), wrap = byId('rd-staff');
+    const left = wrap.scrollLeft, top = wrap.scrollTop;
     const closed = new Set(SR.steps.filter((s) => s.closed).map((s) => s.beat.toFixed(3)));
     SR.render = r;
     SR.notes = r.notes;
     SR.beatX = r.beatX;
     wrap.innerHTML = r.svg;
+    readScoreZoom();
     srFollowSy = -1;
     srStepsBuild();
     SR.steps.forEach((s) => { if (closed.has(s.beat.toFixed(3)))
@@ -6557,8 +6643,7 @@ function srFit() {
     srPaintAll();
     if (SR.active && SR.modeSel === 'learn')
         srScrollStep();
-    else if (!SR.active)
-        wrap.scrollLeft = 0;
+    else { wrap.scrollLeft = left; wrap.scrollTop = top; }
 }
 // While a score of several systems plays, the page (or the stage's paper) scrolls so the system being read stays in view.
 let srFollowSy = -1;
@@ -7684,6 +7769,7 @@ function srGo() {
         byId('rd-verdict').textContent = '';
         return;
     }
+    if (SCORE_FOCUS.owner !== 'read') SCORE_FOCUS.readOverride = null;
     srStopAll();
     ensureAudio();
     SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
@@ -9855,11 +9941,16 @@ else {
 function rdBack() { rdAbort(); byId('rdx-stage').hidden = true; byId('rdx-home').hidden = false; rdRenderHome(); }
 /* ---- full-screen stage: a running drill or piece takes the whole window; Esc (or End) leaves it ---- */
 function stageWanted() {
+    if (view0() === 'read' && !byId('rdp-pieces').hidden && SCORE_FOCUS.readOverride !== null)
+        return SCORE_FOCUS.readOverride && !byId('rdp-pieces').hidden && !!SR.piece;
     if (view0() !== 'read' || !rdData().prefs.stage)
         return false;
     return (RD.on && !byId('rdp-drills').hidden && !byId('rdx-stage').hidden) || (SR.active && !byId('rdp-pieces').hidden);
 }
 function stageSync() {
+    if (SCORE_FOCUS.owner === 'read' && (view0() !== 'read' || byId('rdp-pieces').hidden)) { scoreFocusExit(true); return; }
+    scoreFocusUi();
+    byId('rd-stage-end').hidden = SCORE_FOCUS.owner === 'read' && !SR.active;
     const on = stageWanted();
     if (on === STAGE.on)
         return;
@@ -9870,7 +9961,7 @@ function stageSync() {
         if (!byId('rdp-pieces').hidden)
             srMeta();
     }
-    else
+    else if (document.body.dataset.stage === 'immersive')
         delete document.body.dataset.stage;
     const stageTop = maybeById('rd-stage-top');
     if (stageTop)
@@ -9892,6 +9983,7 @@ function stageResize() { clearTimeout(STAGE.rz); STAGE.rz = window.setTimeout(()
     stageRefit(); }, 120); }
 // Esc leaves the stage like End or Stop; focus goes to a control that stays on screen.
 function stageKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && SCORE_FOCUS.owner) { e.preventDefault(); scoreFocusExit(); return true; }
     if (e.key !== 'Escape' || !STAGE.on)
         return false;
     e.preventDefault();
@@ -11474,6 +11566,8 @@ function rdnResultShow(startAuto: boolean) {
         rdnResultHide();
         return;
     }
+    // The result and Retry/Next controls live outside the focused paper.
+    if (SCORE_FOCUS.owner === 'read') scoreFocusExit(true);
     // A Step-by-step run measures neither pitch accuracy, rhythm nor timing: those cells show a dash.
     const pct = learn ? learn.acc : SR.srtResultValue ?? Math.round(ev?.score ?? 0), stars = learn ? learn.stars : rdnStars(ev?.stars ?? 0), auto = rdnAutoNextOn();
     const cells: [string, string][] = [
@@ -15219,13 +15313,17 @@ function anUpdateControls() {
     nn.setAttribute('aria-pressed', PRAC.names ? 'true' : 'false');
     nn.setAttribute('aria-label', t('pc_names'));
     nn.title = t('pc_names_t');
-    if (!has)
-        pcStageSet(false);
+    if (!has) {
+        if (SCORE_FOCUS.owner === 'analysis') scoreFocusExit(true); else pcStageSet(false);
+    }
     const stg = buttonById('sc-stage');
     stg.disabled = !has;
+    buttonById('sc-fit').disabled = !has;
     stg.setAttribute('aria-pressed', PC_STAGE.on ? 'true' : 'false');
     stg.setAttribute('aria-label', t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage'));
     stg.title = t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage_t');
+    const stageLabel = stg.querySelector('span');
+    if (stageLabel) stageLabel.textContent = t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage');
     // The toolbar toggle is named Keyboard and reports expanded or collapsed; the dock's own button names the action it takes.
     const open = sheet && dockOpen(), kb = buttonById('an-kb');
     kb.disabled = !sheet;
@@ -17121,7 +17219,7 @@ function anShortcut(e: KeyboardEvent) {
         }
         if (PC_STAGE.on) {
             e.preventDefault();
-            pcStageSet(false);
+            if (SCORE_FOCUS.owner) scoreFocusExit(); else pcStageSet(false);
             byId('sc-stage').focus({ preventScroll: true });
             return;
         }
@@ -17396,7 +17494,7 @@ function anInitControls() {
         scoreSetLook(b.dataset.v); });
     byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
     byId('sc-names').addEventListener('click', () => pracSet('names', !PRAC.names));
-    byId('sc-stage').addEventListener('click', () => pcStageSet(!PC_STAGE.on));
+    byId('sc-stage').addEventListener('click', () => scoreFocusToggle('analysis', byId('sc-stage')));
     byId('an-kb').addEventListener('click', () => dockSet(!dockOpen()));
     const seek = byId('fall-seek');
     seek.addEventListener('input', fallSeek);
@@ -18970,9 +19068,16 @@ function initControls() {
     // installed app & screen
     byId('set-wake').addEventListener('change', (e) => wakeSet(wiringInput(e).checked));
     byId('set-full').addEventListener('click', fsToggle);
-    queryAllHtml(document, '.stage-fs').forEach((b) => b.addEventListener('click', fsToggle));
+    queryAllHtml(document, '.stage-fs:not(.score-expand)').forEach((b) => b.addEventListener('click', fsToggle));
+    for (const id of ['rd-fs', 'rd-top-fs']) byId(id).addEventListener('click', () => scoreFocusToggle('read', byId('rd-fs')));
+    byId('rd-focus-out').addEventListener('click', () => readScoreZoom(SCORE_FOCUS.zoom - .1));
+    byId('rd-focus-in').addEventListener('click', () => readScoreZoom(SCORE_FOCUS.zoom + .1));
+    byId('rd-focus-fit').addEventListener('click', () => { readScoreZoom(1); srFit(); });
+    byId('rd-focus-kb').addEventListener('click', () => { STAGE.kb = !dockOpen(); dockSync(); scoreFocusUi(); });
+    byId('sc-fit').addEventListener('click', () => { if (anZoomNow() !== 1) scoreZoom(1); else if (SCORE.engine) void scoreLayout(); });
+    scoreFocusUi();
     byId('set-install').addEventListener('click', pwaInstall);
-    document.addEventListener('fullscreenchange', fsUi);
+    document.addEventListener('fullscreenchange', scoreFocusFullscreenChanged);
     window.addEventListener('resize', stageResize);
     byId('settingsBtn').addEventListener('click', () => openDrawer(true));
     byId('scrim').addEventListener('click', () => { openDrawer(false); openHelp(false); });

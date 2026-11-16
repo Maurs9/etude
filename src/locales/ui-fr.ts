@@ -871,6 +871,7 @@ const payload: UIPayload = {
       "pc_learned": "Apprise",
       "pc_names": "Noms des notes",
       "pc_names_t": "Noms des notes : écrit le nom de chaque note à côté d’elle sur la partition, selon votre réglage des noms de notes",
+      "score_fit": "Ajuster à la largeur",
       "pc_stage": "Pleine fenêtre",
       "pc_stage_t": "Pleine fenêtre : le lecteur occupe toute la fenêtre pendant que vous travaillez (Échap pour quitter)",
       "pc_stage_exit": "Quitter la pleine fenêtre (Échap)",
