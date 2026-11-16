@@ -15,7 +15,7 @@
   "startUrl": "/etude/etude.html",
   "iconUrl": "https://maurs9.github.io/etude/icons/icon-512.png",
   "maskableIconUrl": "https://maurs9.github.io/etude/icons/icon-maskable-512.png",
-  "monochromeIconUrl": "https://maurs9.github.io/etude/icons/icon.svg",
+  "monochromeIconUrl": "https://maurs9.github.io/etude/icons/icon-monochrome.svg",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
@@ -23,7 +23,26 @@
   },
   "appVersionName": "1.0.0",
   "appVersionCode": 1,
-  "shortcuts": [],
+  "shortcuts": [
+    {
+      "name": "Sight-Reading",
+      "shortName": "Read",
+      "url": "/etude/etude.html#read",
+      "chosenIconUrl": "https://maurs9.github.io/etude/icons/icon-192.png"
+    },
+    {
+      "name": "Scores & Analysis",
+      "shortName": "Scores",
+      "url": "/etude/etude.html#analysis",
+      "chosenIconUrl": "https://maurs9.github.io/etude/icons/icon-192.png"
+    },
+    {
+      "name": "Practice Drills",
+      "shortName": "Practice",
+      "url": "/etude/etude.html#practice",
+      "chosenIconUrl": "https://maurs9.github.io/etude/icons/icon-192.png"
+    }
+  ],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://maurs9.github.io/etude/manifest.webmanifest",
   "fallbackType": "customtabs",
@@ -36,7 +55,7 @@
   "isMetaQuest": false,
   "fullScopeUrl": "https://maurs9.github.io/etude/",
   "minSdkVersion": 24,
-  "orientation": "default",
+  "orientation": "any",
   "fingerprints": [],
   "additionalTrustedOrigins": [],
   "retainedBundles": [],

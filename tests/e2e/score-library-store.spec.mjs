@@ -259,3 +259,22 @@ test('organization fields (title, composer, level, tags, status, progress, notes
     notes: 'Focus on bars 9-16',
   });
 });
+
+test('libraryExport rejects backups whose serialized JSON exceeds 64 MiB before allocating output arrays', async ({ page }) => {
+  const code = await page.evaluate(async path => {
+    const lib = await import(path);
+    const size = 2 * 1024 * 1024;
+    for (let i = 0; i < 9; i++) {
+      const bytes = new Uint8Array(size).fill(200);
+      bytes[0] = 200 + (i % 50);
+      await lib.librarySave(new File([bytes], `large-${i}.mid`), { title: `Large ${i}`, composer: '' });
+    }
+    try {
+      await lib.libraryExport();
+      return 'resolved';
+    } catch (error) {
+      return error.code;
+    }
+  }, modulePath);
+  expect(code).toBe('backup');
+});

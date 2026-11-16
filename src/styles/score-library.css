@@ -64,9 +64,10 @@
 }
 #score-library input, #score-library select, #score-library textarea, #score-library button {
   min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid var(--line);
-  border-radius: 8px; background: var(--card); color: var(--ink); font: inherit;
+  border-radius: 8px; background-color: var(--card); color: var(--ink); font: inherit;
 }
 #score-library input, #score-library select, #score-library textarea { width: 100%; padding: 8px; }
+#score-library select { padding-right: 30px; padding-left: 12px; }
 #score-library textarea { resize: vertical; }
 #score-library :is(input, select)[data-active=true] {
   border-color: var(--accent);
@@ -104,7 +105,7 @@
   cursor: pointer; user-select: none; font-weight: 600; font-size: .88rem;
 }
 #score-library .score-library-list {
-  list-style: none; margin: 4px 0 12px; padding: 0 14px 0 0;
+  list-style: none; margin: 4px 0 12px; padding: 0 14px 0 5px;
   max-height: min(560px, 60vh); overflow: auto; scrollbar-gutter: stable;
 }
 #score-library .score-library-item {
@@ -131,8 +132,8 @@
   font-weight: 600;
 }
 #score-library .score-library-badge-status[data-status=mastered] {
-  border-color: #3c8f57;
-  background: color-mix(in srgb, #3c8f57 16%, var(--paper));
+  border-color: var(--good);
+  background: color-mix(in srgb, var(--good) 16%, var(--paper));
   font-weight: 600;
 }
 #score-library .score-library-badge-progress {
@@ -172,7 +173,7 @@
 #score-library .score-library-actions button { padding: 6px 10px; font-size: .85rem; }
 #score-library .score-library-actions button[data-library-action=status] { min-width: 44px; font-size: 1.05rem; }
 #score-library .score-library-actions button[data-library-action=status][data-status=mastered] {
-  color: #3c8f57; border-color: #3c8f57;
+  color: var(--good); border-color: var(--good);
 }
 #score-library .score-library-actions button[data-library-action=favorite] { min-width: 44px; font-size: 1.2rem; }
 #score-library .score-library-transfer {

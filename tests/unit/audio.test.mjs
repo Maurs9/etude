@@ -138,4 +138,53 @@ describe('piano audio domain', () => {
     vi.useRealTimers();
     vi.stubGlobal('document', originalDoc);
   });
+
+  it('guards noteOn and startDrone when AudioContext is unavailable', () => {
+    const originalAudioContext = globalThis.AudioContext;
+    const originalWebkitAudioContext = globalThis.webkitAudioContext;
+    vi.stubGlobal('AudioContext', undefined);
+    vi.stubGlobal('webkitAudioContext', undefined);
+    try {
+      const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+      expect(() => engine.noteOn(60, 0.8)).not.toThrow();
+      expect(() => engine.startDrone(0)).not.toThrow();
+      expect(engine.liveVoices.size).toBe(0);
+      expect(engine.droneVoices).toEqual([]);
+    } finally {
+      vi.stubGlobal('AudioContext', originalAudioContext);
+      vi.stubGlobal('webkitAudioContext', originalWebkitAudioContext);
+    }
+  });
+
+  it('updates metronome tempo dynamically when startMetro is called again', () => {
+    vi.useFakeTimers();
+    try {
+      const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+      let now = 1;
+      const clicks = [];
+      engine.context = {
+        state: 'running',
+        get currentTime() { return now; },
+        resume: vi.fn(async () => {}),
+      };
+      engine.master = {};
+      engine.metroClick = vi.fn((when, accent) => clicks.push({ when, accent }));
+
+      engine.startMetro(60);
+      now = 1.05;
+      vi.advanceTimersByTime(25);
+      expect(clicks).toHaveLength(1);
+
+      engine.startMetro(120);
+      now = 1.65;
+      vi.advanceTimersByTime(25);
+
+      engine.stopMetro();
+      const afterSwitch = clicks.slice(1);
+      expect(afterSwitch.length).toBeGreaterThanOrEqual(2);
+      expect(afterSwitch[1].when - afterSwitch[0].when).toBeCloseTo(0.5, 5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

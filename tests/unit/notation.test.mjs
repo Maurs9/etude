@@ -94,8 +94,14 @@ describe('OSMD notation adapter', () => {
     });
   });
 
-  it('provides bilingual recovery copy when a lazy score load fails', () => {
+  it('provides localized recovery copy across all 7 languages when a lazy score load fails', () => {
     expect(notationReloadMessage('en')).toEqual({ message: 'The score could not load. Reload the page.', button: 'Reload' });
     expect(notationReloadMessage('ro')).toEqual({ message: 'Partitura nu s-a putut încărca. Reîncarcă pagina.', button: 'Reîncarcă' });
+    for (const lang of ['de', 'es', 'fr', 'it', 'pt-BR']) {
+      const copy = notationReloadMessage(lang);
+      expect(copy.message.trim().length, `${lang} message`).toBeGreaterThan(10);
+      expect(copy.button.trim().length, `${lang} button`).toBeGreaterThan(2);
+      expect(copy.message, `${lang} differs from English fallback`).not.toBe(notationReloadMessage('en').message);
+    }
   });
 });

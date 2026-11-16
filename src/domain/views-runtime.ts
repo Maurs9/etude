@@ -248,10 +248,10 @@ const isMergedView = router.isMergedView, MERGED_VIEWS = router.MERGED_VIEWS;
 function t(k: string, ...args: Array<string | number | null | undefined>): string { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
     return k; if (!args.length)
     return v; if (args[0] != null)
-    v = v.replace('%a', String(args[0])); if (args[1] != null)
-    v = v.replace('%b', String(args[1])); for (let i = 0; i < args.length; i++) {
+    v = v.replace('%a', () => String(args[0])); if (args[1] != null)
+    v = v.replace('%b', () => String(args[1])); for (let i = 0; i < args.length; i++) {
     if (args[i] != null)
-        v = v.replace('%s', String(args[i]));
+        v = v.replace('%s', () => String(args[i]));
 } return v; }
 /* ============================================================================
    ÉTUDE — V3.  Reuses the verified V2 theory/audio/MIDI engine; adds a
@@ -633,18 +633,19 @@ function scheduleAccompAt(t0: number) {
     const bs = accomp.beatSec, built = accomp.built;
     if (!built)
         return;
+    const now = requireAudioContext().currentTime;
     built.events.forEach((e) => {
         if (accomp.hands !== 'both' && e.hand !== (accomp.hands === 'left' ? 'L' : 'R'))
             return;
         const when = t0 + e.beat * bs, dur = Math.max(.12, e.durB * bs * 0.95);
         previewNote(e.midi, when, dur, e.hand === 'L' ? 78 : 98);
-        const onMs = (when - requireAudioContext().currentTime) * 1000;
+        const onMs = (when - now) * 1000;
         accompHL(e.midi, e.hand === 'L' ? 'lh' : 'rh', onMs, onMs + Math.min(dur, 1.05) * 1000);
     });
     const n = (ACCOMP_PROGS[accomp.progIdx] || ACCOMP_PROGS[0]).chords.length, per = built.beatsTotal / Math.max(1, n);
     for (let i = 0; i < n; i++)
         accompTimer(() => { if (accomp.on)
-            acChainHL(i); }, (t0 + i * per * bs - requireAudioContext().currentTime) * 1000);
+            acChainHL(i); }, (t0 + i * per * bs - now) * 1000);
 }
 function acChainHL(i: number) { (document).querySelectorAll('#ac-chain .ch').forEach((el, k) => el.classList.toggle('on', k === i)); }
 function accompTick() { if (!accomp.on || !actx)
@@ -653,8 +654,10 @@ function accompTick() { if (!accomp.on || !actx)
     accomp.nextLoop += accomp.loopDur;
 } }
 function accompStart() {
-    ensureAudio();
+    const ctx = ensureAudio();
     accompStop(true);
+    if (!ctx)
+        return;
     accomp.on = true;
     const built = accomp.built = buildAccomp();
     accomp.beatSec = 60 / accomp.bpm;
@@ -663,7 +666,7 @@ function accompStart() {
         accomp.on = false;
         return;
     }
-    accomp.nextLoop = requireAudioContext().currentTime + 0.18;
+    accomp.nextLoop = ctx.currentTime + 0.18;
     if (accomp.click) {
         metro.bpm = accomp.bpm;
         startMetro();
@@ -792,6 +795,10 @@ function livePitch(el: HTMLElement, midi: number, cents?: number) {
 async function trxStart()  {
     if (trx.on || trx.pending)
         return;
+    stopPreviews();
+    trx.hlTimers.forEach(clearTimeout);
+    trx.hlTimers = [];
+    kbClear('rh');
     const request = ++trx.micRequest;
     trx.pending = true;
     byId('tr-rec').textContent = t('tr_stop');
@@ -814,7 +821,7 @@ async function trxStart()  {
     trx.display = null;
     trx.curMidi = null;
     trx.ring = [];
-    trx.lastVoice = requireAudioContext().currentTime;
+    trx.lastVoice = actx ? actx.currentTime : 0;
     byId('tr-rec').classList.add('rec-on');
     byId('tr-rec').textContent = t('tr_stop');
     byId('tr-live').classList.add('rec');
@@ -829,10 +836,12 @@ function trxCloseNote(tEnd: number) { if (trx.curMidi == null)
 function trxLoop() {
     if (!trx.on)
         return;
-    if (!trx.analyser || !trx.buf)
+    if (!trx.analyser || !trx.buf || !actx) {
+        trxStop();
         return;
+    }
     trx.analyser.getFloatTimeDomainData(trx.buf);
-    const f = trxAutoCorrelate(trx.buf, requireAudioContext().sampleRate), now = requireAudioContext().currentTime;
+    const f = trxAutoCorrelate(trx.buf, actx.sampleRate), now = actx.currentTime;
     if (f < 0) {
         if (trx.curMidi != null && now - trx.lastVoice > 0.12) {
             trxCloseNote(now);
@@ -933,14 +942,14 @@ function trxRender() {
 function trxPlay() {
     if (!trx.display || !trx.display.length)
         return;
-    ensureAudio();
+    const ctx = ensureAudio();
     stopPreviews();
     trx.hlTimers.forEach(clearTimeout);
     trx.hlTimers = [];
-    const beatSec = 60 / (trx.bpm || 90), t0 = requireAudioContext().currentTime + 0.12;
+    const beatSec = 60 / (trx.bpm || 90), now = ctx ? ctx.currentTime : 0, t0 = now + 0.12;
     trx.display.forEach((n) => {
-        const when = t0 + n.sb * beatSec, dur = Math.max(0.12, n.db * beatSec * 0.95), onMs = (when - requireAudioContext().currentTime) * 1000;
-        previewNote(n.midi, when, dur, 100);
+        const when = t0 + n.sb * beatSec, dur = Math.max(0.12, n.db * beatSec * 0.95), onMs = (when - now) * 1000;
+        if (ctx) previewNote(n.midi, when, dur, 100);
         trx.hlTimers.push(window.setTimeout(() => kbState(n.midi, 'rh', true), Math.max(0, onMs)));
         trx.hlTimers.push(window.setTimeout(() => { const el = keyEl.get(foldToView(n.midi)); if (el && el.dataset.s === 'rh')
             kbState(n.midi, null, true); }, Math.max(0, onMs + Math.min(dur, 1.0) * 1000)));
@@ -1029,14 +1038,46 @@ function ssDraw() { if (!sing.ex)
 // Draws the staff again when its paper changed width; the cursor and the pitch trail come back on their next frame.
 function ssFit() { if (sing.render && srPaperChanged(ssPaperSeen, srPaperOf(byId('si-staff'))))
     ssDraw(); }
-function ssPaint() { const svg = byId('si-staff').querySelector('svg'); if (!svg)
-    return; svg.querySelectorAll('.ss-n').forEach((g) => { if (!(g instanceof SVGElement))
-    return; const i = Number(g.dataset.i), res = sing.results[i]; if ((sing.mode === 'note') && sing.active && i === sing.idx)
-    g.dataset.s = 'now';
-else if (res)
-    g.dataset.s = res;
-else
-    g.removeAttribute('data-s'); }); }
+interface SsSvgCacheEntry {
+    notes: Map<number, SVGElement>;
+    playhead: SVGLineElement | null;
+    trail: SVGPolylineElement | null;
+}
+const ssSvgCache = new WeakMap<SVGSVGElement, SsSvgCacheEntry>();
+const ssBeatPtsCache = new WeakMap<SightSingRender, { b: number; x: number }[]>();
+function ssSvgEntry(svg: SVGSVGElement): SsSvgCacheEntry {
+    let entry = ssSvgCache.get(svg);
+    if (!entry) {
+        const notes = new Map<number, SVGElement>();
+        svg.querySelectorAll('.ss-n').forEach((g) => {
+            if (g instanceof SVGElement && g.dataset.i != null)
+                notes.set(Number(g.dataset.i), g);
+        });
+        const ph = svg.querySelector('.ss-playhead'), pl = svg.querySelector('.ss-trail');
+        entry = {
+            notes,
+            playhead: ph instanceof SVGLineElement ? ph : null,
+            trail: pl instanceof SVGPolylineElement ? pl : null,
+        };
+        ssSvgCache.set(svg, entry);
+    }
+    return entry;
+}
+function ssPaint() {
+    const svg = ssSvg();
+    if (!svg)
+        return;
+    const { notes } = ssSvgEntry(svg);
+    notes.forEach((g, i) => {
+        const res = sing.results[i];
+        if ((sing.mode === 'note') && sing.active && i === sing.idx)
+            g.dataset.s = 'now';
+        else if (res)
+            g.dataset.s = res;
+        else
+            g.removeAttribute('data-s');
+    });
+}
 function ssNewExercise() { sing.ex = ssGen(sing.level, sing.clef, 0); sing.idx = 0; sing.results = []; sing.active = false; sing.bpm = sing.ex.bpm; const bp = inputById('si-bpm'); if (bp) {
     bp.value = String(sing.ex.bpm);
     byId('si-bpmLbl').textContent = String(sing.ex.bpm);
@@ -1086,28 +1127,42 @@ function ssMicStart() {
 }
 function ssMicMaybe() { return sing.analyser ? Promise.resolve(true) : ssMicStart(); }
 function ssMicStop() { sing.runId++; sing.micRequest++; micClose(sing.src, sing.stream); sing.src = null; sing.stream = null; sing.analyser = null; }
-function ssReadPitch() { if (!sing.analyser || !sing.buf)
-    return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, requireAudioContext().sampleRate); if (f < 0)
+function ssReadPitch() { if (!sing.analyser || !sing.buf || !actx)
+    return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, actx.sampleRate); if (f < 0)
     return null; const midi = Math.round(69 + 12 * Math.log2(f / 440)), cents = Math.round(1200 * Math.log2(f / (440 * Math.pow(2, (midi - 69) / 12)))); return { f, midi, cents }; }
 function ssNeed(targetPc: number, sungPc: number) { let d = ((targetPc - sungPc) % 12 + 12) % 12; if (d > 6)
     d -= 12; return d; } // + → sing higher
 function ssCurNote() { return sing.flat ? sing.flat[sing.idx] : null; }
 /* ---- cursor + trail + scroll ---- */
 function ssSvg() { return byId('si-staff').querySelector('svg'); }
-function ssCursorEl() { const svg = ssSvg(); if (!svg)
-    return null; let c = svg.querySelector('.ss-playhead'); if (!c) {
-    c = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    c.setAttribute('class', 'ss-playhead');
-    c.setAttribute('y1', '38');
-    c.setAttribute('y2', '102');
-    svg.appendChild(c);
-} return c; }
+function ssCursorEl() {
+    const svg = ssSvg();
+    if (!svg)
+        return null;
+    const entry = ssSvgEntry(svg);
+    if (!entry.playhead || entry.playhead.parentNode !== svg) {
+        const c = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        c.setAttribute('class', 'ss-playhead');
+        c.setAttribute('y1', '38');
+        c.setAttribute('y2', '102');
+        svg.appendChild(c);
+        entry.playhead = c;
+    }
+    return entry.playhead;
+}
 function ssMoveCursor(x: number) { const c = ssCursorEl(); if (c) {
     c.setAttribute('x1', String(x));
     c.setAttribute('x2', String(x));
 } ssScrollToX(x); }
-function ssRemoveCursor() { const svg = ssSvg(), c = svg && svg.querySelector('.ss-playhead'); if (c)
-    c.remove(); }
+function ssRemoveCursor() {
+    const svg = ssSvg();
+    if (!svg)
+        return;
+    const entry = ssSvgEntry(svg), c = entry.playhead || svg.querySelector('.ss-playhead');
+    if (c)
+        c.remove();
+    entry.playhead = null;
+}
 // x is in SVG units, shown sing.render.scale pixels each.
 function ssScrollToX(x: number) { const w = byId('si-staff'); if (w.scrollWidth > w.clientWidth + 4)
     w.scrollLeft = Math.max(0, x * (sing.render?.scale ?? 1) - w.clientWidth * 0.4); }
@@ -1116,37 +1171,66 @@ function ssScrollToCur() { const o = sing.render && sing.render.noteX[sing.idx];
 function ssPitchY(f: number) { const bottomMidi = requireSingExercise().clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
     y -= 42; while (y < 4)
     y += 42; return y; }
-function ssDrawTrail() { const svg = ssSvg(); if (!svg)
-    return; let pl = svg.querySelector('.ss-trail'); if (!pl) {
-    pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    pl.setAttribute('class', 'ss-trail');
-    svg.appendChild(pl);
-} pl.setAttribute('points', sing.trail.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')); }
-function ssClearTrail() { const svg = ssSvg(), pl = svg && svg.querySelector('.ss-trail'); if (pl)
-    pl.remove(); }
+function ssDrawTrail() {
+    const svg = ssSvg();
+    if (!svg)
+        return;
+    const entry = ssSvgEntry(svg);
+    if (!entry.trail || entry.trail.parentNode !== svg) {
+        const pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        pl.setAttribute('class', 'ss-trail');
+        svg.appendChild(pl);
+        entry.trail = pl;
+    }
+    entry.trail.setAttribute('points', sing.trail.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '));
+}
+function ssClearTrail() {
+    const svg = ssSvg();
+    if (!svg)
+        return;
+    const entry = ssSvgEntry(svg), pl = entry.trail || svg.querySelector('.ss-trail');
+    if (pl)
+        pl.remove();
+    entry.trail = null;
+}
 function ssBeatToX(beat: number) {
-    if (!sing.render)
+    const render = sing.render;
+    if (!render)
         return 10;
-    const ns = sing.render.noteX;
+    const ns = render.noteX;
     if (!ns || !ns.length)
         return 10;
-    const pts = ns.map((o) => ({ b: o.note.tBeat, x: o.x }));
-    pts.push({ b: requireSingExercise().totalBeats, x: sing.render.W - 12 });
-    for (let i = 0; i < pts.length - 1; i++) {
-        if (beat >= pts[i].b && beat <= pts[i + 1].b) {
-            const f = (beat - pts[i].b) / Math.max(1e-3, pts[i + 1].b - pts[i].b);
-            return pts[i].x + f * (pts[i + 1].x - pts[i].x);
+    let pts = ssBeatPtsCache.get(render);
+    if (!pts) {
+        pts = ns.map((o) => ({ b: o.note.tBeat, x: o.x }));
+        pts.push({ b: requireSingExercise().totalBeats, x: render.W - 12 });
+        ssBeatPtsCache.set(render, pts);
+    }
+    if (beat <= pts[0].b)
+        return pts[0].x;
+    if (beat >= pts[pts.length - 1].b)
+        return pts[pts.length - 1].x;
+    let lo = 0, hi = pts.length - 2;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (beat < pts[mid].b)
+            hi = mid - 1;
+        else if (beat > pts[mid + 1].b)
+            lo = mid + 1;
+        else {
+            const f = (beat - pts[mid].b) / Math.max(1e-3, pts[mid + 1].b - pts[mid].b);
+            return pts[mid].x + f * (pts[mid + 1].x - pts[mid].x);
         }
     }
-    return beat <= pts[0].b ? pts[0].x : pts[pts.length - 1].x;
+    return pts[pts.length - 1].x;
 }
 /* ---- reference cues ---- */
 function ssTonic() { if (!sing.ex)
-    return; ensureAudio(); previewNote(sing.ex.tonicMidi, requireAudioContext().currentTime + 0.02, 0.85, 92); }
+    return; const ctx = ensureAudio(); if (ctx) previewNote(sing.ex.tonicMidi, ctx.currentTime + 0.02, 0.85, 92); }
 // A pulse running along the staff while the melody plays; with reduced motion the notes simply stay as they are.
 function ssFlash(i: number) { if (reduceMotion())
     return; const svg = ssSvg(); if (!svg)
-    return; const g = svg.querySelector('.ss-n[data-i="' + i + '"]'); if (!(g instanceof SVGElement))
+    return; const g = ssSvgEntry(svg).notes.get(i); if (!g)
     return; const prev = g.getAttribute('data-s'); g.dataset.s = 'now'; sing.hlTimers.push(window.setTimeout(() => { if (g.dataset.s === 'now') {
     if (prev && prev !== 'now')
         g.dataset.s = prev;
@@ -1156,12 +1240,12 @@ function ssFlash(i: number) { if (reduceMotion())
 function ssPlayIt() {
     if (!sing.ex || !sing.flat)
         return;
-    ensureAudio();
+    const ctx = ensureAudio();
     stopPreviews();
     sing.hlTimers.forEach(clearTimeout);
     sing.hlTimers = [];
-    const beatSec = 60 / (sing.bpm || sing.ex.bpm), t0 = requireAudioContext().currentTime + 0.12;
-    sing.flat.forEach((n, i) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); previewNote(n.midi, when, dur, 92); sing.hlTimers.push(window.setTimeout(() => ssFlash(i), Math.max(0, (when - requireAudioContext().currentTime) * 1000))); });
+    const beatSec = 60 / (sing.bpm || sing.ex.bpm), now = ctx ? ctx.currentTime : 0, t0 = now + 0.12;
+    sing.flat.forEach((n, i) => { const when = t0 + n.tBeat * beatSec, dur = Math.max(0.18, n.dur * beatSec * 0.92); if (ctx) previewNote(n.midi, when, dur, 92); sing.hlTimers.push(window.setTimeout(() => ssFlash(i), Math.max(0, (when - now) * 1000))); });
 }
 function ssDrone() { if (inputById('si-drone').checked) {
     if (sing.ex) {
@@ -1183,8 +1267,8 @@ function ssNoteStart() {
     ssScrollToCur();
     byId('si-verdict').className = 'verdict neutral';
     byId('si-verdict').textContent = t('si_singit');
-    ensureAudio();
-    previewNote(requireSingExercise().tonicMidi, requireAudioContext().currentTime + 0.02, 0.6, 85);
+    const ctx = ensureAudio();
+    if (ctx) previewNote(requireSingExercise().tonicMidi, ctx.currentTime + 0.02, 0.6, 85);
     const run = sing.runId;
     ssMicMaybe().then((ok) => { if (run === sing.runId && sing.active && sing.mode === 'note') {
         if (!ok)
@@ -1246,8 +1330,8 @@ function ssHintBump(am: number) {
         byId('si-hint').textContent = need > 0 ? t('si_hi_up') : t('si_hi_down');
     else {
         byId('si-hint').textContent = t('si_hi_syl', syl);
-        ensureAudio();
-        previewNote(cur.midi, requireAudioContext().currentTime + 0.02, 0.6, 80);
+        const ctx = ensureAudio();
+        if (ctx) previewNote(cur.midi, ctx.currentTime + 0.02, 0.6, 80);
     }
 }
 function ssNoteFinish() {
@@ -1285,9 +1369,11 @@ function ssPhraseStart() {
         sing.countInMs = ci * beatSec * 1000;
         sing.phraseStartPN = performance.now() + 150;
         sing.phraseSingPN = sing.phraseStartPN + sing.countInMs;
-        const t0 = requireAudioContext().currentTime + 0.15 + (sing.phraseStartPN - performance.now()) / 1000;
-        for (let b = 0; b < ci; b++)
-            metroClick(t0 + b * beatSec, b === 0); // audible count-in (best-effort)
+        if (actx) {
+            const t0 = actx.currentTime + Math.max(0, (sing.phraseStartPN - performance.now()) / 1000);
+            for (let b = 0; b < ci; b++)
+                metroClick(t0 + b * beatSec, b === 0); // audible count-in (best-effort)
+        }
         byId('si-verdict').className = 'verdict neutral';
         byId('si-verdict').textContent = t('si_count');
         sing.raf = requestAnimationFrame(ssPhraseLoop);
@@ -1468,7 +1554,7 @@ const view = { low: 48, oct: 4 };
 let labelMode = 'c';
 let typeOctave = 60;
 function clampTypeOctave() { const lo = view.low, maxLo = Math.max(lo, viewHigh() - 12); typeOctave = Math.max(lo, Math.min(maxLo, Math.round(typeOctave / 12) * 12)); }
-const whiteEl = new Map<number, HTMLButtonElement>(), blackEl = new Map<number, HTMLButtonElement>(), keyEl = new Map<number, HTMLButtonElement>();
+const whiteEl = new Map<number, HTMLButtonElement>(), blackEl = new Map<number, HTMLButtonElement>(), keyEl = new Map<number, HTMLButtonElement>(), keyMk = new Map<number, HTMLSpanElement>(), keyDg = new Map<number, HTMLSpanElement>();
 const BLACK_NUDGE: Record<number, number> = { 1: 0, 3: 0, 6: 0, 8: 0, 10: 0 };
 function viewHigh() { return view.low + view.oct * 12; }
 // A phone on its side: the compact landscape layout of etude.css, and landscape.css while the keys are open (body.kb-land).
@@ -1489,6 +1575,8 @@ function buildKeyboard() {
     whiteEl.clear();
     blackEl.clear();
     keyEl.clear();
+    keyMk.clear();
+    keyDg.clear();
     const lo = view.low, hi = viewHigh(), WHITE = new Set([0, 2, 4, 5, 7, 9, 11]);
     for (let m = lo; m <= hi; m++) {
         if (!WHITE.has(pc(m)))
@@ -1517,6 +1605,8 @@ function buildKeyboard() {
         keys.appendChild(b);
         whiteEl.set(m, b);
         keyEl.set(m, b);
+        keyMk.set(m, mk);
+        keyDg.set(m, dg);
         bindKeyA11y(b, m);
     }
     for (let m = lo; m <= hi; m++) {
@@ -1538,6 +1628,8 @@ function buildKeyboard() {
         keys.appendChild(b);
         blackEl.set(m, b);
         keyEl.set(m, b);
+        keyMk.set(m, mk);
+        keyDg.set(m, dg);
         bindKeyA11y(b, m);
     }
     positionBlacks();
@@ -1569,7 +1661,7 @@ function kbDegrees(src: Map<number,string>|null) {
     if (kbDegSrc)
         kbDegSrc.forEach((label, m) => folded.set(foldToView(m), label));
     keyEl.forEach((el, m) => {
-        const label = folded.get(m) || '', d = queryHtml(el, '.dg');
+        const label = folded.get(m) || '', d = keyDg.get(m);
         const degDesc = label ? (label === 'R' ? t('kb_deg_r') : t('kb_deg', label)) : '';
         if (d) {
             d.textContent = label;
@@ -1600,12 +1692,12 @@ function kbState(midi: number, s: string|null, fold: boolean) { const m = fold ?
     return; if (s)
     el.dataset.s = s;
 else
-    delete el.dataset.s; const mk = el.querySelector('.mk'); if (mk)
+    delete el.dataset.s; const mk = keyMk.get(m); if (mk)
     mk.textContent = s === 'good' ? '✓' : s === 'bad' ? '✗' : ''; }
-function kbClear(s: string) { keyEl.forEach((el) => { if (el.dataset.s === s)
-    delete el.dataset.s; const mk = el.querySelector('.mk'); if (mk && !el.dataset.s)
-    mk.textContent = ''; }); }
-function kbClearAll() { keyEl.forEach((el) => { delete el.dataset.s; const mk = el.querySelector('.mk'); if (mk)
+function kbClear(s: string) { keyEl.forEach((el, m) => { if (el.dataset.s === s) {
+    delete el.dataset.s; const mk = keyMk.get(m); if (mk)
+    mk.textContent = ''; } }); }
+function kbClearAll() { keyEl.forEach((el, m) => { delete el.dataset.s; const mk = keyMk.get(m); if (mk)
     mk.textContent = ''; }); }
 function kbPress(midi: number, on: boolean) { const m = foldToView(midi), el = keyEl.get(m); if (!el)
     return; if (!on && [...held].some((n) => foldToView(n) === m))
@@ -3054,6 +3146,8 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
     ensureAudio();
     sesStopPrompt();
+    clearTimeout(evalTimer ?? undefined);
+    evalTimer = null;
     if (accomp.on)
         accompStop(); // Play along is not a drill
     SES.targeted = targeted || null;
@@ -3073,6 +3167,8 @@ function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSess
 function startPlacement() {
     ensureAudio();
     sesStopPrompt();
+    clearTimeout(evalTimer ?? undefined);
+    evalTimer = null;
     SES.targeted = null;
     SES.placement = true;
     SES.contrast = null;
@@ -3113,11 +3209,15 @@ function endSession(toSummary: boolean) {
         saveAll();
     }
     sesStopPrompt();
+    clearTimeout(evalTimer ?? undefined);
+    evalTimer = null;
     ekStop(SES.q);
     techniqueStop(techniqueHost);
     const contrastRun = SES.contrast;
     SES.contrast = null;
     SES.active = false;
+    SES.answered = true;
+    SES.q = null;
     SES.placement = false;
     byId('session').style.display = 'none';
     byId('session').classList.remove('on');
@@ -3503,7 +3603,7 @@ function ekOff(q: TrainerQuestion, m: number) { const ek = q.ek; if (!ek || SES.
     return; scheduleEval(() => ekCh(q), 140); }
 function ekIv(q: TrainerQuestion) {
     const ek = q.ek;
-    if (!ek || SES.answered || SES.q !== q || !ek.seq.length)
+    if (!ek || !SES.active || SES.answered || SES.q !== q || !ek.seq.length)
         return;
     const s = ek.seq, start = ek.target[0], semi = ek.target[1] - start; // semi < 0: a descending interval
     let a = s[0], b = s[1];
@@ -3514,8 +3614,8 @@ function ekIv(q: TrainerQuestion) {
     } // struck together: the lower note is the start (the upper one when it descends)
     if (pc(a.m) !== pc(start)) {
         ekFlash([a.m], 'bad');
-        setTimeout(() => { kbClear('bad'); if (SES.q === q && !SES.answered)
-            kbState(start, 'target', true); }, 420);
+        setTimeout(() => { if (SES.active && SES.q === q) { kbClear('bad'); if (!SES.answered)
+            kbState(start, 'target', true); } }, 420);
         ek.seq = [];
         ekProg(q, 0);
         neutral(t('ek_start_on', ekName(q, start)));
@@ -3540,7 +3640,7 @@ function ekIv(q: TrainerQuestion) {
 }
 function ekCh(q: TrainerQuestion) {
     const ek = q.ek;
-    if (!ek || ek.kind !== 'ch' || SES.answered || SES.q !== q || !ek.seq.length)
+    if (!ek || ek.kind !== 'ch' || !SES.active || SES.answered || SES.q !== q || !ek.seq.length)
         return;
     const ms = [...new Set(ek.seq.map((x) => x.m))].sort((a, b) => a - b);
     const pcs = [...new Set(ms.map((m) => pc(m)))].sort((a, b) => a - b);
@@ -3568,14 +3668,14 @@ function ekCh(q: TrainerQuestion) {
 }
 function ekMel(q: TrainerQuestion, m: number) {
     const ek = q.ek;
-    if (!ek)
+    if (!ek || !SES.active || SES.answered || SES.q !== q)
         return;
     const tg = ek.target, i = ek.seq.length;
     if (i === 0) {
         if (pc(m) !== pc(tg[0])) {
             ekFlash([m], 'bad');
-            setTimeout(() => { kbClear('bad'); if (SES.q === q && !SES.answered)
-                kbState(tg[0], 'target', true); }, 420);
+            setTimeout(() => { if (SES.active && SES.q === q) { kbClear('bad'); if (!SES.answered)
+                kbState(tg[0], 'target', true); } }, 420);
             neutral(t('ek_start_on', ekName(q, tg[0])));
             return;
         }
@@ -3610,8 +3710,8 @@ function ekMiss(q: TrainerQuestion, bad: number[], msg: string) {
         resolve(q, false);
         return;
     }
-    setTimeout(() => { kbClear('bad'); if (SES.q === q && !SES.answered)
-        kbState(ek.target[0], 'target', true); }, 500);
+    setTimeout(() => { if (SES.active && SES.q === q) { kbClear('bad'); if (!SES.answered)
+        kbState(ek.target[0], 'target', true); } }, 500);
     ekProg(q, 0);
     const v = byId('q-verdict');
     v.className = 'verdict bad';
@@ -3654,7 +3754,7 @@ function sesInput(midi: number) {
         gradeProgChord(q);
 }
 function gradeInterval(q: TrainerQuestion) {
-    if (SES.answered || q.it.cat !== 'interval')
+    if (!SES.active || SES.answered || SES.q !== q || q.it.cat !== 'interval')
         return;
     const ms = heldMidis().sort((a, b) => a - b);
     if (ms.length < 2)
@@ -3670,14 +3770,14 @@ function gradeInterval(q: TrainerQuestion) {
     }
     else {
         [lo, hi].forEach((m) => kbState(m, 'bad', true));
-        setTimeout(() => kbClear('bad'), 500);
+        setTimeout(() => { if (SES.active && SES.q === q) kbClear('bad'); }, 500);
         q.missed = true;
         q.given = givenInterval(q, lo, hi, pc(lo) === q.key ? lo : 60 + q.key);
         resolve(q, false);
     }
 }
 function gradeChord(q: TrainerQuestion) {
-    if (SES.answered || q.it.cat !== 'chord')
+    if (!SES.active || SES.answered || SES.q !== q || q.it.cat !== 'chord')
         return;
     const hp = heldPcs(), tpl = q.it.ref, target = chordTargetPcs(q.key, tpl);
     if (!hp.length)
@@ -3702,19 +3802,19 @@ function gradeChord(q: TrainerQuestion) {
     }
     if (hp.length >= target.length) {
         heldMidis().forEach((m) => kbState(m, 'bad', true));
-        setTimeout(() => kbClear('bad'), 500);
+        setTimeout(() => { if (SES.active && SES.q === q) kbClear('bad'); }, 500);
         q.missed = true;
         q.given = givenChord(q, heldMidis(), tpl.intervals.map((i) => 60 + q.key + i), null);
         resolve(q, false);
     }
 }
 function gradeScaleNote(q: TrainerQuestion, midi: number | null | undefined) {
-    if (SES.answered || midi == null || !q.offs)
+    if (!SES.active || SES.answered || SES.q !== q || midi == null || !q.offs)
         return;
     if (q.idx === 0) {
         if (pc(midi) !== q.key) {
             kbState(midi, 'bad', true);
-            setTimeout(() => kbClear('bad'), 400);
+            setTimeout(() => { if (SES.active && SES.q === q) kbClear('bad'); }, 400);
             neutral(t('start_on', rootName(q.key)));
             return;
         }
@@ -3734,14 +3834,14 @@ function gradeScaleNote(q: TrainerQuestion, midi: number | null | undefined) {
     }
     else {
         kbState(midi, 'bad', true);
-        setTimeout(() => kbClear('bad'), 420);
+        setTimeout(() => { if (SES.active && SES.q === q) kbClear('bad'); }, 420);
         q.missed = true;
         q.given = givenNote(q.offs.slice(Math.max(0, q.idx - 2), q.idx).map((o) => (q.anchor ?? 0) + o), midi, want);
         resolve(q, false);
     }
 }
 function gradeProgChord(q: TrainerQuestion) {
-    if (SES.answered || q.it.cat !== 'prog')
+    if (!SES.active || SES.answered || SES.q !== q || q.it.cat !== 'prog')
         return;
     const ch = q.it.ref.chords[q.idx], root = (q.key + ch[0]) % 12, tpl = progChordTpl(ch[1]);
     const target = chordTargetPcs(root, tpl), hp = heldPcs();
@@ -3755,7 +3855,7 @@ function gradeProgChord(q: TrainerQuestion) {
         else {
             kbClear('target');
             neutral('✓ — next chord');
-            setTimeout(() => showProgTarget(q), 250);
+            setTimeout(() => { if (SES.active && SES.q === q && !SES.answered) showProgTarget(q); }, 250);
         }
         return;
     }
@@ -3763,7 +3863,7 @@ function gradeProgChord(q: TrainerQuestion) {
         return;
     if (hp.length >= target.length) {
         heldMidis().forEach((m) => kbState(m, 'bad', true));
-        setTimeout(() => kbClear('bad'), 420);
+        setTimeout(() => { if (SES.active && SES.q === q) kbClear('bad'); }, 420);
         q.missed = true;
         q.given = givenChord(q, heldMidis(), tpl ? tpl.intervals.map((i) => 60 + root + i) : [], q.idx + 1);
         resolve(q, false);
@@ -5163,11 +5263,9 @@ function lVel(S: LStaffSpec, b: number) {
         base = Math.min(124, base + 24);
     return Math.round(base);
 }
-/** The audio clock, for scheduling; Learn only plays after `ensureAudio()`, so a missing context is a bug. */
+/** The audio clock, for scheduling; falls back to wall time when audio context is unavailable. */
 function learnCtxTime(): number {
-    if (!actx)
-        throw new TypeError('Étude: audio context unavailable');
-    return actx.currentTime;
+    return actx ? actx.currentTime : performance.now() / 1000;
 }
 type LTieMark = ['slur' | 'tie', number, number, SrHand?];
 async function lStaffPlay(key: string, btn: HTMLElement) {
@@ -6280,61 +6378,123 @@ function srNamesVisible(piece: SrScore) {
     const state = SR.srtState, lvFirst = !!SR.lvPiece && srtGeneratedSelected() && state?.mode === 'firstSight' && (state.name === 'idle' || state.name === 'blocked');
     return SR.names && !piece.noNames && !srtScoreConcealed() && !lvFirst && !srtEligibleFirstSightActive() && SR.srtState?.name !== 'claiming';
 }
+interface SrSvgNoteRef {
+    g: SVGElement;
+    title: SVGTitleElement;
+    sym: SVGTextElement;
+}
+interface SrSvgCacheEntry {
+    notes: Map<number, SrSvgNoteRef>;
+    playhead: SVGLineElement | null;
+    extras: SVGGElement | null;
+}
+const srSvgCache = new WeakMap<SVGSVGElement, SrSvgCacheEntry>();
+function srSvgEntry(svg: SVGSVGElement): SrSvgCacheEntry {
+    let entry = srSvgCache.get(svg);
+    if (!entry) {
+        const noteById = new Map<number, { x: number; y: number }>();
+        for (const item of SR.notes)
+            noteById.set(item.nid, item);
+        const notes = new Map<number, SrSvgNoteRef>();
+        svg.querySelectorAll('.ss-n').forEach((g) => {
+            if (!(g instanceof SVGElement))
+                return;
+            const id = Number(g.dataset.nid);
+            const rawTitle = g.querySelector('title');
+            let title: SVGTitleElement;
+            if (rawTitle instanceof SVGTitleElement) {
+                title = rawTitle;
+            }
+            else {
+                title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                g.appendChild(title);
+            }
+            const rawVisible = g.querySelector('.ss-result-symbol');
+            let visible: SVGTextElement;
+            if (rawVisible instanceof SVGTextElement) {
+                visible = rawVisible;
+            }
+            else {
+                visible = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                visible.setAttribute('class', 'ss-result-symbol');
+                visible.setAttribute('aria-hidden', 'true');
+                g.appendChild(visible);
+            }
+            const note = noteById.get(id);
+            visible.setAttribute('x', String((note?.x ?? 0) + 12));
+            visible.setAttribute('y', String(Math.max(12, (note?.y ?? 16) - 8)));
+            notes.set(id, { g, title, sym: visible });
+        });
+        const ph = svg.querySelector('.ss-playhead'), ex = svg.querySelector('.ss-extra-symbol');
+        entry = {
+            notes,
+            playhead: ph instanceof SVGLineElement ? ph : null,
+            extras: ex instanceof SVGGElement ? ex : null,
+        };
+        srSvgCache.set(svg, entry);
+    }
+    return entry;
+}
 function srPaintAll() {
     const svg = srSvg();
     if (!svg)
         return;
+    const entry = srSvgEntry(svg);
     const st = (SR.active && SR.modeSel === 'learn') ? SR.steps[SR.stepIdx] : null;
-    svg.querySelectorAll('.ss-n').forEach((g) => {
-        if (!(g instanceof SVGElement))
-            return;
-        const id = Number(g.dataset.nid), r = SR.results[id];
-        if (st && st.notes.some((n: { nid: number; }) => n.nid === id) && !SR.hit.has(id))
+    const stepNids = st ? new Set(st.notes.map((n: { nid: number; }) => n.nid)) : null;
+    entry.notes.forEach(({ g, title, sym: visible }, id) => {
+        const r = SR.results[id];
+        if (stepNids && stepNids.has(id) && !SR.hit.has(id))
             g.dataset.s = 'now';
         else if (r)
             g.dataset.s = r;
         else
             g.removeAttribute('data-s');
-        const title = g.querySelector('title') || document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        if (!title.parentNode)
-            g.appendChild(title);
         const symbol = r === 'good' ? '✓' : r === 'near' ? '≈' : r === 'bad' ? '✗' : r === 'extra' ? '+' : '';
         const label = r === 'good' ? t('rd_srt_symbol_good') : r === 'near' ? t('rd_srt_symbol_near') : r === 'bad' ? t('rd_srt_symbol_bad') : r === 'extra' ? t('rd_srt_symbol_extra') : '';
-        title.textContent = symbol ? symbol + ' ' + label : '';
-        if (symbol)
-            g.setAttribute('aria-label', symbol);
-        else
-            g.removeAttribute('aria-label');
-        let visible = g.querySelector<SVGTextElement>('.ss-result-symbol');
-        if (!visible) {
-            visible = document.createElementNS('http://www.w3.org/2000/svg', 'text') as SVGTextElement;
-            visible.setAttribute('class', 'ss-result-symbol');
-            visible.setAttribute('aria-hidden', 'true');
-            g.appendChild(visible);
+        const nextTitle = symbol ? symbol + ' ' + label : '';
+        if (title.textContent !== nextTitle)
+            title.textContent = nextTitle;
+        if (symbol) {
+            if (g.getAttribute('aria-label') !== symbol)
+                g.setAttribute('aria-label', symbol);
         }
-        const note = SR.notes.find((item) => item.nid === id);
-        visible.setAttribute('x', String((note?.x ?? 0) + 12));
-        visible.setAttribute('y', String(Math.max(12, (note?.y ?? 16) - 8)));
-        visible.textContent = symbol;
-        visible.style.display = symbol ? '' : 'none';
+        else if (g.hasAttribute('aria-label'))
+            g.removeAttribute('aria-label');
+        if (visible.textContent !== symbol)
+            visible.textContent = symbol;
+        const nextDisp = symbol ? '' : 'none';
+        if (visible.style.display !== nextDisp)
+            visible.style.display = nextDisp;
     });
-    let extras = svg.querySelector('.ss-extra-symbol');
+    const rawExtras = entry.extras && entry.extras.parentNode === svg ? entry.extras : svg.querySelector('.ss-extra-symbol');
+    let extras = rawExtras instanceof SVGGElement ? rawExtras : null;
     if (SR.wrongExtra > 0) {
-        if (!(extras instanceof SVGGElement)) {
+        if (!extras) {
             extras = document.createElementNS('http://www.w3.org/2000/svg', 'g');
             extras.setAttribute('class', 'ss-extra-symbol');
             svg.appendChild(extras);
         }
+        entry.extras = extras;
         extras.innerHTML = `<title>${rdEsc(t('rd_srt_symbol_extra'))}</title><text x="${Math.max(20, (SR.render?.W ?? 420) - 24)}" y="18">+${SR.wrongExtra}</text>`;
     }
-    else if (extras)
+    else if (extras) {
         extras.remove();
+        entry.extras = null;
+    }
 }
 // x is in SVG units; on the full-screen stage the score is drawn larger than one pixel a unit.
-function srScrollX(x: number) { const w = byId('rd-staff'), svg = srSvg(), W = SR.render?.W, k = svg && W ? svg.getBoundingClientRect().width / W || 1 : 1; if (w && w.scrollWidth > w.clientWidth + 4)
-    w.scrollLeft = Math.max(0, x * k - w.clientWidth * 0.4);
-else if (w)
-    w.scrollLeft = 0; }
+function srScrollX(x: number) {
+    const w = byId('rd-staff');
+    if (!w)
+        return;
+    if (w.scrollWidth > w.clientWidth + 4) {
+        const svg = srSvg(), W = SR.render?.W, k = svg && W ? svg.getBoundingClientRect().width / W || 1 : 1;
+        w.scrollLeft = Math.max(0, x * k - w.clientWidth * 0.4);
+    }
+    else if (w.scrollLeft !== 0)
+        w.scrollLeft = 0;
+}
 // The paper's inner size in CSS pixels, which the score is laid out for (see SrLayout). On the full-screen stage the height
 // counts too. A hidden paper has no size: the score is then drawn at its natural size, and srFit lays it out once it shows.
 function srPaperOf(wrap: HTMLElement | null): SrLayout | undefined {
@@ -6434,12 +6594,15 @@ function srCursor(x: number, sy = 0) {
     const svg = srSvg();
     if (!svg)
         return;
-    let c = svg.querySelector('.ss-playhead');
+    const entry = srSvgEntry(svg);
+    const rawCursor = entry.playhead && entry.playhead.parentNode === svg ? entry.playhead : svg.querySelector('.ss-playhead');
+    let c = rawCursor instanceof SVGLineElement ? rawCursor : null;
     if (!c) {
         c = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         c.setAttribute('class', 'ss-playhead');
         svg.appendChild(c);
     }
+    entry.playhead = c;
     const s = SR.render?.systems[sy];
     c.setAttribute('y1', String(s ? s.yTop : 38));
     c.setAttribute('y2', String(s ? s.yBot : 102));
@@ -8212,7 +8375,7 @@ function rdTools(q: ReadQuestion) { return `<div class="rdx-tools">${RD.mode ===
 // played, wrong: the key or letters given wrongly for the current note, shown until it is answered right.
 // ext: the pool's lowest and highest notes, which keep the staff's height steady.
 // g0: when the pacer ghost set off; gd: notes the player leads it by; gh: the ghost is shown; rm: reduced motion.
-interface ReadDrillFlow { items: ReadQuestionNote[]; cur: number; start: number; played: number | null; wrong: string[]; ext: ReadDrillPitch[]; g0: number; raf: number; gd: number; gh: boolean; rm: boolean; geo: { x0: number; colW: number; n: number; }; }
+interface ReadDrillFlow { items: ReadQuestionNote[]; cur: number; start: number; played: number | null; wrong: string[]; ext: ReadDrillPitch[]; g0: number; raf: number; gd: number; gh: boolean; rm: boolean; geo: { x0: number; colW: number; n: number; }; ghostEl?: Element | null; }
 const RD_FLOW_W = 52, RD_FLOW_SC = 1.35, RD_GHOST_MAX = 3;
 function rdFlowOk(L: ReadDrillLevel | null | undefined) { return !!L && rdData().prefs.flow && (L.ty === 'name' || L.ty === 'play') && L.clef !== 'mix' && !L.keys && L.keyN === undefined; }
 function rdFlowFill(F: ReadDrillFlow, upTo: number) {
@@ -8307,6 +8470,7 @@ function rdFlowShow(slide: boolean) {
             out += here ? r.svg : r.svg.replace('<svg class="rdx-svg"', '<svg class="rdx-svg" aria-hidden="true"');
         }
         st.innerHTML = out;
+        F.ghostEl = null;
         F.start = cur0;
         F.geo = { x0: head, colW, n: per };
     }
@@ -8318,6 +8482,7 @@ function rdFlowShow(slide: boolean) {
         rdFlowFill(F, start + n);
         const r = svgOf(start, F.items.slice(start, start + n), sc, { hl: F.cur < F.items.length ? F.cur - start : null, ghost: F.gh, wrap: 'rdx-flow-n' + (slide && start === F.start + 1 ? ' slide' : '') });
         st.innerHTML = r.svg;
+        F.ghostEl = null;
         F.start = start;
         F.geo = { x0: r.x0, colW, n };
     }
@@ -8428,7 +8593,11 @@ function rdGhostPlace() {
         p = F.cur + RD_GHOST_MAX;
         F.g0 = now - p * per;
     }
-    const el = document.querySelector('#rdx-staff .rdx-ghost');
+    let el = F.ghostEl;
+    if (!el || !el.isConnected) {
+        el = document.querySelector('#rdx-staff .rdx-ghost');
+        F.ghostEl = el;
+    }
     if (el) {
         const gx = ghostX(F.rm ? Math.floor(p) : p, F.start, F.geo.n, F.geo.x0, F.geo.colW);
         el.setAttribute('transform', 'translate(' + gx.x.toFixed(1) + ' 0)');
@@ -11865,10 +12034,26 @@ let anLibraryActive: { id: string; source: AnSource } | null = null;
 let anLibrarySuspended = false;
 let anLibraryNavigationResume: LibraryResume | null = null;
 let anLibraryTimer: ReturnType<typeof setTimeout> | undefined;
+let anLibraryPlayTimer: ReturnType<typeof setInterval> | undefined;
 let anLibrarySaving = 0;
 let anLibraryWrites: Promise<void> = Promise.resolve();
 const anLibraryDirty = new Map<string, LibraryResume>();
 const anLibrarySaved = new Map<string, string>();
+function anLibrarySyncPlayTimer() {
+    const want = SCORE.playing && !!anLibraryActive && anLibraryActive.source === AN.source && !anLibrarySuspended;
+    if (want && !anLibraryPlayTimer) {
+        anLibraryPlayTimer = setInterval(() => {
+            if (SCORE.playing && (anLibraryActive || anLibraryDirty.size))
+                void anLibraryFlush().catch(() => {});
+            else
+                anLibrarySyncPlayTimer();
+        }, 3000);
+    }
+    else if (!want && anLibraryPlayTimer) {
+        clearInterval(anLibraryPlayTimer);
+        anLibraryPlayTimer = undefined;
+    }
+}
 function anLibraryCapture(): LibraryResume | null {
     const active = anLibraryActive;
     if (!active || active.source !== AN.source || anLibrarySuspended || AN.loading || !AN.notes.length)
@@ -11927,6 +12112,7 @@ function anLibraryDetach() {
     anLibraryActive = null;
     anLibrarySuspended = false;
     anLibraryNavigationResume = null;
+    anLibrarySyncPlayTimer();
 }
 function anLibraryMetadata(source: AnSource): LibraryMetadata {
     const document = source.kind === 'xml' ? new DOMParser().parseFromString(source.xml, 'application/xml') : null;
@@ -11996,10 +12182,6 @@ function anLibraryInit() {
         if (eventElement(event)?.closest('#an-panel'))
             anLibrarySchedule();
     });
-    setInterval(() => {
-        if (anLibraryActive || anLibraryDirty.size)
-            void anLibraryFlush().catch(() => {});
-    }, 3000);
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden')
             void anLibraryFlush().catch(() => {});
@@ -12017,8 +12199,8 @@ function tl(L: string, k: string, a?: string|number|null, b?: string|number|null
     // The table of language L when it is loaded, else the interface language's own (English strings load only for English).
     const own = L === 'en' || L === 'ro' ? STRINGS[L] : undefined, base = STRINGS[lang] || STRINGS.en; let v = (own && own[k] != null) ? own[k] : base ? base[k] : undefined; if (v == null)
     return k; if (a != null)
-    v = v.replace('%s', String(a)).replace('%a', String(a)); if (b != null)
-    v = v.replace('%b', String(b)); return v; }
+    v = v.replace('%s', () => String(a)).replace('%a', () => String(a)); if (b != null)
+    v = v.replace('%b', () => String(b)); return v; }
 // Built-in pieces become the same parsed structure as a MIDI file: one "track" per hand, beats in quarter notes.
 // An upbeat stays at beat 0; anRebuild engraves it as a short bar 0 (see scoreFromMidi).
 function anPieceToParsed(p: (typeof PIECES)[number]): AnParsedMidi {
@@ -12073,12 +12255,23 @@ function anMeasures(): ScoreMeasure[] { if (SCORE.measures && SCORE.measures.len
     return SCORE.measures; const end = AN.notes.length ? Math.max(...AN.notes.map((n) => n.end)) : 0, out: ScoreMeasure[] = []; for (let s = 0, i = 1; s < end; s += 4, i++)
     out.push({ number: String(i), start: s, end: s + 4, num: 4, den: 4 }); return out; }
 function anBeatUnit(m: { num: number; den: number; }) { return m.den === 8 && m.num % 3 === 0 ? 1.5 : 4 / m.den; }
-function anMeasureAt(beat: number) { const ms = anMeasures(); let m = ms[0]; for (const x of ms) {
-    if (x.start <= beat + 1e-6)
-        m = x;
-    else
-        break;
-} return m; }
+function anMeasureAt(beat: number) {
+    const ms = anMeasures();
+    if (!ms.length)
+        return ms[0];
+    let lo = 0, hi = ms.length - 1, idx = 0;
+    while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        if (ms[mid].start <= beat + 1e-6) {
+            idx = mid;
+            lo = mid + 1;
+        }
+        else {
+            hi = mid - 1;
+        }
+    }
+    return ms[idx];
+}
 // Time-weighted texture: how many notes sound together while anything sounds, and the peak.
 function anPoly(ns: readonly { start: number; end: number; }[]) {
     const ev: [number, number][] = [];
@@ -12552,7 +12745,8 @@ function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
 interface ScoreCursorStyleState { w: string; h: string; transform: string; playing: boolean; }
 interface ScoreState {
     xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoopState | null;
-    tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
+    tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoTimes?: number[]; tempoTimesFor?: readonly { beat: number; bpm: number; }[] | null;
+    tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
     heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
     geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; run?: PracticeCarry | null; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
     followSys: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
@@ -12563,23 +12757,70 @@ const SCORE: ScoreState = { xml: '', engine: null, version: 0, playGen: 0, timer
     geo: null, mrange: null, resume: null, paused: false, cursorEl: null, followSys: -1, panAt: 0, hl: false };
 // sel: a note picked by hand (blue, like the playback line); lit: a sounding note, gold, only with "Highlight sounding notes" on
 const SCORE_LOOK = { paper: { bg: '#fffefa', ink: '#000000', staff: undefined, sel: '#1a6fe0', lit: '#a47720', ok: '#1b8f4c', bad: '#d22f2f', dim: '#b9b2a6' }, night: { bg: '#1d1a17', ink: '#ece5d8', staff: '#a1988a', sel: '#7fb2ff', lit: '#e8bb5c', ok: '#6fdc9a', bad: '#ff7a7a', dim: '#5d574f' } }; // MuseScore-blue selection
-function scoreSetTempos(list: { beat: number; bpm: number; }[]) { SCORE.tempos = list.length ? list : [{ beat: 0, bpm: 120 }]; SCORE.tempoList = SCORE.tempos.slice().sort((a, b) => a.beat - b.beat); if (SCORE.tempoList[0].beat > 0)
-    SCORE.tempoList.unshift({ beat: 0, bpm: SCORE.tempoList[0].bpm }); }
-function scoreSeconds(beat: number) { let sec = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
-    if (e.beat > beat)
-        break;
-    sec += (e.beat - last) * 60 / bpm;
-    last = e.beat;
-    bpm = e.bpm;
-} return sec + (beat - last) * 60 / bpm; }
-function scoreBeatAt(sec: number) { let acc = 0, last = 0, bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
-    const d = (e.beat - last) * 60 / bpm;
-    if (acc + d > sec)
-        break;
-    acc += d;
-    last = e.beat;
-    bpm = e.bpm;
-} return last + (sec - acc) * bpm / 60; }
+function scoreEnsureTempoTimes(): number[] {
+    const list = SCORE.tempoList;
+    if (SCORE.tempoTimes && SCORE.tempoTimesFor === list && SCORE.tempoTimes.length === list.length)
+        return SCORE.tempoTimes;
+    const times: number[] = new Array(list.length);
+    let sec = 0, last = 0, bpm = list[0]?.bpm ?? 120;
+    for (let i = 0; i < list.length; i++) {
+        const e = list[i];
+        sec += (e.beat - last) * 60 / bpm;
+        times[i] = sec;
+        last = e.beat;
+        bpm = e.bpm;
+    }
+    SCORE.tempoTimes = times;
+    SCORE.tempoTimesFor = list;
+    return times;
+}
+function scoreSetTempos(list: { beat: number; bpm: number; }[]) {
+    SCORE.tempos = list.length ? list : [{ beat: 0, bpm: 120 }];
+    SCORE.tempoList = SCORE.tempos.slice().sort((a, b) => a.beat - b.beat);
+    if (SCORE.tempoList[0].beat > 0)
+        SCORE.tempoList.unshift({ beat: 0, bpm: SCORE.tempoList[0].bpm });
+    SCORE.tempoTimes = undefined;
+    SCORE.tempoTimesFor = null;
+    scoreEnsureTempoTimes();
+}
+function scoreSeconds(beat: number) {
+    const list = SCORE.tempoList, times = scoreEnsureTempoTimes();
+    if (!list.length)
+        return beat * 60 / 120;
+    if (beat < list[0].beat)
+        return beat * 60 / list[0].bpm;
+    let lo = 0, hi = list.length - 1, idx = 0;
+    while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        if (list[mid].beat <= beat) {
+            idx = mid;
+            lo = mid + 1;
+        }
+        else {
+            hi = mid - 1;
+        }
+    }
+    return times[idx] + (beat - list[idx].beat) * 60 / list[idx].bpm;
+}
+function scoreBeatAt(sec: number) {
+    const list = SCORE.tempoList, times = scoreEnsureTempoTimes();
+    if (!list.length)
+        return sec * 120 / 60;
+    if (sec < times[0])
+        return sec * list[0].bpm / 60;
+    let lo = 0, hi = times.length - 1, idx = 0;
+    while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        if (times[mid] <= sec) {
+            idx = mid;
+            lo = mid + 1;
+        }
+        else {
+            hi = mid - 1;
+        }
+    }
+    return list[idx].beat + (sec - times[idx]) * list[idx].bpm / 60;
+}
 // MIDI (or a built-in piece) → MusicXML. `opt.grid` is the quantization per quarter note (2, 4 or 8); divisions grow when a meter needs finer units.
 // `opt.pickup` (quarter notes) makes the first bar an upbeat: an implicit bar 0 of that length, as the score is written.
 function scoreFromMidi(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNote[]; }, title: string, opt: { grid: number; keys: { beat: number; fifths: number; minor: boolean; }[]; composer?: string; pickup?: number; }) {
@@ -12667,14 +12908,20 @@ async function scoreRender()  {
         await loadOsmd();
     }
     catch (err) {
+        if (version !== SCORE.version)
+            return false;
         showNotationReloadPrompt();
         console.error('OSMD:', err);
         throw err;
     }
+    if (version !== SCORE.version)
+        return false;
     const isXml = !!AN.source && AN.source.kind === 'xml', autoBeam = isXml && !/<beam[\s>]/.test(SCORE.xml); // generated scores already carry <beam> groups per voice
     const oneStaffPart = (SCORE.xml.match(/<score-part[\s>]/g) || []).length <= 1; // a lone piano needs no "Instr. P1" at the left
     const engine = await createScoreRenderer(box.firstElementChild || box, { autoResize: false, backend: 'svg', drawTitle: true, drawComposer: true, drawPartNames: !oneStaffPart, drawPartAbbreviations: false, drawMeasureNumbers: true,
         autoBeam, autoBeamOptions: { beam_rests: false, beam_middle_rests_only: false, maintain_stem_directions: true, groups: scoreBeamGroups() } });
+    if (version !== SCORE.version)
+        return false;
     const R: ScoreEngravingRules = {}; // MuseScore-like page: wider margins, title block, measure numbers only at system starts
     R.PageLeftMargin = R.PageRightMargin = 7;
     R.PageTopMargin = 6;
@@ -13141,7 +13388,7 @@ function scoreNamesSync() {
 }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
-    const copy = notationReloadMessage(lang === 'ro' ? 'ro' : 'en'), box = (document).createElement('div');
+    const copy = notationReloadMessage(lang), box = (document).createElement('div');
     box.setAttribute('role', 'alert');
     box.className = 'notation-reload';
     box.innerHTML = '<p></p><button type="button"></button>';
@@ -13167,7 +13414,7 @@ interface ScoreCrossLink { a: number; b: number; kind: string; style?: string }
 let scoreXLineSignature = '';
 function scoreXLinesCurrentSignature(): string {
     if (AN.source?.kind !== 'xml' || !AN.source.links.length) return '';
-    return [SCORE.version, SCORE.look, SCORE.engine?.getZoom(), ...[...byId('an-roll').querySelectorAll('svg')].map(svg => svg.innerHTML)].join('|');
+    return [SCORE.version, SCORE.look, SCORE.layout, SCORE.zoom, SCORE.engine?.getZoom(), ...[...byId('an-roll').querySelectorAll('svg')].map(svg => svg.childElementCount)].join('|');
 }
 function scoreXLines() {
     if (!scoreHasKey(SCORE_LOOK, SCORE.look))
@@ -13554,7 +13801,7 @@ function scoreTip(sym: ScoreSym | null, txt?: { head: string; body: string; line
 interface ScoreGeoSystem { page: number; top: number; bottom: number }
 interface ScoreGeoMeasure { sys: number; x0: number; xn: number; x1: number; xs: number; cx: number; b0: number; b1: number }
 interface ScoreGeoAnchor { beat: number; x: number; sys: number; end?: boolean }
-interface ScoreGeometry { scale: number; pages: (HTMLElement | null)[]; systems: ScoreGeoSystem[]; measures: (ScoreGeoMeasure | undefined)[]; anchors: ScoreGeoAnchor[] }
+interface ScoreGeometry { scale: number; pages: (HTMLElement | null)[]; systems: ScoreGeoSystem[]; measures: (ScoreGeoMeasure | undefined)[]; measureOrder?: number[]; anchors: ScoreGeoAnchor[] }
 // OSMD's iterator lists the voice entries drawn at its position; the bundled type leaves that method out.
 function scoreVisibleEntries(it: object): readonly unknown[] {
     if (!('CurrentVisibleVoiceEntries' in it) || typeof it.CurrentVisibleVoiceEntries !== 'function')
@@ -13567,7 +13814,7 @@ function scoreGeo(engine: import('./notation.js').ScoreRenderer) {
     const sheet = engine.readLayout().graphicSheet;
     if (!isScoreOsmdSheet(sheet))
         return;
-    const gs = sheet, geo: ScoreGeometry = { scale: 10 * engine.getZoom(), pages: [], systems: [], measures: [], anchors: [] }, sysIdx = new Map<unknown, number>();
+    const gs = sheet, geo: ScoreGeometry = { scale: 10 * engine.getZoom(), pages: [], systems: [], measures: [], measureOrder: [], anchors: [] }, sysIdx = new Map<unknown, number>();
     gs.MusicPages.forEach((pg, pi) => {
         geo.pages[pi] = (document).getElementById('osmdCanvasPage' + pg.PageNumber);
         pg.MusicSystems.forEach((sys) => {
@@ -13585,6 +13832,7 @@ function scoreGeo(engine: import('./notation.js').ScoreRenderer) {
             return;
         const sm = gm.parentSourceMeasure, ps = gm.PositionAndShape, x0 = ps.AbsolutePosition.x, b0 = sm.AbsoluteTimestamp.RealValue * 4;
         geo.measures[mi] = { sys: si, x0, xn: x0 + (gm.beginInstructionsWidth || 0), x1: x0 + ps.Size.width, xs: x0, cx: x0, b0, b1: b0 + sm.Duration.RealValue * 4 };
+        geo.measureOrder?.push(mi);
     });
     // Where a bar's music begins (xs): right after the clef, key and time signature drawn at its start (system starts, changes),
     // else at its barline. Measured on the drawn glyphs; OSMD's begin-instruction width reaches past the first notes.
@@ -13658,9 +13906,26 @@ function scoreCursorAt(beat: number): ScoreCursorPos | null {
     const g: ScoreGeometry | null = SCORE.geo, M = g && g.measures;
     if (!g || !M || !M.length)
         return null;
-    let i = M.findIndex((m: ScoreGeoMeasure | undefined) => m && beat < m.b1 - 1e-9);
-    if (i < 0)
-        i = M.length - 1;
+    const order = g.measureOrder ?? (g.measureOrder = M.reduce<number[]>((acc, item, idx) => {
+        if (item)
+            acc.push(idx);
+        return acc;
+    }, []));
+    if (!order.length)
+        return null;
+    let lo = 0, hi = order.length - 1, pos = order.length - 1;
+    while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        const cand = M[order[mid]];
+        if (cand && beat < cand.b1 - 1e-9) {
+            pos = mid;
+            hi = mid - 1;
+        }
+        else {
+            lo = mid + 1;
+        }
+    }
+    const i = order[pos];
     const m = M[i];
     if (!m)
         return null;
@@ -13739,10 +14004,18 @@ function scoreCursorUpdate(follow: boolean) {
 }
 // Keep the cursor in view: vertically by system in page view, horizontally in continuous view.
 function scoreCursorFollow(p: ScoreCursorPos, s: ScoreGeoSystem, page: HTMLElement, g: ScoreGeometry) {
-    const box = byId('an-roll'), b = box.getBoundingClientRect(), r = page.getBoundingClientRect(), now = performance.now(), behavior = reduceMotion() ? 'auto' : 'smooth';
+    const box = byId('an-roll'), cont = SCORE.layout === 'cont';
+    if (!box.clientHeight)
+        return;
+    if (cont ? (box.scrollWidth <= box.clientWidth + 1 && box.scrollLeft === 0) : (box.scrollHeight <= box.clientHeight + 1 && box.scrollTop === 0)) {
+        if (!cont)
+            SCORE.followSys = p.sys;
+        return;
+    }
+    const b = box.getBoundingClientRect(), r = page.getBoundingClientRect(), now = performance.now(), behavior = reduceMotion() ? 'auto' : 'smooth';
     if (!b.height)
         return;
-    if (SCORE.layout === 'cont') {
+    if (cont) {
         const x = r.left + p.x * g.scale;
         if ((x < b.left + b.width * 0.08 || x > b.right - b.width * 0.3) && now - SCORE.panAt > 500) {
             SCORE.panAt = now;
@@ -13870,6 +14143,7 @@ function scoreStateText() { byId('score-state').textContent = SCORE.run && SCORE
 // Halt sound, timers and animation; the playback position (FALL.position) is left where it is.
 function scoreHalt() {
     SCORE.playing = false;
+    anLibrarySyncPlayTimer();
     SCORE.sel = false;
     SCORE.paused = false;
     SCORE.loop = null;
@@ -14064,6 +14338,7 @@ async function pracStart(o: PracticeStartOptions)  {
     }
     SCORE.run = R;
     SCORE.playing = true;
+    anLibrarySyncPlayTimer();
     SCORE.sel = o.sel;
     const loop: ScoreLoopState | null = o.loop ? { a: o.a, b: o.b, bars: o.bars, ab: !!o.ab, pass: 1, notes: o.notes, next: a0 + (o.b - o.a) / f } : null;
     SCORE.loop = loop;
@@ -14173,6 +14448,9 @@ function pracRamp(R: PracticeRun, s: PracticeSegment) {
     if (!next)
         return s.f;
     sel.value = String(next);
+    const pt = maybeById('pt-speed');
+    if (pt instanceof HTMLSelectElement)
+        pt.value = String(next);
     return next / 100;
 }
 function pracPassEnd(R: PracticeRun) {
@@ -14321,6 +14599,7 @@ function pracFinish(R: PracticeRun) {
     SCORE.run = null;
     PRAC.bar = null;
     SCORE.playing = false;
+    anLibrarySyncPlayTimer();
     SCORE.sel = false;
     SCORE.timers = [];
     cancelAnimationFrame(SCORE.followRaf);
@@ -15549,6 +15828,7 @@ function anIndex() { AN.index = new Map(AN.notes.map((n, i) => [n, i])); AN.vers
 function anReset() {
     anLibraryDetach();
     scoreStop();
+    anSetLoading(false);
     anSheet(false, true);
     AN.notes = [];
     AN.source = null;
@@ -15741,8 +16021,12 @@ async function anCommit(src: AnSource, token: number)  {
         }
         return;
     }
-    if (token !== AN.loadToken || !ok)
+    if (token !== AN.loadToken)
         return;
+    if (!ok) {
+        anSetLoading(false);
+        return;
+    }
     anSetLoading(false);
     anStatus(anLoadedText());
     fallReset();
@@ -15974,7 +16258,10 @@ interface FallState { mode: 'score' | 'fall'; raf: number; position: number; ori
     fingerSrc?: readonly AnNote[]; hasFinger?: boolean; source?: readonly AnNote[]; tempoSource?: readonly { beat: number; bpm: number; }[]; end: number;
     laneSrc?: readonly AnNote[]; lanes: Set<number>; tickSrc?: FallTimedNote[]; tickTempo?: readonly { beat: number; bpm: number; }[]; tickEnd?: number;
     beatSrc?: FallTimedNote[]; beatTempo?: readonly { beat: number; bpm: number; }[]; beats?: { t: number; acc: boolean; }[]; press?: Map<number, number>;
-    maxDur?: number; sorted?: boolean; }
+    maxDur?: number; sorted?: boolean;
+    gradCache?: { ctx: CanvasRenderingContext2D; hitY: number; bg: CanvasGradient; hg: CanvasGradient; felt: CanvasGradient; feltShadow: CanvasGradient } | null;
+    kbCache?: { canvas: HTMLCanvasElement; key: string } | null;
+    tlCache?: { p?: string; valText?: string; loopHidden?: boolean; loopLeft?: string; loopWidth?: string; aHidden?: boolean; aLeft?: string; bHidden?: boolean; bLeft?: string } | null; }
 const FALL: FallState = { mode: 'score', raf: 0, position: 0, origin: 0, audioStart: 0, factor: 1, notes: [], hits: [], zoom: 1, geo: null, particles: [], flashes: [], lastT: null, lastFrame: 0, resume: null, end: 0, lanes: new Set() };
 const FALL_SEC = 3.2, FALL_FONT = '"Hanken Grotesk",system-ui,sans-serif', FALL_SEL = '#6aa8ff', FALL_BLACK = new Set([1, 3, 6, 8, 10]), FALL_NUDGE: Readonly<Record<number, number>> = { 1: -.12, 3: .12, 6: -.16, 8: 0, 10: .16 };
 // Right hand: warm coral from the app's accent family; left hand: cool teal. lit = sounding.
@@ -16099,6 +16386,26 @@ function fallName(n: AnNote) {
     const k = anKeyAt(n.start), sp = spellMidi(n.midi, k.fifths, k.minor), sys = mode === 'solfege' ? 'solfege' : mode === 'letter' ? 'letter' : notation;
     return spelledName(sys, sp.li, sp.acc);
 }
+function fallGradients(ctx: CanvasRenderingContext2D, hitY: number) {
+    const c = FALL.gradCache;
+    if (c && c.ctx === ctx && c.hitY === hitY)
+        return c;
+    const bg = ctx.createLinearGradient(0, 0, 0, hitY);
+    bg.addColorStop(0, '#050811');
+    bg.addColorStop(.6, '#0a1120');
+    bg.addColorStop(1, '#131c31');
+    const hg = ctx.createLinearGradient(0, hitY - 34, 0, hitY);
+    hg.addColorStop(0, 'rgba(120,160,255,0)');
+    hg.addColorStop(1, 'rgba(150,185,255,.24)');
+    const felt = ctx.createLinearGradient(0, hitY, 0, hitY + 4);
+    felt.addColorStop(0, '#7a1818');
+    felt.addColorStop(.5, '#982121');
+    felt.addColorStop(1, '#581010');
+    const feltShadow = ctx.createLinearGradient(0, hitY + 4, 0, hitY + 10);
+    feltShadow.addColorStop(0, 'rgba(0,0,0,.45)');
+    feltShadow.addColorStop(1, 'rgba(0,0,0,0)');
+    return (FALL.gradCache = { ctx, hitY, bg, hg, felt, feltShadow });
+}
 function fallDraw() {
     cancelAnimationFrame(FALL.raf);
     FALL.raf = 0;
@@ -16123,15 +16430,12 @@ function fallDraw() {
     const kh = Math.round(Math.min(H * .28, Math.max(76, G.kw * 5.0))), hitY = H - kh, span = FALL_SEC / FALL.zoom, pps = hitY / span;
     G.hitY = hitY;
     G.kh = kh;
+    const grads = fallGradients(ctx, hitY);
     const time = fallTime(), rm = reduceMotion(), fx = PRAC.fx && !rm, P = fallPalette(PRAC.pal), solo = PRAC.hands !== 'both';
     const ms = performance.now(), dt = FALL.lastFrame ? Math.min(.05, (ms - FALL.lastFrame) / 1000) : 0;
     FALL.lastFrame = ms;
     // stage: deep gradient, lanes for the pitches this piece uses, brighter guides at every C, bar lines with numbered pills, faint beats
-    const bg = ctx.createLinearGradient(0, 0, 0, hitY);
-    bg.addColorStop(0, '#050811');
-    bg.addColorStop(.6, '#0a1120');
-    bg.addColorStop(1, '#131c31');
-    ctx.fillStyle = bg;
+    ctx.fillStyle = grads.bg;
     ctx.fillRect(0, 0, W, hitY);
     ctx.fillStyle = 'rgba(0,0,0,.26)';
     G.keys.forEach((k) => { if (k.black)
@@ -16277,15 +16581,12 @@ function fallDraw() {
     if (fx)
         soon.forEach(({ k, c, a }) => { const lg = ctx.createLinearGradient(0, hitY - 70, 0, hitY); lg.addColorStop(0, 'rgba(' + c.rgb + ',0)'); lg.addColorStop(1, 'rgba(' + c.rgb + ',' + (.28 * Math.max(0, Math.min(1, a))).toFixed(3) + ')'); ctx.fillStyle = lg; ctx.fillRect(k.x, hitY - 70, k.w, 70); });
     // hit line: soft glow band, note-on bursts, the keyboard, then the bright line on top
-    const hg = ctx.createLinearGradient(0, hitY - 34, 0, hitY);
-    hg.addColorStop(0, 'rgba(120,160,255,0)');
-    hg.addColorStop(1, 'rgba(150,185,255,.24)');
-    ctx.fillStyle = hg;
+    ctx.fillStyle = grads.hg;
     ctx.fillRect(0, hitY - 34, W, 34);
     if (FALL.flashes.length || FALL.particles.length)
         fallParticles(ctx, dt);
     const B = PRAC.bar && SCORE.run && time >= PRAC.bar.t - 1e-6 ? PRAC.bar : null, need = B ? [...B.need].filter((m) => !B.got.has(m)) : [];
-    fallKeyboard(ctx, G, hitY, kh, W, active, P, need, ms);
+    fallKeyboard(ctx, G, hitY, kh, W, active, P, need, ms, dpr, grads);
     ctx.save();
     if (fx) {
         ctx.shadowColor = 'rgba(160,195,255,.95)';
@@ -16479,90 +16780,166 @@ function fallDrawBlackKey(ctx: CanvasRenderingContext2D, x: number, top: number,
         ctx.fill();
     }
 }
+function fallDrawWhiteKey(ctx: CanvasRenderingContext2D, m: number, k: FallKeyRect, y: number, kh: number, r: number, dark: boolean, lab: boolean, c: string[] | null, isWait: boolean, pulse: number) {
+    const dip = c ? 2.5 : 0, x = k.x + .5, w = k.w - 1, h = kh - 3 - dip, g = ctx.createLinearGradient(0, y + dip, 0, y + dip + h);
+    if (c) {
+        if (c === FALL_YOU) {
+            g.addColorStop(0, '#fff8e2');
+            g.addColorStop(.35, '#fde492');
+            g.addColorStop(.78, '#f4c450');
+            g.addColorStop(1, '#df9f20');
+        }
+        else {
+            g.addColorStop(0, c[0]);
+            g.addColorStop(1, c[1]);
+        }
+    }
+    else {
+        g.addColorStop(0, '#fefae8');
+        g.addColorStop(.75, '#fdf6df');
+        g.addColorStop(1, '#f8efcf');
+    }
+    ctx.fillStyle = g;
+    fallKeyPath(ctx, x, y + dip, w, h, r);
+    ctx.fill();
+    if (c === FALL_YOU) {
+        ctx.strokeStyle = '#cca02d';
+        ctx.lineWidth = 1;
+        fallKeyPath(ctx, x, y + dip, w, h, r);
+        ctx.stroke();
+    }
+    if (isWait) {
+        ctx.fillStyle = 'rgba(255,196,64,' + (.35 + .4 * pulse).toFixed(3) + ')';
+        fallKeyPath(ctx, x, y + dip, w, h, r);
+        ctx.fill();
+    }
+    if (w > 4) {
+        ctx.fillStyle = 'rgba(255,255,255,.75)';
+        ctx.fillRect(x, y + dip, 1, Math.max(0, h - r));
+        ctx.fillStyle = 'rgba(0,0,0,.07)';
+        ctx.fillRect(x + w - 1, y + dip, 1, Math.max(0, h - r));
+    }
+    const lip = ctx.createLinearGradient(0, y + dip + h - 5, 0, y + dip + h);
+    lip.addColorStop(0, 'rgba(0,0,0,0)');
+    lip.addColorStop(1, 'rgba(165,145,105,.22)');
+    ctx.fillStyle = lip;
+    ctx.fillRect(x + 1, y + dip + h - 5, Math.max(0, w - 2), 5);
+    if (lab && (pc(m) === 0 || labelMode === 'all') && k.w >= 14) {
+        const nm = noteName(m, false);
+        ctx.font = '700 ' + Math.round(Math.min(11, Math.max(8, k.w * .3))) + 'px ' + FALL_FONT;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = c ? (dark ? '#3a2402' : '#523502') : (dark ? '#645b4c' : '#8c816f');
+        ctx.fillText(pc(m) === 0 ? nm : nm.replace(/-?\d+$/, ''), x + w / 2, y + dip + h - 7, w - 2);
+    }
+}
+function fallIdleKeyboardCanvas(G: FallGeo, kh: number, W: number, dpr: number, dark: boolean, lab: boolean): HTMLCanvasElement | null {
+    const key = [W, kh, G.lo, G.hi, dpr, dark ? 1 : 0, labelMode, notation].join('|');
+    const cached = FALL.kbCache;
+    if (cached && cached.key === key)
+        return cached.canvas;
+    const canvas = cached?.canvas ?? document.createElement('canvas');
+    const bw = Math.round(W * dpr), bh = Math.round(kh * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw;
+        canvas.height = bh;
+    }
+    const kctx = canvas.getContext('2d');
+    if (!kctx)
+        return null;
+    kctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    kctx.fillStyle = dark ? '#0a0908' : '#1d1915';
+    kctx.fillRect(0, 0, W, kh);
+    const r = Math.min(5, G.kw * .14);
+    for (const m of G.whites) {
+        const k = G.keys.get(m);
+        if (k)
+            fallDrawWhiteKey(kctx, m, k, 0, kh, r, dark, lab, null, false, 0);
+    }
+    for (const [m, k] of G.keys) {
+        if (!k.black)
+            continue;
+        const bhKey = Math.round(kh * .66), br = Math.min(3, k.w * .15);
+        fallDrawBlackKey(kctx, k.x, 0, k.w, bhKey, br, null, false, 0);
+    }
+    FALL.kbCache = { canvas, key };
+    return canvas;
+}
 // Realistic keys: warm ivory white keys with crisp seams, 3D lacquered black keys matching the main dock; pressed keys light up and dip.
 // Keys you hold yourself show in gold; keys "Wait for me" is waiting for pulse.
-function fallKeyboard(ctx: CanvasRenderingContext2D, G: FallGeo, y: number, kh: number, W: number, active: Map<number, 'rh' | 'lh'>, P: FallPalette, need: number[], ms: number) {
+function fallKeyboard(ctx: CanvasRenderingContext2D, G: FallGeo, y: number, kh: number, W: number, active: Map<number, 'rh' | 'lh'>, P: FallPalette, need: number[], ms: number, dpr: number, grads: ReturnType<typeof fallGradients>) {
     P = P || FALL_COL;
     const mineHeld = new Set(held.keys ? held.keys() : held), pulse = .55 + .45 * Math.sin((ms || 0) / 170), wait = new Set(need || []);
     const tint = (m: number) => { const h = active.get(m); if (h)
         return P[h].key; if (mineHeld.has(m))
         return FALL_YOU; return null; };
     const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    ctx.fillStyle = dark ? '#0a0908' : '#1d1915';
-    ctx.fillRect(0, y, W, kh);
     const r = Math.min(5, G.kw * .14), lab = labelMode !== 'none';
-    for (const m of G.whites) {
-        const k = G.keys.get(m);
-        if (!k)
-            continue;
-        const c = tint(m), dip = c ? 2.5 : 0, x = k.x + .5, w = k.w - 1, h = kh - 3 - dip, g = ctx.createLinearGradient(0, y + dip, 0, y + dip + h);
-        if (c) {
-            if (c === FALL_YOU) {
-                g.addColorStop(0, '#fff8e2');
-                g.addColorStop(.35, '#fde492');
-                g.addColorStop(.78, '#f4c450');
-                g.addColorStop(1, '#df9f20');
+    const idleCanvas = fallIdleKeyboardCanvas(G, kh, W, dpr, dark, lab);
+    if (idleCanvas) {
+        ctx.drawImage(idleCanvas, 0, 0, idleCanvas.width, idleCanvas.height, 0, y, W, kh);
+        const redrawWhites = new Set<number>(), redrawBlacks = new Set<number>();
+        for (const m of G.whites) {
+            if (tint(m) || wait.has(m))
+                redrawWhites.add(m);
+        }
+        for (const [m, k] of G.keys) {
+            if (!k.black || (!tint(m) && !wait.has(m)))
+                continue;
+            redrawBlacks.add(m);
+            if (G.keys.get(m - 1)?.black === false)
+                redrawWhites.add(m - 1);
+            if (G.keys.get(m + 1)?.black === false)
+                redrawWhites.add(m + 1);
+        }
+        for (const w of redrawWhites) {
+            if (G.keys.get(w - 1)?.black)
+                redrawBlacks.add(w - 1);
+            if (G.keys.get(w + 1)?.black)
+                redrawBlacks.add(w + 1);
+        }
+        if (redrawWhites.size) {
+            ctx.fillStyle = dark ? '#0a0908' : '#1d1915';
+            for (const m of redrawWhites) {
+                const k = G.keys.get(m);
+                if (k)
+                    ctx.fillRect(k.x, y, k.w, kh);
             }
-            else {
-                g.addColorStop(0, c[0]);
-                g.addColorStop(1, c[1]);
+            for (const m of redrawWhites) {
+                const k = G.keys.get(m);
+                if (k)
+                    fallDrawWhiteKey(ctx, m, k, y, kh, r, dark, lab, tint(m), wait.has(m), pulse);
             }
         }
-        else {
-            g.addColorStop(0, '#fefae8');
-            g.addColorStop(.75, '#fdf6df');
-            g.addColorStop(1, '#f8efcf');
-        }
-        ctx.fillStyle = g;
-        fallKeyPath(ctx, x, y + dip, w, h, r);
-        ctx.fill();
-        if (c === FALL_YOU) {
-            ctx.strokeStyle = '#cca02d';
-            ctx.lineWidth = 1;
-            fallKeyPath(ctx, x, y + dip, w, h, r);
-            ctx.stroke();
-        }
-        if (wait.has(m)) {
-            ctx.fillStyle = 'rgba(255,196,64,' + (.35 + .4 * pulse).toFixed(3) + ')';
-            fallKeyPath(ctx, x, y + dip, w, h, r);
-            ctx.fill();
-        }
-        if (w > 4) {
-            ctx.fillStyle = 'rgba(255,255,255,.75)';
-            ctx.fillRect(x, y + dip, 1, Math.max(0, h - r));
-            ctx.fillStyle = 'rgba(0,0,0,.07)';
-            ctx.fillRect(x + w - 1, y + dip, 1, Math.max(0, h - r));
-        }
-        const lip = ctx.createLinearGradient(0, y + dip + h - 5, 0, y + dip + h);
-        lip.addColorStop(0, 'rgba(0,0,0,0)');
-        lip.addColorStop(1, 'rgba(165,145,105,.22)');
-        ctx.fillStyle = lip;
-        ctx.fillRect(x + 1, y + dip + h - 5, Math.max(0, w - 2), 5);
-        if (lab && (pc(m) === 0 || labelMode === 'all') && k.w >= 14) {
-            const nm = noteName(m, false);
-            ctx.font = '700 ' + Math.round(Math.min(11, Math.max(8, k.w * .3))) + 'px ' + FALL_FONT;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'alphabetic';
-            ctx.fillStyle = c ? (dark ? '#3a2402' : '#523502') : (dark ? '#645b4c' : '#8c816f');
-            ctx.fillText(pc(m) === 0 ? nm : nm.replace(/-?\d+$/, ''), x + w / 2, y + dip + h - 7, w - 2);
+        if (redrawBlacks.size) {
+            const blacks = [...redrawBlacks].sort((a, b) => a - b);
+            for (const m of blacks) {
+                const k = G.keys.get(m);
+                if (!k)
+                    continue;
+                const c = tint(m), dip = c ? 2.5 : 0, bh = Math.round(kh * .66) - dip, br = Math.min(3, k.w * .15);
+                fallDrawBlackKey(ctx, k.x, y + dip, k.w, bh, br, c, wait.has(m), pulse);
+            }
         }
     }
-    for (const [m, k] of G.keys) {
-        if (!k.black)
-            continue;
-        const c = tint(m), dip = c ? 2.5 : 0, bh = Math.round(kh * .66) - dip, br = Math.min(3, k.w * .15);
-        fallDrawBlackKey(ctx, k.x, y + dip, k.w, bh, br, c, wait.has(m), pulse);
+    else {
+        ctx.fillStyle = dark ? '#0a0908' : '#1d1915';
+        ctx.fillRect(0, y, W, kh);
+        for (const m of G.whites) {
+            const k = G.keys.get(m);
+            if (k)
+                fallDrawWhiteKey(ctx, m, k, y, kh, r, dark, lab, tint(m), wait.has(m), pulse);
+        }
+        for (const [m, k] of G.keys) {
+            if (!k.black)
+                continue;
+            const c = tint(m), dip = c ? 2.5 : 0, bh = Math.round(kh * .66) - dip, br = Math.min(3, k.w * .15);
+            fallDrawBlackKey(ctx, k.x, y + dip, k.w, bh, br, c, wait.has(m), pulse);
+        }
     }
-    const felt = ctx.createLinearGradient(0, y, 0, y + 4);
-    felt.addColorStop(0, '#7a1818');
-    felt.addColorStop(.5, '#982121');
-    felt.addColorStop(1, '#581010');
-    ctx.fillStyle = felt;
+    ctx.fillStyle = grads.felt;
     ctx.fillRect(0, y, W, 4);
-    const feltShadow = ctx.createLinearGradient(0, y + 4, 0, y + 10);
-    feltShadow.addColorStop(0, 'rgba(0,0,0,.45)');
-    feltShadow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = feltShadow;
+    ctx.fillStyle = grads.feltShadow;
     ctx.fillRect(0, y + 4, W, 6);
 }
 // Timeline under the stage: clock, bar ticks, loop region, A/B markers, seek slider and the current bar.
@@ -16574,10 +16951,20 @@ function anTlUpdate(time?: number | null) {
     const mx = String(Math.max(.1, end));
     if (seek.max !== mx)
         seek.max = mx;
-    if (document.activeElement !== seek || SCORE.playing)
-        seek.value = String(pos);
-    seek.style.setProperty('--p', pct(pos));
-    seek.setAttribute('aria-valuetext', t('fall_valtext', anClock(pos), anClock(end)));
+    const posStr = String(pos);
+    if ((document.activeElement !== seek || SCORE.playing) && seek.value !== posStr)
+        seek.value = posStr;
+    const cache = FALL.tlCache ?? (FALL.tlCache = {});
+    const pStr = pct(pos);
+    if (cache.p !== pStr) {
+        seek.style.setProperty('--p', pStr);
+        cache.p = pStr;
+    }
+    const valText = t('fall_valtext', anClock(pos), anClock(end));
+    if (cache.valText !== valText) {
+        seek.setAttribute('aria-valuetext', valText);
+        cache.valText = valText;
+    }
     const set = (id: string, v: string) => { const el = byId(id); if (el.textContent !== v)
         el.textContent = v; };
     set('fall-clock', anClock(pos));
@@ -16592,13 +16979,46 @@ function anTlUpdate(time?: number | null) {
         byId('tl-ticks').innerHTML = ms.map((x, i) => i % step ? '' : `<i${i % major === 0 ? ' class="is-major"' : ''} style="left:${pct(scoreSeconds(x.start))}"></i>`).join('');
     }
     const L = SCORE.loop, lp = byId('tl-loop'), A = PRAC.A, B = PRAC.B, la = L ? L.a : A != null && B != null ? A : null, lb = L ? L.b : A != null && B != null ? B : null;
-    lp.hidden = la == null;
-    if (la != null && lb != null) {
-        lp.style.left = pct(la);
-        lp.style.width = (end > 0 ? (lb - la) / end * 100 : 0).toFixed(3) + '%';
+    const loopHidden = la == null;
+    if (cache.loopHidden !== loopHidden) {
+        lp.hidden = loopHidden;
+        cache.loopHidden = loopHidden;
     }
-    ([['tl-a', A], ['tl-b', B]] as const).forEach(([id, v]) => { const el = byId(id); el.hidden = v == null; if (v != null)
-        el.style.left = pct(v); });
+    if (la != null && lb != null) {
+        const loopLeft = pct(la), loopWidth = (end > 0 ? (lb - la) / end * 100 : 0).toFixed(3) + '%';
+        if (cache.loopLeft !== loopLeft) {
+            lp.style.left = loopLeft;
+            cache.loopLeft = loopLeft;
+        }
+        if (cache.loopWidth !== loopWidth) {
+            lp.style.width = loopWidth;
+            cache.loopWidth = loopWidth;
+        }
+    }
+    const aEl = byId('tl-a'), aHidden = A == null;
+    if (cache.aHidden !== aHidden) {
+        aEl.hidden = aHidden;
+        cache.aHidden = aHidden;
+    }
+    if (A != null) {
+        const aLeft = pct(A);
+        if (cache.aLeft !== aLeft) {
+            aEl.style.left = aLeft;
+            cache.aLeft = aLeft;
+        }
+    }
+    const bEl = byId('tl-b'), bHidden = B == null;
+    if (cache.bHidden !== bHidden) {
+        bEl.hidden = bHidden;
+        cache.bHidden = bHidden;
+    }
+    if (B != null) {
+        const bLeft = pct(B);
+        if (cache.bLeft !== bLeft) {
+            bEl.style.left = bLeft;
+            cache.bLeft = bLeft;
+        }
+    }
 }
 // Seeking pauses while the slider moves and resumes on release if it was playing.
 function fallSeek() { const pos = +inputById('fall-seek').value; if (SCORE.playing) {
@@ -16913,7 +17333,10 @@ function anInitControls() {
         void anLoadExample(b.dataset.piece); });
     pcRender();
     ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => byId(id).addEventListener('change', anReconChange));
-    byId('an-recon-btn').addEventListener('click', () => anReconOpen(!!byId('an-recon').hidden));
+    byId('an-recon-btn').addEventListener('click', () => {
+        anReconOpen(!!byId('an-recon').hidden);
+        AN_POPS.forEach(([p] = []) => anPop(p, false));
+    });
     document.addEventListener('pointerdown', (e) => {
         const el = eventElement(e);
         if (!el)
@@ -16923,7 +17346,6 @@ function anInitControls() {
         AN_POPS.forEach(([p, b] = []) => { if (!byId(p).hidden && !el.closest('#' + p + ',#' + b))
             anPop(p, false); });
     });
-    byId('an-recon-btn').addEventListener('click', () => AN_POPS.forEach(([p] = []) => anPop(p, false)));
     AN_POPS.forEach(([p, b] = []) => byId(b).addEventListener('click', () => anPop(p, !!byId(p).hidden)));
     pracLoad();
     const ck = { 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-ramp': 'ramp', 'fall-fx': 'fx' } as const;
@@ -18072,14 +18494,32 @@ function storeQuarantine(text: string) {
 async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<boolean> {
     if (!await storeSnapshot(reason, backupJson()) && !confirm(t('store_copy_failed')))
         return true; // the user kept their progress: nothing to report
+    let prevLedgerRaw: string | null = null;
+    let ledgerUpdated = false;
     if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
+        prevLedgerRaw = localStorage.getItem(SRT_LEDGER_KEY);
         const local = srtReadLedger(localStorage);
         const merged = await srtLedgerUpdate(localStorage, { type: 'importLedger', imported: p.data.sightLedger, generation: local.generation });
         if (!merged.ok)
             return false;
+        ledgerUpdated = true;
     }
-    p.gen = syncGen();
-    writePttV3(localStorage, p, KEY);
+    try {
+        p.gen = syncGen();
+        writePttV3(localStorage, p, KEY);
+    }
+    catch (err) {
+        if (ledgerUpdated) {
+            try {
+                if (prevLedgerRaw === null)
+                    localStorage.removeItem(SRT_LEDGER_KEY);
+                else
+                    localStorage.setItem(SRT_LEDGER_KEY, prevLedgerRaw);
+            }
+            catch (_) { }
+        }
+        throw err;
+    }
     location.reload();
     return true;
 }
@@ -18405,7 +18845,7 @@ function setOverlay(el: HTMLElement, o: boolean, firstId: string) {
     else if (!o && was) {
         const r = overlayReturn.get(el);
         overlayReturn.delete(el);
-        if (!overlaysOpen() && hadFocus && r && r.isConnected && (r instanceof HTMLElement || r instanceof SVGElement))
+        if (!overlaysOpen() && hadFocus && r && r.isConnected && (r instanceof HTMLElement || r instanceof SVGElement) && r.getClientRects().length > 0)
             r.focus();
     }
 }

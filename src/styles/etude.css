@@ -35,7 +35,7 @@
     --headbg:rgba(23,20,18,.86);
     --staffink:#e8e1d4;
   }
-  :root[data-theme=dark] .btn.primary:hover{background:#b85a49; color:#fff}
+  :root[data-theme=dark] .btn.primary:hover{background:#de8d7d; color:var(--accent-ink)}
   :root[data-theme=dark] .cell[data-b="1"],:root[data-theme=dark] .cell[data-b="2"]{background:#3a2d1f; color:#d8a86f; border-color:#54402a}
   :root[data-theme=dark] .cell[data-b="3"],:root[data-theme=dark] .cell[data-b="4"]{background:#37331f; color:#cfc06b; border-color:#4f4a2c}
   :root[data-theme=dark] .cell[data-b="5"],:root[data-theme=dark] .cell[data-b="6"]{background:var(--good-bg); color:var(--good); border-color:#3a5242}
@@ -203,9 +203,14 @@
   .section-head h1{font-size:30px; margin:.1em 0}
   .panel{border:1px solid var(--line); border-radius:14px; background:var(--card); box-shadow:var(--shadow); padding:20px}
   .row{display:flex; gap:14px; flex-wrap:wrap; align-items:center}
-  .seg{display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--card)}
+  .seg{display:inline-flex; border:1px solid var(--line); border-radius:10px; background:var(--card)}
   .seg button{appearance:none; border:none; background:none; color:var(--muted); padding:8px 14px; font-size:13.5px; font-weight:600; cursor:pointer}
+  .seg button:first-of-type{border-radius:9px 0 0 9px}
+  .seg button:last-of-type{border-radius:0 9px 9px 0}
+  .seg button:only-of-type{border-radius:9px}
+  .seg button:focus-visible{position:relative; z-index:2; border-radius:9px}
   .seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink)}
+  .seg button[aria-pressed="true"]:focus-visible{outline-color:var(--ink)}
   #pr-mode button{min-height:44px; position:relative}
   #pr-mode button::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:48px; width:100%; height:100%}
   #pr-start{min-height:44px}
@@ -215,8 +220,8 @@
   #set-lang button{border:1px solid var(--line); border-radius:8px; background:var(--card); padding:6px 11px; font-size:12.5px; font-weight:600; color:var(--muted); cursor:pointer}
   #set-lang button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
   :has(#view-analysis.active) .keys{height:clamp(124px, 17dvh, 148px)}
-  label.field{display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); max-width:100%}
-  label.field select{min-width:0; max-width:100%}
+  label.field, .field{display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); max-width:100%}
+  label.field select, .field select{min-width:0; max-width:100%}
   select{appearance:none; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:8px 30px 8px 12px; border-radius:9px; font-size:14px; font-family:inherit; cursor:pointer;
     background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%); background-position:calc(100% - 16px) 53%,calc(100% - 11px) 53%; background-size:5px 5px; background-repeat:no-repeat}
   input[type=range]{accent-color:var(--accent)}
@@ -434,7 +439,8 @@
   .switch-inline{display:inline-flex; align-items:center; gap:7px; font-size:13px; white-space:nowrap}
   .tr-live{font-family:var(--serif); font-weight:900; font-size:30px; min-width:120px; color:var(--gold); letter-spacing:.5px}
   .tr-live small{font-size:13px; font-weight:600; color:var(--muted); margin-left:6px}
-  .tr-live.rec{color:#c0613f}
+  .tr-live.rec{color:#a84b2c}
+  :root[data-theme=dark] .tr-live.rec{color:#ea8e6f}
   .tr-out{display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; min-height:20px}
   .tr-note{display:inline-flex; flex-direction:column; align-items:center; gap:4px}
   .tr-note .bar{height:8px; border-radius:5px; background:linear-gradient(90deg,#c6abe8,#8a63c0)}
@@ -515,7 +521,7 @@
   .si-hint{font-size:14px; font-weight:700; color:var(--gold-ink); min-height:20px}
   .ss-pip{display:inline-block; width:9px; height:9px; border-radius:50%; margin:0 2px; background:var(--line,#ddd)}
   .ss-pip.on{background:#3c8f57}
-  .btn.rec-on{background:#c0613f; color:#fff}
+  .btn.rec-on{background:#a84b2c; border-color:#a84b2c; color:#fff}
   .key .mk{position:absolute; top:5px; left:0; right:0; text-align:center; font-size:12px; font-weight:900; opacity:0; z-index:3}
   .white .mk{color:var(--ink)} .black .mk{color:#fff}
   .key[data-s=good] .mk,.key[data-s=bad] .mk{opacity:1}
@@ -531,7 +537,8 @@
   .set-group{margin-top:22px}
   .set-group h3{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 10px; font-family:var(--sans); font-weight:700}
   .set-row{display:flex; justify-content:space-between; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
-  .set-row .lab{font-size:14px}
+  .set-row .lab{font-size:14px; min-width:0}
+  @media (max-width:420px){ .set-row{flex-wrap:wrap} }
   .set-row label.lab{cursor:pointer}
   .set-row .lab small{display:block; color:var(--muted); font-size:12px}
   .set-row .lab small.backup-age.warn{color:var(--bad)}
@@ -591,6 +598,7 @@
   .helpbox{position:fixed; z-index:52; top:50%; left:50%; transform:translate(-50%,-48%) scale(.98); opacity:0; pointer-events:none; transition:.2s; width:min(560px,92vw); max-height:min(84vh, calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 24px)); overflow:auto; overscroll-behavior:contain; background:var(--paper2); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:calc(20px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-right,0px)) calc(22px + env(safe-area-inset-bottom,0px)) calc(24px + env(safe-area-inset-left,0px))}
   .helpbox.on{opacity:1; transform:translate(-50%,-50%) scale(1); pointer-events:auto}
   .help-close{float:right; margin-left:12px}
+  @media (pointer:coarse), (max-width:680px){ .help-close{min-width:44px; min-height:44px} }
   .helpbox h2{margin:0 0 4px; font-size:22px}
   .helpbox .lede{font-size:13px; margin:0 0 12px}
   .hk{display:flex; justify-content:space-between; align-items:center; gap:14px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px}
@@ -752,7 +760,7 @@
   .tl-track input[type=range]::-moz-range-thumb{width:12px; height:12px; border:2px solid var(--tl-fill); border-radius:50%; background:#fff}
   .tl-track input[type=range]:focus-visible{outline:2px solid var(--sel-ui); outline-offset:3px}
   /* practice: HUD, count-in, summary */
-  .pr-hud{position:absolute; top:10px; right:12px; z-index:6; display:flex; align-items:center; gap:12px; padding:7px 12px; border-radius:12px; background:rgba(10,14,26,.78); color:#e8edf8; font:600 12px var(--sans); font-variant-numeric:tabular-nums; box-shadow:0 8px 24px -10px rgba(0,0,0,.6); pointer-events:none; backdrop-filter:blur(6px)}
+  .pr-hud{position:absolute; top:10px; right:12px; z-index:6; display:flex; align-items:center; gap:12px; padding:7px 12px; border-radius:12px; background:rgba(10,14,26,.86); color:#e8edf8; font:600 12px var(--sans); font-variant-numeric:tabular-nums; box-shadow:0 8px 24px -10px rgba(0,0,0,.6); pointer-events:none}
   .pr-hud b{font-size:16px; font-weight:800; color:#fff}
   .pr-hud .pr-k{display:flex; flex-direction:column; align-items:center; gap:1px; line-height:1.1}
   .pr-hud .pr-k span{font-size:10px; font-weight:600; color:#9aa7c2; text-transform:uppercase; letter-spacing:.04em}
@@ -945,7 +953,7 @@
     #sc-hl .tb-hl-label{display:inline}
   }
   /* the floating Analysis button and the bottom sheet replace the side panel below 1000px */
-  .an-fab{position:fixed; right:14px; bottom:calc(var(--dock-h) + var(--an-sb-h) + 52px); z-index:31; display:inline-flex; align-items:center; gap:7px; min-height:42px; padding:0 16px 0 13px; border:1px solid var(--line2); border-radius:999px; background:var(--card); color:var(--ink); font:700 13.5px var(--sans); box-shadow:0 12px 28px -12px rgba(0,0,0,.5); cursor:pointer}
+  .an-fab{position:fixed; right:max(14px, env(safe-area-inset-right, 0px)); bottom:calc(var(--dock-h) + var(--an-sb-h) + 52px); z-index:31; display:inline-flex; align-items:center; gap:7px; min-height:42px; padding:0 16px 0 13px; border:1px solid var(--line2); border-radius:999px; background:var(--card); color:var(--ink); font:700 13.5px var(--sans); box-shadow:0 12px 28px -12px rgba(0,0,0,.5); cursor:pointer}
   .an-fab svg{width:16px; height:16px; flex:none; color:var(--accent)}
   .an-fab:hover{border-color:var(--accent); color:var(--accent)}
   @media (min-width:1000px){ .an-fab{display:none!important} }
@@ -953,7 +961,7 @@
     .an-work,.an-work.no-side{grid-template-columns:minmax(0,1fr)}
     /* the open sheet takes half of the room under the toolbar; the score viewport shrinks to the other half (see --an-low) */
     .an-work.has-sheet{height:max(140px, calc(100dvh - var(--hdr-h) - var(--dock-h) - var(--an-tb-h) - var(--an-low) - 2px))}
-    .an-side{position:fixed; left:0; right:0; bottom:var(--dock-h); z-index:33; height:max(200px, min(520px, calc((100dvh - var(--hdr-h) - var(--an-tb-h) - var(--dock-h)) * .5))); border:1px solid var(--line2); border-bottom:none; border-radius:16px 16px 0 0; box-shadow:0 -22px 46px -26px rgba(0,0,0,.55); overflow:hidden;
+    .an-side{position:fixed; left:0; right:0; bottom:var(--dock-h); z-index:33; height:max(min(200px, 46dvh), min(520px, calc((100dvh - var(--hdr-h) - var(--an-tb-h) - var(--dock-h)) * .5))); border:1px solid var(--line2); border-bottom:none; border-radius:16px 16px 0 0; box-shadow:0 -22px 46px -26px rgba(0,0,0,.55); overflow:hidden;
       transform:translateY(calc(100% + 16px)); visibility:hidden; transition:transform .26s cubic-bezier(.2,.7,.2,1), visibility 0s linear .26s}
     .an-side.is-open{transform:none; visibility:visible; transition:transform .26s cubic-bezier(.2,.7,.2,1)}
     .an-side-head{padding:4px 8px 0 8px}
@@ -1136,7 +1144,6 @@
     .lsum dl>div,.lw-dl>div{grid-template-columns:1fr; gap:0}
     .lq{padding:4px 12px 14px}
     .lw{padding:4px 12px 12px}
-    .lw-cof{width:100%}
   }
 
   .lstaff svg *{pointer-events:none} .lstaff .ss-n, .lstaff .ss-n *{pointer-events:auto} .lstaff .ss-box{pointer-events:all}
@@ -1183,11 +1190,6 @@
   @media (prefers-reduced-motion:reduce){ .view{animation:none} .plan-item:hover,.focus:hover{transform:none} }
 
   @media (max-width:860px){
-    /* one tidy row that scrolls sideways instead of wrapping; popovers stay outside the scroller */
-    .an-tb{flex-wrap:nowrap; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; padding-right:26px; -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent)}
-    .an-tb::-webkit-scrollbar{display:none}
-    .an-tb > *{flex:none}
-    .an-tb{position:relative}   /* contains the visually-hidden labels, which would otherwise escape the scroller */
     .tb-wait .lbl{display:none}
     .an-tl{gap:8px; padding:0 10px}
     .tl-bar{min-width:0}
@@ -1201,7 +1203,7 @@
   }
   [hidden]{display:none!important}   /* author display rules must not override the hidden attribute */
   .visually-hidden{position:absolute!important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
-  .skip-link{position:fixed; top:8px; left:8px; z-index:60; transform:translateY(-150%); background:var(--paper); color:var(--ink); padding:10px 14px; border:2px solid var(--accent); border-radius:8px; transition:transform .15s}
+  .skip-link{position:fixed; top:max(8px, env(safe-area-inset-top, 0px)); left:max(8px, env(safe-area-inset-left, 0px)); z-index:60; transform:translateY(-150%); background:var(--paper); color:var(--ink); padding:10px 14px; border:2px solid var(--accent); border-radius:8px; transition:transform .15s}
   .skip-link:focus{transform:translateY(0)}
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:6px}
   /* ---------- coaching: one short, context-aware tip per surface (Reading focus · What to notice · Next step) ---------- */
@@ -1340,7 +1342,7 @@
     .rdx-tabs [role=tab]{padding:9px 9px 10px; font-size:13.5px; white-space:nowrap; flex:none}
     .rdx-a{min-width:44px; font-size:16px; padding:8px 10px}
     .rdx-ty-ch .rdx-a,.rdx-ty-ks .rdx-a{min-width:46%}
-    .rdx-a kbd,.rdx-kbd{display:none}
+    .rdx-a kbd{display:none}
     .rdx-bar{grid-template-columns:84px 1fr 78px}
   }
   /* ---------- answering by ear on the keys ---------- */
@@ -1427,9 +1429,10 @@
   body[data-stage=immersive] #rdn-checklist,
   body[data-stage=immersive] footer{display:none}
   body[data-stage=immersive] main{padding:0}
+  body[data-stage=immersive] #view-read > .wrap{max-width:none; padding:0}
   body[data-stage=immersive] .stage-fs:not([hidden]){display:inline-flex}
   body[data-stage=immersive] #rdx-stage,
-  body[data-stage=immersive] #rdp-pieces > .panel{height:calc(100dvh - var(--dock-h,0px)); display:flex; flex-direction:column; margin:0; border-radius:0; border-left:0; border-right:0; box-sizing:border-box; padding-top:6px; padding-bottom:8px}
+  body[data-stage=immersive] #rdp-pieces > .panel{height:calc(100dvh - var(--dock-h,0px)); display:flex; flex-direction:column; margin:0; border-radius:0; border-left:0; border-right:0; box-sizing:border-box; padding:6px max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px))}
   body[data-stage=immersive] .rdx-top{min-height:44px; flex-wrap:nowrap; gap:10px}
   body[data-stage=immersive] #rdx-back,
   body[data-stage=immersive] #rdx-sub{display:none}
@@ -1446,6 +1449,10 @@
   body[data-stage=immersive] #rd-stage-top{display:flex; align-items:center; min-height:44px; flex-wrap:nowrap; gap:10px; width:100%; box-sizing:border-box; padding:0 4px}
   body[data-stage=immersive] #rd-stage-end::before{content:"← " / ""}
   body[data-stage=immersive] #rd-stage-end::after{content:" (Esc)" / ""}
+  @media (pointer:coarse), (max-width:600px){
+    body[data-stage=immersive] #rdx-end::after,
+    body[data-stage=immersive] #rd-stage-end::after{content:none}
+  }
   body:not([data-stage=immersive]) #rd-stage-top{display:none !important}
   body[data-stage=immersive] #rd-pieces-controls,
   body[data-stage=immersive] #rd-meta{display:none}
@@ -1479,7 +1486,13 @@
   body[data-stage=immersive] #rd-verdict{text-align:center}
   body[data-stage=immersive] .dock.is-rail{padding-top:2px; padding-bottom:calc(2px + env(safe-area-inset-bottom,0px))}
   body[data-stage=immersive] .dock.is-rail .dock-kb-toggle{height:24px; min-height:24px}
-  @media (max-width:480px){ body[data-stage=immersive] .rdx-head{display:none} body[data-stage=immersive] .rdx-hud{flex:1} }
+  @media (max-width:480px){
+    body[data-stage=immersive] .rdx-head{display:none}
+    body[data-stage=immersive] .rdx-hud{flex:1}
+    body[data-stage=immersive] #rd-stage-top{gap:6px; padding:0; flex-wrap:wrap}
+    body[data-stage=immersive] #rd-stage-hands{margin:0; max-width:100%}
+    body[data-stage=immersive] .seg.sm button{padding:4px 7px; font-size:11.5px}
+  }
 /* ---------- bottom navigation: portrait phones and small tablets ----------
    The header tabs fold away below 840px; here the five sections sit in a bar at the thumb instead of behind the menu.
    Short landscape phones keep the menu, because a bar would cost a sixth of their height. The dock rides on top of the
@@ -1554,5 +1567,5 @@
     .an-score{padding:6px 10px 10px}
     .an-sheet > div{margin-bottom:12px}
     .an-work{height:max(min(200px, 50dvh), calc(100dvh - var(--hdr-h) - var(--dock-h) - var(--an-tb-h) - var(--an-low) - 2px))}
-    .an-fab{min-height:34px; padding:0 11px 0 9px; font-size:12px; right:10px; bottom:calc(var(--dock-h) + var(--an-sb-h) + 34px)}
+    .an-fab{min-height:34px; padding:0 11px 0 9px; font-size:12px; right:max(10px, env(safe-area-inset-right, 0px)); bottom:calc(var(--dock-h) + var(--an-sb-h) + 34px)}
   }

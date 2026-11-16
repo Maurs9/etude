@@ -168,6 +168,7 @@ const payload: UIPayload = {
       "nav_today": "Today",
       "nav_practice": "Practice",
       "nav_sing": "Voice",
+      "vo_eyebrow": "Voice & ear",
       "vo_sing": "Sing from the staff",
       "vo_hum": "Hum to notes",
       "vo_switch_aria": "Activity",

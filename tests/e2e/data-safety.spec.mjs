@@ -179,5 +179,50 @@ test.describe('data safety', () => {
     await expect(page.locator('#storeNoteText')).toHaveText(/couldn't be read/);
     expect(errors).toEqual([]);
   });
-});
 
+  test('an import failure on ptt-v3 rolls back the sight-reading ledger instead of leaving split state', async ({ app, page }) => {
+    await app.open({ saved });
+    const initialLedger = await page.evaluate(() => {
+      const ledger = window.__etude.srtCreateLedger();
+      localStorage.setItem('etude-sight-v1', JSON.stringify(ledger));
+      return localStorage.getItem('etude-sight-v1');
+    });
+    const beforePtt = await page.evaluate(() => localStorage.getItem('ptt-v3'));
+
+    const importedLedger = await page.evaluate(() => {
+      const ledger = window.__etude.srtCreateLedger();
+      const attempt = {
+        attemptId: 'imp-1', fingerprint: 'v1:x', ownerTabId: 'tab', generation: ledger.generation, status: 'completed', finishedAt: 10,
+        scoringVersion: 1, N: 1, TP: 1, FP: 0, FN: 0, G: 1, Q: 0, lateOrEarlyCount: 0, restViolations: 0, pitchPrecision: 1, pitchRecall: 1,
+        pitchF1: 100, rhythmAcc: 100, score: 100, stars: 3, perfect: true, meanOffsetMs: 0, meanAbsoluteOffsetMs: 0,
+        noteResults: [{ expectedId: 'n', classification: 'good', matchedInputId: 'i', errorMs: 0 }], extraInputs: [],
+      };
+      return { ...ledger, attempts: { 'imp-1': attempt } };
+    });
+
+    await page.evaluate(() => {
+      const real = Storage.prototype.setItem;
+      window.__realSetItem = real;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'ptt-v3') throw new DOMException('full', 'QuotaExceededError');
+        return real.call(this, key, value);
+      };
+    });
+
+    const msg = new Promise(resolve => page.on('dialog', dialog => {
+      const text = dialog.message();
+      void dialog.accept();
+      if (/Étude backup|failed|error/i.test(text)) resolve(text);
+    }));
+    await page.locator('#importFile').setInputFiles({
+      name: 'backup.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ v: 3, data: { totalReviews: 99, sightLedger: importedLedger } })),
+    });
+    await expect(msg).resolves.toBeTruthy();
+
+    await page.evaluate(() => { Storage.prototype.setItem = window.__realSetItem; });
+    expect(await page.evaluate(() => localStorage.getItem('etude-sight-v1'))).toBe(initialLedger);
+    expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(beforePtt);
+  });
+});

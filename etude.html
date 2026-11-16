@@ -201,8 +201,8 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
             <div class="rdx-head"><div id="rdx-title" class="rdx-title"></div><div id="rdx-sub" class="rdx-sub"></div></div>
             <div id="rdx-hud" class="rdx-hud" aria-hidden="true"></div>
             <div id="rdx-award" class="rdx-award" aria-hidden="true" hidden></div>
-            <button class="btn ghost sm stage-fs" id="rdx-fs" type="button" hidden aria-label="Full screen" title="Full screen">⛶</button>
-            <button class="btn ghost sm" id="rdx-end" hidden aria-keyshortcuts="Escape">End</button>
+            <button class="btn ghost sm stage-fs" id="rdx-fs" type="button" hidden aria-label="Full screen" title="Full screen" data-i18n-aria="stage_fs" data-i18n-title="stage_fs">⛶</button>
+            <button class="btn ghost sm" id="rdx-end" hidden aria-keyshortcuts="Escape" data-i18n="rdx_end">Finish</button>
           </div>
           <div class="rdx-meter" id="rdx-meter" hidden><i></i></div>
           <div id="rdx-body"></div>
@@ -226,7 +226,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           </div>
           <div class="seg sm" id="rd-stage-hands" role="group" aria-label="Hands" data-i18n-aria="rdx_hands_aria"><button data-v="both" data-i18n="rd_both" aria-pressed="true">Both hands</button><button data-v="rh" data-i18n="rd_rh" aria-pressed="false">Right hand</button><button data-v="lh" data-i18n="rd_lh" aria-pressed="false">Left hand</button></div>
           <span style="margin-left:auto"></span>
-          <button class="btn ghost sm stage-fs" id="rd-top-fs" type="button" hidden aria-label="Full screen" title="Full screen">⛶</button>
+          <button class="btn ghost sm stage-fs" id="rd-top-fs" type="button" hidden aria-label="Full screen" title="Full screen" data-i18n-aria="stage_fs" data-i18n-title="stage_fs">⛶</button>
           <button class="btn ghost sm" id="rd-stage-end" data-i18n="rdx_end" aria-keyshortcuts="Escape">Finish</button>
         </div>
         <div class="row" id="rd-pieces-controls" style="align-items:center">
@@ -384,7 +384,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <div class="an-now-act" role="group" aria-labelledby="an-now-h">
             <button type="button" class="btn sm" id="an-now-listen"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 2.9v10.2a.7.7 0 0 0 1.06.6l8.1-5.1a.7.7 0 0 0 0-1.2l-8.1-5.1a.7.7 0 0 0-1.06.6z"/></svg><span data-i18n="an_listen">Listen</span></button>
             <button type="button" class="btn sm" id="an-now-loop" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 8.6V7.4a3 3 0 0 1 3-3h7.4"/><path d="m11 2.2 2.2 2.2L11 6.6"/><path d="M13.2 7.4v1.2a3 3 0 0 1-3 3H2.8"/><path d="m5 9.4-2.2 2.2L5 13.8"/></svg><span data-i18n="an_loop_b">Loop</span></button>
-            <div class="an-now-pr"><span id="an-now-pr-l" data-i18n="an_practice_b">Practice</span><div class="seg" id="an-now-hands" role="group" aria-labelledby="an-now-pr-l"><button type="button" data-h="both">Both</button><button type="button" data-h="rh" data-i18n="pr_rh">RH</button><button type="button" data-h="lh" data-i18n="pr_lh">LH</button></div></div>
+            <div class="an-now-pr"><span id="an-now-pr-l" data-i18n="an_practice_b">Practice</span><div class="seg" id="an-now-hands" role="group" aria-labelledby="an-now-pr-l"><button type="button" data-h="both" data-i18n="pr_both">Both</button><button type="button" data-h="rh" data-i18n="pr_rh">RH</button><button type="button" data-h="lh" data-i18n="pr_lh">LH</button></div></div>
           </div>
           <div class="visually-hidden" id="an-now-live" role="status" aria-live="polite"></div>
         </section>
@@ -485,7 +485,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <!-- ===================== VOICE (sight-singing + hum to notes) ===================== -->
   <section class="view" id="view-sing">
     <div class="wrap">
-      <div class="section-head"><div><h1 data-i18n="nav_sing">Voice</h1></div></div>
+      <div class="section-head"><div><div class="eyebrow" data-i18n="vo_eyebrow">Voice &amp; ear</div><h1 data-i18n="nav_sing">Voice</h1></div></div>
       <div class="vo-switch" id="vo-switch" role="tablist" aria-label="Activity" data-i18n-aria="vo_switch_aria">
         <button type="button" role="tab" id="vo-tab-sing" data-act="sing" aria-selected="true" aria-controls="vo-sing" tabindex="0" data-i18n="vo_sing">Sing from the staff</button>
         <button type="button" role="tab" id="vo-tab-hum" data-act="hum" aria-selected="false" aria-controls="vo-hum" tabindex="-1" data-i18n="vo_hum">Hum to notes</button>
@@ -610,13 +610,13 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           </figure>
         </section>
         <div class="panel ex-ref" id="ex-ref">
-          <label class="field ref-field"><span data-i18n="ex_ref">Reference</span>
-            <select id="refType"><option value="chord" data-i18n="opt_chord">Chord</option><option value="scale" data-i18n="opt_scale">Scale</option></select>
+          <div class="field ref-field" role="group" aria-labelledby="ex-ref-lbl"><span id="ex-ref-lbl" data-i18n="ex_ref">Reference</span>
+            <select id="refType" aria-labelledby="ex-ref-lbl"><option value="chord" data-i18n="opt_chord">Chord</option><option value="scale" data-i18n="opt_scale">Scale</option></select>
             <select id="refRoot" aria-label="Reference root" data-i18n-aria="aria_refroot"></select>
             <select id="refName" aria-label="Reference name" data-i18n-aria="aria_refname"></select>
             <button class="btn sm" id="refPlay" data-i18n="ex_hear">▶ Hear</button>
             <button class="btn sm ghost" id="refShow" data-i18n="ex_show">Show on keys</button>
-          </label>
+          </div>
           <label class="field"><span data-i18n="ex_keyctx">Key context</span> <select id="keyCtx"><option value="-1">none</option></select></label>
         </div>
       </div>

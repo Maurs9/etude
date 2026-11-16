@@ -173,6 +173,7 @@ const payload: UIPayload = {
       "nav_explore": "Entdecken",
       "nav_progress": "Fortschritt",
       "nav_sing": "Stimme",
+      "vo_eyebrow": "Stimme & Gehör",
       "vo_sing": "Vom Blatt singen",
       "vo_hum": "Vom Summen zu Noten",
       "vo_switch_aria": "Aktivität",
