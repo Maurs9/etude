@@ -14494,6 +14494,9 @@ function pracTick() {
     const now = actx.currentTime, H = now + .3;
     for (let guard = 0; guard < 4; guard++) {
         const s = R.segs[R.segs.length - 1];
+        // A queued pass still shares the previous pass's judgements. Wait until
+        // the audio clock enters it and pracPassEnd clears them before choosing its barrier.
+        if (PRAC.wait && s !== R.segs[0]) break;
         if (PRAC.wait && !PRAC.bar && R.wt !== Infinity)
             pracNextBar(R, s);
         const B: PracticeBarrier | null = PRAC.bar && PRAC.bar.seg === s ? PRAC.bar : null, at = (x: number) => s.a0 + (x - s.t0) / s.f;
@@ -14556,8 +14559,10 @@ function pracTick() {
         }
         R.segs.shift();
         pracPassEnd(R);
+        if (PRAC.wait) R.wt = R.segs[0].t0;
         if (R.route) { const i = R.mine.findIndex(d => d.start >= R.segs[0].t0 - 1e-6); R.mi = i < 0 ? R.mine.length : i; }
     }
+    if (PRAC.wait && R.segs.length === 1 && !PRAC.bar && R.wt !== Infinity) pracNextBar(R, R.segs[0]);
     const time = fallTime();
     if (PRAC.active && !PRAC.wait)
         pracMisses(R, time);

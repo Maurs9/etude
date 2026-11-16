@@ -40,6 +40,8 @@ Before you start, open **Settings → Your data → Diagnostics** and tap **Copy
 
 ## Record the result
 
+Wait-for-me repeat follow-up (physical MIDI pending): with both hands selected, verify that an incomplete chord keeps the cursor stopped, a wrong note does not release it, and a full chord resumes playback. Repeat the passage through a printed repeat and a selection loop: every pass must ask for the notes again. Check pause/resume and disabling Wait for me during playback with the real piano; browser tests use synthetic input.
+
 Repeat playback follow-up (physical piano pending): import a MusicXML score with a backward repeat, play through the jump with sound and MIDI, pause/resume on each pass, and check that the blue line returns with the audio. Check pedal releases at the jump, alternate endings, and both page and continuous views. Automated tests cover the scheduler and repeat order, not physical audio timing.
 
 Score fullscreen follow-up (physical Android/TWA and iOS Safari still pending): in Pieces and Read, expand the score before Start and during playback, rotate the device, zoom and fit the width, and show/hide the keyboard. Exit using the visible button and the system Back/Escape gesture; the current run must continue. Complete a Read attempt and verify its result and Next controls appear. Check screen cutouts and navigation bars in the installed PWA/TWA. Browser tests cover layout, native-API rejection/fallback and lifecycle, but do not verify system bars or gestures on physical devices.

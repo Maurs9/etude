@@ -39,3 +39,31 @@ test('natural engraving moves at a steady speed within each bar regardless of no
   expect(xs[1] - xs[0]).toBeCloseTo(xs[2] - xs[1], 6);
   expect(xs[2] - xs[1]).toBeCloseTo(xs[3] - xs[2], 6);
 });
+
+test('Wait for me asks again on every repeat before continuing', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await page.locator('#an-file').setInputFiles({ name: 'wait-repeat.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml.replace('tempo="120"', 'tempo="600"')) });
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.evaluate(async () => { const a = window.__etude; a.pracSet('countIn', false); a.pracSet('wait', true); await a.scorePlay(false, 0); });
+  const visits = [];
+  for (let i = 0; i < 5; i++) {
+    await page.waitForFunction(() => { const a = window.__etude; return a.PRAC.bar && a.PRAC.bar.seg === a.SCORE.run.segs[0] && a.actx.currentTime >= a.SCORE.run.segs[0].a0 && a.fallTime() >= a.PRAC.bar.t - 1e-6; });
+    visits.push(await page.evaluate(() => window.__etude.PRAC.bar.t));
+    await page.evaluate(() => { const a = window.__etude; for (const m of [...a.PRAC.bar.need]) { a.handleNoteOn(m, 100); a.handleNoteOff(m); } });
+  }
+  expect(visits).toEqual([0, .4, 0, .4, .8]);
+  await expect.poll(() => page.evaluate(() => window.__etude.SCORE.playing)).toBe(false);
+});
+
+test('Wait for me also asks again on explicit selection loops', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await page.locator('#an-file').setInputFiles({ name: 'wait-loop.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml.replace('tempo="120"', 'tempo="600"')) });
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.evaluate(async () => { const a = window.__etude; a.AN.selected = new Set([0]); a.anSelectionChanged(); a.pracSet('countIn', false); a.pracSet('wait', true); await a.scoreLoopStart(); });
+  for (let pass = 1; pass <= 3; pass++) {
+    await page.waitForFunction(want => { const a = window.__etude, r = a.SCORE.run; return r?.pass === want && a.PRAC.bar && a.PRAC.bar.seg === r.segs[0] && a.actx.currentTime >= r.segs[0].a0; }, pass);
+    expect(await page.evaluate(() => window.__etude.PRAC.bar.got.size)).toBe(0);
+    await page.evaluate(() => { const a = window.__etude; for (const m of [...a.PRAC.bar.need]) { a.handleNoteOn(m, 100); a.handleNoteOff(m); } });
+  }
+  await page.evaluate(() => window.__etude.scoreStop());
+});
