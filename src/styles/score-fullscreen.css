@@ -19,6 +19,7 @@ body[data-score-focus=analysis] #an-side-btn,
 body[data-score-focus=analysis] #an-recon-btn,
 body[data-score-focus=analysis] #an-mode,
 body[data-score-focus=analysis] #tb-prac,
+body[data-score-focus=analysis] #an-sel-mode,
 body[data-score-focus=analysis] #an-play,
 body[data-score-focus=analysis] #an-clear,
 body[data-score-focus=analysis] #tb-more{display:none!important}
