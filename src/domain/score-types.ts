@@ -108,9 +108,10 @@ export interface ScoreXmlLayout {
 }
 export interface ScoreMeasure { number: string; start: number; end: number; num: number; den: number; }
 export interface ScoreXmlKey { beat: number; fifths: number; mode: 'major' | 'minor' | null; }
+export interface ScoreXmlHarmony { beat: number; root: number; kind: string; bass: number | null; text: string; }
 export interface ScoreXmlLink { kind: string; a: number; b: number; style: string; }
 export type AnSource =
-    | { kind: 'xml'; title: string; label: string; xml: string; layout: ScoreXmlLayout | null; notes: ScoreXmlNote[]; tempos: { beat: number; bpm: number }[]; measures: ScoreMeasure[]; keys: ScoreXmlKey[]; links: ScoreXmlLink[] }
+    | { kind: 'xml'; title: string; label: string; xml: string; layout: ScoreXmlLayout | null; notes: ScoreXmlNote[]; tempos: { beat: number; bpm: number }[]; measures: ScoreMeasure[]; keys: ScoreXmlKey[]; harmonies?: ScoreXmlHarmony[]; links: ScoreXmlLink[] }
     | { kind: 'midi'; title: string; label: string; parsed: AnParsedMidi; comp?: undefined }
     | { kind: 'example'; id: string; title: string; label: string; comp: string; parsed: AnParsedMidi };
 export type AnHandAssignment =

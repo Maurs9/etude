@@ -626,6 +626,8 @@
   .an-chip:hover{border-color:var(--accent)}
   .an-chip[aria-pressed="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
   .an-marquee{position:fixed; border:1px dashed var(--sel-ui); background:color-mix(in srgb, var(--sel-ui) 10%, transparent); border-radius:2px; pointer-events:none; z-index:30}
+  .an-lasso{position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:30; overflow:visible}
+  .an-lasso-path{fill:color-mix(in srgb, var(--sel-ui) 12%, transparent); stroke:var(--sel-ui); stroke-width:1.75; stroke-dasharray:5 3; stroke-linejoin:round; stroke-linecap:round}
   .an-about{margin-top:18px; font-size:12.5px; color:var(--muted)} .an-about summary{cursor:pointer; font-weight:600; padding:6px 0}
   label:has(+ #an-file:focus-visible){outline:2px solid var(--accent); outline-offset:2px}
   .ss-beam{fill:var(--staffink)}
@@ -695,6 +697,7 @@
   .an-stage:has(> .an-score.is-empty){background:none}
   .an-stage[data-mode="fall"]{background:#060a14}
   .an-score{height:100%; overflow:auto; position:relative; display:flex; flex-direction:column; padding:22px 24px 30px; background:var(--desk); color:#1a1714; touch-action:pan-x pan-y; scrollbar-gutter:stable}
+  .an-score.is-pen,.an-score.is-lasso-drag{touch-action:none; cursor:crosshair; user-select:none}
   .an-score[data-look="night"]{background:var(--desk-night); color:#ece5d8}
   /* what a marking means: a quiet label under it, never in the pointer's way */
   .sc-tip{position:absolute; z-index:5; left:0; top:0; max-width:min(340px,calc(100% - 8px)); padding:6px 10px 7px; border-radius:8px; background:rgba(33,29,25,.95); color:#faf6ee; font:500 12.5px/1.4 var(--sans); box-shadow:0 6px 18px rgba(0,0,0,.2); pointer-events:none}
@@ -853,6 +856,29 @@
   .an-nc .an-ch-nct{max-width:none}
   .an-nlist .an-cad{display:block; margin:4px 2px 0}
   .an-now-body .an-prog{margin-top:0}
+  .an-note-card{display:grid; gap:6px; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:var(--paper)}
+  .an-note-top{display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:4px 10px}
+  .an-note-top .an-nc-sym{font:600 24px/1.15 var(--serif); letter-spacing:-.01em; color:var(--ink)}
+  .an-note-deg{font:600 12px/1.3 var(--sans); color:var(--ink2); padding:2px 8px; border-radius:999px; border:1px solid var(--line); background:var(--card)}
+  .an-note-meta{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .an-note-role{font-size:13px; color:var(--ink2); line-height:1.4}
+  .an-note-role b{color:var(--ink); font-weight:700}
+  .an-sel-ch{display:grid; grid-template-columns:1fr auto; align-items:baseline; gap:2px 10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--paper)}
+  .an-sel-ch .an-nc-sym{font:600 24px/1.15 var(--serif); letter-spacing:-.01em; color:var(--ink); overflow-wrap:anywhere}
+  .an-sel-ch .an-nc-rn{font:500 18px/1.15 var(--serif); color:var(--ink2)}
+  .an-sel-ch .an-nc-fn,.an-sel-ch .an-nc-meta,.an-sel-ch .an-ch-hands,.an-sel-ch .an-ch-nct{grid-column:1 / -1}
+  .an-nb-wrap{margin-top:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--paper); display:grid; gap:8px}
+  .an-nb-h{margin:0; font:700 12.5px/1.3 var(--sans); color:var(--ink2)}
+  .an-nb-group{display:grid; gap:4px}
+  .an-nb-lbl{font-size:11.5px; font-weight:600; color:var(--muted)}
+  .an-nb-list{display:flex; flex-wrap:wrap; gap:5px}
+  .an-nb-btn{appearance:none; display:inline-flex; align-items:baseline; gap:5px; padding:4px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); font:500 12px/1.3 var(--sans); cursor:pointer; text-align:left; transition:border-color .12s, background-color .12s}
+  .an-nb-btn:hover{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--card))}
+  .an-nb-btn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  .an-nb-btn b{font:700 13px var(--serif); color:var(--ink)}
+  .an-nb-btn small{color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums}
+  .an-nb-ctx{margin:2px 0 0; font-size:12.5px; color:var(--ink2); line-height:1.4}
+  .an-nb-ctx b{color:var(--ink); font-weight:700}
   /* the passage actions stay in reach at the foot of the panel however long the passage is */
   .an-tp.an-now{padding-bottom:0}
   .an-now-act{position:sticky; bottom:0; z-index:1; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px -16px 0; padding:11px 16px 14px; border-top:1px solid var(--line); background:var(--card)}

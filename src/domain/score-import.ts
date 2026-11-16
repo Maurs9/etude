@@ -11,6 +11,7 @@ import {
   type AnParsedNote,
   type ScoreGraceNote,
   type ScoreMeasure,
+  type ScoreXmlHarmony,
   type ScoreXmlKey,
   type ScoreXmlLayout,
   type ScoreXmlLink,
@@ -144,7 +145,7 @@ export interface ScoreXmlDynamic { value?: number | null; hit?: number; }
 export const SCORE_STEP: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 export function scoreXmlNotes(doc: Document) {
     const { hands: partHands, sisters: partSisterMap } = scoreDetectPartHands(doc);
-    const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
+    const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], harmoniesByPart: ScoreXmlHarmony[][] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
     const linkOpen = new Map<string, ScoreXmlNote>(), linkPairs: { kind: string; a: ScoreXmlNote; b: ScoreXmlNote; style: string; }[] = [], lineEvents: ScoreXmlLine[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
     let malformed = false;
     const lastNote = (match: (n: ScoreXmlNote) => boolean) => { for (let i = notes.length - 1; i >= 0; i--)
@@ -192,6 +193,8 @@ export function scoreXmlNotes(doc: Document) {
     };
     [...doc.querySelectorAll('score-partwise > part')].forEach((part, pi) => {
         let measureStart = 0, num = 4, den = 4, staves = 1, division = 1;
+        const partHarmonies: ScoreXmlHarmony[] = [];
+        harmoniesByPart.push(partHarmonies);
         const gracePending = new Map<string, ScoreGraceNote[]>();
         const graceKey = (staff: number, voice: number) => staff + ':' + voice;
         for (const measure of part.children) {
@@ -221,6 +224,22 @@ export function scoreXmlNotes(doc: Document) {
                         const mode = (child(key, 'mode')?.textContent || '').trim();
                         if (Math.abs(f) <= 7)
                             keys.push({ beat: at, fifths: f, mode: mode === 'major' || mode === 'minor' ? mode : null });
+                    }
+                }
+                if (name === 'harmony') {
+                    const rootEl = child(node, 'root');
+                    const rStep = (child(rootEl ?? node, 'root-step')?.textContent || '').trim().toUpperCase();
+                    if (rootEl && rStep in SCORE_STEP) {
+                        const rAlt = number(child(rootEl, 'root-alter'));
+                        const root = ((SCORE_STEP[rStep] + rAlt) % 12 + 12) % 12;
+                        const kindEl = child(node, 'kind');
+                        const kind = (kindEl?.textContent || '').trim().toLowerCase();
+                        const text = (kindEl?.getAttribute('text') || '').trim();
+                        const bassEl = child(node, 'bass');
+                        const bStep = bassEl ? (child(bassEl, 'bass-step')?.textContent || '').trim().toUpperCase() : '';
+                        const bass = bassEl && bStep in SCORE_STEP ? ((SCORE_STEP[bStep] + number(child(bassEl, 'bass-alter'))) % 12 + 12) % 12 : null;
+                        const offset = number(child(node, 'offset')) / division;
+                        partHarmonies.push({ beat: Math.max(measureStart, at + offset), root, kind, bass, text });
                     }
                 }
                 if (name === 'direction') {
@@ -496,7 +515,8 @@ export function scoreXmlNotes(doc: Document) {
             linkPairs.push({ kind: e.kind, a, b, style: 'dashed' });
     });
     const links = linkPairs.filter((l) => l.a.staff !== l.b.staff).map((l) => ({ kind: l.kind, a: sorted.indexOf(l.a), b: sorted.indexOf(l.b), style: l.style })).filter((l) => l.a >= 0 && l.b >= 0);
-    return { notes: sorted, tempos: tempos.filter((e) => e.bpm > 0 && Number.isFinite(e.bpm) && Number.isFinite(e.beat)), measures, keys, links };
+    const harmonies = (harmoniesByPart.find((list) => list.length > 0) || []).slice().sort((a, b) => a.beat - b.beat);
+    return { notes: sorted, tempos: tempos.filter((e) => e.bpm > 0 && Number.isFinite(e.bpm) && Number.isFinite(e.beat)), measures, keys, harmonies, links };
 }
 
 interface AnZipEntry { method: number; C: number; U: number; off: number; }

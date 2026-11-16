@@ -14,6 +14,7 @@ import { recognizeScoreMarkings, SCORE_MARKING_TERMS } from './score-markings.js
 import { normalizeScoreDirectionGlyphs, renderScoreNoteParentheses, scoreDetectPartHands } from './score-xml-markings.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
+import { AN_CHORDS, AN_DIA, anAccent, anBeatUnit, anCadences as domainAnCadences, anCands as domainAnCands, anClassifyNonChord as domainAnClassifyNonChord, anDomQ, anFit, anFitImplied, anGrid, anHandOf, anHarmony as domainAnHarmony, anInv, anMotifs, anNoteInfo as domainAnNoteInfo, anPoly, anRate, anRoman, anSpan, anUnion, anUnits, anVoiceNeighbors, analyzeScoreSelection, lassoAppendPoint, pointInLasso, type AnChordReading, type AnChordTemplate, type AnHarmonySeg, type AnMotif, type AnNoteWeight, type AnNonChordTone, type AnRatedChord, type AnSpanChoice, type AnSpanReading, type AnUnit, type ChordSelectionAnalysis, type IsolatedNoteAnalysis, type LassoPoint, type ScoreSelectionAnalysis, type SelectedNoteNeighbor, type SelectionNeighborSummary, type TwoNoteSelectionAnalysis } from './score-harmony.js';
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, LSTAVES, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
 import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
@@ -11990,11 +11991,34 @@ function rdNextStep(L: ReadDrillLevel, mode: string, acc: number, avg: number, s
 function rdNextRender() { const box = maybeById('rdx-next'); if (box && RD.next)
     box.innerHTML = coachHTML(t('coach_next'), RD.next, 'rdx-next-act'); }
 /* Score & analysis · Now: one thing worth noticing in the bar (or passage, or selection) on show, from its own analysis */
-function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: number; }, segs: readonly AnHarmonySeg[], notes: readonly theory.TheoryNote[]) {
+function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: number; }, segs: readonly AnHarmonySeg[], notes: readonly theory.TheoryNote[], selAnalysis?: ScoreSelectionAnalysis | null) {
     if (!f || !AN.view || !notes.length)
         return null;
     const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s: AnHarmonySeg) => anKeyAt(s.start), lab = (s: AnHarmonySeg) => anChordLabel(s, K(s)), rn = (s: AnHarmonySeg) => anRoman(K(s), s);
     const tip = (k: string, ...a: unknown[]) => ({ h: t(f.kind === 'sel' ? 'coach_sel' : one ? 'coach_bar' : 'coach_pass'), text: tf(k, ...a) });
+    if (f.kind === 'sel' && selAnalysis) {
+        if (selAnalysis.kind === 'note') {
+            const noteLbl = spellName(selAnalysis.note.midi, selAnalysis.key, true);
+            if (selAnalysis.chordRole === 'nct' && selAnalysis.localSeg)
+                return tip('cn_note_nct', noteLbl, t('an_nct_' + (selAnalysis.nctType || 'other')), anChordLabel(selAnalysis.localSeg, selAnalysis.key));
+            if (selAnalysis.localSeg && selAnalysis.chordRole)
+                return tip('cn_note_role', noteLbl + ' (' + t('an_deg_label', selAnalysis.degreeLabel) + ')', t('an_role_' + selAnalysis.chordRole), anChordLabel(selAnalysis.localSeg, selAnalysis.key) + ' (' + anRoman(selAnalysis.key, selAnalysis.localSeg) + ')');
+            return tip('cn_note_deg', noteLbl, selAnalysis.degreeLabel);
+        }
+        if (selAnalysis.kind === 'interval') {
+            const ivLbl = intervalLabel(Math.abs(selAnalysis.semitones)), kindLbl = t(selAnalysis.simultaneous ? 'an_iv_sim' : 'an_iv_mel');
+            if (selAnalysis.neighbors.contextChord) {
+                const cc = selAnalysis.neighbors.contextChord, ctxLbl = spellName(60 + cc.rootPc, selAnalysis.key) + cc.symbol + (cc.inversion > 0 ? '/' + spellName(60 + cc.bassPc, selAnalysis.key) : '');
+                return tip('cn_iv_ctx', ivLbl, kindLbl, ctxLbl);
+            }
+            return tip('cn_iv_hint', ivLbl, kindLbl);
+        }
+        if (selAnalysis.kind === 'chord' && !segs.length && selAnalysis.directChord) {
+            const dc = selAnalysis.directChord, synth = { ch: { root: dc.rootPc, c: dc.template }, bass: dc.bassPc };
+            const sLab = spellName(60 + dc.rootPc, selAnalysis.key) + dc.template.s + (dc.bassPc !== dc.rootPc ? '/' + spellName(60 + dc.bassPc, selAnalysis.key) : '');
+            return tip('cn_' + anFnKey(selAnalysis.key, synth.ch.root, anRoman(selAnalysis.key, synth)), sLab);
+        }
+    }
     const cadTip = (s: AnHarmonySeg) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
     const nct = segs.flatMap((s) => (s.nct || []).filter((x) => x.type !== 'other').map((x) => ({ x, s }))), nctNames = () => [...new Set(nct.map(({ x, s }) => spellName(x.note.midi, K(s), true)))];
     if (!segs.length)
@@ -12116,13 +12140,13 @@ interface AnAnalysisModel {
     mainKey: theory.KeySignature; motifs: AnMotif[]; seconds: number;
 }
 interface AnState {
-    notes: AnNote[]; selected: Set<number>; active: { kind: string; k: number } | null; source: AnSource | null; recon: { hands: string; grid: number; key: string };
+    notes: AnNote[]; selected: Set<number>; selMode: 'lasso' | 'box'; active: { kind: string; k: number } | null; source: AnSource | null; recon: { hands: string; grid: number; key: string };
     hands: AnHandAssignment | null; keyMap: (theory.KeySignature & { beat: number })[]; keyOrigin: string; index: Map<AnNote, number>; version: number;
     cache: Map<string, AnAnalysisModel>; view: AnAnalysisModel | null; wsSig: string; rove: number; playSeg: number; playSig: string; kbCenter: boolean;
     kbApplied: Map<number, string>; error: { k: string; a: string | number | undefined } | null; loading: boolean; loadToken: number;
     liveT?: ReturnType<typeof setTimeout>; pinRaf?: number;
 }
-const AN: AnState = { notes: [], selected: new Set(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
+const AN: AnState = { notes: [], selected: new Set(), selMode: 'lasso', active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
 // Library records own original bytes; parsed/engraved objects remain disposable runtime state.
 let anLibraryActive: { id: string; source: AnSource } | null = null;
@@ -12327,29 +12351,10 @@ function anKeyInfo(ns: readonly theory.TheoryNote[]) {
     const conf = ns.length < 12 ? 'low' : best.score >= 0.75 && margin >= 0.08 ? 'high' : best.score >= 0.6 && margin >= 0.03 ? 'medium' : 'low';
     return { best, alts: ranks.slice(1, 4), conf };
 }
-/* harmony */
-// Chord templates. p: intervals above the root, p[1] the tone that fixes the quality (the third, the suspended tone, or the fifth of
-// a power chord); x: a seventh chord (figures ⁷ ⁶₅ ⁴₃ ⁴₂); dom: the dominant-seventh family; ext: tones that must clearly sound for
-// the richer reading (a sixth chord needs its fifth as well, or it is a triad in first inversion); cx: a small cost of the richer
-// reading; rn: suffix after the Roman numeral; n9: a ninth chord.
-interface AnChordTemplate { s: string; q: string; p: number[]; cx?: number; rn?: string; ext?: number[]; x?: number; dom?: number; n9?: number; }
-const AN_CHORDS: AnChordTemplate[] = [{ s: '', q: 'M', p: [0, 4, 7] }, { s: 'm', q: 'm', p: [0, 3, 7] }, { s: '°', q: 'd', p: [0, 3, 6], cx: .05 }, { s: '+', q: 'A', p: [0, 4, 8], cx: .1 },
-    { s: 'sus2', q: 'S', p: [0, 2, 7], cx: .1, rn: 'sus2' }, { s: 'sus4', q: 'S', p: [0, 5, 7], cx: .08, rn: 'sus4' }, { s: '5', q: 'P', p: [0, 7], cx: .06, rn: '5' },
-    { s: '6', q: 'M', p: [0, 4, 7, 9], ext: [9, 7], cx: .09, rn: 'add6' }, { s: 'm6', q: 'm', p: [0, 3, 7, 9], ext: [9, 7], cx: .11, rn: 'add6' },
-    { s: '7', q: 'M', p: [0, 4, 7, 10], x: 1, dom: 1, ext: [10], cx: .04 }, { s: 'maj7', q: 'M', p: [0, 4, 7, 11], x: 1, ext: [11], cx: .07 }, { s: 'm7', q: 'm', p: [0, 3, 7, 10], x: 1, ext: [10], cx: .05 },
-    { s: 'm(maj7)', q: 'm', p: [0, 3, 7, 11], x: 1, ext: [11], cx: .13 }, { s: 'ø7', q: 'h', p: [0, 3, 6, 10], x: 1, ext: [10], cx: .06 }, { s: '°7', q: 'd', p: [0, 3, 6, 9], x: 1, ext: [9], cx: .06 },
-    { s: '7sus4', q: 'S', p: [0, 5, 7, 10], x: 1, ext: [10], cx: .11, rn: 'sus4' }, { s: 'add9', q: 'M', p: [0, 4, 7, 2], ext: [2], cx: .12, rn: 'add9' },
-    { s: '9', q: 'M', p: [0, 4, 7, 10, 2], x: 1, dom: 1, ext: [10, 2], cx: .11, n9: 1 }, { s: 'm9', q: 'm', p: [0, 3, 7, 10, 2], x: 1, ext: [10, 2], cx: .13, n9: 1 },
-    { s: 'maj9', q: 'M', p: [0, 4, 7, 11, 2], x: 1, ext: [11, 2], cx: .14, n9: 1 }, { s: '7♭5', q: 'M', p: [0, 4, 6, 10], x: 1, dom: 1, ext: [6, 10], cx: .15, rn: '♭5' },
-    { s: '7♯5', q: 'A', p: [0, 4, 8, 10], x: 1, dom: 1, ext: [8, 10], cx: .15 }];
-const anDomQ = (c: AnChordTemplate) => !!c.dom || c.q === 'M' && !/maj|6/.test(c.s); // can act as V or V/x: a major triad, add9 or the dominant family
-// The chord member in the bass: 1 third, 2 fifth, 3 seventh; suspended and power chords, and an added tone in the bass, count as 0.
-function anInv(seg: { ch: { c: AnChordTemplate; root: number; }; bass: number|null; }) { const c = seg.ch.c, iv = (((seg.bass ?? 0) - seg.ch.root) % 12 + 12) % 12; return c.q === 'S' || c.q === 'P' ? 0 : iv === c.p[1] ? 1 : iv === c.p[2] ? 2 : c.x && iv === c.p[3] ? 3 : 0; }
-// The key's diatonic triads (with V and vii° in minor) and V7.
+/* harmony (pure logic lives in ./score-harmony.ts) */
 function anMeasures(): ScoreMeasure[] { if (SCORE.measures && SCORE.measures.length)
     return SCORE.measures; const end = AN.notes.length ? Math.max(...AN.notes.map((n) => n.end)) : 0, out: ScoreMeasure[] = []; for (let s = 0, i = 1; s < end; s += 4, i++)
     out.push({ number: String(i), start: s, end: s + 4, num: 4, den: 4 }); return out; }
-function anBeatUnit(m: { num: number; den: number; }) { return m.den === 8 && m.num % 3 === 0 ? 1.5 : 4 / m.den; }
 function anMeasureAt(beat: number) {
     const ms = anMeasures();
     if (!ms.length)
@@ -12367,452 +12372,37 @@ function anMeasureAt(beat: number) {
     }
     return ms[idx];
 }
-// Time-weighted texture: how many notes sound together while anything sounds, and the peak.
-function anPoly(ns: readonly { start: number; end: number; }[]) {
-    const ev: [number, number][] = [];
-    ns.forEach((n) => { ev.push([n.start, 1]); ev.push([n.end, -1]); });
-    ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    let c = 0, last: number | null = null, area = 0, on = 0, max = 0;
-    for (const [x, d] of ev) {
-        if (last != null && c > 0) {
-            area += c * (x - last);
-            on += x - last;
-        }
-        c += d;
-        max = Math.max(max, c);
-        last = x;
-    }
-    return { avg: on ? area / on : 0, max };
-}
-// The nearest note before and after each note within its own voice (part or track, and hand).
-interface AnVoiceNeighbors { prev: AnNote|null|undefined; next: AnNote|null|undefined; }
-function anVoiceNeighbors(ns: readonly AnNote[]) {
-    const groups = new Map<string, AnNote[]>(), out = new Map<AnNote, AnVoiceNeighbors>(), key = (n: AnNote) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n);
-    ns.forEach((n) => { const k = key(n); let list = groups.get(k); if (!list) {
-        list = [];
-        groups.set(k, list);
-    } list.push(n); });
-    groups.forEach((notes) => {
-        const onsets: { start: number; notes: AnNote[]; }[] = [];
-        notes.slice().sort((a, b) => a.start - b.start || a.midi - b.midi).forEach((n) => { let g = onsets[onsets.length - 1]; if (!g || Math.abs(g.start - n.start) > .001) {
-            g = { start: n.start, notes: [] };
-            onsets.push(g);
-        } g.notes.push(n); });
-        onsets.forEach((g, i) => g.notes.forEach((n) => {
-            const nearest = (a: { notes: AnNote[]; }|undefined) => a && a.notes.reduce<AnNote|null>((best, x) => !best || Math.abs(x.midi - n.midi) < Math.abs(best.midi - n.midi) ? x : best, null);
-            out.set(n, { prev: nearest(onsets[i - 1]), next: nearest(onsets[i + 1]) });
-        }));
-    });
-    return out;
+function anHarmonyCtx() {
+    return {
+        measures: anMeasures(),
+        keyMap: AN.keyMap,
+        harmonies: AN.source?.kind === 'xml' ? AN.source.harmonies : undefined,
+        noteIndex: AN.index,
+    };
 }
 function anClassifyNonChord(ns: readonly AnNote[], segs: AnHarmonySeg[]) {
-    const around = anVoiceNeighbors(ns), eps = 1e-6, step = (a: AnNote|null|undefined, b: AnNote|null|undefined) => a && b && Math.abs(a.midi - b.midi) > 0 && Math.abs(a.midi - b.midi) <= 2;
-    segs.forEach((seg, si: number) => {
-        const tones = new Set(seg.ch.tones), nextSeg: AnHarmonySeg|undefined = segs[si + 1], nextTones = nextSeg && new Set(nextSeg.ch.tones), span = seg.end - seg.start, seen = new Set<number|undefined>();
-        const nct: AnNonChordTone[] = seg.nct = [];
-        seg.notes.forEach((n) => {
-            const idx = AN.index.get(n);
-            if (tones.has(pc(n.midi)) || seen.has(idx))
-                return;
-            seen.add(idx);
-            const ctx = around.get(n) || { prev: undefined, next: undefined }, prev = ctx.prev, next = ctx.next, prevTone = prev && tones.has(pc(prev.midi)), nextTone = next && tones.has(pc(next.midi));
-            let type = 'other';
-            if (n.start < seg.start - eps && next && next.start >= seg.start - eps && next.start < seg.end + eps && step(n, next) && nextTone)
-                type = 'suspension';
-            else if (nextTones && n.start >= seg.end - Math.max(.25, span * .45) && nextTones.has(pc(n.midi)) && (n.end > seg.end + eps || (next && pc(next.midi) === pc(n.midi))))
-                type = 'anticipation';
-            else if (prev && next && step(prev, n) && step(n, next) && prevTone && nextTone) {
-                if (prev.midi === next.midi)
-                    type = 'neighbor';
-                else if (Math.sign(n.midi - prev.midi) === Math.sign(next.midi - n.midi))
-                    type = 'passing';
-            }
-            nct.push({ note: n, index: idx, type });
-        });
-    });
+    return domainAnClassifyNonChord(ns, segs, AN.index);
 }
-// Harmony is read in spans of one beat up to a whole bar. Each bar is cut into beat units (half bars for a single line), every
-// run of units is matched against the chord templates, and dynamic programming picks the best sequence through the piece: a
-// chord change must earn its cost, which is lower on the downbeat and the half bar and higher when the chords share tones. So
-// an arpeggio or Alberti bar stays one chord, while a real change on a beat still splits the bar.
-// Metric weight of a time point: the downbeat, the middle of an even bar, other beats, half beats, anything shorter.
-function anAccent(m: { start: number; end: number; }, u: number, x: number) {
-    const b = (x - m.start) / u, n = Math.round((m.end - m.start) / u), k = Math.round(b);
-    return b < 1e-4 ? 1 : Math.abs(b - k) < 1e-4 ? (n % 2 === 0 && 2 * k === n ? .85 : .7) : Math.abs(2 * b - Math.round(2 * b)) < 1e-4 ? .55 : .45;
-}
-// Where a chord may change in a bar: on its beats (at least an eighth note apart); for a single line only at the half bar.
-function anGrid(m: ScoreMeasure, implied: boolean) {
-    const len = m.end - m.start, u = anBeatUnit(m), eps = 1e-6;
-    if (implied) {
-        const half = len / 2;
-        return len > 3 + eps && Math.abs(half / u - Math.round(half / u)) < eps ? [m.start, m.start + half, m.end] : [m.start, m.end];
-    }
-    const step = Math.max(.5, u), g = [m.start];
-    for (let b = m.start + step; m.end - b >= step - eps; b += step)
-        g.push(b);
-    g.push(m.end);
-    return g;
-}
-// Per note: the metric weight of its onset, and less weight for a probable passing or neighbour note (a short note alone in its
-// voice, approached and left by step, off the strong beats). res: when a melodic note moves on by step. A step only counts when
-// one note gives way to the next (not two voices of a held chord), and a figure like the G–F–G of a G7 Alberti bass, framed by
-// leaps, is a broken chord rather than a neighbour note.
-interface AnNoteWeight { acc: number; emb: number; res: number; }
 function anNoteInfo(sorted: readonly AnNote[]) {
-    const around = anVoiceNeighbors(sorted), ms = anMeasures(), out = new Map<AnNote, AnNoteWeight>(), count = new Map<string, number>(), eps = 1e-6;
-    const vk = (n: AnNote) => (n.part ?? n.track ?? 0) + '|' + anHandOf(n) + '|' + n.start.toFixed(3), d = (a: AnNote|null|undefined, b: AnNote|null|undefined) => a && b ? Math.abs(a.midi - b.midi) : 0;
-    const step = (a: AnNote|null|undefined, b: AnNote|null|undefined) => !!a && !!b && d(a, b) > 0 && d(a, b) <= 2 && a.end <= b.start + .125 && b.start > a.start;
-    sorted.forEach((n) => count.set(vk(n), (count.get(vk(n)) || 0) + 1));
-    let j = 0;
-    for (const n of sorted) {
-        while (j + 1 < ms.length && ms[j + 1].start <= n.start + eps)
-            j++;
-        const m = ms[j], { prev, next } = around.get(n) || { prev: undefined, next: undefined }, alone = count.get(vk(n)) === 1;
-        if (!m) {
-            out.set(n, { acc: 1, emb: 1, res: Infinity });
-            continue;
-        }
-        const fig = prev && next && prev.midi === next.midi && d((around.get(prev) || { prev: undefined }).prev, prev) > 2 && d(next, (around.get(next) || { next: undefined }).next) > 2;
-        const u = anBeatUnit(m), acc = anAccent(m, u, n.start), on = alone && !fig && step(n, next);
-        out.set(n, { acc, emb: on && acc < .85 && n.end - n.start <= u + eps && step(prev, n) ? .4 : 1, res: on && next ? next.start : Infinity });
-    }
-    return out;
-}
-// Weighted pitch classes per grid unit: sounding time × the metric weight of the onset (of the unit start for a held note) × the
-// passing-note factor. low: the bass at the start of the unit; held: pitch classes held over into it.
-interface AnUnit { s: number; e: number; w: number[]; res: [number, number, number][]; T: number; held: number; low: number|null; }
-function anUnits(m: ScoreMeasure, grid: readonly number[], here: readonly AnNote[], info: Map<AnNote, AnNoteWeight>) {
-    const U: AnUnit[] = [], u = anBeatUnit(m), eps = 1e-6;
-    for (let i = 0; i + 1 < grid.length; i++) {
-        const s = grid[i], e = grid[i + 1], w: number[] = Array(12).fill(0), res: [number, number, number][] = [], acc = anAccent(m, u, s);
-        let T = 0, low: number|null = null, any: number|null = null, held = 0;
-        for (const n of here) {
-            const d = Math.min(n.end, e) - Math.max(n.start, s);
-            if (d <= eps)
-                continue;
-            const f = info.get(n);
-            if (!f)
-                continue;
-            const p = pc(n.midi), x = d * (n.start < s - eps ? acc : f.acc) * f.emb;
-            w[p] += x;
-            T += x;
-            if (f.res < m.end - eps)
-                res.push([p, x, f.res]);
-            if (n.start < s - eps)
-                held |= 1 << p;
-            if (n.start <= s + eps && (low == null || n.midi < low))
-                low = n.midi;
-            if (any == null || n.midi < any)
-                any = n.midi;
-        }
-        U.push({ s, e, w, res, T, held, low: low ?? any });
-    }
-    return U;
-}
-// Units a..b-1 together. sw leaves out melodic notes that move on by step inside the span: they cannot be the colour tone
-// (sixth, seventh, ninth) or the suspended tone a richer chord name needs.
-interface AnSpanReading { a: number; b: number; s: number; e: number; w: number[]; sw: number[]; T: number; bass: number|null; all?: AnChordReading[]; }
-type AnSpanChoice = AnSpanReading & { all: AnChordReading[]; };
-function anSpan(U: readonly AnUnit[], a: number, b: number): AnSpanReading {
-    const w: number[] = Array(12).fill(0), sw: number[] = Array(12).fill(0), e = U[b - 1].e;
-    let T = 0, bass: number|null = null;
-    for (let i = a; i < b; i++) {
-        const u = U[i];
-        T += u.T;
-        for (let p = 0; p < 12; p++)
-            w[p] += u.w[p];
-        if (bass == null && u.low != null)
-            bass = pc(u.low);
-        for (const [p, x, r] of u.res)
-            if (r < e - 1e-6)
-                sw[p] -= x;
-    }
-    for (let p = 0; p < 12; p++)
-        sw[p] += w[p];
-    return { a, b, s: U[a].s, e, w, sw, T, bass };
-}
-// How well one template explains a span; cover is the share of the weighted notes that are chord tones. The root must sound
-// clearly, the tone that fixes the quality must sound and colour tones must sound clearly; of the rest only a triad's fifth may be
-// missing. Suspended and power chords need the third to be absent. complete: every chord tone sounds.
-interface AnChordReading { root: number; c: AnChordTemplate; tones: number[]; cover: number; complete: boolean; fit: number; }
-function anFit(S: AnSpanReading, root: number, c: AnChordTemplate, dia: Set<string>): AnChordReading|null {
-    const w = S.w, T = S.T, tones = c.p.map((i) => (root + i) % 12);
-    if (!(w[root] >= .05 * T && w[tones[1]] > 0))
-        return null;
-    if ((c.q === 'S' || c.q === 'P') && (Math.max(w[(root + 3) % 12], w[(root + 4) % 12]) > .03 * T || c.q === 'S' && S.sw[tones[1]] < .04 * T))
-        return null;
-    if (c.ext)
-        for (const i of c.ext)
-            if (S.sw[(root + i) % 12] < (i === 2 ? .08 : .04) * T)
-                return null;
-    let miss = 0;
-    for (let k = 2; k < tones.length; k++)
-        if (!(w[tones[k]] > 0)) {
-            if (c.p[k] === 7 && (c.q === 'M' || c.q === 'm'))
-                miss = .08;
-            else
-                return null;
-        }
-    let cw = 0;
-    tones.forEach((p) => { cw += w[p]; });
-    const cover = cw / T;
-    if (cover < .5)
-        return null;
-    return { root, c, tones, cover, complete: !miss, fit: 2 * cover - 1 - (c.cx || 0) - miss + (S.bass === root ? .06 : S.bass != null && tones.includes(S.bass) ? 0 : -.06) + (dia.has(root + ':' + c.s) ? .02 : 0) };
-}
-// A single line only implies harmony, so it is matched against the key's chords (with V and vii° in minor).
-function anFitImplied(S: { T: number; w: number[]; }, key: theory.KeySignature) {
-    const out: AnChordReading[] = [];
-    if (!(S.T > 0))
-        return out;
-    for (const d of anDiatonic(key, AN_CHORDS)) {
-        const chord = d.c;
-        if (!chord)
-            continue;
-        const tones = chord.p.map((i) => (d.root + i) % 12);
-        if (!(S.w[d.root] > 0) || tones.filter((p) => S.w[p] > 0).length < 2 || chord.x && !(S.w[tones[3]] > 0))
-            continue;
-        let cw = 0;
-        tones.forEach((p) => { cw += S.w[p]; });
-        const cover = cw / S.T;
-        if (cover < .5)
-            continue;
-        out.push({ root: d.root, c: chord, tones, cover, complete: tones.every((p) => S.w[p] > 0), fit: 2 * cover - 1 + .2 * S.w[d.root] / S.T + 2 * (d.pref || 0) - (chord.x ? .06 : 0) });
-    }
-    return out.sort((a, b) => b.fit - a.fit);
+    return domainAnNoteInfo(sorted, anMeasures());
 }
 function anCands(S: AnSpanReading, implied: boolean) {
-    const key = anKeyAt(S.s);
-    if (implied)
-        return anFitImplied(S, key);
-    const dia = new Set(anDiatonic(key, AN_CHORDS).map((d) => d.root + ':' + d.c?.s)), out: AnChordReading[] = [];
-    if (S.T > 0)
-        for (let r = 0; r < 12; r++)
-            if (S.w[r] > 0)
-                for (const c of AN_CHORDS) {
-                    const x = anFit(S, r, c, dia);
-                    if (x)
-                        out.push(x);
-                }
-    return out.sort((a, b) => b.fit - a.fit);
+    return domainAnCands(S, implied, anKeyAt(S.s), AN.source?.kind === 'xml' ? AN.source.harmonies : undefined);
 }
-// A rich chord over a long span may be two harmonies in a row (C then G reads as Cmaj9). When the span splits into two parts whose
-// best readings are complete chords, neither holding the other, the rich reading loses the weight of the smaller part. A part that
-// already reads as the rich chord, and the upper three notes of a dominant seventh (B–D–F of G7), do not count as another chord.
-function anUnion(sp: AnSpanChoice[][], a: number, b: number) {
-    const S = sp[a][b], id = (tones: number[]) => tones.slice().sort((p, q) => p - q).join(), within = (y: AnChordReading, x: AnChordReading) => y.tones.every((p) => x.tones.includes(p));
-    let hit = false;
-    for (const X of S.all) {
-        if (X.tones.length < 4)
-            continue;
-        const up = X.c.dom ? id(X.tones.slice(1)) : '', top = (Z: AnSpanChoice) => { const y: AnChordReading|undefined = Z.all[0]; return y && y.complete && y.cover >= .75 && !within(X, y) && id(y.tones) !== up ? y : null; };
-        let pen = 0;
-        for (let k = a + 1; k < b; k++) {
-            const y = top(sp[a][k]), z = top(sp[k][b]);
-            if (y && z && !within(y, z) && !within(z, y))
-                pen = Math.max(pen, Math.min(sp[a][k].T, sp[k][b].T));
-        }
-        if (pen) {
-            X.fit -= pen / S.T;
-            hit = true;
-        }
-    }
-    if (hit)
-        S.all.sort((x, y) => y.fit - x.fit);
-}
-// How sure a reading is. exact: every chord tone sounds, little else does and no other chord comes close. likely: the best
-// reading, though a tone is missing, other notes sound or a rival is near. suggested: ambiguous, or implied by a single line.
-interface AnRatedChord extends AnChordReading { margin: number; det: string; conf: string; alts: AnChordReading[]; }
-function anRate(x: AnChordReading, all: AnChordReading[], implied: boolean): AnRatedChord {
-    const id = (y: AnChordReading) => y.tones.slice().sort((p, q) => p - q).join(), own = id(x), rival = all.find((y) => id(y) !== own), margin = rival ? x.fit - rival.fit : 1;
-    const det = implied ? 'suggested' : x.complete && x.cover >= .8 && margin >= .1 ? 'exact' : x.cover >= .6 && margin >= .04 ? 'likely' : 'suggested';
-    return { root: x.root, c: x.c, tones: x.tones, cover: x.cover, fit: x.fit, complete: x.complete, margin, det,
-        conf: det === 'exact' ? 'high' : det === 'likely' || implied && x.cover >= .75 && margin >= .1 ? 'medium' : 'low',
-        alts: all.filter((y) => !(y.root === x.root && y.c === x.c) && y.fit >= x.fit - .08).slice(0, 2) };
-}
-interface AnNonChordTone { note: AnNote; index: number|undefined; type: string; }
-interface AnHarmonySeg { start: number; end: number; measure: ScoreMeasure; unit: number; bass: number|null; ch: AnRatedChord; notes: AnNote[]; nct?: AnNonChordTone[]; cad?: string; }
-interface AnHarmonyBar { m: ScoreMeasure; here: AnNote[]; U: AnUnit[]; n: number; Lmax: number; sp: AnSpanChoice[][]; M: number; }
-interface AnHarmonyPick { B: AnHarmonyBar; a: number; b: number; x: AnChordReading; }
-interface AnHarmonyState { v: number; cur: AnChordReading|null; back: AnHarmonyState|null; pick: AnHarmonyPick|null; }
 function anHarmony(ns: readonly AnNote[], implied: boolean) {
-    const out: AnHarmonySeg[] = [];
-    if (!ns.length)
-        return out;
-    const eps = 1e-6, sorted = ns.slice().sort((a, b) => a.start - b.start || a.midi - b.midi), info = anNoteInfo(sorted), lo = sorted[0].start, hi = Math.max(...ns.map((n) => n.end));
-    const bars: AnHarmonyBar[] = [], active: AnNote[] = [];
-    let k = 0;
-    for (const m of anMeasures()) {
-        if (m.end <= lo + eps || m.start >= hi - eps)
-            continue;
-        while (k < sorted.length && sorted[k].start < m.end - eps)
-            active.push(sorted[k++]);
-        for (let i = active.length - 1; i >= 0; i--)
-            if (active[i].end <= m.start + eps)
-                active.splice(i, 1);
-        const here = active.filter((n) => n.end > m.start + eps);
-        if (!here.length)
-            continue;
-        const U = anUnits(m, anGrid(m, implied), here, info), n = U.length, Lmax = n > 12 ? 8 : n, sp = U.map((): AnSpanChoice[] => []);
-        for (let L = 1; L <= Lmax; L++)
-            for (let a = 0; a + L <= n; a++) {
-                const span = anSpan(U, a, a + L), S = Object.assign(span, { all: anCands(span, implied) });
-                sp[a][a + L] = S;
-                if (L > 1 && !implied)
-                    anUnion(sp, a, a + L);
-            }
-        bars.push({ m, here, U, n, Lmax, sp, M: U.reduce((s, x) => s + x.T, 0) / n });
-    }
-    // Viterbi over spans. A state is the chord in force; a span either names a chord (scored by its weight × fit) or is left without
-    // one, which scores like a very poor fit. A change costs a share of the bar's mean unit weight: least on the downbeat, then the
-    // half bar, then other beats, and more when the chords share tones, or a shared tone is held across the change.
-    const same = (x: AnChordReading|null, y: AnChordReading|null) => x && y && x.root === y.root && x.c === y.c;
-    const cost = (B: AnHarmonyBar, a: number, y: AnChordReading, x: AnChordReading) => {
-        const common = x.tones.filter((p) => y.tones.includes(p)), held = common.some((p) => B.U[a].held >> p & 1);
-        return (a === 0 ? .2 : 2 * a === B.n ? .4 : .55) * B.M * (1 + .25 * common.length + (held ? .25 : 0));
-    };
-    let states: AnHarmonyState[] = [{ v: 0, cur: null, back: null, pick: null }];
-    for (const B of bars) {
-        const at = [states];
-        for (let b = 1; b <= B.n; b++) {
-            const best = new Map<string, AnHarmonyState>();
-            for (let a = Math.max(0, b - B.Lmax); a < b; a++) {
-                const S = B.sp[a][b], opts = [null, ...S.all.slice(0, 6)];
-                for (const st of at[a])
-                    for (const x of opts) {
-                        const cur = x || st.cur, id = cur ? cur.root + ':' + cur.c.s : '';
-                        const v = st.v + (x ? S.T * x.fit - 1e-4 * B.M - (st.cur && !same(st.cur, x) ? cost(B, a, st.cur, x) : 0) : -.5 * S.T), old = best.get(id);
-                        if (!old || v > old.v)
-                            best.set(id, { v, cur, back: st, pick: x && { B, a, b, x } });
-                    }
-            }
-            at.push([...best.values()].sort((p, q) => q.v - p.v).slice(0, 24));
-        }
-        states = at[B.n];
-    }
-    let end = states[0];
-    states.forEach((st) => { if (st.v > end.v)
-        end = st; });
-    const picks: AnHarmonyPick[] = [];
-    for (let st: AnHarmonyState|null = end; st; st = st.back)
-        if (st.pick)
-            picks.push(st.pick);
-    picks.reverse();
-    const segs: AnHarmonyPick[] = [];
-    picks.forEach((p) => { const last = segs[segs.length - 1]; if (last && last.B === p.B && same(last.x, p.x))
-        last.b = p.b;
-    else
-        segs.push({ ...p }); });
-    for (const g of segs) {
-        const U = g.B.U;
-        while (g.b - g.a > 1 && U[g.a].low == null)
-            g.a++;
-        while (g.b - g.a > 1 && U[g.b - 1].low == null)
-            g.b--;
-        const S = g.B.sp[g.a][g.b] || anSpan(U, g.a, g.b), all = S.all || (S.all = anCands(S, implied)), x = all.find((y) => same(y, g.x)) || g.x;
-        out.push({ start: S.s, end: S.e, measure: g.B.m, unit: anBeatUnit(g.B.m), bass: implied ? x.root : S.bass, ch: anRate(x, all, implied), notes: g.B.here.filter((n) => n.start < S.e - eps && n.end > S.s + eps) });
-    }
-    anClassifyNonChord(ns, out);
-    return out;
+    return domainAnHarmony(ns, implied, anHarmonyCtx());
 }
-// Minor-aware Roman numerals with inversion figures and secondary dominants (V/x).
-const AN_DIA = { maj: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'], min: ['i', 'ii°', 'III', 'iv', 'V', 'VI', 'vii°'] };
-function anRoman(key: theory.KeySignature, seg: { ch: AnChordReading; bass: number|null; }) {
-    const ch = seg.ch, c = ch.c, rel = ((ch.root - key.root) % 12 + 12) % 12, minor = key.minor, scale = minor ? [0, 2, 3, 5, 7, 8, 10] : MAJOR, q = c.q, inv = anInv(seg);
-    const fig = c.x ? (c.n9 && !inv ? '⁹' : ['⁷', '⁶₅', '⁴₃', '⁴₂'][inv]) : ['', '⁶', '⁶₄'][inv] || '', mark = q === 'd' ? '°' : q === 'h' ? 'ø' : q === 'A' ? '+' : '', sfx = c.rn || '';
-    const secondary = anDomQ(c) && (minor ? (rel === 2 || (rel === 0 && c.x)) : ([2, 4, 9, 11].includes(rel) || (rel === 0 && c.x)));
-    if (secondary) {
-        const target = scale.indexOf((rel + 5) % 12);
-        if (target > 0)
-            return 'V' + mark + fig + sfx + '/' + AN_DIA[minor ? 'min' : 'maj'][target].replace('°', '');
-    }
-    let deg: number, acc = '';
-    if (minor && rel === 11)
-        deg = 6;
-    else if (minor && rel === 9) {
-        deg = 5;
-        acc = '♯';
-    }
-    else
-        deg = scale.indexOf(rel);
-    if (deg < 0) {
-        if (!minor && rel === 6) {
-            deg = 3;
-            acc = '♯';
-        }
-        else {
-            const up = scale.indexOf((rel + 1) % 12);
-            if (up >= 0) {
-                deg = up;
-                acc = '♭';
-            }
-            else {
-                deg = scale.indexOf((rel + 11) % 12);
-                acc = '♯';
-            }
-        }
-    }
-    let num = ROMAN[deg];
-    // a power chord has no third, so its numeral follows the key's own chord on that degree (V stays major in minor)
-    if (q === 'm' || q === 'd' || q === 'h' || q === 'P' && !acc && !(minor && rel === 7) && (scale[(deg + 2) % 7] - scale[deg] + 12) % 12 === 3)
-        num = num.toLowerCase();
-    return acc + num + mark + fig + sfx;
-}
-// Possible cadences: dominant or subdominant resolving onto a downbeat, or a dominant closing the passage.
 function anCadences(segs: AnHarmonySeg[]) {
-    segs.forEach((b, i: number) => {
-        const a: AnHarmonySeg|undefined = segs[i - 1];
-        if (!b.ch)
-            return;
-        const key = anKeyAt(b.start), rb = ((b.ch.root - key.root) % 12 + 12) % 12;
-        const down = Math.abs(b.start - b.measure.start) < 1e-6, isDom = (s: AnHarmonySeg|undefined) => s && s.ch && ((s.ch.root - key.root) % 12 + 12) % 12 === 7 && anDomQ(s.ch.c);
-        if (a && down && isDom(a) && rb === 0 && (b.ch.c.q === 'M' || b.ch.c.q === 'm'))
-            b.cad = 'auth';
-        else if (a && down && a.ch && ((a.ch.root - key.root) % 12 + 12) % 12 === 5 && (a.ch.c.q === 'M' || a.ch.c.q === 'm') && !a.ch.c.x && rb === 0)
-            b.cad = 'plagal';
-        else if (a && down && isDom(a) && (key.minor ? rb === 8 && b.ch.c.q === 'M' : rb === 9 && b.ch.c.q === 'm'))
-            b.cad = 'decept';
-        else if (i === segs.length - 1 && segs.length >= 3 && isDom(b) && b.end - b.start >= b.unit - 1e-6 && Math.abs(b.end - b.measure.end) < 1e-6)
-            b.cad = 'half';
-    });
+    return domainAnCadences(segs, AN.keyMap);
 }
-// Motifs are searched on the top line (highest note per onset), so chords and the left hand do not scramble the melody.
-interface AnMotif { iv: number[]; count: number; last: number; notes: AnNote[]; }
-function anMotifs(ns: readonly AnNote[]) {
-    const tops = new Map<string, AnNote>();
-    ns.forEach((n) => { const k = n.start.toFixed(3), cur = tops.get(k); if (!cur || n.midi > cur.midi)
-        tops.set(k, n); });
-    const a = [...tops.values()].sort((x, y) => x.start - y.start);
-    if (a.length < 8)
-        return [];
-    const map = new Map<string, AnMotif>();
-    for (let i = 0; i + 3 < a.length; i++) {
-        const iv = [1, 2, 3].map((j) => a[i + j].midi - a[i + j - 1].midi);
-        if (iv.every((v) => !v))
-            continue;
-        const key = iv.join(',');
-        let hit = map.get(key);
-        if (!hit) {
-            hit = { iv, count: 0, last: -4, notes: [] };
-            map.set(key, hit);
-        }
-        if (i >= hit.last + 4) {
-            hit.count++;
-            hit.last = i;
-            hit.notes.push(...a.slice(i, i + 4));
-        }
-    }
-    return [...map.values()].filter((v) => v.count >= 2).sort((x, y) => y.count - x.count).slice(0, 4);
-}
-function anHandOf(n: { hand?: AnHand|null; midi: number; staff?: number; }): AnHand { return n.hand || (n.staff === 2 ? 'lh' : (n.midi >= 60 ? 'rh' : 'lh')); }
 // Everything the workspace shows for one scope; strings are produced at render time so language and notation can change.
 function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
     const ck = AN.version + '|' + scopeKey, cached = AN.cache.get(ck);
     if (cached)
         return cached;
     const lo = Math.min(...ns.map((n) => n.start)), hi = Math.max(...ns.map((n) => n.end)), pitches = [...new Set(ns.map((n) => n.midi))].sort((a, b) => a - b);
-    const poly = anPoly(ns), implied = poly.avg < 1.25, segs = anHarmony(ns, implied);
-    anCadences(segs);
+    const poly = anPoly(ns), implied = poly.avg < 1.25, segs = domainAnHarmony(ns, implied, anHarmonyCtx());
+    domainAnCadences(segs, AN.keyMap);
     const ms = anMeasures().filter((m) => m.end > lo + 1e-6 && m.start < hi - 1e-6);
     let beats = 0;
     ms.forEach((m) => { const s = Math.max(lo, m.start), e = Math.min(hi, m.end); if (e > s)
@@ -15168,7 +14758,10 @@ function anActiveChord(sel: { midi: number }[]) {
         if (seg)
             return { root: seg.ch.root, pcs: seg.ch.c.p };
     }
-    const id = identifyChord([...new Set(sel.map((n) => n.midi))]);
+    const midis = [...new Set(sel.map((n) => n.midi))];
+    if (midis.length < 3)
+        return null;
+    const id = identifyChord(midis);
     return id ? { root: id.rootPc, pcs: id.chord.pcset } : null;
 }
 function anSegAt(beat: number) {
@@ -15331,6 +14924,12 @@ function anUpdateControls() {
     buttonById('an-loop').disabled = (!sel && !ab && !SCORE.loop) || busy;
     buttonById('an-clear').disabled = !sel && !SCORE.mrange;
     byId('an-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
+    const selModeBtn = buttonById('an-sel-mode');
+    selModeBtn.disabled = !sheet;
+    selModeBtn.setAttribute('aria-pressed', AN.selMode === 'lasso' ? 'true' : 'false');
+    const selModeTitle = t(AN.selMode === 'lasso' ? 'an_sel_lasso' : 'an_sel_box');
+    selModeBtn.setAttribute('aria-label', selModeTitle);
+    selModeBtn.title = selModeTitle;
     queryAllHtml(document, '#an-mode button').forEach((b) => { const v = b.dataset.scoreMode; if ('disabled' in b)
         b.disabled = !has; b.setAttribute('aria-pressed', (v === 'fall' ? fall : !fall && SCORE.layout === v) ? 'true' : 'false'); });
     const z = anZoomNow(), zs = Math.round(z * 100) + '%';
@@ -15647,6 +15246,85 @@ function anNowCard({ s, k }: AnPanelSpanRow, implied: boolean) {
     const label = [t('an_bar') + ' ' + s.measure.number, anBeatText(s), lab, rn, fn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), hands, nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
     return `<li><button type="button" class="an-ch an-nc" data-k="${k}" data-conf="${conf}" aria-pressed="false" aria-label="${esc(label)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>${cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : ''}</li>`;
 }
+function anSignedSemi(semi: number) {
+    return (semi > 0 ? '+' : '') + semi;
+}
+function anNeighborBtnHTML(nb: SelectedNoteNeighbor, key: theory.KeySignature) {
+    const esc = xmlEsc, name = spellName(nb.note.midi, key, true);
+    const iv = nb.semitones === 0 ? '0' : `${anSignedSemi(nb.semitones)} · ${intervalLabel(Math.abs(nb.semitones))}`;
+    const meta = `${iv} · ${t('an_' + nb.hand)}`;
+    const idxAttr = nb.index != null ? ` data-nb-idx="${nb.index}"` : ' disabled';
+    return `<button type="button" class="an-nb-btn"${idxAttr} title="${esc(name + ' · ' + meta)}"><b>${esc(name)}</b><small>${esc(meta)}</small></button>`;
+}
+function anNeighborsHTML(nb: SelectionNeighborSummary, key: theory.KeySignature) {
+    const esc = xmlEsc;
+    const groups: string[] = [];
+    if (nb.simultaneous.length)
+        groups.push(`<div class="an-nb-group"><span class="an-nb-lbl">${esc(t('an_nb_sim'))}</span><div class="an-nb-list">${nb.simultaneous.map((x) => anNeighborBtnHTML(x, key)).join('')}</div></div>`);
+    if (nb.sameBeat.length)
+        groups.push(`<div class="an-nb-group"><span class="an-nb-lbl">${esc(t('an_nb_beat'))}</span><div class="an-nb-list">${nb.sameBeat.map((x) => anNeighborBtnHTML(x, key)).join('')}</div></div>`);
+    if (nb.prevMelodic)
+        groups.push(`<div class="an-nb-group"><span class="an-nb-lbl">${esc(t('an_nb_prev'))}</span><div class="an-nb-list">${anNeighborBtnHTML(nb.prevMelodic, key)}</div></div>`);
+    if (nb.nextMelodic)
+        groups.push(`<div class="an-nb-group"><span class="an-nb-lbl">${esc(t('an_nb_next'))}</span><div class="an-nb-list">${anNeighborBtnHTML(nb.nextMelodic, key)}</div></div>`);
+    let ctxHtml = '';
+    if (nb.contextChord) {
+        const cc = nb.contextChord;
+        const ccLbl = spellName(60 + cc.rootPc, key) + cc.symbol + (cc.inversion > 0 ? '/' + spellName(60 + cc.bassPc, key) + ' · ' + invName(cc.inversion) : '');
+        ctxHtml = `<p class="an-nb-ctx"><b>${esc(t('an_nb_chord'))}:</b> ${esc(ccLbl)}</p>`;
+    }
+    if (!groups.length && !ctxHtml)
+        return `<div class="an-nb-wrap"><h4 class="an-nb-h">${esc(t('an_nb_h'))}</h4><p class="an-small">${esc(t('an_nb_none'))}</p></div>`;
+    return `<div class="an-nb-wrap"><h4 class="an-nb-h">${esc(t('an_nb_h'))}</h4>${groups.join('')}${ctxHtml}</div>`;
+}
+function anNoteCardHTML(a: IsolatedNoteAnalysis) {
+    const esc = xmlEsc, noteLbl = spellName(a.note.midi, a.key, true), handLbl = t('an_' + a.hand);
+    const meta = [t('an_bar') + ' ' + a.measure.number, t('an_beat', anNum(a.beat, 1)), handLbl].join(' · ');
+    const degPill = t('an_deg_label', a.degreeLabel) + ' · ' + t(a.diatonic ? 'an_deg_dia' : 'an_deg_chr');
+    let roleHtml = '';
+    if (a.localSeg && a.chordRole) {
+        const segLbl = anChordLabel(a.localSeg, a.key) + ' (' + anRoman(a.key, a.localSeg) + ')';
+        const roleTxt = a.chordRole === 'nct'
+            ? t('an_role_nct') + ' (' + t('an_nct_' + (a.nctType || 'other')) + ')'
+            : t('an_role_' + a.chordRole);
+        roleHtml = `<div class="an-note-role"><b>${esc(roleTxt)}</b> · ${esc(segLbl)}</div>`;
+    }
+    return `<div class="an-note-card"><div class="an-note-top"><span class="an-nc-sym">${esc(noteLbl)}</span><span class="an-note-deg">${esc(degPill)}</span></div><div class="an-note-meta">${esc(meta)}</div>${roleHtml}</div>${anNeighborsHTML(a.neighbors, a.key)}`;
+}
+function anIntervalCardHTML(a: TwoNoteSelectionAnalysis) {
+    const esc = xmlEsc, key = a.key;
+    const p0 = spellName(a.pitches[0], key, true), p1 = spellName(a.pitches[1], key, true);
+    const ivLbl = intervalLabel(Math.abs(a.semitones)), kindLbl = t(a.simultaneous ? 'an_iv_sim' : 'an_iv_mel');
+    const degTxt = `${a.degrees[0]} – ${a.degrees[1]}`;
+    let localHtml = '';
+    if (a.localSeg)
+        localHtml = `<div class="an-note-role"><b>${esc(anChordLabel(a.localSeg, key))}</b> (${esc(anRoman(key, a.localSeg))})</div>`;
+    return `<div class="an-note-card"><div class="an-note-top"><span class="an-nc-sym">${esc(p0 + ' – ' + p1)}</span><span class="an-note-deg">${esc(ivLbl)}</span></div><div class="an-note-meta">${esc([kindLbl, `${a.semitones} st`, t('an_deg_label', degTxt)].join(' · '))}</div>${localHtml}</div>${anNeighborsHTML(a.neighbors, key)}`;
+}
+function anSelChordHTML(a: ChordSelectionAnalysis) {
+    const esc = xmlEsc, key = a.key;
+    let body = '';
+    if (a.segs.length) {
+        body = `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${a.segs.map((s) => {
+            const lab = anChordLabel(s, key), rn = anRoman(key, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
+            const inv = anInv(s), slash = s.bass !== s.ch.root;
+            const fn = [anFunctionOf(key, s, rn), open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + (s.bass ?? 0), key)) : ''].filter(Boolean).join(' · ');
+            const alts = s.ch.alts.map((alt) => spellName(60 + alt.root, key) + alt.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
+            const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, key), cad = s.cad ? t('an_cad_' + s.cad) : '';
+            return `<li><div class="an-sel-ch" data-conf="${esc(conf)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</div>${cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : ''}</li>`;
+        }).join('')}</ul>`;
+    } else if (a.directChord) {
+        const dc = a.directChord, synth = { ch: { root: dc.rootPc, c: dc.template }, bass: dc.bassPc };
+        const lab = spellName(60 + dc.rootPc, key) + dc.template.s + (dc.bassPc !== dc.rootPc ? '/' + spellName(60 + dc.bassPc, key) : '');
+        const rn = anRoman(key, synth);
+        const fn = [anFunctionOf(key, synth, rn), dc.inversion > 0 ? invName(dc.inversion) : '', dc.bassPc !== dc.rootPc ? t('an_bass', spellName(60 + dc.bassPc, key)) : ''].filter(Boolean).join(' · ');
+        const notesLine = a.pitches.slice(0, 12).map((m) => spellName(m, key, true)).join(' ');
+        body = `<div class="an-sel-ch"><span class="an-nc-sym">${esc(lab)}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-hands">${esc(notesLine)}</span></div>`;
+    } else {
+        body = `<p class="an-small">${esc(t('an_none'))}</p>`;
+    }
+    return body + anNeighborsHTML(a.neighbors, key);
+}
 // Now: rebuilt only when its bar(s) change. While playing it follows the music, but never pulls the content from under a
 // focused control (it catches up when focus leaves) and never scrolls the panel.
 function anRenderNow() {
@@ -15685,13 +15363,22 @@ function anRenderNow() {
     byId('an-now-pill').hidden = f.kind !== 'play';
     byId('an-now-hint').textContent = t(f.kind === 'play' ? 'an_now_follow' : FALL.mode === 'fall' ? 'an_now_hint_fall' : (window).matchMedia('(pointer: coarse)').matches ? 'an_now_hint_touch' : 'an_now_hint');
     const segs = v.segs.map((s: AnHarmonySeg, k: number): AnPanelSpanRow => ({ s, k })).filter(({ s }: AnPanelSpanRow) => s.end > f.lo + 1e-6 && s.start < f.hi - 1e-6);
+    const selAnalysis = f.kind === 'sel' && !AN.active && notes.length ? analyzeScoreSelection(notes, AN.notes, v.segs, anHarmonyCtx()) : null;
     let html = '';
-    if (!one) {
+    if (!one && !selAnalysis) {
         const info = anKeyInfo(notes);
         if (info.conf !== 'low')
             html += `<p class="an-small">${esc(t('an_now_est', anKeyName(info.best), t('an_conf_' + info.conf)))}</p>`;
     } // a passage's own key, when the notes say so clearly
-    if (!segs.length)
+    if (selAnalysis) {
+        if (selAnalysis.kind === 'note')
+            html += anNoteCardHTML(selAnalysis);
+        else if (selAnalysis.kind === 'interval')
+            html += anIntervalCardHTML(selAnalysis);
+        else
+            html += anSelChordHTML(selAnalysis);
+    }
+    else if (!segs.length)
         html += `<p class="an-small">${esc(t(!notes.length ? 'an_now_empty' : one ? 'an_now_none' : 'an_harm_none'))}</p>`;
     else if (one)
         html += `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${segs.map((x: AnPanelSpanRow) => anNowCard(x, v.implied)).join('')}</ul><p class="an-small an-hsrc">${esc(anHandsSource())}</p>`;
@@ -15702,7 +15389,8 @@ function anRenderNow() {
     body.innerHTML = html;
     SIDE.nowSig = sig;
     AN.playSig = '';
-    const coach = anCoach(f, segs.map((x: AnPanelSpanRow) => x.s), notes), cb = byId('an-coach');
+    const coachSegs = selAnalysis ? (selAnalysis.kind === 'chord' ? selAnalysis.segs : []) : segs.map((x: AnPanelSpanRow) => x.s);
+    const coach = anCoach(f, coachSegs, notes, selAnalysis), cb = byId('an-coach');
     cb.hidden = !coach;
     cb.innerHTML = coach ? `<span class="coach-k">${esc(coach.h)}</span><span class="coach-t">${esc(coach.text)}</span>` : '';
     if (k) {
@@ -15717,18 +15405,33 @@ function anRenderNow() {
     byId('an-now-pr-l').hidden = !both;
     anMarkActive();
     anSyncTimeline(fallTime(), false);
-    anNowAnnounce(f, head, segs);
+    anNowAnnounce(f, head, segs, selAnalysis);
 }
 // Spoken once, a moment after the user picks bars or a chord; never while playing, so playback makes no announcements.
-function anNowAnnounce(f: AnPanelFocus, head: string, segs: AnPanelSpanRow[]) {
+function anNowAnnounce(f: AnPanelFocus, head: string, segs: AnPanelSpanRow[], selAnalysis?: ScoreSelectionAnalysis | null) {
     clearTimeout(SIDE.liveT);
     if (SCORE.playing || f.kind === 'play' || f.kind === 'cursor' || !anSideVisible('now'))
         return;
-    const s = segs.length ? segs[0].s : null;
     let txt = head;
-    if (s) {
-        const key = anKeyAt(s.start), rn = anRoman(key, s);
-        txt += ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ') + (segs.length > 1 ? ' …' : '');
+    if (selAnalysis) {
+        if (selAnalysis.kind === 'note') {
+            txt += ': ' + [spellName(selAnalysis.note.midi, selAnalysis.key, true), t('an_deg_label', selAnalysis.degreeLabel)].join(', ');
+        } else if (selAnalysis.kind === 'interval') {
+            txt += ': ' + intervalLabel(Math.abs(selAnalysis.semitones));
+        } else if (selAnalysis.segs.length) {
+            const s = selAnalysis.segs[0], key = selAnalysis.key, rn = anRoman(key, s);
+            txt += ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ');
+        } else if (selAnalysis.directChord) {
+            const dc = selAnalysis.directChord;
+            txt += ': ' + spellName(60 + dc.rootPc, selAnalysis.key) + dc.template.s;
+        }
+    }
+    else {
+        const s = segs.length ? segs[0].s : null;
+        if (s) {
+            const key = anKeyAt(s.start), rn = anRoman(key, s);
+            txt += ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ') + (segs.length > 1 ? ' …' : '');
+        }
     }
     SIDE.liveT = setTimeout(() => { byId('an-now-live').textContent = txt; }, 900);
 }
@@ -15839,11 +15542,11 @@ function anRenderSelection() {
     if (!box)
         return;
     const sel = [...AN.selected].sort((a, b) => a - b).map((i) => AN.notes[i]).filter(Boolean);
-    if (!sel.length || (SCORE.mrange && !AN.active)) {
+    if (!sel.length || !AN.active) {
         box.hidden = true;
         box.innerHTML = '';
         return;
-    } // whole bars: the chord cards above say it all
+    } // whole bars and manual selections show directly in Now
     const key = anKeyAt(sel[0].start), pitches = [...new Set(sel.map((n) => n.midi))].sort((a, b) => a - b), esc = xmlEsc, parts: string[] = [];
     parts.push(`<span><b>${esc(t('an_sel_h'))}</b> · ${esc(sel.length === 1 ? t('an_note1') : t('an_sel_notes', sel.length))} · ${esc(anBarsLabel(sel))}</span>`);
     parts.push(`<span>${esc(pitches.slice(0, 16).map((m) => spellName(m, key, true)).join(' · '))}${pitches.length > 16 ? ' …' : ''}</span>`);
@@ -16330,7 +16033,7 @@ function anHover(e: PointerEvent | FocusEvent) {
     if (g.dataset.parenthesized === 'yes') byId('an-hover').textContent += ' · ' + t('sym_parenthesized');
 }
 // Click a notehead to select it (Shift/Ctrl adds), click empty space in a bar to select the bar (Shift extends the range),
-// drag for a marquee; a click outside every bar clears the selection.
+// drag for a free-shape lasso (default) or rectangular marquee; a click outside every bar clears the selection.
 function scorePointer(e: PointerEvent) {
     const box = byId('an-roll'), el = eventElement(e);
     if (e.button !== 0 || !SCORE.xml || !box.querySelector('svg') || !el || el.closest('.an-empty'))
@@ -16338,19 +16041,60 @@ function scorePointer(e: PointerEvent) {
     if (e.target === box && (e.offsetX >= box.clientWidth || e.offsetY >= box.clientHeight))
         return; // scrollbar
     const hit = el.closest('[data-i]'), target = anIsDataEl(hit) ? hit : null, x = e.clientX, y = e.clientY, add = e.shiftKey || e.ctrlKey || e.metaKey;
-    e.preventDefault();
+    box.classList.toggle('is-pen', e.pointerType === 'pen');
+    if (e.pointerType !== 'touch')
+        e.preventDefault();
+    let dragged = false;
     let marquee: HTMLDivElement|null = null;
-    const move = (ev: PointerEvent) => { if (!marquee && Math.hypot(ev.clientX - x, ev.clientY - y) < 5)
-        return; if (!marquee) {
-        marquee = (document).createElement('div');
-        marquee.className = 'an-marquee';
-        document.body.appendChild(marquee);
-    } Object.assign(marquee.style, { left: Math.min(x, ev.clientX) + 'px', top: Math.min(y, ev.clientY) + 'px', width: Math.abs(ev.clientX - x) + 'px', height: Math.abs(ev.clientY - y) + 'px' }); };
-    const done = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', finish); window.removeEventListener('pointercancel', done); if (marquee)
-        marquee.remove(); };
+    let lassoSvg: SVGSVGElement|null = null;
+    let lassoPath: SVGPathElement|null = null;
+    const pts: LassoPoint[] = [{ x, y }];
+    const drawLasso = () => {
+        if (!lassoPath || pts.length < 2)
+            return;
+        lassoPath.setAttribute('d', 'M ' + pts.map((p) => `${Math.round(p.x)} ${Math.round(p.y)}`).join(' L ') + ' Z');
+    };
+    const move = (ev: PointerEvent) => {
+        if (!dragged && Math.hypot(ev.clientX - x, ev.clientY - y) < 5)
+            return;
+        if (!dragged) {
+            dragged = true;
+            box.classList.add('is-lasso-drag');
+        }
+        if (AN.selMode === 'lasso') {
+            if (!lassoSvg) {
+                lassoSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                lassoSvg.setAttribute('class', 'an-lasso');
+                lassoSvg.setAttribute('aria-hidden', 'true');
+                lassoPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                lassoPath.setAttribute('class', 'an-lasso-path');
+                lassoSvg.appendChild(lassoPath);
+                document.body.appendChild(lassoSvg);
+            }
+            if (lassoAppendPoint(pts, { x: ev.clientX, y: ev.clientY }, 4) || pts.length === 2)
+                drawLasso();
+            return;
+        }
+        if (!marquee) {
+            marquee = (document).createElement('div');
+            marquee.className = 'an-marquee';
+            document.body.appendChild(marquee);
+        }
+        Object.assign(marquee.style, { left: Math.min(x, ev.clientX) + 'px', top: Math.min(y, ev.clientY) + 'px', width: Math.abs(ev.clientX - x) + 'px', height: Math.abs(ev.clientY - y) + 'px' });
+    };
+    const done = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', finish);
+        window.removeEventListener('pointercancel', done);
+        box.classList.remove('is-lasso-drag');
+        if (marquee)
+            marquee.remove();
+        if (lassoSvg)
+            lassoSvg.remove();
+    };
     const finish = (ev: PointerEvent) => {
         done();
-        if (Math.hypot(ev.clientX - x, ev.clientY - y) < 5) {
+        if (!dragged) {
             if (target) {
                 const i = Number(target.dataset.i);
                 if (!add)
@@ -16374,8 +16118,21 @@ function scorePointer(e: PointerEvent) {
         }
         if (!add)
             AN.selected.clear();
-        SCORE.heads.forEach((list, i) => list.forEach((g: Element) => { const r = g.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2; if (cx >= Math.min(x, ev.clientX) && cx <= Math.max(x, ev.clientX) && cy >= Math.min(y, ev.clientY) && cy <= Math.max(y, ev.clientY))
-            AN.selected.add(i); }));
+        if (AN.selMode === 'lasso') {
+            lassoAppendPoint(pts, { x: ev.clientX, y: ev.clientY }, 2);
+            SCORE.heads.forEach((list, i) => list.forEach((g: Element) => {
+                const r = g.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+                if (pointInLasso(cx, cy, pts))
+                    AN.selected.add(i);
+            }));
+        }
+        else {
+            SCORE.heads.forEach((list, i) => list.forEach((g: Element) => {
+                const r = g.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+                if (cx >= Math.min(x, ev.clientX) && cx <= Math.max(x, ev.clientX) && cy >= Math.min(y, ev.clientY) && cy <= Math.max(y, ev.clientY))
+                    AN.selected.add(i);
+            }));
+        }
         anSelectionChanged();
     };
     window.addEventListener('pointermove', move);
@@ -17509,6 +17266,7 @@ function anInitControls() {
         PRAC.next.act.run(); });
     byId('pr-sum').addEventListener('pointerdown', (e) => { if (e.target === e.currentTarget)
         pracSumClose(); });
+    byId('an-sel-mode').addEventListener('click', () => { AN.selMode = AN.selMode === 'lasso' ? 'box' : 'lasso'; anUpdateControls(); });
     byId('an-clear').addEventListener('click', anClearSelection);
     byId('an-play').addEventListener('click', () => scorePlay(true));
     byId('an-loop').addEventListener('click', () => { if (SCORE.loop)
@@ -17544,6 +17302,7 @@ function anInitControls() {
     fc.addEventListener('pointerdown', fallKeyDown);
     (['pointerup', 'pointercancel', 'pointerleave'] as const).forEach((ev) => fc.addEventListener(ev, fallKeyUp));
     const roll = byId('an-roll');
+    roll.addEventListener('pointerenter', (e) => { roll.classList.toggle('is-pen', e.pointerType === 'pen'); });
     roll.addEventListener('pointerdown', scorePointer);
     roll.addEventListener('pointerover', anHover);
     roll.addEventListener('pointerleave', () => { byId('an-hover').textContent = ''; scoreTip(null); });
@@ -17587,6 +17346,27 @@ function anInitControls() {
     // analysis panel: a chord (in Now or Piece) selects its notes and its bar and moves the cursor there
     const side = byId('an-side'), ws = byId('an-ws');
     side.addEventListener('click', (e) => {
+        const nb = eventClosest(e, '.an-nb-btn[data-nb-idx]');
+        if (nb instanceof HTMLButtonElement && AN.notes.length) {
+            const idx = Number(nb.dataset.nbIdx);
+            if (Number.isInteger(idx) && idx >= 0 && idx < AN.notes.length) {
+                const add = e.shiftKey || e.ctrlKey || e.metaKey;
+                if (!add)
+                    AN.selected.clear();
+                if (add && AN.selected.has(idx))
+                    AN.selected.delete(idx);
+                else
+                    AN.selected.add(idx);
+                const g = (SCORE.heads.get(idx) || [])[0];
+                if (g) {
+                    anRove(g);
+                    if (FALL.mode === 'score')
+                        anKeepVisible(g, true);
+                }
+                anSelectionChanged();
+            }
+            return;
+        }
         const ch = eventClosest(e, '.an-ch');
         if (ch && AN.view) {
             const k = Number(ch.dataset.k), seg = AN.view.segs[k];
