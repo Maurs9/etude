@@ -557,6 +557,7 @@ const payload: UIPayload = {
       "pc_learned": "Learned",
       "pc_names": "Note names",
       "pc_names_t": "Note names: write each note’s name beside it in the score, in your note-name setting",
+      "score_fit": "Fit width",
       "pc_stage": "Full window",
       "pc_stage_t": "Full window: the player fills the window while you practise (Esc leaves)",
       "pc_stage_exit": "Leave full window (Esc)",

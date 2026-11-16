@@ -366,10 +366,9 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
     const stretch: number[] = [1];
     if (lay && lay.width > 0) {
         const kCap = lay.cap ?? SR_SCALE_CAP, maxBars = Math.max(1, lay.maxBars ?? 4), maxH = lay.maxHeight || Infinity, kFloor = lay.floor ?? (lay.maxHeight ? 0.65 : 1);
-        // Bars split evenly over the fewest systems that fit the width at the natural size; no system holds a single bar of
-        // several (too little width for that keeps one system, which then scrolls).
+        // Bars split evenly over the fewest systems that fit at natural size. Single-bar systems are opt-in for narrow paper.
         const plan = (per: number) => {
-            for (let n = Math.ceil(nBars / per); n <= Math.max(1, Math.floor(nBars / 2)); n++) {
+            for (let n = Math.ceil(nBars / per); n <= Math.max(1, Math.floor(nBars / Math.max(1, lay.minBars ?? 2))); n++) {
                 const st = Array.from({ length: n }, (_, s) => Math.round(s * nBars / n)), zs = ends(st);
                 if (st.every((a, s) => sysW(s, a, zs[s]) <= lay.width))
                     return st;
@@ -388,11 +387,16 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
                 break;
         }
         if (!best) {
-            const one = sysW(0, 0, nBars);
-            best = { st: [0], k: Math.min(kCap, lay.width / one, maxH / vert([0]).H) };
+            const st = lay.minBars === 1 ? Array.from({ length: nBars }, (_, s) => s) : [0], zs = ends(st);
+            const wide = Math.max(...st.map((a, s) => sysW(s, a, zs[s])));
+            best = { st, k: Math.min(kCap, lay.width / wide, maxH / vert(st).H) };
         }
         starts = best.st;
         zoom = Math.max(kFloor, best.k);
+        if (lay.minBars === 1) {
+            const zs = ends(starts), wide = Math.max(...starts.map((a, s) => sysW(s, a, zs[s])));
+            zoom = Math.min(zoom, lay.width / wide);
+        }
         // Every system but a short last one is spread to the full width; the spacing grows at most 1.8 times.
         const zs = ends(starts), T = lay.width / zoom;
         starts.forEach((a, s) => {

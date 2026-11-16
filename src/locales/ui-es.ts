@@ -871,6 +871,7 @@ const payload: UIPayload = {
       "pc_learned": "Aprendida",
       "pc_names": "Nombres de notas",
       "pc_names_t": "Nombres de notas: escribe el nombre de cada nota junto a ella en la partitura, según tu ajuste de nombres de notas",
+      "score_fit": "Ajustar al ancho",
       "pc_stage": "Ventana completa",
       "pc_stage_t": "Ventana completa: el reproductor ocupa toda la ventana mientras practicas (Esc para salir)",
       "pc_stage_exit": "Salir de la ventana completa (Esc)",
