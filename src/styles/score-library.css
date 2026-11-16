@@ -170,6 +170,15 @@
   color: var(--ink); opacity: .9; border-left: 2px solid var(--accent); padding-left: 8px;
 }
 #score-library .score-library-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+#score-library label.score-library-row-select {
+  flex: 0 0 44px; width: 44px; min-height: 44px;
+  display: grid; place-items: center; cursor: pointer;
+}
+#score-library .score-library-actions button[data-library-action=open] {
+  color: var(--accent-ink); background: var(--accent); border-color: var(--accent); font-weight: 700;
+}
+#score-library .score-library-actions button[data-library-action=delete]:hover:not(:disabled),
+#score-library .score-library-delete-selected:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
 #score-library .score-library-actions button { padding: 6px 10px; font-size: .85rem; }
 #score-library .score-library-actions button[data-library-action=status] { min-width: 44px; font-size: 1.05rem; }
 #score-library .score-library-actions button[data-library-action=status][data-status=mastered] {

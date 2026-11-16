@@ -13,7 +13,8 @@ const armedPiano = (page, { usbLate, touchLate }) => page.addInitScript(({ usbLa
   window.__arm = () => {
     const pad = document.getElementById('lat-pad'), result = document.getElementById('lat-result');
     new MutationObserver(() => {
-      if (!pad.classList.contains('beat') || !/\d/.test(result.textContent)) return; // count-in clicks say no number
+      // Ending a run also mutates the pad's class. It must not generate another synthetic key press.
+      if (!pad.classList.contains('on') || !pad.classList.contains('beat') || !/\d/.test(result.textContent)) return;
       const at = performance.now();
       setTimeout(() => input.onmidimessage({ data: new Uint8Array([0x90, 60, 80]), timeStamp: at + usbLate }), usbLate + 5);
       setTimeout(() => input.onmidimessage({ data: new Uint8Array([0x80, 60, 0]), timeStamp: at + usbLate + 60 }), usbLate + 70);

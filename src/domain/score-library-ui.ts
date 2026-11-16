@@ -259,17 +259,17 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function syncSelectOptions(select: HTMLSelectElement, allLabel: string, values: string[], noneLabel: string, hasNone: boolean): void {
     const previous = select.value;
     const valid = new Set<string>(['', ...values, ...(hasNone ? ['__none__'] : [])]);
-    const nextOptions: HTMLOptionElement[] = [];
+    const choices = [{ value: '', label: allLabel }, ...values.map(value => ({ value, label: value })),
+      ...(hasNone ? [{ value: '__none__', label: noneLabel }] : [])];
     const makeOption = (value: string, label: string): HTMLOptionElement => {
       const option = element('option');
       option.value = value;
       option.textContent = label;
       return option;
     };
-    nextOptions.push(makeOption('', allLabel));
-    for (const value of values) nextOptions.push(makeOption(value, value));
-    if (hasNone) nextOptions.push(makeOption('__none__', noneLabel));
-    select.replaceChildren(...nextOptions);
+    const unchanged = select.options.length === choices.length && choices.every((option, i) =>
+      select.options[i].value === option.value && select.options[i].textContent === option.label);
+    if (!unchanged) select.replaceChildren(...choices.map(option => makeOption(option.value, option.label)));
     select.value = valid.has(previous) ? previous : '';
   }
   function syncFilterOptions(): void {
@@ -429,6 +429,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const select = element('input', 'score-library-check');
     select.type = 'checkbox';
     select.dataset.libraryAction = 'select';
+    const selectLabel = element('label', 'score-library-row-select');
+    selectLabel.append(select);
     const info = element('div', 'score-library-info');
     const title = element('h3');
     const composer = element('p', 'score-library-composer');
@@ -458,7 +460,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const edit = makeButton('edit');
     const original = makeButton('download');
     const remove = makeButton('delete');
-    node.append(groupHeading, select, info, actions);
+    node.append(groupHeading, selectLabel, info, actions);
     select.addEventListener('change', () => {
       if (busy) return;
       if (select.checked) selectedIds.add(id);
@@ -545,6 +547,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     return { label: '', empty: true, order: 0 };
   }
+  let chipsSignature = '';
   function syncActiveChips(): void {
     const specs: { active: boolean; label: string; clear: () => void }[] = [
       {
@@ -570,10 +573,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     ];
     const active = specs.filter(spec => spec.active);
     if (filtersOpen || !active.length) {
+      chipsSignature = '';
       activeChips.hidden = true;
       activeChips.replaceChildren();
       return;
     }
+    const signature = JSON.stringify([t('reset_filters'), ...active.map(spec => spec.label)]);
+    if (signature === chipsSignature) return;
+    chipsSignature = signature;
     const buttons = active.map(spec => {
       const chip = element('button', 'score-library-chip');
       chip.type = 'button';
@@ -838,6 +845,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     empty.hidden = !loaded || shown.length > 0;
     empty.textContent = t(items.length ? 'no_matches' : 'empty');
+    // Search stays usable during an operation and can create new rows/editors.
+    // Those controls must obey the same busy state as existing rows.
+    if (busy) setBusy(true);
   }
   function localize(): void {
     privacy.textContent = t('privacy');
