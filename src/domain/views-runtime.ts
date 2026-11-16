@@ -55,7 +55,7 @@ import type { GeneratedPiece } from '../sight-reading/rules.js';
 import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
 import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
-import { SRT_LEDGER_KEY, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
+import { isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtImportLedgerTransaction, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
@@ -18494,31 +18494,17 @@ function storeQuarantine(text: string) {
 async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<boolean> {
     if (!await storeSnapshot(reason, backupJson()) && !confirm(t('store_copy_failed')))
         return true; // the user kept their progress: nothing to report
-    let prevLedgerRaw: string | null = null;
-    let ledgerUpdated = false;
-    if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
-        prevLedgerRaw = localStorage.getItem(SRT_LEDGER_KEY);
-        const local = srtReadLedger(localStorage);
-        const merged = await srtLedgerUpdate(localStorage, { type: 'importLedger', imported: p.data.sightLedger, generation: local.generation });
-        if (!merged.ok)
-            return false;
-        ledgerUpdated = true;
-    }
-    try {
+    const writeMain = () => {
         p.gen = syncGen();
         writePttV3(localStorage, p, KEY);
+    };
+    if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
+        const merged = await srtImportLedgerTransaction(localStorage, p.data.sightLedger, writeMain);
+        if (!merged.ok)
+            return false;
     }
-    catch (err) {
-        if (ledgerUpdated) {
-            try {
-                if (prevLedgerRaw === null)
-                    localStorage.removeItem(SRT_LEDGER_KEY);
-                else
-                    localStorage.setItem(SRT_LEDGER_KEY, prevLedgerRaw);
-            }
-            catch (_) { }
-        }
-        throw err;
+    else {
+        writeMain();
     }
     location.reload();
     return true;

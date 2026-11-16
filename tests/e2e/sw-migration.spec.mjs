@@ -117,6 +117,41 @@ test.describe('atomic worker migration', () => {
     await rm(root, { recursive: true, force: true });
   });
 
+  test('an older cache with outdated bytes is rejected when the current manifest specifies a hash', { tag: '@sw' }, async ({ page, context }) => {
+    const root = await site();
+    await writeFile(join(root, 'etude/assets/shared.js'), 'window.__shared = "v2";');
+    const v2Hash = hash(await readFile(join(root, 'etude/assets/shared.js')));
+    await writeFile(join(root, 'etude/sw.js'), workerSource([
+      { url: 'etude.html', hash: hash(await readFile(join(root, 'etude/etude.html'))) },
+      { url: 'assets/app-one.js', hash: hash(await readFile(join(root, 'etude/assets/app-one.js'))) },
+      { url: 'assets/shared.js', hash: v2Hash },
+    ]));
+    const { server, base } = await openSite(page, root);
+
+    // Seed an older etude-* cache with outdated bytes for assets/shared.js and remove it from primary
+    // cache so findCached reaches the older-cache fallback path while PRECACHE_URLS still expects v2Hash.
+    await page.evaluate(async (assetUrl) => {
+      const keys = await caches.keys();
+      for (const k of keys) {
+        if (k.startsWith('etude-') && k !== 'etude-active') {
+          const c = await caches.open(k);
+          await c.delete(assetUrl);
+        }
+      }
+      const older = await caches.open('etude-legacy-stale');
+      await older.put(assetUrl, new Response('window.__shared = "v1-stale";', {
+        headers: { 'content-type': 'application/javascript' },
+      }));
+    }, `${base}assets/shared.js`);
+
+    const fetched = await page.evaluate(() => fetch('assets/shared.js').then(r => r.text()));
+    expect(fetched).toBe('window.__shared = "v2";');
+
+    await context.setOffline(false);
+    await stop(server);
+    await rm(root, { recursive: true, force: true });
+  });
+
   test('the kill switch reloads each controlled tab exactly once and removes state', { tag: '@sw' }, async ({ page, context }) => {
     const root = await site();
     const { server } = await openSite(page, root);

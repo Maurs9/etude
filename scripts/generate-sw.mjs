@@ -180,7 +180,7 @@ async function findCached(url, expectedHash, verify = true) {
     const hit = await cache.match(url);
     if (!hit) continue;
     const vKey = verifiedKey(name, url, expectedHash);
-    if (!expectedHash || !verify || verifiedHits.has(vKey)) return hit;
+    if (!expectedHash || verifiedHits.has(vKey)) return hit;
     if (await digest(hit.clone()) === expectedHash) {
       verifiedHits.add(vKey);
       return hit;

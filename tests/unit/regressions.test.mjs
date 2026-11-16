@@ -1,9 +1,17 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import vm from 'node:vm';
 import { srBeatPt } from '../../src/domain/grand-staff.ts';
 import { anParse } from '../../src/domain/score-import.ts';
 import { AN_MAX_NOTES } from '../../src/domain/score-types.ts';
+import {
+  SRT_LEDGER_KEY,
+  srtCreateLedger,
+  srtImportLedgerTransaction,
+  srtLedgerUpdate,
+  srtReadLedger,
+} from '../../src/sight-reading/ledger.ts';
 import { workerSource } from '../../scripts/generate-sw.mjs';
 
 function buildUnclosedNoteOnMidi(count) {
@@ -66,22 +74,47 @@ describe('performance and bug regressions', () => {
     }
   });
 
-  it('service worker serves legacy older-cache asset hits immediately when verify=false', async () => {
-    const source = workerSource([{ url: 'etude.html', hash: 'a'.repeat(64) }]);
-    const listeners = {};
+  it('service worker serves legacy unmanifested hits without hashing, yet enforces manifest hashes on older caches', async () => {
+    const freshVendorBytes = Buffer.from('window.__osmdVersion = "2.3.0";');
+    const freshVendorHash = createHash('sha256').update(freshVendorBytes).digest('hex');
+    const staleVendorBytes = Buffer.from('window.__osmdVersion = "1.0.0-stale";');
     const legacyUrl = 'https://maurs9.github.io/etude/assets/legacy.js';
+    const vendorUrl = 'https://maurs9.github.io/etude/vendor/osmd-2.3.0.min.js';
+
+    const source = workerSource([
+      { url: 'etude.html', hash: 'a'.repeat(64) },
+      { url: 'vendor/osmd-2.3.0.min.js', hash: freshVendorHash },
+    ]);
+
+    const listeners = {};
     const legacyResponse = {
       ok: true,
       clone() { return this; },
-      arrayBuffer: async () => { throw new Error('must not hash when verify=false'); },
+      arrayBuffer: async () => { throw new Error('must not hash unmanifested legacy asset'); },
     };
+    const staleVendorResponse = {
+      ok: true,
+      clone() { return this; },
+      arrayBuffer: async () => staleVendorBytes.buffer.slice(
+        staleVendorBytes.byteOffset,
+        staleVendorBytes.byteOffset + staleVendorBytes.byteLength,
+      ),
+    };
+    const networkVendorResponse = { ok: true, fromNetwork: true };
     const cachesMap = new Map([
-      ['etude-legacy-v0', { match: async (url) => (url === legacyUrl ? legacyResponse : null) }],
+      ['etude-legacy-v0', {
+        match: async (url) => {
+          if (url === legacyUrl) return legacyResponse;
+          if (url === vendorUrl) return staleVendorResponse;
+          return null;
+        },
+      }],
     ]);
     const selfStub = {
       registration: { scope: 'https://maurs9.github.io/etude/' },
       addEventListener: (name, fn) => { listeners[name] = fn; },
     };
+    const fetchCalls = [];
     const sandbox = {
       self: selfStub,
       URL,
@@ -91,18 +124,112 @@ describe('performance and bug regressions', () => {
         open: async (name) => cachesMap.get(name) ?? { match: async () => null },
         keys: async () => [...cachesMap.keys()],
       },
-      fetch: async () => { throw new Error('network should not be called on legacy cache hit'); },
-      crypto: { subtle: { digest: async () => { throw new Error('digest should not run when verify=false'); } } },
+      fetch: async (req) => {
+        fetchCalls.push(req.url);
+        if (req.url === vendorUrl) return networkVendorResponse;
+        throw new Error('unexpected network fetch: ' + req.url);
+      },
+      crypto: {
+        subtle: {
+          digest: async (_alg, buf) => createHash('sha256').update(new Uint8Array(buf)).digest(),
+        },
+      },
     };
     vm.runInNewContext(source, sandbox);
 
-    let responded = null;
+    let legacyPromise = null;
     listeners.fetch({
       request: { url: legacyUrl, method: 'GET', mode: 'cors' },
-      respondWith: (promise) => { responded = promise; },
+      respondWith: (promise) => { legacyPromise = promise; },
     });
-    expect(responded).toBeTruthy();
-    expect(await responded).toBe(legacyResponse);
+    expect(await legacyPromise).toBe(legacyResponse);
+    expect(fetchCalls).toEqual([]);
+
+    // Manifested asset with stale bytes in an older cache must fail hash check and NOT be served.
+    let vendorPromise = null;
+    listeners.fetch({
+      request: { url: vendorUrl, method: 'GET', mode: 'cors' },
+      respondWith: (promise) => { vendorPromise = promise; },
+    });
+    expect(await vendorPromise).toBe(networkVendorResponse);
+    expect(fetchCalls).toEqual([vendorUrl]);
+  });
+
+  it('srtImportLedgerTransaction holds the exclusive lock across snapshot, merge, commit, and rollback', async () => {
+    const data = new Map();
+    const storage = {
+      getItem: (k) => (data.has(k) ? data.get(k) : null),
+      setItem: (k, v) => { data.set(k, v); },
+      removeItem: (k) => { data.delete(k); },
+    };
+    const initial = srtCreateLedger();
+    data.set(SRT_LEDGER_KEY, JSON.stringify(initial));
+
+    const imported = {
+      ...srtCreateLedger(),
+      exposures: { 'fp-imported': { firstSeenAt: 100, reason: 'listen' } },
+    };
+
+    const queues = new Map();
+    const prevNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {
+        locks: {
+          request: async (name, _opts, cb) => {
+            const tail = queues.get(name) ?? Promise.resolve();
+            let release;
+            const current = new Promise((res) => { release = res; });
+            queues.set(name, tail.then(() => current));
+            await tail;
+            try {
+              return await cb({ name });
+            } finally {
+              release();
+            }
+          },
+        },
+      },
+    });
+
+    try {
+      // Simulate another tab holding the lock to record an exposure just before import enters its critical section.
+      let releaseConcurrent;
+      const concurrentHolding = new Promise((res) => { releaseConcurrent = res; });
+      const concurrentExposure = navigator.locks.request('etude-sight-ledger-v1', { mode: 'exclusive' }, async () => {
+        await concurrentHolding;
+        const cur = srtReadLedger(storage);
+        data.set(SRT_LEDGER_KEY, JSON.stringify({
+          ...cur,
+          revision: cur.revision + 1,
+          exposures: { ...cur.exposures, 'fp-concurrent': { firstSeenAt: 200, reason: 'learn' } },
+        }));
+      });
+
+      const txPromise = srtImportLedgerTransaction(storage, imported, () => {
+        // Must still hold the exclusive lock while ptt-v3 commit fails.
+        throw new Error('ptt-v3 write failed');
+      });
+      const queuedExposure = srtLedgerUpdate(storage, {
+        type: 'recordExposure',
+        fingerprint: 'fp-queued',
+        reason: 'learn',
+        generation: initial.generation,
+      });
+
+      releaseConcurrent();
+      await concurrentExposure;
+      await expect(txPromise).rejects.toThrow('ptt-v3 write failed');
+      expect((await queuedExposure).ok).toBe(true);
+
+      const finalLedger = srtReadLedger(storage);
+      expect(finalLedger.exposures['fp-concurrent']).toEqual({ firstSeenAt: 200, reason: 'learn' });
+      expect(finalLedger.exposures['fp-queued']).toBeTruthy();
+      expect(finalLedger.exposures['fp-imported']).toBeUndefined();
+    } finally {
+      if (prevNavigator) Object.defineProperty(globalThis, 'navigator', prevNavigator);
+      else delete globalThis.navigator;
+    }
   });
 
   it('keeps PWA manifest, monochrome icon asset, and TWA manifest in sync', () => {
