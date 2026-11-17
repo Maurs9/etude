@@ -28,16 +28,22 @@ test('alternate endings create distinct performance ranges without changing the 
   await page.evaluate(async () => { window.__etude.pracSet('countIn', false); await window.__etude.scorePlay(false, 0); });
   expect(await page.evaluate(() => window.__etude.SCORE.run.route)).toEqual([{ a: 0, b: 2 }, { a: 4, b: 6 }]);
 });
-test('natural engraving moves at a steady speed within each bar regardless of note spacing', async ({ app, page }) => {
+for (const piece of ['canon', 'brahms', 'elise']) test(`engraved cursor crosses noteheads at their onsets (${piece})`, async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
-  await page.evaluate(() => window.__etude.pcOpen('canon'));
+  await page.evaluate(id => window.__etude.pcOpen(id), piece);
   await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
-  const xs = await page.evaluate(() => {
-    const a = window.__etude, m = a.SCORE.geo.measures.find(m => m && m.b1 > m.b0);
-    return [0, .25, .5, .75].map(f => a.scoreCursorAt(m.b0 + f * (m.b1 - m.b0)).x);
+  const errors = await page.evaluate(() => {
+    const a = window.__etude, g = a.SCORE.geo;
+    return [...a.SCORE.heads].flatMap(([i, heads]) => {
+      const n = a.AN.notes[i], head = heads[0];
+      if (!n || !head) return [];
+      const pos = a.scoreCursorAt(n.start), sys = g.systems[pos.sys], page = g.pages[sys.page];
+      const r = head.getBoundingClientRect(), pr = page.getBoundingClientRect();
+      return [{ beat: n.start, error: Math.abs(pos.x * g.scale - (r.x + r.width / 2 - pr.x)) }];
+    });
   });
-  expect(xs[1] - xs[0]).toBeCloseTo(xs[2] - xs[1], 6);
-  expect(xs[2] - xs[1]).toBeCloseTo(xs[3] - xs[2], 6);
+  expect(errors.length).toBeGreaterThan(10);
+  expect(Math.max(...errors.map(e => e.error)), JSON.stringify(errors.filter(e => e.error > 3))).toBeLessThan(3);
 });
 
 test('Wait for me asks again on every repeat before continuing', async ({ app, page }) => {
@@ -65,5 +71,31 @@ test('Wait for me also asks again on explicit selection loops', async ({ app, pa
     expect(await page.evaluate(() => window.__etude.PRAC.bar.got.size)).toBe(0);
     await page.evaluate(() => { const a = window.__etude; for (const m of [...a.PRAC.bar.need]) { a.handleNoteOn(m, 100); a.handleNoteOff(m); } });
   }
+  await page.evaluate(() => window.__etude.scoreStop());
+});
+
+test('at 70 percent the cursor reaches each note at its scheduled audio onset after a rest', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await page.evaluate(() => window.__etude.pcOpen('brahms'));
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.locator('#score-speed').selectOption('70');
+  await page.evaluate(async () => {
+    const a = window.__etude, real = a.previewNote;
+    window.cursorAudioChecks = [];
+    a.previewNote = (midi, when, ...rest) => {
+      const g = a.SCORE.geo, beat = a.scoreBeatAt(a.fallTime(when)), p = a.scoreCursorAt(beat);
+      const note = a.AN.notes.find(n => n.midi === midi && Math.abs(n.start - beat) < 1e-7);
+      const head = a.SCORE.heads.get(a.AN.notes.indexOf(note))[0].getBoundingClientRect();
+      const page = g.pages[g.systems[p.sys].page].getBoundingClientRect();
+      window.cursorAudioChecks.push({ beatError: Math.abs(beat - note.start), pixelError: Math.abs(p.x * g.scale - (head.x + head.width / 2 - page.x)) });
+      return real(midi, when, ...rest);
+    };
+    a.pracSet('countIn', false);
+    await a.scorePlay(false, 0);
+  });
+  await page.waitForFunction(() => window.cursorAudioChecks.length >= 4, null, { timeout: 8000 });
+  const checks = await page.evaluate(() => window.cursorAudioChecks);
+  expect(Math.max(...checks.map(c => c.beatError))).toBeLessThan(1e-7);
+  expect(Math.max(...checks.map(c => c.pixelError))).toBeLessThan(3);
   await page.evaluate(() => window.__etude.scoreStop());
 });

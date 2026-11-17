@@ -13686,8 +13686,7 @@ function scoreGeo(engine: import('./notation.js').ScoreRenderer) {
         }
         cur.reset();
     }
-    // A measure's rail starts at its first onset when present, otherwise just after its instructions.
-    // This preserves the downbeat connection while the cursor advances at one steady visual pace within the bar.
+    // Fallback for bars without usable onset geometry: start after their printed instructions.
     const onsetX = new Map<string, number>();
     geo.anchors.forEach((a) => { const key = a.sys + ':' + Math.round(a.beat * 960), old = onsetX.get(key); if (old == null || a.x < old)
         onsetX.set(key, a.x); });
@@ -13704,7 +13703,7 @@ function scoreGeo(engine: import('./notation.js').ScoreRenderer) {
             return; const n = (document).createElement('span'); n.className = 'sc-pnum' + (i % 2 ? ' is-left' : ''); n.textContent = String(i + 1); n.style.fontSize = (1.7 * geo.scale).toFixed(1) + 'px'; n.setAttribute('aria-hidden', 'true'); el.appendChild(n); });
 }
 // Playback position: a thin blue line over the whole system. Its speed follows the tempo map.
-// Each bar uses one steady rail; engraving space between individual notes must not modulate the speed.
+// Follow engraved onsets: non-proportional note spacing requires varying pixel speed between notes.
 function scoreCursorEl(): HTMLElement { const cur: HTMLElement | null = SCORE.cursorEl; if (cur)
     return cur;
     const el = (document).createElement('div');
@@ -13741,6 +13740,8 @@ function scoreCursorAt(beat: number): ScoreCursorPos | null {
     const m = M[i];
     if (!m)
         return null;
+    const anchored = scoreAnchorAt(g.anchors, beat, m.sys);
+    if (anchored) return anchored;
     const n = M[i + 1], x0 = m.cx ?? m.xs, x1 = n && n.sys === m.sys ? (n.cx ?? n.xs) : m.x1 - .9;
     const t0 = scoreSeconds(m.b0), t1 = scoreSeconds(m.b1), at = Math.min(t1, Math.max(t0, scoreSeconds(beat)));
     const f = t1 > t0 ? (at - t0) / (t1 - t0) : 0;
@@ -13774,7 +13775,7 @@ function scoreAnchorAt(A: ScoreGeoAnchor[], beat: number, sys: number): ScoreCur
         }
     }
     if (!b)
-        return null;
+        return { x: a.x, sys };
     const t0 = scoreSeconds(a.beat), t1 = scoreSeconds(b.beat), at = Math.min(t1, Math.max(t0, scoreSeconds(beat))), f = t1 > t0 ? (at - t0) / (t1 - t0) : 0;
     return { x: a.x + (b.x - a.x) * f, sys };
 }

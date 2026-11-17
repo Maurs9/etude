@@ -7,7 +7,7 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const APP_FILE = join(ROOT, 'etude.html');
 export const APP_SOURCE = join(ROOT, 'src', 'domain', 'views.ts');
 export const CSS_SOURCE = join(ROOT, 'src', 'styles', 'etude.css');
-export const OSMD_SOURCE = join(ROOT, 'public', 'vendor', 'osmd-2.3.0.min.js');
+export const OSMD_SOURCE = join(ROOT, 'public', 'vendor', 'osmd-2.3.1.min.js');
 export const PIANO_DIR = join(ROOT, 'src', 'assets', 'piano');
 
 const STYLE_MARKER = '<!-- etude: extracted style -->';
