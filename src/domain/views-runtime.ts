@@ -18,7 +18,7 @@ import { AN_CHORDS, AN_DIA, anAccent, anBeatUnit, anCadences as domainAnCadences
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, LSTAVES, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
 import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
-import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
+import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srSpellName, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
 import type { ScoreEngraveEvent, ScoreEngraveGroup, ScoreEngraveVoice, ScoreMidiChange, ScoreMidiNote, ScoreMidiTime } from './score-midi.js';
 
 import '../styles/score-library.css';
@@ -58,6 +58,7 @@ import { SRT_FLASH_MS, srtFlashMatches, srtWarmupPlan, type FlashCard, type Warm
 import type { GeneratedPiece } from '../sight-reading/rules.js';
 import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
+import { createInstantFeedbackTracker, type InstantFeedbackExpectedNote, type InstantFeedbackTracker } from '../sight-reading/instant-feedback.js';
 import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
 import { isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtImportLedgerTransaction, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
@@ -1962,7 +1963,10 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
     if (!(SR.active && srtRecorder) && srNoteStartInput(kind, midi, source, releaseKind))
         return;
     if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder) {
-        srtRecorder.record(kind, midi, source, releaseKind, performance.now() - SR.t0);
+        const relMs = performance.now() - SR.t0;
+        srtRecorder.record(kind, midi, source, releaseKind, relMs);
+        if (kind === 'on' && SR.instantFeedback)
+            srInstantHandleNote(midi, relMs);
     }
     if (view0() === 'analysis') {
         pracInput(kind);
@@ -6334,7 +6338,7 @@ interface SrStep { beat: number; notes: SrStaffNote[]; closed?: boolean }
 /** A wrong key in Learn mode, classified (`k`) against the expected note `n`. */
 interface SrSlip { k: string; n: SrStaffNote; m: number }
 interface SrState {
-    piece: SrPiece | null; hands: string; modeSel: string; names: boolean; anyOctave: boolean; active: boolean; assessOn: boolean;
+    piece: SrPiece | null; hands: string; modeSel: string; names: boolean; anyOctave: boolean; instantFeedback: boolean; active: boolean; assessOn: boolean;
     notes: SrStaffNote[]; steps: SrStep[]; stepIdx: number; hit: Set<number>; results: Record<number, string>; mistakes: number; wrongExtra: number;
     beatX: SrBeatX[]; totalBeats: number; render: SrRenderResult | null; raf: number; timers: ReturnType<typeof setTimeout>[]; nodes: OscillatorNode[];
     bpm: number; t0: number; next: CoachTip | null; errs: Record<string, number> | null; slipKey: SrSlip | null;
@@ -6345,7 +6349,7 @@ interface SrState {
     /** A level piece of the book, a key run or the daily set (the Read home's player); null for the older melodies. */
     lvPiece?: GeneratedPiece | null;
 }
-const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, anyOctave: false, active: false, assessOn: false,
+const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false, anyOctave: false, instantFeedback: false, active: false, assessOn: false,
     notes: [], steps: [], stepIdx: 0, hit: new Set<number>(), results: {}, mistakes: 0, wrongExtra: 0, beatX: [], totalBeats: 0,
     render: null, raf: 0, timers: [], nodes: [], bpm: 90, t0: 0, next: null, errs: null, slipKey: null,
     srtPiece: null, srtFingerprint: null, srtState: SRT_INITIAL_STATE,
@@ -6392,8 +6396,8 @@ type SrtAttemptCleanup = {
 const srtCleanupPromises = new Map<string, Promise<SightReadingLedgerResult>>();
 const srtReleasedLeases = new WeakSet<SightReadingAttemptLease>();
 let srtExposurePromise: { fingerprint: string; promise: Promise<SightReadingLedgerResult> } | null = null;
-function srRender(piece: SrScore, lay?: SrLayout): SrRenderResult {
-    return renderGrandStaff(piece, lay, { namesVisible: srNamesVisible(piece), notation });
+function srRender(piece: SrScore, lay?: SrLayout, proportional = false): SrRenderResult {
+    return renderGrandStaff(piece, lay, { namesVisible: srNamesVisible(piece), notation, proportional });
 }
 /* ---- state, drawing, grading ---- */
 function srSvg() { return byId('rd-staff') ? byId('rd-staff').querySelector('svg') : null; }
@@ -6414,7 +6418,7 @@ function srDraw() {
         return;
     srtConsumeOnLearnReveal();
     const lay = srPageLayout(SR.piece, srPaper());
-    const r = srRender(SR.piece, lay);
+    const r = srRender(SR.piece, lay, true);
     SR.render = r;
     SR.notes = r.notes;
     SR.beatX = r.beatX;
@@ -6603,7 +6607,7 @@ function srPageLayout(piece: SrPiece, lay: SrLayout | undefined): SrLayout | und
     // The height the paper may take: the window, less what is above the paper and the controls below it.
     const room = Math.max(280, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - SR_PAGE_BELOW);
     const names = srNamesVisible(piece), seen = srPageNatural.get(piece);
-    const natural = seen && seen.width === lay.width && seen.names === names ? seen.H : srRender(piece, { width: lay.width, cap: 1 }).H;
+    const natural = seen && seen.width === lay.width && seen.names === names ? seen.H : srRender(piece, { width: lay.width, cap: 1 }, true).H;
     srPageNatural.set(piece, { width: lay.width, names, H: natural });
     const cap = Math.max(SR_PAGE_MIN, Math.min(SR_PAGE_MAX, room / Math.max(1, natural)));
     return { ...lay, cap, floor: Math.min(1, cap), justify: true };
@@ -6631,7 +6635,7 @@ function srFit() {
     if (!srPaperChanged(srPaperSeen, lay))
         return;
     srPaperSeen = lay;
-    const r = srRender(SR.piece, lay), wrap = byId('rd-staff');
+    const r = srRender(SR.piece, lay, true), wrap = byId('rd-staff');
     const left = wrap.scrollLeft, top = wrap.scrollTop;
     const closed = new Set(SR.steps.filter((s) => s.closed).map((s) => s.beat.toFixed(3)));
     SR.render = r;
@@ -6713,6 +6717,92 @@ function srClick(t: number, acc: boolean) {
     if (click?.oscs)
         SR.nodes.push(...click.oscs);
 }
+let srInstantTracker: InstantFeedbackTracker | null = null;
+let srInstantVerdictShown = false;
+function srInstantNotes(): InstantFeedbackExpectedNote[] {
+    const sel = srActiveHands();
+    const msPerBeat = 60000 / SR.bpm;
+    return SR.notes
+        .filter((n) => sel === 'both' || n.hand === sel)
+        .map((n) => ({ nid: n.nid, midi: n.midi, onMs: n.beat * msPerBeat }));
+}
+function srInstantReset() {
+    srInstantTracker = null;
+    srInstantVerdictShown = false;
+}
+function srInstantNoteLabel(midi: number, matchedNid?: number): string {
+    if (matchedNid !== undefined && SR.piece?.engrave === 2) {
+        const note = SR.notes.find((n) => n.nid === matchedNid);
+        if (note)
+            return srSpellName(note.li, note.acc, notation) + note.oct;
+    }
+    const flat = (SR.piece?.keyN || 0) < 0;
+    return noteName(midi, flat);
+}
+function srInstantFlashKey(midi: number, status: 'good' | 'bad') {
+    const m = foldToView(midi);
+    kbState(m, status, false);
+    SR.timers.push(setTimeout(() => {
+        const el = keyEl.get(m);
+        if (!el || el.dataset.s !== status)
+            return;
+        const isHeld = [...held].some((n) => foldToView(n) === m);
+        kbState(m, isHeld ? 'active' : null, false);
+    }, 350));
+}
+function srInstantHandleNote(midi: number, onMs: number) {
+    if (!srInstantTracker)
+        return;
+    const res = srInstantTracker.processInput(midi, onMs);
+    const v = maybeById('rd-verdict');
+    if (res.matched) {
+        SR.results[res.nid] = res.status;
+        srPaintAll();
+        const lbl = srInstantNoteLabel(res.expectedMidi, res.nid);
+        srInstantFlashKey(midi, res.status === 'bad' ? 'bad' : 'good');
+        if (v) {
+            if (res.status === 'good') {
+                v.className = 'verdict good';
+                v.textContent = t('rd_fb_good', lbl);
+            }
+            else if (res.status === 'near') {
+                v.className = 'verdict neutral';
+                v.textContent = t('rd_fb_near', lbl);
+            }
+            else {
+                v.className = 'verdict bad';
+                v.textContent = t('rd_fb_late', lbl);
+            }
+        }
+    }
+    else {
+        SR.wrongExtra++;
+        srPaintAll();
+        srInstantFlashKey(midi, 'bad');
+        if (v) {
+            const played = srInstantNoteLabel(midi);
+            v.className = 'verdict bad';
+            if (res.expectedMidis.length) {
+                const exp = res.expectedMidis.map((m) => srInstantNoteLabel(m)).join(' / ');
+                v.textContent = t('rd_fb_wrong_exp', played, exp);
+            }
+            else {
+                v.textContent = t('rd_fb_wrong', played);
+            }
+        }
+    }
+    srInstantVerdictShown = true;
+}
+function srInstantSweep(nowMs: number) {
+    if (!srInstantTracker)
+        return;
+    const missed = srInstantTracker.sweepMissed(nowMs);
+    if (!missed.length)
+        return;
+    for (const nid of missed)
+        SR.results[nid] = 'bad';
+    srPaintAll();
+}
 type SrtStopReason = 'interrupt' | 'navigate';
 function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 'interrupt') {
     if (!preserveSrt) {
@@ -6726,6 +6816,7 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
     stageSync();
     rdnNavUi();
     SR.assessOn = false;
+    srInstantReset();
     if (SR.raf)
         cancelAnimationFrame(SR.raf);
     SR.raf = 0;
@@ -6747,6 +6838,7 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
     srFollowSy = -1;
     if (!keep && !preservePendingResult) {
         SR.results = {};
+        SR.wrongExtra = 0;
         SR.stepIdx = 0;
         SR.hit.clear();
         SR.next = null;
@@ -7443,11 +7535,19 @@ function srAssessStart(operation?: number) {
         SR.notes.filter((n) => n.hand !== sel).forEach((n) => previewNote(n.midi, act0 + lead + n.beat * bs, Math.max(.15, n.dur * bs * .9), 78));
     SR.t0 = perf0 + lead * 1000;
     SR.anyOctave = !!data.settings.anyOctave;
+    SR.instantFeedback = !!data.reading?.prefs?.instantFeedback;
+    srInstantReset();
+    if (SR.instantFeedback)
+        srInstantTracker = createInstantFeedbackTracker(srInstantNotes(), { anyOctave: SR.anyOctave });
     srtRecorder = new SightReadingRecorder({ durationMs: lvPiece ? srtLevelDurationMs(lvPiece, SR.bpm) : SR.totalBeats * bs * 1000 });
     // The note that started the attempt, and what was played while the first sight was being claimed, belong to it.
     if (noteStart)
-        for (const ev of noteStart.events)
-            srtRecorder.record(ev.kind, ev.midi, ev.source, ev.releaseKind, ev.perf - SR.t0);
+        for (const ev of noteStart.events) {
+            const relMs = ev.perf - SR.t0;
+            srtRecorder.record(ev.kind, ev.midi, ev.source, ev.releaseKind, relMs);
+            if (ev.kind === 'on' && SR.instantFeedback)
+                srInstantHandleNote(ev.midi, relMs);
+        }
     // The checklist goes out of sight but keeps its room: the score must not move under the first note.
     const checklist = maybeById('rdn-checklist');
     if (checklist)
@@ -7462,9 +7562,11 @@ function srAssessStart(operation?: number) {
             if (SR.active && SR.srtState?.name === 'countIn')
                 srtSetState({ type: 'countInDone' });
         }, lead * 1000));
-    const v = byId('rd-verdict');
-    v.className = 'verdict neutral';
-    v.textContent = t('rd_count');
+    if (!SR.instantFeedback || !srInstantVerdictShown) {
+        const v = byId('rd-verdict');
+        v.className = 'verdict neutral';
+        v.textContent = t('rd_count');
+    }
     byId('rd-go').textContent = t('rd_stop');
     SR.raf = requestAnimationFrame(srAssessLoop);
 }
@@ -7534,8 +7636,11 @@ function srAssessLoop(ts: number) {
     const bs = 60 / SR.bpm, bNow = (ts - SR.t0) / 1000 / bs;
     if (bNow >= 0 && !SR.assessOn) {
         SR.assessOn = true;
-        byId('rd-verdict').textContent = t('rd_play');
+        if (!SR.instantFeedback || !srInstantVerdictShown)
+            byId('rd-verdict').textContent = t('rd_play');
     }
+    if (SR.instantFeedback && SR.assessOn)
+        srInstantSweep(ts - SR.t0);
     const at = srBeatPt(SR.beatX, Math.max(0, Math.min(bNow, SR.totalBeats)));
     srCursor(at.x, at.sy);
     if (bNow >= SR.totalBeats + (0.25 / bs)) {
@@ -7928,7 +8033,7 @@ interface ReadDrillLevelStat { s: number; acc: number; t: number; n: number; rus
 interface ReadDrillNoteStat { n: number; ok: number; ms: number; e: number; t: number; }
 interface ReadDrillTotals { n: number; ok: number; ms: number; sess: number; }
 interface ReadDrillCustom { ty: string; clef: string; lo: string; hi: string; acc: number; keys: number; land: boolean; }
-interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; stage: boolean; autoNext?: boolean; warmDone?: string; }
+interface ReadDrillPrefs { tab: string; sound: boolean; hints: boolean; last: string | null; custom: ReadDrillCustom | null; rhDur: boolean; rhHands: number; srLv?: string; flow: boolean; ghost: boolean; stage: boolean; autoNext?: boolean; instantFeedback?: boolean; warmDone?: string; }
 /** `book`: the Read home's book, key runs and daily set (src/sight-reading/progress.ts), read through srtNormalizeBookState. */
 interface ReadDrillData { lv: { [levelId: string]: ReadDrillLevelStat; }; nt: { [noteKey: string]: ReadDrillNoteStat; }; tot: ReadDrillTotals; prefs: ReadDrillPrefs; book?: ReadingBookState; }
 function rdData(): ReadDrillData {
@@ -7938,7 +8043,7 @@ function rdData(): ReadDrillData {
     r.lv = r.lv || {};
     r.nt = r.nt || {};
     r.tot = Object.assign({ n: 0, ok: 0, ms: 0, sess: 0 }, r.tot || {});
-    r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1, flow: true, ghost: false, stage: true }, r.prefs || {});
+    r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1, flow: true, ghost: false, stage: true, instantFeedback: false }, r.prefs || {});
     if (!isReadDrillData(r))
         throw new Error('Étude: reading progress could not be initialised');
     return r;
@@ -9138,7 +9243,7 @@ function rdRhNew(keep?: boolean) {
     const piece: RdRhythmPiece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: rdLevelBpm(L), rh: ev.map((e: RdRhythmEvent): [string, number] => [e.rest ? 'R' : 'B4', e.dur]) };
     if (lh)
         piece.lh = lh.map((e: RdRhythmEvent): [string, number] => [e.rest ? 'R' : 'D3', e.dur]);
-    const r: RdRhythmRender = srRender(piece);
+    const r: RdRhythmRender = srRender(piece, undefined, true);
     const rh: RdRhythmState = { ev, lh, r, dur: pr.dur, two: pr.two, on: ev.filter((e: RdRhythmEvent) => !e.rest).map((e: RdRhythmEvent) => e.beat), taps: [], presses: [], open: new Map(), playing: false, graded: null, raf: 0, listen: false, t0: 0, piece, paper: undefined };
     RD.rh = rh;
     const tst = RD.mode === 'test', pad = (h: string, lbl: string, k: string) => `<button class="rdx-tap" id="rdx-tap${h === 'L' ? 'L' : ''}" data-hand="${h}" aria-label="${rdEsc(lbl)}" aria-describedby="rdx-coach">${rdEsc(lbl)}<small>${rdEsc(k)}</small></button>`;
@@ -9165,7 +9270,7 @@ function rdRhFit() {
     if (!srPaperChanged(R.paper, lay))
         return;
     R.paper = lay;
-    R.r = srRender(R.piece, lay);
+    R.r = srRender(R.piece, lay, true);
     wrap.innerHTML = R.r.svg;
 }
 function rdRhOptsLock(on: boolean) { (document).querySelectorAll('#rdx-rhopts input,#rdx-rhopts button').forEach((x) => { if (x instanceof HTMLInputElement || x instanceof HTMLButtonElement)
@@ -18794,6 +18899,10 @@ function reflectSettingsUI() {
     const rdOct = maybeById('rd-any-octave');
     if (rdOct instanceof HTMLInputElement)
         rdOct.checked = !!data.settings.anyOctave;
+    SR.instantFeedback = !!data.reading?.prefs?.instantFeedback;
+    const rdInstant = maybeById('rd-instant');
+    if (rdInstant instanceof HTMLInputElement)
+        rdInstant.checked = SR.instantFeedback;
     selectById('set-goal').value = String(data.settings.goal);
     selectById('set-new').value = String(data.settings.newPerDay);
     queryAllHtml(document, '#set-notation button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === notation ? 'true' : 'false'));
@@ -19185,9 +19294,38 @@ function initControls() {
         const checked = wiringInput(e).checked;
         data.settings.anyOctave = checked;
         SR.anyOctave = checked;
+        if (SR.active && SR.modeSel === 'assess' && SR.instantFeedback) {
+            const nowMs = performance.now() - SR.t0;
+            srInstantTracker = createInstantFeedbackTracker(srInstantNotes().filter((n) => SR.results[n.nid] === undefined && n.onMs >= nowMs - 250), { anyOctave: checked });
+        }
         const setOct = maybeById('set-any-octave');
         if (setOct instanceof HTMLInputElement)
             setOct.checked = checked;
+        saveAll();
+    });
+    maybeById('rd-instant')?.addEventListener('change', (e) => {
+        const checked = wiringInput(e).checked;
+        rdData().prefs.instantFeedback = checked;
+        SR.instantFeedback = checked;
+        if (SR.active && SR.modeSel === 'assess') {
+            if (checked) {
+                const nowMs = performance.now() - SR.t0;
+                srInstantTracker = createInstantFeedbackTracker(srInstantNotes().filter((n) => SR.results[n.nid] === undefined && n.onMs >= nowMs - 250), { anyOctave: SR.anyOctave });
+            }
+            else {
+                srInstantReset();
+                SR.results = {};
+                SR.wrongExtra = 0;
+                srPaintAll();
+                kbClear('good');
+                kbClear('bad');
+                if (SR.assessOn) {
+                    const v = byId('rd-verdict');
+                    v.className = 'verdict neutral';
+                    v.textContent = t('rd_play');
+                }
+            }
+        }
         saveAll();
     });
     byId('rd-bpm').addEventListener('input', (e) => { if (srtPendingSaveProtected()) {

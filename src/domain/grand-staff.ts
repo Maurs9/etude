@@ -285,13 +285,13 @@ export function srLevelBeams(body: string, groups: SrBeamGroup[]) {
 export interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; rel: number; data: { ev: SrEvent[]; total: number } }
 /** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
 export interface SrChordItem { e: SrNoteEvent; step: number; y: number; dx: number; ax?: number }
-export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts: { namesVisible: boolean; notation: NotationSystem }): SrRenderResult {
+export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts: { namesVisible: boolean; notation: NotationSystem; proportional?: boolean }): SrRenderResult {
     const staves: SrStave[] = [];
     if (piece.rh)
         staves.push({ hand: 'rh', clef: 'treble', refStep: 30, top: 46, rel: 0, data: { ev: [], total: 0 } });
     if (piece.lh)
         staves.push({ hand: 'lh', clef: 'bass', refStep: 18, top: piece.rh ? 150 : 46, rel: piece.rh ? 104 : 0, data: { ev: [], total: 0 } });
-    const v2 = piece.engrave === 2;
+    const v2 = piece.engrave === 2, proportional = !!opts.proportional;
     staves.forEach((st) => { st.data = srEvents(piece[st.hand], v2); });
     const keyAcc = ssKeyAcc(piece.keyN || 0), names = opts.namesVisible, lastSt = staves[staves.length - 1];
     const cap = piece.ts[1] === 8 ? piece.ts[0] * 0.5 : piece.ts[0], pickup = piece.pickup || 0;
@@ -326,12 +326,74 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
     // Each beat's column: its bar, how far it moves the pen (the shortest value there sets the room) and, per bar, how far the
     // notes reach above and below the first staff line (stems, flags, ledger lines, result marks, note names).
     const nBars = bounds.length + 1, barOf = beats.map((b) => bounds.filter((v) => v < b + 1e-3).length);
+    const barStart = (m: number) => m === 0 ? 0 : bounds[m - 1];
+    const barEnd = (m: number) => m < bounds.length ? bounds[m] : total;
+    const beatIndexByKey = new Map<number, number>(beats.map((b, i) => [Math.round(b * 1000), i]));
+    const beatLeftExt: number[] = beats.map(() => 6);
+    const beatRightExt: number[] = beats.map(() => 6.5);
+    if (proportional) {
+        beats.forEach((b, i) => {
+            let maxAcc = 0, rightExt = 6.5;
+            staves.forEach((st) => {
+                const here = st.data.ev.filter((e) => Math.abs(e.beat - b) < 1e-3);
+                let shown = 0;
+                here.forEach((e) => {
+                    if ([0.375, 0.75, 1.5, 3].includes(e.dur))
+                        rightExt = Math.max(rightExt, 12);
+                    if (!e.rest) {
+                        const accShown = lv ? !!e.showAcc : (e.acc !== keyAcc[e.li] && !e.tied);
+                        if (accShown)
+                            shown++;
+                        if (e.chord)
+                            rightExt = Math.max(rightExt, 16);
+                    }
+                });
+                if (shown > 0)
+                    maxAcc = Math.max(maxAcc, 15 + Math.min(shown - 1, 2) * 10);
+            });
+            beatLeftExt[i] = Math.max(6, maxAcc);
+            beatRightExt[i] = rightExt;
+        });
+    }
+    let beatPx0 = 42;
+    if (proportional) {
+        let minDt = Infinity;
+        for (let i = 0; i < beats.length; i++) {
+            const next = i + 1 < beats.length ? beats[i + 1] : total;
+            const dt = next - beats[i];
+            if (dt > 1e-6)
+                minDt = Math.min(minDt, dt);
+        }
+        beatPx0 = minDt < 0.35 ? 72 : minDt < 0.75 ? 48 : 42;
+        for (let i = 0; i < beats.length; i++) {
+            const isEnd = i + 1 >= beats.length, next = isEnd ? total : beats[i + 1];
+            const dt = next - beats[i];
+            if (dt <= 1e-6)
+                continue;
+            const crossBar = !isEnd && barOf[i + 1] > barOf[i];
+            const rightNeed = isEnd ? 10 : beatLeftExt[i + 1];
+            const gap = crossBar ? 12 : 4;
+            beatPx0 = Math.max(beatPx0, (beatRightExt[i] + gap + rightNeed) / dt);
+        }
+    }
+    const startPadOf = (barIdx: number) => {
+        if (!proportional)
+            return 10;
+        const bi = beatIndexByKey.get(Math.round(barStart(barIdx) * 1000));
+        return bi === undefined ? 10 : Math.max(10, beatLeftExt[bi] + 4);
+    };
     // engrave 2 also leaves room before a beat for its accidentals.
     const adv = beats.map((b, i) => { let m = 4; staves.forEach((st) => st.data.ev.forEach((e) => { if (Math.abs(e.beat - b) < 1e-3)
         m = Math.min(m, e.dur); })); const w = 26 + Math.min(m, 4) * 14; return lv && i + 1 < beats.length ? w + (lv.room.get(Math.round(beats[i + 1] * 1000)) ?? 0) : w; });
     const barW = new Array<number>(nBars).fill(0), barTop = new Array<number>(nBars).fill(-14);
     const barBot = new Array<number>(nBars).fill(Math.max(lastSt.rel + 48 + (lastSt.clef === 'treble' ? 18 : 10), names ? lastSt.rel + 84 : 0));
-    beats.forEach((b, i) => { barW[barOf[i]] += adv[i]; });
+    if (proportional) {
+        for (let m = 0; m < nBars; m++)
+            barW[m] = Math.max(1e-3, barEnd(m) - barStart(m)) * beatPx0;
+    }
+    else {
+        beats.forEach((b, i) => { barW[barOf[i]] += adv[i]; });
+    }
     staves.forEach((st) => st.data.ev.forEach((e) => {
         if (e.rest)
             return;
@@ -354,8 +416,12 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
     });
     // Systems: `starts` holds each one's first bar. The first system carries the time signature unless `noTs` omits it.
     const headW = (s: number) => 40 + ksw + (s === 0 && !piece.noTs ? 26 : 8);
-    const sysW = (s: number, a: number, z: number) => { let w = headW(s) + 18 * (z - a - 1) + (z === nBars ? 20 : 12); for (let m = a; m < z; m++)
-        w += barW[m]; return w; };
+    const sysW = (s: number, a: number, z: number) => {
+        let w = proportional ? headW(s) + startPadOf(a) + 6 : headW(s) + 18 * (z - a - 1) + (z === nBars ? 20 : 12);
+        for (let m = a; m < z; m++)
+            w += barW[m];
+        return w;
+    };
     const ends = (starts: number[]) => starts.map((a, s) => s + 1 < starts.length ? starts[s + 1] : nBars);
     const vert = (starts: number[]) => { const zs = ends(starts), top: number[] = [], bot: number[] = [], ys: number[] = []; let y = 6;
         starts.forEach((a, s) => { let t = 0, u = 0; for (let m = a; m < zs[s]; m++) {
@@ -406,7 +472,12 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
             const nat = sysW(s, a, zs[s]), last = s === starts.length - 1;
             // A page (`justify`) spreads further, and its last system too when it holds as many bars as the first.
             const full = lay.justify ? zs[s] - a >= zs[0] - starts[0] : nat >= 0.6 * T;
-            stretch[s] = starts.length > 1 && nat < T && sum > 0 && (!last || full) ? Math.min(lay.justify ? 3 : 1.8, 1 + (T - nat) / sum) : 1;
+            if (starts.length > 1 && nat < T && sum > 0 && (!last || full))
+                stretch[s] = Math.min(lay.justify ? 3 : 1.8, 1 + (T - nat) / sum);
+            else if (proportional && starts.length > 1 && last && !full && s > 0 && sum > 0)
+                stretch[s] = Math.min(stretch[s - 1], 1 + Math.max(0, T - nat) / sum);
+            else
+                stretch[s] = 1;
         });
         const v = vert(starts);
         sysY = v.ys;
@@ -419,10 +490,12 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
             H += pad;
         }
     }
+    const sysEnds = ends(starts);
     const sysOfBar = (m: number) => { let s = 0; while (s + 1 < starts.length && starts[s + 1] <= m)
         s++; return s; };
     const notes: SrStaffNote[] = [], beatX: SrBeatX[] = [], systems: SrSystem[] = [], sysEnd: number[] = [];
     let body = '', head = '', nid = 0, x = 10, sy = 0;
+    let sysB0 = 0, sysOrigin = 20, sysPx = beatPx0;
     const barline = (bx: number, w: number) => `<line class="ss-line" x1="${bx}" y1="${staves[0].top}" x2="${bx}" y2="${lastSt.top + 48}" stroke="#1a1714" stroke-width="${w}"/>`;
     const openSystem = (s: number) => {
         sy = s;
@@ -439,6 +512,11 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
         else
             x += 8;
         sysX0[s] = x;
+        if (proportional) {
+            sysB0 = barStart(starts[s]);
+            sysOrigin = x + startPadOf(starts[s]);
+            sysPx = beatPx0 * stretch[s];
+        }
         systems.push({ yTop: staves[0].top - 8, yBot: lastSt.top + 56 });
     };
     // Where each system's music starts (after its clefs and signatures), and where each hand's notes were drawn (for the markings).
@@ -541,23 +619,47 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
         if (s > sy) {
             // Every system in turn, even one whose bars start no note.
             while (sy < s) {
-                x += 6;
-                body += barline(x, 1.3);
-                barX1[barOf[bi] - 1] = x;
-                beatX.push({ b, x, sy });
-                sysEnd[sy] = x;
+                if (proportional) {
+                    const endBeat = barEnd(sysEnds[sy] - 1);
+                    const xClose = sysOrigin + (endBeat - sysB0) * sysPx;
+                    body += barline(xClose, 1.3);
+                    barX1[sysEnds[sy] - 1] = xClose;
+                    beatX.push({ b: endBeat, x: xClose, sy });
+                    sysEnd[sy] = xClose;
+                }
+                else {
+                    x += 6;
+                    body += barline(x, 1.3);
+                    barX1[barOf[bi] - 1] = x;
+                    beatX.push({ b, x, sy });
+                    sysEnd[sy] = x;
+                }
                 openSystem(sy + 1);
             }
             barLeft = x;
         }
         else if (bounds.some((v) => Math.abs(v - b) < 1e-3)) {
-            x += 6;
-            body += barline(x, 1.3);
-            barX1[barOf[bi] - 1] = barLeft = x;
-            x += 12;
+            if (proportional) {
+                const nxNext = sysOrigin + (b - sysB0) * sysPx;
+                const leftEdge = bi > 0 && sysOfBar(barOf[bi - 1]) === sy
+                    ? sysOrigin + (beats[bi - 1] - sysB0) * sysPx + beatRightExt[bi - 1] + 4
+                    : sysX0[sy] + 4;
+                const rightEdge = nxNext - beatLeftExt[bi] - 4;
+                const bx = Math.max(leftEdge, Math.min(rightEdge, nxNext - beatLeftExt[bi] - 6));
+                body += barline(bx, 1.3);
+                barX1[barOf[bi] - 1] = barLeft = bx;
+            }
+            else {
+                x += 6;
+                body += barline(x, 1.3);
+                barX1[barOf[bi] - 1] = barLeft = x;
+                x += 12;
+            }
         }
         barX0[barOf[bi]] = barLeft;
-        const nx = x + 10;
+        if (proportional && (bi === 0 || sysOfBar(barOf[bi - 1]) < sy) && b > sysB0 + 1e-3)
+            beatX.push({ b: sysB0, x: sysOrigin, sy });
+        const nx = proportional ? sysOrigin + (b - sysB0) * sysPx : x + 10;
         staves.forEach((st) => {
             const here = st.data.ev.filter((e) => Math.abs(e.beat - b) < 1e-3), chord = here.filter((e): e is SrNoteEvent => !e.rest && !!e.chord);
             if (lv) {
@@ -632,7 +734,8 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
             });
         });
         beatX.push({ b, x: nx, sy });
-        x += adv[bi] * stretch[sy];
+        if (!proportional)
+            x += adv[bi] * stretch[sy];
     });
     body = body.replace(/@@T(\d+)@@/g, (_, id: string) => tiedMarkup.get(Number(id)) ?? '');
     staves.forEach((st) => st.data.ev.forEach((a) => {
@@ -659,12 +762,31 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
         const s1 = up ? a.bx + 5.6 : a.bx - 5.6, s2 = up ? b.bx + 5.6 : b.bx - 5.6, th = up ? 5 : -5, stem = (sx: number, y: number, ey: number) => `<line class="ss-stem" x1="${sx}" y1="${y}" x2="${sx}" y2="${ey}" stroke="#1a1714" stroke-width="1.6"/>`;
         body = body.replace(`@@B${a.nid}@@`, stem(s1, a.by, e1)).replace(`@@B${b.nid}@@`, stem(s2, b.by, e2) + `<path class="ss-beam" d="M ${s1},${e1} L ${s2},${e2} L ${s2},${e2 + th} L ${s1},${e1 + th} Z"/>`);
     }));
-    x += 8;
-    body += barline(x - 5, 1.2) + barline(x, 3);
-    x += 6;
-    beatX.push({ b: total, x, sy });
-    sysEnd[sy] = x;
-    barX1[nBars - 1] = x - 11;
+    if (proportional) {
+        while (sy < starts.length - 1) {
+            const endBeat = barEnd(sysEnds[sy] - 1);
+            const xClose = sysOrigin + (endBeat - sysB0) * sysPx;
+            body += barline(xClose, 1.3);
+            barX1[sysEnds[sy] - 1] = xClose;
+            beatX.push({ b: endBeat, x: xClose, sy });
+            sysEnd[sy] = xClose;
+            openSystem(sy + 1);
+        }
+        const xEnd = sysOrigin + (total - sysB0) * sysPx;
+        body += barline(xEnd - 5, 1.2) + barline(xEnd, 3);
+        beatX.push({ b: total, x: xEnd, sy });
+        sysEnd[sy] = xEnd;
+        barX1[nBars - 1] = xEnd - 5;
+        x = xEnd + 6;
+    }
+    else {
+        x += 8;
+        body += barline(x - 5, 1.2) + barline(x, 3);
+        x += 6;
+        beatX.push({ b: total, x, sy });
+        sysEnd[sy] = x;
+        barX1[nBars - 1] = x - 11;
+    }
     if (lv) {
         body = srLevelBeams(body, lv.groups);
         body = body.replace(/@@W(\d+)@@/g, (_, i: string) => {
@@ -679,7 +801,7 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
         H = Math.max(lastSt.top + 48 + (names ? 38 : 22), 150);
     let staff = '';
     systems.forEach((_, s) => {
-        const top = sysY[s], bot = sysY[s] + lastSt.rel + 48, end = lay ? sysEnd[s] : piece.compact ? x - 6 : W - 6;
+        const top = sysY[s], bot = sysY[s] + lastSt.rel + 48, end = (lay || proportional) ? sysEnd[s] : piece.compact ? x - 6 : W - 6;
         staves.forEach((st) => { for (let k = 0; k < 5; k++) {
             const ly = top + st.rel + k * 12;
             staff += `<line class="ss-line" x1="8" y1="${ly}" x2="${end}" y2="${ly}" stroke="#1a1714" stroke-width="1.2"/>`;
