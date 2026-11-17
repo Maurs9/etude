@@ -25,6 +25,6 @@
   /* Thumb-sized controls */
   #view-sing .btn,#view-sing select,#view-sing .switch-inline,#view-sing input[type=range]{min-height:44px}
   #view-sing .seg{display:flex; width:100%}
-  #view-sing .seg button{flex:1 1 0; min-height:44px}
+  #view-sing .seg button{flex:1 1 0; min-width:0; min-height:44px; padding:8px 6px; text-align:center; line-height:1.25; white-space:normal}
   .tr-empty ol{flex-direction:column}
 }

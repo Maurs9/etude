@@ -84,7 +84,7 @@
   .pr-songs .songs{grid-template-columns:repeat(4,minmax(0,1fr))}
   .pr-songs-lede{max-width:80ch}
 }
-@media (min-width:1400px){ .pr-songs .songs{grid-template-columns:repeat(6,minmax(0,1fr))} }
+@media (min-width:1660px){ .pr-songs .songs{grid-template-columns:repeat(6,minmax(0,1fr))} }
 /* Very wide: the six topic cards in one row instead of two half-empty ones. */
 @media (min-width:1600px){ .pr-topics{grid-template-columns:repeat(6,minmax(0,1fr))} }
 
@@ -101,9 +101,9 @@
   .pr-along .field select{flex:1 1 auto}
   .pr-tempo{min-width:0}
   #ac-hands{display:flex; width:100%}
-  #ac-hands button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center}
+  #ac-hands button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center; line-height:1.25; white-space:normal}
   #pr-dir{display:flex; width:100%}
-  #pr-dir button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center}
+  #pr-dir button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center; line-height:1.25; white-space:normal}
   .pr-songs{padding:12px 14px}
   .pr-songs .songs{grid-template-columns:minmax(0,1fr)}
 }

@@ -87,6 +87,38 @@ test.describe('Song hints in the Practice setup', () => {
     await expect(page.locator('#modeNav button')).toHaveText(['Learn', 'Method']);
     await expect(page.locator('#view-songs')).toHaveCount(0);
   });
+
+  test('every Song hint Listen button stays single-line with uniform height and gap from interval tag', async ({ app }) => {
+    const page = await app.open({ lang: 'ro', hash: 'practice' });
+    await page.locator('#pr-songs summary').click();
+    await expect(page.locator('#songsList .songcard')).toHaveCount(12);
+    for (const [lang, width, height] of [['ro', 1440, 900], ['ro', 1024, 768], ['de', 1440, 900], ['es', 1200, 800]]) {
+      await page.setViewportSize({ width, height });
+      await page.evaluate(l => window.__etude.setLang(l), lang);
+      await expect.poll(() => page.evaluate(() => {
+        const cards = [...document.querySelectorAll('#songsList .songcard')];
+        if (cards.length !== 12) return { ok: false, reason: 'count' };
+        const heights = new Set();
+        const bad = [];
+        for (const c of cards) {
+          const b = c.querySelector('.hd b');
+          const sh = c.querySelector('.hd .sh');
+          const play = c.querySelector('.hd .play');
+          const br = b.getBoundingClientRect();
+          const sr = sh.getBoundingClientRect();
+          const pr = play.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(play);
+          const lines = [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0).length;
+          heights.add(Math.round(pr.height));
+          if (lines !== 1) bad.push({ semi: c.dataset.semi, lines });
+          if (pr.left < sr.right + 4) bad.push({ semi: c.dataset.semi, gapShPlay: pr.left - sr.right });
+          if (sr.left < br.right + 4) bad.push({ semi: c.dataset.semi, gapBSh: sr.left - br.right });
+        }
+        return { ok: bad.length === 0 && heights.size === 1, heights: [...heights], bad };
+      })).toEqual(expect.objectContaining({ ok: true, bad: [] }));
+    }
+  });
 });
 
 test.describe('Intervals by ear: Direction', () => {
