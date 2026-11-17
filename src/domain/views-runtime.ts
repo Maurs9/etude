@@ -43,6 +43,7 @@ import '../styles/voice.css';
 import '../styles/explore.css';
 import '../styles/pieces.css';
 import '../styles/score-fullscreen.css';
+import { performanceTimeline, performanceAt, performanceOf, performanceMarkers, type PerformanceTimeline } from './performance-timeline.js';
 import { endingPasses, repeatRanges, type RepeatBar } from './score-repeats.js';
 import '../styles/layout.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
@@ -12178,7 +12179,9 @@ function anLibraryCapture(): LibraryResume | null {
     if (!active || active.source !== AN.source || anLibrarySuspended || AN.loading || !AN.notes.length)
         return null;
     const position = Math.max(0, Math.min(fallEnd(), fallTime()));
+    const performance = SCORE.loop || SCORE.sel ? performanceOf(performancePlan(), position) : performanceRead().position;
     const resume: LibraryResume = {
+        performance, elapsed: SCORE.loop || SCORE.sel ? performance / pracFactor() : performanceRead().elapsed,
         position, measure: String(anMeasureAt(scoreBeatAt(position)).number),
         speed: +(selectById('score-speed').value || 100),
         hands: PRAC.hands === 'rh' ? 'rh' : PRAC.hands === 'lh' ? 'lh' : 'both',
@@ -12257,6 +12260,14 @@ function anLibraryRestoreResume(resume: LibraryResume) {
     scoreSetLook(resume.look);
     scoreZoom(resume.zoom);
     FALL.position = Math.max(0, Math.min(fallEnd(), resume.position));
+    performanceSeekScore(FALL.position, true);
+    if (resume.performance !== undefined) {
+        const p = performanceAt(performancePlan(), resume.performance);
+        if (Math.abs(p.score - FALL.position) < .01) {
+            PERFORMANCE.position = p.position;
+            PERFORMANCE.elapsed = resume.elapsed ?? p.position / pracFactor();
+        }
+    }
     scoreIdle();
 }
 async function anLibraryOpen(item: LibraryItem, file: File): Promise<boolean> {
@@ -13822,6 +13833,7 @@ function anKeepVisible(g: Element, smooth: boolean) {
 function scoreStateText() { byId('score-state').textContent = SCORE.run && SCORE.run.waitShown ? t('sc_state_wait') : SCORE.loop ? (SCORE.loop.ab ? t('sc_state_ab') : t('sc_state_loop', SCORE.loop.bars)) : SCORE.playing ? t(SCORE.sel ? 'sc_state_sel' : 'sc_state_play') : SCORE.paused ? t('sc_state_paused') : ''; }
 // Halt sound, timers and animation; the playback position (FALL.position) is left where it is.
 function scoreHalt() {
+    if (SCORE.playing && SCORE.run && !SCORE.loop && !SCORE.sel) performanceRemember();
     SCORE.playing = false;
     anLibrarySyncPlayTimer();
     SCORE.sel = false;
@@ -13853,7 +13865,7 @@ function anSelStart() {
         return scoreSeconds(m.b0);
     return AN.selected.size ? Math.min(...[...AN.selected].map((i) => scoreSeconds(AN.notes[i].start))) : 0;
 }
-function scoreStop() { scoreHalt(); SCORE.resume = null; FALL.position = AN.notes.length ? anSelStart() : 0; scoreIdle(); }
+function scoreStop() { scoreHalt(); SCORE.resume = null; FALL.position = AN.notes.length ? anSelStart() : 0; performanceSeekScore(FALL.position, true); scoreIdle(); }
 function scorePause() { if (!SCORE.playing)
     return; const at = fallTime(), sel = SCORE.sel && !SCORE.loop, run = pracCarry(at); scoreHalt(); SCORE.paused = true; SCORE.resume = { sel, run }; FALL.position = at; scoreIdle(); }
 // Space / ▶: pause while playing, otherwise resume from the cursor (a paused selection resumes as a selection).
@@ -13872,12 +13884,14 @@ function scoreHome() {
     if (!AN.notes.length)
         return;
     if (SCORE.playing && !SCORE.loop) {
+        scoreHalt(); performanceSeek(0);
         scorePlay(false, 0);
         return;
     }
     scoreHalt();
     SCORE.resume = null;
     FALL.position = 0;
+    performanceSeek(0);
     scoreIdle();
     if (FALL.mode === 'score')
         byId('an-roll').scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -13891,7 +13905,7 @@ interface PracticeStats { perfect: number; good: number; miss: number; wrong: nu
 // A note on the playback clock: its index i in AN.notes and its start, written end and sounding end in score seconds.
 interface PracticeTimedNote { n: AnNote; i: number; start: number; finish: number; sound?: number }
 // One stretch of the audio clock: score time t = t0 + (now − a0)·f, until t1.
-interface PracticeSegment { a0: number; t0: number; t1: number; f: number; first: boolean }
+interface PracticeSegment { a0: number; t0: number; t1: number; f: number; first: boolean; p0?: number; elapsed0?: number }
 // "Wait for me": the clock stops at t until every key in need has been played.
 interface PracticeBarrier { t: number; need: Set<number>; got: Set<number>; group: PracticeTimedNote[]; seg: PracticeSegment; since: number }
 interface PracticeBeat { t: number; acc: boolean }
@@ -13907,6 +13921,7 @@ interface PracticeRun extends PracticeStartOptions {
 }
 // A whole-piece run held over a pause: what Play needs to carry on with the same run (pracStart), if nothing else changed.
 interface PracticeCarry {
+    pass?: number;
     completed?: Set<number>;
     route?: { a: number; b: number }[];
     notes: AnNote[]; src: AnSource | null; at: number; origin: number; hands: string; wait: boolean; f: number;
@@ -14005,6 +14020,51 @@ function scoreRepeatRoute(from: number) {
     const first = route.findIndex(r => from >= r.a - 1e-6 && from < r.b - 1e-6);
     return first < 0 ? undefined : route.slice(first).map((r, i) => ({ a: i ? r.a : from, b: r.b }));
 }
+const PERFORMANCE: { notes?: readonly AnNote[]; tempos?: typeof SCORE.tempoList; xml?: string; timeline: PerformanceTimeline; position: number; score: number; elapsed: number } = {
+    timeline: performanceTimeline([]), position: 0, score: 0, elapsed: 0,
+};
+function performancePlan() {
+    if (PERFORMANCE.notes !== AN.notes || PERFORMANCE.tempos !== SCORE.tempoList || PERFORMANCE.xml !== SCORE.xml) {
+        PERFORMANCE.notes = AN.notes; PERFORMANCE.tempos = SCORE.tempoList; PERFORMANCE.xml = SCORE.xml;
+        PERFORMANCE.timeline = performanceTimeline(scoreRepeatRoute(0) ?? [{ a: 0, b: fallEnd() }]);
+        PERFORMANCE.position = performanceOf(PERFORMANCE.timeline, FALL.position);
+        PERFORMANCE.score = FALL.position; PERFORMANCE.elapsed = PERFORMANCE.position / pracFactor();
+    }
+    return PERFORMANCE.timeline;
+}
+function performanceRead() {
+    const plan = performancePlan(), R = SCORE.run;
+    if (SCORE.playing && R && !R.sel && !R.loop) {
+        const s = pracSegAt(R, actx?.currentTime ?? 0), delta = Math.max(0, fallTime() - s.t0);
+        return { position: Math.min(plan.duration, (s.p0 ?? 0) + delta), elapsed: (s.elapsed0 ?? 0) + delta / s.f };
+    }
+    if (Math.abs(PERFORMANCE.score - FALL.position) > .001) performanceSeekScore(FALL.position);
+    return { position: PERFORMANCE.position, elapsed: PERFORMANCE.elapsed };
+}
+function performanceRemember() {
+    const p = performanceRead(); PERFORMANCE.position = p.position; PERFORMANCE.elapsed = p.elapsed; PERFORMANCE.score = fallTime();
+}
+function performanceSeekScore(score: number, first = false) {
+    const plan = performancePlan();
+    const near = first ? 0 : SCORE.playing && SCORE.run?.segs[0].p0 !== undefined ? performanceRead().position : PERFORMANCE.position;
+    PERFORMANCE.position = performanceOf(plan, score, near); PERFORMANCE.score = score;
+    PERFORMANCE.elapsed = PERFORMANCE.position / pracFactor();
+}
+function performanceSeek(position: number) {
+    const p = performanceAt(performancePlan(), position);
+    PERFORMANCE.position = p.position; PERFORMANCE.score = p.score; PERFORMANCE.elapsed = p.position / pracFactor();
+    FALL.position = p.score;
+}
+function performanceDisplay() {
+    const R = SCORE.run, f = pracFactor();
+    if (R?.loop || R?.sel) {
+        const rate = SCORE.playing && actx ? pracSegAt(R, actx.currentTime).f : f;
+        const position = Math.max(0, Math.min(R.b - R.a, fallTime() - R.a));
+        return { position, end: R.b - R.a, elapsed: position / rate, total: (R.b - R.a) / rate };
+    }
+    const p = performanceRead(), end = performancePlan().duration;
+    return { ...p, end, total: p.elapsed + Math.max(0, end - p.position) / f };
+}
 async function pracStart(o: PracticeStartOptions)  {
     scoreHalt();
     SCORE.resume = null;
@@ -14031,12 +14091,16 @@ async function pracStart(o: PracticeStartOptions)  {
     const mine = (resumed ? fallData().slice().sort((x, y) => x.start - y.start || x.n.midi - y.n.midi) : o.notes).filter((d) => pracMine(d.n));
     const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
     if (!o.loop && !o.sel) {
-        const route = resumed && c?.route ? c.route.map(r => ({ ...r })) : scoreRepeatRoute(o.from);
+        const plan = performancePlan(), p = performanceRead(), at = performanceAt(plan, p.position);
+        const route = resumed && c?.route ? c.route.map(r => ({ ...r })) : plan.ranges.slice(at.index).map((r, i) => ({ a: i ? r.a : o.from, b: r.b }));
         if (route?.length) { R.segs[0].t1 = route[0].b; R.b = route[route.length - 1].b; R.route = route.slice(1); }
+        R.segs[0].p0 = p.position; R.segs[0].elapsed0 = p.elapsed;
+        R.pass = 1 + plan.ranges.slice(1, at.index + 1).filter((r, i) => r.a < plan.ranges[i].b - 1e-6).length;
     }
     if (R.mi < 0 || !mine.some((d) => d.start >= o.from - 1e-6))
         R.mi = mine.length;
     if (resumed && c) {
+        R.pass = c.pass ?? R.pass;
         R.completed = c.completed ? new Set(c.completed) : undefined;
         R.origin = c.origin;
         R.judged = new Map(c.judged);
@@ -14075,7 +14139,7 @@ function pracCarry(at: number): PracticeCarry | null {
     if (!R || R.loop || R.sel || !st)
         return null;
     const index = Math.max(0, R.segs.indexOf(pracSegAt(R, actx?.currentTime ?? 0)));
-    return { notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: PRAC.wait, f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined };
+    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: PRAC.wait, f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined };
 }
 function pracTick() {
     const R = SCORE.run;
@@ -14124,7 +14188,8 @@ function pracTick() {
         if (R.route?.length && !B && horizon >= s.t1) {
             const range = R.route.shift();
             if (range) {
-                R.segs.push({ a0: at(s.t1), t0: range.a, t1: range.b, f: s.f, first: false });
+                R.segs.push({ a0: at(s.t1), t0: range.a, t1: range.b, f: s.f, first: false,
+                    p0: (s.p0 ?? 0) + s.t1 - s.t0, elapsed0: (s.elapsed0 ?? 0) + (s.t1 - s.t0) / s.f });
                 R.ni = 0; R.bi = Math.max(0, R.beats.findIndex(b => b.t >= range.a - 1e-6)); R.wt = range.a;
                 continue;
             }
@@ -14147,8 +14212,8 @@ function pracTick() {
             R.completed ??= new Set();
             R.judged.forEach((_, i) => R.completed?.add(i));
         }
-        R.segs.shift();
-        pracPassEnd(R);
+        const previous = R.segs.shift();
+        pracPassEnd(R, !!R.loop || R.segs[0].t0 < (previous?.t1 ?? 0) - 1e-6);
         if (PRAC.wait) R.wt = R.segs[0].t0;
         if (R.route) { const i = R.mine.findIndex(d => d.start >= R.segs[0].t0 - 1e-6); R.mi = i < 0 ? R.mine.length : i; }
     }
@@ -14180,11 +14245,11 @@ function pracRamp(R: PracticeRun, s: PracticeSegment) {
         pt.value = String(next);
     return next / 100;
 }
-function pracPassEnd(R: PracticeRun) {
+function pracPassEnd(R: PracticeRun, repeat = true) {
     const st = PRAC.stats, L: ScoreLoopState | null = SCORE.loop;
     if (!st)
         return;
-    R.pass++;
+    if (repeat) R.pass++;
     st.lastPass = st.passAll ? st.passHit / st.passAll : null;
     st.passHit = 0;
     st.passAll = 0;
@@ -14214,6 +14279,8 @@ function pracNextBar(R: PracticeRun, s: PracticeSegment) {
 function pracRelease(R: PracticeRun, B: PracticeBarrier, now: number) {
     const s = B.seg, t = s.t0 + Math.max(0, now - s.a0) * s.f;
     if (t > B.t) {
+        if (s.p0 !== undefined) s.p0 += B.t - s.t0;
+        if (s.elapsed0 !== undefined) s.elapsed0 += (B.t - s.t0) / s.f;
         s.t0 = B.t;
         s.a0 = now + .01;
         FALL.audioStart = s.a0;
@@ -14308,7 +14375,7 @@ function pracHud() {
     const hud = byId('pr-hud'), st = PRAC.stats;
     if (!hud)
         return;
-    const show = !!st && PRAC.active && AN.notes.length > 0 && (SCORE.playing || !!SCORE.run);
+    const show = !!st && (PRAC.active || !!SCORE.loop) && AN.notes.length > 0 && (SCORE.playing || !!SCORE.run);
     hud.hidden = !show;
     if (!show)
         return;
@@ -14322,6 +14389,7 @@ function pracHud() {
     j.textContent = fresh ? t('pr_' + (PRAC.judge === 'miss' ? 'miss' : PRAC.judge)) : '';
 }
 function pracFinish(R: PracticeRun) {
+    if (!R.sel && !R.loop) performanceRemember();
     const sel = R.sel, a = R.a, end = R.b;
     clearInterval(R.timer);
     SCORE.run = null;
@@ -14740,7 +14808,8 @@ function anStatusPos(time?: number | null) {
         el.textContent = v; };
     set('st-bar', t('st_bar', m.number));
     set('st-beat', t('st_beat', bt));
-    set('st-time', anClock(t0) + ' / ' + anClock(fallEnd()));
+    const clock = performanceDisplay();
+    set('st-time', anClock(clock.elapsed) + ' / ' + anClock(clock.total));
     set('st-tempo', '♩ = ' + Math.round(anTempoAt(beat)));
     set('st-key', anKeyName(anKeyAt(beat)));
     set('st-meter', m.num + '/' + m.den);
@@ -16165,7 +16234,7 @@ interface FallParticle { x: number; y: number; vx: number; vy: number; r: number
 interface FallState { mode: 'score' | 'fall'; raf: number; position: number; origin: number; audioStart: number; factor: number; notes: FallTimedNote[]; hits: FallHit[]; zoom: number;
     geo: FallGeo | null; particles: FallParticle[]; flashes: FallFlash[]; lastT: number | null; lastFrame: number; resume: { sel: boolean; } | null;
     fingerSrc?: readonly AnNote[]; hasFinger?: boolean; source?: readonly AnNote[]; tempoSource?: readonly { beat: number; bpm: number; }[]; end: number;
-    laneSrc?: readonly AnNote[]; lanes: Set<number>; tickSrc?: FallTimedNote[]; tickTempo?: readonly { beat: number; bpm: number; }[]; tickEnd?: number;
+    laneSrc?: readonly AnNote[]; lanes: Set<number>; tickSrc?: FallTimedNote[]; tickTempo?: readonly { beat: number; bpm: number; }[]; tickEnd?: number; tickExpanded?: boolean;
     beatSrc?: FallTimedNote[]; beatTempo?: readonly { beat: number; bpm: number; }[]; beats?: { t: number; acc: boolean; }[]; press?: Map<number, number>;
     maxDur?: number; sorted?: boolean;
     gradCache?: { ctx: CanvasRenderingContext2D; hitY: number; bg: CanvasGradient; hg: CanvasGradient; felt: CanvasGradient; feltShadow: CanvasGradient } | null;
@@ -16211,7 +16280,8 @@ function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE
         if (finish - start > maxDur) maxDur = finish - start;
         return { n, i, start, finish, sound };
     });
-    FALL.end = maxEnd;
+    // A score ends at the final barline, including written rests after its last pitched note.
+    FALL.end = AN.source?.kind === 'xml' ? Math.max(maxEnd, ...SCORE.measures.map(m => scoreSeconds(m.end))) : maxEnd;
     FALL.maxDur = maxDur;
     FALL.sorted = sorted;
 } return FALL.notes; }
@@ -16856,7 +16926,10 @@ function anTlUpdate(time?: number | null) {
     const tl = byId('an-tl');
     if (!tl || tl.hidden || !AN.notes.length)
         return;
-    const end = fallEnd(), pos = Math.max(0, Math.min(end, time != null ? time : fallTime())), seek = inputById('fall-seek'), pct = (x: number) => (end > 0 ? Math.max(0, Math.min(1, x / end)) * 100 : 0).toFixed(3) + '%';
+    const written = time != null ? time : fallTime(), display = performanceDisplay(), expanded = !SCORE.loop && !SCORE.sel;
+    const plan = performancePlan(), end = expanded ? plan.duration : fallEnd(), pos = expanded ? display.position : written;
+    const seek = inputById('fall-seek'), pct = (x: number) => (end > 0 ? Math.max(0, Math.min(1, x / end)) * 100 : 0).toFixed(3) + '%';
+    const coordinate = (x: number, near = pos) => expanded ? performanceOf(plan, x, near, true) : x;
     const mx = String(Math.max(.1, end));
     if (seek.max !== mx)
         seek.max = mx;
@@ -16869,23 +16942,27 @@ function anTlUpdate(time?: number | null) {
         seek.style.setProperty('--p', pStr);
         cache.p = pStr;
     }
-    const valText = t('fall_valtext', anClock(pos), anClock(end));
+    const valText = t('fall_valtext', anClock(display.elapsed), anClock(display.total));
     if (cache.valText !== valText) {
         seek.setAttribute('aria-valuetext', valText);
         cache.valText = valText;
     }
     const set = (id: string, v: string) => { const el = byId(id); if (el.textContent !== v)
         el.textContent = v; };
-    set('fall-clock', anClock(pos));
-    set('fall-total', anClock(end));
-    const ms = anMeasures(), m = anMeasureAt(scoreBeatAt(pos));
+    set('fall-clock', anClock(display.elapsed));
+    set('fall-total', anClock(display.total));
+    const ms = anMeasures(), m = anMeasureAt(scoreBeatAt(written));
     set('tl-bar', m && ms.length ? t('tl_bar', m.number, ms[ms.length - 1].number) : '');
-    if (FALL.tickSrc !== fallData() || FALL.tickTempo !== SCORE.tempoList || FALL.tickEnd !== end) {
+    if (FALL.tickSrc !== fallData() || FALL.tickTempo !== SCORE.tempoList || FALL.tickEnd !== end || FALL.tickExpanded !== expanded) {
+        FALL.tickExpanded = expanded;
         FALL.tickSrc = fallData();
         FALL.tickTempo = SCORE.tempoList;
         FALL.tickEnd = end;
         const step = ms.length > 240 ? 8 : ms.length > 120 ? 4 : ms.length > 60 ? 2 : 1, major = ms.length > 60 ? Math.max(8, step * 4) : 4;
-        byId('tl-ticks').innerHTML = ms.map((x, i) => i % step ? '' : `<i${i % major === 0 ? ' class="is-major"' : ''} style="left:${pct(scoreSeconds(x.start))}"></i>`).join('');
+        const markers = performanceMarkers(expanded ? plan : performanceTimeline([{ a: 0, b: end }]),
+            ms.flatMap((x, i) => i % step ? [] : [{ time: scoreSeconds(x.start), major: i % major === 0 }]));
+        const stride = Math.max(1, Math.ceil(markers.length / 240));
+        byId('tl-ticks').innerHTML = markers.filter((_, i) => i % stride === 0).map(mark => `<i${mark.major ? ' class="is-major"' : ''} style="left:${pct(mark.position)}"></i>`).join('');
     }
     const L = SCORE.loop, lp = byId('tl-loop'), A = PRAC.A, B = PRAC.B, la = L ? L.a : A != null && B != null ? A : null, lb = L ? L.b : A != null && B != null ? B : null;
     const loopHidden = la == null;
@@ -16894,7 +16971,8 @@ function anTlUpdate(time?: number | null) {
         cache.loopHidden = loopHidden;
     }
     if (la != null && lb != null) {
-        const loopLeft = pct(la), loopWidth = (end > 0 ? (lb - la) / end * 100 : 0).toFixed(3) + '%';
+        const start = coordinate(la), finish = coordinate(lb, start + lb - la);
+        const loopLeft = pct(start), loopWidth = (end > 0 ? Math.max(0, finish - start) / end * 100 : 0).toFixed(3) + '%';
         if (cache.loopLeft !== loopLeft) {
             lp.style.left = loopLeft;
             cache.loopLeft = loopLeft;
@@ -16910,7 +16988,7 @@ function anTlUpdate(time?: number | null) {
         cache.aHidden = aHidden;
     }
     if (A != null) {
-        const aLeft = pct(A);
+        const aLeft = pct(coordinate(A));
         if (cache.aLeft !== aLeft) {
             aEl.style.left = aLeft;
             cache.aLeft = aLeft;
@@ -16922,7 +17000,7 @@ function anTlUpdate(time?: number | null) {
         cache.bHidden = bHidden;
     }
     if (B != null) {
-        const bLeft = pct(B);
+        const bLeft = pct(coordinate(B, A != null ? coordinate(A) + B - A : pos));
         if (cache.bLeft !== bLeft) {
             bEl.style.left = bLeft;
             cache.bLeft = bLeft;
@@ -16930,10 +17008,10 @@ function anTlUpdate(time?: number | null) {
     }
 }
 // Seeking pauses while the slider moves and resumes on release if it was playing.
-function fallSeek() { const pos = +inputById('fall-seek').value; if (SCORE.playing) {
+function fallSeek() { const pos = +inputById('fall-seek').value, expanded = !SCORE.loop && !SCORE.sel; if (SCORE.playing) {
     FALL.resume = SCORE.loop ? null : { sel: SCORE.sel };
     scoreHalt();
-} SCORE.resume = null; FALL.position = pos; scoreIdle(); }
+} SCORE.resume = null; if (expanded) performanceSeek(pos); else { FALL.position = pos; performanceSeekScore(pos); } scoreIdle(); }
 function fallSeekEnd() { const r = FALL.resume; FALL.resume = null; if (r)
     scorePlay(r.sel, FALL.position); }
 function fallHit(e: MouseEvent) { if (!(e.currentTarget instanceof Element))
@@ -17291,8 +17369,8 @@ function anInitControls() {
     byId('score-play').addEventListener('click', scoreToggle);
     byId('score-stop').addEventListener('click', scoreStop);
     byId('sc-start').addEventListener('click', scoreHome);
-    const speed = () => { pracHud(); anUpdateControls(); if (!SCORE.playing)
-        return; if (SCORE.loop)
+    const speed = () => { pracHud(); anUpdateControls(); if (!SCORE.playing) {
+        anStatusPos(); return; } if (SCORE.loop)
         scoreLoopStart();
     else
         scorePlay(SCORE.sel, fallTime()); };

@@ -40,6 +40,8 @@ Before you start, open **Settings → Your data → Diagnostics** and tap **Copy
 
 ## Record the result
 
+Performance timeline follow-up (physical device pending): play a MusicXML score through repeats and alternate endings. Confirm that the elapsed clock and progress move forward while the engraved cursor returns to the repeated bar; change speed during playback, pause/resume, seek into the second pass, then close and reopen from My Library. Verify the same occurrence is restored, including offline and after a library backup transfer. In Wait for me, progress freezes while awaiting keys; loop clocks show the loop duration and the pass counter advances only on a repeat. Check final rests and MIDI/audio synchronization on the real piano.
+
 Wait-for-me repeat follow-up (physical MIDI pending): with both hands selected, verify that an incomplete chord keeps the cursor stopped, a wrong note does not release it, and a full chord resumes playback. Repeat the passage through a printed repeat and a selection loop: every pass must ask for the notes again. Check pause/resume and disabling Wait for me during playback with the real piano; browser tests use synthetic input.
 
 Repeat playback follow-up (physical piano pending): import a MusicXML score with a backward repeat, play through the jump with sound and MIDI, pause/resume on each pass, and check that the blue line returns with the audio. Check pedal releases at the jump, alternate endings, and both page and continuous views. Automated tests cover the scheduler and repeat order, not physical audio timing.
