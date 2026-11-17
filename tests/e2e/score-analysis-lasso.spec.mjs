@@ -116,7 +116,7 @@ test('parses MusicXML <harmony>, reads broken-chord C major without Cmaj7/E, and
   await expect(page.locator('#an-now-body .an-note-card')).toBeVisible();
 });
 
-test('lasso selection is default, supports closed-loop free-shape circling and pen input, and toggles cleanly to marquee box', async ({ app, page }) => {
+test('lasso shape is default, supports closed-loop free-shape circling and pen input, and toggles cleanly to marquee box', async ({ app, page }) => {
   await app.open({ hash: 'analysis', dock: false });
   await loadImagineScore(page);
 
@@ -125,6 +125,10 @@ test('lasso selection is default, supports closed-loop free-shape circling and p
     if (await btn.isVisible()) await btn.click();
     else await page.locator('#an-fab').click();
   }
+
+  // Desktop (fine pointer) defaults to Select while Navigate stays available
+  await expect(page.locator('#an-tool-select')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#an-tool-hand')).toHaveAttribute('aria-pressed', 'false');
 
   // Lasso mode button defaults to aria-pressed="true"
   const modeBtn = page.locator('#an-sel-mode');
@@ -180,11 +184,34 @@ test('lasso selection is default, supports closed-loop free-shape circling and p
   await expect(page.locator('#an-now-body .an-note-card')).toBeVisible();
   await expect(page.locator('#an-now-body .an-note-card')).toContainText('Minor 3rd');
 
-  // Stylus hover sets .is-pen on #an-roll
+  // Switch to Navigate mode, clear selection, and verify stylus pen still selects directly via lasso
+  await page.locator('#an-tool-hand').click();
+  await expect(page.locator('#an-tool-hand')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#an-clear').click();
+  await expect.poll(() => page.evaluate(() => window.__etude.AN.selected.size)).toBe(0);
+
   await page.locator('#an-roll').dispatchEvent('pointerenter', { pointerType: 'pen' });
   await expect(page.locator('#an-roll')).toHaveClass(/is-pen/);
+  await page.evaluate(({ x0, safeRight, yTop, yBot }) => {
+    const roll = document.getElementById('an-roll');
+    const fire = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, pointerId: 7, pointerType: 'pen', button: 0,
+      clientX: x, clientY: y,
+    }));
+    fire(roll, 'pointerdown', x0, yTop);
+    fire(window, 'pointermove', safeRight, yTop);
+    fire(window, 'pointermove', safeRight, yBot);
+    fire(window, 'pointermove', x0, yBot);
+    fire(window, 'pointermove', x0 + 1, yTop + 1);
+    fire(window, 'pointerup', x0 + 1, yTop + 1);
+  }, { x0, safeRight, yTop, yBot });
+  const penSelected = await page.evaluate(() => [...window.__etude.AN.selected]);
+  expect(penSelected).toContain(pts.e3.i);
+  expect(penSelected).toContain(pts.g3.i);
+  expect(penSelected).not.toContain(pts.c3Next.i);
 
-  // Toggle to rectangular marquee box mode
+  // Switch back to Select and toggle to rectangular marquee box mode
+  await page.locator('#an-tool-select').click();
   await modeBtn.click();
   await expect(modeBtn).toHaveAttribute('aria-pressed', 'false');
 
@@ -272,4 +299,98 @@ test('neighbor keyboard activation preserves focus and selection across a key ch
   await expect(cards.nth(1)).toContainText('I');
   await expect(cards.nth(1)).toContainText('Tonic');
   await expect(cards.nth(1)).not.toContainText('Dominant');
+});
+
+test.describe('touch score navigation', () => {
+  test.use({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
+
+  for (const lang of ['ro', 'de']) test(`tools stay side by side at 320px (${lang})`, async ({ app, page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await app.open({ hash: 'analysis', dock: false, lang });
+    await loadImagineScore(page);
+    const hand = page.locator('#an-tool-hand'), select = page.locator('#an-tool-select');
+    await expect(hand).toBeVisible();
+    await expect(select).toBeVisible();
+    const a = await hand.boundingBox(), b = await select.boundingBox();
+    expect(Math.abs(a.y - b.y)).toBeLessThan(1);
+    expect(a.height).toBeGreaterThanOrEqual(40);
+    expect(b.x + b.width).toBeLessThanOrEqual(320);
+    await expect(select).toHaveAttribute('aria-pressed', 'false');
+    await select.click();
+    await expect(select).toHaveAttribute('aria-pressed', 'true');
+    await expect(hand).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('one finger follows the tool; two fingers cancel lasso, pan and zoom; selection resumes on the next gesture', async ({ app, page }) => {
+    await app.open({ hash: 'analysis', dock: false });
+    await loadImagineScore(page);
+    await expect(page.locator('#an-tool-hand')).toBeVisible();
+    await expect(page.locator('#an-tool-hand')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#an-tool-select')).toBeVisible();
+    await page.addStyleTag({ content: '#an-roll{height:220px!important;flex:none!important}' });
+    await page.locator('#an-roll').scrollIntoViewIfNeeded();
+    const cdp = await page.context().newCDPSession(page);
+    const contact = (x, y, id = 1) => ({ x, y, id });
+    const send = (type, touchPoints) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
+    const rect = await page.locator('#an-roll').boundingBox();
+    const x = Math.round(rect.x + rect.width / 2), y = Math.round(rect.y + 110);
+    // The hand tool scrolls without selecting a bar or note.
+    await send('touchStart', [contact(x, y)]);
+    await send('touchMove', [contact(x, y - 50)]);
+    await send('touchEnd', []);
+    await expect.poll(() => page.locator('#an-roll').evaluate(el => el.scrollTop)).toBeGreaterThan(20);
+    expect(await page.evaluate(() => [...window.__etude.AN.selected])).toEqual([]);
+    await page.locator('#an-tool-select').click();
+    await page.locator('#an-roll').evaluate(el => { el.scrollTop = 0; });
+
+    const circle = async () => {
+      const note = await page.evaluate(() => {
+        const [i, list] = [...window.__etude.SCORE.heads.entries()].find(([, list]) => list.length);
+        const r = list[0].getBoundingClientRect();
+        return { i, x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      });
+      const left = Math.round(note.x - 10), right = Math.round(note.x + 10);
+      const top = Math.round(note.y - 10), bottom = Math.round(note.y + 10);
+      await send('touchStart', [contact(left, top)]);
+      await send('touchMove', [contact(right, top)]);
+      await send('touchMove', [contact(right, bottom)]);
+      await expect(page.locator('.an-lasso')).toBeVisible();
+      await send('touchMove', [contact(left, bottom)]);
+      await send('touchMove', [contact(left, top)]);
+      await send('touchEnd', []);
+      await expect.poll(() => page.evaluate(() => [...window.__etude.AN.selected])).toContain(note.i);
+      return page.evaluate(() => [...window.__etude.AN.selected]);
+    };
+    const selected = await circle();
+    const originalWidth = await page.locator("#an-roll .an-sheet").evaluate(el => el.getBoundingClientRect().width);
+    // A second finger cancels the unfinished lasso, preserving the previous selection.
+    await send('touchStart', [contact(x, y)]);
+    await send('touchMove', [contact(x + 15, y)]);
+    await expect(page.locator('.an-lasso')).toBeVisible();
+    await send('touchStart', [contact(x + 15, y), contact(x + 75, y, 2)]);
+    await expect(page.locator('.an-lasso')).toHaveCount(0);
+    await send('touchMove', [contact(x - 15, y - 30), contact(x + 105, y - 30, 2)]);
+    await expect.poll(() => page.evaluate(() => window.__etude.SCORE.zoom)).toBeGreaterThan(1);
+    await expect.poll(() => page.locator('#an-roll .an-sheet').evaluate(el => el.style.transform)).toContain('scale(');
+    await expect.poll(() => page.locator('#an-roll .an-sheet').evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThan(originalWidth * 1.5);
+    await send('touchEnd', [contact(x - 15, y - 30)]);
+    await send('touchMove', [contact(x - 15, y - 50)]);
+    await expect(page.locator('.an-lasso')).toHaveCount(0);
+    await send('touchEnd', []);
+    expect(await page.evaluate(() => [...window.__etude.AN.selected])).toEqual(selected);
+    await expect(page.locator('#an-tool-select')).toHaveAttribute('aria-pressed', 'true');
+    await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+    await expect.poll(() => page.locator('#an-roll .an-sheet').evaluate(el => el.style.transform)).toBe('');
+    await page.locator('#an-roll').evaluate(el => { el.scrollTop = 0; el.scrollLeft = 0; });
+    await circle();
+    const beforeCancel = await page.evaluate(() => [...window.__etude.AN.selected]);
+    await send('touchStart', [contact(x, y)]);
+    await send('touchMove', [contact(x + 15, y)]);
+    await expect(page.locator('.an-lasso')).toBeVisible();
+    await send('touchCancel', []);
+    await expect(page.locator('.an-lasso')).toHaveCount(0);
+    expect(await page.evaluate(() => [...window.__etude.AN.selected])).toEqual(beforeCancel);
+    await circle();
+    await cdp.detach();
+  });
 });

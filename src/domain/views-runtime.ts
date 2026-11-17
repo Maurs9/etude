@@ -6,6 +6,7 @@ import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, Lear
 import * as storage from './storage.js';
 import * as safety from './data-safety.js';
 import * as theory from './theory.js';
+import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
 import type { AudioTone } from './audio.js';
 import * as notationApi from './notation.js';
@@ -4285,6 +4286,7 @@ let show = function show(v: string|undefined, moveFocus = true): void | Promise<
     if (v === undefined || !isAppView(v))
         return;
     const prev = _view;
+    if (prev === 'analysis' && v !== prev) cancelScoreGesture?.();
     if (prev === 'read' && v !== 'read' && srtPendingSaveProtected()) {
         if (SR.srtState?.name === 'pendingSave') {
             if (location.hash.slice(1) !== prev) {
@@ -12246,13 +12248,16 @@ interface AnAnalysisModel {
     mainKey: theory.KeySignature; motifs: AnMotif[]; seconds: number;
 }
 interface AnState {
-    notes: AnNote[]; selected: Set<number>; selMode: 'lasso' | 'box'; active: { kind: string; k: number } | null; source: AnSource | null; recon: { hands: string; grid: number; key: string };
+    notes: AnNote[]; selected: Set<number>; selMode: 'lasso' | 'box'; tool: 'hand' | 'select'; active: { kind: string; k: number } | null; source: AnSource | null; recon: { hands: string; grid: number; key: string };
     hands: AnHandAssignment | null; keyMap: (theory.KeySignature & { beat: number })[]; keyOrigin: string; index: Map<AnNote, number>; version: number;
     cache: Map<string, AnAnalysisModel>; view: AnAnalysisModel | null; wsSig: string; rove: number; playSeg: number; playSig: string; kbCenter: boolean;
     kbApplied: Map<number, string>; error: { k: string; a: string | number | undefined } | null; loading: boolean; loadToken: number;
     liveT?: ReturnType<typeof setTimeout>; pinRaf?: number;
 }
-const AN: AnState = { notes: [], selected: new Set(), selMode: 'lasso', active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
+function defaultScoreTool(): 'hand' | 'select' {
+    return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches ? 'hand' : 'select';
+}
+const AN: AnState = { notes: [], selected: new Set(), selMode: 'lasso', tool: defaultScoreTool(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
 // Library records own original bytes; parsed/engraved objects remain disposable runtime state.
 let anLibraryActive: { id: string; source: AnSource } | null = null;
@@ -12814,8 +12819,14 @@ function scoreLayout() {
     box.dataset.layout = SCORE.layout;
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const sourceLayout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
-    const sheetW = Math.max(240, Math.round(Math.min(pageW * SCORE.zoom, avail)));
-    if (sheet instanceof HTMLElement) sheet.style.width = cont ? '' : sheetW + 'px';
+    const sheetW = Math.max(240, Math.round(Math.min(pageW, avail) * SCORE.zoom));
+    if (sheet instanceof HTMLElement) {
+        if (pinchBaseZoom === null) {
+            sheet.style.transform = '';
+            sheet.style.transformOrigin = '';
+        }
+        sheet.style.width = cont ? '' : sheetW + 'px';
+    }
     const landShort = !cont && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
     const xmlBreaks = !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml);
     const renderSig = [SCORE.version, SCORE.layout, SCORE.look, SCORE.zoom, avail, landShort ? 1 : 0, xmlBreaks ? 1 : 0].join('|');
@@ -14754,7 +14765,70 @@ function scoreFollow() {
 }
 // Zoom acts on the visible view: the engraving size, or the seconds shown in falling notes.
 function anZoomNow() { return FALL.mode === 'fall' ? FALL.zoom : SCORE.zoom; }
+let pinchBaseZoom: number | null = null;
+let pinchTargetZoom: number | null = null;
+let pinchAnchor: { x: number; y: number; normX: number; normY: number } | null = null;
+function clearPinchPreview() {
+    pinchBaseZoom = null;
+    pinchTargetZoom = null;
+    pinchAnchor = null;
+    const sheet = maybeById('an-roll')?.querySelector('.an-sheet');
+    if (sheet instanceof HTMLElement) {
+        sheet.style.transform = '';
+        sheet.style.transformOrigin = '';
+    }
+}
+function scoreZoomPreview(z: number, anchor?: { x: number; y: number }) {
+    const clamped = Math.max(0.5, Math.min(2, z));
+    const box = maybeById('an-roll'), sheet = box?.querySelector('.an-sheet');
+    if (FALL.mode === 'fall' || !box || !(sheet instanceof HTMLElement)) {
+        scoreZoom(clamped);
+        return;
+    }
+    if (pinchBaseZoom === null) pinchBaseZoom = SCORE.zoom;
+    const prevRect = sheet.getBoundingClientRect();
+    const hasAnchor = !!anchor && prevRect.width > 0 && prevRect.height > 0;
+    const normX = hasAnchor ? (anchor.x - prevRect.left) / prevRect.width : 0;
+    const normY = hasAnchor ? (anchor.y - prevRect.top) / prevRect.height : 0;
+    const scale = clamped / pinchBaseZoom;
+    sheet.style.transformOrigin = '0 0';
+    sheet.style.transform = Math.abs(scale - 1) < 1e-4 ? '' : 'scale(' + scale + ')';
+    if (hasAnchor && anchor) {
+        const nextRect = sheet.getBoundingClientRect();
+        box.scrollLeft += (nextRect.left + normX * nextRect.width) - anchor.x;
+        box.scrollTop += (nextRect.top + normY * nextRect.height) - anchor.y;
+        pinchAnchor = { x: anchor.x, y: anchor.y, normX, normY };
+    }
+    pinchTargetZoom = clamped;
+    SCORE.zoom = Math.round(clamped * 10) / 10;
+    anUpdateControls();
+}
+function scoreZoomCommit() {
+    if (pinchBaseZoom === null) return;
+    const baseZoom = pinchBaseZoom;
+    const targetZoom = Math.round(Math.max(0.5, Math.min(2, pinchTargetZoom ?? SCORE.zoom)) * 10) / 10;
+    const savedAnchor = pinchAnchor;
+    clearPinchPreview();
+    SCORE.zoom = targetZoom;
+    anUpdateControls();
+    const box = maybeById('an-roll'), sheet = box?.querySelector('.an-sheet');
+    const restoreAnchor = () => {
+        if (!savedAnchor || !box || !(sheet instanceof HTMLElement)) return;
+        const nextRect = sheet.getBoundingClientRect();
+        if (nextRect.width <= 0 || nextRect.height <= 0) return;
+        box.scrollLeft += (nextRect.left + savedAnchor.normX * nextRect.width) - savedAnchor.x;
+        box.scrollTop += (nextRect.top + savedAnchor.normY * nextRect.height) - savedAnchor.y;
+    };
+    if (SCORE.engine && targetZoom !== baseZoom) {
+        const pending = scoreLayout();
+        if (pending instanceof Promise) void pending.then(restoreAnchor);
+        else restoreAnchor();
+    } else {
+        restoreAnchor();
+    }
+}
 function scoreZoom(z: number) {
+    clearPinchPreview();
     z = Math.round(Math.max(0.5, Math.min(2, z)) * 10) / 10;
     if (FALL.mode === 'fall') {
         if (z === FALL.zoom)
@@ -15103,6 +15177,12 @@ function anUpdateControls() {
     buttonById('an-loop').disabled = (!sel && !ab && !SCORE.loop) || busy;
     buttonById('an-clear').disabled = !sel && !SCORE.mrange;
     byId('an-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
+    byId('an-roll').dataset.tool = AN.tool;
+    for (const tool of ['hand', 'select'] as const) {
+        const button = buttonById('an-tool-' + tool);
+        button.disabled = !sheet;
+        button.setAttribute('aria-pressed', String(AN.tool === tool));
+    }
     const selModeBtn = buttonById('an-sel-mode');
     selModeBtn.disabled = !sheet;
     selModeBtn.setAttribute('aria-pressed', AN.selMode === 'lasso' ? 'true' : 'false');
@@ -16223,7 +16303,8 @@ function anHover(e: PointerEvent | FocusEvent) {
 }
 // Click a notehead to select it (Shift/Ctrl adds), click empty space in a bar to select the bar (Shift extends the range),
 // drag for a free-shape lasso (default) or rectangular marquee; a click outside every bar clears the selection.
-function scorePointer(e: PointerEvent) {
+let cancelScoreGesture: (() => void) | undefined;
+function scorePointer(e: PointerEvent): ScoreSelectionGesture | undefined {
     const box = byId('an-roll'), el = eventElement(e);
     if (e.button !== 0 || !SCORE.xml || !box.querySelector('svg') || !el || el.closest('.an-empty'))
         return;
@@ -16244,6 +16325,7 @@ function scorePointer(e: PointerEvent) {
         lassoPath.setAttribute('d', 'M ' + pts.map((p) => `${Math.round(p.x)} ${Math.round(p.y)}`).join(' L ') + ' Z');
     };
     const move = (ev: PointerEvent) => {
+        if (ev.pointerId !== e.pointerId) return;
         if (!dragged && Math.hypot(ev.clientX - x, ev.clientY - y) < 5)
             return;
         if (!dragged) {
@@ -16272,9 +16354,6 @@ function scorePointer(e: PointerEvent) {
         Object.assign(marquee.style, { left: Math.min(x, ev.clientX) + 'px', top: Math.min(y, ev.clientY) + 'px', width: Math.abs(ev.clientX - x) + 'px', height: Math.abs(ev.clientY - y) + 'px' });
     };
     const done = () => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', finish);
-        window.removeEventListener('pointercancel', done);
         box.classList.remove('is-lasso-drag');
         if (marquee)
             marquee.remove();
@@ -16282,6 +16361,7 @@ function scorePointer(e: PointerEvent) {
             lassoSvg.remove();
     };
     const finish = (ev: PointerEvent) => {
+        if (ev.pointerId !== e.pointerId) return;
         done();
         if (!dragged) {
             if (target) {
@@ -16324,9 +16404,7 @@ function scorePointer(e: PointerEvent) {
         }
         anSelectionChanged();
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', finish);
-    window.addEventListener('pointercancel', done);
+    return { move, finish, cancel: done };
 }
 function anRove(g: Element) { byId('an-roll').querySelectorAll('[data-i][tabindex="0"]').forEach((x) => x.setAttribute('tabindex', '-1')); g.setAttribute('tabindex', '0'); }
 /* falling notes: a dark stage with lanes, bar lines and an integrated keyboard; notes coloured by hand */
@@ -17464,7 +17542,7 @@ function anInitControls() {
         PRAC.next.act.run(); });
     byId('pr-sum').addEventListener('pointerdown', (e) => { if (e.target === e.currentTarget)
         pracSumClose(); });
-    byId('an-sel-mode').addEventListener('click', () => { AN.selMode = AN.selMode === 'lasso' ? 'box' : 'lasso'; anUpdateControls(); });
+    byId('an-sel-mode').addEventListener('click', () => { cancelScoreGesture?.(); AN.selMode = AN.selMode === 'lasso' ? 'box' : 'lasso'; anUpdateControls(); });
     byId('an-clear').addEventListener('click', anClearSelection);
     byId('an-play').addEventListener('click', () => scorePlay(true));
     byId('an-loop').addEventListener('click', () => { if (SCORE.loop)
@@ -17482,9 +17560,9 @@ function anInitControls() {
     byId('score-speed').addEventListener('change', speed);
     queryAllHtml(document, '[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!(b instanceof HTMLButtonElement && b.disabled))
         scoreSetView(b.dataset.scoreMode); }));
-    byId('sc-zoom-out').addEventListener('click', () => scoreZoom(anZoomNow() - 0.1));
-    byId('sc-zoom-in').addEventListener('click', () => scoreZoom(anZoomNow() + 0.1));
-    byId('sc-zoom-reset').addEventListener('click', () => scoreZoom(1));
+    byId('sc-zoom-out').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() - 0.1); });
+    byId('sc-zoom-in').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() + 0.1); });
+    byId('sc-zoom-reset').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(1); });
     byId('sc-look').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.v != null)
         scoreSetLook(b.dataset.v); });
     byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
@@ -17501,7 +17579,18 @@ function anInitControls() {
     (['pointerup', 'pointercancel', 'pointerleave'] as const).forEach((ev) => fc.addEventListener(ev, fallKeyUp));
     const roll = byId('an-roll');
     roll.addEventListener('pointerenter', (e) => { roll.classList.toggle('is-pen', e.pointerType === 'pen'); });
-    roll.addEventListener('pointerdown', scorePointer);
+    cancelScoreGesture = bindScoreGestures(roll, {
+        selecting: (e) => AN.tool === 'select' || e.pointerType === 'pen',
+        select: scorePointer,
+        getZoom: () => SCORE.zoom,
+        zoom: scoreZoomPreview,
+        commitZoom: scoreZoomCommit,
+    });
+    for (const tool of ['hand', 'select'] as const) byId('an-tool-' + tool).addEventListener('click', () => {
+        cancelScoreGesture?.();
+        AN.tool = tool;
+        anUpdateControls();
+    });
     roll.addEventListener('pointerover', anHover);
     roll.addEventListener('pointerleave', () => { byId('an-hover').textContent = ''; scoreTip(null); });
     let hoverRaf = 0, hoverEv: PointerEvent|null = null;
@@ -17707,6 +17796,7 @@ function anInitControls() {
         fallDraw(); dpr(); }, { once: true });
     dpr();
     anLayoutVars();
+    anUpdateControls();
 }
 /* ---------- PROGRESS ---------- */
 function renderProgress() {
