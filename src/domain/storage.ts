@@ -67,13 +67,38 @@ export function restoreSettings(value: unknown): AppSettings {
   };
 }
 
+function isPttEnvelope(value: unknown): value is PttV3Payload {
+  return isRecord(value) && value.v === 3 && isRecord(value.data);
+}
+
 export function isBackupPayload(value: unknown): value is PttV3Payload {
-  return isRecord(value) &&
-    value.v === 3 &&
-    isRecord(value.data) &&
+  return isPttEnvelope(value) &&
     (value.data.settings === undefined || isRecord(value.data.settings)) &&
     (value.data.srs === undefined || isRecord(value.data.srs)) &&
     (value.data.sightLedger === undefined || isSightReadingLedger(value.data.sightLedger));
+}
+
+/** Validate progress maps before replacing a live save. Older backups may omit them or contain partial rows. */
+export function isImportableBackup(value: unknown): value is PttV3Payload {
+  if (!isBackupPayload(value)) return false;
+  const data = value.data;
+  const numbers = (entry: unknown) => typeof entry === 'number' && Number.isFinite(entry);
+  const mapOf = (map: unknown, valid: (entry: unknown) => boolean) =>
+    map === undefined || (isRecord(map) && Object.values(map).every(valid));
+  const reading = data.reading;
+  return mapOf(data.srs, isRecord) &&
+    mapOf(data.history, numbers) &&
+    mapOf(data.singCleared, entry => typeof entry === 'boolean') &&
+    mapOf(data.sheet, entry => isRecord(entry) &&
+      (entry.best === undefined || numbers(entry.best)) &&
+      (entry.learned === undefined || typeof entry.learned === 'boolean')) &&
+    mapOf(data.toolDay, numbers) &&
+    mapOf(data.learnDone, numbers) &&
+    mapOf(data.learnRev, isRecord) &&
+    mapOf(data.learnUnlock, numbers) &&
+    (reading === undefined || (isRecord(reading) &&
+      mapOf(reading.lv, isRecord) && mapOf(reading.nt, isRecord) &&
+      ['tot', 'prefs', 'book'].every(key => reading[key] === undefined || isRecord(reading[key]))));
 }
 
 const parseJson: (text: string) => unknown = JSON.parse;
@@ -82,6 +107,8 @@ export function parsePttV3(raw: string | null): PttV3Payload | null {
   if (!raw) return null;
   try {
     const parsed = parseJson(raw);
+    // Recognize a newer record before interpreting any of its nested structures.
+    if (isPttEnvelope(parsed) && pttSchema(parsed) > PTT_SCHEMA) return parsed;
     return isBackupPayload(parsed) ? parsed : null;
   } catch {
     return null;
@@ -95,7 +122,9 @@ export function readPttV3(storage: StorageLike, key = PTT_KEY): ReadPttResult | 
 }
 
 export function writePttV3(storage: StorageLike, payload: PttV3Payload, key = PTT_KEY): string {
-  const raw = JSON.stringify(payload);
+  // Imports carry the ledger in the transfer file. The live ledger has its own storage key.
+  const { sightLedger: _sightLedger, ...data } = payload.data;
+  const raw = JSON.stringify({ ...payload, data });
   storage.setItem(key, raw);
   return raw;
 }
