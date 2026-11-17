@@ -6,6 +6,7 @@ import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, Lear
 import * as storage from './storage.js';
 import * as safety from './data-safety.js';
 import * as theory from './theory.js';
+import { evaluateWaitChord } from './wait-chord.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
@@ -1967,7 +1968,7 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
         srtRecorder.record(kind, midi, source, releaseKind, performance.now() - SR.t0);
     }
     if (view0() === 'analysis') {
-        pracInput(kind);
+        pracInput(kind, midi);
         return;
     }
     if (view0() === 'explore') {
@@ -13889,8 +13890,8 @@ interface PracticeStats { perfect: number; good: number; miss: number; wrong: nu
 interface PracticeTimedNote { n: AnNote; i: number; start: number; finish: number; sound?: number }
 // One stretch of the audio clock: score time t = t0 + (now − a0)·f, until t1.
 interface PracticeSegment { a0: number; t0: number; t1: number; f: number; first: boolean; p0?: number; elapsed0?: number }
-// "Wait for me": the clock stops at t until every key in need has been played.
-interface PracticeBarrier { t: number; need: Set<number>; got: Set<number>; group: PracticeTimedNote[]; seg: PracticeSegment; since: number }
+// Wait barriers require fresh overlapping chord attacks; written arpeggios may be played successively.
+interface PracticeBarrier { allowed: Set<number>; attacks: Map<number, number>; rolled: Set<number>; t: number; need: Set<number>; got: Set<number>; group: PracticeTimedNote[]; seg: PracticeSegment; since: number }
 interface PracticeBeat { t: number; acc: boolean }
 interface PracticeCountIn { t: number; n: number; sec: number }
 interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string; carry?: PracticeCarry | null }
@@ -14250,14 +14251,16 @@ function pracPassEnd(R: PracticeRun, repeat = true) {
 }
 function pracNextBar(R: PracticeRun, s: PracticeSegment) {
     const from = Math.max(R.wt, s.t0);
-    // Notes already judged (a chord partly played before a pause) are not asked for again.
+    // Only completed barriers are judged; a partial chord must be replayed after a pause.
     const d = R.mine.find((x) => x.start >= from - 1e-6 && x.start < s.t1 - 1e-6 && !(s.first && x.start < R.from - 1e-6) && !R.judged.has(x.i));
     if (!d) {
         R.wt = Infinity;
         return;
     }
-    const group = R.mine.filter((x) => Math.abs(x.start - d.start) < .03 && !R.judged.has(x.i));
-    PRAC.bar = { t: d.start, need: new Set(group.map((x) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
+    const group = R.mine.filter((x) => Math.abs(x.start - d.start) < 1e-6 && !R.judged.has(x.i));
+    const rolled = new Set(group.filter(x => group.some(y => (y.n.arpeggiate || (y.n.roll ?? 0) > 0) && x.n.part === y.n.part && x.n.staff === y.n.staff && x.n.voice === y.n.voice)).map(x => x.n.midi));
+    const allowed = new Set(fallData().filter(x => x.start <= d.start + 1e-6 && (x.start < d.start - 1e-6 || !pracMine(x.n)) && x.finish > d.start + 1e-6).map(x => x.n.midi));
+    PRAC.bar = { allowed, attacks: new Map(), rolled, t: d.start, need: new Set(group.map((x) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
 }
 function pracRelease(R: PracticeRun, B: PracticeBarrier, now: number) {
     const s = B.seg, t = s.t0 + Math.max(0, now - s.a0) * s.f;
@@ -14318,9 +14321,21 @@ function pracNeedKey(B: PracticeBarrier, m: number) {
     const same = [...B.need].filter((x) => pc(x) === pc(m));
     return same.find((x) => !B.got.has(x)) ?? same[0] ?? null;
 }
+function pracWaitUpdate(R: PracticeRun, B: PracticeBarrier, now: number) {
+    const result = evaluateWaitChord(B.need, B.attacks, held, B.rolled, B.allowed, !!data.settings.anyOctave);
+    B.got = result.got;
+    if (!result.complete) return;
+    const late = Math.max(0, pracRaw(R, now).t - B.t) / B.seg.f;
+    B.group.filter(x => !R.judged.has(x.i)).forEach(x => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
+    pracRelease(R, B, actx?.currentTime ?? now);
+}
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
-function pracInput(kind: string) {
+function pracInput(kind: string, midi?: number) {
     const R = SCORE.run;
+    if (kind === 'off' && R && SCORE.playing && PRAC.bar && actx && midi !== undefined) {
+        const B = PRAC.bar;
+        pracWaitUpdate(R, B, actx.currentTime);
+    }
     if (kind === 'on' && R && SCORE.playing && actx) {
         // The key's own time on the audio clock: the handler may run a frame or a radio interval after the note was played.
         const m = heldOrder[heldOrder.length - 1], now = actx.currentTime - Math.max(0, inputLag()) / 1000;
@@ -14328,15 +14343,14 @@ function pracInput(kind: string) {
             PRAC.active = true;
             const { s, t } = pracRaw(R, now), B = PRAC.bar, key = B && B.seg === s && t >= B.t - .3 * s.f ? pracNeedKey(B, m) : null;
             if (B && key != null) {
-                if (!B.got.has(key)) {
-                    B.got.add(key);
-                    const late = Math.max(0, t - B.t) / s.f;
-                    B.group.filter((x) => x.n.midi === key && !R.judged.has(x.i)).forEach((x) => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
-                }
-                if ([...B.need].every((x) => B.got.has(x)))
-                    pracRelease(R, B, actx.currentTime); // the clock resumes from the real present, not the judged time
+                B.attacks.set(m, now);
+                pracWaitUpdate(R, B, now);
             }
             else {
+                if (B && B.seg === s && t >= B.t - .3 * s.f) {
+                    pracJudge(R, null, 'wrong');
+                    return;
+                }
                 const time = fallTime(now), tol = .22 * s.f;
                 let best: PracticeTimedNote | null = null;
                 for (const d of R.mine) {
