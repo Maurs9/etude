@@ -87,6 +87,31 @@ test.describe('i18n', () => {
     await expect(page.locator('#view-learn .lsum dl')).toContainText('Oktave');
     await expect(page.locator('#view-learn .lsum dl')).not.toContainText('semitones');
   });
+
+  test('Settings drawer buttons and segmented controls stay single-line across locales', async ({ app }) => {
+    const page = await app.open({ lang: 'es' });
+    await page.locator('#settingsBtn').click();
+    await expect(page.locator('#drawer')).toHaveClass(/on/);
+    for (const lang of ['es', 'fr', 'ro']) {
+      await page.evaluate(l => window.__etude.setLang(l), lang);
+      await expect.poll(() => page.evaluate(() => {
+        const drawer = document.getElementById('drawer');
+        const dr = drawer.getBoundingClientRect();
+        const notationHeights = new Set();
+        const bad = [];
+        for (const btn of drawer.querySelectorAll('.set-row button')) {
+          if (btn.hidden || btn.offsetParent === null) continue;
+          const range = document.createRange();
+          range.selectNodeContents(btn);
+          const lines = [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0).length;
+          if (lines !== 1) bad.push({ id: btn.id || btn.textContent, lines });
+          if (btn.getBoundingClientRect().right > dr.right - 1) bad.push({ id: btn.id || btn.textContent, overflow: true });
+          if (btn.closest('#set-notation')) notationHeights.add(Math.round(btn.getBoundingClientRect().height));
+        }
+        return { ok: bad.length === 0 && notationHeights.size === 1, bad, notationHeights: notationHeights.size };
+      })).toEqual({ ok: true, bad: [], notationHeights: 1 });
+    }
+  });
 });
 
 test.describe('Today counters', () => {
