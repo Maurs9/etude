@@ -94,3 +94,28 @@ test.describe('Sight-Reading semantics and accessibility', () => {
     }
   });
 });
+
+for (const language of ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR']) {
+  test(`translated reading selectors fit a 320px panel in ${language}`, async ({ app, page }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await app.open({ hash: 'read', lang: language });
+    await page.locator('#rdt-pieces').click();
+    for (const selector of ['#rd-hands', '#rd-mode']) {
+      const group = page.locator(selector);
+      await expect(group).toBeVisible();
+      expect(await group.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+      const dimensions = await group.locator('button').evaluateAll(buttons => buttons.map(b => {
+        const r = b.getBoundingClientRect(), parent = b.parentElement.getBoundingClientRect();
+        return { height: r.height, inside: r.left >= parent.left && r.right <= parent.right + 1, textFits: b.scrollWidth <= b.clientWidth + 1 };
+      }));
+      for (const button of dimensions) {
+        expect(button.height).toBeGreaterThanOrEqual(44);
+        expect(button.inside).toBe(true);
+        expect(button.textFits).toBe(true);
+      }
+    }
+    await page.locator('#rd-hands button[data-v="rh"]').click();
+    await expect(page.locator('#rd-hands button[data-v="rh"]')).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+  });
+}

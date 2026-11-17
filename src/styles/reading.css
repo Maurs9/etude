@@ -65,6 +65,10 @@
    window has room, never wider than its box. The stage sizes the question's staff to its own height. */
 @media (min-width:900px){ .rdx-intro .rdx-preview{align-self:stretch; display:flex; justify-content:center} .rdx-intro .rdx-preview .rdx-svg{width:calc(var(--w) * 1.6); max-width:100%} .rdx-intro .rdx-desc{max-width:760px} .rdx-intro .rdx-modes{max-width:860px} }
 @media (min-width:900px) and (min-height:640px){ body:not([data-stage=immersive]) .rdx-q .rdx-staff:not(.rdx-flow):not(.ss-wrap) > .rdx-svg{width:calc(var(--w) * 1.6); max-width:100%} }
+/* Translated reading controls must fit their panel, even when global segmented labels stay on one line. */
+#rd-hands,#rd-mode,#rd-stage-hands{min-width:0;max-width:100%}
+#rd-hands button,#rd-mode button,#rd-stage-hands button{flex:1 1 0;min-width:0;white-space:normal;line-height:1.25}
+#rd-hands button,#rd-mode button{min-height:44px}
 /* Tap the rhythm: the staff is scaled to its box (srRender's layout) and drawn on white paper in both themes. On the stage the
    box takes the free height, and the paper hugs the staff inside it. */
 .rdx-q.rdx-rh .rdx-staff{align-self:stretch; --staffink:#1a1714; --gold:#8d6b26; background:none; border-color:transparent; box-shadow:none; padding:6px 0; overflow-x:auto}
