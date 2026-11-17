@@ -46,6 +46,40 @@ for (const piece of ['canon', 'brahms', 'elise']) test(`engraved cursor crosses 
   expect(Math.max(...errors.map(e => e.error)), JSON.stringify(errors.filter(e => e.error > 3))).toBeLessThan(3);
 });
 
+test('cursor velocity joins smoothly at engraved onsets and refreshes after a tempo-map change', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await page.evaluate(() => window.__etude.pcOpen('canon'));
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  const result = await page.evaluate(() => {
+    const a = window.__etude, groups = new Map();
+    for (const p of a.SCORE.geo.anchors) {
+      if (!groups.has(p.sys)) groups.set(p.sys, []);
+      const list = groups.get(p.sys);
+      if (list.length && Math.abs(list.at(-1).beat - p.beat) < 1e-9) list[list.length - 1] = p;
+      else list.push(p);
+    }
+    const jumps = [];
+    for (const list of groups.values()) for (const p of list.slice(1, -1)) {
+      const t = a.scoreSeconds(p.beat), dt = 1e-6;
+      const x = a.scoreAnchorAt(a.SCORE.geo.anchors, p.beat, p.sys).x;
+      const left = (x - a.scoreAnchorAt(a.SCORE.geo.anchors, a.scoreBeatAt(t - dt), p.sys).x) / dt;
+      const right = (a.scoreAnchorAt(a.SCORE.geo.anchors, a.scoreBeatAt(t + dt), p.sys).x - x) / dt;
+      jumps.push(Math.abs(left - right));
+    }
+    const anchors = [0, 1, 2, 3].map((beat, i) => ({ beat, x: [0, 20, 80, 100][i], sys: 0 }));
+    a.SCORE.tempoList = [{ beat: 0, bpm: 120 }];
+    const before = a.scoreAnchorAt(anchors, 1.5, 0).x;
+    a.SCORE.tempoList = [{ beat: 0, bpm: 60 }, { beat: 1, bpm: 240 }];
+    const after = a.scoreAnchorAt(anchors, 1.5, 0).x;
+    const fresh = a.scoreAnchorAt(anchors.map(p => ({ ...p })), 1.5, 0).x;
+    return { jumps, before, after, fresh };
+  });
+  expect(result.jumps.length).toBeGreaterThan(10);
+  expect(Math.max(...result.jumps)).toBeLessThan(.02);
+  expect(result.after).toBeCloseTo(result.fresh, 10);
+  expect(Math.abs(result.after - result.before)).toBeGreaterThan(.1);
+});
+
 test('Wait for me asks again on every repeat before continuing', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   await page.locator('#an-file').setInputFiles({ name: 'wait-repeat.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml.replace('tempo="120"', 'tempo="600"')) });

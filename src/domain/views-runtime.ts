@@ -6,6 +6,7 @@ import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, Lear
 import * as storage from './storage.js';
 import * as safety from './data-safety.js';
 import * as theory from './theory.js';
+import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
 import type { AudioTone } from './audio.js';
@@ -13633,37 +13634,16 @@ function scoreCursorAt(beat: number): ScoreCursorPos | null {
     const f = t1 > t0 ? (at - t0) / (t1 - t0) : 0;
     return { x: x0 + (x1 - x0) * f, sys: m.sys };
 }
-// Between the last onset at or before the beat and the next one on the same system, timed by the tempo map.
+// Cache geometry/tempo-dependent curves; playback frames only perform a binary search.
+const scoreCursorCurves = new WeakMap<ScoreGeoAnchor[], { tempos: ScoreState['tempoList']; curves: ReturnType<typeof createCursorCurves> }>();
 function scoreAnchorAt(A: ScoreGeoAnchor[], beat: number, sys: number): ScoreCursorPos | null {
-    if (!A || !A.length)
-        return null;
-    let lo = 0, hi = A.length - 1, k = -1;
-    while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if (A[mid].beat <= beat + 1e-9) {
-            k = mid;
-            lo = mid + 1;
-        }
-        else
-            hi = mid - 1;
+    let cached = scoreCursorCurves.get(A);
+    if (!cached || cached.tempos !== SCORE.tempoList) {
+        cached = { tempos: SCORE.tempoList, curves: createCursorCurves(A, scoreSeconds) };
+        scoreCursorCurves.set(A, cached);
     }
-    while (k >= 0 && A[k].sys !== sys)
-        k--;
-    if (k < 0)
-        return null;
-    const a = A[k];
-    let b: ScoreGeoAnchor | null = null;
-    for (let j = k + 1; j < A.length; j++) {
-        if (A[j].beat > a.beat + 1e-9) {
-            if (A[j].sys === sys)
-                b = A[j];
-            break;
-        }
-    }
-    if (!b)
-        return { x: a.x, sys };
-    const t0 = scoreSeconds(a.beat), t1 = scoreSeconds(b.beat), at = Math.min(t1, Math.max(t0, scoreSeconds(beat))), f = t1 > t0 ? (at - t0) / (t1 - t0) : 0;
-    return { x: a.x + (b.x - a.x) * f, sys };
+    const x = cursorCurveAt(cached.curves, scoreSeconds(beat), sys);
+    return x === null ? null : { x, sys };
 }
 function scoreCursorUpdate(follow: boolean) {
     const el = scoreCursorEl(), g: ScoreGeometry | null = SCORE.geo, p = g && AN.notes.length && FALL.mode === 'score' ? scoreCursorAt(scoreBeatAt(fallTime())) : null, s = g && p ? g.systems[p.sys] : null, page = g && s ? g.pages[s.page] : null;
