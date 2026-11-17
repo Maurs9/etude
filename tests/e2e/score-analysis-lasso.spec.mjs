@@ -126,7 +126,9 @@ test('lasso shape is default, supports closed-loop free-shape circling and pen i
     else await page.locator('#an-fab').click();
   }
 
-  await page.locator('#an-tool-select').click();
+  // Desktop (fine pointer) defaults to Select while Navigate stays available
+  await expect(page.locator('#an-tool-select')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#an-tool-hand')).toHaveAttribute('aria-pressed', 'false');
 
   // Lasso mode button defaults to aria-pressed="true"
   const modeBtn = page.locator('#an-sel-mode');
@@ -182,11 +184,34 @@ test('lasso shape is default, supports closed-loop free-shape circling and pen i
   await expect(page.locator('#an-now-body .an-note-card')).toBeVisible();
   await expect(page.locator('#an-now-body .an-note-card')).toContainText('Minor 3rd');
 
-  // Stylus hover sets .is-pen on #an-roll
+  // Switch to Navigate mode, clear selection, and verify stylus pen still selects directly via lasso
+  await page.locator('#an-tool-hand').click();
+  await expect(page.locator('#an-tool-hand')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#an-clear').click();
+  await expect.poll(() => page.evaluate(() => window.__etude.AN.selected.size)).toBe(0);
+
   await page.locator('#an-roll').dispatchEvent('pointerenter', { pointerType: 'pen' });
   await expect(page.locator('#an-roll')).toHaveClass(/is-pen/);
+  await page.evaluate(({ x0, safeRight, yTop, yBot }) => {
+    const roll = document.getElementById('an-roll');
+    const fire = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, pointerId: 7, pointerType: 'pen', button: 0,
+      clientX: x, clientY: y,
+    }));
+    fire(roll, 'pointerdown', x0, yTop);
+    fire(window, 'pointermove', safeRight, yTop);
+    fire(window, 'pointermove', safeRight, yBot);
+    fire(window, 'pointermove', x0, yBot);
+    fire(window, 'pointermove', x0 + 1, yTop + 1);
+    fire(window, 'pointerup', x0 + 1, yTop + 1);
+  }, { x0, safeRight, yTop, yBot });
+  const penSelected = await page.evaluate(() => [...window.__etude.AN.selected]);
+  expect(penSelected).toContain(pts.e3.i);
+  expect(penSelected).toContain(pts.g3.i);
+  expect(penSelected).not.toContain(pts.c3Next.i);
 
-  // Toggle to rectangular marquee box mode
+  // Switch back to Select and toggle to rectangular marquee box mode
+  await page.locator('#an-tool-select').click();
   await modeBtn.click();
   await expect(modeBtn).toHaveAttribute('aria-pressed', 'false');
 
@@ -315,8 +340,8 @@ test.describe('touch score navigation', () => {
     await send('touchEnd', []);
     await expect.poll(() => page.locator('#an-roll').evaluate(el => el.scrollTop)).toBeGreaterThan(20);
     expect(await page.evaluate(() => [...window.__etude.AN.selected])).toEqual([]);
-    await page.locator('#an-roll').evaluate(el => { el.scrollTop = 0; });
     await page.locator('#an-tool-select').click();
+    await page.locator('#an-roll').evaluate(el => { el.scrollTop = 0; });
 
     const circle = async () => {
       const note = await page.evaluate(() => {
@@ -346,6 +371,7 @@ test.describe('touch score navigation', () => {
     await expect(page.locator('.an-lasso')).toHaveCount(0);
     await send('touchMove', [contact(x - 15, y - 30), contact(x + 105, y - 30, 2)]);
     await expect.poll(() => page.evaluate(() => window.__etude.SCORE.zoom)).toBeGreaterThan(1);
+    await expect.poll(() => page.locator('#an-roll .an-sheet').evaluate(el => el.style.transform)).toContain('scale(');
     await expect.poll(() => page.locator('#an-roll .an-sheet').evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThan(originalWidth * 1.5);
     await send('touchEnd', [contact(x - 15, y - 30)]);
     await send('touchMove', [contact(x - 15, y - 50)]);
@@ -354,6 +380,7 @@ test.describe('touch score navigation', () => {
     expect(await page.evaluate(() => [...window.__etude.AN.selected])).toEqual(selected);
     await expect(page.locator('#an-tool-select')).toHaveAttribute('aria-pressed', 'true');
     await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+    await expect.poll(() => page.locator('#an-roll .an-sheet').evaluate(el => el.style.transform)).toBe('');
     await page.locator('#an-roll').evaluate(el => { el.scrollTop = 0; el.scrollLeft = 0; });
     await circle();
     const beforeCancel = await page.evaluate(() => [...window.__etude.AN.selected]);

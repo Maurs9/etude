@@ -12149,7 +12149,10 @@ interface AnState {
     kbApplied: Map<number, string>; error: { k: string; a: string | number | undefined } | null; loading: boolean; loadToken: number;
     liveT?: ReturnType<typeof setTimeout>; pinRaf?: number;
 }
-const AN: AnState = { notes: [], selected: new Set(), selMode: 'lasso', tool: 'hand', active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
+function defaultScoreTool(): 'hand' | 'select' {
+    return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches ? 'hand' : 'select';
+}
+const AN: AnState = { notes: [], selected: new Set(), selMode: 'lasso', tool: defaultScoreTool(), active: null, source: null, recon: { hands: 'auto', grid: 4, key: 'auto' }, hands: null, keyMap: [], keyOrigin: 'auto',
     index: new Map(), version: 0, cache: new Map(), view: null, wsSig: '', rove: 0, playSeg: -1, playSig: '', kbCenter: false, kbApplied: new Map(), error: null, loading: false, loadToken: 0 };
 // Library records own original bytes; parsed/engraved objects remain disposable runtime state.
 let anLibraryActive: { id: string; source: AnSource } | null = null;
@@ -12712,7 +12715,13 @@ function scoreLayout() {
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const sourceLayout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
     const sheetW = Math.max(240, Math.round(Math.min(pageW, avail) * SCORE.zoom));
-    if (sheet instanceof HTMLElement) sheet.style.width = cont ? '' : sheetW + 'px';
+    if (sheet instanceof HTMLElement) {
+        if (pinchBaseZoom === null) {
+            sheet.style.transform = '';
+            sheet.style.transformOrigin = '';
+        }
+        sheet.style.width = cont ? '' : sheetW + 'px';
+    }
     const landShort = !cont && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
     const xmlBreaks = !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml);
     const renderSig = [SCORE.version, SCORE.layout, SCORE.look, SCORE.zoom, avail, landShort ? 1 : 0, xmlBreaks ? 1 : 0].join('|');
@@ -14651,7 +14660,70 @@ function scoreFollow() {
 }
 // Zoom acts on the visible view: the engraving size, or the seconds shown in falling notes.
 function anZoomNow() { return FALL.mode === 'fall' ? FALL.zoom : SCORE.zoom; }
+let pinchBaseZoom: number | null = null;
+let pinchTargetZoom: number | null = null;
+let pinchAnchor: { x: number; y: number; normX: number; normY: number } | null = null;
+function clearPinchPreview() {
+    pinchBaseZoom = null;
+    pinchTargetZoom = null;
+    pinchAnchor = null;
+    const sheet = maybeById('an-roll')?.querySelector('.an-sheet');
+    if (sheet instanceof HTMLElement) {
+        sheet.style.transform = '';
+        sheet.style.transformOrigin = '';
+    }
+}
+function scoreZoomPreview(z: number, anchor?: { x: number; y: number }) {
+    const clamped = Math.max(0.5, Math.min(2, z));
+    const box = maybeById('an-roll'), sheet = box?.querySelector('.an-sheet');
+    if (FALL.mode === 'fall' || !box || !(sheet instanceof HTMLElement)) {
+        scoreZoom(clamped);
+        return;
+    }
+    if (pinchBaseZoom === null) pinchBaseZoom = SCORE.zoom;
+    const prevRect = sheet.getBoundingClientRect();
+    const hasAnchor = !!anchor && prevRect.width > 0 && prevRect.height > 0;
+    const normX = hasAnchor ? (anchor.x - prevRect.left) / prevRect.width : 0;
+    const normY = hasAnchor ? (anchor.y - prevRect.top) / prevRect.height : 0;
+    const scale = clamped / pinchBaseZoom;
+    sheet.style.transformOrigin = '0 0';
+    sheet.style.transform = Math.abs(scale - 1) < 1e-4 ? '' : 'scale(' + scale + ')';
+    if (hasAnchor && anchor) {
+        const nextRect = sheet.getBoundingClientRect();
+        box.scrollLeft += (nextRect.left + normX * nextRect.width) - anchor.x;
+        box.scrollTop += (nextRect.top + normY * nextRect.height) - anchor.y;
+        pinchAnchor = { x: anchor.x, y: anchor.y, normX, normY };
+    }
+    pinchTargetZoom = clamped;
+    SCORE.zoom = Math.round(clamped * 10) / 10;
+    anUpdateControls();
+}
+function scoreZoomCommit() {
+    if (pinchBaseZoom === null) return;
+    const baseZoom = pinchBaseZoom;
+    const targetZoom = Math.round(Math.max(0.5, Math.min(2, pinchTargetZoom ?? SCORE.zoom)) * 10) / 10;
+    const savedAnchor = pinchAnchor;
+    clearPinchPreview();
+    SCORE.zoom = targetZoom;
+    anUpdateControls();
+    const box = maybeById('an-roll'), sheet = box?.querySelector('.an-sheet');
+    const restoreAnchor = () => {
+        if (!savedAnchor || !box || !(sheet instanceof HTMLElement)) return;
+        const nextRect = sheet.getBoundingClientRect();
+        if (nextRect.width <= 0 || nextRect.height <= 0) return;
+        box.scrollLeft += (nextRect.left + savedAnchor.normX * nextRect.width) - savedAnchor.x;
+        box.scrollTop += (nextRect.top + savedAnchor.normY * nextRect.height) - savedAnchor.y;
+    };
+    if (SCORE.engine && targetZoom !== baseZoom) {
+        const pending = scoreLayout();
+        if (pending instanceof Promise) void pending.then(restoreAnchor);
+        else restoreAnchor();
+    } else {
+        restoreAnchor();
+    }
+}
 function scoreZoom(z: number) {
+    clearPinchPreview();
     z = Math.round(Math.max(0.5, Math.min(2, z)) * 10) / 10;
     if (FALL.mode === 'fall') {
         if (z === FALL.zoom)
@@ -17383,9 +17455,9 @@ function anInitControls() {
     byId('score-speed').addEventListener('change', speed);
     queryAllHtml(document, '[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!(b instanceof HTMLButtonElement && b.disabled))
         scoreSetView(b.dataset.scoreMode); }));
-    byId('sc-zoom-out').addEventListener('click', () => scoreZoom(anZoomNow() - 0.1));
-    byId('sc-zoom-in').addEventListener('click', () => scoreZoom(anZoomNow() + 0.1));
-    byId('sc-zoom-reset').addEventListener('click', () => scoreZoom(1));
+    byId('sc-zoom-out').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() - 0.1); });
+    byId('sc-zoom-in').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() + 0.1); });
+    byId('sc-zoom-reset').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(1); });
     byId('sc-look').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.v != null)
         scoreSetLook(b.dataset.v); });
     byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
@@ -17403,7 +17475,11 @@ function anInitControls() {
     const roll = byId('an-roll');
     roll.addEventListener('pointerenter', (e) => { roll.classList.toggle('is-pen', e.pointerType === 'pen'); });
     cancelScoreGesture = bindScoreGestures(roll, {
-        selecting: () => AN.tool === 'select', select: scorePointer, getZoom: () => SCORE.zoom, zoom: scoreZoom,
+        selecting: (e) => AN.tool === 'select' || e.pointerType === 'pen',
+        select: scorePointer,
+        getZoom: () => SCORE.zoom,
+        zoom: scoreZoomPreview,
+        commitZoom: scoreZoomCommit,
     });
     for (const tool of ['hand', 'select'] as const) byId('an-tool-' + tool).addEventListener('click', () => {
         cancelScoreGesture?.();
@@ -17615,6 +17691,7 @@ function anInitControls() {
         fallDraw(); dpr(); }, { once: true });
     dpr();
     anLayoutVars();
+    anUpdateControls();
 }
 /* ---------- PROGRESS ---------- */
 function renderProgress() {

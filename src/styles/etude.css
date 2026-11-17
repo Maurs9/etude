@@ -699,7 +699,7 @@
   .an-stage:has(> .an-score.is-empty){background:none}
   .an-stage[data-mode="fall"]{background:#060a14}
   .an-score{height:100%; overflow:auto; position:relative; display:flex; flex-direction:column; padding:22px 24px 30px; background:var(--desk); color:#1a1714; touch-action:none; scrollbar-gutter:stable; cursor:grab}
-  .an-score[data-tool="select"],.an-score.is-lasso-drag{touch-action:none; cursor:crosshair; user-select:none}
+  .an-score[data-tool="select"],.an-score.is-pen,.an-score.is-lasso-drag{touch-action:none; cursor:crosshair; user-select:none}
   .an-score[data-look="night"]{background:var(--desk-night); color:#ece5d8}
   /* what a marking means: a quiet label under it, never in the pointer's way */
   .sc-tip{position:absolute; z-index:5; left:0; top:0; max-width:min(340px,calc(100% - 8px)); padding:6px 10px 7px; border-radius:8px; background:rgba(33,29,25,.95); color:#faf6ee; font:500 12.5px/1.4 var(--sans); box-shadow:0 6px 18px rgba(0,0,0,.2); pointer-events:none}
