@@ -698,8 +698,8 @@
   .an-stage{position:relative; min-width:0; min-height:0; background:var(--desk)}
   .an-stage:has(> .an-score.is-empty){background:none}
   .an-stage[data-mode="fall"]{background:#060a14}
-  .an-score{height:100%; overflow:auto; position:relative; display:flex; flex-direction:column; padding:22px 24px 30px; background:var(--desk); color:#1a1714; touch-action:pan-x pan-y; scrollbar-gutter:stable}
-  .an-score.is-pen,.an-score.is-lasso-drag{touch-action:none; cursor:crosshair; user-select:none}
+  .an-score{height:100%; overflow:auto; position:relative; display:flex; flex-direction:column; padding:22px 24px 30px; background:var(--desk); color:#1a1714; touch-action:none; scrollbar-gutter:stable; cursor:grab}
+  .an-score[data-tool="select"],.an-score.is-lasso-drag{touch-action:none; cursor:crosshair; user-select:none}
   .an-score[data-look="night"]{background:var(--desk-night); color:#ece5d8}
   /* what a marking means: a quiet label under it, never in the pointer's way */
   .sc-tip{position:absolute; z-index:5; left:0; top:0; max-width:min(340px,calc(100% - 8px)); padding:6px 10px 7px; border-radius:8px; background:rgba(33,29,25,.95); color:#faf6ee; font:500 12.5px/1.4 var(--sans); box-shadow:0 6px 18px rgba(0,0,0,.2); pointer-events:none}
@@ -1597,4 +1597,24 @@
     .an-sheet > div{margin-bottom:12px}
     .an-work{height:max(min(200px, 50dvh), calc(100dvh - var(--hdr-h) - var(--dock-h) - var(--an-tb-h) - var(--an-low) - 2px))}
     .an-fab{min-height:34px; padding:0 11px 0 9px; font-size:12px; right:max(10px, env(safe-area-inset-right, 0px)); bottom:calc(var(--dock-h) + var(--an-sb-h) + 34px)}
+  }
+
+  .an-tools{display:inline-flex; gap:2px}
+  .btn.tb-b.an-tool{width:auto; gap:5px; padding-inline:8px}
+  .btn.tb-b.an-tool[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink)}
+  @media (max-width:860px), (orientation: landscape) and (max-height:560px) and (max-width:1020px){
+    .an-tb .an-tools{order:3; flex:0 0 100%; display:flex; gap:4px}
+    .an-tb .btn.tb-b.an-tool{flex:1 1 0; min-width:0; height:auto; min-height:40px; margin-top:4px; white-space:normal; line-height:1.25}
+  }
+  @media (min-width:861px), (orientation:landscape) and (max-height:560px){
+    .an-tool > span{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+  }
+  @media (min-width:861px) and (max-width:1400px) and (min-height:561px){
+    #an-toolbar .btn.tb-b{min-width:30px; padding-inline:5px}
+    #an-toolbar .tb-views button[aria-pressed="true"]{padding-inline:6px}
+    #an-toolbar .tb-views .lbl{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+  }
+  @media (orientation:landscape) and (max-height:560px){
+    .an-tb .an-tools{order:1; flex:0 0 auto; gap:2px}
+    .an-tb .btn.tb-b.an-tool{flex:none; height:34px; min-height:34px; min-width:34px; margin-top:0; padding:0 6px}
   }
