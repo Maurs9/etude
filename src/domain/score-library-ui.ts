@@ -785,7 +785,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       });
       row.position.hidden = !item.resume;
       if (item.resume) {
-        const seconds = Math.max(0, Math.floor(item.resume.position));
+        const seconds = Math.max(0, Math.floor(item.resume.elapsed ?? (item.resume.performance ?? item.resume.position) / (item.resume.speed / 100)));
         const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
         row.position.textContent = t('position', { measure: item.resume.measure || '—', time });
       }

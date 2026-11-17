@@ -89,6 +89,8 @@ export function validateLibraryResume(value: unknown): LibraryResume | null {
   if (![40, 50, 60, 70, 75, 80, 90, 100, 110, 125].includes(speed)) invalid('Unsupported playback speed.');
   return {
     position: number(v.position), measure: text(v.measure, 128), speed,
+    ...(v.performance === undefined ? {} : { performance: number(v.performance) }),
+    ...(v.elapsed === undefined ? {} : { elapsed: number(v.elapsed) }),
     hands: choice(v.hands, ['both', 'rh', 'lh']), wait: boolean(v.wait), metronome: boolean(v.metronome),
     view: choice(v.view, ['page', 'cont', 'fall']), look: choice(v.look, ['paper', 'night']), zoom: number(v.zoom, .4, 2.5),
   };
