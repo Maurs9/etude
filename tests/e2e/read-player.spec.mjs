@@ -656,4 +656,192 @@ test.describe('Read player', () => {
     }));
     expect(facts).toEqual({ overflow: 0, small: [] });
   });
+
+  test('the playhead moves at constant speed across mixed durations and barlines in Read and Rhythm', async ({ app, page }) => {
+    await openHome(app);
+    await page.locator('#rdn-book-go').click();
+    await page.evaluate(() => {
+      const api = window.__etude;
+      api.SR.piece = {
+        id: 'prop-test',
+        engrave: 2,
+        ts: [4, 4],
+        keyN: 0,
+        bpm: 90,
+        rh: [
+          ['C4', 4],
+          ['D4', 2], ['E4', 1], ['F4', 0.5], ['G4', 0.5],
+          ['A4', 0.25], ['B4', 0.25], ['C5', 0.25], ['D5', 0.25], ['R', 1], ['E5', 2],
+          ['F5', 1.5], ['G5', 0.5], ['A5', 2],
+        ],
+        lh: [
+          ['C3', 4],
+          ['G2', 4],
+          ['F2', 2], ['G2', 2],
+          ['C3', 4],
+        ],
+      };
+      api.srDraw();
+    });
+
+    const readSpeed = await page.evaluate(() => {
+      const api = window.__etude;
+      const pts = api.SR.beatX;
+      const bySys = new Map();
+      for (const p of pts) {
+        const list = bySys.get(p.sy) ?? [];
+        list.push(p);
+        bySys.set(p.sy, list);
+      }
+      const maxErrBySys = [];
+      for (const [sy, list] of bySys.entries()) {
+        const b0 = list[0].b, b1 = list[list.length - 1].b;
+        const slope = (list[list.length - 1].x - list[0].x) / (b1 - b0);
+        let maxErr = 0;
+        for (let b = b0 + 0.125; b < b1 - 1e-4; b += 0.25) {
+          const at = api.srBeatPt(pts, b);
+          api.srCursor(at.x, at.sy);
+          const x1 = Number(document.querySelector('#rd-staff .ss-playhead').getAttribute('x1'));
+          const expectedX = list[0].x + (b - b0) * slope;
+          maxErr = Math.max(maxErr, Math.abs(x1 - expectedX));
+        }
+        maxErrBySys.push({ sy, slope, maxErr });
+      }
+      return maxErrBySys;
+    });
+    expect(readSpeed.length).toBeGreaterThanOrEqual(1);
+    for (const s of readSpeed) {
+      expect(s.slope).toBeGreaterThan(0);
+      expect(s.maxErr).toBeLessThan(0.05);
+    }
+
+    // Rhythm drill staff also uses proportional time spacing across mixed note values and barline.
+    await page.locator('#rdn-back').click();
+    await page.evaluate(() => {
+      const api = window.__etude;
+      api.rdOpen(Object.values(api.RD_LV).find((l) => l.ty === 'rh'));
+      api.rdStart('practice');
+    });
+    await expect(page.locator('#rdx-staff svg')).toBeVisible();
+    const rhSpeed = await page.evaluate(() => {
+      const api = window.__etude;
+      api.RD.rh.ev = [
+        { beat: 0, dur: 2, rest: false },
+        { beat: 2, dur: 1, rest: false },
+        { beat: 3, dur: 0.5, rest: false },
+        { beat: 3.5, dur: 0.5, rest: false },
+        { beat: 4, dur: 0.5, rest: false },
+        { beat: 4.5, dur: 0.5, rest: false },
+        { beat: 5, dur: 3, rest: false },
+      ];
+      api.RD.rh.piece = { id: 'rh', perc: true, noNames: true, ts: [4, 4], keyN: 0, bpm: 80, rh: api.RD.rh.ev.map((e) => [e.rest ? 'R' : 'B4', e.dur]) };
+      api.RD.rh.paper = undefined;
+      api.rdRhFit();
+      const pts = api.RD.rh.r.beatX;
+      const b0 = pts[0].b, b1 = pts[pts.length - 1].b;
+      const slope = (pts[pts.length - 1].x - pts[0].x) / (b1 - b0);
+      let maxErr = 0;
+      for (let b = 0.25; b < 8; b += 0.25) {
+        const at = api.srBeatPt(pts, b);
+        maxErr = Math.max(maxErr, Math.abs(at.x - (pts[0].x + (b - b0) * slope)));
+      }
+      return { slope, maxErr };
+    });
+    expect(rhSpeed.slope).toBeGreaterThan(0);
+    expect(rhSpeed.maxErr).toBeLessThan(0.05);
+  });
+
+  test('instant feedback toggle persists and marks notes, dock keys, and missed notes immediately in Assessment', async ({ app, page }) => {
+    await app.open({ hash: 'read', dock: true, saved: withBook({}) });
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rd-staff .ss-n').first()).toBeVisible();
+
+    const toggle = page.locator('#rd-instant');
+    await expect(toggle).not.toBeChecked();
+    await toggle.check();
+    await expect(toggle).toBeChecked();
+
+    const savedPref = await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.reading?.prefs?.instantFeedback);
+    expect(savedPref).toBe(true);
+
+    // Reload and confirm persistence.
+    await page.reload();
+    await expect(page.locator('#rdn-home')).toBeVisible();
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rd-staff .ss-n').first()).toBeVisible();
+    await expect(page.locator('#rd-instant')).toBeChecked();
+
+    const expected = await page.evaluate(() => {
+      const api = window.__etude;
+      return api.srtLevelExpected(api.SR.lvPiece, { bpm: api.SR.bpm, hand: 'both' });
+    });
+
+    // Wrong note on count-in completion shows immediate bad verdict, dock key flash, and extra counter.
+    await page.locator('#rd-go').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await page.evaluate((firstMidi) => {
+      const api = window.__etude;
+      api.srtSetState({ type: 'countInDone' });
+      api.SR.t0 = performance.now();
+      api.handleNoteOn(firstMidi + 1, 90, 'midi');
+    }, expected[0].midi);
+
+    await expect(page.locator('#rd-verdict')).toHaveClass(/bad/);
+    await expect(page.locator('#rd-verdict')).toContainText('✗');
+    await expect(page.locator('#keys .key[data-s="bad"]')).toHaveCount(1);
+    expect(await page.evaluate(() => window.__etude.SR.wrongExtra)).toBe(1);
+
+    // Playing the right note immediately marks note 0 as good on staff and keyboard and clears/updates verdict.
+    await page.evaluate((firstMidi) => {
+      const api = window.__etude;
+      api.SR.t0 = performance.now();
+      api.handleNoteOn(firstMidi, 90, 'midi');
+    }, expected[0].midi);
+
+    await expect(page.locator('#rd-staff .ss-n[data-nid="0"]')).toHaveAttribute('data-s', 'good');
+    await expect(page.locator('#rd-verdict')).toHaveClass(/good/);
+    await expect(page.locator('#rd-verdict')).toContainText('✓');
+    await expect(page.locator('#keys .key[data-s="good"]')).toHaveCount(1);
+
+    // Unplayed second note gets marked bad once its window passes.
+    await page.evaluate((secondOnMs) => {
+      const api = window.__etude;
+      api.SR.t0 = performance.now() - (secondOnMs + 400);
+    }, expected[1].onMs);
+    await expect(page.locator('#rd-staff .ss-n[data-nid="1"]')).toHaveAttribute('data-s', 'bad');
+
+    // Final evaluation at the end of attempt stays authoritative.
+    await page.evaluate(() => {
+      window.__etude.srAssessFinish();
+    });
+    await expect(page.locator('#rdn-result')).toBeVisible();
+    await expect.poll(() => srtState(page)).toBe('saved');
+    const finalEval = await page.evaluate(() => window.__etude.SR.srtEvaluation);
+    expect(finalEval.FP).toBeGreaterThanOrEqual(1);
+
+    // Next piece started via MIDI first note immediately marks the starting note and keeps the instant verdict.
+    await page.evaluate((firstMidi) => {
+      const api = window.__etude;
+      api.handleNoteOff(firstMidi, 'midi');
+      api.handleNoteOff(firstMidi + 1, 'midi');
+    }, expected[0].midi);
+    await page.locator('#rdn-next').click();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 2, 96));
+    const nextFirst = await page.evaluate(() => window.__etude.srtLevelExpected(window.__etude.SR.lvPiece)[0]);
+    await expect.poll(async () => {
+      return page.evaluate((m) => {
+        const api = window.__etude;
+        const name = api.SR.srtState?.name;
+        if (name !== 'preparing' && name !== 'claiming' && name !== 'preview' && name !== 'countIn' && name !== 'playing') {
+          api.handleNoteOn(m, 90, 'midi');
+          if (!api.SR.active && api.SR.srtState?.name !== 'preparing' && api.SR.srtState?.name !== 'claiming')
+            api.handleNoteOff(m, 'midi');
+        }
+        return api.SR.srtState?.name;
+      }, nextFirst.midi);
+    }, { timeout: 5000 }).toBe('playing');
+    await expect(page.locator('#rd-staff .ss-n[data-nid="0"]')).toHaveAttribute('data-s', 'good');
+    await expect(page.locator('#rd-verdict')).toHaveClass(/good/);
+    await expect(page.locator('#rd-verdict')).toContainText('✓');
+  });
 });
