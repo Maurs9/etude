@@ -29,7 +29,7 @@ test('cancelled placement keeps daily credit and only seeds the schedule after c
   await page.reload();
   await expect(page.locator('#placeBtn')).toBeVisible();
   expect(await page.evaluate(() => window.__etude.data)).toMatchObject({
-    totalReviews: 1, todayCount: 1, placed: false, srs: {},
+    totalReviews: 1, todayCount: 1, placed: false,
   });
   expect(await page.evaluate(() => Object.keys(window.__etude.data.srs))).toEqual([]);
   await page.locator('#placeBtn').click();
