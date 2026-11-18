@@ -17,6 +17,15 @@ The cold request inventory was the same on Today and Explore. The shared music d
 
 The comparison isolates the chunk split before the toolchain update and the other refactors on this branch. The readings are from uncompressed local HTTP and browser emulation. With three samples, the warm results are mixed and the cold results measure startup only. See [harness definitions](README.md) for the readiness signal and measurement limits.
 
+The same harness on the completed application changes at `991317f` measured 831,836 decoded startup JavaScript bytes on both routes and a 510,658-byte main chunk. Both offline checks passed again.
+
+| Entry view | Profile | Cold ready | Warm ready | Cold script time |
+|---|---|---:|---:|---:|
+| Today | Desktop | 400 ms | 324 ms | 10 ms |
+| Explore | Desktop | 282 ms | 291 ms | 14 ms |
+| Today | Emulated mobile | 7,323 ms | 3,344 ms | 83 ms |
+| Explore | Emulated mobile | 7,439 ms | 3,444 ms | 91 ms |
+
 ```sh
 PW_CHANNEL='' npm run perf:baseline -- --view today
 PW_CHANNEL='' npm run perf:baseline -- --view explore
