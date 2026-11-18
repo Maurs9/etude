@@ -67,7 +67,14 @@ describe('CI workflow', () => {
     const dev = job('e2e-dev');
     expect(dev).toMatch(/fail-fast: false/);
     expect(dev).toMatch(/shard: \[1, 2\]/);
-    expect(dev).toContain('- run: npm run test:dev -- --shard=${{ matrix.shard }}/2\n');
+    expect(dev).toContain("- run: npm run test:dev -- --shard=${{ matrix.shard }}/2 --grep-invert 'score-library-store\\.spec\\.mjs'");
+  });
+
+  it('runs the dev-only IndexedDB suite once and fails if it was skipped', () => {
+    const dev = job('e2e-dev');
+    expect(dev).toContain('name: Run and verify the IndexedDB score-library suite\n        if: matrix.shard == 1');
+    expect(dev).toContain('npm run test:dev -- tests/e2e/score-library-store.spec.mjs --reporter=list,json');
+    expect(dev).toContain('stats.skipped !== 0 || stats.unexpected !== 0 || stats.expected + stats.flaky < 11');
   });
 
   it('uploads failure artifacts per shard and per attempt', () => {
