@@ -1,23 +1,29 @@
 import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { test, expect } from '../helpers/fixtures.mjs';
 import { scorePedalCollisions } from '../helpers/score-audit-helpers.mjs';
 import { scoreMarkingCoverage, scoreNavigationCollisions, scoreSourceMarkingCoverage } from '../helpers/score-marking-audit.mjs';
 
-// Opt-in: the user's scores are private/untracked and must never become fixtures.
-// ETUDE_SCORES_DIR=MIDI ETUDE_DEV_SERVER=1 npx playwright test score-collection --project=app
-const directory = process.env.ETUDE_SCORES_DIR;
-const files = directory ? readdirSync(directory).filter(file => /\.(mxl|musicxml|xml)$/i.test(file)).sort() : [];
+const bundled = fileURLToPath(new URL('../fixtures/', import.meta.url));
+const privateCollection = process.env.ETUDE_SCORES_DIR;
+const filesIn = directory => readdirSync(directory).filter(file => /\.(mxl|musicxml|xml)$/i.test(file)).sort();
+const bundledFiles = filesIn(bundled);
+if (!bundledFiles.length) throw new Error('The bundled MusicXML corpus is missing.');
+const corpora = [{ label: 'bundled', directory: bundled, files: bundledFiles }];
+if (privateCollection && resolve(privateCollection) !== resolve(bundled)) {
+  corpora.push({ label: 'private', directory: privateCollection, files: filesIn(privateCollection) });
+}
 const auditDir = process.env.ETUDE_AUDIT_DIR ? resolve(process.env.ETUDE_AUDIT_DIR) : null;
-if (auditDir) mkdirSync(auditDir, { recursive: true });
 
-test.describe('local score collection', () => {
+test.describe('score corpus', () => {
   test.use({ viewport: { width: 1400, height: 1000 } });
-  if (!files.length) test('requires ETUDE_SCORES_DIR with MusicXML scores', () => test.skip(true, 'Local collection audit is opt-in'));
-  for (const file of files) {
-    test(`${file}: pages, continuous, narrow/night and marking coverage`, async ({ app, page }, info) => {
+  for (const { label, directory, files } of corpora) for (const file of files) {
+    test(`${label} ${file}: pages, continuous, narrow/night and marking coverage`, async ({ app, page }, info) => {
       test.setTimeout(180_000);
+      const reportDirectory = auditDir && join(auditDir, label);
+      if (reportDirectory) mkdirSync(reportDirectory, { recursive: true });
       const bytes = readFileSync(join(directory, file));
       const report = { file, sha256: createHash('sha256').update(bytes).digest('hex'), layouts: [], screenshots: [] };
       try {
@@ -59,7 +65,7 @@ test.describe('local score collection', () => {
           expect.soft(sourceCoverage.unknownGlyphs.filter(glyph => !glyph.coveredBy), mode + ' private glyphs need explicit source semantics').toEqual([]);
           expect.soft(pedals, mode + ' pedal ink collisions').toEqual([]);
           expect.soft(navigation, mode + ' navigation/tempo collisions').toEqual([]);
-          if (mode === 'page' && auditDir && process.env.ETUDE_AUDIT_SCREENSHOTS) {
+          if (mode === 'page' && reportDirectory && process.env.ETUDE_AUDIT_SCREENSHOTS) {
             const pages = page.locator('#an-roll svg');
             // Copy the actual rendered SVG, not a new engraving. Scroll clipping
             // and fixed app controls must not obscure the evidence screenshots.
@@ -70,7 +76,7 @@ test.describe('local score collection', () => {
                 await snapshot.setViewportSize({ width: source.width, height: source.height });
                 await snapshot.setContent(`<style>html,body{margin:0;background:#fffefa}svg{display:block;width:${source.width}px;height:${source.height}px}</style>${source.xml}`);
                 await snapshot.evaluate(() => document.fonts.ready);
-                const path = join(auditDir, file.replace(/\.[^.]+$/, '') + `-page-${index + 1}.png`);
+                const path = join(reportDirectory, file.replace(/\.[^.]+$/, '') + `-page-${index + 1}.png`);
                 await snapshot.screenshot({ path, fullPage: true });
                 report.screenshots.push(path);
               }
@@ -80,7 +86,7 @@ test.describe('local score collection', () => {
       } finally {
         const json = JSON.stringify(report, null, 2);
         await info.attach('score-audit', { body: json, contentType: 'application/json' });
-        if (auditDir) writeFileSync(join(auditDir, file.replace(/\.[^.]+$/, '') + '.json'), json + '\n');
+        if (reportDirectory) writeFileSync(join(reportDirectory, file.replace(/\.[^.]+$/, '') + '.json'), json + '\n');
       }
     });
   }

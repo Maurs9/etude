@@ -30,8 +30,9 @@ describe('performance baseline helpers', () => {
     expect(parseArgs).toBeTypeOf('function');
     expect(parseArgs([])).toEqual({ samples: 3, help: false });
     expect(parseArgs(['--samples', '5'])).toEqual({ samples: 5, help: false });
+    expect(parseArgs(['--view', 'today'])).toMatchObject({ view: 'today' });
     expect(parseArgs(['--help']).help).toBe(true);
-    for (const args of [['--samples', '2'], ['--samples', '3.5'], ['--samples'], ['--wat']]) {
+    for (const args of [['--samples', '2'], ['--samples', '3.5'], ['--samples'], ['--view', 'pieces'], ['--view'], ['--wat']]) {
       expect(() => parseArgs(args)).toThrow();
     }
   });

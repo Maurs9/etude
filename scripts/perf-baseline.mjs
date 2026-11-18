@@ -42,6 +42,10 @@ export function parseArgs(args) {
         throw new Error('--samples requires an integer of at least 3.');
       }
       options.samples = Number(value);
+    } else if (args[i] === '--view') {
+      const view = args[++i];
+      if (view !== 'today' && view !== 'explore') throw new Error('--view requires today or explore.');
+      options.view = view;
     } else throw new Error(`Unknown option: ${args[i]}`);
   }
   return options;
@@ -205,7 +209,7 @@ function report(result, jsonName) {
 
 export async function main(args = process.argv.slice(2)) {
   const options = parseArgs(args);
-  if (options.help) { console.log('Usage: node scripts/perf-baseline.mjs [--samples N>=3]\nPW_CHANNEL empty/unset uses bundled Chromium. Results: docs/performance/baseline-<UTC timestamp>.{json,md}'); return; }
+  if (options.help) { console.log('Usage: node scripts/perf-baseline.mjs [--samples N>=3] [--view today|explore]\nPW_CHANNEL empty/unset uses bundled Chromium. Results: docs/performance/baseline-<UTC timestamp>.{json,md}'); return; }
   const startedAt = new Date().toISOString();
   const git = command => execFileSync('git', command, { cwd: ROOT, encoding: 'utf8' }).trim();
   const status = git(['status', '--porcelain=v1', '--untracked-files=all']);
@@ -221,7 +225,7 @@ export async function main(args = process.argv.slice(2)) {
     await build();
     result.inventory = await scriptInventory();
     server = await serve(dirname(OUT_DIR), { port: 0, host: '127.0.0.1' });
-    const url = `http://127.0.0.1:${server.address().port}/etude/etude.html#explore`;
+    const url = `http://127.0.0.1:${server.address().port}/etude/etude.html#${options.view ?? 'explore'}`;
     browser = await chromium.launch({ headless: true, ...(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}) });
     result.environment.browserVersion = browser.version();
     result.url = url;

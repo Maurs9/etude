@@ -61,7 +61,7 @@ jobs:
           path: dist/etude
 
   # The Playwright suite against the built site (both projects, `app` and `sw`), split into 3 shards.
-  # Each test runs in exactly one shard.
+  # Each test runs in exactly one shard, including the bundled MusicXML marking corpus.
   e2e-build:
     runs-on: ubuntu-24.04
     # About 5 minutes per shard on a normal runner.
