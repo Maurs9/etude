@@ -4595,7 +4595,8 @@ function refreshToday() {
     byId('c-due').textContent = String(due);
     byId('c-new').textContent = String(fresh);
     byId('c-mastered').textContent = String(masteredCount());
-    byId('placeBtn').hidden = !(!data.placed && (data.totalReviews || 0) === 0); // offer placement only to brand-new users
+    // Answers from an unfinished placement earn daily credit without starting the review schedule.
+    byId('placeBtn').hidden = data.placed || (data.totalReviews > 0 && Object.keys(data.srs).length > 0);
     const next = dueItems()[0] || (fresh ? newItemsAvail()[0] : null);
     byId('nextup').innerHTML = next ? (t('nextup') + ' <b>' + itemLabel(next) + '</b> · ' + catLabel(next.cat).toLowerCase()) : t('nextup_none');
     const caughtUp = due === 0 && fresh === 0;
