@@ -6,7 +6,7 @@ for (const view of ['today', 'explore']) {
   test(`score analysis loads on demand from ${view}`, async ({ app, page }) => {
     await app.open({ hash: view });
     const loaded = () => page.evaluate(() => performance.getEntriesByType('resource').some(entry =>
-      /\/score-feature(?:-[^/]+)?\.(?:js|ts)$/.test(new URL(entry.name).pathname)));
+      /\/score-(?:tools|feature|harmony|symbols)(?:-[^/]+)?\.(?:js|ts)$/.test(new URL(entry.name).pathname)));
     expect(await loaded()).toBe(false);
     await page.locator('#nav [data-view=analysis]').click();
     await expect(page.locator('#view-analysis')).toHaveClass(/\bactive\b/);
