@@ -2871,9 +2871,10 @@ test.describe('several open tabs', () => {
     await page.evaluate(() => window.__etude.startSession(null));
     await answer(page);
     const { tab, errors } = await openTab(page);
-    const gen = await tab.evaluate(() => { window.confirm = () => true; window.__etude.$('resetBtn').click(); return window.__etude.SYNC.gen; });
-    expect(gen).not.toBe('');
+    await tab.evaluate(() => { window.confirm = () => true; window.__etude.$('resetBtn').click(); });
     await expect(page.locator('#syncNote')).toBeVisible();
+    const gen = await tab.evaluate(() => window.__etude.SYNC.gen);
+    expect(gen).not.toBe('');
     expect(await page.evaluate(() => ({ reviews: window.__etude.data.totalReviews, gen: window.__etude.SYNC.gen, session: window.__etude.SES.active }))).toEqual({ reviews: 0, gen, session: true });
 
     await answer(page);   // the session saves into the adopted record

@@ -77,7 +77,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps --only-shell chromium
       - run: npx playwright test --shard=${{ matrix.shard }}/3
       # Failure traces, and the score-layout results for platforms without a golden baseline yet (see tests/golden.spec.mjs).
       # A failed upload doesn't stop a green run from publishing the site.
@@ -106,7 +106,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps --only-shell chromium
       # tests/e2e/standalone.spec.mjs opens dist/etude-standalone.html over file://. The dev server does not build it.
       - run: npm run build:standalone
       - name: Run and verify the IndexedDB score-library suite

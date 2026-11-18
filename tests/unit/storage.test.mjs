@@ -1,10 +1,19 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { isBackupPayload, isImportableBackup, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreSettings, writePttV3 } from '../../src/domain/storage.ts';
+import { isBackupPayload, isImportableBackup, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreSettings, restoreSrs, writePttV3 } from '../../src/domain/storage.ts';
 
 const fixture = name => readFile(new URL(`../fixtures/storage/${name}`, import.meta.url), 'utf8');
 
 describe('ptt-v3 storage reader', () => {
+  it('supplies scheduling defaults for legacy cards while keeping their progress', async () => {
+    const payload = parsePttV3(await fixture('ptt-v3-legacy.json'));
+    const current = { box: 5, ease: 2.6, due: 123, reps: 8, lapses: 2, last: 102 };
+    expect(restoreSrs({ ...payload.data.srs, 'iv:2': current })).toEqual({
+      'iv:1': { box: 2, ease: 2.3, due: 0, reps: 3, lapses: 0, last: 0 },
+      'iv:2': current,
+    });
+  });
+
   it('accepts older valid saves and normalizes settings without changing data', async () => {
     const payload = parsePttV3(await fixture('ptt-v3-legacy.json'));
     expect(payload).not.toBeNull();
