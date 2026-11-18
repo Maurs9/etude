@@ -33,7 +33,7 @@ resource timing and raw CDP metrics. Build output remains in ignored `dist/etude
 
 ## Workload and profiles
 
-- English saved-state seed, visible keyboard dock, `etude.html#explore`.
+- English saved-state seed, visible keyboard dock, and the selected Today or Explore route. Explore is the default.
 - Desktop: 1440 × 900, CPU 1×, no network throttle.
 - Mobile emulation: Playwright Pixel 5 context, CPU 4× slowdown, network latency
   150 ms, download 200,000 bytes/s, upload 93,750 bytes/s. Not a real phone.
