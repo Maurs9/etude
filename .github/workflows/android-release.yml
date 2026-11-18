@@ -7,16 +7,23 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: 'Release version (e.g. 1.0.0)'
-        required: true
-        default: '1.0.0'
+        description: 'Version of the pushed tag (e.g. 1.0.24). Optional when running from the tag.'
+        required: false
       version_code:
-        description: 'Android integer versionCode (must increase for every update)'
-        required: true
-        default: '1'
+        description: 'Android versionCode. Defaults to the workflow run number. Must increase for every update.'
+        required: false
 
 permissions:
   contents: write
+
+concurrency:
+  group: >-
+    android-release-${{
+      github.ref_type == 'tag' && github.ref_name
+      || startsWith(inputs.version_name, 'v') && inputs.version_name
+      || format('v{0}', inputs.version_name)
+    }}
+  cancel-in-progress: false
 
 jobs:
   build-and-release:
@@ -31,6 +38,14 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
+
+      - name: Verify release version and tag before building
+        id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+        run: node scripts/android-release.mjs prepare
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -78,37 +93,24 @@ jobs:
         run: |
           echo "$KEYSTORE_B64" | base64 --decode > android.keystore
 
-      - name: Resolve version and update twa-manifest.json
+      - name: Apply release version to twa-manifest.json
         working-directory: android-twa
         env:
-          INPUT_VERSION_NAME: ${{ inputs.version_name }}
-          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+          VERSION_CODE: ${{ steps.meta.outputs.version_code }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           node - <<'EOF'
           const fs = require('node:fs');
-          const refName = process.env.GITHUB_REF_NAME || '';
-          const isTag = process.env.GITHUB_REF_TYPE === 'tag';
-          const versionName = isTag
-            ? refName.replace(/^v/, '')
-            : (process.env.INPUT_VERSION_NAME || '1.0.0').replace(/^v/, '');
-          const versionCode = isTag
-            ? Number(process.env.GITHUB_RUN_NUMBER || 1)
-            : Number(process.env.INPUT_VERSION_CODE || process.env.GITHUB_RUN_NUMBER || 1);
           const alias = process.env.KEY_ALIAS || 'etude';
 
           const manifest = JSON.parse(fs.readFileSync('twa-manifest.json', 'utf8'));
-          manifest.appVersionName = versionName;
-          manifest.appVersion = versionName;
-          manifest.appVersionCode = versionCode;
+          manifest.appVersionName = process.env.VERSION_NAME;
+          manifest.appVersion = process.env.VERSION_NAME;
+          manifest.appVersionCode = Number(process.env.VERSION_CODE);
           manifest.signingKey = { path: './android.keystore', alias };
           fs.writeFileSync('twa-manifest.json', JSON.stringify(manifest, null, 2) + '\n');
-
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version_name=${versionName}\n`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version_code=${versionCode}\n`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag_name=v${versionName}\n`);
           EOF
-        id: meta
 
       - name: Generate Android TWA project and build APK/AAB
         working-directory: android-twa
@@ -155,19 +157,21 @@ jobs:
 
       - name: Stage release artifacts
         working-directory: android-twa
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag_name }}
         run: |
           mkdir -p release-assets
-          cp app-release-signed.apk "release-assets/etude-android-v${{ steps.meta.outputs.version_name }}.apk"
-          cp app-release-bundle.aab "release-assets/etude-android-v${{ steps.meta.outputs.version_name }}.aab"
+          cp app-release-signed.apk "release-assets/etude-android-$RELEASE_TAG.apk"
+          cp app-release-bundle.aab "release-assets/etude-android-$RELEASE_TAG.aab"
           cp assetlinks.json release-assets/assetlinks.json
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.tag_name }}
-          name: "Étude Android v${{ steps.meta.outputs.version_name }}"
-          generate_release_notes: true
-          files: |
-            android-twa/release-assets/etude-android-v${{ steps.meta.outputs.version_name }}.apk
-            android-twa/release-assets/etude-android-v${{ steps.meta.outputs.version_name }}.aab
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag_name }}
+        run: |
+          node scripts/android-release.mjs verify "$RELEASE_TAG"
+          gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "Étude Android $RELEASE_TAG" \
+            "android-twa/release-assets/etude-android-$RELEASE_TAG.apk" \
+            "android-twa/release-assets/etude-android-$RELEASE_TAG.aab" \
             android-twa/release-assets/assetlinks.json

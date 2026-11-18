@@ -47,7 +47,7 @@ export const SCORE_MARKING_TERMS: readonly TermDefinition[] = [
   word('vivace'), word('presto'), word('prestissimo'), word('ritenuto', 'riten.', 'riten'),
   word('stringendo', 'string.', 'string'), word('calando'), word('morendo'), word('smorzando', 'smorz.'),
   word('maestoso'), word('agitato'), word('animato'), word('scherzando'), word('tranquillo'),
-  word('conmoto', 'con moto'), word('nontroppo', 'non troppo'), word('menomosso', 'meno mosso'),
+  word('conmoto', 'con moto'), word('pocomoto', 'poco moto'), word('nontroppo', 'non troppo'), word('menomosso', 'meno mosso'),
   word('piumosso', 'più mosso', 'piu mosso'), word('tempoprimo', 'tempo primo', 'tempo i', 'tempo 1'),
   word('pocoapoco', 'poco a poco'), word('condolore', 'con dolore'), word('senzamisura', 'senza misura'),
   word('attacca', 'attacca subito il seguente', 'attacca subito'), word('slower'),
