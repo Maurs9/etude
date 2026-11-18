@@ -47,6 +47,32 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+export interface StoredSrsEntry {
+  box: number;
+  ease: number;
+  due: number;
+  reps: number;
+  lapses: number;
+  last: number;
+}
+
+export function restoreSrsEntry(value: unknown): StoredSrsEntry {
+  const entry = isRecord(value) ? value : {};
+  const finite = (field: unknown, fallback = 0) => typeof field === 'number' && Number.isFinite(field) ? field : fallback;
+  return {
+    box: Math.max(0, Math.min(7, Math.floor(finite(entry.box)))),
+    ease: Math.max(1.6, Math.min(2.9, finite(entry.ease, 2.3))),
+    due: finite(entry.due),
+    reps: Math.max(0, Math.floor(finite(entry.reps))),
+    lapses: Math.max(0, Math.floor(finite(entry.lapses))),
+    last: finite(entry.last),
+  };
+}
+
+export function restoreSrs(value: unknown): Record<string, StoredSrsEntry> {
+  return Object.fromEntries(Object.entries(isRecord(value) ? value : {}).map(([id, entry]) => [id, restoreSrsEntry(entry)]));
+}
+
 export function restoreSettings(value: unknown): AppSettings {
   const settings = isRecord(value) ? value : {};
   const goal = SETTING_GOALS.includes(settings.goal as (typeof SETTING_GOALS)[number])

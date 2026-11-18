@@ -64,8 +64,8 @@ jobs:
   # Each test runs in exactly one shard, including the bundled MusicXML marking corpus.
   e2e-build:
     runs-on: ubuntu-24.04
-    # About 5 minutes per shard on a normal runner.
-    timeout-minutes: 15
+    # A cold Chromium dependency install can take 10 minutes on its own.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -93,8 +93,8 @@ jobs:
   # The same suite against the Vite dev server (`npm run test:dev`, the `app` project), split into 2 shards.
   e2e-dev:
     runs-on: ubuntu-24.04
-    # About 6 minutes per shard on a normal runner.
-    timeout-minutes: 15
+    # Leave room for Chromium setup, the browser checks, and artifact upload.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -109,7 +109,20 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # tests/e2e/standalone.spec.mjs opens dist/etude-standalone.html over file://. The dev server does not build it.
       - run: npm run build:standalone
-      - run: npm run test:dev -- --shard=${{ matrix.shard }}/2
+      - name: Run and verify the IndexedDB score-library suite
+        if: matrix.shard == 1
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/score-library-store.json
+        run: |
+          npm run test:dev -- tests/e2e/score-library-store.spec.mjs --reporter=list,json --output=test-results/score-library-store
+          node --input-type=module <<'EOF'
+          import { readFileSync } from 'node:fs';
+          const { stats } = JSON.parse(readFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE, 'utf8'));
+          if (stats.skipped !== 0 || stats.unexpected !== 0 || stats.expected + stats.flaky < 11) {
+            throw new Error('The IndexedDB score-library suite must run at least 11 tests without skips or failures.');
+          }
+          EOF
+      - run: npm run test:dev -- --shard=${{ matrix.shard }}/2 --grep-invert 'score-library-store\.spec\.mjs' --output=test-results/dev-shard
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         continue-on-error: true

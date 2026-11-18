@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { isBackupPayload, isImportableBackup, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreProgressBackup, restoreSettings, serializeProgressBackup, writePttV3 } from '../../src/domain/storage.ts';
+import { isBackupPayload, isImportableBackup, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreProgressBackup, restoreSettings, restoreSrs, serializeProgressBackup, writePttV3 } from '../../src/domain/storage.ts';
 import { SRT_LEDGER_KEY, srtCreateLedger, srtReadLedger } from '../../src/sight-reading/ledger.ts';
 
 const fixture = name => readFile(new URL(`../fixtures/storage/${name}`, import.meta.url), 'utf8');
@@ -24,6 +24,15 @@ it('transfers the ledger in the backup, stores it once, and rolls back if the li
 });
 
 describe('ptt-v3 storage reader', () => {
+  it('supplies scheduling defaults for legacy cards while keeping their progress', async () => {
+    const payload = parsePttV3(await fixture('ptt-v3-legacy.json'));
+    const current = { box: 5, ease: 2.6, due: 123, reps: 8, lapses: 2, last: 102 };
+    expect(restoreSrs({ ...payload.data.srs, 'iv:2': current })).toEqual({
+      'iv:1': { box: 2, ease: 2.3, due: 0, reps: 3, lapses: 0, last: 0 },
+      'iv:2': current,
+    });
+  });
+
   it('accepts older valid saves and normalizes settings without changing data', async () => {
     const payload = parsePttV3(await fixture('ptt-v3-legacy.json'));
     expect(payload).not.toBeNull();

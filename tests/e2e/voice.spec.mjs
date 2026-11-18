@@ -3,18 +3,19 @@ import { test, expect } from '../helpers/fixtures.mjs';
 // Voice: one screen (view sing) with two activities, Sing from the staff and Hum to notes (the old Transcribe screen).
 
 // A microphone that hums A3 (220 Hz): an oscillator into a MediaStream, so recording and pitch reading run without hardware.
-const fakeMic = page => page.addInitScript(() => {
+const fakeMic = (page, cents) => page.addInitScript(cents => {
   window.__micStreams = [];
   if (!navigator.mediaDevices) return;
   navigator.mediaDevices.getUserMedia = async () => {
     const ac = new AudioContext(), osc = ac.createOscillator(), dst = ac.createMediaStreamDestination();
-    osc.frequency.value = 220;
+    const target = window.__etude?.sing.flat?.[0];
+    osc.frequency.value = cents === undefined || !target ? 220 : 440 * 2 ** ((target.midi - 69 + cents / 100) / 12);
     osc.connect(dst);
     osc.start();
     window.__micStreams.push(dst.stream);
     return dst.stream;
   };
-});
+}, cents);
 const micLive = page => page.evaluate(() => window.__micStreams.some(s => s.getTracks().some(t => t.readyState === 'live')));
 
 test.describe('Voice screen', () => {
@@ -353,4 +354,33 @@ test.describe('Voice screen', () => {
       expect(c.offFg).not.toBe('rgba(0, 0, 0, 0)');
     });
   }
+});
+
+test('a flat note in the right pitch class prompts the singer to raise it', async ({ app, page }) => {
+  await fakeMic(page, -45);
+  await app.open({ hash: 'sing' });
+  await page.locator('#si-go').click();
+  await expect(page.locator('#si-hint')).toHaveText(/higher/);
+});
+
+test('losing the microphone retains the recording and makes Record available again', async ({ app, page }) => {
+  await fakeMic(page);
+  await app.open({ hash: 'transcribe' });
+  const record = page.locator('#tr-rec');
+  await record.click();
+  await page.waitForFunction(() => {
+    const { actx, trx } = window.__etude;
+    return trx.curMidi !== null && actx.currentTime - trx.curStart >= .15;
+  });
+  await page.evaluate(() => {
+    const track = window.__micStreams.at(-1).getAudioTracks()[0];
+    track.stop();
+    track.dispatchEvent(new Event('ended'));
+  });
+  await expect(page.locator('#tr-msg')).toContainText(/microphone disconnected/i);
+  await expect(record).toHaveText(/Record/);
+  expect(await page.evaluate(() => window.__etude.trx.notes.length)).toBeGreaterThan(0);
+  await record.click();
+  await expect(record).toHaveText(/Stop/);
+  await record.click();
 });

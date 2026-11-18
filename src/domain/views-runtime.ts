@@ -62,7 +62,7 @@ import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
 import { createInstantFeedbackTracker, type InstantFeedbackExpectedNote, type InstantFeedbackTracker } from '../sight-reading/instant-feedback.js';
 import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
-import { srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
+import { srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, srtResetLedgerTransaction, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
@@ -216,26 +216,45 @@ function installLearn(language: RuntimeLanguage, payload: LearnPayload) {
 }
 /** Keep the currently committed language intact on failure; never auto-reload a session. */
 function localeLoadError(retry: () => Promise<unknown>, target: HTMLElement = document.body) {
-    const previous = document.getElementById('locale-load-error');
-    previous?.remove();
-    const box = document.createElement('div');
+    document.getElementById('locale-load-error')?.remove();
+    const box = document.createElement('div'), drawer = byId('drawer'), help = byId('helpBox');
+    const host = drawer.classList.contains('on') ? (byId('set-lang').closest('.set-group') ?? drawer)
+        : help.classList.contains('on') ? help : target;
     box.id = 'locale-load-error';
     box.setAttribute('role', 'alert');
-    if (target === document.body) box.style.cssText = 'position:fixed;inset:auto 16px 16px;z-index:10000;padding:20px;border:2px solid #8c2b2b;border-radius:12px;background:#fffdf8;color:#1a1714;font:600 16px/1.5 sans-serif;box-shadow:0 12px 40px #0004';
+    if (host === document.body) box.className = 'locale-load-toast';
+    const localize = (key: string, fallback: string) => (STRINGS[lang] || STRINGS.en) ? t(key) : fallback;
+    const unsaved = () => STORE.failed || STORE.blocked === 'quarantine';
     const message = document.createElement('p');
-    message.textContent = 'Content could not be loaded. Check your connection and retry, or reload to get the latest version. Your progress is saved.';
-    const again = document.createElement('button');
-    again.type = 'button';
-    again.dataset.lazyRetry = '';
-    again.textContent = 'Retry';
-    again.addEventListener('click', () => { box.remove(); void retry().catch(() => localeLoadError(retry, target)); });
-    const reload = document.createElement('button');
-    reload.type = 'button';
-    reload.dataset.lazyReload = '';
-    reload.textContent = 'Reload';
-    reload.addEventListener('click', () => location.reload());
-    box.append(message, again, reload);
-    target.append(box);
+    message.textContent = localize('locale_fetch_failed', 'Content could not be loaded. Check your connection and retry, or reload.');
+    const actions = document.createElement('div');
+    actions.className = 'set-btns';
+    const button = (label: string, action: () => void) => {
+        const control = document.createElement('button');
+        control.type = 'button';
+        control.className = 'btn sm';
+        control.textContent = label;
+        control.addEventListener('click', action);
+        actions.append(control);
+        return control;
+    };
+    button(localize('rdn_retry', 'Retry'), () => {
+        box.remove();
+        void retry().catch(() => localeLoadError(retry, target));
+    }).dataset.lazyRetry = '';
+    if (unsaved()) {
+        const status = document.createElement('p');
+        status.textContent = localize('store_fail', 'Progress could not be saved. Export a backup before reloading.');
+        box.append(message, status);
+        button(localize('store_export', 'Export backup'), () => byId('exportBtn').click()).dataset.lazyExport = '';
+    } else {
+        box.append(message);
+    }
+    button(localize('store_reload', 'Reload'), () => {
+        if (!unsaved() || confirm(localize('locale_reload_unsaved', 'Reload and lose unsaved progress?'))) location.reload();
+    }).dataset.lazyReload = '';
+    box.append(actions);
+    host.append(box);
 }
 async function bootLocale(): Promise<void> {
     document.documentElement.dataset.localePending = '';
@@ -368,7 +387,7 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
         }
         return;
     }
-    if (lang !== l) { learnRequest++; LQ = null; }
+    if (lang !== l) learnRequest++;
     lang = l;
     viewState.language = lang;
     queryAllHtml(document, '#set-lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === l ? 'true' : 'false'));
@@ -420,6 +439,7 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
     if (view0() === 'analysis')
         anDraw();
     rdOnLocale();
+    refreshSessionCopy();
     coachRefresh();
     saveAll();
 }
@@ -837,6 +857,13 @@ async function trxStart()  {
     byId('tr-live').classList.add('rec');
     byId('tr-actions').style.display = 'none';
     byId('tr-out').innerHTML = '';
+    for (const track of tap.stream.getAudioTracks()) {
+        track.addEventListener('ended', () => {
+            if (trx.stream !== tap.stream || tap.stream.getAudioTracks().some(input => input.readyState === 'live')) return;
+            trxStop();
+            byId('tr-msg').textContent = t('tr_micended');
+        }, { once: true });
+    }
     trxLoop();
 }
 function trxMedian() { const a = trx.ring.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; }
@@ -848,6 +875,11 @@ function trxLoop() {
         return;
     if (!trx.analyser || !trx.buf || !actx) {
         trxStop();
+        return;
+    }
+    if (trx.stream && !trx.stream.getAudioTracks().some(track => track.readyState === 'live')) {
+        trxStop();
+        byId('tr-msg').textContent = t('tr_micended');
         return;
     }
     trx.analyser.getFloatTimeDomainData(trx.buf);
@@ -1306,7 +1338,7 @@ function ssNoteLoop(ts: number) {
                 sing.wrongT = ts;
             else if (ts - sing.wrongT > 700) {
                 sing.wrongT = 0;
-                ssHintBump(p.midi);
+                ssHintBump(p.midi, p.cents);
             }
         }
     }
@@ -1330,12 +1362,12 @@ function ssNoteCorrect() {
     if (sing.idx >= requireSingFlat().length)
         ssNoteFinish();
 }
-function ssHintBump(am: number) {
+function ssHintBump(am: number, cents = 0) {
     const cur = ssCurNote();
     if (!cur)
         return;
     sing.hint++;
-    const need = ssNeed(pc(cur.midi), pc(am)), syl = requireSingExercise().syl[((cur.p % 7) + 7) % 7];
+    const need = ssNeed(pc(cur.midi), pc(am)) || -cents, syl = requireSingExercise().syl[((cur.p % 7) + 7) % 7];
     if (sing.hint === 1)
         byId('si-hint').textContent = need > 0 ? t('si_hi_up') : t('si_hi_down');
     else {
@@ -1884,7 +1916,7 @@ function handleNoteOn(midi: number, vel: number, source = 'midi') {
     owners.add(source);
     inputOwners.set(midi, owners);
     if (held.has(midi)) {
-        if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder)
+        if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder && !overlaysOpen())
             srtRecorder.trackSource(source, inputTime() - SR.t0);
         return;
     }
@@ -1952,7 +1984,7 @@ function releaseFocusInput() {
         fallDraw();
 }
 function panic() { pianoBank.cancelWarmIdle(); scorePause(); srtCancelAttempt('interrupted'); if (srtRecorder)
-    srtRecorder.releaseAll('reset', performance.now() - SR.t0); releaseLiveInput(); trxStop(); accompStop(); trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; singStopAll(); srStopAll(true, true); held.forEach((m) => audioNoteOff(m)); held.clear(); heldOrder.length = 0; sustained.forEach((m) => audioNoteOff(m)); sustained.clear(); liveVoices.forEach((v) => v.stop()); liveVoices.clear(); stopPreviews(); stopDrone(); pointerKey.clear(); typingDown.clear(); pedalDown = false; bendSemitones = 0; if (lfoGain && actx)
+    srtRecorder.releaseAll('reset', performance.now() - SR.t0); releaseLiveInput(); rdRhInterrupt(); trxStop(); accompStop(); trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; singStopAll(); srStopAll(true, true); held.forEach((m) => audioNoteOff(m)); held.clear(); heldOrder.length = 0; sustained.forEach((m) => audioNoteOff(m)); sustained.clear(); liveVoices.forEach((v) => v.stop()); liveVoices.clear(); stopPreviews(); stopDrone(); pointerKey.clear(); typingDown.clear(); pedalDown = false; bendSemitones = 0; if (lfoGain && actx)
     lfoGain.gain.setTargetAtTime(0, actx.currentTime, .02); keyEl.forEach((el) => { el.classList.remove('pressed'); if (el.dataset.s === 'active')
     delete el.dataset.s; }); if (view0() === 'explore')
     updateExplore(); }
@@ -1963,6 +1995,9 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
             calTap();
         return;
     }
+    // MIDI still sounds in a dialog. Only calibration and note releases reach their handlers.
+    if (kind === 'on' && overlaysOpen())
+        return;
     // A waiting level piece starts on its first note; the keys played while its first sight is claimed are kept for the recorder.
     if (!(SR.active && srtRecorder) && srNoteStartInput(kind, midi, source, releaseKind))
         return;
@@ -2655,15 +2690,43 @@ function pwaInit() {
             return;
         }
         PWA.sw = 'pending';
-        const reg = () => navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
-            .then((registration) => { pwaWatchUpdates(registration); return navigator.serviceWorker.ready; }).then(() => { PWA.sw = 'ready'; pwaUi(); })
-            .catch((err: unknown) => { PWA.sw = 'error'; PWA.err = (err instanceof Error && (err.name || err.message)) || '?'; console.warn('Service worker:', err); pwaUi(); });
         if (document.readyState === 'complete')
-            reg();
+            void pwaRegister();
         else
-            window.addEventListener('load', reg, { once: true });
+            window.addEventListener('load', () => { void pwaRegister(); }, { once: true });
     }
     pwaUi();
+}
+async function pwaRegister() {
+    PWA.sw = 'pending';
+    PWA.err = '';
+    pwaUi();
+    try {
+        const registration = await navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' });
+        const worker = registration.active ?? registration.waiting ?? registration.installing;
+        const updateStatus = () => {
+            if (registration.active?.state === 'activated') {
+                PWA.sw = 'ready';
+                pwaWatchUpdates(registration);
+            }
+            else if (!worker || worker.state === 'redundant') {
+                PWA.sw = 'error';
+            }
+            else {
+                return; // Wait for activation or failure. navigator.serviceWorker.ready never rejects.
+            }
+            worker?.removeEventListener('statechange', updateStatus);
+            pwaUi();
+        };
+        worker?.addEventListener('statechange', updateStatus);
+        updateStatus();
+    }
+    catch (err) {
+        PWA.sw = 'error';
+        PWA.err = (err instanceof Error && (err.name || err.message)) || '?';
+        console.warn('Service worker:', err);
+        pwaUi();
+    }
 }
 /** An installed app can stay open for days. Coming back checks for a new version, at most every 30 minutes. sw.js activates it at once. */
 const PWA_UPDATE_GAP_MS = 30 * 60 * 1000;
@@ -2685,14 +2748,15 @@ function pwaUi() {
         file: 'pwa_file',
         unsupported: 'pwa_unsupported',
         ready: 'pwa_ready',
-        error: 'pwa_err',
+        error: PWA.err ? 'pwa_err' : 'pwa_install_failed',
     };
-    const k = (PWA.installed || pwaStandalone()) && PWA.sw !== 'file'
+    const k = PWA.sw === 'ready' && (PWA.installed || pwaStandalone())
         ? 'pwa_installed'
         : pwaLabels[PWA.sw] || 'pwa_pending';
     st.textContent = t(k, PWA.err);
     st.dataset.s = PWA.sw === 'error' ? 'err' : '';
     ib.hidden = !PWA.prompt || PWA.installed || pwaStandalone();
+    byId('set-pwa-retry').hidden = PWA.sw !== 'error';
 }
 async function pwaInstall()  {
     const p = PWA.prompt;
@@ -3038,13 +3102,12 @@ INTRO_SC.forEach((nm, i) => { if (SCALES[nm])
     ITEMS.push({ id: 'sc:' + nm, cat: 'scale', name: nm, label: nm, short: nm, intro: 200 + i }); });
 PROGS.forEach((p, i) => { ITEMS.push({ id: 'pr:' + p.name, cat: 'prog', ref: p, label: p.name, short: p.name, intro: 300 + i }); });
 ITEMS.forEach((it) => ITEM_BY_ID[it.id] = it);
-interface StoredSrsEntry { box: number; ease: number; due: number; reps: number; lapses: number; last: number; }
 type StoredTrainerSettings = Omit<storage.AppSettings, 'earKeys'> & { earKeys?: boolean; };
 interface StoredSheetRecord { best?: number; learned?: boolean; }
-interface StoredLastDrill { cat: string; mode: string; keys: boolean; key: string; c: number; n: number; day: number; }
+interface StoredLastDrill { cat: string; mode: string; keys: boolean; key: string; c: number; n: number; day: number; dir?: IntervalDirection; }
 interface StoredLessonReview { last: number; n: number; best?: number; rv?: number; }
 type StoredTrainerData = {
-    srs: Record<string, StoredSrsEntry>;
+    srs: Record<string, storage.StoredSrsEntry>;
     streak: number;
     bestStreak: number;
     lastActive: number;
@@ -3073,7 +3136,7 @@ type StoredTrainerData = {
 function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, weakSpotInjection: false, anyOctave: false } }; }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
-function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 }); }
+function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = storage.restoreSrsEntry(null)); }
 const IVL = [0, 1, 2, 4, 9, 21, 45, 90];
 function reviewItem(id: string, correct: boolean) {
     const it = srsOf(id);
@@ -3090,13 +3153,16 @@ function reviewItem(id: string, correct: boolean) {
     const days = IVL[it.box] !== undefined ? IVL[it.box] : 120;
     it.due = todayN() + Math.max(0, Math.round(days * (it.ease / 2.3)));
     it.last = todayN();
+    creditReview(correct);
+    if (it.reps === 1)
+        data.newToday = (data.newToday || 0) + 1; // count fresh concepts against the daily quota
+    saveAll();
+}
+function creditReview(correct: boolean) {
     data.totalReviews++;
     if (correct)
         data.totalCorrect++;
     touchDay();
-    if (it.reps === 1)
-        data.newToday = (data.newToday || 0) + 1; // count fresh concepts against the daily quota
-    saveAll();
 }
 function touchDay() {
     const t = todayN();
@@ -3118,7 +3184,8 @@ function touchDay() {
     if (keys.length > 400)
         keys.sort((a, b) => Number(a) - Number(b)).slice(0, keys.length - 400).forEach((k) => delete h[k]);
 }
-function seedPlacement(id: string, known: boolean) { if (known) {
+function seedPlacement(id: string, known: boolean) {
+    if (!known) return;
     const it = srsOf(id);
     it.box = 4;
     it.ease = 2.4;
@@ -3126,8 +3193,7 @@ function seedPlacement(id: string, known: boolean) { if (known) {
     it.lapses = 0;
     it.due = todayN() + Math.round(IVL[4] * (it.ease / 2.3));
     it.last = todayN();
-} data.totalReviews++; if (known)
-    data.totalCorrect++; touchDay(); saveAll(); }
+}
 const SCALE_EAR_POOL = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Dorian', 'Mixolydian', 'Phrygian', 'Lydian', 'Major pentatonic', 'Minor pentatonic', 'Blues', 'Harmonic minor', 'Whole tone'];
 function scaleEarOptions(correct: string) { let pool = SCALE_EAR_POOL.filter((n) => n !== correct); pool = shuffle(pool).slice(0, 6); pool.push(correct); return shuffle(pool); }
 function chordEarOptions(correctItem: ChordTrainerItem) {
@@ -3152,9 +3218,9 @@ interface EarKeysNote { m: number; t: number; }
 type EarKeysPrompt = { kind: 'iv'; target: number[]; n: number; } | { kind: 'ch'; target: number[]; inv: number; pcs: number[]; n: number; } | { kind: 'mel'; target: number[]; n: number; };
 type EarKeysState = EarKeysPrompt & { tries: number; seq: EarKeysNote[]; off: number; armAt: number; goT: ReturnType<typeof setTimeout> | number; won: boolean; warned: boolean; played?: number[]; };
 // dir: an interval by ear played downwards ('desc'); without it, upwards.
-interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; dir?: 'asc' | 'desc'; }
+interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; dir?: 'asc' | 'desc'; placementKnown?: boolean; verdictText?: () => string; }
 // A wrong answer: what was given against what was expected, both sounds for Hear both, and the item taken for this one (`pair`).
-interface TrainerGiven { text: string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
+interface TrainerGiven { text: () => string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
 // dir: the Direction an Intervals by-ear drill plays its intervals in ('both' picks one per question).
 type IntervalDirection = 'asc' | 'desc' | 'both';
 interface TrainerSessionTarget { cat: string; mode: string; key: string; dir?: IntervalDirection; }
@@ -3168,7 +3234,7 @@ function sesPrompt(q: TrainerQuestion, play: () => void) { sesStopPrompt(); SES.
     play(); }, 250); }
 function buildQueue() {
     const goal = data.settings.goal;
-    const due = dueItems();
+    const due = dueItems().slice(0, goal);
     const fresh = newItemsAvail().slice(0, newQuotaLeft());
     let pool = [...due];
     for (const f of fresh) {
@@ -3185,16 +3251,6 @@ function buildQueue() {
                 pool.push(w);
         }
     }
-    if (pool.length < goal && ITEMS.filter((it) => !isNew(it.id)).length < goal) { // early days only: introduce extra new concepts so the session feels substantial
-        for (const m of newItemsAvail()) {
-            if (pool.length >= goal)
-                break;
-            if (!pool.includes(m))
-                pool.push(m);
-        }
-    }
-    if (!pool.length)
-        pool = shuffle(ITEMS).slice(0, goal);
     let qs: TrainerQuestion[] = shuffle(pool).map(makeQuestion);
     // interleave: avoid two same-category in a row when possible
     for (let i = 1; i < qs.length; i++) {
@@ -3244,6 +3300,10 @@ function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSess
         confusions.clear();
     contrastOfferHide();
     SES.queue = targeted ? Array.from({ length: 9999 }) : buildQueue(); // targeted = endless
+    if (!SES.queue.length) {
+        refreshToday();
+        return;
+    }
     SES.idx = 0;
     SES.correct = 0;
     SES.total = 0;
@@ -3291,7 +3351,11 @@ function openSessionUI() {
 }
 function endSession(toSummary: boolean) {
     const wasPlacement = SES.placement;
-    if (wasPlacement) {
+    const completedPlacement = wasPlacement && SES.queue.length > 0 && SES.total === SES.queue.length;
+    if (completedPlacement) {
+        for (const q of SES.queue) {
+            if (q) seedPlacement(q.it.id, q.placementKnown === true);
+        }
         data.placed = true;
         saveAll();
     }
@@ -3325,13 +3389,14 @@ function endSession(toSummary: boolean) {
             prFocusAfterDrill();
         return;
     }
-    if (toSummary) {
-        showSummary(wasPlacement);
+    if (toSummary && (!wasPlacement || completedPlacement)) {
+        showSummary(completedPlacement);
         contrastOffer(byId('sum-note'), null);
     }
     else {
         byId('today-home').style.display = 'block';
         refreshToday();
+        if (toSummary && wasPlacement) byId('placeBtn').focus();
     }
 }
 function nextQuestion() {
@@ -3416,32 +3481,63 @@ function presentQuestion(q: TrainerQuestion) {
     dockSync(); // each question may answer on the keys or not
 }
 function earRoot(q: { key: number; }) { return theory.practiceTonicMidi(q.key, 'near-middle-c'); }
+function renderPlayPrompt(q: TrainerQuestion) {
+    const it = q.it, root = rootName(q.key);
+    const [label, sub] = it.cat === 'interval' ? [ivName(it.semi), t('above') + ' ' + root]
+        : it.cat === 'chord' ? [root + dispSym(it.short), chordDisp(it.ref)]
+        : it.cat === 'scale' ? [root + ' ' + scaleDisp(it.name), t('ascending')]
+        : [it.ref.name, t('in_key') + ' ' + root];
+    byId('q-prompt').innerHTML = label + ' <span class="sub">' + sub + '</span>';
+}
 function presentPlay(q: TrainerQuestion) {
+    renderPlayPrompt(q);
     const it = q.it;
-    if (it.cat === 'interval') {
-        byId('q-prompt').innerHTML = ivName(it.semi) + ' <span class="sub">' + t('above') + ' ' + rootName(q.key) + '</span>';
-    }
-    else if (it.cat === 'chord') {
-        byId('q-prompt').innerHTML = rootName(q.key) + dispSym(it.short) + ' <span class="sub">' + chordDisp(it.ref) + '</span>';
-    }
-    else if (it.cat === 'scale') {
+    if (it.cat === 'scale') {
         q.offs = SCALES[it.name].concat([12]);
         q.anchor = null;
         q.idx = 0;
-        byId('q-prompt').innerHTML = rootName(q.key) + ' ' + scaleDisp(it.name) + ' <span class="sub">' + t('ascending') + '</span>';
-        if (data.settings.metronome)
-            startMetro();
-        if (data.settings.drone)
-            startDrone(q.key);
+        if (data.settings.metronome) startMetro();
+        if (data.settings.drone) startDrone(q.key);
     }
     else if (it.cat === 'prog') {
         q.idx = 0;
-        const chain = it.ref.chords.map((ch) => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join('  ·  ');
-        byId('q-prompt').innerHTML = it.ref.name + ' <span class="sub">' + t('in_key') + ' ' + rootName(q.key) + '</span>';
-        byId('q-verdict').className = 'verdict neutral';
-        byId('q-verdict').textContent = chain;
+        neutral(() => it.ref.chords.map(ch => rootName((q.key + ch[0]) % 12) + dispSym(ch[1])).join('  ·  '));
         showProgTarget(q);
     }
+}
+function earOptionLabel(q: TrainerQuestion, key: string) {
+    switch (q.it.cat) {
+        case 'interval': {
+            const iv = INTERVALS.find(interval => String(interval.semi) === key);
+            return iv ? iv.short + ' · ' + ivName(iv.semi) : key;
+        }
+        case 'chord': return key + ' · ' + chordDisp(CHORDS.find(chord => chord.symbol === key));
+        case 'scale': return scaleDisp(key);
+        default: return key;
+    }
+}
+function refreshSessionCopy() {
+    const q = SES.q;
+    if (!SES.active || !q || SES.targeted?.cat === TECHNIQUE_TOPIC) return;
+    if (q.mode === 'ear') {
+        byId('q-mode').textContent = t(q.ek ? 'ek_mode' : 'listen_answer');
+        if (q.ek) {
+            renderEarKeysPrompt(q, q.ek);
+            byId('q-ekhint').textContent = t('ek_hint_' + q.ek.kind);
+        } else {
+            byId('q-cat').textContent = catLabel(q.it.cat);
+            byId('q-prompt').textContent = t('listen');
+            queryAllHtml(byId('q-answers'), 'button[data-k]').forEach(button => {
+                button.textContent = earOptionLabel(q, button.dataset.k ?? '');
+            });
+        }
+    } else {
+        byId('q-cat').textContent = catLabel(q.it.cat);
+        byId('q-mode').textContent = t({ interval: 'play_interval', chord: 'play_chord', scale: 'play_scale', prog: 'play_prog' }[q.it.cat]);
+        renderPlayPrompt(q);
+    }
+    if (q.verdictText) byId('q-verdict').textContent = q.verdictText();
+    if (SES.answered) showElaboration(q);
 }
 function presentEar(q: TrainerQuestion) {
     ekStop(q);
@@ -3456,26 +3552,26 @@ function presentEar(q: TrainerQuestion) {
     byId('q-answers').hidden = false;
     const box = byId('q-answers');
     box.innerHTML = '';
-    let opts: { k: number | string; t: string; }[] = [];
+    let opts: (number | string)[] = [];
     if (it.cat === 'interval') {
-        opts = INTERVALS.map((iv) => ({ k: iv.semi, t: iv.short + ' · ' + ivName(iv.semi) }));
+        opts = INTERVALS.map(iv => iv.semi);
         sesPrompt(q, () => playIvDir(earRoot(q), it.semi, q.dir ?? 'asc'));
     }
     else if (it.cat === 'chord') {
-        opts = (SES.contrast ? ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord') : chordEarOptions(it)).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
+        opts = (SES.contrast ? ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord') : chordEarOptions(it)).map(x => x.short);
         sesPrompt(q, () => playChordMidis(it.ref.intervals.map((i) => earRoot(q) + i), true));
     }
     else if (it.cat === 'scale') {
-        opts = (SES.contrast ? Object.keys(SCALES) : scaleEarOptions(it.name)).map((nm: string) => ({ k: nm, t: scaleDisp(nm) }));
+        opts = SES.contrast ? Object.keys(SCALES) : scaleEarOptions(it.name);
         sesPrompt(q, () => playScaleNotes(theory.practiceTonicMidi(q.key), SCALES[it.name], true));
     }
     else if (it.cat === 'prog') {
-        opts = PROGS.map((p) => ({ k: p.name, t: p.name }));
+        opts = PROGS.map(p => p.name);
         sesPrompt(q, () => playProg(q.key, it.ref));
     }
     if (SES.contrast) // a contrast drill offers just the two answers it compares
-        opts = opts.filter((o) => SES.contrast && [SES.contrast.a, SES.contrast.b].includes(earOptionId(it.cat, o.k)));
-    opts.forEach((o) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o.k); b.textContent = o.t; b.onclick = () => answerEar(q, o.k, b); box.appendChild(b); });
+        opts = opts.filter((o) => SES.contrast && [SES.contrast.a, SES.contrast.b].includes(earOptionId(it.cat, o)));
+    opts.forEach((o) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o); b.textContent = earOptionLabel(q, String(o)); b.onclick = () => answerEar(q, o, b); box.appendChild(b); });
 }
 function playProg(rootPc: number, prog: theory.ProgressionTemplate) { ensureAudio(); stopPreviews(); if (!actx)
     return; const t = actx.currentTime; prog.chords.forEach((ch, i: number) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); if (!tpl)
@@ -3596,17 +3692,20 @@ function ekBuild(q: TrainerQuestion): EarKeysPrompt {
     return { kind: 'mel', target, n: target.length };
 }
 function presentEarKeys(q: TrainerQuestion) {
-    const it = q.it, ek = q.ek = Object.assign(ekBuild(q), { tries: 0, seq: [], off: 0, armAt: Infinity, goT: 0, won: false, warned: false });
+    const ek = q.ek = Object.assign(ekBuild(q), { tries: 0, seq: [], off: 0, armAt: Infinity, goT: 0, won: false, warned: false });
     byId('q-answers').hidden = true;
     byId('q-answers').innerHTML = '';
-    const st = ekName(q, ek.target[0]), sub = ek.kind === 'iv' ? t('ek_sub_start', st) : ek.kind === 'ch' ? t('ek_sub_bass', st, ek.n) : t('ek_sub_mel', rootName(q.key) + ' ' + scaleDisp(it.cat === 'scale' ? it.name : ''), ek.n);
-    byId('q-prompt').innerHTML = t('ek_p_' + ek.kind) + ' <span class="sub">' + sub + '</span>';
-    if (ek.kind === 'mel')
-        byId('q-cat').textContent = t('ek_cat_mel');
+    renderEarKeysPrompt(q, ek);
     byId('q-ekhint').textContent = t('ek_hint_' + ek.kind);
     byId('q-ekreset').hidden = false;
     ekProg(q, 0);
     ekPlay(q);
+}
+function renderEarKeysPrompt(q: TrainerQuestion, ek: EarKeysState) {
+    const it = q.it;
+    const st = ekName(q, ek.target[0]), sub = ek.kind === 'iv' ? t('ek_sub_start', st) : ek.kind === 'ch' ? t('ek_sub_bass', st, ek.n) : t('ek_sub_mel', rootName(q.key) + ' ' + scaleDisp(it.cat === 'scale' ? it.name : ''), ek.n);
+    byId('q-prompt').innerHTML = t('ek_p_' + ek.kind) + ' <span class="sub">' + sub + '</span>';
+    byId('q-cat').textContent = ek.kind === 'mel' ? t('ek_cat_mel') : catLabel(it.cat);
 }
 // Plays the prompt and returns when (seconds after now) its last note starts.
 function ekSound(q: TrainerQuestion) {
@@ -3654,9 +3753,9 @@ function ekPlay(q: TrainerQuestion) {
     kbClear('target');
     kbState(ek.target[0], 'target', true);
     ekProg(q, 0);
-    neutral(t('ek_listen'));
+    neutral(() => t('ek_listen'));
     ek.goT = setTimeout(() => { if (SES.q === q && !SES.answered && !ek.seq.length)
-        neutral(t('ek_go')); }, wait);
+        neutral(() => t('ek_go')); }, wait);
 }
 function ekProg(q: TrainerQuestion, k: number) { const ek = q.ek; byId('q-ekprog').innerHTML = ek ? Array.from({ length: ek.n }, (_, i) => '<i' + (i < k ? ' class="on"' : '') + '></i>').join('') : ''; }
 function ekFlash(ms: number[], s: string) { ms.forEach((m) => kbState(m, s, true)); }
@@ -3670,7 +3769,7 @@ function ekOn(q: TrainerQuestion, m: number | null | undefined) {
     if (now < ek.armAt) {
         if (!ek.warned) {
             ek.warned = true;
-            neutral(t('ek_wait'));
+            neutral(() => t('ek_wait'));
         }
         return;
     }
@@ -3705,12 +3804,12 @@ function ekIv(q: TrainerQuestion) {
             kbState(start, 'target', true); } }, 420);
         ek.seq = [];
         ekProg(q, 0);
-        neutral(t('ek_start_on', ekName(q, start)));
+        neutral(() => t('ek_start_on', ekName(q, start)));
         return;
     }
     if (!b) {
         ekProg(q, 1);
-        neutral(t('ek_progress', 1, 2));
+        neutral(() => t('ek_progress', 1, 2));
         return;
     }
     if (b.m === a.m) {
@@ -3746,11 +3845,11 @@ function ekCh(q: TrainerQuestion) {
     }
     ekProg(q, pcs.length);
     if (down)
-        neutral(t('ek_keep', pcs.length, ek.n));
+        neutral(() => t('ek_keep', pcs.length, ek.n));
     else {
         ek.seq = [];
         ekProg(q, 0);
-        neutral(t('ek_hold'));
+        neutral(() => t('ek_hold'));
     }
 }
 function ekMel(q: TrainerQuestion, m: number) {
@@ -3763,7 +3862,7 @@ function ekMel(q: TrainerQuestion, m: number) {
             ekFlash([m], 'bad');
             setTimeout(() => { if (SES.active && SES.q === q) { kbClear('bad'); if (!SES.answered)
                 kbState(tg[0], 'target', true); } }, 420);
-            neutral(t('ek_start_on', ekName(q, tg[0])));
+            neutral(() => t('ek_start_on', ekName(q, tg[0])));
             return;
         }
         ek.off = m - tg[0];
@@ -3780,7 +3879,7 @@ function ekMel(q: TrainerQuestion, m: number) {
     if (ek.seq.length >= tg.length)
         ekWin(q, ek.seq.map((x) => x.m));
     else
-        neutral(t('ek_progress', ek.seq.length, tg.length));
+        neutral(() => t('ek_progress', ek.seq.length, tg.length));
 }
 function ekWin(q: TrainerQuestion, ms: number[]) { if (!q.ek)
     return; q.ek.won = true; q.ek.played = ms; kbClear('target'); ekFlash(ms, 'good'); ekProg(q, q.ek.n); resolve(q, true); }
@@ -3805,7 +3904,7 @@ function ekMiss(q: TrainerQuestion, bad: number[], msg: string) {
     v.textContent = msg + ' ' + t(ek.tries === EK_TRIES - 1 ? 'ek_last' : 'ek_again');
 }
 function ekReset() { const q = SES.q; if (!q || !q.ek || SES.answered)
-    return; q.ek.seq = []; kbClear('good'); kbClear('bad'); kbState(q.ek.target[0], 'target', true); ekProg(q, 0); neutral(t('ek_reset_msg')); }
+    return; q.ek.seq = []; kbClear('good'); kbClear('bad'); kbState(q.ek.target[0], 'target', true); ekProg(q, 0); neutral(() => t('ek_reset_msg')); }
 function ekElab(q: TrainerQuestion) {
     const ek = q.ek, names = (ms: number[]) => ms.map((m) => ekName(q, m)).join(' ');
     if (!ek)
@@ -3847,7 +3946,7 @@ function gradeInterval(q: TrainerQuestion) {
     if (ms.length < 2)
         return;
     if (ms.length > 2) {
-        neutral(t('just_two'));
+        neutral(() => t('just_two'));
         return;
     }
     const lo = ms[0], hi = ms[1];
@@ -3872,7 +3971,7 @@ function gradeChord(q: TrainerQuestion) {
     if (setEq(hp, target)) {
         const inv = inversionOf(q.key, tpl, Math.min(...heldMidis()));
         if (!data.settings.allowInv && inv !== 0) {
-            neutral(t('root_pos', rootName(q.key)));
+            neutral(() => t('root_pos', rootName(q.key)));
             return;
         }
         heldMidis().forEach((m) => kbState(m, 'good', true));
@@ -3880,11 +3979,11 @@ function gradeChord(q: TrainerQuestion) {
         return;
     }
     if (isSubset(hp, target)) {
-        neutral(t('keep_building') + ' (' + hp.length + '/' + target.length + ')');
+        neutral(() => t('keep_building') + ' (' + hp.length + '/' + target.length + ')');
         return;
     }
     if (isSubset(target, hp)) {
-        neutral(t('release_extra'));
+        neutral(() => t('release_extra'));
         return;
     }
     if (hp.length >= target.length) {
@@ -3902,7 +4001,7 @@ function gradeScaleNote(q: TrainerQuestion, midi: number | null | undefined) {
         if (pc(midi) !== q.key) {
             kbState(midi, 'bad', true);
             setTimeout(() => { if (SES.active && SES.q === q) kbClear('bad'); }, 400);
-            neutral(t('start_on', rootName(q.key)));
+            neutral(() => t('start_on', rootName(q.key)));
             return;
         }
         q.anchor = midi;
@@ -3917,7 +4016,7 @@ function gradeScaleNote(q: TrainerQuestion, midi: number | null | undefined) {
             resolve(q, true);
         }
         else
-            neutral(q.idx + ' / ' + q.offs.length + ' ✓');
+            neutral(() => q.idx + ' / ' + (q.offs?.length ?? 0) + ' ✓');
     }
     else {
         kbState(midi, 'bad', true);
@@ -3941,7 +4040,7 @@ function gradeProgChord(q: TrainerQuestion) {
         }
         else {
             kbClear('target');
-            neutral('✓ — next chord');
+            neutral(() => '✓ — next chord');
             setTimeout(() => { if (SES.active && SES.q === q && !SES.answered) showProgTarget(q); }, 250);
         }
         return;
@@ -3966,24 +4065,24 @@ function givenByEar(q: TrainerQuestion, k: number | string): TrainerGiven | null
     const it = q.it, pair = ITEM_BY_ID[earOptionId(it.cat, k)] ? earOptionId(it.cat, k) : undefined;
     if (it.cat === 'interval' && typeof k === 'number') {
         const r = earRoot(q), two = (semi: number) => feedbackBroken(q.dir === 'desc' ? [r + semi, r] : [r, r + semi]);
-        return { text: t('fb_picked', ivName(k), ivName(it.semi)), given: two(k), expected: two(it.semi), pair };
+        return { text: () => t('fb_picked', ivName(k), ivName(it.semi)), given: two(k), expected: two(it.semi), pair };
     }
     if (it.cat === 'chord') {
         const ref = CHORDS.find((c) => c.symbol === k);
         if (!ref)
             return null;
         const base = earRoot(q);
-        return { text: t('fb_picked', chordDisp(ref), chordDisp(it.ref)), given: feedbackBroken(ref.intervals.map((i) => base + i), 0.16, 1.1), expected: feedbackBroken(it.ref.intervals.map((i) => base + i), 0.16, 1.1), pair };
+        return { text: () => t('fb_picked', chordDisp(ref), chordDisp(it.ref)), given: feedbackBroken(ref.intervals.map((i) => base + i), 0.16, 1.1), expected: feedbackBroken(it.ref.intervals.map((i) => base + i), 0.16, 1.1), pair };
     }
     if (it.cat === 'scale' && typeof k === 'string' && SCALES[k]) {
         const line = (name: string) => feedbackLine(SCALES[name].concat([12]).map((o) => theory.practiceTonicMidi(q.key) + o));
-        return { text: t('fb_picked', scaleDisp(k), scaleDisp(it.name)), given: line(k), expected: line(it.name), pair };
+        return { text: () => t('fb_picked', scaleDisp(k), scaleDisp(it.name)), given: line(k), expected: line(it.name), pair };
     }
     if (it.cat === 'prog') {
         const prog = PROGS.find((p) => p.name === k);
         if (!prog)
             return null;
-        return { text: t('fb_picked', prog.name, it.ref.name), given: feedbackChords(progMidis(q.key, prog)), expected: feedbackChords(progMidis(q.key, it.ref)), pair };
+        return { text: () => t('fb_picked', prog.name, it.ref.name), given: feedbackChords(progMidis(q.key, prog)), expected: feedbackChords(progMidis(q.key, it.ref)), pair };
     }
     return null;
 }
@@ -3993,33 +4092,34 @@ function givenInterval(q: TrainerQuestion, lo: number, hi: number, from: number)
     if (it.cat !== 'interval')
         return null;
     const sign = q.dir === 'desc' ? -1 : 1, semi = hi - lo, rootOk = pc(lo) === q.key || (!!q.ek && pc(lo) === pc(q.ek.target[0]));
-    const given = rootOk ? intervalLabel(Math.abs(semi)) : noteNames([lo, hi]) + ' (' + intervalLabel(Math.abs(semi)) + ')';
-    const expected = rootOk ? ivName(it.semi) : ivName(it.semi) + ' ' + t('above') + ' ' + rootName(q.key);
+    const given = () => rootOk ? intervalLabel(Math.abs(semi)) : noteNames([lo, hi]) + ' (' + intervalLabel(Math.abs(semi)) + ')';
+    const expected = () => rootOk ? ivName(it.semi) : ivName(it.semi) + ' ' + t('above') + ' ' + rootName(q.key);
     const pair = rootOk && semi * sign > 0 && ITEM_BY_ID['iv:' + Math.abs(semi)] ? 'iv:' + Math.abs(semi) : undefined;
-    return { text: t('fb_played', given, expected), given: feedbackBroken([lo, hi]), expected: feedbackBroken([from, from + sign * it.semi]), pair };
+    return { text: () => t('fb_played', given(), expected()), given: feedbackBroken([lo, hi]), expected: feedbackBroken([from, from + sign * it.semi]), pair };
 }
 // Keys for a chord question (or chord `chordNo` of a progression), named as a chord when they make one.
 function givenChord(q: TrainerQuestion, ms: readonly number[], expectedMidis: readonly number[], chordNo: number | null): TrainerGiven | null {
     const sorted = [...ms].sort((a, b) => a - b), id = identifyChord(sorted);
-    const given = id ? chordLabel(id.rootPc, id.chord) : t('fb_notes', noteNames(sorted));
+    const given = () => id ? chordLabel(id.rootPc, id.chord) : t('fb_notes', noteNames(sorted));
     const it = q.it;
-    let expected = noteNames(expectedMidis), pair: string | undefined;
+    let expected = () => noteNames(expectedMidis), pair: string | undefined;
     if (it.cat === 'chord' && chordNo === null) {
-        expected = chordLabel(q.key, it.ref);
+        const tpl = it.ref;
+        expected = () => chordLabel(q.key, tpl);
         if (id && id.rootPc === q.key && ITEM_BY_ID['ch:' + id.chord.symbol])
             pair = 'ch:' + id.chord.symbol;
     }
     else if (it.cat === 'prog' && chordNo !== null) {
         const ch = it.ref.chords[chordNo - 1], tpl = ch ? progChordTpl(ch[1]) : undefined;
         if (ch && tpl)
-            expected = chordLabel((q.key + ch[0]) % 12, tpl);
+            expected = () => chordLabel((q.key + ch[0]) % 12, tpl);
     }
-    const text = chordNo === null ? t('fb_played', given, expected) : t('fb_chord_n', given, chordNo, expected);
+    const text = () => chordNo === null ? t('fb_played', given(), expected()) : t('fb_chord_n', given(), chordNo, expected());
     return { text, given: feedbackBroken(sorted, 0.16, 1.1), expected: feedbackBroken(expectedMidis, 0.16, 1.1), pair };
 }
 // A wrong note in a line (scale or melody), heard after the notes before it.
 function givenNote(before: readonly number[], midi: number, want: number): TrainerGiven {
-    return { text: t('fb_note', rootName(pc(midi)), rootName(pc(want))), given: feedbackLine([...before, midi]), expected: feedbackLine([...before, want]) };
+    return { text: () => t('fb_note', rootName(pc(midi)), rootName(pc(want))), given: feedbackLine([...before, midi]), expected: feedbackLine([...before, want]) };
 }
 function playGivenAndExpected(g: TrainerGiven) {
     ensureAudio();
@@ -4059,7 +4159,12 @@ function startContrast(pair: ConfusionPair) {
     show('practice');
     startSession({ cat: a.cat, mode: 'ear', key: 'all' }, { a: a.id, b: b.id, order: contrastOrder(a.id, b.id) });
 }
-function neutral(msg: string|null) { const v = byId('q-verdict'); v.className = 'verdict neutral'; v.textContent = msg; }
+function neutral(text: () => string) {
+    if (SES.q) SES.q.verdictText = text;
+    const v = byId('q-verdict');
+    v.className = 'verdict neutral';
+    v.textContent = text();
+}
 // The Today plan's Ear check: right answers by ear today (earDay, earToday), in any drill and in the review session.
 function countEarAnswer() {
     const tn = todayN();
@@ -4077,8 +4182,11 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     stopMetro();
     stopDrone();
     const good = correct && !q.missed;
-    if (SES.placement)
-        seedPlacement(q.it.id, good);
+    if (SES.placement) {
+        q.placementKnown = good;
+        creditReview(good);
+        saveAll();
+    }
     else if (!SES.targeted)
         reviewItem(q.it.id, good); // targeted drills are free practice: no schedule, daily-goal or streak change
     SES.total++;
@@ -4089,16 +4197,19 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     const v = byId('q-verdict');
     if (correct && !q.missed) {
         v.className = 'verdict good';
-        v.textContent = randItem([t('correct1'), t('correct2'), t('correct3'), t('correct4')]);
+        const praise = randItem(['correct1', 'correct2', 'correct3', 'correct4']);
+        q.verdictText = () => t(praise);
     }
     else if (correct && q.ek) {
         v.className = 'verdict neutral';
-        v.textContent = t('ek_retry_ok', q.ek.tries + 1);
+        const tries = q.ek.tries + 1;
+        q.verdictText = () => t('ek_retry_ok', tries);
     } // reproduced after a miss: counts as a lapse
     else {
         v.className = 'verdict bad';
-        v.textContent = q.given ? q.given.text : t('notquite');
+        q.verdictText = q.given?.text ?? (() => t('notquite'));
     }
+    v.textContent = q.verdictText();
     if (!correct && q.given && q.given.pair && !SES.placement && !SES.contrast)
         confusions.record(q.it.id, q.given.pair);
     if (q.ek) {
@@ -4271,18 +4382,18 @@ function focusView(v: string) {
     target.focus({ preventScroll: true });
 }
 let featureNavigation = 0;
-let show = function show(v: string|undefined, moveFocus = true): void | Promise<void> {
+let show = function show(v: string|undefined, moveFocus = true, fromHistory = false): void | Promise<void> {
     const navigation = ++featureNavigation;
     if (v === 'analysis' && !analysisModulesReady) {
         return ensureAnalysisModules().then(() => {
-            if (navigation === featureNavigation) return show(v, moveFocus);
+            if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
         }).catch(() => { showNotationReloadPrompt(); });
     }
     const hum = v !== undefined && isMergedView(v); // transcribe, the one merged view: the Hum to notes side of Voice
     if (v !== undefined && isMergedView(v))
         v = MERGED_VIEWS[v];
     if (v !== undefined && isMovedView(v)) {
-        prOpenMoved(v, moveFocus);
+        prOpenMoved(v, moveFocus, fromHistory);
         return;
     }
     if (v === undefined || !isAppView(v))
@@ -4299,7 +4410,7 @@ let show = function show(v: string|undefined, moveFocus = true): void | Promise<
             }
             void srtAbandonClaim('abandoned', false).then((result) => {
                 if (result.ok || SR.srtState?.name !== 'pendingSave') {
-                    show(hum ? 'transcribe' : v, moveFocus);
+                    show(hum ? 'transcribe' : v, moveFocus, fromHistory);
                 }
                 else if (location.hash.slice(1) !== prev) {
                     try {
@@ -4409,6 +4520,7 @@ let show = function show(v: string|undefined, moveFocus = true): void | Promise<
     }
     renderModeNav();
     syncIdle(); // a language/notation/label choice another tab made while this one was busy
+    if (!fromHistory && moveFocus && prev !== v) window.scrollTo({ top: 0, behavior: 'instant' });
     const active = document.activeElement;
     if (moveFocus && (!active || active === document.body || !active.isConnected || !active.getClientRects().length))
         focusView(v);
@@ -4442,10 +4554,13 @@ window.addEventListener('popstate', (e) => {
         openHelp(false, true);
     if (modal !== 'drawer' && byId('drawer').classList.contains('on'))
         openDrawer(false, true);
-    const v = location.hash.slice(1);
-    if ((navGroup(v) || isMovedView(v) || isMergedView(v)) && v !== _view) {
+    const v = viewFromHash(location.hash);
+    if (v !== _view) {
         _routed = false;
-        show(v);
+        show(v, true, true);
+    }
+    else if (location.hash !== '#' + v) {
+        history.replaceState(e.state, '', '#' + v);
     }
     if (modal === 'menu' && getComputedStyle(byId('menuBtn')).display !== 'none' && byId('mobileMenu').hidden)
         openMobileMenu(true);
@@ -4481,6 +4596,7 @@ function refreshToday() {
     const next = dueItems()[0] || (fresh ? newItemsAvail()[0] : null);
     byId('nextup').innerHTML = next ? (t('nextup') + ' <b>' + itemLabel(next) + '</b> · ' + catLabel(next.cat).toLowerCase()) : t('nextup_none');
     const caughtUp = due === 0 && fresh === 0;
+    buttonById('startBtn').disabled = caughtUp && !ITEMS.some(it => !isNew(it.id));
     byId('startBtn').textContent = caughtUp ? t('start_caught') : t('start');
     byId('hero-title').textContent = caughtUp ? t('hero_caught') : t('hero_session');
     byId('why-text').textContent = caughtUp ? t('why_caught') : t('why_due');
@@ -5079,12 +5195,11 @@ const LEARN_OLD_ORDER = ['keys', 'iv', 'sc', 'ch', 'cof', 'pr', 'rh', 'notation'
 const LEARN_GAPS = [3, 7, 16, 35, 90];
 /** A quiz question while it is being answered. */
 interface LearnQuizRunQuestion extends LearnQuizSpec {
-    opts?: { x: LearnText; ok: boolean }[];
+    opts?: { index: number; ok: boolean }[];
     got: number[];
     ans: boolean;
     ok: boolean;
     pick?: number;
-    fb?: string;
 }
 interface LearnQuizRun { id: string; qs: LearnQuizRunQuestion[]; i: number; score: number; done: boolean; rev?: boolean }
 let learnSel = 0, LGEN = 0, LQ: LearnQuizRun|null = null, learnGloss = false;
@@ -5443,16 +5558,23 @@ async function lStaffNote(gEl: HTMLElement | SVGElement) {
         delete gEl.dataset.s; }, 700);
     learnSay(noteName(n.midi, (LSTAVES[key].p.keyN || 0) < 0));
 }
-function lqLabel(o: LearnText) { return LT(o); }
+function lqLabel(spec: LearnQuizSpec, index: number) {
+    const option = spec.o?.[index];
+    return spec.i18n?.[lang]?.o?.[index] ?? (option === undefined ? '' : LT(option));
+}
+function lqFeedback(q: LearnQuizRunQuestion, spec: LearnQuizSpec) {
+    if (!q.opts) {
+        return q.ok ? t('lu_q_ok') : t('lu_q_no', lqMidis(q).map(m => pcName(pc(m), false)).join(' – '));
+    }
+    const right = q.opts.find(option => option.ok);
+    const message = q.ok || !right ? t('lu_q_ok') : t('lu_q_no', lqLabel(spec, right.index));
+    const why = spec.i18n?.[lang]?.why ?? (spec.why ? LT(spec.why) : '');
+    return why ? message + ' ' + why : message;
+}
 function lqStart(L: Lesson) {
-    const specs: LearnQuizSpec[] = LQZ[L.id] || [];
-    const qs = specs.map((q) => {
-        const c: LearnQuizRunQuestion = Object.assign({}, q, { got: [], ans: false, ok: false });
-        const loc = q.i18n && q.i18n[lang], locOpts = (loc && loc.o) || null;
-        if (q.o) {
-            c.opts = shuffle(q.o.map((x, i) => ({ x: (locOpts && locOpts[i]) || x, ok: i === (q.a || 0) })));
-        }
-        return c;
+    const qs = (LQZ[L.id] || []).map(q => {
+        const opts = q.o && shuffle(q.o.map((_, index) => ({ index, ok: index === (q.a || 0) })));
+        return { ...q, opts, got: [], ans: false, ok: false };
     });
     LQ = { id: L.id, qs, i: 0, score: 0, done: false };
     lqRender();
@@ -5478,8 +5600,8 @@ function lqRender() {
         h += '<div class="lq-act"><button type="button" class="btn ghost sm" data-lq="start">' + t('lu_q_retry') + '</button>' + (pass && learnSel < LESSONS.length - 1 ? '<button type="button" class="btn primary" data-ln="next">' + t('learn_next') + '</button>' : '') + '</div>';
     }
     else {
-        const q = LQ.qs[LQ.i], ps = q.pcs || q.seq, loc = q.i18n && q.i18n[lang];
-        h += '<p class="lq-n">' + t('lu_q_n', LQ.i + 1, LQ.qs.length) + '</p><p class="lq-q" id="lq-q">' + ((loc && loc.q) || LT(q.q)) + '</p>';
+        const q = LQ.qs[LQ.i], spec = qz[LQ.i] ?? q, ps = q.pcs || q.seq, loc = spec.i18n?.[lang];
+        h += '<p class="lq-n">' + t('lu_q_n', LQ.i + 1, LQ.qs.length) + '</p><p class="lq-q" id="lq-q">' + (loc?.q || LT(spec.q)) + '</p>';
         if (q.hear)
             h += '<p><button type="button" class="btn ghost sm demo" data-demo="' + q.hear + '">' + t('lu_q_hear') + '</button></p>';
         if (ps) {
@@ -5491,9 +5613,9 @@ function lqRender() {
         else if (!q.opts)
             throw new TypeError('Étude: quiz question has no options');
         else
-            h += '<div class="lq-opts" role="group" aria-labelledby="lq-q">' + q.opts.map((o, i) => '<button type="button" class="lq-o" data-lqo="' + i + '"' + (q.ans ? ' disabled' + (o.ok ? ' data-r="good"' : (q.pick === i ? ' data-r="bad"' : '')) : '') + '>' + lqLabel(o.x) + '</button>').join('') + '</div>';
+            h += '<div class="lq-opts" role="group" aria-labelledby="lq-q">' + q.opts.map((o, i) => '<button type="button" class="lq-o" data-lqo="' + i + '"' + (q.ans ? ' disabled' + (o.ok ? ' data-r="good"' : (q.pick === i ? ' data-r="bad"' : '')) : '') + '>' + lqLabel(spec, o.index) + '</button>').join('') + '</div>';
         if (q.ans) {
-            h += '<p class="lq-fb" data-r="' + (q.ok ? 'good' : 'bad') + '">' + q.fb + '</p><div class="lq-act"><button type="button" class="btn primary" data-lq="next">' + t(LQ.i < LQ.qs.length - 1 ? 'lu_q_next' : 'lu_q_finish') + '</button></div>';
+            h += '<p class="lq-fb" data-r="' + (q.ok ? 'good' : 'bad') + '">' + lqFeedback(q, spec) + '</p><div class="lq-act"><button type="button" class="btn primary" data-lq="next">' + t(LQ.i < LQ.qs.length - 1 ? 'lu_q_next' : 'lu_q_finish') + '</button></div>';
         }
     }
     box.innerHTML = h;
@@ -5509,18 +5631,21 @@ function lqFocus(sel: string) { const lq = maybeById('lq'), el = lq && lq.queryS
     el.focus({ preventScroll: true });
     learnReveal(el);
 } }
-function lqAnswer(ok: boolean, fb: string) { if (!LQ)
-    return; const q = LQ.qs[LQ.i]; q.ans = true; q.ok = ok; if (ok)
-    LQ.score++; q.fb = fb; lqRender(); learnSay(fb); lqFocus('[data-lq="next"]'); }
+function lqAnswer(ok: boolean) {
+    if (!LQ) return;
+    const q = LQ.qs[LQ.i];
+    q.ans = true;
+    q.ok = ok;
+    if (ok) LQ.score++;
+    lqRender();
+    learnSay(lqFeedback(q, LQZ[LQ.id]?.[LQ.i] ?? q));
+    lqFocus('[data-lq="next"]');
+}
 function lqPick(i: number) {
-    const q = LQ && LQ.qs[LQ.i];
-    if (!q || q.ans || !q.opts)
-        return;
+    const q = LQ && LQ.qs[LQ.i], option = q?.opts?.[i];
+    if (!q || q.ans || !option) return;
     q.pick = i;
-    const o = q.opts[i], right = q.opts.find((x) => x.ok), loc = q.i18n && q.i18n[lang];
-    if (!o.ok && !right)
-        throw new TypeError('Étude: quiz question has no right answer');
-    lqAnswer(o.ok, (o.ok || !right ? t('lu_q_ok') : t('lu_q_no', lqLabel(right.x))) + ((loc && loc.why) ? ' ' + loc.why : (q.why ? ' ' + LT(q.why) : '')));
+    lqAnswer(option.ok);
 }
 function lqNext() {
     if (!LQ)
@@ -5554,7 +5679,7 @@ function lqShow() {
     ensureAudio();
     preparePiano().then((ok) => { if (ok)
         ms.forEach((m, i) => previewNote(m, learnCtxTime() + 0.05 + (q.seq ? i * 0.45 : 0), 0.9, 90)); });
-    lqAnswer(false, t('lu_q_no', ms.map((m) => pcName(pc(m), false)).join(' – ')));
+    lqAnswer(false);
 }
 function learnInput() {
     const m: number | undefined = heldOrder[heldOrder.length - 1];
@@ -5588,7 +5713,7 @@ function learnInput() {
         }
     }
     if (q.got.length >= tot)
-        lqAnswer(true, t('lu_q_ok'));
+        lqAnswer(true);
     else {
         lqRender();
         learnSay(t('lu_q_got', q.got.length, tot));
@@ -6999,16 +7124,25 @@ function srtRecordExposure(reason: string, kind: 'exposure' | 'listen' = 'exposu
     const ledger = srtReadLedger(localStorage);
     if (ledger.exposures[fingerprint])
         return Promise.resolve({ ok: true, ledger } satisfies SightReadingLedgerResult);
-    const operation = kind === 'listen'
-        ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation: ledger.generation })
-        : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation: ledger.generation });
-    const settled = operation.then((result) => {
+    const progressGeneration = SYNC.gen;
+    const record = (generation: string) => kind === 'listen'
+        ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation })
+        : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation });
+    const operation = record(ledger.generation);
+    const settled = operation.then(result => {
         if (result.ok || result.reason !== 'stale_generation')
             return result;
-        const current = srtReadLedger(localStorage);
-        return kind === 'listen'
-            ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation: current.generation })
-            : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation: current.generation });
+        // An internal ledger reset can race a Learn reveal. A full progress reset
+        // also advances ptt-v3, and writes queued before it must stay discarded.
+        try {
+            const saved = readPttV3(localStorage)?.payload;
+            if ((saved?.gen ?? '') !== progressGeneration)
+                return result;
+            return record(srtReadLedger(localStorage).generation);
+        }
+        catch (_) {
+            return result;
+        }
     });
     srtExposurePromise = { fingerprint, promise: settled };
     void settled.then((result) => {
@@ -7160,6 +7294,7 @@ async function srtRetryPendingSave() {
     }
     if (result.ok) {
         srtSetState({ type: 'saved' });
+        storeDaily();
         srtClearPendingAttempt(attempt.attemptId);
         srtReleaseLease(lease);
         srtPendingUi(false);
@@ -7754,6 +7889,7 @@ function srAssessFinish() {
             }
             if (result.ok) {
                 srtSetState({ type: 'saved' });
+                storeDaily();
                 srtClearPendingAttempt(attempt.attemptId);
                 if (srtClaimIssuedAttemptId === attempt.attemptId)
                     srtClaimIssuedAttemptId = null;
@@ -9285,6 +9421,19 @@ function rdRhFit() {
 }
 function rdRhOptsLock(on: boolean) { (document).querySelectorAll('#rdx-rhopts input,#rdx-rhopts button').forEach((x) => { if (x instanceof HTMLInputElement || x instanceof HTMLButtonElement)
     x.disabled = on; }); }
+function rdRhInterrupt() {
+    const round = RD.rh;
+    if (!round?.playing) return;
+    round.playing = false;
+    cancelAnimationFrame(round.raf);
+    round.open.clear();
+    (RD.nodes || []).forEach(node => { try { node.stop(0); } catch (_) { } });
+    RD.nodes = [];
+    byId('rdx-staff').querySelector('.ss-playhead')?.remove();
+    rdRhOptsLock(false);
+    byId('rdx-fb').textContent = t('rdx_rh_yourturn');
+    byId('rdx-live').textContent = t('rdx_rh_yourturn');
+}
 function rdRhRun(listen: boolean) {
     const R = RD.rh, L = RD.L;
     if (!R || !L || R.playing)
@@ -9507,17 +9656,17 @@ function rdRhDone(endBeat: number) {
     }
     R.graded = g;
     RD.rhP.push(g.pct);
-    if (g.res.some((r) => r.off != null))
-        RD.rhM.push(g.mean);
+    const matched = g.res.some(r => r.off != null);
+    if (matched) RD.rhM.push(g.mean);
     RD.n++;
     RD.ok += g.pct;
-    const tm = Math.abs(g.mean) < 25 ? t('rdx_rh_ontime') : g.mean < 0 ? t('rdx_rh_rush', -g.mean) : t('rdx_rh_drag', g.mean);
+    const timing = !matched ? '' : ' · ' + (Math.abs(g.mean) < 25 ? t('rdx_rh_ontime') : g.mean < 0 ? t('rdx_rh_rush', -g.mean) : t('rdx_rh_drag', g.mean));
     if (plain)
-        msg = t('rdx_rh_res', g.pct, (g.good + g.near) + '/' + R.on.length) + ' · ' + tm + (g.extra ? ' · ' + t('rdx_rh_extra', g.extra) : '');
+        msg = t('rdx_rh_res', g.pct, (g.good + g.near) + '/' + R.on.length) + timing + (g.extra ? ' · ' + t('rdx_rh_extra', g.extra) : '');
     else if (!R.two)
-        msg = t('rdx_rh_score', g.pct) + ' · ' + rdRhHandLine('', 'by' in g ? g.by.R : undefined) + ' · ' + tm;
+        msg = t('rdx_rh_score', g.pct) + ' · ' + rdRhHandLine('', 'by' in g ? g.by.R : undefined) + timing;
     else
-        msg = t('rdx_rh_score', g.pct) + ' · ' + tm;
+        msg = t('rdx_rh_score', g.pct) + timing;
     if (det)
         det.innerHTML = R.two ? (['R', 'L'] as const).map((h) => `<div>${rdEsc(rdRhHandLine(t(h === 'R' ? 'rdx_rh_hand_r' : 'rdx_rh_hand_l'), 'by' in g ? g.by[h] : undefined))}</div>`).join('') : '';
     const f = byId('rdx-fb');
@@ -17779,7 +17928,7 @@ function renderPlan() {
 }
 /* ---------- PRACTICE: last drill result ---------- */
 function prRecordDrill() { if (!SES.targeted || !SES.total)
-    return; const tg = SES.targeted; data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, c: SES.correct, n: SES.total, day: todayN() }; saveAll(); }
+    return; const tg = SES.targeted; data.lastDrill = { cat: tg.cat, mode: tg.mode, keys: tg.mode === 'ear' && (tg.cat === 'melody' || !!data.settings.earKeys), key: tg.key, dir: tg.dir, c: SES.correct, n: SES.total, day: todayN() }; saveAll(); }
 /* ---------- PRACTICE: setup mode and hints ---------- */
 // The setup screen holds one choice: the topic in #pr-cat, the mode in #pr-mode (aria-pressed) and the key in #pr-key.
 // #pr-cat and #pr-key are hidden; the topic cards and key chips are their only visible controls. Every caller
@@ -17887,10 +18036,10 @@ function prEarCheck() {
     prStart();
 }
 // A screen that moved into this setup (an old link or saved lastTool): Practice, set up for it.
-function prOpenMoved(v: router.MovedView, moveFocus = true) {
+function prOpenMoved(v: router.MovedView, moveFocus = true, fromHistory = false) {
     if (SES.active && SES.targeted)
         endSession(false);
-    show('practice', moveFocus);
+    show('practice', moveFocus, fromHistory);
     if (v === 'songs') {
         prSetTopic('interval');
         const panel = byId('pr-songs');
@@ -17914,6 +18063,7 @@ function prContinue() {
     if (d.cat !== 'melody') // melodies are always on the keys, and leave the saved ear choice alone
         prSetMode(prDrillMode(d));
     prSetKey(prDrillKey(d));
+    if (d.cat === 'interval' && d.mode === 'ear') prSetDir(d.dir ?? 'asc');
     prStart();
 }
 // Arrow keys, Home and End move through a radio group and select (WAI-ARIA radio group); Space and Enter click.
@@ -18347,8 +18497,7 @@ let syncPull = function syncPull() {
     else if (!sameData)
         syncData(!syncHasBase(bp) ? bp : bp.data, data, rp.data);
     data.settings = restoreSettings(data.settings);
-    if (!isRecord(data.srs))
-        data.srs = {};
+    data.srs = storage.restoreSrs(data.srs);
     if (!isRecord(data.sheet))
         data.sheet = {};
     if (syncHasBase(bp))
@@ -18420,20 +18569,45 @@ function syncRefresh() {
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
 function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
-function syncWrite() { if (STORE.blocked)
-    return; try {
-    const p = syncPayload();
-    const s = writePttV3(localStorage, p);
+function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
+    if (STORE.blocked) {
+        if (replacement)
+            throw new Error('Progress is protected');
+        return;
+    }
+    const payload = syncPayload();
+    let raw: string;
+    try {
+        raw = writePttV3(localStorage, replacement ? { ...payload, ...replacement } : payload);
+    }
+    catch (e) {
+        if (replacement)
+            throw e; // Let the caller roll back the ledger when the main save fails.
+        console.warn('save failed', e);
+        storeFailed();
+        return;
+    }
+    if (replacement) {
+        data = replacement.data;
+        SYNC.gen = replacement.gen;
+        SYNC.known.clear();
+    }
     SYNC.merge = null;
-    syncCurrent(s);
-    storeSaved();
+    syncCurrent(raw);
+    if (!replacement)
+        storeSaved();
 }
-catch (e) {
-    console.warn('save failed', e);
-    storeFailed();
-} }
 let _saveT: ReturnType<typeof setTimeout> | null = null;
-function saveSoon() { clearTimeout(_saveT ?? undefined); _saveT = setTimeout(saveAll, 400); } // for sliders — avoid a localStorage write per pixel
+function flushSaveSoon() {
+    if (_saveT === null) return;
+    clearTimeout(_saveT);
+    _saveT = null;
+    saveAll();
+}
+function saveSoon() {
+    clearTimeout(_saveT ?? undefined);
+    _saveT = setTimeout(flushSaveSoon, 400);
+} // for sliders — avoid a localStorage write per pixel
 // Data safety: storage the browser keeps, a visible save failure, rolling copies, and records this build must not overwrite.
 const STORE = { blocked: '' as '' | 'too-new' | 'quarantine', failed: false, unreadable: false, persist: 'unsupported' as safety.PersistState, usage: null as { usage: number; quota: number } | null, snaps: [] as safety.SnapshotInfo[], snapDay: -1 };
 const STORE_LAST_EXPORT = 'etude-last-export', STORE_UNREADABLE = KEY + '-unreadable', STORE_EXPORT_DUE_MS = 14 * 864e5;
@@ -18456,10 +18630,14 @@ function storeFailed() { if (STORE.failed)
 function storeBlock() { if (STORE.blocked === 'too-new')
     return; STORE.blocked = 'too-new'; storeNote(); }
 function storeHasProgress() {
-    if (data.totalReviews > 0 || Object.keys(data.srs || {}).length > 0)
+    const reading = data.reading;
+    const outcomes = [data.srs, data.learnDone, data.singCleared, data.sheet, reading?.lv, reading?.nt, reading?.book?.pieces];
+    if (data.totalReviews > 0 || data.placed || (data.lastDrill?.n ?? 0) > 0 || reading?.prefs?.warmDone ||
+        outcomes.some(map => isRecord(map) && Object.keys(map).length > 0))
         return true;
     try {
-        return Object.keys(srtReadLedger(localStorage).attempts).length > 0; // Read and Marathon history lives in its own record
+        const ledger = srtReadLedger(localStorage);
+        return Object.keys(ledger.attempts).length > 0 || Object.keys(ledger.sessions).length > 0;
     }
     catch (_) {
         return false;
@@ -18468,7 +18646,7 @@ function storeHasProgress() {
 /** One copy a day, taken on the first save of the day. An empty record is not worth a slot. */
 function storeDaily() {
     const day = todayN();
-    if (STORE.snapDay === day || !storeHasProgress())
+    if (STORE.blocked || STORE.snapDay === day || !storeHasProgress())
         return;
     STORE.snapDay = day;
     void safety.listSnapshots().then(async (list) => { if (safety.needsDailySnapshot(list, day))
@@ -18570,6 +18748,45 @@ async function storeRestore(id: number | undefined) {
     }
     catch (_) {
         alert(t('import_storage'));
+    }
+}
+async function storeReset() {
+    const button = buttonById('resetBtn');
+    if (button.disabled || !confirm(t('reset_confirm')))
+        return;
+    const checkWritable = () => {
+        if (storeBackupBlocked() || STORE.blocked === 'quarantine')
+            throw new Error('Progress is protected');
+    };
+    button.disabled = true;
+    try {
+        const result = await srtResetLedgerTransaction(localStorage, async () => {
+            checkWritable();
+            syncPull();
+            return await storeSnapshot('before-reset', backupJson()) || confirm(t('store_reset_copy_failed'));
+        }, () => {
+            checkWritable();
+            syncPull();
+            const reset = { ...freshData(), settings: data.settings, latency: calRecord().latency };
+            syncWrite({ gen: syncGen(), data: reset });
+        });
+        if (!result)
+            return;
+        if (!result.ok) {
+            alert(t(result.reason === 'unsupported' ? 'store_too_new' : 'store_reset_failed'));
+            return;
+        }
+        storeSaved();
+        renderLearn._init = false;
+        learnSel = 0;
+        renderProgress();
+        refreshToday();
+    }
+    catch (_) {
+        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : 'store_reset_failed'));
+    }
+    finally {
+        button.disabled = false;
     }
 }
 function storeExported() {
@@ -18718,8 +18935,7 @@ function loadAll() {
             if (raw.data) {
                 data = Object.assign(data, raw.data);
                 data.settings = restoreSettings(raw.data.settings);
-                if (!raw.data.srs)
-                    data.srs = {};
+                data.srs = storage.restoreSrs(raw.data.srs);
                 if (!isRecord(data.sheet))
                     data.sheet = {};
             }
@@ -18867,13 +19083,17 @@ function overlaysOpen() { return byId('drawer').classList.contains('on') || byId
 function syncScrim() {
     const open = overlaysOpen();
     byId('scrim').classList.toggle('on', open);
-    queryAllHtml(document, 'body > #skipLink, body > header, body > main, body > #dock, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
+    queryAllHtml(document, 'body > #skipLink, body > header, body > main, body > #dock, body > #bottomNav, body > #locale-load-error, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
 }
 // Closed overlays are only moved/faded out by CSS, so `inert` keeps their controls out of the Tab order;
 // opening moves focus inside, closing returns it to whatever opened the overlay.
 const overlayReturn = new Map<HTMLElement, Element | null>();
 function setOverlay(el: HTMLElement, o: boolean, firstId: string) {
     const was = el.classList.contains('on'), hadFocus = el.contains(document.activeElement);
+    if (o !== was) {
+        if (o) srtRecorder?.releaseAll('focus', performance.now() - SR.t0);
+        releaseLiveInput();
+    }
     el.classList.toggle('on', o);
     el.setAttribute('aria-hidden', o ? 'false' : 'true');
     el.inert = !o;
@@ -18909,24 +19129,26 @@ function trapFocus(e: KeyboardEvent) {
 }
 function openDrawer(o: boolean, fromPop = false) {
     if (o) {
-        releaseLiveInput();
         if (!fromPop)
             pushModalState('drawer');
     }
-    else if (!fromPop) {
-        popModalState('drawer');
+    else {
+        if (CAL.on) {
+            calStop();
+            calSay('');
+        }
+        if (!fromPop) popModalState('drawer');
     }
     setOverlay(byId('drawer'), o, 'drawerClose');
 }
 function openHelp(o: boolean, fromPop = false) {
     if (o) {
-        releaseLiveInput();
         kbdLayoutLabels();
         if (!fromPop)
             pushModalState('help');
     }
-    else if (!fromPop) {
-        popModalState('help');
+    else {
+        if (!fromPop) popModalState('help');
     }
     setOverlay(byId('helpBox'), o, 'helpClose');
 }
@@ -18949,8 +19171,8 @@ function applyNotation() {
     if (view0() === 'practice')
         updateAccompChain();
     if (view0() === 'read' && SR.piece) {
-        srStopAll();
-        srDraw();
+        // Leave the active score and its cursor intact until the assessment ends.
+        if (!SR.active && !srtEligibleFirstSightActive()) srDraw();
         srMeta();
     }
     anLocalize();
@@ -19035,6 +19257,7 @@ function initControls() {
     byId('sc-fit').addEventListener('click', () => { if (anZoomNow() !== 1) scoreZoom(1); else if (SCORE.engine) void scoreLayout(); });
     scoreFocusUi();
     byId('set-install').addEventListener('click', pwaInstall);
+    byId('set-pwa-retry').addEventListener('click', () => { void pwaRegister(); });
     document.addEventListener('fullscreenchange', scoreFocusFullscreenChanged);
     window.addEventListener('resize', stageResize);
     byId('settingsBtn').addEventListener('click', () => openDrawer(true));
@@ -19348,19 +19571,7 @@ function initControls() {
     byId('prog-export').addEventListener('click', () => byId('exportBtn').click());
     byId('prog-import').addEventListener('click', () => byId('importBtn').click());
     byId('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
-    byId('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
-        void storeSnapshot('before-reset', backupJson()); // the copy is taken now, before the reset below
-        const latency = calRecord().latency; // the timing calibration belongs to the device, like the settings
-        data = { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, learnDone: {}, learnSel: 0, settings: data.settings };
-        if (latency !== undefined)
-            calRecord().latency = latency;
-        renderLearn._init = false;
-        learnSel = 0;
-        SYNC.gen = syncGen();
-        syncWrite();
-        renderProgress();
-        refreshToday();
-    } }); // a new generation: other tabs adopt the reset instead of merging their copy back
+    byId('resetBtn').addEventListener('click', () => { void storeReset(); });
     // keyboard dock
     byId('oct-down').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.max(BASE_LOW, view.low - 12); buildKeyboard(); repaintHeld(); });
     byId('oct-up').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.min(BASE_HIGH - view.oct * 12, view.low + 12); buildKeyboard(); repaintHeld(); });
@@ -19369,7 +19580,7 @@ function initControls() {
     byId('kb-pan').addEventListener('input', (e) => { byId('dock-keys').scrollLeft = +wiringField(e).value; });
     byId('dock-keys').addEventListener('scroll', () => { inputById('kb-pan').value = String(byId('dock-keys').scrollLeft); });
     // settings: notation/tone/audio/learning
-    byId('set-notation').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_NOTATIONS, v))
+    byId('set-notation').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_NOTATIONS, v) || notation === v)
         return; notation = v; (document).querySelectorAll('#set-notation button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); applyNotation(); refreshToday(); saveAll(); });
     byId('set-lang').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
         void setLang(b.dataset.v).catch(() => localeLoadError(() => setLang(b.dataset.v))); });
@@ -19386,6 +19597,8 @@ function initControls() {
     byId('set-labels').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; labelMode = b.dataset.v ?? labelMode; (document).querySelectorAll('#set-labels button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); buildKeyboard(); repaintHeld(); saveAll(); });
     byId('bpm').addEventListener('input', (e) => { metro.bpm = +wiringField(e).value; byId('bpmLbl').textContent = wiringField(e).value; saveSoon(); });
+    for (const id of ['volume', 'reverb', 'bpm']) byId(id).addEventListener('change', flushSaveSoon);
+    window.addEventListener('pagehide', flushSaveSoon);
     byId('set-drone').addEventListener('change', (e) => { data.settings.drone = wiringInput(e).checked; saveAll(); });
     byId('set-metronome').addEventListener('change', (e) => { data.settings.metronome = wiringInput(e).checked; saveAll(); });
     byId('set-inv').addEventListener('change', (e) => { data.settings.allowInv = wiringInput(e).checked; saveAll(); });

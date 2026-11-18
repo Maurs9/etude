@@ -40,19 +40,24 @@ Add these secrets in **GitHub → Settings → Secrets and variables → Actions
 
 ---
 
-## 2. Build & publish the first GitHub Release
+## 2. Build & publish an Android release
 
-Either:
-- **From GitHub UI:** Actions → **Android TWA Release** → **Run workflow** (`version_name: 1.0.0`, `version_code: 1`), **or**
-- **From Git:**
-  ```sh
-  git tag v1.0.0
-  git push origin v1.0.0
-  ```
+Check out the commit you want to build and create a fresh version tag. Pushing it starts the release workflow.
+
+```sh
+git tag v1.0.24
+git push origin v1.0.24
+```
+
+For a manual run at the pushed tag, use `gh workflow run android-release.yml --ref v1.0.24`. To dispatch from a branch in the GitHub Actions UI, enter the version explicitly and make sure the branch tip is the commit at the pushed tag.
+
+The Android `versionCode` defaults to the workflow run number. It must be higher than the previous APK or AAB's code. Manual runs can supply an explicit `version_code`.
+
+The workflow verifies that the pushed tag points to the checkout before signing and again before publication. It rejects an existing GitHub Release for that tag. To publish replacement binaries, create a new version and tag.
 
 The workflow creates a GitHub Release containing:
-- `etude-android-v1.0.0.apk` (for direct install on Android)
-- `etude-android-v1.0.0.aab` (for Google Play)
+- `etude-android-v1.0.24.apk` (for direct install on Android)
+- `etude-android-v1.0.24.aab` (for Google Play)
 - `assetlinks.json` (generated with your key's SHA-256 fingerprint)
 
 ---

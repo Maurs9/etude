@@ -1,4 +1,6 @@
+import { readFile } from 'node:fs/promises';
 import { test, expect } from '../helpers/fixtures.mjs';
+import { STRINGS } from '../../src/locales/index.js';
 
 const LANGUAGES = ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'];
 
@@ -106,6 +108,37 @@ test('a retired Learn chunk after deployment offers one explicit reload and pres
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   expect(await page.evaluate(() => window.__etude.data.totalReviews)).toBe(progressBefore);
   expect(navigations).toBe(2);
+});
+
+test('Learn recovery in French exports unsaved progress and asks before reloading', async ({ app, page }) => {
+  await app.open({ lang: 'fr' });
+  await page.route(/learn-fr(?:-[^\/?]+)?\.(?:js|ts)(?:\?.*)?$/, route => route.abort());
+  await page.evaluate(() => {
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'ptt-v3') throw new DOMException('test quota', 'QuotaExceededError');
+      return write.call(this, key, value);
+    };
+    window.__etude.reviewItem('iv:1', true);
+  });
+  await page.locator('#nav [data-view=learn]').click();
+  const notice = page.locator('#learnBody #locale-load-error');
+  await expect(notice).toContainText(STRINGS.fr.locale_fetch_failed);
+  await expect(notice).toContainText(STRINGS.fr.store_fail);
+  const download = page.waitForEvent('download');
+  await notice.getByRole('button', { name: STRINGS.fr.store_export }).click();
+  const backup = JSON.parse(await readFile(await (await download).path(), 'utf8'));
+  expect(backup.data.totalReviews).toBe(1);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews)).toBe(0);
+
+  const dismissed = page.waitForEvent('dialog').then(async dialog => {
+    const message = dialog.message();
+    await dialog.dismiss();
+    return message;
+  });
+  await notice.getByRole('button', { name: STRINGS.fr.store_reload }).click();
+  expect(await dismissed).toBe(STRINGS.fr.locale_reload_unsaved);
+  await expect(notice).toBeVisible();
 });
 
 test('rapid language changes apply only the last requested language', async ({ app, page }) => {

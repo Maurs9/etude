@@ -119,3 +119,33 @@ test('does not reveal a stale in-flight claim and consumes Learn eligibility', a
     await resetter.close();
   }
 });
+
+test('a queued Learn exposure does not survive a full progress reset', async ({ app }) => {
+  const reading = await openAssessGenerator(app);
+  const resetter = await reading.context().newPage();
+  try {
+    await startSeed(reading, 18005);
+    await resetter.goto(new URL('#progress', reading.url()).href);
+    await resetter.waitForFunction(() => typeof window.__etude?.show === 'function');
+    await resetter.evaluate(() => new Promise(resolve => {
+      void navigator.locks.request('etude-sight-ledger-v1', async () => {
+        resolve();
+        await new Promise(release => { window.__releaseBeforeReset = release; });
+      });
+    }));
+    resetter.on('dialog', dialog => dialog.accept());
+    await resetter.locator('#resetBtn').click();
+    await expect.poll(() => resetter.evaluate(async () =>
+      (await navigator.locks.query()).pending.some(lock => lock.name === 'etude-sight-ledger-v1'))).toBe(true);
+
+    await reading.locator('#rd-mode button[data-v="learn"]').click();
+    await resetter.evaluate(() => window.__releaseBeforeReset());
+    await expect(resetter.locator('#resetBtn')).toBeEnabled();
+    await expect.poll(() => reading.evaluate(() => window.__etude.SYNC.gen)).not.toBe('');
+    const exposures = await reading.evaluate(() => navigator.locks.request('etude-sight-ledger-v1', () =>
+      Object.keys(window.__etude.srtReadLedger(localStorage).exposures)));
+    expect(exposures).toEqual([]);
+  } finally {
+    await resetter.close();
+  }
+});
