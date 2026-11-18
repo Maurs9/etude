@@ -42,6 +42,7 @@ const connect = async (page, name) => {
 };
 
 test('testing a MIDI key in a dialog leaves the Book first-sight attempt unclaimed', async ({ app, page }) => {
+  await page.clock.install();
   await fakeMidi(page, [['piano', 'Grand']]);
   await app.open({ hash: 'read' });
   await page.locator('#rdn-book-go').click();
@@ -61,6 +62,7 @@ test('testing a MIDI key in a dialog leaves the Book first-sight attempt unclaim
   expect(await audition()).toEqual(idle);
   await page.locator('#helpClose').click();
   await expect(page.locator('#helpBox')).toHaveAttribute('aria-hidden', 'true');
+  await page.clock.runFor(600); // The player briefly ignores notes after opening a piece.
   await audition();
   await expect.poll(() => page.evaluate(() => {
     const { SR, srtReadLedger } = window.__etude;
