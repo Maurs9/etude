@@ -124,6 +124,12 @@ export function pitchClass(midi: number): PitchClass {
   return normalizeSemitones(midi);
 }
 
+/** MIDI tonic in the register used to present and explain a practice question. */
+export function practiceTonicMidi(key: number, register: 'c4-octave' | 'near-middle-c' = 'c4-octave'): number {
+  const tonic = pitchClass(key);
+  return 60 + tonic - (register === 'near-middle-c' && tonic > 5 ? 12 : 0);
+}
+
 export function normalizeSemitones(value: number): PitchClass {
   return ((value % PITCH_CLASS_COUNT) + PITCH_CLASS_COUNT) % PITCH_CLASS_COUNT;
 }

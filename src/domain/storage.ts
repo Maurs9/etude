@@ -1,4 +1,4 @@
-import { isSightReadingLedger } from '../sight-reading/ledger.js';
+import { isSightReadingLedger, srtImportLedgerTransaction, type SightReadingLedger, type SightReadingStorage } from '../sight-reading/ledger.js';
 
 export const PTT_KEY = 'ptt-v3' as const;
 
@@ -127,6 +127,19 @@ export function writePttV3(storage: StorageLike, payload: PttV3Payload, key = PT
   const raw = JSON.stringify({ ...payload, data });
   storage.setItem(key, raw);
   return raw;
+}
+
+export function serializeProgressBackup(payload: PttV3Payload, ledger: SightReadingLedger): string {
+  return JSON.stringify({ ...payload, data: { ...payload.data, sightLedger: ledger } });
+}
+
+/** Commit the live record and any transferred ledger together. Check writability when the ledger lock is held. */
+export async function restoreProgressBackup(storage: SightReadingStorage, payload: PttV3Payload, nextGeneration: () => string) {
+  const write = () => { writePttV3(storage, { ...payload, gen: nextGeneration() }); };
+  const ledger = payload.data.sightLedger;
+  if (isSightReadingLedger(ledger)) return srtImportLedgerTransaction(storage, ledger, write);
+  write();
+  return { ok: true } as const;
 }
 
 export type PttMigration = (payload: PttV3Payload) => PttV3Payload;

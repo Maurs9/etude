@@ -34,7 +34,8 @@ import type {
   ViewEventName,
 } from './views.js';
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
-import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
+import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
+import { pickArturia, selectMidiInput } from './midi-input-selection.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
 import '../styles/reading.css';
@@ -61,7 +62,7 @@ import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
 import { createInstantFeedbackTracker, type InstantFeedbackExpectedNote, type InstantFeedbackTracker } from '../sight-reading/instant-feedback.js';
 import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
-import { isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtImportLedgerTransaction, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
+import { srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
@@ -1966,7 +1967,7 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
     if (!(SR.active && srtRecorder) && srNoteStartInput(kind, midi, source, releaseKind))
         return;
     if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder) {
-        const relMs = (releaseKind === 'focus' || releaseKind === 'reset' ? performance.now() : inputTime()) - SR.t0;
+        const relMs = inputTimeForRelease(releaseKind) - SR.t0;
         srtRecorder.record(kind, midi, source, releaseKind, relMs);
         if (kind === 'on' && SR.instantFeedback)
             srInstantHandleNote(midi, relMs);
@@ -2022,7 +2023,7 @@ function scheduleEval(fn: () => void, ms: number) { clearTimeout(evalTimer ?? un
 let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; key?: string; args?: string[] }|null = null;
 // The input in use when it went away (a cable pulled, the piano switched off). It is attached again when it comes back: by id, or by
 // name when the system gives it a new id (Android does). Another input may stand in meanwhile; picking one by hand forgets the lost one.
-let midiLost: { id: string; name: string }|null = null, activeInputName = '', midiAuto = false;
+let midiLost: { id: string; name: string }|null = null, activeInputName = '';
 // A status in the user's language: the key and its arguments are kept so applyI18n can say it again after a language change.
 function midiStatus(key: string, cls: string, ...args: string[]) { setMidi(t(key, ...args), cls); if (midiMsg) {
     midiMsg.key = key;
@@ -2058,7 +2059,7 @@ async function connectMidi()  {
     try {
         midiAccess = await navigator.requestMIDIAccess({ sysex: false });
         midiAccess.onstatechange = onStateChange;
-        refreshDeviceList(true);
+        refreshDeviceList();
     }
     catch (err) {
         console.error(err);
@@ -2068,11 +2069,7 @@ async function connectMidi()  {
 }
 // Chrome keeps an unplugged port in the map with state 'disconnected': it is not an input until it is back.
 function listInputs() { return midiAccess ? [...midiAccess.inputs.values()].filter((i) => i.state !== 'disconnected') : []; }
-function midiFindLost(ins: MIDIInput[]) { const l = midiLost; if (!l)
-    return undefined; return ins.find((i) => i.id === l.id) || (l.name ? ins.find((i) => i.name === l.name) : undefined); }
-function pickArturia(ins: MIDIInput[]) { const c = ins.filter((i) => /microlab|arturia/i.test(i.name ?? '')); if (!c.length)
-    return null; const g = c.filter((i) => !/daw|midiin2|control|thru/i.test(i.name ?? '')); return g[0] || c[0]; }
-function refreshDeviceList(autoPick: boolean) {
+function refreshDeviceList() {
     const sel = selectById('deviceSelect'), ins = listInputs();
     sel.innerHTML = '';
     if (!ins.length) {
@@ -2085,25 +2082,28 @@ function refreshDeviceList(autoPick: boolean) {
         return;
     }
     ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
-    const still = activeInputId && ins.some((i) => i.id === activeInputId);
-    const remembered = !still && savedDevice ? ins.find((i) => i.id === savedDevice) : undefined; // reconnect the device used last time
-    const chosen = midiFindLost(ins) || (still ? ins.find((i) => i.id === activeInputId) : undefined) || remembered || ((autoPick || !activeInputId) ? (pickArturia(ins) || ins[0]) : ins[0]);
-    if (!chosen)
+    const preferredName = midiLost?.name || (savedDevice ? midiAccess?.inputs.get(savedDevice)?.name : null);
+    const choice = selectMidiInput(ins, activeInputId, savedDevice, preferredName);
+    if (!choice)
         return;
-    sel.value = chosen.id;
-    midiAuto = true;
-    try {
-        attachInput(chosen.id);
-    }
-    finally {
-        midiAuto = false;
-    }
+    sel.value = choice.input.id;
+    attachInput(choice.input.id, choice.temporary);
 }
-function attachInput(id: string) { if (activeInputId && activeInputId !== id)
-    releaseLiveInput(); listInputs().forEach((i) => i.onmidimessage = null); const inp = listInputs().find((i) => i.id === id); if (!inp)
-    return; const standIn = midiAuto && !!midiLost && midiFindLost([inp]) !== inp; if (!standIn)
-    midiLost = null; inp.onmidimessage = onMidiMessage; activeInputId = id; activeInputName = inp.name || ''; if (!standIn)
-    savedDevice = id; setMidi(inp.name, 'on'); saveAll(); } // a stand-in is not remembered for the next visit
+function attachInput(id: string, temporary = false) {
+    const inputs = listInputs(), input = inputs.find(candidate => candidate.id === id);
+    if (!input) return;
+    if (activeInputId && activeInputId !== id) releaseLiveInput();
+    inputs.forEach(candidate => { candidate.onmidimessage = null; });
+    input.onmidimessage = onMidiMessage;
+    activeInputId = id;
+    activeInputName = input.name || '';
+    if (!temporary) {
+        midiLost = null;
+        savedDevice = id;
+    }
+    setMidi(input.name, 'on');
+    saveAll();
+}
 function autoReconnectMidi() {
     if (!navigator.permissions || !navigator.requestMIDIAccess)
         return;
@@ -2115,11 +2115,11 @@ function autoReconnectMidi() {
     catch (_) { }
 }
 function onStateChange() { const was = activeInputId, ins = listInputs(), present = activeInputId && ins.some((i) => i.id === activeInputId); if (was && !present) {
-    if (!midiLost) // a stand-in that goes too leaves the first lost input remembered
+    if (!midiLost && was === savedDevice) // a stand-in that goes too leaves the preferred input remembered
         midiLost = { id: was, name: activeInputName };
     panic();
     activeInputId = null;
-} refreshDeviceList(false); }
+} refreshDeviceList(); }
 // A short message leaves the missing bytes NaN, which no comparison below matches (as `undefined` did).
 // The event's own timeStamp (performance.now() clock) is when the key went down; the handler can run a frame or more later.
 function onMidiMessage(e: MIDIMessageEvent) { if (!e.data)
@@ -3415,7 +3415,7 @@ function presentQuestion(q: TrainerQuestion) {
     }
     dockSync(); // each question may answer on the keys or not
 }
-function earRoot(q: { key: number; }) { return 60 + (q.key <= 5 ? q.key : q.key - 12); } // mid register, kept playable
+function earRoot(q: { key: number; }) { return theory.practiceTonicMidi(q.key, 'near-middle-c'); }
 function presentPlay(q: TrainerQuestion) {
     const it = q.it;
     if (it.cat === 'interval') {
@@ -3467,7 +3467,7 @@ function presentEar(q: TrainerQuestion) {
     }
     else if (it.cat === 'scale') {
         opts = (SES.contrast ? Object.keys(SCALES) : scaleEarOptions(it.name)).map((nm: string) => ({ k: nm, t: scaleDisp(nm) }));
-        sesPrompt(q, () => playScaleNotes(60 + q.key, SCALES[it.name], true));
+        sesPrompt(q, () => playScaleNotes(theory.practiceTonicMidi(q.key), SCALES[it.name], true));
     }
     else if (it.cat === 'prog') {
         opts = PROGS.map((p) => ({ k: p.name, t: p.name }));
@@ -3497,7 +3497,7 @@ function playQuestionSound(q: TrainerQuestion) {
     else if (it.cat === 'chord')
         playChordMidis(it.ref.intervals.map((i) => earRoot(q) + i), true);
     else if (it.cat === 'scale')
-        playScaleNotes(60 + q.key, SCALES[it.name], true);
+        playScaleNotes(theory.practiceTonicMidi(q.key), SCALES[it.name], true);
     else if (it.cat === 'prog')
         playProg(q.key, it.ref);
 }
@@ -3859,7 +3859,7 @@ function gradeInterval(q: TrainerQuestion) {
         [lo, hi].forEach((m) => kbState(m, 'bad', true));
         setTimeout(() => { if (SES.active && SES.q === q) kbClear('bad'); }, 500);
         q.missed = true;
-        q.given = givenInterval(q, lo, hi, pc(lo) === q.key ? lo : 60 + q.key);
+        q.given = givenInterval(q, lo, hi, pc(lo) === q.key ? lo : theory.practiceTonicMidi(q.key));
         resolve(q, false);
     }
 }
@@ -3891,7 +3891,7 @@ function gradeChord(q: TrainerQuestion) {
         heldMidis().forEach((m) => kbState(m, 'bad', true));
         setTimeout(() => { if (SES.active && SES.q === q) kbClear('bad'); }, 500);
         q.missed = true;
-        q.given = givenChord(q, heldMidis(), tpl.intervals.map((i) => 60 + q.key + i), null);
+        q.given = givenChord(q, heldMidis(), tpl.intervals.map((i) => theory.practiceTonicMidi(q.key) + i), null);
         resolve(q, false);
     }
 }
@@ -3976,7 +3976,7 @@ function givenByEar(q: TrainerQuestion, k: number | string): TrainerGiven | null
         return { text: t('fb_picked', chordDisp(ref), chordDisp(it.ref)), given: feedbackBroken(ref.intervals.map((i) => base + i), 0.16, 1.1), expected: feedbackBroken(it.ref.intervals.map((i) => base + i), 0.16, 1.1), pair };
     }
     if (it.cat === 'scale' && typeof k === 'string' && SCALES[k]) {
-        const line = (name: string) => feedbackLine(SCALES[name].concat([12]).map((o) => 60 + q.key + o));
+        const line = (name: string) => feedbackLine(SCALES[name].concat([12]).map((o) => theory.practiceTonicMidi(q.key) + o));
         return { text: t('fb_picked', scaleDisp(k), scaleDisp(it.name)), given: line(k), expected: line(it.name), pair };
     }
     if (it.cat === 'prog') {
@@ -4132,15 +4132,15 @@ function revealAnswerKeys(q: TrainerQuestion) {
         return;
     }
     if (it.cat === 'interval') {
-        const r = q.mode === 'ear' ? earRoot(q) : 60 + q.key;
+        const r = q.mode === 'ear' ? earRoot(q) : theory.practiceTonicMidi(q.key);
         [r, r + it.semi].forEach((m) => kbState(m, 'target', true));
     }
     else if (it.cat === 'chord') {
-        const r = q.mode === 'ear' ? earRoot(q) : 60 + q.key;
+        const r = q.mode === 'ear' ? earRoot(q) : theory.practiceTonicMidi(q.key);
         it.ref.intervals.forEach((i) => kbState(r + i, 'target', true));
     }
     else if (it.cat === 'scale') {
-        const r = 60 + q.key;
+        const r = theory.practiceTonicMidi(q.key);
         SCALES[it.name].concat([12]).forEach((o) => kbState(r + o, 'target', true));
     }
 }
@@ -7611,7 +7611,7 @@ function srNoteStartArmed(source: string) {
 }
 /** A key went down or came up. Returns true when the event belongs to a start by the first note (it starts one, or one is being claimed). */
 function srNoteStartInput(kind: 'on' | 'off', midi: number, source: string, releaseKind: 'physical' | 'focus' | 'reset' | null) {
-    const now = performance.now(), perf = releaseKind === 'focus' || releaseKind === 'reset' ? now : inputTime(now);
+    const now = performance.now(), perf = inputTimeForRelease(releaseKind, now);
     const claiming = SR.srtState?.name === 'preparing' || SR.srtState?.name === 'claiming';
     // A pending start is kept only while its first sight is being claimed, and only while it can still keep time.
     if (srNoteStart && (!claiming || now - srNoteStart.receivedAt > SR_NOTE_START_MS))
@@ -18419,7 +18419,7 @@ function syncRefresh() {
 }
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
-function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: activeInputId || savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
+function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
 function syncWrite() { if (STORE.blocked)
     return; try {
     const p = syncPayload();
@@ -18445,7 +18445,7 @@ function backupJson(): string {
     }
     catch (_) { }
     const payload = current?.payload ?? syncPayload();
-    return JSON.stringify({ ...payload, data: { ...payload.data, sightLedger: srtReadLedger(localStorage) } });
+    return storage.serializeProgressBackup(payload, srtReadLedger(localStorage));
 }
 function storeSaved() { if (STORE.failed) {
     STORE.failed = false;
@@ -18528,21 +18528,15 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
         }
         if (!await storeSnapshot(reason, backupJson()) && !confirm(t('store_copy_failed')))
             return;
-        const writeMain = () => {
+        const saved = await storage.restoreProgressBackup(localStorage, p, () => {
             // The save may have changed while taking the snapshot or waiting for the ledger lock.
             if (storeBackupBlocked())
                 throw new Error('Newer progress schema');
-            writePttV3(localStorage, { ...p, gen: syncGen() }, KEY);
-        };
-        if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
-            const merged = await srtImportLedgerTransaction(localStorage, p.data.sightLedger, writeMain);
-            if (!merged.ok) {
-                alert(t(merged.reason === 'unsupported' ? 'import_too_new' : 'import_storage'));
-                return;
-            }
-        }
-        else {
-            writeMain();
+            return syncGen();
+        });
+        if (!saved.ok) {
+            alert(t(saved.reason === 'unsupported' ? 'import_too_new' : 'import_storage'));
+            return;
         }
         location.reload();
     }

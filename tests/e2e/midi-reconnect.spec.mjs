@@ -196,3 +196,13 @@ test('switching the language says any other MIDI status again, in the new langua
   await expect(page.locator('#midiText')).toHaveText(STRINGS.ro.midi_noinputs);
   await expect(page.locator('#set-midi-status')).toHaveText(STRINGS.ro.midi_noinputs);
 });
+
+test('a reload with the preferred MIDI device absent uses a stand-in until it returns', async ({ app, page }) => {
+  await fakeMidi(page, [['pad', 'Drum Pad']]);
+  await app.open({ saved: { v: 3, lang: 'en', device: 'piano', data: {} } });
+  await connect(page, 'Drum Pad');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).device)).toBe('piano');
+  await page.evaluate(() => window.__midi.plug('piano', 'Grand'));
+  await expect(page.locator('#midiText')).toHaveText('Grand');
+  expect(await page.evaluate(() => window.__midi.play(60))).toBe('piano');
+});
