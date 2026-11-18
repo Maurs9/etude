@@ -170,12 +170,17 @@ test.describe('data safety', () => {
         if (dialog.type() === 'confirm') void dialog.accept();
         else void dialog.dismiss();
       });
-      await destination.locator('#importFile').setInputFiles({ name: 'export.json', mimeType: 'application/json', buffer });
-      await expect.poll(() => destination.evaluate(() => {
+      await Promise.all([
+        destination.waitForEvent('framenavigated', frame => frame === destination.mainFrame()),
+        destination.locator('#importFile').setInputFiles({ name: 'export.json', mimeType: 'application/json', buffer }),
+      ]);
+      await destination.waitForFunction(() => document.querySelector('#keys .key'));
+      const restored = await destination.evaluate(() => {
         const progress = JSON.parse(localStorage.getItem('ptt-v3') ?? 'null');
         const ledger = JSON.parse(localStorage.getItem('etude-sight-v1') ?? '{}');
         return [progress?.data.totalReviews, progress?.data.sightLedger === undefined, Object.keys(ledger.attempts ?? {}).length];
-      })).toEqual([7, true, 500]);
+      });
+      expect(restored).toEqual([7, true, 500]);
     }
     finally {
       await context.close();
