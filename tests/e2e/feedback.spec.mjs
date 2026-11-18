@@ -22,6 +22,26 @@ async function answerAndNext(page, k) {
 }
 
 test.describe('Error-aware feedback', () => {
+  test('a chord in C uses the same tonic for the prompt, replay and answer keys', async ({ app }) => {
+    const page = await app.open({ hash: 'practice', dock: true });
+    await page.evaluate(() => {
+      const api = window.__etude, original = api.previewNote;
+      window.__played = [];
+      api.previewNote = (...args) => { window.__played.push(args[0]); return original(...args); };
+    });
+    await page.locator('#pr-t-chord').click();
+    await page.locator('#pr-mode button[data-v="ear"]').click();
+    await page.locator('#pr-keys [data-v="0"]').click();
+    await page.locator('#pr-start').click();
+    const expected = await page.evaluate(() => window.__etude.SES.q.it.ref.intervals.map(i => 60 + i));
+    await expect.poll(() => page.evaluate(() => window.__played)).toEqual([...expected, ...expected]);
+    await page.locator('#q-replay').click();
+    expect(await page.evaluate(() => window.__played.slice(-window.__etude.SES.q.it.ref.intervals.length))).toEqual(expected);
+    await page.locator('#q-reveal').click();
+    for (const midi of expected)
+      await expect(page.locator(`#keys [data-midi="${midi}"]`)).toHaveAttribute('data-s', 'target');
+  });
+
   test('names the picked and the right interval, plays both, and offers a contrast drill when a pair repeats', async ({ app }) => {
     const page = await app.open({ hash: 'practice', dock: true });
     await page.evaluate(() => {

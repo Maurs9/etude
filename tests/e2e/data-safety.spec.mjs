@@ -65,12 +65,121 @@ test.describe('data safety', () => {
   });
 
   test('a record from a newer build is never overwritten', async ({ page }) => {
-    const raw = JSON.stringify({ ...saved, schema: 99 });
+    const raw = JSON.stringify({ ...saved, schema: 99, data: { ...saved.data, srs: [] } });
     await openRaw(page, raw);
     await expect(page.locator('#storeNoteText')).toHaveText(/newer version/);
     await expect(page.locator('#storeNoteReload')).toBeVisible();
     await page.evaluate(() => { window.__etude.data.totalReviews = 1; window.__etude.saveAll(); });
     expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(raw);
+    await expect(page.locator('#importBtn')).toBeDisabled();
+    await expect(page.locator('#prog-import')).toBeDisabled();
+    await expect(page.locator('#set-snap-restore')).toBeDisabled();
+    const message = page.waitForEvent('dialog').then(async dialog => {
+      await dialog.accept();
+      return dialog.message();
+    });
+    await page.locator('#importFile').setInputFiles({
+      name: 'old.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved)),
+    });
+    await expect(message).resolves.toMatch(/newer version/);
+    expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(raw);
+  });
+
+  test('blocks import when newer progress appears at commit and rolls the ledger back', async ({ app, page }) => {
+    await app.open({ saved });
+    const newer = JSON.stringify({ ...saved, schema: 99 });
+    const { backup, before } = await page.evaluate(next => {
+      const ledger = window.__etude.srtCreateLedger();
+      const before = JSON.stringify(ledger);
+      localStorage.setItem('etude-sight-v1', before);
+      const backup = { v: 3, data: { sightLedger: { ...ledger, exposures: { 'v1:test': { firstSeenAt: 1, reason: 'listen' } } } } };
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'etude-sight-v1') {
+          set.call(this, 'ptt-v3', next);
+          Storage.prototype.setItem = set;
+        }
+        return set.call(this, key, value);
+      };
+      return { backup, before };
+    }, newer);
+    const alert = new Promise(resolve => page.on('dialog', dialog => {
+      void dialog.accept();
+      if (dialog.type() === 'alert') resolve(dialog.message());
+    }));
+    await page.locator('#importFile').setInputFiles({
+      name: 'older.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
+    });
+    await expect(alert).resolves.toMatch(/newer version/);
+    expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(newer);
+    expect(await page.evaluate(() => localStorage.getItem('etude-sight-v1'))).toBe(before);
+  });
+
+  test('rejects a malformed Pieces map without replacing progress', async ({ app, page }) => {
+    await app.open({ saved });
+    const dialog = page.waitForEvent('dialog').then(async dialog => {
+      await dialog.accept();
+      return [dialog.type(), dialog.message()];
+    });
+    await page.locator('#importFile').setInputFiles({
+      name: 'broken.json', mimeType: 'application/json', buffer: Buffer.from('{"v":3,"data":{"sheet":null}}'),
+    });
+    await expect(dialog).resolves.toEqual(['alert', expect.stringMatching(/doesn’t look like an Étude backup/)]);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews)).toBe(7);
+    await page.locator('#nav button[data-view="analysis"]').click();
+    await expect(page.locator('#pc-list')).toContainText('Prelude');
+  });
+
+  test('Pieces still opens when a previous build saved a null Pieces map', async ({ app, page }) => {
+    await app.open({ hash: 'analysis', saved: { ...saved, data: { ...saved.data, sheet: null } } });
+    await expect(page.locator('#pc-list')).toContainText('Prelude');
+    expect(await page.evaluate(() => window.__etude.data.totalReviews)).toBe(7);
+  });
+
+  test('restores a large export into an empty browser with a single stored ledger', async ({ app, page, browser }) => {
+    await app.open({ saved });
+    await page.evaluate(() => {
+      const ledger = window.__etude.srtCreateLedger();
+      for (let i = 0; i < 500; i++) {
+        const attemptId = 'attempt-' + i, fingerprint = 'v1:piece-' + i;
+        ledger.exposures[fingerprint] = { firstSeenAt: i, reason: 'first-sight' };
+        ledger.attempts[attemptId] = {
+          attemptId, fingerprint, ownerTabId: 'tab', generation: ledger.generation, status: 'completed', finishedAt: i,
+          scoringVersion: 1, N: 68, TP: 68, FP: 0, FN: 0, G: 68, Q: 0, lateOrEarlyCount: 0, restViolations: 0,
+          pitchPrecision: 1, pitchRecall: 1, pitchF1: 100, rhythmAcc: 100, score: 100, stars: 3, perfect: true,
+          meanOffsetMs: 0, meanAbsoluteOffsetMs: 0, extraInputs: [],
+          noteResults: Array.from({ length: 68 }, (_, n) => ({
+            expectedId: 'note-' + n, classification: 'good', matchedInputId: 'input-' + n, errorMs: 0,
+          })),
+        };
+      }
+      localStorage.setItem('etude-sight-v1', JSON.stringify(ledger));
+    });
+    await page.locator('#settingsBtn').click();
+    const download = page.waitForEvent('download');
+    await page.locator('#exportBtn').click();
+    const buffer = await readFile(await (await download).path());
+    expect(buffer.length).toBeGreaterThan(3_000_000);
+
+    const context = await browser.newContext({ serviceWorkers: 'block' });
+    try {
+      const destination = await context.newPage();
+      await destination.goto(page.url());
+      await destination.waitForFunction(() => document.querySelector('#keys .key'));
+      destination.on('dialog', dialog => {
+        if (dialog.type() === 'confirm') void dialog.accept();
+        else void dialog.dismiss();
+      });
+      await destination.locator('#importFile').setInputFiles({ name: 'export.json', mimeType: 'application/json', buffer });
+      await expect.poll(() => destination.evaluate(() => {
+        const progress = JSON.parse(localStorage.getItem('ptt-v3') ?? 'null');
+        const ledger = JSON.parse(localStorage.getItem('etude-sight-v1') ?? '{}');
+        return [progress?.data.totalReviews, progress?.data.sightLedger === undefined, Object.keys(ledger.attempts ?? {}).length];
+      })).toEqual([7, true, 500]);
+    }
+    finally {
+      await context.close();
+    }
   });
 
   test('a daily copy and a pre-reset copy let a reset be undone', async ({ app, page }) => {
@@ -212,7 +321,7 @@ test.describe('data safety', () => {
     const msg = new Promise(resolve => page.on('dialog', dialog => {
       const text = dialog.message();
       void dialog.accept();
-      if (/Étude backup|failed|error/i.test(text)) resolve(text);
+      if (/browser storage/i.test(text)) resolve(text);
     }));
     await page.locator('#importFile').setInputFiles({
       name: 'backup.json',
@@ -268,7 +377,7 @@ test.describe('data safety', () => {
     const msg = new Promise(resolve => page.on('dialog', dialog => {
       const text = dialog.message();
       void dialog.accept();
-      if (/Étude backup|failed|error/i.test(text)) resolve(text);
+      if (/browser storage/i.test(text)) resolve(text);
     }));
     await page.locator('#importFile').setInputFiles({
       name: 'backup.json',

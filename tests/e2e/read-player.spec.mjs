@@ -112,7 +112,9 @@ test.describe('Read player', () => {
   });
 
   test('a piano starts the attempt with the first right note: no count-in, and that note is the first one played', async ({ app }) => {
-    const page = await openHome(app);
+    const saved = withBook({});
+    saved.data.latency = { usb: 120 };
+    const page = await openHome(app, saved);
     await page.locator('#rdn-book-go').click();
     const first = await page.evaluate(() => window.__etude.srtLevelExpected(window.__etude.SR.lvPiece)[0]);
     expect(first.onMs).toBe(0);
@@ -122,16 +124,19 @@ test.describe('Read player', () => {
     await page.waitForTimeout(700);
     expect(await srtState(page)).toBe('idle');
     // The right key from the piano starts it.
-    await page.evaluate((midi) => window.__etude.handleNoteOn(midi, 90, 'midi'), first.midi);
+    const calibratedStart = await page.evaluate((midi) => {
+      const stamp = performance.now() - 80;
+      window.__etude.midiIn(0x90, midi, 90, 'midi', stamp);
+      return stamp - 120;
+    }, first.midi);
     await expect.poll(() => srtState(page)).toBe('playing');
     const started = await page.evaluate(() => {
       const api = window.__etude;
-      return { inputs: api.srtRecorder.inputs.map((i) => ({ midi: i.midi, onMs: i.onMs })), sinceT0: performance.now() - api.SR.t0, active: api.SR.active };
+      return { inputs: api.srtRecorder.inputs.map((i) => ({ midi: i.midi, onMs: i.onMs })), t0: api.SR.t0, active: api.SR.active };
     });
     expect(started.active).toBe(true);
     expect(started.inputs).toEqual([{ midi: first.midi, onMs: 0 }]);
-    expect(started.sinceT0).toBeGreaterThanOrEqual(0);
-    expect(started.sinceT0).toBeLessThan(1500);
+    expect(started.t0).toBe(calibratedStart);
     await expect(page.locator('#rdn-checklist')).toBeHidden();
     // The start by that note is handed to the attempt: nothing is left pending.
     expect(await page.evaluate(() => window.__etude.srNoteStart)).toBe(null);

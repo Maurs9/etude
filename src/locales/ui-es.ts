@@ -1328,6 +1328,7 @@ const payload: UIPayload = {
       "snap_before_upgrade": "antes de actualizar",
       "snap_confirm": "¿Reemplazar tu progreso actual con la copia del %a? Étude guarda antes una copia de tu progreso actual.",
       "import_too_new": "Una versión más reciente de Étude creó esta copia. Actualiza la aplicación y vuelve a importarla.",
+      "import_storage": "No se pudo restaurar la copia de seguridad. Comprueba que el almacenamiento del navegador esté disponible y tenga espacio suficiente, e inténtalo de nuevo.",
       "store_stuck": "No se pudo leer el progreso guardado y no hay espacio para guardar una copia. No se guarda nada hasta liberar espacio, para que la copia ilegible siga a salvo. Exporta una copia del trabajo de hoy.",
       "store_copy_failed": "Étude no pudo guardar antes una copia de tu progreso actual. ¿Reemplazarlo de todos modos?",
       "set_diag": "Diagnóstico",

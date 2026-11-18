@@ -146,12 +146,14 @@ test.describe('Intervals by ear: Direction', () => {
     await recordIntervals(page);
     await page.locator('#pr-mode button[data-v="ear"]').click();
     await page.locator('#pr-dir button[data-v="desc"]').click();
+    await page.locator('#pr-keys [data-v="0"]').click();
     await page.locator('#pr-start').click();
     await expect(page.locator('#q-answers')).toBeVisible();
     await expect.poll(() => played(page)).toHaveLength(1);
     const [root, semi] = (await played(page))[0];
     const q = await page.evaluate(() => { const q = window.__etude.SES.q; return { semi: q.it.semi, dir: q.dir, root: window.__etude.earRoot(q) }; });
     expect(q.dir).toBe('desc');
+    expect(q.root).toBe(60);
     expect([root, semi]).toEqual([q.root + q.semi, -q.semi]);
     await page.locator('#q-replay').click();
     expect((await played(page))[1]).toEqual([q.root + q.semi, -q.semi]);
@@ -184,9 +186,11 @@ test.describe('Intervals by ear: Direction', () => {
     const page = await app.open({ hash: 'practice', dock: true });
     await page.locator('#pr-mode button[data-v="keys"]').click();
     await page.locator('#pr-dir button[data-v="desc"]').click();
+    await page.locator('#pr-keys [data-v="0"]').click();
     await page.locator('#pr-start').click();
     await expect(page.locator('#q-ekhint')).not.toHaveText('');
     const target = await page.evaluate(() => { const q = window.__etude.SES.q; q.ek.armAt = 0; return q.ek.target; });
+    expect(target[1]).toBe(60);
     expect(target[0] - target[1]).toBe(await page.evaluate(() => window.__etude.SES.q.it.semi));
     // Going up is the wrong way.
     await page.evaluate(([a, b]) => { window.__etude.sesInput(a); setTimeout(() => window.__etude.sesInput(a + (a - b)), 150); }, target);

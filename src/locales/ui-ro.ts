@@ -529,6 +529,7 @@ const payload: UIPayload = {
       "snap_before_upgrade": "înainte de actualizare",
       "snap_confirm": "Înlocuiești progresul actual cu copia din %a? Étude păstrează mai întâi o copie a progresului actual.",
       "import_too_new": "Această copie a fost făcută de o versiune mai nouă de Étude. Actualizează aplicația, apoi importă din nou.",
+      "import_storage": "Copia de siguranță nu a putut fi restaurată. Verifică dacă browserul permite stocarea și are suficient spațiu, apoi încearcă din nou.",
       "store_stuck": "Progresul salvat nu a putut fi citit și nu e loc pentru o copie. Nu se salvează nimic până nu eliberezi spațiu, ca să rămână în siguranță copia necitibilă. Exportă o copie de rezervă a lucrului de azi.",
       "store_copy_failed": "Étude nu a putut păstra mai întâi o copie a progresului actual. Îl înlocuiești oricum?",
       "set_diag": "Diagnostic",

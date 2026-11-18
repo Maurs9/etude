@@ -59,3 +59,8 @@ Score fullscreen follow-up (physical Android/TWA and iOS Safari still pending): 
 Performance follow-up (physical Android/TWA still required): play the first piano note immediately after opening, check that reverb joins without delaying the attack, then switch apps and return. Open a large score, resize/rotate while it is being drawn, and check the last measures, cursor, selection and audio in both page and continuous views. Browser emulation covers recovery and drawing completeness; it does not verify physical audio latency or Android battery use.
 
 Write the date, the Diagnostics text and any step that failed in TODO.md under the device rollout item.
+
+## Backup restore and calibrated sight-reading
+
+- On two disposable browser profiles, transfer a progress export containing first-sight attempts and verify the destination shows the same attempt history after reload.
+- On a real USB or Bluetooth MIDI piano, calibrate timing and start a first-sight piece with its first note. Check that the onset, held duration, and following notes align with the metronome and the result. Repeat using the Start button and its count-in.
