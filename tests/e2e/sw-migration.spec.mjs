@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { workerSource } from '../../scripts/generate-sw.mjs';
@@ -102,17 +102,19 @@ test.describe('atomic worker migration', () => {
     const root = await site();
     const { server } = await openSite(page, root);
     await expect(page.locator('#version')).toHaveText('one');
-    await page.evaluate(() => fetch('assets/app-one.js'));
     await writeFile(join(root, 'etude/etude.html'), '<!doctype html><p id="version">two</p>');
     await writeFile(join(root, 'etude/sw.js'), workerSource([
       { url: 'etude.html', hash: hash(await readFile(join(root, 'etude/etude.html'))) },
       { url: 'assets/app-two.js', hash: hash(await readFile(join(root, 'etude/assets/app-two.js'))) },
     ]));
-    await page.evaluate(() => navigator.serviceWorker.ready.then(reg => reg.update()));
-    await page.waitForTimeout(300);
+    await page.evaluate(async () => {
+      const activated = new Promise(resolve => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
+      await (await navigator.serviceWorker.ready).update();
+      await activated;
+    });
     await stop(server);
     await context.setOffline(true);
-    expect(await page.evaluate(() => fetch('assets/app-one.js').then(response => response.text()))).toContain("__asset='one'");
+    expect(await page.evaluate(() => fetch('assets/app-one.js', { cache: 'no-store' }).then(response => response.text()))).toContain("__asset='one'");
     await context.setOffline(false);
     await rm(root, { recursive: true, force: true });
   });
@@ -171,4 +173,35 @@ test.describe('atomic worker migration', () => {
     await stop(server);
     await rm(root, { recursive: true, force: true });
   });
+});
+
+test('reports a failed first install and retries the offline copy from Settings', { tag: '@sw' }, async ({ page, context }) => {
+  const root = await mkdtemp(join(tmpdir(), 'etude-sw-retry-'));
+  const server = await serve(root);
+  try {
+    const built = join(root, 'etude');
+    await cp('dist/etude', built, { recursive: true });
+    const assets = join(built, 'assets');
+    const sample = join(assets, (await readdir(assets)).find(name => name.endsWith('.mp3')));
+    const withheld = join(root, 'withheld.mp3');
+    await rename(sample, withheld);
+    await page.goto(`http://127.0.0.1:${server.address().port}/etude/etude.html`);
+    await page.locator('#settingsBtn').click();
+    const status = page.locator('#set-pwa-status');
+    const retry = page.locator('#set-pwa-retry');
+    await expect(status).toHaveText(/Offline copy unavailable/);
+    await expect(retry).toBeVisible();
+
+    await rename(withheld, sample);
+    await retry.click();
+    await expect(status).toHaveText(/Available offline/i);
+    await expect(retry).toBeHidden();
+    await context.setOffline(true);
+    await page.reload();
+    await expect(page.locator('#view-today')).toHaveClass(/active/);
+  } finally {
+    await context.setOffline(false);
+    await stop(server);
+    await rm(root, { recursive: true, force: true });
+  }
 });

@@ -63,7 +63,7 @@ import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
 import { createInstantFeedbackTracker, type InstantFeedbackExpectedNote, type InstantFeedbackTracker } from '../sight-reading/instant-feedback.js';
 import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
-import { isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtImportLedgerTransaction, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
+import { isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtImportLedgerTransaction, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, srtResetLedgerTransaction, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
@@ -2677,15 +2677,43 @@ function pwaInit() {
             return;
         }
         PWA.sw = 'pending';
-        const reg = () => navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
-            .then((registration) => { pwaWatchUpdates(registration); return navigator.serviceWorker.ready; }).then(() => { PWA.sw = 'ready'; pwaUi(); })
-            .catch((err: unknown) => { PWA.sw = 'error'; PWA.err = (err instanceof Error && (err.name || err.message)) || '?'; console.warn('Service worker:', err); pwaUi(); });
         if (document.readyState === 'complete')
-            reg();
+            void pwaRegister();
         else
-            window.addEventListener('load', reg, { once: true });
+            window.addEventListener('load', () => { void pwaRegister(); }, { once: true });
     }
     pwaUi();
+}
+async function pwaRegister() {
+    PWA.sw = 'pending';
+    PWA.err = '';
+    pwaUi();
+    try {
+        const registration = await navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' });
+        const worker = registration.active ?? registration.waiting ?? registration.installing;
+        const updateStatus = () => {
+            if (registration.active?.state === 'activated') {
+                PWA.sw = 'ready';
+                pwaWatchUpdates(registration);
+            }
+            else if (!worker || worker.state === 'redundant') {
+                PWA.sw = 'error';
+            }
+            else {
+                return; // Wait for activation or failure. navigator.serviceWorker.ready never rejects.
+            }
+            worker?.removeEventListener('statechange', updateStatus);
+            pwaUi();
+        };
+        worker?.addEventListener('statechange', updateStatus);
+        updateStatus();
+    }
+    catch (err) {
+        PWA.sw = 'error';
+        PWA.err = (err instanceof Error && (err.name || err.message)) || '?';
+        console.warn('Service worker:', err);
+        pwaUi();
+    }
 }
 /** An installed app can stay open for days. Coming back checks for a new version, at most every 30 minutes. sw.js activates it at once. */
 const PWA_UPDATE_GAP_MS = 30 * 60 * 1000;
@@ -2707,14 +2735,15 @@ function pwaUi() {
         file: 'pwa_file',
         unsupported: 'pwa_unsupported',
         ready: 'pwa_ready',
-        error: 'pwa_err',
+        error: PWA.err ? 'pwa_err' : 'pwa_install_failed',
     };
-    const k = (PWA.installed || pwaStandalone()) && PWA.sw !== 'file'
+    const k = PWA.sw === 'ready' && (PWA.installed || pwaStandalone())
         ? 'pwa_installed'
         : pwaLabels[PWA.sw] || 'pwa_pending';
     st.textContent = t(k, PWA.err);
     st.dataset.s = PWA.sw === 'error' ? 'err' : '';
     ib.hidden = !PWA.prompt || PWA.installed || pwaStandalone();
+    byId('set-pwa-retry').hidden = PWA.sw !== 'error';
 }
 async function pwaInstall()  {
     const p = PWA.prompt;
@@ -3060,13 +3089,12 @@ INTRO_SC.forEach((nm, i) => { if (SCALES[nm])
     ITEMS.push({ id: 'sc:' + nm, cat: 'scale', name: nm, label: nm, short: nm, intro: 200 + i }); });
 PROGS.forEach((p, i) => { ITEMS.push({ id: 'pr:' + p.name, cat: 'prog', ref: p, label: p.name, short: p.name, intro: 300 + i }); });
 ITEMS.forEach((it) => ITEM_BY_ID[it.id] = it);
-interface StoredSrsEntry { box: number; ease: number; due: number; reps: number; lapses: number; last: number; }
 type StoredTrainerSettings = Omit<storage.AppSettings, 'earKeys'> & { earKeys?: boolean; };
 interface StoredSheetRecord { best?: number; learned?: boolean; }
 interface StoredLastDrill { cat: string; mode: string; keys: boolean; key: string; c: number; n: number; day: number; }
 interface StoredLessonReview { last: number; n: number; best?: number; rv?: number; }
 type StoredTrainerData = {
-    srs: Record<string, StoredSrsEntry>;
+    srs: Record<string, storage.StoredSrsEntry>;
     streak: number;
     bestStreak: number;
     lastActive: number;
@@ -3095,7 +3123,7 @@ type StoredTrainerData = {
 function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, weakSpotInjection: false, anyOctave: false } }; }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
-function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 }); }
+function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = storage.restoreSrsEntry(null)); }
 const IVL = [0, 1, 2, 4, 9, 21, 45, 90];
 function reviewItem(id: string, correct: boolean) {
     const it = srsOf(id);
@@ -4355,7 +4383,12 @@ let show = function show(v: string|undefined, moveFocus = true): void | Promise<
         anLibraryNavigationResume = anLibraryCapture();
         anLibrarySuspended = true;
         void anLibraryFlush(false).catch(() => {});
-        scoreStop();
+        // An import has already paused playback. Keep the cursor for rollback,
+        // including while the current library checkpoint is suspended.
+        if (AN.loading)
+            scoreHalt();
+        else
+            scoreStop();
         anKeysClear();
         anSheet(false, true);
         pcStageSet(false, true);
@@ -7016,16 +7049,25 @@ function srtRecordExposure(reason: string, kind: 'exposure' | 'listen' = 'exposu
     const ledger = srtReadLedger(localStorage);
     if (ledger.exposures[fingerprint])
         return Promise.resolve({ ok: true, ledger } satisfies SightReadingLedgerResult);
-    const operation = kind === 'listen'
-        ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation: ledger.generation })
-        : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation: ledger.generation });
-    const settled = operation.then((result) => {
+    const progressGeneration = SYNC.gen;
+    const record = (generation: string) => kind === 'listen'
+        ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation })
+        : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation });
+    const operation = record(ledger.generation);
+    const settled = operation.then(result => {
         if (result.ok || result.reason !== 'stale_generation')
             return result;
-        const current = srtReadLedger(localStorage);
-        return kind === 'listen'
-            ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation: current.generation })
-            : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation: current.generation });
+        // An internal ledger reset can race a Learn reveal. A full progress reset
+        // also advances ptt-v3, and writes queued before it must stay discarded.
+        try {
+            const saved = readPttV3(localStorage)?.payload;
+            if ((saved?.gen ?? '') !== progressGeneration)
+                return result;
+            return record(srtReadLedger(localStorage).generation);
+        }
+        catch (_) {
+            return result;
+        }
     });
     srtExposurePromise = { fingerprint, promise: settled };
     void settled.then((result) => {
@@ -7177,6 +7219,7 @@ async function srtRetryPendingSave() {
     }
     if (result.ok) {
         srtSetState({ type: 'saved' });
+        storeDaily();
         srtClearPendingAttempt(attempt.attemptId);
         srtReleaseLease(lease);
         srtPendingUi(false);
@@ -7771,6 +7814,7 @@ function srAssessFinish() {
             }
             if (result.ok) {
                 srtSetState({ type: 'saved' });
+                storeDaily();
                 srtClearPendingAttempt(attempt.attemptId);
                 if (srtClaimIssuedAttemptId === attempt.attemptId)
                     srtClaimIssuedAttemptId = null;
@@ -12670,7 +12714,10 @@ function anRebuild() {
     if (!src || src.kind === 'xml')
         return;
     const parsed = src.parsed, hands = anAssignHands(parsed.notes, AN.recon.hands);
-    const notes = parsed.notes.map((n, i): ScoreMidiNote => ({ midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i] }));
+    const notes = parsed.notes.map((n, i) => ({
+        midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i],
+        ...(n.soundEnd !== undefined ? { soundEnd: n.soundEnd, pedalEnd: n.soundEnd } : {}),
+    }));
     const key = anResolveKey({ meta: parsed.meta.filter((e): e is AnMidiKeyMeta => e.type === 'key') }, AN.recon.key, notes);
     const pickup = src.kind === 'example' ? PIECES.find((p) => p.id === src.id)?.pickup : undefined;
     const xml = scoreFromMidi({ meta: parsed.meta, notes }, src.title, { grid: AN.recon.grid, keys: key.events, composer: src.comp, pickup });
@@ -13361,6 +13408,7 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
     if (!gs)
         return;
     const pageRects = new Map<Element, DOMRect>(), pageOf = (el: Element | null | undefined) => el && el.closest && el.closest('[id^="osmdCanvasPage"]');
+    const tempoWords = AN.source?.kind === 'xml' ? AN.source.tempoWords : null;
     const symMarked = new Set<Element>();
     const hasSymAncestor = (el: Element) => {
         for (let cur: Element | null = el; cur && cur !== box; cur = cur.parentElement) {
@@ -13466,6 +13514,9 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
         if (SC_DYN.test(s)) add(element, 'dyn', s);
         else if (/^[A-G](?:[#♯b♭])?(?:m(?:aj)?|dim|aug|sus[24]?)?\d*(?:\/[A-G][#♯b♭]?)?$/.test(s) && element.classList.contains('osmd-words')) add(element, 'chord', s);
         else if (/^\d+:\d{2}$/.test(s)) add(element, 'timestamp', s);
+        // OSMD separates tempo expressions from ordinary words. Pair that semantic
+        // class with the MusicXML sound value, independent of layout adjustments.
+        else if (element.classList.contains('osmd-tempo') && tempoWords?.has(s)) add(element, 'tempo', s);
         else add(element, scoreTermParts(s).length ? 'text' : 'direction', s);
     });
     box.querySelectorAll('svg text').forEach((x) => {
@@ -13572,6 +13623,8 @@ function scoreSymText(sym: { kind: string | undefined; val: string | ScoreRestSy
         full = t('sym_chord');
     else if (k === 'timestamp')
         full = t('sym_timestamp', v);
+    else if (k === 'tempo')
+        full = t('sym_metro', v);
     else if (k === 'direction')
         full = t('sym_direction');
     else if (k === 'volta')
@@ -14717,26 +14770,39 @@ async function scorePlay(selection = false, from: number | null = null, carry: P
     }
     await pracStart({ notes, a, b, loop: false, sel: selection, from: position, carry });
 }
+function scoreABPassage() {
+    const a = PRAC.A, b = PRAC.B;
+    if (a == null || b == null || !AN.notes.length || !(a >= 0 && b > a))
+        return null;
+    // A bar can end after the last sounding note, so include the written rests.
+    const end = Math.max(fallEnd(), scoreSeconds(anMeasures().at(-1)?.end ?? 0));
+    if (b > end + 1e-6)
+        return null;
+    const notes = fallData().filter((d) => d.start >= a - 1e-6 && d.start < b - 1e-6);
+    return notes.length ? { a, b, notes } : null;
+}
 // Loop the selected notes, else the A–B range (whole bars).
 async function scoreLoopStart()  {
-    const all: PracticeTimedNote[] = fallData();
+    if (AN.loading)
+        return;
     let notes: PracticeTimedNote[] | null = null, a = 0, b = 0, bars = '', ab = false;
     if (AN.selected.size) {
-        notes = all.filter((d) => AN.selected.has(d.i));
+        notes = fallData().filter((d) => AN.selected.has(d.i));
         if (notes.length) {
             a = Math.min(...notes.map((d) => d.start));
             b = Math.max(...notes.map((d) => d.finish));
             bars = anBarsLabel(notes.map((d) => d.n));
         }
     }
-    else if (PRAC.A != null && PRAC.B != null && PRAC.B > PRAC.A) {
-        a = PRAC.A;
-        b = PRAC.B;
-        ab = true;
-        notes = all.filter((d) => d.start >= a - 1e-6 && d.start < b - 1e-6);
+    else {
+        const passage = scoreABPassage();
+        if (passage) {
+            ({ notes, a, b } = passage);
+            ab = true;
+        }
     }
     if (!notes || !notes.length || !(b > a)) {
-        scoreStop();
+        if (SCORE.loop) scoreStop();
         return;
     }
     notes.sort((x, y) => x.start - y.start || x.n.midi - y.n.midi);
@@ -15190,9 +15256,9 @@ function anUpdateControls() {
     buttonById('sc-start').disabled = !has;
     buttonById('score-stop').disabled = !has;
     selectById('score-speed').disabled = !has;
-    const ab = PRAC.A != null && PRAC.B != null;
+    const canLoopAB = !busy && !sel && !!scoreABPassage();
     buttonById('an-play').disabled = !sel || busy;
-    buttonById('an-loop').disabled = (!sel && !ab && !SCORE.loop) || busy;
+    buttonById('an-loop').disabled = busy || (!sel && !SCORE.loop && !canLoopAB);
     buttonById('an-clear').disabled = !sel && !SCORE.mrange;
     byId('an-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
     byId('an-roll').dataset.tool = AN.tool;
@@ -15258,7 +15324,7 @@ function anUpdateControls() {
     if (!(fall && has))
         anPop('fall-pop', false);
     byId('an-tl').hidden = !has;
-    byId('an-loop').title = byId('an-loop').getAttribute('aria-label') + (ab && !sel ? ' · A–B' : '');
+    byId('an-loop').title = byId('an-loop').getAttribute('aria-label') + (canLoopAB ? ' · A–B' : '');
     byId('an-metro').setAttribute('aria-pressed', PRAC.metro ? 'true' : 'false');
     byId('an-metro').title = t('an_metro_t');
     byId('an-metro').setAttribute('aria-label', t('an_metro_t'));
@@ -15735,8 +15801,10 @@ function anRenderPractice() {
     } return i; };
     const range = (a: number, b: number) => a === b ? t('an_bar1', ms[a].number) : t('an_bars', ms[a].number, ms[b].number), Range = (a: number, b: number) => a === b ? t('st_bar', ms[a].number) : t('an_h_bars', ms[a].number, ms[b].number);
     const abBars: [number, number] | null = ab && PRAC.A != null && PRAC.B != null ? [at(scoreBeatAt(PRAC.A)), at(scoreBeatAt(PRAC.B) - 1e-4)] : null;
-    byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : abBars ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
-    byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
+    const canLoopAB = abBars && !sel && scoreABPassage();
+    byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b))
+        : canLoopAB ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
+    byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : canLoopAB ? 'pt_sub_ab' : 'pt_sub_all');
     byId('pt-abv').textContent = abBars ? t('pt_ab_v', range(...abBars)) : t('pt_ab_none');
 }
 // Start in the Practice tab: the selection (or A–B) loops with the practice settings; otherwise the piece plays from the cursor.
@@ -15745,7 +15813,7 @@ function anPracticeStart() {
         scoreStop();
         return;
     }
-    if (AN.selected.size || (PRAC.A != null && PRAC.B != null && PRAC.B > PRAC.A))
+    if (AN.selected.size || scoreABPassage())
         scoreLoopStart();
     else
         scorePlay(false);
@@ -15881,7 +15949,10 @@ function anLoadedText() {
 function anShowError(k: string, a?: string|number) { AN.error = { k, a }; anStatus(a === undefined ? t(k) : t(k, a), true); if (!SCORE.xml)
     anRenderEmpty(); }
 function anSetLoading(on: boolean, msg?: string) { AN.loading = on; if (on) {
-    scoreStop();
+    if (SCORE.playing)
+        scorePause();
+    else
+        stopPreviews();
     AN.error = null;
     anStatus(msg);
 } anUpdateControls(); }
@@ -15953,6 +16024,8 @@ function anReconUI() {
 }
 function anIndex() { AN.index = new Map(AN.notes.map((n, i) => [n, i])); AN.version++; AN.cache.clear(); AN.wsSig = ''; }
 function anReset() {
+    anRollbackOpening?.();
+    AN.loadToken++;
     anLibraryDetach();
     scoreStop();
     anSetLoading(false);
@@ -15972,6 +16045,7 @@ function anReset() {
     SCORE.engine = null;
     SCORE.geo = null;
     SCORE.mrange = null;
+    PRAC.A = PRAC.B = null;
     SCORE.heads = new Map();
     SCORE.version++;
     scoreSetTempos([]);
@@ -16011,26 +16085,20 @@ async function anReadXml(file: File, title: string) {
 async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolean> {
     if (!file)
         return false;
+    anRollbackOpening?.();
+    const token = ++AN.loadToken;
     const name = file.name || '';
-    if (!/\.(mid|midi|xml|musicxml|mxl)$/i.test(name)) {
-        anShowError('an_err_type', name);
+    const rejected = !/\.(mid|midi|xml|musicxml|mxl)$/i.test(name) ? 'an_err_type'
+        : file.size > AN_MAX_BYTES ? 'an_err_size' : !file.size ? 'an_err_empty' : null;
+    if (rejected) {
+        anSetLoading(false);
+        anShowError(rejected, name);
         return false;
     }
-    if (file.size > AN_MAX_BYTES) {
-        anShowError('an_err_size', name);
-        return false;
-    }
-    if (!file.size) {
-        anShowError('an_err_empty', name);
-        return false;
-    }
-    const previous = { source: AN.source, position: fallTime() };
     anLibraryCapture();
     const checkpoint = anLibraryFlush(false).catch(() => {});
-    const token = ++AN.loadToken, title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
+    const title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
     anSetLoading(true, t('an_loading', name));
-    // Loading stops audio, but a rejected or superseded import must not erase the old cursor.
-    FALL.position = previous.position;
     await checkpoint;
     if (token !== AN.loadToken)
         return false;
@@ -16043,10 +16111,6 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
         if (token !== AN.loadToken)
             return false;
         anSetLoading(false);
-        if (AN.source === previous.source) {
-            FALL.position = previous.position;
-            scoreIdle();
-        }
         anShowError(anErrorKey(err, kind));
         return false;
     }
@@ -16090,16 +16154,49 @@ async function anLoadExample(id: string)  {
     const p = PIECES.find((x) => x.id === id);
     if (!p)
         return;
-    anLibraryDetach();
+    anRollbackOpening?.();
+    anLibraryCapture();
     const token = ++AN.loadToken;
     anSetLoading(true, t('an_loading', srPieceTitle(p)));
     await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
 }
+// Keep the old renderer and DOM available until the replacement finishes layout.
+// A newer open rolls this attempt back before reading its own file.
+let anRollbackOpening: (() => void) | null = null;
+function anStageOpening() {
+    const previous = { ...AN }, score = { ...SCORE }, performance = { ...PERFORMANCE };
+    const position = FALL.position, a = PRAC.A, b = PRAC.B;
+    const box = byId('an-roll'), children = [...box.childNodes];
+    const attributes = [...box.attributes].map(({ name, value }) => ({ name, value }));
+    const { scrollTop, scrollLeft } = box;
+    AN.cache = new Map();
+    SCORE.cursorEl = null;
+    anRollbackOpening = () => {
+        anRollbackOpening = null;
+        scoreLayoutGeneration++;
+        scorePendingSignature = '';
+        scoreLayoutPending = null;
+        // The old engraving keeps its identity, but unfinished work must see a newer version.
+        Object.assign(SCORE, score, { version: SCORE.version + 1 });
+        Object.assign(AN, previous, { loadToken: AN.loadToken, wsSig: '' });
+        Object.assign(PERFORMANCE, performance);
+        FALL.position = position;
+        PRAC.A = a;
+        PRAC.B = b;
+        for (const attr of [...box.attributes]) box.removeAttribute(attr.name);
+        for (const attr of attributes) box.setAttribute(attr.name, attr.value);
+        box.replaceChildren(...children);
+        box.scrollTo(scrollLeft, scrollTop);
+        anSetLoading(false);
+        anReconUI();
+        pcRender();
+        scoreIdle();
+    };
+}
 async function anCommit(src: AnSource, token: number)  {
     await ensureAnalysisModules();
     if (token !== AN.loadToken) return;
-    anLibraryDetach();
-    scoreStop();
+    anStageOpening();
     AN.source = src;
     AN.error = null;
     AN.selected = new Set();
@@ -16109,6 +16206,7 @@ async function anCommit(src: AnSource, token: number)  {
     SCORE.mrange = null;
     SCORE.resume = null;
     SCORE.paused = false;
+    PRAC.A = PRAC.B = null;
     if (src.kind === 'xml') {
         AN.notes = src.notes;
         SCORE.xml = src.xml;
@@ -16125,16 +16223,12 @@ async function anCommit(src: AnSource, token: number)  {
             anRebuild();
         }
         catch (err) {
-            anSetLoading(false);
-            anReset();
+            anRollbackOpening?.();
             anShowError(anErrorKey(err, 'midi'));
             return;
         }
     }
     anIndex();
-    anReconUI();
-    pcRender();
-    byId('an-name').textContent = src.label || src.title;
     let ok = false;
     try {
         ok = await scoreRender();
@@ -16142,8 +16236,7 @@ async function anCommit(src: AnSource, token: number)  {
     catch (err) {
         console.error(err);
         if (token === AN.loadToken) {
-            anSetLoading(false);
-            anReset();
+            anRollbackOpening?.();
             anShowError('an_err_render');
         }
         return;
@@ -16151,10 +16244,16 @@ async function anCommit(src: AnSource, token: number)  {
     if (token !== AN.loadToken)
         return;
     if (!ok) {
-        anSetLoading(false);
+        anRollbackOpening?.();
+        anShowError('an_err_render');
         return;
     }
+    anRollbackOpening = null;
+    anLibraryDetach();
     anSetLoading(false);
+    anReconUI();
+    pcRender();
+    byId('an-name').textContent = src.label || src.title;
     anStatus(anLoadedText());
     fallReset();
     AN.kbCenter = true;
@@ -16167,7 +16266,7 @@ async function anCommit(src: AnSource, token: number)  {
     anFocusStage();
 }
 async function anReconChange()  {
-    if (!AN.source || AN.source.kind === 'xml')
+    if (AN.loading || !AN.source || AN.source.kind === 'xml')
         return;
     const prev = { ...AN.recon };
     AN.recon = { hands: selectById('an-hands').value, grid: +selectById('an-grid').value, key: selectById('an-keysel').value };
@@ -16207,7 +16306,7 @@ function anLocalize() {
     anReconUI();
     const src = AN.source;
     // Examples are re-titled and MIDI scores get the localized part name ("Piano"/"Pian"): both need a rebuild.
-    if (src && src.kind !== 'xml') {
+    if (!AN.loading && src && src.kind !== 'xml') {
         const p = src.kind === 'example' ? PIECES.find((x) => x.id === src.id) : null, title = p ? srPieceTitle(p) : src.title, part = '<part-name>' + xmlEsc(t('sc_part')) + '</part-name>';
         if (title !== src.title || (SCORE.xml && !SCORE.xml.includes(part))) {
             if (p) {
@@ -16477,7 +16576,7 @@ function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE
         const start = scoreSeconds(n.start), finish = scoreSeconds(n.end), sound = scoreSeconds(n.soundEnd ?? n.end);
         if (start < prevStart) sorted = false;
         prevStart = start;
-        if (finish > maxEnd) maxEnd = finish;
+        maxEnd = Math.max(maxEnd, AN.source?.kind === 'midi' ? sound : finish);
         if (finish - start > maxDur) maxDur = finish - start;
         return { n, i, start, finish, sound };
     });
@@ -18552,8 +18651,7 @@ let syncPull = function syncPull() {
     else if (!sameData)
         syncData(!syncHasBase(bp) ? bp : bp.data, data, rp.data);
     data.settings = restoreSettings(data.settings);
-    if (!isRecord(data.srs))
-        data.srs = {};
+    data.srs = storage.restoreSrs(data.srs);
     if (!isRecord(data.sheet))
         data.sheet = {};
     if (syncHasBase(bp))
@@ -18625,18 +18723,34 @@ function syncRefresh() {
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
 function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: activeInputId || savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
-function syncWrite() { if (STORE.blocked)
-    return; try {
-    const p = syncPayload();
-    const s = writePttV3(localStorage, p);
+function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
+    if (STORE.blocked) {
+        if (replacement)
+            throw new Error('Progress is protected');
+        return;
+    }
+    const payload = syncPayload();
+    let raw: string;
+    try {
+        raw = writePttV3(localStorage, replacement ? { ...payload, ...replacement } : payload);
+    }
+    catch (e) {
+        if (replacement)
+            throw e; // Let the caller roll back the ledger when the main save fails.
+        console.warn('save failed', e);
+        storeFailed();
+        return;
+    }
+    if (replacement) {
+        data = replacement.data;
+        SYNC.gen = replacement.gen;
+        SYNC.known.clear();
+    }
     SYNC.merge = null;
-    syncCurrent(s);
-    storeSaved();
+    syncCurrent(raw);
+    if (!replacement)
+        storeSaved();
 }
-catch (e) {
-    console.warn('save failed', e);
-    storeFailed();
-} }
 let _saveT: ReturnType<typeof setTimeout> | null = null;
 function saveSoon() { clearTimeout(_saveT ?? undefined); _saveT = setTimeout(saveAll, 400); } // for sliders — avoid a localStorage write per pixel
 // Data safety: storage the browser keeps, a visible save failure, rolling copies, and records this build must not overwrite.
@@ -18661,10 +18775,14 @@ function storeFailed() { if (STORE.failed)
 function storeBlock() { if (STORE.blocked === 'too-new')
     return; STORE.blocked = 'too-new'; storeNote(); }
 function storeHasProgress() {
-    if (data.totalReviews > 0 || Object.keys(data.srs || {}).length > 0)
+    const reading = data.reading;
+    const outcomes = [data.srs, data.learnDone, data.singCleared, data.sheet, reading?.lv, reading?.nt, reading?.book?.pieces];
+    if (data.totalReviews > 0 || data.placed || (data.lastDrill?.n ?? 0) > 0 || reading?.prefs?.warmDone ||
+        outcomes.some(map => isRecord(map) && Object.keys(map).length > 0))
         return true;
     try {
-        return Object.keys(srtReadLedger(localStorage).attempts).length > 0; // Read and Marathon history lives in its own record
+        const ledger = srtReadLedger(localStorage);
+        return Object.keys(ledger.attempts).length > 0 || Object.keys(ledger.sessions).length > 0;
     }
     catch (_) {
         return false;
@@ -18673,7 +18791,7 @@ function storeHasProgress() {
 /** One copy a day, taken on the first save of the day. An empty record is not worth a slot. */
 function storeDaily() {
     const day = todayN();
-    if (STORE.snapDay === day || !storeHasProgress())
+    if (STORE.blocked || STORE.snapDay === day || !storeHasProgress())
         return;
     STORE.snapDay = day;
     void safety.listSnapshots().then(async (list) => { if (safety.needsDailySnapshot(list, day))
@@ -18781,6 +18899,45 @@ async function storeRestore(id: number | undefined) {
     }
     catch (_) {
         alert(t('import_storage'));
+    }
+}
+async function storeReset() {
+    const button = buttonById('resetBtn');
+    if (button.disabled || !confirm(t('reset_confirm')))
+        return;
+    const checkWritable = () => {
+        if (storeBackupBlocked() || STORE.blocked === 'quarantine')
+            throw new Error('Progress is protected');
+    };
+    button.disabled = true;
+    try {
+        const result = await srtResetLedgerTransaction(localStorage, async () => {
+            checkWritable();
+            syncPull();
+            return await storeSnapshot('before-reset', backupJson()) || confirm(t('store_reset_copy_failed'));
+        }, () => {
+            checkWritable();
+            syncPull();
+            const reset = { ...freshData(), settings: data.settings, latency: calRecord().latency };
+            syncWrite({ gen: syncGen(), data: reset });
+        });
+        if (!result)
+            return;
+        if (!result.ok) {
+            alert(t(result.reason === 'unsupported' ? 'store_too_new' : 'store_reset_failed'));
+            return;
+        }
+        storeSaved();
+        renderLearn._init = false;
+        learnSel = 0;
+        renderProgress();
+        refreshToday();
+    }
+    catch (_) {
+        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : 'store_reset_failed'));
+    }
+    finally {
+        button.disabled = false;
     }
 }
 function storeExported() {
@@ -18929,8 +19086,7 @@ function loadAll() {
             if (raw.data) {
                 data = Object.assign(data, raw.data);
                 data.settings = restoreSettings(raw.data.settings);
-                if (!raw.data.srs)
-                    data.srs = {};
+                data.srs = storage.restoreSrs(raw.data.srs);
                 if (!isRecord(data.sheet))
                     data.sheet = {};
             }
@@ -19248,6 +19404,7 @@ function initControls() {
     byId('sc-fit').addEventListener('click', () => { if (anZoomNow() !== 1) scoreZoom(1); else if (SCORE.engine) void scoreLayout(); });
     scoreFocusUi();
     byId('set-install').addEventListener('click', pwaInstall);
+    byId('set-pwa-retry').addEventListener('click', () => { void pwaRegister(); });
     document.addEventListener('fullscreenchange', scoreFocusFullscreenChanged);
     window.addEventListener('resize', stageResize);
     byId('settingsBtn').addEventListener('click', () => openDrawer(true));
@@ -19561,19 +19718,7 @@ function initControls() {
     byId('prog-export').addEventListener('click', () => byId('exportBtn').click());
     byId('prog-import').addEventListener('click', () => byId('importBtn').click());
     byId('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
-    byId('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
-        void storeSnapshot('before-reset', backupJson()); // the copy is taken now, before the reset below
-        const latency = calRecord().latency; // the timing calibration belongs to the device, like the settings
-        data = { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, learnDone: {}, learnSel: 0, settings: data.settings };
-        if (latency !== undefined)
-            calRecord().latency = latency;
-        renderLearn._init = false;
-        learnSel = 0;
-        SYNC.gen = syncGen();
-        syncWrite();
-        renderProgress();
-        refreshToday();
-    } }); // a new generation: other tabs adopt the reset instead of merging their copy back
+    byId('resetBtn').addEventListener('click', () => { void storeReset(); });
     // keyboard dock
     byId('oct-down').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.max(BASE_LOW, view.low - 12); buildKeyboard(); repaintHeld(); });
     byId('oct-up').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.min(BASE_HIGH - view.oct * 12, view.low + 12); buildKeyboard(); repaintHeld(); });

@@ -137,7 +137,7 @@ self.addEventListener('fetch', event => {
   // Route static requests through every retained version. A tab from the
   // previous release can still request a hashed asset that is absent from the
   // current manifest, and the previous cache is intentionally kept for it.
-  if (PRECACHE_URLS.has(bare) || request.destination !== '') {
+  if (PRECACHE_URLS.has(bare) || request.destination !== '' || bare.startsWith(SCOPE.href)) {
     event.respondWith(asset(request, bare, PRECACHE_URLS.get(bare)));
   }
 });

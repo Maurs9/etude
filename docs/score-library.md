@@ -34,7 +34,7 @@ Copia bibliotecii este separată de copia existentă a progresului general de st
 ## Verificări
 
 ```bash
-ETUDE_DEV_SERVER=1 npx playwright test tests/e2e/score-library.spec.mjs tests/e2e/score-library-store.spec.mjs --project=app --workers=2
+npm run test:dev -- tests/e2e/score-library.spec.mjs tests/e2e/score-library-store.spec.mjs --workers=2
 ETUDE_DEV_SERVER=1 ETUDE_SCORES_DIR=MIDI npx playwright test tests/e2e/score-library-collection.spec.mjs --project=app --workers=1
 npm run test -- --workers=2
 npm run test:unit

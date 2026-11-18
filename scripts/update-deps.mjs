@@ -60,16 +60,29 @@ async function readInstalledVersion(pkgName) {
 }
 
 async function fetchNpmOutdated() {
+  let stdout;
   try {
-    const { stdout } = await runCmd(NPM_CMD, ['outdated', '--json']);
-    return stdout.trim() ? JSON.parse(stdout) : {};
+    ({ stdout } = await runCmd(NPM_CMD, ['outdated', '--json']));
   } catch (error) {
-    // `npm outdated` exits with code 1 when outdated packages exist; stdout still contains the JSON object.
-    if (error.stdout && error.stdout.trim().startsWith('{')) {
-      try { return JSON.parse(error.stdout); } catch { return null; }
+    // npm uses exit code 1 for both updates and errors. The JSON shape distinguishes them.
+    if (error.code !== 1) return null;
+    stdout = error.stdout;
+  }
+  try {
+    const report = JSON.parse(stdout);
+    if (!report || typeof report !== 'object' || Array.isArray(report) ||
+        !Object.values(report).every(row => typeof row?.wanted === 'string' && typeof row?.latest === 'string')) {
+      return null;
     }
+    return report;
+  } catch {
     return null;
   }
+}
+
+function incompleteCheck() {
+  console.error('Dependency check incomplete. npm could not read registry metadata.');
+  process.exitCode = 1;
 }
 
 async function collectDependencyStatus() {
@@ -86,16 +99,16 @@ async function collectDependencyStatus() {
       range,
       isPinned: !range.startsWith('^') && !range.startsWith('~'),
       installed,
-      wanted: info?.wanted ?? installed,
-      latest: info?.latest ?? (outdated ? installed : 'offline'),
+      wanted: outdated ? (info?.wanted ?? installed) : 'unknown',
+      latest: outdated ? (info?.latest ?? installed) : 'unknown',
       hasUpdate: Boolean(info && (info.wanted !== installed || info.latest !== installed)),
     });
   }
-  return rows;
+  return { rows, complete: outdated !== null };
 }
 
 async function printReport() {
-  const rows = await collectDependencyStatus();
+  const { rows, complete } = await collectDependencyStatus();
   const vendorFiles = (await readdir(join(ROOT, 'public', 'vendor'))).filter(f => f.endsWith('.js'));
   const pianoFiles = (await readdir(join(ROOT, 'src', 'assets', 'piano'))).filter(f => f.endsWith('.mp3'));
   const fontFiles = (await readdir(join(ROOT, 'src', 'assets', 'fonts'))).filter(f => f.endsWith('.woff2'));
@@ -107,7 +120,7 @@ async function printReport() {
     Installed: r.installed,
     Wanted: r.wanted,
     Latest: r.latest,
-    Status: r.hasUpdate ? 'UPDATE AVAILABLE' : 'UP TO DATE',
+    Status: complete ? (r.hasUpdate ? 'UPDATE AVAILABLE' : 'UP TO DATE') : 'UNKNOWN',
   })));
 
   console.log('\n=== 2. Runtime / Vendored Dependencies (Browser) ===');
@@ -131,6 +144,7 @@ async function printReport() {
       UpdateCmd: 'src/styles/fonts.css',
     },
   ]);
+  if (!complete) incompleteCheck();
 }
 
 async function runSafetyGates({ fullE2e = false } = {}) {
@@ -152,7 +166,11 @@ async function runSafetyGates({ fullE2e = false } = {}) {
 }
 
 async function updateDependencies({ useLatest = false, fullE2e = false, filterNames = [] } = {}) {
-  const rows = await collectDependencyStatus();
+  const { rows, complete } = await collectDependencyStatus();
+  if (!complete) {
+    incompleteCheck();
+    return;
+  }
   const byName = new Map(rows.map(r => [r.name, r]));
   const results = [];
 
@@ -161,7 +179,7 @@ async function updateDependencies({ useLatest = false, fullE2e = false, filterNa
       .filter(name => !filterNames.length || filterNames.includes(name))
       .map(name => byName.get(name))
       .filter(Boolean)
-      .filter(row => useLatest ? row.latest !== row.installed && row.latest !== 'offline' : row.hasUpdate);
+      .filter(row => useLatest ? row.latest !== row.installed : row.hasUpdate);
 
     if (!candidates.length) {
       results.push({ group: group.name, status: 'SKIPPED (already up to date)' });

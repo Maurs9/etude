@@ -190,11 +190,31 @@ test.describe('data safety', () => {
   test('a daily copy and a pre-reset copy let a reset be undone', async ({ app, page }) => {
     await app.open({ saved });
     await expect.poll(() => snapshots(page)).toEqual(['daily']);
+    const before = await page.evaluate(() => {
+      const ledger = window.__etude.srtReadLedger(localStorage);
+      const attempt = {
+        attemptId: 'a1', fingerprint: 'v1:x', ownerTabId: 'tab', generation: ledger.generation, status: 'completed', finishedAt: 10,
+        scoringVersion: 1, N: 1, TP: 1, FP: 0, FN: 0, G: 1, Q: 0, lateOrEarlyCount: 0, restViolations: 0, durationViolations: 0,
+        pitchPrecision: 1, pitchRecall: 1, pitchF1: 100, rhythmAcc: 100, score: 100, stars: 3, perfect: true, meanOffsetMs: 0, meanAbsoluteOffsetMs: 0,
+        noteResults: [{ expectedId: 'n', classification: 'good', matchedInputId: 'i', errorMs: 0 }], extraInputs: [],
+      };
+      const exposures = { 'v1:x': { firstSeenAt: 1, reason: 'first-sight' } };
+      localStorage.setItem('etude-sight-v1', JSON.stringify({ ...ledger, attempts: { a1: attempt }, exposures, prefs: { ...ledger.prefs, practiceHints: false } }));
+      return ledger.generation;
+    });
     page.on('dialog', dialog => dialog.accept());
     await page.evaluate(() => window.__etude.show('progress'));
     await page.locator('#resetBtn').click();
     await expect.poll(() => page.evaluate(() => window.__etude.data.totalReviews)).toBe(0);
     await expect.poll(() => snapshots(page)).toEqual(['before-reset', 'daily']);
+    const ledger = await page.evaluate(() => window.__etude.srtReadLedger(localStorage));
+    expect(ledger).toMatchObject({ attempts: {}, exposures: {}, sessions: {}, prefs: { practiceHints: false } });
+    expect(Object.keys(ledger.attempts)).toEqual([]);
+    expect(Object.keys(ledger.exposures)).toEqual([]);
+    expect(ledger.generation).not.toBe(before);
+    expect(await page.evaluate(generation => window.__etude.srtLedgerUpdate(localStorage, {
+      type: 'recordListen', fingerprint: 'v1:old-tab', generation,
+    }), before)).toEqual({ ok: false, reason: 'stale_generation' });
 
     await page.locator('#settingsBtn').click();
     await expect(page.locator('#set-snaps option')).toHaveCount(2);
@@ -203,8 +223,76 @@ test.describe('data safety', () => {
     await page.locator('#set-snap-restore').click();
     await reloaded;
     await page.waitForFunction(() => typeof window.__etude?.show === 'function' && window.__etude.data.totalReviews === 7);
+    expect(await page.evaluate(() => window.__etude.srtReadLedger(localStorage).attempts.a1?.status)).toBe('completed');
     // The restore kept a copy of the reset state too.
     await expect.poll(() => snapshots(page)).toContain('before-restore');
+  });
+
+  test('reset waits for a backup and leaves history intact if the user declines without one', async ({ app, page }) => {
+    await app.open({ hash: 'progress', saved });
+    await page.evaluate(() => {
+      window.__etude.srtReadLedger(localStorage);
+      IDBFactory.prototype.open = () => { throw new DOMException('blocked', 'InvalidStateError'); };
+    });
+    const progress = () => page.evaluate(() => {
+      const { data, gen } = JSON.parse(localStorage.getItem('ptt-v3'));
+      return { data, gen, ledger: localStorage.getItem('etude-sight-v1') };
+    });
+    const before = await progress();
+    const messages = [];
+    page.on('dialog', dialog => {
+      messages.push(dialog.message());
+      return messages.length === 1 ? dialog.accept() : dialog.dismiss();
+    });
+    await page.locator('#resetBtn').click();
+    await expect.poll(() => messages).toEqual([expect.stringMatching(/Reset all learning/), expect.stringMatching(/Reset it anyway/)]);
+    await expect(page.locator('#resetBtn')).toBeEnabled();
+    expect(await progress()).toEqual(before);
+  });
+
+  test('reset rolls back the ledger if the progress write fails', async ({ app, page }) => {
+    await app.open({ hash: 'progress', saved });
+    const before = await page.evaluate(() => {
+      window.__etude.srtReadLedger(localStorage);
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'ptt-v3') throw new DOMException('full', 'QuotaExceededError');
+        set.call(this, key, value);
+      };
+      return ['ptt-v3', 'etude-sight-v1'].map(key => localStorage.getItem(key));
+    });
+    const failed = new Promise(resolve => page.on('dialog', dialog => {
+      void dialog.accept();
+      if (dialog.type() === 'alert') resolve(dialog.message());
+    }));
+    await page.locator('#resetBtn').click();
+    await expect(failed).resolves.toMatch(/couldn't reset your progress/);
+    expect(await page.evaluate(() => ['ptt-v3', 'etude-sight-v1'].map(key => localStorage.getItem(key)))).toEqual(before);
+    expect(await page.evaluate(() => window.__etude.data.totalReviews)).toBe(7);
+    await expect.poll(() => snapshots(page)).toContain('before-reset');
+  });
+
+  test('completing a lesson alone earns a daily copy', async ({ app, page }) => {
+    await app.open({ hash: 'learn' });
+    await expect.poll(() => snapshots(page)).toEqual([]);
+    await page.locator('[data-ln="mark"]').click();
+    await expect.poll(() => snapshots(page)).toEqual(['daily']);
+  });
+
+  test('reviews a legacy imported card with a finite ease and due date', async ({ app, page }) => {
+    await app.open({ saved });
+    page.on('dialog', dialog => dialog.accept());
+    const reloaded = page.waitForEvent('load');
+    await page.locator('#importFile').setInputFiles('tests/fixtures/storage/ptt-v3-legacy.json');
+    await reloaded;
+    await page.waitForFunction(() => typeof window.__etude?.reviewItem === 'function');
+    const review = await page.evaluate(() => {
+      window.__etude.reviewItem('iv:1', true);
+      return JSON.parse(localStorage.getItem('ptt-v3')).data.srs['iv:1'];
+    });
+    expect(review).toMatchObject({ box: 3, reps: 4, lapses: 0 });
+    expect(review.ease).toBeCloseTo(2.35);
+    expect(review.due).toBe(review.last + 4);
   });
 
   test('Settings shows storage protection and when the last export happened', async ({ app, page }) => {
