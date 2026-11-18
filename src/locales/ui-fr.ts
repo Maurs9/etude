@@ -601,6 +601,7 @@ const payload: UIPayload = {
       "sym_t_scherzando": "scherzando — de façon enjouée et légère",
       "sym_t_tranquillo": "tranquillo — calmement et paisiblement",
       "sym_t_conmoto": "con moto — avec mouvement ; garder une allure fluide",
+      "sym_t_pocomoto": "poco moto — avec un peu de mouvement ; garder une allure souplement animée",
       "sym_t_nontroppo": "non troppo — pas trop ; modère l'indication qu'il accompagne",
       "sym_t_menomosso": "meno mosso — moins de mouvement ; passer à un tempo plus lent",
       "sym_t_piumosso": "più mosso — plus de mouvement ; passer à un tempo plus rapide",
