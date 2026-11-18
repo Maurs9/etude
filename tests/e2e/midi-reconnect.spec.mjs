@@ -208,13 +208,25 @@ test('reloading during MIDI fallback keeps the primary piano as the preference',
   await connect(page, 'Grand');
 });
 
+test('a reload with the preferred MIDI device absent uses a stand-in until it returns', async ({ app, page }) => {
+  await fakeMidi(page, [['pad', 'Drum Pad']]);
+  await app.open({ saved: { v: 3, lang: 'en', device: 'piano', data: {} } });
+  await connect(page, 'Drum Pad');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).device)).toBe('piano');
+  await page.evaluate(() => window.__midi.plug('piano', 'Grand'));
+  await expect(page.locator('#midiText')).toHaveText('Grand');
+  expect(await page.evaluate(() => window.__midi.play(60))).toBe('piano');
+});
+
 test('testing a MIDI key in Settings leaves the Book first-sight attempt unclaimed', async ({ app, page }) => {
   await fakeMidi(page, [['piano', 'Grand']]);
   await app.open({ hash: 'read' });
+  await page.clock.install();
   await page.locator('#rdn-book-go').click();
   await page.locator('#settingsBtn').click();
   await page.locator('#set-connect').click();
   await expect(page.locator('#set-midi-status')).toHaveText('Grand');
+  await page.clock.runFor(650); // wait past the player's first-note arming delay
   const audition = () => page.evaluate(() => {
     const { SR, srtLevelExpected, srtReadLedger } = window.__etude;
     window.__midi.play(srtLevelExpected(SR.lvPiece)[0].midi);

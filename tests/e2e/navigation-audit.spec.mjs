@@ -12,7 +12,9 @@ test('mobile sections open at the top, Back restores scroll, and an unknown hash
   await page.goBack();
   await expect(page.locator('#view-today')).toHaveClass(/active/);
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(before);
-  await page.locator('#bottomNav [data-view=practice]').click();
+  await page.goForward();
+  await expect(page.locator('#view-practice')).toHaveClass(/active/);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
   await page.evaluate(() => { location.hash = '#somewhere'; });
   await expect(page).toHaveURL(/#today$/);
   await expect(page.locator('#view-today')).toHaveClass(/active/);
@@ -69,6 +71,29 @@ test('a pending slider value is saved on pagehide', async ({ app, page }) => {
   await page.reload();
   await expect(page.locator('#drawer')).toHaveAttribute('aria-hidden', 'false');
   await expect(page.locator('#volume')).toHaveValue('0');
+});
+
+test('committing Volume, Room ambience, or Tempo writes the value immediately', async ({ app, page }) => {
+  await app.open();
+  await page.locator('#settingsBtn').click();
+  const values = await page.evaluate(() => {
+    const read = id => JSON.parse(localStorage.getItem('ptt-v3'))[id];
+    return [['volume', '0'], ['reverb', '50'], ['bpm', '120']].map(([id, value]) => {
+      const slider = document.getElementById(id);
+      const field = id === 'volume' ? 'masterVol' : id;
+      const before = read(field);
+      slider.value = value;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      const pending = read(field);
+      slider.dispatchEvent(new Event('change', { bubbles: true }));
+      return { deferred: before === pending, committed: read(field) };
+    });
+  });
+  expect(values).toEqual([
+    { deferred: true, committed: 0 },
+    { deferred: true, committed: 0.25 },
+    { deferred: true, committed: 120 },
+  ]);
 });
 
 test('selecting either the current or a new notation leaves a first-sight count-in intact', async ({ app, page }) => {

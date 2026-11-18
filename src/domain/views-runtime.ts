@@ -2121,6 +2121,9 @@ function refreshDeviceList(autoPick: boolean) {
     ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
     const still = activeInputId && ins.some((i) => i.id === activeInputId);
     const remembered = !still && savedDevice ? ins.find((i) => i.id === savedDevice) : undefined; // reconnect the device used last time
+    // The preferred input can already be absent when this page first connects.
+    if (!still && savedDevice && !remembered && !midiLost)
+        midiLost = { id: savedDevice, name: midiAccess?.inputs.get(savedDevice)?.name ?? '' };
     const chosen = midiFindLost(ins) || (still ? ins.find((i) => i.id === activeInputId) : undefined) || remembered || ((autoPick || !activeInputId) ? (pickArturia(ins) || ins[0]) : ins[0]);
     if (!chosen)
         return;
