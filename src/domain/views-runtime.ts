@@ -4333,7 +4333,12 @@ let show = function show(v: string|undefined, moveFocus = true): void | Promise<
         anLibraryNavigationResume = anLibraryCapture();
         anLibrarySuspended = true;
         void anLibraryFlush(false).catch(() => {});
-        scoreStop();
+        // An import has already paused playback. Keep the cursor for rollback,
+        // including while the current library checkpoint is suspended.
+        if (AN.loading)
+            scoreHalt();
+        else
+            scoreStop();
         anKeysClear();
         anSheet(false, true);
         pcStageSet(false, true);
@@ -12647,7 +12652,10 @@ function anRebuild() {
     if (!src || src.kind === 'xml')
         return;
     const parsed = src.parsed, hands = anAssignHands(parsed.notes, AN.recon.hands);
-    const notes = parsed.notes.map((n, i): ScoreMidiNote => ({ midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i] }));
+    const notes = parsed.notes.map((n, i) => ({
+        midi: n.midi, start: n.start, end: n.end, vel: n.vel, track: n.track, channel: n.channel, hand: hands.of[i],
+        ...(n.soundEnd !== undefined ? { soundEnd: n.soundEnd, pedalEnd: n.soundEnd } : {}),
+    }));
     const key = anResolveKey({ meta: parsed.meta.filter((e): e is AnMidiKeyMeta => e.type === 'key') }, AN.recon.key, notes);
     const pickup = src.kind === 'example' ? PIECES.find((p) => p.id === src.id)?.pickup : undefined;
     const xml = scoreFromMidi({ meta: parsed.meta, notes }, src.title, { grid: AN.recon.grid, keys: key.events, composer: src.comp, pickup });
@@ -13338,6 +13346,7 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
     if (!gs)
         return;
     const pageRects = new Map<Element, DOMRect>(), pageOf = (el: Element | null | undefined) => el && el.closest && el.closest('[id^="osmdCanvasPage"]');
+    const tempoWords = AN.source?.kind === 'xml' ? AN.source.tempoWords : null;
     const symMarked = new Set<Element>();
     const hasSymAncestor = (el: Element) => {
         for (let cur: Element | null = el; cur && cur !== box; cur = cur.parentElement) {
@@ -13443,6 +13452,9 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
         if (SC_DYN.test(s)) add(element, 'dyn', s);
         else if (/^[A-G](?:[#♯b♭])?(?:m(?:aj)?|dim|aug|sus[24]?)?\d*(?:\/[A-G][#♯b♭]?)?$/.test(s) && element.classList.contains('osmd-words')) add(element, 'chord', s);
         else if (/^\d+:\d{2}$/.test(s)) add(element, 'timestamp', s);
+        // OSMD separates tempo expressions from ordinary words. Pair that semantic
+        // class with the MusicXML sound value, independent of layout adjustments.
+        else if (element.classList.contains('osmd-tempo') && tempoWords?.has(s)) add(element, 'tempo', s);
         else add(element, scoreTermParts(s).length ? 'text' : 'direction', s);
     });
     box.querySelectorAll('svg text').forEach((x) => {
@@ -13549,6 +13561,8 @@ function scoreSymText(sym: { kind: string | undefined; val: string | ScoreRestSy
         full = t('sym_chord');
     else if (k === 'timestamp')
         full = t('sym_timestamp', v);
+    else if (k === 'tempo')
+        full = t('sym_metro', v);
     else if (k === 'direction')
         full = t('sym_direction');
     else if (k === 'volta')
@@ -15858,7 +15872,10 @@ function anLoadedText() {
 function anShowError(k: string, a?: string|number) { AN.error = { k, a }; anStatus(a === undefined ? t(k) : t(k, a), true); if (!SCORE.xml)
     anRenderEmpty(); }
 function anSetLoading(on: boolean, msg?: string) { AN.loading = on; if (on) {
-    scoreStop();
+    if (SCORE.playing)
+        scorePause();
+    else
+        stopPreviews();
     AN.error = null;
     anStatus(msg);
 } anUpdateControls(); }
@@ -15930,6 +15947,8 @@ function anReconUI() {
 }
 function anIndex() { AN.index = new Map(AN.notes.map((n, i) => [n, i])); AN.version++; AN.cache.clear(); AN.wsSig = ''; }
 function anReset() {
+    anRollbackOpening?.();
+    AN.loadToken++;
     anLibraryDetach();
     scoreStop();
     anSetLoading(false);
@@ -15949,6 +15968,7 @@ function anReset() {
     SCORE.engine = null;
     SCORE.geo = null;
     SCORE.mrange = null;
+    PRAC.A = PRAC.B = null;
     SCORE.heads = new Map();
     SCORE.version++;
     scoreSetTempos([]);
@@ -15988,26 +16008,20 @@ async function anReadXml(file: File, title: string) {
 async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolean> {
     if (!file)
         return false;
+    anRollbackOpening?.();
+    const token = ++AN.loadToken;
     const name = file.name || '';
-    if (!/\.(mid|midi|xml|musicxml|mxl)$/i.test(name)) {
-        anShowError('an_err_type', name);
+    const rejected = !/\.(mid|midi|xml|musicxml|mxl)$/i.test(name) ? 'an_err_type'
+        : file.size > AN_MAX_BYTES ? 'an_err_size' : !file.size ? 'an_err_empty' : null;
+    if (rejected) {
+        anSetLoading(false);
+        anShowError(rejected, name);
         return false;
     }
-    if (file.size > AN_MAX_BYTES) {
-        anShowError('an_err_size', name);
-        return false;
-    }
-    if (!file.size) {
-        anShowError('an_err_empty', name);
-        return false;
-    }
-    const previous = { source: AN.source, position: fallTime() };
     anLibraryCapture();
     const checkpoint = anLibraryFlush(false).catch(() => {});
-    const token = ++AN.loadToken, title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
+    const title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
     anSetLoading(true, t('an_loading', name));
-    // Loading stops audio, but a rejected or superseded import must not erase the old cursor.
-    FALL.position = previous.position;
     await checkpoint;
     if (token !== AN.loadToken)
         return false;
@@ -16020,10 +16034,6 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
         if (token !== AN.loadToken)
             return false;
         anSetLoading(false);
-        if (AN.source === previous.source) {
-            FALL.position = previous.position;
-            scoreIdle();
-        }
         anShowError(anErrorKey(err, kind));
         return false;
     }
@@ -16067,16 +16077,49 @@ async function anLoadExample(id: string)  {
     const p = PIECES.find((x) => x.id === id);
     if (!p)
         return;
-    anLibraryDetach();
+    anRollbackOpening?.();
+    anLibraryCapture();
     const token = ++AN.loadToken;
     anSetLoading(true, t('an_loading', srPieceTitle(p)));
     await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
 }
+// Keep the old renderer and DOM available until the replacement finishes layout.
+// A newer open rolls this attempt back before reading its own file.
+let anRollbackOpening: (() => void) | null = null;
+function anStageOpening() {
+    const previous = { ...AN }, score = { ...SCORE }, performance = { ...PERFORMANCE };
+    const position = FALL.position, a = PRAC.A, b = PRAC.B;
+    const box = byId('an-roll'), children = [...box.childNodes];
+    const attributes = [...box.attributes].map(({ name, value }) => ({ name, value }));
+    const { scrollTop, scrollLeft } = box;
+    AN.cache = new Map();
+    SCORE.cursorEl = null;
+    anRollbackOpening = () => {
+        anRollbackOpening = null;
+        scoreLayoutGeneration++;
+        scorePendingSignature = '';
+        scoreLayoutPending = null;
+        // The old engraving keeps its identity, but unfinished work must see a newer version.
+        Object.assign(SCORE, score, { version: SCORE.version + 1 });
+        Object.assign(AN, previous, { loadToken: AN.loadToken, wsSig: '' });
+        Object.assign(PERFORMANCE, performance);
+        FALL.position = position;
+        PRAC.A = a;
+        PRAC.B = b;
+        for (const attr of [...box.attributes]) box.removeAttribute(attr.name);
+        for (const attr of attributes) box.setAttribute(attr.name, attr.value);
+        box.replaceChildren(...children);
+        box.scrollTo(scrollLeft, scrollTop);
+        anSetLoading(false);
+        anReconUI();
+        pcRender();
+        scoreIdle();
+    };
+}
 async function anCommit(src: AnSource, token: number)  {
     await ensureAnalysisModules();
     if (token !== AN.loadToken) return;
-    anLibraryDetach();
-    scoreStop();
+    anStageOpening();
     AN.source = src;
     AN.error = null;
     AN.selected = new Set();
@@ -16086,6 +16129,7 @@ async function anCommit(src: AnSource, token: number)  {
     SCORE.mrange = null;
     SCORE.resume = null;
     SCORE.paused = false;
+    PRAC.A = PRAC.B = null;
     if (src.kind === 'xml') {
         AN.notes = src.notes;
         SCORE.xml = src.xml;
@@ -16102,16 +16146,12 @@ async function anCommit(src: AnSource, token: number)  {
             anRebuild();
         }
         catch (err) {
-            anSetLoading(false);
-            anReset();
+            anRollbackOpening?.();
             anShowError(anErrorKey(err, 'midi'));
             return;
         }
     }
     anIndex();
-    anReconUI();
-    pcRender();
-    byId('an-name').textContent = src.label || src.title;
     let ok = false;
     try {
         ok = await scoreRender();
@@ -16119,8 +16159,7 @@ async function anCommit(src: AnSource, token: number)  {
     catch (err) {
         console.error(err);
         if (token === AN.loadToken) {
-            anSetLoading(false);
-            anReset();
+            anRollbackOpening?.();
             anShowError('an_err_render');
         }
         return;
@@ -16128,10 +16167,16 @@ async function anCommit(src: AnSource, token: number)  {
     if (token !== AN.loadToken)
         return;
     if (!ok) {
-        anSetLoading(false);
+        anRollbackOpening?.();
+        anShowError('an_err_render');
         return;
     }
+    anRollbackOpening = null;
+    anLibraryDetach();
     anSetLoading(false);
+    anReconUI();
+    pcRender();
+    byId('an-name').textContent = src.label || src.title;
     anStatus(anLoadedText());
     fallReset();
     AN.kbCenter = true;
@@ -16144,7 +16189,7 @@ async function anCommit(src: AnSource, token: number)  {
     anFocusStage();
 }
 async function anReconChange()  {
-    if (!AN.source || AN.source.kind === 'xml')
+    if (AN.loading || !AN.source || AN.source.kind === 'xml')
         return;
     const prev = { ...AN.recon };
     AN.recon = { hands: selectById('an-hands').value, grid: +selectById('an-grid').value, key: selectById('an-keysel').value };
@@ -16184,7 +16229,7 @@ function anLocalize() {
     anReconUI();
     const src = AN.source;
     // Examples are re-titled and MIDI scores get the localized part name ("Piano"/"Pian"): both need a rebuild.
-    if (src && src.kind !== 'xml') {
+    if (!AN.loading && src && src.kind !== 'xml') {
         const p = src.kind === 'example' ? PIECES.find((x) => x.id === src.id) : null, title = p ? srPieceTitle(p) : src.title, part = '<part-name>' + xmlEsc(t('sc_part')) + '</part-name>';
         if (title !== src.title || (SCORE.xml && !SCORE.xml.includes(part))) {
             if (p) {
@@ -16454,7 +16499,7 @@ function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE
         const start = scoreSeconds(n.start), finish = scoreSeconds(n.end), sound = scoreSeconds(n.soundEnd ?? n.end);
         if (start < prevStart) sorted = false;
         prevStart = start;
-        if (finish > maxEnd) maxEnd = finish;
+        maxEnd = Math.max(maxEnd, AN.source?.kind === 'midi' ? sound : finish);
         if (finish - start > maxDur) maxDur = finish - start;
         return { n, i, start, finish, sound };
     });

@@ -18,6 +18,37 @@ import {
   type ScoreXmlNote,
 } from './score-types.js';
 
+interface MidiPedalEvent { beat: number; down: boolean; }
+
+function applyMidiSustain(notes: AnParsedNote[], channels: Map<number, MidiPedalEvent[]>, end: number) {
+    for (const [channel, events] of channels) {
+        events.sort((a, b) => a.beat - b.beat);
+        const releases = notes.filter(n => n.channel === channel).sort((a, b) => a.end - b.end);
+        let cursor = 0;
+        for (let i = 0; i < events.length; i++) {
+            if (!events[i].down) continue;
+            const start = events[i].beat;
+            while (events[i + 1]?.down) i++;
+            const stop = events[i + 1]?.beat ?? end;
+            while (cursor < releases.length && releases[cursor].end < stop) {
+                const note = releases[cursor++];
+                if (note.end >= start) note.soundEnd = stop;
+            }
+        }
+    }
+    // A retrigger replaces the earlier sound of the same key on the same channel.
+    const nextAttacks = new Map<number, number>();
+    for (let i = notes.length - 1; i >= 0; i--) {
+        const note = notes[i], key = note.channel * 128 + note.midi;
+        const next = nextAttacks.get(key);
+        if (note.soundEnd !== undefined && next !== undefined) {
+            if (next <= note.end) delete note.soundEnd;
+            else note.soundEnd = Math.min(note.soundEnd, next);
+        }
+        nextAttacks.set(key, note.start);
+    }
+}
+
 export function anParse(buffer: ArrayBuffer) {
     const a = new Uint8Array(buffer), v = new DataView(buffer);
     let pos = 0;
@@ -42,6 +73,8 @@ export function anParse(buffer: ArrayBuffer) {
     need(len - 6);
     pos += len - 6;
     const notes: AnParsedNote[] = [], meta: AnMidiMeta[] = [], names: string[] = [];
+    const sustain = new Map<number, MidiPedalEvent[]>();
+    let lastTick = 0;
     for (let ti = 0; ti < tracks; ti++) {
         if (tag() !== 'MTrk')
             throw anError('midi', 'track');
@@ -94,6 +127,11 @@ export function anParse(buffer: ArrayBuffer) {
                 const cmd = status & 240, ch = status & 15, d1 = first === null ? u8() : first, d2 = (cmd === 192 || cmd === 208) ? 0 : u8();
                 if (d1 > 127 || d2 > 127)
                     throw anError('midi', 'data');
+                if (ch !== 9 && cmd === 176 && d1 === 64) {
+                    let events = sustain.get(ch);
+                    if (!events) sustain.set(ch, events = []);
+                    events.push({ beat: tick / ppq, down: d2 >= 64 });
+                }
                 if (ch !== 9 && (cmd === 144 || cmd === 128)) {
                     const k = ch + ':' + d1;
                     if (cmd === 144 && d2 > 0) {
@@ -130,12 +168,15 @@ export function anParse(buffer: ArrayBuffer) {
                     if (notes.length > AN_MAX_NOTES)
                         throw anError('notes');
                 }
+        lastTick = Math.max(lastTick, tick);
     }
     if (!notes.length)
         throw anError('nonotes');
     if (notes.length > AN_MAX_NOTES)
         throw anError('notes');
-    return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes: notes.sort((x, y) => x.start - y.start || x.midi - y.midi) };
+    notes.sort((x, y) => x.start - y.start || x.midi - y.midi);
+    if (sustain.size) applyMidiSustain(notes, sustain, lastTick / ppq);
+    return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes };
 }
 
 export interface ScoreXmlLevel { part: number; staff: number; beat: number; value: number; sequence: number; }
@@ -143,6 +184,15 @@ export interface ScoreXmlMark { part: number; staff: number; beat: number; type:
 export interface ScoreXmlLine extends ScoreXmlMark { kind: string; }
 export interface ScoreXmlDynamic { value?: number | null; hit?: number; }
 export const SCORE_STEP: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const BEAT_UNIT_QUARTERS = new Map(Object.entries({
+    maxima: 32, long: 16, breve: 8, whole: 4, half: 2, quarter: 1, eighth: .5,
+    '16th': .25, '32nd': .125, '64th': .0625, '128th': .03125, '256th': .015625,
+    '512th': .0078125, '1024th': .00390625,
+}));
+function positiveTempo(text: string | null): number | null {
+    const bpm = Number(text);
+    return bpm > 0 && Number.isFinite(bpm) ? bpm : null;
+}
 export function scoreXmlNotes(doc: Document) {
     const { hands: partHands, sisters: partSisterMap } = scoreDetectPartHands(doc);
     const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], harmoniesByPart: ScoreXmlHarmony[][] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
@@ -153,6 +203,15 @@ export function scoreXmlNotes(doc: Document) {
             return notes[i]; return undefined; };
     const DYN: Record<string, number> = { ppp: 28, pp: 42, p: 56, mp: 70, mf: 84, f: 98, ff: 112, fff: 122, sfz: 115, fz: 115, rfz: 115 };
     const direct = (node: Element, name: string) => [...node.children].filter((c) => c.localName === name), child = (node: Element, name: string): Element | null => direct(node, name)[0] || null;
+    const writtenTempos: { beat: number; bpm: number }[] = [], tempoWords = new Set<string>();
+    const metronomeTempo = (mark: Element) => {
+        const perMinute = positiveTempo(child(mark, 'per-minute')?.textContent ?? null);
+        const unit = BEAT_UNIT_QUARTERS.get(child(mark, 'beat-unit')?.textContent?.trim() ?? '');
+        if (perMinute === null || unit === undefined) return null;
+        const dots = direct(mark, 'beat-unit-dot').length;
+        const bpm = perMinute * unit * (2 - 2 ** -dots);
+        return Number.isFinite(bpm) && bpm > 0 ? bpm : null;
+    };
     const number = (node: Element | null, fallback = 0) => { const n = +(node?.textContent || ''); return Number.isFinite(n) ? n : fallback; };
     const span = (node: Element | null) => { const n = +(node?.textContent || 0); if (!Number.isFinite(n))
         malformed = true; return n; }; // durations must be numbers
@@ -178,11 +237,9 @@ export function scoreXmlNotes(doc: Document) {
             transients.push({ part, staff, beat, value: info.hit, sequence: sequence++ });
     };
     const addSound = (sound: Element, part: number, staff: number, beat: number) => {
-        if (sound.hasAttribute('tempo')) {
-            const bpm = Number(sound.getAttribute('tempo'));
-            if (bpm > 0 && Number.isFinite(bpm))
-                tempos.push({ beat: Math.max(0, beat), bpm });
-        }
+        const bpm = positiveTempo(sound.getAttribute('tempo'));
+        if (bpm !== null)
+            tempos.push({ beat: Math.max(0, beat), bpm });
         if (sound.hasAttribute('dynamics'))
             pushDynamic(part, staff, beat, { value: dynamicValue(sound.getAttribute('dynamics'), true) });
         const damper = (sound.getAttribute('damper-pedal') || '').toLowerCase();
@@ -244,7 +301,17 @@ export function scoreXmlNotes(doc: Document) {
                 }
                 if (name === 'direction') {
                     const offset = number(child(node, 'offset')) / division, beat = at + offset, staff = number(child(node, 'staff'));
+                    const sounds = direct(node, 'sound'), playbackTempo = sounds.map(sound => positiveTempo(sound.getAttribute('tempo'))).find(bpm => bpm !== null);
                     direct(node, 'direction-type').forEach((dt) => {
+                        for (const mark of direct(dt, 'metronome')) {
+                            const bpm = metronomeTempo(mark);
+                            if (bpm !== null) writtenTempos.push({ beat: Math.max(0, beat), bpm });
+                        }
+                        for (const word of direct(dt, 'words')) {
+                            const text = word.textContent?.trim() ?? '';
+                            if (playbackTempo !== undefined && /^\d+(?:[.,]\d+)?$/.test(text) && Number(text.replace(',', '.')) === playbackTempo)
+                                tempoWords.add(text);
+                        }
                         direct(dt, 'dynamics').forEach((d) => pushDynamic(pi, 0, beat, dynamicInfo(d)));
                         direct(dt, 'wedge').forEach((w) => { const type = (w.getAttribute('type') || '').toLowerCase(); if (['crescendo', 'diminuendo', 'stop'].includes(type))
                             wedgeEvents.push({ part: pi, staff: 0, beat, type, number: w.getAttribute('number') || '1', sequence: sequence++ }); });
@@ -257,7 +324,7 @@ export function scoreXmlNotes(doc: Document) {
                         if (/\bdolce|dolcissimo/i.test(words))
                             dolces.push({ part: pi, staff: 0, beat, on: !/\bnon\s+dolce/i.test(words), sequence: sequence++ });
                     });
-                    direct(node, 'sound').forEach((sound) => addSound(sound, pi, 0, beat));
+                    sounds.forEach((sound) => addSound(sound, pi, 0, beat));
                 }
                 if (name === 'sound')
                     addSound(node, pi, 0, at);
@@ -516,7 +583,9 @@ export function scoreXmlNotes(doc: Document) {
     });
     const links = linkPairs.filter((l) => l.a.staff !== l.b.staff).map((l) => ({ kind: l.kind, a: sorted.indexOf(l.a), b: sorted.indexOf(l.b), style: l.style })).filter((l) => l.a >= 0 && l.b >= 0);
     const harmonies = (harmoniesByPart.find((list) => list.length > 0) || []).slice().sort((a, b) => a.beat - b.beat);
-    return { notes: sorted, tempos: tempos.filter((e) => e.bpm > 0 && Number.isFinite(e.bpm) && Number.isFinite(e.beat)), measures, keys, harmonies, links };
+    const explicitBeats = new Set(tempos.map(tempo => tempo.beat));
+    tempos.push(...writtenTempos.filter(tempo => !explicitBeats.has(tempo.beat)));
+    return { notes: sorted, tempos: tempos.filter(e => Number.isFinite(e.beat)), measures, keys, harmonies, links, tempoWords };
 }
 
 interface AnZipEntry { method: number; C: number; U: number; off: number; }
