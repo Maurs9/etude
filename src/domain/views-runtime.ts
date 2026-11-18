@@ -215,26 +215,45 @@ function installLearn(language: RuntimeLanguage, payload: LearnPayload) {
 }
 /** Keep the currently committed language intact on failure; never auto-reload a session. */
 function localeLoadError(retry: () => Promise<unknown>, target: HTMLElement = document.body) {
-    const previous = document.getElementById('locale-load-error');
-    previous?.remove();
-    const box = document.createElement('div');
+    document.getElementById('locale-load-error')?.remove();
+    const box = document.createElement('div'), drawer = byId('drawer'), help = byId('helpBox');
+    const host = drawer.classList.contains('on') ? (byId('set-lang').closest('.set-group') ?? drawer)
+        : help.classList.contains('on') ? help : target;
     box.id = 'locale-load-error';
     box.setAttribute('role', 'alert');
-    if (target === document.body) box.style.cssText = 'position:fixed;inset:auto 16px 16px;z-index:10000;padding:20px;border:2px solid #8c2b2b;border-radius:12px;background:#fffdf8;color:#1a1714;font:600 16px/1.5 sans-serif;box-shadow:0 12px 40px #0004';
+    if (host === document.body) box.className = 'locale-load-toast';
+    const localize = (key: string, fallback: string) => (STRINGS[lang] || STRINGS.en) ? t(key) : fallback;
+    const unsaved = () => STORE.failed || STORE.blocked === 'quarantine';
     const message = document.createElement('p');
-    message.textContent = 'Content could not be loaded. Check your connection and retry, or reload to get the latest version. Your progress is saved.';
-    const again = document.createElement('button');
-    again.type = 'button';
-    again.dataset.lazyRetry = '';
-    again.textContent = 'Retry';
-    again.addEventListener('click', () => { box.remove(); void retry().catch(() => localeLoadError(retry, target)); });
-    const reload = document.createElement('button');
-    reload.type = 'button';
-    reload.dataset.lazyReload = '';
-    reload.textContent = 'Reload';
-    reload.addEventListener('click', () => location.reload());
-    box.append(message, again, reload);
-    target.append(box);
+    message.textContent = localize('locale_fetch_failed', 'Content could not be loaded. Check your connection and retry, or reload.');
+    const actions = document.createElement('div');
+    actions.className = 'set-btns';
+    const button = (label: string, action: () => void) => {
+        const control = document.createElement('button');
+        control.type = 'button';
+        control.className = 'btn sm';
+        control.textContent = label;
+        control.addEventListener('click', action);
+        actions.append(control);
+        return control;
+    };
+    button(localize('rdn_retry', 'Retry'), () => {
+        box.remove();
+        void retry().catch(() => localeLoadError(retry, target));
+    }).dataset.lazyRetry = '';
+    if (unsaved()) {
+        const status = document.createElement('p');
+        status.textContent = localize('store_fail', 'Progress could not be saved. Export a backup before reloading.');
+        box.append(message, status);
+        button(localize('store_export', 'Export backup'), () => byId('exportBtn').click()).dataset.lazyExport = '';
+    } else {
+        box.append(message);
+    }
+    button(localize('store_reload', 'Reload'), () => {
+        if (!unsaved() || confirm(localize('locale_reload_unsaved', 'Reload and lose unsaved progress?'))) location.reload();
+    }).dataset.lazyReload = '';
+    box.append(actions);
+    host.append(box);
 }
 async function bootLocale(): Promise<void> {
     document.documentElement.dataset.localePending = '';
@@ -1883,7 +1902,7 @@ function handleNoteOn(midi: number, vel: number, source = 'midi') {
     owners.add(source);
     inputOwners.set(midi, owners);
     if (held.has(midi)) {
-        if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder)
+        if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder && !overlaysOpen())
             srtRecorder.trackSource(source, inputTime() - SR.t0);
         return;
     }
@@ -1962,6 +1981,9 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
             calTap();
         return;
     }
+    // MIDI still sounds in a dialog. Only calibration and note releases reach their handlers.
+    if (kind === 'on' && overlaysOpen())
+        return;
     // A waiting level piece starts on its first note; the keys played while its first sight is claimed are kept for the recorder.
     if (!(SR.active && srtRecorder) && srNoteStartInput(kind, midi, source, releaseKind))
         return;
@@ -19212,13 +19234,17 @@ function overlaysOpen() { return byId('drawer').classList.contains('on') || byId
 function syncScrim() {
     const open = overlaysOpen();
     byId('scrim').classList.toggle('on', open);
-    queryAllHtml(document, 'body > #skipLink, body > header, body > main, body > #dock, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
+    queryAllHtml(document, 'body > #skipLink, body > header, body > main, body > #dock, body > #locale-load-error, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
 }
 // Closed overlays are only moved/faded out by CSS, so `inert` keeps their controls out of the Tab order;
 // opening moves focus inside, closing returns it to whatever opened the overlay.
 const overlayReturn = new Map<HTMLElement, Element | null>();
 function setOverlay(el: HTMLElement, o: boolean, firstId: string) {
     const was = el.classList.contains('on'), hadFocus = el.contains(document.activeElement);
+    if (o !== was) {
+        if (o) srtRecorder?.releaseAll('focus', performance.now() - SR.t0);
+        releaseLiveInput();
+    }
     el.classList.toggle('on', o);
     el.setAttribute('aria-hidden', o ? 'false' : 'true');
     el.inert = !o;
@@ -19254,7 +19280,6 @@ function trapFocus(e: KeyboardEvent) {
 }
 function openDrawer(o: boolean, fromPop = false) {
     if (o) {
-        releaseLiveInput();
         if (!fromPop)
             pushModalState('drawer');
     }
@@ -19265,7 +19290,6 @@ function openDrawer(o: boolean, fromPop = false) {
 }
 function openHelp(o: boolean, fromPop = false) {
     if (o) {
-        releaseLiveInput();
         kbdLayoutLabels();
         if (!fromPop)
             pushModalState('help');
@@ -19294,8 +19318,8 @@ function applyNotation() {
     if (view0() === 'practice')
         updateAccompChain();
     if (view0() === 'read' && SR.piece) {
-        srStopAll();
-        srDraw();
+        // Leave the active score and its cursor intact until the assessment ends.
+        if (!SR.active && !srtEligibleFirstSightActive()) srDraw();
         srMeta();
     }
     anLocalize();
@@ -19703,7 +19727,7 @@ function initControls() {
     byId('kb-pan').addEventListener('input', (e) => { byId('dock-keys').scrollLeft = +wiringField(e).value; });
     byId('dock-keys').addEventListener('scroll', () => { inputById('kb-pan').value = String(byId('dock-keys').scrollLeft); });
     // settings: notation/tone/audio/learning
-    byId('set-notation').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_NOTATIONS, v))
+    byId('set-notation').addEventListener('click', (e) => { const b = eventClosest(e, 'button'), v = b?.dataset.v; if (!b || !syncOneOf(SYNC_NOTATIONS, v) || notation === v)
         return; notation = v; (document).querySelectorAll('#set-notation button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); applyNotation(); refreshToday(); saveAll(); });
     byId('set-lang').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
         void setLang(b.dataset.v).catch(() => localeLoadError(() => setLang(b.dataset.v))); });

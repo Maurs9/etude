@@ -1085,6 +1085,8 @@ const payload: UIPayload = {
       "tr_empty_2": "Canticchia una nota alla volta, poi premi Stop.",
       "tr_empty_3": "Riascolta le note o salvale come MIDI o testo.",
       "tr_micfail": "Impossibile accedere al microfono — concedi il permesso e riprova.",
+      "locale_fetch_failed": "Impossibile caricare il contenuto. Controlla la connessione e riprova o ricarica la pagina.",
+      "locale_reload_unsaved": "Ricaricare e perdere i progressi non salvati?",
       "tr_none": "Nessuna nota chiara rilevata. Canta un po' più forte e prolunga ogni nota.",
       "ac_lede": "Scegli una progressione e un pattern di accompagnamento, poi suonalo in loop al tuo tempo. I tasti si illuminano a ritmo — blu per la mano sinistra, viola per la destra — per consentirti di suonare insieme. Imposta Mani per disattivare una parte e suonarla da solo.",
       "ac_prog": "Progressione",

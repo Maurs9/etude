@@ -1430,6 +1430,8 @@ const payload: UIPayload = {
       "tr_key": "Tonalidade",
       "tr_lede": "Cantarole ou cante uma nota clara de cada vez no microfone. Funciona para uma linha melódica única — não para acordes. Um «lá-lá-lá» ou «dá-dá» sustentado funciona melhor do que palavras.",
       "tr_micfail": "Não foi possível acessar o microfone — permita o acesso e tente novamente.",
+      "locale_fetch_failed": "Não foi possível carregar o conteúdo. Verifique a conexão e tente novamente ou recarregue a página.",
+      "locale_reload_unsaved": "Recarregar e perder o progresso não salvo?",
       "tr_midi": "⬇ MIDI",
       "tr_none": "Nenhuma nota clara detectada. Cantarole um pouco mais alto e sustente cada nota.",
       "tr_play": "▶ Reproduzir",

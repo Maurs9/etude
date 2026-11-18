@@ -223,6 +223,8 @@ const payload: UIPayload = {
       "tr_empty_2": "Hum one note at a time, then press Stop.",
       "tr_empty_3": "Play the notes back, or save them as MIDI or text.",
       "tr_micfail": "Couldn’t reach the microphone — allow mic access and try again.",
+      "locale_fetch_failed": "Content could not be loaded. Check your connection and retry, or reload.",
+      "locale_reload_unsaved": "Reload and lose unsaved progress?",
       "tr_none": "No clear notes detected. Hum a bit louder and hold each note.",
       "ac_lede": "Pick a progression and a playing pattern, then loop it at your tempo. The keys light up in rhythm — blue for the left hand, purple for the right — so you can play along. Set Hands to mute one part and play it yourself.",
       "ac_prog": "Progression",

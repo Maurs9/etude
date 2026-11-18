@@ -41,6 +41,35 @@ const connect = async (page, name) => {
   await expect(page.locator('#midiText')).toHaveText(name);
 };
 
+test('testing a MIDI key in a dialog leaves the Book first-sight attempt unclaimed', async ({ app, page }) => {
+  await page.clock.install();
+  await fakeMidi(page, [['piano', 'Grand']]);
+  await app.open({ hash: 'read' });
+  await page.locator('#rdn-book-go').click();
+  await page.locator('#settingsBtn').click();
+  await page.locator('#set-connect').click();
+  await expect(page.locator('#set-midi-status')).toHaveText('Grand');
+  const audition = () => page.evaluate(() => {
+    const { SR, srtLevelExpected, srtReadLedger } = window.__etude;
+    const port = window.__midi.play(srtLevelExpected(SR.lvPiece)[0].midi);
+    return { port, phase: SR.srtState.name, exposed: !!srtReadLedger(localStorage).exposures[SR.srtFingerprint] };
+  });
+  const idle = { port: 'piano', phase: 'idle', exposed: false };
+  expect(await audition()).toEqual(idle);
+  await page.locator('#drawerClose').click();
+  await expect(page.locator('#drawer')).toHaveAttribute('aria-hidden', 'true');
+  await page.locator('#helpBtn').click();
+  expect(await audition()).toEqual(idle);
+  await page.locator('#helpClose').click();
+  await expect(page.locator('#helpBox')).toHaveAttribute('aria-hidden', 'true');
+  await page.clock.runFor(600); // The player briefly ignores notes after opening a piece.
+  await audition();
+  await expect.poll(() => page.evaluate(() => {
+    const { SR, srtReadLedger } = window.__etude;
+    return !!srtReadLedger(localStorage).exposures[SR.srtFingerprint];
+  })).toBe(true);
+});
+
 test.describe('MIDI input comes back by itself', () => {
   test('an unplugged piano is attached again when it is plugged back in', async ({ app }) => {
     const page = app.page, name = 'Digital Piano';
