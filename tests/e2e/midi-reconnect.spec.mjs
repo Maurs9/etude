@@ -196,3 +196,36 @@ test('switching the language says any other MIDI status again, in the new langua
   await expect(page.locator('#midiText')).toHaveText(STRINGS.ro.midi_noinputs);
   await expect(page.locator('#set-midi-status')).toHaveText(STRINGS.ro.midi_noinputs);
 });
+
+test('reloading during MIDI fallback keeps the primary piano as the preference', async ({ app, page }) => {
+  await fakeMidi(page, [['piano', 'Grand'], ['pad', 'Drum Pad']]);
+  await app.open();
+  await connect(page, 'Grand');
+  await page.evaluate(() => window.__midi.unplug('piano'));
+  await expect(page.locator('#midiText')).toHaveText('Drum Pad');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).device)).toBe('piano');
+  await page.reload();
+  await connect(page, 'Grand');
+});
+
+test('testing a MIDI key in Settings leaves the Book first-sight attempt unclaimed', async ({ app, page }) => {
+  await fakeMidi(page, [['piano', 'Grand']]);
+  await app.open({ hash: 'read' });
+  await page.locator('#rdn-book-go').click();
+  await page.locator('#settingsBtn').click();
+  await page.locator('#set-connect').click();
+  await expect(page.locator('#set-midi-status')).toHaveText('Grand');
+  const audition = () => page.evaluate(() => {
+    const { SR, srtLevelExpected, srtReadLedger } = window.__etude;
+    window.__midi.play(srtLevelExpected(SR.lvPiece)[0].midi);
+    return { phase: SR.srtState.name, exposed: !!srtReadLedger(localStorage).exposures[SR.srtFingerprint] };
+  });
+  expect(await audition()).toEqual({ phase: 'idle', exposed: false });
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#drawer')).toHaveAttribute('aria-hidden', 'true');
+  await audition();
+  await expect.poll(() => page.evaluate(() => {
+    const { SR, srtReadLedger } = window.__etude;
+    return !!srtReadLedger(localStorage).exposures[SR.srtFingerprint];
+  })).toBe(true);
+});

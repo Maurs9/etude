@@ -62,3 +62,10 @@ Write the date, the Diagnostics text and any step that failed in TODO.md under t
 
 - On two disposable browser profiles, transfer a progress export containing first-sight attempts and verify the destination shows the same attempt history after reload.
 - On a real USB or Bluetooth MIDI piano, calibrate timing and start a first-sight piece with its first note. Check that the onset, held duration, and following notes align with the metronome and the result. Repeat using the Start button and its count-in.
+
+### Practice and devices follow-up
+
+- With a USB piano and a second input attached, disconnect the piano and reload while the other input takes over. Reconnect the piano and verify that it remains the preferred input. In a fresh first-sight run, audition a key from Settings and verify that the run stays idle.
+- Start timing calibration and dismiss Settings with Close and system Back. Confirm that the scheduled clicks stop in both cases.
+- In Voice, sing a slightly flat target and verify the upward hint. Revoke microphone access during Hum to notes and verify that the captured notes remain available. Re-enable permission and start recording again.
+- Background a running rhythm drill on a phone and verify that it can be restarted without grading the interrupted round.
