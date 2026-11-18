@@ -7,6 +7,9 @@ const DEV_SERVER = !!process.env.ETUDE_DEV_SERVER || process.env.npm_lifecycle_e
 export default defineConfig({
   testDir: 'tests',
   testMatch: /.*\.spec\.mjs/,
+  // This spec imports Vite source modules directly. Decide where to run it
+  // here, using the same mode that starts the server.
+  testIgnore: DEV_SERVER ? undefined : '**/score-library-store.spec.mjs',
   timeout: 60_000,
   fullyParallel: true,
   // One retry in CI so a slow runner doesn't block a merge; a test that needed it is still reported as flaky.

@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Source-module imports are intentionally development-only; production bundles have no /src route.
-test.skip(!process.env.ETUDE_DEV_SERVER, 'Requires ETUDE_DEV_SERVER=1 (real IndexedDB, Vite TS imports).');
+// Playwright selects this spec for the Vite server, which exposes /src.
 test.beforeEach(async ({ page }) => { await page.goto('/etude.html'); });
 
 const modulePath = '/src/domain/score-library-store.ts';

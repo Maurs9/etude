@@ -1201,6 +1201,7 @@ const payload: UIPayload = {
       "sym_t_scherzando": "scherzando — jucăuș, cu un caracter ușor",
       "sym_t_tranquillo": "tranquillo — calm și liniștit",
       "sym_t_conmoto": "con moto — cu mișcare; păstrează cursivitatea",
+      "sym_t_pocomoto": "poco moto — cu puțină mișcare; păstrează un tempo ușor curgător",
       "sym_t_nontroppo": "non troppo — nu prea mult; moderează indicația pe care o însoțește",
       "sym_t_menomosso": "meno mosso — mai puțină mișcare; treci la un tempo mai rar",
       "sym_t_piumosso": "più mosso — mai multă mișcare; treci la un tempo mai rapid",

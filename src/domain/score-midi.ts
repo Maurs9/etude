@@ -27,10 +27,10 @@ export function scoreMidiToXml(parsed: { meta: AnMidiMeta[]; notes: ScoreMidiNot
     const k = div / grid;
     const outMeasures: ScoreMeasure[] = [];
     const tempos = events.filter((e): e is Extract<AnMidiMeta, { type: 'tempo' }> => e.type === 'tempo').map((e) => ({ beat: e.beat, bpm: e.bpm }));
-    const rawTempos = tempos.length ? tempos : [{ beat: 0, bpm: 120 }];
-    const outTempoList = rawTempos.slice().sort((a, b) => a.beat - b.beat);
-    if (outTempoList[0].beat > 0) outTempoList.unshift({ beat: 0, bpm: outTempoList[0].bpm });
     const tempoFromFile = tempos.length > 0;
+    const rawTempos = tempos.sort((a, b) => a.beat - b.beat);
+    if (!rawTempos.length || rawTempos[0].beat > 0)
+        rawTempos.unshift({ beat: 0, bpm: 120 });
     const notes = parsed.notes.map((n) => { const s = Math.round(n.start * grid) * k; return { ...n, start: s, end: Math.max(s + k, Math.round(n.end * grid) * k), staff: n.hand === 'lh' ? 2 : 1 }; }).sort((a, b) => a.start - b.start || a.midi - b.midi);
     const end = Math.max(...notes.map((n) => n.end));
     if (end > 200000)
