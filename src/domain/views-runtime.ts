@@ -14708,26 +14708,39 @@ async function scorePlay(selection = false, from: number | null = null, carry: P
     }
     await pracStart({ notes, a, b, loop: false, sel: selection, from: position, carry });
 }
+function scoreABPassage() {
+    const a = PRAC.A, b = PRAC.B;
+    if (a == null || b == null || !AN.notes.length || !(a >= 0 && b > a))
+        return null;
+    // A bar can end after the last sounding note, so include the written rests.
+    const end = Math.max(fallEnd(), scoreSeconds(anMeasures().at(-1)?.end ?? 0));
+    if (b > end + 1e-6)
+        return null;
+    const notes = fallData().filter((d) => d.start >= a - 1e-6 && d.start < b - 1e-6);
+    return notes.length ? { a, b, notes } : null;
+}
 // Loop the selected notes, else the A–B range (whole bars).
 async function scoreLoopStart()  {
-    const all: PracticeTimedNote[] = fallData();
+    if (AN.loading)
+        return;
     let notes: PracticeTimedNote[] | null = null, a = 0, b = 0, bars = '', ab = false;
     if (AN.selected.size) {
-        notes = all.filter((d) => AN.selected.has(d.i));
+        notes = fallData().filter((d) => AN.selected.has(d.i));
         if (notes.length) {
             a = Math.min(...notes.map((d) => d.start));
             b = Math.max(...notes.map((d) => d.finish));
             bars = anBarsLabel(notes.map((d) => d.n));
         }
     }
-    else if (PRAC.A != null && PRAC.B != null && PRAC.B > PRAC.A) {
-        a = PRAC.A;
-        b = PRAC.B;
-        ab = true;
-        notes = all.filter((d) => d.start >= a - 1e-6 && d.start < b - 1e-6);
+    else {
+        const passage = scoreABPassage();
+        if (passage) {
+            ({ notes, a, b } = passage);
+            ab = true;
+        }
     }
     if (!notes || !notes.length || !(b > a)) {
-        scoreStop();
+        if (SCORE.loop) scoreStop();
         return;
     }
     notes.sort((x, y) => x.start - y.start || x.n.midi - y.n.midi);
@@ -15181,9 +15194,9 @@ function anUpdateControls() {
     buttonById('sc-start').disabled = !has;
     buttonById('score-stop').disabled = !has;
     selectById('score-speed').disabled = !has;
-    const ab = PRAC.A != null && PRAC.B != null;
+    const canLoopAB = !busy && !sel && !!scoreABPassage();
     buttonById('an-play').disabled = !sel || busy;
-    buttonById('an-loop').disabled = (!sel && !ab && !SCORE.loop) || busy;
+    buttonById('an-loop').disabled = busy || (!sel && !SCORE.loop && !canLoopAB);
     buttonById('an-clear').disabled = !sel && !SCORE.mrange;
     byId('an-loop').setAttribute('aria-pressed', SCORE.loop ? 'true' : 'false');
     byId('an-roll').dataset.tool = AN.tool;
@@ -15249,7 +15262,7 @@ function anUpdateControls() {
     if (!(fall && has))
         anPop('fall-pop', false);
     byId('an-tl').hidden = !has;
-    byId('an-loop').title = byId('an-loop').getAttribute('aria-label') + (ab && !sel ? ' · A–B' : '');
+    byId('an-loop').title = byId('an-loop').getAttribute('aria-label') + (canLoopAB ? ' · A–B' : '');
     byId('an-metro').setAttribute('aria-pressed', PRAC.metro ? 'true' : 'false');
     byId('an-metro').title = t('an_metro_t');
     byId('an-metro').setAttribute('aria-label', t('an_metro_t'));
@@ -15726,8 +15739,10 @@ function anRenderPractice() {
     } return i; };
     const range = (a: number, b: number) => a === b ? t('an_bar1', ms[a].number) : t('an_bars', ms[a].number, ms[b].number), Range = (a: number, b: number) => a === b ? t('st_bar', ms[a].number) : t('an_h_bars', ms[a].number, ms[b].number);
     const abBars: [number, number] | null = ab && PRAC.A != null && PRAC.B != null ? [at(scoreBeatAt(PRAC.A)), at(scoreBeatAt(PRAC.B) - 1e-4)] : null;
-    byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b)) : abBars ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
-    byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : ab ? 'pt_sub_ab' : 'pt_sub_all');
+    const canLoopAB = abBars && !sel && scoreABPassage();
+    byId('an-pt-scope').textContent = sel ? (f.kind === 'sel' ? t('an_sel_h') + ' · ' + range(f.a, f.b) : Range(f.a, f.b))
+        : canLoopAB ? t('pt_scope_ab', range(...abBars)) : t('pt_scope_all');
+    byId('an-pt-sub').textContent = t(sel ? 'pt_sub_loop' : canLoopAB ? 'pt_sub_ab' : 'pt_sub_all');
     byId('pt-abv').textContent = abBars ? t('pt_ab_v', range(...abBars)) : t('pt_ab_none');
 }
 // Start in the Practice tab: the selection (or A–B) loops with the practice settings; otherwise the piece plays from the cursor.
@@ -15736,7 +15751,7 @@ function anPracticeStart() {
         scoreStop();
         return;
     }
-    if (AN.selected.size || (PRAC.A != null && PRAC.B != null && PRAC.B > PRAC.A))
+    if (AN.selected.size || scoreABPassage())
         scoreLoopStart();
     else
         scorePlay(false);

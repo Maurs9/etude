@@ -58,10 +58,14 @@ test('seeking to the written bar after a repeat maps to its real performance occ
   await page.evaluate(() => {
     const a = window.__etude; a.SCORE.run.segs[0].a0 = a.actx.currentTime - 3.8; a.pracTick(); a.scoreSeekTo(4);
   });
-  await page.waitForFunction(() => window.__etude.SCORE.playing && window.__etude.SCORE.run?.segs[0].t0 === 4);
+  const occurrence = await page.waitForFunction(() => {
+    const { playing, run } = window.__etude.SCORE, segment = run?.segs[0];
+    return playing && segment?.t0 === 4 ? { written: segment.t0, performance: segment.p0 } : null;
+  });
+  // The new segment locates the seek independently of how much audio plays before Pause.
+  expect(await occurrence.jsonValue()).toEqual({ written: 4, performance: 8 });
   await page.evaluate(() => window.__etude.scorePause());
   await expect(page.locator('#fall-clock')).toHaveText('0:08');
-  expect(await page.evaluate(() => window.__etude.FALL.position)).toBeCloseTo(4, 1);
 });
 
 test('a library bookmark survives reload on the second repeat', async ({ app, page }) => {

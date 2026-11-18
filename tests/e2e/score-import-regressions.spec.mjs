@@ -2,9 +2,9 @@ import { test, expect } from '../helpers/fixtures.mjs';
 
 const wholeNote = '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note>';
 const attributes = '<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>';
-function xmlScore(bars, directions = []) {
+function xmlScore(bars, directions = [], contents = []) {
   const measures = Array.from({ length: bars }, (_, i) =>
-    `<measure number="${i + 1}">${i === 0 ? attributes : ''}${directions[i] ?? ''}${wholeNote}</measure>`).join('');
+    `<measure number="${i + 1}">${i === 0 ? attributes : ''}${directions[i] ?? ''}${contents[i] ?? wholeNote}</measure>`).join('');
   return '<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>' +
     `<part id="P1">${measures}</part></score-partwise>`;
 }
@@ -158,4 +158,28 @@ test('named and source-backed tempo directions have specific meanings', async ({
   ]));
   await expect(page.locator('#an-roll [data-sym][aria-label*="gently flowing pace"]')).toHaveCount(1);
   await expect(page.locator('#an-roll [data-sym][aria-label*="66 beats per minute"]')).toHaveCount(1);
+});
+
+test('A–B Loop requires a note onset and allows a trailing rest in a playable bar', async ({ app }) => {
+  const page = await app.open({ hash: 'analysis' });
+  const barRest = '<note><rest measure="yes"/><duration>4</duration></note>';
+  const finalBar = '<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>' +
+    '<note><rest/><duration>3</duration><type>half</type><dot/></note>';
+  await openScore(page, 'rests.musicxml', xmlScore(3, [], [wholeNote, barRest, finalBar]));
+  const seek = value => page.locator('#fall-seek').evaluate((slider, position) => {
+    slider.value = String(position);
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+  await seek(3);
+  await page.keyboard.press('[');
+  await page.keyboard.press(']');
+  const loop = page.locator('#an-loop');
+  await expect(loop).toBeDisabled();
+  await seek(4.25);
+  await page.keyboard.press('[');
+  await page.keyboard.press(']');
+  await expect(loop).toBeEnabled();
+  await loop.click();
+  await expect(loop).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => window.__etude.SCORE.loop.b)).toBe(6);
 });

@@ -28,6 +28,17 @@ describe('MIDI import timing', () => {
     ]);
   });
 
+  it('honors MIDI event order when a key release and pedal press share a tick', () => {
+    // C is released before pedal-down and E after it, all at beat 1.
+    const parsed = anParse(formatOne([
+      '00 90 3c 40   00 90 40 40   60 80 3c 00   00 b0 40 7f   00 80 40 00   8220 b0 40 00',
+    ]));
+    expect(parsed.notes.map(({ midi, end, soundEnd }) => [midi, end, soundEnd])).toEqual([
+      [60, 1, undefined],
+      [64, 1, 4],
+    ]);
+  });
+
   it('applies the default tempo before a late event and preserves the tempo provenance', () => {
     const notes = [{ midi: 60, start: 0, end: 6, vel: 64, channel: 0, track: 0, hand: 'rh' }];
     const withChange = scoreMidiToXml({ notes, meta: [{ type: 'tempo', beat: 4, bpm: 60 }] }, 'Tempo', { grid: 4, keys: [] }, 'Piano');

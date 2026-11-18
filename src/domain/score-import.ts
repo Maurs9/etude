@@ -18,21 +18,23 @@ import {
   type ScoreXmlNote,
 } from './score-types.js';
 
-interface MidiPedalEvent { beat: number; down: boolean; }
+interface MidiPedalEvent { beat: number; down: boolean; order: number; }
 
-function applyMidiSustain(notes: AnParsedNote[], channels: Map<number, MidiPedalEvent[]>, end: number) {
+function applyMidiSustain(notes: AnParsedNote[], channels: Map<number, MidiPedalEvent[]>, releaseOrder: WeakMap<AnParsedNote, number>, end: number) {
     for (const [channel, events] of channels) {
         events.sort((a, b) => a.beat - b.beat);
         const releases = notes.filter(n => n.channel === channel).sort((a, b) => a.end - b.end);
         let cursor = 0;
         for (let i = 0; i < events.length; i++) {
             if (!events[i].down) continue;
-            const start = events[i].beat;
+            const start = events[i];
             while (events[i + 1]?.down) i++;
             const stop = events[i + 1]?.beat ?? end;
             while (cursor < releases.length && releases[cursor].end < stop) {
                 const note = releases[cursor++];
-                if (note.end >= start) note.soundEnd = stop;
+                // At the same tick, only releases after pedal-down are sustained.
+                if (note.end > start.beat || (note.end === start.beat && (releaseOrder.get(note) ?? Infinity) > start.order))
+                    note.soundEnd = stop;
             }
         }
     }
@@ -74,6 +76,11 @@ export function anParse(buffer: ArrayBuffer) {
     pos += len - 6;
     const notes: AnParsedNote[] = [], meta: AnMidiMeta[] = [], names: string[] = [];
     const sustain = new Map<number, MidiPedalEvent[]>();
+    const releaseOrder = new WeakMap<AnParsedNote, number>();
+    const addNote = (note: AnParsedNote) => {
+        releaseOrder.set(note, pos);
+        notes.push(note);
+    };
     let lastTick = 0;
     for (let ti = 0; ti < tracks; ti++) {
         if (tag() !== 'MTrk')
@@ -130,7 +137,7 @@ export function anParse(buffer: ArrayBuffer) {
                 if (ch !== 9 && cmd === 176 && d1 === 64) {
                     let events = sustain.get(ch);
                     if (!events) sustain.set(ch, events = []);
-                    events.push({ beat: tick / ppq, down: d2 >= 64 });
+                    events.push({ beat: tick / ppq, down: d2 >= 64, order: pos });
                 }
                 if (ch !== 9 && (cmd === 144 || cmd === 128)) {
                     const k = ch + ':' + d1;
@@ -151,7 +158,7 @@ export function anParse(buffer: ArrayBuffer) {
                             const n = q.shift();
                             activeCount--;
                             if (n && tick > n.start)
-                                notes.push({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: ch });
+                                addNote({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: ch });
                             if (notes.length > AN_MAX_NOTES)
                                 throw anError('notes');
                         }
@@ -164,7 +171,7 @@ export function anParse(buffer: ArrayBuffer) {
         for (const [k, q] of active)
             for (const n of q)
                 if (tick > n.start) {
-                    notes.push({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: +k.split(':')[0] }); // note-on without note-off: close at track end
+                    addNote({ midi: n.midi, start: n.start / ppq, end: tick / ppq, vel: n.vel, track: ti, channel: +k.split(':')[0] }); // note-on without note-off: close at track end
                     if (notes.length > AN_MAX_NOTES)
                         throw anError('notes');
                 }
@@ -175,7 +182,7 @@ export function anParse(buffer: ArrayBuffer) {
     if (notes.length > AN_MAX_NOTES)
         throw anError('notes');
     notes.sort((x, y) => x.start - y.start || x.midi - y.midi);
-    if (sustain.size) applyMidiSustain(notes, sustain, lastTick / ppq);
+    if (sustain.size) applyMidiSustain(notes, sustain, releaseOrder, lastTick / ppq);
     return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes };
 }
 
