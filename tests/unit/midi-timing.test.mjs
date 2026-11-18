@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLE_MAX_LAG_MS, BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, latencyOffsets, median, readLatencyOffsets, setLatencyOffsets, useLatencyOffsets, withInputTime } from '../../src/domain/midi-timing.ts';
+import { BLE_MAX_LAG_MS, BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, latencyOffsets, median, readLatencyOffsets, setLatencyOffsets, useLatencyOffsets, withInputTime } from '../../src/domain/midi-timing.ts';
 
 // A seeded generator keeps the fake radio jitter the same on every run.
 function rng(seed) {
@@ -29,6 +29,13 @@ describe('eventTime', () => {
 });
 
 describe('dispatch context', () => {
+  it('judges attacks and physical releases on calibrated time and cleanup on the local clock', () => {
+    setLatencyOffsets({ usb: 30 });
+    const times = withInputTime(950, 'usb', () =>
+      [null, 'physical', 'focus', 'reset'].map(release => inputTimeForRelease(release, 1000)));
+    expect(times).toEqual([920, 920, 1000, 1000]);
+  });
+
   it('reports now outside a dispatch and the event time inside one', () => {
     setLatencyOffsets(null);
     expect(inputTime(500)).toBe(500);

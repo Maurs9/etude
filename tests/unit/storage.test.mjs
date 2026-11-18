@@ -1,8 +1,27 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { isBackupPayload, isImportableBackup, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreSettings, restoreSrs, writePttV3 } from '../../src/domain/storage.ts';
+import { isBackupPayload, isImportableBackup, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreProgressBackup, restoreSettings, restoreSrs, serializeProgressBackup, writePttV3 } from '../../src/domain/storage.ts';
+import { SRT_LEDGER_KEY, srtCreateLedger, srtReadLedger } from '../../src/sight-reading/ledger.ts';
 
 const fixture = name => readFile(new URL(`../fixtures/storage/${name}`, import.meta.url), 'utf8');
+
+it('transfers the ledger in the backup, stores it once, and rolls back if the live write fails', async () => {
+  const ledger = { ...srtCreateLedger(), exposures: { piece: { firstSeenAt: 1, reason: 'practice' } } };
+  const transfer = parsePttV3(serializeProgressBackup({ v: 3, data: { totalReviews: 2 } }, ledger));
+  expect(transfer.data.sightLedger).toEqual(ledger);
+  const values = new Map();
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: key => values.delete(key),
+  };
+  await expect(restoreProgressBackup(storage, transfer, () => { throw new Error('save changed'); })).rejects.toThrow('save changed');
+  expect(values.has(SRT_LEDGER_KEY)).toBe(false);
+  expect(readPttV3(storage)).toBeNull();
+  await expect(restoreProgressBackup(storage, transfer, () => 'fresh')).resolves.toMatchObject({ ok: true });
+  expect(readPttV3(storage).payload).toEqual({ v: 3, gen: 'fresh', data: { totalReviews: 2 } });
+  expect(srtReadLedger(storage).exposures).toEqual(ledger.exposures);
+});
 
 describe('ptt-v3 storage reader', () => {
   it('supplies scheduling defaults for legacy cards while keeping their progress', async () => {

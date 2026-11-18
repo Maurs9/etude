@@ -52,6 +52,11 @@ export function inputTime(now = clockNow()): number {
     return current.at - (current.src ? currentOffsets()[current.src] : 0);
 }
 
+/** Synthetic releases use the local clock and physical input uses calibrated time. */
+export function inputTimeForRelease(release: 'physical' | 'focus' | 'reset' | null, now = clockNow()): number {
+    return release === 'focus' || release === 'reset' ? now : inputTime(now);
+}
+
 /** The uncalibrated event time of the input being handled, else now. The calibration wizard measures with it. */
 export function inputEventTime(now = clockNow()): number { return current ? current.at : now; }
 

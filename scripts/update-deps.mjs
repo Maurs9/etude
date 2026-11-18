@@ -128,7 +128,7 @@ async function printReport() {
     {
       Asset: 'OpenSheetMusicDisplay (OSMD)',
       Location: `public/vendor/${vendorFiles[0] ?? 'none'}`,
-      Includes: 'VexFlow 1.2.93, JSZip 3.10.1, loglevel, typescript-collections',
+      Includes: 'VexFlow 1.2.93, JSZip 3.10.2, loglevel, typescript-collections',
       UpdateCmd: 'npm run update:osmd -- <version>',
     },
     {

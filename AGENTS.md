@@ -10,7 +10,7 @@ Run commands from the repository root.
 
 - Use Node.js 22, matching CI; use a recent 22.x release compatible with the locked dependencies.
 - Use npm and the committed `package-lock.json`; no alternative package-manager lockfiles.
-- Current manifest ranges: TypeScript `^6.0.3`, Vite `^8.3.6`, Vitest `^5.1.0`, ESLint `^10.14.0`; Playwright is pinned to `1.65.0`. Treat the lockfile as authoritative.
+- Current manifest ranges: TypeScript `^6.0.3`, Vite `^8.3.8`, Vitest `^5.1.1`, ESLint `^10.15.0`; Playwright is pinned to `1.65.0`. Treat the lockfile as authoritative.
 - Python 3 supports translation-framework tooling.
 - Playwright defaults to installed Google Chrome. For bundled Chromium, install it and set `PW_CHANNEL=''`.
 - Use localhost or HTTPS for microphone, service-worker, and device-permission flows.

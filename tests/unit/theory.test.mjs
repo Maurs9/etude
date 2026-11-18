@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { anDiatonic, anIntervalName, anKeyRank, analysisFunction, CHORD_TEMPLATES, circleKeyPitchClass, chordDegreeMap, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord, intervalOctave, keyFifths, keyFromFifths, midiToFrequency, normalizeSemitones, pitchClass, PROGRESSION_TEMPLATES, readingSpelling, romanFor, samePitchSet, scalePitches, SCALE_DEFINITIONS, scorePitchXml, spellMidi, transposePitchClass } from '../../src/domain/theory.ts';
+import { anDiatonic, anIntervalName, anKeyRank, analysisFunction, CHORD_TEMPLATES, circleKeyPitchClass, chordDegreeMap, chordInversion, chordPitches, formatChordFormula, formatScaleFormula, identifyChord, intervalOctave, keyFifths, keyFromFifths, midiToFrequency, normalizeSemitones, pitchClass, practiceTonicMidi, PROGRESSION_TEMPLATES, readingSpelling, romanFor, samePitchSet, scalePitches, SCALE_DEFINITIONS, scorePitchXml, spellMidi, transposePitchClass } from '../../src/domain/theory.ts';
 
 describe('pure theory helpers', () => {
+  it('preserves the selected tonic in both practice registers', () => {
+    for (let key = 0; key < 12; key++) {
+      expect(practiceTonicMidi(key)).toBe(60 + key);
+      expect(practiceTonicMidi(key, 'near-middle-c')).toBe((key < 6 ? 60 : 48) + key);
+    }
+    expect(practiceTonicMidi(-1, 'near-middle-c')).toBe(59);
+  });
+
   it('normalizes and transposes pitch classes across octaves', () => {
     expect(normalizeSemitones(-1)).toBe(11);
     expect(transposePitchClass(11, 2)).toBe(1);

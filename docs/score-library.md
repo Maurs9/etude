@@ -35,6 +35,8 @@ Copia bibliotecii este separată de copia existentă a progresului general de st
 
 ```bash
 npm run test:dev -- tests/e2e/score-library.spec.mjs tests/e2e/score-library-store.spec.mjs --workers=2
+npm test -- tests/e2e/score-collection.spec.mjs
+ETUDE_SCORES_DIR=MIDI npm test -- tests/e2e/score-collection.spec.mjs
 ETUDE_DEV_SERVER=1 ETUDE_SCORES_DIR=MIDI npx playwright test tests/e2e/score-library-collection.spec.mjs --project=app --workers=1
 npm run test -- --workers=2
 npm run test:unit
@@ -43,4 +45,4 @@ npm run typecheck
 npm run build
 ```
 
-Testele de stocare folosesc IndexedDB real în browser și fișiere sintetice. Corpusul personal din `MIDI` este opțional și nu este inclus în fixture-uri sau în build.
+Testele de stocare folosesc IndexedDB real în browser și fișiere sintetice. CI verifică partiturile MusicXML din `tests/fixtures` în modurile paginat, continuu și nocturn pe ecran îngust. Variabila `ETUDE_SCORES_DIR` adaugă colecția privată la verificarea obișnuită. Fișierele private rămân în afara testelor versionate și a buildului.
