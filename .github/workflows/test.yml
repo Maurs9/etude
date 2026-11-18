@@ -64,8 +64,8 @@ jobs:
   # Each test runs in exactly one shard.
   e2e-build:
     runs-on: ubuntu-24.04
-    # A cold Chromium dependency install can take 10 minutes on its own.
-    timeout-minutes: 25
+    # About 5 minutes per shard on a normal runner.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -93,8 +93,8 @@ jobs:
   # The same suite against the Vite dev server (`npm run test:dev`, the `app` project), split into 2 shards.
   e2e-dev:
     runs-on: ubuntu-24.04
-    # Leave room for Chromium setup, the browser checks, and artifact upload.
-    timeout-minutes: 25
+    # About 6 minutes per shard on a normal runner.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
