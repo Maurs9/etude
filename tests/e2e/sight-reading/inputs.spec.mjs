@@ -1,7 +1,7 @@
 import { test, expect } from '../../helpers/fixtures.mjs';
 
-async function openAssess(app, dock = false) {
-  const page = await app.open({ hash: 'read', dock });
+async function openAssess(app, dock = false, saved) {
+  const page = await app.open({ hash: 'read', dock, saved });
   await page.locator('#rdt-pieces').click();
   await page.locator('#rd-mode button[data-v="assess"]').click();
   await page.locator('#rd-gen').click();
@@ -12,6 +12,18 @@ async function openAssess(app, dock = false) {
 }
 
 test.describe('Sight-Reading input routes', () => {
+  test('records calibrated MIDI note-on and note-off timestamps', async ({ app }) => {
+    const page = await openAssess(app, false, { v: 3, lang: 'en', data: { latency: { usb: 120 } } });
+    const inputs = await page.evaluate(() => {
+      const api = window.__etude, now = performance.now();
+      api.SR.t0 = now - 500;
+      api.midiIn(0x90, 62, 100, 'midi', now - 80);
+      api.midiIn(0x80, 62, 0, 'midi', now - 40);
+      return api.srtRecorder.finish();
+    });
+    expect(inputs).toMatchObject([{ midi: 62, onMs: 300, offMs: 340, releaseKind: 'physical' }]);
+  });
+
   test('records computer keyboard and MIDI note ownership with physical releases', async ({ app }) => {
     const page = await openAssess(app);
     await page.evaluate(() => { window.__etude.SR.t0 = performance.now(); });

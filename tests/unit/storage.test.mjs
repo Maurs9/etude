@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { isBackupPayload, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreSettings, writePttV3 } from '../../src/domain/storage.ts';
+import { isBackupPayload, isImportableBackup, legacySettings, migratePtt, parsePttV3, PTT_SCHEMA, pttSchema, readPttV3, restoreSettings, writePttV3 } from '../../src/domain/storage.ts';
 
 const fixture = name => readFile(new URL(`../fixtures/storage/${name}`, import.meta.url), 'utf8');
 
@@ -27,6 +27,15 @@ describe('ptt-v3 storage reader', () => {
     expect(parsePttV3(await fixture('ptt-settings-v2.json'))).toBeNull();
     expect(parsePttV3('{')).toBeNull();
     expect(isBackupPayload({ v: 2, data: {} })).toBe(false);
+  });
+
+  it('accepts legacy partial progress and rejects malformed maps before import', async () => {
+    expect(isImportableBackup(JSON.parse(await fixture('ptt-v3-legacy.json')))).toBe(true);
+    expect(isImportableBackup({ v: 3, data: { sheet: { w5rh: { best: 82, learned: true } } } })).toBe(true);
+    for (const data of [{ sheet: null }, { sheet: { w5rh: true } }, { sheet: { w5rh: { best: '82' } } },
+      { srs: { 'iv:1': null } }, { history: [] }, { reading: { lv: 'broken' } }]) {
+      expect(isImportableBackup({ v: 3, data })).toBe(false);
+    }
   });
 
   it('reads and writes the browser record through a typed storage adapter', () => {
@@ -59,6 +68,8 @@ describe('ptt-v3 schema versions', () => {
     expect(isBackupPayload(payload)).toBe(true);
     expect(migratePtt(payload)).toEqual({ status: 'too-new', schema: 99 });
     expect(payload).toEqual(JSON.parse(raw));
+    const newer = { v: 3, schema: 99, data: { srs: [], sightLedger: { schemaVersion: 99 } } };
+    expect(parsePttV3(JSON.stringify(newer))).toEqual(newer);
   });
 
   it('runs each upgrade step in order and stamps the new schema', () => {

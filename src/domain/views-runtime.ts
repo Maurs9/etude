@@ -1884,7 +1884,7 @@ function handleNoteOn(midi: number, vel: number, source = 'midi') {
     inputOwners.set(midi, owners);
     if (held.has(midi)) {
         if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder)
-            srtRecorder.trackSource(source, performance.now() - SR.t0);
+            srtRecorder.trackSource(source, inputTime() - SR.t0);
         return;
     }
     sustained.delete(midi);
@@ -1966,7 +1966,7 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
     if (!(SR.active && srtRecorder) && srNoteStartInput(kind, midi, source, releaseKind))
         return;
     if (view0() === 'read' && SR.active && SR.modeSel === 'assess' && srtRecorder) {
-        const relMs = performance.now() - SR.t0;
+        const relMs = (releaseKind === 'focus' || releaseKind === 'reset' ? performance.now() : inputTime()) - SR.t0;
         srtRecorder.record(kind, midi, source, releaseKind, relMs);
         if (kind === 'on' && SR.instantFeedback)
             srInstantHandleNote(midi, relMs);
@@ -3415,7 +3415,7 @@ function presentQuestion(q: TrainerQuestion) {
     }
     dockSync(); // each question may answer on the keys or not
 }
-function earRoot(q: { key: number; }) { return 57 + (q.key % 12 <= 5 ? q.key : q.key - 12) + 5; } // mid register, kept playable
+function earRoot(q: { key: number; }) { return 60 + (q.key <= 5 ? q.key : q.key - 12); } // mid register, kept playable
 function presentPlay(q: TrainerQuestion) {
     const it = q.it;
     if (it.cat === 'interval') {
@@ -3463,7 +3463,7 @@ function presentEar(q: TrainerQuestion) {
     }
     else if (it.cat === 'chord') {
         opts = (SES.contrast ? ITEMS.filter((x): x is ChordTrainerItem => x.cat === 'chord') : chordEarOptions(it)).map((x) => ({ k: x.short, t: x.short + ' · ' + chordDisp(x.ref) }));
-        sesPrompt(q, () => playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true));
+        sesPrompt(q, () => playChordMidis(it.ref.intervals.map((i) => earRoot(q) + i), true));
     }
     else if (it.cat === 'scale') {
         opts = (SES.contrast ? Object.keys(SCALES) : scaleEarOptions(it.name)).map((nm: string) => ({ k: nm, t: scaleDisp(nm) }));
@@ -3495,7 +3495,7 @@ function playQuestionSound(q: TrainerQuestion) {
     if (it.cat === 'interval')
         playIvDir(earRoot(q), it.semi, q.dir ?? 'asc');
     else if (it.cat === 'chord')
-        playChordMidis(it.ref.intervals.map((i) => 57 + q.key + i), true);
+        playChordMidis(it.ref.intervals.map((i) => earRoot(q) + i), true);
     else if (it.cat === 'scale')
         playScaleNotes(60 + q.key, SCALES[it.name], true);
     else if (it.cat === 'prog')
@@ -3578,7 +3578,7 @@ function ekBuild(q: TrainerQuestion): EarKeysPrompt {
     // a short tonal melody in the item's scale: starts on the tonic, moves mostly by step, ends on a stable degree
     if (it.cat !== 'scale')
         throw new Error('Étude: no ear-keys prompt for a ' + it.cat + ' item');
-    const offs = SCALES[it.name], N = offs.length, ton = 60 + (q.key <= 5 ? q.key : q.key - 12), len = 3 + Math.floor(Math.random() * 3);
+    const offs = SCALES[it.name], N = offs.length, ton = earRoot(q), len = 3 + Math.floor(Math.random() * 3);
     const at = (d: number) => ton + offs[((d % N) + N) % N] + 12 * Math.floor(d / N), stable = (d: number) => [0, 3, 4, 7].includes(pc(at(d) - ton));
     let d = 0;
     const ds = [0];
@@ -3972,7 +3972,7 @@ function givenByEar(q: TrainerQuestion, k: number | string): TrainerGiven | null
         const ref = CHORDS.find((c) => c.symbol === k);
         if (!ref)
             return null;
-        const base = 57 + q.key;
+        const base = earRoot(q);
         return { text: t('fb_picked', chordDisp(ref), chordDisp(it.ref)), given: feedbackBroken(ref.intervals.map((i) => base + i), 0.16, 1.1), expected: feedbackBroken(it.ref.intervals.map((i) => base + i), 0.16, 1.1), pair };
     }
     if (it.cat === 'scale' && typeof k === 'string' && SCALES[k]) {
@@ -4132,11 +4132,11 @@ function revealAnswerKeys(q: TrainerQuestion) {
         return;
     }
     if (it.cat === 'interval') {
-        const r = 60 + q.key;
+        const r = q.mode === 'ear' ? earRoot(q) : 60 + q.key;
         [r, r + it.semi].forEach((m) => kbState(m, 'target', true));
     }
     else if (it.cat === 'chord') {
-        const r = 60 + q.key;
+        const r = q.mode === 'ear' ? earRoot(q) : 60 + q.key;
         it.ref.intervals.forEach((i) => kbState(r + i, 'target', true));
     }
     else if (it.cat === 'scale') {
@@ -7586,7 +7586,7 @@ function srFirstNotes(): { beat: number; midis: number[] } | null {
 }
 type SrNoteStartEvent = { kind: 'on' | 'off'; midi: number; source: string; releaseKind: 'physical' | 'focus' | 'reset' | null; perf: number };
 /** The key that started an attempt, when it went down, and every key event since: a first sight is claimed before the recorder exists. */
-let srNoteStart: { perf: number; events: SrNoteStartEvent[] } | null = null;
+let srNoteStart: { perf: number; receivedAt: number; events: SrNoteStartEvent[] } | null = null;
 /** No note starts an attempt before this time: a key still sounding from the last piece is not a start. */
 let srNoteArmAt = 0;
 const SR_NOTE_START_MS = 1500;
@@ -7606,12 +7606,13 @@ function srNoteStartArmed(source: string) {
 }
 /** A key went down or came up. Returns true when the event belongs to a start by the first note (it starts one, or one is being claimed). */
 function srNoteStartInput(kind: 'on' | 'off', midi: number, source: string, releaseKind: 'physical' | 'focus' | 'reset' | null) {
-    const now = performance.now(), claiming = SR.srtState?.name === 'preparing' || SR.srtState?.name === 'claiming';
+    const now = performance.now(), perf = releaseKind === 'focus' || releaseKind === 'reset' ? now : inputTime(now);
+    const claiming = SR.srtState?.name === 'preparing' || SR.srtState?.name === 'claiming';
     // A pending start is kept only while its first sight is being claimed, and only while it can still keep time.
-    if (srNoteStart && (!claiming || now - srNoteStart.perf > SR_NOTE_START_MS))
+    if (srNoteStart && (!claiming || now - srNoteStart.receivedAt > SR_NOTE_START_MS))
         srNoteStart = null;
     if (srNoteStart) {
-        srNoteStart.events.push({ kind, midi, source, releaseKind, perf: now });
+        srNoteStart.events.push({ kind, midi, source, releaseKind, perf });
         return true;
     }
     if (kind !== 'on' || !srNoteStartArmed(source))
@@ -7620,7 +7621,7 @@ function srNoteStartInput(kind: 'on' | 'off', midi: number, source: string, rele
     if (!first || !first.midis.some((m) => anyOctave ? (m - midi) % 12 === 0 : m === midi))
         return false;
     rdnAutoCancel();
-    srNoteStart = { perf: now, events: [{ kind, midi, source, releaseKind, perf: now }] };
+    srNoteStart = { perf, receivedAt: now, events: [{ kind, midi, source, releaseKind, perf }] };
     srGo();
     // Nothing started (and no first sight is being claimed): the key was only a key.
     const name = SR.srtState?.name;
@@ -7632,7 +7633,7 @@ function srNoteStartInput(kind: 'on' | 'off', midi: number, source: string, rele
 function srNoteStartTake() {
     const start = srNoteStart;
     srNoteStart = null;
-    return start && performance.now() - start.perf <= SR_NOTE_START_MS ? start : null;
+    return start && performance.now() - start.receivedAt <= SR_NOTE_START_MS ? start : null;
 }
 function srAssessLoop(ts: number) {
     if (!SR.active || SR.modeSel !== 'assess')
@@ -18501,7 +18502,7 @@ let syncPull = function syncPull() {
         return '';
     let rp: storage.PttV3Payload | null = null, bp: storage.PttV3Payload | SyncNoBase = SYNC_NONE, lp: storage.PttV3Payload | null = null;
     rp = stored?.payload || null;
-    if (!isBackupPayload(rp))
+    if (!rp)
         return '';
     if (storage.pttSchema(rp) > storage.PTT_SCHEMA) { // a newer build wrote it: merging would drop what this build does not know
         storeBlock();
@@ -18531,6 +18532,8 @@ let syncPull = function syncPull() {
     data.settings = restoreSettings(data.settings);
     if (!isRecord(data.srs))
         data.srs = {};
+    if (!isRecord(data.sheet))
+        data.sheet = {};
     if (syncHasBase(bp))
         Object.keys(SYNC_PREFS).filter(syncIsPrefName).forEach((f) => {
             const [get, set, later] = SYNC_PREFS[f], v = rp[f];
@@ -18690,41 +18693,72 @@ function storeQuarantine(text: string) {
         }
     });
 }
-/** Import and restore share this path: a copy of the current progress first, then the backup, then a reload. */
-async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<boolean> {
-    if (!await storeSnapshot(reason, backupJson()) && !confirm(t('store_copy_failed')))
-        return true; // the user kept their progress: nothing to report
-    const writeMain = () => {
-        p.gen = syncGen();
-        writePttV3(localStorage, p, KEY);
-    };
-    if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
-        const merged = await srtImportLedgerTransaction(localStorage, p.data.sightLedger, writeMain);
-        if (!merged.ok)
-            return false;
-    }
-    else {
-        writeMain();
-    }
-    location.reload();
+function storeBackupBlocked(): boolean {
+    if (STORE.blocked === 'too-new')
+        return true;
+    const saved = readPttV3(localStorage, KEY);
+    if (!saved || storage.pttSchema(saved.payload) <= storage.PTT_SCHEMA)
+        return false;
+    storeBlock();
     return true;
+}
+/** Import and restore share this path: a copy of the current progress first, then the backup, then a reload. */
+async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<void> {
+    try {
+        if (storeBackupBlocked()) {
+            alert(t('store_too_new'));
+            return;
+        }
+        if (!await storeSnapshot(reason, backupJson()) && !confirm(t('store_copy_failed')))
+            return;
+        const writeMain = () => {
+            // The save may have changed while taking the snapshot or waiting for the ledger lock.
+            if (storeBackupBlocked())
+                throw new Error('Newer progress schema');
+            writePttV3(localStorage, { ...p, gen: syncGen() }, KEY);
+        };
+        if (p.data.sightLedger && isSightReadingLedger(p.data.sightLedger)) {
+            const merged = await srtImportLedgerTransaction(localStorage, p.data.sightLedger, writeMain);
+            if (!merged.ok) {
+                alert(t(merged.reason === 'unsupported' ? 'import_too_new' : 'import_storage'));
+                return;
+            }
+        }
+        else {
+            writeMain();
+        }
+        location.reload();
+    }
+    catch (_) {
+        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : 'import_storage'));
+    }
 }
 async function storeRestore(id: number | undefined) {
     if (!id)
         return;
     try {
-        const snap = await safety.readSnapshot(id), p = snap ? syncParseJson(snap.raw) : null;
-        if (!snap || !isBackupPayload(p) || storage.pttSchema(p) > storage.PTT_SCHEMA) {
+        if (storeBackupBlocked()) {
+            alert(t('store_too_new'));
+            return;
+        }
+        const snap = await safety.readSnapshot(id), p = snap ? parsePttV3(snap.raw) : null;
+        if (!snap || !p) {
             alert(t('import_bad'));
             return;
         }
-        if (!confirm(t('snap_confirm', storeWhen(snap.id))))
+        if (storage.pttSchema(p) > storage.PTT_SCHEMA) {
+            alert(t('import_too_new'));
             return;
-        if (!await storeApplyBackup(p, 'before-restore'))
+        }
+        if (!storage.isImportableBackup(p)) {
             alert(t('import_bad'));
+            return;
+        }
+        if (confirm(t('snap_confirm', storeWhen(snap.id))))
+            await storeApplyBackup(p, 'before-restore');
     }
     catch (_) {
-        alert(t('import_bad'));
+        alert(t('import_storage'));
     }
 }
 function storeExported() {
@@ -18777,7 +18811,7 @@ function renderDataSafety() {
         o.textContent = t('set_snap_none');
         sel.append(o);
     }
-    sel.disabled = btn.disabled = !list.length;
+    sel.disabled = btn.disabled = !list.length || STORE.blocked === 'too-new';
 }
 function storeNote() {
     const box = document.getElementById('storeNote'), txt = document.getElementById('storeNoteText');
@@ -18785,6 +18819,11 @@ function storeNote() {
         return;
     const mode = STORE.blocked === 'too-new' ? 'too-new' : STORE.blocked === 'quarantine' ? 'stuck' : STORE.failed ? 'failed' : STORE.unreadable ? 'unreadable' : '';
     box.hidden = !mode;
+    if (mode === 'too-new') {
+        for (const id of ['importBtn', 'prog-import', 'set-snap-restore']) {
+            buttonById(id).disabled = true;
+        }
+    }
     if (!mode)
         return;
     const restorable = STORE.snaps.some(x => x.reason !== 'unreadable');
@@ -18870,6 +18909,8 @@ function loadAll() {
                 data.settings = restoreSettings(raw.data.settings);
                 if (!raw.data.srs)
                     data.srs = {};
+                if (!isRecord(data.sheet))
+                    data.sheet = {};
             }
             if (raw.lang && syncIsLang(raw.lang))
                 lang = raw.lang;
@@ -19229,22 +19270,24 @@ function initControls() {
         if (!f)
             return;
         const rd = new FileReader();
-        rd.onload = async () => { try {
-            const p = syncParseJson(String(rd.result));
-            if (!isBackupPayload(p))
-                throw 0;
-            if (storage.pttSchema(p) > storage.PTT_SCHEMA) {
+        rd.onerror = () => alert(t('import_bad'));
+        rd.onload = async () => {
+            if (STORE.blocked === 'too-new') {
+                alert(t('store_too_new'));
+                return;
+            }
+            const p = parsePttV3(String(rd.result));
+            if (p && storage.pttSchema(p) > storage.PTT_SCHEMA) {
                 alert(t('import_too_new'));
                 return;
             }
-            if (!confirm(t('import_confirm')))
-                return;
-            if (!await storeApplyBackup(p, 'before-import'))
+            if (!storage.isImportableBackup(p)) {
                 alert(t('import_bad'));
-        }
-        catch (_) {
-            alert(t('import_bad'));
-        } };
+                return;
+            }
+            if (confirm(t('import_confirm')))
+                await storeApplyBackup(p, 'before-import');
+        };
         rd.readAsText(f);
     });
     byId('set-diag').addEventListener('toggle', () => { if (byId('set-diag').hasAttribute('open'))
