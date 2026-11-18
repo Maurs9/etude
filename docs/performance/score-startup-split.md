@@ -13,6 +13,8 @@ Measurements compare `5071fdd` and `25bcee0` on the same Linux x64 host with Nod
 
 Both routes requested 830,253 decoded JavaScript bytes after the split, down from 864,777. The main chunk fell from 517,049 to 510,156 raw bytes. Warm reloads transferred zero JavaScript bytes in the harness. All four service-worker-warmed offline checks passed with the HTTP cache cleared.
 
+The cold request inventory was the same on Today and Explore. The shared music domain fell from 115,744 to 87,955 bytes. App core (47,155 bytes), sight-reading (95,751 bytes), and the English UI (89,078 bytes) were unchanged in this comparison. The build emitted a 158-byte module runtime, and the score tools chunk stayed out of both request lists.
+
 The comparison isolates the chunk split before the toolchain update and the other refactors on this branch. The readings are from uncompressed local HTTP and browser emulation. With three samples, the warm results are mixed and the cold results measure startup only. See [harness definitions](README.md) for the readiness signal and measurement limits.
 
 ```sh
