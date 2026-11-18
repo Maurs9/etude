@@ -12,12 +12,9 @@ import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.
 import * as audio from './audio.js';
 import type { AudioTone } from './audio.js';
 import * as notationApi from './notation.js';
-import { scoreOctaveMark, scoreStructuralMarks } from './score-svg-markings.js';
-import { recognizeScoreMarkings, SCORE_MARKING_TERMS } from './score-markings.js';
-import { normalizeScoreDirectionGlyphs, renderScoreNoteParentheses, scoreDetectPartHands } from './score-xml-markings.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
-import { AN_CHORDS, AN_DIA, anAccent, anBeatUnit, anCadences as domainAnCadences, anCands as domainAnCands, anClassifyNonChord as domainAnClassifyNonChord, anDomQ, anFit, anFitImplied, anGrid, anHandOf, anHarmony as domainAnHarmony, anInv, anMotifs, anNoteInfo as domainAnNoteInfo, anPoly, anRate, anRoman, anSpan, anUnion, anUnits, anVoiceNeighbors, analyzeScoreSelection, lassoAppendPoint, pointInLasso, type AnChordReading, type AnChordTemplate, type AnHarmonySeg, type AnMotif, type AnNoteWeight, type AnNonChordTone, type AnRatedChord, type AnSpanChoice, type AnSpanReading, type AnUnit, type ChordSelectionAnalysis, type IsolatedNoteAnalysis, type LassoPoint, type ScoreSelectionAnalysis, type SelectedNoteNeighbor, type SelectionNeighborSummary, type TwoNoteSelectionAnalysis } from './score-harmony.js';
+import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeight, AnNonChordTone, AnRatedChord, AnSpanChoice, AnSpanReading, AnUnit, ChordSelectionAnalysis, IsolatedNoteAnalysis, LassoPoint, ScoreSelectionAnalysis, SelectedNoteNeighbor, SelectionNeighborSummary, TwoNoteSelectionAnalysis } from './score-harmony.js';
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, LSTAVES, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
 import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
@@ -73,6 +70,7 @@ import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, feedbackBroken, feedbackC
 import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
 
+let scoreFeature: typeof import('./score-feature.js');
 let AN_SMUFL_NOTES: typeof import('./score-import.js').AN_SMUFL_NOTES;
 let SCORE_STEP: typeof import('./score-import.js').SCORE_STEP;
 let importMxlPreflight: typeof import('./score-import.js').anMxlPreflight;
@@ -101,7 +99,8 @@ let analysisModulesReady = false;
 let analysisModulesLoading: Promise<void> | null = null;
 function ensureAnalysisModules(): Promise<void> {
     if (!analysisModulesLoading) {
-        analysisModulesLoading = Promise.all([import('./score-import.js'), import('./score-svg-post.js'), import('./score-midi.js')]).then(([scoreImport, scoreSvgPost, scoreMidi]) => {
+        analysisModulesLoading = Promise.all([import('./score-import.js'), import('./score-svg-post.js'), import('./score-midi.js'), import('./score-feature.js')]).then(([scoreImport, scoreSvgPost, scoreMidi, feature]) => {
+        scoreFeature = feature;
         ({ AN_SMUFL_NOTES, SCORE_STEP, anMxlPreflight: importMxlPreflight, anParse, anReadXml: importReadXml, anXmlTidy, defaultInflatedSize, scoreXmlEndings, scoreXmlEngraving, scoreXmlLayout, scoreXmlNotes } = scoreImport);
         ({ isScoreOsmdSheet, scoreFixFingerings, scoreFixPedalsDefault, rememberScorePedalLayout, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreVendorField, scoreVendorList } = scoreSvgPost);
         ({ anAssignHands, scoreBeams, scoreMidiToXml } = scoreMidi);
@@ -12109,7 +12108,7 @@ function rdNextRender() { const box = maybeById('rdx-next'); if (box && RD.next)
 function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: number; }, segs: readonly AnHarmonySeg[], notes: readonly theory.TheoryNote[], selAnalysis?: ScoreSelectionAnalysis | null) {
     if (!f || !AN.view || !notes.length)
         return null;
-    const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s: AnHarmonySeg) => anKeyAt(s.start), lab = (s: AnHarmonySeg) => anChordLabel(s, K(s)), rn = (s: AnHarmonySeg) => anRoman(K(s), s);
+    const v = AN.view, one = f.a === f.b, fall = FALL.mode === 'fall', K = (s: AnHarmonySeg) => anKeyAt(s.start), lab = (s: AnHarmonySeg) => anChordLabel(s, K(s)), rn = (s: AnHarmonySeg) => scoreFeature.harmony.anRoman(K(s), s);
     const tip = (k: string, ...a: unknown[]) => ({ h: t(f.kind === 'sel' ? 'coach_sel' : one ? 'coach_bar' : 'coach_pass'), text: tf(k, ...a) });
     if (f.kind === 'sel' && selAnalysis) {
         if (selAnalysis.kind === 'note') {
@@ -12117,7 +12116,7 @@ function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: numb
             if (selAnalysis.chordRole === 'nct' && selAnalysis.localSeg)
                 return tip('cn_note_nct', noteLbl, t('an_nct_' + (selAnalysis.nctType || 'other')), anChordLabel(selAnalysis.localSeg, selAnalysis.key));
             if (selAnalysis.localSeg && selAnalysis.chordRole)
-                return tip('cn_note_role', noteLbl + ' (' + t('an_deg_label', selAnalysis.degreeLabel) + ')', t('an_role_' + selAnalysis.chordRole), anChordLabel(selAnalysis.localSeg, selAnalysis.key) + ' (' + anRoman(selAnalysis.key, selAnalysis.localSeg) + ')');
+                return tip('cn_note_role', noteLbl + ' (' + t('an_deg_label', selAnalysis.degreeLabel) + ')', t('an_role_' + selAnalysis.chordRole), anChordLabel(selAnalysis.localSeg, selAnalysis.key) + ' (' + scoreFeature.harmony.anRoman(selAnalysis.key, selAnalysis.localSeg) + ')');
             return tip('cn_note_deg', noteLbl, selAnalysis.degreeLabel);
         }
         if (selAnalysis.kind === 'interval') {
@@ -12131,7 +12130,7 @@ function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: numb
         if (selAnalysis.kind === 'chord' && !segs.length && selAnalysis.directChord) {
             const dc = selAnalysis.directChord, synth = { ch: { root: dc.rootPc, c: dc.template }, bass: dc.bassPc };
             const sLab = spellName(60 + dc.rootPc, selAnalysis.key) + dc.template.s + (dc.bassPc !== dc.rootPc ? '/' + spellName(60 + dc.bassPc, selAnalysis.key) : '');
-            return tip('cn_' + anFnKey(selAnalysis.key, synth.ch.root, anRoman(selAnalysis.key, synth)), sLab);
+            return tip('cn_' + anFnKey(selAnalysis.key, synth.ch.root, scoreFeature.harmony.anRoman(selAnalysis.key, synth)), sLab);
         }
     }
     const cadTip = (s: AnHarmonySeg) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
@@ -12159,10 +12158,10 @@ function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: numb
     const sec = segs.find((s) => rn(s).includes('/'));
     if (sec)
         return tip('cn_sec', lab(sec), rn(sec));
-    const inv = !v.implied && segs.find((s) => anInv(s) > 0);
+    const inv = !v.implied && segs.find((s) => scoreFeature.harmony.anInv(s) > 0);
     if (inv) {
         const k = K(inv);
-        return tip('cn_inv', spellName(60 + (inv.bass ?? 0), k), spellName(60 + inv.ch.root, k) + inv.ch.c.s + ', ' + invName(anInv(inv)));
+        return tip('cn_inv', spellName(60 + (inv.bass ?? 0), k), spellName(60 + inv.ch.root, k) + inv.ch.c.s + ', ' + invName(scoreFeature.harmony.anInv(inv)));
     }
     const amb = segs.find((s) => s.ch.conf === 'low');
     if (amb)
@@ -12177,7 +12176,7 @@ function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: numb
 /* Score & analysis · practice summary: the next step from how the run went — clean, slips bunched in a bar or two, missed notes,
    wrong keys, or loose timing — with a button that sets it up and plays the same passage again. */
 function pracWeakHand() { let rh = 0, lh = 0; PRAC.res.forEach((r, i) => { if (r !== 'miss')
-    return; const n = AN.notes[i]; if (n && anHandOf(n) === 'lh')
+    return; const n = AN.notes[i]; if (n && scoreFeature.harmony.anHandOf(n) === 'lh')
     lh++;
 else
     rh++; }); return lh > rh ? 'lh' : 'rh'; }
@@ -12194,7 +12193,7 @@ function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number 
     const st = PRAC.stats, acc = st && pracAcc(st);
     if (acc == null || !st)
         return null;
-    const f = (R.segs && R.segs[0] && R.segs[0].f) || pracFactor(), both = new Set(AN.notes.map(anHandOf)).size > 1;
+    const f = (R.segs && R.segs[0] && R.segs[0].f) || pracFactor(), both = new Set(AN.notes.map(scoreFeature.harmony.anHandOf)).size > 1;
     const again = () => { pracSumClose(); if (R.sel && AN.selected.size)
         scorePlay(true);
     else
@@ -12509,19 +12508,19 @@ function anHarmonyCtx() {
     };
 }
 function anClassifyNonChord(ns: readonly AnNote[], segs: AnHarmonySeg[]) {
-    return domainAnClassifyNonChord(ns, segs, AN.index);
+    return scoreFeature.harmony.anClassifyNonChord(ns, segs, AN.index);
 }
 function anNoteInfo(sorted: readonly AnNote[]) {
-    return domainAnNoteInfo(sorted, anMeasures());
+    return scoreFeature.harmony.anNoteInfo(sorted, anMeasures());
 }
 function anCands(S: AnSpanReading, implied: boolean) {
-    return domainAnCands(S, implied, anKeyAt(S.s), AN.source?.kind === 'xml' ? AN.source.harmonies : undefined);
+    return scoreFeature.harmony.anCands(S, implied, anKeyAt(S.s), AN.source?.kind === 'xml' ? AN.source.harmonies : undefined);
 }
 function anHarmony(ns: readonly AnNote[], implied: boolean) {
-    return domainAnHarmony(ns, implied, anHarmonyCtx());
+    return scoreFeature.harmony.anHarmony(ns, implied, anHarmonyCtx());
 }
 function anCadences(segs: AnHarmonySeg[]) {
-    return domainAnCadences(segs, AN.keyMap);
+    return scoreFeature.harmony.anCadences(segs, AN.keyMap);
 }
 // Everything the workspace shows for one scope; strings are produced at render time so language and notation can change.
 function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
@@ -12529,12 +12528,12 @@ function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
     if (cached)
         return cached;
     const lo = Math.min(...ns.map((n) => n.start)), hi = Math.max(...ns.map((n) => n.end)), pitches = [...new Set(ns.map((n) => n.midi))].sort((a, b) => a - b);
-    const poly = anPoly(ns), implied = poly.avg < 1.25, segs = domainAnHarmony(ns, implied, anHarmonyCtx());
-    domainAnCadences(segs, AN.keyMap);
+    const poly = scoreFeature.harmony.anPoly(ns), implied = poly.avg < 1.25, segs = scoreFeature.harmony.anHarmony(ns, implied, anHarmonyCtx());
+    scoreFeature.harmony.anCadences(segs, AN.keyMap);
     const ms = anMeasures().filter((m) => m.end > lo + 1e-6 && m.start < hi - 1e-6);
     let beats = 0;
     ms.forEach((m) => { const s = Math.max(lo, m.start), e = Math.min(hi, m.end); if (e > s)
-        beats += (e - s) / anBeatUnit(m); });
+        beats += (e - s) / scoreFeature.harmony.anBeatUnit(m); });
     const starts = ns.map((n) => n.start).sort((a, b) => a - b);
     let onsets = 0, prev = -Infinity;
     starts.forEach((s) => { if (s - prev > 0.06)
@@ -12546,9 +12545,9 @@ function anCompute(ns: AnNote[], scopeKey: string): AnAnalysisModel {
             break;
     } return bpm; };
     const tempos = [tAt(lo), ...SCORE.tempoList.filter((e) => e.beat > lo + 1e-6 && e.beat < hi - 1e-6).map((e) => e.bpm)];
-    const hands = ns.some((n) => n.hand) ? 'hands' : 'register', rh = ns.filter((n) => anHandOf(n) === 'rh').length;
+    const hands = ns.some((n) => n.hand) ? 'hands' : 'register', rh = ns.filter((n) => scoreFeature.harmony.anHandOf(n) === 'rh').length;
     const model = { ns, lo, hi, pitches, poly, implied, segs, ms, beats: Math.max(beats, 1e-6), onsets, tempos, hands, rh, lh: ns.length - rh,
-        key: anKeyInfo(ns), mainKey: anKeyAt(lo), motifs: anMotifs(ns), seconds: scoreSeconds(hi) - scoreSeconds(lo) };
+        key: anKeyInfo(ns), mainKey: anKeyAt(lo), motifs: scoreFeature.harmony.anMotifs(ns), seconds: scoreSeconds(hi) - scoreSeconds(lo) };
     if (AN.cache.size > 16)
         AN.cache.clear();
     AN.cache.set(ck, model);
@@ -12883,7 +12882,7 @@ function scoreLayout() {
         box.setAttribute('aria-busy', 'false');
         box.dataset.look = SCORE.look;
         scoreBind(engine);
-        renderScoreNoteParentheses(box, look.ink);
+        scoreFeature.renderScoreNoteParentheses(box, look.ink);
         scoreXLines();
         const pedalsOk = scoreFixPedals(box);
         SCORE.pedalsOk = pedalsOk;
@@ -13327,7 +13326,6 @@ function scoreXLines() {
 // Every marking on the page that the hover can explain: its box (relative to its page, which only moves as a whole), kind and value.
 const SC_DYN = /^(ppp|pp|p|mp|mf|f|ff|fff|sfz|fz|rfz|fp|sf|sfp)$/;
 // Keep the diagnostic surface derived from the same vocabulary as the parser.
-const SC_TERMS = SCORE_MARKING_TERMS.map(({ term, forms }) => ({ k: term, forms }));
 const SC_ARTS = { 'a.': 'staccato', 'av': 'staccatissimo', 'a>': 'accent', 'a^': 'marcato', 'a-': 'tenuto', 'a@a': 'fermata', 'a@u': 'fermata', 'a@s': 'fermata', 'a@l': 'fermata', 'a@as': 'fermata', 'a@us': 'fermata',
     tr: 'trill', mordent: 'mordent', mordent_inverted: 'mordent', turn: 'turn', turn_inverted: 'turn', prallprall: 'trill', upprall: 'trill' };
 // A rest's value: its written length and dots.
@@ -13378,9 +13376,9 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
         if (n.querySelectorAll)
             n.querySelectorAll('text').forEach((x) => seen.add(x));
     } });
-    scoreStructuralMarks(sheet).forEach(mark => add(mark.element, mark.kind, mark.value));
+    scoreFeature.scoreStructuralMarks(sheet).forEach(mark => add(mark.element, mark.kind, mark.value));
     box.querySelectorAll('.vf-textbracket').forEach(element => {
-        const kind = scoreOctaveMark(element);
+        const kind = scoreFeature.scoreOctaveMark(element);
         if (kind) add(element, kind);
     });
     gs.MusicPages.forEach((pg) => pg.MusicSystems.forEach((sys) => sys.StaffLines.forEach((sl) => {
@@ -13527,7 +13525,7 @@ function scoreSyms(engine: import('./notation.js').ScoreRenderer | null) {
     }
 }
 function scoreTermParts(s: string) {
-    return recognizeScoreMarkings(s, { context: 'direction' }).map(part => t(part.key, ...part.params));
+    return scoreFeature.recognizeScoreMarkings(s, { context: 'direction' }).map(part => t(part.key, ...part.params));
 }
 // "Name — meaning": the tooltip heads with the symbol as printed (or its name) and #an-hover reads it as one line.
 function scoreSymText(sym: { kind: string | undefined; val: string | ScoreRestSym; }) {
@@ -14080,7 +14078,7 @@ function pracLoad() {
     }
     catch (e) { }
 }
-const pracMine = (n: AnNote) => PRAC.hands === 'both' || anHandOf(n) === PRAC.hands;
+const pracMine = (n: AnNote) => PRAC.hands === 'both' || scoreFeature.harmony.anHandOf(n) === PRAC.hands;
 // My part sounds only when I am not being waited for; the other hand is the accompaniment (or muted).
 const pracSounds = (n: AnNote) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
 const pracFactor = () => +(selectById('score-speed').value || 100) / 100;
@@ -14093,7 +14091,7 @@ function pracBeats() {
         return FALL.beats;
     const out: PracticeBeat[] = [];
     anMeasures().forEach((m, i) => {
-        const u = anBeatUnit(m), full = m.num * 4 / m.den, short = full - (m.end - m.start);
+        const u = scoreFeature.harmony.anBeatUnit(m), full = m.num * 4 / m.den, short = full - (m.end - m.start);
         // An upbeat (a short first bar) holds the last beats of a bar, so its first click is not the accented downbeat.
         let k = i === 0 && short > 1e-6 ? Math.round(short / u) : 0;
         for (let b = m.start; b < m.end - 1e-6; b += u, k++)
@@ -14190,7 +14188,7 @@ async function pracStart(o: PracticeStartOptions)  {
     const f = pracFactor(), now = actx.currentTime + .1;
     let a0 = now, ci: PracticeCountIn | null = null;
     if (PRAC.countIn) {
-        const beat = scoreBeatAt(o.from), m = anMeasureAt(beat) || { num: 4, den: 4 }, u = anBeatUnit(m), n = Math.max(2, Math.round(m.num * 4 / m.den / u)), sec = u * 60 / anTempoAt(beat) / f;
+        const beat = scoreBeatAt(o.from), m = anMeasureAt(beat) || { num: 4, den: 4 }, u = scoreFeature.harmony.anBeatUnit(m), n = Math.max(2, Math.round(m.num * 4 / m.den / u)), sec = u * 60 / anTempoAt(beat) / f;
         for (let k = 0; k < n; k++)
             metroClick(now + k * sec, k === 0);
         ci = { t: now, n, sec };
@@ -15003,7 +15001,7 @@ function anTempoAt(beat: number) { let bpm = SCORE.tempoList[0].bpm; for (const 
 function anStatusPos(time?: number | null) {
     if (!AN.notes.length)
         return;
-    const t0 = time != null ? time : fallTime(), beat = scoreBeatAt(t0), m = anMeasureAt(beat) || { number: '1', start: 0, num: 4, den: 4 }, u = anBeatUnit(m);
+    const t0 = time != null ? time : fallTime(), beat = scoreBeatAt(t0), m = anMeasureAt(beat) || { number: '1', start: 0, num: 4, den: 4 }, u = scoreFeature.harmony.anBeatUnit(m);
     const beats = Math.max(1, Math.round(m.num * 4 / m.den / u)), bt = Math.min(beats, Math.max(1, Math.floor((beat - m.start) / u + 1e-6) + 1));
     const set = (id: string, v: string) => { const el = byId(id); if (el.textContent !== v)
         el.textContent = v; };
@@ -15065,7 +15063,7 @@ function anKeysPaint(force?: boolean) {
     let deg: Map<number, string> | null = null;
     if (SCORE.playing) {
         const lit = [...SCORE.lit].map((i) => AN.notes[i]).filter(Boolean);
-        lit.forEach((n) => want.set(foldToView(n.midi), anHandOf(n)));
+        lit.forEach((n) => want.set(foldToView(n.midi), scoreFeature.harmony.anHandOf(n)));
         const seg = lit.length && anSegAt(scoreBeatAt(fallTime()));
         if (seg)
             deg = chordDegreeMap(lit.map((n) => n.midi), seg.ch.root, seg.ch.c.p);
@@ -15124,7 +15122,7 @@ function anDetText(ch: { det: string; }) { return t('an_det_' + ch.det); }
 // What each hand plays in a chord span, low to high, each pitch class once: "RH E G C · LH C G".
 function anHandsText(seg: { notes: AnSpanNoteFacts[] }, key: theory.KeySignature) {
     const by: { rh: number[]; lh: number[] } = { rh: [], lh: [] };
-    seg.notes.slice().sort((a, b) => a.midi - b.midi).forEach((n) => { const hand: string = anHandOf(n), h = hand === 'rh' || hand === 'lh' ? by[hand] : null, p = pc(n.midi); if (!h)
+    seg.notes.slice().sort((a, b) => a.midi - b.midi).forEach((n) => { const hand: string = scoreFeature.harmony.anHandOf(n), h = hand === 'rh' || hand === 'lh' ? by[hand] : null, p = pc(n.midi); if (!h)
         return; if (!h.some((m) => pc(m) === p))
         h.push(n.midi); });
     return (['rh', 'lh'] as const).filter((h) => by[h].length).map((h) => t('an_' + h) + ' ' + by[h].slice(0, 6).map((m) => spellName(m, key)).join(' ') + (by[h].length > 6 ? ' …' : '')).join(' · ');
@@ -15494,7 +15492,7 @@ interface AnPanelSpanRow {
 // One chord of the progression: symbol, Roman numeral, beats and how sure the reading is; the full reading, with what each hand
 // plays, is its accessible name.
 function anChipHTML(s: AnHarmonySeg, i: number, rove: boolean|null) {
-    const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), beats = anBeatText(s), conf = s.ch.conf;
+    const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = scoreFeature.harmony.anRoman(key, s), beats = anBeatText(s), conf = s.ch.conf;
     const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), cad = s.cad ? t('an_cad_' + s.cad) : '', det = anDetText(s.ch), nct = anNctText(s, key);
     const label = [t('an_bar') + ' ' + s.measure.number, beats, lab, rn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), anHandsText(s, key), nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
     const time = anClock(scoreSeconds(s.start)) + '–' + anClock(scoreSeconds(s.end));
@@ -15519,8 +15517,8 @@ function anRowsHTML(list: AnPanelSpanRow[], rove?: number|null) {
 // A chord of the bar in focus, in full: symbol and numeral, function, inversion and bass, beats, how sure the reading is, what
 // each hand plays, non-chord tones.
 function anNowCard({ s, k }: AnPanelSpanRow, implied: boolean) {
-    const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
-    const inv = implied ? 0 : anInv(s), slash = !implied && s.bass !== s.ch.root;
+    const esc = xmlEsc, key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = scoreFeature.harmony.anRoman(key, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
+    const inv = implied ? 0 : scoreFeature.harmony.anInv(s), slash = !implied && s.bass !== s.ch.root;
     const fn = [anFunctionOf(key, s, rn), implied ? t('an_implied') : open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + (s.bass ?? 0), key)) : ''].filter(Boolean).join(' · ');
     const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
     const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, key), cad = s.cad ? t('an_cad_' + s.cad) : '';
@@ -15564,7 +15562,7 @@ function anNoteCardHTML(a: IsolatedNoteAnalysis) {
     const degPill = t('an_deg_label', a.degreeLabel) + ' · ' + t(a.diatonic ? 'an_deg_dia' : 'an_deg_chr');
     let roleHtml = '';
     if (a.localSeg && a.chordRole) {
-        const segLbl = anChordLabel(a.localSeg, a.key) + ' (' + anRoman(a.key, a.localSeg) + ')';
+        const segLbl = anChordLabel(a.localSeg, a.key) + ' (' + scoreFeature.harmony.anRoman(a.key, a.localSeg) + ')';
         const roleTxt = a.chordRole === 'nct'
             ? t('an_role_nct') + ' (' + t('an_nct_' + (a.nctType || 'other')) + ')'
             : t('an_role_' + a.chordRole);
@@ -15579,7 +15577,7 @@ function anIntervalCardHTML(a: TwoNoteSelectionAnalysis) {
     const degTxt = `${a.degrees[0]} – ${a.degrees[1]}`;
     let localHtml = '';
     if (a.localSeg)
-        localHtml = `<div class="an-note-role"><b>${esc(anChordLabel(a.localSeg, key))}</b> (${esc(anRoman(key, a.localSeg))})</div>`;
+        localHtml = `<div class="an-note-role"><b>${esc(anChordLabel(a.localSeg, key))}</b> (${esc(scoreFeature.harmony.anRoman(key, a.localSeg))})</div>`;
     return `<div class="an-note-card"><div class="an-note-top"><span class="an-nc-sym">${esc(p0 + ' – ' + p1)}</span><span class="an-note-deg">${esc(ivLbl)}</span></div><div class="an-note-meta">${esc([kindLbl, `${a.semitones} st`, t('an_deg_label', degTxt)].join(' · '))}</div>${localHtml}</div>${anNeighborsHTML(a.neighbors, key)}`;
 }
 function anSelChordHTML(a: ChordSelectionAnalysis) {
@@ -15588,8 +15586,8 @@ function anSelChordHTML(a: ChordSelectionAnalysis) {
     if (a.segs.length) {
         body = `<ul class="an-nlist" aria-label="${esc(t('an_prog_label'))}">${a.segs.map((s) => {
             const sKey = anKeyAt(s.start);
-            const lab = anChordLabel(s, sKey), rn = anRoman(sKey, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
-            const inv = anInv(s), slash = s.bass !== s.ch.root;
+            const lab = anChordLabel(s, sKey), rn = scoreFeature.harmony.anRoman(sKey, s), conf = s.ch.conf, open = s.ch.c.q === 'S' || s.ch.c.q === 'P';
+            const inv = scoreFeature.harmony.anInv(s), slash = s.bass !== s.ch.root;
             const fn = [anFunctionOf(sKey, s, rn), open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + (s.bass ?? 0), sKey)) : ''].filter(Boolean).join(' · ');
             const alts = s.ch.alts.map((alt) => spellName(60 + alt.root, sKey) + alt.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, sKey);
             const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, sKey), cad = s.cad ? t('an_cad_' + s.cad) : '';
@@ -15598,7 +15596,7 @@ function anSelChordHTML(a: ChordSelectionAnalysis) {
     } else if (a.directChord) {
         const dc = a.directChord, synth = { ch: { root: dc.rootPc, c: dc.template }, bass: dc.bassPc };
         const lab = spellName(60 + dc.rootPc, key) + dc.template.s + (dc.bassPc !== dc.rootPc ? '/' + spellName(60 + dc.bassPc, key) : '');
-        const rn = anRoman(key, synth);
+        const rn = scoreFeature.harmony.anRoman(key, synth);
         const fn = [anFunctionOf(key, synth, rn), dc.inversion > 0 ? invName(dc.inversion) : '', dc.bassPc !== dc.rootPc ? t('an_bass', spellName(60 + dc.bassPc, key)) : ''].filter(Boolean).join(' · ');
         const notesLine = a.pitches.slice(0, 12).map((m) => spellName(m, key, true)).join(' ');
         body = `<div class="an-sel-ch"><span class="an-nc-sym">${esc(lab)}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-hands">${esc(notesLine)}</span></div>`;
@@ -15645,7 +15643,7 @@ function anRenderNow() {
     byId('an-now-pill').hidden = f.kind !== 'play';
     byId('an-now-hint').textContent = t(f.kind === 'play' ? 'an_now_follow' : FALL.mode === 'fall' ? 'an_now_hint_fall' : (window).matchMedia('(pointer: coarse)').matches ? 'an_now_hint_touch' : 'an_now_hint');
     const segs = v.segs.map((s: AnHarmonySeg, k: number): AnPanelSpanRow => ({ s, k })).filter(({ s }: AnPanelSpanRow) => s.end > f.lo + 1e-6 && s.start < f.hi - 1e-6);
-    const selAnalysis = f.kind === 'sel' && !AN.active && notes.length ? analyzeScoreSelection(notes, AN.notes, v.segs, anHarmonyCtx()) : null;
+    const selAnalysis = f.kind === 'sel' && !AN.active && notes.length ? scoreFeature.harmony.analyzeScoreSelection(notes, AN.notes, v.segs, anHarmonyCtx()) : null;
     let html = '';
     if (!one && !selAnalysis) {
         const info = anKeyInfo(notes);
@@ -15688,7 +15686,7 @@ function anRenderNow() {
     else if (inBody) {
         byId('an-now').focus({ preventScroll: true });
     }
-    const both = new Set(notes.map(anHandOf)).size > 1, hb = byId('an-now-hands').children;
+    const both = new Set(notes.map(scoreFeature.harmony.anHandOf)).size > 1, hb = byId('an-now-hands').children;
     acts.forEach((b) => { b.disabled = !notes.length; });
     [...hb].forEach((b) => { if (b instanceof HTMLElement)
         b.hidden = !both && b.dataset.h !== 'both'; });
@@ -15710,7 +15708,7 @@ function anNowAnnounce(f: AnPanelFocus, head: string, segs: AnPanelSpanRow[], se
         } else if (selAnalysis.kind === 'interval') {
             txt += ': ' + intervalLabel(Math.abs(selAnalysis.semitones));
         } else if (selAnalysis.segs.length) {
-            const s = selAnalysis.segs[0], key = anKeyAt(s.start), rn = anRoman(key, s);
+            const s = selAnalysis.segs[0], key = anKeyAt(s.start), rn = scoreFeature.harmony.anRoman(key, s);
             txt += ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ');
         } else if (selAnalysis.directChord) {
             const dc = selAnalysis.directChord;
@@ -15720,7 +15718,7 @@ function anNowAnnounce(f: AnPanelFocus, head: string, segs: AnPanelSpanRow[], se
     else {
         const s = segs.length ? segs[0].s : null;
         if (s) {
-            const key = anKeyAt(s.start), rn = anRoman(key, s);
+            const key = anKeyAt(s.start), rn = scoreFeature.harmony.anRoman(key, s);
             txt += ': ' + [anChordLabel(s, key), rn, anFunctionOf(key, s, rn)].join(', ') + (segs.length > 1 ? ' …' : '');
         }
     }
@@ -15780,7 +15778,7 @@ function anRenderWorkspace(v: AnAnalysisModel) {
   <p class="an-small">${esc(t('an_alts', k.alts.map((a) => anKeyName(a) + ' ' + anNum(a.score, 2)).join(' · ')))}</p>${differs ? `<p class="an-small an-warn">${esc(t('an_key_differs'))}</p>` : ''}</section>`;
     let facts = `<section class="an-over" aria-labelledby="an-h-over"><h3 id="an-h-over">${esc(t('an_overview'))}</h3><dl class="an-dl">`;
     const row = (dt: string, dd: string, sub?: string) => { facts += `<div><dt>${esc(dt)}</dt><dd>${esc(dd)}${sub ? `<small>${esc(sub)}</small>` : ''}</dd></div>`; };
-    const metersSet = [...new Set(v.ms.map((m) => m.num + '/' + m.den))], unit = anBeatUnit(v.ms[0] || { num: 4, den: 4 });
+    const metersSet = [...new Set(v.ms.map((m) => m.num + '/' + m.den))], unit = scoreFeature.harmony.anBeatUnit(v.ms[0] || { num: 4, den: 4 });
     const tMin = Math.min(...v.tempos), tMax = Math.max(...v.tempos), changes = v.tempos.length - 1;
     row(t('an_f_duration'), anClock(v.seconds), t('an_at_speed'));
     row(t('an_f_meter'), metersSet.join(', '), t('an_beat_unit', t(unit === 1.5 ? 'an_unit_dq' : unit === 2 ? 'an_unit_h' : unit === 0.5 ? 'an_unit_e' : 'an_unit_q')));
@@ -15803,7 +15801,7 @@ function anRenderWorkspace(v: AnAnalysisModel) {
     html += `<section class="an-harm" aria-labelledby="an-h-harm"><h3 id="an-h-harm">${esc(t('an_harm_h'))}</h3>`;
     // progression summary: consecutive repeats merged
     const seq: { lab: string; rn: string; i: number }[] = [];
-    v.segs.forEach((s, i) => { const key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = anRoman(key, s), last = seq[seq.length - 1]; if (!last || last.lab !== lab)
+    v.segs.forEach((s, i) => { const key = anKeyAt(s.start), lab = anChordLabel(s, key), rn = scoreFeature.harmony.anRoman(key, s), last = seq[seq.length - 1]; if (!last || last.lab !== lab)
         seq.push({ lab, rn, i }); });
     if (seq.length) {
         const shown = seq.slice(0, 14), more = seq.length - shown.length;
@@ -15847,7 +15845,7 @@ function anRenderSelection() {
     if (seg) {
         if (pitches.length === 2)
             parts.push(`<span><b>${esc(t('an_interval'))}:</b> ${esc(anIntervalName(pitches[1] - pitches[0]))}</span>`);
-        parts.push(`<span><b>${esc(t('an_chord'))}:</b> ${esc(anChordLabel(seg, key))} · ${esc(anRoman(key, seg))}</span>`);
+        parts.push(`<span><b>${esc(t('an_chord'))}:</b> ${esc(anChordLabel(seg, key))} · ${esc(scoreFeature.harmony.anRoman(key, seg))}</span>`);
         const nct = anNctText(seg, key);
         if (nct)
             parts.push(`<span><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>`);
@@ -16397,7 +16395,7 @@ function scorePointer(e: PointerEvent): ScoreSelectionGesture | undefined {
                 lassoSvg.appendChild(lassoPath);
                 document.body.appendChild(lassoSvg);
             }
-            if (lassoAppendPoint(pts, { x: ev.clientX, y: ev.clientY }, 4) || pts.length === 2)
+            if (scoreFeature.harmony.lassoAppendPoint(pts, { x: ev.clientX, y: ev.clientY }, 4) || pts.length === 2)
                 drawLasso();
             return;
         }
@@ -16443,10 +16441,10 @@ function scorePointer(e: PointerEvent): ScoreSelectionGesture | undefined {
         if (!add)
             AN.selected.clear();
         if (AN.selMode === 'lasso') {
-            lassoAppendPoint(pts, { x: ev.clientX, y: ev.clientY }, 2);
+            scoreFeature.harmony.lassoAppendPoint(pts, { x: ev.clientX, y: ev.clientY }, 2);
             SCORE.heads.forEach((list, i) => list.forEach((g: Element) => {
                 const r = g.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2;
-                if (pointInLasso(cx, cy, pts))
+                if (scoreFeature.harmony.pointInLasso(cx, cy, pts))
                     AN.selected.add(i);
             }));
         }
@@ -16674,7 +16672,7 @@ function fallDraw() {
             break;
         if (scoreSeconds(m.end) < time)
             continue;
-        const u = anBeatUnit(m);
+        const u = scoreFeature.harmony.anBeatUnit(m);
         ctx.fillStyle = 'rgba(255,255,255,.05)';
         for (let b = m.start + u; b < m.end - 1e-6; b += u) {
             const y = hitY - (scoreSeconds(b) - time) * pps;
@@ -16717,7 +16715,7 @@ function fallDraw() {
         const k = G.keys.get(d.n.midi);
         if (!k)
             continue;
-        const hand = anHandOf(d.n), c = hand === 'lh' ? P.lh : P.rh, mine = !solo || hand === PRAC.hands, on = time >= d.start && (!sel || sel.has(d.i));
+        const hand = scoreFeature.harmony.anHandOf(d.n), c = hand === 'lh' ? P.lh : P.rh, mine = !solo || hand === PRAC.hands, on = time >= d.start && (!sel || sel.has(d.i));
         if (on) {
             active.set(d.n.midi, hand);
             if (from != null && d.start > from && fx)
@@ -19764,13 +19762,13 @@ const __etudeGetters: Record<string, () => unknown> = {
   "accompVoicing": () => accompVoicing,
   "activeInputId": () => activeInputId,
   "actx": () => actx,
-  "anAccent": () => anAccent,
+  "anAccent": () => scoreFeature?.harmony.anAccent,
   "anActiveChord": () => anActiveChord,
   "anAnalyze": () => anAnalyze,
   "anAssignHands": () => anAssignHands,
   "anBarsLabel": () => anBarsLabel,
   "anBeatText": () => anBeatText,
-  "anBeatUnit": () => anBeatUnit,
+  "anBeatUnit": () => scoreFeature?.harmony.anBeatUnit,
   "anCadences": () => anCadences,
   "anCands": () => anCands,
   "anChipHTML": () => anChipHTML,
@@ -19788,15 +19786,15 @@ const __etudeGetters: Record<string, () => unknown> = {
   "anDraw": () => anDraw,
   "anError": () => anError,
   "anErrorKey": () => anErrorKey,
-  "anFit": () => anFit,
-  "anFitImplied": () => anFitImplied,
+  "anFit": () => scoreFeature?.harmony.anFit,
+  "anFitImplied": () => scoreFeature?.harmony.anFitImplied,
   "anFnKey": () => anFnKey,
   "anFocus": () => anFocus,
   "anFocusNotes": () => anFocusNotes,
   "anFocusStage": () => anFocusStage,
   "anFunctionOf": () => anFunctionOf,
-  "anGrid": () => anGrid,
-  "anHandOf": () => anHandOf,
+  "anGrid": () => scoreFeature?.harmony.anGrid,
+  "anHandOf": () => scoreFeature?.harmony.anHandOf,
   "anHandsSource": () => anHandsSource,
   "anHandsText": () => anHandsText,
   "anHarmony": () => anHarmony,
@@ -19807,7 +19805,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "anInflatedSize": () => anInflatedSize,
   "anInitControls": () => anInitControls,
   "anIntervalName": () => anIntervalName,
-  "anInv": () => anInv,
+  "anInv": () => scoreFeature?.harmony.anInv,
   "anKeepPlace": () => anKeepPlace,
   "anKeepVisible": () => anKeepVisible,
   "anKeyAt": () => anKeyAt,
@@ -19825,7 +19823,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "anMarkActive": () => anMarkActive,
   "anMeasureAt": () => anMeasureAt,
   "anMeasures": () => anMeasures,
-  "anMotifs": () => anMotifs,
+  "anMotifs": () => scoreFeature?.harmony.anMotifs,
   "anMxlPreflight": () => anMxlPreflight,
   "anNarrow": () => anNarrow,
   "anNctText": () => anNctText,
@@ -19846,10 +19844,10 @@ const __etudeGetters: Record<string, () => unknown> = {
   "anPieceToParsed": () => anPieceToParsed,
   "anPinToolbar": () => anPinToolbar,
   "anPinToolbarLater": () => anPinToolbarLater,
-  "anPoly": () => anPoly,
+  "anPoly": () => scoreFeature?.harmony.anPoly,
   "anPop": () => anPop,
   "anPracticeStart": () => anPracticeStart,
-  "anRate": () => anRate,
+  "anRate": () => scoreFeature?.harmony.anRate,
   "anReadXml": () => anReadXml,
   "anRebuild": () => anRebuild,
   "anReconChange": () => anReconChange,
@@ -19863,7 +19861,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "anReset": () => anReset,
   "anResolveKey": () => anResolveKey,
   "anRevealPieceRow": () => anRevealPieceRow,
-  "anRoman": () => anRoman,
+  "anRoman": () => scoreFeature?.harmony.anRoman,
   "anRove": () => anRove,
   "anRowsHTML": () => anRowsHTML,
   "anSegAt": () => anSegAt,
@@ -19880,7 +19878,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "anSideSet": () => anSideSet,
   "anSideSync": () => anSideSync,
   "anSideVisible": () => anSideVisible,
-  "anSpan": () => anSpan,
+  "anSpan": () => scoreFeature?.harmony.anSpan,
   "anStageFit": () => anStageFit,
   "anStatus": () => anStatus,
   "anStatusPos": () => anStatusPos,
@@ -19889,10 +19887,10 @@ const __etudeGetters: Record<string, () => unknown> = {
   "anTab": () => anTab,
   "anTempoAt": () => anTempoAt,
   "anTlUpdate": () => anTlUpdate,
-  "anUnion": () => anUnion,
-  "anUnits": () => anUnits,
+  "anUnion": () => scoreFeature?.harmony.anUnion,
+  "anUnits": () => scoreFeature?.harmony.anUnits,
   "anUpdateControls": () => anUpdateControls,
-  "anVoiceNeighbors": () => anVoiceNeighbors,
+  "anVoiceNeighbors": () => scoreFeature?.harmony.anVoiceNeighbors,
   "anXmlKeyMap": () => anXmlKeyMap,
   "anXmlTidy": () => anXmlTidy,
   "anZoomNow": () => anZoomNow,
@@ -20471,7 +20469,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "scoreXmlEndings": () => scoreXmlEndings,
   "scoreXmlLayout": () => scoreXmlLayout,
   "scoreXmlNotes": () => scoreXmlNotes,
-  "scoreDetectPartHands": () => scoreDetectPartHands,
+  "scoreDetectPartHands": () => scoreFeature?.scoreDetectPartHands,
   "scoreZoom": () => scoreZoom,
   "seedPlacement": () => seedPlacement,
   "sesHome": () => sesHome,
@@ -20697,8 +20695,8 @@ const __etudeGetters: Record<string, () => unknown> = {
   "ACCOMP_PATTERNS": () => ACCOMP_PATTERNS,
   "ACCOMP_PROGS": () => ACCOMP_PROGS,
   "AN": () => AN,
-  "AN_CHORDS": () => AN_CHORDS,
-  "AN_DIA": () => AN_DIA,
+  "AN_CHORDS": () => scoreFeature?.harmony.AN_CHORDS,
+  "AN_DIA": () => scoreFeature?.harmony.AN_DIA,
   "AN_MAX_BYTES": () => AN_MAX_BYTES,
   "AN_MAX_NOTES": () => AN_MAX_NOTES,
   "AN_MAX_XML_CHARS": () => AN_MAX_XML_CHARS,
@@ -20813,7 +20811,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "SC_DYN": () => SC_DYN,
   "SC_FIT": () => SC_FIT,
   "SC_PAGE_W": () => SC_PAGE_W,
-  "SC_TERMS": () => SC_TERMS,
+  "SC_TERMS": () => scoreFeature?.scoreTerms,
   "SES": () => SES,
   "SIDE": () => SIDE,
   "SONGS": () => SONGS,
@@ -20842,7 +20840,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "WAKE_IDLE_MS": () => WAKE_IDLE_MS,
   "_modalStack": () => _modalStack,
   "accomp": () => accomp,
-  "anDomQ": () => anDomQ,
+  "anDomQ": () => scoreFeature?.harmony.anDomQ,
   "blackEl": () => blackEl,
   "coachText": () => coachText,
   "cof": () => cof,

@@ -2,6 +2,19 @@ import { test, expect } from '../helpers/fixtures.mjs';
 
 const LANGUAGES = ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'];
 
+for (const view of ['today', 'explore']) {
+  test(`score analysis loads on demand from ${view}`, async ({ app, page }) => {
+    await app.open({ hash: view });
+    const loaded = () => page.evaluate(() => performance.getEntriesByType('resource').some(entry =>
+      /\/score-feature(?:-[^/]+)?\.(?:js|ts)$/.test(new URL(entry.name).pathname)));
+    expect(await loaded()).toBe(false);
+    await page.locator('#nav [data-view=analysis]').click();
+    await expect(page.locator('#view-analysis')).toHaveClass(/\bactive\b/);
+    expect(await loaded()).toBe(true);
+    expect(await page.evaluate(() => typeof window.__etude.anPoly)).toBe('function');
+  });
+}
+
 for (const language of LANGUAGES) {
   test(`Today uses a lightweight lesson catalog on ${language} startup`, async ({ app, page }) => {
     await app.open({ hash: 'today', lang: language });

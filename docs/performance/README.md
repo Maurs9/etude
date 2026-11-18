@@ -11,6 +11,8 @@ bundled Chromium available:
 ```sh
 npx vitest run tests/unit/perf-baseline.test.mjs
 PW_CHANNEL='' npm run perf:baseline
+# Measure Today with the same browser and profiles (Explore is the default).
+PW_CHANNEL='' npm run perf:baseline -- --view today
 # Optional: more samples; minimum is 3 per profile.
 PW_CHANNEL='' npm run perf:baseline -- --samples 10
 ```
