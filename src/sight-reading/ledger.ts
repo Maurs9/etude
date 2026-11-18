@@ -474,38 +474,60 @@ export async function srtImportLedgerTransaction(
   imported: SightReadingLedger,
   commit: () => void | Promise<void>,
 ): Promise<SightReadingLedgerResult> {
+  return withLedgerLock(() => writeLedgerTransaction(storage, ledger => mergeImported(ledger, imported), commit));
+}
+
+export async function srtResetLedgerTransaction(
+  storage: SightReadingStorage,
+  prepare: () => Promise<boolean>,
+  commit: () => void,
+): Promise<SightReadingLedgerResult | null> {
   return withLedgerLock(async () => {
-    let prevRaw: string | null = null;
-    try {
-      prevRaw = storage.getItem(SRT_LEDGER_KEY);
-    } catch {
-      return { ok: false, reason: 'storage' };
-    }
-    const raw = readRaw(storage);
-    if (isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA)
-      return { ok: false, reason: 'unsupported' };
-    const ledger = isLedger(raw)
-      ? normalizeLedger(raw)
-      : (volatileLedgers.get(storage) ?? srtCreateLedger());
-    const merged = mergeImported(ledger, imported);
-    if (!merged.ok) return merged;
-    const saved = saveLedger(storage, merged.ledger);
-    if (!saved.ok) return saved;
-    try {
-      await commit();
-      return saved;
-    } catch (err) {
-      try {
-        if (prevRaw === null) {
-          storage.removeItem?.(SRT_LEDGER_KEY);
-        } else {
-          storage.setItem(SRT_LEDGER_KEY, prevRaw);
-        }
-        volatileLedgers.delete(storage);
-      } catch { }
-      throw err;
-    }
+    if (!await prepare()) return null;
+    return writeLedgerTransaction(storage, ledger => ({
+      ok: true,
+      ledger: { ...srtCreateLedger(), prefs: ledger.prefs },
+    }), commit);
   });
+}
+
+async function writeLedgerTransaction(
+  storage: SightReadingStorage,
+  next: (ledger: SightReadingLedger) => SightReadingLedgerResult,
+  commit: () => void | Promise<void>,
+): Promise<SightReadingLedgerResult> {
+  let prevRaw: string | null = null;
+  try {
+    prevRaw = storage.getItem(SRT_LEDGER_KEY);
+  } catch {
+    return { ok: false, reason: 'storage' };
+  }
+  const raw = readRaw(storage);
+  if (isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA)
+    return { ok: false, reason: 'unsupported' };
+  const ledger = isLedger(raw)
+    ? normalizeLedger(raw)
+    : (volatileLedgers.get(storage) ?? srtCreateLedger());
+  const update = next(ledger);
+  if (!update.ok) return update;
+  const prevVolatile = volatileLedgers.get(storage);
+  const saved = saveLedger(storage, update.ledger);
+  if (!saved.ok) return saved;
+  try {
+    await commit();
+    return saved;
+  } catch (err) {
+    try {
+      if (prevRaw === null) {
+        storage.removeItem?.(SRT_LEDGER_KEY);
+      } else {
+        storage.setItem(SRT_LEDGER_KEY, prevRaw);
+      }
+      if (prevVolatile) volatileLedgers.set(storage, prevVolatile);
+      else volatileLedgers.delete(storage);
+    } catch { }
+    throw err;
+  }
 }
 
 export function srtLedgerExport(ledger: SightReadingLedger): SightReadingLedger {

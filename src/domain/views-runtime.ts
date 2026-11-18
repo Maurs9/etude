@@ -63,7 +63,7 @@ import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
 import { createInstantFeedbackTracker, type InstantFeedbackExpectedNote, type InstantFeedbackTracker } from '../sight-reading/instant-feedback.js';
 import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
-import { isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtImportLedgerTransaction, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
+import { isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtImportLedgerTransaction, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, srtResetLedgerTransaction, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
@@ -2655,15 +2655,43 @@ function pwaInit() {
             return;
         }
         PWA.sw = 'pending';
-        const reg = () => navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
-            .then((registration) => { pwaWatchUpdates(registration); return navigator.serviceWorker.ready; }).then(() => { PWA.sw = 'ready'; pwaUi(); })
-            .catch((err: unknown) => { PWA.sw = 'error'; PWA.err = (err instanceof Error && (err.name || err.message)) || '?'; console.warn('Service worker:', err); pwaUi(); });
         if (document.readyState === 'complete')
-            reg();
+            void pwaRegister();
         else
-            window.addEventListener('load', reg, { once: true });
+            window.addEventListener('load', () => { void pwaRegister(); }, { once: true });
     }
     pwaUi();
+}
+async function pwaRegister() {
+    PWA.sw = 'pending';
+    PWA.err = '';
+    pwaUi();
+    try {
+        const registration = await navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' });
+        const worker = registration.active ?? registration.waiting ?? registration.installing;
+        const updateStatus = () => {
+            if (registration.active?.state === 'activated') {
+                PWA.sw = 'ready';
+                pwaWatchUpdates(registration);
+            }
+            else if (!worker || worker.state === 'redundant') {
+                PWA.sw = 'error';
+            }
+            else {
+                return; // Wait for activation or failure. navigator.serviceWorker.ready never rejects.
+            }
+            worker?.removeEventListener('statechange', updateStatus);
+            pwaUi();
+        };
+        worker?.addEventListener('statechange', updateStatus);
+        updateStatus();
+    }
+    catch (err) {
+        PWA.sw = 'error';
+        PWA.err = (err instanceof Error && (err.name || err.message)) || '?';
+        console.warn('Service worker:', err);
+        pwaUi();
+    }
 }
 /** An installed app can stay open for days. Coming back checks for a new version, at most every 30 minutes. sw.js activates it at once. */
 const PWA_UPDATE_GAP_MS = 30 * 60 * 1000;
@@ -2685,14 +2713,15 @@ function pwaUi() {
         file: 'pwa_file',
         unsupported: 'pwa_unsupported',
         ready: 'pwa_ready',
-        error: 'pwa_err',
+        error: PWA.err ? 'pwa_err' : 'pwa_install_failed',
     };
-    const k = (PWA.installed || pwaStandalone()) && PWA.sw !== 'file'
+    const k = PWA.sw === 'ready' && (PWA.installed || pwaStandalone())
         ? 'pwa_installed'
         : pwaLabels[PWA.sw] || 'pwa_pending';
     st.textContent = t(k, PWA.err);
     st.dataset.s = PWA.sw === 'error' ? 'err' : '';
     ib.hidden = !PWA.prompt || PWA.installed || pwaStandalone();
+    byId('set-pwa-retry').hidden = PWA.sw !== 'error';
 }
 async function pwaInstall()  {
     const p = PWA.prompt;
@@ -3038,13 +3067,12 @@ INTRO_SC.forEach((nm, i) => { if (SCALES[nm])
     ITEMS.push({ id: 'sc:' + nm, cat: 'scale', name: nm, label: nm, short: nm, intro: 200 + i }); });
 PROGS.forEach((p, i) => { ITEMS.push({ id: 'pr:' + p.name, cat: 'prog', ref: p, label: p.name, short: p.name, intro: 300 + i }); });
 ITEMS.forEach((it) => ITEM_BY_ID[it.id] = it);
-interface StoredSrsEntry { box: number; ease: number; due: number; reps: number; lapses: number; last: number; }
 type StoredTrainerSettings = Omit<storage.AppSettings, 'earKeys'> & { earKeys?: boolean; };
 interface StoredSheetRecord { best?: number; learned?: boolean; }
 interface StoredLastDrill { cat: string; mode: string; keys: boolean; key: string; c: number; n: number; day: number; }
 interface StoredLessonReview { last: number; n: number; best?: number; rv?: number; }
 type StoredTrainerData = {
-    srs: Record<string, StoredSrsEntry>;
+    srs: Record<string, storage.StoredSrsEntry>;
     streak: number;
     bestStreak: number;
     lastActive: number;
@@ -3073,7 +3101,7 @@ type StoredTrainerData = {
 function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, weakSpotInjection: false, anyOctave: false } }; }
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
-function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = { box: 0, ease: 2.3, due: 0, reps: 0, lapses: 0, last: 0 }); }
+function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = storage.restoreSrsEntry(null)); }
 const IVL = [0, 1, 2, 4, 9, 21, 45, 90];
 function reviewItem(id: string, correct: boolean) {
     const it = srsOf(id);
@@ -6994,16 +7022,25 @@ function srtRecordExposure(reason: string, kind: 'exposure' | 'listen' = 'exposu
     const ledger = srtReadLedger(localStorage);
     if (ledger.exposures[fingerprint])
         return Promise.resolve({ ok: true, ledger } satisfies SightReadingLedgerResult);
-    const operation = kind === 'listen'
-        ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation: ledger.generation })
-        : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation: ledger.generation });
-    const settled = operation.then((result) => {
+    const progressGeneration = SYNC.gen;
+    const record = (generation: string) => kind === 'listen'
+        ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation })
+        : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation });
+    const operation = record(ledger.generation);
+    const settled = operation.then(result => {
         if (result.ok || result.reason !== 'stale_generation')
             return result;
-        const current = srtReadLedger(localStorage);
-        return kind === 'listen'
-            ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation: current.generation })
-            : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation: current.generation });
+        // An internal ledger reset can race a Learn reveal. A full progress reset
+        // also advances ptt-v3, and writes queued before it must stay discarded.
+        try {
+            const saved = readPttV3(localStorage)?.payload;
+            if ((saved?.gen ?? '') !== progressGeneration)
+                return result;
+            return record(srtReadLedger(localStorage).generation);
+        }
+        catch (_) {
+            return result;
+        }
     });
     srtExposurePromise = { fingerprint, promise: settled };
     void settled.then((result) => {
@@ -7155,6 +7192,7 @@ async function srtRetryPendingSave() {
     }
     if (result.ok) {
         srtSetState({ type: 'saved' });
+        storeDaily();
         srtClearPendingAttempt(attempt.attemptId);
         srtReleaseLease(lease);
         srtPendingUi(false);
@@ -7749,6 +7787,7 @@ function srAssessFinish() {
             }
             if (result.ok) {
                 srtSetState({ type: 'saved' });
+                storeDaily();
                 srtClearPendingAttempt(attempt.attemptId);
                 if (srtClaimIssuedAttemptId === attempt.attemptId)
                     srtClaimIssuedAttemptId = null;
@@ -18530,8 +18569,7 @@ let syncPull = function syncPull() {
     else if (!sameData)
         syncData(!syncHasBase(bp) ? bp : bp.data, data, rp.data);
     data.settings = restoreSettings(data.settings);
-    if (!isRecord(data.srs))
-        data.srs = {};
+    data.srs = storage.restoreSrs(data.srs);
     if (!isRecord(data.sheet))
         data.sheet = {};
     if (syncHasBase(bp))
@@ -18603,18 +18641,34 @@ function syncRefresh() {
 function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
 function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: activeInputId || savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
-function syncWrite() { if (STORE.blocked)
-    return; try {
-    const p = syncPayload();
-    const s = writePttV3(localStorage, p);
+function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
+    if (STORE.blocked) {
+        if (replacement)
+            throw new Error('Progress is protected');
+        return;
+    }
+    const payload = syncPayload();
+    let raw: string;
+    try {
+        raw = writePttV3(localStorage, replacement ? { ...payload, ...replacement } : payload);
+    }
+    catch (e) {
+        if (replacement)
+            throw e; // Let the caller roll back the ledger when the main save fails.
+        console.warn('save failed', e);
+        storeFailed();
+        return;
+    }
+    if (replacement) {
+        data = replacement.data;
+        SYNC.gen = replacement.gen;
+        SYNC.known.clear();
+    }
     SYNC.merge = null;
-    syncCurrent(s);
-    storeSaved();
+    syncCurrent(raw);
+    if (!replacement)
+        storeSaved();
 }
-catch (e) {
-    console.warn('save failed', e);
-    storeFailed();
-} }
 let _saveT: ReturnType<typeof setTimeout> | null = null;
 function saveSoon() { clearTimeout(_saveT ?? undefined); _saveT = setTimeout(saveAll, 400); } // for sliders — avoid a localStorage write per pixel
 // Data safety: storage the browser keeps, a visible save failure, rolling copies, and records this build must not overwrite.
@@ -18639,10 +18693,14 @@ function storeFailed() { if (STORE.failed)
 function storeBlock() { if (STORE.blocked === 'too-new')
     return; STORE.blocked = 'too-new'; storeNote(); }
 function storeHasProgress() {
-    if (data.totalReviews > 0 || Object.keys(data.srs || {}).length > 0)
+    const reading = data.reading;
+    const outcomes = [data.srs, data.learnDone, data.singCleared, data.sheet, reading?.lv, reading?.nt, reading?.book?.pieces];
+    if (data.totalReviews > 0 || data.placed || (data.lastDrill?.n ?? 0) > 0 || reading?.prefs?.warmDone ||
+        outcomes.some(map => isRecord(map) && Object.keys(map).length > 0))
         return true;
     try {
-        return Object.keys(srtReadLedger(localStorage).attempts).length > 0; // Read and Marathon history lives in its own record
+        const ledger = srtReadLedger(localStorage);
+        return Object.keys(ledger.attempts).length > 0 || Object.keys(ledger.sessions).length > 0;
     }
     catch (_) {
         return false;
@@ -18651,7 +18709,7 @@ function storeHasProgress() {
 /** One copy a day, taken on the first save of the day. An empty record is not worth a slot. */
 function storeDaily() {
     const day = todayN();
-    if (STORE.snapDay === day || !storeHasProgress())
+    if (STORE.blocked || STORE.snapDay === day || !storeHasProgress())
         return;
     STORE.snapDay = day;
     void safety.listSnapshots().then(async (list) => { if (safety.needsDailySnapshot(list, day))
@@ -18759,6 +18817,45 @@ async function storeRestore(id: number | undefined) {
     }
     catch (_) {
         alert(t('import_storage'));
+    }
+}
+async function storeReset() {
+    const button = buttonById('resetBtn');
+    if (button.disabled || !confirm(t('reset_confirm')))
+        return;
+    const checkWritable = () => {
+        if (storeBackupBlocked() || STORE.blocked === 'quarantine')
+            throw new Error('Progress is protected');
+    };
+    button.disabled = true;
+    try {
+        const result = await srtResetLedgerTransaction(localStorage, async () => {
+            checkWritable();
+            syncPull();
+            return await storeSnapshot('before-reset', backupJson()) || confirm(t('store_reset_copy_failed'));
+        }, () => {
+            checkWritable();
+            syncPull();
+            const reset = { ...freshData(), settings: data.settings, latency: calRecord().latency };
+            syncWrite({ gen: syncGen(), data: reset });
+        });
+        if (!result)
+            return;
+        if (!result.ok) {
+            alert(t(result.reason === 'unsupported' ? 'store_too_new' : 'store_reset_failed'));
+            return;
+        }
+        storeSaved();
+        renderLearn._init = false;
+        learnSel = 0;
+        renderProgress();
+        refreshToday();
+    }
+    catch (_) {
+        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : 'store_reset_failed'));
+    }
+    finally {
+        button.disabled = false;
     }
 }
 function storeExported() {
@@ -18907,8 +19004,7 @@ function loadAll() {
             if (raw.data) {
                 data = Object.assign(data, raw.data);
                 data.settings = restoreSettings(raw.data.settings);
-                if (!raw.data.srs)
-                    data.srs = {};
+                data.srs = storage.restoreSrs(raw.data.srs);
                 if (!isRecord(data.sheet))
                     data.sheet = {};
             }
@@ -19224,6 +19320,7 @@ function initControls() {
     byId('sc-fit').addEventListener('click', () => { if (anZoomNow() !== 1) scoreZoom(1); else if (SCORE.engine) void scoreLayout(); });
     scoreFocusUi();
     byId('set-install').addEventListener('click', pwaInstall);
+    byId('set-pwa-retry').addEventListener('click', () => { void pwaRegister(); });
     document.addEventListener('fullscreenchange', scoreFocusFullscreenChanged);
     window.addEventListener('resize', stageResize);
     byId('settingsBtn').addEventListener('click', () => openDrawer(true));
@@ -19537,19 +19634,7 @@ function initControls() {
     byId('prog-export').addEventListener('click', () => byId('exportBtn').click());
     byId('prog-import').addEventListener('click', () => byId('importBtn').click());
     byId('prog-start').addEventListener('click', () => { show('today'); startSession(null); });
-    byId('resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) {
-        void storeSnapshot('before-reset', backupJson()); // the copy is taken now, before the reset below
-        const latency = calRecord().latency; // the timing calibration belongs to the device, like the settings
-        data = { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, learnDone: {}, learnSel: 0, settings: data.settings };
-        if (latency !== undefined)
-            calRecord().latency = latency;
-        renderLearn._init = false;
-        learnSel = 0;
-        SYNC.gen = syncGen();
-        syncWrite();
-        renderProgress();
-        refreshToday();
-    } }); // a new generation: other tabs adopt the reset instead of merging their copy back
+    byId('resetBtn').addEventListener('click', () => { void storeReset(); });
     // keyboard dock
     byId('oct-down').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.max(BASE_LOW, view.low - 12); buildKeyboard(); repaintHeld(); });
     byId('oct-up').addEventListener('click', () => { releaseTypingKeys(); view.low = Math.min(BASE_HIGH - view.oct * 12, view.low + 12); buildKeyboard(); repaintHeld(); });
