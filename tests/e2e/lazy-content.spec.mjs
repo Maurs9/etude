@@ -15,6 +15,15 @@ for (const view of ['today', 'explore']) {
   });
 }
 
+test('a warmed Today page can open previously unused score tools offline @sw', async ({ app, context, page }) => {
+  await app.open({ hash: 'today' });
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  await context.setOffline(true);
+  await page.locator('#nav [data-view=analysis]').click();
+  await expect(page.locator('#view-analysis')).toHaveClass(/\bactive\b/);
+  expect(await page.evaluate(() => typeof window.__etude.anPoly)).toBe('function');
+});
+
 for (const language of LANGUAGES) {
   test(`Today uses a lightweight lesson catalog on ${language} startup`, async ({ app, page }) => {
     await app.open({ hash: 'today', lang: language });

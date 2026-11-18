@@ -15,14 +15,15 @@ const corpora = [{ label: 'bundled', directory: bundled, files: bundledFiles }];
 if (privateCollection && resolve(privateCollection) !== resolve(bundled)) {
   corpora.push({ label: 'private', directory: privateCollection, files: filesIn(privateCollection) });
 }
+const scores = corpora.flatMap(({ label, directory, files }) => files.map(file => ({ label, directory, file })));
 const auditDir = process.env.ETUDE_AUDIT_DIR ? resolve(process.env.ETUDE_AUDIT_DIR) : null;
 
 test.describe('score corpus', () => {
   test.use({ viewport: { width: 1400, height: 1000 } });
-  for (const { label, directory, files } of corpora) for (const file of files) {
+  for (const { label, directory, file } of scores) {
     test(`${label} ${file}: pages, continuous, narrow/night and marking coverage`, async ({ app, page }, info) => {
       test.setTimeout(180_000);
-      const reportDirectory = auditDir && join(auditDir, label);
+      const reportDirectory = auditDir && (label === 'bundled' ? join(auditDir, label) : auditDir);
       if (reportDirectory) mkdirSync(reportDirectory, { recursive: true });
       const bytes = readFileSync(join(directory, file));
       const report = { file, sha256: createHash('sha256').update(bytes).digest('hex'), layouts: [], screenshots: [] };
@@ -35,11 +36,14 @@ test.describe('score corpus', () => {
         let fingerprint;
         for (const mode of ['page', 'cont', 'narrow-night']) {
           if (mode === 'narrow-night') await page.setViewportSize({ width: 600, height: 900 });
-          if (mode !== 'page') await page.evaluate(mode => {
-            window.__etude.SCORE.layout = mode === 'cont' ? 'cont' : 'page';
-            window.__etude.SCORE.look = mode === 'narrow-night' ? 'night' : 'paper';
-            window.__etude.scoreLayout();
-          }, mode);
+          if (mode !== 'page') {
+            const rendered = await page.evaluate(mode => {
+              window.__etude.SCORE.layout = mode === 'cont' ? 'cont' : 'page';
+              window.__etude.SCORE.look = mode === 'narrow-night' ? 'night' : 'paper';
+              return window.__etude.scoreLayout();
+            }, mode);
+            expect(rendered, mode + ' layout completed').toBe(true);
+          }
           const music = await page.evaluate(() => ({
             notes: window.__etude.AN.notes.length,
             heads: document.querySelectorAll('#an-roll .vf-notehead').length,
