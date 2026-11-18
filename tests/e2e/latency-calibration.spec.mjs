@@ -142,3 +142,22 @@ test('Reset progress keeps the calibrated offsets, which belong to the device', 
   await page.locator('#settingsBtn').click();
   await shows(page, OFFSETS);
 });
+
+test('closing Settings or pressing Back cancels calibration without a subsequent note', async ({ app, page }) => {
+  await app.open();
+  await page.clock.install();
+  const drawer = page.locator('#drawer');
+  const start = page.locator('#lat-go');
+  await page.locator('#settingsBtn').click();
+  await page.locator('#set-lat').click();
+  for (const close of [() => page.locator('#drawerClose').click(), () => page.goBack()]) {
+    await start.click();
+    await expect(start).toHaveText('Stop');
+    await close();
+    await expect(drawer).toHaveAttribute('aria-hidden', 'true');
+    await page.clock.fastForward(16000);
+    await page.locator('#settingsBtn').click();
+    await expect(start).toHaveText('Start');
+    await expect(page.locator('#lat-result')).toBeEmpty();
+  }
+});

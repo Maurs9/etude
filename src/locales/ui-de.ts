@@ -399,6 +399,7 @@ const payload: UIPayload = {
       "tr_empty_2": "Summe einen Ton nach dem anderen und tippe dann auf Stoppen.",
       "tr_empty_3": "Spiele die Töne ab oder speichere sie als MIDI oder Text.",
       "tr_micfail": "Auf das Mikrofon konnte nicht zugegriffen werden – erlaube den Mikrofonzugriff und versuche es erneut.",
+      "tr_micended": "Das Mikrofon wurde getrennt. Drücke Aufnehmen, um es erneut zu versuchen.",
       "locale_fetch_failed": "Der Inhalt konnte nicht geladen werden. Prüfe die Verbindung und versuche es erneut oder lade die Seite neu.",
       "locale_reload_unsaved": "Neu laden und ungespeicherten Fortschritt verlieren?",
       "tr_none": "Keine eindeutigen Töne erkannt. Summe etwas lauter und halte jeden Ton aus.",

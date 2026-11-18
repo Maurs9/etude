@@ -1430,6 +1430,7 @@ const payload: UIPayload = {
       "tr_key": "Tonalité",
       "tr_lede": "Fredonnez ou chantez une note claire à la fois dans le micro. Cela fonctionne pour une ligne mélodique simple, pas des accords. Des syllabes régulières comme « la-la-la » ou « da-da » marchent mieux que des paroles.",
       "tr_micfail": "Impossible d’accéder au microphone — autorisez l’accès et réessayez.",
+      "tr_micended": "Le microphone a été déconnecté. Appuyez sur Enregistrer pour réessayer.",
       "locale_fetch_failed": "Le contenu n’a pas pu être chargé. Vérifiez la connexion, puis réessayez ou rechargez la page.",
       "locale_reload_unsaved": "Recharger et perdre la progression non enregistrée ?",
       "tr_midi": "⬇ MIDI",

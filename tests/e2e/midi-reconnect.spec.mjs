@@ -49,6 +49,7 @@ test('testing a MIDI key in a dialog leaves the Book first-sight attempt unclaim
   await page.locator('#settingsBtn').click();
   await page.locator('#set-connect').click();
   await expect(page.locator('#set-midi-status')).toHaveText('Grand');
+  await page.clock.runFor(650); // Advance past the player's guard before auditioning.
   const audition = () => page.evaluate(() => {
     const { SR, srtLevelExpected, srtReadLedger } = window.__etude;
     const port = window.__midi.play(srtLevelExpected(SR.lvPiece)[0].midi);
@@ -56,13 +57,12 @@ test('testing a MIDI key in a dialog leaves the Book first-sight attempt unclaim
   });
   const idle = { port: 'piano', phase: 'idle', exposed: false };
   expect(await audition()).toEqual(idle);
-  await page.locator('#drawerClose').click();
+  await page.keyboard.press('Escape');
   await expect(page.locator('#drawer')).toHaveAttribute('aria-hidden', 'true');
   await page.locator('#helpBtn').click();
   expect(await audition()).toEqual(idle);
   await page.locator('#helpClose').click();
   await expect(page.locator('#helpBox')).toHaveAttribute('aria-hidden', 'true');
-  await page.clock.runFor(600); // The player briefly ignores notes after opening a piece.
   await audition();
   await expect.poll(() => page.evaluate(() => {
     const { SR, srtReadLedger } = window.__etude;
@@ -224,4 +224,25 @@ test('switching the language says any other MIDI status again, in the new langua
   await page.evaluate(() => window.__etude.setLang('ro'));
   await expect(page.locator('#midiText')).toHaveText(STRINGS.ro.midi_noinputs);
   await expect(page.locator('#set-midi-status')).toHaveText(STRINGS.ro.midi_noinputs);
+});
+
+test('reloading during MIDI fallback keeps the primary piano as the preference', async ({ app, page }) => {
+  await fakeMidi(page, [['piano', 'Grand'], ['pad', 'Drum Pad']]);
+  await app.open();
+  await connect(page, 'Grand');
+  await page.evaluate(() => window.__midi.unplug('piano'));
+  await expect(page.locator('#midiText')).toHaveText('Drum Pad');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).device)).toBe('piano');
+  await page.reload();
+  await connect(page, 'Grand');
+});
+
+test('a reload with the preferred MIDI device absent uses a stand-in until it returns', async ({ app, page }) => {
+  await fakeMidi(page, [['pad', 'Drum Pad']]);
+  await app.open({ saved: { v: 3, lang: 'en', device: 'piano', data: {} } });
+  await connect(page, 'Drum Pad');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).device)).toBe('piano');
+  await page.evaluate(() => window.__midi.plug('piano', 'Grand'));
+  await expect(page.locator('#midiText')).toHaveText('Grand');
+  expect(await page.evaluate(() => window.__midi.play(60))).toBe('piano');
 });

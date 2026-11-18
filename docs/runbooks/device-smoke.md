@@ -67,3 +67,10 @@ Write the date, the Diagnostics text and any step that failed in TODO.md under t
 - With a real MIDI piano, open an unplayed Book piece. Play its first note while Settings or Help is open and verify the attempt stays idle. Close the dialog and play the first note again to verify the attempt starts.
 - On a disposable installed-app profile, finish a lesson or a first-sight piece, reset learning progress, then restore the pre-reset copy. Verify that the lesson, attempt, and exposure return after reload.
 - On an installed Android PWA, interrupt the first offline download, then restore connectivity and retry from Settings. Once it reports offline availability, use airplane mode and verify that the app opens and the recorded piano plays. Repeat with an old tab left open while an update that changes the sample files activates.
+
+### Practice and devices follow-up
+
+- With a USB piano and a second input attached, disconnect the piano and reload while the other input takes over. Connect MIDI while the piano is still unplugged and verify that the other input works. Reconnect the piano and verify that it takes over again.
+- Start timing calibration and dismiss Settings with Close and system Back. Confirm that the scheduled clicks stop in both cases.
+- In Voice, sing a slightly flat target and verify the upward hint. Revoke microphone access during Hum to notes and verify that the captured notes remain available. Re-enable permission and start recording again.
+- Background a running rhythm drill on a phone and verify that it can be restarted without grading the interrupted round.

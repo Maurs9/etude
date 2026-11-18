@@ -1085,6 +1085,7 @@ const payload: UIPayload = {
       "tr_empty_2": "Canticchia una nota alla volta, poi premi Stop.",
       "tr_empty_3": "Riascolta le note o salvale come MIDI o testo.",
       "tr_micfail": "Impossibile accedere al microfono — concedi il permesso e riprova.",
+      "tr_micended": "Il microfono si è disconnesso. Premi Registra per riprovare.",
       "locale_fetch_failed": "Impossibile caricare il contenuto. Controlla la connessione e riprova o ricarica la pagina.",
       "locale_reload_unsaved": "Ricaricare e perdere i progressi non salvati?",
       "tr_none": "Nessuna nota chiara rilevata. Canta un po' più forte e prolunga ogni nota.",

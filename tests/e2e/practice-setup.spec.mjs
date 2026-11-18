@@ -136,7 +136,7 @@ test.describe('Practice setup', () => {
       a.dataset.go = 'practice';
       a.dataset.cat = 'scale';
       document.getElementById('learnBody').appendChild(a);
-      a.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      a.click();
     });
     await expect(page.locator('#view-practice')).toHaveClass(/active/);
     expect(await checkedTopic(page)).toEqual(['scale']);

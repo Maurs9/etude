@@ -547,7 +547,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
             <label class="field" style="min-width:180px"><span data-i18n="tr_tempo">Tempo</span> <small><span id="tr-bpmLbl">90</span> BPM</small><input id="tr-bpm" type="range" min="40" max="200" value="90" aria-label="Tempo" data-i18n-aria="aria_tempo"></label>
             <label class="field"><span data-i18n="tr_grid">Grid</span> <select id="tr-gridSel"><option value="4">1/4</option><option value="8" selected>1/8</option><option value="16">1/16</option></select></label>
           </div>
-          <div id="tr-msg" class="lede" style="font-size:13px; margin:10px 0 0"></div>
+          <div id="tr-msg" class="lede" role="status" style="font-size:13px; margin:10px 0 0"></div>
           <div id="tr-out" class="tr-out" style="margin-top:14px"></div>
           <div class="tr-empty" id="tr-empty"><strong data-i18n="tr_empty_t">Your notes appear here</strong><ol><li data-i18n="tr_empty_1">Press Record and allow the microphone.</li><li data-i18n="tr_empty_2">Hum one note at a time, then press Stop.</li><li data-i18n="tr_empty_3">Play the notes back, or save them as MIDI or text.</li></ol></div>
           <div class="row" id="tr-actions" style="margin-top:12px; display:none">

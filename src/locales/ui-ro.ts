@@ -223,6 +223,7 @@ const payload: UIPayload = {
       "tr_empty_2": "Fredonează câte o notă, apoi apasă Oprește.",
       "tr_empty_3": "Ascultă notele din nou sau salvează-le ca MIDI ori text.",
       "tr_micfail": "N-am putut accesa microfonul — permite accesul la microfon și încearcă din nou.",
+      "tr_micended": "Microfonul s-a deconectat. Apasă Înregistrează pentru a încerca din nou.",
       "locale_fetch_failed": "Conținutul nu s-a putut încărca. Verifică conexiunea și încearcă din nou sau reîncarcă pagina.",
       "locale_reload_unsaved": "Reîncarci pagina și pierzi progresul nesalvat?",
       "tr_none": "Nicio notă clară detectată. Fredonează mai tare și ține fiecare notă.",
