@@ -3127,13 +3127,16 @@ function reviewItem(id: string, correct: boolean) {
     const days = IVL[it.box] !== undefined ? IVL[it.box] : 120;
     it.due = todayN() + Math.max(0, Math.round(days * (it.ease / 2.3)));
     it.last = todayN();
+    creditReview(correct);
+    if (it.reps === 1)
+        data.newToday = (data.newToday || 0) + 1; // count fresh concepts against the daily quota
+    saveAll();
+}
+function creditReview(correct: boolean) {
     data.totalReviews++;
     if (correct)
         data.totalCorrect++;
     touchDay();
-    if (it.reps === 1)
-        data.newToday = (data.newToday || 0) + 1; // count fresh concepts against the daily quota
-    saveAll();
 }
 function touchDay() {
     const t = todayN();
@@ -3155,7 +3158,8 @@ function touchDay() {
     if (keys.length > 400)
         keys.sort((a, b) => Number(a) - Number(b)).slice(0, keys.length - 400).forEach((k) => delete h[k]);
 }
-function seedPlacement(id: string, known: boolean) { if (known) {
+function seedPlacement(id: string, known: boolean) {
+    if (!known) return;
     const it = srsOf(id);
     it.box = 4;
     it.ease = 2.4;
@@ -3163,8 +3167,7 @@ function seedPlacement(id: string, known: boolean) { if (known) {
     it.lapses = 0;
     it.due = todayN() + Math.round(IVL[4] * (it.ease / 2.3));
     it.last = todayN();
-} data.totalReviews++; if (known)
-    data.totalCorrect++; touchDay(); }
+}
 const SCALE_EAR_POOL = ['Major (Ionian)', 'Aeolian (Natural minor)', 'Dorian', 'Mixolydian', 'Phrygian', 'Lydian', 'Major pentatonic', 'Minor pentatonic', 'Blues', 'Harmonic minor', 'Whole tone'];
 function scaleEarOptions(correct: string) { let pool = SCALE_EAR_POOL.filter((n) => n !== correct); pool = shuffle(pool).slice(0, 6); pool.push(correct); return shuffle(pool); }
 function chordEarOptions(correctItem: ChordTrainerItem) {
@@ -4153,8 +4156,11 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     stopMetro();
     stopDrone();
     const good = correct && !q.missed;
-    if (SES.placement)
+    if (SES.placement) {
         q.placementKnown = good;
+        creditReview(good);
+        saveAll();
+    }
     else if (!SES.targeted)
         reviewItem(q.it.id, good); // targeted drills are free practice: no schedule, daily-goal or streak change
     SES.total++;

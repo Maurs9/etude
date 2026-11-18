@@ -19,7 +19,7 @@ test('Today respects both the new-item quota and the session limit', async ({ ap
   await expect(page.locator('#ses-count')).toHaveText('1/8');
 });
 
-test('placement can be restarted after cancelling and only saves when complete', async ({ app, page }) => {
+test('cancelled placement keeps daily credit and only seeds the schedule after completion', async ({ app, page }) => {
   await app.open();
   await page.locator('#placeBtn').click();
   await page.evaluate(() => window.__etude.resolve(window.__etude.SES.q, true));
@@ -28,17 +28,24 @@ test('placement can be restarted after cancelling and only saves when complete',
   await expect(page.locator('#summary')).toBeHidden();
   await page.reload();
   await expect(page.locator('#placeBtn')).toBeVisible();
-  expect(await page.evaluate(() => window.__etude.data.totalReviews)).toBe(0);
+  expect(await page.evaluate(() => window.__etude.data)).toMatchObject({
+    totalReviews: 1, todayCount: 1, placed: false, srs: {},
+  });
+  expect(await page.evaluate(() => Object.keys(window.__etude.data.srs))).toEqual([]);
   await page.locator('#placeBtn').click();
-  await page.evaluate(() => {
+  const answered = await page.evaluate(() => {
     const api = window.__etude;
-    for (let i = 0; i < api.SES.queue.length; i++) {
+    const size = api.SES.queue.length;
+    for (let i = 0; i < size; i++) {
       api.resolve(api.SES.q, true);
       api.$('q-next').click();
     }
+    return size;
   });
   await expect(page.locator('#sum-title')).toHaveText(/Placement complete/);
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.placed)).toBe(true);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data);
+  expect(saved).toMatchObject({ placed: true, totalReviews: answered + 1, todayCount: answered + 1 });
+  expect(Object.keys(saved.srs)).toHaveLength(answered);
 });
 
 test('language switches translate the active ear question without changing its answer order or outcome', async ({ app, page }) => {
