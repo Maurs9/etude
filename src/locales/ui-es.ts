@@ -1427,6 +1427,8 @@ const payload: UIPayload = {
       "tr_key": "Tonalidad",
       "tr_lede": "Tararea o canta al micrófono una nota clara cada vez. Funciona con una sola línea melódica, no con acordes. Un «la-la-la» o «da-da» sostenido funciona mejor que las palabras.",
       "tr_micfail": "No se pudo acceder al micrófono: permite el acceso y vuelve a intentarlo.",
+      "locale_fetch_failed": "No se pudo cargar el contenido. Comprueba la conexión y vuelve a intentarlo o recarga la página.",
+      "locale_reload_unsaved": "¿Recargar y perder el progreso sin guardar?",
       "tr_midi": "⬇ MIDI",
       "tr_none": "No se detectaron notas claras. Tararea un poco más fuerte y mantén cada nota.",
       "tr_play": "▶ Reproducir",

@@ -62,3 +62,4 @@ Write the date, the Diagnostics text and any step that failed in TODO.md under t
 
 - On two disposable browser profiles, transfer a progress export containing first-sight attempts and verify the destination shows the same attempt history after reload.
 - On a real USB or Bluetooth MIDI piano, calibrate timing and start a first-sight piece with its first note. Check that the onset, held duration, and following notes align with the metronome and the result. Repeat using the Start button and its count-in.
+- With a real MIDI piano, open an unplayed Book piece. Play its first note while Settings or Help is open and verify the attempt stays idle. Close the dialog and play the first note again to verify the attempt starts.

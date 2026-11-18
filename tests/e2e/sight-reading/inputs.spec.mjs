@@ -1,5 +1,7 @@
 import { test, expect } from '../../helpers/fixtures.mjs';
 
+const inlineReading = { v: 3, lang: 'en', data: { reading: { prefs: { stage: false } } } };
+
 async function openAssess(app, dock = false, saved) {
   const page = await app.open({ hash: 'read', dock, saved });
   await page.locator('#rdt-pieces').click();
@@ -12,6 +14,48 @@ async function openAssess(app, dock = false, saved) {
 }
 
 test.describe('Sight-Reading input routes', () => {
+  test('selecting the current or a new notation preserves a first-sight preview and count-in', async ({ app }) => {
+    const page = await app.open({ hash: 'read', saved: inlineReading });
+    await page.locator('#rdt-pieces').click();
+    await page.locator('#rd-mode button[data-v="assess"]').click();
+    await page.locator('#rd-gen').click();
+    await page.locator('#rd-go').click();
+    const attempt = () => page.evaluate(() => ({ ...window.__etude.SR.srtState }));
+    await expect.poll(async () => (await attempt()).name).toBe('preview');
+    const preview = await attempt();
+    await page.locator('#settingsBtn').click();
+    await page.locator('#set-notation [data-v=letter]').click();
+    expect(await attempt()).toEqual(preview);
+    await page.locator('#drawerClose').click();
+    await page.locator('#rd-srt-start').click();
+    await expect.poll(async () => (await attempt()).name).toBe('countIn');
+    const countIn = await attempt();
+    await page.locator('#settingsBtn').click();
+    const solfege = page.locator('#set-notation [data-v=solfege]');
+    await solfege.click();
+    await expect(solfege).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#drawerClose').click();
+    expect(await attempt()).toEqual(countIn);
+  });
+
+  test('a dialog releases an assessment note and keeps audition notes out of its recorder', async ({ app }) => {
+    const page = await openAssess(app, false, inlineReading);
+    await page.evaluate(() => {
+      const api = window.__etude;
+      api.SR.t0 = performance.now() - 100;
+      api.midiIn(0x90, 60, 100, 'midi');
+    });
+    await page.locator('#settingsBtn').click();
+    const recorded = await page.evaluate(() => {
+      const api = window.__etude;
+      api.midiIn(0x80, 60, 0, 'midi');
+      api.midiIn(0x90, 62, 100, 'midi');
+      api.midiIn(0x80, 62, 0, 'midi');
+      return api.srtRecorder.finish();
+    });
+    expect(recorded).toMatchObject([{ midi: 60, offMs: expect.any(Number), releaseKind: 'focus' }]);
+  });
+
   test('records calibrated MIDI note-on and note-off timestamps', async ({ app }) => {
     const page = await openAssess(app, false, { v: 3, lang: 'en', data: { latency: { usb: 120 } } });
     const inputs = await page.evaluate(() => {

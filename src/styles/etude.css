@@ -535,6 +535,9 @@
   .drawer.on{transform:none; visibility:visible; pointer-events:auto}
   .drawer-in{position:relative; padding:calc(22px + env(safe-area-inset-top,0px)) calc(22px + env(safe-area-inset-right,0px)) calc(60px + env(safe-area-inset-bottom,0px)) calc(22px + env(safe-area-inset-left,0px))}
   .drawer h2{font-size:22px; margin:0 0 4px}
+  .locale-load-toast{position:fixed; inset:auto 16px 16px; z-index:10000; padding:20px; border:2px solid #8c2b2b; border-radius:12px; background:#fffdf8; color:#1a1714; font:600 16px/1.5 sans-serif; box-shadow:0 12px 40px #0004}
+  .drawer #locale-load-error{margin-top:12px}
+  #locale-load-error .set-btns{display:flex; flex-wrap:wrap; gap:8px}
   .set-group{margin-top:22px}
   .set-group h3{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 10px; font-family:var(--sans); font-weight:700}
   .set-row{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px 12px; padding:9px 0; border-bottom:1px solid var(--line)}
