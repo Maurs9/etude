@@ -3,6 +3,7 @@ export interface LibraryResume {
   /** Optional expanded performance coordinate and active musical seconds; older saves use the written position. */
   performance?: number;
   elapsed?: number;
+  recon?: { hands: string; grid: number; key: string };
   position: number;
   measure: string;
   /** Percentage from the existing playback speed selector, not a multiplier or BPM. */

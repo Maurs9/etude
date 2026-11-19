@@ -23,6 +23,7 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "en": {
+      "corrupt_entries": "Unreadable library entries: {count}. Their originals were kept.",
       "heading": "My Library ({count})",
       "import": "Add scores",
       "search": "Search title, composer or filename",

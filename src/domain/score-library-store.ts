@@ -87,10 +87,15 @@ export function validateLibraryResume(value: unknown): LibraryResume | null {
   const v = record(value);
   const speed = number(v.speed);
   if (![40, 50, 60, 70, 75, 80, 90, 100, 110, 125].includes(speed)) invalid('Unsupported playback speed.');
+  const recon = v.recon === undefined ? undefined : record(v.recon);
+  const grid = recon && number(recon.grid);
+  const key = recon && text(recon.key, 4);
+  if (recon && (!grid || ![2, 4, 8].includes(grid) || !key || !/^(auto|(?:0|-?[1-7]):[01])$/.test(key))) invalid('Invalid MIDI reconstruction settings.');
   return {
     position: number(v.position), measure: text(v.measure, 128), speed,
     ...(v.performance === undefined ? {} : { performance: number(v.performance) }),
     ...(v.elapsed === undefined ? {} : { elapsed: number(v.elapsed) }),
+    ...(recon && grid && key ? { recon: { hands: choice(recon.hands, ['auto', 'tracks', '59', '60', '64']), grid, key } } : {}),
     hands: choice(v.hands, ['both', 'rh', 'lh']), wait: boolean(v.wait), metronome: boolean(v.metronome),
     view: choice(v.view, ['page', 'cont', 'fall']), look: choice(v.look, ['paper', 'night']), zoom: number(v.zoom, .4, 2.5),
   };
@@ -196,18 +201,28 @@ async function transaction<T>(mode: 'readonly' | 'readwrite', work: (tx: IDBTran
     });
   });
 }
-async function digest(file: Blob): Promise<string> {
+async function digest(bytes: ArrayBuffer): Promise<string> {
   try {
-    const hash = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const hash = await crypto.subtle.digest('SHA-256', bytes);
     return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
   } catch (error) { throw failure(error); }
 }
 
-export async function libraryList(): Promise<LibraryItem[]> {
-  const items = await transaction('readonly', async tx => {
+export async function libraryList(onCorrupt?: (count: number) => void): Promise<LibraryItem[]> {
+  const { items, corrupt } = await transaction('readonly', async tx => {
     const values: unknown[] = await request(tx.objectStore('metadata').getAll());
-    return values.map(itemValue);
+    const items: LibraryItem[] = [];
+    let corrupt = 0;
+    for (const value of values) {
+      try { items.push(itemValue(value)); }
+      catch (error) {
+        if (!(error instanceof LibraryError) || error.code !== 'invalid') throw error;
+        corrupt++;
+      }
+    }
+    return { items, corrupt };
   });
+  onCorrupt?.(corrupt);
   return items.sort((a, b) => b.addedAt - a.addedAt || a.id.localeCompare(b.id));
 }
 export async function libraryGet(id: string): Promise<{ item: LibraryItem; file: File } | null> {
@@ -223,14 +238,18 @@ export async function libraryGet(id: string): Promise<{ item: LibraryItem; file:
 export async function librarySave(file: File, meta: LibraryMetadata): Promise<LibraryImportResult> {
   checkFile(file);
   const metadata = validateLibraryMetadata(meta);
-  const id = await digest(file);
-  const item: LibraryItem = { ...metadata, id, name: file.name, size: file.size, addedAt: Date.now(), lastOpenedAt: null, favorite: false, resume: null };
+  const bytes = await file.arrayBuffer().catch(error => { throw failure(error); });
+  const size = fileSize(bytes.byteLength);
+  const original = new Blob([bytes], { type: file.type });
+  const id = await digest(bytes);
+  const item: LibraryItem = { ...metadata, id, name: file.name, size, addedAt: Date.now(), lastOpenedAt: null, favorite: false, resume: null };
   return transaction('readwrite', async tx => {
     const store = tx.objectStore('metadata');
     const old: unknown = await request(store.get(id));
     if (old) return { item: itemValue(old), duplicate: true };
+    if (await request(store.count()) >= MAX_ITEMS) throw new LibraryError('quota', 'Score library is full.');
     await request(store.add(item, id));
-    await request(tx.objectStore('blobs').add(file, id));
+    await request(tx.objectStore('blobs').add(original, id));
     return { item, duplicate: false };
   });
 }
@@ -334,9 +353,15 @@ export async function libraryExport(): Promise<Blob> {
     const entries: { item: LibraryItem; blob: Blob }[] = [];
     let total = 0;
     for (const value of metadata) {
-      const item = itemValue(value);
+      let item: LibraryItem;
+      try {
+        item = itemValue(value);
+      } catch (error) {
+        if (error instanceof LibraryError && error.code === 'invalid') continue;
+        throw error;
+      }
       const blob: unknown = await request(tx.objectStore('blobs').get(item.id));
-      if (!(blob instanceof Blob) || blob.size !== item.size) invalid('Missing score original.');
+      if (!(blob instanceof Blob) || blob.size !== item.size) continue;
       total += blob.size;
       if (total > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
       entries.push({ item, blob });
@@ -346,8 +371,9 @@ export async function libraryExport(): Promise<Blob> {
   const files: BackupEntry[] = [];
   let encodedSize = '{"app":"etude-score-library","version":1,"files":[]}'.length;
   for (const { item, blob } of entries) {
-    if (await digest(blob) !== item.id) throw new LibraryError('backup', 'Stored score hash mismatch.');
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const buffer = await blob.arrayBuffer();
+    if (await digest(buffer) !== item.id) throw new LibraryError('backup', 'Stored score hash mismatch.');
+    const bytes = new Uint8Array(buffer);
     encodedSize += '{"item":,"data":[]},'.length + JSON.stringify(item).length;
     if (bytes.length) {
       encodedSize += bytes.length - 1;
@@ -379,7 +405,7 @@ export async function libraryRestore(blob: Blob, validate: (file: File) => Promi
       if (total > MAX_TRANSFER) invalid('Backup exceeds the transfer limit.');
       const bytes = decode(v.data, item.size);
       const file = new File([bytes], item.name, { lastModified: item.addedAt });
-      if (await digest(file) !== item.id) invalid('Backup score hash mismatch.');
+      if (await digest(bytes.buffer) !== item.id) invalid('Backup score hash mismatch.');
       validateLibraryMetadata(await validate(file));
       staged.push({ item, file });
     }
@@ -388,10 +414,12 @@ export async function libraryRestore(blob: Blob, validate: (file: File) => Promi
   }
   return transaction('readwrite', async tx => {
     const store = tx.objectStore('metadata');
+    const count = await request(store.count());
     let added = 0;
     let duplicates = 0;
     for (const { item, file } of staged) {
       if (await request(store.get(item.id))) { duplicates++; continue; }
+      if (count + added >= MAX_ITEMS) throw new LibraryError('quota', 'Score library is full.');
       await request(store.add(item, item.id));
       await request(tx.objectStore('blobs').add(file, item.id));
       added++;

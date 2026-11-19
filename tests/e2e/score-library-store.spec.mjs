@@ -277,3 +277,79 @@ test('libraryExport rejects backups whose serialized JSON exceeds 64 MiB before 
   }, modulePath);
   expect(code).toBe('backup');
 });
+
+test('unreadable metadata does not hide readable scores or remove originals', async ({ page }) => {
+  const scan = await page.evaluate(async path => {
+    const library = await import(path);
+    const { item } = await library.librarySave(new File(['original'], 'first.xml'), { title: 'First', composer: '' });
+    const db = await new Promise((resolve, reject) => {
+      const open = indexedDB.open('etude-score-library-v1');
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(['metadata', 'blobs'], 'readwrite');
+      tx.objectStore('metadata').add({ broken: true }, 'broken');
+      tx.objectStore('blobs').add(new Blob(['keep me']), 'broken');
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    let corrupt;
+    const items = await library.libraryList(count => { corrupt = count; });
+    const found = await library.libraryGet(item.id);
+    const exported = JSON.parse(await (await library.libraryExport()).text());
+    const original = await new Promise((resolve, reject) => {
+      const get = db.transaction('blobs').objectStore('blobs').get('broken');
+      get.onsuccess = () => resolve(get.result.text());
+      get.onerror = () => reject(get.error);
+    });
+    db.close();
+    return {
+      titles: items.map(entry => entry.title),
+      exportedTitles: exported.files.map(entry => entry.item.title),
+      corrupt,
+      readable: await found.file.text(),
+      original,
+    };
+  }, modulePath);
+  expect(scan).toEqual({ titles: ['First'], exportedTitles: ['First'], corrupt: 1, readable: 'original', original: 'keep me' });
+  await page.goto('/etude.html#analysis');
+  await page.locator('#score-library > summary').click();
+  await expect(page.getByText('Unreadable library entries: 1.')).toBeVisible();
+});
+
+test('librarySave allows duplicates at MAX_ITEMS while rejecting new scores with quota', async ({ page }) => {
+  const result = await page.evaluate(async path => {
+    const lib = await import(path);
+    const existing = new File(['existing score'], 'existing.xml');
+    const saved = (await lib.librarySave(existing, { title: 'Existing', composer: '' })).item;
+    const db = await new Promise((resolve, reject) => {
+      const open = indexedDB.open('etude-score-library-v1');
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('metadata', 'readwrite');
+      const store = tx.objectStore('metadata');
+      for (let i = 1; i < 1000; i++) {
+        const id = i.toString(16).padStart(64, '0');
+        store.add({
+          id, title: `Pad ${i}`, composer: '', name: `pad-${i}.xml`, size: 1,
+          addedAt: i, lastOpenedAt: null, favorite: false, resume: null,
+        }, id);
+      }
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    const duplicate = await lib.librarySave(new File([await existing.arrayBuffer()], 'renamed.xml'), { title: 'Ignored', composer: '' });
+    let overflowCode = '';
+    try {
+      await lib.librarySave(new File(['overflow score'], 'overflow.xml'), { title: 'Overflow', composer: '' });
+    } catch (error) {
+      overflowCode = error.code;
+    }
+    return { duplicate: duplicate.duplicate, id: duplicate.item.id, savedId: saved.id, overflowCode };
+  }, modulePath);
+  expect(result).toEqual({ duplicate: true, id: result.savedId, savedId: result.savedId, overflowCode: 'quota' });
+});

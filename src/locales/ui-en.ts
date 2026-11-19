@@ -540,6 +540,8 @@ const payload: UIPayload = {
       "snap_confirm": "Replace your current progress with the backup from %a? Étude keeps a copy of your current progress first.",
       "import_too_new": "A newer version of Étude made this backup. Update the app, then import it again.",
       "import_storage": "The backup could not be restored. Check that browser storage is available and has enough space, then try again.",
+      "import_size": "This backup exceeds the 16 MiB import limit.",
+      "import_conflict": "This backup conflicts with sight-reading history already on this device. Your saved progress was kept.",
       "store_stuck": "Saved progress couldn't be read, and there's no room to keep a copy. Nothing is saved until space is freed, so the unreadable copy stays safe. Export a backup of today's work.",
       "store_copy_failed": "Étude couldn't keep a copy of your current progress first. Replace it anyway?",
       "store_reset_copy_failed": "Étude couldn't keep a copy of your current progress. Reset it anyway?",
@@ -1844,6 +1846,7 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "en": {
+      "corrupt_entries": "Unreadable library entries: {count}. Their originals were kept.",
       "heading": "My Library ({count})",
       "import": "Add scores",
       "search": "Search title, composer or filename",

@@ -431,3 +431,40 @@ test('library selection has a full touch target and actions fit narrow screens',
   await expect(page.locator('[data-library-action=select]')).toBeChecked();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test('reopening a saved MIDI score via file input restores its saved reconstruction settings', async ({ app, page }) => {
+  const midiBytes = (() => {
+    const track = Buffer.from('00903c400091404060803c000081400000ff2f00', 'hex');
+    const head = Buffer.from('4d54686400000006000000010060', 'hex');
+    const trkHead = Buffer.from('4d54726b00000000', 'hex');
+    trkHead.writeUInt32BE(track.length, 4);
+    return Buffer.concat([head, trkHead, track]);
+  })();
+  const midiFile = { name: 'duet.mid', mimeType: 'audio/midi', buffer: midiBytes };
+
+  await app.open({ hash: 'analysis' });
+  await page.locator('#an-file').setInputFiles(midiFile);
+  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'midi');
+  await expect(rows(page)).toHaveCount(1);
+
+  await page.locator('#an-recon-btn').click();
+  await expect(page.locator('#an-recon')).toBeVisible();
+  await page.locator('#an-hands').selectOption('tracks');
+  await page.waitForFunction(() => window.__etude.AN.recon.hands === 'tracks' && !window.__etude.AN.loading);
+  await page.locator('#an-grid').selectOption('8');
+  await page.waitForFunction(() => window.__etude.AN.recon.grid === 8 && !window.__etude.AN.loading);
+  await page.evaluate(() => window.__etude.anLibraryFlush());
+
+  await page.locator('#an-file').setInputFiles(file('other.xml', score('Other Score')));
+  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'xml');
+  await expect(rows(page)).toHaveCount(2);
+
+  await page.locator('#an-file').setInputFiles(midiFile);
+  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'midi');
+  await expect(page.locator('#an-hands')).toHaveValue('tracks');
+  await expect(page.locator('#an-grid')).toHaveValue('8');
+
+  await page.evaluate(() => window.__etude.anLibraryFlush());
+  const savedRecon = await page.evaluate(async () => (await window.__etude.scoreLibraryStore.libraryList()).find(item => item.name === 'duet.mid')?.resume?.recon);
+  expect(savedRecon).toMatchObject({ hands: 'tracks', grid: 8 });
+});

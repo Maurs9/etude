@@ -732,6 +732,8 @@ const payload: UIPayload = {
       "snap_confirm": "Sostituire i progressi attuali con il backup del %a? Étude conserva prima una copia dei progressi attuali.",
       "import_too_new": "Una versione più recente di Étude ha creato questo backup. Aggiorna l'app, poi importalo di nuovo.",
       "import_storage": "Impossibile ripristinare il backup. Verifica che lo spazio di archiviazione del browser sia disponibile e sufficiente, quindi riprova.",
+      "import_size": "Il backup supera il limite di importazione di 16 MiB.",
+      "import_conflict": "Il backup è in conflitto con la cronologia di lettura di questo dispositivo. I progressi salvati sono stati conservati.",
       "store_stuck": "Non è stato possibile leggere i progressi salvati e non c'è spazio per conservarne una copia. Non viene salvato nulla finché non liberi spazio, così la copia illeggibile resta al sicuro. Esporta un backup del lavoro di oggi.",
       "store_copy_failed": "Étude non è riuscita a conservare prima una copia dei progressi attuali. Sostituirli comunque?",
       "store_reset_copy_failed": "Étude non è riuscita a conservare una copia dei progressi attuali. Azzerarli comunque?",
@@ -2074,6 +2076,7 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "it": {
+      "corrupt_entries": "Voci illeggibili: {count}. I file originali sono stati conservati.",
       "heading": "La mia biblioteca ({count})",
       "import": "Aggiungi spartiti",
       "search": "Cerca titolo, compositore o file",

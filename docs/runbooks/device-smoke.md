@@ -75,3 +75,5 @@ Write the date, the Diagnostics text and any step that failed in TODO.md under t
 - Save a low volume and distinct Room Ambience level, then close and reopen the installed app. Verify that the first note uses the saved level. In Voice, leave Drone enabled through a phrase, then tap New Melody and confirm that the sound and checkbox both turn off.
 - In Voice, sing a slightly flat target and verify the upward hint. Revoke microphone access during Hum to notes and verify that the captured notes remain available. Re-enable permission and start recording again.
 - Background a running rhythm drill on a phone and verify that it can be restarted without grading the interrupted round.
+
+- On a disposable profile, export progress and restore it from the device file picker. Reopen a saved MIDI score after changing its grid and key, and verify the score uses those settings.
