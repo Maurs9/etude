@@ -11,7 +11,6 @@ import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
 import { detectVoicePitch as trxAutoCorrelate } from './voice-pitch.js';
-import type { AudioTone } from './audio.js';
 import * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
@@ -499,20 +498,7 @@ const PIANO_KEYS = [21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 
 const PIANO_URLS = pianoUrls;
 const PIANO_WARM: readonly [number, number] = [48, 84];
 const audioEngine = new AudioEngine({ pianoKeys: PIANO_KEYS, pianoUrls: PIANO_URLS, warmRange: PIANO_WARM, onPianoStatus: () => pianoStatus() });
-let actx: AudioContext|null = null;
-let master: GainNode|null = null;
-let masterFilter: BiquadFilterNode|null = null;
-let comp: DynamicsCompressorNode|null = null;
 let lfo = null;
-let lfoGain: GainNode|null = null;
-let reverbNode: ConvolverNode|null = null;
-let reverbGain: GainNode|null = null;
-let muted = false;
-let masterVol = 0.72;
-let bendSemitones = 0;
-let localSynth = true;
-let tone: AudioTone = 'piano';
-let reverbWet = 0.125;
 const viewState: ViewApplicationState = {
   language: lang,
   view: 'today',
@@ -528,9 +514,9 @@ const viewState: ViewApplicationState = {
     question: null,
   },
   audio: {
-    tone: 'piano',
-    piano: 'idle',
-    muted: false,
+    get tone() { return audioEngine.tone; },
+    get piano() { return audioEngine.pianoBank.status; },
+    get muted() { return audioEngine.muted; },
   },
 };
 function registerViewEvent<Name extends ViewEventName>(
@@ -540,29 +526,9 @@ function registerViewEvent<Name extends ViewEventName>(
   document.addEventListener(name, handler);
 }
 const liveVoices = audioEngine.liveVoices;
-let previewVoices = audioEngine.previewVoices;
 const pianoBank = audioEngine.pianoBank;
 interface MetronomeState { on: boolean; bpm: number; next: number; beat: number; timer: boolean | null }
 const metro: MetronomeState = { on: false, bpm: 90, next: 0, beat: 0, timer: null };
-function syncAudioState() {
-    actx = audioEngine.context;
-    master = audioEngine.master;
-    masterFilter = audioEngine.masterFilter;
-    comp = audioEngine.compressor;
-    lfoGain = audioEngine.lfoGain;
-    reverbNode = audioEngine.reverbNode;
-    reverbGain = audioEngine.reverbGain;
-    previewVoices = audioEngine.previewVoices;
-    audioEngine.tone = tone;
-    audioEngine.localSynth = localSynth;
-    audioEngine.muted = muted;
-    audioEngine.masterVolume = masterVol;
-    audioEngine.bendSemitones = bendSemitones;
-    audioEngine.reverbWet = reverbWet;
-    viewState.audio.tone = tone;
-    viewState.audio.piano = pianoBank.status;
-    viewState.audio.muted = muted;
-}
 function pianoStatus() {
     const message = t(pianoBank.status === 'ready' ? 'piano_ready' : pianoBank.status === 'error' ? 'piano_error' : 'piano_loading');
     const global = byId('piano-global-status');
@@ -581,20 +547,14 @@ let preparePiano = () => pianoBank.prepare(PIANO_WARM);
 let makePianoVoice = (frequency: number, velocity: number, when: number|undefined, duration: number|undefined) => audioEngine.makePianoVoice(frequency, velocity, when, duration);
 function sampledPianoVoice(frequency: number, velocity: number, when: number|undefined, duration: number|undefined, options = {}) {
     ensureAudio();
-    const voice = audioEngine.sampledPianoVoice(frequency, velocity, when, duration, options, { decode: pianoDecode, fallbackVoice: makePianoVoice });
-    syncAudioState();
-    return voice;
+    return audioEngine.sampledPianoVoice(frequency, velocity, when, duration, options, { decode: pianoDecode, fallbackVoice: makePianoVoice });
 }
 function makeVoice(frequency: number, velocity: number, when: number|undefined, duration: number|undefined) {
     ensureAudio();
-    const voice = audioEngine.makeVoice(frequency, velocity, when, duration);
-    syncAudioState();
-    return voice;
+    return audioEngine.makeVoice(frequency, velocity, when, duration);
 }
 function ensureAudio(warm = true) {
-    if (!audioEngine.context || audioEngine.context.state === 'closed') syncAudioState();
     const context = audioEngine.ensureAudio();
-    syncAudioState();
     if (context) {
         srtWatchAudioContext(context);
         context.addEventListener?.('statechange', audioLockSync);
@@ -604,38 +564,37 @@ function ensureAudio(warm = true) {
 }
 /** The live audio context; callers run only after `ensureAudio()` has created it. */
 function requireAudioContext(): AudioContext {
-    if (!actx)
+    if (!audioEngine.context)
         throw new Error('Étude: audio context is not ready');
-    return actx;
+    return audioEngine.context;
 }
 let audioLockT = 0;
 function audioLockSync() {
-    if (!actx || actx.state !== 'running') return;
+    if (!audioEngine.context || audioEngine.context.state !== 'running') return;
     clearTimeout(audioLockT); audioLockT = 0;
     const el = byId('audioLock'); if (el) el.hidden = true;
 }
 function audioLockCheck() {
-    if (!localSynth || !actx || actx.state === 'running' || audioLockT) return;
-    audioLockT = window.setTimeout(() => { audioLockT = 0; const el = byId('audioLock'); if (el && localSynth && actx && actx.state !== 'running') el.hidden = false; }, 300);
+    if (!audioEngine.localSynth || !audioEngine.context || audioEngine.context.state === 'running' || audioLockT) return;
+    audioLockT = window.setTimeout(() => { audioLockT = 0; const el = byId('audioLock'); if (el && audioEngine.localSynth && audioEngine.context && audioEngine.context.state !== 'running') el.hidden = false; }, 300);
 }
 async function timedAudioReady(context: AudioContext): Promise<boolean> {
     const state = await audioEngine.resumeOnReturn();
-    if (context !== actx) return false;
+    if (context !== audioEngine.context) return false;
     if (state === 'running') return true;
     audioLockCheck();
     return false;
 }
-function audioUnlock() { ensureAudio(); const context = actx; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
-function audioNoteOn(midi: number, velocity: number|undefined) { syncAudioState(); audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); syncAudioState(); }
-function audioNoteOff(midi: number) { audioEngine.noteOff(midi); syncAudioState(); }
-function stopPreviews() { clearExplorePreview(); audioEngine.stopPreviews(); syncAudioState(); }
-function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); bendSemitones = audioEngine.bendSemitones; }
-function masterRamp(value: number) { audioEngine.masterRamp(value); syncAudioState(); }
-function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); syncAudioState(); }
+function audioUnlock() { ensureAudio(); const context = audioEngine.context; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
+function audioNoteOn(midi: number, velocity: number|undefined) { audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); }
+function audioNoteOff(midi: number) { audioEngine.noteOff(midi); }
+function stopPreviews() { clearExplorePreview(); audioEngine.stopPreviews(); }
+function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); }
+function masterRamp(value: number) { audioEngine.masterRamp(value); }
+function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); }
 function stopDrone() {
     audioEngine.stopDrone();
     inputById('si-drone').checked = false;
-    syncAudioState();
 }
 function startMetro(bpm = metro.bpm) { audioEngine.startMetro(bpm); metro.on = true; metro.timer = true; }
 function stopMetro() { audioEngine.stopMetro(); metro.on = false; metro.timer = null; }
@@ -646,19 +605,19 @@ function stopClicks(clicks: Set<audio.AudioVoice>) {
     clicks.forEach(click => click.stop());
     clicks.clear();
 }
-let previewNote = function previewNote(midi: number, when?: number, duration?: number, velocity?: number, options: { warm?: boolean; hold?: boolean } = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); syncAudioState(); }
-let playInterval = (rootMidi: number, semitones: number, style: 'both' | 'harmonic' | 'melodic') => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); syncAudioState(); };
+let previewNote = function previewNote(midi: number, when?: number, duration?: number, velocity?: number, options: { warm?: boolean; hold?: boolean } = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); }
+let playInterval = (rootMidi: number, semitones: number, style: 'both' | 'harmonic' | 'melodic') => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); };
 function playIvDir(root: number, semitones: number, direction: string) { if (direction === 'desc') playInterval(root + semitones, -semitones, 'both'); else playInterval(root, semitones, 'both'); }
 function playChordMidis(midis: number[], arpeggio: boolean) {
     ensureAudio(); stopPreviews();
     exploreSequence(arpeggio ? midis.map((midi, index) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
-    const start = actx?.currentTime ?? 0;
+    const start = audioEngine.context?.currentTime ?? 0;
     if (arpeggio) { midis.forEach((midi, index) => previewNote(midi, start + index * 0.16, 0.4)); midis.forEach((midi) => previewNote(midi, start + midis.length * 0.16 + 0.1, 1.1)); }
     else midis.forEach((midi) => previewNote(midi, start, 1.2));
 }
 function playScaleNotes(rootMidi: number, offsets: readonly number[], ascending: boolean) {
     ensureAudio(); stopPreviews();
-    const start = actx?.currentTime ?? 0; let sequence = offsets.concat([12]);
+    const start = audioEngine.context?.currentTime ?? 0; let sequence = offsets.concat([12]);
     if (!ascending) sequence = sequence.slice().reverse();
     exploreSequence(sequence.map((offset, index) => ({ at: index * 270, notes: [rootMidi + offset] })).concat([{ at: sequence.length * 270, notes: [] }]));
     sequence.forEach((offset, index) => previewNote(rootMidi + offset, start + index * 0.27, 0.26));
@@ -723,8 +682,8 @@ function scheduleAccompAt(t0: number) {
             acChainHL(i); }, (t0 + i * per * bs - now) * 1000);
 }
 function acChainHL(i: number) { (document).querySelectorAll('#ac-chain .ch').forEach((el, k) => el.classList.toggle('on', k === i)); }
-function accompTick() { if (!accomp.on || !actx)
-    return; while (accomp.nextLoop < actx.currentTime + 0.6) {
+function accompTick() { if (!accomp.on || !audioEngine.context)
+    return; while (accomp.nextLoop < audioEngine.context.currentTime + 0.6) {
     scheduleAccompAt(accomp.nextLoop);
     accomp.nextLoop += accomp.loopDur;
 } }
@@ -844,7 +803,7 @@ async function trxStart()  {
     trx.display = null;
     trx.curMidi = null;
     trx.ring = [];
-    trx.lastVoice = actx ? actx.currentTime : 0;
+    trx.lastVoice = audioEngine.context?.currentTime ?? 0;
     byId('tr-rec').classList.add('rec-on');
     byId('tr-rec').textContent = t('tr_stop');
     byId('tr-live').classList.add('rec');
@@ -866,7 +825,7 @@ function trxCloseNote(tEnd: number) { if (trx.curMidi == null)
 function trxLoop() {
     if (!trx.on)
         return;
-    if (!trx.analyser || !trx.buf || !actx) {
+    if (!trx.analyser || !trx.buf || !audioEngine.context) {
         trxStop();
         return;
     }
@@ -876,7 +835,7 @@ function trxLoop() {
         return;
     }
     trx.analyser.getFloatTimeDomainData(trx.buf);
-    const f = trxAutoCorrelate(trx.buf, actx.sampleRate), now = actx.currentTime;
+    const f = trxAutoCorrelate(trx.buf, audioEngine.context.sampleRate), now = audioEngine.context.currentTime;
     if (f < 0) {
         if (trx.curMidi != null && now - trx.lastVoice > 0.12) {
             trxCloseNote(now);
@@ -915,7 +874,7 @@ function trxStop() {
         return;
     trx.on = false;
     cancelAnimationFrame(trx.raf);
-    trxCloseNote(actx ? actx.currentTime : 0);
+    trxCloseNote(audioEngine.context?.currentTime ?? 0);
     micClose(trx.src, trx.stream);
     trx.src = null;
     trx.stream = null;
@@ -1176,8 +1135,8 @@ function ssMicStart() {
 }
 function ssMicMaybe() { return sing.analyser ? Promise.resolve(true) : ssMicStart(); }
 function ssMicStop() { sing.runId++; sing.micRequest++; micClose(sing.src, sing.stream); sing.src = null; sing.stream = null; sing.analyser = null; }
-function ssReadPitch() { if (!sing.analyser || !sing.buf || !actx)
-    return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, actx.sampleRate); if (f < 0)
+function ssReadPitch() { if (!sing.analyser || !sing.buf || !audioEngine.context)
+    return null; sing.analyser.getFloatTimeDomainData(sing.buf); const f = trxAutoCorrelate(sing.buf, audioEngine.context.sampleRate); if (f < 0)
     return null; const midi = Math.round(69 + 12 * Math.log2(f / 440)), cents = Math.round(1200 * Math.log2(f / (440 * Math.pow(2, (midi - 69) / 12)))); return { f, midi, cents }; }
 function ssNeed(targetPc: number, sungPc: number) { let d = ((targetPc - sungPc) % 12 + 12) % 12; if (d > 6)
     d -= 12; return d; } // + → sing higher
@@ -2055,13 +2014,12 @@ function panic() {
     pointerKey.clear();
     typingDown.clear();
     pedalDown = false;
-    bendSemitones = 0;
-    if (lfoGain && actx) lfoGain.gain.setTargetAtTime(0, actx.currentTime, .02);
+    audioEngine.setBendFromValue(0);
+    audioEngine.setModulation(0, .02);
     keyEl.forEach(el => {
         el.classList.remove('pressed');
         if (el.dataset.s === 'active') delete el.dataset.s;
     });
-    syncAudioState();
     if (view0() === 'explore') updateExplore();
 }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
@@ -2282,8 +2240,8 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
                 }
             }
         }
-        else if (d1 === 1 && lfoGain && actx)
-            lfoGain.gain.setTargetAtTime((d2 / 127) * 35, actx.currentTime, .03);
+        else if (d1 === 1)
+            audioEngine.setModulation((d2 / 127) * 35);
     }
 }
 /* ---------- TIMING CALIBRATION: tap with the click (Settings → MIDI keyboard → Timing) ----------
@@ -2668,8 +2626,7 @@ function bleReleaseInput() {
     }
     if (BLE.bend)
         setBendFromValue(0);
-    if (BLE.mod && lfoGain && actx)
-        lfoGain.gain.setTargetAtTime(0, actx.currentTime, .03);
+    if (BLE.mod) audioEngine.setModulation(0);
     BLE.pedal = BLE.bend = BLE.mod = false;
     bleParserReset();
 }
@@ -3754,8 +3711,8 @@ function presentEar(q: TrainerQuestion) {
         opts = opts.filter((o) => SES.contrast && [SES.contrast.a, SES.contrast.b].includes(earOptionId(it.cat, o)));
     opts.forEach((o) => { const b = (document).createElement('button'); b.className = 'chip'; b.dataset.k = String(o); b.textContent = earOptionLabel(q, String(o)); b.onclick = () => answerEar(q, o, b); box.appendChild(b); });
 }
-function playProg(rootPc: number, prog: theory.ProgressionTemplate) { ensureAudio(); stopPreviews(); if (!actx)
-    return; const t = actx.currentTime; prog.chords.forEach((ch, i: number) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); if (!tpl)
+function playProg(rootPc: number, prog: theory.ProgressionTemplate) { ensureAudio(); stopPreviews(); if (!audioEngine.context)
+    return; const t = audioEngine.context.currentTime; prog.chords.forEach((ch, i: number) => { const root = 60 + ((rootPc + ch[0]) % 12), tpl = progChordTpl(ch[1]); if (!tpl)
     return; tpl.intervals.forEach((iv) => previewNote(root + iv, t + i * .9, .8)); }); }
 function showProgTarget(q: TrainerQuestion) { kbClear('target'); if (q.it.cat !== 'prog')
     return; const ch = q.it.ref.chords[q.idx], root = 60 + ((q.key + ch[0]) % 12), tpl = progChordTpl(ch[1]); if (!tpl)
@@ -3892,12 +3849,12 @@ function renderEarKeysPrompt(q: TrainerQuestion, ek: EarKeysState) {
 function ekSound(q: TrainerQuestion) {
     const ek = q.ek;
     ensureAudio();
-    if (!actx)
+    if (!audioEngine.context)
         return 0;
     stopPreviews();
     if (!ek)
         return 0;
-    const t0 = actx.currentTime + .25, ms = ek.target;
+    const t0 = audioEngine.context.currentTime + .25, ms = ek.target;
     let last: number;
     if (ek.kind === 'iv') {
         previewNote(ms[0], t0, .45);
@@ -4305,7 +4262,7 @@ function givenNote(before: readonly number[], midi: number, want: number): Train
 function playGivenAndExpected(g: TrainerGiven) {
     ensureAudio();
     stopPreviews();
-    const start = actx?.currentTime ?? 0;
+    const start = audioEngine.context?.currentTime ?? 0;
     feedbackSchedule(g.given, g.expected).forEach((n) => previewNote(n.midi, start + n.at, n.dur));
 }
 // After a session: offer a short contrast drill when two items were mixed up more than once (and report one just finished).
@@ -5675,7 +5632,7 @@ function lVel(S: LStaffSpec, b: number) {
 }
 /** The audio clock, for scheduling; falls back to wall time when audio context is unavailable. */
 function learnCtxTime(): number {
-    return actx ? actx.currentTime : performance.now() / 1000;
+    return audioEngine.context ? audioEngine.context.currentTime : performance.now() / 1000;
 }
 type LTieMark = ['slur' | 'tie', number, number, SrHand?];
 async function lStaffPlay(key: string, btn: HTMLElement) {
@@ -6791,7 +6748,7 @@ function srtWatchAudioContext(context: AudioContext) {
     if (typeof context.addEventListener !== 'function')
         return;
     context.addEventListener('statechange', () => {
-        if (context === actx && String(context.state) !== 'running' && srtEligibleFirstSightActive())
+        if (context === audioEngine.context && String(context.state) !== 'running' && srtEligibleFirstSightActive())
             panic();
     });
 }
@@ -7163,7 +7120,7 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
     }
     catch (_) { } });
     SR.nodes = [];
-    if (actx)
+    if (audioEngine.context)
         stopPreviews();
     kbClear('target');
     kbClear('good');
@@ -7194,7 +7151,7 @@ function srPlayGap(fromBeat: number, toBeat: number) {
     const sel = srActiveHands();
     if (sel === 'both' || srHandsAvail() !== 'both')
         return;
-    const bs = 60 / SR.bpm, ctx = actx;
+    const bs = 60 / SR.bpm, ctx = audioEngine.context;
     if (!ctx)
         return;
     SR.notes.filter((n) => n.hand !== sel && n.beat >= fromBeat - 1e-3 && n.beat < toBeat - 1e-3).forEach((n) => previewNote(n.midi, ctx.currentTime + 0.02, Math.max(.15, n.dur * bs * .9), 78));
@@ -8200,9 +8157,9 @@ function srListen() {
     SR.bpm = +(inputById('rd-bpm').value || SR.piece.bpm);
     inputById('rd-bpm').value = String(SR.bpm);
     byId('rd-bpmLbl').textContent = String(SR.bpm);
-    if (!actx)
+    if (!audioEngine.context)
         return;
-    const bs = 60 / SR.bpm, act0 = actx.currentTime + 0.1, perf0 = performance.now() + 100;
+    const bs = 60 / SR.bpm, act0 = audioEngine.context.currentTime + 0.1, perf0 = performance.now() + 100;
     SR.listening = true;
     byId('rd-listen').textContent = t('rd_stop');
     const follow = () => { if (!SR.listening)
@@ -9221,8 +9178,8 @@ function rdNext() {
     rdArmLimit();
 }
 function rdSound(ms?: number[], arp?: boolean) { if (!ms || !ms.length)
-    return; ensureAudio(); if (!actx)
-    return; const t0 = actx.currentTime + 0.03; ms.forEach((m, i) => previewNote(m, t0 + (arp ? i * 0.45 : 0), 0.9, 88)); }
+    return; ensureAudio(); if (!audioEngine.context)
+    return; const t0 = audioEngine.context.currentTime + 0.03; ms.forEach((m, i) => previewNote(m, t0 + (arp ? i * 0.45 : 0), 0.9, 88)); }
 const RD_LM = [14, 18, 21, 24, 28, 32, 35, 38, 42];
 function rdHint() {
     const q = RD.q;
@@ -14312,7 +14269,7 @@ function performancePlan() {
 function performanceRead() {
     const plan = performancePlan(), R = SCORE.run;
     if (SCORE.playing && R && !R.sel && !R.loop) {
-        const s = pracSegAt(R, actx?.currentTime ?? 0), delta = Math.max(0, fallTime() - s.t0);
+        const s = pracSegAt(R, audioEngine.context?.currentTime ?? 0), delta = Math.max(0, fallTime() - s.t0);
         return { position: Math.min(plan.duration, (s.p0 ?? 0) + delta), elapsed: (s.elapsed0 ?? 0) + delta / s.f };
     }
     if (Math.abs(PERFORMANCE.score - FALL.position) > .001) performanceSeekScore(FALL.position);
@@ -14335,7 +14292,7 @@ function performanceSeek(position: number) {
 function performanceDisplay() {
     const R = SCORE.run, f = pracFactor();
     if (R?.loop || R?.sel) {
-        const rate = SCORE.playing && actx ? pracSegAt(R, actx.currentTime).f : f;
+        const rate = SCORE.playing && audioEngine.context ? pracSegAt(R, audioEngine.context.currentTime).f : f;
         const position = Math.max(0, Math.min(R.b - R.a, fallTime() - R.a));
         return { position, end: R.b - R.a, elapsed: position / rate, total: (R.b - R.a) / rate };
     }
@@ -14350,9 +14307,9 @@ async function pracStart(o: PracticeStartOptions)  {
     FALL.position = o.from;
     scoreIdle();
     const soundMidis = [...new Set(o.notes.flatMap((d) => [d.n.midi, ...(d.n.graces || []).map((g) => g.midi)]))];
-    if (!await pianoEnsure(soundMidis) || gen !== SCORE.playGen || !actx)
+    if (!await pianoEnsure(soundMidis) || gen !== SCORE.playGen || !audioEngine.context)
         return;
-    const f = pracFactor(), now = actx.currentTime + .1;
+    const f = pracFactor(), now = audioEngine.context.currentTime + .1;
     let a0 = now, ci: PracticeCountIn | null = null;
     if (PRAC.countIn) {
         const beat = scoreBeatAt(o.from), m = anMeasureAt(beat) || { num: 4, den: 4 }, u = scoreFeature.harmony.anBeatUnit(m), n = Math.max(2, Math.round(m.num * 4 / m.den / u)), sec = u * 60 / anTempoAt(beat) / f;
@@ -14416,14 +14373,14 @@ function pracCarry(at: number): PracticeCarry | null {
     const R = SCORE.run, st = PRAC.stats;
     if (!R || R.loop || R.sel || !st)
         return null;
-    const index = Math.max(0, R.segs.indexOf(pracSegAt(R, actx?.currentTime ?? 0)));
+    const index = Math.max(0, R.segs.indexOf(pracSegAt(R, audioEngine.context?.currentTime ?? 0)));
     return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: PRAC.wait, f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined };
 }
 function pracTick() {
     const R = SCORE.run;
-    if (!R || !SCORE.playing || !actx || R.gen !== SCORE.playGen)
+    if (!R || !SCORE.playing || !audioEngine.context || R.gen !== SCORE.playGen)
         return;
-    const now = actx.currentTime, H = now + .3;
+    const now = audioEngine.context.currentTime, H = now + .3;
     for (let guard = 0; guard < 4; guard++) {
         const s = R.segs[R.segs.length - 1];
         // A queued pass still shares the previous pass's judgements. Wait until
@@ -14627,18 +14584,18 @@ function pracWaitUpdate(R: PracticeRun, B: PracticeBarrier, now: number) {
     if (!result.complete) return;
     const late = Math.max(0, pracRaw(R, now).t - B.t) / B.seg.f;
     B.group.filter(x => !R.judged.has(x.i)).forEach(x => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
-    pracRelease(R, B, actx?.currentTime ?? now);
+    pracRelease(R, B, audioEngine.context?.currentTime ?? now);
 }
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
 function pracInput(kind: string, midi?: number) {
     const R = SCORE.run;
-    if (kind === 'off' && R && SCORE.playing && PRAC.bar && actx && midi !== undefined) {
+    if (kind === 'off' && R && SCORE.playing && PRAC.bar && audioEngine.context && midi !== undefined) {
         const B = PRAC.bar;
-        pracWaitUpdate(R, B, actx.currentTime);
+        pracWaitUpdate(R, B, audioEngine.context.currentTime);
     }
-    if (kind === 'on' && R && SCORE.playing && actx) {
+    if (kind === 'on' && R && SCORE.playing && audioEngine.context) {
         // The key's own time on the audio clock: the handler may run a frame or a radio interval after the note was played.
-        const m = heldOrder[heldOrder.length - 1], now = actx.currentTime - Math.max(0, inputLag()) / 1000;
+        const m = heldOrder[heldOrder.length - 1], now = audioEngine.context.currentTime - Math.max(0, inputLag()) / 1000;
         if (m != null && now >= R.segs[0].a0 - .05) {
             PRAC.active = true;
             const { s, t } = pracRaw(R, now), B = PRAC.bar, key = B && B.seg === s && t >= B.t - .3 * s.f ? pracNeedKey(B, m) : null;
@@ -14801,12 +14758,12 @@ function pracReplay() {
 // Count-in digits, the waiting state and the HUD's fading judgement follow the animation frame.
 function pracFrame() {
     const R = SCORE.run, c = byId('pr-count');
-    if (!R || !actx) {
+    if (!R || !audioEngine.context) {
         if (!c.hidden)
             c.hidden = true;
         return;
     }
-    const now = actx.currentTime, ci = R.ci;
+    const now = audioEngine.context.currentTime, ci = R.ci;
     let txt = '';
     if (ci && now < R.segs[0].a0)
         txt = String(Math.min(ci.n, Math.floor((now - ci.t) / ci.sec) + 1));
@@ -16721,9 +16678,9 @@ function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE
 function fallEnd() { fallData(); return FALL.end; }
 function fallTime(at?: number) {
     const R = SCORE.run;
-    if (!SCORE.playing || !actx || !R)
+    if (!SCORE.playing || !audioEngine.context || !R)
         return FALL.position;
-    const { s, t } = pracRaw(R, at ?? actx.currentTime), B = PRAC.bar;
+    const { s, t } = pracRaw(R, at ?? audioEngine.context.currentTime), B = PRAC.bar;
     let x = Math.min(t, s.t1);
     if (B && B.seg === s && x > B.t)
         x = B.t;
@@ -18703,9 +18660,6 @@ let syncPull = function syncPull() {
     if (swap) {
         data = restoreTrainerData(rp.data);
         applyTopLevelPrefs(rp);
-        syncAudioState();
-        masterRamp(muted ? 0 : masterVol);
-        if (reverbGain && actx) reverbGain.gain.setTargetAtTime(reverbWet, actx.currentTime, .05);
         SYNC.gen = gen;
         SYNC.known.clear();
         SYNC.merge = null;
@@ -18804,7 +18758,7 @@ function syncRefresh() {
 let reloadingForRestore = false;
 function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
-function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, deviceName: savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
+function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone: audioEngine.tone, masterVol: audioEngine.masterVolume, muted: audioEngine.muted, localSynth: audioEngine.localSynth, reverb: audioEngine.reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, deviceName: savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
 function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
     if (reloadingForRestore || STORE.blocked) {
         if (replacement)
@@ -19165,7 +19119,7 @@ async function storeDiagnostics(): Promise<string> {
     const standalone = pwaStandalone();
     const u = STORE.usage, snaps = STORE.snaps.filter(x => x.reason !== 'unreadable'), last = storeLastExport();
     const inputs = midiAccess ? [...midiAccess.inputs.values()].map(i => (i.name || i.id) + (i.id === activeInputId ? ' (active)' : '')) : [];
-    const ctx = actx;
+    const ctx = audioEngine.context;
     return [
         'App version: ' + version,
         'Service worker: ' + (PWA.sw || 'none') + (PWA.err ? ' (' + PWA.err + ')' : ''),
@@ -19205,13 +19159,14 @@ function storeInit() {
     storeNote();
 }
 function applyTopLevelPrefs(raw: storage.PttV3Payload) {
-    tone = raw.audioEngine === 'recorded-piano-v2' && raw.tone && syncOneOf(SYNC_TONES, raw.tone) ? raw.tone : 'piano';
-    masterVol = clampPersistedNumber(raw.masterVol, 0, 1, masterVol);
-    if (typeof raw.muted === "boolean")
-        muted = raw.muted;
+    audioEngine.tone = raw.audioEngine === 'recorded-piano-v2' && raw.tone && syncOneOf(SYNC_TONES, raw.tone) ? raw.tone : 'piano';
+    audioEngine.masterVolume = clampPersistedNumber(raw.masterVol, 0, 1, audioEngine.masterVolume);
+    if (typeof raw.muted === 'boolean')
+        audioEngine.muted = raw.muted;
     if (typeof raw.localSynth === 'boolean')
-        localSynth = raw.localSynth;
-    reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, reverbWet);
+        audioEngine.localSynth = raw.localSynth;
+    audioEngine.reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, audioEngine.reverbWet);
+    audioEngine.applyOutputMix();
     metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
     savedDevice = typeof raw.device === 'string' && raw.device ? raw.device : null;
     savedDeviceName = savedDevice && typeof raw.deviceName === 'string' && raw.deviceName ? raw.deviceName : null;
@@ -19303,8 +19258,8 @@ async function loadAll() {
             const noteSys = String(v2s.noteSys);
             if (syncOneOf(SYNC_NOTATIONS, noteSys))
                 notation = noteSys;
-            tone = 'piano';
-            masterVol = clampPersistedNumber(v2s.vol, 0, 1, masterVol);
+            audioEngine.tone = 'piano';
+            audioEngine.masterVolume = clampPersistedNumber(v2s.vol, 0, 1, audioEngine.masterVolume);
         }
         let v2st: unknown;
         try { v2st = syncParseJson(localStorage.getItem('ptt-stats-v2') || 'null'); } catch { }
@@ -19352,13 +19307,13 @@ function labelSettingsControls() {
     controls.forEach(([controlId, labelKey, helpKey]) => labelSettingsControl(controlId, labelKey, helpKey));
 }
 function reflectSettingsUI() {
-    inputById('volume').value = String(Math.round(masterVol * 100));
-    selectById('toneSel').value = tone;
+    inputById('volume').value = String(Math.round(audioEngine.masterVolume * 100));
+    selectById('toneSel').value = audioEngine.tone;
     inputById('bpm').value = String(metro.bpm);
     byId('bpmLbl').textContent = String(metro.bpm);
-    inputById('reverb').value = String(Math.round(reverbWet / 0.5 * 100));
+    inputById('reverb').value = String(Math.round(audioEngine.reverbWet / 0.5 * 100));
     queryAllHtml(document, '#set-labels button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === labelMode ? 'true' : 'false'));
-    inputById('set-synth').checked = localSynth;
+    inputById('set-synth').checked = audioEngine.localSynth;
     inputById('set-drone').checked = !!data.settings.drone;
     inputById('set-inv').checked = !!data.settings.allowInv;
     inputById('set-metronome').checked = !!data.settings.metronome;
@@ -19910,15 +19865,13 @@ function initControls() {
     byId('set-lang').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (b)
         void setLang(b.dataset.v).catch(() => localeLoadError(() => setLang(b.dataset.v))); });
     byId('toneSel').addEventListener('change', (e) => { releaseLiveInput(); stopPreviews(); stopDrone(); const v = wiringField(e).value; if (syncOneOf(SYNC_TONES, v))
-        tone = v; ensureAudio(); pianoStatus(); saveAll(); });
-    byId('volume').addEventListener('input', (e) => { masterVol = Number(wiringField(e).value) / 100; muted = false; masterRamp(masterVol); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
-    byId('set-synth').addEventListener('change', (e) => { localSynth = wiringInput(e).checked; if (!localSynth) {
+        audioEngine.tone = v; ensureAudio(); pianoStatus(); saveAll(); });
+    byId('volume').addEventListener('input', (e) => { audioEngine.setMasterVolume(Number(wiringField(e).value) / 100); saveSoon(); }); // there is no mute toggle, so moving the slider must always be heard
+    byId('set-synth').addEventListener('change', (e) => { audioEngine.localSynth = wiringInput(e).checked; if (!audioEngine.localSynth) {
         liveVoices.forEach((v) => v.stop());
         liveVoices.clear();
     } saveAll(); });
-    byId('reverb').addEventListener('input', (e) => { reverbWet = Number(wiringField(e).value) / 100 * 0.5; if (reverbWet > 0)
-        audioEngine.ensureReverbBuffer(); if (reverbGain && actx)
-        reverbGain.gain.setTargetAtTime(reverbWet, actx.currentTime, 0.05); saveSoon(); });
+    byId('reverb').addEventListener('input', (e) => { audioEngine.setReverbWet(Number(wiringField(e).value) / 100 * 0.5); saveSoon(); });
     byId('set-labels').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; labelMode = b.dataset.v ?? labelMode; (document).querySelectorAll('#set-labels button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); buildKeyboard(); repaintHeld(); saveAll(); });
     byId('bpm').addEventListener('input', (e) => { metro.bpm = +wiringField(e).value; byId('bpmLbl').textContent = wiringField(e).value; saveSoon(); });
@@ -20101,7 +20054,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "accompTimer": () => accompTimer,
   "accompVoicing": () => accompVoicing,
   "activeInputId": () => activeInputId,
-  "actx": () => actx,
+  "actx": () => audioEngine.context,
   "anAccent": () => scoreFeature?.harmony.anAccent,
   "anActiveChord": () => anActiveChord,
   "anAnalyze": () => anAnalyze,
@@ -20246,7 +20199,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "audioNoteOn": () => audioNoteOn,
   "audioUnlock": () => audioUnlock,
   "autoReconnectMidi": () => autoReconnectMidi,
-  "bendSemitones": () => bendSemitones,
+  "bendSemitones": () => audioEngine.bendSemitones,
   "bindKeyA11y": () => bindKeyA11y,
   "bleAutoReconnect": () => bleAutoReconnect,
   "bleCan": () => bleCan,
@@ -20314,7 +20267,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "cofIsCompact": () => cofIsCompact,
   "exKeyCtx": () => exKeyCtx,
   "exKeyFifths": () => exKeyFifths,
-  "comp": () => comp,
+  "comp": () => audioEngine.compressor,
   "connectMidi": () => connectMidi,
   "currentStreak": () => currentStreak,
   "data": () => data,
@@ -20470,7 +20423,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "learnUnitOf": () => learnUnitOf,
   "learnWire": () => learnWire,
   "lfo": () => lfo,
-  "lfoGain": () => lfoGain,
+  "lfoGain": () => audioEngine.lfoGain,
   "lgFilter": () => lgFilter,
   "lgHTML": () => lgHTML,
   "lgNorm": () => lgNorm,
@@ -20481,7 +20434,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "lmStop": () => lmStop,
   "lmTerm": () => lmTerm,
   "loadAll": () => loadAll,
-  "localSynth": () => localSynth,
+  "localSynth": () => audioEngine.localSynth,
   "lqAnswer": () => lqAnswer,
   "lqFocus": () => lqFocus,
   "lqLabel": () => lqLabel,
@@ -20509,10 +20462,10 @@ const __etudeGetters: Record<string, () => unknown> = {
   "makeQuestion": () => makeQuestion,
   "makeVoice": () => makeVoice,
   "markEarCorrect": () => markEarCorrect,
-  "master": () => master,
-  "masterFilter": () => masterFilter,
+  "master": () => audioEngine.master,
+  "masterFilter": () => audioEngine.masterFilter,
   "masterRamp": () => masterRamp,
-  "masterVol": () => masterVol,
+  "masterVol": () => audioEngine.masterVolume,
   "masteredCount": () => masteredCount,
   "metroClick": () => metroClick,
   "metroSched": () => metroSched,
@@ -20520,7 +20473,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "midiChipSync": () => midiChipSync,
   "midiIn": () => midiIn,
   "midiMsg": () => midiMsg,
-  "muted": () => muted,
+  "muted": () => audioEngine.muted,
   "neutral": () => neutral,
   "newItemsAvail": () => newItemsAvail,
   "newQuotaLeft": () => newQuotaLeft,
@@ -20607,7 +20560,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "presentPlay": () => presentPlay,
   "presentQuestion": () => presentQuestion,
   "previewNote": () => previewNote,
-  "previewVoices": () => previewVoices,
+  "previewVoices": () => audioEngine.previewVoices,
   "progChordTpl": () => progChordTpl,
   "pushModalState": () => pushModalState,
   "pwaInit": () => pwaInit,
@@ -20735,9 +20688,9 @@ const __etudeGetters: Record<string, () => unknown> = {
   "repaintHeld": () => repaintHeld,
   "resolve": () => resolve,
   "revealAnswerKeys": () => revealAnswerKeys,
-  "reverbGain": () => reverbGain,
-  "reverbNode": () => reverbNode,
-  "reverbWet": () => reverbWet,
+  "reverbGain": () => audioEngine.reverbGain,
+  "reverbNode": () => audioEngine.reverbNode,
+  "reverbWet": () => audioEngine.reverbWet,
   "reviewItem": () => reviewItem,
   "romanFor": () => romanFor,
   "runDemo": () => runDemo,
@@ -20987,7 +20940,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "tf": () => tf,
   "theme": () => theme,
   "tl": () => tl,
-  "tone": () => tone,
+  "tone": () => audioEngine.tone,
   "toolName": () => toolName,
   "touchDay": () => touchDay,
   "trapFocus": () => trapFocus,
@@ -21227,8 +21180,8 @@ Object.defineProperty(__etude, "preparePiano", { configurable: true, get: () => 
 Object.defineProperty(__etude, "previewNote", { configurable: true, get: () => previewNote, set: (value) => { previewNote = value; } });
 Object.defineProperty(__etude, "scoreFixPedals", { configurable: true, get: () => scoreFixPedals, set: (value) => { scoreFixPedals = value; } });
 Object.defineProperty(__etude, "syncPull", { configurable: true, get: () => syncPull, set: (value) => { syncPull = value; } });
-Object.defineProperty(__etude, "actx", { configurable: true, get: () => actx, set: (value) => { actx = value; audioEngine.context = value; } });
-Object.defineProperty(__etude, "localSynth", { configurable: true, get: () => localSynth, set: (value) => { localSynth = value; audioEngine.localSynth = value; } });
+Object.defineProperty(__etude, "actx", { configurable: true, get: () => audioEngine.context, set: (value) => { audioEngine.context = value; } });
+Object.defineProperty(__etude, "localSynth", { configurable: true, get: () => audioEngine.localSynth, set: (value) => { audioEngine.localSynth = value; } });
 Object.defineProperty(__etude, "notation", { configurable: true, get: () => notation, set: (value) => { notation = value; } });
 Object.defineProperty(__etude, "renderLearn", { configurable: true, get: () => renderLearn, set: (value) => { renderLearn = value; } });
 Object.defineProperty(__etude, "show", { configurable: true, get: () => show, set: (value) => { show = value; } });

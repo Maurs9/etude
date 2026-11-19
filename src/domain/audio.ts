@@ -833,6 +833,12 @@ export class AudioEngine {
     this.liveVoices.forEach(voice => voice.setBend());
   }
 
+  setModulation(depth: number, timeConstant = 0.03): void {
+    if (this.lfoGain && this.context) {
+      this.lfoGain.gain.setTargetAtTime(depth, this.context.currentTime, timeConstant);
+    }
+  }
+
   setMasterVolume(value: number): void {
     this.masterVolume = clamp(value, 0, 1);
     this.muted = false;
@@ -842,6 +848,15 @@ export class AudioEngine {
   setReverbWet(value: number): void {
     this.reverbWet = clamp(value, 0, 1);
     if (this.reverbWet > 0) this.ensureReverbBuffer();
+    this.rampReverb();
+  }
+
+  applyOutputMix(): void {
+    this.masterRamp(this.muted ? 0 : this.masterVolume);
+    this.rampReverb();
+  }
+
+  private rampReverb(): void {
     if (this.reverbGain && this.context) {
       this.reverbGain.gain.setTargetAtTime(this.reverbWet, this.context.currentTime, 0.05);
     }
