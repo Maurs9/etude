@@ -210,3 +210,41 @@ describe('piano audio domain', () => {
     }
   });
 });
+
+it('disconnects only the finished voice from the shared LFO and output', () => {
+  const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+  const oscillators = [], gains = [];
+  const param = () => ({
+    value: .4,
+    setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn(),
+    cancelScheduledValues: vi.fn(), setTargetAtTime: vi.fn(),
+  });
+  const node = () => ({ connect: vi.fn(function (target) { return target; }), disconnect: vi.fn() });
+  engine.context = {
+    currentTime: 0, sampleRate: 48000,
+    createOscillator: () => {
+      const osc = { ...node(), detune: param(), frequency: param(), start: vi.fn(), stop: vi.fn() };
+      oscillators.push(osc);
+      return osc;
+    },
+    createGain: () => {
+      const gain = { ...node(), gain: param() };
+      gains.push(gain);
+      return gain;
+    },
+    createBiquadFilter: () => ({ ...node(), frequency: param(), Q: param() }),
+  };
+  engine.master = node();
+  engine.lfoGain = node();
+  engine.reverbWet = 0;
+  engine.tone = 'organ';
+  engine.makeVoice(440, 100, 0, .5);
+  engine.makeVoice(550, 100, 0, .5);
+  oscillators[0].onended();
+  expect(engine.lfoGain.disconnect).toHaveBeenCalledExactlyOnceWith(oscillators[0].detune);
+  expect(gains[0].disconnect).not.toHaveBeenCalled();
+  oscillators.slice(1, 3).forEach(osc => osc.onended());
+  expect(gains[0].disconnect).toHaveBeenCalledOnce();
+  expect(gains[1].disconnect).not.toHaveBeenCalled();
+  expect(engine.lfoGain.disconnect.mock.calls).toEqual(oscillators.slice(0, 3).map(osc => [osc.detune]));
+});

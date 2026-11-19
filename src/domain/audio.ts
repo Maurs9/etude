@@ -17,6 +17,16 @@ export interface AudioVoice {
   released?: boolean;
 }
 
+function connectVoiceSource(source: OscillatorNode | AudioBufferSourceNode, lfo: GainNode | null, release: () => void): void {
+  lfo?.connect(source.detune);
+  source.onended = () => {
+    source.onended = null;
+    if (lfo) lfo.disconnect(source.detune);
+    source.disconnect();
+    release();
+  };
+}
+
 export type PianoVoiceHooks = {
   decode?: (key: number) => Promise<AudioBuffer>;
   fallbackVoice?: (frequency: number, velocity: number, when?: number, duration?: number) => AudioVoice;
@@ -540,12 +550,10 @@ export class AudioEngine {
       gain.gain.setValueAtTime(0.0001, startAt);
       gain.gain.linearRampToValueAtTime(peak, startAt + (warm ? 0.008 : 0.003));
       source.connect(gain).connect(filter).connect(master);
-      if (this.lfoGain) this.lfoGain.connect(source.detune);
-      source.onended = () => {
-        source.disconnect();
+      connectVoiceSource(source, this.lfoGain, () => {
         gain.disconnect();
         filter.disconnect();
-      };
+      });
 
       const inner: AudioVoice = {
         stop: (at?: number) => {
@@ -613,8 +621,8 @@ export class AudioEngine {
     const startAt = when ?? context.currentTime;
     const normalizedVelocity = clamp((velocity || 100) / 127, 0.06, 1);
     const output = context.createGain();
-    if (context.createStereoPanner) {
-      const pan = context.createStereoPanner();
+    const pan = context.createStereoPanner?.();
+    if (pan) {
       pan.pan.value = clamp(Math.log2(frequency / 261.63) * 0.22, -0.45, 0.45);
       output.connect(pan).connect(master);
     } else {
@@ -629,6 +637,13 @@ export class AudioEngine {
     const stiffness = 0.00045 + octave * 0.00006;
     const partials = frequency < 150 ? 14 : frequency < 350 ? 11 : frequency < 800 ? 8 : 5;
     const oscillators: OscillatorNode[] = [];
+    let active = 1; // The hammer is also connected to the shared output.
+    const finishSource = () => {
+      if (--active === 0) {
+        output.disconnect();
+        pan?.disconnect();
+      }
+    };
     for (let partial = 1; partial <= partials; partial += 1) {
       const partialFrequency = frequency * partial * Math.sqrt(1 + stiffness * partial * partial);
       if (partialFrequency > nyquist) break;
@@ -636,7 +651,6 @@ export class AudioEngine {
       oscillator.type = 'sine';
       oscillator.frequency.setValueAtTime(partialFrequency, startAt);
       oscillator.detune.setValueAtTime(this.bendSemitones * 100, startAt);
-      if (this.lfoGain) this.lfoGain.connect(oscillator.detune);
       const gain = context.createGain();
       let amplitude = Math.pow(partial, -1.18);
       if (partial === 1) amplitude *= 0.92;
@@ -646,6 +660,8 @@ export class AudioEngine {
       gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, amplitude), startAt + 0.004);
       gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.004 + decay);
       oscillator.connect(gain).connect(output);
+      active++;
+      connectVoiceSource(oscillator, this.lfoGain, () => { gain.disconnect(); finishSource(); });
       oscillator.start(startAt);
       try { oscillator.stop(startAt + baseDecay + 0.35); } catch { /* already stopped */ }
       oscillators.push(oscillator);
@@ -660,6 +676,11 @@ export class AudioEngine {
     hammerGain.gain.setValueAtTime(0.028 * normalizedVelocity * normalizedVelocity, startAt);
     hammerGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.04);
     hammer.connect(hammerFilter).connect(hammerGain).connect(output);
+    connectVoiceSource(hammer, null, () => {
+      hammerFilter.disconnect();
+      hammerGain.disconnect();
+      finishSource();
+    });
     hammer.start(startAt);
     try { hammer.stop(startAt + 0.09); } catch { /* already stopped */ }
     const voice: AudioVoice = {
@@ -715,12 +736,18 @@ export class AudioEngine {
     filter.frequency.setValueAtTime(Math.min(11000, frequency * definition.cutoff + 700), startAt);
     filter.Q.value = 0.6;
     const detune = [0, -7, 7];
+    let active = detune.length;
     const oscillators = detune.map((offset, index) => {
       const oscillator = context.createOscillator();
       oscillator.type = definition.waves[index] ?? 'sine';
       oscillator.frequency.setValueAtTime(frequency, startAt);
       oscillator.detune.setValueAtTime(offset + (definition.octave?.[index] ?? 0) + this.bendSemitones * 100, startAt);
-      if (this.lfoGain) this.lfoGain.connect(oscillator.detune);
+      connectVoiceSource(oscillator, this.lfoGain, () => {
+        if (--active === 0) {
+          gain.disconnect();
+          filter.disconnect();
+        }
+      });
       oscillator.connect(gain);
       return oscillator;
     });
