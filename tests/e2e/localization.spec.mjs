@@ -24,7 +24,20 @@ test('language can be selected independently of notation and survives reload', a
 test('German localizes built-in piece titles and the Learn staff captions', async ({ app, page }) => {
   await app.open({ hash: 'analysis', lang: 'de' });
   await expect(page.locator('#pc-list')).toContainText('Fünffinger-Aufwärmen');
-  expect(await page.evaluate(() => window.__etude.lStaffHTML('n_clefs'))).toContain('Violinschlüssel');
+  const staff = await page.evaluate(() => {
+    const html = window.__etude.lStaffHTML('n_clefs');
+    const dynHtml = window.__etude.lStaffHTML('dyn2');
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const svg = doc.querySelector('svg[role="group"]');
+    return {
+      html,
+      dynHtml,
+      svgLabel: svg?.getAttribute('aria-label') ?? '',
+    };
+  });
+  expect(staff.html).toContain('Violinschlüssel');
+  expect(staff.svgLabel).toContain('Violinschlüssel');
+  expect(staff.dynHtml).toContain('aria-label="Akzent &gt;');
 });
 
 test('Progress shows the reading book alongside legacy drill statistics', async ({ app, page }) => {
@@ -68,4 +81,42 @@ test('contrast for error labels and completed plan cards meets AA in both palett
     }
   });
   for (const contrast of contrasts) expect(contrast).toBeGreaterThanOrEqual(4.5);
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'dark';
+    const button = document.createElement('button');
+    button.id = 'test-primary-hover';
+    button.className = 'btn primary';
+    button.textContent = 'Start';
+    button.style.transition = 'none';
+    button.style.position = 'fixed';
+    button.style.top = '12px';
+    button.style.left = '12px';
+    button.style.zIndex = '9999';
+    document.body.append(button);
+  });
+  try {
+    const primaryHover = page.locator('#test-primary-hover');
+    const restBg = await primaryHover.evaluate(node => getComputedStyle(node).backgroundColor);
+    await primaryHover.hover();
+    const hoverColors = await primaryHover.evaluate(node => {
+      const style = getComputedStyle(node);
+      return { bg: style.backgroundColor, fg: style.color };
+    });
+    expect(hoverColors.bg).not.toBe(restBg);
+    const hoverRatio = await page.evaluate(({ bg, fg }) => {
+      const lum = rgb => {
+        const ch = rgb.match(/\d+/g).slice(0, 3).map(Number).map(v => {
+          const c = v / 255;
+          return c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4;
+        });
+        return .2126 * ch[0] + .7152 * ch[1] + .0722 * ch[2];
+      };
+      const [hi, lo] = [lum(bg), lum(fg)].sort((a, b) => b - a);
+      return (hi + .05) / (lo + .05);
+    }, hoverColors);
+    expect(hoverRatio).toBeGreaterThanOrEqual(4.5);
+  } finally {
+    await page.evaluate(() => document.getElementById('test-primary-hover')?.remove());
+  }
 });

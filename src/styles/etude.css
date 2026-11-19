@@ -35,7 +35,7 @@
     --headbg:rgba(23,20,18,.86);
     --staffink:#e8e1d4;
   }
-  :root[data-theme=dark] .btn.primary:hover{background:#de8d7d; color:var(--accent-ink)}
+  :root[data-theme=dark] .btn.primary:hover{background:#eaa090; color:var(--accent-ink)}
   :root[data-theme=dark] .cell[data-b="1"],:root[data-theme=dark] .cell[data-b="2"]{background:#3a2d1f; color:#d8a86f; border-color:#54402a}
   :root[data-theme=dark] .cell[data-b="3"],:root[data-theme=dark] .cell[data-b="4"]{background:#37331f; color:#cfc06b; border-color:#4f4a2c}
   :root[data-theme=dark] .cell[data-b="5"],:root[data-theme=dark] .cell[data-b="6"]{background:var(--good-bg); color:var(--good); border-color:#3a5242}
@@ -1044,7 +1044,6 @@
   .plan-item[data-done="true"] .plan-pill{color:var(--good); border-color:var(--good)}
   .plan-go{font-size:13px; color:var(--muted); opacity:.45; transition:transform .15s, opacity .15s, color .15s}
   .plan-item:hover .plan-go,.plan-item[data-next="true"] .plan-go{color:var(--accent); opacity:1; transform:translateX(2px); font-weight:700}
-  .plan-item[data-done="true"] .plan-go{opacity:1}
   .plan-bar{position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--line); pointer-events:none}
   .plan-bar i{display:block; height:100%; background:var(--gold); transition:width .25s}
   .learn-meta{font-size:12px; color:var(--muted); margin:0 12px 4px; font-weight:600}

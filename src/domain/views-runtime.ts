@@ -5584,7 +5584,7 @@ function lStaffSvg(key: string) {
         const label = t('lu_note_aria', noteName(n.midi, (P.keyN || 0) < 0), Math.floor(n.beat - (P.pickup || 0) + 1e-3) + 1);
         return tag.slice(0, -1) + ' tabindex="0" role="button" aria-label="' + rdEsc(label) + '">';
     });
-    svg = svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="group" aria-label="' + LT(S.cap).replace(/"/g, '&quot;') + '"');
+    svg = svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="group" aria-label="' + rdEsc(t('lstaff_caption_' + key)) + '"');
     return lStaffFit(svg.replace('</svg>', out + '</svg>'), r.W);
 }
 /** Gives a Learn staff its drawn width as --sw, so layout.css can let it grow to a wide lesson panel. */

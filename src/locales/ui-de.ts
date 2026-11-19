@@ -85,7 +85,7 @@ const payload: UIPayload = {
       "lstaff_caption_rh2c": "Im 6/8-Takt gibt es zwei punktierte Viertelschläge, jeweils in drei unterteilt.",
       "lstaff_caption_iv2a": "Gleicher Klang, andere Schreibweise: übermäßige Quarte und verminderte Quinte, kleine Terz und übermäßige Sekunde.",
       "lstaff_caption_minor1": "A-Moll in drei Varianten. Achte auf die sechste und siebte Stufe.",
-      "lstaff_caption_ch7a": "Fünf Septakkorde auf C. Beim verminderten Septakkord steht oben A statt B♭♭.",
+      "lstaff_caption_ch7a": "Fünf Septakkorde auf C. Beim verminderten Septakkord steht oben A statt H𝄫.",
       "lstaff_caption_ch7b": "Farbige Akkorde, am Ende C/E: C-Dur mit E im Bass.",
       "lstaff_caption_cad1": "Vier Kadenzen, eine pro Takt. Spiele einen Akkord oder alle.",
       "lstaff_caption_minh1": "i – iv – V – i in A-Moll. Das Gis macht V zum Durakkord.",
