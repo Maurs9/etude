@@ -115,6 +115,33 @@ test.describe('data safety', () => {
     expect(await page.evaluate(() => localStorage.getItem('etude-sight-v1'))).toBe(before);
   });
 
+  test('keeps the imported preferences when a save is pending at reload', async ({ app, page }) => {
+    const future = (Date.now() + 86_400_000).toString(36).padStart(9, '0') + 'future';
+    await app.open({ saved: { ...saved, gen: future }, hash: 'progress' });
+    await page.evaluate(() => {
+      const write = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'ptt-v3' && JSON.parse(value).masterVol === 0.15) {
+          Storage.prototype.setItem = write;
+          window.__etude.saveSoon();
+        }
+        return write.call(this, key, value);
+      };
+    });
+    const backup = { ...saved, masterVol: 0.15, muted: true, reverb: 0.45, bpm: 150 };
+    page.once('dialog', dialog => dialog.accept());
+    await Promise.all([
+      page.waitForEvent('load'),
+      page.locator('#importFile').setInputFiles({
+        name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
+      }),
+    ]);
+    await expect(page.locator('#volume')).toHaveValue('15');
+    const restored = await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')));
+    expect(restored).toMatchObject({ ...backup, gen: expect.any(String) });
+    expect(restored.gen > future).toBe(true);
+  });
+
   test('rejects a malformed Pieces map without replacing progress', async ({ app, page }) => {
     await app.open({ saved });
     const dialog = page.waitForEvent('dialog').then(async dialog => {
@@ -128,6 +155,15 @@ test.describe('data safety', () => {
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews)).toBe(7);
     await page.locator('#nav button[data-view="analysis"]').click();
     await expect(page.locator('#pc-list')).toContainText('Prelude');
+  });
+
+  test('shows usable Reading statistics with malformed counters saved by an older build', async ({ app, page }) => {
+    const reading = { tot: { n: 'invalid', ok: 0, ms: 0, sess: 0 } };
+    await app.open({ saved: { ...saved, data: { ...saved.data, reading } }, hash: 'progress' });
+    await expect(page.locator('#rdx-stats .rdx-tiles b').first()).toHaveText('0');
+    await page.evaluate(() => window.__etude.show('read'));
+    await page.locator('#rdt-drills').click();
+    await expect(page.locator('#rdx-hero .rdx-hero-m b').first()).toHaveText('0');
   });
 
   test('Pieces still opens when a previous build saved a null Pieces map', async ({ app, page }) => {

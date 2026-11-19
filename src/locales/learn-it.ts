@@ -420,7 +420,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona l'intervallo richiesto.",
+        "q": "Suona una quinta giusta ascendente a partire da Re (prima Re, poi La).",
         "seq": [
           2,
           9
@@ -510,7 +510,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la scala maggiore richiesta a partire dalla tonica indicata.",
+        "q": "Suona il primo, il terzo e il quinto grado di Sol maggiore (Sol, Si, Re).",
         "pcs": [
           7,
           11,
@@ -565,7 +565,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la scala minore naturale richiesta.",
+        "q": "Suona la triade di La minore (La, Do, Mi).",
         "pcs": [
           9,
           0,
@@ -687,7 +687,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la triade maggiore richiesta.",
+        "q": "Suona La minore (La, Do, Mi), in qualsiasi ottava o rivolto.",
         "pcs": [
           9,
           0,
@@ -695,7 +695,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la triade minore richiesta.",
+        "q": "Suona Fa maggiore (Fa, La, Do).",
         "pcs": [
           5,
           9,
@@ -751,7 +751,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona l'accordo di settima richiesto.",
+        "q": "Suona Sol7 (Sol, Si, Re, Fa).",
         "pcs": [
           7,
           11,

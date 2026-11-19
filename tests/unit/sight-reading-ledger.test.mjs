@@ -61,6 +61,19 @@ function claimedLedger() {
 }
 
 describe('sight-reading ledger lifecycle', () => {
+  it.each(['recordListen', 'recordExposure'])('keeps an active attempt claim across %s', async type => {
+    const initial = claimedLedger(), generation = initial.generation;
+    const fingerprint = 'v1:test';
+    const storage = storageWith(initial);
+    expect(await srtLedgerUpdate(storage, { type, fingerprint, generation, reason: 'learn' })).toMatchObject({ ok: true });
+    expect(srtReadLedger(storage).exposures[fingerprint].claim).toEqual(initial.exposures[fingerprint].claim);
+    const result = await srtLedgerUpdate(storage, {
+      type: 'finishAttempt', generation,
+      attempt: attempt({ attemptId: 'attempt-1', ownerTabId: 'tab-1', fingerprint, generation }),
+    });
+    expect(result).toMatchObject({ ok: true });
+  });
+
   it('preserves newer ledger bytes and disables only unsupported operations', async () => {
     const newer = JSON.stringify({ schemaVersion: 2, marker: 'keep-me', exposures: { future: true } });
     const storage = storageWith(JSON.parse(newer));

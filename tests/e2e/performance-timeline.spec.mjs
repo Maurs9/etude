@@ -40,6 +40,27 @@ test('seeking on the performance timeline retains the chosen repeat', async ({ a
   expect(await page.evaluate(() => window.__etude.SCORE.run.pass)).toBe(2);
 });
 
+test('Play, Again and Slower start a completed repeating score on its first pass', async ({ app, page }) => {
+  const twoBars = xml.replace(/<measure number="3">.*?<\/measure>/, '');
+  await open(app, page, twoBars);
+  const finish = () => page.evaluate(() => {
+    const a = window.__etude, slider = document.getElementById('fall-seek');
+    slider.value = slider.max;
+    a.fallSeek();
+  });
+  const openingPass = () => page.evaluate(() => {
+    const run = window.__etude.SCORE.run;
+    return run ? [run.pass, run.segs[0].p0, run.route.length] : null;
+  });
+  for (const button of ['score-play', 'pr-again', 'pr-slower']) {
+    await finish();
+    await expect(page.locator('#fall-clock')).toHaveText('0:08');
+    await page.locator('#' + button).dispatchEvent('click');
+    await expect.poll(openingPass).toEqual([1, 0, 1]);
+    await page.evaluate(() => window.__etude.scorePause());
+  }
+});
+
 test('pausing between the audio repeat boundary and the next scheduler tick keeps the second pass', async ({ app, page }) => {
   await open(app, page); await play(page);
   await page.evaluate(() => {
@@ -88,8 +109,14 @@ test('half speed doubles duration; a live speed change keeps elapsed time and re
   await page.locator('#score-speed').selectOption('50');
   await expect(page.locator('#fall-total')).toHaveText('0:20');
   await play(page);
-  await page.evaluate(() => { const a = window.__etude; a.SCORE.run.segs[0].a0 = a.actx.currentTime - 2; a.pracTick(); });
-  await page.locator('#score-speed').selectOption('100');
+  await page.evaluate(() => {
+    const a = window.__etude, speed = document.getElementById('score-speed');
+    // Keep the sampled clock away from the integer-second display boundary.
+    a.SCORE.run.segs[0].a0 = a.actx.currentTime - 2.25;
+    a.pracTick();
+    speed.value = '100';
+    speed.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.waitForFunction(() => window.__etude.SCORE.run?.segs[0].f === 1);
   await page.evaluate(() => window.__etude.scorePause());
   await expect(page.locator('#fall-clock')).toHaveText('0:02');
@@ -148,4 +175,31 @@ test('Wait for me freezes performance progress and loops display their own durat
   await expect(page.locator('#score-state')).toContainText('Loop');
   await expect(page.locator('#pr-hud')).toBeVisible();
   await expect(page.locator('#pr-pass')).toHaveText('1');
+});
+
+test('stopping the score cancels all already scheduled count-in clicks', async ({ app, page }) => {
+  await open(app, page);
+  await page.evaluate(() => {
+    const a = window.__etude, { start, stop } = OscillatorNode.prototype;
+    window.__scheduledCountIn = new Map();
+    OscillatorNode.prototype.start = function (when) {
+      if (this.frequency.value > 1000) window.__scheduledCountIn.set(this, 0);
+      return start.call(this, when);
+    };
+    OscillatorNode.prototype.stop = function (when) {
+      if (window.__scheduledCountIn.has(this)) window.__scheduledCountIn.set(this, window.__scheduledCountIn.get(this) + 1);
+      return stop.call(this, when);
+    };
+    a.pracSet('countIn', true);
+  });
+  const { before, after } = await page.evaluate(async () => {
+    // Stop in the same task so each oscillator is still queued.
+    await window.__etude.scorePlay(false, 0);
+    const scheduled = () => [...window.__scheduledCountIn.values()];
+    const before = scheduled();
+    document.getElementById('score-stop').click();
+    return { before, after: scheduled() };
+  });
+  expect(before).toEqual([1, 1, 1, 1]);
+  expect(after).toEqual([2, 2, 2, 2]);
 });

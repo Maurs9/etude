@@ -40,6 +40,28 @@ describe('on-demand locale payloads', () => {
       expect(payload.LIBRARY).toEqual(language === 'en' ? { en: libraryTranslations.en } : { en: libraryTranslations.en, [language]: libraryTranslations[language] });
     }
   });
+  it('keeps the corrected German and Italian key-playing prompts aligned with their pitch targets', async () => {
+    const { loadLearn } = await import('../../src/locales/loader.ts');
+    const de = await loadLearn('de'), it = await loadLearn('it');
+    for (const [payload, lesson, question, target, text] of [
+      [de, 'iv', 4, { seq: [2, 9] }, 'zuerst D, dann A'],
+      [de, 'sc', 4, { pcs: [7, 11, 2] }, 'G-Dur (G, H, D)'],
+      [de, 'minor', 5, { pcs: [9, 0, 4] }, 'a-Moll-Dreiklang (A, C, E)'],
+      [de, 'ch', 4, { pcs: [5, 9, 0] }, 'F-Dur-Dreiklang (F, A, C)'],
+      [it, 'iv', 4, { seq: [2, 9] }, 'prima Re, poi La'],
+      [it, 'sc', 4, { pcs: [7, 11, 2] }, 'Sol maggiore (Sol, Si, Re)'],
+      [it, 'minor', 5, { pcs: [9, 0, 4] }, 'La minore (La, Do, Mi)'],
+      [it, 'ch', 3, { pcs: [9, 0, 4] }, 'La minore (La, Do, Mi)'],
+      [it, 'ch', 4, { pcs: [5, 9, 0] }, 'Fa maggiore (Fa, La, Do)'],
+      [it, 'ch7', 5, { pcs: [7, 11, 2, 5] }, 'Sol7 (Sol, Si, Re, Fa)'],
+    ]) {
+      expect(payload.LQZ[lesson][question]).toMatchObject({ ...target, q: expect.stringContaining(text) });
+    }
+    expect(de.LESSONS.rh2.b).toContain('<h4>Zusammengesetzte Taktarten</h4>');
+    expect(de.LESSONS.rh2.b).toContain('<h4>Tempoangaben</h4>');
+    expect(de.LESSONS.rh2.b.match(/data-staff="rh2[a-c]"/g)).toHaveLength(3);
+  });
+
   it('preserves every effective lesson, quiz, summary and glossary translation in isolated Learn payloads', async () => {
     const { loadLearn } = await import('../../src/locales/loader.ts');
     for (const language of languages) {

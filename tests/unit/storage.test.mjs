@@ -61,9 +61,16 @@ describe('ptt-v3 storage reader', () => {
     expect(isImportableBackup(JSON.parse(await fixture('ptt-v3-legacy.json')))).toBe(true);
     expect(isImportableBackup({ v: 3, data: { sheet: { w5rh: { best: 82, learned: true } } } })).toBe(true);
     for (const data of [{ sheet: null }, { sheet: { w5rh: true } }, { sheet: { w5rh: { best: '82' } } },
-      { srs: { 'iv:1': null } }, { history: [] }, { reading: { lv: 'broken' } }]) {
+      { srs: { 'iv:1': null } }, { history: [] }, { reading: { lv: 'broken' } },
+      { bestStreak: '7' }, { lastDrill: { n: '7' } }, { reading: { tot: { n: '7' } } },
+      { reading: { nt: { 'iv:1': { ok: '7' } }, lv: {} } }, { reading: { lv: { x: { s: '7' } } } }]) {
       expect(isImportableBackup({ v: 3, data })).toBe(false);
     }
+  });
+
+  it('filters reserved object keys at every depth while retaining ordinary fields', () => {
+    const data = Object.fromEntries([['__proto__', {}], ['totalReviews', 4], ['reading', { nt: { constructor: {}, prototype: {}, sample: { n: 1 } } }]]);
+    expect(parsePttV3(JSON.stringify({ v: 3, data })).data).toEqual({ totalReviews: 4, reading: { nt: { sample: { n: 1 } } } });
   });
 
   it('reads and writes the browser record through a typed storage adapter', () => {

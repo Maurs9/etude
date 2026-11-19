@@ -14,17 +14,17 @@ export const SS_SYL_MAJ = ['do', 're', 'mi', 'fa', 'sol', 'la', 'ti'], SS_SYL_MI
 export const SS_MAJ: Record<number, { r: number; n: number }> = { 0: { r: 0, n: 0 }, 7: { r: 4, n: 1 }, 2: { r: 1, n: 2 }, 9: { r: 5, n: 3 }, 4: { r: 2, n: 4 }, 11: { r: 6, n: 5 }, 5: { r: 3, n: -1 }, 10: { r: 6, n: -2 }, 3: { r: 2, n: -3 }, 8: { r: 5, n: -4 }, 1: { r: 1, n: -5 } };
 export const SS_MIN: Record<number, number> = { 9: 5, 4: 2, 2: 1, 11: 6, 7: 4, 0: 0, 5: 3 }; // minor tonic pc -> tonic letter index
 
-export interface SightSingLevel { name: string; degs: number[]; durs: number[]; ts: number[][]; bars: number; keys: number[]; step: number; bpm: number; octaveUp?: boolean; minor?: boolean; raise7?: number }
+export interface SightSingLevel { label: string; degs: number[]; durs: number[]; ts: number[][]; bars: number; keys: number[]; step: number; bpm: number; octaveUp?: boolean; minor?: boolean; raise7?: number }
 export interface SightSingNote { li: number; oct: number; acc: number; dur: number; p: number; midi: number; tBeat: number }
 export interface SightSingExercise { clef: string; keyPc: number; minor: boolean; keyN: number; ts: number[]; cap: number; measures: SightSingNote[][]; bpm: number; level: number; totalBeats: number; syl: string[]; tonicMidi: number }
 export const SS_LEVELS: SightSingLevel[] = [
-    { name: 'sol–mi', degs: [2, 4], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.85, bpm: 72 },
-    { name: '+ la', degs: [2, 4, 5], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.8, bpm: 74 },
-    { name: 'pentatonic', degs: [0, 1, 2, 4, 5], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7], step: 0.78, bpm: 76 },
-    { name: 'major scale', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7, 5], step: 0.75, bpm: 78, octaveUp: true },
-    { name: 'triad leaps', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7, 5, 2], step: 0.5, bpm: 80, octaveUp: true },
-    { name: 'minor keys', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [9, 4, 2], step: 0.7, bpm: 80, minor: true, raise7: 0.5, octaveUp: true },
-    { name: 'rhythm & meter', degs: [0, 1, 2, 3, 4, 5, 6], durs: [2, 1.5, 1, 0.5], ts: [[4, 4], [3, 4], [6, 8]], bars: 4, keys: [0, 7, 5, 2, 10], step: 0.62, bpm: 84, octaveUp: true },
+    { label: 'si_level_1', degs: [2, 4], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.85, bpm: 72 },
+    { label: 'si_level_2', degs: [2, 4, 5], durs: [1], ts: [[4, 4]], bars: 2, keys: [0], step: 0.8, bpm: 74 },
+    { label: 'si_level_3', degs: [0, 1, 2, 4, 5], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7], step: 0.78, bpm: 76 },
+    { label: 'si_level_4', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7, 5], step: 0.75, bpm: 78, octaveUp: true },
+    { label: 'si_level_5', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [0, 7, 5, 2], step: 0.5, bpm: 80, octaveUp: true },
+    { label: 'si_level_6', degs: [0, 1, 2, 3, 4, 5, 6], durs: [1, 2], ts: [[4, 4], [3, 4]], bars: 2, keys: [9, 4, 2], step: 0.7, bpm: 80, minor: true, raise7: 0.5, octaveUp: true },
+    { label: 'si_level_7', degs: [0, 1, 2, 3, 4, 5, 6], durs: [2, 1.5, 1, 0.5], ts: [[4, 4], [3, 4], [6, 8]], bars: 4, keys: [0, 7, 5, 2, 10], step: 0.62, bpm: 84, octaveUp: true },
 ];
 export function ssPick<T>(a: ArrayLike<T>) { return a[Math.floor(Math.random() * a.length)]; }
 export function ssNextDeg(prev: number, allowed: number[], step: number) {

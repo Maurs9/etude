@@ -2604,6 +2604,24 @@ test('Settings controls receive localized programmatic labels', async ({ app }) 
   expect(romanianInputLabel).not.toBe(englishInputLabel);
 });
 
+test('Voice keeps selected values and updates note names and level labels when settings change', async ({ app }) => {
+  const page = await app.open({ hash: 'sing' });
+  await page.locator('#si-level').selectOption('3');
+  await page.locator('#vo-tab-hum').click();
+  await page.locator('#tr-skey').selectOption('11');
+  await expect(page.locator('#tr-skey option:checked')).toHaveText('B');
+  await page.locator('#settingsBtn').click();
+  await page.locator('#set-notation [data-v="german"]').click();
+  await page.locator('#set-lang [data-v="ro"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#tr-skey')).toHaveValue('11');
+  await expect(page.locator('#tr-skey option:checked')).toHaveText('H');
+  await page.locator('#vo-tab-sing').click();
+  await expect(page.locator('#si-level')).toHaveValue('3');
+  await expect(page.locator('#si-level option:checked')).toHaveText('4 · gamă majoră');
+});
+
 test('Settings row labels use for= associations and toggle switches when clicked', async ({ app }) => {
   const page = await app.open();
   await page.locator('#settingsBtn').click();
@@ -2867,7 +2885,7 @@ test.describe('several open tabs', () => {
   });
 
   test('a reset in another tab is adopted with a notice, the session goes on, and an older record cannot overwrite it', async ({ app, page }) => {
-    await app.open({ saved });
+    await app.open({ saved: { ...saved, gen: 'legacy' } });
     await page.evaluate(() => window.__etude.startSession(null));
     await answer(page);
     const { tab, errors } = await openTab(page);
@@ -2881,7 +2899,7 @@ test.describe('several open tabs', () => {
     expect(await record(page)).toMatchObject({ mem: { reviews: 1, today: 1 }, stored: { reviews: 1, today: 1 }, gen });
 
     // A tab still holding the record from before the reset saves it: this tab puts the newer one back.
-    await tab.evaluate(() => localStorage.setItem('ptt-v3', JSON.stringify({ v: 3, gen: '', lang: 'en', data: { totalReviews: 99 } })));
+    await tab.evaluate(() => localStorage.setItem('ptt-v3', JSON.stringify({ v: 3, gen: 'legacy', lang: 'en', data: { totalReviews: 99 } })));
     await expect.poll(async () => { const r = await record(page); return { gen: r.gen, reviews: r.stored.reviews }; }).toEqual({ gen, reviews: 1 });
 
     await page.locator('#syncNoteBtn').click();

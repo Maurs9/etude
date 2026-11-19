@@ -161,6 +161,7 @@ export interface ChordDefinition {
   idx: number;
   symbol: string;
   pcset: readonly number[];
+  intervals?: readonly number[];
 }
 
 export type ChordIdentification<T extends ChordDefinition = ChordDefinition> = {
@@ -187,7 +188,9 @@ export function formatScaleFormula(offsets: readonly number[]): string {
 
 export function chordInversion(root: PitchClass, chord: ChordDefinition, bassMidi: number): number {
   const bass = normalizeSemitones(bassMidi - root);
-  const inversion = chord.pcset.indexOf(bass);
+  const inversion = chord.intervals
+    ? chord.intervals.findIndex(interval => normalizeSemitones(interval) === bass)
+    : chord.pcset.indexOf(bass);
   return inversion < 0 ? 0 : inversion;
 }
 
@@ -269,11 +272,11 @@ export function spellMidi(midi: number, fifths = 0, minor = false): SpelledMidi 
   for (let li = 0; li < 7; li += 1) {
     if (normalizeSemitones(LETTER_PITCH_CLASSES[li] + signature[li]) === pitch) return make(li, signature[li]);
   }
-  const tonicLetter = (normalizeSemitones(fifths * 4 + (minor ? 5 : 0)) % 7);
+  const tonicLetter = ((fifths * 4 + (minor ? 5 : 0)) % 7 + 7) % 7;
   const relative = normalizeSemitones(pitch - keyFromFifths(fifths, minor).root);
   const degree = (minor
     ? { 11: 6, 9: 5, 1: 1, 4: 2, 6: 3 } as Record<number, number>
-    : { 1: 0, 3: 2, 6: 3, 8: 4, 10: 6 } as Record<number, number>)[relative];
+    : { 1: 0, 3: 2, 6: 3, 8: fifths < 0 ? 5 : 4, 10: 6 } as Record<number, number>)[relative];
   if (degree != null) {
     const li = (tonicLetter + degree) % 7;
     const acc = ((pitch - LETTER_PITCH_CLASSES[li] + 18) % 12) - 6;
@@ -429,11 +432,16 @@ export function romanFor(
   let degree = majorScale.indexOf(relative);
   let accidental = '';
   if (degree < 0) {
-    degree = majorScale.indexOf(normalizeSemitones(relative + 11));
-    if (degree >= 0) accidental = '♯';
-    else {
-      degree = majorScale.indexOf(normalizeSemitones(relative + 1));
-      if (degree >= 0) accidental = '♭';
+    const flatDegree = majorScale.indexOf(normalizeSemitones(relative + 1));
+    const sharpDegree = majorScale.indexOf(normalizeSemitones(relative - 1));
+    // Prefer conventional borrowed degrees when both spellings fit the key.
+    const preferFlat = flatDegree === 1 || flatDegree === 2 || flatDegree === 5 || flatDegree === 6;
+    if (flatDegree >= 0 && (preferFlat || sharpDegree < 0)) {
+      degree = flatDegree;
+      accidental = '♭';
+    } else if (sharpDegree >= 0) {
+      degree = sharpDegree;
+      accidental = '♯';
     }
   }
   if (degree < 0) return '';
@@ -441,9 +449,10 @@ export function romanFor(
   const symbol = id.chord.symbol;
   if (/^m(?!aj)/.test(symbol) || symbol.startsWith('dim')) numeral = numeral.toLowerCase();
   let suffix = '';
-  if (/dim/.test(symbol) || symbol === 'm7♭5') suffix = '°';
+  if (symbol === 'm7♭5') suffix = 'ø';
+  else if (symbol.startsWith('dim')) suffix = '°';
   else if (/aug|♯5/.test(symbol)) suffix = '+';
-  if (id.chord.pcset.includes(10) || id.chord.pcset.includes(11)) suffix += '⁷';
+  if (symbol === 'dim7' || id.chord.pcset.includes(10) || id.chord.pcset.includes(11)) suffix += '⁷';
   return accidental + numeral + suffix;
 }
 

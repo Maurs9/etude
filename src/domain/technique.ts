@@ -86,9 +86,13 @@ function ascendingFingers(kind: TechniqueKind, tonicPc: number, hand: TechniqueH
   const table = kind === 'major' ? SCALE_FINGERINGS.maj : SCALE_FINGERINGS.harmonic;
   const one = [...table[hand][tonicPc]].map(Number);
   if (octaves === 1) return one;
-  // Two octaves: the right hand repeats the first seven fingers and ends on the top finger; the left hand plays the middle
-  // tonic with the finger that ends its octave, then carries on as from the second note (C major: 5432132 1 432132 1).
-  return hand === 'rh' ? [...one.slice(0, 7), ...one.slice(0, 7), one[7]] : [...one, ...one.slice(1)];
+  if (hand === 'lh') return [...one, ...one.slice(1)];
+  // On these black-key starts the finishing finger also plays the middle tonic.
+  if (tonicPc === 10) return [...one, ...one.slice(1)];
+  if (kind === 'minor' && (tonicPc === 6 || tonicPc === 8)) {
+    return [...one, 4, ...one.slice(2)];
+  }
+  return [...one.slice(0, 7), ...one];
 }
 
 // The right hand starts on the tonic from middle C up; the left hand an octave lower.

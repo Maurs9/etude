@@ -314,7 +314,7 @@
       ]
     },
     {
-      "q": "Suona l'intervallo richiesto."
+      "q": "Suona una quinta giusta ascendente a partire da Re (prima Re, poi La)."
     }
   ],
   "iv2": [
@@ -395,7 +395,7 @@
       ]
     },
     {
-      "q": "Suona la scala maggiore richiesta a partire dalla tonica indicata."
+      "q": "Suona il primo, il terzo e il quinto grado di Sol maggiore (Sol, Si, Re)."
     }
   ],
   "minor": [
@@ -444,7 +444,7 @@
       ]
     },
     {
-      "q": "Suona la scala minore naturale richiesta."
+      "q": "Suona la triade di La minore (La, Do, Mi)."
     }
   ],
   "cof": [
@@ -555,10 +555,10 @@
       ]
     },
     {
-      "q": "Suona la triade maggiore richiesta."
+      "q": "Suona La minore (La, Do, Mi), in qualsiasi ottava o rivolto."
     },
     {
-      "q": "Suona la triade minore richiesta."
+      "q": "Suona Fa maggiore (Fa, La, Do)."
     }
   ],
   "ch7": [
@@ -608,7 +608,7 @@
       ]
     },
     {
-      "q": "Suona l'accordo di settima richiesto."
+      "q": "Suona Sol7 (Sol, Si, Re, Fa)."
     }
   ],
   "pr": [

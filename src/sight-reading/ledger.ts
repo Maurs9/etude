@@ -403,9 +403,14 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
     }
     if (operation.type === 'recordExposure' || operation.type === 'recordListen') {
       if (Object.keys(ledger.exposures).length >= SRT_MAX_EXPOSURES && !ledger.exposures[operation.fingerprint]) return { ok: false, reason: 'quota' };
+      const exposure = ledger.exposures[operation.fingerprint];
       const exposures = {
         ...ledger.exposures,
-        [operation.fingerprint]: { firstSeenAt: ledger.exposures[operation.fingerprint]?.firstSeenAt ?? Date.now(), reason: operation.type === 'recordListen' ? 'listen' : operation.reason },
+        [operation.fingerprint]: {
+          ...exposure,
+          firstSeenAt: exposure?.firstSeenAt ?? Date.now(),
+          reason: operation.type === 'recordListen' ? 'listen' : operation.reason,
+        },
       };
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures });
     }

@@ -314,7 +314,7 @@
       ]
     },
     {
-      "q": "Spiele eine reine Quinte aufwärts von C (C und G)."
+      "q": "Spiele eine reine Quinte aufwärts von D (zuerst D, dann A)."
     }
   ],
   "iv2": [
@@ -395,7 +395,7 @@
       ]
     },
     {
-      "q": "Spiele die ersten fünf Töne der C-Dur-Tonleiter (C, D, E, F, G)."
+      "q": "Spiele die Stufen 1, 3 und 5 von G-Dur (G, H, D)."
     }
   ],
   "minor": [
@@ -444,7 +444,7 @@
       ]
     },
     {
-      "q": "Spiele a-Moll harmonisch aufwärts (A, H, C, D, E, F, Gis, A)."
+      "q": "Spiele den a-Moll-Dreiklang (A, C, E)."
     }
   ],
   "cof": [
@@ -558,7 +558,7 @@
       "q": "Spiele a-Moll (A, C, E) — in beliebiger Oktave oder Umkehrung."
     },
     {
-      "q": "Spiele den a-Moll-Dreiklang in Grundstellung (A, C, E)."
+      "q": "Spiele den F-Dur-Dreiklang (F, A, C)."
     }
   ],
   "ch7": [

@@ -74,7 +74,10 @@ async function prepareAnalysisSelection(page) {
   await page.evaluate(() => window.__etude.show('analysis'));
   await expect(page.locator('#view-analysis')).toHaveClass(/active/);
   await page.locator('#pc-list .pc-item[data-piece="twinkle"]').click();
-  await expect.poll(() => page.evaluate(() => window.__etude.AN.notes.length)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => {
+    const { AN, SCORE } = window.__etude;
+    return !AN.loading && !!SCORE.geo && AN.notes.length > 0;
+  })).toBe(true);
   await page.evaluate(() => {
     const api = window.__etude;
     api.AN.selected = new Set([0, 1, 2, 3]);

@@ -34,7 +34,7 @@ import type {
   ViewEventName,
 } from './views.js';
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
-import { BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
+import { BleClock, CALIBRATION_BPM, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
 import { pickArturia, selectMidiInput } from './midi-input-selection.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
@@ -69,7 +69,7 @@ import { srtNotationSegments } from '../sight-reading/notation.js';
 import '../styles/sight-rhythm.css';
 import { SCALE_FINGERINGS } from './technique.js';
 import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
-import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueStop, type TechniqueHost } from './technique-drill.js';
+import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueRefresh, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
 
 let scoreFeature: typeof import('./score-feature.js');
@@ -440,6 +440,8 @@ async function setLang(l: string|undefined, synchronized = false): Promise<void>
         anDraw();
     rdOnLocale();
     refreshSessionCopy();
+    renderTranscribe();
+    ssFillLevels();
     coachRefresh();
     saveAll();
 }
@@ -565,6 +567,7 @@ function makeVoice(frequency: number, velocity: number, when: number|undefined, 
     return voice;
 }
 function ensureAudio(warm = true) {
+    if (!audioEngine.context || audioEngine.context.state === 'closed') syncAudioState();
     const context = audioEngine.ensureAudio();
     syncAudioState();
     if (context) {
@@ -589,6 +592,13 @@ function audioLockCheck() {
     if (!localSynth || !actx || actx.state === 'running' || audioLockT) return;
     audioLockT = window.setTimeout(() => { audioLockT = 0; const el = byId('audioLock'); if (el && localSynth && actx && actx.state !== 'running') el.hidden = false; }, 300);
 }
+async function timedAudioReady(context: AudioContext): Promise<boolean> {
+    const state = await audioEngine.resumeOnReturn();
+    if (context !== actx) return false;
+    if (state === 'running') return true;
+    audioLockCheck();
+    return false;
+}
 function audioUnlock() { ensureAudio(); const context = actx; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
 function audioNoteOn(midi: number, velocity: number|undefined) { syncAudioState(); audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); syncAudioState(); }
 function audioNoteOff(midi: number) { audioEngine.noteOff(midi); syncAudioState(); }
@@ -596,11 +606,20 @@ function stopPreviews() { clearExplorePreview(); audioEngine.stopPreviews(); syn
 function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); bendSemitones = audioEngine.bendSemitones; }
 function masterRamp(value: number) { audioEngine.masterRamp(value); syncAudioState(); }
 function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); syncAudioState(); }
-function stopDrone() { audioEngine.stopDrone(); syncAudioState(); }
+function stopDrone() {
+    audioEngine.stopDrone();
+    inputById('si-drone').checked = false;
+    syncAudioState();
+}
 function startMetro() { audioEngine.startMetro(metro.bpm); metro.on = true; metro.timer = true; }
 function stopMetro() { audioEngine.stopMetro(); metro.on = false; metro.timer = null; }
 function metroSched() { audioEngine.startMetro(metro.bpm); }
 function metroClick(when: number, accent: boolean) { audioEngine.metroClick(when, accent); }
+const scoreClicks = new Set<audio.AudioVoice>(), phraseClicks = new Set<audio.AudioVoice>();
+function stopClicks(clicks: Set<audio.AudioVoice>) {
+    clicks.forEach(click => click.stop());
+    clicks.clear();
+}
 let previewNote = function previewNote(midi: number, when?: number, duration?: number, velocity?: number, options: { warm?: boolean; hold?: boolean } = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); syncAudioState(); }
 let playInterval = (rootMidi: number, semitones: number, style: 'both' | 'harmonic' | 'melodic') => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); syncAudioState(); };
 function playIvDir(root: number, semitones: number, direction: string) { if (direction === 'desc') playInterval(root + semitones, -semitones, 'both'); else playInterval(root, semitones, 'both'); }
@@ -1071,8 +1090,12 @@ function requireSingFlat(): SightSingNote[] {
         throw new Error('Étude: sight-singing exercise is not drawn');
     return sing.flat;
 }
-function ssFillLevels() { const sel = selectById('si-level'); if (!sel || sel._filled)
-    return; SS_LEVELS.forEach((L, i) => { const o = (document).createElement('option'); o.value = String(i); o.textContent = (i + 1) + ' · ' + L.name; sel.appendChild(o); }); sel._filled = true; }
+function ssFillLevels() {
+    const sel = selectById('si-level');
+    const selected = sel.value;
+    sel.replaceChildren(...SS_LEVELS.map((level, i) => new Option((i + 1) + ' · ' + t(level.label), String(i))));
+    sel.value = selected || String(sing.level);
+}
 // The staff's paper; while it is hidden the staff is drawn at its natural size, and ssFit lays it out once it shows.
 let ssPaperSeen: SrLayout | undefined;
 function ssDraw() { if (!sing.ex)
@@ -1138,6 +1161,7 @@ function singStopAll() {
     ssClearTrail();
     sing.hlTimers.forEach(clearTimeout);
     sing.hlTimers = [];
+    stopClicks(phraseClicks);
     stopPreviews();
     stopMetro();
     stopDrone();
@@ -1400,9 +1424,11 @@ function ssPhraseStart() {
     sing.keyEvents = [];
     ssPaint();
     byId('si-hint').textContent = '';
-    ensureAudio();
-    const run = sing.runId;
-    ssMicMaybe().then((ok) => {
+    const context = ensureAudio(), run = sing.runId;
+    void ssMicMaybe().then(async (ok) => {
+        if (run !== sing.runId || !sing.active || sing.mode !== 'phrase')
+            return;
+        const audible = context && (context.state === 'running' || await timedAudioReady(context));
         if (run !== sing.runId || !sing.active || sing.mode !== 'phrase')
             return;
         if (!ok)
@@ -1411,10 +1437,10 @@ function ssPhraseStart() {
         sing.countInMs = ci * beatSec * 1000;
         sing.phraseStartPN = performance.now() + 150;
         sing.phraseSingPN = sing.phraseStartPN + sing.countInMs;
-        if (actx) {
-            const t0 = actx.currentTime + Math.max(0, (sing.phraseStartPN - performance.now()) / 1000);
+        if (audible && context) {
+            const t0 = context.currentTime + Math.max(0, (sing.phraseStartPN - performance.now()) / 1000);
             for (let b = 0; b < ci; b++)
-                metroClick(t0 + b * beatSec, b === 0); // audible count-in (best-effort)
+                audioEngine.scheduleClick(t0 + b * beatSec, b === 0, phraseClicks);
         }
         byId('si-verdict').className = 'verdict neutral';
         byId('si-verdict').textContent = t('si_count');
@@ -1859,6 +1885,17 @@ function dockSync() {
         return;
     document.body.classList.toggle('kb-land', land);
     document.body.classList.toggle('kb-forced', forced);
+    const menuBtn = byId('menuBtn'), menu = byId('mobileMenu');
+    const menuInDock = land && !forced;
+    if (dock.contains(menuBtn) !== menuInDock) {
+        closeMobileMenu();
+        if (menuInDock) {
+            byId('dock-kb-toggle').before(menuBtn);
+            dock.append(menu);
+        } else {
+            byId('helpBtn').before(menuBtn, menu);
+        }
+    }
     document.body.classList.toggle('kb', on);
     dock.classList.toggle('is-rail', on && !open);
     if (open) {
@@ -1983,11 +2020,44 @@ function releaseFocusInput() {
     if (fell && !FALL.raf)
         fallDraw();
 }
-function panic() { pianoBank.cancelWarmIdle(); scorePause(); srtCancelAttempt('interrupted'); if (srtRecorder)
-    srtRecorder.releaseAll('reset', performance.now() - SR.t0); releaseLiveInput(); rdRhInterrupt(); trxStop(); accompStop(); trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; singStopAll(); srStopAll(true, true); held.forEach((m) => audioNoteOff(m)); held.clear(); heldOrder.length = 0; sustained.forEach((m) => audioNoteOff(m)); sustained.clear(); liveVoices.forEach((v) => v.stop()); liveVoices.clear(); stopPreviews(); stopDrone(); pointerKey.clear(); typingDown.clear(); pedalDown = false; bendSemitones = 0; if (lfoGain && actx)
-    lfoGain.gain.setTargetAtTime(0, actx.currentTime, .02); keyEl.forEach((el) => { el.classList.remove('pressed'); if (el.dataset.s === 'active')
-    delete el.dataset.s; }); if (view0() === 'explore')
-    updateExplore(); }
+function panic() {
+    if (CAL.on) {
+        calStop();
+        calSay('');
+    }
+    pianoBank.cancelWarmIdle();
+    if (SCORE.playing) scorePause();
+    else SCORE.playGen++;
+    srtCancelAttempt('interrupted');
+    if (srtRecorder) srtRecorder.releaseAll('reset', performance.now() - SR.t0);
+    releaseLiveInput();
+    rdRhInterrupt();
+    trxStop();
+    accompStop();
+    trx.hlTimers.forEach(clearTimeout);
+    trx.hlTimers = [];
+    singStopAll();
+    srStopAll(true, true);
+    held.forEach(audioNoteOff);
+    held.clear();
+    heldOrder.length = 0;
+    sustained.forEach(audioNoteOff);
+    sustained.clear();
+    liveVoices.forEach(voice => voice.stop());
+    liveVoices.clear();
+    stopPreviews();
+    stopDrone();
+    pointerKey.clear();
+    typingDown.clear();
+    pedalDown = false;
+    bendSemitones = 0;
+    if (lfoGain && actx) lfoGain.gain.setTargetAtTime(0, actx.currentTime, .02);
+    keyEl.forEach(el => {
+        el.classList.remove('pressed');
+        if (el.dataset.s === 'active') delete el.dataset.s;
+    });
+    if (view0() === 'explore') updateExplore();
+}
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
 function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = null) {
     if (calListening()) { // the timing wizard is listening: notes only sound, no drill sees them
@@ -2186,14 +2256,14 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
     }
 }
 /* ---------- TIMING CALIBRATION: tap with the click (Settings → MIDI keyboard → Timing) ----------
-   A bar of count-in, then twelve clicks at 100 bpm. Every key played on a MIDI or Bluetooth piano, every touch on the pad or the
+   A bar of count-in, then twelve slow clicks so late taps still match their intended beat. Every key played on a MIDI or Bluetooth piano, every touch on the pad or the
    on-screen keys, is paired with its nearest click by its own event time; the median lateness per source (touch, USB MIDI,
    Bluetooth MIDI) becomes that source's offset. The judges subtract it through inputTime(). Notes played meanwhile only sound.
    Stored in data.latency ({ touch, usb, ble } in ms, each optional): settings are rebuilt from known keys on load and sync, which
    would drop it. Reset progress keeps it, as it keeps the settings. Read defensively: a finite number is clamped to 0–500 ms, anything else is 0. No schema migration: the key is optional. */
-const CAL_BEATS = 12, CAL_COUNT_IN = 4, CAL_BPM = 100, CAL_SOURCES: readonly InputSource[] = ['touch', 'usb', 'ble'];
-interface TimingCalibration { on: boolean; clicks: number[]; taps: { src: InputSource; t: number }[]; timers: number[]; nodes: OscillatorNode[] }
-const CAL: TimingCalibration = { on: false, clicks: [], taps: [], timers: [], nodes: [] };
+const CAL_BEATS = 12, CAL_COUNT_IN = 4, CAL_SOURCES: readonly InputSource[] = ['touch', 'usb', 'ble'];
+interface TimingCalibration { on: boolean; generation: number; clicks: number[]; taps: { src: InputSource; t: number }[]; timers: number[]; nodes: OscillatorNode[] }
+const CAL: TimingCalibration = { on: false, generation: 0, clicks: [], taps: [], timers: [], nodes: [] };
 function calRecord(): Record<string, unknown> { return data; }
 useLatencyOffsets(() => calRecord().latency);
 function calLabel(src: InputSource) { return t('lat_' + src); }
@@ -2204,7 +2274,7 @@ function initLatencyCalibration() {
     buttonById('lat-go').addEventListener('click', () => { if (CAL.on)
         calStop();
     else
-        calStart(); });
+        void calStart(); });
     buttonById('lat-reset').addEventListener('click', calReset);
     byId('lat-pad').addEventListener('pointerdown', (e) => { e.preventDefault(); touchInput(e, calTap); });
     calUi();
@@ -2229,15 +2299,24 @@ function calListening() {
     return false;
 }
 function calSay(text: string) { byId('lat-result').textContent = text; }
-function calStart() {
-    ensureAudio();
-    if (!actx)
-        return;
+async function calStart() {
+    const context = ensureAudio();
+    if (!context) return;
     calStop();
-    const bs = 60 / CAL_BPM, lead = .3, act0 = actx.currentTime + lead, perf0 = performance.now() + lead * 1000;
+    const generation = CAL.generation;
     CAL.on = true;
     CAL.taps = [];
     CAL.clicks = [];
+    calUi();
+    if (context.state !== 'running') {
+        const ready = await timedAudioReady(context);
+        if (generation !== CAL.generation) return;
+        if (!ready) {
+            calStop();
+            return;
+        }
+    }
+    const bs = 60 / CALIBRATION_BPM, lead = .3, act0 = context.currentTime + lead, perf0 = performance.now() + lead * 1000;
     for (let b = 0; b < CAL_COUNT_IN + CAL_BEATS; b++) {
         const click = audioEngine.scheduleClick(act0 + b * bs, b % 4 === 0);
         if (click?.oscs)
@@ -2248,7 +2327,6 @@ function calStart() {
     }
     CAL.timers.push(window.setTimeout(calFinish, lead * 1000 + (CAL_COUNT_IN + CAL_BEATS) * bs * 1000));
     calSay(t('lat_countin'));
-    calUi();
 }
 function calBeat(b: number) {
     const pad = byId('lat-pad');
@@ -2259,10 +2337,11 @@ function calBeat(b: number) {
 }
 function calTap() {
     const src = inputSource();
-    if (CAL.on && src)
+    if (CAL.on && CAL.clicks.length && src)
         CAL.taps.push({ src, t: inputEventTime() });
 }
 function calStop() {
+    CAL.generation++;
     CAL.timers.forEach(clearTimeout);
     CAL.timers = [];
     CAL.nodes.forEach((n) => { try {
@@ -2271,11 +2350,12 @@ function calStop() {
     catch (_) { } });
     CAL.nodes = [];
     CAL.on = false;
+    byId('lat-pad').classList.remove('beat');
     calUi();
 }
 function calFinish() {
     calStop(); // its timers and clicks are spent; this clears them and the running state
-    const bs = 60000 / CAL_BPM, next: LatencyOffsets = readLatencyOffsets(calRecord().latency), said: string[] = [];
+    const bs = 60000 / CALIBRATION_BPM, next: LatencyOffsets = readLatencyOffsets(calRecord().latency), said: string[] = [];
     let changed = false;
     CAL_SOURCES.forEach((src) => {
         const taps = CAL.taps.filter((x) => x.src === src).map((x) => x.t);
@@ -3071,11 +3151,11 @@ document.addEventListener('keyup', (e) => { const c = physKey(e), m = typingDown
 /* ---------- GRADING CORE ---------- */
 function chordTargetPcs(rootPc: number, tpl: theory.ChordTemplate|undefined) { if (!tpl)
     throw new Error('Étude: unknown chord template'); return chordPitches(rootPc, tpl.intervals); }
-function inversionOf(rootPc: number, tpl: { symbol: string; idx?: number; pcset?: readonly number[] }, bassMidi: number) {
+function inversionOf(rootPc: number, tpl: { symbol: string; idx?: number; pcset?: readonly number[]; intervals?: readonly number[] }, bassMidi: number) {
     const { idx, pcset } = tpl;
     if (idx === undefined || !pcset)
         return 0;
-    return chordInversion(rootPc, { idx, symbol: tpl.symbol, pcset }, bassMidi);
+    return chordInversion(rootPc, { idx, symbol: tpl.symbol, pcset, intervals: tpl.intervals }, bassMidi);
 }
 function identifyChord(notes: readonly number[], expected?: number) { return identifyChordDomain(notes, CHORDS , expected); }
 function slashLabel(id: { rootPc: number; chord: { symbol: string; }; inversion: number; bassPc: number; }) { return rootName(id.rootPc) + id.chord.symbol + (id.inversion > 0 ? '/' + rootName(id.bassPc) : ''); }
@@ -3134,6 +3214,16 @@ type StoredTrainerData = {
     reading?: Partial<ReadDrillData>;
 };
 function freshData(): StoredTrainerData { return { srs: {}, streak: 0, bestStreak: 0, lastActive: 0, todayDay: 0, todayCount: 0, newToday: 0, totalReviews: 0, totalCorrect: 0, placed: false, history: {}, singCleared: {}, sheet: {}, settings: { goal: 12, newPerDay: 5, allowInv: false, metronome: false, drone: false, weakSpotInjection: false, anyOctave: false } }; }
+function restoreTrainerData(saved: storage.PttV3Payload['data']): StoredTrainerData {
+    const { settings, srs, ...rest } = saved;
+    const restored = {
+        ...freshData(), ...rest,
+        settings: restoreSettings(settings),
+        srs: storage.restoreSrs(srs),
+    };
+    if (!isRecord(restored.sheet)) restored.sheet = {};
+    return restored;
+}
 let data = freshData();
 function currentStreak() { return (data.lastActive >= todayN() - 1) ? (data.streak || 0) : 0; } // a missed day shows as 0, not the stale count
 function srsOf(id: string|number) { return data.srs[id] || (data.srs[id] = storage.restoreSrsEntry(null)); }
@@ -3517,8 +3607,13 @@ function earOptionLabel(q: TrainerQuestion, key: string) {
     }
 }
 function refreshSessionCopy() {
+    if (!SES.active) return;
+    if (SES.targeted?.cat === TECHNIQUE_TOPIC) {
+        techniqueRefresh(techniqueHost);
+        return;
+    }
     const q = SES.q;
-    if (!SES.active || !q || SES.targeted?.cat === TECHNIQUE_TOPIC) return;
+    if (!q) return;
     if (q.mode === 'ear') {
         byId('q-mode').textContent = t(q.ek ? 'ek_mode' : 'listen_answer');
         if (q.ek) {
@@ -5439,7 +5534,12 @@ function lStaffSvg(key: string) {
     let svg = r.svg;
     if (needH)
         svg = svg.replace(/viewBox="0 0 ([\d.]+) ([\d.]+)" width="([\d.]+)" height="([\d.]+)"/, (m: string, w: string, h: string) => { const H = Math.max(+h, needH); return 'viewBox="0 0 ' + w + ' ' + H + '" width="' + w + '" height="' + H + '"'; });
-    svg = svg.replace(/<g class="ss-n" data-nid="(\d+)">/g, (m: string, id: string) => { const n = r.notes[+id]; return '<g class="ss-n" data-nid="' + id + '" tabindex="0" role="button" aria-label="' + t('lu_note_aria', noteName(n.midi, (P.keyN || 0) < 0), Math.floor(n.beat - (P.pickup || 0) + 1e-3) + 1) + '">'; });
+    svg = svg.replace(/<g class="ss-n" data-nid="(\d+)"([^>]*)>/g, (tag: string, id: string) => {
+        const n = r.notes[+id];
+        if (!n) return tag;
+        const label = t('lu_note_aria', noteName(n.midi, (P.keyN || 0) < 0), Math.floor(n.beat - (P.pickup || 0) + 1e-3) + 1);
+        return tag.slice(0, -1) + ' tabindex="0" role="button" aria-label="' + rdEsc(label) + '">';
+    });
     svg = svg.replace('<svg class="ss-svg"', '<svg class="ss-svg" role="group" aria-label="' + LT(S.cap).replace(/"/g, '&quot;') + '"');
     return lStaffFit(svg.replace('</svg>', out + '</svg>'), r.W);
 }
@@ -7413,7 +7513,7 @@ function srtStartPractice() {
     SR.srtState = SRT_INITIAL_STATE;
     srtSetState({ type: 'prepare', mode: 'practice', fingerprint });
     srtSetState({ type: 'startPreview' });
-    srAssessStart(operation);
+    void srAssessStart(operation);
 }
 async function srtStartFirstSight() {
     if ((!SR.srtPiece && !SR.lvPiece) || !SR.srtFingerprint)
@@ -7565,7 +7665,7 @@ function srtStartClaimedAttempt(operation = srtOperationEpoch) {
     srtSetState({ type: 'startNow' });
     if (SR.srtState?.name !== 'countIn' || SR.srtState.attemptId !== state.attemptId)
         return;
-    srAssessStart(operation);
+    void srAssessStart(operation);
 }
 async function srtSwitchToPractice() {
     const operation = srtBeginOperation();
@@ -7617,16 +7717,30 @@ async function srtSwitchToPractice() {
     srtSetState({ type: 'prepare', mode: 'practice', fingerprint: SR.srtFingerprint ?? undefined });
     srtSetState({ type: 'startPreview' });
     srDraw();
-    srAssessStart(operation);
+    void srAssessStart(operation);
 }
-function srAssessStart(operation?: number) {
+async function srAssessStart(operation?: number) {
     const srtState = SR.srtState;
     if (srtGeneratedSelected() && srtState?.mode === 'firstSight' &&
         (srtState.name !== 'countIn' || !srtState.attemptId ||
             srtCountInEpoch !== srtOperationEpoch || srtCountInAttemptId !== srtState.attemptId ||
             operation !== undefined && operation !== srtOperationEpoch))
         return;
+    const context = ensureAudio();
+    if (!context) {
+        srStopAll();
+        return;
+    }
     SR.active = true;
+    if (context.state !== 'running') {
+        const epoch = srtOperationEpoch;
+        const ready = await timedAudioReady(context);
+        if (!SR.active || epoch !== srtOperationEpoch) return;
+        if (!ready) {
+            srStopAll();
+            return;
+        }
+    }
     stageSync();
     rdnNavUi();
     SR.results = {};
@@ -7647,9 +7761,7 @@ function srAssessStart(operation?: number) {
     inputById('rd-bpm').value = String(SR.bpm);
     byId('rd-bpmLbl').textContent = String(SR.bpm);
     const bs = 60 / SR.bpm, cap = SR.piece.ts[1] === 8 ? SR.piece.ts[0] * 0.5 : SR.piece.ts[0], ci = cap, pk = SR.piece.pickup || 0;
-    if (!actx)
-        return;
-    let act0 = actx.currentTime + 0.15, perf0 = performance.now() + 150;
+    let act0 = context.currentTime + 0.15, perf0 = performance.now() + 150;
     // The count-in lasts one bar. A level piece clicks once per beat of its meter (so 3/8 and 6/8 count right).
     let lead = ci * bs;
     const first = lvPiece ? srFirstNotes() : null, noteStart = first ? srNoteStartTake() : null;
@@ -7657,8 +7769,8 @@ function srAssessStart(operation?: number) {
         // Started by its first note: no count-in. That note is the first onset of the piece, and the clicks go on from it.
         lead = 0;
         perf0 = noteStart.perf - first.beat * bs * 1000;
-        act0 = actx.currentTime - (performance.now() - perf0) / 1000;
-        const from = actx.currentTime + 0.03;
+        act0 = context.currentTime - (performance.now() - perf0) / 1000;
+        const from = context.currentTime + 0.03;
         srtLevelClicks(lvPiece, SR.bpm).filter((c) => act0 + c.ms / 1000 > from).forEach((c) => srClick(act0 + c.ms / 1000, c.accent));
     }
     else if (lvPiece) {
@@ -8054,7 +8166,7 @@ function srGo() {
             return;
     }
     else
-        srAssessStart();
+        void srAssessStart();
 }
 function srMeta() {
     const p = SR.piece, titleEl = maybeById('rd-gen-title');
@@ -8189,7 +8301,14 @@ function rdData(): ReadDrillData {
     const r = data.reading;
     r.lv = r.lv || {};
     r.nt = r.nt || {};
-    r.tot = Object.assign({ n: 0, ok: 0, ms: 0, sess: 0 }, r.tot || {});
+    const tot = r.tot;
+    r.tot = {
+        ...tot,
+        n: clampPersistedNumber(tot?.n, 0, Infinity, 0),
+        ok: clampPersistedNumber(tot?.ok, 0, Infinity, 0),
+        ms: clampPersistedNumber(tot?.ms, 0, Infinity, 0),
+        sess: clampPersistedNumber(tot?.sess, 0, Infinity, 0),
+    };
     r.prefs = Object.assign({ tab: 'drills', sound: true, hints: false, last: null, custom: null, rhDur: false, rhHands: 1, flow: true, ghost: false, stage: true, instantFeedback: false }, r.prefs || {});
     if (!isReadDrillData(r))
         throw new Error('Étude: reading progress could not be initialised');
@@ -9422,9 +9541,11 @@ function rdRhFit() {
 }
 function rdRhOptsLock(on: boolean) { (document).querySelectorAll('#rdx-rhopts input,#rdx-rhopts button').forEach((x) => { if (x instanceof HTMLInputElement || x instanceof HTMLButtonElement)
     x.disabled = on; }); }
+let rdRhRunId = 0;
 function rdRhInterrupt() {
     const round = RD.rh;
     if (!round?.playing) return;
+    rdRhRunId++;
     round.playing = false;
     cancelAnimationFrame(round.raf);
     round.open.clear();
@@ -9435,25 +9556,33 @@ function rdRhInterrupt() {
     byId('rdx-fb').textContent = t('rdx_rh_yourturn');
     byId('rdx-live').textContent = t('rdx_rh_yourturn');
 }
-function rdRhRun(listen: boolean) {
+async function rdRhRun(listen: boolean) {
     const R = RD.rh, L = RD.L;
-    if (!R || !L || R.playing)
-        return;
-    ensureAudio();
-    if (!actx)
-        return;
+    if (!R || !L || R.playing) return;
+    const context = ensureAudio();
+    if (!context) return;
+    const runId = ++rdRhRunId;
+    R.playing = true;
+    R.t0 = Infinity;
+    rdRhOptsLock(true);
+    if (context.state !== 'running') {
+        const ready = await timedAudioReady(context);
+        if (RD.rh !== R || rdRhRunId !== runId || !R.playing) return;
+        if (!ready) {
+            rdRhInterrupt();
+            return;
+        }
+    }
     const bs = 60 / rdLevelBpm(L);
     R.taps = [];
     R.presses = [];
     R.open.clear();
     R.graded = null;
-    R.playing = true;
     R.listen = !!listen;
-    rdRhOptsLock(true);
     byId('rdx-rhdet').innerHTML = '';
     byId('rdx-staff').querySelectorAll('.ss-n').forEach((g) => { g.removeAttribute('data-s'); g.removeAttribute('data-d'); const tt = g.querySelector('title.rdx-tt'); if (tt)
         tt.remove(); });
-    const act0 = actx.currentTime + 0.2, beat0 = act0 + 4 * bs;
+    const act0 = context.currentTime + 0.2, beat0 = act0 + 4 * bs;
     R.t0 = performance.now() + 200 + 4 * bs * 1000;
     for (let b = 0; b < 4; b++)
         rdClick(act0 + b * bs, b === 0);
@@ -9507,7 +9636,7 @@ function rdRhRun(listen: boolean) {
 // Every press is kept with its release: src names the key (MIDI note, computer key, pointer on a pad), hand is 'L' or 'R'.
 function rdRhPress(src: string, hand: string) {
     const R = RD.rh, L = RD.L;
-    if (!R || !L || !R.playing || R.listen)
+    if (!R || !L || !R.playing || R.listen || !Number.isFinite(R.t0))
         return;
     if (R.open.has(src))
         rdRhRelease(src);
@@ -9990,7 +10119,11 @@ function rdLvDetail(L: ReadDrillLevel) {
     return p.join(' · ');
 }
 function rdLvSub(L: ReadDrillLevel) { return rdLvDetail(L).split(' · ').slice(1).join(' · '); }
-function rdStars(s: number, label?: string) { return `<span class="rdx-stars" role="img" aria-label="${rdEsc(label ?? t('rdx_stars_n', s))}">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span>`; }
+function rdStarCount(value: unknown) { return Math.floor(clampPersistedNumber(value, 0, 3, 0)); }
+function rdStars(value: number, label?: string) {
+    const count = rdStarCount(value);
+    return `<span class="rdx-stars" role="img" aria-label="${rdEsc(label ?? t('rdx_stars_n', count))}">${'★'.repeat(count)}<i>${'☆'.repeat(3 - count)}</i></span>`;
+}
 function rdKeyText(k: string) {
     const clefOf: Record<string, string> = { t: 'treble', b: 'bass', a: 'alto', n: 'tenor' };
     let m = /^([tban]):([A-G])([#b]?)(\d)$/.exec(k);
@@ -10351,7 +10484,7 @@ function rdSuggest() {
     return RD_ALL.find((L) => !((d.lv[L.id] || {}).s)) || last || RD_ALL[0];
 }
 function rdRenderHome() {
-    const d = rdData(), tot = d.tot, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0), cont = rdSuggest();
+    const d = rdData(), tot = d.tot, st = RD_ALL.reduce((sum, level) => sum + rdStarCount(d.lv[level.id]?.s), 0), cont = rdSuggest();
     const unit = RD_UNITS.find((u) => u.lv.includes(cont)), rec: Partial<ReadDrillLevelStat> = d.lv[cont.id] || {}, sample = rdLvSample(cont);
     const best = [rec.acc ? t('rdx_best_acc', rec.acc) : '', rec.t ? t('rdx_best_t', (rec.t / 1000).toFixed(1)) : ''].filter(Boolean).map((s) => `<span>${rdEsc(s)}</span>`).join('');
     const opt = (id: string, on: boolean, key: string, off = false) => `<label class="switch-inline"><input type="checkbox" id="${id}"${on ? ' checked' : ''}${off ? ' disabled' : ''}> <span>${t(key)}</span></label>`;
@@ -10364,9 +10497,9 @@ function rdRenderHome() {
       <button class="btn primary" data-lv="${cont.id}" id="rdx-cont" aria-describedby="rdx-next-name rdx-next-d">▶ ${t(d.prefs.last ? 'rdx_continue' : 'rdx_begin')}</button></div></div>
     <div class="rdx-hero-r" role="group" aria-label="${rdEsc(t('rdx_hero_opts'))}">${opt('rdx-snd', !!d.prefs.sound, 'rdx_sound')}${opt('rdx-hints', !!d.prefs.hints, 'rdx_hints')}${opt('rdx-flow', !!d.prefs.flow, 'rdx_flow')}${opt('rdx-ghost', !!d.prefs.ghost, 'rdx_ghost', !d.prefs.flow)}${opt('rdx-stage-pref', !!d.prefs.stage, 'rdx_stage')}${opt('rdx-weak-inject', !!data.settings.weakSpotInjection, 'rdx_weak_inject')}</div>`;
     byId('rdx-ladder').innerHTML = RD_UNITS.map((u) => {
-        const done = u.lv.filter((L: ReadDrillLevel) => (d.lv[L.id]?.s || 0) > 0).length;
+        const done = u.lv.filter((L: ReadDrillLevel) => rdStarCount(d.lv[L.id]?.s) > 0).length;
         return `<section class="rdx-unit"><h3><span class="ic" aria-hidden="true">${u.icon}</span><span>${t('rdx_u_' + u.u)}</span><small>${done}/${u.lv.length}</small></h3><p>${t('rdx_ud_' + u.u)}</p><div class="rdx-lvs">${u.lv.map((L: ReadDrillLevel) => {
-            const r = d.lv[L.id] || {}, s = r.s || 0;
+            const s = rdStarCount(d.lv[L.id]?.s);
             return `<button class="rdx-lv${s ? ' s' + s : ''}" data-lv="${L.id}" title="${rdEsc(rdLvDetail(L))}" aria-label="${rdEsc(rdLvName(L) + ': ' + rdLvDetail(L) + (s ? ' — ' + t('rdx_stars_n', s) : ''))}"><span class="n">${L.n}</span><span class="d"><b>${t('rdx_ty_' + L.ty)}</b><i>${rdEsc(rdLvSub(L))}</i></span><span class="st" aria-hidden="true">${'★'.repeat(s)}<i>${'☆'.repeat(3 - s)}</i></span></button>`;
         }).join('')}</div></section>`;
     }).join('');
@@ -10449,13 +10582,13 @@ function rdHeat(clef: 'treble' | 'bass' | 'alto' | 'tenor', lo: string, hi: stri
     }
     return rdSvg({ clef, cols, colW: 24, dur: 1, scale: 1.2, lbl, lblCls: cls, aria: t('rdx_heat_aria', t('rdx_clef_' + clef)) }).svg;
 }
-function rdBars(rows: readonly { l: string; n: number; ok: number; }[]) { return rows.map((r) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + r.n + '×' : '—'}</em></div>`).join(''); }
+function rdBars(rows: readonly { l: string; n: number; ok: number; }[]) { return rows.map((r) => `<div class="rdx-bar"><span>${rdEsc(r.l)}</span><div class="rdx-bar-t"><i style="width:${r.n ? Math.round(100 * r.ok / r.n) : 0}%"></i></div><em>${r.n ? Math.round(100 * r.ok / r.n) + '% · ' + rdEsc(r.n) + '×' : '—'}</em></div>`).join(''); }
 function rdRenderStats() {
     const box = maybeById('rdx-stats');
     if (!box)
         return;
     const d = rdData(), tot = d.tot, nt = d.nt, g = (k: string) => nt[k] || { n: 0, ok: 0 };
-    const lvDone = RD_ALL.filter((L) => ((d.lv[L.id] || {}).s || 0) > 0).length, st = RD_ALL.reduce((a, L) => a + ((d.lv[L.id] || {}).s || 0), 0);
+    const lvDone = RD_ALL.filter(L => rdStarCount(d.lv[L.id]?.s) > 0).length, st = RD_ALL.reduce((sum, level) => sum + rdStarCount(d.lv[level.id]?.s), 0);
     const weak = Object.entries(nt).filter(([k, s]) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
     const ks: { l: string; n: number; ok: number; }[] = [];
     for (let k = -7; k <= 7; k++)
@@ -10463,7 +10596,7 @@ function rdRenderStats() {
             ks.push({ l: rdKeyLabel(k), ...g('ks:' + k) });
     const rh = (RD_UNITS.find((u) => u.u === 'rh')?.lv ?? []).filter((L: ReadDrillLevel) => g('rh:' + L.id).n).map((L: ReadDrillLevel) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
     const extra = (['alto', 'tenor'] as const).filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
-    box.innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+    box.innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${rdEsc(x[0])}</b><span>${rdEsc(x[1])}</span></div>`).join('')}</div>
     <div class="panel rdx-stat-p"><h3>${t('rdx_heat')}</h3><p class="rdx-desc">${t('rdx_heat_d')}</p>
       <div class="rdx-staff rdx-heat">${rdHeat('treble', 'A3', 'C6')}</div><div class="rdx-staff rdx-heat">${rdHeat('bass', 'C2', 'E4')}</div>
       ${extra.map((c) => `<div class="rdx-staff rdx-heat">${rdHeat(c, c === 'alto' ? 'C3' : 'A2', c === 'alto' ? 'D5' : 'B4')}</div>`).join('')}</div>
@@ -10707,9 +10840,9 @@ function rdOnLocale() {
         else if (id === 'rdx-hintb')
             rdHint();
         else if (id === 'rdx-rhgo')
-            rdRhRun(false);
+            void rdRhRun(false);
         else if (id === 'rdx-rhlisten')
-            rdRhRun(true);
+            void rdRhRun(true);
         else if (b && b.classList.contains('rdx-tap') && e.detail === 0)
             rdTap(b.dataset.hand);
         else if (id === 'rdx-c-go')
@@ -10787,8 +10920,6 @@ function rdOnLocale() {
     const g = byId('rd-gen');
     if (g)
         g.addEventListener('click', rdGenMelody);
-    ['set-notation'].forEach((id) => { const el = maybeById(id); if (el)
-        el.addEventListener('click', () => setTimeout(rdOnLocale, 0)); });
 })();
 /* ============================================================================
    READ HOME — the Read tab's home (Today, the book, Warm-up, Progress) and the player of level pieces
@@ -13875,6 +14006,7 @@ function scoreHalt() {
     SCORE.playGen++;
     SCORE.timers.forEach(clearTimeout);
     SCORE.timers = [];
+    stopClicks(scoreClicks);
     stopPreviews();
 }
 function scoreIdle() { scoreStateText(); anUpdateControls(); anKeysPaint(); fallDraw(); scoreCursorUpdate(true); anStatusPos(); anLibrarySchedule(); }
@@ -14100,7 +14232,7 @@ async function pracStart(o: PracticeStartOptions)  {
     if (PRAC.countIn) {
         const beat = scoreBeatAt(o.from), m = anMeasureAt(beat) || { num: 4, den: 4 }, u = scoreFeature.harmony.anBeatUnit(m), n = Math.max(2, Math.round(m.num * 4 / m.den / u)), sec = u * 60 / anTempoAt(beat) / f;
         for (let k = 0; k < n; k++)
-            metroClick(now + k * sec, k === 0);
+            audioEngine.scheduleClick(now + k * sec, k === 0, scoreClicks);
         ci = { t: now, n, sec };
         a0 = now + n * sec;
     }
@@ -14203,7 +14335,7 @@ function pracTick() {
         while (R.bi < R.beats.length && R.beats[R.bi].t < lim) {
             const b = R.beats[R.bi++];
             if (PRAC.metro && b.t >= s.t0 - 1e-6 && b.t < s.t1 - 1e-6)
-                metroClick(Math.max(now, at(b.t)), b.acc);
+                audioEngine.scheduleClick(Math.max(now, at(b.t)), b.acc, scoreClicks);
         }
         if (R.route?.length && !B && horizon >= s.t1) {
             const range = R.route.shift();
@@ -14529,6 +14661,11 @@ function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '
     byId('pr-again').focus({ preventScroll: true });
 }
 function pracSumClose() { byId('pr-sum').hidden = true; PRAC.next = null; anSideSync(); }
+function pracReplay() {
+    pracSumClose();
+    performanceSeek(0);
+    void scorePlay(false, 0);
+}
 // Count-in digits, the waiting state and the HUD's fading judgement follow the animation frame.
 function pracFrame() {
     const R = SCORE.run, c = byId('pr-count');
@@ -14599,15 +14736,17 @@ function pracSetAB(which: string) {
 function pracClearAB() { PRAC.A = PRAC.B = null; if (SCORE.loop && SCORE.loop.ab)
     scoreStop(); anUpdateControls(); anTlUpdate(); }
 async function scorePlay(selection = false, from: number | null = null, carry: PracticeCarry | null = null)  {
-    if (!AN.notes.length)
+    if (!AN.notes.length || AN.loading)
         return;
     const all: PracticeTimedNote[] = fallData(), chosen = selection ? all.filter((d) => AN.selected.has(d.i)) : all;
     if (!chosen.length)
         return;
     const a = selection ? Math.min(...chosen.map((d) => d.start)) : 0, b = selection ? Math.max(...chosen.map((d) => d.finish)) : fallEnd();
     let position = from != null ? from : selection ? a : FALL.position;
-    if (position >= b - .05 || position < a - 1e-6)
-        position = a; // at the end, or outside the selection: start over
+    if (position >= b - .05 || position < a - 1e-6) {
+        position = a;
+        if (!selection) performanceSeek(0);
+    }
     const notes = chosen.filter((d) => !selection || d.finish > position).sort((x, y) => x.start - y.start || x.n.midi - y.n.midi);
     if (!notes.length) {
         scoreHalt();
@@ -17497,9 +17636,9 @@ function anInitControls() {
     byId('pr-seta').addEventListener('click', () => pracSetAB('A'));
     byId('pr-setb').addEventListener('click', () => pracSetAB('B'));
     byId('pr-clrab').addEventListener('click', pracClearAB);
-    byId('pr-again').addEventListener('click', () => { pracSumClose(); scorePlay(false, 0); });
-    byId('pr-slower').addEventListener('click', () => { pracSumClose(); const sel = selectById('score-speed'), o = [...sel.options].map((x) => +x.value), cur = +sel.value, v = o.filter((x) => x < cur).pop(); if (v)
-        sel.value = String(v); pracHud(); scorePlay(false, 0); });
+    byId('pr-again').addEventListener('click', pracReplay);
+    byId('pr-slower').addEventListener('click', () => { const sel = selectById('score-speed'), o = [...sel.options].map((x) => +x.value), cur = +sel.value, v = o.filter((x) => x < cur).pop(); if (v)
+        sel.value = String(v); pracHud(); pracReplay(); });
     byId('pr-close').addEventListener('click', pracSumClose);
     byId('pr-sum-next').addEventListener('click', (e) => { if (eventClosest(e, '#pr-next-act') && PRAC.next && PRAC.next.act)
         PRAC.next.act.run(); });
@@ -17869,7 +18008,7 @@ function renderProgress() {
     // Reading: the reading drills' statistics, with their own Reset button.
     rdRenderStats();
 }
-function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + v + '</b><span>' + l + '</span></div>'; }
+function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + rdEsc(v) + '</b><span>' + rdEsc(l) + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
 function toolName(v: string) { return t(v === 'practice' ? 'nav_drills' : v === 'songs' ? 'pr_songs' : v === 'accompany' ? 'pr_along' : 'nav_' + (isMergedView(v) ? MERGED_VIEWS[v] : v)); }
 interface DailyPlanTask { id: string; done: boolean; partial?: boolean; prog?: number; pill?: string; t: string; d: string; go: () => void }
@@ -18318,7 +18457,6 @@ const SYNC_PREFS: Record<SyncPrefName, SyncPrefEntry> = { theme: [() => theme, (
             notation = v;
             applyNotation();
             refreshToday();
-            setTimeout(rdOnLocale, 0);
         } }, 1],
     labels: [() => labelMode, (v: unknown) => { if (syncOneOf(SYNC_LABELS, v)) {
             labelMode = v;
@@ -18326,7 +18464,15 @@ const SYNC_PREFS: Record<SyncPrefName, SyncPrefEntry> = { theme: [() => theme, (
             repaintHeld();
         } }, 1] };
 function syncIsPrefName(k: string): k is SyncPrefName { return Object.prototype.hasOwnProperty.call(SYNC_PREFS, k); }
-function syncGen() { return Date.now().toString(36).padStart(9, '0') + Math.random().toString(36).slice(2, 8); } // sorts by time
+function syncGen(time = Date.now()) { return time.toString(36).padStart(9, '0') + Math.random().toString(36).slice(2, 8); }
+function syncGenTime(gen: string) {
+    return /^[0-9a-z]{9,15}$/.test(gen) ? parseInt(gen.slice(0, 9), 36) : -1;
+}
+function syncNextGen() {
+    const saved = readPttV3(localStorage)?.payload.gen;
+    const prior = Math.max(syncGenTime(SYNC.gen), typeof saved === 'string' ? syncGenTime(saved) : -1);
+    return syncGen(Math.max(Date.now(), prior + 1));
+}
 function syncId(p: unknown, raw: string|null) {
     if (syncIsObject(p) && typeof p.syncId === 'string' && SYNC_ID.test(p.syncId))
         return p.syncId;
@@ -18348,7 +18494,7 @@ function syncRemember(id: string, p: unknown) {
         SYNC.known.delete(oldest.value);
     }
 }
-function syncCurrent(raw: string) { const p = syncParseJson(raw); SYNC.raw = raw; SYNC.id = syncId(p, raw); syncRemember(SYNC.id, p); } // its own copy: data may share objects with the record it was read from
+function syncCurrent(raw: string) { const p = parsePttV3(raw); SYNC.raw = raw; SYNC.id = syncId(p, raw); syncRemember(SYNC.id, p); } // its own copy: data may share objects with the record it was read from
 function syncPair(a: string, b: string) { return 'merge:' + [a, b].sort().join('+'); }
 // A JSON round trip of a record is again a record, so the fallback never runs.
 function syncCloneData(d: Record<string, unknown>) { const copy = syncParseJson(JSON.stringify(d)); return isRecord(copy) ? copy : {}; }
@@ -18424,7 +18570,10 @@ function syncPick(b: unknown, l: unknown, r: unknown, p: string) {
 }
 function syncInto(l: Record<string,unknown>, b: unknown, r: Record<string,unknown>, p: string) {
     new Set([...Object.keys(l), ...Object.keys(r)]).forEach((k) => {
-        const q = p ? p + '.' + k : k, none = b === SYNC_NONE, bk = none ? b : isRecord(b) ? b[k] : undefined, lv = l[k], rv = r[k], srs = /^srs\./.test(q);
+        if (!storage.isSafeRecordKey(k)) return;
+        const q = p ? p + '.' + k : k, none = b === SYNC_NONE, srs = /^srs\./.test(q);
+        const bk = none ? b : isRecord(b) && Object.hasOwn(b, k) ? b[k] : undefined;
+        const lv = Object.hasOwn(l, k) ? l[k] : undefined, rv = Object.hasOwn(r, k) ? r[k] : undefined;
         if (!none && syncSame(rv, bk))
             return; // the other tab left it alone
         if (isRecord(lv) && isRecord(rv) && !/^srs\.|^lastDrill$/.test(q)) {
@@ -18476,8 +18625,12 @@ let syncPull = function syncPull() {
         storeBlock();
         return '';
     }
-    const gen = typeof rp.gen === 'string' ? rp.gen : '', swap = gen > SYNC.gen;
-    if (gen < SYNC.gen)
+    const gen = typeof rp.gen === 'string' ? rp.gen : '';
+    // Older saves sometimes used labels instead of a timestamp-based generation.
+    const remoteTime = syncGenTime(gen), localTime = syncGenTime(SYNC.gen);
+    const order = remoteTime - localTime || (gen === SYNC.gen ? 0 : gen > SYNC.gen ? 1 : -1);
+    const swap = order > 0;
+    if (order < 0)
         return 'old';
     lp = parsePttV3(SYNC.raw);
     if (lp) {
@@ -18490,17 +18643,17 @@ let syncPull = function syncPull() {
         bp = ancestor;
     const lid = SYNC.id, sibling = !swap && parent && lp && lp.syncParent === parent && lid !== syncId(rp, cur), sameData = !swap && syncSame(data, rp.data) && !sibling;
     if (swap) {
-        data = Object.assign(freshData(), rp.data);
+        data = restoreTrainerData(rp.data);
         SYNC.gen = gen;
         SYNC.known.clear();
         SYNC.merge = null;
     }
-    else if (!sameData)
+    else if (!sameData) {
         syncData(!syncHasBase(bp) ? bp : bp.data, data, rp.data);
-    data.settings = restoreSettings(data.settings);
-    data.srs = storage.restoreSrs(data.srs);
-    if (!isRecord(data.sheet))
-        data.sheet = {};
+        data.settings = restoreSettings(data.settings);
+        data.srs = storage.restoreSrs(data.srs);
+        if (!isRecord(data.sheet)) data.sheet = {};
+    }
     if (syncHasBase(bp))
         Object.keys(SYNC_PREFS).filter(syncIsPrefName).forEach((f) => {
             const [get, set, later] = SYNC_PREFS[f], v = rp[f];
@@ -18567,11 +18720,12 @@ function syncRefresh() {
     else if (view0() === 'practice' && !SES.active)
         renderPracticeSetup();
 }
-function saveAll() { const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
+let reloadingForRestore = false;
+function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
 function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
 function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
-    if (STORE.blocked) {
+    if (reloadingForRestore || STORE.blocked) {
         if (replacement)
             throw new Error('Progress is protected');
         return;
@@ -18711,15 +18865,19 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
             // The save may have changed while taking the snapshot or waiting for the ledger lock.
             if (storeBackupBlocked())
                 throw new Error('Newer progress schema');
-            return syncGen();
+            return syncNextGen();
         });
         if (!saved.ok) {
             alert(t(saved.reason === 'unsupported' ? 'import_too_new' : 'import_storage'));
             return;
         }
+        reloadingForRestore = true;
+        clearTimeout(_saveT ?? undefined);
+        _saveT = null;
         location.reload();
     }
     catch (_) {
+        reloadingForRestore = false;
         alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : 'import_storage'));
     }
 }
@@ -18769,7 +18927,7 @@ async function storeReset() {
             checkWritable();
             syncPull();
             const reset = { ...freshData(), settings: data.settings, latency: calRecord().latency };
-            syncWrite({ gen: syncGen(), data: reset });
+            syncWrite({ gen: syncNextGen(), data: reset });
         });
         if (!result)
             return;
@@ -18933,13 +19091,7 @@ function loadAll() {
         if (raw && stored) {
             SYNC.gen = typeof raw.gen === 'string' ? raw.gen : '';
             syncCurrent(stored.raw);
-            if (raw.data) {
-                data = Object.assign(data, raw.data);
-                data.settings = restoreSettings(raw.data.settings);
-                data.srs = storage.restoreSrs(raw.data.srs);
-                if (!isRecord(data.sheet))
-                    data.sheet = {};
-            }
+            data = restoreTrainerData(raw.data);
             if (raw.lang && syncIsLang(raw.lang))
                 lang = raw.lang;
             if (raw.theme && syncOneOf(SYNC_THEMES, raw.theme))
@@ -19179,6 +19331,9 @@ function applyNotation() {
     anLocalize();
     if (view0() === 'analysis')
         anDraw();
+    refreshSessionCopy();
+    renderTranscribe();
+    rdOnLocale();
     coachRefresh();
 }
 /* ---------- ACCOMPANIMENT UI: Progressions · Play along in the Practice setup ---------- */

@@ -111,8 +111,21 @@ export function isImportableBackup(value: unknown): value is PttV3Payload {
   const numbers = (entry: unknown) => typeof entry === 'number' && Number.isFinite(entry);
   const mapOf = (map: unknown, valid: (entry: unknown) => boolean) =>
     map === undefined || (isRecord(map) && Object.values(map).every(valid));
+  const optionalFields = (record: Record<string, unknown>, keys: readonly string[], valid: (entry: unknown) => boolean) =>
+    keys.every(key => record[key] === undefined || valid(record[key]));
+  const numericRecord = (record: unknown, keys: readonly string[]) =>
+    isRecord(record) && optionalFields(record, keys, numbers);
   const reading = data.reading;
-  return mapOf(data.srs, isRecord) &&
+  const drill = data.lastDrill;
+  return optionalFields(data, [
+      'streak', 'bestStreak', 'lastActive', 'todayDay', 'todayCount', 'newToday',
+      'totalReviews', 'totalCorrect', 'earDay', 'earToday', 'learnSel',
+    ], numbers) &&
+    optionalFields(data, ['placed'], entry => typeof entry === 'boolean') &&
+    (drill === undefined || (isRecord(drill) && optionalFields(drill, ['c', 'n', 'day'], numbers) &&
+      optionalFields(drill, ['cat', 'mode', 'key', 'dir'], entry => typeof entry === 'string') &&
+      optionalFields(drill, ['keys'], entry => typeof entry === 'boolean'))) &&
+    mapOf(data.srs, isRecord) &&
     mapOf(data.history, numbers) &&
     mapOf(data.singCleared, entry => typeof entry === 'boolean') &&
     mapOf(data.sheet, entry => isRecord(entry) &&
@@ -123,11 +136,21 @@ export function isImportableBackup(value: unknown): value is PttV3Payload {
     mapOf(data.learnRev, isRecord) &&
     mapOf(data.learnUnlock, numbers) &&
     (reading === undefined || (isRecord(reading) &&
-      mapOf(reading.lv, isRecord) && mapOf(reading.nt, isRecord) &&
-      ['tot', 'prefs', 'book'].every(key => reading[key] === undefined || isRecord(reading[key]))));
+      mapOf(reading.lv, row => numericRecord(row, ['s', 'acc', 't', 'n', 'rush', 'sv', 'ta', 'mn'])) &&
+      mapOf(reading.nt, row => numericRecord(row, ['n', 'ok', 'ms', 'e', 't'])) &&
+      (reading.tot === undefined || numericRecord(reading.tot, ['n', 'ok', 'ms', 'sess'])) &&
+      ['prefs', 'book'].every(key => reading[key] === undefined || isRecord(reading[key]))));
 }
 
-const parseJson: (text: string) => unknown = JSON.parse;
+export function isSafeRecordKey(key: string): boolean {
+  return key !== '__proto__' && key !== 'constructor' && key !== 'prototype';
+}
+
+const parseUnknown: (text: string, reviver: (key: string, value: unknown) => unknown) => unknown = JSON.parse;
+
+function parseJson(text: string): unknown {
+  return parseUnknown(text, (key, value) => isSafeRecordKey(key) ? value : undefined);
+}
 
 export function parsePttV3(raw: string | null): PttV3Payload | null {
   if (!raw) return null;

@@ -58,3 +58,24 @@ test('Learn Circle of Fifths widget renders compact staff, enharmonic 30-key tog
   await expect(info).toContainText('Do♯ major');
   await expect(info).toContainText('7 diez(i):');
 });
+
+test('Learn staff notes preserve their hand and can be played with the keyboard', async ({ app }) => {
+  const page = await app.open({ hash: 'learn' });
+  await page.getByRole('button', { name: /reading sheet music/i }).first().click();
+  const note = page.locator('.lstaff .ss-n').first();
+  await expect(note).toHaveAttribute('tabindex', '0');
+  await expect(note).toHaveAttribute('role', 'button');
+  await expect(note).toHaveAttribute('aria-label', /.+/);
+  await expect(note).toHaveAttribute('data-hand', /rh|lh/);
+  await page.evaluate(() => {
+    const preview = window.__etude.previewNote;
+    window.__playedLearnNotes = [];
+    window.__etude.previewNote = (midi, ...args) => {
+      window.__playedLearnNotes.push(midi);
+      return preview(midi, ...args);
+    };
+  });
+  await note.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__playedLearnNotes.length)).toBe(1);
+});

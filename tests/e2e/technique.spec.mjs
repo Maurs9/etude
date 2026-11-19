@@ -71,6 +71,23 @@ test.describe('Practice: scales and arpeggios', () => {
     await expect(page.locator('#q-elab')).toContainText('Hands together');
   });
 
+  test('refreshes the active drill on notation and language changes without restarting it', async ({ app }) => {
+    const page = await openDrill(app, '11');
+    const first = page.locator('#tq-drill .tq-cell').first();
+    await expect(page.locator('#q-prompt')).toHaveText('B major scale');
+    await page.evaluate(() => { window.__etude.handleNoteOn(71, 90, 'test'); window.__etude.handleNoteOff(71, 'test'); });
+    await expect(first).toHaveClass(/done/);
+    await page.locator('#settingsBtn').click();
+    await page.locator('#set-notation [data-v="german"]').click();
+    await expect(page.locator('#q-prompt')).toHaveText('H major scale');
+    await page.locator('#set-lang [data-v="ro"]').click();
+    await expect(page.locator('#q-prompt')).toHaveText(/H major/);
+    await expect(page.locator('#q-cat')).toHaveText(/Game/);
+    await page.keyboard.press('Escape');
+    await expect(first.locator('span')).toHaveText('H');
+    await expect(first).toHaveClass(/done/);
+  });
+
   test('takes the scale an octave up only with Accept any octave', async ({ app }) => {
     const page = await openDrill(app, '0');
     const up = await page.evaluate(() => [...document.querySelectorAll('#tq-drill .tq-cell')].map((cell) => Number(cell.dataset.m) + 12));
