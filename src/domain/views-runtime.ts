@@ -225,7 +225,7 @@ function localeLoadError(retry: () => Promise<unknown>, target: HTMLElement = do
     box.setAttribute('role', 'alert');
     if (host === document.body) box.className = 'locale-load-toast';
     const localize = (key: string, fallback: string) => (STRINGS[lang] || STRINGS.en) ? t(key) : fallback;
-    const unsaved = () => STORE.failed || STORE.blocked === 'quarantine';
+    const unsaved = () => STORE.failed || STORE.blocked === 'quarantine' || STORE.blocked === 'upgrade';
     const message = document.createElement('p');
     message.textContent = localize('locale_fetch_failed', 'Content could not be loaded. Check your connection and retry, or reload.');
     const actions = document.createElement('div');
@@ -3101,13 +3101,14 @@ function wakeInit() {
         wakeRetryTimer = 0;
         wakeRetried = false;
         WAKE.fails = 0;
+        if (WAKE.lock?.released) WAKE.lock = null;
         wakePing();
         void wakeGet();
         wakeUi();
     };
     const gesture = () => {
         wakePing();
-        if (wakeRetried && !wakeRetryTimer) resume();
+        if (!WAKE.lock && !WAKE.busy && wakeRetried && !wakeRetryTimer) resume();
     };
     ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, gesture, { capture: true, passive: true }));
     document.addEventListener('visibilitychange', () => {
@@ -18975,9 +18976,23 @@ function storeSnapshotsChanged() {
     try { localStorage.setItem(STORE_SNAPSHOTS_CHANGED, syncGen()); }
     catch (_) { }
 }
-async function storeSnapshot(reason: safety.SnapshotReason, raw: string): Promise<boolean> {
+const UPGRADE_SNAPSHOT_TIMEOUT_MS = 5000;
+async function storeSnapshot(reason: safety.SnapshotReason, raw: string, timeoutMs?: number): Promise<boolean> {
+    let timer = 0;
     try {
-        await safety.saveSnapshot({ day: todayN(), reason, raw });
+        const write = safety.saveSnapshot({ day: todayN(), reason, raw });
+        if (timeoutMs && timeoutMs > 0) {
+            write.catch(() => { });
+            await Promise.race([
+                write,
+                new Promise<never>((_, reject) => {
+                    timer = window.setTimeout(() => reject(new Error('Backup snapshot timed out')), timeoutMs);
+                }),
+            ]);
+        }
+        else {
+            await write;
+        }
         storeSnapshotsChanged();
         void storeRefresh();
         return true;
@@ -18985,6 +19000,9 @@ async function storeSnapshot(reason: safety.SnapshotReason, raw: string): Promis
     catch (e) {
         console.warn('backup copy failed', e);
         return false;
+    }
+    finally {
+        if (timer) clearTimeout(timer);
     }
 }
 /** A record that does not parse is kept before anything can save over it. */
@@ -19053,7 +19071,7 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
     }
     catch (_) {
         reloadingForRestore = false;
-        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : 'import_storage'));
+        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'import_storage'));
     }
 }
 async function storeRestore(id: number | undefined) {
@@ -19063,6 +19081,10 @@ async function storeRestore(id: number | undefined) {
     try {
         if (storeBackupBlocked()) {
             alert(t('store_too_new'));
+            return;
+        }
+        if (STORE.blocked === 'upgrade') {
+            alert(t('store_upgrade_stuck'));
             return;
         }
         const snap = await safety.readSnapshot(id), p = snap ? parsePttV3(snap.raw) : null;
@@ -19093,7 +19115,7 @@ async function storeReset() {
     if (button.disabled || progressRestorePending || reloadingForRestore || !confirm(t('reset_confirm')))
         return;
     const checkWritable = () => {
-        if (storeBackupBlocked() || STORE.blocked === 'quarantine')
+        if (storeBackupBlocked() || STORE.blocked)
             throw new Error('Progress is protected');
     };
     button.disabled = progressRestorePending = true;
@@ -19189,7 +19211,7 @@ function storeNote() {
         return;
     const mode = STORE.blocked === 'too-new' ? 'too-new' : STORE.blocked === 'quarantine' ? 'stuck' : STORE.blocked === 'upgrade' ? 'upgrade' : STORE.failed ? 'failed' : STORE.unreadable ? 'unreadable' : '';
     box.hidden = !mode;
-    if (mode === 'too-new') {
+    if (mode === 'too-new' || mode === 'upgrade') {
         for (const id of ['importBtn', 'prog-import', 'set-snap-restore']) {
             buttonById(id).disabled = true;
         }
@@ -19307,8 +19329,9 @@ async function loadAll() {
             return { text, stored, migrated: stored ? storage.migratePtt(stored.payload) : null };
         };
         let { text, stored, migrated } = load();
-        while (stored && migrated?.status === 'migrated' && !storage.hasFutureSightLedger(stored.payload)) {
-            const copied = await storeSnapshot('before-upgrade', stored.raw);
+        let upgradeLoopExhausted = true;
+        for (let attempts = 0; attempts < 3 && stored && migrated?.status === 'migrated' && !storage.hasFutureSightLedger(stored.payload); attempts++) {
+            const copied = await storeSnapshot('before-upgrade', stored.raw, UPGRADE_SNAPSHOT_TIMEOUT_MS);
             // Recheck after the IndexedDB write in case another tab saved a different record.
             if (localStorage.getItem(KEY) !== stored.raw) {
                 ({ text, stored, migrated } = load());
@@ -19322,8 +19345,11 @@ async function loadAll() {
                 }
                 catch (_) { storeFailed(); }
             }
+            upgradeLoopExhausted = false;
             break;
         }
+        if (upgradeLoopExhausted && stored && migrated?.status === 'migrated' && !storage.hasFutureSightLedger(stored.payload) && !STORE.blocked)
+            STORE.blocked = 'upgrade';
         if (text && !stored)
             storeQuarantine(text);
         if (migrated?.status === 'too-new' || (stored && storage.hasFutureSightLedger(stored.payload))) {

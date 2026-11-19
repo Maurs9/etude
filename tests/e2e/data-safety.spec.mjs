@@ -575,3 +575,33 @@ test('a second progress import is ignored while the first file is being read', a
   await input.setInputFiles(file('retry.json'));
   await expect.poll(() => page.evaluate(() => window.readBackupNames)).toEqual(['first.json', 'retry.json']);
 });
+
+test('upgrade-blocked state disables imports and refuses reset without overwriting saved progress', async ({ app, page }) => {
+  await app.open({ saved });
+  const before = await page.evaluate(() => localStorage.getItem('ptt-v3'));
+  await page.evaluate(async () => {
+    window.__etude.STORE.blocked = 'upgrade';
+    await window.__etude.storeRefresh();
+  });
+
+  await expect(page.locator('#storeNote')).toBeVisible();
+  await expect(page.locator('#storeNoteText')).toContainText('The required backup for updating saved progress could not be made');
+  await expect(page.locator('#storeNoteExport')).toBeVisible();
+  await expect(page.locator('#storeNoteReload')).toBeVisible();
+  await page.locator('#settingsBtn').click();
+  await expect(page.locator('#importBtn')).toBeDisabled();
+  await expect(page.locator('#set-snap-restore')).toBeDisabled();
+  await page.locator('#drawerClose').click();
+  await page.evaluate(() => window.__etude.show('progress'));
+  await expect(page.locator('#prog-import')).toBeDisabled();
+
+  const dialogs = [];
+  page.on('dialog', async dialog => {
+    dialogs.push({ type: dialog.type(), message: dialog.message() });
+    await dialog.accept();
+  });
+  await page.locator('#resetBtn').click();
+  await expect.poll(() => dialogs.some(entry => entry.type === 'alert')).toBe(true);
+  expect(dialogs.find(entry => entry.type === 'alert')?.message).toContain('The required backup for updating saved progress could not be made');
+  expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(before);
+});

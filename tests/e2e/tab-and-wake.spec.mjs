@@ -58,6 +58,8 @@ test('wake lock recovers once after release and requests again from bfcache', as
   await page.evaluate(() => window.__wakeLocks[0].release());
   await expect.poll(() => page.evaluate(() => window.__wakeLocks.length)).toBe(2);
   await expect(status).toHaveAttribute('data-s', 'on');
+  await page.mouse.click(10, 10);
+  expect(await page.evaluate(() => window.__wakeLocks.length)).toBe(2);
   await page.evaluate(async () => {
     await window.__wakeLocks[1].release();
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
