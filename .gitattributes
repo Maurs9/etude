@@ -1,0 +1,2 @@
+# Keep source and text fixtures LF on every checkout.
+* text=auto eol=lf

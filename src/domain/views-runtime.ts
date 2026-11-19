@@ -5595,7 +5595,7 @@ function lStaffHTML(key: string) {
     const S = LSTAVES[key];
     if (!S)
         return '';
-    return '<figure class="lstaff" data-lstaff="' + key + '"><div class="ss-wrap lstaff-svg">' + lStaffSvg(key) + '</div><figcaption><button type="button" class="btn ghost sm" data-lplay="' + key + '" aria-pressed="false">' + t('lu_play_ex') + '</button><span>' + LT(S.cap) + ' <em class="lstaff-hint">' + t('lu_staff_hint') + '</em></span></figcaption></figure>';
+    return '<figure class="lstaff" data-lstaff="' + key + '"><div class="ss-wrap lstaff-svg">' + lStaffSvg(key) + '</div><figcaption><button type="button" class="btn ghost sm" data-lplay="' + key + '" aria-pressed="false">' + t('lu_play_ex') + '</button><span>' + xmlEsc(t('lstaff_caption_' + key)) + ' <em class="lstaff-hint">' + t('lu_staff_hint') + '</em></span></figcaption></figure>';
 }
 const LVEL: Record<string, number> = { pp: 40, p: 55, mp: 70, mf: 84, f: 100, ff: 112 };
 type LDynMark = ['dyn', number, string];
@@ -8240,7 +8240,9 @@ function srMeta() {
     if (sEl)
         sEl.textContent = metaText;
 }
-function srPieceTitle(p: { t?: Localised<string>; }) { return (p.t && (p.t[lang] || p.t.en)) || ''; }
+function srPieceTitle(p: { id?: string; t?: Localised<string>; }) {
+    return STRINGS[lang]?.['piece_title_' + p.id] ?? p.t?.[lang] ?? p.t?.en ?? '';
+}
 // Before the first melody the tab offers only the generator (and a way to the built-in pieces).
 function srEmptyUi() {
     const none = !SR.piece;
@@ -10640,6 +10642,7 @@ function rdRenderStats() {
     const box = maybeById('rdx-stats');
     if (!box)
         return;
+    const book = rdnBook(), tally = srtBookTally(book, book.level);
     const d = rdData(), tot = d.tot, nt = d.nt, g = (k: string) => nt[k] || { n: 0, ok: 0 };
     const lvDone = RD_ALL.filter(L => rdStarCount(d.lv[L.id]?.s) > 0).length, st = RD_ALL.reduce((sum, level) => sum + rdStarCount(d.lv[level.id]?.s), 0);
     const weak = Object.entries(nt).filter(([k, s]) => s.n >= 3 && !/^rh:/.test(k)).sort((a, b) => (b[1].e - a[1].e) || (b[1].t - a[1].t)).slice(0, 10);
@@ -10649,7 +10652,10 @@ function rdRenderStats() {
             ks.push({ l: rdKeyLabel(k), ...g('ks:' + k) });
     const rh = (RD_UNITS.find((u) => u.u === 'rh')?.lv ?? []).filter((L: ReadDrillLevel) => g('rh:' + L.id).n).map((L: ReadDrillLevel) => ({ l: rdLvName(L), ...g('rh:' + L.id) }));
     const extra = (['alto', 'tenor'] as const).filter((c) => Object.keys(nt).some((k) => k[0] === RD_CLEFC[c]));
-    box.innerHTML = `<div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${rdEsc(x[0])}</b><span>${rdEsc(x[1])}</span></div>`).join('')}</div>
+    box.innerHTML = `<div class="panel rdx-stat-p" id="rdx-book-progress"><h3>${rdEsc(t('rdn_book_head', book.level))}</h3>
+      <p class="rdx-desc">${rdEsc(t('rdn_done_of', tally.done, SRT_BOOK_PIECES))}</p>
+      <div class="stat-row">${statHTML(srtPiecesRead(book), t('rdn_stat_read'))}</div></div>
+    <div class="rdx-tiles rdx-tiles-lg">${[[tot.n, t('rdx_st_ans')], [tot.n ? Math.round(100 * tot.ok / tot.n) + '%' : '—', t('rdx_st_acc')], [tot.n ? (tot.ms / tot.n / 1000).toFixed(1) + 's' : '—', t('rdx_st_time')], [tot.sess, t('rdx_st_sess')], ['★ ' + st, t('rdx_hero_stars')], [lvDone + '/' + RD_ALL.length, t('rdx_st_lv')]].map((x) => `<div><b>${rdEsc(x[0])}</b><span>${rdEsc(x[1])}</span></div>`).join('')}</div>
     <div class="panel rdx-stat-p"><h3>${t('rdx_heat')}</h3><p class="rdx-desc">${t('rdx_heat_d')}</p>
       <div class="rdx-staff rdx-heat">${rdHeat('treble', 'A3', 'C6')}</div><div class="rdx-staff rdx-heat">${rdHeat('bass', 'C2', 'E4')}</div>
       ${extra.map((c) => `<div class="rdx-staff rdx-heat">${rdHeat(c, c === 'alto' ? 'C3' : 'A2', c === 'alto' ? 'D5' : 'B4')}</div>`).join('')}</div>
