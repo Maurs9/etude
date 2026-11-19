@@ -131,6 +131,6 @@ export async function saveSnapshot(entry: Omit<Snapshot, 'id'>, factory?: IDBFac
       for (const old of snapshotsToDrop([saved, ...existing])) store.delete(old);
     };
     tx.oncomplete = () => { db.close(); resolve(saved); };
-    tx.onabort = () => { db.close(); reject(tx.error); };
+    tx.onabort = tx.onerror = () => { db.close(); reject(tx.error); };
   });
 }

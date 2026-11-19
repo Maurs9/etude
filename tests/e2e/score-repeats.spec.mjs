@@ -162,7 +162,26 @@ test('a MusicXML da capo takes effect in the playback route and stops at Fine', 
     .replace('<measure number="3">', '<measure number="3"><direction><sound dacapo="yes"/></direction>');
   await page.locator('#an-file').setInputFiles({ name: 'dc.musicxml', mimeType: 'application/xml', buffer: Buffer.from(marked) });
   await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
-  await page.evaluate(async () => { await window.__etude.scorePlay(false, 0); });
+  await page.evaluate(async () => { window.__etude.pracSet('countIn', false); await window.__etude.scorePlay(false, 0); });
   const route = await page.evaluate(() => window.__etude.SCORE.run.route);
   expect(route).toEqual([{ a: 0, b: 4 }]);
+  await page.evaluate(() => {
+    const a = window.__etude, r = a.SCORE.run;
+    r.segs[0].a0 = a.actx.currentTime - 6.1;
+    a.pracTick();
+    r.segs[0].a0 = a.actx.currentTime - 4.5;
+    a.pracTick();
+  });
+  const finished = await page.evaluate(() => {
+    const a = window.__etude;
+    return { playing: a.SCORE.playing, pos: a.FALL.position, end: a.fallEnd() };
+  });
+  expect(finished).toEqual({ playing: false, pos: 4, end: 6 });
+  await page.evaluate(() => window.__etude.scoreToggle());
+  await page.waitForFunction(() => window.__etude.SCORE.playing && !!window.__etude.SCORE.run);
+  const replayed = await page.evaluate(() => {
+    const r = window.__etude.SCORE.run;
+    return { t0: r.segs[0].t0, t1: r.segs[0].t1, route: r.route };
+  });
+  expect(replayed).toEqual({ t0: 0, t1: 6, route: [{ a: 0, b: 4 }] });
 });

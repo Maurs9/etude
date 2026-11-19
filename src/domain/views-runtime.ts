@@ -14826,9 +14826,16 @@ async function scorePlay(selection = false, from: number | null = null, carry: P
         return;
     const a = selection ? Math.min(...chosen.map((d) => d.start)) : 0, b = selection ? Math.max(...chosen.map((d) => d.finish)) : fallEnd();
     let position = from != null ? from : selection ? a : FALL.position;
-    if (position >= b - .05 || position < a - 1e-6) {
+    const plan = !selection ? performancePlan() : null;
+    const perfDone = !!plan && !carry && plan.duration > 0 && performanceRead().position >= plan.duration - .05;
+    const atPerfEnd = perfDone && Math.abs(position - FALL.position) < 1e-6;
+    if (atPerfEnd || position >= b - .05 || position < a - 1e-6) {
         position = a;
         if (!selection) performanceSeek(0);
+    }
+    else if (perfDone) {
+        if (position <= a + 1e-6) performanceSeek(0);
+        else performanceSeekScore(position, true);
     }
     const notes = chosen.filter((d) => !selection || d.finish > position).sort((x, y) => x.start - y.start || x.n.midi - y.n.midi);
     if (!notes.length) {
