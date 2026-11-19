@@ -782,6 +782,7 @@ const payload: UIPayload = {
       "import_size": "Il backup supera il limite di importazione di 16 MiB.",
       "import_conflict": "Il backup è in conflitto con la cronologia di lettura di questo dispositivo. I progressi salvati sono stati conservati.",
       "store_stuck": "Non è stato possibile leggere i progressi salvati e non c'è spazio per conservarne una copia. Non viene salvato nulla finché non liberi spazio, così la copia illeggibile resta al sicuro. Esporta un backup del lavoro di oggi.",
+      "store_upgrade_stuck": "Non è stato possibile creare la copia necessaria per aggiornare i progressi. L’originale è protetto. Esporta una copia e ricarica la pagina per riprovare.",
       "store_copy_failed": "Étude non è riuscita a conservare prima una copia dei progressi attuali. Sostituirli comunque?",
       "store_reset_copy_failed": "Étude non è riuscita a conservare una copia dei progressi attuali. Azzerarli comunque?",
       "store_reset_failed": "Étude non è riuscita ad azzerare i progressi. Verifica che l’archiviazione del browser sia disponibile e riprova.",

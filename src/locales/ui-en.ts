@@ -590,6 +590,7 @@ const payload: UIPayload = {
       "import_size": "This backup exceeds the 16 MiB import limit.",
       "import_conflict": "This backup conflicts with sight-reading history already on this device. Your saved progress was kept.",
       "store_stuck": "Saved progress couldn't be read, and there's no room to keep a copy. Nothing is saved until space is freed, so the unreadable copy stays safe. Export a backup of today's work.",
+      "store_upgrade_stuck": "The required backup for updating saved progress could not be made. The original is protected. Export a backup, then reload to try again.",
       "store_copy_failed": "Étude couldn't keep a copy of your current progress first. Replace it anyway?",
       "store_reset_copy_failed": "Étude couldn't keep a copy of your current progress. Reset it anyway?",
       "store_reset_failed": "Étude couldn't reset your progress. Check that browser storage is available, then try again.",

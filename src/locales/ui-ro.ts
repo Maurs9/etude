@@ -590,6 +590,7 @@ const payload: UIPayload = {
       "import_size": "Copia depășește limita de import de 16 MiB.",
       "import_conflict": "Copia intră în conflict cu istoricul de citire de pe acest dispozitiv. Progresul salvat a fost păstrat.",
       "store_stuck": "Progresul salvat nu a putut fi citit și nu e loc pentru o copie. Nu se salvează nimic până nu eliberezi spațiu, ca să rămână în siguranță copia necitibilă. Exportă o copie de rezervă a lucrului de azi.",
+      "store_upgrade_stuck": "Nu s-a putut crea copia necesară pentru actualizarea progresului. Originalul este protejat. Exportă o copie, apoi reîncarcă pagina pentru a încerca din nou.",
       "store_copy_failed": "Étude nu a putut păstra mai întâi o copie a progresului actual. Îl înlocuiești oricum?",
       "store_reset_copy_failed": "Étude nu a putut păstra o copie a progresului actual. Îl resetezi oricum?",
       "store_reset_failed": "Étude nu a putut reseta progresul. Verifică dacă stocarea în browser este disponibilă și încearcă din nou.",
