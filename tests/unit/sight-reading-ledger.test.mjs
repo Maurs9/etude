@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   SRT_LEDGER_KEY,
   srtCreateLedger,
@@ -80,9 +80,18 @@ describe('sight-reading ledger lifecycle', () => {
     const ledger = srtReadLedger(storage);
     expect(storage.getItem(SRT_LEDGER_KEY)).toBe('{corrupt');
     expect(storage.getItem(SRT_LEDGER_KEY + '-unreadable')).toBeNull();
-    expect(await srtLedgerUpdate(storage, {
-      type: 'recoverOrphanClaims', generation: ledger.generation,
-    })).toMatchObject({ ok: true });
+    vi.stubGlobal('navigator', {
+      locks: {
+        request: (_name, opts, cb) => (typeof opts === 'function' ? opts({}) : cb({})),
+      },
+    });
+    try {
+      expect(await srtLedgerUpdate(storage, {
+        type: 'recoverOrphanClaims', generation: ledger.generation,
+      })).toMatchObject({ ok: true });
+    } finally {
+      vi.unstubAllGlobals();
+    }
     expect(storage.getItem(SRT_LEDGER_KEY)).toBe('{corrupt');
     expect(storage.getItem(SRT_LEDGER_KEY + '-unreadable')).toBeNull();
     expect(await srtLedgerUpdate(storage, {

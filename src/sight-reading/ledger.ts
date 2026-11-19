@@ -509,7 +509,7 @@ async function writeLedgerTransaction(
     return { ok: false, reason: 'unsupported' };
   const ledger = isLedger(raw)
     ? normalizeLedger(raw)
-    : srtCreateLedger();
+    : { ...srtCreateLedger(), generation: EMPTY_GENERATION };
   const update = next(ledger);
   if (!update.ok) return update;
   const saved = saveLedger(storage, update.ledger);
