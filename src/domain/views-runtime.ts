@@ -2650,6 +2650,9 @@ function bleDisconnect(keepMsg?: boolean) {
 // Nothing may stay stuck when the link goes: keys held over Bluetooth, its sustain pedal, bend and mod wheel are let go.
 function bleReleaseInput() {
     midiChannels.delete('ble');
+    for (const [midi, owner] of midiSustainOwners) {
+        if (owner.source === 'ble') midiSustainOwners.delete(midi);
+    }
     [...inputOwners.entries()].forEach(([m, o]) => { if (o.has('ble'))
         handleNoteOff(m, 'ble', 'reset'); });
     if (BLE.pedal && pedalDown) {
@@ -19192,7 +19195,7 @@ function applyTopLevelPrefs(raw: storage.PttV3Payload) {
     reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, reverbWet);
     metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
     savedDevice = typeof raw.device === 'string' && raw.device ? raw.device : null;
-    savedDeviceName = savedDevice && typeof raw.deviceName === 'string' ? raw.deviceName : null;
+    savedDeviceName = savedDevice && typeof raw.deviceName === 'string' && raw.deviceName ? raw.deviceName : null;
     if (raw.scoreLook === 'paper' || raw.scoreLook === 'night')
         SCORE.look = raw.scoreLook;
     if (typeof raw.scoreHl === 'boolean')
