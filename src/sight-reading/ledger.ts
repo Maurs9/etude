@@ -59,7 +59,7 @@ function hasWebLocks(): boolean {
   return typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function';
 }
 
-const EMPTY_GENERATION = "initial";
+const EMPTY_GENERATION = 'gen-initial';
 
 function newGeneration(): string {
   const suffix = Math.floor(Math.random() * 0x1000000).toString(36).padStart(4, '0');
@@ -380,9 +380,12 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
     const raw = readRaw(storage);
     if (isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA)
       return { ok: false, reason: 'unsupported' };
-    let ledger = srtReadLedger(storage);
+    const ledger = srtReadLedger(storage);
     if (operation.type === 'resetLedger') return saveLedger(storage, srtCreateLedger());
-    if (operation.generation !== ledger.generation && operation.type !== 'importLedger') return { ok: false, reason: 'stale_generation' };
+    if (operation.generation !== ledger.generation) return { ok: false, reason: 'stale_generation' };
+    if (operation.type === 'recoverOrphanClaims' && !isLedger(raw)) {
+      return { ok: true, ledger };
+    }
     if (operation.type === 'claimExposure') {
       if (ledger.exposures[operation.fingerprint]) return { ok: false, reason: 'already_exposed' };
       if (Object.keys(ledger.exposures).length >= SRT_MAX_EXPOSURES) return { ok: false, reason: 'quota' };
@@ -391,7 +394,7 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
         [operation.fingerprint]: {
           firstSeenAt: Date.now(),
           reason: 'first-sight',
-          claim: { attemptId: operation.attemptId, ownerTabId: operation.ownerTabId, generation: operation.generation },
+          claim: { attemptId: operation.attemptId, ownerTabId: operation.ownerTabId, generation: ledger.generation },
         },
       };
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures });
@@ -457,7 +460,6 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures, attempts: trimAttempts(attempts) });
     }
     if (operation.type === 'importLedger') {
-      if (operation.generation !== ledger.generation) return { ok: false, reason: 'stale_generation' };
       const imported = mergeImported(ledger, operation.imported);
       if (!imported.ok) return imported;
       return saveLedger(storage, imported.ledger);
@@ -507,7 +509,7 @@ async function writeLedgerTransaction(
     return { ok: false, reason: 'unsupported' };
   const ledger = isLedger(raw)
     ? normalizeLedger(raw)
-    : { ...srtCreateLedger(), generation: EMPTY_GENERATION };
+    : srtCreateLedger();
   const update = next(ledger);
   if (!update.ok) return update;
   const saved = saveLedger(storage, update.ledger);

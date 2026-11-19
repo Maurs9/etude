@@ -565,7 +565,7 @@ export function scoreXmlNotes(doc: Document) {
     }
     sorted.forEach((n) => {
         const sister = partSisterMap.get(n.part);
-        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => (p.part === n.part || (sister != null && p.part === sister)) && p.start <= soundEnd + .001 && p.end > soundEnd + .001);
+        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => (p.part === n.part || (sister != null && p.part === sister)) && (p.start <= n.start + .001 || p.start < soundEnd - .001) && p.end >= soundEnd - .001 && p.end > n.start + .001);
         if (pedal) {
             n.pedalEnd = pedal.end;
             soundEnd = Math.max(soundEnd, pedal.end);

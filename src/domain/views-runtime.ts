@@ -7649,7 +7649,7 @@ async function srtStartFirstSight() {
             const cleanup: SrtAttemptCleanup = {
                 attemptId,
                 ownerTabId: SR.srtOwnerTabId || '',
-                generation: ledger.generation,
+                generation: result.ledger.generation,
                 lease,
                 mixedInput: srtRecorder?.mixedInput ?? false,
             };

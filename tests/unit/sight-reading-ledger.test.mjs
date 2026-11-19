@@ -81,9 +81,15 @@ describe('sight-reading ledger lifecycle', () => {
     expect(storage.getItem(SRT_LEDGER_KEY)).toBe('{corrupt');
     expect(storage.getItem(SRT_LEDGER_KEY + '-unreadable')).toBeNull();
     expect(await srtLedgerUpdate(storage, {
+      type: 'recoverOrphanClaims', generation: ledger.generation,
+    })).toMatchObject({ ok: true });
+    expect(storage.getItem(SRT_LEDGER_KEY)).toBe('{corrupt');
+    expect(storage.getItem(SRT_LEDGER_KEY + '-unreadable')).toBeNull();
+    expect(await srtLedgerUpdate(storage, {
       type: 'recordListen', fingerprint: 'piece', generation: ledger.generation,
     })).toMatchObject({ ok: true });
     expect(storage.getItem(SRT_LEDGER_KEY + '-unreadable')).toBe('{corrupt');
+    expect(srtReadLedger(storage).generation).toMatch(/^gen-/);
     expect(srtReadLedger(storage).exposures.piece.reason).toBe('listen');
   });
 

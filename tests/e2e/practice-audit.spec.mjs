@@ -19,7 +19,7 @@ test('Today respects both the new-item quota and the session limit', async ({ ap
   await expect(page.locator('#ses-count')).toHaveText('1/8');
 });
 
-test('cancelled placement keeps daily credit and only seeds the schedule after completion', async ({ app, page }) => {
+test('cancelled placement leaves daily counters and schedule untouched until completion', async ({ app, page }) => {
   await app.open();
   await page.locator('#placeBtn').click();
   await page.evaluate(() => window.__etude.resolve(window.__etude.SES.q, true));
@@ -29,7 +29,7 @@ test('cancelled placement keeps daily credit and only seeds the schedule after c
   await page.reload();
   await expect(page.locator('#placeBtn')).toBeVisible();
   expect(await page.evaluate(() => window.__etude.data)).toMatchObject({
-    totalReviews: 1, todayCount: 1, placed: false,
+    totalReviews: 0, todayCount: 0, placed: false,
   });
   expect(await page.evaluate(() => Object.keys(window.__etude.data.srs))).toEqual([]);
   await page.locator('#placeBtn').click();
@@ -44,7 +44,7 @@ test('cancelled placement keeps daily credit and only seeds the schedule after c
   });
   await expect(page.locator('#sum-title')).toHaveText(/Placement complete/);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data);
-  expect(saved).toMatchObject({ placed: true, totalReviews: answered + 1, todayCount: answered + 1 });
+  expect(saved).toMatchObject({ placed: true, totalReviews: answered, todayCount: answered });
   expect(Object.keys(saved.srs)).toHaveLength(answered);
 });
 

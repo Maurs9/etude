@@ -19,10 +19,10 @@ test('spelled German notes preserve accidentals across reading, learning and ana
     reading: [-1,0,1].map(a => window.__etude.rdName({li:6,acc:a,oct:4},true)),
     readingKey: [window.__etude.rdSpell('Bb'),window.__etude.rdSpell('B'),window.__etude.rdSpell('B#')],
     scoreSignature: window.__etude.srKeyNames(-2), slip: window.__etude.srSlipNames({n:{li:6,acc:-1}}),
-    falling: (() => { const old=window.__etude.PRAC.labels; window.__etude.PRAC.labels='finger'; const x=window.__etude.fallName({midi:70,start:0}); window.__etude.PRAC.labels='letter'; const y=window.__etude.fallName({midi:70,start:0}); window.__etude.PRAC.labels=old; return [x,y]; })(),
+    falling: (() => { const old=window.__etude.PRAC.labels; window.__etude.PRAC.labels='finger'; const x=window.__etude.fallName({midi:70,start:0}); window.__etude.PRAC.labels='letter'; const y=window.__etude.fallName({midi:70,start:0}), z=window.__etude.fallName({midi:71,start:0}); window.__etude.PRAC.labels=old; return [x,y,z]; })(),
     analysis: [window.__etude.spellName(70,{fifths:-2,minor:false},true),window.__etude.spellName(71,{fifths:0,minor:false},true),window.__etude.anKeyName({root:10,fifths:-2,minor:false})],
   }));
-  expect(names).toEqual({circle:['H𝄫','B','H','H♯','H𝄪'], learning:['B','H','H♯'], reading:['B4','H4','H♯4'], readingKey:['B','H','H♯'], scoreSignature:['B','E♭'], slip:['H','B'], falling:['B','B♭'], analysis:['B4','H4','B major']});
+  expect(names).toEqual({circle:['H𝄫','B','H','H♯','H𝄪'], learning:['B','H','H♯'], reading:['B4','H4','H♯4'], readingKey:['B','H','H♯'], scoreSignature:['B','E♭'], slip:['H','B'], falling:['B','B','H'], analysis:['B4','H4','B major']});
 });
 
 test('German notation syncs between tabs without changing language', async ({ app, context }) => {
