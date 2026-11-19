@@ -2982,6 +2982,7 @@ function scoreFocusFullscreenChanged() {
 // Screen Wake Lock: a remembered choice, held while the page is in front, given back after 30 minutes without playing or touching,
 // taken again on the next note or tap. The browser drops the lock whenever the page is hidden; it is re-requested on return.
 interface WakeLockState { want: boolean; lock: WakeLockSentinel|null; busy: boolean; err: string; fails: number; idle: boolean; last: number; idleT: number; gest: boolean }
+let wakeRetryTimer = 0, wakeRetried = false;
 const WAKE: WakeLockState = { want: false, lock: null, busy: false, err: '', fails: 0, idle: false, last: 0, idleT: 0, gest: false }, WAKE_IDLE_MS = 30 * 60 * 1000;
 function wakeCan() { return !!(navigator.wakeLock && navigator.wakeLock.request); }
 async function wakeGet()  {
@@ -2999,8 +3000,18 @@ async function wakeGet()  {
         WAKE.lock = s;
         WAKE.err = '';
         WAKE.fails = 0;
-        s.addEventListener('release', () => { if (WAKE.lock === s)
-            WAKE.lock = null; wakeUi(); });
+        s.addEventListener('release', () => {
+            if (WAKE.lock !== s) return;
+            WAKE.lock = null;
+            if (!wakeRetried && WAKE.want && !WAKE.idle && !document.hidden) {
+                wakeRetried = true;
+                wakeRetryTimer = window.setTimeout(() => {
+                    wakeRetryTimer = 0;
+                    void wakeGet();
+                }, 1000);
+            }
+            wakeUi();
+        }, { once: true });
     }
     catch (err) {
         WAKE.busy = false;
@@ -3020,13 +3031,19 @@ function wakeOnGesture() {
     const go = () => { WAKE.gest = false; ['pointerdown', 'keydown'].forEach((ev) => window.removeEventListener(ev, go, true)); wakeGet(); };
     ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, go, true));
 }
-function wakeDrop() { const s = WAKE.lock; WAKE.lock = null; if (s)
-    s.release().catch(() => { }); }
+function wakeDrop() {
+    clearTimeout(wakeRetryTimer);
+    wakeRetryTimer = 0;
+    const s = WAKE.lock;
+    WAKE.lock = null;
+    if (s) s.release().catch(() => { });
+}
 function wakeSet(on: boolean) {
     WAKE.want = !!on;
     WAKE.idle = false;
     WAKE.err = '';
     WAKE.fails = 0;
+    wakeRetried = false;
     if (WAKE.want) {
         wakePing();
         wakeGet();
@@ -3044,6 +3061,7 @@ function wakePing() {
         return;
     WAKE.last = performance.now();
     if (WAKE.idle) {
+        wakeRetried = false;
         WAKE.idle = false;
         wakeGet();
         wakeUi();
@@ -3077,12 +3095,27 @@ function wakeUi() {
     st.dataset.s = WAKE.want && WAKE.lock ? 'on' : WAKE.want && WAKE.err ? 'err' : '';
 }
 function wakeInit() {
-    ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, wakePing, { capture: true, passive: true }));
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && WAKE.want) {
+    const resume = () => {
+        if (document.hidden || !WAKE.want) return;
+        clearTimeout(wakeRetryTimer);
+        wakeRetryTimer = 0;
+        wakeRetried = false;
         WAKE.fails = 0;
         wakePing();
-        wakeGet();
-    } wakeUi(); });
+        void wakeGet();
+        wakeUi();
+    };
+    const gesture = () => {
+        wakePing();
+        if (wakeRetried && !wakeRetryTimer) resume();
+    };
+    ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, gesture, { capture: true, passive: true }));
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) wakeDrop();
+        else resume();
+        wakeUi();
+    });
+    window.addEventListener('pageshow', (event) => { if (event.persisted) resume(); });
     if (WAKE.want) {
         wakePing();
         wakeGet();
@@ -11164,13 +11197,13 @@ function rdnChoose(level: number, key: string | null) {
     rdnSetBook(rdnEnsureDaily(srtChooseLevel(rdnBook(), level, key), rdnToday()));
     rdnRenderHome();
 }
-function rdnRenderHome() {
+function rdnRenderHome(createDaily = true) {
     const box = maybeById('rdn-home');
     if (!box)
         return;
     const today = rdnToday();
     let state = rdnBook();
-    const ensured = rdnEnsureDaily(state, today);
+    const ensured = createDaily ? rdnEnsureDaily(state, today) : state;
     if (ensured !== state) {
         state = ensured;
         rdnSetBook(state);
@@ -18754,6 +18787,7 @@ let syncPull = function syncPull() {
         syncData(!syncHasBase(bp) ? bp : bp.data, data, rp.data);
         data.settings = restoreSettings(data.settings);
         data.srs = storage.restoreSrs(data.srs);
+        if (isRecord(data.reading?.book)) rdnNormalized.delete(data.reading.book);
         if (!isRecord(data.sheet)) data.sheet = {};
     }
     if (swap || syncHasBase(bp))
@@ -18815,12 +18849,30 @@ function syncAfter(got: string) { if (got === 'swap')
 function syncRefresh() {
     syncIdle();
     reflectSettingsUI();
+    calUi();
+    renderDataSafety();
     if (view0() === 'today' && !SES.active)
         refreshToday();
     else if (view0() === 'progress')
         renderProgress();
     else if (view0() === 'practice' && !SES.active)
         renderPracticeSetup();
+    else if (view0() === 'read' && !byId('rdn-home').hidden)
+        rdnRenderHome(false);
+    else if (view0() === 'analysis')
+        pcRender();
+    else if (view0() === 'learn' && learnWired) {
+        const active = document.activeElement;
+        const lesson = active instanceof HTMLElement ? active.dataset.li : undefined;
+        const nav = active instanceof HTMLElement ? active.dataset.ln : undefined;
+        const id = active?.id;
+        learnSide();
+        learnNavRender();
+        const next = lesson ? queryHtml(byId('learnToc'), `[data-li="${lesson}"]`)
+            : nav ? queryHtml(byId('learnBody'), `[data-ln="${nav}"]`)
+            : id === 'learnPick' || id === 'learnGlossBtn' ? maybeById(id) : null;
+        next?.focus({ preventScroll: true });
+    }
 }
 let reloadingForRestore = false;
 function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
@@ -18866,8 +18918,8 @@ function saveSoon() {
     _saveT = setTimeout(flushSaveSoon, 400);
 } // for sliders — avoid a localStorage write per pixel
 // Data safety: storage the browser keeps, a visible save failure, rolling copies, and records this build must not overwrite.
-const STORE = { blocked: '' as '' | 'too-new' | 'quarantine', failed: false, unreadable: false, persist: 'unsupported' as safety.PersistState, usage: null as { usage: number; quota: number } | null, snaps: [] as safety.SnapshotInfo[], snapDay: -1, snapPending: false };
-const STORE_LAST_EXPORT = 'etude-last-export', STORE_UNREADABLE = KEY + '-unreadable', STORE_EXPORT_DUE_MS = 14 * 864e5;
+const STORE = { blocked: '' as '' | 'too-new' | 'quarantine' | 'upgrade', failed: false, unreadable: false, persist: 'unsupported' as safety.PersistState, usage: null as { usage: number; quota: number } | null, snaps: [] as safety.SnapshotInfo[], snapDay: -1, snapPending: false };
+const STORE_LAST_EXPORT = 'etude-last-export', STORE_SNAPSHOTS_CHANGED = 'etude-snapshots-changed', STORE_UNREADABLE = KEY + '-unreadable', STORE_EXPORT_DUE_MS = 14 * 864e5;
 /** The Export file: the saved record plus the sight-reading ledger. Uses memory when the last save failed. */
 function backupJson(): string {
     let current: storage.ReadPttResult | null = null;
@@ -18915,12 +18967,18 @@ function storeDaily() {
     void Promise.resolve().then(async () => {
         await safety.saveSnapshot({ day, reason: 'daily', raw: backupJson() });
         STORE.snapDay = day;
+        storeSnapshotsChanged();
         await storeRefresh();
     }).catch((e: unknown) => console.warn('daily backup failed', e)).finally(() => { STORE.snapPending = false; });
+}
+function storeSnapshotsChanged() {
+    try { localStorage.setItem(STORE_SNAPSHOTS_CHANGED, syncGen()); }
+    catch (_) { }
 }
 async function storeSnapshot(reason: safety.SnapshotReason, raw: string): Promise<boolean> {
     try {
         await safety.saveSnapshot({ day: todayN(), reason, raw });
+        storeSnapshotsChanged();
         void storeRefresh();
         return true;
     }
@@ -18972,12 +19030,16 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
             alert(t('store_too_new'));
             return;
         }
+        if (STORE.blocked === 'upgrade') {
+            alert(t('store_upgrade_stuck'));
+            return;
+        }
         if (!await storeSnapshot(reason, backupJson()) && !confirm(t('store_copy_failed')))
             return;
         const saved = await storage.restoreProgressBackup(localStorage, p, () => {
             // The save may have changed while taking the snapshot or waiting for the ledger lock.
-            if (storeBackupBlocked())
-                throw new Error('Newer progress schema');
+            if (storeBackupBlocked() || STORE.blocked === 'upgrade')
+                throw new Error('Progress is protected');
             return syncNextGen();
         });
         if (!saved.ok) {
@@ -19059,7 +19121,7 @@ async function storeReset() {
         refreshToday();
     }
     catch (_) {
-        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : 'store_reset_failed'));
+        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'store_reset_failed'));
     }
     finally {
         button.disabled = progressRestorePending = false;
@@ -19094,6 +19156,7 @@ async function storeRefresh() {
     STORE.usage = await safety.storageUsage(navigator.storage);
     renderDataSafety();
     storeNote();
+    if (byId('set-diag').hasAttribute('open')) void storeDiagRender();
 }
 /** loadAll runs before the locale loads: render nothing until strings exist. applyI18n renders again. */
 function storeI18nReady() { return !!(STRINGS[lang] || STRINGS.en); }
@@ -19108,7 +19171,7 @@ function renderDataSafety() {
     const last = storeLastExport();
     age.textContent = last ? t('set_backup_last', storeWhen(last)) : t('set_backup_never');
     age.classList.toggle('warn', storeHasProgress() && (!last || Date.now() - last > STORE_EXPORT_DUE_MS));
-    const list = STORE.snaps.filter(x => x.reason !== 'unreadable');
+    const list = STORE.snaps.filter(x => x.reason !== 'unreadable'), selected = sel.dataset.selected;
     sel.replaceChildren(...list.map((x) => { const o = document.createElement('option'); o.value = String(x.id); o.textContent = t('snap_item', storeWhen(x.id), t('snap_' + x.reason.replace('-', '_'))); return o; }));
     if (!list.length) {
         const o = document.createElement('option');
@@ -19116,13 +19179,15 @@ function renderDataSafety() {
         o.textContent = t('set_snap_none');
         sel.append(o);
     }
-    sel.disabled = btn.disabled = !list.length || STORE.blocked === 'too-new';
+    if (selected && list.some(x => String(x.id) === selected)) sel.value = selected;
+    else delete sel.dataset.selected;
+    sel.disabled = btn.disabled = !list.length || STORE.blocked === 'too-new' || STORE.blocked === 'upgrade';
 }
 function storeNote() {
     const box = document.getElementById('storeNote'), txt = document.getElementById('storeNoteText');
     if (!box || !txt || !storeI18nReady())
         return;
-    const mode = STORE.blocked === 'too-new' ? 'too-new' : STORE.blocked === 'quarantine' ? 'stuck' : STORE.failed ? 'failed' : STORE.unreadable ? 'unreadable' : '';
+    const mode = STORE.blocked === 'too-new' ? 'too-new' : STORE.blocked === 'quarantine' ? 'stuck' : STORE.blocked === 'upgrade' ? 'upgrade' : STORE.failed ? 'failed' : STORE.unreadable ? 'unreadable' : '';
     box.hidden = !mode;
     if (mode === 'too-new') {
         for (const id of ['importBtn', 'prog-import', 'set-snap-restore']) {
@@ -19132,11 +19197,11 @@ function storeNote() {
     if (!mode)
         return;
     const restorable = STORE.snaps.some(x => x.reason !== 'unreadable');
-    const key = mode === 'too-new' ? 'store_too_new' : mode === 'stuck' ? 'store_stuck' : mode === 'failed' ? 'store_fail' : restorable ? 'store_unreadable' : 'store_unreadable_nobk';
+    const key = mode === 'too-new' ? 'store_too_new' : mode === 'stuck' ? 'store_stuck' : mode === 'upgrade' ? 'store_upgrade_stuck' : mode === 'failed' ? 'store_fail' : restorable ? 'store_unreadable' : 'store_unreadable_nobk';
     txt.dataset.i18n = key; // applyI18n keeps it in the current language
     txt.textContent = t(key);
-    byId('storeNoteExport').hidden = mode !== 'failed' && mode !== 'stuck';
-    byId('storeNoteReload').hidden = mode !== 'too-new';
+    byId('storeNoteExport').hidden = mode !== 'failed' && mode !== 'stuck' && mode !== 'upgrade';
+    byId('storeNoteReload').hidden = mode !== 'too-new' && mode !== 'upgrade';
     byId('storeNoteRestore').hidden = !(mode === 'unreadable' && restorable);
     byId('storeNoteOk').hidden = mode !== 'unreadable';
 }
@@ -19232,20 +19297,39 @@ function applyTopLevelPrefs(raw: storage.PttV3Payload) {
             SIDE.w = Math.max(280, Math.min(560, Math.round(sd.w)));
     }
 }
-function loadAll() {
+async function loadAll() {
     try {
         SYNC.known.clear();
         SYNC.id = '';
         SYNC.merge = null;
-        const text = localStorage.getItem(KEY), stored = readPttV3(localStorage), migrated = stored ? storage.migratePtt(stored.payload) : null;
+        const load = () => {
+            const text = localStorage.getItem(KEY), stored = readPttV3(localStorage);
+            return { text, stored, migrated: stored ? storage.migratePtt(stored.payload) : null };
+        };
+        let { text, stored, migrated } = load();
+        while (stored && migrated?.status === 'migrated' && !storage.hasFutureSightLedger(stored.payload)) {
+            const copied = await storeSnapshot('before-upgrade', stored.raw);
+            // Recheck after the IndexedDB write in case another tab saved a different record.
+            if (localStorage.getItem(KEY) !== stored.raw) {
+                ({ text, stored, migrated } = load());
+                continue;
+            }
+            if (!copied) STORE.blocked = 'upgrade';
+            else {
+                try {
+                    const raw = writePttV3(localStorage, migrated.payload);
+                    stored = { raw, payload: migrated.payload };
+                }
+                catch (_) { storeFailed(); }
+            }
+            break;
+        }
         if (text && !stored)
             storeQuarantine(text);
         if (migrated?.status === 'too-new' || (stored && storage.hasFutureSightLedger(stored.payload))) {
             storeBlock();
             return;
         }
-        if (stored && migrated?.status === 'migrated')
-            void storeSnapshot('before-upgrade', stored.raw);
         const raw = migrated?.payload;
         if (raw && stored) {
             SYNC.gen = typeof raw.gen === 'string' ? raw.gen : '';
@@ -19611,13 +19695,16 @@ function initControls() {
         finally { progressRestorePending = false; }
     });
     byId('set-diag').addEventListener('toggle', () => { if (byId('set-diag').hasAttribute('open'))
-        void storeRefresh().then(storeDiagRender); });
+        void storeRefresh(); });
     byId('set-diag-copy').addEventListener('click', () => { void storeDiagnostics().then((text) => { if (!navigator.clipboard)
         throw new Error('no clipboard'); return navigator.clipboard.writeText(text); }).then(() => { const b = byId('set-diag-copy'); b.textContent = t('set_diag_copied'); setTimeout(() => { b.textContent = t('set_diag_copy'); }, 1500); }).catch(() => { }); });
     byId('storeNoteExport').addEventListener('click', () => byId('exportBtn').click());
     byId('storeNoteReload').addEventListener('click', () => location.reload());
     byId('storeNoteOk').addEventListener('click', () => { STORE.unreadable = false; storeNote(); });
     byId('storeNoteRestore').addEventListener('click', () => { void storeRestore(STORE.snaps.find(x => x.reason !== 'unreadable')?.id); });
+    selectById('set-snaps').addEventListener('change', (event) => {
+        if (event.currentTarget instanceof HTMLSelectElement) event.currentTarget.dataset.selected = event.currentTarget.value;
+    });
     byId('set-snap-restore').addEventListener('click', () => { const sel = byId('set-snaps'); if (sel instanceof HTMLSelectElement && Number(sel.value))
         void storeRestore(Number(sel.value)); });
     // session
@@ -19912,10 +19999,14 @@ function initControls() {
     onPageReturn(() => {
         void audioEngine.resumeOnReturn().then((state) => { if (state === 'running') audioLockSync(); else if (state) audioLockCheck(); });
     });
-    window.addEventListener('storage', (e) => { if (e.storageArea && e.storageArea !== localStorage || e.key !== null && e.key !== KEY)
-        return; const got = syncPull(); if (got === 'old' || got === 'merge-save')
-        syncWrite(); if (got)
-        syncAfter(got); }); // another tab saved
+    window.addEventListener('storage', (e) => {
+        if (e.storageArea && e.storageArea !== localStorage) return;
+        if (e.key === STORE_SNAPSHOTS_CHANGED || e.key === STORE_LAST_EXPORT || e.key === null) void storeRefresh();
+        if (e.key !== null && e.key !== KEY) return;
+        const got = syncPull();
+        if (got === 'old' || got === 'merge-save') syncWrite();
+        if (got) syncAfter(got);
+    }); // another tab saved
     registerViewEvent('keydown', (e) => { if (e.key === 'Escape') {
         if (closeMobileMenu(true)) {
             e.preventDefault();
@@ -19983,7 +20074,7 @@ function initControls() {
 }
 /* boot */
 document.documentElement.setAttribute('data-app-pending', '');
-loadAll();
+await loadAll();
 await bootLocale();
 if (viewFromHash(location.hash) === 'analysis') await ensureAnalysisModules().catch(() => {});
 applyTheme();

@@ -1379,6 +1379,7 @@ const payload: UIPayload = {
       "import_size": "La copia supera el límite de importación de 16 MiB.",
       "import_conflict": "La copia entra en conflicto con el historial de lectura de este dispositivo. Se conservó el progreso guardado.",
       "store_stuck": "No se pudo leer el progreso guardado y no hay espacio para guardar una copia. No se guarda nada hasta liberar espacio, para que la copia ilegible siga a salvo. Exporta una copia del trabajo de hoy.",
+      "store_upgrade_stuck": "No se pudo crear la copia necesaria para actualizar el progreso guardado. El original está protegido. Exporta una copia y recarga para volver a intentarlo.",
       "store_copy_failed": "Étude no pudo guardar antes una copia de tu progreso actual. ¿Reemplazarlo de todos modos?",
       "store_reset_copy_failed": "Étude no pudo guardar una copia de tu progreso actual. ¿Restablecerlo de todos modos?",
       "store_reset_failed": "Étude no pudo restablecer tu progreso. Comprueba que el almacenamiento del navegador esté disponible e inténtalo de nuevo.",

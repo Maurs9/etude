@@ -1379,6 +1379,7 @@ const payload: UIPayload = {
       "import_size": "La sauvegarde dépasse la limite d’importation de 16 Mio.",
       "import_conflict": "La sauvegarde entre en conflit avec l’historique de lecture de cet appareil. La progression enregistrée est conservée.",
       "store_stuck": "La progression enregistrée n'a pas pu être lue et il n'y a pas de place pour en garder une copie. Rien n'est enregistré tant que de l'espace n'est pas libéré, pour protéger la copie illisible. Exportez une sauvegarde du travail du jour.",
+      "store_upgrade_stuck": "La sauvegarde requise pour mettre à jour la progression a échoué. L’original est protégé. Exportez une copie, puis rechargez la page pour réessayer.",
       "store_copy_failed": "Étude n'a pas pu garder d'abord une copie de votre progression actuelle. La remplacer quand même ?",
       "store_reset_copy_failed": "Étude n’a pas pu conserver une copie de votre progression actuelle. La réinitialiser quand même ?",
       "store_reset_failed": "Étude n’a pas pu réinitialiser votre progression. Vérifiez que le stockage du navigateur est disponible, puis réessayez.",

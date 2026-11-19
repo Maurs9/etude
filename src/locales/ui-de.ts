@@ -1127,6 +1127,7 @@ const payload: UIPayload = {
       "import_size": "Die Sicherung überschreitet das Importlimit von 16 MiB.",
       "import_conflict": "Die Sicherung steht im Konflikt mit dem Leseverlauf auf diesem Gerät. Der gespeicherte Fortschritt bleibt erhalten.",
       "store_stuck": "Der gespeicherte Fortschritt konnte nicht gelesen werden, und für eine Kopie ist kein Platz. Bis Speicher frei wird, wird nichts gespeichert, damit die unlesbare Kopie sicher bleibt. Exportiere eine Sicherung der heutigen Arbeit.",
+      "store_upgrade_stuck": "Die Sicherung für die Aktualisierung des Fortschritts konnte nicht erstellt werden. Das Original bleibt geschützt. Exportiere eine Kopie und lade die Seite erneut.",
       "store_copy_failed": "Étude konnte vorher keine Kopie deines aktuellen Fortschritts speichern. Trotzdem ersetzen?",
       "store_reset_copy_failed": "Étude konnte keine Kopie deines aktuellen Fortschritts speichern. Trotzdem zurücksetzen?",
       "store_reset_failed": "Étude konnte deinen Fortschritt nicht zurücksetzen. Prüfe, ob der Browserspeicher verfügbar ist, und versuche es erneut.",
