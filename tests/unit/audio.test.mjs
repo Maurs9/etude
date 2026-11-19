@@ -112,6 +112,28 @@ describe('piano audio domain', () => {
     expect(bank.buffers.has(60) || bank.buffers.has(72)).toBe(true);
   });
 
+  it('keeps an existing decode through prepare and preserves the bank after an optional warm-up failure', async () => {
+    vi.useFakeTimers();
+    const context = { decodeAudioData: async () => ({ length: 10, numberOfChannels: 1, duration: 1 }) };
+    const fetchMock = vi.fn(async url => ({ ok: url !== '/72.mp3', status: url === '/72.mp3' ? 404 : 200, arrayBuffer: async () => new ArrayBuffer(10) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const bank = new PianoBank([60, 72], { 60: '/60.mp3', 72: '/72.mp3' }, () => context);
+    try {
+      const early = bank.decode(60);
+      const ready = bank.prepare([60, 60]);
+      expect(await ready).toBe(true);
+      expect(bank.buffers.get(60)).toBe(await early);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/60.mp3', '/72.mp3']);
+      expect(bank.status).toBe('ready');
+      expect(bank.prepare([60, 60])).toBe(ready);
+    } finally {
+      bank.cancelWarmIdle();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('cancels idle warmup cleanly and skips idle warmup when page is hidden', async () => {
     vi.useFakeTimers();
     const originalDoc = globalThis.document;

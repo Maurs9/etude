@@ -215,7 +215,7 @@ export const LESSONS: Lesson[] = [
     },
     "de": {
       "t": "Pausen, Haltebögen, Triolen & Synkopen",
-      "b": "\n<p>Stille ist ein gleichberechtigter Teil des Rhythmus. Jeder Notenwert besitzt eine exakt passende <b>Pause</b> derselben Dauer — zähle Pausen mit derselben Festigkeit wie klingende Noten.</p>\n<div data-staff=\"rh2a\"></div>\n<h4>Punkte &amp; Haltebögen</h4>\n<p>Ein <b>Punkt</b> verlängert den Wert um die Hälfte: eine punktierte Viertel = 1½ Schläge, meist gefolgt von einer Achtel, um den Schlag zu vervollständigen. Ein <b>Haltebogen</b> (eine gebogene Linie, die zwei Noten der <i>gleichen</i> Tonhöhe verbindet) verschmilzt sie zu einem einzigen Klang – die einzige Methode, eine Note über einen Taktstrich hinweg auszuhalten. Verwechsle ihn nicht mit einem <b>Bindebogen (Legato)</b>, der <i>verschiedene</i> Tonhöhen nahtlos miteinander verbindet.</p>\n<h4>Triolen &amp; Synkopen</h4>\n<p>Eine <b>Triole</b> bringt drei Noten in der Zeitdauer von zweien unter – erkennbar an der „3“ über der Gruppe. <b>Synkopen</b> setzen den Akzent dorthin, wo man ihn nicht erwartet: auf den Offbeat, oft beginnend zwischen den Schlägen und gehalten über den nächsten Schlag. Sie sind das Lebenselixier von Ragtime, Jazz und Pop.</p>\n<div data-staff=\"rh2b\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"beat:3t\">Punktierte Viertel + Achtel</button></div>\n<h4>Haltebogen über Taktstrich</h4>\n<p>Triolen <span class=\"fm\">Synkope</span>Zusammengesetzte Taktarten: 6/8, 9/8, 12/8 <span class=\"fm\">Wenn der Zähler durch 3 teilbar ist (außer 3/4), unterteilt sich jeder Grundschlag in drei Achtel statt in zwei. Der Puls ist eine</span> punktierte Viertel <span class=\"fm\">.</span> 6/8 <b>—</b> zwei Schläge pro Takt <b>, gezählt als</b> EINS</p>\n<div data-staff=\"rh2c\"></div>\n<h4>-zwei-drei</h4>\n<p><b>ZWEI</b> -zwei-drei (wiegen, galoppieren). <b>9/8</b> — drei Schläge pro Takt (wie ein 3/4-Walzer, bei dem jeder Schlag schwingt). <b>12/8</b> — vier Schläge pro Takt (Slow Blues, Doo-Wop, Balladen). <b>6/8 Takt</b> Tempoangaben <b>Geschwindigkeiten werden oft mit traditionellen italienischen Begriffen notiert:</b> Largo <b>(sehr langsam, breit) ·</b> Adagio <b>(langsam, gemächlich) ·</b>Andante<b>(gehend) ·</b> Moderato <b>(mäßig) ·</b> Allegro <b>(schnell, lebhaft) ·</b> Presto <i>(sehr rasch).</i> Wird das Tempo geändert:</p>\n<p class=\"learn-note\">ritardando / rallentando (rit. / rall.) wird allmählich langsamer; accelerando (accel.) wird schneller; a tempo stellt das vorherige Grundtempo wieder her.</p>"
+      "b": "\n<p>Stille ist ein gleichberechtigter Teil des Rhythmus. Jeder Notenwert besitzt eine exakt passende <b>Pause</b> derselben Dauer — zähle Pausen mit derselben Festigkeit wie klingende Noten.</p>\n<div data-staff=\"rh2a\"></div>\n<h4>Punkte &amp; Haltebögen</h4>\n<p>Ein <b>Punkt</b> verlängert den Wert um die Hälfte: eine punktierte Viertel = 1½ Schläge, meist gefolgt von einer Achtel, um den Schlag zu vervollständigen. Ein <b>Haltebogen</b> (eine gebogene Linie, die zwei Noten der <i>gleichen</i> Tonhöhe verbindet) verschmilzt sie zu einem einzigen Klang – die einzige Methode, eine Note über einen Taktstrich hinweg auszuhalten. Verwechsle ihn nicht mit einem <b>Bindebogen (Legato)</b>, der <i>verschiedene</i> Tonhöhen nahtlos miteinander verbindet.</p>\n<h4>Triolen &amp; Synkopen</h4>\n<p>Eine <b>Triole</b> bringt drei Noten in der Zeitdauer von zweien unter – erkennbar an der „3“ über der Gruppe. <b>Synkopen</b> setzen den Akzent dorthin, wo man ihn nicht erwartet: auf den Offbeat, oft beginnend zwischen den Schlägen und gehalten über den nächsten Schlag. Sie sind das Lebenselixier von Ragtime, Jazz und Pop.</p>\n<div data-staff=\"rh2b\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"beat:3t\">Triolen hören</button></div>\n<h4>Zusammengesetzte Taktarten</h4>\n<p>Im <span class=\"fm\">6/8</span>-, <span class=\"fm\">9/8</span>- und <span class=\"fm\">12/8</span>-Takt ist der Grundschlag eine <b>punktierte Viertel</b>, die sich in <b>drei</b> Achtel unterteilt: EINS-und-a ZWEI-und-a. Einfache Taktarten (2/4, 3/4, 4/4) unterteilen jeden Schlag in zwei.</p>\n<div data-staff=\"rh2c\"></div>\n<h4>Tempoangaben</h4>\n<p><b>Largo</b> (sehr langsam, breit) · <b>Adagio</b> (langsam) · <b>Andante</b> (gehend) · <b>Moderato</b> (mäßig) · <b>Allegro</b> (schnell, lebhaft) · <b>Presto</b> (sehr schnell). Tempoänderungen: <b>rit.</b>/<b>rall.</b> langsamer werden, <b>accel.</b> schneller werden, <b>a tempo</b> zurück zum ursprünglichen Tempo, <i>rubato</i> mit flexiblem Tempo.</p>\n<p class=\"learn-note\">Zähle die Unterteilungen beim Klopfen laut mit: „eins-und-zwei-und“ oder „eins-und-a zwei-und-a“. Das hilft dir, Synkopen genau zu treffen.</p>"
     },
     "it": {
       "t": "Pause, legature, terzine e sincopi",
@@ -311,7 +311,7 @@ export const LESSONS: Lesson[] = [
     },
     "de": {
       "t": "Tonleitern & Tonarten",
-      "b": "\n<p>Eine <b>Tonleiter</b> ist eine Tonleiterleiter aus Ganzton- (GT) und Halbtonschritten (HT). Entscheidend ist das Schrittmuster: Beginne auf einem beliebigen Ton, und du erhältst denselben Charakter, nur höher oder tiefer. Die <b>Dur-Tonleiter</b> ist der vertraute Klang von „Do Re Mi“:</p>\n<p><span class=\"fm\">GT · GT · HT · GT · GT · GT · HT</span></p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Major (Ionian)\">C-Dur</button><button class=\"demo\" data-demo=\"sc:67:Major (Ionian)\">G-Dur — dieselbe Gestalt</button></div>\n<p>Die <b>natürliche Moll-Tonleiter</b> ordnet dieselben Schritte für eine dunklere Stimmung neu an: <span class=\"fm\">GT · HT · GT · GT · HT · GT · GT</span>. Jede Dur-Tonleiter birgt eine Moll-Tonleiter mit genau denselben Tönen in sich, beginnend auf der 6. Stufe – <b>a-Moll</b> ist die <i>parallele Molltonart</i> zu C-Dur.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:57:Aeolian (Natural minor)\">a-Moll</button><button class=\"demo\" data-demo=\"sc:60:Major pentatonic\">C-Dur Pentatonik</button><button class=\"demo\" data-demo=\"sc:60:Blues\">C Blues</button></div>\n<div data-widget=\"scale\"></div>\n<h4>Was ist eigentlich eine „Tonart“?</h4>\n<p>Wenn ein Lied „in C-Dur“ steht, bedeutet das: Die C-Dur-Tonleiter ist das tonale Fundament, ihre Töne fühlen sich passend an und der Ton C wirkt wie das musikalische <b>Zuhause</b>. Die benötigten Vorzeichen stehen einmal am Zeilenanfang – die <b>Generalvorzeichen</b>.</p>\n<p class=\"learn-note\">Pentatonische Tonleitern lassen die beiden spannungsgeladenen Stufen (4 und 7) weg – fünf Töne, die in fast jeder Reihenfolge harmonisch klingen, weshalb sie von Volksliedern bis zu Rocksoli allgegenwärtig sind. <a href=\"#\" data-go=\"practice\" data-cat=\"scale\">Tonleitern üben →</a></p>"
+      "b": "\n<p>Eine <b>Tonleiter</b> ist eine Abfolge von Ganzton- (GT) und Halbtonschritten (HT). Entscheidend ist das Schrittmuster: Beginne auf einem beliebigen Ton, und du erhältst denselben Charakter, nur höher oder tiefer. Die <b>Dur-Tonleiter</b> ist der vertraute Klang von „Do Re Mi“:</p>\n<p><span class=\"fm\">GT · GT · HT · GT · GT · GT · HT</span></p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:60:Major (Ionian)\">C-Dur</button><button class=\"demo\" data-demo=\"sc:67:Major (Ionian)\">G-Dur — dieselbe Gestalt</button></div>\n<p>Die <b>natürliche Moll-Tonleiter</b> ordnet dieselben Schritte für eine dunklere Stimmung neu an: <span class=\"fm\">GT · HT · GT · GT · HT · GT · GT</span>. Jede Dur-Tonleiter birgt eine Moll-Tonleiter mit genau denselben Tönen in sich, beginnend auf der 6. Stufe – <b>a-Moll</b> ist die <i>parallele Molltonart</i> zu C-Dur.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"sc:57:Aeolian (Natural minor)\">a-Moll</button><button class=\"demo\" data-demo=\"sc:60:Major pentatonic\">C-Dur Pentatonik</button><button class=\"demo\" data-demo=\"sc:60:Blues\">C Blues</button></div>\n<div data-widget=\"scale\"></div>\n<h4>Was ist eigentlich eine „Tonart“?</h4>\n<p>Wenn ein Lied „in C-Dur“ steht, bedeutet das: Die C-Dur-Tonleiter ist das tonale Fundament, ihre Töne fühlen sich passend an und der Ton C wirkt wie das musikalische <b>Zuhause</b>. Die benötigten Vorzeichen stehen einmal am Zeilenanfang – die <b>Generalvorzeichen</b>.</p>\n<p class=\"learn-note\">Pentatonische Tonleitern lassen die beiden spannungsgeladenen Stufen (4 und 7) weg – fünf Töne, die in fast jeder Reihenfolge harmonisch klingen, weshalb sie von Volksliedern bis zu Rocksoli allgegenwärtig sind. <a href=\"#\" data-go=\"practice\" data-cat=\"scale\">Tonleitern üben →</a></p>"
     },
     "it": {
       "t": "Scale e tonalità",
@@ -1869,7 +1869,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Spiele den Ton auf der zweiten Linie im Violinschlüssel (G4)."
         },
         "it": {
-          "q": "Suona la nota indicata sul pentagramma."
+          "q": "Suona la nota sulla seconda linea in chiave di violino (Sol4)."
         },
         "pt-BR": {
           "q": "Toque a nota situada na segunda linha da clave de sol: Sol4 (G4)."
@@ -2908,12 +2908,12 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           ]
         },
         "it": {
-          "q": "Quanti battiti dura una minima col punto in 4/4?",
+          "q": "Ascolta: qual è la misura?",
           "o": [
-            "3",
-            "2,5",
-            "4",
-            "2"
+            "3/4 (valzer)",
+            "4/4",
+            "2/4",
+            "6/8"
           ]
         },
         "pt-BR": {
@@ -3524,12 +3524,12 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           ]
         },
         "it": {
-          "q": "Quanti semitoni misura una terza minore?",
+          "q": "Ascolta: riconosci l'intervallo.",
           "o": [
-            "3",
-            "4",
-            "2",
-            "5"
+            "Quinta giusta",
+            "Terza maggiore",
+            "Quarta giusta",
+            "Ottava"
           ]
         },
         "pt-BR": {
@@ -3780,12 +3780,12 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           ]
         },
         "it": {
-          "q": "Come si contano i gradi di un intervallo tra due note?",
+          "q": "Ascolta: riconosci l'intervallo.",
           "o": [
-            "Contando tutti i gradi della scala includendo entrambe le note estreme",
-            "Contando solo i tasti neri",
-            "Escludendo sempre la nota di partenza",
-            "Misurando solo in millimetri"
+            "Terza minore",
+            "Terza maggiore",
+            "Seconda maggiore",
+            "Quarta giusta"
           ]
         },
         "pt-BR": {
@@ -3824,10 +3824,10 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Jouez une quinte juste ascendante à partir de ré : ré puis la."
         },
         "de": {
-          "q": "Spiele eine reine Quinte aufwärts von C (C und G)."
+          "q": "Spiele eine reine Quinte aufwärts von D (zuerst D, dann A)."
         },
         "it": {
-          "q": "Suona l'intervallo richiesto."
+          "q": "Suona una quinta giusta ascendente a partire da Re (prima Re, poi La)."
         },
         "pt-BR": {
           "q": "Toque uma quinta justa ascendente a partir de Ré (D): Ré e depois Lá."
@@ -4231,7 +4231,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Spiele einen Tritonus: erst F, dann H (international B)."
         },
         "it": {
-          "q": "Suona il rivolto dell'intervallo mostrato."
+          "q": "Suona un tritono: prima Fa, poi Si."
         },
         "pt-BR": {
           "q": "Toque um trítono: Fá e depois Si (F e depois B)."
@@ -4589,10 +4589,10 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Jouez les degrés 1, 3 et 5 de sol majeur (sol, si, ré)."
         },
         "de": {
-          "q": "Spiele die ersten fünf Töne der C-Dur-Tonleiter (C, D, E, F, G)."
+          "q": "Spiele die Stufen 1, 3 und 5 von G-Dur (G, H, D)."
         },
         "it": {
-          "q": "Suona la scala maggiore richiesta a partire dalla tonica indicata."
+          "q": "Suona il primo, il terzo e il quinto grado di Sol maggiore (Sol, Si, Re)."
         },
         "pt-BR": {
           "q": "Toque os graus 1, 3 e 5 de Sol maior: Sol, Si e Ré (G, B, D)."
@@ -5062,10 +5062,10 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Jouez la triade de la mineur (la, do, mi)."
         },
         "de": {
-          "q": "Spiele a-Moll harmonisch aufwärts (A, H, C, D, E, F, Gis, A)."
+          "q": "Spiele den a-Moll-Dreiklang (A, C, E)."
         },
         "it": {
-          "q": "Suona la scala minore naturale richiesta."
+          "q": "Suona la triade di La minore (La, Do, Mi)."
         },
         "pt-BR": {
           "q": "Toque a tríade de Lá menor: Lá, Dó e Mi (A, C, E)."
@@ -5459,7 +5459,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Spiele den Tonika-Dreiklang von D-Dur (D, Fis, A)."
         },
         "it": {
-          "q": "Suona la tonica della tonalità indicata dall'armatura di chiave."
+          "q": "Suona la triade di tonica di Re maggiore (Re, Fa♯, La)."
         },
         "pt-BR": {
           "q": "Toque a tríade da tônica de Ré maior: Ré, Fá♯ e Lá (D, F♯, A)."
@@ -5965,21 +5965,21 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           ]
         },
         "de": {
-          "q": "Ein Dreiklang aus zwei geschichteten kleinen Terzen ist …",
+          "q": "Höre hin: Welche Akkordqualität erklingt?",
           "o": [
-            "vermindert",
-            "übermäßig",
             "Moll",
-            "Dur"
+            "Dur",
+            "Vermindert",
+            "Übermäßig"
           ]
         },
         "it": {
-          "q": "Cosa distingue una triade minore da una maggiore?",
+          "q": "Ascolta: qual è la qualità dell'accordo?",
           "o": [
-            "La terza è minore (3 semitoni) anziché maggiore",
-            "La quinta è diminuita",
-            "La fondamentale è assente",
-            "Ha una nota in più"
+            "Minore",
+            "Maggiore",
+            "Diminuito",
+            "Aumentato"
           ]
         },
         "pt-BR": {
@@ -6111,7 +6111,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Spiele a-Moll (A, C, E) — in beliebiger Oktave oder Umkehrung."
         },
         "it": {
-          "q": "Suona la triade maggiore richiesta."
+          "q": "Suona La minore (La, Do, Mi), in qualsiasi ottava o rivolto."
         },
         "pt-BR": {
           "q": "Toque o acorde de Lá menor (Lá, Dó, Mi) — em qualquer oitava ou inversão."
@@ -6144,10 +6144,10 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Jouez fa majeur (fa, la, do)."
         },
         "de": {
-          "q": "Spiele den a-Moll-Dreiklang in Grundstellung (A, C, E)."
+          "q": "Spiele den F-Dur-Dreiklang (F, A, C)."
         },
         "it": {
-          "q": "Suona la triade minore richiesta."
+          "q": "Suona Fa maggiore (Fa, La, Do)."
         },
         "pt-BR": {
           "q": "Toque o acorde de Fá maior (Fá, Lá, Dó)."
@@ -6316,12 +6316,12 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           ]
         },
         "it": {
-          "q": "Cosa contraddistingue un accordo di settima maggiore (maj7)?",
+          "q": "Ascolta: quale accordo di settima è?",
           "o": [
-            "Triade maggiore con 7ª maggiore (un semitono sotto l'ottava)",
-            "Accordo minore con settima",
-            "Ha la quinta alterata",
-            "È un accordo sospeso"
+            "Settima maggiore (maj7)",
+            "Settima di dominante (7)",
+            "Settima minore (m7)",
+            "Settima diminuita (dim7)"
           ]
         },
         "pt-BR": {
@@ -6620,7 +6620,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Spiele G7 (G, H, D, F)."
         },
         "it": {
-          "q": "Suona l'accordo di settima richiesto."
+          "q": "Suona Sol7 (Sol, Si, Re, Fa)."
         },
         "pt-BR": {
           "q": "Toque G7: Sol, Si, Ré e Fá (G, B, D, F)."
@@ -6978,7 +6978,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Spiele die Subdominante (IV) in C-Dur (F, A, C)."
         },
         "it": {
-          "q": "Suona la progressione di accordi richiesta."
+          "q": "Suona l'accordo IV in Do maggiore (Fa, La, Do)."
         },
         "pt-BR": {
           "q": "Toque o acorde IV em Dó: Fá, Lá e Dó (F, A, C)."
@@ -7236,12 +7236,12 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           ]
         },
         "it": {
-          "q": "Come si chiama la cadenza che si conclude sospesa sull'accordo di dominante (V)?",
+          "q": "Ascolta: quale cadenza è?",
           "o": [
-            "Cadenza sospesa (semicadenza)",
-            "Cadenza perfetta",
-            "Cadenza d'inganno",
-            "Cadenza imperfetta"
+            "D'inganno (V → vi)",
+            "Perfetta (V → I)",
+            "Plagale (IV → I)",
+            "Semicadenza (I → V)"
           ]
         },
         "pt-BR": {
@@ -7642,7 +7642,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Spiele E-Dur — die Dominante V von a-Moll (E, Gis, H)."
         },
         "it": {
-          "q": "Suona la cadenza minore richiesta."
+          "q": "Suona Mi maggiore — il V di La minore (Mi, Sol♯, Si)."
         },
         "pt-BR": {
           "q": "Toque Mi maior — o V de Lá menor (Mi, Sol♯, Si / E, G♯, B)."
@@ -8395,7 +8395,7 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "q": "Spiele A7 — die Zwischendominante V/ii in C-Dur (A, Cis, E, G)."
         },
         "it": {
-          "q": "Suona la dominante secondaria indicata."
+          "q": "Suona La7 — V/ii in Do maggiore (La, Do♯, Mi, Sol)."
         },
         "pt-BR": {
           "q": "Toque A7: V/ii em Dó (Lá, Dó♯, Mi, Sol / A, C♯, E, G)."
@@ -8922,12 +8922,12 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           ]
         },
         "it": {
-          "q": "Qual è lo schema ritmico tipico dell'accompagnamento del valzer (in 3/4)?",
+          "q": "Ascolta: quale accompagnamento è?",
           "o": [
-            "Basso sul battito 1, accordi leggeri sui battiti 2 e 3",
-            "Accordi solo sul levare",
-            "Tutti e tre i battiti al basso",
-            "Arpeggio continuo a semicrome"
+            "Valzer (basso – accordo – accordo)",
+            "Basso albertino",
+            "Accordi in blocco",
+            "Arpeggio di ballata"
           ]
         },
         "pt-BR": {

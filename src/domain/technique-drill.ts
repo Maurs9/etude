@@ -233,6 +233,11 @@ export function techniqueInput(host: TechniqueHost, midi: number, timeMs: number
   if (result === 'done') finish(host);
 }
 
+export function techniqueRefresh(host: TechniqueHost): void {
+  render(host);
+  if (state?.done) renderResult(host, state, techniqueGrade(state.run));
+}
+
 function finish(host: TechniqueHost): void {
   const s = state;
   if (!s) return;
@@ -244,6 +249,13 @@ function finish(host: TechniqueHost): void {
     cleared.add(techniqueSpecKey(s.spec));
   }
   paintProgress(host);
+  renderResult(host, s, grade);
+  const next = host.byId('q-next');
+  next.hidden = false;
+  next.focus();
+}
+
+function renderResult(host: TechniqueHost, s: DrillState, grade: ReturnType<typeof techniqueGrade>): void {
   const verdict = host.byId('q-verdict');
   verdict.className = 'verdict ' + (grade.clean ? 'good' : grade.wrong === 0 ? 'neutral' : 'bad');
   verdict.textContent = host.t(grade.clean ? 'tq_res_clean' : 'tq_res_again');
@@ -260,9 +272,6 @@ function finish(host: TechniqueHost): void {
   elab.innerHTML = lines.map((line) => `<div>${esc(line)}</div>`).join('');
   elab.classList.add('show');
   host.byId('ses-count').textContent = '#' + s.runs + ' · ' + s.clean + '/' + s.runs + ' ✓';
-  const next = host.byId('q-next');
-  next.hidden = false;
-  next.focus();
 }
 
 /** Leaves the drill (the session ended or another topic started). Clean runs are kept for this visit. */

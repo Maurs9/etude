@@ -128,3 +128,19 @@ test.describe('landscape phone keyboard: a drill that asks on the keys', () => {
     await expect(page.locator('#rdx-end')).toBeVisible();
   });
 });
+
+test('the menu remains usable at 740 × 500 with the on-screen keys open', async ({ app }) => {
+  const page = app.page;
+  await page.setViewportSize({ width: 740, height: 500 });
+  await app.open({ hash: 'read', dock: true });
+  await expect(page.locator('#dock #menuBtn')).toBeVisible();
+  await page.locator('#menuBtn').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menuBtn')).toBeFocused();
+  await page.locator('#menuBtn').click();
+  await page.locator('#mobileMenu [data-view="learn"]').click();
+  await expect(page).toHaveURL(/#learn$/);
+  await expect(page.locator('#menuBtn')).toBeVisible();
+  await page.locator('#dock-kb-toggle').click();
+  await expect(page.locator('#bottomNav')).toBeVisible();
+});

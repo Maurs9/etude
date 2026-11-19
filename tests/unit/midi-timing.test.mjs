@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLE_MAX_LAG_MS, BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, latencyOffsets, median, readLatencyOffsets, setLatencyOffsets, useLatencyOffsets, withInputTime } from '../../src/domain/midi-timing.ts';
+import { CALIBRATION_BPM, BLE_MAX_LAG_MS, BleClock, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, latencyOffsets, median, readLatencyOffsets, setLatencyOffsets, useLatencyOffsets, withInputTime } from '../../src/domain/midi-timing.ts';
 
 // A seeded generator keeps the fake radio jitter the same on every run.
 function rng(seed) {
@@ -194,6 +194,12 @@ describe('calibrationOffset', () => {
   it('clamps an early player to 0 and a huge delay to the limit', () => {
     expect(calibrationOffset(clicks.map((c) => c - 25), clicks, beat)).toMatchObject({ ok: true, offset: 0 });
     expect(calibrationOffset(clicks.map((c) => c + 290), clicks, 1000)).toMatchObject({ ok: true, offset: 290 });
+  });
+
+  it.each([300, 340, 500])('can measure %d ms at the calibration tempo', offset => {
+    const beatMs = 60_000 / CALIBRATION_BPM;
+    const clicks = Array.from({ length: 12 }, (_, i) => i * beatMs);
+    expect(calibrationOffset(clicks.map(click => click + offset), clicks, beatMs)).toMatchObject({ ok: true, offset, taps: 12 });
   });
 
   it('takes the middle of an even count', () => {

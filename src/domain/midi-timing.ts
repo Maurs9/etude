@@ -160,6 +160,8 @@ export class BleClock {
 }
 
 /* ---------- calibration: tap with the click ---------- */
+// Half a beat must exceed MAX_OFFSET_MS to distinguish a very late tap from an early tap on the next beat.
+export const CALIBRATION_BPM = 55;
 /** Fewer taps than this in time with the clicks are not enough to measure. */
 export const CALIBRATION_MIN_TAPS = 6;
 /** Taps whose middle half spreads wider than this (ms) are too uneven to trust. */
