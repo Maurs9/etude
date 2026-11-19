@@ -462,9 +462,26 @@ function shuffle<T>(src: readonly T[]) { const a = src.slice(); for (let i = a.l
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
 } return a; }
-function intervalLabel(semi: number) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
-    return d[semi]; const C = lang === 'ro' ? RO_IV : COMPOUND; if (C[semi])
-    return C[semi]; const s = semi % 12, oct = Math.floor(semi / 12) - (s === 0 ? 1 : 0); const base = s === 0 ? ivName(12) : ivName(s); return base + (lang === 'ro' ? (' + ' + oct + ' octav' + (oct > 1 ? 'e' : 'ă')) : (' + ' + oct + ' octave' + (oct > 1 ? 's' : ''))); }
+const UNISON_LABEL: Record<string, string> = {
+    en: 'Unison',
+    ro: 'Unison',
+    es: 'Unísono',
+    fr: 'Unisson',
+    de: 'Reine Prime',
+    it: 'Unisono',
+    'pt-BR': 'Uníssono',
+};
+function intervalLabel(semi: number) {
+    const abs = Math.abs(Math.round(semi));
+    const d = I18N_MUSIC.intervals[lang];
+    if (d && d[abs]) return d[abs];
+    if (abs === 0) return UNISON_LABEL[lang] || 'Unison';
+    const C = lang === 'ro' ? RO_IV : COMPOUND;
+    if (C[abs]) return C[abs];
+    const s = abs % 12, oct = Math.floor(abs / 12) - (s === 0 ? 1 : 0);
+    const base = s === 0 ? ivName(12) : ivName(s);
+    return base + (lang === 'ro' ? (' + ' + oct + ' octav' + (oct > 1 ? 'e' : 'ă')) : (' + ' + oct + ' octave' + (oct > 1 ? 's' : '')));
+}
 function chordFormula(c: { intervals: readonly number[]; }) { return formatChordFormula(c.intervals); }
 function scaleFormula(offs: readonly number[]) { return formatScaleFormula(offs); }
 const todayN = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); };

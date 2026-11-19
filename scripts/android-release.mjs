@@ -61,8 +61,10 @@ export function verifyVersionCode(code, repository, aapt2, cwd) {
   const dir = mkdtempSync(join(tmpdir(), 'etude-android-version-'));
   try {
     for (const release of releases) {
-      const apk = release.assets.find(asset => /^etude-android-.*\.apk$/.test(asset.name));
-      const marker = release.assets.find(asset => asset.name === VERSION_ASSET);
+      if (release.draft && !release.tag_name) continue;
+      const assets = release.assets ?? [];
+      const apk = assets.find(asset => /^etude-android-.*\.apk$/.test(asset.name));
+      const marker = assets.find(asset => asset.name === VERSION_ASSET);
       if (!apk && !marker) continue;
       const path = join(dir, marker ? VERSION_ASSET : 'prior.apk');
       run(cwd, 'gh', 'release', 'download', release.tag_name, '--repo', repository,

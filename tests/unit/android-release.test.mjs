@@ -126,6 +126,7 @@ it('verifies before signing and again before creating a release from the verifie
 
 it('requires a code above both release markers and APK metadata', () => {
   const releases = [
+    { draft: true, tag_name: '', assets: [{ name: 'etude-android-version-code.txt' }] },
     { tag_name: 'v1', assets: [{ name: 'etude-android-v1.apk' }] },
     { tag_name: 'v2', assets: [{ name: 'etude-android-version-code.txt' }] },
   ];
