@@ -560,6 +560,7 @@ export class AudioEngine {
       });
 
       const inner: AudioVoice = {
+        g: gain,
         stop: (at?: number) => {
           const releaseAt = Math.max(context.currentTime, at ?? context.currentTime);
           if (releaseAt <= startAt) {
@@ -770,6 +771,7 @@ export class AudioEngine {
       });
     }
     return {
+      g: gain,
       stop: (at?: number) => {
         const releaseAt = at ?? context.currentTime;
         gain.gain.cancelScheduledValues(releaseAt);
@@ -797,6 +799,18 @@ export class AudioEngine {
   noteOff(midi: number): void {
     this.liveVoices.get(midi)?.stop();
     this.liveVoices.delete(midi);
+  }
+
+  silenceNote(midi: number): void {
+    const voice = this.liveVoices.get(midi);
+    if (!voice) return;
+    this.noteOff(midi);
+    const gain = (voice.inner ?? voice).g?.gain;
+    if (gain && this.context) {
+      const now = this.context.currentTime;
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(0, now);
+    }
   }
 
   preview(note: number, when?: number, duration = 0.8, velocity = 96, options: { warm?: boolean; hold?: boolean } = {}): void {

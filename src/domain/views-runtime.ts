@@ -1930,6 +1930,8 @@ function dockKeepEnd(open: boolean) {
 }
 /* ---------- INPUT ROUTING ---------- */
 const held = new Set<number>(), heldOrder: number[] = [], sustained = new Set<number>(), inputOwners = new Map<number, Set<string>>();
+const midiChannels = new Map<string, Map<number, Set<number>>>();
+const midiSustainOwners = new Map<number, { source: string; channel: number }>();
 let pedalDown = false, evalTimer: number|null = null;
 function handleNoteOn(midi: number, vel: number, source = 'midi') {
     if (!Number.isInteger(midi) || midi < 0 || midi > 127)
@@ -1944,6 +1946,7 @@ function handleNoteOn(midi: number, vel: number, source = 'midi') {
         return;
     }
     sustained.delete(midi);
+    midiSustainOwners.delete(midi);
     held.add(midi);
     heldOrder.push(midi);
     audioNoteOn(midi, vel);
@@ -1951,7 +1954,7 @@ function handleNoteOn(midi: number, vel: number, source = 'midi') {
     wakePing();
     onInputChange('on', midi, source, null);
 }
-function handleNoteOff(midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = 'physical') {
+function handleNoteOff(midi: number, source = 'midi', releaseKind: 'physical'|'focus'|'reset'|null = 'physical', silence = false) {
     const owners = inputOwners.get(midi);
     if (!owners || !owners.delete(source))
         return;
@@ -1965,14 +1968,16 @@ function handleNoteOff(midi: number, source = 'midi', releaseKind: 'physical'|'f
     if (i >= 0)
         heldOrder.splice(i, 1);
     kbPress(midi, false);
-    if (pedalDown)
+    if (silence)
+        audioEngine.silenceNote(midi);
+    else if (pedalDown)
         sustained.add(midi);
     else
         audioNoteOff(midi);
     onInputChange('off', midi, source, releaseKind);
 }
 function pedalUp() { sustained.forEach((m) => { if (!held.has(m))
-    audioNoteOff(m); }); sustained.clear(); }
+    audioNoteOff(m); }); sustained.clear(); midiSustainOwners.clear(); }
 function heldMidis() { return [...held]; }
 function heldPcs() { return [...new Set(heldMidis().map(pc))].sort((a, b) => a - b); }
 function releaseLiveInput() {
@@ -1982,6 +1987,8 @@ function releaseLiveInput() {
     heldOrder.length = 0;
     sustained.clear();
     inputOwners.clear();
+    midiChannels.clear();
+    midiSustainOwners.clear();
     pointerKey.clear();
     FALL.press?.clear();
     typingDown.clear();
@@ -2118,6 +2125,7 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
 function scheduleEval(fn: () => void, ms: number) { clearTimeout(evalTimer ?? undefined); evalTimer = window.setTimeout(fn, ms); }
 /* ---------- WEB MIDI ---------- */
 let midiAccess: MIDIAccess|null = null, activeInputId: string|null = null, savedDevice: string|null = null, midiMsg: { cls: string; text: string|null; key?: string; args?: string[] }|null = null;
+let savedDeviceName: string | null = null;
 // The input in use when it went away (a cable pulled, the piano switched off). It is attached again when it comes back: by id, or by
 // name when the system gives it a new id (Android does). Another input may stand in meanwhile; picking one by hand forgets the lost one.
 let midiLost: { id: string; name: string }|null = null, activeInputName = '';
@@ -2179,7 +2187,7 @@ function refreshDeviceList() {
         return;
     }
     ins.forEach((i) => { const o = (document).createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
-    const preferredName = midiLost?.name || (savedDevice ? midiAccess?.inputs.get(savedDevice)?.name : null);
+    const preferredName = midiLost?.name || (savedDevice ? midiAccess?.inputs.get(savedDevice)?.name : null) || savedDeviceName;
     const choice = selectMidiInput(ins, activeInputId, savedDevice, preferredName);
     if (!choice)
         return;
@@ -2197,6 +2205,7 @@ function attachInput(id: string, temporary = false) {
     if (!temporary) {
         midiLost = null;
         savedDevice = id;
+        savedDeviceName = input.name || null;
     }
     setMidi(input.name, 'on');
     saveAll();
@@ -2226,15 +2235,26 @@ function onMidiMessage(e: MIDIMessageEvent) { if (!e.data)
 function midiIn(st: number, d1: number, d2: number, src: string, at = performance.now()) {
     withInputTime(at, src === 'ble' ? 'ble' : 'usb', () => midiDispatch(st, d1, d2, src));
 }
+function midiNoteOff(source: string, channel: number, midi: number, mode?: 120 | 123) {
+    const channels = midiChannels.get(source);
+    if (!channels?.get(channel)?.delete(midi) || [...channels.values()].some(notes => notes.has(midi))) return;
+    handleNoteOff(midi, source, mode ? 'reset' : 'physical', mode === 120);
+    if (sustained.has(midi)) midiSustainOwners.set(midi, { source, channel });
+}
 function midiDispatch(st: number, d1: number, d2: number, src: string) {
-    if (!Number.isFinite(st) || !Number.isFinite(d1) || !Number.isFinite(d2)) return;
-    const cmd = st & 0xf0;
+    if (!Number.isInteger(st) || st < 0x80 || st > 0xef || !Number.isInteger(d1) || !Number.isInteger(d2) || d1 < 0 || d1 > 127 || d2 < 0 || d2 > 127) return;
+    const cmd = st & 0xf0, channel = st & 0x0f;
     if (cmd === 0x90 && d2 > 0) {
+        const channels = midiChannels.get(src) ?? new Map<number, Set<number>>();
+        const notes = channels.get(channel) ?? new Set<number>();
+        notes.add(d1);
+        channels.set(channel, notes);
+        midiChannels.set(src, channels);
         handleNoteOn(d1, d2, src);
         audioLockCheck();
     }
     else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0))
-        handleNoteOff(d1, src);
+        midiNoteOff(src, channel, d1);
     else if (cmd === 0xE0)
         setBendFromValue(((d2 << 7) | d1) - 8192);
     else if (cmd === 0xB0) {
@@ -2243,6 +2263,17 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
             if (pedalDown && !dn)
                 pedalUp();
             pedalDown = dn;
+        }
+        else if (d1 === 120 || d1 === 123) {
+            for (const midi of midiChannels.get(src)?.get(channel) ?? []) midiNoteOff(src, channel, midi, d1);
+            if (d1 === 120) {
+                for (const [midi, owner] of midiSustainOwners) {
+                    if (owner.source !== src || owner.channel !== channel) continue;
+                    midiSustainOwners.delete(midi);
+                    sustained.delete(midi);
+                    if (!held.has(midi)) audioEngine.silenceNote(midi);
+                }
+            }
         }
         else if (d1 === 1 && lfoGain && actx)
             lfoGain.gain.setTargetAtTime((d2 / 127) * 35, actx.currentTime, .03);
@@ -2591,6 +2622,7 @@ function bleReconnect() { const dev = BLE.dev; if (!dev || bleLive() || BLE.busy
     return; ensureAudio(); BLE.tries = 0; bleOpen(dev, false); }
 function bleDisconnect(keepMsg?: boolean) {
     const chr = BLE.chr, dev = BLE.dev;
+    dev?.removeEventListener('gattserverdisconnected', bleOnGone);
     if (chr && srtEligibleFirstSightActive())
         panic();
     BLE.want = false;
@@ -2617,6 +2649,7 @@ function bleDisconnect(keepMsg?: boolean) {
 }
 // Nothing may stay stuck when the link goes: keys held over Bluetooth, its sustain pedal, bend and mod wheel are let go.
 function bleReleaseInput() {
+    midiChannels.delete('ble');
     [...inputOwners.entries()].forEach(([m, o]) => { if (o.has('ble'))
         handleNoteOff(m, 'ble', 'reset'); });
     if (BLE.pedal && pedalDown) {
@@ -2660,6 +2693,7 @@ function bleOnValue(e: BleValueEvent) { const v = e.target.value; if (v && v.byt
 function bleParse(p: Uint8Array, arrival = performance.now()) {
     if ((p[0] & 0xC0) !== 0x80)
         return;
+    BLE.run = BLE.need = BLE.n = BLE.skip = 0;
     const stamps = bleTimestamps(p);
     stamps.forEach((ms) => BLE.clock.observe(ms, arrival));
     BLE.at = arrival;
@@ -18782,7 +18816,7 @@ function syncRefresh() {
 let reloadingForRestore = false;
 function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
-function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
+function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone, masterVol, muted, localSynth, reverb: reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, deviceName: savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
 function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
     if (reloadingForRestore || STORE.blocked) {
         if (replacement)
@@ -19157,8 +19191,8 @@ function applyTopLevelPrefs(raw: storage.PttV3Payload) {
         localSynth = raw.localSynth;
     reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, reverbWet);
     metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
-    if (raw.device && typeof raw.device === 'string')
-        savedDevice = raw.device;
+    savedDevice = typeof raw.device === 'string' && raw.device ? raw.device : null;
+    savedDeviceName = savedDevice && typeof raw.deviceName === 'string' ? raw.deviceName : null;
     if (raw.scoreLook === 'paper' || raw.scoreLook === 'night')
         SCORE.look = raw.scoreLook;
     if (typeof raw.scoreHl === 'boolean')
