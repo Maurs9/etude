@@ -115,3 +115,40 @@ test('stopping and restarting sight-reading before audio resumes schedules one c
   await page.locator('#rd-go').click();
   await expect.poll(stopped).toEqual(Array(expectedClicks).fill(2));
 });
+
+test('audio settings update the active graph, the next note, and the saved preferences together', async ({ app, page }) => {
+  await app.open({ saved: { v: 3, masterVol: 0.15, muted: true, reverb: 0.1, data: {} } });
+  await page.locator('#settingsBtn').click();
+  await page.locator('#toneSel').selectOption('soft');
+  for (const [id, value] of [['volume', '40'], ['reverb', '60']]) {
+    await page.locator('#' + id).evaluate((slider, value) => {
+      slider.value = value;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      slider.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+  }
+
+  await expect.poll(() => page.evaluate(() => Number(window.__etude.master.gain.value.toFixed(2)))).toBe(0.4);
+  await expect.poll(() => page.evaluate(() => Number(window.__etude.reverbGain.gain.value.toFixed(2)))).toBe(0.3);
+  const synthSwitch = page.locator('.switch:has(#set-synth) .track');
+  await synthSwitch.click();
+  await expect(page.locator('#set-synth')).not.toBeChecked();
+  const playNote = () => page.evaluate(() => {
+    const app = window.__etude;
+    app.audioNoteOn(60, 90);
+    const sounding = app.liveVoices.has(60);
+    app.audioNoteOff(60);
+    return sounding;
+  });
+  expect(await playNote()).toBe(false);
+  const prefs = () => page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')));
+  expect(await prefs()).toMatchObject({ masterVol: 0.4, muted: false, reverb: 0.3, tone: 'soft', localSynth: false });
+  await page.reload();
+  await page.waitForFunction(() => typeof window.__etude?.audioNoteOn === 'function');
+  expect(await playNote()).toBe(false);
+  if (!await page.locator('#drawer').isVisible()) await page.locator('#settingsBtn').click();
+  await expect(page.locator('#toneSel')).toHaveValue('soft');
+  await synthSwitch.click();
+  await expect(page.locator('#set-synth')).toBeChecked();
+  expect(await playNote()).toBe(true);
+});
