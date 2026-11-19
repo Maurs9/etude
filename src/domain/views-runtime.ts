@@ -10,6 +10,7 @@ import { evaluateWaitChord } from './wait-chord.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
+import { detectVoicePitch as trxAutoCorrelate } from './voice-pitch.js';
 import type { AudioTone } from './audio.js';
 import * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
@@ -760,57 +761,6 @@ interface TranscribeDisplayNote { midi: number; sb: number; db: number; label: s
 interface TranscribeState { on: boolean; pending: boolean; micRequest: number; stream: MediaStream | null; src: MediaStreamAudioSourceNode | null; analyser: AnalyserNode | null; buf: Float32Array<ArrayBuffer> | null; raf: number; notes: TranscribeNote[]; display: TranscribeDisplayNote[] | null; curMidi: number | null; curStart: number; lastVoice: number; ring: number[]; hlTimers: number[]; bpm?: number }
 const trx: TranscribeState = { on: false, pending: false, micRequest: 0, stream: null, src: null, analyser: null, buf: null, raf: 0, notes: [], display: null, curMidi: null, curStart: 0, lastVoice: 0, ring: [], hlTimers: [] };
 function trxFreqToMidi(f: number) { return Math.round(69 + 12 * Math.log2(f / 440)); }
-function trxAutoCorrelate(buf: Float32Array, sr: number) {
-    let SIZE = buf.length, rms = 0;
-    for (let i = 0; i < SIZE; i++)
-        rms += buf[i] * buf[i];
-    rms = Math.sqrt(rms / SIZE);
-    if (rms < 0.012)
-        return -1; // too quiet → silence
-    let r1 = 0, r2 = SIZE - 1;
-    const thr = 0.2;
-    for (let i = 0; i < SIZE / 2; i++) {
-        if (Math.abs(buf[i]) < thr) {
-            r1 = i;
-            break;
-        }
-    }
-    for (let i = 1; i < SIZE / 2; i++) {
-        if (Math.abs(buf[SIZE - i]) < thr) {
-            r2 = SIZE - i;
-            break;
-        }
-    }
-    const b = buf.subarray(r1, r2);
-    SIZE = b.length;
-    if (SIZE < 16)
-        return -1;
-    const c = new Float32Array(SIZE);
-    for (let i = 0; i < SIZE; i++) {
-        let s = 0;
-        for (let j = 0; j < SIZE - i; j++)
-            s += b[j] * b[j + i];
-        c[i] = s;
-    }
-    let d = 0;
-    while (d < SIZE - 1 && c[d] > c[d + 1])
-        d++;
-    let max = -1, pos = -1;
-    for (let i = d; i < SIZE; i++) {
-        if (c[i] > max) {
-            max = c[i];
-            pos = i;
-        }
-    }
-    if (pos <= 0)
-        return -1;
-    const x1 = c[pos - 1] || 0, x2 = c[pos], x3 = c[pos + 1] || 0, a = (x1 + x3 - 2 * x2) / 2, bb = (x3 - x1) / 2;
-    let T = pos;
-    if (a)
-        T = pos - bb / (2 * a);
-    const f = sr / T;
-    return (f > 70 && f < 1300) ? f : -1;
-}
 /* ---------- VOICE microphone: the one path both activities (Sing from the staff, Hum to notes) listen through ---------- */
 interface MicTap { stream: MediaStream; src: MediaStreamAudioSourceNode; analyser: AnalyserNode; buf: Float32Array<ArrayBuffer> }
 // The raw mic (no echo cancellation, noise suppression or gain control) into an analyser that is not connected to the

@@ -77,3 +77,4 @@ Write the date, the Diagnostics text and any step that failed in TODO.md under t
 - Background a running rhythm drill on a phone and verify that it can be restarted without grading the interrupted round.
 
 - On a disposable profile, export progress and restore it from the device file picker. Reopen a saved MIDI score after changing its grid and key, and verify the score uses those settings.
+- On a phone, record both low and high notes in Hum to notes, then play several minutes with synth tones, sustain, and modulation. Verify that pitch tracking remains responsive and the held notes keep their vibrato while earlier voices end.
