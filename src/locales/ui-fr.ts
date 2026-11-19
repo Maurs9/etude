@@ -2079,7 +2079,7 @@ const payload: UIPayload = {
       "search": "Rechercher titre, compositeur ou fichier",
       "filter": "Afficher les partitions",
       "all": "Toutes les partitions",
-      "favorites": "Favorites",
+      "favorites": "Favoris",
       "recent": "Ouvertes récemment",
       "backup": "Télécharger la sauvegarde",
       "restore": "Fusionner une sauvegarde",

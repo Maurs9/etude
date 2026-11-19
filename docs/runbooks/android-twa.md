@@ -51,7 +51,7 @@ git push origin v1.0.24
 
 For a manual run at the pushed tag, use `gh workflow run android-release.yml --ref v1.0.24`. To dispatch from a branch in the GitHub Actions UI, enter the version explicitly and make sure the branch tip is the commit at the pushed tag.
 
-The Android `versionCode` defaults to the workflow run number. It must be higher than the previous APK or AAB's code. Manual runs can supply an explicit `version_code`.
+The Android `versionCode` defaults to the workflow run number. It must be higher than the previous APK or AAB's code. Manual runs can supply an explicit `version_code`. The release checks that it exceeds every prior Android release code and publishes the code alongside each build. For older releases the check reads the APK metadata. If the run number is too low, dispatch the tag with a higher code.
 
 The workflow verifies that the pushed tag points to the checkout before signing and again before publication. It rejects an existing GitHub Release for that tag. To publish replacement binaries, create a new version and tag.
 

@@ -3340,4 +3340,21 @@ test.describe('UI/UX polish, accessibility, contrast and runtime regressions', (
     const interpolated = await page.evaluate(() => window.__etude.t('snap_item', '$&', "$$ $1 $'"));
     expect(interpolated).toBe("$& ($$ $1 $')");
   });
+
+  test('intervalLabel formats unison and multi-octave intervals cleanly', async ({ app, page }) => {
+    await app.open({ hash: 'explore' });
+    const en = await page.evaluate(() => [
+      window.__etude.intervalLabel(0),
+      window.__etude.intervalLabel(24),
+      window.__etude.intervalLabel(36),
+    ]);
+    expect(en).toEqual(['Unison', 'Two octaves', 'Octave + 2 octaves']);
+    await page.evaluate(() => window.__etude.setLang('ro'));
+    const ro = await page.evaluate(() => [
+      window.__etude.intervalLabel(0),
+      window.__etude.intervalLabel(24),
+      window.__etude.intervalLabel(36),
+    ]);
+    expect(ro).toEqual(['Unison', 'Două octave', 'Octavă + 2 octave']);
+  });
 });
