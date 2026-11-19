@@ -78,3 +78,4 @@ Write the date, the Diagnostics text and any step that failed in TODO.md under t
 
 - On a disposable profile, export progress and restore it from the device file picker. Reopen a saved MIDI score after changing its grid and key, and verify the score uses those settings.
 - On a phone, record both low and high notes in Hum to notes, then play several minutes with synth tones, sustain, and modulation. Verify that pitch tracking remains responsive and the held notes keep their vibrato while earlier voices end.
+- Reconnect a USB piano whose port ID changes and verify that the previous device is selected by name. On a BLE piano, switch devices while connected and check that rapid chords still sound after reconnecting.
