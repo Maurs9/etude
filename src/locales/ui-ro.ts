@@ -540,6 +540,8 @@ const payload: UIPayload = {
       "snap_confirm": "Înlocuiești progresul actual cu copia din %a? Étude păstrează mai întâi o copie a progresului actual.",
       "import_too_new": "Această copie a fost făcută de o versiune mai nouă de Étude. Actualizează aplicația, apoi importă din nou.",
       "import_storage": "Copia de siguranță nu a putut fi restaurată. Verifică dacă browserul permite stocarea și are suficient spațiu, apoi încearcă din nou.",
+      "import_size": "Copia depășește limita de import de 16 MiB.",
+      "import_conflict": "Copia intră în conflict cu istoricul de citire de pe acest dispozitiv. Progresul salvat a fost păstrat.",
       "store_stuck": "Progresul salvat nu a putut fi citit și nu e loc pentru o copie. Nu se salvează nimic până nu eliberezi spațiu, ca să rămână în siguranță copia necitibilă. Exportă o copie de rezervă a lucrului de azi.",
       "store_copy_failed": "Étude nu a putut păstra mai întâi o copie a progresului actual. Îl înlocuiești oricum?",
       "store_reset_copy_failed": "Étude nu a putut păstra o copie a progresului actual. Îl resetezi oricum?",
@@ -2074,6 +2076,7 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "ro": {
+      "corrupt_entries": "Intrări imposibil de citit: {count}. Originalele au fost păstrate.",
       "heading": "Biblioteca mea ({count})",
       "import": "Adaugă partituri",
       "search": "Caută titlul, compozitorul sau fișierul",

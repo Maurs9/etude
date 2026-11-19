@@ -1329,6 +1329,8 @@ const payload: UIPayload = {
       "snap_confirm": "Remplacer votre progression actuelle par la sauvegarde du %a ? Étude garde d'abord une copie de votre progression actuelle.",
       "import_too_new": "Une version plus récente d'Étude a créé cette sauvegarde. Mettez l'application à jour, puis importez-la à nouveau.",
       "import_storage": "La sauvegarde n’a pas pu être restaurée. Vérifiez que le stockage du navigateur est disponible et dispose d’assez d’espace, puis réessayez.",
+      "import_size": "La sauvegarde dépasse la limite d’importation de 16 Mio.",
+      "import_conflict": "La sauvegarde entre en conflit avec l’historique de lecture de cet appareil. La progression enregistrée est conservée.",
       "store_stuck": "La progression enregistrée n'a pas pu être lue et il n'y a pas de place pour en garder une copie. Rien n'est enregistré tant que de l'espace n'est pas libéré, pour protéger la copie illisible. Exportez une sauvegarde du travail du jour.",
       "store_copy_failed": "Étude n'a pas pu garder d'abord une copie de votre progression actuelle. La remplacer quand même ?",
       "store_reset_copy_failed": "Étude n’a pas pu conserver une copie de votre progression actuelle. La réinitialiser quand même ?",
@@ -2074,6 +2076,7 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "fr": {
+      "corrupt_entries": "Entrées illisibles : {count}. Les fichiers originaux sont conservés.",
       "heading": "Ma bibliothèque ({count})",
       "import": "Ajouter des partitions",
       "search": "Rechercher titre, compositeur ou fichier",

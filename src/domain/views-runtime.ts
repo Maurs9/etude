@@ -12641,6 +12641,7 @@ function anLibraryCapture(): LibraryResume | null {
     const performance = SCORE.loop || SCORE.sel ? performanceOf(performancePlan(), position) : performanceRead().position;
     const resume: LibraryResume = {
         performance, elapsed: SCORE.loop || SCORE.sel ? performance / pracFactor() : performanceRead().elapsed,
+        ...(AN.source?.kind === 'midi' ? { recon: { ...AN.recon } } : {}),
         position, measure: String(anMeasureAt(scoreBeatAt(position)).number),
         speed: +(selectById('score-speed').value || 100),
         hands: PRAC.hands === 'rh' ? 'rh' : PRAC.hands === 'lh' ? 'lh' : 'both',
@@ -16192,7 +16193,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
     }
     if (token !== AN.loadToken)
         return false;
-    await anCommit(src, token);
+    await anCommit(src, token, libraryItem?.resume?.recon);
     if (token !== AN.loadToken || AN.source !== src || AN.error || !SCORE.engine)
         return false;
     await anLibraryEnsure().catch(() => null);
@@ -16269,7 +16270,7 @@ function anStageOpening() {
         scoreIdle();
     };
 }
-async function anCommit(src: AnSource, token: number)  {
+async function anCommit(src: AnSource, token: number, recon?: LibraryResume['recon'])  {
     await ensureAnalysisModules();
     if (token !== AN.loadToken) return;
     anStageOpening();
@@ -16294,7 +16295,7 @@ async function anCommit(src: AnSource, token: number)  {
         AN.keyMap = anXmlKeyMap(src);
     }
     else {
-        AN.recon = { hands: 'auto', grid: 4, key: 'auto' };
+        AN.recon = src.kind === 'midi' && recon ? { ...recon } : { hands: 'auto', grid: 4, key: 'auto' };
         try {
             anRebuild();
         }
@@ -16366,7 +16367,7 @@ async function anReconChange()  {
     anStatus(anLoadedText());
     const token = ++AN.loadToken;
     try {
-        await scoreRender();
+        if (await scoreRender() && token === AN.loadToken) anLibrarySchedule();
     }
     catch (err) {
         console.error(err);
@@ -18961,6 +18962,8 @@ function storeBackupBlocked(): boolean {
     storeBlock();
     return true;
 }
+const MAX_PROGRESS_IMPORT_BYTES = 16 * 1024 * 1024;
+let progressRestorePending = false;
 /** Import and restore share this path: a copy of the current progress first, then the backup, then a reload. */
 async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<void> {
     try {
@@ -18977,7 +18980,7 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
             return syncNextGen();
         });
         if (!saved.ok) {
-            alert(t(saved.reason === 'unsupported' ? 'import_too_new' : 'import_storage'));
+            alert(t(saved.reason === 'unsupported' ? 'import_too_new' : saved.reason === 'conflict' ? 'import_conflict' : 'import_storage'));
             return;
         }
         reloadingForRestore = true;
@@ -18991,8 +18994,9 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
     }
 }
 async function storeRestore(id: number | undefined) {
-    if (!id)
+    if (!id || progressRestorePending || reloadingForRestore)
         return;
+    progressRestorePending = true;
     try {
         if (storeBackupBlocked()) {
             alert(t('store_too_new'));
@@ -19017,16 +19021,19 @@ async function storeRestore(id: number | undefined) {
     catch (_) {
         alert(t('import_storage'));
     }
+    finally {
+        progressRestorePending = false;
+    }
 }
 async function storeReset() {
     const button = buttonById('resetBtn');
-    if (button.disabled || !confirm(t('reset_confirm')))
+    if (button.disabled || progressRestorePending || reloadingForRestore || !confirm(t('reset_confirm')))
         return;
     const checkWritable = () => {
         if (storeBackupBlocked() || STORE.blocked === 'quarantine')
             throw new Error('Progress is protected');
     };
-    button.disabled = true;
+    button.disabled = progressRestorePending = true;
     try {
         const result = await srtResetLedgerTransaction(localStorage, async () => {
             checkWritable();
@@ -19054,7 +19061,7 @@ async function storeReset() {
         alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : 'store_reset_failed'));
     }
     finally {
-        button.disabled = false;
+        button.disabled = progressRestorePending = false;
     }
 }
 function storeExported() {
@@ -19573,31 +19580,34 @@ function initControls() {
         storeExported();
     });
     byId('importBtn').addEventListener('click', () => byId('importFile').click());
-    byId('importFile').addEventListener('change', (e) => {
-        const fi = wiringInput(e), f = fi.files?.[0];
-        fi.value = '';
-        if (!f)
+    byId('importFile').addEventListener('change', async (e) => {
+        const input = wiringInput(e), file = input.files?.[0];
+        input.value = '';
+        if (!file || progressRestorePending || reloadingForRestore) return;
+        if (file.size > MAX_PROGRESS_IMPORT_BYTES) {
+            alert(t('import_size'));
             return;
-        const rd = new FileReader();
-        rd.onerror = () => alert(t('import_bad'));
-        rd.onload = async () => {
-            if (STORE.blocked === 'too-new') {
+        }
+        progressRestorePending = true;
+        try {
+            if (storeBackupBlocked()) {
                 alert(t('store_too_new'));
                 return;
             }
-            const p = parsePttV3(String(rd.result));
-            if (p && (storage.pttSchema(p) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(p))) {
+            const backup = parsePttV3(await file.text());
+            if (backup && (storage.pttSchema(backup) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(backup))) {
                 alert(t('import_too_new'));
                 return;
             }
-            if (!storage.isImportableBackup(p)) {
+            if (!storage.isImportableBackup(backup)) {
                 alert(t('import_bad'));
                 return;
             }
             if (confirm(t('import_confirm')))
-                await storeApplyBackup(p, 'before-import');
-        };
-        rd.readAsText(f);
+                await storeApplyBackup(backup, 'before-import');
+        }
+        catch (_) { alert(t('import_bad')); }
+        finally { progressRestorePending = false; }
     });
     byId('set-diag').addEventListener('toggle', () => { if (byId('set-diag').hasAttribute('open'))
         void storeRefresh().then(storeDiagRender); });

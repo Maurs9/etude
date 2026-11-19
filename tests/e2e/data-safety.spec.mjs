@@ -538,3 +538,40 @@ test.describe('data safety', () => {
     await secondTab.close();
   });
 });
+
+test('oversized progress imports are rejected before the file is read', async ({ app, page }) => {
+  await app.open();
+  const message = new Promise(resolve => page.once('dialog', async dialog => {
+    resolve(dialog.message());
+    await dialog.dismiss();
+  }));
+  await page.evaluate(() => {
+    const files = new DataTransfer();
+    files.items.add(new File([new Uint8Array(16 * 1024 * 1024 + 1)], 'oversized.json'));
+    const input = document.querySelector('#importFile');
+    input.files = files.files;
+    input.dispatchEvent(new Event('change'));
+  });
+  expect(await message).toContain('16 MiB');
+});
+
+test('a second progress import is ignored while the first file is being read', async ({ app, page }) => {
+  await app.open();
+  await page.evaluate(() => {
+    window.readBackupNames = [];
+    File.prototype.text = function () {
+      window.readBackupNames.push(this.name);
+      return new Promise(resolve => { window.finishBackupRead = resolve; });
+    };
+  });
+  const input = page.locator('#importFile');
+  const file = name => ({ name, mimeType: 'application/json', buffer: Buffer.from('{}') });
+  await input.setInputFiles(file('first.json'));
+  await expect.poll(() => page.evaluate(() => window.readBackupNames)).toEqual(['first.json']);
+  await input.setInputFiles(file('second.json'));
+  page.on('dialog', dialog => dialog.dismiss());
+  await page.evaluate(() => window.finishBackupRead('{}'));
+  expect(await page.evaluate(() => window.readBackupNames)).toEqual(['first.json']);
+  await input.setInputFiles(file('retry.json'));
+  await expect.poll(() => page.evaluate(() => window.readBackupNames)).toEqual(['first.json', 'retry.json']);
+});

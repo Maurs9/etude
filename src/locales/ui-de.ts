@@ -1077,6 +1077,8 @@ const payload: UIPayload = {
       "snap_confirm": "Deinen aktuellen Fortschritt durch die Sicherung vom %a ersetzen? Étude speichert vorher eine Kopie deines aktuellen Fortschritts.",
       "import_too_new": "Eine neuere Version von Étude hat diese Sicherung erstellt. Aktualisiere die App und importiere sie dann erneut.",
       "import_storage": "Die Sicherung konnte nicht wiederhergestellt werden. Prüfe, ob der Browserspeicher verfügbar ist und genügend Platz hat, und versuche es erneut.",
+      "import_size": "Die Sicherung überschreitet das Importlimit von 16 MiB.",
+      "import_conflict": "Die Sicherung steht im Konflikt mit dem Leseverlauf auf diesem Gerät. Der gespeicherte Fortschritt bleibt erhalten.",
       "store_stuck": "Der gespeicherte Fortschritt konnte nicht gelesen werden, und für eine Kopie ist kein Platz. Bis Speicher frei wird, wird nichts gespeichert, damit die unlesbare Kopie sicher bleibt. Exportiere eine Sicherung der heutigen Arbeit.",
       "store_copy_failed": "Étude konnte vorher keine Kopie deines aktuellen Fortschritts speichern. Trotzdem ersetzen?",
       "store_reset_copy_failed": "Étude konnte keine Kopie deines aktuellen Fortschritts speichern. Trotzdem zurücksetzen?",
@@ -2080,6 +2082,7 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "de": {
+      "corrupt_entries": "Unlesbare Einträge: {count}. Die Originaldateien wurden behalten.",
       "heading": "Meine Bibliothek ({count})",
       "import": "Noten hinzufügen",
       "search": "Titel, Komponist oder Dateiname suchen",

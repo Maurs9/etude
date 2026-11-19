@@ -1,5 +1,6 @@
 /** Copy owned by the device-local library; not part of the global data-i18n registry. */
 const en = {
+  corrupt_entries: "Unreadable library entries: {count}. Their originals were kept.",
   heading: 'My Library ({count})', import: 'Add scores', search: 'Search title, composer or filename',
   filter: 'Show scores', all: 'All scores', favorites: 'Favorites', recent: 'Recently opened',
   backup: 'Download library backup', restore: 'Merge library backup',
@@ -59,6 +60,7 @@ const en = {
 export type LibraryTextKey = keyof typeof en;
 type Copy = { [K in LibraryTextKey]: string };
 const ro: Copy = {
+  corrupt_entries: "Intrări imposibil de citit: {count}. Originalele au fost păstrate.",
   heading: 'Biblioteca mea ({count})', import: 'Adaugă partituri', search: 'Caută titlul, compozitorul sau fișierul', filter: 'Afișează partituri', all: 'Toate partiturile', favorites: 'Favorite', recent: 'Deschise recent', backup: 'Descarcă copia bibliotecii', restore: 'Îmbină copia bibliotecii',
   privacy: 'Stocate doar în acest browser, pe acest dispozitiv. Fără cont, cloud sau sincronizare automată. Ștergerea datelor browserului poate șterge biblioteca. Păstrează o copie pentru transfer sau recuperare.', transfer: 'Copiile bibliotecii includ partiturile originale și pozițiile de studiu. Restaurarea îmbină fără a înlocui partiturile existente. Este separată de copia progresului de studiu.',
   empty: 'Nicio partitură încă. Adaugă fișiere MusicXML, MXL sau MIDI.', no_matches: 'Nicio partitură găsită.', open: 'Deschide', resume: 'Continuă', favorite: 'Favorită: {title}', download: 'Descarcă originalul', delete: 'Șterge', delete_confirm: 'Ștergi „{title}” din biblioteca acestui dispozitiv? Copiile descărcate nu vor fi șterse.', last_opened: 'Ultima deschidere: {date}', never_opened: 'Încă nedeschisă', position: 'Continuă: măsura {measure}, {time}', best: 'Record: {best}%', last_played: 'Ultima exersare: {date}',
@@ -102,6 +104,7 @@ const ro: Copy = {
   edit_notes: 'Notițe de studiu (ex. măsuri, mâini, tempo țintă)',
 };
 const es: Copy = {
+  corrupt_entries: "Entradas ilegibles: {count}. Se conservaron los archivos originales.",
   heading: 'Mi biblioteca ({count})', import: 'Añadir partituras', search: 'Buscar título, compositor o archivo', filter: 'Mostrar partituras', all: 'Todas las partituras', favorites: 'Favoritas', recent: 'Abiertas recientemente', backup: 'Descargar copia de la biblioteca', restore: 'Combinar copia de la biblioteca',
   privacy: 'Guardadas solo en este navegador y dispositivo. Sin cuenta, nube ni sincronización automática. Borrar los datos del navegador puede eliminar la biblioteca. Guarda una copia para transferirla o recuperarla.', transfer: 'Las copias incluyen partituras originales y posiciones de práctica. La restauración combina sin reemplazar partituras existentes. Es independiente de la copia del progreso.',
   empty: 'Aún no hay partituras. Añade archivos MusicXML, MXL o MIDI.', no_matches: 'No hay partituras coincidentes.', open: 'Abrir', resume: 'Continuar', favorite: 'Favorita: {title}', download: 'Descargar original', delete: 'Eliminar', delete_confirm: '¿Eliminar «{title}» de la biblioteca de este dispositivo? Las copias descargadas no se eliminan.', last_opened: 'Última apertura: {date}', never_opened: 'Aún no abierta', position: 'Continuar: compás {measure}, {time}', best: 'Récord: {best}%', last_played: 'Última práctica: {date}',
@@ -145,6 +148,7 @@ const es: Copy = {
   edit_notes: 'Notas de estudio (ej. compases, manos, tempo)',
 };
 const fr: Copy = {
+  corrupt_entries: "Entrées illisibles : {count}. Les fichiers originaux sont conservés.",
   heading: 'Ma bibliothèque ({count})', import: 'Ajouter des partitions', search: 'Rechercher titre, compositeur ou fichier', filter: 'Afficher les partitions', all: 'Toutes les partitions', favorites: 'Favoris', recent: 'Ouvertes récemment', backup: 'Télécharger la sauvegarde', restore: 'Fusionner une sauvegarde',
   privacy: 'Stockées uniquement dans ce navigateur sur cet appareil. Sans compte, cloud ni synchronisation automatique. Effacer les données du navigateur peut supprimer la bibliothèque. Gardez une sauvegarde pour la transférer ou la récupérer.', transfer: 'Les sauvegardes incluent les partitions originales et les positions de travail. La restauration fusionne sans remplacer les partitions existantes. Elle est distincte de la sauvegarde de progression.',
   empty: 'Aucune partition. Ajoutez des fichiers MusicXML, MXL ou MIDI.', no_matches: 'Aucune partition correspondante.', open: 'Ouvrir', resume: 'Reprendre', favorite: 'Favorite : {title}', download: 'Télécharger l’original', delete: 'Supprimer', delete_confirm: 'Supprimer « {title} » de la bibliothèque de cet appareil ? Les copies téléchargées ne seront pas supprimées.', last_opened: 'Dernière ouverture : {date}', never_opened: 'Jamais ouverte', position: 'Reprendre : mesure {measure}, {time}', best: 'Record : {best}%', last_played: 'Dernière séance : {date}',
@@ -188,6 +192,7 @@ const fr: Copy = {
   edit_notes: 'Notes d’étude (ex. mesures, mains, tempo cible)',
 };
 const de: Copy = {
+  corrupt_entries: "Unlesbare Einträge: {count}. Die Originaldateien wurden behalten.",
   heading: 'Meine Bibliothek ({count})', import: 'Noten hinzufügen', search: 'Titel, Komponist oder Dateiname suchen', filter: 'Noten anzeigen', all: 'Alle Noten', favorites: 'Favoriten', recent: 'Zuletzt geöffnet', backup: 'Bibliothekssicherung herunterladen', restore: 'Bibliothekssicherung zusammenführen',
   privacy: 'Nur in diesem Browser auf diesem Gerät gespeichert. Ohne Konto, Cloud oder automatische Synchronisierung. Das Löschen von Browserdaten kann die Bibliothek entfernen. Eine Sicherung ermöglicht Übertragung und Wiederherstellung.', transfer: 'Sicherungen enthalten Originalnoten und Übungspositionen. Die Wiederherstellung führt zusammen, ohne vorhandene Noten zu ersetzen. Sie ist von der Übungsfortschritt-Sicherung getrennt.',
   empty: 'Noch keine Noten. MusicXML-, MXL- oder MIDI-Dateien hinzufügen.', no_matches: 'Keine passenden Noten.', open: 'Öffnen', resume: 'Fortsetzen', favorite: 'Favorit: {title}', download: 'Original herunterladen', delete: 'Löschen', delete_confirm: '„{title}“ aus der Bibliothek dieses Geräts löschen? Heruntergeladene Kopien bleiben erhalten.', last_opened: 'Zuletzt geöffnet: {date}', never_opened: 'Noch nicht geöffnet', position: 'Fortsetzen: Takt {measure}, {time}', best: 'Bestwert: {best}%', last_played: 'Zuletzt geübt: {date}',
@@ -231,6 +236,7 @@ const de: Copy = {
   edit_notes: 'Übungsnotizen (z. B. Takte, Hände, Zieltempo)',
 };
 const it: Copy = {
+  corrupt_entries: "Voci illeggibili: {count}. I file originali sono stati conservati.",
   heading: 'La mia biblioteca ({count})', import: 'Aggiungi spartiti', search: 'Cerca titolo, compositore o file', filter: 'Mostra spartiti', all: 'Tutti gli spartiti', favorites: 'Preferiti', recent: 'Aperti di recente', backup: 'Scarica backup della biblioteca', restore: 'Unisci backup della biblioteca',
   privacy: 'Salvati solo in questo browser su questo dispositivo. Nessun account, cloud o sincronizzazione automatica. Cancellare i dati del browser può eliminare la biblioteca. Conserva un backup per trasferirla o recuperarla.', transfer: 'I backup includono spartiti originali e posizioni di studio. Il ripristino unisce senza sostituire gli spartiti esistenti. È separato dal backup dei progressi.',
   empty: 'Nessuno spartito. Aggiungi file MusicXML, MXL o MIDI.', no_matches: 'Nessuno spartito corrispondente.', open: 'Apri', resume: 'Riprendi', favorite: 'Preferito: {title}', download: 'Scarica originale', delete: 'Elimina', delete_confirm: 'Eliminare «{title}» dalla biblioteca di questo dispositivo? Le copie scaricate non saranno eliminate.', last_opened: 'Ultima apertura: {date}', never_opened: 'Mai aperto', position: 'Riprendi: battuta {measure}, {time}', best: 'Record: {best}%', last_played: 'Ultimo esercizio: {date}',
@@ -274,6 +280,7 @@ const it: Copy = {
   edit_notes: 'Note di studio (es. battute, mani, tempo)',
 };
 const ptBR: Copy = {
+  corrupt_entries: "Entradas ilegíveis: {count}. Os arquivos originais foram mantidos.",
   heading: 'Minha biblioteca ({count})', import: 'Adicionar partituras', search: 'Buscar título, compositor ou arquivo', filter: 'Mostrar partituras', all: 'Todas as partituras', favorites: 'Favoritas', recent: 'Abertas recentemente', backup: 'Baixar backup da biblioteca', restore: 'Mesclar backup da biblioteca',
   privacy: 'Armazenadas apenas neste navegador e dispositivo. Sem conta, nuvem ou sincronização automática. Limpar os dados do navegador pode remover a biblioteca. Guarde um backup para transferir ou recuperar.', transfer: 'Os backups incluem partituras originais e posições de estudo. A restauração mescla sem substituir partituras existentes. É separada do backup do progresso.',
   empty: 'Nenhuma partitura ainda. Adicione arquivos MusicXML, MXL ou MIDI.', no_matches: 'Nenhuma partitura encontrada.', open: 'Abrir', resume: 'Continuar', favorite: 'Favorita: {title}', download: 'Baixar original', delete: 'Excluir', delete_confirm: 'Excluir “{title}” da biblioteca deste dispositivo? As cópias baixadas não serão excluídas.', last_opened: 'Última abertura: {date}', never_opened: 'Ainda não aberta', position: 'Continuar: compasso {measure}, {time}', best: 'Recorde: {best}%', last_played: 'Última prática: {date}',

@@ -277,3 +277,36 @@ test('libraryExport rejects backups whose serialized JSON exceeds 64 MiB before 
   }, modulePath);
   expect(code).toBe('backup');
 });
+
+test('unreadable metadata does not hide readable scores or remove originals', async ({ page }) => {
+  const scan = await page.evaluate(async path => {
+    const library = await import(path);
+    const { item } = await library.librarySave(new File(['original'], 'first.xml'), { title: 'First', composer: '' });
+    const db = await new Promise((resolve, reject) => {
+      const open = indexedDB.open('etude-score-library-v1');
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(['metadata', 'blobs'], 'readwrite');
+      tx.objectStore('metadata').add({ broken: true }, 'broken');
+      tx.objectStore('blobs').add(new Blob(['keep me']), 'broken');
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    let corrupt;
+    const items = await library.libraryList(count => { corrupt = count; });
+    const found = await library.libraryGet(item.id);
+    const original = await new Promise((resolve, reject) => {
+      const get = db.transaction('blobs').objectStore('blobs').get('broken');
+      get.onsuccess = () => resolve(get.result.text());
+      get.onerror = () => reject(get.error);
+    });
+    db.close();
+    return { titles: items.map(entry => entry.title), corrupt, readable: await found.file.text(), original };
+  }, modulePath);
+  expect(scan).toEqual({ titles: ['First'], corrupt: 1, readable: 'original', original: 'keep me' });
+  await page.goto('/etude.html#analysis');
+  await page.locator('#score-library > summary').click();
+  await expect(page.getByText('Unreadable library entries: 1.')).toBeVisible();
+});

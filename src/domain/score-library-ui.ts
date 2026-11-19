@@ -137,6 +137,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
   status.setAttribute('aria-atomic', 'true');
+  const corruptStatus = element('p', 'score-library-status');
+  corruptStatus.setAttribute('role', 'status');
+  corruptStatus.hidden = true;
   const failures = element('ul', 'score-library-note');
   failures.id = 'library-failures';
   failures.hidden = true;
@@ -168,7 +171,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   restore.accept = '.json,application/json';
   restoreLabel.append(restoreText, restore);
   transfer.append(transferNote, backup, restoreLabel);
-  content.append(privacy, toolbar, protection, status, failures, list, empty, transfer);
+  content.append(privacy, toolbar, protection, status, corruptStatus, failures, list, empty, transfer);
   details.append(summary, content);
   root.append(details);
 
@@ -176,6 +179,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let loaded = false;
   let busy = false;
   let statusCopy: { key: LibraryTextKey; values?: Values } | null = null;
+  let corruptCount = 0;
   let protectedStorage: boolean | null = null;
   let readSequence = 0;
   let editingId: string | null = null;
@@ -245,9 +249,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   async function refresh(): Promise<void> {
     const sequence = ++readSequence;
     try {
-      const next = await libraryList();
+      let corrupt = 0;
+      const next = await libraryList(count => { corrupt = count; });
       if (sequence !== readSequence) return;
       items = next;
+      corruptCount = corrupt;
       if (editingId !== null && !items.some(item => item.id === editingId)) editingId = null;
       loaded = true;
       render();
@@ -843,7 +849,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (list.children[index] !== row.node) list.insertBefore(row.node, list.children[index] ?? null);
       index++;
     }
-    empty.hidden = !loaded || shown.length > 0;
+    corruptStatus.hidden = corruptCount === 0;
+    corruptStatus.textContent = corruptCount ? t('corrupt_entries', { count: corruptCount }) : '';
+    empty.hidden = !loaded || shown.length > 0 || (corruptCount > 0 && !items.length);
     empty.textContent = t(items.length ? 'no_matches' : 'empty');
     // Search stays usable during an operation and can create new rows/editors.
     // Those controls must obey the same busy state as existing rows.

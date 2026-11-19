@@ -1329,6 +1329,8 @@ const payload: UIPayload = {
       "snap_confirm": "¿Reemplazar tu progreso actual con la copia del %a? Étude guarda antes una copia de tu progreso actual.",
       "import_too_new": "Una versión más reciente de Étude creó esta copia. Actualiza la aplicación y vuelve a importarla.",
       "import_storage": "No se pudo restaurar la copia de seguridad. Comprueba que el almacenamiento del navegador esté disponible y tenga espacio suficiente, e inténtalo de nuevo.",
+      "import_size": "La copia supera el límite de importación de 16 MiB.",
+      "import_conflict": "La copia entra en conflicto con el historial de lectura de este dispositivo. Se conservó el progreso guardado.",
       "store_stuck": "No se pudo leer el progreso guardado y no hay espacio para guardar una copia. No se guarda nada hasta liberar espacio, para que la copia ilegible siga a salvo. Exporta una copia del trabajo de hoy.",
       "store_copy_failed": "Étude no pudo guardar antes una copia de tu progreso actual. ¿Reemplazarlo de todos modos?",
       "store_reset_copy_failed": "Étude no pudo guardar una copia de tu progreso actual. ¿Restablecerlo de todos modos?",
@@ -2074,6 +2076,7 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "es": {
+      "corrupt_entries": "Entradas ilegibles: {count}. Se conservaron los archivos originales.",
       "heading": "Mi biblioteca ({count})",
       "import": "Añadir partituras",
       "search": "Buscar título, compositor o archivo",
