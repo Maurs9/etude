@@ -20,7 +20,7 @@ async function hashes(dir) {
   return out;
 }
 const stop = server => new Promise(done => { server.closeAllConnections(); server.close(() => done()); });
-const booted = page => page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
+const booted = page => page.waitForFunction(() => !document.documentElement.hasAttribute('data-app-pending') && document.querySelector('#keys .key'));
 
 let tmp, server, base;
 test.beforeAll(async () => {
@@ -99,6 +99,7 @@ test('/etude/ opens the app, keeping the query and the hash', async ({ page }) =
   await expect(page).toHaveURL(base + 'etude.html?from=test#explore');
   await booted(page);
   await expect(page.locator('#view-explore')).toBeVisible();
+  expect(await page.evaluate(() => '__etude' in window)).toBe(false);
   // Every same-origin file the page links to (the icon, and the manifest that a script adds over http) is published.
   const links = await page.evaluate(() => [...document.querySelectorAll('link[href]')].map(l => l.href).filter(h => h.startsWith(location.origin)));
   expect(links).toContain(base + 'manifest.webmanifest');
@@ -138,6 +139,8 @@ test('the installed site opens offline under /etude/, with its manifest and icon
     await context.setOffline(true);
     await page.reload();
     await booted(page);
+    await page.locator('#nav [data-view=progress]').click();
+    await expect(page.locator('#progStats .s')).toHaveCount(5);
     for (const url of urls) expect(await page.evaluate(u => fetch(u).then(r => r.status, () => 'failed'), url), url).toBe(200);
     await page.goto(site);   // the folder URL too: the worker answers it with the app
     await booted(page);

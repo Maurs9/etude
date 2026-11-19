@@ -24,6 +24,8 @@ test('language can be selected independently of notation and survives reload', a
 test('German localizes built-in piece titles and the Learn staff captions', async ({ app, page }) => {
   await app.open({ hash: 'analysis', lang: 'de' });
   await expect(page.locator('#pc-list')).toContainText('Fünffinger-Aufwärmen');
+  await page.locator('#nav [data-view=learn]').click();
+  await page.evaluate(() => window.__etude.learnReady);
   const staff = await page.evaluate(() => {
     const html = window.__etude.lStaffHTML('n_clefs');
     const dynHtml = window.__etude.lStaffHTML('dyn2');

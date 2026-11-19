@@ -108,7 +108,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps --only-shell chromium
       # tests/e2e/standalone.spec.mjs opens dist/etude-standalone.html over file://. The dev server does not build it.
-      - run: npm run build:standalone
+      - run: npm run build:standalone -- --test-surface
       - name: Run and verify the IndexedDB score-library suite
         if: matrix.shard == 1
         env:

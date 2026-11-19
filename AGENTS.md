@@ -47,7 +47,7 @@ URLs and outputs:
 - Production site: `dist/etude/`.
 - Standalone file: `dist/etude-standalone.html`, opened with `file://`.
 - Playwright starts its own server on port `8787`. Use a free port with `ETUDE_PORT=8788 npm test` when another checkout owns the default port.
-- Before `npm run test:dev`, run `npm run build:standalone`; standalone specs require that artifact even when testing the development server.
+- Before `npm run test:dev`, run `npm run build:standalone -- --test-surface` for the standalone browser specs. Use the default build command for files intended for distribution.
 - Run the complete automated validation with `npm run typecheck && npm run lint && npm run test:unit && npm run test:i18n && npm run build && npm test && npm run test:dev`.
 
 Use a full-history checkout for unit tests: `tests/unit/split-etude.test.mjs` reads the immutable `32a184b:etude.html` anchor. On Windows, use LF line endings (`git config core.autocrlf false`) so `tests/unit/ci-config.test.mjs` and `tests/unit/locale-loader.test.mjs` do not fail on `\r\n` mismatches.

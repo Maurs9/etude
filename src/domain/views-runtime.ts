@@ -17,7 +17,7 @@ import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
 import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeight, AnNonChordTone, AnRatedChord, AnSpanChoice, AnSpanReading, AnUnit, ChordSelectionAnalysis, IsolatedNoteAnalysis, LassoPoint, ScoreSelectionAnalysis, SelectedNoteNeighbor, SelectionNeighborSummary, TwoNoteSelectionAnalysis } from './score-harmony.js';
 import type { ScoreGeoAnchor, ScoreGeoMeasure, ScoreGeoSystem, ScoreGeometry, ScoreSym } from './score-symbols.js';
-import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, LSTAVES, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
+import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
 import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
 import { renderGrandStaff, srBeatPt, srClef, srEvents, srKeySigG, srLedger2, srLevelBeams, srLevelMarks, srLevelPrep, srLevelRest, srRest, srSpellName, srStem2, srStemLine, srTieArc, srTimeSigG, type SrBeamCol, type SrBeamGroup, type SrChordItem, type SrEvent, type SrMarkCol, type SrNoteEvent, type SrRestEvent, type SrStave } from './grand-staff.js';
@@ -206,6 +206,13 @@ let learnLanguage: RuntimeLanguage | null = null;
 let localeRequest = 0;
 let learnRequest = 0;
 let learnLoading: Promise<void> | null = null;
+let LSTAVES: Record<string, LStaffSpec> = {};
+let learnStaffReady = false;
+async function loadLearnStaves() {
+    if (learnStaffReady) return;
+    ({ LSTAVES } = await import('./learn-staves.js'));
+    learnStaffReady = true;
+}
 function installUI(payload: UIPayload) {
     ({ STRINGS, I18N_MUSIC, STEP_LABELS, LOCALE_TAGS } = payload);
     installLibraryCopy(payload.LIBRARY);
@@ -4557,6 +4564,15 @@ function focusView(v: string) {
 let featureNavigation = 0;
 let show = function show(v: string|undefined, moveFocus = true, fromHistory = false): void | Promise<void> {
     const navigation = ++featureNavigation;
+    if (v === 'progress' && !progressView) {
+        return import('./progress-view.js').then((module) => {
+            progressView = module;
+            if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
+        }, () => {
+            if (navigation === featureNavigation)
+                localeLoadError(async () => { await show(v, moveFocus, fromHistory); });
+        });
+    }
     if (v === 'analysis' && !analysisModulesReady) {
         return ensureAnalysisModules().then(() => {
             if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
@@ -5981,14 +5997,14 @@ let renderLearn: { (fromLoad?: boolean): void; _init?: boolean } = function rend
     const body = byId('learnBody');
     if (!body || !byId('learnToc'))
         return;
-    if (learnLanguage !== lang) {
+    if (learnLanguage !== lang || !learnStaffReady) {
         learnWire();
         learnInitSel();
         learnSide();
         learnHalt();
         body.innerHTML = '<p role="status" data-lazy-loading>Loading…</p>';
         const requestedLanguage = lang, request = ++learnRequest;
-        learnLoading = loadLearn(requestedLanguage).then((payload) => {
+        learnLoading = Promise.all([loadLearn(requestedLanguage), loadLearnStaves()]).then(([payload]) => {
             if (request !== learnRequest || requestedLanguage !== lang || view0() !== 'learn') return;
             installLearn(requestedLanguage, payload);
             renderLearn(true);
@@ -18033,112 +18049,17 @@ function anInitControls() {
     anUpdateControls();
 }
 /* ---------- PROGRESS ---------- */
+let progressView: typeof import('./progress-view.js') | null = null;
 function renderProgress() {
-    const acc = data.totalReviews ? Math.round(100 * data.totalCorrect / data.totalReviews) : 0;
-    byId('prog-empty').hidden = (data.totalReviews || 0) > 0;
-    byId('progStats').innerHTML =
-        statHTML(currentStreak(), t('st_streak')) + statHTML(data.bestStreak || 0, t('st_best')) +
-            statHTML(masteredCount() + ' / ' + ITEMS.length, t('st_mastered')) +
-            statHTML(data.totalReviews || 0, t('st_reviews')) + statHTML(acc + '%', t('st_acc'));
-    // mastery rows + answer accuracy per topic (from each concept's review history)
-    const mr = byId('masteryRows');
-    mr.innerHTML = '';
-    Object.keys(CATS).forEach((cat) => {
-        const items = ITEMS.filter((it) => it.cat === cat);
-        const score = items.reduce((s, it) => s + Math.min(boxOf(it.id), 6), 0);
-        const max = items.length * 6;
-        const pct = Math.round(100 * score / max);
-        const mastered = items.filter((it) => boxOf(it.id) >= 4).length;
-        let reps = 0, lapses = 0;
-        items.forEach((it) => { const r = data.srs[it.id]; if (r) {
-            reps += r.reps || 0;
-            lapses += r.lapses || 0;
-        } });
-        const accLine = reps ? t('cat_acc_line', Math.round(100 * Math.max(0, reps - lapses) / reps), reps) : t('cat_acc_none');
-        const row = (document).createElement('div');
-        row.className = 'mrow';
-        row.innerHTML = '<div class="top"><b>' + catLabel(cat) + '</b><span>' + mastered + '/' + items.length + ' ' + t('mastered_of') + '</span></div><div class="mbar" role="img" aria-label="' + catLabel(cat) + ': ' + pct + '%"><i style="width:' + pct + '%"></i></div><div class="acc">' + accLine + '</div>';
-        mr.appendChild(row);
+    progressView?.renderProgress({
+        data, items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
+        t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, rdRenderStats,
+        openDrill(category) {
+            show('practice');
+            prSetTopic(category);
+            byId('pr-start').focus();
+        },
     });
-    // weakest concepts → one click to drill that topic
-    const weak = ITEMS.map((it) => ({ it, r: data.srs[it.id] })).filter((x) => x.r && x.r.reps >= 2 && x.r.lapses > 0).sort((a, b) => (b.r.lapses / b.r.reps) - (a.r.lapses / a.r.reps) || a.r.box - b.r.box).slice(0, 6);
-    byId('weak-wrap').hidden = !weak.length;
-    const wl = byId('weakList');
-    wl.innerHTML = '';
-    weak.forEach(({ it, r }) => { const b = (document).createElement('button'); b.type = 'button'; b.innerHTML = itemLabel(it) + '<small>' + catLabel(it.cat) + ' · ' + t('weak_acc', Math.round(100 * Math.max(0, r.reps - r.lapses) / r.reps), r.reps) + '</small>'; b.addEventListener('click', () => { show('practice'); prSetTopic(it.cat); byId('pr-start').focus(); }); wl.appendChild(b); });
-    // forecast next 7 days
-    const fc = byId('forecast');
-    fc.innerHTML = '';
-    const counts = [0, 0, 0, 0, 0, 0, 0];
-    const tn = todayN();
-    ITEMS.forEach((it) => { const s = data.srs[it.id]; if (s && s.reps > 0) {
-        const d = Math.max(0, s.due - tn);
-        if (d < 7)
-            counts[d]++;
-    } });
-    const maxc = Math.max(1, ...counts);
-    const loc = LOCALE_TAGS[lang] || lang;
-    const names = counts.map((_, i) => i === 0 ? t('fc_today') : new Date((tn + i) * 86400000).toLocaleDateString(loc, { weekday: 'short', timeZone: 'UTC' }));
-    counts.forEach((c, i) => { const day = (document).createElement('div'); day.className = 'day'; day.innerHTML = '<i style="height:' + (c / maxc * 60 + 3) + 'px" title="' + c + '"></i><span>' + names[i] + '</span><span class="num" style="color:var(--ink)">' + c + '</span>'; fc.appendChild(day); });
-    const fcAny = counts.some((c) => c > 0);
-    fc.hidden = !fcAny;
-    byId('fc-none').hidden = fcAny;
-    // practice heatmap — last 12 weeks
-    const hm = byId('heatmap');
-    if (hm) {
-        hm.innerHTML = '';
-        const h: Record<number, number> = data.history || {};
-        const days = 84, start = tn - days + 1;
-        let active = 0, sum = 0;
-        const pad = new Date(start * 86400000).getUTCDay(); // day numbers are UTC-based
-        for (let i = 0; i < pad; i++) {
-            const x = (document).createElement('i');
-            x.style.visibility = 'hidden';
-            hm.appendChild(x);
-        }
-        for (let d = start; d <= tn; d++) {
-            const c = h[d] || 0;
-            const x = (document).createElement('i');
-            if (c) {
-                active++;
-                sum += c;
-            }
-            x.dataset.l = String(c === 0 ? 0 : c < 5 ? 1 : c < 12 ? 2 : c < 20 ? 3 : 4);
-            x.title = new Date(d * 86400000).toLocaleDateString(loc, { month: 'short', day: 'numeric', timeZone: 'UTC' }) + ' · ' + c + ' ' + t('reviews_word');
-            hm.appendChild(x);
-        }
-        const meta = t('heat_meta', active, sum);
-        hm.setAttribute('aria-label', t('heat_aria') + ' — ' + meta);
-        const sw = ['var(--line)', '#d8c79a', 'var(--gold)', '#7fae8b', 'var(--good)'].map((c) => '<i style="background:' + c + '"></i>').join('');
-        byId('heat-meta').innerHTML = '<span>' + meta + '</span><span class="hm-key" aria-hidden="true">' + t('heat_less') + ' ' + sw + ' ' + t('heat_more') + '</span>';
-    }
-    // every concept, grouped by topic
-    const g = byId('itemGrid');
-    g.innerHTML = '';
-    Object.keys(CATS).forEach((cat) => {
-        const sec = (document).createElement('div');
-        sec.className = 'ig-cat';
-        sec.innerHTML = '<h3>' + catLabel(cat) + '</h3>';
-        const grid = (document).createElement('div');
-        grid.className = 'grid-items';
-        ITEMS.filter((it) => it.cat === cat).forEach((it) => {
-            const b = boxOf(it.id);
-            const c = (document).createElement('div');
-            c.className = 'cell';
-            c.dataset.b = String(b);
-            const lbl = itemLabel(it);
-            const st = isNew(it.id) ? t('grid_new') : (t('grid_box') + ' ' + b);
-            c.title = lbl + ' — ' + st;
-            c.setAttribute('role', 'img');
-            c.setAttribute('aria-label', lbl + ' — ' + st);
-            c.textContent = (it.cat === 'interval' || it.cat === 'chord') ? it.short : lbl.replace(/\s*\(.*\)\s*/, '');
-            grid.appendChild(c);
-        });
-        sec.appendChild(grid);
-        g.appendChild(sec);
-    });
-    // Reading: the reading drills' statistics, with their own Reset button.
-    rdRenderStats();
 }
 function statHTML(v: string|number, l: string) { return '<div class="s"><b class="num">' + rdEsc(v) + '</b><span>' + rdEsc(l) + '</span></div>'; }
 /* ---------- TODAY: daily plan ---------- */
@@ -20118,7 +20039,7 @@ reflectSettingsUI();
 renderCircle();
 applyI18n();
 anLocalize();
-show(viewFromHash(location.hash), false);
+await show(viewFromHash(location.hash), false);
 const bootHistoryState: unknown = history.state;
 if (isRecord(bootHistoryState) && bootHistoryState.modal)
     window.dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
@@ -20144,6 +20065,9 @@ catch (err) {
     pianoStatus();
     console.warn(err);
 }
+// These internal setters and getters belong to browser tests and development.
+declare const __ETUDE_TEST_SURFACE__: boolean;
+if (import.meta.env.DEV || __ETUDE_TEST_SURFACE__) {
 /* @generated etude test surface */
 const __etude: EtudeSurface = {};
 const __etudeGetters: Record<string, () => unknown> = {
@@ -21332,4 +21256,5 @@ Object.defineProperty(__etude, "srtRecorder", { configurable: true, get: () => s
 Object.defineProperty(__etude, "srNoteStart", { configurable: true, get: () => srNoteStart });
 window.__etude = __etude;
 __etude.loadOsmd = loadOsmd;
+}
 document.documentElement.removeAttribute('data-app-pending');

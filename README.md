@@ -54,6 +54,7 @@ npm run lint
 npm run test:unit        # Vitest unit tests (tests/unit/)
 npm run test:i18n        # Multi-language i18n pack tests (i18n/tests/)
 npm test                 # Playwright E2E against built dist/etude/ and @sw tests
+npm run build:standalone -- --test-surface  # Build the file required by the dev standalone specs
 npm run test:dev         # Playwright app project against the Vite dev server
 npm run deps:check       # Check npm devDependencies + runtime vendor versions
 npm run osmd:check       # Verify OSMD bundle contract and check npm for updates

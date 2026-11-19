@@ -148,7 +148,8 @@ test.describe('Read & play and Voice layout on wide windows', () => {
 
   test('the Learn staves and the inline Learn examples keep their natural size', async ({ app, page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await app.open({ hash: 'read' });
+    await app.open({ hash: 'learn' });
+    await page.evaluate(() => window.__etude.learnReady);
     const learn = await page.evaluate(() => {
       const a = window.__etude;
       return Object.keys(a.LSTAVES).map((key) => {
