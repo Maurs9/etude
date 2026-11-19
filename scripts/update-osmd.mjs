@@ -18,6 +18,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VENDOR_DIR = join(ROOT, 'public', 'vendor');
 const NOTATION_FILE = join(ROOT, 'src', 'domain', 'notation.ts');
 const STANDALONE_SCRIPT = join(ROOT, 'scripts', 'build-standalone.mjs');
+const SPLIT_SCRIPT = join(ROOT, 'scripts', 'split-etude.mjs');
 const NPM_CMD = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const NPX_CMD = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
@@ -142,10 +143,12 @@ async function getCurrentVendorState() {
   const bytes = await readFile(filePath);
   const notationSource = await readFile(NOTATION_FILE, 'utf8');
   const standaloneSource = await readFile(STANDALONE_SCRIPT, 'utf8');
+  const splitSource = await readFile(SPLIT_SCRIPT, 'utf8');
 
   const notationMatch = notationSource.match(/vendor\/(osmd-[^'"`]+\.min\.js)/);
   const standaloneMatch = standaloneSource.match(/\bvendor['"],\s*['"](osmd-[^'"`]+\.min\.js)['"]/);
-  const referencesMatch = notationMatch?.[1] === filename && standaloneMatch?.[1] === filename;
+  const splitMatch = splitSource.match(/OSMD_SOURCE = join\(ROOT, 'public', 'vendor', '(osmd-[^']+\.min\.js)'\)/);
+  const referencesMatch = notationMatch?.[1] === filename && standaloneMatch?.[1] === filename && splitMatch?.[1] === filename;
 
   return {
     filename,
@@ -154,6 +157,8 @@ async function getCurrentVendorState() {
     hash: sha256(bytes),
     notationSource,
     standaloneSource,
+    splitSource,
+    splitRef: splitMatch?.[1] ?? null,
     notationRef: notationMatch?.[1] ?? null,
     standaloneRef: standaloneMatch?.[1] ?? null,
     referencesMatch,
@@ -180,7 +185,7 @@ async function checkCurrent() {
   console.log(`Latest on npm     : ${latest ?? '(offline / unavailable)'}`);
   console.log(`SHA-256           : ${state.hash}`);
   console.log(`Size              : ${(state.bytes.byteLength / 1024).toFixed(1)} KiB`);
-  console.log(`References synced : ${state.referencesMatch ? 'YES' : `NO (notation.ts=${state.notationRef}, build-standalone.mjs=${state.standaloneRef})`}`);
+  console.log(`References synced : ${state.referencesMatch ? 'YES' : `NO (notation.ts=${state.notationRef}, build-standalone.mjs=${state.standaloneRef}, split-etude.mjs=${state.splitRef})`}`);
   console.log(`Adapter contract  : OK (OpenSheetMusicDisplay, MXLHelper.MXLtoXMLstring, VexFlowMusicSheetDrawer.prototype.drawPedals)`);
   console.log(`EngravingRules    : ${Object.keys(info.rules).length} scalar rules inspected`);
   if (!state.referencesMatch) {
@@ -248,6 +253,7 @@ async function updateOsmd(targetSpec, { keepOnFailure = false, skipE2e = false }
       `'vendor', '${newFilename}'`,
     );
 
+    const updatedSplit = before.splitSource.replace(`'vendor', '${before.filename}'`, `'vendor', '${newFilename}'`);
     const newFilePath = join(VENDOR_DIR, newFilename);
     await writeFile(newFilePath, downloaded.bundleBytes);
     if (newFilename !== before.filename && existsSync(before.filePath)) {
@@ -255,6 +261,7 @@ async function updateOsmd(targetSpec, { keepOnFailure = false, skipE2e = false }
     }
     await writeFile(NOTATION_FILE, updatedNotation, 'utf8');
     await writeFile(STANDALONE_SCRIPT, updatedStandalone, 'utf8');
+    await writeFile(SPLIT_SCRIPT, updatedSplit, 'utf8');
 
     const gates = [
       ['Typecheck', NPM_CMD, ['run', 'typecheck']],
@@ -264,7 +271,8 @@ async function updateOsmd(targetSpec, { keepOnFailure = false, skipE2e = false }
       ['Standalone build', NPM_CMD, ['run', 'build:standalone']],
     ];
     if (!skipE2e) {
-      gates.push(['Golden score engraving tests', NPX_CMD, ['playwright', 'test', 'tests/e2e/golden.spec.mjs']]);
+      gates.push(['Score engraving and standalone browser tests', NPX_CMD, ['playwright', 'test',
+        'tests/e2e/golden.spec.mjs', 'tests/e2e/score-markings.spec.mjs', 'tests/e2e/standalone.spec.mjs']]);
     }
 
     try {
@@ -286,6 +294,7 @@ async function updateOsmd(targetSpec, { keepOnFailure = false, skipE2e = false }
         await writeFile(before.filePath, before.bytes);
         await writeFile(NOTATION_FILE, before.notationSource, 'utf8');
         await writeFile(STANDALONE_SCRIPT, before.standaloneSource, 'utf8');
+        await writeFile(SPLIT_SCRIPT, before.splitSource, 'utf8');
         console.log(`Rollback complete: restored public/vendor/${before.filename}.`);
       } else {
         console.log('\n--keep specified: leaving updated OSMD files on disk for manual inspection.');

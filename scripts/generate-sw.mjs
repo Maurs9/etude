@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const SW_FILE = 'sw.js';
 
@@ -66,6 +67,7 @@ self.addEventListener('install', event => {
     try {
       const cache = await caches.open(CACHE_NAME);
       let nextIndex = 0;
+      let failed = false;
       async function precacheEntry(entry) {
         const url = new URL(entry.url, SCOPE).href;
         const already = await cache.match(url);
@@ -88,13 +90,20 @@ self.addEventListener('install', event => {
       const workers = Array.from(
         { length: Math.min(INSTALL_CONCURRENCY, PRECACHE.length) },
         async () => {
-          while (nextIndex < PRECACHE.length) {
-            const entry = PRECACHE[nextIndex++];
-            await precacheEntry(entry);
+          try {
+            while (!failed && nextIndex < PRECACHE.length) {
+              const entry = PRECACHE[nextIndex++];
+              await precacheEntry(entry);
+            }
+          } catch (error) {
+            failed = true;
+            throw error;
           }
         },
       );
-      await Promise.all(workers);
+      const results = await Promise.allSettled(workers);
+      const failure = results.find(result => result.status === 'rejected');
+      if (failure) throw failure.reason;
       await self.skipWaiting();
     } catch (error) {
       const meta = await readMeta();
@@ -233,7 +242,7 @@ export async function generateWorker(directory, output, include = null) {
   return manifest;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   const directory = resolve(process.argv[2] || 'dist/etude');
   const output = resolve(process.argv[3] || join(directory, SW_FILE));
   const manifest = await generateWorker(directory, output);

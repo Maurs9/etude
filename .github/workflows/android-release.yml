@@ -17,12 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: >-
-    android-release-${{
-      github.ref_type == 'tag' && github.ref_name
-      || startsWith(inputs.version_name, 'v') && inputs.version_name
-      || format('v{0}', inputs.version_name)
-    }}
+  group: android-release
   cancel-in-progress: false
 
 jobs:
@@ -75,6 +70,14 @@ jobs:
           EOF
           bubblewrap doctor
 
+      - name: Require a version code above prior Android releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+        run: |
+          export AAPT2="${ANDROID_SDK_ROOT}/build-tools/36.1.0/aapt2"
+          node scripts/android-release.mjs verify-version
+
       - name: Validate signing secrets
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -91,7 +94,7 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_B64" | base64 --decode > android.keystore
+          printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 --decode > android.keystore
 
       - name: Apply release version to twa-manifest.json
         working-directory: android-twa
@@ -119,8 +122,7 @@ jobs:
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          bubblewrap update --skipVersionUpgrade --manifest=twa-manifest.json
-          bubblewrap build --skipPwaValidation --manifest=twa-manifest.json
+          node ../scripts/android-release.mjs build-local-icons
 
       - name: Extract SHA-256 fingerprint and generate assetlinks.json
         working-directory: android-twa
@@ -129,19 +131,20 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           ALIAS="${KEY_ALIAS:-etude}"
-          SHA256=$(keytool -list -v -keystore android.keystore -alias "$ALIAS" -storepass "$KEYSTORE_PASS" \
+          SHA256=$(keytool -list -v -keystore android.keystore -alias "$ALIAS" -storepass:env KEYSTORE_PASS \
             | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)
           if [ -z "$SHA256" ]; then
             echo "::error::Could not extract SHA-256 fingerprint from android.keystore for alias '$ALIAS'."
             exit 1
           fi
+          PACKAGE_ID=$(node -p "require('./twa-manifest.json').packageId")
           cat <<EOF > assetlinks.json
           [
             {
               "relation": ["delegate_permission/common.handle_all_urls"],
               "target": {
                 "namespace": "android_app",
-                "package_name": "io.github.maurs9.etude",
+                "package_name": "$PACKAGE_ID",
                 "sha256_cert_fingerprints": [
                   "$SHA256"
                 ]
@@ -159,11 +162,13 @@ jobs:
         working-directory: android-twa
         env:
           RELEASE_TAG: ${{ steps.meta.outputs.tag_name }}
+          VERSION_CODE: ${{ steps.meta.outputs.version_code }}
         run: |
           mkdir -p release-assets
           cp app-release-signed.apk "release-assets/etude-android-$RELEASE_TAG.apk"
           cp app-release-bundle.aab "release-assets/etude-android-$RELEASE_TAG.aab"
           cp assetlinks.json release-assets/assetlinks.json
+          printf '%s\n' "$VERSION_CODE" > release-assets/etude-android-version-code.txt
 
       - name: Create GitHub Release
         env:
@@ -174,4 +179,5 @@ jobs:
           gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "Étude Android $RELEASE_TAG" \
             "android-twa/release-assets/etude-android-$RELEASE_TAG.apk" \
             "android-twa/release-assets/etude-android-$RELEASE_TAG.aab" \
-            android-twa/release-assets/assetlinks.json
+            android-twa/release-assets/assetlinks.json \
+            android-twa/release-assets/etude-android-version-code.txt

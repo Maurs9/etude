@@ -179,7 +179,7 @@ async function updateDependencies({ useLatest = false, fullE2e = false, filterNa
       .filter(name => !filterNames.length || filterNames.includes(name))
       .map(name => byName.get(name))
       .filter(Boolean)
-      .filter(row => useLatest ? row.latest !== row.installed : row.hasUpdate);
+      .filter(row => (useLatest ? row.latest : row.wanted) !== row.installed);
 
     if (!candidates.length) {
       results.push({ group: group.name, status: 'SKIPPED (already up to date)' });
@@ -193,8 +193,12 @@ async function updateDependencies({ useLatest = false, fullE2e = false, filterNa
     const backupLock = await readFile(LOCK_FILE, 'utf8');
 
     try {
-      const saveFlags = candidates.every(row => row.isPinned) ? ['--save-dev', '--save-exact'] : ['--save-dev'];
-      await runCmd(NPM_CMD, ['install', ...saveFlags, ...specs]);
+      for (const isPinned of [true, false]) {
+        const subset = specs.filter((_, index) => candidates[index].isPinned === isPinned);
+        if (!subset.length) continue;
+        const saveFlags = isPinned ? ['--save-dev', '--save-exact'] : ['--save-dev'];
+        await runCmd(NPM_CMD, ['install', ...saveFlags, ...subset]);
+      }
       await runSafetyGates({ fullE2e });
       results.push({ group: group.name, status: `UPDATED (${specs.join(', ')})` });
     } catch (error) {

@@ -464,7 +464,7 @@ function shuffle<T>(src: readonly T[]) { const a = src.slice(); for (let i = a.l
 } return a; }
 function intervalLabel(semi: number) { const d = I18N_MUSIC.intervals[lang]; if (d && d[semi])
     return d[semi]; const C = lang === 'ro' ? RO_IV : COMPOUND; if (C[semi])
-    return C[semi]; const oct = Math.floor(semi / 12), s = semi % 12; const base = s === 0 ? ivName(12) : ivName(s); return base + (lang === 'ro' ? (' + ' + oct + ' octav' + (oct > 1 ? 'e' : 'ă')) : (' + ' + oct + ' octave' + (oct > 1 ? 's' : ''))); }
+    return C[semi]; const s = semi % 12, oct = Math.floor(semi / 12) - (s === 0 ? 1 : 0); const base = s === 0 ? ivName(12) : ivName(s); return base + (lang === 'ro' ? (' + ' + oct + ' octav' + (oct > 1 ? 'e' : 'ă')) : (' + ' + oct + ' octave' + (oct > 1 ? 's' : ''))); }
 function chordFormula(c: { intervals: readonly number[]; }) { return formatChordFormula(c.intervals); }
 function scaleFormula(offs: readonly number[]) { return formatScaleFormula(offs); }
 const todayN = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); };
@@ -611,7 +611,7 @@ function stopDrone() {
     inputById('si-drone').checked = false;
     syncAudioState();
 }
-function startMetro() { audioEngine.startMetro(metro.bpm); metro.on = true; metro.timer = true; }
+function startMetro(bpm = metro.bpm) { audioEngine.startMetro(bpm); metro.on = true; metro.timer = true; }
 function stopMetro() { audioEngine.stopMetro(); metro.on = false; metro.timer = null; }
 function metroSched() { audioEngine.startMetro(metro.bpm); }
 function metroClick(when: number, accent: boolean) { audioEngine.metroClick(when, accent); }
@@ -716,10 +716,7 @@ function accompStart() {
         return;
     }
     accomp.nextLoop = ctx.currentTime + 0.18;
-    if (accomp.click) {
-        metro.bpm = accomp.bpm;
-        startMetro();
-    }
+    if (accomp.click) startMetro(accomp.bpm);
     accomp.timer = window.setInterval(accompTick, 40);
     accompTick();
 }
@@ -2023,6 +2020,10 @@ function releaseFocusInput() {
         fallDraw();
 }
 function panic() {
+    sesStopPrompt();
+    sesStopAnswerReplay();
+    rdnAutoCancel();
+    if (WARM.on) rdnHome();
     if (CAL.on) {
         calStop();
         calSay('');
@@ -2623,7 +2624,7 @@ function bleDisconnect(keepMsg?: boolean) {
 // Nothing may stay stuck when the link goes: keys held over Bluetooth, its sustain pedal, bend and mod wheel are let go.
 function bleReleaseInput() {
     [...inputOwners.entries()].forEach(([m, o]) => { if (o.has('ble'))
-        handleNoteOff(m, 'ble'); });
+        handleNoteOff(m, 'ble', 'reset'); });
     if (BLE.pedal && pedalDown) {
         pedalDown = false;
         pedalUp();
@@ -2750,6 +2751,7 @@ const PWA: InstalledAppState = { sw: '', err: '', prompt: null, installed: false
 function pwaStandalone() {
     return !!(window.matchMedia('(display-mode: standalone)').matches ||
         window.matchMedia('(display-mode: fullscreen)').matches ||
+        window.matchMedia('(display-mode: window-controls-overlay)').matches ||
         navigator.standalone === true);
 }
 function pwaInit() {
@@ -2813,13 +2815,15 @@ async function pwaRegister() {
 /** An installed app can stay open for days. Coming back checks for a new version, at most every 30 minutes. sw.js activates it at once. */
 const PWA_UPDATE_GAP_MS = 30 * 60 * 1000;
 function pwaWatchUpdates(registration: ServiceWorkerRegistration) {
-    let last = Date.now(); // register() has just checked
+    let last = Date.now(), pending = false; // register() has just checked
     onPageReturn(() => {
         const now = Date.now();
-        if (now - last < PWA_UPDATE_GAP_MS)
+        if (pending || now - last < PWA_UPDATE_GAP_MS)
             return;
-        last = now;
-        void registration.update().catch(() => undefined); // offline: the next return tries again
+        pending = true;
+        void registration.update().then(() => { last = Date.now(); })
+            .catch(() => undefined) // offline: the next return tries again
+            .finally(() => { pending = false; });
     });
 }
 function pwaUi() {
@@ -3321,6 +3325,8 @@ interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undef
 const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0, contrast: null };
 // Which items this session took for which (kept in memory only; a new session, but not its contrast drill, starts it over).
 const confusions = new ConfusionLog();
+let sesAnswerReplay: ReturnType<typeof setTimeout> | undefined;
+function sesStopAnswerReplay() { clearTimeout(sesAnswerReplay); sesAnswerReplay = undefined; }
 function sesStopPrompt() { clearTimeout(SES.promptT); SES.promptT = 0; }
 function sesPrompt(q: TrainerQuestion, play: () => void) { sesStopPrompt(); SES.promptT = setTimeout(() => { SES.promptT = 0; if (SES.active && SES.q === q && !SES.answered)
     play(); }, 250); }
@@ -3381,6 +3387,7 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
     ensureAudio();
     sesStopPrompt();
+    sesStopAnswerReplay();
     clearTimeout(evalTimer ?? undefined);
     evalTimer = null;
     if (accomp.on)
@@ -3406,6 +3413,7 @@ function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSess
 function startPlacement() {
     ensureAudio();
     sesStopPrompt();
+    sesStopAnswerReplay();
     clearTimeout(evalTimer ?? undefined);
     evalTimer = null;
     SES.targeted = null;
@@ -3452,6 +3460,7 @@ function endSession(toSummary: boolean) {
         saveAll();
     }
     sesStopPrompt();
+    sesStopAnswerReplay();
     clearTimeout(evalTimer ?? undefined);
     evalTimer = null;
     ekStop(SES.q);
@@ -3466,9 +3475,7 @@ function endSession(toSummary: boolean) {
     byId('session').classList.remove('on');
     dockSync(); // keys a drill opened fold back to the saved choice
     kbClearAll();
-    held.forEach((m) => audioNoteOff(m));
-    held.clear();
-    heldOrder.length = 0;
+    releaseLiveInput();
     stopMetro();
     stopDrone();
     if (SES.targeted) {
@@ -4316,13 +4323,14 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     revealAnswerKeys(q);
     showElaboration(q);
     if (!good) {
-        const replay = setTimeout(() => { if (SES.active && SES.q === q && SES.answered)
+        sesStopAnswerReplay();
+        sesAnswerReplay = setTimeout(() => { if (SES.active && SES.q === q && SES.answered)
             playQuestionSound(q); }, 600);
         const given = correct ? null : q.given;
         if (given) { // Hear both: the given sound, then the expected one (it replaces the replay still to come)
             const both = byId('q-both');
             both.hidden = false;
-            both.onclick = () => { clearTimeout(replay); playGivenAndExpected(given); };
+            both.onclick = () => { sesStopAnswerReplay(); playGivenAndExpected(given); };
         }
     } // let the right answer be heard, not just seen
     byId('q-reveal').hidden = true;
@@ -13497,6 +13505,7 @@ function scoreNamesSync() {
 }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
+    if (document.querySelector('.notation-reload')) return;
     const copy = notationReloadMessage(lang), box = (document).createElement('div');
     box.setAttribute('role', 'alert');
     box.className = 'notation-reload';
@@ -19036,7 +19045,7 @@ async function storeDiagnostics(): Promise<string> {
             version = names.join(', ');
     }
     catch (_) { }
-    const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches;
+    const standalone = pwaStandalone();
     const u = STORE.usage, snaps = STORE.snaps.filter(x => x.reason !== 'unreadable'), last = storeLastExport();
     const inputs = midiAccess ? [...midiAccess.inputs.values()].map(i => (i.name || i.id) + (i.id === activeInputId ? ' (active)' : '')) : [];
     const ctx = actx;

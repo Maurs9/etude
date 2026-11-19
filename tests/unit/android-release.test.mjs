@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runAndroidRelease } from '../../scripts/android-release.mjs';
+import { localIconUrl, runAndroidRelease, verifyVersionCode } from '../../scripts/android-release.mjs';
 
 vi.mock('node:child_process', { spy: true });
 const { execFileSync: realExec } = await vi.importActual('node:child_process');
@@ -122,4 +122,33 @@ it('verifies before signing and again before creating a release from the verifie
   expect(workflow).toContain(preflight);
   expect(workflow.indexOf(preflight)).toBeLessThan(workflow.indexOf('Decode signing keystore'));
   expect(workflow).toContain(`${finalCheck}\n          ${create}`);
+});
+
+it('requires a code above both release markers and APK metadata', () => {
+  const releases = [
+    { tag_name: 'v1', assets: [{ name: 'etude-android-v1.apk' }] },
+    { tag_name: 'v2', assets: [{ name: 'etude-android-version-code.txt' }] },
+  ];
+  vi.mocked(execFileSync).mockImplementation((command, args) => {
+    if (command === 'aapt2') return "package: name='io.github.maurs9.etude' versionCode='500'";
+    if (args[0] === 'api') return JSON.stringify([releases]);
+    writeFileSync(args[args.indexOf('--output') + 1], args[2] === 'v2' ? '1000\n' : 'apk');
+    return '';
+  });
+  try {
+    expect(() => verifyVersionCode(500, 'local/etude', 'aapt2', '.')).toThrow('must exceed 500 from v1');
+    expect(() => verifyVersionCode(900, 'local/etude', 'aapt2', '.')).toThrow('must exceed 1000 from v2');
+    expect(() => verifyVersionCode(1001, 'local/etude', 'aapt2', '.')).not.toThrow();
+  } finally {
+    vi.resetAllMocks();
+  }
+});
+
+it('resolves TWA icons from the checked-out site scope', () => {
+  const scope = new URL('https://maurs9.github.io/etude/');
+  const base = new URL('http://127.0.0.1:1234/');
+  expect(localIconUrl('https://maurs9.github.io/etude/icons/icon-512.png', scope, base))
+    .toBe('http://127.0.0.1:1234/icons/icon-512.png');
+  expect(() => localIconUrl('https://maurs9.github.io/icons/icon-512.png', scope, base))
+    .toThrow('must be in the app');
 });
