@@ -1056,9 +1056,11 @@ function renderTranscribe() {
         ks.value = String(v || 0);
     }
     const ss = selectById('tr-sscale');
-    if (ss && !ss._filled) {
-        Object.keys(SCALES).forEach((nm) => { const o = (document).createElement('option'); o.value = nm; o.textContent = scaleDisp(nm); ss.appendChild(o); });
-        ss._filled = true;
+    if (ss) {
+        const selected = ss.value;
+        ss.replaceChildren(...Object.keys(SCALES).map((nm) => new Option(scaleDisp(nm), nm)));
+        if (selected && Object.prototype.hasOwnProperty.call(SCALES, selected))
+            ss.value = selected;
     }
 }
 /* ============================================================================
@@ -7039,7 +7041,9 @@ function srInstantSweep(nowMs: number) {
     srPaintAll();
 }
 type SrtStopReason = 'interrupt' | 'navigate';
+let srAssessRunId = 0;
 function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 'interrupt') {
+    srAssessRunId++;
     if (!preserveSrt) {
         if (reason === 'navigate')
             srtNavigateAttempt();
@@ -7731,11 +7735,12 @@ async function srAssessStart(operation?: number) {
         srStopAll();
         return;
     }
+    const runId = ++srAssessRunId;
     SR.active = true;
     if (context.state !== 'running') {
         const epoch = srtOperationEpoch;
         const ready = await timedAudioReady(context);
-        if (!SR.active || epoch !== srtOperationEpoch) return;
+        if (!SR.active || runId !== srAssessRunId || epoch !== srtOperationEpoch) return;
         if (!ready) {
             srStopAll();
             return;

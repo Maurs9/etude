@@ -203,7 +203,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la nota indicata sul pentagramma.",
+        "q": "Suona la nota sulla seconda linea in chiave di violino (Sol4).",
         "seq": [
           7
         ]
@@ -314,13 +314,13 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Quanti battiti dura una minima col punto in 4/4?",
+        "q": "Ascolta: qual è la misura?",
         "hear": "beat:3",
         "o": [
-          "3",
-          "2,5",
-          "4",
-          "2"
+          "3/4 (valzer)",
+          "4/4",
+          "2/4",
+          "6/8"
         ]
       },
       {
@@ -382,13 +382,13 @@ const payload: LearnPayload = {
     ],
     "iv": [
       {
-        "q": "Quanti semitoni misura una terza minore?",
+        "q": "Ascolta: riconosci l'intervallo.",
         "hear": "iv:60:7",
         "o": [
-          "3",
-          "4",
-          "2",
-          "5"
+          "Quinta giusta",
+          "Terza maggiore",
+          "Quarta giusta",
+          "Ottava"
         ]
       },
       {
@@ -410,13 +410,13 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Come si contano i gradi di un intervallo tra due note?",
+        "q": "Ascolta: riconosci l'intervallo.",
         "hear": "iv:60:3",
         "o": [
-          "Contando tutti i gradi della scala includendo entrambe le note estreme",
-          "Contando solo i tasti neri",
-          "Escludendo sempre la nota di partenza",
-          "Misurando solo in millimetri"
+          "Terza minore",
+          "Terza maggiore",
+          "Seconda maggiore",
+          "Quarta giusta"
         ]
       },
       {
@@ -466,7 +466,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona il rivolto dell'intervallo mostrato.",
+        "q": "Suona un tritono: prima Fa, poi Si.",
         "seq": [
           5,
           11
@@ -611,7 +611,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la tonica della tonalità indicata dall'armatura di chiave.",
+        "q": "Suona la triade di tonica di Re maggiore (Re, Fa♯, La).",
         "pcs": [
           2,
           6,
@@ -668,13 +668,13 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Cosa distingue una triade minore da una maggiore?",
+        "q": "Ascolta: qual è la qualità dell'accordo?",
         "hear": "ch:60:m",
         "o": [
-          "La terza è minore (3 semitoni) anziché maggiore",
-          "La quinta è diminuita",
-          "La fondamentale è assente",
-          "Ha una nota in più"
+          "Minore",
+          "Maggiore",
+          "Diminuito",
+          "Aumentato"
         ]
       },
       {
@@ -714,13 +714,13 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Cosa contraddistingue un accordo di settima maggiore (maj7)?",
+        "q": "Ascolta: quale accordo di settima è?",
         "hear": "ch:60:maj7",
         "o": [
-          "Triade maggiore con 7ª maggiore (un semitono sotto l'ottava)",
-          "Accordo minore con settima",
-          "Ha la quinta alterata",
-          "È un accordo sospeso"
+          "Settima maggiore (maj7)",
+          "Settima di dominante (7)",
+          "Settima minore (m7)",
+          "Settima diminuita (dim7)"
         ]
       },
       {
@@ -798,7 +798,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la progressione di accordi richiesta.",
+        "q": "Suona l'accordo IV in Do maggiore (Fa, La, Do).",
         "pcs": [
           5,
           9,
@@ -826,13 +826,13 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Come si chiama la cadenza che si conclude sospesa sull'accordo di dominante (V)?",
+        "q": "Ascolta: quale cadenza è?",
         "hear": "vc:43.62.67.71|45.64.69.72",
         "o": [
-          "Cadenza sospesa (semicadenza)",
-          "Cadenza perfetta",
-          "Cadenza d'inganno",
-          "Cadenza imperfetta"
+          "D'inganno (V → vi)",
+          "Perfetta (V → I)",
+          "Plagale (IV → I)",
+          "Semicadenza (I → V)"
         ]
       },
       {
@@ -874,7 +874,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la cadenza minore richiesta.",
+        "q": "Suona Mi maggiore — il V di La minore (Mi, Sol♯, Si).",
         "pcs": [
           4,
           8,
@@ -958,7 +958,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Suona la dominante secondaria indicata.",
+        "q": "Suona La7 — V/ii in Do maggiore (La, Do♯, Mi, Sol).",
         "pcs": [
           9,
           1,
@@ -1016,13 +1016,13 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Qual è lo schema ritmico tipico dell'accompagnamento del valzer (in 3/4)?",
+        "q": "Ascolta: quale accompagnamento è?",
         "hear": "acc:waltz",
         "o": [
-          "Basso sul battito 1, accordi leggeri sui battiti 2 e 3",
-          "Accordi solo sul levare",
-          "Tutti e tre i battiti al basso",
-          "Arpeggio continuo a semicrome"
+          "Valzer (basso – accordo – accordo)",
+          "Basso albertino",
+          "Accordi in blocco",
+          "Arpeggio di ballata"
         ]
       },
       {

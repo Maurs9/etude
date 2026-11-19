@@ -2610,6 +2610,8 @@ test('Voice keeps selected values and updates note names and level labels when s
   await page.locator('#vo-tab-hum').click();
   await page.locator('#tr-skey').selectOption('11');
   await expect(page.locator('#tr-skey option:checked')).toHaveText('B');
+  await page.locator('#tr-sscale').selectOption('Aeolian (Natural minor)');
+  await expect(page.locator('#tr-sscale option:checked')).toHaveText('Aeolian (Natural minor)');
   await page.locator('#settingsBtn').click();
   await page.locator('#set-notation [data-v="german"]').click();
   await page.locator('#set-lang [data-v="ro"]').click();
@@ -2617,6 +2619,8 @@ test('Voice keeps selected values and updates note names and level labels when s
   await page.keyboard.press('Escape');
   await expect(page.locator('#tr-skey')).toHaveValue('11');
   await expect(page.locator('#tr-skey option:checked')).toHaveText('H');
+  await expect(page.locator('#tr-sscale')).toHaveValue('Aeolian (Natural minor)');
+  await expect(page.locator('#tr-sscale option:checked')).toHaveText('Eolic (minor natural)');
   await page.locator('#vo-tab-sing').click();
   await expect(page.locator('#si-level')).toHaveValue('3');
   await expect(page.locator('#si-level option:checked')).toHaveText('4 · gamă majoră');

@@ -83,3 +83,35 @@ test('stopping a singing phrase cancels its queued count-in', async ({ app }) =>
   await page.locator('#si-go').click();
   await expect.poll(async () => (await stopped()).slice(1)).toEqual(Array(3).fill(2));
 });
+
+test('stopping and restarting sight-reading before audio resumes schedules one count-in', async ({ app }) => {
+  const page = await app.open({ hash: 'read', dock: true });
+  await page.locator('#rdt-pieces').click();
+  const expectedClicks = await page.evaluate(() => {
+    const api = window.__etude;
+    api.rdData().prefs.stage = false;
+    const piece = api.PIECES.find(p => p.id === 'w5rh');
+    api.srShowPiece({ ...piece, ephemeral: true });
+    api.ensureAudio();
+    const cap = piece.ts[1] === 8 ? piece.ts[0] * 0.5 : piece.ts[0];
+    return cap + Math.floor(api.SR.totalBeats + 1e-3) + 1;
+  });
+  await page.locator('#rd-mode [data-v="assess"]').click();
+  await watchOscillators(page);
+  await page.evaluate(async () => {
+    const context = window.__etude.actx;
+    await context.suspend();
+    const resume = context.resume.bind(context);
+    const gate = new Promise(resolve => { window.__resumeSrAudio = () => resolve(resume()); });
+    context.resume = () => gate;
+  });
+  const stopped = () => page.evaluate(() => window.__oscillatorStops());
+  await page.locator('#rd-go').click();
+  await page.locator('#rd-go').click();
+  await page.locator('#rd-go').click();
+  expect(await stopped()).toHaveLength(0);
+  await page.evaluate(() => window.__resumeSrAudio());
+  await expect.poll(stopped).toEqual(Array(expectedClicks).fill(1));
+  await page.locator('#rd-go').click();
+  await expect.poll(stopped).toEqual(Array(expectedClicks).fill(2));
+});

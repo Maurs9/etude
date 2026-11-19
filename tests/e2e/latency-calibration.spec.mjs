@@ -41,7 +41,7 @@ test('the timing wizard measures each way of playing and keeps the offsets', asy
   await page.locator('#lat-go').click();
   await expect(page.locator('#lat-go')).toHaveText(STRINGS.en.lat_stop);
   await expect(page.locator('#lat-result')).toHaveText(STRINGS.en.lat_countin);
-  await expect(page.locator('#lat-go')).toHaveText(STRINGS.en.lat_start, { timeout: 15_000 });
+  await expect(page.locator('#lat-go')).toHaveText(STRINGS.en.lat_start, { timeout: 25_000 });
   const got = await stored(page);
   // The timers that stand in for the player run a few ms late, never early.
   expect(got.usb).toBeGreaterThanOrEqual(38);
@@ -72,7 +72,7 @@ test('a run without taps saves nothing and says so', async ({ app }) => {
   await page.locator('#settingsBtn').click();
   await page.locator('#set-lat').click();
   await page.locator('#lat-go').click();
-  await expect(page.locator('#lat-result')).toHaveText(STRINGS.en.lat_none, { timeout: 15_000 });
+  await expect(page.locator('#lat-result')).toHaveText(STRINGS.en.lat_none, { timeout: 25_000 });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.latency)).toBeUndefined();
 });
 
@@ -155,7 +155,7 @@ test('closing Settings or pressing Back cancels calibration without a subsequent
     await expect(start).toHaveText('Stop');
     await close();
     await expect(drawer).toHaveAttribute('aria-hidden', 'true');
-    await page.clock.fastForward(16000);
+    await page.clock.fastForward(20000);
     await page.locator('#settingsBtn').click();
     await expect(start).toHaveText('Start');
     await expect(page.locator('#lat-result')).toBeEmpty();

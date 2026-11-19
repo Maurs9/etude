@@ -668,13 +668,13 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Ein Dreiklang aus zwei geschichteten kleinen Terzen ist …",
+        "q": "Höre hin: Welche Akkordqualität erklingt?",
         "hear": "ch:60:m",
         "o": [
-          "vermindert",
-          "übermäßig",
           "Moll",
-          "Dur"
+          "Dur",
+          "Vermindert",
+          "Übermäßig"
         ]
       },
       {
