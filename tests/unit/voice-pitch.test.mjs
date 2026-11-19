@@ -16,5 +16,14 @@ describe('voice pitch detection', () => {
     expect(detectVoicePitch(new Float32Array(2048), 48000)).toBe(-1);
     expect(detectVoicePitch(waveform(48000, 2000), 48000)).toBe(-1);
     expect(detectVoicePitch(waveform(48000, 55), 48000)).toBe(-1);
+    expect(detectVoicePitch(waveform(48000, 440), 0)).toBe(-1);
+    expect(detectVoicePitch(waveform(48000, 440), Number.NaN)).toBe(-1);
+    for (const subFrequency of [50, 55, 65.4]) {
+      const noisySub = Float32Array.from({ length: 2048 }, (_, i) => {
+        const phase = i * 2 * Math.PI * subFrequency / 48000;
+        return .45 * Math.sin(phase) + .25 * Math.sin(2 * phase) + .03 * Math.sin(i * 1.7);
+      });
+      expect(detectVoicePitch(noisySub, 48000)).toBe(-1);
+    }
   });
 });

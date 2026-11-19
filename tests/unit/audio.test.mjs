@@ -248,3 +248,80 @@ it('disconnects only the finished voice from the shared LFO and output', () => {
   expect(gains[1].disconnect).not.toHaveBeenCalled();
   expect(engine.lfoGain.disconnect.mock.calls).toEqual(oscillators.slice(0, 3).map(osc => [osc.detune]));
 });
+
+it('releases finished voice nodes even if LFO detune disconnect throws, and cleans up piano-synth and click nodes', () => {
+  const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+  const oscillators = [], sources = [], gains = [], filters = [];
+  const param = () => ({
+    value: .4,
+    setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn(),
+    cancelScheduledValues: vi.fn(), setTargetAtTime: vi.fn(), cancelAndHoldAtTime: vi.fn(),
+  });
+  const node = () => ({ connect: vi.fn(function (target) { return target; }), disconnect: vi.fn() });
+  engine.context = {
+    currentTime: 0, sampleRate: 48000,
+    createOscillator: () => {
+      const osc = { ...node(), detune: param(), frequency: param(), start: vi.fn(), stop: vi.fn() };
+      oscillators.push(osc);
+      return osc;
+    },
+    createBuffer: (_ch, len) => ({ getChannelData: () => new Float32Array(len) }),
+    createBufferSource: () => {
+      const src = { ...node(), buffer: null, detune: param(), start: vi.fn(), stop: vi.fn() };
+      sources.push(src);
+      return src;
+    },
+    createGain: () => {
+      const gain = { ...node(), gain: param() };
+      gains.push(gain);
+      return gain;
+    },
+    createBiquadFilter: () => {
+      const filter = { ...node(), frequency: param(), Q: param() };
+      filters.push(filter);
+      return filter;
+    },
+  };
+  engine.master = node();
+  engine.lfoGain = {
+    connect: vi.fn(),
+    disconnect: vi.fn(() => { throw new DOMException('Not connected', 'InvalidAccessError'); }),
+  };
+  engine.reverbWet = 0;
+  engine.tone = 'organ';
+  engine.makeVoice(440, 100, 0, .5);
+  oscillators.splice(0, 3).forEach(osc => expect(() => osc.onended()).not.toThrow());
+  expect(gains.shift().disconnect).toHaveBeenCalledOnce();
+  expect(filters.shift().disconnect).toHaveBeenCalledOnce();
+
+  engine.tone = 'piano-synth';
+  engine.makeVoice(440, 100, 0, .5);
+  const pianoOscs = oscillators.splice(0);
+  const pianoGains = gains.splice(0);
+  const pianoFilters = filters.splice(0);
+  const pianoSources = sources.splice(0);
+  expect(pianoOscs.length).toBeGreaterThan(0);
+  pianoOscs.forEach(osc => osc.onended());
+  pianoSources.forEach(src => src.onended());
+  pianoOscs.forEach(osc => expect(osc.disconnect).toHaveBeenCalledOnce());
+  pianoSources.forEach(src => expect(src.disconnect).toHaveBeenCalledOnce());
+  pianoGains.forEach(gain => expect(gain.disconnect).toHaveBeenCalledOnce());
+  pianoFilters.forEach(filter => expect(filter.disconnect).toHaveBeenCalledOnce());
+
+  const tracked = new Set();
+  const click = engine.scheduleClick(0, true, tracked);
+  expect(tracked.has(click)).toBe(true);
+  const [clickOsc] = oscillators.splice(0);
+  const [clickGain] = gains.splice(0);
+  clickOsc.onended();
+  expect(tracked.size).toBe(0);
+  expect(clickOsc.disconnect).toHaveBeenCalledOnce();
+  expect(clickGain.disconnect).toHaveBeenCalledOnce();
+
+  engine.scheduleClick(0, false);
+  const [untrackedOsc] = oscillators.splice(0);
+  const [untrackedGain] = gains.splice(0);
+  untrackedOsc.onended();
+  expect(untrackedOsc.disconnect).toHaveBeenCalledOnce();
+  expect(untrackedGain.disconnect).toHaveBeenCalledOnce();
+});

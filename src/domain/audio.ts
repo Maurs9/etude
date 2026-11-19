@@ -21,8 +21,12 @@ function connectVoiceSource(source: OscillatorNode | AudioBufferSourceNode, lfo:
   lfo?.connect(source.detune);
   source.onended = () => {
     source.onended = null;
-    if (lfo) lfo.disconnect(source.detune);
-    source.disconnect();
+    try {
+      if (lfo) lfo.disconnect(source.detune);
+    } catch { /* already disconnected */ }
+    try {
+      source.disconnect();
+    } catch { /* already disconnected */ }
     release();
   };
 }
@@ -892,10 +896,13 @@ export class AudioEngine {
       },
       setBend: () => {},
     };
-    if (track) {
-      track.add(voice);
-      oscillator.onended = () => { track.delete(voice); };
-    }
+    if (track) track.add(voice);
+    oscillator.onended = () => {
+      oscillator.onended = null;
+      track?.delete(voice);
+      try { oscillator.disconnect(); } catch { /* already disconnected */ }
+      try { gain.disconnect(); } catch { /* already disconnected */ }
+    };
     return voice;
   }
 
