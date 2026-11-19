@@ -16,6 +16,8 @@ describe('local library validation boundary', () => {
   it('keeps originals metadata as literal text and ignores extraneous properties', () => {
     expect(validateLibraryMetadata({ title: '<img src=x>', composer: 'Șostakovici', extra: 'not persisted' })).toEqual({ title: '<img src=x>', composer: 'Șostakovici' });
     expect(validateLibraryResume({ ...resume, extra: 'not persisted' })).toEqual(resume);
+    expect(validateLibraryResume({ ...resume, recon: { hands: 'tracks', grid: 8, key: '-2:1', extra: true } })?.recon).toEqual({ hands: 'tracks', grid: 8, key: '-2:1' });
+    expect(validateLibraryResume({ ...resume, recon: { hands: '60', grid: 2, key: 'auto' } })?.recon).toEqual({ hands: '60', grid: 2, key: 'auto' });
     expect(validateLibraryResume(null)).toBeNull();
   });
   it.each([null, [], {}, { title: 1, composer: '' }, { title: '', composer: null }, { title: 'x'.repeat(513), composer: '' }, { title: '\0', composer: '' }])('rejects malformed metadata %#', value => {
@@ -25,6 +27,8 @@ describe('local library validation boundary', () => {
     { position: -1 }, { position: NaN }, { position: Infinity }, { measure: 4 }, { measure: 'x'.repeat(129) },
     { speed: .75 }, { speed: 3 }, { speed: '75' }, { hands: 'left' }, { wait: 1 }, { metronome: 'false' },
     { view: 'svg' }, { look: 'dark' }, { zoom: 0 }, { zoom: 100 },
+    { recon: 'bad' }, { recon: { hands: 'split', grid: 4, key: 'auto' } }, { recon: { hands: 'auto', grid: 16, key: 'auto' } },
+    { recon: { hands: 'auto', grid: 4, key: '9:0' } },
   ])('rejects malformed checkpoints %#', patch => {
     expect(() => validateLibraryResume({ ...resume, ...patch })).toThrow(LibraryError);
   });

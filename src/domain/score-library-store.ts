@@ -353,9 +353,15 @@ export async function libraryExport(): Promise<Blob> {
     const entries: { item: LibraryItem; blob: Blob }[] = [];
     let total = 0;
     for (const value of metadata) {
-      const item = itemValue(value);
+      let item: LibraryItem;
+      try {
+        item = itemValue(value);
+      } catch (error) {
+        if (error instanceof LibraryError && error.code === 'invalid') continue;
+        throw error;
+      }
       const blob: unknown = await request(tx.objectStore('blobs').get(item.id));
-      if (!(blob instanceof Blob) || blob.size !== item.size) invalid('Missing score original.');
+      if (!(blob instanceof Blob) || blob.size !== item.size) continue;
       total += blob.size;
       if (total > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
       entries.push({ item, blob });

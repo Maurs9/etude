@@ -12765,7 +12765,7 @@ function anLibraryInit() {
     if (viewFromHash(location.hash) === 'analysis')
         void anLibraryEnsure().catch(() => {});
     document.addEventListener('change', (event) => {
-        if (eventElement(event)?.closest('#an-toolbar,#an-recon,#an-pt,#fall-pop,#fall-seek'))
+        if (eventElement(event)?.closest('#an-toolbar,#an-pt,#fall-pop,#fall-seek'))
             anLibrarySchedule();
     });
     document.addEventListener('pointerup', (event) => {
@@ -16205,6 +16205,14 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
             ? await scoreLibraryStore.libraryUpdate(libraryItem.id, { lastOpenedAt: Date.now() })
             : (await scoreLibraryStore.librarySave(file, anLibraryMetadata(src))).item;
         if (item && token === AN.loadToken && AN.source === src) {
+            if (!libraryItem && src.kind === 'midi' && item.resume?.recon
+                && (item.resume.recon.hands !== AN.recon.hands
+                    || item.resume.recon.grid !== AN.recon.grid
+                    || item.resume.recon.key !== AN.recon.key)) {
+                await anCommit(src, token, item.resume.recon);
+                if (token !== AN.loadToken || AN.source !== src || AN.error || !SCORE.engine)
+                    return false;
+            }
             if (item.resume)
                 anLibraryRestoreResume(item.resume);
             anLibraryActive = { id: item.id, source: src };
