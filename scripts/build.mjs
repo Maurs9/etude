@@ -35,7 +35,7 @@ async function prepareOutDir(outDir) {
   if (entries.length) throw new Error(`Refusing to build into ${outDir}: it isn't empty, and only dist/etude/ is emptied before a build.`);
 }
 
-export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html'), singleFile = false } = {}) {
+export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html'), singleFile = false, testSurface = false } = {}) {
   outDir = resolve(outDir);
   await prepareOutDir(outDir);
   const chunkOutput = singleFile
@@ -57,6 +57,7 @@ export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html')
   await viteBuild({
     configFile: join(ROOT, 'vite.config.mjs'),
     root: dirname(input),
+    define: { __ETUDE_TEST_SURFACE__: JSON.stringify(testSurface) },
     build: {
       outDir,
       emptyOutDir: false,

@@ -2,12 +2,13 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { build, ROOT } from './build.mjs';
 
+const testSurface = process.argv.includes('--test-surface');
 const standalone = join(ROOT, 'dist', 'etude-standalone.html');
 // Keep the deployed web graph split. Only the isolated file:// build inlines imports.
-await build();
+await build(undefined, { testSurface });
 const singleDir = await mkdtemp(join(ROOT, 'dist', '.standalone-'));
 try {
-  await build(singleDir, { singleFile: true });
+  await build(singleDir, { singleFile: true, testSurface });
   let html = await readFile(join(singleDir, 'etude.html'), 'utf8');
   const cssMatch = html.match(/<link rel="stylesheet"[^>]+href="([^"]+)"[^>]*>/);
   const moduleMatch = html.match(/<script type="module"[^>]+src="([^"]+)"[^>]*><\/script>/);

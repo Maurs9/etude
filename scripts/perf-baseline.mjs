@@ -79,7 +79,7 @@ const LIMITS = [
   'gzip level 9 and Brotli quality 11 inventory sizes are offline estimates, not measured network transfer. Inventory includes lazy/unrequested scripts and service worker.',
   'Cold means fresh browser context (HTTP cache and storage); browser process, OS file cache and browser compilation caches are not guaranteed cold. Warm is same-page HTTP-cache reload, after an interaction; saved app state can differ.',
   'Controlled cold/warm runs block service workers. Offline check separately allows the unchanged full production precache, clears HTTP cache and disables network.',
-  'Readiness is the first animation frame observing window.__etude.show and #keys .key; navigation-relative performance.now(), not paint or full application/lesson readiness.',
+  'Readiness is the first animation frame observing the rendered keyboard and completion of app boot; navigation-relative performance.now(), not paint or full application/lesson readiness.',
   'CDP TaskDuration/ScriptDuration cover navigation through external ready collection (protocol overhead included), before the separate keyboard interaction. Counters reset when NavigationStart changes; otherwise a counter delta is used. Raw before/after metrics and accounting mode are retained. ScriptDuration is not a separate parse/compile measurement.',
   'Buffered long tasks with startTime <= readyMs are collected after a 100 ms delivery window; durations are not clipped at readiness. Unsupported observation fails the run.',
   'DOM key response is trusted Playwright Space keydown to observed .pressed mutation on a visible focused key. It excludes OS/input-device latency, actual paint, audio output, and physical piano-to-speaker latency.',
@@ -102,7 +102,7 @@ function instrumentPage() {
     observer.observe({ type: 'longtask', buffered: true });
   }
   const poll = () => {
-    if (typeof window.__etude?.show === 'function' && document.querySelector('#keys .key')) window.__perf.readyMs = performance.now();
+    if (!document.documentElement.hasAttribute('data-app-pending') && document.querySelector('#keys .key')) window.__perf.readyMs = performance.now();
     else requestAnimationFrame(poll);
   };
   requestAnimationFrame(poll);

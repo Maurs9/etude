@@ -18,6 +18,7 @@ function migrationPlugin() {
 
 export default defineConfig({
   base: './',
+  define: { __ETUDE_TEST_SURFACE__: 'false' },
   publicDir: 'public',
   plugins: [migrationPlugin()],
   build: {

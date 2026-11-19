@@ -178,3 +178,20 @@ test('all language and Learn chunks open offline after warming only Today @sw', 
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
   await expect(page.locator('#learnBody .lsum dl')).not.toBeEmpty();
 });
+
+for (const view of ['today', 'explore']) {
+  test(`Progress and lesson staves load on demand from ${view}`, async ({ app, page }) => {
+    await app.open({ hash: view });
+    const loaded = name => page.evaluate(name => performance.getEntriesByType('resource').some(entry =>
+      new RegExp(`/${name}(?:-[^/]+)?\\.(?:js|ts)$`).test(new URL(entry.name).pathname)), name);
+    expect(await loaded('progress-view')).toBe(false);
+    expect(await loaded('learn-staves')).toBe(false);
+    await page.locator('#nav [data-view=progress]').click();
+    await expect(page.locator('#progStats .s')).toHaveCount(5);
+    expect(await loaded('progress-view')).toBe(true);
+    expect(await loaded('learn-staves')).toBe(false);
+    await page.locator('#nav [data-view=learn]').click();
+    await expect(page.locator('#learnBody .learn-content')).toBeVisible();
+    expect(await loaded('learn-staves')).toBe(true);
+  });
+}

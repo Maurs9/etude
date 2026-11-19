@@ -91,7 +91,7 @@ export interface EtudeSurface {
 
 declare global {
   interface Window {
-    __etude: Record<string, unknown>;
+    __etude?: Record<string, unknown>;
   }
 }
 
