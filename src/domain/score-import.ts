@@ -18,7 +18,7 @@ import {
   type ScoreXmlNote,
 } from './score-types.js';
 
-interface MidiPedalEvent { beat: number; down: boolean; order: number; }
+interface MidiPedalEvent { beat: number; down: boolean; order: number; track: number; }
 
 function applyMidiSustain(notes: AnParsedNote[], channels: Map<number, MidiPedalEvent[]>, releaseOrder: WeakMap<AnParsedNote, number>, end: number) {
     for (const [channel, events] of channels) {
@@ -32,8 +32,10 @@ function applyMidiSustain(notes: AnParsedNote[], channels: Map<number, MidiPedal
             const stop = events[i + 1]?.beat ?? end;
             while (cursor < releases.length && releases[cursor].end < stop) {
                 const note = releases[cursor++];
-                // At the same tick, only releases after pedal-down are sustained.
-                if (note.end > start.beat || (note.end === start.beat && (releaseOrder.get(note) ?? Infinity) > start.order))
+                // Same-track events have a written order. Across tracks at the same tick,
+                // treat the pedal-down as active for the release regardless of track serialization.
+                if (note.end > start.beat || (note.end === start.beat &&
+                    (note.track !== start.track || (releaseOrder.get(note) ?? Infinity) > start.order)))
                     note.soundEnd = stop;
             }
         }
@@ -137,7 +139,7 @@ export function anParse(buffer: ArrayBuffer) {
                 if (ch !== 9 && cmd === 176 && d1 === 64) {
                     let events = sustain.get(ch);
                     if (!events) sustain.set(ch, events = []);
-                    events.push({ beat: tick / ppq, down: d2 >= 64, order: pos });
+                    events.push({ beat: tick / ppq, down: d2 >= 64, order: pos, track: ti });
                 }
                 if (ch !== 9 && (cmd === 144 || cmd === 128)) {
                     const k = ch + ':' + d1;
@@ -337,8 +339,10 @@ export function scoreXmlNotes(doc: Document) {
                     addSound(node, pi, 0, at);
                 if (name === 'backup')
                     at -= span(child(node, 'duration')) / division;
-                if (name === 'forward')
+                if (name === 'forward') {
                     at += span(child(node, 'duration')) / division;
+                    max = Math.max(max, at);
+                }
                 if (name === 'note') {
                     const grace = !!child(node, 'grace'), duration = span(child(node, 'duration')) / division, chord = !!child(node, 'chord'), start = chord ? lastStart : at;
                     const voice = number(child(node, 'voice'), 1) || 1, staff = number(child(node, 'staff'), 1) || 1, pitch = child(node, 'pitch'), key = graceKey(staff, voice);
@@ -561,7 +565,7 @@ export function scoreXmlNotes(doc: Document) {
     }
     sorted.forEach((n) => {
         const sister = partSisterMap.get(n.part);
-        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => (p.part === n.part || (sister != null && p.part === sister)) && p.start <= n.start + .001 && p.end > n.start + .001);
+        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => (p.part === n.part || (sister != null && p.part === sister)) && (p.start <= n.start + .001 || p.start < soundEnd - .001) && p.end >= soundEnd - .001 && p.end > n.start + .001);
         if (pedal) {
             n.pedalEnd = pedal.end;
             soundEnd = Math.max(soundEnd, pedal.end);

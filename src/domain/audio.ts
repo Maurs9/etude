@@ -662,21 +662,32 @@ export class AudioEngine {
     hammer.connect(hammerFilter).connect(hammerGain).connect(output);
     hammer.start(startAt);
     try { hammer.stop(startAt + 0.09); } catch { /* already stopped */ }
-    return {
+    const voice: AudioVoice = {
       oscs: oscillators,
       g: output,
       stop: (at?: number) => {
         const releaseAt = at ?? context.currentTime;
+        try { hammer.stop(Math.min(startAt + .09, releaseAt)); } catch { /* already stopped */ }
         const release = frequency > 500 ? 0.1 : 0.17;
-        output.gain.cancelScheduledValues(releaseAt);
-        output.gain.setValueAtTime(Math.max(0.0001, output.gain.value), releaseAt);
-        output.gain.exponentialRampToValueAtTime(0.0001, releaseAt + release);
+        if (releaseAt <= startAt) {
+          output.gain.cancelScheduledValues(startAt);
+          output.gain.setValueAtTime(0.0001, startAt);
+        } else if (typeof output.gain.cancelAndHoldAtTime === 'function') {
+          output.gain.cancelAndHoldAtTime(releaseAt);
+        } else {
+          const phase = Math.min(1, (releaseAt - startAt) / .003);
+          output.gain.cancelScheduledValues(releaseAt);
+          output.gain.setValueAtTime(0.0001 + (level - 0.0001) * phase, releaseAt);
+        }
+        output.gain.exponentialRampToValueAtTime(0.0001, Math.max(startAt, releaseAt + release));
         oscillators.forEach(oscillator => {
           try { oscillator.stop(releaseAt + release + 0.05); } catch { /* already stopped */ }
         });
       },
       setBend: () => oscillators.forEach(oscillator => oscillator.detune.setTargetAtTime(this.bendSemitones * 100, context.currentTime, 0.01)),
     };
+    if (duration != null) voice.stop(startAt + duration);
+    return voice;
   }
 
   makeVoice(
@@ -709,6 +720,7 @@ export class AudioEngine {
       oscillator.type = definition.waves[index] ?? 'sine';
       oscillator.frequency.setValueAtTime(frequency, startAt);
       oscillator.detune.setValueAtTime(offset + (definition.octave?.[index] ?? 0) + this.bendSemitones * 100, startAt);
+      if (this.lfoGain) this.lfoGain.connect(oscillator.detune);
       oscillator.connect(gain);
       return oscillator;
     });

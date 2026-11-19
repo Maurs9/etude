@@ -1,4 +1,4 @@
-import { isSightReadingLedger, srtImportLedgerTransaction, type SightReadingLedger, type SightReadingStorage } from '../sight-reading/ledger.js';
+import { SRT_LEDGER_SCHEMA, isSightReadingLedger, srtImportLedgerTransaction, type SightReadingLedger, type SightReadingStorage } from '../sight-reading/ledger.js';
 
 export const PTT_KEY = 'ptt-v3' as const;
 
@@ -97,6 +97,11 @@ function isPttEnvelope(value: unknown): value is PttV3Payload {
   return isRecord(value) && value.v === 3 && isRecord(value.data);
 }
 
+export function hasFutureSightLedger(payload: PttV3Payload): boolean {
+  const ledger = payload.data.sightLedger;
+  return isRecord(ledger) && typeof ledger.schemaVersion === 'number' && ledger.schemaVersion > SRT_LEDGER_SCHEMA;
+}
+
 export function isBackupPayload(value: unknown): value is PttV3Payload {
   return isPttEnvelope(value) &&
     (value.data.settings === undefined || isRecord(value.data.settings)) &&
@@ -157,7 +162,7 @@ export function parsePttV3(raw: string | null): PttV3Payload | null {
   try {
     const parsed = parseJson(raw);
     // Recognize a newer record before interpreting any of its nested structures.
-    if (isPttEnvelope(parsed) && pttSchema(parsed) > PTT_SCHEMA) return parsed;
+    if (isPttEnvelope(parsed) && (pttSchema(parsed) > PTT_SCHEMA || hasFutureSightLedger(parsed))) return parsed;
     return isBackupPayload(parsed) ? parsed : null;
   } catch {
     return null;
@@ -178,7 +183,7 @@ export function writePttV3(storage: StorageLike, payload: PttV3Payload, key = PT
   return raw;
 }
 
-export function serializeProgressBackup(payload: PttV3Payload, ledger: SightReadingLedger): string {
+export function serializeProgressBackup(payload: PttV3Payload, ledger: unknown): string {
   return JSON.stringify({ ...payload, data: { ...payload.data, sightLedger: ledger } });
 }
 
@@ -186,6 +191,7 @@ export function serializeProgressBackup(payload: PttV3Payload, ledger: SightRead
 export async function restoreProgressBackup(storage: SightReadingStorage, payload: PttV3Payload, nextGeneration: () => string) {
   const write = () => { writePttV3(storage, { ...payload, gen: nextGeneration() }); };
   const ledger = payload.data.sightLedger;
+  if (hasFutureSightLedger(payload)) return { ok: false, reason: "unsupported" } as const;
   if (isSightReadingLedger(ledger)) return srtImportLedgerTransaction(storage, ledger, write);
   write();
   return { ok: true } as const;

@@ -745,7 +745,7 @@
   .an-stage > .an-score{flex:1 1 0; min-height:0; height:auto}
   .an-stage > .an-score.is-empty{flex:none}
   .fall-wrap{position:relative; flex:1 1 0; min-height:0; display:flex; flex-direction:column; background:#060a14}
-  #fall-canvas{display:block; flex:1 1 0; min-height:0; width:100%; touch-action:manipulation}
+  #fall-canvas{display:block; flex:1 1 0; min-height:0; width:100%; touch-action:none}
   /* timeline (both views): measure ticks, the A–B loop region, progress and a clickable seek */
   .an-tl{flex:none; display:flex; align-items:center; gap:12px; height:40px; padding:0 14px; background:var(--paper2); border-top:1px solid var(--line); color:var(--ink2); font:600 12px var(--sans); font-variant-numeric:tabular-nums; --tl-fill:var(--accent); --tl-rest:color-mix(in srgb, var(--ink) 16%, transparent); --tl-tick:color-mix(in srgb, var(--ink) 30%, transparent); --tl-loop:color-mix(in srgb, var(--sel-ui) 22%, transparent); --tl-ab:var(--sel-ui)}
   .an-stage[data-mode="fall"] .an-tl{background:#0c111e; border-top-color:rgba(255,255,255,.07); color:#c3cce0; --tl-fill:#ff8a63; --tl-rest:rgba(255,255,255,.16); --tl-tick:rgba(255,255,255,.28); --tl-loop:rgba(106,168,255,.24); --tl-ab:#8fb8ff}

@@ -62,7 +62,7 @@ import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
 import { createInstantFeedbackTracker, type InstantFeedbackExpectedNote, type InstantFeedbackTracker } from '../sight-reading/instant-feedback.js';
 import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
-import { srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, srtResetLedgerTransaction, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
+import { SRT_LEDGER_KEY, srtAcquireAttemptLease, srtCreateLedger, isSightReadingLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, srtResetLedgerTransaction, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerOperation, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
@@ -589,6 +589,7 @@ function ensureAudio(warm = true) {
     syncAudioState();
     if (context) {
         srtWatchAudioContext(context);
+        context.addEventListener?.('statechange', audioLockSync);
         if (warm) void preparePiano();
     }
     return context;
@@ -830,7 +831,9 @@ async function micOpen(wanted: () => boolean): Promise<MicTap | 'fail' | 'stale'
         return 'stale';
     }
     try {
-        const ac = requireAudioContext(), src = ac.createMediaStreamSource(stream), analyser = ac.createAnalyser();
+        const ac = requireAudioContext();
+        if (ac.state !== 'running') void ac.resume().catch(() => undefined);
+        const src = ac.createMediaStreamSource(stream), analyser = ac.createAnalyser();
         analyser.fftSize = 2048;
         src.connect(analyser);
         return { stream, src, analyser, buf: new Float32Array(analyser.fftSize) };
@@ -1204,6 +1207,13 @@ function ssMicStart() {
         sing.src = tap.src;
         sing.analyser = tap.analyser;
         sing.buf = tap.buf;
+        for (const track of tap.stream.getAudioTracks()) {
+            track.addEventListener('ended', () => {
+                if (sing.stream !== tap.stream) return;
+                ssMicStop();
+                byId('si-hint').textContent = t('si_nomic');
+            }, { once: true });
+        }
         return true;
     });
 }
@@ -1385,8 +1395,9 @@ function ssNoteLoop(ts: number) {
     else {
         lv.classList.remove('rec');
         sing.holdT = 0;
+        sing.wrongT = 0;
     }
-    sing.raf = requestAnimationFrame(ssNoteLoop);
+    if (sing.active) sing.raf = requestAnimationFrame(ssNoteLoop);
 }
 function ssNoteCorrect() {
     if (!sing.active)
@@ -1438,6 +1449,7 @@ function ssPhraseStart() {
     sing.results = [];
     sing.samples = [];
     sing.keyEvents = [];
+    sing.phraseSingPN = NaN;
     ssPaint();
     byId('si-hint').textContent = '';
     const context = ensureAudio(), run = sing.runId;
@@ -1449,7 +1461,9 @@ function ssPhraseStart() {
             return;
         if (!ok)
             byId('si-hint').textContent = t('si_nomic');
-        const beatSec = 60 / sing.bpm, ci = requireSingExercise().ts[0];
+        const [beats, unit] = requireSingExercise().ts;
+        const compound = unit === 8 && beats > 3 && beats % 3 === 0;
+        const beatSec = 60 / sing.bpm * (compound ? 1.5 : 4 / unit), ci = compound ? beats / 3 : beats;
         sing.countInMs = ci * beatSec * 1000;
         sing.phraseStartPN = performance.now() + 150;
         sing.phraseSingPN = sing.phraseStartPN + sing.countInMs;
@@ -1570,7 +1584,7 @@ function singKeyInput(m: number) { if (!sing.active)
         ssHintBump(m);
 }
 else if (sing.mode === 'phrase') {
-    sing.keyEvents.push({ t: (performance.now() - sing.phraseSingPN) / 1000, midi: m });
+    sing.keyEvents.push({ t: (inputTime() - sing.phraseSingPN) / 1000, midi: m });
 } }
 /* ---- dispatcher + light progress ---- */
 function singGo() {
@@ -1799,11 +1813,15 @@ function keyAt(x: number, y: number) { const el = document.elementFromPoint(x, y
         return +(k.dataset.midi ?? 0);
 } return null; }
 // A touch or click on the screen, judged from its own event time less the calibrated touch latency.
+function blurInputField() {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && inField()) active.blur();
+}
 function touchInput(e: Event, fn: () => void) { withInputTime(eventTime(e.timeStamp, performance.now()), 'touch', fn); }
 function initPointer() {
     const kb = byId('keys');
     kb.addEventListener('pointerdown', (e) => { const m = keyAt(e.clientX, e.clientY); if (m == null)
-        return; e.preventDefault(); try {
+        return; blurInputField(); e.preventDefault(); try {
         kb.setPointerCapture(e.pointerId);
     }
     catch (_) { } ; pointerKey.set(e.pointerId, m); touchInput(e, () => handleNoteOn(m, 100, 'pointer:' + e.pointerId)); });
@@ -1829,12 +1847,14 @@ function initPointer() {
 }
 function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault();
+    e.stopPropagation();
     if (!b._kd) {
         b._kd = true;
         handleNoteOn(m, 100, 'button:' + m);
     }
 } }); b.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault();
+    e.stopPropagation();
     b._kd = false;
     handleNoteOff(m, 'button:' + m);
 } }); b.addEventListener('blur', () => { if (b._kd) {
@@ -2013,6 +2033,7 @@ function releaseLiveInput() {
     sustained.clear();
     inputOwners.clear();
     pointerKey.clear();
+    FALL.press?.clear();
     typingDown.clear();
     pedalDown = false;
     keyEl.forEach((el) => { el._kd = false; el.classList.remove('pressed'); if (el.dataset.s === 'active')
@@ -2076,6 +2097,7 @@ function panic() {
         el.classList.remove('pressed');
         if (el.dataset.s === 'active') delete el.dataset.s;
     });
+    syncAudioState();
     if (view0() === 'explore') updateExplore();
 }
 // midi is the key that just went down or (physically) came up; the sustain pedal never delays an 'off'.
@@ -2255,6 +2277,7 @@ function midiIn(st: number, d1: number, d2: number, src: string, at = performanc
     withInputTime(at, src === 'ble' ? 'ble' : 'usb', () => midiDispatch(st, d1, d2, src));
 }
 function midiDispatch(st: number, d1: number, d2: number, src: string) {
+    if (!Number.isFinite(st) || !Number.isFinite(d1) || !Number.isFinite(d2)) return;
     const cmd = st & 0xf0;
     if (cmd === 0x90 && d2 > 0) {
         handleNoteOn(d1, d2, src);
@@ -2410,12 +2433,12 @@ function calReset() {
    already allowed to use, without a chooser. */
 const BLE_MIDI_SVC = '03b80e5a-ede8-4b33-a751-6ce34ec4c700', BLE_MIDI_CHR = '7772e5db-3868-4112-a1a9-f2669d106bf3';
 interface BleMidiState {
-    dev: BleMidiDevice|null; chr: BleMidiCharacteristic|null; busy: boolean; want: boolean; gen: number; tries: number; retryT: number; guardT: number; timedOut: number;
+    dev: BleMidiDevice|null; chr: BleMidiCharacteristic|null; busy: boolean; want: boolean; gen: number; tries: number; retryT: number; guardT: number;
     msg: string|null; cls: string; arg: string|null; saved: { id: string; name: string; auto: boolean }|null;
     run: number; need: number; n: number; d1: number; skip: number; sysex: boolean; pedal: boolean; bend: boolean; mod: boolean;
     clock: BleClock; at: number; // the sender's clock mapped onto ours; the local time of the message being decoded
 }
-const BLE: BleMidiState = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, retryT: 0, guardT: 0, timedOut: 0, msg: null, cls: '', arg: null, saved: null,
+const BLE: BleMidiState = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, retryT: 0, guardT: 0, msg: null, cls: '', arg: null, saved: null,
     run: 0, need: 0, n: 0, d1: 0, skip: 0, sysex: false, pedal: false, bend: false, mod: false, clock: new BleClock(), at: 0 };
 function bleCan() { return !!((navigator).bluetooth && (navigator).bluetooth.requestDevice); }
 function bleLive() { return !!(BLE.chr && BLE.dev && BLE.dev.gatt && BLE.dev.gatt.connected); }
@@ -2516,11 +2539,18 @@ async function bleOpen(dev: BleMidiDevice, retrying: boolean, quiet?: boolean)  
     // gatt.connect() can wait a long time for a piano that is off; give up after 15 s so the button never hangs.
     clearTimeout(BLE.guardT);
     BLE.guardT = window.setTimeout(() => { if (BLE.busy && BLE.gen === gen) {
-        BLE.timedOut = gen;
+        BLE.gen++;
+        BLE.busy = false;
+        bleUnhook();
         try {
             dev.gatt?.disconnect();
         }
         catch (_) { }
+        if (retrying && BLE.want) bleRetry();
+        else {
+            BLE.want = false;
+            bleSet(quiet ? 'ble_known' : 'ble_unreach', quiet ? '' : 'err');
+        }
     } }, 15000);
     try {
         if (!dev.gatt)
@@ -2567,10 +2597,7 @@ async function bleOpen(dev: BleMidiDevice, retrying: boolean, quiet?: boolean)  
             return;
         }
         BLE.want = false;
-        if (BLE.timedOut === gen)
-            bleSet(quiet ? 'ble_known' : 'ble_unreach', quiet ? '' : 'err');
-        else
-            bleErr(err, quiet);
+        bleErr(err, quiet);
     }
 }
 function bleUnhook() { if (BLE.chr)
@@ -3115,7 +3142,7 @@ document.addEventListener('keydown', (e) => {
         releaseTypingKeys();
         return;
     }
-    if (inField() || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on') || e.repeat)
+    if ((e.key !== 'Escape' && inField()) || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on') || e.repeat)
         return;
     const k = e.key.toLowerCase();
     if (e.key === '?') {
@@ -3471,7 +3498,10 @@ function endSession(toSummary: boolean) {
     const completedPlacement = wasPlacement && SES.queue.length > 0 && SES.total === SES.queue.length;
     if (completedPlacement) {
         for (const q of SES.queue) {
-            if (q) seedPlacement(q.it.id, q.placementKnown === true);
+            if (!q) continue;
+            const known = q.placementKnown === true;
+            seedPlacement(q.it.id, known);
+            creditReview(known);
         }
         data.placed = true;
         saveAll();
@@ -3481,6 +3511,7 @@ function endSession(toSummary: boolean) {
     clearTimeout(evalTimer ?? undefined);
     evalTimer = null;
     ekStop(SES.q);
+    ekUiReset();
     techniqueStop(techniqueHost);
     const contrastRun = SES.contrast;
     SES.contrast = null;
@@ -3582,6 +3613,7 @@ function pickTargetedItem() {
     return pool[0];
 }
 function presentQuestion(q: TrainerQuestion) {
+    ekUiReset();
     const it = q.it;
     byId('q-cat').textContent = catLabel(it.cat);
     const playLbl = { interval: t('play_interval'), chord: t('play_chord'), scale: t('play_scale'), prog: t('play_prog') };
@@ -4305,8 +4337,6 @@ function resolve(q: TrainerQuestion, correct: boolean) {
     const good = correct && !q.missed;
     if (SES.placement) {
         q.placementKnown = good;
-        creditReview(good);
-        saveAll();
     }
     else if (!SES.targeted)
         reviewItem(q.it.id, good); // targeted drills are free practice: no schedule, daily-goal or streak change
@@ -4576,6 +4606,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         anSheet(false, true);
         pcStageSet(false, true);
     }
+    if (prev === 'learn' && v !== 'learn') learnHalt();
     if (prev === 'read' && v !== 'read')
         rdnLeaveView();
     if (prev !== v) {
@@ -4714,7 +4745,6 @@ function refreshToday() {
     byId('c-due').textContent = String(due);
     byId('c-new').textContent = String(fresh);
     byId('c-mastered').textContent = String(masteredCount());
-    // Answers from an unfinished placement earn daily credit without starting the review schedule.
     byId('placeBtn').hidden = data.placed || (data.totalReviews > 0 && Object.keys(data.srs).length > 0);
     const next = dueItems()[0] || (fresh ? newItemsAvail()[0] : null);
     byId('nextup').innerHTML = next ? (t('nextup') + ' <b>' + itemLabel(next) + '</b> · ' + catLabel(next.cat).toLowerCase()) : t('nextup_none');
@@ -6719,7 +6749,7 @@ function srtWatchAudioContext(context: AudioContext) {
     if (typeof context.addEventListener !== 'function')
         return;
     context.addEventListener('statechange', () => {
-        if (context === actx && context.state === 'suspended' && srtEligibleFirstSightActive())
+        if (context === actx && String(context.state) !== 'running' && srtEligibleFirstSightActive())
             panic();
     });
 }
@@ -7247,6 +7277,9 @@ function srtScoreConcealed() {
         (['idle', 'preparing', 'claiming'].includes(state.name) ||
             state.name === 'blocked' && state.reason !== 'already_exposed');
 }
+function srtProgressLedgerUpdate(operation: SightReadingLedgerOperation) {
+    return srtLedgerUpdate(localStorage, operation, () => !STORE.blocked && !storeBackupBlocked());
+}
 function srtRecordExposure(reason: string, kind: 'exposure' | 'listen' = 'exposure') {
     const fingerprint = SR.srtFingerprint;
     if (!fingerprint)
@@ -7256,8 +7289,8 @@ function srtRecordExposure(reason: string, kind: 'exposure' | 'listen' = 'exposu
         return Promise.resolve({ ok: true, ledger } satisfies SightReadingLedgerResult);
     const progressGeneration = SYNC.gen;
     const record = (generation: string) => kind === 'listen'
-        ? srtLedgerUpdate(localStorage, { type: 'recordListen', fingerprint, generation })
-        : srtLedgerUpdate(localStorage, { type: 'recordExposure', fingerprint, reason, generation });
+        ? srtProgressLedgerUpdate({ type: 'recordListen', fingerprint, generation })
+        : srtProgressLedgerUpdate({ type: 'recordExposure', fingerprint, reason, generation });
     const operation = record(ledger.generation);
     const settled = operation.then(result => {
         if (result.ok || result.reason !== 'stale_generation')
@@ -7367,7 +7400,7 @@ function srtEnsureAbandoned(attempt: SrtAttemptCleanup, status: 'abandoned' | 'i
     const existing = srtCleanupPromises.get(key);
     if (existing)
         return existing;
-    const cleanup = srtLedgerUpdate(localStorage, {
+    const cleanup = srtProgressLedgerUpdate({
         type: 'abandonAttempt',
         attemptId: attempt.attemptId,
         ownerTabId: attempt.ownerTabId,
@@ -7393,7 +7426,7 @@ async function srtRetryPendingSave() {
     const epoch = srtOperationEpoch;
     const state = SR.srtState;
     const lease = SR.srtLease ?? null;
-    const result = await srtLedgerUpdate(localStorage, { type: 'finishAttempt', attempt, generation: attempt.generation });
+    const result = await srtProgressLedgerUpdate({ type: 'finishAttempt', attempt, generation: attempt.generation });
     if (!srtOperationStillCurrent(epoch, state, attempt.attemptId)) {
         if (result.ok || srtAttemptStatus(attempt.attemptId)) {
             srtClearPendingAttempt(attempt.attemptId);
@@ -7565,7 +7598,7 @@ async function srtStartFirstSight() {
         return;
     }
     const ledgerStatus = srtLedgerReadStatus(localStorage);
-    if (ledgerStatus === 'unsupported') {
+    if (STORE.blocked || ledgerStatus === 'unsupported') {
         srtStartPractice();
         srtNotice(t('rd_srt_ledger_unsupported'));
         return;
@@ -7602,7 +7635,7 @@ async function srtStartFirstSight() {
         return;
     }
     srtClaimIssuedAttemptId = attemptId;
-    const result = await srtLedgerUpdate(localStorage, {
+    const result = await srtProgressLedgerUpdate({
         type: 'claimExposure',
         fingerprint: SR.srtFingerprint,
         attemptId,
@@ -7616,7 +7649,7 @@ async function srtStartFirstSight() {
             const cleanup: SrtAttemptCleanup = {
                 attemptId,
                 ownerTabId: SR.srtOwnerTabId || '',
-                generation: ledger.generation,
+                generation: result.ledger.generation,
                 lease,
                 mixedInput: srtRecorder?.mixedInput ?? false,
             };
@@ -8005,7 +8038,7 @@ function srAssessFinish() {
         const saveOperation = srtOperationEpoch;
         const completedState = SR.srtState;
         const saveLease = SR.srtLease ?? null;
-        void srtLedgerUpdate(localStorage, { type: 'finishAttempt', attempt, generation: attempt.generation }).then(async (result) => {
+        void srtProgressLedgerUpdate({ type: 'finishAttempt', attempt, generation: attempt.generation }).then(async (result) => {
             if (!srtOperationStillCurrent(saveOperation, completedState, attempt.attemptId)) {
                 if (result.ok || srtAttemptStatus(attempt.attemptId)) {
                     srtClearPendingAttempt(attempt.attemptId);
@@ -10072,7 +10105,7 @@ function rdSightStart(mode: string, injectedSeed?: number) {
     srtPreviewUi(false);
     srtPendingUi(false);
     srtNotice(null);
-    void srtLedgerUpdate(localStorage, { type: 'recoverOrphanClaims', generation: srtReadLedger(localStorage).generation });
+    void srtProgressLedgerUpdate({ type: 'recoverOrphanClaims', generation: srtReadLedger(localStorage).generation });
     SR.gen = srtLegacyPiece(srtPiece, L);
     RD.on = false;
     rdTab('pieces');
@@ -10361,10 +10394,12 @@ function rdClear() {
     rdDockForce(false);
 }
 function rdAbort() { rdClear(); RD.on = false; stageSync(); }
-function rdEndClick() { if (RD.on && RD.mode === 'practice' && RD.n > 0)
-    rdFinish();
-else if (rdnWarmSkip())
+function rdEndClick() { if (WARM.on && WARM.phase === 'drill') {
+    rdnHome(true);
     return;
+}
+if (RD.on && RD.mode === 'practice' && RD.n > 0)
+    rdFinish();
 else {
     rdAbort();
     rdIntro();
@@ -10414,14 +10449,15 @@ function stageResize() { clearTimeout(STAGE.rz); STAGE.rz = window.setTimeout(()
     stageRefit(); }, 120); }
 // Esc leaves the stage like End or Stop; focus goes to a control that stays on screen.
 function stageKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && SCORE_FOCUS.owner) { e.preventDefault(); scoreFocusExit(); return true; }
+    if (e.key === 'Escape' && SCORE_FOCUS.owner && SCORE_FOCUS.owner !== 'analysis') { e.preventDefault(); scoreFocusExit(); return true; }
     if (e.key !== 'Escape' || !STAGE.on)
         return false;
     e.preventDefault();
     if (RD.on) {
         rdEndClick();
         // The warm-up hides the drill's own Back: its header's Back takes the focus instead.
-        const back = byId(RDN.screen === 'warmup' ? 'rdn-w-back' : 'rdx-back');
+        if (RDN.screen === 'home') return true; // warm-up exit already restored focus
+        const back = byId('rdx-back');
         if (!byId('rdx-stage').contains(document.activeElement) || document.activeElement?.closest('[hidden]'))
             back.focus({ preventScroll: true });
     }
@@ -10458,7 +10494,7 @@ function rdFinish() {
             stars = RD.chkBest ?? 0;
     }
     const d = rdData();
-    d.tot.sess++;
+    if (!WARM.on) d.tot.sess++;
     let newBest = false;
     if (!L.custom) {
         const rec = d.lv[L.id] || (d.lv[L.id] = { s: 0, acc: 0, t: 0, n: 0, rush: 0 });
@@ -10475,9 +10511,9 @@ function rdFinish() {
             rec[k] = Math.max(rec[k] || 0, v);
         }
     }
-    touchDay();
+    if (!WARM.on) touchDay();
     saveAll();
-    // In a warm-up the run counts as above, then the warm-up goes on instead of showing the summary.
+    // Warm-up drills retain their results. The warm-up is counted when all steps are complete.
     if (rdnWarmDrillDone())
         return;
     const weak = Object.entries(RD.miss).sort((a, b) => b[1] - a[1]).slice(0, 8);
@@ -11487,14 +11523,6 @@ function rdnWarmDrillDone() {
     rdnWarmNext();
     return true;
 }
-/** End before any answer in a warm-up drill step: the step is skipped. */
-function rdnWarmSkip() {
-    if (!WARM.on || WARM.phase !== 'drill')
-        return false;
-    rdAbort();
-    rdnWarmNext();
-    return true;
-}
 /** The drills screen as the warm-up found it: no run, the stage closed, the ladder showing. */
 function rdnWarmDrillsReset() {
     if (RD.on)
@@ -11520,6 +11548,8 @@ function rdnWarmStop() {
 }
 function rdnWarmFinish() {
     rdnWarmStop();
+    rdData().tot.sess++;
+    touchDay();
     rdData().prefs.warmDone = rdnToday();
     saveAll();
     rdnHome();
@@ -11781,7 +11811,7 @@ function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title') {
     srtPreviewUi(false);
     srtPendingUi(false);
     srtNotice(null);
-    void srtLedgerUpdate(localStorage, { type: 'recoverOrphanClaims', generation: srtReadLedger(localStorage).generation });
+    void srtProgressLedgerUpdate({ type: 'recoverOrphanClaims', generation: srtReadLedger(localStorage).generation });
     SR.gen = rdnDrawable(piece);
     srNoteStartHold();
     rdTab('pieces', 'player');
@@ -13184,6 +13214,12 @@ function scoreLayout() {
     engine.setZoom(cont ? SCORE.zoom * base : sheetW / pageW * base);
     scoreRingFit(engine.getZoom());
     const finish = () => {
+        if (!box.clientWidth) {
+            SCORE.stale = true;
+            SCORE.renderedSig = '';
+            box.hidden = FALL.mode !== 'score';
+            return true;
+        }
         scoreStyleHeader(engine, sourceLayout);
         scoreFixFingerings(box, engine);
         if (SCORE.look === 'night')
@@ -14196,6 +14232,15 @@ function scoreRepeatRoute(from: number) {
         const bar: RepeatBar = { start: scoreSeconds(m.start), end: scoreSeconds(m.end), ending,
             forward: !!el?.querySelector('repeat[direction="forward"]'),
             backward: el?.querySelector('repeat[direction="backward"]') ? Number(el.querySelector('repeat[direction="backward"]')?.getAttribute('times') || 2) || 2 : undefined };
+        // MusicXML's playback attributes name jump destinations independently of visible words.
+        for (const sound of el?.querySelectorAll('sound') ?? []) {
+            bar.segno = sound.getAttribute('segno') || bar.segno;
+            bar.coda = sound.getAttribute('coda') || bar.coda;
+            bar.daCapo ||= sound.getAttribute('dacapo') === 'yes';
+            bar.dalSegno = sound.getAttribute('dalsegno') || bar.dalSegno;
+            bar.toCoda = sound.getAttribute('tocoda') || bar.toCoda;
+            bar.fine ||= sound.hasAttribute('fine');
+        }
         if (el?.querySelector('ending[type="stop"],ending[type="discontinue"]')) ending = undefined;
         return bar;
     });
@@ -14287,7 +14332,8 @@ async function pracStart(o: PracticeStartOptions)  {
         R.completed = c.completed ? new Set(c.completed) : undefined;
         R.origin = c.origin;
         R.judged = new Map(c.judged);
-        const next = mine.findIndex((d) => !R.judged.has(d.i));
+        const earliest = R.pass === 1 ? c.origin : -Infinity;
+        const next = mine.findIndex((d) => d.start >= earliest - 1e-6 && !R.judged.has(d.i));
         R.mi = next < 0 ? mine.length : next;
     }
     SCORE.run = R;
@@ -14378,7 +14424,13 @@ function pracTick() {
             }
         }
         if (R.loop && !B && horizon >= s.t1) {
-            const next = { a0: at(s.t1), t0: R.a, t1: R.b, f: pracRamp(R, s), first: false }, L: ScoreLoopState | null = SCORE.loop;
+            const end = at(s.t1);
+            const waitForGrade = PRAC.ramp && !PRAC.wait;
+            if (waitForGrade && now < end + (PRAC.active ? .22 : 0))
+                break;
+            if (waitForGrade && PRAC.active)
+                pracMisses(R, Infinity);
+            const next = { a0: waitForGrade ? now + .025 : end, t0: R.a, t1: R.b, f: pracRamp(R, s), first: false }, L: ScoreLoopState | null = SCORE.loop;
             R.segs.push(next);
             if (L)
                 L.next = next.a0 + (R.b - R.a) / next.f;
@@ -14395,6 +14447,7 @@ function pracTick() {
             R.completed ??= new Set();
             R.judged.forEach((_, i) => R.completed?.add(i));
         }
+        if (R.loop && PRAC.active && !PRAC.wait) pracMisses(R, Infinity);
         const previous = R.segs.shift();
         pracPassEnd(R, !!R.loop || R.segs[0].t0 < (previous?.t1 ?? 0) - 1e-6);
         if (PRAC.wait) R.wt = R.segs[0].t0;
@@ -14470,7 +14523,7 @@ function pracRelease(R: PracticeRun, B: PracticeBarrier, now: number) {
         s.a0 = now + .01;
         FALL.audioStart = s.a0;
     } // the clock was frozen: resume from the barrier
-    R.wt = B.t + 1e-3;
+    R.wt = B.t;
     PRAC.bar = null;
     R.waitShown = false;
     scoreStateText();
@@ -14497,8 +14550,7 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
     }
     else
         st.streak = 0;
-    if (j !== 'wrong')
-        st.passAll++;
+    st.passAll++;
     if (d) {
         R.judged.set(d.i, j);
         PRAC.res.set(d.i, j === 'miss' ? 'miss' : 'hit');
@@ -14550,7 +14602,7 @@ function pracInput(kind: string, midi?: number) {
                     pracJudge(R, null, 'wrong');
                     return;
                 }
-                const time = fallTime(now), tol = .22 * s.f;
+                const time = PRAC.wait ? fallTime(now) : t, tol = .22 * s.f;
                 let best: PracticeTimedNote | null = null;
                 for (const d of R.mine) {
                     if (d.start > time + tol)
@@ -14774,9 +14826,16 @@ async function scorePlay(selection = false, from: number | null = null, carry: P
         return;
     const a = selection ? Math.min(...chosen.map((d) => d.start)) : 0, b = selection ? Math.max(...chosen.map((d) => d.finish)) : fallEnd();
     let position = from != null ? from : selection ? a : FALL.position;
-    if (position >= b - .05 || position < a - 1e-6) {
+    const plan = !selection ? performancePlan() : null;
+    const perfDone = !!plan && !carry && plan.duration > 0 && performanceRead().position >= plan.duration - .05;
+    const atPerfEnd = perfDone && Math.abs(position - FALL.position) < 1e-6;
+    if (atPerfEnd || position >= b - .05 || position < a - 1e-6) {
         position = a;
         if (!selection) performanceSeek(0);
+    }
+    else if (perfDone) {
+        if (position <= a + 1e-6) performanceSeek(0);
+        else performanceSeekScore(position, true);
     }
     const notes = chosen.filter((d) => !selection || d.finish > position).sort((x, y) => x.start - y.start || x.n.midi - y.n.midi);
     if (!notes.length) {
@@ -14934,6 +14993,7 @@ function scoreZoom(z: number) {
         if (z === FALL.zoom)
             return;
         FALL.zoom = z;
+        fallLookSync();
         anUpdateControls();
         fallDraw();
         return;
@@ -16612,6 +16672,11 @@ function fallTime(at?: number) {
         x = B.t;
     return x;
 }
+function fallLookSync() {
+    const look = inputById('fall-look');
+    look.value = String(Math.round(FALL_SEC / FALL.zoom * 5) / 5);
+    byId('fall-look-v').textContent = Number(look.value).toFixed(1) + ' s';
+}
 function fallMode(mode: string) {
     FALL.mode = mode === 'fall' ? 'fall' : 'score';
     anUpdateControls();
@@ -16678,7 +16743,7 @@ function fallName(n: AnNote) {
         return '';
     if (mode === 'finger' && anHasFinger())
         return n.finger ? String(n.finger) : '';
-    const k = anKeyAt(n.start), sp = spellMidi(n.midi, k.fifths, k.minor), sys = mode === 'solfege' ? 'solfege' : mode === 'letter' ? 'letter' : notation;
+    const k = anKeyAt(n.start), sp = spellMidi(n.midi, k.fifths, k.minor), sys = mode === 'solfege' ? 'solfege' : mode === 'letter' && notation !== 'german' ? 'letter' : notation;
     return spelledName(sys, sp.li, sp.acc);
 }
 function fallGradients(ctx: CanvasRenderingContext2D, hitY: number) {
@@ -17340,7 +17405,7 @@ function fallKeyAt(e: MouseEvent) {
     const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     if (y < G.hitY)
         return null;
-    const bh = G.hitY + G.kh * .62;
+    const bh = G.hitY + Math.round(G.kh * .66);
     if (y <= bh)
         for (const [m, k] of G.keys)
             if (k.black && x >= k.x && x <= k.x + k.w)
@@ -17365,12 +17430,12 @@ function fallKeyDown(e: PointerEvent) {
             e.currentTarget.setPointerCapture(e.pointerId);
     }
     catch (_) { }
-    handleNoteOn(m, 96, 'fall:' + e.pointerId);
+    touchInput(e, () => handleNoteOn(m, 96, 'fall:' + e.pointerId));
     if (!FALL.raf)
         fallDraw();
 }
 function fallKeyUp(e: PointerEvent) { const P = FALL.press, m = P && P.get(e.pointerId); if (!P || m == null)
-    return; P.delete(e.pointerId); handleNoteOff(m, 'fall:' + e.pointerId); if (!FALL.raf)
+    return; P.delete(e.pointerId); touchInput(e, () => handleNoteOff(m, 'fall:' + e.pointerId)); if (!FALL.raf)
     fallDraw(); }
 function fallSelect(e: MouseEvent) {
     if (fallKeyAt(e) != null)
@@ -17395,7 +17460,7 @@ function fallHover(e: PointerEvent) { if (e.currentTarget instanceof HTMLElement
 // Score shortcuts, only in this view and never while typing or choosing in a form field:
 // Space play/pause, Home go to start, Esc close the settings or clear the selection, + / − zoom.
 function anShortcut(e: KeyboardEvent) {
-    if (view0() !== 'analysis' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || inField() || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on'))
+    if (view0() !== 'analysis' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || (e.key !== 'Escape' && inField()) || byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on'))
         return;
     const k = e.key;
     if (k === 'Escape') {
@@ -17422,7 +17487,7 @@ function anShortcut(e: KeyboardEvent) {
             anSheet(false);
             return;
         }
-        if (PC_STAGE.on) {
+        if (SCORE_FOCUS.owner === 'analysis' || PC_STAGE.on) {
             e.preventDefault();
             if (SCORE_FOCUS.owner) scoreFocusExit(); else pcStageSet(false);
             byId('sc-stage').focus({ preventScroll: true });
@@ -17656,10 +17721,9 @@ function anInitControls() {
         pracSet(k, e.target.checked); }); });
     ([['fall-labels', 'labels'], ['fall-pal', 'pal'], ['fall-range', 'range']] as const).forEach(([id, k]) => { selectById(id).value = PRAC[k]; selectById(id).addEventListener('change', (e) => { if (e.target instanceof HTMLSelectElement)
         pracSet(k, e.target.value); }); });
-    const look = inputById('fall-look'), lookOut = () => { byId('fall-look-v').textContent = (+look.value).toFixed(1) + ' s'; };
-    look.value = String(Math.round(FALL_SEC / FALL.zoom * 5) / 5);
-    lookOut();
-    look.addEventListener('input', () => { FALL.zoom = FALL_SEC / +look.value; lookOut(); pracSave(); anUpdateControls(); fallDraw(); });
+    const look = inputById('fall-look');
+    fallLookSync();
+    look.addEventListener('input', () => { FALL.zoom = FALL_SEC / +look.value; fallLookSync(); pracSave(); anUpdateControls(); fallDraw(); });
     byId('pr-hands').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-h]'); if (b && b.dataset.h != null)
         pracSet('hands', b.dataset.h); });
     byId('pr-wait').addEventListener('click', () => pracSet('wait', !PRAC.wait));
@@ -17709,9 +17773,10 @@ function anInitControls() {
     fc.addEventListener('click', fallSelect);
     fc.addEventListener('pointermove', fallHover);
     fc.addEventListener('pointerdown', fallKeyDown);
-    (['pointerup', 'pointercancel', 'pointerleave'] as const).forEach((ev) => fc.addEventListener(ev, fallKeyUp));
+    (['pointerup', 'pointercancel', 'pointerleave', 'lostpointercapture'] as const).forEach((ev) => fc.addEventListener(ev, fallKeyUp));
     const roll = byId('an-roll');
     roll.addEventListener('pointerenter', (e) => { roll.classList.toggle('is-pen', e.pointerType === 'pen'); });
+    roll.addEventListener('pointerdown', (e) => { if (e.button === 0) blurInputField(); });
     cancelScoreGesture = bindScoreGestures(roll, {
         selecting: (e) => AN.tool === 'select' || e.pointerType === 'pen',
         select: scorePointer,
@@ -18652,7 +18717,7 @@ let syncPull = function syncPull() {
     rp = stored?.payload || null;
     if (!rp)
         return '';
-    if (storage.pttSchema(rp) > storage.PTT_SCHEMA) { // a newer build wrote it: merging would drop what this build does not know
+    if (storage.pttSchema(rp) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(rp)) { // a newer build wrote it: merging would drop what this build does not know
         storeBlock();
         return '';
     }
@@ -18675,6 +18740,10 @@ let syncPull = function syncPull() {
     const lid = SYNC.id, sibling = !swap && parent && lp && lp.syncParent === parent && lid !== syncId(rp, cur), sameData = !swap && syncSame(data, rp.data) && !sibling;
     if (swap) {
         data = restoreTrainerData(rp.data);
+        applyTopLevelPrefs(rp);
+        syncAudioState();
+        masterRamp(muted ? 0 : masterVol);
+        if (reverbGain && actx) reverbGain.gain.setTargetAtTime(reverbWet, actx.currentTime, .05);
         SYNC.gen = gen;
         SYNC.known.clear();
         SYNC.merge = null;
@@ -18685,10 +18754,10 @@ let syncPull = function syncPull() {
         data.srs = storage.restoreSrs(data.srs);
         if (!isRecord(data.sheet)) data.sheet = {};
     }
-    if (syncHasBase(bp))
+    if (swap || syncHasBase(bp))
         Object.keys(SYNC_PREFS).filter(syncIsPrefName).forEach((f) => {
             const [get, set, later] = SYNC_PREFS[f], v = rp[f];
-            if (v === undefined || v === bp[f] || syncPref(f, get()) !== bp[f])
+            if (v === undefined || (!swap && syncHasBase(bp) && (v === bp[f] || syncPref(f, get()) !== bp[f])))
                 return; // the other tab did not change it, or this tab changed it too
             if (v === get()) {
                 // A newer choice can equal the committed language while an older import is still running.
@@ -18795,7 +18864,7 @@ function saveSoon() {
     _saveT = setTimeout(flushSaveSoon, 400);
 } // for sliders — avoid a localStorage write per pixel
 // Data safety: storage the browser keeps, a visible save failure, rolling copies, and records this build must not overwrite.
-const STORE = { blocked: '' as '' | 'too-new' | 'quarantine', failed: false, unreadable: false, persist: 'unsupported' as safety.PersistState, usage: null as { usage: number; quota: number } | null, snaps: [] as safety.SnapshotInfo[], snapDay: -1 };
+const STORE = { blocked: '' as '' | 'too-new' | 'quarantine', failed: false, unreadable: false, persist: 'unsupported' as safety.PersistState, usage: null as { usage: number; quota: number } | null, snaps: [] as safety.SnapshotInfo[], snapDay: -1, snapPending: false };
 const STORE_LAST_EXPORT = 'etude-last-export', STORE_UNREADABLE = KEY + '-unreadable', STORE_EXPORT_DUE_MS = 14 * 864e5;
 /** The Export file: the saved record plus the sight-reading ledger. Uses memory when the last save failed. */
 function backupJson(): string {
@@ -18805,7 +18874,13 @@ function backupJson(): string {
     }
     catch (_) { }
     const payload = current?.payload ?? syncPayload();
-    return storage.serializeProgressBackup(payload, srtReadLedger(localStorage));
+    let ledger: unknown;
+    try {
+        const raw = localStorage.getItem(SRT_LEDGER_KEY);
+        ledger = raw === null ? srtReadLedger(localStorage) : syncParseJson(raw);
+    } catch { }
+    const future = isRecord(ledger) && storage.hasFutureSightLedger({ v: 3, data: { sightLedger: ledger } });
+    return storage.serializeProgressBackup(payload, isSightReadingLedger(ledger) || future ? ledger : undefined);
 }
 function storeSaved() { if (STORE.failed) {
     STORE.failed = false;
@@ -18832,11 +18907,14 @@ function storeHasProgress() {
 /** One copy a day, taken on the first save of the day. An empty record is not worth a slot. */
 function storeDaily() {
     const day = todayN();
-    if (STORE.blocked || STORE.snapDay === day || !storeHasProgress())
+    if (STORE.blocked || STORE.snapPending || STORE.snapDay === day || !storeHasProgress())
         return;
-    STORE.snapDay = day;
-    void safety.listSnapshots().then(async (list) => { if (safety.needsDailySnapshot(list, day))
-        await safety.saveSnapshot({ day, reason: 'daily', raw: backupJson() }); await storeRefresh(); }).catch((e: unknown) => console.warn('daily backup failed', e));
+    STORE.snapPending = true;
+    void Promise.resolve().then(async () => {
+        await safety.saveSnapshot({ day, reason: 'daily', raw: backupJson() });
+        STORE.snapDay = day;
+        await storeRefresh();
+    }).catch((e: unknown) => console.warn('daily backup failed', e)).finally(() => { STORE.snapPending = false; });
 }
 async function storeSnapshot(reason: safety.SnapshotReason, raw: string): Promise<boolean> {
     try {
@@ -18878,7 +18956,7 @@ function storeBackupBlocked(): boolean {
     if (STORE.blocked === 'too-new')
         return true;
     const saved = readPttV3(localStorage, KEY);
-    if (!saved || storage.pttSchema(saved.payload) <= storage.PTT_SCHEMA)
+    if (!saved || (storage.pttSchema(saved.payload) <= storage.PTT_SCHEMA && !storage.hasFutureSightLedger(saved.payload)))
         return false;
     storeBlock();
     return true;
@@ -18925,7 +19003,7 @@ async function storeRestore(id: number | undefined) {
             alert(t('import_bad'));
             return;
         }
-        if (storage.pttSchema(p) > storage.PTT_SCHEMA) {
+        if ((storage.pttSchema(p) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(p))) {
             alert(t('import_too_new'));
             return;
         }
@@ -18980,6 +19058,7 @@ async function storeReset() {
     }
 }
 function storeExported() {
+    if (STORE.blocked) return;
     try {
         localStorage.setItem(STORE_LAST_EXPORT, String(Date.now()));
     }
@@ -19104,6 +19183,47 @@ function storeInit() {
     });
     storeNote();
 }
+function applyTopLevelPrefs(raw: storage.PttV3Payload) {
+    tone = raw.audioEngine === 'recorded-piano-v2' && raw.tone && syncOneOf(SYNC_TONES, raw.tone) ? raw.tone : 'piano';
+    masterVol = clampPersistedNumber(raw.masterVol, 0, 1, masterVol);
+    if (typeof raw.muted === "boolean")
+        muted = raw.muted;
+    if (typeof raw.localSynth === 'boolean')
+        localSynth = raw.localSynth;
+    reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, reverbWet);
+    metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
+    if (raw.device && typeof raw.device === 'string')
+        savedDevice = raw.device;
+    if (raw.scoreLook === 'paper' || raw.scoreLook === 'night')
+        SCORE.look = raw.scoreLook;
+    if (typeof raw.scoreHl === 'boolean')
+        SCORE.hl = raw.scoreHl;
+    if (raw.scoreView === 'page' || raw.scoreView === 'cont') {
+        SCORE.layout = raw.scoreView;
+        FALL.mode = 'score';
+    }
+    else if (raw.scoreView === 'fall')
+        FALL.mode = 'fall';
+    if (typeof raw.kbDock === 'boolean')
+        DOCK.pref = raw.kbDock;
+    else if (typeof raw.anKb === 'boolean')
+        DOCK.pref = raw.anKb; // the Score & analysis choice becomes the choice for every view
+    if (typeof raw.wake === 'boolean')
+        WAKE.want = raw.wake;
+    const bl = raw.ble;
+    if (bl === null) BLE.saved = null;
+    if (isRecord(bl) && typeof bl.id === 'string' && bl.id)
+        BLE.saved = { id: bl.id, name: typeof bl.name === 'string' ? bl.name : '', auto: bl.auto !== false };
+    const sd = raw.anSide;
+    if (isRecord(sd)) {
+        if (typeof sd.open === 'boolean')
+            SIDE.open = sd.open;
+        if (typeof sd.tab === 'string' && AN_TABS.includes(sd.tab))
+            SIDE.tab = sd.tab;
+        if (typeof sd.w === 'number' && Number.isFinite(sd.w))
+            SIDE.w = Math.max(280, Math.min(560, Math.round(sd.w)));
+    }
+}
 function loadAll() {
     try {
         SYNC.known.clear();
@@ -19112,7 +19232,7 @@ function loadAll() {
         const text = localStorage.getItem(KEY), stored = readPttV3(localStorage), migrated = stored ? storage.migratePtt(stored.payload) : null;
         if (text && !stored)
             storeQuarantine(text);
-        if (migrated?.status === 'too-new') {
+        if (migrated?.status === 'too-new' || (stored && storage.hasFutureSightLedger(stored.payload))) {
             storeBlock();
             return;
         }
@@ -19129,44 +19249,8 @@ function loadAll() {
                 theme = raw.theme;
             if (syncOneOf(SYNC_NOTATIONS, raw.notation))
                 notation = raw.notation;
-            tone = raw.audioEngine === 'recorded-piano-v2' && raw.tone && syncOneOf(SYNC_TONES, raw.tone) ? raw.tone : 'piano';
-            masterVol = clampPersistedNumber(raw.masterVol, 0, 1, masterVol);
-            if (raw.muted === true)
-                muted = true;
-            if (typeof raw.localSynth === 'boolean')
-                localSynth = raw.localSynth;
-            reverbWet = clampPersistedNumber(raw.reverb, 0, 0.5, reverbWet);
-            if (raw.labels && typeof raw.labels === 'string')
-                labelMode = raw.labels;
-            metro.bpm = Math.round(clampPersistedNumber(raw.bpm, 50, 180, metro.bpm));
-            if (raw.device && typeof raw.device === 'string')
-                savedDevice = raw.device;
-            if (raw.scoreLook === 'paper' || raw.scoreLook === 'night')
-                SCORE.look = raw.scoreLook;
-            if (typeof raw.scoreHl === 'boolean')
-                SCORE.hl = raw.scoreHl;
-            if (raw.scoreView === 'page' || raw.scoreView === 'cont')
-                SCORE.layout = raw.scoreView;
-            else if (raw.scoreView === 'fall')
-                FALL.mode = 'fall';
-            if (typeof raw.kbDock === 'boolean')
-                DOCK.pref = raw.kbDock;
-            else if (typeof raw.anKb === 'boolean')
-                DOCK.pref = raw.anKb; // the Score & analysis choice becomes the choice for every view
-            if (typeof raw.wake === 'boolean')
-                WAKE.want = raw.wake;
-            const bl = raw.ble;
-            if (isRecord(bl) && typeof bl.id === 'string' && bl.id)
-                BLE.saved = { id: bl.id, name: typeof bl.name === 'string' ? bl.name : '', auto: bl.auto !== false };
-            const sd = raw.anSide;
-            if (isRecord(sd)) {
-                if (typeof sd.open === 'boolean')
-                    SIDE.open = sd.open;
-                if (typeof sd.tab === 'string' && AN_TABS.includes(sd.tab))
-                    SIDE.tab = sd.tab;
-                if (typeof sd.w === 'number' && Number.isFinite(sd.w))
-                    SIDE.w = Math.max(280, Math.min(560, Math.round(sd.w)));
-            }
+            if (typeof raw.labels === 'string') labelMode = raw.labels;
+            applyTopLevelPrefs(raw);
             return;
         }
         // migrate from V2 settings (notation/tone) if present
@@ -19178,13 +19262,17 @@ function loadAll() {
             tone = 'piano';
             masterVol = clampPersistedNumber(v2s.vol, 0, 1, masterVol);
         }
-        const v2st = syncParseJson(localStorage.getItem('ptt-stats-v2') || 'null');
+        let v2st: unknown;
+        try { v2st = syncParseJson(localStorage.getItem('ptt-stats-v2') || 'null'); } catch { }
         if (isRecord(v2st) && v2st.items) { // seed SRS boxes from V2 per-item accuracy
             const map = { iv: 'iv', ch: 'ch', sc: 'sc', pr: 'pr' }, v2items = v2st.items;
             Object.keys(map).forEach((mode) => { const found = syncIsObject(v2items) ? v2items[mode] : undefined, it: Record<string, unknown> = syncIsObject(found) ? found : {}; Object.keys(it).forEach((k) => { const rec = it[k]; const id = (mode === 'iv' ? 'iv:' : mode === 'ch' ? 'ch:' : mode === 'sc' ? 'sc:' : 'pr:') + k; if (ITEM_BY_ID[id] && syncIsObject(rec) && Number(rec.seen) >= 2) {
-                const acc = 1 - (Number(rec.miss) / Number(rec.seen));
+                const seen = Number(rec.seen);
+                if (!Number.isFinite(seen)) return;
+                const misses = clampPersistedNumber(rec.miss, 0, seen, 0);
+                const acc = 1 - misses / seen;
                 const box = acc > .85 ? 3 : acc > .6 ? 2 : 1;
-                data.srs[id] = { box, ease: 2.3, reps: Number(rec.seen), lapses: Number(rec.miss), due: todayN() + (box >= 3 ? 4 : 1), last: todayN() };
+                data.srs[id] = { box, ease: 2.3, reps: seen, lapses: misses, due: todayN() + (box >= 3 ? 4 : 1), last: todayN() };
             } }); });
         }
         if (navigator.language && /^ro/i.test(navigator.language))
@@ -19498,7 +19586,7 @@ function initControls() {
                 return;
             }
             const p = parsePttV3(String(rd.result));
-            if (p && storage.pttSchema(p) > storage.PTT_SCHEMA) {
+            if (p && (storage.pttSchema(p) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(p))) {
                 alert(t('import_too_new'));
                 return;
             }
@@ -19811,7 +19899,6 @@ function initControls() {
         panic(); });
     // coming back: restart audio the phone suspended in the background. The notice asks for a tap while it stays locked.
     onPageReturn(() => {
-        actx?.addEventListener('statechange', audioLockSync); // a resume that lands after the wait still clears the notice (added once: same listener)
         void audioEngine.resumeOnReturn().then((state) => { if (state === 'running') audioLockSync(); else if (state) audioLockCheck(); });
     });
     window.addEventListener('storage', (e) => { if (e.storageArea && e.storageArea !== localStorage || e.key !== null && e.key !== KEY)
