@@ -3,6 +3,15 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 import importX from 'eslint-plugin-import-x';
 
+const RESTRICTED_GLOBALS = [
+  { name: 'event', message: 'Use an explicitly typed event parameter.' },
+  { name: 'eval', message: 'Dynamic application-code execution is forbidden.' },
+  { name: 'Function', message: 'Dynamic application-code compilation is forbidden.' },
+  { name: 'atob', message: 'Encoded application runtime payloads are forbidden.' },
+  { name: 'btoa', message: 'Encoded application runtime payloads are forbidden.' },
+];
+const LEGACY_IMPORTS = { group: ['**/legacy/**'], message: 'Legacy runtime modules are not allowed.' };
+
 export default [
   {
     ignores: [
@@ -60,11 +69,7 @@ export default [
       'no-dupe-keys': 'error',
       'no-restricted-globals': [
         'error',
-        { name: 'event', message: 'Use an explicitly typed event parameter.' },
-        { name: 'eval', message: 'Dynamic application-code execution is forbidden.' },
-        { name: 'Function', message: 'Dynamic application-code compilation is forbidden.' },
-        { name: 'atob', message: 'Encoded application runtime payloads are forbidden.' },
-        { name: 'btoa', message: 'Encoded application runtime payloads are forbidden.' },
+        ...RESTRICTED_GLOBALS,
       ],
       'no-restricted-syntax': [
         'error',
@@ -89,7 +94,7 @@ export default [
         'error',
         {
           patterns: [
-            { group: ['**/legacy/**'], message: 'Legacy runtime modules are not allowed.' },
+            LEGACY_IMPORTS,
           ],
         },
       ],
@@ -117,7 +122,7 @@ export default [
         'error',
         {
           patterns: [
-            { group: ['**/legacy/**'], message: 'Legacy runtime modules are not allowed.' },
+            LEGACY_IMPORTS,
             { group: ['../domain/views', '../domain/views.*'], message: 'Locale modules cannot depend on views.' },
           ],
         },
@@ -132,12 +137,14 @@ export default [
         'error',
         {
           patterns: [
+            LEGACY_IMPORTS,
             { group: ['./audio', './audio.*', './storage', './storage.*', './notation', './notation.*', './views', './views.*'], message: 'Pure domain modules must not depend on browser or view domains.' },
           ],
         },
       ],
       'no-restricted-globals': [
         'error',
+        ...RESTRICTED_GLOBALS,
         { name: 'window', message: 'Pure domain code must be browser-independent.' },
         { name: 'document', message: 'Pure domain code must be browser-independent.' },
         { name: 'localStorage', message: 'Pure domain code must be browser-independent.' },
@@ -149,6 +156,7 @@ export default [
     rules: {
       'no-restricted-globals': [
         'error',
+        ...RESTRICTED_GLOBALS,
         { name: 'window', message: 'Storage receives an explicit storage adapter.' },
         { name: 'document', message: 'Storage receives an explicit storage adapter.' },
       ],
@@ -161,6 +169,7 @@ export default [
         'error',
         {
           patterns: [
+            LEGACY_IMPORTS,
             { group: ['./views', './views.*'], message: 'Infrastructure domains must not depend on the view runtime.' },
           ],
         },

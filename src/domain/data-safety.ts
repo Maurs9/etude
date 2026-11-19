@@ -112,13 +112,25 @@ export async function readSnapshot(id: number, factory?: IDBFactory): Promise<Sn
 
 /** Saves a copy, then prunes older copies of the same kind. Ids are milliseconds, kept unique. */
 export async function saveSnapshot(entry: Omit<Snapshot, 'id'>, factory?: IDBFactory): Promise<SnapshotInfo> {
-  const existing = await listSnapshots(factory);
-  const id = Math.max(Date.now(), (existing[0]?.id ?? 0) + 1);
-  const snapshot: Snapshot = { id, ...entry };
-  const drop = snapshotsToDrop([{ id, day: entry.day, reason: entry.reason }, ...existing]);
-  await done(await open(factory), 'readwrite', store => {
-    store.put(snapshot);
-    for (const old of drop) store.delete(old);
+  const db = await open(factory);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite'), store = tx.objectStore(STORE);
+    const request = store.getAll();
+    let saved: SnapshotInfo;
+    request.onsuccess = () => {
+      const rows: unknown[] = request.result;
+      const existing = rows.filter(isSnapshot);
+      const daily = entry.reason === 'daily' && existing.find(row => row.reason === 'daily' && row.day === entry.day);
+      if (daily) {
+        saved = { id: daily.id, day: daily.day, reason: daily.reason };
+        return;
+      }
+      const id = Math.max(Date.now(), (existing.at(-1)?.id ?? 0) + 1);
+      saved = { id, day: entry.day, reason: entry.reason };
+      store.add({ ...entry, id });
+      for (const old of snapshotsToDrop([saved, ...existing])) store.delete(old);
+    };
+    tx.oncomplete = () => { db.close(); resolve(saved); };
+    tx.onabort = () => { db.close(); reject(tx.error); };
   });
-  return { id, day: entry.day, reason: entry.reason };
 }

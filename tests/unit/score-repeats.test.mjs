@@ -17,3 +17,16 @@ it('plays first and second endings on their respective passes', () => {
 it('merges adjacent measures into continuous clock ranges', () => {
   expect(repeatRanges(bars({}, { backward: 2 }, {}))).toEqual([{ a: 0, b: 8 }, { a: 0, b: 12 }]);
 });
+
+it('plays a second ending on both passes when it starts a new repeat', () => {
+  expect(repeatOrder(bars(
+    { forward: true }, { ending: [1], backward: 2 }, { ending: [2], forward: true }, { backward: 2 },
+  ))).toEqual([0, 1, 0, 2, 3, 2, 3]);
+});
+
+it('plays Fine after a da capo and follows named segno and coda marks once', () => {
+  expect(repeatOrder(bars({}, { fine: true }, { daCapo: true }))).toEqual([0, 1, 2, 0, 1]);
+  expect(repeatOrder(bars(
+    {}, { segno: 'S' }, { toCoda: 'C' }, { dalSegno: 'S' }, { coda: 'C' },
+  ))).toEqual([0, 1, 2, 3, 1, 2, 4]);
+});

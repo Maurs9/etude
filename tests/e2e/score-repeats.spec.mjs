@@ -133,3 +133,36 @@ test('at 70 percent the cursor reaches each note at its scheduled audio onset af
   expect(Math.max(...checks.map(c => c.pixelError))).toBeLessThan(3);
   await page.evaluate(() => window.__etude.scoreStop());
 });
+
+test('timed practice does not mark skipped bars missed after seeking and resuming', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await page.evaluate(() => window.__etude.pcOpen('canon'));
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  const result = await page.evaluate(async () => {
+    const e = window.__etude;
+    e.pracSet('countIn', false);
+    e.pracSet('wait', false);
+    const note = e.fallData().find(n => n.start > 4);
+    await e.scorePlay(false, note.start);
+    e.SCORE.run.segs[0].a0 = e.actx.currentTime;
+    e.handleNoteOn(note.n.midi, 100);
+    e.handleNoteOff(note.n.midi);
+    e.scorePause();
+    const carry = e.SCORE.resume.run;
+    await e.scorePlay(false, e.FALL.position, carry);
+    return { misses: e.PRAC.stats.miss, hits: e.PRAC.stats.perfect };
+  });
+  expect(result).toEqual({ misses: 0, hits: 1 });
+});
+
+test('a MusicXML da capo takes effect in the playback route and stops at Fine', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  const marked = xml.replace('<repeat direction="backward"/>', '')
+    .replace('<measure number="2">', '<measure number="2"><direction><sound fine="yes"/></direction>')
+    .replace('<measure number="3">', '<measure number="3"><direction><sound dacapo="yes"/></direction>');
+  await page.locator('#an-file').setInputFiles({ name: 'dc.musicxml', mimeType: 'application/xml', buffer: Buffer.from(marked) });
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.evaluate(async () => { await window.__etude.scorePlay(false, 0); });
+  const route = await page.evaluate(() => window.__etude.SCORE.run.route);
+  expect(route).toEqual([{ a: 0, b: 4 }]);
+});

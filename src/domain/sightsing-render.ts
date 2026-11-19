@@ -125,11 +125,14 @@ export function ssRender(ex: SightSingExercise, width = 0): SightSingRender {
     body += ssTimeSig(ex.ts, x);
     x += 26;
     ex.measures.forEach((meas) => {
+        const accidentals = new Map<number, number>();
         meas.forEach((note) => {
             const y = yOf(note.li, note.oct), nx = x + 10;
             let g = '';
-            if (note.acc !== keyAcc[note.li])
-                g += ssAccGlyph(note.acc, keyAcc[note.li], nx - 13, y);
+            const pitch = ssStepOf(note.li, note.oct);
+            const previous = accidentals.get(pitch) ?? keyAcc[note.li];
+            if (note.acc !== previous) g += ssAccGlyph(note.acc, previous, nx - 13, y);
+            accidentals.set(pitch, note.acc);
             g += ssLedger(nx, y) + ssNotehead(nx, y, note.dur) + ssStem(nx, y, note.dur);
             const syl = ex.syl[((note.p % 7) + 7) % 7];
             body += `<g class="ss-n" data-i="${idx}"><rect class="ss-box" x="${nx - 12}" y="40" width="24" height="58" rx="4"/>${g}<text class="ss-syl" x="${nx}" y="126">${syl}</text></g>`;

@@ -74,6 +74,19 @@ describe('sight-reading ledger lifecycle', () => {
     expect(result).toMatchObject({ ok: true });
   });
 
+  it('reads a corrupt ledger without replacing its bytes and quarantines it before a write', async () => {
+    const storage = storageWith({});
+    storage.setItem(SRT_LEDGER_KEY, '{corrupt');
+    const ledger = srtReadLedger(storage);
+    expect(storage.getItem(SRT_LEDGER_KEY)).toBe('{corrupt');
+    expect(storage.getItem(SRT_LEDGER_KEY + '-unreadable')).toBeNull();
+    expect(await srtLedgerUpdate(storage, {
+      type: 'recordListen', fingerprint: 'piece', generation: ledger.generation,
+    })).toMatchObject({ ok: true });
+    expect(storage.getItem(SRT_LEDGER_KEY + '-unreadable')).toBe('{corrupt');
+    expect(srtReadLedger(storage).exposures.piece.reason).toBe('listen');
+  });
+
   it('preserves newer ledger bytes and disables only unsupported operations', async () => {
     const newer = JSON.stringify({ schemaVersion: 2, marker: 'keep-me', exposures: { future: true } });
     const storage = storageWith(JSON.parse(newer));

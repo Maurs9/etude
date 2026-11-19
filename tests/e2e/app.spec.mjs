@@ -2730,15 +2730,30 @@ test.describe('daily goal and streak', () => {
     await expect(page.locator('#pr-last')).toContainText('2 / 3 correct');
   });
 
-  test('regular reviews and placement answers still count toward the daily goal and streak', async ({ app, page }) => {
+  test('regular reviews and completed placement count toward the daily goal and streak', async ({ app, page }) => {
     await app.open({ saved });
     const T = todayN();
     await page.evaluate(() => { window.__etude.startSession(null); window.__etude.resolve(window.__etude.SES.q, true); window.__etude.endSession(false); });
     const reviewed = { streak: 4, bestStreak: 4, lastActive: T, todayDay: T, todayCount: 1, newToday: 1, totalReviews: 41, totalCorrect: 31, history: { [y]: 7, [T]: 1 } };
     expect(await counters(page)).toEqual({ mem: reviewed, stored: reviewed, cards: [1] });
     await page.evaluate(() => { window.__etude.startPlacement(); window.__etude.resolve(window.__etude.SES.q, true); window.__etude.endSession(false); });
-    const placed = { ...reviewed, todayCount: 2, totalReviews: 42, totalCorrect: 32, history: { [y]: 7, [T]: 2 } };
-    expect(await counters(page)).toMatchObject({ mem: placed, stored: placed });
+    expect(await counters(page)).toEqual({ mem: reviewed, stored: reviewed, cards: [1] });
+    const complete = await page.evaluate(() => {
+      const e = window.__etude;
+      e.startPlacement();
+      const size = e.SES.queue.length;
+      for (let index = 0; index < size; index++) {
+        e.resolve(e.SES.q, true);
+        if (index + 1 < size) e.nextQuestion();
+      }
+      e.endSession(false);
+      return { size, placed: e.data.placed };
+    });
+    expect(complete.placed).toBe(true);
+    expect(await counters(page)).toMatchObject({
+      mem: { todayCount: reviewed.todayCount + complete.size, totalReviews: reviewed.totalReviews + complete.size },
+      stored: { todayCount: reviewed.todayCount + complete.size, totalReviews: reviewed.totalReviews + complete.size },
+    });
   });
 });
 
