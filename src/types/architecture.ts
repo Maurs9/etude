@@ -12,7 +12,7 @@ export const isAppLanguage = (value: unknown): value is AppLanguage =>
 
 declare global {
   interface Window {
-    __etude: Record<string, unknown>;
+    __etude?: Record<string, unknown>;
     __etudeBooted?: () => void;
   }
 }

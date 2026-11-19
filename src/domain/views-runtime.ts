@@ -4567,10 +4567,14 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     if (v === 'progress' && !progressView) {
         return import('./progress-view.js').then((module) => {
             progressView = module;
+            document.querySelector('#locale-load-error[data-lazy-owner="progress"]')?.remove();
             if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
         }, () => {
-            if (navigation === featureNavigation)
+            if (navigation === featureNavigation) {
                 localeLoadError(async () => { await show(v, moveFocus, fromHistory); });
+                const toast = document.getElementById('locale-load-error');
+                if (toast) toast.dataset.lazyOwner = 'progress';
+            }
         });
     }
     if (v === 'analysis' && !analysisModulesReady) {
@@ -4587,6 +4591,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     }
     if (v === undefined || !isAppView(v))
         return;
+    document.querySelector('#locale-load-error[data-lazy-owner="progress"]')?.remove();
     const prev = _view;
     if (prev === 'analysis' && v !== prev) cancelScoreGesture?.();
     if (prev === 'read' && v !== 'read' && srtPendingSaveProtected()) {
