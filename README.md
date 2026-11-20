@@ -84,7 +84,7 @@ and writes a profile when it beats the constant-grade baseline. `--report-only` 
 with just a file and lists scores and decisive measures. Originals stay local.
 
 In My Library, load the resulting JSON calibration, then use **Estimate difficulty** in a
-score's **Organize** editor. You can apply a suggested level to an empty field and edit it before
+score's **Edit details** action inside **More**. You can apply a suggested level to an empty field and edit it before
 saving. In Read, **New reading exercise** selects a fresh piece with the experimental scorer.
 These results use a fingerprint-based ID and leave the numbered book results and daily sets intact.
 
@@ -95,7 +95,8 @@ original file. Scores without a written or verified starting tempo appear as ski
 
 My Library automatically calculates and saves difficulty stars for existing and newly imported
 scores. **Level (stars)** sorts from the fewest to the most stars. **Level label** sorts the existing study
-labels. Select a score's star graphic to see five axes and their decisive measures. A missing tempo
+labels. The title opens the score or resumes it when a position was saved. The five axes are visible
+under the title, and **More → Difficulty details** shows their decisive measures. A missing tempo
 produces a provisional rating. A verified tempo in the calibration profile updates that rating.
 Star ratings travel with library backups. This experimental rubric uses the strongest window and
 typical difficulty independently on each axis.

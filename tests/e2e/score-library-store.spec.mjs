@@ -48,6 +48,8 @@ test('versioned backup restores exact bytes and settings, merges without replaci
     const first = (await lib.librarySave(new File([new Uint8Array([0, 1, 127, 128, 255])], 'binary.mid'), { title: 'First', composer: '' })).item;
     const second = (await lib.librarySave(new File(['second original'], 'second.mxl'), { title: 'Second', composer: 'C' })).item;
     await lib.libraryUpdate(first.id, { favorite: true });
+    const rating = { version: 1, stars: 3.2, axes: { motor: 3.2, rhythm: 2.8, bimanual: 2.3, texture: 3.5, reading: 4.1 } };
+    await lib.libraryUpdateLevels([{ id: first.id, rating: { version: 1, stars: 2 } }, { id: second.id, rating }]);
     const backup = await lib.libraryExport();
     const manifest = JSON.parse(await backup.text());
     await lib.libraryRemove(second.id);
@@ -65,7 +67,9 @@ test('versioned backup restores exact bytes and settings, merges without replaci
   expect(result.parserCalls.sort()).toEqual(['binary.mid', 'second.mxl']);
   expect(result.bytes).toEqual([0, 1, 127, 128, 255]);
   expect(result.first.favorite).toBe(false);
+  expect(result.first.difficultyRating).toEqual({ version: 1, stars: 2 });
   expect(result.second).toMatchObject({ title: 'Second', composer: 'C', name: 'second.mxl' });
+  expect(result.second.difficultyRating).toEqual({ version: 1, stars: 3.2, axes: { motor: 3.2, rhythm: 2.8, bimanual: 2.3, texture: 3.5, reading: 4.1 } });
 });
 
 test('corrupt, oversized and parser-rejected backups leave both stores unchanged', async ({ page }) => {
@@ -86,6 +90,7 @@ test('corrupt, oversized and parser-rejected backups leave both stores unchanged
       raw => { raw.files[1].item.resume = { position: -1 }; },
       raw => { raw.files[1].item.favorite = 'yes'; },
       raw => { raw.files[1].item.title = 'x'.repeat(513); },
+      raw => { raw.files[1].item.difficultyRating = { version: 1, stars: 3, axes: { motor: 3, rhythm: 2, bimanual: 4, texture: 1, reading: 5.1 } }; },
       raw => { raw.files = Array(1001).fill(raw.files[0]); },
     ];
     for (const alter of variants) {
@@ -106,7 +111,7 @@ test('corrupt, oversized and parser-rejected backups leave both stores unchanged
     catch (error) { attempts.push(error.code); }
     return { attempts, parsed, list: await lib.libraryList(), sentinel, text: await (await lib.libraryGet(sentinel.id)).file.text() };
   }, modulePath);
-  expect(result.attempts).toEqual(Array(10).fill('backup'));
+  expect(result.attempts).toEqual(Array(11).fill('backup'));
   expect(result.parsed).toBe(2);
   expect(result.list).toEqual([result.sentinel]);
   expect(result.text).toBe('keep');

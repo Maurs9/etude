@@ -2128,6 +2128,9 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "fr": {
+      "piece_column": "Partition",
+      "rating_hands_short": "Mains",
+      "rating_details": "Détails de difficulté",
       "row_more": "Plus",
       "rating_open": "Difficulté",
       "rating_unavailable": "Difficulté indisponible",
@@ -2219,7 +2222,7 @@ const payload: UIPayload = {
       "group_level": "Niveau",
       "group_tag": "Étiquette / collection",
       "group_heading": "{group} ({count})",
-      "edit": "Organiser",
+      "edit": "Modifier les détails",
       "edit_title": "Titre",
       "edit_composer": "Compositeur",
       "edit_level": "Niveau (ex. Débutant, Niveau 2)",

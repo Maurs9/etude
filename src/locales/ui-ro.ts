@@ -2128,6 +2128,9 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "ro": {
+      "piece_column": "Partitură",
+      "rating_hands_short": "Mâini",
+      "rating_details": "Detalii dificultate",
       "row_more": "Mai multe",
       "rating_open": "Dificultate",
       "rating_unavailable": "Dificultate indisponibilă",
@@ -2219,7 +2222,7 @@ const payload: UIPayload = {
       "group_level": "Nivel",
       "group_tag": "Etichetă / colecție",
       "group_heading": "{group} ({count})",
-      "edit": "Organizează",
+      "edit": "Editează detaliile",
       "edit_title": "Titlu",
       "edit_composer": "Compozitor",
       "edit_level": "Nivel (ex. Începător, Nivel 2)",

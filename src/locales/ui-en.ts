@@ -1898,6 +1898,9 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "en": {
+      "piece_column": "Score",
+      "rating_hands_short": "Hands",
+      "rating_details": "Difficulty details",
       "row_more": "More",
       "rating_open": "Difficulty",
       "rating_unavailable": "Difficulty unavailable",
@@ -1989,7 +1992,7 @@ const payload: UIPayload = {
       "group_level": "Level",
       "group_tag": "Tag / collection",
       "group_heading": "{group} ({count})",
-      "edit": "Organize",
+      "edit": "Edit details",
       "edit_title": "Title",
       "edit_composer": "Composer",
       "edit_level": "Level (e.g. Beginner, Level 2)",

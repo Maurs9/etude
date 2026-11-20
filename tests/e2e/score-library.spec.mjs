@@ -268,6 +268,7 @@ test('library supports inline organization, study status, progress, notes, sorti
   await expect(rows(page).locator('h3')).toHaveText('Waltz in A Minor');
   await page.locator('[data-library-tab=all]').click();
 
+  await row(page, 'Prelude in C').locator('[data-library-action=more]').click();
   await row(page, 'Prelude in C').locator('[data-library-action=edit]').click();
   const editor1 = row(page, 'Prelude in C').locator('.score-library-editor');
   const presets = await editor1.locator('#library-level-presets option').evaluateAll(nodes => nodes.map(node => node.value));
@@ -281,6 +282,7 @@ test('library supports inline organization, study status, progress, notes, sorti
   await editor1.locator('[data-library-action=save-edit]').click();
   await settled(page);
 
+  await row(page, 'Warmup Study').locator('[data-library-action=more]').click();
   await row(page, 'Warmup Study').locator('[data-library-action=edit]').click();
   const editor2 = row(page, 'Warmup Study').locator('.score-library-editor');
   await editor2.locator('[data-library-field=composer]').fill('J. S. Bach');
