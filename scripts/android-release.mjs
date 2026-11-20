@@ -65,6 +65,18 @@ function prepare(env, cwd) {
 
 const VERSION_ASSET = 'etude-android-version-code.txt';
 
+function downloadReleaseAsset(cwd, repository, tagName, pattern, output) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      run(cwd, 'gh', 'release', 'download', tagName, '--repo', repository,
+        '--pattern', pattern, '--output', output, '--clobber');
+      return;
+    } catch (error) {
+      if (attempt >= 3) throw error;
+    }
+  }
+}
+
 export function verifyVersionCode(code, repository, aapt2, cwd) {
   if (!Number.isInteger(code) || code < 1 || code > 2_100_000_000) {
     throw new Error('Android versionCode must be an integer from 1 to 2100000000.');
@@ -80,8 +92,7 @@ export function verifyVersionCode(code, repository, aapt2, cwd) {
       const marker = assets.find(asset => asset.name === VERSION_ASSET);
       if (!apk && !marker) continue;
       const path = join(dir, marker ? VERSION_ASSET : 'prior.apk');
-      run(cwd, 'gh', 'release', 'download', release.tag_name, '--repo', repository,
-        '--pattern', marker ? VERSION_ASSET : apk.name, '--output', path, '--clobber');
+      downloadReleaseAsset(cwd, repository, release.tag_name, marker ? VERSION_ASSET : apk.name, path);
       const value = marker ? readFileSync(path, 'utf8').trim()
         : run(cwd, aapt2, 'dump', 'badging', path).match(/^package:.* versionCode='(\d+)'/m)?.[1];
       const previous = Number(value);
@@ -105,6 +116,17 @@ export function localIconUrl(value, site, local) {
   return new URL(url.pathname.slice(site.pathname.length), local).href;
 }
 
+function spawnChecked(cwd, command, args, env = process.env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, env, stdio: 'inherit' });
+    child.once('error', reject);
+    child.once('close', (code, signal) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} ${args[0] ?? ''} failed (${signal ?? code}).`.trim()));
+    });
+  });
+}
+
 async function buildWithLocalIcons(cwd) {
   const path = join(cwd, 'twa-manifest.json');
   const original = await readFile(path, 'utf8');
@@ -123,16 +145,17 @@ async function buildWithLocalIcons(cwd) {
     }
     // Update and build both check the same manifest. Keep its live app origin and start URL.
     await writeFile(path, JSON.stringify(manifest, null, 2) + '\n');
-    for (const [action, flag] of [['update', '--skipVersionUpgrade'], ['build', '--skipPwaValidation']]) {
-      await new Promise((resolve, reject) => {
-        const child = spawn('bubblewrap', [action, flag, '--manifest=twa-manifest.json'], { cwd, stdio: 'inherit' });
-        child.once('error', reject);
-        child.once('close', (code, signal) => {
-          if (code === 0) resolve();
-          else reject(new Error(`bubblewrap ${action} failed (${signal ?? code}).`));
-        });
-      });
+    const buildEnv = {
+      ...process.env,
+      ORG_GRADLE_PROJECT_org_gradle_console: 'plain',
+      GRADLE_OPTS: [process.env.GRADLE_OPTS, '-Dorg.gradle.console=plain -Dorg.gradle.logging.level=quiet'].filter(Boolean).join(' '),
+    };
+    await spawnChecked(cwd, 'bubblewrap', ['update', '--skipVersionUpgrade', '--manifest=twa-manifest.json'], buildEnv);
+    const gradlew = join(cwd, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+    if (existsSync(gradlew)) {
+      await spawnChecked(cwd, gradlew, ['--console=plain', '--quiet', 'help'], buildEnv);
     }
+    await spawnChecked(cwd, 'bubblewrap', ['build', '--skipPwaValidation', '--manifest=twa-manifest.json'], buildEnv);
   } finally {
     server.close();
     await writeFile(path, original);
