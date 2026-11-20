@@ -2128,6 +2128,15 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "fr": {
+      "reclassify": "Vérifier les nouveaux niveaux de toutes les partitions",
+      "reclassify_apply": "Enregistrer les niveaux proposés",
+      "reclassify_summary": "Modifications : {count}. Inchangées : {same}. Ignorées : {skipped}.",
+      "reclassify_change": "{title} : {before} → {after}",
+      "reclassify_tempo": "{title} : tempo initial manquant.",
+      "reclassify_failed": "{title} : difficulté impossible à estimer.",
+      "reclassify_ready": "L’aperçu des niveaux est prêt.",
+      "reclassify_conflict": "La bibliothèque a changé. Recalculez les niveaux avant de les enregistrer.",
+      "reclassify_done": "Nouveaux niveaux enregistrés pour {count} partitions.",
       "calibration_add": "Charger un profil de difficulté",
       "calibration_loaded": "Profil de difficulté chargé.",
       "calibration_invalid": "Impossible de charger ce profil.",

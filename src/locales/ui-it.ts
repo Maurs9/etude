@@ -2128,6 +2128,15 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "it": {
+      "reclassify": "Verifica i nuovi livelli di tutti gli spartiti",
+      "reclassify_apply": "Salva i livelli proposti",
+      "reclassify_summary": "Modifiche: {count}. Invariati: {same}. Saltati: {skipped}.",
+      "reclassify_change": "{title}: {before} → {after}",
+      "reclassify_tempo": "{title}: manca il tempo iniziale.",
+      "reclassify_failed": "{title}: impossibile stimare la difficoltà.",
+      "reclassify_ready": "L’anteprima dei livelli è pronta.",
+      "reclassify_conflict": "La raccolta è cambiata. Ricalcola i livelli prima di salvarli.",
+      "reclassify_done": "Nuovi livelli salvati per {count} spartiti.",
       "calibration_add": "Carica calibrazione",
       "calibration_loaded": "Calibrazione caricata.",
       "calibration_invalid": "Impossibile caricare la calibrazione.",

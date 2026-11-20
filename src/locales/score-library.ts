@@ -1,5 +1,14 @@
 /** Copy owned by the device-local library; not part of the global data-i18n registry. */
 const en = {
+  reclassify: "Review new levels for all scores",
+  reclassify_apply: "Save proposed levels",
+  reclassify_summary: "Changes: {count}. Unchanged: {same}. Skipped: {skipped}.",
+  reclassify_change: "{title}: {before} → {after}",
+  reclassify_tempo: "{title}: starting tempo needed.",
+  reclassify_failed: "{title}: could not estimate the score.",
+  reclassify_ready: "Level preview ready.",
+  reclassify_conflict: "The library changed. Recalculate the preview before saving.",
+  reclassify_done: "Saved new levels for {count} scores.",
   calibration_add: "Load difficulty calibration",
   calibration_loaded: "Difficulty calibration loaded.",
   calibration_invalid: "Could not load that difficulty calibration.",
@@ -72,6 +81,15 @@ const en = {
 export type LibraryTextKey = keyof typeof en;
 type Copy = { [K in LibraryTextKey]: string };
 const ro: Copy = {
+  reclassify: "Verifică nivelurile noi pentru toate partiturile",
+  reclassify_apply: "Salvează nivelurile propuse",
+  reclassify_summary: "Modificări: {count}. Neschimbate: {same}. Omise: {skipped}.",
+  reclassify_change: "{title}: {before} → {after}",
+  reclassify_tempo: "{title}: lipsește tempo-ul inițial.",
+  reclassify_failed: "{title}: dificultatea nu a putut fi estimată.",
+  reclassify_ready: "Previzualizarea nivelurilor este gata.",
+  reclassify_conflict: "Biblioteca s-a schimbat. Recalculează nivelurile înainte de salvare.",
+  reclassify_done: "Nivelurile noi au fost salvate pentru {count} partituri.",
   calibration_add: "Încarcă profilul de dificultate",
   calibration_loaded: "Profilul de dificultate a fost încărcat.",
   calibration_invalid: "Profilul de dificultate nu a putut fi încărcat.",
@@ -128,6 +146,15 @@ const ro: Copy = {
   edit_notes: 'Notițe de studiu (ex. măsuri, mâini, tempo țintă)',
 };
 const es: Copy = {
+  reclassify: "Revisar los niveles nuevos de todas las partituras",
+  reclassify_apply: "Guardar los niveles propuestos",
+  reclassify_summary: "Cambios: {count}. Sin cambios: {same}. Omitidas: {skipped}.",
+  reclassify_change: "{title}: {before} → {after}",
+  reclassify_tempo: "{title}: falta el tempo inicial.",
+  reclassify_failed: "{title}: no se pudo estimar la dificultad.",
+  reclassify_ready: "La vista previa de niveles está lista.",
+  reclassify_conflict: "La biblioteca cambió. Vuelve a calcular los niveles antes de guardar.",
+  reclassify_done: "Se guardaron niveles nuevos para {count} partituras.",
   calibration_add: "Cargar calibración de dificultad",
   calibration_loaded: "Calibración de dificultad cargada.",
   calibration_invalid: "No se pudo cargar la calibración.",
@@ -184,6 +211,15 @@ const es: Copy = {
   edit_notes: 'Notas de estudio (ej. compases, manos, tempo)',
 };
 const fr: Copy = {
+  reclassify: "Vérifier les nouveaux niveaux de toutes les partitions",
+  reclassify_apply: "Enregistrer les niveaux proposés",
+  reclassify_summary: "Modifications : {count}. Inchangées : {same}. Ignorées : {skipped}.",
+  reclassify_change: "{title} : {before} → {after}",
+  reclassify_tempo: "{title} : tempo initial manquant.",
+  reclassify_failed: "{title} : difficulté impossible à estimer.",
+  reclassify_ready: "L’aperçu des niveaux est prêt.",
+  reclassify_conflict: "La bibliothèque a changé. Recalculez les niveaux avant de les enregistrer.",
+  reclassify_done: "Nouveaux niveaux enregistrés pour {count} partitions.",
   calibration_add: "Charger un profil de difficulté",
   calibration_loaded: "Profil de difficulté chargé.",
   calibration_invalid: "Impossible de charger ce profil.",
@@ -240,6 +276,15 @@ const fr: Copy = {
   edit_notes: 'Notes d’étude (ex. mesures, mains, tempo cible)',
 };
 const de: Copy = {
+  reclassify: "Neue Stufen für alle Noten prüfen",
+  reclassify_apply: "Vorgeschlagene Stufen speichern",
+  reclassify_summary: "Änderungen: {count}. Unverändert: {same}. Übersprungen: {skipped}.",
+  reclassify_change: "{title}: {before} → {after}",
+  reclassify_tempo: "{title}: Anfangstempo fehlt.",
+  reclassify_failed: "{title}: Schwierigkeit konnte nicht ermittelt werden.",
+  reclassify_ready: "Die Stufenvorschau ist bereit.",
+  reclassify_conflict: "Die Bibliothek wurde geändert. Berechne die Stufen vor dem Speichern erneut.",
+  reclassify_done: "Neue Stufen für {count} Stücke gespeichert.",
   calibration_add: "Kalibrierung laden",
   calibration_loaded: "Kalibrierung geladen.",
   calibration_invalid: "Die Kalibrierung konnte nicht geladen werden.",
@@ -296,6 +341,15 @@ const de: Copy = {
   edit_notes: 'Übungsnotizen (z. B. Takte, Hände, Zieltempo)',
 };
 const it: Copy = {
+  reclassify: "Verifica i nuovi livelli di tutti gli spartiti",
+  reclassify_apply: "Salva i livelli proposti",
+  reclassify_summary: "Modifiche: {count}. Invariati: {same}. Saltati: {skipped}.",
+  reclassify_change: "{title}: {before} → {after}",
+  reclassify_tempo: "{title}: manca il tempo iniziale.",
+  reclassify_failed: "{title}: impossibile stimare la difficoltà.",
+  reclassify_ready: "L’anteprima dei livelli è pronta.",
+  reclassify_conflict: "La raccolta è cambiata. Ricalcola i livelli prima di salvarli.",
+  reclassify_done: "Nuovi livelli salvati per {count} spartiti.",
   calibration_add: "Carica calibrazione",
   calibration_loaded: "Calibrazione caricata.",
   calibration_invalid: "Impossibile caricare la calibrazione.",
@@ -352,6 +406,15 @@ const it: Copy = {
   edit_notes: 'Note di studio (es. battute, mani, tempo)',
 };
 const ptBR: Copy = {
+  reclassify: "Revisar os novos níveis de todas as partituras",
+  reclassify_apply: "Salvar os níveis propostos",
+  reclassify_summary: "Alterações: {count}. Sem alteração: {same}. Ignoradas: {skipped}.",
+  reclassify_change: "{title}: {before} → {after}",
+  reclassify_tempo: "{title}: falta o andamento inicial.",
+  reclassify_failed: "{title}: não foi possível estimar a dificuldade.",
+  reclassify_ready: "A prévia dos níveis está pronta.",
+  reclassify_conflict: "A biblioteca mudou. Recalcule os níveis antes de salvar.",
+  reclassify_done: "Novos níveis salvos para {count} partituras.",
   calibration_add: "Carregar calibração",
   calibration_loaded: "Calibração carregada.",
   calibration_invalid: "Não foi possível carregar a calibração.",

@@ -2128,6 +2128,15 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "es": {
+      "reclassify": "Revisar los niveles nuevos de todas las partituras",
+      "reclassify_apply": "Guardar los niveles propuestos",
+      "reclassify_summary": "Cambios: {count}. Sin cambios: {same}. Omitidas: {skipped}.",
+      "reclassify_change": "{title}: {before} → {after}",
+      "reclassify_tempo": "{title}: falta el tempo inicial.",
+      "reclassify_failed": "{title}: no se pudo estimar la dificultad.",
+      "reclassify_ready": "La vista previa de niveles está lista.",
+      "reclassify_conflict": "La biblioteca cambió. Vuelve a calcular los niveles antes de guardar.",
+      "reclassify_done": "Se guardaron niveles nuevos para {count} partituras.",
       "calibration_add": "Cargar calibración de dificultad",
       "calibration_loaded": "Calibración de dificultad cargada.",
       "calibration_invalid": "No se pudo cargar la calibración.",

@@ -2134,6 +2134,15 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "de": {
+      "reclassify": "Neue Stufen für alle Noten prüfen",
+      "reclassify_apply": "Vorgeschlagene Stufen speichern",
+      "reclassify_summary": "Änderungen: {count}. Unverändert: {same}. Übersprungen: {skipped}.",
+      "reclassify_change": "{title}: {before} → {after}",
+      "reclassify_tempo": "{title}: Anfangstempo fehlt.",
+      "reclassify_failed": "{title}: Schwierigkeit konnte nicht ermittelt werden.",
+      "reclassify_ready": "Die Stufenvorschau ist bereit.",
+      "reclassify_conflict": "Die Bibliothek wurde geändert. Berechne die Stufen vor dem Speichern erneut.",
+      "reclassify_done": "Neue Stufen für {count} Stücke gespeichert.",
       "calibration_add": "Kalibrierung laden",
       "calibration_loaded": "Kalibrierung geladen.",
       "calibration_invalid": "Die Kalibrierung konnte nicht geladen werden.",

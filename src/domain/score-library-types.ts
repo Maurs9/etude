@@ -60,6 +60,12 @@ export interface LibraryUpdatePatch {
   notes?: string | null;
 }
 
+export interface LibraryLevelChange {
+  id: string;
+  previous: string | undefined;
+  level: string;
+}
+
 /** A recorded practice run: the updated record and the best accuracy it had before. */
 export interface LibraryPlayResult {
   item: LibraryItem;

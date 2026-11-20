@@ -88,6 +88,7 @@ describe('library localized copy', () => {
           count: 2, title: 'Test', date: 'Today', measure: '4', time: '0:12',
           added: 2, duplicates: 1, errors: 0, best: 92, group: 'Bach', level: '2',
           progress: 65, notes: 'Legato', status: 'In progress', score: 42, bars: '6–9',
+          before: 'Level 2', after: 'Level 3', same: 3, skipped: 1,
         });
         expect(filled, key).not.toMatch(/\{\w+\}/);
       }

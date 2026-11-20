@@ -1898,6 +1898,15 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "en": {
+      "reclassify": "Review new levels for all scores",
+      "reclassify_apply": "Save proposed levels",
+      "reclassify_summary": "Changes: {count}. Unchanged: {same}. Skipped: {skipped}.",
+      "reclassify_change": "{title}: {before} → {after}",
+      "reclassify_tempo": "{title}: starting tempo needed.",
+      "reclassify_failed": "{title}: could not estimate the score.",
+      "reclassify_ready": "Level preview ready.",
+      "reclassify_conflict": "The library changed. Recalculate the preview before saving.",
+      "reclassify_done": "Saved new levels for {count} scores.",
       "calibration_add": "Load difficulty calibration",
       "calibration_loaded": "Difficulty calibration loaded.",
       "calibration_invalid": "Could not load that difficulty calibration.",

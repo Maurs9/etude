@@ -25,6 +25,10 @@ describe('import calibration', () => {
     expect(() => calibrateDifficulty(reference.slice(0, -1))).toThrow(/Each level/);
     expect(readDifficultyCalibration({ version: 2, cutoffs: [10, 20, 30, 40, 50] })).toBeNull();
     expect(readDifficultyCalibration({ version: 1, cutoffs: [10, 20, 20, 40, 50] })).toBeNull();
+    const profile = { version: 1, cutoffs: [10, 20, 30, 40, 50] };
+    const id = 'a'.repeat(64);
+    expect(readDifficultyCalibration({ ...profile, startingTempos: { [id]: 84.5 } })).toEqual({ ...profile, startingTempos: { [id]: 84.5 } });
+    expect(readDifficultyCalibration({ ...profile, startingTempos: { [id]: 500 } })).toBeNull();
   });
 
   it('accounts for tempo changes and reports an inferred MIDI hand assignment', () => {

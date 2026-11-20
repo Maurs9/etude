@@ -2,6 +2,8 @@
 export interface DifficultyCalibration {
   version: 1;
   cutoffs: readonly number[];
+  /** Verified starting tempos for originals without a written starting mark, keyed by SHA-256. */
+  startingTempos?: Readonly<Record<string, number>>;
 }
 
 export function readDifficultyCalibration(raw: unknown): DifficultyCalibration | null {
@@ -15,7 +17,18 @@ export function readDifficultyCalibration(raw: unknown): DifficultyCalibration |
     cutoffs.push(value);
     previous = value;
   }
-  return cutoffs.length === 5 ? { version: 1, cutoffs } : null;
+  if (cutoffs.length !== 5) return null;
+  if (!('startingTempos' in raw)) return { version: 1, cutoffs };
+  const tempos = raw.startingTempos;
+  if (!tempos || typeof tempos !== 'object' || Array.isArray(tempos)) return null;
+  const entries: [string, unknown][] = Object.entries(tempos);
+  if (entries.length > 1000) return null;
+  const startingTempos: Record<string, number> = {};
+  for (const [id, bpm] of entries) {
+    if (!/^[a-f0-9]{64}$/u.test(id) || typeof bpm !== 'number' || !Number.isFinite(bpm) || bpm < 20 || bpm > 400) return null;
+    startingTempos[id] = bpm;
+  }
+  return { version: 1, cutoffs, startingTempos };
 }
 
 export function suggestedDifficulty(score: number, profile: DifficultyCalibration) {

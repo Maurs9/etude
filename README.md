@@ -88,6 +88,11 @@ score's **Organize** editor. You can apply a suggested level to an empty field a
 saving. In Read, **New reading exercise** selects a fresh piece with the experimental scorer.
 These results use a fingerprint-based ID and leave the numbered book results and daily sets intact.
 
+For scores already in My Library, **Review new levels for all scores** previews changes using the
+loaded profile. **Save proposed levels** updates the reviewed labels in one operation. A profile may
+contain a `startingTempos` object with verified quarter-note BPM values keyed by the SHA-256 of each
+original file. Scores without a written or verified starting tempo appear as skipped in the preview.
+
 ## Project structure
 
 - `etude.html` — stable application shell

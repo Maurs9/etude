@@ -2128,6 +2128,15 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "ro": {
+      "reclassify": "Verifică nivelurile noi pentru toate partiturile",
+      "reclassify_apply": "Salvează nivelurile propuse",
+      "reclassify_summary": "Modificări: {count}. Neschimbate: {same}. Omise: {skipped}.",
+      "reclassify_change": "{title}: {before} → {after}",
+      "reclassify_tempo": "{title}: lipsește tempo-ul inițial.",
+      "reclassify_failed": "{title}: dificultatea nu a putut fi estimată.",
+      "reclassify_ready": "Previzualizarea nivelurilor este gata.",
+      "reclassify_conflict": "Biblioteca s-a schimbat. Recalculează nivelurile înainte de salvare.",
+      "reclassify_done": "Nivelurile noi au fost salvate pentru {count} partituri.",
       "calibration_add": "Încarcă profilul de dificultate",
       "calibration_loaded": "Profilul de dificultate a fost încărcat.",
       "calibration_invalid": "Profilul de dificultate nu a putut fi încărcat.",

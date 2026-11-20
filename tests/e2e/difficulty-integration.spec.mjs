@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { test, expect } from '../helpers/fixtures.mjs';
 
 const xml = `<?xml version="1.0"?>
@@ -108,4 +109,49 @@ test('a fresh Read exercise opens with an independent result and leaves existing
   await page.reload();
   await page.waitForFunction(() => window.__etude?.rdnBook);
   expect(await progress()).toMatchObject({ 'b1.1': { best: 92, stars: 2 }, ['x1.' + first]: { best: 96, stars: 3 } });
+});
+
+test('bulk recalculation previews existing levels and applies only the reviewed changes', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await page.locator('#score-library summary').click();
+  const written = Buffer.from(xml);
+  const unmarked = Buffer.from(xml.replace('<direction><sound tempo="120"/></direction>', ''));
+  const other = Buffer.from(unmarked.toString().replace('<step>G</step>', '<step>F</step>'));
+  const id = bytes => createHash('sha256').update(bytes).digest('hex');
+  const update = (key, patch) => page.evaluate(({ key, patch }) => window.__etude.scoreLibraryStore.libraryUpdate(key, patch), { key, patch });
+  const get = key => page.evaluate(key => window.__etude.scoreLibraryStore.libraryGet(key).then(result => result.item), key);
+  await page.locator('#library-files').setInputFiles([
+    { name: 'Written.musicxml', mimeType: 'application/xml', buffer: written },
+    { name: 'Verified.musicxml', mimeType: 'application/xml', buffer: unmarked },
+    { name: 'Unknown.musicxml', mimeType: 'application/xml', buffer: other },
+  ]);
+  await expect(page.locator('#library-items [data-library-id]')).toHaveCount(3);
+  await update(id(written), { level: 'Level 1', notes: 'My notes', favorite: true });
+  await update(id(unmarked), { level: 'Manual' });
+  const previewButton = page.locator('#library-reclassify');
+  const preview = page.locator('#library-level-preview');
+  const apply = page.locator('#library-reclassify-apply');
+  const status = page.locator('#library-status');
+  await previewButton.click();
+  await expect(status).toContainText('Load a calibration');
+  await page.locator('#library-difficulty-calibration').setInputFiles({
+    name: 'profile.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ version: 1, cutoffs: [1, 2, 3, 4, 5], startingTempos: { [id(unmarked)]: 84 } })),
+  });
+  await expect(status).toContainText('calibration loaded');
+  await previewButton.click();
+  await expect(preview).toContainText('Changes: 2. Unchanged: 0. Skipped: 1.');
+  await expect(preview).toContainText('starting tempo needed');
+  expect((await get(id(written))).level).toBe('Level 1');
+  await update(id(unmarked), { level: 'Changed in another tab' });
+  await apply.click();
+  await expect(status).toContainText('The library changed.');
+  expect((await get(id(written))).level).toBe('Level 1');
+  await previewButton.click();
+  await expect(preview).toContainText('Changed in another tab');
+  await apply.click();
+  await expect(status).toHaveText('Saved new levels for 2 scores.');
+  expect(await get(id(written))).toMatchObject({ notes: 'My notes', favorite: true, level: 'Level 6' });
+  expect((await get(id(unmarked))).level).toBe('Level 6');
+  expect((await get(id(other))).level).toBeUndefined();
 });
