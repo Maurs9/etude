@@ -31,7 +31,7 @@ export default defineConfig({
     { name: 'sw', use: { serviceWorkers: 'allow' }, grep: /@sw/ },
   ],
   webServer: {
-    command: DEV_SERVER ? `vite --host 127.0.0.1 --port ${PORT}` : `npm run build:standalone && node scripts/serve.mjs dist ${PORT}`,
+    command: DEV_SERVER ? `vite --host 127.0.0.1 --port ${PORT}` : `npm run build:standalone -- --test-surface && node scripts/serve.mjs dist ${PORT}`,
     url: `http://127.0.0.1:${PORT}/${DEV_SERVER ? 'etude.html' : 'etude/etude.html'}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',

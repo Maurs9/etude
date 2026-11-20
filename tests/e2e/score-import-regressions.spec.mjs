@@ -89,14 +89,17 @@ test('a newer failed import restores the last successful score when engraving is
     const prototype = window.opensheetmusicdisplay.OpenSheetMusicDisplay.prototype;
     const load = prototype.load;
     prototype.load = async function (...args) {
+      // Other renderers can load while the replacement is being prepared.
+      if (typeof args[0] !== 'string' || !args[0].includes('Superseded import test')) return load.apply(this, args);
       prototype.load = load;
       await new Promise(resolve => { window.__releaseScoreLoad = resolve; });
       return load.apply(this, args);
     };
     window.__pendingScore = window.__etude.anOpenFile(new File([xml], 'superseded.musicxml'));
-  }, xmlScore(2));
+  }, xmlScore(2).replace('<part-list>', '<movement-title>Superseded import test</movement-title><part-list>'));
   await page.waitForFunction(() => typeof window.__releaseScoreLoad === 'function');
   await page.locator('#an-file').setInputFiles({ name: 'broken.musicxml', mimeType: 'application/xml', buffer: Buffer.from('broken') });
+  await expect(page.locator('#an-msg')).toHaveClass(/\bis-error\b/);
   await expect(page.locator('#an-msg')).toHaveText(/MusicXML/i);
   await expect(page.locator('#score-play')).toBeEnabled();
   expect(await page.evaluate(() => {

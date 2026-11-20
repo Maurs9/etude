@@ -16,9 +16,10 @@ import {
   type ScoreXmlLayout,
   type ScoreXmlLink,
   type ScoreXmlNote,
+  type ScoreXmlRest,
 } from './score-types.js';
 
-interface MidiPedalEvent { beat: number; down: boolean; order: number; }
+interface MidiPedalEvent { beat: number; down: boolean; order: number; track: number; }
 
 function applyMidiSustain(notes: AnParsedNote[], channels: Map<number, MidiPedalEvent[]>, releaseOrder: WeakMap<AnParsedNote, number>, end: number) {
     for (const [channel, events] of channels) {
@@ -32,8 +33,10 @@ function applyMidiSustain(notes: AnParsedNote[], channels: Map<number, MidiPedal
             const stop = events[i + 1]?.beat ?? end;
             while (cursor < releases.length && releases[cursor].end < stop) {
                 const note = releases[cursor++];
-                // At the same tick, only releases after pedal-down are sustained.
-                if (note.end > start.beat || (note.end === start.beat && (releaseOrder.get(note) ?? Infinity) > start.order))
+                // Same-track events have a written order. Across tracks at the same tick,
+                // treat the pedal-down as active for the release regardless of track serialization.
+                if (note.end > start.beat || (note.end === start.beat &&
+                    (note.track !== start.track || (releaseOrder.get(note) ?? Infinity) > start.order)))
                     note.soundEnd = stop;
             }
         }
@@ -137,7 +140,7 @@ export function anParse(buffer: ArrayBuffer) {
                 if (ch !== 9 && cmd === 176 && d1 === 64) {
                     let events = sustain.get(ch);
                     if (!events) sustain.set(ch, events = []);
-                    events.push({ beat: tick / ppq, down: d2 >= 64, order: pos });
+                    events.push({ beat: tick / ppq, down: d2 >= 64, order: pos, track: ti });
                 }
                 if (ch !== 9 && (cmd === 144 || cmd === 128)) {
                     const k = ch + ':' + d1;
@@ -200,7 +203,8 @@ function positiveTempo(text: string | null): number | null {
     const bpm = Number(text);
     return bpm > 0 && Number.isFinite(bpm) ? bpm : null;
 }
-export function scoreXmlNotes(doc: Document) {
+export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
+    const difficultyRests: ScoreXmlRest[] = [];
     const { hands: partHands, sisters: partSisterMap } = scoreDetectPartHands(doc);
     const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], harmoniesByPart: ScoreXmlHarmony[][] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
     const linkOpen = new Map<string, ScoreXmlNote>(), linkPairs: { kind: string; a: ScoreXmlNote; b: ScoreXmlNote; style: string; }[] = [], lineEvents: ScoreXmlLine[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
@@ -257,6 +261,8 @@ export function scoreXmlNotes(doc: Document) {
     };
     [...doc.querySelectorAll('score-partwise > part')].forEach((part, pi) => {
         let measureStart = 0, num = 4, den = 4, staves = 1, division = 1;
+        let groups: number[] | undefined;
+        const clefs = new Map<number, { sign: string; line: number }>();
         const partHarmonies: ScoreXmlHarmony[] = [];
         harmoniesByPart.push(partHarmonies);
         const gracePending = new Map<string, ScoreGraceNote[]>();
@@ -278,6 +284,18 @@ export function scoreXmlNotes(doc: Document) {
                     if (tm) {
                         num = number(child(tm, 'beats'), num) || num;
                         den = number(child(tm, 'beat-type'), den) || den;
+                        if (captureDifficulty) {
+                            const beats = child(tm, 'beats')?.textContent?.trim() ?? '';
+                            groups = /^\d+(?:\s*\+\s*\d+)+$/.test(beats) ? beats.split('+').map(Number) : undefined;
+                            if (groups?.every(group => group > 0)) {
+                                num = groups.reduce((sum, group) => sum + group, 0);
+                                groups = groups.map(group => group * 4 / den);
+                            } else groups = undefined;
+                        }
+                    }
+                    if (captureDifficulty) for (const clef of direct(node, 'clef')) {
+                        const staff = Number(clef.getAttribute('number')) || 1;
+                        clefs.set(staff, { sign: child(clef, 'sign')?.textContent?.trim() ?? '', line: number(child(clef, 'line')) });
                     }
                     const st = child(node, 'staves');
                     if (st)
@@ -337,11 +355,17 @@ export function scoreXmlNotes(doc: Document) {
                     addSound(node, pi, 0, at);
                 if (name === 'backup')
                     at -= span(child(node, 'duration')) / division;
-                if (name === 'forward')
+                if (name === 'forward') {
                     at += span(child(node, 'duration')) / division;
+                    max = Math.max(max, at);
+                }
                 if (name === 'note') {
                     const grace = !!child(node, 'grace'), duration = span(child(node, 'duration')) / division, chord = !!child(node, 'chord'), start = chord ? lastStart : at;
                     const voice = number(child(node, 'voice'), 1) || 1, staff = number(child(node, 'staff'), 1) || 1, pitch = child(node, 'pitch'), key = graceKey(staff, voice);
+                    if (captureDifficulty && !pitch && child(node, 'rest') && duration > 0) {
+                        const hand = staves >= 2 ? (staff === 1 ? 'rh' : 'lh') : (partHands.get(pi) ?? null);
+                        difficultyRests.push({ start, end: start + duration, part: pi, staff, voice, hand });
+                    }
                     if (pitch) {
                         const step = child(pitch, 'step')?.textContent, oct = number(child(pitch, 'octave')), alter = number(child(pitch, 'alter')), midi = (oct + 1) * 12 + (step == null ? NaN : SCORE_STEP[step]) + alter;
                         if (Number.isFinite(midi)) {
@@ -369,6 +393,19 @@ export function scoreXmlNotes(doc: Document) {
                                         arpeggiate: !!node.querySelector('notations > arpeggiate') };
                                     if (fg > 0 && fg < 6)
                                         n.finger = fg;
+                                    if (captureDifficulty) {
+                                        const clef = clefs.get(staff), letter = step ? 'CDEFGAB'.indexOf(step) : -1;
+                                        const center = clef?.sign === 'G' ? 4 * 7 + 4 : clef?.sign === 'F' ? 3 * 7 + 3 : clef?.sign === 'C' ? 4 * 7 : undefined;
+                                        const bottom = center === undefined || !clef?.line ? undefined : center - (clef.line - 1) * 2;
+                                        const staffStep = oct * 7 + letter;
+                                        n.difficulty = {
+                                            dotted: !!child(node, 'dot'), tuplet: !!child(node, 'time-modification'),
+                                            accidentals: child(node, 'accidental') ? 1 : 0,
+                                            ornaments: node.querySelectorAll('notations > ornaments > *').length,
+                                            ledgerLines: bottom === undefined || letter < 0 ? undefined
+                                                : Math.floor(Math.max(0, bottom - staffStep, staffStep - bottom - 8) / 2),
+                                        };
+                                    }
                                     if (nd?.value != null)
                                         n.explicitVel = nd.value;
                                     else if (attr != null)
@@ -413,7 +450,7 @@ export function scoreXmlNotes(doc: Document) {
                 }
             }
             if (pi === 0)
-                measures.push({ number: measure.getAttribute('number') || String(measures.length + 1), start: measureStart, end: max, num, den });
+                measures.push({ number: measure.getAttribute('number') || String(measures.length + 1), start: measureStart, end: max, num, den, ...(groups ? { groups } : {}) });
             measureStart = max;
         }
         partEnds[pi] = measureStart;
@@ -561,7 +598,7 @@ export function scoreXmlNotes(doc: Document) {
     }
     sorted.forEach((n) => {
         const sister = partSisterMap.get(n.part);
-        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => (p.part === n.part || (sister != null && p.part === sister)) && p.start <= n.start + .001 && p.end > n.start + .001);
+        let soundEnd = n.start + (n.end - n.start) * (n.soundRatio ?? 1), pedal = pedalSegments.find((p) => (p.part === n.part || (sister != null && p.part === sister)) && (p.start <= n.start + .001 || p.start < soundEnd - .001) && p.end >= soundEnd - .001 && p.end > n.start + .001);
         if (pedal) {
             n.pedalEnd = pedal.end;
             soundEnd = Math.max(soundEnd, pedal.end);
@@ -592,7 +629,7 @@ export function scoreXmlNotes(doc: Document) {
     const harmonies = (harmoniesByPart.find((list) => list.length > 0) || []).slice().sort((a, b) => a.beat - b.beat);
     const explicitBeats = new Set(tempos.map(tempo => tempo.beat));
     tempos.push(...writtenTempos.filter(tempo => !explicitBeats.has(tempo.beat)));
-    return { notes: sorted, tempos: tempos.filter(e => Number.isFinite(e.beat)), measures, keys, harmonies, links, tempoWords };
+    return { notes: sorted, tempos: tempos.filter(e => Number.isFinite(e.beat)), measures, keys, harmonies, links, tempoWords, ...(captureDifficulty ? { difficultyRests } : {}) };
 }
 
 interface AnZipEntry { method: number; C: number; U: number; off: number; }
@@ -867,7 +904,7 @@ export function scoreXmlEngraving(doc: Document) {
             ending.textContent = parsed.documentElement.textContent;
     });
 }
-export async function anReadXml(file: File, title: string, deps: { loadMxlToXml: (buf: ArrayBuffer) => Promise<string>; inflatedSize?: (bytes: Uint8Array<ArrayBuffer>, limit: number) => Promise<number | null> })  {
+export async function anReadXml(file: File, title: string, deps: { captureDifficulty?: boolean; loadMxlToXml: (buf: ArrayBuffer) => Promise<string>; inflatedSize?: (bytes: Uint8Array<ArrayBuffer>, limit: number) => Promise<number | null> })  {
     let xml: string;
     if (/\.mxl$/i.test(file.name)) {
         const buf = await file.arrayBuffer();
@@ -891,7 +928,7 @@ export async function anReadXml(file: File, title: string, deps: { loadMxlToXml:
     scoreXmlEngraving(doc);
     const clean = anXmlTidy(doc, title);
     xml = new XMLSerializer().serializeToString(doc);
-    const r = scoreXmlNotes(doc);
+    const r = scoreXmlNotes(doc, deps.captureDifficulty);
     if (!r.notes.length)
         throw anError('nonotes');
     if (r.notes.length > AN_MAX_NOTES)

@@ -15,8 +15,9 @@ export function selectMidiInput<T extends MidiInputIdentity>(
   preferredId: string | null,
   preferredName?: string | null,
 ): { input: T; temporary: boolean } | null {
+  const matchingNames = preferredName ? inputs.filter(input => input.name === preferredName) : [];
   const preferred = inputs.find(input => input.id === preferredId)
-    ?? (preferredName ? inputs.find(input => input.name === preferredName) : undefined);
+    ?? (matchingNames.length === 1 ? matchingNames[0] : undefined);
   const input = preferred ?? inputs.find(input => input.id === activeId) ?? pickArturia(inputs) ?? inputs[0];
   return input ? { input, temporary: preferredId !== null && !preferred } : null;
 }

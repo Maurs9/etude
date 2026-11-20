@@ -58,6 +58,8 @@ const MIN_KEY_SCORES = 4;
 const MAX_DAYS = 400;
 const KEY_IDS: readonly string[] = srtReadingKeys().map((key) => key.id);
 
+/** Experimental exercises are keyed by their music. Their results never attach to numbered books. */
+export const srtScoredId = (fingerprint: string): string => `x1.${fingerprint}`;
 export const srtBookId = (level: number, number: number): string => `b${level}.${number}`;
 export const srtFocusId = (level: number, key: string, number: number): string => `f${level}.${key}.${number}`;
 export const srtDailyId = (date: string, slot: number): string => `d${date}.${slot}`;
@@ -132,6 +134,7 @@ export function srtNormalizeBookState(raw: unknown): ReadingBookState {
 /** The state after a piece was played. */
 export function srtRecordResult(state: ReadingBookState, result: ReadingResult): ReadingBookState {
   const score = Math.max(0, Math.min(100, Math.round(result.score)));
+  const experimental = result.id.startsWith('x1.');
   const before = state.pieces[result.id];
   const stat: PieceStat = {
     best: Math.max(before?.best ?? 0, score),
@@ -140,8 +143,8 @@ export function srtRecordResult(state: ReadingBookState, result: ReadingResult):
     first: before?.first ?? (result.firstSight ? score : null),
   };
   const recent = { ...state.recent };
-  // A long piece (srtLongId) is partly below its level: its score says nothing about reading at the level or in the key.
-  if (result.firstSight && (before?.first ?? null) === null && !result.id.startsWith('l')) {
+  // Long pieces and experimental exercises do not contribute to recommendations for the existing curriculum.
+  if (result.firstSight && (before?.first ?? null) === null && !result.id.startsWith('l') && !experimental) {
     const add = (name: string, keep: number): void => { recent[name] = [...(recent[name] ?? []), score].slice(-keep); };
     add(`${result.level}|${result.key}`, KEY_SCORES);
     // A piece played with a pinned key says nothing about reading in mixed keys: a piece of a key run, or a piece
@@ -156,7 +159,7 @@ export function srtRecordResult(state: ReadingBookState, result: ReadingResult):
       daily = { ...daily, done: daily.done.map((value, index) => (index === slot ? Math.max(value ?? 0, score) : value)) };
     }
   }
-  const days = state.days.includes(result.date) ? state.days : [...state.days, result.date].sort().slice(-MAX_DAYS);
+  const days = experimental || state.days.includes(result.date) ? state.days : [...state.days, result.date].sort().slice(-MAX_DAYS);
   return { ...state, pieces: { ...state.pieces, [result.id]: stat }, recent, daily, days };
 }
 

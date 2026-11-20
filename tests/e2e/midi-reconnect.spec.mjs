@@ -246,3 +246,47 @@ test('a reload with the preferred MIDI device absent uses a stand-in until it re
   await expect(page.locator('#midiText')).toHaveText('Grand');
   expect(await page.evaluate(() => window.__midi.play(60))).toBe('piano');
 });
+
+test('a saved USB device name restores the preference when its port ID changes', async ({ app, page }) => {
+  await fakeMidi(page, [['pad', 'Expression Pad'], ['renumbered', 'Grand']]);
+  await app.open({ saved: { v: 3, lang: 'en', device: 'old-id', deviceName: 'Grand', data: {} } });
+  await connect(page, 'Grand');
+  expect(await page.evaluate(() => {
+    const { device, deviceName } = JSON.parse(localStorage.getItem('ptt-v3'));
+    return { device, deviceName };
+  })).toEqual({ device: 'renumbered', deviceName: 'Grand' });
+});
+
+test('MIDI channel reset preserves other channels and All Sound Off clears sustained voices', async ({ app, page }) => {
+  await app.open();
+  const result = await page.evaluate(() => {
+    const { midiIn, heldMidis, sustained } = window.__etude;
+    const send = (status, a, b) => midiIn(status, a, b, 'midi');
+    send(0x90, 60, 100);
+    send(0x91, 65, 100);
+    send(0xb0, 64, 127);
+    send(0xb0, 123, 0);
+    const afterNotesOff = { held: heldMidis(), sustained: [...sustained] };
+    send(0xb0, 120, 0);
+    return { afterNotesOff, afterSoundOff: { held: heldMidis(), sustained: [...sustained] } };
+  });
+  expect(result).toEqual({
+    afterNotesOff: { held: [65], sustained: [60] },
+    afterSoundOff: { held: [65], sustained: [] },
+  });
+});
+
+test('BLE running status works inside a packet and resets before the next one', async ({ app, page }) => {
+  await app.open();
+  const result = await page.evaluate(() => {
+    const { bleParse, heldMidis } = window.__etude;
+    const packet = (...bytes) => bleParse(new Uint8Array(bytes));
+    packet(0x80, 0x80, 0x90, 60, 90, 64, 90);
+    const first = heldMidis();
+    packet(0x80, 0x81, 67, 90);
+    const second = heldMidis();
+    packet(0x80, 0x82, 0x80, 60, 0, 64, 0);
+    return { first, second, after: heldMidis() };
+  });
+  expect(result).toEqual({ first: [60, 64], second: [60, 64], after: [] });
+});

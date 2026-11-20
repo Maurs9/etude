@@ -7,6 +7,23 @@ export type PianoStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export type AudioTone = 'piano' | 'piano-synth' | 'soft' | 'bright' | 'organ' | 'mellow' | 'glass';
 
+// Ignore old or uninitialized clock pairs, such as those reported just after a device change.
+export const AUDIO_OUTPUT_CLOCK_WINDOW = 1;
+type OutputClock = Pick<AudioContext, 'currentTime' | 'state'> & Partial<Pick<AudioContext, 'getOutputTimestamp'>>;
+
+/** Sample the time reaching the output device. Scheduling still uses the render clock. */
+export function audioPresentationTime(context: OutputClock, frameTime: number): number {
+  const renderTime = context.currentTime;
+  if (context.state !== 'running') return renderTime;
+  const stamp = context.getOutputTimestamp?.();
+  const at = stamp?.performanceTime ?? 0, output = stamp?.contextTime ?? 0;
+  const age = (frameTime - at) / 1000;
+  if (!Number.isFinite(age) || !Number.isFinite(output) || at <= 0 || output < 0 || Math.abs(age) > AUDIO_OUTPUT_CLOCK_WINDOW) return renderTime;
+  const estimate = output + age;
+  if (estimate < renderTime - AUDIO_OUTPUT_CLOCK_WINDOW || estimate > renderTime + AUDIO_OUTPUT_CLOCK_WINDOW) return renderTime;
+  return Math.min(renderTime, Math.max(0, estimate));
+}
+
 export interface AudioVoice {
   stop(when?: number): void;
   setBend(): void;
@@ -15,6 +32,20 @@ export interface AudioVoice {
   g?: GainNode;
   inner?: AudioVoice | null;
   released?: boolean;
+}
+
+function connectVoiceSource(source: OscillatorNode | AudioBufferSourceNode, lfo: GainNode | null, release: () => void): void {
+  lfo?.connect(source.detune);
+  source.onended = () => {
+    source.onended = null;
+    try {
+      if (lfo) lfo.disconnect(source.detune);
+    } catch { /* already disconnected */ }
+    try {
+      source.disconnect();
+    } catch { /* already disconnected */ }
+    release();
+  };
 }
 
 export type PianoVoiceHooks = {
@@ -158,7 +189,7 @@ export class PianoBank {
         return audio;
       })
       .finally(() => {
-        if (this.ctx === context) this.pending.delete(key);
+        if (this.ctx === context && this.pending.get(key) === job) this.pending.delete(key);
       });
     this.pending.set(key, job);
     return job;
@@ -167,7 +198,7 @@ export class PianoBank {
   fail(error: unknown): void {
     this.cancelWarmIdle();
     this.promise = null;
-    this.status = 'idle';
+    this.status = 'error';
     this.notify();
     console.error('Piano recordings could not be decoded', error);
   }
@@ -214,8 +245,9 @@ export class PianoBank {
       if (key == null) return;
       this.decode(key).then(() => {
         if (generation === this.idleGeneration) schedule();
-      }, error => {
-        if (context === this.getContext() && this.ctx === context) this.fail(error);
+      }, () => {
+        // A background fetch is optional. Keep the ready samples and let a requested note retry.
+        if (generation === this.idleGeneration) this.cancelWarmIdle();
       });
     };
     const schedule = (): void => {
@@ -241,26 +273,23 @@ export class PianoBank {
     if (!context) return Promise.resolve(false);
     if (this.ctx === context && this.promise) return this.promise;
     this.cancelWarmIdle();
-    this.ctx = context;
-    this.buffers = new Map();
-    this.pending = new Map();
+    if (this.ctx !== context) {
+      this.ctx = context;
+      this.buffers = new Map();
+      this.pending = new Map();
+    }
     this.status = 'loading';
     this.notify();
     const warm = this.keys.filter(key => key >= warmRange[0] && key <= warmRange[1]);
-    this.promise = this.ensure(warm).then(ok => {
-      if (this.ctx !== context) return false;
-      if (ok) {
-        this.status = 'ready';
-        this.notify();
-        this.warmIdle();
-      } else {
-        this.promise = null;
-        this.status = 'idle';
-        this.notify();
-      }
-      return ok;
+    const ready = this.ensure(warm).then(ok => {
+      if (!ok || this.ctx !== context || this.promise !== ready) return false;
+      this.status = 'ready';
+      this.notify();
+      this.warmIdle();
+      return true;
     });
-    return this.promise;
+    this.promise = ready;
+    return ready;
   }
 }
 
@@ -542,14 +571,13 @@ export class AudioEngine {
       gain.gain.setValueAtTime(0.0001, startAt);
       gain.gain.linearRampToValueAtTime(peak, startAt + (warm ? 0.008 : 0.003));
       source.connect(gain).connect(filter).connect(master);
-      if (this.lfoGain) this.lfoGain.connect(source.detune);
-      source.onended = () => {
-        source.disconnect();
+      connectVoiceSource(source, this.lfoGain, () => {
         gain.disconnect();
         filter.disconnect();
-      };
+      });
 
       const inner: AudioVoice = {
+        g: gain,
         stop: (at?: number) => {
           const releaseAt = Math.max(context.currentTime, at ?? context.currentTime);
           if (releaseAt <= startAt) {
@@ -615,8 +643,8 @@ export class AudioEngine {
     const startAt = when ?? context.currentTime;
     const normalizedVelocity = clamp((velocity || 100) / 127, 0.06, 1);
     const output = context.createGain();
-    if (context.createStereoPanner) {
-      const pan = context.createStereoPanner();
+    const pan = context.createStereoPanner?.();
+    if (pan) {
       pan.pan.value = clamp(Math.log2(frequency / 261.63) * 0.22, -0.45, 0.45);
       output.connect(pan).connect(master);
     } else {
@@ -631,6 +659,13 @@ export class AudioEngine {
     const stiffness = 0.00045 + octave * 0.00006;
     const partials = frequency < 150 ? 14 : frequency < 350 ? 11 : frequency < 800 ? 8 : 5;
     const oscillators: OscillatorNode[] = [];
+    let active = 1; // The hammer is also connected to the shared output.
+    const finishSource = () => {
+      if (--active === 0) {
+        output.disconnect();
+        pan?.disconnect();
+      }
+    };
     for (let partial = 1; partial <= partials; partial += 1) {
       const partialFrequency = frequency * partial * Math.sqrt(1 + stiffness * partial * partial);
       if (partialFrequency > nyquist) break;
@@ -638,7 +673,6 @@ export class AudioEngine {
       oscillator.type = 'sine';
       oscillator.frequency.setValueAtTime(partialFrequency, startAt);
       oscillator.detune.setValueAtTime(this.bendSemitones * 100, startAt);
-      if (this.lfoGain) this.lfoGain.connect(oscillator.detune);
       const gain = context.createGain();
       let amplitude = Math.pow(partial, -1.18);
       if (partial === 1) amplitude *= 0.92;
@@ -648,6 +682,8 @@ export class AudioEngine {
       gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, amplitude), startAt + 0.004);
       gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.004 + decay);
       oscillator.connect(gain).connect(output);
+      active++;
+      connectVoiceSource(oscillator, this.lfoGain, () => { gain.disconnect(); finishSource(); });
       oscillator.start(startAt);
       try { oscillator.stop(startAt + baseDecay + 0.35); } catch { /* already stopped */ }
       oscillators.push(oscillator);
@@ -662,23 +698,39 @@ export class AudioEngine {
     hammerGain.gain.setValueAtTime(0.028 * normalizedVelocity * normalizedVelocity, startAt);
     hammerGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.04);
     hammer.connect(hammerFilter).connect(hammerGain).connect(output);
+    connectVoiceSource(hammer, null, () => {
+      hammerFilter.disconnect();
+      hammerGain.disconnect();
+      finishSource();
+    });
     hammer.start(startAt);
     try { hammer.stop(startAt + 0.09); } catch { /* already stopped */ }
-    return {
+    const voice: AudioVoice = {
       oscs: oscillators,
       g: output,
       stop: (at?: number) => {
         const releaseAt = at ?? context.currentTime;
+        try { hammer.stop(Math.min(startAt + .09, releaseAt)); } catch { /* already stopped */ }
         const release = frequency > 500 ? 0.1 : 0.17;
-        output.gain.cancelScheduledValues(releaseAt);
-        output.gain.setValueAtTime(Math.max(0.0001, output.gain.value), releaseAt);
-        output.gain.exponentialRampToValueAtTime(0.0001, releaseAt + release);
+        if (releaseAt <= startAt) {
+          output.gain.cancelScheduledValues(startAt);
+          output.gain.setValueAtTime(0.0001, startAt);
+        } else if (typeof output.gain.cancelAndHoldAtTime === 'function') {
+          output.gain.cancelAndHoldAtTime(releaseAt);
+        } else {
+          const phase = Math.min(1, (releaseAt - startAt) / .003);
+          output.gain.cancelScheduledValues(releaseAt);
+          output.gain.setValueAtTime(0.0001 + (level - 0.0001) * phase, releaseAt);
+        }
+        output.gain.exponentialRampToValueAtTime(0.0001, Math.max(startAt, releaseAt + release));
         oscillators.forEach(oscillator => {
           try { oscillator.stop(releaseAt + release + 0.05); } catch { /* already stopped */ }
         });
       },
       setBend: () => oscillators.forEach(oscillator => oscillator.detune.setTargetAtTime(this.bendSemitones * 100, context.currentTime, 0.01)),
     };
+    if (duration != null) voice.stop(startAt + duration);
+    return voice;
   }
 
   makeVoice(
@@ -690,23 +742,34 @@ export class AudioEngine {
   ): AudioVoice {
     if (this.tone === 'piano') return this.sampledPianoVoice(frequency, velocity, when, duration, {}, hooks);
     if (this.tone === 'piano-synth') return this.makePianoVoice(frequency, velocity, when, duration);
+    return this.makeSustainedVoice(this.tone, frequency, velocity, when, duration);
+  }
+
+  private makeSustainedVoice(tone: keyof typeof TONES, frequency: number, velocity: number, when?: number, duration?: number): AudioVoice {
     const context = this.context;
     const master = this.master;
     if (!context || !master) throw new Error('Audio is not ready');
     if (this.reverbWet > 0) this.ensureReverbBuffer();
     const startAt = when ?? context.currentTime;
-    const definition = TONES[this.tone] ?? TONES.soft;
+    const definition = TONES[tone];
     const gain = context.createGain();
     const filter = context.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(Math.min(11000, frequency * definition.cutoff + 700), startAt);
     filter.Q.value = 0.6;
     const detune = [0, -7, 7];
+    let active = detune.length;
     const oscillators = detune.map((offset, index) => {
       const oscillator = context.createOscillator();
       oscillator.type = definition.waves[index] ?? 'sine';
       oscillator.frequency.setValueAtTime(frequency, startAt);
       oscillator.detune.setValueAtTime(offset + (definition.octave?.[index] ?? 0) + this.bendSemitones * 100, startAt);
+      connectVoiceSource(oscillator, this.lfoGain, () => {
+        if (--active === 0) {
+          gain.disconnect();
+          filter.disconnect();
+        }
+      });
       oscillator.connect(gain);
       return oscillator;
     });
@@ -725,6 +788,7 @@ export class AudioEngine {
       });
     }
     return {
+      g: gain,
       stop: (at?: number) => {
         const releaseAt = at ?? context.currentTime;
         gain.gain.cancelScheduledValues(releaseAt);
@@ -754,6 +818,18 @@ export class AudioEngine {
     this.liveVoices.delete(midi);
   }
 
+  silenceNote(midi: number): void {
+    const voice = this.liveVoices.get(midi);
+    if (!voice) return;
+    this.noteOff(midi);
+    const gain = (voice.inner ?? voice).g?.gain;
+    if (gain && this.context) {
+      const now = this.context.currentTime;
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(0, now);
+    }
+  }
+
   preview(note: number, when?: number, duration = 0.8, velocity = 96, options: { warm?: boolean; hold?: boolean } = {}): void {
     const context = this.ensureAudio();
     if (!context) return;
@@ -774,6 +850,12 @@ export class AudioEngine {
     this.liveVoices.forEach(voice => voice.setBend());
   }
 
+  setModulation(depth: number, timeConstant = 0.03): void {
+    if (this.lfoGain && this.context) {
+      this.lfoGain.gain.setTargetAtTime(depth, this.context.currentTime, timeConstant);
+    }
+  }
+
   setMasterVolume(value: number): void {
     this.masterVolume = clamp(value, 0, 1);
     this.muted = false;
@@ -783,6 +865,15 @@ export class AudioEngine {
   setReverbWet(value: number): void {
     this.reverbWet = clamp(value, 0, 1);
     if (this.reverbWet > 0) this.ensureReverbBuffer();
+    this.rampReverb();
+  }
+
+  applyOutputMix(): void {
+    this.masterRamp(this.muted ? 0 : this.masterVolume);
+    this.rampReverb();
+  }
+
+  private rampReverb(): void {
     if (this.reverbGain && this.context) {
       this.reverbGain.gain.setTargetAtTime(this.reverbWet, this.context.currentTime, 0.05);
     }
@@ -827,26 +918,11 @@ export class AudioEngine {
   }
 
   metroClick(when: number, accent: boolean): void {
-    const context = this.context;
-    if (!context || !this.master) return;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = accent ? 2100 : 1350;
-    oscillator.connect(gain).connect(this.master);
-    const peak = accent ? 0.3 : 0.16;
-    gain.gain.setValueAtTime(0.0001, when);
-    gain.gain.exponentialRampToValueAtTime(peak, when + 0.001);
-    gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
-    oscillator.start(when);
-    oscillator.stop(when + 0.06);
+    this.scheduleClick(when, accent);
   }
 
-  /**
-   * Schedule the short click used by rhythm and sight-reading views.
-   * Keeping this alias on the audio boundary prevents view code from
-   * constructing Web Audio nodes or depending on the master graph.
-   */
-  scheduleClick(when: number, accent: boolean): AudioVoice | null {
+  /** Schedule a short click and optionally track it until it ends or its owner stops it. */
+  scheduleClick(when: number, accent: boolean, track?: Set<AudioVoice>): AudioVoice | null {
     const context = this.context;
     if (!context || !this.master) return null;
     const oscillator = context.createOscillator();
@@ -859,20 +935,29 @@ export class AudioEngine {
     gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
     oscillator.start(when);
     oscillator.stop(when + 0.06);
-    return {
+    const voice: AudioVoice = {
       oscs: [oscillator],
       stop: (at?: number) => {
         try { oscillator.stop(at ?? context.currentTime); } catch { /* already stopped */ }
       },
       setBend: () => {},
     };
+    if (track) track.add(voice);
+    oscillator.onended = () => {
+      oscillator.onended = null;
+      track?.delete(voice);
+      try { oscillator.disconnect(); } catch { /* already disconnected */ }
+      try { gain.disconnect(); } catch { /* already disconnected */ }
+    };
+    return voice;
   }
 
   startDrone(rootPitchClass: number): void {
     this.stopDrone();
     if (!this.ensureAudio()) return;
+    const tone = this.tone === 'piano' || this.tone === 'piano-synth' ? 'mellow' : this.tone;
     [36 + rootPitchClass, 43 + rootPitchClass].forEach(midi => {
-      this.droneVoices.push(this.makeVoice(midiToFrequency(midi), 52));
+      this.droneVoices.push(this.makeSustainedVoice(tone, midiToFrequency(midi), 52));
     });
   }
 

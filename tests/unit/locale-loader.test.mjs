@@ -40,6 +40,49 @@ describe('on-demand locale payloads', () => {
       expect(payload.LIBRARY).toEqual(language === 'en' ? { en: libraryTranslations.en } : { en: libraryTranslations.en, [language]: libraryTranslations[language] });
     }
   });
+  it('keeps the corrected German and Italian key-playing prompts aligned with their pitch targets', async () => {
+    const { loadLearn } = await import('../../src/locales/loader.ts');
+    const de = await loadLearn('de'), it = await loadLearn('it');
+    for (const [payload, lesson, question, target, text] of [
+      [de, 'iv', 4, { seq: [2, 9] }, 'zuerst D, dann A'],
+      [de, 'sc', 4, { pcs: [7, 11, 2] }, 'G-Dur (G, H, D)'],
+      [de, 'minor', 5, { pcs: [9, 0, 4] }, 'a-Moll-Dreiklang (A, C, E)'],
+      [de, 'ch', 4, { pcs: [5, 9, 0] }, 'F-Dur-Dreiklang (F, A, C)'],
+      [it, 'notation', 4, { seq: [7] }, 'Sol4'],
+      [it, 'iv', 4, { seq: [2, 9] }, 'prima Re, poi La'],
+      [it, 'iv2', 4, { seq: [5, 11] }, 'prima Fa, poi Si'],
+      [it, 'sc', 4, { pcs: [7, 11, 2] }, 'Sol maggiore (Sol, Si, Re)'],
+      [it, 'minor', 5, { pcs: [9, 0, 4] }, 'La minore (La, Do, Mi)'],
+      [it, 'cof', 4, { pcs: [2, 6, 9] }, 'Re maggiore (Re, Fa♯, La)'],
+      [it, 'ch', 3, { pcs: [9, 0, 4] }, 'La minore (La, Do, Mi)'],
+      [it, 'ch', 4, { pcs: [5, 9, 0] }, 'Fa maggiore (Fa, La, Do)'],
+      [it, 'ch7', 5, { pcs: [7, 11, 2, 5] }, 'Sol7 (Sol, Si, Re, Fa)'],
+      [it, 'pr', 4, { pcs: [5, 9, 0] }, 'accordo IV in Do maggiore (Fa, La, Do)'],
+      [it, 'minorh', 3, { pcs: [4, 8, 11] }, 'Mi maggiore'],
+      [it, 'secdom', 4, { pcs: [9, 1, 4, 7] }, 'La7 — V/ii in Do maggiore (La, Do♯, Mi, Sol)'],
+    ]) {
+      expect(payload.LQZ[lesson][question]).toMatchObject({ ...target, q: expect.stringContaining(text) });
+    }
+    for (const payload of [de, it]) {
+      for (const question of Object.values(payload.LQZ).flat().filter(entry => entry.seq || entry.pcs)) {
+        expect(question.q).not.toMatch(/indicat[aeo]|mostrat[aeo]|richiest[aeo]/i);
+      }
+    }
+    for (const [lesson, question] of [
+      ['rh', 2], ['iv', 0], ['iv', 3], ['sc', 3], ['minor', 4],
+      ['ch', 1], ['ch7', 1], ['cad', 2], ['accomp', 1],
+    ]) {
+      expect(de.LQZ[lesson][question].q).toMatch(/Höre|erklingt/);
+      expect(it.LQZ[lesson][question].q).toContain('Ascolta');
+    }
+    expect(de.LQZ.ch[1].o[0]).toBe('Moll');
+    expect(it.LQZ.ch[1].o[0]).toBe('Minore');
+    expect(it.LQZ.cad[2].o[0]).toContain("D'inganno");
+    expect(de.LESSONS.rh2.b).toContain('<h4>Zusammengesetzte Taktarten</h4>');
+    expect(de.LESSONS.rh2.b).toContain('<h4>Tempoangaben</h4>');
+    expect(de.LESSONS.rh2.b.match(/data-staff="rh2[a-c]"/g)).toHaveLength(3);
+  });
+
   it('preserves every effective lesson, quiz, summary and glossary translation in isolated Learn payloads', async () => {
     const { loadLearn } = await import('../../src/locales/loader.ts');
     for (const language of languages) {

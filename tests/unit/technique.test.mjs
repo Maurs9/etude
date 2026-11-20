@@ -39,6 +39,14 @@ describe('technique exercises', () => {
     expect(fingers(f, 'rh')).toBe('123412312341234');
   });
 
+  it('uses playable right-hand transitions at the middle tonic', () => {
+    const ascending = (kind, tonicPc) => fingers(techniqueSteps({ kind, tonicPc, octaves: 2, hands: 'rh' }).slice(0, 15), 'rh');
+    expect(ascending('minor', 6)).toBe('231231234123123');
+    expect(ascending('minor', 8)).toBe('231231234123123');
+    expect(ascending('major', 10)).toBe('212312341231234');
+    expect(ascending('minor', 10)).toBe('212312341231234');
+  });
+
   it('uses the harmonic minor fingering and notes for minor scales', () => {
     const a = techniqueSteps({ kind: 'minor', tonicPc: 9, octaves: 1, hands: 'lh' }).slice(0, 8);
     expect(midis(a, 'lh')).toEqual([57, 59, 60, 62, 64, 65, 68, 69]);

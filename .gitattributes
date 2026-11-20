@@ -1,0 +1,8 @@
+# Keep source and text fixtures LF on every checkout.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.mp3 binary
+*.woff2 binary
+*.mxl binary
+*.mid binary

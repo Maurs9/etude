@@ -1,8 +1,11 @@
+import type { DifficultyAxes } from './score-difficulty.js';
+
 /** Private, device-local score library. Originals are stored separately from metadata. */
 export interface LibraryResume {
   /** Optional expanded performance coordinate and active musical seconds; older saves use the written position. */
   performance?: number;
   elapsed?: number;
+  recon?: { hands: string; grid: number; key: string };
   position: number;
   measure: string;
   /** Percentage from the existing playback speed selector, not a multiplier or BPM. */
@@ -22,6 +25,15 @@ export interface LibraryMetadata {
 
 export type LibraryStudyStatus = 'in_progress' | 'mastered';
 
+export interface LibraryDifficultyRating {
+  version: 1;
+  stars: number;
+  startingBpm?: number;
+  /** Records the tempo used for automatic refresh. Older ratings did not store this. */
+  assessment?: { referenceBpm?: number; tempoFallback: boolean };
+  axes?: DifficultyAxes;
+}
+
 export interface LibraryItem extends LibraryMetadata {
   id: string;
   name: string;
@@ -36,6 +48,8 @@ export interface LibraryItem extends LibraryMetadata {
   lastPlayedDay?: number;
   /** Optional difficulty/study level label (e.g. 'Beginner', 'Intermediate', 'Advanced', 'Level 1'). Absent when unset. */
   level?: string;
+  /** Saved estimate on the first star rubric. The user's level label is independent. */
+  difficultyRating?: LibraryDifficultyRating;
   /** Optional user-defined tags / collection names (up to 20 tags, each 1–64 chars). Absent when empty. */
   tags?: string[];
   /** Optional study status: 'in_progress' (working on it) or 'mastered' (completed). Absent when unset. */
@@ -59,6 +73,11 @@ export interface LibraryUpdatePatch {
   notes?: string | null;
 }
 
+export type LibraryLevelChange = { id: string } & (
+  { previous: string | undefined; level: string } |
+  { previousRating?: LibraryDifficultyRating; rating: LibraryDifficultyRating }
+);
+
 /** A recorded practice run: the updated record and the best accuracy it had before. */
 export interface LibraryPlayResult {
   item: LibraryItem;
@@ -75,10 +94,14 @@ export interface LibraryRestoreResult {
   duplicates: number;
 }
 
+export type OpenedScoreEstimator = (startingBpm?: number) => Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
+
 export interface LibraryHost {
   language(): string;
   /** Parse/validate without disturbing the current score or playback. */
   inspect(file: File): Promise<LibraryMetadata>;
+  /** Estimate without engraving, saving, or altering the open piece. */
+  difficulty(file: File, startingBpm?: number): Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
   /** Open through the existing renderer. Return false if parsing/rendering fails. */
   open(item: LibraryItem, file: File): Promise<boolean>;
   /** Flush the current piece's pending checkpoint before export or opening another piece. */
@@ -87,6 +110,7 @@ export interface LibraryHost {
 
 export interface LibraryController {
   refresh(): Promise<void>;
+  prepareRating(item: LibraryItem, estimate: OpenedScoreEstimator): void;
   localize(): void;
   /** Report a save failure without discarding the open score. */
   notice(key: string): void;

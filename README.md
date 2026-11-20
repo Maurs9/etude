@@ -54,12 +54,48 @@ npm run lint
 npm run test:unit        # Vitest unit tests (tests/unit/)
 npm run test:i18n        # Multi-language i18n pack tests (i18n/tests/)
 npm test                 # Playwright E2E against built dist/etude/ and @sw tests
+npm run build:standalone -- --test-surface  # Build the file required by the dev standalone specs
 npm run test:dev         # Playwright app project against the Vite dev server
 npm run deps:check       # Check npm devDependencies + runtime vendor versions
 npm run osmd:check       # Verify OSMD bundle contract and check npm for updates
 ```
 
 Alternatively, install Playwright's Chromium with `npx playwright install chromium` and set `PW_CHANNEL` to an empty value before running the tests. The Playwright configuration starts its own local server on port 8787.
+
+### Experimental score difficulty report
+
+Run `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/score-difficulty-report.mjs` with Node.js 22.
+Use `--level 1` through `--level 8` to select a book and `--json` for individual pieces,
+their fingerprints, and the decisive measures with per-axis scores. The report runs both
+estimators on the existing books. Use `--fresh` to check new exercises on separate seeds and
+keys, their candidate rankings, same-shape transpositions and selection times.
+
+To calibrate import suggestions, create a local JSON manifest of arrangements graded 1–6.
+Use rows such as `{"file":"scores/example.mxl","level":2,"split":"fit","group":"exact-work"}`.
+Put related arrangements in the same group. Give every grade both fit and held-out references
+and keep distinct work groups in each split. Use the written starting tempo, or add a verified starting tempo as `"bpm":108` when it is missing.
+
+```sh
+node scripts/calibrate-score-difficulty.mjs manifest.json > profile.json
+```
+
+The tool fits thresholds on the fit split, reports the held-out error and baseline on stderr,
+and writes a profile when it beats the constant-grade baseline. `--report-only` accepts rows
+with just a file and lists scores and decisive measures. Originals stay local.
+
+In My Library, load the resulting JSON calibration to supply verified starting tempos.
+In Read, **New reading exercise** selects a fresh piece with the experimental scorer.
+These results use a fingerprint-based ID and leave the numbered book results and daily sets intact.
+
+My Library automatically calculates and saves difficulty stars for existing and newly imported
+scores. **Difficulty (stars)** sorts from the fewest to the most stars. The title opens the score
+or resumes it when a position was saved. The five axes are visible
+beside the title on wide screens and below it on narrow screens. In **Filters**, combine an overall
+star range with a range for one axis. **More → Difficulty details** shows the decisive measures. A missing tempo
+produces a provisional rating. A verified tempo in the calibration profile updates that rating.
+Star ratings travel with library backups. This experimental rubric uses the strongest window and
+typical difficulty independently on each axis.
+Its star scale keeps separating stronger passages above the ceiling of the original 0–100 score.
 
 ## Project structure
 

@@ -151,7 +151,7 @@ export function scoreSymbols(box: HTMLElement, sheet: unknown, context: ScoreSym
         else add(element, scoreTermParts(s, t).length ? 'text' : 'direction', s);
     });
     box.querySelectorAll('svg text').forEach((x) => {
-        if (seen.has(x) || hasSymAncestor(x) || x.closest('.measure-number,.osmd-measure-number'))
+        if (seen.has(x) || hasSymAncestor(x) || x.closest('.measure-number,.osmd-measure-number,.osmd-lyrics'))
             return;
         const s = (x.textContent || '').replace(/\s+/g, ' ').trim();
         if (!s)

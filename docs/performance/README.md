@@ -47,8 +47,8 @@ resource timing and raw CDP metrics. Build output remains in ignored `dist/etude
 
 ## Metrics and interpretation
 
-Ready is the first animation frame that observes `window.__etude.show` and a
-`#keys .key` element, timestamped with navigation-relative `performance.now()`.
+Ready is the first animation frame with a `#keys .key` element after the app
+removes its startup marker, timestamped with navigation-relative `performance.now()`.
 It is not full lesson readiness or a paint metric. Startup CDP task/script time
 is collected before a separate key interaction. Chromium resets duration counters
 on navigation: the harness checks `NavigationStart`, uses post-reset counters or

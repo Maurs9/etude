@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runAndroidRelease } from '../../scripts/android-release.mjs';
+import { localIconUrl, runAndroidRelease, verifyVersionCode } from '../../scripts/android-release.mjs';
 
 vi.mock('node:child_process', { spy: true });
 const { execFileSync: realExec } = await vi.importActual('node:child_process');
@@ -112,6 +112,25 @@ describe('Android release preflight', () => {
     releaseTags.mockImplementation(() => { throw new Error('Release API unavailable'); });
     expect(() => release(['prepare'])).toThrow('Release API unavailable');
   });
+
+  it('requires package.json version to match the release version when present', () => {
+    writeFileSync(join(checkout, 'package.json'), JSON.stringify({ name: 'etude', version: '1.0.23' }));
+    expect(() => release(['prepare'])).toThrow('package.json version 1.0.23 must match release version 1.0.24.');
+
+    writeFileSync(join(checkout, 'package.json'), JSON.stringify({ name: 'etude', version: 'invalid' }));
+    expect(() => release(['prepare'])).toThrow('valid SemVer version');
+
+    writeFileSync(join(checkout, 'package.json'), JSON.stringify({ name: 'etude', version: '1.0.24' }));
+    expect(() => release(['prepare'])).not.toThrow();
+  });
+});
+
+it('keeps repository package.json and package-lock.json aligned on a SemVer version', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  const lock = JSON.parse(readFileSync(new URL('../../package-lock.json', import.meta.url), 'utf8'));
+  expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
+  expect(lock.version).toBe(pkg.version);
+  expect(lock.packages[''].version).toBe(pkg.version);
 });
 
 it('verifies before signing and again before creating a release from the verified tag', () => {
@@ -122,4 +141,40 @@ it('verifies before signing and again before creating a release from the verifie
   expect(workflow).toContain(preflight);
   expect(workflow.indexOf(preflight)).toBeLessThan(workflow.indexOf('Decode signing keystore'));
   expect(workflow).toContain(`${finalCheck}\n          ${create}`);
+});
+
+it('requires a code above both release markers and APK metadata and retries transient download failures', () => {
+  const releases = [
+    { draft: true, tag_name: '', assets: [{ name: 'etude-android-version-code.txt' }] },
+    { tag_name: 'v1', assets: [{ name: 'etude-android-v1.apk' }] },
+    { tag_name: 'v2', assets: [{ name: 'etude-android-version-code.txt' }] },
+  ];
+  let transientFailures = 2;
+  vi.mocked(execFileSync).mockImplementation((command, args) => {
+    if (command === 'aapt2') return "package: name='io.github.maurs9.etude' versionCode='500'";
+    if (args[0] === 'api') return JSON.stringify([releases]);
+    if (args[2] === 'v1' && transientFailures > 0) {
+      transientFailures--;
+      throw new Error('release not found');
+    }
+    writeFileSync(args[args.indexOf('--output') + 1], args[2] === 'v2' ? '1000\n' : 'apk');
+    return '';
+  });
+  try {
+    expect(() => verifyVersionCode(500, 'local/etude', 'aapt2', '.')).toThrow('must exceed 500 from v1');
+    expect(transientFailures).toBe(0);
+    expect(() => verifyVersionCode(900, 'local/etude', 'aapt2', '.')).toThrow('must exceed 1000 from v2');
+    expect(() => verifyVersionCode(1001, 'local/etude', 'aapt2', '.')).not.toThrow();
+  } finally {
+    vi.resetAllMocks();
+  }
+});
+
+it('resolves TWA icons from the checked-out site scope', () => {
+  const scope = new URL('https://maurs9.github.io/etude/');
+  const base = new URL('http://127.0.0.1:1234/');
+  expect(localIconUrl('https://maurs9.github.io/etude/icons/icon-512.png', scope, base))
+    .toBe('http://127.0.0.1:1234/icons/icon-512.png');
+  expect(() => localIconUrl('https://maurs9.github.io/icons/icon-512.png', scope, base))
+    .toThrow('must be in the app');
 });

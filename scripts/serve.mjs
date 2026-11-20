@@ -17,6 +17,7 @@ const TYPES = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.mp3': 'audio/mpeg',
+  '.woff2': 'font/woff2',
 };
 
 export function serve(dir, { port = 0, host = '127.0.0.1' } = {}) {

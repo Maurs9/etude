@@ -505,7 +505,7 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
     const backup = { v: 3, data: { srs: {}, settings: {}, sightLedger: imported } };
     const dialogs = [];
     page.on('dialog', (dialog) => {
-      dialogs.push(dialog.type());
+      dialogs.push({ type: dialog.type(), message: dialog.message() });
       void dialog.accept();
     });
     await Promise.all([
@@ -521,7 +521,7 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
     expect(merged.generation).toBe(localGeneration);
     expect(merged.exposures['v1:imported']).toBeTruthy();
     expect(merged.attempts['attempt-imported'].status).toBe('abandoned');
-    expect(dialogs).toContain('confirm');
+    expect(dialogs.map((entry) => entry.type)).toContain('confirm');
 
     const conflict = { ...importedAttempt, score: 10 };
     await page.locator('#importFile').setInputFiles({
@@ -529,7 +529,9 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify({ v: 3, data: { sightLedger: { ...imported, attempts: { [conflict.attemptId]: conflict } } } })),
     });
-    await expect.poll(() => dialogs.filter((type) => type === 'alert').length).toBe(1);
+    await expect.poll(() => dialogs.filter((entry) => entry.type === 'alert').length).toBe(1);
+    const conflictAlert = dialogs.find((entry) => entry.type === 'alert');
+    expect(conflictAlert?.message).toContain('conflicts with sight-reading history');
     expect((await page.evaluate(() => window.__etude.srtReadLedger(localStorage))).attempts['attempt-imported'].score).toBe(100);
   });
 

@@ -1642,6 +1642,9 @@ test.describe('.mxl archives are checked before they are unpacked', () => {
     expect(await openMxl(page, mxl(score(8), { store: true }))).toMatchObject({ error: null, notes: 8, isError: false, jszip: 1, counted: 0 });
     // ~45 KB packed: past the size where deflate could reach 32 MB, so it is inflated once as a counted stream before JSZip unpacks it
     expect(await openMxl(page, mxl(score(12, randomBytes(45_000).toString('base64'))))).toMatchObject({ error: null, notes: 12, isError: false, jszip: 1, counted: 1 });
+    await expect.poll(() => page.evaluate(async () =>
+      (await window.__etude.scoreLibraryStore.libraryList()).filter(item => item.difficultyRating?.assessment).length)).toBe(3);
+    expect(await page.evaluate(() => window.__unpack)).toEqual({ jszip: 1, counted: 1 });
   });
 
   test('a declared unpacked size over 32 MB is refused without inflating anything', async ({ app }) => {
@@ -2604,6 +2607,28 @@ test('Settings controls receive localized programmatic labels', async ({ app }) 
   expect(romanianInputLabel).not.toBe(englishInputLabel);
 });
 
+test('Voice keeps selected values and updates note names and level labels when settings change', async ({ app }) => {
+  const page = await app.open({ hash: 'sing' });
+  await page.locator('#si-level').selectOption('3');
+  await page.locator('#vo-tab-hum').click();
+  await page.locator('#tr-skey').selectOption('11');
+  await expect(page.locator('#tr-skey option:checked')).toHaveText('B');
+  await page.locator('#tr-sscale').selectOption('Aeolian (Natural minor)');
+  await expect(page.locator('#tr-sscale option:checked')).toHaveText('Aeolian (Natural minor)');
+  await page.locator('#settingsBtn').click();
+  await page.locator('#set-notation [data-v="german"]').click();
+  await page.locator('#set-lang [data-v="ro"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ro');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#tr-skey')).toHaveValue('11');
+  await expect(page.locator('#tr-skey option:checked')).toHaveText('H');
+  await expect(page.locator('#tr-sscale')).toHaveValue('Aeolian (Natural minor)');
+  await expect(page.locator('#tr-sscale option:checked')).toHaveText('Eolic (minor natural)');
+  await page.locator('#vo-tab-sing').click();
+  await expect(page.locator('#si-level')).toHaveValue('3');
+  await expect(page.locator('#si-level option:checked')).toHaveText('4 · gamă majoră');
+});
+
 test('Settings row labels use for= associations and toggle switches when clicked', async ({ app }) => {
   const page = await app.open();
   await page.locator('#settingsBtn').click();
@@ -2708,15 +2733,30 @@ test.describe('daily goal and streak', () => {
     await expect(page.locator('#pr-last')).toContainText('2 / 3 correct');
   });
 
-  test('regular reviews and placement answers still count toward the daily goal and streak', async ({ app, page }) => {
+  test('regular reviews and completed placement count toward the daily goal and streak', async ({ app, page }) => {
     await app.open({ saved });
     const T = todayN();
     await page.evaluate(() => { window.__etude.startSession(null); window.__etude.resolve(window.__etude.SES.q, true); window.__etude.endSession(false); });
     const reviewed = { streak: 4, bestStreak: 4, lastActive: T, todayDay: T, todayCount: 1, newToday: 1, totalReviews: 41, totalCorrect: 31, history: { [y]: 7, [T]: 1 } };
     expect(await counters(page)).toEqual({ mem: reviewed, stored: reviewed, cards: [1] });
     await page.evaluate(() => { window.__etude.startPlacement(); window.__etude.resolve(window.__etude.SES.q, true); window.__etude.endSession(false); });
-    const placed = { ...reviewed, todayCount: 2, totalReviews: 42, totalCorrect: 32, history: { [y]: 7, [T]: 2 } };
-    expect(await counters(page)).toMatchObject({ mem: placed, stored: placed });
+    expect(await counters(page)).toEqual({ mem: reviewed, stored: reviewed, cards: [1] });
+    const complete = await page.evaluate(() => {
+      const e = window.__etude;
+      e.startPlacement();
+      const size = e.SES.queue.length;
+      for (let index = 0; index < size; index++) {
+        e.resolve(e.SES.q, true);
+        if (index + 1 < size) e.nextQuestion();
+      }
+      e.endSession(false);
+      return { size, placed: e.data.placed };
+    });
+    expect(complete.placed).toBe(true);
+    expect(await counters(page)).toMatchObject({
+      mem: { todayCount: reviewed.todayCount + complete.size, totalReviews: reviewed.totalReviews + complete.size },
+      stored: { todayCount: reviewed.todayCount + complete.size, totalReviews: reviewed.totalReviews + complete.size },
+    });
   });
 });
 
@@ -2867,7 +2907,7 @@ test.describe('several open tabs', () => {
   });
 
   test('a reset in another tab is adopted with a notice, the session goes on, and an older record cannot overwrite it', async ({ app, page }) => {
-    await app.open({ saved });
+    await app.open({ saved: { ...saved, gen: 'legacy' } });
     await page.evaluate(() => window.__etude.startSession(null));
     await answer(page);
     const { tab, errors } = await openTab(page);
@@ -2881,7 +2921,7 @@ test.describe('several open tabs', () => {
     expect(await record(page)).toMatchObject({ mem: { reviews: 1, today: 1 }, stored: { reviews: 1, today: 1 }, gen });
 
     // A tab still holding the record from before the reset saves it: this tab puts the newer one back.
-    await tab.evaluate(() => localStorage.setItem('ptt-v3', JSON.stringify({ v: 3, gen: '', lang: 'en', data: { totalReviews: 99 } })));
+    await tab.evaluate(() => localStorage.setItem('ptt-v3', JSON.stringify({ v: 3, gen: 'legacy', lang: 'en', data: { totalReviews: 99 } })));
     await expect.poll(async () => { const r = await record(page); return { gen: r.gen, reviews: r.stored.reviews }; }).toEqual({ gen, reviews: 1 });
 
     await page.locator('#syncNoteBtn').click();
@@ -3261,7 +3301,7 @@ test.describe('UI/UX polish, accessibility, contrast and runtime regressions', (
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await page.locator('#pr-start').hover();
     await expect.poll(async () => page.evaluate(() => getComputedStyle(document.querySelector('#pr-start')).backgroundColor))
-      .toBe('rgb(222, 141, 125)');
+      .toBe('rgb(234, 160, 144)');
     const results = await page.evaluate(() => {
       const parseRgb = str => {
         const srgb = str.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
@@ -3317,5 +3357,22 @@ test.describe('UI/UX polish, accessibility, contrast and runtime regressions', (
 
     const interpolated = await page.evaluate(() => window.__etude.t('snap_item', '$&', "$$ $1 $'"));
     expect(interpolated).toBe("$& ($$ $1 $')");
+  });
+
+  test('intervalLabel formats unison and multi-octave intervals cleanly', async ({ app, page }) => {
+    await app.open({ hash: 'explore' });
+    const en = await page.evaluate(() => [
+      window.__etude.intervalLabel(0),
+      window.__etude.intervalLabel(24),
+      window.__etude.intervalLabel(36),
+    ]);
+    expect(en).toEqual(['Unison', 'Two octaves', 'Octave + 2 octaves']);
+    await page.evaluate(() => window.__etude.setLang('ro'));
+    const ro = await page.evaluate(() => [
+      window.__etude.intervalLabel(0),
+      window.__etude.intervalLabel(24),
+      window.__etude.intervalLabel(36),
+    ]);
+    expect(ro).toEqual(['Unison', 'Două octave', 'Octavă + 2 octave']);
   });
 });

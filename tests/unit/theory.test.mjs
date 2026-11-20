@@ -50,6 +50,16 @@ describe('pure theory helpers', () => {
     expect(romanFor(0, { rootPc: 7, chord: { symbol: '7', pcset: [0, 4, 7, 10] } })).toBe('V⁷');
   });
 
+  it('spells altered degrees in context and identifies extensions in chord-tone order', () => {
+    expect(spellMidi(66, -2, true)).toEqual({ li: 3, acc: 1, oct: 4 });
+    const chord = symbol => CHORD_TEMPLATES.find(template => template.symbol === symbol);
+    expect(chordInversion(0, chord('9'), 64)).toBe(1);
+    const roman = (rootPc, symbol = 'maj') => romanFor(0, { rootPc, chord: chord(symbol) });
+    expect([1, 3, 6, 8, 10].map(root => roman(root))).toEqual(['♭II', '♭III', '♯IV', '♭VI', '♭VII']);
+    expect(roman(2, 'm7♭5')).toBe('iiø⁷');
+    expect(roman(11, 'dim7')).toBe('vii°⁷');
+  });
+
   it('ranks keys and provides diatonic harmony without browser dependencies', () => {
     const notes = [0, 4, 7].map((midi, index) => ({ midi: 60 + midi, start: index, end: index + 1 }));
     expect(anKeyRank(notes)[0]).toHaveProperty('root');

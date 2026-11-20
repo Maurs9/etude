@@ -94,7 +94,11 @@ export interface AnNote {
     finger?: number; explicitVel?: number; dynamicHit?: number; graces?: ScoreGraceNote[]; warm?: boolean; soundRatio?: number;
     roll?: number; nextSame?: number; pedalEnd?: number; soundEnd?: number; parenthesizedAt?: number[];
 }
-export interface ScoreXmlNote extends AnNote { hand: AnHand | null; part: number; staff: number; voice: number; type: string; art: ScoreNoteArticulation; arpeggiate: boolean; }
+export interface ScoreXmlDifficulty {
+    dotted: boolean; tuplet: boolean; accidentals: number; ornaments: number; ledgerLines?: number;
+}
+export interface ScoreXmlRest { start: number; end: number; hand: AnHand | null; part: number; staff: number; voice: number; }
+export interface ScoreXmlNote extends AnNote { difficulty?: ScoreXmlDifficulty; hand: AnHand | null; part: number; staff: number; voice: number; type: string; art: ScoreNoteArticulation; arpeggiate: boolean; }
 export interface AnParsedNote { midi: number; start: number; end: number; vel: number; track: number; channel: number; srcHand?: AnHand; soundEnd?: number; }
 export type AnMidiMeta = { type: 'tempo'; beat: number; bpm: number } | { type: 'time'; beat: number; num: number; den: number } | AnMidiKeyMeta;
 export interface AnMidiKeyMeta { type: 'key'; beat: number; fifths: number; minor: boolean; }
@@ -106,12 +110,12 @@ export interface ScoreXmlLayout {
     titleRuns?: { text: string | null; style: string; weight: string }[];
     staffGap?: number | null; systemGap?: number | null;
 }
-export interface ScoreMeasure { number: string; start: number; end: number; num: number; den: number; }
+export interface ScoreMeasure { number: string; start: number; end: number; num: number; den: number; groups?: number[]; }
 export interface ScoreXmlKey { beat: number; fifths: number; mode: 'major' | 'minor' | null; }
 export interface ScoreXmlHarmony { beat: number; root: number; kind: string; bass: number | null; text: string; }
 export interface ScoreXmlLink { kind: string; a: number; b: number; style: string; }
 export type AnSource =
-    | { kind: 'xml'; title: string; label: string; xml: string; layout: ScoreXmlLayout | null; notes: ScoreXmlNote[]; tempos: { beat: number; bpm: number }[]; measures: ScoreMeasure[]; keys: ScoreXmlKey[]; harmonies?: ScoreXmlHarmony[]; links: ScoreXmlLink[]; tempoWords: ReadonlySet<string> }
+    | { kind: 'xml'; title: string; label: string; xml: string; layout: ScoreXmlLayout | null; notes: ScoreXmlNote[]; difficultyRests?: ScoreXmlRest[]; tempos: { beat: number; bpm: number }[]; measures: ScoreMeasure[]; keys: ScoreXmlKey[]; harmonies?: ScoreXmlHarmony[]; links: ScoreXmlLink[]; tempoWords: ReadonlySet<string> }
     | { kind: 'midi'; title: string; label: string; parsed: AnParsedMidi; comp?: undefined }
     | { kind: 'example'; id: string; title: string; label: string; comp: string; parsed: AnParsedMidi };
 export type AnHandAssignment =

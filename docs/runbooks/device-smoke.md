@@ -19,6 +19,7 @@ Before you start, open **Settings → Your data → Diagnostics** and tap **Copy
 2. Answer a few review questions. Check that **Settings → Your data → Automatic backups** lists a `daily` copy for today.
 3. Tap **Export**. Check that the file downloads and that **Backup** now shows today's date.
 4. On Progress, tap **Reset progress** and confirm. Then restore the `before reset` copy in Settings. Check that your reviews are back.
+5. On a disposable profile in the installed app, import a score into **My Library** and wait for its five difficulty values. Reload and export the library, then restore it to another disposable profile. Confirm the five values and overall stars match and tapping the title opens the score.
 
 ## Update while open
 
@@ -42,7 +43,7 @@ Interval song hints (physical Android/TWA pending): open Practice → Intervals 
 
 ## Record the result
 
-Cursor/audio sync follow-up (physical Android/TWA pending): use the reported Tchaikovsky score at 70% speed. Check the cursor against sounding noteheads after rests, at the last note of each system, through repeats, after pause/resume, and after a live speed change. Check that speed changes between engraved notes are gradual, without stopping at every note or animating across a repeat/system jump. Repeat with the built-in speaker and wired/Bluetooth audio separately. Browser tests verify engraved positions against scheduled Web Audio onsets; physical output latency and display refresh require a device recording.
+Cursor/audio sync follow-up (physical Android/TWA pending): use the reported Tchaikovsky score at 70% speed. Check the cursor against sounding noteheads after rests, at the last note of each system, through repeats, after pause/resume, and after a live speed change. Check that speed changes between engraved notes are gradual, without stopping at every note or animating across a repeat/system jump. Repeat with the built-in speaker and wired/Bluetooth audio separately, including switching outputs during playback. Browser tests verify engraved positions at scheduled Web Audio onsets and simulate delayed output through a repeat. A device recording is needed to measure physical output latency and display refresh.
 
 Score touch tools follow-up (physical Android/TWA pending): open a score in Pieces. With Navigate active, drag with one finger and tap a note. Switch to Select and circle notes with one finger, then try rectangle selection. During an unfinished lasso, add a second finger: the lasso must disappear and the previous selection must remain. Pan and pinch with two fingers; confirm the score visibly grows/shrinks, including page and continuous layouts. Lift one finger and continue moving: navigation must continue until both lift. The next one-finger gesture must use the still-active tool. Repeat in fullscreen, after rotation, and with a stylus if available. Browser tests use Chrome touch emulation and do not verify a physical APK.
 
@@ -73,6 +74,12 @@ Write the date, the Diagnostics text and any step that failed in TODO.md under t
 ### Practice and devices follow-up
 
 - With a USB piano and a second input attached, disconnect the piano and reload while the other input takes over. Connect MIDI while the piano is still unplugged and verify that the other input works. Reconnect the piano and verify that it takes over again.
-- Start timing calibration and dismiss Settings with Close and system Back. Confirm that the scheduled clicks stop in both cases.
+- Start timing calibration and dismiss Settings with Close and system Back. Repeat by switching apps during calibration or a Pieces count-in. Confirm that the scheduled clicks stop. Reopen and calibrate with a Bluetooth speaker to check that the saved offset matches the timing you hear.
+- Save a low volume and distinct Room Ambience level, then close and reopen the installed app. Verify that the first note uses the saved level. In Voice, leave Drone enabled through a phrase, then tap New Melody and confirm that the sound and checkbox both turn off.
 - In Voice, sing a slightly flat target and verify the upward hint. Revoke microphone access during Hum to notes and verify that the captured notes remain available. Re-enable permission and start recording again.
 - Background a running rhythm drill on a phone and verify that it can be restarted without grading the interrupted round.
+
+- On a disposable profile, export progress and restore it from the device file picker. Reopen a saved MIDI score after changing its grid and key, and verify the score uses those settings.
+- On a phone, record both low and high notes in Hum to notes, then play several minutes with synth tones, sustain, and modulation. Verify that pitch tracking remains responsive and the held notes keep their vibrato while earlier voices end.
+- Reconnect a USB piano whose port ID changes and verify that the previous device is selected by name. On a BLE piano, switch devices while connected and check that rapid chords still sound after reconnecting.
+- With Keep screen awake enabled, switch to another app and return, then return to Étude through browser Back. Verify the setting reports the lock again. Disable it and verify it stays off.

@@ -115,6 +115,33 @@ test.describe('data safety', () => {
     expect(await page.evaluate(() => localStorage.getItem('etude-sight-v1'))).toBe(before);
   });
 
+  test('keeps the imported preferences when a save is pending at reload', async ({ app, page }) => {
+    const future = (Date.now() + 86_400_000).toString(36).padStart(9, '0') + 'future';
+    await app.open({ saved: { ...saved, gen: future }, hash: 'progress' });
+    await page.evaluate(() => {
+      const write = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'ptt-v3' && JSON.parse(value).masterVol === 0.15) {
+          Storage.prototype.setItem = write;
+          window.__etude.saveSoon();
+        }
+        return write.call(this, key, value);
+      };
+    });
+    const backup = { ...saved, masterVol: 0.15, muted: true, reverb: 0.45, bpm: 150 };
+    page.once('dialog', dialog => dialog.accept());
+    await Promise.all([
+      page.waitForEvent('load'),
+      page.locator('#importFile').setInputFiles({
+        name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
+      }),
+    ]);
+    await expect(page.locator('#volume')).toHaveValue('15');
+    const restored = await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')));
+    expect(restored).toMatchObject({ ...backup, gen: expect.any(String) });
+    expect(restored.gen > future).toBe(true);
+  });
+
   test('rejects a malformed Pieces map without replacing progress', async ({ app, page }) => {
     await app.open({ saved });
     const dialog = page.waitForEvent('dialog').then(async dialog => {
@@ -128,6 +155,15 @@ test.describe('data safety', () => {
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews)).toBe(7);
     await page.locator('#nav button[data-view="analysis"]').click();
     await expect(page.locator('#pc-list')).toContainText('Prelude');
+  });
+
+  test('shows usable Reading statistics with malformed counters saved by an older build', async ({ app, page }) => {
+    const reading = { tot: { n: 'invalid', ok: 0, ms: 0, sess: 0 } };
+    await app.open({ saved: { ...saved, data: { ...saved.data, reading } }, hash: 'progress' });
+    await expect(page.locator('#rdx-stats .rdx-tiles b').first()).toHaveText('0');
+    await page.evaluate(() => window.__etude.show('read'));
+    await page.locator('#rdt-drills').click();
+    await expect(page.locator('#rdx-hero .rdx-hero-m b').first()).toHaveText('0');
   });
 
   test('Pieces still opens when a previous build saved a null Pieces map', async ({ app, page }) => {
@@ -501,4 +537,71 @@ test.describe('data safety', () => {
     expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(beforePtt);
     await secondTab.close();
   });
+});
+
+test('oversized progress imports are rejected before the file is read', async ({ app, page }) => {
+  await app.open();
+  const message = new Promise(resolve => page.once('dialog', async dialog => {
+    resolve(dialog.message());
+    await dialog.dismiss();
+  }));
+  await page.evaluate(() => {
+    const files = new DataTransfer();
+    files.items.add(new File([new Uint8Array(16 * 1024 * 1024 + 1)], 'oversized.json'));
+    const input = document.querySelector('#importFile');
+    input.files = files.files;
+    input.dispatchEvent(new Event('change'));
+  });
+  expect(await message).toContain('16 MiB');
+});
+
+test('a second progress import is ignored while the first file is being read', async ({ app, page }) => {
+  await app.open();
+  await page.evaluate(() => {
+    window.readBackupNames = [];
+    File.prototype.text = function () {
+      window.readBackupNames.push(this.name);
+      return new Promise(resolve => { window.finishBackupRead = resolve; });
+    };
+  });
+  const input = page.locator('#importFile');
+  const file = name => ({ name, mimeType: 'application/json', buffer: Buffer.from('{}') });
+  await input.setInputFiles(file('first.json'));
+  await expect.poll(() => page.evaluate(() => window.readBackupNames)).toEqual(['first.json']);
+  await input.setInputFiles(file('second.json'));
+  page.on('dialog', dialog => dialog.dismiss());
+  await page.evaluate(() => window.finishBackupRead('{}'));
+  expect(await page.evaluate(() => window.readBackupNames)).toEqual(['first.json']);
+  await input.setInputFiles(file('retry.json'));
+  await expect.poll(() => page.evaluate(() => window.readBackupNames)).toEqual(['first.json', 'retry.json']);
+});
+
+test('upgrade-blocked state disables imports and refuses reset without overwriting saved progress', async ({ app, page }) => {
+  await app.open({ saved });
+  const before = await page.evaluate(() => localStorage.getItem('ptt-v3'));
+  await page.evaluate(async () => {
+    window.__etude.STORE.blocked = 'upgrade';
+    await window.__etude.storeRefresh();
+  });
+
+  await expect(page.locator('#storeNote')).toBeVisible();
+  await expect(page.locator('#storeNoteText')).toContainText('The required backup for updating saved progress could not be made');
+  await expect(page.locator('#storeNoteExport')).toBeVisible();
+  await expect(page.locator('#storeNoteReload')).toBeVisible();
+  await page.locator('#settingsBtn').click();
+  await expect(page.locator('#importBtn')).toBeDisabled();
+  await expect(page.locator('#set-snap-restore')).toBeDisabled();
+  await page.locator('#drawerClose').click();
+  await page.evaluate(() => window.__etude.show('progress'));
+  await expect(page.locator('#prog-import')).toBeDisabled();
+
+  const dialogs = [];
+  page.on('dialog', async dialog => {
+    dialogs.push({ type: dialog.type(), message: dialog.message() });
+    await dialog.accept();
+  });
+  await page.locator('#resetBtn').click();
+  await expect.poll(() => dialogs.some(entry => entry.type === 'alert')).toBe(true);
+  expect(dialogs.find(entry => entry.type === 'alert')?.message).toContain('The required backup for updating saved progress could not be made');
+  expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(before);
 });

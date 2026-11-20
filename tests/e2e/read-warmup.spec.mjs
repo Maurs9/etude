@@ -147,14 +147,15 @@ test.describe('Read warm-up', () => {
     await start(page);
     await passFlash(page);
     await answerDrill(page);
-    // End after one answer finishes the step through the drill's normal end of run.
-    await page.evaluate(() => { const api = window.__etude; const m = api.RD.q.midi; api.handleNoteOn(m, 90, 'test'); api.handleNoteOff(m, 'test'); });
-    await expect.poll(() => page.evaluate(() => window.__etude.RD.n)).toBe(1);
-    await page.locator('#rdx-end').click();
+    await answerDrill(page);
     await expect.poll(() => warm(page)).toMatchObject({ step: 3, steps: ['flash', 'position', 'position', 'rh1'] });
     expect(await page.evaluate(() => window.__etude.RD.L.id)).toBe('rh1');
-    // The rhythm step: End before any tap skips it, and the warm-up ends.
-    await page.locator('#rdx-end').click();
+    await page.evaluate(() => {
+      const e = window.__etude;
+      e.rdRhDone(8.6);
+      e.rdRhNew();
+      e.rdRhDone(8.6);
+    });
     await expect(page.locator('#rdn-home')).toBeVisible();
     await expect(page.locator('#rdn-warm')).toBeHidden();
     await expect(page.locator('#rdn-warm-done')).toContainText(en.rdn_warm_done);
@@ -162,8 +163,9 @@ test.describe('Read warm-up', () => {
     expect(await warm(page)).toMatchObject({ on: false, phase: 'idle' });
     const today = await page.evaluate(() => window.__etude.rdnToday());
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.reading.prefs.warmDone)).toBe(today);
-    // The drill results counted as usual.
-    expect(await page.evaluate(() => window.__etude.rdData().tot.n)).toBeGreaterThanOrEqual(6);
+    const totals = await page.evaluate(() => window.__etude.rdData().tot);
+    expect(totals.n).toBe(10);
+    expect(totals.sess).toBe(1);
     await page.reload();
     await expect(page.locator('#rdn-warm-done')).toBeVisible();
   });
@@ -200,15 +202,16 @@ test.describe('Read warm-up', () => {
     await expect(page.locator('#rdx-sum')).toBeVisible();
   });
 
-  test('Esc on the full-screen stage skips a drill step and gives the focus to the warm-up Back', async ({ app }) => {
+  test('Esc abandons the warm-up without completing it and restores focus', async ({ app }) => {
     const page = await openHome(app);
     await start(page);
     await passFlash(page);
     await expect.poll(() => page.evaluate(() => document.body.dataset.stage)).toBe('immersive');
     await expect(page.locator('#rdn-w-back')).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect.poll(() => warm(page)).toMatchObject({ step: 2, phase: 'drill' });
-    await expect(page.locator('#rdn-w-back')).toBeFocused();
+    await expect.poll(() => warm(page)).toMatchObject({ on: false, phase: 'idle' });
+    await expect(page.locator('#rdn-warm-go')).toBeFocused();
+    await expect(page.locator('#rdn-warm-done')).toHaveCount(0);
   });
 
   test('leaving the Read tab during a flash card abandons the warm-up; the home comes back', async ({ app }) => {

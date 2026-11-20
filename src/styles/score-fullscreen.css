@@ -26,7 +26,7 @@ body[data-score-focus=analysis] #tb-more{display:none!important}
 body[data-score-focus=analysis] #an-work{grid-template-columns:minmax(0,1fr)!important}
 body[data-score-focus=analysis] #an-toolbar{flex-wrap:wrap}
 body[data-score-focus=analysis] .an-zoom:not([hidden]){display:flex!important}
-body[data-score-focus=analysis] #an-kb{display:inline-flex!important}
+body[data-score-focus=analysis] #an-kb:not([hidden]){display:inline-flex!important}
 body[data-score-focus=analysis] #sc-stage{margin-left:auto;min-width:44px}
 #sc-stage span{display:none}
 #sc-fit{white-space:nowrap}

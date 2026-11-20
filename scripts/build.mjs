@@ -35,7 +35,7 @@ async function prepareOutDir(outDir) {
   if (entries.length) throw new Error(`Refusing to build into ${outDir}: it isn't empty, and only dist/etude/ is emptied before a build.`);
 }
 
-export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html'), singleFile = false } = {}) {
+export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html'), singleFile = false, testSurface = false } = {}) {
   outDir = resolve(outDir);
   await prepareOutDir(outDir);
   const chunkOutput = singleFile
@@ -46,6 +46,7 @@ export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html')
             manualChunks(id) {
               const norm = id.replaceAll('\\', '/');
               if (/\/src\/domain\/score-(import|svg-post|midi|feature|harmony|markings|svg-markings|xml-markings|symbols)\.ts$/.test(norm)) return 'score-tools';
+              if (/\/src\/(domain\/score-difficulty(?:-calibration|-import)?|sight-reading\/scored-exercise)\.ts$/.test(norm)) return undefined;
               if (norm.includes('/src/domain/score-library-ui')) return undefined;
               if (norm.includes('/src/sight-reading/') || norm.includes('/src/domain/technique')) return 'sight-reading';
               if (norm.includes('/src/domain/score-') || norm.includes('/src/domain/repertoire-data') || norm.includes('/src/domain/grand-staff') || norm.includes('/src/domain/sightsing-render') || norm.includes('/src/domain/notation') || norm.includes('/src/domain/melody') || norm.includes('/src/domain/theory')) return 'music-domain';
@@ -57,6 +58,7 @@ export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html')
   await viteBuild({
     configFile: join(ROOT, 'vite.config.mjs'),
     root: dirname(input),
+    define: { __ETUDE_TEST_SURFACE__: JSON.stringify(testSurface) },
     build: {
       outDir,
       emptyOutDir: false,

@@ -33,8 +33,9 @@ test.describe('Read home', () => {
     // The head's right side: the streak and today's set as five dots.
     await expect(page.locator('#rdn-streak-n')).toHaveText('0');
     await expect(page.locator('#rdn-streak .goaldots i')).toHaveCount(5);
-    // Other ways to practice: three cards.
-    await expect(page.locator('#rdn-home .tools .tool')).toHaveCount(3);
+    // Other ways to practice include the new exercise generator.
+    await expect(page.locator('#rdn-home .tools .tool')).toHaveCount(4);
+    await expect(page.locator('#rdn-scored')).toBeVisible();
     await expect(page.locator('#rdp-drills')).toBeHidden();
     await expect(page.locator('#rdp-pieces')).toBeHidden();
     await expect(page.locator('#rdn-more-h')).toBeVisible();

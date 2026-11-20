@@ -59,7 +59,7 @@ function hasWebLocks(): boolean {
   return typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function';
 }
 
-const volatileLedgers = new WeakMap<object, SightReadingLedger>();
+const EMPTY_GENERATION = 'gen-initial';
 
 function newGeneration(): string {
   const suffix = Math.floor(Math.random() * 0x1000000).toString(36).padStart(4, '0');
@@ -222,21 +222,12 @@ export function srtLedgerReadStatus(storage: SightReadingStorage): SightReadingL
 export function srtReadLedger(storage: SightReadingStorage): SightReadingLedger {
   const parsed = readRaw(storage);
   if (isLedger(parsed)) {
-    volatileLedgers.delete(storage);
     return normalizeLedger(parsed);
   }
   if (isRecord(parsed) && typeof parsed.schemaVersion === 'number' && parsed.schemaVersion > SRT_LEDGER_SCHEMA) {
     return srtCreateLedger();
   }
-  const volatile = volatileLedgers.get(storage);
-  if (volatile) return volatile;
-  const created = srtCreateLedger();
-  try {
-    storage.setItem(SRT_LEDGER_KEY, JSON.stringify(created));
-  } catch {
-    volatileLedgers.set(storage, created);
-  }
-  return created;
+  return { ...srtCreateLedger(), generation: EMPTY_GENERATION };
 }
 
 function normalizeAttempt(attempt: SightReadingAttempt): SightReadingAttempt {
@@ -252,8 +243,11 @@ function normalizeLedger(ledger: SightReadingLedger): SightReadingLedger {
 
 function saveLedger(storage: SightReadingStorage, ledger: SightReadingLedger): SightReadingLedgerResult {
   try {
+    const previous = storage.getItem(SRT_LEDGER_KEY);
+    if (previous !== null && !isLedger(readRaw(storage))) {
+      storage.setItem(SRT_LEDGER_KEY + '-unreadable', previous);
+    }
     storage.setItem(SRT_LEDGER_KEY, JSON.stringify(ledger));
-    volatileLedgers.delete(storage);
     return { ok: true, ledger };
   } catch {
     return { ok: false, reason: 'storage' };
@@ -379,15 +373,19 @@ function mergeImported(local: SightReadingLedger, imported: SightReadingLedger):
   };
 }
 
-export async function srtLedgerUpdate(storage: SightReadingStorage, operation: SightReadingLedgerOperation): Promise<SightReadingLedgerResult> {
+export async function srtLedgerUpdate(storage: SightReadingStorage, operation: SightReadingLedgerOperation, canWrite = () => true): Promise<SightReadingLedgerResult> {
   if ((operation.type === 'claimExposure' || operation.type === 'recoverOrphanClaims') && !hasWebLocks()) return { ok: false, reason: 'unsupported' };
   return withLedgerLock(async () => {
+    if (!canWrite()) return { ok: false, reason: "unsupported" };
     const raw = readRaw(storage);
     if (isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA)
       return { ok: false, reason: 'unsupported' };
-    let ledger = srtReadLedger(storage);
+    const ledger = srtReadLedger(storage);
     if (operation.type === 'resetLedger') return saveLedger(storage, srtCreateLedger());
-    if (operation.generation !== ledger.generation && operation.type !== 'importLedger') return { ok: false, reason: 'stale_generation' };
+    if (operation.generation !== ledger.generation) return { ok: false, reason: 'stale_generation' };
+    if (operation.type === 'recoverOrphanClaims' && !isLedger(raw)) {
+      return { ok: true, ledger };
+    }
     if (operation.type === 'claimExposure') {
       if (ledger.exposures[operation.fingerprint]) return { ok: false, reason: 'already_exposed' };
       if (Object.keys(ledger.exposures).length >= SRT_MAX_EXPOSURES) return { ok: false, reason: 'quota' };
@@ -396,16 +394,21 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
         [operation.fingerprint]: {
           firstSeenAt: Date.now(),
           reason: 'first-sight',
-          claim: { attemptId: operation.attemptId, ownerTabId: operation.ownerTabId, generation: operation.generation },
+          claim: { attemptId: operation.attemptId, ownerTabId: operation.ownerTabId, generation: ledger.generation },
         },
       };
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures });
     }
     if (operation.type === 'recordExposure' || operation.type === 'recordListen') {
       if (Object.keys(ledger.exposures).length >= SRT_MAX_EXPOSURES && !ledger.exposures[operation.fingerprint]) return { ok: false, reason: 'quota' };
+      const exposure = ledger.exposures[operation.fingerprint];
       const exposures = {
         ...ledger.exposures,
-        [operation.fingerprint]: { firstSeenAt: ledger.exposures[operation.fingerprint]?.firstSeenAt ?? Date.now(), reason: operation.type === 'recordListen' ? 'listen' : operation.reason },
+        [operation.fingerprint]: {
+          ...exposure,
+          firstSeenAt: exposure?.firstSeenAt ?? Date.now(),
+          reason: operation.type === 'recordListen' ? 'listen' : operation.reason,
+        },
       };
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures });
     }
@@ -457,7 +460,6 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
       return saveLedger(storage, { ...ledger, revision: ledger.revision + 1, exposures, attempts: trimAttempts(attempts) });
     }
     if (operation.type === 'importLedger') {
-      if (operation.generation !== ledger.generation) return { ok: false, reason: 'stale_generation' };
       const imported = mergeImported(ledger, operation.imported);
       if (!imported.ok) return imported;
       return saveLedger(storage, imported.ledger);
@@ -507,10 +509,9 @@ async function writeLedgerTransaction(
     return { ok: false, reason: 'unsupported' };
   const ledger = isLedger(raw)
     ? normalizeLedger(raw)
-    : (volatileLedgers.get(storage) ?? srtCreateLedger());
+    : { ...srtCreateLedger(), generation: EMPTY_GENERATION };
   const update = next(ledger);
   if (!update.ok) return update;
-  const prevVolatile = volatileLedgers.get(storage);
   const saved = saveLedger(storage, update.ledger);
   if (!saved.ok) return saved;
   try {
@@ -523,8 +524,6 @@ async function writeLedgerTransaction(
       } else {
         storage.setItem(SRT_LEDGER_KEY, prevRaw);
       }
-      if (prevVolatile) volatileLedgers.set(storage, prevVolatile);
-      else volatileLedgers.delete(storage);
     } catch { }
     throw err;
   }
