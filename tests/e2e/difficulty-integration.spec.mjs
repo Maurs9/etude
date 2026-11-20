@@ -166,11 +166,22 @@ test('library rows show five difficulty axes and save experimental stars without
   const item = page.locator('#library-items [data-library-id]');
   const rating = item.locator('.score-library-rating');
   await rating.scrollIntoViewIfNeeded();
-  await expect(rating).toHaveText(/^[1-5](?:\.5)?★$/);
+  const ratingNumber = rating.locator('.score-library-rating-number');
+  await expect(ratingNumber).toHaveText(/^[1-5]\.\d$/);
+  const tenths = Math.round(Number(await ratingNumber.innerText()) * 10);
+  const graphics = rating.locator('.score-library-star-fill');
+  await expect(graphics).toHaveCount(5);
+  expect(await graphics.evaluateAll(nodes => nodes.map(node => parseFloat(node.style.clipPath.match(/\d+%/)?.[0])))).toEqual(
+    Array.from({ length: 5 }, (_, index) => {
+      const fill = Math.min(10, Math.max(0, tenths - index * 10));
+      return 100 - 10 * fill;
+    }),
+  );
   await rating.click();
   const axes = item.locator('.score-library-axes');
   await expect(axes.locator('dt')).toHaveText(['Technique', 'Rhythm', 'Hand coordination', 'Texture', 'Notation']);
   await expect(axes.locator('dd')).toHaveCount(5);
+  await expect(axes.locator('.score-library-star-graphic')).toHaveCount(5);
   const more = item.locator('[data-library-action=more]');
   const original = item.locator('[data-library-action=download]');
   await expect(original).toBeHidden();

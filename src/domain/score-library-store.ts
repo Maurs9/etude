@@ -53,7 +53,7 @@ export function validateLibraryLevel(value: unknown): string | undefined {
 }
 function difficultyStars(value: unknown): number {
   const stars = number(value, 1, 5);
-  if (!Number.isInteger(stars * 2)) invalid('Invalid difficulty stars.');
+  if (Math.round(stars * 10) / 10 !== stars) invalid('Invalid difficulty stars.');
   return stars;
 }
 export function validateLibraryTags(value: unknown): string[] | undefined {

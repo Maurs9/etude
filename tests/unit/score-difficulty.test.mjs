@@ -26,6 +26,7 @@ describe('experimental difficulty estimate', () => {
     const easy = { motor: 1, rhythm: 1, bimanual: 1, texture: 1, reading: 1 };
     const even = Object.fromEntries(Object.keys(easy).map(key => [key, 3]));
     expect(aggregateDifficultyStars(even)).toBe(3);
+    expect(aggregateDifficultyStars({ ...easy, motor: 4.6 })).toBe(3.6);
     expect(aggregateDifficultyStars({ ...easy, motor: 5 })).toBe(4);
     expect(aggregateDifficultyStars({ ...easy, motor: 5 }, 6)).toBe(4.5);
     expect(performance(timeline([])).difficultyStars).toBeNull();
@@ -41,7 +42,7 @@ describe('experimental difficulty estimate', () => {
     for (const value of [estimate.difficultyStars, ...Object.values(estimate.axisDifficulty).map(axis => axis.stars)]) {
       expect(value).toBeGreaterThanOrEqual(1);
       expect(value).toBeLessThanOrEqual(5);
-      expect(Number.isInteger(value * 2)).toBe(true);
+      expect(Math.round(value * 10) / 10).toBe(value);
     }
   });
   it('finds four difficult measures even when the median of a 100-measure piece stays easy', () => {

@@ -108,7 +108,7 @@ const round = (value: number) => Math.round(value * 100) / 100;
 // At the original axis ceiling the star scale is halfway through its range.
 // Stronger passages continue to separate instead of all receiving the maximum.
 const axisStars = (strength: number) => 5 - 4 / (1 + Math.max(0, strength));
-const roundStars = (value: number) => Math.round(Math.min(5, Math.max(1, value)) * 2) / 2;
+const roundStars = (value: number) => Math.round(Math.min(5, Math.max(1, value)) * 10) / 10;
 
 export function aggregateDifficultyStars(axes: DifficultyAxes, endurance = 0): number {
   const [first, second, ...others] = DIFFICULTY_AXES.map(axis => axes[axis]).sort((a, b) => b - a);

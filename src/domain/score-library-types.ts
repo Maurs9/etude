@@ -37,7 +37,7 @@ export interface LibraryItem extends LibraryMetadata {
   lastPlayedDay?: number;
   /** Optional difficulty/study level label (e.g. 'Beginner', 'Intermediate', 'Advanced', 'Level 1'). Absent when unset. */
   level?: string;
-  /** Saved estimate on the first half-star rubric. The user's level label is independent. */
+  /** Saved estimate on the first star rubric. The user's level label is independent. */
   difficultyRating?: { version: 1; stars: number; startingBpm?: number };
   /** Optional user-defined tags / collection names (up to 20 tags, each 1–64 chars). Absent when empty. */
   tags?: string[];

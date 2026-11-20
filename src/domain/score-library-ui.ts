@@ -322,8 +322,30 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       void pending.finally(() => { estimatingRow = false; queueVisibleRating(); });
     }, 0);
   }
+  function starNumber(stars: number): string {
+    return stars.toLocaleString(host.language(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  }
   function starLabel(stars: number): string {
-    return `${stars.toLocaleString(host.language(), { maximumFractionDigits: 1 })}★`;
+    return `${starNumber(stars)}★`;
+  }
+  function starGraphic(stars: number): HTMLElement {
+    const result = element('span', 'score-library-star-score');
+    const value = element('span', 'score-library-rating-number');
+    value.textContent = starNumber(stars);
+    const graphic = element('span', 'score-library-star-graphic');
+    graphic.setAttribute('aria-hidden', 'true');
+    for (let index = 0; index < 5; index++) {
+      const star = element('span', 'score-library-star');
+      star.textContent = '☆';
+      const fill = element('span', 'score-library-star-fill');
+      fill.textContent = '★';
+      const tenths = Math.min(10, Math.max(0, Math.round(stars * 10) - index * 10));
+      fill.style.clipPath = `inset(0 ${100 - 10 * tenths}% 0 0)`;
+      star.append(fill);
+      graphic.append(star);
+    }
+    result.append(value, graphic);
+    return result;
   }
   function updateRowRating(id: string): void {
     const row = rows.get(id), item = items.find(item => item.id === id);
@@ -331,10 +353,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const result = currentEstimate(id)?.result;
     const stars = (result?.uncertainty.tempoFallback ? item.difficultyRating?.stars : undefined) ??
       result?.difficultyStars ?? item.difficultyRating?.stars;
-    const label = stars === undefined ? t(result === undefined ? 'rating_open' : 'rating_unavailable') : starLabel(stars);
-    row.rating.textContent = label;
+    const label = t(result === undefined ? 'rating_open' : 'rating_unavailable');
+    if (stars === undefined) {
+      if (row.rating.textContent !== label) row.rating.textContent = label;
+    } else if (row.rating.querySelector('.score-library-rating-number')?.textContent !== starNumber(stars)) {
+      row.rating.replaceChildren(starGraphic(stars));
+    }
     row.rating.setAttribute('aria-label', stars === undefined ? label : t('rating_summary', {
-      rating: stars.toLocaleString(host.language(), { maximumFractionDigits: 1 }),
+      rating: starNumber(stars),
     }) + (result?.uncertainty.tempoFallback ? `. ${t('estimate_tempo')}` : ''));
     row.rating.dataset.rated = String(stars !== undefined);
     row.rating.dataset.provisional = String(result?.uncertainty.tempoFallback === true);
@@ -351,7 +377,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         const { stars, measures } = result.axisDifficulty[axis];
         const pair = element('div'), name = element('dt'), rating = element('dd');
         name.textContent = t(`rating_${axis}`);
-        rating.textContent = starLabel(stars);
+        rating.append(starGraphic(stars));
         if (measures.length) {
           const bars = element('small');
           bars.textContent = t('rating_measures', { bars: [...new Set(measures)].join(', ') });
@@ -597,7 +623,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       else if (estimateFailed) text.push(t('estimate_failed'));
       else if (difficulty?.peak) {
         if (difficulty.difficultyStars !== null) text.push(t('rating_summary', {
-          rating: difficulty.difficultyStars.toLocaleString(host.language(), { maximumFractionDigits: 1 }),
+          rating: starNumber(difficulty.difficultyStars),
         }));
         text.push(t('estimate_result', { score: difficulty.score, bars: difficulty.peak.writtenMeasures.join(', ') }));
         if (difficulty.uncertainty.tempoFallback) text.push(t('estimate_tempo'));

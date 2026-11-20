@@ -179,6 +179,13 @@
 }
 #score-library .score-library-rating[data-rated=true] { color: var(--accent); }
 #score-library .score-library-rating[data-provisional=true] { border-style: dashed; }
+#score-library .score-library-star-score {
+  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+#score-library .score-library-star-graphic { display: inline-flex; color: var(--accent); font-size: .85rem; }
+#score-library .score-library-star { position: relative; display: inline-block; line-height: 1; }
+#score-library .score-library-star-fill { position: absolute; inset: 0; }
 #score-library .score-library-rating-details {
   flex-basis: 100%; margin-block: 4px; padding: 8px 10px; border-inline-start: 2px solid var(--line);
 }
@@ -188,6 +195,7 @@
 }
 #score-library .score-library-axes dt { font-size: .8rem; color: var(--muted); }
 #score-library .score-library-axes dd { margin: 2px 0 0; font-weight: 700; }
+#score-library .score-library-axes .score-library-star-graphic { font-size: .75rem; }
 #score-library .score-library-axes small { display: block; font-weight: 400; color: var(--muted); }
 #score-library .score-library-rating-details > button { margin-block-start: 4px; }
 #score-library label.score-library-row-select {
