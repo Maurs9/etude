@@ -156,7 +156,7 @@ test('bulk recalculation previews existing levels and applies only the reviewed 
   expect((await get(id(other))).level).toBeUndefined();
 });
 
-test('library rows show five difficulty axes and save experimental stars without replacing levels', async ({ app, page }) => {
+test('library rows show five difficulty axes and automatically save stars without replacing levels', async ({ app, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await app.open({ hash: 'analysis' });
   await page.locator('#score-library summary').click();
@@ -195,12 +195,9 @@ test('library rows show five difficulty axes and save experimental stars without
   const id = createHash('sha256').update(xml).digest('hex');
   await page.evaluate(id => window.__etude.scoreLibraryStore.libraryUpdate(id, { level: 'Level 4', notes: 'Keep' }), id);
   const stored = () => page.evaluate(id => window.__etude.scoreLibraryStore.libraryGet(id).then(value => value.item), id);
+  await expect.poll(async () => (await stored()).difficultyRating?.assessment?.tempoFallback).toBe(false);
   await page.locator('#library-rate-all').click();
-  await expect(page.locator('#library-level-preview')).toContainText('Changes: 1. Unchanged: 0. Skipped: 0.');
-  expect(await stored()).toMatchObject({ level: 'Level 4', notes: 'Keep' });
-  expect((await stored()).difficultyRating).toBeUndefined();
-  await page.getByRole('button', { name: 'Save proposed stars' }).click();
-  await expect(page.locator('#library-status')).toContainText('Difficulty stars saved for 1 scores');
+  await expect(page.locator('#library-level-preview')).toContainText('Changes: 0. Unchanged: 1. Skipped: 0.');
   const saved = await stored();
   expect(saved).toMatchObject({ level: 'Level 4', notes: 'Keep', difficultyRating: { version: 1, stars: expect.any(Number) } });
   const list = page.locator('#library-items');
@@ -208,4 +205,49 @@ test('library rows show five difficulty axes and save experimental stars without
   await page.reload();
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
   expect(await stored()).toEqual(saved);
+});
+
+test('Level orders older and newly opened scores by their automatic star ratings', async ({ app, page }) => {
+  await app.open({ hash: 'today' });
+  await page.evaluate(async source => {
+    const store = window.__etude.scoreLibraryStore;
+    const fastPassage = [3, 6, 3, 6].map(octave => `<note><pitch><step>G</step><octave>${octave}</octave></pitch><duration>1</duration><type>eighth</type></note>`).join('');
+    const fast = source.replace('tempo="120"', 'tempo="260"').replace(/<note><pitch><step>G.*?<\/note>/, fastPassage);
+    const easy = source.replace('tempo="120"', 'tempo="35"');
+    for (const [title, music, level] of [['Z Easy older score', easy, 'Level 6'], ['A Fast older score', fast, 'Level 1']]) {
+      const file = new File([music], `${title}.musicxml`);
+      const { item } = await store.librarySave(file, { title, composer: '' });
+      await store.libraryUpdate(item.id, { level });
+      if (music === fast) await store.libraryUpdateLevels([{ id: item.id, rating: { version: 1, stars: 1 } }]);
+    }
+    window.__etude.show('analysis');
+  }, xml);
+  await page.locator('#score-library summary').click();
+  await page.locator('#library-sort').selectOption('level');
+  const stored = () => page.evaluate(() => window.__etude.scoreLibraryStore.libraryList());
+  await expect.poll(async () => (await stored()).filter(item => item.difficultyRating?.assessment).length).toBe(2);
+  const titles = page.locator('#library-items h3');
+  await expect(titles).toHaveText(['Z Easy older score', 'A Fast older score']);
+  const update = new Map((await stored()).map(item => [item.title, item]));
+  expect(update.get('Z Easy older score').level).toBe('Level 6');
+  expect(update.get('A Fast older score').difficultyRating.stars).toBeGreaterThan(update.get('Z Easy older score').difficultyRating.stars);
+  await page.locator('#library-sort').selectOption('level_label');
+  await expect(titles).toHaveText(['A Fast older score', 'Z Easy older score']);
+
+  const unmarked = xml.replace('<direction><sound tempo="120"/></direction>', '');
+  const id = createHash('sha256').update(unmarked).digest('hex');
+  await page.locator('#score-library summary').click();
+  await page.locator('#an-file').setInputFiles({ name: 'No tempo.musicxml', mimeType: 'application/xml', buffer: Buffer.from(unmarked) });
+  const newItem = async () => (await stored()).find(item => item.id === id);
+  await expect.poll(async () => (await newItem())?.difficultyRating?.assessment?.tempoFallback).toBe(true);
+  await page.reload();
+  await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
+  await page.locator('#score-library summary').click();
+  await expect(page.locator(`[data-library-id="${id}"] .score-library-rating`)).toHaveAttribute('data-provisional', 'true');
+  await page.locator('#library-difficulty-calibration').setInputFiles({
+    name: 'tempo-profile.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ version: 1, cutoffs: [10, 20, 30, 40, 50], startingTempos: { [id]: 72 } })),
+  });
+  await expect.poll(async () => (await newItem())?.difficultyRating?.assessment).toEqual({ referenceBpm: 72, tempoFallback: false });
+  await expect(page.locator(`[data-library-id="${id}"] .score-library-rating`)).toHaveAttribute('data-provisional', 'false');
 });

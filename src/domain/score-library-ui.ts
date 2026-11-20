@@ -1,7 +1,7 @@
 import { readDifficultyCalibration, suggestedDifficulty, type DifficultyCalibration } from './score-difficulty-calibration.js';
 import type { DifficultyAxis } from './score-difficulty.js';
 import type { ImportedDifficultyEstimate } from './score-difficulty-import.js';
-import type { LibraryController, LibraryHost, LibraryItem, LibraryLevelChange, LibraryStudyStatus } from './score-library-types.js';
+import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryLevelChange, LibraryStudyStatus } from './score-library-types.js';
 import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate, libraryUpdateLevels } from './score-library-store.js';
 import { parseJson } from './storage.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
@@ -65,7 +65,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     return { key, option };
   });
   filterLabel.append(filterText, filter);
-  const sortKeys = ['added', 'recent', 'title', 'composer', 'level', 'difficulty', 'progress_desc', 'progress_asc'] as const;
+  const sortKeys = ['added', 'recent', 'title', 'composer', 'level', 'level_label', 'progress_desc', 'progress_asc'] as const;
   const sortLabel = element('label', 'score-library-filter score-library-sort');
   const sortText = element('span');
   const sort = element('select');
@@ -219,9 +219,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const profile = readDifficultyCalibration(raw);
       if (!profile) throw new Error('Invalid difficulty calibration');
       localStorage.setItem(DIFFICULTY_CALIBRATION_KEY, JSON.stringify(profile));
-      calibration = profile;
-      levelPlan = null;
-      render();
+      applyCalibration(profile);
       notice('calibration_loaded');
     }, 'calibration_invalid');
   });
@@ -276,32 +274,29 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     editor: Editor | null;
   };
   const rows = new Map<string, Row>();
-  type Estimate = { bpm: number | undefined; promise: Promise<ImportedDifficultyEstimate | null>; result?: ImportedDifficultyEstimate | null };
+  type Estimate = { bpm: number | undefined; promise: Promise<ImportedDifficultyEstimate | null>; result?: ImportedDifficultyEstimate | null; saveAttempted?: boolean };
   const estimates = new Map<string, Estimate>();
-  const visibleRatings = new Set<string>();
-  let estimatingRow = false;
-  const ratingObserver = new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      if (!(entry.target instanceof HTMLElement) || !entry.target.dataset.libraryId) continue;
-      const id = entry.target.dataset.libraryId;
-      if (entry.isIntersecting) visibleRatings.add(id);
-      else visibleRatings.delete(id);
-    }
-    queueVisibleRating();
-  });
+  let ratingWorkerActive = false;
+  let ratingSortTimer = 0;
 
-  function referenceTempo(id: string): number | undefined {
-    return items.find(item => item.id === id)?.difficultyRating?.startingBpm ?? calibration?.startingTempos?.[id];
+  function referenceTempo(id: string, item = items.find(item => item.id === id)): number | undefined {
+    return item?.difficultyRating?.startingBpm ?? calibration?.startingTempos?.[id];
   }
 
-  function currentEstimate(id: string): Estimate | undefined {
+  function currentEstimate(id: string, item?: LibraryItem): Estimate | undefined {
     const estimate = estimates.get(id);
-    return estimate && estimate.bpm === referenceTempo(id) ? estimate : undefined;
+    return estimate && estimate.bpm === referenceTempo(id, item) ? estimate : undefined;
   }
-  function scoreForItem(id: string): Promise<ImportedDifficultyEstimate | null> {
-    const cached = currentEstimate(id);
-    if (cached) return cached.promise;
-    const bpm = referenceTempo(id);
+  function displayedStars(item: LibraryItem): number | undefined {
+    return currentEstimate(item.id, item)?.result?.difficultyStars ?? item.difficultyRating?.stars;
+  }
+  function makeRating(stars: number, referenceBpm: number | undefined, tempoFallback: boolean, startingBpm?: number): LibraryDifficultyRating {
+    return { version: 1, stars, ...(startingBpm === undefined ? {} : { startingBpm }),
+      assessment: { ...(referenceBpm === undefined ? {} : { referenceBpm }), tempoFallback } };
+  }
+  function scoreForItem(id: string, bpm = referenceTempo(id)): Promise<ImportedDifficultyEstimate | null> {
+    const cached = estimates.get(id);
+    if (cached && cached.bpm === bpm) return cached.promise;
     const promise = libraryGet(id).then(stored => stored ? host.difficulty(stored.file, bpm) : null).catch(() => null);
     const pending: Estimate = { bpm, promise };
     estimates.set(id, pending);
@@ -309,18 +304,64 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       pending.result = result;
       if (currentEstimate(id) !== pending) return;
       updateRowRating(id);
+      if (sort.value === 'level' && !ratingSortTimer) {
+        ratingSortTimer = window.setTimeout(() => {
+          ratingSortTimer = 0;
+          if (sort.value !== 'level') return;
+          const focused = document.activeElement;
+          render();
+          if (focused instanceof HTMLElement && list.contains(focused) && document.activeElement === document.body) {
+            focused.focus({ preventScroll: true });
+          }
+        }, 100);
+      }
     });
     return promise;
   }
-  function queueVisibleRating(): void {
-    if (busy || estimatingRow || !details.open) return;
-    const id = [...visibleRatings].find(id => rows.has(id) && !currentEstimate(id));
-    if (!id) return;
-    estimatingRow = true;
+  function needsRating(item: LibraryItem): boolean {
+    const saved = item.difficultyRating?.assessment;
+    return (!saved || saved.referenceBpm !== referenceTempo(item.id, item)) && !currentEstimate(item.id, item)?.saveAttempted;
+  }
+  function applyCalibration(profile: DifficultyCalibration | null): void {
+    calibration = profile;
+    levelPlan = null;
+    render();
+    queueAutomaticRatings();
+  }
+  function queueAutomaticRatings(): void {
+    if (busy || ratingWorkerActive || document.hidden) return;
+    const next = items.find(needsRating);
+    if (!next) return;
+    ratingWorkerActive = true;
+    // Read and analyze one original at a time, yielding between scores so large libraries stay usable.
     window.setTimeout(() => {
-      const pending = busy || !details.open || !visibleRatings.has(id) ? Promise.resolve(null) : scoreForItem(id);
-      void pending.finally(() => { estimatingRow = false; queueVisibleRating(); });
+      void rateAutomatically(next.id).finally(() => {
+        ratingWorkerActive = false;
+        queueAutomaticRatings();
+      });
     }, 0);
+  }
+  async function rateAutomatically(id: string): Promise<void> {
+    if (busy || document.hidden || !items.some(item => item.id === id && needsRating(item))) return;
+    const pending = scoreForItem(id), estimate = currentEstimate(id);
+    const result = await pending;
+    const item = items.find(item => item.id === id);
+    if (!estimate || currentEstimate(id) !== estimate || !item || busy) return;
+    estimate.saveAttempted = true;
+    if (!result || result.difficultyStars === null) return;
+    const previousRating = item.difficultyRating;
+    const rating = makeRating(result.difficultyStars, estimate.bpm, result.uncertainty.tempoFallback, previousRating?.startingBpm);
+    try {
+      const saved = await libraryUpdateLevels([{ id, previousRating, rating }]);
+      if (saved === null || !items.includes(item)) {
+        await refresh();
+        if (saved === null && !items.includes(item)) estimate.saveAttempted = false;
+      }
+      else {
+        item.difficultyRating = rating;
+        updateRowRating(id);
+      }
+    } catch { notice('save_failed'); }
   }
   function starNumber(stars: number): string {
     return stars.toLocaleString(host.language(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -351,8 +392,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const row = rows.get(id), item = items.find(item => item.id === id);
     if (!row || !item) return;
     const result = currentEstimate(id)?.result;
-    const stars = (result?.uncertainty.tempoFallback ? item.difficultyRating?.stars : undefined) ??
-      result?.difficultyStars ?? item.difficultyRating?.stars;
+    const stars = displayedStars(item);
+    const provisional = result?.uncertainty.tempoFallback ?? item.difficultyRating?.assessment?.tempoFallback;
     const label = t(result === undefined ? 'rating_open' : 'rating_unavailable');
     if (stars === undefined) {
       if (row.rating.textContent !== label) row.rating.textContent = label;
@@ -361,13 +402,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     row.rating.setAttribute('aria-label', stars === undefined ? label : t('rating_summary', {
       rating: starNumber(stars),
-    }) + (result?.uncertainty.tempoFallback ? `. ${t('estimate_tempo')}` : ''));
+    }) + (provisional ? `. ${t('estimate_tempo')}` : ''));
     row.rating.dataset.rated = String(stars !== undefined);
-    row.rating.dataset.provisional = String(result?.uncertainty.tempoFallback === true);
+    row.rating.dataset.provisional = String(provisional === true);
     if (row.ratingDetails.hidden) return;
     row.ratingDetails.replaceChildren();
     if (result === undefined) {
       row.ratingDetails.textContent = t('working');
+      void scoreForItem(id);
     } else if (!result?.axisDifficulty) {
       row.ratingDetails.textContent = t('rating_unavailable');
     } else {
@@ -408,9 +450,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const item = items.find(item => item.id === id);
     if (busy || !item) return;
     void run(async () => {
-      const previousBpm = item.difficultyRating?.startingBpm;
-      const updated = await libraryUpdateLevels([{ id, previous: item.difficultyRating?.stars, previousBpm,
-        stars, startingBpm: manualBpm ?? previousBpm }]);
+      const previousRating = item.difficultyRating;
+      const rating = makeRating(stars, manualBpm ?? referenceTempo(id), false, manualBpm ?? previousRating?.startingBpm);
+      const updated = await libraryUpdateLevels([{ id, previousRating, rating }]);
       await refresh();
       if (statusCopy?.key !== 'unavailable') {
         if (updated === null) notice('reclassify_conflict');
@@ -438,8 +480,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const line = element('li');
       if ('change' in entry) {
         const change = entry.change;
-        const before = typeof change.previous === 'number' ? starLabel(change.previous) : change.previous ?? ('stars' in change ? '—' : t('no_level'));
-        line.textContent = t('reclassify_change', { title: entry.title, before, after: 'stars' in change ? starLabel(change.stars) : change.level });
+        const before = 'rating' in change ? (change.previousRating ? starLabel(change.previousRating.stars) : '—') : change.previous ?? t('no_level');
+        line.textContent = t('reclassify_change', { title: entry.title, before, after: 'rating' in change ? starLabel(change.rating.stars) : change.level });
+        if ('rating' in change && change.rating.assessment?.tempoFallback) line.textContent += ` · ${t('estimate_tempo')}`;
       } else line.textContent = t(entry.skipped === 'tempo' ? 'reclassify_tempo' : 'reclassify_failed', { title: entry.title });
       return line;
     }));
@@ -457,7 +500,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       (control as HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).disabled = value;
     }
     renderLevelPreview();
-    if (!value) queueVisibleRating();
+    if (!value) queueAutomaticRatings();
   }
   async function run(action: () => Promise<void>, errorKey: LibraryTextKey = 'action_failed'): Promise<void> {
     if (busy) return;
@@ -481,6 +524,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (editingId !== null && !items.some(item => item.id === editingId)) editingId = null;
       loaded = true;
       render();
+      queueAutomaticRatings();
     } catch {
       // Do not turn a storage failure into a false empty-library message.
       if (sequence === readSequence) notice('unavailable');
@@ -817,9 +861,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       ratingDetails.hidden = !ratingDetails.hidden;
       rating.setAttribute('aria-expanded', String(!ratingDetails.hidden));
       if (ratingDetails.hidden) return;
-      updateRowRating(id);
       if (currentEstimate(id)?.result === null) estimates.delete(id);
-      void scoreForItem(id);
+      updateRowRating(id);
     });
     select.addEventListener('change', () => {
       if (busy) return;
@@ -1023,14 +1066,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         if (!ca !== !cb) return ca ? -1 : 1;
         return ca.localeCompare(cb, locale, { numeric: true }) || compareByTitle(a, b);
       }
-      if (effectiveSort === 'level') {
+      if (effectiveSort === 'level_label') {
         const la = a.level ?? '';
         const lb = b.level ?? '';
         if (!la !== !lb) return la ? -1 : 1;
         return la.localeCompare(lb, locale, { numeric: true }) || compareByTitle(a, b);
       }
-      if (effectiveSort === 'difficulty') {
-        return (a.difficultyRating?.stars ?? Infinity) - (b.difficultyRating?.stars ?? Infinity) || compareByTitle(a, b);
+      if (effectiveSort === 'level') {
+        return (displayedStars(a) ?? Infinity) - (displayedStars(b) ?? Infinity) || compareByTitle(a, b);
       }
       if (effectiveSort === 'progress_desc' || effectiveSort === 'progress_asc') {
         const pa = a.progress;
@@ -1085,8 +1128,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     for (const [id, row] of rows) {
       if (!visible.has(id)) {
-        ratingObserver.unobserve(row.node);
-        visibleRatings.delete(id);
         row.node.remove(); rows.delete(id);
       }
     }
@@ -1097,7 +1138,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (!row) {
         row = createRow(item.id);
         rows.set(item.id, row);
-        ratingObserver.observe(row.node);
       }
       if (group.value !== 'none') {
         const { label } = groupMeta(item);
@@ -1319,10 +1359,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const fresh = await libraryList(count => { unreadable = count; });
       const entries: LevelEntry[] = [];
       for (const item of fresh) {
+        if (calibration !== profile) { notice('reclassify_conflict'); return; }
         const title = item.title || item.name;
         try {
-          const result = await scoreForItem(item.id);
-          if (!result || result.difficultyStars === null || result.uncertainty.tempoFallback) {
+          const bpm = referenceTempo(item.id, item);
+          const result = await scoreForItem(item.id, bpm);
+          if (!result || result.difficultyStars === null || (mode === 'levels' && result.uncertainty.tempoFallback)) {
             entries.push({ title, skipped: result?.peak ? 'tempo' : 'failed' });
             continue;
           }
@@ -1333,17 +1375,16 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
             if (previous === level || previous === `Level ${grade}`) unchanged++;
             else entries.push({ title, change: { id: item.id, previous, level } });
           } else {
-            const previous = item.difficultyRating?.stars;
-            if (previous === result.difficultyStars) unchanged++;
-            else {
-              const previousBpm = item.difficultyRating?.startingBpm;
-              entries.push({ title, change: { id: item.id, previous, stars: result.difficultyStars, previousBpm, startingBpm: previousBpm } });
-            }
+            const previousRating = item.difficultyRating;
+            const rating = makeRating(result.difficultyStars, bpm, result.uncertainty.tempoFallback, previousRating?.startingBpm);
+            if (JSON.stringify(previousRating) === JSON.stringify(rating)) unchanged++;
+            else entries.push({ title, change: { id: item.id, previousRating, rating } });
           }
         } catch {
           entries.push({ title, skipped: 'failed' });
         }
       }
+      if (calibration !== profile) { notice('reclassify_conflict'); return; }
       levelPlan = { mode, entries, unchanged, unreadable };
       notice('reclassify_ready');
       renderLevelPreview();
@@ -1426,7 +1467,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     });
   });
   window.addEventListener('focus', () => { if (!busy) void refresh(); });
-  details.addEventListener('toggle', queueVisibleRating);
+  window.addEventListener('storage', event => {
+    if (event.key !== DIFFICULTY_CALIBRATION_KEY && event.key !== null) return;
+    let profile: DifficultyCalibration | null = null;
+    try { profile = readDifficultyCalibration(parseJson(event.newValue ?? 'null')); }
+    catch { /* Invalid profiles are treated as absent. */ }
+    applyCalibration(profile);
+  });
+  document.addEventListener('visibilitychange', queueAutomaticRatings);
   window.addEventListener('beforeunload', event => {
     if (busy) { event.preventDefault(); event.returnValue = ''; }
   });
