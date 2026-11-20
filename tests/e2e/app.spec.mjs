@@ -1642,6 +1642,9 @@ test.describe('.mxl archives are checked before they are unpacked', () => {
     expect(await openMxl(page, mxl(score(8), { store: true }))).toMatchObject({ error: null, notes: 8, isError: false, jszip: 1, counted: 0 });
     // ~45 KB packed: past the size where deflate could reach 32 MB, so it is inflated once as a counted stream before JSZip unpacks it
     expect(await openMxl(page, mxl(score(12, randomBytes(45_000).toString('base64'))))).toMatchObject({ error: null, notes: 12, isError: false, jszip: 1, counted: 1 });
+    await expect.poll(() => page.evaluate(async () =>
+      (await window.__etude.scoreLibraryStore.libraryList()).filter(item => item.difficultyRating?.assessment).length)).toBe(3);
+    expect(await page.evaluate(() => window.__unpack)).toEqual({ jszip: 1, counted: 1 });
   });
 
   test('a declared unpacked size over 32 MB is refused without inflating anything', async ({ app }) => {

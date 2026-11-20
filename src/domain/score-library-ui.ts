@@ -1,7 +1,7 @@
 import { readDifficultyCalibration, suggestedDifficulty, type DifficultyCalibration } from './score-difficulty-calibration.js';
 import type { DifficultyAxis } from './score-difficulty.js';
 import type { ImportedDifficultyEstimate } from './score-difficulty-import.js';
-import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryLevelChange, LibraryStudyStatus } from './score-library-types.js';
+import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryLevelChange, LibraryStudyStatus, OpenedScoreEstimator } from './score-library-types.js';
 import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate, libraryUpdateLevels } from './score-library-store.js';
 import { parseJson } from './storage.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
@@ -294,10 +294,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     return { version: 1, stars, ...(startingBpm === undefined ? {} : { startingBpm }),
       assessment: { ...(referenceBpm === undefined ? {} : { referenceBpm }), tempoFallback } };
   }
-  function scoreForItem(id: string, bpm = referenceTempo(id)): Promise<ImportedDifficultyEstimate | null> {
+  function scoreForItem(id: string, bpm = referenceTempo(id), estimateOpened?: OpenedScoreEstimator): Promise<ImportedDifficultyEstimate | null> {
     const cached = estimates.get(id);
     if (cached && cached.bpm === bpm) return cached.promise;
-    const promise = libraryGet(id).then(stored => stored ? host.difficulty(stored.file, bpm) : null).catch(() => null);
+    const promise = (estimateOpened
+      ? new Promise<void>(resolve => { window.setTimeout(resolve, 0); }).then(() => estimateOpened(bpm))
+      : libraryGet(id).then(stored => stored ? host.difficulty(stored.file, bpm) : null)).catch(() => null);
     const pending: Estimate = { bpm, promise };
     estimates.set(id, pending);
     void promise.then(result => {
@@ -1480,6 +1482,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   });
   const controller: LibraryController = {
     refresh, localize,
+    prepareRating(item, estimate): void {
+      if (needsRating(item)) void scoreForItem(item.id, referenceTempo(item.id, item), estimate);
+    },
     notice(key: string): void {
       const known = ['save_failed', 'saving', 'saved', 'resume_failed'] as const;
       const match = known.find(candidate => candidate === key);

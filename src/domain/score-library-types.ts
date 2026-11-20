@@ -91,6 +91,8 @@ export interface LibraryRestoreResult {
   duplicates: number;
 }
 
+export type OpenedScoreEstimator = (startingBpm?: number) => Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
+
 export interface LibraryHost {
   language(): string;
   /** Parse/validate without disturbing the current score or playback. */
@@ -105,6 +107,7 @@ export interface LibraryHost {
 
 export interface LibraryController {
   refresh(): Promise<void>;
+  prepareRating(item: LibraryItem, estimate: OpenedScoreEstimator): void;
   localize(): void;
   /** Report a save failure without discarding the open score. */
   notice(key: string): void;
