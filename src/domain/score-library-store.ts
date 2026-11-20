@@ -51,6 +51,11 @@ export function validateLibraryLevel(value: unknown): string | undefined {
   const trimmed = text(value, 64).trim();
   return trimmed || undefined;
 }
+function difficultyStars(value: unknown): number {
+  const stars = number(value, 1, 5);
+  if (Math.round(stars * 10) / 10 !== stars) invalid('Invalid difficulty stars.');
+  return stars;
+}
 export function validateLibraryTags(value: unknown): string[] | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value) || value.length > 20) invalid('Invalid library tags.');
@@ -124,6 +129,11 @@ function itemValue(value: unknown): LibraryItem {
   if (v.lastPlayedDay !== undefined) item.lastPlayedDay = dayNumber(v.lastPlayedDay);
   const level = validateLibraryLevel(v.level);
   if (level !== undefined) item.level = level;
+  if (v.difficultyRating !== undefined) {
+    const rating = record(v.difficultyRating);
+    if (rating.version === 1) item.difficultyRating = { version: 1, stars: difficultyStars(rating.stars),
+      ...(rating.startingBpm === undefined ? {} : { startingBpm: number(rating.startingBpm, 20, 400) }) };
+  }
   const tags = validateLibraryTags(v.tags);
   if (tags !== undefined) item.tags = tags;
   const status = validateLibraryStatus(v.status);
@@ -304,23 +314,37 @@ export async function libraryUpdate(id: string, patch: LibraryUpdatePatch): Prom
 export async function libraryUpdateLevels(changes: readonly LibraryLevelChange[]): Promise<number | null> {
   if (changes.length > MAX_ITEMS) invalid('Too many level changes.');
   const ids = new Set<string>();
-  const clean = changes.map(({ id, previous, level }) => {
+  const clean: LibraryLevelChange[] = changes.map(change => {
+    const { id } = change;
     if (!/^[a-f0-9]{64}$/u.test(id) || ids.has(id)) invalid('Invalid or duplicate score ID.');
     ids.add(id);
-    const next = validateLibraryLevel(level);
+    if ('stars' in change) return { id, stars: difficultyStars(change.stars),
+      previous: change.previous === undefined ? undefined : difficultyStars(change.previous),
+      previousBpm: change.previousBpm === undefined ? undefined : number(change.previousBpm, 20, 400),
+      startingBpm: change.startingBpm === undefined ? undefined : number(change.startingBpm, 20, 400) };
+    const next = validateLibraryLevel(change.level);
     if (!next) invalid('Expected a nonempty level.');
-    return { id, previous: validateLibraryLevel(previous), level: next };
+    return { id, previous: validateLibraryLevel(change.previous), level: next };
   });
   if (!clean.length) return 0;
   return transaction('readwrite', async tx => {
     const store = tx.objectStore('metadata');
     const updates: LibraryItem[] = [];
-    for (const { id, previous, level } of clean) {
-      const raw: unknown = await request(store.get(id));
+    for (const change of clean) {
+      const raw: unknown = await request(store.get(change.id));
       if (!raw) return null;
       const item = itemValue(raw);
-      if (item.level !== previous) return null;
-      if (item.level !== level) updates.push({ ...item, level });
+      if ('stars' in change) {
+        if (item.difficultyRating?.stars !== change.previous || item.difficultyRating?.startingBpm !== change.previousBpm) return null;
+        if (change.stars !== change.previous || change.startingBpm !== change.previousBpm) {
+          const difficultyRating = { version: 1 as const, stars: change.stars,
+            ...(change.startingBpm === undefined ? {} : { startingBpm: change.startingBpm }) };
+          updates.push({ ...item, difficultyRating });
+        }
+      } else {
+        if (item.level !== change.previous) return null;
+        if (item.level !== change.level) updates.push({ ...item, level: change.level });
+      }
     }
     for (const item of updates) await request(store.put(item, item.id));
     return updates.length;

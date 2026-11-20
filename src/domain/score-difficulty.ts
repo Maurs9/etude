@@ -65,6 +65,9 @@ export interface DifficultyAxes {
   reading: number;
 }
 
+export const DIFFICULTY_AXES = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'] as const;
+export type DifficultyAxis = typeof DIFFICULTY_AXES[number];
+
 interface PositionChange {
   hand: DifficultyHand;
   beat: number;
@@ -90,6 +93,8 @@ export interface DifficultyEstimate {
   score: number;
   peak: DifficultyWindow | null;
   typical: number;
+  difficultyStars: number | null;
+  axisDifficulty: Readonly<Record<DifficultyAxis, { stars: number; measures: readonly number[] }>> | null;
   endurance: number;
   uniqueWrittenMeasures: number;
   uncertainty: { tempoFallback: boolean; voicesInferred: boolean; handsUnassigned: boolean };
@@ -100,6 +105,26 @@ const HANDS: readonly DifficultyHand[] = ['rh', 'lh'];
 const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
 const unit = (value: number) => Math.min(1, Math.max(0, value));
 const round = (value: number) => Math.round(value * 100) / 100;
+// At the original axis ceiling the star scale is halfway through its range.
+// Stronger passages continue to separate instead of all receiving the maximum.
+const axisStars = (strength: number) => 5 - 4 / (1 + Math.max(0, strength));
+const roundStars = (value: number) => Math.round(Math.min(5, Math.max(1, value)) * 10) / 10;
+
+export function aggregateDifficultyStars(axes: DifficultyAxes, endurance = 0): number {
+  const [first, second, ...others] = DIFFICULTY_AXES.map(axis => axes[axis]).sort((a, b) => b - a);
+  const average = first * 0.45 + second * 0.30 + others.reduce((sum, stars) => sum + stars, 0) / 3 * 0.25;
+  return roundStars(Math.max(first - 1, average) + unit(endurance / 6) * 0.5);
+}
+
+function axisRecord<T>(make: (axis: DifficultyAxis) => T): Record<DifficultyAxis, T> {
+  return { motor: make('motor'), rhythm: make('rhythm'), bimanual: make('bimanual'), texture: make('texture'), reading: make('reading') };
+}
+
+function median(values: number[]): number {
+  values.sort((a, b) => a - b);
+  const middle = Math.floor(values.length / 2);
+  return values.length ? (values[middle] + values[Math.floor((values.length - 1) / 2)]) / 2 : 0;
+}
 
 interface Attack {
   start: number;
@@ -461,7 +486,7 @@ function annotateCoordination(bars: readonly Bar[], input: DifficultyInput, grou
   });
 }
 
-function summarizeWindow(input: DifficultyInput, bars: readonly Bar[], start: number, end: number, profile: DifficultyProfile): DifficultyWindow {
+function summarizeWindow(input: DifficultyInput, bars: readonly Bar[], start: number, end: number, profile: DifficultyProfile): { window: DifficultyWindow; strengths: DifficultyAxes } {
   const structural = profile === 'sightReading';
   const sums = { motor: 0, rhythm: 0, bimanual: 0, texture: 0, reading: 0 };
   let attacks = 0, polyrhythmCost = 0;
@@ -485,17 +510,19 @@ function summarizeWindow(input: DifficultyInput, bars: readonly Bar[], start: nu
   const quarters = input.measures[end].end - input.measures[start].start;
   const seconds = input.measures[end].endSec - input.measures[start].startSec;
   // Initial, uncalibrated rubric. Each axis is bounded before aggregation.
-  const axes = {
-    motor: 100 * unit(sums.motor / (structural ? quarters : seconds) / 3),
-    rhythm: 100 * unit(sums.rhythm / quarters / 0.9),
-    bimanual: 100 * unit(sums.bimanual / measures.length / 3.25),
-    texture: 100 * unit(sums.texture / quarters / 1.1),
-    reading: 100 * unit(sums.reading / measures.length / 3),
+  const strengths = {
+    motor: sums.motor / (structural ? quarters : seconds) / 3,
+    rhythm: sums.rhythm / quarters / 0.9,
+    bimanual: sums.bimanual / measures.length / 3.25,
+    texture: sums.texture / quarters / 1.1,
+    reading: sums.reading / measures.length / 3,
   };
-  return {
+  const axes = axisRecord(axis => 100 * unit(strengths[axis]));
+  const window = {
     startMeasure: start + 1, endMeasure: end + 1, writtenMeasures: measures.map(m => m.writtenIndex + 1), attacks, polyrhythmCost, positionChanges: positionChanges.sort((a, b) => a.beat - b.beat), axes,
     score: axes.motor * 0.28 + axes.rhythm * 0.23 + axes.bimanual * 0.2 + axes.texture * 0.19 + axes.reading * 0.1,
   };
+  return { window, strengths };
 }
 
 function writtenVariety(measures: readonly DifficultyMeasure[], bars: readonly Bar[]) {
@@ -531,19 +558,24 @@ export function estimateScoreDifficulty(input: DifficultyInput, profile: Difficu
   const lengths = [...new Set([Math.min(2, bars.length), Math.min(4, bars.length)])].filter(Boolean);
   const typicalLength = lengths.at(-1);
   const typicalScores: number[] = [];
+  const typicalAxes = axisRecord((): number[] => []);
+  const axisPeaks = axisRecord((): { strength: number; measures: readonly number[] } | null => null);
   let peak: DifficultyWindow | null = null;
   for (const length of lengths) {
     for (let start = 0; start + length <= bars.length; start++) {
       const end = start + length - 1;
       if (!bars.slice(start, end + 1).some(bar => bar.hasSound)) continue;
-      const window = summarizeWindow(input, bars, start, end, profile);
+      const { window, strengths } = summarizeWindow(input, bars, start, end, profile);
       if (!peak || window.score > peak.score) peak = window;
       if (length === typicalLength) typicalScores.push(window.score);
+      for (const axis of DIFFICULTY_AXES) {
+        const previous = axisPeaks[axis];
+        if (!previous || previous.strength < strengths[axis]) axisPeaks[axis] = { strength: strengths[axis], measures: window.writtenMeasures };
+        if (length === typicalLength) typicalAxes[axis].push(strengths[axis]);
+      }
     }
   }
-  typicalScores.sort((a, b) => a - b);
-  const middle = Math.floor(typicalScores.length / 2);
-  const typical = typicalScores.length ? (typicalScores[middle] + typicalScores[Math.floor((typicalScores.length - 1) / 2)]) / 2 : 0;
+  const typical = median(typicalScores);
   const { total, unique } = writtenVariety(input.measures, bars);
   const playedSeconds = input.playedDurationSec ?? input.measures.at(-1)?.endSec ?? 0;
   const durationBonus = playedSeconds > 60 ? Math.log2(playedSeconds / 60) : 0;
@@ -551,8 +583,15 @@ export function estimateScoreDifficulty(input: DifficultyInput, profile: Difficu
     ? Math.min(6, 1.5 * durationBonus * unique / total + 1.2 * Math.log2(1 + unique / 16)) : 0;
   const peakWeight = profile === 'performance' ? 0.68 : 0.58;
   const score = Math.min(100, peakWeight * (peak?.score ?? 0) + (1 - peakWeight) * typical + endurance);
+  const continuousStars = axisRecord(axis => axisStars(peakWeight * (axisPeaks[axis]?.strength ?? 0) +
+    (1 - peakWeight) * median(typicalAxes[axis])));
+  const axisDifficulty = peak && axisRecord(axis => ({
+    stars: roundStars(continuousStars[axis]),
+    measures: axisPeaks[axis]?.strength ? axisPeaks[axis]?.measures ?? [] : [],
+  }));
   return {
     profile, score: round(score), peak, typical: round(typical), endurance: round(endurance), uniqueWrittenMeasures: unique,
+    difficultyStars: peak ? aggregateDifficultyStars(continuousStars, endurance) : null, axisDifficulty,
     uncertainty: { tempoFallback: input.tempoSource === 'fallback', voicesInferred: input.voiceSource === 'inferred', handsUnassigned: unassigned.length > 0 },
   };
 }

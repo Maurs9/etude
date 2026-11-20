@@ -51,7 +51,8 @@ try {
     if (!result.peak || (!reportOnly && result.uncertainty.tempoFallback)) {
       throw new Error(`Calibration requires playable notes and a written starting tempo or a verified BPM in the manifest: ${row.file}`);
     }
-    references.push({ ...row, score: result.score, decisive: result.peak.writtenMeasures, uncertainty: result.uncertainty });
+    references.push({ ...row, score: result.score, decisive: result.peak.writtenMeasures, difficultyStars: result.difficultyStars,
+      axisDifficulty: result.axisDifficulty, uncertainty: result.uncertainty });
   }
   if (reportOnly) console.log(JSON.stringify({ references }, null, 2));
   else {

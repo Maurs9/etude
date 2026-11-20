@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estimateScoreDifficulty } from '../../src/domain/score-difficulty.ts';
+import { aggregateDifficultyStars, estimateScoreDifficulty } from '../../src/domain/score-difficulty.ts';
 import { levelPieceToDifficultyInput } from '../../src/sight-reading/difficulty.ts';
 import { srtGenerateLevelPiece, srtTransposeLevelPiece } from '../../src/sight-reading/melody.ts';
 import { srtLevel } from '../../src/sight-reading/levels.ts';
@@ -22,6 +22,29 @@ const structural = input => estimateScoreDifficulty(input, 'sightReading');
 const regular = (count, start, hand) => Array.from({ length: count }, (_, i) => note(start + i / count, 60, hand));
 
 describe('experimental difficulty estimate', () => {
+  it('keeps an even rating, respects a difficult bottleneck, and bounds the endurance bonus', () => {
+    const easy = { motor: 1, rhythm: 1, bimanual: 1, texture: 1, reading: 1 };
+    const even = Object.fromEntries(Object.keys(easy).map(key => [key, 3]));
+    expect(aggregateDifficultyStars(even)).toBe(3);
+    expect(aggregateDifficultyStars({ ...easy, motor: 4.6 })).toBe(3.6);
+    expect(aggregateDifficultyStars({ ...easy, motor: 5 })).toBe(4);
+    expect(aggregateDifficultyStars({ ...easy, motor: 5 }, 6)).toBe(4.5);
+    expect(performance(timeline([])).difficultyStars).toBeNull();
+  });
+
+  it('reports separate decisive measures for fast attacks and chord texture', () => {
+    const fast = Array.from({ length: 16 }, (_, index) => note(index / 4, index % 2 ? 84 : 60));
+    const wide = [48, 55, 60, 67, 76].map(midi => note(20, midi));
+    const estimate = performance(timeline([...fast, ...wide], 6));
+    expect(estimate.axisDifficulty.motor.measures).toContain(1);
+    expect(estimate.axisDifficulty.texture.measures).toContain(6);
+    expect(estimate.axisDifficulty.texture.measures).not.toContain(1);
+    for (const value of [estimate.difficultyStars, ...Object.values(estimate.axisDifficulty).map(axis => axis.stars)]) {
+      expect(value).toBeGreaterThanOrEqual(1);
+      expect(value).toBeLessThanOrEqual(5);
+      expect(Math.round(value * 10) / 10).toBe(value);
+    }
+  });
   it('finds four difficult measures even when the median of a 100-measure piece stays easy', () => {
     const easy = Array.from({ length: 100 }, (_, i) => note(i * 4));
     const difficult = easy.filter(n => n.start < 48 * 4 || n.start >= 52 * 4);
@@ -191,6 +214,8 @@ describe('generated-book input', () => {
     const b = structural(levelPieceToDifficultyInput(twin));
     expect(a.peak.axes).toEqual(b.peak.axes);
     expect(a.score).toBe(b.score);
+    expect(a.difficultyStars).toBe(b.difficultyStars);
+    expect(a.axisDifficulty).toEqual(b.axisDifficulty);
   });
 
   it('uses the reference tempo already used by the player and the metrical groups independently', () => {

@@ -125,6 +125,7 @@ test('ordinary file opening saves the original once and does not disturb progres
   await expect(rows(page)).toHaveCount(1);
   await library(page);
   const download = page.waitForEvent('download');
+  await rows(page).locator('[data-library-action=more]').click();
   await rows(page).locator('[data-library-action=download]').click();
   const original = await download;
   expect(readFileSync(await original.path(), 'utf8')).toBe(score());
@@ -184,6 +185,7 @@ test('malformed restore and deletion preserve the open score and never resurrect
   await expect(page.locator('#library-status')).toContainText('Could not merge');
   await expect(rows(page)).toHaveCount(1);
   page.once('dialog', dialog => dialog.accept());
+  await rows(page).locator('[data-library-action=more]').click();
   await rows(page).locator('[data-library-action=delete]').click();
   await expect(rows(page)).toHaveCount(0);
   await page.evaluate(() => window.__etude.anLibraryFlush());
@@ -257,6 +259,7 @@ test('library supports inline organization, study status, progress, notes, sorti
   ]);
   await expect(rows(page)).toHaveCount(3);
 
+  await row(page, 'Waltz in A Minor').locator('[data-library-action=more]').click();
   await row(page, 'Waltz in A Minor').locator('[data-library-action=status]').click();
   await settled(page);
   await expect(row(page, 'Waltz in A Minor').locator('.score-library-badge-status')).toContainText('În lucru');

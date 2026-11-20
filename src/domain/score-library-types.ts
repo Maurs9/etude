@@ -37,6 +37,8 @@ export interface LibraryItem extends LibraryMetadata {
   lastPlayedDay?: number;
   /** Optional difficulty/study level label (e.g. 'Beginner', 'Intermediate', 'Advanced', 'Level 1'). Absent when unset. */
   level?: string;
+  /** Saved estimate on the first star rubric. The user's level label is independent. */
+  difficultyRating?: { version: 1; stars: number; startingBpm?: number };
   /** Optional user-defined tags / collection names (up to 20 tags, each 1–64 chars). Absent when empty. */
   tags?: string[];
   /** Optional study status: 'in_progress' (working on it) or 'mastered' (completed). Absent when unset. */
@@ -60,11 +62,10 @@ export interface LibraryUpdatePatch {
   notes?: string | null;
 }
 
-export interface LibraryLevelChange {
-  id: string;
-  previous: string | undefined;
-  level: string;
-}
+export type LibraryLevelChange = { id: string } & (
+  { previous: string | undefined; level: string } |
+  { previous: number | undefined; previousBpm?: number; stars: number; startingBpm?: number }
+);
 
 /** A recorded practice run: the updated record and the best accuracy it had before. */
 export interface LibraryPlayResult {

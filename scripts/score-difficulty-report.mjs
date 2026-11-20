@@ -59,10 +59,14 @@ if (fresh) {
       seen.add(sample.fingerprint);
       const target = pool.find(k => k.id !== key.id && k.mode === key.mode);
       const twin = target && srtTransposeLevelPiece(sample.piece, target.id);
-      if (twin && estimateScoreDifficulty(levelPieceToDifficultyInput(twin), 'sightReading').score !== sample.score) {
+      const estimated = estimateScoreDifficulty(levelPieceToDifficultyInput(sample.piece), 'sightReading');
+      const transposed = twin && estimateScoreDifficulty(levelPieceToDifficultyInput(twin), 'sightReading');
+      if (transposed && (transposed.score !== sample.score || transposed.difficultyStars !== estimated.difficultyStars ||
+          JSON.stringify(transposed.axisDifficulty) !== JSON.stringify(estimated.axisDifficulty))) {
         throw new Error(`Transposition changed the structural score at level ${level}`);
       }
-      samples.push({ key: key.id, score: sample.score, scores: sample.scores, sameShapeTwin: twin?.key.id ?? null, ms });
+      samples.push({ key: key.id, score: sample.score, scores: sample.scores, difficultyStars: estimated.difficultyStars,
+        axisDifficulty: estimated.axisDifficulty, sameShapeTwin: twin?.key.id ?? null, ms });
     }
     return { level, samples };
   });
@@ -81,20 +85,23 @@ const results = levels.map(level => {
     return {
       number: index + 1, key: piece.key.id, fingerprint: fingerprints[index],
       current: piece.difficulty, experimental: next.score, decisive: next.peak, typical: next.typical,
+      difficultyStars: next.difficultyStars, axisDifficulty: next.axisDifficulty,
     };
   });
   return {
     level, count: pieces.length, bookPin: srtHashText(fingerprints.join()), generateMs, analysisMs: Math.round(performance.now() - start),
-    current: range(pieces.map(piece => piece.current)), experimental: range(pieces.map(piece => piece.experimental)), pieces,
+    current: range(pieces.map(piece => piece.current)), experimental: range(pieces.map(piece => piece.experimental)),
+    stars: range(pieces.flatMap(piece => piece.difficultyStars === null ? [] : [piece.difficultyStars])), pieces,
   };
 });
 if (json) {
   console.log(JSON.stringify({ experimental: true, comparableAcrossScales: false, levels: results }, null, 2));
 } else {
-  console.table(results.map(({ level, count, bookPin, generateMs, analysisMs, current, experimental }) => ({
+  console.table(results.map(({ level, count, bookPin, generateMs, analysisMs, current, experimental, stars }) => ({
     level, count, bookPin, generateMs, analysisMs,
     current: `${current.min} / ${current.mean} / ${current.max}`,
     experimental: `${experimental.min} / ${experimental.mean} / ${experimental.max}`,
+    stars: `${stars.min} / ${stars.mean} / ${stars.max}`,
   })));
   console.log('Columns show min / mean / max. The experimental score has its own uncalibrated scale.');
   console.log('Use --json for the decisive measures and per-axis explanation for each piece.');
