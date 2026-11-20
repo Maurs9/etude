@@ -19,6 +19,43 @@ test('the actual scheduler jumps back at a repeat, preserving the written score 
   await page.evaluate(async () => { const a = window.__etude; await a.scorePlay(false, 2); });
   expect(await page.evaluate(() => window.__etude.SCORE.run.notes.some(n => n.start === 0))).toBe(true);
 });
+test('the visible cursor reaches a repeat when the audio reaches the output', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await page.locator('#an-file').setInputFiles({ name: 'repeat.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.evaluate(async () => { const a = window.__etude; a.pracSet('countIn', false); await a.scorePlay(false, 0); });
+  await page.waitForFunction(() => window.__etude.actx.currentTime > .2);
+  const result = await page.evaluate(() => {
+    const a = window.__etude, run = a.SCORE.run, ctx = a.actx;
+    const now = ctx.currentTime, first = run.segs[0];
+    first.a0 = now - (first.t1 - first.t0) / first.f - .04;
+    const audible = now - .12;
+    run.outputTime = 0;
+    ctx.getOutputTimestamp = () => ({ contextTime: audible, performanceTime: performance.now() });
+    a.pracTick();
+    const cursorX = () => {
+      cancelAnimationFrame(a.SCORE.followRaf);
+      a.scoreFollow();
+      const el = a.SCORE.cursorEl;
+      return new DOMMatrix(el.style.transform).m41 + parseFloat(el.style.width) / 2;
+    };
+    const expectedX = sec => a.scoreCursorAt(a.scoreBeatAt(sec)).x * a.SCORE.geo.scale;
+    const before = cursorX();
+    const renderPosition = a.fallTime(now);
+    ctx.getOutputTimestamp = () => ({ contextTime: now, performanceTime: performance.now() });
+    const after = cursorX();
+    a.scoreStop();
+    return {
+      renderPosition,
+      beforeError: Math.abs(before - expectedX(first.t0 + (audible - first.a0) * first.f)),
+      afterError: Math.abs(after - expectedX(renderPosition)),
+    };
+  });
+  expect(result.renderPosition).toBeCloseTo(.04, 2);
+  expect(result.beforeError).toBeLessThan(.5);
+  expect(result.afterError).toBeLessThan(.5);
+});
+
 test('alternate endings create distinct performance ranges without changing the printed measures', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   const volta = xml.replace('<repeat direction="backward"/>', '<ending number="1" type="start"/><ending number="1" type="stop"/><repeat direction="backward"/>')
