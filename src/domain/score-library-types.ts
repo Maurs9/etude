@@ -23,6 +23,14 @@ export interface LibraryMetadata {
 
 export type LibraryStudyStatus = 'in_progress' | 'mastered';
 
+export interface LibraryDifficultyRating {
+  version: 1;
+  stars: number;
+  startingBpm?: number;
+  /** Records the tempo used for automatic refresh. Older ratings did not store this. */
+  assessment?: { referenceBpm?: number; tempoFallback: boolean };
+}
+
 export interface LibraryItem extends LibraryMetadata {
   id: string;
   name: string;
@@ -38,7 +46,7 @@ export interface LibraryItem extends LibraryMetadata {
   /** Optional difficulty/study level label (e.g. 'Beginner', 'Intermediate', 'Advanced', 'Level 1'). Absent when unset. */
   level?: string;
   /** Saved estimate on the first star rubric. The user's level label is independent. */
-  difficultyRating?: { version: 1; stars: number; startingBpm?: number };
+  difficultyRating?: LibraryDifficultyRating;
   /** Optional user-defined tags / collection names (up to 20 tags, each 1–64 chars). Absent when empty. */
   tags?: string[];
   /** Optional study status: 'in_progress' (working on it) or 'mastered' (completed). Absent when unset. */
@@ -64,7 +72,7 @@ export interface LibraryUpdatePatch {
 
 export type LibraryLevelChange = { id: string } & (
   { previous: string | undefined; level: string } |
-  { previous: number | undefined; previousBpm?: number; stars: number; startingBpm?: number }
+  { previousRating?: LibraryDifficultyRating; rating: LibraryDifficultyRating }
 );
 
 /** A recorded practice run: the updated record and the best accuracy it had before. */
@@ -83,6 +91,8 @@ export interface LibraryRestoreResult {
   duplicates: number;
 }
 
+export type OpenedScoreEstimator = (startingBpm?: number) => Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
+
 export interface LibraryHost {
   language(): string;
   /** Parse/validate without disturbing the current score or playback. */
@@ -97,6 +107,7 @@ export interface LibraryHost {
 
 export interface LibraryController {
   refresh(): Promise<void>;
+  prepareRating(item: LibraryItem, estimate: OpenedScoreEstimator): void;
   localize(): void;
   /** Report a save failure without discarding the open score. */
   notice(key: string): void;

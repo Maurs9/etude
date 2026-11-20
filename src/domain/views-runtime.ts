@@ -16247,7 +16247,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
     let src: AnSource;
     try {
         await ensureAnalysisModules();
-        src = kind === 'midi' ? { kind: 'midi', title, label: name, parsed: anParse(await file.arrayBuffer()) } : await anReadXml(file, title);
+        src = kind === 'midi' ? { kind: 'midi', title, label: name, parsed: anParse(await file.arrayBuffer()) } : await anReadXml(file, title, true);
     }
     catch (err) {
         if (token !== AN.loadToken)
@@ -16269,6 +16269,10 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
         const item = libraryItem
             ? await scoreLibraryStore.libraryUpdate(libraryItem.id, { lastOpenedAt: Date.now() })
             : (await scoreLibraryStore.librarySave(file, anLibraryMetadata(src))).item;
+        if (item) scoreLibrary?.prepareRating(item, async (startingBpm) => {
+            const { estimateImportedScore } = await import('./score-difficulty-import.js');
+            return estimateImportedScore(src, startingBpm);
+        });
         if (item && token === AN.loadToken && AN.source === src) {
             if (!libraryItem && src.kind === 'midi' && item.resume?.recon
                 && (item.resume.recon.hands !== AN.recon.hands

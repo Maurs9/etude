@@ -1,4 +1,4 @@
-import type { LibraryImportResult, LibraryItem, LibraryLevelChange, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume, LibraryStudyStatus, LibraryUpdatePatch } from './score-library-types.js';
+import type { LibraryDifficultyRating, LibraryImportResult, LibraryItem, LibraryLevelChange, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume, LibraryStudyStatus, LibraryUpdatePatch } from './score-library-types.js';
 
 const DB_NAME = 'etude-score-library-v1';
 const MAX_FILE = 2 * 1024 * 1024;
@@ -55,6 +55,20 @@ function difficultyStars(value: unknown): number {
   const stars = number(value, 1, 5);
   if (Math.round(stars * 10) / 10 !== stars) invalid('Invalid difficulty stars.');
   return stars;
+}
+function readDifficultyRating(value: unknown): LibraryDifficultyRating | undefined {
+  if (value === undefined) return undefined;
+  const rating = record(value);
+  if (rating.version !== 1) return undefined;
+  const assessment = rating.assessment === undefined ? undefined : record(rating.assessment);
+  return {
+    version: 1, stars: difficultyStars(rating.stars),
+    ...(rating.startingBpm === undefined ? {} : { startingBpm: number(rating.startingBpm, 20, 400) }),
+    ...(assessment === undefined ? {} : { assessment: {
+      ...(assessment.referenceBpm === undefined ? {} : { referenceBpm: number(assessment.referenceBpm, 20, 400) }),
+      tempoFallback: boolean(assessment.tempoFallback),
+    } }),
+  };
 }
 export function validateLibraryTags(value: unknown): string[] | undefined {
   if (value === undefined || value === null) return undefined;
@@ -129,11 +143,8 @@ function itemValue(value: unknown): LibraryItem {
   if (v.lastPlayedDay !== undefined) item.lastPlayedDay = dayNumber(v.lastPlayedDay);
   const level = validateLibraryLevel(v.level);
   if (level !== undefined) item.level = level;
-  if (v.difficultyRating !== undefined) {
-    const rating = record(v.difficultyRating);
-    if (rating.version === 1) item.difficultyRating = { version: 1, stars: difficultyStars(rating.stars),
-      ...(rating.startingBpm === undefined ? {} : { startingBpm: number(rating.startingBpm, 20, 400) }) };
-  }
+  const difficultyRating = readDifficultyRating(v.difficultyRating);
+  if (difficultyRating) item.difficultyRating = difficultyRating;
   const tags = validateLibraryTags(v.tags);
   if (tags !== undefined) item.tags = tags;
   const status = validateLibraryStatus(v.status);
@@ -318,10 +329,11 @@ export async function libraryUpdateLevels(changes: readonly LibraryLevelChange[]
     const { id } = change;
     if (!/^[a-f0-9]{64}$/u.test(id) || ids.has(id)) invalid('Invalid or duplicate score ID.');
     ids.add(id);
-    if ('stars' in change) return { id, stars: difficultyStars(change.stars),
-      previous: change.previous === undefined ? undefined : difficultyStars(change.previous),
-      previousBpm: change.previousBpm === undefined ? undefined : number(change.previousBpm, 20, 400),
-      startingBpm: change.startingBpm === undefined ? undefined : number(change.startingBpm, 20, 400) };
+    if ('rating' in change) {
+      const rating = readDifficultyRating(change.rating), previousRating = readDifficultyRating(change.previousRating);
+      if (!rating || (change.previousRating && !previousRating)) invalid('Invalid difficulty rating.');
+      return { id, rating, previousRating };
+    }
     const next = validateLibraryLevel(change.level);
     if (!next) invalid('Expected a nonempty level.');
     return { id, previous: validateLibraryLevel(change.previous), level: next };
@@ -334,13 +346,10 @@ export async function libraryUpdateLevels(changes: readonly LibraryLevelChange[]
       const raw: unknown = await request(store.get(change.id));
       if (!raw) return null;
       const item = itemValue(raw);
-      if ('stars' in change) {
-        if (item.difficultyRating?.stars !== change.previous || item.difficultyRating?.startingBpm !== change.previousBpm) return null;
-        if (change.stars !== change.previous || change.startingBpm !== change.previousBpm) {
-          const difficultyRating = { version: 1 as const, stars: change.stars,
-            ...(change.startingBpm === undefined ? {} : { startingBpm: change.startingBpm }) };
-          updates.push({ ...item, difficultyRating });
-        }
+      if ('rating' in change) {
+        const current = JSON.stringify(item.difficultyRating);
+        if (current !== JSON.stringify(change.previousRating)) return null;
+        if (current !== JSON.stringify(change.rating)) updates.push({ ...item, difficultyRating: change.rating });
       } else {
         if (item.level !== change.previous) return null;
         if (item.level !== change.level) updates.push({ ...item, level: change.level });

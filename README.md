@@ -93,10 +93,12 @@ loaded profile. **Save proposed levels** updates the reviewed labels in one oper
 contain a `startingTempos` object with verified quarter-note BPM values keyed by the SHA-256 of each
 original file. Scores without a written or verified starting tempo appear as skipped in the preview.
 
-My Library shows a difficulty estimate to one decimal place with a proportional star graphic beside
-each visible score. Select it to see five axes and their decisive measures. **Review difficulty stars** previews ratings for the entire
-library. Saved stars travel with library backups and keep the existing study level labels. This
-experimental rubric uses the strongest window and typical difficulty independently on each axis.
+My Library automatically calculates and saves difficulty stars for existing and newly imported
+scores. **Level (stars)** sorts from the fewest to the most stars. **Level label** sorts the existing study
+labels. Select a score's star graphic to see five axes and their decisive measures. A missing tempo
+produces a provisional rating. A verified tempo in the calibration profile updates that rating.
+Star ratings travel with library backups. This experimental rubric uses the strongest window and
+typical difficulty independently on each axis.
 Its star scale keeps separating stronger passages above the ceiling of the original 0–100 score.
 
 ## Project structure
