@@ -1,4 +1,4 @@
-import type { LibraryImportResult, LibraryItem, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume, LibraryStudyStatus, LibraryUpdatePatch } from './score-library-types.js';
+import type { LibraryImportResult, LibraryItem, LibraryLevelChange, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume, LibraryStudyStatus, LibraryUpdatePatch } from './score-library-types.js';
 
 const DB_NAME = 'etude-score-library-v1';
 const MAX_FILE = 2 * 1024 * 1024;
@@ -298,6 +298,32 @@ export async function libraryUpdate(id: string, patch: LibraryUpdatePatch): Prom
     }
     await request(store.put(item, id));
     return item;
+  });
+}
+/** Apply the exact reviewed levels in one transaction, or return null if a level changed meanwhile. */
+export async function libraryUpdateLevels(changes: readonly LibraryLevelChange[]): Promise<number | null> {
+  if (changes.length > MAX_ITEMS) invalid('Too many level changes.');
+  const ids = new Set<string>();
+  const clean = changes.map(({ id, previous, level }) => {
+    if (!/^[a-f0-9]{64}$/u.test(id) || ids.has(id)) invalid('Invalid or duplicate score ID.');
+    ids.add(id);
+    const next = validateLibraryLevel(level);
+    if (!next) invalid('Expected a nonempty level.');
+    return { id, previous: validateLibraryLevel(previous), level: next };
+  });
+  if (!clean.length) return 0;
+  return transaction('readwrite', async tx => {
+    const store = tx.objectStore('metadata');
+    const updates: LibraryItem[] = [];
+    for (const { id, previous, level } of clean) {
+      const raw: unknown = await request(store.get(id));
+      if (!raw) return null;
+      const item = itemValue(raw);
+      if (item.level !== previous) return null;
+      if (item.level !== level) updates.push({ ...item, level });
+    }
+    for (const item of updates) await request(store.put(item, item.id));
+    return updates.length;
   });
 }
 /** Records a whole-score practice run: the day, and the accuracy (0–100) of a timed run, kept when it beats the best so far. */

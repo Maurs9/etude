@@ -46,14 +46,14 @@ import '../styles/explore.css';
 import '../styles/pieces.css';
 import '../styles/score-fullscreen.css';
 import { performanceTimeline, performanceAt, performanceOf, performanceMarkers, type PerformanceTimeline } from './performance-timeline.js';
-import { endingPasses, repeatRanges, type RepeatBar } from './score-repeats.js';
+import { repeatRanges, scoreXmlRepeatBars } from './score-repeats.js';
 import '../styles/layout.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
 import { srtBuildExpected, type SightReadingExpected, type SightReadingPiece, type SightReadingProfile } from '../sight-reading/model.js';
 import { srtFingerprint, srtLevelFingerprint } from '../sight-reading/fingerprint.js';
 import { srtKeyPool, srtLevel, srtLevelPatterns, srtLevels, srtReadingKey, srtReadingKeys, type ReadingKey, type ReadingKeyId, type ReadingPatternId } from '../sight-reading/levels.js';
 import { SRT_BOOK_PIECES, SRT_DAILY_PIECES, SRT_FOCUS_PIECES, SRT_UNIT_PIECES, srtBookPiece, srtBookUnits, srtDailyPiece, srtFocusPiece, srtLongPiece, type BookUnit } from '../sight-reading/book.js';
-import { srtBookId, srtBookTally, srtChooseLevel, srtDailyId, srtEnsureDaily, srtFocusId, srtFocusTally, srtKeyStatus, srtLevelAverage, srtLevelReady, srtLongId, srtNormalizeBookState, srtPiecesRead, srtRecordResult, srtStreak, type PieceStat, type ReadingBookState } from '../sight-reading/progress.js';
+import { srtScoredId, srtBookId, srtBookTally, srtChooseLevel, srtDailyId, srtEnsureDaily, srtFocusId, srtFocusTally, srtKeyStatus, srtLevelAverage, srtLevelReady, srtLongId, srtNormalizeBookState, srtPiecesRead, srtRecordResult, srtStreak, type PieceStat, type ReadingBookState } from '../sight-reading/progress.js';
 import { srtLevelClicks, srtLevelDurationMs, srtLevelExpected, srtLevelScore } from '../sight-reading/score.js';
 import { srtMelodyRhythm } from '../sight-reading/patterns.js';
 import { SRT_FLASH_MS, srtFlashMatches, srtWarmupPlan, type FlashCard, type WarmupStep } from '../sight-reading/warmup.js';
@@ -6656,7 +6656,8 @@ const SR: SrState = { piece: null, hands: 'both', modeSel: 'learn', names: false
 type RdnScreen = 'home' | 'drills' | 'melody' | 'player' | 'warmup';
 type RdnCtx = { kind: 'book'; level: number; number: number } | { kind: 'focus'; level: number; key: ReadingKeyId; number: number } | { kind: 'daily'; date: string; slot: number }
     // A long piece that gets harder as it goes: the `index`-th of the day.
-    | { kind: 'long'; date: string; level: number; key: ReadingKeyId; index: number };
+    | { kind: 'long'; date: string; level: number; key: ReadingKeyId; index: number }
+    | { kind: 'scored'; piece: GeneratedPiece };
 /** `learn`: the score and stars of a finished Step-by-step run, shown on the result card instead of an evaluation. */
 /** `autoWait`: auto-next waits for a first-sight result to be saved. `melodyMode`: the old melody screen's mode, kept while
  *  the player shows a level piece. `opener`: a selector for the control that left the home, focused again on the way back.
@@ -11292,8 +11293,9 @@ function rdnToolsHtml() {
         `<span class="tool-d">${e(text)}</span><span class="tool-go" aria-hidden="true">→</span></button></li>`;
     return `<ul class="tools" aria-labelledby="rdn-tools-h">` +
         tool('id="rdn-all-drills" data-rdn-focus="all-drills"', t('rdn_tool_drills'), t('rdn_tool_drills_d')) +
+        tool('id="rdn-scored" data-rdn-focus="scored"', t('rdn_scored'), t('rdn_scored_d')) +
         tool('data-rdn-view="analysis" data-rdn-focus="tool-pieces"', t('an_title'), t('tool_analysis_d')) +
-        tool('data-rdn-view="sing" data-rdn-focus="tool-voice"', t('nav_sing'), t('tool_sing_d')) + '</ul>';
+        tool('data-rdn-view="sing" data-rdn-focus="tool-voice"', t('nav_sing'), t('tool_sing_d')) + '</ul><p id="rdn-scored-status" role="status" hidden></p>';
 }
 /** The page head's right side, as on Today: the day streak, and today's set as dots. */
 function rdnStreakUi(state: ReadingBookState, today: string) {
@@ -11413,6 +11415,8 @@ function rdnHomeClick(e: MouseEvent) {
         rdnOpen(rdnLongCtx(state, rdnToday()));
     else if (id === 'rdn-warm-go')
         rdnWarmupStart();
+    else if (id === 'rdn-scored')
+        void rdnOpenScored();
     else if (id === 'rdn-all-drills') {
         rdTab('drills');
         saveAll();
@@ -11703,7 +11707,45 @@ function rdnWarmLocale() {
         rdnWarmFlashUi(false);
 }
 /* ---- the player ---- */
+let rdnScoredBusy = false;
+async function rdnOpenScored() {
+    if (rdnScoredBusy || !rdnWhenSaved(() => { void rdnOpenScored(); })) return;
+    const from = RDN.ctx, screen = RDN.screen, state = rdnBook();
+    const level = from?.kind === 'scored' ? from.piece.level : state.level;
+    const key = state.focusKey;
+    const status = (message: string) => {
+        const el = maybeById(screen === 'home' ? 'rdn-scored-status' : 'rdn-p-live');
+        if (el) {
+            if (screen === 'home') el.hidden = !message;
+            el.textContent = message;
+        }
+    };
+    const current = () => view0() === 'read' && RDN.ctx === from && RDN.screen === screen &&
+        rdnBook().level === state.level && rdnBook().focusKey === key;
+    rdnScoredBusy = true;
+    status(t('rdn_scored_loading'));
+    try {
+        const { srtScoredExercise } = await import('../sight-reading/scored-exercise.js');
+        if (!current()) return;
+        const seen = new Set(rdnSeen());
+        if (from?.kind === 'scored') seen.add(srtLevelFingerprint(from.piece));
+        const result = srtScoredExercise(level, key, crypto.getRandomValues(new Uint32Array(1))[0], seen);
+        if (!result) {
+            status(t('rdn_scored_error'));
+            return;
+        }
+        status('');
+        rdnOpen({ kind: 'scored', piece: result.piece }, screen === 'home' ? 'title' : 'keep');
+    }
+    catch {
+        if (current()) status(t('rdn_scored_error'));
+    }
+    finally {
+        rdnScoredBusy = false;
+    }
+}
 function rdnPieceOf(ctx: RdnCtx): GeneratedPiece | null {
+    if (ctx.kind === 'scored') return ctx.piece;
     if (ctx.kind === 'book')
         return srtBookPiece(ctx.level, ctx.number);
     if (ctx.kind === 'focus')
@@ -11725,6 +11767,8 @@ function rdnHeadText(): { title: string; sub: string } {
     if (!c || !p)
         return { title: '', sub: '' };
     const level = t('rdn_level_head', p.level, rdnLevelName(p.level));
+    if (c.kind === 'scored')
+        return { title: t('rdn_scored'), sub: level };
     if (c.kind === 'long')
         return { title: c.index ? t('rdn_long_n', c.index + 1) : t('rdn_long'), sub: t('rdn_long_sub', p.bars) + ' · ' + level };
     if (c.kind === 'daily')
@@ -11739,7 +11783,7 @@ function rdnPlayerHead() {
     const h = rdnHeadText(), c = RDN.ctx;
     byId('rdn-p-title').textContent = h.title;
     byId('rdn-p-sub').textContent = h.sub;
-    buttonById('rdn-prev').hidden = !c || c.kind === 'daily' || c.kind === 'long';
+    buttonById('rdn-prev').hidden = !c || c.kind === 'daily' || c.kind === 'long' || c.kind === 'scored';
     rdnNavUi();
 }
 /** True while an attempt of the level piece runs: its preview, count-in or playing (or a Step-by-step run). */
@@ -11751,7 +11795,7 @@ function rdnBusy() {
 function rdnNavUi() {
     const c = RDN.ctx, busy = rdnBusy(), prev = maybeById('rdn-prev'), next = maybeById('rdn-next');
     if (prev instanceof HTMLButtonElement)
-        prev.disabled = busy || !c || c.kind === 'daily' || c.kind === 'long' || c.number <= 1;
+        prev.disabled = busy || !c || c.kind === 'daily' || c.kind === 'long' || c.kind === 'scored' || c.number <= 1;
     if (next instanceof HTMLButtonElement)
         next.disabled = busy || !c;
 }
@@ -11851,6 +11895,10 @@ function rdnStep(dir: 1 | -1) {
         return;
     rdnAutoCancel();
     let next: RdnCtx | null = null;
+    if (c.kind === 'scored') {
+        if (dir > 0) void rdnOpenScored();
+        return;
+    }
     if (c.kind === 'daily') {
         if (dir < 0)
             return;
@@ -11890,7 +11938,7 @@ function rdnKey(e: KeyboardEvent) {
         return false;
     if (view0() !== 'read' || RDN.screen !== 'player' || !RDN.ctx || SR.active || SR.listening || inField() || rdnBusy())
         return false;
-    if (e.key === 'ArrowLeft' && (RDN.ctx.kind === 'daily' || RDN.ctx.kind === 'long' || RDN.ctx.number <= 1))
+    if (e.key === 'ArrowLeft' && (RDN.ctx.kind === 'daily' || RDN.ctx.kind === 'long' || RDN.ctx.kind === 'scored' || RDN.ctx.number <= 1))
         return false;
     e.preventDefault();
     rdnStep(e.key === 'ArrowRight' ? 1 : -1);
@@ -12003,7 +12051,7 @@ function rdnRecord(score: number, stars: 0 | 1 | 2 | 3, firstSight: boolean) {
     const p = SR.lvPiece, c = RDN.ctx;
     if (!p || !c)
         return;
-    const id = c.kind === 'book' ? srtBookId(c.level, c.number) : c.kind === 'focus' ? srtFocusId(c.level, c.key, c.number) : c.kind === 'long' ? srtLongId(c.date, c.index) : srtDailyId(c.date, c.slot);
+    const id = c.kind === 'scored' ? srtScoredId(srtLevelFingerprint(p)) : c.kind === 'book' ? srtBookId(c.level, c.number) : c.kind === 'focus' ? srtFocusId(c.level, c.key, c.number) : c.kind === 'long' ? srtLongId(c.date, c.index) : srtDailyId(c.date, c.slot);
     rdnSetBook(srtRecordResult(rdnBook(), { id, level: p.level, key: p.key.id, score, stars, firstSight, date: rdnToday() }));
 }
 /* ---- the result card and auto-next ---- */
@@ -12721,6 +12769,17 @@ async function anLibraryInspect(file: File): Promise<LibraryMetadata> {
         throw anError('midi');
     return { title, composer: '' };
 }
+async function anInspectDifficulty(file: File, startingBpm?: number) {
+    const [{ estimateImportedScore }] = await Promise.all([import('./score-difficulty-import.js'), ensureAnalysisModules()]);
+    if (!file.size || file.size > AN_MAX_BYTES || !/\.(mid|midi|xml|musicxml|mxl)$/i.test(file.name))
+        throw anError('type');
+    const title = file.name.replace(/\.[^.]+$/, '');
+    if (!/\.midi?$/i.test(file.name))
+        return estimateImportedScore(await anReadXml(file, title, true), startingBpm);
+    const parsed = anParse(await file.arrayBuffer());
+    if (!parsed.notes.length || parsed.notes.length > AN_MAX_NOTES) throw anError('midi');
+    return estimateImportedScore({ kind: 'midi', title, label: file.name, parsed }, startingBpm);
+}
 function anLibraryRestoreResume(resume: LibraryResume) {
     selectById('score-speed').value = String(resume.speed);
     pracSet('hands', resume.hands);
@@ -12752,7 +12811,7 @@ function anLibraryEnsure(): Promise<LibraryController> {
             if (!scoreLibrary) {
                 byId('score-library-root').replaceChildren();
                 scoreLibrary = initScoreLibrary(byId('score-library-root'), {
-                    language: () => lang, inspect: anLibraryInspect, open: anLibraryOpen, flush: () => anLibraryFlush(),
+                    language: () => lang, inspect: anLibraryInspect, difficulty: anInspectDifficulty, open: anLibraryOpen, flush: () => anLibraryFlush(),
                 });
             }
             return scoreLibrary;
@@ -14235,26 +14294,9 @@ function pracAcc(st: PracticeStats) { const all = st.perfect + st.good + st.miss
 function scoreRepeatRoute(from: number) {
     if (AN.source?.kind !== 'xml' || !SCORE.xml) return undefined;
     const doc = new DOMParser().parseFromString(SCORE.xml, 'application/xml');
-    const written = [...doc.querySelectorAll('score-partwise > part:first-of-type > measure')];
-    let ending: number[] | undefined;
-    const bars: RepeatBar[] = SCORE.measures.map((m, i) => {
-        const el = written[i], mark = el?.querySelector('ending[type="start"]');
-        if (mark) ending = endingPasses(mark.getAttribute('number') ?? '');
-        const bar: RepeatBar = { start: scoreSeconds(m.start), end: scoreSeconds(m.end), ending,
-            forward: !!el?.querySelector('repeat[direction="forward"]'),
-            backward: el?.querySelector('repeat[direction="backward"]') ? Number(el.querySelector('repeat[direction="backward"]')?.getAttribute('times') || 2) || 2 : undefined };
-        // MusicXML's playback attributes name jump destinations independently of visible words.
-        for (const sound of el?.querySelectorAll('sound') ?? []) {
-            bar.segno = sound.getAttribute('segno') || bar.segno;
-            bar.coda = sound.getAttribute('coda') || bar.coda;
-            bar.daCapo ||= sound.getAttribute('dacapo') === 'yes';
-            bar.dalSegno = sound.getAttribute('dalsegno') || bar.dalSegno;
-            bar.toCoda = sound.getAttribute('tocoda') || bar.toCoda;
-            bar.fine ||= sound.hasAttribute('fine');
-        }
-        if (el?.querySelector('ending[type="stop"],ending[type="discontinue"]')) ending = undefined;
-        return bar;
-    });
+    const bars = scoreXmlRepeatBars(doc, SCORE.measures).map(bar => ({
+        ...bar, start: scoreSeconds(bar.start), end: scoreSeconds(bar.end),
+    }));
     const route = repeatRanges(bars);
     const first = route.findIndex(r => from >= r.a - 1e-6 && from < r.b - 1e-6);
     return first < 0 ? undefined : route.slice(first).map((r, i) => ({ a: i ? r.a : from, b: r.b }));
@@ -16158,9 +16200,10 @@ let anInflatedSize: typeof import('./score-import.js').defaultInflatedSize = asy
     await ensureAnalysisModules();
     return defaultInflatedSize(...args);
 };
-async function anReadXml(file: File, title: string) {
+async function anReadXml(file: File, title: string, captureDifficulty = false) {
     await ensureAnalysisModules();
     return importReadXml(file, title, {
+        captureDifficulty,
         inflatedSize: anInflatedSize,
         loadMxlToXml: async (buf: ArrayBuffer) => {
             await loadOsmd();
@@ -20038,6 +20081,8 @@ const __etudeGetters: Record<string, () => unknown> = {
   "LESSONS": () => LESSONS,
   "learnReady": () => learnLoading ?? Promise.resolve(),
   "scoreLibraryStore": () => scoreLibraryStore,
+  "anInspectDifficulty": () => anInspectDifficulty,
+  "rdnRecord": () => rdnRecord,
   "anLibraryFlush": () => anLibraryFlush,
   "LGEN": () => LGEN,
   "LP": () => LP,

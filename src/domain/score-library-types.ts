@@ -60,6 +60,12 @@ export interface LibraryUpdatePatch {
   notes?: string | null;
 }
 
+export interface LibraryLevelChange {
+  id: string;
+  previous: string | undefined;
+  level: string;
+}
+
 /** A recorded practice run: the updated record and the best accuracy it had before. */
 export interface LibraryPlayResult {
   item: LibraryItem;
@@ -80,6 +86,8 @@ export interface LibraryHost {
   language(): string;
   /** Parse/validate without disturbing the current score or playback. */
   inspect(file: File): Promise<LibraryMetadata>;
+  /** Estimate without engraving, saving, or altering the open piece. */
+  difficulty(file: File, startingBpm?: number): Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
   /** Open through the existing renderer. Return false if parsing/rendering fails. */
   open(item: LibraryItem, file: File): Promise<boolean>;
   /** Flush the current piece's pending checkpoint before export or opening another piece. */

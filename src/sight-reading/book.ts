@@ -171,13 +171,13 @@ export function srtBookPiece(levelId: number, number: number): GeneratedPiece {
 }
 
 /** The fingerprints of a level's book, for the levels where a chance repeat is real. */
-function bookPrints(levelId: number): ReadonlySet<string> {
+export function srtBookPrints(levelId: number): ReadonlySet<string> {
   return levelId <= SMALL_LEVELS ? bookUpTo(levelId, SRT_BOOK_PIECES).seen : new Set<string>();
 }
 
 function runUpTo(levelId: number, key: ReadingKeyId, number: number): Shelf {
   const name = `${levelId}|${key}`;
-  const shelf = RUNS.get(name) ?? { pieces: [], seen: new Set(bookPrints(levelId)) };
+  const shelf = RUNS.get(name) ?? { pieces: [], seen: new Set(srtBookPrints(levelId)) };
   RUNS.set(name, shelf);
   while (shelf.pieces.length < number) {
     const next = shelf.pieces.length + 1;
@@ -259,7 +259,7 @@ export function srtDailyPlan(date: string, levelId: number, options: DailyOption
   const taken = new Set<string>();
   return levels.map(([role, slotLevel], slot) => {
     const base = { slot, role, level: slotLevel, key: keys[slot] };
-    const book = bookPrints(slotLevel);
+    const book = srtBookPrints(slotLevel);
     for (let salt = 0; salt < 200; salt += 1) {
       const piece = candidate(slotLevel, base.key, dailyName(date, base), salt);
       const print = piece ? srtLevelFingerprint(piece) : null;
