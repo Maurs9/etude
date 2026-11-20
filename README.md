@@ -62,6 +62,13 @@ npm run osmd:check       # Verify OSMD bundle contract and check npm for updates
 
 Alternatively, install Playwright's Chromium with `npx playwright install chromium` and set `PW_CHANNEL` to an empty value before running the tests. The Playwright configuration starts its own local server on port 8787.
 
+### Experimental score difficulty report
+
+Run `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/score-difficulty-report.mjs` with Node.js 22.
+Use `--level 1` through `--level 8` to select a book and `--json` for individual pieces,
+their fingerprints, and the decisive measures with per-axis scores. The report runs both
+estimators on the existing books. The experimental scale has no calibrated grade thresholds.
+
 ## Project structure
 
 - `etude.html` — stable application shell
