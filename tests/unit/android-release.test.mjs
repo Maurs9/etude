@@ -143,20 +143,26 @@ it('verifies before signing and again before creating a release from the verifie
   expect(workflow).toContain(`${finalCheck}\n          ${create}`);
 });
 
-it('requires a code above both release markers and APK metadata', () => {
+it('requires a code above both release markers and APK metadata and retries transient download failures', () => {
   const releases = [
     { draft: true, tag_name: '', assets: [{ name: 'etude-android-version-code.txt' }] },
     { tag_name: 'v1', assets: [{ name: 'etude-android-v1.apk' }] },
     { tag_name: 'v2', assets: [{ name: 'etude-android-version-code.txt' }] },
   ];
+  let transientFailures = 2;
   vi.mocked(execFileSync).mockImplementation((command, args) => {
     if (command === 'aapt2') return "package: name='io.github.maurs9.etude' versionCode='500'";
     if (args[0] === 'api') return JSON.stringify([releases]);
+    if (args[2] === 'v1' && transientFailures > 0) {
+      transientFailures--;
+      throw new Error('release not found');
+    }
     writeFileSync(args[args.indexOf('--output') + 1], args[2] === 'v2' ? '1000\n' : 'apk');
     return '';
   });
   try {
     expect(() => verifyVersionCode(500, 'local/etude', 'aapt2', '.')).toThrow('must exceed 500 from v1');
+    expect(transientFailures).toBe(0);
     expect(() => verifyVersionCode(900, 'local/etude', 'aapt2', '.')).toThrow('must exceed 1000 from v2');
     expect(() => verifyVersionCode(1001, 'local/etude', 'aapt2', '.')).not.toThrow();
   } finally {
