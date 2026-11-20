@@ -67,7 +67,26 @@ Alternatively, install Playwright's Chromium with `npx playwright install chromi
 Run `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/score-difficulty-report.mjs` with Node.js 22.
 Use `--level 1` through `--level 8` to select a book and `--json` for individual pieces,
 their fingerprints, and the decisive measures with per-axis scores. The report runs both
-estimators on the existing books. The experimental scale has no calibrated grade thresholds.
+estimators on the existing books. Use `--fresh` to check new exercises on separate seeds and
+keys, their candidate rankings, same-shape transpositions and selection times.
+
+To calibrate import suggestions, create a local JSON manifest of arrangements graded 1–6.
+Use rows such as `{"file":"scores/example.mxl","level":2,"split":"fit","group":"exact-work"}`.
+Put related arrangements in the same group. Give every grade both fit and held-out references
+and keep distinct work groups in each split. Use the written starting tempo, or add a verified starting tempo as `"bpm":108` when it is missing.
+
+```sh
+node scripts/calibrate-score-difficulty.mjs manifest.json > profile.json
+```
+
+The tool fits thresholds on the fit split, reports the held-out error and baseline on stderr,
+and writes a profile when it beats the constant-grade baseline. `--report-only` accepts rows
+with just a file and lists scores and decisive measures. Originals stay local.
+
+In My Library, load the resulting JSON calibration, then use **Estimate difficulty** in a
+score's **Organize** editor. You can apply a suggested level to an empty field and edit it before
+saving. In Read, **New reading exercise** selects a fresh piece with the experimental scorer.
+These results use a fingerprint-based ID and leave the numbered book results and daily sets intact.
 
 ## Project structure
 

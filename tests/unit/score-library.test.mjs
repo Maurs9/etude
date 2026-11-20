@@ -87,7 +87,7 @@ describe('library localized copy', () => {
         const filled = libraryText(language, key, {
           count: 2, title: 'Test', date: 'Today', measure: '4', time: '0:12',
           added: 2, duplicates: 1, errors: 0, best: 92, group: 'Bach', level: '2',
-          progress: 65, notes: 'Legato', status: 'In progress',
+          progress: 65, notes: 'Legato', status: 'In progress', score: 42, bars: '6–9',
         });
         expect(filled, key).not.toMatch(/\{\w+\}/);
       }

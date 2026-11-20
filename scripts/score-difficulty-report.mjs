@@ -13,8 +13,8 @@ registerHooks({
   },
 });
 
-const USAGE = 'Usage: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/score-difficulty-report.mjs [--level 1..8] [--json]';
-let levels = [1, 2, 3, 4, 5, 6, 7, 8], json = false;
+const USAGE = 'Usage: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/score-difficulty-report.mjs [--level 1..8] [--fresh] [--json]';
+let levels = [1, 2, 3, 4, 5, 6, 7, 8], json = false, fresh = false;
 for (const arg of process.argv.slice(2)) {
   if (arg === '--help') {
     console.log(USAGE);
@@ -23,6 +23,7 @@ for (const arg of process.argv.slice(2)) {
 }
 for (let i = 2; i < process.argv.length; i++) {
   if (process.argv[i] === '--json') json = true;
+  else if (process.argv[i] === '--fresh') fresh = true;
   else if (process.argv[i] === '--level' && /^[1-8]$/.test(process.argv[i + 1] ?? '')) levels = [Number(process.argv[++i])];
   else {
     console.error(USAGE);
@@ -41,6 +42,34 @@ const [{ srtBook }, { srtLevelFingerprint }, { srtHashText }, { levelPieceToDiff
 
 const mean = values => Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 100) / 100;
 const range = values => ({ min: Math.min(...values), mean: mean(values), max: Math.max(...values) });
+if (fresh) {
+  const [{ srtScoredExercise }, { srtKeyPool }, { srtTransposeLevelPiece }, { srtRuleViolations }] = await Promise.all([
+    import('../src/sight-reading/scored-exercise.ts'), import('../src/sight-reading/levels.ts'),
+    import('../src/sight-reading/melody.ts'), import('../src/sight-reading/rules.ts'),
+  ]);
+  const observations = levels.map(level => {
+    const pool = srtKeyPool(level), chosen = [0, Math.floor(pool.length / 2), pool.length - 1];
+    const seen = new Set(), samples = [];
+    for (const [i, index] of chosen.entries()) {
+      const key = pool[index], before = performance.now();
+      const sample = srtScoredExercise(level, key.id, 862039 + i * 43, seen);
+      const ms = Math.round(performance.now() - before);
+      if (!sample || sample.score !== sample.scores[Math.floor(sample.scores.length / 2)] ||
+          srtRuleViolations(sample.piece).length) throw new Error(`Invalid scored exercise at level ${level}`);
+      seen.add(sample.fingerprint);
+      const target = pool.find(k => k.id !== key.id && k.mode === key.mode);
+      const twin = target && srtTransposeLevelPiece(sample.piece, target.id);
+      if (twin && estimateScoreDifficulty(levelPieceToDifficultyInput(twin), 'sightReading').score !== sample.score) {
+        throw new Error(`Transposition changed the structural score at level ${level}`);
+      }
+      samples.push({ key: key.id, score: sample.score, scores: sample.scores, sameShapeTwin: twin?.key.id ?? null, ms });
+    }
+    return { level, samples };
+  });
+  console.log(JSON.stringify(observations, null, 2));
+  process.exit(0);
+}
+
 const results = levels.map(level => {
   const before = performance.now();
   const book = srtBook(level);

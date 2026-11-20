@@ -153,7 +153,7 @@ export function isSafeRecordKey(key: string): boolean {
 
 const parseUnknown: (text: string, reviver: (key: string, value: unknown) => unknown) => unknown = JSON.parse;
 
-function parseJson(text: string): unknown {
+export function parseJson(text: string): unknown {
   return parseUnknown(text, (key, value) => isSafeRecordKey(key) ? value : undefined);
 }
 

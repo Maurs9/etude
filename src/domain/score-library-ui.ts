@@ -1,7 +1,11 @@
+import { readDifficultyCalibration, suggestedDifficulty, type DifficultyCalibration } from './score-difficulty-calibration.js';
+import type { ImportedDifficultyEstimate } from './score-difficulty-import.js';
 import type { LibraryController, LibraryHost, LibraryItem, LibraryStudyStatus } from './score-library-types.js';
 import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate } from './score-library-store.js';
+import { parseJson } from './storage.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
 
+const DIFFICULTY_CALIBRATION_KEY = 'etude-difficulty-calibration-v1';
 const controllers = new WeakMap<HTMLElement, LibraryController>();
 type Values = Record<string, string | number>;
 // eslint-disable-next-line no-undef -- TypeScript DOM map; not a runtime global.
@@ -170,11 +174,37 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   restore.type = 'file';
   restore.accept = '.json,application/json';
   restoreLabel.append(restoreText, restore);
-  transfer.append(transferNote, backup, restoreLabel);
+  const calibrationLabel = element('label', 'score-library-picker');
+  const calibrationText = element('span'), calibrationFile = element('input');
+  calibrationFile.type = 'file';
+  calibrationFile.id = 'library-difficulty-calibration';
+  calibrationFile.accept = '.json,application/json';
+  calibrationLabel.append(calibrationText, calibrationFile);
+  transfer.append(transferNote, backup, restoreLabel, calibrationLabel);
   content.append(privacy, toolbar, protection, status, corruptStatus, failures, list, empty, transfer);
   details.append(summary, content);
   root.append(details);
 
+  let calibration: DifficultyCalibration | null = null;
+  try {
+    const saved = parseJson(localStorage.getItem(DIFFICULTY_CALIBRATION_KEY) ?? 'null');
+    calibration = readDifficultyCalibration(saved);
+  }
+  catch { /* Private browsing can deny storage. The library still works. */ }
+  calibrationFile.addEventListener('change', () => {
+    const file = calibrationFile.files?.[0];
+    calibrationFile.value = '';
+    if (!file) return;
+    void run(async () => {
+      const raw = file.size <= 4096 ? parseJson(await file.text()) : null;
+      const profile = readDifficultyCalibration(raw);
+      if (!profile) throw new Error('Invalid difficulty calibration');
+      localStorage.setItem(DIFFICULTY_CALIBRATION_KEY, JSON.stringify(profile));
+      calibration = profile;
+      render();
+      notice('calibration_loaded');
+    }, 'calibration_invalid');
+  });
   let items: LibraryItem[] = [];
   let loaded = false;
   let busy = false;
@@ -198,6 +228,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     levelList: HTMLDataListElement;
     save: HTMLButtonElement;
     cancel: HTMLButtonElement;
+    renderEstimate(): void;
   };
   type Row = {
     node: HTMLLIElement;
@@ -228,7 +259,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    files.disabled = restore.disabled = backup.disabled = sort.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
+    files.disabled = restore.disabled = calibrationFile.disabled = backup.disabled = sort.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
     filter.disabled = composerFilter.disabled = levelFilter.disabled = tagFilter.disabled = group.disabled = value;
     for (const { button } of tabButtons) button.disabled = value;
     for (const button of activeChips.querySelectorAll('button')) button.disabled = value;
@@ -347,6 +378,81 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     levelField.input.setAttribute('list', levelList.id);
     syncLevelPresets(levelList);
     form.append(levelList);
+    const estimatePanel = element('div', 'score-library-editor-actions');
+    const estimate = element('button'), applyLevel = element('button'), result = element('p');
+    const tempoLabel = element('label'), tempoCopy = element('span'), tempo = element('input');
+    tempo.inputMode = 'decimal';
+    tempo.maxLength = 8;
+    tempo.dataset.libraryField = 'difficulty-tempo';
+    tempoLabel.append(tempoCopy, tempo);
+    estimate.type = applyLevel.type = 'button';
+    estimate.dataset.libraryAction = 'estimate-difficulty';
+    applyLevel.dataset.libraryAction = 'apply-difficulty';
+    result.setAttribute('role', 'status');
+    estimatePanel.append(estimate, applyLevel, result, tempoLabel);
+    form.append(estimatePanel);
+    let difficulty: ImportedDifficultyEstimate | null = null;
+    let estimating = false, estimateFailed = false, usedTempo = 0, canSetTempo = false;
+    const enteredTempo = () => {
+      const value = tempo.value.trim().replace(',', '.');
+      if (!value) return 0;
+      const bpm = Number(value);
+      return /^\d+(?:\.\d+)?$/.test(value) && bpm >= 20 && bpm <= 400 ? bpm : null;
+    };
+    const grade = () => difficulty?.peak && calibration && !difficulty.uncertainty.tempoFallback && enteredTempo() === usedTempo
+      ? suggestedDifficulty(difficulty.score, calibration) : null;
+    const renderEstimate = () => {
+      estimate.textContent = t('estimate');
+      estimate.disabled = busy || estimating || enteredTempo() === null;
+      tempoLabel.hidden = !canSetTempo;
+      tempoCopy.textContent = t('estimate_bpm');
+      tempo.disabled = busy || estimating;
+      const level = grade();
+      applyLevel.hidden = level === null || !!levelField.input.value.trim();
+      applyLevel.disabled = busy;
+      applyLevel.textContent = level === null ? '' : t('estimate_use', { level });
+      const text = [];
+      if (estimating) text.push(t('working'));
+      else if (estimateFailed) text.push(t('estimate_failed'));
+      else if (difficulty?.peak) {
+        text.push(t('estimate_result', { score: difficulty.score, bars: difficulty.peak.writtenMeasures.join(', ') }));
+        if (difficulty.uncertainty.tempoFallback) text.push(t('estimate_tempo'));
+        else if (!calibration) text.push(t('estimate_needs_profile'));
+        if (difficulty.midi) text.push(t('estimate_midi'));
+      }
+      result.textContent = text.join(' ');
+      result.hidden = !text.length;
+    };
+    levelField.input.addEventListener('input', renderEstimate);
+    tempo.addEventListener('input', renderEstimate);
+    applyLevel.addEventListener('click', () => {
+      const level = grade();
+      if (busy || level === null || levelField.input.value.trim()) return;
+      levelField.input.value = t('estimate_level', { level });
+      renderEstimate();
+      levelField.input.focus();
+    });
+    estimate.addEventListener('click', async () => {
+      const bpm = enteredTempo();
+      if (busy || estimating || bpm === null) return;
+      usedTempo = bpm;
+      estimating = true;
+      estimateFailed = false;
+      difficulty = null;
+      renderEstimate();
+      try {
+        const stored = await libraryGet(id);
+        if (!stored) throw new Error('Score was removed');
+        difficulty = await host.difficulty(stored.file, usedTempo || undefined);
+        if (difficulty.uncertainty.tempoFallback) canSetTempo = true;
+        estimateFailed = !difficulty.peak;
+      }
+      catch { estimateFailed = true; }
+      finally {
+        estimating = false;
+        renderEstimate();
+      }
+    });
     const tagsField = makeField('tags', (item.tags ?? []).join(', '));
     const statusSelect = element('select');
     statusSelect.dataset.libraryField = 'status';
@@ -423,6 +529,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       progressText: progressField.text,
       notesText,
       levelList,
+      renderEstimate,
       save,
       cancel,
     };
@@ -841,6 +948,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         syncLevelPresets(row.editor.levelList);
         row.editor.save.textContent = t('save_edit');
         row.editor.cancel.textContent = t('cancel_edit');
+        row.editor.renderEstimate();
       } else if (row.editor) {
         row.editor.form.remove();
         row.editor = null;
@@ -860,6 +968,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function localize(): void {
     privacy.textContent = t('privacy');
     transferNote.textContent = t('transfer');
+    calibrationText.textContent = t('calibration_add');
     importText.textContent = t('import');
     files.setAttribute('aria-label', t('import'));
     searchText.textContent = t('search_label');

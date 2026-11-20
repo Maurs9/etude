@@ -23,6 +23,18 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "en": {
+      "calibration_add": "Load difficulty calibration",
+      "calibration_loaded": "Difficulty calibration loaded.",
+      "calibration_invalid": "Could not load that difficulty calibration.",
+      "estimate": "Estimate difficulty",
+      "estimate_failed": "Could not estimate this score.",
+      "estimate_result": "Experimental difficulty {score}/100. Decisive measures {bars}.",
+      "estimate_needs_profile": "Load a calibration to suggest a level.",
+      "estimate_bpm": "Verified starting tempo (quarter notes per minute)",
+      "estimate_tempo": "Tempo could not be verified.",
+      "estimate_midi": "MIDI hand assignment is estimated.",
+      "estimate_use": "Use level {level}",
+      "estimate_level": "Level {level}",
       "corrupt_entries": "Unreadable library entries: {count}. Their originals were kept.",
       "heading": "My Library ({count})",
       "import": "Add scores",

@@ -76,3 +76,28 @@ export function repeatRanges(bars: readonly RepeatBar[]): { a: number; b: number
   }
   return ranges;
 }
+
+/** Repeat and jump markings shared by playback and score analysis. Positions remain in the supplied units. */
+export function scoreXmlRepeatBars(doc: Document, measures: readonly { start: number; end: number }[]) {
+  const written = [...doc.querySelectorAll('score-partwise > part:first-of-type > measure')];
+  let ending: number[] | undefined;
+  const bars: RepeatBar[] = measures.map((m, i) => {
+      const el = written[i], mark = el?.querySelector('ending[type="start"]');
+      if (mark) ending = endingPasses(mark.getAttribute('number') ?? '');
+      const bar: RepeatBar = { start: m.start, end: m.end, ending,
+          forward: !!el?.querySelector('repeat[direction="forward"]'),
+          backward: el?.querySelector('repeat[direction="backward"]') ? Number(el.querySelector('repeat[direction="backward"]')?.getAttribute('times') || 2) || 2 : undefined };
+      // MusicXML's playback attributes name jump destinations independently of visible words.
+      for (const sound of el?.querySelectorAll('sound') ?? []) {
+          bar.segno = sound.getAttribute('segno') || bar.segno;
+          bar.coda = sound.getAttribute('coda') || bar.coda;
+          bar.daCapo ||= sound.getAttribute('dacapo') === 'yes';
+          bar.dalSegno = sound.getAttribute('dalsegno') || bar.dalSegno;
+          bar.toCoda = sound.getAttribute('tocoda') || bar.toCoda;
+          bar.fine ||= sound.hasAttribute('fine');
+      }
+      if (el?.querySelector('ending[type="stop"],ending[type="discontinue"]')) ending = undefined;
+      return bar;
+  });
+  return bars;
+}
