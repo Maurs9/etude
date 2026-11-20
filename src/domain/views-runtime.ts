@@ -11,6 +11,7 @@ import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
 import type { AudioTone } from './audio.js';
+import { INTERVAL_SONGS, intervalSongNotes, type IntervalSongDirection, type IntervalSongNote } from './interval-songs.js';
 import * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
@@ -592,7 +593,7 @@ function audioLockCheck() {
 function audioUnlock() { ensureAudio(); const context = actx; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
 function audioNoteOn(midi: number, velocity: number|undefined) { syncAudioState(); audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); syncAudioState(); }
 function audioNoteOff(midi: number) { audioEngine.noteOff(midi); syncAudioState(); }
-function stopPreviews() { clearExplorePreview(); audioEngine.stopPreviews(); syncAudioState(); }
+function stopPreviews() { clearExplorePreview(); clearIntervalSongPreview(); audioEngine.stopPreviews(); syncAudioState(); }
 function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); bendSemitones = audioEngine.bendSemitones; }
 function masterRamp(value: number) { audioEngine.masterRamp(value); syncAudioState(); }
 function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); syncAudioState(); }
@@ -603,7 +604,11 @@ function metroSched() { audioEngine.startMetro(metro.bpm); }
 function metroClick(when: number, accent: boolean) { audioEngine.metroClick(when, accent); }
 let previewNote = function previewNote(midi: number, when?: number, duration?: number, velocity?: number, options: { warm?: boolean; hold?: boolean } = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); syncAudioState(); }
 let playInterval = (rootMidi: number, semitones: number, style: 'both' | 'harmonic' | 'melodic') => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); syncAudioState(); };
-function playIvDir(root: number, semitones: number, direction: string) { if (direction === 'desc') playInterval(root + semitones, -semitones, 'both'); else playInterval(root, semitones, 'both'); }
+function playIvDir(root: number, semitones: number, direction: string, style: 'both' | 'melodic' = 'both') {
+    if (style === 'melodic') stopPreviews();
+    const descending = direction === 'desc';
+    playInterval(descending && style === 'both' ? root + semitones : root, descending ? -semitones : semitones, style);
+}
 function playChordMidis(midis: number[], arpeggio: boolean) {
     ensureAudio(); stopPreviews();
     exploreSequence(arpeggio ? midis.map((midi, index) => ({ at: index * 160, notes: [midi] })).concat([{ at: midis.length * 160 + 100, notes: midis }, { at: midis.length * 160 + 1200, notes: [] }]) : [{ at: 0, notes: midis }, { at: 1200, notes: [] }]);
@@ -5155,7 +5160,46 @@ function initExploreControls() {
         cofChordPlay(ms.split(' ').map(Number)); });
 }
 /* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
-let songDir = 'asc';
+let songDir: IntervalSongDirection = 'asc';
+const songPages = { asc: new Map<number, number>(), desc: new Map<number, number>() };
+const SONG_PAGE_SIZE = 5;
+let intervalSongFrame = 0;
+
+function clearIntervalSongPreview() {
+    if (!intervalSongFrame) return;
+    cancelAnimationFrame(intervalSongFrame);
+    intervalSongFrame = 0;
+    kbClear('target');
+}
+
+function previewIntervalSong(notes: readonly IntervalSongNote[]) {
+    stopPreviews();
+    const context = ensureAudio();
+    if (!context) return;
+    const start = context.currentTime + 0.035;
+    for (const { midi, at, duration, velocity } of notes)
+        previewNote(midi, start + at, duration, velocity, { hold: true });
+    const last = notes.at(-1);
+    if (!last) return;
+    const end = last.at + last.duration;
+    let previous: IntervalSongNote | undefined;
+    const paint = () => {
+        const elapsed = context.currentTime - start;
+        if (elapsed >= end || context.state === 'closed') {
+            intervalSongFrame = 0;
+            kbClear('target');
+            return;
+        }
+        const current = notes.find(({ at, duration }) => elapsed >= at && elapsed < at + duration);
+        if (current !== previous) {
+            kbClear('target');
+            if (current) kbState(current.midi, 'target', true);
+            previous = current;
+        }
+        intervalSongFrame = requestAnimationFrame(paint);
+    };
+    intervalSongFrame = requestAnimationFrame(paint);
+}
 // Builds the 12 cards while the panel is open (also while another topic hides it, so a language or note-name change
 // reaches them); opening it builds them (the panel's toggle event).
 function renderSongs() {
@@ -5165,7 +5209,9 @@ function renderSongs() {
     box.innerHTML = '';
     const root = 60 + parseInt(selectById('song-root').value || '0', 10);
     for (let semi = 1; semi <= 12; semi++) {
-        const iv = INTERVALS.find((i) => i.semi === semi) || { short: '' }, list = songsFor(semi, songDir);
+        const iv = INTERVALS.find((i) => i.semi === semi) || { short: '' };
+        const direction = songDir;
+        const list = INTERVAL_SONGS[semi]?.[direction] ?? [];
         const card = (document).createElement('div');
         card.className = 'songcard';
         card.dataset.semi = String(semi);
@@ -5175,13 +5221,49 @@ function renderSongs() {
         play.className = 'play';
         play.textContent = t('ex_hear');
         play.setAttribute('aria-label', t('ex_hear') + ' — ' + ivName(semi));
-        play.onclick = () => playIvDir(root, semi, songDir);
+        play.onclick = () => playIvDir(root, semi, direction, 'melodic');
         card.querySelector('.hd')?.appendChild(play);
         const ul = (document).createElement('div');
         ul.className = 'songlist';
-        list.forEach((s) => { const b = (document).createElement('button'); b.type = 'button'; b.textContent = s; if (/^\(/.test(s))
-            b.style.opacity = '.6'; b.onclick = () => playIvDir(root, semi, songDir); ul.appendChild(b); });
         card.appendChild(ul);
+        const pageCount = Math.max(1, Math.ceil(list.length / SONG_PAGE_SIZE));
+        const pages = songPages[direction];
+        const pagination = document.createElement('div');
+        pagination.className = 'songpages';
+        const previous = document.createElement('button');
+        const next = document.createElement('button');
+        const pageLabel = document.createElement('span');
+        previous.type = next.type = 'button';
+        previous.textContent = '‹';
+        next.textContent = '›';
+        previous.setAttribute('aria-label', t('song_page_prev') + ' — ' + ivName(semi));
+        next.setAttribute('aria-label', t('song_page_next') + ' — ' + ivName(semi));
+        pageLabel.setAttribute('aria-live', 'polite');
+        pagination.append(previous, pageLabel, next);
+        const drawPage = (page: number) => {
+            pages.set(semi, page);
+            const start = page * SONG_PAGE_SIZE;
+            ul.replaceChildren(...list.slice(start, start + SONG_PAGE_SIZE).map(song => {
+                const title = document.createElement('button');
+                title.type = 'button';
+                title.textContent = song.title;
+                title.onclick = () => previewIntervalSong(intervalSongNotes(root, song));
+                return title;
+            }));
+            pageLabel.textContent = (page + 1) + ' / ' + pageCount;
+            previous.disabled = page === 0;
+            next.disabled = page + 1 === pageCount;
+        };
+        previous.onclick = () => {
+            drawPage((pages.get(semi) ?? 0) - 1);
+            if (previous.disabled) next.focus();
+        };
+        next.onclick = () => {
+            drawPage((pages.get(semi) ?? 0) + 1);
+            if (next.disabled) previous.focus();
+        };
+        drawPage(Math.min(pages.get(semi) ?? 0, pageCount - 1));
+        if (pageCount > 1) card.appendChild(pagination);
         box.appendChild(card);
     }
 }
@@ -18150,6 +18232,7 @@ function updatePracticeModeHint() {
     const dirShown = prDirShown(), along = mode === 'along';
     byId('pr-dir-row').hidden = !dirShown;
     byId('pr-songs').hidden = cat !== 'interval';
+    if (cat !== 'interval' && intervalSongFrame) stopPreviews();
     byId('pr-along').hidden = byId('pr-along-out').hidden = !along;
     if (along) {
         hint.textContent = t('ac_lede') + (key === 'all' ? ' ' + t('pr_along_c', rootName(0)) : '');
@@ -19564,10 +19647,19 @@ function initControls() {
     byId('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => { kbClear('target'); cofPaintDock(); }, 2600)); });
     byId('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
     // songs
-    byId('song-root').addEventListener('change', renderSongs);
-    byId('pr-songs').addEventListener('toggle', renderSongs);
-    byId('song-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
-        return; songDir = b.dataset.v ?? songDir; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderSongs(); });
+    byId('song-root').addEventListener('change', () => { if (intervalSongFrame) stopPreviews(); renderSongs(); });
+    byId('pr-songs').addEventListener('toggle', (event) => {
+        if (event.currentTarget instanceof HTMLDetailsElement && !event.currentTarget.open && intervalSongFrame) stopPreviews();
+        renderSongs();
+    });
+    byId('song-dir').addEventListener('click', (e) => {
+        const b = eventClosest(e, 'button');
+        if (!b) return;
+        if (intervalSongFrame) stopPreviews();
+        songDir = b.dataset.v === 'desc' ? 'desc' : 'asc';
+        wiringSegment(e).forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+        renderSongs();
+    });
     // progress
     byId('prog-export').addEventListener('click', () => byId('exportBtn').click());
     byId('prog-import').addEventListener('click', () => byId('importBtn').click());

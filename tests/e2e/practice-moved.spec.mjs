@@ -29,19 +29,47 @@ test.describe('Song hints in the Practice setup', () => {
     await page.locator('#pr-songs summary').click();
     await expect(page.locator('#songsList .songcard')).toHaveCount(12);
     await expect(page.locator('#songsList .songcard').first()).toContainText('Hear');
-    await recordIntervals(page);
+    await page.evaluate(() => {
+      window.__played = [];
+      window.__etude.playInterval = (...args) => window.__played.push(args);
+    });
     await page.locator('#song-root').selectOption('2');
     await page.locator('#songsList .songcard[data-semi="7"] .play').click();
     await page.locator('#song-dir button[data-v="desc"]').click();
     await expect(page.locator('#song-dir button[data-v="desc"]')).toHaveAttribute('aria-pressed', 'true');
     await page.locator('#songsList .songcard[data-semi="7"] .play').click();
-    await page.locator('#songsList .songcard[data-semi="7"] .songlist button').first().click();
-    expect(await played(page)).toEqual([[62, 7], [69, -7], [69, -7]]);
+    expect(await played(page)).toEqual([[62, 7, 'melodic'], [62, -7, 'melodic']]);
     // Other topics hide the panel.
     await page.locator('#pr-t-chord').click();
     await expect(panel).toBeHidden();
     await page.locator('#pr-t-interval').click();
     await expect(panel).toBeVisible();
+  });
+
+  test('pagination stays local to a card and song playback uses the score rhythm and dock', async ({ app }) => {
+    const page = await app.open({ hash: 'practice', dock: true });
+    await page.locator('#pr-songs summary').click();
+    const seconds = page.locator('#songsList .songcard[data-semi="2"]');
+    const semitones = page.locator('#songsList .songcard[data-semi="1"]');
+    await expect(seconds.locator('.songlist button')).toHaveCount(5);
+    await seconds.getByRole('button', { name: /Next page/ }).click();
+    await expect(seconds.locator('.songpages span')).toHaveText('2 / 2');
+    await expect(seconds.locator('.songlist button')).toHaveCount(5);
+    await expect(semitones.locator('.songpages span')).toHaveText('1 / 2');
+    await seconds.getByRole('button', { name: /Previous page/ }).click();
+    await page.evaluate(() => {
+      window.__song = [];
+      window.__etude.previewNote = (note, when, duration, velocity) => window.__song.push({ note, when, duration, velocity });
+    });
+    await page.locator('#song-root').selectOption('2');
+    await seconds.getByRole('button', { name: 'Frère Jacques' }).click();
+    const song = await page.evaluate(() => window.__song);
+    expect(song.map(note => note.note)).toEqual([62, 64, 66, 62, 62, 64, 66, 62]);
+    expect(song.map(note => note.velocity)).toEqual([110, 110, 78, 78, 78, 78, 78, 78]);
+    expect(song[1].when - song[0].when).toBeCloseTo(60 / 108, 2);
+    await expect.poll(() => page.evaluate(() => window.__etude.keyEl.get(62)?.dataset.s)).toBe('target');
+    await page.locator('#pr-songs summary').click();
+    await expect.poll(() => page.evaluate(() => [...window.__etude.keyEl.values()].some(key => key.dataset.s === 'target'))).toBe(false);
   });
 
   test('the cards follow the language, also while another topic hides them', async ({ app }) => {
