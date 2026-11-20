@@ -1246,8 +1246,6 @@ const payload: UIPayload = {
       "ex_keyctx": "Tonalità di contesto",
       "ex_circle": "Anello esterno: tonalità maggiori · anello interno: relative minori. Scegli una tonalità per ascoltarla, vederne la diteggiatura e leggere gli accordi in quella tonalità.",
       "songs_lede": "Seleziona un titolo per ascoltare la frase iniziale. Usa Ascolta per sentire l’intervallo di due note.",
-      "song_page_prev": "Pagina precedente",
-      "song_page_next": "Pagina successiva",
       "songs_from": "Da",
       "pr_songs": "Aiuti dalle canzoni",
       "dir_asc": "Ascendente",

@@ -8,7 +8,7 @@ describe('interval song openings', () => {
     for (const [interval, groups] of Object.entries(INTERVAL_SONGS)) {
       for (const [direction, songs] of Object.entries(groups)) {
         expect(songs.length).toBeGreaterThan(0);
-        expect(songs.length).toBeLessThanOrEqual(10);
+        expect(songs.length).toBeLessThanOrEqual(5);
         for (const { title, source, notes } of songs) {
           expect(titles.has(title), title).toBe(false);
           titles.add(title);

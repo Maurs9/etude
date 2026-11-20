@@ -46,17 +46,16 @@ test.describe('Song hints in the Practice setup', () => {
     await expect(panel).toBeVisible();
   });
 
-  test('pagination stays local to a card and song playback uses the score rhythm and dock', async ({ app }) => {
+  test('shows five songs per direction and playback uses the score rhythm and dock', async ({ app }) => {
     const page = await app.open({ hash: 'practice', dock: true });
     await page.locator('#pr-songs summary').click();
     const seconds = page.locator('#songsList .songcard[data-semi="2"]');
-    const semitones = page.locator('#songsList .songcard[data-semi="1"]');
     await expect(seconds.locator('.songlist button')).toHaveCount(5);
-    await seconds.getByRole('button', { name: /Next page/ }).click();
-    await expect(seconds.locator('.songpages span')).toHaveText('2 / 2');
+    await expect(seconds.getByRole('button', { name: 'Frère Jacques' })).toBeVisible();
+    await page.locator('#song-dir button[data-v="desc"]').click();
     await expect(seconds.locator('.songlist button')).toHaveCount(5);
-    await expect(semitones.locator('.songpages span')).toHaveText('1 / 2');
-    await seconds.getByRole('button', { name: /Previous page/ }).click();
+    await expect(seconds.getByRole('button', { name: 'Mary Had a Little Lamb' })).toBeVisible();
+    await page.locator('#song-dir button[data-v="asc"]').click();
     await page.evaluate(() => {
       window.__song = [];
       window.__etude.previewNote = (note, when, duration, velocity) => window.__song.push({ note, when, duration, velocity });

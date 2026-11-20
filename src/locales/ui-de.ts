@@ -540,8 +540,6 @@ const payload: UIPayload = {
       "ex_keyctx": "Tonartbezug",
       "ex_circle": "Äußerer Ring: Dur-Tonarten · innerer Ring: ihre parallelen Molltonarten. Wähle eine Tonart, um sie zu hören, ihren Fingersatz zu sehen und Akkorde in ihr zu lesen.",
       "songs_lede": "Wähle einen Titel, um seine Anfangsphrase zu hören. Wähle Hören für das Intervall aus zwei Tönen.",
-      "song_page_prev": "Vorherige Seite",
-      "song_page_next": "Nächste Seite",
       "songs_from": "Ab",
       "pr_songs": "Merkhilfen aus Liedern",
       "dir_asc": "Aufsteigend",

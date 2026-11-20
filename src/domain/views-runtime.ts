@@ -5161,8 +5161,6 @@ function initExploreControls() {
 }
 /* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
 let songDir: IntervalSongDirection = 'asc';
-const songPages = { asc: new Map<number, number>(), desc: new Map<number, number>() };
-const SONG_PAGE_SIZE = 5;
 let intervalSongFrame = 0;
 
 function clearIntervalSongPreview() {
@@ -5226,44 +5224,13 @@ function renderSongs() {
         const ul = (document).createElement('div');
         ul.className = 'songlist';
         card.appendChild(ul);
-        const pageCount = Math.max(1, Math.ceil(list.length / SONG_PAGE_SIZE));
-        const pages = songPages[direction];
-        const pagination = document.createElement('div');
-        pagination.className = 'songpages';
-        const previous = document.createElement('button');
-        const next = document.createElement('button');
-        const pageLabel = document.createElement('span');
-        previous.type = next.type = 'button';
-        previous.textContent = '‹';
-        next.textContent = '›';
-        previous.setAttribute('aria-label', t('song_page_prev') + ' — ' + ivName(semi));
-        next.setAttribute('aria-label', t('song_page_next') + ' — ' + ivName(semi));
-        pageLabel.setAttribute('aria-live', 'polite');
-        pagination.append(previous, pageLabel, next);
-        const drawPage = (page: number) => {
-            pages.set(semi, page);
-            const start = page * SONG_PAGE_SIZE;
-            ul.replaceChildren(...list.slice(start, start + SONG_PAGE_SIZE).map(song => {
-                const title = document.createElement('button');
-                title.type = 'button';
-                title.textContent = song.title;
-                title.onclick = () => previewIntervalSong(intervalSongNotes(root, song));
-                return title;
-            }));
-            pageLabel.textContent = (page + 1) + ' / ' + pageCount;
-            previous.disabled = page === 0;
-            next.disabled = page + 1 === pageCount;
-        };
-        previous.onclick = () => {
-            drawPage((pages.get(semi) ?? 0) - 1);
-            if (previous.disabled) next.focus();
-        };
-        next.onclick = () => {
-            drawPage((pages.get(semi) ?? 0) + 1);
-            if (next.disabled) previous.focus();
-        };
-        drawPage(Math.min(pages.get(semi) ?? 0, pageCount - 1));
-        if (pageCount > 1) card.appendChild(pagination);
+        for (const song of list) {
+            const title = document.createElement('button');
+            title.type = 'button';
+            title.textContent = song.title;
+            title.onclick = () => previewIntervalSong(intervalSongNotes(root, song));
+            ul.appendChild(title);
+        }
         box.appendChild(card);
     }
 }
