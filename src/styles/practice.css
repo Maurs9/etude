@@ -71,6 +71,8 @@
 .pr-hint-focus{color:var(--ink); text-decoration:underline}
 .pr-hint-actions{margin-top:auto; display:flex; flex-wrap:wrap; gap:8px}
 .pr-hint-card .btn{min-height:44px; white-space:normal; text-align:start}
+.pr-hint-reference{align-self:stretch; display:grid; justify-items:start; gap:5px; border-top:1px solid var(--line); padding-top:8px}
+.pr-hint-source{color:var(--ink); font-size:13px}
 .key[data-pr-hint-key]{outline:2px solid #004e97; outline-offset:-3px}
 .key[data-pr-hint-key]::after{content:attr(data-pr-hint-key); position:absolute; inset:auto 50% 23% auto; transform:translateX(50%); min-width:17px; border-radius:9px; padding:1px 3px; background:#004e97; color:#fff; text-align:center; font:700 11px/15px var(--sans); pointer-events:none; z-index:4}
 

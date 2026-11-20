@@ -15,6 +15,10 @@ test('the single-file build boots over file://', async ({ page }) => {
   expect(await page.evaluate(() => typeof window.opensheetmusicdisplay)).toBe('undefined');
   await page.evaluate(() => window.__etude.loadOsmd());
   expect(await page.evaluate(() => typeof window.opensheetmusicdisplay)).toBe('object');
+  await page.locator('#nav [data-view=practice]').click();
+  await page.locator('#pr-t-chord').click();
+  await page.locator('#pr-songs summary').click();
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(25);
   expect(errors).toEqual([]);
   expect(external).toEqual([]);
 });

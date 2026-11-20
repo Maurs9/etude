@@ -5488,7 +5488,17 @@ function syncPracticeHintsPanel() {
         chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
         scaleName: scaleDisp,
         play: (id, steps, keys) => { void playPracticeHint(id, steps, keys); },
+        openExample: id => { void openPracticeHintExample(id); },
     });
+}
+
+async function openPracticeHintExample(id: string) {
+    try {
+        await show('analysis');
+        if (view0() === 'analysis') await anLoadExample(id);
+    } catch {
+        if (view0() === 'analysis') anShowError('an_err_render');
+    }
 }
 /* ============================================================================
    LEARN — bilingual theory handbook. Every demo button routes through the

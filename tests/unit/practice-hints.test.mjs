@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS,
+  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, PRACTICE_HINT_REFERENCES,
   chordHintFormula, chordHintSteps, progressionHintChords, progressionHintSteps, scaleHintFormula, scaleHintSteps,
   techniqueHintSteps, techniqueHintTonic,
 } from '../../src/domain/practice-hints.ts';
 import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS, pitchClass } from '../../src/domain/theory.ts';
+import { PIECES } from '../../src/domain/repertoire-data.ts';
 import { STRINGS } from '../../src/locales/index.js';
 
 const byName = (hints, name) => hints.find(hint => hint.name === name);
@@ -76,5 +77,19 @@ describe('Practice hint catalog', () => {
     ]).flat();
     expect(steps.every(step => step.seconds > 0 && step.gap >= 0 && step.notes.length &&
       step.notes.every(note => Number.isInteger(note.midi) && note.midi >= 0 && note.midi <= 127))).toBe(true);
+  });
+
+  it('attaches translated references to existing cards and opens only bundled excerpts', () => {
+    const ids = [
+      ...CHORD_HINTS.map(hint => `chord:${hint.symbol}`),
+      ...SCALE_HINTS.map(hint => `scale:${hint.name}`),
+      ...PROGRESSION_HINTS.map(hint => `prog:${hint.name}`),
+      ...TECHNIQUE_HINTS.map(hint => `technique:${hint.id}`),
+    ];
+    for (const [id, reference] of Object.entries(PRACTICE_HINT_REFERENCES)) {
+      expect(ids).toContain(id);
+      if (reference.example) expect(PIECES.some(piece => piece.id === reference.example)).toBe(true);
+      for (const copy of Object.values(STRINGS)) expect(copy[`pr_hints_ref_${reference.cue}`]).toBeTruthy();
+    }
   });
 });

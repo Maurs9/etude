@@ -1,5 +1,5 @@
 import {
-  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS,
+  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, PRACTICE_HINT_REFERENCES,
   chordHintFormula, chordHintSteps, progressionHintChords, progressionHintSteps,
   scaleHintFormula, scaleHintSteps, techniqueHintSteps, techniqueHintTonic, type PracticeHintStep,
 } from './practice-hints.js';
@@ -21,6 +21,7 @@ interface HintViewOptions {
   readonly chordName: (symbol: string) => string;
   readonly scaleName: (name: string) => string;
   readonly play: (id: string, steps: readonly PracticeHintStep[], keys: boolean) => void;
+  readonly openExample: (id: string) => void;
 }
 
 function element(kind: string, className: string, text?: string): HTMLElement {
@@ -65,7 +66,16 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     controls.append(control(`${id}:hear`, text('pr_hints_hear'), title, disabled, () => play(id, steps, !audioOnly)));
     if (audioOnly) controls.append(control(`${id}:keys`, text('pr_hints_show_keys'), title, disabled, () => play(id, steps, true)));
     el.append(controls);
-    return el;
+  };
+  const appendReference = (el: HTMLElement, id: string) => {
+    const reference = PRACTICE_HINT_REFERENCES[id];
+    if (!reference) return;
+    const details = element('div', 'pr-hint-reference');
+    details.append(element('strong', 'pr-hint-source', reference.title),
+      element('p', 'pr-hint-detail', text(`pr_hints_ref_${reference.cue}`)));
+    const { example } = reference;
+    if (example) details.append(control(`${id}:example`, text('pr_hints_open_example'), reference.title, false, () => options.openExample(example)));
+    el.append(details);
   };
   const contents = document.createDocumentFragment();
   if (topic === 'chord') {
@@ -74,7 +84,9 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       const id = `chord:${hint.symbol}`;
       const el = card(hint.symbol, title, text(`pr_hints_c_${hint.cue}`), chordHintFormula(hint.symbol));
       if (hint.compare) el.append(element('p', 'pr-hint-detail', text('pr_hints_compare', chordName(hint.compare))));
-      contents.append(appendPlayback(el, id, title, chordHintSteps(hint, tonic)));
+      appendPlayback(el, id, title, chordHintSteps(hint, tonic));
+      appendReference(el, id);
+      contents.append(el);
     }
   } else if (topic === 'scale') {
     for (const hint of SCALE_HINTS) {
@@ -82,7 +94,9 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       const id = `scale:${hint.name}`;
       const el = card(hint.name, title, text(`pr_hints_s_${hint.cue}`), scaleHintFormula(hint));
       if (hint.compare) el.append(element('p', 'pr-hint-detail', text('pr_hints_compare', scaleName(hint.compare.name))));
-      contents.append(appendPlayback(el, id, title, scaleHintSteps(hint, tonic)));
+      appendPlayback(el, id, title, scaleHintSteps(hint, tonic));
+      appendReference(el, id);
+      contents.append(el);
     }
   } else if (topic === 'prog') {
     for (const hint of PROGRESSION_HINTS) {
@@ -91,13 +105,16 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       const names = chords.map(({ root, symbol }) => rootName(root, tonic, hint.minor) + (symbol === 'maj' ? '' : symbol));
       const el = card(hint.name, title, text(`pr_hints_p_${hint.cue}`), chords.map(chord => chord.roman).join('–'));
       el.append(element('p', 'pr-hint-detail', names.join(' – ')));
-      contents.append(appendPlayback(el, `prog:${hint.name}`, title, progressionHintSteps(hint, tonic)));
+      const id = `prog:${hint.name}`;
+      appendPlayback(el, id, title, progressionHintSteps(hint, tonic));
+      appendReference(el, id);
+      contents.append(el);
     }
   } else if (topic === 'technique') {
     for (const hint of TECHNIQUE_HINTS) {
       const pitch = techniqueHintTonic(hint, options.tonic);
       const spelling = techniqueTonicSpelling(hint.kind, pitch);
-      const namedTonics = hint.id === 'major_f_b' ? [rootName(5), rootName(11)] : [];
+      const namedTonics = hint.namedTonics?.map(key => rootName(key)) ?? [];
       const title = text(`pr_hints_t_${hint.id}_title`, ...namedTonics);
       const tonicName = spell(spelling.letter, spelling.acc);
       const el = card(hint.id, title, text(`pr_hints_t_${hint.id}`, ...namedTonics), tonicName);
@@ -114,6 +131,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
         const id = `technique:${hint.id}:${hand}`;
         el.append(control(id, `${text('pr_hints_hear')} · ${handName}`, `${title} · ${tonicName}`, disabled, () => play(id, steps, true)), fingers);
       }
+      appendReference(el, `technique:${hint.id}`);
       contents.append(el);
     }
   } else {

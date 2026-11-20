@@ -1,6 +1,6 @@
 import {
-  CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, SCALE_DEGREE_LABELS, TWELVE_BAR_BLUES_ROOTS,
-  formatChordFormula, practiceTonicMidi, transposePitchClass,
+  CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS,
+  formatChordFormula, formatScaleFormula, practiceTonicMidi, transposePitchClass,
 } from './theory.js';
 import { ARPEGGIO_TONICS, techniqueKeyAllowed, techniqueSteps, type TechniqueHand, type TechniqueKind } from './technique.js';
 
@@ -24,7 +24,7 @@ export interface ChordHint {
 export interface ScaleHint {
   readonly name: string;
   readonly cue: string;
-  readonly degrees?: string;
+  readonly formula?: string;
   readonly compare?: { readonly name: string; readonly degrees: readonly number[] };
 }
 
@@ -43,7 +43,22 @@ export interface TechniqueHint {
   readonly kind: TechniqueKind;
   readonly tonics: readonly number[];
   readonly defaultTonic: number;
+  readonly namedTonics?: readonly number[];
 }
+
+interface PracticeHintReference {
+  readonly title: string;
+  readonly cue: string;
+  /** A bundled example that starts at the cited passage. */
+  readonly example?: string;
+}
+
+export const PRACTICE_HINT_REFERENCES: Readonly<Partial<Record<string, PracticeHintReference>>> = {
+  'chord:maj7': { title: 'Erik Satie · Gymnopédie Nº 1', cue: 'satie', example: 'gymno' },
+  'scale:Harmonic minor': { title: 'W. A. Mozart · Rondo alla turca, K. 331', cue: 'mozart' },
+  'prog:I–vi–IV–V (50s)': { title: 'Ben E. King · Stand by Me (1961)', cue: 'stand_by_me' },
+  'technique:arp_major': { title: 'J. S. Bach · BWV 846', cue: 'bach', example: 'prelude' },
+};
 
 export const CHORD_HINTS: readonly ChordHint[] = [
   { symbol: 'maj', compare: 'm', cue: 'major' },
@@ -80,19 +95,19 @@ export const SCALE_HINTS: readonly ScaleHint[] = [
   { name: 'Lydian', cue: 'lydian', compare: { name: 'Major (Ionian)', degrees: [2, 3, 4] } },
   { name: 'Mixolydian', cue: 'mixolydian', compare: { name: 'Major (Ionian)', degrees: [5, 6, 7] } },
   { name: 'Aeolian (Natural minor)', cue: 'aeolian', compare: { name: 'Dorian', degrees: [4, 5, 6] } },
-  { name: 'Locrian', cue: 'locrian', degrees: '1 ♭2 ♭3 4 ♭5 ♭6 ♭7', compare: { name: 'Phrygian', degrees: [3, 4, 5] } },
+  { name: 'Locrian', cue: 'locrian', formula: '1 ♭2 ♭3 4 ♭5 ♭6 ♭7', compare: { name: 'Phrygian', degrees: [3, 4, 5] } },
   { name: 'Harmonic minor', cue: 'harmonic_minor', compare: { name: 'Aeolian (Natural minor)', degrees: [5, 6, 7] } },
   { name: 'Melodic minor', cue: 'melodic_minor', compare: { name: 'Harmonic minor', degrees: [4, 5, 6, 7] } },
   { name: 'Harmonic major', cue: 'harmonic_major', compare: { name: 'Major (Ionian)', degrees: [4, 5, 6] } },
   { name: 'Major pentatonic', cue: 'major_pentatonic' },
   { name: 'Minor pentatonic', cue: 'minor_pentatonic' },
-  { name: 'Blues', cue: 'blues', degrees: '1 ♭3 4 ♭5 5 ♭7' },
-  { name: 'Whole tone', cue: 'whole_tone', degrees: '2–2–2–2–2–2' },
-  { name: 'Diminished (W-H)', cue: 'diminished_wh', degrees: '2–1–2–1–2–1–2–1' },
-  { name: 'Diminished (H-W)', cue: 'diminished_hw', degrees: '1–2–1–2–1–2–1–2' },
+  { name: 'Blues', cue: 'blues', formula: '1 ♭3 4 ♭5 5 ♭7' },
+  { name: 'Whole tone', cue: 'whole_tone', formula: '2–2–2–2–2–2' },
+  { name: 'Diminished (W-H)', cue: 'diminished_wh', formula: '2–1–2–1–2–1–2–1' },
+  { name: 'Diminished (H-W)', cue: 'diminished_hw', formula: '1–2–1–2–1–2–1–2' },
   { name: 'Phrygian dominant', cue: 'phrygian_dominant', compare: { name: 'Phrygian', degrees: [0, 1, 2, 3] } },
   { name: 'Hungarian minor', cue: 'hungarian', compare: { name: 'Harmonic minor', degrees: [2, 3, 4] } },
-  { name: 'Chromatic', cue: 'chromatic', degrees: '1 × 12' },
+  { name: 'Chromatic', cue: 'chromatic', formula: '1 × 12' },
 ];
 
 export const PROGRESSION_HINTS: readonly ProgressionHint[] = [
@@ -111,11 +126,11 @@ export const PROGRESSION_HINTS: readonly ProgressionHint[] = [
 const allTonics = Array.from({ length: 12 }, (_, i) => i);
 export const TECHNIQUE_HINTS: readonly TechniqueHint[] = [
   { id: 'major_common', kind: 'major', tonics: [0, 2, 4, 7, 9], defaultTonic: 0 },
-  { id: 'major_f_b', kind: 'major', tonics: [5, 11], defaultTonic: 5 },
+  { id: 'major_f_b', kind: 'major', tonics: [5, 11], defaultTonic: 5, namedTonics: [5, 11] },
   { id: 'major_black', kind: 'major', tonics: [1, 3, 6, 8, 10], defaultTonic: 1 },
   { id: 'harmonic', kind: 'minor', tonics: allTonics, defaultTonic: 9 },
-  { id: 'arp_major', kind: 'arpMajor', tonics: ARPEGGIO_TONICS.arpMajor, defaultTonic: 0 },
-  { id: 'arp_minor', kind: 'arpMinor', tonics: ARPEGGIO_TONICS.arpMinor, defaultTonic: 9 },
+  { id: 'arp_major', kind: 'arpMajor', tonics: ARPEGGIO_TONICS.arpMajor, defaultTonic: 0, namedTonics: [0, 2] },
+  { id: 'arp_minor', kind: 'arpMinor', tonics: ARPEGGIO_TONICS.arpMinor, defaultTonic: 9, namedTonics: [9, 0] },
 ];
 
 function chordTemplate(symbol: string) {
@@ -143,7 +158,7 @@ export function chordHintSteps(hint: ChordHint, tonic: number): PracticeHintStep
 }
 
 export function scaleHintFormula(hint: ScaleHint): string {
-  return hint.degrees ?? SCALE_DEFINITIONS[hint.name].map(offset => SCALE_DEGREE_LABELS[offset]).join(' ');
+  return hint.formula ?? formatScaleFormula(SCALE_DEFINITIONS[hint.name]);
 }
 
 export function scaleHintSteps(hint: ScaleHint, tonic: number): PracticeHintStep[] {
