@@ -83,19 +83,13 @@ The tool fits thresholds on the fit split, reports the held-out error and baseli
 and writes a profile when it beats the constant-grade baseline. `--report-only` accepts rows
 with just a file and lists scores and decisive measures. Originals stay local.
 
-In My Library, load the resulting JSON calibration, then use **Estimate difficulty** in a
-score's **Edit details** action inside **More**. You can apply a suggested level to an empty field and edit it before
-saving. In Read, **New reading exercise** selects a fresh piece with the experimental scorer.
+In My Library, load the resulting JSON calibration to supply verified starting tempos.
+In Read, **New reading exercise** selects a fresh piece with the experimental scorer.
 These results use a fingerprint-based ID and leave the numbered book results and daily sets intact.
 
-For scores already in My Library, **Review new levels for all scores** previews changes using the
-loaded profile. **Save proposed levels** updates the reviewed labels in one operation. A profile may
-contain a `startingTempos` object with verified quarter-note BPM values keyed by the SHA-256 of each
-original file. Scores without a written or verified starting tempo appear as skipped in the preview.
-
 My Library automatically calculates and saves difficulty stars for existing and newly imported
-scores. **Level (stars)** sorts from the fewest to the most stars. **Level label** sorts the existing study
-labels. The title opens the score or resumes it when a position was saved. The five axes are visible
+scores. **Difficulty (stars)** sorts from the fewest to the most stars. The title opens the score
+or resumes it when a position was saved. The five axes are visible
 under the title, and **More → Difficulty details** shows their decisive measures. A missing tempo
 produces a provisional rating. A verified tempo in the calibration profile updates that rating.
 Star ratings travel with library backups. This experimental rubric uses the strongest window and
