@@ -480,7 +480,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <p class="pr-along-hint" data-i18n="ac_hint">Use the keyboard below to play along. Shift its octave with the ◀ Oct / Oct ▶ buttons if the lit keys are off-screen.</p>
         </div>
       </div>
-      <!-- Intervals: the interval song book, famous tunes that open with each interval (renderSongs). -->
+      <!-- Topic hints. Intervals keep the song book in songsList. -->
       <details class="panel pr-songs" id="pr-songs" hidden>
         <summary class="pr-songs-sum"><span data-i18n="pr_songs">Song hints</span></summary>
         <p class="lede pr-songs-lede" data-i18n="songs_lede">Every interval, with famous tunes that open with it. Hum a song you know to lock in the sound. Click any title to hear the interval.</p>
@@ -489,6 +489,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <div class="seg" id="song-dir" role="group" aria-label="Direction" data-i18n-aria="aria_dir"><button type="button" data-v="asc" data-i18n="dir_asc" aria-pressed="true">Ascending</button><button type="button" data-v="desc" data-i18n="dir_desc" aria-pressed="false">Descending</button></div>
         </div>
         <div class="songs" id="songsList"></div>
+        <div class="pr-hint-grid" id="practiceHintsList" hidden></div>
       </details>
       <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="pr_hint">The drill opens with the keyboard dock below. Answer by playing or by picking an option; press End to see your score.</p>
     </div>

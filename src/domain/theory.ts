@@ -103,6 +103,9 @@ export interface ProgressionTemplate {
   chords: readonly (readonly [number, string, string])[];
 }
 
+/** The twelve bars used in the Learn demonstration. */
+export const TWELVE_BAR_BLUES_ROOTS = [0, 0, 0, 0, 5, 5, 0, 0, 7, 5, 0, 7] as const;
+
 export const PROGRESSION_TEMPLATES: readonly ProgressionTemplate[] = [
   { name: 'I–IV–V', chords: [[0, 'maj', 'I'], [5, 'maj', 'IV'], [7, 'maj', 'V']] },
   { name: 'I–V–vi–IV (pop)', chords: [[0, 'maj', 'I'], [7, 'maj', 'V'], [9, 'm', 'vi'], [5, 'maj', 'IV']] },

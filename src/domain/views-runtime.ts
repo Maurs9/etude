@@ -6,6 +6,8 @@ import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, Lear
 import * as storage from './storage.js';
 import * as safety from './data-safety.js';
 import * as theory from './theory.js';
+import type { PracticeHintNote, PracticeHintStep } from './practice-hints.js';
+import { isPracticeHintsTopic, renderPracticeHintCards } from './practice-hints-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
@@ -588,7 +590,7 @@ async function timedAudioReady(context: AudioContext): Promise<boolean> {
 function audioUnlock() { ensureAudio(); const context = audioEngine.context; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
 function audioNoteOn(midi: number, velocity: number|undefined) { audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); }
 function audioNoteOff(midi: number) { audioEngine.noteOff(midi); }
-function stopPreviews() { clearExplorePreview(); audioEngine.stopPreviews(); }
+function stopPreviews() { clearPracticeHintPreview(); clearExplorePreview(); audioEngine.stopPreviews(); }
 function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); }
 function masterRamp(value: number) { audioEngine.masterRamp(value); }
 function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); }
@@ -1666,6 +1668,7 @@ function buildKeyboard() {
     if (view0() === 'analysis')
         anKeysPaint(true);
     cofPaintDock();
+    paintPracticeHintKeys();
 }
 // Chord-member numbers (1 3 5 7 …) shown on keys; `src` maps sounding MIDI notes to labels and is folded into view.
 let kbDegSrc: Map<number, string>|null = null;
@@ -1787,7 +1790,7 @@ function bindKeyA11y(b: HTMLButtonElement, m: number) { b.addEventListener('keyd
    connected, unless the user chose to hide them: Hide stays available and is saved as usual. */
 interface KeyboardDockState { pref: boolean|null; auto: null; animT: number; force: boolean }
 const DOCK: KeyboardDockState = { pref: null, auto: null, animT: 0, force: false };
-function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || prAlongWanted(v) || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
+function dockWanted(v = view0()) { return v === 'today' || v === 'explore' || prAlongWanted(v) || (v === 'practice' && practiceHintPreview?.keys === true) || v === 'learn' || v === 'read' || v === 'sing' || (v === sesHome() && SES.active) || (v === 'analysis' && anDockWanted()); }
 function sesNeedsKeys(v = view0()) { const q = SES.q; return SES.active && v === sesHome() && !!q && (q.mode !== 'ear' || ekWanted(q)) && !midiLive(); }
 function dockForced(v = view0()) { return DOCK.force && v === 'read'; }
 // The full-screen stage of a running reading drill or piece. With a MIDI or Bluetooth piano connected, the keys fold into the
@@ -1797,7 +1800,8 @@ const STAGE: PracticeStageState = { on: false, kb: null, rz: 0 };
 const SCORE_FOCUS: { owner: 'analysis' | 'read' | null; native: boolean; token: number; returnTo: HTMLElement | null; scroll: number; readOverride: boolean | null; zoom: number } = { owner: null, native: false, token: 0, returnTo: null, scroll: 0, readOverride: null, zoom: 1 };
 function midiLive() { return !!activeInputId || bleLive(); }
 function stageDock(v = view0()) { return STAGE.on && v === 'read' && (STAGE.kb != null || midiLive()); }
-function dockOpen(v = view0()) { if (dockForced(v))
+function dockOpen(v = view0()) { if (v === 'practice' && practiceHintPreview && practiceHintPreview.keys !== null)
+    return practiceHintPreview.keys; if (dockForced(v))
     return true; if (stageDock(v))
     return STAGE.kb ?? false; if (sesNeedsKeys(v))
     return DOCK.pref !== false; if (DOCK.pref != null)
@@ -1874,6 +1878,12 @@ LAND_PHONE.addEventListener('change', () => dockSync());
 function dockReveal() { if (reduceMotion())
     return; const dock = byId('dock'); dock.classList.add('is-opening'); clearTimeout(DOCK.animT); DOCK.animT = window.setTimeout(() => dock.classList.remove('is-opening'), 300); }
 function dockSet(open: boolean) {
+    if (view0() === 'practice' && practiceHintPreview && practiceHintPreview.keys !== null) {
+        practiceHintPreview.keys = open;
+        dockSync();
+        paintPracticeHintKeys();
+        return;
+    }
     if (stageDock()) {
         STAGE.kb = !!open;
         dockSync();
@@ -3414,6 +3424,7 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
     return q;
 }
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
+    if (practiceHintPreview) stopPreviews();
     ensureAudio();
     sesStopPrompt();
     sesStopAnswerReplay();
@@ -4522,6 +4533,7 @@ let featureNavigation = 0;
 let show = function show(v: string|undefined, moveFocus = true, fromHistory = false): void | Promise<void> {
     const navigation = ++featureNavigation;
     if (v === 'analysis' && !analysisModulesReady) {
+        if (practiceHintPreview) stopPreviews();
         return ensureAnalysisModules().then(() => {
             if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
         }).catch(() => { showNotationReloadPrompt(); });
@@ -5341,6 +5353,143 @@ function renderSongs() {
         box.appendChild(card);
     }
 }
+
+interface PracticeHintPreview {
+    id: string;
+    keys: boolean | null;
+    frame: number;
+    notes: readonly PracticeHintNote[];
+    originalLow: number | null;
+}
+let practiceHintPreview: PracticeHintPreview | null = null;
+let practiceHintPanelState = '';
+
+function paintPracticeHintKeys() {
+    keyEl.forEach(key => { delete key.dataset.prHintKey; });
+    if (!practiceHintPreview?.keys) return;
+    for (const note of practiceHintPreview.notes) {
+        const key = keyEl.get(note.midi) ?? keyEl.get(foldToView(note.midi));
+        if (key) key.dataset.prHintKey = note.finger === undefined ? '●' : String(note.finger);
+    }
+}
+
+function clearPracticeHintPreview() {
+    if (!practiceHintPreview) return;
+    const { frame, originalLow } = practiceHintPreview;
+    practiceHintPreview = null;
+    cancelAnimationFrame(frame);
+    if (originalLow !== null && view.low !== originalLow) {
+        view.low = Math.min(originalLow, BASE_HIGH - view.oct * 12);
+        buildKeyboard();
+        repaintHeld();
+    } else paintPracticeHintKeys();
+    dockSync();
+}
+
+async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], keys: boolean) {
+    const panel = byId('pr-songs');
+    if (view0() !== 'practice' || SES.active || accomp.on || !(panel instanceof HTMLDetailsElement) || !panel.open) return;
+    if (keys && practiceHintPreview?.id === id && practiceHintPreview.keys !== true) {
+        practiceHintPreview.keys = true;
+        dockSync();
+        showPracticeHintNotes(practiceHintPreview);
+        return;
+    }
+    stopPreviews();
+    const context = ensureAudio();
+    if (!context) return;
+    const preview: PracticeHintPreview = { id, keys: keys ? true : null, frame: 0, notes: [], originalLow: null };
+    practiceHintPreview = preview;
+    dockSync();
+    if (context.state !== 'running' && !await timedAudioReady(context)) {
+        if (practiceHintPreview === preview) clearPracticeHintPreview();
+        return;
+    }
+    if (practiceHintPreview !== preview) return;
+    if (audioEngine.context !== context) {
+        clearPracticeHintPreview();
+        return;
+    }
+    let next = context.currentTime + 0.045;
+    const timing = steps.map(step => {
+        const at = next, end = at + step.seconds;
+        next = end + (step.gap ?? 0);
+        step.notes.forEach(note => previewNote(note.midi, at, step.seconds, note.velocity));
+        return { at, end, notes: step.notes };
+    });
+    const silence: readonly PracticeHintNote[] = [];
+    let index = 0;
+    const paint = () => {
+        if (practiceHintPreview !== preview) return;
+        const now = context.currentTime;
+        while (index < timing.length && now >= timing[index].end) index++;
+        if (index === timing.length) {
+            clearPracticeHintPreview();
+            return;
+        }
+        const event = timing[index];
+        const notes = now >= event.at ? event.notes : silence;
+        if (notes !== preview.notes) {
+            preview.notes = notes;
+            showPracticeHintNotes(preview);
+        }
+        preview.frame = requestAnimationFrame(paint);
+    };
+    preview.frame = requestAnimationFrame(paint);
+}
+
+function showPracticeHintNotes(preview: PracticeHintPreview) {
+    if (preview.keys && preview.notes.length) {
+        const lo = Math.min(...preview.notes.map(note => note.midi));
+        const hi = Math.max(...preview.notes.map(note => note.midi));
+        if (lo < view.low || hi > viewHigh()) {
+            preview.originalLow ??= view.low;
+            const span = view.oct * 12;
+            view.low = Math.max(BASE_LOW, Math.min(BASE_HIGH - span, lo, Math.max(view.low, hi - span)));
+            buildKeyboard();
+            repaintHeld();
+        }
+        dockKeyInSight(foldToView(lo));
+    }
+    paintPracticeHintKeys();
+}
+
+function syncPracticeHintsPanel() {
+    const panel = byId('pr-songs');
+    if (!(panel instanceof HTMLDetailsElement)) return;
+    const { cat, key, mode } = prChoice();
+    const supported = isPracticeHintsTopic(cat);
+    const interval = cat === 'interval';
+    const box = byId('practiceHintsList');
+    panel.hidden = !supported && !interval;
+    byId('songsList').hidden = !interval;
+    box.hidden = !supported;
+    const controls = queryHtml(panel, '.pr-songs-ctl');
+    if (controls) controls.hidden = !interval;
+    const state = panel.open ? `${cat}|${key}|${mode}|${lang}|${notation}|${accomp.on}` : '';
+    const title = queryHtml(panel, 'summary span'), lede = queryHtml(panel, '.pr-songs-lede');
+    if (title && lede) {
+        title.dataset.i18n = supported ? `pr_hints_${cat}_title` : 'pr_songs';
+        lede.dataset.i18n = supported ? `pr_hints_${cat}_lede` : 'songs_lede';
+        title.textContent = t(title.dataset.i18n);
+        lede.textContent = t(lede.dataset.i18n);
+    }
+    if (practiceHintPanelState === state) return;
+    practiceHintPanelState = state;
+    if (practiceHintPreview) stopPreviews();
+    if (!panel.open || panel.hidden) return;
+    if (interval) renderSongs();
+    else if (supported) renderPracticeHintCards(box, cat, {
+        tonic: key === 'all' ? null : Number(key),
+        audioOnly: mode === 'ear' || mode === 'keys' || mode === 'along',
+        disabled: cat === 'prog' && accomp.on,
+        text: t,
+        spell: (letter, acc) => spelledName(notation, letter, acc),
+        chordName: chordDisp,
+        scaleName: scaleDisp,
+        play: (id, steps, keys) => { void playPracticeHint(id, steps, keys); },
+    });
+}
 /* ============================================================================
    LEARN — bilingual theory handbook. Every demo button routes through the
    existing audio engine and lights the target keys on the dock.
@@ -6125,7 +6274,7 @@ function lSeqLight(chords: number[][], stepMs: number, holdMs: number) {
     chords.forEach((ms, i) => learnTimer(() => { kbClear('target'); ms.forEach((m) => kbState(m, 'target', true)); }, i * stepMs));
     learnTimer(() => kbClear('target'), (chords.length - 1) * stepMs + (holdMs || stepMs));
 }
-const LBLUES = [0, 0, 0, 0, 5, 5, 0, 0, 7, 5, 0, 7];
+const LBLUES = theory.TWELVE_BAR_BLUES_ROOTS;
 function lBarsHTML() {
     const rn: Record<number, string> = { 0: 'I7', 5: 'IV7', 7: 'V7' };
     return '<div class="lbars" role="list" aria-label="' + t('lw_blues') + '">' + LBLUES.map((d, i) => '<span role="listitem" data-bar="' + i + '"><b>' + rn[d] + '</b><small>' + pcName(d, d === 5) + '7</small></span>').join('') + '</div>';
@@ -18379,7 +18528,6 @@ function updatePracticeModeHint() {
     note.hidden = !why;
     const dirShown = prDirShown(), along = mode === 'along';
     byId('pr-dir-row').hidden = !dirShown;
-    byId('pr-songs').hidden = cat !== 'interval';
     byId('pr-along').hidden = byId('pr-along-out').hidden = !along;
     if (along) {
         hint.textContent = t('ac_lede') + (key === 'all' ? ' ' + t('pr_along_c', rootName(0)) : '');
@@ -18388,6 +18536,7 @@ function updatePracticeModeHint() {
     else if (accomp.on)
         accompStop(); // another topic or mode: the loop stops
     start.textContent = along ? t(accomp.on ? 'ac_stop' : 'ac_play') : t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), ...(dirShown ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
+    syncPracticeHintsPanel();
     dockSync(); // Play along brings the keys
 }
 
@@ -18442,7 +18591,6 @@ function renderPracticeSetup() {
     renderPracticeKeys();
     updatePracticeModeHint();
     renderPracticeLast();
-    renderSongs();
 }
 
 // After a drill: the contrast offer when it shows (its Start button, else its text), else the Last drill strip's button.
@@ -19920,7 +20068,7 @@ function initControls() {
     byId('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
     // songs
     byId('song-root').addEventListener('change', renderSongs);
-    byId('pr-songs').addEventListener('toggle', renderSongs);
+    byId('pr-songs').addEventListener('toggle', syncPracticeHintsPanel);
     byId('song-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button'); if (!b)
         return; songDir = b.dataset.v ?? songDir; wiringSegment(e).forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderSongs(); });
     // progress
