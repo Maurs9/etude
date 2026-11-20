@@ -4521,19 +4521,6 @@ function focusView(v: string) {
 let featureNavigation = 0;
 let show = function show(v: string|undefined, moveFocus = true, fromHistory = false): void | Promise<void> {
     const navigation = ++featureNavigation;
-    if (v === 'progress' && !progressView) {
-        return import('./progress-view.js').then((module) => {
-            progressView = module;
-            document.querySelector('#locale-load-error[data-lazy-owner="progress"]')?.remove();
-            if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
-        }, () => {
-            if (navigation === featureNavigation) {
-                localeLoadError(async () => { await show(v, moveFocus, fromHistory); });
-                const toast = document.getElementById('locale-load-error');
-                if (toast) toast.dataset.lazyOwner = 'progress';
-            }
-        });
-    }
     if (v === 'analysis' && !analysisModulesReady) {
         return ensureAnalysisModules().then(() => {
             if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
@@ -4661,8 +4648,25 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         renderLearn();
     if (v === 'read')
         renderRead();
-    if (v === 'progress')
-        renderProgress();
+    let pendingViewLoad: Promise<void> | undefined;
+    if (v === 'progress') {
+        if (progressView)
+            renderProgress();
+        else {
+            pendingViewLoad = import('./progress-view.js').then((module) => {
+                progressView = module;
+                document.querySelector('#locale-load-error[data-lazy-owner="progress"]')?.remove();
+                if (navigation === featureNavigation && _view === 'progress')
+                    renderProgress();
+            }, () => {
+                if (navigation === featureNavigation && _view === 'progress') {
+                    localeLoadError(async () => { await show('progress', moveFocus, fromHistory); });
+                    const toast = document.getElementById('locale-load-error');
+                    if (toast) toast.dataset.lazyOwner = 'progress';
+                }
+            });
+        }
+    }
     if (v === 'sing')
         renderVoice();
     if (v === 'practice' && !SES.active) {
@@ -4676,6 +4680,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     const active = document.activeElement;
     if (moveFocus && (!active || active === document.body || !active.isConnected || !active.getClientRects().length))
         focusView(v);
+    return pendingViewLoad;
 };
 let _routed = false;
 window.addEventListener('popstate', (e) => {

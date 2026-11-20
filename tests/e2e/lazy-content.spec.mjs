@@ -195,3 +195,22 @@ for (const view of ['today', 'explore']) {
     expect(await loaded('learn-staves')).toBe(true);
   });
 }
+
+test('pressing Back while progress-view is still loading returns cleanly to Today', async ({ app, page }) => {
+  await app.open({ hash: 'today' });
+  let release;
+  let requested = false;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route(/\/progress-view(?:-[^/]+)?\.(?:js|ts)(?:\?.*)?$/, async route => {
+    requested = true;
+    await gate;
+    await route.continue();
+  });
+  await page.locator('#nav [data-view=progress]').click();
+  await expect.poll(() => requested).toBe(true);
+  await page.goBack();
+  await expect(page.locator('#view-today')).toHaveClass(/\bactive\b/);
+  release();
+  await expect(page.locator('#view-today')).toHaveClass(/\bactive\b/);
+  await expect(page.locator('#locale-load-error')).toHaveCount(0);
+});
