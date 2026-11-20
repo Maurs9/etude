@@ -2128,6 +2128,12 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "es": {
+      "rating_filter_total": "Dificultad total",
+      "rating_filter_by_axis": "Dificultad por eje",
+      "rating_filter_axis": "Eje",
+      "rating_filter_min": "Mínimo",
+      "rating_filter_max": "Máximo",
+      "rating_filter_any": "Cualquiera",
       "piece_column": "Partitura",
       "rating_hands_short": "Manos",
       "rating_details": "Detalles de dificultad",

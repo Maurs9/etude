@@ -23,6 +23,12 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "en": {
+      "rating_filter_total": "Overall difficulty",
+      "rating_filter_by_axis": "Difficulty by axis",
+      "rating_filter_axis": "Axis",
+      "rating_filter_min": "Minimum",
+      "rating_filter_max": "Maximum",
+      "rating_filter_any": "Any",
       "piece_column": "Score",
       "rating_hands_short": "Hands",
       "rating_details": "Difficulty details",
