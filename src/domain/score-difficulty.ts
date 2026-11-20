@@ -1,3 +1,5 @@
+import { techniqueSteps } from './technique.js';
+
 /** Experimental estimates of score difficulty. This module does not score a player's performance. */
 export type DifficultyHand = 'rh' | 'lh';
 export type DifficultyProfile = 'performance' | 'sightReading';
@@ -24,6 +26,8 @@ export interface DifficultyNote {
   midi: number;
   hand: DifficultyHand | null;
   voice?: string;
+  /** Written piano fingering, when present. */
+  finger?: number;
   /** Transposition-invariant diatonic position for the generated-book profile. */
   degree?: number;
   accidentals?: number;
@@ -61,6 +65,12 @@ export interface DifficultyAxes {
   reading: number;
 }
 
+interface PositionChange {
+  hand: DifficultyHand;
+  beat: number;
+  reason: 'span' | 'writtenThumb' | 'inferredThumb';
+}
+
 export interface DifficultyWindow {
   startMeasure: number;
   endMeasure: number;
@@ -69,6 +79,8 @@ export interface DifficultyWindow {
   attacks: number;
   /** Strongest verified ratio in the window, expressed as log₂ of its common grid. */
   polyrhythmCost: number;
+  /** Physical-profile diagnostics, ordered by quarter-note position. */
+  positionChanges: readonly PositionChange[];
   axes: DifficultyAxes;
   score: number;
 }
@@ -104,7 +116,7 @@ interface Bar {
   heldUntil: Record<DifficultyHand, number>;
   speed: number;
   motion: number;
-  shifts: number;
+  positionChanges: PositionChange[];
   geometry: number;
   structuralMotion: number;
   structuralShifts: number;
@@ -124,7 +136,7 @@ interface Bar {
 function emptyBar(): Bar {
   return {
     attacks: [], hands: { rh: [], lh: [] }, heldUntil: { rh: 0, lh: 0 },
-    speed: 0, motion: 0, shifts: 0, geometry: 0, structuralMotion: 0, structuralShifts: 0,
+    speed: 0, motion: 0, positionChanges: [], geometry: 0, structuralMotion: 0, structuralShifts: 0,
     rhythm: 0, texture: 0, structuralTexture: 0, voices: 0, reading: 0,
     chromatic: 0, bimanual: 0, structuralBimanual: 0, polyrhythmCost: 0, rests: [], hasSound: false,
   };
@@ -169,7 +181,8 @@ function metricGroups(measure: DifficultyMeasure) {
 
 function syncopated(note: DifficultyNote, measure: DifficultyMeasure, groups: readonly number[]) {
   // In regular four-beat measures the middle of the bar is stronger than beats two and four.
-  const regularFour = groups.length === 4 && measure.groups.every(length => length === 1);
+  const regularFour = groups.length === 4 && measure.groups.length === 4 &&
+    measure.groups.every(length => Math.abs(length - measure.groups[0]) < EPSILON);
   const boundary = groups.findIndex(start => Math.abs(start - note.start) < EPSILON);
   if (boundary < 0) return [...groups, measure.end].some(start => start > note.start + EPSILON && start < note.end - EPSILON);
   if (boundary === 0) return false;
@@ -220,11 +233,65 @@ function rangeChanged(a: Range, b: Range) {
   return a[0] !== b[0] || a[1] !== b[1];
 }
 
-function annotateHand(line: readonly Attack[], hand: DifficultyHand, input: DifficultyInput, bars: Bar[]) {
+function writtenFinger(attack: Attack) {
+  const finger = attack.notes.length === 1 ? attack.notes[0].finger : undefined;
+  return finger !== undefined && Number.isInteger(finger) && finger >= 1 && finger <= 5 ? finger : undefined;
+}
+
+function connectedSingleNotes(previous: Attack, current: Attack) {
+  return previous.notes.length === 1 && current.notes.length === 1 &&
+    previous.notes[0].voice === current.notes[0].voice && previous.end + EPSILON >= current.start;
+}
+
+/** Infer only a complete, continuous scale with standard fingering. Written fingers take precedence. */
+function scaleFingers(run: readonly Attack[], hand: DifficultyHand, octaves: 1 | 2) {
+  const first = run[0].notes[0].midi, last = run[run.length - 1].notes[0].midi;
+  if (Math.abs(last - first) !== 12 * octaves) return null;
+  const rising = last > first, tonic = Math.min(first, last);
+  if (run.slice(1).some((attack, i) => !connectedSingleNotes(run[i], attack))) return null;
+  for (const kind of ['major', 'minor'] as const) {
+    const steps = techniqueSteps({ tonicPc: tonic % 12, kind, octaves, hands: hand });
+    const ascending = steps.slice(0, run.length).map(step => step.notes[0]);
+    const base = ascending[0].midi;
+    const inOrder = rising ? ascending : ascending.reverse();
+    const matches = inOrder.every((note, i) => {
+      const finger = writtenFinger(run[i]);
+      return note.midi - base + tonic === run[i].notes[0].midi && (finger === undefined || finger === note.finger);
+    });
+    if (matches) return inOrder.map(note => note.finger);
+  }
+  return null;
+}
+
+function fingeringFor(line: readonly Attack[], hand: DifficultyHand) {
+  const fingers = line.map(writtenFinger);
+  for (let i = 0; i + 8 <= line.length; i++) {
+    for (const octaves of [2, 1] as const) {
+      const length = octaves * 7 + 1;
+      if (i + length > line.length) continue;
+      const found = scaleFingers(line.slice(i, i + length), hand, octaves);
+      if (!found || found.some((finger, offset) => fingers[i + offset] !== undefined && fingers[i + offset] !== finger)) continue;
+      found.forEach((finger, offset) => { fingers[i + offset] ??= finger; });
+      // The last note can also begin the return down the scale.
+      i += length - 2;
+      break;
+    }
+  }
+  return fingers;
+}
+
+function thumbCrossing(previous: Attack, current: Attack, before: number | undefined, after: number | undefined, hand: DifficultyHand) {
+  if (before === undefined || after === undefined || (before !== 1 && after !== 1) || !connectedSingleNotes(previous, current)) return false;
+  const pitchStep = current.notes[0].midi - previous.notes[0].midi;
+  return pitchStep * (after - before) * (hand === 'rh' ? 1 : -1) < 0;
+}
+
+function annotateHand(line: readonly Attack[], hand: DifficultyHand, input: DifficultyInput, bars: Bar[], profile: DifficultyProfile) {
   let previous: Attack | undefined;
   let physicalPosition: Range | null = null, structuralPosition: Range | null = null;
   const heldVoices = new Map<string, number>();
-  for (const attack of line) {
+  const fingers = profile === 'performance' ? fingeringFor(line, hand) : [];
+  for (const [i, attack] of line.entries()) {
     const index = measureAt(input.measures, attack.start);
     if (index < 0) continue;
     const bar = bars[index];
@@ -242,8 +309,13 @@ function annotateHand(line: readonly Attack[], hand: DifficultyHand, input: Diff
       attack.direction = Math.sign(hand === 'rh' ? high : low);
       bar.speed += speed;
       bar.motion += Math.max(0, jump - 4) * (1 + unit((0.48 - dt) / 0.32)) * 0.24;
-      const next = position(physicalPosition, physical, 8);
-      if (next === physical && (rangeChanged(prevPhysical, physical))) bar.shifts++;
+      const crosses = thumbCrossing(previous, attack, fingers[i - 1], fingers[i], hand);
+      const next: Range = crosses ? physical : position(physicalPosition, physical, 8);
+      if (crosses || (next === physical && rangeChanged(prevPhysical, physical))) {
+        const bothWritten = writtenFinger(previous) !== undefined && writtenFinger(attack) !== undefined;
+        const reason = crosses ? (bothWritten ? 'writtenThumb' : 'inferredThumb') : 'span';
+        bar.positionChanges.push({ hand, beat: attack.start, reason });
+      }
       physicalPosition = next;
       if (attack.notes.length > 1 || previous.notes.length > 1) {
         // An inversion can change the grip even when the outer notes stay in place.
@@ -393,14 +465,16 @@ function summarizeWindow(input: DifficultyInput, bars: readonly Bar[], start: nu
   const structural = profile === 'sightReading';
   const sums = { motor: 0, rhythm: 0, bimanual: 0, texture: 0, reading: 0 };
   let attacks = 0, polyrhythmCost = 0;
+  const positionChanges: PositionChange[] = [];
   for (let i = start; i <= end; i++) {
     const bar = bars[i];
     const count = bar.hands.rh.length + bar.hands.lh.length;
     attacks += bar.attacks.length;
     polyrhythmCost = Math.max(polyrhythmCost, bar.polyrhythmCost);
+    if (!structural) positionChanges.push(...bar.positionChanges);
     // Physical and register-dependent descriptors are excluded from the structural profile.
     sums.motor += structural ? count * 0.3 + bar.structuralMotion + bar.structuralShifts * 0.5
-      : count * 0.22 + bar.speed + bar.motion + bar.shifts * 0.65 + bar.geometry * 0.2;
+      : count * 0.22 + bar.speed + bar.motion + bar.positionChanges.length * 0.65 + bar.geometry * 0.2;
     sums.rhythm += bar.rhythm;
     sums.bimanual += structural ? bar.structuralBimanual : bar.bimanual;
     sums.texture += structural ? bar.structuralTexture : bar.texture + bar.voices * (input.voiceSource === 'written' ? 0.35 : 0.15);
@@ -419,7 +493,7 @@ function summarizeWindow(input: DifficultyInput, bars: readonly Bar[], start: nu
     reading: 100 * unit(sums.reading / measures.length / 3),
   };
   return {
-    startMeasure: start + 1, endMeasure: end + 1, writtenMeasures: measures.map(m => m.writtenIndex + 1), attacks, polyrhythmCost, axes,
+    startMeasure: start + 1, endMeasure: end + 1, writtenMeasures: measures.map(m => m.writtenIndex + 1), attacks, polyrhythmCost, positionChanges: positionChanges.sort((a, b) => a.beat - b.beat), axes,
     score: axes.motor * 0.28 + axes.rhythm * 0.23 + axes.bimanual * 0.2 + axes.texture * 0.19 + axes.reading * 0.1,
   };
 }
@@ -451,7 +525,7 @@ export function estimateScoreDifficulty(input: DifficultyInput, profile: Difficu
     bars[i].rhythm += 0.45;
     bars[i].rests.push([round(rest.start - input.measures[i].start), round(rest.end - rest.start), rest.hand].join(':'));
   }
-  for (const hand of HANDS) annotateHand(hands[hand], hand, input, bars);
+  for (const hand of HANDS) annotateHand(hands[hand], hand, input, bars, profile);
   annotateCoordination(bars, input, groups);
 
   const lengths = [...new Set([Math.min(2, bars.length), Math.min(4, bars.length)])].filter(Boolean);

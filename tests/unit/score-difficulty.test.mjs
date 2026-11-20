@@ -106,6 +106,60 @@ describe('experimental difficulty estimate', () => {
     expect(active.peak.axes.rhythm).toBeGreaterThan(plain.peak.axes.rhythm);
   });
 
+  it('detects syncopation across the midpoint in 4/8 grouped in four', () => {
+    const groups = [0.5, 0.5, 0.5, 0.5];
+    const measures = [{ start: 0, end: 2, startSec: 0, endSec: 1, groups, writtenIndex: 0 }];
+    const endsAtAccent = performance(timeline([note(0.5, 60, 'rh', { end: 1 })], 1, { measures }));
+    const crossesAccent = performance(timeline([note(0.5, 60, 'rh', { end: 1.25 })], 1, { measures }));
+    expect(crossesAccent.peak.axes.rhythm).toBeGreaterThan(endsAtAccent.peak.axes.rhythm);
+    const groupedInTwo = [{ ...measures[0], groups: [1, 1] }];
+    const fromSecondGroup = performance(timeline([note(1, 60, 'rh', { end: 1.75 })], 1, { measures: groupedInTwo }));
+    expect(fromSecondGroup.peak.axes.rhythm).toBe(0);
+  });
+
+  it('treats 2/2 as two groups and still detects a note held across the next downbeat', () => {
+    const measures = timeline([], 2).measures.map(measure => ({ ...measure, groups: [2, 2] }));
+    const inside = performance(timeline([note(2, 60, 'rh', { end: 3.5 })], 2, { measures }));
+    const crosses = performance(timeline([note(2, 60, 'rh', { end: 4.5 })], 2, { measures }));
+    expect(inside.peak.axes.rhythm).toBe(0);
+    expect(crosses.peak.axes.rhythm).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['rh', [60, 62, 64, 65, 67, 69, 71, 72], 1.5],
+    ['rh', [72, 71, 69, 67, 65, 64, 62, 60], 2.5],
+    ['lh', [48, 50, 52, 53, 55, 57, 59, 60], 2.5],
+  ])('uses standard thumb crossings for a complete %s scale', (hand, pitches, beat) => {
+    const scale = pitches.map((pitch, i) => note(i / 2, pitch, hand, { end: (i + 1) / 2 }));
+    expect(performance(timeline(scale)).peak.positionChanges).toEqual([{ hand, beat, reason: 'inferredThumb' }]);
+  });
+
+  it('follows both thumb crossings when a scale turns on its top note', () => {
+    const pitches = [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60];
+    const scale = pitches.map((pitch, i) => note(i / 2, pitch, 'rh', { end: (i + 1) / 2 }));
+    expect(performance(timeline(scale, 2)).peak.positionChanges).toEqual([
+      { hand: 'rh', beat: 1.5, reason: 'inferredThumb' },
+      { hand: 'rh', beat: 6, reason: 'inferredThumb' },
+    ]);
+  });
+
+  it('prefers written fingering and leaves the structural score independent of fingering', () => {
+    const notes = [60, 62, 64, 65, 67, 69, 71, 72].map((pitch, i) => note(i / 2, pitch, 'rh',
+      { end: (i + 1) / 2, degree: i }));
+    const digits = [1, 2, 3, 4, 1, 2, 3, 4];
+    const written = notes.map((n, i) => ({ ...n, finger: digits[i] }));
+    expect(performance(timeline(written)).peak.positionChanges).toEqual([{ hand: 'rh', beat: 2, reason: 'writtenThumb' }]);
+    expect(structural(timeline(written))).toEqual(structural(timeline(notes)));
+  });
+
+  it('keeps span-based repositioning for a broken scale and for large leaps', () => {
+    const interrupted = [60, 62, 64, 65, 67, 69, 71, 72].map((pitch, i) => note(i / 2, pitch, 'rh',
+      { end: (i + 1) / 2 - (i === 2 ? 0.25 : 0) }));
+    expect(performance(timeline(interrupted)).peak.positionChanges).toEqual([{ hand: 'rh', beat: 2.5, reason: 'span' }]);
+    expect(performance(timeline([note(0, 60), note(1, 84)])).peak.positionChanges)
+      .toEqual([{ hand: 'rh', beat: 1, reason: 'span' }]);
+  });
+
   it('keeps pedal overlap out of the voice estimate and reports uncertain inputs', () => {
     const input = timeline([note(0, 60, 'rh', { voice: 'one' }), note(1, 64, 'rh', { voice: 'two' }), note(2, 48, null)], 1,
       { tempoSource: 'fallback', voiceSource: 'inferred' });

@@ -36,7 +36,7 @@ export function levelPieceToDifficultyInput(piece: PlannedPiece): DifficultyInpu
       const place = srtPitchPlace(pitch, piece.key, event.hand);
       notes.push({
         start, end, startSec: start * secondsPerQuarter, midi: pitch.midi, hand: event.hand, voice: event.hand,
-        degree: place?.degree, accidentals: place?.alter ? 1 : 0,
+        degree: place?.degree, finger: pitch.finger ?? undefined, accidentals: place?.alter ? 1 : 0,
         tiedAcrossBar, dotted: !tiedAcrossBar && DOTTED.has(duration),
       });
     }
