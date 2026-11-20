@@ -441,7 +441,7 @@ const payload: UIPayload = {
       "ex_show": "Show on keys",
       "ex_keyctx": "Key context",
       "ex_circle": "Outer ring: major keys · inner ring: their relative minors. Pick a key to hear it, see its fingering and read chords in that key.",
-      "songs_lede": "Every interval, with famous tunes that open with it. Hum a song you know to lock in the sound. Click any title to hear the interval.",
+      "songs_lede": "Select a title to hear its opening phrase. Use Hear for the two-note interval.",
       "songs_from": "From",
       "pr_songs": "Song hints",
       "dir_asc": "Ascending",

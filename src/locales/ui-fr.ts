@@ -1658,7 +1658,7 @@ const payload: UIPayload = {
       "ex_show": "Afficher sur les touches",
       "ex_keyctx": "Contexte tonal",
       "ex_circle": "Cercle extérieur : tonalités majeures · cercle intérieur : leurs relatives mineures. Choisissez une tonalité pour l’entendre, voir son doigté et lire les accords dans cette tonalité.",
-      "songs_lede": "Chaque intervalle avec des morceaux célèbres qui débutent par celui-ci. Fredonnez un air connu pour mémoriser le son. Cliquez sur un titre pour entendre l’intervalle.",
+      "songs_lede": "Sélectionnez un titre pour écouter sa phrase initiale. Utilisez Écouter pour entendre l’intervalle de deux notes.",
       "songs_from": "De",
       "pr_songs": "Repères en chansons",
       "dir_asc": "Ascendant",
