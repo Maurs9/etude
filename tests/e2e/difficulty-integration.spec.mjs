@@ -155,3 +155,46 @@ test('bulk recalculation previews existing levels and applies only the reviewed 
   expect((await get(id(unmarked))).level).toBe('Level 6');
   expect((await get(id(other))).level).toBeUndefined();
 });
+
+test('library rows show five difficulty axes and save experimental stars without replacing levels', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  await page.locator('#score-library summary').click();
+  await page.locator('#library-files').setInputFiles({
+    name: 'Rated.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml),
+  });
+  const item = page.locator('#library-items [data-library-id]');
+  const rating = item.locator('.score-library-rating');
+  await rating.scrollIntoViewIfNeeded();
+  await expect(rating).toHaveText(/^[1-5](?:\.5)?★$/);
+  await rating.click();
+  const axes = item.locator('.score-library-axes');
+  await expect(axes.locator('dt')).toHaveText(['Technique', 'Rhythm', 'Hand coordination', 'Texture', 'Notation']);
+  await expect(axes.locator('dd')).toHaveCount(5);
+  const more = item.locator('[data-library-action=more]');
+  const original = item.locator('[data-library-action=download]');
+  await expect(original).toBeHidden();
+  await more.click();
+  await expect(original).toBeVisible();
+  await original.focus();
+  await original.press('Escape');
+  await expect(original).toBeHidden();
+  await expect(more).toBeFocused();
+
+  const id = createHash('sha256').update(xml).digest('hex');
+  await page.evaluate(id => window.__etude.scoreLibraryStore.libraryUpdate(id, { level: 'Level 4', notes: 'Keep' }), id);
+  const stored = () => page.evaluate(id => window.__etude.scoreLibraryStore.libraryGet(id).then(value => value.item), id);
+  await page.locator('#library-rate-all').click();
+  await expect(page.locator('#library-level-preview')).toContainText('Changes: 1. Unchanged: 0. Skipped: 0.');
+  expect(await stored()).toMatchObject({ level: 'Level 4', notes: 'Keep' });
+  expect((await stored()).difficultyRating).toBeUndefined();
+  await page.getByRole('button', { name: 'Save proposed stars' }).click();
+  await expect(page.locator('#library-status')).toContainText('Difficulty stars saved for 1 scores');
+  const saved = await stored();
+  expect(saved).toMatchObject({ level: 'Level 4', notes: 'Keep', difficultyRating: { version: 1, stars: expect.any(Number) } });
+  const list = page.locator('#library-items');
+  expect(await list.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await page.reload();
+  await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
+  expect(await stored()).toEqual(saved);
+});
