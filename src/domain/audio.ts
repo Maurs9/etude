@@ -7,6 +7,23 @@ export type PianoStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export type AudioTone = 'piano' | 'piano-synth' | 'soft' | 'bright' | 'organ' | 'mellow' | 'glass';
 
+// Ignore old or uninitialized clock pairs, such as those reported just after a device change.
+export const AUDIO_OUTPUT_CLOCK_WINDOW = 1;
+type OutputClock = Pick<AudioContext, 'currentTime' | 'state'> & Partial<Pick<AudioContext, 'getOutputTimestamp'>>;
+
+/** Sample the time reaching the output device. Scheduling still uses the render clock. */
+export function audioPresentationTime(context: OutputClock, frameTime: number): number {
+  const renderTime = context.currentTime;
+  if (context.state !== 'running') return renderTime;
+  const stamp = context.getOutputTimestamp?.();
+  const at = stamp?.performanceTime ?? 0, output = stamp?.contextTime ?? 0;
+  const age = (frameTime - at) / 1000;
+  if (!Number.isFinite(age) || !Number.isFinite(output) || at <= 0 || output < 0 || Math.abs(age) > AUDIO_OUTPUT_CLOCK_WINDOW) return renderTime;
+  const estimate = output + age;
+  if (estimate < renderTime - AUDIO_OUTPUT_CLOCK_WINDOW || estimate > renderTime + AUDIO_OUTPUT_CLOCK_WINDOW) return renderTime;
+  return Math.min(renderTime, Math.max(0, estimate));
+}
+
 export interface AudioVoice {
   stop(when?: number): void;
   setBend(): void;

@@ -1,5 +1,26 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AudioEngine, fetchPianoAudio, nearestPianoKey, PianoBank } from '../../src/domain/audio.ts';
+import { audioPresentationTime, AudioEngine, fetchPianoAudio, nearestPianoKey, PianoBank } from '../../src/domain/audio.ts';
+
+describe('audio presentation clock', () => {
+  it('projects the output timestamp onto the current display frame and bounds it by render time', () => {
+    const context = { currentTime: 2, state: 'running', getOutputTimestamp: () => ({ contextTime: 1.8, performanceTime: 1000 }) };
+    expect(audioPresentationTime(context, 1040)).toBeCloseTo(1.84);
+    expect(audioPresentationTime(context, 1250)).toBe(2);
+    expect(audioPresentationTime({ ...context, getOutputTimestamp: () => ({ contextTime: 0, performanceTime: 1000 }) }, 1040)).toBe(2);
+    expect(audioPresentationTime({ ...context, currentTime: .12, getOutputTimestamp: () => ({ contextTime: 0, performanceTime: 1000 }) }, 1040)).toBeCloseTo(.04);
+  });
+
+  it('uses the render time when timestamps are missing, invalid, stale or suspended', () => {
+    const context = { currentTime: 2, state: 'running' };
+    expect(audioPresentationTime(context, 1040)).toBe(2);
+    expect(audioPresentationTime({ ...context, getOutputTimestamp: () => ({ contextTime: 0, performanceTime: 0 }) }, 1040)).toBe(2);
+    expect(audioPresentationTime({ ...context, getOutputTimestamp: () => ({ contextTime: NaN, performanceTime: 1000 }) }, 1040)).toBe(2);
+    expect(audioPresentationTime({ ...context, getOutputTimestamp: () => ({ contextTime: .8, performanceTime: 30 }) }, 1040)).toBe(2);
+    const suspended = { ...context, state: 'suspended', getOutputTimestamp: vi.fn() };
+    expect(audioPresentationTime(suspended, 1040)).toBe(2);
+    expect(suspended.getOutputTimestamp).not.toHaveBeenCalled();
+  });
+});
 
 describe('piano audio domain', () => {
   it('prepares reverb in bounded tasks without allocating in the input handler', async () => {
