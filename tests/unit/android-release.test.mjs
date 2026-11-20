@@ -112,6 +112,25 @@ describe('Android release preflight', () => {
     releaseTags.mockImplementation(() => { throw new Error('Release API unavailable'); });
     expect(() => release(['prepare'])).toThrow('Release API unavailable');
   });
+
+  it('requires package.json version to match the release version when present', () => {
+    writeFileSync(join(checkout, 'package.json'), JSON.stringify({ name: 'etude', version: '1.0.23' }));
+    expect(() => release(['prepare'])).toThrow('package.json version 1.0.23 must match release version 1.0.24.');
+
+    writeFileSync(join(checkout, 'package.json'), JSON.stringify({ name: 'etude', version: 'invalid' }));
+    expect(() => release(['prepare'])).toThrow('valid SemVer version');
+
+    writeFileSync(join(checkout, 'package.json'), JSON.stringify({ name: 'etude', version: '1.0.24' }));
+    expect(() => release(['prepare'])).not.toThrow();
+  });
+});
+
+it('keeps repository package.json and package-lock.json aligned on a SemVer version', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  const lock = JSON.parse(readFileSync(new URL('../../package-lock.json', import.meta.url), 'utf8'));
+  expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
+  expect(lock.version).toBe(pkg.version);
+  expect(lock.packages[''].version).toBe(pkg.version);
 });
 
 it('verifies before signing and again before creating a release from the verified tag', () => {

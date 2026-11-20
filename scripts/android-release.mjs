@@ -1,5 +1,5 @@
 import { spawn, execFileSync } from 'node:child_process';
-import { appendFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -27,6 +27,18 @@ function verifyTag(tagName, repository, cwd) {
   }
 }
 
+function verifyManifestVersion(versionName, cwd) {
+  const pkgPath = join(cwd, 'package.json');
+  if (!existsSync(pkgPath)) return;
+  const manifest = JSON.parse(readFileSync(pkgPath, 'utf8'));
+  if (typeof manifest.version !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version)) {
+    throw new Error(`package.json must define a valid SemVer version before releasing (got ${String(manifest.version)}).`);
+  }
+  if (manifest.version !== versionName) {
+    throw new Error(`package.json version ${manifest.version} must match release version ${versionName}.`);
+  }
+}
+
 function prepare(env, cwd) {
   const { GITHUB_REF_TYPE, GITHUB_REF_NAME, GITHUB_RUN_NUMBER, INPUT_VERSION_NAME, INPUT_VERSION_CODE } = env;
   const requestedVersion = INPUT_VERSION_NAME?.replace(/^v/, '');
@@ -39,6 +51,7 @@ function prepare(env, cwd) {
   if (tagRef && (tagRef !== tagName || (requestedVersion && requestedVersion !== versionName))) {
     throw new Error(`The requested Android release version must match the selected tag ${tagRef}.`);
   }
+  verifyManifestVersion(versionName, cwd);
 
   const code = INPUT_VERSION_CODE || GITHUB_RUN_NUMBER;
   const versionCode = Number(code);
