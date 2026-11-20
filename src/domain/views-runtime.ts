@@ -12974,12 +12974,12 @@ interface ScoreState {
     tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
     heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
     geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; run?: PracticeCarry | null; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
-    followSys: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
+    followSys: number; followCheckedAt: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
     markGeo?: ScoreGeometry | null; markSig?: string; renderedSig?: string; pedalsOk?: boolean; hasPaint?: boolean; cursorStyle?: ScoreCursorStyleState | null;
 }
 const SCORE: ScoreState = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playing: false, sel: false, loop: null, tempos: [{ beat: 0, bpm: 120 }], tempoList: [{ beat: 0, bpm: 120 }], tempoFromFile: false,
     measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: 'page', stale: false, layoutWidth: 0,
-    geo: null, mrange: null, resume: null, paused: false, cursorEl: null, followSys: -1, panAt: 0, hl: false };
+    geo: null, mrange: null, resume: null, paused: false, cursorEl: null, followSys: -1, followCheckedAt: -Infinity, panAt: 0, hl: false };
 // sel: a note picked by hand (blue, like the playback line); lit: a sounding note, gold, only with "Highlight sounding notes" on
 const SCORE_LOOK = { paper: { bg: '#fffefa', ink: '#000000', staff: undefined, sel: '#1a6fe0', lit: '#a47720', ok: '#1b8f4c', bad: '#d22f2f', dim: '#b9b2a6' }, night: { bg: '#1d1a17', ink: '#ece5d8', staff: '#a1988a', sel: '#7fb2ff', lit: '#e8bb5c', ok: '#6fdc9a', bad: '#ff7a7a', dim: '#5d574f' } }; // MuseScore-blue selection
 function scoreEnsureTempoTimes(): number[] {
@@ -13950,15 +13950,20 @@ function scoreAnchorAt(A: ScoreGeoAnchor[], beat: number, sys: number): ScoreCur
     const x = cursorCurveAt(cached.curves, scoreSeconds(beat), sys);
     return x === null ? null : { x, sys };
 }
-function scoreCursorUpdate(follow: boolean) {
-    const el = scoreCursorEl(), g: ScoreGeometry | null = SCORE.geo, p = g && AN.notes.length && FALL.mode === 'score' ? scoreCursorAt(scoreBeatAt(fallTime())) : null, s = g && p ? g.systems[p.sys] : null, page = g && s ? g.pages[s.page] : null;
+function scoreCursorUpdate(follow: boolean, time?: number, frameTime?: number) {
+    const el = scoreCursorEl(), g: ScoreGeometry | null = SCORE.geo, p = g && AN.notes.length && FALL.mode === 'score' ? scoreCursorAt(scoreBeatAt(time ?? scoreVisualTime())) : null, s = g && p ? g.systems[p.sys] : null, page = g && s ? g.pages[s.page] : null;
     if (!g || !p || !s || !page) {
         if (el.parentNode) el.remove();
         SCORE.cursorStyle = null;
         return;
     }
-    if (follow)
-        scoreCursorFollow(p, s, page, g);
+    // Paint every frame, but only measure the scroll container periodically within the same system.
+    if (follow && (frameTime === undefined || SCORE.followSys !== p.sys || frameTime - SCORE.followCheckedAt >= 80)) {
+        const now = frameTime ?? performance.now();
+        scoreCursorFollow(p, s, page, g, now);
+        SCORE.followSys = p.sys;
+        SCORE.followCheckedAt = now;
+    }
     if (el.parentNode !== page) {
         page.appendChild(el);
         SCORE.cursorStyle = null;
@@ -13982,16 +13987,14 @@ function scoreCursorUpdate(follow: boolean) {
     SCORE.cursorStyle = { w: wStr, h: hStr, transform: trStr, playing };
 }
 // Keep the cursor in view: vertically by system in page view, horizontally in continuous view.
-function scoreCursorFollow(p: ScoreCursorPos, s: ScoreGeoSystem, page: HTMLElement, g: ScoreGeometry) {
+function scoreCursorFollow(p: ScoreCursorPos, s: ScoreGeoSystem, page: HTMLElement, g: ScoreGeometry, now: number) {
     const box = byId('an-roll'), cont = SCORE.layout === 'cont';
     if (!box.clientHeight)
         return;
     if (cont ? (box.scrollWidth <= box.clientWidth + 1 && box.scrollLeft === 0) : (box.scrollHeight <= box.clientHeight + 1 && box.scrollTop === 0)) {
-        if (!cont)
-            SCORE.followSys = p.sys;
         return;
     }
-    const b = box.getBoundingClientRect(), r = page.getBoundingClientRect(), now = performance.now(), behavior = reduceMotion() ? 'auto' : 'smooth';
+    const b = box.getBoundingClientRect(), r = page.getBoundingClientRect(), behavior = reduceMotion() ? 'auto' : 'smooth';
     if (!b.height)
         return;
     if (cont) {
@@ -14007,7 +14010,6 @@ function scoreCursorFollow(p: ScoreCursorPos, s: ScoreGeoSystem, page: HTMLEleme
         SCORE.panAt = now;
         box.scrollTo({ top: box.scrollTop + (top - b.top) - Math.max(10, b.height * 0.12), behavior });
     }
-    SCORE.followSys = p.sys;
 }
 // Bars chosen on the score: the anchor bar, the span a..b (measure indices) and the selected notes it held.
 interface ScoreMeasureRange { anchor: number; a: number; b: number; sig: string }
@@ -14205,6 +14207,8 @@ interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: numbe
 interface PracticeRun extends PracticeStartOptions {
     completed?: Set<number>;
     route?: { a: number; b: number }[];
+    outputHistory?: PracticeSegment[];
+    outputTime?: number;
     segs: PracticeSegment[]; ni: number; beats: PracticeBeat[]; bi: number; beat0: number; wt: number; pass: number; mine: PracticeTimedNote[]; mi: number;
     judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean; origin?: number;
 }
@@ -14502,6 +14506,12 @@ function pracTick() {
         }
         if (R.loop && PRAC.active && !PRAC.wait) pracMisses(R, Infinity);
         const previous = R.segs.shift();
+        if (previous && !PRAC.wait) {
+            // The rendering clock can enter a repeat while the previous notes are still at the output.
+            const history = R.outputHistory ??= [];
+            history.push(previous);
+            while (history.length > 1 && history[1].a0 < now - audio.AUDIO_OUTPUT_CLOCK_WINDOW) history.shift();
+        }
         pracPassEnd(R, !!R.loop || R.segs[0].t0 < (previous?.t1 ?? 0) - 1e-6);
         if (PRAC.wait) R.wt = R.segs[0].t0;
         if (R.route) { const i = R.mine.findIndex(d => d.start >= R.segs[0].t0 - 1e-6); R.mi = i < 0 ? R.mine.length : i; }
@@ -14944,7 +14954,9 @@ function scoreFollow() {
         anKeysPaint();
         return;
     }
-    const time = fallTime(), now = new Set<number>(), sel = SCORE.sel ? AN.selected : null, all: PracticeTimedNote[] = fallData();
+    const frameTime = performance.now();
+    const time = FALL.mode === 'score' ? scoreVisualTime(frameTime) : fallTime();
+    const now = new Set<number>(), sel = SCORE.sel ? AN.selected : null, all: PracticeTimedNote[] = fallData();
     const startIdx = FALL.sorted ? fallStartIndex(all, time - (FALL.maxDur ?? 0) - 0.01) : 0;
     for (let idx = startIdx; idx < all.length; idx++) {
         const d = all[idx];
@@ -14970,7 +14982,7 @@ function scoreFollow() {
         anKeysPaint();
     }
     if (FALL.mode === 'score')
-        scoreCursorUpdate(true);
+        scoreCursorUpdate(true, time, frameTime);
     anStatusPos(time);
     pracFrame();
     SCORE.followRaf = requestAnimationFrame(scoreFollow);
@@ -16733,6 +16745,18 @@ function fallTime(at?: number) {
     if (B && B.seg === s && x > B.t)
         x = B.t;
     return x;
+}
+function scoreVisualTime(frameTime = performance.now()) {
+    const R = SCORE.run, ctx = audioEngine.context;
+    if (!SCORE.playing || !ctx || !R || PRAC.wait) return fallTime();
+    const at = Math.max(R.outputTime ?? 0, audio.audioPresentationTime(ctx, frameTime));
+    R.outputTime = at;
+    const recent = R.outputHistory;
+    if (at < R.segs[0].a0 && recent?.length) {
+        const { s, t } = pracRaw({ segs: recent }, at);
+        return Math.min(t, s.t1);
+    }
+    return fallTime(at);
 }
 function fallLookSync() {
     const look = inputById('fall-look');
