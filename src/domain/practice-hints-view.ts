@@ -23,7 +23,7 @@ interface HintViewOptions {
   readonly play: (id: string, steps: readonly PracticeHintStep[], keys: boolean) => void;
 }
 
-function element<K extends keyof HTMLElementTagNameMap>(kind: K, className: string, text?: string): HTMLElementTagNameMap[K] {
+function element(kind: string, className: string, text?: string): HTMLElement {
   const el = document.createElement(kind);
   el.className = className;
   if (text !== undefined) el.textContent = text;
@@ -40,7 +40,9 @@ function card(id: string, title: string, cue: string, formula?: string) {
 }
 
 function control(id: string, label: string, description: string, disabled: boolean, activate: () => void) {
-  const button = element('button', 'btn sm', label);
+  const button = document.createElement('button');
+  button.className = 'btn sm';
+  button.textContent = label;
   button.type = 'button';
   button.dataset.hintControl = id;
   button.disabled = disabled;
@@ -95,19 +97,22 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     for (const hint of TECHNIQUE_HINTS) {
       const pitch = techniqueHintTonic(hint, options.tonic);
       const spelling = techniqueTonicSpelling(hint.kind, pitch);
-      const title = text(`pr_hints_t_${hint.id}_title`);
+      const namedTonics = hint.id === 'major_f_b' ? [rootName(5), rootName(11)] : [];
+      const title = text(`pr_hints_t_${hint.id}_title`, ...namedTonics);
       const tonicName = spell(spelling.letter, spelling.acc);
-      const el = card(hint.id, title, text(`pr_hints_t_${hint.id}`), tonicName);
+      const el = card(hint.id, title, text(`pr_hints_t_${hint.id}`, ...namedTonics), tonicName);
       for (const hand of ['rh', 'lh'] as const satisfies readonly TechniqueHand[]) {
-        const { ascending, steps } = techniqueHintSteps(hint, pitch, hand);
+        const { ascending, fragment, steps } = techniqueHintSteps(hint, pitch, hand);
         const handName = text(`tq_h_${hand}`);
-        const fingers = ascending.map(note => {
+        const fingers = element('p', 'pr-hint-detail pr-hint-fingers');
+        for (const [i, note] of ascending.entries()) {
           const name = techniqueSpellDegree(hint.kind, pitch, note.degree);
-          return `${spell(name.letter, name.acc)}(${note.finger})`;
-        });
+          const label = `${spell(name.letter, name.acc)}(${note.finger})`;
+          if (i) fingers.append(' · ');
+          fingers.append(fragment.includes(note) ? element('strong', 'pr-hint-focus', label) : label);
+        }
         const id = `technique:${hint.id}:${hand}`;
-        el.append(control(id, `${text('pr_hints_hear')} · ${handName}`, `${title} · ${tonicName}`, disabled, () => play(id, steps, true)),
-          element('p', 'pr-hint-detail pr-hint-fingers', fingers.join(' · ')));
+        el.append(control(id, `${text('pr_hints_hear')} · ${handName}`, `${title} · ${tonicName}`, disabled, () => play(id, steps, true)), fingers);
       }
       contents.append(el);
     }

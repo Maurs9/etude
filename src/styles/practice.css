@@ -68,6 +68,7 @@
 .pr-hint-name{font-size:17px; line-height:1.25}
 .pr-hint-formula{font-weight:700; color:var(--ink); letter-spacing:.02em}
 .pr-hint-cue,.pr-hint-detail,.pr-hint-method{color:var(--ink2); font-size:14px; line-height:1.45}
+.pr-hint-focus{color:var(--ink); text-decoration:underline}
 .pr-hint-actions{margin-top:auto; display:flex; flex-wrap:wrap; gap:8px}
 .pr-hint-card .btn{min-height:44px; white-space:normal; text-align:start}
 .key[data-pr-hint-key]{outline:2px solid #004e97; outline-offset:-3px}

@@ -9,14 +9,19 @@ test('switching topics keeps the panel open and shows each reference hint', asyn
   await expect(panel).not.toHaveAttribute('open', '');
   await expect(page.locator('#practiceHintsList')).toBeEmpty();
   await panel.locator('summary').click();
-  await expect(hint(page, /Cmaj7/)).toContainText('1 3 5 7');
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(25);
+  await expect(hint(page, /^Cmaj7 · /)).toContainText('1 3 5 7');
   await page.locator('#pr-t-scale').click();
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(19);
   await expect(hint(page, /Dorian/)).toContainText('1 2 ♭3 4 5 6 ♭7');
   await page.locator('#pr-t-prog').click();
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(10);
   await expect(hint(page, /Jazz cadence/)).toContainText('Dm7 – G7 – Cmaj7');
   await page.locator('#pr-t-technique').click();
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(6);
   await expect(hint(page, /shared fingering/)).toContainText('E(3) · F(1)');
   await page.locator('#pr-t-melody').click();
+  await expect(page.locator('#practiceHintsList button')).toHaveCount(0);
   await expect(page.locator('#practiceHintsList')).toContainText('Hum the first two or three notes.');
   await expect(panel).toHaveAttribute('open', '');
 });
@@ -30,7 +35,7 @@ test('by-ear hints play without key marks and can show them on demand', async ({
     window.__hintAudio = [];
     window.__etude.previewNote = (midi, at, seconds) => window.__hintAudio.push({ midi, at, seconds });
   });
-  const card = hint(page, /Cmaj7/);
+  const card = hint(page, /^Cmaj7 · /);
   await card.getByRole('button', { name: /Hear the hint/ }).click();
   await expect.poll(() => page.evaluate(() => window.__hintAudio.map(event => event.midi))).toEqual([
     60, 64, 67, 71, 60, 64, 67, 71, 60, 64, 67, 70, 60, 64, 67, 70,
@@ -59,4 +64,48 @@ test('accompaniment owns progression playback while the loop is running', async 
   await expect(play).toBeDisabled();
   await page.locator('#pr-start').click();
   await expect(play).toBeEnabled();
+});
+
+test('a fixed tonic transposes playback and notation changes only the names', async ({ app }) => {
+  const page = await app.open({ hash: 'practice' });
+  await page.locator('#pr-t-chord').click();
+  await page.locator('#pr-songs summary').click();
+  await page.locator('#pr-keys [data-v="11"]').click();
+  const card = page.locator('#practiceHintsList [data-hint="maj7"]');
+  await expect(card.getByRole('heading')).toContainText('Bmaj7');
+  await page.evaluate(() => {
+    window.__hintRoots = [];
+    window.__etude.previewNote = (midi) => window.__hintRoots.push(midi);
+  });
+  await card.getByRole('button', { name: /Hear the hint/ }).click();
+  await expect.poll(() => page.evaluate(() => window.__hintRoots[0])).toBe(59);
+  await page.locator('#set-notation button[data-v="german"]').dispatchEvent('click');
+  await expect(card.getByRole('heading')).toContainText('Hmaj7');
+  await page.evaluate(() => { window.__hintRoots = []; });
+  await card.getByRole('button', { name: /Hear the hint/ }).click();
+  await expect.poll(() => page.evaluate(() => window.__hintRoots[0])).toBe(59);
+  await page.locator('#pr-t-technique').click();
+  const exception = page.locator('#practiceHintsList [data-hint="major_f_b"]');
+  await expect(exception.getByRole('heading')).toHaveText('F and H major');
+  await expect(exception.locator('.pr-hint-fingers').last()).toHaveText('H(4) · C♯(3) · D♯(2) · E(1) · F♯(4) · G♯(3) · A♯(2) · H(1)');
+});
+
+test('closing the panel or navigating cancels the key guide', async ({ app }) => {
+  const page = await app.open({ hash: 'practice', dock: false });
+  await page.locator('#pr-t-technique').click();
+  const summary = page.locator('#pr-songs summary');
+  await summary.click();
+  const demonstration = hint(page, /shared fingering/).getByRole('button', { name: /Right hand/ });
+  await demonstration.click();
+  const keys = page.locator('[data-pr-hint-key]');
+  await expect(keys.first()).toBeVisible();
+  await expect(keys.first()).toHaveAttribute('data-pr-hint-key', /^[1-5]$/);
+  await summary.click();
+  await expect(keys).toHaveCount(0);
+  await summary.click();
+  await demonstration.click();
+  await expect(keys.first()).toBeVisible();
+  await page.locator('#nav [data-view="today"]').click();
+  await expect(keys).toHaveCount(0);
+  await expect(page.locator('#dock')).toHaveClass(/is-rail/);
 });

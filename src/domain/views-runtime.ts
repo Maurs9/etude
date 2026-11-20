@@ -5414,7 +5414,7 @@ async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], 
     const timing = steps.map(step => {
         const at = next, end = at + step.seconds;
         next = end + (step.gap ?? 0);
-        step.notes.forEach(note => previewNote(note.midi, at, step.seconds, note.velocity));
+        step.notes.forEach(note => previewNote(note.midi, at, step.seconds));
         return { at, end, notes: step.notes };
     });
     const silence: readonly PracticeHintNote[] = [];
@@ -5485,7 +5485,7 @@ function syncPracticeHintsPanel() {
         disabled: cat === 'prog' && accomp.on,
         text: t,
         spell: (letter, acc) => spelledName(notation, letter, acc),
-        chordName: chordDisp,
+        chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
         scaleName: scaleDisp,
         play: (id, steps, keys) => { void playPracticeHint(id, steps, keys); },
     });
