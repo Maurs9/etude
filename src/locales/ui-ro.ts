@@ -2128,6 +2128,12 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "ro": {
+      "rating_filter_total": "Dificultate totală",
+      "rating_filter_by_axis": "Dificultate pe axă",
+      "rating_filter_axis": "Axă",
+      "rating_filter_min": "Minim",
+      "rating_filter_max": "Maxim",
+      "rating_filter_any": "Oricare",
       "piece_column": "Partitură",
       "rating_hands_short": "Mâini",
       "rating_details": "Detalii dificultate",

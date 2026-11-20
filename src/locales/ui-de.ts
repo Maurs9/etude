@@ -2134,6 +2134,12 @@ const payload: UIPayload = {
   },
   "LIBRARY": {
     "de": {
+      "rating_filter_total": "Gesamtschwierigkeit",
+      "rating_filter_by_axis": "Schwierigkeit nach Merkmal",
+      "rating_filter_axis": "Merkmal",
+      "rating_filter_min": "Minimum",
+      "rating_filter_max": "Maximum",
+      "rating_filter_any": "Beliebig",
       "piece_column": "Stück",
       "rating_hands_short": "Hände",
       "rating_details": "Schwierigkeitsdetails",

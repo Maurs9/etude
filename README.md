@@ -90,7 +90,8 @@ These results use a fingerprint-based ID and leave the numbered book results and
 My Library automatically calculates and saves difficulty stars for existing and newly imported
 scores. **Difficulty (stars)** sorts from the fewest to the most stars. The title opens the score
 or resumes it when a position was saved. The five axes are visible
-under the title, and **More → Difficulty details** shows their decisive measures. A missing tempo
+beside the title on wide screens and below it on narrow screens. In **Filters**, combine an overall
+star range with a range for one axis. **More → Difficulty details** shows the decisive measures. A missing tempo
 produces a provisional rating. A verified tempo in the calibration profile updates that rating.
 Star ratings travel with library backups. This experimental rubric uses the strongest window and
 typical difficulty independently on each axis.

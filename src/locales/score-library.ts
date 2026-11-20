@@ -1,5 +1,11 @@
 /** Copy owned by the device-local library; not part of the global data-i18n registry. */
 const en = {
+  rating_filter_total: "Overall difficulty",
+  rating_filter_by_axis: "Difficulty by axis",
+  rating_filter_axis: "Axis",
+  rating_filter_min: "Minimum",
+  rating_filter_max: "Maximum",
+  rating_filter_any: "Any",
   piece_column: "Score",
   rating_hands_short: "Hands",
   rating_details: "Difficulty details",
@@ -90,6 +96,12 @@ const en = {
 export type LibraryTextKey = keyof typeof en;
 type Copy = { [K in LibraryTextKey]: string };
 const ro: Copy = {
+  rating_filter_total: "Dificultate totală",
+  rating_filter_by_axis: "Dificultate pe axă",
+  rating_filter_axis: "Axă",
+  rating_filter_min: "Minim",
+  rating_filter_max: "Maxim",
+  rating_filter_any: "Oricare",
   piece_column: "Partitură",
   rating_hands_short: "Mâini",
   rating_details: "Detalii dificultate",
@@ -164,6 +176,12 @@ const ro: Copy = {
   edit_notes: 'Notițe de studiu (ex. măsuri, mâini, tempo țintă)',
 };
 const es: Copy = {
+  rating_filter_total: "Dificultad total",
+  rating_filter_by_axis: "Dificultad por eje",
+  rating_filter_axis: "Eje",
+  rating_filter_min: "Mínimo",
+  rating_filter_max: "Máximo",
+  rating_filter_any: "Cualquiera",
   piece_column: "Partitura",
   rating_hands_short: "Manos",
   rating_details: "Detalles de dificultad",
@@ -238,6 +256,12 @@ const es: Copy = {
   edit_notes: 'Notas de estudio (ej. compases, manos, tempo)',
 };
 const fr: Copy = {
+  rating_filter_total: "Difficulté globale",
+  rating_filter_by_axis: "Difficulté par axe",
+  rating_filter_axis: "Axe",
+  rating_filter_min: "Minimum",
+  rating_filter_max: "Maximum",
+  rating_filter_any: "Indifférent",
   piece_column: "Partition",
   rating_hands_short: "Mains",
   rating_details: "Détails de difficulté",
@@ -312,6 +336,12 @@ const fr: Copy = {
   edit_notes: 'Notes d’étude (ex. mesures, mains, tempo cible)',
 };
 const de: Copy = {
+  rating_filter_total: "Gesamtschwierigkeit",
+  rating_filter_by_axis: "Schwierigkeit nach Merkmal",
+  rating_filter_axis: "Merkmal",
+  rating_filter_min: "Minimum",
+  rating_filter_max: "Maximum",
+  rating_filter_any: "Beliebig",
   piece_column: "Stück",
   rating_hands_short: "Hände",
   rating_details: "Schwierigkeitsdetails",
@@ -386,6 +416,12 @@ const de: Copy = {
   edit_notes: 'Übungsnotizen (z. B. Takte, Hände, Zieltempo)',
 };
 const it: Copy = {
+  rating_filter_total: "Difficoltà complessiva",
+  rating_filter_by_axis: "Difficoltà per asse",
+  rating_filter_axis: "Asse",
+  rating_filter_min: "Minimo",
+  rating_filter_max: "Massimo",
+  rating_filter_any: "Qualsiasi",
   piece_column: "Spartito",
   rating_hands_short: "Mani",
   rating_details: "Dettagli di difficoltà",
@@ -460,6 +496,12 @@ const it: Copy = {
   edit_notes: 'Note di studio (es. battute, mani, tempo)',
 };
 const ptBR: Copy = {
+  rating_filter_total: "Dificuldade geral",
+  rating_filter_by_axis: "Dificuldade por eixo",
+  rating_filter_axis: "Eixo",
+  rating_filter_min: "Mínimo",
+  rating_filter_max: "Máximo",
+  rating_filter_any: "Qualquer",
   piece_column: "Partitura",
   rating_hands_short: "Mãos",
   rating_details: "Detalhes da dificuldade",

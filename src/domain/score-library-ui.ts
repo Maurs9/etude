@@ -129,7 +129,30 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const toolbarFilters = element('div', 'score-library-toolbar-filters');
   toolbarFilters.id = 'library-filters-panel';
   toolbarFilters.hidden = true;
-  toolbarFilters.append(filterLabel, composerLabel, tagLabel, groupLabel);
+  const difficultyFilters = element('div', 'score-library-difficulty-filters');
+  const totalFilter = element('fieldset');
+  const totalLegend = element('legend');
+  totalFilter.append(totalLegend);
+  const axisFilter = element('fieldset');
+  const axisLegend = element('legend');
+  const axisLabel = element('label');
+  const axisLabelText = element('span');
+  const axisSelect = element('select');
+  axisSelect.id = 'library-difficulty-axis';
+  const axisOptions = (['', ...AXES] as const).map(value => {
+    const option = element('option');
+    option.value = value;
+    axisSelect.append(option);
+    return { value, option };
+  });
+  axisLabel.append(axisLabelText, axisSelect);
+  axisFilter.append(axisLegend, axisLabel);
+  const totalRange = createDifficultyRange('library-difficulty-total');
+  const axisRange = createDifficultyRange('library-difficulty-axis');
+  totalFilter.append(totalRange.controls);
+  axisFilter.append(axisRange.controls);
+  difficultyFilters.append(totalFilter, axisFilter);
+  toolbarFilters.append(filterLabel, composerLabel, tagLabel, groupLabel, difficultyFilters);
   toolbar.append(toolbarMain, toolbarBar, activeChips, toolbarFilters);
   const protection = element('p', 'score-library-note');
   protection.id = 'library-protection';
@@ -264,6 +287,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     last: HTMLElement;
     position: HTMLElement;
     progress: HTMLElement;
+    metadata: HTMLElement;
     userNote: HTMLElement;
     open: HTMLButtonElement;
     statusBtn: HTMLButtonElement;
@@ -277,7 +301,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   type Estimate = { bpm: number | undefined; promise: Promise<ImportedDifficultyEstimate | null>; result?: ImportedDifficultyEstimate | null; saveAttempted?: boolean };
   const estimates = new Map<string, Estimate>();
   let ratingWorkerActive = false;
-  let ratingSortTimer = 0;
+  let ratingRenderTimer = 0;
 
   function referenceTempo(id: string, item = items.find(item => item.id === id)): number | undefined {
     return item?.difficultyRating?.startingBpm ?? calibration?.startingTempos?.[id];
@@ -289,6 +313,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   }
   function displayedStars(item: LibraryItem): number | undefined {
     return currentEstimate(item.id, item)?.result?.difficultyStars ?? item.difficultyRating?.stars;
+  }
+  function displayedAxis(item: LibraryItem, axis: DifficultyAxis, result: Estimate['result']): number | undefined {
+    return result?.axisDifficulty?.[axis].stars ?? item.difficultyRating?.axes?.[axis];
   }
   function makeRating(result: ImportedDifficultyEstimate, referenceBpm: number | undefined, startingBpm?: number): LibraryDifficultyRating | null {
     const { difficultyStars: stars, axisDifficulty: axes } = result;
@@ -310,14 +337,15 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       pending.result = result;
       if (currentEstimate(id) !== pending) return;
       updateRowRating(id);
-      if (sort.value === 'difficulty' && !ratingSortTimer) {
-        ratingSortTimer = window.setTimeout(() => {
-          ratingSortTimer = 0;
-          if (sort.value !== 'difficulty') return;
+      if (ratingAffectsResults() && !ratingRenderTimer) {
+        ratingRenderTimer = window.setTimeout(() => {
+          ratingRenderTimer = 0;
+          if (!ratingAffectsResults()) return;
           const focused = document.activeElement;
+          const restoreFocus = focused instanceof HTMLElement && list.contains(focused);
           render();
-          if (focused instanceof HTMLElement && list.contains(focused) && document.activeElement === document.body) {
-            focused.focus({ preventScroll: true });
+          if (restoreFocus && document.activeElement === document.body) {
+            (list.contains(focused) ? focused : toggleFilters).focus({ preventScroll: true });
           }
         }, 100);
       }
@@ -413,7 +441,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     row.rating.dataset.rated = String(stars !== undefined);
     row.rating.dataset.provisional = String(provisional === true);
     row.rating.title = provisional ? t('estimate_tempo') : '';
-    const axisValues = AXES.map(axis => result?.axisDifficulty?.[axis].stars ?? item.difficultyRating?.axes?.[axis]);
+    const axisValues = AXES.map(axis => displayedAxis(item, axis, result));
     const axisSignature = host.language() + ':' + axisValues.join(',');
     row.axes.hidden = axisValues.every(value => value === undefined);
     if (row.axes.dataset.values !== axisSignature) {
@@ -513,6 +541,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     content.setAttribute('aria-busy', String(value));
     files.disabled = restore.disabled = calibrationFile.disabled = backup.disabled = sort.disabled = difficultySort.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
     filter.disabled = composerFilter.disabled = tagFilter.disabled = group.disabled = value;
+    syncDifficultyFilters();
     for (const { button } of tabButtons) button.disabled = value;
     for (const button of activeChips.querySelectorAll('button')) button.disabled = value;
     deleteSelected.disabled = value || selectedIds.size === 0;
@@ -771,6 +800,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const selectLabel = element('label', 'score-library-row-select');
     selectLabel.append(select);
     const info = element('div', 'score-library-info');
+    const identity = element('div', 'score-library-identity');
+    const metadata = element('div', 'score-library-metadata');
     const title = element('h3');
     const rating = element('div', 'score-library-rating');
     rating.setAttribute('role', 'img');
@@ -783,19 +814,22 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const composer = element('p', 'score-library-composer');
     const badges = element('div', 'score-library-badges');
     badges.hidden = true;
-    const metaBreak = element('div', 'score-library-meta-break');
-    metaBreak.setAttribute('aria-hidden', 'true');
     const name = element('p', 'score-library-note');
     const last = element('p', 'score-library-note');
     const position = element('p', 'score-library-note');
     const progress = element('p', 'score-library-note score-library-progress');
     const userNote = element('p', 'score-library-user-note');
     userNote.hidden = true;
-    info.append(title, composer, badges, metaBreak, position, last, name, progress, axes, userNote);
+    identity.append(title, composer);
+    metadata.append(position, progress, badges);
+    info.append(identity, axes, metadata, userNote);
     const actions = element('div', 'score-library-actions');
     const secondary = element('div', 'score-library-secondary');
     secondary.id = 'score-actions-' + id;
     secondary.hidden = true;
+    const fileDetails = element('div', 'score-library-original-info');
+    fileDetails.append(name, last);
+    secondary.append(fileDetails);
     const makeButton = (action: string, group = actions): HTMLButtonElement => {
       const button = element('button');
       button.type = 'button';
@@ -902,7 +936,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         search.focus();
       });
     });
-    return { node, groupHeading, select, rating, axes, ratingDetails, ratingToggle, more, composer, badges, name, last, position, progress, userNote, open, statusBtn, favorite, edit, download: original, remove, editor: null };
+    return { node, groupHeading, select, rating, axes, ratingDetails, ratingToggle, more, composer, badges, name, last, position, progress, metadata, userNote, open, statusBtn, favorite, edit, download: original, remove, editor: null };
   }
   function statusLabel(value: LibraryStudyStatus | undefined): string {
     if (value === 'in_progress') return t('status_in_progress');
@@ -927,8 +961,61 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     return { label: '', empty: true, order: 0 };
   }
+  type DifficultyRange = { min: number; max: number };
+  function createDifficultyRange(id: string) {
+    const controls = element('div', 'score-library-rating-range');
+    const endpoints = (['min', 'max'] as const).map(bound => {
+      const label = element('label');
+      const text = element('span');
+      const input = element('select');
+      input.id = `${id}-${bound}`;
+      for (const value of ['', ...Array.from({ length: 41 }, (_, i) => String((i + 10) / 10))]) {
+        const option = element('option');
+        option.value = value;
+        input.append(option);
+      }
+      label.append(text, input);
+      controls.append(label);
+      input.addEventListener('change', render);
+      return { bound, text, input };
+    });
+    const [min, max] = endpoints.map(({ input }) => input);
+    return {
+      controls,
+      read(): DifficultyRange | null {
+        return min.value || max.value ? { min: Number(min.value || 1), max: Number(max.value || 5) } : null;
+      },
+      clear(): void { min.value = max.value = ''; },
+      sync(): void {
+        min.disabled = max.disabled = busy;
+        for (const option of min.options) option.disabled = Boolean(option.value && max.value && +option.value > +max.value);
+        for (const option of max.options) option.disabled = Boolean(option.value && min.value && +option.value < +min.value);
+      },
+      localize(): void {
+        for (const { bound, text, input } of endpoints) {
+          text.textContent = t(`rating_filter_${bound}`);
+          for (const option of input.options) option.textContent = option.value ? starNumber(+option.value) : t('rating_filter_any');
+        }
+      },
+    };
+  }
+  function selectedDifficultyAxis(): DifficultyAxis | undefined { return AXES.find(axis => axis === axisSelect.value); }
+  function clearAxisFilter(): void { axisSelect.value = ''; axisRange.clear(); }
+  function syncDifficultyFilters(): void {
+    axisSelect.disabled = busy;
+    axisRange.controls.hidden = !axisSelect.value;
+    totalRange.sync();
+    axisRange.sync();
+  }
+  function ratingAffectsResults(): boolean {
+    return sort.value === 'difficulty' || !!totalRange.read() || !!(axisSelect.value && axisRange.read());
+  }
+  function matchesDifficulty(score: number | undefined, range: DifficultyRange): boolean {
+    return score !== undefined && score >= range.min && score <= range.max;
+  }
   let chipsSignature = '';
-  function syncActiveChips(): void {
+  function syncActiveChips(total: DifficultyRange | null, axis: DifficultyAxis | undefined, range: DifficultyRange | null): void {
+    const rangeLabel = ({ min, max }: DifficultyRange) => `${starNumber(min)}–${starNumber(max)}`;
     const specs: { active: boolean; label: string; clear: () => void }[] = [
       {
         active: Boolean(composerFilter.value),
@@ -946,6 +1033,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         clear: () => { group.value = 'none'; },
       },
     ];
+    if (total) specs.push({ active: true, label: `${t('rating_filter_total')}: ${rangeLabel(total)} ★`, clear: totalRange.clear });
+    if (axis && range) specs.push({ active: true, label: `${t(`rating_${axis}`)}: ${rangeLabel(range)}`, clear: clearAxisFilter });
     const active = specs.filter(spec => spec.active);
     if (filtersOpen || !active.length) {
       chipsSignature = '';
@@ -994,12 +1083,16 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       button.setAttribute('aria-pressed', String(active));
       button.dataset.active = String(active);
     }
-    const secondaryCount = [composerFilter.value, tagFilter.value, group.value !== 'none' ? group.value : ''].filter(Boolean).length;
+    const total = totalRange.read();
+    const axis = selectedDifficultyAxis();
+    const axisBounds = axis ? axisRange.read() : null;
+    syncDifficultyFilters();
+    const secondaryCount = [composerFilter.value, tagFilter.value, group.value !== 'none', total, axisBounds].filter(Boolean).length;
     toolbarFilters.hidden = !filtersOpen;
     toggleFilters.setAttribute('aria-expanded', String(filtersOpen));
     toggleFilters.dataset.active = String(filtersOpen || secondaryCount > 0);
     toggleFilters.textContent = secondaryCount > 0 ? t('toggle_filters_count', { count: secondaryCount }) : t('toggle_filters');
-    syncActiveChips();
+    syncActiveChips(total, axis, axisBounds);
     const hasActiveFilters = Boolean(query || filter.value !== 'all' || sort.value !== 'added' || secondaryCount > 0);
     if (hasActiveFilters) {
       if (!resetFilters.isConnected) toolbarBarActions.append(resetFilters);
@@ -1019,6 +1112,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (composerFilter.value && composerFilter.value !== '__none__' && item.composer.trim() !== composerFilter.value) return false;
       if (tagFilter.value === '__none__' && item.tags?.length) return false;
       if (tagFilter.value && tagFilter.value !== '__none__' && !item.tags?.includes(tagFilter.value)) return false;
+      if (total && !matchesDifficulty(displayedStars(item), total)) return false;
+      if (axis && axisBounds && !matchesDifficulty(displayedAxis(item, axis, currentEstimate(item.id, item)?.result), axisBounds)) return false;
       return true;
     });
     const compareByTitle = (a: LibraryItem, b: LibraryItem): number =>
@@ -1167,6 +1262,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       }));
       row.progress.hidden = !progress.length;
       row.progress.textContent = progress.join(' · ');
+      row.metadata.hidden = !item.resume && !progress.length && !badgeNodes.length;
       row.userNote.hidden = !item.notes;
       if (item.notes) row.userNote.textContent = t('note_line', { notes: item.notes });
       row.open.textContent = title;
@@ -1249,6 +1345,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     composerText.textContent = t('composer_filter');
     tagText.textContent = t('tag_filter');
     groupText.textContent = t('group_by');
+    totalLegend.textContent = t('rating_filter_total');
+    axisLegend.textContent = t('rating_filter_by_axis');
+    axisLabelText.textContent = t('rating_filter_axis');
+    for (const { value, option } of axisOptions) option.textContent = value ? t(`rating_${value}`) : t('rating_filter_any');
+    totalRange.localize();
+    axisRange.localize();
     for (const { key, option } of groupOptions) option.textContent = t(`group_${key}`);
     resetFilters.textContent = t('reset_filters');
     backup.textContent = t('backup');
@@ -1372,6 +1474,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   composerFilter.addEventListener('change', render);
   tagFilter.addEventListener('change', render);
   group.addEventListener('change', render);
+  axisSelect.addEventListener('change', () => {
+    if (!axisSelect.value) axisRange.clear();
+    render();
+  });
   for (const { key, button } of tabButtons) {
     button.addEventListener('click', () => {
       if (busy) return;
@@ -1393,6 +1499,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     composerFilter.value = '';
     tagFilter.value = '';
     group.value = 'none';
+    totalRange.clear();
+    clearAxisFilter();
     render();
     if (wasFocused) search.focus();
   });

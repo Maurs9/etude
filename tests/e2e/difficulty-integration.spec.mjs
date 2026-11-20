@@ -133,6 +133,8 @@ test('library rows show five difficulty axes and automatically save stars withou
   );
   const inline = item.locator('.score-library-axis-summary');
   await expect(inline).toBeVisible();
+  const title = item.locator('h3');
+  expect((await inline.boundingBox()).y).toBeGreaterThan((await title.boundingBox()).y);
   await expect(inline.locator('dt')).toHaveText(['Technique', 'Rhythm', 'Hands', 'Texture', 'Notation']);
   await expect(inline.locator('dd')).toHaveText(Array(5).fill(/^[1-5]\.\d$/));
   const more = item.locator('[data-library-action=more]');
@@ -146,9 +148,12 @@ test('library rows show five difficulty axes and automatically save stars withou
   await item.locator('.score-library-rating-details').press('Escape');
   await expect(item.locator('.score-library-rating-details')).toBeHidden();
   const original = item.locator('[data-library-action=download]');
+  const filename = item.getByText('Rated.musicxml · MUSICXML', { exact: true });
   await expect(original).toBeHidden();
+  await expect(filename).toBeHidden();
   await more.click();
   await expect(original).toBeVisible();
+  await expect(filename).toBeVisible();
   await original.focus();
   await original.press('Escape');
   await expect(original).toBeHidden();
@@ -175,6 +180,7 @@ test('library rows show five difficulty axes and automatically save stars withou
 });
 
 test('Difficulty orders older and newly opened scores by their automatic star ratings', async ({ app, page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await app.open({ hash: 'today' });
   await page.evaluate(async source => {
     const store = window.__etude.scoreLibraryStore;
@@ -196,6 +202,11 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
   await expect.poll(async () => (await stored()).filter(item => item.difficultyRating?.assessment).length).toBe(2);
   const titles = page.locator('#library-items h3');
   await expect(titles).toHaveText(['Z Easy older score', 'A Fast older score']);
+  const titleBox = await titles.first().boundingBox();
+  const axesBox = await page.locator('#library-items .score-library-axis-summary').first().boundingBox();
+  expect(axesBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
+  expect(axesBox.y + axesBox.height / 2).toBeGreaterThan(titleBox.y);
+  expect(axesBox.y + axesBox.height / 2).toBeLessThan(titleBox.y + titleBox.height);
   const column = await page.locator('#library-sort-stars').evaluate(el => el.getBoundingClientRect().left);
   expect(await page.locator('#library-items .score-library-rating').evaluateAll(nodes =>
     nodes.map(el => Math.round(el.getBoundingClientRect().left)))).toEqual([Math.round(column), Math.round(column)]);
@@ -221,4 +232,53 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
   });
   await expect.poll(async () => (await newItem())?.difficultyRating?.assessment).toEqual({ referenceBpm: 72, tempoFallback: false });
   await expect(page.locator(`[data-library-id="${id}"] .score-library-rating`)).toHaveAttribute('data-provisional', 'false');
+});
+
+test('library combines overall and axis ranges and clears each filter independently', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'today', lang: 'ro' });
+  await page.evaluate(async () => {
+    const store = window.__etude.scoreLibraryStore;
+    for (const [title, stars, rhythm] of [['Andante', 2.5, 3], ['Ballade', 3.5, 2.9], ['Caprice', 4.1, 4], ['Unrated', 0, 0]]) {
+      const { item } = await store.librarySave(new File([title], `${title}.musicxml`), { title, composer: '' });
+      if (stars) await store.libraryUpdateLevels([{ id: item.id, rating: {
+        version: 1, stars, assessment: { tempoFallback: false },
+        axes: { motor: 2.2, rhythm, bimanual: 2, texture: 2, reading: 2 },
+      } }]);
+    }
+    window.__etude.show('analysis');
+  });
+  await page.locator('#score-library summary').click();
+  await page.locator('#library-sort').selectOption('title');
+  const titles = page.locator('#library-items h3');
+  await expect(titles).toHaveCount(4);
+  const toggle = page.locator('#library-toggle-filters');
+  await toggle.click();
+  const totalMin = page.locator('#library-difficulty-total-min');
+  await totalMin.selectOption('2.5');
+  await page.locator('#library-difficulty-total-max').selectOption('3.5');
+  await expect(totalMin.locator('option[value="3.6"]')).toBeDisabled();
+  await expect(totalMin.locator('option[value="2.5"]')).toHaveText('2,5');
+  await expect(titles).toHaveText(['Andante', 'Ballade']);
+  await expect(page.locator('#library-difficulty-axis-min')).toBeHidden();
+  await page.locator('#library-difficulty-axis').selectOption('rhythm');
+  await page.locator('#library-difficulty-axis-min').selectOption('3');
+  await expect(titles).toHaveText(['Andante']);
+  await toggle.click();
+  const chips = page.locator('#library-active-chips');
+  await expect(chips.getByRole('button')).toHaveCount(2);
+  await chips.getByRole('button', { name: /Dificultate totală: 2,5–3,5/ }).click();
+  await expect(titles).toHaveText(['Andante', 'Caprice']);
+  await page.locator('#library-reset-filters').click();
+  await expect(titles).toHaveCount(4);
+  await toggle.click();
+  await expect(totalMin).toHaveValue('');
+  await expect(page.locator('#library-difficulty-axis')).toHaveValue('');
+  expect(await page.locator('#library-filters-panel').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await totalMin.selectOption('1');
+  await expect(titles).toHaveCount(3);
+  await page.locator('#library-files').setInputFiles({
+    name: 'Fresh.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml),
+  });
+  await expect(titles.getByRole('button', { name: /Fresh/ })).toBeVisible();
 });
