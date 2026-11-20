@@ -1,4 +1,4 @@
-import { readDifficultyCalibration, suggestedDifficulty, type DifficultyCalibration } from './score-difficulty-calibration.js';
+import { readDifficultyCalibration, type DifficultyCalibration } from './score-difficulty-calibration.js';
 import type { DifficultyAxis } from './score-difficulty.js';
 import type { ImportedDifficultyEstimate } from './score-difficulty-import.js';
 import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryLevelChange, LibraryStudyStatus, OpenedScoreEstimator } from './score-library-types.js';
@@ -66,7 +66,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     return { key, option };
   });
   filterLabel.append(filterText, filter);
-  const sortKeys = ['added', 'recent', 'title', 'composer', 'level', 'level_label', 'progress_desc', 'progress_asc'] as const;
+  const sortKeys = ['added', 'recent', 'title', 'composer', 'difficulty', 'progress_desc', 'progress_asc'] as const;
   const sortLabel = element('label', 'score-library-filter score-library-sort');
   const sortText = element('span');
   const sort = element('select');
@@ -83,11 +83,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const composerFilter = element('select');
   composerFilter.id = 'library-composer-filter';
   composerLabel.append(composerText, composerFilter);
-  const levelLabel = element('label', 'score-library-filter');
-  const levelText = element('span');
-  const levelFilter = element('select');
-  levelFilter.id = 'library-level-filter';
-  levelLabel.append(levelText, levelFilter);
   const tagLabel = element('label', 'score-library-filter');
   const tagText = element('span');
   const tagFilter = element('select');
@@ -97,7 +92,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const groupText = element('span');
   const group = element('select');
   group.id = 'library-group';
-  const groupOptions = (['none', 'status', 'composer', 'level', 'tag'] as const).map(key => {
+  const groupOptions = (['none', 'status', 'composer', 'tag'] as const).map(key => {
     const option = element('option');
     option.value = key;
     group.append(option);
@@ -134,7 +129,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const toolbarFilters = element('div', 'score-library-toolbar-filters');
   toolbarFilters.id = 'library-filters-panel';
   toolbarFilters.hidden = true;
-  toolbarFilters.append(filterLabel, composerLabel, levelLabel, tagLabel, groupLabel);
+  toolbarFilters.append(filterLabel, composerLabel, tagLabel, groupLabel);
   toolbar.append(toolbarMain, toolbarBar, activeChips, toolbarFilters);
   const protection = element('p', 'score-library-note');
   protection.id = 'library-protection';
@@ -190,26 +185,23 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   calibrationFile.id = 'library-difficulty-calibration';
   calibrationFile.accept = '.json,application/json';
   calibrationLabel.append(calibrationText, calibrationFile);
-  const reclassify = element('button');
-  reclassify.id = 'library-reclassify';
-  reclassify.type = 'button';
   const rateAll = element('button');
   rateAll.id = 'library-rate-all';
   rateAll.type = 'button';
   toolbarBarActions.prepend(rateAll);
-  transfer.append(transferNote, backup, restoreLabel, calibrationLabel, reclassify);
-  const levelPreview = element('div');
-  levelPreview.id = 'library-level-preview';
+  transfer.append(transferNote, backup, restoreLabel, calibrationLabel);
+  const ratingPreview = element('div');
+  ratingPreview.id = 'library-rating-preview';
   const previewSummary = element('p'), previewList = element('ul');
   previewSummary.tabIndex = -1;
   const previewActions = element('div', 'score-library-editor-actions');
-  const applyLevels = element('button'), cancelLevels = element('button');
-  applyLevels.id = 'library-reclassify-apply';
-  cancelLevels.id = 'library-reclassify-cancel';
-  applyLevels.type = cancelLevels.type = 'button';
-  previewActions.append(applyLevels, cancelLevels);
-  levelPreview.append(previewSummary, previewList, previewActions);
-  content.append(privacy, toolbar, protection, status, corruptStatus, failures, scroll, empty, transfer, levelPreview);
+  const applyRatings = element('button'), cancelRatings = element('button');
+  applyRatings.id = 'library-rating-apply';
+  cancelRatings.id = 'library-rating-cancel';
+  applyRatings.type = cancelRatings.type = 'button';
+  previewActions.append(applyRatings, cancelRatings);
+  ratingPreview.append(previewSummary, previewList, previewActions);
+  content.append(privacy, toolbar, protection, status, corruptStatus, failures, scroll, empty, transfer, ratingPreview);
   details.append(summary, content);
   root.append(details);
 
@@ -241,20 +233,18 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let readSequence = 0;
   let editingId: string | null = null;
   let filtersOpen = false;
-  type LevelEntry = { title: string; change: LibraryLevelChange } | { title: string; skipped: 'tempo' | 'failed' };
-  let levelPlan: { mode: 'levels' | 'stars'; entries: LevelEntry[]; unchanged: number; unreadable: number } | null = null;
+  type RatingEntry = { title: string; change?: Extract<LibraryLevelChange, { rating: LibraryDifficultyRating }> };
+  let ratingPlan: { entries: RatingEntry[]; unchanged: number; unreadable: number } | null = null;
   const selectedIds = new Set<string>();
   type Editor = {
     form: HTMLFormElement;
     titleText: HTMLElement;
     composerText: HTMLElement;
-    levelText: HTMLElement;
     tagsText: HTMLElement;
     statusText: HTMLElement;
     statusOptions: { value: '' | LibraryStudyStatus; option: HTMLOptionElement }[];
     progressText: HTMLElement;
     notesText: HTMLElement;
-    levelList: HTMLDataListElement;
     save: HTMLButtonElement;
     cancel: HTMLButtonElement;
     renderEstimate(): void;
@@ -320,10 +310,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       pending.result = result;
       if (currentEstimate(id) !== pending) return;
       updateRowRating(id);
-      if (sort.value === 'level' && !ratingSortTimer) {
+      if (sort.value === 'difficulty' && !ratingSortTimer) {
         ratingSortTimer = window.setTimeout(() => {
           ratingSortTimer = 0;
-          if (sort.value !== 'level') return;
+          if (sort.value !== 'difficulty') return;
           const focused = document.activeElement;
           render();
           if (focused instanceof HTMLElement && list.contains(focused) && document.activeElement === document.body) {
@@ -341,7 +331,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   }
   function applyCalibration(profile: DifficultyCalibration | null): void {
     calibration = profile;
-    levelPlan = null;
+    ratingPlan = null;
     render();
     queueAutomaticRatings();
   }
@@ -496,25 +486,24 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     status.textContent = t(key, values);
     if (key === 'save_failed' || key === 'unavailable' || key === 'restore_failed' || key === 'action_failed') details.open = true;
   }
-  function renderLevelPreview(): void {
-    reclassify.disabled = busy || !items.length;
+  function renderRatingPreview(): void {
     rateAll.disabled = busy || !items.length;
-    applyLevels.textContent = t(levelPlan?.mode === 'stars' ? 'rating_save_all' : 'reclassify_apply');
-    levelPreview.hidden = levelPlan === null;
-    cancelLevels.disabled = busy;
-    applyLevels.disabled = busy || !levelPlan?.entries.some(entry => 'change' in entry);
-    if (!levelPlan) return;
-    const { entries, unchanged, unreadable } = levelPlan;
-    const count = entries.filter(entry => 'change' in entry).length;
+    applyRatings.textContent = t('rating_save_all');
+    ratingPreview.hidden = ratingPlan === null;
+    cancelRatings.disabled = busy;
+    applyRatings.disabled = busy || !ratingPlan?.entries.some(entry => entry.change);
+    if (!ratingPlan) return;
+    const { entries, unchanged, unreadable } = ratingPlan;
+    const count = entries.filter(entry => entry.change).length;
     previewSummary.textContent = t('reclassify_summary', { count, same: unchanged, skipped: unreadable + entries.length - count });
     previewList.replaceChildren(...entries.map(entry => {
       const line = element('li');
-      if ('change' in entry) {
+      if (entry.change) {
         const change = entry.change;
-        const before = 'rating' in change ? (change.previousRating ? starLabel(change.previousRating.stars) : '—') : change.previous ?? t('no_level');
-        line.textContent = t('reclassify_change', { title: entry.title, before, after: 'rating' in change ? starLabel(change.rating.stars) : change.level });
-        if ('rating' in change && change.rating.assessment?.tempoFallback) line.textContent += ` · ${t('estimate_tempo')}`;
-      } else line.textContent = t(entry.skipped === 'tempo' ? 'reclassify_tempo' : 'reclassify_failed', { title: entry.title });
+        const before = change.previousRating ? starLabel(change.previousRating.stars) : '—';
+        line.textContent = t('reclassify_change', { title: entry.title, before, after: starLabel(change.rating.stars) });
+        if (change.rating.assessment?.tempoFallback) line.textContent += ` · ${t('estimate_tempo')}`;
+      } else line.textContent = t('reclassify_failed', { title: entry.title });
       return line;
     }));
     previewList.hidden = !entries.length;
@@ -523,14 +512,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     busy = value;
     content.setAttribute('aria-busy', String(value));
     files.disabled = restore.disabled = calibrationFile.disabled = backup.disabled = sort.disabled = difficultySort.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
-    filter.disabled = composerFilter.disabled = levelFilter.disabled = tagFilter.disabled = group.disabled = value;
+    filter.disabled = composerFilter.disabled = tagFilter.disabled = group.disabled = value;
     for (const { button } of tabButtons) button.disabled = value;
     for (const button of activeChips.querySelectorAll('button')) button.disabled = value;
     deleteSelected.disabled = value || selectedIds.size === 0;
     for (const control of list.querySelectorAll('button, input, select, textarea')) {
       (control as HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).disabled = value;
     }
-    renderLevelPreview();
+    renderRatingPreview();
     if (!value) queueAutomaticRatings();
   }
   async function run(action: () => Promise<void>, errorKey: LibraryTextKey = 'action_failed'): Promise<void> {
@@ -581,16 +570,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const locale = host.language();
     const composers = new Set<string>();
     let hasEmptyComposer = false;
-    const levels = new Set<string>();
-    let hasEmptyLevel = false;
     const tags = new Set<string>();
     let hasEmptyTag = false;
     for (const item of items) {
       const composer = item.composer.trim();
       if (composer) composers.add(composer);
       else hasEmptyComposer = true;
-      if (item.level) levels.add(item.level);
-      else hasEmptyLevel = true;
       if (item.tags?.length) {
         for (const tag of item.tags) tags.add(tag);
       } else {
@@ -598,27 +583,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       }
     }
     syncSelectOptions(composerFilter, t('all_composers'), [...composers].sort((a, b) => a.localeCompare(b, locale)), t('unknown_composer'), hasEmptyComposer);
-    syncSelectOptions(levelFilter, t('all_levels'), [...levels].sort((a, b) => a.localeCompare(b, locale, { numeric: true })), t('no_level'), hasEmptyLevel);
     syncSelectOptions(tagFilter, t('all_tags'), [...tags].sort((a, b) => a.localeCompare(b, locale)), t('untagged'), hasEmptyTag);
-  }
-  function syncLevelPresets(datalist: HTMLDataListElement): void {
-    const seen = new Set<string>();
-    const optionsList: HTMLOptionElement[] = [];
-    const addPreset = (label: string): void => {
-      const trimmed = label.trim();
-      if (!trimmed) return;
-      const key = trimmed.toLocaleLowerCase();
-      if (seen.has(key)) return;
-      seen.add(key);
-      const option = element('option');
-      option.value = trimmed;
-      optionsList.push(option);
-    };
-    for (const preset of t('level_presets').split(',')) addPreset(preset);
-    for (const item of items) {
-      if (item.level) addPreset(item.level);
-    }
-    datalist.replaceChildren(...optionsList);
   }
   function createEditor(id: string, item: LibraryItem, row: Row): Editor {
     const form = element('form', 'score-library-editor');
@@ -640,24 +605,17 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     };
     const titleField = makeField('title', item.title, 512);
     const composerField = makeField('composer', item.composer, 512);
-    const levelField = makeField('level', item.level ?? '', 64);
-    const levelList = element('datalist');
-    levelList.id = 'library-level-presets';
-    levelField.input.setAttribute('list', levelList.id);
-    syncLevelPresets(levelList);
-    form.append(levelList);
     const estimatePanel = element('div', 'score-library-editor-actions');
-    const estimate = element('button'), applyLevel = element('button'), saveStars = element('button'), result = element('p');
+    const estimate = element('button'), saveStars = element('button'), result = element('p');
     const tempoLabel = element('label'), tempoCopy = element('span'), tempo = element('input');
     tempo.inputMode = 'decimal';
     tempo.maxLength = 8;
     tempo.dataset.libraryField = 'difficulty-tempo';
     tempoLabel.append(tempoCopy, tempo);
-    estimate.type = applyLevel.type = saveStars.type = 'button';
+    estimate.type = saveStars.type = 'button';
     estimate.dataset.libraryAction = 'estimate-difficulty';
-    applyLevel.dataset.libraryAction = 'apply-difficulty';
     result.setAttribute('role', 'status');
-    estimatePanel.append(estimate, saveStars, applyLevel, result, tempoLabel);
+    estimatePanel.append(estimate, saveStars, result, tempoLabel);
     form.append(estimatePanel);
     let difficulty: ImportedDifficultyEstimate | null = null;
     let estimating = false, estimateFailed = false, canSetTempo = false;
@@ -667,11 +625,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (!value) return 0;
       const bpm = Number(value);
       return /^\d+(?:\.\d+)?$/.test(value) && bpm >= 20 && bpm <= 400 ? bpm : null;
-    };
-    const grade = () => {
-      const bpm = enteredTempo();
-      return difficulty?.peak && calibration && !difficulty.uncertainty.tempoFallback && bpm !== null &&
-        (bpm || referenceTempo(id)) === usedTempo ? suggestedDifficulty(difficulty.score, calibration) : null;
     };
     const ratedStars = () => {
       const bpm = enteredTempo();
@@ -684,10 +637,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       tempoLabel.hidden = !canSetTempo;
       tempoCopy.textContent = t('estimate_bpm');
       tempo.disabled = busy || estimating;
-      const level = grade();
-      applyLevel.hidden = level === null || !!levelField.input.value.trim();
-      applyLevel.disabled = busy;
-      applyLevel.textContent = level === null ? '' : t('estimate_use', { level });
       const stars = ratedStars();
       const savedRating = items.find(item => item.id === id)?.difficultyRating;
       saveStars.hidden = stars === null || (stars === savedRating?.stars && (!enteredTempo() || enteredTempo() === savedRating?.startingBpm));
@@ -700,26 +649,17 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         if (difficulty.difficultyStars !== null) text.push(t('rating_summary', {
           rating: starNumber(difficulty.difficultyStars),
         }));
-        text.push(t('estimate_result', { score: difficulty.score, bars: difficulty.peak.writtenMeasures.join(', ') }));
+        text.push(t('estimate_result', { bars: difficulty.peak.writtenMeasures.join(', ') }));
         if (difficulty.uncertainty.tempoFallback) text.push(t('estimate_tempo'));
-        else if (!calibration) text.push(t('estimate_needs_profile'));
         if (difficulty.midi) text.push(t('estimate_midi'));
       }
       result.textContent = text.join(' ');
       result.hidden = !text.length;
     };
-    levelField.input.addEventListener('input', renderEstimate);
     tempo.addEventListener('input', renderEstimate);
     saveStars.addEventListener('click', () => {
       const stars = ratedStars();
       if (stars !== null && difficulty) saveRating(id, difficulty, estimate, enteredTempo() || undefined);
-    });
-    applyLevel.addEventListener('click', () => {
-      const level = grade();
-      if (busy || level === null || levelField.input.value.trim()) return;
-      levelField.input.value = t('estimate_level', { level });
-      renderEstimate();
-      levelField.input.focus();
     });
     estimate.addEventListener('click', async () => {
       const bpm = enteredTempo();
@@ -795,7 +735,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         const updated = await libraryUpdate(id, {
           title: titleField.input.value.trim(),
           composer: composerField.input.value.trim(),
-          level: levelField.input.value.trim(),
           tags,
           status: nextStatus,
           progress,
@@ -811,13 +750,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       form,
       titleText: titleField.text,
       composerText: composerField.text,
-      levelText: levelField.text,
       tagsText: tagsField.text,
       statusText,
       statusOptions,
       progressText: progressField.text,
       notesText,
-      levelList,
       renderEstimate,
       save,
       cancel,
@@ -981,10 +918,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       const value = item.composer.trim();
       return { label: value || t('unknown_composer'), empty: !value, order: 0 };
     }
-    if (group.value === 'level') {
-      const value = item.level ?? '';
-      return { label: value || t('no_level'), empty: !value, order: 0 };
-    }
     if (group.value === 'tag') {
       if (tagFilter.value && tagFilter.value !== '__none__' && item.tags?.includes(tagFilter.value)) {
         return { label: tagFilter.value, empty: false, order: 0 };
@@ -1001,11 +934,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         active: Boolean(composerFilter.value),
         label: `${t('composer_filter')}: ${composerFilter.value === '__none__' ? t('unknown_composer') : composerFilter.value}`,
         clear: () => { composerFilter.value = ''; },
-      },
-      {
-        active: Boolean(levelFilter.value),
-        label: `${t('level_filter')}: ${levelFilter.value === '__none__' ? t('no_level') : levelFilter.value}`,
-        clear: () => { levelFilter.value = ''; },
       },
       {
         active: Boolean(tagFilter.value),
@@ -1052,14 +980,13 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function render(): void {
     const locale = host.language();
     summary.textContent = t('heading', { count: items.length });
-    renderLevelPreview();
+    renderRatingPreview();
     syncFilterOptions();
     const query = search.value.trim().toLocaleLowerCase();
     search.dataset.active = String(Boolean(query));
     sort.dataset.active = String(sort.value !== 'added');
     filter.dataset.active = String(filter.value !== 'all');
     composerFilter.dataset.active = String(Boolean(composerFilter.value));
-    levelFilter.dataset.active = String(Boolean(levelFilter.value));
     tagFilter.dataset.active = String(Boolean(tagFilter.value));
     group.dataset.active = String(group.value !== 'none');
     for (const { key, button } of tabButtons) {
@@ -1067,7 +994,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       button.setAttribute('aria-pressed', String(active));
       button.dataset.active = String(active);
     }
-    const secondaryCount = [composerFilter.value, levelFilter.value, tagFilter.value, group.value !== 'none' ? group.value : ''].filter(Boolean).length;
+    const secondaryCount = [composerFilter.value, tagFilter.value, group.value !== 'none' ? group.value : ''].filter(Boolean).length;
     toolbarFilters.hidden = !filtersOpen;
     toggleFilters.setAttribute('aria-expanded', String(filtersOpen));
     toggleFilters.dataset.active = String(filtersOpen || secondaryCount > 0);
@@ -1081,7 +1008,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     const shown = items.filter(item => {
       if (query) {
-        const haystack = `${item.title}\n${item.composer}\n${item.name}\n${item.level ?? ''}\n${(item.tags ?? []).join('\n')}\n${item.notes ?? ''}`.toLocaleLowerCase();
+        const haystack = `${item.title}\n${item.composer}\n${item.name}\n${(item.tags ?? []).join('\n')}\n${item.notes ?? ''}`.toLocaleLowerCase();
         if (!haystack.includes(query)) return false;
       }
       if (filter.value === 'in_progress' && item.status !== 'in_progress') return false;
@@ -1090,8 +1017,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (filter.value === 'recent' && item.lastOpenedAt === null) return false;
       if (composerFilter.value === '__none__' && item.composer.trim()) return false;
       if (composerFilter.value && composerFilter.value !== '__none__' && item.composer.trim() !== composerFilter.value) return false;
-      if (levelFilter.value === '__none__' && item.level) return false;
-      if (levelFilter.value && levelFilter.value !== '__none__' && item.level !== levelFilter.value) return false;
       if (tagFilter.value === '__none__' && item.tags?.length) return false;
       if (tagFilter.value && tagFilter.value !== '__none__' && !item.tags?.includes(tagFilter.value)) return false;
       return true;
@@ -1110,13 +1035,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         if (!ca !== !cb) return ca ? -1 : 1;
         return ca.localeCompare(cb, locale, { numeric: true }) || compareByTitle(a, b);
       }
-      if (effectiveSort === 'level_label') {
-        const la = a.level ?? '';
-        const lb = b.level ?? '';
-        if (!la !== !lb) return la ? -1 : 1;
-        return la.localeCompare(lb, locale, { numeric: true }) || compareByTitle(a, b);
-      }
-      if (effectiveSort === 'level') {
+      if (effectiveSort === 'difficulty') {
         return (displayedStars(a) ?? Infinity) - (displayedStars(b) ?? Infinity) || compareByTitle(a, b);
       }
       if (effectiveSort === 'progress_desc' || effectiveSort === 'progress_asc') {
@@ -1222,11 +1141,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         badge.append(textSpan, track);
         badgeNodes.push(badge);
       }
-      if (item.level) {
-        const badge = element('span', 'score-library-badge score-library-badge-level');
-        badge.textContent = t('level_badge', { level: item.level });
-        badgeNodes.push(badge);
-      }
       for (const tag of item.tags ?? []) {
         const badge = element('span', 'score-library-badge score-library-badge-tag');
         badge.textContent = tag;
@@ -1286,7 +1200,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         }
         row.editor.titleText.textContent = t('edit_title');
         row.editor.composerText.textContent = t('edit_composer');
-        row.editor.levelText.textContent = t('edit_level');
         row.editor.tagsText.textContent = t('edit_tags');
         row.editor.statusText.textContent = t('edit_status');
         for (const { value, option } of row.editor.statusOptions) {
@@ -1294,7 +1207,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         }
         row.editor.progressText.textContent = t('edit_progress');
         row.editor.notesText.textContent = t('edit_notes');
-        syncLevelPresets(row.editor.levelList);
         row.editor.save.textContent = t('save_edit');
         row.editor.cancel.textContent = t('cancel_edit');
         row.editor.renderEstimate();
@@ -1311,7 +1223,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     empty.hidden = !loaded || shown.length > 0 || (corruptCount > 0 && !items.length);
     empty.textContent = t(items.length ? 'no_matches' : 'empty');
     scroll.hidden = shown.length === 0;
-    difficultySort.setAttribute('aria-pressed', String(sort.value === 'level'));
+    difficultySort.setAttribute('aria-pressed', String(sort.value === 'difficulty'));
     // Search stays usable during an operation and can create new rows/editors.
     // Those controls must obey the same busy state as existing rows.
     if (busy) setBusy(true);
@@ -1328,22 +1240,20 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     sortText.textContent = t('sort_by');
     pieceHeading.textContent = t('piece_column');
     difficultySort.textContent = t('rating_open');
-    difficultySort.setAttribute('aria-label', `${t('sort_by')} ${t('sort_level')}`);
+    difficultySort.setAttribute('aria-label', `${t('sort_by')} ${t('sort_difficulty')}`);
     for (const { key, option } of sortOptions) option.textContent = t(`sort_${key}`);
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);
     tabsGroup.setAttribute('aria-label', t('filter'));
     for (const { key, button } of tabButtons) button.textContent = t(key);
     composerText.textContent = t('composer_filter');
-    levelText.textContent = t('level_filter');
     tagText.textContent = t('tag_filter');
     groupText.textContent = t('group_by');
     for (const { key, option } of groupOptions) option.textContent = t(`group_${key}`);
     resetFilters.textContent = t('reset_filters');
     backup.textContent = t('backup');
-    reclassify.textContent = t('reclassify');
     rateAll.textContent = t('rating_all');
-    cancelLevels.textContent = t('cancel_edit');
+    cancelRatings.textContent = t('cancel_edit');
     restoreText.textContent = t('restore');
     restore.setAttribute('aria-label', t('restore'));
     protection.textContent = protectedStorage === null ? '' : t(protectedStorage ? 'protected' : 'unprotected');
@@ -1401,82 +1311,65 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     download(await libraryExport(), 'etude-library.json');
     notice('backup_saved');
   }); });
-  function previewRatings(mode: 'levels' | 'stars'): void {
+  function previewRatings(): void {
     if (busy) return;
     const profile = calibration;
-    if (mode === 'levels' && !profile) { notice('estimate_needs_profile'); return; }
-    levelPlan = null;
+    ratingPlan = null;
     void run(async () => {
       let unreadable = 0, unchanged = 0;
       const fresh = await libraryList(count => { unreadable = count; });
-      const entries: LevelEntry[] = [];
+      const entries: RatingEntry[] = [];
       for (const item of fresh) {
         if (calibration !== profile) { notice('reclassify_conflict'); return; }
         const title = item.title || item.name;
         try {
           const bpm = referenceTempo(item.id, item);
           const result = await scoreForItem(item.id, bpm);
-          if (!result || result.difficultyStars === null || (mode === 'levels' && result.uncertainty.tempoFallback)) {
-            entries.push({ title, skipped: result?.peak ? 'tempo' : 'failed' });
-            continue;
-          }
-          if (mode === 'levels' && profile) {
-            const grade = suggestedDifficulty(result.score, profile);
-            const level = t('estimate_level', { level: grade });
-            const previous = item.level;
-            if (previous === level || previous === `Level ${grade}`) unchanged++;
-            else entries.push({ title, change: { id: item.id, previous, level } });
-          } else {
-            const previousRating = item.difficultyRating;
-            const rating = makeRating(result, bpm, previousRating?.startingBpm);
-            if (!rating) entries.push({ title, skipped: 'failed' });
-            else if (JSON.stringify(previousRating) === JSON.stringify(rating)) unchanged++;
-            else entries.push({ title, change: { id: item.id, previousRating, rating } });
-          }
+          const previousRating = item.difficultyRating;
+          const rating = result && makeRating(result, bpm, previousRating?.startingBpm);
+          if (!rating) entries.push({ title });
+          else if (JSON.stringify(previousRating) === JSON.stringify(rating)) unchanged++;
+          else entries.push({ title, change: { id: item.id, previousRating, rating } });
         } catch {
-          entries.push({ title, skipped: 'failed' });
+          entries.push({ title });
         }
       }
       if (calibration !== profile) { notice('reclassify_conflict'); return; }
-      levelPlan = { mode, entries, unchanged, unreadable };
+      ratingPlan = { entries, unchanged, unreadable };
       notice('reclassify_ready');
-      renderLevelPreview();
+      renderRatingPreview();
       if (details.open) previewSummary.focus();
     });
   }
-  reclassify.addEventListener('click', () => previewRatings('levels'));
-  rateAll.addEventListener('click', () => previewRatings('stars'));
-  cancelLevels.addEventListener('click', () => {
-    const trigger = levelPlan?.mode === 'stars' ? rateAll : reclassify;
-    levelPlan = null;
-    renderLevelPreview();
-    trigger.focus();
+  rateAll.addEventListener('click', previewRatings);
+  cancelRatings.addEventListener('click', () => {
+    ratingPlan = null;
+    renderRatingPreview();
+    rateAll.focus();
   });
-  applyLevels.addEventListener('click', () => {
-    if (busy || !levelPlan) return;
-    const mode = levelPlan.mode;
-    const changes = levelPlan.entries.flatMap(entry => 'change' in entry ? [entry.change] : []);
+  applyRatings.addEventListener('click', () => {
+    if (busy || !ratingPlan) return;
+    const changes = ratingPlan.entries.flatMap(entry => entry.change ? [entry.change] : []);
     if (!changes.length) return;
     void run(async () => {
       const updated = await libraryUpdateLevels(changes);
-      levelPlan = null;
+      ratingPlan = null;
       await refresh();
       if (statusCopy?.key !== 'unavailable') {
         if (updated === null) notice('reclassify_conflict');
-        else notice(mode === 'stars' ? 'rating_saved' : 'reclassify_done', { count: updated });
+        else notice('rating_saved', { count: updated });
       }
-    }, 'save_failed').then(() => { if (!levelPlan && details.open) (mode === 'stars' ? rateAll : reclassify).focus(); });
+    }, 'save_failed').then(() => { if (!ratingPlan && details.open) rateAll.focus(); });
   });
   search.addEventListener('input', render);
   sort.addEventListener('change', render);
   difficultySort.addEventListener('click', () => {
     if (busy) return;
-    sort.value = 'level';
+    sort.value = 'difficulty';
     render();
   });
   filter.addEventListener('change', render);
   composerFilter.addEventListener('change', render);
-  levelFilter.addEventListener('change', render);
   tagFilter.addEventListener('change', render);
   group.addEventListener('change', render);
   for (const { key, button } of tabButtons) {
@@ -1498,7 +1391,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     sort.value = 'added';
     filter.value = 'all';
     composerFilter.value = '';
-    levelFilter.value = '';
     tagFilter.value = '';
     group.value = 'none';
     render();
