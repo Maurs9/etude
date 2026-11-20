@@ -136,7 +136,8 @@ test('library rows show five difficulty axes and automatically save stars withou
   const title = item.locator('h3');
   expect((await inline.boundingBox()).y).toBeGreaterThan((await title.boundingBox()).y);
   await expect(inline.locator('dt')).toHaveText(['Technique', 'Rhythm', 'Hands', 'Texture', 'Notation']);
-  await expect(inline.locator('dd')).toHaveText(Array(5).fill(/^[1-5]\.\d$/));
+  await expect(inline.locator('dd')).toHaveText(Array(5).fill(/^[1-5]\.\d★$/));
+  await expect(inline.locator('> div').first()).toHaveAttribute('title', /Technique: Keyboard spans/);
   const more = item.locator('[data-library-action=more]');
   await expect(item.locator('.score-library-rating-details')).toBeHidden();
   await more.click();
@@ -154,10 +155,15 @@ test('library rows show five difficulty axes and automatically save stars withou
   await more.click();
   await expect(original).toBeVisible();
   await expect(filename).toBeVisible();
+  expect(await item.locator('.score-library-secondary').evaluate(el => getComputedStyle(el).position)).toBe('absolute');
   await original.focus();
   await original.press('Escape');
   await expect(original).toBeHidden();
   await expect(more).toBeFocused();
+  await more.click();
+  await expect(original).toBeVisible();
+  await page.locator('#score-library summary').dispatchEvent('pointerdown', { bubbles: true });
+  await expect(original).toBeHidden();
 
   const id = createHash('sha256').update(xml).digest('hex');
   await page.evaluate(id => window.__etude.scoreLibraryStore.libraryUpdate(id, { level: 'Level 4', notes: 'Keep' }), id);
@@ -196,6 +202,15 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
     window.__etude.show('analysis');
   }, xml);
   await page.locator('#score-library summary').click();
+  const infoToggle = page.locator('#library-axes-info-toggle');
+  const infoPanel = page.locator('#library-axes-info-panel');
+  await expect(infoPanel).toBeHidden();
+  await infoToggle.click();
+  await expect(infoPanel).toBeVisible();
+  await expect(infoPanel.locator('dt')).toHaveText(['Technique', 'Rhythm', 'Hands (Hand coordination)', 'Texture', 'Notation']);
+  await infoToggle.press('Escape');
+  await expect(infoPanel).toBeHidden();
+  await expect(infoToggle).toBeFocused();
   await page.locator('#library-sort-stars').click();
   await expect(page.locator('#library-sort')).toHaveValue('difficulty');
   const stored = () => page.evaluate(() => window.__etude.scoreLibraryStore.libraryList());

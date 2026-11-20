@@ -184,10 +184,31 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const scroll = element('div', 'score-library-scroll');
   const columns = element('div', 'score-library-columns');
   const pieceHeading = element('span');
+  const difficultyHead = element('div', 'score-library-difficulty-head');
   const difficultySort = element('button');
   difficultySort.type = 'button';
   difficultySort.id = 'library-sort-stars';
-  columns.append(pieceHeading, difficultySort);
+  const axesInfoToggle = element('button', 'score-library-axes-info-btn');
+  axesInfoToggle.type = 'button';
+  axesInfoToggle.id = 'library-axes-info-toggle';
+  axesInfoToggle.textContent = 'ⓘ';
+  axesInfoToggle.setAttribute('aria-controls', 'library-axes-info-panel');
+  axesInfoToggle.setAttribute('aria-expanded', 'false');
+  difficultyHead.append(difficultySort, axesInfoToggle);
+  const axesInfoPanel = element('div', 'score-library-axes-info-panel');
+  axesInfoPanel.id = 'library-axes-info-panel';
+  axesInfoPanel.setAttribute('role', 'region');
+  axesInfoPanel.tabIndex = -1;
+  axesInfoPanel.hidden = true;
+  const axesInfoList = element('dl', 'score-library-axes-guide');
+  const axesInfoPairs = AXES.map(axis => {
+    const pair = element('div'), dt = element('dt'), dd = element('dd');
+    pair.append(dt, dd);
+    axesInfoList.append(pair);
+    return { axis, dt, dd };
+  });
+  axesInfoPanel.append(axesInfoList);
+  columns.append(pieceHeading, difficultyHead, axesInfoPanel);
   scroll.append(columns, list);
   const empty = element('p', 'score-library-note');
   const transfer = element('div', 'score-library-transfer');
@@ -255,6 +276,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let protectedStorage: boolean | null = null;
   let readSequence = 0;
   let editingId: string | null = null;
+  let openMoreId: string | null = null;
+  let axesInfoOpen = false;
   let filtersOpen = false;
   type RatingEntry = { title: string; change?: Extract<LibraryLevelChange, { rating: LibraryDifficultyRating }> };
   let ratingPlan: { entries: RatingEntry[]; unchanged: number; unreadable: number } | null = null;
@@ -281,6 +304,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     ratingDetails: HTMLElement;
     ratingToggle: HTMLButtonElement;
     more: HTMLButtonElement;
+    secondary: HTMLElement;
+    toggleMore(open: boolean, restoreFocus?: boolean): void;
     composer: HTMLElement;
     badges: HTMLElement;
     name: HTMLElement;
@@ -450,7 +475,17 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         const pair = element('div'), name = element('dt'), value = element('dd');
         const stars = axisValues[index];
         name.textContent = t(axis === 'bimanual' ? 'rating_hands_short' : `rating_${axis}`);
-        value.textContent = stars === undefined ? '—' : starNumber(stars);
+        pair.title = `${t(`rating_${axis}`)}: ${t(`rating_${axis}_desc`)}`;
+        if (stars === undefined) {
+          value.textContent = '—';
+        } else {
+          const num = element('span', 'score-library-axis-number');
+          num.textContent = starNumber(stars);
+          const unit = element('span', 'score-library-axis-star');
+          unit.setAttribute('aria-hidden', 'true');
+          unit.textContent = '★';
+          value.append(num, unit);
+        }
         pair.append(name, value);
         return pair;
       }));
@@ -468,6 +503,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         const { stars, measures } = result.axisDifficulty[axis];
         const pair = element('div'), name = element('dt'), rating = element('dd');
         name.textContent = t(`rating_${axis}`);
+        pair.title = `${t(`rating_${axis}`)}: ${t(`rating_${axis}_desc`)}`;
         rating.append(starGraphic(stars));
         if (measures.length) {
           const bars = element('small');
@@ -539,7 +575,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    files.disabled = restore.disabled = calibrationFile.disabled = backup.disabled = sort.disabled = difficultySort.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
+    files.disabled = restore.disabled = calibrationFile.disabled = backup.disabled = sort.disabled = difficultySort.disabled = axesInfoToggle.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
     filter.disabled = composerFilter.disabled = tagFilter.disabled = group.disabled = value;
     syncDifficultyFilters();
     for (const { button } of tabButtons) button.disabled = value;
@@ -789,6 +825,16 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       cancel,
     };
   }
+  function closeOpenMore(exceptId: string | null = null): void {
+    if (!openMoreId || openMoreId === exceptId) return;
+    const previous = rows.get(openMoreId);
+    openMoreId = null;
+    if (previous) {
+      previous.secondary.hidden = true;
+      previous.more.setAttribute('aria-expanded', 'false');
+      previous.node.dataset.menuOpen = 'false';
+    }
+  }
   function createRow(id: string): Row {
     const node = element('li', 'score-library-item');
     node.dataset.libraryId = id;
@@ -850,11 +896,15 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const statusBtn = makeButton('status', secondary);
     const original = makeButton('download', secondary);
     const remove = makeButton('delete', secondary);
-    node.append(groupHeading, selectLabel, info, rating, actions, secondary, ratingDetails);
-    const toggleMore = (open: boolean) => {
+    actions.append(secondary);
+    node.append(groupHeading, selectLabel, info, rating, actions, ratingDetails);
+    const toggleMore = (open: boolean, restoreFocus = true) => {
+      if (open) closeOpenMore(id);
       secondary.hidden = !open;
       more.setAttribute('aria-expanded', String(open));
-      if (!open) more.focus();
+      node.dataset.menuOpen = String(open);
+      openMoreId = open ? id : (openMoreId === id ? null : openMoreId);
+      if (!open && restoreFocus) more.focus();
     };
     more.addEventListener('click', () => toggleMore(Boolean(secondary.hidden)));
     node.addEventListener('keydown', event => {
@@ -870,10 +920,13 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       }
     });
     ratingToggle.addEventListener('click', () => {
-      toggleMore(false);
+      toggleMore(false, false);
       ratingDetails.hidden = !ratingDetails.hidden;
       ratingToggle.setAttribute('aria-expanded', String(!ratingDetails.hidden));
-      if (ratingDetails.hidden) return;
+      if (ratingDetails.hidden) {
+        more.focus();
+        return;
+      }
       if (currentEstimate(id)?.result === null) estimates.delete(id);
       updateRowRating(id);
       ratingDetails.focus({ preventScroll: true });
@@ -892,18 +945,21 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       await refresh();
       if (statusCopy?.key === 'working') { statusCopy = null; status.textContent = ''; }
     }); });
-    statusBtn.addEventListener('click', () => { void run(async () => {
-      const current = items.find(item => item.id === id);
-      if (!current) throw new Error('missing');
-      const nextStatus: LibraryStudyStatus | null =
-        current.status === undefined ? 'in_progress'
-        : current.status === 'in_progress' ? 'mastered'
-        : null;
-      const updated = await libraryUpdate(id, { status: nextStatus });
-      if (!updated) { await refresh(); throw new Error('missing'); }
-      await refresh();
-      if (statusCopy?.key === 'working') { statusCopy = null; status.textContent = ''; }
-    }); });
+    statusBtn.addEventListener('click', () => {
+      toggleMore(false, false);
+      void run(async () => {
+        const current = items.find(item => item.id === id);
+        if (!current) throw new Error('missing');
+        const nextStatus: LibraryStudyStatus | null =
+          current.status === undefined ? 'in_progress'
+          : current.status === 'in_progress' ? 'mastered'
+          : null;
+        const updated = await libraryUpdate(id, { status: nextStatus });
+        if (!updated) { await refresh(); throw new Error('missing'); }
+        await refresh();
+        if (statusCopy?.key === 'working') { statusCopy = null; status.textContent = ''; }
+      }).then(() => { if (more.isConnected) more.focus(); });
+    });
     favorite.addEventListener('click', () => { void run(async () => {
       const current = items.find(item => item.id === id);
       if (!current) throw new Error('missing');
@@ -914,20 +970,29 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }); });
     edit.addEventListener('click', () => {
       if (busy) return;
-      toggleMore(false);
+      toggleMore(false, false);
       editingId = editingId === id ? null : id;
       render();
       if (editingId === id) rows.get(id)?.editor?.form.querySelector('input')?.focus();
+      else more.focus();
     });
-    original.addEventListener('click', () => { void run(async () => {
-      const stored = await libraryGet(id);
-      if (!stored) throw new Error('missing');
-      download(stored.file, stored.item.name);
-      statusCopy = null; status.textContent = '';
-    }); });
+    original.addEventListener('click', () => {
+      toggleMore(false, false);
+      void run(async () => {
+        const stored = await libraryGet(id);
+        if (!stored) throw new Error('missing');
+        download(stored.file, stored.item.name);
+        statusCopy = null; status.textContent = '';
+      }).then(() => { if (more.isConnected) more.focus(); });
+    });
     remove.addEventListener('click', () => {
       const current = items.find(item => item.id === id);
-      if (!current || busy || !window.confirm(t('delete_confirm', { title: current.title || current.name }))) return;
+      if (!current || busy) return;
+      toggleMore(false, false);
+      if (!window.confirm(t('delete_confirm', { title: current.title || current.name }))) {
+        more.focus();
+        return;
+      }
       void run(async () => {
         await host.flush();
         await libraryRemove(id);
@@ -936,7 +1001,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         search.focus();
       });
     });
-    return { node, groupHeading, select, rating, axes, ratingDetails, ratingToggle, more, composer, badges, name, last, position, progress, metadata, userNote, open, statusBtn, favorite, edit, download: original, remove, editor: null };
+    return { node, groupHeading, select, rating, axes, ratingDetails, ratingToggle, more, secondary, toggleMore, composer, badges, name, last, position, progress, metadata, userNote, open, statusBtn, favorite, edit, download: original, remove, editor: null };
   }
   function statusLabel(value: LibraryStudyStatus | undefined): string {
     if (value === 'in_progress') return t('status_in_progress');
@@ -1191,6 +1256,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     for (const [id, row] of rows) {
       if (!visible.has(id)) {
+        if (openMoreId === id) openMoreId = null;
         row.node.remove(); rows.delete(id);
       }
     }
@@ -1325,6 +1391,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     empty.textContent = t(items.length ? 'no_matches' : 'empty');
     scroll.hidden = shown.length === 0;
     difficultySort.setAttribute('aria-pressed', String(sort.value === 'difficulty' || sort.value === 'difficulty_desc'));
+    axesInfoPanel.hidden = !axesInfoOpen;
+    axesInfoToggle.setAttribute('aria-expanded', String(axesInfoOpen));
+    axesInfoToggle.setAttribute('aria-pressed', String(axesInfoOpen));
     // Search stays usable during an operation and can create new rows/editors.
     // Those controls must obey the same busy state as existing rows.
     if (busy) setBusy(true);
@@ -1342,6 +1411,13 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     pieceHeading.textContent = t('piece_column');
     difficultySort.textContent = t('rating_open');
     difficultySort.setAttribute('aria-label', `${t('sort_by')} ${t(sort.value === 'difficulty' ? 'sort_difficulty_desc' : 'sort_difficulty')}`);
+    axesInfoToggle.title = t('rating_info');
+    axesInfoToggle.setAttribute('aria-label', t('rating_info'));
+    axesInfoPanel.setAttribute('aria-label', t('rating_info'));
+    for (const { axis, dt, dd } of axesInfoPairs) {
+      dt.textContent = axis === 'bimanual' ? `${t('rating_hands_short')} (${t('rating_bimanual')})` : t(`rating_${axis}`);
+      dd.textContent = t(`rating_${axis}_desc`);
+    }
     for (const { key, option } of sortOptions) option.textContent = t(`sort_${key}`);
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);
@@ -1474,6 +1550,27 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     if (busy) return;
     sort.value = sort.value === 'difficulty' ? 'difficulty_desc' : 'difficulty';
     render();
+  });
+  axesInfoToggle.addEventListener('click', () => {
+    if (busy) return;
+    axesInfoOpen = !axesInfoOpen;
+    render();
+  });
+  columns.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && axesInfoOpen) {
+      event.stopPropagation();
+      axesInfoOpen = false;
+      render();
+      axesInfoToggle.focus();
+    }
+  });
+  document.addEventListener('pointerdown', event => {
+    if (!openMoreId) return;
+    const activeRow = rows.get(openMoreId);
+    const target = event.target as Node | null;
+    if (!activeRow || (target && !activeRow.secondary.contains(target) && !activeRow.more.contains(target))) {
+      closeOpenMore();
+    }
   });
   filter.addEventListener('change', render);
   composerFilter.addEventListener('change', render);
