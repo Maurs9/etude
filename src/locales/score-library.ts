@@ -1,5 +1,8 @@
 /** Copy owned by the device-local library; not part of the global data-i18n registry. */
 const en = {
+  piece_column: "Score",
+  rating_hands_short: "Hands",
+  rating_details: "Difficulty details",
   row_more: "More",
   rating_open: "Difficulty",
   rating_unavailable: "Difficulty unavailable",
@@ -61,7 +64,7 @@ const en = {
   tag_filter: 'Tag / collection', all_tags: 'All tags', untagged: 'No tags',
   group_by: 'Group by', group_none: 'No grouping', group_composer: 'Composer', group_level: 'Level', group_tag: 'Tag / collection',
   group_heading: '{group} ({count})',
-  edit: 'Organize', edit_title: 'Title', edit_composer: 'Composer',
+  edit: "Edit details", edit_title: 'Title', edit_composer: 'Composer',
   edit_level: 'Level (e.g. Beginner, Level 2)', edit_tags: 'Tags / collections (comma-separated)',
   save_edit: 'Save', cancel_edit: 'Cancel', level_badge: 'Level: {level}',
   search_label: 'Search', reset_filters: 'Reset filters',
@@ -97,6 +100,9 @@ const en = {
 export type LibraryTextKey = keyof typeof en;
 type Copy = { [K in LibraryTextKey]: string };
 const ro: Copy = {
+  piece_column: "Partitură",
+  rating_hands_short: "Mâini",
+  rating_details: "Detalii dificultate",
   row_more: "Mai multe",
   rating_open: "Dificultate",
   rating_unavailable: "Dificultate indisponibilă",
@@ -144,7 +150,7 @@ const ro: Copy = {
   tag_filter: 'Etichetă / colecție', all_tags: 'Toate etichetele', untagged: 'Fără etichete',
   group_by: 'Grupează după', group_none: 'Fără grupare', group_composer: 'Compozitor', group_level: 'Nivel', group_tag: 'Etichetă / colecție',
   group_heading: '{group} ({count})',
-  edit: 'Organizează', edit_title: 'Titlu', edit_composer: 'Compozitor',
+  edit: "Editează detaliile", edit_title: 'Titlu', edit_composer: 'Compozitor',
   edit_level: 'Nivel (ex. Începător, Nivel 2)', edit_tags: 'Etichete / colecții (separate prin virgulă)',
   save_edit: 'Salvează', cancel_edit: 'Anulează', level_badge: 'Nivel: {level}',
   search_label: 'Caută', reset_filters: 'Resetează filtrele',
@@ -178,6 +184,9 @@ const ro: Copy = {
   edit_notes: 'Notițe de studiu (ex. măsuri, mâini, tempo țintă)',
 };
 const es: Copy = {
+  piece_column: "Partitura",
+  rating_hands_short: "Manos",
+  rating_details: "Detalles de dificultad",
   row_more: "Más",
   rating_open: "Dificultad",
   rating_unavailable: "Dificultad no disponible",
@@ -225,7 +234,7 @@ const es: Copy = {
   tag_filter: 'Etiqueta / colección', all_tags: 'Todas las etiquetas', untagged: 'Sin etiquetas',
   group_by: 'Agrupar por', group_none: 'Sin agrupar', group_composer: 'Compositor', group_level: 'Nivel', group_tag: 'Etiqueta / colección',
   group_heading: '{group} ({count})',
-  edit: 'Organizar', edit_title: 'Título', edit_composer: 'Compositor',
+  edit: "Editar detalles", edit_title: 'Título', edit_composer: 'Compositor',
   edit_level: 'Nivel (ej. Principiante, Nivel 2)', edit_tags: 'Etiquetas / colecciones (separadas por comas)',
   save_edit: 'Guardar', cancel_edit: 'Cancelar', level_badge: 'Nivel: {level}',
   search_label: 'Buscar', reset_filters: 'Restablecer filtros',
@@ -259,6 +268,9 @@ const es: Copy = {
   edit_notes: 'Notas de estudio (ej. compases, manos, tempo)',
 };
 const fr: Copy = {
+  piece_column: "Partition",
+  rating_hands_short: "Mains",
+  rating_details: "Détails de difficulté",
   row_more: "Plus",
   rating_open: "Difficulté",
   rating_unavailable: "Difficulté indisponible",
@@ -306,7 +318,7 @@ const fr: Copy = {
   tag_filter: 'Étiquette / collection', all_tags: 'Toutes les étiquettes', untagged: 'Sans étiquette',
   group_by: 'Grouper par', group_none: 'Aucun groupement', group_composer: 'Compositeur', group_level: 'Niveau', group_tag: 'Étiquette / collection',
   group_heading: '{group} ({count})',
-  edit: 'Organiser', edit_title: 'Titre', edit_composer: 'Compositeur',
+  edit: "Modifier les détails", edit_title: 'Titre', edit_composer: 'Compositeur',
   edit_level: 'Niveau (ex. Débutant, Niveau 2)', edit_tags: 'Étiquettes / collections (séparées par des virgules)',
   save_edit: 'Enregistrer', cancel_edit: 'Annuler', level_badge: 'Niveau : {level}',
   search_label: 'Rechercher', reset_filters: 'Réinitialiser les filtres',
@@ -340,6 +352,9 @@ const fr: Copy = {
   edit_notes: 'Notes d’étude (ex. mesures, mains, tempo cible)',
 };
 const de: Copy = {
+  piece_column: "Stück",
+  rating_hands_short: "Hände",
+  rating_details: "Schwierigkeitsdetails",
   row_more: "Mehr",
   rating_open: "Schwierigkeit",
   rating_unavailable: "Schwierigkeit nicht verfügbar",
@@ -387,7 +402,7 @@ const de: Copy = {
   tag_filter: 'Tag / Sammlung', all_tags: 'Alle Tags', untagged: 'Ohne Tags',
   group_by: 'Gruppieren nach', group_none: 'Keine Gruppierung', group_composer: 'Komponist', group_level: 'Stufe', group_tag: 'Tag / Sammlung',
   group_heading: '{group} ({count})',
-  edit: 'Ordnen', edit_title: 'Titel', edit_composer: 'Komponist',
+  edit: "Details bearbeiten", edit_title: 'Titel', edit_composer: 'Komponist',
   edit_level: 'Stufe (z. B. Anfänger, Stufe 2)', edit_tags: 'Tags / Sammlungen (kommagetrennt)',
   save_edit: 'Speichern', cancel_edit: 'Abbrechen', level_badge: 'Stufe: {level}',
   search_label: 'Suchen', reset_filters: 'Filter zurücksetzen',
@@ -421,6 +436,9 @@ const de: Copy = {
   edit_notes: 'Übungsnotizen (z. B. Takte, Hände, Zieltempo)',
 };
 const it: Copy = {
+  piece_column: "Spartito",
+  rating_hands_short: "Mani",
+  rating_details: "Dettagli di difficoltà",
   row_more: "Altro",
   rating_open: "Difficoltà",
   rating_unavailable: "Difficoltà non disponibile",
@@ -468,7 +486,7 @@ const it: Copy = {
   tag_filter: 'Etichetta / raccolta', all_tags: 'Tutte le etichette', untagged: 'Senza etichette',
   group_by: 'Raggruppa per', group_none: 'Nessun raggruppamento', group_composer: 'Compositore', group_level: 'Livello', group_tag: 'Etichetta / raccolta',
   group_heading: '{group} ({count})',
-  edit: 'Organizza', edit_title: 'Titolo', edit_composer: 'Compositore',
+  edit: "Modifica dettagli", edit_title: 'Titolo', edit_composer: 'Compositore',
   edit_level: 'Livello (es. Principiante, Livello 2)', edit_tags: 'Etichette / raccolte (separate da virgola)',
   save_edit: 'Salva', cancel_edit: 'Annulla', level_badge: 'Livello: {level}',
   search_label: 'Cerca', reset_filters: 'Reimposta filtri',
@@ -502,6 +520,9 @@ const it: Copy = {
   edit_notes: 'Note di studio (es. battute, mani, tempo)',
 };
 const ptBR: Copy = {
+  piece_column: "Partitura",
+  rating_hands_short: "Mãos",
+  rating_details: "Detalhes da dificuldade",
   row_more: "Mais",
   rating_open: "Dificuldade",
   rating_unavailable: "Dificuldade indisponível",
@@ -549,7 +570,7 @@ const ptBR: Copy = {
   tag_filter: 'Tag / coleção', all_tags: 'Todas as tags', untagged: 'Sem tags',
   group_by: 'Agrupar por', group_none: 'Sem agrupamento', group_composer: 'Compositor', group_level: 'Nível', group_tag: 'Tag / coleção',
   group_heading: '{group} ({count})',
-  edit: 'Organizar', edit_title: 'Título', edit_composer: 'Compositor',
+  edit: "Editar detalhes", edit_title: 'Título', edit_composer: 'Compositor',
   edit_level: 'Nível (ex. Iniciante, Nível 2)', edit_tags: 'Tags / coleções (separadas por vírgula)',
   save_edit: 'Salvar', cancel_edit: 'Cancelar', level_badge: 'Nível: {level}',
   search_label: 'Buscar', reset_filters: 'Limpar filtros',

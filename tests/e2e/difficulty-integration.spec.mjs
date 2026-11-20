@@ -19,6 +19,11 @@ const xml = `<?xml version="1.0"?>
  </part>
 </score-partwise>`;
 
+async function openEditor(item) {
+  await item.locator('[data-library-action=more]').click();
+  await item.locator('[data-library-action=edit]').click();
+}
+
 test('a library import offers a calibrated level in the editor and preserves a manual level', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   await page.locator('#score-library summary').click();
@@ -27,7 +32,7 @@ test('a library import offers a calibrated level in the editor and preserves a m
   });
   const item = page.locator('#library-items [data-library-id]');
   await expect(item).toHaveCount(1);
-  await item.locator('[data-library-action=edit]').click();
+  await openEditor(item);
   const estimate = item.locator('[data-library-action=estimate-difficulty]');
   const apply = item.locator('[data-library-action=apply-difficulty]');
   const level = item.locator('[data-library-field=level]');
@@ -51,7 +56,7 @@ test('a library import offers a calibrated level in the editor and preserves a m
   await expect(apply).toBeHidden();
   await item.locator('[data-library-action=save-edit]').click();
   await expect(item).toContainText('My own level');
-  await item.locator('[data-library-action=edit]').click();
+  await openEditor(item);
   await estimate.click();
   await expect(item.getByRole('status')).toContainText('Experimental difficulty');
   await expect(level).toHaveValue('My own level');
@@ -71,7 +76,7 @@ test('a score without a written starting tempo needs a verified BPM before sugge
     buffer: Buffer.from(xml.replace('<direction><sound tempo="120"/></direction>', '')),
   });
   const item = page.locator('#library-items [data-library-id]');
-  await item.locator('[data-library-action=edit]').click();
+  await openEditor(item);
   const estimate = item.locator('[data-library-action=estimate-difficulty]');
   const apply = item.locator('[data-library-action=apply-difficulty]');
   const tempo = item.locator('[data-library-field=difficulty-tempo]');
@@ -177,12 +182,20 @@ test('library rows show five difficulty axes and automatically save stars withou
       return 100 - 10 * fill;
     }),
   );
-  await rating.click();
+  const inline = item.locator('.score-library-axis-summary');
+  await expect(inline).toBeVisible();
+  await expect(inline.locator('dt')).toHaveText(['Technique', 'Rhythm', 'Hands', 'Texture', 'Notation']);
+  await expect(inline.locator('dd')).toHaveText(Array(5).fill(/^[1-5]\.\d$/));
+  const more = item.locator('[data-library-action=more]');
+  await expect(item.locator('.score-library-rating-details')).toBeHidden();
+  await more.click();
+  await item.locator('[data-library-action=rating-details]').click();
   const axes = item.locator('.score-library-axes');
   await expect(axes.locator('dt')).toHaveText(['Technique', 'Rhythm', 'Hand coordination', 'Texture', 'Notation']);
   await expect(axes.locator('dd')).toHaveCount(5);
   await expect(axes.locator('.score-library-star-graphic')).toHaveCount(5);
-  const more = item.locator('[data-library-action=more]');
+  await item.locator('.score-library-rating-details').press('Escape');
+  await expect(item.locator('.score-library-rating-details')).toBeHidden();
   const original = item.locator('[data-library-action=download]');
   await expect(original).toBeHidden();
   await more.click();
@@ -199,12 +212,17 @@ test('library rows show five difficulty axes and automatically save stars withou
   await page.locator('#library-rate-all').click();
   await expect(page.locator('#library-level-preview')).toContainText('Changes: 0. Unchanged: 1. Skipped: 0.');
   const saved = await stored();
-  expect(saved).toMatchObject({ level: 'Level 4', notes: 'Keep', difficultyRating: { version: 1, stars: expect.any(Number) } });
-  const list = page.locator('#library-items');
+  expect(saved).toMatchObject({ level: 'Level 4', notes: 'Keep', difficultyRating: { version: 1, stars: expect.any(Number), axes: {
+    motor: expect.any(Number), rhythm: expect.any(Number), bimanual: expect.any(Number), texture: expect.any(Number), reading: expect.any(Number),
+  } } });
+  const list = page.locator('.score-library-scroll');
   expect(await list.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   await page.reload();
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
   expect(await stored()).toEqual(saved);
+  await page.locator('#score-library summary').click();
+  await expect(inline).toBeVisible();
+  await expect(item.locator('h3 [data-library-action=open]')).toHaveText('Rated');
 });
 
 test('Level orders older and newly opened scores by their automatic star ratings', async ({ app, page }) => {
@@ -223,11 +241,15 @@ test('Level orders older and newly opened scores by their automatic star ratings
     window.__etude.show('analysis');
   }, xml);
   await page.locator('#score-library summary').click();
-  await page.locator('#library-sort').selectOption('level');
+  await page.locator('#library-sort-stars').click();
+  await expect(page.locator('#library-sort')).toHaveValue('level');
   const stored = () => page.evaluate(() => window.__etude.scoreLibraryStore.libraryList());
   await expect.poll(async () => (await stored()).filter(item => item.difficultyRating?.assessment).length).toBe(2);
   const titles = page.locator('#library-items h3');
   await expect(titles).toHaveText(['Z Easy older score', 'A Fast older score']);
+  const column = await page.locator('#library-sort-stars').evaluate(el => el.getBoundingClientRect().left);
+  expect(await page.locator('#library-items .score-library-rating').evaluateAll(nodes =>
+    nodes.map(el => Math.round(el.getBoundingClientRect().left)))).toEqual([Math.round(column), Math.round(column)]);
   const update = new Map((await stored()).map(item => [item.title, item]));
   expect(update.get('Z Easy older score').level).toBe('Level 6');
   expect(update.get('A Fast older score').difficultyRating.stars).toBeGreaterThan(update.get('Z Easy older score').difficultyRating.stars);

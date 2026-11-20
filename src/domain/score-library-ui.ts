@@ -7,6 +7,7 @@ import { parseJson } from './storage.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
 
 const DIFFICULTY_CALIBRATION_KEY = 'etude-difficulty-calibration-v1';
+const AXES: readonly DifficultyAxis[] = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'];
 const controllers = new WeakMap<HTMLElement, LibraryController>();
 type Values = Record<string, string | number>;
 // eslint-disable-next-line no-undef -- TypeScript DOM map; not a runtime global.
@@ -162,6 +163,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   bulkBar.append(selectAllLabel, deleteSelected);
   const list = element('ul', 'score-library-list');
   list.id = 'library-items';
+  const scroll = element('div', 'score-library-scroll');
+  const columns = element('div', 'score-library-columns');
+  const pieceHeading = element('span');
+  const difficultySort = element('button');
+  difficultySort.type = 'button';
+  difficultySort.id = 'library-sort-stars';
+  columns.append(pieceHeading, difficultySort);
+  scroll.append(columns, list);
   const empty = element('p', 'score-library-note');
   const transfer = element('div', 'score-library-transfer');
   const transferNote = element('p', 'score-library-note');
@@ -200,7 +209,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   applyLevels.type = cancelLevels.type = 'button';
   previewActions.append(applyLevels, cancelLevels);
   levelPreview.append(previewSummary, previewList, previewActions);
-  content.append(privacy, toolbar, protection, status, corruptStatus, failures, list, empty, transfer, levelPreview);
+  content.append(privacy, toolbar, protection, status, corruptStatus, failures, scroll, empty, transfer, levelPreview);
   details.append(summary, content);
   root.append(details);
 
@@ -254,9 +263,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     node: HTMLLIElement;
     groupHeading: HTMLElement;
     select: HTMLInputElement;
-    title: HTMLElement;
-    rating: HTMLButtonElement;
+    rating: HTMLElement;
+    axes: HTMLElement;
     ratingDetails: HTMLElement;
+    ratingToggle: HTMLButtonElement;
     more: HTMLButtonElement;
     composer: HTMLElement;
     badges: HTMLElement;
@@ -290,9 +300,13 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function displayedStars(item: LibraryItem): number | undefined {
     return currentEstimate(item.id, item)?.result?.difficultyStars ?? item.difficultyRating?.stars;
   }
-  function makeRating(stars: number, referenceBpm: number | undefined, tempoFallback: boolean, startingBpm?: number): LibraryDifficultyRating {
+  function makeRating(result: ImportedDifficultyEstimate, referenceBpm: number | undefined, startingBpm?: number): LibraryDifficultyRating | null {
+    const { difficultyStars: stars, axisDifficulty: axes } = result;
+    if (stars === null || !axes) return null;
     return { version: 1, stars, ...(startingBpm === undefined ? {} : { startingBpm }),
-      assessment: { ...(referenceBpm === undefined ? {} : { referenceBpm }), tempoFallback } };
+      assessment: { ...(referenceBpm === undefined ? {} : { referenceBpm }), tempoFallback: result.uncertainty.tempoFallback },
+      axes: { motor: axes.motor.stars, rhythm: axes.rhythm.stars, bimanual: axes.bimanual.stars,
+        texture: axes.texture.stars, reading: axes.reading.stars } };
   }
   function scoreForItem(id: string, bpm = referenceTempo(id), estimateOpened?: OpenedScoreEstimator): Promise<ImportedDifficultyEstimate | null> {
     const cached = estimates.get(id);
@@ -322,7 +336,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   }
   function needsRating(item: LibraryItem): boolean {
     const saved = item.difficultyRating?.assessment;
-    return (!saved || saved.referenceBpm !== referenceTempo(item.id, item)) && !currentEstimate(item.id, item)?.saveAttempted;
+    return (!saved || !item.difficultyRating?.axes || saved.referenceBpm !== referenceTempo(item.id, item)) &&
+      !currentEstimate(item.id, item)?.saveAttempted;
   }
   function applyCalibration(profile: DifficultyCalibration | null): void {
     calibration = profile;
@@ -350,9 +365,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const item = items.find(item => item.id === id);
     if (!estimate || currentEstimate(id) !== estimate || !item || busy) return;
     estimate.saveAttempted = true;
-    if (!result || result.difficultyStars === null) return;
     const previousRating = item.difficultyRating;
-    const rating = makeRating(result.difficultyStars, estimate.bpm, result.uncertainty.tempoFallback, previousRating?.startingBpm);
+    const rating = result && makeRating(result, estimate.bpm, previousRating?.startingBpm);
+    if (!rating) return;
     try {
       const saved = await libraryUpdateLevels([{ id, previousRating, rating }]);
       if (saved === null || !items.includes(item)) {
@@ -398,7 +413,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const provisional = result?.uncertainty.tempoFallback ?? item.difficultyRating?.assessment?.tempoFallback;
     const label = t(result === undefined ? 'rating_open' : 'rating_unavailable');
     if (stars === undefined) {
-      if (row.rating.textContent !== label) row.rating.textContent = label;
+      if (row.rating.textContent !== '—') row.rating.textContent = '—';
     } else if (row.rating.querySelector('.score-library-rating-number')?.textContent !== starNumber(stars)) {
       row.rating.replaceChildren(starGraphic(stars));
     }
@@ -407,6 +422,21 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }) + (provisional ? `. ${t('estimate_tempo')}` : ''));
     row.rating.dataset.rated = String(stars !== undefined);
     row.rating.dataset.provisional = String(provisional === true);
+    row.rating.title = provisional ? t('estimate_tempo') : '';
+    const axisValues = AXES.map(axis => result?.axisDifficulty?.[axis].stars ?? item.difficultyRating?.axes?.[axis]);
+    const axisSignature = host.language() + ':' + axisValues.join(',');
+    row.axes.hidden = axisValues.every(value => value === undefined);
+    if (row.axes.dataset.values !== axisSignature) {
+      row.axes.dataset.values = axisSignature;
+      row.axes.replaceChildren(...AXES.map((axis, index) => {
+        const pair = element('div'), name = element('dt'), value = element('dd');
+        const stars = axisValues[index];
+        name.textContent = t(axis === 'bimanual' ? 'rating_hands_short' : `rating_${axis}`);
+        value.textContent = stars === undefined ? '—' : starNumber(stars);
+        pair.append(name, value);
+        return pair;
+      }));
+    }
     if (row.ratingDetails.hidden) return;
     row.ratingDetails.replaceChildren();
     if (result === undefined) {
@@ -416,8 +446,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       row.ratingDetails.textContent = t('rating_unavailable');
     } else {
       const axes = element('dl', 'score-library-axes');
-      const keys: readonly DifficultyAxis[] = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'];
-      for (const axis of keys) {
+      for (const axis of AXES) {
         const { stars, measures } = result.axisDifficulty[axis];
         const pair = element('div'), name = element('dt'), rating = element('dd');
         name.textContent = t(`rating_${axis}`);
@@ -442,18 +471,18 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         save.type = 'button';
         save.disabled = busy;
         save.textContent = t('rating_save_one', { rating: starLabel(result.difficultyStars) });
-        const stars = result.difficultyStars;
-        save.addEventListener('click', () => saveRating(id, stars, row.rating));
+        save.addEventListener('click', () => saveRating(id, result, row.more));
         row.ratingDetails.append(save);
       }
     }
   }
-  function saveRating(id: string, stars: number, focus: HTMLButtonElement, manualBpm?: number): void {
+  function saveRating(id: string, result: ImportedDifficultyEstimate, focus: HTMLButtonElement, manualBpm?: number): void {
     const item = items.find(item => item.id === id);
     if (busy || !item) return;
     void run(async () => {
       const previousRating = item.difficultyRating;
-      const rating = makeRating(stars, manualBpm ?? referenceTempo(id), false, manualBpm ?? previousRating?.startingBpm);
+      const rating = makeRating(result, manualBpm ?? referenceTempo(id), manualBpm ?? previousRating?.startingBpm);
+      if (!rating) return;
       const updated = await libraryUpdateLevels([{ id, previousRating, rating }]);
       await refresh();
       if (statusCopy?.key !== 'unavailable') {
@@ -493,7 +522,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    files.disabled = restore.disabled = calibrationFile.disabled = backup.disabled = sort.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
+    files.disabled = restore.disabled = calibrationFile.disabled = backup.disabled = sort.disabled = difficultySort.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
     filter.disabled = composerFilter.disabled = levelFilter.disabled = tagFilter.disabled = group.disabled = value;
     for (const { button } of tabButtons) button.disabled = value;
     for (const button of activeChips.querySelectorAll('button')) button.disabled = value;
@@ -683,7 +712,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     tempo.addEventListener('input', renderEstimate);
     saveStars.addEventListener('click', () => {
       const stars = ratedStars();
-      if (stars !== null) saveRating(id, stars, estimate, enteredTempo() || undefined);
+      if (stars !== null && difficulty) saveRating(id, difficulty, estimate, enteredTempo() || undefined);
     });
     applyLevel.addEventListener('click', () => {
       const level = grade();
@@ -751,7 +780,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (busy) return;
       editingId = null;
       render();
-      row.edit.focus();
+      row.more.focus();
     });
     form.addEventListener('submit', event => {
       event.preventDefault();
@@ -776,7 +805,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         editingId = null;
         await refresh();
         notice('saved');
-      });
+      }).then(() => { if (editingId !== id && row.more.isConnected) row.more.focus(); });
     });
     return {
       form,
@@ -806,13 +835,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     selectLabel.append(select);
     const info = element('div', 'score-library-info');
     const title = element('h3');
-    const rating = element('button', 'score-library-rating');
-    rating.type = 'button';
-    rating.setAttribute('aria-expanded', 'false');
+    const rating = element('div', 'score-library-rating');
+    rating.setAttribute('role', 'img');
+    const axes = element('dl', 'score-library-axis-summary');
+    axes.hidden = true;
     const ratingDetails = element('div', 'score-library-rating-details');
     ratingDetails.id = 'score-rating-' + id;
+    ratingDetails.tabIndex = -1;
     ratingDetails.hidden = true;
-    rating.setAttribute('aria-controls', ratingDetails.id);
     const composer = element('p', 'score-library-composer');
     const badges = element('div', 'score-library-badges');
     badges.hidden = true;
@@ -824,7 +854,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const progress = element('p', 'score-library-note score-library-progress');
     const userNote = element('p', 'score-library-user-note');
     userNote.hidden = true;
-    info.append(title, rating, composer, badges, metaBreak, name, last, position, progress, ratingDetails, userNote);
+    info.append(title, composer, badges, metaBreak, position, last, name, progress, axes, userNote);
     const actions = element('div', 'score-library-actions');
     const secondary = element('div', 'score-library-secondary');
     secondary.id = 'score-actions-' + id;
@@ -837,16 +867,19 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       group.append(button);
       return button;
     };
-    const open = makeButton('open');
+    const open = makeButton('open', title);
     const favorite = makeButton('favorite');
-    const edit = makeButton('edit');
     const more = makeButton('more');
     more.setAttribute('aria-controls', secondary.id);
     more.setAttribute('aria-expanded', 'false');
+    const edit = makeButton('edit', secondary);
+    const ratingToggle = makeButton('rating-details', secondary);
+    ratingToggle.setAttribute('aria-controls', ratingDetails.id);
+    ratingToggle.setAttribute('aria-expanded', 'false');
     const statusBtn = makeButton('status', secondary);
     const original = makeButton('download', secondary);
     const remove = makeButton('delete', secondary);
-    node.append(groupHeading, selectLabel, info, actions, secondary);
+    node.append(groupHeading, selectLabel, info, rating, actions, secondary, ratingDetails);
     const toggleMore = (open: boolean) => {
       secondary.hidden = !open;
       more.setAttribute('aria-expanded', String(open));
@@ -854,17 +887,25 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     };
     more.addEventListener('click', () => toggleMore(Boolean(secondary.hidden)));
     node.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !secondary.hidden && (event.target === more || secondary.contains(document.activeElement))) {
+      if (event.key !== 'Escape') return;
+      if (!secondary.hidden && (event.target === more || secondary.contains(document.activeElement))) {
         event.stopPropagation();
         toggleMore(false);
+      } else if (!ratingDetails.hidden && ratingDetails.contains(document.activeElement)) {
+        event.stopPropagation();
+        ratingDetails.hidden = true;
+        ratingToggle.setAttribute('aria-expanded', 'false');
+        more.focus();
       }
     });
-    rating.addEventListener('click', () => {
+    ratingToggle.addEventListener('click', () => {
+      toggleMore(false);
       ratingDetails.hidden = !ratingDetails.hidden;
-      rating.setAttribute('aria-expanded', String(!ratingDetails.hidden));
+      ratingToggle.setAttribute('aria-expanded', String(!ratingDetails.hidden));
       if (ratingDetails.hidden) return;
       if (currentEstimate(id)?.result === null) estimates.delete(id);
       updateRowRating(id);
+      ratingDetails.focus({ preventScroll: true });
     });
     select.addEventListener('change', () => {
       if (busy) return;
@@ -902,6 +943,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }); });
     edit.addEventListener('click', () => {
       if (busy) return;
+      toggleMore(false);
       editingId = editingId === id ? null : id;
       render();
       if (editingId === id) rows.get(id)?.editor?.form.querySelector('input')?.focus();
@@ -923,7 +965,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         search.focus();
       });
     });
-    return { node, groupHeading, select, title, rating, ratingDetails, more, composer, badges, name, last, position, progress, userNote, open, statusBtn, favorite, edit, download: original, remove, editor: null };
+    return { node, groupHeading, select, rating, axes, ratingDetails, ratingToggle, more, composer, badges, name, last, position, progress, userNote, open, statusBtn, favorite, edit, download: original, remove, editor: null };
   }
   function statusLabel(value: LibraryStudyStatus | undefined): string {
     if (value === 'in_progress') return t('status_in_progress');
@@ -1116,7 +1158,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (!visible.has(id)) selectedIds.delete(id);
     }
     if (shown.length > 0) {
-      if (!bulkBar.isConnected) content.insertBefore(bulkBar, list);
+      if (!bulkBar.isConnected) content.insertBefore(bulkBar, scroll);
       selectAllText.textContent = t('select_all', { count: shown.length });
       selectAll.setAttribute('aria-label', selectAllText.textContent);
       const allSelected = shown.every(item => selectedIds.has(item.id));
@@ -1157,7 +1199,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       row.select.checked = selectedIds.has(item.id);
       row.select.disabled = busy;
       row.select.setAttribute('aria-label', t('select_score', { title }));
-      row.title.textContent = title;
       updateRowRating(item.id);
       row.composer.textContent = item.composer;
       row.composer.hidden = !item.composer.trim();
@@ -1214,21 +1255,25 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       row.progress.textContent = progress.join(' · ');
       row.userNote.hidden = !item.notes;
       if (item.notes) row.userNote.textContent = t('note_line', { notes: item.notes });
-      row.open.textContent = t(item.resume ? 'resume' : 'open');
+      row.open.textContent = title;
       row.open.setAttribute('aria-label', `${t(item.resume ? 'resume' : 'open')}: ${title}`);
       row.statusBtn.textContent = t('rating_change_status', { status: statusText });
       row.statusBtn.dataset.status = item.status ?? 'none';
       row.statusBtn.setAttribute('aria-pressed', String(Boolean(item.status)));
       row.statusBtn.title = t('status_cycle', { status: statusText, title });
       row.statusBtn.setAttribute('aria-label', row.statusBtn.title);
-      row.favorite.textContent = item.favorite ? '★' : '☆';
+      row.favorite.textContent = item.favorite ? '♥' : '♡';
       row.favorite.setAttribute('aria-pressed', String(item.favorite));
       row.favorite.title = t('favorite', { title });
       row.favorite.setAttribute('aria-label', row.favorite.title);
       row.edit.textContent = t('edit');
       row.edit.setAttribute('aria-pressed', String(editingId === item.id));
       row.edit.setAttribute('aria-label', `${t('edit')}: ${title}`);
-      row.more.textContent = t('row_more');
+      row.ratingToggle.textContent = t('rating_details');
+      row.ratingDetails.setAttribute('role', 'region');
+      row.ratingDetails.setAttribute('aria-label', `${t('rating_details')}: ${title}`);
+      row.more.textContent = '⋯';
+      row.more.title = t('row_more');
       row.more.setAttribute('aria-label', `${t('row_more')}: ${title}`);
       row.download.textContent = t('download');
       row.download.setAttribute('aria-label', `${t('download')}: ${item.name}`);
@@ -1265,6 +1310,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     corruptStatus.textContent = corruptCount ? t('corrupt_entries', { count: corruptCount }) : '';
     empty.hidden = !loaded || shown.length > 0 || (corruptCount > 0 && !items.length);
     empty.textContent = t(items.length ? 'no_matches' : 'empty');
+    scroll.hidden = shown.length === 0;
+    difficultySort.setAttribute('aria-pressed', String(sort.value === 'level'));
     // Search stays usable during an operation and can create new rows/editors.
     // Those controls must obey the same busy state as existing rows.
     if (busy) setBusy(true);
@@ -1279,6 +1326,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     search.placeholder = t('search');
     search.setAttribute('aria-label', t('search'));
     sortText.textContent = t('sort_by');
+    pieceHeading.textContent = t('piece_column');
+    difficultySort.textContent = t('rating_open');
+    difficultySort.setAttribute('aria-label', `${t('sort_by')} ${t('sort_level')}`);
     for (const { key, option } of sortOptions) option.textContent = t(`sort_${key}`);
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);
@@ -1378,8 +1428,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
             else entries.push({ title, change: { id: item.id, previous, level } });
           } else {
             const previousRating = item.difficultyRating;
-            const rating = makeRating(result.difficultyStars, bpm, result.uncertainty.tempoFallback, previousRating?.startingBpm);
-            if (JSON.stringify(previousRating) === JSON.stringify(rating)) unchanged++;
+            const rating = makeRating(result, bpm, previousRating?.startingBpm);
+            if (!rating) entries.push({ title, skipped: 'failed' });
+            else if (JSON.stringify(previousRating) === JSON.stringify(rating)) unchanged++;
             else entries.push({ title, change: { id: item.id, previousRating, rating } });
           }
         } catch {
@@ -1418,6 +1469,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   });
   search.addEventListener('input', render);
   sort.addEventListener('change', render);
+  difficultySort.addEventListener('click', () => {
+    if (busy) return;
+    sort.value = 'level';
+    render();
+  });
   filter.addEventListener('change', render);
   composerFilter.addEventListener('change', render);
   levelFilter.addEventListener('change', render);

@@ -61,12 +61,17 @@ function readDifficultyRating(value: unknown): LibraryDifficultyRating | undefin
   const rating = record(value);
   if (rating.version !== 1) return undefined;
   const assessment = rating.assessment === undefined ? undefined : record(rating.assessment);
+  const axes = rating.axes === undefined ? undefined : record(rating.axes);
   return {
     version: 1, stars: difficultyStars(rating.stars),
     ...(rating.startingBpm === undefined ? {} : { startingBpm: number(rating.startingBpm, 20, 400) }),
     ...(assessment === undefined ? {} : { assessment: {
       ...(assessment.referenceBpm === undefined ? {} : { referenceBpm: number(assessment.referenceBpm, 20, 400) }),
       tempoFallback: boolean(assessment.tempoFallback),
+    } }),
+    ...(axes === undefined ? {} : { axes: {
+      motor: difficultyStars(axes.motor), rhythm: difficultyStars(axes.rhythm), bimanual: difficultyStars(axes.bimanual),
+      texture: difficultyStars(axes.texture), reading: difficultyStars(axes.reading),
     } }),
   };
 }

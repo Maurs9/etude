@@ -1,3 +1,5 @@
+import type { DifficultyAxes } from './score-difficulty.js';
+
 /** Private, device-local score library. Originals are stored separately from metadata. */
 export interface LibraryResume {
   /** Optional expanded performance coordinate and active musical seconds; older saves use the written position. */
@@ -29,6 +31,7 @@ export interface LibraryDifficultyRating {
   startingBpm?: number;
   /** Records the tempo used for automatic refresh. Older ratings did not store this. */
   assessment?: { referenceBpm?: number; tempoFallback: boolean };
+  axes?: DifficultyAxes;
 }
 
 export interface LibraryItem extends LibraryMetadata {
