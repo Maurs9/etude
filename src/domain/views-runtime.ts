@@ -5041,7 +5041,7 @@ function cofText(x: string, y: string, cls: string, lines: string[], lh: number)
 // A circle drawn smaller than this leaves out the signature labels around the rim and zooms in on the rings, so the
 // key names stay legible; it follows the circle's own width, which beside the staff is far less than the window's.
 const COF_COMPACT_W = 460;
-const COF_R_MIN0 = 90, COF_R_MIN1 = 158, COF_R_CNT1 = 182, COF_R_MAJ1 = 256, COF_R_STAFF = 429;
+const COF_R_MIN0 = 90, COF_R_MIN1 = 158, COF_R_CNT1 = 182, COF_R_MAJ1 = 256, COF_R_STAFF = 542;
 const COF_STAFF_WIDTH = 126;
 const COF_STAFF_ACCIDENTAL_SCALE = 1.4;
 let cofCompact: boolean | null = null;
@@ -5049,12 +5049,14 @@ function cofIsCompact(box: HTMLElement) { const w = box.getBoundingClientRect().
 function cofStaffSector(i: number, d0: number, d1: number, id: string) {
     const primary = lCofN(i), enharmonic = lCofN(i, true), paired = primary !== enharmonic;
     const fifths = paired ? [Math.max(primary, enharmonic), Math.min(primary, enharmonic)] : [primary];
-    const [x, y] = cofPt(paired ? 346 : (COF_R_MAJ1 + COF_R_STAFF) / 2, i * 30);
-    const scale = paired ? .70 : .76;
+    const radii = paired ? [i === 6 ? 362 : 352, 472] : [(COF_R_MAJ1 + COF_R_STAFF) / 2];
+    const scale = paired ? 1.16 : 1.22;
     const staves = fifths.map((n, j) => {
-        const offset = paired ? (j - 0.5) * 64 : 0;
+        const [x, y] = cofPt(radii[j], i * 30);
+        // Shift the lower staff toward the vertical axis so both horizontal staves fit the diagonal sectors.
+        const shift = j === 1 ? (i - 6) * 32 : 0;
         const signature = srKeySigG('treble', n, 35, 0, COF_STAFF_ACCIDENTAL_SCALE).svg;
-        return `<g class="lw-cof-staff" data-fifths="${n}" transform="translate(${x} ${Number(y) + offset}) scale(${scale}) translate(${-COF_STAFF_WIDTH / 2} -26)"><use href="#${id}Staff"/>${signature}</g>`;
+        return `<g class="lw-cof-staff" data-fifths="${n}" transform="translate(${Number(x) + shift} ${y}) scale(${scale}) translate(${-COF_STAFF_WIDTH / 2} -26)"><use href="#${id}Staff"/>${signature}</g>`;
     }).join('');
     return `<g aria-hidden="true"><path class="lw-cof-staff-sector" d="${cofSector(COF_R_MAJ1, COF_R_STAFF, d0, d1)}"/>${staves}</g>`;
 }

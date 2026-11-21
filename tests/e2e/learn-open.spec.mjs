@@ -127,21 +127,33 @@ test('the Learn circle gives all 15 staves room at mobile and desktop widths', a
       const majorTop = svg.querySelector('.cof-k[data-ring="maj"][data-i="0"] .cof-w').getBoundingClientRect().top;
       const outerTop = svg.querySelector('.lw-cof-staff-sector').getBoundingClientRect().top;
       const scale = svg.getScreenCTM().a;
+      const wheelWidth = svg.getBoundingClientRect().width;
 
       return Array.from(svg.querySelectorAll('.lw-cof-staff'), (staff) => {
-        const { left, right, top, bottom } = staff.getBoundingClientRect();
+        const { left, right, top, bottom, width, height } = staff.getBoundingClientRect();
         const nearest = Math.hypot(Math.max(left - centerX, centerX - right, 0), Math.max(top - centerY, centerY - bottom, 0));
         const farthest = Math.hypot(Math.max(right - centerX, centerX - left), Math.max(bottom - centerY, centerY - top));
+        const sector = staff.parentElement.querySelector('.lw-cof-staff-sector');
+        const toSector = sector.getScreenCTM().inverse();
+        const inside = [[left, top], [right, top], [left, bottom], [right, bottom]]
+          .every(([x, y]) => sector.isPointInFill(new DOMPoint(x, y).matrixTransform(toSector)));
         return {
           key: staff.dataset.fifths,
           innerGap: (majorTop - centerY + nearest) / scale,
           outerGap: (centerY - outerTop - farthest) / scale,
+          relativeWidth: width / wheelWidth,
+          relativeHeight: height / wheelWidth,
+          inside,
         };
       });
     });
-    for (const { key, innerGap, outerGap } of spacing) {
-      expect(innerGap, `staff ${key} at ${width}px, distance from the major ring`).toBeGreaterThanOrEqual(12);
-      expect(outerGap, `staff ${key} at ${width}px, distance from the outer edge`).toBeGreaterThanOrEqual(6);
+    for (const staff of spacing) {
+      const label = `staff ${staff.key} at ${width}px`;
+      expect(staff.innerGap, `${label}, distance from the major ring`).toBeGreaterThanOrEqual(12);
+      expect(staff.outerGap, `${label}, distance from the outer edge`).toBeGreaterThanOrEqual(6);
+      expect(staff.relativeWidth, `${label}, width relative to the wheel`).toBeGreaterThanOrEqual(.13);
+      expect(staff.relativeHeight, `${label}, height relative to the wheel`).toBeGreaterThanOrEqual(.08);
+      expect(staff.inside, `${label}, within its sector`).toBe(true);
     }
   }
 });
