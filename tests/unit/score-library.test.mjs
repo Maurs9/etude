@@ -103,7 +103,18 @@ describe('local library validation boundary', () => {
       axes: { motor: 4.5, rhythm: 3.1, bimanual: 3.8, texture: 2.9, reading: 3.2 },
       drivers: { motor: ['speed', 'wide_span'], reading: ['pattern_unpredictability'] },
     };
+    const validV3 = {
+      ...validV2,
+      assessment: { ...validV2.assessment, estimatorVersion: 3 },
+      drivers: {
+        motor: ['speed', 'wide_span', 'double_notes', 'polyphonic_fingers'],
+        bimanual: ['split_attention'],
+        texture: ['pedal_control'],
+        reading: ['pattern_unpredictability'],
+      },
+    };
     expect(validateLibraryDifficultyRating(validV2)).toEqual(validV2);
+    expect(validateLibraryDifficultyRating(validV3)).toEqual(validV3);
     expect(() => validateLibraryDifficultyRating({ ...validV2, appliedEnduranceStars: 0.8 })).toThrow(LibraryError);
     expect(() => validateLibraryDifficultyRating({ ...validV2, appliedEnduranceStars: 0.15 })).toThrow(LibraryError);
     expect(() => validateLibraryDifficultyRating({ ...validV2, drivers: { motor: ['not_a_driver'] } })).toThrow(LibraryError);

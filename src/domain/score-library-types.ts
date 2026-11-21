@@ -41,7 +41,7 @@ export interface LibraryDifficultyAssessmentV2 {
   tempoSource: TempoSource;
   voiceSource: VoiceSource;
   handSource: HandSource;
-  estimatorVersion: 2;
+  estimatorVersion: 2 | 3;
   profileId: string;
 }
 

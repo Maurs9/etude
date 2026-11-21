@@ -428,7 +428,7 @@ describe('v2 calibration, rank benchmark and local audit', () => {
       };
       const source = { kind: 'midi', title: `Syn ${i}`, label: `syn-${i}.mid`, parsed };
       const v1 = estimateImportedScore(source, undefined, { rubricVersion: 1 });
-      const v2 = estimateImportedScore(source, undefined, { rubricVersion: 2 });
+      const v2 = estimateImportedScore(source, undefined, { rubricVersion: 3 });
       return {
         group: `syn-group-${i}`,
         truth,

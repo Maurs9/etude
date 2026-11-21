@@ -198,7 +198,7 @@ export type ImportedScoreDifficultyOptions =
   | DifficultyCalibration
   | null
   | undefined
-  | { calibration?: DifficultyCalibration | null; rubricVersion?: 1 | 2 };
+  | { calibration?: DifficultyCalibration | null; rubricVersion?: 1 | 2 | 3 };
 
 export function estimateImportedScore(
   source: Extract<AnSource, { kind: 'xml' | 'midi' }>,
