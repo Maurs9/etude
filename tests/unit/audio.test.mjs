@@ -346,3 +346,98 @@ it('releases finished voice nodes even if LFO detune disconnect throws, and clea
   expect(untrackedOsc.disconnect).toHaveBeenCalledOnce();
   expect(untrackedGain.disconnect).toHaveBeenCalledOnce();
 });
+
+it('shapes sampled piano filter, attack, register release, stereo pan, and cleanup', () => {
+  const engine = new AudioEngine({ pianoKeys: [48, 60, 84], pianoUrls: {}, warmRange: [48, 84] });
+  const sources = [], gains = [], filters = [], panners = [];
+  const param = (initial = 0) => ({
+    value: initial,
+    setValueAtTime: vi.fn(),
+    linearRampToValueAtTime: vi.fn(),
+    exponentialRampToValueAtTime: vi.fn(),
+    cancelScheduledValues: vi.fn(),
+    setTargetAtTime: vi.fn(),
+  });
+  const node = () => ({ connect: vi.fn(function (target) { return target; }), disconnect: vi.fn() });
+  engine.context = {
+    currentTime: 0,
+    sampleRate: 48000,
+    state: 'running',
+    createBufferSource: () => {
+      const src = { ...node(), buffer: null, playbackRate: param(1), detune: param(0), start: vi.fn(), stop: vi.fn() };
+      sources.push(src);
+      return src;
+    },
+    createGain: () => {
+      const gain = { ...node(), gain: param(0) };
+      gains.push(gain);
+      return gain;
+    },
+    createBiquadFilter: () => {
+      const filter = { ...node(), type: '', frequency: param(0), Q: param(0) };
+      filters.push(filter);
+      return filter;
+    },
+    createStereoPanner: () => {
+      const panner = { ...node(), pan: param(0) };
+      panners.push(panner);
+      return panner;
+    },
+  };
+  engine.master = node();
+  engine.lfoGain = node();
+  engine.reverbWet = 0;
+
+  const sampleBuffer = { length: 48000, numberOfChannels: 2, duration: 1.5 };
+  engine.pianoBank.ctx = engine.context;
+  for (const key of [48, 60, 84]) engine.pianoBank.buffers.set(key, sampleBuffer);
+
+  // 1. Soft warm note vs loud accented note
+  engine.sampledPianoVoice(261.63, 36, 0.1, 1.0, { warm: true });
+  engine.sampledPianoVoice(261.63, 118, 0.1, 1.0, { accent: true });
+  const softCut = filters[0].frequency.setValueAtTime.mock.calls[0][0];
+  const loudCut = filters[1].frequency.setValueAtTime.mock.calls[0][0];
+  expect(softCut).toBeLessThan(loudCut);
+  expect(filters[0].frequency.exponentialRampToValueAtTime).toHaveBeenCalled();
+
+  const softAttackEnd = gains[0].gain.linearRampToValueAtTime.mock.calls[0][1];
+  const loudAttackEnd = gains[1].gain.linearRampToValueAtTime.mock.calls[0][1];
+  expect(softAttackEnd).toBeGreaterThan(loudAttackEnd);
+
+  // 2. Register-aware release: bass (C3=48) and undamped high treble (C6=84) release slower than C4=60
+  engine.sampledPianoVoice(261.63, 90, 0.1, 0.5); // MIDI 60 (release 0.17)
+  engine.sampledPianoVoice(130.81, 90, 0.1, 0.5); // MIDI 48 (release 0.23)
+  engine.sampledPianoVoice(1046.50, 90, 0.1, 0.5); // MIDI 84 (release 0.62)
+  const midReleaseStop = sources[2].stop.mock.calls[0][0];
+  const bassReleaseStop = sources[3].stop.mock.calls[0][0];
+  const trebleReleaseStop = sources[4].stop.mock.calls[0][0];
+  expect(bassReleaseStop).toBeGreaterThan(midReleaseStop);
+  expect(trebleReleaseStop).toBeGreaterThan(bassReleaseStop);
+
+  // 3. Stereo pan left on bass, right on treble, and cleanup disconnects panner
+  expect(panners[3].pan.value).toBeLessThan(0);
+  expect(panners[4].pan.value).toBeGreaterThan(0);
+  sources[3].onended();
+  expect(gains[3].disconnect).toHaveBeenCalledOnce();
+  expect(filters[3].disconnect).toHaveBeenCalledOnce();
+  expect(panners[3].disconnect).toHaveBeenCalledOnce();
+});
+
+it('builds reverb buffer with silent pre-delay and decaying stereo tail', async () => {
+  vi.useFakeTimers();
+  try {
+    const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+    const channels = [new Float32Array(5700), new Float32Array(5700)];
+    const buffer = { getChannelData: i => channels[i] };
+    engine.context = { state: 'running', sampleRate: 3000, createBuffer: vi.fn(() => buffer) };
+    engine.reverbNode = { buffer: null };
+    engine.ensureReverbBuffer();
+    await vi.runAllTimersAsync();
+    const preDelay = Math.floor(3000 * 0.014);
+    expect(channels[0].slice(0, preDelay).every(v => v === 0)).toBe(true);
+    expect(channels[0].slice(preDelay, 400).some(v => v !== 0)).toBe(true);
+    expect(channels[1].slice(preDelay, 400).some(v => v !== 0)).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
+});

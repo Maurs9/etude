@@ -19,6 +19,7 @@ import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
 import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeight, AnNonChordTone, AnRatedChord, AnSpanChoice, AnSpanReading, AnUnit, ChordSelectionAnalysis, IsolatedNoteAnalysis, LassoPoint, ScoreSelectionAnalysis, SelectedNoteNeighbor, SelectionNeighborSummary, TwoNoteSelectionAnalysis } from './score-harmony.js';
 import type { ScoreGeoAnchor, ScoreGeoMeasure, ScoreGeoSystem, ScoreGeometry, ScoreSym } from './score-symbols.js';
+import type { ExpressiveNotePlan } from './score-expression.js';
 import { ACCOMP_I18N, ACCOMP_PATTERNS, ACCOMP_PROGS, CHORD_FEEL, CIRCLE, COMPOUND, INTERVALS, INV_NAMES, LACC_CH, LDUR, LP, MAJOR, PIECES, RO_IV, ROMAN, SONGS, dispSym, progChordTpl, type AccompanimentChord, type AccompanimentEvent, type AccompanimentPattern, type IntervalDefinition } from './repertoire-data.js';
 import { SS_LEVELS, SS_MAJ, SS_MIN, SS_SYL_MAJ, SS_SYL_MIN, ssBassClef, ssGen, ssKeySig, ssLedger, ssMakeNote, ssNextDeg, ssPick, ssRender, ssStem, ssTimeSig, ssTrebleClef, type SightSingExercise, type SightSingLevel, type SightSingNote, type SightSingNotePosition, type SightSingRender } from './sightsing-render.js';
 import type { ScoreInkBox, ScoreOsmdLabel, ScoreOsmdMeasure, ScoreOsmdNote, ScoreOsmdSheet, ScoreOsmdStaffEntry, ScoreOsmdStaffLine, ScoreOsmdSystem, ScoreOsmdVexNote, ScoreOsmdVoiceEntry, ScorePedalBox } from './score-svg-post.js';
@@ -101,15 +102,18 @@ let scoreVendorList: typeof import('./score-svg-post.js').scoreVendorList;
 let anAssignHands: typeof import('./score-midi.js').anAssignHands;
 let scoreBeams: typeof import('./score-midi.js').scoreBeams;
 let scoreMidiToXml: typeof import('./score-midi.js').scoreMidiToXml;
+let buildExpressiveTempos: typeof import('./score-expression.js').buildExpressiveTempos;
+let buildScoreExpression: typeof import('./score-expression.js').buildScoreExpression;
 let analysisModulesReady = false;
 let analysisModulesLoading: Promise<void> | null = null;
 function ensureAnalysisModules(): Promise<void> {
     if (!analysisModulesLoading) {
-        analysisModulesLoading = Promise.all([import('./score-import.js'), import('./score-svg-post.js'), import('./score-midi.js'), import('./score-feature.js')]).then(([scoreImport, scoreSvgPost, scoreMidi, feature]) => {
+        analysisModulesLoading = Promise.all([import('./score-import.js'), import('./score-svg-post.js'), import('./score-midi.js'), import('./score-feature.js'), import('./score-expression.js')]).then(([scoreImport, scoreSvgPost, scoreMidi, feature, scoreExpression]) => {
         scoreFeature = feature;
         ({ AN_SMUFL_NOTES, SCORE_STEP, anMxlPreflight: importMxlPreflight, anParse, anReadXml: importReadXml, anXmlTidy, defaultInflatedSize, scoreXmlEndings, scoreXmlEngraving, scoreXmlLayout, scoreXmlNotes } = scoreImport);
         ({ isScoreOsmdSheet, scoreFixFingerings, scoreFixPedalsDefault, rememberScorePedalLayout, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreVendorField, scoreVendorList } = scoreSvgPost);
         ({ anAssignHands, scoreBeams, scoreMidiToXml } = scoreMidi);
+        ({ buildExpressiveTempos, buildScoreExpression } = scoreExpression);
         analysisModulesReady = true;
     }).catch((error: unknown) => { analysisModulesLoading = null; throw error; });
     }
@@ -549,7 +553,7 @@ function pianoEnsure(midis: readonly number[]) { return audioEngine.pianoEnsure(
 function pianoIdleWarm() { pianoBank.warmIdle(); }
 let preparePiano = () => pianoBank.prepare(PIANO_WARM);
 let makePianoVoice = (frequency: number, velocity: number, when: number|undefined, duration: number|undefined) => audioEngine.makePianoVoice(frequency, velocity, when, duration);
-function sampledPianoVoice(frequency: number, velocity: number, when: number|undefined, duration: number|undefined, options = {}) {
+function sampledPianoVoice(frequency: number, velocity: number, when: number|undefined, duration: number|undefined, options: audio.PianoVoiceOptions = {}) {
     ensureAudio();
     return audioEngine.sampledPianoVoice(frequency, velocity, when, duration, options, { decode: pianoDecode, fallbackVoice: makePianoVoice });
 }
@@ -609,7 +613,7 @@ function stopClicks(clicks: Set<audio.AudioVoice>) {
     clicks.forEach(click => click.stop());
     clicks.clear();
 }
-let previewNote = function previewNote(midi: number, when?: number, duration?: number, velocity?: number, options: { warm?: boolean; hold?: boolean } = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); }
+let previewNote = function previewNote(midi: number, when?: number, duration?: number, velocity?: number, options: audio.PianoVoiceOptions = {}) { audioEngine.preview(midi, when, duration, velocity || 96, options); }
 let playInterval = (rootMidi: number, semitones: number, style: 'both' | 'harmonic' | 'melodic') => { audioEngine.playInterval(rootMidi, semitones, style || 'both'); };
 function playIvDir(root: number, semitones: number, direction: string, style: 'both' | 'melodic' = 'both') {
     if (style === 'melodic') stopPreviews();
@@ -13263,14 +13267,35 @@ function scoreEnsureTempoTimes(): number[] {
     SCORE.tempoTimesFor = list;
     return times;
 }
+function scoreUseExpressiveTempo() {
+    return PRAC.expressive && !PRAC.metro && !PRAC.wait && AN.source?.kind === 'xml' && !!AN.source.expression &&
+        (AN.source.expression.tempoModifiers.length > 0 || AN.source.expression.fermatas.length > 0);
+}
 function scoreSetTempos(list: { beat: number; bpm: number; }[]) {
     SCORE.tempos = list.length ? list : [{ beat: 0, bpm: 120 }];
-    SCORE.tempoList = SCORE.tempos.slice().sort((a, b) => a.beat - b.beat);
-    if (SCORE.tempoList[0].beat > 0)
-        SCORE.tempoList.unshift({ beat: 0, bpm: SCORE.tempoList[0].bpm });
+    const base = SCORE.tempos.slice().sort((a, b) => a.beat - b.beat);
+    if (base[0].beat > 0)
+        base.unshift({ beat: 0, bpm: base[0].bpm });
+    if (scoreUseExpressiveTempo() && buildExpressiveTempos && AN.source?.kind === 'xml') {
+        SCORE.tempoList = buildExpressiveTempos(base, SCORE.measures, AN.source.expression, true);
+    } else {
+        SCORE.tempoList = base;
+    }
     SCORE.tempoTimes = undefined;
     SCORE.tempoTimesFor = null;
     scoreEnsureTempoTimes();
+}
+function scoreRefreshTempos() {
+    const hasNotes = AN.notes.length > 0;
+    const beat = hasNotes ? scoreBeatAt(FALL.position) : 0;
+    const beatA = hasNotes && PRAC.A != null ? scoreBeatAt(PRAC.A) : null;
+    const beatB = hasNotes && PRAC.B != null ? scoreBeatAt(PRAC.B) : null;
+    scoreSetTempos(SCORE.tempos);
+    if (hasNotes) {
+        FALL.position = scoreSeconds(beat);
+        if (beatA != null) PRAC.A = scoreSeconds(beatA);
+        if (beatB != null) PRAC.B = scoreSeconds(beatB);
+    }
 }
 function scoreSeconds(beat: number) {
     const list = SCORE.tempoList, times = scoreEnsureTempoTimes();
@@ -14487,21 +14512,21 @@ interface PracticeCarry {
 // The coaching tip shown after a run, with its optional one-click action.
 interface PracticeNextStep { k: string; args?: () => (string | number)[]; act?: { k: string; args?: () => (string | number)[]; run: () => void } | null }
 interface PracticeState {
-    hands: string; wait: boolean; metro: boolean; countIn: boolean; acc: boolean; hear: boolean; ramp: boolean; A: number | null; B: number | null;
+    hands: string; wait: boolean; metro: boolean; countIn: boolean; acc: boolean; hear: boolean; expressive: boolean; ramp: boolean; A: number | null; B: number | null;
     labels: string; pal: string; range: string; fx: boolean; bar: PracticeBarrier | null; active: boolean; stats: PracticeStats | null;
     res: Map<number, string>; judge: string; judgeT: number; next: PracticeNextStep | null;
     names: boolean; // note names on the engraved score (scoreNamesSync)
 }
-const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, countIn: false, acc: true, hear: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
+const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, countIn: false, acc: true, hear: true, expressive: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
     bar: null, active: false, stats: null, res: new Map(), judge: '', judgeT: 0, next: null, names: false };
-const PRAC_FLAGS = ['wait', 'metro', 'countIn', 'acc', 'hear', 'ramp', 'fx', 'names'] as const;
+const PRAC_FLAGS = ['wait', 'metro', 'countIn', 'acc', 'hear', 'expressive', 'ramp', 'fx', 'names'] as const;
 const PRAC_CHOICES = ['hands', 'labels', 'pal', 'range'] as const;
 function isPracFlag(k: string): k is typeof PRAC_FLAGS[number] { return PRAC_FLAGS.some((f) => f === k); }
 function isPracChoice(k: string): k is typeof PRAC_CHOICES[number] { return PRAC_CHOICES.some((f) => f === k); }
 const PRAC_KEY = 'etude-practice-v3';
 function pracSave() { try {
-    const { hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, names } = PRAC;
-    localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, countIn, acc, hear, ramp, labels, pal, range, fx, names, zoom: FALL.zoom }));
+    const { hands, wait, metro, countIn, acc, hear, expressive, ramp, labels, pal, range, fx, names } = PRAC;
+    localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, countIn, acc, hear, expressive, ramp, labels, pal, range, fx, names, zoom: FALL.zoom }));
     anLibrarySchedule();
 }
 catch (e) { } }
@@ -14529,6 +14554,49 @@ const pracMine = (n: AnNote) => PRAC.hands === 'both' || scoreFeature.harmony.an
 // My part sounds only when I am not being waited for; the other hand is the accompaniment (or muted).
 const pracSounds = (n: AnNote) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
 const pracFactor = () => +(selectById('score-speed').value || 100) / 100;
+const EXPR_CACHE: {
+    notes?: readonly AnNote[];
+    tempos?: readonly { beat: number; bpm: number }[];
+    keys?: readonly { beat: number; root: number; minor: boolean }[];
+    source?: AnSource | null;
+    enabled?: boolean;
+    strict?: boolean;
+    plans: ExpressiveNotePlan[];
+} = { plans: [] };
+function scoreExpressionPlan(): readonly ExpressiveNotePlan[] {
+    const strict = PRAC.metro || PRAC.wait || PRAC.hands !== 'both';
+    if (
+        EXPR_CACHE.notes === AN.notes &&
+        EXPR_CACHE.tempos === SCORE.tempoList &&
+        EXPR_CACHE.keys === AN.keyMap &&
+        EXPR_CACHE.source === AN.source &&
+        EXPR_CACHE.enabled === PRAC.expressive &&
+        EXPR_CACHE.strict === strict
+    ) {
+        return EXPR_CACHE.plans;
+    }
+    if (!buildScoreExpression || !AN.notes.length) {
+        EXPR_CACHE.plans = [];
+        return EXPR_CACHE.plans;
+    }
+    EXPR_CACHE.notes = AN.notes;
+    EXPR_CACHE.tempos = SCORE.tempoList;
+    EXPR_CACHE.keys = AN.keyMap;
+    EXPR_CACHE.source = AN.source;
+    EXPR_CACHE.enabled = PRAC.expressive;
+    EXPR_CACHE.strict = strict;
+    EXPR_CACHE.plans = buildScoreExpression({
+        notes: AN.notes,
+        measures: anMeasures(),
+        tempos: SCORE.tempoList,
+        keys: AN.keyMap,
+        sourceKind: AN.source?.kind ?? 'midi',
+        expression: AN.source?.kind === 'xml' ? AN.source.expression : null,
+        enabled: PRAC.expressive,
+        strictTiming: strict,
+    });
+    return EXPR_CACHE.plans;
+}
 function pracSegAt(R: { segs: PracticeSegment[] }, now: number) { let s = R.segs[0]; for (const x of R.segs)
     if (x.a0 <= now + 1e-9)
         s = x; return s; }
@@ -14618,10 +14686,21 @@ async function pracStart(o: PracticeStartOptions)  {
     scoreHalt();
     SCORE.resume = null;
     ensureAudio();
+    if (!analysisModulesReady)
+        await ensureAnalysisModules();
     const gen = SCORE.playGen;
     FALL.position = o.from;
     scoreIdle();
-    const soundMidis = [...new Set(o.notes.flatMap((d) => [d.n.midi, ...(d.n.graces || []).map((g) => g.midi)]))];
+    const soundMidis = [...new Set(o.notes.flatMap((d) => {
+        const list = [d.n.midi, ...(d.n.graces || []).map((g) => g.midi)];
+        if (d.n.ornament) {
+            for (const offset of [-2, -1, 1, 2]) {
+                const neighbor = d.n.midi + offset;
+                if (neighbor >= 21 && neighbor <= 108) list.push(neighbor);
+            }
+        }
+        return list;
+    }))];
     if (!await pianoEnsure(soundMidis) || gen !== SCORE.playGen || !audioEngine.context)
         return;
     const f = pracFactor(), now = audioEngine.context.currentTime + .1;
@@ -14705,6 +14784,7 @@ function pracTick() {
             pracNextBar(R, s);
         const B: PracticeBarrier | null = PRAC.bar && PRAC.bar.seg === s ? PRAC.bar : null, at = (x: number) => s.a0 + (x - s.t0) / s.f;
         const horizon = s.t0 + Math.max(0, H - s.a0) * s.f, lim = Math.min(horizon, s.t1, B ? B.t : Infinity);
+        const exprPlan = scoreExpressionPlan();
         while (R.ni < R.notes.length) {
             const d = R.notes[R.ni];
             if (d.start >= lim)
@@ -14715,20 +14795,56 @@ function pracTick() {
                 continue; // a note already sounding when playback starts plays its remainder
             if (!pracSounds(d.n))
                 continue;
-            const st = Math.max(d.start, s.t0), en = R.loop || R.route ? Math.min(sound, s.t1) : sound, roll = d.n.roll || 0, onset = at(st) + roll;
-            const opt = { warm: !!d.n.warm, hold: !!d.n.pedalEnd && d.n.soundEnd !== undefined && d.n.soundEnd > d.n.end + .001 }, graces = st > d.start + 1e-6 ? [] : (d.n.graces || []), duration = Math.max(.05, (en - st) / s.f - roll);
+            const st = Math.max(d.start, s.t0), en = R.loop || R.route ? Math.min(sound, s.t1) : sound, roll = d.n.roll || 0;
+            const resumedMidNote = st > d.start + 1e-6;
+            const expr = exprPlan[d.i];
+            const baseOnset = at(st) + roll;
+            const onsetShift = !resumedMidNote && expr ? expr.onsetShiftSec / s.f : 0;
+            const onset = Math.max(now, baseOnset + onsetShift);
+            const rawDuration = Math.max(.05, (en - st) / s.f - roll);
+            let duration = rawDuration;
+            if (expr && !expr.hold) {
+                duration = Math.max(.045, rawDuration * expr.durationScale + expr.legatoOverlapSec);
+                if (expr.restrikeGapSec > 0)
+                    duration = Math.max(.04, rawDuration - Math.min(expr.restrikeGapSec, rawDuration * .25));
+                if (R.loop || R.route) {
+                    const maxEnd = at(s.t1) + .02;
+                    if (onset + duration > maxEnd)
+                        duration = Math.max(.04, maxEnd - onset);
+                }
+            }
+            const vel = expr ? expr.vel : d.n.vel;
+            const opt: audio.PianoVoiceOptions = {
+                warm: expr ? expr.warm : !!d.n.warm,
+                hold: expr ? expr.hold : (!!d.n.pedalEnd && d.n.soundEnd !== undefined && d.n.soundEnd > d.n.end + .001),
+                accent: expr ? expr.accent : !!(d.n.art?.accent || d.n.art?.strongAccent),
+                expressive: PRAC.expressive,
+            };
+            const graces = resumedMidNote ? [] : (d.n.graces || []);
+            const gStep = (expr ? expr.graceStepSec : .07) / s.f;
             let carried = false;
             graces.forEach((g, i) => {
-                const when = onset - (graces.length - i) * .07, start = Math.max(now, when), carry = i === graces.length - 1 && g.tiedToPrincipal && g.midi === d.n.midi;
+                const when = onset - (graces.length - i) * gStep, start = Math.max(now, when), carry = i === graces.length - 1 && g.tiedToPrincipal && g.midi === d.n.midi;
+                const gVel = PRAC.expressive ? Math.max(18, Math.min(125, Math.round(vel * .9))) : (g.vel ?? Math.max(1, vel - 8));
                 if (carry) {
-                    previewNote(g.midi, start, Math.max(.05, onset + duration - start), g.vel ?? d.n.vel, opt);
+                    previewNote(g.midi, start, Math.max(.05, onset + duration - start), gVel, opt);
                     carried = true;
                 }
-                else if (when + .065 > now - .01)
-                    previewNote(g.midi, start, .065, g.vel ?? Math.max(1, d.n.vel - 8), opt);
+                else if (when + gStep * .93 > now - .01)
+                    previewNote(g.midi, start, Math.max(.045, gStep * .93), gVel, opt);
             });
-            if (!carried)
-                previewNote(d.n.midi, onset, duration, d.n.vel, opt);
+            if (!carried) {
+                if (!resumedMidNote && expr?.ornamentEvents?.length) {
+                    expr.ornamentEvents.forEach((ev) => {
+                        const evStart = Math.max(now, onset + ev.offsetSec / s.f);
+                        const evDur = Math.max(.035, ev.durationSec / s.f);
+                        previewNote(ev.midi, evStart, evDur, ev.vel, opt);
+                    });
+                }
+                else {
+                    previewNote(d.n.midi, onset, duration, vel, opt);
+                }
+            }
         }
         while (R.bi < R.beats.length && R.beats[R.bi].t < lim) {
             const b = R.beats[R.bi++];
@@ -15100,6 +15216,8 @@ function pracFrame() {
         pracHud();
 }
 function pracSet(k: string, v: string|boolean) {
+    const beatAt = SCORE.playing && AN.notes.length ? scoreBeatAt(fallTime()) : null;
+    const prevTempoSig = SCORE.tempoList.map((e) => `${e.beat}:${e.bpm}`).join('|');
     if (typeof v === 'boolean') {
         if (isPracFlag(k))
             PRAC[k] = v;
@@ -15107,16 +15225,29 @@ function pracSet(k: string, v: string|boolean) {
     else if (isPracChoice(k))
         PRAC[k] = v;
     pracSave();
+    if (k === 'expressive' || k === 'metro' || k === 'wait') {
+        scoreRefreshTempos();
+        EXPR_CACHE.notes = undefined;
+    }
+    else if (k === 'hands') {
+        EXPR_CACHE.notes = undefined;
+    }
+    const nextTempoSig = SCORE.tempoList.map((e) => `${e.beat}:${e.bpm}`).join('|');
+    const temposChanged = prevTempoSig !== nextTempoSig;
     if (k === 'hands') {
         SCORE.heads.forEach((l) => l.forEach(scorePaintEl));
         anKeysPaint();
     }
-    if (SCORE.playing && ['hands', 'wait', 'acc', 'hear'].includes(k)) {
-        const at = fallTime();
+    if (SCORE.playing && (['hands', 'wait', 'acc', 'hear', 'expressive'].includes(k) || (k === 'metro' && (temposChanged || PRAC.expressive)))) {
+        const at = beatAt != null ? scoreSeconds(beatAt) : fallTime();
         if (SCORE.loop)
             scoreLoopStart();
         else
-            scorePlay(SCORE.sel, at, k === 'acc' || k === 'hear' ? pracCarry(at) : null); // what sounds keeps the run; hands or Wait for me start a new one
+            scorePlay(SCORE.sel, at, !temposChanged && ['acc', 'hear', 'expressive', 'metro'].includes(k) ? pracCarry(at) : null); // what sounds keeps the run; hands, Wait for me or tempo changes start a new one
+    }
+    else if (temposChanged && !SCORE.playing && AN.notes.length) {
+        anStatusPos();
+        anTlUpdate();
     }
     anUpdateControls();
     if (FALL.mode === 'fall')
@@ -15739,6 +15870,7 @@ function anUpdateControls() {
     inputById('pt-wait').checked = PRAC.wait;
     inputById('pt-metro').checked = PRAC.metro;
     inputById('pr-countin').checked = PRAC.countIn;
+    inputById('pr-expressive').checked = PRAC.expressive;
     selectById('pt-speed').value = selectById('score-speed').value;
     selectById('pt-speed').disabled = !has;
     byId('pr-opt').title = t('pr_opt_t');
@@ -16629,9 +16761,9 @@ async function anCommit(src: AnSource, token: number, recon?: LibraryResume['rec
         AN.notes = src.notes;
         SCORE.xml = src.xml;
         SCORE.midiGrid = 0;
-        scoreSetTempos(src.tempos);
-        SCORE.tempoFromFile = src.tempos.length > 0;
         SCORE.measures = src.measures;
+        SCORE.tempoFromFile = src.tempos.length > 0;
+        scoreSetTempos(src.tempos);
         AN.hands = null;
         AN.keyMap = anXmlKeyMap(src);
     }
@@ -18070,7 +18202,7 @@ function anInitControls() {
     });
     AN_POPS.forEach(([p, b] = []) => byId(b).addEventListener('click', () => anPop(p, !!byId(p).hidden)));
     pracLoad();
-    const ck = { 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-ramp': 'ramp', 'fall-fx': 'fx' } as const;
+    const ck = { 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-expressive': 'expressive', 'pr-ramp': 'ramp', 'fall-fx': 'fx' } as const;
     Object.entries(ck).forEach(([id, k]) => { inputById(id).checked = PRAC[k]; inputById(id).addEventListener('change', (e) => { if (e.target instanceof HTMLInputElement)
         pracSet(k, e.target.checked); }); });
     ([['fall-labels', 'labels'], ['fall-pal', 'pal'], ['fall-range', 'range']] as const).forEach(([id, k]) => { selectById(id).value = PRAC[k]; selectById(id).addEventListener('change', (e) => { if (e.target instanceof HTMLSelectElement)
@@ -21064,6 +21196,7 @@ const __etudeGetters: Record<string, () => unknown> = {
   "scoreCursorEl": () => scoreCursorEl,
   "scoreCursorFollow": () => scoreCursorFollow,
   "scoreCursorUpdate": () => scoreCursorUpdate,
+  "scoreExpressionPlan": () => scoreExpressionPlan,
   "scoreExtraBreaks": () => scoreExtraBreaks,
   "scoreFitRender": () => scoreFitRender,
   "scoreFixFingerings": () => scoreFixFingerings,
