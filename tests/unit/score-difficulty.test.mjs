@@ -573,5 +573,16 @@ describe('v2 invariance, ergonomics, complexity and single rounding', () => {
     });
     expect(Number.isFinite(infTime.score)).toBe(true);
     expect(Number.isFinite(infTime.difficultyStars)).toBe(true);
+
+    // Repetitive 12,800-attack score where thousands of windows tie for peak strength must not rescan tied windows.
+    const repeatedNotes = Array.from({ length: 1600 }, (_, m) =>
+      Array.from({ length: 8 }, (_, k) => note(m * 4 + k * 0.5, k % 2 ? 79 : 60, 'rh', { startSec: m * 2 + k * 0.25 })),
+    ).flat();
+    const repeatedScore = timeline(repeatedNotes, 1600, { playedDurationSec: 3200 });
+    const tRep0 = Date.now();
+    const repeatedEst = performance(repeatedScore);
+    expect(Date.now() - tRep0).toBeLessThan(1500);
+    expect(repeatedEst.axisDifficulty.motor.stars).toBeGreaterThan(2);
+    expect(repeatedEst.axisDifficulty.motor.measures.length).toBeGreaterThan(0);
   });
 });

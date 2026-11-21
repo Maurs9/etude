@@ -904,61 +904,44 @@ function evaluatePhysicalMotorWindows(
 
   const durations = totalSec <= 4 + EPSILON ? [totalSec] : totalSec <= 8 + EPSILON ? [4, totalSec] : [4, 8];
   const typicalDur = durations[durations.length - 1];
+  const rhPrefix = new Float64Array(validEvents.length + 1);
+  const lhPrefix = new Float64Array(validEvents.length + 1);
+  const unPrefix = new Float64Array(validEvents.length + 1);
+  for (let i = 0; i < validEvents.length; i++) {
+    const ev = validEvents[i];
+    rhPrefix[i + 1] = rhPrefix[i] + (ev.hand === 'rh' ? ev.cost : 0);
+    lhPrefix[i + 1] = lhPrefix[i] + (ev.hand === 'lh' ? ev.cost : 0);
+    unPrefix[i + 1] = unPrefix[i] + (ev.hand === null ? ev.cost : 0);
+  }
+
   let peakStrength = 0;
-  let peakMeasures: readonly number[] = [];
-  let peakDrivers: DriverWeights = {};
+  const bestWindow = { t0: 0, t1: 0, left: 0, found: false };
   const typicalStrengths: number[] = [];
 
   const scanStarts = (starts: readonly number[], winDur: number, collectTypical: boolean) => {
     let left = 0;
     let right = 0;
-    let count = 0;
-    let rhSum = 0;
-    let lhSum = 0;
-    let unSum = 0;
     for (const t0 of starts) {
       const t1 = Math.min(totalSec, t0 + winDur);
       const inclusiveEnd = t1 >= totalSec - EPSILON;
-      while (left < validEvents.length && validEvents[left].sec < t0 - EPSILON) {
-        if (left < right) {
-          const ev = validEvents[left];
-          count--;
-          if (ev.hand === 'rh') rhSum -= ev.cost;
-          else if (ev.hand === 'lh') lhSum -= ev.cost;
-          else unSum -= ev.cost;
-          left++;
-        } else {
-          left++;
-          right = left;
-        }
-      }
-      if (count === 0) {
-        rhSum = 0;
-        lhSum = 0;
-        unSum = 0;
-      }
+      while (left < validEvents.length && validEvents[left].sec < t0 - EPSILON) left++;
+      if (right < left) right = left;
       while (right < validEvents.length && (inclusiveEnd ? validEvents[right].sec <= t1 + EPSILON : validEvents[right].sec < t1 - EPSILON)) {
-        const ev = validEvents[right];
-        count++;
-        if (ev.hand === 'rh') rhSum += ev.cost;
-        else if (ev.hand === 'lh') lhSum += ev.cost;
-        else unSum += ev.cost;
         right++;
       }
-      if (!count) continue;
-      const rh = Math.max(0, rhSum);
-      const lh = Math.max(0, lhSum);
-      const un = Math.max(0, unSum);
+      if (right <= left) continue;
+      const rh = Math.max(0, rhPrefix[right] - rhPrefix[left]);
+      const lh = Math.max(0, lhPrefix[right] - lhPrefix[left]);
+      const un = Math.max(0, unPrefix[right] - unPrefix[left]);
       const dur = Math.max(0.25, t1 - t0);
-      const approxStrength = (Math.max(rh, lh) + 0.50 * Math.min(rh, lh) + un) / dur / MOTOR_V2_DIVISOR;
-      if (collectTypical) typicalStrengths.push(approxStrength);
-      if (approxStrength > peakStrength - 1e-9) {
-        const stats = motorSliceStats(validEvents, measures, t0, t1, totalSec, left);
-        if (stats.count && stats.strength > peakStrength) {
-          peakStrength = stats.strength;
-          peakMeasures = stats.writtenMeasures;
-          peakDrivers = stats.drivers;
-        }
+      const strength = (Math.max(rh, lh) + 0.50 * Math.min(rh, lh) + un) / dur / MOTOR_V2_DIVISOR;
+      if (collectTypical) typicalStrengths.push(strength);
+      if (strength > peakStrength + 1e-9) {
+        peakStrength = strength;
+        bestWindow.t0 = t0;
+        bestWindow.t1 = t1;
+        bestWindow.left = left;
+        bestWindow.found = true;
       }
     }
   };
@@ -994,10 +977,14 @@ function evaluatePhysicalMotorWindows(
   }
   scanStarts(gridStarts, typicalDur, true);
 
+  const peakStats = bestWindow.found
+    ? motorSliceStats(validEvents, measures, bestWindow.t0, bestWindow.t1, totalSec, bestWindow.left)
+    : null;
+
   return {
-    peakStrength,
-    peakMeasures,
-    peakDrivers,
+    peakStrength: peakStats?.count ? peakStats.strength : 0,
+    peakMeasures: peakStats?.count ? peakStats.writtenMeasures : [],
+    peakDrivers: peakStats?.count ? peakStats.drivers : {},
     typicalStrength: median(typicalStrengths),
     activeWindowStrengths: typicalStrengths,
   };
