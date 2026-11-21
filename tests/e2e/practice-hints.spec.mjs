@@ -16,12 +16,12 @@ test('switching topics keeps the panel open and shows each reference hint', asyn
   await expect(hint(page, /Dorian/)).toContainText('1 2 ♭3 4 5 6 ♭7');
   await page.locator('#pr-t-prog').click();
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(10);
-  await expect(hint(page, /Jazz cadence/)).toContainText('Dm7 – G7 – Cmaj7');
+  await expect(hint(page, /Jazz cadence/).locator('.pr-progression-name')).toHaveText(['Dm7', 'G7', 'Cmaj7']);
   await page.locator('#pr-t-technique').click();
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(6);
   await expect(hint(page, /shared fingering/)).toContainText('E(3) · F(1)');
   await page.locator('#pr-t-melody').click();
-  await expect(page.locator('#practiceHintsList button')).toHaveCount(0);
+  await expect(page.locator('#practiceHintsList article')).toHaveCount(3);
   await expect(page.locator('#practiceHintsList')).toContainText('Hum the first two or three notes.');
   await expect(panel).toHaveAttribute('open', '');
 });
@@ -59,7 +59,7 @@ test('accompaniment owns progression playback while the loop is running', async 
   await page.locator('#pr-t-prog').click();
   await page.locator('#pr-songs summary').click();
   await page.locator('#pr-mode button[data-v="along"]').click();
-  const play = hint(page, /Jazz cadence/).getByRole('button', { name: /Hear the hint/ });
+  const play = hint(page, /Jazz cadence/).getByRole('button', { name: /^Listen\b/ });
   await expect(play).toBeEnabled();
   await page.locator('#pr-start').click();
   await expect(play).toBeDisabled();
@@ -187,7 +187,7 @@ test('a fixed tonic transposes playback and notation changes only the names', as
   await expect.poll(() => page.evaluate(() => window.__hintRoots[0])).toBe(59);
   await page.locator('#pr-t-technique').click();
   const exception = page.locator('#practiceHintsList [data-hint="major_f_b"]');
-  await expect(exception.getByRole('heading')).toHaveText('F and H major');
+  await expect(exception.getByRole('heading', { level: 3 })).toHaveText('F and H major');
   await expect(exception.locator('.pr-hint-fingers').last()).toHaveText('H(4) · C♯(3) · D♯(2) · E(1) · F♯(4) · G♯(3) · A♯(2) · H(1)');
 });
 

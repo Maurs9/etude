@@ -68,6 +68,7 @@
 .pr-hint-name{font-size:17px; line-height:1.25}
 .pr-hint-formula{font-weight:700; color:var(--ink); letter-spacing:.02em}
 .pr-hint-cue,.pr-hint-detail,.pr-hint-method{color:var(--ink2); font-size:14px; line-height:1.45}
+.pr-hint-method{grid-column:1/-1}
 .pr-hint-focus{color:var(--ink); text-decoration:underline}
 .pr-hint-actions{margin-top:auto; display:flex; flex-wrap:wrap; gap:8px}
 .pr-hint-card .btn{min-height:44px; white-space:normal; text-align:start}
@@ -77,7 +78,16 @@
 .pr-chord-group + .pr-chord-group{margin-top:24px}
 .pr-chord-group-title{margin:0 0 10px; color:var(--ink); font:700 15px/1.3 var(--sans)}
 .pr-chord-visuals{display:grid; gap:12px; width:100%; min-width:0; justify-items:center}
-.pr-scale-visuals{display:grid; gap:6px; width:100%; min-width:0}
+.pr-hint-visuals{display:grid; gap:6px; width:100%; min-width:0}
+.pr-hint-hand{border-top:1px solid var(--line); padding-top:8px}
+.pr-hint-hand-title{margin:0; font:700 13px/1.3 var(--sans); color:var(--ink)}
+.pr-progression-sequence{display:flex; flex-wrap:wrap; align-self:stretch; gap:6px; padding:0; margin:0; list-style:none}
+.pr-progression-chord{display:grid; align-content:start; gap:2px; min-width:42px; padding:6px; border:1px solid var(--line); border-radius:8px; text-align:center; line-height:1.25}
+.pr-progression-degree{color:var(--ink2); font-size:12px}
+.pr-progression-name{color:var(--ink); font-size:14px}
+.pr-progression-chord[aria-current=step]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--card))}
+.pr-melody-answer{width:100%}
+.pr-melody-answer .ss-svg{width:100%; max-width:340px; height:auto}
 .pr-chord-staves{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:100%; max-width:360px}
 .pr-chord-staff-block{text-align:center}
 .pr-chord-clef-label{font:600 12px/1.3 var(--sans); color:var(--ink2)}
@@ -110,10 +120,11 @@
 .pr-chord-key[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-tint); stroke:var(--pr-chord-ink)}
 .pr-chord-black[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-black-tint)}
 .pr-chord-key-dot{fill:var(--pr-chord-ink)}
+.pr-hint-key-finger{fill:var(--pr-chord-ink); font:700 8px var(--sans); text-anchor:middle; dominant-baseline:central}
 .pr-chord-key.pr-chord-root .pr-chord-key-dot{fill:none; stroke:var(--pr-chord-ink); stroke-width:1.6}
 .pr-chord-key.pr-chord-changed .pr-chord-key-shape{stroke-width:2; stroke-dasharray:3 2}
 .pr-chord-key.pr-chord-sounding .pr-chord-key-shape{fill:var(--pr-chord-playing-tint)}
-.pr-chord-key.pr-chord-sounding .pr-chord-key-dot{fill:#fff}
+.pr-chord-key.pr-chord-sounding :is(.pr-chord-key-dot,.pr-hint-key-finger){fill:#fff}
 .pr-chord-key.pr-chord-sounding.pr-chord-root .pr-chord-key-dot{fill:none; stroke:#fff}
 .pr-chord-staff-line,.pr-chord-double-sharp{stroke:var(--staffink)}
 .pr-chord-staff-line{stroke-width:.85; opacity:.68}

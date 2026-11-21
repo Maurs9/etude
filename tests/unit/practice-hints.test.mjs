@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, PRACTICE_HINT_REFERENCES,
-  chordHintFormula, chordHintSteps, chordHintTones, progressionHintChords, progressionHintSteps, scaleHintFormula, scaleHintSteps, scaleHintTones,
+  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS, PRACTICE_HINT_REFERENCES,
+  chordHintFormula, chordHintSteps, chordHintTones, melodyHintExample, progressionHintChords, progressionHintSteps, scaleHintFormula, scaleHintSteps, scaleHintTones,
   techniqueHintSteps, techniqueHintTonic,
 } from '../../src/domain/practice-hints.ts';
 import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS, pitchClass, practiceTonicMidi } from '../../src/domain/theory.ts';
@@ -23,7 +23,7 @@ describe('Practice hint catalog', () => {
       ...PROGRESSION_HINTS.flatMap(hint => [`p_${hint.cue}`, `p_${hint.cue}_title`]),
       ...TECHNIQUE_HINTS.flatMap(hint => [`t_${hint.id}`, `t_${hint.id}_title`]),
       ...['chord', 'scale', 'prog', 'technique', 'melody'].flatMap(topic => [`${topic}_title`, `${topic}_lede`]),
-      'hear', 'show_keys', 'compare', 'melody_cue',
+      'show_keys', 'compare', 'melody_cue', 'melody_example', 'melody_show_notes', 'melody_hide_notes',
       'chord_group_triads', 'chord_group_sixths_sevenths', 'chord_group_extensions', 'chord_keyboard', 'chord_staff',
     ];
     for (const [lang, copy] of Object.entries(STRINGS)) {
@@ -81,12 +81,17 @@ describe('Practice hint catalog', () => {
       const chords = progressionHintChords(hint, 4);
       expect(hint.bass.map(offset => pitchClass(4 + offset)), hint.name).toEqual(chords.map(chord => chord.root));
     }
-    const jazz = notes(progressionHintSteps(byName(PROGRESSION_HINTS, 'ii–V–I (jazz)'), 0));
+    const jazzSteps = progressionHintSteps(byName(PROGRESSION_HINTS, 'ii–V–I (jazz)'), 0);
+    const jazz = notes(jazzSteps);
     expect(jazz.slice(0, 3)).toEqual([[50], [43], [36]]);
     expect(jazz.slice(-2)).toEqual([[59, 65], [60, 64]]);
-    const blues = notes(progressionHintSteps(byName(PROGRESSION_HINTS, '12-bar blues'), 2));
+    expect(jazzSteps.map(step => step.diagramKey)).toEqual(['0', '1', '2', '0', '1', '2', undefined, undefined]);
+    const bluesSteps = progressionHintSteps(byName(PROGRESSION_HINTS, '12-bar blues'), 2);
+    const blues = notes(bluesSteps);
     expect(blues).toHaveLength(48);
     expect(blues.filter((_, i) => i % 4 === 0).map(beat => beat[0] - 50)).toEqual(TWELVE_BAR_BLUES_ROOTS);
+    expect(bluesSteps.map(step => step.diagramKey)).toEqual(
+      TWELVE_BAR_BLUES_ROOTS.flatMap((_, i) => Array(4).fill(String(i))));
   });
 
   it('uses the existing one-octave fingerings and falls back to an allowed tonic for each card', () => {
@@ -109,6 +114,18 @@ describe('Practice hint catalog', () => {
     ]).flat();
     expect(steps.every(step => step.seconds > 0 && step.gap >= 0 && step.notes.length &&
       step.notes.every(note => Number.isInteger(note.midi) && note.midi >= 0 && note.midi <= 127))).toBe(true);
+  });
+
+  it('keeps melody playback and notation in sync, including repeated notes', () => {
+    for (let tonic = 0; tonic < 12; tonic++) {
+      for (const hint of MELODY_HINTS) {
+        const { notes: melody, steps } = melodyHintExample(hint, tonic);
+        const written = melody.map(note => ssMidiOf(note.li, note.oct, note.acc));
+        expect(notes(steps).flat()).toEqual(written);
+        expect(melody.reduce((beats, note) => beats + note.beats, 0)).toBe(4);
+        expect(steps.map(step => step.diagramKey)).toEqual(melody.map((_, index) => String(index)));
+      }
+    }
   });
 
   it('attaches translated references to existing cards and opens only bundled excerpts', () => {

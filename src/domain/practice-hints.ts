@@ -123,16 +123,33 @@ export const SCALE_HINTS: readonly ScaleHint[] = [
 
 export const PROGRESSION_HINTS: readonly ProgressionHint[] = [
   { name: 'I–IV–V', cue: 'three', bass: [0, 5, 7] },
-  { name: 'I–V–vi–IV (pop)', cue: 'pop', bass: [0, -5, -3, -7], referenceTonic: true },
   { name: 'ii–V–I (jazz)', cue: 'jazz', bass: [2, -5, -12], resolution: [[59, 65], [60, 64]] },
+  { name: 'minor ii–V–i', cue: 'minor_jazz', bass: [2, -5, -12], minor: true, resolution: [[59, 65], [60, 63]] },
+  { name: 'I–V–vi–IV (pop)', cue: 'pop', bass: [0, -5, -3, -7], referenceTonic: true },
   { name: 'I–vi–IV–V (50s)', cue: 'fifties', bass: [0, -3, -7, -5] },
   { name: 'vi–IV–I–V', cue: 'minor_start', bass: [-3, -7, 0, -5], referenceTonic: true },
   { name: 'I–♭VII–IV (rock)', cue: 'rock', bass: [0, -2, -7] },
-  { name: 'minor ii–V–i', cue: 'minor_jazz', bass: [2, -5, -12], minor: true, resolution: [[59, 65], [60, 63]] },
   { name: 'i–♭VI–♭VII (epic)', cue: 'epic', bass: [0, -4, -2], minor: true },
   { name: '12-bar blues', cue: 'blues', bass: TWELVE_BAR_BLUES_ROOTS },
   { name: 'Pachelbel’s Canon', cue: 'canon', bass: [0, -5, -3, -8, -7, -12, -7, -5] },
 ];
+
+export const MELODY_HINTS = [
+  { id: 'rising', phrase: [[0, 1], [2, 1], [4, 1], [7, 1]] },
+  { id: 'falling', phrase: [[7, 0.5], [5, 0.5], [4, 1], [2, 1], [0, 1]] },
+  { id: 'repeated', phrase: [[0, 0.5], [0, 0.5], [4, 1], [2, 1], [0, 1]] },
+] as const;
+
+export function melodyHintExample(hint: (typeof MELODY_HINTS)[number], tonic: number) {
+  const root = practiceTonicMidi(tonic, 'near-middle-c'), fifths = keyFifths(tonic, false);
+  const notes = hint.phrase.map(([offset, beats]) => {
+    const midi = root + offset;
+    return { ...spellMidi(midi, fifths), midi, beats };
+  });
+  const steps = notes.map(({ midi, beats }, index): PracticeHintStep =>
+    ({ ...block([midi], 0.39 * beats, 0.04 * beats), diagramKey: String(index) }));
+  return { notes, steps, fifths };
+}
 
 const allTonics = Array.from({ length: 12 }, (_, i) => i);
 export const TECHNIQUE_HINTS: readonly TechniqueHint[] = [
@@ -229,16 +246,21 @@ export function progressionHintSteps(hint: ProgressionHint, tonic: number): Prac
   const blues = hint.name === '12-bar blues';
   const tonicBass = 48 + tonic;
   const bass = hint.bass.map(offset => tonicBass + offset);
+  const atChord = (index: number, midis: readonly number[], seconds: number, gap?: number): PracticeHintStep =>
+    ({ ...block(midis, seconds, gap), diagramKey: String(index) });
   const blocks = chords.flatMap(({ root, symbol }, i) => {
     const chord = chordTemplate(symbol);
     const upperRoot = 60 + root - (root > 7 ? 12 : 0);
     const notes = [bass[i], ...chord.intervals.map(interval => upperRoot + interval)];
-    if (blues) return [block(notes, 0.47, 0.03), block([bass[i]], 0.47, 0.03), block(notes, 0.47, 0.03), block([bass[i]], 0.47, 0.03)];
-    return [block(notes, 0.57)];
+    if (blues) {
+      const chordBeat = atChord(i, notes, 0.47, 0.03), bassBeat = atChord(i, [bass[i]], 0.47, 0.03);
+      return [chordBeat, bassBeat, chordBeat, bassBeat];
+    }
+    return [atChord(i, notes, 0.57)];
   });
   const resolution = hint.resolution?.map(notes => block(notes.map(midi => midi + tonic), 0.56)) ?? [];
   const reference = hint.referenceTonic ? [block([0, 4, 7].map(offset => 60 + tonic + offset), 0.48, 0.22)] : [];
-  return blues ? blocks : [...reference, ...bass.map(midi => block([midi], 0.32)), ...blocks, ...resolution];
+  return blues ? blocks : [...reference, ...bass.map((midi, i) => atChord(i, [midi], 0.32)), ...blocks, ...resolution];
 }
 
 export function techniqueHintTonic(hint: TechniqueHint, tonic: number | null): number {
