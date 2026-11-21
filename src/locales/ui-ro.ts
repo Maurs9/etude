@@ -441,7 +441,7 @@ const payload: UIPayload = {
       "ex_show": "Arată pe clape",
       "ex_keyctx": "Tonalitate",
       "ex_circle": "Inelul exterior: tonalități majore · inelul interior: relativele minore. Apasă o tonalitate ca s-o auzi, să-i vezi digitația și să citești acordurile în ea.",
-      "songs_lede": "Apasă un titlu ca să auzi fraza de început. Folosește Ascultă pentru intervalul de două note.",
+      "songs_lede": "Apasă pe un titlu ca să auzi fragmentul cu primele două note accentuate. Apasă pe Ascultă ca să auzi doar intervalul.",
       "songs_from": "De la",
       "pr_hints_chord_title": "Indicii pentru acorduri",
       "pr_hints_chord_lede": "Ascultă ce notă dă acordului caracterul său.",

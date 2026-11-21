@@ -67,13 +67,36 @@ test.describe('Song hints in the Practice setup', () => {
     });
     await page.locator('#song-root').selectOption('2');
     await seconds.getByRole('button', { name: 'Frère Jacques' }).click();
+    await expect.poll(() => page.evaluate(() => window.__song.length)).toBe(8);
     const song = await page.evaluate(() => window.__song);
     expect(song.map(note => note.note)).toEqual([62, 64, 66, 62, 62, 64, 66, 62]);
-    expect(song.map(note => note.velocity)).toEqual([110, 110, 78, 78, 78, 78, 78, 78]);
+    expect(song.map(note => note.velocity)).toEqual([124, 124, 59, 59, 59, 59, 59, 59]);
     expect(song[1].when - song[0].when).toBeCloseTo(60 / 108, 2);
     await expect.poll(() => page.evaluate(() => window.__etude.keyEl.get(62)?.dataset.s)).toBe('target');
     await page.locator('#pr-songs summary').click();
     await expect.poll(() => page.evaluate(() => [...window.__etude.keyEl.values()].some(key => key.dataset.s === 'target'))).toBe(false);
+  });
+
+  test('waits for the piano attacks and cancels a loading excerpt when its direction changes', async ({ app }) => {
+    const page = await app.open({ hash: 'practice' });
+    await page.locator('#pr-songs summary').click();
+    await page.evaluate(() => {
+      const bank = window.__etude.pianoBank;
+      const decode = bank.decode.bind(bank);
+      const pending = new Promise(resolve => { window.__releaseSongSamples = resolve; });
+      window.__songNotes = [];
+      window.__etude.previewNote = midi => window.__songNotes.push(midi);
+      bank.decode = async key => {
+        await pending;
+        return decode(key);
+      };
+    });
+    await page.getByRole('button', { name: 'Frère Jacques' }).click();
+    expect(await page.evaluate(() => window.__songNotes)).toEqual([]);
+    await page.locator('#song-dir button[data-v="desc"]').click();
+    await page.getByRole('button', { name: 'Mary Had a Little Lamb' }).click();
+    await page.evaluate(() => window.__releaseSongSamples());
+    await expect.poll(() => page.evaluate(() => window.__songNotes)).toEqual([60, 58, 56, 58, 60, 60, 60]);
   });
 
   test('the open panel follows the language when switching between topics', async ({ app }) => {

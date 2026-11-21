@@ -43,7 +43,7 @@ export const SONG_OPENINGS = {
       { title: 'Georgia on My Mind — Ray Charles', source: 'https://hookpad.hooktheory.com/?idOfSong=qveoYqWaodn', notes: [[0, 0, 0.96], [3, 0.96, 0.48], [0, 1.44, 0.48], [5, 1.92, 0.96], [3, 2.88, 0.48], [0, 3.36, 0.48], [-4, 3.84, 0.96], [-2, 4.8, 0.48]] },
     ],
     desc: [
-      { title: 'Clair de lune — Debussy', source: 'https://musetrainer.github.io/library/scores/Clair_de_lune_-_Claude_Debussy.mxl', notes: [[0, 0, 0.4], [-3, 0.4, 1.2], [-3, 1.6, 1.2], [-7, 2.8, 0.4], [-5, 3.2, 0.4], [-3, 3.6, 0.4], [-5, 4, 2.4], [-8, 6.4, 0.4]] },
+      { title: 'Clair de lune — Debussy', source: 'https://musetrainer.github.io/library/scores/Clair_de_lune_-_Claude_Debussy.mxl', notes: [[0, 0, 1.6], [-3, 1.6, 1.6], [-5, 3.2, 0.4], [-3, 3.6, 0.4], [-5, 4, 2.8], [-7, 6.8, 0.4], [-5, 7.2, 0.4], [-7, 7.6, 0.6]] },
       { title: 'Morning Mood — Edvard Grieg', source: 'https://hookpad.hooktheory.com/?idOfSong=veoYBqqkmdn', notes: [[0, 0, 0.411], [-3, 0.411, 0.411], [-5, 0.822, 0.411], [-7, 1.233, 0.411], [-5, 1.644, 0.411], [-3, 2.054, 0.411], [0, 2.465, 0.308], [-2, 2.773, 0.103]] },
       { title: 'Shake It Off — Taylor Swift', source: 'https://hookpad.hooktheory.com/?idOfSong=VMgJkjkyxqK', notes: [[0, 0, 0.185], [-3, 0.185, 0.185], [-5, 0.37, 0.195], [-7, 0.565, 0.195], [-3, 0.76, 0.75], [-12, 2.825, 0.195], [0, 3.02, 0.18], [-3, 3.2, 0.18]] },
       { title: 'This Old Man', source: 'https://www.mdc.edu/kendall/academic-departments/performing-arts-and-industries/documents/MHL_Interval_Sheet.pdf', notes: [[0, 0, 0.536], [-3, 0.536, 0.536], [0, 1.071, 1.071], [0, 2.143, 0.536], [-3, 2.679, 0.536], [0, 3.214, 0.536], [2, 3.75, 0.536], [0, 4.286, 0.536]] },
@@ -54,7 +54,7 @@ export const SONG_OPENINGS = {
     asc: [
       { title: 'Sonata K. 545, I — Mozart', source: 'https://musetrainer.github.io/library/scores/Sonata_No._16_1st_Movement_K._545.mxl', notes: [[0, 0, 0.909], [4, 0.909, 0.455], [7, 1.364, 0.455], [-1, 1.818, 0.682], [0, 2.5, 0.114], [2, 2.614, 0.114], [0, 2.727, 0.455], [9, 3.636, 0.909]] },
       { title: 'When the Saints Go Marching In', source: 'https://www.mdc.edu/kendall/academic-departments/performing-arts-and-industries/documents/MHL_Interval_Sheet.pdf', notes: [[0, 0, 0.526], [4, 0.526, 0.526], [5, 1.053, 0.526], [7, 1.579, 1.579], [0, 3.158, 0.526], [4, 3.684, 0.526], [5, 4.211, 0.526], [7, 4.737, 1.579]] },
-      { title: 'Kumbaya', source: 'https://www.mdc.edu/kendall/academic-departments/performing-arts-and-industries/documents/MHL_Interval_Sheet.pdf', notes: [[0, 0, 0.577], [4, 0.577, 0.577], [7, 1.154, 0.577], [7, 1.731, 0.577], [7, 2.308, 0.577], [9, 2.885, 0.577], [9, 3.462, 0.577], [9, 4.038, 0.577]] },
+      { title: 'Kumbaya', source: 'https://dhun.nathanielschool.com/song/kumbaya.html', notes: [[0, 0, 0.577], [4, 0.577, 0.577], [7, 1.154, 0.577], [7, 1.731, 0.577], [7, 2.308, 0.577], [9, 2.885, 0.577], [9, 3.462, 0.577], [7, 4.038, 0.577]] },
       { title: 'Sir Duke — Stevie Wonder', source: 'https://hookpad.hooktheory.com/?idOfSong=_NgbnqbMgQA', notes: [[0, 0, 0.59], [4, 0.59, 0.58], [7, 1.17, 0.45], [12, 1.62, 0.15], [-3, 2.37, 0.147], [-3, 2.665, 0.147], [0, 2.96, 0.15], [-1, 3.11, 0.15]] },
       { title: 'All I Want for Christmas Is You — Mariah Carey', source: 'https://hookpad.hooktheory.com/?idOfSong=ZbgORDXQmnY', notes: [[0, 0, 0.415], [4, 0.415, 0.415], [7, 0.83, 0.435], [11, 1.265, 0.435], [12, 1.7, 0.405], [11, 2.105, 0.405], [7, 2.51, 0.43], [4, 2.94, 0.43]] },
     ],
