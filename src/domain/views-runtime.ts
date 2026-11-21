@@ -8,6 +8,7 @@ import * as safety from './data-safety.js';
 import * as theory from './theory.js';
 import type { PracticeHintDiagram, PracticeHintNote, PracticeHintStep } from './practice-hints.js';
 import { isPracticeHintsTopic, renderPracticeHintCards } from './practice-hints-view.js';
+import type { StudyHintState } from './practice-study-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
@@ -5462,6 +5463,7 @@ interface PracticeHintPreview {
 }
 let practiceHintPreview: PracticeHintPreview | null = null;
 let practiceHintPanelState = '';
+const practiceStudy: StudyHintState = { open: { prog: null, technique: null }, hand: 'rh', chords: new Map() };
 
 function paintPracticeHintKeys() {
     keyEl.forEach(key => { delete key.dataset.prHintKey; });
@@ -5592,6 +5594,8 @@ function syncPracticeHintsPanel() {
         chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
         scaleName: scaleDisp,
         play: (id, steps, keys, diagram) => { void playPracticeHint(id, steps, keys, diagram); },
+        stop: () => { if (practiceHintPreview) stopPreviews(); },
+        study: practiceStudy,
         openExample: id => { void openPracticeHintExample(id); },
     });
 }

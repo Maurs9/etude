@@ -6,6 +6,8 @@ import {
 import { createChordHintDiagrams } from './chord-hint-diagrams.js';
 import { renderGrandStaff } from './grand-staff.js';
 import { createHintKeyboard } from './hint-keyboard.js';
+import { control, element } from './practice-hint-dom.js';
+import { renderProgressionStudy, renderTechniqueStudy, type StudyHintOptions, type StudyHintState } from './practice-study-view.js';
 import { SR_LET, type SrToken } from './score-types.js';
 import { techniqueSpellDegree, techniqueTonicSpelling, type TechniqueHand } from './technique.js';
 import { keyFifths, spellMidi } from './theory.js';
@@ -16,23 +18,12 @@ export function isPracticeHintsTopic(topic: string): topic is PracticeHintsTopic
   return topic === 'chord' || topic === 'scale' || topic === 'prog' || topic === 'technique' || topic === 'melody';
 }
 
-interface HintViewOptions {
+interface HintViewOptions extends StudyHintOptions {
   readonly tonic: number | null;
-  readonly audioOnly: boolean;
-  readonly disabled: boolean;
-  readonly text: (key: string, ...args: string[]) => string;
-  readonly spell: (letter: number, accidental: number) => string;
   readonly chordName: (symbol: string) => string;
   readonly scaleName: (name: string) => string;
-  readonly play: (id: string, steps: readonly PracticeHintStep[], keys: boolean, diagram?: PracticeHintDiagram) => void;
+  readonly study: StudyHintState;
   readonly openExample: (id: string) => void;
-}
-
-function element(kind: string, className: string, text?: string): HTMLElement {
-  const el = document.createElement(kind);
-  el.className = className;
-  if (text !== undefined) el.textContent = text;
-  return el;
 }
 
 function card(id: string, title: string, cue?: string, formula?: string, visuals?: HTMLElement) {
@@ -43,18 +34,6 @@ function card(id: string, title: string, cue?: string, formula?: string, visuals
   if (visuals) article.append(visuals);
   if (cue) article.append(element('p', 'pr-hint-cue', cue));
   return article;
-}
-
-function control(id: string, label: string, description: string, disabled: boolean, activate: () => void) {
-  const button = document.createElement('button');
-  button.className = 'btn sm';
-  button.textContent = label;
-  button.type = 'button';
-  button.dataset.hintControl = id;
-  button.disabled = disabled;
-  button.setAttribute('aria-label', `${label} — ${description}`);
-  button.addEventListener('click', activate);
-  return button;
 }
 
 export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTopic, options: HintViewOptions): void {
@@ -90,6 +69,38 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     contents.append(section);
     return grid;
   };
+  const studyToggles = new Map<string, (open: boolean) => void>();
+  function appendStudy(el: HTMLElement, kind: 'prog' | 'technique', hint: string, title: string, build: () => HTMLElement) {
+    const id = `${kind}:${hint}`;
+    const heading = el.querySelector('h3');
+    const detail = element('div', 'pr-study-detail');
+    detail.id = `pr-study-detail-${encodeURIComponent(id)}`;
+    const setOpen = (open: boolean) => {
+      detail.hidden = !open;
+      el.classList.toggle('pr-study-open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+      if (open) detail.replaceChildren(build());
+      else detail.replaceChildren();
+    };
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'pr-study-toggle';
+    toggle.textContent = title;
+    toggle.dataset.hintControl = `${id}:toggle`;
+    toggle.setAttribute('aria-controls', detail.id);
+    toggle.addEventListener('click', () => {
+      options.stop();
+      const previous = options.study.open[kind];
+      if (previous) studyToggles.get(previous)?.(false);
+      options.study.open[kind] = previous === hint ? null : hint;
+      if (options.study.open[kind]) setOpen(true);
+    });
+    heading?.replaceChildren(toggle);
+    el.classList.add('pr-study-card');
+    el.append(detail);
+    studyToggles.set(hint, setOpen);
+    setOpen(options.study.open[kind] === hint);
+  }
   box.classList.toggle('pr-chord-groups', topic !== 'melody');
   if (topic === 'chord') {
     const groups = new Map([['maj', 'triads'], ['6', 'sixths_sevenths'], ['add9', 'extensions']]);
@@ -174,10 +185,10 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       const chords = progressionHintChords(hint, tonic);
       const sequence = element('ol', 'pr-progression-sequence');
       sequence.setAttribute('role', 'list');
-      const columns = chords.map(({ root, symbol, roman }) => {
-        const name = rootName(root, tonic, hint.minor) + (symbol === 'maj' ? '' : symbol);
+      const names = chords.map(({ root, symbol }) => rootName(root, tonic, hint.minor) + (symbol === 'maj' ? '' : symbol));
+      const columns = chords.map(({ roman }, i) => {
         const item = element('li', 'pr-progression-chord');
-        item.append(element('span', 'pr-progression-degree', roman), element('strong', 'pr-progression-name', name));
+        item.append(element('span', 'pr-progression-degree', roman), element('strong', 'pr-progression-name', names[i]));
         return item;
       });
       sequence.append(...columns);
@@ -195,6 +206,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       };
       const id = `prog:${hint.name}`;
       appendPlayback(el, id, title, progressionHintSteps(hint, tonic), diagram);
+      appendStudy(el, 'prog', hint.name, title, () => renderProgressionStudy(hint, tonic, title, names, options, options.study));
       appendReference(el, id);
       grid.append(el);
     }
@@ -234,6 +246,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
         visuals.append(element('h4', 'pr-hint-hand-title', handName), keyboard.svg, fingers, actions);
         el.append(visuals);
       }
+      appendStudy(el, 'technique', hint.id, title, () => renderTechniqueStudy(hint, pitch, `${title} · ${tonicName}`, options, options.study));
       appendReference(el, `technique:${hint.id}`);
       grid.append(el);
     }

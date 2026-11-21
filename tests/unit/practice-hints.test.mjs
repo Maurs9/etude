@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS, PRACTICE_HINT_REFERENCES,
-  chordHintFormula, chordHintSteps, chordHintTones, melodyHintExample, progressionHintChords, progressionHintSteps, scaleHintFormula, scaleHintSteps, scaleHintTones,
+  chordHintFormula, chordHintSteps, chordHintTones, melodyHintExample, progressionHintChords, progressionHintResolution, progressionHintSteps, progressionHintVoicings, scaleHintFormula, scaleHintSteps, scaleHintTones,
   techniqueHintSteps, techniqueHintTonic,
 } from '../../src/domain/practice-hints.ts';
 import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS, pitchClass, practiceTonicMidi } from '../../src/domain/theory.ts';
@@ -25,6 +25,8 @@ describe('Practice hint catalog', () => {
       ...['chord', 'scale', 'prog', 'technique', 'melody'].flatMap(topic => [`${topic}_title`, `${topic}_lede`]),
       'show_keys', 'compare', 'melody_cue', 'melody_example', 'melody_show_notes', 'melody_hide_notes',
       'chord_group_triads', 'chord_group_sixths_sevenths', 'chord_group_extensions', 'chord_keyboard', 'chord_staff',
+      'prog_chord_bass', 'prog_bar', 'prog_hear', 'prog_hear_bass', 'prog_hear_resolution',
+      'technique_up', 'technique_down', 'technique_hear_passage', 'technique_hear_run',
     ];
     for (const [lang, copy] of Object.entries(STRINGS)) {
       for (const key of keys) expect(copy[`pr_hints_${key}`], `${lang}: ${key}`).toBeTruthy();
@@ -77,15 +79,32 @@ describe('Practice hint catalog', () => {
   });
 
   it('follows the demonstrated bass and plays all twelve measures of blues', () => {
-    for (const hint of PROGRESSION_HINTS) {
-      const chords = progressionHintChords(hint, 4);
-      expect(hint.bass.map(offset => pitchClass(4 + offset)), hint.name).toEqual(chords.map(chord => chord.root));
+    for (let tonic = 0; tonic < 12; tonic++) {
+      for (const hint of PROGRESSION_HINTS) {
+        const voicings = progressionHintVoicings(hint, tonic);
+        const chords = progressionHintChords(hint, tonic);
+        expect(voicings.map(({ bass }) => pitchClass(bass.midi)), hint.name).toEqual(chords.map(chord => chord.root));
+        for (const [i, voicing] of voicings.entries()) {
+          const written = [voicing.bass, ...voicing.upper];
+          expect(written.map(note => ssMidiOf(note.li, note.oct, note.acc))).toEqual(written.map(note => note.midi));
+          expect(written[1].midi).toBeGreaterThan(written[0].midi);
+          expect(notes(progressionHintSteps(hint, tonic, i))).toEqual([written.map(note => note.midi)]);
+          expect(written.every(note => Math.abs(note.acc) <= 2)).toBe(true);
+        }
+      }
     }
     const jazzSteps = progressionHintSteps(byName(PROGRESSION_HINTS, 'ii–V–I (jazz)'), 0);
     const jazz = notes(jazzSteps);
     expect(jazz.slice(0, 3)).toEqual([[50], [43], [36]]);
     expect(jazz.slice(-2)).toEqual([[59, 65], [60, 64]]);
     expect(jazzSteps.map(step => step.diagramKey)).toEqual(['0', '1', '2', '0', '1', '2', undefined, undefined]);
+    const cadence = byName(PROGRESSION_HINTS, 'ii–V–I (jazz)');
+    expect(notes(progressionHintSteps(cadence, 0, 'full'))).toEqual([[50, 62, 65, 69, 72], [43, 67, 71, 74, 77], [36, 60, 64, 67, 71]]);
+    expect(notes(progressionHintSteps(cadence, 0, 'bass'))).toEqual([[50], [43], [36]]);
+    expect(notes(progressionHintSteps(cadence, 0, 'resolution'))).toEqual([[59, 65], [60, 64]]);
+    const minorCadence = byName(PROGRESSION_HINTS, 'minor ii–V–i');
+    expect(notes(progressionHintSteps(minorCadence, 2, 'resolution'))).toEqual([[61, 67], [62, 65]]);
+    expect(progressionHintResolution(minorCadence, 8)[0][0]).toMatchObject({ li: 3, acc: 2, midi: 67 });
     const bluesSteps = progressionHintSteps(byName(PROGRESSION_HINTS, '12-bar blues'), 2);
     const blues = notes(bluesSteps);
     expect(blues).toHaveLength(48);
@@ -96,7 +115,11 @@ describe('Practice hint catalog', () => {
 
   it('uses the existing one-octave fingerings and falls back to an allowed tonic for each card', () => {
     const techniques = Object.fromEntries(TECHNIQUE_HINTS.map(hint => [hint.id, hint]));
-    expect(techniqueHintSteps(techniques.major_common, 0, 'rh').fragment.map(note => [note.midi, note.finger])).toEqual([[64, 3], [65, 1]]);
+    const cMajor = techniqueHintSteps(techniques.major_common, 0, 'rh');
+    expect(cMajor.fragment.map(note => [note.midi, note.finger])).toEqual([[64, 3], [65, 1]]);
+    expect(notes(cMajor.fragmentSteps)).toEqual([[64], [65], [64], [65]]);
+    expect(cMajor.fragmentSteps.map(step => step.diagramKey)).toEqual(['2', '3', '2', '3']);
+    expect(notes(cMajor.runSteps).flat()).toEqual([60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60]);
     expect(techniqueHintSteps(techniques.major_f_b, 5, 'rh').ascending.map(note => note.finger).join('')).toBe('12341234');
     expect(techniqueHintSteps(techniques.major_f_b, 11, 'lh').ascending.map(note => note.finger).join('')).toBe('43214321');
     expect(techniqueHintSteps(techniques.harmonic, 5, 'rh').fragment.map(note => note.finger)).toEqual([2, 3]);
@@ -110,7 +133,10 @@ describe('Practice hint catalog', () => {
       ...CHORD_HINTS.flatMap(hint => chordHintSteps(hint, tonic)),
       ...SCALE_HINTS.flatMap(hint => scaleHintSteps(hint, tonic)),
       ...PROGRESSION_HINTS.flatMap(hint => progressionHintSteps(hint, tonic)),
-      ...TECHNIQUE_HINTS.flatMap(hint => ['lh', 'rh'].flatMap(hand => techniqueHintSteps(hint, techniqueHintTonic(hint, tonic), hand).steps)),
+      ...TECHNIQUE_HINTS.flatMap(hint => ['lh', 'rh'].flatMap(hand => {
+        const { fragmentSteps, runSteps } = techniqueHintSteps(hint, techniqueHintTonic(hint, tonic), hand);
+        return [...fragmentSteps, ...runSteps];
+      })),
     ]).flat();
     expect(steps.every(step => step.seconds > 0 && step.gap >= 0 && step.notes.length &&
       step.notes.every(note => Number.isInteger(note.midi) && note.midi >= 0 && note.midi <= 127))).toBe(true);

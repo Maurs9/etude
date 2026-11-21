@@ -1,6 +1,6 @@
 import {
   CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS,
-  formatChordFormula, formatScaleFormula, keyFifths, practiceTonicMidi, spellChordTone, spellMidi, transposePitchClass, type SpelledMidi,
+  formatChordFormula, formatScaleFormula, keyFifths, practiceTonicMidi, spellDiatonicDegree, spellMidi, transposePitchClass, type SpelledMidi,
 } from './theory.js';
 import { ARPEGGIO_TONICS, techniqueKeyAllowed, techniqueSteps, type TechniqueHand, type TechniqueKind } from './technique.js';
 
@@ -46,7 +46,7 @@ export interface ProgressionHint {
   readonly bass: readonly number[];
   readonly minor?: boolean;
   readonly referenceTonic?: boolean;
-  readonly resolution?: readonly (readonly number[])[];
+  readonly resolution?: readonly [readonly [number, number], readonly [number, number]];
 }
 
 export interface TechniqueHint {
@@ -171,16 +171,19 @@ function block(midis: readonly number[], seconds: number, gap = 0.07): PracticeH
   return { notes: midis.map(midi => ({ midi })), seconds, gap };
 }
 
-export function chordHintTones(symbol: string, tonic: number): ChordHintTone[] {
+function spellHintChord(symbol: string, root: number, spelling: SpelledMidi): ChordHintTone[] {
   const intervals = chordTemplate(symbol).intervals;
   const formula = formatChordFormula(intervals);
   const labels = (symbol === 'dim7' ? formula.replace(/6$/, '𝄫7') : formula).split(' ');
-  const root = practiceTonicMidi(tonic, 'near-middle-c');
-  const spelling = spellMidi(root, keyFifths(tonic, false));
   return intervals.map((interval, index) => {
     const label = labels[index], degree = Number(label.replace(/^\D+/u, '')), midi = root + interval;
-    return { ...spellChordTone(spelling, midi, degree), label, degree, midi };
+    return { ...spellDiatonicDegree(spelling, midi, degree), label, degree, midi };
   });
+}
+
+export function chordHintTones(symbol: string, tonic: number): ChordHintTone[] {
+  const root = practiceTonicMidi(tonic, 'near-middle-c');
+  return spellHintChord(symbol, root, spellMidi(root, keyFifths(tonic, false)));
 }
 
 export function chordHintFormula(symbol: string): string {
@@ -214,7 +217,7 @@ export function scaleHintTones(name: string, tonic: number) {
   return [...offsets, 12].map((offset, index) => {
     const midi = root + offset;
     const degree = offset === 12 ? 8 : offsets.length === 7 ? index + 1 : scaleLetterDegrees[name]?.[index];
-    const written = degree === undefined ? spellMidi(midi, fifths) : spellChordTone(spelling, midi, degree);
+    const written = degree === undefined ? spellMidi(midi, fifths) : spellDiatonicDegree(spelling, midi, degree);
     return { ...written, midi, tonic: offset === 0 || offset === 12 };
   });
 }
@@ -241,26 +244,60 @@ export function progressionHintChords(hint: ProgressionHint, tonic: number) {
   return pattern.map(([offset, symbol, roman]) => ({ root: transposePitchClass(tonic, offset), symbol, roman }));
 }
 
-export function progressionHintSteps(hint: ProgressionHint, tonic: number): PracticeHintStep[] {
-  const chords = progressionHintChords(hint, tonic);
-  const blues = hint.name === '12-bar blues';
-  const tonicBass = 48 + tonic;
-  const bass = hint.bass.map(offset => tonicBass + offset);
-  const atChord = (index: number, midis: readonly number[], seconds: number, gap?: number): PracticeHintStep =>
-    ({ ...block(midis, seconds, gap), diagramKey: String(index) });
-  const blocks = chords.flatMap(({ root, symbol }, i) => {
-    const chord = chordTemplate(symbol);
-    const upperRoot = 60 + root - (root > 7 ? 12 : 0);
-    const notes = [bass[i], ...chord.intervals.map(interval => upperRoot + interval)];
-    if (blues) {
-      const chordBeat = atChord(i, notes, 0.47, 0.03), bassBeat = atChord(i, [bass[i]], 0.47, 0.03);
-      return [chordBeat, bassBeat, chordBeat, bassBeat];
-    }
-    return [atChord(i, notes, 0.57)];
+export interface ProgressionHintVoicing {
+  readonly roman: string;
+  readonly symbol: string;
+  readonly bass: SpelledMidi & PracticeHintNote;
+  readonly upper: readonly ChordHintTone[];
+}
+
+export function progressionHintVoicings(hint: ProgressionHint, tonic: number): ProgressionHintVoicing[] {
+  const minor = Boolean(hint.minor), fifths = keyFifths(tonic, minor);
+  return progressionHintChords(hint, tonic).map(({ root, symbol, roman }, i) => {
+    const midi = 48 + tonic + hint.bass[i];
+    const bass = { ...spellMidi(midi, fifths, minor), midi };
+    const upperRoot = Math.max(midi + 12, 60 + root - (root > 7 ? 12 : 0));
+    const spelling = { ...bass, oct: bass.oct + (upperRoot - midi) / 12 };
+    return { roman, symbol, bass, upper: spellHintChord(symbol, upperRoot, spelling) };
   });
-  const resolution = hint.resolution?.map(notes => block(notes.map(midi => midi + tonic), 0.56)) ?? [];
+}
+
+export function progressionHintResolution(hint: ProgressionHint, tonic: number) {
+  if (!hint.resolution) return [];
+  const minor = Boolean(hint.minor);
+  const root = spellMidi(60 + tonic, keyFifths(tonic, minor), minor);
+  // The leading tone sits below the tonic. The fourth resolves to the third above it.
+  const degrees = [[0, 4], [1, 3]];
+  return hint.resolution.map((pair, step) => pair.map((note, voice) => {
+    const midi = note + tonic;
+    return { ...spellDiatonicDegree(root, midi, degrees[step][voice]), midi };
+  }));
+}
+
+export function progressionHintSteps(hint: ProgressionHint, tonic: number, part: 'overview' | 'full' | 'bass' | 'resolution' | number = 'overview'): PracticeHintStep[] {
+  if (part === 'resolution') {
+    return progressionHintResolution(hint, tonic).map((notes, i) => ({ notes, seconds: 0.65, gap: 0.08, diagramKey: `resolution:${i}` }));
+  }
+  const voicings = progressionHintVoicings(hint, tonic);
+  if (part === 'bass') {
+    return voicings.map(({ bass }, i) => ({ notes: [bass], seconds: 0.42, gap: 0.06, diagramKey: String(i) }));
+  }
+  const chord = (i: number, seconds: number, gap = 0.07): PracticeHintStep => {
+    const { bass, upper } = voicings[i];
+    return { notes: [bass, ...upper], seconds, gap, diagramKey: String(i) };
+  };
+  if (typeof part === 'number') return [chord(part, 0.8, 0)];
+  if (hint.name === '12-bar blues') {
+    return voicings.flatMap(({ bass }, i) => {
+      const pulse = { notes: [bass], seconds: 0.47, gap: 0.03, diagramKey: String(i) };
+      return [chord(i, 0.47, 0.03), pulse, chord(i, 0.47, 0.03), pulse];
+    });
+  }
   const reference = hint.referenceTonic ? [block([0, 4, 7].map(offset => 60 + tonic + offset), 0.48, 0.22)] : [];
-  return blues ? blocks : [...reference, ...bass.map((midi, i) => atChord(i, [midi], 0.32)), ...blocks, ...resolution];
+  if (part === 'full') return [...reference, ...voicings.map((_, i) => chord(i, 0.65, 0.08))];
+  const bass = voicings.map(({ bass }, i) => ({ ...block([bass.midi], 0.32), diagramKey: String(i) }));
+  const resolution = progressionHintResolution(hint, tonic).map(notes => ({ notes, seconds: 0.56, gap: 0.07 }));
+  return [...reference, ...bass, ...voicings.map((_, i) => chord(i, 0.57)), ...resolution];
 }
 
 export function techniqueHintTonic(hint: TechniqueHint, tonic: number | null): number {
@@ -276,7 +313,15 @@ export function techniqueHintSteps(hint: TechniqueHint, tonic: number, hand: Tec
     (hand === 'rh' ? i < ascending.length - 1 && note.finger === 1 : ascending[i - 1].finger === 1));
   const focusAt = hint.kind === 'minor' ? 5 : arpeggio ? 0 : Math.max(0, crossing - 1);
   const fragment = ascending.slice(focusAt, focusAt + 2);
-  const preview = (notes: readonly PracticeHintNote[], seconds: number, lastGap: number) =>
-    notes.map((note, i): PracticeHintStep => ({ notes: [note], seconds, gap: i === notes.length - 1 ? lastGap : 0.04 }));
-  return { ascending, fragment, steps: [...preview(fragment, 0.33, 0.2), ...preview(fragment, 0.33, 0.23), ...preview(steps.flatMap(step => step.notes), 0.21, 0)] };
+  const run = steps.flatMap(step => step.notes);
+  const preview = (notes: readonly PracticeHintNote[], start: number, seconds: number, lastGap: number) =>
+    notes.map((note, i): PracticeHintStep =>
+      ({ notes: [note], seconds, gap: i === notes.length - 1 ? lastGap : 0.04, diagramKey: String(start + i) }));
+  const fragmentSteps = preview(fragment, focusAt, 0.36, 0.3);
+  return {
+    ascending, fragment, run,
+    steps: [...preview(fragment, focusAt, 0.33, 0.2), ...preview(fragment, focusAt, 0.33, 0.23), ...preview(run, 0, 0.21, 0)],
+    fragmentSteps: [...fragmentSteps, ...fragmentSteps],
+    runSteps: preview(run, 0, 0.22, 0),
+  };
 }
