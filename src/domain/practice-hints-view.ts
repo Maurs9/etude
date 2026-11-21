@@ -66,8 +66,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
   };
   const appendPlayback = (el: HTMLElement, id: string, title: string, steps: readonly PracticeHintStep[], diagram?: PracticeHintDiagram) => {
     const controls = element('div', 'pr-hint-actions');
-    const label = text(topic === 'chord' || topic === 'scale' ? 'rdn_listen' : 'pr_hints_hear');
-    controls.append(control(`${id}:hear`, label, title, disabled, () => play(id, steps, !audioOnly, diagram)));
+    controls.append(control(`${id}:hear`, text('rdn_listen'), title, disabled, () => play(id, steps, !audioOnly, diagram)));
     if (audioOnly) controls.append(control(`${id}:keys`, text('pr_hints_show_keys'), title, disabled, () => play(id, steps, true, diagram)));
     el.append(controls);
   };
@@ -89,7 +88,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     contents.append(section);
     return grid;
   };
-  box.classList.toggle('pr-chord-groups', topic === 'chord' || topic === 'scale' || topic === 'technique');
+  box.classList.toggle('pr-chord-groups', topic !== 'melody');
   if (topic === 'chord') {
     const groups = new Map([['maj', 'triads'], ['6', 'sixths_sevenths'], ['add9', 'extensions']]);
     let grid = element('div', 'pr-hint-grid');
@@ -164,16 +163,38 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       grid.append(el);
     }
   } else if (topic === 'prog') {
+    const groups = new Map([['three', 'cadences'], ['pop', 'popular'], ['blues', 'forms']]);
+    let grid = element('div', 'pr-hint-grid');
     for (const hint of PROGRESSION_HINTS) {
+      const group = groups.get(hint.cue);
+      if (group) grid = appendGroup(text(`pr_hints_prog_group_${group}`));
       const title = text(`pr_hints_p_${hint.cue}_title`);
       const chords = progressionHintChords(hint, tonic);
-      const names = chords.map(({ root, symbol }) => rootName(root, tonic, hint.minor) + (symbol === 'maj' ? '' : symbol));
-      const el = card(hint.name, title, text(`pr_hints_p_${hint.cue}`), chords.map(chord => chord.roman).join('–'));
-      el.append(element('p', 'pr-hint-detail', names.join(' – ')));
+      const sequence = element('ol', 'pr-progression-sequence');
+      sequence.setAttribute('role', 'list');
+      const columns = chords.map(({ root, symbol, roman }) => {
+        const name = rootName(root, tonic, hint.minor) + (symbol === 'maj' ? '' : symbol);
+        const item = element('li', 'pr-progression-chord');
+        item.append(element('span', 'pr-progression-degree', roman), element('strong', 'pr-progression-name', name));
+        return item;
+      });
+      sequence.append(...columns);
+      const el = card(hint.name, title, text(`pr_hints_p_${hint.cue}`), undefined, sequence);
+      let current: HTMLElement | undefined;
+      const diagram: PracticeHintDiagram = {
+        followWithoutDock: true,
+        paint(key) {
+          const next = key === undefined ? undefined : columns[Number(key)];
+          if (current === next) return;
+          current?.removeAttribute('aria-current');
+          next?.setAttribute('aria-current', 'step');
+          current = next;
+        },
+      };
       const id = `prog:${hint.name}`;
-      appendPlayback(el, id, title, progressionHintSteps(hint, tonic));
+      appendPlayback(el, id, title, progressionHintSteps(hint, tonic), diagram);
       appendReference(el, id);
-      contents.append(el);
+      grid.append(el);
     }
   } else if (topic === 'technique') {
     let grid = appendGroup(text('cat_scale'));

@@ -16,7 +16,7 @@ test('switching topics keeps the panel open and shows each reference hint', asyn
   await expect(hint(page, /Dorian/)).toContainText('1 2 ♭3 4 5 6 ♭7');
   await page.locator('#pr-t-prog').click();
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(10);
-  await expect(hint(page, /Jazz cadence/)).toContainText('Dm7 – G7 – Cmaj7');
+  await expect(hint(page, /Jazz cadence/).locator('.pr-progression-name')).toHaveText(['Dm7', 'G7', 'Cmaj7']);
   await page.locator('#pr-t-technique').click();
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(6);
   await expect(hint(page, /shared fingering/)).toContainText('E(3) · F(1)');
@@ -59,7 +59,7 @@ test('accompaniment owns progression playback while the loop is running', async 
   await page.locator('#pr-t-prog').click();
   await page.locator('#pr-songs summary').click();
   await page.locator('#pr-mode button[data-v="along"]').click();
-  const play = hint(page, /Jazz cadence/).getByRole('button', { name: /Hear the hint/ });
+  const play = hint(page, /Jazz cadence/).getByRole('button', { name: /^Listen\b/ });
   await expect(play).toBeEnabled();
   await page.locator('#pr-start').click();
   await expect(play).toBeDisabled();
