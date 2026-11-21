@@ -6,7 +6,7 @@ import type { GlossaryEntry, LearnQuizCopy, LearnQuizSpec, LearnSummaryRow, Lear
 import * as storage from './storage.js';
 import * as safety from './data-safety.js';
 import * as theory from './theory.js';
-import type { PracticeHintNote, PracticeHintStep } from './practice-hints.js';
+import type { PracticeHintDiagram, PracticeHintNote, PracticeHintStep } from './practice-hints.js';
 import { isPracticeHintsTopic, renderPracticeHintCards } from './practice-hints-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
@@ -1886,7 +1886,7 @@ function dockSet(open: boolean) {
     if (view0() === 'practice' && practiceHintPreview && practiceHintPreview.keys !== null) {
         practiceHintPreview.keys = open;
         dockSync();
-        paintPracticeHintKeys();
+        showPracticeHintNotes(practiceHintPreview);
         return;
     }
     if (stageDock()) {
@@ -5409,9 +5409,12 @@ interface PracticeHintPreview {
     frame: number;
     notes: readonly PracticeHintNote[];
     originalLow: number | null;
+    chord?: string;
+    diagram?: PracticeHintDiagram;
 }
 let practiceHintPreview: PracticeHintPreview | null = null;
 let practiceHintPanelState = '';
+const practiceChordExpansion: { open: string | null } = { open: null };
 
 function paintPracticeHintKeys() {
     keyEl.forEach(key => { delete key.dataset.prHintKey; });
@@ -5424,9 +5427,10 @@ function paintPracticeHintKeys() {
 
 function clearPracticeHintPreview() {
     if (!practiceHintPreview) return;
-    const { frame, originalLow } = practiceHintPreview;
+    const { frame, originalLow, diagram } = practiceHintPreview;
     practiceHintPreview = null;
     cancelAnimationFrame(frame);
+    diagram?.();
     if (originalLow !== null && view.low !== originalLow) {
         view.low = Math.min(originalLow, BASE_HIGH - view.oct * 12);
         buildKeyboard();
@@ -5435,7 +5439,7 @@ function clearPracticeHintPreview() {
     dockSync();
 }
 
-async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], keys: boolean) {
+async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], keys: boolean, diagram?: PracticeHintDiagram) {
     const panel = byId('pr-songs');
     if (view0() !== 'practice' || SES.active || accomp.on || !(panel instanceof HTMLDetailsElement) || !panel.open) return;
     if (keys && practiceHintPreview?.id === id && practiceHintPreview.keys !== true) {
@@ -5447,7 +5451,7 @@ async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], 
     stopPreviews();
     const context = ensureAudio();
     if (!context) return;
-    const preview: PracticeHintPreview = { id, keys: keys ? true : null, frame: 0, notes: [], originalLow: null };
+    const preview: PracticeHintPreview = { id, keys: keys ? true : null, frame: 0, notes: [], originalLow: null, diagram };
     practiceHintPreview = preview;
     dockSync();
     if (context.state !== 'running' && !await timedAudioReady(context)) {
@@ -5464,7 +5468,7 @@ async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], 
         const at = next, end = at + step.seconds;
         next = end + (step.gap ?? 0);
         step.notes.forEach(note => previewNote(note.midi, at, step.seconds));
-        return { at, end, notes: step.notes };
+        return { at, end, notes: step.notes, chord: step.chord };
     });
     const silence: readonly PracticeHintNote[] = [];
     let index = 0;
@@ -5472,14 +5476,16 @@ async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], 
         if (practiceHintPreview !== preview) return;
         const now = context.currentTime;
         while (index < timing.length && now >= timing[index].end) index++;
-        if (index === timing.length) {
+        if (index === timing.length || context.state === 'closed') {
             clearPracticeHintPreview();
             return;
         }
         const event = timing[index];
         const notes = now >= event.at ? event.notes : silence;
-        if (notes !== preview.notes) {
+        const chord = now >= event.at ? event.chord : preview.chord;
+        if (notes !== preview.notes || chord !== preview.chord) {
             preview.notes = notes;
+            preview.chord = chord;
             showPracticeHintNotes(preview);
         }
         preview.frame = requestAnimationFrame(paint);
@@ -5501,6 +5507,8 @@ function showPracticeHintNotes(preview: PracticeHintPreview) {
         dockKeyInSight(foldToView(lo));
     }
     paintPracticeHintKeys();
+    if (preview.keys) preview.diagram?.(preview.chord, preview.notes);
+    else preview.diagram?.();
 }
 
 function syncPracticeHintsPanel() {
@@ -5536,7 +5544,9 @@ function syncPracticeHintsPanel() {
         spell: (letter, acc) => spelledName(notation, letter, acc),
         chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
         scaleName: scaleDisp,
-        play: (id, steps, keys) => { void playPracticeHint(id, steps, keys); },
+        play: (id, steps, keys, diagram) => { void playPracticeHint(id, steps, keys, diagram); },
+        stop: () => { if (practiceHintPreview) stopPreviews(); },
+        chordExpansion: practiceChordExpansion,
         openExample: id => { void openPracticeHintExample(id); },
     });
 }

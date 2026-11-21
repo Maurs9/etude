@@ -1,6 +1,6 @@
 import {
   CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS,
-  formatChordFormula, formatScaleFormula, practiceTonicMidi, transposePitchClass,
+  formatChordFormula, formatScaleFormula, keyFifths, practiceTonicMidi, spellChordTone, spellMidi, transposePitchClass, type SpelledMidi,
 } from './theory.js';
 import { ARPEGGIO_TONICS, techniqueKeyAllowed, techniqueSteps, type TechniqueHand, type TechniqueKind } from './technique.js';
 
@@ -13,6 +13,15 @@ export interface PracticeHintStep {
   readonly notes: readonly PracticeHintNote[];
   readonly seconds: number;
   readonly gap?: number;
+  readonly chord?: string;
+}
+
+export type PracticeHintDiagram = (chord?: string, sounding?: readonly PracticeHintNote[]) => void;
+
+export interface ChordHintTone extends SpelledMidi {
+  readonly midi: number;
+  readonly degree: number;
+  readonly label: string;
 }
 
 export interface ChordHint {
@@ -143,17 +152,28 @@ function block(midis: readonly number[], seconds: number, gap = 0.07): PracticeH
   return { notes: midis.map(midi => ({ midi })), seconds, gap };
 }
 
+export function chordHintTones(symbol: string, tonic: number): ChordHintTone[] {
+  const intervals = chordTemplate(symbol).intervals;
+  const formula = formatChordFormula(intervals);
+  const labels = (symbol === 'dim7' ? formula.replace(/6$/, '𝄫7') : formula).split(' ');
+  const root = practiceTonicMidi(tonic, 'near-middle-c');
+  const spelling = spellMidi(root, keyFifths(tonic, false));
+  return intervals.map((interval, index) => {
+    const label = labels[index], degree = Number(label.replace(/^\D+/u, '')), midi = root + interval;
+    return { ...spellChordTone(spelling, midi, degree), label, degree, midi };
+  });
+}
+
 export function chordHintFormula(symbol: string): string {
-  const formula = formatChordFormula(chordTemplate(symbol).intervals);
-  return symbol === 'dim7' ? formula.replace(/6$/, '𝄫7') : formula;
+  return chordHintTones(symbol, 0).map(note => note.label).join(' ');
 }
 
 export function chordHintSteps(hint: ChordHint, tonic: number): PracticeHintStep[] {
-  const root = practiceTonicMidi(tonic, 'near-middle-c');
   const symbols = hint.compare ? [hint.symbol, hint.compare] : [hint.symbol];
-  return symbols.flatMap(symbol => {
-    const midis = chordTemplate(symbol).intervals.map(interval => root + interval);
-    return [...midis.map(midi => block([midi], 0.16, 0.04)), block(midis, 0.65, 0.22)];
+  return symbols.flatMap(chord => {
+    const notes = chordHintTones(chord, tonic);
+    return [...notes.map(note => ({ notes: [note], seconds: 0.16, gap: 0.04, chord })),
+      { notes, seconds: 0.65, gap: 0.22, chord }];
   });
 }
 

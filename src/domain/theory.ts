@@ -264,6 +264,13 @@ export interface SpelledMidi {
   oct: number;
 }
 
+/** Keep the letter of the chord degree, even when it needs a double accidental. */
+export function spellChordTone(tonic: SpelledMidi, midi: number, degree: number): SpelledMidi {
+  const step = tonic.oct * 7 + tonic.li + degree - 1;
+  const li = step % 7, oct = Math.floor(step / 7);
+  return { li, oct, acc: midi - ((oct + 1) * 12 + LETTER_PITCH_CLASSES[li]) };
+}
+
 export function spellMidi(midi: number, fifths = 0, minor = false): SpelledMidi {
   const pitch = pitchClass(midi);
   const signature = keyAccidentals(fifths);

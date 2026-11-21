@@ -285,6 +285,28 @@ export function srLevelBeams(body: string, groups: SrBeamGroup[]) {
 export interface SrStave { hand: SrHand; clef: 'treble' | 'bass'; refStep: number; top: number; rel: number; data: { ev: SrEvent[]; total: number } }
 /** A chord note with its staff position, notehead shift (`dx`) and accidental column (`ax`). */
 export interface SrChordItem { e: SrNoteEvent; step: number; y: number; dx: number; ax?: number }
+/** Lay out a column of simultaneous notes, sorted by diatonic staff position. */
+export function packChordColumn<T extends { step: number; y: number; dx: number; ax?: number }>(
+    items: readonly T[], up: boolean, center: number, hasAccidental: (item: T) => boolean,
+    spacing = { width: 10, height: 14 },
+): void {
+    let previous: T | undefined;
+    (up ? items : [...items].reverse()).forEach(item => {
+        item.dx = previous && Math.abs(item.step - previous.step) === 1 && previous.dx === 0 ? (up ? 11.5 : -11.5) : 0;
+        previous = item;
+    });
+    const lanes: number[][] = [];
+    [...items].reverse().forEach(item => {
+        if (!hasAccidental(item)) return;
+        let lane = lanes.findIndex(ys => ys.every(y => Math.abs(y - item.y) >= spacing.height));
+        if (lane === -1) {
+            lane = lanes.length;
+            lanes.push([]);
+        }
+        lanes[lane].push(item.y);
+        item.ax = center - 13 - lane * spacing.width - (item.dx < 0 ? 11.5 : 0);
+    });
+}
 export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts: { namesVisible: boolean; notation: NotationSystem; proportional?: boolean }): SrRenderResult {
     const staves: SrStave[] = [];
     if (piece.rh)
@@ -553,20 +575,7 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
         items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
         const col = evs[0].bcol, grp = col?.grp, dur = items[0].e.dur;
         const up = grp ? grp.up : items.reduce((sum, it) => sum + it.y, 0) / items.length > st.top + 24;
-        let prev: SrChordItem|null = null;
-        (up ? items : items.slice().reverse()).forEach((it) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
-        const lanes: number[][] = [];
-        items.slice().reverse().forEach((it) => {
-            if (!it.e.showAcc)
-                return;
-            let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
-            if (a < 0) {
-                a = lanes.length;
-                lanes.push([]);
-            }
-            lanes[a].push(it.y);
-            it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
-        });
+        packChordColumn(items, up, nx, it => !!it.e.showAcc);
         const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
         if (marks)
             markCols.set(st.hand + '|' + items[0].e.beat.toFixed(3), { x: nx, hi: top.y, lo: bot.y, up, sy, top: st.top });
@@ -670,20 +679,7 @@ export function renderGrandStaff(piece: SrScore, lay: SrLayout | undefined, opts
                 const items = chord.map((e): SrChordItem => ({ e, step: ssStepOf(e.li, e.oct), y: 0, dx: 0 })).sort((p, q) => p.step - q.step);
                 items.forEach((it) => { it.y = st.top + 48 + (st.refStep - it.step) * 6; });
                 const up = items.reduce((sum, it) => sum + it.y, 0) / items.length > st.top + 24, dur = items[0].e.dur;
-                let prev: SrChordItem|null = null;
-                (up ? items : items.slice().reverse()).forEach((it) => { it.dx = prev && Math.abs(it.step - prev.step) === 1 && prev.dx === 0 ? (up ? 11.5 : -11.5) : 0; prev = it; });
-                const lanes: number[][] = [];
-                items.slice().reverse().forEach((it) => {
-                    if (it.e.acc === keyAcc[it.e.li])
-                        return;
-                    let a = lanes.findIndex((l) => l.every((y) => Math.abs(y - it.y) >= 14));
-                    if (a < 0) {
-                        a = lanes.length;
-                        lanes.push([]);
-                    }
-                    lanes[a].push(it.y);
-                    it.ax = nx - 13 - a * 10 - (it.dx < 0 ? 11.5 : 0);
-                });
+                packChordColumn(items, up, nx, it => it.e.acc !== keyAcc[it.e.li]);
                 const top = items[items.length - 1], bot = items[0], sx = up ? nx + 5.6 : nx - 5.6;
                 const chordNames = names ? items.map((it) => notePcName(opts.notation, it.e.midi, (piece.keyN || 0) < 0)).join(' ') : '';
                 items.forEach((it, k) => {
