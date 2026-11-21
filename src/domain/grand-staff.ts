@@ -71,18 +71,21 @@ else if (Array.isArray(x[0]))
 else
     ev.push(Object.assign(srPitchStrict(x[0]), { beat, dur: d }, x[2] === 'tied' ? { tied: true } : {})); beat += d; }); return { ev, total: beat }; }
 export function srClef(clef: string, x: number, top: number) { const g = clef === 'treble'; return `<path class="ss-clef" d="${g ? CLEF_G : CLEF_F}" transform="translate(${g ? x - 2 : x} ${top + (g ? 36 : 12)}) scale(${CLEF_SCALE} ${-CLEF_SCALE})"/>`; }
-export function srKeySigG(clef: string, keyN: number, x: number, top: number) {
+export function srKeySigG(clef: string, keyN: number, x: number, top: number, glyphScale = 1) {
     const refStep = clef === 'bass' ? 18 : 30, bot = top + 48, yOf = (li: number, oct: number) => bot + (refStep - ssStepOf(li, oct)) * 6;
     const sT = [[3, 5], [0, 5], [4, 5], [1, 5], [5, 4], [2, 5], [6, 4]], fT = [[6, 4], [2, 5], [5, 4], [1, 5], [4, 4], [0, 5], [3, 4]];
     const sB = [[3, 3], [0, 3], [4, 3], [1, 3], [5, 2], [2, 3], [6, 2]], fB = [[6, 2], [2, 3], [5, 2], [1, 3], [4, 2], [0, 3], [3, 2]];
     const cnt = Math.abs(keyN), list = keyN > 0 ? (clef === 'bass' ? sB : sT) : (clef === 'bass' ? fB : fT);
-    let svg = '', xx = x;
+    const glyph = keyN > 0 ? ssSharp : ssFlat;
+    const glyphStep = 9 * glyphScale;
+    let svg = '';
     for (let i = 0; i < cnt; i++) {
         const y = yOf(list[i][0], list[i][1]);
-        svg += keyN > 0 ? ssSharp(xx + 3, y) : ssFlat(xx + 3, y);
-        xx += 9;
+        const anchor = x + i * glyphStep + 3 * glyphScale;
+        svg += glyphScale === 1 ? glyph(anchor, y) :
+            `<g transform="translate(${anchor} ${y}) scale(${glyphScale})">${glyph(0, 0)}</g>`;
     }
-    return { svg, w: cnt ? cnt * 9 + 6 : 6 };
+    return { svg, w: cnt ? (cnt * 9 + 6) * glyphScale : 6 };
 }
 export function srTimeSigG(ts: number[], x: number, top: number) { return `<text class="ss-num" x="${x + 9}" y="${top + 18}">${ts[0]}</text><text class="ss-num" x="${x + 9}" y="${top + 44}">${ts[1]}</text>`; }
 export function srStem2(x: number, y: number, dur: number, mid: number) { if (dur >= 4)

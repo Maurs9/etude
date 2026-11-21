@@ -38,6 +38,21 @@ test('Learn Circle of Fifths shows all 15 staff signatures and lets users select
     await expect(staff.locator('use')).toHaveCount(1);
     await expect(staff.locator('.ss-glyph')).toHaveCount(Math.abs(fifths));
   }
+  for (const fifths of [-7, 7]) {
+    const staff = cof.locator(`.lw-cof-staff[data-fifths="${fifths}"]`);
+    const glyphs = await staff.evaluate((el) => {
+      const scale = el.getScreenCTM().a;
+      const boxes = Array.from(el.querySelectorAll('.ss-glyph'), (glyph) => glyph.getBoundingClientRect());
+      return boxes.map((box, i) => ({
+        height: box.height / scale,
+        gap: i ? (box.left - boxes[i - 1].right) / scale : null,
+      }));
+    });
+    for (const glyph of glyphs) {
+      expect(glyph.height).toBeGreaterThanOrEqual(17);
+      if (glyph.gap !== null) expect(glyph.gap).toBeGreaterThanOrEqual(2);
+    }
+  }
 
   await expect(cof.locator('.lw-staff .ss-num')).toHaveCount(0);
   const overflow = await cof.locator('.lw-staff').evaluate((el) => el.scrollWidth - el.clientWidth);
