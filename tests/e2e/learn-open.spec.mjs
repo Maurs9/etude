@@ -38,6 +38,21 @@ test('Learn Circle of Fifths shows all 15 staff signatures and lets users select
     await expect(staff.locator('use')).toHaveCount(1);
     await expect(staff.locator('.ss-glyph')).toHaveCount(Math.abs(fifths));
   }
+  for (const fifths of [-7, 7]) {
+    const staff = cof.locator(`.lw-cof-staff[data-fifths="${fifths}"]`);
+    const glyphs = await staff.evaluate((el) => {
+      const scale = el.getScreenCTM().a;
+      const boxes = Array.from(el.querySelectorAll('.ss-glyph'), (glyph) => glyph.getBoundingClientRect());
+      return boxes.map((box, i) => ({
+        height: box.height / scale,
+        gap: i ? (box.left - boxes[i - 1].right) / scale : null,
+      }));
+    });
+    for (const glyph of glyphs) {
+      expect(glyph.height).toBeGreaterThanOrEqual(17);
+      if (glyph.gap !== null) expect(glyph.gap).toBeGreaterThanOrEqual(2);
+    }
+  }
 
   await expect(cof.locator('.lw-staff .ss-num')).toHaveCount(0);
   const overflow = await cof.locator('.lw-staff').evaluate((el) => el.scrollWidth - el.clientWidth);
@@ -105,28 +120,42 @@ test('the Learn circle gives all 15 staves room at mobile and desktop widths', a
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
 
-    const spacing = await wheel.evaluate((svg) => {
+    const { circleRatio, spacing } = await wheel.evaluate((svg) => {
       const hub = svg.querySelector('.cof-hub').getBoundingClientRect();
       const centerX = hub.left + hub.width / 2;
       const centerY = hub.top + hub.height / 2;
       const majorTop = svg.querySelector('.cof-k[data-ring="maj"][data-i="0"] .cof-w').getBoundingClientRect().top;
       const outerTop = svg.querySelector('.lw-cof-staff-sector').getBoundingClientRect().top;
       const scale = svg.getScreenCTM().a;
+      const wheelWidth = svg.getBoundingClientRect().width;
 
-      return Array.from(svg.querySelectorAll('.lw-cof-staff'), (staff) => {
-        const { left, right, top, bottom } = staff.getBoundingClientRect();
+      const spacing = Array.from(svg.querySelectorAll('.lw-cof-staff'), (staff) => {
+        const { left, right, top, bottom, width, height } = staff.getBoundingClientRect();
         const nearest = Math.hypot(Math.max(left - centerX, centerX - right, 0), Math.max(top - centerY, centerY - bottom, 0));
         const farthest = Math.hypot(Math.max(right - centerX, centerX - left), Math.max(bottom - centerY, centerY - top));
+        const sector = staff.parentElement.querySelector('.lw-cof-staff-sector');
+        const toSector = sector.getScreenCTM().inverse();
+        const inside = [[left, top], [right, top], [left, bottom], [right, bottom]]
+          .every(([x, y]) => sector.isPointInFill(new DOMPoint(x, y).matrixTransform(toSector)));
         return {
           key: staff.dataset.fifths,
           innerGap: (majorTop - centerY + nearest) / scale,
           outerGap: (centerY - outerTop - farthest) / scale,
+          relativeWidth: width / wheelWidth,
+          relativeHeight: height / wheelWidth,
+          inside,
         };
       });
+      return { circleRatio: 2 * (centerY - majorTop) / wheelWidth, spacing };
     });
-    for (const { key, innerGap, outerGap } of spacing) {
-      expect(innerGap, `staff ${key} at ${width}px, distance from the major ring`).toBeGreaterThanOrEqual(12);
-      expect(outerGap, `staff ${key} at ${width}px, distance from the outer edge`).toBeGreaterThanOrEqual(6);
+    expect(circleRatio, `diameter of the colored circle at ${width}px`).toBeGreaterThanOrEqual(.585);
+    for (const staff of spacing) {
+      const label = `staff ${staff.key} at ${width}px`;
+      expect(staff.innerGap, `${label}, distance from the major ring`).toBeGreaterThanOrEqual(12);
+      expect(staff.outerGap, `${label}, distance from the outer edge`).toBeGreaterThanOrEqual(6);
+      expect(staff.relativeWidth, `${label}, width relative to the wheel`).toBeGreaterThanOrEqual(.115);
+      expect(staff.relativeHeight, `${label}, height relative to the wheel`).toBeGreaterThanOrEqual(.07);
+      expect(staff.inside, `${label}, within its sector`).toBe(true);
     }
   }
 });

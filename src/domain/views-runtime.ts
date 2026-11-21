@@ -5041,17 +5041,22 @@ function cofText(x: string, y: string, cls: string, lines: string[], lh: number)
 // A circle drawn smaller than this leaves out the signature labels around the rim and zooms in on the rings, so the
 // key names stay legible; it follows the circle's own width, which beside the staff is far less than the window's.
 const COF_COMPACT_W = 460;
-const COF_R_MIN0 = 90, COF_R_MIN1 = 158, COF_R_CNT1 = 182, COF_R_MAJ1 = 256, COF_R_STAFF = 424;
+const COF_R_MIN0 = 90, COF_R_MIN1 = 158, COF_R_CNT1 = 182, COF_R_MAJ1 = 256, COF_R_STAFF = 429;
+const COF_STAFF_WIDTH = 126;
+const COF_STAFF_ACCIDENTAL_SCALE = 1.4;
 let cofCompact: boolean | null = null;
 function cofIsCompact(box: HTMLElement) { const w = box.getBoundingClientRect().width; return w > 0 ? w < COF_COMPACT_W : matchMedia('(max-width:560px)').matches; }
 function cofStaffSector(i: number, d0: number, d1: number, id: string) {
     const primary = lCofN(i), enharmonic = lCofN(i, true), paired = primary !== enharmonic;
     const fifths = paired ? [Math.max(primary, enharmonic), Math.min(primary, enharmonic)] : [primary];
-    const [x, y] = cofPt(paired ? 343 : (COF_R_MAJ1 + COF_R_STAFF) / 2, i * 30);
-    const scale = paired ? .70 : .76;
+    const [x, y] = cofPt((COF_R_MAJ1 + COF_R_STAFF) / 2, i * 30);
+    const scale = paired ? (i === 6 ? .88 : .80) : .96;
     const staves = fifths.map((n, j) => {
-        const offset = paired ? (j - 0.5) * 64 : 0;
-        return `<g class="lw-cof-staff" data-fifths="${n}" transform="translate(${x} ${Number(y) + offset}) scale(${scale}) translate(-56 -26)"><use href="#${id}Staff"/>${srKeySigG('treble', n, 38, 0).svg}</g>`;
+        // The lower staves sit closer to the vertical axis to fit the diagonal sectors.
+        const staffX = paired ? COF_CENTER + (6 - i) * (j === 0 ? 180 : 152) : x;
+        const staffY = paired ? COF_CENTER + (i === 6 ? [309, 384] : [273, 340])[j] : y;
+        const signature = srKeySigG('treble', n, 35, 0, COF_STAFF_ACCIDENTAL_SCALE).svg;
+        return `<g class="lw-cof-staff" data-fifths="${n}" transform="translate(${staffX} ${staffY}) scale(${scale}) translate(${-COF_STAFF_WIDTH / 2} -26)"><use href="#${id}Staff"/>${signature}</g>`;
     }).join('');
     return `<g aria-hidden="true"><path class="lw-cof-staff-sector" d="${cofSector(COF_R_MAJ1, COF_R_STAFF, d0, d1)}"/>${staves}</g>`;
 }
@@ -5062,7 +5067,7 @@ function cofWheel(layout: 'compact' | 'wide' | 'staff') {
     const viewBox = withStaff ? `${COF_CENTER - staffFrame} ${COF_CENTER - staffFrame} ${2 * staffFrame} ${2 * staffFrame}` :
         compact ? '92 92 516 516' : '-12 20 724 650';
     const staff = withStaff ? `<g id="${id}Staff">${Array.from({ length: 5 }, (_, i) =>
-        `<path class="ss-line" stroke-width="1.8" d="M0 ${i * 12}h112"/>`).join('')}${srClef('treble', 5, 0)}</g>` : '';
+        `<path class="ss-line" stroke-width="1.8" d="M0 ${i * 12}h${COF_STAFF_WIDTH}"/>`).join('')}${srClef('treble', 5, 0)}</g>` : '';
     let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + viewBox + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
         '<linearGradient id="' + id + 'Split" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
         '<marker id="' + id + 'AhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
