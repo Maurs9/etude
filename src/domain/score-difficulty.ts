@@ -82,6 +82,22 @@ export interface DifficultyAxes {
   reading: number;
 }
 
+export interface DifficultyAggregationConfig {
+  mode: 'order' | 'axis';
+  orderWeights?: readonly [number, number, number, number, number];
+  weakestLinkDelta?: number;
+  axisWeights?: DifficultyAxes;
+  alphaWeak?: number;
+  enduranceScale?: number;
+}
+
+export const DEFAULT_AGGREGATION: DifficultyAggregationConfig = {
+  mode: 'order',
+  orderWeights: [0.45, 0.30, 0.25 / 3, 0.25 / 3, 0.25 / 3],
+  weakestLinkDelta: 1,
+  enduranceScale: 1,
+};
+
 export const DIFFICULTY_AXES = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'] as const;
 export type DifficultyAxis = typeof DIFFICULTY_AXES[number];
 
@@ -135,10 +151,39 @@ const round = (value: number) => Math.round(value * 100) / 100;
 const axisStars = (strength: number) => 5 - 4 / (1 + Math.max(0, strength));
 const roundStars = (value: number) => Math.round(Math.min(5, Math.max(1, value)) * 10) / 10;
 
-export function aggregateDifficultyStars(axes: DifficultyAxes, endurance = 0): number {
-  const [first, second, ...others] = DIFFICULTY_AXES.map(axis => axes[axis]).sort((a, b) => b - a);
-  const average = first * 0.45 + second * 0.30 + others.reduce((sum, stars) => sum + stars, 0) / 3 * 0.25;
-  return roundStars(Math.max(first - 1, average) + unit(endurance / 6) * 0.5);
+export function aggregateDifficultyStarsDetailed(
+  axes: DifficultyAxes,
+  enduranceStarsRaw = 0,
+  config: DifficultyAggregationConfig = DEFAULT_AGGREGATION,
+): { rawBase: number; rawTotal: number; difficultyStars: number; baseStars: number; appliedEnduranceStars: number } {
+  const sorted = DIFFICULTY_AXES.map(axis => axes[axis]).sort((a, b) => b - a);
+  let base: number;
+  if (config.mode === 'axis') {
+    const weights = config.axisWeights ?? { motor: 0.28, rhythm: 0.23, bimanual: 0.2, texture: 0.19, reading: 0.1 };
+    const weighted = DIFFICULTY_AXES.reduce((sum, axis) => sum + axes[axis] * weights[axis], 0);
+    const alpha = config.alphaWeak ?? 0.3;
+    base = alpha * sorted[0] + (1 - alpha) * weighted;
+  } else {
+    const weights = config.orderWeights ?? DEFAULT_AGGREGATION.orderWeights ?? [0.45, 0.30, 0.25 / 3, 0.25 / 3, 0.25 / 3];
+    const delta = config.weakestLinkDelta ?? 1;
+    const weighted = sorted.reduce((sum, stars, i) => sum + stars * weights[i], 0);
+    base = Math.max(sorted[0] - delta, weighted);
+  }
+  const rawBase = Math.min(5, Math.max(1, base));
+  const enduranceScaled = Math.min(0.5, Math.max(0, enduranceStarsRaw * (config.enduranceScale ?? 1)));
+  const rawTotal = Math.min(5, Math.max(1, rawBase + enduranceScaled));
+  const difficultyStars = roundStars(rawTotal);
+  const baseStars = roundStars(rawBase);
+  const appliedEnduranceStars = Math.round(Math.max(0, difficultyStars - baseStars) * 10) / 10;
+  return { rawBase, rawTotal, difficultyStars, baseStars, appliedEnduranceStars };
+}
+
+export function aggregateDifficultyStars(
+  axes: DifficultyAxes,
+  endurance = 0,
+  config: DifficultyAggregationConfig = DEFAULT_AGGREGATION,
+): number {
+  return aggregateDifficultyStarsDetailed(axes, unit(endurance / 6) * 0.5, config).difficultyStars;
 }
 
 function axisRecord<T>(make: (axis: DifficultyAxis) => T): Record<DifficultyAxis, T> {

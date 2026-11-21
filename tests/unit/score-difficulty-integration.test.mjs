@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { calibrateDifficulty, readDifficultyCalibration, suggestedDifficulty } from '../../src/domain/score-difficulty-calibration.ts';
+import {
+  auditLocalLibrary,
+  calibrateDifficulty,
+  computeCalibrationProfileId,
+  evaluateRankBenchmark,
+  fitAggregationWeights,
+  groupKFoldSplit,
+  kendallTauC,
+  majorInversionRate,
+  readDifficultyCalibration,
+  sha256Hex,
+  spearmanRho,
+  suggestedDifficulty,
+} from '../../src/domain/score-difficulty-calibration.ts';
 import { estimateImportedScore } from '../../src/domain/score-difficulty-import.ts';
 import { scoreXmlNotes } from '../../src/domain/score-import.ts';
 import { srtBookPiece } from '../../src/sight-reading/book.ts';
@@ -190,5 +203,150 @@ describe('scored new exercises', () => {
     expect(reopened.recent).toEqual(previous.recent);
     expect(reopened.daily).toEqual(previous.daily);
     expect(reopened.days).toEqual(previous.days);
+  });
+});
+
+describe('v2 calibration, rank benchmark and local audit', () => {
+  it('computes standard SHA-256 and validates v2 order/axis calibration profiles with deterministic profileId', () => {
+    expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+
+    const orderAggregation = { mode: 'order', orderWeights: [0.45, 0.30, 0.1, 0.1, 0.05], weakestLinkDelta: 1, enduranceScale: 1 };
+    const id = computeCalibrationProfileId(orderAggregation);
+    const id2 = computeCalibrationProfileId({ ...orderAggregation, weakestLinkDelta: 1.2 });
+    expect(id).toMatch(/^[a-f0-9]{16}$/);
+    expect(id).not.toBe(id2);
+
+    const fileId = 'b'.repeat(64);
+    const parsedOrder = readDifficultyCalibration({
+      version: 2,
+      profileId: id,
+      aggregation: orderAggregation,
+      startingTempos: { [fileId]: 108 },
+    });
+    expect(parsedOrder).toEqual({
+      version: 2,
+      profileId: id,
+      aggregation: orderAggregation,
+      startingTempos: { [fileId]: 108 },
+    });
+
+    const axisAggregation = {
+      mode: 'axis',
+      axisWeights: { motor: 0.3, rhythm: 0.25, bimanual: 0.2, texture: 0.15, reading: 0.1 },
+      alphaWeak: 0.35,
+      enduranceScale: 0.8,
+    };
+    const parsedAxis = readDifficultyCalibration({ version: 2, aggregation: axisAggregation });
+    expect(parsedAxis).toEqual({
+      version: 2,
+      profileId: computeCalibrationProfileId(axisAggregation),
+      aggregation: axisAggregation,
+    });
+
+    expect(readDifficultyCalibration({ version: 2, profileId: '0'.repeat(16), aggregation: orderAggregation })).toBeNull();
+    expect(readDifficultyCalibration({ version: 2, aggregation: { mode: 'order', orderWeights: [0.5, 0.5, 0, 0, -0.1] } })).toBeNull();
+    expect(readDifficultyCalibration({ version: 2, aggregation: { mode: 'order', orderWeights: [0.5, 0.2, 0.1, 0.1, 0.05] } })).toBeNull();
+    expect(readDifficultyCalibration({ version: 2, aggregation: { mode: 'axis', axisWeights: { motor: 0.5, rhythm: 0.5, bimanual: 0, texture: 0, reading: 0 }, alphaWeak: 2 } })).toBeNull();
+  });
+
+  it('computes Kendall tau-c, Spearman rho and major inversion rate accurately', () => {
+    const truth = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    expect(kendallTauC(truth, truth)).toBeCloseTo(1, 6);
+    expect(spearmanRho(truth, truth)).toBeCloseTo(1, 6);
+    expect(majorInversionRate(truth, truth)).toEqual({ rate: 0, inversions: 0, ties: 0, pairs: 28 });
+
+    const reversed = [...truth].reverse();
+    expect(kendallTauC(reversed, truth)).toBeCloseTo(-1, 6);
+    expect(spearmanRho(reversed, truth)).toBeCloseTo(-1, 6);
+    expect(majorInversionRate(reversed, truth)).toEqual({ rate: 1, inversions: 28, ties: 0, pairs: 28 });
+
+    // Minor inversion (gap = 1) does not count as major inversion (minGap = 2)
+    const minorSwap = [2, 1, 3, 4, 5, 6, 7, 8, 9];
+    expect(majorInversionRate(minorSwap, truth).inversions).toBe(0);
+    // Swapping 1 and 5 introduces major inversions
+    const majorSwap = [5, 2, 3, 4, 1, 6, 7, 8, 9];
+    expect(majorInversionRate(majorSwap, truth).inversions).toBeGreaterThan(0);
+  });
+
+  it('keeps work groups strictly disjoint across folds and hold-out and runs rank benchmark acceptance gate', () => {
+    const items = Array.from({ length: 30 }, (_, index) => {
+      const henle = (index % 9) + 1;
+      const group = `work-${Math.floor(index / 2)}`;
+      const idealStars = 1 + ((henle - 1) / 8) * 4;
+      const v1Stars = index % 3 === 0 ? Math.round((6 - idealStars) * 10) / 10 : Math.round(idealStars * 10) / 10;
+      const axes = {
+        motor: idealStars,
+        rhythm: Math.max(1, idealStars - 0.3),
+        bimanual: Math.max(1, idealStars - 0.4),
+        texture: Math.max(1, idealStars - 0.5),
+        reading: Math.max(1, idealStars - 0.6),
+      };
+      return {
+        group,
+        truth: henle,
+        v1Stars,
+        v2Axes: axes,
+        v2EnduranceRaw: 0,
+        v2Stars: Math.round(idealStars * 10) / 10,
+      };
+    });
+
+    const split = groupKFoldSplit(items, 5, 0.2, 42);
+    const holdoutGroups = new Set(split.holdout.map(item => item.group));
+    expect(holdoutGroups.size).toBeGreaterThan(0);
+    expect(split.folds).toHaveLength(5);
+    for (const fold of split.folds) {
+      const trainGroups = new Set(fold.train.map(item => item.group));
+      const validGroups = new Set(fold.valid.map(item => item.group));
+      for (const group of validGroups) {
+        expect(trainGroups.has(group)).toBe(false);
+        expect(holdoutGroups.has(group)).toBe(false);
+      }
+      for (const group of trainGroups) {
+        expect(holdoutGroups.has(group)).toBe(false);
+      }
+    }
+
+    const evaluation = evaluateRankBenchmark(items, { fitMode: 'order', seed: 42 });
+    expect(evaluation.accepted).toBe(true);
+    expect(evaluation.foldsImprovedTau).toBeGreaterThanOrEqual(4);
+    expect(evaluation.meanV2.tauC).toBeGreaterThan(evaluation.meanV1.tauC);
+    expect(evaluation.holdout.v2.tauC).toBeGreaterThan(evaluation.holdout.v1.tauC);
+    expect(readDifficultyCalibration(evaluation.profile)).toEqual(evaluation.profile);
+
+    const fittedAxis = fitAggregationWeights(split.folds[0].train, 'axis');
+    expect(fittedAxis.mode).toBe('axis');
+  });
+
+  it('audits local library monotonicity, fallback tempos, anomalies, and SHA-256 tempo export', () => {
+    const hash = i => i.toString(16).padStart(64, '0');
+    const items = [
+      { id: hash(1), level: 1, stars: 1.5, tempoSource: 'written' },
+      { id: hash(2), level: 1, stars: 1.8, tempoSource: 'written' },
+      { id: hash(3), level: 2, stars: 2.4, tempoSource: 'reference', verifiedBpm: 92 },
+      { id: hash(4), level: 3, stars: 3.1, tempoSource: 'written' },
+      { id: hash(5), level: 4, stars: 3.9, tempoSource: 'fallback' },
+      { id: hash(6), level: 5, stars: 4.5, tempoSource: 'written' },
+      { id: hash(7), level: 6, stars: 4.9, tempoSource: 'written' },
+      ...Array.from({ length: 18 }, (_, i) => ({
+        id: hash(10 + i),
+        level: 2,
+        stars: 2.0 + (i % 5) * 0.25,
+        tempoSource: 'written',
+      })),
+    ];
+    const report = auditLocalLibrary(items);
+    expect(report.monotoneLevels).toBe(true);
+    expect(report.fallbackIds).toEqual([hash(5)]);
+    expect(report.topAnomalies.length).toBeLessThanOrEqual(15);
+    expect(report.startingTempos).toEqual({ [hash(3)]: 92 });
+    expect(report.distribution['1.0-1.9']).toBe(2);
+
+    const nonMonotone = auditLocalLibrary([
+      { id: hash(1), level: 1, stars: 3.5, tempoSource: 'written' },
+      { id: hash(2), level: 2, stars: 2.0, tempoSource: 'written' },
+    ]);
+    expect(nonMonotone.monotoneLevels).toBe(false);
   });
 });
