@@ -5456,7 +5456,7 @@ interface PracticeHintPreview {
     frame: number;
     notes: readonly PracticeHintNote[];
     originalLow: number | null;
-    chord?: string;
+    diagramKey?: string;
     diagram?: PracticeHintDiagram;
 }
 let practiceHintPreview: PracticeHintPreview | null = null;
@@ -5476,7 +5476,7 @@ function clearPracticeHintPreview() {
     const { frame, originalLow, diagram } = practiceHintPreview;
     practiceHintPreview = null;
     cancelAnimationFrame(frame);
-    diagram?.();
+    diagram?.paint();
     if (originalLow !== null && view.low !== originalLow) {
         view.low = Math.min(originalLow, BASE_HIGH - view.oct * 12);
         buildKeyboard();
@@ -5514,7 +5514,7 @@ async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], 
         const at = next, end = at + step.seconds;
         next = end + (step.gap ?? 0);
         step.notes.forEach(note => previewNote(note.midi, at, step.seconds));
-        return { at, end, notes: step.notes, chord: step.chord };
+        return { at, end, notes: step.notes, diagramKey: step.diagramKey };
     });
     const silence: readonly PracticeHintNote[] = [];
     let index = 0;
@@ -5528,10 +5528,10 @@ async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], 
         }
         const event = timing[index];
         const notes = now >= event.at ? event.notes : silence;
-        const chord = now >= event.at ? event.chord : preview.chord;
-        if (notes !== preview.notes || chord !== preview.chord) {
+        const diagramKey = now >= event.at ? event.diagramKey : preview.diagramKey;
+        if (notes !== preview.notes || diagramKey !== preview.diagramKey) {
             preview.notes = notes;
-            preview.chord = chord;
+            preview.diagramKey = diagramKey;
             showPracticeHintNotes(preview);
         }
         preview.frame = requestAnimationFrame(paint);
@@ -5553,8 +5553,8 @@ function showPracticeHintNotes(preview: PracticeHintPreview) {
         dockKeyInSight(foldToView(lo));
     }
     paintPracticeHintKeys();
-    if (preview.keys) preview.diagram?.(preview.chord, preview.notes);
-    else preview.diagram?.();
+    if (preview.keys || preview.diagram?.followWithoutDock) preview.diagram?.paint(preview.diagramKey, preview.notes);
+    else preview.diagram?.paint();
 }
 
 function syncPracticeHintsPanel() {

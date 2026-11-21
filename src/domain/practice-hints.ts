@@ -13,10 +13,13 @@ export interface PracticeHintStep {
   readonly notes: readonly PracticeHintNote[];
   readonly seconds: number;
   readonly gap?: number;
-  readonly chord?: string;
+  readonly diagramKey?: string;
 }
 
-export type PracticeHintDiagram = (chord?: string, sounding?: readonly PracticeHintNote[]) => void;
+export interface PracticeHintDiagram {
+  readonly followWithoutDock?: boolean;
+  readonly paint: (key?: string, sounding?: readonly PracticeHintNote[]) => void;
+}
 
 export interface ChordHintTone extends SpelledMidi {
   readonly midi: number;
@@ -171,8 +174,8 @@ export function chordHintSteps(hint: ChordHint, tonic: number): PracticeHintStep
   const symbols = hint.compare ? [hint.symbol, hint.compare] : [hint.symbol];
   return symbols.flatMap(chord => {
     const notes = chordHintTones(chord, tonic);
-    return [...notes.map(note => ({ notes: [note], seconds: 0.16, gap: 0.04, chord })),
-      { notes, seconds: 0.65, gap: 0.22, chord }];
+    return [...notes.map(note => ({ notes: [note], seconds: 0.16, gap: 0.04, diagramKey: chord })),
+      { notes, seconds: 0.65, gap: 0.22, diagramKey: chord }];
   });
 }
 

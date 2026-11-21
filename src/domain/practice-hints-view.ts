@@ -118,7 +118,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
         element('p', 'pr-hint-formula', tones.map(tone => tone.label).join(' ')), visuals,
         diagrams.caption);
       if (hint.compare) el.append(element('p', 'pr-hint-detail', text('pr_hints_compare', chordName(hint.compare))));
-      appendPlayback(el, id, title, chordHintSteps(hint, tonic), diagrams.paint);
+      appendPlayback(el, id, title, chordHintSteps(hint, tonic), diagrams);
       appendReference(el, id);
       grid.append(el);
     }
