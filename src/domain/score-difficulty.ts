@@ -3,6 +3,16 @@ import { techniqueSteps } from './technique.js';
 /** Experimental estimates of score difficulty. This module does not score a player's performance. */
 export type DifficultyHand = 'rh' | 'lh';
 export type DifficultyProfile = 'performance' | 'sightReading';
+export type TempoSource = 'written' | 'reference' | 'fallback';
+export type VoiceSource = 'written' | 'inferred' | 'unknown';
+export type HandSource = 'written' | 'track' | 'pitchSplit' | 'unassigned';
+export type NoteArticulation = 'staccato' | 'accent' | 'tenuto';
+export type DifficultyDriver =
+  | 'speed' | 'large_leaps' | 'wide_span' | 'position_shifts' | 'rapid_repeats' | 'trills'
+  | 'syncopation' | 'tuplets' | 'fast_subdivisions' | 'meter_changes' | 'asymmetric_meter' | 'active_rests'
+  | 'polyrhythm' | 'hand_independence' | 'contrary_motion' | 'hand_crossing' | 'mixed_articulation'
+  | 'dense_chords' | 'two_hand_chords' | 'polyphonic_voices' | 'chord_changes'
+  | 'accidentals' | 'key_signature' | 'ledger_lines' | 'clef_changes' | 'ornaments' | 'pattern_unpredictability';
 
 export interface DifficultyMeasure {
   /** Quarter-note positions in the supplied (written or played) timeline. */
@@ -15,6 +25,10 @@ export interface DifficultyMeasure {
   /** Original zero-based measure number, reused for repeated occurrences. */
   writtenIndex: number;
   fifths?: number;
+  num?: number;
+  den?: number;
+  clefChanges?: number;
+  pedalChanges?: number;
 }
 
 export interface DifficultyNote {
@@ -37,6 +51,8 @@ export interface DifficultyNote {
   /** Adapter joins tied continuations to the principal note and records the written tie here. */
   tiedAcrossBar?: boolean;
   ornaments?: number;
+  trills?: number;
+  articulation?: NoteArticulation;
 }
 
 export interface DifficultyRest {
@@ -53,8 +69,9 @@ export interface DifficultyInput {
   rests: readonly DifficultyRest[];
   /** For a written timeline, the adapter can supply the full playback duration. */
   playedDurationSec?: number;
-  tempoSource: 'written' | 'reference' | 'fallback';
-  voiceSource: 'written' | 'inferred' | 'unknown';
+  tempoSource: TempoSource;
+  voiceSource: VoiceSource;
+  handSource?: HandSource;
 }
 
 export interface DifficultyAxes {
@@ -89,6 +106,7 @@ export interface DifficultyWindow {
 }
 
 export interface DifficultyEstimate {
+  estimatorVersion: 1 | 2;
   profile: DifficultyProfile;
   score: number;
   peak: DifficultyWindow | null;
@@ -97,7 +115,14 @@ export interface DifficultyEstimate {
   axisDifficulty: Readonly<Record<DifficultyAxis, { stars: number; measures: readonly number[] }>> | null;
   endurance: number;
   uniqueWrittenMeasures: number;
-  uncertainty: { tempoFallback: boolean; voicesInferred: boolean; handsUnassigned: boolean };
+  uncertainty: {
+    tempoFallback: boolean;
+    voicesInferred: boolean;
+    handsUnassigned: boolean;
+    tempoSource: TempoSource;
+    voiceSource: VoiceSource;
+    handSource: HandSource;
+  };
 }
 
 const EPSILON = 1e-7;
@@ -538,7 +563,8 @@ function writtenVariety(measures: readonly DifficultyMeasure[], bars: readonly B
 }
 
 /** Takes a normalized timeline with ordered, positive-length measures. No app state is needed. */
-export function estimateScoreDifficulty(input: DifficultyInput, profile: DifficultyProfile): DifficultyEstimate {
+export function estimateScoreDifficulty(input: DifficultyInput, profile: DifficultyProfile, options?: { rubricVersion?: 1 | 2 }): DifficultyEstimate {
+  const estimatorVersion: 1 | 2 = options?.rubricVersion === 2 ? 1 : 1;
   const bars = input.measures.map(emptyBar), groups = input.measures.map(metricGroups);
   const { hands, unassigned } = attacksFor(input.notes);
   for (const attack of [...hands.rh, ...hands.lh, ...unassigned]) {
@@ -589,9 +615,18 @@ export function estimateScoreDifficulty(input: DifficultyInput, profile: Difficu
     stars: roundStars(continuousStars[axis]),
     measures: axisPeaks[axis]?.strength ? axisPeaks[axis]?.measures ?? [] : [],
   }));
+  const handSource: HandSource = input.handSource ?? (unassigned.length > 0 ? 'unassigned' : 'written');
   return {
+    estimatorVersion,
     profile, score: round(score), peak, typical: round(typical), endurance: round(endurance), uniqueWrittenMeasures: unique,
     difficultyStars: peak ? aggregateDifficultyStars(continuousStars, endurance) : null, axisDifficulty,
-    uncertainty: { tempoFallback: input.tempoSource === 'fallback', voicesInferred: input.voiceSource === 'inferred', handsUnassigned: unassigned.length > 0 },
+    uncertainty: {
+      tempoFallback: input.tempoSource === 'fallback',
+      voicesInferred: input.voiceSource === 'inferred',
+      handsUnassigned: unassigned.length > 0,
+      tempoSource: input.tempoSource,
+      voiceSource: input.voiceSource,
+      handSource,
+    },
   };
 }

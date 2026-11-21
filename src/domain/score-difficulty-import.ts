@@ -1,4 +1,12 @@
-import { estimateScoreDifficulty, type DifficultyInput, type DifficultyMeasure, type DifficultyNote, type DifficultyRest } from './score-difficulty.js';
+import {
+  estimateScoreDifficulty,
+  type DifficultyInput,
+  type DifficultyMeasure,
+  type DifficultyNote,
+  type DifficultyRest,
+  type HandSource,
+  type NoteArticulation,
+} from './score-difficulty.js';
 import { anAssignHands } from './score-midi.js';
 import { repeatOrder, scoreXmlRepeatBars } from './score-repeats.js';
 import { anError, type AnMidiMeta, type AnParsedMidi, type AnSource, type ScoreMeasure, type ScoreXmlKey } from './score-types.js';
@@ -73,16 +81,28 @@ function xmlInput(source: Extract<AnSource, { kind: 'xml' }>, startingBpm?: numb
     const onset = clock(bar.start), duration = clock(bar.end) - onset;
     const start = beat, end = beat + length, startSec = seconds;
     const endSec = startSec + duration, groups = measureGroups(bar);
-    const measure = { start, end, startSec, endSec, groups, writtenIndex, fifths: keyAt(bar.start) };
+    const measure: DifficultyMeasure = {
+      start, end, startSec, endSec, groups, writtenIndex, fifths: keyAt(bar.start),
+      num: bar.num, den: bar.den,
+      ...(bar.clefChanges ? { clefChanges: bar.clefChanges } : {}),
+      ...(bar.pedalChanges ? { pedalChanges: bar.pedalChanges } : {}),
+    };
     measures.push(measure);
     const writtenNotes = noteBuckets[writtenIndex], writtenRests = restBuckets[writtenIndex];
     if (notes.length + rests.length + writtenNotes.length + writtenRests.length > 100_000) throw anError('long');
     const lanes = new Set(writtenNotes.map(voice));
     for (const note of writtenNotes) {
+      const articulation: NoteArticulation | undefined = note.art.staccato || note.art.staccatissimo
+        ? 'staccato'
+        : note.art.accent || note.art.strongAccent
+          ? 'accent'
+          : note.art.tenuto ? 'tenuto' : undefined;
       notes.push({
         ...note.difficulty, start: start + note.start - bar.start, end: start + Math.min(note.end, writtenEnds[i]) - bar.start,
         startSec: startSec + clock(note.start) - onset, midi: note.midi, hand: note.hand, voice: voice(note),
         finger: note.finger, ornaments: (note.difficulty?.ornaments ?? 0) + (note.graces?.length ?? 0),
+        ...(note.difficulty?.trills ? { trills: note.difficulty.trills } : {}),
+        ...(articulation ? { articulation } : {}),
         tiedAcrossBar: note.end > bar.end + EPS && writtenEnds[i] > bar.end + EPS,
       });
     }
@@ -94,7 +114,8 @@ function xmlInput(source: Extract<AnSource, { kind: 'xml' }>, startingBpm?: numb
     beat = end;
     seconds = endSec;
   });
-  return { measures, notes, rests, playedDurationSec: seconds, voiceSource: 'written',
+  const handSource: HandSource = notes.some(note => note.hand === null) ? 'unassigned' : 'written';
+  return { measures, notes, rests, playedDurationSec: seconds, voiceSource: 'written', handSource,
     tempoSource: source.tempos.some(tempo => tempo.beat <= EPS) ? 'written' : startingBpm ? 'reference' : 'fallback' };
 }
 
@@ -111,15 +132,16 @@ function midiInput(parsed: AnParsedMidi, startingBpm?: number): DifficultyInput 
     while (key < keys.length && keys[key].beat <= at + EPS) fifths = keys[key++].fifths;
     const stop = Math.min(end, at + meter.num * 4 / meter.den, meters[next]?.beat ?? Infinity);
     const groups = measureGroups({ ...meter, start: at, end: stop, number: '' });
-    measures.push({ start: at, end: stop, startSec: clock(at), endSec: clock(stop), groups, writtenIndex: measures.length, fifths });
+    measures.push({ start: at, end: stop, startSec: clock(at), endSec: clock(stop), groups, writtenIndex: measures.length, fifths, num: meter.num, den: meter.den });
     at = stop;
   }
   const assigned = anAssignHands(parsed.notes, 'auto');
+  const handSource: HandSource = assigned.how === 'piece' ? 'written' : assigned.how === 'tracks' ? 'track' : 'pitchSplit';
   const notes = parsed.notes.map((note, i) => ({
     start: note.start, end: note.end, startSec: clock(note.start), midi: note.midi,
     hand: assigned.of[i], soundingEnd: note.soundEnd,
   }));
-  return { measures, notes, rests: [], voiceSource: 'unknown',
+  return { measures, notes, rests: [], voiceSource: 'unknown', handSource,
     tempoSource: tempos.some(tempo => tempo.beat <= EPS) ? 'written' : startingBpm ? 'reference' : 'fallback' };
 }
 

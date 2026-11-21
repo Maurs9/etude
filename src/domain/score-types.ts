@@ -95,7 +95,7 @@ export interface AnNote {
     roll?: number; nextSame?: number; pedalEnd?: number; soundEnd?: number; parenthesizedAt?: number[];
 }
 export interface ScoreXmlDifficulty {
-    dotted: boolean; tuplet: boolean; accidentals: number; ornaments: number; ledgerLines?: number;
+    dotted: boolean; tuplet: boolean; accidentals: number; ornaments: number; trills?: number; ledgerLines?: number;
 }
 export interface ScoreXmlRest { start: number; end: number; hand: AnHand | null; part: number; staff: number; voice: number; }
 export interface ScoreXmlNote extends AnNote { difficulty?: ScoreXmlDifficulty; hand: AnHand | null; part: number; staff: number; voice: number; type: string; art: ScoreNoteArticulation; arpeggiate: boolean; }
@@ -110,7 +110,7 @@ export interface ScoreXmlLayout {
     titleRuns?: { text: string | null; style: string; weight: string }[];
     staffGap?: number | null; systemGap?: number | null;
 }
-export interface ScoreMeasure { number: string; start: number; end: number; num: number; den: number; groups?: number[]; }
+export interface ScoreMeasure { number: string; start: number; end: number; num: number; den: number; groups?: number[]; clefChanges?: number; pedalChanges?: number; }
 export interface ScoreXmlKey { beat: number; fifths: number; mode: 'major' | 'minor' | null; }
 export interface ScoreXmlHarmony { beat: number; root: number; kind: string; bass: number | null; text: string; }
 export interface ScoreXmlLink { kind: string; a: number; b: number; style: string; }

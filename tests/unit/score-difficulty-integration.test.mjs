@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { calibrateDifficulty, readDifficultyCalibration, suggestedDifficulty } from '../../src/domain/score-difficulty-calibration.ts';
 import { estimateImportedScore } from '../../src/domain/score-difficulty-import.ts';
+import { scoreXmlNotes } from '../../src/domain/score-import.ts';
 import { srtBookPiece } from '../../src/sight-reading/book.ts';
 import { srtLevelFingerprint } from '../../src/sight-reading/fingerprint.ts';
 import { srtBookId, srtNormalizeBookState, srtRecordResult, srtScoredId } from '../../src/sight-reading/progress.ts';
@@ -41,10 +42,127 @@ describe('import calibration', () => {
     };
     const source = { kind: 'midi', title: 'Fixture', label: 'fixture.mid', parsed };
     const explicit = estimateImportedScore(source);
-    expect(explicit).toMatchObject({ playedDurationSec: 3, midi: true, playedMeasures: 1, uncertainty: { tempoFallback: false } });
+    expect(explicit).toMatchObject({
+      playedDurationSec: 3, midi: true, playedMeasures: 1,
+      uncertainty: {
+        tempoFallback: false, voicesInferred: false, handsUnassigned: false,
+        tempoSource: 'written', voiceSource: 'unknown', handSource: 'pitchSplit',
+      },
+    });
     expect(explicit.peak.attacks).toBe(2);
     const fallback = estimateImportedScore({ ...source, parsed: { ...parsed, meta: parsed.meta.slice(1) } });
-    expect(fallback.uncertainty.tempoFallback).toBe(true);
+    expect(fallback.uncertainty).toMatchObject({ tempoFallback: true, tempoSource: 'fallback', voiceSource: 'unknown', handSource: 'pitchSplit' });
+  });
+
+  it('distinguishes track-separated MIDI hands and preserves MusicXML clef, trill, pedal, and articulation metadata', () => {
+    const trackMidi = {
+      ppq: 480, format: 1, tracks: 2, names: ['RH', 'LH'],
+      notes: [
+        { midi: 72, start: 0, end: 1, vel: 90, channel: 0, track: 0 },
+        { midi: 74, start: 1, end: 2, vel: 90, channel: 0, track: 0 },
+        { midi: 48, start: 0, end: 1, vel: 90, channel: 0, track: 1 },
+        { midi: 50, start: 1, end: 2, vel: 90, channel: 0, track: 1 },
+      ],
+      meta: [{ type: 'tempo', beat: 0, bpm: 120 }],
+    };
+    const trackEstimate = estimateImportedScore({ kind: 'midi', title: 'Tracks', label: 'tracks.mid', parsed: trackMidi });
+    expect(trackEstimate.uncertainty).toMatchObject({
+      tempoSource: 'written', voiceSource: 'unknown', handSource: 'track',
+    });
+
+    class XmlNode {
+      constructor(localName, attrs = {}, text = '', children = []) {
+        this.localName = localName;
+        this.attrs = attrs;
+        this.textContent = text;
+        this.children = children;
+      }
+      getAttribute(name) { return this.attrs[name] ?? null; }
+      hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attrs, name); }
+      querySelector(sel) { return this.querySelectorAll(sel)[0] ?? null; }
+      querySelectorAll(sel) {
+        const out = [];
+        for (const branch of sel.split(',').map(s => s.trim())) {
+          const parts = branch.split('>').map(s => s.trim());
+          const walk = (node, depth, strict) => {
+            for (const child of node.children) {
+              if (parts[depth] === '*' || child.localName === parts[depth]) {
+                if (depth === parts.length - 1) out.push(child);
+                else walk(child, depth + 1, true);
+              } else if (!strict) {
+                walk(child, depth, false);
+              }
+            }
+          };
+          walk(this, 0, false);
+        }
+        return out;
+      }
+    }
+    const el = (name, attrs, text, children) => new XmlNode(name, attrs, text, children);
+    const doc = new XmlNode('root', {}, '', [
+      el('score-partwise', {}, '', [
+        el('part', {}, '', [
+          el('measure', { number: '1' }, '', [
+            el('attributes', {}, '', [
+              el('divisions', {}, '1'),
+              el('time', {}, '', [el('beats', {}, '4'), el('beat-type', {}, '4')]),
+              el('staves', {}, '2'),
+              el('clef', { number: '1' }, '', [el('sign', {}, 'G'), el('line', {}, '2')]),
+              el('clef', { number: '2' }, '', [el('sign', {}, 'F'), el('line', {}, '4')]),
+            ]),
+            el('direction', {}, '', [
+              el('direction-type', {}, '', [el('pedal', { type: 'start' })]),
+              el('sound', { tempo: '120' }),
+            ]),
+            el('note', {}, '', [
+              el('pitch', {}, '', [el('step', {}, 'C'), el('octave', {}, '5')]),
+              el('duration', {}, '4'),
+              el('voice', {}, '1'),
+              el('staff', {}, '1'),
+              el('notations', {}, '', [
+                el('articulations', {}, '', [el('staccato')]),
+                el('ornaments', {}, '', [el('trill-mark')]),
+              ]),
+            ]),
+          ]),
+          el('measure', { number: '2' }, '', [
+            el('attributes', {}, '', [
+              el('clef', { number: '2' }, '', [el('sign', {}, 'G'), el('line', {}, '2')]),
+            ]),
+            el('note', {}, '', [
+              el('pitch', {}, '', [el('step', {}, 'E'), el('octave', {}, '4')]),
+              el('duration', {}, '4'),
+              el('voice', {}, '1'),
+              el('staff', {}, '2'),
+            ]),
+          ]),
+        ]),
+      ]),
+    ]);
+    const parsedXml = scoreXmlNotes(doc, true);
+    expect(parsedXml.measures[0].pedalChanges).toBe(1);
+    expect(parsedXml.measures[0].clefChanges).toBeUndefined();
+    expect(parsedXml.measures[1].clefChanges).toBe(1);
+    expect(parsedXml.notes[0].difficulty).toMatchObject({ ornaments: 1, trills: 1 });
+    expect(parsedXml.notes[0].art.staccato).toBe(true);
+
+    const prevDomParser = globalThis.DOMParser;
+    globalThis.DOMParser = class {
+      parseFromString() { return doc; }
+    };
+    try {
+      const xmlEstimate = estimateImportedScore({
+        kind: 'xml', title: 'XmlMeta', label: 'meta.musicxml', xml: '<score-partwise/>', layout: null, ...parsedXml,
+      });
+      expect(xmlEstimate.uncertainty).toMatchObject({
+        tempoFallback: false, voicesInferred: false, handsUnassigned: false,
+        tempoSource: 'written', voiceSource: 'written', handSource: 'written',
+      });
+    } finally {
+      if (prevDomParser === undefined) delete globalThis.DOMParser;
+      else globalThis.DOMParser = prevDomParser;
+    }
   });
 });
 

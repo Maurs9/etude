@@ -20,6 +20,8 @@ export function levelPieceToDifficultyInput(piece: PlannedPiece): DifficultyInpu
     groups,
     writtenIndex: i,
     fifths: piece.key.keyN,
+    num: piece.meter.num,
+    den: piece.meter.den,
   }));
   const notes: DifficultyNote[] = [], rests: DifficultyRest[] = [];
   for (const event of piece.events) {
@@ -41,5 +43,5 @@ export function levelPieceToDifficultyInput(piece: PlannedPiece): DifficultyInpu
       });
     }
   }
-  return { measures, notes, rests, tempoSource: 'reference', voiceSource: 'written' };
+  return { measures, notes, rests, tempoSource: 'reference', voiceSource: 'written', handSource: 'written' };
 }

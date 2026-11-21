@@ -205,6 +205,7 @@ function positiveTempo(text: string | null): number | null {
 }
 export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
     const difficultyRests: ScoreXmlRest[] = [];
+    const clefChangesByMeasure: number[] = [];
     const { hands: partHands, sisters: partSisterMap } = scoreDetectPartHands(doc);
     const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], harmoniesByPart: ScoreXmlHarmony[][] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
     const linkOpen = new Map<string, ScoreXmlNote>(), linkPairs: { kind: string; a: ScoreXmlNote; b: ScoreXmlNote; style: string; }[] = [], lineEvents: ScoreXmlLine[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
@@ -267,6 +268,7 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
         harmoniesByPart.push(partHarmonies);
         const gracePending = new Map<string, ScoreGraceNote[]>();
         const graceKey = (staff: number, voice: number) => staff + ':' + voice;
+        let mi = 0;
         for (const measure of part.children) {
             if (measure.localName !== 'measure')
                 continue;
@@ -295,7 +297,13 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
                     }
                     if (captureDifficulty) for (const clef of direct(node, 'clef')) {
                         const staff = Number(clef.getAttribute('number')) || 1;
-                        clefs.set(staff, { sign: child(clef, 'sign')?.textContent?.trim() ?? '', line: number(child(clef, 'line')) });
+                        const sign = child(clef, 'sign')?.textContent?.trim() ?? '';
+                        const line = number(child(clef, 'line'));
+                        const prevClef = clefs.get(staff);
+                        if (prevClef && (prevClef.sign !== sign || prevClef.line !== line)) {
+                            clefChangesByMeasure[mi] = (clefChangesByMeasure[mi] ?? 0) + 1;
+                        }
+                        clefs.set(staff, { sign, line });
                     }
                     const st = child(node, 'staves');
                     if (st)
@@ -398,10 +406,13 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
                                         const center = clef?.sign === 'G' ? 4 * 7 + 4 : clef?.sign === 'F' ? 3 * 7 + 3 : clef?.sign === 'C' ? 4 * 7 : undefined;
                                         const bottom = center === undefined || !clef?.line ? undefined : center - (clef.line - 1) * 2;
                                         const staffStep = oct * 7 + letter;
+                                        const ornamentEls = [...node.querySelectorAll('notations > ornaments > *')];
+                                        const trills = ornamentEls.filter(el => el.localName === 'trill-mark' || el.localName === 'tremolo').length;
                                         n.difficulty = {
                                             dotted: !!child(node, 'dot'), tuplet: !!child(node, 'time-modification'),
                                             accidentals: child(node, 'accidental') ? 1 : 0,
-                                            ornaments: node.querySelectorAll('notations > ornaments > *').length,
+                                            ornaments: ornamentEls.length,
+                                            ...(trills ? { trills } : {}),
                                             ledgerLines: bottom === undefined || letter < 0 ? undefined
                                                 : Math.floor(Math.max(0, bottom - staffStep, staffStep - bottom - 8) / 2),
                                         };
@@ -452,6 +463,7 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
             if (pi === 0)
                 measures.push({ number: measure.getAttribute('number') || String(measures.length + 1), start: measureStart, end: max, num, den, ...(groups ? { groups } : {}) });
             measureStart = max;
+            mi++;
         }
         partEnds[pi] = measureStart;
     });
@@ -629,6 +641,14 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
     const harmonies = (harmoniesByPart.find((list) => list.length > 0) || []).slice().sort((a, b) => a.beat - b.beat);
     const explicitBeats = new Set(tempos.map(tempo => tempo.beat));
     tempos.push(...writtenTempos.filter(tempo => !explicitBeats.has(tempo.beat)));
+    if (captureDifficulty) {
+        measures.forEach((measure, index) => {
+            if (clefChangesByMeasure[index]) measure.clefChanges = clefChangesByMeasure[index];
+            const pedalCount = pedalEvents.filter(e => e.beat >= measure.start - 1e-6 &&
+                (index === measures.length - 1 ? e.beat <= measure.end + 1e-6 : e.beat < measure.end - 1e-6)).length;
+            if (pedalCount) measure.pedalChanges = pedalCount;
+        });
+    }
     return { notes: sorted, tempos: tempos.filter(e => Number.isFinite(e.beat)), measures, keys, harmonies, links, tempoWords, ...(captureDifficulty ? { difficultyRests } : {}) };
 }
 

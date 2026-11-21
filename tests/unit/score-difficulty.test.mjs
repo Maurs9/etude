@@ -189,7 +189,10 @@ describe('experimental difficulty estimate', () => {
     const result = performance(input);
     const pedalled = performance({ ...input, notes: [{ ...input.notes[0], soundingEnd: 2 }, ...input.notes.slice(1)] });
     expect(pedalled).toEqual(result);
-    expect(result.uncertainty).toEqual({ tempoFallback: true, voicesInferred: true, handsUnassigned: true });
+    expect(result.uncertainty).toEqual({
+      tempoFallback: true, voicesInferred: true, handsUnassigned: true,
+      tempoSource: 'fallback', voiceSource: 'inferred', handSource: 'unassigned',
+    });
   });
 
   it('keeps endurance nonnegative and does not count replayed measures as new material', () => {
@@ -225,5 +228,70 @@ describe('generated-book input', () => {
     expect(input.tempoSource).toBe('reference');
     expect(last.endSec).toBeCloseTo(srtLevelDurationMs(piece, srtLevel(7).bpm) / 1000, 3);
     expect(last.groups).toEqual([1.5, 1.5]);
+  });
+});
+
+describe('v1 characterization and provenance', () => {
+  it('documents v1 bar-window sensitivity between 4/4 and 2/4 on identical physical timings', () => {
+    const timestamps = [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0];
+    const makeNotes = () => timestamps.map((t, i) => ({
+      start: t * 2, end: t * 2 + 0.4, startSec: t,
+      midi: i % 2 === 0 ? 60 : 72, hand: 'rh',
+    }));
+    const measures44 = [
+      { start: 0, end: 4, startSec: 0, endSec: 2, groups: [1, 1, 1, 1], writtenIndex: 0, fifths: 0, num: 4, den: 4 },
+      { start: 4, end: 8, startSec: 2, endSec: 4, groups: [1, 1, 1, 1], writtenIndex: 1, fifths: 0, num: 4, den: 4 },
+    ];
+    const measures24 = [
+      { start: 0, end: 2, startSec: 0, endSec: 1, groups: [1, 1], writtenIndex: 0, fifths: 0, num: 2, den: 4 },
+      { start: 2, end: 4, startSec: 1, endSec: 2, groups: [1, 1], writtenIndex: 1, fifths: 0, num: 2, den: 4 },
+      { start: 4, end: 6, startSec: 2, endSec: 3, groups: [1, 1], writtenIndex: 2, fifths: 0, num: 2, den: 4 },
+      { start: 6, end: 8, startSec: 3, endSec: 4, groups: [1, 1], writtenIndex: 3, fifths: 0, num: 2, den: 4 },
+    ];
+    const v1FourFour = estimateScoreDifficulty(
+      { measures: measures44, notes: makeNotes(), rests: [], tempoSource: 'written', voiceSource: 'written' },
+      'performance',
+      { rubricVersion: 1 },
+    );
+    const v1TwoFour = estimateScoreDifficulty(
+      { measures: measures24, notes: makeNotes(), rests: [], tempoSource: 'written', voiceSource: 'written' },
+      'performance',
+      { rubricVersion: 1 },
+    );
+    expect(v1TwoFour.axisDifficulty.motor.stars).toBeGreaterThan(v1FourFour.axisDifficulty.motor.stars);
+  });
+
+  it('documents v1 existing texture tempo sensitivity via chord-change speed factor', () => {
+    const chordSequence = bpm => {
+      const spq = 60 / bpm;
+      const chords = [[60, 64], [72, 76], [59, 62], [74, 77], [60, 64], [72, 76], [59, 62], [74, 77]];
+      const notes = chords.flatMap((pair, i) => pair.map(midi => ({
+        start: i * 0.5, end: (i + 1) * 0.5, startSec: i * 0.5 * spq, midi, hand: 'rh',
+      })));
+      const measures = [{
+        start: 0, end: 4, startSec: 0, endSec: 4 * spq, groups: [1, 1, 1, 1], writtenIndex: 0, fifths: 0,
+      }];
+      return { measures, notes, rests: [], tempoSource: 'written', voiceSource: 'written' };
+    };
+    const slow = estimateScoreDifficulty(chordSequence(40), 'performance', { rubricVersion: 1 });
+    const fast = estimateScoreDifficulty(chordSequence(160), 'performance', { rubricVersion: 1 });
+    expect(fast.axisDifficulty.texture.stars).toBeGreaterThan(slow.axisDifficulty.texture.stars);
+  });
+
+  it('propagates explicit tempoSource, voiceSource, and handSource provenance', () => {
+    const written = performance(timeline([note(0, 60, 'rh')], 1, {
+      tempoSource: 'reference', voiceSource: 'written', handSource: 'written',
+    }));
+    expect(written.uncertainty).toEqual({
+      tempoFallback: false, voicesInferred: false, handsUnassigned: false,
+      tempoSource: 'reference', voiceSource: 'written', handSource: 'written',
+    });
+    const tracked = performance(timeline([note(0, 60, 'rh')], 1, {
+      tempoSource: 'written', voiceSource: 'unknown', handSource: 'track',
+    }));
+    expect(tracked.uncertainty).toEqual({
+      tempoFallback: false, voicesInferred: false, handsUnassigned: false,
+      tempoSource: 'written', voiceSource: 'unknown', handSource: 'track',
+    });
   });
 });
