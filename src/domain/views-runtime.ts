@@ -13037,16 +13037,16 @@ async function anLibraryInspect(file: File): Promise<LibraryMetadata> {
         throw anError('midi');
     return { title, composer: '' };
 }
-async function anInspectDifficulty(file: File, startingBpm?: number, calibrationOrOptions?: ImportedScoreDifficultyOptions) {
+async function anInspectDifficulty(file: File, startingBpm?: number, options?: ImportedScoreDifficultyOptions) {
     const [{ estimateImportedScore }] = await Promise.all([import('./score-difficulty-import.js'), ensureAnalysisModules()]);
     if (!file.size || file.size > AN_MAX_BYTES || !/\.(mid|midi|xml|musicxml|mxl)$/i.test(file.name))
         throw anError('type');
     const title = file.name.replace(/\.[^.]+$/, '');
     if (!/\.midi?$/i.test(file.name))
-        return estimateImportedScore(await anReadXml(file, title, true), startingBpm, calibrationOrOptions);
+        return estimateImportedScore(await anReadXml(file, title, true), startingBpm, options);
     const parsed = anParse(await file.arrayBuffer());
     if (!parsed.notes.length || parsed.notes.length > AN_MAX_NOTES) throw anError('midi');
-    return estimateImportedScore({ kind: 'midi', title, label: file.name, parsed }, startingBpm, calibrationOrOptions);
+    return estimateImportedScore({ kind: 'midi', title, label: file.name, parsed }, startingBpm, options);
 }
 function anLibraryRestoreResume(resume: LibraryResume) {
     selectById('score-speed').value = String(resume.speed);
@@ -16543,9 +16543,9 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
         const item = libraryItem
             ? await scoreLibraryStore.libraryUpdate(libraryItem.id, { lastOpenedAt: Date.now() })
             : (await scoreLibraryStore.librarySave(file, anLibraryMetadata(src))).item;
-        if (item) scoreLibrary?.prepareRating(item, async (startingBpm, calibration) => {
+        if (item) scoreLibrary?.prepareRating(item, async startingBpm => {
             const { estimateImportedScore } = await import('./score-difficulty-import.js');
-            return estimateImportedScore(src, startingBpm, calibration);
+            return estimateImportedScore(src, startingBpm);
         });
         if (item && token === AN.loadToken && AN.source === src) {
             if (!libraryItem && src.kind === 'midi' && item.resume?.recon
