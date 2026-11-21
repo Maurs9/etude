@@ -15,6 +15,26 @@ export function performanceAt(timeline: PerformanceTimeline, position: number) {
   const index = Math.min(lo, timeline.ranges.length - 1), range = timeline.ranges[index];
   return { index, position: p, score: range ? range.a + p - range.offset : 0 };
 }
+/** Written ranges intersecting a forward-looking window, in the order they play. */
+export function* performanceWindow(timeline: PerformanceTimeline, position: number, span: number, loop = false): Generator<PerformanceRange> {
+  const { duration, ranges } = timeline;
+  if (!ranges.length || (!loop && position >= duration)) return;
+  const cycle = loop ? Math.floor(position / duration) : 0;
+  let base = cycle * duration;
+  let index = performanceAt(timeline, position - base).index;
+  const end = position + span;
+  while (true) {
+    const range = ranges[index++];
+    const offset = base + range.offset;
+    if (offset > end) return;
+    yield { ...range, offset };
+    if (index === ranges.length) {
+      if (!loop) return;
+      index = 0;
+      base += duration;
+    }
+  }
+}
 /** Resolve a written position to the closest occurrence, preserving the current repeat when possible. */
 export function performanceOf(timeline: PerformanceTimeline, score: number, near = 0, allowEnd = false): number {
   let best = 0, distance = Infinity;
