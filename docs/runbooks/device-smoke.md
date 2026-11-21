@@ -36,6 +36,8 @@ Practice hints follow-up (physical iOS PWA and Android TWA pending). In Practice
 
 Interval song hints (physical Android/TWA pending): open Practice → Intervals → Song hints with the piano dock visible. Play an ascending and a descending song from the same reference note. Check that the first two notes are louder, that the dock follows the melody, and that closing Song hints or pressing Hear clears the previous highlights. Repeat with the phone speaker and Bluetooth audio.
 
+Chord diagram follow-up (physical iOS PWA and Android TWA pending). Open a chord card in Practice, play its comparison, and verify that the mini keyboard and staff switch together when the second chord sounds. Repeat with built-in and Bluetooth audio, then close the card mid-playback and check that the sound stops and the diagram returns to the card’s chord.
+
 ## MIDI
 
 1. **USB:** connect the piano's USB-to-Host port with a USB-C cable. Check that Diagnostics lists the piano under `MIDI:` and that keys light up in Explore.

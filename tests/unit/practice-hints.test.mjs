@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, PRACTICE_HINT_REFERENCES,
-  chordHintFormula, chordHintSteps, progressionHintChords, progressionHintSteps, scaleHintFormula, scaleHintSteps,
+  chordHintFormula, chordHintSteps, chordHintTones, progressionHintChords, progressionHintSteps, scaleHintFormula, scaleHintSteps,
   techniqueHintSteps, techniqueHintTonic,
 } from '../../src/domain/practice-hints.ts';
-import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS, pitchClass } from '../../src/domain/theory.ts';
+import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS, pitchClass, practiceTonicMidi } from '../../src/domain/theory.ts';
 import { PIECES } from '../../src/domain/repertoire-data.ts';
+import { ssMidiOf, ssStepOf } from '../../src/domain/score-types.ts';
 import { STRINGS } from '../../src/locales/index.js';
 
 const byName = (hints, name) => hints.find(hint => hint.name === name);
@@ -24,10 +25,27 @@ describe('Practice hint catalog', () => {
       ...TECHNIQUE_HINTS.flatMap(hint => [`t_${hint.id}`, `t_${hint.id}_title`]),
       ...['chord', 'scale', 'prog', 'technique', 'melody'].flatMap(topic => [`${topic}_title`, `${topic}_lede`]),
       'hear', 'show_keys', 'compare', 'melody_cue',
+      'chord_group_triads', 'chord_group_sixths_sevenths', 'chord_group_extensions', 'chord_keyboard', 'chord_staff',
     ];
     for (const [lang, copy] of Object.entries(STRINGS)) {
       for (const key of keys) expect(copy[`pr_hints_${key}`], `${lang}: ${key}`).toBeTruthy();
     }
+  });
+
+  it('spells 25 chords in every tonic and keeps the written octaves and MIDI voicing in agreement', () => {
+    for (let tonic = 0; tonic < 12; tonic++) {
+      const root = practiceTonicMidi(tonic, 'near-middle-c');
+      for (const template of CHORD_TEMPLATES) {
+        const tones = chordHintTones(template.symbol, tonic);
+        expect(tones.map(note => ssMidiOf(note.li, note.oct, note.acc))).toEqual(template.intervals.map(interval => root + interval));
+        expect(tones.map(note => ssStepOf(note.li, note.oct) - ssStepOf(tones[0].li, tones[0].oct))).toEqual(tones.map(note => note.degree - 1));
+        expect(tones.every(note => Math.abs(note.acc) <= 2)).toBe(true);
+      }
+    }
+    expect(chordHintTones('dim7', 0).at(-1)).toMatchObject({ li: 6, acc: -2, oct: 4, midi: 69 });
+    expect(chordHintTones('7♭5', 0)[2]).toMatchObject({ li: 4, acc: -1, oct: 4, midi: 66 });
+    expect(chordHintTones('7♯9', 0).at(-1)).toMatchObject({ li: 1, acc: 1, oct: 5, midi: 75 });
+    expect(chordHintTones('13', 5).at(-1)).toMatchObject({ li: 1, acc: 0, oct: 6, midi: 86 });
   });
 
   it('moves only the seventh in the maj7 comparison and spells the diminished seventh', () => {
