@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { performanceTimeline, performanceAt, performanceOf, performanceMarkers } from '../../src/domain/performance-timeline.ts';
+import { performanceTimeline, performanceAt, performanceOf, performanceMarkers, performanceWindow } from '../../src/domain/performance-timeline.ts';
 import { validateLibraryResume } from '../../src/domain/score-library-store.ts';
 it('maps repeated score positions to distinct performance positions and reaches the full duration', () => {
   const plan = performanceTimeline([{ a: 0, b: 4 }, { a: 0, b: 6 }]);
@@ -21,6 +21,20 @@ it('excludes skipped endings and handles empty or invalid ranges', () => {
 it('maps measure ticks to each occurrence and omits ticks at skipped endings', () => {
   const plan = performanceTimeline([{ a: 0, b: 4 }, { a: 0, b: 2 }, { a: 4, b: 6 }]);
   expect(performanceMarkers(plan, [0, 2, 4, 6].map(time => ({ time, major: true }))).map(m => m.position)).toEqual([0, 2, 4, 6]);
+});
+it('looks ahead across repeats and skipped endings in performance order', () => {
+  const plan = performanceTimeline([{ a: 0, b: 4 }, { a: 0, b: 2 }, { a: 4, b: 6 }]);
+  expect([...performanceWindow(plan, 3.5, 3)]).toEqual(plan.ranges);
+  expect([...performanceWindow(plan, 4, 3)]).toEqual(plan.ranges.slice(1));
+  expect([...performanceWindow(plan, 8, 3)]).toEqual([]);
+});
+it('projects subsequent loop passes at increasing offsets', () => {
+  const plan = performanceTimeline([{ a: 4, b: 6 }]);
+  expect([...performanceWindow(plan, 3.75, 2.5, true)]).toEqual([
+    { a: 4, b: 6, offset: 2 },
+    { a: 4, b: 6, offset: 4 },
+    { a: 4, b: 6, offset: 6 },
+  ]);
 });
 const old = { position: .3, measure: '1', speed: 100, hands: 'both', wait: false, metronome: false, view: 'page', look: 'paper', zoom: 1 };
 it('preserves old saves and round-trips the optional performance bookmark', () => {

@@ -49,7 +49,7 @@ import '../styles/voice.css';
 import '../styles/explore.css';
 import '../styles/pieces.css';
 import '../styles/score-fullscreen.css';
-import { performanceTimeline, performanceAt, performanceOf, performanceMarkers, type PerformanceTimeline } from './performance-timeline.js';
+import { performanceTimeline, performanceAt, performanceOf, performanceMarkers, performanceWindow, type PerformanceRange, type PerformanceTimeline } from './performance-timeline.js';
 import { repeatRanges, scoreXmlRepeatBars } from './score-repeats.js';
 import '../styles/layout.css';
 import { srtEvaluate, type SightReadingEvaluation, type SightReadingPerformed } from '../sight-reading/evaluate.js';
@@ -13159,10 +13159,7 @@ function anKeyInfo(ns: readonly theory.TheoryNote[]) {
 function anMeasures(): ScoreMeasure[] { if (SCORE.measures && SCORE.measures.length)
     return SCORE.measures; const end = AN.notes.length ? Math.max(...AN.notes.map((n) => n.end)) : 0, out: ScoreMeasure[] = []; for (let s = 0, i = 1; s < end; s += 4, i++)
     out.push({ number: String(i), start: s, end: s + 4, num: 4, den: 4 }); return out; }
-function anMeasureAt(beat: number) {
-    const ms = anMeasures();
-    if (!ms.length)
-        return ms[0];
+function anMeasureIndex(ms: readonly ScoreMeasure[], beat: number) {
     let lo = 0, hi = ms.length - 1, idx = 0;
     while (lo <= hi) {
         const mid = (lo + hi) >>> 1;
@@ -13174,7 +13171,11 @@ function anMeasureAt(beat: number) {
             hi = mid - 1;
         }
     }
-    return ms[idx];
+    return idx;
+}
+function anMeasureAt(beat: number) {
+    const ms = anMeasures();
+    return ms[anMeasureIndex(ms, beat)];
 }
 function anHarmonyCtx() {
     return {
@@ -14533,6 +14534,10 @@ function pracSegAt(R: { segs: PracticeSegment[] }, now: number) { let s = R.segs
     if (x.a0 <= now + 1e-9)
         s = x; return s; }
 function pracRaw(R: { segs: PracticeSegment[] }, now: number) { const s = pracSegAt(R, now); return { s, t: s.t0 + Math.max(0, now - s.a0) * s.f }; }
+function pracPosition(R: { segs: PracticeSegment[] }, now: number) {
+    const { s, t } = pracRaw(R, now), B = PRAC.bar;
+    return { s, t: Math.min(t, s.t1, B?.seg === s ? B.t : Infinity) };
+}
 function pracBeats() {
     if (FALL.beatSrc === fallData() && FALL.beatTempo === SCORE.tempoList && FALL.beats)
         return FALL.beats;
@@ -14594,8 +14599,8 @@ function performanceRemember() {
     const p = performanceRead(); PERFORMANCE.position = p.position; PERFORMANCE.elapsed = p.elapsed; PERFORMANCE.score = fallTime();
 }
 function performanceSeekScore(score: number, first = false) {
-    const plan = performancePlan();
-    const near = first ? 0 : SCORE.playing && SCORE.run?.segs[0].p0 !== undefined ? performanceRead().position : PERFORMANCE.position;
+    const plan = performancePlan(), run = SCORE.run;
+    const near = first ? 0 : SCORE.playing && run && !run.loop && !run.sel ? performanceRead().position : PERFORMANCE.position;
     PERFORMANCE.position = performanceOf(plan, score, near); PERFORMANCE.score = score;
     PERFORMANCE.elapsed = PERFORMANCE.position / pracFactor();
 }
@@ -14639,6 +14644,7 @@ async function pracStart(o: PracticeStartOptions)  {
     const c = o.carry, resumed = !!c && !o.sel && !o.loop && c.notes === AN.notes && c.src === AN.source && c.hands === PRAC.hands && c.wait === PRAC.wait && c.f === f && Math.abs(c.at - o.from) < .01;
     const mine = (resumed ? fallData().slice().sort((x, y) => x.start - y.start || x.n.midi - y.n.midi) : o.notes).filter((d) => pracMine(d.n));
     const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
+    if (o.loop) R.segs[0].p0 = 0;
     if (!o.loop && !o.sel) {
         const plan = performancePlan(), p = performanceRead(), at = performanceAt(plan, p.position);
         const route = resumed && c?.route ? c.route.map(r => ({ ...r })) : plan.ranges.slice(at.index).map((r, i) => ({ a: i ? r.a : o.from, b: r.b }));
@@ -14739,7 +14745,7 @@ function pracTick() {
             const range = R.route.shift();
             if (range) {
                 R.segs.push({ a0: at(s.t1), t0: range.a, t1: range.b, f: s.f, first: false,
-                    p0: (s.p0 ?? 0) + s.t1 - s.t0, elapsed0: (s.elapsed0 ?? 0) + (s.t1 - s.t0) / s.f });
+                    p0: (s.p0 ?? 0) + (s.t1 - s.t0), elapsed0: (s.elapsed0 ?? 0) + (s.t1 - s.t0) / s.f });
                 R.ni = 0; R.bi = Math.max(0, R.beats.findIndex(b => b.t >= range.a - 1e-6)); R.wt = range.a;
                 continue;
             }
@@ -14751,7 +14757,8 @@ function pracTick() {
                 break;
             if (waitForGrade && PRAC.active)
                 pracMisses(R, Infinity);
-            const next = { a0: waitForGrade ? now + .025 : end, t0: R.a, t1: R.b, f: pracRamp(R, s), first: false }, L: ScoreLoopState | null = SCORE.loop;
+            const next = { a0: waitForGrade ? now + .025 : end, t0: R.a, t1: R.b, f: pracRamp(R, s), first: false,
+                p0: (s.p0 ?? 0) + (s.t1 - s.t0) }, L: ScoreLoopState | null = SCORE.loop;
             R.segs.push(next);
             if (L)
                 L.next = next.a0 + (R.b - R.a) / next.f;
@@ -15211,15 +15218,14 @@ async function scoreLoopStart()  {
     await pracStart({ notes, a, b, loop: true, sel: !ab, ab, from: a, bars });
 }
 // Follow playback: move the cursor (keeping it in view), light the sounding keys (and noteheads, if asked) and refresh the status bar.
-function scoreFollow() {
+function scoreFollow(frameTime = performance.now()) {
     SCORE.followRaf = 0;
     if (!SCORE.playing) {
         scoreUnlight();
         anKeysPaint();
         return;
     }
-    const frameTime = performance.now();
-    const time = FALL.mode === 'score' ? scoreVisualTime(frameTime) : fallTime();
+    const time = scoreVisualTime(frameTime);
     const now = new Set<number>(), sel = SCORE.sel ? AN.selected : null, all: PracticeTimedNote[] = fallData();
     const startIdx = FALL.sorted ? fallStartIndex(all, time - (FALL.maxDur ?? 0) - 0.01) : 0;
     for (let idx = startIdx; idx < all.length; idx++) {
@@ -17008,23 +17014,37 @@ function fallTime(at?: number) {
     const R = SCORE.run;
     if (!SCORE.playing || !audioEngine.context || !R)
         return FALL.position;
-    const { s, t } = pracRaw(R, at ?? audioEngine.context.currentTime), B = PRAC.bar;
-    let x = Math.min(t, s.t1);
-    if (B && B.seg === s && x > B.t)
-        x = B.t;
-    return x;
+    return pracPosition(R, at ?? audioEngine.context.currentTime).t;
 }
-function scoreVisualTime(frameTime = performance.now()) {
+function scoreVisualPosition(frameTime: number) {
     const R = SCORE.run, ctx = audioEngine.context;
-    if (!SCORE.playing || !ctx || !R || PRAC.wait) return fallTime();
+    if (!SCORE.playing || !ctx || !R) return null;
+    if (PRAC.wait) return pracPosition(R, ctx.currentTime);
     const at = Math.max(R.outputTime ?? 0, audio.audioPresentationTime(ctx, frameTime));
     R.outputTime = at;
     const recent = R.outputHistory;
-    if (at < R.segs[0].a0 && recent?.length) {
-        const { s, t } = pracRaw({ segs: recent }, at);
-        return Math.min(t, s.t1);
+    return pracPosition(at < R.segs[0].a0 && recent?.length ? { segs: recent } : R, at);
+}
+function scoreVisualTime(frameTime = performance.now()) {
+    return scoreVisualPosition(frameTime)?.t ?? FALL.position;
+}
+function fallFrame(frameTime: number, span: number, pps: number) {
+    const visual = scoreVisualPosition(frameTime), written = visual?.t ?? FALL.position;
+    // A repeat changes written time while the position on the falling-notes stage keeps advancing.
+    const position = visual && (visual.s.p0 ?? 0) + (written - visual.s.t0);
+    const loop = SCORE.loop;
+    if (loop && position !== null && (loop.b - loop.a) * pps >= 1) {
+        const plan = performanceTimeline([{ a: loop.a, b: loop.b }]);
+        return { written, time: position, ranges: performanceWindow(plan, position, span, true), loop: true };
     }
-    return fallTime(at);
+    if (!loop && !SCORE.sel && !SCORE.resume?.sel) {
+        const plan = performancePlan();
+        if (plan.ranges.length > 1) {
+            const time = position ?? performanceRead().position;
+            return { written, time, ranges: performanceWindow(plan, time, span), loop: false };
+        }
+    }
+    return { written, time: written, ranges: [{ a: 0, b: Infinity, offset: 0 }], loop: false };
 }
 function fallLookSync() {
     const look = inputById('fall-look');
@@ -17120,7 +17140,27 @@ function fallGradients(ctx: CanvasRenderingContext2D, hitY: number) {
     feltShadow.addColorStop(1, 'rgba(0,0,0,0)');
     return (FALL.gradCache = { ctx, hitY, bg, hg, felt, feltShadow });
 }
-function fallDraw() {
+function* fallVisibleNotes(ranges: readonly PerformanceRange[], time: number, span: number) {
+    const notes = fallData();
+    for (const range of ranges) {
+        const shift = range.offset - range.a;
+        const until = Math.min(range.b, time + span - shift);
+        const earliest = Math.max(range.offset > 0 ? range.a : -Infinity, time - shift - (FALL.maxDur ?? 0));
+        const first = FALL.sorted ? fallStartIndex(notes, earliest) : 0;
+        for (let i = first; i < notes.length; i++) {
+            const d = notes[i];
+            if (d.start > until || d.start >= range.b) {
+                if (FALL.sorted) break;
+                continue;
+            }
+            if (d.start < earliest) continue;
+            const finish = Math.min(d.finish, range.b) + shift;
+            if (finish > time)
+                yield { d, start: d.start + shift, finish, shift };
+        }
+    }
+}
+function fallDraw(frameTime = performance.now()) {
     cancelAnimationFrame(FALL.raf);
     FALL.raf = 0;
     if (FALL.mode !== 'fall' || !AN.notes.length)
@@ -17145,7 +17185,8 @@ function fallDraw() {
     G.hitY = hitY;
     G.kh = kh;
     const grads = fallGradients(ctx, hitY);
-    const time = fallTime(), rm = reduceMotion(), fx = PRAC.fx && !rm, P = fallPalette(PRAC.pal), solo = PRAC.hands !== 'both';
+    const frame = fallFrame(frameTime, span, pps), { time, written } = frame, ranges = [...frame.ranges];
+    const fx = PRAC.fx && !reduceMotion(), P = fallPalette(PRAC.pal), solo = PRAC.hands !== 'both';
     const ms = performance.now(), dt = FALL.lastFrame ? Math.min(.05, (ms - FALL.lastFrame) / 1000) : 0;
     FALL.lastFrame = ms;
     // stage: deep gradient, lanes for the pitches this piece uses, brighter guides at every C, bar lines with numbered pills, faint beats
@@ -17165,29 +17206,43 @@ function fallDraw() {
     G.keys.forEach((k, m) => { if (!k.black && pc(m) === 0)
         ctx.fillRect(Math.round(k.x), 0, 1, hitY); });
     const bars: [string, number][] = [];
-    for (const m of anMeasures()) {
-        const s0 = scoreSeconds(m.start);
-        if (s0 > time + span)
-            break;
-        if (scoreSeconds(m.end) < time)
-            continue;
-        const u = scoreFeature.harmony.anBeatUnit(m);
-        ctx.fillStyle = 'rgba(255,255,255,.05)';
-        for (let b = m.start + u; b < m.end - 1e-6; b += u) {
-            const y = hitY - (scoreSeconds(b) - time) * pps;
-            if (y > 0 && y < hitY)
-                ctx.fillRect(0, Math.round(y), W, 1);
-        }
-        const y = Math.round(hitY - (s0 - time) * pps);
-        if (y >= 0 && y <= hitY) {
-            ctx.fillStyle = 'rgba(200,212,240,.22)';
-            ctx.fillRect(0, y, W, 1);
-            bars.push([m.number, y]);
+    const measures = anMeasures();
+    for (const range of ranges) {
+        const shift = range.offset - range.a, from = Math.max(range.a, time - shift);
+        const first = anMeasureIndex(measures, scoreBeatAt(from));
+        for (let i = first; i < measures.length; i++) {
+            const m = measures[i], s0 = scoreSeconds(m.start);
+            if (s0 >= range.b || s0 + shift > time + span)
+                break;
+            const u = scoreFeature.harmony.anBeatUnit(m);
+            ctx.fillStyle = 'rgba(255,255,255,.05)';
+            for (let b = m.start + u; b < m.end - 1e-6; b += u) {
+                const beat = scoreSeconds(b);
+                if (beat >= range.b) break;
+                const y = hitY - (beat + shift - time) * pps;
+                if (beat >= range.a && y > 0 && y < hitY)
+                    ctx.fillRect(0, Math.round(y), W, 1);
+            }
+            const y = Math.round(hitY - (s0 + shift - time) * pps);
+            if (s0 >= range.a && y >= 0 && y <= hitY) {
+                ctx.fillStyle = 'rgba(200,212,240,.22)';
+                ctx.fillRect(0, y, W, 1);
+                bars.push([m.number, y]);
+            }
         }
     }
-    // A–B loop: shade outside the loop range
+    // Highlight the loop and mark the start of each upcoming pass.
     const L = SCORE.loop || (PRAC.A != null && PRAC.B != null ? { a: PRAC.A, b: PRAC.B } : null);
-    if (L) {
+    if (frame.loop) {
+        ctx.fillStyle = 'rgba(106,168,255,.08)';
+        ctx.fillRect(0, 0, W, hitY);
+        ctx.fillStyle = 'rgba(143,184,255,.7)';
+        for (const range of ranges) {
+            if (range.offset >= time)
+                ctx.fillRect(0, Math.round(hitY - (range.offset - time) * pps) - 1, W, 2);
+        }
+    }
+    else if (L) {
         const ya = hitY - (L.a - time) * pps, yb = hitY - (L.b - time) * pps;
         ctx.fillStyle = 'rgba(106,168,255,.08)';
         const top = Math.max(0, yb), bot = Math.min(hitY, ya);
@@ -17203,27 +17258,24 @@ function fallDraw() {
     if (from != null && from > time)
         from = SCORE.loop ? SCORE.loop.a - 1e-3 : null; // the loop wrapped around
     FALL.hits = [];
-    const fallNotes = fallData();
-    const fallStart = FALL.sorted ? fallStartIndex(fallNotes, time - (FALL.maxDur ?? 0) - 0.35) : 0;
-    for (let idx = fallStart; idx < fallNotes.length; idx++) {
-        const d = fallNotes[idx];
-        if (d.start > time + span)
-            break;
-        if (d.finish <= time)
+    for (const { d, start, finish, shift } of fallVisibleNotes(ranges, time, span)) {
+        if (frame.loop && sel && !sel.has(d.i))
             continue;
         const k = G.keys.get(d.n.midi);
         if (!k)
             continue;
-        const hand = scoreFeature.harmony.anHandOf(d.n), c = hand === 'lh' ? P.lh : P.rh, mine = !solo || hand === PRAC.hands, on = time >= d.start && (!sel || sel.has(d.i));
+        const current = Math.abs(shift - (time - written)) < 1e-6;
+        const hand = scoreFeature.harmony.anHandOf(d.n), c = hand === 'lh' ? P.lh : P.rh, mine = !solo || hand === PRAC.hands, on = current && time >= start - 1e-6 && (!sel || sel.has(d.i));
         if (on) {
             active.set(d.n.midi, hand);
-            if (from != null && d.start > from && fx)
+            if (from != null && start > from && fx)
                 fallBurst(k, hitY, c);
         }
-        else if (mine && d.start - time < .6 * span / FALL_SEC * FALL.zoom && !soon.has(d.n.midi))
-            soon.set(d.n.midi, { k, c, a: 1 - (d.start - time) / (.6) });
-        const yb = Math.min(hitY, hitY - (d.start - time) * pps), yt0 = hitY - (d.finish - time) * pps, gap = yb - yt0 > 10 ? 3 : 1, yt = yt0 + gap;
-        if (yb - yt < 1)
+        else if (mine && start > time && start - time < .6 && !soon.has(d.n.midi))
+            soon.set(d.n.midi, { k, c, a: 1 - (start - time) / .6 });
+        const yb = Math.min(hitY, hitY - (start - time) * pps), yt0 = hitY - (finish - time) * pps;
+        const gap = Math.min((finish - start) * pps > 10 ? 3 : 1, (yb - yt0) * .3), yt = yt0 + gap;
+        if (yb <= 0 || yb - yt < 1)
             continue;
         const pad = k.black ? Math.max(1, k.w * .06) : Math.max(1.5, k.w * .1), x = k.x + pad, w = k.w - 2 * pad, h = yb - yt, r = Math.min(6, w * .32, h / 2);
         ctx.save();
@@ -17243,7 +17295,7 @@ function fallDraw() {
         ctx.lineWidth = 1;
         fallRR(ctx, x + .5, yt + .5, w - 1, h - 1, Math.max(0, r - .5));
         ctx.stroke();
-        const res = PRAC.res.get(d.i);
+        const res = current ? PRAC.res.get(d.i) : undefined;
         if (res) {
             ctx.strokeStyle = res === 'hit' ? '#7cf0a8' : '#ff6b5e';
             ctx.lineWidth = 2;
@@ -17299,7 +17351,7 @@ function fallDraw() {
     ctx.fillRect(0, hitY - 34, W, 34);
     if (FALL.flashes.length || FALL.particles.length)
         fallParticles(ctx, dt);
-    const B = PRAC.bar && SCORE.run && time >= PRAC.bar.t - 1e-6 ? PRAC.bar : null, need = B ? [...B.need].filter((m) => !B.got.has(m)) : [];
+    const B = PRAC.bar && SCORE.run && written >= PRAC.bar.t - 1e-6 ? PRAC.bar : null, need = B ? [...B.need].filter((m) => !B.got.has(m)) : [];
     fallKeyboard(ctx, G, hitY, kh, W, active, P, need, ms, dpr, grads);
     ctx.save();
     if (fx) {
@@ -17313,7 +17365,7 @@ function fallDraw() {
     let msg = '';
     if (need.length && B)
         msg = t('pr_waiting', need.slice().sort((a, b) => a - b).map((m) => spellName(m, anKeyAt(B.group[0].n.start), true)).join(' '));
-    else if (!SCORE.playing && time <= .01)
+    else if (!SCORE.playing && written <= .01)
         msg = t('sc_press_start');
     if (msg) {
         ctx.font = '700 14px ' + FALL_FONT;
