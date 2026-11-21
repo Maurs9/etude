@@ -110,14 +110,14 @@ export const SCALE_HINTS: readonly ScaleHint[] = [
   { name: 'Harmonic minor', cue: 'harmonic_minor', compare: { name: 'Aeolian (Natural minor)', degrees: [5, 6, 7] } },
   { name: 'Melodic minor', cue: 'melodic_minor', compare: { name: 'Harmonic minor', degrees: [4, 5, 6, 7] } },
   { name: 'Harmonic major', cue: 'harmonic_major', compare: { name: 'Major (Ionian)', degrees: [4, 5, 6] } },
+  { name: 'Phrygian dominant', cue: 'phrygian_dominant', compare: { name: 'Phrygian', degrees: [0, 1, 2, 3] } },
+  { name: 'Hungarian minor', cue: 'hungarian', compare: { name: 'Harmonic minor', degrees: [2, 3, 4] } },
   { name: 'Major pentatonic', cue: 'major_pentatonic' },
   { name: 'Minor pentatonic', cue: 'minor_pentatonic' },
   { name: 'Blues', cue: 'blues', formula: '1 ♭3 4 ♭5 5 ♭7' },
   { name: 'Whole tone', cue: 'whole_tone', formula: '2–2–2–2–2–2' },
   { name: 'Diminished (W-H)', cue: 'diminished_wh', formula: '2–1–2–1–2–1–2–1' },
   { name: 'Diminished (H-W)', cue: 'diminished_hw', formula: '1–2–1–2–1–2–1–2' },
-  { name: 'Phrygian dominant', cue: 'phrygian_dominant', compare: { name: 'Phrygian', degrees: [0, 1, 2, 3] } },
-  { name: 'Hungarian minor', cue: 'hungarian', compare: { name: 'Harmonic minor', degrees: [2, 3, 4] } },
   { name: 'Chromatic', cue: 'chromatic', formula: '1 × 12' },
 ];
 
@@ -183,17 +183,36 @@ export function scaleHintFormula(hint: ScaleHint): string {
   return hint.formula ?? formatScaleFormula(SCALE_DEFINITIONS[hint.name]);
 }
 
-export function scaleHintSteps(hint: ScaleHint, tonic: number): PracticeHintStep[] {
-  const root = practiceTonicMidi(tonic, 'near-middle-c');
-  const target = SCALE_DEFINITIONS[hint.name].concat(12);
-  const play = (offsets: readonly number[], seconds: number) => offsets.map((offset, i) =>
-    block([root + offset], seconds, i + 1 === offsets.length ? 0.22 : 0.035));
-  if (!hint.compare) return play(target, 0.2);
+const scaleLetterDegrees: Readonly<Partial<Record<string, readonly number[]>>> = {
+  'Major pentatonic': [1, 2, 3, 5, 6],
+  'Minor pentatonic': [1, 3, 4, 5, 7],
+  Blues: [1, 3, 4, 5, 5, 7],
+  'Whole tone': [1, 2, 3, 4, 5, 6],
+};
 
-  const other = SCALE_DEFINITIONS[hint.compare.name].concat(12);
+export function scaleHintTones(name: string, tonic: number) {
+  const offsets = SCALE_DEFINITIONS[name];
+  const root = practiceTonicMidi(tonic, 'near-middle-c');
+  const fifths = keyFifths(tonic, false), spelling = spellMidi(root, fifths);
+  return [...offsets, 12].map((offset, index) => {
+    const midi = root + offset;
+    const degree = offset === 12 ? 8 : offsets.length === 7 ? index + 1 : scaleLetterDegrees[name]?.[index];
+    const written = degree === undefined ? spellMidi(midi, fifths) : spellChordTone(spelling, midi, degree);
+    return { ...written, midi, tonic: offset === 0 || offset === 12 };
+  });
+}
+
+export function scaleHintSteps(hint: ScaleHint, tonic: number): PracticeHintStep[] {
+  const target = scaleHintTones(hint.name, tonic);
+  const play = (tones: readonly PracticeHintNote[], seconds: number, diagramKey: string) => tones.map((tone, i) =>
+    ({ ...block([tone.midi], seconds, i + 1 === tones.length ? 0.22 : 0.035), diagramKey }));
+  if (!hint.compare) return play(target, 0.2, hint.name);
+
+  const other = scaleHintTones(hint.compare.name, tonic);
   const excerpt = hint.compare.degrees;
-  return [block([root], 0.36), ...play(excerpt.map(i => target[i]), 0.25),
-    ...play(excerpt.map(i => other[i]), 0.25), ...play(target, 0.19), ...play(other, 0.19)];
+  return [block([target[0].midi], 0.36), ...play(excerpt.map(i => target[i]), 0.25, hint.name),
+    ...play(excerpt.map(i => other[i]), 0.25, hint.compare.name),
+    ...play(target, 0.19, hint.name), ...play(other, 0.19, hint.compare.name)];
 }
 
 export function progressionHintChords(hint: ProgressionHint, tonic: number) {
