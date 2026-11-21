@@ -134,6 +134,23 @@ export const PROGRESSION_HINTS: readonly ProgressionHint[] = [
   { name: 'Pachelbel’s Canon', cue: 'canon', bass: [0, -5, -3, -8, -7, -12, -7, -5] },
 ];
 
+export const MELODY_HINTS = [
+  { id: 'rising', phrase: [[0, 1], [2, 1], [4, 1], [7, 1]] },
+  { id: 'falling', phrase: [[7, 0.5], [5, 0.5], [4, 1], [2, 1], [0, 1]] },
+  { id: 'repeated', phrase: [[0, 0.5], [0, 0.5], [4, 1], [2, 1], [0, 1]] },
+] as const;
+
+export function melodyHintExample(hint: (typeof MELODY_HINTS)[number], tonic: number) {
+  const root = practiceTonicMidi(tonic, 'near-middle-c'), fifths = keyFifths(tonic, false);
+  const notes = hint.phrase.map(([offset, beats]) => {
+    const midi = root + offset;
+    return { ...spellMidi(midi, fifths), midi, beats };
+  });
+  const steps = notes.map(({ midi, beats }, index): PracticeHintStep =>
+    ({ ...block([midi], 0.39 * beats, 0.04 * beats), diagramKey: String(index) }));
+  return { notes, steps, fifths };
+}
+
 const allTonics = Array.from({ length: 12 }, (_, i) => i);
 export const TECHNIQUE_HINTS: readonly TechniqueHint[] = [
   { id: 'major_common', kind: 'major', tonics: [0, 2, 4, 7, 9], defaultTonic: 0 },
