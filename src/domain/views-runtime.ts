@@ -5033,26 +5033,41 @@ function cofData() {
     const tbl = cof.minor ? COF_FING[cof.flavor] : COF_FING.maj, offs = (cof.minor ? SCALES[COF_SCALE[cof.flavor]] : SCALES['Major (Ionian)']).concat([12]);
     return { midis: offs.map((o) => root + o), names: cofSpellDegrees(tonic, offs, [0, 1, 2, 3, 4, 5, 6, 7]), rh: [...tbl.rh[tp]].map(Number), lh: [...tbl.lh[tp]].map(Number) };
 }
-function cofPt(r: number, deg: number) { const a = (deg - 90) * Math.PI / 180; return [(350 + r * Math.cos(a)).toFixed(2), (350 + r * Math.sin(a)).toFixed(2)]; }
+const COF_CENTER = 350;
+function cofPt(r: number, deg: number) { const a = (deg - 90) * Math.PI / 180; return [(COF_CENTER + r * Math.cos(a)).toFixed(2), (COF_CENTER + r * Math.sin(a)).toFixed(2)]; }
 function cofSector(r0: number, r1: number, d0: number, d1: number) { const a = cofPt(r1, d0), b = cofPt(r1, d1), c = cofPt(r0, d1), d = cofPt(r0, d0); return 'M' + a + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + b + 'L' + c + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + d + 'Z'; }
 function cofTint(i: number, pct: string|number) { return 'fill:color-mix(in srgb, ' + (COF_COL[i] || '#6d4f7a') + ' ' + pct + '%, var(--card))'; }
 function cofText(x: string, y: string, cls: string, lines: string[], lh: number) { return '<text class="' + cls + '" x="' + x + '" y="' + y + '">' + lines.map((s, k) => '<tspan x="' + x + '" dy="' + (k ? lh : -(lines.length - 1) * lh / 2) + '">' + s.replace(/([♯♭𝄪𝄫])/gu, '<tspan class="cof-g">$1</tspan>') + '</tspan>').join('') + '</text>'; }
 // A circle drawn smaller than this leaves out the signature labels around the rim and zooms in on the rings, so the
 // key names stay legible; it follows the circle's own width, which beside the staff is far less than the window's.
 const COF_COMPACT_W = 460;
-const COF_R_MIN0 = 90, COF_R_MIN1 = 158, COF_R_CNT1 = 182, COF_R_MAJ1 = 256;
+const COF_R_MIN0 = 90, COF_R_MIN1 = 158, COF_R_CNT1 = 182, COF_R_MAJ1 = 256, COF_R_STAFF = 424;
 let cofCompact: boolean | null = null;
 function cofIsCompact(box: HTMLElement) { const w = box.getBoundingClientRect().width; return w > 0 ? w < COF_COMPACT_W : matchMedia('(max-width:560px)').matches; }
-function renderCircle() {
-    const box = byId('circle');
-    if (!box)
-        return;
-    const compact = cofCompact = cofIsCompact(box);
-    let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + (compact ? '92 92 516 516' : '-12 20 724 650') + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
-        '<linearGradient id="cofSplit" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
-        '<marker id="cofAhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
-        '<marker id="cofAhDn" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#4a7fb0"/></marker>' +
-        '<path id="cofArcS" d="M' + cofPt(334, 18) + 'A334 334 0 0 1 ' + cofPt(334, 72) + '"/><path id="cofArcF" d="M' + cofPt(334, 288) + 'A334 334 0 0 1 ' + cofPt(334, 342) + '"/></defs>';
+function cofStaffSector(i: number, d0: number, d1: number, id: string) {
+    const primary = lCofN(i), enharmonic = lCofN(i, true), paired = primary !== enharmonic;
+    const fifths = paired ? [Math.max(primary, enharmonic), Math.min(primary, enharmonic)] : [primary];
+    const [x, y] = cofPt(paired ? 343 : (COF_R_MAJ1 + COF_R_STAFF) / 2, i * 30);
+    const scale = paired ? .70 : .76;
+    const staves = fifths.map((n, j) => {
+        const offset = paired ? (j - 0.5) * 64 : 0;
+        return `<g class="lw-cof-staff" data-fifths="${n}" transform="translate(${x} ${Number(y) + offset}) scale(${scale}) translate(-56 -26)"><use href="#${id}Staff"/>${srKeySigG('treble', n, 38, 0).svg}</g>`;
+    }).join('');
+    return `<g aria-hidden="true"><path class="lw-cof-staff-sector" d="${cofSector(COF_R_MAJ1, COF_R_STAFF, d0, d1)}"/>${staves}</g>`;
+}
+function cofWheel(layout: 'compact' | 'wide' | 'staff') {
+    const compact = layout !== 'wide', withStaff = layout === 'staff';
+    const id = withStaff ? 'lw-cof' : 'cof';
+    const staffFrame = COF_R_STAFF + 6;
+    const viewBox = withStaff ? `${COF_CENTER - staffFrame} ${COF_CENTER - staffFrame} ${2 * staffFrame} ${2 * staffFrame}` :
+        compact ? '92 92 516 516' : '-12 20 724 650';
+    const staff = withStaff ? `<g id="${id}Staff">${Array.from({ length: 5 }, (_, i) =>
+        `<path class="ss-line" stroke-width="1.8" d="M0 ${i * 12}h112"/>`).join('')}${srClef('treble', 5, 0)}</g>` : '';
+    let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + viewBox + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
+        '<linearGradient id="' + id + 'Split" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
+        '<marker id="' + id + 'AhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
+        '<marker id="' + id + 'AhDn" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#4a7fb0"/></marker>' +
+        (withStaff ? staff : '<path id="cofArcS" d="M' + cofPt(334, 18) + 'A334 334 0 0 1 ' + cofPt(334, 72) + '"/><path id="cofArcF" d="M' + cofPt(334, 288) + 'A334 334 0 0 1 ' + cofPt(334, 342) + '"/>') + '</defs>';
     if (!compact)
         s += '<text class="cof-arc sharp"><textPath href="#cofArcS" startOffset="50%" text-anchor="middle">' + t('cof_sharps') + ' ♯</textPath></text>';
     if (!compact)
@@ -5061,7 +5076,7 @@ function renderCircle() {
     const rMajMid = (COF_R_CNT1 + COF_R_MAJ1) / 2, rCntMid = (COF_R_MIN1 + COF_R_CNT1) / 2, rMinMid = (COF_R_MIN0 + COF_R_MIN1) / 2;
     CIRCLE.forEach((p, i) => {
         const d0 = i * 30 - 15, d1 = i * 30 + 15, sig = cofSigList(i), light = i <= 4 || i >= 10;
-        const fill = i === 6 ? 'fill:url(#cofSplit)' : 'fill:' + COF_COL[i], txt = light ? '#1a1714' : '#fffaf2';
+        const fill = i === 6 ? 'fill:url(#' + id + 'Split)' : 'fill:' + COF_COL[i], txt = light ? '#1a1714' : '#fffaf2';
         const [mx, my] = cofPt(rMajMid, i * 30), [cx, cy] = cofPt(rCntMid, i * 30), [nx, ny] = cofPt(rMinMid, i * 30);
         const majL = i === 6 ? [cofName('F#'), cofName('Gb')] : [cofName(COF_MAJ[i])], minL = i === 6 ? [cofName('D#') + 'm', cofName('Eb') + 'm'] : [cofName(COF_MIN[i]) + 'm'];
         const cnt = i === 0 ? '0' : i < 6 ? i + '♯' : i === 6 ? '6♯ 6♭' : (12 - i) + '♭';
@@ -5071,7 +5086,9 @@ function renderCircle() {
             '<text class="cof-cnt" x="' + cx + '" y="' + cy + '">' + cnt + '</text></g>';
         min += '<g class="cof-k" data-i="' + i + '" data-ring="min" tabindex="0" role="button" aria-pressed="false" aria-label="' + t('cof_aria_min', cofKeyLabel(i, true)) + '">' +
             '<path class="cof-w" d="' + cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) + '" style="' + cofTint(i, 24) + '"/>' + cofText(nx, ny, 'cof-min' + (i === 6 ? ' sm' : ''), minL, 17) + '</g>';
-        if (sig.n && !compact) {
+        if (withStaff)
+            acc += cofStaffSector(i, d0, d1, id);
+        else if (sig.n && !compact) {
             const items = sig.list.split(', '), lines: string[] = [];
             for (let k = 0; k < items.length; k += 3)
                 lines.push(items.slice(k, k + 3).join(' '));
@@ -5079,18 +5096,21 @@ function renderCircle() {
             acc += cofText(ax, (+ay + 6).toFixed(2), 'cof-acc', lines, 19).replace('<text ', '<text style="text-anchor:' + (side ? (sx > 0 ? 'start' : 'end') : 'middle') + '" ');
         }
     });
-    s += maj + min + acc + '<path class="cof-ring-rel" id="cof-rel" d=""/><path class="cof-ring-sel" id="cof-sel" d=""/><g class="cof-now" id="cof-now"></g>';
+    s += (withStaff ? acc + maj + min : maj + min + acc) +
+        `<path class="cof-ring-rel" id="${id}-rel" d=""/><path class="cof-ring-sel" id="${id}-sel" d=""/>`;
+    if (!withStaff)
+        s += '<g class="cof-now" id="cof-now"></g>';
     s += '<circle class="cof-hub" cx="350" cy="350" r="89"/>' +
-        '<path class="cof-arrow up" marker-end="url(#cofAhUp)" d="M' + cofPt(78, -34) + 'A78 78 0 0 1 ' + cofPt(78, 34) + '"/>' +
-        '<path class="cof-arrow dn" marker-end="url(#cofAhDn)" d="M' + cofPt(78, 214) + 'A78 78 0 0 0 ' + cofPt(78, 146) + '"/>' +
+        '<path class="cof-arrow up" marker-end="url(#' + id + 'AhUp)" d="M' + cofPt(78, -34) + 'A78 78 0 0 1 ' + cofPt(78, 34) + '"/>' +
+        '<path class="cof-arrow dn" marker-end="url(#' + id + 'AhDn)" d="M' + cofPt(78, 214) + 'A78 78 0 0 0 ' + cofPt(78, 146) + '"/>' +
         '<text class="cof-iv up" x="350" y="311">' + t('cof_5th') + '</text><text class="cof-st" x="350" y="327">' + t('cof_7st') + '</text>' +
         '<text class="cof-title" x="350" y="355">' + t('ex_tab_circle') + '</text>' +
         '<text class="cof-iv dn" x="350" y="381">' + t('cof_4th') + '</text><text class="cof-st" x="350" y="397">' + t('cof_5st') + '</text></svg>';
-    box.innerHTML = s;
-    box.querySelectorAll('.cof-k').forEach((g) => {
-        if (!(g instanceof SVGElement))
-            return;
-        const pick = () => cofPick(Number(g.dataset.i), g.dataset.ring === 'min');
+    return s;
+}
+function cofBindKeys(box: Element, onPick: (i: number, minor: boolean) => void) {
+    box.querySelectorAll<SVGElement>('.cof-k').forEach((g) => {
+        const pick = () => onPick(Number(g.dataset.i), g.dataset.ring === 'min');
         g.addEventListener('click', pick);
         g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -5098,26 +5118,38 @@ function renderCircle() {
             pick();
         } });
     });
+}
+function cofWheelSelect(box: Element, index: number, minor: boolean, picked: boolean) {
+    const svg = box.querySelector('.cof-svg');
+    if (!svg)
+        return;
+    svg.classList.toggle('has-sel', picked);
+    svg.querySelectorAll<SVGElement>('.cof-k').forEach((g) => {
+        const relativePair = picked && Number(g.dataset.i) === index;
+        const on = relativePair && (g.dataset.ring === 'min') === minor;
+        g.classList.toggle('on', on);
+        g.classList.toggle('rel', relativePair && !on);
+        g.setAttribute('aria-pressed', String(on));
+    });
+    const d0 = index * 30 - 15, d1 = index * 30 + 15;
+    const majD = picked ? cofSector(COF_R_MIN1, COF_R_MAJ1, d0, d1) : '';
+    const minD = picked ? cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) : '';
+    svg.querySelector('.cof-ring-sel')?.setAttribute('d', minor ? minD : majD);
+    svg.querySelector('.cof-ring-rel')?.setAttribute('d', minor ? majD : minD);
+}
+function renderCircle() {
+    const box = byId('circle');
+    if (!box)
+        return;
+    cofCompact = cofIsCompact(box);
+    box.innerHTML = cofWheel(cofCompact ? 'compact' : 'wide');
+    cofBindKeys(box, cofPick);
     cofSel();
     cofInfo();
 }
+// No key context, no ring: the key card still describes the last key looked at.
 function cofSel() {
-    const svg = (document).querySelector('#circle .cof-svg');
-    if (!svg)
-        return;
-    svg.classList.toggle('has-sel', cof.picked);
-    svg.querySelectorAll('.cof-k').forEach((g) => {
-        if (!(g instanceof SVGElement))
-            return;
-        const i = Number(g.dataset.i), mn = g.dataset.ring === 'min', on = cof.picked && i === cof.i && mn === cof.minor;
-        g.classList.toggle('on', on);
-        g.classList.toggle('rel', cof.picked && i === cof.i && !on);
-        g.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    // No key context, no ring: the key card still describes the last key looked at.
-    const d0 = cof.i * 30 - 15, d1 = cof.i * 30 + 15, majD = cof.picked ? cofSector(COF_R_MIN1, COF_R_MAJ1, d0, d1) : '', minD = cof.picked ? cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) : '';
-    byId('cof-sel').setAttribute('d', cof.minor ? minD : majD);
-    byId('cof-rel').setAttribute('d', cof.minor ? majD : minD);
+    cofWheelSelect(byId('circle'), cof.i, cof.minor, cof.picked);
 }
 // Keeps the circle in step with the "Key context" select; "none" clears the circle's pick.
 function circleSel() { const k = exKeyCtx(); if (k) {
@@ -6655,26 +6687,41 @@ function lCofTriad(K: ReturnType<typeof lCofKey>, minor?: boolean) {
 }
 function lwCof(el: LearnWidgetEl) {
     const s = lwIsCof(el._s) ? el._s : (el._s = { i: 0 });
+    el.innerHTML = '<p class="lw-hint">' + t('lw_cof_d') + '</p><div class="lw-cof-wrap"><div class="lw-cof-wheel">' + cofWheel('staff') +
+        '</div><div class="lw-cof-info" aria-live="polite"></div></div>';
+    lwCofInfo(el, s);
+    cofBindKeys(el, (i, minor) => {
+        if (i !== s.i)
+            s.enh = false;
+        s.i = i;
+        s.minor = minor;
+        lwCofInfo(el, s);
+        void lwCofPlay(s);
+    });
+}
+function lwCofInfo(el: LearnWidgetEl, s: LwCofState) {
+    cofWheelSelect(el, s.i, !!s.minor, true);
     const hasEnh = s.i >= 5 && s.i <= 7, enh = hasEnh && !!s.enh, minor = !!s.minor;
     const K = lCofKey(s.i, enh), altK = hasEnh ? lCofKey(s.i, !enh) : null;
     const cnt = Math.abs(K.n), ord = (K.n >= 0 ? SS_SHARP_ORDER : SS_FLAT_ORDER).slice(0, cnt).map((li) => lSp(li, K.n > 0 ? 1 : -1));
     const tri = lCofTriad(K, minor);
-    let btns = '';
-    for (let i = 0; i < 12; i++) {
-        const k = lCofKey(i), kn = i === 6 ? lCofKey(i, true) : null, a = i * Math.PI / 6, x = 50 + 40 * Math.sin(a), y = 50 - 40 * Math.cos(a);
-        const majL = lSp(k.li, k.acc) + (kn ? '/' + lSp(kn.li, kn.acc) : '');
-        const minL = lSp(k.mli, k.macc) + (kn ? '/' + lSp(kn.mli, kn.macc) : '') + 'm';
-        btns += '<button type="button" data-w="cof" data-k="' + i + '" aria-pressed="' + (i === s.i) + '" style="left:' + x.toFixed(1) + '%;top:' + y.toFixed(1) + '%"><b>' + majL + '</b><small>' + minL + '</small></button>';
-    }
     const sig = cnt ? t(K.n > 0 ? 'lw_sig_s' : 'lw_sig_f', cnt, ord.join(' ')) : t('lw_sig0');
     const name = minor ? lSp(K.mli, K.macc) : lSp(K.li, K.acc), key = t(minor ? 'key_minor' : 'key_major', name);
     const relName = minor ? lSp(K.li, K.acc) : lSp(K.mli, K.macc), relKey = t(minor ? 'key_major' : 'key_minor', relName);
     const relHtml = minor ? t('cof_rel_maj', '<b>' + relKey + '</b>') : t('lw_rel', '<b>' + relKey + '</b>');
     const togBtns = '<button type="button" class="btn ghost sm" data-w="cofmin">' + relKey + '</button>' +
         (altK ? '<button type="button" class="btn ghost sm" data-w="cofenh">' + lSp(minor ? altK.mli : altK.li, minor ? altK.macc : altK.acc) + ' (' + Math.abs(altK.n) + (altK.n > 0 ? '♯' : '♭') + ')</button>' : '');
-    el.innerHTML = '<h4>⭕ ' + t('lw_cof') + '</h4><p class="lw-hint">' + t('lw_cof_d') + '</p><div class="lw-cof-wrap"><div class="lw-cof" role="group" aria-label="' + t('lw_cof') + '">' + btns + '<div class="lw-cof-c" aria-hidden="true">' + (K.n > 0 ? '♯' : K.n < 0 ? '♭' : '♮') + '<br>' + cnt + '</div></div>' +
-        '<div class="lw-cof-info" aria-live="polite"><p><b>' + key + '</b></p><p>' + sig + '</p><p>' + relHtml + '</p>' +
-        lStaffSmall({ rh: [[tri.pitches, 4]], keyN: K.n }, key + '. ' + sig) + '<div class="lw-row"><button type="button" class="btn primary sm" data-w="cofplay">▶ ' + t('lw_play') + '</button>' + togBtns + '</div></div></div>';
+    lwPart(el, '.lw-cof-info').innerHTML = '<p><b>' + key + '</b></p><p>' + sig + '</p><p>' + relHtml + '</p>' +
+        lStaffSmall({ rh: [[tri.pitches, 4]], keyN: K.n }, key + '. ' + sig) + '<div class="lw-row"><button type="button" class="btn primary sm" data-w="cofplay">▶ ' + t('lw_play') + '</button>' + togBtns + '</div>';
+}
+async function lwCofPlay(s: LwCofState) {
+    const tri = lCofTriad(lCofKey(s.i, s.enh), s.minor);
+    learnHalt();
+    ensureAudio();
+    if (!await preparePiano())
+        return;
+    playChordMidis(tri.midis, true);
+    learnLight(tri.midis, 2200);
 }
 const LW_R: Record<string, ((el: LearnWidgetEl) => void) | undefined> = { scale: lwScale, chord: lwChord, cof: lwCof, metro: lwMetro };
 function lwMount(el: LearnWidgetEl) { el.classList.add('lw'); const f = LW_R[el.dataset.widget ?? '']; if (f)
@@ -6778,31 +6825,17 @@ async function lwClick(w: HTMLElement) {
         return lwScalePlay(el);
     if (a === 'cplay')
         return lwChordPlay(el);
-    if (a === 'cofplay' || a === 'cof' || a === 'cofmin' || a === 'cofenh') {
+    if (a === 'cofplay' || a === 'cofmin' || a === 'cofenh') {
         const s = lwCofState(el);
-        if (a === 'cof') {
-            const k = Number(w.dataset.k);
-            if (k !== s.i)
-                s.enh = false;
-            s.i = k;
-            lwRefocus(el, '[data-w="cof"][data-k="' + s.i + '"]');
+        if (a !== 'cofplay') {
+            if (a === 'cofmin')
+                s.minor = !s.minor;
+            else
+                s.enh = !s.enh;
+            lwCofInfo(el, s);
+            queryHtml(el, '[data-w="' + a + '"]')?.focus({ preventScroll: true });
         }
-        else if (a === 'cofmin') {
-            s.minor = !s.minor;
-            lwRefocus(el, '[data-w="cofmin"]');
-        }
-        else if (a === 'cofenh') {
-            s.enh = !s.enh;
-            lwRefocus(el, '[data-w="cofenh"]');
-        }
-        const K = lCofKey(s.i, s.i >= 5 && s.i <= 7 && !!s.enh), tri = lCofTriad(K, !!s.minor);
-        learnHalt();
-        ensureAudio();
-        if (!await preparePiano())
-            return;
-        playChordMidis(tri.midis, true);
-        learnLight(tri.midis, 2200);
-        return;
+        return lwCofPlay(s);
     }
     if (a === 'w' || a === 'h' || a === 'wh') {
         const s = lwScaleState(el), st = ({ w: 2, h: 1, wh: 3 })[a], tot = s.st.reduce((x, y) => x + y, 0);
