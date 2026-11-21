@@ -21,7 +21,7 @@ test('switching topics keeps the panel open and shows each reference hint', asyn
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(6);
   await expect(hint(page, /shared fingering/)).toContainText('E(3) · F(1)');
   await page.locator('#pr-t-melody').click();
-  await expect(page.locator('#practiceHintsList button')).toHaveCount(0);
+  await expect(page.locator('#practiceHintsList article')).toHaveCount(3);
   await expect(page.locator('#practiceHintsList')).toContainText('Hum the first two or three notes.');
   await expect(panel).toHaveAttribute('open', '');
 });

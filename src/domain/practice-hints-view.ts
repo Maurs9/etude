@@ -1,10 +1,12 @@
 import {
-  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, PRACTICE_HINT_REFERENCES,
-  chordHintSteps, chordHintTones, progressionHintChords, progressionHintSteps,
+  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS, PRACTICE_HINT_REFERENCES,
+  chordHintSteps, chordHintTones, melodyHintExample, progressionHintChords, progressionHintSteps,
   scaleHintFormula, scaleHintSteps, scaleHintTones, techniqueHintSteps, techniqueHintTonic, type PracticeHintDiagram, type PracticeHintStep,
 } from './practice-hints.js';
 import { createChordHintDiagrams } from './chord-hint-diagrams.js';
+import { renderGrandStaff } from './grand-staff.js';
 import { createHintKeyboard } from './hint-keyboard.js';
+import { SR_LET, type SrToken } from './score-types.js';
 import { techniqueSpellDegree, techniqueTonicSpelling, type TechniqueHand } from './technique.js';
 import { keyFifths, spellMidi } from './theory.js';
 
@@ -33,13 +35,13 @@ function element(kind: string, className: string, text?: string): HTMLElement {
   return el;
 }
 
-function card(id: string, title: string, cue: string, formula?: string, visuals?: HTMLElement) {
+function card(id: string, title: string, cue?: string, formula?: string, visuals?: HTMLElement) {
   const article = element('article', 'songcard pr-hint-card');
   article.dataset.hint = id;
   article.append(element('h3', 'pr-hint-name', title));
   if (formula) article.append(element('p', 'pr-hint-formula', formula));
   if (visuals) article.append(visuals);
-  article.append(element('p', 'pr-hint-cue', cue));
+  if (cue) article.append(element('p', 'pr-hint-cue', cue));
   return article;
 }
 
@@ -237,6 +239,52 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     }
   } else {
     contents.append(element('p', 'pr-hint-method', text('pr_hints_melody_cue')));
+    for (const [i, hint] of MELODY_HINTS.entries()) {
+      const id = `melody:${hint.id}`;
+      const title = text('pr_hints_melody_example', String(i + 1));
+      const el = card(hint.id, title);
+      const answer = element('div', 'pr-melody-answer');
+      answer.id = `pr-melody-answer-${hint.id}`;
+      answer.hidden = true;
+      const { notes, steps, fifths } = melodyHintExample(hint, tonic);
+      let positions: Element[] = [];
+      let active: number | undefined;
+      const diagram: PracticeHintDiagram = {
+        followWithoutDock: true,
+        paint(key, sounding = []) {
+          if (active !== undefined) positions[active]?.removeAttribute('data-s');
+          active = sounding.length && key !== undefined ? Number(key) : undefined;
+          if (active !== undefined) positions[active]?.setAttribute('data-s', 'now');
+        },
+      };
+      const actions = element('div', 'pr-hint-actions');
+      const reveal = control(`${id}:notes`, text('pr_hints_melody_show_notes'), title, false, () => {
+        if (answer.hidden && !positions.length) {
+          const tokens: SrToken[] = notes.map(({ li, acc, oct, beats }) =>
+            [`${SR_LET[li]}${acc > 0 ? '#' : acc < 0 ? 'b' : ''}${oct}`, beats]);
+          const score = renderGrandStaff({ ts: [4, 4], keyN: fifths, rh: tokens, compact: true, engrave: 2 },
+            undefined, { namesVisible: false, notation: 'letter' });
+          answer.innerHTML = score.svg;
+          const names = notes.map(({ li, acc }) => spell(li, acc)).join(' · ');
+          const svg = answer.querySelector('svg');
+          svg?.setAttribute('role', 'img');
+          svg?.setAttribute('aria-label', `${text('rdx_clef_treble')} · ${title} · ${names}`);
+          positions = [...answer.querySelectorAll('.ss-n')];
+          if (active !== undefined) positions[active]?.setAttribute('data-s', 'now');
+          answer.append(element('p', 'pr-hint-detail', names));
+        }
+        answer.hidden = !answer.hidden;
+        const label = text(answer.hidden ? 'pr_hints_melody_show_notes' : 'pr_hints_melody_hide_notes');
+        reveal.textContent = label;
+        reveal.setAttribute('aria-label', `${label} — ${title}`);
+        reveal.setAttribute('aria-expanded', String(!answer.hidden));
+      });
+      reveal.setAttribute('aria-controls', answer.id);
+      reveal.setAttribute('aria-expanded', 'false');
+      actions.append(control(`${id}:hear`, text('rdn_listen'), title, disabled, () => play(id, steps, false, diagram)), reveal);
+      el.append(actions, answer);
+      contents.append(el);
+    }
   }
   box.replaceChildren(contents);
   if (focused) [...box.querySelectorAll<HTMLButtonElement>('button')].find(button => button.dataset.hintControl === focused)?.focus({ preventScroll: true });
