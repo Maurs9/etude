@@ -528,4 +528,50 @@ describe('v2 invariance, ergonomics, complexity and single rounding', () => {
     }
     expect(sawRoundingGap).toBe(true);
   });
+
+  it('keeps peak motor alignment above 128 attacks and terminates on extreme timestamps', () => {
+    const burst = Array.from({ length: 28 }, (_, i) =>
+      note(0.7 + i * 0.125, i % 2 ? 79 : 60, 'rh', { startSec: 0.35 + i * 0.125 }));
+    const tail = Array.from({ length: 100 }, (_, i) =>
+      note(40 + i * 2, 60, 'rh', { startSec: 20 + i }));
+    const endBar = note(240, 60, 'rh', { startSec: 120 });
+    const base127 = [...burst, ...tail.slice(0, 99), endBar];
+    const at128 = timeline(base127, 62, { playedDurationSec: 122 });
+    const at129 = timeline([...base127, note(239, 60, 'rh', { startSec: 119.5 })], 62, { playedDurationSec: 122 });
+
+    const est128 = performance(at128);
+    const est129 = performance(at129);
+    expect(est129.axisDifficulty.motor.stars).toBeGreaterThanOrEqual(est128.axisDifficulty.motor.stars);
+    expect(est129.difficultyStars).toBeGreaterThanOrEqual(est128.difficultyStars);
+    expect(est129.continuousAxisStars.motor).toBeGreaterThanOrEqual(est128.continuousAxisStars.motor - 1e-6);
+
+    const hugeTime = performance({
+      measures: [{ start: 0, end: 4, startSec: 1e17, endSec: 1e17 + 4, groups: [1, 1, 1, 1], writtenIndex: 0, fifths: 0 }],
+      notes: [
+        note(0, 60, 'rh', { startSec: 1e17 }),
+        note(1, 64, 'rh', { startSec: 1e17 + 1 }),
+      ],
+      rests: [],
+      playedDurationSec: 1e17,
+      tempoSource: 'written',
+      voiceSource: 'written',
+    });
+    expect(Number.isFinite(hugeTime.score)).toBe(true);
+    expect(Number.isFinite(hugeTime.difficultyStars)).toBe(true);
+    expect(Number.isFinite(hugeTime.enduranceRaw)).toBe(true);
+
+    const infTime = performance({
+      measures: [{ start: 0, end: 4, startSec: 0, endSec: Infinity, groups: [1, 1, 1, 1], writtenIndex: 0, fifths: 0 }],
+      notes: [
+        note(0, 60, 'rh', { startSec: 0 }),
+        note(1, 64, 'rh', { startSec: Infinity }),
+      ],
+      rests: [],
+      playedDurationSec: Infinity,
+      tempoSource: 'written',
+      voiceSource: 'written',
+    });
+    expect(Number.isFinite(infTime.score)).toBe(true);
+    expect(Number.isFinite(infTime.difficultyStars)).toBe(true);
+  });
 });

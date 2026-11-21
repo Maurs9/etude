@@ -13,16 +13,22 @@ import { repeatOrder, scoreXmlRepeatBars } from './score-repeats.js';
 import { anError, type AnMidiMeta, type AnParsedMidi, type AnSource, type ScoreMeasure, type ScoreXmlKey } from './score-types.js';
 
 const EPS = 1e-7;
+const MAX_PLAYBACK_SEC = 1e7;
 const MIDI_MICRO_GROUP_SEC = 0.035;
 const MIDI_CHORD_OVERLAP = 0.70;
 type Tempo = { beat: number; bpm: number };
+
+function assertSafePlaybackSec(value: number): number {
+  if (!Number.isFinite(value) || value < -EPS || value > MAX_PLAYBACK_SEC) throw anError('long');
+  return value;
+}
 
 function tempoClock(input: readonly Tempo[], startingBpm?: number) {
   const tempos = [{ beat: 0, bpm: startingBpm ?? 120 }, ...input.filter(t => t.beat >= 0 && t.bpm > 0 &&
     Number.isFinite(t.beat) && Number.isFinite(t.bpm)).sort((a, b) => a.beat - b.beat)];
   let seconds = 0;
   const segments = tempos.map((tempo, i) => {
-    if (i) seconds += (tempo.beat - tempos[i - 1].beat) * 60 / tempos[i - 1].bpm;
+    if (i) seconds = assertSafePlaybackSec(seconds + (tempo.beat - tempos[i - 1].beat) * 60 / tempos[i - 1].bpm);
     return { ...tempo, seconds };
   });
   return (beat: number) => {
@@ -33,7 +39,7 @@ function tempoClock(input: readonly Tempo[], startingBpm?: number) {
       else hi = mid;
     }
     const { bpm, seconds: at, beat: start } = segments[lo];
-    return at + (beat - start) * 60 / bpm;
+    return assertSafePlaybackSec(at + (beat - start) * 60 / bpm);
   };
 }
 
@@ -81,9 +87,9 @@ function xmlInput(source: Extract<AnSource, { kind: 'xml' }>, startingBpm?: numb
   order.forEach((writtenIndex, i) => {
     const bar = bars[writtenIndex], length = bar.end - bar.start;
     if (length <= EPS) return;
-    const onset = clock(bar.start), duration = clock(bar.end) - onset;
+    const onset = clock(bar.start), duration = assertSafePlaybackSec(clock(bar.end) - onset);
     const start = beat, end = beat + length, startSec = seconds;
-    const endSec = startSec + duration, groups = measureGroups(bar);
+    const endSec = assertSafePlaybackSec(startSec + duration), groups = measureGroups(bar);
     const measure: DifficultyMeasure = {
       start, end, startSec, endSec, groups, writtenIndex, fifths: keyAt(bar.start),
       num: bar.num, den: bar.den,
@@ -102,7 +108,7 @@ function xmlInput(source: Extract<AnSource, { kind: 'xml' }>, startingBpm?: numb
           : note.art.tenuto ? 'tenuto' : undefined;
       notes.push({
         ...note.difficulty, start: start + note.start - bar.start, end: start + Math.min(note.end, writtenEnds[i]) - bar.start,
-        startSec: startSec + clock(note.start) - onset, midi: note.midi, hand: note.hand, voice: voice(note),
+        startSec: assertSafePlaybackSec(startSec + clock(note.start) - onset), midi: note.midi, hand: note.hand, voice: voice(note),
         finger: note.finger, ornaments: (note.difficulty?.ornaments ?? 0) + (note.graces?.length ?? 0),
         ...(note.difficulty?.trills ? { trills: note.difficulty.trills } : {}),
         ...(articulation ? { articulation } : {}),
@@ -172,7 +178,9 @@ function midiInput(parsed: AnParsedMidi, startingBpm?: number, microGroup = true
     while (key < keys.length && keys[key].beat <= at + EPS) fifths = keys[key++].fifths;
     const stop = Math.min(end, at + meter.num * 4 / meter.den, meters[next]?.beat ?? Infinity);
     const groups = measureGroups({ ...meter, start: at, end: stop, number: '' });
-    measures.push({ start: at, end: stop, startSec: clock(at), endSec: clock(stop), groups, writtenIndex: measures.length, fifths, num: meter.num, den: meter.den });
+    const startSec = clock(at), endSec = clock(stop);
+    if (endSec < startSec - EPS) throw anError('long');
+    measures.push({ start: at, end: stop, startSec, endSec, groups, writtenIndex: measures.length, fifths, num: meter.num, den: meter.den });
     at = stop;
   }
   const assigned = anAssignHands(parsed.notes, 'auto');

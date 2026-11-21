@@ -442,4 +442,56 @@ describe('v2 calibration, rank benchmark and local audit', () => {
     expect(bench.meanV2.tauC).toBeGreaterThanOrEqual(bench.meanV1.tauC);
     expect(bench.meanV2.majorInversionRate).toBeLessThanOrEqual(bench.meanV1.majorInversionRate);
   });
+
+  it('keeps MIDI peak alignment across the 128-to-129 attack transition and rejects extreme slow tempos', () => {
+    // 24 off-grid rapid wide-leap attacks straddling t=0.45..4.9s plus 104 easy spaced attacks (= 128 total)
+    const burst = Array.from({ length: 24 }, (_, i) => ({
+      midi: i % 2 ? 79 : 60, start: 0.9 + i * 0.37, end: 0.9 + i * 0.37 + 0.2, vel: 90, channel: 0, track: 0,
+    }));
+    const tail = Array.from({ length: 103 }, (_, i) => ({
+      midi: 60, start: 30 + i * 2, end: 30 + i * 2 + 0.5, vel: 90, channel: 0, track: 0,
+    }));
+    const endNote = { midi: 60, start: 238, end: 240, vel: 90, channel: 0, track: 0 };
+    const extraTail = { midi: 60, start: 237, end: 237.5, vel: 90, channel: 0, track: 0 };
+    const makeMidi = notes => ({
+      kind: 'midi', title: 'Cliff', label: 'cliff.mid',
+      parsed: { ppq: 480, format: 0, tracks: 1, names: [], notes, meta: [{ type: 'tempo', beat: 0, bpm: 120 }] },
+    });
+    const est128 = estimateImportedScore(makeMidi([...burst, ...tail, endNote]));
+    const est129 = estimateImportedScore(makeMidi([...burst, ...tail, extraTail, endNote]));
+    expect(est129.axisDifficulty.motor.stars).toBeGreaterThanOrEqual(est128.axisDifficulty.motor.stars);
+    expect(est129.difficultyStars).toBeGreaterThanOrEqual(est128.difficultyStars);
+    expect(est129.continuousAxisStars.motor).toBeGreaterThanOrEqual(est128.continuousAxisStars.motor - 1e-6);
+
+    const slowMidi = {
+      kind: 'midi', title: 'Slow', label: 'slow.mid',
+      parsed: {
+        ppq: 480, format: 0, tracks: 1, names: [],
+        notes: [{ midi: 60, start: 0, end: 4, vel: 90, channel: 0, track: 0 }],
+        meta: [{ type: 'tempo', beat: 0, bpm: 1e-20 }],
+      },
+    };
+    expect(() => estimateImportedScore(slowMidi)).toThrow();
+
+    const prevDomParser = globalThis.DOMParser;
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return { querySelectorAll: () => [], children: [] };
+      }
+    };
+    try {
+      const slowXml = {
+        kind: 'xml', title: 'SlowXml', label: 'slow.musicxml', xml: '<score-partwise/>', layout: null,
+        notes: [{ start: 0, end: 4, midi: 60, hand: 'rh', part: 0, staff: 1, voice: 1, art: {} }],
+        measures: [{ start: 0, end: 4, num: 4, den: 4, number: '1' }],
+        keys: [], harmonies: [], links: [], tempoWords: new Set(),
+        tempos: [{ beat: 0, bpm: 1e-20 }],
+      };
+      expect(() => estimateImportedScore(slowXml)).toThrow();
+      expect(() => estimateImportedScore({ ...slowXml, tempos: [{ beat: 0, bpm: 1e-308 }] })).toThrow();
+    } finally {
+      if (prevDomParser === undefined) delete globalThis.DOMParser;
+      else globalThis.DOMParser = prevDomParser;
+    }
+  });
 });

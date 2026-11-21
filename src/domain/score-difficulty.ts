@@ -165,6 +165,7 @@ const HANDS: readonly DifficultyHand[] = ['rh', 'lh'];
 const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
 const ASYMMETRIC_NUMS = new Set([5, 7, 10, 11, 13]);
 const MOTOR_V2_DIVISOR = 3.6;
+const MAX_SAFE_WINDOW_SEC = 1e7;
 const unit = (value: number) => Math.min(1, Math.max(0, value));
 const round = (value: number) => Math.round(value * 100) / 100;
 // At the original axis ceiling the star scale is halfway through its range.
@@ -511,7 +512,8 @@ function annotateHand(
 
     let attackMotorCost = 0.22;
     const attackDrivers: DriverWeights = {};
-    const dtRaw = previous ? attack.sec - previous.sec : 0;
+    const rawDeltaSec = previous ? attack.sec - previous.sec : 0;
+    const dtRaw = Number.isFinite(rawDeltaSec) && rawDeltaSec >= 0 ? rawDeltaSec : 1e6;
     const speedV2 = previous ? Math.log(1 + Math.max(0, 1 / Math.max(0.04, dtRaw) - 2)) : 0;
 
     if (isV2 && handSpan >= 10) {
@@ -890,9 +892,16 @@ function evaluatePhysicalMotorWindows(
   measures: readonly DifficultyMeasure[],
   totalSec: number,
 ): { peakStrength: number; peakMeasures: readonly number[]; peakDrivers: DriverWeights; typicalStrength: number; activeWindowStrengths: number[] } {
-  if (!sortedEvents.length || totalSec <= 0) {
-    return { peakStrength: 0, peakMeasures: [], peakDrivers: {}, typicalStrength: 0, activeWindowStrengths: [] };
+  const empty = { peakStrength: 0, peakMeasures: [], peakDrivers: {}, typicalStrength: 0, activeWindowStrengths: [] };
+  if (!sortedEvents.length || !Number.isFinite(totalSec) || totalSec <= 0 || totalSec > MAX_SAFE_WINDOW_SEC) {
+    return empty;
   }
+  const hasInvalidSec = sortedEvents.some(ev => !Number.isFinite(ev.sec) || ev.sec < -EPSILON || ev.sec > totalSec + EPSILON);
+  const validEvents = hasInvalidSec
+    ? sortedEvents.filter(ev => Number.isFinite(ev.sec) && ev.sec >= -EPSILON && ev.sec <= totalSec + EPSILON)
+    : sortedEvents;
+  if (!validEvents.length) return empty;
+
   const durations = totalSec <= 4 + EPSILON ? [totalSec] : totalSec <= 8 + EPSILON ? [4, totalSec] : [4, 8];
   const typicalDur = durations[durations.length - 1];
   let peakStrength = 0;
@@ -900,45 +909,90 @@ function evaluatePhysicalMotorWindows(
   let peakDrivers: DriverWeights = {};
   const typicalStrengths: number[] = [];
 
+  const scanStarts = (starts: readonly number[], winDur: number, collectTypical: boolean) => {
+    let left = 0;
+    let right = 0;
+    let count = 0;
+    let rhSum = 0;
+    let lhSum = 0;
+    let unSum = 0;
+    for (const t0 of starts) {
+      const t1 = Math.min(totalSec, t0 + winDur);
+      const inclusiveEnd = t1 >= totalSec - EPSILON;
+      while (left < validEvents.length && validEvents[left].sec < t0 - EPSILON) {
+        if (left < right) {
+          const ev = validEvents[left];
+          count--;
+          if (ev.hand === 'rh') rhSum -= ev.cost;
+          else if (ev.hand === 'lh') lhSum -= ev.cost;
+          else unSum -= ev.cost;
+          left++;
+        } else {
+          left++;
+          right = left;
+        }
+      }
+      if (count === 0) {
+        rhSum = 0;
+        lhSum = 0;
+        unSum = 0;
+      }
+      while (right < validEvents.length && (inclusiveEnd ? validEvents[right].sec <= t1 + EPSILON : validEvents[right].sec < t1 - EPSILON)) {
+        const ev = validEvents[right];
+        count++;
+        if (ev.hand === 'rh') rhSum += ev.cost;
+        else if (ev.hand === 'lh') lhSum += ev.cost;
+        else unSum += ev.cost;
+        right++;
+      }
+      if (!count) continue;
+      const rh = Math.max(0, rhSum);
+      const lh = Math.max(0, lhSum);
+      const un = Math.max(0, unSum);
+      const dur = Math.max(0.25, t1 - t0);
+      const approxStrength = (Math.max(rh, lh) + 0.50 * Math.min(rh, lh) + un) / dur / MOTOR_V2_DIVISOR;
+      if (collectTypical) typicalStrengths.push(approxStrength);
+      if (approxStrength > peakStrength - 1e-9) {
+        const stats = motorSliceStats(validEvents, measures, t0, t1, totalSec, left);
+        if (stats.count && stats.strength > peakStrength) {
+          peakStrength = stats.strength;
+          peakMeasures = stats.writtenMeasures;
+          peakDrivers = stats.drivers;
+        }
+      }
+    }
+  };
+
+  // Peak windows align to every attack regardless of total event count so adding distant light notes never lowers the peak.
   for (const winDur of durations) {
     const maxStart = Math.max(0, totalSec - winDur);
-    const maxIntStart = Math.floor(maxStart + EPSILON);
-    const rawStarts: number[] = [];
-    // Step only integer starts that overlap at least one sorted event, skipping silent gaps.
-    let lastInt = -1;
-    for (const ev of sortedEvents) {
-      const firstT = Math.max(0, lastInt + 1, Math.floor(ev.sec - winDur));
-      const lastT = Math.min(maxIntStart, Math.floor(ev.sec + EPSILON));
-      for (let t = firstT; t <= lastT; t++) {
-        rawStarts.push(t);
-      }
-      if (lastT > lastInt) lastInt = lastT;
+    const peakStarts: number[] = [0];
+    for (const ev of validEvents) {
+      const s = Math.max(0, Math.min(maxStart, ev.sec));
+      if (s - peakStarts[peakStarts.length - 1] > 1e-6) peakStarts.push(s);
     }
-    rawStarts.push(maxStart);
-    if (sortedEvents.length <= 128) {
-      for (const ev of sortedEvents) {
-        rawStarts.push(Math.max(0, Math.min(maxStart, ev.sec)));
-      }
-    }
-    rawStarts.sort((a, b) => a - b);
-    const starts: number[] = [];
-    for (const s of rawStarts) {
-      if (!starts.length || s - starts[starts.length - 1] > 1e-6) starts.push(s);
-    }
-    let cursor = 0;
-    for (const t0 of starts) {
-      while (cursor < sortedEvents.length && sortedEvents[cursor].sec < t0 - EPSILON) cursor++;
-      const t1 = Math.min(totalSec, t0 + winDur);
-      const stats = motorSliceStats(sortedEvents, measures, t0, t1, totalSec, cursor);
-      if (!stats.count) continue;
-      if (stats.strength > peakStrength) {
-        peakStrength = stats.strength;
-        peakMeasures = stats.writtenMeasures;
-        peakDrivers = stats.drivers;
-      }
-      if (winDur === typicalDur) typicalStrengths.push(stats.strength);
-    }
+    if (maxStart - peakStarts[peakStarts.length - 1] > 1e-6) peakStarts.push(maxStart);
+    scanStarts(peakStarts, winDur, false);
   }
+
+  // Typical and stamina effort sample active 1-second grid windows uniformly without event-density bias.
+  const maxStart = Math.max(0, totalSec - typicalDur);
+  const maxIntStart = Math.floor(maxStart + EPSILON);
+  const gridStarts: number[] = [];
+  let lastInt = -1;
+  for (const ev of validEvents) {
+    const firstT = Math.max(0, lastInt + 1, Math.floor(ev.sec - typicalDur));
+    const lastT = Math.min(maxIntStart, Math.floor(ev.sec + EPSILON));
+    if (!Number.isSafeInteger(firstT) || !Number.isSafeInteger(lastT)) continue;
+    for (let t = firstT; t <= lastT; t++) {
+      gridStarts.push(t);
+    }
+    if (lastT > lastInt) lastInt = lastT;
+  }
+  if (!gridStarts.length || maxStart - gridStarts[gridStarts.length - 1] > 1e-6) {
+    gridStarts.push(maxStart);
+  }
+  scanStarts(gridStarts, typicalDur, true);
 
   return {
     peakStrength,
@@ -995,6 +1049,7 @@ function summarizeWindow(
   const measures = input.measures.slice(start, end + 1);
   const quarters = input.measures[end].end - input.measures[start].start;
   const seconds = input.measures[end].endSec - input.measures[start].startSec;
+  const safeSeconds = Number.isFinite(seconds) && seconds > EPSILON ? seconds : 0;
 
   let motorStrength: number;
   if (isV2) {
@@ -1007,10 +1062,10 @@ function summarizeWindow(
     sums.reading += patternLoad;
     addDriver(windowDrivers.reading, 'pattern_unpredictability', patternLoad);
   } else {
-    motorStrength = sums.motor / (structural ? quarters : seconds) / 3;
+    motorStrength = sums.motor / (structural ? quarters : (safeSeconds || Math.max(0.25, quarters * 0.5))) / 3;
   }
 
-  const bpm = seconds > EPSILON ? (quarters / seconds) * 60 : 120;
+  const bpm = safeSeconds > EPSILON ? (quarters / safeSeconds) * 60 : 120;
   const rhythmTempo = isV2 ? 1 + 0.15 * Math.tanh((bpm - 100) / 80) : 1;
   const bimanualTempo = isV2 ? 1 + 0.28 * Math.tanh((bpm - 100) / 70) : 1;
 
@@ -1161,7 +1216,9 @@ export function estimateScoreDifficulty(
   const typical = median(typicalScores);
   const { total, unique, uniqueTokens } = writtenVariety(input.measures, bars);
   const playedSeconds = input.playedDurationSec ?? totalMeasureSec;
-  const durationBonus = playedSeconds > 60 ? Math.log2(playedSeconds / 60) : 0;
+  const durationBonus = Number.isFinite(playedSeconds) && playedSeconds > 60 && playedSeconds <= MAX_SAFE_WINDOW_SEC
+    ? Math.log2(playedSeconds / 60)
+    : 0;
 
   let stamina = 0;
   let materialLoad = 0;
