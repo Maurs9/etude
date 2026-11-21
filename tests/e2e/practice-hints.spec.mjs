@@ -20,7 +20,9 @@ test('switching topics keeps the panel open and shows each reference hint', asyn
   await expect(hint(page, /Jazz cadence/)).toContainText('Dm7 – G7 – Cmaj7');
   await page.locator('#pr-t-technique').click();
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(6);
-  await expect(hint(page, /shared fingering/)).toContainText('E(3) · F(1)');
+  const technique = hint(page, /shared fingering/);
+  await expand(technique);
+  await expect(technique).toContainText('E(3) · F(1)');
   await page.locator('#pr-t-melody').click();
   await expect(page.locator('#practiceHintsList button')).toHaveCount(0);
   await expect(page.locator('#practiceHintsList')).toContainText('Hum the first two or three notes.');
@@ -61,7 +63,9 @@ test('accompaniment owns progression playback while the loop is running', async 
   await page.locator('#pr-t-prog').click();
   await page.locator('#pr-songs summary').click();
   await page.locator('#pr-mode button[data-v="along"]').click();
-  const play = hint(page, /Jazz cadence/).getByRole('button', { name: /Hear the hint/ });
+  const jazz = hint(page, /Jazz cadence/);
+  await expand(jazz);
+  const play = jazz.getByRole('button', { name: /Hear the progression/ });
   await expect(play).toBeEnabled();
   await page.locator('#pr-start').click();
   await expect(play).toBeDisabled();
@@ -144,7 +148,9 @@ test('a fixed tonic transposes playback and notation changes only the names', as
   await page.locator('#pr-t-technique').click();
   const exception = page.locator('#practiceHintsList [data-hint="major_f_b"]');
   await expect(exception.getByRole('heading')).toHaveText('F and H major');
-  await expect(exception.locator('.pr-hint-fingers').last()).toHaveText('H(4) · C♯(3) · D♯(2) · E(1) · F♯(4) · G♯(3) · A♯(2) · H(1)');
+  await expand(exception);
+  await exception.getByRole('button', { name: /^Left hand/ }).click();
+  await expect(exception.locator('.pr-hint-fingers')).toHaveText('H(4) · C♯(3) · D♯(2) · E(1) · F♯(4) · G♯(3) · A♯(2) · H(1)');
 });
 
 test('closing the panel or navigating cancels the key guide', async ({ app }) => {
@@ -152,7 +158,9 @@ test('closing the panel or navigating cancels the key guide', async ({ app }) =>
   await page.locator('#pr-t-technique').click();
   const summary = page.locator('#pr-songs summary');
   await summary.click();
-  const demonstration = hint(page, /shared fingering/).getByRole('button', { name: /Right hand/ });
+  const technique = hint(page, /shared fingering/);
+  await expand(technique);
+  const demonstration = technique.getByRole('button', { name: /Hear the passage/ });
   await demonstration.click();
   const keys = page.locator('[data-pr-hint-key]');
   await expect(keys.first()).toBeVisible();
@@ -198,6 +206,7 @@ test('repertoire names the passage and opens the bundled opening without a perso
   await page.locator('#pr-t-prog').click();
   await page.locator('#pr-songs summary').click();
   const pop = hint(page, '1950s progression');
+  await expand(pop);
   await expect(pop).toContainText('Stand by Me (1961)');
   await expect(pop).toContainText('Intro, bars 1–6');
   await expect(pop.getByRole('button', { name: /Find in the piece/ })).toHaveCount(0);
@@ -214,6 +223,7 @@ test('repertoire names the passage and opens the bundled opening without a perso
   await expect(page.locator('#view-practice')).toBeVisible();
   await page.locator('#pr-t-technique').click();
   const arpeggio = hint(page, 'Major arpeggios');
+  await expand(arpeggio);
   await expect(arpeggio).toContainText('BWV 846');
   await arpeggio.getByRole('button', { name: /Find in the piece/ }).click();
   await expect(page.locator('#an-name')).toHaveText('Prelude in C, BWV 846 (opening)');
@@ -225,6 +235,7 @@ test('translated hint cards fit a narrow viewport and have tappable controls', a
   await page.locator('#pr-t-technique').click();
   await page.locator('#pr-songs summary').click();
   await expect(page.locator('#pr-songs summary')).toHaveText('Indices de doigté');
+  await expand(page.locator('[data-hint="major_common"]'));
   const sizes = await page.locator('#practiceHintsList').evaluate(panel => ({
     fits: panel.scrollWidth <= panel.clientWidth,
     heights: [...panel.querySelectorAll('button')].map(button => button.getBoundingClientRect().height),

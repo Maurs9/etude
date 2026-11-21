@@ -110,6 +110,29 @@
 .pr-chord-note.pr-chord-changed .ss-head{stroke:var(--accent); stroke-width:2.5}
 .pr-chord-note.pr-chord-sounding .ss-head{fill:var(--staffink); stroke:var(--staffink)}
 @media (max-width:680px){.pr-chord-open .pr-chord-visuals{grid-template-columns:minmax(0,1fr)}}
+.pr-study-card,.pr-study-detail{min-width:0}
+.pr-study-card.pr-study-open{grid-column:1/-1; border-color:var(--accent)}
+.pr-study-detail{width:100%; padding-top:8px}
+.pr-study-detail:not([hidden]),.pr-study-layout,.pr-study-keyboard-wrap,.pr-study-staves{display:grid; gap:10px; min-width:0}
+.pr-study-chords{display:flex; flex-wrap:wrap; gap:6px}
+.pr-study-card .btn[aria-pressed=true]{border-color:var(--accent); color:var(--ink); box-shadow:inset 0 -2px var(--accent)}
+.pr-study-visuals{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:16px; align-items:start; max-width:840px}
+.pr-study-staff,.pr-study-keyboard{display:block; width:100%; height:auto}
+.pr-study-staff{max-width:370px}
+.pr-study-keyboard{max-width:330px}
+.pr-study-keyboard-title,.pr-study-direction{font-weight:600}
+.pr-study-column-mark{fill:transparent}
+.pr-study-selected .pr-study-column-mark{fill:var(--accent); opacity:.12}
+.pr-study-note .ss-head{fill:none; stroke:var(--staffink); stroke-width:1.6}
+.pr-study-passage .ss-head{stroke:var(--accent); stroke-width:2.2}
+.pr-study-playing .ss-head{fill:var(--staffink); stroke:var(--staffink)}
+.pr-study-finger{fill:var(--staffink); font:bold 12px var(--sans)}
+.pr-study-passage .pr-study-finger{text-decoration:underline}
+.pr-study-resolution.pr-study-playing{color:var(--ink); font-weight:700}
+.pr-study-key-finger{display:none; fill:#fff; font:bold 9px var(--sans); text-anchor:middle; dominant-baseline:central}
+.pr-technique-keyboard .pr-chord-sounding .pr-chord-key-dot{visibility:hidden}
+.pr-chord-sounding .pr-study-key-finger{display:block}
+@media (max-width:680px){.pr-study-visuals{grid-template-columns:minmax(0,1fr)}}
 .key[data-pr-hint-key]{outline:2px solid #004e97; outline-offset:-3px}
 .key[data-pr-hint-key]::after{content:attr(data-pr-hint-key); position:absolute; inset:auto 50% 23% auto; transform:translateX(50%); min-width:17px; border-radius:9px; padding:1px 3px; background:#004e97; color:#fff; text-align:center; font:700 11px/15px var(--sans); pointer-events:none; z-index:4}
 

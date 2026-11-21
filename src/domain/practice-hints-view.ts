@@ -1,10 +1,12 @@
 import {
   CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, PRACTICE_HINT_REFERENCES,
-  chordHintSteps, chordHintTones, progressionHintChords, progressionHintSteps,
-  scaleHintFormula, scaleHintSteps, techniqueHintSteps, techniqueHintTonic, type PracticeHintDiagram, type PracticeHintStep,
+  chordHintSteps, chordHintTones, progressionHintChords,
+  scaleHintFormula, scaleHintSteps, techniqueHintTonic, type PracticeHintDiagram, type PracticeHintStep,
 } from './practice-hints.js';
 import { createChordHintDiagrams } from './chord-hint-diagrams.js';
-import { techniqueSpellDegree, techniqueTonicSpelling, type TechniqueHand } from './technique.js';
+import { control, element } from './practice-hint-dom.js';
+import { renderProgressionStudy, renderTechniqueStudy, type StudyHintOptions, type StudyHintState } from './practice-study-view.js';
+import { techniqueTonicSpelling } from './technique.js';
 import { keyFifths, spellMidi } from './theory.js';
 
 export type PracticeHintsTopic = 'chord' | 'scale' | 'prog' | 'technique' | 'melody';
@@ -13,25 +15,13 @@ export function isPracticeHintsTopic(topic: string): topic is PracticeHintsTopic
   return topic === 'chord' || topic === 'scale' || topic === 'prog' || topic === 'technique' || topic === 'melody';
 }
 
-interface HintViewOptions {
+interface HintViewOptions extends StudyHintOptions {
   readonly tonic: number | null;
-  readonly audioOnly: boolean;
-  readonly disabled: boolean;
-  readonly text: (key: string, ...args: string[]) => string;
-  readonly spell: (letter: number, accidental: number) => string;
   readonly chordName: (symbol: string) => string;
   readonly scaleName: (name: string) => string;
-  readonly play: (id: string, steps: readonly PracticeHintStep[], keys: boolean, diagram?: PracticeHintDiagram) => void;
-  readonly stop: () => void;
   readonly chordExpansion: { open: string | null };
+  readonly study: StudyHintState;
   readonly openExample: (id: string) => void;
-}
-
-function element(kind: string, className: string, text?: string): HTMLElement {
-  const el = document.createElement(kind);
-  el.className = className;
-  if (text !== undefined) el.textContent = text;
-  return el;
 }
 
 function card(id: string, title: string, cue: string, formula?: string) {
@@ -41,18 +31,6 @@ function card(id: string, title: string, cue: string, formula?: string) {
   if (formula) article.append(element('p', 'pr-hint-formula', formula));
   article.append(element('p', 'pr-hint-cue', cue));
   return article;
-}
-
-function control(id: string, label: string, description: string, disabled: boolean, activate: () => void) {
-  const button = document.createElement('button');
-  button.className = 'btn sm';
-  button.textContent = label;
-  button.type = 'button';
-  button.dataset.hintControl = id;
-  button.disabled = disabled;
-  button.setAttribute('aria-label', `${label} — ${description}`);
-  button.addEventListener('click', activate);
-  return button;
 }
 
 export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTopic, options: HintViewOptions): void {
@@ -123,7 +101,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       toggle.setAttribute('aria-controls', `${diagrams.staff.id} ${detail.id}`);
       detail.append(diagrams.caption, element('p', 'pr-hint-cue', text(`pr_hints_c_${hint.cue}`)));
       if (hint.compare) detail.append(element('p', 'pr-hint-detail', text('pr_hints_compare', chordName(hint.compare))));
-      appendPlayback(detail, id, title, chordHintSteps(hint, tonic), diagrams.paint);
+      appendPlayback(detail, id, title, chordHintSteps(hint, tonic), diagrams);
       appendReference(detail, id);
       el.append(heading, element('p', 'pr-hint-formula', tones.map(tone => tone.label).join(' ')), visuals, detail);
       const setOpen = (open: boolean) => {
@@ -154,41 +132,63 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       appendReference(el, id);
       contents.append(el);
     }
-  } else if (topic === 'prog') {
-    for (const hint of PROGRESSION_HINTS) {
-      const title = text(`pr_hints_p_${hint.cue}_title`);
-      const chords = progressionHintChords(hint, tonic);
-      const names = chords.map(({ root, symbol }) => rootName(root, tonic, hint.minor) + (symbol === 'maj' ? '' : symbol));
-      const el = card(hint.name, title, text(`pr_hints_p_${hint.cue}`), chords.map(chord => chord.roman).join('–'));
-      el.append(element('p', 'pr-hint-detail', names.join(' – ')));
-      const id = `prog:${hint.name}`;
-      appendPlayback(el, id, title, progressionHintSteps(hint, tonic));
-      appendReference(el, id);
+  } else if (topic === 'prog' || topic === 'technique') {
+    const toggles = new Map<string, (open: boolean) => void>();
+    const appendStudy = (hint: string, title: string, summary: readonly string[], cue: string, build: () => HTMLElement) => {
+      const id = `${topic}:${hint}`;
+      const el = element('article', 'songcard pr-hint-card pr-study-card');
+      el.dataset.hint = hint;
+      const heading = element('h3', 'pr-hint-name');
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'pr-chord-toggle';
+      toggle.dataset.hintControl = `${id}:toggle`;
+      toggle.textContent = title;
+      const detail = element('div', 'pr-study-detail');
+      detail.id = `pr-study-detail-${encodeURIComponent(id)}`;
+      toggle.setAttribute('aria-controls', detail.id);
+      heading.append(toggle);
+      const lines = summary.map((line, i) => element('p', i === 0 ? 'pr-hint-formula' : 'pr-hint-detail', line));
+      el.append(heading, ...lines, element('p', 'pr-hint-cue', cue), detail);
+      const setOpen = (open: boolean) => {
+        detail.hidden = !open;
+        el.classList.toggle('pr-study-open', open);
+        toggle.setAttribute('aria-expanded', String(open));
+        if (open) {
+          detail.replaceChildren(build());
+          appendReference(detail, id);
+        } else detail.replaceChildren();
+      };
+      toggles.set(hint, setOpen);
+      setOpen(options.study.open[topic] === hint);
+      toggle.addEventListener('click', () => {
+        options.stop();
+        const previous = options.study.open[topic];
+        if (previous) toggles.get(previous)?.(false);
+        options.study.open[topic] = previous === hint ? null : hint;
+        if (options.study.open[topic]) setOpen(true);
+      });
       contents.append(el);
-    }
-  } else if (topic === 'technique') {
-    for (const hint of TECHNIQUE_HINTS) {
-      const pitch = techniqueHintTonic(hint, options.tonic);
-      const spelling = techniqueTonicSpelling(hint.kind, pitch);
-      const namedTonics = hint.namedTonics?.map(key => rootName(key)) ?? [];
-      const title = text(`pr_hints_t_${hint.id}_title`, ...namedTonics);
-      const tonicName = spell(spelling.letter, spelling.acc);
-      const el = card(hint.id, title, text(`pr_hints_t_${hint.id}`, ...namedTonics), tonicName);
-      for (const hand of ['rh', 'lh'] as const satisfies readonly TechniqueHand[]) {
-        const { ascending, fragment, steps } = techniqueHintSteps(hint, pitch, hand);
-        const handName = text(`tq_h_${hand}`);
-        const fingers = element('p', 'pr-hint-detail pr-hint-fingers');
-        for (const [i, note] of ascending.entries()) {
-          const name = techniqueSpellDegree(hint.kind, pitch, note.degree);
-          const label = `${spell(name.letter, name.acc)}(${note.finger})`;
-          if (i) fingers.append(' · ');
-          fingers.append(fragment.includes(note) ? element('strong', 'pr-hint-focus', label) : label);
-        }
-        const id = `technique:${hint.id}:${hand}`;
-        el.append(control(id, `${text('pr_hints_hear')} · ${handName}`, `${title} · ${tonicName}`, disabled, () => play(id, steps, true)), fingers);
+    };
+    if (topic === 'prog') {
+      for (const hint of PROGRESSION_HINTS) {
+        const title = text(`pr_hints_p_${hint.cue}_title`);
+        const chords = progressionHintChords(hint, tonic);
+        const names = chords.map(({ root, symbol }) => rootName(root, tonic, hint.minor) + (symbol === 'maj' ? '' : symbol));
+        const romans = chords.map(chord => chord.roman).join('–');
+        appendStudy(hint.name, title, [romans, names.join(' – ')], text(`pr_hints_p_${hint.cue}`),
+          () => renderProgressionStudy(hint, tonic, title, names, options, options.study));
       }
-      appendReference(el, `technique:${hint.id}`);
-      contents.append(el);
+    } else {
+      for (const hint of TECHNIQUE_HINTS) {
+        const pitch = techniqueHintTonic(hint, options.tonic);
+        const spelling = techniqueTonicSpelling(hint.kind, pitch);
+        const namedTonics = hint.namedTonics?.map(key => rootName(key)) ?? [];
+        const title = text(`pr_hints_t_${hint.id}_title`, ...namedTonics);
+        const tonicName = spell(spelling.letter, spelling.acc);
+        appendStudy(hint.id, title, [tonicName], text(`pr_hints_t_${hint.id}`, ...namedTonics),
+          () => renderTechniqueStudy(hint, pitch, `${title} · ${tonicName}`, options, options.study));
+      }
     }
   } else {
     contents.append(element('p', 'pr-hint-method', text('pr_hints_melody_cue')));
