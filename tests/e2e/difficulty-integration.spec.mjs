@@ -92,7 +92,7 @@ test('a fresh Read exercise opens with an independent result and leaves existing
   expect(await progress()).toMatchObject({ 'b1.1': { best: 92, stars: 2 }, ['x1.' + first]: { best: 96, stars: 3 } });
 });
 
-test('bulk recalculation previews stars and preserves legacy metadata', async ({ app, page }) => {
+test('the library automatically updates outdated stars and preserves piece metadata', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   await page.locator('#score-library summary').click();
   await page.locator('#library-files').setInputFiles({
@@ -100,19 +100,25 @@ test('bulk recalculation previews stars and preserves legacy metadata', async ({
   });
   const id = createHash('sha256').update(xml).digest('hex');
   const get = () => page.evaluate(id => window.__etude.scoreLibraryStore.libraryGet(id).then(result => result?.item), id);
-  await expect.poll(async () => (await get())?.difficultyRating?.axes).toBeTruthy();
+  await expect.poll(async () => (await get())?.difficultyRating?.assessment?.estimatorVersion).toBe(3);
+  const originalRating = (await get()).difficultyRating;
   await page.evaluate(async id => {
     const store = window.__etude.scoreLibraryStore;
     await store.libraryUpdate(id, { level: 'Level 1', notes: 'My notes', favorite: true });
     const { item } = await store.libraryGet(id);
-    await store.libraryUpdateLevels([{ id, previousRating: item.difficultyRating, rating: { ...item.difficultyRating, stars: 5 } }]);
+    await store.libraryUpdateLevels([{
+      id,
+      previousRating: item.difficultyRating,
+      rating: { ...item.difficultyRating, stars: 5, assessment: { ...item.difficultyRating.assessment, estimatorVersion: 2 } },
+    }]);
   }, id);
-  await page.locator('#library-rate-all').click();
-  await expect(page.locator('#library-rating-preview')).toContainText('Changes: 1. Unchanged: 0. Skipped: 0.');
-  await page.locator('#library-rating-apply').click();
-  await expect(page.locator('#library-status')).toHaveText('Difficulty stars saved for 1 scores.');
+  expect((await get()).difficultyRating.assessment.estimatorVersion).toBe(2);
+  await page.reload();
+  await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
+  await page.locator('#score-library summary').click();
+  await expect(page.getByRole('button', { name: 'Review difficulty stars', exact: true })).toHaveCount(0);
+  await expect.poll(async () => (await get())?.difficultyRating).toEqual(originalRating);
   expect(await get()).toMatchObject({ level: 'Level 1', notes: 'My notes', favorite: true });
-  expect((await get()).difficultyRating.stars).toBeLessThan(5);
 });
 
 test('library rows show five difficulty axes and automatically save stars without replacing levels', async ({ app, page }) => {
@@ -174,8 +180,6 @@ test('library rows show five difficulty axes and automatically save stars withou
   await page.evaluate(id => window.__etude.scoreLibraryStore.libraryUpdate(id, { level: 'Level 4', notes: 'Keep' }), id);
   const stored = () => page.evaluate(id => window.__etude.scoreLibraryStore.libraryGet(id).then(value => value.item), id);
   await expect.poll(async () => (await stored()).difficultyRating?.assessment?.tempoFallback).toBe(false);
-  await page.locator('#library-rate-all').click();
-  await expect(page.locator('#library-rating-preview')).toContainText('Changes: 0. Unchanged: 1. Skipped: 0.');
   const saved = await stored();
   expect(saved).toMatchObject({ level: 'Level 4', notes: 'Keep', difficultyRating: {
     version: 2,
