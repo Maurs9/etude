@@ -86,6 +86,21 @@ export interface SrLayout { width: number; maxHeight?: number; cap?: number; max
 export type AnHand = 'rh' | 'lh';
 export interface ScoreNoteArticulation { staccato: boolean; staccatissimo: boolean; accent: boolean; strongAccent: boolean; tenuto: boolean; }
 export interface ScoreGraceNote { midi: number; vel: number; tieStart?: boolean; tiedToPrincipal?: boolean; }
+export type ScoreOrnamentKind = 'trill' | 'mordent' | 'inverted-mordent' | 'turn';
+export interface ScoreTempoModifier {
+    beat: number;
+    kind: 'rit' | 'rall' | 'ritenuto' | 'accel' | 'stringendo' | 'atempo' | 'meno' | 'piu' | 'calando' | 'smorzando';
+    amount?: 'poco' | 'molto';
+}
+export interface ScoreFermata { beat: number; duration: number; }
+export interface ScoreSlurSpan { part: number; staff: number; voice: number; startBeat: number; endBeat: number; startNoteIndex: number; endNoteIndex: number; }
+export interface ScoreTextDynamic { part: number; staff: number; beat: number; kind: 'cresc' | 'dim' | 'morendo' | 'calando' | 'smorzando'; }
+export interface ScoreXmlExpression {
+    slurs: ScoreSlurSpan[];
+    tempoModifiers: ScoreTempoModifier[];
+    fermatas: ScoreFermata[];
+    textDynamics: ScoreTextDynamic[];
+}
 // A note of the loaded piece: MIDI and built-in pieces fill the timing and hand; MusicXML adds its notation and performance details.
 export interface AnNote {
     midi: number; start: number; end: number; vel: number;
@@ -93,6 +108,7 @@ export interface AnNote {
     part?: number; staff?: number; voice?: number; type?: string; art?: ScoreNoteArticulation; arpeggiate?: boolean;
     finger?: number; explicitVel?: number; dynamicHit?: number; graces?: ScoreGraceNote[]; warm?: boolean; soundRatio?: number;
     roll?: number; nextSame?: number; pedalEnd?: number; soundEnd?: number; parenthesizedAt?: number[];
+    ornament?: ScoreOrnamentKind; fermata?: boolean;
 }
 export interface ScoreXmlDifficulty {
     dotted: boolean; tuplet: boolean; accidentals: number; ornaments: number; trills?: number; ledgerLines?: number;
@@ -115,7 +131,7 @@ export interface ScoreXmlKey { beat: number; fifths: number; mode: 'major' | 'mi
 export interface ScoreXmlHarmony { beat: number; root: number; kind: string; bass: number | null; text: string; }
 export interface ScoreXmlLink { kind: string; a: number; b: number; style: string; }
 export type AnSource =
-    | { kind: 'xml'; title: string; label: string; xml: string; layout: ScoreXmlLayout | null; notes: ScoreXmlNote[]; difficultyRests?: ScoreXmlRest[]; tempos: { beat: number; bpm: number }[]; measures: ScoreMeasure[]; keys: ScoreXmlKey[]; harmonies?: ScoreXmlHarmony[]; links: ScoreXmlLink[]; tempoWords: ReadonlySet<string> }
+    | { kind: 'xml'; title: string; label: string; xml: string; layout: ScoreXmlLayout | null; notes: ScoreXmlNote[]; difficultyRests?: ScoreXmlRest[]; tempos: { beat: number; bpm: number }[]; measures: ScoreMeasure[]; keys: ScoreXmlKey[]; harmonies?: ScoreXmlHarmony[]; links: ScoreXmlLink[]; tempoWords: ReadonlySet<string>; expression?: ScoreXmlExpression }
     | { kind: 'midi'; title: string; label: string; parsed: AnParsedMidi; comp?: undefined }
     | { kind: 'example'; id: string; title: string; label: string; comp: string; parsed: AnParsedMidi };
 export type AnHandAssignment =

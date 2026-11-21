@@ -1,12 +1,9 @@
-import { readDifficultyCalibration, type DifficultyCalibration } from './score-difficulty-calibration.js';
 import { ESTIMATOR_VERSION, type DifficultyAxis } from './score-difficulty.js';
 import type { ImportedDifficultyEstimate } from './score-difficulty-import.js';
 import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryLevelChange, LibraryStudyStatus, OpenedScoreEstimator } from './score-library-types.js';
 import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate, libraryUpdateLevels } from './score-library-store.js';
-import { parseJson } from './storage.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
 
-const DIFFICULTY_CALIBRATION_KEY = 'etude-difficulty-calibration-v1';
 const AXES: readonly DifficultyAxis[] = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'];
 const controllers = new WeakMap<HTMLElement, LibraryController>();
 type Values = Record<string, string | number>;
@@ -224,17 +221,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   restore.type = 'file';
   restore.accept = '.json,application/json';
   restoreLabel.append(restoreText, restore);
-  const calibrationLabel = element('label', 'score-library-picker');
-  const calibrationText = element('span'), calibrationFile = element('input');
-  calibrationFile.type = 'file';
-  calibrationFile.id = 'library-difficulty-calibration';
-  calibrationFile.accept = '.json,application/json';
-  calibrationLabel.append(calibrationText, calibrationFile);
   const rateAll = element('button');
   rateAll.id = 'library-rate-all';
   rateAll.type = 'button';
   toolbarBarActions.prepend(rateAll);
-  transfer.append(transferNote, backup, restoreLabel, calibrationLabel);
+  transfer.append(transferNote, backup, restoreLabel);
   const ratingPreview = element('div');
   ratingPreview.id = 'library-rating-preview';
   const previewSummary = element('p'), previewList = element('ul');
@@ -250,25 +241,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   details.append(summary, content);
   root.append(details);
 
-  let calibration: DifficultyCalibration | null = null;
-  try {
-    const saved = parseJson(localStorage.getItem(DIFFICULTY_CALIBRATION_KEY) ?? 'null');
-    calibration = readDifficultyCalibration(saved);
-  }
-  catch { /* Private browsing can deny storage. The library still works. */ }
-  calibrationFile.addEventListener('change', () => {
-    const file = calibrationFile.files?.[0];
-    calibrationFile.value = '';
-    if (!file) return;
-    void run(async () => {
-      const raw = file.size <= 128 * 1024 ? parseJson(await file.text()) : null;
-      const profile = readDifficultyCalibration(raw);
-      if (!profile) throw new Error('Invalid difficulty calibration');
-      localStorage.setItem(DIFFICULTY_CALIBRATION_KEY, JSON.stringify(profile));
-      applyCalibration(profile);
-      notice('calibration_loaded');
-    }, 'calibration_invalid');
-  });
   let items: LibraryItem[] = [];
   let loaded = false;
   let busy = false;
@@ -327,7 +299,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const rows = new Map<string, Row>();
   type Estimate = {
     estimatorVersion: 1 | 2 | 3;
-    profileId: string;
     bpm: number | undefined;
     promise: Promise<ImportedDifficultyEstimate | null>;
     result?: ImportedDifficultyEstimate | null;
@@ -338,19 +309,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let ratingRenderTimer = 0;
   let openTempoForId: string | null = null;
 
-  function activeProfileId(): string {
-    return calibration?.version === 2 ? calibration.profileId : 'default';
-  }
-
   function referenceTempo(id: string, item = items.find(item => item.id === id)): number | undefined {
-    return item?.difficultyRating?.startingBpm ?? calibration?.startingTempos?.[id];
+    return item?.difficultyRating?.startingBpm;
   }
 
   function currentEstimate(id: string, item?: LibraryItem): Estimate | undefined {
     const estimate = estimates.get(id);
     return estimate &&
       estimate.estimatorVersion === ESTIMATOR_VERSION &&
-      estimate.profileId === activeProfileId() &&
       estimate.bpm === referenceTempo(id, item)
       ? estimate
       : undefined;
@@ -380,7 +346,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         voiceSource: result.uncertainty.voiceSource,
         handSource: result.uncertainty.handSource,
         estimatorVersion: ESTIMATOR_VERSION,
-        profileId: result.profileId ?? activeProfileId(),
+        profileId: result.profileId,
       },
       axes: {
         motor: axes.motor.stars,
@@ -393,16 +359,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     };
   }
   function scoreForItem(id: string, bpm = referenceTempo(id), estimateOpened?: OpenedScoreEstimator): Promise<ImportedDifficultyEstimate | null> {
-    const profileId = activeProfileId();
     const cached = estimates.get(id);
-    if (cached && cached.estimatorVersion === ESTIMATOR_VERSION && cached.profileId === profileId && cached.bpm === bpm) {
+    if (cached && cached.estimatorVersion === ESTIMATOR_VERSION && cached.bpm === bpm) {
       return cached.promise;
     }
-    const activeCalibration = calibration;
     const promise = (estimateOpened
-      ? new Promise<void>(resolve => { window.setTimeout(resolve, 0); }).then(() => estimateOpened(bpm, activeCalibration))
-      : libraryGet(id).then(stored => stored ? host.difficulty(stored.file, bpm, activeCalibration) : null)).catch(() => null);
-    const pending: Estimate = { estimatorVersion: ESTIMATOR_VERSION, profileId, bpm, promise };
+      ? new Promise<void>(resolve => { window.setTimeout(resolve, 0); }).then(() => estimateOpened(bpm))
+      : libraryGet(id).then(stored => stored ? host.difficulty(stored.file, bpm) : null)).catch(() => null);
+    const pending: Estimate = { estimatorVersion: ESTIMATOR_VERSION, bpm, promise };
     estimates.set(id, pending);
     void promise.then(result => {
       pending.result = result;
@@ -429,15 +393,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       !!rating.assessment &&
       !!rating.axes &&
       rating.assessment.estimatorVersion === ESTIMATOR_VERSION &&
-      rating.assessment.profileId === activeProfileId() &&
+      rating.assessment.profileId === 'default' &&
       rating.assessment.referenceBpm === referenceTempo(item.id, item);
     return !upToDate && !currentEstimate(item.id, item)?.saveAttempted;
-  }
-  function applyCalibration(profile: DifficultyCalibration | null): void {
-    calibration = profile;
-    ratingPlan = null;
-    render();
-    queueAutomaticRatings();
   }
   function queueAutomaticRatings(): void {
     if (busy || ratingWorkerActive || document.hidden) return;
@@ -670,7 +628,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
-    files.disabled = restore.disabled = calibrationFile.disabled = backup.disabled = sort.disabled = difficultySort.disabled = axesInfoToggle.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
+    files.disabled = restore.disabled = backup.disabled = sort.disabled = difficultySort.disabled = axesInfoToggle.disabled = toggleFilters.disabled = resetFilters.disabled = selectAll.disabled = value;
     filter.disabled = composerFilter.disabled = tagFilter.disabled = group.disabled = value;
     syncDifficultyFilters();
     for (const { button } of tabButtons) button.disabled = value;
@@ -837,7 +795,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       try {
         const stored = await libraryGet(id);
         if (!stored) throw new Error('Score was removed');
-        difficulty = await host.difficulty(stored.file, usedTempo, calibration);
+        difficulty = await host.difficulty(stored.file, usedTempo);
         if (difficulty.uncertainty.tempoFallback) canSetTempo = true;
         estimateFailed = !difficulty.peak;
       }
@@ -1503,7 +1461,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function localize(): void {
     privacy.textContent = t('privacy');
     transferNote.textContent = t('transfer');
-    calibrationText.textContent = t('calibration_add');
     importText.textContent = t('import');
     files.setAttribute('aria-label', t('import'));
     searchText.textContent = t('search_label');
@@ -1599,14 +1556,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   }); });
   function previewRatings(): void {
     if (busy) return;
-    const profile = calibration;
     ratingPlan = null;
     void run(async () => {
       let unreadable = 0, unchanged = 0;
       const fresh = await libraryList(count => { unreadable = count; });
       const entries: RatingEntry[] = [];
       for (const item of fresh) {
-        if (calibration !== profile) { notice('reclassify_conflict'); return; }
         const title = item.title || item.name;
         try {
           const bpm = referenceTempo(item.id, item);
@@ -1620,7 +1575,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
           entries.push({ title });
         }
       }
-      if (calibration !== profile) { notice('reclassify_conflict'); return; }
       ratingPlan = { entries, unchanged, unreadable };
       notice('reclassify_ready');
       renderRatingPreview();
@@ -1730,13 +1684,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     });
   });
   window.addEventListener('focus', () => { if (!busy) void refresh(); });
-  window.addEventListener('storage', event => {
-    if (event.key !== DIFFICULTY_CALIBRATION_KEY && event.key !== null) return;
-    let profile: DifficultyCalibration | null = null;
-    try { profile = readDifficultyCalibration(parseJson(event.newValue ?? 'null')); }
-    catch { /* Invalid profiles are treated as absent. */ }
-    applyCalibration(profile);
-  });
   document.addEventListener('visibilitychange', queueAutomaticRatings);
   window.addEventListener('beforeunload', event => {
     if (busy) { event.preventDefault(); event.returnValue = ''; }

@@ -20,6 +20,7 @@ Before you start, open **Settings → Your data → Diagnostics** and tap **Copy
 3. Tap **Export**. Check that the file downloads and that **Backup** now shows today's date.
 4. On Progress, tap **Reset progress** and confirm. Then restore the `before reset` copy in Settings. Check that your reviews are back.
 5. On a disposable profile in the installed app, import a score into **My Library** and wait for its five difficulty values. Reload and export the library, then restore it to another disposable profile. Confirm the five values and overall stars match and tapping the title opens the score.
+6. Update a disposable installed app that previously used a difficulty calibration profile. Confirm that the backup section in My Library has only the restore file picker and that scores are recalculated with the built-in model. For a score without a written tempo, use **Set BPM**, save the recalculated rating, and confirm it survives a reload.
 
 ## Update while open
 

@@ -48,6 +48,13 @@ function connectVoiceSource(source: OscillatorNode | AudioBufferSourceNode, lfo:
   };
 }
 
+export interface PianoVoiceOptions {
+  warm?: boolean;
+  hold?: boolean;
+  accent?: boolean;
+  expressive?: boolean;
+}
+
 export type PianoVoiceHooks = {
   decode?: (key: number) => Promise<AudioBuffer>;
   fallbackVoice?: (frequency: number, velocity: number, when?: number, duration?: number) => AudioVoice;
@@ -329,7 +336,7 @@ export class AudioEngine {
   muted = false;
   masterVolume = 0.72;
   bendSemitones = 0;
-  reverbWet = 0.125;
+  reverbWet = 0.16;
 
   context: AudioContext | null = null;
   master: GainNode | null = null;
@@ -396,11 +403,11 @@ export class AudioEngine {
     this.masterFilter.frequency.value = 15500;
     this.masterFilter.Q.value = 0.4;
     this.compressor = context.createDynamicsCompressor();
-    this.compressor.threshold.value = -20;
-    this.compressor.knee.value = 24;
-    this.compressor.ratio.value = 4.5;
-    this.compressor.attack.value = 0.004;
-    this.compressor.release.value = 0.22;
+    this.compressor.threshold.value = -16;
+    this.compressor.knee.value = 28;
+    this.compressor.ratio.value = 3.2;
+    this.compressor.attack.value = 0.008;
+    this.compressor.release.value = 0.26;
     this.master.connect(this.masterFilter).connect(this.compressor).connect(context.destination);
 
     try {
@@ -486,11 +493,24 @@ export class AudioEngine {
         return;
       }
       try {
-        buffer ??= context.createBuffer(2, Math.max(1, Math.floor(context.sampleRate * 1.7)), context.sampleRate);
+        buffer ??= context.createBuffer(2, Math.max(1, Math.floor(context.sampleRate * 1.9)), context.sampleRate);
         const data = buffer.getChannelData(channel), end = Math.min(index + 2048, data.length);
+        const preDelay = Math.floor(context.sampleRate * 0.014);
+        const tap1 = Math.floor(context.sampleRate * (channel === 0 ? 0.018 : 0.022));
+        const tap2 = Math.floor(context.sampleRate * (channel === 0 ? 0.029 : 0.033));
+        const tap3 = Math.floor(context.sampleRate * (channel === 0 ? 0.043 : 0.046));
         for (; index < end; index++) {
-          last = last * 0.62 + (Math.random() * 2 - 1) * 0.38;
-          data[index] = last * Math.pow(1 - index / data.length, 2.4);
+          if (index < preDelay) {
+            data[index] = 0;
+            continue;
+          }
+          const progress = index / data.length;
+          const smooth = 0.56 + progress * 0.28;
+          if (index === tap1) last += channel === 0 ? 0.22 : -0.18;
+          else if (index === tap2) last += channel === 0 ? -0.15 : 0.19;
+          else if (index === tap3) last += channel === 0 ? 0.11 : -0.12;
+          last = last * smooth + (Math.random() * 2 - 1) * (1 - smooth);
+          data[index] = last * Math.pow(1 - progress, 2.5);
         }
         if (index === data.length) { channel++; index = 0; last = 0; }
         if (channel === 2) { node.buffer = buffer; this.reverbPreparing = null; }
@@ -521,7 +541,7 @@ export class AudioEngine {
     velocity: number,
     when: number | undefined,
     duration: number | undefined,
-    options: { warm?: boolean; hold?: boolean } = {},
+    options: PianoVoiceOptions = {},
     hooks: PianoVoiceHooks = {},
   ): AudioVoice {
     const context = this.context;
@@ -555,25 +575,55 @@ export class AudioEngine {
       const filter = context.createBiquadFilter();
       const normalizedVelocity = clamp(velocity || 100, 1, 127) / 127;
       const peak = 0.85 * Math.pow(normalizedVelocity, 1.6);
-      const release = midi < 60 ? 0.22 : 0.15;
+      const roundedMidi = Math.round(midi);
+      let release = roundedMidi >= 84 ? 0.62 : roundedMidi < 48 ? 0.30 : roundedMidi < 60 ? 0.23 : 0.17;
+      if (normalizedVelocity < 0.45) release += 0.04;
       const warm = options.warm === true;
       const held = options.hold === true;
+      const accented = options.accent === true;
       source.buffer = buffer;
       source.playbackRate.setValueAtTime(rate, startAt);
       source.detune.setValueAtTime(this.bendSemitones * 100, startAt);
+
+      const brightness = Math.pow(normalizedVelocity, 2.0);
+      const baseCut = warm ? 750 : 1050;
+      const spanCut = warm ? 9200 : 15500;
+      const accentBoost = accented ? 1.18 : 1.0;
+      const cutoff = Math.min(context.sampleRate * 0.45, (baseCut + spanCut * brightness) * accentBoost);
       filter.type = 'lowpass';
-      filter.Q.value = 0.3;
-      filter.frequency.setValueAtTime(
-        Math.min(context.sampleRate * 0.45, (warm ? 1700 : 2800) + (warm ? 10500 : 16000) * Math.pow(normalizedVelocity, 1.4)),
-        startAt,
-      );
+      filter.Q.value = 0.35;
+      filter.frequency.setValueAtTime(cutoff, startAt);
+      if ((duration == null || duration > 0.35) && typeof filter.frequency.exponentialRampToValueAtTime === 'function') {
+        const darkTarget = Math.max(850, cutoff * 0.62);
+        if (darkTarget < cutoff) {
+          filter.frequency.exponentialRampToValueAtTime(
+            darkTarget,
+            startAt + Math.min(2.2, (duration ?? 2.4) * 0.9),
+          );
+        }
+      }
+
+      const rawAttack = accented
+        ? 0.0025
+        : warm
+          ? 0.007 + (1 - normalizedVelocity) * 0.009
+          : 0.003 + (1 - normalizedVelocity) * 0.007;
+      const attack = duration != null ? Math.min(rawAttack, Math.max(0.001, duration * 0.4)) : rawAttack;
       gain.gain.value = 0;
       gain.gain.setValueAtTime(0.0001, startAt);
-      gain.gain.linearRampToValueAtTime(peak, startAt + (warm ? 0.008 : 0.003));
-      source.connect(gain).connect(filter).connect(master);
+      gain.gain.linearRampToValueAtTime(peak, startAt + attack);
+
+      const pan = typeof context.createStereoPanner === 'function' ? context.createStereoPanner() : null;
+      if (pan) {
+        pan.pan.value = clamp(((midi - 60) / 48) * 0.28, -0.32, 0.32);
+        source.connect(gain).connect(filter).connect(pan).connect(master);
+      } else {
+        source.connect(gain).connect(filter).connect(master);
+      }
       connectVoiceSource(source, this.lfoGain, () => {
         gain.disconnect();
         filter.disconnect();
+        pan?.disconnect();
       });
 
       const inner: AudioVoice = {
@@ -595,16 +645,17 @@ export class AudioEngine {
       source.start(startAt, offset);
       if (duration != null) {
         const end = Math.max(startAt + 0.004, (when ?? startAt) + duration);
+        const endRelease = held ? release * 1.25 : release;
         if (held && end > startAt + 0.03) {
-          const tail = Math.max(0.0001, peak * 0.42);
+          const tail = Math.max(0.0001, peak * 0.48);
           const settle = Math.min(end - 0.004, startAt + Math.min(0.45, Math.max(0.03, duration * 0.32)));
           gain.gain.exponentialRampToValueAtTime(tail, settle);
           gain.gain.setValueAtTime(tail, end);
         } else {
           gain.gain.setValueAtTime(peak, end);
         }
-        gain.gain.exponentialRampToValueAtTime(0.0001, end + release);
-        try { source.stop(end + release + 0.02); } catch { /* already stopped */ }
+        gain.gain.exponentialRampToValueAtTime(0.0001, end + endRelease);
+        try { source.stop(end + endRelease + 0.02); } catch { /* already stopped */ }
       }
     };
 
@@ -830,12 +881,12 @@ export class AudioEngine {
     }
   }
 
-  preview(note: number, when?: number, duration = 0.8, velocity = 96, options: { warm?: boolean; hold?: boolean } = {}): void {
+  preview(note: number, when?: number, duration = 0.8, velocity = 96, options: PianoVoiceOptions = {}): void {
     const context = this.ensureAudio();
     if (!context) return;
     this.previewVoices = this.previewVoices.filter(voice => (voice.previewEnd ?? 0) > context.currentTime);
     const voice = this.sampledPianoVoice(midiToFrequency(note), velocity, when, duration, options);
-    voice.previewEnd = (when ?? context.currentTime) + duration + (options.hold ? 0.6 : 0.4);
+    voice.previewEnd = (when ?? context.currentTime) + duration + (options.hold ? 0.8 : 0.45);
     this.previewVoices.push(voice);
   }
 
