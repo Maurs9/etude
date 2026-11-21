@@ -360,6 +360,8 @@ test('v2 calibration profile change invalidates cache, details explain drivers/s
   const octDetails = octRow.locator('.score-library-rating-details');
   await expect(octDetails).toContainText('Wide hand spans (≥ octave)');
   await expect(octDetails).not.toContainText('Endurance (+');
+  await expect(octDetails).not.toContainText('MIDI:');
+  await expect(octDetails).not.toContainText('Hands are not assigned');
   await expect(octDetails.locator('.score-library-drivers').first()).toBeVisible();
 
   // Score with >= 32 unique varied measures and > 60s duration triggers appliedEnduranceStars >= 0.1
@@ -379,17 +381,36 @@ test('v2 calibration profile change invalidates cache, details explain drivers/s
   await longRow.locator('[data-library-action=rating-details]').click();
   await expect(longRow.locator('.score-library-rating-details')).toContainText(/Endurance \(\+0\.\d★\)/);
 
-  // Check provisional BPM notice + quick Set BPM action on Unmarked score
+  // Check provisional BPM notice, unassigned-hand MusicXML notice (not MIDI warning), & quick Set BPM action
   const unmRow = page.locator('#library-items > li', { hasText: 'Unmarked' });
   await unmRow.locator('[data-library-action=more]').click();
   await unmRow.locator('[data-library-action=rating-details]').click();
   const unmDetails = unmRow.locator('.score-library-rating-details');
   await expect(unmDetails).toContainText('Provisional estimate (unknown tempo, 120 BPM).');
+  await expect(unmDetails).toContainText('Hands are not assigned in this score');
+  await expect(unmDetails).not.toContainText('MIDI:');
   await unmDetails.locator('[data-library-action=set-bpm]').click();
   const tempoInput = unmRow.locator('[data-library-field=difficulty-tempo]');
   await expect(tempoInput).toBeVisible();
   await expect(tempoInput).toBeFocused();
   await unmRow.locator('[data-library-action=cancel-edit]').click();
+
+  // Imported MIDI files show the dedicated MIDI notice (and never the unassigned-hands notice)
+  const midiBuffer = (() => {
+    const track = Buffer.from('00903c400091404060803c000081400000ff2f00', 'hex');
+    const head = Buffer.from('4d54686400000006000000010060', 'hex');
+    const trkHead = Buffer.from('4d54726b00000000', 'hex');
+    trkHead.writeUInt32BE(track.length, 4);
+    return Buffer.concat([head, trkHead, track]);
+  })();
+  await page.locator('#library-files').setInputFiles({ name: 'FixtureMidi.mid', mimeType: 'audio/midi', buffer: midiBuffer });
+  await expect.poll(async () => (await storedList()).find(item => item.name === 'FixtureMidi.mid')?.difficultyRating?.version ?? null).toBe(2);
+  const midiRow = page.locator('#library-items > li', { hasText: 'FixtureMidi' });
+  await midiRow.locator('[data-library-action=more]').click();
+  await midiRow.locator('[data-library-action=rating-details]').click();
+  const midiDetails = midiRow.locator('.score-library-rating-details');
+  await expect(midiDetails).toContainText('MIDI: voices and rests are not notated; hands are estimated.');
+  await expect(midiDetails).not.toContainText('Hands are not assigned');
 
   // Load two distinct v2 calibration profiles (same BPM, different profileId) and verify cache invalidation & recalculation
   const profileA = {

@@ -159,7 +159,7 @@ export function microGroupMidiNotes(notes: readonly DifficultyNote[]): Difficult
   return grouped.sort((a, b) => a.start - b.start || a.midi - b.midi);
 }
 
-function midiInput(parsed: AnParsedMidi, startingBpm?: number): DifficultyInput {
+function midiInput(parsed: AnParsedMidi, startingBpm?: number, microGroup = true): DifficultyInput {
   const tempos = parsed.meta.filter(event => event.type === 'tempo');
   const meters = parsed.meta.filter((event): event is Extract<AnMidiMeta, { type: 'time' }> => event.type === 'time' && event.num > 0 && event.den > 0).sort((a, b) => a.beat - b.beat);
   const keys: Pick<ScoreXmlKey, 'beat' | 'fifths'>[] = parsed.meta.filter(event => event.type === 'key').sort((a, b) => a.beat - b.beat);
@@ -181,7 +181,7 @@ function midiInput(parsed: AnParsedMidi, startingBpm?: number): DifficultyInput 
     start: note.start, end: note.end, startSec: clock(note.start), midi: note.midi,
     hand: assigned.of[i], soundingEnd: note.soundEnd,
   }));
-  const notes = microGroupMidiNotes(rawNotes);
+  const notes = microGroup ? microGroupMidiNotes(rawNotes) : rawNotes;
   return { measures, notes, rests: [], voiceSource: 'unknown', handSource,
     tempoSource: tempos.some(tempo => tempo.beat <= EPS) ? 'written' : startingBpm ? 'reference' : 'fallback' };
 }
@@ -204,7 +204,9 @@ export function estimateImportedScore(
   const aggregation = calibration?.version === 2 ? calibration.aggregation : undefined;
   const profileId = calibration?.version === 2 ? calibration.profileId : 'default';
   const fallback = startingBpm !== undefined && Number.isFinite(startingBpm) && startingBpm >= 20 && startingBpm <= 400 ? startingBpm : undefined;
-  const input = source.kind === 'xml' ? xmlInput(source, fallback) : midiInput(source.parsed, fallback);
+  const input = source.kind === 'xml'
+    ? xmlInput(source, fallback)
+    : midiInput(source.parsed, fallback, opts.rubricVersion !== 1);
   const estimate = estimateScoreDifficulty(input, 'performance', {
     rubricVersion: opts.rubricVersion,
     aggregation,

@@ -605,10 +605,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         tempoRow.append(tempoNote, setBpm);
         row.ratingDetails.append(tempoRow);
       }
-      if (result.uncertainty.voiceSource === 'unknown' || result.uncertainty.handSource !== 'written') {
+      if (result.midi) {
         const midiNote = element('p', 'score-library-note');
         midiNote.textContent = t('estimate_midi_details');
         row.ratingDetails.append(midiNote);
+      } else if (result.uncertainty.handSource === 'unassigned') {
+        const handNote = element('p', 'score-library-note');
+        handNote.textContent = t('estimate_unassigned_hands');
+        row.ratingDetails.append(handNote);
       }
       if (result.difficultyStars !== null && !result.uncertainty.tempoFallback &&
           (result.difficultyStars !== item.difficultyRating?.stars || item.difficultyRating?.version !== 2)) {

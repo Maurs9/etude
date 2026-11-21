@@ -146,6 +146,7 @@ export interface DifficultyEstimate {
   enduranceRaw: number;
   spanAlert: boolean;
   enduranceComponents: { stamina: number; materialLoad: number };
+  continuousAxisStars: Readonly<DifficultyAxes> | null;
   axisDifficulty: Readonly<Record<DifficultyAxis, DifficultyAxisSummary>> | null;
   endurance: number;
   uniqueWrittenMeasures: number;
@@ -857,12 +858,14 @@ function motorSliceStats(
   startSec: number,
   endSec: number,
   totalSec: number,
+  startIndex = 0,
 ): { strength: number; count: number; writtenMeasures: number[]; drivers: DriverWeights } {
   let rhSum = 0, lhSum = 0, unSum = 0, count = 0;
   const measureSet = new Set<number>();
   const drivers: DriverWeights = {};
   const inclusiveEnd = endSec >= totalSec - EPSILON;
-  for (const ev of events) {
+  for (let idx = startIndex; idx < events.length; idx++) {
+    const ev = events[idx];
     if (ev.sec < startSec - EPSILON) continue;
     if (inclusiveEnd ? ev.sec > endSec + EPSILON : ev.sec >= endSec - EPSILON) break;
     count++;
@@ -883,14 +886,13 @@ function motorSliceStats(
 }
 
 function evaluatePhysicalMotorWindows(
-  events: readonly MotorEvent[],
+  sortedEvents: readonly MotorEvent[],
   measures: readonly DifficultyMeasure[],
   totalSec: number,
 ): { peakStrength: number; peakMeasures: readonly number[]; peakDrivers: DriverWeights; typicalStrength: number; activeWindowStrengths: number[] } {
-  if (!events.length || totalSec <= 0) {
+  if (!sortedEvents.length || totalSec <= 0) {
     return { peakStrength: 0, peakMeasures: [], peakDrivers: {}, typicalStrength: 0, activeWindowStrengths: [] };
   }
-  const sorted = [...events].sort((a, b) => a.sec - b.sec);
   const durations = totalSec <= 4 + EPSILON ? [totalSec] : totalSec <= 8 + EPSILON ? [4, totalSec] : [4, 8];
   const typicalDur = durations[durations.length - 1];
   let peakStrength = 0;
@@ -899,14 +901,23 @@ function evaluatePhysicalMotorWindows(
   const typicalStrengths: number[] = [];
 
   for (const winDur of durations) {
+    const maxStart = Math.max(0, totalSec - winDur);
+    const maxIntStart = Math.floor(maxStart + EPSILON);
     const rawStarts: number[] = [];
-    for (let t = 0; t <= totalSec - winDur + EPSILON; t += 1) {
-      rawStarts.push(t);
+    // Step only integer starts that overlap at least one sorted event, skipping silent gaps.
+    let lastInt = -1;
+    for (const ev of sortedEvents) {
+      const firstT = Math.max(0, lastInt + 1, Math.floor(ev.sec - winDur));
+      const lastT = Math.min(maxIntStart, Math.floor(ev.sec + EPSILON));
+      for (let t = firstT; t <= lastT; t++) {
+        rawStarts.push(t);
+      }
+      if (lastT > lastInt) lastInt = lastT;
     }
-    rawStarts.push(Math.max(0, totalSec - winDur));
-    if (sorted.length <= 128) {
-      for (const ev of sorted) {
-        rawStarts.push(Math.max(0, Math.min(totalSec - winDur, ev.sec)));
+    rawStarts.push(maxStart);
+    if (sortedEvents.length <= 128) {
+      for (const ev of sortedEvents) {
+        rawStarts.push(Math.max(0, Math.min(maxStart, ev.sec)));
       }
     }
     rawStarts.sort((a, b) => a - b);
@@ -914,9 +925,11 @@ function evaluatePhysicalMotorWindows(
     for (const s of rawStarts) {
       if (!starts.length || s - starts[starts.length - 1] > 1e-6) starts.push(s);
     }
+    let cursor = 0;
     for (const t0 of starts) {
+      while (cursor < sortedEvents.length && sortedEvents[cursor].sec < t0 - EPSILON) cursor++;
       const t1 = Math.min(totalSec, t0 + winDur);
-      const stats = motorSliceStats(sorted, measures, t0, t1, totalSec);
+      const stats = motorSliceStats(sortedEvents, measures, t0, t1, totalSec, cursor);
       if (!stats.count) continue;
       if (stats.strength > peakStrength) {
         peakStrength = stats.strength;
@@ -945,6 +958,7 @@ function summarizeWindow(
   isV2: boolean,
   sortedMotorEvents: readonly MotorEvent[],
   totalSec: number,
+  motorStartIndex = 0,
 ): { window: DifficultyWindow; strengths: DifficultyAxes; windowDrivers: Record<DifficultyAxis, DriverWeights> } {
   const structural = profile === 'sightReading';
   const sums = { motor: 0, rhythm: 0, bimanual: 0, texture: 0, reading: 0 };
@@ -984,7 +998,9 @@ function summarizeWindow(
 
   let motorStrength: number;
   if (isV2) {
-    const slice = motorSliceStats(sortedMotorEvents, input.measures, input.measures[start].startSec, input.measures[end].endSec, totalSec);
+    const slice = motorSliceStats(
+      sortedMotorEvents, input.measures, input.measures[start].startSec, input.measures[end].endSec, totalSec, motorStartIndex,
+    );
     motorStrength = slice.strength;
     mergeDrivers(windowDrivers.motor, slice.drivers);
     const patternLoad = windowReadingPatternLoad(bars, start, end);
@@ -1109,11 +1125,19 @@ export function estimateScoreDifficulty(
   const axisPeaks = axisRecord((): { strength: number; measures: readonly number[]; drivers: DriverWeights } | null => null);
   let peak: DifficultyWindow | null = null;
   for (const length of lengths) {
+    let motorCursor = 0;
+    let prevStartSec = -Infinity;
     for (let start = 0; start + length <= bars.length; start++) {
       const end = start + length - 1;
       if (!bars.slice(start, end + 1).some(bar => bar.hasSound)) continue;
+      const windowStartSec = input.measures[start].startSec;
+      if (windowStartSec < prevStartSec - EPSILON) motorCursor = 0;
+      prevStartSec = windowStartSec;
+      while (motorCursor < sortedMotorEvents.length && sortedMotorEvents[motorCursor].sec < windowStartSec - EPSILON) {
+        motorCursor++;
+      }
       const { window, strengths, windowDrivers } = summarizeWindow(
-        input, bars, start, end, profile, isV2, sortedMotorEvents, totalMeasureSec,
+        input, bars, start, end, profile, isV2, sortedMotorEvents, totalMeasureSec, motorCursor,
       );
       if (!peak || window.score > peak.score) peak = window;
       if (length === typicalLength) typicalScores.push(window.score);
@@ -1184,12 +1208,13 @@ export function estimateScoreDifficulty(
     peak,
     typical: round(typical),
     endurance: round(endurance),
-    enduranceRaw: round(enduranceRaw),
+    enduranceRaw,
     baseStars: aggregated ? aggregated.baseStars : null,
     appliedEnduranceStars: aggregated ? aggregated.appliedEnduranceStars : 0,
     spanAlert: isV2 ? maxHandSpan >= 12 : false,
     enduranceComponents: isV2 ? { stamina: round(stamina), materialLoad: round(materialLoad) } : { stamina: 0, materialLoad: 0 },
     difficultyStars: aggregated ? aggregated.difficultyStars : null,
+    continuousAxisStars: peak ? continuousStars : null,
     axisDifficulty,
     uniqueWrittenMeasures: unique,
     uncertainty: {

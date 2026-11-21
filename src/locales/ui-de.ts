@@ -2284,6 +2284,7 @@ const payload: UIPayload = {
       "estimate_tempo_provisional": "Vorläufige Schätzung (unbekanntes Tempo, 120 BPM).",
       "estimate_set_bpm": "BPM festlegen",
       "estimate_midi_details": "MIDI: Stimmen und Pausen sind nicht notiert; Hände sind geschätzt.",
+      "estimate_unassigned_hands": "In dieser Partitur sind keine Hände zugeordnet; die Koordination von linker und rechter Hand wird nicht getrennt.",
       "rating_driver_speed": "schnelle Passagen",
       "rating_driver_large_leaps": "große Sprünge",
       "rating_driver_wide_span": "weite Griffe",

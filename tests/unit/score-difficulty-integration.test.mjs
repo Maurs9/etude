@@ -385,6 +385,11 @@ describe('v2 calibration, rank benchmark and local audit', () => {
     expect(est.peak.attacks).toBe(1);
     expect(est.axisDifficulty.rhythm.stars).toBe(1);
 
+    // v1 baseline must not inherit v2 MIDI micro-grouping
+    const v1Est = estimateImportedScore({ kind: 'midi', title: 'Jitter', label: 'jitter.mid', parsed: jitterMidi }, undefined, { rubricVersion: 1 });
+    expect(v1Est.peak.attacks).toBe(3);
+    expect(v1Est.difficultyStars).toBeGreaterThan(est.difficultyStars);
+
     const runMidi = {
       ppq: 480, format: 0, tracks: 1, names: [],
       notes: rapidRun.map(n => ({ midi: n.midi, start: n.start, end: n.end, vel: 90, channel: 0, track: 0 })),
@@ -428,13 +433,7 @@ describe('v2 calibration, rank benchmark and local audit', () => {
         group: `syn-group-${i}`,
         truth,
         v1Stars: v1.difficultyStars,
-        v2Axes: {
-          motor: v2.axisDifficulty.motor.stars,
-          rhythm: v2.axisDifficulty.rhythm.stars,
-          bimanual: v2.axisDifficulty.bimanual.stars,
-          texture: v2.axisDifficulty.texture.stars,
-          reading: v2.axisDifficulty.reading.stars,
-        },
+        v2Axes: v2.continuousAxisStars,
         v2EnduranceRaw: v2.enduranceRaw,
         v2Stars: v2.difficultyStars,
       };

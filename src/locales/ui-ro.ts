@@ -2278,6 +2278,7 @@ const payload: UIPayload = {
       "estimate_tempo_provisional": "Estimare provizorie (tempo necunoscut, 120 BPM).",
       "estimate_set_bpm": "Setează BPM",
       "estimate_midi_details": "MIDI: voci și pauze nenotate; mâinile sunt estimate.",
+      "estimate_unassigned_hands": "Mâinile nu sunt atribuite în această partitură; coordonarea mâinii stângi și a celei drepte nu este separată.",
       "rating_driver_speed": "pasaje rapide",
       "rating_driver_large_leaps": "salturi mari",
       "rating_driver_wide_span": "deschideri largi",

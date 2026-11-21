@@ -158,16 +158,10 @@ try {
       digests.set(payload.digest, row.file);
       const v1 = await inspectFile(payload, row.bpm, { rubricVersion: 1 });
       const v2 = await inspectFile(payload, row.bpm, { rubricVersion: 2 });
-      if (!v1.axisDifficulty || !v2.axisDifficulty || v1.difficultyStars === null || v2.difficultyStars === null) {
+      if (!v1.axisDifficulty || !v2.axisDifficulty || !v2.continuousAxisStars || v1.difficultyStars === null || v2.difficultyStars === null) {
         throw new Error(`Rank benchmark requires playable notes: ${row.file}`);
       }
-      const v2Axes = {
-        motor: v2.axisDifficulty.motor.stars,
-        rhythm: v2.axisDifficulty.rhythm.stars,
-        bimanual: v2.axisDifficulty.bimanual.stars,
-        texture: v2.axisDifficulty.texture.stars,
-        reading: v2.axisDifficulty.reading.stars,
-      };
+      const v2Axes = v2.continuousAxisStars;
       const v2EnduranceRaw = v2.enduranceRaw ?? Math.min(0.5, Math.max(0, (v2.endurance ?? 0) / 12));
       items.push({
         group: row.group,

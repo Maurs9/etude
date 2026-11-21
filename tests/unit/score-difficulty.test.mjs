@@ -471,4 +471,61 @@ describe('v2 invariance, ergonomics, complexity and single rounding', () => {
     expect(alreadyMax.difficultyStars).toBe(5);
     expect(alreadyMax.appliedEnduranceStars).toBe(0);
   });
+
+  it('evaluates 3,600-measure scores quickly with sorted motor cursors and matches continuous benchmark aggregation', () => {
+    const longNotes = Array.from({ length: 3600 }, (_, m) => [
+      note(m * 4 + 0, 60 + (m % 7), 'rh', { startSec: m * 2 + 0 }),
+      note(m * 4 + 1, 64 + (m % 7), 'rh', { startSec: m * 2 + 0.5 }),
+      note(m * 4 + 2, 67 + (m % 7), 'rh', { startSec: m * 2 + 1.0 }),
+      note(m * 4 + 3, 48 + (m % 5), 'lh', { startSec: m * 2 + 1.5 }),
+    ]).flat();
+    const longScore = timeline(longNotes, 3600, { playedDurationSec: 7200 });
+    const t0 = Date.now();
+    const longEstimate = performance(longScore);
+    const elapsedMs = Date.now() - t0;
+    expect(elapsedMs).toBeLessThan(500);
+    expect(longEstimate.difficultyStars).toBeGreaterThan(1.5);
+    expect(longEstimate.axisDifficulty.motor.stars).toBeGreaterThan(1);
+
+    const sparseBurstNotes = [
+      ...Array.from({ length: 64 }, (_, i) => note(i * 0.25, i % 2 ? 79 : 60, 'rh', { startSec: i * 0.125 })),
+      ...Array.from({ length: 64 }, (_, i) => note(1240 + i * 0.25, i % 2 ? 79 : 60, 'rh', { startSec: 620 + i * 0.125 })),
+    ];
+    const sparseScore = timeline(sparseBurstNotes, 320, { playedDurationSec: 640 });
+    const sparseEstimate = performance(sparseScore);
+    expect(sparseEstimate.axisDifficulty.motor.stars).toBeGreaterThan(2);
+    expect(sparseEstimate.enduranceComponents.stamina).toBeGreaterThan(0);
+
+    // Search deterministic tempos to verify re-aggregating continuousAxisStars + enduranceRaw always
+    // equals live estimateScoreDifficulty even when axis rounding would shift a boundary by 0.1★.
+    const configs = [
+      undefined,
+      { mode: 'axis', axisWeights: { motor: 0.35, rhythm: 0.25, bimanual: 0.15, texture: 0.15, reading: 0.1 }, alphaWeak: 0.2, enduranceScale: 1 },
+      { mode: 'order', orderWeights: [0.4, 0.3, 0.1, 0.1, 0.1], weakestLinkDelta: 0.8, enduranceScale: 1.2 },
+    ];
+    let sawRoundingGap = false;
+    for (let bpm = 70; bpm <= 160; bpm += 5) {
+      const spq = 60 / bpm;
+      const varied = timeline(
+        Array.from({ length: 24 }, (_, m) => [
+          note(m * 4 + 0, 60 + (m % 5), 'rh', { startSec: (m * 4 + 0) * spq }),
+          note(m * 4 + 0.5, 65 + (m % 7), 'rh', { startSec: (m * 4 + 0.5) * spq }),
+          note(m * 4 + 1, 72 + (m % 4), 'rh', { startSec: (m * 4 + 1) * spq }),
+          note(m * 4 + 2, 48 + (m % 3), 'lh', { startSec: (m * 4 + 2) * spq }),
+        ]).flat(),
+        24,
+        { playedDurationSec: 24 * 4 * spq * 2 },
+      );
+      varied.measures = varied.measures.map((m, i) => ({ ...m, startSec: i * 4 * spq, endSec: (i + 1) * 4 * spq }));
+      for (const cfg of configs) {
+        const est = estimateScoreDifficulty(varied, 'performance', cfg ? { aggregation: cfg } : {});
+        const fromContinuous = aggregateDifficultyStarsDetailed(est.continuousAxisStars, est.enduranceRaw, cfg).difficultyStars;
+        expect(fromContinuous).toBe(est.difficultyStars);
+        const roundedAxes = Object.fromEntries(Object.entries(est.axisDifficulty).map(([k, v]) => [k, v.stars]));
+        const fromRounded = aggregateDifficultyStarsDetailed(roundedAxes, est.enduranceRaw, cfg).difficultyStars;
+        if (fromRounded !== est.difficultyStars) sawRoundingGap = true;
+      }
+    }
+    expect(sawRoundingGap).toBe(true);
+  });
 });
