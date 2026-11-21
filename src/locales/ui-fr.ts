@@ -1677,6 +1677,7 @@ const payload: UIPayload = {
       "pr_hints_prog_title": "Indices pour les progressions",
       "pr_hints_prog_lede": "Suivez la basse et écoutez la résolution des accords.",
       "pr_hints_technique_title": "Indices de doigté",
+      "pr_hints_technique_arpeggios": "Arpèges",
       "pr_hints_technique_lede": "Choisissez une main et travaillez le passage avant l’exercice complet.",
       "pr_hints_melody_title": "Indice pour les mélodies",
       "pr_hints_melody_lede": "Préparez-vous à rejouer ce que vous entendez.",

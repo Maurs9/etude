@@ -616,6 +616,7 @@ const payload: UIPayload = {
       "pr_hints_prog_title": "Hinweise zu Akkordfolgen",
       "pr_hints_prog_lede": "Verfolge den Bass und höre, wie sich die Akkorde auflösen.",
       "pr_hints_technique_title": "Hinweise zum Fingersatz",
+      "pr_hints_technique_arpeggios": "Arpeggien",
       "pr_hints_technique_lede": "Wähle eine Hand und übe den kurzen Ausschnitt vor dem ganzen Lauf.",
       "pr_hints_melody_title": "Hinweis zu Melodien",
       "pr_hints_melody_lede": "Bereite dich darauf vor, das Gehörte nachzuspielen.",

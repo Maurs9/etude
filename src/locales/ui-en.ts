@@ -460,6 +460,7 @@ const payload: UIPayload = {
       "pr_hints_prog_title": "Progression hints",
       "pr_hints_prog_lede": "Follow the bass and hear how the chords resolve.",
       "pr_hints_technique_title": "Fingering hints",
+      "pr_hints_technique_arpeggios": "Arpeggios",
       "pr_hints_technique_lede": "Choose a hand and practise the short passage before the full run.",
       "pr_hints_melody_title": "Melody hint",
       "pr_hints_melody_lede": "Prepare to play back what you hear.",

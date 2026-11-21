@@ -3,6 +3,7 @@ import { pitchClass } from './theory.js';
 interface KeyboardTone {
   readonly midi: number;
   readonly tonic: boolean;
+  readonly finger?: number;
 }
 
 const whitePitches = new Set([0, 2, 4, 5, 7, 9, 11]);
@@ -38,9 +39,17 @@ export function createHintKeyboard(root: number, range: readonly number[]) {
       const tone = marked.get(midi);
       const classes = `pr-chord-key pr-chord-${isWhite ? 'white' : 'black'}`
         + (tone?.tonic ? ' pr-chord-root' : '') + (changed?.has(midi) ? ' pr-chord-changed' : '');
-      const mark = tone
-        ? `<circle class="pr-chord-key-dot" cx="${x + keyWidth / 2}" cy="${height - 6}" r="${tone.tonic ? 3.5 : 2.7}"/>`
-        : '';
+      const cx = x + keyWidth / 2, cy = height - 6;
+      let mark = '';
+      if (tone) {
+        if (tone.finger === undefined || tone.tonic) {
+          const radius = tone.finger === undefined ? (tone.tonic ? 3.5 : 2.7) : 4.6;
+          mark += `<circle class="pr-chord-key-dot" cx="${cx}" cy="${cy}" r="${radius}"/>`;
+        }
+        if (tone.finger !== undefined) {
+          mark += `<text class="pr-hint-key-finger" x="${cx}" y="${cy}">${tone.finger}</text>`;
+        }
+      }
       (isWhite ? white : black).push(`<g class="${classes}"${tone ? ` data-chord-midi="${midi}"` : ''}>`
         + `<rect class="pr-chord-key-shape" x="${x}" y="2" width="${keyWidth}" height="${height}" rx="1.5"/>` + mark + '</g>');
     }

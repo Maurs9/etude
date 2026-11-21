@@ -89,7 +89,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     contents.append(section);
     return grid;
   };
-  box.classList.toggle('pr-chord-groups', topic === 'chord' || topic === 'scale');
+  box.classList.toggle('pr-chord-groups', topic === 'chord' || topic === 'scale' || topic === 'technique');
   if (topic === 'chord') {
     const groups = new Map([['maj', 'triads'], ['6', 'sixths_sevenths'], ['add9', 'extensions']]);
     let grid = element('div', 'pr-hint-grid');
@@ -139,7 +139,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       const tones = scaleHintTones(hint.name, tonic);
       const comparison = hint.compare ? scaleHintTones(hint.compare.name, tonic) : tones;
       const keyboard = createHintKeyboard(tones[0].midi, [...tones, ...comparison].map(tone => tone.midi));
-      const visuals = element('div', 'pr-scale-visuals');
+      const visuals = element('div', 'pr-hint-visuals');
       const names = element('p', 'pr-hint-detail');
       visuals.append(keyboard.svg, names);
       const el = card(hint.name, title, text(`pr_hints_s_${hint.cue}`), scaleHintFormula(hint), visuals);
@@ -176,7 +176,9 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       contents.append(el);
     }
   } else if (topic === 'technique') {
+    let grid = appendGroup(text('cat_scale'));
     for (const hint of TECHNIQUE_HINTS) {
+      if (hint.id === 'arp_major') grid = appendGroup(text('pr_hints_technique_arpeggios'));
       const pitch = techniqueHintTonic(hint, options.tonic);
       const spelling = techniqueTonicSpelling(hint.kind, pitch);
       const namedTonics = hint.namedTonics?.map(key => rootName(key)) ?? [];
@@ -194,10 +196,23 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
           fingers.append(fragment.includes(note) ? element('strong', 'pr-hint-focus', label) : label);
         }
         const id = `technique:${hint.id}:${hand}`;
-        el.append(control(id, `${text('pr_hints_hear')} · ${handName}`, `${title} · ${tonicName}`, disabled, () => play(id, steps, true)), fingers);
+        const keyboard = createHintKeyboard(ascending[0].midi, ascending.map(note => note.midi));
+        const description = `${title} · ${tonicName} · ${handName}`;
+        keyboard.draw(ascending.map((note, i) => ({ ...note, tonic: i === 0 || i === ascending.length - 1 })),
+          text('pr_hints_chord_keyboard', description, fingers.textContent ?? ''));
+        const diagram: PracticeHintDiagram = {
+          paint(_key, sounding = []) {
+            keyboard.paint(new Set(sounding.map(note => note.midi)));
+          },
+        };
+        const visuals = element('div', 'pr-hint-visuals pr-hint-hand');
+        const actions = element('div', 'pr-hint-actions');
+        actions.append(control(id, text('rdn_listen'), description, disabled, () => play(id, steps, true, diagram)));
+        visuals.append(element('h4', 'pr-hint-hand-title', handName), keyboard.svg, fingers, actions);
+        el.append(visuals);
       }
       appendReference(el, `technique:${hint.id}`);
-      contents.append(el);
+      grid.append(el);
     }
   } else {
     contents.append(element('p', 'pr-hint-method', text('pr_hints_melody_cue')));

@@ -77,7 +77,9 @@
 .pr-chord-group + .pr-chord-group{margin-top:24px}
 .pr-chord-group-title{margin:0 0 10px; color:var(--ink); font:700 15px/1.3 var(--sans)}
 .pr-chord-visuals{display:grid; gap:12px; width:100%; min-width:0; justify-items:center}
-.pr-scale-visuals{display:grid; gap:6px; width:100%; min-width:0}
+.pr-hint-visuals{display:grid; gap:6px; width:100%; min-width:0}
+.pr-hint-hand{border-top:1px solid var(--line); padding-top:8px}
+.pr-hint-hand-title{margin:0; font:700 13px/1.3 var(--sans); color:var(--ink)}
 .pr-chord-staves{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:100%; max-width:360px}
 .pr-chord-staff-block{text-align:center}
 .pr-chord-clef-label{font:600 12px/1.3 var(--sans); color:var(--ink2)}
@@ -110,10 +112,11 @@
 .pr-chord-key[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-tint); stroke:var(--pr-chord-ink)}
 .pr-chord-black[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-black-tint)}
 .pr-chord-key-dot{fill:var(--pr-chord-ink)}
+.pr-hint-key-finger{fill:var(--pr-chord-ink); font:700 8px var(--sans); text-anchor:middle; dominant-baseline:central}
 .pr-chord-key.pr-chord-root .pr-chord-key-dot{fill:none; stroke:var(--pr-chord-ink); stroke-width:1.6}
 .pr-chord-key.pr-chord-changed .pr-chord-key-shape{stroke-width:2; stroke-dasharray:3 2}
 .pr-chord-key.pr-chord-sounding .pr-chord-key-shape{fill:var(--pr-chord-playing-tint)}
-.pr-chord-key.pr-chord-sounding .pr-chord-key-dot{fill:#fff}
+.pr-chord-key.pr-chord-sounding :is(.pr-chord-key-dot,.pr-hint-key-finger){fill:#fff}
 .pr-chord-key.pr-chord-sounding.pr-chord-root .pr-chord-key-dot{fill:none; stroke:#fff}
 .pr-chord-staff-line,.pr-chord-double-sharp{stroke:var(--staffink)}
 .pr-chord-staff-line{stroke-width:.85; opacity:.68}
