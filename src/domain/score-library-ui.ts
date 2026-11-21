@@ -66,7 +66,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     return { key, option };
   });
   filterLabel.append(filterText, filter);
-  const sortKeys = ['added', 'recent', 'title', 'composer', 'difficulty', 'progress_desc', 'progress_asc'] as const;
+  const sortKeys = ['added', 'recent', 'title', 'composer', 'difficulty', 'difficulty_desc', 'progress_desc', 'progress_asc'] as const;
   const sortLabel = element('label', 'score-library-filter score-library-sort');
   const sortText = element('span');
   const sort = element('select');
@@ -1073,7 +1073,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     axisRange.sync();
   }
   function ratingAffectsResults(): boolean {
-    return sort.value === 'difficulty' || !!totalRange.read() || !!(axisSelect.value && axisRange.read());
+    return sort.value === 'difficulty' || sort.value === 'difficulty_desc' || !!totalRange.read() || !!(axisSelect.value && axisRange.read());
   }
   function matchesDifficulty(score: number | undefined, range: DifficultyRange): boolean {
     return score !== undefined && score >= range.min && score <= range.max;
@@ -1197,6 +1197,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       }
       if (effectiveSort === 'difficulty') {
         return (displayedStars(a) ?? Infinity) - (displayedStars(b) ?? Infinity) || compareByTitle(a, b);
+      }
+      if (effectiveSort === 'difficulty_desc') {
+        const da = displayedStars(a), db = displayedStars(b);
+        if ((da === undefined) !== (db === undefined)) return da === undefined ? 1 : -1;
+        return (db ?? 0) - (da ?? 0) || compareByTitle(a, b);
       }
       if (effectiveSort === 'progress_desc' || effectiveSort === 'progress_asc') {
         const pa = a.progress;
@@ -1385,7 +1390,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     empty.hidden = !loaded || shown.length > 0 || (corruptCount > 0 && !items.length);
     empty.textContent = t(items.length ? 'no_matches' : 'empty');
     scroll.hidden = shown.length === 0;
-    difficultySort.setAttribute('aria-pressed', String(sort.value === 'difficulty'));
+    difficultySort.setAttribute('aria-pressed', String(sort.value === 'difficulty' || sort.value === 'difficulty_desc'));
     axesInfoPanel.hidden = !axesInfoOpen;
     axesInfoToggle.setAttribute('aria-expanded', String(axesInfoOpen));
     axesInfoToggle.setAttribute('aria-pressed', String(axesInfoOpen));
@@ -1405,7 +1410,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     sortText.textContent = t('sort_by');
     pieceHeading.textContent = t('piece_column');
     difficultySort.textContent = t('rating_open');
-    difficultySort.setAttribute('aria-label', `${t('sort_by')} ${t('sort_difficulty')}`);
+    difficultySort.setAttribute('aria-label', `${t('sort_by')} ${t(sort.value === 'difficulty' ? 'sort_difficulty_desc' : 'sort_difficulty')}`);
     axesInfoToggle.title = t('rating_info');
     axesInfoToggle.setAttribute('aria-label', t('rating_info'));
     axesInfoPanel.setAttribute('aria-label', t('rating_info'));
@@ -1543,7 +1548,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   sort.addEventListener('change', render);
   difficultySort.addEventListener('click', () => {
     if (busy) return;
-    sort.value = 'difficulty';
+    sort.value = sort.value === 'difficulty' ? 'difficulty_desc' : 'difficulty';
     render();
   });
   axesInfoToggle.addEventListener('click', () => {
