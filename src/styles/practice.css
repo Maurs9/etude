@@ -80,6 +80,11 @@
 .pr-hint-visuals{display:grid; gap:6px; width:100%; min-width:0}
 .pr-hint-hand{border-top:1px solid var(--line); padding-top:8px}
 .pr-hint-hand-title{margin:0; font:700 13px/1.3 var(--sans); color:var(--ink)}
+.pr-progression-sequence{display:flex; flex-wrap:wrap; align-self:stretch; gap:6px; padding:0; margin:0; list-style:none}
+.pr-progression-chord{display:grid; align-content:start; gap:2px; min-width:42px; padding:6px; border:1px solid var(--line); border-radius:8px; text-align:center; line-height:1.25}
+.pr-progression-degree{color:var(--ink2); font-size:12px}
+.pr-progression-name{color:var(--ink); font-size:14px}
+.pr-progression-chord[aria-current=step]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--card))}
 .pr-chord-staves{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:100%; max-width:360px}
 .pr-chord-staff-block{text-align:center}
 .pr-chord-clef-label{font:600 12px/1.3 var(--sans); color:var(--ink2)}
