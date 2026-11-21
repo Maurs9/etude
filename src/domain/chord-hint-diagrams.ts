@@ -1,7 +1,7 @@
 import { packChordColumn, srClef, srLedger2 } from './grand-staff.js';
+import { createHintKeyboard, hintSvg } from './hint-keyboard.js';
 import type { ChordHintTone, PracticeHintNote } from './practice-hints.js';
 import { ssAccGlyph, ssFlat, ssNotehead, ssStepOf } from './score-types.js';
-import { pitchClass } from './theory.js';
 
 interface DiagramChord {
   readonly symbol: string;
@@ -10,40 +10,14 @@ interface DiagramChord {
   readonly changed: ReadonlySet<number>;
 }
 
-const whitePitch = new Set([0, 2, 4, 5, 7, 9, 11]);
-const svgNamespace = 'http://www.w3.org/2000/svg';
 const staffLayouts = [
   { clef: 'treble', bottomStep: ssStepOf(2, 4), octaveOffset: 0, label: 'pr_hints_chord_staff' },
   { clef: 'bass', bottomStep: ssStepOf(4, 2), octaveOffset: -1, label: 'pr_hints_chord_bass_staff' },
 ] as const;
 type StaffLayout = (typeof staffLayouts)[number];
 
-function image(className: string, viewBox: string): SVGSVGElement {
-  const svg = document.createElementNS(svgNamespace, 'svg');
-  svg.setAttribute('class', className);
-  svg.setAttribute('viewBox', viewBox);
-  svg.setAttribute('role', 'img');
-  return svg;
-}
-
 function toneClasses(tone: ChordHintTone | undefined, changed: boolean): string {
   return (tone?.degree === 1 ? ' pr-chord-root' : '') + (changed ? ' pr-chord-changed' : '');
-}
-
-function keyboardKeys(chord: DiagramChord, low: number, high: number, compare: boolean): string {
-  const whiteWidth = 20, blackWidth = 12;
-  const white: string[] = [], black: string[] = [];
-  for (let midi = low; midi <= high; midi++) {
-    const isWhite = whitePitch.has(pitchClass(midi));
-    const width = isWhite ? whiteWidth : blackWidth, height = isWhite ? 64 : 39;
-    const x = 2 + white.length * whiteWidth - (isWhite ? 0 : blackWidth / 2);
-    const tone = chord.tones.find(note => note.midi === midi);
-    const group = `<g class="pr-chord-key ${isWhite ? 'pr-chord-white' : 'pr-chord-black'}${toneClasses(tone, compare && chord.changed.has(midi))}"${tone ? ` data-chord-midi="${midi}"` : ''}>` +
-      `<rect class="pr-chord-key-shape" x="${x}" y="2" width="${width}" height="${height}" rx="1.5"/>` +
-      (tone ? `<circle class="pr-chord-key-dot" cx="${x + width / 2}" cy="${height - 6}" r="${tone.degree === 1 ? 3.5 : 2.7}"/>` : '') + '</g>';
-    (isWhite ? white : black).push(group);
-  }
-  return white.join('') + black.join('');
 }
 
 function staffY(tone: ChordHintTone, layout: StaffLayout) {
@@ -78,13 +52,7 @@ export function createChordHintDiagrams(
   text: (key: string, ...args: string[]) => string,
 ) {
   const all = [...original.tones, ...(comparison?.tones ?? [])];
-  let low = Math.min(...all.map(tone => tone.midi));
-  let high = Math.max(low + 12, ...all.map(tone => tone.midi));
-  while (!whitePitch.has(pitchClass(low))) low--;
-  while (!whitePitch.has(pitchClass(high))) high++;
-  const whites = Array.from({ length: high - low + 1 }, (_, i) => low + i).filter(midi => whitePitch.has(pitchClass(midi))).length;
-  const keyboard = image('pr-chord-keyboard', `0 0 ${whites * 20 + 4} 68`);
-  keyboard.dataset.chordRoot = String(pitchClass(original.tones[0].midi));
+  const keyboard = createHintKeyboard(original.tones[0].midi, all.map(tone => tone.midi));
 
   const accidentalCount = (tones: readonly ChordHintTone[]) => tones.filter(tone => tone.acc).length;
   const center = 58 + 15 * Math.max(accidentalCount(original.tones), accidentalCount(comparison?.tones ?? []));
@@ -93,9 +61,8 @@ export function createChordHintDiagrams(
     const positions = all.map(tone => staffY(tone, layout));
     const above = Math.min(-17, Math.min(...positions) - 14);
     const below = Math.max(62, Math.max(...positions) + 14);
-    return { ...layout, svg: image(`pr-chord-staff pr-chord-staff-${layout.clef}`, `0 ${above} ${width} ${below - above}`) };
+    return { ...layout, svg: hintSvg(`pr-chord-staff pr-chord-staff-${layout.clef}`, `0 ${above} ${width} ${below - above}`) };
   });
-  const drawings = [keyboard, ...staves.map(staff => staff.svg)];
   const noteName = (tone: ChordHintTone, octaveOffset = 0) => spell(tone.li, tone.acc) + (tone.oct + octaveOffset);
   const caption = document.createElement('div');
   caption.className = 'pr-hint-detail pr-chord-caption';
@@ -123,9 +90,9 @@ export function createChordHintDiagrams(
     const chord = comparison && symbol === comparison.symbol ? comparison : original;
     const comparing = !!comparison && symbol !== undefined;
     if (chord !== last || comparing !== compared) {
-      keyboard.innerHTML = keyboardKeys(chord, low, high, comparing);
       const active = comparisonCaption?.chord === chord ? comparisonCaption : originalCaption;
-      keyboard.setAttribute('aria-label', text('pr_hints_chord_keyboard', chord.title, active.names));
+      keyboard.draw(chord.tones.map(tone => ({ midi: tone.midi, tonic: tone.degree === 1 })),
+        text('pr_hints_chord_keyboard', chord.title, active.names), comparing ? chord.changed : undefined);
       for (const staff of staves) {
         staff.svg.innerHTML = staffChord(chord, staff, center, width, comparing);
         const names = chord.tones.map(tone => noteName(tone, staff.octaveOffset)).join(' · ');
@@ -138,12 +105,13 @@ export function createChordHintDiagrams(
     last = chord;
     compared = comparing;
     const midis = new Set(sounding.map(note => note.midi));
-    for (const svg of drawings) {
+    keyboard.paint(midis);
+    for (const { svg } of staves) {
       svg.querySelectorAll('[data-chord-midi]').forEach(node => {
         node.classList.toggle('pr-chord-sounding', midis.has(Number(node.getAttribute('data-chord-midi'))));
       });
     }
   };
   paint();
-  return { keyboard, staves, caption, paint };
+  return { keyboard: keyboard.svg, staves, caption, paint };
 }

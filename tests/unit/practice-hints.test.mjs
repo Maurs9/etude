@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, PRACTICE_HINT_REFERENCES,
-  chordHintFormula, chordHintSteps, chordHintTones, progressionHintChords, progressionHintSteps, scaleHintFormula, scaleHintSteps,
+  chordHintFormula, chordHintSteps, chordHintTones, progressionHintChords, progressionHintSteps, scaleHintFormula, scaleHintSteps, scaleHintTones,
   techniqueHintSteps, techniqueHintTonic,
 } from '../../src/domain/practice-hints.ts';
 import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS, pitchClass, practiceTonicMidi } from '../../src/domain/theory.ts';
@@ -59,6 +59,21 @@ describe('Practice hint catalog', () => {
     expect(scaleHintFormula(locrian)).toBe('1 ♭2 ♭3 4 ♭5 ♭6 ♭7');
     expect(scaleHintFormula(lydian)).toBe('1 2 3 ♯4 5 6 7');
     expect(notes(scaleHintSteps(byName(SCALE_HINTS, 'Dorian'), 2)).slice(0, 7).flat()).toEqual([62, 69, 71, 72, 69, 70, 72]);
+  });
+
+  it('uses the same transposed octave for scale diagrams and their playback', () => {
+    for (const hint of SCALE_HINTS) {
+      for (let tonic = 0; tonic < 12; tonic++) {
+        const root = practiceTonicMidi(tonic, 'near-middle-c');
+        const tones = scaleHintTones(hint.name, tonic);
+        expect(tones.map(tone => ssMidiOf(tone.li, tone.oct, tone.acc))).toEqual(
+          [...SCALE_DEFINITIONS[hint.name], 12].map(offset => root + offset));
+        expect(tones.filter(tone => tone.tonic).map(tone => tone.midi)).toEqual([root, root + 12]);
+        expect(tones.every(tone => Math.abs(tone.acc) <= 2)).toBe(true);
+      }
+    }
+    const harmonic = scaleHintTones('Harmonic minor', 2);
+    expect(harmonic[6]).toMatchObject({ li: 0, acc: 1, midi: 73 });
   });
 
   it('follows the demonstrated bass and plays all twelve measures of blues', () => {
