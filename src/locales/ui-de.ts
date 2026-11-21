@@ -1625,6 +1625,7 @@ const payload: UIPayload = {
       "pr_countin": "Einzähltakt vor Beginn (C)",
       "pr_acc": "Die andere Hand für mich spielen",
       "pr_hear": "Meinen Part hören (wenn nicht gewartet wird)",
+      "pr_expressive": "Ausdrucksvolle Wiedergabe (Phrasierung, Dynamik & Rubato)",
       "pr_ramp": "Schleife: Tempo nach jedem sauberen Durchgang steigern (≥ 80%)",
       "pr_ab": "A–B-Schleife",
       "pr_seta": "A setzen ([)",

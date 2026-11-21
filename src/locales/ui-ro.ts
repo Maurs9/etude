@@ -796,6 +796,7 @@ const payload: UIPayload = {
       "pr_countin": "O măsură de numărătoare înainte (C)",
       "pr_acc": "Cântă cealaltă mână pentru mine",
       "pr_hear": "Aud partea mea (când nu aștept)",
+      "pr_expressive": "Redare expresivă (frazare, dinamică și rubato)",
       "pr_ramp": "Buclă: mărește tempoul după fiecare trecere curată (≥ 80%)",
       "pr_ab": "Buclă A–B",
       "pr_seta": "Setează A ([)",

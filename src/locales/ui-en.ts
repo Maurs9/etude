@@ -796,6 +796,7 @@ const payload: UIPayload = {
       "pr_countin": "Count-in bar before playing (C)",
       "pr_acc": "Play the other hand for me",
       "pr_hear": "Hear my part (when not waiting)",
+      "pr_expressive": "Expressive playback (phrasing, dynamics & rubato)",
       "pr_ramp": "Loop: speed up after each clean pass (≥ 80%)",
       "pr_ab": "A–B loop",
       "pr_seta": "Set A ([)",

@@ -1547,6 +1547,7 @@ const payload: UIPayload = {
       "pr_countin": "Battuta d'aspetto prima di iniziare (C)",
       "pr_acc": "Suona l'altra mano per me",
       "pr_hear": "Ascolta la mia parte (quando non è attivo «Aspettami»)",
+      "pr_expressive": "Riproduzione espressiva (fraseggio, dinamica e rubato)",
       "pr_ramp": "Loop: aumenta il tempo dopo ogni esecuzione pulita (≥ 80%)",
       "pr_ab": "Loop A–B",
       "pr_seta": "Imposta A ([)",
