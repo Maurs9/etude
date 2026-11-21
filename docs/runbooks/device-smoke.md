@@ -32,6 +32,8 @@ Before you start, open **Settings → Your data → Diagnostics** and tap **Copy
 1. Start the metronome or a drill with sound. Switch to another app for 30 seconds, then come back.
 2. Tap once. Check that sound plays. If the banner says sound is off, tap **Turn sound on** and note it.
 
+Practice hints follow-up (physical iOS PWA and Android TWA pending). In Practice, open a chord hint in **By ear**. Listen once, then tap **Show keys** and check the sequence against the sound. In **Scales and arpeggios**, check that the finger numbers follow the sounding notes. Hide the keyboard during a demonstration and confirm that the saved dock preference is restored when the preview ends. While a preview is playing, switch topics, close the panel and repeat after switching apps. Check that the preview does not resume from a late audio unlock. Browser tests exercise playback scheduling and keyboard marks. Use the built-in speaker and a Bluetooth output to check audible synchronization on a device.
+
 Interval song hints (physical Android/TWA pending): open Practice → Intervals → Song hints with the piano dock visible. Play an ascending and a descending song from the same reference note. Check that the first two notes are louder, that the dock follows the melody, and that closing Song hints or pressing Hear clears the previous highlights. Repeat with the phone speaker and Bluetooth audio.
 
 ## MIDI

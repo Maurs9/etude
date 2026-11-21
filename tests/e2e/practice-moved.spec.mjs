@@ -39,11 +39,16 @@ test.describe('Song hints in the Practice setup', () => {
     await expect(page.locator('#song-dir button[data-v="desc"]')).toHaveAttribute('aria-pressed', 'true');
     await page.locator('#songsList .songcard[data-semi="7"] .play').click();
     expect(await played(page)).toEqual([[62, 7, 'melodic'], [62, -7, 'melodic']]);
-    // Other topics hide the panel.
     await page.locator('#pr-t-chord').click();
-    await expect(panel).toBeHidden();
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveAttribute('open', '');
+    await expect(page.locator('#practiceHintsList [data-hint="maj7"]')).toBeVisible();
+    await expect(page.locator('#song-dir')).toBeHidden();
+    await expect(page.locator('#song-root')).toBeHidden();
     await page.locator('#pr-t-interval').click();
     await expect(panel).toBeVisible();
+    await expect(page.locator('#song-root')).toHaveValue('2');
+    await expect(page.locator('#song-dir button[data-v="desc"]')).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('shows five songs per direction and playback uses the score rhythm and dock', async ({ app }) => {
@@ -71,11 +76,12 @@ test.describe('Song hints in the Practice setup', () => {
     await expect.poll(() => page.evaluate(() => [...window.__etude.keyEl.values()].some(key => key.dataset.s === 'target'))).toBe(false);
   });
 
-  test('the cards follow the language, also while another topic hides them', async ({ app }) => {
+  test('the open panel follows the language when switching between topics', async ({ app }) => {
     const page = await app.open({ hash: 'practice' });
     await page.locator('#pr-songs summary').click();
     await page.locator('#pr-t-chord').click();
     await page.evaluate(() => window.__etude.setLang('de'));
+    await expect(page.locator('#pr-songs summary')).toHaveText('Hinweise zu Akkorden');
     await page.locator('#pr-t-interval').click();
     await expect(page.locator('#pr-songs summary')).toHaveText('Merkhilfen aus Liedern');
     await expect(page.locator('#songsList .songcard')).toHaveCount(12);
