@@ -1,6 +1,8 @@
 import { techniqueSteps } from './technique.js';
 
 /** Experimental estimates of score difficulty. This module does not score a player's performance. */
+export const ESTIMATOR_VERSION = 2;
+
 export type DifficultyHand = 'rh' | 'lh';
 export type DifficultyProfile = 'performance' | 'sightReading';
 export type TempoSource = 'written' | 'reference' | 'fallback';
@@ -91,6 +93,11 @@ export interface DifficultyAggregationConfig {
   enduranceScale?: number;
 }
 
+export interface DifficultyOptions {
+  rubricVersion?: 1 | 2;
+  aggregation?: DifficultyAggregationConfig;
+}
+
 export const DEFAULT_AGGREGATION: DifficultyAggregationConfig = {
   mode: 'order',
   orderWeights: [0.45, 0.30, 0.25 / 3, 0.25 / 3, 0.25 / 3],
@@ -100,6 +107,12 @@ export const DEFAULT_AGGREGATION: DifficultyAggregationConfig = {
 
 export const DIFFICULTY_AXES = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'] as const;
 export type DifficultyAxis = typeof DIFFICULTY_AXES[number];
+
+export interface DifficultyAxisSummary {
+  stars: number;
+  measures: readonly number[];
+  drivers: readonly DifficultyDriver[];
+}
 
 interface PositionChange {
   hand: DifficultyHand;
@@ -128,7 +141,12 @@ export interface DifficultyEstimate {
   peak: DifficultyWindow | null;
   typical: number;
   difficultyStars: number | null;
-  axisDifficulty: Readonly<Record<DifficultyAxis, { stars: number; measures: readonly number[] }>> | null;
+  baseStars: number | null;
+  appliedEnduranceStars: number;
+  enduranceRaw: number;
+  spanAlert: boolean;
+  enduranceComponents: { stamina: number; materialLoad: number };
+  axisDifficulty: Readonly<Record<DifficultyAxis, DifficultyAxisSummary>> | null;
   endurance: number;
   uniqueWrittenMeasures: number;
   uncertainty: {
@@ -144,6 +162,8 @@ export interface DifficultyEstimate {
 const EPSILON = 1e-7;
 const HANDS: readonly DifficultyHand[] = ['rh', 'lh'];
 const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
+const ASYMMETRIC_NUMS = new Set([5, 7, 10, 11, 13]);
+const MOTOR_V2_DIVISOR = 3.6;
 const unit = (value: number) => Math.min(1, Math.max(0, value));
 const round = (value: number) => Math.round(value * 100) / 100;
 // At the original axis ceiling the star scale is halfway through its range.
@@ -191,9 +211,32 @@ function axisRecord<T>(make: (axis: DifficultyAxis) => T): Record<DifficultyAxis
 }
 
 function median(values: number[]): number {
-  values.sort((a, b) => a - b);
-  const middle = Math.floor(values.length / 2);
-  return values.length ? (values[middle] + values[Math.floor((values.length - 1) / 2)]) / 2 : 0;
+  const copy = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(copy.length / 2);
+  return copy.length ? (copy[middle] + copy[Math.floor((copy.length - 1) / 2)]) / 2 : 0;
+}
+
+type DriverWeights = Partial<Record<DifficultyDriver, number>>;
+
+function addDriver(weights: DriverWeights, driver: DifficultyDriver, value: number): void {
+  if (value > 0) weights[driver] = (weights[driver] ?? 0) + value;
+}
+
+function mergeDrivers(target: DriverWeights, source: DriverWeights): void {
+  for (const [driver, value] of Object.entries(source) as [DifficultyDriver, number][]) {
+    if (value > 0) target[driver] = (target[driver] ?? 0) + value;
+  }
+}
+
+function topDrivers(weights: DriverWeights): DifficultyDriver[] {
+  const entries = (Object.entries(weights) as [DifficultyDriver, number][])
+    .filter(([, value]) => value > 0.05)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (!entries.length) return [];
+  const out = [entries[0][0]];
+  if (entries[1]) out.push(entries[1][0]);
+  if (entries[2] && entries[2][1] >= entries[0][1] * 0.45) out.push(entries[2][0]);
+  return out;
 }
 
 interface Attack {
@@ -203,6 +246,14 @@ interface Attack {
   notes: DifficultyNote[];
   direction: number;
   structuralDirection: number;
+}
+
+interface MotorEvent {
+  sec: number;
+  measureIndex: number;
+  hand: DifficultyHand | null;
+  cost: number;
+  drivers: DriverWeights;
 }
 
 interface Bar {
@@ -226,6 +277,7 @@ interface Bar {
   polyrhythmCost: number;
   rests: string[];
   hasSound: boolean;
+  drivers: Record<DifficultyAxis, DriverWeights>;
 }
 
 function emptyBar(): Bar {
@@ -234,6 +286,7 @@ function emptyBar(): Bar {
     speed: 0, motion: 0, positionChanges: [], geometry: 0, structuralMotion: 0, structuralShifts: 0,
     rhythm: 0, texture: 0, structuralTexture: 0, voices: 0, reading: 0,
     chromatic: 0, bimanual: 0, structuralBimanual: 0, polyrhythmCost: 0, rests: [], hasSound: false,
+    drivers: axisRecord((): DriverWeights => ({})),
   };
 }
 
@@ -285,23 +338,70 @@ function syncopated(note: DifficultyNote, measure: DifficultyMeasure, groups: re
   return (!regularFour || boundary % 2 === 1) && note.end > nextAccent + EPSILON;
 }
 
-function annotateAttack(attack: Attack, measure: DifficultyMeasure, groups: readonly number[], bar: Bar) {
+function isAsymmetricMeter(measure: DifficultyMeasure): boolean {
+  if (measure.num && measure.den) {
+    if (measure.den === 8 && ASYMMETRIC_NUMS.has(measure.num)) return true;
+    if (measure.den === 4 && (measure.num === 5 || measure.num === 7)) return true;
+    if (measure.den === 16 && (measure.num === 5 || measure.num === 7 || measure.num === 11)) return true;
+  }
+  if (measure.groups.length >= 2) {
+    const sum = measure.groups.reduce((s, g) => s + g, 0);
+    if (Math.abs(sum - (measure.end - measure.start)) < 1e-4) {
+      const min = Math.min(...measure.groups);
+      const max = Math.max(...measure.groups);
+      if (max - min > 1e-4) return true;
+    }
+  }
+  return false;
+}
+
+function meterSignature(measure: DifficultyMeasure): string {
+  return measure.num && measure.den
+    ? `${measure.num}/${measure.den}`
+    : measure.groups.map(g => round(g)).join('+');
+}
+
+function annotateAttack(attack: Attack, measure: DifficultyMeasure, groups: readonly number[], bar: Bar, isV2: boolean) {
   bar.attacks.push(attack);
   bar.hasSound = true;
   const isSyncopated = attack.notes.some(note => syncopated(note, measure, groups));
   const tiedAcrossBar = attack.notes.some(note => note.tiedAcrossBar);
-  bar.rhythm += isSyncopated ? 1.1 : tiedAcrossBar ? 0.45 : 0;
+  const syncVal = isSyncopated ? 1.1 : tiedAcrossBar ? 0.45 : 0;
+  bar.rhythm += syncVal;
+  addDriver(bar.drivers.rhythm, 'syncopation', syncVal);
   if (attack.notes.some(note => note.dotted)) bar.rhythm += 0.35;
-  if (attack.notes.some(note => note.tuplet)) bar.rhythm += 0.7;
+  if (attack.notes.some(note => note.tuplet)) {
+    bar.rhythm += 0.7;
+    addDriver(bar.drivers.rhythm, 'tuplets', 0.7);
+  }
   const shortest = Math.min(...attack.notes.map(note => note.end - note.start));
-  bar.rhythm += shortest <= 0.25 ? 0.45 : shortest <= 0.5 ? 0.15 : 0;
+  const subVal = shortest <= 0.25 ? 0.45 : shortest <= 0.5 ? 0.15 : 0;
+  bar.rhythm += subVal;
+  addDriver(bar.drivers.rhythm, 'fast_subdivisions', subVal);
+
   const pitches = new Set(attack.notes.map(note => note.midi));
   const span = Math.max(...pitches) - Math.min(...pitches);
-  bar.structuralTexture += Math.max(0, pitches.size - 1) * 0.45;
-  bar.texture += Math.max(0, pitches.size - 1) * 0.2 + Math.max(0, span - 7) * 0.22;
+  const structTex = Math.max(0, pitches.size - 1) * 0.45;
+  bar.structuralTexture += structTex;
+  if (isV2) {
+    // Physical hand span moves cleanly to motor in v2; keep chord density in texture.
+    const chordDensity = Math.max(0, pitches.size - 1) * 0.25;
+    bar.texture += chordDensity;
+    addDriver(bar.drivers.texture, 'dense_chords', chordDensity);
+  } else {
+    const v1Tex = Math.max(0, pitches.size - 1) * 0.2 + Math.max(0, span - 7) * 0.22;
+    bar.texture += v1Tex;
+    addDriver(bar.drivers.texture, 'dense_chords', Math.max(0, pitches.size - 1) * 0.2);
+  }
   for (const note of attack.notes) {
-    bar.chromatic += note.accidentals ?? 0;
-    bar.reading += (note.ledgerLines ?? 0) * 0.25 + Math.min(2, note.ornaments ?? 0) * 0.35;
+    const acc = note.accidentals ?? 0;
+    const ledger = (note.ledgerLines ?? 0) * 0.25;
+    const orn = Math.min(2, note.ornaments ?? 0) * 0.35;
+    bar.chromatic += acc;
+    bar.reading += ledger + orn;
+    addDriver(bar.drivers.reading, 'accidentals', acc * 0.55);
+    addDriver(bar.drivers.reading, 'ledger_lines', ledger);
+    addDriver(bar.drivers.reading, 'ornaments', orn);
   }
 }
 
@@ -381,10 +481,20 @@ function thumbCrossing(previous: Attack, current: Attack, before: number | undef
   return pitchStep * (after - before) * (hand === 'rh' ? 1 : -1) < 0;
 }
 
-function annotateHand(line: readonly Attack[], hand: DifficultyHand, input: DifficultyInput, bars: Bar[], profile: DifficultyProfile) {
+function annotateHand(
+  line: readonly Attack[],
+  hand: DifficultyHand,
+  input: DifficultyInput,
+  bars: Bar[],
+  profile: DifficultyProfile,
+  isV2: boolean,
+  motorEvents: MotorEvent[],
+): number {
   let previous: Attack | undefined;
   let physicalPosition: Range | null = null, structuralPosition: Range | null = null;
+  let maxHandSpan = 0;
   const heldVoices = new Map<string, number>();
+  let heldMidiNotes: { midi: number; end: number }[] = [];
   const fingers = profile === 'performance' ? fingeringFor(line, hand) : [];
   for (const [i, attack] of line.entries()) {
     const index = measureAt(input.measures, attack.start);
@@ -395,18 +505,45 @@ function annotateHand(line: readonly Attack[], hand: DifficultyHand, input: Diff
     const structural = pitchRange(attack, true);
     const prevPhysical = previous && pitchRange(previous, false);
     const prevStructural = previous && pitchRange(previous, true);
+    const handSpan = physical ? physical[1] - physical[0] : 0;
+    if (handSpan > maxHandSpan) maxHandSpan = handSpan;
+
+    let attackMotorCost = 0.22;
+    const attackDrivers: DriverWeights = {};
+    const dtRaw = previous ? attack.sec - previous.sec : 0;
+    const speedV2 = previous ? Math.log(1 + Math.max(0, 1 / Math.max(0.04, dtRaw) - 2)) : 0;
+
+    if (isV2 && handSpan >= 10) {
+      const spanSpeedBoost = previous ? Math.min(1.5, speedV2 * 0.35) : 0;
+      const spanCost = handSpan >= 12
+        ? (0.64 + (handSpan - 11) * 0.55) * (1 + spanSpeedBoost)
+        : (handSpan - 9) * 0.32 * (1 + spanSpeedBoost * 0.7);
+      attackMotorCost += spanCost;
+      addDriver(attackDrivers, 'wide_span', spanCost);
+    }
+    if (isV2) {
+      const trillsCount = attack.notes.reduce((sum, note) => sum + (note.trills ?? 0), 0);
+      if (trillsCount > 0) {
+        const trillCost = Math.min(2, trillsCount) * 0.9;
+        attackMotorCost += trillCost;
+        addDriver(attackDrivers, 'trills', trillCost);
+      }
+    }
+
     if (previous && prevPhysical && physical) {
-      const dt = attack.sec - previous.sec;
-      const speed = unit((0.28 - dt) / 0.12) + unit((0.16 - dt) / 0.06);
+      const speed = unit((0.28 - dtRaw) / 0.12) + unit((0.16 - dtRaw) / 0.06);
       const low = physical[0] - prevPhysical[0], high = physical[1] - prevPhysical[1];
       const jump = Math.min(Math.abs(low), Math.abs(high));
       const outerJump = Math.max(Math.abs(low), Math.abs(high));
       attack.direction = Math.sign(hand === 'rh' ? high : low);
-      bar.speed += speed;
-      bar.motion += Math.max(0, jump - 4) * (1 + unit((0.48 - dt) / 0.32)) * 0.24;
+      const regularMotion = Math.max(0, jump - 4) * (1 + unit((0.48 - dtRaw) / 0.32)) * 0.24;
+      const criticalLeap = isV2 && jump > 12 && (attack.start - previous.start < 2 - EPSILON || dtRaw < 1.0)
+        ? (jump - 12) * 0.18 * (1 + unit((0.6 - dtRaw) / 0.45))
+        : 0;
       const crosses = thumbCrossing(previous, attack, fingers[i - 1], fingers[i], hand);
       const next: Range = crosses ? physical : position(physicalPosition, physical, 8);
-      if (crosses || (next === physical && rangeChanged(prevPhysical, physical))) {
+      const posChanged = crosses || (next === physical && rangeChanged(prevPhysical, physical));
+      if (posChanged) {
         const bothWritten = writtenFinger(previous) !== undefined && writtenFinger(attack) !== undefined;
         const reason = crosses ? (bothWritten ? 'writtenThumb' : 'inferredThumb') : 'span';
         bar.positionChanges.push({ hand, beat: attack.start, reason });
@@ -415,36 +552,88 @@ function annotateHand(line: readonly Attack[], hand: DifficultyHand, input: Diff
       if (attack.notes.length > 1 || previous.notes.length > 1) {
         // An inversion can change the grip even when the outer notes stay in place.
         const changed = attack.notes.length !== previous.notes.length ||
-          attack.notes.some((note, i) => note.midi !== previous?.notes[i]?.midi);
-        if (changed) bar.texture += 0.3 + outerJump * 0.06 * (1 + speed);
+          attack.notes.some((note, idx) => note.midi !== previous?.notes[idx]?.midi);
+        if (changed) {
+          const grip = 0.3 + outerJump * 0.06 * (1 + speed);
+          bar.texture += grip;
+          addDriver(bar.drivers.texture, 'chord_changes', grip);
+        }
       }
       const anchor = hand === 'rh' ? 1 : 0;
-      if (BLACK_KEYS.has(physical[anchor] % 12) !== BLACK_KEYS.has(prevPhysical[anchor] % 12)) {
-        bar.geometry += unit((0.30 - dt) / 0.15);
+      const geom = BLACK_KEYS.has(physical[anchor] % 12) !== BLACK_KEYS.has(prevPhysical[anchor] % 12)
+        ? unit((0.30 - dtRaw) / 0.15)
+        : 0;
+
+      if (isV2) {
+        const speedCost = speedV2 * 0.35;
+        const leapCost = regularMotion + criticalLeap;
+        const shiftCost = posChanged ? 0.65 : 0;
+        const sameNoteRepeat = dtRaw > EPSILON && dtRaw < 0.18 &&
+          attack.notes.some(n => previous?.notes.some(p => p.midi === n.midi));
+        const repeatCost = sameNoteRepeat ? unit((0.18 - dtRaw) / 0.12) * 0.85 : 0;
+        attackMotorCost += speedCost + leapCost + shiftCost + geom * 0.2 + repeatCost;
+        addDriver(attackDrivers, 'speed', speedCost);
+        addDriver(attackDrivers, 'large_leaps', leapCost);
+        addDriver(attackDrivers, 'position_shifts', shiftCost);
+        addDriver(attackDrivers, 'rapid_repeats', repeatCost);
+      } else {
+        bar.speed += speed;
+        bar.motion += regularMotion;
+        bar.geometry += geom;
+        if (profile !== 'sightReading') {
+          addDriver(bar.drivers.motor, 'speed', speed);
+          addDriver(bar.drivers.motor, 'large_leaps', regularMotion);
+          addDriver(bar.drivers.motor, 'position_shifts', posChanged ? 0.65 : 0);
+        }
       }
     } else {
       physicalPosition = physical;
     }
+
+    if (isV2) {
+      motorEvents.push({ sec: attack.sec, measureIndex: index, hand, cost: attackMotorCost, drivers: attackDrivers });
+    }
+
     if (prevStructural && structural) {
       const anchor = hand === 'rh' ? 1 : 0;
       const delta = structural[anchor] - prevStructural[anchor];
       attack.structuralDirection = Math.sign(delta);
-      bar.structuralMotion += Math.max(0, Math.abs(delta) - 1) ** 1.25;
+      const sMotion = Math.max(0, Math.abs(delta) - 1) ** 1.25;
+      bar.structuralMotion += sMotion;
       const next = position(structuralPosition, structural, 4);
       if (next === structural && rangeChanged(prevStructural, structural)) bar.structuralShifts++;
       structuralPosition = next;
+      if (profile === 'sightReading') {
+        addDriver(bar.drivers.motor, 'large_leaps', sMotion);
+        addDriver(bar.drivers.motor, 'position_shifts', next === structural && rangeChanged(prevStructural, structural) ? 0.5 : 0);
+      }
     } else {
       structuralPosition = structural;
     }
 
-    // Count only distinct identified voices. Inference from MIDI belongs to the adapter.
-    const voices = new Set(attack.notes.flatMap(note => note.voice === undefined ? [] : [note.voice]));
-    for (const [voice, end] of heldVoices) {
-      if (end <= attack.start + EPSILON) heldVoices.delete(voice);
-    }
-    if (voices.size > 1 || (voices.size > 0 && [...heldVoices.keys()].some(voice => !voices.has(voice)))) bar.voices++;
-    for (const note of attack.notes) {
-      if (note.voice !== undefined) heldVoices.set(note.voice, Math.max(note.end, heldVoices.get(note.voice) ?? 0));
+    if (isV2 && input.voiceSource === 'unknown') {
+      // Conservative MIDI polyphony: only key-held overlaps (> 1/8 beat) with distinct interval >= 3 semitones.
+      heldMidiNotes = heldMidiNotes.filter(held => held.end > attack.start + 0.125);
+      if (attack.notes.some(note => heldMidiNotes.some(held => Math.abs(note.midi - held.midi) >= 3))) {
+        bar.voices++;
+        addDriver(bar.drivers.texture, 'polyphonic_voices', 0.15);
+      }
+      for (const note of attack.notes) {
+        if (note.end > attack.start + 0.125) heldMidiNotes.push({ midi: note.midi, end: note.end });
+      }
+    } else {
+      // Count only distinct identified voices. Inference from MIDI belongs to the adapter.
+      const voices = new Set(attack.notes.flatMap(note => note.voice === undefined ? [] : [note.voice]));
+      for (const [voice, end] of heldVoices) {
+        if (end <= attack.start + EPSILON) heldVoices.delete(voice);
+      }
+      if (voices.size > 1 || (voices.size > 0 && [...heldVoices.keys()].some(voice => !voices.has(voice)))) {
+        bar.voices++;
+        addDriver(bar.drivers.texture, 'polyphonic_voices', input.voiceSource === 'written' ? 0.35 : 0.15);
+      }
+      for (const note of attack.notes) {
+        if (note.voice !== undefined) heldVoices.set(note.voice, Math.max(note.end, heldVoices.get(note.voice) ?? 0));
+      }
     }
     previous = attack;
   }
@@ -460,6 +649,7 @@ function annotateHand(line: readonly Attack[], hand: DifficultyHand, input: Diff
       bars[i].hasSound = true;
     }
   });
+  return maxHandSpan;
 }
 
 function gridCount(line: readonly Attack[], start: number, end: number) {
@@ -511,7 +701,14 @@ function handsOverlap(bar: Bar, measure: DifficultyMeasure) {
   return false;
 }
 
-function annotateCoordination(bars: readonly Bar[], input: DifficultyInput, groups: readonly number[][]) {
+function attackArticulation(attack: Attack): NoteArticulation | null {
+  for (const note of attack.notes) {
+    if (note.articulation) return note.articulation;
+  }
+  return null;
+}
+
+function annotateCoordination(bars: readonly Bar[], input: DifficultyInput, groups: readonly number[][], isV2: boolean) {
   let previousSolo: DifficultyHand | null = null;
   bars.forEach((bar, i) => {
     const { rh, lh } = bar.hands;
@@ -520,16 +717,20 @@ function annotateCoordination(bars: readonly Bar[], input: DifficultyInput, grou
     const leftActive = lh.length > 0 || bar.heldUntil.lh > measure.start;
     if (!rightActive || !leftActive) {
       const solo = rightActive ? 'rh' : leftActive ? 'lh' : null;
-      if (solo && previousSolo && solo !== previousSolo) bar.bimanual = bar.structuralBimanual = 0.4;
+      if (solo && previousSolo && solo !== previousSolo) {
+        bar.bimanual = bar.structuralBimanual = 0.4;
+        addDriver(bar.drivers.bimanual, 'hand_independence', 0.4);
+      }
       previousSolo = solo;
       return;
     }
     previousSolo = null;
     if (!handsOverlap(bar, measure)) {
       bar.bimanual = bar.structuralBimanual = 0.4; // both play in the measure, but take turns
+      addDriver(bar.drivers.bimanual, 'hand_independence', 0.4);
       return;
     }
-    let shared = 0, contrary = 0, structuralContrary = 0;
+    let shared = 0, contrary = 0, structuralContrary = 0, artContrast = 0;
     let r = 0, l = 0;
     while (r < rh.length && l < lh.length) {
       const delta = rh[r].start - lh[l].start;
@@ -540,6 +741,12 @@ function annotateCoordination(bars: readonly Bar[], input: DifficultyInput, grou
         if (rh[r].notes.length > 1 && lh[l].notes.length > 1) {
           bar.texture += 0.35;
           bar.structuralTexture += 0.35;
+          addDriver(bar.drivers.texture, 'two_hand_chords', 0.35);
+        }
+        if (isV2) {
+          const rArt = attackArticulation(rh[r]);
+          const lArt = attackArticulation(lh[l]);
+          if ((rArt || lArt) && rArt !== lArt) artContrast++;
         }
         r++;
         l++;
@@ -551,14 +758,197 @@ function annotateCoordination(bars: readonly Bar[], input: DifficultyInput, grou
     const independent = moving && total > 0 ? (total - 2 * shared) / total : 0;
     bar.polyrhythmCost = moving ? polyrhythm(bar, measure, groups[i]) : 0;
     const coordination = (moving ? 0.35 : 0.18) + independent + bar.polyrhythmCost * 0.55;
-    bar.bimanual = coordination + contrary * 0.18;
+    let crossingCost = 0;
+    let artCost = 0;
+    if (isV2) {
+      let crossings = 0;
+      for (const rAttack of rh) {
+        const rMin = Math.min(...rAttack.notes.map(n => n.midi));
+        const crossed = lh.some(lAttack => {
+          const overlapsBeats = rAttack.start < lAttack.end - EPSILON && lAttack.start < rAttack.end - EPSILON;
+          const closeInTime = Math.abs(rAttack.sec - lAttack.sec) < 0.5 - EPSILON;
+          if (!overlapsBeats && !closeInTime) return false;
+          const lMax = Math.max(...lAttack.notes.map(n => n.midi));
+          return rMin < lMax;
+        });
+        if (crossed) crossings++;
+      }
+      crossingCost = Math.min(1.5, crossings * 0.35);
+      artCost = Math.min(0.8, artContrast * 0.20);
+    }
+    bar.bimanual = coordination + contrary * 0.18 + crossingCost + artCost;
     bar.structuralBimanual = coordination + structuralContrary * 0.18;
+    addDriver(bar.drivers.bimanual, 'polyrhythm', bar.polyrhythmCost * 0.55);
+    addDriver(bar.drivers.bimanual, 'hand_independence', independent);
+    addDriver(bar.drivers.bimanual, 'contrary_motion', contrary * 0.18);
+    addDriver(bar.drivers.bimanual, 'hand_crossing', crossingCost);
+    addDriver(bar.drivers.bimanual, 'mixed_articulation', artCost);
   });
 }
 
-function summarizeWindow(input: DifficultyInput, bars: readonly Bar[], start: number, end: number, profile: DifficultyProfile): { window: DifficultyWindow; strengths: DifficultyAxes } {
+function lz76Count(tokens: readonly string[]): number {
+  const n = tokens.length;
+  if (n === 0) return 0;
+  const seen = new Set<string>();
+  let phrase = '';
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    phrase = phrase ? `${phrase}|${tokens[i]}` : tokens[i];
+    if (!seen.has(phrase)) {
+      seen.add(phrase);
+      count++;
+      phrase = '';
+    }
+  }
+  if (phrase) count++;
+  return count;
+}
+
+function normalizedLzExcess(tokens: readonly string[]): number {
+  const n = tokens.length;
+  if (n < 4) return 0;
+  const c = lz76Count(tokens);
+  const minC = Math.ceil((Math.sqrt(1 + 8 * n) - 1) / 2);
+  return n > minC ? unit((c - minC) / (n - minC)) : 0;
+}
+
+function attackPitchToken(attack: Attack): string {
+  return [...new Set(attack.notes.map(note => note.midi % 12))].sort((a, b) => a - b).join(',');
+}
+
+function windowReadingPatternLoad(bars: readonly Bar[], start: number, end: number): number {
+  const pcCounts = new Array<number>(12).fill(0);
+  const attackTokens: string[] = [];
+  let totalNotes = 0;
+  let minMidi = Infinity;
+  let maxMidi = -Infinity;
+  for (let i = start; i <= end; i++) {
+    for (const attack of bars[i].attacks) {
+      attackTokens.push(attackPitchToken(attack));
+      for (const note of attack.notes) {
+        pcCounts[((note.midi % 12) + 12) % 12]++;
+        totalNotes++;
+        if (note.midi < minMidi) minMidi = note.midi;
+        if (note.midi > maxMidi) maxMidi = note.midi;
+      }
+    }
+  }
+  let entropyTerm = 0;
+  if (totalNotes >= 4) {
+    let entropy = 0;
+    for (const count of pcCounts) {
+      if (count > 0) {
+        const p = count / totalNotes;
+        entropy -= p * Math.log2(p);
+      }
+    }
+    entropyTerm = Math.max(0, entropy - 1.5) * 0.45;
+  }
+  const lzTerm = normalizedLzExcess(attackTokens) * 0.85;
+  const ambitusTerm = maxMidi > minMidi && maxMidi - minMidi > 30
+    ? Math.min(1.5, (maxMidi - minMidi - 30) * 0.04)
+    : 0;
+  return (entropyTerm + lzTerm + ambitusTerm) * (end - start + 1);
+}
+
+function motorSliceStats(
+  events: readonly MotorEvent[],
+  measures: readonly DifficultyMeasure[],
+  startSec: number,
+  endSec: number,
+  totalSec: number,
+): { strength: number; count: number; writtenMeasures: number[]; drivers: DriverWeights } {
+  let rhSum = 0, lhSum = 0, unSum = 0, count = 0;
+  const measureSet = new Set<number>();
+  const drivers: DriverWeights = {};
+  const inclusiveEnd = endSec >= totalSec - EPSILON;
+  for (const ev of events) {
+    if (ev.sec < startSec - EPSILON) continue;
+    if (inclusiveEnd ? ev.sec > endSec + EPSILON : ev.sec >= endSec - EPSILON) break;
+    count++;
+    if (ev.hand === 'rh') rhSum += ev.cost;
+    else if (ev.hand === 'lh') lhSum += ev.cost;
+    else unSum += ev.cost;
+    measureSet.add(measures[ev.measureIndex].writtenIndex + 1);
+    mergeDrivers(drivers, ev.drivers);
+  }
+  const dur = Math.max(0.25, endSec - startSec);
+  const combined = Math.max(rhSum, lhSum) + 0.50 * Math.min(rhSum, lhSum) + unSum;
+  return {
+    strength: combined / dur / MOTOR_V2_DIVISOR,
+    count,
+    writtenMeasures: [...measureSet],
+    drivers,
+  };
+}
+
+function evaluatePhysicalMotorWindows(
+  events: readonly MotorEvent[],
+  measures: readonly DifficultyMeasure[],
+  totalSec: number,
+): { peakStrength: number; peakMeasures: readonly number[]; peakDrivers: DriverWeights; typicalStrength: number; activeWindowStrengths: number[] } {
+  if (!events.length || totalSec <= 0) {
+    return { peakStrength: 0, peakMeasures: [], peakDrivers: {}, typicalStrength: 0, activeWindowStrengths: [] };
+  }
+  const sorted = [...events].sort((a, b) => a.sec - b.sec);
+  const durations = totalSec <= 4 + EPSILON ? [totalSec] : totalSec <= 8 + EPSILON ? [4, totalSec] : [4, 8];
+  const typicalDur = durations[durations.length - 1];
+  let peakStrength = 0;
+  let peakMeasures: readonly number[] = [];
+  let peakDrivers: DriverWeights = {};
+  const typicalStrengths: number[] = [];
+
+  for (const winDur of durations) {
+    const rawStarts: number[] = [];
+    for (let t = 0; t <= totalSec - winDur + EPSILON; t += 1) {
+      rawStarts.push(t);
+    }
+    rawStarts.push(Math.max(0, totalSec - winDur));
+    if (sorted.length <= 128) {
+      for (const ev of sorted) {
+        rawStarts.push(Math.max(0, Math.min(totalSec - winDur, ev.sec)));
+      }
+    }
+    rawStarts.sort((a, b) => a - b);
+    const starts: number[] = [];
+    for (const s of rawStarts) {
+      if (!starts.length || s - starts[starts.length - 1] > 1e-6) starts.push(s);
+    }
+    for (const t0 of starts) {
+      const t1 = Math.min(totalSec, t0 + winDur);
+      const stats = motorSliceStats(sorted, measures, t0, t1, totalSec);
+      if (!stats.count) continue;
+      if (stats.strength > peakStrength) {
+        peakStrength = stats.strength;
+        peakMeasures = stats.writtenMeasures;
+        peakDrivers = stats.drivers;
+      }
+      if (winDur === typicalDur) typicalStrengths.push(stats.strength);
+    }
+  }
+
+  return {
+    peakStrength,
+    peakMeasures,
+    peakDrivers,
+    typicalStrength: median(typicalStrengths),
+    activeWindowStrengths: typicalStrengths,
+  };
+}
+
+function summarizeWindow(
+  input: DifficultyInput,
+  bars: readonly Bar[],
+  start: number,
+  end: number,
+  profile: DifficultyProfile,
+  isV2: boolean,
+  sortedMotorEvents: readonly MotorEvent[],
+  totalSec: number,
+): { window: DifficultyWindow; strengths: DifficultyAxes; windowDrivers: Record<DifficultyAxis, DriverWeights> } {
   const structural = profile === 'sightReading';
   const sums = { motor: 0, rhythm: 0, bimanual: 0, texture: 0, reading: 0 };
+  const windowDrivers = axisRecord((): DriverWeights => ({}));
   let attacks = 0, polyrhythmCost = 0;
   const positionChanges: PositionChange[] = [];
   for (let i = start; i <= end; i++) {
@@ -568,103 +958,240 @@ function summarizeWindow(input: DifficultyInput, bars: readonly Bar[], start: nu
     polyrhythmCost = Math.max(polyrhythmCost, bar.polyrhythmCost);
     if (!structural) positionChanges.push(...bar.positionChanges);
     // Physical and register-dependent descriptors are excluded from the structural profile.
-    sums.motor += structural ? count * 0.3 + bar.structuralMotion + bar.structuralShifts * 0.5
-      : count * 0.22 + bar.speed + bar.motion + bar.positionChanges.length * 0.65 + bar.geometry * 0.2;
+    if (!isV2) {
+      sums.motor += structural ? count * 0.3 + bar.structuralMotion + bar.structuralShifts * 0.5
+        : count * 0.22 + bar.speed + bar.motion + bar.positionChanges.length * 0.65 + bar.geometry * 0.2;
+      mergeDrivers(windowDrivers.motor, bar.drivers.motor);
+    }
     sums.rhythm += bar.rhythm;
     sums.bimanual += structural ? bar.structuralBimanual : bar.bimanual;
     sums.texture += structural ? bar.structuralTexture : bar.texture + bar.voices * (input.voiceSource === 'written' ? 0.35 : 0.15);
-    sums.reading += structural ? bar.chromatic * 0.55
-      : bar.chromatic * 0.55 + bar.reading + Math.abs(input.measures[i].fifths ?? 0) * 0.18;
+    const keyLoad = structural ? 0 : Math.abs(input.measures[i].fifths ?? 0) * 0.18;
+    const clefLoad = isV2 && !structural ? (input.measures[i].clefChanges ?? 0) * 0.85 : 0;
+    sums.reading += structural ? bar.chromatic * 0.55 : bar.chromatic * 0.55 + bar.reading + keyLoad + clefLoad;
+    mergeDrivers(windowDrivers.rhythm, bar.drivers.rhythm);
+    mergeDrivers(windowDrivers.bimanual, bar.drivers.bimanual);
+    mergeDrivers(windowDrivers.texture, bar.drivers.texture);
+    mergeDrivers(windowDrivers.reading, bar.drivers.reading);
+    if (!structural) {
+      addDriver(windowDrivers.reading, 'key_signature', keyLoad);
+      addDriver(windowDrivers.reading, 'clef_changes', clefLoad);
+    }
   }
   const measures = input.measures.slice(start, end + 1);
   const quarters = input.measures[end].end - input.measures[start].start;
   const seconds = input.measures[end].endSec - input.measures[start].startSec;
-  // Initial, uncalibrated rubric. Each axis is bounded before aggregation.
-  const strengths = {
-    motor: sums.motor / (structural ? quarters : seconds) / 3,
-    rhythm: sums.rhythm / quarters / 0.9,
-    bimanual: sums.bimanual / measures.length / 3.25,
+
+  let motorStrength: number;
+  if (isV2) {
+    const slice = motorSliceStats(sortedMotorEvents, input.measures, input.measures[start].startSec, input.measures[end].endSec, totalSec);
+    motorStrength = slice.strength;
+    mergeDrivers(windowDrivers.motor, slice.drivers);
+    const patternLoad = windowReadingPatternLoad(bars, start, end);
+    sums.reading += patternLoad;
+    addDriver(windowDrivers.reading, 'pattern_unpredictability', patternLoad);
+  } else {
+    motorStrength = sums.motor / (structural ? quarters : seconds) / 3;
+  }
+
+  const bpm = seconds > EPSILON ? (quarters / seconds) * 60 : 120;
+  const rhythmTempo = isV2 ? 1 + 0.15 * Math.tanh((bpm - 100) / 80) : 1;
+  const bimanualTempo = isV2 ? 1 + 0.28 * Math.tanh((bpm - 100) / 70) : 1;
+
+  const strengths: DifficultyAxes = {
+    motor: motorStrength,
+    rhythm: (sums.rhythm * rhythmTempo) / quarters / 0.9,
+    bimanual: (sums.bimanual * bimanualTempo) / measures.length / 3.25,
     texture: sums.texture / quarters / 1.1,
     reading: sums.reading / measures.length / 3,
   };
-  const axes = axisRecord(axis => 100 * unit(strengths[axis]));
-  const window = {
-    startMeasure: start + 1, endMeasure: end + 1, writtenMeasures: measures.map(m => m.writtenIndex + 1), attacks, polyrhythmCost, positionChanges: positionChanges.sort((a, b) => a.beat - b.beat), axes,
+  const axes = axisRecord(axis => isV2 ? 100 * Math.max(0, strengths[axis]) / (1 + Math.max(0, strengths[axis])) : 100 * unit(strengths[axis]));
+  const window: DifficultyWindow = {
+    startMeasure: start + 1, endMeasure: end + 1, writtenMeasures: measures.map(m => m.writtenIndex + 1), attacks, polyrhythmCost,
+    positionChanges: positionChanges.sort((a, b) => a.beat - b.beat), axes,
     score: axes.motor * 0.28 + axes.rhythm * 0.23 + axes.bimanual * 0.2 + axes.texture * 0.19 + axes.reading * 0.1,
   };
-  return { window, strengths };
+  return { window, strengths, windowDrivers };
 }
 
 function writtenVariety(measures: readonly DifficultyMeasure[], bars: readonly Bar[]) {
   const signatures = new Map<number, string>();
+  const seenSignatures = new Set<string>();
+  const uniqueTokens: string[] = [];
   measures.forEach((measure, i) => {
     if (signatures.has(measure.writtenIndex)) return;
     const attacks = bars[i].attacks.flatMap(attack => attack.notes.map(note => {
       return [round(note.start - measure.start), round(note.end - note.start), note.hand, note.midi % 12].join(':');
     })).sort();
-    signatures.set(measure.writtenIndex, JSON.stringify([measure.groups, attacks, [...bars[i].rests].sort()]));
+    const signature = JSON.stringify([measure.groups, attacks, [...bars[i].rests].sort()]);
+    if (!seenSignatures.has(signature)) {
+      seenSignatures.add(signature);
+      for (const attack of bars[i].attacks) uniqueTokens.push(attackPitchToken(attack));
+    }
+    signatures.set(measure.writtenIndex, signature);
   });
-  return { total: signatures.size, unique: new Set(signatures.values()).size };
+  return { total: signatures.size, unique: seenSignatures.size, uniqueTokens };
 }
 
 /** Takes a normalized timeline with ordered, positive-length measures. No app state is needed. */
-export function estimateScoreDifficulty(input: DifficultyInput, profile: DifficultyProfile, options?: { rubricVersion?: 1 | 2 }): DifficultyEstimate {
-  const estimatorVersion: 1 | 2 = options?.rubricVersion === 2 ? 1 : 1;
+export function estimateScoreDifficulty(
+  input: DifficultyInput,
+  profile: DifficultyProfile,
+  options?: DifficultyOptions,
+): DifficultyEstimate {
+  const estimatorVersion: 1 | 2 = options?.rubricVersion === 1 ? 1 : ESTIMATOR_VERSION;
+  const isV2 = estimatorVersion === 2 && profile === 'performance';
   const bars = input.measures.map(emptyBar), groups = input.measures.map(metricGroups);
   const { hands, unassigned } = attacksFor(input.notes);
   for (const attack of [...hands.rh, ...hands.lh, ...unassigned]) {
     const i = measureAt(input.measures, attack.start);
-    if (i >= 0) annotateAttack(attack, input.measures[i], groups[i], bars[i]);
+    if (i >= 0) annotateAttack(attack, input.measures[i], groups[i], bars[i], isV2);
   }
   for (const rest of input.rests) {
     if (!rest.active) continue;
     const i = measureAt(input.measures, rest.start);
     if (i < 0) continue;
     bars[i].rhythm += 0.45;
+    addDriver(bars[i].drivers.rhythm, 'active_rests', 0.45);
     bars[i].rests.push([round(rest.start - input.measures[i].start), round(rest.end - rest.start), rest.hand].join(':'));
   }
-  for (const hand of HANDS) annotateHand(hands[hand], hand, input, bars, profile);
-  annotateCoordination(bars, input, groups);
+
+  const motorEvents: MotorEvent[] = [];
+  let maxHandSpan = 0;
+  for (const hand of HANDS) {
+    const span = annotateHand(hands[hand], hand, input, bars, profile, isV2, motorEvents);
+    if (span > maxHandSpan) maxHandSpan = span;
+  }
+  if (isV2) {
+    for (const attack of unassigned) {
+      const i = measureAt(input.measures, attack.start);
+      if (i < 0) continue;
+      const physical = pitchRange(attack, false);
+      const handSpan = physical ? physical[1] - physical[0] : 0;
+      if (handSpan > maxHandSpan) maxHandSpan = handSpan;
+      const drivers: DriverWeights = {};
+      let cost = 0.22;
+      if (handSpan >= 10) {
+        const spanCost = handSpan >= 12 ? 0.64 + (handSpan - 11) * 0.55 : (handSpan - 9) * 0.32;
+        cost += spanCost;
+        addDriver(drivers, 'wide_span', spanCost);
+      }
+      const trillsCount = attack.notes.reduce((sum, note) => sum + (note.trills ?? 0), 0);
+      if (trillsCount > 0) {
+        const trillCost = Math.min(2, trillsCount) * 0.9;
+        cost += trillCost;
+        addDriver(drivers, 'trills', trillCost);
+      }
+      motorEvents.push({ sec: attack.sec, measureIndex: i, hand: null, cost, drivers });
+    }
+    input.measures.forEach((measure, i) => {
+      if (!bars[i].hasSound) return;
+      if (isAsymmetricMeter(measure)) {
+        bars[i].rhythm += 0.65;
+        addDriver(bars[i].drivers.rhythm, 'asymmetric_meter', 0.65);
+      }
+      if (i > 0 && meterSignature(measure) !== meterSignature(input.measures[i - 1])) {
+        bars[i].rhythm += 0.75;
+        addDriver(bars[i].drivers.rhythm, 'meter_changes', 0.75);
+      }
+    });
+  }
+  annotateCoordination(bars, input, groups, isV2);
+
+  const totalMeasureSec = input.measures.at(-1)?.endSec ?? 0;
+  const sortedMotorEvents = isV2 ? [...motorEvents].sort((a, b) => a.sec - b.sec) : [];
+  const physicalMotor = isV2 ? evaluatePhysicalMotorWindows(sortedMotorEvents, input.measures, totalMeasureSec) : null;
 
   const lengths = [...new Set([Math.min(2, bars.length), Math.min(4, bars.length)])].filter(Boolean);
   const typicalLength = lengths.at(-1);
   const typicalScores: number[] = [];
   const typicalAxes = axisRecord((): number[] => []);
-  const axisPeaks = axisRecord((): { strength: number; measures: readonly number[] } | null => null);
+  const axisPeaks = axisRecord((): { strength: number; measures: readonly number[]; drivers: DriverWeights } | null => null);
   let peak: DifficultyWindow | null = null;
   for (const length of lengths) {
     for (let start = 0; start + length <= bars.length; start++) {
       const end = start + length - 1;
       if (!bars.slice(start, end + 1).some(bar => bar.hasSound)) continue;
-      const { window, strengths } = summarizeWindow(input, bars, start, end, profile);
+      const { window, strengths, windowDrivers } = summarizeWindow(
+        input, bars, start, end, profile, isV2, sortedMotorEvents, totalMeasureSec,
+      );
       if (!peak || window.score > peak.score) peak = window;
       if (length === typicalLength) typicalScores.push(window.score);
       for (const axis of DIFFICULTY_AXES) {
         const previous = axisPeaks[axis];
-        if (!previous || previous.strength < strengths[axis]) axisPeaks[axis] = { strength: strengths[axis], measures: window.writtenMeasures };
+        if (!previous || previous.strength < strengths[axis]) {
+          axisPeaks[axis] = { strength: strengths[axis], measures: window.writtenMeasures, drivers: windowDrivers[axis] };
+        }
         if (length === typicalLength) typicalAxes[axis].push(strengths[axis]);
       }
     }
   }
+  if (isV2 && physicalMotor && peak) {
+    axisPeaks.motor = {
+      strength: physicalMotor.peakStrength,
+      measures: physicalMotor.peakMeasures,
+      drivers: physicalMotor.peakDrivers,
+    };
+  }
+
   const typical = median(typicalScores);
-  const { total, unique } = writtenVariety(input.measures, bars);
-  const playedSeconds = input.playedDurationSec ?? input.measures.at(-1)?.endSec ?? 0;
+  const { total, unique, uniqueTokens } = writtenVariety(input.measures, bars);
+  const playedSeconds = input.playedDurationSec ?? totalMeasureSec;
   const durationBonus = playedSeconds > 60 ? Math.log2(playedSeconds / 60) : 0;
-  const endurance = profile === 'performance' && peak
-    ? Math.min(6, 1.5 * durationBonus * unique / total + 1.2 * Math.log2(1 + unique / 16)) : 0;
+
+  let stamina = 0;
+  let materialLoad = 0;
+  let enduranceRaw = 0;
+  let endurance = 0;
+  if (profile === 'performance' && peak) {
+    if (isV2 && physicalMotor) {
+      const highEffortCount = physicalMotor.peakStrength >= 0.25
+        ? physicalMotor.activeWindowStrengths.filter(s => s >= 0.65 * physicalMotor.peakStrength).length
+        : 0;
+      const highEffortRatio = physicalMotor.activeWindowStrengths.length
+        ? highEffortCount / physicalMotor.activeWindowStrengths.length
+        : 0;
+      stamina = highEffortRatio * durationBonus;
+      materialLoad = Math.log2(1 + unique / 16) * (0.65 + 0.35 * normalizedLzExcess(uniqueTokens));
+      enduranceRaw = Math.min(0.5, 0.14 * stamina + 0.12 * materialLoad);
+      endurance = enduranceRaw * 12;
+    } else {
+      endurance = Math.min(6, 1.5 * durationBonus * unique / total + 1.2 * Math.log2(1 + unique / 16));
+      enduranceRaw = unit(endurance / 6) * 0.5;
+    }
+  }
+
   const peakWeight = profile === 'performance' ? 0.68 : 0.58;
   const score = Math.min(100, peakWeight * (peak?.score ?? 0) + (1 - peakWeight) * typical + endurance);
-  const continuousStars = axisRecord(axis => axisStars(peakWeight * (axisPeaks[axis]?.strength ?? 0) +
-    (1 - peakWeight) * median(typicalAxes[axis])));
+  const continuousStars = axisRecord(axis => {
+    const typicalStrength = isV2 && axis === 'motor' && physicalMotor
+      ? physicalMotor.typicalStrength
+      : median(typicalAxes[axis]);
+    return axisStars(peakWeight * (axisPeaks[axis]?.strength ?? 0) + (1 - peakWeight) * typicalStrength);
+  });
   const axisDifficulty = peak && axisRecord(axis => ({
     stars: roundStars(continuousStars[axis]),
     measures: axisPeaks[axis]?.strength ? axisPeaks[axis]?.measures ?? [] : [],
+    drivers: axisPeaks[axis]?.strength ? topDrivers(axisPeaks[axis]?.drivers ?? {}) : [],
   }));
+  const aggregation = options?.aggregation ?? DEFAULT_AGGREGATION;
+  const aggregated = peak ? aggregateDifficultyStarsDetailed(continuousStars, enduranceRaw, aggregation) : null;
   const handSource: HandSource = input.handSource ?? (unassigned.length > 0 ? 'unassigned' : 'written');
   return {
     estimatorVersion,
-    profile, score: round(score), peak, typical: round(typical), endurance: round(endurance), uniqueWrittenMeasures: unique,
-    difficultyStars: peak ? aggregateDifficultyStars(continuousStars, endurance) : null, axisDifficulty,
+    profile,
+    score: round(score),
+    peak,
+    typical: round(typical),
+    endurance: round(endurance),
+    enduranceRaw: round(enduranceRaw),
+    baseStars: aggregated ? aggregated.baseStars : null,
+    appliedEnduranceStars: aggregated ? aggregated.appliedEnduranceStars : 0,
+    spanAlert: isV2 ? maxHandSpan >= 12 : false,
+    enduranceComponents: isV2 ? { stamina: round(stamina), materialLoad: round(materialLoad) } : { stamina: 0, materialLoad: 0 },
+    difficultyStars: aggregated ? aggregated.difficultyStars : null,
+    axisDifficulty,
+    uniqueWrittenMeasures: unique,
     uncertainty: {
       tempoFallback: input.tempoSource === 'fallback',
       voicesInferred: input.voiceSource === 'inferred',

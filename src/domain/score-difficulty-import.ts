@@ -7,11 +7,14 @@ import {
   type HandSource,
   type NoteArticulation,
 } from './score-difficulty.js';
+import type { DifficultyCalibration } from './score-difficulty-calibration.js';
 import { anAssignHands } from './score-midi.js';
 import { repeatOrder, scoreXmlRepeatBars } from './score-repeats.js';
 import { anError, type AnMidiMeta, type AnParsedMidi, type AnSource, type ScoreMeasure, type ScoreXmlKey } from './score-types.js';
 
 const EPS = 1e-7;
+const MIDI_MICRO_GROUP_SEC = 0.035;
+const MIDI_CHORD_OVERLAP = 0.70;
 type Tempo = { beat: number; bpm: number };
 
 function tempoClock(input: readonly Tempo[], startingBpm?: number) {
@@ -119,6 +122,43 @@ function xmlInput(source: Extract<AnSource, { kind: 'xml' }>, startingBpm?: numb
     tempoSource: source.tempos.some(tempo => tempo.beat <= EPS) ? 'written' : startingBpm ? 'reference' : 'fallback' };
 }
 
+/** Group unquantized MIDI chord micro-offsets relative to the first note's anchor without chaining runs. */
+export function microGroupMidiNotes(notes: readonly DifficultyNote[]): DifficultyNote[] {
+  const byHand: Record<'rh' | 'lh' | 'unassigned', DifficultyNote[]> = { rh: [], lh: [], unassigned: [] };
+  for (const note of notes) {
+    byHand[note.hand ?? 'unassigned'].push(note);
+  }
+  const grouped: DifficultyNote[] = [];
+  for (const bucket of [byHand.rh, byHand.lh, byHand.unassigned]) {
+    if (!bucket.length) continue;
+    const sorted = [...bucket].sort((a, b) => a.startSec - b.startSec || a.start - b.start || a.midi - b.midi);
+    let anchorStart = sorted[0].start;
+    let anchorSec = sorted[0].startSec;
+    let anchorEnd = sorted[0].end;
+    let pitches = new Set<number>([sorted[0].midi]);
+    grouped.push(sorted[0]);
+
+    for (let i = 1; i < sorted.length; i++) {
+      const note = sorted[i];
+      const dtFromAnchor = note.startSec - anchorSec;
+      const overlap = Math.min(note.end, anchorEnd) - Math.max(note.start, anchorStart);
+      const maxDur = Math.max(note.end - note.start, anchorEnd - anchorStart);
+      const overlapRatio = maxDur > 0 ? overlap / maxDur : 0;
+      if (dtFromAnchor <= MIDI_MICRO_GROUP_SEC + EPS && !pitches.has(note.midi) && overlapRatio >= MIDI_CHORD_OVERLAP) {
+        pitches.add(note.midi);
+        grouped.push({ ...note, start: anchorStart, startSec: anchorSec });
+      } else {
+        anchorStart = note.start;
+        anchorSec = note.startSec;
+        anchorEnd = note.end;
+        pitches = new Set([note.midi]);
+        grouped.push(note);
+      }
+    }
+  }
+  return grouped.sort((a, b) => a.start - b.start || a.midi - b.midi);
+}
+
 function midiInput(parsed: AnParsedMidi, startingBpm?: number): DifficultyInput {
   const tempos = parsed.meta.filter(event => event.type === 'tempo');
   const meters = parsed.meta.filter((event): event is Extract<AnMidiMeta, { type: 'time' }> => event.type === 'time' && event.num > 0 && event.den > 0).sort((a, b) => a.beat - b.beat);
@@ -137,20 +177,45 @@ function midiInput(parsed: AnParsedMidi, startingBpm?: number): DifficultyInput 
   }
   const assigned = anAssignHands(parsed.notes, 'auto');
   const handSource: HandSource = assigned.how === 'piece' ? 'written' : assigned.how === 'tracks' ? 'track' : 'pitchSplit';
-  const notes = parsed.notes.map((note, i) => ({
+  const rawNotes: DifficultyNote[] = parsed.notes.map((note, i) => ({
     start: note.start, end: note.end, startSec: clock(note.start), midi: note.midi,
     hand: assigned.of[i], soundingEnd: note.soundEnd,
   }));
+  const notes = microGroupMidiNotes(rawNotes);
   return { measures, notes, rests: [], voiceSource: 'unknown', handSource,
     tempoSource: tempos.some(tempo => tempo.beat <= EPS) ? 'written' : startingBpm ? 'reference' : 'fallback' };
 }
 
-export function estimateImportedScore(source: Extract<AnSource, { kind: 'xml' | 'midi' }>, startingBpm?: number) {
+export type ImportedScoreDifficultyOptions =
+  | DifficultyCalibration
+  | null
+  | undefined
+  | { calibration?: DifficultyCalibration | null; rubricVersion?: 1 | 2 };
+
+export function estimateImportedScore(
+  source: Extract<AnSource, { kind: 'xml' | 'midi' }>,
+  startingBpm?: number,
+  calibrationOrOptions?: ImportedScoreDifficultyOptions,
+) {
+  const opts = calibrationOrOptions && 'version' in calibrationOrOptions
+    ? { calibration: calibrationOrOptions, rubricVersion: undefined }
+    : (calibrationOrOptions ?? {});
+  const calibration = opts.calibration ?? null;
+  const aggregation = calibration?.version === 2 ? calibration.aggregation : undefined;
+  const profileId = calibration?.version === 2 ? calibration.profileId : 'default';
   const fallback = startingBpm !== undefined && Number.isFinite(startingBpm) && startingBpm >= 20 && startingBpm <= 400 ? startingBpm : undefined;
   const input = source.kind === 'xml' ? xmlInput(source, fallback) : midiInput(source.parsed, fallback);
-  const estimate = estimateScoreDifficulty(input, 'performance');
-  return { ...estimate, midi: source.kind === 'midi', playedMeasures: input.measures.length,
-    playedDurationSec: input.measures.at(-1)?.endSec ?? 0 };
+  const estimate = estimateScoreDifficulty(input, 'performance', {
+    rubricVersion: opts.rubricVersion,
+    aggregation,
+  });
+  return {
+    ...estimate,
+    profileId,
+    midi: source.kind === 'midi',
+    playedMeasures: input.measures.length,
+    playedDurationSec: input.measures.at(-1)?.endSec ?? 0,
+  };
 }
 
 export type ImportedDifficultyEstimate = ReturnType<typeof estimateImportedScore>;

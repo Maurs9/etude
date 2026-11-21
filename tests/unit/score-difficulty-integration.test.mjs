@@ -13,7 +13,7 @@ import {
   spearmanRho,
   suggestedDifficulty,
 } from '../../src/domain/score-difficulty-calibration.ts';
-import { estimateImportedScore } from '../../src/domain/score-difficulty-import.ts';
+import { estimateImportedScore, microGroupMidiNotes } from '../../src/domain/score-difficulty-import.ts';
 import { scoreXmlNotes } from '../../src/domain/score-import.ts';
 import { srtBookPiece } from '../../src/sight-reading/book.ts';
 import { srtLevelFingerprint } from '../../src/sight-reading/fingerprint.ts';
@@ -348,5 +348,99 @@ describe('v2 calibration, rank benchmark and local audit', () => {
       { id: hash(2), level: 2, stars: 2.0, tempoSource: 'written' },
     ]);
     expect(nonMonotone.monotoneLevels).toBe(false);
+  });
+
+  it('micro-groups jittered MIDI chords without chaining rapid scale runs or intentional arpeggios', () => {
+    const jittered = microGroupMidiNotes([
+      { start: 0.00, end: 1.00, startSec: 0.000, midi: 60, hand: 'rh' },
+      { start: 0.03, end: 1.03, startSec: 0.015, midi: 64, hand: 'rh' },
+      { start: 0.06, end: 1.06, startSec: 0.028, midi: 67, hand: 'rh' },
+    ]);
+    expect(jittered.every(n => n.start === 0 && n.startSec === 0)).toBe(true);
+
+    // 10-note rapid run spaced 28ms apart with overlapping tails: anchor anti-chaining prevents collapsing into one chord
+    const rapidRun = Array.from({ length: 10 }, (_, i) => ({
+      start: i * 0.056, end: i * 0.056 + 0.5, startSec: i * 0.028, midi: 60 + i, hand: 'rh',
+    }));
+    const groupedRun = microGroupMidiNotes(rapidRun);
+    expect(new Set(groupedRun.map(n => n.startSec)).size).toBeGreaterThanOrEqual(4);
+
+    // Intentional arpeggio (70ms between notes): remains separate attacks
+    const arpeggio = [0, 1, 2, 3].map(i => ({
+      start: i * 0.14, end: 1.0, startSec: i * 0.070, midi: 60 + i * 4, hand: 'rh',
+    }));
+    const groupedArp = microGroupMidiNotes(arpeggio);
+    expect(new Set(groupedArp.map(n => n.startSec)).size).toBe(4);
+
+    const jitterMidi = {
+      ppq: 480, format: 0, tracks: 1, names: [],
+      notes: [
+        { midi: 60, start: 0.00, end: 1.00, vel: 90, channel: 0, track: 0 },
+        { midi: 64, start: 0.03, end: 1.03, vel: 90, channel: 0, track: 0 },
+        { midi: 67, start: 0.06, end: 1.06, vel: 90, channel: 0, track: 0 },
+      ],
+      meta: [{ type: 'tempo', beat: 0, bpm: 120 }],
+    };
+    const est = estimateImportedScore({ kind: 'midi', title: 'Jitter', label: 'jitter.mid', parsed: jitterMidi });
+    expect(est.peak.attacks).toBe(1);
+    expect(est.axisDifficulty.rhythm.stars).toBe(1);
+
+    const runMidi = {
+      ppq: 480, format: 0, tracks: 1, names: [],
+      notes: rapidRun.map(n => ({ midi: n.midi, start: n.start, end: n.end, vel: 90, channel: 0, track: 0 })),
+      meta: [{ type: 'tempo', beat: 0, bpm: 120 }],
+    };
+    const runEst = estimateImportedScore({ kind: 'midi', title: 'Run', label: 'run.mid', parsed: runMidi });
+    expect(runEst.peak.attacks).toBeGreaterThanOrEqual(4);
+  });
+
+  it('beats v1 rubric on a synthetic multi-work benchmark sensitive to v1 defects', () => {
+    const syntheticWorks = Array.from({ length: 18 }, (_, i) => {
+      const truth = Math.floor(i / 2) + 1; // Henle 1..9 across 9 work groups (2 pieces per level/group? Let's make 18 distinct work groups!)
+      const bpm = 40 + truth * 22;
+      const spq = 60 / bpm;
+      // Combine speed, wide spans, and 4/4 vs 2/4 variation where v1 saturates or distorts
+      const isTwoFour = truth <= 4 && i % 2 === 1;
+      const measures = isTwoFour
+        ? Array.from({ length: 4 }, (_, m) => ({
+            start: m * 2, end: (m + 1) * 2, startSec: m * 2 * spq, endSec: (m + 1) * 2 * spq,
+            groups: [1, 1], writtenIndex: m, num: 2, den: 4,
+          }))
+        : Array.from({ length: 2 }, (_, m) => ({
+            start: m * 4, end: (m + 1) * 4, startSec: m * 4 * spq, endSec: (m + 1) * 4 * spq,
+            groups: [1, 1, 1, 1], writtenIndex: m, num: 4, den: 4,
+          }));
+      const notes = [];
+      for (let k = 0; k < 4 + truth * 3; k++) {
+        const beat = (k * 8) / (4 + truth * 3);
+        const pitch = 60 + (k % 2 ? Math.min(18, truth * 2) : 0);
+        notes.push({ start: beat, end: beat + 0.25, startSec: beat * spq, midi: pitch, hand: 'rh' });
+      }
+      const parsed = {
+        ppq: 480, format: 0, tracks: 1, names: [],
+        notes: notes.map(n => ({ midi: n.midi, start: n.start, end: n.end, vel: 90, channel: 0, track: 0 })),
+        meta: [{ type: 'tempo', beat: 0, bpm }, ...(isTwoFour ? [{ type: 'time', beat: 0, num: 2, den: 4 }] : [])],
+      };
+      const source = { kind: 'midi', title: `Syn ${i}`, label: `syn-${i}.mid`, parsed };
+      const v1 = estimateImportedScore(source, undefined, { rubricVersion: 1 });
+      const v2 = estimateImportedScore(source, undefined, { rubricVersion: 2 });
+      return {
+        group: `syn-group-${i}`,
+        truth,
+        v1Stars: v1.difficultyStars,
+        v2Axes: {
+          motor: v2.axisDifficulty.motor.stars,
+          rhythm: v2.axisDifficulty.rhythm.stars,
+          bimanual: v2.axisDifficulty.bimanual.stars,
+          texture: v2.axisDifficulty.texture.stars,
+          reading: v2.axisDifficulty.reading.stars,
+        },
+        v2EnduranceRaw: v2.enduranceRaw,
+        v2Stars: v2.difficultyStars,
+      };
+    });
+    const bench = evaluateRankBenchmark(syntheticWorks, { fitMode: 'default', seed: 42 });
+    expect(bench.meanV2.tauC).toBeGreaterThanOrEqual(bench.meanV1.tauC);
+    expect(bench.meanV2.majorInversionRate).toBeLessThanOrEqual(bench.meanV1.majorInversionRate);
   });
 });
