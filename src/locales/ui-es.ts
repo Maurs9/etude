@@ -1677,6 +1677,7 @@ const payload: UIPayload = {
       "pr_hints_prog_title": "Pistas de progresiones",
       "pr_hints_prog_lede": "Sigue el bajo y escucha cómo resuelven los acordes.",
       "pr_hints_technique_title": "Pistas de digitación",
+      "pr_hints_technique_arpeggios": "Arpegios",
       "pr_hints_technique_lede": "Elige una mano y practica el fragmento antes del ejercicio completo.",
       "pr_hints_melody_title": "Pista de melodía",
       "pr_hints_melody_lede": "Prepárate para tocar lo que oyes.",

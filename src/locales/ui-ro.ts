@@ -460,6 +460,7 @@ const payload: UIPayload = {
       "pr_hints_prog_title": "Indicii pentru progresii",
       "pr_hints_prog_lede": "Urmărește basul și ascultă cum se rezolvă acordurile.",
       "pr_hints_technique_title": "Indicii de digitație",
+      "pr_hints_technique_arpeggios": "Arpegii",
       "pr_hints_technique_lede": "Alege mâna și exersează fragmentul înainte de exercițiul întreg.",
       "pr_hints_melody_title": "Indiciu pentru melodii",
       "pr_hints_melody_lede": "Pregătește-te să cânți ce auzi.",

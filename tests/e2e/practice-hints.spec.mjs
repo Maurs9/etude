@@ -187,7 +187,7 @@ test('a fixed tonic transposes playback and notation changes only the names', as
   await expect.poll(() => page.evaluate(() => window.__hintRoots[0])).toBe(59);
   await page.locator('#pr-t-technique').click();
   const exception = page.locator('#practiceHintsList [data-hint="major_f_b"]');
-  await expect(exception.getByRole('heading')).toHaveText('F and H major');
+  await expect(exception.getByRole('heading', { level: 3 })).toHaveText('F and H major');
   await expect(exception.locator('.pr-hint-fingers').last()).toHaveText('H(4) · C♯(3) · D♯(2) · E(1) · F♯(4) · G♯(3) · A♯(2) · H(1)');
 });
 
