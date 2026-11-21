@@ -194,7 +194,7 @@ function midiInput(parsed: AnParsedMidi, startingBpm?: number, microGroup = true
 }
 
 export interface ImportedScoreDifficultyOptions {
-  rubricVersion?: 1 | 2;
+  rubricVersion?: 1 | 2 | 3;
 }
 
 export function estimateImportedScore(

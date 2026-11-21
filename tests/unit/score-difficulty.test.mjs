@@ -26,9 +26,18 @@ describe('experimental difficulty estimate', () => {
     const easy = { motor: 1, rhythm: 1, bimanual: 1, texture: 1, reading: 1 };
     const even = Object.fromEntries(Object.keys(easy).map(key => [key, 3]));
     expect(aggregateDifficultyStars(even)).toBe(3);
-    expect(aggregateDifficultyStars({ ...easy, motor: 4.6 })).toBe(3.6);
-    expect(aggregateDifficultyStars({ ...easy, motor: 5 })).toBe(4);
-    expect(aggregateDifficultyStars({ ...easy, motor: 5 }, 6)).toBe(4.5);
+    expect(aggregateDifficultyStars({ ...easy, motor: 4.6 })).toBe(2.9);
+    expect(aggregateDifficultyStars({ ...easy, motor: 5 })).toBe(3.2);
+    expect(aggregateDifficultyStars({ ...easy, motor: 5 }, 6)).toBe(3.7);
+    const orderConfig = {
+      mode: 'order',
+      orderWeights: [0.45, 0.30, 0.25 / 3, 0.25 / 3, 0.25 / 3],
+      weakestLinkDelta: 1,
+      enduranceScale: 1,
+    };
+    expect(aggregateDifficultyStars({ ...easy, motor: 4.6 }, 0, orderConfig)).toBe(3.6);
+    expect(aggregateDifficultyStars({ ...easy, motor: 5 }, 0, orderConfig)).toBe(4);
+    expect(aggregateDifficultyStars({ ...easy, motor: 5 }, 6, orderConfig)).toBe(4.5);
     expect(performance(timeline([])).difficultyStars).toBeNull();
   });
 
@@ -318,7 +327,7 @@ describe('v2 invariance, ergonomics, complexity and single rounding', () => {
     ];
     const fourFour = performance({ measures: measures44, notes: makeNotes(), rests: [], tempoSource: 'written', voiceSource: 'written' });
     const twoFour = performance({ measures: measures24, notes: makeNotes(), rests: [], tempoSource: 'written', voiceSource: 'written' });
-    expect(fourFour.estimatorVersion).toBe(2);
+    expect(fourFour.estimatorVersion).toBe(3);
     expect(Math.abs(twoFour.axisDifficulty.motor.stars - fourFour.axisDifficulty.motor.stars)).toBeLessThanOrEqual(0.1);
   });
 
@@ -584,5 +593,185 @@ describe('v2 invariance, ergonomics, complexity and single rounding', () => {
     expect(Date.now() - tRep0).toBeLessThan(1500);
     expect(repeatedEst.axisDifficulty.motor.stars).toBeGreaterThan(2);
     expect(repeatedEst.axisDifficulty.motor.measures.length).toBeGreaterThan(0);
+  });
+});
+
+describe('v3 ergonomics, complexity separation, and musical context', () => {
+  it('ranks chord-landing waltz leaps above a stationary one-octave broken-chord ostinato', () => {
+    // Stationary 1-octave cycling RH ostinato at 100 BPM (dt = 0.15s) over simple LH chord
+    const ostinato = [
+      ...Array.from({ length: 32 }, (_, i) => note(i * 0.25, [71, 74, 83, 71][i % 4], 'rh', { startSec: i * 0.15 })),
+      ...Array.from({ length: 8 }, (_, i) => note(i, 48 + (i % 2) * 7, 'lh', { startSec: i * 0.6 })),
+    ];
+    // Waltz left-hand ballistic bass-to-chord leaps with active RH melody at 150 BPM (spq = 0.4s)
+    const waltzNotes = [];
+    for (let bar = 0; bar < 4; bar++) {
+      const mStart = bar * 3;
+      waltzNotes.push(note(mStart, 36, 'lh', { startSec: mStart * 0.4, end: mStart + 1 }));
+      for (const beat of [1, 2]) {
+        for (const midi of [55, 60, 64]) {
+          waltzNotes.push(note(mStart + beat, midi, 'lh', { startSec: (mStart + beat) * 0.4, end: mStart + beat + 0.8 }));
+        }
+      }
+      for (let b = 0; b < 3; b++) {
+        waltzNotes.push(note(mStart + b, 72 + (b % 3) * 2, 'rh', { startSec: (mStart + b) * 0.4, end: mStart + b + 0.9 }));
+      }
+    }
+    const waltzMeasures = Array.from({ length: 4 }, (_, i) => ({
+      start: i * 3, end: (i + 1) * 3, startSec: i * 1.2, endSec: (i + 1) * 1.2,
+      groups: [1, 1, 1], writtenIndex: i, num: 3, den: 4, fifths: 0,
+    }));
+    const ostEst = performance(timeline(ostinato, 2));
+    const waltzEst = performance({ measures: waltzMeasures, notes: waltzNotes, rests: [], tempoSource: 'written', voiceSource: 'written' });
+    expect(waltzEst.axisDifficulty.motor.stars).toBeGreaterThan(ostEst.axisDifficulty.motor.stars);
+    expect(waltzEst.axisDifficulty.bimanual.drivers).toContain('split_attention');
+    expect(ostEst.axisDifficulty.motor.drivers).not.toContain('large_leaps');
+  });
+
+  it('separates uniform subdivisions/triplets and co-released arpeggios from true rhythmic complexity', () => {
+    const uniform16ths = Array.from({ length: 16 }, (_, i) =>
+      note(i * 0.25, 60 + (i % 4), 'rh', { end: (i + 1) * 0.25, startSec: i * 0.125 }),
+    );
+    const variedSubdivisions = [
+      note(0, 60, 'rh', { end: 0.5, startSec: 0 }),
+      note(0.5, 62, 'rh', { end: 0.75, startSec: 0.25 }),
+      note(0.75, 64, 'rh', { end: 1.0, startSec: 0.375 }),
+      note(1.0, 65, 'rh', { end: 1.25, startSec: 0.5, tuplet: true }),
+      note(1.25, 67, 'rh', { end: 1.5, startSec: 0.625, dotted: true }),
+      note(1.5, 69, 'rh', { end: 2.25, startSec: 0.75 }),
+      note(2.25, 71, 'rh', { end: 2.5, startSec: 1.125 }),
+      note(2.5, 72, 'rh', { end: 2.75, startSec: 1.25 }),
+      note(2.75, 71, 'rh', { end: 3.0, startSec: 1.375 }),
+      note(3.0, 69, 'rh', { end: 3.5, startSec: 1.5 }),
+      note(3.5, 67, 'rh', { end: 4.5, startSec: 1.75 }),
+    ];
+    expect(performance(timeline(variedSubdivisions, 2)).axisDifficulty.rhythm.stars)
+      .toBeGreaterThan(performance(timeline(uniform16ths)).axisDifficulty.rhythm.stars);
+
+    const uniformTriplets = Array.from({ length: 12 }, (_, i) =>
+      note(i / 3, 60 + (i % 3), 'rh', { end: (i + 1) / 3, startSec: i / 6, tuplet: true }),
+    );
+    const mixedTriplets = Array.from({ length: 12 }, (_, i) => {
+      const start = i % 2 ? Math.floor(i / 2) * 0.75 + 0.5 : Math.floor(i / 2) * 0.75;
+      return note(start, 60 + (i % 3), 'rh', { end: start + 0.25, startSec: start / 2, tuplet: true });
+    });
+    expect(performance(timeline(mixedTriplets, 2)).axisDifficulty.rhythm.stars)
+      .toBeGreaterThan(performance(timeline(uniformTriplets)).axisDifficulty.rhythm.stars);
+
+    // Rolled arpeggio bass notes co-releasing at beat 2 must not trigger false syncopation.
+    const rolledArpeggio = [
+      note(0, 48, 'lh', { end: 2, startSec: 0 }),
+      note(0.25, 52, 'lh', { end: 2, startSec: 0.125 }),
+      note(0.5, 55, 'lh', { end: 2, startSec: 0.25 }),
+    ];
+    const arpeggioEst = performance(timeline(rolledArpeggio));
+    expect(arpeggioEst.axisDifficulty.rhythm.drivers).not.toContain('syncopation');
+  });
+
+  it('detects partial dotted-vs-triplet polyrhythms while keeping non-polyrhythms at zero', () => {
+    const dottedVsTriplet = [
+      note(0, 72, 'rh', { end: 0.75 }),
+      note(0.75, 74, 'rh', { end: 1 }),
+      note(0, 48, 'lh', { end: 1 / 3 }),
+      note(1 / 3, 52, 'lh', { end: 2 / 3 }),
+      note(2 / 3, 55, 'lh', { end: 1 }),
+    ];
+    const est = performance(timeline(dottedVsTriplet));
+    expect(est.peak.polyrhythmCost).toBeGreaterThan(0);
+    expect(est.axisDifficulty.bimanual.drivers).toContain('polyrhythm');
+  });
+
+  it('charges moving parallel double notes in motor without changing stationary repeated chords', () => {
+    const singleRuns = Array.from({ length: 8 }, (_, i) =>
+      note(i * 0.25, 60 + i * 2, 'rh', { end: (i + 1) * 0.25, startSec: i * 0.125 }),
+    );
+    const parallelThirds = singleRuns.flatMap(n => [n, { ...n, midi: n.midi + 4 }]);
+    const doubleEst = performance(timeline(parallelThirds));
+    const singleEst = performance(timeline(singleRuns));
+    expect(doubleEst.axisDifficulty.motor.stars).toBeGreaterThan(singleEst.axisDifficulty.motor.stars);
+    expect(doubleEst.axisDifficulty.motor.drivers).toContain('double_notes');
+  });
+
+  it('charges held-finger single-hand polyphony, scales multi-voice polyphony, and ignores homorhythmic chords & pedal tails', () => {
+    const plainLine = performance(timeline([note(0, 60, 'rh', { end: 0.5 }), note(1, 67, 'rh', { end: 1.5 })]));
+    const heldPoly = performance(timeline([
+      note(0, 60, 'rh', { end: 2, voice: 'v1' }),
+      note(1, 67, 'rh', { end: 2, voice: 'v2' }),
+    ]));
+    const pedalTail = performance(timeline([
+      note(0, 60, 'rh', { end: 0.25, soundingEnd: 2, voice: 'v1' }),
+      note(1, 67, 'rh', { end: 1.5, voice: 'v2' }),
+    ]));
+    expect(heldPoly.axisDifficulty.motor.stars).toBeGreaterThan(plainLine.axisDifficulty.motor.stars);
+    expect(heldPoly.axisDifficulty.motor.drivers).toContain('polyphonic_fingers');
+    expect(pedalTail.axisDifficulty.motor.drivers).not.toContain('polyphonic_fingers');
+
+    const twoVoices = performance(timeline([
+      note(0, 60, 'rh', { end: 4, voice: 'v1' }),
+      note(1, 67, 'rh', { end: 3, voice: 'v2' }),
+    ]));
+    const fourVoices = performance(timeline([
+      note(0, 48, 'rh', { end: 4, voice: 'v1' }),
+      note(0.5, 55, 'rh', { end: 4, voice: 'v2' }),
+      note(1, 64, 'rh', { end: 4, voice: 'v3' }),
+      note(1.5, 72, 'rh', { end: 4, voice: 'v4' }),
+    ]));
+    expect(fourVoices.axisDifficulty.texture.stars).toBeGreaterThan(twoVoices.axisDifficulty.texture.stars);
+
+    const homorhythmic = performance(timeline([
+      note(0, 60, 'rh', { end: 1, voice: 'v1' }),
+      note(0, 64, 'rh', { end: 1, voice: 'v2' }),
+      note(1, 62, 'rh', { end: 2, voice: 'v1' }),
+      note(1, 65, 'rh', { end: 2, voice: 'v2' }),
+    ]));
+    expect(homorhythmic.axisDifficulty.texture.drivers).not.toContain('polyphonic_voices');
+  });
+
+  it('dampens slow chord changes, uses pedalChanges, normalizes repeated ledger lines, and keeps bimanual meter-fair', () => {
+    const makeChords = bpm => {
+      const spq = 60 / bpm;
+      const chords = [[60, 64, 67], [62, 65, 69], [64, 67, 71], [60, 64, 67]];
+      const notes = chords.flatMap((c, i) => c.map(midi => ({
+        start: i, end: i + 1, startSec: i * spq, midi, hand: 'rh',
+      })));
+      const measures = [{ start: 0, end: 4, startSec: 0, endSec: 4 * spq, groups: [1, 1, 1, 1], writtenIndex: 0, fifths: 0 }];
+      return performance({ measures, notes, rests: [], tempoSource: 'written', voiceSource: 'written' });
+    };
+    expect(makeChords(160).axisDifficulty.texture.stars).toBeGreaterThan(makeChords(50).axisDifficulty.texture.stars);
+
+    const noPedal = timeline([note(0, 60, 'rh'), note(0, 64, 'rh'), note(0, 67, 'rh')]);
+    const withPedal = { ...noPedal, measures: [{ ...noPedal.measures[0], pedalChanges: 3 }] };
+    expect(performance(withPedal).axisDifficulty.texture.stars)
+      .toBeGreaterThan(performance(noPedal).axisDifficulty.texture.stars);
+    expect(performance(withPedal).axisDifficulty.texture.drivers).toContain('pedal_control');
+
+    const repeatedHigh = performance(timeline(Array.from({ length: 16 }, (_, i) =>
+      note(i * 0.25, 88, 'rh', { ledgerLines: 4 }),
+    )));
+    const variedHigh = performance(timeline(Array.from({ length: 16 }, (_, i) =>
+      note(i * 0.25, 80 + (i % 8) * 2, 'rh', { ledgerLines: 4 }),
+    )));
+    expect(variedHigh.axisDifficulty.reading.stars).toBeGreaterThan(repeatedHigh.axisDifficulty.reading.stars);
+
+    const bi44 = performance({
+      measures: [{ start: 0, end: 4, startSec: 0, endSec: 2, groups: [1, 1, 1, 1], writtenIndex: 0, num: 4, den: 4 }],
+      notes: [
+        note(0, 72, 'rh'), note(1, 74, 'rh'), note(2, 76, 'rh'), note(3, 77, 'rh'),
+        note(0.5, 48, 'lh'), note(1.5, 50, 'lh'), note(2.5, 52, 'lh'), note(3.5, 53, 'lh'),
+      ],
+      rests: [], tempoSource: 'written', voiceSource: 'written',
+    });
+    const bi24 = performance({
+      measures: [
+        { start: 0, end: 2, startSec: 0, endSec: 1, groups: [1, 1], writtenIndex: 0, num: 2, den: 4 },
+        { start: 2, end: 4, startSec: 1, endSec: 2, groups: [1, 1], writtenIndex: 1, num: 2, den: 4 },
+      ],
+      notes: [
+        note(0, 72, 'rh'), note(1, 74, 'rh'), note(2, 76, 'rh'), note(3, 77, 'rh'),
+        note(0.5, 48, 'lh'), note(1.5, 50, 'lh'), note(2.5, 52, 'lh'), note(3.5, 53, 'lh'),
+      ],
+      rests: [], tempoSource: 'written', voiceSource: 'written',
+    });
+    expect(Math.abs(bi24.axisDifficulty.bimanual.stars - bi44.axisDifficulty.bimanual.stars)).toBeLessThanOrEqual(0.1);
   });
 });

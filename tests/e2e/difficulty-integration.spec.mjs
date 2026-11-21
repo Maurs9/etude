@@ -185,7 +185,7 @@ test('library rows show five difficulty axes and automatically save stars withou
       tempoSource: 'written',
       voiceSource: 'written',
       handSource: 'unassigned',
-      estimatorVersion: 2,
+      estimatorVersion: 3,
       profileId: 'default',
     },
     axes: {
@@ -286,7 +286,7 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
     tempoSource: 'fallback',
     voiceSource: 'written',
     handSource: 'unassigned',
-    estimatorVersion: 2,
+    estimatorVersion: 3,
     profileId: 'default',
   });
   await expect(page.locator(`[data-library-id="${id}"] .score-library-rating`)).toHaveAttribute('data-provisional', 'true');

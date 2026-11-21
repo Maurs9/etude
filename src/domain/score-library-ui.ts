@@ -298,7 +298,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   };
   const rows = new Map<string, Row>();
   type Estimate = {
-    estimatorVersion: 1 | 2;
+    estimatorVersion: 1 | 2 | 3;
     bpm: number | undefined;
     promise: Promise<ImportedDifficultyEstimate | null>;
     result?: ImportedDifficultyEstimate | null;
@@ -345,7 +345,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         tempoSource: result.uncertainty.tempoSource,
         voiceSource: result.uncertainty.voiceSource,
         handSource: result.uncertainty.handSource,
-        estimatorVersion: 2,
+        estimatorVersion: ESTIMATOR_VERSION,
         profileId: result.profileId,
       },
       axes: {

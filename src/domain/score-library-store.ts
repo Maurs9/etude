@@ -55,9 +55,10 @@ export function validateLibraryLevel(value: unknown): string | undefined {
 const RATING_AXES = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'] as const satisfies readonly DifficultyAxis[];
 const RATING_DRIVERS = [
   'speed', 'large_leaps', 'wide_span', 'position_shifts', 'rapid_repeats', 'trills',
+  'double_notes', 'polyphonic_fingers',
   'syncopation', 'tuplets', 'fast_subdivisions', 'meter_changes', 'asymmetric_meter', 'active_rests',
-  'polyrhythm', 'hand_independence', 'contrary_motion', 'hand_crossing', 'mixed_articulation',
-  'dense_chords', 'two_hand_chords', 'polyphonic_voices', 'chord_changes',
+  'polyrhythm', 'hand_independence', 'contrary_motion', 'hand_crossing', 'mixed_articulation', 'split_attention',
+  'dense_chords', 'two_hand_chords', 'polyphonic_voices', 'chord_changes', 'pedal_control',
   'accidentals', 'key_signature', 'ledger_lines', 'clef_changes', 'ornaments', 'pattern_unpredictability',
 ] as const satisfies readonly DifficultyDriver[];
 const RATING_DRIVER_SET: ReadonlySet<string> = new Set(RATING_DRIVERS);
@@ -119,7 +120,8 @@ export function validateLibraryDifficultyRating(value: unknown): LibraryDifficul
     const axes = rating.axes === undefined ? undefined : record(rating.axes);
     let cleanAssessment: Extract<LibraryDifficultyRating, { version: 2 }>['assessment'];
     if (assessment !== undefined) {
-      if (assessment.estimatorVersion !== 2) invalid('Invalid estimator version.');
+      if (assessment.estimatorVersion !== 2 && assessment.estimatorVersion !== 3) invalid('Invalid estimator version.');
+      const estimatorVersion = assessment.estimatorVersion;
       const profileId = text(assessment.profileId, 64);
       if (!/^(?:default|[a-f0-9]{8,64})$/u.test(profileId)) invalid('Invalid calibration profileId.');
       cleanAssessment = {
@@ -128,7 +130,7 @@ export function validateLibraryDifficultyRating(value: unknown): LibraryDifficul
         tempoSource: choice(assessment.tempoSource, ['written', 'reference', 'fallback'] as const),
         voiceSource: choice(assessment.voiceSource, ['written', 'inferred', 'unknown'] as const),
         handSource: choice(assessment.handSource, ['written', 'track', 'pitchSplit', 'unassigned'] as const),
-        estimatorVersion: 2,
+        estimatorVersion,
         profileId,
       };
     }

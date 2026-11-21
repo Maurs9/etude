@@ -157,7 +157,7 @@ try {
       if (digests.has(payload.digest)) throw new Error(`Duplicate original: ${row.file} and ${digests.get(payload.digest)}`);
       digests.set(payload.digest, row.file);
       const v1 = await inspectFile(payload, row.bpm, { rubricVersion: 1 });
-      const v2 = await inspectFile(payload, row.bpm, { rubricVersion: 2 });
+      const v2 = await inspectFile(payload, row.bpm, { rubricVersion: 3 });
       if (!v1.axisDifficulty || !v2.axisDifficulty || !v2.continuousAxisStars || v1.difficultyStars === null || v2.difficultyStars === null) {
         throw new Error(`Rank benchmark requires playable notes: ${row.file}`);
       }
