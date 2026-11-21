@@ -1,5 +1,5 @@
 import { readDifficultyCalibration, type DifficultyCalibration } from './score-difficulty-calibration.js';
-import type { DifficultyAxis } from './score-difficulty.js';
+import { ESTIMATOR_VERSION, type DifficultyAxis } from './score-difficulty.js';
 import type { ImportedDifficultyEstimate } from './score-difficulty-import.js';
 import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryLevelChange, LibraryStudyStatus, OpenedScoreEstimator } from './score-library-types.js';
 import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate, libraryUpdateLevels } from './score-library-store.js';
@@ -207,7 +207,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     axesInfoList.append(pair);
     return { axis, dt, dd };
   });
-  axesInfoPanel.append(axesInfoList);
+  const axesInfoSummary = element('p', 'score-library-axes-guide-note');
+  axesInfoPanel.append(axesInfoList, axesInfoSummary);
   columns.append(pieceHeading, difficultyHead, axesInfoPanel);
   scroll.append(columns, list);
   const empty = element('p', 'score-library-note');
@@ -294,6 +295,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     save: HTMLButtonElement;
     cancel: HTMLButtonElement;
     renderEstimate(): void;
+    enableTempo(): void;
   };
   type Row = {
     node: HTMLLIElement;
@@ -323,10 +325,22 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     editor: Editor | null;
   };
   const rows = new Map<string, Row>();
-  type Estimate = { bpm: number | undefined; promise: Promise<ImportedDifficultyEstimate | null>; result?: ImportedDifficultyEstimate | null; saveAttempted?: boolean };
+  type Estimate = {
+    estimatorVersion: 1 | 2;
+    profileId: string;
+    bpm: number | undefined;
+    promise: Promise<ImportedDifficultyEstimate | null>;
+    result?: ImportedDifficultyEstimate | null;
+    saveAttempted?: boolean;
+  };
   const estimates = new Map<string, Estimate>();
   let ratingWorkerActive = false;
   let ratingRenderTimer = 0;
+  let openTempoForId: string | null = null;
+
+  function activeProfileId(): string {
+    return calibration?.version === 2 ? calibration.profileId : 'default';
+  }
 
   function referenceTempo(id: string, item = items.find(item => item.id === id)): number | undefined {
     return item?.difficultyRating?.startingBpm ?? calibration?.startingTempos?.[id];
@@ -334,7 +348,12 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
 
   function currentEstimate(id: string, item?: LibraryItem): Estimate | undefined {
     const estimate = estimates.get(id);
-    return estimate && estimate.bpm === referenceTempo(id, item) ? estimate : undefined;
+    return estimate &&
+      estimate.estimatorVersion === ESTIMATOR_VERSION &&
+      estimate.profileId === activeProfileId() &&
+      estimate.bpm === referenceTempo(id, item)
+      ? estimate
+      : undefined;
   }
   function displayedStars(item: LibraryItem): number | undefined {
     return currentEstimate(item.id, item)?.result?.difficultyStars ?? item.difficultyRating?.stars;
@@ -345,18 +364,45 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function makeRating(result: ImportedDifficultyEstimate, referenceBpm: number | undefined, startingBpm?: number): LibraryDifficultyRating | null {
     const { difficultyStars: stars, axisDifficulty: axes } = result;
     if (stars === null || !axes) return null;
-    return { version: 1, stars, ...(startingBpm === undefined ? {} : { startingBpm }),
-      assessment: { ...(referenceBpm === undefined ? {} : { referenceBpm }), tempoFallback: result.uncertainty.tempoFallback },
-      axes: { motor: axes.motor.stars, rhythm: axes.rhythm.stars, bimanual: axes.bimanual.stars,
-        texture: axes.texture.stars, reading: axes.reading.stars } };
+    const drivers = Object.fromEntries(
+      AXES.flatMap(axis => axes[axis].drivers.length ? [[axis, [...axes[axis].drivers]]] : []),
+    );
+    return {
+      version: 2,
+      stars,
+      ...(startingBpm === undefined ? {} : { startingBpm }),
+      ...(result.appliedEnduranceStars >= 0.1 ? { appliedEnduranceStars: result.appliedEnduranceStars } : {}),
+      ...(result.spanAlert ? { spanAlert: true } : {}),
+      assessment: {
+        ...(referenceBpm === undefined ? {} : { referenceBpm }),
+        tempoFallback: result.uncertainty.tempoFallback,
+        tempoSource: result.uncertainty.tempoSource,
+        voiceSource: result.uncertainty.voiceSource,
+        handSource: result.uncertainty.handSource,
+        estimatorVersion: 2,
+        profileId: result.profileId ?? activeProfileId(),
+      },
+      axes: {
+        motor: axes.motor.stars,
+        rhythm: axes.rhythm.stars,
+        bimanual: axes.bimanual.stars,
+        texture: axes.texture.stars,
+        reading: axes.reading.stars,
+      },
+      ...(Object.keys(drivers).length ? { drivers } : {}),
+    };
   }
   function scoreForItem(id: string, bpm = referenceTempo(id), estimateOpened?: OpenedScoreEstimator): Promise<ImportedDifficultyEstimate | null> {
+    const profileId = activeProfileId();
     const cached = estimates.get(id);
-    if (cached && cached.bpm === bpm) return cached.promise;
+    if (cached && cached.estimatorVersion === ESTIMATOR_VERSION && cached.profileId === profileId && cached.bpm === bpm) {
+      return cached.promise;
+    }
+    const activeCalibration = calibration;
     const promise = (estimateOpened
-      ? new Promise<void>(resolve => { window.setTimeout(resolve, 0); }).then(() => estimateOpened(bpm))
-      : libraryGet(id).then(stored => stored ? host.difficulty(stored.file, bpm) : null)).catch(() => null);
-    const pending: Estimate = { bpm, promise };
+      ? new Promise<void>(resolve => { window.setTimeout(resolve, 0); }).then(() => estimateOpened(bpm, activeCalibration))
+      : libraryGet(id).then(stored => stored ? host.difficulty(stored.file, bpm, activeCalibration) : null)).catch(() => null);
+    const pending: Estimate = { estimatorVersion: ESTIMATOR_VERSION, profileId, bpm, promise };
     estimates.set(id, pending);
     void promise.then(result => {
       pending.result = result;
@@ -378,9 +424,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     return promise;
   }
   function needsRating(item: LibraryItem): boolean {
-    const saved = item.difficultyRating?.assessment;
-    return (!saved || !item.difficultyRating?.axes || saved.referenceBpm !== referenceTempo(item.id, item)) &&
-      !currentEstimate(item.id, item)?.saveAttempted;
+    const rating = item.difficultyRating;
+    const upToDate = rating?.version === 2 &&
+      !!rating.assessment &&
+      !!rating.axes &&
+      rating.assessment.estimatorVersion === ESTIMATOR_VERSION &&
+      rating.assessment.profileId === activeProfileId() &&
+      rating.assessment.referenceBpm === referenceTempo(item.id, item);
+    return !upToDate && !currentEstimate(item.id, item)?.saveAttempted;
   }
   function applyCalibration(profile: DifficultyCalibration | null): void {
     calibration = profile;
@@ -462,10 +513,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     row.rating.setAttribute('aria-label', stars === undefined ? label : t('rating_summary', {
       rating: starNumber(stars),
-    }) + (provisional ? `. ${t('estimate_tempo')}` : ''));
+    }) + (provisional ? `. ${t('estimate_tempo_provisional')}` : ''));
     row.rating.dataset.rated = String(stars !== undefined);
     row.rating.dataset.provisional = String(provisional === true);
-    row.rating.title = provisional ? t('estimate_tempo') : '';
+    row.rating.title = provisional ? t('estimate_tempo_provisional') : '';
     const axisValues = AXES.map(axis => displayedAxis(item, axis, result));
     const axisSignature = host.language() + ':' + axisValues.join(',');
     row.axes.hidden = axisValues.every(value => value === undefined);
@@ -500,11 +551,16 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     } else {
       const axes = element('dl', 'score-library-axes');
       for (const axis of AXES) {
-        const { stars, measures } = result.axisDifficulty[axis];
+        const { stars, measures, drivers } = result.axisDifficulty[axis];
         const pair = element('div'), name = element('dt'), rating = element('dd');
         name.textContent = t(`rating_${axis}`);
         pair.title = `${t(`rating_${axis}`)}: ${t(`rating_${axis}_desc`)}`;
         rating.append(starGraphic(stars));
+        if (drivers.length) {
+          const driverLine = element('small', 'score-library-drivers');
+          driverLine.textContent = drivers.map(driver => t(`rating_driver_${driver}` as LibraryTextKey)).join(' · ');
+          rating.append(driverLine);
+        }
         if (measures.length) {
           const bars = element('small');
           bars.textContent = t('rating_measures', { bars: [...new Set(measures)].join(', ') });
@@ -514,13 +570,48 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         axes.append(pair);
       }
       row.ratingDetails.append(axes);
-      const notes = [result.uncertainty.tempoFallback ? t('estimate_tempo') : '', result.midi ? t('estimate_midi') : ''].filter(Boolean);
-      if (notes.length) {
-        const annotation = element('p', 'score-library-note');
-        annotation.textContent = notes.join(' ');
-        row.ratingDetails.append(annotation);
+      if (result.appliedEnduranceStars >= 0.1 || result.spanAlert) {
+        const extras = element('div', 'score-library-rating-extras');
+        if (result.appliedEnduranceStars >= 0.1) {
+          const badge = element('span', 'score-library-extra-tag');
+          badge.textContent = t('rating_endurance_bonus', { bonus: starNumber(result.appliedEnduranceStars) });
+          extras.append(badge);
+        }
+        if (result.spanAlert) {
+          const spanTag = element('span', 'score-library-extra-tag');
+          spanTag.textContent = t('rating_span_alert');
+          extras.append(spanTag);
+        }
+        row.ratingDetails.append(extras);
       }
-      if (result.difficultyStars !== null && !result.uncertainty.tempoFallback && result.difficultyStars !== item.difficultyRating?.stars) {
+      if (result.uncertainty.tempoSource === 'fallback') {
+        const tempoRow = element('div', 'score-library-tempo-warning');
+        const tempoNote = element('p', 'score-library-note');
+        tempoNote.textContent = t('estimate_tempo_provisional');
+        const setBpm = element('button', 'score-library-tempo-action');
+        setBpm.type = 'button';
+        setBpm.dataset.libraryAction = 'set-bpm';
+        setBpm.disabled = busy;
+        setBpm.textContent = t('estimate_set_bpm');
+        setBpm.addEventListener('click', () => {
+          if (busy) return;
+          editingId = id;
+          openTempoForId = id;
+          render();
+          rows.get(id)?.editor?.enableTempo();
+          const input = rows.get(id)?.editor?.form.querySelector<HTMLInputElement>('[data-library-field="difficulty-tempo"]');
+          input?.focus();
+        });
+        tempoRow.append(tempoNote, setBpm);
+        row.ratingDetails.append(tempoRow);
+      }
+      if (result.uncertainty.voiceSource === 'unknown' || result.uncertainty.handSource !== 'written') {
+        const midiNote = element('p', 'score-library-note');
+        midiNote.textContent = t('estimate_midi_details');
+        row.ratingDetails.append(midiNote);
+      }
+      if (result.difficultyStars !== null && !result.uncertainty.tempoFallback &&
+          (result.difficultyStars !== item.difficultyRating?.stars || item.difficultyRating?.version !== 2)) {
         const save = element('button');
         save.type = 'button';
         save.disabled = busy;
@@ -683,7 +774,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     estimatePanel.append(estimate, saveStars, result, tempoLabel);
     form.append(estimatePanel);
     let difficulty: ImportedDifficultyEstimate | null = null;
-    let estimating = false, estimateFailed = false, canSetTempo = false;
+    let estimating = false, estimateFailed = false, canSetTempo = openTempoForId === id;
+    if (openTempoForId === id) openTempoForId = null;
     let usedTempo: number | undefined;
     const enteredTempo = () => {
       const value = tempo.value.trim().replace(',', '.');
@@ -715,11 +807,15 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
           rating: starNumber(difficulty.difficultyStars),
         }));
         text.push(t('estimate_result', { bars: difficulty.peak.writtenMeasures.join(', ') }));
-        if (difficulty.uncertainty.tempoFallback) text.push(t('estimate_tempo'));
+        if (difficulty.uncertainty.tempoFallback) text.push(t('estimate_tempo_provisional'));
         if (difficulty.midi) text.push(t('estimate_midi'));
       }
       result.textContent = text.join(' ');
       result.hidden = !text.length;
+    };
+    const enableTempo = () => {
+      canSetTempo = true;
+      renderEstimate();
     };
     tempo.addEventListener('input', renderEstimate);
     saveStars.addEventListener('click', () => {
@@ -737,7 +833,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       try {
         const stored = await libraryGet(id);
         if (!stored) throw new Error('Score was removed');
-        difficulty = await host.difficulty(stored.file, usedTempo);
+        difficulty = await host.difficulty(stored.file, usedTempo, calibration);
         if (difficulty.uncertainty.tempoFallback) canSetTempo = true;
         estimateFailed = !difficulty.peak;
       }
@@ -821,6 +917,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       progressText: progressField.text,
       notesText,
       renderEstimate,
+      enableTempo,
       save,
       cancel,
     };
@@ -1391,6 +1488,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     empty.textContent = t(items.length ? 'no_matches' : 'empty');
     scroll.hidden = shown.length === 0;
     difficultySort.setAttribute('aria-pressed', String(sort.value === 'difficulty' || sort.value === 'difficulty_desc'));
+    difficultySort.setAttribute('aria-label', `${t('sort_by')} ${t(sort.value === 'difficulty' ? 'sort_difficulty_desc' : 'sort_difficulty')}`);
     axesInfoPanel.hidden = !axesInfoOpen;
     axesInfoToggle.setAttribute('aria-expanded', String(axesInfoOpen));
     axesInfoToggle.setAttribute('aria-pressed', String(axesInfoOpen));
@@ -1418,6 +1516,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       dt.textContent = axis === 'bimanual' ? `${t('rating_hands_short')} (${t('rating_bimanual')})` : t(`rating_${axis}`);
       dd.textContent = t(`rating_${axis}_desc`);
     }
+    axesInfoSummary.textContent = t('rating_info_summary');
     for (const { key, option } of sortOptions) option.textContent = t(`sort_${key}`);
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);

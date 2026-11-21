@@ -151,6 +151,10 @@
 }
 #score-library .score-library-axes-guide dt { font-weight: 700; color: var(--accent); }
 #score-library .score-library-axes-guide dd { margin: 2px 0 0; color: var(--muted); line-height: 1.35; }
+#score-library .score-library-axes-guide-note {
+  margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--line);
+  color: var(--muted); line-height: 1.4;
+}
 #score-library .score-library-item {
   border-top: 1px solid var(--line); padding-block: 4px 6px;
 }
@@ -275,6 +279,20 @@
 #score-library .score-library-axes dd { margin: 2px 0 0; font-weight: 700; }
 #score-library .score-library-axes .score-library-star-graphic { font-size: .75rem; }
 #score-library .score-library-axes small { display: block; font-weight: 400; color: var(--muted); }
+#score-library .score-library-axes .score-library-drivers {
+  margin-top: 2px; font-size: .78rem; color: var(--ink); line-height: 1.3;
+}
+#score-library .score-library-rating-extras {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0;
+}
+#score-library .score-library-extra-tag {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .78rem;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+}
+#score-library .score-library-tempo-warning {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px;
+}
+#score-library .score-library-tempo-action { font-size: .84rem; padding: 6px 12px; }
 #score-library .score-library-rating-details > button { margin-block-start: 4px; }
 #score-library label.score-library-row-select {
   flex: 0 0 44px; width: 44px; min-height: 44px;

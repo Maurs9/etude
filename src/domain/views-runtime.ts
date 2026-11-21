@@ -28,6 +28,7 @@ import type { ScoreEngraveEvent, ScoreEngraveGroup, ScoreEngraveVoice, ScoreMidi
 import '../styles/score-library.css';
 import '../styles/native.css';
 import type { LibraryController, LibraryItem, LibraryMetadata, LibraryResume } from './score-library-types.js';
+import type { ImportedScoreDifficultyOptions } from './score-difficulty-import.js';
 import * as router from './router.js';
 import { byId, maybeById, inputById, selectById, buttonById, eventElement, eventClosest, queryHtml, queryAllHtml, onPageReturn } from './dom.js';
 import type {
@@ -12997,16 +12998,16 @@ async function anLibraryInspect(file: File): Promise<LibraryMetadata> {
         throw anError('midi');
     return { title, composer: '' };
 }
-async function anInspectDifficulty(file: File, startingBpm?: number) {
+async function anInspectDifficulty(file: File, startingBpm?: number, calibrationOrOptions?: ImportedScoreDifficultyOptions) {
     const [{ estimateImportedScore }] = await Promise.all([import('./score-difficulty-import.js'), ensureAnalysisModules()]);
     if (!file.size || file.size > AN_MAX_BYTES || !/\.(mid|midi|xml|musicxml|mxl)$/i.test(file.name))
         throw anError('type');
     const title = file.name.replace(/\.[^.]+$/, '');
     if (!/\.midi?$/i.test(file.name))
-        return estimateImportedScore(await anReadXml(file, title, true), startingBpm);
+        return estimateImportedScore(await anReadXml(file, title, true), startingBpm, calibrationOrOptions);
     const parsed = anParse(await file.arrayBuffer());
     if (!parsed.notes.length || parsed.notes.length > AN_MAX_NOTES) throw anError('midi');
-    return estimateImportedScore({ kind: 'midi', title, label: file.name, parsed }, startingBpm);
+    return estimateImportedScore({ kind: 'midi', title, label: file.name, parsed }, startingBpm, calibrationOrOptions);
 }
 function anLibraryRestoreResume(resume: LibraryResume) {
     selectById('score-speed').value = String(resume.speed);
@@ -16497,9 +16498,9 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
         const item = libraryItem
             ? await scoreLibraryStore.libraryUpdate(libraryItem.id, { lastOpenedAt: Date.now() })
             : (await scoreLibraryStore.librarySave(file, anLibraryMetadata(src))).item;
-        if (item) scoreLibrary?.prepareRating(item, async (startingBpm) => {
+        if (item) scoreLibrary?.prepareRating(item, async (startingBpm, calibration) => {
             const { estimateImportedScore } = await import('./score-difficulty-import.js');
-            return estimateImportedScore(src, startingBpm);
+            return estimateImportedScore(src, startingBpm, calibration);
         });
         if (item && token === AN.loadToken && AN.source === src) {
             if (!libraryItem && src.kind === 'midi' && item.resume?.recon

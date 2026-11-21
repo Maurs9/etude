@@ -172,9 +172,21 @@ test('library rows show five difficulty axes and automatically save stars withou
   await page.locator('#library-rate-all').click();
   await expect(page.locator('#library-rating-preview')).toContainText('Changes: 0. Unchanged: 1. Skipped: 0.');
   const saved = await stored();
-  expect(saved).toMatchObject({ level: 'Level 4', notes: 'Keep', difficultyRating: { version: 1, stars: expect.any(Number), axes: {
-    motor: expect.any(Number), rhythm: expect.any(Number), bimanual: expect.any(Number), texture: expect.any(Number), reading: expect.any(Number),
-  } } });
+  expect(saved).toMatchObject({ level: 'Level 4', notes: 'Keep', difficultyRating: {
+    version: 2,
+    stars: expect.any(Number),
+    assessment: {
+      tempoFallback: false,
+      tempoSource: 'written',
+      voiceSource: 'written',
+      handSource: 'unassigned',
+      estimatorVersion: 2,
+      profileId: 'default',
+    },
+    axes: {
+      motor: expect.any(Number), rhythm: expect.any(Number), bimanual: expect.any(Number), texture: expect.any(Number), reading: expect.any(Number),
+    },
+  } });
   const list = page.locator('.score-library-scroll');
   expect(await list.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   await page.reload();
@@ -245,8 +257,21 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
     name: 'tempo-profile.json', mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ version: 1, cutoffs: [10, 20, 30, 40, 50], startingTempos: { [id]: 72 } })),
   });
-  await expect.poll(async () => (await newItem())?.difficultyRating?.assessment).toEqual({ referenceBpm: 72, tempoFallback: false });
+  await expect.poll(async () => (await newItem())?.difficultyRating?.assessment).toEqual({
+    referenceBpm: 72,
+    tempoFallback: false,
+    tempoSource: 'reference',
+    voiceSource: 'written',
+    handSource: 'unassigned',
+    estimatorVersion: 2,
+    profileId: 'default',
+  });
   await expect(page.locator(`[data-library-id="${id}"] .score-library-rating`)).toHaveAttribute('data-provisional', 'false');
+  await page.locator('#library-sort-stars').click();
+  await expect(page.locator('#library-sort')).toHaveValue('difficulty');
+  await page.locator('#library-sort-stars').click();
+  await expect(page.locator('#library-sort')).toHaveValue('difficulty_desc');
+  await expect(page.locator('#library-items h3').first()).toHaveText('A Fast older score');
 });
 
 test('library combines overall and axis ranges and clears each filter independently', async ({ app, page }) => {
@@ -296,4 +321,150 @@ test('library combines overall and axis ranges and clears each filter independen
     name: 'Fresh.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml),
   });
   await expect(titles.getByRole('button', { name: /Fresh/ })).toBeVisible();
+});
+
+test('v2 calibration profile change invalidates cache, details explain drivers/span/provisional BPM, and v1 backups upgrade cleanly', async ({ app, page }) => {
+  const octaveAndRunXml = `<?xml version="1.0"?>
+<score-partwise version="4.0">
+ <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+ <part id="P1">
+  <measure number="1"><attributes><divisions>4</divisions><key><fifths>5</fifths></key>
+    <time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes>
+    <direction><sound tempo="160"/></direction>
+    ${Array.from({ length: 8 }, (_, i) => `
+      <note><pitch><step>${['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'][i]}</step><octave>${i === 7 ? 5 : 4}</octave></pitch><duration>2</duration><type>eighth</type><staff>1</staff></note>
+      <note><chord/><pitch><step>${['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'][i]}</step><octave>${i === 7 ? 6 : 5}</octave></pitch><duration>2</duration><type>eighth</type><staff>1</staff></note>
+    `).join('')}
+  </measure>
+ </part>
+</score-partwise>`;
+  const unmarkedXml = xml.replace('<direction><sound tempo="120"/></direction>', '');
+  await app.open({ hash: 'analysis' });
+  await page.locator('#score-library summary').click();
+  await page.locator('#library-files').setInputFiles([
+    { name: 'Octaves.musicxml', mimeType: 'application/xml', buffer: Buffer.from(octaveAndRunXml) },
+    { name: 'Unmarked.musicxml', mimeType: 'application/xml', buffer: Buffer.from(unmarkedXml) },
+  ]);
+  const storedList = () => page.evaluate(() => window.__etude.scoreLibraryStore.libraryList());
+  await expect.poll(async () => (await storedList()).filter(item => item.difficultyRating?.version === 2).length).toBe(2);
+
+  // Check info guide summary text
+  await page.locator('#library-axes-info-toggle').click();
+  await expect(page.locator('#library-axes-info-panel .score-library-axes-guide-note')).toContainText('endurance bonus');
+  await page.locator('#library-axes-info-toggle').click();
+
+  // Check details panel for wide span + drivers on Octaves score (no endurance badge when < 0.1)
+  const octRow = page.locator('#library-items > li', { hasText: 'Octaves' });
+  await octRow.locator('[data-library-action=more]').click();
+  await octRow.locator('[data-library-action=rating-details]').click();
+  const octDetails = octRow.locator('.score-library-rating-details');
+  await expect(octDetails).toContainText('Wide hand spans (≥ octave)');
+  await expect(octDetails).not.toContainText('Endurance (+');
+  await expect(octDetails.locator('.score-library-drivers').first()).toBeVisible();
+
+  // Score with >= 32 unique varied measures and > 60s duration triggers appliedEnduranceStars >= 0.1
+  const longVariedXml = `<?xml version="1.0"?>
+<score-partwise version="4.0">
+ <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+ <part id="P1">
+  ${Array.from({ length: 32 }, (_, m) => `<measure number="${m + 1}">${m ? '' : '<attributes><divisions>2</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes><direction><sound tempo="100"/></direction>'}${Array.from({ length: 8 }, (_, b) => `<note><pitch><step>${['C', 'D', 'E', 'F', 'G', 'A', 'B'][(m * 5 + b * 2) % 7]}</step><octave>${4 + ((m + b) % 2)}</octave></pitch><duration>1</duration><type>eighth</type><staff>1</staff></note>`).join('')}</measure>`).join('')}
+ </part>
+</score-partwise>`;
+  await page.locator('#library-files').setInputFiles({
+    name: 'LongVaried.musicxml', mimeType: 'application/xml', buffer: Buffer.from(longVariedXml),
+  });
+  await expect.poll(async () => (await storedList()).find(item => item.title === 'LongVaried')?.difficultyRating?.appliedEnduranceStars ?? 0).toBeGreaterThanOrEqual(0.1);
+  const longRow = page.locator('#library-items > li', { hasText: 'LongVaried' });
+  await longRow.locator('[data-library-action=more]').click();
+  await longRow.locator('[data-library-action=rating-details]').click();
+  await expect(longRow.locator('.score-library-rating-details')).toContainText(/Endurance \(\+0\.\d★\)/);
+
+  // Check provisional BPM notice + quick Set BPM action on Unmarked score
+  const unmRow = page.locator('#library-items > li', { hasText: 'Unmarked' });
+  await unmRow.locator('[data-library-action=more]').click();
+  await unmRow.locator('[data-library-action=rating-details]').click();
+  const unmDetails = unmRow.locator('.score-library-rating-details');
+  await expect(unmDetails).toContainText('Provisional estimate (unknown tempo, 120 BPM).');
+  await unmDetails.locator('[data-library-action=set-bpm]').click();
+  const tempoInput = unmRow.locator('[data-library-field=difficulty-tempo]');
+  await expect(tempoInput).toBeVisible();
+  await expect(tempoInput).toBeFocused();
+  await unmRow.locator('[data-library-action=cancel-edit]').click();
+
+  // Load two distinct v2 calibration profiles (same BPM, different profileId) and verify cache invalidation & recalculation
+  const profileA = {
+    version: 2,
+    aggregation: {
+      mode: 'axis',
+      axisWeights: { motor: 0.9, rhythm: 0.025, bimanual: 0.025, texture: 0.025, reading: 0.025 },
+      alphaWeak: 0.1,
+      enduranceScale: 0,
+    },
+  };
+  const canonicalB = {
+    mode: 'axis',
+    axisWeights: { motor: 0.05, rhythm: 0.05, bimanual: 0.05, texture: 0.8, reading: 0.05 },
+    alphaWeak: 0,
+    enduranceScale: 0,
+  };
+  const profileBId = createHash('sha256').update(JSON.stringify(canonicalB)).digest('hex').slice(0, 16);
+  const profileB = { version: 2, profileId: profileBId, aggregation: canonicalB };
+
+  await page.locator('#library-difficulty-calibration').setInputFiles({
+    name: 'profile-a.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(profileA)),
+  });
+  await expect.poll(async () => {
+    const items = await storedList();
+    const oct = items.find(item => item.title === 'Octaves');
+    return oct?.difficultyRating?.assessment?.profileId;
+  }).not.toBe('default');
+  const octAfterA = (await storedList()).find(item => item.title === 'Octaves').difficultyRating;
+
+  await page.locator('#library-difficulty-calibration').setInputFiles({
+    name: 'profile-b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(profileB)),
+  });
+  await expect.poll(async () => {
+    const items = await storedList();
+    return items.find(item => item.title === 'Octaves')?.difficultyRating?.assessment?.profileId;
+  }).toBe(profileBId);
+  const octAfterB = (await storedList()).find(item => item.title === 'Octaves').difficultyRating;
+  expect(octAfterB.stars).toBeLessThan(octAfterA.stars);
+
+  // Restore a legacy v1 backup and verify non-destructive upgrade to v2
+  const legacySource = xml.replace('G</step>', 'A</step>');
+  const legacyId = createHash('sha256').update(legacySource).digest('hex');
+  const legacyBackup = {
+    app: 'etude-score-library',
+    version: 1,
+    files: [{
+      item: {
+        id: legacyId,
+        title: 'Legacy V1 Score',
+        composer: 'Anon',
+        name: 'legacy.musicxml',
+        size: Buffer.byteLength(legacySource),
+        addedAt: 1000,
+        lastOpenedAt: null,
+        favorite: true,
+        resume: null,
+        difficultyRating: {
+          version: 1,
+          stars: 4.9,
+          assessment: { tempoFallback: false },
+          axes: { motor: 4.9, rhythm: 1, bimanual: 1, texture: 1, reading: 1 },
+        },
+      },
+      data: Array.from(Buffer.from(legacySource)),
+    }],
+  };
+  await page.locator('#library-restore').setInputFiles({
+    name: 'legacy-backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(legacyBackup)),
+  });
+  await expect.poll(async () => {
+    const items = await storedList();
+    return items.find(item => item.id === legacyId)?.difficultyRating?.version;
+  }).toBe(2);
+  const upgraded = (await storedList()).find(item => item.id === legacyId);
+  expect(upgraded.favorite).toBe(true);
+  expect(upgraded.difficultyRating.stars).toBeLessThan(4.9);
 });

@@ -358,3 +358,49 @@ test('librarySave allows duplicates at MAX_ITEMS while rejecting new scores with
   }, modulePath);
   expect(result).toEqual({ duplicate: true, id: result.savedId, savedId: result.savedId, overflowCode: 'quota' });
 });
+
+test('v2 difficulty ratings round-trip through backup and invalid v2 ratings are rejected', async ({ page }) => {
+  const result = await page.evaluate(async path => {
+    const lib = await import(path);
+    const saved = (await lib.librarySave(new File(['v2 score'], 'v2.musicxml'), { title: 'V2', composer: '' })).item;
+    const ratingV2 = {
+      version: 2,
+      stars: 3.8,
+      startingBpm: 112,
+      appliedEnduranceStars: 0.2,
+      spanAlert: true,
+      assessment: {
+        referenceBpm: 112,
+        tempoFallback: false,
+        tempoSource: 'written',
+        voiceSource: 'written',
+        handSource: 'written',
+        estimatorVersion: 2,
+        profileId: 'default',
+      },
+      axes: { motor: 4.1, rhythm: 3.2, bimanual: 2.9, texture: 3.0, reading: 2.5 },
+      drivers: { motor: ['speed', 'wide_span'] },
+    };
+    await lib.libraryUpdateLevels([{ id: saved.id, rating: ratingV2 }]);
+    const backup = await lib.libraryExport();
+    await lib.libraryRemove(saved.id);
+    const restored = await lib.libraryRestore(backup, async () => ({ title: 'V2', composer: '' }));
+    const item = (await lib.libraryGet(saved.id)).item;
+
+    const bad = JSON.parse(await backup.text());
+    bad.files[0].item.difficultyRating = { ...ratingV2, appliedEnduranceStars: 0.9 };
+    let badCode = 'accepted';
+    try {
+      await lib.libraryRestore(new Blob([JSON.stringify(bad)]), async () => ({ title: 'V2', composer: '' }));
+    } catch (error) {
+      badCode = error.code;
+    }
+    return { restored, rating: item.difficultyRating, badCode };
+  }, modulePath);
+  expect(result.restored).toEqual({ added: 1, duplicates: 0 });
+  expect(result.rating.version).toBe(2);
+  expect(result.rating.appliedEnduranceStars).toBe(0.2);
+  expect(result.rating.spanAlert).toBe(true);
+  expect(result.rating.drivers).toEqual({ motor: ['speed', 'wide_span'] });
+  expect(result.badCode).toBe('backup');
+});

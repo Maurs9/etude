@@ -1,4 +1,5 @@
-import type { DifficultyAxes } from './score-difficulty.js';
+import type { DifficultyAxes, DifficultyAxis, DifficultyDriver, HandSource, TempoSource, VoiceSource } from './score-difficulty.js';
+import type { DifficultyCalibration } from './score-difficulty-calibration.js';
 
 /** Private, device-local score library. Originals are stored separately from metadata. */
 export interface LibraryResume {
@@ -25,7 +26,7 @@ export interface LibraryMetadata {
 
 export type LibraryStudyStatus = 'in_progress' | 'mastered';
 
-export interface LibraryDifficultyRating {
+export interface LibraryDifficultyRatingV1 {
   version: 1;
   stars: number;
   startingBpm?: number;
@@ -33,6 +34,29 @@ export interface LibraryDifficultyRating {
   assessment?: { referenceBpm?: number; tempoFallback: boolean };
   axes?: DifficultyAxes;
 }
+
+export interface LibraryDifficultyAssessmentV2 {
+  referenceBpm?: number;
+  tempoFallback: boolean;
+  tempoSource: TempoSource;
+  voiceSource: VoiceSource;
+  handSource: HandSource;
+  estimatorVersion: 2;
+  profileId: string;
+}
+
+export interface LibraryDifficultyRatingV2 {
+  version: 2;
+  stars: number;
+  startingBpm?: number;
+  appliedEnduranceStars?: number;
+  spanAlert?: boolean;
+  assessment?: LibraryDifficultyAssessmentV2;
+  axes?: DifficultyAxes;
+  drivers?: Readonly<Partial<Record<DifficultyAxis, readonly DifficultyDriver[]>>>;
+}
+
+export type LibraryDifficultyRating = LibraryDifficultyRatingV1 | LibraryDifficultyRatingV2;
 
 export interface LibraryItem extends LibraryMetadata {
   id: string;
@@ -94,14 +118,21 @@ export interface LibraryRestoreResult {
   duplicates: number;
 }
 
-export type OpenedScoreEstimator = (startingBpm?: number) => Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
+export type OpenedScoreEstimator = (
+  startingBpm?: number,
+  calibration?: DifficultyCalibration | null,
+) => Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
 
 export interface LibraryHost {
   language(): string;
   /** Parse/validate without disturbing the current score or playback. */
   inspect(file: File): Promise<LibraryMetadata>;
   /** Estimate without engraving, saving, or altering the open piece. */
-  difficulty(file: File, startingBpm?: number): Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
+  difficulty(
+    file: File,
+    startingBpm?: number,
+    calibration?: DifficultyCalibration | null,
+  ): Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
   /** Open through the existing renderer. Return false if parsing/rendering fails. */
   open(item: LibraryItem, file: File): Promise<boolean>;
   /** Flush the current piece's pending checkpoint before export or opening another piece. */
