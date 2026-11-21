@@ -1,3 +1,4 @@
+import type { DifficultyAxis, DifficultyDriver } from './score-difficulty.js';
 import type { LibraryDifficultyRating, LibraryImportResult, LibraryItem, LibraryLevelChange, LibraryMetadata, LibraryPlayResult, LibraryRestoreResult, LibraryResume, LibraryStudyStatus, LibraryUpdatePatch } from './score-library-types.js';
 
 const DB_NAME = 'etude-score-library-v1';
@@ -51,30 +52,101 @@ export function validateLibraryLevel(value: unknown): string | undefined {
   const trimmed = text(value, 64).trim();
   return trimmed || undefined;
 }
+const RATING_AXES = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'] as const satisfies readonly DifficultyAxis[];
+const RATING_DRIVERS = [
+  'speed', 'large_leaps', 'wide_span', 'position_shifts', 'rapid_repeats', 'trills',
+  'syncopation', 'tuplets', 'fast_subdivisions', 'meter_changes', 'asymmetric_meter', 'active_rests',
+  'polyrhythm', 'hand_independence', 'contrary_motion', 'hand_crossing', 'mixed_articulation',
+  'dense_chords', 'two_hand_chords', 'polyphonic_voices', 'chord_changes',
+  'accidentals', 'key_signature', 'ledger_lines', 'clef_changes', 'ornaments', 'pattern_unpredictability',
+] as const satisfies readonly DifficultyDriver[];
+const RATING_DRIVER_SET: ReadonlySet<string> = new Set(RATING_DRIVERS);
+
 function difficultyStars(value: unknown): number {
   const stars = number(value, 1, 5);
   if (Math.round(stars * 10) / 10 !== stars) invalid('Invalid difficulty stars.');
   return stars;
 }
-function readDifficultyRating(value: unknown): LibraryDifficultyRating | undefined {
-  if (value === undefined) return undefined;
-  const rating = record(value);
-  if (rating.version !== 1) return undefined;
-  const assessment = rating.assessment === undefined ? undefined : record(rating.assessment);
-  const axes = rating.axes === undefined ? undefined : record(rating.axes);
+function enduranceBonusStars(value: unknown): number {
+  const bonus = number(value, 0, 0.5);
+  if (Math.round(bonus * 10) / 10 !== bonus) invalid('Invalid endurance bonus.');
+  return bonus;
+}
+function readAxes(value: Record<string, unknown>) {
   return {
-    version: 1, stars: difficultyStars(rating.stars),
-    ...(rating.startingBpm === undefined ? {} : { startingBpm: number(rating.startingBpm, 20, 400) }),
-    ...(assessment === undefined ? {} : { assessment: {
-      ...(assessment.referenceBpm === undefined ? {} : { referenceBpm: number(assessment.referenceBpm, 20, 400) }),
-      tempoFallback: boolean(assessment.tempoFallback),
-    } }),
-    ...(axes === undefined ? {} : { axes: {
-      motor: difficultyStars(axes.motor), rhythm: difficultyStars(axes.rhythm), bimanual: difficultyStars(axes.bimanual),
-      texture: difficultyStars(axes.texture), reading: difficultyStars(axes.reading),
-    } }),
+    motor: difficultyStars(value.motor),
+    rhythm: difficultyStars(value.rhythm),
+    bimanual: difficultyStars(value.bimanual),
+    texture: difficultyStars(value.texture),
+    reading: difficultyStars(value.reading),
   };
 }
+function readDrivers(value: unknown): Partial<Record<DifficultyAxis, DifficultyDriver[]>> {
+  const raw = record(value);
+  const out: Partial<Record<DifficultyAxis, DifficultyDriver[]>> = {};
+  for (const axis of RATING_AXES) {
+    if (raw[axis] === undefined) continue;
+    const list = raw[axis];
+    if (!Array.isArray(list) || list.length > 6) invalid('Invalid difficulty drivers.');
+    const clean: DifficultyDriver[] = [];
+    for (const entry of list) {
+      if (typeof entry !== 'string' || !RATING_DRIVER_SET.has(entry)) invalid('Invalid difficulty driver.');
+      const driver = entry as DifficultyDriver;
+      if (!clean.includes(driver)) clean.push(driver);
+    }
+    if (clean.length) out[axis] = clean;
+  }
+  return out;
+}
+export function validateLibraryDifficultyRating(value: unknown): LibraryDifficultyRating | undefined {
+  if (value === undefined) return undefined;
+  const rating = record(value);
+  if (rating.version === 1) {
+    const assessment = rating.assessment === undefined ? undefined : record(rating.assessment);
+    const axes = rating.axes === undefined ? undefined : record(rating.axes);
+    return {
+      version: 1, stars: difficultyStars(rating.stars),
+      ...(rating.startingBpm === undefined ? {} : { startingBpm: number(rating.startingBpm, 20, 400) }),
+      ...(assessment === undefined ? {} : { assessment: {
+        ...(assessment.referenceBpm === undefined ? {} : { referenceBpm: number(assessment.referenceBpm, 20, 400) }),
+        tempoFallback: boolean(assessment.tempoFallback),
+      } }),
+      ...(axes === undefined ? {} : { axes: readAxes(axes) }),
+    };
+  }
+  if (rating.version === 2) {
+    const assessment = rating.assessment === undefined ? undefined : record(rating.assessment);
+    const axes = rating.axes === undefined ? undefined : record(rating.axes);
+    let cleanAssessment: Extract<LibraryDifficultyRating, { version: 2 }>['assessment'];
+    if (assessment !== undefined) {
+      if (assessment.estimatorVersion !== 2) invalid('Invalid estimator version.');
+      const profileId = text(assessment.profileId, 64);
+      if (!/^(?:default|[a-f0-9]{8,64})$/u.test(profileId)) invalid('Invalid calibration profileId.');
+      cleanAssessment = {
+        ...(assessment.referenceBpm === undefined ? {} : { referenceBpm: number(assessment.referenceBpm, 20, 400) }),
+        tempoFallback: boolean(assessment.tempoFallback),
+        tempoSource: choice(assessment.tempoSource, ['written', 'reference', 'fallback'] as const),
+        voiceSource: choice(assessment.voiceSource, ['written', 'inferred', 'unknown'] as const),
+        handSource: choice(assessment.handSource, ['written', 'track', 'pitchSplit', 'unassigned'] as const),
+        estimatorVersion: 2,
+        profileId,
+      };
+    }
+    const drivers = rating.drivers === undefined ? undefined : readDrivers(rating.drivers);
+    return {
+      version: 2,
+      stars: difficultyStars(rating.stars),
+      ...(rating.startingBpm === undefined ? {} : { startingBpm: number(rating.startingBpm, 20, 400) }),
+      ...(rating.appliedEnduranceStars === undefined ? {} : { appliedEnduranceStars: enduranceBonusStars(rating.appliedEnduranceStars) }),
+      ...(rating.spanAlert === undefined ? {} : { spanAlert: boolean(rating.spanAlert) }),
+      ...(cleanAssessment === undefined ? {} : { assessment: cleanAssessment }),
+      ...(axes === undefined ? {} : { axes: readAxes(axes) }),
+      ...(drivers === undefined || !Object.keys(drivers).length ? {} : { drivers }),
+    };
+  }
+  return undefined;
+}
+const readDifficultyRating = validateLibraryDifficultyRating;
 export function validateLibraryTags(value: unknown): string[] | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value) || value.length > 20) invalid('Invalid library tags.');

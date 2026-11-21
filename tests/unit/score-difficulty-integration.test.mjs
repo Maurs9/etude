@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { calibrateDifficulty, readDifficultyCalibration, suggestedDifficulty } from '../../src/domain/score-difficulty-calibration.ts';
-import { estimateImportedScore } from '../../src/domain/score-difficulty-import.ts';
+import {
+  auditLocalLibrary,
+  calibrateDifficulty,
+  computeCalibrationProfileId,
+  evaluateRankBenchmark,
+  fitAggregationWeights,
+  groupKFoldSplit,
+  kendallTauC,
+  majorInversionRate,
+  readDifficultyCalibration,
+  sha256Hex,
+  spearmanRho,
+  suggestedDifficulty,
+} from '../../src/domain/score-difficulty-calibration.ts';
+import { estimateImportedScore, microGroupMidiNotes } from '../../src/domain/score-difficulty-import.ts';
+import { scoreXmlNotes } from '../../src/domain/score-import.ts';
 import { srtBookPiece } from '../../src/sight-reading/book.ts';
 import { srtLevelFingerprint } from '../../src/sight-reading/fingerprint.ts';
 import { srtBookId, srtNormalizeBookState, srtRecordResult, srtScoredId } from '../../src/sight-reading/progress.ts';
@@ -41,10 +55,127 @@ describe('import calibration', () => {
     };
     const source = { kind: 'midi', title: 'Fixture', label: 'fixture.mid', parsed };
     const explicit = estimateImportedScore(source);
-    expect(explicit).toMatchObject({ playedDurationSec: 3, midi: true, playedMeasures: 1, uncertainty: { tempoFallback: false } });
+    expect(explicit).toMatchObject({
+      playedDurationSec: 3, midi: true, playedMeasures: 1,
+      uncertainty: {
+        tempoFallback: false, voicesInferred: false, handsUnassigned: false,
+        tempoSource: 'written', voiceSource: 'unknown', handSource: 'pitchSplit',
+      },
+    });
     expect(explicit.peak.attacks).toBe(2);
     const fallback = estimateImportedScore({ ...source, parsed: { ...parsed, meta: parsed.meta.slice(1) } });
-    expect(fallback.uncertainty.tempoFallback).toBe(true);
+    expect(fallback.uncertainty).toMatchObject({ tempoFallback: true, tempoSource: 'fallback', voiceSource: 'unknown', handSource: 'pitchSplit' });
+  });
+
+  it('distinguishes track-separated MIDI hands and preserves MusicXML clef, trill, pedal, and articulation metadata', () => {
+    const trackMidi = {
+      ppq: 480, format: 1, tracks: 2, names: ['RH', 'LH'],
+      notes: [
+        { midi: 72, start: 0, end: 1, vel: 90, channel: 0, track: 0 },
+        { midi: 74, start: 1, end: 2, vel: 90, channel: 0, track: 0 },
+        { midi: 48, start: 0, end: 1, vel: 90, channel: 0, track: 1 },
+        { midi: 50, start: 1, end: 2, vel: 90, channel: 0, track: 1 },
+      ],
+      meta: [{ type: 'tempo', beat: 0, bpm: 120 }],
+    };
+    const trackEstimate = estimateImportedScore({ kind: 'midi', title: 'Tracks', label: 'tracks.mid', parsed: trackMidi });
+    expect(trackEstimate.uncertainty).toMatchObject({
+      tempoSource: 'written', voiceSource: 'unknown', handSource: 'track',
+    });
+
+    class XmlNode {
+      constructor(localName, attrs = {}, text = '', children = []) {
+        this.localName = localName;
+        this.attrs = attrs;
+        this.textContent = text;
+        this.children = children;
+      }
+      getAttribute(name) { return this.attrs[name] ?? null; }
+      hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attrs, name); }
+      querySelector(sel) { return this.querySelectorAll(sel)[0] ?? null; }
+      querySelectorAll(sel) {
+        const out = [];
+        for (const branch of sel.split(',').map(s => s.trim())) {
+          const parts = branch.split('>').map(s => s.trim());
+          const walk = (node, depth, strict) => {
+            for (const child of node.children) {
+              if (parts[depth] === '*' || child.localName === parts[depth]) {
+                if (depth === parts.length - 1) out.push(child);
+                else walk(child, depth + 1, true);
+              } else if (!strict) {
+                walk(child, depth, false);
+              }
+            }
+          };
+          walk(this, 0, false);
+        }
+        return out;
+      }
+    }
+    const el = (name, attrs, text, children) => new XmlNode(name, attrs, text, children);
+    const doc = new XmlNode('root', {}, '', [
+      el('score-partwise', {}, '', [
+        el('part', {}, '', [
+          el('measure', { number: '1' }, '', [
+            el('attributes', {}, '', [
+              el('divisions', {}, '1'),
+              el('time', {}, '', [el('beats', {}, '4'), el('beat-type', {}, '4')]),
+              el('staves', {}, '2'),
+              el('clef', { number: '1' }, '', [el('sign', {}, 'G'), el('line', {}, '2')]),
+              el('clef', { number: '2' }, '', [el('sign', {}, 'F'), el('line', {}, '4')]),
+            ]),
+            el('direction', {}, '', [
+              el('direction-type', {}, '', [el('pedal', { type: 'start' })]),
+              el('sound', { tempo: '120' }),
+            ]),
+            el('note', {}, '', [
+              el('pitch', {}, '', [el('step', {}, 'C'), el('octave', {}, '5')]),
+              el('duration', {}, '4'),
+              el('voice', {}, '1'),
+              el('staff', {}, '1'),
+              el('notations', {}, '', [
+                el('articulations', {}, '', [el('staccato')]),
+                el('ornaments', {}, '', [el('trill-mark')]),
+              ]),
+            ]),
+          ]),
+          el('measure', { number: '2' }, '', [
+            el('attributes', {}, '', [
+              el('clef', { number: '2' }, '', [el('sign', {}, 'G'), el('line', {}, '2')]),
+            ]),
+            el('note', {}, '', [
+              el('pitch', {}, '', [el('step', {}, 'E'), el('octave', {}, '4')]),
+              el('duration', {}, '4'),
+              el('voice', {}, '1'),
+              el('staff', {}, '2'),
+            ]),
+          ]),
+        ]),
+      ]),
+    ]);
+    const parsedXml = scoreXmlNotes(doc, true);
+    expect(parsedXml.measures[0].pedalChanges).toBe(1);
+    expect(parsedXml.measures[0].clefChanges).toBeUndefined();
+    expect(parsedXml.measures[1].clefChanges).toBe(1);
+    expect(parsedXml.notes[0].difficulty).toMatchObject({ ornaments: 1, trills: 1 });
+    expect(parsedXml.notes[0].art.staccato).toBe(true);
+
+    const prevDomParser = globalThis.DOMParser;
+    globalThis.DOMParser = class {
+      parseFromString() { return doc; }
+    };
+    try {
+      const xmlEstimate = estimateImportedScore({
+        kind: 'xml', title: 'XmlMeta', label: 'meta.musicxml', xml: '<score-partwise/>', layout: null, ...parsedXml,
+      });
+      expect(xmlEstimate.uncertainty).toMatchObject({
+        tempoFallback: false, voicesInferred: false, handsUnassigned: false,
+        tempoSource: 'written', voiceSource: 'written', handSource: 'written',
+      });
+    } finally {
+      if (prevDomParser === undefined) delete globalThis.DOMParser;
+      else globalThis.DOMParser = prevDomParser;
+    }
   });
 });
 
@@ -72,5 +203,295 @@ describe('scored new exercises', () => {
     expect(reopened.recent).toEqual(previous.recent);
     expect(reopened.daily).toEqual(previous.daily);
     expect(reopened.days).toEqual(previous.days);
+  });
+});
+
+describe('v2 calibration, rank benchmark and local audit', () => {
+  it('computes standard SHA-256 and validates v2 order/axis calibration profiles with deterministic profileId', () => {
+    expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+
+    const orderAggregation = { mode: 'order', orderWeights: [0.45, 0.30, 0.1, 0.1, 0.05], weakestLinkDelta: 1, enduranceScale: 1 };
+    const id = computeCalibrationProfileId(orderAggregation);
+    const id2 = computeCalibrationProfileId({ ...orderAggregation, weakestLinkDelta: 1.2 });
+    expect(id).toMatch(/^[a-f0-9]{16}$/);
+    expect(id).not.toBe(id2);
+
+    const fileId = 'b'.repeat(64);
+    const parsedOrder = readDifficultyCalibration({
+      version: 2,
+      profileId: id,
+      aggregation: orderAggregation,
+      startingTempos: { [fileId]: 108 },
+    });
+    expect(parsedOrder).toEqual({
+      version: 2,
+      profileId: id,
+      aggregation: orderAggregation,
+      startingTempos: { [fileId]: 108 },
+    });
+
+    const axisAggregation = {
+      mode: 'axis',
+      axisWeights: { motor: 0.3, rhythm: 0.25, bimanual: 0.2, texture: 0.15, reading: 0.1 },
+      alphaWeak: 0.35,
+      enduranceScale: 0.8,
+    };
+    const parsedAxis = readDifficultyCalibration({ version: 2, aggregation: axisAggregation });
+    expect(parsedAxis).toEqual({
+      version: 2,
+      profileId: computeCalibrationProfileId(axisAggregation),
+      aggregation: axisAggregation,
+    });
+
+    expect(readDifficultyCalibration({ version: 2, profileId: '0'.repeat(16), aggregation: orderAggregation })).toBeNull();
+    expect(readDifficultyCalibration({ version: 2, aggregation: { mode: 'order', orderWeights: [0.5, 0.5, 0, 0, -0.1] } })).toBeNull();
+    expect(readDifficultyCalibration({ version: 2, aggregation: { mode: 'order', orderWeights: [0.5, 0.2, 0.1, 0.1, 0.05] } })).toBeNull();
+    expect(readDifficultyCalibration({ version: 2, aggregation: { mode: 'axis', axisWeights: { motor: 0.5, rhythm: 0.5, bimanual: 0, texture: 0, reading: 0 }, alphaWeak: 2 } })).toBeNull();
+  });
+
+  it('computes Kendall tau-c, Spearman rho and major inversion rate accurately', () => {
+    const truth = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    expect(kendallTauC(truth, truth)).toBeCloseTo(1, 6);
+    expect(spearmanRho(truth, truth)).toBeCloseTo(1, 6);
+    expect(majorInversionRate(truth, truth)).toEqual({ rate: 0, inversions: 0, ties: 0, pairs: 28 });
+
+    const reversed = [...truth].reverse();
+    expect(kendallTauC(reversed, truth)).toBeCloseTo(-1, 6);
+    expect(spearmanRho(reversed, truth)).toBeCloseTo(-1, 6);
+    expect(majorInversionRate(reversed, truth)).toEqual({ rate: 1, inversions: 28, ties: 0, pairs: 28 });
+
+    // Minor inversion (gap = 1) does not count as major inversion (minGap = 2)
+    const minorSwap = [2, 1, 3, 4, 5, 6, 7, 8, 9];
+    expect(majorInversionRate(minorSwap, truth).inversions).toBe(0);
+    // Swapping 1 and 5 introduces major inversions
+    const majorSwap = [5, 2, 3, 4, 1, 6, 7, 8, 9];
+    expect(majorInversionRate(majorSwap, truth).inversions).toBeGreaterThan(0);
+  });
+
+  it('keeps work groups strictly disjoint across folds and hold-out and runs rank benchmark acceptance gate', () => {
+    const items = Array.from({ length: 30 }, (_, index) => {
+      const henle = (index % 9) + 1;
+      const group = `work-${Math.floor(index / 2)}`;
+      const idealStars = 1 + ((henle - 1) / 8) * 4;
+      const v1Stars = index % 3 === 0 ? Math.round((6 - idealStars) * 10) / 10 : Math.round(idealStars * 10) / 10;
+      const axes = {
+        motor: idealStars,
+        rhythm: Math.max(1, idealStars - 0.3),
+        bimanual: Math.max(1, idealStars - 0.4),
+        texture: Math.max(1, idealStars - 0.5),
+        reading: Math.max(1, idealStars - 0.6),
+      };
+      return {
+        group,
+        truth: henle,
+        v1Stars,
+        v2Axes: axes,
+        v2EnduranceRaw: 0,
+        v2Stars: Math.round(idealStars * 10) / 10,
+      };
+    });
+
+    const split = groupKFoldSplit(items, 5, 0.2, 42);
+    const holdoutGroups = new Set(split.holdout.map(item => item.group));
+    expect(holdoutGroups.size).toBeGreaterThan(0);
+    expect(split.folds).toHaveLength(5);
+    for (const fold of split.folds) {
+      const trainGroups = new Set(fold.train.map(item => item.group));
+      const validGroups = new Set(fold.valid.map(item => item.group));
+      for (const group of validGroups) {
+        expect(trainGroups.has(group)).toBe(false);
+        expect(holdoutGroups.has(group)).toBe(false);
+      }
+      for (const group of trainGroups) {
+        expect(holdoutGroups.has(group)).toBe(false);
+      }
+    }
+
+    const evaluation = evaluateRankBenchmark(items, { fitMode: 'order', seed: 42 });
+    expect(evaluation.accepted).toBe(true);
+    expect(evaluation.foldsImprovedTau).toBeGreaterThanOrEqual(4);
+    expect(evaluation.meanV2.tauC).toBeGreaterThan(evaluation.meanV1.tauC);
+    expect(evaluation.holdout.v2.tauC).toBeGreaterThan(evaluation.holdout.v1.tauC);
+    expect(readDifficultyCalibration(evaluation.profile)).toEqual(evaluation.profile);
+
+    const fittedAxis = fitAggregationWeights(split.folds[0].train, 'axis');
+    expect(fittedAxis.mode).toBe('axis');
+  });
+
+  it('audits local library monotonicity, fallback tempos, anomalies, and SHA-256 tempo export', () => {
+    const hash = i => i.toString(16).padStart(64, '0');
+    const items = [
+      { id: hash(1), level: 1, stars: 1.5, tempoSource: 'written' },
+      { id: hash(2), level: 1, stars: 1.8, tempoSource: 'written' },
+      { id: hash(3), level: 2, stars: 2.4, tempoSource: 'reference', verifiedBpm: 92 },
+      { id: hash(4), level: 3, stars: 3.1, tempoSource: 'written' },
+      { id: hash(5), level: 4, stars: 3.9, tempoSource: 'fallback' },
+      { id: hash(6), level: 5, stars: 4.5, tempoSource: 'written' },
+      { id: hash(7), level: 6, stars: 4.9, tempoSource: 'written' },
+      ...Array.from({ length: 18 }, (_, i) => ({
+        id: hash(10 + i),
+        level: 2,
+        stars: 2.0 + (i % 5) * 0.25,
+        tempoSource: 'written',
+      })),
+    ];
+    const report = auditLocalLibrary(items);
+    expect(report.monotoneLevels).toBe(true);
+    expect(report.fallbackIds).toEqual([hash(5)]);
+    expect(report.topAnomalies.length).toBeLessThanOrEqual(15);
+    expect(report.startingTempos).toEqual({ [hash(3)]: 92 });
+    expect(report.distribution['1.0-1.9']).toBe(2);
+
+    const nonMonotone = auditLocalLibrary([
+      { id: hash(1), level: 1, stars: 3.5, tempoSource: 'written' },
+      { id: hash(2), level: 2, stars: 2.0, tempoSource: 'written' },
+    ]);
+    expect(nonMonotone.monotoneLevels).toBe(false);
+  });
+
+  it('micro-groups jittered MIDI chords without chaining rapid scale runs or intentional arpeggios', () => {
+    const jittered = microGroupMidiNotes([
+      { start: 0.00, end: 1.00, startSec: 0.000, midi: 60, hand: 'rh' },
+      { start: 0.03, end: 1.03, startSec: 0.015, midi: 64, hand: 'rh' },
+      { start: 0.06, end: 1.06, startSec: 0.028, midi: 67, hand: 'rh' },
+    ]);
+    expect(jittered.every(n => n.start === 0 && n.startSec === 0)).toBe(true);
+
+    // 10-note rapid run spaced 28ms apart with overlapping tails: anchor anti-chaining prevents collapsing into one chord
+    const rapidRun = Array.from({ length: 10 }, (_, i) => ({
+      start: i * 0.056, end: i * 0.056 + 0.5, startSec: i * 0.028, midi: 60 + i, hand: 'rh',
+    }));
+    const groupedRun = microGroupMidiNotes(rapidRun);
+    expect(new Set(groupedRun.map(n => n.startSec)).size).toBeGreaterThanOrEqual(4);
+
+    // Intentional arpeggio (70ms between notes): remains separate attacks
+    const arpeggio = [0, 1, 2, 3].map(i => ({
+      start: i * 0.14, end: 1.0, startSec: i * 0.070, midi: 60 + i * 4, hand: 'rh',
+    }));
+    const groupedArp = microGroupMidiNotes(arpeggio);
+    expect(new Set(groupedArp.map(n => n.startSec)).size).toBe(4);
+
+    const jitterMidi = {
+      ppq: 480, format: 0, tracks: 1, names: [],
+      notes: [
+        { midi: 60, start: 0.00, end: 1.00, vel: 90, channel: 0, track: 0 },
+        { midi: 64, start: 0.03, end: 1.03, vel: 90, channel: 0, track: 0 },
+        { midi: 67, start: 0.06, end: 1.06, vel: 90, channel: 0, track: 0 },
+      ],
+      meta: [{ type: 'tempo', beat: 0, bpm: 120 }],
+    };
+    const est = estimateImportedScore({ kind: 'midi', title: 'Jitter', label: 'jitter.mid', parsed: jitterMidi });
+    expect(est.peak.attacks).toBe(1);
+    expect(est.axisDifficulty.rhythm.stars).toBe(1);
+
+    // v1 baseline must not inherit v2 MIDI micro-grouping
+    const v1Est = estimateImportedScore({ kind: 'midi', title: 'Jitter', label: 'jitter.mid', parsed: jitterMidi }, undefined, { rubricVersion: 1 });
+    expect(v1Est.peak.attacks).toBe(3);
+    expect(v1Est.difficultyStars).toBeGreaterThan(est.difficultyStars);
+
+    const runMidi = {
+      ppq: 480, format: 0, tracks: 1, names: [],
+      notes: rapidRun.map(n => ({ midi: n.midi, start: n.start, end: n.end, vel: 90, channel: 0, track: 0 })),
+      meta: [{ type: 'tempo', beat: 0, bpm: 120 }],
+    };
+    const runEst = estimateImportedScore({ kind: 'midi', title: 'Run', label: 'run.mid', parsed: runMidi });
+    expect(runEst.peak.attacks).toBeGreaterThanOrEqual(4);
+  });
+
+  it('beats v1 rubric on a synthetic multi-work benchmark sensitive to v1 defects', () => {
+    const syntheticWorks = Array.from({ length: 18 }, (_, i) => {
+      const truth = Math.floor(i / 2) + 1; // Henle 1..9 across 9 work groups (2 pieces per level/group? Let's make 18 distinct work groups!)
+      const bpm = 40 + truth * 22;
+      const spq = 60 / bpm;
+      // Combine speed, wide spans, and 4/4 vs 2/4 variation where v1 saturates or distorts
+      const isTwoFour = truth <= 4 && i % 2 === 1;
+      const measures = isTwoFour
+        ? Array.from({ length: 4 }, (_, m) => ({
+            start: m * 2, end: (m + 1) * 2, startSec: m * 2 * spq, endSec: (m + 1) * 2 * spq,
+            groups: [1, 1], writtenIndex: m, num: 2, den: 4,
+          }))
+        : Array.from({ length: 2 }, (_, m) => ({
+            start: m * 4, end: (m + 1) * 4, startSec: m * 4 * spq, endSec: (m + 1) * 4 * spq,
+            groups: [1, 1, 1, 1], writtenIndex: m, num: 4, den: 4,
+          }));
+      const notes = [];
+      for (let k = 0; k < 4 + truth * 3; k++) {
+        const beat = (k * 8) / (4 + truth * 3);
+        const pitch = 60 + (k % 2 ? Math.min(18, truth * 2) : 0);
+        notes.push({ start: beat, end: beat + 0.25, startSec: beat * spq, midi: pitch, hand: 'rh' });
+      }
+      const parsed = {
+        ppq: 480, format: 0, tracks: 1, names: [],
+        notes: notes.map(n => ({ midi: n.midi, start: n.start, end: n.end, vel: 90, channel: 0, track: 0 })),
+        meta: [{ type: 'tempo', beat: 0, bpm }, ...(isTwoFour ? [{ type: 'time', beat: 0, num: 2, den: 4 }] : [])],
+      };
+      const source = { kind: 'midi', title: `Syn ${i}`, label: `syn-${i}.mid`, parsed };
+      const v1 = estimateImportedScore(source, undefined, { rubricVersion: 1 });
+      const v2 = estimateImportedScore(source, undefined, { rubricVersion: 2 });
+      return {
+        group: `syn-group-${i}`,
+        truth,
+        v1Stars: v1.difficultyStars,
+        v2Axes: v2.continuousAxisStars,
+        v2EnduranceRaw: v2.enduranceRaw,
+        v2Stars: v2.difficultyStars,
+      };
+    });
+    const bench = evaluateRankBenchmark(syntheticWorks, { fitMode: 'default', seed: 42 });
+    expect(bench.meanV2.tauC).toBeGreaterThanOrEqual(bench.meanV1.tauC);
+    expect(bench.meanV2.majorInversionRate).toBeLessThanOrEqual(bench.meanV1.majorInversionRate);
+  });
+
+  it('keeps MIDI peak alignment across the 128-to-129 attack transition and rejects extreme slow tempos', () => {
+    // 24 off-grid rapid wide-leap attacks straddling t=0.45..4.9s plus 104 easy spaced attacks (= 128 total)
+    const burst = Array.from({ length: 24 }, (_, i) => ({
+      midi: i % 2 ? 79 : 60, start: 0.9 + i * 0.37, end: 0.9 + i * 0.37 + 0.2, vel: 90, channel: 0, track: 0,
+    }));
+    const tail = Array.from({ length: 103 }, (_, i) => ({
+      midi: 60, start: 30 + i * 2, end: 30 + i * 2 + 0.5, vel: 90, channel: 0, track: 0,
+    }));
+    const endNote = { midi: 60, start: 238, end: 240, vel: 90, channel: 0, track: 0 };
+    const extraTail = { midi: 60, start: 237, end: 237.5, vel: 90, channel: 0, track: 0 };
+    const makeMidi = notes => ({
+      kind: 'midi', title: 'Cliff', label: 'cliff.mid',
+      parsed: { ppq: 480, format: 0, tracks: 1, names: [], notes, meta: [{ type: 'tempo', beat: 0, bpm: 120 }] },
+    });
+    const est128 = estimateImportedScore(makeMidi([...burst, ...tail, endNote]));
+    const est129 = estimateImportedScore(makeMidi([...burst, ...tail, extraTail, endNote]));
+    expect(est129.axisDifficulty.motor.stars).toBeGreaterThanOrEqual(est128.axisDifficulty.motor.stars);
+    expect(est129.difficultyStars).toBeGreaterThanOrEqual(est128.difficultyStars);
+    expect(est129.continuousAxisStars.motor).toBeGreaterThanOrEqual(est128.continuousAxisStars.motor - 1e-6);
+
+    const slowMidi = {
+      kind: 'midi', title: 'Slow', label: 'slow.mid',
+      parsed: {
+        ppq: 480, format: 0, tracks: 1, names: [],
+        notes: [{ midi: 60, start: 0, end: 4, vel: 90, channel: 0, track: 0 }],
+        meta: [{ type: 'tempo', beat: 0, bpm: 1e-20 }],
+      },
+    };
+    expect(() => estimateImportedScore(slowMidi)).toThrow();
+
+    const prevDomParser = globalThis.DOMParser;
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return { querySelectorAll: () => [], children: [] };
+      }
+    };
+    try {
+      const slowXml = {
+        kind: 'xml', title: 'SlowXml', label: 'slow.musicxml', xml: '<score-partwise/>', layout: null,
+        notes: [{ start: 0, end: 4, midi: 60, hand: 'rh', part: 0, staff: 1, voice: 1, art: {} }],
+        measures: [{ start: 0, end: 4, num: 4, den: 4, number: '1' }],
+        keys: [], harmonies: [], links: [], tempoWords: new Set(),
+        tempos: [{ beat: 0, bpm: 1e-20 }],
+      };
+      expect(() => estimateImportedScore(slowXml)).toThrow();
+      expect(() => estimateImportedScore({ ...slowXml, tempos: [{ beat: 0, bpm: 1e-308 }] })).toThrow();
+    } finally {
+      if (prevDomParser === undefined) delete globalThis.DOMParser;
+      else globalThis.DOMParser = prevDomParser;
+    }
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LibraryError,
+  validateLibraryDifficultyRating,
   validateLibraryLevel,
   validateLibraryMetadata,
   validateLibraryNotes,
@@ -76,6 +77,43 @@ describe('local library validation boundary', () => {
   it.each([123, {}, [], 'x'.repeat(1001), 'bad\0note'])('rejects invalid notes %#', value => {
     expect(() => validateLibraryNotes(value)).toThrow(LibraryError);
   });
+  it('validates v1 and v2 difficulty ratings and ignores unknown future versions', () => {
+    expect(validateLibraryDifficultyRating(undefined)).toBeUndefined();
+    expect(validateLibraryDifficultyRating({ version: 3, stars: 2 })).toBeUndefined();
+    expect(validateLibraryDifficultyRating({
+      version: 1, stars: 2.5, startingBpm: 90, assessment: { referenceBpm: 90, tempoFallback: false },
+    })).toEqual({
+      version: 1, stars: 2.5, startingBpm: 90, assessment: { referenceBpm: 90, tempoFallback: false },
+    });
+    const validV2 = {
+      version: 2,
+      stars: 4.2,
+      startingBpm: 120,
+      appliedEnduranceStars: 0.3,
+      spanAlert: true,
+      assessment: {
+        referenceBpm: 120,
+        tempoFallback: false,
+        tempoSource: 'written',
+        voiceSource: 'written',
+        handSource: 'written',
+        estimatorVersion: 2,
+        profileId: 'default',
+      },
+      axes: { motor: 4.5, rhythm: 3.1, bimanual: 3.8, texture: 2.9, reading: 3.2 },
+      drivers: { motor: ['speed', 'wide_span'], reading: ['pattern_unpredictability'] },
+    };
+    expect(validateLibraryDifficultyRating(validV2)).toEqual(validV2);
+    expect(() => validateLibraryDifficultyRating({ ...validV2, appliedEnduranceStars: 0.8 })).toThrow(LibraryError);
+    expect(() => validateLibraryDifficultyRating({ ...validV2, appliedEnduranceStars: 0.15 })).toThrow(LibraryError);
+    expect(() => validateLibraryDifficultyRating({ ...validV2, drivers: { motor: ['not_a_driver'] } })).toThrow(LibraryError);
+    expect(() => validateLibraryDifficultyRating({
+      ...validV2, assessment: { ...validV2.assessment, estimatorVersion: 1 },
+    })).toThrow(LibraryError);
+    expect(() => validateLibraryDifficultyRating({
+      ...validV2, assessment: { ...validV2.assessment, profileId: 'bad!' },
+    })).toThrow(LibraryError);
+  });
 });
 
 describe('library localized copy', () => {
@@ -88,7 +126,7 @@ describe('library localized copy', () => {
           count: 2, title: 'Test', date: 'Today', measure: '4', time: '0:12',
           added: 2, duplicates: 1, errors: 0, best: 92, group: 'Bach', level: '2',
           progress: 65, notes: 'Legato', status: 'In progress', score: 42, bars: '6–9',
-          before: 'Level 2', after: 'Level 3', same: 3, skipped: 1, rating: '3.5',
+          before: 'Level 2', after: 'Level 3', same: 3, skipped: 1, rating: '3.5', bonus: '0.3',
         });
         expect(filled, key).not.toMatch(/\{\w+\}/);
       }
