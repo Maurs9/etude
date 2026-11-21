@@ -5461,7 +5461,6 @@ interface PracticeHintPreview {
 }
 let practiceHintPreview: PracticeHintPreview | null = null;
 let practiceHintPanelState = '';
-const practiceChordExpansion: { open: string | null } = { open: null };
 
 function paintPracticeHintKeys() {
     keyEl.forEach(key => { delete key.dataset.prHintKey; });
@@ -5592,8 +5591,6 @@ function syncPracticeHintsPanel() {
         chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
         scaleName: scaleDisp,
         play: (id, steps, keys, diagram) => { void playPracticeHint(id, steps, keys, diagram); },
-        stop: () => { if (practiceHintPreview) stopPreviews(); },
-        chordExpansion: practiceChordExpansion,
         openExample: id => { void openPracticeHintExample(id); },
     });
 }

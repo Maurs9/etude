@@ -27,7 +27,6 @@ export interface ChordHintTone extends SpelledMidi {
 export interface ChordHint {
   readonly symbol: string;
   readonly compare?: string;
-  readonly cue: string;
 }
 
 export interface ScaleHint {
@@ -70,31 +69,31 @@ export const PRACTICE_HINT_REFERENCES: Readonly<Partial<Record<string, PracticeH
 };
 
 export const CHORD_HINTS: readonly ChordHint[] = [
-  { symbol: 'maj', compare: 'm', cue: 'major' },
-  { symbol: 'm', compare: 'maj', cue: 'minor' },
-  { symbol: 'dim', compare: 'm', cue: 'diminished' },
-  { symbol: 'aug', compare: 'maj', cue: 'augmented' },
-  { symbol: 'sus2', compare: 'sus4', cue: 'sus2' },
-  { symbol: 'sus4', compare: 'maj', cue: 'sus4' },
-  { symbol: '6', compare: 'maj', cue: 'sixth' },
-  { symbol: 'm6', compare: 'm7', cue: 'minor_sixth' },
-  { symbol: 'maj7', compare: '7', cue: 'major_seventh' },
-  { symbol: '7', compare: 'maj7', cue: 'dominant' },
-  { symbol: 'm7', compare: '7', cue: 'minor_seventh' },
-  { symbol: 'mMaj7', compare: 'm7', cue: 'minor_major' },
-  { symbol: 'm7♭5', compare: 'm7', cue: 'half_diminished' },
-  { symbol: 'dim7', compare: 'm7♭5', cue: 'diminished_seventh' },
-  { symbol: '7♯5', compare: '7', cue: 'raised_fifth' },
-  { symbol: '7♭5', compare: '7', cue: 'flat_fifth' },
-  { symbol: 'add9', compare: 'maj', cue: 'add9' },
-  { symbol: 'maj9', compare: 'maj7', cue: 'major_ninth' },
-  { symbol: '9', compare: '7', cue: 'dominant_ninth' },
-  { symbol: 'm9', compare: 'm7', cue: 'minor_ninth' },
-  { symbol: '7♭9', compare: '9', cue: 'flat_ninth' },
-  { symbol: '7♯9', compare: '9', cue: 'raised_ninth' },
-  { symbol: 'maj7♯11', compare: 'maj7', cue: 'raised_eleventh' },
-  { symbol: '11', compare: '9', cue: 'eleventh' },
-  { symbol: '13', compare: '9', cue: 'thirteenth' },
+  { symbol: 'maj', compare: 'm' },
+  { symbol: 'm', compare: 'maj' },
+  { symbol: 'dim', compare: 'm' },
+  { symbol: 'aug', compare: 'maj' },
+  { symbol: 'sus2', compare: 'sus4' },
+  { symbol: 'sus4', compare: 'maj' },
+  { symbol: '6', compare: 'maj' },
+  { symbol: 'm6', compare: 'm7' },
+  { symbol: 'maj7', compare: '7' },
+  { symbol: '7', compare: 'maj7' },
+  { symbol: 'm7', compare: '7' },
+  { symbol: 'mMaj7', compare: 'm7' },
+  { symbol: 'm7♭5', compare: 'm7' },
+  { symbol: 'dim7', compare: 'm7♭5' },
+  { symbol: '7♯5', compare: '7' },
+  { symbol: '7♭5', compare: '7' },
+  { symbol: 'add9', compare: 'maj' },
+  { symbol: 'maj9', compare: 'maj7' },
+  { symbol: '9', compare: '7' },
+  { symbol: 'm9', compare: 'm7' },
+  { symbol: '7♭9', compare: '9' },
+  { symbol: '7♯9', compare: '9' },
+  { symbol: 'maj7♯11', compare: 'maj7' },
+  { symbol: '11', compare: '9' },
+  { symbol: '13', compare: '9' },
 ];
 
 export const SCALE_HINTS: readonly ScaleHint[] = [

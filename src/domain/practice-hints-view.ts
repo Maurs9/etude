@@ -22,8 +22,6 @@ interface HintViewOptions {
   readonly chordName: (symbol: string) => string;
   readonly scaleName: (name: string) => string;
   readonly play: (id: string, steps: readonly PracticeHintStep[], keys: boolean, diagram?: PracticeHintDiagram) => void;
-  readonly stop: () => void;
-  readonly chordExpansion: { open: string | null };
   readonly openExample: (id: string) => void;
 }
 
@@ -66,7 +64,8 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
   };
   const appendPlayback = (el: HTMLElement, id: string, title: string, steps: readonly PracticeHintStep[], diagram?: PracticeHintDiagram) => {
     const controls = element('div', 'pr-hint-actions');
-    controls.append(control(`${id}:hear`, text('pr_hints_hear'), title, disabled, () => play(id, steps, !audioOnly, diagram)));
+    const label = text(topic === 'chord' ? 'rdn_listen' : 'pr_hints_hear');
+    controls.append(control(`${id}:hear`, label, title, disabled, () => play(id, steps, !audioOnly, diagram)));
     if (audioOnly) controls.append(control(`${id}:keys`, text('pr_hints_show_keys'), title, disabled, () => play(id, steps, true, diagram)));
     el.append(controls);
   };
@@ -84,7 +83,6 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
   box.classList.toggle('pr-chord-groups', topic === 'chord');
   if (topic === 'chord') {
     const groups = new Map([['maj', 'triads'], ['6', 'sixths_sevenths'], ['add9', 'extensions']]);
-    const toggles = new Map<string, (open: boolean) => void>();
     let grid = element('div', 'pr-hint-grid');
     for (const hint of CHORD_HINTS) {
       const group = groups.get(hint.symbol);
@@ -108,40 +106,20 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
       const title = `${symbolName(hint.symbol)} · ${chordName(hint.symbol)}`;
       const el = element('article', 'songcard pr-hint-card pr-chord-card');
       el.dataset.hint = hint.symbol;
-      const heading = element('h3', 'pr-hint-name');
-      const toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'pr-chord-toggle';
-      toggle.textContent = title;
-      toggle.dataset.hintControl = `${id}:toggle`;
-      heading.append(toggle);
       const visuals = element('div', 'pr-chord-visuals');
-      visuals.append(diagrams.keyboard, diagrams.staff);
-      const detail = element('div', 'pr-chord-detail');
-      detail.id = `pr-chord-detail-${hint.symbol}`;
-      diagrams.staff.id = `pr-chord-staff-${hint.symbol}`;
-      toggle.setAttribute('aria-controls', `${diagrams.staff.id} ${detail.id}`);
-      detail.append(diagrams.caption, element('p', 'pr-hint-cue', text(`pr_hints_c_${hint.cue}`)));
-      if (hint.compare) detail.append(element('p', 'pr-hint-detail', text('pr_hints_compare', chordName(hint.compare))));
-      appendPlayback(detail, id, title, chordHintSteps(hint, tonic), diagrams.paint);
-      appendReference(detail, id);
-      el.append(heading, element('p', 'pr-hint-formula', tones.map(tone => tone.label).join(' ')), visuals, detail);
-      const setOpen = (open: boolean) => {
-        el.classList.toggle('pr-chord-open', open);
-        toggle.setAttribute('aria-expanded', String(open));
-        detail.hidden = !open;
-        diagrams.staff.classList.toggle('pr-chord-hidden', !open);
-        diagrams.expand(open);
-      };
-      toggles.set(hint.symbol, setOpen);
-      setOpen(options.chordExpansion.open === hint.symbol);
-      toggle.addEventListener('click', () => {
-        options.stop();
-        const previous = options.chordExpansion.open;
-        if (previous) toggles.get(previous)?.(false);
-        options.chordExpansion.open = previous === hint.symbol ? null : hint.symbol;
-        if (options.chordExpansion.open) setOpen(true);
-      });
+      const staves = element('div', 'pr-chord-staves');
+      for (const { clef, svg } of diagrams.staves) {
+        const staff = element('div', 'pr-chord-staff-block');
+        staff.append(element('p', 'pr-chord-clef-label', text(`rdx_clef_${clef}`)), svg);
+        staves.append(staff);
+      }
+      visuals.append(diagrams.keyboard, staves);
+      el.append(element('h3', 'pr-hint-name', title),
+        element('p', 'pr-hint-formula', tones.map(tone => tone.label).join(' ')), visuals,
+        diagrams.caption);
+      if (hint.compare) el.append(element('p', 'pr-hint-detail', text('pr_hints_compare', chordName(hint.compare))));
+      appendPlayback(el, id, title, chordHintSteps(hint, tonic), diagrams.paint);
+      appendReference(el, id);
       grid.append(el);
     }
   } else if (topic === 'scale') {

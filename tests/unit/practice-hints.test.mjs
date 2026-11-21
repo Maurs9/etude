@@ -19,7 +19,6 @@ describe('Practice hint catalog', () => {
     expect(PROGRESSION_HINTS.map(hint => hint.name).sort()).toEqual(PROGRESSION_TEMPLATES.map(prog => prog.name).sort());
     expect(new Set(TECHNIQUE_HINTS.map(hint => hint.id)).size).toBe(6);
     const keys = [
-      ...CHORD_HINTS.map(hint => `c_${hint.cue}`),
       ...SCALE_HINTS.map(hint => `s_${hint.cue}`),
       ...PROGRESSION_HINTS.flatMap(hint => [`p_${hint.cue}`, `p_${hint.cue}_title`]),
       ...TECHNIQUE_HINTS.flatMap(hint => [`t_${hint.id}`, `t_${hint.id}_title`]),

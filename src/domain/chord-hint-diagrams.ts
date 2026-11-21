@@ -12,6 +12,11 @@ interface DiagramChord {
 
 const whitePitch = new Set([0, 2, 4, 5, 7, 9, 11]);
 const svgNamespace = 'http://www.w3.org/2000/svg';
+const staffLayouts = [
+  { clef: 'treble', bottomStep: ssStepOf(2, 4), octaveOffset: 0, label: 'pr_hints_chord_staff' },
+  { clef: 'bass', bottomStep: ssStepOf(4, 2), octaveOffset: -1, label: 'pr_hints_chord_bass_staff' },
+] as const;
+type StaffLayout = (typeof staffLayouts)[number];
 
 function image(className: string, viewBox: string): SVGSVGElement {
   const svg = document.createElementNS(svgNamespace, 'svg');
@@ -41,9 +46,8 @@ function keyboardKeys(chord: DiagramChord, low: number, high: number, compare: b
   return white.join('') + black.join('');
 }
 
-function staffY(tone: ChordHintTone) {
-  // E4 is the bottom line of the treble staff.
-  return 48 + (30 - ssStepOf(tone.li, tone.oct)) * 6;
+function staffY(tone: ChordHintTone, layout: StaffLayout) {
+  return 48 + (layout.bottomStep - ssStepOf(tone.li, tone.oct + layout.octaveOffset)) * 6;
 }
 
 function accidental(acc: number, x: number, y: number): string {
@@ -54,12 +58,12 @@ function accidental(acc: number, x: number, y: number): string {
   return ssAccGlyph(acc, 0, x, y);
 }
 
-function staffChord(chord: DiagramChord, center: number, width: number, compare: boolean): string {
+function staffChord(chord: DiagramChord, layout: StaffLayout, center: number, width: number, compare: boolean): string {
   const lines = Array.from({ length: 5 }, (_, i) =>
     `<line class="pr-chord-staff-line" x1="5" x2="${width - 5}" y1="${12 * i}" y2="${12 * i}"/>`).join('');
-  const notes = chord.tones.map(tone => ({ tone, step: ssStepOf(tone.li, tone.oct), y: staffY(tone), dx: 0, ax: undefined as number | undefined }));
+  const notes = chord.tones.map(tone => ({ tone, step: ssStepOf(tone.li, tone.oct), y: staffY(tone, layout), dx: 0, ax: undefined as number | undefined }));
   packChordColumn(notes, true, center, note => note.tone.acc !== 0, { width: 15, height: 18 });
-  return lines + srClef('treble', 8, 0) + notes.map(({ tone, y, dx, ax }) => {
+  return lines + srClef(layout.clef, 8, 0) + notes.map(({ tone, y, dx, ax }) => {
     const x = center + dx;
     const mark = ax === undefined ? '' : accidental(tone.acc, ax, y);
     return `<g class="pr-chord-note${toneClasses(tone, compare && chord.changed.has(tone.midi))}" data-chord-midi="${tone.midi}">` +
@@ -80,17 +84,23 @@ export function createChordHintDiagrams(
   while (!whitePitch.has(pitchClass(high))) high++;
   const whites = Array.from({ length: high - low + 1 }, (_, i) => low + i).filter(midi => whitePitch.has(pitchClass(midi))).length;
   const keyboard = image('pr-chord-keyboard', `0 0 ${whites * 20 + 4} 68`);
+  keyboard.dataset.chordRoot = String(pitchClass(original.tones[0].midi));
 
-  const above = Math.min(-17, ...all.map(tone => staffY(tone) - 14));
-  const below = Math.max(62, ...all.map(tone => staffY(tone) + 14));
   const accidentalCount = (tones: readonly ChordHintTone[]) => tones.filter(tone => tone.acc).length;
   const center = 58 + 15 * Math.max(accidentalCount(original.tones), accidentalCount(comparison?.tones ?? []));
   const width = center + 36;
-  const staff = image('pr-chord-staff', `0 ${above} ${width} ${below - above}`);
+  const staves = staffLayouts.map(layout => {
+    const positions = all.map(tone => staffY(tone, layout));
+    const above = Math.min(-17, Math.min(...positions) - 14);
+    const below = Math.max(62, Math.max(...positions) + 14);
+    return { ...layout, svg: image(`pr-chord-staff pr-chord-staff-${layout.clef}`, `0 ${above} ${width} ${below - above}`) };
+  });
+  const drawings = [keyboard, ...staves.map(staff => staff.svg)];
+  const noteName = (tone: ChordHintTone, octaveOffset = 0) => spell(tone.li, tone.acc) + (tone.oct + octaveOffset);
   const caption = document.createElement('div');
   caption.className = 'pr-hint-detail pr-chord-caption';
   const makeCaption = (chord: DiagramChord) => {
-    const names = chord.tones.map(tone => spell(tone.li, tone.acc) + tone.oct);
+    const names = chord.tones.map(tone => noteName(tone));
     const line = document.createElement('p');
     line.append(chord.title + ' · ');
     chord.tones.forEach((tone, index) => {
@@ -109,24 +119,18 @@ export function createChordHintDiagrams(
 
   let last: DiagramChord | undefined;
   let compared = false;
-  let staffDrawn = false;
-  let expanded = false;
   const paint = (symbol?: string, sounding: readonly PracticeHintNote[] = []) => {
     const chord = comparison && symbol === comparison.symbol ? comparison : original;
     const comparing = !!comparison && symbol !== undefined;
-    const changed = chord !== last || comparing !== compared;
-    if (changed) {
+    if (chord !== last || comparing !== compared) {
       keyboard.innerHTML = keyboardKeys(chord, low, high, comparing);
-      staffDrawn = false;
-    }
-    if (expanded && !staffDrawn) {
-      staff.innerHTML = staffChord(chord, center, width, comparing);
-      staffDrawn = true;
-    }
-    if (changed) {
       const active = comparisonCaption?.chord === chord ? comparisonCaption : originalCaption;
       keyboard.setAttribute('aria-label', text('pr_hints_chord_keyboard', chord.title, active.names));
-      staff.setAttribute('aria-label', text('pr_hints_chord_staff', chord.title, active.names));
+      for (const staff of staves) {
+        staff.svg.innerHTML = staffChord(chord, staff, center, width, comparing);
+        const names = chord.tones.map(tone => noteName(tone, staff.octaveOffset)).join(' · ');
+        staff.svg.setAttribute('aria-label', text(staff.label, chord.title, names));
+      }
       originalCaption.line.setAttribute('aria-hidden', String(active !== originalCaption));
       comparisonCaption?.line.setAttribute('aria-hidden', String(active !== comparisonCaption));
       caption.classList.toggle('pr-chord-comparing', comparing);
@@ -134,18 +138,12 @@ export function createChordHintDiagrams(
     last = chord;
     compared = comparing;
     const midis = new Set(sounding.map(note => note.midi));
-    for (const svg of [keyboard, staff]) {
+    for (const svg of drawings) {
       svg.querySelectorAll('[data-chord-midi]').forEach(node => {
         node.classList.toggle('pr-chord-sounding', midis.has(Number(node.getAttribute('data-chord-midi'))));
       });
     }
   };
   paint();
-  return {
-    keyboard, staff, caption, paint,
-    expand(open: boolean) {
-      expanded = open;
-      paint();
-    },
-  };
+  return { keyboard, staves, caption, paint };
 }
