@@ -1306,7 +1306,7 @@ const payload: UIPayload = {
       "ex_show": "Mostra sui tasti",
       "ex_keyctx": "Tonalità di contesto",
       "ex_circle": "Anello esterno: tonalità maggiori · anello interno: relative minori. Scegli una tonalità per ascoltarla, vederne la diteggiatura e leggere gli accordi in quella tonalità.",
-      "songs_lede": "Seleziona un titolo per ascoltare la frase iniziale. Usa Ascolta per sentire l’intervallo di due note.",
+      "songs_lede": "Seleziona un titolo per ascoltare un frammento con le prime due note accentate. Usa Ascolta per sentire solo l’intervallo.",
       "songs_from": "Da",
       "pr_hints_chord_group_triads": "Triadi e accordi sospesi",
       "pr_hints_chord_group_sixths_sevenths": "Accordi di sesta e di settima",

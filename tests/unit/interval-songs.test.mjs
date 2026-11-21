@@ -33,8 +33,22 @@ describe('interval song openings', () => {
   it('transposes both directions from the first heard note and accents only the opening interval', () => {
     const song = INTERVAL_SONGS[1].desc[0];
     const notes = intervalSongNotes(62, song);
-    expect(notes.slice(0, 2).map(({ midi, velocity }) => [midi, velocity])).toEqual([[62, 110], [61, 110]]);
-    expect(notes.slice(2).every(note => note.velocity === 78)).toBe(true);
+    expect(notes.slice(0, 2).map(({ midi, velocity }) => [midi, velocity])).toEqual([[62, 124], [61, 124]]);
+    expect(notes.slice(2).every(note => note.velocity === 59)).toBe(true);
     expect(notes.map(({ at, duration }) => [at, duration])).toEqual(song.notes.map(([, at, duration]) => [at, duration]));
+  });
+
+  it('follows the upper melody of Clair de lune and joins tied notes', () => {
+    const song = INTERVAL_SONGS[3].desc.find(({ title }) => title.startsWith('Clair de lune'));
+    const notes = intervalSongNotes(68, song);
+    expect(notes.map(({ midi }) => midi)).toEqual([68, 65, 63, 65, 63, 61, 63, 61]);
+    expect(notes.slice(0, 3).map(({ at, duration }) => [at, duration])).toEqual([
+      [0, 1.6], [1.6, 1.6], [3.2, 0.4],
+    ]);
+  });
+
+  it('returns to the fifth at the end of the first Kumbaya phrase', () => {
+    const song = INTERVAL_SONGS[4].asc.find(({ title }) => title === 'Kumbaya');
+    expect(intervalSongNotes(60, song).map(({ midi }) => midi)).toEqual([60, 64, 67, 67, 67, 69, 69, 67]);
   });
 });

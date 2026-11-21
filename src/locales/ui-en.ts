@@ -441,7 +441,7 @@ const payload: UIPayload = {
       "ex_show": "Show on keys",
       "ex_keyctx": "Key context",
       "ex_circle": "Outer ring: major keys · inner ring: their relative minors. Pick a key to hear it, see its fingering and read chords in that key.",
-      "songs_lede": "Select a title to hear its opening phrase. Use Hear for the two-note interval.",
+      "songs_lede": "Select a title to hear a phrase with the first two notes accented. Use Hear for the interval on its own.",
       "songs_from": "From",
       "pr_hints_chord_group_triads": "Triads and suspended chords",
       "pr_hints_chord_group_sixths_sevenths": "Sixth and seventh chords",

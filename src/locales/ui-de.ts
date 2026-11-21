@@ -597,7 +597,7 @@ const payload: UIPayload = {
       "ex_show": "Auf den Tasten zeigen",
       "ex_keyctx": "Tonartbezug",
       "ex_circle": "Äußerer Ring: Dur-Tonarten · innerer Ring: ihre parallelen Molltonarten. Wähle eine Tonart, um sie zu hören, ihren Fingersatz zu sehen und Akkorde in ihr zu lesen.",
-      "songs_lede": "Wähle einen Titel, um seine Anfangsphrase zu hören. Wähle Hören für das Intervall aus zwei Tönen.",
+      "songs_lede": "Wähle einen Titel, um einen Ausschnitt mit zwei betonten Anfangstönen zu hören. Wähle Hören, um nur das Intervall zu hören.",
       "songs_from": "Ab",
       "pr_hints_chord_group_triads": "Dreiklänge und Vorhaltsakkorde",
       "pr_hints_chord_group_sixths_sevenths": "Sext- und Septakkorde",

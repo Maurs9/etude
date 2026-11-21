@@ -18,11 +18,14 @@ export interface IntervalSongNote {
 
 export const INTERVAL_SONGS: Readonly<Record<number, Readonly<Record<IntervalSongDirection, readonly IntervalSong[]>>>> = SONG_OPENINGS;
 
+const INTERVAL_NOTE_VELOCITY = 124;
+const CONTEXT_NOTE_VELOCITY = 59;
+
 export function intervalSongNotes(root: number, song: IntervalSong): IntervalSongNote[] {
   return song.notes.map(([offset, at, duration], index) => ({
     midi: root + offset,
     at,
     duration,
-    velocity: index < 2 ? 110 : 78,
+    velocity: index < 2 ? INTERVAL_NOTE_VELOCITY : CONTEXT_NOTE_VELOCITY,
   }));
 }

@@ -1658,7 +1658,7 @@ const payload: UIPayload = {
       "ex_show": "Mostrar en el teclado",
       "ex_keyctx": "Contexto tonal",
       "ex_circle": "Círculo exterior: tonalidades mayores · círculo interior: sus menores relativas. Elige una tonalidad para escucharla, ver su digitación y leer los acordes en ella.",
-      "songs_lede": "Selecciona un título para escuchar su frase inicial. Usa Escuchar para oír el intervalo de dos notas.",
+      "songs_lede": "Selecciona un título para oír un fragmento con las dos primeras notas acentuadas. Pulsa Escuchar para oír solo el intervalo.",
       "songs_from": "De",
       "pr_hints_chord_group_triads": "Tríadas y acordes suspendidos",
       "pr_hints_chord_group_sixths_sevenths": "Acordes de sexta y séptima",

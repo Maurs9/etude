@@ -3429,7 +3429,7 @@ function makeQuestion(it: TrainerItem): TrainerQuestion {
     return q;
 }
 function startSession(targeted: TrainerSessionTarget|null, contrast: TrainerSessionState['contrast'] = null) {
-    if (practiceHintPreview || intervalSongFrame) stopPreviews();
+    if (practiceHintPreview || intervalSongPreview) stopPreviews();
     ensureAudio();
     sesStopPrompt();
     sesStopAnswerReplay();
@@ -5329,31 +5329,41 @@ function initExploreControls() {
 }
 /* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
 let songDir: IntervalSongDirection = 'asc';
-let intervalSongFrame = 0;
+let intervalSongPreview: { frame: number } | null = null;
 
 function clearIntervalSongPreview() {
-    if (!intervalSongFrame) return;
-    cancelAnimationFrame(intervalSongFrame);
-    intervalSongFrame = 0;
+    if (!intervalSongPreview) return;
+    cancelAnimationFrame(intervalSongPreview.frame);
+    intervalSongPreview = null;
     kbClear('target');
 }
 
-function previewIntervalSong(notes: readonly IntervalSongNote[]) {
+async function previewIntervalSong(notes: readonly IntervalSongNote[]) {
     stopPreviews();
     const context = ensureAudio();
-    if (!context) return;
+    const last = notes.at(-1);
+    if (!context || !last) return;
+    const preview = { frame: 0 };
+    intervalSongPreview = preview;
+    // A cold sample can miss a short opening note if decoding starts after playback is scheduled.
+    const [audioReady, samplesReady] = await Promise.all([
+        context.state === 'running' || timedAudioReady(context),
+        pianoEnsure(notes.map(note => note.midi)),
+    ]);
+    if (intervalSongPreview !== preview) return;
+    if (!audioReady || !samplesReady || context.state !== 'running' || audioEngine.context !== context) {
+        clearIntervalSongPreview();
+        return;
+    }
     const start = context.currentTime + 0.035;
     for (const { midi, at, duration, velocity } of notes)
         previewNote(midi, start + at, duration, velocity, { hold: true });
-    const last = notes.at(-1);
-    if (!last) return;
     const end = last.at + last.duration;
     let previous: IntervalSongNote | undefined;
     const paint = () => {
         const elapsed = context.currentTime - start;
         if (elapsed >= end || context.state === 'closed') {
-            intervalSongFrame = 0;
-            kbClear('target');
+            clearIntervalSongPreview();
             return;
         }
         const current = notes.find(({ at, duration }) => elapsed >= at && elapsed < at + duration);
@@ -5362,9 +5372,9 @@ function previewIntervalSong(notes: readonly IntervalSongNote[]) {
             if (current) kbState(current.midi, 'target', true);
             previous = current;
         }
-        intervalSongFrame = requestAnimationFrame(paint);
+        preview.frame = requestAnimationFrame(paint);
     };
-    intervalSongFrame = requestAnimationFrame(paint);
+    preview.frame = requestAnimationFrame(paint);
 }
 // Builds the 12 cards while the panel is open (also while another topic hides it, so a language or note-name change
 // reaches them); opening it builds them (the panel's toggle event).
@@ -5396,7 +5406,7 @@ function renderSongs() {
             const title = document.createElement('button');
             title.type = 'button';
             title.textContent = song.title;
-            title.onclick = () => previewIntervalSong(intervalSongNotes(root, song));
+            title.onclick = () => { void previewIntervalSong(intervalSongNotes(root, song)); };
             ul.appendChild(title);
         }
         box.appendChild(card);
@@ -18597,7 +18607,7 @@ function updatePracticeModeHint() {
     note.hidden = !why;
     const dirShown = prDirShown(), along = mode === 'along';
     byId('pr-dir-row').hidden = !dirShown;
-    if (cat !== 'interval' && intervalSongFrame) stopPreviews();
+    if (cat !== 'interval' && intervalSongPreview) stopPreviews();
     byId('pr-along').hidden = byId('pr-along-out').hidden = !along;
     if (along) {
         hint.textContent = t('ac_lede') + (key === 'all' ? ' ' + t('pr_along_c', rootName(0)) : '');
@@ -20137,15 +20147,15 @@ function initControls() {
     byId('refShow').addEventListener('click', () => { kbClear('target'); const ms = refMidis(); ms.forEach((m) => kbState(m, 'target', true)); exploreSequence([{ at: 0, notes: ms }, { at: 2600, notes: [] }]); exploreTimers.push(setTimeout(() => { kbClear('target'); cofPaintDock(); }, 2600)); });
     byId('keyCtx').addEventListener('change', () => { circleSel(); updateExplore(); });
     // songs
-    byId('song-root').addEventListener('change', () => { if (intervalSongFrame) stopPreviews(); renderSongs(); });
+    byId('song-root').addEventListener('change', () => { if (intervalSongPreview) stopPreviews(); renderSongs(); });
     byId('pr-songs').addEventListener('toggle', (event) => {
-        if (event.currentTarget instanceof HTMLDetailsElement && !event.currentTarget.open && intervalSongFrame) stopPreviews();
+        if (event.currentTarget instanceof HTMLDetailsElement && !event.currentTarget.open && intervalSongPreview) stopPreviews();
         syncPracticeHintsPanel();
     });
     byId('song-dir').addEventListener('click', (e) => {
         const b = eventClosest(e, 'button');
         if (!b) return;
-        if (intervalSongFrame) stopPreviews();
+        if (intervalSongPreview) stopPreviews();
         songDir = b.dataset.v === 'desc' ? 'desc' : 'asc';
         wiringSegment(e).forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
         renderSongs();
