@@ -63,6 +63,11 @@ test('a verified starting tempo replaces a provisional star rating', async ({ ap
   await expect(save).toBeVisible();
   await save.click();
   await expect(item.locator('.score-library-rating')).toHaveAttribute('data-provisional', 'false');
+  await page.reload();
+  await page.locator('#score-library summary').click();
+  await expect(item.locator('.score-library-rating')).toHaveAttribute('data-provisional', 'false');
+  const [saved] = await page.evaluate(() => window.__etude.scoreLibraryStore.libraryList());
+  expect(saved.difficultyRating.startingBpm).toBe(84.5);
 });
 
 test('a fresh Read exercise opens with an independent result and leaves existing numbered progress intact', async ({ app, page }) => {
@@ -87,7 +92,7 @@ test('a fresh Read exercise opens with an independent result and leaves existing
   expect(await progress()).toMatchObject({ 'b1.1': { best: 92, stars: 2 }, ['x1.' + first]: { best: 96, stars: 3 } });
 });
 
-test('bulk recalculation previews stars and preserves legacy metadata', async ({ app, page }) => {
+test('the library automatically updates outdated stars and preserves piece metadata', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   await page.locator('#score-library summary').click();
   await page.locator('#library-files').setInputFiles({
@@ -95,19 +100,25 @@ test('bulk recalculation previews stars and preserves legacy metadata', async ({
   });
   const id = createHash('sha256').update(xml).digest('hex');
   const get = () => page.evaluate(id => window.__etude.scoreLibraryStore.libraryGet(id).then(result => result?.item), id);
-  await expect.poll(async () => (await get())?.difficultyRating?.axes).toBeTruthy();
+  await expect.poll(async () => (await get())?.difficultyRating?.assessment?.estimatorVersion).toBe(3);
+  const originalRating = (await get()).difficultyRating;
   await page.evaluate(async id => {
     const store = window.__etude.scoreLibraryStore;
     await store.libraryUpdate(id, { level: 'Level 1', notes: 'My notes', favorite: true });
     const { item } = await store.libraryGet(id);
-    await store.libraryUpdateLevels([{ id, previousRating: item.difficultyRating, rating: { ...item.difficultyRating, stars: 5 } }]);
+    await store.libraryUpdateLevels([{
+      id,
+      previousRating: item.difficultyRating,
+      rating: { ...item.difficultyRating, stars: 5, assessment: { ...item.difficultyRating.assessment, estimatorVersion: 2 } },
+    }]);
   }, id);
-  await page.locator('#library-rate-all').click();
-  await expect(page.locator('#library-rating-preview')).toContainText('Changes: 1. Unchanged: 0. Skipped: 0.');
-  await page.locator('#library-rating-apply').click();
-  await expect(page.locator('#library-status')).toHaveText('Difficulty stars saved for 1 scores.');
+  expect((await get()).difficultyRating.assessment.estimatorVersion).toBe(2);
+  await page.reload();
+  await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
+  await page.locator('#score-library summary').click();
+  await expect(page.getByRole('button', { name: 'Review difficulty stars', exact: true })).toHaveCount(0);
+  await expect.poll(async () => (await get())?.difficultyRating).toEqual(originalRating);
   expect(await get()).toMatchObject({ level: 'Level 1', notes: 'My notes', favorite: true });
-  expect((await get()).difficultyRating.stars).toBeLessThan(5);
 });
 
 test('library rows show five difficulty axes and automatically save stars without replacing levels', async ({ app, page }) => {
@@ -169,8 +180,6 @@ test('library rows show five difficulty axes and automatically save stars withou
   await page.evaluate(id => window.__etude.scoreLibraryStore.libraryUpdate(id, { level: 'Level 4', notes: 'Keep' }), id);
   const stored = () => page.evaluate(id => window.__etude.scoreLibraryStore.libraryGet(id).then(value => value.item), id);
   await expect.poll(async () => (await stored()).difficultyRating?.assessment?.tempoFallback).toBe(false);
-  await page.locator('#library-rate-all').click();
-  await expect(page.locator('#library-rating-preview')).toContainText('Changes: 0. Unchanged: 1. Skipped: 0.');
   const saved = await stored();
   expect(saved).toMatchObject({ level: 'Level 4', notes: 'Keep', difficultyRating: {
     version: 2,
@@ -249,24 +258,42 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
   await page.locator('#an-file').setInputFiles({ name: 'No tempo.musicxml', mimeType: 'application/xml', buffer: Buffer.from(unmarked) });
   const newItem = async () => (await stored()).find(item => item.id === id);
   await expect.poll(async () => (await newItem())?.difficultyRating?.assessment?.tempoFallback).toBe(true);
+  const aggregation = {
+    mode: 'axis', axisWeights: { motor: 1, rhythm: 0, bimanual: 0, texture: 0, reading: 0 },
+    alphaWeak: 0, enduranceScale: 0,
+  };
+  const profileId = createHash('sha256').update(JSON.stringify(aggregation)).digest('hex').slice(0, 16);
+  const profile = { version: 2, profileId, aggregation, startingTempos: { [id]: 72 } };
+  expect(await page.evaluate(async ({ scoreId, oldProfile }) => {
+    const store = window.__etude.scoreLibraryStore;
+    const { difficultyRating } = (await store.libraryGet(scoreId)).item;
+    localStorage.setItem('etude-difficulty-calibration-v1', JSON.stringify(oldProfile));
+    return store.libraryUpdateLevels([{
+      id: scoreId,
+      previousRating: difficultyRating,
+      rating: {
+        ...difficultyRating,
+        assessment: {
+          ...difficultyRating.assessment, profileId: oldProfile.profileId,
+          referenceBpm: 72, tempoFallback: false, tempoSource: 'reference',
+        },
+      },
+    }]);
+  }, { scoreId: id, oldProfile: profile })).toBe(1);
   await page.reload();
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
   await page.locator('#score-library summary').click();
-  await expect(page.locator(`[data-library-id="${id}"] .score-library-rating`)).toHaveAttribute('data-provisional', 'true');
-  await page.locator('#library-difficulty-calibration').setInputFiles({
-    name: 'tempo-profile.json', mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify({ version: 1, cutoffs: [10, 20, 30, 40, 50], startingTempos: { [id]: 72 } })),
-  });
+  await expect(page.locator('.score-library-transfer input[type=file]')).toHaveCount(1);
+  await expect(page.locator('#library-restore')).toBeVisible();
   await expect.poll(async () => (await newItem())?.difficultyRating?.assessment).toEqual({
-    referenceBpm: 72,
-    tempoFallback: false,
-    tempoSource: 'reference',
+    tempoFallback: true,
+    tempoSource: 'fallback',
     voiceSource: 'written',
     handSource: 'unassigned',
     estimatorVersion: 3,
     profileId: 'default',
   });
-  await expect(page.locator(`[data-library-id="${id}"] .score-library-rating`)).toHaveAttribute('data-provisional', 'false');
+  await expect(page.locator(`[data-library-id="${id}"] .score-library-rating`)).toHaveAttribute('data-provisional', 'true');
   await page.locator('#library-sort-stars').click();
   await expect(page.locator('#library-sort')).toHaveValue('difficulty');
   await page.locator('#library-sort-stars').click();
@@ -323,7 +350,7 @@ test('library combines overall and axis ranges and clears each filter independen
   await expect(titles.getByRole('button', { name: /Fresh/ })).toBeVisible();
 });
 
-test('v2 calibration profile change invalidates cache, details explain drivers/span/provisional BPM, and v1 backups upgrade cleanly', async ({ app, page }) => {
+test('difficulty details explain drivers, spans and provisional BPM, and v1 backups upgrade cleanly', async ({ app, page }) => {
   const octaveAndRunXml = `<?xml version="1.0"?>
 <score-partwise version="4.0">
  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
@@ -411,45 +438,6 @@ test('v2 calibration profile change invalidates cache, details explain drivers/s
   const midiDetails = midiRow.locator('.score-library-rating-details');
   await expect(midiDetails).toContainText('MIDI: voices and rests are not notated; hands are estimated.');
   await expect(midiDetails).not.toContainText('Hands are not assigned');
-
-  // Load two distinct v2 calibration profiles (same BPM, different profileId) and verify cache invalidation & recalculation
-  const profileA = {
-    version: 2,
-    aggregation: {
-      mode: 'axis',
-      axisWeights: { motor: 0.9, rhythm: 0.025, bimanual: 0.025, texture: 0.025, reading: 0.025 },
-      alphaWeak: 0.1,
-      enduranceScale: 0,
-    },
-  };
-  const canonicalB = {
-    mode: 'axis',
-    axisWeights: { motor: 0.05, rhythm: 0.05, bimanual: 0.05, texture: 0.8, reading: 0.05 },
-    alphaWeak: 0,
-    enduranceScale: 0,
-  };
-  const profileBId = createHash('sha256').update(JSON.stringify(canonicalB)).digest('hex').slice(0, 16);
-  const profileB = { version: 2, profileId: profileBId, aggregation: canonicalB };
-
-  await page.locator('#library-difficulty-calibration').setInputFiles({
-    name: 'profile-a.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(profileA)),
-  });
-  await expect.poll(async () => {
-    const items = await storedList();
-    const oct = items.find(item => item.title === 'Octaves');
-    return oct?.difficultyRating?.assessment?.profileId;
-  }).not.toBe('default');
-  const octAfterA = (await storedList()).find(item => item.title === 'Octaves').difficultyRating;
-
-  await page.locator('#library-difficulty-calibration').setInputFiles({
-    name: 'profile-b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(profileB)),
-  });
-  await expect.poll(async () => {
-    const items = await storedList();
-    return items.find(item => item.title === 'Octaves')?.difficultyRating?.assessment?.profileId;
-  }).toBe(profileBId);
-  const octAfterB = (await storedList()).find(item => item.title === 'Octaves').difficultyRating;
-  expect(octAfterB.stars).toBeLessThan(octAfterA.stars);
 
   // Restore a legacy v1 backup and verify non-destructive upgrade to v2
   const legacySource = xml.replace('G</step>', 'A</step>');

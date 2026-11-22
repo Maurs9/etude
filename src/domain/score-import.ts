@@ -1,4 +1,4 @@
-import { recognizeScoreMarkings } from './score-markings.js';
+import { normalizeScoreMarkingText, recognizeScoreMarkings } from './score-markings.js';
 import { normalizeScoreDirectionGlyphs, scoreDetectPartHands } from './score-xml-markings.js';
 import {
   AN_MAX_NOTES,
@@ -9,8 +9,14 @@ import {
   type AnMidiMeta,
   type AnParsedMidi,
   type AnParsedNote,
+  type ScoreFermata,
   type ScoreGraceNote,
   type ScoreMeasure,
+  type ScoreOrnamentKind,
+  type ScoreSlurSpan,
+  type ScoreTempoModifier,
+  type ScoreTextDynamic,
+  type ScoreXmlExpression,
   type ScoreXmlHarmony,
   type ScoreXmlKey,
   type ScoreXmlLayout,
@@ -199,6 +205,33 @@ const BEAT_UNIT_QUARTERS = new Map(Object.entries({
     '16th': .25, '32nd': .125, '64th': .0625, '128th': .03125, '256th': .015625,
     '512th': .0078125, '1024th': .00390625,
 }));
+const TEMPO_MODIFIER_TERMS: Readonly<Record<string, ScoreTempoModifier['kind']>> = {
+    ritardando: 'rit',
+    rallentando: 'rall',
+    ritenuto: 'ritenuto',
+    accelerando: 'accel',
+    stringendo: 'stringendo',
+    atempo: 'atempo',
+    tempoprimo: 'atempo',
+    menomosso: 'meno',
+    slower: 'meno',
+    piumosso: 'piu',
+    calando: 'calando',
+    smorzando: 'smorzando',
+};
+const TEXT_DYNAMIC_TERMS: Readonly<Record<string, ScoreTextDynamic['kind']>> = {
+    crescendo: 'cresc',
+    diminuendo: 'dim',
+    morendo: 'morendo',
+    calando: 'calando',
+    smorzando: 'smorzando',
+};
+const ORNAMENT_KIND_MAP: Readonly<Record<string, ScoreOrnamentKind>> = {
+    'trill-mark': 'trill',
+    mordent: 'mordent',
+    'inverted-mordent': 'inverted-mordent',
+    turn: 'turn',
+};
 function positiveTempo(text: string | null): number | null {
     const bpm = Number(text);
     return bpm > 0 && Number.isFinite(bpm) ? bpm : null;
@@ -209,6 +242,7 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
     const { hands: partHands, sisters: partSisterMap } = scoreDetectPartHands(doc);
     const notes: ScoreXmlNote[] = [], tempos: { beat: number; bpm: number; }[] = [], measures: ScoreMeasure[] = [], keys: ScoreXmlKey[] = [], harmoniesByPart: ScoreXmlHarmony[][] = [], dynamics: ScoreXmlLevel[] = [], transients: ScoreXmlLevel[] = [], wedgeEvents: ScoreXmlMark[] = [], pedalEvents: { part: number; staff: number; beat: number; type: string; sequence: number; }[] = [], dolces: { part: number; staff: number; beat: number; on: boolean; sequence: number; }[] = [], partEnds: number[] = [];
     const linkOpen = new Map<string, ScoreXmlNote>(), linkPairs: { kind: string; a: ScoreXmlNote; b: ScoreXmlNote; style: string; }[] = [], lineEvents: ScoreXmlLine[] = []; // slurs, glissandi and slides by note; dashes and brackets by beat
+    const tempoModifiers: ScoreTempoModifier[] = [], textDynamics: ScoreTextDynamic[] = [], rawFermatas: ScoreFermata[] = [];
     let malformed = false;
     const lastNote = (match: (n: ScoreXmlNote) => boolean) => { for (let i = notes.length - 1; i >= 0; i--)
         if (match(notes[i]))
@@ -356,6 +390,24 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
                         const words = direct(dt, 'words').map((w) => w.textContent).join(' ');
                         if (/\bdolce|dolcissimo/i.test(words))
                             dolces.push({ part: pi, staff: 0, beat, on: !/\bnon\s+dolce/i.test(words), sequence: sequence++ });
+                        if (words.trim()) {
+                            const dirBeat = Math.max(0, beat);
+                            const normWords = normalizeScoreMarkingText(words);
+                            const meanings = recognizeScoreMarkings(words, { context: 'direction', allowPartial: true });
+                            const hasPoco = meanings.some((m) => m.term === 'poco');
+                            const hasMolto = meanings.some((m) => m.term === 'molto');
+                            const amount: ScoreTempoModifier['amount'] = hasMolto ? 'molto' : hasPoco ? 'poco' : undefined;
+                            for (const m of meanings) {
+                                const prefix = normWords.slice(Math.max(0, m.at - 5), m.at);
+                                if (/\bnon\s+$/.test(prefix)) continue;
+                                const modKind = TEMPO_MODIFIER_TERMS[m.term];
+                                if (modKind)
+                                    tempoModifiers.push(amount ? { beat: dirBeat, kind: modKind, amount } : { beat: dirBeat, kind: modKind });
+                                const dynKind = TEXT_DYNAMIC_TERMS[m.term];
+                                if (dynKind)
+                                    textDynamics.push({ part: pi, staff: 0, beat: dirBeat, kind: dynKind });
+                            }
+                        }
                     });
                     sounds.forEach((sound) => addSound(sound, pi, 0, beat));
                 }
@@ -389,10 +441,24 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
                                 const prev = stop && lastNote((n) => n.part === pi && n.staff === staff && n.voice === voice && n.midi === midi && Math.abs(n.end - start) < .001);
                                 const fg = number(node.querySelector('fingering')), nd = [...node.querySelectorAll('notations > dynamics')].map(dynamicInfo).find(Boolean), attr = dynamicValue(node.getAttribute('dynamics'));
                                 const arts = new Set([...node.querySelectorAll('notations > articulations > *')].map((a) => a.localName));
+                                const ornamentEls = [...node.querySelectorAll('notations > ornaments > *')];
+                                let ornament: ScoreOrnamentKind | undefined;
+                                for (const el of ornamentEls) {
+                                    const mapped = ORNAMENT_KIND_MAP[el.localName];
+                                    if (mapped) {
+                                        ornament = mapped;
+                                        break;
+                                    }
+                                }
+                                const hasFermata = !!node.querySelector('notations > fermata');
                                 let own: ScoreXmlNote | null = null;
                                 if (prev) {
                                     prev.end = start + duration;
                                     own = prev;
+                                    if (hasFermata && duration > 0) {
+                                        prev.fermata = true;
+                                        rawFermatas.push({ beat: Math.max(0, start), duration });
+                                    }
                                 }
                                 else if (duration > 0) {
                                     const n: ScoreXmlNote = { midi, start, end: start + duration, vel: 90, hand, part: pi, staff, voice, type: child(node, 'type')?.textContent || '', art: {
@@ -401,12 +467,17 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
                                         arpeggiate: !!node.querySelector('notations > arpeggiate') };
                                     if (fg > 0 && fg < 6)
                                         n.finger = fg;
+                                    if (ornament)
+                                        n.ornament = ornament;
+                                    if (hasFermata) {
+                                        n.fermata = true;
+                                        rawFermatas.push({ beat: Math.max(0, start), duration });
+                                    }
                                     if (captureDifficulty) {
                                         const clef = clefs.get(staff), letter = step ? 'CDEFGAB'.indexOf(step) : -1;
                                         const center = clef?.sign === 'G' ? 4 * 7 + 4 : clef?.sign === 'F' ? 3 * 7 + 3 : clef?.sign === 'C' ? 4 * 7 : undefined;
                                         const bottom = center === undefined || !clef?.line ? undefined : center - (clef.line - 1) * 2;
                                         const staffStep = oct * 7 + letter;
-                                        const ornamentEls = [...node.querySelectorAll('notations > ornaments > *')];
                                         const trills = ornamentEls.filter(el => el.localName === 'trill-mark' || el.localName === 'tremolo').length;
                                         n.difficulty = {
                                             dotted: !!child(node, 'dot'), tuplet: !!child(node, 'time-modification'),
@@ -637,7 +708,51 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
         if (a && b && a !== b)
             linkPairs.push({ kind: e.kind, a, b, style: 'dashed' });
     });
-    const links = linkPairs.filter((l) => l.a.staff !== l.b.staff).map((l) => ({ kind: l.kind, a: sorted.indexOf(l.a), b: sorted.indexOf(l.b), style: l.style })).filter((l) => l.a >= 0 && l.b >= 0);
+    const noteIndexMap = new Map<ScoreXmlNote, number>();
+    sorted.forEach((n, index) => noteIndexMap.set(n, index));
+    const links = linkPairs.filter((l) => l.a.staff !== l.b.staff).map((l) => ({ kind: l.kind, a: noteIndexMap.get(l.a) ?? -1, b: noteIndexMap.get(l.b) ?? -1, style: l.style })).filter((l) => l.a >= 0 && l.b >= 0);
+    const slurs: ScoreSlurSpan[] = linkPairs
+        .filter((l) => l.kind === 'slur')
+        .map((l) => ({
+            part: l.a.part,
+            staff: l.a.staff,
+            voice: l.a.voice,
+            startBeat: l.a.start,
+            endBeat: l.b.end,
+            startNoteIndex: noteIndexMap.get(l.a) ?? -1,
+            endNoteIndex: noteIndexMap.get(l.b) ?? -1,
+        }))
+        .filter((s) => s.startNoteIndex >= 0 && s.endNoteIndex >= 0 && s.endBeat > s.startBeat);
+    const dedupedTempoModifiers: ScoreTempoModifier[] = [];
+    tempoModifiers.slice().sort((a, b) => a.beat - b.beat).forEach((m) => {
+        const last = dedupedTempoModifiers.find((existing) => existing.kind === m.kind && Math.abs(existing.beat - m.beat) <= 0.001);
+        if (last) {
+            if (!last.amount && m.amount) last.amount = m.amount;
+            return;
+        }
+        dedupedTempoModifiers.push({ ...m });
+    });
+    const fermatas: ScoreFermata[] = [];
+    rawFermatas.slice().sort((a, b) => a.beat - b.beat).forEach((f) => {
+        const last = fermatas[fermatas.length - 1];
+        if (last && Math.abs(last.beat - f.beat) <= 0.001) {
+            last.duration = Math.max(last.duration, f.duration);
+            return;
+        }
+        fermatas.push({ beat: f.beat, duration: Math.max(0.05, f.duration) });
+    });
+    const dedupedTextDynamics: ScoreTextDynamic[] = [];
+    textDynamics.slice().sort((a, b) => a.beat - b.beat).forEach((d) => {
+        if (dedupedTextDynamics.some((existing) => existing.part === d.part && existing.kind === d.kind && Math.abs(existing.beat - d.beat) <= 0.001))
+            return;
+        dedupedTextDynamics.push({ ...d });
+    });
+    const expression: ScoreXmlExpression = {
+        slurs,
+        tempoModifiers: dedupedTempoModifiers,
+        fermatas,
+        textDynamics: dedupedTextDynamics,
+    };
     const harmonies = (harmoniesByPart.find((list) => list.length > 0) || []).slice().sort((a, b) => a.beat - b.beat);
     const explicitBeats = new Set(tempos.map(tempo => tempo.beat));
     tempos.push(...writtenTempos.filter(tempo => !explicitBeats.has(tempo.beat)));
@@ -649,7 +764,7 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
             if (pedalCount) measure.pedalChanges = pedalCount;
         });
     }
-    return { notes: sorted, tempos: tempos.filter(e => Number.isFinite(e.beat)), measures, keys, harmonies, links, tempoWords, ...(captureDifficulty ? { difficultyRests } : {}) };
+    return { notes: sorted, tempos: tempos.filter(e => Number.isFinite(e.beat)), measures, keys, harmonies, links, tempoWords, expression, ...(captureDifficulty ? { difficultyRests } : {}) };
 }
 
 interface AnZipEntry { method: number; C: number; U: number; off: number; }

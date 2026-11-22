@@ -7,7 +7,6 @@ import {
   type HandSource,
   type NoteArticulation,
 } from './score-difficulty.js';
-import type { DifficultyCalibration } from './score-difficulty-calibration.js';
 import { anAssignHands } from './score-midi.js';
 import { repeatOrder, scoreXmlRepeatBars } from './score-repeats.js';
 import { anError, type AnMidiMeta, type AnParsedMidi, type AnSource, type ScoreMeasure, type ScoreXmlKey } from './score-types.js';
@@ -194,34 +193,24 @@ function midiInput(parsed: AnParsedMidi, startingBpm?: number, microGroup = true
     tempoSource: tempos.some(tempo => tempo.beat <= EPS) ? 'written' : startingBpm ? 'reference' : 'fallback' };
 }
 
-export type ImportedScoreDifficultyOptions =
-  | DifficultyCalibration
-  | null
-  | undefined
-  | { calibration?: DifficultyCalibration | null; rubricVersion?: 1 | 2 | 3 };
+export interface ImportedScoreDifficultyOptions {
+  rubricVersion?: 1 | 2 | 3;
+}
 
 export function estimateImportedScore(
   source: Extract<AnSource, { kind: 'xml' | 'midi' }>,
   startingBpm?: number,
-  calibrationOrOptions?: ImportedScoreDifficultyOptions,
+  options?: ImportedScoreDifficultyOptions,
 ) {
-  const opts = calibrationOrOptions && 'version' in calibrationOrOptions
-    ? { calibration: calibrationOrOptions, rubricVersion: undefined }
-    : (calibrationOrOptions ?? {});
-  const calibration = opts.calibration ?? null;
-  const aggregation = calibration?.version === 2 ? calibration.aggregation : undefined;
-  const profileId = calibration?.version === 2 ? calibration.profileId : 'default';
+  const rubricVersion = options?.rubricVersion;
   const fallback = startingBpm !== undefined && Number.isFinite(startingBpm) && startingBpm >= 20 && startingBpm <= 400 ? startingBpm : undefined;
   const input = source.kind === 'xml'
     ? xmlInput(source, fallback)
-    : midiInput(source.parsed, fallback, opts.rubricVersion !== 1);
-  const estimate = estimateScoreDifficulty(input, 'performance', {
-    rubricVersion: opts.rubricVersion,
-    aggregation,
-  });
+    : midiInput(source.parsed, fallback, rubricVersion !== 1);
+  const estimate = estimateScoreDifficulty(input, 'performance', { rubricVersion });
   return {
     ...estimate,
-    profileId,
+    profileId: 'default',
     midi: source.kind === 'midi',
     playedMeasures: input.measures.length,
     playedDurationSec: input.measures.at(-1)?.endSec ?? 0,

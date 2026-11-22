@@ -70,7 +70,7 @@ their fingerprints, and the decisive measures with per-axis scores. The report r
 estimators on the existing books. Use `--fresh` to check new exercises on separate seeds and
 keys, their candidate rankings, same-shape transpositions and selection times.
 
-To calibrate import suggestions, create a local JSON manifest of arrangements graded 1–6.
+To benchmark difficulty estimates, create a local JSON manifest of arrangements graded 1–6.
 Use rows such as `{"file":"scores/example.mxl","level":2,"split":"fit","group":"exact-work"}`.
 Put related arrangements in the same group. Give every grade both fit and held-out references
 and keep distinct work groups in each split. Use the written starting tempo, or add a verified starting tempo as `"bpm":108` when it is missing.
@@ -83,7 +83,6 @@ The tool fits thresholds on the fit split, reports the held-out error and baseli
 and writes a profile when it beats the constant-grade baseline. `--report-only` accepts rows
 with just a file and lists scores and decisive measures. Originals stay local.
 
-In My Library, load the resulting JSON calibration to supply verified starting tempos.
 In Read, **New reading exercise** selects a fresh piece with the experimental scorer.
 These results use a fingerprint-based ID and leave the numbered book results and daily sets intact.
 
@@ -92,7 +91,8 @@ scores. **Difficulty (stars)** sorts from the fewest to the most stars. The titl
 or resumes it when a position was saved. The five axes are visible
 beside the title on wide screens and below it on narrow screens. In **Filters**, combine an overall
 star range with a range for one axis. **More → Difficulty details** shows the decisive measures. A missing tempo
-produces a provisional rating. A verified tempo in the calibration profile updates that rating.
+produces a provisional rating. Choose **Set BPM** in the piece's difficulty details to enter a
+verified starting tempo, then recalculate and save the rating.
 Star ratings travel with library backups. This experimental rubric uses the strongest window and
 typical difficulty independently on each axis.
 Its star scale keeps separating stronger passages above the ceiling of the original 0–100 score.

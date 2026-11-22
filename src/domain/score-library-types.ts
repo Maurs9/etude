@@ -1,5 +1,4 @@
 import type { DifficultyAxes, DifficultyAxis, DifficultyDriver, HandSource, TempoSource, VoiceSource } from './score-difficulty.js';
-import type { DifficultyCalibration } from './score-difficulty-calibration.js';
 
 /** Private, device-local score library. Originals are stored separately from metadata. */
 export interface LibraryResume {
@@ -120,7 +119,6 @@ export interface LibraryRestoreResult {
 
 export type OpenedScoreEstimator = (
   startingBpm?: number,
-  calibration?: DifficultyCalibration | null,
 ) => Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
 
 export interface LibraryHost {
@@ -131,7 +129,6 @@ export interface LibraryHost {
   difficulty(
     file: File,
     startingBpm?: number,
-    calibration?: DifficultyCalibration | null,
   ): Promise<import('./score-difficulty-import.js').ImportedDifficultyEstimate>;
   /** Open through the existing renderer. Return false if parsing/rendering fails. */
   open(item: LibraryItem, file: File): Promise<boolean>;
