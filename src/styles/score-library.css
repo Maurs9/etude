@@ -232,10 +232,10 @@
   color: var(--ink); opacity: .9; border-left: 2px solid var(--accent); padding-left: 8px;
 }
 #score-library .score-library-actions { position: relative; display: flex; gap: 6px; min-width: 0; }
-#score-library .score-library-item[data-menu-open=true] { position: relative; z-index: 3; }
 #score-library .score-library-secondary {
-  position: absolute; top: calc(100% + 4px); inset-inline-end: 0; z-index: 10;
-  width: max-content; min-width: 210px; max-width: min(280px, calc(100vw - 32px));
+  position: fixed; z-index: 10;
+  width: max-content; min-width: min(210px, calc(100vw - 16px)); max-width: min(280px, calc(100vw - 16px));
+  overflow: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; align-items: stretch; gap: 4px;
   padding: 8px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--card); box-shadow: 0 10px 28px rgba(0, 0, 0, .28);
