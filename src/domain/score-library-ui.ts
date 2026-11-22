@@ -211,7 +211,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   axesInfoPanel.append(axesInfoList, axesInfoSummary);
   columns.append(pieceHeading, difficultyHead, axesInfoPanel);
   scroll.append(columns, list);
+  const emptyBox = element('div', 'score-library-empty');
+  emptyBox.hidden = true;
   const empty = element('p', 'score-library-note');
+  emptyBox.append(empty);
   const transfer = element('div', 'score-library-transfer');
   const transferNote = element('p', 'score-library-note');
   const backup = element('button');
@@ -246,7 +249,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   applyRatings.type = cancelRatings.type = 'button';
   previewActions.append(applyRatings, cancelRatings);
   ratingPreview.append(previewSummary, previewList, previewActions);
-  content.append(privacy, toolbar, protection, status, corruptStatus, failures, scroll, empty, transfer, ratingPreview);
+  content.append(privacy, toolbar, protection, status, corruptStatus, failures, scroll, emptyBox, transfer, ratingPreview);
   details.append(summary, content);
   root.append(details);
 
@@ -1086,14 +1089,17 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         statusCopy = null; status.textContent = '';
       }).then(() => { if (more.isConnected) more.focus(); });
     });
-    remove.addEventListener('click', () => {
+    const confirmAction = (message: string): Promise<boolean> =>
+      host.confirm ? host.confirm(message) : Promise.resolve(window.confirm(message));
+    remove.addEventListener('click', async () => {
       const current = items.find(item => item.id === id);
       if (!current || busy) return;
       toggleMore(false, false);
-      if (!window.confirm(t('delete_confirm', { title: current.title || current.name }))) {
-        more.focus();
+      if (!await confirmAction(t('delete_confirm', { title: current.title || current.name }))) {
+        if (more.isConnected) more.focus();
         return;
       }
+      if (busy) return;
       void run(async () => {
         await host.flush();
         await libraryRemove(id);
@@ -1260,11 +1266,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     toggleFilters.textContent = secondaryCount > 0 ? t('toggle_filters_count', { count: secondaryCount }) : t('toggle_filters');
     syncActiveChips(total, axis, axisBounds);
     const hasActiveFilters = Boolean(query || filter.value !== 'all' || sort.value !== 'added' || secondaryCount > 0);
-    if (hasActiveFilters) {
-      if (!resetFilters.isConnected) toolbarBarActions.append(resetFilters);
-    } else if (resetFilters.isConnected) {
-      resetFilters.remove();
-    }
     const shown = items.filter(item => {
       if (query) {
         const haystack = `${item.title}\n${item.composer}\n${item.name}\n${(item.tags ?? []).join('\n')}\n${item.notes ?? ''}`.toLocaleLowerCase();
@@ -1488,8 +1489,16 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     }
     corruptStatus.hidden = corruptCount === 0;
     corruptStatus.textContent = corruptCount ? t('corrupt_entries', { count: corruptCount }) : '';
-    empty.hidden = !loaded || shown.length > 0 || (corruptCount > 0 && !items.length);
+    const emptyVisible = loaded && shown.length === 0 && !(corruptCount > 0 && !items.length);
+    emptyBox.hidden = !emptyVisible;
+    empty.hidden = !emptyVisible;
     empty.textContent = t(items.length ? 'no_matches' : 'empty');
+    if (hasActiveFilters) {
+      const resetHost = emptyVisible && items.length > 0 ? emptyBox : toolbarBarActions;
+      if (resetFilters.parentElement !== resetHost) resetHost.append(resetFilters);
+    } else if (resetFilters.isConnected) {
+      resetFilters.remove();
+    }
     scroll.hidden = shown.length === 0;
     difficultySort.setAttribute('aria-pressed', String(sort.value === 'difficulty' || sort.value === 'difficulty_desc'));
     difficultySort.setAttribute('aria-label', `${t('sort_by')} ${t(sort.value === 'difficulty' ? 'sort_difficulty_desc' : 'sort_difficulty')}`);
@@ -1717,9 +1726,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     else for (const id of shownIds) selectedIds.add(id);
     render();
   });
-  deleteSelected.addEventListener('click', () => {
+  deleteSelected.addEventListener('click', async () => {
     const ids = [...selectedIds];
-    if (!ids.length || busy || !window.confirm(t('delete_selected_confirm', { count: ids.length }))) return;
+    if (!ids.length || busy) return;
+    const ok = await (host.confirm ? host.confirm(t('delete_selected_confirm', { count: ids.length })) : Promise.resolve(window.confirm(t('delete_selected_confirm', { count: ids.length }))));
+    if (!ok || busy) return;
     void run(async () => {
       await host.flush();
       const removed = await libraryRemoveMany(ids);

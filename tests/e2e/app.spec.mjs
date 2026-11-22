@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import zlib from 'node:zlib';
-import { test, expect, todayN, APP } from '../helpers/fixtures.mjs';
+import { test, expect, todayN, APP, handleAppDialog } from '../helpers/fixtures.mjs';
 import { scorePedalCollisions } from '../helpers/score-audit-helpers.mjs';
 import { STRINGS } from '../../src/locales/index.js';
 
@@ -1778,34 +1778,22 @@ test('a modifier key releases active computer-keyboard notes', async ({ app }) =
 
 test('a malformed backup is rejected before it can replace local progress', async ({ app }) => {
   const page = await app.open();
-  const dialogs = [];
-  page.on('dialog', dialog => {
-    dialogs.push({ type: dialog.type(), message: dialog.message() });
-    dialog.dismiss();
-  });
   await page.locator('#importFile').setInputFiles({
     name: 'malformed-backup.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ v: 3, data: [] })),
   });
-  await expect.poll(() => dialogs.length).toBe(1);
-  expect(dialogs).toEqual([{ type: 'alert', message: 'That file doesn’t look like an Étude backup.' }]);
+  expect(await handleAppDialog(page, 'dismiss')).toEqual({ type: 'alert', message: 'That file doesn’t look like an Étude backup.' });
 });
 
 test('a structurally valid backup still reaches explicit replacement confirmation', async ({ app }) => {
   const page = await app.open();
-  const dialogs = [];
-  page.on('dialog', dialog => {
-    dialogs.push({ type: dialog.type(), message: dialog.message() });
-    dialog.dismiss();
-  });
   await page.locator('#importFile').setInputFiles({
     name: 'valid-backup.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ v: 3, data: { srs: {}, settings: {} } })),
   });
-  await expect.poll(() => dialogs.length).toBe(1);
-  expect(dialogs).toEqual([{ type: 'confirm', message: 'Replace your current progress with this backup?' }]);
+  expect(await handleAppDialog(page, 'dismiss')).toEqual({ type: 'confirm', message: 'Replace your current progress with this backup?' });
 });
 
 test('persisted settings are normalized to supported audio and session limits', async ({ app }) => {
@@ -1910,8 +1898,8 @@ test.describe('reading statistics in Progress', () => {
     for (const head of [en.rdx_heat, en.rdx_u_iv, en.rdx_u_ch, en.rdx_u_ks, en.rdx_u_rh, en.rdx_weakest])
       await expect(section.getByRole('heading', { name: head, exact: true })).toBeVisible();
     await expect(section.locator('.rdx-weak .rdx-tag')).toHaveCount(2);
-    page.on('dialog', dialog => dialog.accept());
     await section.getByRole('button', { name: en.rdx_reset }).click();
+    await handleAppDialog(page, 'accept');
     await expect(section.locator('.rdx-weak')).toHaveCount(0);
     await expect(section).toContainText(en.rdx_nodata);
     expect(await page.evaluate(() => {
@@ -2911,7 +2899,8 @@ test.describe('several open tabs', () => {
     await page.evaluate(() => window.__etude.startSession(null));
     await answer(page);
     const { tab, errors } = await openTab(page);
-    await tab.evaluate(() => { window.confirm = () => true; window.__etude.$('resetBtn').click(); });
+    await tab.evaluate(() => { window.__etude.$('resetBtn').click(); });
+    await handleAppDialog(tab, 'accept');
     await expect(page.locator('#syncNote')).toBeVisible();
     const gen = await tab.evaluate(() => window.__etude.SYNC.gen);
     expect(gen).not.toBe('');

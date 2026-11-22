@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { test, expect } from '../helpers/fixtures.mjs';
+import { test, expect, handleAppDialog } from '../helpers/fixtures.mjs';
 
 const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 function score(title = 'Library Alpha', composer = 'Composer Alpha', step = 'C') {
@@ -184,9 +184,9 @@ test('malformed restore and deletion preserve the open score and never resurrect
   await page.locator('#library-restore').setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{broken') });
   await expect(page.locator('#library-status')).toContainText('Could not merge');
   await expect(rows(page)).toHaveCount(1);
-  page.once('dialog', dialog => dialog.accept());
   await rows(page).locator('[data-library-action=more]').click();
   await rows(page).locator('[data-library-action=delete]').click();
+  await handleAppDialog(page, 'accept');
   await expect(rows(page)).toHaveCount(0);
   await page.evaluate(() => window.__etude.anLibraryFlush());
   expect(await page.evaluate(async () => ({ items: (await window.__etude.scoreLibraryStore.libraryList()).length, notes: window.__etude.AN.notes.length, error: window.__etude.AN.error }))).toEqual({ items: 0, notes: 16, error: null });

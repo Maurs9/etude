@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect } from '../../helpers/fixtures.mjs';
+import { test, expect, handleAppDialog } from '../../helpers/fixtures.mjs';
 
 async function openAssessGenerator(app) {
   const page = await app.open({ hash: 'read', dock: true });
@@ -503,25 +503,20 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
       };
     }, { importedAttempt });
     const backup = { v: 3, data: { srs: {}, settings: {}, sightLedger: imported } };
-    const dialogs = [];
-    page.on('dialog', (dialog) => {
-      dialogs.push({ type: dialog.type(), message: dialog.message() });
-      void dialog.accept();
+    const nav = page.waitForEvent('framenavigated', { predicate: (frame) => frame === page.mainFrame() });
+    await page.locator('#importFile').setInputFiles({
+      name: 'sight-ledger.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(backup)),
     });
-    await Promise.all([
-      page.waitForEvent('framenavigated', { predicate: (frame) => frame === page.mainFrame() }),
-      page.locator('#importFile').setInputFiles({
-        name: 'sight-ledger.json',
-        mimeType: 'application/json',
-        buffer: Buffer.from(JSON.stringify(backup)),
-      }),
-    ]);
+    const confirmDialog = await handleAppDialog(page, 'accept', { waitHidden: false });
+    await nav;
     await page.waitForLoadState('load');
     const merged = await page.evaluate(() => window.__etude.srtReadLedger(localStorage));
     expect(merged.generation).toBe(localGeneration);
     expect(merged.exposures['v1:imported']).toBeTruthy();
     expect(merged.attempts['attempt-imported'].status).toBe('abandoned');
-    expect(dialogs.map((entry) => entry.type)).toContain('confirm');
+    expect(confirmDialog.type).toBe('confirm');
 
     const conflict = { ...importedAttempt, score: 10 };
     await page.locator('#importFile').setInputFiles({
@@ -529,9 +524,10 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify({ v: 3, data: { sightLedger: { ...imported, attempts: { [conflict.attemptId]: conflict } } } })),
     });
-    await expect.poll(() => dialogs.filter((entry) => entry.type === 'alert').length).toBe(1);
-    const conflictAlert = dialogs.find((entry) => entry.type === 'alert');
-    expect(conflictAlert?.message).toContain('conflicts with sight-reading history');
+    await handleAppDialog(page, 'accept');
+    const conflictAlert = await handleAppDialog(page, 'accept');
+    expect(conflictAlert.type).toBe('alert');
+    expect(conflictAlert.message).toContain('conflicts with sight-reading history');
     expect((await page.evaluate(() => window.__etude.srtReadLedger(localStorage))).attempts['attempt-imported'].score).toBe(100);
   });
 

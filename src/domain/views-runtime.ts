@@ -227,6 +227,9 @@ function installLearn(language: RuntimeLanguage, payload: LearnPayload) {
     learnLanguage = language;
     ({ LQZ, LSUM, GLOSS } = payload);
 }
+function localize(key: string, fallback: string): string {
+    return (STRINGS[lang] || STRINGS.en) ? t(key) : fallback;
+}
 /** Keep the currently committed language intact on failure; never auto-reload a session. */
 function localeLoadError(retry: () => Promise<unknown>, target: HTMLElement = document.body) {
     document.getElementById('locale-load-error')?.remove();
@@ -236,7 +239,6 @@ function localeLoadError(retry: () => Promise<unknown>, target: HTMLElement = do
     box.id = 'locale-load-error';
     box.setAttribute('role', 'alert');
     if (host === document.body) box.className = 'locale-load-toast';
-    const localize = (key: string, fallback: string) => (STRINGS[lang] || STRINGS.en) ? t(key) : fallback;
     const unsaved = () => STORE.failed || STORE.blocked === 'quarantine' || STORE.blocked === 'upgrade';
     const message = document.createElement('p');
     message.textContent = localize('locale_fetch_failed', 'Content could not be loaded. Check your connection and retry, or reload.');
@@ -263,8 +265,8 @@ function localeLoadError(retry: () => Promise<unknown>, target: HTMLElement = do
     } else {
         box.append(message);
     }
-    button(localize('store_reload', 'Reload'), () => {
-        if (!unsaved() || confirm(localize('locale_reload_unsaved', 'Reload and lose unsaved progress?'))) location.reload();
+    button(localize('store_reload', 'Reload'), async () => {
+        if (!unsaved() || await appConfirm(localize('locale_reload_unsaved', 'Reload and lose unsaved progress?'))) location.reload();
     }).dataset.lazyReload = '';
     box.append(actions);
     host.append(box);
@@ -4538,13 +4540,33 @@ function focusView(v: string) {
     target.focus({ preventScroll: true });
 }
 let featureNavigation = 0;
+function setViewLoading(viewId: string, loading: boolean) {
+    const section = maybeById(viewId);
+    if (!section) return;
+    section.setAttribute('aria-busy', loading ? 'true' : 'false');
+    section.querySelector('[data-lazy-loading]')?.remove();
+    if (!loading) return;
+    const host = section.querySelector(':scope > .wrap') ?? section;
+    const note = document.createElement('p');
+    note.className = 'view-loading';
+    note.setAttribute('role', 'status');
+    note.setAttribute('aria-live', 'polite');
+    note.dataset.lazyLoading = '';
+    note.textContent = localize('loading', 'Loading…');
+    host.prepend(note);
+}
 let show = function show(v: string|undefined, moveFocus = true, fromHistory = false): void | Promise<void> {
     const navigation = ++featureNavigation;
     if (v === 'analysis' && !analysisModulesReady) {
         if (practiceHintPreview) stopPreviews();
+        setViewLoading('view-analysis', true);
         return ensureAnalysisModules().then(() => {
+            setViewLoading('view-analysis', false);
             if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
-        }).catch(() => { showNotationReloadPrompt(); });
+        }).catch(() => {
+            setViewLoading('view-analysis', false);
+            showNotationReloadPrompt();
+        });
     }
     const hum = v !== undefined && isMergedView(v); // transcribe, the one merged view: the Hum to notes side of Voice
     if (v !== undefined && isMergedView(v))
@@ -4670,15 +4692,20 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         renderRead();
     let pendingViewLoad: Promise<void> | undefined;
     if (v === 'progress') {
-        if (progressView)
+        if (progressView) {
+            setViewLoading('view-progress', false);
             renderProgress();
+        }
         else {
+            setViewLoading('view-progress', true);
             pendingViewLoad = import('./progress-view.js').then((module) => {
                 progressView = module;
+                setViewLoading('view-progress', false);
                 document.querySelector('#locale-load-error[data-lazy-owner="progress"]')?.remove();
                 if (navigation === featureNavigation && _view === 'progress')
                     renderProgress();
             }, () => {
+                setViewLoading('view-progress', false);
                 if (navigation === featureNavigation && _view === 'progress') {
                     localeLoadError(async () => { await show('progress', moveFocus, fromHistory); });
                     const toast = document.getElementById('locale-load-error');
@@ -6328,7 +6355,14 @@ let renderLearn: { (fromLoad?: boolean): void; _init?: boolean } = function rend
         learnInitSel();
         learnSide();
         learnHalt();
-        body.innerHTML = '<p role="status" data-lazy-loading>Loading…</p>';
+        body.replaceChildren();
+        const loading = document.createElement('p');
+        loading.className = 'view-loading';
+        loading.setAttribute('role', 'status');
+        loading.setAttribute('aria-live', 'polite');
+        loading.dataset.lazyLoading = '';
+        loading.textContent = localize('loading', 'Loading…');
+        body.append(loading);
         const requestedLanguage = lang, request = ++learnRequest;
         learnLoading = Promise.all([loadLearn(requestedLanguage), loadLearnStaves()]).then(([payload]) => {
             if (request !== learnRequest || requestedLanguage !== lang || view0() !== 'learn') return;
@@ -11347,7 +11381,7 @@ function rdOnLocale() {
         else if (/^rdx-c-/.test(id))
             rdCustomRead();
     });
-    byId('rdx-stats').addEventListener('click', (e) => { if (eventElement(e)?.id === 'rdx-reset' && confirm(t('rdx_reset_q'))) {
+    byId('rdx-stats').addEventListener('click', async (e) => { if (eventElement(e)?.id === 'rdx-reset' && await appConfirm(t('rdx_reset_q'))) {
         const d = rdData();
         d.nt = {};
         d.tot = { n: 0, ok: 0, ms: 0, sess: 0 };
@@ -13171,7 +13205,7 @@ function anLibraryEnsure(): Promise<LibraryController> {
             if (!scoreLibrary) {
                 byId('score-library-root').replaceChildren();
                 scoreLibrary = initScoreLibrary(byId('score-library-root'), {
-                    language: () => lang, inspect: anLibraryInspect, difficulty: anInspectDifficulty, open: anLibraryOpen, flush: () => anLibraryFlush(),
+                    language: () => lang, inspect: anLibraryInspect, difficulty: anInspectDifficulty, open: anLibraryOpen, flush: () => anLibraryFlush(), confirm: appConfirm,
                 });
             }
             return scoreLibrary;
@@ -15152,6 +15186,7 @@ function pracSavedText(saved: PracticeSaved | null) {
     return [saved.learned ? '✓ ' + t('pc_learned') : '', best].filter(Boolean).join(' · ');
 }
 let pracSumGen = 0;
+let pracSumReturn: Element | null = null;
 function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '') {
     const st = PRAC.stats;
     if (!st)
@@ -15169,11 +15204,29 @@ function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '
             showSaved(v); });
     (['perfect', 'good', 'miss', 'wrong'] as const).forEach((k) => { byId('pr-sum-' + k).textContent = String(st[k]); });
     byId('pr-sum-note').textContent = t('pr_sum_note', st.best, Math.round(pracFactor() * 100) + '%');
+    if (byId('pr-sum').hidden)
+        pracSumReturn = document.activeElement;
     byId('pr-sum').hidden = false;
     anSideSync();
     byId('pr-again').focus({ preventScroll: true });
 }
-function pracSumClose() { byId('pr-sum').hidden = true; PRAC.next = null; anSideSync(); }
+function pracSumClose() {
+    const box = byId('pr-sum'), hadFocus = box.contains(document.activeElement);
+    box.hidden = true;
+    PRAC.next = null;
+    anSideSync();
+    const target = pracSumReturn;
+    pracSumReturn = null;
+    if (hadFocus) {
+        const fallback = maybeById('score-play');
+        const dest = target && target.isConnected && (target instanceof HTMLElement || target instanceof SVGElement) && target.getClientRects().length > 0 && !target.closest('[inert]')
+            ? target
+            : fallback && fallback.getClientRects().length > 0 && !fallback.closest('[inert]')
+                ? fallback
+                : null;
+        dest?.focus({ preventScroll: true });
+    }
+}
 function pracReplay() {
     pracSumClose();
     performanceSeek(0);
@@ -17221,12 +17274,12 @@ function fallGradients(ctx: CanvasRenderingContext2D, hitY: number) {
     if (c && c.ctx === ctx && c.hitY === hitY)
         return c;
     const bg = ctx.createLinearGradient(0, 0, 0, hitY);
-    bg.addColorStop(0, '#050811');
-    bg.addColorStop(.6, '#0a1120');
-    bg.addColorStop(1, '#131c31');
+    bg.addColorStop(0, '#120f0d');
+    bg.addColorStop(.6, '#191512');
+    bg.addColorStop(1, '#241e19');
     const hg = ctx.createLinearGradient(0, hitY - 34, 0, hitY);
-    hg.addColorStop(0, 'rgba(120,160,255,0)');
-    hg.addColorStop(1, 'rgba(150,185,255,.24)');
+    hg.addColorStop(0, 'rgba(223,136,118,0)');
+    hg.addColorStop(1, 'rgba(223,136,118,.22)');
     const felt = ctx.createLinearGradient(0, hitY, 0, hitY + 4);
     felt.addColorStop(0, '#7a1818');
     felt.addColorStop(.5, '#982121');
@@ -19413,14 +19466,14 @@ let progressRestorePending = false;
 async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.SnapshotReason): Promise<void> {
     try {
         if (storeBackupBlocked()) {
-            alert(t('store_too_new'));
+            await appAlert(t('store_too_new'));
             return;
         }
         if (STORE.blocked === 'upgrade') {
-            alert(t('store_upgrade_stuck'));
+            await appAlert(t('store_upgrade_stuck'));
             return;
         }
-        if (!await storeSnapshot(reason, backupJson()) && !confirm(t('store_copy_failed')))
+        if (!await storeSnapshot(reason, backupJson()) && !await appConfirm(t('store_copy_failed')))
             return;
         const saved = await storage.restoreProgressBackup(localStorage, p, () => {
             // The save may have changed while taking the snapshot or waiting for the ledger lock.
@@ -19429,7 +19482,7 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
             return syncNextGen();
         });
         if (!saved.ok) {
-            alert(t(saved.reason === 'unsupported' ? 'import_too_new' : saved.reason === 'conflict' ? 'import_conflict' : 'import_storage'));
+            await appAlert(t(saved.reason === 'unsupported' ? 'import_too_new' : saved.reason === 'conflict' ? 'import_conflict' : 'import_storage'));
             return;
         }
         reloadingForRestore = true;
@@ -19439,7 +19492,7 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
     }
     catch (_) {
         reloadingForRestore = false;
-        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'import_storage'));
+        await appAlert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'import_storage'));
     }
 }
 async function storeRestore(id: number | undefined) {
@@ -19448,31 +19501,31 @@ async function storeRestore(id: number | undefined) {
     progressRestorePending = true;
     try {
         if (storeBackupBlocked()) {
-            alert(t('store_too_new'));
+            await appAlert(t('store_too_new'));
             return;
         }
         if (STORE.blocked === 'upgrade') {
-            alert(t('store_upgrade_stuck'));
+            await appAlert(t('store_upgrade_stuck'));
             return;
         }
         const snap = await safety.readSnapshot(id), p = snap ? parsePttV3(snap.raw) : null;
         if (!snap || !p) {
-            alert(t('import_bad'));
+            await appAlert(t('import_bad'));
             return;
         }
         if ((storage.pttSchema(p) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(p))) {
-            alert(t('import_too_new'));
+            await appAlert(t('import_too_new'));
             return;
         }
         if (!storage.isImportableBackup(p)) {
-            alert(t('import_bad'));
+            await appAlert(t('import_bad'));
             return;
         }
-        if (confirm(t('snap_confirm', storeWhen(snap.id))))
+        if (await appConfirm(t('snap_confirm', storeWhen(snap.id))))
             await storeApplyBackup(p, 'before-restore');
     }
     catch (_) {
-        alert(t('import_storage'));
+        await appAlert(t('import_storage'));
     }
     finally {
         progressRestorePending = false;
@@ -19480,7 +19533,11 @@ async function storeRestore(id: number | undefined) {
 }
 async function storeReset() {
     const button = buttonById('resetBtn');
-    if (button.disabled || progressRestorePending || reloadingForRestore || !confirm(t('reset_confirm')))
+    if (button.disabled || progressRestorePending || reloadingForRestore)
+        return;
+    if (!await appConfirm(t('reset_confirm')))
+        return;
+    if (button.disabled || progressRestorePending || reloadingForRestore)
         return;
     const checkWritable = () => {
         if (storeBackupBlocked() || STORE.blocked)
@@ -19491,7 +19548,7 @@ async function storeReset() {
         const result = await srtResetLedgerTransaction(localStorage, async () => {
             checkWritable();
             syncPull();
-            return await storeSnapshot('before-reset', backupJson()) || confirm(t('store_reset_copy_failed'));
+            return await storeSnapshot('before-reset', backupJson()) || await appConfirm(t('store_reset_copy_failed'));
         }, () => {
             checkWritable();
             syncPull();
@@ -19501,7 +19558,7 @@ async function storeReset() {
         if (!result)
             return;
         if (!result.ok) {
-            alert(t(result.reason === 'unsupported' ? 'store_too_new' : 'store_reset_failed'));
+            await appAlert(t(result.reason === 'unsupported' ? 'store_too_new' : 'store_reset_failed'));
             return;
         }
         storeSaved();
@@ -19511,7 +19568,7 @@ async function storeReset() {
         refreshToday();
     }
     catch (_) {
-        alert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'store_reset_failed'));
+        await appAlert(t(STORE.blocked === 'too-new' ? 'store_too_new' : STORE.blocked === 'quarantine' ? 'store_stuck' : STORE.blocked === 'upgrade' ? 'store_upgrade_stuck' : 'store_reset_failed'));
     }
     finally {
         button.disabled = progressRestorePending = false;
@@ -19838,11 +19895,73 @@ function setWeakSpotInjection(on: boolean) {
         readingToggle.checked = on;
     saveAll();
 }
-function overlaysOpen() { return byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on'); }
+let appDialogClose: ((accepted: boolean) => void) | null = null;
+let appDialogWired = false;
+let appDialogSeq = 0;
+let appDialogQueue: Promise<unknown> = Promise.resolve();
+function ensureAppDialogWired() {
+    if (appDialogWired) return;
+    const dialog = maybeById('appDialog'), ok = maybeById('appDialogOk'), cancel = maybeById('appDialogCancel'), scrim = maybeById('appDialogScrim');
+    if (!dialog || !ok || !cancel || !scrim) return;
+    appDialogWired = true;
+    ok.addEventListener('click', () => appDialogClose?.(true));
+    cancel.addEventListener('click', () => appDialogClose?.(false));
+    scrim.addEventListener('click', () => appDialogClose?.(false));
+    dialog.addEventListener('keydown', trapFocus);
+}
+function appDialogOpen(kind: 'alert' | 'confirm', message: string): Promise<boolean> {
+    const task = appDialogQueue.then(() => new Promise<boolean>((resolve) => {
+        ensureAppDialogWired();
+        const dialog = maybeById('appDialog'), scrim = maybeById('appDialogScrim'), title = maybeById('appDialogTitle'), msg = maybeById('appDialogMsg'), ok = maybeById('appDialogOk'), cancel = maybeById('appDialogCancel');
+        if (!dialog || !scrim || !title || !msg || !ok || !cancel) {
+            if (kind === 'alert') { window.alert(message); resolve(true); }
+            else resolve(window.confirm(message));
+            return;
+        }
+        const priorFocus = document.activeElement;
+        srtRecorder?.releaseAll('focus', performance.now() - SR.t0);
+        releaseLiveInput();
+        dialog.dataset.kind = kind;
+        dialog.dataset.seq = String(++appDialogSeq);
+        title.textContent = kind === 'alert' ? localize('dialog_notice_title', 'Notice') : localize('dialog_confirm_title', 'Please confirm');
+        msg.textContent = message;
+        ok.textContent = kind === 'alert' ? localize('dialog_ok', 'OK') : localize('dialog_confirm', 'Continue');
+        cancel.textContent = localize('dialog_cancel', 'Cancel');
+        cancel.hidden = kind === 'alert';
+        dialog.classList.add('on');
+        dialog.setAttribute('aria-hidden', 'false');
+        scrim.classList.add('on');
+        syncScrim();
+        const firstFocus = kind === 'confirm' ? cancel : ok;
+        firstFocus.focus({ preventScroll: true });
+        requestAnimationFrame(() => { if (dialog.classList.contains('on')) firstFocus.focus({ preventScroll: true }); });
+        appDialogClose = (accepted: boolean) => {
+            appDialogClose = null;
+            const hadFocus = dialog.contains(document.activeElement);
+            dialog.classList.remove('on');
+            dialog.setAttribute('aria-hidden', 'true');
+            scrim.classList.remove('on');
+            syncScrim();
+            if (hadFocus && priorFocus && priorFocus.isConnected && (priorFocus instanceof HTMLElement || priorFocus instanceof SVGElement) && priorFocus.getClientRects().length > 0 && !priorFocus.closest('[inert]'))
+                priorFocus.focus({ preventScroll: true });
+            resolve(kind === 'alert' ? true : accepted);
+        };
+    }));
+    appDialogQueue = task.catch(() => {});
+    return task;
+}
+function appAlert(message: string): Promise<void> { return appDialogOpen('alert', message).then(() => {}); }
+function appConfirm(message: string): Promise<boolean> { return appDialogOpen('confirm', message); }
+function overlaysOpen() { return byId('drawer').classList.contains('on') || byId('helpBox').classList.contains('on') || !!maybeById('appDialog')?.classList.contains('on'); }
 function syncScrim() {
-    const open = overlaysOpen();
-    byId('scrim').classList.toggle('on', open);
+    const drawer = byId('drawer'), help = byId('helpBox'), dialog = maybeById('appDialog');
+    const dialogOn = !!dialog?.classList.contains('on'), helpOn = help.classList.contains('on'), drawerOn = drawer.classList.contains('on');
+    const open = dialogOn || helpOn || drawerOn;
+    byId('scrim').classList.toggle('on', drawerOn || helpOn);
     queryAllHtml(document, 'body > #skipLink, body > header, body > main, body > #dock, body > #bottomNav, body > #locale-load-error, body > details.osmd-lic, body > footer').forEach((el) => { el.inert = open; });
+    if (dialog) dialog.inert = !dialogOn;
+    help.inert = !helpOn || dialogOn;
+    drawer.inert = !drawerOn || helpOn || dialogOn;
 }
 // Closed overlays are only moved/faded out by CSS, so `inert` keeps their controls out of the Tab order;
 // opening moves focus inside, closing returns it to whatever opened the overlay.
@@ -19855,18 +19974,17 @@ function setOverlay(el: HTMLElement, o: boolean, firstId: string) {
     }
     el.classList.toggle('on', o);
     el.setAttribute('aria-hidden', o ? 'false' : 'true');
-    el.inert = !o;
     syncScrim();
     if (o && !was) {
         overlayReturn.set(el, document.activeElement);
         byId(firstId).focus();
-        requestAnimationFrame(() => { if (el.classList.contains('on'))
+        requestAnimationFrame(() => { if (el.classList.contains('on') && !el.inert)
             byId(firstId).focus(); });
     }
     else if (!o && was) {
         const r = overlayReturn.get(el);
         overlayReturn.delete(el);
-        if (!overlaysOpen() && hadFocus && r && r.isConnected && (r instanceof HTMLElement || r instanceof SVGElement) && r.getClientRects().length > 0)
+        if (hadFocus && r && r.isConnected && (r instanceof HTMLElement || r instanceof SVGElement) && r.getClientRects().length > 0 && !r.closest('[inert]'))
             r.focus();
     }
 }
@@ -20065,28 +20183,28 @@ function initControls() {
         input.value = '';
         if (!file || progressRestorePending || reloadingForRestore) return;
         if (file.size > MAX_PROGRESS_IMPORT_BYTES) {
-            alert(t('import_size'));
+            await appAlert(t('import_size'));
             return;
         }
         progressRestorePending = true;
         try {
             if (storeBackupBlocked()) {
-                alert(t('store_too_new'));
+                await appAlert(t('store_too_new'));
                 return;
             }
             const backup = parsePttV3(await file.text());
             if (backup && (storage.pttSchema(backup) > storage.PTT_SCHEMA || storage.hasFutureSightLedger(backup))) {
-                alert(t('import_too_new'));
+                await appAlert(t('import_too_new'));
                 return;
             }
             if (!storage.isImportableBackup(backup)) {
-                alert(t('import_bad'));
+                await appAlert(t('import_bad'));
                 return;
             }
-            if (confirm(t('import_confirm')))
+            if (await appConfirm(t('import_confirm')))
                 await storeApplyBackup(backup, 'before-import');
         }
-        catch (_) { alert(t('import_bad')); }
+        catch (_) { await appAlert(t('import_bad')); }
         finally { progressRestorePending = false; }
     });
     byId('set-diag').addEventListener('toggle', () => { if (byId('set-diag').hasAttribute('open'))
@@ -20410,12 +20528,20 @@ function initControls() {
         if (got) syncAfter(got);
     }); // another tab saved
     registerViewEvent('keydown', (e) => { if (e.key === 'Escape') {
+        if (appDialogClose) {
+            e.preventDefault();
+            appDialogClose(false);
+            return;
+        }
         if (closeMobileMenu(true)) {
             e.preventDefault();
             return;
         }
+        if (byId('helpBox').classList.contains('on')) {
+            openHelp(false);
+            return;
+        }
         openDrawer(false);
-        openHelp(false);
     } });
     let rz: ReturnType<typeof setTimeout> | null = null;
     let lastPortrait = window.innerHeight >= window.innerWidth;

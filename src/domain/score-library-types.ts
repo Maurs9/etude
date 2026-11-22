@@ -137,6 +137,8 @@ export interface LibraryHost {
   open(item: LibraryItem, file: File): Promise<boolean>;
   /** Flush the current piece's pending checkpoint before export or opening another piece. */
   flush(): Promise<void>;
+  /** Ask for user confirmation using the themed app dialog when available. */
+  confirm?(message: string): Promise<boolean>;
 }
 
 export interface LibraryController {

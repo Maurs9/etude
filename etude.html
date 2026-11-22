@@ -89,7 +89,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <hr class="rule" />
       <h2 class="eyebrow-sec" id="tools-h" data-i18n="today_tools">Other ways to practice</h2>
       <ul class="tools" id="tools" aria-labelledby="tools-h">
-        <li><button type="button" class="tool" data-view="analysis"><span class="tool-t" data-i18n="an_title">Score &amp; analysis</span><span class="tool-d" data-i18n="tool_analysis_d">Open a MIDI or MusicXML file and study its keys, chords and harmony.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
+        <li><button type="button" class="tool" data-view="analysis"><span class="tool-t" data-i18n="an_title">Pieces</span><span class="tool-d" data-i18n="tool_analysis_d">Open a MIDI or MusicXML file and study its keys, chords and harmony.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
         <li><button type="button" class="tool" data-view="read"><span class="tool-t" data-i18n="rd_title">Read &amp; play</span><span class="tool-d" data-i18n="tool_read_d">Learn short pieces from sheet music, step by step.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
         <li><button type="button" class="tool" data-view="sing"><span class="tool-t" data-i18n="nav_sing">Voice</span><span class="tool-d" data-i18n="tool_sing_d">Sight-sing a melody, or hum one and get the notes back.</span><span class="tool-go" aria-hidden="true">→</span></button></li>
       </ul>
@@ -174,15 +174,15 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <section class="rdn-card rdn-flash" id="rdn-w-flash" tabindex="-1" aria-labelledby="rdn-w-title" hidden></section>
       </div>
       <div class="rdx-tabs" id="rd-tabs" role="tablist" aria-label="Reading" data-i18n-aria="rdx_tabs_aria">
-        <button role="tab" id="rdt-drills" data-tab="drills" aria-selected="true" aria-controls="rdp-drills" tabindex="0"><span aria-hidden="true">🎯</span> <span data-i18n="rdx_tab_drills">Reading drills</span></button>
-        <button role="tab" id="rdt-pieces" data-tab="pieces" aria-selected="false" aria-controls="rdp-pieces" tabindex="-1"><span aria-hidden="true">🎼</span> <span data-i18n="rdx_tab_pieces">Sight-reading</span></button>
+        <button role="tab" id="rdt-drills" data-tab="drills" aria-selected="true" aria-controls="rdp-drills" tabindex="0"><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r=".9" fill="currentColor" stroke="none"/></svg> <span data-i18n="rdx_tab_drills">Reading drills</span></button>
+        <button role="tab" id="rdt-pieces" data-tab="pieces" aria-selected="false" aria-controls="rdp-pieces" tabindex="-1"><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 11.6V3.4l7-1.4v8.2"/><circle cx="4.8" cy="11.8" r="1.8"/><circle cx="11.8" cy="10.4" r="1.8"/></svg> <span data-i18n="rdx_tab_pieces">Sight-reading</span></button>
       </div>
       <div id="rdp-drills" role="tabpanel" aria-labelledby="rdt-drills">
         <div id="rdx-home">
           <div class="panel rdx-hero" id="rdx-hero"></div>
           <div id="rdx-ladder" class="rdx-ladder"></div>
           <details id="rdx-custom" class="panel rdx-custom">
-            <summary><span aria-hidden="true">⚙</span> <span data-i18n="rdx_custom">Custom drill</span> <small data-i18n="rdx_custom_d">Pick your own clef, range, accidentals and key signatures</small></summary>
+            <summary><svg class="rdx-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h3M8.5 11.5h5"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="7" cy="11.5" r="1.5"/></svg> <span data-i18n="rdx_custom">Custom drill</span> <small data-i18n="rdx_custom_d">Pick your own clef, range, accidentals and key signatures</small></summary>
             <div class="row" style="margin-top:12px">
               <label class="field"><span data-i18n="rdx_c_type">Drill</span> <select id="rdx-c-ty"><option value="name" data-i18n="rdx_ty_name">Name the note</option><option value="play" data-i18n="rdx_ty_play">Play the note</option><option value="k2s" data-i18n="rdx_ty_k2s">Key → staff</option></select></label>
               <label class="field"><span data-i18n="rdx_c_clef">Clef</span> <select id="rdx-c-clef"><option value="treble" data-i18n="rdx_clef_treble">Treble clef</option><option value="bass" data-i18n="rdx_clef_bass">Bass clef</option><option value="grand" data-i18n="rdx_clef_grand">Grand staff</option><option value="alto" data-i18n="rdx_clef_alto">Alto clef</option><option value="tenor" data-i18n="rdx_clef_tenor">Tenor clef</option></select></label>
@@ -319,9 +319,11 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
             <button type="button" class="btn tb-b" id="pr-opt" aria-expanded="false" aria-controls="an-pt"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r=".6" fill="currentColor"/></svg></button>
           </div>
           <span class="tb-sep tb-sep-sheet" aria-hidden="true"></span>
+          <div class="tb-g tb-sheet" role="group" aria-label="Score appearance" data-i18n-aria="sc_look">
           <div class="an-zoom" role="group" aria-label="Zoom" data-i18n-aria="sc_zoom"><button type="button" id="sc-zoom-out" aria-label="Zoom out (−)" data-i18n-aria="sc_zoom_out" data-i18n-title="sc_zoom_out" title="Zoom out (−)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8h9"/></svg></button><button type="button" id="sc-fit" data-i18n-aria="score_fit" data-i18n-title="score_fit" aria-label="Fit width" title="Fit width"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3v10M14 3v10M4 8h8M6 6 4 8l2 2M10 6l2 2-2 2"/></svg></button><button type="button" id="sc-zoom-reset" class="an-zoom-val">100%</button><button type="button" id="sc-zoom-in" aria-label="Zoom in (+)" data-i18n-aria="sc_zoom_in" data-i18n-title="sc_zoom_in" title="Zoom in (+)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9"/></svg></button></div>
           <div class="seg tb-seg" id="sc-look" role="group" aria-label="Score appearance" data-i18n-aria="sc_look"><button type="button" data-v="paper" aria-pressed="true" aria-label="Paper" data-i18n-aria="sc_paper" data-i18n-title="sc_paper_t" title="Paper"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.6v1.5M8 12.9v1.5M1.6 8h1.5M12.9 8h1.5M3.5 3.5l1 1M11.5 11.5l1 1M3.5 12.5l1-1M11.5 4.5l1-1"/></svg></button><button type="button" data-v="night" aria-pressed="false" aria-label="Night" data-i18n-aria="sc_night" data-i18n-title="sc_night_t" title="Night"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M13.2 9.9A5.6 5.6 0 0 1 6.1 2.8a5.6 5.6 0 1 0 7.1 7.1z"/></svg></button></div>
           <button type="button" class="btn tb-b" id="sc-hl" aria-pressed="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><ellipse cx="8" cy="11.4" rx="3.1" ry="2.25" transform="rotate(-20 8 11.4)" fill="currentColor" stroke="none"/><path d="M8 2.1v2.3M3.3 4.2l1.5 1.6M12.7 4.2l-1.5 1.6M1.5 8.7h2M12.5 8.7h2"/></svg><span class="tb-hl-label" data-i18n="sc_hl_short">Highlight</span></button>
+          </div>
           <div class="tb-end">
             <button type="button" class="btn tb-b" id="fall-opt" aria-expanded="false" aria-controls="fall-pop" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.6 6.5-4.6S14.5 8 14.5 8s-2.4 4.6-6.5 4.6S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2.2"/></svg><span class="lbl" data-i18n="fall_disp">Display</span></button>
             <button type="button" class="btn tb-b" id="an-kb" data-core aria-expanded="false" aria-controls="dock-keys" aria-label="Keyboard" data-i18n-aria="an_kb"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="1.6"/><path d="M5.8 8.6V13M10.2 8.6V13"/><rect x="4.7" y="3" width="2.2" height="5.6" rx=".4" fill="currentColor" stroke="none"/><rect x="9.1" y="3" width="2.2" height="5.6" rx=".4" fill="currentColor" stroke="none"/></svg><span class="tb-kb-label" data-i18n="an_kb">Keyboard</span></button>
@@ -741,16 +743,16 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <h2 id="helpTitle" data-i18n="help_title">Shortcuts &amp; input</h2>
   <p class="lede" data-i18n="help_sub">Everything works with mouse, touch, computer keys or a MIDI keyboard.</p>
   <div class="hk"><kbd data-i18n="hk_mouse_k">Click / drag</kbd><span data-i18n="hk_mouse">Play the on-screen keys — drag for glissando</span></div>
-  <div class="hk"><kbd data-codes="KeyA KeyS KeyD KeyF KeyG KeyH KeyJ KeyK">A S D F G H J K</kbd><span data-i18n="hk_keys">Play white notes from your computer keyboard</span></div>
-  <div class="hk"><kbd data-codes="KeyW KeyE KeyT KeyY KeyU">W E T Y U</kbd><span data-i18n="hk_black">Play the black notes in between</span></div>
-  <div class="hk"><kbd data-codes="KeyZ KeyX" data-sep=" / ">Z / X</kbd><span data-i18n="hk_oct">Shift the typing octave down / up</span></div>
-  <div class="hk"><kbd>1–9</kbd><span data-i18n="hk_digits">Pick an answer in a session</span></div>
-  <div class="hk"><kbd>R</kbd><span data-i18n="hk_r">Hear the question again</span></div>
-  <div class="hk"><kbd>N</kbd><span data-i18n="hk_n">Next question</span></div>
-  <div class="hk"><kbd>Esc</kbd><span data-i18n="hk_esc">Close dialogs</span></div>
-  <div class="hk"><kbd data-i18n="hk_score_k">Space · Home · Esc · + / −</kbd><span data-i18n="hk_score">Score: play/pause · go to start · clear selection · zoom</span></div>
-  <div class="hk"><kbd>?</kbd><span data-i18n="hk_help">Open this help</span></div>
-  <div class="hk"><kbd>F / J</kbd><span data-i18n="hk_fj">Two-hand rhythm drills: left / right hand (Space = right)</span></div>
+  <div class="hk ctx-kbd"><kbd data-codes="KeyA KeyS KeyD KeyF KeyG KeyH KeyJ KeyK">A S D F G H J K</kbd><span data-i18n="hk_keys">Play white notes from your computer keyboard</span></div>
+  <div class="hk ctx-kbd"><kbd data-codes="KeyW KeyE KeyT KeyY KeyU">W E T Y U</kbd><span data-i18n="hk_black">Play the black notes in between</span></div>
+  <div class="hk ctx-kbd"><kbd data-codes="KeyZ KeyX" data-sep=" / ">Z / X</kbd><span data-i18n="hk_oct">Shift the typing octave down / up</span></div>
+  <div class="hk ctx-kbd"><kbd>1–9</kbd><span data-i18n="hk_digits">Pick an answer in a session</span></div>
+  <div class="hk ctx-kbd"><kbd>R</kbd><span data-i18n="hk_r">Hear the question again</span></div>
+  <div class="hk ctx-kbd"><kbd>N</kbd><span data-i18n="hk_n">Next question</span></div>
+  <div class="hk ctx-kbd"><kbd>Esc</kbd><span data-i18n="hk_esc">Close dialogs</span></div>
+  <div class="hk ctx-kbd"><kbd data-i18n="hk_score_k">Space · Home · Esc · + / −</kbd><span data-i18n="hk_score">Score: play/pause · go to start · clear selection · zoom</span></div>
+  <div class="hk ctx-kbd"><kbd>?</kbd><span data-i18n="hk_help">Open this help</span></div>
+  <div class="hk ctx-kbd"><kbd>F / J</kbd><span data-i18n="hk_fj">Two-hand rhythm drills: left / right hand (Space = right)</span></div>
   <div class="hk"><kbd>MIDI</kbd><span data-i18n="hk_midi">Sustain pedal, pitch bend &amp; mod wheel supported</span></div>
   <div class="hk"><kbd>BLE</kbd><span data-i18n="hk_ble">Bluetooth MIDI pianos connect from Settings (Chrome / Edge on Android)</span></div>
 </div>
@@ -773,8 +775,8 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="set-row"><div class="seg" id="set-theme" role="group" aria-label="Theme" data-i18n-aria="aria_theme"><button data-v="auto" data-i18n="theme_auto" aria-pressed="true">Auto</button><button data-v="light" data-i18n="theme_light" aria-pressed="false">Light</button><button data-v="dark" data-i18n="theme_dark" aria-pressed="false">Dark</button></div></div>
     </div>
 
-    <div class="set-group">
-      <h3 data-i18n="set_midi">MIDI keyboard</h3>
+    <details class="set-group set-acc" open>
+      <summary class="set-acc-h"><h3 data-i18n="set_midi">MIDI keyboard</h3></summary>
       <div class="set-row"><div class="lab"><span data-i18n="set_device">Device</span> <small id="set-midi-status">Not connected</small></div>
         <button class="btn sm" id="set-connect" data-i18n="set_connect">Connect</button></div>
       <div class="set-row"><label class="lab" for="deviceSelect" data-i18n="set_input">Input</label><select id="deviceSelect"><option>—</option></select></div>
@@ -790,14 +792,14 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <p class="lat-result" id="lat-result" role="status" aria-live="polite"></p>
         <span class="set-btns"><button class="btn sm ghost" id="lat-reset" data-i18n="lat_reset">Reset</button><button class="btn sm" id="lat-go" data-i18n="lat_start">Start</button></span>
       </div>
-    </div>
+    </details>
 
-    <div class="set-group">
-      <h3 data-i18n="set_app">App &amp; screen</h3>
+    <details class="set-group set-acc" open>
+      <summary class="set-acc-h"><h3 data-i18n="set_app">App &amp; screen</h3></summary>
       <div class="set-row"><label class="switch"><input type="checkbox" id="set-wake"><span class="track"></span></label><label class="lab" for="set-wake"><span data-i18n="set_wake">Keep the screen on</span> <small id="set-wake-status" role="status" aria-live="polite"></small></label></div>
       <div class="set-row"><div class="lab"><span data-i18n="set_full">Full screen</span> <small data-i18n="set_full_s">hide the browser bars on a tablet</small></div><button class="btn sm" id="set-full" data-i18n="full_enter">Enter</button></div>
       <div class="set-row"><div class="lab"><span data-i18n="set_install">Install as an app</span> <small id="set-pwa-status" role="status" aria-live="polite"></small></div><button class="btn sm" type="button" id="set-pwa-retry" data-i18n="rdn_retry" hidden>Retry</button><button class="btn sm" id="set-install" data-i18n="install_btn" hidden>Install</button></div>
-    </div>
+    </details>
 
     <div class="set-group">
       <h3 data-i18n="set_notation">Notation</h3>
@@ -819,8 +821,8 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="set-row"><label class="switch"><input type="checkbox" id="set-drone"><span class="track"></span></label><label class="lab" for="set-drone" data-i18n="set_drone">Drone on scale practice</label></div>
     </div>
 
-    <div class="set-group">
-      <h3 data-i18n="set_learning">Learning</h3>
+    <details class="set-group set-acc" open>
+      <summary class="set-acc-h"><h3 data-i18n="set_learning">Learning</h3></summary>
       <div class="set-row"><label class="lab" for="set-goal" data-i18n="set_sessionlen">Session length</label>
         <select id="set-goal"><option value="8">8</option><option value="12" selected>12</option><option value="16">16</option><option value="24">24</option></select></div>
       <div class="set-row"><label class="lab" for="set-new"><span data-i18n="set_newperday">New per day</span> <small data-i18n="set_newperday_s">fresh concepts introduced daily</small></label>
@@ -829,10 +831,10 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="set-row"><label class="switch"><input type="checkbox" id="set-metronome"><span class="track"></span></label><label class="lab" for="set-metronome" data-i18n="set_metronome">Metronome during scale practice</label></div>
       <div class="set-row"><label class="switch"><input type="checkbox" id="set-weak-inject"><span class="track"></span></label><label class="lab" for="set-weak-inject" data-i18n="set_weak_inject">Smart weak-spot injection</label></div>
       <div class="set-row"><label class="switch"><input type="checkbox" id="set-any-octave"><span class="track"></span></label><label class="lab" for="set-any-octave"><span data-i18n="set_any_octave">Accept any octave</span> <small data-i18n="set_any_octave_s">in sight-reading pieces</small></label></div>
-    </div>
+    </details>
 
-    <div class="set-group">
-      <h3 data-i18n="set_data">Your data</h3>
+    <details class="set-group set-acc" open>
+      <summary class="set-acc-h"><h3 data-i18n="set_data">Your data</h3></summary>
       <div class="set-row"><div class="lab"><span data-i18n="set_storage">Storage on this device</span> <small id="set-storage-status"></small></div></div>
       <div class="set-row"><div class="lab"><span data-i18n="set_backup">Backup</span> <small data-i18n="set_backup_s">progress, settings &amp; history as a file</small> <small class="backup-age" id="set-backup-age"></small></div>
         <span class="set-btns"><button class="btn sm" id="exportBtn" data-i18n="set_export">Export</button><button class="btn sm ghost" id="importBtn" data-i18n="set_import">Import</button></span></div>
@@ -843,13 +845,24 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <p class="lede set-diag-s" data-i18n="set_diag_s">What to check when something doesn't work: app version, storage, backups, MIDI and audio.</p>
         <pre id="set-diag-out"></pre>
         <button class="btn sm ghost" id="set-diag-copy" data-i18n="set_diag_copy">Copy</button></details>
-    </div>
+    </details>
 
-    <div class="set-group">
-      <h3 data-i18n="set_about">About</h3>
+    <details class="set-group set-acc" open>
+      <summary class="set-acc-h"><h3 data-i18n="set_about">About</h3></summary>
       <p class="lede set-diag-s" data-i18n="set_about_txt">Étude uses evidence-based methods: spaced repetition, retrieval practice, interleaving, and immediate feedback. Practice a little, often.</p>
       <p class="lede set-note">Piano: <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noopener">Salamander Grand Piano v3 — Alexander Holm</a> · <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. MP3: <a href="https://github.com/Tonejs/audio/tree/master/salamander" target="_blank" rel="noopener">Tone.js</a>. <span data-i18n="piano_adapted">Recordings embedded; pitch, dynamics and release adapted during playback.</span></p>
-    </div>
+    </details>
+  </div>
+</div>
+
+<!-- themed confirmation / notice dialog (replaces native alert/confirm) -->
+<div class="app-dialog-scrim" id="appDialogScrim"></div>
+<div class="app-dialog" id="appDialog" role="alertdialog" aria-modal="true" aria-hidden="true" aria-labelledby="appDialogTitle" aria-describedby="appDialogMsg" inert>
+  <h2 id="appDialogTitle"></h2>
+  <p class="app-dialog-msg" id="appDialogMsg"></p>
+  <div class="app-dialog-actions">
+    <button type="button" class="btn sm ghost" id="appDialogCancel"></button>
+    <button type="button" class="btn sm primary" id="appDialogOk"></button>
   </div>
 </div>
 
@@ -879,7 +892,7 @@ Bundled third-party components inside the OpenSheetMusicDisplay distribution (MI
   const show=(failed=false)=>{if(booted||shown||(!failed&&(document.documentElement.hasAttribute('data-locale-pending')||document.documentElement.hasAttribute('data-app-pending'))))return; shown=true;
     const ro=/^ro\b/i.test(navigator.language||'');
     const box=document.createElement('div'); box.setAttribute('role','alert');
-    box.style.cssText='position:fixed;inset:16px;z-index:9999;padding:24px;border:2px solid #8c2b2b;border-radius:12px;background:#fffdf8;color:#1a1714;font:600 16px/1.5 sans-serif;box-shadow:0 12px 40px #0004';
+    box.style.cssText='position:fixed;inset:16px;z-index:9999;padding:24px;border:2px solid var(--accent,#8c2b2b);border-radius:12px;background:var(--card,#fffdf8);color:var(--ink,#1a1714);font:600 16px/1.5 var(--sans,sans-serif);box-shadow:0 12px 40px #0004';
     const message=ro?'Étude nu a putut porni. Reîncarcă pagina.':'Étude could not start. Reload the page.';
     box.innerHTML='<p style="margin:0 0 12px">'+message+'</p><button type="button" style="font:inherit;padding:8px 14px">'+(ro?'Reîncarcă':'Reload')+'</button>';
     box.querySelector('button').addEventListener('click',()=>location.reload()); document.body.append(box);

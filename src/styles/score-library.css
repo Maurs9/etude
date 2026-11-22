@@ -13,6 +13,13 @@
 #score-library p { margin: 4px 0; }
 #score-library .score-library-note { color: var(--muted); font-size: .875rem; }
 #score-library .score-library-note:empty { display: none; }
+#score-library .score-library-empty {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 12px 14px; margin: 8px 0 12px;
+  border: 1px dashed var(--line); border-radius: 10px;
+  background: color-mix(in srgb, var(--paper) 45%, var(--card));
+}
+#score-library .score-library-empty p { margin: 0; }
 #score-library .score-library-toolbar {
   display: flex; flex-direction: column; gap: 10px; margin: 12px 0 8px;
 }
