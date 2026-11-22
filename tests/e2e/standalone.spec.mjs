@@ -18,7 +18,7 @@ test('the single-file build boots over file://', async ({ page }) => {
   await page.locator('#nav [data-view=practice]').click();
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-songs summary').click();
-  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(25);
+  await expect(page.locator('#practiceHintsList [data-hint-pick]')).toHaveCount(25);
   expect(errors).toEqual([]);
   expect(external).toEqual([]);
 });

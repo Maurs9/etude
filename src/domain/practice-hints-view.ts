@@ -1,6 +1,7 @@
 import {
-  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS,
-  chordHintInversionCount, chordHintTones, chordSingleSteps, melodyHintExample, progressionHintChords, progressionHintSteps,
+  CHORD_HINTS, CHORD_HINT_FAMILIES, SCALE_HINTS, SCALE_HINT_FAMILIES, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS,
+  chordHintInversionCount, chordHintTones, chordSingleSteps, defaultCompareChord, defaultCompareScale, hintPitchClassDiff,
+  melodyHintExample, progressionHintChords, progressionHintSteps,
   scaleHintFormula, scaleHintTones, scaleSingleSteps, techniqueHintSteps, techniqueHintTonic,
   type PracticeHintDiagram,
 } from './practice-hints.js';
@@ -62,7 +63,8 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     : topic === 'technique'
       ? text('pr_hints_tonic_groups')
       : text('pr_hints_tonic_default', rootName(0));
-  contents.append(element('p', 'pr-hints-context', contextLabel));
+  const contextBadge = element('p', 'pr-hints-context', contextLabel);
+  if (topic !== 'chord' && topic !== 'scale') contents.append(contextBadge);
 
   const appendGroup = (label: string) => {
     const section = element('section', 'pr-chord-group');
@@ -103,116 +105,247 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     studyToggles.set(hint, setOpen);
     setOpen(options.study.open[kind] === hint);
   }
-  box.classList.toggle('pr-chord-groups', topic !== 'melody');
-  if (topic === 'chord') {
-    const groups = new Map([['maj', 'triads'], ['6', 'sixths_sevenths'], ['add9', 'extensions']]);
-    let grid = element('div', 'pr-hint-grid');
-    for (const hint of CHORD_HINTS) {
-      const group = groups.get(hint.symbol);
-      if (group) grid = appendGroup(text(`pr_hints_chord_group_${group}`));
-      const id = `chord:${hint.symbol}`;
-      const invCount = chordHintInversionCount(hint.symbol);
-      let currentInv = Math.max(0, Math.min(options.study.inversions.get(hint.symbol) ?? 0, invCount - 1));
-      const rootTones = chordHintTones(hint.symbol, tonic, 0);
-      const tonicName = spell(rootTones[0].li, rootTones[0].acc);
-      const symbolName = tonicName + (hint.symbol === 'maj' ? '' : hint.symbol);
-      const title = `${symbolName} · ${chordName(hint.symbol)}`;
-      const voicings = Array.from({ length: invCount }, (_, inv) => ({
-        symbol: `${hint.symbol}:${inv}`,
-        title: inv === 0 ? symbolName : `${symbolName} (${text(`pr_hints_inv_${inv}`)})`,
-        tones: inv === 0 ? rootTones : chordHintTones(hint.symbol, tonic, inv),
-      }));
-      const diagrams = createChordHintDiagrams(voicings, currentInv, spell, text);
-      const visuals = element('div', 'pr-hint-stage pr-chord-visuals');
-      const staves = element('div', 'pr-chord-staves');
-      for (const { clef, svg } of diagrams.staves) {
-        const staff = element('div', 'pr-chord-staff-block');
-        staff.append(element('p', 'pr-chord-clef-label', text(`rdx_clef_${clef}`)), svg);
-        staves.append(staff);
+  const buildChordCard = (symbol: string, slot?: 'a' | 'b') => {
+    const id = `chord:${symbol}`;
+    const invCount = chordHintInversionCount(symbol);
+    let currentInv = Math.max(0, Math.min(options.study.inversions.get(symbol) ?? 0, invCount - 1));
+    const rootTones = chordHintTones(symbol, tonic, 0);
+    const tonicName = spell(rootTones[0].li, rootTones[0].acc);
+    const symbolName = tonicName + (symbol === 'maj' ? '' : symbol);
+    const title = `${symbolName} · ${chordName(symbol)}`;
+    const voicings = Array.from({ length: invCount }, (_, inv) => ({
+      symbol: `${symbol}:${inv}`,
+      title: inv === 0 ? symbolName : `${symbolName} (${text(`pr_hints_inv_${inv}`)})`,
+      tones: inv === 0 ? rootTones : chordHintTones(symbol, tonic, inv),
+    }));
+    const diagrams = createChordHintDiagrams(voicings, currentInv, spell, text);
+    const visuals = element('div', 'pr-hint-stage pr-chord-visuals');
+    const staves = element('div', 'pr-chord-staves');
+    for (const { clef, svg } of diagrams.staves) {
+      const staff = element('div', 'pr-chord-staff-block');
+      staff.append(element('p', 'pr-chord-clef-label', text(`rdx_clef_${clef}`)), svg);
+      staves.append(staff);
+    }
+    visuals.append(diagrams.keyboard, staves);
+    const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
+      () => play(id, chordSingleSteps(symbol, tonic, currentInv), false, diagrams, `${id}:hear`));
+    const el = buildCard(symbol, title, rootTones.map(tone => tone.label).join(' '), playBtn, visuals);
+    el.classList.add('pr-chord-card', 'pr-studio-card');
+    if (slot) el.dataset.slot = slot;
+    el.append(diagrams.caption);
+    const foot = element('div', 'pr-hint-foot');
+    foot.append(segmentedControl(
+      `${text('pr_hints_inv_group')} — ${title}`,
+      Array.from({ length: invCount }, (_, inv) => ({
+        value: inv,
+        id: `${id}:inv:${inv}`,
+        label: text(`pr_hints_inv_${inv}`),
+        ariaLabel: `${text(`pr_hints_inv_${inv}_full`)} — ${title}`,
+      })),
+      currentInv,
+      inv => {
+        if (currentInv === inv) return;
+        options.stop();
+        currentInv = inv;
+        options.study.inversions.set(symbol, inv);
+        diagrams.setInversion(inv);
+      },
+    ));
+    el.append(foot);
+    return el;
+  };
+
+  const buildScaleCard = (name: string, slot?: 'a' | 'b') => {
+    const hint = SCALE_HINTS.find(item => item.name === name) ?? SCALE_HINTS[0];
+    const title = `${rootName(tonic)} · ${scaleName(hint.name)}`;
+    const id = `scale:${hint.name}`;
+    let currentHand: TechniqueHand = options.study.scaleHands.get(hint.name) ?? 'rh';
+    const baseTones = scaleHintTones(hint.name, tonic);
+    const names = baseTones.map(tone => spell(tone.li, tone.acc)).join(' · ');
+    const keyboard = createHintKeyboard(baseTones[0].midi, baseTones.map(tone => tone.midi));
+    const visuals = element('div', 'pr-hint-stage pr-hint-visuals');
+    visuals.append(keyboard.svg);
+    const caption = element('p', 'pr-hint-detail pr-chord-caption', names);
+    const drawScale = (hand: TechniqueHand) => {
+      const fingered = scaleHintTones(hint.name, tonic, hand);
+      const label = text('pr_hints_chord_keyboard', `${scaleName(hint.name)} · ${text(`tq_h_${hand}`)}`, names);
+      keyboard.draw(fingered, label);
+    };
+    drawScale(currentHand);
+    const diagram: PracticeHintDiagram = {
+      followWithoutDock: true,
+      paint(_rawKey, sounding = []) {
+        keyboard.paint(new Set(sounding.map(note => note.midi)));
+      },
+    };
+    const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
+      () => play(id, scaleSingleSteps(hint.name, tonic), false, diagram, `${id}:hear`));
+    const el = buildCard(hint.name, title, scaleHintFormula(hint), playBtn, visuals);
+    el.classList.add('pr-scale-card', 'pr-studio-card');
+    if (slot) el.dataset.slot = slot;
+    el.append(caption);
+    const foot = element('div', 'pr-hint-foot');
+    foot.append(segmentedControl(
+      `${text('pr_hints_hand_group')} — ${title}`,
+      (['rh', 'lh'] as const).map(hand => ({
+        value: hand,
+        id: `${id}:hand:${hand}`,
+        label: text(`pr_hints_hand_${hand}_short`),
+        ariaLabel: `${text(`tq_h_${hand}`)} — ${title}`,
+      })),
+      currentHand,
+      hand => {
+        if (currentHand === hand) return;
+        options.stop();
+        currentHand = hand;
+        options.study.scaleHands.set(hint.name, hand);
+        drawScale(hand);
+      },
+    ));
+    el.append(foot);
+    return el;
+  };
+
+  const renderStudio = (kind: 'chord' | 'scale') => {
+    const state = options.study.studio[kind];
+    const validIds = new Set(kind === 'chord' ? CHORD_HINTS.map(h => h.symbol) : SCALE_HINTS.map(h => h.name));
+    const fallbackId = kind === 'chord' ? 'maj' : 'Major (Ionian)';
+    if (!validIds.has(state.selected)) state.selected = fallbackId;
+    if (state.compare !== null && (!validIds.has(state.compare) || state.compare === state.selected)) state.compare = null;
+    const comparing = state.compare !== null;
+    const rerender = () => renderPracticeHintCards(box, topic, options);
+
+    const topBar = element('div', 'pr-studio-top');
+    const compareBtn = document.createElement('button');
+    compareBtn.type = 'button';
+    compareBtn.className = 'btn sm pr-studio-compare-btn';
+    compareBtn.dataset.hintControl = `${kind}:compare`;
+    compareBtn.setAttribute('aria-pressed', String(comparing));
+    compareBtn.textContent = text(comparing ? 'pr_hints_compare_stop' : 'pr_hints_compare_toggle');
+    compareBtn.addEventListener('click', () => {
+      options.stop();
+      if (state.compare !== null) {
+        state.compare = null;
+        state.activeSlot = 'a';
+      } else {
+        state.compare = kind === 'chord' ? defaultCompareChord(state.selected) : defaultCompareScale(state.selected);
+        state.activeSlot = 'b';
       }
-      visuals.append(diagrams.keyboard, staves);
-      const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
-        () => play(id, chordSingleSteps(hint.symbol, tonic, currentInv), false, diagrams, `${id}:hear`));
-      const el = buildCard(hint.symbol, title, rootTones.map(tone => tone.label).join(' '), playBtn, visuals);
-      el.classList.add('pr-chord-card');
-      el.append(diagrams.caption);
-      const foot = element('div', 'pr-hint-foot');
-      foot.append(segmentedControl(
-        `${text('pr_hints_inv_group')} — ${title}`,
-        Array.from({ length: invCount }, (_, inv) => ({
-          value: inv,
-          id: `${id}:inv:${inv}`,
-          label: text(`pr_hints_inv_${inv}`),
-          ariaLabel: `${text(`pr_hints_inv_${inv}_full`)} — ${title}`,
-        })),
-        currentInv,
-        inv => {
-          if (currentInv === inv) return;
+      rerender();
+    });
+    topBar.append(contextBadge, compareBtn);
+    contents.append(topBar);
+
+    const picker = element('div', 'pr-studio-picker');
+    const families = kind === 'chord'
+      ? CHORD_HINT_FAMILIES.map(f => ({ id: f.id, label: text(`pr_hints_chord_family_${f.id}`), items: f.symbols }))
+      : SCALE_HINT_FAMILIES.map(f => ({ id: f.id, label: text(`pr_hints_scale_family_${f.id}`), items: f.names }));
+    const tonicStr = rootName(tonic);
+    for (const family of families) {
+      const section = element('section', 'pr-studio-family');
+      section.append(element('h2', 'pr-chord-group-title', family.label));
+      const chips = element('div', 'pr-studio-chips');
+      for (const itemId of family.items) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'pr-studio-chip';
+        chip.dataset.hintPick = itemId;
+        chip.dataset.hintControl = `pick:${kind}:${itemId}`;
+        const slot = itemId === state.selected ? 'a' : (itemId === state.compare ? 'b' : undefined);
+        chip.setAttribute('aria-pressed', String(slot !== undefined));
+        if (slot) chip.dataset.slot = slot;
+        const shortLabel = kind === 'chord' ? tonicStr + (itemId === 'maj' ? '' : itemId) : scaleName(itemId);
+        const fullLabel = kind === 'chord' ? `${shortLabel} · ${chordName(itemId)}` : `${tonicStr} · ${shortLabel}`;
+        chip.textContent = shortLabel;
+        if (comparing && slot) {
+          const badge = element('span', 'pr-studio-chip-slot', slot.toUpperCase());
+          badge.setAttribute('aria-hidden', 'true');
+          chip.append(badge);
+        }
+        chip.setAttribute('aria-label', fullLabel);
+        chip.title = fullLabel;
+        chip.addEventListener('click', () => {
           options.stop();
-          currentInv = inv;
-          options.study.inversions.set(hint.symbol, inv);
-          diagrams.setInversion(inv);
-        },
-      ));
-      el.append(foot);
-      grid.append(el);
+          if (!comparing) {
+            state.selected = itemId;
+          } else if (state.activeSlot === 'a') {
+            if (itemId === state.compare) {
+              state.compare = state.selected;
+              state.selected = itemId;
+            } else {
+              state.selected = itemId;
+            }
+          } else if (itemId === state.selected) {
+            state.selected = state.compare ?? itemId;
+            state.compare = itemId;
+          } else {
+            state.compare = itemId;
+          }
+          rerender();
+        });
+        chips.append(chip);
+      }
+      section.append(chips);
+      picker.append(section);
     }
-  } else if (topic === 'scale') {
-    const groups = new Map([
-      ['Major (Ionian)', 'diatonic'], ['Harmonic minor', 'altered'],
-      ['Major pentatonic', 'pentatonic'], ['Whole tone', 'symmetric'],
-    ]);
-    let grid = element('div', 'pr-hint-grid');
-    for (const hint of SCALE_HINTS) {
-      const group = groups.get(hint.name);
-      if (group) grid = appendGroup(text(`pr_hints_scale_group_${group}`));
-      const title = `${rootName(tonic)} · ${scaleName(hint.name)}`;
-      const id = `scale:${hint.name}`;
-      let currentHand: TechniqueHand = options.study.scaleHands.get(hint.name) ?? 'rh';
-      const baseTones = scaleHintTones(hint.name, tonic);
-      const names = baseTones.map(tone => spell(tone.li, tone.acc)).join(' · ');
-      const keyboard = createHintKeyboard(baseTones[0].midi, baseTones.map(tone => tone.midi));
-      const visuals = element('div', 'pr-hint-stage pr-hint-visuals');
-      visuals.append(keyboard.svg);
-      const caption = element('p', 'pr-hint-detail pr-chord-caption', names);
-      const drawScale = (hand: TechniqueHand) => {
-        const fingered = scaleHintTones(hint.name, tonic, hand);
-        const label = text('pr_hints_chord_keyboard', `${scaleName(hint.name)} · ${text(`tq_h_${hand}`)}`, names);
-        keyboard.draw(fingered, label);
-      };
-      drawScale(currentHand);
-      const diagram: PracticeHintDiagram = {
-        followWithoutDock: true,
-        paint(_rawKey, sounding = []) {
-          keyboard.paint(new Set(sounding.map(note => note.midi)));
-        },
-      };
-      const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
-        () => play(id, scaleSingleSteps(hint.name, tonic), false, diagram, `${id}:hear`));
-      const el = buildCard(hint.name, title, scaleHintFormula(hint), playBtn, visuals);
-      el.classList.add('pr-scale-card');
-      el.append(caption);
-      const foot = element('div', 'pr-hint-foot');
-      foot.append(segmentedControl(
-        `${text('pr_hints_hand_group')} — ${title}`,
-        (['rh', 'lh'] as const).map(hand => ({
-          value: hand,
-          id: `${id}:hand:${hand}`,
-          label: text(`pr_hints_hand_${hand}_short`),
-          ariaLabel: `${text(`tq_h_${hand}`)} — ${title}`,
-        })),
-        currentHand,
-        hand => {
-          if (currentHand === hand) return;
+    contents.append(picker);
+
+    const stage = element('div', 'pr-studio-stage');
+    stage.dataset.compare = String(comparing);
+    const attachSlotBar = (card: HTMLElement, slot: 'a' | 'b') => {
+      const bar = element('div', 'pr-studio-slot-bar');
+      const slotBtn = document.createElement('button');
+      slotBtn.type = 'button';
+      slotBtn.className = 'pr-studio-slot-btn';
+      slotBtn.dataset.hintControl = `${kind}:slot:${slot}`;
+      slotBtn.setAttribute('aria-pressed', String(state.activeSlot === slot));
+      slotBtn.textContent = slot.toUpperCase();
+      slotBtn.setAttribute('aria-label', text('pr_hints_compare_slot', slot.toUpperCase()));
+      slotBtn.addEventListener('click', () => {
+        state.activeSlot = slot;
+        rerender();
+      });
+      bar.append(slotBtn);
+      if (slot === 'b') {
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'pr-studio-slot-close';
+        closeBtn.dataset.hintControl = `${kind}:compare:close`;
+        closeBtn.textContent = '×';
+        closeBtn.setAttribute('aria-label', text('pr_hints_compare_stop'));
+        closeBtn.title = text('pr_hints_compare_stop');
+        closeBtn.addEventListener('click', () => {
           options.stop();
-          currentHand = hand;
-          options.study.scaleHands.set(hint.name, hand);
-          drawScale(hand);
-        },
-      ));
-      el.append(foot);
-      grid.append(el);
+          state.compare = null;
+          state.activeSlot = 'a';
+          rerender();
+        });
+        bar.append(closeBtn);
+      }
+      card.prepend(bar);
+    };
+
+    const cardA = kind === 'chord' ? buildChordCard(state.selected, comparing ? 'a' : undefined) : buildScaleCard(state.selected, comparing ? 'a' : undefined);
+    if (comparing) attachSlotBar(cardA, 'a');
+    stage.append(cardA);
+    if (comparing && state.compare !== null) {
+      const cardB = kind === 'chord' ? buildChordCard(state.compare, 'b') : buildScaleCard(state.compare, 'b');
+      attachSlotBar(cardB, 'b');
+      stage.append(cardB);
+      const tonesA = kind === 'chord' ? chordHintTones(state.selected, tonic, 0) : scaleHintTones(state.selected, tonic);
+      const tonesB = kind === 'chord' ? chordHintTones(state.compare, tonic, 0) : scaleHintTones(state.compare, tonic);
+      const { onlyA, onlyB } = hintPitchClassDiff(tonesA, tonesB);
+      const diffParts: string[] = [];
+      if (onlyA.length) diffParts.push(text('pr_hints_compare_diff', 'A', onlyA.map(n => spell(n.li, n.acc)).join(' · ')));
+      if (onlyB.length) diffParts.push(text('pr_hints_compare_diff', 'B', onlyB.map(n => spell(n.li, n.acc)).join(' · ')));
+      stage.append(element('p', 'pr-studio-diff', diffParts.length ? diffParts.join('  |  ') : text('pr_hints_compare_same')));
     }
+    contents.append(stage);
+  };
+
+  box.classList.toggle('pr-chord-groups', topic !== 'melody');
+  if (topic === 'chord' || topic === 'scale') {
+    renderStudio(topic);
   } else if (topic === 'prog') {
     const groups = new Map([['three', 'cadences'], ['pop', 'popular'], ['blues', 'forms']]);
     let grid = element('div', 'pr-hint-grid');
