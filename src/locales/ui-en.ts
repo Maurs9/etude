@@ -824,7 +824,7 @@ const payload: UIPayload = {
       "fall_disp_h": "Falling notes display",
       "fall_labels": "Note names",
       "fall_l_none": "None",
-      "fall_l_letter": "Letters (C D E)",
+      "fall_l_app_notation": "App notation",
       "fall_l_solfege": "Solfège (Do Re Mi)",
       "fall_l_finger": "Fingering",
       "fall_pal": "Colours",
