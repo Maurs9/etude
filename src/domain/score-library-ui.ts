@@ -188,7 +188,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   const axesInfoToggle = element('button', 'score-library-axes-info-btn');
   axesInfoToggle.type = 'button';
   axesInfoToggle.id = 'library-axes-info-toggle';
-  axesInfoToggle.textContent = 'ⓘ';
+  const axesInfoIcon = element('span', 'score-library-axes-info-icon');
+  axesInfoIcon.setAttribute('aria-hidden', 'true');
+  axesInfoIcon.textContent = 'i';
+  axesInfoToggle.append(axesInfoIcon);
   axesInfoToggle.setAttribute('aria-controls', 'library-axes-info-panel');
   axesInfoToggle.setAttribute('aria-expanded', 'false');
   difficultyHead.append(difficultySort, axesInfoToggle);
@@ -204,8 +207,16 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     axesInfoList.append(pair);
     return { axis, dt, dd };
   });
-  const axesInfoSummary = element('p', 'score-library-axes-guide-note');
-  axesInfoPanel.append(axesInfoList, axesInfoSummary);
+  const axesInfoNotes = element('ul', 'score-library-axes-guide-note');
+  const axesInfoNoteItems = (['summary', 'endurance', 'limits'] as const).map(key => {
+    const li = element('li');
+    const label = element('strong');
+    const body = element('span');
+    li.append(label, ' ', body);
+    axesInfoNotes.append(li);
+    return { key, label, body };
+  });
+  axesInfoPanel.append(axesInfoList, axesInfoNotes);
   columns.append(pieceHeading, difficultyHead, axesInfoPanel);
   scroll.append(columns, list);
   const emptyBox = element('div', 'score-library-empty');
@@ -519,6 +530,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
         if (result.appliedEnduranceStars >= 0.1) {
           const badge = element('span', 'score-library-extra-tag');
           badge.textContent = t('rating_endurance_bonus', { bonus: starNumber(result.appliedEnduranceStars) });
+          badge.title = t('rating_info_endurance');
           extras.append(badge);
         }
         if (result.spanAlert) {
@@ -1445,7 +1457,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       dt.textContent = axis === 'bimanual' ? `${t('rating_hands_short')} (${t('rating_bimanual')})` : t(`rating_${axis}`);
       dd.textContent = t(`rating_${axis}_desc`);
     }
-    axesInfoSummary.textContent = t('rating_info_summary');
+    for (const { key, label, body } of axesInfoNoteItems) {
+      label.textContent = t(`rating_info_${key}_label`);
+      body.textContent = t(`rating_info_${key}`);
+    }
     for (const { key, option } of sortOptions) option.textContent = t(`sort_${key}`);
     filterText.textContent = t('filter');
     for (const { key, option } of options) option.textContent = t(key);
