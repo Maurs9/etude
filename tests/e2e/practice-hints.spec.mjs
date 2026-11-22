@@ -9,10 +9,14 @@ test('switching topics keeps the panel open and shows each reference hint', asyn
   await expect(panel).not.toHaveAttribute('open', '');
   await expect(page.locator('#practiceHintsList')).toBeEmpty();
   await panel.locator('summary').click();
-  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(25);
+  await expect(page.locator('#practiceHintsList [data-hint-pick]')).toHaveCount(25);
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(1);
+  await page.locator('#practiceHintsList [data-hint-pick="maj7"]').click();
   await expect(hint(page, /^Cmaj7 · /)).toContainText('1 3 5 7');
   await page.locator('#pr-t-scale').click();
-  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(19);
+  await expect(page.locator('#practiceHintsList [data-hint-pick]')).toHaveCount(19);
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(1);
+  await page.locator('#practiceHintsList [data-hint-pick="Dorian"]').click();
   await expect(hint(page, /Dorian/)).toContainText('1 2 ♭3 4 5 6 ♭7');
   await page.locator('#pr-t-prog').click();
   await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(10);
@@ -35,6 +39,7 @@ test('chord hints play a single chord without opening the dock, while progressio
     window.__hintAudio = [];
     window.__etude.previewNote = (midi, at, seconds) => window.__hintAudio.push({ midi, at, seconds });
   });
+  await page.locator('#practiceHintsList [data-hint-pick="maj7"]').click();
   const chordCard = hint(page, /^Cmaj7 · /);
   await expect(chordCard.getByRole('button', { name: /Show keys/ })).toHaveCount(0);
   const chordPlay = chordCard.getByRole('button', { name: /^Listen\b/ });
@@ -88,18 +93,21 @@ test('accompaniment owns progression playback while the loop is running', async 
   await expect(play).toBeEnabled();
 });
 
-test('all chord cards show both clefs and their details directly on a phone', async ({ app }) => {
+test('chord studio groups chords by musical family and shows both clefs and details on a phone', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-songs summary').click();
   await expect(page.locator('.pr-chord-group-title')).toHaveText([
-    'Triads and suspended chords', 'Sixth and seventh chords', 'Extended chords',
+    'Major family', 'Minor family', 'Dominant family', 'Suspended and symmetrical',
   ]);
   const list = page.locator('#practiceHintsList');
-  await expect(list.locator('.pr-chord-staff-treble')).toHaveCount(25);
-  await expect(list.locator('.pr-chord-staff-bass')).toHaveCount(25);
+  await expect(list.locator('[data-hint-pick]')).toHaveCount(25);
+  await expect(list.locator('.pr-chord-staff-treble')).toHaveCount(1);
+  await expect(list.locator('.pr-chord-staff-bass')).toHaveCount(1);
   await expect(list.locator('[aria-expanded]')).toHaveCount(0);
+
+  await list.locator('[data-hint-pick="sus2"]').click();
   const sus = page.locator('[data-hint="sus2"]');
   await expect(sus.locator('.pr-chord-keyboard')).toBeVisible();
   await expect(sus.locator('.pr-chord-caption')).toBeVisible();
@@ -116,11 +124,13 @@ test('all chord cards show both clefs and their details directly on a phone', as
   // G3 sits in the top space of the bass staff, six units below the top line.
   await expect(bass.locator('[data-chord-midi="67"] .ss-head')).toHaveAttribute('cy', '6');
 
+  await list.locator('[data-hint-pick="dim7"]').click();
   const diminished = page.locator('[data-hint="dim7"]');
   await expect(diminished.locator('.pr-chord-staff-treble')).toHaveAttribute('aria-label', /B𝄫4/);
   await expect(diminished.locator('.pr-chord-staff-bass')).toHaveAttribute('aria-label', /B𝄫3/);
   await expect(diminished.locator('.pr-chord-staff [data-chord-midi="69"] .ss-glyph')).toHaveCount(4);
   await page.locator('#pr-keys [data-v="5"]').click();
+  await list.locator('[data-hint-pick="13"]').click();
   const thirteenth = page.locator('[data-hint="13"]');
   await expect(thirteenth.locator('.pr-chord-staff-treble')).toHaveAttribute('aria-label', /D6/);
   await expect(thirteenth.locator('.pr-chord-staff-bass')).toHaveAttribute('aria-label', /D5/);
@@ -137,14 +147,15 @@ for (const [lang, label] of [
   ['en', 'Listen'], ['ro', 'Ascultă'], ['de', 'Anhören'], ['es', 'Escuchar'],
   ['fr', 'Écouter'], ['it', 'Ascolta'], ['pt-BR', 'Ouvir'],
 ]) {
-  test(`chord cards show compact accessible playback controls in ${lang}`, async ({ app }) => {
+  test(`chord studio shows compact accessible playback controls in ${lang}`, async ({ app }) => {
     const page = await app.open({ hash: 'practice', lang });
     await page.locator('#pr-t-chord').click();
     await page.locator('#pr-songs summary').click();
     const cards = page.locator('#practiceHintsList .pr-chord-card');
+    await expect(cards).toHaveCount(1);
     await expect(cards.locator('.pr-hint-cue')).toHaveCount(0);
     const buttons = cards.locator('button[data-hint-control$=":hear"]');
-    await expect(buttons).toHaveCount(25);
+    await expect(buttons).toHaveCount(1);
     const info = await buttons.evaluateAll(els => els.map(el => {
       const r = el.getBoundingClientRect();
       return { aria: el.getAttribute('aria-label') || '', width: r.width, height: r.height };
@@ -157,10 +168,11 @@ for (const [lang, label] of [
   });
 }
 
-test('chord inversions update keyboard, both clefs, caption, and playback', async ({ app }) => {
+test('chord inversions update keyboard, both clefs, caption, and playback, and compare mode diffs two chords', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-songs summary').click();
+  await page.locator('#practiceHintsList [data-hint-pick="maj7"]').click();
   const card = hint(page, /^Cmaj7 · /);
   const keyboard = card.locator('.pr-chord-keyboard');
   const treble = card.locator('.pr-chord-staff-treble'), bass = card.locator('.pr-chord-staff-bass');
@@ -180,15 +192,23 @@ test('chord inversions update keyboard, both clefs, caption, and playback', asyn
   await expect(caption).toHaveText('G · B · C · E');
   await expect(keyboard).toHaveAttribute('aria-label', /G4 · B4 · C5 · E5/);
 
+  await page.locator('#practiceHintsList [data-hint-control="chord:compare"]').click();
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(2);
+  await expect(page.locator('#practiceHintsList .pr-studio-diff')).toContainText('A only: B');
+  await expect(page.locator('#practiceHintsList .pr-studio-diff')).toContainText('B only: B♭');
+  await page.locator('#practiceHintsList [data-hint-control="chord:compare:close"]').click();
+  await expect(page.locator('#practiceHintsList [data-hint]')).toHaveCount(1);
+
+  await page.locator('#practiceHintsList [data-hint-pick="maj"]').click();
   const triad = hint(page, /^C · Major/);
   await expect(triad.locator('.pr-hint-seg-btn')).toHaveCount(3);
-  await expect(triad.getByRole('button', { name: /^Compare with/ })).toHaveCount(0);
 });
 
 test('the chord keyboard color follows the root across chord qualities', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-songs summary').click();
+  await page.locator('#practiceHintsList [data-hint-control="chord:compare"]').click();
   const major = page.locator('[data-hint="maj"]');
   const minor = page.locator('[data-hint="m"]');
   const rootKey = card => card.locator('.pr-chord-key.pr-chord-root .pr-chord-key-shape');
@@ -206,6 +226,7 @@ test('a fixed tonic transposes playback and notation changes only the names', as
   const page = await app.open({ hash: 'practice' });
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-songs summary').click();
+  await page.locator('#practiceHintsList [data-hint-pick="maj7"]').click();
   await page.locator('#pr-keys [data-v="11"]').click();
   const card = page.locator('#practiceHintsList [data-hint="maj7"]');
   await expect(card.getByRole('heading')).toContainText('Bmaj7');
@@ -265,6 +286,7 @@ test('a late audio unlock cannot restart a hint after changing topics', async ({
     context.resume = () => { window.__resumeRequested = true; return pending; };
     window.__unlockHint = async () => { await resume(); unlock(); };
   });
+  await page.locator('#practiceHintsList [data-hint-pick="maj7"]').click();
   const chord = hint(page, /^Cmaj7 · /);
   await chord.getByRole('button', { name: /^Listen\b/ }).click();
   await expect.poll(() => page.evaluate(() => window.__resumeRequested)).toBe(true);

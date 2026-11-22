@@ -55,6 +55,95 @@ export interface TechniqueHint {
   readonly namedTonics?: readonly number[];
 }
 
+export type ChordHintFamily = 'major' | 'minor' | 'dominant' | 'suspended';
+export type ScaleHintFamily = 'major' | 'minor' | 'exotic';
+
+export const CHORD_HINT_FAMILIES: readonly { readonly id: ChordHintFamily; readonly symbols: readonly string[] }[] = [
+  { id: 'major', symbols: ['maj', '6', 'maj7', 'add9', 'maj9', 'maj7♯11'] },
+  { id: 'minor', symbols: ['m', 'm6', 'm7', 'mMaj7', 'm9'] },
+  { id: 'dominant', symbols: ['7', '9', '11', '13', '7♯5', '7♭5', '7♭9', '7♯9'] },
+  { id: 'suspended', symbols: ['sus2', 'sus4', 'dim', 'm7♭5', 'dim7', 'aug'] },
+];
+
+export const SCALE_HINT_FAMILIES: readonly { readonly id: ScaleHintFamily; readonly names: readonly string[] }[] = [
+  { id: 'major', names: ['Lydian', 'Major (Ionian)', 'Mixolydian', 'Major pentatonic'] },
+  { id: 'minor', names: ['Dorian', 'Aeolian (Natural minor)', 'Harmonic minor', 'Melodic minor', 'Phrygian', 'Locrian', 'Minor pentatonic', 'Blues'] },
+  { id: 'exotic', names: ['Harmonic major', 'Phrygian dominant', 'Hungarian minor', 'Whole tone', 'Diminished (W-H)', 'Diminished (H-W)', 'Chromatic'] },
+];
+
+const CHORD_COMPARE_DEFAULTS: Readonly<Record<string, string>> = {
+  maj: 'm',
+  m: 'maj',
+  maj7: '7',
+  '7': 'maj7',
+  m7: '7',
+  mMaj7: 'm7',
+  '6': 'maj7',
+  m6: 'm7',
+  sus2: 'sus4',
+  sus4: 'sus2',
+  dim: 'm',
+  dim7: 'm7♭5',
+  'm7♭5': 'dim7',
+  aug: 'maj',
+  add9: 'maj9',
+  maj9: '9',
+  '9': '7',
+  m9: 'm7',
+};
+
+const SCALE_COMPARE_DEFAULTS: Readonly<Record<string, string>> = {
+  'Major (Ionian)': 'Aeolian (Natural minor)',
+  'Aeolian (Natural minor)': 'Major (Ionian)',
+  Dorian: 'Aeolian (Natural minor)',
+  'Harmonic minor': 'Aeolian (Natural minor)',
+  'Melodic minor': 'Harmonic minor',
+  Lydian: 'Major (Ionian)',
+  Mixolydian: 'Major (Ionian)',
+  Phrygian: 'Aeolian (Natural minor)',
+  Locrian: 'Phrygian',
+  'Major pentatonic': 'Minor pentatonic',
+  'Minor pentatonic': 'Blues',
+  Blues: 'Minor pentatonic',
+  'Diminished (W-H)': 'Diminished (H-W)',
+  'Diminished (H-W)': 'Diminished (W-H)',
+};
+
+export function defaultCompareChord(symbol: string): string {
+  return CHORD_COMPARE_DEFAULTS[symbol] ?? (symbol === 'maj' ? 'm' : 'maj');
+}
+
+export function defaultCompareScale(name: string): string {
+  return SCALE_COMPARE_DEFAULTS[name] ?? (name === 'Major (Ionian)' ? 'Aeolian (Natural minor)' : 'Major (Ionian)');
+}
+
+export interface PitchClassSpelling {
+  readonly midi: number;
+  readonly li: number;
+  readonly acc: number;
+}
+
+export function hintPitchClassDiff(
+  a: readonly PitchClassSpelling[],
+  b: readonly PitchClassSpelling[],
+): { readonly onlyA: readonly PitchClassSpelling[]; readonly onlyB: readonly PitchClassSpelling[] } {
+  const uniqueByPc = (tones: readonly PitchClassSpelling[]) => {
+    const map = new Map<number, PitchClassSpelling>();
+    for (const tone of tones) {
+      const pc = pitchClass(tone.midi);
+      if (!map.has(pc)) map.set(pc, tone);
+    }
+    return map;
+  };
+  const mapA = uniqueByPc(a);
+  const mapB = uniqueByPc(b);
+  const onlyA: PitchClassSpelling[] = [];
+  const onlyB: PitchClassSpelling[] = [];
+  for (const [pc, tone] of mapA) if (!mapB.has(pc)) onlyA.push(tone);
+  for (const [pc, tone] of mapB) if (!mapA.has(pc)) onlyB.push(tone);
+  return { onlyA, onlyB };
+}
+
 export const CHORD_HINTS: readonly ChordHint[] = [
   { symbol: 'maj' },
   { symbol: 'm' },

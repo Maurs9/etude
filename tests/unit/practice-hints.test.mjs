@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS,
-  chordHintFormula, chordHintInversionCount, chordHintTones, chordSingleSteps, melodyHintExample, progressionHintChords, progressionHintResolution, progressionHintSteps, progressionHintVoicings, scaleHintFingering, scaleHintFormula, scaleHintTones, scaleSingleSteps,
+  CHORD_HINTS, CHORD_HINT_FAMILIES, SCALE_HINTS, SCALE_HINT_FAMILIES, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS,
+  chordHintFormula, chordHintInversionCount, chordHintTones, chordSingleSteps, defaultCompareChord, defaultCompareScale, hintPitchClassDiff,
+  melodyHintExample, progressionHintChords, progressionHintResolution, progressionHintSteps, progressionHintVoicings, scaleHintFingering, scaleHintFormula, scaleHintTones, scaleSingleSteps,
   techniqueHintSteps, techniqueHintTonic,
 } from '../../src/domain/practice-hints.ts';
 import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS, pitchClass, practiceTonicMidi } from '../../src/domain/theory.ts';
@@ -206,5 +207,21 @@ describe('Practice hint catalog', () => {
         expect(steps.map(step => step.diagramKey)).toEqual(melody.map((_, index) => String(index)));
       }
     }
+  });
+
+  it('groups every chord and scale into exactly one musical family and computes compare diffs', () => {
+    const chordSymbols = CHORD_HINT_FAMILIES.flatMap(family => family.symbols);
+    expect(chordSymbols.length).toBe(CHORD_HINTS.length);
+    expect([...chordSymbols].sort()).toEqual(CHORD_HINTS.map(hint => hint.symbol).sort());
+    const scaleNames = SCALE_HINT_FAMILIES.flatMap(family => family.names);
+    expect(scaleNames.length).toBe(SCALE_HINTS.length);
+    expect([...scaleNames].sort()).toEqual(SCALE_HINTS.map(hint => hint.name).sort());
+
+    for (const hint of CHORD_HINTS) expect(defaultCompareChord(hint.symbol)).not.toBe(hint.symbol);
+    for (const hint of SCALE_HINTS) expect(defaultCompareScale(hint.name)).not.toBe(hint.name);
+
+    const diff = hintPitchClassDiff(chordHintTones('maj7', 0, 0), chordHintTones('7', 0, 0));
+    expect(diff.onlyA.map(n => n.midi % 12)).toEqual([11]);
+    expect(diff.onlyB.map(n => n.midi % 12)).toEqual([10]);
   });
 });
