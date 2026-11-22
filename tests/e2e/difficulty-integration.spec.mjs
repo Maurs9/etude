@@ -166,7 +166,6 @@ test('library rows show five difficulty axes and automatically save stars withou
   await more.click();
   await expect(original).toBeVisible();
   await expect(filename).toBeVisible();
-  expect(await item.locator('.score-library-secondary').evaluate(el => getComputedStyle(el).position)).toBe('absolute');
   await original.focus();
   await original.press('Escape');
   await expect(original).toBeHidden();
@@ -204,6 +203,60 @@ test('library rows show five difficulty axes and automatically save stars withou
   await page.locator('#score-library summary').click();
   await expect(inline).toBeVisible();
   await expect(item.locator('h3 [data-library-action=open]')).toHaveText('Rated');
+});
+
+test('the row menu stays clear of the sticky difficulty guide and remains usable near the bottom', async ({ app, page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await app.open({ hash: 'today' });
+  await page.evaluate(async () => {
+    const store = window.__etude.scoreLibraryStore;
+    for (let i = 0; i < 24; i++) {
+      const title = `Score ${i}`;
+      await store.librarySave(new File([title], `${title}.musicxml`), { title, composer: '' });
+    }
+    await window.__etude.show('analysis');
+  });
+  await page.locator('#score-library summary').click();
+  const rows = page.locator('#library-items > li');
+  await expect(rows).toHaveCount(24);
+  const scroller = page.locator('.score-library-scroll');
+  const guide = page.locator('#library-axes-info-panel');
+  await page.locator('#library-axes-info-toggle').click();
+  await expect(guide).toBeVisible();
+  const row = rows.nth(8);
+  const more = row.locator('[data-library-action=more]');
+  const menu = row.locator('.score-library-secondary');
+  await scroller.evaluate(el => el.scrollIntoView({ block: 'end' }));
+  const placeButtonAt = (nearBottom) => more.evaluate((button, bottom) => {
+    const list = button.closest('.score-library-scroll');
+    const end = Math.min(list.getBoundingClientRect().bottom, window.innerHeight);
+    const guideBottom = list.querySelector('#library-axes-info-panel').getBoundingClientRect().bottom;
+    const target = bottom ? end - button.offsetHeight - 12 : guideBottom - 12;
+    list.scrollTop += button.getBoundingClientRect().top - target;
+  }, nearBottom);
+  await placeButtonAt(false);
+  await more.click();
+  await expect(menu).toBeVisible();
+  expect(await more.evaluate(button => {
+    const { x, y, width } = button.getBoundingClientRect();
+    const guide = document.querySelector('#library-axes-info-panel');
+    return guide.contains(document.elementFromPoint(x + width / 2, y + 4));
+  })).toBe(true);
+  await more.press('Escape');
+
+  await placeButtonAt(true);
+  await more.click();
+  const bounds = await menu.boundingBox();
+  const guideBounds = await guide.boundingBox();
+  expect(bounds.y).toBeGreaterThanOrEqual(guideBounds.y + guideBounds.height);
+  expect(bounds.y + bounds.height).toBeLessThan((await more.boundingBox()).y);
+  const download = menu.locator('[data-library-action=download]');
+  await download.focus();
+  await expect(download).toBeFocused();
+  await expect(download).toBeInViewport({ ratio: 1 });
+  await download.press('Escape');
+  await expect(more).toBeFocused();
+  await expect(menu).toBeHidden();
 });
 
 test('Difficulty orders older and newly opened scores by their automatic star ratings', async ({ app, page }) => {

@@ -866,8 +866,35 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     if (previous) {
       previous.secondary.hidden = true;
       previous.more.setAttribute('aria-expanded', 'false');
-      previous.node.dataset.menuOpen = 'false';
     }
+  }
+  function positionOpenMore(): void {
+    const row = openMoreId === null ? undefined : rows.get(openMoreId);
+    if (!row) return;
+    const { more, secondary } = row;
+    const anchor = more.getBoundingClientRect();
+    const listBounds = scroll.getBoundingClientRect();
+    const root = document.documentElement;
+    const styles = getComputedStyle(root);
+    const headerHeight = parseFloat(styles.getPropertyValue('--hdr-h')) || 0;
+    const dockHeight = parseFloat(styles.getPropertyValue('--dock-h')) || 0;
+    const margin = 8, gap = 4;
+    const top = Math.max(headerHeight + margin, columns.getBoundingClientRect().bottom);
+    const bottom = window.innerHeight - dockHeight - margin;
+    if (anchor.bottom <= Math.max(top, listBounds.top) || anchor.top >= Math.min(bottom, listBounds.bottom)) {
+      const restoreFocus = secondary.contains(document.activeElement);
+      closeOpenMore();
+      if (restoreFocus) more.focus({ preventScroll: true });
+      return;
+    }
+    const below = Math.max(0, bottom - anchor.bottom - gap);
+    const above = Math.max(0, anchor.top - top - gap);
+    const fullHeight = secondary.scrollHeight + secondary.offsetHeight - secondary.clientHeight;
+    const opensAbove = fullHeight > below && above > below;
+    secondary.style.maxHeight = `${Math.floor(opensAbove ? above : below)}px`;
+    const menu = secondary.getBoundingClientRect();
+    secondary.style.top = `${opensAbove ? anchor.top - gap - menu.height : anchor.bottom + gap}px`;
+    secondary.style.left = `${Math.max(margin, Math.min(anchor.right - menu.width, root.clientWidth - menu.width - margin))}px`;
   }
   function createRow(id: string): Row {
     const node = element('li', 'score-library-item');
@@ -936,9 +963,11 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (open) closeOpenMore(id);
       secondary.hidden = !open;
       more.setAttribute('aria-expanded', String(open));
-      node.dataset.menuOpen = String(open);
       openMoreId = open ? id : (openMoreId === id ? null : openMoreId);
-      if (!open && restoreFocus) more.focus();
+      if (open) {
+        secondary.scrollTop = 0;
+        positionOpenMore();
+      } else if (restoreFocus) more.focus();
     };
     more.addEventListener('click', () => toggleMore(Boolean(secondary.hidden)));
     node.addEventListener('keydown', event => {
@@ -1437,6 +1466,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     // Search stays usable during an operation and can create new rows/editors.
     // Those controls must obey the same busy state as existing rows.
     if (busy) setBusy(true);
+    positionOpenMore();
   }
   function localize(): void {
     privacy.textContent = t('privacy');
@@ -1563,6 +1593,9 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       closeOpenMore();
     }
   });
+  scroll.addEventListener('scroll', positionOpenMore, { passive: true });
+  window.addEventListener('scroll', positionOpenMore, { passive: true });
+  window.addEventListener('resize', positionOpenMore);
   filter.addEventListener('change', render);
   composerFilter.addEventListener('change', render);
   tagFilter.addEventListener('change', render);
