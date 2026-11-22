@@ -26,7 +26,7 @@ test('switching topics keeps the panel open and shows each reference hint', asyn
   await expect(panel).toHaveAttribute('open', '');
 });
 
-test('by-ear hints play without key marks and can show them on demand', async ({ app }) => {
+test('chord hints play a single chord without opening the dock, while progressions keep Show keys on demand', async ({ app }) => {
   const page = await app.open({ hash: 'practice', dock: false });
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-mode button[data-v="ear"]').click();
@@ -35,19 +35,39 @@ test('by-ear hints play without key marks and can show them on demand', async ({
     window.__hintAudio = [];
     window.__etude.previewNote = (midi, at, seconds) => window.__hintAudio.push({ midi, at, seconds });
   });
-  const card = hint(page, /^Cmaj7 · /);
-  await card.getByRole('button', { name: /^Listen\b/ }).click();
+  const chordCard = hint(page, /^Cmaj7 · /);
+  await expect(chordCard.getByRole('button', { name: /Show keys/ })).toHaveCount(0);
+  const chordPlay = chordCard.getByRole('button', { name: /^Listen\b/ });
+  await chordPlay.click();
+  await expect.poll(() => page.evaluate(() => window.__hintAudio.map(event => event.midi))).toEqual([
+    60, 64, 67, 71, 60, 64, 67, 71,
+  ]);
+  await expect(chordCard.locator('.pr-chord-sounding')).not.toHaveCount(0);
+  await expect(chordCard.locator('.pr-compare-badge')).toBeHidden();
+  await expect(chordPlay).toHaveAttribute('aria-pressed', 'true');
+  await chordPlay.click();
+  await expect(chordPlay).toHaveAttribute('aria-pressed', 'false');
+  await expect(chordCard.locator('.pr-chord-sounding')).toHaveCount(0);
+
+  await page.evaluate(() => { window.__hintAudio = []; });
+  await chordCard.getByRole('button', { name: /^Compare with/ }).click();
   await expect.poll(() => page.evaluate(() => window.__hintAudio.map(event => event.midi))).toEqual([
     60, 64, 67, 71, 60, 64, 67, 71, 60, 64, 67, 70, 60, 64, 67, 70,
   ]);
   const keys = page.locator('[data-pr-hint-key]');
   await expect(keys).toHaveCount(0);
-  await expect(card.locator('.pr-chord-sounding')).toHaveCount(0);
-  await card.getByRole('button', { name: /Show keys/ }).click();
+
+  await page.locator('#pr-t-prog').click();
+  const progCard = hint(page, /Jazz cadence/);
+  await page.evaluate(() => { window.__hintAudio = []; });
+  await progCard.getByRole('button', { name: /^Listen\b/ }).click();
+  await expect.poll(() => page.evaluate(() => window.__hintAudio.length)).toBeGreaterThan(0);
+  await expect(keys).toHaveCount(0);
+  await progCard.getByRole('button', { name: /Show keys/ }).click();
   await expect(keys.first()).toBeVisible();
   await page.locator('#dock-kb-toggle').click();
   await expect(keys).toHaveCount(0);
-  await card.getByRole('button', { name: /Show keys/ }).click();
+  await progCard.getByRole('button', { name: /Show keys/ }).click();
   await expect(keys.first()).toBeVisible();
   await page.locator('#pr-t-scale').click();
   await expect(keys).toHaveCount(0);
@@ -116,13 +136,23 @@ for (const [lang, label] of [
   ['en', 'Listen'], ['ro', 'Ascultă'], ['de', 'Anhören'], ['es', 'Escuchar'],
   ['fr', 'Écouter'], ['it', 'Ascolta'], ['pt-BR', 'Ouvir'],
 ]) {
-  test(`chord cards show only the short playback label in ${lang}`, async ({ app }) => {
+  test(`chord cards show compact accessible playback controls in ${lang}`, async ({ app }) => {
     const page = await app.open({ hash: 'practice', lang });
     await page.locator('#pr-t-chord').click();
     await page.locator('#pr-songs summary').click();
     const cards = page.locator('#practiceHintsList .pr-chord-card');
     await expect(cards.locator('.pr-hint-cue')).toHaveCount(0);
-    await expect(cards.locator('button[data-hint-control$=":hear"]')).toHaveText(Array(25).fill(label));
+    const buttons = cards.locator('button[data-hint-control$=":hear"]');
+    await expect(buttons).toHaveCount(25);
+    const info = await buttons.evaluateAll(els => els.map(el => {
+      const r = el.getBoundingClientRect();
+      return { aria: el.getAttribute('aria-label') || '', width: r.width, height: r.height };
+    }));
+    for (const item of info) {
+      expect(item.aria.startsWith(label)).toBe(true);
+      expect(item.width).toBeGreaterThanOrEqual(44);
+      expect(item.height).toBeGreaterThanOrEqual(44);
+    }
   });
 }
 
@@ -135,7 +165,8 @@ test('both clefs follow the keyboard during a chord comparison and reset after p
   const treble = card.locator('.pr-chord-staff-treble'), bass = card.locator('.pr-chord-staff-bass');
   const diagrams = [keyboard, treble, bass];
   const frames = await Promise.all(diagrams.map(diagram => diagram.getAttribute('viewBox')));
-  await card.getByRole('button', { name: /^Listen\b/ }).click();
+  await card.getByRole('button', { name: /^Compare with/ }).click();
+  await expect(card.locator('.pr-compare-badge')).toBeVisible();
   await expect(keyboard).toHaveAttribute('aria-label', /Keyboard for C7 with/);
   await expect(treble).toHaveAttribute('aria-label', /Treble staff for C7 with/);
   await expect(bass).toHaveAttribute('aria-label', /Bass staff for C7 with.*B♭3/);
@@ -145,6 +176,7 @@ test('both clefs follow the keyboard during a chord comparison and reset after p
   await expect(treble).toHaveAttribute('aria-label', /Treble staff for Cmaj7 with/);
   await expect(bass).toHaveAttribute('aria-label', /Bass staff for Cmaj7 with/);
   await expect(card.locator('.pr-chord-sounding')).toHaveCount(0);
+  await expect(card.locator('.pr-compare-badge')).toBeHidden();
 });
 
 test('the chord keyboard color follows the root across chord qualities', async ({ app }) => {
@@ -261,16 +293,25 @@ test('repertoire names the passage and opens the bundled opening without a perso
   await expect(page.locator('#an-name')).toHaveText('Prelude in C, BWV 846 (opening)');
 });
 
-test('translated hint cards fit a narrow viewport and have tappable controls', async ({ app }) => {
+test('translated hint cards across all topics fit a narrow viewport and have tappable controls', async ({ app }) => {
   const page = await app.open({ hash: 'practice', lang: 'fr' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator('#pr-t-technique').click();
   await page.locator('#pr-songs summary').click();
-  await expect(page.locator('#pr-songs summary')).toHaveText('Indices de doigté');
-  const sizes = await page.locator('#practiceHintsList').evaluate(panel => ({
-    fits: panel.scrollWidth <= panel.clientWidth,
-    heights: [...panel.querySelectorAll('button')].map(button => button.getBoundingClientRect().height),
-  }));
-  expect(sizes.fits).toBe(true);
-  expect(Math.min(...sizes.heights)).toBeGreaterThanOrEqual(44);
+  for (const [topic, selector] of [
+    ['interval', '#songsList .play'],
+    ['chord', '#practiceHintsList button'],
+    ['scale', '#practiceHintsList button'],
+    ['prog', '#practiceHintsList button'],
+    ['melody', '#practiceHintsList button'],
+    ['technique', '#practiceHintsList button'],
+  ]) {
+    await page.locator(`#pr-t-${topic}`).click();
+    if (topic === 'technique') await expect(page.locator('#pr-songs summary')).toHaveText('Indices de doigté');
+    const sizes = await page.evaluate(buttonSelector => ({
+      docFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      heights: [...document.querySelectorAll(buttonSelector)].map(button => button.getBoundingClientRect().height),
+    }), selector);
+    expect(sizes.docFits, topic).toBe(true);
+    expect(Math.min(...sizes.heights), topic).toBeGreaterThanOrEqual(44);
+  }
 });

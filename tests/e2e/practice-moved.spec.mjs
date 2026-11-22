@@ -28,7 +28,7 @@ test.describe('Song hints in the Practice setup', () => {
     await expect(page.locator('#songsList .songcard')).toHaveCount(0);
     await page.locator('#pr-songs summary').click();
     await expect(page.locator('#songsList .songcard')).toHaveCount(12);
-    await expect(page.locator('#songsList .songcard').first()).toContainText('Hear');
+    await expect(page.locator('#songsList .songcard .play').first()).toHaveAccessibleName(/^Hear\b/);
     await page.evaluate(() => {
       window.__played = [];
       window.__etude.playInterval = (...args) => window.__played.push(args);
@@ -108,7 +108,7 @@ test.describe('Song hints in the Practice setup', () => {
     await page.locator('#pr-t-interval').click();
     await expect(page.locator('#pr-songs summary')).toHaveText('Merkhilfen aus Liedern');
     await expect(page.locator('#songsList .songcard')).toHaveCount(12);
-    await expect(page.locator('#songsList .songcard .play').first()).toContainText('Hören');
+    await expect(page.locator('#songsList .songcard .play').first()).toHaveAccessibleName(/^Hören\b/);
   });
 
   for (const hash of ['songs']) {
@@ -144,13 +144,19 @@ test.describe('Song hints in the Practice setup', () => {
     await expect(page.locator('#view-songs')).toHaveCount(0);
   });
 
-  test('every Song hint Listen button stays single-line with uniform height and gap from interval tag', async ({ app }) => {
+  test('every Song hint Listen button keeps a uniform 44px target with clean header separation', async ({ app }) => {
     const page = await app.open({ lang: 'ro', hash: 'practice' });
     await page.locator('#pr-songs summary').click();
     await expect(page.locator('#songsList .songcard')).toHaveCount(12);
-    for (const [lang, width, height] of [['ro', 1440, 900], ['ro', 1024, 768], ['de', 1440, 900], ['es', 1200, 800]]) {
+    for (const [lang, width, height, expectedLabel] of [
+      ['ro', 1440, 900, /^Ascultă —/],
+      ['ro', 1024, 768, /^Ascultă —/],
+      ['de', 1440, 900, /^Hören —/],
+      ['es', 1200, 800, /^Escuchar —/],
+    ]) {
       await page.setViewportSize({ width, height });
       await page.evaluate(l => window.__etude.setLang(l), lang);
+      await expect(page.locator('#songsList .songcard .play').first()).toHaveAccessibleName(expectedLabel);
       await expect.poll(() => page.evaluate(() => {
         const cards = [...document.querySelectorAll('#songsList .songcard')];
         if (cards.length !== 12) return { ok: false, reason: 'count' };
@@ -163,17 +169,18 @@ test.describe('Song hints in the Practice setup', () => {
           const br = b.getBoundingClientRect();
           const sr = sh.getBoundingClientRect();
           const pr = play.getBoundingClientRect();
-          const range = document.createRange();
-          range.selectNodeContents(play);
-          const lines = [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0).length;
           heights.add(Math.round(pr.height));
-          if (lines !== 1) bad.push({ semi: c.dataset.semi, lines });
-          if (pr.left < sr.right + 4) bad.push({ semi: c.dataset.semi, gapShPlay: pr.left - sr.right });
-          if (sr.left < br.right + 4) bad.push({ semi: c.dataset.semi, gapBSh: sr.left - br.right });
+          if (pr.width < 44 || pr.height < 44) bad.push({ semi: c.dataset.semi, width: pr.width, height: pr.height });
+          if (pr.left < Math.max(br.right, sr.right) + 4) bad.push({ semi: c.dataset.semi, gapPlay: pr.left - Math.max(br.right, sr.right) });
         }
         return { ok: bad.length === 0 && heights.size === 1, heights: [...heights], bad };
       })).toEqual(expect.objectContaining({ ok: true, bad: [] }));
     }
+    const firstSong = page.locator('#songsList .songcard[data-semi="2"] .songlist button').first();
+    await firstSong.click();
+    await expect(firstSong).toHaveAttribute('aria-pressed', 'true');
+    await firstSong.click();
+    await expect(firstSong).toHaveAttribute('aria-pressed', 'false');
   });
 });
 

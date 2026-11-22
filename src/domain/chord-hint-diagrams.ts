@@ -1,5 +1,6 @@
 import { packChordColumn, srClef, srLedger2 } from './grand-staff.js';
 import { createHintKeyboard, hintSvg } from './hint-keyboard.js';
+import { createCompareBadge } from './practice-hint-dom.js';
 import type { ChordHintTone, PracticeHintNote } from './practice-hints.js';
 import { ssAccGlyph, ssFlat, ssNotehead, ssStepOf } from './score-types.js';
 
@@ -55,42 +56,56 @@ export function createChordHintDiagrams(
   const keyboard = createHintKeyboard(original.tones[0].midi, all.map(tone => tone.midi));
 
   const accidentalCount = (tones: readonly ChordHintTone[]) => tones.filter(tone => tone.acc).length;
-  const center = 58 + 15 * Math.max(accidentalCount(original.tones), accidentalCount(comparison?.tones ?? []));
+  // Keep at least two accidental columns so clefs render at a consistent scale across cards in the same row.
+  const center = 58 + 15 * Math.max(2, accidentalCount(original.tones), accidentalCount(comparison?.tones ?? []));
   const width = center + 36;
   const staves = staffLayouts.map(layout => {
     const positions = all.map(tone => staffY(tone, layout));
-    const above = Math.min(-17, Math.min(...positions) - 14);
-    const below = Math.max(62, Math.max(...positions) + 14);
+    const above = Math.min(-14, Math.min(...positions) - 12);
+    const below = Math.max(58, Math.max(...positions) + 12);
     return { ...layout, svg: hintSvg(`pr-chord-staff pr-chord-staff-${layout.clef}`, `0 ${above} ${width} ${below - above}`) };
   });
   const noteName = (tone: ChordHintTone, octaveOffset = 0) => spell(tone.li, tone.acc) + (tone.oct + octaveOffset);
   const caption = document.createElement('div');
   caption.className = 'pr-hint-detail pr-chord-caption';
-  const makeCaption = (chord: DiagramChord) => {
-    const names = chord.tones.map(tone => noteName(tone));
+  const makeCaption = (chord: DiagramChord, withPrefix: boolean) => {
+    const labelNames = chord.tones.map(tone => noteName(tone)).join(' · ');
+    const pitchNames = chord.tones.map(tone => spell(tone.li, tone.acc));
     const line = document.createElement('p');
-    line.append(chord.title + ' · ');
+    if (withPrefix) {
+      const tag = document.createElement('span');
+      tag.className = 'pr-caption-tag';
+      tag.textContent = chord.title;
+      line.append(tag);
+    }
     chord.tones.forEach((tone, index) => {
       if (index) line.append(' · ');
-      if (chord.changed.has(tone.midi)) {
+      if (withPrefix && chord.changed.has(tone.midi)) {
         const strong = document.createElement('strong');
-        strong.textContent = names[index];
+        strong.textContent = pitchNames[index];
         line.append(strong);
-      } else line.append(names[index]);
+      } else line.append(pitchNames[index]);
     });
     caption.append(line);
-    return { chord, names: names.join(' · '), line };
+    return { chord, names: labelNames, line };
   };
-  const originalCaption = makeCaption(original);
-  const comparisonCaption = comparison ? makeCaption(comparison) : null;
+  const idleCaption = makeCaption(original, false);
+  const originalCompareCaption = comparison ? makeCaption(original, true) : idleCaption;
+  const comparisonCaption = comparison ? makeCaption(comparison, true) : null;
+  const compareBadge = comparison ? createCompareBadge(original.title, comparison.title) : null;
 
   let last: DiagramChord | undefined;
   let compared = false;
-  const paint = (symbol?: string, sounding: readonly PracticeHintNote[] = []) => {
+  const paint = (rawKey?: string, sounding: readonly PracticeHintNote[] = []) => {
+    const comparing = !!comparison && (rawKey?.startsWith('compare:') ?? false);
+    const symbol = comparing && rawKey ? rawKey.slice('compare:'.length) : rawKey;
     const chord = comparison && symbol === comparison.symbol ? comparison : original;
-    const comparing = !!comparison && symbol !== undefined;
     if (chord !== last || comparing !== compared) {
-      const active = comparisonCaption?.chord === chord ? comparisonCaption : originalCaption;
+      const active = !comparing
+        ? idleCaption
+        : chord === comparison && comparisonCaption
+          ? comparisonCaption
+          : originalCompareCaption;
       keyboard.draw(chord.tones.map(tone => ({ midi: tone.midi, tonic: tone.degree === 1 })),
         text('pr_hints_chord_keyboard', chord.title, active.names), comparing ? chord.changed : undefined);
       for (const staff of staves) {
@@ -98,9 +113,13 @@ export function createChordHintDiagrams(
         const names = chord.tones.map(tone => noteName(tone, staff.octaveOffset)).join(' · ');
         staff.svg.setAttribute('aria-label', text(staff.label, chord.title, names));
       }
-      originalCaption.line.setAttribute('aria-hidden', String(active !== originalCaption));
+      idleCaption.line.setAttribute('aria-hidden', String(active !== idleCaption));
+      if (originalCompareCaption !== idleCaption) {
+        originalCompareCaption.line.setAttribute('aria-hidden', String(active !== originalCompareCaption));
+      }
       comparisonCaption?.line.setAttribute('aria-hidden', String(active !== comparisonCaption));
       caption.classList.toggle('pr-chord-comparing', comparing);
+      compareBadge?.update(comparing, chord === comparison);
     }
     last = chord;
     compared = comparing;
@@ -113,5 +132,12 @@ export function createChordHintDiagrams(
     }
   };
   paint();
-  return { keyboard: keyboard.svg, staves, caption, paint };
+  return {
+    keyboard: keyboard.svg,
+    staves,
+    caption,
+    compareStatus: compareBadge?.el ?? null,
+    followWithoutDock: true,
+    paint,
+  };
 }

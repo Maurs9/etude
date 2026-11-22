@@ -53,54 +53,88 @@
 /* Start: names the choice, so a long label wraps */
 .pr-go{margin-top:24px; min-height:48px; justify-content:center; white-space:normal; text-align:center; line-height:1.3}
 
-/* Song hints (Intervals): the interval song book, folded until opened */
+/* Song hints (Intervals) and Practice hints: shared editorial card system across all 6 topics. */
 .pr-songs{margin-top:14px}
 .pr-songs-sum{list-style:none; min-height:44px; display:flex; align-items:center; gap:8px; cursor:pointer; font:600 15px/1.3 var(--sans); color:var(--ink)}
 .pr-songs-sum::before{content:"▸"; color:var(--accent); transition:transform .12s}
 .pr-songs[open] > .pr-songs-sum::before{transform:rotate(90deg)}
 .pr-songs-sum::-webkit-details-marker{display:none}
-.pr-songs-lede{margin:6px 0 12px; font-size:14px}
+.pr-songs-lede{margin:4px 0 10px; font-size:14px}
 .pr-songs-ctl{align-items:center; margin-bottom:14px}
 .pr-songs-ctl .seg button{min-height:44px}
-.pr-hint-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr)); gap:14px}
-.pr-hint-card{display:flex; flex-direction:column; align-items:flex-start; gap:8px; overflow-wrap:anywhere}
+.pr-hints-context{grid-column:1 / -1; display:inline-flex; align-items:center; width:fit-content; max-width:100%; margin:0 0 12px; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--paper2); color:var(--ink2); font:600 12.5px/1.35 var(--sans)}
+.pr-hint-grid:not(.pr-chord-groups) .pr-hints-context{margin-bottom:0}
+.pr-hint-grid,.pr-songs .songs{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,248px),1fr)); gap:12px}
+.pr-hint-card{display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:12px 14px; overflow-wrap:anywhere; transition:border-color .15s, box-shadow .15s}
+.pr-hint-card.is-playing{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
 .pr-hint-card p,.pr-hint-name,.pr-hint-method{margin:0}
-.pr-hint-name{font-size:17px; line-height:1.25}
-.pr-hint-formula{font-weight:700; color:var(--ink); letter-spacing:.02em}
-.pr-hint-cue,.pr-hint-detail,.pr-hint-method{color:var(--ink2); font-size:14px; line-height:1.45}
+.pr-hint-hd{display:flex; justify-content:space-between; align-items:flex-start; gap:8px; min-width:0; margin-bottom:0}
+.pr-hint-hd-main{display:grid; gap:2px; min-width:0; flex:1 1 auto}
+.pr-hint-name{font-family:var(--serif); font-size:16.5px; font-weight:600; line-height:1.25; color:var(--ink)}
+.pr-interval-card .hd b{font-family:var(--serif); font-size:inherit; font-weight:600; line-height:inherit}
+.pr-hint-formula{font-family:var(--sans); font-size:12.5px; font-weight:700; line-height:1.3; color:var(--muted); letter-spacing:.02em; font-variant-numeric:tabular-nums}
+.pr-interval-card .hd .sh{color:var(--accent); font-weight:700; font-size:inherit}
+.pr-hint-card .pr-hint-play{appearance:none; flex:none; display:inline-grid; place-items:center; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; border:1px solid var(--line2); border-radius:10px; background:var(--paper2); color:var(--ink); cursor:pointer; transition:border-color .15s, background .15s, color .15s}
+.pr-hint-card .pr-hint-play:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
+.pr-hint-card .pr-hint-play svg{width:15px; height:15px; display:block}
+.pr-hint-card .pr-hint-play .pr-ic-play{transform:translateX(1px)}
+.pr-hint-card .pr-hint-play .pr-ic-stop{display:none}
+.pr-hint-card .pr-hint-play[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.pr-hint-card .pr-hint-play[aria-pressed="true"] .pr-ic-play{display:none}
+.pr-hint-card .pr-hint-play[aria-pressed="true"] .pr-ic-stop{display:block}
+.pr-hint-cue,.pr-hint-detail,.pr-hint-method{color:var(--ink2); font-size:13.5px; line-height:1.4}
 .pr-hint-method{grid-column:1/-1}
 .pr-hint-focus{color:var(--ink); text-decoration:underline}
+.pr-hint-stage{background:var(--paper2); border:1px solid color-mix(in srgb, var(--line) 75%, transparent); border-radius:8px; padding:8px; min-width:0}
+.pr-hint-foot{margin-top:2px; padding-top:2px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 8px}
 .pr-hint-actions{margin-top:auto; display:flex; flex-wrap:wrap; gap:8px}
 .pr-hint-card .btn{min-height:44px; white-space:normal; text-align:start}
-.pr-hint-reference{align-self:stretch; display:grid; justify-items:start; gap:5px; border-top:1px solid var(--line); padding-top:8px}
-.pr-hint-source{color:var(--ink); font-size:13px}
+.pr-hint-card .pr-hint-compare{font-size:12.5px; font-weight:600; padding:6px 10px; color:var(--ink2); background:var(--paper2); border-color:var(--line)}
+.pr-hint-card .pr-hint-compare:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
+.pr-hint-card .pr-hint-compare[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.pr-compare-badge{display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; padding:3px 8px; border-radius:999px; border:1px solid var(--line); background:var(--paper2); font-size:12px; line-height:1.25; color:var(--muted)}
+.pr-compare-badge[hidden]{display:none}
+.pr-compare-side[aria-current="step"]{color:var(--accent); font-weight:700}
+.pr-caption-tag{display:inline-block; margin-inline-end:6px; padding:0 5px; border-radius:4px; border:1px solid var(--line); background:var(--paper2); color:var(--ink); font-size:12px; font-weight:700; line-height:1.4}
+.pr-hint-reference{align-self:stretch; display:grid; justify-items:start; gap:4px; border-top:1px solid var(--line); padding-top:8px; margin-top:auto}
+.pr-hint-source{color:var(--ink); font-size:12.5px}
+.pr-hint-reference .pr-hint-detail{font-size:12.5px; color:var(--muted)}
+.pr-hint-reference .btn{font-size:12.5px; padding:6px 10px}
 .pr-hint-grid.pr-chord-groups{display:block}
-.pr-chord-group + .pr-chord-group{margin-top:24px}
-.pr-chord-group-title{margin:0 0 10px; color:var(--ink); font:700 15px/1.3 var(--sans)}
-.pr-chord-visuals{display:grid; gap:12px; width:100%; min-width:0; justify-items:center}
-.pr-hint-visuals{display:grid; gap:6px; width:100%; min-width:0}
-.pr-hint-hand{border-top:1px solid var(--line); padding-top:8px}
+.pr-chord-group + .pr-chord-group{margin-top:22px}
+.pr-chord-group-title{margin:0 0 10px; color:var(--ink); font:700 14.5px/1.3 var(--sans)}
+.pr-chord-visuals{display:grid; gap:8px; width:100%; min-width:0; justify-items:center}
+.pr-hint-visuals{display:grid; gap:6px; width:100%; min-width:0; justify-items:center}
+.pr-hint-hand{display:grid; gap:6px; border-top:1px solid var(--line); padding-top:8px; min-width:0}
+.pr-hint-hand-hd{display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0}
 .pr-hint-hand-title{margin:0; font:700 13px/1.3 var(--sans); color:var(--ink)}
-.pr-progression-sequence{display:flex; flex-wrap:wrap; align-self:stretch; gap:6px; padding:0; margin:0; list-style:none}
-.pr-progression-chord{display:grid; align-content:start; gap:2px; min-width:42px; padding:6px; border:1px solid var(--line); border-radius:8px; text-align:center; line-height:1.25}
-.pr-progression-degree{color:var(--ink2); font-size:12px}
-.pr-progression-name{color:var(--ink); font-size:14px}
-.pr-progression-chord[aria-current=step]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--card))}
+.pr-progression-sequence{display:flex; flex-wrap:wrap; width:100%; gap:5px; padding:0; margin:0; list-style:none}
+.pr-progression-sequence.pr-progression-grid-12{display:grid; grid-template-columns:repeat(4,minmax(0,1fr))}
+.pr-progression-chord{display:grid; align-content:start; gap:1px; flex:1 1 0; min-width:44px; padding:5px 4px; border:1px solid var(--line); border-radius:7px; background:var(--card); text-align:center; line-height:1.25}
+.pr-progression-grid-12 .pr-progression-chord{min-width:0}
+.pr-progression-degree{color:var(--muted); font-size:11.5px; font-weight:600}
+.pr-progression-name{color:var(--ink); font-size:13.5px}
+.pr-progression-chord[aria-current=step]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 13%, var(--card))}
+.pr-interval-card .songlist{display:flex; flex-direction:column; gap:2px; padding:4px 6px}
+.pr-interval-card .songlist button{appearance:none; border:none; background:none; width:100%; text-align:left; color:var(--ink2); font-size:13.5px; line-height:1.3; cursor:pointer; padding:7px 8px; min-height:36px; border-radius:6px; font-family:var(--serif); transition:background .12s, color .12s}
+.pr-interval-card .songlist button:hover{color:var(--ink); background:color-mix(in srgb, var(--ink) 6%, transparent)}
+.pr-interval-card .songlist button[aria-pressed="true"]{color:var(--accent); background:color-mix(in srgb, var(--accent) 11%, transparent); font-weight:600}
 .pr-melody-answer{width:100%}
+.pr-melody-answer[hidden]{display:none}
 .pr-melody-answer .ss-svg{width:100%; max-width:340px; height:auto}
-.pr-chord-staves{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:100%; max-width:360px}
-.pr-chord-staff-block{text-align:center}
-.pr-chord-clef-label{font:600 12px/1.3 var(--sans); color:var(--ink2)}
-.pr-chord-keyboard,.pr-chord-staff{display:block; width:100%; max-width:340px; height:auto}
+.pr-chord-staves{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; width:100%; max-width:340px}
+.pr-chord-staff-block{text-align:center; min-width:0}
+.pr-chord-clef-label{font:600 11px/1.25 var(--sans); color:var(--muted); margin-bottom:2px}
+.pr-chord-keyboard,.pr-chord-staff{display:block; width:100%; max-width:330px; height:auto}
 .pr-chord-caption{display:grid; font-variant-numeric:tabular-nums}
 .pr-chord-caption > p{grid-area:1/1}
 .pr-chord-caption > [aria-hidden=true]{visibility:hidden}
 .pr-chord-caption strong{font-weight:inherit}
-.pr-chord-caption.pr-chord-comparing strong{text-decoration:underline}
+.pr-chord-caption.pr-chord-comparing strong{text-decoration:underline; color:var(--accent)}
 .pr-chord-keyboard{
-  --pr-chord-ink:#21191c;
-  --pr-chord-black-tint:color-mix(in srgb, var(--pr-chord-tint) 82%, var(--pr-chord-ink));
-  --pr-chord-playing-tint:color-mix(in srgb, var(--pr-chord-tint) 43%, var(--pr-chord-ink));
+  --pr-chord-ink:#1a1416;
+  --pr-chord-black-tint:color-mix(in srgb, var(--pr-chord-tint) 92%, var(--pr-chord-ink));
+  --pr-chord-playing-tint:color-mix(in srgb, var(--pr-chord-tint) 34%, var(--pr-chord-ink));
 }
 .pr-chord-keyboard[data-chord-root="0"]{--pr-chord-tint:#e47a7d}
 .pr-chord-keyboard[data-chord-root="1"]{--pr-chord-tint:#bd64d5}
@@ -120,8 +154,8 @@
 .pr-chord-key[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-tint); stroke:var(--pr-chord-ink)}
 .pr-chord-black[data-chord-midi] .pr-chord-key-shape{fill:var(--pr-chord-black-tint)}
 .pr-chord-key-dot{fill:var(--pr-chord-ink)}
-.pr-hint-key-finger{fill:var(--pr-chord-ink); font:700 8px var(--sans); text-anchor:middle; dominant-baseline:central}
-.pr-chord-key.pr-chord-root .pr-chord-key-dot{fill:none; stroke:var(--pr-chord-ink); stroke-width:1.6}
+.pr-hint-key-finger{fill:var(--pr-chord-ink); font:700 7.5px var(--sans); text-anchor:middle; dominant-baseline:central}
+.pr-chord-key.pr-chord-root .pr-chord-key-dot{fill:none; stroke:var(--pr-chord-ink); stroke-width:1.35}
 .pr-chord-key.pr-chord-changed .pr-chord-key-shape{stroke-width:2; stroke-dasharray:3 2}
 .pr-chord-key.pr-chord-sounding .pr-chord-key-shape{fill:var(--pr-chord-playing-tint)}
 .pr-chord-key.pr-chord-sounding :is(.pr-chord-key-dot,.pr-hint-key-finger){fill:#fff}
@@ -178,11 +212,8 @@
   /* Start closes the form at the right, under the key chips; a line marks the end of the choices. */
   .pr-setup > #pr-start{justify-self:end; min-width:min(100%,320px); margin-top:20px}
   .pr-setup > #pr-along-out{margin-top:4px}
-  /* Song hints: twelve cards in tidy rows (4 × 3, or 6 × 2 where they fit). */
-  .pr-songs .songs{grid-template-columns:repeat(4,minmax(0,1fr))}
   .pr-songs-lede{max-width:80ch}
 }
-@media (min-width:1660px){ .pr-songs .songs{grid-template-columns:repeat(6,minmax(0,1fr))} }
 /* Very wide: the six topic cards in one row instead of two half-empty ones. */
 @media (min-width:1600px){ .pr-topics{grid-template-columns:repeat(6,minmax(0,1fr))} }
 
@@ -203,6 +234,6 @@
   #pr-dir{display:flex; width:100%}
   #pr-dir button{flex:1 1 0; min-width:0; padding:10px 4px; text-align:center; line-height:1.25; white-space:normal}
   .pr-songs{padding:12px 14px}
-  .pr-songs .songs{grid-template-columns:minmax(0,1fr)}
+  .pr-songs .songs,.pr-hint-grid{grid-template-columns:minmax(0,1fr)}
 }
-@media (prefers-reduced-motion:reduce){ .pr-chip, .pr-songs-sum::before{transition:none} }
+@media (prefers-reduced-motion:reduce){ .pr-chip, .pr-songs-sum::before, .pr-hint-card, .pr-hint-card .pr-hint-play, .pr-interval-card .songlist button{transition:none} }
