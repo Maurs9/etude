@@ -551,6 +551,22 @@ test.describe('MusicXML pedal collision regression', () => {
     expect(result).toEqual({ status: false, unresolved: '1', hidden: 'hidden', reason: 'no-safe-slot' });
     expect(warnings.some(w => w.includes('pedal') && w.includes('no-safe-slot'))).toBe(true);
   });
+  test('a last-system pedal below a flush page bottom expands the SVG bottom instead of failing', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const result = await page.evaluate(() => {
+      const box = window.__etude.$('an-roll');
+      box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><g class="vf-sc-pedal"><path d="M80 106 h20 v12 h-20 Z"/></g></svg>';
+      const group = box.querySelector('.vf-sc-pedal');
+      const sys = { PositionAndShape: { AbsolutePosition: { x: 0, y: 0 } }, Parent: { MusicSystems: [] } };
+      sys.Parent.MusicSystems.push(sys);
+      group.scPedalOwner = { staffLine: { ParentMusicSystem: sys, PositionAndShape: { AbsolutePosition: { x: 0, y: 6 } }, StaffHeight: 4, Measures: [] }, pedal: null };
+      const status = window.__etude.scoreFixPedals(box);
+      const svg = box.querySelector('svg'), pedal = box.querySelector('path');
+      const sb = svg.getBoundingClientRect(), pb = pedal.getBoundingClientRect();
+      return { status, unresolved: box.dataset.pedalUnresolved, inside: pb.bottom <= sb.bottom && pb.top >= sb.top, grew: sb.height > 100 };
+    });
+    expect(result).toEqual({ status: true, unresolved: '0', inside: true, grew: true });
+  });
   test('an unresolved pedal makes rendering fail explicitly with the existing score error', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     await page.locator('#an-file').setInputFiles({ name: 'bach-pedal.mxl', mimeType: 'application/vnd.recordare.musicxml', buffer: readFileSync(new URL('../fixtures/bach-pedal.mxl', import.meta.url)) });
