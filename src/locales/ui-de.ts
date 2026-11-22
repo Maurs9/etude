@@ -1650,7 +1650,7 @@ const payload: UIPayload = {
       "pr_note": "Spiele mit auf einem MIDI-Keyboard, den Bildschirmtasten oder deiner Computertastatur (A W S E D … K, Z / X Oktave). „Auf mich warten“ pausiert bei jedem deiner Töne, bis du ihn spielst.",
       "fall_disp_t": "Darstellung der herabfallenden Noten: Notennamen, Farben, Vorausschau, Klaviatur",
       "fall_disp_h": "Darstellung fallender Noten",
-      "fall_l_letter": "Buchstaben (C D E)",
+      "fall_l_app_notation": "Notation der App",
       "fall_l_solfege": "Solfège (Do Re Mi)",
       "fall_p_etude": "Koralle & Petrol",
       "fall_p_classic": "Grün & Blau",

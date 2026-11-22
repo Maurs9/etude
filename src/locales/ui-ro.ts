@@ -824,7 +824,7 @@ const payload: UIPayload = {
       "fall_disp_h": "Afișarea notelor căzătoare",
       "fall_labels": "Numele notelor",
       "fall_l_none": "Fără",
-      "fall_l_letter": "Litere (C D E)",
+      "fall_l_app_notation": "Notația aplicației",
       "fall_l_solfege": "Solfegiu (Do Re Mi)",
       "fall_l_finger": "Digitație",
       "fall_pal": "Culori",

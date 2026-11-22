@@ -17432,7 +17432,8 @@ function fallName(n: AnNote) {
         return '';
     if (mode === 'finger' && anHasFinger())
         return n.finger ? String(n.finger) : '';
-    const k = anKeyAt(n.start), sp = spellMidi(n.midi, k.fifths, k.minor), sys = mode === 'solfege' ? 'solfege' : mode === 'letter' && notation !== 'german' ? 'letter' : notation;
+    // The saved 'letter' display option follows the app's note-name setting.
+    const k = anKeyAt(n.start), sp = spellMidi(n.midi, k.fifths, k.minor), sys = mode === 'solfege' ? 'solfege' : notation;
     return spelledName(sys, sp.li, sp.acc);
 }
 function fallGradients(ctx: CanvasRenderingContext2D, hitY: number) {

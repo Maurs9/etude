@@ -1575,7 +1575,7 @@ const payload: UIPayload = {
       "fall_disp_h": "Aspetto delle note a cascata",
       "fall_labels": "Nomi delle note",
       "fall_l_none": "Nessuno",
-      "fall_l_letter": "Lettere (C D E)",
+      "fall_l_app_notation": "Notazione dell’app",
       "fall_l_solfege": "Solfeggio (Do Re Mi)",
       "fall_l_finger": "Diteggiatura",
       "fall_pal": "Colori",

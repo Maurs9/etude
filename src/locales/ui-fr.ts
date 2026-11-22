@@ -1233,7 +1233,7 @@ const payload: UIPayload = {
       "fall_fx": "Lueur et étincelles",
       "fall_hint": "Cliquez sur une barre pour sélectionner sa note · jouez en même temps au clavier ou en MIDI",
       "fall_l_finger": "Doigté",
-      "fall_l_letter": "Lettres (C D E)",
+      "fall_l_app_notation": "Notation de l’application",
       "fall_l_none": "Aucun",
       "fall_l_solfege": "Solfège (Do Ré Mi)",
       "fall_label": "Notes en cascade et clavier de piano",

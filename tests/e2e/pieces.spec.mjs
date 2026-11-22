@@ -321,6 +321,53 @@ test('Note names writes each note’s name beside it in the note-name setting, a
   expect(JSON.parse(await page.evaluate(() => localStorage.getItem('etude-practice-v3'))).names).toBe(false);
 });
 
+test('falling note blocks follow the app notation and keep display overrides', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  const xml = '<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><key><fifths>1</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes><direction><sound tempo="120"/></direction>'
+    + [['C', 0], ['D', 0], ['F', 1], ['B', 0]].map(([step, alter]) => `<note><pitch><step>${step}</step><alter>${alter}</alter><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>`).join('')
+    + '</measure></part></score-partwise>';
+  await page.locator('#an-file').setInputFiles({ name: 'notation.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.locator('[data-score-mode="fall"]').click();
+  const canvas = page.locator('#fall-canvas');
+  await expect(canvas).toBeVisible();
+  const blockLabels = () => canvas.evaluate(el => {
+    const api = window.__etude;
+    const { hitY } = api.FALL.geo;
+    const ctx = el.getContext('2d');
+    const labels = [];
+    const fillText = ctx.fillText;
+    ctx.fillText = function (label, x, y, maxWidth) {
+      if (y < hitY && maxWidth !== undefined) labels.push(label);
+      fillText.call(this, label, x, y, maxWidth);
+    };
+    try {
+      api.fallDraw();
+      return labels;
+    } finally {
+      delete ctx.fillText;
+    }
+  });
+  await expect.poll(blockLabels).toEqual(['C', 'D', 'F♯', 'B']);
+  const setNotation = async value => {
+    await page.locator('#settingsBtn').click();
+    await page.locator(`#set-notation [data-v="${value}"]`).click();
+    await page.locator('#drawerClose').click();
+  };
+  await setNotation('solfege');
+  await expect.poll(blockLabels).toEqual(['Do', 'Re', 'Fa♯', 'Si']);
+  await setNotation('german');
+  await expect.poll(blockLabels).toEqual(['C', 'D', 'F♯', 'H']);
+
+  await page.locator('#fall-opt').click();
+  const labels = page.locator('#fall-labels');
+  await expect(labels.locator('option:checked')).toHaveText('App notation');
+  await labels.selectOption('solfege');
+  await expect.poll(blockLabels).toEqual(['Do', 'Re', 'Fa♯', 'Si']);
+  await labels.selectOption('none');
+  await expect.poll(blockLabels).toEqual([]);
+});
+
 test('Note names spell a MusicXML note as the file writes it, not as the key would', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   // C major, with a G flat (the key alone would call it F sharp).
