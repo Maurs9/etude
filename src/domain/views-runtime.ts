@@ -4563,8 +4563,20 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     const navigation = ++featureNavigation;
     if (v === 'analysis' && !analysisModulesReady) {
         if (practiceHintPreview) stopPreviews();
-        const showPendingView = !(_view === 'read' && srtPendingSaveProtected());
+        const prevView = _view;
+        const showPendingView = !(prevView === 'read' && srtPendingSaveProtected());
         if (showPendingView) {
+            if (location.hash.slice(1) !== 'analysis') {
+                const viaModal = _modalStack.length > 0;
+                _modalStack.length = 0;
+                try {
+                    history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', '#analysis');
+                }
+                catch (_) { }
+            }
+            _routed = true;
+            _view = 'analysis';
+            viewState.view = 'analysis';
             document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-analysis'));
             const targetGroup = navGroup('analysis');
             queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === targetGroup ? 'page' : 'false'));
@@ -4578,8 +4590,14 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         }).catch(() => {
             setViewLoading('view-analysis', false);
             if (navigation === featureNavigation && showPendingView) {
-                document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + _view));
-                const prevGroup = navGroup(_view);
+                _view = prevView;
+                if (isAppView(prevView)) viewState.view = prevView;
+                try {
+                    history.replaceState(history.state, '', '#' + prevView);
+                }
+                catch (_) { }
+                document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + prevView));
+                const prevGroup = navGroup(prevView);
                 queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === prevGroup ? 'page' : 'false'));
                 renderModeNav();
             }

@@ -503,15 +503,15 @@ test.describe('Sight-Reading iteration 5 browser matrices', () => {
       };
     }, { importedAttempt });
     const backup = { v: 3, data: { srs: {}, settings: {}, sightLedger: imported } };
-    const nav = page.waitForEvent('framenavigated', { predicate: (frame) => frame === page.mainFrame() });
+    const reloaded = page.waitForEvent('load');
     await page.locator('#importFile').setInputFiles({
       name: 'sight-ledger.json',
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify(backup)),
     });
     const confirmDialog = await handleAppDialog(page, 'accept', { waitHidden: false });
-    await nav;
-    await page.waitForLoadState('load');
+    await reloaded;
+    await page.waitForFunction(() => typeof window.__etude?.srtReadLedger === 'function');
     const merged = await page.evaluate(() => window.__etude.srtReadLedger(localStorage));
     expect(merged.generation).toBe(localGeneration);
     expect(merged.exposures['v1:imported']).toBeTruthy();

@@ -125,10 +125,12 @@ test('calibrated offsets survive an Export then Import round-trip', async ({ app
   await page.locator('#lat-reset').click(); // the offsets are gone until the backup comes back
   await shows(page, { touch: 0, usb: 0, ble: 0 });
   expect(await stored(page)).toBeUndefined();
+  const reloaded = page.waitForEvent('load');
   await page.locator('#importFile').setInputFiles({ name: 'etude-backup.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
   await handleAppDialog(page, 'accept', { waitHidden: false });
-  await expect.poll(() => stored(page)).toEqual(OFFSETS);
+  await reloaded;
   await page.waitForFunction(() => typeof window.__etude?.show === 'function');
+  expect(await stored(page)).toEqual(OFFSETS);
   await shows(page, OFFSETS);
 });
 

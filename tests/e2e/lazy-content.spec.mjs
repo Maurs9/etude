@@ -12,8 +12,9 @@ for (const view of ['today', 'explore']) {
     expect(await loaded()).toBe(false);
     await page.locator('#nav [data-view=analysis]').click();
     await expect(page.locator('#view-analysis')).toHaveClass(/\bactive\b/);
-    expect(await loaded()).toBe(true);
-    expect(await page.evaluate(() => typeof window.__etude.anPoly)).toBe('function');
+    await expect(page.locator('#view-analysis')).toHaveAttribute('aria-busy', 'false');
+    await expect.poll(loaded).toBe(true);
+    await expect.poll(() => page.evaluate(() => typeof window.__etude.anPoly)).toBe('function');
   });
 }
 

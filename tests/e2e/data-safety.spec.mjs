@@ -193,10 +193,10 @@ test.describe('data safety', () => {
       const destination = await context.newPage();
       await destination.goto(page.url());
       await destination.waitForFunction(() => document.querySelector('#keys .key'));
-      const nav = destination.waitForEvent('framenavigated', frame => frame === destination.mainFrame());
+      const reloaded = destination.waitForEvent('load');
       await destination.locator('#importFile').setInputFiles({ name: 'export.json', mimeType: 'application/json', buffer });
       await handleAppDialog(destination, 'accept', { waitHidden: false });
-      await nav;
+      await reloaded;
       await destination.waitForFunction(() => document.querySelector('#keys .key'));
       const restored = await destination.evaluate(() => {
         const progress = JSON.parse(localStorage.getItem('ptt-v3') ?? 'null');
