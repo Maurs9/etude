@@ -1,6 +1,6 @@
 import { ESTIMATOR_VERSION, type DifficultyAxis } from './score-difficulty.js';
 import type { ImportedDifficultyEstimate } from './score-difficulty-import.js';
-import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryLevelChange, LibraryStudyStatus, OpenedScoreEstimator } from './score-library-types.js';
+import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryStudyStatus, OpenedScoreEstimator } from './score-library-types.js';
 import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate, libraryUpdateLevels } from './score-library-store.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
 
@@ -221,23 +221,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   restore.type = 'file';
   restore.accept = '.json,application/json';
   restoreLabel.append(restoreText, restore);
-  const rateAll = element('button');
-  rateAll.id = 'library-rate-all';
-  rateAll.type = 'button';
-  toolbarBarActions.prepend(rateAll);
   transfer.append(transferNote, backup, restoreLabel);
-  const ratingPreview = element('div');
-  ratingPreview.id = 'library-rating-preview';
-  const previewSummary = element('p'), previewList = element('ul');
-  previewSummary.tabIndex = -1;
-  const previewActions = element('div', 'score-library-editor-actions');
-  const applyRatings = element('button'), cancelRatings = element('button');
-  applyRatings.id = 'library-rating-apply';
-  cancelRatings.id = 'library-rating-cancel';
-  applyRatings.type = cancelRatings.type = 'button';
-  previewActions.append(applyRatings, cancelRatings);
-  ratingPreview.append(previewSummary, previewList, previewActions);
-  content.append(privacy, toolbar, protection, status, corruptStatus, failures, scroll, empty, transfer, ratingPreview);
+  content.append(privacy, toolbar, protection, status, corruptStatus, failures, scroll, empty, transfer);
   details.append(summary, content);
   root.append(details);
 
@@ -252,8 +237,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   let openMoreId: string | null = null;
   let axesInfoOpen = false;
   let filtersOpen = false;
-  type RatingEntry = { title: string; change?: Extract<LibraryLevelChange, { rating: LibraryDifficultyRating }> };
-  let ratingPlan: { entries: RatingEntry[]; unchanged: number; unreadable: number } | null = null;
   const selectedIds = new Set<string>();
   type Editor = {
     form: HTMLFormElement;
@@ -603,28 +586,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     status.textContent = t(key, values);
     if (key === 'save_failed' || key === 'unavailable' || key === 'restore_failed' || key === 'action_failed') details.open = true;
   }
-  function renderRatingPreview(): void {
-    rateAll.disabled = busy || !items.length;
-    applyRatings.textContent = t('rating_save_all');
-    ratingPreview.hidden = ratingPlan === null;
-    cancelRatings.disabled = busy;
-    applyRatings.disabled = busy || !ratingPlan?.entries.some(entry => entry.change);
-    if (!ratingPlan) return;
-    const { entries, unchanged, unreadable } = ratingPlan;
-    const count = entries.filter(entry => entry.change).length;
-    previewSummary.textContent = t('reclassify_summary', { count, same: unchanged, skipped: unreadable + entries.length - count });
-    previewList.replaceChildren(...entries.map(entry => {
-      const line = element('li');
-      if (entry.change) {
-        const change = entry.change;
-        const before = change.previousRating ? starLabel(change.previousRating.stars) : '—';
-        line.textContent = t('reclassify_change', { title: entry.title, before, after: starLabel(change.rating.stars) });
-        if (change.rating.assessment?.tempoFallback) line.textContent += ` · ${t('estimate_tempo')}`;
-      } else line.textContent = t('reclassify_failed', { title: entry.title });
-      return line;
-    }));
-    previewList.hidden = !entries.length;
-  }
   function setBusy(value: boolean): void {
     busy = value;
     content.setAttribute('aria-busy', String(value));
@@ -637,7 +598,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     for (const control of list.querySelectorAll('button, input, select, textarea')) {
       (control as HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).disabled = value;
     }
-    renderRatingPreview();
     if (!value) queueAutomaticRatings();
   }
   async function run(action: () => Promise<void>, errorKey: LibraryTextKey = 'action_failed'): Promise<void> {
@@ -1193,7 +1153,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   function render(): void {
     const locale = host.language();
     summary.textContent = t('heading', { count: items.length });
-    renderRatingPreview();
     syncFilterOptions();
     const query = search.value.trim().toLocaleLowerCase();
     search.dataset.active = String(Boolean(query));
@@ -1495,8 +1454,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     for (const { key, option } of groupOptions) option.textContent = t(`group_${key}`);
     resetFilters.textContent = t('reset_filters');
     backup.textContent = t('backup');
-    rateAll.textContent = t('rating_all');
-    cancelRatings.textContent = t('cancel_edit');
     restoreText.textContent = t('restore');
     restore.setAttribute('aria-label', t('restore'));
     protection.textContent = protectedStorage === null ? '' : t(protectedStorage ? 'protected' : 'unprotected');
@@ -1554,53 +1511,6 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     download(await libraryExport(), 'etude-library.json');
     notice('backup_saved');
   }); });
-  function previewRatings(): void {
-    if (busy) return;
-    ratingPlan = null;
-    void run(async () => {
-      let unreadable = 0, unchanged = 0;
-      const fresh = await libraryList(count => { unreadable = count; });
-      const entries: RatingEntry[] = [];
-      for (const item of fresh) {
-        const title = item.title || item.name;
-        try {
-          const bpm = referenceTempo(item.id, item);
-          const result = await scoreForItem(item.id, bpm);
-          const previousRating = item.difficultyRating;
-          const rating = result && makeRating(result, bpm, previousRating?.startingBpm);
-          if (!rating) entries.push({ title });
-          else if (JSON.stringify(previousRating) === JSON.stringify(rating)) unchanged++;
-          else entries.push({ title, change: { id: item.id, previousRating, rating } });
-        } catch {
-          entries.push({ title });
-        }
-      }
-      ratingPlan = { entries, unchanged, unreadable };
-      notice('reclassify_ready');
-      renderRatingPreview();
-      if (details.open) previewSummary.focus();
-    });
-  }
-  rateAll.addEventListener('click', previewRatings);
-  cancelRatings.addEventListener('click', () => {
-    ratingPlan = null;
-    renderRatingPreview();
-    rateAll.focus();
-  });
-  applyRatings.addEventListener('click', () => {
-    if (busy || !ratingPlan) return;
-    const changes = ratingPlan.entries.flatMap(entry => entry.change ? [entry.change] : []);
-    if (!changes.length) return;
-    void run(async () => {
-      const updated = await libraryUpdateLevels(changes);
-      ratingPlan = null;
-      await refresh();
-      if (statusCopy?.key !== 'unavailable') {
-        if (updated === null) notice('reclassify_conflict');
-        else notice('rating_saved', { count: updated });
-      }
-    }, 'save_failed').then(() => { if (!ratingPlan && details.open) rateAll.focus(); });
-  });
   search.addEventListener('input', render);
   sort.addEventListener('change', render);
   difficultySort.addEventListener('click', () => {
