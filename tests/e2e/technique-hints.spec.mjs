@@ -13,7 +13,7 @@ test('scale and arpeggio cards show the fingerings for each hand and track the h
   const left = arpeggio.locator('.pr-hint-hand').filter({ has: page.getByRole('heading', { name: 'Left hand' }) });
   await expect(right.locator('.pr-hint-key-finger')).toHaveText(['1', '2', '3', '5']);
   await expect(left.locator('.pr-hint-key-finger')).toHaveText(['5', '4', '2', '1']);
-  await expect(right.getByRole('button')).toHaveText('Listen');
+  await expect(right.getByRole('button')).toHaveAccessibleName(/^Listen\b/);
   await page.locator('#pr-keys [data-v="2"]').click();
   await expect(left.locator('[data-chord-midi="54"] .pr-hint-key-finger')).toHaveText('3');
   expect(await list.evaluate(box => box.scrollWidth <= box.clientWidth)).toBe(true);

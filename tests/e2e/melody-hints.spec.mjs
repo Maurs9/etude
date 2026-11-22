@@ -17,8 +17,11 @@ test('melody examples play by ear and reveal their transposed notes separately',
   const toggle = rising.locator('button[aria-controls]');
   await listen.click();
   await expect.poll(() => page.evaluate(() => window.__hintMelody)).toEqual([60, 62, 64, 67]);
+  await expect(listen).toHaveAttribute('aria-pressed', 'true');
   await expect(list.getByRole('img')).toHaveCount(0);
   await expect(page.locator('[data-pr-hint-key]')).toHaveCount(0);
+  await listen.click();
+  await expect(listen).toHaveAttribute('aria-pressed', 'false');
 
   await toggle.click();
   await expect(toggle).toHaveText('Hide notes');

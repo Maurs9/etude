@@ -7,6 +7,7 @@ import * as storage from './storage.js';
 import * as safety from './data-safety.js';
 import * as theory from './theory.js';
 import type { PracticeHintDiagram, PracticeHintNote, PracticeHintStep } from './practice-hints.js';
+import { playControl } from './practice-hint-dom.js';
 import { isPracticeHintsTopic, renderPracticeHintCards } from './practice-hints-view.js';
 import type { StudyHintState } from './practice-study-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
@@ -593,7 +594,7 @@ async function timedAudioReady(context: AudioContext): Promise<boolean> {
 function audioUnlock() { ensureAudio(); const context = audioEngine.context; if (context && context.state !== 'running') void context.resume().then(audioLockSync).catch(() => undefined); else audioLockSync(); }
 function audioNoteOn(midi: number, velocity: number|undefined) { audioEngine.noteOn(midi, velocity || 100, { decode: pianoDecode, fallbackVoice: makePianoVoice }); }
 function audioNoteOff(midi: number) { audioEngine.noteOff(midi); }
-function stopPreviews() { clearPracticeHintPreview(); clearExplorePreview(); clearIntervalSongPreview(); audioEngine.stopPreviews(); }
+function stopPreviews() { clearPracticeHintPreview(); clearExplorePreview(); clearIntervalSongPreview(); clearIntervalHintPlay(); audioEngine.stopPreviews(); }
 function setBendFromValue(value: number) { audioEngine.setBendFromValue(value); }
 function masterRamp(value: number) { audioEngine.masterRamp(value); }
 function startDrone(rootPc: number) { audioEngine.startDrone(rootPc); }
@@ -5368,22 +5369,47 @@ function initExploreControls() {
 }
 /* ---------- SONGS: the interval song book, in the Song hints panel of the Practice setup (Intervals) ---------- */
 let songDir: IntervalSongDirection = 'asc';
-let intervalSongPreview: { frame: number } | null = null;
+interface IntervalSongPreview {
+    frame: number;
+    button?: HTMLButtonElement;
+    card?: HTMLElement;
+}
+let intervalSongPreview: IntervalSongPreview | null = null;
+let intervalHintPlay: { button: HTMLButtonElement; card: HTMLElement; timer: number } | null = null;
+
+function clearIntervalHintPlay() {
+    if (!intervalHintPlay) return;
+    clearTimeout(intervalHintPlay.timer);
+    setHintControlPressed(intervalHintPlay.button, false);
+    intervalHintPlay.card.classList.remove('is-playing');
+    intervalHintPlay = null;
+}
 
 function clearIntervalSongPreview() {
     if (!intervalSongPreview) return;
-    cancelAnimationFrame(intervalSongPreview.frame);
+    const { frame, button, card } = intervalSongPreview;
     intervalSongPreview = null;
+    cancelAnimationFrame(frame);
+    button?.setAttribute('aria-pressed', 'false');
+    button?.classList.remove('is-playing');
+    card?.classList.remove('is-playing');
     kbClear('target');
 }
 
-async function previewIntervalSong(notes: readonly IntervalSongNote[]) {
+async function previewIntervalSong(notes: readonly IntervalSongNote[], button?: HTMLButtonElement, card?: HTMLElement) {
+    if (button && intervalSongPreview?.button === button) {
+        stopPreviews();
+        return;
+    }
     stopPreviews();
     const context = ensureAudio();
     const last = notes.at(-1);
     if (!context || !last) return;
-    const preview = { frame: 0 };
+    const preview: IntervalSongPreview = { frame: 0, button, card };
     intervalSongPreview = preview;
+    button?.setAttribute('aria-pressed', 'true');
+    button?.classList.add('is-playing');
+    card?.classList.add('is-playing');
     // A cold sample can miss a short opening note if decoding starts after playback is scheduled.
     const [audioReady, samplesReady] = await Promise.all([
         context.state === 'running' || timedAudioReady(context),
@@ -5421,39 +5447,66 @@ function renderSongs() {
     const box = maybeById('songsList'), panel = maybeById('pr-songs');
     if (!box || !(panel instanceof HTMLDetailsElement) || !panel.open)
         return;
+    clearIntervalHintPlay();
+    clearIntervalSongPreview();
     box.innerHTML = '';
     const root = 60 + parseInt(selectById('song-root').value || '0', 10);
+    const hearLabel = t('ex_hear').replace(/^▶\s*/u, '');
+    const stopLabel = t('pr_hints_stop');
     for (let semi = 1; semi <= 12; semi++) {
         const iv = INTERVALS.find((i) => i.semi === semi) || { short: '' };
         const direction = songDir;
         const list = INTERVAL_SONGS[semi]?.[direction] ?? [];
-        const card = (document).createElement('div');
-        card.className = 'songcard';
+        const name = ivName(semi);
+        const card = document.createElement('article');
+        card.className = 'songcard pr-hint-card pr-interval-card';
         card.dataset.semi = String(semi);
-        card.innerHTML = '<div class="hd"><b>' + ivName(semi) + '</b><span class="sh">' + iv.short + '</span></div>';
-        const play = (document).createElement('button');
-        play.type = 'button';
-        play.className = 'play';
-        play.textContent = t('ex_hear');
-        play.setAttribute('aria-label', t('ex_hear') + ' — ' + ivName(semi));
-        play.onclick = () => playIvDir(root, semi, direction, 'melodic');
-        card.querySelector('.hd')?.appendChild(play);
-        const ul = (document).createElement('div');
-        ul.className = 'songlist';
-        card.appendChild(ul);
+        const hd = document.createElement('div');
+        hd.className = 'hd pr-hint-hd';
+        const main = document.createElement('div');
+        main.className = 'pr-hint-hd-main';
+        const heading = document.createElement('h3');
+        heading.className = 'pr-hint-name';
+        const bold = document.createElement('b');
+        bold.textContent = name;
+        heading.append(bold);
+        const formula = document.createElement('p');
+        formula.className = 'pr-hint-formula';
+        const sh = document.createElement('span');
+        sh.className = 'sh';
+        sh.textContent = iv.short;
+        formula.append(sh, ` · ${t('pr_hints_semitones', String(semi))}`);
+        main.append(heading, formula);
+        const play = playControl(`interval:${semi}`, hearLabel, stopLabel, name, false, () => {
+            if (intervalHintPlay?.button === play) {
+                stopPreviews();
+                return;
+            }
+            playIvDir(root, semi, direction, 'melodic');
+            setHintControlPressed(play, true);
+            card.classList.add('is-playing');
+            intervalHintPlay = { button: play, card, timer: window.setTimeout(clearIntervalHintPlay, 960) };
+        });
+        play.classList.add('play');
+        hd.append(main, play);
+        const ul = document.createElement('div');
+        ul.className = 'pr-hint-stage songlist';
         for (const song of list) {
             const title = document.createElement('button');
             title.type = 'button';
             title.textContent = song.title;
-            title.onclick = () => { void previewIntervalSong(intervalSongNotes(root, song)); };
+            title.setAttribute('aria-pressed', 'false');
+            title.onclick = () => { void previewIntervalSong(intervalSongNotes(root, song), title, card); };
             ul.appendChild(title);
         }
+        card.append(hd, ul);
         box.appendChild(card);
     }
 }
 
 interface PracticeHintPreview {
     id: string;
+    controlId: string;
     keys: boolean | null;
     frame: number;
     notes: readonly PracticeHintNote[];
@@ -5464,6 +5517,36 @@ interface PracticeHintPreview {
 let practiceHintPreview: PracticeHintPreview | null = null;
 let practiceHintPanelState = '';
 const practiceStudy: StudyHintState = { open: { prog: null, technique: null }, hand: 'rh', chords: new Map() };
+
+function setHintControlPressed(button: HTMLButtonElement, pressed: boolean) {
+    const ownsPressed = button.classList.contains('pr-hint-play')
+        || button.classList.contains('pr-hint-compare')
+        || (button.dataset.hintControl?.endsWith(':keys') ?? false);
+    if (ownsPressed) button.setAttribute('aria-pressed', String(pressed));
+    button.classList.toggle('is-playing', pressed);
+    // Keep aria-label stable for aria-pressed toggle buttons (WAI-ARIA APG); update visual tooltip.
+    const nextTitle = pressed ? button.dataset.labelStop : button.dataset.labelPlay;
+    if (nextTitle) button.title = nextTitle;
+}
+
+function syncActiveHintControls(activeControlId: string | null) {
+    const box = maybeById('practiceHintsList');
+    if (!box) return;
+    for (const button of box.querySelectorAll<HTMLButtonElement>('button[data-hint-control].is-playing, button[data-hint-control].pr-hint-play, button[data-hint-control].pr-hint-compare')) {
+        setHintControlPressed(button, activeControlId !== null && button.dataset.hintControl === activeControlId);
+    }
+    for (const card of box.querySelectorAll<HTMLElement>('.pr-hint-card.is-playing')) {
+        card.classList.remove('is-playing');
+    }
+    if (activeControlId) {
+        const activeBtn = [...box.querySelectorAll<HTMLButtonElement>('button[data-hint-control]')]
+            .find(button => button.dataset.hintControl === activeControlId);
+        if (activeBtn) {
+            setHintControlPressed(activeBtn, true);
+            activeBtn.closest('.pr-hint-card')?.classList.add('is-playing');
+        }
+    }
+}
 
 function paintPracticeHintKeys() {
     keyEl.forEach(key => { delete key.dataset.prHintKey; });
@@ -5479,6 +5562,7 @@ function clearPracticeHintPreview() {
     const { frame, originalLow, diagram } = practiceHintPreview;
     practiceHintPreview = null;
     cancelAnimationFrame(frame);
+    syncActiveHintControls(null);
     diagram?.paint();
     if (originalLow !== null && view.low !== originalLow) {
         view.low = Math.min(originalLow, BASE_HIGH - view.oct * 12);
@@ -5488,20 +5572,28 @@ function clearPracticeHintPreview() {
     dockSync();
 }
 
-async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], keys: boolean, diagram?: PracticeHintDiagram) {
+async function playPracticeHint(id: string, steps: readonly PracticeHintStep[], keys: boolean, diagram?: PracticeHintDiagram, controlId?: string) {
     const panel = byId('pr-songs');
     if (view0() !== 'practice' || SES.active || accomp.on || !(panel instanceof HTMLDetailsElement) || !panel.open) return;
+    const resolvedControl = controlId ?? id;
     if (keys && practiceHintPreview?.id === id && practiceHintPreview.keys !== true) {
         practiceHintPreview.keys = true;
+        practiceHintPreview.controlId = resolvedControl;
+        syncActiveHintControls(resolvedControl);
         dockSync();
         showPracticeHintNotes(practiceHintPreview);
+        return;
+    }
+    if (practiceHintPreview && (practiceHintPreview.controlId === resolvedControl || (practiceHintPreview.id === id && !controlId))) {
+        stopPreviews();
         return;
     }
     stopPreviews();
     const context = ensureAudio();
     if (!context) return;
-    const preview: PracticeHintPreview = { id, keys: keys ? true : null, frame: 0, notes: [], originalLow: null, diagram };
+    const preview: PracticeHintPreview = { id, controlId: resolvedControl, keys: keys ? true : null, frame: 0, notes: [], originalLow: null, diagram };
     practiceHintPreview = preview;
+    syncActiveHintControls(resolvedControl);
     dockSync();
     if (context.state !== 'running' && !await timedAudioReady(context)) {
         if (practiceHintPreview === preview) clearPracticeHintPreview();
@@ -5593,7 +5685,7 @@ function syncPracticeHintsPanel() {
         spell: (letter, acc) => spelledName(notation, letter, acc),
         chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
         scaleName: scaleDisp,
-        play: (id, steps, keys, diagram) => { void playPracticeHint(id, steps, keys, diagram); },
+        play: (id, steps, keys, diagram, controlId) => { void playPracticeHint(id, steps, keys, diagram, controlId); },
         stop: () => { if (practiceHintPreview) stopPreviews(); },
         study: practiceStudy,
         openExample: id => { void openPracticeHintExample(id); },

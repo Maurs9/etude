@@ -10,7 +10,7 @@ import { techniqueSpellDegree, type TechniqueHand, type TechniqueNote } from './
 export interface StudyHintOptions {
   readonly text: (key: string, ...args: string[]) => string;
   readonly spell: (letter: number, accidental: number) => string;
-  readonly play: (id: string, steps: readonly PracticeHintStep[], keys: boolean, diagram?: PracticeHintDiagram) => void;
+  readonly play: (id: string, steps: readonly PracticeHintStep[], keys: boolean, diagram?: PracticeHintDiagram, controlId?: string) => void;
   readonly stop: () => void;
   readonly disabled: boolean;
   readonly audioOnly: boolean;
@@ -50,7 +50,7 @@ export function renderProgressionStudy(
   const actions = element('div', 'pr-hint-actions');
   const listen = (part: 'full' | 'bass' | 'resolution', key: string, dock: boolean, controlId: string) =>
     control(`${id}:study:${controlId}`, text(key), title, disabled,
-      () => play(`${id}:${part}`, progressionHintSteps(hint, tonic, part), dock, diagram));
+      () => play(`${id}:${part}`, progressionHintSteps(hint, tonic, part), dock, diagram, `${id}:study:${controlId}`));
   actions.append(listen('full', 'pr_hints_prog_hear', !audioOnly, 'hear'), listen('bass', 'pr_hints_prog_hear_bass', !audioOnly, 'bass'));
   if (audioOnly) actions.append(listen('full', 'pr_hints_show_keys', true, 'keys'));
   const resolutionText = element('p', 'pr-hint-detail pr-study-resolution');
@@ -157,9 +157,9 @@ export function renderTechniqueStudy(
     const actions = element('div', 'pr-hint-actions');
     actions.append(
       control(`${id}:fragment`, text('pr_hints_technique_hear_passage'), description, disabled,
-        () => play(`${id}:${hand}:fragment`, fragmentSteps, true, diagram)),
+        () => play(`${id}:${hand}:fragment`, fragmentSteps, true, diagram, `${id}:fragment`)),
       control(`${id}:full`, text('pr_hints_technique_hear_run'), description, disabled,
-        () => play(`${id}:${hand}:full`, runSteps, true, diagram)));
+        () => play(`${id}:${hand}:full`, runSteps, true, diagram, `${id}:full`)));
     const keyboardWrap = element('div', 'pr-study-keyboard-wrap');
     keyboardWrap.append(keyboard, fingers);
     visual.append(staves, keyboardWrap);

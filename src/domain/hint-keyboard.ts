@@ -25,7 +25,7 @@ export function createHintKeyboard(root: number, range: readonly number[]) {
   const whiteWidth = 20, blackWidth = 12;
   const keys = Array.from({ length: high - low + 1 }, (_, index) => low + index);
   const width = keys.filter(isWhiteKey).length * whiteWidth + 4;
-  const svg = hintSvg('pr-chord-keyboard', `0 0 ${width} 68`);
+  const svg = hintSvg('pr-chord-keyboard', `0 0 ${width} 62`);
   svg.dataset.chordRoot = String(pitchClass(root));
   let markedKeys: Element[] = [];
 
@@ -34,7 +34,7 @@ export function createHintKeyboard(root: number, range: readonly number[]) {
     const white: string[] = [], black: string[] = [];
     for (const midi of keys) {
       const isWhite = isWhiteKey(midi);
-      const keyWidth = isWhite ? whiteWidth : blackWidth, height = isWhite ? 64 : 39;
+      const keyWidth = isWhite ? whiteWidth : blackWidth, height = isWhite ? 58 : 35;
       const x = 2 + white.length * whiteWidth - (isWhite ? 0 : blackWidth / 2);
       const tone = marked.get(midi);
       const classes = `pr-chord-key pr-chord-${isWhite ? 'white' : 'black'}`
@@ -43,7 +43,7 @@ export function createHintKeyboard(root: number, range: readonly number[]) {
       let mark = '';
       if (tone) {
         if (tone.finger === undefined || tone.tonic) {
-          const radius = tone.finger === undefined ? (tone.tonic ? 3.5 : 2.7) : 4.6;
+          const radius = tone.finger === undefined ? (tone.tonic ? 3.4 : 2.6) : 5;
           mark += `<circle class="pr-chord-key-dot" cx="${cx}" cy="${cy}" r="${radius}"/>`;
         }
         if (tone.finger !== undefined) {

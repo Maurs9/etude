@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHORD_HINTS, SCALE_HINTS, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS, PRACTICE_HINT_REFERENCES,
-  chordHintFormula, chordHintSteps, chordHintTones, melodyHintExample, progressionHintChords, progressionHintResolution, progressionHintSteps, progressionHintVoicings, scaleHintFormula, scaleHintSteps, scaleHintTones,
+  chordHintFormula, chordHintSteps, chordHintTones, chordSingleSteps, melodyHintExample, progressionHintChords, progressionHintResolution, progressionHintSteps, progressionHintVoicings, scaleHintFormula, scaleHintSteps, scaleHintTones, scaleSingleSteps,
   techniqueHintSteps, techniqueHintTonic,
 } from '../../src/domain/practice-hints.ts';
 import { CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS, pitchClass, practiceTonicMidi } from '../../src/domain/theory.ts';
@@ -23,7 +23,9 @@ describe('Practice hint catalog', () => {
       ...PROGRESSION_HINTS.flatMap(hint => [`p_${hint.cue}`, `p_${hint.cue}_title`]),
       ...TECHNIQUE_HINTS.flatMap(hint => [`t_${hint.id}`, `t_${hint.id}_title`]),
       ...['chord', 'scale', 'prog', 'technique', 'melody'].flatMap(topic => [`${topic}_title`, `${topic}_lede`]),
-      'show_keys', 'compare', 'melody_cue', 'melody_example', 'melody_show_notes', 'melody_hide_notes',
+      'show_keys', 'stop', 'compare', 'compare_short', 'tonic_active', 'tonic_default', 'tonic_groups', 'semitones',
+      'melody_cue', 'melody_example', 'melody_notes_count', 'melody_cue_rising', 'melody_cue_falling', 'melody_cue_repeated',
+      'melody_show_notes', 'melody_hide_notes',
       'chord_group_triads', 'chord_group_sixths_sevenths', 'chord_group_extensions', 'chord_keyboard', 'chord_staff',
       'prog_chord_bass', 'prog_bar', 'prog_hear', 'prog_hear_bass', 'prog_hear_resolution',
       'technique_up', 'technique_down', 'technique_hear_passage', 'technique_hear_run',
@@ -51,6 +53,9 @@ describe('Practice hint catalog', () => {
 
   it('moves only the seventh in the maj7 comparison and spells the diminished seventh', () => {
     const maj7 = CHORD_HINTS.find(hint => hint.symbol === 'maj7');
+    const single = chordSingleSteps('maj7', 2);
+    expect(notes(single)).toEqual([[62], [66], [69], [73], [62, 66, 69, 73]]);
+    expect(single.every(step => step.diagramKey === 'maj7')).toBe(true);
     expect(notes(chordHintSteps(maj7, 2)).filter(step => step.length === 4)).toEqual([[62, 66, 69, 73], [62, 66, 69, 72]]);
     expect(chordHintFormula('dim7')).toBe('1 ♭3 ♭5 𝄫7');
   });
@@ -60,6 +65,9 @@ describe('Practice hint catalog', () => {
     const lydian = byName(SCALE_HINTS, 'Lydian');
     expect(scaleHintFormula(locrian)).toBe('1 ♭2 ♭3 4 ♭5 ♭6 ♭7');
     expect(scaleHintFormula(lydian)).toBe('1 2 3 ♯4 5 6 7');
+    const singleDorian = scaleSingleSteps('Dorian', 2);
+    expect(notes(singleDorian).flat()).toEqual([62, 64, 65, 67, 69, 71, 72, 74]);
+    expect(singleDorian.every(step => step.diagramKey === 'Dorian')).toBe(true);
     expect(notes(scaleHintSteps(byName(SCALE_HINTS, 'Dorian'), 2)).slice(0, 7).flat()).toEqual([62, 69, 71, 72, 69, 70, 72]);
   });
 

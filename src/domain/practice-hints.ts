@@ -190,13 +190,19 @@ export function chordHintFormula(symbol: string): string {
   return chordHintTones(symbol, 0).map(note => note.label).join(' ');
 }
 
+function chordPlaybackSequence(chord: string, tonic: number, diagramKey = chord): PracticeHintStep[] {
+  const notes = chordHintTones(chord, tonic);
+  return [...notes.map(note => ({ notes: [note], seconds: 0.16, gap: 0.04, diagramKey })),
+    { notes, seconds: 0.65, gap: 0.22, diagramKey }];
+}
+
+export function chordSingleSteps(symbol: string, tonic: number): PracticeHintStep[] {
+  return chordPlaybackSequence(symbol, tonic);
+}
+
 export function chordHintSteps(hint: ChordHint, tonic: number): PracticeHintStep[] {
   const symbols = hint.compare ? [hint.symbol, hint.compare] : [hint.symbol];
-  return symbols.flatMap(chord => {
-    const notes = chordHintTones(chord, tonic);
-    return [...notes.map(note => ({ notes: [note], seconds: 0.16, gap: 0.04, diagramKey: chord })),
-      { notes, seconds: 0.65, gap: 0.22, diagramKey: chord }];
-  });
+  return symbols.flatMap(chord => chordPlaybackSequence(chord, tonic, hint.compare ? `compare:${chord}` : chord));
 }
 
 export function scaleHintFormula(hint: ScaleHint): string {
@@ -222,17 +228,26 @@ export function scaleHintTones(name: string, tonic: number) {
   });
 }
 
+function playScaleTones(tones: readonly PracticeHintNote[], seconds: number, diagramKey: string): PracticeHintStep[] {
+  return tones.map((tone, i) => ({ ...block([tone.midi], seconds, i + 1 === tones.length ? 0.22 : 0.035), diagramKey }));
+}
+
+export function scaleSingleSteps(name: string, tonic: number): PracticeHintStep[] {
+  return playScaleTones(scaleHintTones(name, tonic), 0.2, name);
+}
+
 export function scaleHintSteps(hint: ScaleHint, tonic: number): PracticeHintStep[] {
   const target = scaleHintTones(hint.name, tonic);
-  const play = (tones: readonly PracticeHintNote[], seconds: number, diagramKey: string) => tones.map((tone, i) =>
-    ({ ...block([tone.midi], seconds, i + 1 === tones.length ? 0.22 : 0.035), diagramKey }));
-  if (!hint.compare) return play(target, 0.2, hint.name);
+  if (!hint.compare) return playScaleTones(target, 0.2, hint.name);
 
   const other = scaleHintTones(hint.compare.name, tonic);
   const excerpt = hint.compare.degrees;
-  return [block([target[0].midi], 0.36), ...play(excerpt.map(i => target[i]), 0.25, hint.name),
-    ...play(excerpt.map(i => other[i]), 0.25, hint.compare.name),
-    ...play(target, 0.19, hint.name), ...play(other, 0.19, hint.compare.name)];
+  const targetKey = `compare:${hint.name}`, otherKey = `compare:${hint.compare.name}`;
+  return [{ ...block([target[0].midi], 0.36), diagramKey: targetKey },
+    ...playScaleTones(excerpt.map(i => target[i]), 0.25, targetKey),
+    ...playScaleTones(excerpt.map(i => other[i]), 0.25, otherKey),
+    ...playScaleTones(target, 0.19, targetKey),
+    ...playScaleTones(other, 0.19, otherKey)];
 }
 
 export function progressionHintChords(hint: ProgressionHint, tonic: number) {
