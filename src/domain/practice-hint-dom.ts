@@ -45,23 +45,41 @@ export function playControl(
   return button;
 }
 
-export function createCompareBadge(firstLabel: string, secondLabel: string) {
-  const el = element('div', 'pr-compare-badge');
-  el.hidden = true;
-  const first = element('span', 'pr-compare-side', firstLabel);
-  const arrow = element('span', 'pr-compare-arrow', '→');
-  arrow.setAttribute('aria-hidden', 'true');
-  const second = element('span', 'pr-compare-side', secondLabel);
-  el.append(first, arrow, second);
-  const update = (comparing: boolean, activeSecond: boolean) => {
-    el.hidden = !comparing;
-    if (!comparing) {
-      first.removeAttribute('aria-current');
-      second.removeAttribute('aria-current');
-      return;
-    }
-    first.setAttribute('aria-current', activeSecond ? 'false' : 'step');
-    second.setAttribute('aria-current', activeSecond ? 'step' : 'false');
+export interface SegmentOption<T> {
+  readonly value: T;
+  readonly id: string;
+  readonly label: string;
+  readonly ariaLabel: string;
+}
+
+export function segmentedControl<T>(
+  groupLabel: string,
+  options: readonly SegmentOption<T>[],
+  initial: T,
+  onSelect: (value: T) => void,
+): HTMLElement {
+  const group = element('div', 'pr-hint-seg');
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', groupLabel);
+  const buttons: HTMLButtonElement[] = [];
+  const sync = (active: T) => {
+    options.forEach((opt, i) => buttons[i].setAttribute('aria-pressed', String(opt.value === active)));
   };
-  return { el, update };
+  for (const opt of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pr-hint-seg-btn';
+    btn.textContent = opt.label;
+    btn.dataset.hintControl = opt.id;
+    btn.setAttribute('aria-label', opt.ariaLabel);
+    btn.title = opt.ariaLabel;
+    btn.addEventListener('click', () => {
+      sync(opt.value);
+      onSelect(opt.value);
+    });
+    buttons.push(btn);
+    group.append(btn);
+  }
+  sync(initial);
+  return group;
 }

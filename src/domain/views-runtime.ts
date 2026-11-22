@@ -5581,7 +5581,7 @@ interface PracticeHintPreview {
 }
 let practiceHintPreview: PracticeHintPreview | null = null;
 let practiceHintPanelState = '';
-const practiceStudy: StudyHintState = { open: { prog: null, technique: null }, hand: 'rh', chords: new Map() };
+const practiceStudy: StudyHintState = { open: { prog: null, technique: null }, hand: 'rh', chords: new Map(), inversions: new Map(), scaleHands: new Map() };
 
 function setHintControlPressed(button: HTMLButtonElement, pressed: boolean) {
     const ownsPressed = button.classList.contains('pr-hint-play')
@@ -5753,17 +5753,7 @@ function syncPracticeHintsPanel() {
         play: (id, steps, keys, diagram, controlId) => { void playPracticeHint(id, steps, keys, diagram, controlId); },
         stop: () => { if (practiceHintPreview) stopPreviews(); },
         study: practiceStudy,
-        openExample: id => { void openPracticeHintExample(id); },
     });
-}
-
-async function openPracticeHintExample(id: string) {
-    try {
-        await show('analysis');
-        if (view0() === 'analysis') await anLoadExample(id);
-    } catch {
-        if (view0() === 'analysis') anShowError('an_err_render');
-    }
 }
 /* ============================================================================
    LEARN — bilingual theory handbook. Every demo button routes through the

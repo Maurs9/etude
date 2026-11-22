@@ -1,8 +1,8 @@
 import {
   CHORD_TEMPLATES, PROGRESSION_TEMPLATES, SCALE_DEFINITIONS, TWELVE_BAR_BLUES_ROOTS,
-  formatChordFormula, formatScaleFormula, keyFifths, practiceTonicMidi, spellDiatonicDegree, spellMidi, transposePitchClass, type SpelledMidi,
+  formatChordFormula, formatScaleFormula, keyFifths, pitchClass, practiceTonicMidi, spellDiatonicDegree, spellMidi, transposePitchClass, type SpelledMidi,
 } from './theory.js';
-import { ARPEGGIO_TONICS, techniqueKeyAllowed, techniqueSteps, type TechniqueHand, type TechniqueKind } from './technique.js';
+import { ARPEGGIO_TONICS, SCALE_FINGERINGS, techniqueKeyAllowed, techniqueSteps, type TechniqueHand, type TechniqueKind } from './technique.js';
 
 export interface PracticeHintNote {
   readonly midi: number;
@@ -29,14 +29,12 @@ export interface ChordHintTone extends SpelledMidi {
 
 export interface ChordHint {
   readonly symbol: string;
-  readonly compare?: string;
 }
 
 export interface ScaleHint {
   readonly name: string;
   readonly cue: string;
   readonly formula?: string;
-  readonly compare?: { readonly name: string; readonly degrees: readonly number[] };
 }
 
 export interface ProgressionHint {
@@ -57,61 +55,47 @@ export interface TechniqueHint {
   readonly namedTonics?: readonly number[];
 }
 
-interface PracticeHintReference {
-  readonly title: string;
-  readonly cue: string;
-  /** A bundled example that starts at the cited passage. */
-  readonly example?: string;
-}
-
-export const PRACTICE_HINT_REFERENCES: Readonly<Partial<Record<string, PracticeHintReference>>> = {
-  'chord:maj7': { title: 'Erik Satie · Gymnopédie Nº 1', cue: 'satie', example: 'gymno' },
-  'scale:Harmonic minor': { title: 'W. A. Mozart · Rondo alla turca, K. 331', cue: 'mozart' },
-  'prog:I–vi–IV–V (50s)': { title: 'Ben E. King · Stand by Me (1961)', cue: 'stand_by_me' },
-  'technique:arp_major': { title: 'J. S. Bach · BWV 846', cue: 'bach', example: 'prelude' },
-};
-
 export const CHORD_HINTS: readonly ChordHint[] = [
-  { symbol: 'maj', compare: 'm' },
-  { symbol: 'm', compare: 'maj' },
-  { symbol: 'dim', compare: 'm' },
-  { symbol: 'aug', compare: 'maj' },
-  { symbol: 'sus2', compare: 'sus4' },
-  { symbol: 'sus4', compare: 'maj' },
-  { symbol: '6', compare: 'maj' },
-  { symbol: 'm6', compare: 'm7' },
-  { symbol: 'maj7', compare: '7' },
-  { symbol: '7', compare: 'maj7' },
-  { symbol: 'm7', compare: '7' },
-  { symbol: 'mMaj7', compare: 'm7' },
-  { symbol: 'm7♭5', compare: 'm7' },
-  { symbol: 'dim7', compare: 'm7♭5' },
-  { symbol: '7♯5', compare: '7' },
-  { symbol: '7♭5', compare: '7' },
-  { symbol: 'add9', compare: 'maj' },
-  { symbol: 'maj9', compare: 'maj7' },
-  { symbol: '9', compare: '7' },
-  { symbol: 'm9', compare: 'm7' },
-  { symbol: '7♭9', compare: '9' },
-  { symbol: '7♯9', compare: '9' },
-  { symbol: 'maj7♯11', compare: 'maj7' },
-  { symbol: '11', compare: '9' },
-  { symbol: '13', compare: '9' },
+  { symbol: 'maj' },
+  { symbol: 'm' },
+  { symbol: 'dim' },
+  { symbol: 'aug' },
+  { symbol: 'sus2' },
+  { symbol: 'sus4' },
+  { symbol: '6' },
+  { symbol: 'm6' },
+  { symbol: 'maj7' },
+  { symbol: '7' },
+  { symbol: 'm7' },
+  { symbol: 'mMaj7' },
+  { symbol: 'm7♭5' },
+  { symbol: 'dim7' },
+  { symbol: '7♯5' },
+  { symbol: '7♭5' },
+  { symbol: 'add9' },
+  { symbol: 'maj9' },
+  { symbol: '9' },
+  { symbol: 'm9' },
+  { symbol: '7♭9' },
+  { symbol: '7♯9' },
+  { symbol: 'maj7♯11' },
+  { symbol: '11' },
+  { symbol: '13' },
 ];
 
 export const SCALE_HINTS: readonly ScaleHint[] = [
-  { name: 'Major (Ionian)', cue: 'major', compare: { name: 'Mixolydian', degrees: [5, 6, 7] } },
-  { name: 'Dorian', cue: 'dorian', compare: { name: 'Aeolian (Natural minor)', degrees: [4, 5, 6] } },
-  { name: 'Phrygian', cue: 'phrygian', compare: { name: 'Aeolian (Natural minor)', degrees: [0, 1, 2] } },
-  { name: 'Lydian', cue: 'lydian', compare: { name: 'Major (Ionian)', degrees: [2, 3, 4] } },
-  { name: 'Mixolydian', cue: 'mixolydian', compare: { name: 'Major (Ionian)', degrees: [5, 6, 7] } },
-  { name: 'Aeolian (Natural minor)', cue: 'aeolian', compare: { name: 'Dorian', degrees: [4, 5, 6] } },
-  { name: 'Locrian', cue: 'locrian', formula: '1 ♭2 ♭3 4 ♭5 ♭6 ♭7', compare: { name: 'Phrygian', degrees: [3, 4, 5] } },
-  { name: 'Harmonic minor', cue: 'harmonic_minor', compare: { name: 'Aeolian (Natural minor)', degrees: [5, 6, 7] } },
-  { name: 'Melodic minor', cue: 'melodic_minor', compare: { name: 'Harmonic minor', degrees: [4, 5, 6, 7] } },
-  { name: 'Harmonic major', cue: 'harmonic_major', compare: { name: 'Major (Ionian)', degrees: [4, 5, 6] } },
-  { name: 'Phrygian dominant', cue: 'phrygian_dominant', compare: { name: 'Phrygian', degrees: [0, 1, 2, 3] } },
-  { name: 'Hungarian minor', cue: 'hungarian', compare: { name: 'Harmonic minor', degrees: [2, 3, 4] } },
+  { name: 'Major (Ionian)', cue: 'major' },
+  { name: 'Dorian', cue: 'dorian' },
+  { name: 'Phrygian', cue: 'phrygian' },
+  { name: 'Lydian', cue: 'lydian' },
+  { name: 'Mixolydian', cue: 'mixolydian' },
+  { name: 'Aeolian (Natural minor)', cue: 'aeolian' },
+  { name: 'Locrian', cue: 'locrian', formula: '1 ♭2 ♭3 4 ♭5 ♭6 ♭7' },
+  { name: 'Harmonic minor', cue: 'harmonic_minor' },
+  { name: 'Melodic minor', cue: 'melodic_minor' },
+  { name: 'Harmonic major', cue: 'harmonic_major' },
+  { name: 'Phrygian dominant', cue: 'phrygian_dominant' },
+  { name: 'Hungarian minor', cue: 'hungarian' },
   { name: 'Major pentatonic', cue: 'major_pentatonic' },
   { name: 'Minor pentatonic', cue: 'minor_pentatonic' },
   { name: 'Blues', cue: 'blues', formula: '1 ♭3 4 ♭5 5 ♭7' },
@@ -181,32 +165,127 @@ function spellHintChord(symbol: string, root: number, spelling: SpelledMidi): Ch
   });
 }
 
-export function chordHintTones(symbol: string, tonic: number): ChordHintTone[] {
+export function chordHintInversionCount(symbol: string): number {
+  return Math.min(chordTemplate(symbol).intervals.length, 4);
+}
+
+export function chordHintTones(symbol: string, tonic: number, inversion = 0): ChordHintTone[] {
   const root = practiceTonicMidi(tonic, 'near-middle-c');
-  return spellHintChord(symbol, root, spellMidi(root, keyFifths(tonic, false)));
+  const tones = spellHintChord(symbol, root, spellMidi(root, keyFifths(tonic, false)));
+  const inv = Math.max(0, Math.min(inversion, chordHintInversionCount(symbol) - 1));
+  if (!inv) return tones;
+  const shifted = tones.map((tone, index) => (index < inv
+    ? { ...tone, midi: tone.midi + 12, oct: tone.oct + 1 }
+    : tone));
+  return shifted.sort((a, b) => a.midi - b.midi);
 }
 
 export function chordHintFormula(symbol: string): string {
   return chordHintTones(symbol, 0).map(note => note.label).join(' ');
 }
 
-function chordPlaybackSequence(chord: string, tonic: number, diagramKey = chord): PracticeHintStep[] {
-  const notes = chordHintTones(chord, tonic);
+export function chordSingleSteps(symbol: string, tonic: number, inversion = 0): PracticeHintStep[] {
+  const notes = chordHintTones(symbol, tonic, inversion);
+  const diagramKey = `${symbol}:${inversion}`;
   return [...notes.map(note => ({ notes: [note], seconds: 0.16, gap: 0.04, diagramKey })),
     { notes, seconds: 0.65, gap: 0.22, diagramKey }];
 }
 
-export function chordSingleSteps(symbol: string, tonic: number): PracticeHintStep[] {
-  return chordPlaybackSequence(symbol, tonic);
-}
-
-export function chordHintSteps(hint: ChordHint, tonic: number): PracticeHintStep[] {
-  const symbols = hint.compare ? [hint.symbol, hint.compare] : [hint.symbol];
-  return symbols.flatMap(chord => chordPlaybackSequence(chord, tonic, hint.compare ? `compare:${chord}` : chord));
-}
-
 export function scaleHintFormula(hint: ScaleHint): string {
   return hint.formula ?? formatScaleFormula(SCALE_DEFINITIONS[hint.name]);
+}
+
+const WHITE_KEY_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
+const isBlackMidi = (midi: number) => !WHITE_KEY_PCS.has(pitchClass(midi));
+
+const STANDARD_SCALE_FINGERINGS: Readonly<Partial<Record<string, keyof typeof SCALE_FINGERINGS>>> = {
+  'Major (Ionian)': 'maj',
+  'Aeolian (Natural minor)': 'natural',
+  'Harmonic minor': 'harmonic',
+  'Melodic minor': 'melodic',
+};
+
+function solveScaleFingering(midis: readonly number[], hand: TechniqueHand): number[] {
+  const n = midis.length;
+  const black = midis.map(isBlackMidi);
+  const allBlack = black.every(Boolean);
+  const dp: number[][] = Array.from({ length: n }, () => Array(6).fill(Infinity));
+  const prev: number[][] = Array.from({ length: n }, () => Array(6).fill(0));
+
+  const noteCost = (i: number, f: number): number => {
+    let cost = 0;
+    if (f === 1 && black[i] && !allBlack) cost += 100;
+    if (f === 5 && black[i]) cost += 80;
+    if (f === 5 && (hand === 'rh' ? i < n - 1 : i > 0)) cost += 120;
+    if (i === 0) {
+      if (hand === 'rh') cost += black[0] ? (f === 2 ? 0 : f === 3 ? 3 : 10) : (f === 1 ? 0 : 8);
+      else cost += black[0] ? (f === 3 ? 0 : f === 2 ? 2 : f === 4 ? 4 : 12) : (f === 5 ? 0 : f === 4 ? 4 : 8);
+    }
+    if (i === n - 1) {
+      if (hand === 'rh') cost += black[n - 1] ? (f === 2 ? 0 : f === 3 ? 2 : f === 4 ? 4 : 10) : (f === 5 ? 0 : f === 4 ? 3 : f === 3 ? 5 : 7);
+      else cost += black[n - 1] ? (f === 3 ? 0 : f === 2 ? 2 : f === 4 ? 4 : 10) : (f === 1 ? 0 : f === 2 ? 4 : 7);
+    }
+    return cost;
+  };
+
+  for (let f = 1; f <= 5; f++) dp[0][f] = noteCost(0, f);
+
+  for (let i = 1; i < n; i++) {
+    const semi = midis[i] - midis[i - 1];
+    for (let fNext = 1; fNext <= 5; fNext++) {
+      const base = noteCost(i, fNext);
+      for (let fPrev = 1; fPrev <= 5; fPrev++) {
+        if (!Number.isFinite(dp[i - 1][fPrev])) continue;
+        let step = Infinity;
+        if (hand === 'rh') {
+          if (fNext > fPrev) {
+            const df = fNext - fPrev;
+            step = df === 1 ? (semi <= 3 ? 0 : 2) : df === 2 ? (semi >= 3 ? 3 : 7) : (semi >= 4 ? 6 : 15);
+          } else if (fNext === 1 && fPrev >= 2 && fPrev <= 4) {
+            step = (fPrev === 3 ? 4 : fPrev === 4 ? 5 : 9) + (black[i - 1] && !black[i] ? -2 : 0) + (!black[i - 1] && black[i] ? 8 : 0);
+          }
+        } else {
+          if (fNext < fPrev) {
+            const df = fPrev - fNext;
+            step = df === 1 ? (semi <= 3 ? 0 : 2) : df === 2 ? (semi >= 3 ? 3 : 7) : (semi >= 4 ? 6 : 15);
+          } else if (fPrev === 1 && fNext >= 2 && fNext <= 4) {
+            step = (fNext === 3 ? 4 : fNext === 4 ? 5 : 9) + (!black[i - 1] && black[i] ? -2 : 0) + (black[i - 1] && !black[i] ? 8 : 0);
+          }
+        }
+        const total = dp[i - 1][fPrev] + step + base;
+        if (total < dp[i][fNext]) {
+          dp[i][fNext] = total;
+          prev[i][fNext] = fPrev;
+        }
+      }
+    }
+  }
+
+  let best = 1;
+  for (let f = 2; f <= 5; f++) if (dp[n - 1][f] < dp[n - 1][best]) best = f;
+  const result = new Array<number>(n);
+  for (let i = n - 1, f = best; i >= 0; i--) {
+    result[i] = f;
+    f = prev[i][f];
+  }
+  return result;
+}
+
+export function scaleHintFingering(name: string, tonic: number, hand: TechniqueHand): number[] {
+  const tonicPc = pitchClass(tonic);
+  const tableKey = STANDARD_SCALE_FINGERINGS[name];
+  if (tableKey) return [...SCALE_FINGERINGS[tableKey][hand][tonicPc]].map(Number);
+  const offsets = SCALE_DEFINITIONS[name];
+  const root = practiceTonicMidi(tonic, 'near-middle-c');
+  const midis = [...offsets, 12].map(offset => root + offset);
+  if (name === 'Chromatic') {
+    return midis.map((midi, index) => {
+      if (isBlackMidi(midi)) return 3;
+      if (hand === 'rh') return index > 0 && !isBlackMidi(midis[index - 1]) ? 2 : 1;
+      return index < midis.length - 1 && !isBlackMidi(midis[index + 1]) ? 2 : 1;
+    });
+  }
+  return solveScaleFingering(midis, hand);
 }
 
 const scaleLetterDegrees: Readonly<Partial<Record<string, readonly number[]>>> = {
@@ -216,15 +295,16 @@ const scaleLetterDegrees: Readonly<Partial<Record<string, readonly number[]>>> =
   'Whole tone': [1, 2, 3, 4, 5, 6],
 };
 
-export function scaleHintTones(name: string, tonic: number) {
+export function scaleHintTones(name: string, tonic: number, hand?: TechniqueHand) {
   const offsets = SCALE_DEFINITIONS[name];
   const root = practiceTonicMidi(tonic, 'near-middle-c');
   const fifths = keyFifths(tonic, false), spelling = spellMidi(root, fifths);
+  const fingers = hand ? scaleHintFingering(name, tonic, hand) : null;
   return [...offsets, 12].map((offset, index) => {
     const midi = root + offset;
     const degree = offset === 12 ? 8 : offsets.length === 7 ? index + 1 : scaleLetterDegrees[name]?.[index];
     const written = degree === undefined ? spellMidi(midi, fifths) : spellDiatonicDegree(spelling, midi, degree);
-    return { ...written, midi, tonic: offset === 0 || offset === 12 };
+    return { ...written, midi, tonic: offset === 0 || offset === 12, ...(fingers ? { finger: fingers[index] } : {}) };
   });
 }
 
@@ -234,20 +314,6 @@ function playScaleTones(tones: readonly PracticeHintNote[], seconds: number, dia
 
 export function scaleSingleSteps(name: string, tonic: number): PracticeHintStep[] {
   return playScaleTones(scaleHintTones(name, tonic), 0.2, name);
-}
-
-export function scaleHintSteps(hint: ScaleHint, tonic: number): PracticeHintStep[] {
-  const target = scaleHintTones(hint.name, tonic);
-  if (!hint.compare) return playScaleTones(target, 0.2, hint.name);
-
-  const other = scaleHintTones(hint.compare.name, tonic);
-  const excerpt = hint.compare.degrees;
-  const targetKey = `compare:${hint.name}`, otherKey = `compare:${hint.compare.name}`;
-  return [{ ...block([target[0].midi], 0.36), diagramKey: targetKey },
-    ...playScaleTones(excerpt.map(i => target[i]), 0.25, targetKey),
-    ...playScaleTones(excerpt.map(i => other[i]), 0.25, otherKey),
-    ...playScaleTones(target, 0.19, targetKey),
-    ...playScaleTones(other, 0.19, otherKey)];
 }
 
 export function progressionHintChords(hint: ProgressionHint, tonic: number) {

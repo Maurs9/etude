@@ -19,6 +19,8 @@ export interface StudyHintOptions {
 export interface StudyHintState {
   readonly open: Record<'prog' | 'technique', string | null>;
   readonly chords: Map<string, number>;
+  readonly inversions: Map<string, number>;
+  readonly scaleHands: Map<string, TechniqueHand>;
   hand: TechniqueHand;
 }
 
