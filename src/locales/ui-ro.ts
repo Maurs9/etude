@@ -453,6 +453,7 @@ const payload: UIPayload = {
       "pr_hints_scale_family_major": "Majore și luminoase",
       "pr_hints_scale_family_minor": "Minore și întunecate",
       "pr_hints_scale_family_exotic": "Exotice și simetrice",
+      "pr_hints_family_all": "Toate",
       "pr_hints_compare_toggle": "Compară 2",
       "pr_hints_compare_stop": "Închide comparația",
       "pr_hints_compare_slot": "Schimbă panoul %a",

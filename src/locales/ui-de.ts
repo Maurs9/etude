@@ -609,6 +609,7 @@ const payload: UIPayload = {
       "pr_hints_scale_family_major": "Dur und hell",
       "pr_hints_scale_family_minor": "Moll und dunkel",
       "pr_hints_scale_family_exotic": "Exotisch und symmetrisch",
+      "pr_hints_family_all": "Alle",
       "pr_hints_compare_toggle": "2 vergleichen",
       "pr_hints_compare_stop": "Vergleich schließen",
       "pr_hints_compare_slot": "Feld %a ändern",

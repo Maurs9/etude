@@ -1,17 +1,14 @@
 import { test, expect } from '../helpers/fixtures.mjs';
 
-test('scale studio groups scales by musical family, shows transposable RH/LH fingerings, compares two scales, and plays without opening the dock', async ({ app }) => {
+test('scale hints use family tabs with transposable RH/LH fingerings and play without opening the dock', async ({ app }) => {
   const page = await app.open({ hash: 'practice', dock: false });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#pr-t-scale').click();
   await page.locator('#pr-mode button[data-v="ear"]').click();
   await page.locator('#pr-songs summary').click();
   const list = page.locator('#practiceHintsList');
-  await expect(list.getByRole('heading', { level: 2 })).toHaveText([
-    'Major and bright', 'Minor and dark', 'Exotic and symmetrical',
-  ]);
-  await expect(list.locator('[data-hint-pick]')).toHaveCount(19);
-  await expect(list.locator('[data-hint]')).toHaveCount(1);
+  await expect(list.locator('.pr-family-tab')).toHaveCount(4);
+  await expect(list.locator('[data-hint]')).toHaveCount(4);
   await expect(list.locator('.pr-hint-cue')).toHaveCount(0);
   await expect(list.locator('.pr-hint-reference')).toHaveCount(0);
 
@@ -20,7 +17,8 @@ test('scale studio groups scales by musical family, shows transposable RH/LH fin
   await major.getByRole('button', { name: /^Left hand/ }).click();
   await expect(major.locator('.pr-hint-key-finger')).toHaveText(['5', '4', '3', '2', '1', '3', '2', '1']);
 
-  await list.locator('[data-hint-pick="Dorian"]').click();
+  await list.locator('[data-hint-family="minor"]').click();
+  await expect(list.locator('[data-hint]')).toHaveCount(8);
   const card = list.locator('[data-hint="Dorian"]');
   await expect(card.getByRole('button', { name: /Show keys/ })).toHaveCount(0);
   await expect(card.getByRole('img')).toHaveAttribute('aria-label', /Dorian.*with C · D · E♭ · F · G · A · B♭ · C/);
@@ -45,11 +43,9 @@ test('scale studio groups scales by musical family, shows transposable RH/LH fin
   await expect(card.locator('.pr-chord-sounding')).toHaveCount(0);
   await expect(page.locator('[data-pr-hint-key]')).toHaveCount(0);
 
-  // Compare 2 scales side by side
-  await list.locator('[data-hint-control="scale:compare"]').click();
-  await expect(list.locator('[data-hint]')).toHaveCount(2);
-  await expect(list.locator('.pr-studio-diff')).toContainText('A only: B');
-  await expect(list.locator('.pr-studio-diff')).toContainText('B only: B♭');
-  await list.locator('[data-hint-control="scale:compare:close"]').click();
-  await expect(list.locator('[data-hint]')).toHaveCount(1);
+  await list.locator('[data-hint-family="all"]').click();
+  await expect(list.getByRole('heading', { level: 2 })).toHaveText([
+    'Major and bright', 'Minor and dark', 'Exotic and symmetrical',
+  ]);
+  await expect(list.locator('[data-hint]')).toHaveCount(19);
 });

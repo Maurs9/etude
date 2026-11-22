@@ -1670,6 +1670,7 @@ const payload: UIPayload = {
       "pr_hints_scale_family_major": "Mayores y luminosas",
       "pr_hints_scale_family_minor": "Menores y oscuras",
       "pr_hints_scale_family_exotic": "Exóticas y simétricas",
+      "pr_hints_family_all": "Todas",
       "pr_hints_compare_toggle": "Comparar 2",
       "pr_hints_compare_stop": "Cerrar comparación",
       "pr_hints_compare_slot": "Cambiar panel %a",

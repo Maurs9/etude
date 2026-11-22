@@ -42,7 +42,7 @@ test.describe('Song hints in the Practice setup', () => {
     await page.locator('#pr-t-chord').click();
     await expect(panel).toBeVisible();
     await expect(panel).toHaveAttribute('open', '');
-    await expect(page.locator('#practiceHintsList [data-hint-pick="maj7"]')).toBeVisible();
+    await expect(page.locator('#practiceHintsList [data-hint="maj7"]')).toBeVisible();
     await expect(page.locator('#song-dir')).toBeHidden();
     await expect(page.locator('#song-root')).toBeHidden();
     await page.locator('#pr-t-interval').click();
