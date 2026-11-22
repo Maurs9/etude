@@ -18,21 +18,29 @@ export function hintSvg(className: string, viewBox: string): SVGSVGElement {
 
 export function createHintKeyboard(root: number, range: readonly number[]) {
   const isWhiteKey = (midi: number) => whitePitches.has(pitchClass(midi));
-  let low = Math.min(...range);
-  let high = Math.max(low + 12, ...range);
-  while (!isWhiteKey(low)) low--;
-  while (!isWhiteKey(high)) high++;
   const whiteWidth = 20, blackWidth = 12;
-  const keys = Array.from({ length: high - low + 1 }, (_, index) => low + index);
-  const width = keys.filter(isWhiteKey).length * whiteWidth + 4;
-  const svg = hintSvg('pr-chord-keyboard', `0 0 ${width} 62`);
+  const computeKeys = (midis: readonly number[]) => {
+    let low = Math.min(...midis);
+    let high = Math.max(low + 12, ...midis);
+    while (!isWhiteKey(low)) low--;
+    while (!isWhiteKey(high)) high++;
+    const list = Array.from({ length: high - low + 1 }, (_, index) => low + index);
+    const width = list.filter(isWhiteKey).length * whiteWidth + 4;
+    return { list, viewBox: `0 0 ${width} 62` };
+  };
+  let layout = computeKeys(range);
+  const svg = hintSvg('pr-chord-keyboard', layout.viewBox);
   svg.dataset.chordRoot = String(pitchClass(root));
   let markedKeys: Element[] = [];
 
-  const draw = (tones: readonly KeyboardTone[], label: string, changed?: ReadonlySet<number>) => {
+  const draw = (tones: readonly KeyboardTone[], label: string, changed?: ReadonlySet<number>, fitRange = false) => {
+    if (fitRange && tones.length) {
+      layout = computeKeys(tones.map(tone => tone.midi));
+      svg.setAttribute('viewBox', layout.viewBox);
+    }
     const marked = new Map(tones.map(tone => [tone.midi, tone]));
     const white: string[] = [], black: string[] = [];
-    for (const midi of keys) {
+    for (const midi of layout.list) {
       const isWhite = isWhiteKey(midi);
       const keyWidth = isWhite ? whiteWidth : blackWidth, height = isWhite ? 58 : 35;
       const x = 2 + white.length * whiteWidth - (isWhite ? 0 : blackWidth / 2);

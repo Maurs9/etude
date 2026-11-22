@@ -43,16 +43,17 @@ test('chord hints play a single chord without opening the dock, while progressio
     60, 64, 67, 71, 60, 64, 67, 71,
   ]);
   await expect(chordCard.locator('.pr-chord-sounding')).not.toHaveCount(0);
-  await expect(chordCard.locator('.pr-compare-badge')).toBeHidden();
+  await expect(chordCard.locator('.pr-hint-reference')).toHaveCount(0);
   await expect(chordPlay).toHaveAttribute('aria-pressed', 'true');
   await chordPlay.click();
   await expect(chordPlay).toHaveAttribute('aria-pressed', 'false');
   await expect(chordCard.locator('.pr-chord-sounding')).toHaveCount(0);
 
   await page.evaluate(() => { window.__hintAudio = []; });
-  await chordCard.getByRole('button', { name: /^Compare with/ }).click();
+  await chordCard.getByRole('button', { name: /^1st inversion/ }).click();
+  await chordPlay.click();
   await expect.poll(() => page.evaluate(() => window.__hintAudio.map(event => event.midi))).toEqual([
-    60, 64, 67, 71, 60, 64, 67, 71, 60, 64, 67, 70, 60, 64, 67, 70,
+    64, 67, 71, 72, 64, 67, 71, 72,
   ]);
   const keys = page.locator('[data-pr-hint-key]');
   await expect(keys).toHaveCount(0);
@@ -156,27 +157,32 @@ for (const [lang, label] of [
   });
 }
 
-test('both clefs follow the keyboard during a chord comparison and reset after playback', async ({ app }) => {
+test('chord inversions update keyboard, both clefs, caption, and playback', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
   await page.locator('#pr-t-chord').click();
   await page.locator('#pr-songs summary').click();
   const card = hint(page, /^Cmaj7 · /);
   const keyboard = card.locator('.pr-chord-keyboard');
   const treble = card.locator('.pr-chord-staff-treble'), bass = card.locator('.pr-chord-staff-bass');
-  const diagrams = [keyboard, treble, bass];
-  const frames = await Promise.all(diagrams.map(diagram => diagram.getAttribute('viewBox')));
-  await card.getByRole('button', { name: /^Compare with/ }).click();
-  await expect(card.locator('.pr-compare-badge')).toBeVisible();
-  await expect(keyboard).toHaveAttribute('aria-label', /Keyboard for C7 with/);
-  await expect(treble).toHaveAttribute('aria-label', /Treble staff for C7 with/);
-  await expect(bass).toHaveAttribute('aria-label', /Bass staff for C7 with.*B♭3/);
-  await expect(card.locator('[data-chord-midi="70"].pr-chord-sounding.pr-chord-changed')).toHaveCount(3);
-  expect(await Promise.all(diagrams.map(diagram => diagram.getAttribute('viewBox')))).toEqual(frames);
-  await expect(keyboard).toHaveAttribute('aria-label', /Keyboard for Cmaj7 with/);
-  await expect(treble).toHaveAttribute('aria-label', /Treble staff for Cmaj7 with/);
-  await expect(bass).toHaveAttribute('aria-label', /Bass staff for Cmaj7 with/);
-  await expect(card.locator('.pr-chord-sounding')).toHaveCount(0);
-  await expect(card.locator('.pr-compare-badge')).toBeHidden();
+  const caption = card.locator('.pr-chord-caption');
+  await expect(card.locator('.pr-hint-seg-btn')).toHaveCount(4);
+  await expect(caption).toHaveText('C · E · G · B');
+  await expect(card.getByRole('button', { name: /^Root position/ })).toHaveAttribute('aria-pressed', 'true');
+
+  await card.getByRole('button', { name: /^1st inversion/ }).click();
+  await expect(card.getByRole('button', { name: /^1st inversion/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(caption).toHaveText('E · G · B · C');
+  await expect(keyboard).toHaveAttribute('aria-label', /E4 · G4 · B4 · C5/);
+  await expect(treble).toHaveAttribute('aria-label', /E4 · G4 · B4 · C5/);
+  await expect(bass).toHaveAttribute('aria-label', /E3 · G3 · B3 · C4/);
+
+  await card.getByRole('button', { name: /^2nd inversion/ }).click();
+  await expect(caption).toHaveText('G · B · C · E');
+  await expect(keyboard).toHaveAttribute('aria-label', /G4 · B4 · C5 · E5/);
+
+  const triad = hint(page, /^C · Major/);
+  await expect(triad.locator('.pr-hint-seg-btn')).toHaveCount(3);
+  await expect(triad.getByRole('button', { name: /^Compare with/ })).toHaveCount(0);
 });
 
 test('the chord keyboard color follows the root across chord qualities', async ({ app }) => {
@@ -268,29 +274,13 @@ test('a late audio unlock cannot restart a hint after changing topics', async ({
   await expect(page.locator('[data-pr-hint-key]')).toHaveCount(0);
 });
 
-test('repertoire names the passage and opens the bundled opening without a personal library', async ({ app }) => {
+test('hint cards omit piece-example reference blocks across all topics', async ({ app }) => {
   const page = await app.open({ hash: 'practice' });
-  await page.locator('#pr-t-prog').click();
   await page.locator('#pr-songs summary').click();
-  const pop = hint(page, '1950s progression');
-  await expect(pop).toContainText('Stand by Me (1961)');
-  await expect(pop).toContainText('Intro, bars 1–6');
-  await expect(pop.getByRole('button', { name: /Find in the piece/ })).toHaveCount(0);
-  await page.locator('#pr-t-scale').click();
-  await expect(hint(page, /Harmonic minor/)).toContainText('opening pickup in the right hand');
-  await page.locator('#pr-t-chord').click();
-  const chord = hint(page, /^Cmaj7 · /);
-  await expect(chord).toContainText('bar 1, beat 2');
-  await chord.getByRole('button', { name: /Find in the piece/ }).click();
-  await expect(page).toHaveURL(/#analysis$/);
-  await expect(page.locator('#an-name')).toHaveText('Gymnopédie No. 1 (opening)');
-  await page.goBack();
-  await expect(page.locator('#view-practice')).toBeVisible();
-  await page.locator('#pr-t-technique').click();
-  const arpeggio = hint(page, 'Major arpeggios');
-  await expect(arpeggio).toContainText('BWV 846');
-  await arpeggio.getByRole('button', { name: /Find in the piece/ }).click();
-  await expect(page.locator('#an-name')).toHaveText('Prelude in C, BWV 846 (opening)');
+  for (const topic of ['chord', 'scale', 'prog', 'technique']) {
+    await page.locator(`#pr-t-${topic}`).click();
+    await expect(page.locator('#practiceHintsList .pr-hint-reference')).toHaveCount(0);
+  }
 });
 
 test('translated hint cards across all topics fit a narrow viewport and have tappable controls', async ({ app }) => {
