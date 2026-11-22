@@ -1,4 +1,4 @@
-import { test, expect } from '../../helpers/fixtures.mjs';
+import { test, expect, handleAppDialog } from '../../helpers/fixtures.mjs';
 
 async function openAssessGenerator(app) {
   const page = await app.open({ hash: 'read', dock: true });
@@ -133,8 +133,8 @@ test('a queued Learn exposure does not survive a full progress reset', async ({ 
         await new Promise(release => { window.__releaseBeforeReset = release; });
       });
     }));
-    resetter.on('dialog', dialog => dialog.accept());
     await resetter.locator('#resetBtn').click();
+    await handleAppDialog(resetter, 'accept');
     await expect.poll(() => resetter.evaluate(async () =>
       (await navigator.locks.query()).pending.some(lock => lock.name === 'etude-sight-ledger-v1'))).toBe(true);
 

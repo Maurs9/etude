@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect } from '../../helpers/fixtures.mjs';
+import { test, expect, handleAppDialog } from '../../helpers/fixtures.mjs';
 
 async function openRead(app) {
   const page = await app.open({ hash: 'read' });
@@ -31,10 +31,10 @@ test.describe('Sight-Reading backup integration', () => {
     const page = await openRead(app);
     const raw = JSON.stringify({ v: 3, gen: 12, data: {} });
     expect(await page.evaluate((value) => window.__etude.isBackupPayload(JSON.parse(value)), raw)).toBe(true);
-    page.once('dialog', dialog => dialog.accept());
     // Import keeps a copy of the current progress first, then reloads: wait for that reload.
     const reloaded = page.waitForEvent('load');
     await page.locator('#importFile').setInputFiles({ name: 'old-v3.json', mimeType: 'application/json', buffer: Buffer.from(raw) });
+    await handleAppDialog(page, 'accept', { waitHidden: false });
     await reloaded;
     await page.waitForFunction(() => typeof window.__etude?.show === 'function');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).v)).toBe(3);

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect } from '../helpers/fixtures.mjs';
+import { test, expect, handleAppDialog } from '../helpers/fixtures.mjs';
 import { STRINGS } from '../../src/locales/index.js';
 
 const LANGUAGES = ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR'];
@@ -12,8 +12,9 @@ for (const view of ['today', 'explore']) {
     expect(await loaded()).toBe(false);
     await page.locator('#nav [data-view=analysis]').click();
     await expect(page.locator('#view-analysis')).toHaveClass(/\bactive\b/);
-    expect(await loaded()).toBe(true);
-    expect(await page.evaluate(() => typeof window.__etude.anPoly)).toBe('function');
+    await expect(page.locator('#view-analysis')).toHaveAttribute('aria-busy', 'false');
+    await expect.poll(loaded).toBe(true);
+    await expect.poll(() => page.evaluate(() => typeof window.__etude.anPoly)).toBe('function');
   });
 }
 
@@ -131,13 +132,8 @@ test('Learn recovery in French exports unsaved progress and asks before reloadin
   expect(backup.data.totalReviews).toBe(1);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews)).toBe(0);
 
-  const dismissed = page.waitForEvent('dialog').then(async dialog => {
-    const message = dialog.message();
-    await dialog.dismiss();
-    return message;
-  });
   await notice.getByRole('button', { name: STRINGS.fr.store_reload }).click();
-  expect(await dismissed).toBe(STRINGS.fr.locale_reload_unsaved);
+  expect((await handleAppDialog(page, 'dismiss')).message).toBe(STRINGS.fr.locale_reload_unsaved);
   await expect(notice).toBeVisible();
 });
 

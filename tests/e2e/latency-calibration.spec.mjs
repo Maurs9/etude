@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect } from '../helpers/fixtures.mjs';
+import { test, expect, handleAppDialog } from '../helpers/fixtures.mjs';
 import { STRINGS } from '../../src/locales/index.js';
 
 const fill = (s, ...args) => args.reduce((out, a) => out.replace('%s', String(a)), s);
@@ -125,18 +125,20 @@ test('calibrated offsets survive an Export then Import round-trip', async ({ app
   await page.locator('#lat-reset').click(); // the offsets are gone until the backup comes back
   await shows(page, { touch: 0, usb: 0, ble: 0 });
   expect(await stored(page)).toBeUndefined();
-  page.once('dialog', dialog => dialog.accept());
+  const reloaded = page.waitForEvent('load');
   await page.locator('#importFile').setInputFiles({ name: 'etude-backup.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
-  await expect.poll(() => stored(page)).toEqual(OFFSETS);
+  await handleAppDialog(page, 'accept', { waitHidden: false });
+  await reloaded;
   await page.waitForFunction(() => typeof window.__etude?.show === 'function');
+  expect(await stored(page)).toEqual(OFFSETS);
   await shows(page, OFFSETS);
 });
 
 test('Reset progress keeps the calibrated offsets, which belong to the device', async ({ app }) => {
   const page = await app.open({ saved: { v: 3, lang: 'en', data: { totalReviews: 7, latency: OFFSETS } } });
-  page.on('dialog', dialog => dialog.accept());
   await page.evaluate(() => window.__etude.show('progress'));
   await page.locator('#resetBtn').click();
+  await handleAppDialog(page, 'accept');
   await expect.poll(() => page.evaluate(() => window.__etude.data.totalReviews)).toBe(0);
   expect(await stored(page)).toEqual(OFFSETS);
   await page.locator('#settingsBtn').click();

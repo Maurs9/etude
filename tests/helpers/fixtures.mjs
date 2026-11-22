@@ -29,4 +29,24 @@ export const test = base.extend({
 // Day number used by the app (local calendar date, counted in UTC days).
 export const todayN = () => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); };
 
+// Waits for the themed #appDialog alert/confirm modal, reads its kind and message, and clicks OK or Cancel.
+export async function handleAppDialog(page, action = 'accept', { waitHidden = true } = {}) {
+  const dialog = page.locator('#appDialog.on');
+  await dialog.waitFor({ state: 'visible' });
+  const type = await dialog.getAttribute('data-kind');
+  const seq = await dialog.getAttribute('data-seq');
+  const message = (await page.locator('#appDialogMsg').textContent()) ?? '';
+  const button = action === 'dismiss' && type === 'confirm'
+    ? page.locator('#appDialogCancel')
+    : page.locator('#appDialogOk');
+  await button.click();
+  if (waitHidden) {
+    await expect.poll(() => page.evaluate((prev) => {
+      const el = document.getElementById('appDialog');
+      return !el?.classList.contains('on') || el.dataset.seq !== prev;
+    }, seq)).toBe(true);
+  }
+  return { type, message };
+}
+
 export { expect };

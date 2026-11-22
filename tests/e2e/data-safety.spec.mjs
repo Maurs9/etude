@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect, APP } from '../helpers/fixtures.mjs';
+import { test, expect, APP, handleAppDialog } from '../helpers/fixtures.mjs';
 
 // Progress worth protecting: a few reviews and one learned interval.
 const saved = { v: 3, lang: 'en', gen: '', data: { totalReviews: 7, totalCorrect: 6, srs: { 'iv:7': { box: 3, ease: 2.3, reps: 4, lapses: 0, due: 1, last: 1 } } } };
@@ -74,14 +74,10 @@ test.describe('data safety', () => {
     await expect(page.locator('#importBtn')).toBeDisabled();
     await expect(page.locator('#prog-import')).toBeDisabled();
     await expect(page.locator('#set-snap-restore')).toBeDisabled();
-    const message = page.waitForEvent('dialog').then(async dialog => {
-      await dialog.accept();
-      return dialog.message();
-    });
     await page.locator('#importFile').setInputFiles({
       name: 'old.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved)),
     });
-    await expect(message).resolves.toMatch(/newer version/);
+    expect((await handleAppDialog(page, 'accept')).message).toMatch(/newer version/);
     expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(raw);
   });
 
@@ -103,14 +99,13 @@ test.describe('data safety', () => {
       };
       return { backup, before };
     }, newer);
-    const alert = new Promise(resolve => page.on('dialog', dialog => {
-      void dialog.accept();
-      if (dialog.type() === 'alert') resolve(dialog.message());
-    }));
     await page.locator('#importFile').setInputFiles({
       name: 'older.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
     });
-    await expect(alert).resolves.toMatch(/newer version/);
+    await handleAppDialog(page, 'accept');
+    const alert = await handleAppDialog(page, 'accept');
+    expect(alert.type).toBe('alert');
+    expect(alert.message).toMatch(/newer version/);
     expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(newer);
     expect(await page.evaluate(() => localStorage.getItem('etude-sight-v1'))).toBe(before);
   });
@@ -129,13 +124,12 @@ test.describe('data safety', () => {
       };
     });
     const backup = { ...saved, masterVol: 0.15, muted: true, reverb: 0.45, bpm: 150 };
-    page.once('dialog', dialog => dialog.accept());
-    await Promise.all([
-      page.waitForEvent('load'),
-      page.locator('#importFile').setInputFiles({
-        name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
-      }),
-    ]);
+    const reloaded = page.waitForEvent('load');
+    await page.locator('#importFile').setInputFiles({
+      name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
+    });
+    await handleAppDialog(page, 'accept', { waitHidden: false });
+    await reloaded;
     await expect(page.locator('#volume')).toHaveValue('15');
     const restored = await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')));
     expect(restored).toMatchObject({ ...backup, gen: expect.any(String) });
@@ -144,14 +138,11 @@ test.describe('data safety', () => {
 
   test('rejects a malformed Pieces map without replacing progress', async ({ app, page }) => {
     await app.open({ saved });
-    const dialog = page.waitForEvent('dialog').then(async dialog => {
-      await dialog.accept();
-      return [dialog.type(), dialog.message()];
-    });
     await page.locator('#importFile').setInputFiles({
       name: 'broken.json', mimeType: 'application/json', buffer: Buffer.from('{"v":3,"data":{"sheet":null}}'),
     });
-    await expect(dialog).resolves.toEqual(['alert', expect.stringMatching(/doesn’t look like an Étude backup/)]);
+    const dialog = await handleAppDialog(page, 'accept');
+    expect([dialog.type, dialog.message]).toEqual(['alert', expect.stringMatching(/doesn’t look like an Étude backup/)]);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('ptt-v3')).data.totalReviews)).toBe(7);
     await page.locator('#nav button[data-view="analysis"]').click();
     await expect(page.locator('#pc-list')).toContainText('Prelude');
@@ -202,14 +193,10 @@ test.describe('data safety', () => {
       const destination = await context.newPage();
       await destination.goto(page.url());
       await destination.waitForFunction(() => document.querySelector('#keys .key'));
-      destination.on('dialog', dialog => {
-        if (dialog.type() === 'confirm') void dialog.accept();
-        else void dialog.dismiss();
-      });
-      await Promise.all([
-        destination.waitForEvent('framenavigated', frame => frame === destination.mainFrame()),
-        destination.locator('#importFile').setInputFiles({ name: 'export.json', mimeType: 'application/json', buffer }),
-      ]);
+      const reloaded = destination.waitForEvent('load');
+      await destination.locator('#importFile').setInputFiles({ name: 'export.json', mimeType: 'application/json', buffer });
+      await handleAppDialog(destination, 'accept', { waitHidden: false });
+      await reloaded;
       await destination.waitForFunction(() => document.querySelector('#keys .key'));
       const restored = await destination.evaluate(() => {
         const progress = JSON.parse(localStorage.getItem('ptt-v3') ?? 'null');
@@ -238,9 +225,9 @@ test.describe('data safety', () => {
       localStorage.setItem('etude-sight-v1', JSON.stringify({ ...ledger, attempts: { a1: attempt }, exposures, prefs: { ...ledger.prefs, practiceHints: false } }));
       return ledger.generation;
     });
-    page.on('dialog', dialog => dialog.accept());
     await page.evaluate(() => window.__etude.show('progress'));
     await page.locator('#resetBtn').click();
+    await handleAppDialog(page, 'accept');
     await expect.poll(() => page.evaluate(() => window.__etude.data.totalReviews)).toBe(0);
     await expect.poll(() => snapshots(page)).toEqual(['before-reset', 'daily']);
     const ledger = await page.evaluate(() => window.__etude.srtReadLedger(localStorage));
@@ -257,6 +244,7 @@ test.describe('data safety', () => {
     await expect(page.locator('#set-snaps option').first()).toHaveText(/before reset/);
     const reloaded = page.waitForEvent('load');
     await page.locator('#set-snap-restore').click();
+    await handleAppDialog(page, 'accept', { waitHidden: false });
     await reloaded;
     await page.waitForFunction(() => typeof window.__etude?.show === 'function' && window.__etude.data.totalReviews === 7);
     expect(await page.evaluate(() => window.__etude.srtReadLedger(localStorage).attempts.a1?.status)).toBe('completed');
@@ -275,13 +263,10 @@ test.describe('data safety', () => {
       return { data, gen, ledger: localStorage.getItem('etude-sight-v1') };
     });
     const before = await progress();
-    const messages = [];
-    page.on('dialog', dialog => {
-      messages.push(dialog.message());
-      return messages.length === 1 ? dialog.accept() : dialog.dismiss();
-    });
     await page.locator('#resetBtn').click();
-    await expect.poll(() => messages).toEqual([expect.stringMatching(/Reset all learning/), expect.stringMatching(/Reset it anyway/)]);
+    const first = await handleAppDialog(page, 'accept');
+    const second = await handleAppDialog(page, 'dismiss');
+    expect([first.message, second.message]).toEqual([expect.stringMatching(/Reset all learning/), expect.stringMatching(/Reset it anyway/)]);
     await expect(page.locator('#resetBtn')).toBeEnabled();
     expect(await progress()).toEqual(before);
   });
@@ -297,12 +282,11 @@ test.describe('data safety', () => {
       };
       return ['ptt-v3', 'etude-sight-v1'].map(key => localStorage.getItem(key));
     });
-    const failed = new Promise(resolve => page.on('dialog', dialog => {
-      void dialog.accept();
-      if (dialog.type() === 'alert') resolve(dialog.message());
-    }));
     await page.locator('#resetBtn').click();
-    await expect(failed).resolves.toMatch(/couldn't reset your progress/);
+    await handleAppDialog(page, 'accept');
+    const failed = await handleAppDialog(page, 'accept');
+    expect(failed.type).toBe('alert');
+    expect(failed.message).toMatch(/couldn't reset your progress/);
     expect(await page.evaluate(() => ['ptt-v3', 'etude-sight-v1'].map(key => localStorage.getItem(key)))).toEqual(before);
     expect(await page.evaluate(() => window.__etude.data.totalReviews)).toBe(7);
     await expect.poll(() => snapshots(page)).toContain('before-reset');
@@ -317,9 +301,9 @@ test.describe('data safety', () => {
 
   test('reviews a legacy imported card with a finite ease and due date', async ({ app, page }) => {
     await app.open({ saved });
-    page.on('dialog', dialog => dialog.accept());
     const reloaded = page.waitForEvent('load');
     await page.locator('#importFile').setInputFiles('tests/fixtures/storage/ptt-v3-legacy.json');
+    await handleAppDialog(page, 'accept', { waitHidden: false });
     await reloaded;
     await page.waitForFunction(() => typeof window.__etude?.reviewItem === 'function');
     const review = await page.evaluate(() => {
@@ -347,9 +331,8 @@ test.describe('data safety', () => {
   test('a backup from a newer build is refused on import', async ({ app, page }) => {
     await app.open({ saved });
     const before = await page.evaluate(() => localStorage.getItem('ptt-v3'));
-    const message = new Promise(resolve => page.once('dialog', dialog => { resolve(dialog.message()); void dialog.accept(); }));
     await page.locator('#importFile').setInputFiles({ name: 'new.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ v: 3, schema: 99, data: {} })) });
-    expect(await message).toMatch(/newer version/);
+    expect((await handleAppDialog(page, 'accept')).message).toMatch(/newer version/);
     expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(before);
   });
 
@@ -383,11 +366,10 @@ test.describe('data safety', () => {
   test('an import asks before replacing progress when the safety copy fails', async ({ app, page }) => {
     await app.open({ saved });
     const before = await page.evaluate(() => { IDBFactory.prototype.open = function () { throw new DOMException('full', 'QuotaExceededError'); }; return localStorage.getItem('ptt-v3'); });
-    const messages = [];
-    page.on('dialog', dialog => { messages.push(dialog.message()); void (messages.length === 1 ? dialog.accept() : dialog.dismiss()); });
     await page.locator('#importFile').setInputFiles({ name: 'old.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ v: 3, data: { totalReviews: 1 } })) });
-    await expect.poll(() => messages.length).toBe(2);
-    expect(messages[1]).toMatch(/couldn't keep a copy/);
+    await handleAppDialog(page, 'accept');
+    const second = await handleAppDialog(page, 'dismiss');
+    expect(second.message).toMatch(/couldn't keep a copy/);
     expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(before);
   });
 
@@ -447,17 +429,14 @@ test.describe('data safety', () => {
       };
     });
 
-    const msg = new Promise(resolve => page.on('dialog', dialog => {
-      const text = dialog.message();
-      void dialog.accept();
-      if (/browser storage/i.test(text)) resolve(text);
-    }));
     await page.locator('#importFile').setInputFiles({
       name: 'backup.json',
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify({ v: 3, data: { totalReviews: 99, sightLedger: importedLedger } })),
     });
-    await expect(msg).resolves.toBeTruthy();
+    await handleAppDialog(page, 'accept');
+    const msg = await handleAppDialog(page, 'accept');
+    expect(msg.message).toMatch(/browser storage/i);
 
     await page.evaluate(() => { Storage.prototype.setItem = window.__realSetItem; });
     expect(await page.evaluate(() => localStorage.getItem('etude-sight-v1'))).toBe(initialLedger);
@@ -503,16 +482,12 @@ test.describe('data safety', () => {
       };
     });
 
-    const msg = new Promise(resolve => page.on('dialog', dialog => {
-      const text = dialog.message();
-      void dialog.accept();
-      if (/browser storage/i.test(text)) resolve(text);
-    }));
     await page.locator('#importFile').setInputFiles({
       name: 'backup.json',
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify({ v: 3, data: { totalReviews: 99, sightLedger: importedLedger } })),
     });
+    await handleAppDialog(page, 'accept');
 
     // While import waits for the lock (after pre-lock snapshot steps), tab 2 commits a concurrent exposure.
     await secondTab.evaluate(async (generation) => {
@@ -528,7 +503,8 @@ test.describe('data safety', () => {
       if (!res.ok) throw new Error('concurrent write failed: ' + res.reason);
     }, seed.generation);
 
-    await expect(msg).resolves.toBeTruthy();
+    const msg = await handleAppDialog(page, 'accept');
+    expect(msg.message).toMatch(/browser storage/i);
     await page.evaluate(() => { Storage.prototype.setItem = window.__realSetItem; });
 
     const ledgerAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('etude-sight-v1')));
@@ -541,10 +517,6 @@ test.describe('data safety', () => {
 
 test('oversized progress imports are rejected before the file is read', async ({ app, page }) => {
   await app.open();
-  const message = new Promise(resolve => page.once('dialog', async dialog => {
-    resolve(dialog.message());
-    await dialog.dismiss();
-  }));
   await page.evaluate(() => {
     const files = new DataTransfer();
     files.items.add(new File([new Uint8Array(16 * 1024 * 1024 + 1)], 'oversized.json'));
@@ -552,7 +524,7 @@ test('oversized progress imports are rejected before the file is read', async ({
     input.files = files.files;
     input.dispatchEvent(new Event('change'));
   });
-  expect(await message).toContain('16 MiB');
+  expect((await handleAppDialog(page, 'dismiss')).message).toContain('16 MiB');
 });
 
 test('a second progress import is ignored while the first file is being read', async ({ app, page }) => {
@@ -569,8 +541,8 @@ test('a second progress import is ignored while the first file is being read', a
   await input.setInputFiles(file('first.json'));
   await expect.poll(() => page.evaluate(() => window.readBackupNames)).toEqual(['first.json']);
   await input.setInputFiles(file('second.json'));
-  page.on('dialog', dialog => dialog.dismiss());
   await page.evaluate(() => window.finishBackupRead('{}'));
+  await handleAppDialog(page, 'dismiss');
   expect(await page.evaluate(() => window.readBackupNames)).toEqual(['first.json']);
   await input.setInputFiles(file('retry.json'));
   await expect.poll(() => page.evaluate(() => window.readBackupNames)).toEqual(['first.json', 'retry.json']);
@@ -595,13 +567,10 @@ test('upgrade-blocked state disables imports and refuses reset without overwriti
   await page.evaluate(() => window.__etude.show('progress'));
   await expect(page.locator('#prog-import')).toBeDisabled();
 
-  const dialogs = [];
-  page.on('dialog', async dialog => {
-    dialogs.push({ type: dialog.type(), message: dialog.message() });
-    await dialog.accept();
-  });
   await page.locator('#resetBtn').click();
-  await expect.poll(() => dialogs.some(entry => entry.type === 'alert')).toBe(true);
-  expect(dialogs.find(entry => entry.type === 'alert')?.message).toContain('The required backup for updating saved progress could not be made');
+  await handleAppDialog(page, 'accept');
+  const blockedAlert = await handleAppDialog(page, 'accept');
+  expect(blockedAlert.type).toBe('alert');
+  expect(blockedAlert.message).toContain('The required backup for updating saved progress could not be made');
   expect(await page.evaluate(() => localStorage.getItem('ptt-v3'))).toBe(before);
 });

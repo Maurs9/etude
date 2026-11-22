@@ -58,7 +58,7 @@
 @media (min-width:900px){
   /* A two-line lede beside the title keeps the heading short, which leaves the circle and the staff more height. */
   .ex-head{margin-bottom:12px}
-  .ex-head .lede{flex:1 1 420px; max-width:110ch}
+  .ex-head .lede{flex:1 1 420px; max-width:72ch}
   /* The circle's side is the room under the heading, less the panel's own padding; it may take at most 42% of the width. */
   #view-explore{--ex-cof:clamp(280px, min(calc(var(--ex-room) - 180px), 42vw), 640px)}
   .ex-layout{grid-template-columns:var(--ex-cof) minmax(0,1fr); grid-template-areas:"circle play" "circle key" "circle ref"; align-items:start}
