@@ -78,11 +78,27 @@ test.describe('UI/UX polish, accessibility, and mobile ergonomics', () => {
     await expect(page.locator('#drawer')).toHaveClass(/on/);
     expect(await page.locator('#drawer').evaluate(el => el.inert)).toBe(false);
 
+    // Trigger #appDialog again and verify browser Back closes #appDialog first while keeping #drawer open.
+    await page.locator('#importFile').setInputFiles({
+      name: 'bad-back.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"v":3,"data":[]}'),
+    });
+    await expect(dialog).toBeVisible();
+    await page.goBack();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('#drawer')).toHaveClass(/on/);
+    expect(await page.locator('#drawer').evaluate(el => el.inert)).toBe(false);
+
     // Collapsible Settings sections (.set-acc) toggle cleanly.
     const midiAcc = page.locator('#drawer details.set-acc').first();
     await expect(midiAcc).toHaveAttribute('open', '');
     await midiAcc.locator('> summary').click();
     await expect(midiAcc).not.toHaveAttribute('open', '');
+
+    // A second Back closes #drawer cleanly.
+    await page.goBack();
+    await expect(page.locator('#drawer')).not.toHaveClass(/on/);
   });
 
   test('Library moves the single Reset filters button next to No matching scores without duplicating it', async ({ app, page }) => {
@@ -125,6 +141,24 @@ test.describe('UI/UX polish, accessibility, and mobile ergonomics', () => {
     await expect(loading).toHaveText('Se încarcă…');
     releaseLearn();
     await expect(loading).toHaveCount(0);
+  });
+
+  test('Pieces shows a visible localized loading state while analysis modules are delayed', async ({ app, page }) => {
+    let releaseAnalysis;
+    const held = new Promise(resolve => { releaseAnalysis = resolve; });
+    await page.route(/score-(?:tools|import|svg-post|midi)(?:-.*\.js|\.ts)(?:\?.*)?$/, async route => {
+      await held;
+      await route.continue();
+    });
+    await app.open({ lang: 'ro' });
+    await page.locator('#nav [data-view="analysis"]').click();
+    await expect(page.locator('#view-analysis')).toHaveClass(/active/);
+    const loading = page.locator('#view-analysis [data-lazy-loading]');
+    await expect(loading).toBeVisible();
+    await expect(loading).toHaveText('Se încarcă…');
+    releaseAnalysis();
+    await expect(loading).toHaveCount(0);
+    await expect(page.locator('#pc-list')).toBeVisible();
   });
 });
 

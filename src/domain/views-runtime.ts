@@ -4563,12 +4563,26 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     const navigation = ++featureNavigation;
     if (v === 'analysis' && !analysisModulesReady) {
         if (practiceHintPreview) stopPreviews();
+        const showPendingView = !(_view === 'read' && srtPendingSaveProtected());
+        if (showPendingView) {
+            document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-analysis'));
+            const targetGroup = navGroup('analysis');
+            queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === targetGroup ? 'page' : 'false'));
+            byId('modeBar').hidden = true;
+            closeMobileMenu();
+        }
         setViewLoading('view-analysis', true);
         return ensureAnalysisModules().then(() => {
             setViewLoading('view-analysis', false);
             if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
         }).catch(() => {
             setViewLoading('view-analysis', false);
+            if (navigation === featureNavigation && showPendingView) {
+                document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === 'view-' + _view));
+                const prevGroup = navGroup(_view);
+                queryAllHtml(document, '#nav button, #bottomNav button').forEach((b) => b.setAttribute('aria-current', navGroup(b.dataset.view ?? '') === prevGroup ? 'page' : 'false'));
+                renderModeNav();
+            }
             showNotationReloadPrompt();
         });
     }
@@ -4752,8 +4766,10 @@ window.addEventListener('popstate', (e) => {
     }
     const modal = historyModalOf(e.state);
     _modalStack.length = 0;
-    if (modal === 'menu' || modal === 'help' || modal === 'drawer')
+    if (modal === 'menu' || modal === 'help' || modal === 'drawer' || (modal === 'dialog' && appDialogClose))
         _modalStack.push(modal);
+    if (modal !== 'dialog' && appDialogClose)
+        appDialogClose(false, true);
     if (modal !== 'menu') {
         const menu = byId('mobileMenu'), returnFocus = !modal && menu.contains(document.activeElement) && location.hash.slice(1) === _view;
         closeMobileMenu(returnFocus, true);
@@ -20027,7 +20043,7 @@ function setWeakSpotInjection(on: boolean) {
         readingToggle.checked = on;
     saveAll();
 }
-let appDialogClose: ((accepted: boolean) => void) | null = null;
+let appDialogClose: ((accepted: boolean, fromPop?: boolean) => void) | null = null;
 let appDialogWired = false;
 let appDialogSeq = 0;
 let appDialogQueue: Promise<unknown> = Promise.resolve();
@@ -20053,6 +20069,7 @@ function appDialogOpen(kind: 'alert' | 'confirm', message: string): Promise<bool
         const priorFocus = document.activeElement;
         srtRecorder?.releaseAll('focus', performance.now() - SR.t0);
         releaseLiveInput();
+        pushModalState('dialog');
         dialog.dataset.kind = kind;
         dialog.dataset.seq = String(++appDialogSeq);
         title.textContent = kind === 'alert' ? localize('dialog_notice_title', 'Notice') : localize('dialog_confirm_title', 'Please confirm');
@@ -20067,12 +20084,13 @@ function appDialogOpen(kind: 'alert' | 'confirm', message: string): Promise<bool
         const firstFocus = kind === 'confirm' ? cancel : ok;
         firstFocus.focus({ preventScroll: true });
         requestAnimationFrame(() => { if (dialog.classList.contains('on')) firstFocus.focus({ preventScroll: true }); });
-        appDialogClose = (accepted: boolean) => {
+        appDialogClose = (accepted: boolean, fromPop = false) => {
             appDialogClose = null;
             const hadFocus = dialog.contains(document.activeElement);
             dialog.classList.remove('on');
             dialog.setAttribute('aria-hidden', 'true');
             scrim.classList.remove('on');
+            if (!fromPop) popModalState('dialog');
             syncScrim();
             if (hadFocus && priorFocus && priorFocus.isConnected && (priorFocus instanceof HTMLElement || priorFocus instanceof SVGElement) && priorFocus.getClientRects().length > 0 && !priorFocus.closest('[inert]'))
                 priorFocus.focus({ preventScroll: true });
