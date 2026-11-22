@@ -73,7 +73,32 @@ export function scoreFixPedalsDefault(box: HTMLElement) {
             else
                 p.removeAttribute('transform');
         });
-        const gap = Math.max(1, Math.abs(ctm.d) * 2.5), limit = Math.abs(ctm.a) * 40, page = svg.getBoundingClientRect(), placed: ScorePedalBox[] = [];
+        const gap = Math.max(1, Math.abs(ctm.d) * 2.5), limit = Math.abs(ctm.a) * 40, placed: ScorePedalBox[] = [];
+        let page = svg.getBoundingClientRect();
+        const expandPageBottom = (neededBottom: number) => {
+            const extraPx = Math.ceil(neededBottom - page.bottom + gap);
+            if (extraPx <= 0) return false;
+            const extraSvg = extraPx / Math.abs(ctm.d);
+            const vb = svg.getAttribute('viewBox');
+            const hAttr = parseFloat(svg.getAttribute('height') || '');
+            if (vb) {
+                const parts = vb.trim().split(/[\s,]+/).map(Number);
+                if (parts.length === 4 && parts.every(Number.isFinite) && parts[3] > 0) {
+                    const nextVbH = parts[3] + extraSvg;
+                    svg.setAttribute('viewBox', `${parts[0]} ${parts[1]} ${parts[2]} ${nextVbH.toFixed(3)}`);
+                    if (Number.isFinite(hAttr) && hAttr > 0)
+                        svg.setAttribute('height', (hAttr * (nextVbH / parts[3])).toFixed(3));
+                    page = svg.getBoundingClientRect();
+                    return true;
+                }
+            }
+            if (Number.isFinite(hAttr) && hAttr > 0) {
+                svg.setAttribute('height', (hAttr + extraSvg).toFixed(3));
+                page = svg.getBoundingClientRect();
+                return true;
+            }
+            return false;
+        };
         const cross = (a: ScorePedalBox, b: ScorePedalBox, pad = gap) => a.right + pad > b.left && a.left - pad < b.right && a.bottom + pad > b.top && a.top - pad < b.bottom;
         const obstacles: ScorePedalBox[] = [...svg.querySelectorAll('.vf-notehead,.vf-stem,.vf-flag,.vf-beam,.vf-ledgers path,.vf-ledgers line,.vf-modifiers path,.vf-stavetie path,path.vf-stavetie,.sc-xline,.sc-note-parentheses path,text')].filter((n) => !n.closest('.vf-sc-pedal')).flatMap((n) => {
             const r = n.getBoundingClientRect(), s = getComputedStyle(n), pad = s.stroke !== 'none' ? Math.max(.5, parseFloat(s.strokeWidth) * Math.abs(ctm.d) / 2 || .5) : 0;
@@ -127,23 +152,38 @@ export function scoreFixPedalsDefault(box: HTMLElement) {
             // OSMD uses one skyline for the entire system, even when a low fingering is in another bar.
             // Anchor each endpoint to its own bass ink instead of preserving that unnecessarily distant row.
             // Keep the native press/release baseline difference and search only below the owning staff.
-            const preferred = inkBottom == null ? 0 : inkBottom + gap + (release ? Math.abs(ctm.d) * 3 : 0) - r.top;
-            const minY = Math.max(page.top + gap - r.top, -Math.abs(ctm.d) * 40, staffBottom == null ? -Infinity : staffBottom + gap - r.top, sp ? ctm.f + sp.y * 10 * ctm.d - r.top : -Infinity);
-            const maxY = Math.min(page.bottom - gap - r.bottom, Math.abs(ctm.d) * 40, np ? ctm.f + np.y * 10 * ctm.d - gap - r.bottom : Infinity);
-            const all = obstacles.concat(placed), ys = [...new Set([preferred, 0, minY, maxY, ...all.flatMap((o) => [o.bottom + gap - r.top, o.top - gap - r.bottom])])].filter((y) => y >= minY && y <= maxY).sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
+            const all = obstacles.concat(placed);
             let found = false;
-            for (const y of ys) {
-                const row = all.filter((o) => r.bottom + y + gap > o.top && r.top + y - gap < o.bottom), afterPress = release && row.some((o) => o.group === group && o.press);
-                const xs = [...new Set([0, ...row.flatMap((o) => [o.right + gap - r.left, o.left - gap - r.right])])].filter((x) => Math.abs(x) <= limit && r.left + x >= page.left + gap && r.right + x <= page.right - gap && r.right + x >= ml && r.left + x <= mr && !row.some((o) => cross(rect(x, y), o)));
-                xs.sort((a, b) => (Math.abs(a) + (afterPress && a < 0 ? limit + 1 : 0)) - (Math.abs(b) + (afterPress && b < 0 ? limit + 1 : 0)));
-                if (xs.length) {
-                    dx = xs[0];
-                    dy = y;
-                    found = true;
-                    break;
+            const tryPlace = (vLimit: number, hLimit: number, pad: number) => {
+                const preferred = inkBottom == null ? 0 : inkBottom + pad + (release ? Math.abs(ctm.d) * 3 : 0) - r.top;
+                const minY = Math.max(page.top + pad - r.top, -vLimit, staffBottom == null ? -Infinity : staffBottom + pad - r.top, sp ? ctm.f + sp.y * 10 * ctm.d - r.top : -Infinity);
+                const maxY = Math.min(page.bottom - pad - r.bottom, vLimit, np ? ctm.f + np.y * 10 * ctm.d - pad - r.bottom : Infinity);
+                if (minY > maxY) return false;
+                const mlCur = mp ? ctm.e + mp.x * 10 * ctm.a - hLimit : -Infinity;
+                const mrCur = mp ? ctm.e + (mp.x + Number(V(V(V(measure, 'PositionAndShape'), 'Size'), 'width'))) * 10 * ctm.a + hLimit : Infinity;
+                const ys = [...new Set([preferred, 0, minY, maxY, ...all.flatMap((o) => [o.bottom + pad - r.top, o.top - pad - r.bottom])])].filter((y) => y >= minY && y <= maxY).sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
+                for (const y of ys) {
+                    const row = all.filter((o) => r.bottom + y + pad > o.top && r.top + y - pad < o.bottom), afterPress = release && row.some((o) => o.group === group && o.press);
+                    const xs = [...new Set([0, ...row.flatMap((o) => [o.right + pad - r.left, o.left - pad - r.right])])].filter((x) => Math.abs(x) <= hLimit && r.left + x >= page.left + pad && r.right + x <= page.right - pad && r.right + x >= mlCur && r.left + x <= mrCur && !row.some((o) => cross(rect(x, y), o, pad)));
+                    xs.sort((a, b) => (Math.abs(a) + (afterPress && a < 0 ? hLimit + 1 : 0)) - (Math.abs(b) + (afterPress && b < 0 ? hLimit + 1 : 0)));
+                    if (xs.length) {
+                        dx = xs[0];
+                        dy = y;
+                        return true;
+                    }
+                }
+                return false;
+            };
+            const vStrict = Math.abs(ctm.d) * 40;
+            found = tryPlace(vStrict, limit, gap)
+                || tryPlace(Infinity, limit * 3, Math.max(0.5, gap * 0.4));
+            if (!found && owner && !next && staffBottom != null) {
+                const neededBottom = Math.max(inkBottom ?? staffBottom, staffBottom, r.bottom) + gap * 2 + r.height;
+                if (expandPageBottom(neededBottom)) {
+                    found = tryPlace(vStrict, limit, gap)
+                        || tryPlace(Infinity, limit * 3, Math.max(0.5, gap * 0.4));
                 }
             }
-            ;
             // Fail closed: no clipped/colliding ink or invented musical location. A fresh layout retries natively.
             if (!found) {
                 unresolved++;
