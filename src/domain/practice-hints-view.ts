@@ -1,6 +1,6 @@
 import {
   CHORD_HINTS, CHORD_HINT_FAMILIES, SCALE_HINTS, SCALE_HINT_FAMILIES, PROGRESSION_HINTS, TECHNIQUE_HINTS, MELODY_HINTS,
-  chordHintInversionCount, chordHintTones, chordSingleSteps, defaultCompareChord, defaultCompareScale, hintPitchClassDiff,
+  chordHintInversionCount, chordHintTones, chordSingleSteps,
   melodyHintExample, progressionHintChords, progressionHintSteps,
   scaleHintFormula, scaleHintTones, scaleSingleSteps, techniqueHintSteps, techniqueHintTonic,
   type PracticeHintDiagram,
@@ -105,7 +105,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     studyToggles.set(hint, setOpen);
     setOpen(options.study.open[kind] === hint);
   }
-  const buildChordCard = (symbol: string, slot?: 'a' | 'b') => {
+  const buildChordCard = (symbol: string) => {
     const id = `chord:${symbol}`;
     const invCount = chordHintInversionCount(symbol);
     let currentInv = Math.max(0, Math.min(options.study.inversions.get(symbol) ?? 0, invCount - 1));
@@ -130,8 +130,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
       () => play(id, chordSingleSteps(symbol, tonic, currentInv), false, diagrams, `${id}:hear`));
     const el = buildCard(symbol, title, rootTones.map(tone => tone.label).join(' '), playBtn, visuals);
-    el.classList.add('pr-chord-card', 'pr-studio-card');
-    if (slot) el.dataset.slot = slot;
+    el.classList.add('pr-chord-card');
     el.append(diagrams.caption);
     const foot = element('div', 'pr-hint-foot');
     foot.append(segmentedControl(
@@ -155,7 +154,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     return el;
   };
 
-  const buildScaleCard = (name: string, slot?: 'a' | 'b') => {
+  const buildScaleCard = (name: string) => {
     const hint = SCALE_HINTS.find(item => item.name === name) ?? SCALE_HINTS[0];
     const title = `${rootName(tonic)} · ${scaleName(hint.name)}`;
     const id = `scale:${hint.name}`;
@@ -181,8 +180,7 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     const playBtn = playControl(`${id}:hear`, listenLabel, stopLabel, title, disabled,
       () => play(id, scaleSingleSteps(hint.name, tonic), false, diagram, `${id}:hear`));
     const el = buildCard(hint.name, title, scaleHintFormula(hint), playBtn, visuals);
-    el.classList.add('pr-scale-card', 'pr-studio-card');
-    if (slot) el.dataset.slot = slot;
+    el.classList.add('pr-scale-card');
     el.append(caption);
     const foot = element('div', 'pr-hint-foot');
     foot.append(segmentedControl(
@@ -206,146 +204,68 @@ export function renderPracticeHintCards(box: HTMLElement, topic: PracticeHintsTo
     return el;
   };
 
-  const renderStudio = (kind: 'chord' | 'scale') => {
-    const state = options.study.studio[kind];
-    const validIds = new Set(kind === 'chord' ? CHORD_HINTS.map(h => h.symbol) : SCALE_HINTS.map(h => h.name));
-    const fallbackId = kind === 'chord' ? 'maj' : 'Major (Ionian)';
-    if (!validIds.has(state.selected)) state.selected = fallbackId;
-    if (state.compare !== null && (!validIds.has(state.compare) || state.compare === state.selected)) state.compare = null;
-    const comparing = state.compare !== null;
-    const rerender = () => renderPracticeHintCards(box, topic, options);
-
-    const topBar = element('div', 'pr-studio-top');
-    const compareBtn = document.createElement('button');
-    compareBtn.type = 'button';
-    compareBtn.className = 'btn sm pr-studio-compare-btn';
-    compareBtn.dataset.hintControl = `${kind}:compare`;
-    compareBtn.setAttribute('aria-pressed', String(comparing));
-    compareBtn.textContent = text(comparing ? 'pr_hints_compare_stop' : 'pr_hints_compare_toggle');
-    compareBtn.addEventListener('click', () => {
-      options.stop();
-      if (state.compare !== null) {
-        state.compare = null;
-        state.activeSlot = 'a';
-      } else {
-        state.compare = kind === 'chord' ? defaultCompareChord(state.selected) : defaultCompareScale(state.selected);
-        state.activeSlot = 'b';
-      }
-      rerender();
-    });
-    topBar.append(contextBadge, compareBtn);
-    contents.append(topBar);
-
-    const picker = element('div', 'pr-studio-picker');
+  const renderFamilyTabs = (kind: 'chord' | 'scale') => {
     const families = kind === 'chord'
       ? CHORD_HINT_FAMILIES.map(f => ({ id: f.id, label: text(`pr_hints_chord_family_${f.id}`), items: f.symbols }))
       : SCALE_HINT_FAMILIES.map(f => ({ id: f.id, label: text(`pr_hints_scale_family_${f.id}`), items: f.names }));
-    const tonicStr = rootName(tonic);
-    for (const family of families) {
-      const section = element('section', 'pr-studio-family');
-      section.append(element('h2', 'pr-chord-group-title', family.label));
-      const chips = element('div', 'pr-studio-chips');
-      for (const itemId of family.items) {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'pr-studio-chip';
-        chip.dataset.hintPick = itemId;
-        chip.dataset.hintControl = `pick:${kind}:${itemId}`;
-        const slot = itemId === state.selected ? 'a' : (itemId === state.compare ? 'b' : undefined);
-        chip.setAttribute('aria-pressed', String(slot !== undefined));
-        if (slot) chip.dataset.slot = slot;
-        const shortLabel = kind === 'chord' ? tonicStr + (itemId === 'maj' ? '' : itemId) : scaleName(itemId);
-        const fullLabel = kind === 'chord' ? `${shortLabel} · ${chordName(itemId)}` : `${tonicStr} · ${shortLabel}`;
-        chip.textContent = shortLabel;
-        if (comparing && slot) {
-          const badge = element('span', 'pr-studio-chip-slot', slot.toUpperCase());
-          badge.setAttribute('aria-hidden', 'true');
-          chip.append(badge);
-        }
-        chip.setAttribute('aria-label', fullLabel);
-        chip.title = fullLabel;
-        chip.addEventListener('click', () => {
-          options.stop();
-          if (!comparing) {
-            state.selected = itemId;
-          } else if (state.activeSlot === 'a') {
-            if (itemId === state.compare) {
-              state.compare = state.selected;
-              state.selected = itemId;
-            } else {
-              state.selected = itemId;
-            }
-          } else if (itemId === state.selected) {
-            state.selected = state.compare ?? itemId;
-            state.compare = itemId;
-          } else {
-            state.compare = itemId;
-          }
-          rerender();
-        });
-        chips.append(chip);
-      }
-      section.append(chips);
-      picker.append(section);
+    const totalCount = kind === 'chord' ? CHORD_HINTS.length : SCALE_HINTS.length;
+    const validFamilies = new Set<string>(['all', ...families.map(f => f.id)]);
+    let activeFamily = options.study.family[kind];
+    if (!validFamilies.has(activeFamily)) {
+      activeFamily = families[0].id;
+      options.study.family[kind] = activeFamily;
     }
-    contents.append(picker);
 
-    const stage = element('div', 'pr-studio-stage');
-    stage.dataset.compare = String(comparing);
-    const attachSlotBar = (card: HTMLElement, slot: 'a' | 'b') => {
-      const bar = element('div', 'pr-studio-slot-bar');
-      const slotBtn = document.createElement('button');
-      slotBtn.type = 'button';
-      slotBtn.className = 'pr-studio-slot-btn';
-      slotBtn.dataset.hintControl = `${kind}:slot:${slot}`;
-      slotBtn.setAttribute('aria-pressed', String(state.activeSlot === slot));
-      slotBtn.textContent = slot.toUpperCase();
-      slotBtn.setAttribute('aria-label', text('pr_hints_compare_slot', slot.toUpperCase()));
-      slotBtn.addEventListener('click', () => {
-        state.activeSlot = slot;
-        rerender();
+    const topBar = element('div', 'pr-family-bar');
+    topBar.append(contextBadge);
+    const tabBar = element('div', 'pr-family-tabs');
+    tabBar.setAttribute('role', 'group');
+    tabBar.setAttribute('aria-label', text(`pr_hints_${kind}_title`));
+    const tabs: readonly { id: string; label: string; count: number }[] = [
+      ...families.map(f => ({ id: f.id, label: f.label, count: f.items.length })),
+      { id: 'all', label: text('pr_hints_family_all'), count: totalCount },
+    ];
+    for (const tab of tabs) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pr-family-tab';
+      btn.dataset.hintFamily = tab.id;
+      btn.dataset.hintControl = `family:${kind}:${tab.id}`;
+      btn.setAttribute('aria-pressed', String(activeFamily === tab.id));
+      btn.append(document.createTextNode(`${tab.label} `), element('span', 'pr-family-tab-count', `(${tab.count})`));
+      btn.addEventListener('click', () => {
+        if (options.study.family[kind] === tab.id) return;
+        options.stop();
+        options.study.family[kind] = tab.id;
+        renderPracticeHintCards(box, topic, options);
       });
-      bar.append(slotBtn);
-      if (slot === 'b') {
-        const closeBtn = document.createElement('button');
-        closeBtn.type = 'button';
-        closeBtn.className = 'pr-studio-slot-close';
-        closeBtn.dataset.hintControl = `${kind}:compare:close`;
-        closeBtn.textContent = '×';
-        closeBtn.setAttribute('aria-label', text('pr_hints_compare_stop'));
-        closeBtn.title = text('pr_hints_compare_stop');
-        closeBtn.addEventListener('click', () => {
-          options.stop();
-          state.compare = null;
-          state.activeSlot = 'a';
-          rerender();
-        });
-        bar.append(closeBtn);
-      }
-      card.prepend(bar);
-    };
-
-    const cardA = kind === 'chord' ? buildChordCard(state.selected, comparing ? 'a' : undefined) : buildScaleCard(state.selected, comparing ? 'a' : undefined);
-    if (comparing) attachSlotBar(cardA, 'a');
-    stage.append(cardA);
-    if (comparing && state.compare !== null) {
-      const cardB = kind === 'chord' ? buildChordCard(state.compare, 'b') : buildScaleCard(state.compare, 'b');
-      attachSlotBar(cardB, 'b');
-      stage.append(cardB);
-      const tonesA = kind === 'chord' ? chordHintTones(state.selected, tonic, 0) : scaleHintTones(state.selected, tonic);
-      const tonesB = kind === 'chord' ? chordHintTones(state.compare, tonic, 0) : scaleHintTones(state.compare, tonic);
-      const { onlyA, onlyB } = hintPitchClassDiff(tonesA, tonesB);
-      const diffParts: string[] = [];
-      if (onlyA.length) diffParts.push(text('pr_hints_compare_diff', 'A', onlyA.map(n => spell(n.li, n.acc)).join(' · ')));
-      if (onlyB.length) diffParts.push(text('pr_hints_compare_diff', 'B', onlyB.map(n => spell(n.li, n.acc)).join(' · ')));
-      stage.append(element('p', 'pr-studio-diff', diffParts.length ? diffParts.join('  |  ') : text('pr_hints_compare_same')));
+      tabBar.append(btn);
     }
-    contents.append(stage);
+    topBar.append(tabBar);
+    contents.append(topBar);
+
+    const buildCardFor = (itemId: string) => (kind === 'chord' ? buildChordCard(itemId) : buildScaleCard(itemId));
+    if (activeFamily === 'all') {
+      for (const family of families) {
+        const section = element('section', 'pr-chord-group');
+        const grid = element('div', 'pr-hint-grid pr-family-grid');
+        for (const itemId of family.items) grid.append(buildCardFor(itemId));
+        section.append(element('h2', 'pr-chord-group-title', family.label), grid);
+        contents.append(section);
+      }
+    } else {
+      const selected = families.find(f => f.id === activeFamily) ?? families[0];
+      const section = element('section', 'pr-chord-group');
+      const grid = element('div', 'pr-hint-grid pr-family-grid');
+      for (const itemId of selected.items) grid.append(buildCardFor(itemId));
+      section.append(element('h2', 'pr-chord-group-title', selected.label), grid);
+      contents.append(section);
+    }
   };
 
   box.classList.toggle('pr-chord-groups', topic !== 'melody');
   if (topic === 'chord' || topic === 'scale') {
-    renderStudio(topic);
+    renderFamilyTabs(topic);
   } else if (topic === 'prog') {
     const groups = new Map([['three', 'cadences'], ['pop', 'popular'], ['blues', 'forms']]);
     let grid = element('div', 'pr-hint-grid');

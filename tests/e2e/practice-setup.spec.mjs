@@ -217,6 +217,8 @@ test.describe('Practice setup', () => {
       expect(r.start.right, where).toBeGreaterThan(r.panel.right - 40);
       expect(r.scroll, where).toBeLessThanOrEqual(width);
       expect(await page.locator('#pr-topics').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), where).toBe(cols);
+      const chipTops = await page.locator('#pr-keys .pr-chip').evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().top)));
+      expect(new Set(chipTops).size, where).toBe(1);
     }
   });
 

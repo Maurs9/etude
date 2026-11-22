@@ -5583,10 +5583,7 @@ let practiceHintPreview: PracticeHintPreview | null = null;
 let practiceHintPanelState = '';
 const practiceStudy: StudyHintState = {
     open: { prog: null, technique: null },
-    studio: {
-        chord: { selected: 'maj', compare: null, activeSlot: 'a' },
-        scale: { selected: 'Major (Ionian)', compare: null, activeSlot: 'a' },
-    },
+    family: { chord: 'major', scale: 'major' },
     hand: 'rh',
     chords: new Map(),
     inversions: new Map(),

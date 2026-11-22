@@ -16,15 +16,9 @@ export interface StudyHintOptions {
   readonly audioOnly: boolean;
 }
 
-export interface StudioSelectionState {
-  selected: string;
-  compare: string | null;
-  activeSlot: 'a' | 'b';
-}
-
 export interface StudyHintState {
   readonly open: Record<'prog' | 'technique', string | null>;
-  readonly studio: Record<'chord' | 'scale', StudioSelectionState>;
+  readonly family: Record<'chord' | 'scale', string>;
   readonly chords: Map<string, number>;
   readonly inversions: Map<string, number>;
   readonly scaleHands: Map<string, TechniqueHand>;
