@@ -375,10 +375,18 @@ test('difficulty details explain drivers, spans and provisional BPM, and v1 back
   const storedList = () => page.evaluate(() => window.__etude.scoreLibraryStore.libraryList());
   await expect.poll(async () => (await storedList()).filter(item => item.difficultyRating?.version === 2).length).toBe(2);
 
-  // Check info guide summary text
-  await page.locator('#library-axes-info-toggle').click();
-  await expect(page.locator('#library-axes-info-panel .score-library-axes-guide-note')).toContainText('endurance bonus');
-  await page.locator('#library-axes-info-toggle').click();
+  // Check info guide summary text and circular info icon geometry
+  const infoBtn = page.locator('#library-axes-info-toggle');
+  await infoBtn.click();
+  const iconBox = await infoBtn.locator('.score-library-axes-info-icon').boundingBox();
+  expect(iconBox).not.toBeNull();
+  expect(Math.abs(iconBox.width - iconBox.height)).toBeLessThanOrEqual(1);
+  const guideNote = page.locator('#library-axes-info-panel .score-library-axes-guide-note');
+  await expect(guideNote.locator('li')).toHaveCount(3);
+  await expect(guideNote).toContainText('Overall rating');
+  await expect(guideNote).toContainText('endurance bonus');
+  await expect(guideNote).toContainText('unwritten pedaling');
+  await infoBtn.click();
 
   // Check details panel for wide span + drivers on Octaves score (no endurance badge when < 0.1)
   const octRow = page.locator('#library-items > li', { hasText: 'Octaves' });

@@ -142,9 +142,27 @@
   background: none; font-size: inherit; font-weight: inherit;
 }
 #score-library .score-library-axes-info-btn {
-  min-width: 34px; min-height: 44px; padding: 2px 6px; border-color: transparent;
-  border-radius: 999px; background: none; color: var(--muted);
-  font-size: .95rem; font-weight: 700; line-height: 1;
+  display: inline-grid; place-items: center;
+  width: 36px; height: 36px; min-width: 36px; min-height: 36px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--muted);
+  line-height: 1;
+}
+#score-library .score-library-axes-info-btn:hover:not(:disabled),
+#score-library .score-library-axes-info-btn[aria-pressed=true] {
+  border-color: transparent;
+}
+#score-library .score-library-axes-info-icon {
+  display: inline-grid; place-items: center;
+  width: 20px; height: 20px; border: 1.5px solid currentColor; border-radius: 50%;
+  font-size: .74rem; font-weight: 700; line-height: 1;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+#score-library .score-library-axes-info-btn:hover:not(:disabled) .score-library-axes-info-icon {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+#score-library .score-library-axes-info-btn[aria-pressed=true] .score-library-axes-info-icon {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
 }
 #score-library .score-library-axes-info-panel {
   grid-column: 1 / -1; margin-block: 2px 6px; padding: 10px 12px;
@@ -159,9 +177,10 @@
 #score-library .score-library-axes-guide dt { font-weight: 700; color: var(--accent); }
 #score-library .score-library-axes-guide dd { margin: 2px 0 0; color: var(--muted); line-height: 1.35; }
 #score-library .score-library-axes-guide-note {
-  margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--line);
-  color: var(--muted); line-height: 1.4;
+  list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px dashed var(--line);
+  display: grid; gap: 6px; color: var(--muted); line-height: 1.45;
 }
+#score-library .score-library-axes-guide-note strong { color: var(--ink); font-weight: 600; }
 #score-library .score-library-item {
   border-top: 1px solid var(--line); padding-block: 4px 6px;
 }
