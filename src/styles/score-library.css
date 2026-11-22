@@ -135,7 +135,7 @@
 }
 #score-library .score-library-columns > span { grid-column: 2; }
 #score-library .score-library-difficulty-head {
-  grid-column: 3; display: inline-flex; align-items: center; gap: 4px; justify-self: start;
+  grid-column: 3; display: inline-flex; align-items: center; gap: 0; justify-self: start;
 }
 #score-library #library-sort-stars {
   padding-inline: 0; border-color: transparent;
@@ -143,7 +143,8 @@
 }
 #score-library .score-library-axes-info-btn {
   display: inline-grid; place-items: center;
-  width: 36px; height: 36px; min-width: 36px; min-height: 36px; padding: 0;
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0;
+  margin-inline-start: -4px;
   border: 0; border-radius: 50%; background: none; color: var(--muted);
   line-height: 1;
 }
