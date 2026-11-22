@@ -16,7 +16,7 @@ try {
 
   const css = await readFile(join(singleDir, cssMatch[1].replace(/^\.\//, '')), 'utf8');
   let app = await readFile(join(singleDir, moduleMatch[1].replace(/^\.\//, '')), 'utf8');
-  const osmd = await readFile(join(singleDir, 'vendor', 'osmd-2.3.1.min.js'), 'utf8');
+  const osmd = await readFile(join(singleDir, 'vendor', 'osmd-3.0.0.min.js'), 'utf8');
   let standaloneCss = css;
   const iconMatch = html.match(/<link rel="apple-touch-icon"[^>]+href="([^"]+)"[^>]*>/);
   if (iconMatch) {

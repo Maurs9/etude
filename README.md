@@ -104,7 +104,7 @@ Its star scale keeps separating stronger passages above the ceiling of the origi
 - `src/sight-reading/` — sight-reading generators, evaluation, ledger and notation. The level pieces of the Read page are in `levels.ts` (levels, keys, limits), `patterns.ts`, `rules.ts`, `melody.ts` (generator), `book.ts` (books, key runs, daily set), `progress.ts` (saved state), `score.ts` (engraver tokens and timing) and `warmup.ts`
 - `src/locales/` — synchronously imported English/Romanian strings, lesson content, quizzes, and locale data
 - `src/styles/`, `src/assets/fonts/`, `src/assets/piano/` — self-hosted font subsets, styles, and separate hashed piano recordings. Feature styles sit in their own files (`native.css`, `landscape.css`, `calibration.css`, `sight-rhythm.css`, `technique.css`, `reading.css`, `read-home.css`) instead of being appended to the order-sensitive `etude.css`.
-- `public/vendor/osmd-2.3.1.min.js`, `public/manifest.webmanifest`, `public/icons/` — static public assets and lazy-loaded OSMD 2.3.1 bundle
+- `public/vendor/osmd-3.0.0.min.js`, `public/manifest.webmanifest`, `public/icons/` — static public assets and lazy-loaded OSMD 3.0.0 bundle
 - `i18n/` — supplementary multi-language pack (`de`, `es`, `fr`, `it`, `pt-BR`), runtime (`i18n/framework/`), and test suite (`i18n/tests/`)
 - `scripts/` — build (`build.mjs`, `build-standalone.mjs`, `generate-sw.mjs`), quality gates (`check-ts-suppressions.mjs`), emergency rollback (`sw-kill-switch.js`), and safe dependency updaters (`update-deps.mjs`, `update-osmd.mjs`)
 - `tests/` — organized into:

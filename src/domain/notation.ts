@@ -275,7 +275,7 @@ export function loadOsmd(): Promise<OsmdModule> {
     if (inline?.textContent) {
       script.textContent = inline.textContent;
     } else {
-      script.src = new URL('vendor/osmd-2.3.1.min.js', document.baseURI).href;
+      script.src = new URL('vendor/osmd-3.0.0.min.js', document.baseURI).href;
       script.async = true;
     }
     script.onload = () => {
