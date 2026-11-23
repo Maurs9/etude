@@ -236,6 +236,53 @@ test('Accept any octave lets Wait for me and timed runs take a key an octave awa
   await page.evaluate(() => window.__etude.scoreStop());
 });
 
+test('Metronome only plays accented beats without score notes and keeps the transport moving', async ({ app, page }) => {
+  await page.addInitScript(() => {
+    const start = OscillatorNode.prototype.start;
+    window.__metronomeClicks = [];
+    OscillatorNode.prototype.start = function (when) {
+      if (this.frequency.value === 2100 || this.frequency.value === 1350)
+        window.__metronomeClicks.push(this.frequency.value);
+      return start.call(this, when);
+    };
+  });
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'w5rh');
+  await page.evaluate(() => {
+    window.__scoreNotes = 0;
+    window.__etude.previewNote = () => { window.__scoreNotes++; };
+  });
+  await page.locator('#pr-opt').click();
+  await page.locator('#pt-wait').check();
+  await page.getByRole('checkbox', { name: 'Metronome only' }).check();
+  await expect(page.locator('#pt-wait')).not.toBeChecked();
+  await expect(page.locator('#pt-metro')).toBeChecked();
+  await page.locator('#pt-start').click();
+
+  await expect.poll(() => page.evaluate(() => window.__metronomeClicks.slice(0, 2))).toEqual([2100, 1350]);
+  await expect.poll(() => page.evaluate(() => window.__etude.fallTime())).toBeGreaterThan(0.3);
+  expect(await page.evaluate(() => window.__scoreNotes)).toBe(0);
+
+  await page.evaluate(() => window.__etude.scoreStop());
+  if (await page.locator('#an-pt').isHidden())
+    await page.locator('#pr-opt').click();
+  await page.locator('#pr-seta').click();
+  await page.locator('#pr-setb').click();
+  await page.evaluate(() => { window.__metronomeClicks.length = 0; });
+  await page.locator('#pt-start').click();
+  await expect.poll(() => page.evaluate(() => window.__etude.SCORE.loop?.pass ?? 0)).toBeGreaterThan(1);
+  expect(await page.evaluate(() => ({
+    downbeats: window.__metronomeClicks.filter(frequency => frequency === 2100).length,
+    scoreNotes: window.__scoreNotes,
+  }))).toEqual({ downbeats: 2, scoreNotes: 0 });
+  await page.evaluate(() => window.__etude.scoreStop());
+  if (await page.locator('#an-pt').isHidden())
+    await page.locator('#pr-opt').click();
+  await page.getByRole('checkbox', { name: 'Metronome only' }).uncheck();
+  await expect(page.locator('#pt-wait')).toBeChecked();
+  await expect(page.locator('#pt-metro')).not.toBeChecked();
+});
+
 test('a whole run paused and resumed still saves a best, but only when every note of the piece was judged', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   await openPiece(page, 'w5rh');

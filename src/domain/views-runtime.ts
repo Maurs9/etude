@@ -13065,7 +13065,7 @@ function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number 
             return { k: 'pn_clean_tempo', args: () => [Math.round(f * 100) + '%'], act: { k: 'pn_act_faster', args: () => [next + '%'], run: () => { sel.value = String(next); pracHud(); anUpdateControls(); again(); } } };
         if (PRAC.hands !== 'both' && both)
             return { k: 'pn_clean_hands', act: { k: 'rd_both', run: () => { pracSet('hands', 'both'); again(); } } };
-        if (PRAC.wait)
+        if (pracWait())
             return { k: 'pn_clean_wait', act: { k: 'pn_act_time', run: () => { pracSet('wait', false); again(); } } };
         return { k: 'pn_clean' };
     }
@@ -13091,7 +13091,7 @@ function pracNextStep(R: { segs?: { f: number; }[]; sel: boolean; from?: number 
             return { k: 'pn_bars', args: () => [label()], act: { k: 'pn_act_loop', args: () => [label()], run: () => { pracSumClose(); pracLoopBars(bi, bj); } } };
         }
     }
-    if (st.miss >= 3 && st.miss >= st.wrong && !PRAC.wait)
+    if (st.miss >= 3 && st.miss >= st.wrong && !pracWait())
         return { k: 'pn_wait', args: () => [st.miss], act: { k: 'pr_wait', run: () => { pracSet('wait', true); again(); } } };
     if (st.wrong >= 3 && st.wrong > st.miss) {
         const h = PRAC.hands === 'both' && both ? pracWeakHand() : null;
@@ -13461,7 +13461,7 @@ function scoreEnsureTempoTimes(): number[] {
     return times;
 }
 function scoreUseExpressiveTempo() {
-    return PRAC.expressive && !PRAC.metro && !PRAC.wait && AN.source?.kind === 'xml' && !!AN.source.expression &&
+    return PRAC.expressive && !pracMetro() && !pracWait() && AN.source?.kind === 'xml' && !!AN.source.expression &&
         (AN.source.expression.tempoModifiers.length > 0 || AN.source.expression.fermatas.length > 0);
 }
 function scoreSetTempos(list: { beat: number; bpm: number; }[]) {
@@ -14705,21 +14705,21 @@ interface PracticeCarry {
 // The coaching tip shown after a run, with its optional one-click action.
 interface PracticeNextStep { k: string; args?: () => (string | number)[]; act?: { k: string; args?: () => (string | number)[]; run: () => void } | null }
 interface PracticeState {
-    hands: string; wait: boolean; metro: boolean; countIn: boolean; acc: boolean; hear: boolean; expressive: boolean; ramp: boolean; A: number | null; B: number | null;
+    hands: string; wait: boolean; metro: boolean; metroOnly: boolean; countIn: boolean; acc: boolean; hear: boolean; expressive: boolean; ramp: boolean; A: number | null; B: number | null;
     labels: string; pal: string; range: string; fx: boolean; bar: PracticeBarrier | null; active: boolean; stats: PracticeStats | null;
     res: Map<number, string>; judge: string; judgeT: number; next: PracticeNextStep | null;
     names: boolean; // note names on the engraved score (scoreNamesSync)
 }
-const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, countIn: false, acc: true, hear: true, expressive: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
+const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, metroOnly: false, countIn: false, acc: true, hear: true, expressive: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
     bar: null, active: false, stats: null, res: new Map(), judge: '', judgeT: 0, next: null, names: false };
-const PRAC_FLAGS = ['wait', 'metro', 'countIn', 'acc', 'hear', 'expressive', 'ramp', 'fx', 'names'] as const;
+const PRAC_FLAGS = ['wait', 'metro', 'metroOnly', 'countIn', 'acc', 'hear', 'expressive', 'ramp', 'fx', 'names'] as const;
 const PRAC_CHOICES = ['hands', 'labels', 'pal', 'range'] as const;
 function isPracFlag(k: string): k is typeof PRAC_FLAGS[number] { return PRAC_FLAGS.some((f) => f === k); }
 function isPracChoice(k: string): k is typeof PRAC_CHOICES[number] { return PRAC_CHOICES.some((f) => f === k); }
 const PRAC_KEY = 'etude-practice-v3';
 function pracSave() { try {
-    const { hands, wait, metro, countIn, acc, hear, expressive, ramp, labels, pal, range, fx, names } = PRAC;
-    localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, countIn, acc, hear, expressive, ramp, labels, pal, range, fx, names, zoom: FALL.zoom }));
+    const { hands, wait, metro, metroOnly, countIn, acc, hear, expressive, ramp, labels, pal, range, fx, names } = PRAC;
+    localStorage.setItem(PRAC_KEY, JSON.stringify({ hands, wait, metro, metroOnly, countIn, acc, hear, expressive, ramp, labels, pal, range, fx, names, zoom: FALL.zoom }));
     anLibrarySchedule();
 }
 catch (e) { } }
@@ -14743,9 +14743,11 @@ function pracLoad() {
     }
     catch (e) { }
 }
+const pracWait = () => PRAC.wait && !PRAC.metroOnly;
+const pracMetro = () => PRAC.metro || PRAC.metroOnly;
 const pracMine = (n: AnNote) => PRAC.hands === 'both' || scoreFeature.harmony.anHandOf(n) === PRAC.hands;
 // My part sounds only when I am not being waited for; the other hand is the accompaniment (or muted).
-const pracSounds = (n: AnNote) => pracMine(n) ? PRAC.hear && !PRAC.wait : PRAC.acc;
+const pracSounds = (n: AnNote) => !PRAC.metroOnly && (pracMine(n) ? PRAC.hear && !pracWait() : PRAC.acc);
 const pracFactor = () => +(selectById('score-speed').value || 100) / 100;
 const EXPR_CACHE: {
     notes?: readonly AnNote[];
@@ -14757,7 +14759,7 @@ const EXPR_CACHE: {
     plans: ExpressiveNotePlan[];
 } = { plans: [] };
 function scoreExpressionPlan(): readonly ExpressiveNotePlan[] {
-    const strict = PRAC.metro || PRAC.wait || PRAC.hands !== 'both';
+    const strict = pracMetro() || pracWait() || PRAC.hands !== 'both';
     if (
         EXPR_CACHE.notes === AN.notes &&
         EXPR_CACHE.tempos === SCORE.tempoList &&
@@ -14816,7 +14818,7 @@ function pracBeats() {
 }
 function pracStatsReset() {
     PRAC.stats = { perfect: 0, good: 0, miss: 0, wrong: 0, streak: 0, best: 0, passHit: 0, passAll: 0, lastPass: null };
-    PRAC.active = PRAC.wait;
+    PRAC.active = pracWait();
     PRAC.judge = '';
     const old = [...PRAC.res.keys()];
     PRAC.res = new Map();
@@ -14912,7 +14914,7 @@ async function pracStart(o: PracticeStartOptions)  {
     const beats: PracticeBeat[] = pracBeats(), first = (t: number) => { const i = beats.findIndex((b) => b.t >= t - 1e-6); return i < 0 ? beats.length : i; };
     // Resuming a paused whole run keeps it one run: the judgements so far, and my whole part, so a note skipped before the
     // pause still counts as missed. Anything changed meanwhile (cursor, hands, Wait for me, tempo, the score) starts a new run.
-    const c = o.carry, resumed = !!c && !o.sel && !o.loop && c.notes === AN.notes && c.src === AN.source && c.hands === PRAC.hands && c.wait === PRAC.wait && c.f === f && Math.abs(c.at - o.from) < .01;
+    const c = o.carry, resumed = !!c && !o.sel && !o.loop && c.notes === AN.notes && c.src === AN.source && c.hands === PRAC.hands && c.wait === pracWait() && c.f === f && Math.abs(c.at - o.from) < .01;
     const mine = (resumed ? fallData().slice().sort((x, y) => x.start - y.start || x.n.midi - y.n.midi) : o.notes).filter((d) => pracMine(d.n));
     const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
     if (o.loop) R.segs[0].p0 = 0;
@@ -14947,7 +14949,7 @@ async function pracStart(o: PracticeStartOptions)  {
     pracStatsReset();
     if (resumed && c) {
         PRAC.stats = { ...c.stats };
-        PRAC.active = c.active || PRAC.wait;
+        PRAC.active = c.active || pracWait();
         PRAC.res = new Map(c.res);
         if (FALL.mode === 'score')
             PRAC.res.forEach((_, i) => scorePaintIdx(i));
@@ -14966,7 +14968,7 @@ function pracCarry(at: number): PracticeCarry | null {
     if (!R || R.loop || R.sel || !st)
         return null;
     const index = Math.max(0, R.segs.indexOf(pracSegAt(R, audioEngine.context?.currentTime ?? 0)));
-    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: PRAC.wait, f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined };
+    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: pracWait(), f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined };
 }
 function pracTick() {
     const R = SCORE.run;
@@ -14977,8 +14979,8 @@ function pracTick() {
         const s = R.segs[R.segs.length - 1];
         // A queued pass still shares the previous pass's judgements. Wait until
         // the audio clock enters it and pracPassEnd clears them before choosing its barrier.
-        if (PRAC.wait && s !== R.segs[0]) break;
-        if (PRAC.wait && !PRAC.bar && R.wt !== Infinity)
+        if (pracWait() && s !== R.segs[0]) break;
+        if (pracWait() && !PRAC.bar && R.wt !== Infinity)
             pracNextBar(R, s);
         const B: PracticeBarrier | null = PRAC.bar && PRAC.bar.seg === s ? PRAC.bar : null, at = (x: number) => s.a0 + (x - s.t0) / s.f;
         const horizon = s.t0 + Math.max(0, H - s.a0) * s.f, lim = Math.min(horizon, s.t1, B ? B.t : Infinity);
@@ -15046,7 +15048,7 @@ function pracTick() {
         }
         while (R.bi < R.beats.length && R.beats[R.bi].t < lim) {
             const b = R.beats[R.bi++];
-            if (PRAC.metro && b.t >= s.t0 - 1e-6 && b.t < s.t1 - 1e-6)
+            if (pracMetro() && b.t >= s.t0 - 1e-6 && b.t < s.t1 - 1e-6)
                 audioEngine.scheduleClick(Math.max(now, at(b.t)), b.acc, scoreClicks);
         }
         if (R.route?.length && !B && horizon >= s.t1) {
@@ -15060,7 +15062,7 @@ function pracTick() {
         }
         if (R.loop && !B && horizon >= s.t1) {
             const end = at(s.t1);
-            const waitForGrade = PRAC.ramp && !PRAC.wait;
+            const waitForGrade = PRAC.ramp && !pracWait();
             if (waitForGrade && now < end + (PRAC.active ? .22 : 0))
                 break;
             if (waitForGrade && PRAC.active)
@@ -15079,29 +15081,29 @@ function pracTick() {
     }
     while (R.segs.length > 1 && R.segs[1].a0 <= now) {
         if (R.route) {
-            if (PRAC.active && !PRAC.wait) pracMisses(R, R.segs[0].t1 + .3);
+            if (PRAC.active && !pracWait()) pracMisses(R, R.segs[0].t1 + .3);
             R.completed ??= new Set();
             R.judged.forEach((_, i) => R.completed?.add(i));
         }
-        if (R.loop && PRAC.active && !PRAC.wait) pracMisses(R, Infinity);
+        if (R.loop && PRAC.active && !pracWait()) pracMisses(R, Infinity);
         const previous = R.segs.shift();
-        if (previous && !PRAC.wait) {
+        if (previous && !pracWait()) {
             // The rendering clock can enter a repeat while the previous notes are still at the output.
             const history = R.outputHistory ??= [];
             history.push(previous);
             while (history.length > 1 && history[1].a0 < now - audio.AUDIO_OUTPUT_CLOCK_WINDOW) history.shift();
         }
         pracPassEnd(R, !!R.loop || R.segs[0].t0 < (previous?.t1 ?? 0) - 1e-6);
-        if (PRAC.wait) R.wt = R.segs[0].t0;
+        if (pracWait()) R.wt = R.segs[0].t0;
         if (R.route) { const i = R.mine.findIndex(d => d.start >= R.segs[0].t0 - 1e-6); R.mi = i < 0 ? R.mine.length : i; }
     }
-    if (PRAC.wait && R.segs.length === 1 && !PRAC.bar && R.wt !== Infinity) pracNextBar(R, R.segs[0]);
+    if (pracWait() && R.segs.length === 1 && !PRAC.bar && R.wt !== Infinity) pracNextBar(R, R.segs[0]);
     const time = fallTime();
-    if (PRAC.active && !PRAC.wait)
+    if (PRAC.active && !pracWait())
         pracMisses(R, time);
     const s0 = R.segs[0];
     if (!R.loop && !R.route?.length && R.segs.length === 1 && time >= R.b - 1e-6 && now >= s0.a0 + (R.b - s0.t0) / s0.f + .3) {
-        if (PRAC.active && !PRAC.wait)
+        if (PRAC.active && !pracWait())
             pracMisses(R, Infinity); // the end of the piece: a note still not played is missed, however short
         pracFinish(R);
     }
@@ -15244,7 +15246,7 @@ function pracInput(kind: string, midi?: number) {
                     pracJudge(R, null, 'wrong');
                     return;
                 }
-                const time = PRAC.wait ? fallTime(now) : t, tol = .22 * s.f;
+                const time = pracWait() ? fallTime(now) : t, tol = .22 * s.f;
                 let best: PracticeTimedNote | null = null;
                 for (const d of R.mine) {
                     if (d.start > time + tol)
@@ -15329,7 +15331,7 @@ function pracRecord(R: PracticeRun): PracticeSaved | null {
     const st = PRAC.stats, src = AN.source, acc = st ? pracAcc(st) : null;
     if (!st || !src || !pracWholePiece(R))
         return null;
-    const every = pracEveryNote(R), waited = PRAC.wait, complete = waited && every;
+    const every = pracEveryNote(R), waited = pracWait(), complete = waited && every;
     if (waited ? !complete : acc == null || (R.origin != null && !every))
         return null;
     // The accuracy of a timed run; a waiting run plays at your pace, so it sets no best.
@@ -15434,6 +15436,7 @@ function pracFrame() {
         pracHud();
 }
 function pracSet(k: string, v: string|boolean) {
+    const wasWaiting = pracWait();
     const beatAt = SCORE.playing && AN.notes.length ? scoreBeatAt(fallTime()) : null;
     const prevTempoSig = SCORE.tempoList.map((e) => `${e.beat}:${e.bpm}`).join('|');
     if (typeof v === 'boolean') {
@@ -15443,7 +15446,7 @@ function pracSet(k: string, v: string|boolean) {
     else if (isPracChoice(k))
         PRAC[k] = v;
     pracSave();
-    if (k === 'expressive' || k === 'metro' || k === 'wait') {
+    if (k === 'expressive' || k === 'metro' || k === 'metroOnly' || k === 'wait') {
         scoreRefreshTempos();
         EXPR_CACHE.notes = undefined;
     }
@@ -15456,12 +15459,12 @@ function pracSet(k: string, v: string|boolean) {
         SCORE.heads.forEach((l) => l.forEach(scorePaintEl));
         anKeysPaint();
     }
-    if (SCORE.playing && (['hands', 'wait', 'acc', 'hear', 'expressive'].includes(k) || (k === 'metro' && (temposChanged || PRAC.expressive)))) {
+    if (SCORE.playing && (['hands', 'wait', 'acc', 'hear', 'expressive', 'metroOnly'].includes(k) || (k === 'metro' && (temposChanged || PRAC.expressive)))) {
         const at = beatAt != null ? scoreSeconds(beatAt) : fallTime();
         if (SCORE.loop)
             scoreLoopStart();
         else
-            scorePlay(SCORE.sel, at, !temposChanged && ['acc', 'hear', 'expressive', 'metro'].includes(k) ? pracCarry(at) : null); // what sounds keeps the run; hands, Wait for me or tempo changes start a new one
+            scorePlay(SCORE.sel, at, !temposChanged && wasWaiting === pracWait() && ['acc', 'hear', 'expressive', 'metro', 'metroOnly'].includes(k) ? pracCarry(at) : null); // what sounds keeps the run; hands, Wait for me or tempo changes start a new one
     }
     else if (temposChanged && !SCORE.playing && AN.notes.length) {
         anStatusPos();
@@ -16078,14 +16081,19 @@ function anUpdateControls() {
         anPop('fall-pop', false);
     byId('an-tl').hidden = !has;
     byId('an-loop').title = byId('an-loop').getAttribute('aria-label') + (canLoopAB ? ' · A–B' : '');
-    byId('an-metro').setAttribute('aria-pressed', PRAC.metro ? 'true' : 'false');
+    byId('an-metro').setAttribute('aria-pressed', String(pracMetro()));
     byId('an-metro').title = t('an_metro_t');
     byId('an-metro').setAttribute('aria-label', t('an_metro_t'));
     queryAllHtml(document, '#pr-hands button,#pt-hands button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.h === PRAC.hands ? 'true' : 'false'));
-    byId('pr-wait').setAttribute('aria-pressed', PRAC.wait ? 'true' : 'false');
+    byId('pr-wait').setAttribute('aria-pressed', String(pracWait()));
     byId('pr-wait').title = t('pr_wait_t');
-    inputById('pt-wait').checked = PRAC.wait;
-    inputById('pt-metro').checked = PRAC.metro;
+    inputById('pt-wait').checked = pracWait();
+    inputById('pt-metro').checked = pracMetro();
+    inputById('pr-metro-only').checked = PRAC.metroOnly;
+    for (const id of ['pt-wait', 'pt-metro', 'pr-acc', 'pr-hear'])
+        inputById(id).disabled = PRAC.metroOnly;
+    for (const id of ['pr-wait', 'an-metro'])
+        buttonById(id).disabled = !has || PRAC.metroOnly;
     inputById('pr-countin').checked = PRAC.countIn;
     inputById('pr-expressive').checked = PRAC.expressive;
     selectById('pt-speed').value = selectById('score-speed').value;
@@ -17362,7 +17370,7 @@ function fallTime(at?: number) {
 function scoreVisualPosition(frameTime: number) {
     const R = SCORE.run, ctx = audioEngine.context;
     if (!SCORE.playing || !ctx || !R) return null;
-    if (PRAC.wait) return pracPosition(R, ctx.currentTime);
+    if (pracWait()) return pracPosition(R, ctx.currentTime);
     const at = Math.max(R.outputTime ?? 0, audio.audioPresentationTime(ctx, frameTime));
     R.outputTime = at;
     const recent = R.outputHistory;
@@ -18301,12 +18309,14 @@ function anShortcut(e: KeyboardEvent) {
     }
     if (K === 'p') {
         e.preventDefault();
-        pracSet('wait', !PRAC.wait);
+        if (!PRAC.metroOnly)
+            pracSet('wait', !PRAC.wait);
         return;
     }
     if (K === 'm') {
         e.preventDefault();
-        pracSet('metro', !PRAC.metro);
+        if (!PRAC.metroOnly)
+            pracSet('metro', !PRAC.metro);
         return;
     }
     if (K === 'c') {
@@ -18466,7 +18476,7 @@ function anInitControls() {
     });
     AN_POPS.forEach(([p, b] = []) => byId(b).addEventListener('click', () => anPop(p, !!byId(p).hidden)));
     pracLoad();
-    const ck = { 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-expressive': 'expressive', 'pr-ramp': 'ramp', 'fall-fx': 'fx' } as const;
+    const ck = { 'pr-metro-only': 'metroOnly', 'pr-countin': 'countIn', 'pr-acc': 'acc', 'pr-hear': 'hear', 'pr-expressive': 'expressive', 'pr-ramp': 'ramp', 'fall-fx': 'fx' } as const;
     Object.entries(ck).forEach(([id, k]) => { inputById(id).checked = PRAC[k]; inputById(id).addEventListener('change', (e) => { if (e.target instanceof HTMLInputElement)
         pracSet(k, e.target.checked); }); });
     ([['fall-labels', 'labels'], ['fall-pal', 'pal'], ['fall-range', 'range']] as const).forEach(([id, k]) => { selectById(id).value = PRAC[k]; selectById(id).addEventListener('change', (e) => { if (e.target instanceof HTMLSelectElement)

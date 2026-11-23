@@ -1881,6 +1881,7 @@ const payload: UIPayload = {
       "pr_countin": "Compás de cuenta previa antes de tocar (C)",
       "pr_acc": "Tocar la otra mano por mí",
       "pr_hear": "Escuchar mi parte (cuando no esté esperando)",
+      "pr_metro_only": "Solo metrónomo",
       "pr_expressive": "Reproducción expresiva (fraseo, dinámica y rubato)",
       "pr_ramp": "Bucle: acelerar tras cada pasada limpia (≥ 80%)",
       "pr_ab": "Bucle A–B",

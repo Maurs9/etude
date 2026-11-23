@@ -41,6 +41,8 @@ Chord diagram follow-up (physical iOS PWA and Android TWA pending). Open a chord
 
 Progression and technique diagrams (physical iOS PWA and Android TWA pending). Open the jazz cadence in Practice and check the selected chord, bass staff and mini keyboard together while the progression sounds. Play the bass and resolution separately and select an individual chord. Open the common major-scale technique card in C, compare the right-hand passage with the full run, and check that the digit on the mini keyboard matches the sounding note. Switch hands and close the card during playback. Repeat with device speakers and Bluetooth audio.
 
+Metronome-only practice (physical audio pending): in Pieces → Practice, enable Metronome only and play with the score through a full measure and an A–B loop. Listen for the accented downbeat and check that live keys remain audible while the score's automatic notes are silent.
+
 ## MIDI
 
 1. **USB:** connect the piano's USB-to-Host port with a USB-C cable. Check that Diagnostics lists the piano under `MIDI:` and that keys light up in Explore.
