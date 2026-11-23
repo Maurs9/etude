@@ -1881,6 +1881,7 @@ const payload: UIPayload = {
       "pr_countin": "Mesure de décompte avant de jouer (C)",
       "pr_acc": "Jouer l’autre main pour moi",
       "pr_hear": "Entendre ma partie (en dehors de l’attente)",
+      "pr_metro_only": "Métronome seul",
       "pr_expressive": "Lecture expressive (phrasé, nuances et rubato)",
       "pr_ramp": "Boucle : accélérer après chaque passage propre (≥ 80 %)",
       "pr_ab": "Boucle A–B",
