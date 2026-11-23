@@ -214,11 +214,12 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="panel" style="margin-top:4px">
         <div class="rdn-phead" id="rdn-player-head" hidden>
           <button class="btn ghost" type="button" id="rdn-back" data-i18n="rdn_back">← Back</button>
-          <div class="rdn-phead-t"><h2 id="rdn-p-title" tabindex="-1"></h2><span class="rdn-sub" id="rdn-p-sub"></span><span class="visually-hidden" id="rdn-p-live" aria-live="polite"></span></div>
+          <div class="rdn-phead-t"><h2 id="rdn-p-title" tabindex="-1"></h2><span class="rdn-sub" id="rdn-p-sub"></span></div>
           <span class="rdn-sp"></span>
           <button class="btn ghost" type="button" id="rdn-prev" data-i18n="rdn_prev" aria-keyshortcuts="ArrowLeft">← Prev</button>
           <button class="btn" type="button" id="rdn-next" data-i18n="rdn_next_btn" aria-keyshortcuts="ArrowRight">Next →</button>
         </div>
+        <span class="visually-hidden" id="rdn-p-live" aria-live="polite"></span>
         <div class="rd-stage-top" id="rd-stage-top" hidden>
           <div class="rdx-head">
             <div id="rd-stage-title" class="rdx-title"></div>
@@ -228,6 +229,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <span style="margin-left:auto"></span>
           <button class="btn ghost sm score-expand" id="rd-top-fs" type="button" aria-pressed="false" data-i18n="pc_stage">Full window</button>
           <button class="btn ghost sm" id="rd-stage-end" data-i18n="rdx_end" aria-keyshortcuts="Escape">Finish</button>
+          <button class="btn sm" id="rd-stage-next" type="button" data-i18n="rdn_next_btn" hidden>Next →</button>
           <div id="rd-focus-tools" role="group" data-i18n-aria="sc_zoom" aria-label="Zoom">
             <button type="button" class="btn sm" id="rd-focus-out" data-i18n-aria="sc_zoom_out" aria-label="Zoom out">−</button>
             <button type="button" class="btn sm" id="rd-focus-fit" data-i18n="score_fit">Fit width</button>
@@ -268,7 +270,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="coach" id="rd-coach" aria-live="polite"></div>
         <div id="rd-verdict" class="verdict neutral" style="min-height:24px; margin-top:6px" role="status" aria-live="polite"></div>
         <section class="rdn-result" id="rdn-result" hidden aria-labelledby="rdn-r-score"></section>
-        <div class="row" style="margin-top:10px; align-items:center">
+        <div class="row" id="rd-play-controls" style="margin-top:10px; align-items:center">
           <button class="btn primary" id="rd-go" data-i18n="rd_start" aria-describedby="rd-coach">● Start</button>
           <button class="btn ghost" id="rd-listen" data-i18n="rd_listen">▶ Listen</button>
           <label class="field" style="min-width:180px"><span data-i18n="rd_tempo">Tempo</span> <small><span id="rd-bpmLbl">90</span> BPM</small><input id="rd-bpm" type="range" min="40" max="160" value="90" aria-label="Tempo" data-i18n-aria="rd_tempo"></label>

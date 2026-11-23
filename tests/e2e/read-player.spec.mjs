@@ -34,7 +34,10 @@ const openTwoHandPiece = (page) => page.evaluate(() => {
 });
 
 async function openHome(app, saved) {
-  const page = await app.open({ hash: 'read', saved });
+  const reading = saved?.data?.reading;
+  const state = { ...saved, v: 3, lang: 'en', data: { ...saved?.data,
+    reading: { ...reading, prefs: { stage: false, ...reading?.prefs } } } };
+  const page = await app.open({ hash: 'read', saved: state });
   await expect(page.locator('#rdn-home')).toBeVisible();
   return page;
 }
@@ -450,6 +453,39 @@ test.describe('Read player', () => {
     expect(await page.evaluate(() => [window.__etude.SR.modeSel, window.__etude.SR.active])).toEqual(['learn', true]);
   });
 
+  test('the player keeps Step by step when moving between pieces until the mode is changed', async ({ app }) => {
+    const page = await openHome(app);
+    const learn = page.locator('#rd-mode button[data-v="learn"]');
+    const assess = page.locator('#rd-mode button[data-v="assess"]');
+    await page.locator('#rdn-book-go').click();
+    await learn.click();
+    await expect.poll(() => page.locator('#rd-staff .ss-n').count()).toBeGreaterThan(0);
+    await page.locator('#rd-go').click();
+    await page.evaluate(() => {
+      const api = window.__etude;
+      for (const step of api.SR.steps) {
+        for (const note of step.notes) {
+          api.handleNoteOn(note.midi, 100);
+          api.handleNoteOff(note.midi);
+        }
+      }
+    });
+    await page.locator('#rdn-r-next').click();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 2, 96));
+    await expect(learn).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#rdn-prev').click();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 1, 96));
+    await expect(learn).toHaveAttribute('aria-pressed', 'true');
+
+    await page.locator('#rdn-back').click();
+    await page.locator('[data-rdn-n="1"]').click();
+    await expect(learn).toHaveAttribute('aria-pressed', 'true');
+    await assess.click();
+    await page.locator('#rdn-next').click();
+    await expect(title(page)).toHaveText(fill(en.rdn_title_no, 2, 96));
+    await expect(assess).toHaveAttribute('aria-pressed', 'true');
+  });
+
   test("Today's set keeps its level after a level change once a piece of it is played", async ({ app }) => {
     const page = await openHome(app, withBook({ level: 3 }));
     await page.locator('#rdn-today-go').click();
@@ -784,29 +820,31 @@ test.describe('Read player', () => {
     // Wrong note on count-in completion shows immediate bad verdict, dock key flash, and extra counter.
     await page.locator('#rd-go').click();
     await expect.poll(() => srtState(page)).toBe('countIn');
-    await page.evaluate((firstMidi) => {
+    const badKeys = await page.evaluate((firstMidi) => {
       const api = window.__etude;
       api.srtSetState({ type: 'countInDone' });
       api.SR.t0 = performance.now();
       api.handleNoteOn(firstMidi + 1, 90, 'midi');
+      return document.querySelectorAll('#keys .key[data-s="bad"]').length;
     }, expected[0].midi);
 
     await expect(page.locator('#rd-verdict')).toHaveClass(/bad/);
     await expect(page.locator('#rd-verdict')).toContainText('✗');
-    await expect(page.locator('#keys .key[data-s="bad"]')).toHaveCount(1);
+    expect(badKeys).toBe(1);
     expect(await page.evaluate(() => window.__etude.SR.wrongExtra)).toBe(1);
 
     // Playing the right note immediately marks note 0 as good on staff and keyboard and clears/updates verdict.
-    await page.evaluate((firstMidi) => {
+    const goodKeys = await page.evaluate((firstMidi) => {
       const api = window.__etude;
       api.SR.t0 = performance.now();
       api.handleNoteOn(firstMidi, 90, 'midi');
+      return document.querySelectorAll('#keys .key[data-s="good"]').length;
     }, expected[0].midi);
 
     await expect(page.locator('#rd-staff .ss-n[data-nid="0"]')).toHaveAttribute('data-s', 'good');
     await expect(page.locator('#rd-verdict')).toHaveClass(/good/);
     await expect(page.locator('#rd-verdict')).toContainText('✓');
-    await expect(page.locator('#keys .key[data-s="good"]')).toHaveCount(1);
+    expect(goodKeys).toBe(1);
 
     // Unplayed second note gets marked bad once its window passes.
     await page.evaluate((secondOnMs) => {
@@ -830,6 +868,7 @@ test.describe('Read player', () => {
       api.handleNoteOff(firstMidi, 'midi');
       api.handleNoteOff(firstMidi + 1, 'midi');
     }, expected[0].midi);
+    await page.locator('#rd-top-fs').click();
     await page.locator('#rdn-next').click();
     await expect(title(page)).toHaveText(fill(en.rdn_title_no, 2, 96));
     const nextFirst = await page.evaluate(() => window.__etude.srtLevelExpected(window.__etude.SR.lvPiece)[0]);

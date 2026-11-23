@@ -53,11 +53,11 @@ test('Read expands before Start without claiming an attempt; zoom, fit, keys and
 test('Read native Escape leaves expansion without stopping an active attempt or revealing a concealed score', async ({ app, page }) => {
   await fullscreenBoundary(page, 'native');
   await readPiece(app, page);
+  await page.locator('#rd-fs').click();
+  expect(await page.evaluate(() => !!document.fullscreenElement)).toBe(true);
   await page.locator('#rd-go').click();
   await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('countIn');
   const before = await page.evaluate(() => ({ id: window.__etude.SR.srtState.attemptId, active: window.__etude.SR.active, concealed: document.querySelector('#rd-staff').getAttribute('aria-hidden') }));
-  await page.locator('#rd-top-fs').click();
-  expect(await page.evaluate(() => !!document.fullscreenElement)).toBe(true);
   await page.evaluate(() => document.exitFullscreen());
   await expect(page.locator('body')).not.toHaveAttribute('data-score-focus');
   expect(await page.evaluate(() => ({ id: window.__etude.SR.srtState.attemptId, active: window.__etude.SR.active, concealed: document.querySelector('#rd-staff').getAttribute('aria-hidden') }))).toEqual(before);
@@ -95,8 +95,8 @@ test('Pieces keeps its run and selection when expanding; a rejected native reque
   await expect(page.locator('#nav')).toBeVisible();
 });
 
-test('a completed Read attempt leaves expansion and exposes its result and Next controls', async ({ app, page }) => {
-  await fullscreenBoundary(page);
+test('a completed assessment keeps native fullscreen and starts the next exercise directly', async ({ app, page }) => {
+  await fullscreenBoundary(page, 'native');
   await readPiece(app, page);
   await page.locator('#rd-fs').click();
   await page.locator('#rd-go').click();
@@ -105,10 +105,48 @@ test('a completed Read attempt leaves expansion and exposes its result and Next 
     window.__etude.srtSetState({ type: 'countInDone' });
     window.__etude.srAssessFinish();
   });
-  await expect(page.locator('body')).not.toHaveAttribute('data-score-focus');
+  await expect(page.locator('body')).toHaveAttribute('data-score-focus', 'read');
   await expect(page.locator('#rdn-result')).toBeVisible();
-  await expect(page.locator('#rdn-r-next')).toBeVisible();
+  await page.locator('#rdn-r-next').click();
+  await expect(page.locator('#rd-stage-title')).toHaveText('No. 2 of 96');
+  await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('countIn');
+  expect(await page.evaluate(() => !!document.fullscreenElement)).toBe(true);
 });
+
+for (const size of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  test(`Step by step stays expanded through Retry and Next at ${size.width}×${size.height}`, async ({ app, page }) => {
+    await page.setViewportSize(size);
+    await fullscreenBoundary(page);
+    await readPiece(app, page);
+    await page.locator('#rd-mode [data-v=learn]').click();
+    await page.locator('#rd-go').click();
+    const body = page.locator('body');
+    await expect(body).toHaveAttribute('data-score-focus', 'read');
+    await page.evaluate(() => {
+      const api = window.__etude;
+      for (const step of api.SR.steps) {
+        for (const note of step.notes) {
+          api.handleNoteOn(note.midi, 100);
+          api.handleNoteOff(note.midi);
+        }
+      }
+    });
+    await expect(page.locator('#rdn-r-score')).toHaveText('100%');
+    await expect(page.locator('#rdn-r-next')).toBeInViewport();
+    await page.locator('#rdn-retry').click();
+    await expect(page.locator('#rdn-result')).toBeHidden();
+    expect(await page.evaluate(() => [window.__etude.SR.active, window.__etude.SR.stepIdx])).toEqual([true, 0]);
+
+    await page.locator('#rd-stage-end').click();
+    await expect(page.locator('#rd-go')).toBeFocused();
+    await page.locator('#rd-stage-next').click();
+    await expect(page.locator('#rd-stage-title')).toHaveText('No. 2 of 96');
+    await expect(body).toHaveAttribute('data-score-focus', 'read');
+    expect(await page.evaluate(() => [window.__etude.SR.active, window.__etude.SR.modeSel])).toEqual([true, 'learn']);
+    await page.locator('#rd-top-fs').click();
+    await expect(body).not.toHaveAttribute('data-stage');
+  });
+}
 
 test('expansion preserves fullscreen opened independently', async ({ app, page }) => {
   await fullscreenBoundary(page, 'native');

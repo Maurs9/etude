@@ -2928,7 +2928,11 @@ function scoreFocusExit(quiet = false) {
     SCORE_FOCUS.owner = null; SCORE_FOCUS.native = false; SCORE_FOCUS.token++;
     delete document.body.dataset.scoreFocus;
     if (owner === 'analysis') pcStageSet(false, true);
-    else { SCORE_FOCUS.readOverride = false; stageSync(); }
+    else {
+        SCORE_FOCUS.readOverride = false;
+        rdnAutoCancel();
+        stageSync();
+    }
     if (native && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     scoreFocusUi();
     if (!quiet) requestAnimationFrame(() => {
@@ -2945,14 +2949,17 @@ function scoreFocusToggle(owner: 'analysis' | 'read', target: HTMLElement) {
         return;
     }
     if (owner === 'analysis' ? !AN.notes.length : !SR.piece || byId('rdp-pieces').hidden) return;
+    scoreFocusEnter(owner, target);
+}
+function scoreFocusEnter(owner: 'analysis' | 'read', target: HTMLElement, manual = true) {
     document.body.dataset.scoreFocus = owner;
     SCORE_FOCUS.owner = owner; SCORE_FOCUS.returnTo = target; SCORE_FOCUS.scroll = scrollY;
     const token = ++SCORE_FOCUS.token;
     if (owner === 'analysis') { anSheet(false, true); pcStageSet(true); }
     else { SCORE_FOCUS.readOverride = true; stageSync(); }
     scoreFocusUi();
-    if (owner === 'read') byId('rd-top-fs').focus({ preventScroll: true });
-    if (fsCan() && !document.fullscreenElement) {
+    if (manual && owner === 'read') byId('rd-top-fs').focus({ preventScroll: true });
+    if (manual && fsCan() && !document.fullscreenElement) {
         SCORE_FOCUS.native = true;
         void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => {
             if (token !== SCORE_FOCUS.token && document.fullscreenElement) {
@@ -7088,12 +7095,13 @@ type RdnCtx = { kind: 'book'; level: number; number: number } | { kind: 'focus';
     | { kind: 'long'; date: string; level: number; key: ReadingKeyId; index: number }
     | { kind: 'scored'; piece: GeneratedPiece };
 /** `learn`: the score and stars of a finished Step-by-step run, shown on the result card instead of an evaluation. */
-/** `autoWait`: auto-next waits for a first-sight result to be saved. `melodyMode`: the old melody screen's mode, kept while
- *  the player shows a level piece. `opener`: a selector for the control that left the home, focused again on the way back.
+/** `autoWait`: auto-next waits for a first-sight result to be saved. `playerMode`: the mode chosen for level pieces.
+ *  `melodyMode`: the old melody screen's mode, kept while the player shows a level piece.
+ *  `opener`: a selector for the control that left the home, focused again on the way back.
  *  `noDaily`: today's set could not be made. `ready`: the status line the player shows before an attempt. */
 interface RdnState { screen: RdnScreen; fresh: boolean; ctx: RdnCtx | null; autoTimer: number; autoLeft: number; retries: number; learn: { acc: number; stars: 0 | 1 | 2 | 3 } | null;
-    autoWait: boolean; melodyMode: string | null; opener: string; noDaily: boolean; ready: string }
-const RDN: RdnState = { screen: 'home', fresh: true, ctx: null, autoTimer: 0, autoLeft: 0, retries: 0, learn: null, autoWait: false, melodyMode: null, opener: '', noDaily: false, ready: '' };
+    autoWait: boolean; playerMode: string; melodyMode: string | null; opener: string; noDaily: boolean; ready: string }
+const RDN: RdnState = { screen: 'home', fresh: true, ctx: null, autoTimer: 0, autoLeft: 0, retries: 0, learn: null, autoWait: false, playerMode: 'assess', melodyMode: null, opener: '', noDaily: false, ready: '' };
 /** The warm-up (spec section 9): its steps, where it is, and the flash card in play. `phase` is 'show' (the bar is visible),
  *  'play' (hidden, notes are collected), 'result' (shown again with a mark), 'drill' (an existing drill runs the step), or
  *  'idle'. `limit` is how many answers (or rhythm exercises) end a drill step. */
@@ -7596,7 +7604,7 @@ function srLearnStart() {
     rdnResultHide();
     SR.active = true;
     SR.anyOctave = !!data.settings.anyOctave;
-    stageSync();
+    srStartStage();
     rdnNavUi();
     SR.results = {};
     SR.stepIdx = 0;
@@ -8238,7 +8246,7 @@ async function srAssessStart(operation?: number) {
             return;
         }
     }
-    stageSync();
+    srStartStage();
     rdnNavUi();
     SR.results = {};
     SR.wrongExtra = 0;
@@ -8469,6 +8477,7 @@ function srAssessFinish() {
             mixedInput: srtRecorder?.mixedInput ?? false,
         };
         SR.srtPendingAttempt = attempt;
+        rdnNavUi();
         const saveOperation = srtOperationEpoch;
         const completedState = SR.srtState;
         const saveLease = SR.srtLease ?? null;
@@ -10842,6 +10851,14 @@ else {
 } }
 function rdBack() { rdAbort(); byId('rdx-stage').hidden = true; byId('rdx-home').hidden = false; rdRenderHome(); }
 /* ---- full-screen stage: a running drill or piece takes the whole window; Esc (or End) leaves it ---- */
+function srStartStage() {
+    // Level exercises keep the expanded player through their result and the next piece.
+    // Automatic expansion uses the full window without a native fullscreen request.
+    if (SR.lvPiece && SCORE_FOCUS.readOverride === null && rdData().prefs.stage)
+        scoreFocusEnter('read', byId('rd-fs'), false);
+    else
+        stageSync();
+}
 function stageWanted() {
     if (view0() === 'read' && !byId('rdp-pieces').hidden && SCORE_FOCUS.readOverride !== null)
         return SCORE_FOCUS.readOverride && !byId('rdp-pieces').hidden && !!SR.piece;
@@ -10852,7 +10869,12 @@ function stageWanted() {
 function stageSync() {
     if (SCORE_FOCUS.owner === 'read' && (view0() !== 'read' || byId('rdp-pieces').hidden)) { scoreFocusExit(true); return; }
     scoreFocusUi();
-    byId('rd-stage-end').hidden = SCORE_FOCUS.owner === 'read' && !SR.active;
+    const end = byId('rd-stage-end');
+    end.hidden = SCORE_FOCUS.owner === 'read' && !SR.active;
+    if (SCORE_FOCUS.owner === 'read')
+        end.removeAttribute('aria-keyshortcuts');
+    else
+        end.setAttribute('aria-keyshortcuts', 'Escape');
     const on = stageWanted();
     if (on === STAGE.on)
         return;
@@ -12137,8 +12159,8 @@ function rdnWarmLocale() {
 }
 /* ---- the player ---- */
 let rdnScoredBusy = false;
-async function rdnOpenScored() {
-    if (rdnScoredBusy || !rdnWhenSaved(() => { void rdnOpenScored(); })) return;
+async function rdnOpenScored(startInFocus?: number) {
+    if (rdnScoredBusy || !rdnWhenSaved(() => { void rdnOpenScored(startInFocus); })) return;
     const from = RDN.ctx, screen = RDN.screen, state = rdnBook();
     const level = from?.kind === 'scored' ? from.piece.level : state.level;
     const key = state.focusKey;
@@ -12164,7 +12186,7 @@ async function rdnOpenScored() {
             return;
         }
         status('');
-        rdnOpen({ kind: 'scored', piece: result.piece }, screen === 'home' ? 'title' : 'keep');
+        rdnOpen({ kind: 'scored', piece: result.piece }, screen === 'home' ? 'title' : 'keep', startInFocus);
     }
     catch {
         if (current()) status(t('rdn_scored_error'));
@@ -12227,6 +12249,11 @@ function rdnNavUi() {
         prev.disabled = busy || !c || c.kind === 'daily' || c.kind === 'long' || c.kind === 'scored' || c.number <= 1;
     if (next instanceof HTMLButtonElement)
         next.disabled = busy || !c;
+    const stageNext = maybeById('rd-stage-next'), result = maybeById('rdn-result'), retry = maybeById('rdn-retry');
+    if (stageNext)
+        stageNext.hidden = !c || busy || !result?.hidden;
+    if (retry instanceof HTMLButtonElement)
+        retry.disabled = srtPendingSaveProtected();
 }
 /** The status line before an attempt: first sight, or practice for a piece already seen. */
 function rdnReadyText() {
@@ -12267,8 +12294,8 @@ function rdnHandsUi() {
 }
 /** Opens a level piece. `focus`: 'title' moves focus to the piece's title (from the home), 'keep' leaves it where it is
  *  (Prev, Next and the arrow keys), unless the focused control went away. */
-function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title') {
-    if (!rdnWhenSaved(() => rdnOpen(ctx, focus)))
+function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title', startInFocus?: number) {
+    if (!rdnWhenSaved(() => rdnOpen(ctx, focus, startInFocus)))
         return;
     const piece = rdnPieceOf(ctx);
     if (!piece)
@@ -12298,7 +12325,7 @@ function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title') {
     SR.gen = rdnDrawable(piece);
     srNoteStartHold();
     rdTab('pieces', 'player');
-    SR.modeSel = 'assess';
+    SR.modeSel = RDN.playerMode;
     [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
     rdnResultHide();
     srShowPiece(SR.gen);
@@ -12315,17 +12342,24 @@ function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title') {
     srFit();
     const active = document.activeElement;
     if (focus === 'title' || !(active instanceof HTMLElement) || active === document.body || !active.getClientRects().length)
-        byId('rdn-p-title').focus({ preventScroll: true });
+        byId(SCORE_FOCUS.owner === 'read' ? 'rd-go' : 'rdn-p-title').focus({ preventScroll: true });
+    if (focus === 'keep')
+        byId('rdn-p-live').textContent = rdnHeadText().title;
+    if (startInFocus === SCORE_FOCUS.token && SCORE_FOCUS.owner === 'read') {
+        byId('rd-go').focus({ preventScroll: true });
+        srGo();
+    }
 }
 /** Next (+1) or previous (-1) piece. Past the last piece of a run, and after the fifth piece of the day, the home comes back. */
-function rdnStep(dir: 1 | -1) {
+function rdnStep(dir: 1 | -1, start = dir > 0) {
     const c = RDN.ctx;
     if (!c || rdnBusy())
         return;
     rdnAutoCancel();
+    const startInFocus = start && SCORE_FOCUS.owner === 'read' ? SCORE_FOCUS.token : undefined;
     let next: RdnCtx | null = null;
     if (c.kind === 'scored') {
-        if (dir > 0) void rdnOpenScored();
+        if (dir > 0) void rdnOpenScored(startInFocus);
         return;
     }
     if (c.kind === 'daily') {
@@ -12353,11 +12387,7 @@ function rdnStep(dir: 1 | -1) {
         rdnHome(true);
         return;
     }
-    rdnOpen(next, 'keep');
-    // Focus stays on the pressed button: the new title is announced instead.
-    const live = maybeById('rdn-p-live');
-    if (live && RDN.ctx === next)
-        live.textContent = rdnHeadText().title;
+    rdnOpen(next, 'keep', startInFocus);
 }
 function rdnKey(e: KeyboardEvent) {
     // A key the page reacts to stops the auto-next countdown (Tab only moves focus).
@@ -12497,6 +12527,7 @@ function rdnResultHide() {
     RDN.learn = null;
     rdnVerdictShown(true);
     rdnAutoCancel();
+    rdnNavUi();
 }
 /** The one-line verdict under the score. A level piece's result card replaces it, also for screen readers. */
 function rdnVerdictShown(on: boolean) {
@@ -12512,8 +12543,6 @@ function rdnResultShow(startAuto: boolean) {
         rdnResultHide();
         return;
     }
-    // The result and Retry/Next controls live outside the focused paper.
-    if (SCORE_FOCUS.owner === 'read') scoreFocusExit(true);
     // A Step-by-step run measures neither pitch accuracy, rhythm nor timing: those cells show a dash.
     const pct = learn ? learn.acc : SR.srtResultValue ?? Math.round(ev?.score ?? 0), stars = learn ? learn.stars : rdnStars(ev?.stars ?? 0), auto = rdnAutoNextOn();
     const cells: [string, string][] = [
@@ -12535,6 +12564,7 @@ function rdnResultShow(startAuto: boolean) {
         `<button type="button" class="btn ghost" id="rdn-auto-cancel">${e(t('rdn_cancel'))}</button></div>`;
     box.hidden = false;
     rdnVerdictShown(false);
+    rdnNavUi();
     // Auto-next waits until a first-sight result is saved (see srtSetState): its save is still running, or failed.
     const state = SR.srtState, unsaved = state?.mode === 'firstSight' && !!state.attemptId && state.name !== 'saved';
     if (startAuto && auto && stars >= 1) {
@@ -12580,7 +12610,8 @@ function rdnAutoStart() {
         RDN.autoLeft--;
         if (RDN.autoLeft <= 0) {
             rdnAutoCancel();
-            rdnStep(1);
+            // A connected piano can start the next assessment on its first note.
+            rdnStep(1, !midiLive());
             return;
         }
         rdnAutoShow();
@@ -12596,9 +12627,6 @@ function rdnAutoCancel() {
 }
 function rdnRetry() {
     rdnAutoCancel();
-    // Retry after a Step-by-step run goes step by step again; otherwise it is an assessed attempt.
-    if (SR.modeSel !== 'assess' && !RDN.learn)
-        srSetMode('assess');
     srGo();
 }
 (function rdnInit() {
@@ -12612,6 +12640,7 @@ function rdnRetry() {
     byId('rdn-w-flash').addEventListener('click', rdnWarmFlashClick);
     byId('rdn-prev').addEventListener('click', () => rdnStep(-1));
     byId('rdn-next').addEventListener('click', () => rdnStep(1));
+    byId('rd-stage-next').addEventListener('click', () => rdnStep(1));
     // Any other control of the player stops the auto-next countdown (the result card's and the unsaved result's buttons
     // handle it themselves).
     const read = byId('view-read'), stopAuto = (e: Event) => {
@@ -12824,6 +12853,8 @@ function srSetMode(v: string) {
     if (srtPendingSaveProtected())
         return;
     SR.modeSel = v;
+    if (SR.lvPiece)
+        RDN.playerMode = v;
     [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x instanceof HTMLElement && x.dataset.v === v ? 'true' : 'false'));
     srStopAll();
     const practiceOnly = v === 'assess' && srtGeneratedSelected() &&

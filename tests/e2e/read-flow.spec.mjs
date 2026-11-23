@@ -83,6 +83,16 @@ test.describe('Read at the piano', () => {
     await expect(page.locator('#rdn-result')).toBeVisible();
     await expect(page.locator('#rdn-autonext')).not.toBeChecked();
     await expect(page.locator('#rdn-auto')).toBeHidden();
+
+    await page.locator('#rdn-autonext').check();
+    await page.locator('#rdn-retry').click();
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await page.evaluate(() => window.__etude.srtSetState({ type: 'countInDone' }));
+    await playRest(page);
+    await expect(page.locator('#rdn-auto')).toBeVisible();
+    await expect(page.locator('#rd-stage-title')).toHaveText('No. 2 of 96');
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await expect(page.locator('body')).toHaveAttribute('data-score-focus', 'read');
   });
 
   test('a long piece in a newly introduced key starts in its own level', async ({ app, page }) => {
@@ -137,9 +147,11 @@ test.describe('Read at the piano', () => {
 
     // Next is another long piece, with other notes.
     const before = await page.evaluate(() => window.__etude.SR.srtFingerprint);
-    await page.locator('#rdn-next').click();
+    await page.locator('#rdn-r-next').click();
     await expect(page.locator('#rdn-p-title')).toHaveText(en.rdn_long_n.replace('%s', '2'));
     expect(await page.evaluate(() => window.__etude.SR.srtFingerprint)).not.toBe(before);
+    await expect.poll(() => srtState(page)).toBe('countIn');
+    await page.locator('#rd-top-fs').click();
     // Back home the step is done, and the plan counts it.
     await page.locator('#rdn-back').click();
     await expect(page.locator('#rdn-plan-long')).toHaveAttribute('data-done', 'true');
