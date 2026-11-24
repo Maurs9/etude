@@ -1227,6 +1227,8 @@
   #ac-chain .ch.on{background:var(--accent); color:var(--accent-ink)}
   #ac-chain .sep{color:var(--faint); margin:0 6px}
   .prog-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .prog-print-head{display:none}
+  .elab-diff{color:var(--ink2); font-size:13px}
   .prog-empty{margin:4px 0 18px; padding:16px 18px; border:1px dashed var(--line2); border-radius:12px; background:var(--paper2); display:flex; gap:14px; align-items:center; flex-wrap:wrap; justify-content:space-between}
   .prog-empty p{margin:0; color:var(--ink2); font-size:14.5px}
   .mrow .acc{font-size:12px; color:var(--muted); margin-top:4px}
@@ -1673,4 +1675,43 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: var(--shadow);
+}
+
+@media print {
+  header, .bottomnav, .dock, footer, .scrim, .drawer, .helpbox, .app-dialog, .app-dialog-scrim,
+  .prog-actions, #prog-start, #rdx-reset, #prog-empty, details.osmd-lic, #syncNote {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    padding: 0 !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  #view-progress .wrap {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .prog-print-head {
+    display: block !important;
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #222;
+  }
+  .prog-print-head h2 {
+    margin: 0 0 4px;
+    font: 600 18px/1.25 var(--serif);
+    color: #111;
+  }
+  .prog-print-meta, .prog-print-pieces {
+    margin: 4px 0 0;
+    font: 500 12.5px/1.45 var(--sans);
+    color: #333;
+  }
+  .prog-col, .rdx-stat-p, .ig-cat, .stat-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }

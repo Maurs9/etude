@@ -173,3 +173,53 @@ describe('technique grading', () => {
     expect(techniqueNoteOn(run, 50, 260, true)).toBe('step'); // a new step takes any key again
   });
 });
+
+describe('Wave 3A natural minor, authentic melodic minor, and thumb-crossing grading', () => {
+  it('builds natural minor and authentic ascending/descending melodic minor with accurate spelling', () => {
+    const nat = techniqueSteps({ kind: 'naturalMinor', tonicPc: 9, octaves: 1, hands: 'rh' }).slice(0, 8);
+    expect(midis(nat, 'rh')).toEqual([69, 71, 72, 74, 76, 77, 79, 81]);
+    expect(fingers(nat, 'rh')).toBe(SCALE_FINGERINGS.natural.rh[9]);
+
+    const mel = techniqueSteps({ kind: 'melodicMinor', tonicPc: 9, octaves: 1, hands: 'rh' });
+    expect(mel).toHaveLength(15);
+    expect(midis(mel.slice(0, 8), 'rh')).toEqual([69, 71, 72, 74, 76, 78, 80, 81]);
+    expect(midis(mel.slice(8), 'rh')).toEqual([79, 77, 76, 74, 72, 71, 69]);
+    const upSpell = mel.slice(0, 8).map((s) => {
+      const n = s.notes[0];
+      const { letter, acc } = techniqueSpellDegree('melodicMinor', 9, n.degree, !!n.descending);
+      return LETTERS[letter] + (acc === 1 ? '#' : acc === -1 ? 'b' : '');
+    });
+    const downSpell = mel.slice(8).map((s) => {
+      const n = s.notes[0];
+      const { letter, acc } = techniqueSpellDegree('melodicMinor', 9, n.degree, !!n.descending);
+      return LETTERS[letter] + (acc === 1 ? '#' : acc === -1 ? 'b' : '');
+    });
+    expect(upSpell).toEqual(['A', 'B', 'C', 'D', 'E', 'F#', 'G#', 'A']);
+    expect(downSpell).toEqual(['G', 'F', 'E', 'D', 'C', 'B', 'A']);
+  });
+
+  it('never assigns identical consecutive fingers on any 2-octave scale across all 12 tonics', () => {
+    for (const kind of ['major', 'minor', 'naturalMinor', 'melodicMinor']) {
+      for (const hands of ['rh', 'lh']) {
+        for (let tonicPc = 0; tonicPc < 12; tonicPc += 1) {
+          const steps = techniqueSteps({ kind, tonicPc, octaves: 2, hands });
+          const f = fingers(steps, hands);
+          for (let i = 1; i < f.length; i += 1) {
+            expect(f[i], `${kind} ${hands} pc=${tonicPc} at ${i}: ${f}`).not.toBe(f[i - 1]);
+          }
+        }
+      }
+    }
+  });
+
+  it('flags thumb-crossing bottlenecks separately from ordinary non-crossing hesitations', () => {
+    const spec = { kind: 'major', tonicPc: 0, octaves: 1, hands: 'rh' };
+    const thumbDelay = techniqueGrade(play(techniqueStart(techniqueSteps(spec)), 250, (index) => (index === 3 ? 150 : 0)));
+    expect(thumbDelay.worstStep).toBe(3);
+    expect(thumbDelay.worstCrossing).toBe(true);
+
+    const upperDelay = techniqueGrade(play(techniqueStart(techniqueSteps(spec)), 250, (index) => (index === 5 ? 150 : 0)));
+    expect(upperDelay.worstStep).toBe(5);
+    expect(upperDelay.worstCrossing).toBe(false);
+  });
+});

@@ -54,12 +54,12 @@ function keyFor(kind: TechniqueKind, keyChoice: string, keep: number | null): { 
   const fixed = fixedKey(keyChoice);
   if (fixed !== null) return techniqueKeyAllowed(kind, fixed) ? { kind, tonicPc: fixed } : { kind: 'major', tonicPc: fixed };
   if (keep !== null && techniqueKeyAllowed(kind, keep)) return { kind, tonicPc: keep };
-  const pool = kind === 'major' || kind === 'minor' ? Array.from({ length: 12 }, (_, index) => index) : ARPEGGIO_TONICS[kind];
+  const pool = kind !== 'arpMajor' && kind !== 'arpMinor' ? Array.from({ length: 12 }, (_, index) => index) : ARPEGGIO_TONICS[kind];
   return { kind, tonicPc: pool[Math.floor(Math.random() * pool.length)] };
 }
 
-function noteLabel(host: TechniqueHost, spec: TechniqueSpec, degree: number): string {
-  const { letter, acc } = techniqueSpellDegree(spec.kind, spec.tonicPc, degree);
+function noteLabel(host: TechniqueHost, spec: TechniqueSpec, degree: number, descending = false): string {
+  const { letter, acc } = techniqueSpellDegree(spec.kind, spec.tonicPc, degree, descending);
   return host.spell(letter, acc);
 }
 
@@ -104,7 +104,7 @@ function render(host: TechniqueHost): void {
     seg(host, 'octaves', host.t('tq_octaves'), [1, 2].map((n) => ({ value: String(n), text: host.t('tq_oct' + n), on: n === s.spec.octaves }))) +
     seg(host, 'hands', host.t('tq_hands'), TECHNIQUE_HANDS.map((hands) => ({ value: hands, text: host.t('tq_h_' + hands), on: hands === s.spec.hands }))) +
     `</div>` +
-    `<p class="tq-how">${esc(host.t('tq_how'))}${s.spec.kind === 'arpMajor' || s.spec.kind === 'arpMinor' ? ' ' + esc(arpeggioKeys(host)) : ''}</p>` +
+    `<p class="tq-how">${esc(host.t('tq_how'))}${s.spec.kind === 'melodicMinor' ? ' ' + esc(host.t('tq_melodic_desc')) : s.spec.kind === 'arpMajor' || s.spec.kind === 'arpMinor' ? ' ' + esc(arpeggioKeys(host)) : ''}</p>` +
     `<ol class="tq-strip${shown ? '' : ' tq-nofing'}" aria-label="${esc(host.t('tq_fing'))}">${cells}</ol>` +
     `<p class="tq-live" role="status" aria-live="polite">${shown ? '' : esc(host.t('tq_fing_hidden'))}</p>` +
     `<div class="tq-tools"><button type="button" class="btn sm ghost" data-tq-act="restart">${esc(host.t('tq_restart'))}</button>` +
@@ -144,6 +144,22 @@ function paintProgress(host: TechniqueHost): void {
     const done = s.done || (s.run.index <= top ? index < s.run.index : index > now);
     cell.classList.toggle('done', done);
     cell.classList.toggle('now', index === now);
+    if (s.spec.kind === 'melodicMinor') {
+      const displayStep = (!s.done && s.run.index > top && index < top)
+        ? s.steps[s.steps.length - 1 - index]
+        : s.steps[index];
+      const note = displayStep?.notes[0];
+      if (note) {
+        const span = cell.querySelector('span');
+        if (span) span.textContent = noteLabel(host, s.spec, note.degree, !!note.descending);
+        const rhEl = cell.querySelector('.tq-f:not(.tq-lh)');
+        const lhEl = cell.querySelector('.tq-f.tq-lh');
+        const rh = displayStep.notes.find((candidate) => candidate.hand === 'rh');
+        const lh = displayStep.notes.find((candidate) => candidate.hand === 'lh');
+        if (rhEl && rh) rhEl.textContent = fingeringShown(s) ? String(rh.finger) : '';
+        if (lhEl && lh) lhEl.textContent = fingeringShown(s) ? String(lh.finger) : '';
+      }
+    }
   });
   host.clearMarks();
   if (!s.done && fingeringShown(s)) s.steps[s.run.index]?.notes.forEach((note) => host.mark(note.midi, 'target'));
@@ -222,7 +238,7 @@ export function techniqueInput(host: TechniqueHost, midi: number, timeMs: number
     host.mark(midi, 'bad');
     window.clearTimeout(badTimer);
     badTimer = window.setTimeout(() => paintProgress(host), 450);
-    if (live && expected) live.textContent = host.t('tq_wrong', expected.notes.map((note) => noteLabel(host, s.spec, note.degree)).join(' + '));
+    if (live && expected) live.textContent = host.t('tq_wrong', expected.notes.map((note) => noteLabel(host, s.spec, note.degree, !!note.descending)).join(' + '));
     return;
   }
   if (result === 'step' || result === 'done') {
@@ -265,7 +281,10 @@ function renderResult(host: TechniqueHost, s: DrillState, grade: ReturnType<type
   ];
   if (grade.evenness !== 'steady') {
     const step = s.steps[grade.worstStep];
-    if (step) lines.push(host.t('tq_res_gap', noteLabel(host, s.spec, step.notes[0].degree), step.notes.map((note) => note.finger).join('/')));
+    if (step) {
+      const refNote = step.notes[0];
+      lines.push(host.t(grade.worstCrossing ? 'tq_res_cross' : 'tq_res_gap', noteLabel(host, s.spec, refNote.degree, !!refNote.descending), step.notes.map((note) => note.finger).join('/')));
+    }
   }
   if (grade.handSyncMs !== null) lines.push(host.t('tq_res_sync', grade.handSyncMs));
   const elab = host.byId('q-elab');

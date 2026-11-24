@@ -28,12 +28,16 @@ interface ProgressOptions<Item extends ProgressItem> {
     statHTML: (value: number | string, label: string) => string;
     openDrill: (category: Item['cat']) => void;
     rdRenderStats: () => void;
+    printSummaryHtml?: string;
 }
 
 export function renderProgress<Item extends ProgressItem>(options: ProgressOptions<Item>) {
-    const { data, items: allItems, categories, loc, t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, openDrill, rdRenderStats } = options;
+    const { data, items: allItems, categories, loc, t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, openDrill, rdRenderStats, printSummaryHtml } = options;
     const tn = options.today;
     const acc = data.totalReviews ? Math.round(100 * data.totalCorrect / data.totalReviews) : 0;
+    const printHead = document.getElementById('prog-print-head');
+    if (printHead && printSummaryHtml !== undefined)
+        printHead.innerHTML = printSummaryHtml;
     byId('prog-empty').hidden = options.hasActivity ?? ((data.totalReviews || 0) > 0);
     byId('progStats').innerHTML =
         statHTML(currentStreak(), t('st_streak')) + statHTML(data.bestStreak || 0, t('st_best')) +
