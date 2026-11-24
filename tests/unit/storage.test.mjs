@@ -23,6 +23,40 @@ it('transfers the ledger in the backup, stores it once, and rolls back if the li
   expect(srtReadLedger(storage).exposures).toEqual(ledger.exposures);
 });
 
+it('blocks restore when live etude-sight-v1 has a future schema and replaces ledger on snapshot restore', async () => {
+  const futureValues = new Map([[SRT_LEDGER_KEY, JSON.stringify({ schemaVersion: 99, generation: 'gen-future' })]]);
+  const futureStorage = {
+    getItem: key => futureValues.get(key) ?? null,
+    setItem: (key, value) => futureValues.set(key, value),
+    removeItem: key => futureValues.delete(key),
+  };
+  await expect(restoreProgressBackup(futureStorage, { v: 3, data: { totalReviews: 9 } }, () => 'next')).resolves.toEqual({ ok: false, reason: 'unsupported' });
+  expect(readPttV3(futureStorage)).toBeNull();
+
+  const currentLedger = {
+    ...srtCreateLedger(),
+    exposures: {
+      kept: { firstSeenAt: 1, reason: 'practice' },
+      newer: { firstSeenAt: 2, reason: 'first-sight' },
+    },
+  };
+  const snapshotLedger = {
+    ...srtCreateLedger(),
+    exposures: {
+      kept: { firstSeenAt: 1, reason: 'practice' },
+    },
+  };
+  const liveValues = new Map([[SRT_LEDGER_KEY, JSON.stringify(currentLedger)]]);
+  const liveStorage = {
+    getItem: key => liveValues.get(key) ?? null,
+    setItem: (key, value) => liveValues.set(key, value),
+    removeItem: key => liveValues.delete(key),
+  };
+  const snapshotBackup = parsePttV3(serializeProgressBackup({ v: 3, data: { totalReviews: 1 } }, snapshotLedger));
+  await expect(restoreProgressBackup(liveStorage, snapshotBackup, () => 'snap-gen', { replace: true })).resolves.toMatchObject({ ok: true });
+  expect(Object.keys(srtReadLedger(liveStorage).exposures)).toEqual(['kept']);
+});
+
 describe('ptt-v3 storage reader', () => {
   it('supplies scheduling defaults for legacy cards while keeping their progress', async () => {
     const payload = parsePttV3(await fixture('ptt-v3-legacy.json'));

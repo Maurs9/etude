@@ -84,10 +84,15 @@ function open(factory: IDBFactory | undefined = globalThis.indexedDB): Promise<I
 function done<T>(db: IDBDatabase, mode: 'readonly' | 'readwrite', work: (store: IDBObjectStore) => IDBRequest<T> | void): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
     let result: T | undefined;
-    const tx = db.transaction(STORE, mode), req = work(tx.objectStore(STORE));
-    if (req) req.onsuccess = () => { result = req.result; };
-    tx.oncomplete = () => { db.close(); resolve(result); };
-    tx.onabort = tx.onerror = () => { db.close(); reject(tx.error); };
+    try {
+      const tx = db.transaction(STORE, mode), req = work(tx.objectStore(STORE));
+      if (req) req.onsuccess = () => { result = req.result; };
+      tx.oncomplete = () => { db.close(); resolve(result); };
+      tx.onabort = tx.onerror = () => { db.close(); reject(tx.error); };
+    } catch (error) {
+      try { db.close(); } catch { }
+      reject(error);
+    }
   });
 }
 
@@ -114,23 +119,32 @@ export async function readSnapshot(id: number, factory?: IDBFactory): Promise<Sn
 export async function saveSnapshot(entry: Omit<Snapshot, 'id'>, factory?: IDBFactory): Promise<SnapshotInfo> {
   const db = await open(factory);
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite'), store = tx.objectStore(STORE);
-    const request = store.getAll();
-    let saved: SnapshotInfo;
-    request.onsuccess = () => {
-      const rows: unknown[] = request.result;
-      const existing = rows.filter(isSnapshot);
-      const daily = entry.reason === 'daily' && existing.find(row => row.reason === 'daily' && row.day === entry.day);
-      if (daily) {
-        saved = { id: daily.id, day: daily.day, reason: daily.reason };
-        return;
-      }
-      const id = Math.max(Date.now(), (existing.at(-1)?.id ?? 0) + 1);
-      saved = { id, day: entry.day, reason: entry.reason };
-      store.add({ ...entry, id });
-      for (const old of snapshotsToDrop([saved, ...existing])) store.delete(old);
-    };
-    tx.oncomplete = () => { db.close(); resolve(saved); };
-    tx.onabort = tx.onerror = () => { db.close(); reject(tx.error); };
+    try {
+      const tx = db.transaction(STORE, 'readwrite'), store = tx.objectStore(STORE);
+      const request = store.getAll();
+      let saved: SnapshotInfo;
+      request.onsuccess = () => {
+        const rows: unknown[] = request.result;
+        const existing = rows.filter(isSnapshot);
+        const daily = entry.reason === 'daily' && existing.find(row => row.reason === 'daily' && row.day === entry.day);
+        if (daily) {
+          saved = { id: daily.id, day: daily.day, reason: daily.reason };
+          return;
+        }
+        const maxExistingId = rows.reduce<number>(
+          (max, row) => (isRecord(row) && typeof row.id === 'number' && Number.isFinite(row.id) ? Math.max(max, row.id) : max),
+          0,
+        );
+        const id = Math.max(Date.now(), maxExistingId + 1);
+        saved = { id, day: entry.day, reason: entry.reason };
+        store.add({ ...entry, id });
+        for (const old of snapshotsToDrop([saved, ...existing])) store.delete(old);
+      };
+      tx.oncomplete = () => { db.close(); resolve(saved); };
+      tx.onabort = tx.onerror = () => { db.close(); reject(tx.error); };
+    } catch (error) {
+      try { db.close(); } catch { }
+      reject(error);
+    }
   });
 }

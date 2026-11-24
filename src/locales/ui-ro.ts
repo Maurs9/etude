@@ -729,6 +729,7 @@ const payload: UIPayload = {
       "import_storage": "Copia de siguranță nu a putut fi restaurată. Verifică dacă browserul permite stocarea și are suficient spațiu, apoi încearcă din nou.",
       "import_size": "Copia depășește limita de import de 16 MiB.",
       "import_conflict": "Copia intră în conflict cu istoricul de citire de pe acest dispozitiv. Progresul salvat a fost păstrat.",
+      "import_quota": "Spațiul de stocare al acestui dispozitiv este plin, așa că backupul nu a putut fi salvat.",
       "store_stuck": "Progresul salvat nu a putut fi citit și nu e loc pentru o copie. Nu se salvează nimic până nu eliberezi spațiu, ca să rămână în siguranță copia necitibilă. Exportă o copie de rezervă a lucrului de azi.",
       "store_upgrade_stuck": "Nu s-a putut crea copia necesară pentru actualizarea progresului. Originalul este protejat. Exportă o copie, apoi reîncarcă pagina pentru a încerca din nou.",
       "store_copy_failed": "Étude nu a putut păstra mai întâi o copie a progresului actual. Îl înlocuiești oricum?",
@@ -1979,7 +1980,7 @@ const payload: UIPayload = {
       "lw_chord": "Constructor de acorduri",
       "lw_quality": "Tip",
       "lw_inv": "Răsturnare",
-      "lw_bass": "Bas (slash)",
+      "lw_bass": "Bas (după bară)",
       "lw_inv0": "Poziție fundamentală",
       "lw_inv1": "Răsturnarea I",
       "lw_inv2": "Răsturnarea a II-a",
@@ -2107,14 +2108,14 @@ const payload: UIPayload = {
       }
     },
     "inversions": {
-      "ro": [
-        "poziția de bază",
-        "prima răsturnare",
-        "a doua răsturnare",
-        "a treia răsturnare",
-        "a patra răsturnare",
-        "a cincea răsturnare"
-      ]
+      "ro": {
+        "0": "poziția de bază",
+        "1": "prima răsturnare",
+        "2": "a doua răsturnare",
+        "3": "a treia răsturnare",
+        "4": "a patra răsturnare",
+        "5": "a cincea răsturnare"
+      }
     },
     "feels": {
       "ro": {
@@ -2407,6 +2408,7 @@ const payload: UIPayload = {
       "resume_failed": "Poziția de studiu salvată nu a putut fi restabilită.",
       "working": "Se procesează…",
       "backup_saved": "Descărcarea copiei bibliotecii este pregătită.",
+      "lib_export_skipped": "Copia bibliotecii este pregătită; {count} partituri ilizibile nu au putut fi incluse.",
       "deleted": "Partitură ștearsă din bibliotecă.",
       "composer_filter": "Compozitor",
       "all_composers": "Toți compozitorii",

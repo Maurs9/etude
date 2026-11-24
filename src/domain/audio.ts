@@ -346,9 +346,12 @@ export class AudioEngine {
   masterFilter: BiquadFilterNode | null = null;
   compressor: DynamicsCompressorNode | null = null;
   lfoGain: GainNode | null = null;
+  private lfo: OscillatorNode | null = null;
+  private lfoStarted = false;
   reverbNode: ConvolverNode | null = null;
   private reverbPreparing: ConvolverNode | null = null;
   reverbGain: GainNode | null = null;
+  private reverbConnected = false;
 
   private readonly options: AudioEngineOptions;
   private audioLockTimer = 0;
@@ -376,6 +379,19 @@ export class AudioEngine {
 
   ensureAudio(): AudioContext | null {
     if (this.context?.state === 'closed') {
+      this.liveVoices.clear();
+      this.previewVoices = [];
+      this.droneVoices.length = 0;
+      this.noiseBuffer = null;
+      this.reverbPreparing = null;
+      this.reverbNode = null;
+      this.reverbGain = null;
+      this.reverbConnected = false;
+      this.lfo = null;
+      this.lfoStarted = false;
+      this.lfoGain = null;
+      this.masterFilter = null;
+      this.compressor = null;
       this.context = null;
       this.master = null;
     }
@@ -417,18 +433,18 @@ export class AudioEngine {
       this.reverbNode = context.createConvolver();
       this.reverbGain = context.createGain();
       this.reverbGain.gain.value = this.reverbWet;
-      this.masterFilter.connect(this.reverbNode).connect(this.reverbGain).connect(this.compressor);
+      this.syncReverbConnection();
     } catch {
       this.reverbNode = null;
       this.reverbGain = null;
+      this.reverbConnected = false;
     }
 
-    const lfo = context.createOscillator();
-    lfo.frequency.value = 5.5;
+    this.lfo = context.createOscillator();
+    this.lfo.frequency.value = 5.5;
     this.lfoGain = context.createGain();
     this.lfoGain.gain.value = 0;
-    lfo.connect(this.lfoGain);
-    lfo.start();
+    this.lfoStarted = false;
     void context.resume().catch(() => undefined);
     return context;
   }
@@ -635,11 +651,13 @@ export class AudioEngine {
         stop: (at?: number) => {
           const releaseAt = Math.max(context.currentTime, at ?? context.currentTime);
           if (releaseAt <= startAt) {
+            gain.gain.cancelScheduledValues(0);
+            gain.gain.setValueAtTime(0, 0);
             try { source.stop(releaseAt); } catch { /* already stopped */ }
+            try { source.disconnect(); } catch { /* already disconnected */ }
             return;
           }
-          gain.gain.cancelScheduledValues(releaseAt);
-          gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), releaseAt);
+          this.cancelAndHold(gain.gain, releaseAt, 0.0001);
           gain.gain.exponentialRampToValueAtTime(0.0001, releaseAt + release);
           try { source.stop(releaseAt + release + 0.02); } catch { /* already stopped */ }
         },
@@ -849,9 +867,17 @@ export class AudioEngine {
       g: gain,
       voiceKind: 'synth',
       stop: (at?: number) => {
-        const releaseAt = at ?? context.currentTime;
-        gain.gain.cancelScheduledValues(releaseAt);
-        gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), releaseAt);
+        const releaseAt = Math.max(context.currentTime, at ?? context.currentTime);
+        if (releaseAt <= startAt) {
+          gain.gain.cancelScheduledValues(0);
+          gain.gain.setValueAtTime(0, 0);
+          oscillators.forEach(oscillator => {
+            try { oscillator.stop(releaseAt); } catch { /* already stopped */ }
+            try { oscillator.disconnect(); } catch { /* already disconnected */ }
+          });
+          return;
+        }
+        this.cancelAndHold(gain.gain, releaseAt, 0.0001);
         gain.gain.exponentialRampToValueAtTime(0.0001, releaseAt + 0.28);
         oscillators.forEach(oscillator => {
           try { oscillator.stop(releaseAt + 0.32); } catch { /* already stopped */ }
@@ -950,7 +976,38 @@ export class AudioEngine {
     this.liveVoices.forEach(voice => voice.setBend());
   }
 
+  private cancelAndHold(param: AudioParam, time: number, minValue?: number): void {
+    const withHold = param as AudioParam & { cancelAndHoldAtTime?: (at: number) => AudioParam };
+    if (typeof withHold.cancelAndHoldAtTime === 'function') {
+      withHold.cancelAndHoldAtTime(time);
+      return;
+    }
+    param.cancelScheduledValues(time);
+    param.setValueAtTime(minValue != null ? Math.max(minValue, param.value) : param.value, time);
+  }
+
+  private syncReverbConnection(): void {
+    if (!this.masterFilter || !this.reverbNode || !this.reverbGain || !this.compressor) return;
+    const want = this.reverbWet > 0;
+    if (want && !this.reverbConnected) {
+      this.masterFilter.connect(this.reverbNode);
+      this.reverbNode.connect(this.reverbGain);
+      this.reverbGain.connect(this.compressor);
+      this.reverbConnected = true;
+    } else if (!want && this.reverbConnected) {
+      try { this.masterFilter.disconnect(this.reverbNode); } catch { /* ignore */ }
+      try { this.reverbNode.disconnect(); } catch { /* ignore */ }
+      try { this.reverbGain.disconnect(); } catch { /* ignore */ }
+      this.reverbConnected = false;
+    }
+  }
+
   setModulation(depth: number, timeConstant = 0.03): void {
+    if (this.lfo && this.lfoGain && !this.lfoStarted && depth > 0) {
+      this.lfo.connect(this.lfoGain);
+      this.lfo.start();
+      this.lfoStarted = true;
+    }
     if (this.lfoGain && this.context) {
       this.lfoGain.gain.setTargetAtTime(depth, this.context.currentTime, timeConstant);
     }
@@ -965,6 +1022,7 @@ export class AudioEngine {
   setReverbWet(value: number): void {
     this.reverbWet = clamp(value, 0, 1);
     if (this.reverbWet > 0) this.ensureReverbBuffer();
+    this.syncReverbConnection();
     this.rampReverb();
   }
 
@@ -982,8 +1040,7 @@ export class AudioEngine {
   masterRamp(value: number): void {
     if (!this.master || !this.context) return;
     const now = this.context.currentTime;
-    this.master.gain.cancelScheduledValues(now);
-    this.master.gain.setValueAtTime(Math.max(0.0001, this.master.gain.value), now);
+    this.cancelAndHold(this.master.gain, now);
     this.master.gain.linearRampToValueAtTime(value, now + 0.02);
   }
 
@@ -1038,7 +1095,16 @@ export class AudioEngine {
     const voice: AudioVoice = {
       oscs: [oscillator],
       stop: (at?: number) => {
-        try { oscillator.stop(at ?? context.currentTime); } catch { /* already stopped */ }
+        const stopAt = at ?? context.currentTime;
+        if (stopAt <= when) {
+          gain.gain.cancelScheduledValues(0);
+          gain.gain.setValueAtTime(0, 0);
+        }
+        try { oscillator.stop(stopAt); } catch { /* already stopped */ }
+        if (stopAt <= when) {
+          try { oscillator.disconnect(); } catch { /* already disconnected */ }
+          try { gain.disconnect(); } catch { /* already disconnected */ }
+        }
       },
       setBend: () => {},
     };

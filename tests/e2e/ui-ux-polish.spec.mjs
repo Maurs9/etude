@@ -228,3 +228,47 @@ test.describe('touch phone ergonomics & drawer close hit-area preservation', () 
     await expect(page.locator('#rd-go')).toBeFocused();
   });
 });
+
+test.describe('Wave 2A UX and localization regressions', () => {
+  test('Progress hides #prog-empty when Learn activity exists with 0 card reviews', async ({ app, page }) => {
+    await app.open({ hash: 'progress', saved: { v: 3, lang: 'en', data: { learnDone: { 0: todayN() } } } });
+    await expect(page.locator('#prog-empty')).toBeHidden();
+  });
+
+  test('ending a Today session at 0 answers returns to #today-home without showing Well done 0%', async ({ app, page }) => {
+    await app.open({ hash: 'today' });
+    await page.locator('#startBtn').click();
+    await expect(page.locator('#session')).toBeVisible();
+    await page.locator('#ses-end').click();
+    await expect(page.locator('#session')).toBeHidden();
+    await expect(page.locator('#summary')).toBeHidden();
+    await expect(page.locator('#today-home')).toBeVisible();
+    await expect(page.locator('#startBtn')).toBeFocused();
+  });
+
+  test('German Read key labels use hyphenated -Dur and -Moll forms', async ({ app, page }) => {
+    await app.open({ hash: 'read', lang: 'de' });
+    await expect(page.locator('#rdn-home')).toContainText('C-Dur');
+    await expect(page.locator('#rdn-home')).not.toContainText('C Dur');
+    await page.locator('#rdt-pieces').click();
+    await page.locator('#rd-gen').click();
+    await expect(page.locator('#rd-meta')).toHaveText(/-(Dur|Moll)\b/);
+    await expect(page.locator('#rd-meta')).not.toHaveText(/\s(Dur|Moll)\b/);
+    const labels = await page.evaluate(() => {
+      const e = window.__etude;
+      const ksLevel = Object.values(e.RD_LV).find(l => l.ty === 'ks');
+      e.rdOpen(ksLevel);
+      e.rdStart('practice');
+      return {
+        cMaj: e.rdKeyLabel(0),
+        aMin: e.rdKeyMinor(0),
+        btns: [...document.querySelectorAll('#rdx-ans .rdx-a')].map(el => el.textContent ?? ''),
+      };
+    });
+    expect(labels.cMaj).toBe('C-Dur');
+    expect(labels.aMin).toBe('A-Moll');
+    expect(labels.btns.length).toBeGreaterThan(0);
+    expect(labels.btns.some(txt => /-(Dur|Moll)/.test(txt))).toBe(true);
+    expect(labels.btns.some(txt => /\s(Dur|Moll)/.test(txt))).toBe(false);
+  });
+});

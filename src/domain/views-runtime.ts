@@ -8,7 +8,7 @@ import * as safety from './data-safety.js';
 import * as theory from './theory.js';
 import type { PracticeHintDiagram, PracticeHintNote, PracticeHintStep } from './practice-hints.js';
 import { playControl } from './practice-hint-dom.js';
-import { isPracticeHintsTopic, renderPracticeHintCards } from './practice-hints-view.js';
+import type { PracticeHintsTopic } from './practice-hints-view.js';
 import type { StudyHintState } from './practice-study-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
@@ -69,7 +69,7 @@ import { srtGenerate } from '../sight-reading/generator.js';
 import { SightReadingRecorder, srtInputFamily } from '../sight-reading/recorder.js';
 import { createInstantFeedbackTracker, type InstantFeedbackExpectedNote, type InstantFeedbackTracker } from '../sight-reading/instant-feedback.js';
 import { srtLevelMarkings, type LevelMarkings } from '../sight-reading/markings.js';
-import { SRT_LEDGER_KEY, srtAcquireAttemptLease, srtCreateLedger, isSightReadingLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, srtResetLedgerTransaction, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerOperation, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
+import { SRT_LEDGER_KEY, isFutureSightLedgerStorage, isSightReadingLedger, srtAcquireAttemptLease, srtCreateLedger, srtLedgerReadStatus, srtLedgerUpdate, srtReadLedger, srtResetLedgerTransaction, type SightReadingAttempt, type SightReadingAttemptLease, type SightReadingLedgerOperation, type SightReadingLedgerResult } from '../sight-reading/ledger.js';
 import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sight-reading/flow.js';
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
@@ -774,7 +774,7 @@ async function micOpen(wanted: () => boolean): Promise<MicTap | 'fail' | 'stale'
         const ac = requireAudioContext();
         if (ac.state !== 'running') void ac.resume().catch(() => undefined);
         const src = ac.createMediaStreamSource(stream), analyser = ac.createAnalyser();
-        analyser.fftSize = 2048;
+        analyser.fftSize = ac.sampleRate >= 90000 ? 8192 : ac.sampleRate >= 44000 ? 4096 : 2048;
         src.connect(analyser);
         return { stream, src, analyser, buf: new Float32Array(analyser.fftSize) };
     }
@@ -795,7 +795,10 @@ function micClose(src: MediaStreamAudioSourceNode | null, stream: MediaStream | 
 }
 // The live pitch readout both activities show (.tr-live): the note, and how many cents off it when they are given.
 function livePitch(el: HTMLElement, midi: number, cents?: number) {
-    el.classList.add('rec');
+    const key = midi + ':' + (cents ?? '');
+    if (!el.classList.contains('rec')) el.classList.add('rec');
+    if (el.dataset.lastPitch === key) return;
+    el.dataset.lastPitch = key;
     el.innerHTML = noteName(midi, false) + (cents === undefined ? '' : '<small>' + (cents >= 0 ? '+' : '') + cents + '¢</small>');
 }
 async function trxStart()  {
@@ -1057,10 +1060,11 @@ function ssFillLevels() {
 }
 // The staff's paper; while it is hidden the staff is drawn at its natural size, and ssFit lays it out once it shows.
 let ssPaperSeen: SrLayout | undefined;
+let ssStaffMetrics: { render: SightSingRender | null; clientWidth: number; scrollWidth: number; scrollLeft: number } = { render: null, clientWidth: 0, scrollWidth: 0, scrollLeft: -1 };
 function ssDraw() { if (!sing.ex)
-    return; ssPaperSeen = srPaperOf(byId('si-staff')); const r = ssRender(sing.ex, ssPaperSeen?.width ?? 0); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssPaint(); }
+    return; ssPaperSeen = srPaperOf(byId('si-staff')); const r = ssRender(sing.ex, ssPaperSeen?.width ?? 0); sing.render = r; sing.flat = r.noteX.map((o) => o.note); const wrap = byId('si-staff'); wrap.innerHTML = r.svg; wrap.classList.toggle('nosolf', !inputById('si-solf').checked); ssStaffMetrics = { render: null, clientWidth: 0, scrollWidth: 0, scrollLeft: -1 }; ssPaint(); }
 // Draws the staff again when its paper changed width; the cursor and the pitch trail come back on their next frame.
-function ssFit() { if (sing.render && srPaperChanged(ssPaperSeen, srPaperOf(byId('si-staff'))))
+function ssFit() { ssStaffMetrics.clientWidth = 0; if (sing.render && srPaperChanged(ssPaperSeen, srPaperOf(byId('si-staff'))))
     ssDraw(); }
 interface SsSvgCacheEntry {
     notes: Map<number, SVGElement>;
@@ -1130,6 +1134,7 @@ function singStopAll() {
         g.textContent = t(sing.mode === 'free' ? 'si_play' : 'si_listen');
     const lv = byId('si-live');
     if (lv) {
+        delete lv.dataset.lastPitch;
         lv.textContent = '—';
         lv.classList.remove('rec');
     }
@@ -1150,7 +1155,8 @@ function ssMicStart() {
         for (const track of tap.stream.getAudioTracks()) {
             track.addEventListener('ended', () => {
                 if (sing.stream !== tap.stream) return;
-                ssMicStop();
+                if (sing.mode === 'free') singStopAll();
+                else ssMicStop();
                 byId('si-hint').textContent = t('si_nomic');
             }, { once: true });
         }
@@ -1196,8 +1202,21 @@ function ssRemoveCursor() {
     entry.playhead = null;
 }
 // x is in SVG units, shown sing.render.scale pixels each.
-function ssScrollToX(x: number) { const w = byId('si-staff'); if (w.scrollWidth > w.clientWidth + 4)
-    w.scrollLeft = Math.max(0, x * (sing.render?.scale ?? 1) - w.clientWidth * 0.4); }
+function ssScrollToX(x: number) {
+    const w = byId('si-staff');
+    if (ssStaffMetrics.render !== sing.render || !ssStaffMetrics.clientWidth) {
+        ssStaffMetrics.render = sing.render;
+        ssStaffMetrics.clientWidth = w.clientWidth;
+        ssStaffMetrics.scrollWidth = w.scrollWidth;
+    }
+    if (ssStaffMetrics.scrollWidth > ssStaffMetrics.clientWidth + 4) {
+        const next = Math.max(0, x * (sing.render?.scale ?? 1) - ssStaffMetrics.clientWidth * 0.4);
+        if (Math.abs(next - ssStaffMetrics.scrollLeft) >= 1) {
+            ssStaffMetrics.scrollLeft = next;
+            w.scrollLeft = next;
+        }
+    }
+}
 function ssScrollToCur() { const o = sing.render && sing.render.noteX[sing.idx]; if (o)
     ssScrollToX(o.x); }
 function ssPitchY(f: number) { const bottomMidi = requireSingExercise().clef === 'bass' ? 43 : 64, midi = 69 + 12 * Math.log2(f / 440); let y = 94 - (midi - bottomMidi) * 3.5; while (y > 142)
@@ -2335,6 +2354,7 @@ async function calStart() {
         if (generation !== CAL.generation) return;
         if (!ready) {
             calStop();
+            calSay(t('audio_locked'));
             return;
         }
     }
@@ -2842,14 +2862,21 @@ async function pwaRegister() {
 }
 /** An installed app can stay open for days. Coming back checks for a new version, at most every 30 minutes. sw.js activates it at once. */
 const PWA_UPDATE_GAP_MS = 30 * 60 * 1000;
+let pwaUpdateReg: ServiceWorkerRegistration | null = null;
+let pwaUpdateWatcherBound = false;
 function pwaWatchUpdates(registration: ServiceWorkerRegistration) {
+    pwaUpdateReg = registration;
+    if (pwaUpdateWatcherBound)
+        return;
+    pwaUpdateWatcherBound = true;
     let last = Date.now(), pending = false; // register() has just checked
     onPageReturn(() => {
+        const currentReg = pwaUpdateReg;
         const now = Date.now();
-        if (pending || now - last < PWA_UPDATE_GAP_MS)
+        if (!currentReg || pending || now - last < PWA_UPDATE_GAP_MS)
             return;
         pending = true;
-        void registration.update().then(() => { last = Date.now(); })
+        void currentReg.update().then(() => { last = Date.now(); })
             .catch(() => undefined) // offline: the next return tries again
             .finally(() => { pending = false; });
     });
@@ -3572,14 +3599,14 @@ function endSession(toSummary: boolean) {
             prFocusAfterDrill();
         return;
     }
-    if (toSummary && (!wasPlacement || completedPlacement)) {
+    if (toSummary && (completedPlacement || (!wasPlacement && SES.total > 0))) {
         showSummary(completedPlacement);
         contrastOffer(byId('sum-note'), null);
     }
     else {
         byId('today-home').style.display = 'block';
         refreshToday();
-        if (toSummary && wasPlacement) byId('placeBtn').focus();
+        if (toSummary) byId(wasPlacement ? 'placeBtn' : 'startBtn').focus();
     }
 }
 function nextQuestion() {
@@ -4689,6 +4716,12 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         anLibraryNavigationResume = anLibraryCapture();
         anLibrarySuspended = true;
         void anLibraryFlush(false).catch(() => {});
+        if (scorePendingSignature || scoreLayoutPending) {
+            scoreLayoutGeneration++;
+            scorePendingSignature = '';
+            scoreLayoutPending = null;
+            SCORE.stale = true;
+        }
         // An import has already paused playback. Keep the cursor for rollback,
         // including while the current library checkpoint is suspended.
         if (AN.loading)
@@ -4783,6 +4816,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         renderVoice();
     if (v === 'practice' && !SES.active) {
         stopMetro();
+        void ensurePracticeHintsView().catch(() => {});
         syncPracticeCatAndMode();
         renderPracticeLast();
     }
@@ -5818,6 +5852,25 @@ function showPracticeHintNotes(preview: PracticeHintPreview) {
     else preview.diagram?.paint();
 }
 
+function isPracticeHintsTopic(topic: string): topic is PracticeHintsTopic {
+    return topic === 'chord' || topic === 'scale' || topic === 'prog' || topic === 'technique' || topic === 'melody';
+}
+let practiceHintsView: typeof import('./practice-hints-view.js') | null = null;
+let practiceHintsLoading: Promise<typeof import('./practice-hints-view.js')> | null = null;
+function ensurePracticeHintsView(): Promise<typeof import('./practice-hints-view.js')> {
+    if (practiceHintsView) return Promise.resolve(practiceHintsView);
+    if (!practiceHintsLoading) {
+        practiceHintsLoading = import('./practice-hints-view.js').then((mod) => {
+            practiceHintsView = mod;
+            return mod;
+        }).catch((error: unknown) => {
+            practiceHintsLoading = null;
+            throw error;
+        });
+    }
+    return practiceHintsLoading;
+}
+
 function syncPracticeHintsPanel() {
     const panel = byId('pr-songs');
     if (!(panel instanceof HTMLDetailsElement)) return;
@@ -5843,18 +5896,34 @@ function syncPracticeHintsPanel() {
     if (practiceHintPreview) stopPreviews();
     if (!panel.open || panel.hidden) return;
     if (interval) renderSongs();
-    else if (supported) renderPracticeHintCards(box, cat, {
-        tonic: key === 'all' ? null : Number(key),
-        audioOnly: mode === 'ear' || mode === 'keys' || mode === 'along',
-        disabled: cat === 'prog' && accomp.on,
-        text: t,
-        spell: (letter, acc) => spelledName(notation, letter, acc),
-        chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
-        scaleName: scaleDisp,
-        play: (id, steps, keys, diagram, controlId) => { void playPracticeHint(id, steps, keys, diagram, controlId); },
-        stop: () => { if (practiceHintPreview) stopPreviews(); },
-        study: practiceStudy,
-    });
+    else if (supported) {
+        const renderHints = (mod: typeof import('./practice-hints-view.js')) => {
+            mod.renderPracticeHintCards(box, cat, {
+                tonic: key === 'all' ? null : Number(key),
+                audioOnly: mode === 'ear' || mode === 'keys' || mode === 'along',
+                disabled: cat === 'prog' && accomp.on,
+                text: t,
+                spell: (letter, acc) => spelledName(notation, letter, acc),
+                chordName: symbol => chordDisp(progChordTpl(symbol) ?? symbol),
+                scaleName: scaleDisp,
+                play: (id, steps, keys, diagram, controlId) => { void playPracticeHint(id, steps, keys, diagram, controlId); },
+                stop: () => { if (practiceHintPreview) stopPreviews(); },
+                study: practiceStudy,
+            });
+        };
+        if (practiceHintsView) {
+            renderHints(practiceHintsView);
+        } else {
+            const expectedState = state;
+            void ensurePracticeHintsView().then((mod) => {
+                if (practiceHintPanelState === expectedState && panel.open && !panel.hidden) {
+                    renderHints(mod);
+                }
+            }, () => {
+                if (practiceHintPanelState === expectedState) practiceHintPanelState = '';
+            });
+        }
+    }
 }
 /* ============================================================================
    LEARN — bilingual theory handbook. Every demo button routes through the
@@ -8811,7 +8880,7 @@ function srMeta() {
         return;
     }
     const n = p.keyN || 0;
-    const keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n), key = pcName(keyPc, n < 0) + ' ' + (p.minor ? t('rd_min') : t('rd_maj'));
+    const keyPc = p.minor ? ((srKeyName(n) + 9) % 12) : srKeyName(n), key = t(p.minor ? 'key_minor' : 'key_major', pcName(keyPc, n < 0));
     // A level piece never names its key here: in mixed keys, reading the signature is part of the task.
     const lvHead = SR.lvPiece && srtGeneratedSelected() ? rdnHeadText() : null;
     const metaText = lvHead ? lvHead.sub + ' · ' + p.ts[0] + '/' + p.ts[1] : (p.gen ? t('rdx_sr_meta', key, p.bpm) : key) + ' · ' + p.ts[0] + '/' + p.ts[1];
@@ -8961,8 +9030,8 @@ function rdAccSym(a: number) { return a > 0 ? '♯' : a < 0 ? '♭' : ''; }
 function rdLetter(li: number) { return (LETTERS[notation] || LETTERS.letter)[li]; }
 function rdName(n: { li: number; oct: number; acc?: number; }, oct?: boolean) { return spelledName(notation, n.li, n.acc || 0) + (oct ? n.oct : ''); }
 function rdSpell(s: string) { const m = /^([A-G])([#b]?)$/.exec(s); return m ? spelledName(notation, SR_LET.indexOf(m[1]), m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) : ''; }
-function rdKeyLabel(k: number) { return rdSpell(RD_MAJ[k + 7]) + ' ' + t('rd_maj'); }
-function rdKeyMinor(k: number) { return rdSpell(RD_MIN[k + 7]) + ' ' + t('rd_min'); }
+function rdKeyLabel(k: number) { return t('key_major', rdSpell(RD_MAJ[k + 7])); }
+function rdKeyMinor(k: number) { return t('key_minor', rdSpell(RD_MIN[k + 7])); }
 function rdNk(clef: ReadClefStaff, n: { li: number; oct: number; acc?: number; }) { return RD_CLEFC[clef] + ':' + SR_LET[n.li] + ((n.acc || 0) > 0 ? '#' : (n.acc || 0) < 0 ? 'b' : '') + n.oct; }
 function rdEsc(s: string | number | undefined) { return String(s).replace(/[&<>"]/g, (c) => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'); }
 /* ---- curriculum ---- */
@@ -11625,7 +11694,7 @@ function rdnSeen(): ReadonlySet<string> {
     }
 }
 function rdnLevelName(level: number) { return t('rdn_lv' + level + '_name'); }
-function rdnKeyName(key: ReadingKey) { return rdSpell(key.tonic) + ' ' + t(key.mode === 'minor' ? 'rd_min' : 'rd_maj'); }
+function rdnKeyName(key: ReadingKey) { return t(key.mode === 'minor' ? 'key_minor' : 'key_major', rdSpell(key.tonic)); }
 function rdnKeyShort(key: ReadingKey) { return rdSpell(key.tonic) + (key.mode === 'minor' ? 'm' : ''); }
 function rdnSig(keyN: number) { return keyN === 0 ? t('rdn_sig_none') : t(keyN > 0 ? 'rdn_sig_sharps' : 'rdn_sig_flats', Math.abs(keyN)); }
 function rdnSigWords(keyN: number) {
@@ -14028,10 +14097,31 @@ async function scoreFitRenderProgressively(engine: notationApi.ScoreRenderer, xm
     if (!render) return false;
     const known = SCORE.fit?.key === key ? SCORE.fit : null;
     const steps = !xmlBreaks ? [{ step: 0, on: false }] : known ? [known] : [...SC_FIT.map((_, step) => ({ step, on: true })), { step: 0, on: false }];
-    for (const candidate of steps) {
-        if (!current()) return false;
+    const setRules = (candidate: { step: number; on: boolean }) => {
         const f = SC_FIT[candidate.step];
         engine.updateRules({ VoiceSpacingMultiplierVexflow: f[0], VoiceSpacingAddendVexflow: f[1], MinNoteDistance: f[2], NewSystemAtXMLNewSystemAttribute: candidate.on, NewSystemAtXMLNewPageAttribute: candidate.on, NewPageAtXMLNewPageAttribute: candidate.on });
+    };
+    if (steps.length > 1 && typeof engine.layoutOnly === 'function') {
+        let chosen = steps[steps.length - 1];
+        for (let idx = 0; idx < steps.length - 1; idx++) {
+            if (!current()) return false;
+            const candidate = steps[idx];
+            setRules(candidate);
+            engine.layoutOnly();
+            if (!candidate.on || !scoreExtraBreaks(engine)) {
+                chosen = candidate;
+                break;
+            }
+        }
+        if (!current()) return false;
+        setRules(chosen);
+        if (!await render.call(engine, current)) return false;
+        SCORE.fit = { key, ...chosen };
+        return true;
+    }
+    for (const candidate of steps) {
+        if (!current()) return false;
+        setRules(candidate);
         if (!await render.call(engine, current)) return false;
         if (!candidate.on || !scoreExtraBreaks(engine)) {
             SCORE.fit = { key, ...candidate };
@@ -14214,40 +14304,63 @@ function scoreNamesSync() {
     if (!on)
         return;
     const NS = 'http://www.w3.org/2000/svg', layers = new Map<SVGSVGElement, SVGGElement>();
+    const pageInverseCache = new WeakMap<SVGSVGElement, DOMMatrix>();
+    const labels: { svg: SVGSVGElement; i: number; name: string; x: string; y: string; fontSize: string; strokeWidth: string }[] = [];
     SCORE.heads.forEach((list, i) => {
         const n = AN.notes[i];
         if (!n)
             return;
         const k = anKeyAt(n.start), sp = spellMidi(n.midi, k.fifths, k.minor), keyName = spelledName(notation, sp.li, sp.acc);
         list.forEach((g) => {
-            const own = scoreHeadSpell.get(g), name = own ? spelledName(notation, own.letter, own.alter) : keyName;
-            const svg = g.ownerSVGElement, ctm = g instanceof SVGGraphicsElement ? g.getScreenCTM() : null, page = svg && svg.getScreenCTM();
-            if (!svg || !ctm || !page || !(g instanceof SVGGraphicsElement))
+            if (!(g instanceof SVGGraphicsElement))
                 return;
-            const b = g.getBBox();
-            if (!b.width || !b.height)
+            const svg = g.ownerSVGElement;
+            if (!svg)
                 return;
-            // From the notehead's own units to its page's: the right edge, halfway up, and the notehead's height.
-            const m = page.inverse().multiply(ctm), p = new DOMPoint(b.x + b.width, b.y + b.height / 2).matrixTransform(m), h = b.height * Math.hypot(m.b, m.d);
-            let layer = layers.get(svg);
-            if (!layer) {
-                layer = document.createElementNS(NS, 'g');
-                layer.setAttribute('class', 'sc-nn-layer');
-                layer.setAttribute('aria-hidden', 'true');
-                svg.append(layer);
-                layers.set(svg, layer);
+            let pageInv = pageInverseCache.get(svg);
+            if (!pageInv) {
+                const page = svg.getScreenCTM();
+                if (!page)
+                    return;
+                pageInv = page.inverse();
+                pageInverseCache.set(svg, pageInv);
             }
-            const tx = document.createElementNS(NS, 'text');
-            tx.setAttribute('class', 'sc-nn');
-            tx.setAttribute('x', (p.x + h * .3).toFixed(1));
-            tx.setAttribute('y', p.y.toFixed(1));
-            tx.setAttribute('font-size', (h * 1.05).toFixed(1));
-            tx.setAttribute('stroke-width', (h * .28).toFixed(1));
-            tx.dataset.nn = String(i);
-            tx.textContent = name;
-            layer.append(tx);
+            const ctm = g.getScreenCTM(), b = g.getBBox();
+            if (!ctm || !b.width || !b.height)
+                return;
+            const own = scoreHeadSpell.get(g), name = own ? spelledName(notation, own.letter, own.alter) : keyName;
+            // From the notehead's own units to its page's: the right edge, halfway up, and the notehead's height.
+            const m = pageInv.multiply(ctm), p = new DOMPoint(b.x + b.width, b.y + b.height / 2).matrixTransform(m), h = b.height * Math.hypot(m.b, m.d);
+            labels.push({
+                svg,
+                i,
+                name,
+                x: (p.x + h * .3).toFixed(1),
+                y: p.y.toFixed(1),
+                fontSize: (h * 1.05).toFixed(1),
+                strokeWidth: (h * .28).toFixed(1),
+            });
         });
     });
+    for (const item of labels) {
+        let layer = layers.get(item.svg);
+        if (!layer) {
+            layer = document.createElementNS(NS, 'g');
+            layer.setAttribute('class', 'sc-nn-layer');
+            layer.setAttribute('aria-hidden', 'true');
+            layers.set(item.svg, layer);
+        }
+        const tx = document.createElementNS(NS, 'text');
+        tx.setAttribute('class', 'sc-nn');
+        tx.setAttribute('x', item.x);
+        tx.setAttribute('y', item.y);
+        tx.setAttribute('font-size', item.fontSize);
+        tx.setAttribute('stroke-width', item.strokeWidth);
+        tx.dataset.nn = String(item.i);
+        tx.textContent = item.name;
+        layer.append(tx);
+    }
+    layers.forEach((layer, svg) => svg.append(layer));
 }
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
@@ -14731,8 +14844,8 @@ function scoreSelectRange(anchor: number, mi: number) {
 }
 function scoreUnlight() { if (!SCORE.lit.size)
     return; const old = SCORE.lit; SCORE.lit = new Set(); old.forEach(scorePaintIdx); }
-const reduceMotion = () =>
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduceMotionMql = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+const reduceMotion = () => !!reduceMotionMql?.matches;
 function anKeepVisible(g: Element, smooth: boolean) {
     const box = byId('an-roll'), r = g.getBoundingClientRect(), b = box.getBoundingClientRect();
     let top = box.scrollTop, left = box.scrollLeft;
@@ -14761,6 +14874,8 @@ function scoreHalt() {
     byId('pr-hud').hidden = true;
     cancelAnimationFrame(SCORE.followRaf);
     SCORE.followRaf = 0;
+    cancelAnimationFrame(FALL.raf);
+    FALL.raf = 0;
     scoreUnlight();
     FALL.lastT = null;
     FALL.particles = [];
@@ -14967,10 +15082,18 @@ function pracStatsReset() {
     pracHud();
 }
 function pracAcc(st: PracticeStats) { const all = st.perfect + st.good + st.miss + st.wrong; return all ? (st.perfect + st.good) / all : null; }
+let cachedRepeatXml = '';
+let cachedRepeatMeasures: typeof SCORE.measures | undefined;
+let cachedRepeatBars: ReturnType<typeof scoreXmlRepeatBars> = [];
 function scoreRepeatRoute(from: number) {
     if (AN.source?.kind !== 'xml' || !SCORE.xml) return undefined;
-    const doc = new DOMParser().parseFromString(SCORE.xml, 'application/xml');
-    const bars = scoreXmlRepeatBars(doc, SCORE.measures).map(bar => ({
+    if (cachedRepeatXml !== SCORE.xml || cachedRepeatMeasures !== SCORE.measures) {
+        const doc = new DOMParser().parseFromString(SCORE.xml, 'application/xml');
+        cachedRepeatXml = SCORE.xml;
+        cachedRepeatMeasures = SCORE.measures;
+        cachedRepeatBars = scoreXmlRepeatBars(doc, SCORE.measures);
+    }
+    const bars = cachedRepeatBars.map(bar => ({
         ...bar, start: scoreSeconds(bar.start), end: scoreSeconds(bar.end),
     }));
     const route = repeatRanges(bars);
@@ -15433,6 +15556,8 @@ function pracFinish(R: PracticeRun) {
     SCORE.timers = [];
     cancelAnimationFrame(SCORE.followRaf);
     SCORE.followRaf = 0;
+    cancelAnimationFrame(FALL.raf);
+    FALL.raf = 0;
     scoreUnlight();
     FALL.lastT = null;
     FALL.position = sel ? a : end;
@@ -18211,20 +18336,22 @@ function anTlUpdate(time?: number | null) {
         return;
     const written = time != null ? time : fallTime(), display = performanceDisplay(), expanded = !SCORE.loop && !SCORE.sel;
     const plan = performancePlan(), end = expanded ? plan.duration : fallEnd(), pos = expanded ? display.position : written;
-    const seek = inputById('fall-seek'), pct = (x: number) => (end > 0 ? Math.max(0, Math.min(1, x / end)) * 100 : 0).toFixed(3) + '%';
+    const seek = inputById('fall-seek');
+    const pct = (x: number, digits = 3) => (end > 0 ? Math.max(0, Math.min(1, x / end)) * 100 : 0).toFixed(digits) + '%';
     const coordinate = (x: number, near = pos) => expanded ? performanceOf(plan, x, near, true) : x;
     const mx = String(Math.max(.1, end));
     if (seek.max !== mx)
         seek.max = mx;
-    const posStr = String(pos);
-    if ((document.activeElement !== seek || SCORE.playing) && seek.value !== posStr)
-        seek.value = posStr;
     const cache = FALL.tlCache ?? (FALL.tlCache = {});
-    const pStr = pct(pos);
-    if (cache.p !== pStr) {
+    const pStr = pct(pos, SCORE.playing ? 1 : 3);
+    const pChanged = cache.p !== pStr;
+    if (pChanged) {
         seek.style.setProperty('--p', pStr);
         cache.p = pStr;
     }
+    const posStr = String(pos);
+    if ((!SCORE.playing || pChanged) && (document.activeElement !== seek || SCORE.playing) && seek.value !== posStr)
+        seek.value = posStr;
     const valText = t('fall_valtext', anClock(display.elapsed), anClock(display.total));
     if (cache.valText !== valText) {
         seek.setAttribute('aria-valuetext', valText);
@@ -18904,7 +19031,7 @@ function anInitControls() {
 let progressView: typeof import('./progress-view.js') | null = null;
 function renderProgress() {
     progressView?.renderProgress({
-        data, items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
+        data, hasActivity: storeHasProgress(), items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
         t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, rdRenderStats,
         openDrill(category) {
             show('practice');
@@ -19341,7 +19468,7 @@ interface SyncNoBase { readonly syncNoBase?: undefined }
 const SYNC: SyncState = { raw: null, gen: '', id: '', known: new Map(), merge: null, pend: {}, t: 0, w: 0 }, SYNC_NONE: SyncNoBase = {}, SYNC_ID = /^[a-z0-9_-]{1,48}$/i; // SYNC_NONE: no shared base, so counters keep the larger side instead of adding
 // reading.book.pieces.<id>: tries add up, the best score and the stars keep the higher side; the rest of reading.book is last-writer.
 const SYNC_ADD = /^(totalReviews|totalCorrect|history\.\d+|reading\.tot\.\w+|reading\.nt\..+\.(n|ok|ms)|reading\.lv\..+\.n|reading\.book\.pieces\..+\.tries|learnRev\..+\.n)$/;
-const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush|sv|ta|mn)|reading\.book\.pieces\..+\.(best|stars))$/;
+const SYNC_MAX = /^(bestStreak|placed|singCleared\..+|sheet\..+\.(best|learned)|learnDone\..+|learnRev\..+\.(last|rv|best)|learnUnlock\..+|toolDay\..+|reading\.lv\..+\.(s|acc|rush|sv|ta|mn)|reading\.book\.pieces\..+\.(best|stars))$/;
 const SYNC_THEMES = ['auto', 'light', 'dark'] as const, SYNC_NOTATIONS = ['letter', 'solfege', 'german'] as const, SYNC_LABELS = ['c', 'all', 'none'] as const;
 const SYNC_TONES = ['piano', 'piano-synth', 'soft', 'bright', 'organ', 'mellow', 'glass'] as const;
 function syncOneOf<T extends string>(list: readonly T[], v: unknown): v is T { return list.some((x) => x === v); }
@@ -19349,7 +19476,7 @@ function syncIsLang(v: unknown): v is RuntimeLanguage { return isRuntimeLanguage
 // Every non-null object, arrays included, reads as string keys holding JSON values.
 function syncIsObject(v: unknown): v is Record<string, unknown> { return !!v && typeof v === 'object'; }
 function syncHasBase<T extends object>(x: T | SyncNoBase): x is T { return x !== SYNC_NONE; }
-const syncParseJson: (text: string) => unknown = JSON.parse;
+const syncParseJson = storage.parseJson;
 type SyncPrefEntry = readonly [get: () => string, set: (v: unknown) => void | Promise<void>, later?: 1];
 const SYNC_PREFS: Record<SyncPrefName, SyncPrefEntry> = { theme: [() => theme, (v: unknown) => { if (syncOneOf(SYNC_THEMES, v)) {
             theme = v;
@@ -19576,7 +19703,11 @@ let syncPull = function syncPull() {
             else
                 set(v);
         });
-    const needsWrite = !swap && !syncSame(data, rp.data);
+    const prefNeedsWrite = !swap && syncHasBase(bp) && Object.keys(SYNC_PREFS).filter(syncIsPrefName).some((f) => {
+        const curPref = syncPref(f, SYNC_PREFS[f][0]());
+        return bp[f] !== undefined && curPref !== bp[f] && curPref !== rp[f];
+    });
+    const needsWrite = !swap && (!syncSame(data, rp.data) || prefNeedsWrite);
     syncCurrent(cur);
     if (needsWrite && isBackupPayload(lp) && parent !== lid && syncHasBase(bp)) { // theirs lacks this tab's record: keep the plain merge of the two for the save that follows
         const merged: Record<string, unknown> & { data: Record<string, unknown> } = { v: 3, gen, data: syncCloneData(lp.data) };
@@ -19803,6 +19934,10 @@ function storeQuarantine(text: string) {
 function storeBackupBlocked(): boolean {
     if (STORE.blocked === 'too-new')
         return true;
+    if (isFutureSightLedgerStorage(localStorage)) {
+        storeBlock();
+        return true;
+    }
     const saved = readPttV3(localStorage, KEY);
     if (!saved || (storage.pttSchema(saved.payload) <= storage.PTT_SCHEMA && !storage.hasFutureSightLedger(saved.payload)))
         return false;
@@ -19829,9 +19964,9 @@ async function storeApplyBackup(p: storage.PttV3Payload, reason: safety.Snapshot
             if (storeBackupBlocked() || STORE.blocked === 'upgrade')
                 throw new Error('Progress is protected');
             return syncNextGen();
-        });
+        }, { replace: reason === 'before-restore' });
         if (!saved.ok) {
-            await appAlert(t(saved.reason === 'unsupported' ? 'import_too_new' : saved.reason === 'conflict' ? 'import_conflict' : 'import_storage'));
+            await appAlert(t(saved.reason === 'unsupported' ? 'import_too_new' : saved.reason === 'conflict' ? 'import_conflict' : saved.reason === 'quota' ? 'import_quota' : 'import_storage'));
             return;
         }
         reloadingForRestore = true;
@@ -20127,7 +20262,7 @@ async function loadAll() {
             STORE.blocked = 'upgrade';
         if (text && !stored)
             storeQuarantine(text);
-        if (migrated?.status === 'too-new' || (stored && storage.hasFutureSightLedger(stored.payload))) {
+        if (migrated?.status === 'too-new' || (stored && storage.hasFutureSightLedger(stored.payload)) || isFutureSightLedgerStorage(localStorage)) {
             storeBlock();
             return;
         }
@@ -20142,7 +20277,8 @@ async function loadAll() {
                 theme = raw.theme;
             if (syncOneOf(SYNC_NOTATIONS, raw.notation))
                 notation = raw.notation;
-            if (typeof raw.labels === 'string') labelMode = raw.labels;
+            if (syncOneOf(SYNC_LABELS, raw.labels))
+                labelMode = raw.labels;
             applyTopLevelPrefs(raw);
             return;
         }
@@ -20859,7 +20995,15 @@ function initControls() {
     byId('set-goal').addEventListener('change', (e) => { data.settings.goal = +wiringField(e).value; saveAll(); refreshToday(); });
     byId('set-new').addEventListener('change', (e) => { data.settings.newPerDay = +wiringField(e).value; saveAll(); refreshToday(); });
     // global
-    ['pointerdown', 'keydown', 'touchstart'].forEach((ev) => window.addEventListener(ev, function u() { ensureAudio(); }, { once: true }));
+    // Keep audio unlock listeners active across scroll/touchstart until an interactive gesture actually reaches running state.
+    const unlockEvents = ['pointerdown', 'keydown', 'touchend', 'click'] as const;
+    const onUnlockGesture = () => {
+        const ctx = ensureAudio();
+        if (ctx?.state === 'running') {
+            unlockEvents.forEach((ev) => window.removeEventListener(ev, onUnlockGesture));
+        }
+    };
+    unlockEvents.forEach((ev) => window.addEventListener(ev, onUnlockGesture));
     // keyup/pointerup never reach an unfocused window, so focus loss only lets go of what the computer keyboard and pointer hold;
     // playback, recording, accompaniment and drills keep running
     window.addEventListener('blur', releaseFocusInput);

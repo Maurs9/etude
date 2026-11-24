@@ -15,6 +15,7 @@ interface ProgressOptions<Item extends ProgressItem> {
         srs: Readonly<Record<string, StoredSrsEntry>>;
         history: Readonly<Record<string, number>>;
     };
+    hasActivity?: boolean;
     items: readonly Item[];
     categories: readonly string[];
     today: number;
@@ -33,7 +34,7 @@ export function renderProgress<Item extends ProgressItem>(options: ProgressOptio
     const { data, items: allItems, categories, loc, t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, openDrill, rdRenderStats } = options;
     const tn = options.today;
     const acc = data.totalReviews ? Math.round(100 * data.totalCorrect / data.totalReviews) : 0;
-    byId('prog-empty').hidden = (data.totalReviews || 0) > 0;
+    byId('prog-empty').hidden = options.hasActivity ?? ((data.totalReviews || 0) > 0);
     byId('progStats').innerHTML =
         statHTML(currentStreak(), t('st_streak')) + statHTML(data.bestStreak || 0, t('st_best')) +
             statHTML(masteredCount() + ' / ' + allItems.length, t('st_mastered')) +

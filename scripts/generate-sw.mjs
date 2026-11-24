@@ -156,13 +156,13 @@ function timeout(ms) {
 }
 
 async function navigation(event) {
-  const network = fetch(event.request);
-  event.waitUntil(network.then(() => {}, () => {}));
+  const cached = await findActiveCached(SHELL_URL);
+  if (cached) return cached;
   try {
-    const response = await Promise.race([network, timeout(NETWORK_TIMEOUT_MS)]);
+    const response = await Promise.race([fetch(event.request), timeout(NETWORK_TIMEOUT_MS)]);
     if (response.ok) return response;
   } catch (_) {}
-  return (await findActiveCached(SHELL_URL)) || Response.error();
+  return Response.error();
 }
 
 async function asset(request, url, expectedHash) {

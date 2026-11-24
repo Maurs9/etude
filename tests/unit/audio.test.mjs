@@ -491,3 +491,69 @@ it('anchors beat 0 of startMetro to explicit startAt time', () => {
     vi.useRealTimers();
   }
 });
+
+it('resets graph-dependent state after AudioContext closes, bypasses reverb when wet=0, and mutes stopped future notes', () => {
+  const param = (v = 0) => ({
+    value: v,
+    setValueAtTime: vi.fn(),
+    linearRampToValueAtTime: vi.fn(),
+    exponentialRampToValueAtTime: vi.fn(),
+    cancelScheduledValues: vi.fn(),
+    setTargetAtTime: vi.fn(),
+  });
+  const contexts = [];
+  const originalCtor = globalThis.AudioContext;
+  globalThis.AudioContext = class MockAudioContext {
+    constructor() {
+      this.state = 'running';
+      this.currentTime = 1;
+      this.sampleRate = 48000;
+      this.destination = {};
+      this.connections = [];
+      this.resume = vi.fn(async () => {});
+      this.addEventListener = vi.fn();
+      const mkNode = extra => ({
+        ...extra,
+        connect: vi.fn(target => { this.connections.push(target); return target; }),
+        disconnect: vi.fn(),
+      });
+      this.createGain = () => mkNode({ gain: param(1) });
+      this.createBiquadFilter = () => mkNode({ type: '', frequency: param(1000), Q: param(0.5) });
+      this.createDynamicsCompressor = () => mkNode({ threshold: param(), knee: param(), ratio: param(), attack: param(), release: param() });
+      this.createConvolver = () => mkNode({ buffer: null });
+      this.createOscillator = () => mkNode({ frequency: param(), detune: param(), start: vi.fn(), stop: vi.fn() });
+      this.createBuffer = (_ch, len) => ({ duration: len / 48000, getChannelData: () => new Float32Array(len) });
+      this.createBufferSource = () => mkNode({ buffer: null, playbackRate: param(1), detune: param(0), start: vi.fn(), stop: vi.fn() });
+      contexts.push(this);
+    }
+  };
+  try {
+    const engine = new AudioEngine({ pianoKeys: [60], pianoUrls: {}, warmRange: [60, 60] });
+    engine.reverbWet = 0;
+    const ctx1 = engine.ensureAudio();
+    expect(engine.masterFilter.connect).toHaveBeenCalledTimes(1); // Only compressor, not reverbNode
+    engine.setReverbWet(0.2);
+    expect(engine.masterFilter.connect).toHaveBeenCalledWith(engine.reverbNode);
+    engine.setReverbWet(0);
+    expect(engine.masterFilter.disconnect).toHaveBeenCalledWith(engine.reverbNode);
+
+    const futureVoice = engine.sampledPianoVoice(440, 100, 10, 1);
+    const fakeBuffer = { duration: 1 };
+    engine.pianoBank.buffers.set(60, fakeBuffer);
+    const future2 = engine.sampledPianoVoice(440, 100, 10, 1);
+    future2.stop(1); // releaseAt <= startAt (10)
+    futureVoice.stop(1);
+
+    ctx1.state = 'closed';
+    engine.liveVoices.set(60, futureVoice);
+    engine.previewVoices.push(futureVoice);
+    engine.droneVoices.push(futureVoice);
+    const ctx2 = engine.ensureAudio();
+    expect(ctx2).not.toBe(ctx1);
+    expect(engine.liveVoices.size).toBe(0);
+    expect(engine.previewVoices).toEqual([]);
+    expect(engine.droneVoices).toEqual([]);
+  } finally {
+    globalThis.AudioContext = originalCtor;
+  }
+});
