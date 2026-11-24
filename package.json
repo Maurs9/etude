@@ -1,6 +1,6 @@
 {
   "name": "piano-theory-trainer",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "description": "Étude — piano theory trainer (Vite-built static PWA).",
   "scripts": {
