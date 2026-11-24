@@ -1,3 +1,4 @@
+import type { InterfaceLanguage } from '../types/architecture.js';
 import { SONG_OPENINGS } from './interval-song-openings.js';
 
 export type IntervalSongDirection = 'asc' | 'desc';
@@ -5,8 +6,13 @@ export type SongOpeningNote = readonly [offset: number, at: number, duration: nu
 
 export interface IntervalSong {
   readonly title: string;
+  readonly titles?: Readonly<Partial<Record<InterfaceLanguage, string>>>;
   readonly source: string;
   readonly notes: readonly SongOpeningNote[];
+}
+
+export function intervalSongTitle(song: IntervalSong, lang: InterfaceLanguage): string {
+  return song.titles?.[lang] ?? song.title;
 }
 
 export interface IntervalSongNote {
