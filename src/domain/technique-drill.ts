@@ -206,10 +206,12 @@ function onClick(host: TechniqueHost, event: Event): void {
   restart(host, spec);
 }
 
-/** Opens the next exercise: the same kind, octaves and hands as last time, in the Practice key or, for all keys, a new one. */
-export function techniquePresent(host: TechniqueHost, keyChoice: string): void {
+/** Opens the next exercise: the same kind, octaves and hands as last time (or explicit Read warm-up overrides), in the Practice key or, for all keys, a new one. */
+export function techniquePresent(host: TechniqueHost, keyChoice: string, overrideKind?: TechniqueKind, overrideOctaves?: 1 | 2): void {
   const previous = state;
-  const spec: TechniqueSpec = { ...keyFor(preferred.kind, keyChoice, null), octaves: preferred.octaves, hands: preferred.hands };
+  const spec: TechniqueSpec = { ...keyFor(overrideKind ?? preferred.kind, keyChoice, null), octaves: overrideOctaves ?? preferred.octaves, hands: preferred.hands };
+  if (overrideKind !== undefined || overrideOctaves !== undefined)
+    preferred = { kind: spec.kind, octaves: spec.octaves, hands: spec.hands };
   const steps = techniqueSteps(spec);
   state = { spec, steps, run: techniqueStart(steps), done: false, peek: false, runs: previous?.runs ?? 0, clean: previous?.clean ?? 0, keyChoice };
   host.byId('q-verdict').textContent = '';

@@ -100,7 +100,8 @@ const payload: LearnPayload = {
           "F",
           "D",
           "H"
-        ]
+        ],
+        "why": "Das Muster aus 2 und 3 schwarzen Tasten wiederholt sich jede Oktave; C liegt immer links neben der Zweiergruppe."
       },
       {
         "q": "Wie viele Halbtöne umfasst eine Oktave?",
@@ -109,7 +110,8 @@ const payload: LearnPayload = {
           "8",
           "7",
           "10"
-        ]
+        ],
+        "why": "Eine Oktave umfasst 7 weiße und 5 schwarze Tasten — insgesamt 12 chromatische Halbtöne."
       },
       {
         "q": "Welches Tastenpaar bildet einen natürlichen Halbtonschritt ohne schwarze Taste dazwischen?",
@@ -118,7 +120,8 @@ const payload: LearnPayload = {
           "C–D",
           "F–G",
           "A–H"
-        ]
+        ],
+        "why": "Nur zwischen E–F und H–C fehlt eine schwarze Taste — beide Paare sind natürliche Halbtonschritte."
       },
       {
         "q": "Spiele das mittlere C (C4).",
@@ -127,7 +130,8 @@ const payload: LearnPayload = {
         ],
         "exactMidi": [
           60
-        ]
+        ],
+        "why": "Das eingestrichene c’ (C4, MIDI 60) liegt in der Mitte der Klaviatur direkt links der mittleren Zweiergruppe."
       },
       {
         "q": "Spiele E und danach F – den natürlichen Halbtonschritt.",
@@ -137,7 +141,8 @@ const payload: LearnPayload = {
         ],
         "stepDiff": [
           1
-        ]
+        ],
+        "why": "E liegt rechts der Zweiergruppe und F links der Dreiergruppe — genau einen Halbton auseinander."
       }
     ],
     "how": [
@@ -148,7 +153,8 @@ const payload: LearnPayload = {
           "Eine einzige lange Lerneinheit pro Woche",
           "Wiederholtes Durchlesen, bis es vertraut wirkt",
           "Reines passives Zuhören"
-        ]
+        ],
+        "why": "Verteiltes Üben fordert den Abruf kurz vor dem Vergessen und verankert Wissen dauerhaft bei geringerem Zeitaufwand."
       },
       {
         "q": "Warum lohnt es sich, verschiedene Übungstypen in einer Einheit zu mischen?",
@@ -157,7 +163,8 @@ const payload: LearnPayload = {
           "Es spart Zeit",
           "Fehler werden vollständig vermieden",
           "Es hat keinen nachweisbaren Einfluss"
-        ]
+        ],
+        "why": "Abwechslung zwingt das Gehirn, jede Aufgabe neu zu erkennen statt automatisch das eben Geübte zu wiederholen."
       },
       {
         "q": "Ein Fehler beim Beantworten mit anschließender Korrektur ist …",
@@ -166,7 +173,8 @@ const payload: LearnPayload = {
           "reine Zeitverschwendung",
           "schädlich für das Gedächtnis",
           "nur für Anfänger geeignet"
-        ]
+        ],
+        "why": "Aktives Abrufen mit sofortiger Korrektur stärkt das Gehör und Gedächtnis deutlich mehr als passives Nachlesen."
       }
     ],
     "notation": [
@@ -197,7 +205,8 @@ const payload: LearnPayload = {
           "Es erniedrigt den Ton um einen Halbtonschritt",
           "Es löst ausschließlich ein Be auf",
           "Es macht den Ton lauter"
-        ]
+        ],
+        "why": "Ein Kreuz (♯) erhöht den Stammton um einen Halbton; ein Be (♭) erniedrigt ihn um einen Halbton."
       },
       {
         "q": "Wie lange gilt ein Versetzungszeichen vor einer Note?",
@@ -206,7 +215,8 @@ const payload: LearnPayload = {
           "Nur für diese einzelne Note",
           "Für das gesamte restliche Musikstück",
           "Bis zur nächsten Notenzeile"
-        ]
+        ],
+        "why": "Ein Versetzungszeichen gilt in derselben Oktave bis zum nächsten Taktstrich oder bis zu einem Auflösungszeichen (♮)."
       },
       {
         "q": "Spiele den Ton auf der zweiten Linie im Violinschlüssel (G4).",
@@ -215,7 +225,8 @@ const payload: LearnPayload = {
         ],
         "exactMidi": [
           67
-        ]
+        ],
+        "why": "Der Violinschlüssel (G-Schlüssel) umschließt die zweite Linie von unten und legt dort das g’ (G4) fest."
       }
     ],
     "symbols": [
@@ -226,7 +237,8 @@ const payload: LearnPayload = {
           "Direkt zur Coda springen",
           "Den letzten Takt wiederholen",
           "Bis zum Ende immer lauter spielen"
-        ]
+        ],
+        "why": "D.C. (Da Capo) springt zurück zum Anfang, und „al Fine“ beendet das Stück bei Fine."
       },
       {
         "q": "Eine gebogene Linie, die zwei Noten derselben Tonhöhe verbindet, heißt …",
@@ -235,7 +247,8 @@ const payload: LearnPayload = {
           "Bindebogen (Legato)",
           "Crescendo-Gabel",
           "Fermate"
-        ]
+        ],
+        "why": "Anders als der Phrasierungsbogen verbindet der Haltebogen zwei gleiche Tonhöhen zu einem einzigen ausgehaltenen Ton."
       },
       {
         "q": "Ein Punkt direkt über oder unter einem Notenkopf (Staccato) bedeutet:",
@@ -244,7 +257,8 @@ const payload: LearnPayload = {
           "den Ton länger aushalten",
           "den Ton lauter anschlagen",
           "eine Oktave höher spielen"
-        ]
+        ],
+        "why": "Staccato verkürzt den notierten Ton und trennt ihn kurz und abgestoßen vom nächsten."
       },
       {
         "q": "Die Bezeichnung „Ped.“ gefolgt von ✱ zeigt Folgendes an:",
@@ -253,7 +267,8 @@ const payload: LearnPayload = {
           "eine Pause einlegen",
           "eine Wiederholung beginnen",
           "den zu verwendenden Finger"
-        ]
+        ],
+        "why": "„Ped.“ bedeutet Haltepedal treten; der Stern (✱) zeigt genau, wann es wieder losgelassen wird."
       },
       {
         "q": "Die Fingerbezeichnung 1 steht für den …",
@@ -262,7 +277,8 @@ const payload: LearnPayload = {
           "Zeigefinger",
           "kleinen Finger",
           "Mittelfinger"
-        ]
+        ],
+        "why": "Beim Klavierfingersatz zählen beide Hände von innen nach außen: 1 ist der Daumen, 5 der kleine Finger."
       }
     ],
     "dyn": [
@@ -273,7 +289,8 @@ const payload: LearnPayload = {
           "p · pp · mf · mp · f · ff",
           "mp · p · pp · f · mf · ff",
           "pp · mp · p · f · mf · ff"
-        ]
+        ],
+        "why": "Die Dynamikstufen steigen vom leisesten zum lautesten an: pp < p < mp < mf < f < ff."
       },
       {
         "q": "Was bedeutet der Begriff „Crescendo“?",
@@ -282,7 +299,8 @@ const payload: LearnPayload = {
           "allmählich leiser werdend",
           "allmählich schneller werdend",
           "plötzlich laut"
-        ]
+        ],
+        "why": "Crescendo heißt wörtlich „wachsend“ und verlangt ein allmähliches Lauterwerden."
       },
       {
         "q": "Was bedeutet die Bezeichnung „sfz“ (Sforzando)?",
@@ -291,7 +309,8 @@ const payload: LearnPayload = {
           "sehr leise spielen",
           "das Tempo verlangsamen",
           "den Ton lange halten"
-        ]
+        ],
+        "why": "Sforzando (sfz) bedeutet „mit plötzlicher Betonung“ auf genau diesem Ton oder Akkord."
       },
       {
         "q": "Wofür steht die Abkürzung „mf“?",
@@ -300,7 +319,8 @@ const payload: LearnPayload = {
           "molto forte — sehr laut",
           "meno forte — weniger laut",
           "mäßig schnell"
-        ]
+        ],
+        "why": "„Mezzo“ heißt halbmittel: mezzo forte (mf) ist halbstark bzw. mäßig laut."
       }
     ],
     "rh": [
@@ -311,7 +331,8 @@ const payload: LearnPayload = {
           "2",
           "3",
           "8"
-        ]
+        ],
+        "why": "Im 4/4-Takt gibt die obere 4 die Anzahl der Schläge pro Takt an und die untere 4 die Viertelnote als Zählzeit."
       },
       {
         "q": "Wie viele Schläge dauert eine punktierte halbe Note im 4/4-Takt?",
@@ -320,7 +341,8 @@ const payload: LearnPayload = {
           "2 Schläge",
           "2½ Schläge",
           "4 Schläge"
-        ]
+        ],
+        "why": "Ein Punkt verlängert die Note um die Hälfte: Halbe Note (2 Schläge) + 1 Schlag = 3 Schläge."
       },
       {
         "q": "Höre genau hin: Welche Taktart erklingt hier?",
@@ -330,7 +352,8 @@ const payload: LearnPayload = {
           "4/4",
           "2/4",
           "6/8"
-        ]
+        ],
+        "why": "Der 3/4-Takt bündelt drei Schläge („EINS-zwei-drei“) zum typischen Walzerschwung."
       },
       {
         "q": "Welche Zählzeiten sind im 4/4-Takt üblicherweise am stärksten betont?",
@@ -339,7 +362,8 @@ const payload: LearnPayload = {
           "2 und 4",
           "ausschließlich 4",
           "alle Schläge vollkommen gleich"
-        ]
+        ],
+        "why": "Zählzeit 1 ist die Hauptbetonung und Zählzeit 3 die Nebenbetonung; 2 und 4 bleiben unbetont."
       }
     ],
     "rh2": [
@@ -350,7 +374,8 @@ const payload: LearnPayload = {
           "vier Noten",
           "einer punktierten Note",
           "drei Noten"
-        ]
+        ],
+        "why": "Eine Triole teilt eine Zeitspanne gleichmäßig in 3 statt regulär in 2 gleiche Notenwerte."
       },
       {
         "q": "Ein 6/8-Takt wird im Regelfall empfunden als …",
@@ -359,7 +384,8 @@ const payload: LearnPayload = {
           "6 gleichförmige Viertelschläge",
           "3 Schläge",
           "4 Schläge"
-        ]
+        ],
+        "why": "Der 6/8-Takt ist zusammengesetzt zweizeitig: Sechs Achtel fließen in 2 Hauptschlägen zu je einer punktierten Viertel."
       },
       {
         "q": "Was versteht man unter einer Synkope?",
@@ -368,7 +394,8 @@ const payload: LearnPayload = {
           "ein rasches Beschleunigen",
           "eine ausgedehnte Generalpause",
           "einen Tonartwechsel"
-        ]
+        ],
+        "why": "Eine Synkope verlagert die Betonung von den erwarteten schweren Zählzeiten auf leichte Taktteile."
       },
       {
         "q": "Welche dieser Tempoangaben bezeichnet das langsamste Tempo?",
@@ -377,7 +404,8 @@ const payload: LearnPayload = {
           "Andante",
           "Allegro",
           "Presto"
-        ]
+        ],
+        "why": "Largo („breit“) steht für ein sehr langsames Tempo; Andante geht ruhig, Allegro und Presto sind schnell."
       },
       {
         "q": "Was bedeutet die Angabe „Ritardando“?",
@@ -386,7 +414,8 @@ const payload: LearnPayload = {
           "allmählich schneller werdend",
           "zurück zum Anfangstempo",
           "sehr rasch"
-        ]
+        ],
+        "why": "Ritardando (rit.) bedeutet schrittweises Langsamerwerden, meist vor Phrasenenden oder Kadenzen."
       }
     ],
     "iv": [
@@ -398,7 +427,8 @@ const payload: LearnPayload = {
           "Große Terz",
           "Reine Quarte",
           "Oktave"
-        ]
+        ],
+        "why": "Die reine Quinte umfasst 7 Halbtöne und klingt offen, klar und stabil (wie der Beginn von Star Wars)."
       },
       {
         "q": "Wie viele Halbtöne umfasst eine große Terz?",
@@ -407,7 +437,8 @@ const payload: LearnPayload = {
           "3",
           "5",
           "2"
-        ]
+        ],
+        "why": "Eine große Terz umfasst 4 Halbtöne (z. B. C → E), eine kleine Terz 3 Halbtöne."
       },
       {
         "q": "Der Abstand von C aufwärts nach A ist eine …",
@@ -416,7 +447,8 @@ const payload: LearnPayload = {
           "kleine Sexte",
           "reine Quinte",
           "große Septime"
-        ]
+        ],
+        "why": "Sechs Tonstufen von C bis A ergeben eine Sexte; 9 Halbtöne bestimmen sie als große Sexte."
       },
       {
         "q": "Höre hin: Welches Intervall erklingt?",
@@ -426,7 +458,8 @@ const payload: LearnPayload = {
           "Große Terz",
           "Große Sekunde",
           "Reine Quarte"
-        ]
+        ],
+        "why": "Mit 3 Halbtönen klingt die kleine Terz merklich dunkler und wehmütiger als die große Terz."
       },
       {
         "q": "Spiele eine reine Quinte aufwärts von D (zuerst D, dann A).",
@@ -436,7 +469,8 @@ const payload: LearnPayload = {
         ],
         "stepDiff": [
           7
-        ]
+        ],
+        "why": "Von D nach A sind es 5 Stufen und 7 Halbtöne — eine reine Quinte."
       }
     ],
     "iv2": [
@@ -447,7 +481,8 @@ const payload: LearnPayload = {
           "reine Quarte",
           "kleine Sexte",
           "große Terz"
-        ]
+        ],
+        "why": "C–F ist eine reine Quarte (5 Halbtöne); durch Erhöhung zu Fis entstehen 6 Halbtöne (übermäßige Quarte / Tritonus)."
       },
       {
         "q": "Wird eine große Terz umgekehrt, entsteht eine …",
@@ -466,7 +501,8 @@ const payload: LearnPayload = {
           "zwei Oktaven",
           "einer Terz plus Quinte",
           "7 Halbtönen"
-        ]
+        ],
+        "why": "C4–D4 ist eine große Sekunde; um eine Oktave erweitert wird sie zur großen None."
       },
       {
         "q": "Ein vermindertes Intervall ist um einen Halbton enger als ein …",
@@ -475,14 +511,16 @@ const payload: LearnPayload = {
           "großes Intervall",
           "übermäßiges Intervall",
           "zusammengesetztes Intervall"
-        ]
+        ],
+        "why": "Die Notennamen bestimmen das Intervall: C–Es umfasst 3 Stufen (kleine Terz), C–Dis nur 2 (übermäßige Sekunde)."
       },
       {
         "q": "Spiele einen Tritonus: erst F, dann H (international B).",
         "seq": [
           5,
           11
-        ]
+        ],
+        "why": "Zwischen F und H liegen drei ganze Töne (F–G–A–H = 6 Halbtöne) — genau ein Tritonus."
       }
     ],
     "sc": [
@@ -493,7 +531,8 @@ const payload: LearnPayload = {
           "GT HT GT GT HT GT GT",
           "HT GT GT HT GT GT GT",
           "GT GT GT HT GT GT HT"
-        ]
+        ],
+        "why": "In jeder Durtonleiter liegen die Halbtonschritte ausschließlich zwischen der 3.–4. und 7.–8. Stufe (G-G-H-G-G-G-H)."
       },
       {
         "q": "Wie viele Vorzeichen besitzt die G-Dur-Tonleiter?",
@@ -502,7 +541,8 @@ const payload: LearnPayload = {
           "2 Kreuze",
           "1 Be",
           "keine Vorzeichen"
-        ]
+        ],
+        "why": "Eine Quinte über C-Dur braucht G-Dur genau ein Kreuz (Fis), damit zwischen 7. und 8. Stufe ein Halbton liegt."
       },
       {
         "q": "Welche Molltonart ist die Parallele zu C-Dur?",
@@ -511,7 +551,8 @@ const payload: LearnPayload = {
           "d-Moll",
           "e-Moll",
           "c-Moll"
-        ]
+        ],
+        "why": "Die 7. Stufe (H in C-Dur) liegt einen Halbton unter dem Grundton und zieht als Leitton stark zum C."
       },
       {
         "q": "Höre hin: Dur oder Moll?",
@@ -519,7 +560,8 @@ const payload: LearnPayload = {
         "o": [
           "Moll",
           "Dur"
-        ]
+        ],
+        "why": "Achte auf die kleine Terz (3. Stufe) am Anfang — sie gibt der Tonleiter sofort ihren Moll-Charakter."
       },
       {
         "q": "Spiele die Stufen 1, 3 und 5 von G-Dur (G, H, D).",
@@ -527,7 +569,8 @@ const payload: LearnPayload = {
           7,
           11,
           2
-        ]
+        ],
+        "why": "In G-Dur bilden die Stufen 1, 3 und 5 den Tonikadreiklang G–H–D."
       }
     ],
     "minor": [
@@ -538,7 +581,8 @@ const payload: LearnPayload = {
           "Die 6. Stufe wird erniedrigt",
           "Die 3. Stufe wird erhöht",
           "Es hat keine Halbtöne"
-        ]
+        ],
+        "why": "Die Erhöhung der 7. Stufe schafft einen Leitton im Halbtonabstand zum Grundton und macht die V. Stufe zu Dur."
       },
       {
         "q": "Welche Stufen werden im klassischen melodischen Moll aufwärts erhöht?",
@@ -547,7 +591,8 @@ const payload: LearnPayload = {
           "nur die 7. Stufe",
           "die 3. und 7. Stufe",
           "die 4. und 5. Stufe"
-        ]
+        ],
+        "why": "Melodisch Moll erhöht aufwärts die 6. (Fis) und 7. Stufe (Gis), um den übermäßigen Sekundschritt zu glätten."
       },
       {
         "q": "Welche Bezeichnung trägt die 5. Stufe einer Tonleiter?",
@@ -556,7 +601,8 @@ const payload: LearnPayload = {
           "Subdominante",
           "Mediante",
           "Tonika"
-        ]
+        ],
+        "why": "Die 5. Stufe heißt Dominante — das Spannungszentrum, das zurück zum Grundton (Tonika) strebt."
       },
       {
         "q": "Welche Tonart besitzt zwei Be-Vorzeichen (B♭ und E♭)?",
@@ -565,7 +611,8 @@ const payload: LearnPayload = {
           "F-Dur",
           "Es-Dur",
           "g-Moll"
-        ]
+        ],
+        "why": "Kreuze erscheinen am Vorzeichen im Quintenzirkel aufwärts: F–C–G–D–A–E–H."
       },
       {
         "q": "Höre hin: Welches Moll ist es?",
@@ -574,7 +621,8 @@ const payload: LearnPayload = {
           "Harmonisches Moll",
           "Natürliches Moll",
           "Melodisches Moll"
-        ]
+        ],
+        "why": "Der markante Schritt von 3 Halbtönen zwischen der 6. und 7. Stufe verrät sofort harmonisch Moll."
       },
       {
         "q": "Spiele den a-Moll-Dreiklang (A, C, E).",
@@ -582,7 +630,8 @@ const payload: LearnPayload = {
           9,
           0,
           4
-        ]
+        ],
+        "why": "A–C–E schichtet eine kleine Terz (A–C) und eine große Terz (C–E) zum a-Moll-Dreiklang."
       }
     ],
     "cof": [
@@ -593,7 +642,8 @@ const payload: LearnPayload = {
           "ein Be (♭)",
           "ein Auflösungszeichen",
           "zwei Kreuze"
-        ]
+        ],
+        "why": "Jeder Schritt im Uhrzeigersinn geht eine Quinte aufwärts und fügt ein weiteres Kreuz hinzu."
       },
       {
         "q": "Welche Tonart liegt im Quintenzirkel eine Quinte über C-Dur?",
@@ -602,7 +652,8 @@ const payload: LearnPayload = {
           "F-Dur",
           "D-Dur",
           "A-Dur"
-        ]
+        ],
+        "why": "Drei Be sind B, Es und As — das vorletzte Be (Es) benennt die Durtonart Es-Dur."
       },
       {
         "q": "Welche Tonart hat vier Kreuze als Generalvorzeichen?",
@@ -611,7 +662,8 @@ const payload: LearnPayload = {
           "A-Dur",
           "H-Dur",
           "D-Dur"
-        ]
+        ],
+        "why": "Die Mollparallele teilt die Vorzeichen und liegt eine kleine Terz unter dem Dur-Grundton (F → d-Moll)."
       },
       {
         "q": "Wie ermittelt man bei Kreuz-Tonarten rasch die Dur-Tonart?",
@@ -620,7 +672,8 @@ const payload: LearnPayload = {
           "Das letzte Kreuz ist der Grundton",
           "Das vorletzte Kreuz ablesen",
           "Die Kreuze zählen und verdoppeln"
-        ]
+        ],
+        "why": "Das letzte Kreuz ist stets der Leitton (7. Stufe) und liegt einen Halbton unter dem Dur-Grundton."
       },
       {
         "q": "Spiele den Tonika-Dreiklang von D-Dur (D, Fis, A).",
@@ -628,7 +681,8 @@ const payload: LearnPayload = {
           2,
           6,
           9
-        ]
+        ],
+        "why": "D-Dur besitzt zwei Kreuze (Fis und Cis); sein Tonikadreiklang lautet D–Fis–A."
       }
     ],
     "modes": [
@@ -639,7 +693,8 @@ const payload: LearnPayload = {
           "Phrygisch",
           "Lydisch",
           "Mixolydisch"
-        ]
+        ],
+        "why": "Im Vergleich zu natürlich Moll besitzt Dorisch eine große Sexte (erhöhte 6. Stufe)."
       },
       {
         "q": "Der lydische Modus ist eine Dur-Tonleiter mit welcher charakteristischen Veränderung?",
@@ -648,7 +703,8 @@ const payload: LearnPayload = {
           "kleiner 7. Stufe (♭7)",
           "kleiner 2. Stufe (♭2)",
           "übermäßiger 5. Stufe (♯5)"
-        ]
+        ],
+        "why": "Mixolydisch entspricht einer Durtonleiter mit tiefalterierter kleiner Septime (♭7)."
       },
       {
         "q": "Mixolydisch klingt wie Dur, besitzt jedoch …",
@@ -657,7 +713,8 @@ const payload: LearnPayload = {
           "eine kleine Terz",
           "eine verminderte Quinte",
           "zwei Leittöne"
-        ]
+        ],
+        "why": "Lydisch erhöht die 4. Stufe der Durtonleiter zur übermäßigen Quarte (♯4)."
       },
       {
         "q": "Welcher Modus besitzt eine kleine 2. und eine verminderte 5. Stufe?",
@@ -666,7 +723,8 @@ const payload: LearnPayload = {
           "Phrygisch",
           "Äolisch",
           "Dorisch"
-        ]
+        ],
+        "why": "Auf den weißen Tasten von D nach D entsteht exakt die dorische Intervallfolge mit großer Sexte und kleiner Septime."
       }
     ],
     "ch": [
@@ -677,7 +735,8 @@ const payload: LearnPayload = {
           "kleine Terz + reine Quinte",
           "zwei große Terzen",
           "zwei kleine Terzen"
-        ]
+        ],
+        "why": "In Grundstellung schichtet der Durdreiklang zuerst eine große Terz (4 HT) und darüber eine kleine Terz (3 HT)."
       },
       {
         "q": "Höre hin: Welche Akkordqualität erklingt?",
@@ -687,7 +746,8 @@ const payload: LearnPayload = {
           "Dur",
           "Vermindert",
           "Übermäßig"
-        ]
+        ],
+        "why": "Der Molldreiklang dreht die Terzen um (kleine unten, große oben) und klingt dadurch wehmütiger."
       },
       {
         "q": "Liegt die Terz des Akkords im Bass, handelt es sich um die …",
@@ -696,7 +756,8 @@ const payload: LearnPayload = {
           "Grundstellung",
           "2. Umkehrung (Quartsextakkord)",
           "3. Umkehrung"
-        ]
+        ],
+        "why": "Liegt die Terz (E) im Bass, steht der Dreiklang in der 1. Umkehrung (Sextakkord C/E)."
       },
       {
         "q": "Spiele a-Moll (A, C, E) — in beliebiger Oktave oder Umkehrung.",
@@ -704,7 +765,8 @@ const payload: LearnPayload = {
           9,
           0,
           4
-        ]
+        ],
+        "why": "a-Moll besteht aus Grundton A, kleiner Terz C und reiner Quinte E."
       },
       {
         "q": "Spiele den F-Dur-Dreiklang (F, A, C).",
@@ -712,7 +774,8 @@ const payload: LearnPayload = {
           5,
           9,
           0
-        ]
+        ],
+        "why": "F-Dur nutzt nur weiße Tasten: Grundton F, große Terz A und reine Quinte C."
       }
     ],
     "ch7": [
@@ -723,7 +786,8 @@ const payload: LearnPayload = {
           "Major-Septakkord (maj7)",
           "Moll-Septakkord (m7)",
           "Verminderter Septakkord (dim7)"
-        ]
+        ],
+        "why": "Das Symbol C7 steht für den Dominantseptakkord: Durdreiklang C–E–G plus kleine Septime B (Bb)."
       },
       {
         "q": "Welcher Akkord erklingt hier?",
@@ -733,7 +797,8 @@ const payload: LearnPayload = {
           "Dominantseptakkord (7)",
           "Moll-Septakkord (m7)",
           "Verminderter Septakkord (dim7)"
-        ]
+        ],
+        "why": "Maj7 fügt dem Durdreiklang die große Septime (11 HT) hinzu und klingt schwebend und warm."
       },
       {
         "q": "Auf welcher Stufe von C-Dur bildet sich der halbverminderte Akkord (m7♭5)?",
@@ -742,7 +807,8 @@ const payload: LearnPayload = {
           "ii",
           "V",
           "iii"
-        ]
+        ],
+        "why": "Schichtet man die leitereigenen Töne von C-Dur ab dem 7. Ton H, entsteht H–D–F–A (halbvermindert viiø7)."
       },
       {
         "q": "Was bedeutet das Akkordsymbol C/E?",
@@ -751,7 +817,8 @@ const payload: LearnPayload = {
           "C gefolgt von E",
           "C-Dur oder E-Dur wahlweise",
           "C-Moll"
-        ]
+        ],
+        "why": "Beim Slash-Akkord X/Y bezeichnet links den Akkord (C) und rechts den tiefsten Basston (E)."
       },
       {
         "q": "Ein Csus4-Akkord ersetzt die Terz durch …",
@@ -760,7 +827,8 @@ const payload: LearnPayload = {
           "die Sekunde (D)",
           "die Sexte (A)",
           "die Septime (B)"
-        ]
+        ],
+        "why": "„Sus4“ ersetzt die Terz durch die Quarte (F statt E), wodurch der Akkord schwebend offen bleibt."
       },
       {
         "q": "Spiele G7 (G, H, D, F).",
@@ -769,7 +837,8 @@ const payload: LearnPayload = {
           11,
           2,
           5
-        ]
+        ],
+        "why": "G7 ist der Dominantseptakkord von C-Dur aus den weißen Tasten G–H–D–F."
       }
     ],
     "pr": [
@@ -780,7 +849,8 @@ const payload: LearnPayload = {
           "F-Dur",
           "a-Moll",
           "e-Moll"
-        ]
+        ],
+        "why": "Fünf Stufen über C liegt G — die V. Stufe in C-Dur ist der G-Dur-Dreiklang (G–H–D)."
       },
       {
         "q": "Welche Stufenakkorde sind in einer Dur-Tonart Moll-Akkorde?",
@@ -789,7 +859,8 @@ const payload: LearnPayload = {
           "I, IV, V",
           "ii, V, vii°",
           "iii, IV, vi"
-        ]
+        ],
+        "why": "In Dur sind I, IV und V Durdreiklänge, vii° vermindert, und die Stufen ii, iii und vi sind Moll."
       },
       {
         "q": "Wie viele Takte umfasst das klassische Blues-Schema?",
@@ -798,7 +869,8 @@ const payload: LearnPayload = {
           "8",
           "16",
           "4"
-        ]
+        ],
+        "why": "Das Standard-Bluesschema umfasst 12 Takte in drei viertaktigen Phrasen."
       },
       {
         "q": "Zu welcher Stufe wechselt das 12-Takt-Blues-Schema typischerweise in Takt 5?",
@@ -807,7 +879,8 @@ const payload: LearnPayload = {
           "V",
           "I",
           "vi"
-        ]
+        ],
+        "why": "Nach vier Takten Tonika (I) wechselt Takt 5 typischerweise zur Subdominante (IV)."
       },
       {
         "q": "Spiele die Subdominante (IV) in C-Dur (F, A, C).",
@@ -815,7 +888,8 @@ const payload: LearnPayload = {
           5,
           9,
           0
-        ]
+        ],
+        "why": "Die 4. Stufe von C-Dur ist F; der IV-Dreiklang lautet somit F–A–C."
       }
     ],
     "cad": [
@@ -826,7 +900,8 @@ const payload: LearnPayload = {
           "Plagalschluss",
           "Halbschluss",
           "Trugschluss"
-        ]
+        ],
+        "why": "Der Schritt von der Dominante V zur Tonika I in Grundstellung löst alle Spannung und schließt vollständig ab."
       },
       {
         "q": "Eine Phrase, die auf der Dominante (V) abbricht bzw. endet, bildet einen …",
@@ -835,7 +910,8 @@ const payload: LearnPayload = {
           "Ganzschluss",
           "Plagalschluss",
           "Trugschluss"
-        ]
+        ],
+        "why": "Ein Schluss auf der Dominante V hält die Musik wie ein Komma offen und fordert eine Antwortphrase."
       },
       {
         "q": "Höre hin: Welche Kadenzart erklingt?",
@@ -845,7 +921,8 @@ const payload: LearnPayload = {
           "Ganzschluss (V → I)",
           "Plagalschluss (IV → I)",
           "Halbschluss (I → V)"
-        ]
+        ],
+        "why": "Der Trugschluss bereitet den Schluss nach I auf der Dominante V vor, weicht aber überraschend nach vi aus."
       },
       {
         "q": "Die sogenannte „Amen-Kadenz“ ist ein …",
@@ -854,7 +931,8 @@ const payload: LearnPayload = {
           "Ganzschluss (V → I)",
           "Halbschluss (I → V)",
           "Trugschluss (V → vi)"
-        ]
+        ],
+        "why": "Der plagale Schluss IV → I umgeht den Leitton der Dominante und klingt ruhig wie das traditionelle „Amen“."
       }
     ],
     "minorh": [
@@ -865,7 +943,8 @@ const payload: LearnPayload = {
           "Weil die 6. Stufe erhöht wird",
           "Wegen der erniedrigten Terz",
           "Wegen eines dauerhaften Tonartwechsels"
-        ]
+        ],
+        "why": "Ohne Erhöhung wäre die V. Stufe e-Moll; erst das erhöhte Gis (Leitton) macht V zu E-Dur."
       },
       {
         "q": "Wie lautet die Stufenfolge i – iv – V – i in a-Moll?",
@@ -874,7 +953,8 @@ const payload: LearnPayload = {
           "Am – D – Em – Am",
           "A – D – E – A",
           "Am – F – G – Am"
-        ]
+        ],
+        "why": "In a-Moll ist i = a-Moll, iv = d-Moll und V durch den Leitton Gis = E-Dur."
       },
       {
         "q": "Was signalisieren Kleinbuchstaben bei römischen Stufenziffern in Moll?",
@@ -883,7 +963,8 @@ const payload: LearnPayload = {
           "einen leise zu spielenden Akkord",
           "eine Umkehrung",
           "einen Septakkord"
-        ]
+        ],
+        "why": "Bei römischen Stufenzahlen stehen Großbuchstaben (I, IV, V) für Dur und Kleinbuchstaben (i, iv, ii°) für Moll oder vermindert."
       },
       {
         "q": "Spiele E-Dur — die Dominante V von a-Moll (E, Gis, H).",
@@ -891,7 +972,8 @@ const payload: LearnPayload = {
           4,
           8,
           11
-        ]
+        ],
+        "why": "E–Gis–H enthält den Leitton Gis, der einen Halbton aufwärts nach A zieht."
       }
     ],
     "nct": [
@@ -902,7 +984,8 @@ const payload: LearnPayload = {
           "durch einen Sprung weg vom Akkord",
           "er verharrt auf demselben Ton",
           "nur in der Bassstimme"
-        ]
+        ],
+        "why": "Ein Durchgangston verbindet zwei Akkordtöne schrittweise in derselben Richtung."
       },
       {
         "q": "Eine Wechselnote (Neighbour Tone) …",
@@ -911,7 +994,8 @@ const payload: LearnPayload = {
           "springt eine Oktave weit",
           "ist stets ein echter Akkordton",
           "ist eine kurze Pause"
-        ]
+        ],
+        "why": "Eine Wechselnote verlässt einen Akkordton stufenweise und kehrt direkt zu ihm zurück."
       },
       {
         "q": "Ein harmonischer Vorhalt (Suspension) löst sich typischerweise wie auf?",
@@ -920,7 +1004,8 @@ const payload: LearnPayload = {
           "sprunghaft nach oben",
           "gar nicht",
           "immer in den Basston"
-        ]
+        ],
+        "why": "Ein Vorhalt hält einen Ton aus dem vorigen Akkord über den Taktwechsel hinaus und löst sich schrittweise abwärts auf."
       },
       {
         "q": "Was versteht man unter einer Appoggiatura (unvorbereiteter Vorhalt)?",
@@ -929,7 +1014,8 @@ const payload: LearnPayload = {
           "einen leisen Begleitton",
           "eine besondere Notenpause",
           "einen wiederholten Ton"
-        ]
+        ],
+        "why": "Anders als der gebundene Vorhalt wird der freie Vorhalt (Appoggiatura) unvorbereitet angesprungen und stufenweise aufgelöst."
       }
     ],
     "secdom": [
@@ -940,7 +1026,8 @@ const payload: LearnPayload = {
           "G-Dur",
           "a-Moll",
           "F-Dur"
-        ]
+        ],
+        "why": "In C-Dur ist V = G; die Quinte über G ist D, also ist V/V D-Dur (bzw. D7 mit Fis als Leitton zu G)."
       },
       {
         "q": "Was ist eine Zwischendominante?",
@@ -949,7 +1036,8 @@ const payload: LearnPayload = {
           "jeder beliebige Moll-Akkord",
           "der zweite Akkord eines Werkes",
           "ein Akkord ohne Terz"
-        ]
+        ],
+        "why": "Eine Zwischendominante leiht die V. Stufe einer Nebentonart, um den Zielakkord kurz hervorzuheben."
       },
       {
         "q": "Bei der Modulation von C-Dur nach G-Dur ist das Ziel die …",
@@ -958,7 +1046,8 @@ const payload: LearnPayload = {
           "parallele Molltonart",
           "Subdominanttonart",
           "variantische Molltonart"
-        ]
+        ],
+        "why": "Da G die 5. Stufe von C ist, führt die Modulation nach G-Dur in die Dominanttonart."
       },
       {
         "q": "Was zeichnet eine vorbildliche Stimmführung aus?",
@@ -967,7 +1056,8 @@ const payload: LearnPayload = {
           "alle Stimmen sprunghaft führen",
           "parallele Quinten und Oktaven",
           "Verdopplung des Leittons"
-        ]
+        ],
+        "why": "Liegenbleibende gemeinsame Töne und kleine Stimmführungsschritte verbinden Akkorde geschmeidig."
       },
       {
         "q": "Spiele A7 — die Zwischendominante V/ii in C-Dur (A, Cis, E, G).",
@@ -976,7 +1066,8 @@ const payload: LearnPayload = {
           1,
           4,
           7
-        ]
+        ],
+        "why": "Die ii. Stufe von C-Dur ist d-Moll; die Quinte über D ist A, also ist A–Cis–E–G (A7) V⁷/ii."
       }
     ],
     "form": [
@@ -987,7 +1078,8 @@ const payload: LearnPayload = {
           "Kadenz",
           "Coda",
           "Taktart"
-        ]
+        ],
+        "why": "Ein Motiv ist die kleinste prägnante melodisch-rhythmische Keimzelle eines Musikstücks."
       },
       {
         "q": "Die Form A–B–A–C–A entspricht einem …",
@@ -996,7 +1088,8 @@ const payload: LearnPayload = {
           "zweiteiligen Liedform (AB)",
           "dreiteiligen Form (ABA)",
           "einer Periode"
-        ]
+        ],
+        "why": "Beim Rondo kehrt ein Hauptthema (A) regelmäßig zwischen kontrastierenden Zwischenspielen (B, C …) wieder."
       },
       {
         "q": "Eine klassische musikalische Periode besteht aus …",
@@ -1005,7 +1098,8 @@ const payload: LearnPayload = {
           "einem einzelnen Takt",
           "einer gesamten Klaviersonate",
           "einem Wiederholungszeichen"
-        ]
+        ],
+        "why": "Eine musikalische Periode verbindet einen fragenden Vordersatz mit einem abschließenden Nachsatz."
       },
       {
         "q": "Der Vordersatz einer Periode endet typischerweise mit einem …",
@@ -1014,7 +1108,8 @@ const payload: LearnPayload = {
           "Ganzschluss (auf I)",
           "Tonartwechsel",
           "einer Fermate"
-        ]
+        ],
+        "why": "Der Halbschluss auf V öffnet den Vordersatz, damit erst der Nachsatz mit einem Ganzschluss auflöst."
       }
     ],
     "accomp": [
@@ -1025,7 +1120,8 @@ const payload: LearnPayload = {
           "tief – mittel – hoch",
           "alle Noten gleichzeitig",
           "hoch – tief"
-        ]
+        ],
+        "why": "Der Alberti-Bass zerlegt den Dreiklang gleichmäßig in tief – hoch – mittel – hoch (1–5–3–5)."
       },
       {
         "q": "Höre hin: Welches Begleitmuster erklingt?",
@@ -1035,7 +1131,8 @@ const payload: LearnPayload = {
           "Alberti-Bass",
           "Blockakkorde",
           "Balladen-Arpeggio"
-        ]
+        ],
+        "why": "Im Walzer (3/4) liegt auf Zählzeit 1 ein tiefer Basston, gefolgt von zwei leichteren Nachschlägen auf 2 und 3."
       },
       {
         "q": "Was enthält ein klassisches Lead Sheet?",
@@ -1044,7 +1141,8 @@ const payload: LearnPayload = {
           "jede einzelne Note für beide Hände",
           "ausschließlich Liedtext",
           "nur Rhythmusangaben"
-        ]
+        ],
+        "why": "Ein Leadsheet notiert nur die Melodie und darüber die Akkordsymbole für eine freie Begleitung."
       },
       {
         "q": "Was spielt die linke Hand beim Begleiten nach einem Lead Sheet in der Regel?",
@@ -1053,7 +1151,8 @@ const payload: LearnPayload = {
           "die Melodielinie unisono",
           "gar nichts",
           "zufällige Töne"
-        ]
+        ],
+        "why": "Während die rechte Hand die Melodie spielt, übernimmt links anhand des Akkordsymbols Bassgrundton und Rhythmus."
       }
     ]
   },

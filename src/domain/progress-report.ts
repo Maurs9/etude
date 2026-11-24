@@ -38,6 +38,33 @@ export interface PracticeReportInput {
   readonly itemLabel: (item: PracticeReportTopicInput) => string;
   readonly reading: PracticeReportReadingInput;
   readonly pieces: readonly PracticeReportPieceInput[];
+  readonly lessonsDone?: number;
+}
+
+export type StudioMilestoneId = 'prep' | 'g1' | 'g2' | 'g3' | 'g4' | 'g5';
+
+export interface StudioMilestoneInput {
+  readonly mastered: number;
+  readonly bookLevel: number;
+  readonly piecesRead: number;
+  readonly learnedPieces: number;
+  readonly lessonsDone: number;
+}
+
+export interface StudioMilestone {
+  readonly id: StudioMilestoneId;
+  readonly labelKey: string;
+  readonly reqKey: string;
+  readonly done: boolean;
+  readonly next: boolean;
+}
+
+export interface StudioMilestoneSummary {
+  readonly highestId: StudioMilestoneId | null;
+  readonly nextId: StudioMilestoneId | null;
+  readonly completedCount: number;
+  readonly totalCount: number;
+  readonly milestones: readonly StudioMilestone[];
 }
 
 export interface PracticeReportTopic {
@@ -88,6 +115,7 @@ export interface PracticeReport {
   readonly weakSpots: readonly PracticeReportWeak[];
   readonly reading: PracticeReportReading;
   readonly pieces: readonly PracticeReportPiece[];
+  readonly milestones: StudioMilestoneSummary;
 }
 
 export interface PracticeReportCsvLabels {
@@ -105,6 +133,8 @@ export interface PracticeReportCsvLabels {
   readonly masteredLabel: string;
   readonly reviewsLabel: string;
   readonly accuracyLabel: string;
+  readonly standingLabel?: string;
+  readonly standingValue?: string;
   readonly categoryCol: string;
   readonly conceptCol: string;
   readonly repsCol: string;
@@ -136,6 +166,86 @@ function windowActivity(history: Readonly<Record<string, number>>, today: number
     }
   }
   return { reviews, activeDays };
+}
+
+const STUDIO_MILESTONE_DEFS: readonly {
+  readonly id: StudioMilestoneId;
+  readonly labelKey: string;
+  readonly reqKey: string;
+  readonly met: (input: StudioMilestoneInput) => boolean;
+}[] = [
+  {
+    id: 'prep',
+    labelKey: 'prog_ms_prep',
+    reqKey: 'prog_ms_prep_req',
+    met: (input) => input.mastered >= 4 && input.piecesRead >= 2 && input.lessonsDone >= 1,
+  },
+  {
+    id: 'g1',
+    labelKey: 'prog_ms_g1',
+    reqKey: 'prog_ms_g1_req',
+    met: (input) => input.mastered >= 10 && input.bookLevel >= 2 && input.piecesRead >= 5 && input.lessonsDone >= 4,
+  },
+  {
+    id: 'g2',
+    labelKey: 'prog_ms_g2',
+    reqKey: 'prog_ms_g2_req',
+    met: (input) => input.mastered >= 18 && input.bookLevel >= 2 && input.piecesRead >= 10 && input.learnedPieces >= 2 && input.lessonsDone >= 8,
+  },
+  {
+    id: 'g3',
+    labelKey: 'prog_ms_g3',
+    reqKey: 'prog_ms_g3_req',
+    met: (input) => input.mastered >= 26 && input.bookLevel >= 3 && input.piecesRead >= 18 && input.learnedPieces >= 4 && input.lessonsDone >= 12,
+  },
+  {
+    id: 'g4',
+    labelKey: 'prog_ms_g4',
+    reqKey: 'prog_ms_g4_req',
+    met: (input) => input.mastered >= 36 && input.bookLevel >= 4 && input.piecesRead >= 28 && input.learnedPieces >= 6 && input.lessonsDone >= 16,
+  },
+  {
+    id: 'g5',
+    labelKey: 'prog_ms_g5',
+    reqKey: 'prog_ms_g5_req',
+    met: (input) => input.mastered >= 46 && input.bookLevel >= 5 && input.piecesRead >= 40 && input.learnedPieces >= 8 && input.lessonsDone >= 20,
+  },
+];
+
+/** Evaluates sequential Studio / ABRSM Prep and Grade 1–5 standing from persisted mastery, reading, repertoire, and lesson progress. */
+export function computeStudioMilestones(input: StudioMilestoneInput): StudioMilestoneSummary {
+  let prevDone = true;
+  let highestId: StudioMilestoneId | null = null;
+  let nextId: StudioMilestoneId | null = null;
+  let completedCount = 0;
+
+  const doneStates = STUDIO_MILESTONE_DEFS.map((def) => {
+    const done = prevDone && def.met(input);
+    prevDone = done;
+    if (done) {
+      highestId = def.id;
+      completedCount += 1;
+    } else if (nextId === null) {
+      nextId = def.id;
+    }
+    return done;
+  });
+
+  const milestones: StudioMilestone[] = STUDIO_MILESTONE_DEFS.map((def, index) => ({
+    id: def.id,
+    labelKey: def.labelKey,
+    reqKey: def.reqKey,
+    done: doneStates[index],
+    next: def.id === nextId,
+  }));
+
+  return {
+    highestId,
+    nextId,
+    completedCount,
+    totalCount: STUDIO_MILESTONE_DEFS.length,
+    milestones,
+  };
 }
 
 /** Pure client-side summary of reviews, weak concepts, reading progress, and repertoire for teacher/student reports. */
@@ -194,6 +304,14 @@ export function buildPracticeReport(input: PracticeReportInput): PracticeReport 
     : null;
 
   const pieces = input.pieces.filter((piece) => piece.learned || piece.bestPct !== null);
+  const learnedPieces = input.pieces.filter((piece) => piece.learned).length;
+  const milestones = computeStudioMilestones({
+    mastered: input.mastered,
+    bookLevel: input.reading.bookLevel,
+    piecesRead: input.reading.piecesRead,
+    learnedPieces,
+    lessonsDone: input.lessonsDone ?? 0,
+  });
 
   return {
     generatedDateIso,
@@ -219,6 +337,7 @@ export function buildPracticeReport(input: PracticeReportInput): PracticeReport 
       stars: input.reading.stars,
     },
     pieces,
+    milestones,
   };
 }
 
@@ -254,6 +373,7 @@ export function formatPracticeReportCsv(report: PracticeReport, labels: Practice
     csvRow([labels.masteredLabel, `${report.mastered}/${report.totalItems}`]),
     csvRow([labels.reviewsLabel, report.totalReviews]),
     csvRow([labels.accuracyLabel, pct(report.accuracyPct)]),
+    ...(labels.standingLabel && labels.standingValue ? [csvRow([labels.standingLabel, labels.standingValue])] : []),
     csvRow([labels.period7d, report.reviews7d, report.activeDays7d]),
     csvRow([labels.period30d, report.reviews30d, report.activeDays30d]),
     '',

@@ -280,6 +280,8 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <button class="btn ghost" id="rd-listen" data-i18n="rd_listen">▶ Listen</button>
           <label class="field" style="min-width:180px"><span data-i18n="rd_tempo">Tempo</span> <small><span id="rd-bpmLbl">90</span> BPM</small><input id="rd-bpm" type="range" min="40" max="160" value="90" aria-label="Tempo" data-i18n-aria="rd_tempo"></label>
           <span style="margin-left:auto"></span>
+          <button class="btn ghost sm" id="rd-warm-tonic" type="button" hidden data-i18n="rd_warm_tonic">♪ Tonic</button>
+          <button class="btn ghost sm" id="rd-warm-scale" type="button" hidden data-i18n="rd_warm_scale">Scale in key →</button>
           <button class="btn ghost sm score-expand" id="rd-fs" type="button" aria-pressed="false" data-i18n="pc_stage">Full window</button>
         </div>
       </div>
@@ -664,6 +666,13 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="prog-print-head" id="prog-print-head" aria-hidden="true"></div>
       <div class="prog-empty" id="prog-empty" hidden><p data-i18n="prog_empty">No reviews yet. Your stats, memory strength and practice calendar fill in as you answer questions.</p><button type="button" class="btn primary sm" id="prog-start" data-i18n="prog_empty_cta">Start today’s session →</button></div>
       <div class="stat-row" id="progStats"></div>
+      <section class="prog-ms-wrap" id="prog-ms-wrap" aria-labelledby="prog-ms-head">
+        <div class="prog-ms-top">
+          <h3 class="prog-ms-h" id="prog-ms-head" data-i18n="prog_ms_head">Studio &amp; ABRSM milestones</h3>
+          <span class="prog-ms-standing" id="prog-ms-standing"></span>
+        </div>
+        <div class="prog-milestones" id="progMilestones"></div>
+      </section>
       <hr class="rule staff5" />
       <!-- wide screens: mastery, the 7-day forecast and the practice history side by side (layout.css) -->
       <div class="prog-top">

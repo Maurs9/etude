@@ -100,7 +100,8 @@ const payload: LearnPayload = {
           "Fá (F)",
           "Ré (D)",
           "Si (B)"
-        ]
+        ],
+        "why": "O padrão de 2 e 3 teclas pretas repete-se a cada oitava, com Dó (C) sempre logo à esquerda das duas pretas."
       },
       {
         "q": "Quantos semitons há em uma oitava?",
@@ -109,7 +110,8 @@ const payload: LearnPayload = {
           "8",
           "7",
           "10"
-        ]
+        ],
+        "why": "Uma oitava abrange 7 teclas brancas mais 5 teclas pretas — 12 semitons cromáticos no total."
       },
       {
         "q": "Qual par forma um semitom natural sem tecla preta intermediária?",
@@ -118,7 +120,8 @@ const payload: LearnPayload = {
           "Dó–Ré (C–D)",
           "Fá–Sol (F–G)",
           "Lá–Si (A–B)"
-        ]
+        ],
+        "why": "Apenas Mi–Fá e Si–Dó não têm tecla preta no meio, formando dois semitons naturais."
       },
       {
         "q": "Toque o dó central (C4).",
@@ -127,7 +130,8 @@ const payload: LearnPayload = {
         ],
         "exactMidi": [
           60
-        ]
+        ],
+        "why": "O Dó central (Dó4, MIDI 60) fica no centro do teclado, logo à esquerda do grupo central de duas teclas pretas."
       },
       {
         "q": "Toque Mi (E) e depois Fá (F) — o semitom natural.",
@@ -137,7 +141,8 @@ const payload: LearnPayload = {
         ],
         "stepDiff": [
           1
-        ]
+        ],
+        "why": "Mi fica logo após as duas teclas pretas e Fá logo antes das três, separados por um único semitom."
       }
     ],
     "how": [
@@ -148,7 +153,8 @@ const payload: LearnPayload = {
           "Uma única sessão longa por semana",
           "Reler o material até parecer familiar",
           "Apenas ouvir sem praticar"
-        ]
+        ],
+        "why": "A revisão espaçada reativa a lembrança pouco antes do esquecimento, criando memória duradoura em menos tempo."
       },
       {
         "q": "Por que misturar diferentes tipos de exercícios em uma mesma sessão?",
@@ -157,7 +163,8 @@ const payload: LearnPayload = {
           "É um método mais rápido",
           "Evita cometer qualquer erro",
           "Não produz nenhum efeito"
-        ]
+        ],
+        "why": "Alternar tópicos obriga o cérebro a identificar cada problema em vez de repetir mecanicamente o hábito anterior."
       },
       {
         "q": "Errar uma resposta e ver a correção logo em seguida é…",
@@ -166,7 +173,8 @@ const payload: LearnPayload = {
           "perda de tempo",
           "prejudicial à memória",
           "útil apenas para iniciantes"
-        ]
+        ],
+        "why": "Tentar lembrar e ouvir imediatamente a correção ajusta o ouvido e a memória muito mais rápido que ler passivamente."
       }
     ],
     "notation": [
@@ -197,7 +205,8 @@ const payload: LearnPayload = {
           "abaixa a nota em um semitom",
           "apenas anula um bemol",
           "aumenta o volume do som"
-        ]
+        ],
+        "why": "O sustenido (♯) sobe a nota escrita em um semitom; o bemol (♭) a desce em um semitom."
       },
       {
         "q": "Até quando dura o efeito de um acidente ocorrente?",
@@ -206,7 +215,8 @@ const payload: LearnPayload = {
           "Apenas para aquela nota",
           "Por toda a peça musical",
           "Até a linha seguinte"
-        ]
+        ],
+        "why": "Um acidente vale na mesma oitava até a barra de compasso seguinte ou até ser cancelado por um bequadro (♮)."
       },
       {
         "q": "Toque a nota situada na segunda linha da clave de sol: Sol4 (G4).",
@@ -215,7 +225,8 @@ const payload: LearnPayload = {
         ],
         "exactMidi": [
           67
-        ]
+        ],
+        "why": "A clave de sol envolve a segunda linha de baixo para cima, fixando ali o Sol4 (G4)."
       }
     ],
     "symbols": [
@@ -226,7 +237,8 @@ const payload: LearnPayload = {
           "Saltar diretamente para a coda",
           "Repetir o último compasso",
           "Tocar mais forte até o final"
-        ]
+        ],
+        "why": "D.C. (Da Capo) volta ao início da peça e “al Fine” indica para parar onde está escrito Fine."
       },
       {
         "q": "Uma linha curva que une duas notas da mesma altura é uma…",
@@ -235,7 +247,8 @@ const payload: LearnPayload = {
           "ligadura de expressão (fraseado)",
           "indicação de crescendo",
           "fermata"
-        ]
+        ],
+        "why": "Ao contrário da ligadura de expressão, a ligadura de valor soma as durações de duas notas da mesma altura."
       },
       {
         "q": "Um ponto acima ou abaixo de uma nota (staccato) indica…",
@@ -244,7 +257,8 @@ const payload: LearnPayload = {
           "sustentar a nota por mais tempo",
           "tocar com maior volume",
           "tocar uma oitava acima"
-        ]
+        ],
+        "why": "O staccato encurta a nota escrita para deixá-la curta e bem destacada da seguinte."
       },
       {
         "q": "A indicação “Ped.” seguida de ✱ orienta…",
@@ -253,7 +267,8 @@ const payload: LearnPayload = {
           "fazer uma pausa prolongada",
           "uma repetição de trecho",
           "o dedo a ser utilizado"
-        ]
+        ],
+        "why": "“Ped.” indica pisar no pedal de sustentação e o asterisco (✱) marca o momento de soltá-lo."
       },
       {
         "q": "O dedo número 1 corresponde ao…",
@@ -262,7 +277,8 @@ const payload: LearnPayload = {
           "indicador",
           "mínimo",
           "médio"
-        ]
+        ],
+        "why": "Na dedilhação pianística das duas mãos, os números vão do 1 (polegar) ao 5 (dedo mínimo)."
       }
     ],
     "dyn": [
@@ -273,7 +289,8 @@ const payload: LearnPayload = {
           "p · pp · mf · mp · f · ff",
           "mp · p · pp · f · mf · ff",
           "pp · mp · p · f · mf · ff"
-        ]
+        ],
+        "why": "As dinâmicas crescem do mais suave ao mais forte na ordem pp < p < mp < mf < f < ff."
       },
       {
         "q": "“Crescendo” significa…",
@@ -282,7 +299,8 @@ const payload: LearnPayload = {
           "gradualmente mais suave",
           "gradualmente mais rápido",
           "subitamente forte"
-        ]
+        ],
+        "why": "Crescendo vem do italiano (crescer) e indica aumento gradual de volume."
       },
       {
         "q": "“sfz” (sforzando) indica…",
@@ -291,7 +309,8 @@ const payload: LearnPayload = {
           "muito suave",
           "reduzir o andamento",
           "sustentar a nota"
-        ]
+        ],
+        "why": "Sforzando (sfz) pede um acento súbito e intenso em uma única nota ou acorde."
       },
       {
         "q": "“mf” significa…",
@@ -300,7 +319,8 @@ const payload: LearnPayload = {
           "molto forte — muito forte",
           "meno forte — menos forte",
           "andamento moderadamente rápido"
-        ]
+        ],
+        "why": "“Mezzo” significa moderadamente: mezzo forte (mf) é moderadamente forte, logo abaixo de forte."
       }
     ],
     "rh": [
@@ -311,7 +331,8 @@ const payload: LearnPayload = {
           "2",
           "3",
           "8"
-        ]
+        ],
+        "why": "No compasso 4/4, o 4 superior indica 4 tempos por compasso e o 4 inferior define a semínima como pulso."
       },
       {
         "q": "Uma mínima pontuada dura…",
@@ -320,7 +341,8 @@ const payload: LearnPayload = {
           "2 tempos",
           "2½ tempos",
           "4 tempos"
-        ]
+        ],
+        "why": "O ponto aumenta metade do valor da figura: mínima (2 tempos) + metade (1) = 3 tempos."
       },
       {
         "q": "Ouça com atenção: qual é a fórmula de compasso?",
@@ -330,7 +352,8 @@ const payload: LearnPayload = {
           "4/4",
           "2/4",
           "6/8"
-        ]
+        ],
+        "why": "O compasso 3/4 agrupa os tempos em “UM-dois-três”, criando o balanço característico da valsa."
       },
       {
         "q": "Em 4/4, quais tempos costumam ser os mais fortes?",
@@ -339,7 +362,8 @@ const payload: LearnPayload = {
           "2 e 4",
           "apenas o 4",
           "todos iguais"
-        ]
+        ],
+        "why": "O tempo 1 recebe o acento principal e o tempo 3 um acento secundário, deixando 2 e 4 fracos."
       }
     ],
     "rh2": [
@@ -350,7 +374,8 @@ const payload: LearnPayload = {
           "quatro",
           "uma figura pontuada",
           "três"
-        ]
+        ],
+        "why": "A tercina divide em 3 notas iguais o tempo em que normalmente caberiam 2 da mesma figura."
       },
       {
         "q": "O compasso 6/8 é normalmente sentido em…",
@@ -359,7 +384,8 @@ const payload: LearnPayload = {
           "6 pulsos iguais de semínima",
           "3 tempos",
           "4 tempos"
-        ]
+        ],
+        "why": "O 6/8 é um compasso binário composto: seis colcheias se agrupam em 2 pulsos de semínima pontuada."
       },
       {
         "q": "Síncope significa…",
@@ -368,7 +394,8 @@ const payload: LearnPayload = {
           "tocar mais rápido",
           "uma pausa longa",
           "mudança de tonalidade"
-        ]
+        ],
+        "why": "A síncope desloca o acento rítmico dos tempos fortes esperados para tempos fracos ou contratempos."
       },
       {
         "q": "Qual destes andamentos é o mais lento?",
@@ -377,7 +404,8 @@ const payload: LearnPayload = {
           "Andante",
           "Allegro",
           "Presto"
-        ]
+        ],
+        "why": "Largo (“amplo”) marca um andamento muito lento; Andante é moderado e Allegro/Presto são rápidos."
       },
       {
         "q": "“Ritardando” significa…",
@@ -386,7 +414,8 @@ const payload: LearnPayload = {
           "acelerar gradualmente",
           "retornar ao andamento inicial",
           "muito rápido"
-        ]
+        ],
+        "why": "Ritardando (rit.) pede uma desaceleração gradual, comum antes de cadências ou finais de frase."
       }
     ],
     "iv": [
@@ -398,7 +427,8 @@ const payload: LearnPayload = {
           "Terça maior",
           "Quarta justa",
           "Oitava"
-        ]
+        ],
+        "why": "A quinta justa tem 7 semitons e soa aberta e muito estável (como a abertura de Star Wars)."
       },
       {
         "q": "Quantos semitons existem em uma terça maior?",
@@ -407,7 +437,8 @@ const payload: LearnPayload = {
           "3",
           "5",
           "2"
-        ]
+        ],
+        "why": "Uma terça maior tem 4 semitons (Dó → Mi), contra 3 semitons da terça menor."
       },
       {
         "q": "De Dó (C) subindo até Lá (A) temos uma…",
@@ -416,7 +447,8 @@ const payload: LearnPayload = {
           "sexta menor",
           "quinta justa",
           "sétima maior"
-        ]
+        ],
+        "why": "Contando seis graus de Dó a Lá em 9 semitons, temos uma sexta maior."
       },
       {
         "q": "Ouça com atenção: identifique o intervalo.",
@@ -426,7 +458,8 @@ const payload: LearnPayload = {
           "Terça maior",
           "Segunda maior",
           "Quarta justa"
-        ]
+        ],
+        "why": "Com 3 semitons, a terça menor traz imediatamente uma cor mais sombria e lírica que a terça maior."
       },
       {
         "q": "Toque uma quinta justa ascendente a partir de Ré (D): Ré e depois Lá.",
@@ -436,7 +469,8 @@ const payload: LearnPayload = {
         ],
         "stepDiff": [
           7
-        ]
+        ],
+        "why": "De Ré a Lá são 5 graus (Ré–Mi–Fá–Sol–Lá) e 7 semitons — uma quinta justa."
       }
     ],
     "iv2": [
@@ -447,7 +481,8 @@ const payload: LearnPayload = {
           "quarta justa",
           "sexta menor",
           "terça maior"
-        ]
+        ],
+        "why": "Dó–Fá é uma quarta justa (5 semitons); elevar Fá para Fá♯ amplia para 6 semitons (quarta aumentada / trítono)."
       },
       {
         "q": "Ao inverter uma terça maior obtemos uma…",
@@ -466,7 +501,8 @@ const payload: LearnPayload = {
           "segunda maior",
           "nona menor",
           "décima maior"
-        ]
+        ],
+        "why": "Dó4–Ré4 é uma segunda maior; somando uma oitava torna-se o intervalo composto de nona maior."
       },
       {
         "q": "Dó–Mi♭ em relação a Dó–Ré♯: mesmas teclas no piano, porém são…",
@@ -475,14 +511,16 @@ const payload: LearnPayload = {
           "exatamente o mesmo intervalo",
           "terça maior vs terça menor",
           "quarta vs quinta"
-        ]
+        ],
+        "why": "A contagem das notas define o intervalo: Dó–Mi♭ abrange 3 graus (3ª menor), enquanto Dó–Ré♯ abrange 2 (2ª aumentada)."
       },
       {
         "q": "Toque um trítono: Fá e depois Si (F e depois B).",
         "seq": [
           5,
           11
-        ]
+        ],
+        "why": "Entre Fá e Si há três tons inteiros seguidos (Fá–Sol–Lá–Si = 6 semitons), formando o trítono natural."
       }
     ],
     "sc": [
@@ -493,7 +531,8 @@ const payload: LearnPayload = {
           "T S T T S T T",
           "T T T S T T S",
           "S T T T S T T"
-        ]
+        ],
+        "why": "A escala maior coloca semitons apenas entre os graus 3–4 e 7–8, com tons nos demais passos (T-T-S-T-T-T-S)."
       },
       {
         "q": "Quantos sustenidos tem a escala de Sol maior (G)?",
@@ -502,7 +541,8 @@ const payload: LearnPayload = {
           "0",
           "2",
           "3"
-        ]
+        ],
+        "why": "Subindo uma quinta de Dó maior para Sol maior entra o primeiro sustenido (Fá♯) mantendo o semitom entre 7 e 8."
       },
       {
         "q": "Qual nota é a sensível em Dó maior?",
@@ -511,7 +551,8 @@ const payload: LearnPayload = {
           "Sol (G)",
           "Fá (F)",
           "Ré (D)"
-        ]
+        ],
+        "why": "O 7º grau (Si em Dó maior) fica um semitom abaixo da tônica Dó, puxando para cima como sensível."
       },
       {
         "q": "Ouça com atenção: é maior ou menor?",
@@ -519,7 +560,8 @@ const payload: LearnPayload = {
         "o": [
           "Menor",
           "Maior"
-        ]
+        ],
+        "why": "Repare na terça menor logo no início da subida: ela define imediatamente o caráter menor."
       },
       {
         "q": "Toque os graus 1, 3 e 5 de Sol maior: Sol, Si e Ré (G, B, D).",
@@ -527,7 +569,8 @@ const payload: LearnPayload = {
           7,
           11,
           2
-        ]
+        ],
+        "why": "Em Sol maior, os graus 1, 3 e 5 são Sol–Si–Ré, formando a tríade de tônica."
       }
     ],
     "minor": [
@@ -538,7 +581,8 @@ const payload: LearnPayload = {
           "o 6º grau",
           "o 3º grau",
           "o 2º grau"
-        ]
+        ],
+        "why": "Elevar o 7º grau cria uma sensível a um semitom da tônica e torna o acorde de V grau maior."
       },
       {
         "q": "A escala de Lá menor melódica ascendente é…",
@@ -547,7 +591,8 @@ const payload: LearnPayload = {
           "Lá Si Dó Ré Mi Fá Sol Lá",
           "Lá Si Dó Ré Mi Fá Sol♯ Lá",
           "Lá Si Dó♯ Ré Mi Fá♯ Sol♯ Lá"
-        ]
+        ],
+        "why": "A menor melódica ascendente eleva o 6º (Fá♯) e o 7º graus (Sol♯) para suavizar a segunda aumentada."
       },
       {
         "q": "O 5º grau de uma escala é chamado de…",
@@ -556,7 +601,8 @@ const payload: LearnPayload = {
           "subdominante",
           "mediante",
           "tônica"
-        ]
+        ],
+        "why": "O 5º grau é a dominante — o centro de tensão que resolve de volta na tônica (1º grau)."
       },
       {
         "q": "A ordem dos sustenidos começa com…",
@@ -565,7 +611,8 @@ const payload: LearnPayload = {
           "Si Mi Lá Ré (B E A D)",
           "Dó Sol Ré Lá (C G D A)",
           "Fá Si Mi Lá (F B E A)"
-        ]
+        ],
+        "why": "Os sustenidos da armadura de clave entram por quintas ascendentes: Fá–Dó–Sol–Ré–Lá–Mi–Si."
       },
       {
         "q": "Ouça com atenção: qual tipo de escala menor é?",
@@ -574,7 +621,8 @@ const payload: LearnPayload = {
           "Menor harmônica",
           "Menor natural",
           "Menor melódica"
-        ]
+        ],
+        "why": "O salto de 3 semitons entre os graus 6 e 7 revela imediatamente a escala menor harmônica."
       },
       {
         "q": "Toque a tríade de Lá menor: Lá, Dó e Mi (A, C, E).",
@@ -582,7 +630,8 @@ const payload: LearnPayload = {
           9,
           0,
           4
-        ]
+        ],
+        "why": "Lá–Dó–Mi junta uma 3ª menor (Lá–Dó) e uma 3ª maior (Dó–Mi), formando a tríade de Lá menor."
       }
     ],
     "cof": [
@@ -593,7 +642,8 @@ const payload: LearnPayload = {
           "bemol",
           "oitava",
           "tempo"
-        ]
+        ],
+        "why": "Cada passo no sentido horário sobe uma quinta e acrescenta mais um sustenido à armadura."
       },
       {
         "q": "Qual tonalidade maior possui 3 bemóis na armadura?",
@@ -602,7 +652,8 @@ const payload: LearnPayload = {
           "Lá♭ maior (A♭)",
           "Si♭ maior (B♭)",
           "Lá maior (A)"
-        ]
+        ],
+        "why": "Três bemóis são Si♭, Mi♭ e Lá♭ — e o penúltimo bemol (Mi♭) sempre dá o nome ao tom maior."
       },
       {
         "q": "Qual é a relativa menor de Fá maior (F)?",
@@ -611,7 +662,8 @@ const payload: LearnPayload = {
           "Lá menor (Am)",
           "Fá menor (Fm)",
           "Sol menor (Gm)"
-        ]
+        ],
+        "why": "A relativa menor usa a mesma armadura e começa uma 3ª menor abaixo da tônica maior (Fá → Ré menor)."
       },
       {
         "q": "O último sustenido da armadura fica sempre um semitom abaixo de…",
@@ -620,7 +672,8 @@ const payload: LearnPayload = {
           "a dominante",
           "a relativa menor",
           "o 4º grau"
-        ]
+        ],
+        "why": "O último sustenido na armadura é sempre a sensível (7º grau), um semitom abaixo da tônica maior."
       },
       {
         "q": "Toque a tríade da tônica de Ré maior: Ré, Fá♯ e Lá (D, F♯, A).",
@@ -628,7 +681,8 @@ const payload: LearnPayload = {
           2,
           6,
           9
-        ]
+        ],
+        "why": "Ré maior tem dois sustenidos (Fá♯ e Dó♯), logo sua tríade de tônica é Ré–Fá♯–Lá."
       }
     ],
     "modes": [
@@ -639,7 +693,8 @@ const payload: LearnPayload = {
           "7º",
           "2º",
           "4º"
-        ]
+        ],
+        "why": "Em relação à menor natural, o modo dórico eleva o 6º grau para sexta maior."
       },
       {
         "q": "Qual modo é uma escala maior com o 7º grau rebaixado (♭7)?",
@@ -648,7 +703,8 @@ const payload: LearnPayload = {
           "Lídio",
           "Frígio",
           "Lócrio"
-        ]
+        ],
+        "why": "O modo mixolídio é uma escala maior com o 7º grau abaixado (♭7), clássico do rock e do blues."
       },
       {
         "q": "A nota característica do modo lídio é…",
@@ -657,7 +713,8 @@ const payload: LearnPayload = {
           "♭2",
           "♭7",
           "♭3"
-        ]
+        ],
+        "why": "O modo lídio eleva o 4º grau (♯4) da escala maior, trazendo um brilho aberto e flutuante."
       },
       {
         "q": "Ré dórico utiliza as teclas brancas de…",
@@ -666,7 +723,8 @@ const payload: LearnPayload = {
           "Dó a Dó (C a C)",
           "Mi a Mi (E a E)",
           "Lá a Lá (A a A)"
-        ]
+        ],
+        "why": "As teclas brancas de Ré a Ré formam exatamente a sequência T–S–T–T–T–S–T do modo dórico."
       }
     ],
     "ch": [
@@ -677,7 +735,8 @@ const payload: LearnPayload = {
           "terça menor + terça maior",
           "duas terças maiores",
           "duas terças menores"
-        ]
+        ],
+        "why": "Em estado fundamental, a tríade maior empilha uma 3ª maior (4 semitons) embaixo e uma 3ª menor (3) em cima."
       },
       {
         "q": "Ouça com atenção: qual é a qualidade deste acorde?",
@@ -687,7 +746,8 @@ const payload: LearnPayload = {
           "Maior",
           "Diminuto",
           "Aumentado"
-        ]
+        ],
+        "why": "A tríade menor inverte as terças (menor embaixo + maior em cima), trazendo sonoridade mais introspectiva."
       },
       {
         "q": "As notas Mi–Sol–Dó formam o acorde de Dó maior em…",
@@ -696,7 +756,8 @@ const payload: LearnPayload = {
           "posição fundamental",
           "2ª inversão",
           "outra tonalidade"
-        ]
+        ],
+        "why": "Colocar a terça do acorde (Mi) no baixo gera a 1ª inversão (C/E)."
       },
       {
         "q": "Toque o acorde de Lá menor (Lá, Dó, Mi) — em qualquer oitava ou inversão.",
@@ -704,7 +765,8 @@ const payload: LearnPayload = {
           9,
           0,
           4
-        ]
+        ],
+        "why": "Lá menor reúne fundamental Lá, 3ª menor Dó e 5ª justa Mi."
       },
       {
         "q": "Toque o acorde de Fá maior (Fá, Lá, Dó).",
@@ -712,7 +774,8 @@ const payload: LearnPayload = {
           5,
           9,
           0
-        ]
+        ],
+        "why": "Fá maior usa apenas teclas brancas: Fá, Lá e Dó."
       }
     ],
     "ch7": [
@@ -723,7 +786,8 @@ const payload: LearnPayload = {
           "Dó Mi Sol Si (C E G B)",
           "Dó Mi♭ Sol Si♭ (C E♭ G B♭)",
           "Dó Mi♭ Sol♭ Lá (C E♭ G♭ A)"
-        ]
+        ],
+        "why": "A cifra C7 significa sétima da dominante: tríade maior Dó–Mi–Sol com sétima menor Si♭."
       },
       {
         "q": "Ouça com atenção: qual acorde com sétima está soando?",
@@ -733,7 +797,8 @@ const payload: LearnPayload = {
           "Sétima dominante (7)",
           "Sétima menor (m7)",
           "Sétima diminuta (dim7)"
-        ]
+        ],
+        "why": "O acorde maj7 soma uma 7ª maior (11 semitons) à tríade maior, produzindo um som suave e luminoso."
       },
       {
         "q": "Bm7♭5 (Si meio-diminuto) é o acorde sobre qual grau de Dó maior?",
@@ -742,7 +807,8 @@ const payload: LearnPayload = {
           "ii",
           "V",
           "iii"
-        ]
+        ],
+        "why": "Empilhando as terças da escala de Dó maior a partir do 7º grau Si surge Si–Ré–Fá–Lá (meio-diminuto viiø7)."
       },
       {
         "q": "A cifra C/E significa…",
@@ -751,7 +817,8 @@ const payload: LearnPayload = {
           "tocar Dó e depois Mi",
           "acorde de Dó ou Mi maior",
           "acorde de Dó menor"
-        ]
+        ],
+        "why": "Na cifra com barra X/Y, à esquerda fica o acorde e à direita a nota mais grave (baixo)."
       },
       {
         "q": "O acorde Csus4 substitui a terça por…",
@@ -760,7 +827,8 @@ const payload: LearnPayload = {
           "a segunda (Ré / D)",
           "a sexta (Lá / A)",
           "a sétima (Si♭ / B♭)"
-        ]
+        ],
+        "why": "“Sus4” troca a terça pela quarta (Fá em Dó), criando uma suspensão aberta sem definição maior/menor."
       },
       {
         "q": "Toque G7: Sol, Si, Ré e Fá (G, B, D, F).",
@@ -769,7 +837,8 @@ const payload: LearnPayload = {
           11,
           2,
           5
-        ]
+        ],
+        "why": "G7 é a dominante com sétima de Dó: Sol (fundamental), Si (3ª maior), Ré (5ª) e Fá (7ª menor)."
       }
     ],
     "pr": [
@@ -780,7 +849,8 @@ const payload: LearnPayload = {
           "Fá maior (F)",
           "Lá menor (Am)",
           "Mi menor (Em)"
-        ]
+        ],
+        "why": "Cinco graus acima de Dó está Sol — o acorde de V grau em Dó maior é Sol maior."
       },
       {
         "q": "Quais acordes são menores em uma tonalidade maior?",
@@ -789,7 +859,8 @@ const payload: LearnPayload = {
           "I, IV, V",
           "ii, V, vii°",
           "iii, IV, vi"
-        ]
+        ],
+        "why": "No tom maior, I, IV e V são maiores, vii° é diminuto e os graus ii, iii e vi são menores."
       },
       {
         "q": "Quantos compassos tem uma forma padrão de blues?",
@@ -798,7 +869,8 @@ const payload: LearnPayload = {
           "8",
           "16",
           "4"
-        ]
+        ],
+        "why": "O blues clássico tem 12 compassos organizados em três frases de 4 compassos."
       },
       {
         "q": "Em um blues de 12 compassos, o compasso 5 vai para…",
@@ -807,7 +879,8 @@ const payload: LearnPayload = {
           "V",
           "I",
           "vi"
-        ]
+        ],
+        "why": "Após quatro compassos na tônica (I), o compasso 5 vai para a subdominante (IV)."
       },
       {
         "q": "Toque o acorde IV em Dó: Fá, Lá e Dó (F, A, C).",
@@ -815,7 +888,8 @@ const payload: LearnPayload = {
           5,
           9,
           0
-        ]
+        ],
+        "why": "O 4º grau de Dó maior é Fá; logo a tríade IV é Fá–Lá–Dó."
       }
     ],
     "cad": [
@@ -826,7 +900,8 @@ const payload: LearnPayload = {
           "plagal",
           "meia-cadência",
           "de engano (interrompida)"
-        ]
+        ],
+        "why": "Ir da dominante V para a tônica I em estado fundamental resolve toda a tensão com conclusão total."
       },
       {
         "q": "Uma frase que repousa sobre o acorde V é uma…",
@@ -835,7 +910,8 @@ const payload: LearnPayload = {
           "cadência perfeita",
           "cadência plagal",
           "cadência de engano"
-        ]
+        ],
+        "why": "Terminar a frase no V grau deixa a música suspensa como uma vírgula pedindo continuação."
       },
       {
         "q": "Ouça com atenção: qual cadência está soando?",
@@ -845,7 +921,8 @@ const payload: LearnPayload = {
           "Perfeita (V → I)",
           "Plagal (IV → I)",
           "Meia-cadência (I → V)"
-        ]
+        ],
+        "why": "A cadência de engano prepara o retorno para I após V, mas surpreende ao cair no VI grau."
       },
       {
         "q": "A clássica cadência do “Amém” corresponde a…",
@@ -854,7 +931,8 @@ const payload: LearnPayload = {
           "V → I",
           "I → V",
           "V → vi"
-        ]
+        ],
+        "why": "A cadência plagal IV → I evita a tensão da dominante, gerando o encerramento sereno do tradicional “Amém”."
       }
     ],
     "minorh": [
@@ -865,7 +943,8 @@ const payload: LearnPayload = {
           "a elevação do 6º grau",
           "o rebaixamento da terça",
           "uma modulação tonal"
-        ]
+        ],
+        "why": "Sem alteração o V grau seria Mi menor; elevar Sol para Sol♯ transforma o V em Mi maior puxando para Lá menor."
       },
       {
         "q": "Em Lá menor, a progressão i – iv – V – i é…",
@@ -874,7 +953,8 @@ const payload: LearnPayload = {
           "Am – D – Em – Am",
           "A – D – E – A",
           "Am – F – G – Am"
-        ]
+        ],
+        "why": "Em Lá menor, i é Am, iv é Dm e V usa o Sol♯ sensível para formar Mi maior (E)."
       },
       {
         "q": "Nos algarismos romanos em modo menor, letras minúsculas indicam…",
@@ -883,7 +963,8 @@ const payload: LearnPayload = {
           "acorde tocado suavemente",
           "uma inversão",
           "acorde com sétima"
-        ]
+        ],
+        "why": "Na análise por algarismos romanos, maiúsculas indicam acordes maiores e minúsculas indicam menores ou diminutos."
       },
       {
         "q": "Toque Mi maior — o V de Lá menor (Mi, Sol♯, Si / E, G♯, B).",
@@ -891,7 +972,8 @@ const payload: LearnPayload = {
           4,
           8,
           11
-        ]
+        ],
+        "why": "Mi–Sol♯–Si fornece a sensível Sol♯, que resolve um semitom acima em Lá."
       }
     ],
     "nct": [
@@ -902,7 +984,8 @@ const payload: LearnPayload = {
           "por salto afastando-se do acorde",
           "sustentando a mesma nota",
           "apenas na voz do baixo"
-        ]
+        ],
+        "why": "A nota de passagem liga duas notas do acorde por grau conjunto na mesma direção."
       },
       {
         "q": "Uma bordadura (nota vizinha)…",
@@ -911,7 +994,8 @@ const payload: LearnPayload = {
           "salta uma oitava inteira",
           "é sempre nota do acorde",
           "equivale a uma pausa"
-        ]
+        ],
+        "why": "A bordadura sai de uma nota do acorde por grau conjunto e retorna logo em seguida à mesma nota."
       },
       {
         "q": "Um retardo resolve normalmente…",
@@ -920,7 +1004,8 @@ const payload: LearnPayload = {
           "subindo por salto",
           "nunca resolve",
           "na nota do baixo"
-        ]
+        ],
+        "why": "A suspensão sustenta uma nota do acorde anterior sobre o novo acorde e depois resolve descendo um grau."
       },
       {
         "q": "Uma apogiatura é…",
@@ -929,7 +1014,8 @@ const payload: LearnPayload = {
           "uma nota suave do acorde",
           "um tipo de pausa musical",
           "uma nota repetida"
-        ]
+        ],
+        "why": "Ao contrário da suspensão, a apojatura chega por salto em tempo forte e resolve por grau conjunto."
       }
     ],
     "secdom": [
@@ -940,7 +1026,8 @@ const payload: LearnPayload = {
           "Sol maior (G)",
           "Lá menor (Am)",
           "Fá maior (F)"
-        ]
+        ],
+        "why": "Em Dó maior, V é Sol; uma quinta acima de Sol está Ré, portanto V/V é Ré maior (ou D7)."
       },
       {
         "q": "Uma dominante secundária é…",
@@ -949,7 +1036,8 @@ const payload: LearnPayload = {
           "qualquer acorde menor",
           "o segundo acorde de uma peça",
           "um acorde sem terça"
-        ]
+        ],
+        "why": "Tomar emprestada a dominante de outro acorde diatônico cria uma pequena atração momentânea para ele."
       },
       {
         "q": "De Dó maior para Sol maior: a nova tonalidade é a…",
@@ -958,7 +1046,8 @@ const payload: LearnPayload = {
           "relativa menor",
           "tonalidade da subdominante",
           "homônima menor"
-        ]
+        ],
+        "why": "Como Sol é o 5º grau de Dó, modular de Dó para Sol vai para a tonalidade da dominante."
       },
       {
         "q": "Uma boa condução de vozes prioriza…",
@@ -967,7 +1056,8 @@ const payload: LearnPayload = {
           "todas as vozes saltando simultaneamente",
           "quintas paralelas consecutivas",
           "dobrar a sensível"
-        ]
+        ],
+        "why": "Manter notas comuns e mover as demais vozes por passos curtos conecta os acordes com fluidez."
       },
       {
         "q": "Toque A7: V/ii em Dó (Lá, Dó♯, Mi, Sol / A, C♯, E, G).",
@@ -976,7 +1066,8 @@ const payload: LearnPayload = {
           1,
           4,
           7
-        ]
+        ],
+        "why": "O II grau de Dó é Ré menor; uma quinta acima de Ré está Lá, logo Lá–Dó♯–Mi–Sol (A7) é V⁷/ii."
       }
     ],
     "form": [
@@ -987,7 +1078,8 @@ const payload: LearnPayload = {
           "cadência",
           "coda",
           "compasso"
-        ]
+        ],
+        "why": "Um motivo é a menor célula melódica ou rítmica reconhecível usada para construir frases."
       },
       {
         "q": "A–B–A–C–A corresponde à forma…",
@@ -996,7 +1088,8 @@ const payload: LearnPayload = {
           "forma binária",
           "forma ternária",
           "um período"
-        ]
+        ],
+        "why": "Na forma rondó, um refrão principal (A) retorna continuamente entre seções contrastantes (B, C…)."
       },
       {
         "q": "Um período musical é formado por…",
@@ -1005,7 +1098,8 @@ const payload: LearnPayload = {
           "um único compasso",
           "uma sonata completa",
           "uma barra de repetição"
-        ]
+        ],
+        "why": "Um período clássico combina uma frase antecedente aberta (pergunta) com uma consequente conclusiva (resposta)."
       },
       {
         "q": "A frase antecedente conclui normalmente com uma…",
@@ -1014,7 +1108,8 @@ const payload: LearnPayload = {
           "cadência perfeita",
           "modulação",
           "fermata"
-        ]
+        ],
+        "why": "A meia cadência em V mantém o antecedente aberto para que o consequente traga a conclusão em I."
       }
     ],
     "accomp": [
@@ -1025,7 +1120,8 @@ const payload: LearnPayload = {
           "grave – média – aguda",
           "todas juntas em bloco",
           "aguda – grave"
-        ]
+        ],
+        "why": "O baixo de Alberti quebra o acorde num padrão regular: grave – agudo – médio – agudo (1–5–3–5)."
       },
       {
         "q": "Ouça com atenção: qual padrão de acompanhamento está soando?",
@@ -1035,7 +1131,8 @@ const payload: LearnPayload = {
           "Alberti",
           "Acordes em bloco",
           "Arpejo de balada"
-        ]
+        ],
+        "why": "Na valsa (3/4), o tempo 1 traz o baixo grave seguido de dois acordes leves nos tempos 2 e 3."
       },
       {
         "q": "Uma lead sheet (partitura guia) traz…",
@@ -1044,7 +1141,8 @@ const payload: LearnPayload = {
           "cada nota escrita para ambas as mãos",
           "apenas a letra da canção",
           "somente a fórmula de compasso"
-        ]
+        ],
+        "why": "Um lead sheet traz apenas a melodia escrita com as cifras dos acordes acima para o músico acompanhar."
       },
       {
         "q": "Na lead sheet, a mão esquerda normalmente toca…",
@@ -1053,7 +1151,8 @@ const payload: LearnPayload = {
           "a melodia principal",
           "nada",
           "notas aleatórias"
-        ]
+        ],
+        "why": "Enquanto a mão direita toca a melodia, a esquerda lê a cifra para apoiar o baixo ou criar um padrão rítmico."
       }
     ]
   },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildPracticeReport,
+  computeStudioMilestones,
   csvSafeCell,
   formatPracticeReportCsv,
 } from '../../src/domain/progress-report.ts';
@@ -139,5 +140,64 @@ describe('practice report domain helpers', () => {
     expect(csv).toContain('Summary');
     expect(csv).toContain('Topics');
     expect(csv).toContain('Pieces');
+  });
+
+  it('computes sequential Studio & ABRSM Prep and Grade 1-5 milestones without skipping unmet levels', () => {
+    const empty = computeStudioMilestones({ mastered: 0, bookLevel: 1, piecesRead: 0, learnedPieces: 0, lessonsDone: 0 });
+    expect(empty.highestId).toBeNull();
+    expect(empty.nextId).toBe('prep');
+    expect(empty.completedCount).toBe(0);
+    expect(empty.milestones).toHaveLength(6);
+    expect(empty.milestones[0]?.next).toBe(true);
+
+    // Grade 2 metrics without Grade 1 bookLevel (bookLevel: 1) stops monotonically after Prep.
+    const gated = computeStudioMilestones({ mastered: 25, bookLevel: 1, piecesRead: 12, learnedPieces: 3, lessonsDone: 10 });
+    expect(gated.highestId).toBe('prep');
+    expect(gated.nextId).toBe('g1');
+    expect(gated.completedCount).toBe(1);
+    expect(gated.milestones.find((m) => m.id === 'g1')?.next).toBe(true);
+    expect(gated.milestones.find((m) => m.id === 'g2')?.done).toBe(false);
+
+    const g3 = computeStudioMilestones({ mastered: 28, bookLevel: 3, piecesRead: 20, learnedPieces: 4, lessonsDone: 12 });
+    expect(g3.highestId).toBe('g3');
+    expect(g3.nextId).toBe('g4');
+    expect(g3.completedCount).toBe(4);
+
+    const g5 = computeStudioMilestones({ mastered: 50, bookLevel: 5, piecesRead: 42, learnedPieces: 9, lessonsDone: 22 });
+    expect(g5.highestId).toBe('g5');
+    expect(g5.nextId).toBeNull();
+    expect(g5.completedCount).toBe(6);
+    expect(g5.milestones.every((m) => m.done && !m.next)).toBe(true);
+  });
+
+  it('includes Standing row in CSV when standingLabel and standingValue are provided', () => {
+    const report = buildPracticeReport({
+      today: 20000,
+      totalReviews: 12,
+      totalCorrect: 10,
+      streak: 3,
+      bestStreak: 5,
+      mastered: 12,
+      totalItems: 60,
+      srs: {},
+      history: { '20000': 5 },
+      items: [{ id: 'iv:4', cat: 'interval' }],
+      categories: ['interval'],
+      catLabel: () => 'Intervals',
+      itemLabel: () => 'Major 3rd',
+      reading: { bookLevel: 2, bookDone: 5, bookTotal: 16, piecesRead: 6, drillAnswers: 10, drillCorrect: 9, stars: 6 },
+      pieces: [],
+      lessonsDone: 5,
+    });
+    expect(report.milestones.highestId).toBe('g1');
+
+    const csv = formatPracticeReportCsv(report, {
+      ...LABELS,
+      period7d: 'Last 7 days',
+      period30d: 'Last 30 days',
+      standingLabel: 'Studio & ABRSM milestones',
+      standingValue: 'Grade 1',
+    });
+    expect(csv).toContain('Studio & ABRSM milestones,Grade 1');
   });
 });

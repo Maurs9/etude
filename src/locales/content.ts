@@ -900,7 +900,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "F",
             "D",
             "B"
-          ]
+          ],
+          "why": "The pattern of 2 then 3 black keys repeats every octave, with C (Do) always just left of the 2 black keys."
         },
         "ro": {
           "q": "Ce clapă albă stă imediat la stânga grupului de două clape negre?",
@@ -909,7 +910,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fa",
             "Re",
             "Si"
-          ]
+          ],
+          "why": "Gruparea de 2 și 3 clape negre se repetă la fiecare octavă, iar Do stă mereu imediat la stânga grupului de două."
         },
         "es": {
           "q": "¿Qué tecla blanca está situada inmediatamente a la izquierda del grupo de dos teclas negras?",
@@ -918,7 +920,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fa (F)",
             "Re (D)",
             "Si (B)"
-          ]
+          ],
+          "why": "El patrón de 2 y 3 teclas negras se repite en cada octava, con Do (C) siempre a la izquierda del grupo de dos."
         },
         "fr": {
           "q": "Quelle touche blanche se situe juste à gauche du groupe de deux touches noires ?",
@@ -927,7 +930,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fa (F)",
             "Ré (D)",
             "Si (B)"
-          ]
+          ],
+          "why": "Le motif de 2 puis 3 touches noires se répète à chaque octave, avec Do (C) juste à gauche des deux touches noires."
         },
         "de": {
           "q": "Welche weiße Taste liegt unmittelbar links neben der Zweiergruppe schwarzer Tasten?",
@@ -936,7 +940,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "F",
             "D",
             "H"
-          ]
+          ],
+          "why": "Das Muster aus 2 und 3 schwarzen Tasten wiederholt sich jede Oktave; C liegt immer links neben der Zweiergruppe."
         },
         "it": {
           "q": "Quale tasto bianco si trova subito a sinistra del gruppo di due tasti neri?",
@@ -945,7 +950,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "F",
             "D",
             "B"
-          ]
+          ],
+          "why": "Lo schema di 2 e 3 tasti neri si ripete ogni ottava, con Do (C) sempre subito a sinistra dei due tasti neri."
         },
         "pt-BR": {
           "q": "Qual tecla branca fica imediatamente à esquerda do grupo de duas teclas pretas?",
@@ -954,9 +960,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fá (F)",
             "Ré (D)",
             "Si (B)"
-          ]
+          ],
+          "why": "O padrão de 2 e 3 teclas pretas repete-se a cada oitava, com Dó (C) sempre logo à esquerda das duas pretas."
         }
-      }
+      },
+      "why": [
+        "The pattern of 2 then 3 black keys repeats every octave, with C (Do) always just left of the 2 black keys.",
+        "Gruparea de 2 și 3 clape negre se repetă la fiecare octavă, iar Do stă mereu imediat la stânga grupului de două."
+      ]
     },
     {
       "q": [
@@ -977,7 +988,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "7",
             "10"
-          ]
+          ],
+          "why": "An octave spans 7 white keys plus 5 black keys — 12 chromatic semitones in total."
         },
         "ro": {
           "q": "Câte semitonuri are o octavă?",
@@ -986,7 +998,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "7",
             "10"
-          ]
+          ],
+          "why": "O octavă cuprinde 7 clape albe și 5 clape negre — 12 semitonuri cromatice în total."
         },
         "es": {
           "q": "¿Cuántos semitonos hay en una octava?",
@@ -995,7 +1008,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "7",
             "10"
-          ]
+          ],
+          "why": "Una octava abarca 7 teclas blancas más 5 teclas negras: 12 semitonos cromáticos en total."
         },
         "fr": {
           "q": "Combien de demi-tons compte une octave ?",
@@ -1004,7 +1018,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "7",
             "10"
-          ]
+          ],
+          "why": "Une octave réunit 7 touches blanches et 5 touches noires, soit 12 demi-tons chromatiques au total."
         },
         "de": {
           "q": "Wie viele Halbtöne umfasst eine Oktave?",
@@ -1013,7 +1028,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "7",
             "10"
-          ]
+          ],
+          "why": "Eine Oktave umfasst 7 weiße und 5 schwarze Tasten — insgesamt 12 chromatische Halbtöne."
         },
         "it": {
           "q": "Quanti semitoni comprende un'ottava?",
@@ -1022,7 +1038,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "7",
             "10"
-          ]
+          ],
+          "why": "Un’ottava comprende 7 tasti bianchi e 5 tasti neri: 12 semitoni cromatici in totale."
         },
         "pt-BR": {
           "q": "Quantos semitons há em uma oitava?",
@@ -1031,9 +1048,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "7",
             "10"
-          ]
+          ],
+          "why": "Uma oitava abrange 7 teclas brancas mais 5 teclas pretas — 12 semitons cromáticos no total."
         }
-      }
+      },
+      "why": [
+        "An octave spans 7 white keys plus 5 black keys — 12 chromatic semitones in total.",
+        "O octavă cuprinde 7 clape albe și 5 clape negre — 12 semitonuri cromatice în total."
+      ]
     },
     {
       "q": [
@@ -1066,7 +1088,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "C–D",
             "F–G",
             "A–B"
-          ]
+          ],
+          "why": "Only E–F and B–C have no black key between them, making both natural semitones."
         },
         "ro": {
           "q": "Care pereche e un semiton fără clapă neagră între ele?",
@@ -1075,7 +1098,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do–Re",
             "Fa–Sol",
             "La–Si"
-          ]
+          ],
+          "why": "Doar între Mi–Fa și Si–Do nu există clapă neagră, ambele formând semitonuri naturale."
         },
         "es": {
           "q": "¿Qué par es un semitono natural sin tecla negra intermedia?",
@@ -1084,7 +1108,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do–Re (C–D)",
             "Fa–Sol (F–G)",
             "La–Si (A–B)"
-          ]
+          ],
+          "why": "Solo Mi–Fa y Si–Do carecen de tecla negra intermedia; ambos pares son semitonos naturales."
         },
         "fr": {
           "q": "Quelle paire forme un demi-ton naturel sans touche noire entre elles ?",
@@ -1093,7 +1118,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do–Ré (C–D)",
             "Fa–Sol (F–G)",
             "La–Si (A–B)"
-          ]
+          ],
+          "why": "Seules les paires Mi–Fa et Si–Do n’ont pas de touche noire entre elles : ce sont deux demi-tons naturels."
         },
         "de": {
           "q": "Welches Tastenpaar bildet einen natürlichen Halbtonschritt ohne schwarze Taste dazwischen?",
@@ -1102,7 +1128,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "C–D",
             "F–G",
             "A–H"
-          ]
+          ],
+          "why": "Nur zwischen E–F und H–C fehlt eine schwarze Taste — beide Paare sind natürliche Halbtonschritte."
         },
         "it": {
           "q": "Quale coppia di tasti forma un semitono naturale senza alcun tasto nero intermedio?",
@@ -1111,7 +1138,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "C–D",
             "F–G",
             "A–B"
-          ]
+          ],
+          "why": "Solo Mi–Fa e Si–Do non hanno tasti neri in mezzo: entrambi sono semitoni naturali."
         },
         "pt-BR": {
           "q": "Qual par forma um semitom natural sem tecla preta intermediária?",
@@ -1120,9 +1148,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Dó–Ré (C–D)",
             "Fá–Sol (F–G)",
             "Lá–Si (A–B)"
-          ]
+          ],
+          "why": "Apenas Mi–Fá e Si–Dó não têm tecla preta no meio, formando dois semitons naturais."
         }
-      }
+      },
+      "why": [
+        "Only E–F and B–C have no black key between them, making both natural semitones.",
+        "Doar între Mi–Fa și Si–Do nu există clapă neagră, ambele formând semitonuri naturale."
+      ]
     },
     {
       "q": [
@@ -1138,28 +1171,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play middle C (C4).",
-          "o": null
+          "o": null,
+          "why": "Middle C (C4, MIDI 60) sits near the center of the keyboard just left of the central two black keys."
         },
         "ro": {
           "q": "Cântă Do central (Do4).",
-          "o": null
+          "o": null,
+          "why": "Do central (Do4, MIDI 60) se află în centrul claviaturii, imediat la stânga grupului central de două clape negre."
         },
         "es": {
-          "q": "Toca el do central (C4)."
+          "q": "Toca el do central (C4).",
+          "why": "El Do central (Do4, MIDI 60) está cerca del centro del teclado, justo a la izquierda de las dos teclas negras centrales."
         },
         "fr": {
-          "q": "Jouez le do central (C4)."
+          "q": "Jouez le do central (C4).",
+          "why": "Le Do central (Do4, MIDI 60) se trouve au milieu du clavier, juste à gauche des deux touches noires centrales."
         },
         "de": {
-          "q": "Spiele das mittlere C (C4)."
+          "q": "Spiele das mittlere C (C4).",
+          "why": "Das eingestrichene c’ (C4, MIDI 60) liegt in der Mitte der Klaviatur direkt links der mittleren Zweiergruppe."
         },
         "it": {
-          "q": "Suona il do centrale (C4)."
+          "q": "Suona il do centrale (C4).",
+          "why": "Il Do centrale (Do4, MIDI 60) si trova al centro della tastiera, subito a sinistra dei due tasti neri centrali."
         },
         "pt-BR": {
-          "q": "Toque o dó central (C4)."
+          "q": "Toque o dó central (C4).",
+          "why": "O Dó central (Dó4, MIDI 60) fica no centro do teclado, logo à esquerda do grupo central de duas teclas pretas."
         }
-      }
+      },
+      "why": [
+        "Middle C (C4, MIDI 60) sits near the center of the keyboard just left of the central two black keys.",
+        "Do central (Do4, MIDI 60) se află în centrul claviaturii, imediat la stânga grupului central de două clape negre."
+      ]
     },
     {
       "q": [
@@ -1176,28 +1220,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play E then F — the natural semitone.",
-          "o": null
+          "o": null,
+          "why": "E sits right after the two black keys and F sits right before the three black keys, a single semitone apart."
         },
         "ro": {
           "q": "Cântă Mi apoi Fa — semitonul natural.",
-          "o": null
+          "o": null,
+          "why": "Mi stă imediat după cele două clape negre, iar Fa imediat înaintea celor trei clape negre, la un singur semiton."
         },
         "es": {
-          "q": "Toca Mi (E) y luego Fa (F): el semitono natural."
+          "q": "Toca Mi (E) y luego Fa (F): el semitono natural.",
+          "why": "Mi está justo después de las dos teclas negras y Fa justo antes de las tres, separados por un solo semitono."
         },
         "fr": {
-          "q": "Jouez mi puis fa — le demi-ton naturel."
+          "q": "Jouez mi puis fa — le demi-ton naturel.",
+          "why": "Mi se place juste après les deux touches noires et Fa juste avant les trois, séparés d’un seul demi-ton."
         },
         "de": {
-          "q": "Spiele E und danach F – den natürlichen Halbtonschritt."
+          "q": "Spiele E und danach F – den natürlichen Halbtonschritt.",
+          "why": "E liegt rechts der Zweiergruppe und F links der Dreiergruppe — genau einen Halbton auseinander."
         },
         "it": {
-          "q": "Suona E e poi F: il semitono naturale."
+          "q": "Suona E e poi F: il semitono naturale.",
+          "why": "Mi segue i due tasti neri e Fa precede i tre: tra loro c’è un solo semitono."
         },
         "pt-BR": {
-          "q": "Toque Mi (E) e depois Fá (F) — o semitom natural."
+          "q": "Toque Mi (E) e depois Fá (F) — o semitom natural.",
+          "why": "Mi fica logo após as duas teclas pretas e Fá logo antes das três, separados por um único semitom."
         }
-      }
+      },
+      "why": [
+        "E sits right after the two black keys and F sits right before the three black keys, a single semitone apart.",
+        "Mi stă imediat după cele două clape negre, iar Fa imediat înaintea celor trei clape negre, la un singur semiton."
+      ]
     }
   ],
   "how": [
@@ -1232,7 +1287,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "One long session a week",
             "Re-reading until it feels familiar",
             "Only listening"
-          ]
+          ],
+          "why": "Spaced review re-triggers recall just before forgetting, building durable memory with far less total time."
         },
         "ro": {
           "q": "Ce funcționează cel mai bine pentru memoria pe termen lung?",
@@ -1241,7 +1297,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "O sesiune lungă pe săptămână",
             "Recitirea până pare cunoscut",
             "Doar ascultarea"
-          ]
+          ],
+          "why": "Recapitularea spațiată declanșează reactualizarea chiar înainte de uitare, fixând memoria pe termen lung în mai puțin timp."
         },
         "es": {
           "q": "¿Qué método funciona mejor para fijar la memoria a largo plazo?",
@@ -1250,7 +1307,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Una sesión larga una vez por semana",
             "Releer hasta que el tema parezca familiar",
             "Solo escuchar pasivamente"
-          ]
+          ],
+          "why": "El repaso espaciado activa el recuerdo justo antes de olvidar, consolidando la memoria con menor esfuerzo total."
         },
         "fr": {
           "q": "Quelle méthode est la plus efficace pour la mémorisation à long terme ?",
@@ -1259,7 +1317,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Une seule longue séance par semaine",
             "Relire jusqu’à ce que cela semble familier",
             "Écouter seulement sans pratiquer"
-          ]
+          ],
+          "why": "La révision espacée réactive le rappel juste avant l’oubli, ancrant durablement les notions en peu de temps."
         },
         "de": {
           "q": "Was fördert das langfristige Behalten am meisten?",
@@ -1268,7 +1327,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Eine einzige lange Lerneinheit pro Woche",
             "Wiederholtes Durchlesen, bis es vertraut wirkt",
             "Reines passives Zuhören"
-          ]
+          ],
+          "why": "Verteiltes Üben fordert den Abruf kurz vor dem Vergessen und verankert Wissen dauerhaft bei geringerem Zeitaufwand."
         },
         "it": {
           "q": "Cosa favorisce maggiormente la memorizzazione duratura?",
@@ -1277,7 +1337,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Una singola lunga sessione settimanale",
             "Rileggere passivamente finché non sembra familiare",
             "Il solo ascolto passivo"
-          ]
+          ],
+          "why": "Il ripasso spaziato stimola il richiamo prima dell’oblio, costruendo memoria duratura in meno tempo complessivo."
         },
         "pt-BR": {
           "q": "O que funciona melhor para a retenção na memória de longo prazo?",
@@ -1286,9 +1347,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Uma única sessão longa por semana",
             "Reler o material até parecer familiar",
             "Apenas ouvir sem praticar"
-          ]
+          ],
+          "why": "A revisão espaçada reativa a lembrança pouco antes do esquecimento, criando memória duradoura em menos tempo."
         }
-      }
+      },
+      "why": [
+        "Spaced review re-triggers recall just before forgetting, building durable memory with far less total time.",
+        "Recapitularea spațiată declanșează reactualizarea chiar înainte de uitare, fixând memoria pe termen lung în mai puțin timp."
+      ]
     },
     {
       "q": [
@@ -1321,7 +1387,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "It is faster",
             "It avoids mistakes",
             "It has no effect"
-          ]
+          ],
+          "why": "Switching between topics forces your brain to diagnose each question rather than coasting on one habit."
         },
         "ro": {
           "q": "De ce amesteci tipuri diferite de exerciții într-o sesiune?",
@@ -1330,7 +1397,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "E mai rapid",
             "Evită greșelile",
             "Nu are niciun efect"
-          ]
+          ],
+          "why": "Alternarea subiectelor obligă creierul să identifice fiecare problemă în loc să răspundă mecanic din inerție."
         },
         "es": {
           "q": "¿Por qué conviene alternar diferentes tipos de ejercicios en una sesión?",
@@ -1339,7 +1407,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Es un método más rápido",
             "Evita cualquier error",
             "No produce ningún efecto"
-          ]
+          ],
+          "why": "Alternar temas obliga al cerebro a identificar cada problema en lugar de responder por inercia."
         },
         "fr": {
           "q": "Pourquoi mélanger différents types d’exercices au sein d’une même séance ?",
@@ -1348,7 +1417,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "C’est plus rapide",
             "Cela évite de faire des erreurs",
             "Cela n’a aucun effet"
-          ]
+          ],
+          "why": "Mélanger les sujets oblige le cerveau à reconnaître chaque cas au lieu d’appliquer mécaniquement la même règle."
         },
         "de": {
           "q": "Warum lohnt es sich, verschiedene Übungstypen in einer Einheit zu mischen?",
@@ -1357,7 +1427,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Es spart Zeit",
             "Fehler werden vollständig vermieden",
             "Es hat keinen nachweisbaren Einfluss"
-          ]
+          ],
+          "why": "Abwechslung zwingt das Gehirn, jede Aufgabe neu zu erkennen statt automatisch das eben Geübte zu wiederholen."
         },
         "it": {
           "q": "Perché è utile alternare diversi tipi di esercizio in una stessa sessione?",
@@ -1366,7 +1437,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fa solo risparmiare tempo",
             "Evita qualsiasi tipo di errore",
             "Non ha alcun effetto comprovato"
-          ]
+          ],
+          "why": "Alternare gli argomenti costringe a riconoscere ogni caso invece di ripetere meccanicamente la stessa risposta."
         },
         "pt-BR": {
           "q": "Por que misturar diferentes tipos de exercícios em uma mesma sessão?",
@@ -1375,9 +1447,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "É um método mais rápido",
             "Evita cometer qualquer erro",
             "Não produz nenhum efeito"
-          ]
+          ],
+          "why": "Alternar tópicos obriga o cérebro a identificar cada problema em vez de repetir mecanicamente o hábito anterior."
         }
-      }
+      },
+      "why": [
+        "Switching between topics forces your brain to diagnose each question rather than coasting on one habit.",
+        "Alternarea subiectelor obligă creierul să identifice fiecare problemă în loc să răspundă mecanic din inerție."
+      ]
     },
     {
       "q": [
@@ -1410,7 +1487,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a waste of time",
             "harmful to memory",
             "only for beginners"
-          ]
+          ],
+          "why": "Attempting retrieval and immediately hearing the correction rewires predictions faster than passive review."
         },
         "ro": {
           "q": "Să greșești un răspuns, apoi să vezi corectura, e…",
@@ -1419,7 +1497,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "timp pierdut",
             "dăunător memoriei",
             "doar pentru începători"
-          ]
+          ],
+          "why": "Încercarea de reamintire urmată imediat de corecție recalibrează mai rapid decât lectura pasivă."
         },
         "es": {
           "q": "Fallar una respuesta y comprobar inmediatamente la corrección es…",
@@ -1428,7 +1507,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "una pérdida de tiempo",
             "perjudicial para la memoria",
             "útil solo para principiantes"
-          ]
+          ],
+          "why": "Intentar recordar y escuchar enseguida la corrección corrige el mapa auditivo mucho más rápido que leer sin probar."
         },
         "fr": {
           "q": "Donner une mauvaise réponse puis voir immédiatement la correction est…",
@@ -1437,7 +1517,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "une perte de temps",
             "néfaste pour la mémoire",
             "bon uniquement pour les débutants"
-          ]
+          ],
+          "why": "Tenter un rappel puis entendre aussitôt la correction ajuste l’oreille bien plus vite qu’une simple relecture."
         },
         "de": {
           "q": "Ein Fehler beim Beantworten mit anschließender Korrektur ist …",
@@ -1446,7 +1527,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "reine Zeitverschwendung",
             "schädlich für das Gedächtnis",
             "nur für Anfänger geeignet"
-          ]
+          ],
+          "why": "Aktives Abrufen mit sofortiger Korrektur stärkt das Gehör und Gedächtnis deutlich mehr als passives Nachlesen."
         },
         "it": {
           "q": "Commettere un errore durante il richiamo attivo seguito da immediata correzione è…",
@@ -1455,7 +1537,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "una perdita di tempo",
             "dannoso per la memoria",
             "utile solo per i principianti"
-          ]
+          ],
+          "why": "Provare a rispondere e ricevere subito la correzione affina orecchio e memoria molto più della lettura passiva."
         },
         "pt-BR": {
           "q": "Errar uma resposta e ver a correção logo em seguida é…",
@@ -1464,9 +1547,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "perda de tempo",
             "prejudicial à memória",
             "útil apenas para iniciantes"
-          ]
+          ],
+          "why": "Tentar lembrar e ouvir imediatamente a correção ajusta o ouvido e a memória muito mais rápido que ler passivamente."
         }
-      }
+      },
+      "why": [
+        "Attempting retrieval and immediately hearing the correction rewires predictions faster than passive review.",
+        "Încercarea de reamintire urmată imediat de corecție recalibrează mai rapid decât lectura pasivă."
+      ]
     }
   ],
   "notation": [
@@ -1701,7 +1789,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "lowers it a semitone",
             "cancels a flat only",
             "makes it louder"
-          ]
+          ],
+          "why": "A sharp (♯) raises the written pitch by 1 semitone; a flat (♭) lowers it by 1 semitone."
         },
         "ro": {
           "q": "Un diez (♯) pus înaintea unei note…",
@@ -1710,7 +1799,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "o coboară un semiton",
             "anulează doar un bemol",
             "o face mai tare"
-          ]
+          ],
+          "why": "Diezul (♯) urcă înălțimea notei cu un semiton; bemolul (♭) o coboară cu un semiton."
         },
         "es": {
           "q": "Un sostenido (♯) situado delante de una nota…",
@@ -1719,7 +1809,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la baja un semitono",
             "solo cancela un bemol",
             "hace que suene más fuerte"
-          ]
+          ],
+          "why": "El sostenido (♯) sube la nota escrita un semitono; el bemol (♭) la baja un semitono."
         },
         "fr": {
           "q": "Un dièse (♯) placé devant une note…",
@@ -1728,7 +1819,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la baisse d’un demi-ton",
             "annule seulement un bémol",
             "la rend plus forte"
-          ]
+          ],
+          "why": "Le dièse (♯) hausse la note écrite d’un demi-ton ; le bémol (♭) l’abaisse d’un demi-ton."
         },
         "de": {
           "q": "Ein Kreuz (♯) vor einer Note bewirkt Folgendes:",
@@ -1737,7 +1829,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Es erniedrigt den Ton um einen Halbtonschritt",
             "Es löst ausschließlich ein Be auf",
             "Es macht den Ton lauter"
-          ]
+          ],
+          "why": "Ein Kreuz (♯) erhöht den Stammton um einen Halbton; ein Be (♭) erniedrigt ihn um einen Halbton."
         },
         "it": {
           "q": "Un diesis (♯) posto davanti a una nota…",
@@ -1746,7 +1839,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "abbassa la nota di un semitono",
             "annulla solo i bemolli",
             "aumenta il volume della nota"
-          ]
+          ],
+          "why": "Il diesis (♯) alza la nota scritta di un semitono; il bemolle (♭) la abbassa di un semitono."
         },
         "pt-BR": {
           "q": "Um sustenido (♯) colocado antes de uma nota…",
@@ -1755,9 +1849,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "abaixa a nota em um semitom",
             "apenas anula um bemol",
             "aumenta o volume do som"
-          ]
+          ],
+          "why": "O sustenido (♯) sobe a nota escrita em um semitom; o bemol (♭) a desce em um semitom."
         }
-      }
+      },
+      "why": [
+        "A sharp (♯) raises the written pitch by 1 semitone; a flat (♭) lowers it by 1 semitone.",
+        "Diezul (♯) urcă înălțimea notei cu un semiton; bemolul (♭) o coboară cu un semiton."
+      ]
     },
     {
       "q": [
@@ -1790,7 +1889,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "One note only",
             "The whole piece",
             "Until the next line"
-          ]
+          ],
+          "why": "An accidental applies to that pitch in the same octave until the next barline or a natural sign cancels it."
         },
         "ro": {
           "q": "Cât ține o alterație accidentală?",
@@ -1799,7 +1899,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Doar o notă",
             "Toată piesa",
             "Până la rândul următor"
-          ]
+          ],
+          "why": "Alterația accidentală rămâne valabilă în aceeași octavă până la bara de măsură sau până la un becar (♮)."
         },
         "es": {
           "q": "¿Cuánto dura el efecto de una alteración accidental?",
@@ -1808,7 +1909,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Solo para esa nota",
             "Durante toda la obra",
             "Hasta la siguiente línea"
-          ]
+          ],
+          "why": "Una alteración accidental rige en esa octava hasta la barra de compás siguiente o hasta un becuadro (♮)."
         },
         "fr": {
           "q": "Combien de temps l’effet d’une altération accidentelle dure-t-il ?",
@@ -1817,7 +1919,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Pour cette seule note",
             "Pendant tout le morceau",
             "Jusqu’à la ligne suivante"
-          ]
+          ],
+          "why": "Une altération accidentelle reste valable dans la même octave jusqu’à la barre de mesure ou un bécarre (♮)."
         },
         "de": {
           "q": "Wie lange gilt ein Versetzungszeichen vor einer Note?",
@@ -1826,7 +1929,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Nur für diese einzelne Note",
             "Für das gesamte restliche Musikstück",
             "Bis zur nächsten Notenzeile"
-          ]
+          ],
+          "why": "Ein Versetzungszeichen gilt in derselben Oktave bis zum nächsten Taktstrich oder bis zu einem Auflösungszeichen (♮)."
         },
         "it": {
           "q": "Fino a quando rimane valida un'alterazione transitoria?",
@@ -1835,7 +1939,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Solo per la singola nota",
             "Per l'intero brano musicale",
             "Fino al rigo successivo"
-          ]
+          ],
+          "why": "Un’alterazione transitoria vale nella stessa ottava fino alla stanghetta di battuta o a un bequadro (♮)."
         },
         "pt-BR": {
           "q": "Até quando dura o efeito de um acidente ocorrente?",
@@ -1844,9 +1949,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Apenas para aquela nota",
             "Por toda a peça musical",
             "Até a linha seguinte"
-          ]
+          ],
+          "why": "Um acidente vale na mesma oitava até a barra de compasso seguinte ou até ser cancelado por um bequadro (♮)."
         }
-      }
+      },
+      "why": [
+        "An accidental applies to that pitch in the same octave until the next barline or a natural sign cancels it.",
+        "Alterația accidentală rămâne valabilă în aceeași octavă până la bara de măsură sau până la un becar (♮)."
+      ]
     },
     {
       "q": [
@@ -1862,28 +1972,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play the note on the treble-clef second line (G4).",
-          "o": null
+          "o": null,
+          "why": "The treble (G) clef curls around the second line from the bottom, fixing that line on G4."
         },
         "ro": {
           "q": "Cântă nota de pe linia a doua a cheii Sol (Sol4).",
-          "o": null
+          "o": null,
+          "why": "Cheia Sol se înfășoară în jurul liniei a doua de jos, fixând nota Sol4 pe acea linie."
         },
         "es": {
-          "q": "Toca la nota situada en la segunda línea de la clave de sol: Sol4 (G4)."
+          "q": "Toca la nota situada en la segunda línea de la clave de sol: Sol4 (G4).",
+          "why": "La clave de sol rodea la segunda línea desde abajo, fijando allí la nota Sol4 (G4)."
         },
         "fr": {
-          "q": "Jouez la note située sur la deuxième ligne de la clé de sol (Sol4 / G4)."
+          "q": "Jouez la note située sur la deuxième ligne de la clé de sol (Sol4 / G4).",
+          "why": "La clé de sol s’enroule autour de la deuxième ligne du bas et y fixe le Sol4 (G4)."
         },
         "de": {
-          "q": "Spiele den Ton auf der zweiten Linie im Violinschlüssel (G4)."
+          "q": "Spiele den Ton auf der zweiten Linie im Violinschlüssel (G4).",
+          "why": "Der Violinschlüssel (G-Schlüssel) umschließt die zweite Linie von unten und legt dort das g’ (G4) fest."
         },
         "it": {
-          "q": "Suona la nota sulla seconda linea in chiave di violino (Sol4)."
+          "q": "Suona la nota sulla seconda linea in chiave di violino (Sol4).",
+          "why": "La chiave di violino (di Sol) si avvolge sulla seconda linea dal basso fissandovi il Sol4 (G4)."
         },
         "pt-BR": {
-          "q": "Toque a nota situada na segunda linha da clave de sol: Sol4 (G4)."
+          "q": "Toque a nota situada na segunda linha da clave de sol: Sol4 (G4).",
+          "why": "A clave de sol envolve a segunda linha de baixo para cima, fixando ali o Sol4 (G4)."
         }
-      }
+      },
+      "why": [
+        "The treble (G) clef curls around the second line from the bottom, fixing that line on G4.",
+        "Cheia Sol se înfășoară în jurul liniei a doua de jos, fixând nota Sol4 pe acea linie."
+      ]
     }
   ],
   "symbols": [
@@ -1918,7 +2039,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Jump to the coda",
             "Repeat the last bar",
             "Play louder to the end"
-          ]
+          ],
+          "why": "D.C. (Da Capo) returns to the start of the piece, and “al Fine” tells you to stop where Fine is marked."
         },
         "ro": {
           "q": "Ce înseamnă D.C. al Fine?",
@@ -1927,7 +2049,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sari la coda",
             "Repetă ultima măsură",
             "Cântă mai tare până la final"
-          ]
+          ],
+          "why": "D.C. (Da Capo) trimite la începutul piesei, iar „al Fine” indică oprirea la cuvântul Fine."
         },
         "es": {
           "q": "¿Qué significa D.C. al Fine?",
@@ -1936,7 +2059,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Saltar directamente a la coda",
             "Repetir el último compás",
             "Tocar más fuerte hasta el final"
-          ]
+          ],
+          "why": "D.C. (Da Capo) vuelve al inicio de la obra y “al Fine” indica detenerse al llegar a Fine."
         },
         "fr": {
           "q": "Que signifie l’indication D.C. al Fine ?",
@@ -1945,7 +2069,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sauter directement à la coda",
             "Répéter la dernière mesure",
             "Jouer plus fort jusqu’au bout"
-          ]
+          ],
+          "why": "D.C. (Da Capo) renvoie au début du morceau et « al Fine » indique de s’arrêter à la mention Fine."
         },
         "de": {
           "q": "Was bedeutet die Spielanweisung D.C. al Fine?",
@@ -1954,7 +2079,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Direkt zur Coda springen",
             "Den letzten Takt wiederholen",
             "Bis zum Ende immer lauter spielen"
-          ]
+          ],
+          "why": "D.C. (Da Capo) springt zurück zum Anfang, und „al Fine“ beendet das Stück bei Fine."
         },
         "it": {
           "q": "Cosa indica l'abbreviazione «D.C.» (Da Capo)?",
@@ -1963,7 +2089,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terminare immediatamente il brano",
             "Saltare alla sezione Coda",
             "Suonare il doppio più veloce"
-          ]
+          ],
+          "why": "D.C. (Da Capo) riporta all’inizio del brano e “al Fine” indica di fermarsi alla scritta Fine."
         },
         "pt-BR": {
           "q": "O que significa a indicação D.C. al Fine?",
@@ -1972,9 +2099,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Saltar diretamente para a coda",
             "Repetir o último compasso",
             "Tocar mais forte até o final"
-          ]
+          ],
+          "why": "D.C. (Da Capo) volta ao início da peça e “al Fine” indica para parar onde está escrito Fine."
         }
-      }
+      },
+      "why": [
+        "D.C. (Da Capo) returns to the start of the piece, and “al Fine” tells you to stop where Fine is marked.",
+        "D.C. (Da Capo) trimite la începutul piesei, iar „al Fine” indică oprirea la cuvântul Fine."
+      ]
     },
     {
       "q": [
@@ -2007,7 +2139,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "slur",
             "crescendo",
             "fermata"
-          ]
+          ],
+          "why": "Unlike a phrase slur, a tie joins two adjacent notes of the same pitch into one combined duration."
         },
         "ro": {
           "q": "O linie curbă care leagă două note de aceeași înălțime este un…",
@@ -2016,7 +2149,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "legato de frazare",
             "crescendo",
             "coroană (fermata)"
-          ]
+          ],
+          "why": "Spre deosebire de legătura de expresie, legătura de prelungire unește două note de aceeași înălțime într-o singură durată."
         },
         "es": {
           "q": "Una línea curva que une dos notas de la misma altura es una…",
@@ -2025,7 +2159,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ligadura de expresión",
             "indicación de crescendo",
             "calderón"
-          ]
+          ],
+          "why": "A diferencia de la ligadura de expresión, la ligadura de prolongación suma las duraciones de dos notas de igual altura."
         },
         "fr": {
           "q": "Une ligne courbe reliant deux notes de même hauteur est une…",
@@ -2034,7 +2169,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "liaison de phrasé",
             "indication de crescendo",
             "point d’orgue (fermata)"
-          ]
+          ],
+          "why": "Contrairement à la liaison d’expression, la liaison de prolongation unit deux notes de même hauteur en une seule durée."
         },
         "de": {
           "q": "Eine gebogene Linie, die zwei Noten derselben Tonhöhe verbindet, heißt …",
@@ -2043,7 +2179,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Bindebogen (Legato)",
             "Crescendo-Gabel",
             "Fermate"
-          ]
+          ],
+          "why": "Anders als der Phrasierungsbogen verbindet der Haltebogen zwei gleiche Tonhöhen zu einem einzigen ausgehaltenen Ton."
         },
         "it": {
           "q": "Cosa prescrive un punto di staccato posto sopra o sotto una nota?",
@@ -2052,7 +2189,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Tenere la nota per l'intera durata",
             "Suonare con forza raddoppiata",
             "Aggiungere un semitono"
-          ]
+          ],
+          "why": "A differenza della legatura di portamento, la legatura di valore unisce due note uguali sommandone la durata."
         },
         "pt-BR": {
           "q": "Uma linha curva que une duas notas da mesma altura é uma…",
@@ -2061,9 +2199,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ligadura de expressão (fraseado)",
             "indicação de crescendo",
             "fermata"
-          ]
+          ],
+          "why": "Ao contrário da ligadura de expressão, a ligadura de valor soma as durações de duas notas da mesma altura."
         }
-      }
+      },
+      "why": [
+        "Unlike a phrase slur, a tie joins two adjacent notes of the same pitch into one combined duration.",
+        "Spre deosebire de legătura de expresie, legătura de prelungire unește două note de aceeași înălțime într-o singură durată."
+      ]
     },
     {
       "q": [
@@ -2096,7 +2239,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "held longer",
             "louder",
             "play an octave higher"
-          ]
+          ],
+          "why": "Staccato shortens the written note so a crisp silence separates it from the next note."
         },
         "ro": {
           "q": "Un punct deasupra notei (staccato) înseamnă…",
@@ -2105,7 +2249,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ținut mai mult",
             "mai tare",
             "cântă cu o octavă mai sus"
-          ]
+          ],
+          "why": "Staccato scurtează sunetul scris lăsând o mică pauză de detașare până la nota următoare."
         },
         "es": {
           "q": "Un punto sobre o bajo una nota (staccato) indica…",
@@ -2114,7 +2259,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "mantener la nota más tiempo",
             "tocar con mayor volumen",
             "tocar una octava más aguda"
-          ]
+          ],
+          "why": "El staccato acorta la nota escrita dejándola suelta y separada de la siguiente."
         },
         "fr": {
           "q": "Un point placé au-dessus d’une note (staccato) signifie…",
@@ -2123,7 +2269,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "tenue plus longtemps",
             "plus forte",
             "jouée une octave plus haut"
-          ]
+          ],
+          "why": "Le staccato raccourcit la note écrite pour la détacher nettement de la suivante."
         },
         "de": {
           "q": "Ein Punkt direkt über oder unter einem Notenkopf (Staccato) bedeutet:",
@@ -2132,7 +2279,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "den Ton länger aushalten",
             "den Ton lauter anschlagen",
             "eine Oktave höher spielen"
-          ]
+          ],
+          "why": "Staccato verkürzt den notierten Ton und trennt ihn kurz und abgestoßen vom nächsten."
         },
         "it": {
           "q": "Quale numero indica il pollice nella diteggiatura per pianoforte?",
@@ -2141,7 +2289,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "5",
             "3",
             "0"
-          ]
+          ],
+          "why": "Lo staccato abbrevia la nota scritta rendendola breve e ben separata dalla successiva."
         },
         "pt-BR": {
           "q": "Um ponto acima ou abaixo de uma nota (staccato) indica…",
@@ -2150,9 +2299,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sustentar a nota por mais tempo",
             "tocar com maior volume",
             "tocar uma oitava acima"
-          ]
+          ],
+          "why": "O staccato encurta a nota escrita para deixá-la curta e bem destacada da seguinte."
         }
-      }
+      },
+      "why": [
+        "Staccato shortens the written note so a crisp silence separates it from the next note.",
+        "Staccato scurtează sunetul scris lăsând o mică pauză de detașare până la nota următoare."
+      ]
     },
     {
       "q": [
@@ -2185,7 +2339,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a pause",
             "a repeat",
             "the finger to use"
-          ]
+          ],
+          "why": "“Ped.” depresses the right damper pedal to let strings ring together, and the asterisk (✱) marks the release."
         },
         "ro": {
           "q": "„Ped.” urmat de ✱ marchează…",
@@ -2194,7 +2349,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "o pauză",
             "o repetiție",
             "degetul folosit"
-          ]
+          ],
+          "why": "„Ped.” indică apăsarea pedalei drepte (de rezonanță), iar asteriscul (✱) arată ridicarea ei."
         },
         "es": {
           "q": "La indicación «Ped.» seguida de ✱ señala…",
@@ -2203,7 +2359,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "una pausa prolongada",
             "una barra de repetición",
             "el dedo con el que pulsar"
-          ]
+          ],
+          "why": "“Ped.” indica pisar el pedal de resonancia y el asterisco (✱) marca el momento de soltarlo."
         },
         "fr": {
           "q": "L’indication « Ped. » suivie de ✱ signale…",
@@ -2212,7 +2369,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "une pause prolongée",
             "une reprise",
             "le doigt à utiliser"
-          ]
+          ],
+          "why": "« Ped. » demande d’enfoncer la pédale forte et l’étoile (✱) indique le moment de la relâcher."
         },
         "de": {
           "q": "Die Bezeichnung „Ped.“ gefolgt von ✱ zeigt Folgendes an:",
@@ -2221,7 +2379,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "eine Pause einlegen",
             "eine Wiederholung beginnen",
             "den zu verwendenden Finger"
-          ]
+          ],
+          "why": "„Ped.“ bedeutet Haltepedal treten; der Stern (✱) zeigt genau, wann es wieder losgelassen wird."
         },
         "it": {
           "q": "Cosa indica il simbolo di corona (fermata 𝄐)?",
@@ -2230,7 +2389,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Riprendere il tempo originario",
             "Suonare pianissimo",
             "Cambiare tonalità"
-          ]
+          ],
+          "why": "“Ped.” indica di abbassare il pedale di risonanza e l’asterisco (✱) segnala il rilascio."
         },
         "pt-BR": {
           "q": "A indicação “Ped.” seguida de ✱ orienta…",
@@ -2239,9 +2399,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "fazer uma pausa prolongada",
             "uma repetição de trecho",
             "o dedo a ser utilizado"
-          ]
+          ],
+          "why": "“Ped.” indica pisar no pedal de sustentação e o asterisco (✱) marca o momento de soltá-lo."
         }
-      }
+      },
+      "why": [
+        "“Ped.” depresses the right damper pedal to let strings ring together, and the asterisk (✱) marks the release.",
+        "„Ped.” indică apăsarea pedalei drepte (de rezonanță), iar asteriscul (✱) arată ridicarea ei."
+      ]
     },
     {
       "q": [
@@ -2274,7 +2439,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "index",
             "little finger",
             "middle finger"
-          ]
+          ],
+          "why": "In standard piano fingering for both hands, numbers count outward from 1 (thumb) to 5 (little finger)."
         },
         "ro": {
           "q": "Degetul 1 este…",
@@ -2283,7 +2449,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "arătătorul",
             "degetul mic",
             "degetul mijlociu"
-          ]
+          ],
+          "why": "În digitația standard la ambele mâini, degetele se numerotează de la 1 (degetul mare) spre 5 (degetul mic)."
         },
         "es": {
           "q": "El dedo número 1 corresponde al…",
@@ -2292,7 +2459,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "índice",
             "meñique",
             "corazón"
-          ]
+          ],
+          "why": "En la digitación pianística de ambas manos, los números van del 1 (pulgar) al 5 (meñique)."
         },
         "fr": {
           "q": "Le doigt numéro 1 désigne le…",
@@ -2301,7 +2469,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "index",
             "auriculaire",
             "majeur"
-          ]
+          ],
+          "why": "Dans le doigté pianistique des deux mains, on numérote du pouce (1) jusqu’à l’auriculaire (5)."
         },
         "de": {
           "q": "Die Fingerbezeichnung 1 steht für den …",
@@ -2310,7 +2479,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Zeigefinger",
             "kleinen Finger",
             "Mittelfinger"
-          ]
+          ],
+          "why": "Beim Klavierfingersatz zählen beide Hände von innen nach außen: 1 ist der Daumen, 5 der kleine Finger."
         },
         "it": {
           "q": "Come si distingue una legatura di valore da una di portamento?",
@@ -2319,7 +2489,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La legatura di valore riguarda sempre note diverse",
             "Non c'è alcuna differenza",
             "La legatura di valore si usa solo nei brani vocali"
-          ]
+          ],
+          "why": "Nella diteggiatura pianistica per entrambe le mani si numera dall’interno all’esterno: 1 è il pollice, 5 il mignolo."
         },
         "pt-BR": {
           "q": "O dedo número 1 corresponde ao…",
@@ -2328,9 +2499,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "indicador",
             "mínimo",
             "médio"
-          ]
+          ],
+          "why": "Na dedilhação pianística das duas mãos, os números vão do 1 (polegar) ao 5 (dedo mínimo)."
         }
-      }
+      },
+      "why": [
+        "In standard piano fingering for both hands, numbers count outward from 1 (thumb) to 5 (little finger).",
+        "În digitația standard la ambele mâini, degetele se numerotează de la 1 (degetul mare) spre 5 (degetul mic)."
+      ]
     }
   ],
   "dyn": [
@@ -2353,7 +2529,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "p · pp · mf · mp · f · ff",
             "mp · p · pp · f · mf · ff",
             "pp · mp · p · f · mf · ff"
-          ]
+          ],
+          "why": "Dynamic markings move softly up through p (piano) to m (mezzo) and loudly up through f (forte): pp < p < mp < mf < f < ff."
         },
         "ro": {
           "q": "Ordonează de la cel mai încet la cel mai tare.",
@@ -2362,7 +2539,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "p · pp · mf · mp · f · ff",
             "mp · p · pp · f · mf · ff",
             "pp · mp · p · f · mf · ff"
-          ]
+          ],
+          "why": "Nuanțele cresc progresiv de la piano (încet) spre mezzo (moderat) și forte (tare): pp < p < mp < mf < f < ff."
         },
         "es": {
           "q": "Ordena estos términos de menor a mayor intensidad sonora.",
@@ -2371,7 +2549,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "p · pp · mf · mp · f · ff",
             "mp · p · pp · f · mf · ff",
             "pp · mp · p · f · mf · ff"
-          ]
+          ],
+          "why": "Las dinámicas ordenadas de menor a mayor intensidad siguen la escala pp < p < mp < mf < f < ff."
         },
         "fr": {
           "q": "Classez ces nuances de la plus douce à la plus forte.",
@@ -2380,7 +2559,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "p · pp · mf · mp · f · ff",
             "mp · p · pp · f · mf · ff",
             "pp · mp · p · f · mf · ff"
-          ]
+          ],
+          "why": "Les nuances progressent de pianissimo à fortissimo selon l’ordre pp < p < mp < mf < f < ff."
         },
         "de": {
           "q": "Bringe diese Dynamikstufen in die richtige Reihenfolge von leisester zu lautester:",
@@ -2389,7 +2569,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "p · pp · mf · mp · f · ff",
             "mp · p · pp · f · mf · ff",
             "pp · mp · p · f · mf · ff"
-          ]
+          ],
+          "why": "Die Dynamikstufen steigen vom leisesten zum lautesten an: pp < p < mp < mf < f < ff."
         },
         "it": {
           "q": "Qual è l'ordine corretto delle dinamiche dal più piano al più forte?",
@@ -2398,7 +2579,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "p < pp < mf < mp < ff < f",
             "mp < p < pp < mf < f < ff",
             "pp < mp < p < mf < ff < f"
-          ]
+          ],
+          "why": "Le indicazioni dinamiche crescono dal più piano al più forte secondo l’ordine pp < p < mp < mf < f < ff."
         },
         "pt-BR": {
           "q": "Ordene estas dinâmicas da mais suave para a mais forte.",
@@ -2407,9 +2589,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "p · pp · mf · mp · f · ff",
             "mp · p · pp · f · mf · ff",
             "pp · mp · p · f · mf · ff"
-          ]
+          ],
+          "why": "As dinâmicas crescem do mais suave ao mais forte na ordem pp < p < mp < mf < f < ff."
         }
-      }
+      },
+      "why": [
+        "Dynamic markings move softly up through p (piano) to m (mezzo) and loudly up through f (forte): pp < p < mp < mf < f < ff.",
+        "Nuanțele cresc progresiv de la piano (încet) spre mezzo (moderat) și forte (tare): pp < p < mp < mf < f < ff."
+      ]
     },
     {
       "q": [
@@ -2442,7 +2629,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "gradually softer",
             "gradually faster",
             "suddenly loud"
-          ]
+          ],
+          "why": "Crescendo comes from the Italian “crescere” (to grow), meaning a steady rise in volume."
         },
         "ro": {
           "q": "„Crescendo” înseamnă…",
@@ -2451,7 +2639,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "din ce în ce mai încet",
             "din ce în ce mai repede",
             "brusc tare"
-          ]
+          ],
+          "why": "Crescendo provine din italianul „crescere” (a crește) și cere o amplificare treptată a volumului."
         },
         "es": {
           "q": "«Crescendo» significa…",
@@ -2460,7 +2649,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "gradualmente más suave",
             "gradualmente más rápido",
             "súbitamente fuerte"
-          ]
+          ],
+          "why": "Crescendo deriva del italiano “crescere” (crecer) y pide aumentar gradualmente el volumen."
         },
         "fr": {
           "q": "« Crescendo » signifie…",
@@ -2469,7 +2659,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "de plus en plus doux",
             "de plus en plus rapide",
             "brusquement fort"
-          ]
+          ],
+          "why": "Crescendo vient de l’italien « crescere » (grandir) et demande d’augmenter progressivement le volume."
         },
         "de": {
           "q": "Was bedeutet der Begriff „Crescendo“?",
@@ -2478,7 +2669,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "allmählich leiser werdend",
             "allmählich schneller werdend",
             "plötzlich laut"
-          ]
+          ],
+          "why": "Crescendo heißt wörtlich „wachsend“ und verlangt ein allmähliches Lauterwerden."
         },
         "it": {
           "q": "Cosa significa il termine «crescendo» (<)?",
@@ -2487,7 +2679,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Diminuire gradualmente il volume",
             "Accelerare il tempo",
             "Rallentare il battito"
-          ]
+          ],
+          "why": "Crescendo significa aumentare progressivamente l’intensità sonora."
         },
         "pt-BR": {
           "q": "“Crescendo” significa…",
@@ -2496,9 +2689,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "gradualmente mais suave",
             "gradualmente mais rápido",
             "subitamente forte"
-          ]
+          ],
+          "why": "Crescendo vem do italiano (crescer) e indica aumento gradual de volume."
         }
-      }
+      },
+      "why": [
+        "Crescendo comes from the Italian “crescere” (to grow), meaning a steady rise in volume.",
+        "Crescendo provine din italianul „crescere” (a crește) și cere o amplificare treptată a volumului."
+      ]
     },
     {
       "q": [
@@ -2531,7 +2729,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "very soft",
             "slow down",
             "hold the note"
-          ]
+          ],
+          "why": "Sforzando (sfz) marks one note or chord with a sharp, sudden burst of force."
         },
         "ro": {
           "q": "„sfz” (sforzando) înseamnă…",
@@ -2540,7 +2739,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "foarte încet",
             "încetinește",
             "ține nota"
-          ]
+          ],
+          "why": "Sforzando (sfz) cere un accent brusc și energic pe o singură notă sau pe un acord."
         },
         "es": {
           "q": "«sfz» (sforzando) indica…",
@@ -2549,7 +2749,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "muy suave",
             "frenar el tempo",
             "mantener la nota"
-          ]
+          ],
+          "why": "Sforzando (sfz) marca un acento súbito e intenso sobre una nota o acorde concreto."
         },
         "fr": {
           "q": "« sfz » (sforzando) indique…",
@@ -2558,7 +2759,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "très doux",
             "ralentir le tempo",
             "tenir la note"
-          ]
+          ],
+          "why": "Sforzando (sfz) demande un accent fort et soudain sur une seule note ou un accord."
         },
         "de": {
           "q": "Was bedeutet die Bezeichnung „sfz“ (Sforzando)?",
@@ -2567,7 +2769,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sehr leise spielen",
             "das Tempo verlangsamen",
             "den Ton lange halten"
-          ]
+          ],
+          "why": "Sforzando (sfz) bedeutet „mit plötzlicher Betonung“ auf genau diesem Ton oder Akkord."
         },
         "it": {
           "q": "Cosa indica l'abbreviazione «sfz» (sforzando)?",
@@ -2576,7 +2779,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Una sfumatura graduale nel silenzio",
             "Un rallentamento del tempo",
             "Una pausa prolungata"
-          ]
+          ],
+          "why": "Sforzando (sfz) richiede un accento forte e improvviso su una singola nota o accordo."
         },
         "pt-BR": {
           "q": "“sfz” (sforzando) indica…",
@@ -2585,9 +2789,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "muito suave",
             "reduzir o andamento",
             "sustentar a nota"
-          ]
+          ],
+          "why": "Sforzando (sfz) pede um acento súbito e intenso em uma única nota ou acorde."
         }
-      }
+      },
+      "why": [
+        "Sforzando (sfz) marks one note or chord with a sharp, sudden burst of force.",
+        "Sforzando (sfz) cere un accent brusc și energic pe o singură notă sau pe un acord."
+      ]
     },
     {
       "q": [
@@ -2620,7 +2829,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "molto forte — very loud",
             "meno forte — less loud",
             "moderately fast"
-          ]
+          ],
+          "why": "“Mezzo” means half or moderately, so mezzo forte (mf) sits just louder than mezzo piano and softer than forte."
         },
         "ro": {
           "q": "„mf” înseamnă…",
@@ -2629,7 +2839,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "molto forte — foarte tare",
             "meno forte — mai puțin tare",
             "moderat de repede"
-          ]
+          ],
+          "why": "„Mezzo” înseamnă pe jumătate / moderat, deci mezzo forte (mf) este moderat de tare, sub forte."
         },
         "es": {
           "q": "«mf» corresponde a…",
@@ -2638,7 +2849,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "molto forte: muy fuerte",
             "meno forte: menos fuerte",
             "tempo moderadamente rápido"
-          ]
+          ],
+          "why": "“Mezzo” significa medio: mezzo forte (mf) es moderadamente fuerte, por debajo de forte."
         },
         "fr": {
           "q": "« mf » correspond à…",
@@ -2647,7 +2859,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "molto forte — très fort",
             "meno forte — moins fort",
             "tempo modérément rapide"
-          ]
+          ],
+          "why": "« Mezzo » signifie moyennement : mezzo forte (mf) est modérément fort, juste sous forte."
         },
         "de": {
           "q": "Wofür steht die Abkürzung „mf“?",
@@ -2656,7 +2869,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "molto forte — sehr laut",
             "meno forte — weniger laut",
             "mäßig schnell"
-          ]
+          ],
+          "why": "„Mezzo“ heißt halbmittel: mezzo forte (mf) ist halbstark bzw. mäßig laut."
         },
         "it": {
           "q": "Cosa prescrive l'indicazione «mezzo forte» (mf)?",
@@ -2665,7 +2879,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Il massimo volume possibile",
             "Estremamente piano",
             "Esattamente come il piano"
-          ]
+          ],
+          "why": "“Mezzo” significa moderatamente: mezzo forte (mf) indica un suono moderatamente forte."
         },
         "pt-BR": {
           "q": "“mf” significa…",
@@ -2674,9 +2889,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "molto forte — muito forte",
             "meno forte — menos forte",
             "andamento moderadamente rápido"
-          ]
+          ],
+          "why": "“Mezzo” significa moderadamente: mezzo forte (mf) é moderadamente forte, logo abaixo de forte."
         }
-      }
+      },
+      "why": [
+        "“Mezzo” means half or moderately, so mezzo forte (mf) sits just louder than mezzo piano and softer than forte.",
+        "„Mezzo” înseamnă pe jumătate / moderat, deci mezzo forte (mf) este moderat de tare, sub forte."
+      ]
     }
   ],
   "rh": [
@@ -2699,7 +2919,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2",
             "3",
             "8"
-          ]
+          ],
+          "why": "In 4/4 time, the top 4 gives beats per bar and the bottom 4 sets the quarter note as one beat."
         },
         "ro": {
           "q": "Câte pătrimi umplu o măsură de 4/4?",
@@ -2708,7 +2929,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2",
             "3",
             "8"
-          ]
+          ],
+          "why": "În măsura 4/4, cifra de sus arată 4 timpi pe măsură, iar 4 de jos desemnează pătrimea ca unitate de timp."
         },
         "es": {
           "q": "¿Cuántas negras completan un compás de 4/4?",
@@ -2717,7 +2939,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2",
             "3",
             "8"
-          ]
+          ],
+          "why": "En el compás de 4/4, el numerador indica 4 tiempos por compás y el denominador 4 asigna la negra a cada tiempo."
         },
         "fr": {
           "q": "Combien de noires remplissent une mesure à 4/4 ?",
@@ -2726,7 +2949,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2",
             "3",
             "8"
-          ]
+          ],
+          "why": "En 4/4, le chiffre du haut compte 4 temps par mesure et le 4 du bas fixe la noire comme unité de temps."
         },
         "de": {
           "q": "Wie viele Viertelnoten füllen einen vollen 4/4-Takt?",
@@ -2735,7 +2959,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2",
             "3",
             "8"
-          ]
+          ],
+          "why": "Im 4/4-Takt gibt die obere 4 die Anzahl der Schläge pro Takt an und die untere 4 die Viertelnote als Zählzeit."
         },
         "it": {
           "q": "Quanti battiti dura una semiminima (quarto) in un metro di 4/4?",
@@ -2744,7 +2969,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2",
             "4",
             "½"
-          ]
+          ],
+          "why": "Nel tempo 4/4 il numeratore indica 4 movimenti per battuta e il 4 inferiore sceglie la semiminima come unità."
         },
         "pt-BR": {
           "q": "Quantas semínimas preenchem um compasso 4/4?",
@@ -2753,9 +2979,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2",
             "3",
             "8"
-          ]
+          ],
+          "why": "No compasso 4/4, o 4 superior indica 4 tempos por compasso e o 4 inferior define a semínima como pulso."
         }
-      }
+      },
+      "why": [
+        "In 4/4 time, the top 4 gives beats per bar and the bottom 4 sets the quarter note as one beat.",
+        "În măsura 4/4, cifra de sus arată 4 timpi pe măsură, iar 4 de jos desemnează pătrimea ca unitate de timp."
+      ]
     },
     {
       "q": [
@@ -2788,7 +3019,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 beats",
             "2½ beats",
             "4 beats"
-          ]
+          ],
+          "why": "A dot adds half of a note’s value: a half note (2 beats) + half of 2 (1) = 3 beats."
         },
         "ro": {
           "q": "O doime cu punct durează…",
@@ -2797,7 +3029,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 timpi",
             "2½ timpi",
             "4 timpi"
-          ]
+          ],
+          "why": "Punctul mărește durata cu jumătate: doimea (2 timpi) + jumătatea ei (1 timp) = 3 timpi."
         },
         "es": {
           "q": "Una blanca con puntillo dura…",
@@ -2806,7 +3039,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 pulsos",
             "2½ pulsos",
             "4 pulsos"
-          ]
+          ],
+          "why": "El puntillo añade la mitad del valor: blanca (2 tiempos) + su mitad (1) = 3 tiempos."
         },
         "fr": {
           "q": "Une blanche pointée dure…",
@@ -2815,7 +3049,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 temps",
             "2½ temps",
             "4 temps"
-          ]
+          ],
+          "why": "Le point prolonge la note de la moitié de sa valeur : blanche (2 temps) + 1 = 3 temps."
         },
         "de": {
           "q": "Wie viele Schläge dauert eine punktierte halbe Note im 4/4-Takt?",
@@ -2824,7 +3059,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 Schläge",
             "2½ Schläge",
             "4 Schläge"
-          ]
+          ],
+          "why": "Ein Punkt verlängert die Note um die Hälfte: Halbe Note (2 Schläge) + 1 Schlag = 3 Schläge."
         },
         "it": {
           "q": "Di quanto prolunga la durata della nota un punto di valore?",
@@ -2833,7 +3069,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Del doppio del valore",
             "Di un quarto fisso",
             "Di un'intera battuta"
-          ]
+          ],
+          "why": "Il punto aggiunge metà valore alla nota: minima (2 battiti) + la sua metà (1) = 3 battiti."
         },
         "pt-BR": {
           "q": "Uma mínima pontuada dura…",
@@ -2842,9 +3079,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 tempos",
             "2½ tempos",
             "4 tempos"
-          ]
+          ],
+          "why": "O ponto aumenta metade do valor da figura: mínima (2 tempos) + metade (1) = 3 tempos."
         }
-      }
+      },
+      "why": [
+        "A dot adds half of a note’s value: a half note (2 beats) + half of 2 (1) = 3 beats.",
+        "Punctul mărește durata cu jumătate: doimea (2 timpi) + jumătatea ei (1 timp) = 3 timpi."
+      ]
     },
     {
       "q": [
@@ -2878,7 +3120,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "4/4",
             "2/4",
             "6/8"
-          ]
+          ],
+          "why": "3/4 groups beats into “ONE-two-three”, giving waltzes their asymmetric lilting sway."
         },
         "ro": {
           "q": "Ascultă: ce măsură este?",
@@ -2887,7 +3130,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "4/4",
             "2/4",
             "6/8"
-          ]
+          ],
+          "why": "Măsura de 3/4 grupează timpii în „UNU-doi-trei”, creând balansul caracteristic de vals."
         },
         "es": {
           "q": "Escucha atentamente: ¿qué compás es?",
@@ -2896,7 +3140,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "4/4",
             "2/4",
             "6/8"
-          ]
+          ],
+          "why": "El compás de 3/4 agrupa los pulsos en “UN-dos-tres”, dando el balanceo típico del vals."
         },
         "fr": {
           "q": "Écoutez attentivement : de quelle mesure s’agit-il ?",
@@ -2905,7 +3150,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "4/4",
             "2/4",
             "6/8"
-          ]
+          ],
+          "why": "Le 3/4 regroupe la pulsation par trois (« UN-deux-trois »), typique de l’élan de la valse."
         },
         "de": {
           "q": "Höre genau hin: Welche Taktart erklingt hier?",
@@ -2914,7 +3160,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "4/4",
             "2/4",
             "6/8"
-          ]
+          ],
+          "why": "Der 3/4-Takt bündelt drei Schläge („EINS-zwei-drei“) zum typischen Walzerschwung."
         },
         "it": {
           "q": "Ascolta: qual è la misura?",
@@ -2923,7 +3170,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "4/4",
             "2/4",
             "6/8"
-          ]
+          ],
+          "why": "Il 3/4 raggruppa gli accenti in “UNO-due-tre”, generando l’andamento danzante del valzer."
         },
         "pt-BR": {
           "q": "Ouça com atenção: qual é a fórmula de compasso?",
@@ -2932,9 +3180,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "4/4",
             "2/4",
             "6/8"
-          ]
+          ],
+          "why": "O compasso 3/4 agrupa os tempos em “UM-dois-três”, criando o balanço característico da valsa."
         }
-      }
+      },
+      "why": [
+        "3/4 groups beats into “ONE-two-three”, giving waltzes their asymmetric lilting sway.",
+        "Măsura de 3/4 grupează timpii în „UNU-doi-trei”, creând balansul caracteristic de vals."
+      ]
     },
     {
       "q": [
@@ -2967,7 +3220,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 and 4",
             "only 4",
             "all equal"
-          ]
+          ],
+          "why": "Beat 1 carries the primary metric weight and beat 3 carries a secondary stress, leaving beats 2 and 4 weaker."
         },
         "ro": {
           "q": "În 4/4, care timpi sunt de obicei cei mai tari?",
@@ -2976,7 +3230,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 și 4",
             "doar 4",
             "toți la fel"
-          ]
+          ],
+          "why": "Timpul 1 poartă accentul principal, iar timpul 3 un accent secundar; timpii 2 și 4 rămân slabi."
         },
         "es": {
           "q": "En el compás de 4/4, ¿qué pulsos suelen ser los más fuertes?",
@@ -2985,7 +3240,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 y 4",
             "únicamente el 4",
             "todos por igual"
-          ]
+          ],
+          "why": "El tiempo 1 lleva el acento fuerte principal y el 3 un acento semifuerte, mientras 2 y 4 son débiles."
         },
         "fr": {
           "q": "En 4/4, quels temps sont généralement les plus forts ?",
@@ -2994,7 +3250,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 et 4",
             "uniquement le 4",
             "tous égaux"
-          ]
+          ],
+          "why": "Le temps 1 porte l’appui principal et le temps 3 un appui secondaire ; les temps 2 et 4 sont faibles."
         },
         "de": {
           "q": "Welche Zählzeiten sind im 4/4-Takt üblicherweise am stärksten betont?",
@@ -3003,7 +3260,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 und 4",
             "ausschließlich 4",
             "alle Schläge vollkommen gleich"
-          ]
+          ],
+          "why": "Zählzeit 1 ist die Hauptbetonung und Zählzeit 3 die Nebenbetonung; 2 und 4 bleiben unbetont."
         },
         "it": {
           "q": "Quale battito riceve l'accento metrico principale in una misura di 3/4?",
@@ -3012,7 +3270,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Il 2° battito",
             "Il 3° battito",
             "Tutti uguali"
-          ]
+          ],
+          "why": "Il primo movimento porta l’accento forte principale e il terzo quello mezzoforte; 2 e 4 restano deboli."
         },
         "pt-BR": {
           "q": "Em 4/4, quais tempos costumam ser os mais fortes?",
@@ -3021,9 +3280,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 e 4",
             "apenas o 4",
             "todos iguais"
-          ]
+          ],
+          "why": "O tempo 1 recebe o acento principal e o tempo 3 um acento secundário, deixando 2 e 4 fracos."
         }
-      }
+      },
+      "why": [
+        "Beat 1 carries the primary metric weight and beat 3 carries a secondary stress, leaving beats 2 and 4 weaker.",
+        "Timpul 1 poartă accentul principal, iar timpul 3 un accent secundar; timpii 2 și 4 rămân slabi."
+      ]
     }
   ],
   "rh2": [
@@ -3058,7 +3322,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "four",
             "one dotted",
             "three"
-          ]
+          ],
+          "why": "A triplet divides a beat or two-note span equally into 3 instead of the usual 2."
         },
         "ro": {
           "q": "Un triolet încape trei note în timpul a…",
@@ -3067,7 +3332,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "patru",
             "una cu punct",
             "trei"
-          ]
+          ],
+          "why": "Trioletul împarte în 3 părți egale o durată care se divizează normal în 2."
         },
         "es": {
           "q": "Un tresillo introduce tres notas en el tiempo equivalente a…",
@@ -3076,7 +3342,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cuatro notas",
             "una nota con puntillo",
             "tres notas"
-          ]
+          ],
+          "why": "El tresillo reparte tres notas iguales donde normalmente caben dos del mismo valor."
         },
         "fr": {
           "q": "Un triolet fait entrer trois notes dans la durée de…",
@@ -3085,7 +3352,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "quatre",
             "une note pointée",
             "trois"
-          ]
+          ],
+          "why": "Le triolet place trois notes égales dans la durée normale de deux figures identiques."
         },
         "de": {
           "q": "Eine Triole verteilt drei Noten auf die Zeitdauer von …",
@@ -3094,7 +3362,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "vier Noten",
             "einer punktierten Note",
             "drei Noten"
-          ]
+          ],
+          "why": "Eine Triole teilt eine Zeitspanne gleichmäßig in 3 statt regulär in 2 gleiche Notenwerte."
         },
         "it": {
           "q": "Cosa indica una pausa musicale?",
@@ -3103,7 +3372,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Un rallentamento del tempo",
             "La fine definitiva del brano",
             "Un accordo arpeggiato"
-          ]
+          ],
+          "why": "La terzina inserisce tre note uguali nella durata normalmente occupata da due dello stesso valore."
         },
         "pt-BR": {
           "q": "Uma tercina acomoda três notas no tempo equivalente a…",
@@ -3112,9 +3382,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "quatro",
             "uma figura pontuada",
             "três"
-          ]
+          ],
+          "why": "A tercina divide em 3 notas iguais o tempo em que normalmente caberiam 2 da mesma figura."
         }
-      }
+      },
+      "why": [
+        "A triplet divides a beat or two-note span equally into 3 instead of the usual 2.",
+        "Trioletul împarte în 3 părți egale o durată care se divizează normal în 2."
+      ]
     },
     {
       "q": [
@@ -3147,7 +3422,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "6 equal quarter beats",
             "3 beats",
             "4 beats"
-          ]
+          ],
+          "why": "6/8 is a compound duple metre: six eighths group into 2 main pulses of a dotted quarter note each."
         },
         "ro": {
           "q": "6/8 se simte de obicei în…",
@@ -3156,7 +3432,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "6 timpi de pătrime",
             "3 timpi",
             "4 timpi"
-          ]
+          ],
+          "why": "6/8 este o măsură compusă binară: șase optimi se grupează în 2 timpi principali de pătrime cu punct."
         },
         "es": {
           "q": "El compás de 6/8 se percibe habitualmente con…",
@@ -3165,7 +3442,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "6 pulsos iguales de negra",
             "3 pulsos",
             "4 pulsos"
-          ]
+          ],
+          "why": "6/8 es un compás binario compuesto: seis corcheas se sienten en 2 pulsos principales de negra con puntillo."
         },
         "fr": {
           "q": "La mesure à 6/8 est habituellement ressentie à…",
@@ -3174,7 +3452,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "6 pulsations égales de noire",
             "3 temps",
             "4 temps"
-          ]
+          ],
+          "why": "Le 6/8 est une mesure binaire composée : six croches s’organisent en 2 temps principaux à la noire pointée."
         },
         "de": {
           "q": "Ein 6/8-Takt wird im Regelfall empfunden als …",
@@ -3183,7 +3462,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "6 gleichförmige Viertelschläge",
             "3 Schläge",
             "4 Schläge"
-          ]
+          ],
+          "why": "Der 6/8-Takt ist zusammengesetzt zweizeitig: Sechs Achtel fließen in 2 Hauptschlägen zu je einer punktierten Viertel."
         },
         "it": {
           "q": "Quante note vengono eseguite in una terzina al posto di due del medesimo valore?",
@@ -3192,7 +3472,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "4",
             "2",
             "6"
-          ]
+          ],
+          "why": "Il 6/8 è un tempo binario composto: sei crome si raggruppano in 2 battiti principali di semiminima col punto."
         },
         "pt-BR": {
           "q": "O compasso 6/8 é normalmente sentido em…",
@@ -3201,9 +3482,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "6 pulsos iguais de semínima",
             "3 tempos",
             "4 tempos"
-          ]
+          ],
+          "why": "O 6/8 é um compasso binário composto: seis colcheias se agrupam em 2 pulsos de semínima pontuada."
         }
-      }
+      },
+      "why": [
+        "6/8 is a compound duple metre: six eighths group into 2 main pulses of a dotted quarter note each.",
+        "6/8 este o măsură compusă binară: șase optimi se grupează în 2 timpi principali de pătrime cu punct."
+      ]
     },
     {
       "q": [
@@ -3236,7 +3522,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "playing faster",
             "a long rest",
             "a key change"
-          ]
+          ],
+          "why": "Syncopation shifts stress away from the expected downbeat onto weak beats or between beats."
         },
         "ro": {
           "q": "Sincopa înseamnă…",
@@ -3245,7 +3532,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a cânta mai repede",
             "o pauză lungă",
             "o schimbare de tonalitate"
-          ]
+          ],
+          "why": "Sincopa mută accentul ritmic de pe timpii tari pe timpi slabi sau contratimpi."
         },
         "es": {
           "q": "Una síncopa consiste en…",
@@ -3254,7 +3542,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "acelerar el tempo",
             "un silencio prolongado",
             "un cambio de tonalidad"
-          ]
+          ],
+          "why": "La síncopa desplaza el énfasis rítmico desde los pulsos fuertes hacia partes débiles o contratiempos."
         },
         "fr": {
           "q": "Une syncope consiste à…",
@@ -3263,7 +3552,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "jouer plus vite",
             "observer un long silence",
             "changer de tonalité"
-          ]
+          ],
+          "why": "La syncope déplace l’accent rythmique des temps forts vers des temps faibles ou contretemps."
         },
         "de": {
           "q": "Was versteht man unter einer Synkope?",
@@ -3272,7 +3562,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ein rasches Beschleunigen",
             "eine ausgedehnte Generalpause",
             "einen Tonartwechsel"
-          ]
+          ],
+          "why": "Eine Synkope verlagert die Betonung von den erwarteten schweren Zählzeiten auf leichte Taktteile."
         },
         "it": {
           "q": "Qual è l'unità di pulsazione principale in una misura di 6/8?",
@@ -3281,7 +3572,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La semiminima semplice",
             "La minima",
             "La croma"
-          ]
+          ],
+          "why": "La sincope sposta l’accento ritmico dai battiti forti attesi verso tempi deboli o in levare."
         },
         "pt-BR": {
           "q": "Síncope significa…",
@@ -3290,9 +3582,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "tocar mais rápido",
             "uma pausa longa",
             "mudança de tonalidade"
-          ]
+          ],
+          "why": "A síncope desloca o acento rítmico dos tempos fortes esperados para tempos fracos ou contratempos."
         }
-      }
+      },
+      "why": [
+        "Syncopation shifts stress away from the expected downbeat onto weak beats or between beats.",
+        "Sincopa mută accentul ritmic de pe timpii tari pe timpi slabi sau contratimpi."
+      ]
     },
     {
       "q": [
@@ -3313,7 +3610,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Andante",
             "Allegro",
             "Presto"
-          ]
+          ],
+          "why": "Largo (“broad”) marks a very slow tempo; Andante walks comfortably, and Allegro/Presto are fast."
         },
         "ro": {
           "q": "Care tempo e cel mai lent?",
@@ -3322,7 +3620,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Andante",
             "Allegro",
             "Presto"
-          ]
+          ],
+          "why": "Largo („larg”) indică un tempo foarte lent; Andante este moderat, iar Allegro și Presto sunt repezi."
         },
         "es": {
           "q": "¿Cuál de estos tempos es el más lento?",
@@ -3331,7 +3630,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Andante",
             "Allegro",
             "Presto"
-          ]
+          ],
+          "why": "Largo (“amplio”) indica un tiempo muy lento; Andante es moderado, mientras Allegro y Presto son rápidos."
         },
         "fr": {
           "q": "Quel tempo est le plus lent ?",
@@ -3340,7 +3640,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Andante",
             "Allegro",
             "Presto"
-          ]
+          ],
+          "why": "Largo (« large ») désigne un tempo très lent ; Andante marche modérément, et Allegro/Presto sont vifs."
         },
         "de": {
           "q": "Welche dieser Tempoangaben bezeichnet das langsamste Tempo?",
@@ -3349,7 +3650,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Andante",
             "Allegro",
             "Presto"
-          ]
+          ],
+          "why": "Largo („breit“) steht für ein sehr langsames Tempo; Andante geht ruhig, Allegro und Presto sind schnell."
         },
         "it": {
           "q": "Che cos'è una sincope?",
@@ -3358,7 +3660,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Una scala eseguita velocissima",
             "Un ritardo della mano sinistra",
             "Una battuta vuota"
-          ]
+          ],
+          "why": "Largo indica un tempo molto lento; Andante è moderato, mentre Allegro e Presto sono veloci."
         },
         "pt-BR": {
           "q": "Qual destes andamentos é o mais lento?",
@@ -3367,9 +3670,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Andante",
             "Allegro",
             "Presto"
-          ]
+          ],
+          "why": "Largo (“amplo”) marca um andamento muito lento; Andante é moderado e Allegro/Presto são rápidos."
         }
-      }
+      },
+      "why": [
+        "Largo (“broad”) marks a very slow tempo; Andante walks comfortably, and Allegro/Presto are fast.",
+        "Largo („larg”) indică un tempo foarte lent; Andante este moderat, iar Allegro și Presto sunt repezi."
+      ]
     },
     {
       "q": [
@@ -3402,7 +3710,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "gradually faster",
             "back to the first tempo",
             "very fast"
-          ]
+          ],
+          "why": "Ritardando (rit.) signals a gradual slowing down, often before a cadence or ending."
         },
         "ro": {
           "q": "„Ritardando” înseamnă…",
@@ -3411,7 +3720,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "din ce în ce mai repede",
             "revino la tempoul inițial",
             "foarte repede"
-          ]
+          ],
+          "why": "Ritardando (rit.) cere o rărire treptată a tempoului, frecvent la sfârșit de frază sau cadență."
         },
         "es": {
           "q": "«Ritardando» significa…",
@@ -3420,7 +3730,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "acelerar gradualmente",
             "regresar al tempo inicial",
             "muy rápido"
-          ]
+          ],
+          "why": "Ritardando (rit.) indica disminuir el tempo progresivamente, a menudo al cerrar una frase."
         },
         "fr": {
           "q": "« Ritardando » signifie…",
@@ -3429,7 +3740,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "accélérer progressivement",
             "revenir au premier tempo",
             "très rapide"
-          ]
+          ],
+          "why": "Ritardando (rit.) demande de ralentir graduellement le tempo, souvent avant une cadence."
         },
         "de": {
           "q": "Was bedeutet die Angabe „Ritardando“?",
@@ -3438,7 +3750,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "allmählich schneller werdend",
             "zurück zum Anfangstempo",
             "sehr rasch"
-          ]
+          ],
+          "why": "Ritardando (rit.) bedeutet schrittweises Langsamerwerden, meist vor Phrasenenden oder Kadenzen."
         },
         "it": {
           "q": "Quale termine indica un andamento moderatamente calmo, «a passo di cammino»?",
@@ -3447,7 +3760,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Presto",
             "Largo",
             "Vivace"
-          ]
+          ],
+          "why": "Ritardando (rit.) prescrive un rallentamento graduale, spesso in prossimità di una cadenza."
         },
         "pt-BR": {
           "q": "“Ritardando” significa…",
@@ -3456,9 +3770,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "acelerar gradualmente",
             "retornar ao andamento inicial",
             "muito rápido"
-          ]
+          ],
+          "why": "Ritardando (rit.) pede uma desaceleração gradual, comum antes de cadências ou finais de frase."
         }
-      }
+      },
+      "why": [
+        "Ritardando (rit.) signals a gradual slowing down, often before a cadence or ending.",
+        "Ritardando (rit.) cere o rărire treptată a tempoului, frecvent la sfârșit de frază sau cadență."
+      ]
     }
   ],
   "iv": [
@@ -3494,7 +3813,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Major 3rd",
             "Perfect 4th",
             "Octave"
-          ]
+          ],
+          "why": "A perfect 5th spans 7 semitones and sounds wide, hollow, and rock-steady (think Star Wars opening)."
         },
         "ro": {
           "q": "Ascultă: numește intervalul.",
@@ -3503,7 +3823,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terță mare",
             "Cvartă perfectă",
             "Octavă"
-          ]
+          ],
+          "why": "Cvinta perfectă are 7 semitonuri și sună deschis, pur și stabil (ca începutul temei Star Wars)."
         },
         "es": {
           "q": "Escucha atentamente: identifica el intervalo.",
@@ -3512,7 +3833,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Tercera mayor",
             "Cuarta justa",
             "Octava"
-          ]
+          ],
+          "why": "La quinta justa abarca 7 semitonos y suena abierta y muy estable (como el inicio de Star Wars)."
         },
         "fr": {
           "q": "Écoutez attentivement : nommez cet intervalle.",
@@ -3521,7 +3843,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Tierce majeure",
             "Quarte juste",
             "Octave"
-          ]
+          ],
+          "why": "La quinte juste couvre 7 demi-tons et sonne ouverte, pure et stable (comme l’ouverture de Star Wars)."
         },
         "de": {
           "q": "Höre hin: Welches Intervall erklingt?",
@@ -3530,7 +3853,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Große Terz",
             "Reine Quarte",
             "Oktave"
-          ]
+          ],
+          "why": "Die reine Quinte umfasst 7 Halbtöne und klingt offen, klar und stabil (wie der Beginn von Star Wars)."
         },
         "it": {
           "q": "Ascolta: riconosci l'intervallo.",
@@ -3539,7 +3863,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terza maggiore",
             "Quarta giusta",
             "Ottava"
-          ]
+          ],
+          "why": "La quinta giusta copre 7 semitoni e suona aperta, vuota e molto stabile (come l’inizio di Star Wars)."
         },
         "pt-BR": {
           "q": "Ouça com atenção: identifique o intervalo.",
@@ -3548,9 +3873,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terça maior",
             "Quarta justa",
             "Oitava"
-          ]
+          ],
+          "why": "A quinta justa tem 7 semitons e soa aberta e muito estável (como a abertura de Star Wars)."
         }
-      }
+      },
+      "why": [
+        "A perfect 5th spans 7 semitones and sounds wide, hollow, and rock-steady (think Star Wars opening).",
+        "Cvinta perfectă are 7 semitonuri și sună deschis, pur și stabil (ca începutul temei Star Wars)."
+      ]
     },
     {
       "q": [
@@ -3571,7 +3901,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "3",
             "5",
             "2"
-          ]
+          ],
+          "why": "Count half steps from bottom to top: a minor 3rd is 3 semitones and a major 3rd is 4 semitones (C → E)."
         },
         "ro": {
           "q": "Câte semitonuri are o terță mare?",
@@ -3580,7 +3911,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "3",
             "5",
             "2"
-          ]
+          ],
+          "why": "De la sunetul grav la cel acut sunt 4 semitonuri pentru terța mare (Do → Mi), față de 3 pentru terța mică."
         },
         "es": {
           "q": "¿Cuántos semitonos contiene una tercera mayor?",
@@ -3589,7 +3921,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "3",
             "5",
             "2"
-          ]
+          ],
+          "why": "De la nota grave a la aguda hay 4 semitonos en la tercera mayor (Do → Mi), frente a 3 en la menor."
         },
         "fr": {
           "q": "Combien de demi-tons compte une tierce majeure ?",
@@ -3598,7 +3931,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "3",
             "5",
             "2"
-          ]
+          ],
+          "why": "Entre les deux notes, une tierce majeure compte 4 demi-tons (Do → Mi), contre 3 pour une tierce mineure."
         },
         "de": {
           "q": "Wie viele Halbtöne umfasst eine große Terz?",
@@ -3607,7 +3941,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "3",
             "5",
             "2"
-          ]
+          ],
+          "why": "Eine große Terz umfasst 4 Halbtöne (z. B. C → E), eine kleine Terz 3 Halbtöne."
         },
         "it": {
           "q": "Quanti semitoni misura una quinta giusta?",
@@ -3616,7 +3951,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "6",
             "8",
             "5"
-          ]
+          ],
+          "why": "Una terza maggiore misura 4 semitoni (es. Do → Mi), mentre una terza minore ne misura 3."
         },
         "pt-BR": {
           "q": "Quantos semitons existem em uma terça maior?",
@@ -3625,9 +3961,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "3",
             "5",
             "2"
-          ]
+          ],
+          "why": "Uma terça maior tem 4 semitons (Dó → Mi), contra 3 semitons da terça menor."
         }
-      }
+      },
+      "why": [
+        "Count half steps from bottom to top: a minor 3rd is 3 semitones and a major 3rd is 4 semitones (C → E).",
+        "De la sunetul grav la cel acut sunt 4 semitonuri pentru terța mare (Do → Mi), față de 3 pentru terța mică."
+      ]
     },
     {
       "q": [
@@ -3660,7 +4001,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "minor 6th",
             "perfect 5th",
             "major 7th"
-          ]
+          ],
+          "why": "Counting letters C–D–E–F–G–A gives a 6th, and 9 semitones confirms a major 6th."
         },
         "ro": {
           "q": "De la Do în sus la La este o…",
@@ -3669,7 +4011,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sextă mică",
             "cvintă perfectă",
             "septimă mare"
-          ]
+          ],
+          "why": "Numărând treptele Do–Re–Mi–Fa–Sol–La obținem o sextă, iar cele 9 semitonuri confirmă sexta mare."
         },
         "es": {
           "q": "De Do (C) hacia arriba hasta La (A) hay una…",
@@ -3678,7 +4021,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sexta menor",
             "quinta justa",
             "séptima mayor"
-          ]
+          ],
+          "why": "Contando letras Do–Re–Mi–Fa–Sol–La resulta una sexta, y 9 semitonos confirman la sexta mayor."
         },
         "fr": {
           "q": "De do en montant jusqu’à la, il s’agit d’une…",
@@ -3687,7 +4031,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sixte mineure",
             "quinte juste",
             "septième majeure"
-          ]
+          ],
+          "why": "En comptant six degrés (Do à La) sur 9 demi-tons, on obtient une sixte majeure."
         },
         "de": {
           "q": "Der Abstand von C aufwärts nach A ist eine …",
@@ -3696,7 +4041,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "kleine Sexte",
             "reine Quinte",
             "große Septime"
-          ]
+          ],
+          "why": "Sechs Tonstufen von C bis A ergeben eine Sexte; 9 Halbtöne bestimmen sie als große Sexte."
         },
         "it": {
           "q": "Quale intervallo separa C e G?",
@@ -3705,7 +4051,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Quarta giusta",
             "Terza maggiore",
             "Sesta maggiore"
-          ]
+          ],
+          "why": "Contando sei gradi da Do a La e misurando 9 semitoni si ottiene una sesta maggiore."
         },
         "pt-BR": {
           "q": "De Dó (C) subindo até Lá (A) temos uma…",
@@ -3714,9 +4061,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sexta menor",
             "quinta justa",
             "sétima maior"
-          ]
+          ],
+          "why": "Contando seis graus de Dó a Lá em 9 semitons, temos uma sexta maior."
         }
-      }
+      },
+      "why": [
+        "Counting letters C–D–E–F–G–A gives a 6th, and 9 semitones confirms a major 6th.",
+        "Numărând treptele Do–Re–Mi–Fa–Sol–La obținem o sextă, iar cele 9 semitonuri confirmă sexta mare."
+      ]
     },
     {
       "q": [
@@ -3750,7 +4102,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Major 3rd",
             "Major 2nd",
             "Perfect 4th"
-          ]
+          ],
+          "why": "At 3 semitones wide, a minor 3rd brings an immediate darker, lyrical color compared to a major 3rd."
         },
         "ro": {
           "q": "Ascultă: numește intervalul.",
@@ -3759,7 +4112,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terță mare",
             "Secundă mare",
             "Cvartă perfectă"
-          ]
+          ],
+          "why": "Cu 3 semitonuri, terța mică are o culoare mai umbrită și lirică față de terța mare."
         },
         "es": {
           "q": "Escucha atentamente: identifica el intervalo.",
@@ -3768,7 +4122,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Tercera mayor",
             "Segunda mayor",
             "Cuarta justa"
-          ]
+          ],
+          "why": "Con 3 semitonos, la tercera menor aporta un color más oscuro y lírico frente a la tercera mayor."
         },
         "fr": {
           "q": "Écoutez attentivement : nommez cet intervalle.",
@@ -3777,7 +4132,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Tierce majeure",
             "Seconde majeure",
             "Quarte juste"
-          ]
+          ],
+          "why": "Large de 3 demi-tons, la tierce mineure sonne plus sombre et mélancolique que la tierce majeure."
         },
         "de": {
           "q": "Höre hin: Welches Intervall erklingt?",
@@ -3786,7 +4142,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Große Terz",
             "Große Sekunde",
             "Reine Quarte"
-          ]
+          ],
+          "why": "Mit 3 Halbtönen klingt die kleine Terz merklich dunkler und wehmütiger als die große Terz."
         },
         "it": {
           "q": "Ascolta: riconosci l'intervallo.",
@@ -3795,7 +4152,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terza maggiore",
             "Seconda maggiore",
             "Quarta giusta"
-          ]
+          ],
+          "why": "Ampia 3 semitoni, la terza minore porta subito una tinta più scura e raccolta rispetto alla maggiore."
         },
         "pt-BR": {
           "q": "Ouça com atenção: identifique o intervalo.",
@@ -3804,9 +4162,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terça maior",
             "Segunda maior",
             "Quarta justa"
-          ]
+          ],
+          "why": "Com 3 semitons, a terça menor traz imediatamente uma cor mais sombria e lírica que a terça maior."
         }
-      }
+      },
+      "why": [
+        "At 3 semitones wide, a minor 3rd brings an immediate darker, lyrical color compared to a major 3rd.",
+        "Cu 3 semitonuri, terța mică are o culoare mai umbrită și lirică față de terța mare."
+      ]
     },
     {
       "q": [
@@ -3823,28 +4186,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play a perfect 5th up from D (D then A).",
-          "o": null
+          "o": null,
+          "why": "D up to A covers 5 letters (D–E–F–G–A) and 7 semitones — a perfect 5th."
         },
         "ro": {
           "q": "Cântă o cvintă perfectă de la Re în sus (Re apoi La).",
-          "o": null
+          "o": null,
+          "why": "De la Re la La sunt 5 trepte (Re–Mi–Fa–Sol–La) și 7 semitonuri — o cvintă perfectă."
         },
         "es": {
-          "q": "Toca una quinta justa ascendente desde Re (D): Re y luego La (D y luego A)."
+          "q": "Toca una quinta justa ascendente desde Re (D): Re y luego La (D y luego A).",
+          "why": "De Re a La hay 5 grados (Re–Mi–Fa–Sol–La) y 7 semitonos: una quinta justa."
         },
         "fr": {
-          "q": "Jouez une quinte juste ascendante à partir de ré : ré puis la."
+          "q": "Jouez une quinte juste ascendante à partir de ré : ré puis la.",
+          "why": "De Ré à La, on compte 5 degrés (Ré–Mi–Fa–Sol–La) et 7 demi-tons : une quinte juste."
         },
         "de": {
-          "q": "Spiele eine reine Quinte aufwärts von D (zuerst D, dann A)."
+          "q": "Spiele eine reine Quinte aufwärts von D (zuerst D, dann A).",
+          "why": "Von D nach A sind es 5 Stufen und 7 Halbtöne — eine reine Quinte."
         },
         "it": {
-          "q": "Suona una quinta giusta ascendente a partire da Re (prima Re, poi La)."
+          "q": "Suona una quinta giusta ascendente a partire da Re (prima Re, poi La).",
+          "why": "Da Re a La ci sono 5 gradi (Re–Mi–Fa–Sol–La) e 7 semitoni: una quinta giusta."
         },
         "pt-BR": {
-          "q": "Toque uma quinta justa ascendente a partir de Ré (D): Ré e depois Lá."
+          "q": "Toque uma quinta justa ascendente a partir de Ré (D): Ré e depois Lá.",
+          "why": "De Ré a Lá são 5 graus (Ré–Mi–Fá–Sol–Lá) e 7 semitons — uma quinta justa."
         }
-      }
+      },
+      "why": [
+        "D up to A covers 5 letters (D–E–F–G–A) and 7 semitones — a perfect 5th.",
+        "De la Re la La sunt 5 trepte (Re–Mi–Fa–Sol–La) și 7 semitonuri — o cvintă perfectă."
+      ]
     }
   ],
   "iv2": [
@@ -3879,7 +4253,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "perfect 4th",
             "minor 6th",
             "major 3rd"
-          ]
+          ],
+          "why": "C–D–E–F is a 4th, and raising F to F♯ widens it by one semitone from perfect 4th (5) to augmented 4th (6)."
         },
         "ro": {
           "q": "De la Do la Fa♯ (6 semitonuri) este o…",
@@ -3888,7 +4263,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cvartă perfectă",
             "sextă mică",
             "terță mare"
-          ]
+          ],
+          "why": "Do–Fa este o cvartă perfectă (5 semitonuri); ridicarea lui Fa la Fa♯ o lărgește la 6 semitonuri (cvartă mărită / triton)."
         },
         "es": {
           "q": "De Do a Fa♯ (6 semitonos) hay una…",
@@ -3897,7 +4273,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cuarta justa",
             "sexta menor",
             "tercera mayor"
-          ]
+          ],
+          "why": "Do–Fa es una cuarta justa (5 semitonos); al subir Fa a Fa♯ pasa a 6 semitonos (cuarta aumentada o tritono)."
         },
         "fr": {
           "q": "De do à fa♯ (6 demi-tons), il s’agit d’une…",
@@ -3906,7 +4283,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "quarte juste",
             "sixte mineure",
             "tierce majeure"
-          ]
+          ],
+          "why": "Do–Fa est une quarte juste (5 demi-tons) ; en haussant Fa à Fa♯ on obtient 6 demi-tons (quarte augmentée / triton)."
         },
         "de": {
           "q": "C bis F♯ (6 Halbtöne) ist eine …",
@@ -3915,7 +4293,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "reine Quarte",
             "kleine Sexte",
             "große Terz"
-          ]
+          ],
+          "why": "C–F ist eine reine Quarte (5 Halbtöne); durch Erhöhung zu Fis entstehen 6 Halbtöne (übermäßige Quarte / Tritonus)."
         },
         "it": {
           "q": "Quanti semitoni misura il tritono?",
@@ -3924,7 +4303,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "5",
             "7",
             "8"
-          ]
+          ],
+          "why": "Do–Fa è una quarta giusta (5 semitoni); alterando Fa in Fa♯ si allarga a 6 semitoni (quarta eccedente / tritono)."
         },
         "pt-BR": {
           "q": "De Dó a Fá♯ (6 semitons) temos uma…",
@@ -3933,9 +4313,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "quarta justa",
             "sexta menor",
             "terça maior"
-          ]
+          ],
+          "why": "Dó–Fá é uma quarta justa (5 semitons); elevar Fá para Fá♯ amplia para 6 semitons (quarta aumentada / trítono)."
         }
-      }
+      },
+      "why": [
+        "C–D–E–F is a 4th, and raising F to F♯ widens it by one semitone from perfect 4th (5) to augmented 4th (6).",
+        "Do–Fa este o cvartă perfectă (5 semitonuri); ridicarea lui Fa la Fa♯ o lărgește la 6 semitonuri (cvartă mărită / triton)."
+      ]
     },
     {
       "q": [
@@ -4068,7 +4453,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "major 2nd",
             "minor 9th",
             "major 10th"
-          ]
+          ],
+          "why": "C4 to D4 is a major 2nd; adding an octave (7 scale steps + 2 = 9) turns it into a compound major 9th."
         },
         "ro": {
           "q": "De la Do4 în sus la Re5 este o…",
@@ -4077,7 +4463,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "secundă mare",
             "nonă mică",
             "decimă mare"
-          ]
+          ],
+          "why": "Do4–Re4 este o secundă mare; adăugarea unei octave o transformă în interval compus: nonă mare."
         },
         "es": {
           "q": "De Do4 (C4) hacia arriba hasta Re5 (D5) hay una…",
@@ -4086,7 +4473,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "segunda mayor",
             "novena menor",
             "décima mayor"
-          ]
+          ],
+          "why": "Do4–Re4 es segunda mayor; al sumarle una octava se convierte en un intervalo compuesto de novena mayor."
         },
         "fr": {
           "q": "De Do4 en montant jusqu’à Ré5, il s’agit d’une…",
@@ -4095,7 +4483,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "seconde majeure",
             "neuvième mineure",
             "dixième majeure"
-          ]
+          ],
+          "why": "Do4–Ré4 est une seconde majeure ; en ajoutant une octave on obtient son redoublement, la neuvième majeure."
         },
         "de": {
           "q": "Eine None entspricht Folgendem:",
@@ -4104,7 +4493,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "zwei Oktaven",
             "einer Terz plus Quinte",
             "7 Halbtönen"
-          ]
+          ],
+          "why": "C4–D4 ist eine große Sekunde; um eine Oktave erweitert wird sie zur großen None."
         },
         "it": {
           "q": "Quale intervallo composto corrisponde a un'ottava più una seconda maggiore?",
@@ -4113,7 +4503,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Decima minore",
             "Undicesima giusta",
             "Settima maggiore"
-          ]
+          ],
+          "why": "Do4–Re4 è una seconda maggiore; aggiungendo un’ottava diventa l’intervallo composto di nona maggiore."
         },
         "pt-BR": {
           "q": "De Dó4 subindo até Ré5 temos uma…",
@@ -4122,9 +4513,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "segunda maior",
             "nona menor",
             "décima maior"
-          ]
+          ],
+          "why": "Dó4–Ré4 é uma segunda maior; somando uma oitava torna-se o intervalo composto de nona maior."
         }
-      }
+      },
+      "why": [
+        "C4 to D4 is a major 2nd; adding an octave (7 scale steps + 2 = 9) turns it into a compound major 9th.",
+        "Do4–Re4 este o secundă mare; adăugarea unei octave o transformă în interval compus: nonă mare."
+      ]
     },
     {
       "q": [
@@ -4157,7 +4553,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "the same interval",
             "major 3rd vs minor 3rd",
             "4th vs 5th"
-          ]
+          ],
+          "why": "Letter count decides the interval number: C–D–E is a 3rd (minor 3rd C–E♭), while C–D is a 2nd (augmented 2nd C–D♯)."
         },
         "ro": {
           "q": "Do–Mi♭ și Do–Re♯ — aceleași clape, dar sunt…",
@@ -4166,7 +4563,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "același interval",
             "terță mare vs terță mică",
             "cvartă vs cvintă"
-          ]
+          ],
+          "why": "Numele treptelor decide cifra intervalului: Do–Re–Mi♭ este terță mică, în timp ce Do–Re♯ numără doar două trepte (secundă mărită)."
         },
         "es": {
           "q": "Do–Mi♭ frente a Do–Re♯: son las mismas teclas, pero se trata de…",
@@ -4175,7 +4573,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "el mismo intervalo con otro nombre",
             "tercera mayor frente a tercera menor",
             "cuarta frente a quinta"
-          ]
+          ],
+          "why": "Las letras determinan el número del intervalo: Do–Mi♭ abarca 3 grados (3.ª menor) y Do–Re♯ solo 2 (2.ª aumentada)."
         },
         "fr": {
           "q": "Do–Mi♭ comparé à Do–Ré♯ : mêmes touches au piano, mais ce sont…",
@@ -4184,7 +4583,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "exactement le même intervalle",
             "une tierce majeure et une tierce mineure",
             "une quarte et une quinte"
-          ]
+          ],
+          "why": "Le nom des notes fixe le degré : Do–Mi♭ couvre 3 degrés (tierce mineure) tandis que Do–Ré♯ n’en couvre que 2 (seconde augmentée)."
         },
         "de": {
           "q": "Ein vermindertes Intervall ist um einen Halbton enger als ein …",
@@ -4193,7 +4593,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "großes Intervall",
             "übermäßiges Intervall",
             "zusammengesetztes Intervall"
-          ]
+          ],
+          "why": "Die Notennamen bestimmen das Intervall: C–Es umfasst 3 Stufen (kleine Terz), C–Dis nur 2 (übermäßige Sekunde)."
         },
         "it": {
           "q": "Cosa accade agli intervalli giusti (quarta, quinta, ottava) quando vengono rivoltati?",
@@ -4202,7 +4603,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Diventano maggiori",
             "Diventano minori",
             "Diventano aumentati"
-          ]
+          ],
+          "why": "Il conteggio delle lettere fissa l’intervallo: Do–Mi♭ è una terza minore (3 gradi), Do–Re♯ è una seconda eccedente (2 gradi)."
         },
         "pt-BR": {
           "q": "Dó–Mi♭ em relação a Dó–Ré♯: mesmas teclas no piano, porém são…",
@@ -4211,9 +4613,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "exatamente o mesmo intervalo",
             "terça maior vs terça menor",
             "quarta vs quinta"
-          ]
+          ],
+          "why": "A contagem das notas define o intervalo: Dó–Mi♭ abrange 3 graus (3ª menor), enquanto Dó–Ré♯ abrange 2 (2ª aumentada)."
         }
-      }
+      },
+      "why": [
+        "Letter count decides the interval number: C–D–E is a 3rd (minor 3rd C–E♭), while C–D is a 2nd (augmented 2nd C–D♯).",
+        "Numele treptelor decide cifra intervalului: Do–Re–Mi♭ este terță mică, în timp ce Do–Re♯ numără doar două trepte (secundă mărită)."
+      ]
     },
     {
       "q": [
@@ -4227,28 +4634,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play a tritone: F then B.",
-          "o": null
+          "o": null,
+          "why": "F to B spans three consecutive whole steps (F–G–A–B = 6 semitones), the signature sound of a tritone."
         },
         "ro": {
           "q": "Cântă un triton: Fa apoi Si.",
-          "o": null
+          "o": null,
+          "why": "Între Fa și Si sunt trei tonuri întregi consecutive (Fa–Sol–La–Si = 6 semitonuri), formând tritonul natural."
         },
         "es": {
-          "q": "Toca un tritono: Fa y luego Si (F y luego B)."
+          "q": "Toca un tritono: Fa y luego Si (F y luego B).",
+          "why": "Entre Fa y Si hay tres tonos enteros seguidos (Fa–Sol–La–Si = 6 semitonos), el tritono natural."
         },
         "fr": {
-          "q": "Jouez un triton : fa puis si."
+          "q": "Jouez un triton : fa puis si.",
+          "why": "Entre Fa et Si se trouvent trois tons entiers consécutifs (Fa–Sol–La–Si = 6 demi-tons) : le triton naturel."
         },
         "de": {
-          "q": "Spiele einen Tritonus: erst F, dann H (international B)."
+          "q": "Spiele einen Tritonus: erst F, dann H (international B).",
+          "why": "Zwischen F und H liegen drei ganze Töne (F–G–A–H = 6 Halbtöne) — genau ein Tritonus."
         },
         "it": {
-          "q": "Suona un tritono: prima Fa, poi Si."
+          "q": "Suona un tritono: prima Fa, poi Si.",
+          "why": "Tra Fa e Si si susseguono tre toni interi (Fa–Sol–La–Si = 6 semitoni): il tritono naturale."
         },
         "pt-BR": {
-          "q": "Toque um trítono: Fá e depois Si (F e depois B)."
+          "q": "Toque um trítono: Fá e depois Si (F e depois B).",
+          "why": "Entre Fá e Si há três tons inteiros seguidos (Fá–Sol–Lá–Si = 6 semitons), formando o trítono natural."
         }
-      }
+      },
+      "why": [
+        "F to B spans three consecutive whole steps (F–G–A–B = 6 semitones), the signature sound of a tritone.",
+        "Între Fa și Si sunt trei tonuri întregi consecutive (Fa–Sol–La–Si = 6 semitonuri), formând tritonul natural."
+      ]
     }
   ],
   "sc": [
@@ -4283,7 +4701,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "W H W W H W W",
             "W W W H W W H",
             "H W W W H W W"
-          ]
+          ],
+          "why": "Major scales place half steps strictly between degrees 3–4 and 7–8, leaving whole steps everywhere else (W-W-H-W-W-W-H)."
         },
         "ro": {
           "q": "Formula gamei majore este…",
@@ -4292,7 +4711,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "T S T T S T T",
             "T T T S T T S",
             "S T T T S T T"
-          ]
+          ],
+          "why": "Gama majoră are semitonuri exclusiv între treptele III–IV și VII–VIII, restul fiind tonuri (T-T-S-T-T-T-S)."
         },
         "es": {
           "q": "El patrón de pasos de la escala mayor es…",
@@ -4301,7 +4721,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "T S T T S T T",
             "T T T S T T S",
             "S T T T S T T"
-          ]
+          ],
+          "why": "Toda escala mayor sitúa los semitonos entre los grados 3–4 y 7–8, y tonos en los demás pasos (T-T-S-T-T-T-S)."
         },
         "fr": {
           "q": "La structure par tons et demi-tons de la gamme majeure est…",
@@ -4310,7 +4731,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "T S T T S T T",
             "T T T S T T S",
             "S T T T S T T"
-          ]
+          ],
+          "why": "La gamme majeure place ses demi-tons entre les degrés 3–4 et 7–8 uniquement (T-T-d-T-T-T-d)."
         },
         "de": {
           "q": "Aus welcher Schrittfolge setzt sich eine Dur-Tonleiter zusammen?",
@@ -4319,7 +4741,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "GT HT GT GT HT GT GT",
             "HT GT GT HT GT GT GT",
             "GT GT GT HT GT GT HT"
-          ]
+          ],
+          "why": "In jeder Durtonleiter liegen die Halbtonschritte ausschließlich zwischen der 3.–4. und 7.–8. Stufe (G-G-H-G-G-G-H)."
         },
         "it": {
           "q": "Qual è la sequenza esatta di toni (T) e semitoni (S) nella scala maggiore?",
@@ -4328,7 +4751,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "T–S–T–T–S–T–T",
             "T–T–T–S–T–T–S",
             "S–T–T–S–T–T–T"
-          ]
+          ],
+          "why": "La scala maggiore colloca i semitoni tra i gradi 3–4 e 7–8, con toni interi altrove (T-T-S-T-T-T-S)."
         },
         "pt-BR": {
           "q": "O padrão de passos da escala maior é…",
@@ -4337,9 +4761,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "T S T T S T T",
             "T T T S T T S",
             "S T T T S T T"
-          ]
+          ],
+          "why": "A escala maior coloca semitons apenas entre os graus 3–4 e 7–8, com tons nos demais passos (T-T-S-T-T-T-S)."
         }
-      }
+      },
+      "why": [
+        "Major scales place half steps strictly between degrees 3–4 and 7–8, leaving whole steps everywhere else (W-W-H-W-W-W-H).",
+        "Gama majoră are semitonuri exclusiv între treptele III–IV și VII–VIII, restul fiind tonuri (T-T-S-T-T-T-S)."
+      ]
     },
     {
       "q": [
@@ -4360,7 +4789,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "0",
             "2",
             "3"
-          ]
+          ],
+          "why": "Moving up a fifth from C major to G major adds the first sharp (F♯) so step 7–8 stays a half step."
         },
         "ro": {
           "q": "Câți diezi are Sol major?",
@@ -4369,7 +4799,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "0",
             "2",
             "3"
-          ]
+          ],
+          "why": "De la Do major la Sol major (o cvintă ascendentă) apare primul diez (Fa♯) pentru ca treapta VII să rămână sensibilă."
         },
         "es": {
           "q": "¿Cuántos sostenidos tiene la tonalidad de Sol mayor (G)?",
@@ -4378,7 +4809,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "0",
             "2",
             "3"
-          ]
+          ],
+          "why": "Al subir una quinta de Do mayor a Sol mayor se añade un sostenido (Fa♯) para mantener el semitono 7–8."
         },
         "fr": {
           "q": "Combien de dièses compte la gamme de sol majeur ?",
@@ -4387,7 +4819,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "0",
             "2",
             "3"
-          ]
+          ],
+          "why": "En montant d’une quinte de Do à Sol majeur, on ajoute un dièse (Fa♯) pour conserver le demi-ton entre 7 et 8."
         },
         "de": {
           "q": "Wie viele Vorzeichen besitzt die G-Dur-Tonleiter?",
@@ -4396,7 +4829,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 Kreuze",
             "1 Be",
             "keine Vorzeichen"
-          ]
+          ],
+          "why": "Eine Quinte über C-Dur braucht G-Dur genau ein Kreuz (Fis), damit zwischen 7. und 8. Stufe ein Halbton liegt."
         },
         "it": {
           "q": "Quali gradi della scala maggiore sono separati da un semitono naturale?",
@@ -4405,7 +4839,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "1°–2° e 4°–5°",
             "2°–3° e 6°–7°",
             "5°–6° e 7°–8°"
-          ]
+          ],
+          "why": "Salendo di una quinta da Do a Sol maggiore serve un diesis (Fa♯) per mantenere il semitono fra VII e VIII grado."
         },
         "pt-BR": {
           "q": "Quantos sustenidos tem a escala de Sol maior (G)?",
@@ -4414,9 +4849,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "0",
             "2",
             "3"
-          ]
+          ],
+          "why": "Subindo uma quinta de Dó maior para Sol maior entra o primeiro sustenido (Fá♯) mantendo o semitom entre 7 e 8."
         }
-      }
+      },
+      "why": [
+        "Moving up a fifth from C major to G major adds the first sharp (F♯) so step 7–8 stays a half step.",
+        "De la Do major la Sol major (o cvintă ascendentă) apare primul diez (Fa♯) pentru ca treapta VII să rămână sensibilă."
+      ]
     },
     {
       "q": [
@@ -4449,7 +4889,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "G",
             "F",
             "D"
-          ]
+          ],
+          "why": "Scale degree 7 (B in C major) sits just a semitone below the tonic C and pulls urgently upward to resolve."
         },
         "ro": {
           "q": "Care e sensibila în Do major?",
@@ -4458,7 +4899,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sol",
             "Fa",
             "Re"
-          ]
+          ],
+          "why": "Treapta a VII-a (Si în Do major) stă la un semiton sub tonică și cere rezolvare ascendentă spre Do."
         },
         "es": {
           "q": "¿Qué nota es la sensible en la escala de Do mayor?",
@@ -4467,7 +4909,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sol (G)",
             "Fa (F)",
             "Re (D)"
-          ]
+          ],
+          "why": "El 7.º grado (Si en Do mayor) está un semitono por debajo de la tónica y tiende a resolver hacia Do."
         },
         "fr": {
           "q": "Quelle note est la sensible en do majeur ?",
@@ -4476,7 +4919,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sol",
             "Fa",
             "Ré"
-          ]
+          ],
+          "why": "Le 7e degré (Si en Do majeur), situé un demi-ton sous la tonique, attire irrésistiblement vers Do : c’est la sensible."
         },
         "de": {
           "q": "Welche Molltonart ist die Parallele zu C-Dur?",
@@ -4485,7 +4929,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "d-Moll",
             "e-Moll",
             "c-Moll"
-          ]
+          ],
+          "why": "Die 7. Stufe (H in C-Dur) liegt einen Halbton unter dem Grundton und zieht als Leitton stark zum C."
         },
         "it": {
           "q": "Da quante note è formata una scala pentatonica maggiore?",
@@ -4494,7 +4939,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "7",
             "6",
             "8"
-          ]
+          ],
+          "why": "Il VII grado (Si in Do maggiore) dista un solo semitono dalla tonica Do e tende a risolvere verso l’alto."
         },
         "pt-BR": {
           "q": "Qual nota é a sensível em Dó maior?",
@@ -4503,9 +4949,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sol (G)",
             "Fá (F)",
             "Ré (D)"
-          ]
+          ],
+          "why": "O 7º grau (Si em Dó maior) fica um semitom abaixo da tônica Dó, puxando para cima como sensível."
         }
-      }
+      },
+      "why": [
+        "Scale degree 7 (B in C major) sits just a semitone below the tonic C and pulls urgently upward to resolve.",
+        "Treapta a VII-a (Si în Do major) stă la un semiton sub tonică și cere rezolvare ascendentă spre Do."
+      ]
     },
     {
       "q": [
@@ -4529,51 +4980,62 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
           "o": [
             "Minor",
             "Major"
-          ]
+          ],
+          "why": "Listen for the lowered 3rd degree right near the start — it immediately marks the minor mode."
         },
         "ro": {
           "q": "Ascultă: major sau minor?",
           "o": [
             "Minor",
             "Major"
-          ]
+          ],
+          "why": "Ascultă treapta a III-a coborâtă chiar la început — ea imprimă imediat caracterul minor."
         },
         "es": {
           "q": "Escucha atentamente: ¿es mayor o menor?",
           "o": [
             "Menor",
             "Mayor"
-          ]
+          ],
+          "why": "Fíjate en el 3.º grado rebajado al comienzo: distingue de inmediato la escala menor."
         },
         "fr": {
           "q": "Écoutez attentivement : est-ce majeur ou mineur ?",
           "o": [
             "Mineur",
             "Majeur"
-          ]
+          ],
+          "why": "Écoutez la tierce mineure dès les premières notes : elle signe immédiatement le mode mineur."
         },
         "de": {
           "q": "Höre hin: Dur oder Moll?",
           "o": [
             "Moll",
             "Dur"
-          ]
+          ],
+          "why": "Achte auf die kleine Terz (3. Stufe) am Anfang — sie gibt der Tonleiter sofort ihren Moll-Charakter."
         },
         "it": {
           "q": "Ascolta: maggiore o minore?",
           "o": [
             "Minore",
             "Maggiore"
-          ]
+          ],
+          "why": "Ascolta la terza minore abbassata subito all’inizio: caratterizza immediatamente il modo minore."
         },
         "pt-BR": {
           "q": "Ouça com atenção: é maior ou menor?",
           "o": [
             "Menor",
             "Maior"
-          ]
+          ],
+          "why": "Repare na terça menor logo no início da subida: ela define imediatamente o caráter menor."
         }
-      }
+      },
+      "why": [
+        "Listen for the lowered 3rd degree right near the start — it immediately marks the minor mode.",
+        "Ascultă treapta a III-a coborâtă chiar la început — ea imprimă imediat caracterul minor."
+      ]
     },
     {
       "q": [
@@ -4588,28 +5050,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play degrees 1, 3 and 5 of G major (G, B, D).",
-          "o": null
+          "o": null,
+          "why": "In G major, degrees 1, 3, and 5 are G–B–D, the G major tonic triad."
         },
         "ro": {
           "q": "Cântă treptele 1, 3 și 5 din Sol major (Sol, Si, Re).",
-          "o": null
+          "o": null,
+          "why": "În Sol major, treptele 1, 3 și 5 sunt Sol–Si–Re, adică acordul tonicii Sol major."
         },
         "es": {
-          "q": "Toca los grados 1, 3 y 5 de Sol mayor: Sol, Si y Re (G, B, D)."
+          "q": "Toca los grados 1, 3 y 5 de Sol mayor: Sol, Si y Re (G, B, D).",
+          "why": "En Sol mayor, los grados 1, 3 y 5 forman Sol–Si–Re, la tríada de tónica."
         },
         "fr": {
-          "q": "Jouez les degrés 1, 3 et 5 de sol majeur (sol, si, ré)."
+          "q": "Jouez les degrés 1, 3 et 5 de sol majeur (sol, si, ré).",
+          "why": "En Sol majeur, les degrés 1, 3 et 5 donnent Sol–Si–Ré, l’accord parfait de tonique."
         },
         "de": {
-          "q": "Spiele die Stufen 1, 3 und 5 von G-Dur (G, H, D)."
+          "q": "Spiele die Stufen 1, 3 und 5 von G-Dur (G, H, D).",
+          "why": "In G-Dur bilden die Stufen 1, 3 und 5 den Tonikadreiklang G–H–D."
         },
         "it": {
-          "q": "Suona il primo, il terzo e il quinto grado di Sol maggiore (Sol, Si, Re)."
+          "q": "Suona il primo, il terzo e il quinto grado di Sol maggiore (Sol, Si, Re).",
+          "why": "In Sol maggiore i gradi 1, 3 e 5 corrispondono a Sol–Si–Re, la triade di tonica."
         },
         "pt-BR": {
-          "q": "Toque os graus 1, 3 e 5 de Sol maior: Sol, Si e Ré (G, B, D)."
+          "q": "Toque os graus 1, 3 e 5 de Sol maior: Sol, Si e Ré (G, B, D).",
+          "why": "Em Sol maior, os graus 1, 3 e 5 são Sol–Si–Ré, formando a tríade de tônica."
         }
-      }
+      },
+      "why": [
+        "In G major, degrees 1, 3, and 5 are G–B–D, the G major tonic triad.",
+        "În Sol major, treptele 1, 3 și 5 sunt Sol–Si–Re, adică acordul tonicii Sol major."
+      ]
     }
   ],
   "minor": [
@@ -4644,7 +5117,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "the 6th",
             "the 3rd",
             "the 2nd"
-          ]
+          ],
+          "why": "Raising the 7th degree creates a true leading tone (half step to the tonic) and makes V major."
         },
         "ro": {
           "q": "Minorul armonic urcă ce treaptă?",
@@ -4653,7 +5127,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "treapta a 6-a",
             "treapta a 3-a",
             "treapta a 2-a"
-          ]
+          ],
+          "why": "Ridicarea treptei a VII-a creează sensibila la un semiton sub tonică și transformă dominanta V în acord major."
         },
         "es": {
           "q": "¿Qué grado eleva la escala menor armónica?",
@@ -4662,7 +5137,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "el 6.º grado",
             "el 3.er grado",
             "el 2.º grado"
-          ]
+          ],
+          "why": "Alterar ascendentemente el 7.º grado crea una sensible a un semitono de la tónica y vuelve mayor el acorde V."
         },
         "fr": {
           "q": "Quel degré la gamme mineure harmonique hausse-t-elle ?",
@@ -4671,7 +5147,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "le 6e degré",
             "le 3e degré",
             "le 2e degré"
-          ]
+          ],
+          "why": "Hausser le 7e degré crée une véritable sensible à un demi-ton de la tonique et rend l’accord de V majeur."
         },
         "de": {
           "q": "Wie unterscheidet sich harmonisches Moll von natürlichem Moll?",
@@ -4680,7 +5157,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Die 6. Stufe wird erniedrigt",
             "Die 3. Stufe wird erhöht",
             "Es hat keine Halbtöne"
-          ]
+          ],
+          "why": "Die Erhöhung der 7. Stufe schafft einen Leitton im Halbtonabstand zum Grundton und macht die V. Stufe zu Dur."
         },
         "it": {
           "q": "Qual è la formula intervallare della scala minore naturale?",
@@ -4689,7 +5167,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "1 2 3 4 5 6 7",
             "1 2 ♭3 4 5 ♭6 7",
             "1 ♭2 ♭3 4 5 ♭6 ♭7"
-          ]
+          ],
+          "why": "Innalzare il VII grado crea una vera sensibile a un semitono dalla tonica e rende maggiore l’accordo di V."
         },
         "pt-BR": {
           "q": "Qual grau é elevado na escala menor harmônica?",
@@ -4698,9 +5177,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "o 6º grau",
             "o 3º grau",
             "o 2º grau"
-          ]
+          ],
+          "why": "Elevar o 7º grau cria uma sensível a um semitom da tônica e torna o acorde de V grau maior."
         }
-      }
+      },
+      "why": [
+        "Raising the 7th degree creates a true leading tone (half step to the tonic) and makes V major.",
+        "Ridicarea treptei a VII-a creează sensibila la un semiton sub tonică și transformă dominanta V în acord major."
+      ]
     },
     {
       "q": [
@@ -4733,7 +5217,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "A B C D E F G A",
             "A B C D E F G♯ A",
             "A B C♯ D E F♯ G♯ A"
-          ]
+          ],
+          "why": "Ascending melodic minor raises both the 6th (F♯) and 7th (G♯) to smooth out the augmented 2nd leap."
         },
         "ro": {
           "q": "La minor melodic ascendent este…",
@@ -4742,7 +5227,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La Si Do Re Mi Fa Sol La",
             "La Si Do Re Mi Fa Sol♯ La",
             "La Si Do♯ Re Mi Fa♯ Sol♯ La"
-          ]
+          ],
+          "why": "Minora melodică ascendentă ridică atât treapta a VI-a (Fa♯), cât și a VII-a (Sol♯), eliminând secunda mărită."
         },
         "es": {
           "q": "La escala de La menor melódica ascendente es…",
@@ -4751,7 +5237,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La Si Do Re Mi Fa Sol La",
             "La Si Do Re Mi Fa Sol♯ La",
             "La Si Do♯ Re Mi Fa♯ Sol♯ La"
-          ]
+          ],
+          "why": "La escala menor melódica ascendente sube tanto el 6.º (Fa♯) como el 7.º grado (Sol♯) para suavizar la 2.ª aumentada."
         },
         "fr": {
           "q": "La gamme de la mineur mélodique ascendante est…",
@@ -4760,7 +5247,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La Si Do Ré Mi Fa Sol La",
             "La Si Do Ré Mi Fa Sol♯ La",
             "La Si Do♯ Ré Mi Fa♯ Sol♯ La"
-          ]
+          ],
+          "why": "Le mineur mélodique ascendant hausse à la fois la 6e (Fa♯) et la 7e (Sol♯) pour éviter la seconde augmentée."
         },
         "de": {
           "q": "Welche Stufen werden im klassischen melodischen Moll aufwärts erhöht?",
@@ -4769,7 +5257,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "nur die 7. Stufe",
             "die 3. und 7. Stufe",
             "die 4. und 5. Stufe"
-          ]
+          ],
+          "why": "Melodisch Moll erhöht aufwärts die 6. (Fis) und 7. Stufe (Gis), um den übermäßigen Sekundschritt zu glätten."
         },
         "it": {
           "q": "Qual è la relativa minore di Do maggiore (C)?",
@@ -4778,7 +5267,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Mi minore (Em)",
             "Re minore (Dm)",
             "Sol minore (Gm)"
-          ]
+          ],
+          "why": "La scala minore melodica ascendente innalza sia il 6° (Fa♯) che il 7° grado (Sol♯) evitando la 2ª eccedente."
         },
         "pt-BR": {
           "q": "A escala de Lá menor melódica ascendente é…",
@@ -4787,9 +5277,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lá Si Dó Ré Mi Fá Sol Lá",
             "Lá Si Dó Ré Mi Fá Sol♯ Lá",
             "Lá Si Dó♯ Ré Mi Fá♯ Sol♯ Lá"
-          ]
+          ],
+          "why": "A menor melódica ascendente eleva o 6º (Fá♯) e o 7º graus (Sol♯) para suavizar a segunda aumentada."
         }
-      }
+      },
+      "why": [
+        "Ascending melodic minor raises both the 6th (F♯) and 7th (G♯) to smooth out the augmented 2nd leap.",
+        "Minora melodică ascendentă ridică atât treapta a VI-a (Fa♯), cât și a VII-a (Sol♯), eliminând secunda mărită."
+      ]
     },
     {
       "q": [
@@ -4822,7 +5317,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "subdominant",
             "mediant",
             "tonic"
-          ]
+          ],
+          "why": "Degree 5 is the dominant — the primary tension chord that pulls home toward degree 1 (tonic)."
         },
         "ro": {
           "q": "Treapta a 5-a se numește…",
@@ -4831,7 +5327,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "subdominantă",
             "medianta",
             "tonică"
-          ]
+          ],
+          "why": "Treapta a V-a se numește dominantă — polul principal de tensiune care cere rezolvare spre tonică."
         },
         "es": {
           "q": "El 5.º grado de una escala se denomina…",
@@ -4840,7 +5337,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "subdominante",
             "mediante",
             "tónica"
-          ]
+          ],
+          "why": "El grado 5 es la dominante: la función de mayor tensión que resuelve hacia el grado 1 (tónica)."
         },
         "fr": {
           "q": "Le 5e degré d’une gamme est appelé la…",
@@ -4849,7 +5347,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sous-dominante",
             "médiante",
             "tonique"
-          ]
+          ],
+          "why": "Le 5e degré est la dominante, pôle de tension qui ramène vers le 1er degré (tonique)."
         },
         "de": {
           "q": "Welche Bezeichnung trägt die 5. Stufe einer Tonleiter?",
@@ -4858,7 +5357,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Subdominante",
             "Mediante",
             "Tonika"
-          ]
+          ],
+          "why": "Die 5. Stufe heißt Dominante — das Spannungszentrum, das zurück zum Grundton (Tonika) strebt."
         },
         "it": {
           "q": "Quale grado viene alzato nella scala minore armonica per creare la sensibile?",
@@ -4867,7 +5367,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Il 6° grado",
             "Il 3° grado",
             "Il 4° grado"
-          ]
+          ],
+          "why": "Il V grado è la dominante, il centro di tensione armonica che tende alla tonica."
         },
         "pt-BR": {
           "q": "O 5º grau de uma escala é chamado de…",
@@ -4876,9 +5377,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "subdominante",
             "mediante",
             "tônica"
-          ]
+          ],
+          "why": "O 5º grau é a dominante — o centro de tensão que resolve de volta na tônica (1º grau)."
         }
-      }
+      },
+      "why": [
+        "Degree 5 is the dominant — the primary tension chord that pulls home toward degree 1 (tonic).",
+        "Treapta a V-a se numește dominantă — polul principal de tensiune care cere rezolvare spre tonică."
+      ]
     },
     {
       "q": [
@@ -4911,7 +5417,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "B E A D",
             "C G D A",
             "F B E A"
-          ]
+          ],
+          "why": "Key signatures add sharps in ascending fifths: F–C–G–D–A–E–B."
         },
         "ro": {
           "q": "Ordinea diezilor începe cu…",
@@ -4920,7 +5427,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Si Mi La Re",
             "Do Sol Re La",
             "Fa Si Mi La"
-          ]
+          ],
+          "why": "Ordinea diezilor la armură urcă din cvintă în cvintă: Fa–Do–Sol–Re–La–Mi–Si."
         },
         "es": {
           "q": "El orden de los sostenidos comienza por…",
@@ -4929,7 +5437,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Si Mi La Re (B E A D)",
             "Do Sol Re La (C G D A)",
             "Fa Si Mi La (F B E A)"
-          ]
+          ],
+          "why": "Las armaduras añaden sostenidos por quintas ascendentes: Fa–Do–Sol–Re–La–Mi–Si."
         },
         "fr": {
           "q": "L’ordre des dièses commence par…",
@@ -4938,7 +5447,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Si Mi La Ré",
             "Do Sol Ré La",
             "Fa Si Mi La"
-          ]
+          ],
+          "why": "Les dièses s’ajoutent à l’armure par quintes ascendantes : Fa–Do–Sol–Ré–La–Mi–Si."
         },
         "de": {
           "q": "Welche Tonart besitzt zwei Be-Vorzeichen (B♭ und E♭)?",
@@ -4947,7 +5457,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "F-Dur",
             "Es-Dur",
             "g-Moll"
-          ]
+          ],
+          "why": "Kreuze erscheinen am Vorzeichen im Quintenzirkel aufwärts: F–C–G–D–A–E–H."
         },
         "it": {
           "q": "Come si chiama il 5° grado di qualsiasi scala?",
@@ -4956,7 +5467,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sottodominante",
             "Mediante",
             "Sensibile"
-          ]
+          ],
+          "why": "I diesis in armatura di chiave si susseguono per quinte ascendenti: Fa–Do–Sol–Re–La–Mi–Si."
         },
         "pt-BR": {
           "q": "A ordem dos sustenidos começa com…",
@@ -4965,9 +5477,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Si Mi Lá Ré (B E A D)",
             "Dó Sol Ré Lá (C G D A)",
             "Fá Si Mi Lá (F B E A)"
-          ]
+          ],
+          "why": "Os sustenidos da armadura de clave entram por quintas ascendentes: Fá–Dó–Sol–Ré–Lá–Mi–Si."
         }
-      }
+      },
+      "why": [
+        "Key signatures add sharps in ascending fifths: F–C–G–D–A–E–B.",
+        "Ordinea diezilor la armură urcă din cvintă în cvintă: Fa–Do–Sol–Re–La–Mi–Si."
+      ]
     },
     {
       "q": [
@@ -4996,7 +5513,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Harmonic minor",
             "Natural minor",
             "Melodic minor"
-          ]
+          ],
+          "why": "The wide 3-semitone gap between degrees 6 and 7 near the top is the unmistakable hallmark of harmonic minor."
         },
         "ro": {
           "q": "Ascultă: ce fel de minor e?",
@@ -5004,7 +5522,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Minor armonic",
             "Minor natural",
             "Minor melodic"
-          ]
+          ],
+          "why": "Saltul caracteristic de 3 semitonuri între treptele VI și VII spre vârf trădează imediat minora armonică."
         },
         "es": {
           "q": "Escucha atentamente: ¿qué tipo de escala menor suena?",
@@ -5012,7 +5531,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Menor armónica",
             "Menor natural",
             "Menor melódica"
-          ]
+          ],
+          "why": "El salto de 3 semitonos entre los grados 6 y 7 en la parte alta delata de inmediato la menor armónica."
         },
         "fr": {
           "q": "Écoutez attentivement : quel type de gamme mineure entendez-vous ?",
@@ -5020,7 +5540,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Mineure harmonique",
             "Mineure naturelle",
             "Mineure mélodique"
-          ]
+          ],
+          "why": "L’intervalle expressif de 3 demi-tons entre les 6e et 7e degrés signe immédiatement le mineur harmonique."
         },
         "de": {
           "q": "Höre hin: Welches Moll ist es?",
@@ -5028,7 +5549,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Harmonisches Moll",
             "Natürliches Moll",
             "Melodisches Moll"
-          ]
+          ],
+          "why": "Der markante Schritt von 3 Halbtönen zwischen der 6. und 7. Stufe verrät sofort harmonisch Moll."
         },
         "it": {
           "q": "Ascolta: quale scala minore è?",
@@ -5036,7 +5558,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Minore armonica",
             "Minore naturale",
             "Minore melodica"
-          ]
+          ],
+          "why": "Il salto di 3 semitoni fra VI e VII grado rivela subito il carattere della minore armonica."
         },
         "pt-BR": {
           "q": "Ouça com atenção: qual tipo de escala menor é?",
@@ -5044,9 +5567,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Menor harmônica",
             "Menor natural",
             "Menor melódica"
-          ]
+          ],
+          "why": "O salto de 3 semitons entre os graus 6 e 7 revela imediatamente a escala menor harmônica."
         }
-      }
+      },
+      "why": [
+        "The wide 3-semitone gap between degrees 6 and 7 near the top is the unmistakable hallmark of harmonic minor.",
+        "Saltul caracteristic de 3 semitonuri între treptele VI și VII spre vârf trădează imediat minora armonică."
+      ]
     },
     {
       "q": [
@@ -5061,28 +5589,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play the A minor triad (A, C, E).",
-          "o": null
+          "o": null,
+          "why": "A–C–E builds a minor 3rd (A–C) plus a major 3rd (C–E) — the tonic triad of A minor."
         },
         "ro": {
           "q": "Cântă trisonul La minor (La, Do, Mi).",
-          "o": null
+          "o": null,
+          "why": "La–Do–Mi combină o terță mică (La–Do) cu o terță mare (Do–Mi), formând acordul tonicii La minor."
         },
         "es": {
-          "q": "Toca la tríada de La menor: La, Do y Mi (A, C, E)."
+          "q": "Toca la tríada de La menor: La, Do y Mi (A, C, E).",
+          "why": "La–Do–Mi combina una 3.ª menor (La–Do) y una 3.ª mayor (Do–Mi): la tríada de La menor."
         },
         "fr": {
-          "q": "Jouez la triade de la mineur (la, do, mi)."
+          "q": "Jouez la triade de la mineur (la, do, mi).",
+          "why": "La–Do–Mi réunit une tierce mineure (La–Do) et une tierce majeure (Do–Mi) : la triade de La mineur."
         },
         "de": {
-          "q": "Spiele den a-Moll-Dreiklang (A, C, E)."
+          "q": "Spiele den a-Moll-Dreiklang (A, C, E).",
+          "why": "A–C–E schichtet eine kleine Terz (A–C) und eine große Terz (C–E) zum a-Moll-Dreiklang."
         },
         "it": {
-          "q": "Suona la triade di La minore (La, Do, Mi)."
+          "q": "Suona la triade di La minore (La, Do, Mi).",
+          "why": "La–Do–Mi unisce una terza minore (La–Do) a una terza maggiore (Do–Mi): la triade di La minore."
         },
         "pt-BR": {
-          "q": "Toque a tríade de Lá menor: Lá, Dó e Mi (A, C, E)."
+          "q": "Toque a tríade de Lá menor: Lá, Dó e Mi (A, C, E).",
+          "why": "Lá–Dó–Mi junta uma 3ª menor (Lá–Dó) e uma 3ª maior (Dó–Mi), formando a tríade de Lá menor."
         }
-      }
+      },
+      "why": [
+        "A–C–E builds a minor 3rd (A–C) plus a major 3rd (C–E) — the tonic triad of A minor.",
+        "La–Do–Mi combină o terță mică (La–Do) cu o terță mare (Do–Mi), formând acordul tonicii La minor."
+      ]
     }
   ],
   "cof": [
@@ -5117,7 +5656,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "flat",
             "octave",
             "beat"
-          ]
+          ],
+          "why": "Every clockwise step goes up a fifth, raising the 4th degree of the old key to add one more sharp."
         },
         "ro": {
           "q": "Mergând în sensul acelor de ceas, fiecare pas adaugă un…",
@@ -5126,7 +5666,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "bemol",
             "octavă",
             "timp"
-          ]
+          ],
+          "why": "Fiecare pas în sensul acelor de ceasornic urcă o cvintă și adaugă încă un diez la armură."
         },
         "es": {
           "q": "Al avanzar en el sentido de las agujas del reloj por el círculo de quintas, en cada paso se añade…",
@@ -5135,7 +5676,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "un bemol",
             "una octava",
             "un pulso"
-          ]
+          ],
+          "why": "Cada paso en sentido horario sube una quinta y añade un sostenido nuevo en la armadura."
         },
         "fr": {
           "q": "En tournant dans le sens horaire sur le cycle des quintes, chaque pas ajoute…",
@@ -5144,7 +5686,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "un bémol",
             "une octave",
             "un temps"
-          ]
+          ],
+          "why": "Chaque pas horaire monte d’une quinte et ajoute un dièse supplémentaire à la clé."
         },
         "de": {
           "q": "Jeder Schritt im Uhrzeigersinn auf dem Quintenzirkel ergänzt …",
@@ -5153,7 +5696,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ein Be (♭)",
             "ein Auflösungszeichen",
             "zwei Kreuze"
-          ]
+          ],
+          "why": "Jeder Schritt im Uhrzeigersinn geht eine Quinte aufwärts und fügt ein weiteres Kreuz hinzu."
         },
         "it": {
           "q": "Cosa accade procedendo di un passo in senso orario sul circolo delle quinte?",
@@ -5162,7 +5706,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Si scende di una quarta e si aggiunge un bemolle",
             "La tonalità diventa minore",
             "Si raddoppia il tempo"
-          ]
+          ],
+          "why": "Ogni passo in senso orario sale di una quinta aggiungendo un nuovo diesis in chiave."
         },
         "pt-BR": {
           "q": "No sentido horário do círculo das quintas, cada passo acrescenta um…",
@@ -5171,9 +5716,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "bemol",
             "oitava",
             "tempo"
-          ]
+          ],
+          "why": "Cada passo no sentido horário sobe uma quinta e acrescenta mais um sustenido à armadura."
         }
-      }
+      },
+      "why": [
+        "Every clockwise step goes up a fifth, raising the 4th degree of the old key to add one more sharp.",
+        "Fiecare pas în sensul acelor de ceasornic urcă o cvintă și adaugă încă un diez la armură."
+      ]
     },
     {
       "q": [
@@ -5206,7 +5756,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "A♭ major",
             "B♭ major",
             "A major"
-          ]
+          ],
+          "why": "Three flats in order are B♭, E♭, and A♭ — and the second-to-last flat (E♭) always names the major key."
         },
         "ro": {
           "q": "Ce tonalitate are 3 bemoli?",
@@ -5215,7 +5766,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La♭ major",
             "Si♭ major",
             "La major"
-          ]
+          ],
+          "why": "Trei bemoli în ordine sunt Si♭, Mi♭, La♭, iar penultimul bemol (Mi♭) numește tonalitatea majoră."
         },
         "es": {
           "q": "¿Qué tonalidad mayor tiene 3 bemoles?",
@@ -5224,7 +5776,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La♭ mayor (A♭)",
             "Si♭ mayor (B♭)",
             "La mayor (A)"
-          ]
+          ],
+          "why": "Tres bemoles son Si♭, Mi♭, La♭, y el penúltimo bemol (Mi♭) indica siempre la tonalidad mayor."
         },
         "fr": {
           "q": "Quelle tonalité majeure comporte 3 bémols à la clé ?",
@@ -5233,7 +5786,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La♭ majeur",
             "Si♭ majeur",
             "La majeur"
-          ]
+          ],
+          "why": "Trois bémols donnent Si♭, Mi♭, La♭ ; l’avant-dernier bémol (Mi♭) nomme toujours la tonalité majeure."
         },
         "de": {
           "q": "Welche Tonart liegt im Quintenzirkel eine Quinte über C-Dur?",
@@ -5242,7 +5796,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "F-Dur",
             "D-Dur",
             "A-Dur"
-          ]
+          ],
+          "why": "Drei Be sind B, Es und As — das vorletzte Be (Es) benennt die Durtonart Es-Dur."
         },
         "it": {
           "q": "Quanti diesis ha in chiave la tonalità di Sol maggiore (G)?",
@@ -5251,7 +5806,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "2 (F♯, C♯)",
             "Nessuno",
             "3 (F♯, C♯, G♯)"
-          ]
+          ],
+          "why": "Tre bemolli sono Si♭, Mi♭, La♭: il penultimo bemolle (Mi♭) indica la tonalità maggiore."
         },
         "pt-BR": {
           "q": "Qual tonalidade maior possui 3 bemóis na armadura?",
@@ -5260,9 +5816,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lá♭ maior (A♭)",
             "Si♭ maior (B♭)",
             "Lá maior (A)"
-          ]
+          ],
+          "why": "Três bemóis são Si♭, Mi♭ e Lá♭ — e o penúltimo bemol (Mi♭) sempre dá o nome ao tom maior."
         }
-      }
+      },
+      "why": [
+        "Three flats in order are B♭, E♭, and A♭ — and the second-to-last flat (E♭) always names the major key.",
+        "Trei bemoli în ordine sunt Si♭, Mi♭, La♭, iar penultimul bemol (Mi♭) numește tonalitatea majoră."
+      ]
     },
     {
       "q": [
@@ -5295,7 +5856,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "A minor",
             "F minor",
             "G minor"
-          ]
+          ],
+          "why": "The relative minor shares the same key signature and starts 3 semitones (minor 3rd) below the major tonic (F → D)."
         },
         "ro": {
           "q": "Relativa minoră a lui Fa major este…",
@@ -5304,7 +5866,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La minor",
             "Fa minor",
             "Sol minor"
-          ]
+          ],
+          "why": "Minora relativă are aceeași armură și începe cu 3 semitonuri sub tonica majoră (Fa → Re minor)."
         },
         "es": {
           "q": "¿Cuál es la relativa menor de Fa mayor (F)?",
@@ -5313,7 +5876,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La menor (Am)",
             "Fa menor (Fm)",
             "Sol menor (Gm)"
-          ]
+          ],
+          "why": "La relativa menor comparte armadura y empieza una 3.ª menor por debajo de la tónica mayor (Fa → Re menor)."
         },
         "fr": {
           "q": "Quelle est la relative mineure de fa majeur ?",
@@ -5322,7 +5886,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La mineur",
             "Fa mineur",
             "Sol mineur"
-          ]
+          ],
+          "why": "La relative mineure garde la même armure et part une tierce mineure sous la tonique majeure (Fa → Ré mineur)."
         },
         "de": {
           "q": "Welche Tonart hat vier Kreuze als Generalvorzeichen?",
@@ -5331,7 +5896,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "A-Dur",
             "H-Dur",
             "D-Dur"
-          ]
+          ],
+          "why": "Die Mollparallele teilt die Vorzeichen und liegt eine kleine Terz unter dem Dur-Grundton (F → d-Moll)."
         },
         "it": {
           "q": "Quale tonalità maggiore ha un solo bemolle in chiave (B♭)?",
@@ -5340,7 +5906,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Si bemolle maggiore (B♭)",
             "Re maggiore (D)",
             "Mi bemolle maggiore (E♭)"
-          ]
+          ],
+          "why": "La relativa minore condivide l’armatura e parte una terza minore sotto la tonica maggiore (Fa → Re minore)."
         },
         "pt-BR": {
           "q": "Qual é a relativa menor de Fá maior (F)?",
@@ -5349,9 +5916,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lá menor (Am)",
             "Fá menor (Fm)",
             "Sol menor (Gm)"
-          ]
+          ],
+          "why": "A relativa menor usa a mesma armadura e começa uma 3ª menor abaixo da tônica maior (Fá → Ré menor)."
         }
-      }
+      },
+      "why": [
+        "The relative minor shares the same key signature and starts 3 semitones (minor 3rd) below the major tonic (F → D).",
+        "Minora relativă are aceeași armură și începe cu 3 semitonuri sub tonica majoră (Fa → Re minor)."
+      ]
     },
     {
       "q": [
@@ -5384,7 +5956,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "the dominant",
             "the relative minor",
             "the 4th"
-          ]
+          ],
+          "why": "The last sharp in a signature is always the 7th degree (leading tone), just one half step under the major tonic."
         },
         "ro": {
           "q": "Ultimul diez din armură e cu un semiton sub…",
@@ -5393,7 +5966,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "dominantă",
             "relativa minoră",
             "treapta a 4-a"
-          ]
+          ],
+          "why": "Ultimul diez de la armură este întotdeauna treapta a VII-a (sensibila), la un semiton sub tonica majoră."
         },
         "es": {
           "q": "El último sostenido de la armadura está siempre un semitono por debajo de…",
@@ -5402,7 +5976,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la dominante",
             "la relativa menor",
             "el 4.º grado"
-          ]
+          ],
+          "why": "El último sostenido de la armadura es siempre la sensible (7.º grado), un semitono debajo de la tónica mayor."
         },
         "fr": {
           "q": "Le dernier dièse à l’armure est toujours un demi-ton en dessous de…",
@@ -5411,7 +5986,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la dominante",
             "la relative mineure",
             "le 4e degré"
-          ]
+          ],
+          "why": "Le dernier dièse à la clé est toujours la sensible, placée un demi-ton sous la tonique majeure."
         },
         "de": {
           "q": "Wie ermittelt man bei Kreuz-Tonarten rasch die Dur-Tonart?",
@@ -5420,7 +5996,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Das letzte Kreuz ist der Grundton",
             "Das vorletzte Kreuz ablesen",
             "Die Kreuze zählen und verdoppeln"
-          ]
+          ],
+          "why": "Das letzte Kreuz ist stets der Leitton (7. Stufe) und liegt einen Halbton unter dem Dur-Grundton."
         },
         "it": {
           "q": "Qual è la regola per riconoscere la tonalità maggiore da un'armatura con più bemolli?",
@@ -5429,7 +6006,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "L'ultimo bemolle più un semitono",
             "Si contano i bemolli e si moltiplica per due",
             "Non c'è una regola fissa"
-          ]
+          ],
+          "why": "L’ultimo diesis in chiave è sempre la sensibile, un semitono sotto la tonica maggiore."
         },
         "pt-BR": {
           "q": "O último sustenido da armadura fica sempre um semitom abaixo de…",
@@ -5438,9 +6016,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a dominante",
             "a relativa menor",
             "o 4º grau"
-          ]
+          ],
+          "why": "O último sustenido na armadura é sempre a sensível (7º grau), um semitom abaixo da tônica maior."
         }
-      }
+      },
+      "why": [
+        "The last sharp in a signature is always the 7th degree (leading tone), just one half step under the major tonic.",
+        "Ultimul diez de la armură este întotdeauna treapta a VII-a (sensibila), la un semiton sub tonica majoră."
+      ]
     },
     {
       "q": [
@@ -5455,28 +6038,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play the tonic triad of D major (D, F♯, A).",
-          "o": null
+          "o": null,
+          "why": "D major has two sharps (F♯ and C♯), so its tonic triad is D–F♯–A."
         },
         "ro": {
           "q": "Cântă trisonul tonicii din Re major (Re, Fa♯, La).",
-          "o": null
+          "o": null,
+          "why": "Re major are doi diezi (Fa♯ și Do♯), așadar acordul tonicii sale este Re–Fa♯–La."
         },
         "es": {
-          "q": "Toca la tríada de tónica de Re mayor: Re, Fa♯ y La (D, F♯, A)."
+          "q": "Toca la tríada de tónica de Re mayor: Re, Fa♯ y La (D, F♯, A).",
+          "why": "Re mayor lleva dos sostenidos (Fa♯ y Do♯), por lo que su tríada de tónica es Re–Fa♯–La."
         },
         "fr": {
-          "q": "Jouez la triade de tonique de ré majeur (ré, fa♯, la)."
+          "q": "Jouez la triade de tonique de ré majeur (ré, fa♯, la).",
+          "why": "Ré majeur comporte deux dièses (Fa♯ et Do♯) ; sa triade de tonique est donc Ré–Fa♯–La."
         },
         "de": {
-          "q": "Spiele den Tonika-Dreiklang von D-Dur (D, Fis, A)."
+          "q": "Spiele den Tonika-Dreiklang von D-Dur (D, Fis, A).",
+          "why": "D-Dur besitzt zwei Kreuze (Fis und Cis); sein Tonikadreiklang lautet D–Fis–A."
         },
         "it": {
-          "q": "Suona la triade di tonica di Re maggiore (Re, Fa♯, La)."
+          "q": "Suona la triade di tonica di Re maggiore (Re, Fa♯, La).",
+          "why": "Re maggiore ha due diesis (Fa♯ e Do♯), quindi la triade di tonica è Re–Fa♯–La."
         },
         "pt-BR": {
-          "q": "Toque a tríade da tônica de Ré maior: Ré, Fá♯ e Lá (D, F♯, A)."
+          "q": "Toque a tríade da tônica de Ré maior: Ré, Fá♯ e Lá (D, F♯, A).",
+          "why": "Ré maior tem dois sustenidos (Fá♯ e Dó♯), logo sua tríade de tônica é Ré–Fá♯–Lá."
         }
-      }
+      },
+      "why": [
+        "D major has two sharps (F♯ and C♯), so its tonic triad is D–F♯–A.",
+        "Re major are doi diezi (Fa♯ și Do♯), așadar acordul tonicii sale este Re–Fa♯–La."
+      ]
     }
   ],
   "modes": [
@@ -5511,7 +6105,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "7th",
             "2nd",
             "4th"
-          ]
+          ],
+          "why": "Compared with natural minor (1 2 ♭3 4 5 ♭6 ♭7), Dorian raises the 6th degree to major (♮6)."
         },
         "ro": {
           "q": "Dorianul e o gamă minoră cu treapta urcată…",
@@ -5520,7 +6115,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a 7-a",
             "a 2-a",
             "a 4-a"
-          ]
+          ],
+          "why": "Față de minora naturală (1 2 ♭3 4 5 ♭6 ♭7), modul doric urcă treapta a VI-a la sextă mare (6)."
         },
         "es": {
           "q": "El modo dórico es una escala menor con el grado elevado…",
@@ -5529,7 +6125,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "7.º",
             "2.º",
             "4.º"
-          ]
+          ],
+          "why": "Respecto a la escala menor natural, el modo dórico eleva el 6.º grado a sexta mayor."
         },
         "fr": {
           "q": "Le mode dorien est une gamme mineure avec un degré haussé :",
@@ -5538,7 +6135,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "le 7e",
             "le 2e",
             "le 4e"
-          ]
+          ],
+          "why": "Par rapport au mineur naturel, le mode dorien hausse le 6e degré d’un demi-ton (sixte majeure)."
         },
         "de": {
           "q": "Welche Kirchentonart entsteht auf der 2. Stufe von C-Dur (D nach D)?",
@@ -5547,7 +6145,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Phrygisch",
             "Lydisch",
             "Mixolydisch"
-          ]
+          ],
+          "why": "Im Vergleich zu natürlich Moll besitzt Dorisch eine große Sexte (erhöhte 6. Stufe)."
         },
         "it": {
           "q": "Quale modo corrisponde integralmente alla scala maggiore naturale?",
@@ -5556,7 +6155,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Modo Dorico",
             "Modo Eolio",
             "Modo Lidio"
-          ]
+          ],
+          "why": "Rispetto alla minore naturale, il modo dorico innalza il VI grado a sesta maggiore."
         },
         "pt-BR": {
           "q": "O modo dórico é uma escala menor com o grau elevado…",
@@ -5565,9 +6165,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "7º",
             "2º",
             "4º"
-          ]
+          ],
+          "why": "Em relação à menor natural, o modo dórico eleva o 6º grau para sexta maior."
         }
-      }
+      },
+      "why": [
+        "Compared with natural minor (1 2 ♭3 4 5 ♭6 ♭7), Dorian raises the 6th degree to major (♮6).",
+        "Față de minora naturală (1 2 ♭3 4 5 ♭6 ♭7), modul doric urcă treapta a VI-a la sextă mare (6)."
+      ]
     },
     {
       "q": [
@@ -5588,7 +6193,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lydian",
             "Phrygian",
             "Locrian"
-          ]
+          ],
+          "why": "Mixolydian matches the major scale except for a lowered 7th (♭7), the sound of V–IV–I rock and blues."
         },
         "ro": {
           "q": "Ce mod e o gamă majoră cu ♭7?",
@@ -5597,7 +6203,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lidic",
             "Frigic",
             "Locric"
-          ]
+          ],
+          "why": "Mixolidianul este o gamă majoră cu treapta a VII-a coborâtă (♭7), specifică rock-ului și blues-ului."
         },
         "es": {
           "q": "¿Qué modo es una escala mayor con el 7.º grado rebajado (♭7)?",
@@ -5606,7 +6213,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lidio",
             "Frigio",
             "Locrio"
-          ]
+          ],
+          "why": "Mixolidio coincide con la escala mayor salvo por su 7.º grado rebajado (♭7)."
         },
         "fr": {
           "q": "Quel mode correspond à une gamme majeure avec un ♭7 ?",
@@ -5615,7 +6223,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lydien",
             "Phrygien",
             "Locrien"
-          ]
+          ],
+          "why": "Le mode mixolydien est une gamme majeure avec un 7e degré abaissé (♭7)."
         },
         "de": {
           "q": "Der lydische Modus ist eine Dur-Tonleiter mit welcher charakteristischen Veränderung?",
@@ -5624,7 +6233,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "kleiner 7. Stufe (♭7)",
             "kleiner 2. Stufe (♭2)",
             "übermäßiger 5. Stufe (♯5)"
-          ]
+          ],
+          "why": "Mixolydisch entspricht einer Durtonleiter mit tiefalterierter kleiner Septime (♭7)."
         },
         "it": {
           "q": "Cosa caratterizza il modo Dorico rispetto alla scala minore naturale?",
@@ -5633,7 +6243,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Ha la 2ª minore",
             "Ha la 5ª diminuita",
             "Non ha la terza"
-          ]
+          ],
+          "why": "Il modo misolidio è uguale alla scala maggiore tranne per la settima minore (♭7)."
         },
         "pt-BR": {
           "q": "Qual modo é uma escala maior com o 7º grau rebaixado (♭7)?",
@@ -5642,9 +6253,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lídio",
             "Frígio",
             "Lócrio"
-          ]
+          ],
+          "why": "O modo mixolídio é uma escala maior com o 7º grau abaixado (♭7), clássico do rock e do blues."
         }
-      }
+      },
+      "why": [
+        "Mixolydian matches the major scale except for a lowered 7th (♭7), the sound of V–IV–I rock and blues.",
+        "Mixolidianul este o gamă majoră cu treapta a VII-a coborâtă (♭7), specifică rock-ului și blues-ului."
+      ]
     },
     {
       "q": [
@@ -5677,7 +6293,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "♭2",
             "♭7",
             "♭3"
-          ]
+          ],
+          "why": "Lydian keeps everything major while raising degree 4 by a semitone (♯4), giving it a bright lifted float."
         },
         "ro": {
           "q": "Nota caracteristică a modului lidic este…",
@@ -5686,7 +6303,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "♭2",
             "♭7",
             "♭3"
-          ]
+          ],
+          "why": "Lidianul păstrează structura majoră ridicând treapta a IV-a cu un semiton (♯4), cu o sonoritate luminoasă."
         },
         "es": {
           "q": "La nota característica del modo lidio es…",
@@ -5695,7 +6313,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "♭2",
             "♭7",
             "♭3"
-          ]
+          ],
+          "why": "Lidio conserva la escala mayor con el 4.º grado ascendido (♯4), creando un color luminoso y flotante."
         },
         "fr": {
           "q": "La note caractéristique du mode lydien est…",
@@ -5704,7 +6323,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "♭2",
             "♭7",
             "♭3"
-          ]
+          ],
+          "why": "Le mode lydien élève la 4e note (♯4) de la gamme majeure, apportant une couleur lumineuse et suspendue."
         },
         "de": {
           "q": "Mixolydisch klingt wie Dur, besitzt jedoch …",
@@ -5713,7 +6333,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "eine kleine Terz",
             "eine verminderte Quinte",
             "zwei Leittöne"
-          ]
+          ],
+          "why": "Lydisch erhöht die 4. Stufe der Durtonleiter zur übermäßigen Quarte (♯4)."
         },
         "it": {
           "q": "Quale caratteristica intervallare rende unico il modo Lidio?",
@@ -5722,7 +6343,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La 3ª minore",
             "La 7ª diminuita",
             "La 6ª minore"
-          ]
+          ],
+          "why": "Il modo lidio innalza di un semitono il IV grado (♯4) della scala maggiore, conferendo luminosità."
         },
         "pt-BR": {
           "q": "A nota característica do modo lídio é…",
@@ -5731,9 +6353,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "♭2",
             "♭7",
             "♭3"
-          ]
+          ],
+          "why": "O modo lídio eleva o 4º grau (♯4) da escala maior, trazendo um brilho aberto e flutuante."
         }
-      }
+      },
+      "why": [
+        "Lydian keeps everything major while raising degree 4 by a semitone (♯4), giving it a bright lifted float.",
+        "Lidianul păstrează structura majoră ridicând treapta a IV-a cu un semiton (♯4), cu o sonoritate luminoasă."
+      ]
     },
     {
       "q": [
@@ -5766,7 +6393,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "C to C",
             "E to E",
             "A to A"
-          ]
+          ],
+          "why": "Playing all white keys from D to D yields the steps W–H–W–W–W–H–W — the exact Dorian pattern."
         },
         "ro": {
           "q": "Re doric folosește clapele albe de la…",
@@ -5775,7 +6403,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do la Do",
             "Mi la Mi",
             "La la La"
-          ]
+          ],
+          "why": "Clapele albe de la Re la Re produc exact structura T–S–T–T–T–S–T a modului doric."
         },
         "es": {
           "q": "El modo Re dórico utiliza las teclas blancas de…",
@@ -5784,7 +6413,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do a Do (C a C)",
             "Mi a Mi (E a E)",
             "La a La (A a A)"
-          ]
+          ],
+          "why": "Las teclas blancas de Re a Re generan automáticamente el patrón dórico (T–S–T–T–T–S–T)."
         },
         "fr": {
           "q": "Ré dorien utilise les touches blanches de…",
@@ -5793,7 +6423,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "do à do",
             "mi à mi",
             "la à la"
-          ]
+          ],
+          "why": "Les touches blanches de Ré à Ré suivent exactement l’ordre T–d–T–T–T–d–T du mode dorien."
         },
         "de": {
           "q": "Welcher Modus besitzt eine kleine 2. und eine verminderte 5. Stufe?",
@@ -5802,7 +6433,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Phrygisch",
             "Äolisch",
             "Dorisch"
-          ]
+          ],
+          "why": "Auf den weißen Tasten von D nach D entsteht exakt die dorische Intervallfolge mit großer Sexte und kleiner Septime."
         },
         "it": {
           "q": "Quale modo è una scala maggiore dotata di 7ª minore?",
@@ -5811,7 +6443,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Frigio",
             "Locrio",
             "Dorico"
-          ]
+          ],
+          "why": "I tasti bianchi da Re a Re producono esattamente gli intervalli T–S–T–T–T–S–T del modo dorico."
         },
         "pt-BR": {
           "q": "Ré dórico utiliza as teclas brancas de…",
@@ -5820,9 +6453,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Dó a Dó (C a C)",
             "Mi a Mi (E a E)",
             "Lá a Lá (A a A)"
-          ]
+          ],
+          "why": "As teclas brancas de Ré a Ré formam exatamente a sequência T–S–T–T–T–S–T do modo dórico."
         }
-      }
+      },
+      "why": [
+        "Playing all white keys from D to D yields the steps W–H–W–W–W–H–W — the exact Dorian pattern.",
+        "Clapele albe de la Re la Re produc exact structura T–S–T–T–T–S–T a modului doric."
+      ]
     }
   ],
   "ch": [
@@ -5857,7 +6495,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "minor 3rd + major 3rd",
             "two major 3rds",
             "two minor 3rds"
-          ]
+          ],
+          "why": "In root position, a major triad stacks a major 3rd (4 semitones) on the bottom and a minor 3rd (3) on top."
         },
         "ro": {
           "q": "Un trison major este…",
@@ -5866,7 +6505,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "terță mică + terță mare",
             "două terțe mari",
             "două terțe mici"
-          ]
+          ],
+          "why": "În stare directă, trisonul major suprapune o terță mare (4 semitonuri) jos și o terță mică (3) sus."
         },
         "es": {
           "q": "Una tríada mayor está formada por…",
@@ -5875,7 +6515,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "tercera menor + tercera mayor",
             "dos terceras mayores",
             "dos terceras menores"
-          ]
+          ],
+          "why": "En estado fundamental, la tríada mayor apila una 3.ª mayor (4 semitonos) debajo y una 3.ª menor (3) encima."
         },
         "fr": {
           "q": "Un accord parfait majeur est constitué de…",
@@ -5884,7 +6525,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "tierce mineure + tierce majeure",
             "deux tierces majeures",
             "deux tierces mineures"
-          ]
+          ],
+          "why": "À l’état fondamental, l’accord parfait majeur empile une tierce majeure (4 demi-tons) puis une tierce mineure (3)."
         },
         "de": {
           "q": "Aus welchen Intervallen setzt sich ein Dur-Dreiklang über dem Grundton zusammen?",
@@ -5893,7 +6535,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "kleine Terz + reine Quinte",
             "zwei große Terzen",
             "zwei kleine Terzen"
-          ]
+          ],
+          "why": "In Grundstellung schichtet der Durdreiklang zuerst eine große Terz (4 HT) und darüber eine kleine Terz (3 HT)."
         },
         "it": {
           "q": "Da quali intervalli sopra la fondamentale è costituita una triade maggiore?",
@@ -5902,7 +6545,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terza minore (3 st) e quinta giusta (7 st)",
             "Terza maggiore e quinta aumentata",
             "Due terze minori sovrapposte"
-          ]
+          ],
+          "why": "Allo stato fondamentale la triade maggiore sovrappone una terza maggiore (4 semitoni) e una terza minore (3)."
         },
         "pt-BR": {
           "q": "Uma tríade maior é formada por…",
@@ -5911,9 +6555,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "terça menor + terça maior",
             "duas terças maiores",
             "duas terças menores"
-          ]
+          ],
+          "why": "Em estado fundamental, a tríade maior empilha uma 3ª maior (4 semitons) embaixo e uma 3ª menor (3) em cima."
         }
-      }
+      },
+      "why": [
+        "In root position, a major triad stacks a major 3rd (4 semitones) on the bottom and a minor 3rd (3) on top.",
+        "În stare directă, trisonul major suprapune o terță mare (4 semitonuri) jos și o terță mică (3) sus."
+      ]
     },
     {
       "q": [
@@ -5947,7 +6596,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Major",
             "Diminished",
             "Augmented"
-          ]
+          ],
+          "why": "A minor triad reverses the two 3rds (minor bottom + major top), softening the brightness into a darker warmth."
         },
         "ro": {
           "q": "Ascultă: ce tip de acord?",
@@ -5956,7 +6606,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Major",
             "Micșorat",
             "Mărit"
-          ]
+          ],
+          "why": "Trisonul minor inversează cele două terțe (mică jos + mare sus), aducând o culoare mai umbrită și caldă."
         },
         "es": {
           "q": "Escucha atentamente: ¿qué cualidad tiene este acorde?",
@@ -5965,7 +6616,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Mayor",
             "Disminuido",
             "Aumentado"
-          ]
+          ],
+          "why": "La tríada menor invierte las terceras (menor abajo + mayor arriba), dando un matiz más sombrío y recogido."
         },
         "fr": {
           "q": "Écoutez attentivement : quelle est la qualité de cet accord ?",
@@ -5974,7 +6626,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Majeur",
             "Diminué",
             "Augmenté"
-          ]
+          ],
+          "why": "La triade mineure inverse les deux tierces (mineure en bas + majeure en haut), créant une couleur plus intime."
         },
         "de": {
           "q": "Höre hin: Welche Akkordqualität erklingt?",
@@ -5983,7 +6636,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Dur",
             "Vermindert",
             "Übermäßig"
-          ]
+          ],
+          "why": "Der Molldreiklang dreht die Terzen um (kleine unten, große oben) und klingt dadurch wehmütiger."
         },
         "it": {
           "q": "Ascolta: qual è la qualità dell'accordo?",
@@ -5992,7 +6646,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Maggiore",
             "Diminuito",
             "Aumentato"
-          ]
+          ],
+          "why": "La triade minore inverte le terze (minore sotto + maggiore sopra), creando un timbro più scuro."
         },
         "pt-BR": {
           "q": "Ouça com atenção: qual é a qualidade deste acorde?",
@@ -6001,9 +6656,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Maior",
             "Diminuto",
             "Aumentado"
-          ]
+          ],
+          "why": "A tríade menor inverte as terças (menor embaixo + maior em cima), trazendo sonoridade mais introspectiva."
         }
-      }
+      },
+      "why": [
+        "A minor triad reverses the two 3rds (minor bottom + major top), softening the brightness into a darker warmth.",
+        "Trisonul minor inversează cele două terțe (mică jos + mare sus), aducând o culoare mai umbrită și caldă."
+      ]
     },
     {
       "q": [
@@ -6036,7 +6696,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "root position",
             "2nd inversion",
             "a different key"
-          ]
+          ],
+          "why": "Putting the chord’s 3rd (E) in the bass produces the 1st inversion (C/E, figured bass ⁶)."
         },
         "ro": {
           "q": "Mi–Sol–Do este Do major în…",
@@ -6045,7 +6706,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "poziție fundamentală",
             "răsturnarea a II-a",
             "altă tonalitate"
-          ]
+          ],
+          "why": "Așezarea terței acordului (Mi) în bas formează răsturnarea întâi (acord de sextă, C/E)."
         },
         "es": {
           "q": "Las notas Mi–Sol–Do corresponden al acorde de Do mayor en…",
@@ -6054,7 +6716,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "estado fundamental",
             "segunda inversión",
             "otra tonalidad"
-          ]
+          ],
+          "why": "Colocar la tercera del acorde (Mi) en el bajo produce la 1.ª inversión (C/E)."
         },
         "fr": {
           "q": "Mi–Sol–Do correspond à l’accord de do majeur en…",
@@ -6063,7 +6726,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "état fondamental",
             "2e renversement",
             "une autre tonalité"
-          ]
+          ],
+          "why": "Mettre la tierce de l’accord (Mi) à la basse donne le 1er renversement (C/E, accord de sixte)."
         },
         "de": {
           "q": "Liegt die Terz des Akkords im Bass, handelt es sich um die …",
@@ -6072,7 +6736,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Grundstellung",
             "2. Umkehrung (Quartsextakkord)",
             "3. Umkehrung"
-          ]
+          ],
+          "why": "Liegt die Terz (E) im Bass, steht der Dreiklang in der 1. Umkehrung (Sextakkord C/E)."
         },
         "it": {
           "q": "Quali intervalli formano una triade diminuita?",
@@ -6081,7 +6746,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Terza maggiore + quinta giusta",
             "Due terze maggiori",
             "Terza minore + quinta giusta"
-          ]
+          ],
+          "why": "Porre la terza dell’accordo (Mi) al basso genera il 1° rivolto (C/E)."
         },
         "pt-BR": {
           "q": "As notas Mi–Sol–Dó formam o acorde de Dó maior em…",
@@ -6090,9 +6756,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "posição fundamental",
             "2ª inversão",
             "outra tonalidade"
-          ]
+          ],
+          "why": "Colocar a terça do acorde (Mi) no baixo gera a 1ª inversão (C/E)."
         }
-      }
+      },
+      "why": [
+        "Putting the chord’s 3rd (E) in the bass produces the 1st inversion (C/E, figured bass ⁶).",
+        "Așezarea terței acordului (Mi) în bas formează răsturnarea întâi (acord de sextă, C/E)."
+      ]
     },
     {
       "q": [
@@ -6107,28 +6778,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play A minor (A, C, E) — any octave or inversion.",
-          "o": null
+          "o": null,
+          "why": "A minor combines root A, minor 3rd C (+3 semitones), and perfect 5th E (+7 semitones)."
         },
         "ro": {
           "q": "Cântă La minor (La, Do, Mi) — orice octavă sau răsturnare.",
-          "o": null
+          "o": null,
+          "why": "La minor reunește fundamentala La, terța mică Do (+3 semitonuri) și cvinta perfectă Mi (+7 semitonuri)."
         },
         "es": {
-          "q": "Toca el acorde de La menor: La, Do y Mi (A, C, E) en cualquier octava o inversión."
+          "q": "Toca el acorde de La menor: La, Do y Mi (A, C, E) en cualquier octava o inversión.",
+          "why": "La menor combina fundamental La, 3.ª menor Do y 5.ª justa Mi."
         },
         "fr": {
-          "q": "Jouez la mineur (la, do, mi) — n’importe quelle octave ou renversement."
+          "q": "Jouez la mineur (la, do, mi) — n’importe quelle octave ou renversement.",
+          "why": "La mineur réunit la fondamentale La, la tierce mineure Do et la quinte juste Mi."
         },
         "de": {
-          "q": "Spiele a-Moll (A, C, E) — in beliebiger Oktave oder Umkehrung."
+          "q": "Spiele a-Moll (A, C, E) — in beliebiger Oktave oder Umkehrung.",
+          "why": "a-Moll besteht aus Grundton A, kleiner Terz C und reiner Quinte E."
         },
         "it": {
-          "q": "Suona La minore (La, Do, Mi), in qualsiasi ottava o rivolto."
+          "q": "Suona La minore (La, Do, Mi), in qualsiasi ottava o rivolto.",
+          "why": "La minore unisce fondamentale La, terza minore Do e quinta giusta Mi."
         },
         "pt-BR": {
-          "q": "Toque o acorde de Lá menor (Lá, Dó, Mi) — em qualquer oitava ou inversão."
+          "q": "Toque o acorde de Lá menor (Lá, Dó, Mi) — em qualquer oitava ou inversão.",
+          "why": "Lá menor reúne fundamental Lá, 3ª menor Dó e 5ª justa Mi."
         }
-      }
+      },
+      "why": [
+        "A minor combines root A, minor 3rd C (+3 semitones), and perfect 5th E (+7 semitones).",
+        "La minor reunește fundamentala La, terța mică Do (+3 semitonuri) și cvinta perfectă Mi (+7 semitonuri)."
+      ]
     },
     {
       "q": [
@@ -6143,28 +6825,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play F major (F, A, C).",
-          "o": null
+          "o": null,
+          "why": "F major uses only white keys: root F, major 3rd A (+4 semitones), and perfect 5th C (+7 semitones)."
         },
         "ro": {
           "q": "Cântă Fa major (Fa, La, Do).",
-          "o": null
+          "o": null,
+          "why": "Fa major folosește doar clape albe: Fa (fundamentală), La (+4 semitonuri) și Do (+7 semitonuri)."
         },
         "es": {
-          "q": "Toca el acorde de Fa mayor: Fa, La y Do (F, A, C)."
+          "q": "Toca el acorde de Fa mayor: Fa, La y Do (F, A, C).",
+          "why": "Fa mayor usa solo teclas blancas: Fa (fundamental), La (3.ª mayor) y Do (5.ª justa)."
         },
         "fr": {
-          "q": "Jouez fa majeur (fa, la, do)."
+          "q": "Jouez fa majeur (fa, la, do).",
+          "why": "Fa majeur n’utilise que des touches blanches : Fa, La et Do."
         },
         "de": {
-          "q": "Spiele den F-Dur-Dreiklang (F, A, C)."
+          "q": "Spiele den F-Dur-Dreiklang (F, A, C).",
+          "why": "F-Dur nutzt nur weiße Tasten: Grundton F, große Terz A und reine Quinte C."
         },
         "it": {
-          "q": "Suona Fa maggiore (Fa, La, Do)."
+          "q": "Suona Fa maggiore (Fa, La, Do).",
+          "why": "Fa maggiore usa solo tasti bianchi: Fa, La e Do."
         },
         "pt-BR": {
-          "q": "Toque o acorde de Fá maior (Fá, Lá, Dó)."
+          "q": "Toque o acorde de Fá maior (Fá, Lá, Dó).",
+          "why": "Fá maior usa apenas teclas brancas: Fá, Lá e Dó."
         }
-      }
+      },
+      "why": [
+        "F major uses only white keys: root F, major 3rd A (+4 semitones), and perfect 5th C (+7 semitones).",
+        "Fa major folosește doar clape albe: Fa (fundamentală), La (+4 semitonuri) și Do (+7 semitonuri)."
+      ]
     }
   ],
   "ch7": [
@@ -6199,7 +6892,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "C E G B",
             "C E♭ G B♭",
             "C E♭ G♭ A"
-          ]
+          ],
+          "why": "A dominant 7th symbol like C7 adds a minor 7th (B♭, 10 semitones above root) to the major triad C–E–G."
         },
         "ro": {
           "q": "Do7 conține…",
@@ -6208,7 +6902,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do Mi Sol Si",
             "Do Mi♭ Sol Si♭",
             "Do Mi♭ Sol♭ La"
-          ]
+          ],
+          "why": "Notația C7 desemnează septima de dominantă: trison major Do–Mi–Sol plus septimă mică Si♭."
         },
         "es": {
           "q": "El acorde C7 (Do séptima de dominante) contiene las notas…",
@@ -6217,7 +6912,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do Mi Sol Si (C E G B)",
             "Do Mi♭ Sol Si♭ (C E♭ G B♭)",
             "Do Mi♭ Sol♭ La (C E♭ G♭ A)"
-          ]
+          ],
+          "why": "El cifrado C7 indica séptima de dominante: tríada mayor Do–Mi–Sol más séptima menor Si♭."
         },
         "fr": {
           "q": "L’accord C7 (do 7e de dominante) est composé de…",
@@ -6226,7 +6922,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do Mi Sol Si (C E G B)",
             "Do Mi♭ Sol Si♭ (C E♭ G B♭)",
             "Do Mi♭ Sol♭ La (C E♭ G♭ A)"
-          ]
+          ],
+          "why": "Le symbole C7 ajoute une septième mineure (Si♭) à la triade majeure Do–Mi–Sol."
         },
         "de": {
           "q": "Welcher Septakkord besteht aus Dur-Dreiklang plus kleiner Septime (1 3 5 ♭7)?",
@@ -6235,7 +6932,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Major-Septakkord (maj7)",
             "Moll-Septakkord (m7)",
             "Verminderter Septakkord (dim7)"
-          ]
+          ],
+          "why": "Das Symbol C7 steht für den Dominantseptakkord: Durdreiklang C–E–G plus kleine Septime B (Bb)."
         },
         "it": {
           "q": "Quale formula descrive l'accordo di settima di dominante (7)?",
@@ -6244,7 +6942,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Triade maggiore + 7ª maggiore (1 3 5 7)",
             "Triade minore + 7ª minore (1 ♭3 5 ♭7)",
             "Triade diminuita + 7ª minore"
-          ]
+          ],
+          "why": "La sigla C7 indica l’accordo di settima di dominante: triade maggiore Do–Mi–Sol più settima minore Si♭."
         },
         "pt-BR": {
           "q": "O acorde C7 (Dó com sétima da dominante) contém as notas…",
@@ -6253,9 +6952,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Dó Mi Sol Si (C E G B)",
             "Dó Mi♭ Sol Si♭ (C E♭ G B♭)",
             "Dó Mi♭ Sol♭ Lá (C E♭ G♭ A)"
-          ]
+          ],
+          "why": "A cifra C7 significa sétima da dominante: tríade maior Dó–Mi–Sol com sétima menor Si♭."
         }
-      }
+      },
+      "why": [
+        "A dominant 7th symbol like C7 adds a minor 7th (B♭, 10 semitones above root) to the major triad C–E–G.",
+        "Notația C7 desemnează septima de dominantă: trison major Do–Mi–Sol plus septimă mică Si♭."
+      ]
     },
     {
       "q": [
@@ -6289,7 +6993,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Dominant 7th (7)",
             "Minor 7th (m7)",
             "Diminished 7th (dim7)"
-          ]
+          ],
+          "why": "Major 7th (maj7) combines a major triad with a sweet, luminous major 7th (11 semitones above the root)."
         },
         "ro": {
           "q": "Ascultă: ce acord de septimă?",
@@ -6298,7 +7003,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Septimă de dominantă (7)",
             "Septimă mică (m7)",
             "Septimă micșorată (dim7)"
-          ]
+          ],
+          "why": "Acordul maj7 adaugă o septimă mare (11 semitonuri) peste trisonul major, dând un caracter cald și luminos."
         },
         "es": {
           "q": "Escucha atentamente: ¿qué acorde de séptima suena?",
@@ -6307,7 +7013,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Séptima de dominante (7)",
             "Séptima menor (m7)",
             "Séptima disminuida (dim7)"
-          ]
+          ],
+          "why": "Maj7 suma una séptima mayor (11 semitonos) a la tríada mayor, creando una sonoridad cálida y luminosa."
         },
         "fr": {
           "q": "Écoutez attentivement : quel accord de septième entendez-vous ?",
@@ -6316,7 +7023,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Septième de dominante (7)",
             "Septième mineure (m7)",
             "Septième diminuée (dim7)"
-          ]
+          ],
+          "why": "L’accord maj7 ajoute une septième majeure (11 demi-tons) à la triade majeure, d’où sa couleur veloutée."
         },
         "de": {
           "q": "Welcher Akkord erklingt hier?",
@@ -6325,7 +7033,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Dominantseptakkord (7)",
             "Moll-Septakkord (m7)",
             "Verminderter Septakkord (dim7)"
-          ]
+          ],
+          "why": "Maj7 fügt dem Durdreiklang die große Septime (11 HT) hinzu und klingt schwebend und warm."
         },
         "it": {
           "q": "Ascolta: quale accordo di settima è?",
@@ -6334,7 +7043,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Settima di dominante (7)",
             "Settima minore (m7)",
             "Settima diminuita (dim7)"
-          ]
+          ],
+          "why": "L’accordo maj7 aggiunge una settima maggiore (11 semitoni) alla triade maggiore, risultando morbido e luminoso."
         },
         "pt-BR": {
           "q": "Ouça com atenção: qual acorde com sétima está soando?",
@@ -6343,9 +7053,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sétima dominante (7)",
             "Sétima menor (m7)",
             "Sétima diminuta (dim7)"
-          ]
+          ],
+          "why": "O acorde maj7 soma uma 7ª maior (11 semitons) à tríade maior, produzindo um som suave e luminoso."
         }
-      }
+      },
+      "why": [
+        "Major 7th (maj7) combines a major triad with a sweet, luminous major 7th (11 semitones above the root).",
+        "Acordul maj7 adaugă o septimă mare (11 semitonuri) peste trisonul major, dând un caracter cald și luminos."
+      ]
     },
     {
       "q": [
@@ -6366,7 +7081,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ii",
             "V",
             "iii"
-          ]
+          ],
+          "why": "Stacking C major white keys from the 7th note B gives B–D–F–A: diminished triad + minor 7th (half-diminished viiø7)."
         },
         "ro": {
           "q": "Sim7♭5 (semi-micșorat) e acordul de pe ce treaptă din Do major?",
@@ -6375,7 +7091,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ii",
             "V",
             "iii"
-          ]
+          ],
+          "why": "Suprapunând notele albe din Do major de pe treapta a VII-a (Si) obținem Si–Re–Fa–La (acord semidiminuat viiø7)."
         },
         "es": {
           "q": "Bm7♭5 (Si semidisminuido) es el acorde construido sobre qué grado de Do mayor?",
@@ -6384,7 +7101,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ii",
             "V",
             "iii"
-          ]
+          ],
+          "why": "Al apilar por terceras las notas de Do mayor desde el 7.º grado (Si) resulta Si–Re–Fa–La (viiø7)."
         },
         "fr": {
           "q": "Bm7♭5 (si demi-diminué) est l’accord bâti sur quel degré de do majeur ?",
@@ -6393,7 +7111,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ii",
             "V",
             "iii"
-          ]
+          ],
+          "why": "En empilant les notes de Do majeur depuis le 7e degré Si, on obtient Si–Ré–Fa–La (septième demi-diminuée viiø7)."
         },
         "de": {
           "q": "Auf welcher Stufe von C-Dur bildet sich der halbverminderte Akkord (m7♭5)?",
@@ -6402,7 +7121,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ii",
             "V",
             "iii"
-          ]
+          ],
+          "why": "Schichtet man die leitereigenen Töne von C-Dur ab dem 7. Ton H, entsteht H–D–F–A (halbvermindert viiø7)."
         },
         "it": {
           "q": "Qual è la struttura di un accordo semidiminuito (m7♭5)?",
@@ -6411,7 +7131,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Triade minore + 7ª maggiore",
             "Triade maggiore + 7ª aumentata",
             "Triade diminuita + 7ª diminuita"
-          ]
+          ],
+          "why": "Sovrapponendo i gradi di Do maggiore dal VII grado Si nasce Si–Re–Fa–La (semidiminuito viiø7)."
         },
         "pt-BR": {
           "q": "Bm7♭5 (Si meio-diminuto) é o acorde sobre qual grau de Dó maior?",
@@ -6420,9 +7141,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ii",
             "V",
             "iii"
-          ]
+          ],
+          "why": "Empilhando as terças da escala de Dó maior a partir do 7º grau Si surge Si–Ré–Fá–Lá (meio-diminuto viiø7)."
         }
-      }
+      },
+      "why": [
+        "Stacking C major white keys from the 7th note B gives B–D–F–A: diminished triad + minor 7th (half-diminished viiø7).",
+        "Suprapunând notele albe din Do major de pe treapta a VII-a (Si) obținem Si–Re–Fa–La (acord semidiminuat viiø7)."
+      ]
     },
     {
       "q": [
@@ -6455,7 +7181,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "C then E",
             "C or E major",
             "C minor"
-          ]
+          ],
+          "why": "In slash chord notation X/Y, the note left of the slash is the chord and the note right of the slash is the bass."
         },
         "ro": {
           "q": "Do/Mi înseamnă…",
@@ -6464,7 +7191,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Do apoi Mi",
             "Do sau Mi major",
             "Do minor"
-          ]
+          ],
+          "why": "În notația X/Y, stânga indică acordul (Do major), iar dreapta notează nota din bas (Mi)."
         },
         "es": {
           "q": "La indicación C/E significa…",
@@ -6473,7 +7201,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "tocar Do y luego Mi",
             "acorde de Do o Mi mayor",
             "un acorde de Do menor"
-          ]
+          ],
+          "why": "En el cifrado con barra X/Y, la izquierda nombra el acorde y la derecha fija la nota del bajo."
         },
         "fr": {
           "q": "La notation C/E désigne…",
@@ -6482,7 +7211,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "do puis mi successivement",
             "do majeur ou mi majeur",
             "un accord de do mineur"
-          ]
+          ],
+          "why": "Dans la notation X/Y, la gauche indique l’accord et la droite impose la note la plus grave (la basse)."
         },
         "de": {
           "q": "Was bedeutet das Akkordsymbol C/E?",
@@ -6491,7 +7221,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "C gefolgt von E",
             "C-Dur oder E-Dur wahlweise",
             "C-Moll"
-          ]
+          ],
+          "why": "Beim Slash-Akkord X/Y bezeichnet links den Akkord (C) und rechts den tiefsten Basston (E)."
         },
         "it": {
           "q": "Cosa significa una sigla di accordo con barra obliqua come C/E?",
@@ -6500,7 +7231,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Suonare due accordi insieme",
             "L'accordo è opzionale",
             "Il tempo è in levare"
-          ]
+          ],
+          "why": "Nella notazione X/Y la parte a sinistra indica l’accordo e quella a destra il basso effettivo."
         },
         "pt-BR": {
           "q": "A cifra C/E significa…",
@@ -6509,9 +7241,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "tocar Dó e depois Mi",
             "acorde de Dó ou Mi maior",
             "acorde de Dó menor"
-          ]
+          ],
+          "why": "Na cifra com barra X/Y, à esquerda fica o acorde e à direita a nota mais grave (baixo)."
         }
-      }
+      },
+      "why": [
+        "In slash chord notation X/Y, the note left of the slash is the chord and the note right of the slash is the bass.",
+        "În notația X/Y, stânga indică acordul (Do major), iar dreapta notează nota din bas (Mi)."
+      ]
     },
     {
       "q": [
@@ -6544,7 +7281,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "the 2nd (D)",
             "the 6th (A)",
             "the 7th (B♭)"
-          ]
+          ],
+          "why": "“Sus4” removes the 3rd (neither major nor minor) and suspends the 4th (F in C) waiting to resolve down to E."
         },
         "ro": {
           "q": "Do sus4 înlocuiește terța cu…",
@@ -6553,7 +7291,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "secunda (Re)",
             "sexta (La)",
             "septima (Si♭)"
-          ]
+          ],
+          "why": "„Sus4” înlocuiește terța (Mi) cu cvarta (Fa), creând o suspensie care tinde să rezolve descendent."
         },
         "es": {
           "q": "El acorde Csus4 sustituye la tercera por…",
@@ -6562,7 +7301,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la segunda (Re / D)",
             "la sexta (La / A)",
             "la séptima (Si♭ / B♭)"
-          ]
+          ],
+          "why": "“Sus4” sustituye la tercera por la cuarta (Fa en Do), creando una suspensión abierta."
         },
         "fr": {
           "q": "L’accord Csus4 remplace la tierce par…",
@@ -6571,7 +7311,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la seconde (ré)",
             "la sixte (la)",
             "la septième (si♭)"
-          ]
+          ],
+          "why": "« Sus4 » remplace la tierce par la quarte (Fa en Do), créant une suspension ouverte."
         },
         "de": {
           "q": "Ein Csus4-Akkord ersetzt die Terz durch …",
@@ -6580,7 +7321,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "die Sekunde (D)",
             "die Sexte (A)",
             "die Septime (B)"
-          ]
+          ],
+          "why": "„Sus4“ ersetzt die Terz durch die Quarte (F statt E), wodurch der Akkord schwebend offen bleibt."
         },
         "it": {
           "q": "Quali note compongono un accordo sospeso sus4?",
@@ -6589,7 +7331,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fondamentale, terza e quinta",
             "Fondamentale, seconda e quarta",
             "Solo note alterate"
-          ]
+          ],
+          "why": "“Sus4” sostituisce la terza con la quarta (Fa in Do), lasciando il colore sospeso prima della risoluzione."
         },
         "pt-BR": {
           "q": "O acorde Csus4 substitui a terça por…",
@@ -6598,9 +7341,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a segunda (Ré / D)",
             "a sexta (Lá / A)",
             "a sétima (Si♭ / B♭)"
-          ]
+          ],
+          "why": "“Sus4” troca a terça pela quarta (Fá em Dó), criando uma suspensão aberta sem definição maior/menor."
         }
-      }
+      },
+      "why": [
+        "“Sus4” removes the 3rd (neither major nor minor) and suspends the 4th (F in C) waiting to resolve down to E.",
+        "„Sus4” înlocuiește terța (Mi) cu cvarta (Fa), creând o suspensie care tinde să rezolve descendent."
+      ]
     },
     {
       "q": [
@@ -6616,28 +7364,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play G7 (G, B, D, F).",
-          "o": null
+          "o": null,
+          "why": "G7 builds the dominant 7th of C: G (root), B (major 3rd), D (5th), and F (minor 7th)."
         },
         "ro": {
           "q": "Cântă Sol7 (Sol, Si, Re, Fa).",
-          "o": null
+          "o": null,
+          "why": "Sol7 este dominanta cu septimă în Do major: Sol (fundamentală), Si (terță mare), Re (cvintă) și Fa (septimă mică)."
         },
         "es": {
-          "q": "Toca G7: Sol, Si, Re y Fa (G, B, D, F)."
+          "q": "Toca G7: Sol, Si, Re y Fa (G, B, D, F).",
+          "why": "G7 es la dominante de Do: Sol (fundamental), Si (3.ª mayor), Re (5.ª) y Fa (7.ª menor)."
         },
         "fr": {
-          "q": "Jouez G7 (sol, si, ré, fa)."
+          "q": "Jouez G7 (sol, si, ré, fa).",
+          "why": "G7 est l’accord de septième de dominante de Do : Sol, Si, Ré et Fa."
         },
         "de": {
-          "q": "Spiele G7 (G, H, D, F)."
+          "q": "Spiele G7 (G, H, D, F).",
+          "why": "G7 ist der Dominantseptakkord von C-Dur aus den weißen Tasten G–H–D–F."
         },
         "it": {
-          "q": "Suona Sol7 (Sol, Si, Re, Fa)."
+          "q": "Suona Sol7 (Sol, Si, Re, Fa).",
+          "why": "G7 è l’accordo di settima di dominante di Do: Sol, Si, Re e Fa."
         },
         "pt-BR": {
-          "q": "Toque G7: Sol, Si, Ré e Fá (G, B, D, F)."
+          "q": "Toque G7: Sol, Si, Ré e Fá (G, B, D, F).",
+          "why": "G7 é a dominante com sétima de Dó: Sol (fundamental), Si (3ª maior), Ré (5ª) e Fá (7ª menor)."
         }
-      }
+      },
+      "why": [
+        "G7 builds the dominant 7th of C: G (root), B (major 3rd), D (5th), and F (minor 7th).",
+        "Sol7 este dominanta cu septimă în Do major: Sol (fundamentală), Si (terță mare), Re (cvintă) și Fa (septimă mică)."
+      ]
     }
   ],
   "pr": [
@@ -6672,7 +7431,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "F major",
             "A minor",
             "E minor"
-          ]
+          ],
+          "why": "Count five letters up from C (C–D–E–F–G): degree 5 in C major builds the major triad G–B–D."
         },
         "ro": {
           "q": "În Do major, acordul V este…",
@@ -6681,7 +7441,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fa major",
             "La minor",
             "Mi minor"
-          ]
+          ],
+          "why": "Numărând 5 trepte de la Do (Do–Re–Mi–Fa–Sol), acordul de treapta a V-a este Sol major."
         },
         "es": {
           "q": "En la tonalidad de Do mayor, el acorde V es…",
@@ -6690,7 +7451,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fa mayor (F)",
             "La menor (Am)",
             "Mi menor (Em)"
-          ]
+          ],
+          "why": "Contando 5 grados desde Do (Do–Re–Mi–Fa–Sol), la tríada sobre el V grado es Sol mayor."
         },
         "fr": {
           "q": "En do majeur, l’accord V est…",
@@ -6699,7 +7461,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fa majeur",
             "La mineur",
             "Mi mineur"
-          ]
+          ],
+          "why": "Cinq degrés au-dessus de Do mènent à Sol : le Ve degré de Do majeur est Sol majeur."
         },
         "de": {
           "q": "Welcher Akkord ist die Dominante (V) in C-Dur?",
@@ -6708,7 +7471,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "F-Dur",
             "a-Moll",
             "e-Moll"
-          ]
+          ],
+          "why": "Fünf Stufen über C liegt G — die V. Stufe in C-Dur ist der G-Dur-Dreiklang (G–H–D)."
         },
         "it": {
           "q": "Quali sono i gradi fondamentali (maggiori) in una tonalità maggiore?",
@@ -6717,7 +7481,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ii, iii e vi",
             "I, iii e vi",
             "IV, vi e vii°"
-          ]
+          ],
+          "why": "Salendo di 5 gradi da Do si raggiunge Sol: il V grado di Do maggiore è Sol maggiore."
         },
         "pt-BR": {
           "q": "Em Dó maior, o acorde V é…",
@@ -6726,9 +7491,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Fá maior (F)",
             "Lá menor (Am)",
             "Mi menor (Em)"
-          ]
+          ],
+          "why": "Cinco graus acima de Dó está Sol — o acorde de V grau em Dó maior é Sol maior."
         }
-      }
+      },
+      "why": [
+        "Count five letters up from C (C–D–E–F–G): degree 5 in C major builds the major triad G–B–D.",
+        "Numărând 5 trepte de la Do (Do–Re–Mi–Fa–Sol), acordul de treapta a V-a este Sol major."
+      ]
     },
     {
       "q": [
@@ -6749,7 +7519,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "I, IV, V",
             "ii, V, vii°",
             "iii, IV, vi"
-          ]
+          ],
+          "why": "In any major key, I, IV, and V are major, vii° is diminished, and degrees ii, iii, and vi are minor."
         },
         "ro": {
           "q": "Care acorduri sunt minore într-o tonalitate majoră?",
@@ -6758,7 +7529,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "I, IV, V",
             "ii, V, vii°",
             "iii, IV, vi"
-          ]
+          ],
+          "why": "În gama majoră, I, IV și V sunt majore, vii° este diminuat, iar treptele ii, iii și vi sunt minore."
         },
         "es": {
           "q": "¿Qué acordes son menores en una tonalidad mayor?",
@@ -6767,7 +7539,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "I, IV, V",
             "ii, V, vii°",
             "iii, IV, vi"
-          ]
+          ],
+          "why": "En modo mayor, I, IV y V son mayores, vii° es disminuido y los grados ii, iii y vi son menores."
         },
         "fr": {
           "q": "Quels accords sont mineurs dans une tonalité majeure ?",
@@ -6776,7 +7549,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "I, IV, V",
             "ii, V, vii°",
             "iii, IV, vi"
-          ]
+          ],
+          "why": "En mode majeur, I, IV et V sont majeurs, vii° est diminué, et les degrés ii, iii et vi sont mineurs."
         },
         "de": {
           "q": "Welche Stufenakkorde sind in einer Dur-Tonart Moll-Akkorde?",
@@ -6785,7 +7559,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "I, IV, V",
             "ii, V, vii°",
             "iii, IV, vi"
-          ]
+          ],
+          "why": "In Dur sind I, IV und V Durdreiklänge, vii° vermindert, und die Stufen ii, iii und vi sind Moll."
         },
         "it": {
           "q": "Quale grado ospita l'unico accordo diminuito nella tonalità maggiore?",
@@ -6794,7 +7569,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Il ii grado",
             "Il iii grado",
             "Il vi grado"
-          ]
+          ],
+          "why": "Nel modo maggiore I, IV e V sono maggiori, vii° è diminuito e ii, iii, vi sono accordi minori."
         },
         "pt-BR": {
           "q": "Quais acordes são menores em uma tonalidade maior?",
@@ -6803,9 +7579,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "I, IV, V",
             "ii, V, vii°",
             "iii, IV, vi"
-          ]
+          ],
+          "why": "No tom maior, I, IV e V são maiores, vii° é diminuto e os graus ii, iii e vi são menores."
         }
-      }
+      },
+      "why": [
+        "In any major key, I, IV, and V are major, vii° is diminished, and degrees ii, iii, and vi are minor.",
+        "În gama majoră, I, IV și V sunt majore, vii° este diminuat, iar treptele ii, iii și vi sunt minore."
+      ]
     },
     {
       "q": [
@@ -6826,7 +7607,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "16",
             "4"
-          ]
+          ],
+          "why": "The standard chorus splits 12 bars into three 4-bar lines: 4 bars around I, 4 starting on IV → I, and 4 on V → IV → I."
         },
         "ro": {
           "q": "Câte măsuri are forma standard de blues?",
@@ -6835,7 +7617,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "16",
             "4"
-          ]
+          ],
+          "why": "Forma clasică de blues are 12 măsuri împărțite în trei fraze de câte 4 măsuri (I / IV–I / V–IV–I)."
         },
         "es": {
           "q": "¿Cuántos compases tiene una rueda de blues estándar?",
@@ -6844,7 +7627,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "16",
             "4"
-          ]
+          ],
+          "why": "El blues estándar abarca 12 compases organizados en tres frases de 4 compases cada una."
         },
         "fr": {
           "q": "Combien de mesures comporte une grille de blues standard ?",
@@ -6853,7 +7637,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "16",
             "4"
-          ]
+          ],
+          "why": "Le blues classique dure 12 mesures découpées en trois phrases carrées de 4 mesures."
         },
         "de": {
           "q": "Wie viele Takte umfasst das klassische Blues-Schema?",
@@ -6862,7 +7647,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "16",
             "4"
-          ]
+          ],
+          "why": "Das Standard-Bluesschema umfasst 12 Takte in drei viertaktigen Phrasen."
         },
         "it": {
           "q": "Quale progressione rappresenta la classica formula cadenzale del jazz?",
@@ -6871,7 +7657,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "I – IV – V",
             "I – vi – IV – V",
             "vi – ii – V – I"
-          ]
+          ],
+          "why": "Il blues classico è strutturato in 12 battute suddivise in tre frasi da 4 battute."
         },
         "pt-BR": {
           "q": "Quantos compassos tem uma forma padrão de blues?",
@@ -6880,9 +7667,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "8",
             "16",
             "4"
-          ]
+          ],
+          "why": "O blues clássico tem 12 compassos organizados em três frases de 4 compassos."
         }
-      }
+      },
+      "why": [
+        "The standard chorus splits 12 bars into three 4-bar lines: 4 bars around I, 4 starting on IV → I, and 4 on V → IV → I.",
+        "Forma clasică de blues are 12 măsuri împărțite în trei fraze de câte 4 măsuri (I / IV–I / V–IV–I)."
+      ]
     },
     {
       "q": [
@@ -6903,7 +7695,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V",
             "I",
             "vi"
-          ]
+          ],
+          "why": "After four bars on the tonic I, bars 5–6 brighten the harmony by moving up to the subdominant IV."
         },
         "ro": {
           "q": "Într-un blues pe 12 măsuri, măsura 5 merge pe…",
@@ -6912,7 +7705,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V",
             "I",
             "vi"
-          ]
+          ],
+          "why": "După primele 4 măsuri pe tonică (I), măsura 5 urcă pe subdominantă (IV) pentru a deschide a doua frază."
         },
         "es": {
           "q": "En un blues de 12 compases, el compás 5 modula a…",
@@ -6921,7 +7715,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V",
             "I",
             "vi"
-          ]
+          ],
+          "why": "Tras cuatro compases en tónica (I), el compás 5 sube al acorde de subdominante (IV)."
         },
         "fr": {
           "q": "Dans un blues en 12 mesures, la mesure 5 va sur…",
@@ -6930,7 +7725,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V",
             "I",
             "vi"
-          ]
+          ],
+          "why": "Après quatre mesures sur la tonique (I), la 5e mesure ouvre la phrase suivante sur la sous-dominante (IV)."
         },
         "de": {
           "q": "Zu welcher Stufe wechselt das 12-Takt-Blues-Schema typischerweise in Takt 5?",
@@ -6939,7 +7735,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V",
             "I",
             "vi"
-          ]
+          ],
+          "why": "Nach vier Takten Tonika (I) wechselt Takt 5 typischerweise zur Subdominante (IV)."
         },
         "it": {
           "q": "Qual è lo schema dei gradi nelle prime quattro battute di un classico blues a 12 battute?",
@@ -6948,7 +7745,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "IV – IV – I – I",
             "V – IV – I – V",
             "ii – V – I – I"
-          ]
+          ],
+          "why": "Dopo quattro battute di tonica (I), la battuta 5 sposta l’armonia sulla sottodominante (IV)."
         },
         "pt-BR": {
           "q": "Em um blues de 12 compassos, o compasso 5 vai para…",
@@ -6957,9 +7755,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V",
             "I",
             "vi"
-          ]
+          ],
+          "why": "Após quatro compassos na tônica (I), o compasso 5 vai para a subdominante (IV)."
         }
-      }
+      },
+      "why": [
+        "After four bars on the tonic I, bars 5–6 brighten the harmony by moving up to the subdominant IV.",
+        "După primele 4 măsuri pe tonică (I), măsura 5 urcă pe subdominantă (IV) pentru a deschide a doua frază."
+      ]
     },
     {
       "q": [
@@ -6974,28 +7777,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play the IV chord in C (F, A, C).",
-          "o": null
+          "o": null,
+          "why": "Degree 4 of C major is F, so the IV triad is F–A–C."
         },
         "ro": {
           "q": "Cântă acordul IV din Do (Fa, La, Do).",
-          "o": null
+          "o": null,
+          "why": "Treapta a IV-a în Do major este Fa, astfel că acordul IV este Fa–La–Do."
         },
         "es": {
-          "q": "Toca el acorde IV en Do: Fa, La y Do (F, A, C)."
+          "q": "Toca el acorde IV en Do: Fa, La y Do (F, A, C).",
+          "why": "El 4.º grado de Do mayor es Fa, por lo que el acorde IV es Fa–La–Do."
         },
         "fr": {
-          "q": "Jouez l’accord IV en do (fa, la, do)."
+          "q": "Jouez l’accord IV en do (fa, la, do).",
+          "why": "Le 4e degré de Do majeur est Fa : l’accord de IV est donc Fa–La–Do."
         },
         "de": {
-          "q": "Spiele die Subdominante (IV) in C-Dur (F, A, C)."
+          "q": "Spiele die Subdominante (IV) in C-Dur (F, A, C).",
+          "why": "Die 4. Stufe von C-Dur ist F; der IV-Dreiklang lautet somit F–A–C."
         },
         "it": {
-          "q": "Suona l'accordo IV in Do maggiore (Fa, La, Do)."
+          "q": "Suona l'accordo IV in Do maggiore (Fa, La, Do).",
+          "why": "Il IV grado di Do maggiore è Fa, per cui la triade di IV è Fa–La–Do."
         },
         "pt-BR": {
-          "q": "Toque o acorde IV em Dó: Fá, Lá e Dó (F, A, C)."
+          "q": "Toque o acorde IV em Dó: Fá, Lá e Dó (F, A, C).",
+          "why": "O 4º grau de Dó maior é Fá; logo a tríade IV é Fá–Lá–Dó."
         }
-      }
+      },
+      "why": [
+        "Degree 4 of C major is F, so the IV triad is F–A–C.",
+        "Treapta a IV-a în Do major este Fa, astfel că acordul IV este Fa–La–Do."
+      ]
     }
   ],
   "cad": [
@@ -7030,7 +7844,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "plagal cadence",
             "half cadence",
             "deceptive cadence"
-          ]
+          ],
+          "why": "Moving from dominant V directly onto a root-position tonic I releases all leading-tone tension for a complete close."
         },
         "ro": {
           "q": "V → I este o…",
@@ -7039,7 +7854,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadență plagală",
             "semicadență",
             "cadență întreruptă"
-          ]
+          ],
+          "why": "Rezolvarea dominantei V direct pe tonica I în stare directă închide fraza cu senzație deplină de repaus."
         },
         "es": {
           "q": "La progresión V → I es una cadencia…",
@@ -7048,7 +7864,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "plagal",
             "semicadencia",
             "rota o engañosa"
-          ]
+          ],
+          "why": "Ir de la dominante V a la tónica I en estado fundamental resuelve toda la tensión con cierre conclusivo."
         },
         "fr": {
           "q": "L’enchaînement V → I forme une cadence…",
@@ -7057,7 +7874,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "plagale",
             "demi-cadence",
             "rompue (évitée)"
-          ]
+          ],
+          "why": "Aller de la dominante V à la tonique I à l’état fondamental résout la sensible et conclut la phrase."
         },
         "de": {
           "q": "Die Akkordfolge V → I bezeichnet man als …",
@@ -7066,7 +7884,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Plagalschluss",
             "Halbschluss",
             "Trugschluss"
-          ]
+          ],
+          "why": "Der Schritt von der Dominante V zur Tonika I in Grundstellung löst alle Spannung und schließt vollständig ab."
         },
         "it": {
           "q": "Quale passaggio armonico definisce la cadenza perfetta (autentica)?",
@@ -7075,7 +7894,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "IV → I",
             "V → vi",
             "ii → V"
-          ]
+          ],
+          "why": "Il passaggio dalla dominante V alla tonica I allo stato fondamentale conclude il discorso musicale."
         },
         "pt-BR": {
           "q": "A progressão V → I é uma cadência…",
@@ -7084,9 +7904,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "plagal",
             "meia-cadência",
             "de engano (interrompida)"
-          ]
+          ],
+          "why": "Ir da dominante V para a tônica I em estado fundamental resolve toda a tensão com conclusão total."
         }
-      }
+      },
+      "why": [
+        "Moving from dominant V directly onto a root-position tonic I releases all leading-tone tension for a complete close.",
+        "Rezolvarea dominantei V direct pe tonica I în stare directă închide fraza cu senzație deplină de repaus."
+      ]
     },
     {
       "q": [
@@ -7119,7 +7944,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "perfect cadence",
             "plagal cadence",
             "deceptive cadence"
-          ]
+          ],
+          "why": "Stopping a phrase on V pauses mid-thought like a musical comma, asking for an answering phrase."
         },
         "ro": {
           "q": "O frază care se termină pe V este o…",
@@ -7128,7 +7954,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadență perfectă",
             "cadență plagală",
             "cadență întreruptă"
-          ]
+          ],
+          "why": "Oprirea pe dominanta V lasă fraza suspendată ca o virgulă muzicală ce cere un răspuns."
         },
         "es": {
           "q": "Una frase musical que concluye sobre el acorde V es una…",
@@ -7137,7 +7964,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadencia perfecta",
             "cadencia plagal",
             "cadencia rota"
-          ]
+          ],
+          "why": "Detener la frase sobre V deja la armonía en suspenso, como una coma musical que espera respuesta."
         },
         "fr": {
           "q": "Une phrase musicale qui s’achève sur l’accord V forme une…",
@@ -7146,7 +7974,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadence parfaite",
             "cadence plagale",
             "cadence rompue"
-          ]
+          ],
+          "why": "S’arrêter sur V suspend le discours comme une virgule musicale appelant une réponse."
         },
         "de": {
           "q": "Eine Phrase, die auf der Dominante (V) abbricht bzw. endet, bildet einen …",
@@ -7155,7 +7984,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Ganzschluss",
             "Plagalschluss",
             "Trugschluss"
-          ]
+          ],
+          "why": "Ein Schluss auf der Dominante V hält die Musik wie ein Komma offen und fordert eine Antwortphrase."
         },
         "it": {
           "q": "Quale formula caratterizza la cadenza plagale («amen»)?",
@@ -7164,7 +7994,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V → I",
             "V → vi",
             "I → V"
-          ]
+          ],
+          "why": "Fermarsi sul V grado lascia la frase sospesa come una virgola in attesa di risposta."
         },
         "pt-BR": {
           "q": "Uma frase que repousa sobre o acorde V é uma…",
@@ -7173,9 +8004,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadência perfeita",
             "cadência plagal",
             "cadência de engano"
-          ]
+          ],
+          "why": "Terminar a frase no V grau deixa a música suspensa como uma vírgula pedindo continuação."
         }
-      }
+      },
+      "why": [
+        "Stopping a phrase on V pauses mid-thought like a musical comma, asking for an answering phrase.",
+        "Oprirea pe dominanta V lasă fraza suspendată ca o virgulă muzicală ce cere un răspuns."
+      ]
     },
     {
       "q": [
@@ -7209,7 +8045,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Perfect (V → I)",
             "Plagal (IV → I)",
             "Half (I → V)"
-          ]
+          ],
+          "why": "A deceptive cadence sets up V expecting I, then surprises the ear by landing on submediant vi instead."
         },
         "ro": {
           "q": "Ascultă: ce cadență?",
@@ -7218,7 +8055,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Perfectă (V → I)",
             "Plagală (IV → I)",
             "Semicadență (I → V)"
-          ]
+          ],
+          "why": "Cadența întreruptă pregătește V → I, dar surprinde urechea rezolvând în schimb pe treapta a VI-a."
         },
         "es": {
           "q": "Escucha atentamente: ¿qué cadencia suena?",
@@ -7227,7 +8065,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Perfecta (V → I)",
             "Plagal (IV → I)",
             "Semicadencia (I → V)"
-          ]
+          ],
+          "why": "La cadencia rota prepara la dominante V esperando I, pero desvía la resolución hacia el VI grado."
         },
         "fr": {
           "q": "Écoutez attentivement : de quelle cadence s’agit-il ?",
@@ -7236,7 +8075,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Parfaite (V → I)",
             "Plagale (IV → I)",
             "Demi-cadence (I → V)"
-          ]
+          ],
+          "why": "La cadence rompue prépare la résolution attendue vers I, puis bifurque par surprise sur le VIe degré."
         },
         "de": {
           "q": "Höre hin: Welche Kadenzart erklingt?",
@@ -7245,7 +8085,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Ganzschluss (V → I)",
             "Plagalschluss (IV → I)",
             "Halbschluss (I → V)"
-          ]
+          ],
+          "why": "Der Trugschluss bereitet den Schluss nach I auf der Dominante V vor, weicht aber überraschend nach vi aus."
         },
         "it": {
           "q": "Ascolta: quale cadenza è?",
@@ -7254,7 +8095,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Perfetta (V → I)",
             "Plagale (IV → I)",
             "Semicadenza (I → V)"
-          ]
+          ],
+          "why": "La cadenza d’inganno fa attendere I dopo V, ma devia a sorpresa sul VI grado."
         },
         "pt-BR": {
           "q": "Ouça com atenção: qual cadência está soando?",
@@ -7263,9 +8105,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Perfeita (V → I)",
             "Plagal (IV → I)",
             "Meia-cadência (I → V)"
-          ]
+          ],
+          "why": "A cadência de engano prepara o retorno para I após V, mas surpreende ao cair no VI grau."
         }
-      }
+      },
+      "why": [
+        "A deceptive cadence sets up V expecting I, then surprises the ear by landing on submediant vi instead.",
+        "Cadența întreruptă pregătește V → I, dar surprinde urechea rezolvând în schimb pe treapta a VI-a."
+      ]
     },
     {
       "q": [
@@ -7298,7 +8145,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V → I",
             "I → V",
             "V → vi"
-          ]
+          ],
+          "why": "The gentler IV → I cadence avoids the V leading tone and is traditionally sung on “Amen” at the close of hymns."
         },
         "ro": {
           "q": "Cadența „Amin” este…",
@@ -7307,7 +8155,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V → I",
             "I → V",
             "V → vi"
-          ]
+          ],
+          "why": "Cadența plagală IV → I ocolește sensibila dominantei, dând o încheiere liniștită de tip „Amin”."
         },
         "es": {
           "q": "La conocida cadencia «Amén» corresponde a…",
@@ -7316,7 +8165,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V → I",
             "I → V",
             "V → vi"
-          ]
+          ],
+          "why": "La cadencia plagal IV → I evita la tensión de la dominante y da el cierre sereno típico del “Amén”."
         },
         "fr": {
           "q": "La cadence traditionnellement associée au mot « Amen » est…",
@@ -7325,7 +8175,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V → I",
             "I → V",
             "V → vi"
-          ]
+          ],
+          "why": "La cadence plagale IV → I évite la sensible pour offrir la conclusion apaisée du traditionnel « Amen »."
         },
         "de": {
           "q": "Die sogenannte „Amen-Kadenz“ ist ein …",
@@ -7334,7 +8185,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Ganzschluss (V → I)",
             "Halbschluss (I → V)",
             "Trugschluss (V → vi)"
-          ]
+          ],
+          "why": "Der plagale Schluss IV → I umgeht den Leitton der Dominante und klingt ruhig wie das traditionelle „Amen“."
         },
         "it": {
           "q": "Cosa accade nella cadenza d'inganno?",
@@ -7343,7 +8195,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "L'accordo V si ripete all'infinito",
             "Il brano termina senza accordo",
             "La tonica diventa diminuita"
-          ]
+          ],
+          "why": "La cadenza plagale IV → I evita la tensione della dominante offrendo la chiusura serena del tradizionale “Amen”."
         },
         "pt-BR": {
           "q": "A clássica cadência do “Amém” corresponde a…",
@@ -7352,9 +8205,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "V → I",
             "I → V",
             "V → vi"
-          ]
+          ],
+          "why": "A cadência plagal IV → I evita a tensão da dominante, gerando o encerramento sereno do tradicional “Amém”."
         }
-      }
+      },
+      "why": [
+        "The gentler IV → I cadence avoids the V leading tone and is traditionally sung on “Amen” at the close of hymns.",
+        "Cadența plagală IV → I ocolește sensibila dominantei, dând o încheiere liniștită de tip „Amin”."
+      ]
     }
   ],
   "minorh": [
@@ -7389,7 +8247,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "the raised 6th",
             "the lowered 3rd",
             "a key change"
-          ]
+          ],
+          "why": "Natural minor has G♮ (making Em, a weak dominant); raising the 7th to G♯ turns V into E major with strong pull to Am."
         },
         "ro": {
           "q": "În La minor, V devine major datorită…",
@@ -7398,7 +8257,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "treptei a 6-a urcate",
             "terței coborâte",
             "unei modulații"
-          ]
+          ],
+          "why": "Minora naturală are Sol♮ (Mi minor, fără sensibilă); urcarea la Sol♯ transformă dominanta în Mi major spre La minor."
         },
         "es": {
           "q": "En La menor, el acorde V se convierte en mayor gracias a…",
@@ -7407,7 +8267,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la elevación del 6.º grado",
             "el descenso de la tercera",
             "una modulación"
-          ]
+          ],
+          "why": "El modo menor natural da Mi menor; alterar el 7.º grado a Sol♯ convierte V en Mi mayor con atracción hacia La menor."
         },
         "fr": {
           "q": "En la mineur, le degré V devient un accord majeur en raison de…",
@@ -7416,7 +8277,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "le 6e degré haussé",
             "la tierce abaissée",
             "une modulation"
-          ]
+          ],
+          "why": "Le mineur naturel donnerait Mi mineur ; hausser Sol à Sol♯ transforme V en Mi majeur avec sensible vers La mineur."
         },
         "de": {
           "q": "Warum wird der Dominantakkord (V) in a-Moll zu einem Dur-Akkord?",
@@ -7425,7 +8287,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Weil die 6. Stufe erhöht wird",
             "Wegen der erniedrigten Terz",
             "Wegen eines dauerhaften Tonartwechsels"
-          ]
+          ],
+          "why": "Ohne Erhöhung wäre die V. Stufe e-Moll; erst das erhöhte Gis (Leitton) macht V zu E-Dur."
         },
         "it": {
           "q": "Quale grado armonico è l'accordo di dominante (V) nella tonalità minore classica?",
@@ -7434,7 +8297,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Un accordo minore",
             "Un accordo diminuito",
             "Un accordo sospeso"
-          ]
+          ],
+          "why": "Senza alterazione il V sarebbe Mi minore; innalzando Sol a Sol♯ diventa Mi maggiore con forte spinta verso La minore."
         },
         "pt-BR": {
           "q": "Em Lá menor, o acorde V se torna maior devido a…",
@@ -7443,9 +8307,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a elevação do 6º grau",
             "o rebaixamento da terça",
             "uma modulação tonal"
-          ]
+          ],
+          "why": "Sem alteração o V grau seria Mi menor; elevar Sol para Sol♯ transforma o V em Mi maior puxando para Lá menor."
         }
-      }
+      },
+      "why": [
+        "Natural minor has G♮ (making Em, a weak dominant); raising the 7th to G♯ turns V into E major with strong pull to Am.",
+        "Minora naturală are Sol♮ (Mi minor, fără sensibilă); urcarea la Sol♯ transformă dominanta în Mi major spre La minor."
+      ]
     },
     {
       "q": [
@@ -7478,7 +8347,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Am – D – Em – Am",
             "A – D – E – A",
             "Am – F – G – Am"
-          ]
+          ],
+          "why": "In A minor, i is Am, iv is Dm, and V borrows the raised 7th (G♯) to form E major."
         },
         "ro": {
           "q": "În La minor, i – iv – V – i este…",
@@ -7487,7 +8357,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lam – Re – Mim – Lam",
             "La – Re – Mi – La",
             "Lam – Fa – Sol – Lam"
-          ]
+          ],
+          "why": "În La minor, i = Am, iv = Dm, iar V împrumută sensibila Sol♯ devenind E major."
         },
         "es": {
           "q": "En La menor, la progresión i – iv – V – i se traduce en…",
@@ -7496,7 +8367,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Am – D – Em – Am",
             "A – D – E – A",
             "Am – F – G – Am"
-          ]
+          ],
+          "why": "En La menor, i es Am, iv es Dm y V emplea la sensible Sol♯ para formar E mayor."
         },
         "fr": {
           "q": "En la mineur, la progression i – iv – V – i correspond à…",
@@ -7505,7 +8377,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Lam – Ré – Mim – Lam",
             "La – Ré – Mi – La",
             "Lam – Fa – Sol – Lam"
-          ]
+          ],
+          "why": "En La mineur, i est Am, iv est Dm, et V prend le Sol♯ sensible pour former E majeur."
         },
         "de": {
           "q": "Wie lautet die Stufenfolge i – iv – V – i in a-Moll?",
@@ -7514,7 +8387,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Am – D – Em – Am",
             "A – D – E – A",
             "Am – F – G – Am"
-          ]
+          ],
+          "why": "In a-Moll ist i = a-Moll, iv = d-Moll und V durch den Leitton Gis = E-Dur."
         },
         "it": {
           "q": "Qual è la qualità dell'accordo costruito sul 2° grado in una tonalità minore (ii°)?",
@@ -7523,7 +8397,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Accordo maggiore",
             "Accordo minore",
             "Accordo aumentato"
-          ]
+          ],
+          "why": "In La minore, i è Am, iv è Dm e V diventa E maggiore grazie al Sol♯ sensibile."
         },
         "pt-BR": {
           "q": "Em Lá menor, a progressão i – iv – V – i é…",
@@ -7532,9 +8407,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Am – D – Em – Am",
             "A – D – E – A",
             "Am – F – G – Am"
-          ]
+          ],
+          "why": "Em Lá menor, i é Am, iv é Dm e V usa o Sol♯ sensível para formar Mi maior (E)."
         }
-      }
+      },
+      "why": [
+        "In A minor, i is Am, iv is Dm, and V borrows the raised 7th (G♯) to form E major.",
+        "În La minor, i = Am, iv = Dm, iar V împrumută sensibila Sol♯ devenind E major."
+      ]
     },
     {
       "q": [
@@ -7567,7 +8447,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a quiet chord",
             "an inversion",
             "a seventh chord"
-          ]
+          ],
+          "why": "Standard Roman-numeral analysis uses uppercase (I, IV, V) for major chords and lowercase (i, ii°, iv) for minor or diminished chords."
         },
         "ro": {
           "q": "Cifre romane în minor: literele mici înseamnă…",
@@ -7576,7 +8457,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "un acord încet",
             "o răsturnare",
             "un acord de septimă"
-          ]
+          ],
+          "why": "Notația cu cifre romane folosește majuscule (I, V) pentru acorduri majore și minuscule (i, iv, ii°) pentru minore sau diminuate."
         },
         "es": {
           "q": "En el cifrado con números romanos en modo menor, las minúsculas indican…",
@@ -7585,7 +8467,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "un acorde de intensidad suave",
             "una inversión de acorde",
             "un acorde con séptima"
-          ]
+          ],
+          "why": "Los números romanos usan mayúsculas (I, IV, V) para acordes mayores y minúsculas (i, iv, ii°) para menores o disminuidos."
         },
         "fr": {
           "q": "Dans le chiffrage romain en mineur, les minuscules désignent…",
@@ -7594,7 +8477,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "un accord joué doucement",
             "un renversement",
             "un accord de septième"
-          ]
+          ],
+          "why": "En analyse, les chiffres romains en majuscules notent les accords majeurs et les minuscules les accords mineurs ou diminués."
         },
         "de": {
           "q": "Was signalisieren Kleinbuchstaben bei römischen Stufenziffern in Moll?",
@@ -7603,7 +8487,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "einen leise zu spielenden Akkord",
             "eine Umkehrung",
             "einen Septakkord"
-          ]
+          ],
+          "why": "Bei römischen Stufenzahlen stehen Großbuchstaben (I, IV, V) für Dur und Kleinbuchstaben (i, iv, ii°) für Moll oder vermindert."
         },
         "it": {
           "q": "Quale progressione è tipica per concludere una frase in tonalità minore?",
@@ -7612,7 +8497,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "IV – V – I",
             "ii – IV – I",
             "vi – V – I"
-          ]
+          ],
+          "why": "Nell’analisi con numeri romani le maiuscole indicano accordi maggiori e le minuscole accordi minori o diminuiti."
         },
         "pt-BR": {
           "q": "Nos algarismos romanos em modo menor, letras minúsculas indicam…",
@@ -7621,9 +8507,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "acorde tocado suavemente",
             "uma inversão",
             "acorde com sétima"
-          ]
+          ],
+          "why": "Na análise por algarismos romanos, maiúsculas indicam acordes maiores e minúsculas indicam menores ou diminutos."
         }
-      }
+      },
+      "why": [
+        "Standard Roman-numeral analysis uses uppercase (I, IV, V) for major chords and lowercase (i, ii°, iv) for minor or diminished chords.",
+        "Notația cu cifre romane folosește majuscule (I, V) pentru acorduri majore și minuscule (i, iv, ii°) pentru minore sau diminuate."
+      ]
     },
     {
       "q": [
@@ -7638,28 +8529,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play E major — the V of A minor (E, G♯, B).",
-          "o": null
+          "o": null,
+          "why": "E–G♯–B supplies the leading tone G♯ that resolves up by half step straight into the tonic A."
         },
         "ro": {
           "q": "Cântă Mi major — V din La minor (Mi, Sol♯, Si).",
-          "o": null
+          "o": null,
+          "why": "Mi–Sol♯–Si conține sensibila Sol♯ care rezolvă cu un semiton ascendent direct în tonica La."
         },
         "es": {
-          "q": "Toca Mi mayor: el V de La menor (Mi, Sol♯, Si / E, G♯, B)."
+          "q": "Toca Mi mayor: el V de La menor (Mi, Sol♯, Si / E, G♯, B).",
+          "why": "Mi–Sol♯–Si aporta la sensible Sol♯, que resuelve medio tono arriba sobre La."
         },
         "fr": {
-          "q": "Jouez mi majeur — le V de la mineur (mi, sol♯, si)."
+          "q": "Jouez mi majeur — le V de la mineur (mi, sol♯, si).",
+          "why": "Mi–Sol♯–Si fournit la sensible Sol♯ qui se résout d’un demi-ton ascendant sur La."
         },
         "de": {
-          "q": "Spiele E-Dur — die Dominante V von a-Moll (E, Gis, H)."
+          "q": "Spiele E-Dur — die Dominante V von a-Moll (E, Gis, H).",
+          "why": "E–Gis–H enthält den Leitton Gis, der einen Halbton aufwärts nach A zieht."
         },
         "it": {
-          "q": "Suona Mi maggiore — il V di La minore (Mi, Sol♯, Si)."
+          "q": "Suona Mi maggiore — il V di La minore (Mi, Sol♯, Si).",
+          "why": "Mi–Sol♯–Si contiene la sensibile Sol♯, che risolve di un semitono verso La."
         },
         "pt-BR": {
-          "q": "Toque Mi maior — o V de Lá menor (Mi, Sol♯, Si / E, G♯, B)."
+          "q": "Toque Mi maior — o V de Lá menor (Mi, Sol♯, Si / E, G♯, B).",
+          "why": "Mi–Sol♯–Si fornece a sensível Sol♯, que resolve um semitom acima em Lá."
         }
-      }
+      },
+      "why": [
+        "E–G♯–B supplies the leading tone G♯ that resolves up by half step straight into the tonic A.",
+        "Mi–Sol♯–Si conține sensibila Sol♯ care rezolvă cu un semiton ascendent direct în tonica La."
+      ]
     }
   ],
   "nct": [
@@ -7694,7 +8596,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "by leap away from the chord",
             "and stays on one note",
             "only in the bass"
-          ]
+          ],
+          "why": "A passing tone fills in a 3rd melodically, walking stepwise in one direction between two chord tones."
         },
         "ro": {
           "q": "O notă de trecere se mișcă…",
@@ -7703,7 +8606,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "prin salt departe de acord",
             "și rămâne pe o notă",
             "doar în bas"
-          ]
+          ],
+          "why": "Nota de trecere umple o terță printr-un mers treptat într-un singur sens între două note ale acordului."
         },
         "es": {
           "q": "Una nota de paso se mueve…",
@@ -7712,7 +8616,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "mediante un salto fuera del acorde",
             "manteniéndose en una sola nota",
             "únicamente en la línea del bajo"
-          ]
+          ],
+          "why": "La nota de paso rellena un salto de tercera moviéndose por grado conjunto en la misma dirección entre dos notas reales."
         },
         "fr": {
           "q": "Une note de passage se déplace…",
@@ -7721,7 +8626,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "par saut à l’écart de l’accord",
             "en restant sur la même note",
             "uniquement à la basse"
-          ]
+          ],
+          "why": "La note de passage relie par degrés conjoints, dans une même direction, deux notes réelles de l’accord."
         },
         "de": {
           "q": "Wie bewegt sich ein Durchgangston (Passing Tone)?",
@@ -7730,7 +8636,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "durch einen Sprung weg vom Akkord",
             "er verharrt auf demselben Ton",
             "nur in der Bassstimme"
-          ]
+          ],
+          "why": "Ein Durchgangston verbindet zwei Akkordtöne schrittweise in derselben Richtung."
         },
         "it": {
           "q": "Come si muove una tipica nota di passaggio?",
@@ -7739,7 +8646,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Con un salto di quinta",
             "Rimanendo ferma",
             "Cambiando ottava"
-          ]
+          ],
+          "why": "La nota di passaggio collega per grado congiunto nella stessa direzione due note reali dell’accordo."
         },
         "pt-BR": {
           "q": "Uma nota de passagem move-se…",
@@ -7748,9 +8656,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "por salto afastando-se do acorde",
             "sustentando a mesma nota",
             "apenas na voz do baixo"
-          ]
+          ],
+          "why": "A nota de passagem liga duas notas do acorde por grau conjunto na mesma direção."
         }
-      }
+      },
+      "why": [
+        "A passing tone fills in a 3rd melodically, walking stepwise in one direction between two chord tones.",
+        "Nota de trecere umple o terță printr-un mers treptat într-un singur sens între două note ale acordului."
+      ]
     },
     {
       "q": [
@@ -7783,7 +8696,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "leaps an octave",
             "is always a chord tone",
             "is a rest"
-          ]
+          ],
+          "why": "A neighbour tone leaves a chord tone by step (up or down) and returns by step to the same starting note."
         },
         "ro": {
           "q": "O broderie (notă vecină)…",
@@ -7792,7 +8706,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sare o octavă",
             "e mereu notă a acordului",
             "e o pauză"
-          ]
+          ],
+          "why": "Broderia părăsește o notă a acordului prin pas treptat și revine imediat la aceeași notă."
         },
         "es": {
           "q": "Una nota vecina (floreo o bordadura)…",
@@ -7801,7 +8716,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "salta una octava completa",
             "es siempre una nota del acorde",
             "equivale a un silencio"
-          ]
+          ],
+          "why": "La bordadura se aparta por grado conjunto de una nota real y regresa enseguida a la misma altura."
         },
         "fr": {
           "q": "Une broderie…",
@@ -7810,7 +8726,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "saute d’une octave",
             "fait toujours partie de l’accord",
             "désigne un silence"
-          ]
+          ],
+          "why": "La broderie quitte une note réelle par degré conjoint et revient aussitôt sur la même note."
         },
         "de": {
           "q": "Eine Wechselnote (Neighbour Tone) …",
@@ -7819,7 +8736,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "springt eine Oktave weit",
             "ist stets ein echter Akkordton",
             "ist eine kurze Pause"
-          ]
+          ],
+          "why": "Eine Wechselnote verlässt einen Akkordton stufenweise und kehrt direkt zu ihm zurück."
         },
         "it": {
           "q": "Cosa caratterizza una nota di volta (ausiliare)?",
@@ -7828,7 +8746,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Salta di un'ottava",
             "Viene tenuta attraverso il cambio di accordo",
             "Non risolve mai"
-          ]
+          ],
+          "why": "La nota di volta si allontana per grado congiunto da una nota reale e vi fa ritorno."
         },
         "pt-BR": {
           "q": "Uma bordadura (nota vizinha)…",
@@ -7837,9 +8756,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "salta uma oitava inteira",
             "é sempre nota do acorde",
             "equivale a uma pausa"
-          ]
+          ],
+          "why": "A bordadura sai de uma nota do acorde por grau conjunto e retorna logo em seguida à mesma nota."
         }
-      }
+      },
+      "why": [
+        "A neighbour tone leaves a chord tone by step (up or down) and returns by step to the same starting note.",
+        "Broderia părăsește o notă a acordului prin pas treptat și revine imediat la aceeași notă."
+      ]
     },
     {
       "q": [
@@ -7872,7 +8796,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "up by leap",
             "never",
             "to the bass note"
-          ]
+          ],
+          "why": "A suspension holds a tone from the previous harmony onto a new chord beat and then resolves downward by step."
         },
         "ro": {
           "q": "O întârziere se rezolvă…",
@@ -7881,7 +8806,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "prin salt în sus",
             "niciodată",
             "pe nota din bas"
-          ]
+          ],
+          "why": "Întârzierea prelungește o notă din acordul anterior pe timpul noii armonii, rezolvându-se apoi descendent cu o treaptă."
         },
         "es": {
           "q": "Un retardo resuelve habitualmente…",
@@ -7890,7 +8816,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "ascendiendo mediante un salto",
             "nunca resuelve",
             "hacia la nota del bajo"
-          ]
+          ],
+          "why": "El retardo prolonga una nota de la armonía previa sobre el tiempo nuevo y resuelve luego bajando por grado."
         },
         "fr": {
           "q": "Un retard se résout habituellement…",
@@ -7899,7 +8826,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "en montant par saut",
             "ne se résout jamais",
             "sur la note de basse"
-          ]
+          ],
+          "why": "Le retard prolonge une note de l’accord précédent sur le temps fort suivant avant de se résoudre par degré descendant."
         },
         "de": {
           "q": "Ein harmonischer Vorhalt (Suspension) löst sich typischerweise wie auf?",
@@ -7908,7 +8836,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "sprunghaft nach oben",
             "gar nicht",
             "immer in den Basston"
-          ]
+          ],
+          "why": "Ein Vorhalt hält einen Ton aus dem vorigen Akkord über den Taktwechsel hinaus und löst sich schrittweise abwärts auf."
         },
         "it": {
           "q": "Che cos'è un ritardo nell'armonia?",
@@ -7917,7 +8846,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Suonare fuori tempo con il metronomo",
             "Un arpeggio suonato lentamente",
             "Una pausa inaspettata"
-          ]
+          ],
+          "why": "Il ritardo trattiene una nota dell’armonia precedente sul nuovo accordo e risolve poi scendendo di grado."
         },
         "pt-BR": {
           "q": "Um retardo resolve normalmente…",
@@ -7926,9 +8856,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "subindo por salto",
             "nunca resolve",
             "na nota do baixo"
-          ]
+          ],
+          "why": "A suspensão sustenta uma nota do acorde anterior sobre o novo acorde e depois resolve descendo um grau."
         }
-      }
+      },
+      "why": [
+        "A suspension holds a tone from the previous harmony onto a new chord beat and then resolves downward by step.",
+        "Întârzierea prelungește o notă din acordul anterior pe timpul noii armonii, rezolvându-se apoi descendent cu o treaptă."
+      ]
     },
     {
       "q": [
@@ -7961,7 +8896,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a quiet chord tone",
             "a kind of rest",
             "a repeated note"
-          ]
+          ],
+          "why": "Unlike a suspension (prepared as a tie), an appoggiatura arrives unprepared via melodic leap before resolving by step."
         },
         "ro": {
           "q": "O apogiatură este…",
@@ -7970,7 +8906,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "o notă a acordului cântată încet",
             "un fel de pauză",
             "o notă repetată"
-          ]
+          ],
+          "why": "Spre deosebire de întârziere, apogiatura este atacată direct prin salt pe timp accentuat și rezolvată treptat."
         },
         "es": {
           "q": "Una apoyatura es…",
@@ -7979,7 +8916,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "una nota suave del acorde",
             "un tipo de silencio musical",
             "una nota repetida con insistencia"
-          ]
+          ],
+          "why": "A diferencia del retardo, la apoyatura entra por salto en parte acentuada y resuelve por grado."
         },
         "fr": {
           "q": "Une appoggiature est…",
@@ -7988,7 +8926,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "une note réelle jouée doucement",
             "une variété de silence",
             "une note répétée"
-          ]
+          ],
+          "why": "Contrairement au retard, l’appoggiature est abordée par saut sur un temps accentué puis résolue par degré."
         },
         "de": {
           "q": "Was versteht man unter einer Appoggiatura (unvorbereiteter Vorhalt)?",
@@ -7997,7 +8936,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "einen leisen Begleitton",
             "eine besondere Notenpause",
             "einen wiederholten Ton"
-          ]
+          ],
+          "why": "Anders als der gebundene Vorhalt wird der freie Vorhalt (Appoggiatura) unvorbereitet angesprungen und stufenweise aufgelöst."
         },
         "it": {
           "q": "Che cos'è un'appoggiatura?",
@@ -8006,7 +8946,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Una nota di passaggio rapida",
             "Un accordo arpeggiato",
             "Una legatura di valore"
-          ]
+          ],
+          "why": "A differenza del ritardo, l’appoggiatura giunge per salto su un accento e risolve per grado congiunto."
         },
         "pt-BR": {
           "q": "Uma apogiatura é…",
@@ -8015,9 +8956,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "uma nota suave do acorde",
             "um tipo de pausa musical",
             "uma nota repetida"
-          ]
+          ],
+          "why": "Ao contrário da suspensão, a apojatura chega por salto em tempo forte e resolve por grau conjunto."
         }
-      }
+      },
+      "why": [
+        "Unlike a suspension (prepared as a tie), an appoggiatura arrives unprepared via melodic leap before resolving by step.",
+        "Spre deosebire de întârziere, apogiatura este atacată direct prin salt pe timp accentuat și rezolvată treptat."
+      ]
     }
   ],
   "secdom": [
@@ -8052,7 +8998,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "G major",
             "A minor",
             "F major"
-          ]
+          ],
+          "why": "In C major, V is G; a 5th above G is D, so V/V is D major (or D7, with F♯ acting as leading tone to G)."
         },
         "ro": {
           "q": "V/V în Do major este…",
@@ -8061,7 +9008,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sol major",
             "La minor",
             "Fa major"
-          ]
+          ],
+          "why": "În Do major, V este Sol; cvinta lui Sol este Re, deci V/V este Re major / D7 (cu Fa♯ spre Sol)."
         },
         "es": {
           "q": "En Do mayor, el acorde V/V es…",
@@ -8070,7 +9018,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sol mayor (G)",
             "La menor (Am)",
             "Fa mayor (F)"
-          ]
+          ],
+          "why": "En Do mayor, V es Sol; una quinta sobre Sol está Re, así que V/V es Re mayor (o D7)."
         },
         "fr": {
           "q": "En do majeur, l’accord V/V est…",
@@ -8079,7 +9028,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sol majeur",
             "La mineur",
             "Fa majeur"
-          ]
+          ],
+          "why": "En Do majeur, V est Sol ; sa propre dominante à la quinte supérieure est Ré majeur (ou D7 avec Fa♯)."
         },
         "de": {
           "q": "Welcher Akkord ist die Zwischendominante V/V in C-Dur?",
@@ -8088,7 +9038,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "G-Dur",
             "a-Moll",
             "F-Dur"
-          ]
+          ],
+          "why": "In C-Dur ist V = G; die Quinte über G ist D, also ist V/V D-Dur (bzw. D7 mit Fis als Leitton zu G)."
         },
         "it": {
           "q": "Che cos'è una dominante secondaria?",
@@ -8097,7 +9048,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Il secondo rivolto della dominante",
             "La dominante della relativa minore",
             "Un accordo diminuito ausiliario"
-          ]
+          ],
+          "why": "In Do maggiore V è Sol; una quinta sopra Sol sta Re, dunque V/V è Re maggiore (o D7)."
         },
         "pt-BR": {
           "q": "Em Dó maior, o acorde V/V é…",
@@ -8106,9 +9058,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sol maior (G)",
             "Lá menor (Am)",
             "Fá maior (F)"
-          ]
+          ],
+          "why": "Em Dó maior, V é Sol; uma quinta acima de Sol está Ré, portanto V/V é Ré maior (ou D7)."
         }
-      }
+      },
+      "why": [
+        "In C major, V is G; a 5th above G is D, so V/V is D major (or D7, with F♯ acting as leading tone to G).",
+        "În Do major, V este Sol; cvinta lui Sol este Re, deci V/V este Re major / D7 (cu Fa♯ spre Sol)."
+      ]
     },
     {
       "q": [
@@ -8141,7 +9098,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "any minor chord",
             "the second chord of a piece",
             "a chord with no 3rd"
-          ]
+          ],
+          "why": "Borrowing the dominant (V) of another diatonic chord temporarily turns that chord into a mini-tonic."
         },
         "ro": {
           "q": "O dominantă secundară este…",
@@ -8150,7 +9108,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "orice acord minor",
             "al doilea acord dintr-o piesă",
             "un acord fără terță"
-          ]
+          ],
+          "why": "Împrumutarea dominantei unui alt acord diatonic transformă temporar acel acord într-o țintă tonală."
         },
         "es": {
           "q": "Una dominante secundaria es…",
@@ -8159,7 +9118,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cualquier acorde menor",
             "el segundo acorde de una obra",
             "un acorde desprovisto de tercera"
-          ]
+          ],
+          "why": "Tomar prestada la dominante de otro acorde diatónico toniciza brevemente ese acorde destino."
         },
         "fr": {
           "q": "Une dominante secondaire est…",
@@ -8168,7 +9128,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "n’importe quel accord mineur",
             "le deuxième accord d’un morceau",
             "un accord privé de tierce"
-          ]
+          ],
+          "why": "Emprunter la dominante d’un autre accord diatonique en fait brièvement une petite tonique locale."
         },
         "de": {
           "q": "Was ist eine Zwischendominante?",
@@ -8177,7 +9138,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "jeder beliebige Moll-Akkord",
             "der zweite Akkord eines Werkes",
             "ein Akkord ohne Terz"
-          ]
+          ],
+          "why": "Eine Zwischendominante leiht die V. Stufe einer Nebentonart, um den Zielakkord kurz hervorzuheben."
         },
         "it": {
           "q": "In tonalità di Do maggiore, qual è la dominante secondaria del quinto grado (V/V)?",
@@ -8186,7 +9148,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La maggiore / A7",
             "Mi maggiore / E7",
             "Fa diesis diminuito"
-          ]
+          ],
+          "why": "Una dominante secondaria prende in prestito il V di un altro accordo diatonico per darle temporaneo risalto."
         },
         "pt-BR": {
           "q": "Uma dominante secundária é…",
@@ -8195,9 +9158,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "qualquer acorde menor",
             "o segundo acorde de uma peça",
             "um acorde sem terça"
-          ]
+          ],
+          "why": "Tomar emprestada a dominante de outro acorde diatônico cria uma pequena atração momentânea para ele."
         }
-      }
+      },
+      "why": [
+        "Borrowing the dominant (V) of another diatonic chord temporarily turns that chord into a mini-tonic.",
+        "Împrumutarea dominantei unui alt acord diatonic transformă temporar acel acord într-o țintă tonală."
+      ]
     },
     {
       "q": [
@@ -8230,7 +9198,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "relative minor",
             "subdominant key",
             "parallel minor"
-          ]
+          ],
+          "why": "Since G is the 5th degree of C, modulating from C to G moves to the dominant key (adding F♯)."
         },
         "ro": {
           "q": "Do major → Sol major: noua tonalitate este…",
@@ -8239,7 +9208,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "relativa minoră",
             "tonalitatea subdominantei",
             "omonima minoră"
-          ]
+          ],
+          "why": "Întrucât Sol este treapta a V-a a lui Do, modulația de la Do la Sol trece în tonalitatea dominantei (cu un diez)."
         },
         "es": {
           "q": "De Do mayor a Sol mayor: la nueva tonalidad es la…",
@@ -8248,7 +9218,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "relativa menor",
             "tonalidad de la subdominante",
             "homónima menor"
-          ]
+          ],
+          "why": "Como Sol es el 5.º grado de Do, modular de Do a Sol lleva a la tonalidad de la dominante."
         },
         "fr": {
           "q": "De do majeur à sol majeur : la nouvelle tonalité est la…",
@@ -8257,7 +9228,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "relative mineure",
             "tonalité de la sous-dominante",
             "homonyme mineure"
-          ]
+          ],
+          "why": "Puisque Sol est le 5e degré de Do, moduler vers Sol fait entrer dans le ton de la dominante."
         },
         "de": {
           "q": "Bei der Modulation von C-Dur nach G-Dur ist das Ziel die …",
@@ -8266,7 +9238,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "parallele Molltonart",
             "Subdominanttonart",
             "variantische Molltonart"
-          ]
+          ],
+          "why": "Da G die 5. Stufe von C ist, führt die Modulation nach G-Dur in die Dominanttonart."
         },
         "it": {
           "q": "Come si chiama l'accordo che appartiene sia alla tonalità di partenza sia alla nuova tonalità in una modulazione?",
@@ -8275,7 +9248,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Accordo estraneo",
             "Accordo di volta",
             "Accordo d'inganno"
-          ]
+          ],
+          "why": "Poiché Sol è il V grado di Do, modulare da Do a Sol porta alla tonalità della dominante."
         },
         "pt-BR": {
           "q": "De Dó maior para Sol maior: a nova tonalidade é a…",
@@ -8284,9 +9258,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "relativa menor",
             "tonalidade da subdominante",
             "homônima menor"
-          ]
+          ],
+          "why": "Como Sol é o 5º grau de Dó, modular de Dó para Sol vai para a tonalidade da dominante."
         }
-      }
+      },
+      "why": [
+        "Since G is the 5th degree of C, modulating from C to G moves to the dominant key (adding F♯).",
+        "Întrucât Sol este treapta a V-a a lui Do, modulația de la Do la Sol trece în tonalitatea dominantei (cu un diez)."
+      ]
     },
     {
       "q": [
@@ -8319,7 +9298,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "all voices leaping",
             "parallel fifths",
             "doubling the leading tone"
-          ]
+          ],
+          "why": "Holding common tones and stepping each remaining voice smoothly connects chords without awkward leaps."
         },
         "ro": {
           "q": "Conducerea bună a vocilor preferă…",
@@ -8328,7 +9308,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "toate vocile prin salt",
             "cvinte paralele",
             "dublarea sensibilei"
-          ]
+          ],
+          "why": "Păstrarea sunetelor comune și mersul treptat al celorlalte voci leagă acordurile cursiv, fără salturi bruște."
         },
         "es": {
           "q": "Una conducción de voces armónica prioriza…",
@@ -8337,7 +9318,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "que todas las voces salten a la vez",
             "quintas paralelas consecutivas",
             "duplicar la sensible"
-          ]
+          ],
+          "why": "Conservar notas comunes y mover las demás voces por grados pequeños enlaza los acordes con naturalidad."
         },
         "fr": {
           "q": "Une bonne conduite des voix privilégie…",
@@ -8346,7 +9328,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "le déplacement de toutes les voix par grands sauts",
             "les quintes parallèles consécutives",
             "le redoublement de la sensible"
-          ]
+          ],
+          "why": "Garder les notes communes et déplacer les autres voix par petits intervalles assure une conduite fluide."
         },
         "de": {
           "q": "Was zeichnet eine vorbildliche Stimmführung aus?",
@@ -8355,7 +9338,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "alle Stimmen sprunghaft führen",
             "parallele Quinten und Oktaven",
             "Verdopplung des Leittons"
-          ]
+          ],
+          "why": "Liegenbleibende gemeinsame Töne und kleine Stimmführungsschritte verbinden Akkorde geschmeidig."
         },
         "it": {
           "q": "Quale regola fondamentale della condotta classica delle voci evita movimenti vuoti?",
@@ -8364,7 +9348,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Non usare mai accordi maggiori",
             "Suonare sempre e solo per salti",
             "Raddoppiare sempre la sensibile"
-          ]
+          ],
+          "why": "Mantenere le note comuni e muovere le altre per grado congiunto rende fluido il passaggio armonico."
         },
         "pt-BR": {
           "q": "Uma boa condução de vozes prioriza…",
@@ -8373,9 +9358,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "todas as vozes saltando simultaneamente",
             "quintas paralelas consecutivas",
             "dobrar a sensível"
-          ]
+          ],
+          "why": "Manter notas comuns e mover as demais vozes por passos curtos conecta os acordes com fluidez."
         }
-      }
+      },
+      "why": [
+        "Holding common tones and stepping each remaining voice smoothly connects chords without awkward leaps.",
+        "Păstrarea sunetelor comune și mersul treptat al celorlalte voci leagă acordurile cursiv, fără salturi bruște."
+      ]
     },
     {
       "q": [
@@ -8391,28 +9381,39 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
       "i18n": {
         "en": {
           "q": "Play A7 — V/ii in C (A, C♯, E, G).",
-          "o": null
+          "o": null,
+          "why": "Degree ii in C is Dm; a 5th above D is A, so A–C♯–E–G (A7) serves as V⁷/ii."
         },
         "ro": {
           "q": "Cântă La7 — V/ii în Do (La, Do♯, Mi, Sol).",
-          "o": null
+          "o": null,
+          "why": "Treapta ii în Do este Dm; o cvintă deasupra lui Re stă La, deci La–Do♯–Mi–Sol (A7) este V⁷/ii."
         },
         "es": {
-          "q": "Toca A7: V/ii en Do (La, Do♯, Mi, Sol / A, C♯, E, G)."
+          "q": "Toca A7: V/ii en Do (La, Do♯, Mi, Sol / A, C♯, E, G).",
+          "why": "El grado ii de Do es Dm; una quinta sobre Re es La, luego La–Do♯–Mi–Sol (A7) actúa como V⁷/ii."
         },
         "fr": {
-          "q": "Jouez A7 : V/ii en do (la, do♯, mi, sol)."
+          "q": "Jouez A7 : V/ii en do (la, do♯, mi, sol).",
+          "why": "Le IIe degré de Do est Ré mineur ; une quinte au-dessus donne La7 (La–Do♯–Mi–Sol), soit V⁷/ii."
         },
         "de": {
-          "q": "Spiele A7 — die Zwischendominante V/ii in C-Dur (A, Cis, E, G)."
+          "q": "Spiele A7 — die Zwischendominante V/ii in C-Dur (A, Cis, E, G).",
+          "why": "Die ii. Stufe von C-Dur ist d-Moll; die Quinte über D ist A, also ist A–Cis–E–G (A7) V⁷/ii."
         },
         "it": {
-          "q": "Suona La7 — V/ii in Do maggiore (La, Do♯, Mi, Sol)."
+          "q": "Suona La7 — V/ii in Do maggiore (La, Do♯, Mi, Sol).",
+          "why": "Il II grado di Do è Re minore; una quinta sopra Re è La, per cui La–Do♯–Mi–Sol (A7) è V⁷/ii."
         },
         "pt-BR": {
-          "q": "Toque A7: V/ii em Dó (Lá, Dó♯, Mi, Sol / A, C♯, E, G)."
+          "q": "Toque A7: V/ii em Dó (Lá, Dó♯, Mi, Sol / A, C♯, E, G).",
+          "why": "O II grau de Dó é Ré menor; uma quinta acima de Ré está Lá, logo Lá–Dó♯–Mi–Sol (A7) é V⁷/ii."
         }
-      }
+      },
+      "why": [
+        "Degree ii in C is Dm; a 5th above D is A, so A–C♯–E–G (A7) serves as V⁷/ii.",
+        "Treapta ii în Do este Dm; o cvintă deasupra lui Re stă La, deci La–Do♯–Mi–Sol (A7) este V⁷/ii."
+      ]
     }
   ],
   "form": [
@@ -8447,7 +9448,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadence",
             "coda",
             "metre"
-          ]
+          ],
+          "why": "A motif is the smallest recognizable melodic/rhythmic cell used to build phrases and themes."
         },
         "ro": {
           "q": "O idee muzicală scurtă, repetată și dezvoltată este un…",
@@ -8456,7 +9458,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadență",
             "coda",
             "măsură"
-          ]
+          ],
+          "why": "Motivul este cea mai mică celulă melodică sau ritmică recognoscibilă din care se construiesc frazele."
         },
         "es": {
           "q": "Una idea musical concisa que se repite y desarrolla es un…",
@@ -8465,7 +9468,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadencia",
             "coda",
             "compás"
-          ]
+          ],
+          "why": "Un motivo es la célula melódica o rítmica breve a partir de la cual se desarrollan frases enteras."
         },
         "fr": {
           "q": "Une courte idée musicale répétée et développée est un…",
@@ -8474,7 +9478,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadence",
             "coda",
             "mesure"
-          ]
+          ],
+          "why": "Un motif est la plus petite cellule mélodique ou rythmique réutilisée pour construire la forme."
         },
         "de": {
           "q": "Ein prägnanter, kurzer musikalischer Leitgedanke heißt …",
@@ -8483,7 +9488,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Kadenz",
             "Coda",
             "Taktart"
-          ]
+          ],
+          "why": "Ein Motiv ist die kleinste prägnante melodisch-rhythmische Keimzelle eines Musikstücks."
         },
         "it": {
           "q": "Che cos'è una «frase» nel discorso musicale?",
@@ -8492,7 +9498,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Una singola battuta",
             "Una sequenza infinita di note",
             "La velocità del brano"
-          ]
+          ],
+          "why": "Un motivo è la più piccola cellula melodico-ritmica riconoscibile da cui si sviluppa un tema."
         },
         "pt-BR": {
           "q": "Uma ideia musical curta que é repetida e desenvolvida é um…",
@@ -8501,9 +9508,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadência",
             "coda",
             "compasso"
-          ]
+          ],
+          "why": "Um motivo é a menor célula melódica ou rítmica reconhecível usada para construir frases."
         }
-      }
+      },
+      "why": [
+        "A motif is the smallest recognizable melodic/rhythmic cell used to build phrases and themes.",
+        "Motivul este cea mai mică celulă melodică sau ritmică recognoscibilă din care se construiesc frazele."
+      ]
     },
     {
       "q": [
@@ -8536,7 +9548,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "binary form",
             "ternary form",
             "a period"
-          ]
+          ],
+          "why": "In rondo form, a main refrain (A) keeps returning between contrasting episodes (B, C…)."
         },
         "ro": {
           "q": "A–B–A–C–A este…",
@@ -8545,7 +9558,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "formă binară",
             "formă ternară",
             "o perioadă"
-          ]
+          ],
+          "why": "Forma de rondo alternează mereu refrenul principal (A) cu cuplete/episoade contrastante (B, C…)."
         },
         "es": {
           "q": "La estructura A–B–A–C–A corresponde a la forma…",
@@ -8554,7 +9568,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "forma binaria",
             "forma ternaria",
             "un período"
-          ]
+          ],
+          "why": "En la forma rondó, un estribillo principal (A) reaparece alternado con episodios contrastantes (B, C…)."
         },
         "fr": {
           "q": "La structure A–B–A–C–A est une forme…",
@@ -8563,7 +9578,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "forme binaire",
             "forme ternaire",
             "une période"
-          ]
+          ],
+          "why": "La forme rondo fait revenir un refrain principal (A) entre plusieurs couplets contrastants (B, C…)."
         },
         "de": {
           "q": "Die Form A–B–A–C–A entspricht einem …",
@@ -8572,7 +9588,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "zweiteiligen Liedform (AB)",
             "dreiteiligen Form (ABA)",
             "einer Periode"
-          ]
+          ],
+          "why": "Beim Rondo kehrt ein Hauptthema (A) regelmäßig zwischen kontrastierenden Zwischenspielen (B, C …) wieder."
         },
         "it": {
           "q": "Qual è la struttura caratteristica della forma ternaria?",
@@ -8581,7 +9598,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "A – B",
             "A – B – A – C – A",
             "A – A – B – B"
-          ]
+          ],
+          "why": "Nella forma rondò un tema principale o ritornello (A) ritorna più volte alternato a episodi diversi (B, C…)."
         },
         "pt-BR": {
           "q": "A–B–A–C–A corresponde à forma…",
@@ -8590,9 +9608,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "forma binária",
             "forma ternária",
             "um período"
-          ]
+          ],
+          "why": "Na forma rondó, um refrão principal (A) retorna continuamente entre seções contrastantes (B, C…)."
         }
-      }
+      },
+      "why": [
+        "In rondo form, a main refrain (A) keeps returning between contrasting episodes (B, C…).",
+        "Forma de rondo alternează mereu refrenul principal (A) cu cuplete/episoade contrastante (B, C…)."
+      ]
     },
     {
       "q": [
@@ -8625,7 +9648,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "one bar",
             "a full sonata",
             "a repeat sign"
-          ]
+          ],
+          "why": "A classical period pairs an open-ended antecedent phrase with a stronger, resolving consequent phrase."
         },
         "ro": {
           "q": "O perioadă este…",
@@ -8634,7 +9658,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "o măsură",
             "o sonată întreagă",
             "un semn de repetiție"
-          ]
+          ],
+          "why": "Perioada clasică împerechează o frază antecedentă (întrebare) cu o frază consecventă (răspuns conclusiv)."
         },
         "es": {
           "q": "Un período musical está compuesto por…",
@@ -8643,7 +9668,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "un solo compás",
             "una sonata completa",
             "un signo de repetición"
-          ]
+          ],
+          "why": "Un período clásico empareja un antecedente abierto (pregunta) con un consecuente conclusivo (respuesta)."
         },
         "fr": {
           "q": "Une période musicale est constituée de…",
@@ -8652,7 +9678,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "une seule mesure",
             "une sonate entière",
             "une barre de reprise"
-          ]
+          ],
+          "why": "La période classique associe une phrase antécédente ouverte (question) à une phrase conséquente conclusive (réponse)."
         },
         "de": {
           "q": "Eine klassische musikalische Periode besteht aus …",
@@ -8661,7 +9688,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "einem einzelnen Takt",
             "einer gesamten Klaviersonate",
             "einem Wiederholungszeichen"
-          ]
+          ],
+          "why": "Eine musikalische Periode verbindet einen fragenden Vordersatz mit einem abschließenden Nachsatz."
         },
         "it": {
           "q": "Quali sono le tre sezioni canoniche della forma sonata classica?",
@@ -8670,7 +9698,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Strofa, Ritornello e Finale",
             "Preludio, Toccata e Fuga",
             "Tema, Variazione e Coda"
-          ]
+          ],
+          "why": "Il periodo musicale accoppia una frase antecedente aperta (domanda) a una frase conseguente conclusiva (risposta)."
         },
         "pt-BR": {
           "q": "Um período musical é formado por…",
@@ -8679,9 +9708,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "um único compasso",
             "uma sonata completa",
             "uma barra de repetição"
-          ]
+          ],
+          "why": "Um período clássico combina uma frase antecedente aberta (pergunta) com uma consequente conclusiva (resposta)."
         }
-      }
+      },
+      "why": [
+        "A classical period pairs an open-ended antecedent phrase with a stronger, resolving consequent phrase.",
+        "Perioada clasică împerechează o frază antecedentă (întrebare) cu o frază consecventă (răspuns conclusiv)."
+      ]
     },
     {
       "q": [
@@ -8714,7 +9748,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "perfect cadence",
             "modulation",
             "fermata"
-          ]
+          ],
+          "why": "Ending the antecedent phrase with a half cadence (on V) creates tension that only the consequent’s V → I resolves."
         },
         "ro": {
           "q": "Fraza antecedentă se termină de obicei cu o…",
@@ -8723,7 +9758,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadență perfectă",
             "modulație",
             "coroană"
-          ]
+          ],
+          "why": "Semicadența (oprire pe V) la finalul antecedentului creează suspansul pe care abia cadența finală a consecventului îl închide."
         },
         "es": {
           "q": "La frase antecedente concluye habitualmente con una…",
@@ -8732,7 +9768,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadencia perfecta",
             "modulación tonal",
             "calderón"
-          ]
+          ],
+          "why": "La semicadencia sobre V deja la pregunta abierta para que el consecuente la cierre en la tónica."
         },
         "fr": {
           "q": "La phrase antécédente se termine le plus souvent par une…",
@@ -8741,7 +9778,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadence parfaite",
             "modulation",
             "point d’orgue"
-          ]
+          ],
+          "why": "La demi-cadence sur V laisse l’antécédent en suspens pour que le conséquent apporte la conclusion sur I."
         },
         "de": {
           "q": "Der Vordersatz einer Periode endet typischerweise mit einem …",
@@ -8750,7 +9788,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Ganzschluss (auf I)",
             "Tonartwechsel",
             "einer Fermate"
-          ]
+          ],
+          "why": "Der Halbschluss auf V öffnet den Vordersatz, damit erst der Nachsatz mit einem Ganzschluss auflöst."
         },
         "it": {
           "q": "In un periodo classico, come si chiamano le due frasi che lo compongono?",
@@ -8759,7 +9798,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Maggiore e Minore",
             "Staccato e Legato",
             "Veloce e Lento"
-          ]
+          ],
+          "why": "La semicadenza su V chiude l’antecedente in sospensione, chiedendo al conseguente di concludere alla tonica."
         },
         "pt-BR": {
           "q": "A frase antecedente conclui normalmente com uma…",
@@ -8768,9 +9808,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cadência perfeita",
             "modulação",
             "fermata"
-          ]
+          ],
+          "why": "A meia cadência em V mantém o antecedente aberto para que o consequente traga a conclusão em I."
         }
-      }
+      },
+      "why": [
+        "Ending the antecedent phrase with a half cadence (on V) creates tension that only the consequent’s V → I resolves.",
+        "Semicadența (oprire pe V) la finalul antecedentului creează suspansul pe care abia cadența finală a consecventului îl închide."
+      ]
     }
   ],
   "accomp": [
@@ -8805,7 +9850,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "low – middle – high",
             "all together",
             "high – low"
-          ]
+          ],
+          "why": "Alberti bass breaks a 3-note chord into an even rolling wave: bottom – top – middle – top (1–5–3–5)."
         },
         "ro": {
           "q": "Basul Alberti cântă notele acordului în ordinea…",
@@ -8814,7 +9860,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "jos – mijloc – sus",
             "toate odată",
             "sus – jos"
-          ]
+          ],
+          "why": "Basul Alberti desface trisonul într-o figură fluidă jos – sus – mijloc – sus (1–5–3–5)."
         },
         "es": {
           "q": "El bajo Alberti interpreta las notas del acorde en el orden…",
@@ -8823,7 +9870,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "grave – medio – agudo",
             "todas simultáneamente en bloque",
             "agudo – grave"
-          ]
+          ],
+          "why": "El bajo Alberti despliega la tríada en un arpegio regular: grave – agudo – medio – agudo (1–5–3–5)."
         },
         "fr": {
           "q": "La basse d’Alberti joue les notes de l’accord dans l’ordre…",
@@ -8832,7 +9880,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "basse – médium – aiguë",
             "toutes ensemble en plaqué",
             "aiguë – basse"
-          ]
+          ],
+          "why": "La basse d’Alberti déploie l’accord en quatre notes régulières : grave – aigu – milieu – aigu (1–5–3–5)."
         },
         "de": {
           "q": "In welcher Reihenfolge schlägt ein Alberti-Bass die Töne des Dreiklangs an?",
@@ -8841,7 +9890,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "tief – mittel – hoch",
             "alle Noten gleichzeitig",
             "hoch – tief"
-          ]
+          ],
+          "why": "Der Alberti-Bass zerlegt den Dreiklang gleichmäßig in tief – hoch – mittel – hoch (1–5–3–5)."
         },
         "it": {
           "q": "In cosa consiste il celebre accompagnamento a «Basso albertino»?",
@@ -8850,7 +9900,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Accordi ribattuti a mani unite",
             "Una scala rapida discendente",
             "Soltanto note lunghe al basso"
-          ]
+          ],
+          "why": "Il basso albertino spezza la triade in un moto ondulato regolare: basso – acuto – medio – acuto (1–5–3–5)."
         },
         "pt-BR": {
           "q": "O baixo de Alberti toca as notas do acorde na ordem…",
@@ -8859,9 +9910,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "grave – média – aguda",
             "todas juntas em bloco",
             "aguda – grave"
-          ]
+          ],
+          "why": "O baixo de Alberti quebra o acorde num padrão regular: grave – agudo – médio – agudo (1–5–3–5)."
         }
-      }
+      },
+      "why": [
+        "Alberti bass breaks a 3-note chord into an even rolling wave: bottom – top – middle – top (1–5–3–5).",
+        "Basul Alberti desface trisonul într-o figură fluidă jos – sus – mijloc – sus (1–5–3–5)."
+      ]
     },
     {
       "q": [
@@ -8895,7 +9951,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Alberti",
             "Block chords",
             "Ballad arpeggio"
-          ]
+          ],
+          "why": "In 3/4 waltz accompaniment, beat 1 lands on a low bass root followed by lighter upper chords on beats 2 and 3."
         },
         "ro": {
           "q": "Ascultă: ce model?",
@@ -8904,7 +9961,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Alberti",
             "Acorduri bloc",
             "Arpegiu de baladă"
-          ]
+          ],
+          "why": "În acompaniamentul de vals (3/4), timpul 1 atacă basul grav, urmat de două acorduri ușoare pe timpii 2 și 3."
         },
         "es": {
           "q": "Escucha atentamente: ¿qué patrón de acompañamiento suena?",
@@ -8913,7 +9971,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Alberti",
             "Acordes en bloque",
             "Arpegio de balada"
-          ]
+          ],
+          "why": "En el acompañamiento de vals (3/4), el tiempo 1 marca el bajo grave y los tiempos 2 y 3 responden con acordes ligeros."
         },
         "fr": {
           "q": "Écoutez attentivement : quel patron d’accompagnement entendez-vous ?",
@@ -8922,7 +9981,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Alberti",
             "Accords plaqués",
             "Arpège de ballade"
-          ]
+          ],
+          "why": "En valse (3/4), le temps 1 pose la basse grave, suivie de deux accords plus légers sur les temps 2 et 3."
         },
         "de": {
           "q": "Höre hin: Welches Begleitmuster erklingt?",
@@ -8931,7 +9991,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Alberti-Bass",
             "Blockakkorde",
             "Balladen-Arpeggio"
-          ]
+          ],
+          "why": "Im Walzer (3/4) liegt auf Zählzeit 1 ein tiefer Basston, gefolgt von zwei leichteren Nachschlägen auf 2 und 3."
         },
         "it": {
           "q": "Ascolta: quale accompagnamento è?",
@@ -8940,7 +10001,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Basso albertino",
             "Accordi in blocco",
             "Arpeggio di ballata"
-          ]
+          ],
+          "why": "Nel valzer (3/4) il basso profondo cade sull’uno seguito da due accordi leggeri su 2 e 3."
         },
         "pt-BR": {
           "q": "Ouça com atenção: qual padrão de acompanhamento está soando?",
@@ -8949,9 +10011,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Alberti",
             "Acordes em bloco",
             "Arpejo de balada"
-          ]
+          ],
+          "why": "Na valsa (3/4), o tempo 1 traz o baixo grave seguido de dois acordes leves nos tempos 2 e 3."
         }
-      }
+      },
+      "why": [
+        "In 3/4 waltz accompaniment, beat 1 lands on a low bass root followed by lighter upper chords on beats 2 and 3.",
+        "În acompaniamentul de vals (3/4), timpul 1 atacă basul grav, urmat de două acorduri ușoare pe timpii 2 și 3."
+      ]
     },
     {
       "q": [
@@ -8984,7 +10051,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "every note for both hands",
             "only lyrics",
             "only rhythm"
-          ]
+          ],
+          "why": "A lead sheet leaves out full piano notation, giving just the written melody above chord symbols for the player to voice."
         },
         "ro": {
           "q": "Un lead sheet îți oferă…",
@@ -8993,7 +10061,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "fiecare notă pentru ambele mâini",
             "doar versurile",
             "doar ritmul"
-          ]
+          ],
+          "why": "Un lead sheet conține doar linia melodică și simbolurile de acorduri, lăsând acompaniamentul la latitudinea pianistului."
         },
         "es": {
           "q": "Un lead sheet (guión armónico) proporciona…",
@@ -9002,7 +10071,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cada una de las notas para ambas manos",
             "únicamente la letra de la canción",
             "solo el patrón rítmico"
-          ]
+          ],
+          "why": "Una partitura guía (lead sheet) muestra solo la melodía y los símbolos de acorde para acompañar libremente."
         },
         "fr": {
           "q": "Un lead sheet (grille) fournit…",
@@ -9011,7 +10081,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "toutes les notes écrites pour les deux mains",
             "uniquement les paroles",
             "seulement le rythme"
-          ]
+          ],
+          "why": "Une grille mélodique (lead sheet) indique seulement la mélodie et le chiffrage des accords à réaliser."
         },
         "de": {
           "q": "Was enthält ein klassisches Lead Sheet?",
@@ -9020,7 +10091,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "jede einzelne Note für beide Hände",
             "ausschließlich Liedtext",
             "nur Rhythmusangaben"
-          ]
+          ],
+          "why": "Ein Leadsheet notiert nur die Melodie und darüber die Akkordsymbole für eine freie Begleitung."
         },
         "it": {
           "q": "Che cos'è un «lead sheet»?",
@@ -9029,7 +10101,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "La parte stampata per il direttore",
             "Un testo poetico senza note",
             "Un manuale di sola teoria"
-          ]
+          ],
+          "why": "Un lead sheet riporta solo la linea melodica e le sigle degli accordi sopra il rigo."
         },
         "pt-BR": {
           "q": "Uma lead sheet (partitura guia) traz…",
@@ -9038,9 +10111,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "cada nota escrita para ambas as mãos",
             "apenas a letra da canção",
             "somente a fórmula de compasso"
-          ]
+          ],
+          "why": "Um lead sheet traz apenas a melodia escrita com as cifras dos acordes acima para o músico acompanhar."
         }
-      }
+      },
+      "why": [
+        "A lead sheet leaves out full piano notation, giving just the written melody above chord symbols for the player to voice.",
+        "Un lead sheet conține doar linia melodică și simbolurile de acorduri, lăsând acompaniamentul la latitudinea pianistului."
+      ]
     },
     {
       "q": [
@@ -9073,7 +10151,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "the melody",
             "nothing",
             "random notes"
-          ]
+          ],
+          "why": "While the right hand plays the tune, the left hand reads the chord symbol — anchoring the bass root or adding a rhythmic pattern."
         },
         "ro": {
           "q": "La un lead sheet, mâna stângă cântă de obicei…",
@@ -9082,7 +10161,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "melodia",
             "nimic",
             "note la întâmplare"
-          ]
+          ],
+          "why": "În timp ce mâna dreaptă cântă melodia, mâna stângă urmărește simbolul acordului pentru bas și ritm."
         },
         "es": {
           "q": "En un lead sheet, la mano izquierda interpreta por lo general…",
@@ -9091,7 +10171,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la línea melódica",
             "nada en absoluto",
             "notas aleatorias"
-          ]
+          ],
+          "why": "Mientras la mano derecha toca la melodía, la izquierda lee el símbolo del acorde para dar la fundamental o un patrón rítmico."
         },
         "fr": {
           "q": "Sur un lead sheet, la main gauche joue généralement…",
@@ -9100,7 +10181,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "la mélodie principale",
             "rien",
             "des notes au hasard"
-          ]
+          ],
+          "why": "Pendant que la main droite joue le chant, la main gauche lit le chiffrage pour poser la fondamentale ou un motif."
         },
         "de": {
           "q": "Was spielt die linke Hand beim Begleiten nach einem Lead Sheet in der Regel?",
@@ -9109,7 +10191,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "die Melodielinie unisono",
             "gar nichts",
             "zufällige Töne"
-          ]
+          ],
+          "why": "Während die rechte Hand die Melodie spielt, übernimmt links anhand des Akkordsymbols Bassgrundton und Rhythmus."
         },
         "it": {
           "q": "Cosa caratterizza l'esecuzione a «block chords» (accordi pieni)?",
@@ -9118,7 +10201,8 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "Sgranare le note molto lentamente",
             "Suonare solo la fondamentale",
             "Alternare destra e sinistra a caso"
-          ]
+          ],
+          "why": "Mentre la mano destra esegue la melodia, la sinistra legge la sigla per suonare il basso o un ritmo d’accompagnamento."
         },
         "pt-BR": {
           "q": "Na lead sheet, a mão esquerda normalmente toca…",
@@ -9127,9 +10211,14 @@ export const LQZ: Record<string, LearnQuizSpec[]> = {
             "a melodia principal",
             "nada",
             "notas aleatórias"
-          ]
+          ],
+          "why": "Enquanto a mão direita toca a melodia, a esquerda lê a cifra para apoiar o baixo ou criar um padrão rítmico."
         }
-      }
+      },
+      "why": [
+        "While the right hand plays the tune, the left hand reads the chord symbol — anchoring the bass root or adding a rhythmic pattern.",
+        "În timp ce mâna dreaptă cântă melodia, mâna stângă urmărește simbolul acordului pentru bas și ritm."
+      ]
     }
   ]
 };
