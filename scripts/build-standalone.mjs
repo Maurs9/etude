@@ -32,13 +32,18 @@ try {
   for (const file of await readdir(join(singleDir, 'assets'))) {
     if (!file.endsWith('.mp3')) continue;
     const data = `data:audio/mpeg;base64,${(await readFile(join(singleDir, 'assets', file))).toString('base64')}`;
-    app = app.replaceAll(`\`${file}\``, `\`${data}\``);
+    const escapedName = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const replaced = app.replace(new RegExp(`(['"\`])${escapedName}\\1`, 'g'), (_, quote) => `${quote}${data}${quote}`);
+    if (replaced === app) throw new Error(`Standalone bundle did not reference piano sample ${file}`);
+    app = replaced;
   }
 
+  const safeOsmd = osmd.replace(/<\/script/gi, '<\\/script');
+  const safeApp = app.replace(/<\/script/gi, '<\\/script');
   html = html
     .replace(cssMatch[0], () => `<style>${standaloneCss}</style>`)
-    .replace(moduleMatch[0], () => `<script type="application/x-etude-osmd" id="etude-osmd-source">${osmd}</script><script type="module">${app}</script>`);
-  html = injectCsp(html, { extraScripts: [osmd], standalone: true });
+    .replace(moduleMatch[0], () => `<script type="application/x-etude-osmd" id="etude-osmd-source">${safeOsmd}</script><script type="module">${safeApp}</script>`);
+  html = injectCsp(html, { extraScripts: [safeOsmd], standalone: true });
   await writeFile(standalone, html);
   console.log(`Built ${standalone} (${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MiB)`);
 } finally {

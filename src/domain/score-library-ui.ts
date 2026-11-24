@@ -1,7 +1,7 @@
 import { ESTIMATOR_VERSION, type DifficultyAxis } from './score-difficulty.js';
 import type { ImportedDifficultyEstimate } from './score-difficulty-import.js';
 import type { LibraryController, LibraryDifficultyRating, LibraryHost, LibraryItem, LibraryStudyStatus, OpenedScoreEstimator } from './score-library-types.js';
-import { libraryExport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate, libraryUpdateLevels } from './score-library-store.js';
+import { libraryExportWithReport, libraryGet, libraryList, libraryRemove, libraryRemoveMany, libraryRestore, librarySave, libraryUpdate, libraryUpdateLevels } from './score-library-store.js';
 import { libraryText, type LibraryTextKey } from '../locales/library-runtime.js';
 
 const AXES: readonly DifficultyAxis[] = ['motor', 'rhythm', 'bimanual', 'texture', 'reading'];
@@ -242,6 +242,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
 
   let items: LibraryItem[] = [];
   let loaded = false;
+  let needsRefresh = false;
   let busy = false;
   let statusCopy: { key: LibraryTextKey; values?: Values } | null = null;
   let corruptCount = 0;
@@ -1562,8 +1563,10 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   });
   backup.addEventListener('click', () => { void run(async () => {
     await host.flush();
-    download(await libraryExport(), 'etude-library.json');
-    notice('backup_saved');
+    const { blob, skipped } = await libraryExportWithReport();
+    download(blob, 'etude-library.json');
+    if (skipped > 0) notice('lib_export_skipped', { count: skipped });
+    else notice('backup_saved');
   }); });
   search.addEventListener('input', render);
   sort.addEventListener('change', render);
@@ -1652,13 +1655,38 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       search.focus();
     });
   });
-  window.addEventListener('focus', () => { if (!busy) void refresh(); });
+  const isVisible = () => !root.closest('[hidden]') && root.offsetParent !== null;
+  details.addEventListener('toggle', () => {
+    if (details.open && needsRefresh && !busy && isVisible()) {
+      needsRefresh = false;
+      void refresh();
+    }
+  });
+  window.addEventListener('focus', () => {
+    if (busy) return;
+    if (!isVisible()) {
+      needsRefresh = true;
+      return;
+    }
+    needsRefresh = false;
+    void refresh();
+  });
   document.addEventListener('visibilitychange', queueAutomaticRatings);
   window.addEventListener('beforeunload', event => {
     if (busy) { event.preventDefault(); event.returnValue = ''; }
   });
   const controller: LibraryController = {
-    refresh, localize,
+    refresh: () => {
+      needsRefresh = false;
+      return refresh();
+    },
+    localize: () => {
+      localize();
+      if (needsRefresh && !busy && isVisible()) {
+        needsRefresh = false;
+        void refresh();
+      }
+    },
     prepareRating(item, estimate): void {
       if (needsRating(item)) void scoreForItem(item.id, referenceTempo(item.id, item), estimate);
     },

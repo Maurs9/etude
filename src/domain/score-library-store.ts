@@ -6,7 +6,11 @@ const MAX_FILE = 2 * 1024 * 1024;
 const MAX_TRANSFER = 64 * 1024 * 1024;
 const MAX_ITEMS = 1000;
 const STORES = ['metadata', 'blobs'];
-const parseJson: (text: string) => unknown = JSON.parse;
+const parseUnknownJson: (text: string, reviver: (key: string, value: unknown) => unknown) => unknown = JSON.parse;
+const parseJson = (text: string): unknown => parseUnknownJson(
+  text,
+  (key, value) => (key === '__proto__' || key === 'constructor' || key === 'prototype' ? undefined : value),
+);
 
 export class LibraryError extends Error {
   constructor(public readonly code: string, message: string, options?: ErrorOptions) {
@@ -483,8 +487,10 @@ function decode(value: unknown, size: number): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(value as number[]);
 }
 interface BackupEntry { item: LibraryItem; data: number[] }
-export async function libraryExport(): Promise<Blob> {
+export interface LibraryExportReport { blob: Blob; skipped: number }
+export async function libraryExportWithReport(): Promise<LibraryExportReport> {
   // Capture both stores in one snapshot; do not race separate per-item reads with deletes.
+  let skipped = 0;
   const entries = await transaction('readonly', async tx => {
     const metadata: unknown[] = await request(tx.objectStore('metadata').getAll());
     if (metadata.length > MAX_ITEMS) throw new LibraryError('backup', 'Too many scores for one backup.');
@@ -495,11 +501,17 @@ export async function libraryExport(): Promise<Blob> {
       try {
         item = itemValue(value);
       } catch (error) {
-        if (error instanceof LibraryError && error.code === 'invalid') continue;
+        if (error instanceof LibraryError && error.code === 'invalid') {
+          skipped++;
+          continue;
+        }
         throw error;
       }
       const blob: unknown = await request(tx.objectStore('blobs').get(item.id));
-      if (!(blob instanceof Blob) || blob.size !== item.size) continue;
+      if (!(blob instanceof Blob) || blob.size !== item.size) {
+        skipped++;
+        continue;
+      }
       total += blob.size;
       if (total > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
       entries.push({ item, blob });
@@ -510,7 +522,10 @@ export async function libraryExport(): Promise<Blob> {
   let encodedSize = '{"app":"etude-score-library","version":1,"files":[]}'.length;
   for (const { item, blob } of entries) {
     const buffer = await blob.arrayBuffer();
-    if (await digest(buffer) !== item.id) throw new LibraryError('backup', 'Stored score hash mismatch.');
+    if (await digest(buffer) !== item.id) {
+      skipped++;
+      continue;
+    }
     const bytes = new Uint8Array(buffer);
     encodedSize += '{"item":,"data":[]},'.length + JSON.stringify(item).length;
     if (bytes.length) {
@@ -525,7 +540,10 @@ export async function libraryExport(): Promise<Blob> {
   }
   const backup = new Blob([JSON.stringify({ app: 'etude-score-library', version: 1, files })], { type: 'application/json' });
   if (backup.size > MAX_TRANSFER) throw new LibraryError('backup', 'Backup exceeds the transfer limit.');
-  return backup;
+  return { blob: backup, skipped };
+}
+export async function libraryExport(): Promise<Blob> {
+  return (await libraryExportWithReport()).blob;
 }
 export async function libraryRestore(blob: Blob, validate: (file: File) => Promise<LibraryMetadata>): Promise<LibraryRestoreResult> {
   const staged: { item: LibraryItem; file: File }[] = [];

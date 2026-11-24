@@ -139,6 +139,7 @@ const payload: UIPayload = {
       "resume_failed": "Could not restore the saved practice position.",
       "working": "Working…",
       "backup_saved": "Library backup download prepared.",
+      "lib_export_skipped": "Library backup prepared; {count} unreadable scores could not be included.",
       "deleted": "Score deleted from this library.",
       "composer_filter": "Composer",
       "all_composers": "All composers",

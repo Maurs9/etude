@@ -1768,7 +1768,7 @@ const payload: LearnPayload = {
       "l": "sc",
       "en": [
         "Treaptă",
-        "Locul în gamă: tonică, supertonică, medianta, subdominantă, dominantă, submedianta, sensibilă."
+        "Locul în gamă: tonică, supertonică, mediantă, subdominantă, dominantă, submediantă, sensibilă."
       ],
       "searchEnglish": "Scale degree"
     },

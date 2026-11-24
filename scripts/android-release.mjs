@@ -138,7 +138,7 @@ async function buildWithLocalIcons(cwd) {
     const local = url => localIconUrl(url, scope, base);
     manifest.iconUrl = local(manifest.iconUrl);
     if (manifest.maskableIconUrl) manifest.maskableIconUrl = local(manifest.maskableIconUrl);
-    if (manifest.enableNotifications && manifest.monochromeIconUrl)
+    if (manifest.monochromeIconUrl)
       manifest.monochromeIconUrl = local(manifest.monochromeIconUrl);
     for (const shortcut of manifest.shortcuts ?? []) {
       if (shortcut.chosenIconUrl) shortcut.chosenIconUrl = local(shortcut.chosenIconUrl);

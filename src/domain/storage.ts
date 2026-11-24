@@ -1,4 +1,4 @@
-import { SRT_LEDGER_SCHEMA, isSightReadingLedger, srtImportLedgerTransaction, type SightReadingLedger, type SightReadingStorage } from '../sight-reading/ledger.js';
+import { SRT_LEDGER_SCHEMA, isFutureSightLedgerStorage, isSightReadingLedger, srtImportLedgerTransaction, srtReplaceLedgerTransaction, type SightReadingLedger, type SightReadingStorage } from '../sight-reading/ledger.js';
 
 export const PTT_KEY = 'ptt-v3' as const;
 
@@ -188,11 +188,20 @@ export function serializeProgressBackup(payload: PttV3Payload, ledger: unknown):
 }
 
 /** Commit the live record and any transferred ledger together. Check writability when the ledger lock is held. */
-export async function restoreProgressBackup(storage: SightReadingStorage, payload: PttV3Payload, nextGeneration: () => string) {
+export async function restoreProgressBackup(
+  storage: SightReadingStorage,
+  payload: PttV3Payload,
+  nextGeneration: () => string,
+  options?: { replace?: boolean },
+) {
   const write = () => { writePttV3(storage, { ...payload, gen: nextGeneration() }); };
   const ledger = payload.data.sightLedger;
-  if (hasFutureSightLedger(payload)) return { ok: false, reason: "unsupported" } as const;
-  if (isSightReadingLedger(ledger)) return srtImportLedgerTransaction(storage, ledger, write);
+  if (hasFutureSightLedger(payload) || isFutureSightLedgerStorage(storage)) return { ok: false, reason: 'unsupported' } as const;
+  if (isSightReadingLedger(ledger)) {
+    return options?.replace
+      ? srtReplaceLedgerTransaction(storage, ledger, write)
+      : srtImportLedgerTransaction(storage, ledger, write);
+  }
   write();
   return { ok: true } as const;
 }

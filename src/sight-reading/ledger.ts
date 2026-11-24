@@ -186,7 +186,11 @@ export function isSightReadingLedger(value: unknown): value is SightReadingLedge
   return isLedger(value);
 }
 
-const parseJson: (text: string) => unknown = JSON.parse;
+const parseUnknownJson: (text: string, reviver: (key: string, value: unknown) => unknown) => unknown = JSON.parse;
+const parseJson = (text: string): unknown => parseUnknownJson(
+  text,
+  (key, value) => (key === '__proto__' || key === 'constructor' || key === 'prototype' ? undefined : value),
+);
 
 function readRaw(storage: SightReadingStorage): unknown {
   let raw: string | null;
@@ -204,6 +208,11 @@ function readRaw(storage: SightReadingStorage): unknown {
 }
 
 export type SightReadingLedgerReadStatus = 'missing' | 'supported' | 'unsupported';
+
+export function isFutureSightLedgerStorage(storage: SightReadingStorage): boolean {
+  const raw = readRaw(storage);
+  return isRecord(raw) && typeof raw.schemaVersion === 'number' && raw.schemaVersion > SRT_LEDGER_SCHEMA;
+}
 
 export function srtLedgerReadStatus(storage: SightReadingStorage): SightReadingLedgerReadStatus {
   const raw = readRaw(storage);
@@ -471,12 +480,49 @@ export async function srtLedgerUpdate(storage: SightReadingStorage, operation: S
   });
 }
 
+function replaceLedger(local: SightReadingLedger, imported: SightReadingLedger): SightReadingLedgerResult {
+  const normalized = normalizeLedger(imported);
+  const exposures: Record<string, SightReadingExposure> = {};
+  for (const [fingerprint, exposure] of Object.entries(normalized.exposures)) {
+    exposures[fingerprint] = { firstSeenAt: exposure.firstSeenAt, reason: exposure.reason };
+  }
+  if (Object.keys(exposures).length > SRT_MAX_EXPOSURES) return { ok: false, reason: 'quota' };
+  const attempts: Record<string, SightReadingAttempt> = {};
+  for (const [attemptId, attempt] of Object.entries(normalized.attempts)) {
+    const claimed = Object.values(normalized.exposures).some((exposure) => exposure.claim?.attemptId === attemptId);
+    attempts[attemptId] = {
+      ...attempt,
+      generation: local.generation,
+      status: claimed ? 'abandoned' : attempt.status,
+    };
+  }
+  return {
+    ok: true,
+    ledger: {
+      ...local,
+      revision: Math.max(local.revision, normalized.revision) + 1,
+      exposures,
+      attempts: trimAttempts(attempts),
+      prefs: { ...normalized.prefs },
+      sessions: { ...normalized.sessions },
+    },
+  };
+}
+
 export async function srtImportLedgerTransaction(
   storage: SightReadingStorage,
   imported: SightReadingLedger,
   commit: () => void | Promise<void>,
 ): Promise<SightReadingLedgerResult> {
   return withLedgerLock(() => writeLedgerTransaction(storage, ledger => mergeImported(ledger, imported), commit));
+}
+
+export async function srtReplaceLedgerTransaction(
+  storage: SightReadingStorage,
+  imported: SightReadingLedger,
+  commit: () => void | Promise<void>,
+): Promise<SightReadingLedgerResult> {
+  return withLedgerLock(() => writeLedgerTransaction(storage, ledger => replaceLedger(ledger, imported), commit));
 }
 
 export async function srtResetLedgerTransaction(

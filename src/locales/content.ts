@@ -11164,7 +11164,7 @@ export const GLOSS: GlossaryEntry[] = [
     ],
     "ro": [
       "Treaptă",
-      "Locul în gamă: tonică, supertonică, medianta, subdominantă, dominantă, submedianta, sensibilă."
+      "Locul în gamă: tonică, supertonică, mediantă, subdominantă, dominantă, submediantă, sensibilă."
     ],
     "es": [
       "Grado de la escala",

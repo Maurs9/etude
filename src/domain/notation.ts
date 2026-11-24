@@ -100,6 +100,7 @@ export interface OsmdModule {
 }
 
 export interface ScoreRenderer {
+  layoutOnly?(): void;
   renderProgressively?(current: () => boolean): Promise<boolean>;
   updateRules(updates: Readonly<Record<string, unknown>>): void;
   readRules(): Readonly<Record<string, unknown>>;
@@ -143,6 +144,35 @@ class OsmdScoreRenderer implements ScoreRenderer {
     this.restoreDrawer = null;
     this.renderGeneration++;
     this.vendor.render();
+  }
+  layoutOnly(): void {
+    this.restoreDrawer?.();
+    this.restoreDrawer = null;
+    this.renderGeneration++;
+    const setup = this.vendor.createOrRefreshRenderBackend;
+    if (!setup) { this.vendor.render(); return; }
+    const restore: (() => void)[] = [];
+    this.vendor.createOrRefreshRenderBackend = () => {
+      setup.call(this.vendor);
+      const drawer = this.vendor.Drawer;
+      if (!drawer) return;
+      const continuous = this.vendor.EngravingRules.RenderSingleHorizontalStaffline === true;
+      if (continuous) {
+        const draw = drawer.drawMusicSystem;
+        drawer.drawMusicSystem = () => {};
+        restore.push(() => { drawer.drawMusicSystem = draw; });
+      } else {
+        const draw = drawer.drawPage;
+        drawer.drawPage = () => {};
+        restore.push(() => { drawer.drawPage = draw; });
+      }
+    };
+    try {
+      this.vendor.render();
+    } finally {
+      this.vendor.createOrRefreshRenderBackend = setup;
+      while (restore.length) restore.pop()?.();
+    }
   }
   async renderProgressively(current: () => boolean): Promise<boolean> {
     this.restoreDrawer?.();
@@ -272,8 +302,9 @@ export function loadOsmd(): Promise<OsmdModule> {
   osmdPromise = new Promise<OsmdModule>((resolve, reject) => {
     const script = document.createElement('script');
     const inline = document.querySelector<HTMLScriptElement>('#etude-osmd-source');
-    if (inline?.textContent) {
-      script.textContent = inline.textContent;
+    const inlineCode = inline?.textContent ?? '';
+    if (inlineCode) {
+      script.textContent = inlineCode;
     } else {
       script.src = new URL('vendor/osmd-3.0.0.min.js', document.baseURI).href;
       script.async = true;
@@ -285,7 +316,8 @@ export function loadOsmd(): Promise<OsmdModule> {
     };
     script.onerror = () => reject(new Error('OSMD could not be loaded'));
     document.head.append(script);
-    if (inline?.textContent) {
+    if (inlineCode) {
+      inline?.remove();
       queueMicrotask(() => {
         const loaded = (globalThis as typeof globalThis & { opensheetmusicdisplay?: unknown }).opensheetmusicdisplay;
         if (isOsmdModule(loaded)) resolve(loaded);

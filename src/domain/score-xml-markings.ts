@@ -21,13 +21,33 @@ export function normalizeScoreDirectionGlyphs(doc: Document): void {
 export function renderScoreNoteParentheses(root: HTMLElement, color: string): void {
   root.querySelectorAll('.sc-note-parentheses').forEach(element => element.remove());
   const namespace = 'http://www.w3.org/2000/svg';
+  const inverseCache = new WeakMap<SVGSVGElement, DOMMatrix>();
+  const pending: { svg: SVGSVGElement; left: DOMPoint; right: DOMPoint }[] = [];
   root.querySelectorAll<SVGElement>('.vf-notehead[data-parenthesized="yes"]').forEach(head => {
-    const svg = head.ownerSVGElement, matrix = svg?.getScreenCTM();
+    const svg = head.ownerSVGElement;
+    if (!svg) return;
+    let inverse = inverseCache.get(svg);
+    if (!inverse) {
+      const matrix = svg.getScreenCTM();
+      if (!matrix) return;
+      inverse = matrix.inverse();
+      inverseCache.set(svg, inverse);
+    }
     const bounds = head.getBoundingClientRect();
-    if (!svg || !matrix || !bounds.width || !bounds.height) return;
-    const inverse = matrix.inverse();
-    const left = new DOMPoint(bounds.left, bounds.top).matrixTransform(inverse);
-    const right = new DOMPoint(bounds.right, bounds.bottom).matrixTransform(inverse);
+    if (!bounds.width || !bounds.height) return;
+    pending.push({
+      svg,
+      left: new DOMPoint(bounds.left, bounds.top).matrixTransform(inverse),
+      right: new DOMPoint(bounds.right, bounds.bottom).matrixTransform(inverse),
+    });
+  });
+  const fragments = new Map<SVGSVGElement, DocumentFragment>();
+  for (const { svg, left, right } of pending) {
+    let fragment = fragments.get(svg);
+    if (!fragment) {
+      fragment = document.createDocumentFragment();
+      fragments.set(svg, fragment);
+    }
     const group = document.createElementNS(namespace, 'g');
     group.classList.add('sc-note-parentheses');
     const top = left.y - 1, bottom = right.y + 1, middle = (top + bottom) / 2;
@@ -39,8 +59,9 @@ export function renderScoreNoteParentheses(root: HTMLElement, color: string): vo
       path.setAttribute('stroke-width', '1');
       group.appendChild(path);
     }
-    svg.appendChild(group);
-  });
+    fragment.appendChild(group);
+  }
+  fragments.forEach((fragment, svg) => svg.append(fragment));
 }
 
 export type ScoreHand = 'rh' | 'lh';
