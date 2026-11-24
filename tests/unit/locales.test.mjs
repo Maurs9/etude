@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LESSONS } from '../../src/locales/content.ts';
 import { STRINGS } from '../../src/locales/index.js';
 
 describe('static locale modules', () => {
@@ -9,5 +10,12 @@ describe('static locale modules', () => {
   it('have no empty string in any language', () => {
     for (const [language, strings] of Object.entries(STRINGS))
       expect(Object.entries(strings).filter(([, value]) => typeof value !== 'string').map(([key]) => `${language}.${key}`)).toEqual([]);
+  });
+  it('keep matching section heading counts across all 7 languages in every lesson', () => {
+    const langs = ['en', 'ro', 'de', 'es', 'fr', 'it', 'pt-BR'];
+    for (const lesson of LESSONS) {
+      const counts = Object.fromEntries(langs.map((l) => [l, (lesson[l]?.b.match(/<h4>/g) ?? []).length]));
+      for (const l of langs) expect(counts[l], `${lesson.id}.${l}`).toBe(counts.en);
+    }
   });
 });

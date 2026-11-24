@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INTERVAL_SONGS, intervalSongNotes } from '../../src/domain/interval-songs.ts';
+import { INTERVAL_SONGS, intervalSongNotes, intervalSongTitle } from '../../src/domain/interval-songs.ts';
 
 describe('interval song openings', () => {
   it('uses the first two attacks of a short, monophonic excerpt in the named direction', () => {
@@ -50,5 +50,24 @@ describe('interval song openings', () => {
   it('returns to the fifth at the end of the first Kumbaya phrase', () => {
     const song = INTERVAL_SONGS[4].asc.find(({ title }) => title === 'Kumbaya');
     expect(intervalSongNotes(60, song).map(({ midi }) => midi)).toEqual([60, 64, 67, 67, 67, 69, 69, 67]);
+  });
+
+  it('localizes song opening titles cleanly with no Romanian leftovers in English', () => {
+    const langs = ['en', 'ro', 'de', 'es', 'fr', 'it', 'pt-BR'];
+    const roMarkers = /\b(?:introducere|strofă|refren|Zborul|Marșul|Lacul lebedelor|Dansul ungar|tema originală|solo de chitară|repriza pentru pian)\b/;
+    for (const [interval, groups] of Object.entries(INTERVAL_SONGS)) {
+      for (const songs of Object.values(groups)) {
+        for (const song of songs) {
+          expect(intervalSongTitle(song, 'en'), `${interval}:${song.title}`).not.toMatch(roMarkers);
+          for (const lg of langs) {
+            expect(intervalSongTitle(song, lg).trim().length, `${interval}:${song.title}:${lg}`).toBeGreaterThan(0);
+          }
+        }
+      }
+    }
+    const flight = INTERVAL_SONGS[1].desc.find(({ source }) => source.includes('Flight_of_the_Bumblebee'));
+    expect(intervalSongTitle(flight, 'en')).toBe('Flight of the Bumblebee — Rimsky-Korsakov');
+    expect(intervalSongTitle(flight, 'ro')).toBe('Zborul bondarului — Rimski-Korsakov');
+    expect(intervalSongTitle(flight, 'fr')).toBe('Le Vol du bourdon — Rimski-Korsakov');
   });
 });

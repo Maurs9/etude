@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Privacy Policy — Étude</title>
+  <meta name="description" content="Étude runs entirely on your device. No accounts, no tracking, no analytics, and no server-side storage." />
+  <link rel="icon" href="icons/icon-192.png" />
+  <style>
+    :root {
+      --paper: #f7f3ec;
+      --card: #fffdf8;
+      --ink: #1a1714;
+      --ink2: #4c443b;
+      --line: #ded6c8;
+      --accent: #8c2b2b;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #171412;
+        --card: #211c19;
+        --ink: #f0e9dd;
+        --ink2: #c6bcb0;
+        --line: #3a322c;
+        --accent: #d46a6a;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 400 16px/1.65 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 28px 18px 56px;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 28px 30px;
+    }
+    .back {
+      display: inline-block;
+      margin-bottom: 16px;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .back:hover { text-decoration: underline; }
+    h1 { font: 700 28px/1.2 Georgia, serif; margin: 0 0 8px; }
+    .lede { color: var(--ink2); margin: 0 0 22px; }
+    h2 { font: 700 18px/1.3 Georgia, serif; margin: 24px 0 8px; }
+    p, li { color: var(--ink2); }
+    ul { padding-left: 20px; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="etude.html">&larr; Back to &Eacute;tude</a>
+    <h1>Privacy Policy</h1>
+    <p class="lede">&Eacute;tude is designed as an offline-first practice studio: your practice data, recordings, and imported scores never leave your device.</p>
+
+    <h2>1. Zero accounts &amp; zero tracking</h2>
+    <p>&Eacute;tude does not require an account, does not set advertising or analytics cookies, and includes no third-party telemetry, crash reporters, or remote fonts.</p>
+
+    <h2>2. Data stored on your device</h2>
+    <ul>
+      <li><strong>Practice progress &amp; settings:</strong> spaced-repetition history, reading progress, calibration offsets, and preferences stay in your browser's local storage (<code>ptt-v3</code> and <code>etude-sight-v1</code>).</li>
+      <li><strong>Safety snapshots &amp; Score Library:</strong> automatic rolling backups and imported MusicXML/MXL/MIDI files stay in browser IndexedDB on this device.</li>
+      <li><strong>User control:</strong> you can export, restore, or permanently reset your progress and library at any time from Settings.</li>
+    </ul>
+
+    <h2>3. Microphone &amp; MIDI hardware access</h2>
+    <ul>
+      <li><strong>Microphone:</strong> used solely in real time in your browser for sight-singing pitch detection and hum-to-notes transcription. Audio buffers are processed locally in Web Audio and are never uploaded or retained on a server.</li>
+      <li><strong>Web MIDI &amp; Bluetooth MIDI:</strong> used solely to exchange live note/pedal events between your connected instrument and the browser.</li>
+    </ul>
+
+    <h2>4. Offline updates &amp; standalone copy</h2>
+    <p>When installed or opened over HTTPS, the Service Worker caches application files locally so &Eacute;tude works offline and checks only static app files on this origin for updates.</p>
+  </main>
+</body>
+</html>

@@ -14,7 +14,7 @@ import { evaluateWaitChord } from './wait-chord.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
-import { INTERVAL_SONGS, intervalSongNotes, type IntervalSongDirection, type IntervalSongNote } from './interval-songs.js';
+import { INTERVAL_SONGS, intervalSongNotes, intervalSongTitle, type IntervalSongDirection, type IntervalSongNote } from './interval-songs.js';
 import { detectVoicePitch as trxAutoCorrelate } from './voice-pitch.js';
 import * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
@@ -1005,6 +1005,14 @@ function trxBuildMidi() {
 function trxDownload(name: string, blob: Blob|MediaSource) { const url = URL.createObjectURL(blob), a = (document).createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
 function trxExportMidi() { if (!trx.display || !trx.display.length)
     return; trxDownload('etude-melody.mid', new Blob([trxBuildMidi()], { type: 'audio/midi' })); }
+async function trxOpenInPieces() {
+    if (!trx.display || !trx.display.length)
+        return;
+    trxStop();
+    const file = new File([trxBuildMidi()], 'etude-melody.mid', { type: 'audio/midi' });
+    await show('analysis');
+    await anOpenFile(file);
+}
 function trxExportTxt() { if (!trx.display || !trx.display.length)
     return; const txt = 'Étude — melody\nTempo: ' + (trx.bpm || 90) + ' BPM\n\nNote\tValue\n' + trx.display.map((n) => noteName(n.midi, false) + '\t' + (n.label || '')).join('\n') + '\n'; trxDownload('etude-melody.txt', new Blob([txt], { type: 'text/plain' })); }
 function trxClear() { trxStop(); trx.notes = []; trx.display = null; trx.hlTimers.forEach(clearTimeout); trx.hlTimers = []; kbClear('rh'); byId('tr-out').innerHTML = ''; byId('tr-actions').style.display = 'none'; byId('tr-msg').textContent = ''; }
@@ -5687,7 +5695,7 @@ function renderSongs() {
         for (const song of list) {
             const title = document.createElement('button');
             title.type = 'button';
-            title.textContent = song.title;
+            title.textContent = intervalSongTitle(song, lang);
             title.setAttribute('aria-pressed', 'false');
             title.onclick = () => { void previewIntervalSong(intervalSongNotes(root, song), title, card); };
             ul.appendChild(title);
@@ -17905,13 +17913,16 @@ function fallDraw(frameTime = performance.now()) {
         g.addColorStop(0, on ? c.lit[0] : c.a);
         g.addColorStop(1, on ? c.lit[1] : c.b);
         if (on && fx) {
-            ctx.shadowColor = 'rgba(' + c.rgb + ',.9)';
-            ctx.shadowBlur = 22;
+            ctx.fillStyle = 'rgba(' + c.rgb + ',.14)';
+            fallRR(ctx, x - 5, yt - 5, w + 10, h + 10, r + 5);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(' + c.rgb + ',.28)';
+            fallRR(ctx, x - 2.5, yt - 2.5, w + 5, h + 5, r + 2.5);
+            ctx.fill();
         }
         ctx.fillStyle = g;
         fallRR(ctx, x, yt, w, h, r);
         ctx.fill();
-        ctx.shadowBlur = 0;
         ctx.strokeStyle = on ? 'rgba(255,255,255,.7)' : 'rgba(255,255,255,.28)';
         ctx.lineWidth = 1;
         fallRR(ctx, x + .5, yt + .5, w - 1, h - 1, Math.max(0, r - .5));
@@ -17974,14 +17985,12 @@ function fallDraw(frameTime = performance.now()) {
         fallParticles(ctx, dt);
     const B = PRAC.bar && SCORE.run && written >= PRAC.bar.t - 1e-6 ? PRAC.bar : null, need = B ? [...B.need].filter((m) => !B.got.has(m)) : [];
     fallKeyboard(ctx, G, hitY, kh, W, active, P, need, ms, dpr, grads);
-    ctx.save();
     if (fx) {
-        ctx.shadowColor = 'rgba(160,195,255,.95)';
-        ctx.shadowBlur = 12;
+        ctx.fillStyle = 'rgba(160,195,255,.22)';
+        ctx.fillRect(0, hitY - 7, W, 9);
     }
     ctx.fillStyle = 'rgba(240,246,255,.96)';
     ctx.fillRect(0, hitY - 2, W, 2);
-    ctx.restore();
     // wait-for-me prompt, or how to start
     let msg = '';
     if (need.length && B)
@@ -18040,15 +18049,12 @@ function fallParticles(ctx: CanvasRenderingContext2D, dt: number) {
 }
 // Draws one black key with cast shadow, outer side bevels, lacquered top face, and sloped front face matching the main dock.
 function fallDrawBlackKey(ctx: CanvasRenderingContext2D, x: number, top: number, w: number, bh: number, br: number, c: string[] | null, isWait: boolean, pulse: number) {
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,.38)';
-    ctx.shadowBlur = c ? 2.5 : 8;
-    ctx.shadowOffsetX = c ? 1.5 : 4.5;
-    ctx.shadowOffsetY = c ? 1.5 : 3;
+    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    fallKeyPath(ctx, x + (c ? 1.5 : 3.5), top + (c ? 1.5 : 2.5), w, bh, br);
+    ctx.fill();
     ctx.fillStyle = '#030303';
     fallKeyPath(ctx, x, top, w, bh, br);
     ctx.fill();
-    ctx.restore();
     if (c) {
         const g = ctx.createLinearGradient(0, top, 0, top + bh);
         if (c === FALL_YOU) {
@@ -20902,6 +20908,7 @@ function initControls() {
         trxStart(); });
     byId('tr-play').addEventListener('click', trxPlay);
     byId('tr-clear').addEventListener('click', trxClear);
+    byId('tr-pieces').addEventListener('click', () => { void trxOpenInPieces(); });
     byId('tr-midi').addEventListener('click', trxExportMidi);
     byId('tr-txt').addEventListener('click', trxExportTxt);
     byId('tr-bpm').addEventListener('input', (e) => { byId('tr-bpmLbl').textContent = wiringField(e).value; });

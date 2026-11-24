@@ -384,3 +384,17 @@ test('losing the microphone retains the recording and makes Record available aga
   await expect(record).toHaveText(/Stop/);
   await record.click();
 });
+
+test('Open in Pieces sends the hummed melody into Pieces for notation and harmony view', async ({ app, page }) => {
+  await app.open({ hash: 'transcribe' });
+  await page.evaluate(() => {
+    const trx = window.__etude.trx, b = 60 / 90;
+    trx.notes = [{ midi: 60, start: 0, dur: b }, { midi: 64, start: b, dur: b }];
+    window.__etude.trxRender();
+  });
+  await expect(page.locator('#tr-pieces')).toBeVisible();
+  await page.locator('#tr-pieces').click();
+  await expect(page.locator('#view-analysis')).toHaveClass(/\bactive\b/);
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo && window.__etude.AN.source?.kind === 'midi' && window.__etude.AN.notes.length >= 2);
+  expect(await page.evaluate(() => window.__etude.AN.notes.map(n => n.midi))).toEqual([60, 64]);
+});

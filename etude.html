@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 <title>Étude — a piano theory method for the ear & hand</title>
 <meta name="description" content="Étude — an offline-ready piano theory trainer: spaced repetition, ear training, score study, sight-reading, MIDI, sight-singing and hum-to-notes transcription." />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Étude — a piano theory method for the ear &amp; hand" />
+<meta property="og:description" content="Étude — an offline-ready piano theory trainer: spaced repetition, ear training, score study, sight-reading, MIDI, sight-singing and hum-to-notes transcription." />
+<meta property="og:image" content="icons/icon-512.png" />
+<meta name="twitter:card" content="summary" />
 <meta name="color-scheme" content="light dark" />
 <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#171412" media="(prefers-color-scheme: dark)" />
@@ -559,6 +564,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <div class="tr-empty" id="tr-empty"><strong data-i18n="tr_empty_t">Your notes appear here</strong><ol><li data-i18n="tr_empty_1">Press Record and allow the microphone.</li><li data-i18n="tr_empty_2">Hum one note at a time, then press Stop.</li><li data-i18n="tr_empty_3">Play the notes back, or save them as MIDI or text.</li></ol></div>
           <div class="row" id="tr-actions" style="margin-top:12px; display:none">
             <button class="btn" id="tr-play" data-i18n="tr_play">▶ Play back</button>
+            <button class="btn ghost" id="tr-pieces" data-i18n="tr_open_pieces">Open in Pieces →</button>
             <button class="btn ghost" id="tr-midi" data-i18n="tr_midi">⬇ MIDI</button>
             <button class="btn ghost" id="tr-txt" data-i18n="tr_txt">⬇ Notes (text)</button>
             <button class="btn ghost" id="tr-clear" data-i18n="tr_clear">Clear</button>
@@ -887,7 +893,7 @@ Bundled third-party components inside the OpenSheetMusicDisplay distribution (MI
 - JSZip — Copyright (c) Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso
 - loglevel — Copyright (c) Tim Perry
 - typescript-collections — Copyright (c) Mauricio Santos
-</pre></details><footer><span class="ctx-browser" data-i18n="footer">Étude · single-file practice tool · Web MIDI + Web Audio · your progress never leaves this browser</span><span class="ctx-app" data-i18n="footer_app">Étude · Web MIDI + Web Audio · your progress never leaves this device</span> · <a href="#method" id="footMethod" data-i18n="foot_method">the method</a><span class="ctx-browser"> · <span data-i18n="foot_browser">best in Chrome / Edge</span></span></footer>
+</pre></details><footer><span class="ctx-browser" data-i18n="footer">Étude · single-file practice tool · Web MIDI + Web Audio · your progress never leaves this browser</span><span class="ctx-app" data-i18n="footer_app">Étude · Web MIDI + Web Audio · your progress never leaves this device</span> · <a href="#method" id="footMethod" data-i18n="foot_method">the method</a> · <a href="privacy.html" id="footPrivacy" data-i18n="foot_privacy" target="_blank" rel="noopener">privacy</a><span class="ctx-browser"> · <span data-i18n="foot_browser">best in Chrome / Edge</span></span></footer>
 
 <!-- etude: piano recordings are separate files -->
 <!-- etude: extracted osmd -->
