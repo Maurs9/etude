@@ -75,9 +75,10 @@ import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisi
 import { srtNotationSegments } from '../sight-reading/notation.js';
 import '../styles/sight-rhythm.css';
 import { SCALE_FINGERINGS } from './technique.js';
-import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
+import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, differentialIntervalCue, differentialToneCue, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
 import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueRefresh, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
+import { buildPracticeReport, formatPracticeReportCsv, type PracticeReportPieceInput } from './progress-report.js';
 
 let scoreFeature: typeof import('./score-feature.js');
 let AN_SMUFL_NOTES: typeof import('./score-import.js').AN_SMUFL_NOTES;
@@ -3428,7 +3429,7 @@ interface EarKeysNote { m: number; t: number; }
 type EarKeysPrompt = { kind: 'iv'; target: number[]; n: number; } | { kind: 'ch'; target: number[]; inv: number; pcs: number[]; n: number; } | { kind: 'mel'; target: number[]; n: number; };
 type EarKeysState = EarKeysPrompt & { tries: number; seq: EarKeysNote[]; off: number; armAt: number; goT: ReturnType<typeof setTimeout> | number; won: boolean; warned: boolean; played?: number[]; };
 // dir: an interval by ear played downwards ('desc'); without it, upwards.
-interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; dir?: 'asc' | 'desc'; placementKnown?: boolean; verdictText?: () => string; }
+interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: number; anchor: number | null; missed: boolean; hinted: boolean; offs?: number[]; ek?: EarKeysState | null; given?: TrainerGiven | null; wasWrong?: boolean; dir?: 'asc' | 'desc'; placementKnown?: boolean; verdictText?: () => string; }
 // A wrong answer: what was given against what was expected, both sounds for Hear both, and the item taken for this one (`pair`).
 interface TrainerGiven { text: () => string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
 // dir: the Direction an Intervals by-ear drill plays its intervals in ('both' picks one per question).
@@ -4433,6 +4434,7 @@ function resolve(q: TrainerQuestion, correct: boolean) {
         q.verdictText = q.given?.text ?? (() => t('notquite'));
     }
     v.textContent = q.verdictText();
+    q.wasWrong = !correct;
     if (!correct && q.given && q.given.pair && !SES.placement && !SES.contrast)
         confusions.record(q.it.id, q.given.pair);
     if (q.ek) {
@@ -4499,6 +4501,33 @@ function showElaboration(q: TrainerQuestion) {
     }
     if (q.ek)
         html += '<br>' + ekElab(q);
+    if (q.wasWrong && q.given?.pair) {
+        const other = ITEM_BY_ID[q.given.pair];
+        const esc = xmlEsc;
+        let diff = '';
+        if (other && it.cat === 'interval' && other.cat === 'interval') {
+            const cue = differentialIntervalCue(it.semi, other.semi);
+            if (cue?.kind === 'interval') {
+                diff = t(cue.diffSemis > 0 ? 'el_diff_iv_wider' : 'el_diff_iv_narrower', ivName(it.semi), Math.abs(cue.diffSemis), ivName(other.semi));
+            }
+        }
+        else if (other && it.cat === 'chord' && other.cat === 'chord') {
+            const cue = differentialToneCue(it.ref.intervals, other.ref.intervals);
+            if (cue?.kind === 'tones') {
+                const degs = (pcs: readonly number[]) => pcs.map((p) => SCALE_DEGREE_LABELS[p] ?? String(p)).join(', ') || '—';
+                diff = t('el_diff_tones', rootName(q.key) + dispSym(it.short), degs(cue.onlyExpected), degs(cue.onlyGiven), rootName(q.key) + dispSym(other.short));
+            }
+        }
+        else if (other && it.cat === 'scale' && other.cat === 'scale') {
+            const cue = differentialToneCue(SCALES[it.name] || [], SCALES[other.name] || []);
+            if (cue?.kind === 'tones') {
+                const degs = (pcs: readonly number[]) => pcs.map((p) => SCALE_DEGREE_LABELS[p] ?? String(p)).join(', ') || '—';
+                diff = t('el_diff_tones', scaleDisp(it.name), degs(cue.onlyExpected), degs(cue.onlyGiven), scaleDisp(other.name));
+            }
+        }
+        if (diff)
+            html += '<br><span class="elab-diff">' + esc(diff) + '</span>';
+    }
     e.innerHTML = html;
     e.classList.add('show');
 }
@@ -13212,7 +13241,13 @@ function anCoach(f: { kind: string; a: number; b: number; lo?: number; hi?: numb
             return tip('cn_' + anFnKey(selAnalysis.key, synth.ch.root, scoreFeature.harmony.anRoman(selAnalysis.key, synth)), sLab);
         }
     }
-    const cadTip = (s: AnHarmonySeg) => { const a = v.segs[v.segs.indexOf(s) - 1]; return tip('cn_cad_' + s.cad, s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s)); };
+    const cadTip = (s: AnHarmonySeg) => {
+        const idx = v.segs.indexOf(s);
+        const a = v.segs[idx - 1];
+        const nxt = v.segs[idx + 1];
+        const span = s.cad === 'cad64' ? (nxt ? rn(s) + ' → ' + rn(nxt) : rn(s)) : (s.cad === 'half' || !a ? rn(s) : rn(a) + ' → ' + rn(s));
+        return tip('cn_cad_' + s.cad, span);
+    };
     const nct = segs.flatMap((s) => (s.nct || []).filter((x) => x.type !== 'other').map((x) => ({ x, s }))), nctNames = () => [...new Set(nct.map(({ x, s }) => spellName(x.note.midi, K(s), true)))];
     if (!segs.length)
         return fall ? tip('cn_fall') : null;
@@ -16231,7 +16266,7 @@ function anHandsSource() {
 function anNctText(seg: { nct?: AnSpanNctFacts[] } | null, key: theory.KeySignature) {
     if (!seg || !seg.nct || !seg.nct.length)
         return '';
-    return ['suspension', 'anticipation', 'passing', 'neighbor', 'other'].map((type) => {
+    return ['suspension', 'appoggiatura', 'anticipation', 'passing', 'neighbor', 'other'].map((type) => {
         const names = [...new Set((seg.nct || []).filter((x) => x.type === type).map((x) => spellName(x.note.midi, key, true)))];
         return names.length ? t('an_nct_' + type) + ': ' + names.join(', ') : '';
     }).filter(Boolean).join(' · ');
@@ -16577,13 +16612,26 @@ function anCommitFocus() {
         scoreSelectRange(a, b);
     return AN.selected.size > 0;
 }
-// Harmonic function from the scale degree (Riemann-style T / S / D); secondary dominants name their target.
+// Harmonic function from the scale degree (Riemann-style T / S / D, Neapolitan, modal mixture, or secondary dominant).
 function anFunctionOf(key: theory.KeySignature, seg: { ch: { root: number; }; }, rn: string) {
-    if (rn.includes('/'))
+    const fk = anFnKey(key, seg.ch.root, rn);
+    if (fk === 'sec')
         return t('an_fn_sec', rn.slice(rn.indexOf('/') + 1));
-    const fns: Partial<Record<number, string>> = key.minor ? ({ 0: 'T', 3: 'T', 8: 'T', 2: 'S', 5: 'S', 7: 'D', 10: 'D', 11: 'D' } ) : ({ 0: 'T', 4: 'T', 9: 'T', 2: 'S', 5: 'S', 7: 'D', 11: 'D' } );
-    const rel = ((seg.ch.root - key.root) % 12 + 12) % 12, f = fns[rel];
-    return t(f ? 'an_fn_' + f : 'an_fn_chr');
+    return t('an_fn_' + fk);
+}
+function anLearnLinkHTML(lessonId: string, label: string, extraClass = '', titleText = t('an_learn_tip')) {
+    return `<button type="button" class="an-learn-link${extraClass ? ' ' + extraClass : ''}" data-learn="${xmlEsc(lessonId)}" title="${xmlEsc(titleText)}">${xmlEsc(label)}</button>`;
+}
+function anCardLearnLinksHTML(key: theory.KeySignature, seg: { ch: { root: number; }; }, rn: string, hasNct: boolean) {
+    const links: string[] = [];
+    const fk = anFnKey(key, seg.ch.root, rn);
+    if (fk === 'sec')
+        links.push(anLearnLinkHTML('secdom', rn));
+    else if (fk === 'neap' || fk === 'mix')
+        links.push(anLearnLinkHTML('minorh', t('an_fn_' + fk)));
+    if (hasNct)
+        links.push(anLearnLinkHTML('nct', t('an_nct_label')));
+    return links.length ? `<div class="an-learn-links">${links.join('')}</div>` : '';
 }
 interface AnPanelSpanRow {
     s: AnHarmonySeg;
@@ -16596,8 +16644,8 @@ function anChipHTML(s: AnHarmonySeg, i: number, rove: boolean|null) {
     const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), cad = s.cad ? t('an_cad_' + s.cad) : '', det = anDetText(s.ch), nct = anNctText(s, key);
     const label = [t('an_bar') + ' ' + s.measure.number, beats, lab, rn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), anHandsText(s, key), nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
     const time = anClock(scoreSeconds(s.start)) + '–' + anClock(scoreSeconds(s.end));
-    return `<button type="button" class="an-ch" data-k="${i}" data-conf="${conf}"${rove == null ? '' : ` tabindex="${rove ? 0 : -1}"`} aria-pressed="false" aria-label="${esc(label)}" title="${esc(label + ' · ' + time)}"><span class="an-ch-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-ch-rn">${esc(rn)}</span><span class="an-ch-t">${esc(beats + ' · ' + det)}</span>${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>`
-        + (cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : '');
+    const cadBtn = cad ? anLearnLinkHTML('cad', cad, 'an-cad', t('an_cad_title') + ' · ' + t('an_learn_tip')) : '';
+    return `<button type="button" class="an-ch" data-k="${i}" data-conf="${conf}"${rove == null ? '' : ` tabindex="${rove ? 0 : -1}"`} aria-pressed="false" aria-label="${esc(label)}" title="${esc(label + ' · ' + time)}"><span class="an-ch-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-ch-rn">${esc(rn)}</span><span class="an-ch-t">${esc(beats + ' · ' + det)}</span>${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>${cadBtn}`;
 }
 // Chords grouped by bar; each row carries its bar index so the selected bars can be marked.
 function anRowsHTML(list: AnPanelSpanRow[], rove?: number|null) {
@@ -16623,7 +16671,8 @@ function anNowCard({ s, k }: AnPanelSpanRow, implied: boolean) {
     const alts = s.ch.alts.map((a) => spellName(60 + a.root, key) + a.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, key);
     const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, key), cad = s.cad ? t('an_cad_' + s.cad) : '';
     const label = [t('an_bar') + ' ' + s.measure.number, anBeatText(s), lab, rn, fn, det + (alts ? ' (' + t('an_or', alts) + ')' : ''), hands, nct && t('an_nct_label') + ': ' + nct, cad].filter(Boolean).join(', ');
-    return `<li><button type="button" class="an-ch an-nc" data-k="${k}" data-conf="${conf}" aria-pressed="false" aria-label="${esc(label)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>${cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : ''}</li>`;
+    const cadBtn = cad ? anLearnLinkHTML('cad', cad, 'an-cad', t('an_cad_title') + ' · ' + t('an_learn_tip')) : '';
+    return `<li><button type="button" class="an-ch an-nc" data-k="${k}" data-conf="${conf}" aria-pressed="false" aria-label="${esc(label)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</button>${cadBtn}${anCardLearnLinksHTML(key, s, rn, !!nct)}</li>`;
 }
 function anSignedSemi(semi: number) {
     return (semi > 0 ? '+' : '') + semi;
@@ -16666,7 +16715,7 @@ function anNoteCardHTML(a: IsolatedNoteAnalysis) {
         const roleTxt = a.chordRole === 'nct'
             ? t('an_role_nct') + ' (' + t('an_nct_' + (a.nctType || 'other')) + ')'
             : t('an_role_' + a.chordRole);
-        roleHtml = `<div class="an-note-role"><b>${esc(roleTxt)}</b> · ${esc(segLbl)}</div>`;
+        roleHtml = `<div class="an-note-role"><b>${esc(roleTxt)}</b> · ${esc(segLbl)}${a.chordRole === 'nct' ? ' · ' + anLearnLinkHTML('nct', t('an_nct_label')) : ''}</div>`;
     }
     return `<div class="an-note-card"><div class="an-note-top"><span class="an-nc-sym">${esc(noteLbl)}</span><span class="an-note-deg">${esc(degPill)}</span></div><div class="an-note-meta">${esc(meta)}</div>${roleHtml}</div>${anNeighborsHTML(a.neighbors, a.key)}`;
 }
@@ -16691,7 +16740,8 @@ function anSelChordHTML(a: ChordSelectionAnalysis) {
             const fn = [anFunctionOf(sKey, s, rn), open || slash && !inv ? '' : invName(inv), slash ? t('an_bass', spellName(60 + (s.bass ?? 0), sKey)) : ''].filter(Boolean).join(' · ');
             const alts = s.ch.alts.map((alt) => spellName(60 + alt.root, sKey) + alt.c.s).join(', '), det = anDetText(s.ch), hands = anHandsText(s, sKey);
             const meta = anBeatText(s) + ' · ' + det + (alts ? ' (' + t('an_or', alts) + ')' : ''), nct = anNctText(s, sKey), cad = s.cad ? t('an_cad_' + s.cad) : '';
-            return `<li><div class="an-sel-ch" data-conf="${esc(conf)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</div>${cad ? `<span class="an-cad" title="${esc(t('an_cad_title'))}">${esc(cad)}</span>` : ''}</li>`;
+            const cadBtn = cad ? anLearnLinkHTML('cad', cad, 'an-cad', t('an_cad_title') + ' · ' + t('an_learn_tip')) : '';
+            return `<li><div class="an-sel-ch" data-conf="${esc(conf)}"><span class="an-nc-sym">${esc(lab)}${conf === 'low' ? '?' : ''}</span><span class="an-nc-rn">${esc(rn)}</span><span class="an-nc-fn">${esc(fn)}</span><span class="an-ch-t an-nc-meta">${esc(meta)}</span>${hands ? `<span class="an-ch-hands">${esc(hands)}</span>` : ''}${nct ? `<span class="an-ch-nct"><b>${esc(t('an_nct_label'))}:</b> ${esc(nct)}</span>` : ''}</div>${cadBtn}${anCardLearnLinksHTML(sKey, s, rn, !!nct)}</li>`;
         }).join('')}</ul>`;
     } else if (a.directChord) {
         const dc = a.directChord, synth = { ch: { root: dc.rootPc, c: dc.template }, bass: dc.bassPc };
@@ -18868,6 +18918,14 @@ function anInitControls() {
     // analysis panel: a chord (in Now or Piece) selects its notes and its bar and moves the cursor there
     const side = byId('an-side'), ws = byId('an-ws');
     side.addEventListener('click', (e) => {
+        const ll = eventClosest(e, 'button.an-learn-link[data-learn]');
+        if (ll instanceof HTMLButtonElement) {
+            e.stopPropagation();
+            const id = ll.dataset.learn;
+            if (id)
+                learnGoId(id);
+            return;
+        }
         const nb = eventClosest(e, '.an-nb-btn[data-nb-idx]');
         if (nb instanceof HTMLButtonElement && AN.notes.length) {
             const idx = Number(nb.dataset.nbIdx);
@@ -19035,10 +19093,89 @@ function anInitControls() {
 }
 /* ---------- PROGRESS ---------- */
 let progressView: typeof import('./progress-view.js') | null = null;
+function collectPracticeReport(libraryItems: readonly LibraryItem[] = []) {
+    const tn = todayN();
+    const book = rdnBook();
+    const tally = srtBookTally(book, book.level);
+    const rd = rdData();
+    const stars = RD_ALL.reduce((sum, level) => sum + rdStarCount(rd.lv[level.id]?.s), 0);
+    const pieces: PracticeReportPieceInput[] = [];
+    for (const piece of PIECES) {
+        const rec = data.sheet[piece.id];
+        if (rec && (rec.learned || rec.best)) {
+            pieces.push({
+                title: srPieceTitle(piece),
+                source: 'builtin',
+                learned: !!rec.learned,
+                bestPct: rec.best ? rec.best : null,
+            });
+        }
+    }
+    for (const item of libraryItems) {
+        const learned = item.status === 'mastered';
+        const bestPct = typeof item.best === 'number' ? item.best : null;
+        if (learned || bestPct !== null) {
+            pieces.push({
+                title: item.title || item.name,
+                source: 'library',
+                learned,
+                bestPct,
+            });
+        }
+    }
+    return buildPracticeReport({
+        today: tn,
+        totalReviews: data.totalReviews || 0,
+        totalCorrect: data.totalCorrect || 0,
+        streak: currentStreak(),
+        bestStreak: data.bestStreak || 0,
+        mastered: masteredCount(),
+        totalItems: ITEMS.length,
+        srs: data.srs,
+        history: data.history || {},
+        items: ITEMS,
+        categories: Object.keys(CATS),
+        catLabel,
+        itemLabel: (it) => {
+            const full = ITEMS.find((candidate) => candidate.id === it.id);
+            return full ? itemLabel(full) : it.id;
+        },
+        reading: {
+            bookLevel: book.level,
+            bookDone: tally.done,
+            bookTotal: SRT_BOOK_PIECES,
+            piecesRead: srtPiecesRead(book),
+            drillAnswers: rd.tot.n,
+            drillCorrect: rd.tot.ok,
+            stars,
+        },
+        pieces,
+    });
+}
+function renderPrintSummaryHtml(report: ReturnType<typeof buildPracticeReport>): string {
+    const esc = xmlEsc;
+    const piecesLine = report.pieces.length
+        ? `<p class="prog-print-pieces"><b>${esc(t('prog_rep_pieces'))}:</b> ${report.pieces.map((p) => {
+            const marks = [p.learned ? '✓ ' + t('prog_rep_learned') : '', p.bestPct !== null ? t('prog_rep_best', p.bestPct) : ''].filter(Boolean).join(', ');
+            return marks ? `${esc(p.title)} (${esc(marks)})` : esc(p.title);
+        }).join(' · ')}</p>`
+        : '';
+    return `<h2>Étude — ${esc(t('prog_rep_title'))}</h2>`
+        + `<p class="prog-print-meta">${esc(report.generatedDateIso)} · ${esc(t('prog_rep_7d', report.reviews7d, report.activeDays7d))} · ${esc(t('prog_rep_30d', report.reviews30d, report.activeDays30d))}</p>`
+        + piecesLine;
+}
+function updatePrintSummaryHead(libraryItems: readonly LibraryItem[] = []): string {
+    const html = renderPrintSummaryHtml(collectPracticeReport(libraryItems));
+    const head = maybeById('prog-print-head');
+    if (head) head.innerHTML = html;
+    return html;
+}
 function renderProgress() {
+    const printSummaryHtml = updatePrintSummaryHead();
     progressView?.renderProgress({
         data, hasActivity: storeHasProgress(), items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
         t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, rdRenderStats,
+        printSummaryHtml,
         openDrill(category) {
             show('practice');
             prSetTopic(category);
@@ -20957,6 +21094,54 @@ function initControls() {
         renderSongs();
     });
     // progress
+    byId('prog-report-csv').addEventListener('click', () => {
+        void (async () => {
+            const libraryItems = await scoreLibraryStore.libraryList().catch(() => []);
+            const report = collectPracticeReport(libraryItems);
+            const csv = formatPracticeReportCsv(report, {
+                title: t('prog_rep_title'),
+                secSummary: t('prog_rep_sec_summary'),
+                secTopics: t('prog_rep_sec_topics'),
+                secWeak: t('prog_rep_sec_weak'),
+                secReading: t('prog_rep_sec_reading'),
+                secPieces: t('prog_rep_sec_pieces'),
+                period7d: t('prog_rep_period', 7),
+                period30d: t('prog_rep_period', 30),
+                dateLabel: t('prog_rep_date'),
+                streakLabel: t('st_streak'),
+                bestStreakLabel: t('st_best'),
+                masteredLabel: t('st_mastered'),
+                reviewsLabel: t('st_reviews'),
+                accuracyLabel: t('st_acc'),
+                categoryCol: t('cat_col'),
+                conceptCol: t('prog_rep_concept'),
+                repsCol: t('prog_rep_reps'),
+                masteryCol: t('mastery_head'),
+                readingLevelCol: t('rd_level'),
+                readingBookCol: t('prog_rep_book'),
+                readingPiecesCol: t('rdn_stat_read'),
+                readingDrillsCol: t('rdx_st_ans'),
+                readingStarsCol: t('rdx_hero_stars'),
+                pieceCol: t('nav_scores'),
+                sourceCol: t('prog_rep_source'),
+                sourceBuiltin: t('prog_rep_builtin'),
+                sourceLibrary: t('prog_rep_library'),
+                learnedCol: t('prog_rep_learned'),
+                bestCol: t('prog_rep_best_col'),
+                yes: t('yes_word'),
+                no: t('no_word'),
+            });
+            trxDownload(`etude-practice-report-${report.generatedDateIso}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        })();
+    });
+    byId('prog-report-print').addEventListener('click', () => {
+        void (async () => {
+            const libraryItems = await scoreLibraryStore.libraryList().catch(() => []);
+            updatePrintSummaryHead(libraryItems);
+            if (typeof window.print === 'function')
+                window.print();
+        })();
+    });
     byId('prog-export').addEventListener('click', () => byId('exportBtn').click());
     byId('prog-import').addEventListener('click', () => byId('importBtn').click());
     byId('prog-start').addEventListener('click', () => { show('today'); startSession(null); });

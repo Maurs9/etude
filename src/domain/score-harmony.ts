@@ -305,6 +305,8 @@ export function anClassifyNonChord(
       } else if (prev && next && step(prev, n) && step(n, next) && prevTone && nextTone) {
         if (prev.midi === next.midi) type = 'neighbor';
         else if (Math.sign(n.midi - prev.midi) === Math.sign(next.midi - n.midi)) type = 'passing';
+      } else if (prev && next && Math.abs(n.midi - prev.midi) > 2 && step(n, next) && nextTone) {
+        type = 'appoggiatura';
       }
       nct.push({ note: n, index: idx, type });
     });
@@ -920,6 +922,7 @@ export function anRoman(key: theory.KeySignature, seg: { ch: Pick<AnChordReading
 export function anCadences(segs: AnHarmonySeg[], keyMap?: readonly AnKeyPoint[]): void {
   segs.forEach((b, i) => {
     const a: AnHarmonySeg | undefined = segs[i - 1];
+    const next: AnHarmonySeg | undefined = segs[i + 1];
     if (!b.ch) return;
     const key = anKeyFromMap(keyMap, b.start);
     const rb = ((b.ch.root - key.root) % 12 + 12) % 12;
@@ -928,6 +931,16 @@ export function anCadences(segs: AnHarmonySeg[], keyMap?: readonly AnKeyPoint[])
       s && s.ch && ((s.ch.root - key.root) % 12 + 12) % 12 === 7 && anDomQ(s.ch.c);
     if (a && down && isDom(a) && rb === 0 && anInv(b) === 0 && (b.ch.c.q === 'M' || b.ch.c.q === 'm')) b.cad = 'auth';
     else if (
+      next &&
+      rb === 0 &&
+      anInv(b) === 2 &&
+      (b.ch.c.q === 'M' || b.ch.c.q === 'm') &&
+      !b.ch.c.x &&
+      isDom(next) &&
+      anInv(next) === 0
+    ) {
+      b.cad = 'cad64';
+    } else if (
       a &&
       down &&
       a.ch &&

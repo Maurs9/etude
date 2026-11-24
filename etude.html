@@ -654,11 +654,14 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <div class="section-head">
         <div><div class="eyebrow" data-i18n="prog_eyebrow">Your learning</div><h1 data-i18n="prog_title">Progress</h1></div>
         <div class="prog-actions">
+          <button class="btn sm ghost" id="prog-report-csv" data-i18n="prog_report_csv">CSV report</button>
+          <button class="btn sm ghost" id="prog-report-print" data-i18n="prog_report_print">Print / PDF</button>
           <button class="btn sm ghost" id="prog-export" data-i18n="exp_btn">⬇ Export progress</button>
           <button class="btn sm ghost" id="prog-import" data-i18n="imp_btn">⬆ Import</button>
           <button class="btn sm ghost" id="resetBtn" data-i18n="reset">Reset progress</button>
         </div>
       </div>
+      <div class="prog-print-head" id="prog-print-head" aria-hidden="true"></div>
       <div class="prog-empty" id="prog-empty" hidden><p data-i18n="prog_empty">No reviews yet. Your stats, memory strength and practice calendar fill in as you answer questions.</p><button type="button" class="btn primary sm" id="prog-start" data-i18n="prog_empty_cta">Start today’s session →</button></div>
       <div class="stat-row" id="progStats"></div>
       <hr class="rule staff5" />

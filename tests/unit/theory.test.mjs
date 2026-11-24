@@ -83,4 +83,16 @@ describe('pure theory helpers', () => {
     expect(anIntervalName(0)).toBe('Unison');
     expect(anIntervalName(-5)).toBe(anIntervalName(5));
   });
+
+  it('identifies Neapolitan and major-key modal mixture functions without shifting minor diatonics', () => {
+    expect(analysisFunction({ root: 0, minor: false }, 1, '♭II⁶')).toBe('neap');
+    expect(analysisFunction({ root: 0, minor: false }, 10, '♭VII')).toBe('mix');
+    expect(analysisFunction({ root: 0, minor: false }, 8, '♭VI')).toBe('mix');
+    expect(analysisFunction({ root: 0, minor: false }, 5, 'iv')).toBe('mix');
+    expect(analysisFunction({ root: 0, minor: false }, 2, 'ii°')).toBe('mix');
+    expect(analysisFunction({ root: 0, minor: false }, 4, '♭III')).toBe('mix');
+    expect(analysisFunction({ root: 0, minor: false }, 7, 'V/IV')).toBe('sec');
+    expect(analysisFunction({ root: 0, minor: true }, 2, 'ii°')).toBe('S');
+    expect(analysisFunction({ root: 0, minor: true }, 8, 'VI')).toBe('T');
+  });
 });

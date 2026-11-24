@@ -304,3 +304,39 @@ describe('lasso free-shape geometry helpers', () => {
     expect(pointInLasso(60, 80, line)).toBe(false);
   });
 });
+
+describe('Wave 3A appoggiatura and cadential 6/4 detection', () => {
+  it('classifies leap-approached and step-resolved non-chord tones as appoggiatura', () => {
+    const segs = anHarmony(
+      [
+        note(48, 0, 4), note(52, 0, 4), note(55, 0, 4),
+        note(60, 0, 1, { hand: 'rh', staff: 1 }), // C4 (chord tone)
+        note(69, 1, 2, { hand: 'rh', staff: 1 }), // A4 (leaps up +9 st, steps down -2 st to G4)
+        note(67, 2, 4, { hand: 'rh', staff: 1 }), // G4 (chord tone)
+      ],
+      false,
+      { measures: [M1], keyMap: [{ ...C_MAJOR, beat: 0 }] },
+    );
+    expect(segs).toHaveLength(1);
+    expect(segs[0].nct?.some((x) => x.note.midi === 69 && x.type === 'appoggiatura')).toBe(true);
+  });
+
+  it('detects cadential 6/4 before dominant V even after subdominant IV', () => {
+    const m3 = { number: '3', start: 8, end: 12, num: 4, den: 4 };
+    const m4 = { number: '4', start: 12, end: 16, num: 4, den: 4 };
+    const prog = [
+      note(41, 0, 4), note(60, 0, 4), note(65, 0, 4), note(69, 0, 4),   // IV (F)
+      note(43, 4, 8), note(60, 4, 8), note(64, 4, 8), note(67, 4, 8),   // I6/4 (C/G)
+      note(43, 8, 12), note(59, 8, 12), note(62, 8, 12), note(65, 8, 12), // V7 (G7)
+      note(48, 12, 16), note(60, 12, 16), note(64, 12, 16), note(67, 12, 16), // I (C)
+    ];
+    const segs = anHarmony(prog, false, {
+      measures: [M1, M2, m3, m4],
+      keyMap: [{ ...C_MAJOR, beat: 0 }],
+    });
+    anCadences(segs, [{ ...C_MAJOR, beat: 0 }]);
+    expect(segs).toHaveLength(4);
+    expect(segs[1].cad).toBe('cad64');
+    expect(segs[3].cad).toBe('auth');
+  });
+});

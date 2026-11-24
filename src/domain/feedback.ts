@@ -71,3 +71,25 @@ export function contrastOrder(a: string, b: string, length = CONTRAST_LENGTH, ra
   }
   return Array.from({ length }, (_, index) => (index % 2 ? b : a));
 }
+
+export type DifferentialCue =
+  | { readonly kind: 'interval'; readonly diffSemis: number }
+  | { readonly kind: 'tones'; readonly onlyExpected: readonly number[]; readonly onlyGiven: readonly number[] };
+
+/** Unsigned difference in semitones between the expected and given intervals (null when equal). */
+export function differentialIntervalCue(expectedSemi: number, givenSemi: number): DifferentialCue | null {
+  if (expectedSemi === givenSemi) return null;
+  return { kind: 'interval', diffSemis: expectedSemi - givenSemi };
+}
+
+/** Pitch-class offsets (mod 12) unique to the expected chord/scale vs the confused one. */
+export function differentialToneCue(expectedOffsets: readonly number[], givenOffsets: readonly number[]): DifferentialCue | null {
+  const norm = (values: readonly number[]) =>
+    [...new Set(values.map((v) => ((v % 12) + 12) % 12))].sort((a, b) => a - b);
+  const exp = norm(expectedOffsets);
+  const giv = norm(givenOffsets);
+  const onlyExpected = exp.filter((pc) => !giv.includes(pc));
+  const onlyGiven = giv.filter((pc) => !exp.includes(pc));
+  if (!onlyExpected.length && !onlyGiven.length) return null;
+  return { kind: 'tones', onlyExpected, onlyGiven };
+}

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule } from '../../src/domain/feedback.ts';
+import {
+  CONTRAST_LENGTH,
+  ConfusionLog,
+  contrastOrder,
+  differentialIntervalCue,
+  differentialToneCue,
+  feedbackBroken,
+  feedbackChords,
+  feedbackLine,
+  feedbackSchedule,
+} from '../../src/domain/feedback.ts';
 
 describe('hear both', () => {
   it('plays the given sound, pauses, then plays the expected one', () => {
@@ -55,5 +65,27 @@ describe('contrast drill order', () => {
       expect(order.filter((item) => item === 'a')).toHaveLength(3);
       expect(order.some((item, index) => index >= 2 && item === order[index - 1] && item === order[index - 2])).toBe(false);
     }
+  });
+});
+
+describe('differential practice feedback cues', () => {
+  it('computes signed semitone differences for confused intervals', () => {
+    expect(differentialIntervalCue(4, 3)).toEqual({ kind: 'interval', diffSemis: 1 });
+    expect(differentialIntervalCue(3, 5)).toEqual({ kind: 'interval', diffSemis: -2 });
+    expect(differentialIntervalCue(7, 7)).toBeNull();
+  });
+
+  it('computes unique pitch-class offsets for confused chords and scales', () => {
+    expect(differentialToneCue([0, 4, 7], [0, 3, 7])).toEqual({
+      kind: 'tones',
+      onlyExpected: [4],
+      onlyGiven: [3],
+    });
+    expect(differentialToneCue([0, 4, 7, 11, 14], [0, 4, 7, 11])).toEqual({
+      kind: 'tones',
+      onlyExpected: [2],
+      onlyGiven: [],
+    });
+    expect(differentialToneCue([0, 4, 7], [0, 4, 7])).toBeNull();
   });
 });

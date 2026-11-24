@@ -543,8 +543,17 @@ export function analysisFunction(
   key: Pick<KeySignature, 'root' | 'minor'>,
   chordRoot: PitchClass,
   romanNumeral: string,
-): 'T' | 'S' | 'D' | 'sec' | 'chr' {
+): 'T' | 'S' | 'D' | 'sec' | 'neap' | 'mix' | 'chr' {
   if (romanNumeral.includes('/')) return 'sec';
+  if (/^♭II(?![I])/.test(romanNumeral)) return 'neap';
+  if (
+    !key.minor &&
+    (/^♭(?:III|VI|VII)(?![I])/.test(romanNumeral) ||
+      /^iv(?![IViv])/.test(romanNumeral) ||
+      /^ii(?:°|ø)/.test(romanNumeral))
+  ) {
+    return 'mix';
+  }
   const relative = normalizeSemitones(chordRoot - key.root);
   const functions: Readonly<Record<number, 'T' | 'S' | 'D'>> = key.minor
     ? { 0: 'T', 3: 'T', 8: 'T', 2: 'S', 5: 'S', 7: 'D', 10: 'D', 11: 'D' }

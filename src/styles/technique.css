@@ -2,6 +2,7 @@
 .tq { margin: 12px 0 4px; min-width: 0; }
 .tq[hidden] { display: none; }
 .tq-opts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.tq-seg { flex-wrap: wrap; max-width: 100%; justify-content: center; }
 .tq-seg button[disabled] { opacity: .45; cursor: not-allowed; }
 .tq-how { margin: 10px auto 0; max-width: 60ch; color: var(--muted); font-size: 13px; text-align: center; }
 .tq-strip {
