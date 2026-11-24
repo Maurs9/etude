@@ -68,7 +68,7 @@ const payload: LearnPayload = {
     },
     "cad": {
       "t": "Cadencias: puntuación musical",
-      "b": "\n<p>Una <b>cadencia</b> es el movimiento de acordes que cierra una frase. Al igual que los signos de puntuación, algunas concluyen la oración y otras la dejan en suspenso:</p>\n<ul>\n<li><b>Auténtica perfecta (CAP)</b>: V(7) → I, ambos en estado fundamental y con la melodía reposando en la tónica. Un punto final rotundo.</li>\n<li><b>Auténtica imperfecta (CAI)</b>: V → I pero más suave: con inversiones, o con la melodía terminando en la 3.ª o 5.ª. Un punto y coma.</li>\n<li><b>Semicadencia (SC)</b>: cualquier acorde → V. Una coma o signo de interrogación: continuará.</li>\n<li><b>Plagal (CP)</b>: IV → I, el tradicional final «Amén» de los himnos.</li>\n<li><b>Rota o engañosa (CR)</b>: V → vi. Esperas llegar a casa y recibes una sorpresa menor; la frase debe continuar.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.60.67.72\">CAP: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">SC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Rota: V → vi</button></div>\n<h4>Encuéntralas en obras reales</h4>\n<p>El Minueto en Sol concluye su primera mitad con una semicadencia y la segunda con una cadencia auténtica perfecta: abre Piezas para ver los números romanos bajo cada compás.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Verlo en Piezas: Minueto en Sol →</button></div>\n<p class=\"learn-note\">Presta atención a las cadencias en cualquier canción: tararea el último acorde de cada línea. ¿Se siente concluido (auténtica), en suspenso (semicadencia) o sorprendido (rota)?</p>"
+      "b": "\n<p>Una <b>cadencia</b> es el movimiento de acordes que cierra una frase. Al igual que los signos de puntuación, algunas concluyen la oración y otras la dejan en suspenso:</p>\n<ul>\n<li><b>Auténtica perfecta (CAP)</b>: V(7) → I, ambos en estado fundamental y con la melodía reposando en la tónica. Un punto final rotundo.</li>\n<li><b>Auténtica imperfecta (CAI)</b>: V → I pero más suave: con inversiones, o con la melodía terminando en la 3.ª o 5.ª. Un punto y coma.</li>\n<li><b>Semicadencia (SC)</b>: cualquier acorde → V. Una coma o signo de interrogación: continuará.</li>\n<li><b>Plagal (CP)</b>: IV → I, el tradicional final «Amén» de los himnos.</li>\n<li><b>Rota o engañosa (CR)</b>: V → vi. Esperas llegar a casa y recibes una sorpresa menor; la frase debe continuar.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.64.67.72\">CAP: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">SC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Rota: V → vi</button></div>\n<h4>Encuéntralas en obras reales</h4>\n<p>El Minueto en Sol concluye su primera mitad con una semicadencia y la segunda con una cadencia auténtica perfecta: abre Piezas para ver los números romanos bajo cada compás.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Verlo en Piezas: Minueto en Sol →</button></div>\n<p class=\"learn-note\">Presta atención a las cadencias en cualquier canción: tararea el último acorde de cada línea. ¿Se siente concluido (auténtica), en suspenso (semicadencia) o sorprendido (rota)?</p>"
     },
     "minorh": {
       "t": "Armonía en tonalidades menores",
@@ -80,7 +80,7 @@ const payload: LearnPayload = {
     },
     "secdom": {
       "t": "Dominantes secundarias, modulación y conducción de voces",
-      "b": "\n<p>Cualquier acorde mayor o menor de una tonalidad puede recibir su <b>propia dominante</b>. En Do mayor, el acorde V de Sol es Re mayor (D–F♯–A): lo escribimos como <b>V/V</b>, «cinco de cinco». El Fa♯ prestado actúa como una sensible temporal que atrae hacia Sol: una pincelada de color sin abandonar la tonalidad.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulación</h4>\n<p>Cuando el nuevo centro tonal se asienta (confirmado por una cadencia en la nueva tonalidad), has <b>modulado</b>. La vía más natural es a través de un <b>acorde pivote</b> que pertenece a ambas tonalidades: Am es vi en Do y ii en Sol, por lo que C – Am – D7 – G transita con perfecta fluidez hacia Sol mayor. La mayoría de piezas clásicas modulan a la dominante (en modo mayor) o a la relativa mayor (en modo menor) y regresan al final.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G mediante el pivote Am</button></div>\n<h4>Conducción de voces</h4>\n<p>Imagina cada acorde como un grupo de 3–4 cantantes. Una buena conducción de voces mueve a cada cantante lo menos posible:</p>\n<ul>\n<li>Mantén las <b>notas comunes</b> en la misma voz; mueve las demás por grados conjuntos.</li>\n<li>Resuelve las notas con tendencia: la sensible (7) asciende <b>hacia arriba</b> a la tónica (1); la 7.ª de un acorde desciende <b>hacia abajo</b> por grado conjunto.</li>\n<li>Evita las <b>quintas y octavas paralelas</b> consecutivas entre dos voces: hacen que las voces se fundan perdiendo su independencia.</li>\n<li>El bajo puede dar saltos; las voces superiores prefieren pasos conjuntos.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|48.60.65.69|47.59.62.67|48.60.64.67\">Fluido: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Brusco: mismos acordes, todos en estado fundamental</button></div>\n<p class=\"learn-note\">En el piano, la conducción de voces es también un valioso consejo técnico: las inversiones mantienen la mano en una posición estable. Compara los dos ejemplos anteriores: mismos acordes, pero con un esfuerzo motriz muy diferente.</p>"
+      "b": "\n<p>Cualquier acorde mayor o menor de una tonalidad puede recibir su <b>propia dominante</b>. En Do mayor, el acorde V de Sol es Re mayor (D–F♯–A): lo escribimos como <b>V/V</b>, «cinco de cinco». El Fa♯ prestado actúa como una sensible temporal que atrae hacia Sol: una pincelada de color sin abandonar la tonalidad.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulación</h4>\n<p>Cuando el nuevo centro tonal se asienta (confirmado por una cadencia en la nueva tonalidad), has <b>modulado</b>. La vía más natural es a través de un <b>acorde pivote</b> que pertenece a ambas tonalidades: Am es vi en Do y ii en Sol, por lo que C – Am – D7 – G transita con perfecta fluidez hacia Sol mayor. La mayoría de piezas clásicas modulan a la dominante (en modo mayor) o a la relativa mayor (en modo menor) y regresan al final.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G mediante el pivote Am</button></div>\n<h4>Conducción de voces</h4>\n<p>Imagina cada acorde como un grupo de 3–4 cantantes. Una buena conducción de voces mueve a cada cantante lo menos posible:</p>\n<ul>\n<li>Mantén las <b>notas comunes</b> en la misma voz; mueve las demás por grados conjuntos.</li>\n<li>Resuelve las notas con tendencia: la sensible (7) asciende <b>hacia arriba</b> a la tónica (1); la 7.ª de un acorde desciende <b>hacia abajo</b> por grado conjunto.</li>\n<li>Evita las <b>quintas y octavas paralelas</b> consecutivas entre dos voces: hacen que las voces se fundan perdiendo su independencia.</li>\n<li>El bajo puede dar saltos; las voces superiores prefieren pasos conjuntos.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|41.60.65.69|43.59.62.67|48.60.64.67\">Fluido: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Brusco: mismos acordes, todos en estado fundamental</button></div>\n<p class=\"learn-note\">En el piano, la conducción de voces es también un valioso consejo técnico: las inversiones mantienen la mano en una posición estable. Compara los dos ejemplos anteriores: mismos acordes, pero con un esfuerzo motriz muy diferente.</p>"
     },
     "form": {
       "t": "Forma: motivos, frases y secciones",
@@ -124,6 +124,9 @@ const payload: LearnPayload = {
         "q": "Toca el do central (C4).",
         "seq": [
           0
+        ],
+        "exactMidi": [
+          60
         ]
       },
       {
@@ -131,6 +134,9 @@ const payload: LearnPayload = {
         "seq": [
           4,
           5
+        ],
+        "stepDiff": [
+          1
         ]
       }
     ],
@@ -206,6 +212,9 @@ const payload: LearnPayload = {
         "q": "Toca la nota situada en la segunda línea de la clave de sol: Sol4 (G4).",
         "seq": [
           7
+        ],
+        "exactMidi": [
+          67
         ]
       }
     ],
@@ -424,6 +433,9 @@ const payload: LearnPayload = {
         "seq": [
           2,
           9
+        ],
+        "stepDiff": [
+          7
         ]
       }
     ],

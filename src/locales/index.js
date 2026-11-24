@@ -2010,7 +2010,9 @@ export const STRINGS = {
     "plan_lrev": "Review a chapter",
     "plan_lrev_d": "Review: %a (read %b days ago)",
     "plan_lrev_more": " · +%a more",
-    "plan_lrev_done": "Review done today — nice."
+    "plan_lrev_done": "Review done today — nice.",
+    "iv_plus_oct_one": " + 1 octave",
+    "iv_plus_oct_many": " + %s octaves"
   },
   "ro": {
     "rdn_back_read": "← Înapoi la Citește",
@@ -2083,7 +2085,7 @@ export const STRINGS = {
     "lstaff_caption_n_clefs": "Cheia Sol pentru mâna dreaptă, cheia Fa pentru stânga. Do central stă pe o linie suplimentară între ele.",
     "lstaff_caption_n_steps": "Linie, spațiu, linie, spațiu: fiecare treaptă în sus pe portativ e nota următoare.",
     "lstaff_caption_n_acc": "Diezii urcă, bemolii coboară — Do, Do♯, Re, Mi♭, Mi, Fa♯.",
-    "lstaff_caption_dyn1": "p → crescendo → f → diminuendo → pp. Apasă play și ascultă cum volumul urmează semnele.",
+    "lstaff_caption_dyn1": "p → crescendo → f → diminuendo → pp. Apasă redare și ascultă cum volumul urmează semnele.",
     "lstaff_caption_dyn2": "Accent >, puncte de staccato, sfz, tenuto – și o coroană 𝄐 la final.",
     "lstaff_caption_rh1": "Notă întreagă, doimi, pătrimi, optimi — fiecare măsură are 4 timpi. Clicul marchează timpul.",
     "lstaff_caption_iv1": "Intervale de la Do. Atinge fiecare notă sau cântă tot rândul.",
@@ -2260,7 +2262,7 @@ export const STRINGS = {
     "si_dronelbl": "Bordun",
     "si_tempo": "Tempo",
     "si_new": "↺ Melodie nouă",
-    "si_hint_foot": "Sfat: apasă „Tonica\" ca să auzi acasă înainte să începi. Potrivirea de înălțime ignoră octava, așa că merge și pentru başi, și pentru soprane.",
+    "si_hint_foot": "Sfat: apasă „Tonica” ca să auzi nota de bază înainte să începi. Potrivirea de înălțime ignoră octava, așa că merge și pentru bași, și pentru soprane.",
     "si_count": "Pregătește-te…",
     "si_sing_now": "Cântă!",
     "si_hi_up": "Puțin mai sus ↑",
@@ -2435,7 +2437,7 @@ export const STRINGS = {
     "tq_even_steady": "constantă",
     "tq_even_fair": "destul de egală",
     "tq_even_uneven": "inegală",
-    "tq_res_gap": "Ritmul alunecă cel mai mult la %s (degetul %s). Exersează rar acel loc.",
+    "tq_res_gap": "Ritmul alunecă cel mai mult la %s (degetul %s). Exersează lent acel loc.",
     "tq_res_sync": "Ambele mâini: în medie la %s ms una de alta.",
     "ex_staff_hint": "Aceleași note în ambele chei — cheia Fa în stânga, cheia Sol în dreapta, ca pe claviatură. Notele prea înalte sau prea joase pentru un portativ sunt scrise lângă o săgeată.",
     "ex_staff_empty": "Apasă o notă sau un acord pentru a-l vedea aici.",
@@ -2675,7 +2677,7 @@ export const STRINGS = {
     "lg_right": "Corect",
     "lg_wrong": "Greșit",
     "lg_chord_deg": "Treaptă acord",
-    "lg_chord_deg_tip": "Treptele acordului: R = rădăcină, 3 = terță, 5 = cvintă etc. (indică structura acordului, nu digitația)",
+    "lg_chord_deg_tip": "Treptele acordului: R = fundamentală, 3 = terță, 5 = cvintă etc. (indică structura acordului, nu digitația)",
     "midi_off": "Neconectat",
     "all_keys": "Toate tonalitățile",
     "none_ctx": "niciuna",
@@ -3266,7 +3268,7 @@ export const STRINGS = {
     "an_key_auto": "Automat",
     "an_keys_major": "Tonalități majore",
     "an_keys_minor": "Tonalități minore",
-    "an_rn_hands_tracks": "Mâinile urmează %s piste MIDI; pista mai acută este mâna dreaptă.",
+    "an_rn_hands_tracks": "Mâinile urmează %s piste MIDI; pista cu registrul mai înalt este mâna dreaptă.",
     "an_rn_hands_fallback": "Pistele se suprapun ca registru, așa că mâinile sunt împărțite la %s.",
     "an_rn_hands_one": "Există o singură pistă, așa că mâinile sunt împărțite la %s.",
     "an_rn_hands_split": "Mâinile sunt împărțite la %s.",
@@ -3368,8 +3370,8 @@ export const STRINGS = {
     "sym_dyn_fz": "forzando — accent forțat, brusc, doar pe această notă",
     "sym_dyn_rfz": "rinforzando — întărire bruscă: nota sau grupul scurt devine dintr-odată mai tare",
     "sym_dyn_fp": "forte-piano — atac tare, apoi scazi imediat la încet",
-    "sym_cresc": "Crescendo (con <) — volumul crește treptat pe toată lungimea conului",
-    "sym_dim": "Diminuendo / decrescendo (con >) — volumul scade treptat pe toată lungimea conului",
+    "sym_cresc": "Crescendo (furculiță <) — volumul crește treptat pe toată lungimea furculiței",
+    "sym_dim": "Diminuendo / decrescendo (furculiță >) — volumul scade treptat pe toată lungimea furculiței",
     "sym_t_dolce": "dolce — dulce, blând, cu un ton cald și moale",
     "sym_t_dolcissimo": "dolcissimo — foarte dulce și tandru",
     "sym_t_espressivo": "espressivo — expresiv, cu sentiment",
@@ -3555,7 +3557,7 @@ export const STRINGS = {
     "an_iv_sim": "armonic",
     "an_iv_mel": "melodic",
     "kb_deg": "nota %s a acordului",
-    "kb_deg_r": "rădăcina acordului",
+    "kb_deg_r": "fundamentala acordului",
     "today_tools": "Alte moduri de exersare",
     "tool_analysis_d": "Cântă o piesă inclusă sau propriul fișier MIDI ori MusicXML urmărind partitura.",
     "tool_read_d": "Exerciții de citire și melodii noi de citit la prima vedere.",
@@ -4022,7 +4024,9 @@ export const STRINGS = {
     "plan_lrev": "Recapitulează un capitol",
     "plan_lrev_d": "Recapitulare: %a (citit acum %b zile)",
     "plan_lrev_more": " · încă %a",
-    "plan_lrev_done": "Recapitulare făcută azi — bravo."
+    "plan_lrev_done": "Recapitulare făcută azi — bravo.",
+    "iv_plus_oct_one": " + 1 octavă",
+    "iv_plus_oct_many": " + %s octave"
   },
   "es": {
     "rdn_back_read": "← Volver a Lectura",
@@ -6034,7 +6038,9 @@ export const STRINGS = {
     "sym_rest_dotted": "%s con puntillo",
     "sym_rest_dots": "%s con %b puntillos",
     "sym_rest_body": "No toques durante esta figura; las demás voces pueden continuar.",
-    "sym_rest_measure_body": "No toques durante todo el compás en esta voz; las demás voces pueden continuar."
+    "sym_rest_measure_body": "No toques durante todo el compás en esta voz; las demás voces pueden continuar.",
+    "iv_plus_oct_one": " + 1 octava",
+    "iv_plus_oct_many": " + %s octavas"
   },
   "fr": {
     "rdn_back_read": "← Retour à Lecture",
@@ -8046,7 +8052,9 @@ export const STRINGS = {
     "sym_rest_dotted": "%s pointé",
     "sym_rest_dots": "%s avec %b points",
     "sym_rest_body": "Ne jouez pas pendant cette valeur ; les autres voix peuvent continuer.",
-    "sym_rest_measure_body": "Ne jouez pas pendant toute la mesure dans cette voix ; les autres voix peuvent continuer."
+    "sym_rest_measure_body": "Ne jouez pas pendant toute la mesure dans cette voix ; les autres voix peuvent continuer.",
+    "iv_plus_oct_one": " + 1 octave",
+    "iv_plus_oct_many": " + %s octaves"
   },
   "de": {
     "rdn_back_read": "← Zurück zu Lesen",
@@ -10058,7 +10066,9 @@ export const STRINGS = {
     "sym_rest_dotted": "punktierte %s",
     "sym_rest_dots": "%s mit %b Punkten",
     "sym_rest_body": "Für diesen Notenwert nicht spielen; andere Stimmen können weiterspielen.",
-    "sym_rest_measure_body": "In dieser Stimme den ganzen Takt lang nicht spielen; andere Stimmen können weiterspielen."
+    "sym_rest_measure_body": "In dieser Stimme den ganzen Takt lang nicht spielen; andere Stimmen können weiterspielen.",
+    "iv_plus_oct_one": " + 1 Oktave",
+    "iv_plus_oct_many": " + %s Oktaven"
   },
   "it": {
     "rdn_back_read": "← Torna a Lettura",
@@ -12070,7 +12080,9 @@ export const STRINGS = {
     "sym_rest_dotted": "%s col punto",
     "sym_rest_dots": "%s con %b punti",
     "sym_rest_body": "Non suonare per questa durata; le altre voci possono continuare.",
-    "sym_rest_measure_body": "Non suonare per l'intera battuta in questa voce; le altre voci possono continuare."
+    "sym_rest_measure_body": "Non suonare per l'intera battuta in questa voce; le altre voci possono continuare.",
+    "iv_plus_oct_one": " + 1 ottava",
+    "iv_plus_oct_many": " + %s ottave"
   },
   "pt-BR": {
     "rdn_back_read": "← Voltar para Leitura",
@@ -14082,7 +14094,9 @@ export const STRINGS = {
     "sym_rest_dotted": "%s pontuada",
     "sym_rest_dots": "%s com %b pontos",
     "sym_rest_body": "Não toque durante esta figura; as outras vozes podem continuar.",
-    "sym_rest_measure_body": "Não toque durante o compasso inteiro nesta voz; as outras vozes podem continuar."
+    "sym_rest_measure_body": "Não toque durante o compasso inteiro nesta voz; as outras vozes podem continuar.",
+    "iv_plus_oct_one": " + 1 oitava",
+    "iv_plus_oct_many": " + %s oitavas"
   }
 };
 
@@ -14747,7 +14761,7 @@ export const I18N_MUSIC = {
       "1": {
         "asc": [
           "Jaws / Fălci (temă)",
-          "Stormy Weather"
+          "Isn’t She Lovely"
         ],
         "desc": [
           "Für Elise"
@@ -14794,7 +14808,7 @@ export const I18N_MUSIC = {
           "Auld Lang Syne"
         ],
         "desc": [
-          "Born Free",
+          "Eine kleine Nachtmusik",
           "Adeste Fideles"
         ]
       },
@@ -14815,7 +14829,7 @@ export const I18N_MUSIC = {
         ],
         "desc": [
           "The Flintstones",
-          "Feelings"
+          "Menuet în Sol (Petzold)"
         ]
       },
       "8": {
@@ -14825,7 +14839,7 @@ export const I18N_MUSIC = {
           "We’ve Only Just Begun"
         ],
         "desc": [
-          "Music of the Night"
+          "Under the Bridge (introducere)"
         ]
       },
       "9": {
@@ -14834,7 +14848,7 @@ export const I18N_MUSIC = {
           "Clopoței (Jingle Bells)"
         ],
         "desc": [
-          "Nobody Knows the Trouble I’ve Seen"
+          "The Music of the Night"
         ]
       },
       "10": {
@@ -14848,8 +14862,7 @@ export const I18N_MUSIC = {
       },
       "11": {
         "asc": [
-          "Take On Me (refren)",
-          "Bali Ha’i"
+          "Don’t Know Why"
         ],
         "desc": [
           "(rar)"
@@ -14869,7 +14882,7 @@ export const I18N_MUSIC = {
       "1": {
         "asc": [
           "Tiburón (tema)",
-          "Stormy Weather"
+          "Isn’t She Lovely"
         ],
         "desc": [
           "Para Elisa (Für Elise)"
@@ -14916,7 +14929,7 @@ export const I18N_MUSIC = {
           "Auld Lang Syne"
         ],
         "desc": [
-          "Born Free",
+          "Eine kleine Nachtmusik",
           "Adeste Fideles"
         ]
       },
@@ -14937,7 +14950,7 @@ export const I18N_MUSIC = {
         ],
         "desc": [
           "Los Picapiedra",
-          "Feelings"
+          "Minueto en sol (Petzold)"
         ]
       },
       "8": {
@@ -14947,7 +14960,7 @@ export const I18N_MUSIC = {
           "We’ve Only Just Begun"
         ],
         "desc": [
-          "The Music of the Night"
+          "Under the Bridge (introducción)"
         ]
       },
       "9": {
@@ -14956,7 +14969,7 @@ export const I18N_MUSIC = {
           "Navidad, dulce Navidad (Jingle Bells)"
         ],
         "desc": [
-          "Nobody Knows the Trouble I’ve Seen"
+          "The Music of the Night"
         ]
       },
       "10": {
@@ -14970,8 +14983,7 @@ export const I18N_MUSIC = {
       },
       "11": {
         "asc": [
-          "Take On Me (estribillo)",
-          "Bali Ha’i"
+          "Don’t Know Why"
         ],
         "desc": [
           "(muy raro)"
@@ -14991,7 +15003,7 @@ export const I18N_MUSIC = {
       "1": {
         "asc": [
           "Les Dents de la mer (thème)",
-          "Stormy Weather"
+          "Isn’t She Lovely"
         ],
         "desc": [
           "Lettre à Élise"
@@ -15038,7 +15050,7 @@ export const I18N_MUSIC = {
           "Ce n’est qu’un au revoir (Auld Lang Syne)"
         ],
         "desc": [
-          "Born Free",
+          "Eine kleine Nachtmusik",
           "Adeste Fideles"
         ]
       },
@@ -15059,7 +15071,7 @@ export const I18N_MUSIC = {
         ],
         "desc": [
           "Les Pierrafeu (thème)",
-          "Feelings"
+          "Menuet en sol (Petzold)"
         ]
       },
       "8": {
@@ -15069,7 +15081,7 @@ export const I18N_MUSIC = {
           "We’ve Only Just Begun"
         ],
         "desc": [
-          "The Music of the Night"
+          "Under the Bridge (intro)"
         ]
       },
       "9": {
@@ -15078,7 +15090,7 @@ export const I18N_MUSIC = {
           "Vive le vent (Jingle Bells)"
         ],
         "desc": [
-          "Nobody Knows the Trouble I’ve Seen"
+          "The Music of the Night"
         ]
       },
       "10": {
@@ -15092,8 +15104,7 @@ export const I18N_MUSIC = {
       },
       "11": {
         "asc": [
-          "Take On Me (refrain)",
-          "Bali Ha’i"
+          "Don’t Know Why"
         ],
         "desc": [
           "(très rare)"
@@ -15113,7 +15124,7 @@ export const I18N_MUSIC = {
       "1": {
         "asc": [
           "Der weiße Hai (Jaws-Thema)",
-          "Stormy Weather"
+          "Isn’t She Lovely"
         ],
         "desc": [
           "Für Elise"
@@ -15160,7 +15171,7 @@ export const I18N_MUSIC = {
           "Auld Lang Syne"
         ],
         "desc": [
-          "Born Free",
+          "Eine kleine Nachtmusik",
           "Herbei, o ihr Gläub’gen (Adeste Fideles)"
         ]
       },
@@ -15181,7 +15192,7 @@ export const I18N_MUSIC = {
         ],
         "desc": [
           "Familie Feuerstein (The Flintstones)",
-          "Feelings"
+          "Menuett G-Dur (Petzold)"
         ]
       },
       "8": {
@@ -15191,7 +15202,7 @@ export const I18N_MUSIC = {
           "We’ve Only Just Begun"
         ],
         "desc": [
-          "Music of the Night"
+          "Under the Bridge (Intro)"
         ]
       },
       "9": {
@@ -15200,7 +15211,7 @@ export const I18N_MUSIC = {
           "Kling, Glöckchen (Jingle Bells)"
         ],
         "desc": [
-          "Nobody Knows the Trouble I’ve Seen"
+          "The Music of the Night"
         ]
       },
       "10": {
@@ -15214,8 +15225,7 @@ export const I18N_MUSIC = {
       },
       "11": {
         "asc": [
-          "Take On Me (Refrain)",
-          "Bali Ha’i"
+          "Don’t Know Why"
         ],
         "desc": [
           "(sehr selten)"
@@ -15235,7 +15245,7 @@ export const I18N_MUSIC = {
       "1": {
         "asc": [
           "Lo squalo (tema)",
-          "Stormy Weather"
+          "Isn’t She Lovely"
         ],
         "desc": [
           "Per Elisa"
@@ -15282,7 +15292,7 @@ export const I18N_MUSIC = {
           "Auld Lang Syne"
         ],
         "desc": [
-          "Born Free",
+          "Eine kleine Nachtmusik",
           "Adeste Fideles"
         ]
       },
@@ -15303,7 +15313,7 @@ export const I18N_MUSIC = {
         ],
         "desc": [
           "I Flintstones",
-          "Feelings"
+          "Minuetto in Sol (Petzold)"
         ]
       },
       "8": {
@@ -15313,7 +15323,7 @@ export const I18N_MUSIC = {
           "We’ve Only Just Begun"
         ],
         "desc": [
-          "Music of the Night"
+          "Under the Bridge (intro)"
         ]
       },
       "9": {
@@ -15322,7 +15332,7 @@ export const I18N_MUSIC = {
           "Jingle Bells (Dashing Through the Snow)"
         ],
         "desc": [
-          "Nobody Knows the Trouble I’ve Seen"
+          "The Music of the Night"
         ]
       },
       "10": {
@@ -15336,8 +15346,7 @@ export const I18N_MUSIC = {
       },
       "11": {
         "asc": [
-          "Take On Me (ritornello)",
-          "Bali Ha’i"
+          "Don’t Know Why"
         ],
         "desc": [
           "(raro)"
@@ -15357,7 +15366,7 @@ export const I18N_MUSIC = {
       "1": {
         "asc": [
           "Tubarão (tema)",
-          "Stormy Weather"
+          "Isn’t She Lovely"
         ],
         "desc": [
           "Para Elise"
@@ -15404,7 +15413,7 @@ export const I18N_MUSIC = {
           "Auld Lang Syne"
         ],
         "desc": [
-          "Born Free",
+          "Eine kleine Nachtmusik",
           "Adeste Fideles"
         ]
       },
@@ -15425,7 +15434,7 @@ export const I18N_MUSIC = {
         ],
         "desc": [
           "Os Flintstones",
-          "Feelings"
+          "Minueto em Sol (Petzold)"
         ]
       },
       "8": {
@@ -15435,7 +15444,7 @@ export const I18N_MUSIC = {
           "We’ve Only Just Begun"
         ],
         "desc": [
-          "Music of the Night"
+          "Under the Bridge (intro)"
         ]
       },
       "9": {
@@ -15444,7 +15453,7 @@ export const I18N_MUSIC = {
           "Bate o Sino (Jingle Bells)"
         ],
         "desc": [
-          "Nobody Knows the Trouble I’ve Seen"
+          "The Music of the Night"
         ]
       },
       "10": {
@@ -15458,8 +15467,7 @@ export const I18N_MUSIC = {
       },
       "11": {
         "asc": [
-          "Take On Me (refrão)",
-          "Bali Ha’i"
+          "Don’t Know Why"
         ],
         "desc": [
           "(raro)"
@@ -15475,6 +15483,110 @@ export const I18N_MUSIC = {
         ]
       }
     }
+  },
+  "progressions": {
+    "ro": {
+      "I–IV–V": "I–IV–V",
+      "I–V–vi–IV (pop)": "I–V–vi–IV (pop)",
+      "ii–V–I (jazz)": "ii–V–I (jazz)",
+      "I–vi–IV–V (50s)": "I–vi–IV–V (anii ’50)",
+      "vi–IV–I–V": "vi–IV–I–V",
+      "I–♭VII–IV (rock)": "I–♭VII–IV (rock)",
+      "minor ii–V–i": "ii–V–i minor",
+      "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (epic)",
+      "12-bar blues": "Blues de 12 măsuri",
+      "Pachelbel’s Canon": "Canonul lui Pachelbel",
+      "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel pop)",
+      "Andalusian i–♭VII–♭VI–V": "Cadența andaluză i–♭VII–♭VI–V",
+      "Jazz turnaround I–vi–ii–V": "Turnaround jazz I–vi–ii–V",
+      "Circle of 5ths vi–ii–V–I": "Cercul cvintelor vi–ii–V–I",
+      "Ballad I–iii–IV–V": "Baladă I–iii–IV–V"
+    },
+    "es": {
+      "I–IV–V": "I–IV–V",
+      "I–V–vi–IV (pop)": "I–V–vi–IV (pop)",
+      "ii–V–I (jazz)": "ii–V–I (jazz)",
+      "I–vi–IV–V (50s)": "I–vi–IV–V (años 50)",
+      "vi–IV–I–V": "vi–IV–I–V",
+      "I–♭VII–IV (rock)": "I–♭VII–IV (rock)",
+      "minor ii–V–i": "ii–V–i menor",
+      "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (épica)",
+      "12-bar blues": "Blues de 12 compases",
+      "Pachelbel’s Canon": "Canon de Pachelbel",
+      "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel pop)",
+      "Andalusian i–♭VII–♭VI–V": "Cadencia andaluza i–♭VII–♭VI–V",
+      "Jazz turnaround I–vi–ii–V": "Turnaround de jazz I–vi–ii–V",
+      "Circle of 5ths vi–ii–V–I": "Círculo de quintas vi–ii–V–I",
+      "Ballad I–iii–IV–V": "Balada I–iii–IV–V"
+    },
+    "fr": {
+      "I–IV–V": "I–IV–V",
+      "I–V–vi–IV (pop)": "I–V–vi–IV (pop)",
+      "ii–V–I (jazz)": "ii–V–I (jazz)",
+      "I–vi–IV–V (50s)": "I–vi–IV–V (années 50)",
+      "vi–IV–I–V": "vi–IV–I–V",
+      "I–♭VII–IV (rock)": "I–♭VII–IV (rock)",
+      "minor ii–V–i": "ii–V–i mineur",
+      "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (épique)",
+      "12-bar blues": "Blues en 12 mesures",
+      "Pachelbel’s Canon": "Canon de Pachelbel",
+      "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel pop)",
+      "Andalusian i–♭VII–♭VI–V": "Cadence andalouse i–♭VII–♭VI–V",
+      "Jazz turnaround I–vi–ii–V": "Anatole jazz I–vi–ii–V",
+      "Circle of 5ths vi–ii–V–I": "Cycle des quintes vi–ii–V–I",
+      "Ballad I–iii–IV–V": "Ballade I–iii–IV–V"
+    },
+    "de": {
+      "I–IV–V": "I–IV–V",
+      "I–V–vi–IV (pop)": "I–V–vi–IV (Pop)",
+      "ii–V–I (jazz)": "ii–V–I (Jazz)",
+      "I–vi–IV–V (50s)": "I–vi–IV–V (50er)",
+      "vi–IV–I–V": "vi–IV–I–V",
+      "I–♭VII–IV (rock)": "I–♭VII–IV (Rock)",
+      "minor ii–V–i": "Moll ii–V–i",
+      "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (episch)",
+      "12-bar blues": "12-Takt-Blues",
+      "Pachelbel’s Canon": "Pachelbels Kanon",
+      "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel-Pop)",
+      "Andalusian i–♭VII–♭VI–V": "Andalusische Kadenz i–♭VII–♭VI–V",
+      "Jazz turnaround I–vi–ii–V": "Jazz-Turnaround I–vi–ii–V",
+      "Circle of 5ths vi–ii–V–I": "Quintenzirkel vi–ii–V–I",
+      "Ballad I–iii–IV–V": "Ballade I–iii–IV–V"
+    },
+    "it": {
+      "I–IV–V": "I–IV–V",
+      "I–V–vi–IV (pop)": "I–V–vi–IV (pop)",
+      "ii–V–I (jazz)": "ii–V–I (jazz)",
+      "I–vi–IV–V (50s)": "I–vi–IV–V (anni ’50)",
+      "vi–IV–I–V": "vi–IV–I–V",
+      "I–♭VII–IV (rock)": "I–♭VII–IV (rock)",
+      "minor ii–V–i": "ii–V–i minore",
+      "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (epica)",
+      "12-bar blues": "Blues di 12 battute",
+      "Pachelbel’s Canon": "Canone di Pachelbel",
+      "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel pop)",
+      "Andalusian i–♭VII–♭VI–V": "Cadenza andalusa i–♭VII–♭VI–V",
+      "Jazz turnaround I–vi–ii–V": "Turnaround jazz I–vi–ii–V",
+      "Circle of 5ths vi–ii–V–I": "Circolo delle quinte vi–ii–V–I",
+      "Ballad I–iii–IV–V": "Ballata I–iii–IV–V"
+    },
+    "pt-BR": {
+      "I–IV–V": "I–IV–V",
+      "I–V–vi–IV (pop)": "I–V–vi–IV (pop)",
+      "ii–V–I (jazz)": "ii–V–I (jazz)",
+      "I–vi–IV–V (50s)": "I–vi–IV–V (anos 50)",
+      "vi–IV–I–V": "vi–IV–I–V",
+      "I–♭VII–IV (rock)": "I–♭VII–IV (rock)",
+      "minor ii–V–i": "ii–V–i menor",
+      "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (épica)",
+      "12-bar blues": "Blues de 12 compassos",
+      "Pachelbel’s Canon": "Cânone de Pachelbel",
+      "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel pop)",
+      "Andalusian i–♭VII–♭VI–V": "Cadência andaluza i–♭VII–♭VI–V",
+      "Jazz turnaround I–vi–ii–V": "Turnaround de jazz I–vi–ii–V",
+      "Circle of 5ths vi–ii–V–I": "Ciclo das quintas vi–ii–V–I",
+      "Ballad I–iii–IV–V": "Balada I–iii–IV–V"
+    }
   }
 };
 
@@ -15485,10 +15597,35 @@ export const STEP_LABELS = {
     "2": "W",
     "3": "W+H"
   },
+  "ro": {
+    "1": "S",
+    "2": "T",
+    "3": "T+S"
+  },
+  "es": {
+    "1": "S",
+    "2": "T",
+    "3": "T+S"
+  },
+  "fr": {
+    "1": "D",
+    "2": "T",
+    "3": "T+D"
+  },
   "de": {
     "1": "H",
     "2": "G",
     "3": "G+H"
+  },
+  "it": {
+    "1": "S",
+    "2": "T",
+    "3": "T+S"
+  },
+  "pt-BR": {
+    "1": "S",
+    "2": "T",
+    "3": "T+S"
   }
 };
 

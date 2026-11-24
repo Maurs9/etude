@@ -68,7 +68,7 @@ const payload: LearnPayload = {
     },
     "cad": {
       "t": "Kadenzen — musikalische Zeichensetzung",
-      "b": "\n<p>Eine <b>Kadenz</b> ist die Akkordfortschreitung, die eine Phrase abschließt. Wie Satzzeichen beenden manche den Satz vollständig, während andere ihn in der Schwebe lassen:</p>\n<ul>\n<li><b>Vollkommener Ganzschluss (PAC)</b> — V(7) → I, beide in Grundstellung, Melodie endet auf dem Grundton. Ein echter Schlusspunkt.</li>\n<li><b>Unvollkommener Ganzschluss (IAC)</b> — V → I, aber klanglich schwächer: eine Umkehrung oder die Melodie endet auf der Terz oder Quinte. Ein Semikolon.</li>\n<li><b>Halbschluss (HC)</b> — beliebiger Akkord → V. Ein Komma oder Fragezeichen: „Fortsetzung folgt“.</li>\n<li><b>Plagalschluss (PC)</b> — IV → I, die feierliche „Amen“-Wendung aus Kirchenliedern.</li>\n<li><b>Trugschluss (DC)</b> — V → vi. Man erwartet die heimatliche I und wird überrascht; die Musik muss weitergehen.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.60.67.72\">PAC: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">HC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Trugschluss: V → vi</button></div>\n<h4>Entdecke sie in echten Meisterwerken</h4>\n<p>Das Menuett in G beendet seine erste Hälfte mit einem Halbschluss und seine zweite mit einem vollkommenen Ganzschluss – öffne Stücke, um die Stufenziffern unter jedem Takt zu sehen.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Ansehen in „Stücke“: Menuett in G →</button></div>\n<p class=\"learn-note\">Achte beim Hören beliebiger Lieder auf Kadenzen: Summe den letzten Akkord jeder Zeile mit. Fühlt er sich abgeschlossen an (Ganzschluss), schwebend (Halbschluss) oder überraschend (Trugschluss)?</p>"
+      "b": "\n<p>Eine <b>Kadenz</b> ist die Akkordfortschreitung, die eine Phrase abschließt. Wie Satzzeichen beenden manche den Satz vollständig, während andere ihn in der Schwebe lassen:</p>\n<ul>\n<li><b>Vollkommener Ganzschluss (PAC)</b> — V(7) → I, beide in Grundstellung, Melodie endet auf dem Grundton. Ein echter Schlusspunkt.</li>\n<li><b>Unvollkommener Ganzschluss (IAC)</b> — V → I, aber klanglich schwächer: eine Umkehrung oder die Melodie endet auf der Terz oder Quinte. Ein Semikolon.</li>\n<li><b>Halbschluss (HC)</b> — beliebiger Akkord → V. Ein Komma oder Fragezeichen: „Fortsetzung folgt“.</li>\n<li><b>Plagalschluss (PC)</b> — IV → I, die feierliche „Amen“-Wendung aus Kirchenliedern.</li>\n<li><b>Trugschluss (DC)</b> — V → vi. Man erwartet die heimatliche I und wird überrascht; die Musik muss weitergehen.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.64.67.72\">PAC: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">HC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Trugschluss: V → vi</button></div>\n<h4>Entdecke sie in echten Meisterwerken</h4>\n<p>Das Menuett in G beendet seine erste Hälfte mit einem Halbschluss und seine zweite mit einem vollkommenen Ganzschluss – öffne Stücke, um die Stufenziffern unter jedem Takt zu sehen.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Ansehen in „Stücke“: Menuett in G →</button></div>\n<p class=\"learn-note\">Achte beim Hören beliebiger Lieder auf Kadenzen: Summe den letzten Akkord jeder Zeile mit. Fühlt er sich abgeschlossen an (Ganzschluss), schwebend (Halbschluss) oder überraschend (Trugschluss)?</p>"
     },
     "minorh": {
       "t": "Harmonielehre in Moll",
@@ -80,7 +80,7 @@ const payload: LearnPayload = {
     },
     "secdom": {
       "t": "Zwischendominanten, Modulation & Stimmführung",
-      "b": "\n<p>Jeder Dur- oder Moll-Akkord einer Tonart kann seine <b>eigene Dominante</b>erhalten. In C-Dur ist die Dominante V von G der D-Dur-Akkord (D–Fis–A): Wir schreiben ihn als <b>V/V</b>, „Fünf von Fünf“. Das geliehene Fis fungiert als vorübergehender Leitton, der nach G strebt – ein Moment frischer Klangfarbe, ohne die Tonart ganz zu verlassen.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulation</h4>\n<p>Wenn die neue Tonika dauerhaft Fuß fasst – bestätigt durch eine Kadenz in der neuen Tonart –, hast du <b>moduliert</b>. Der geschmeidigste Weg führt über einen <b>Drehklang (Pivot Chord)</b> , der beiden Tonarten angehört: Am ist vi in C-Dur und ii in G-Dur, sodass C – Am – D7 – G nahtlos nach G-Dur gleitet. Die meisten klassischen Stücke modulieren zur Dominante (Dur) oder Parallele (Moll) und kehren am Ende zurück.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G über Drehklang Am</button></div>\n<h4>Stimmführung</h4>\n<p>Stelle dir jeden Akkord wie 3–4 Sänger vor. Gute Stimmführung bewegt jeden Sänger so sparsam wie möglich:</p>\n<ul>\n<li>Behalte <b>gemeinsame Töne</b> in derselben Stimme; bewege die übrigen stufenweise.</li>\n<li>Löse Strebetöne auf: Der Leitton (7) strebt <b>nach oben</b> zur 1; die Septime eines Akkords strebt <b>nach unten</b> im Schritt.</li>\n<li>Vermeide <b>parallele Quinten und Oktaven</b> zwischen zwei Stimmen – sie lassen die Stimmen zu einer verschmelzen.</li>\n<li>Der Bass darf springen; die oberen Stimmen bevorzugen Schritte.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|48.60.65.69|47.59.62.67|48.60.64.67\">Geschmeidig: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Sprunghaft: dieselben Akkorde, alle in Grundstellung</button></div>\n<p class=\"learn-note\">Auf dem Klavier ist Stimmführung zugleich ein Spieltechnik-Tipp: Umkehrungen lassen die Hand ruhig an einem Ort verweilen. Vergleiche die beiden Demos oben – dieselben Akkorde, völlig anderer Kraftaufwand.</p>"
+      "b": "\n<p>Jeder Dur- oder Moll-Akkord einer Tonart kann seine <b>eigene Dominante</b>erhalten. In C-Dur ist die Dominante V von G der D-Dur-Akkord (D–Fis–A): Wir schreiben ihn als <b>V/V</b>, „Fünf von Fünf“. Das geliehene Fis fungiert als vorübergehender Leitton, der nach G strebt – ein Moment frischer Klangfarbe, ohne die Tonart ganz zu verlassen.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulation</h4>\n<p>Wenn die neue Tonika dauerhaft Fuß fasst – bestätigt durch eine Kadenz in der neuen Tonart –, hast du <b>moduliert</b>. Der geschmeidigste Weg führt über einen <b>Drehklang (Pivot Chord)</b> , der beiden Tonarten angehört: Am ist vi in C-Dur und ii in G-Dur, sodass C – Am – D7 – G nahtlos nach G-Dur gleitet. Die meisten klassischen Stücke modulieren zur Dominante (Dur) oder Parallele (Moll) und kehren am Ende zurück.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G über Drehklang Am</button></div>\n<h4>Stimmführung</h4>\n<p>Stelle dir jeden Akkord wie 3–4 Sänger vor. Gute Stimmführung bewegt jeden Sänger so sparsam wie möglich:</p>\n<ul>\n<li>Behalte <b>gemeinsame Töne</b> in derselben Stimme; bewege die übrigen stufenweise.</li>\n<li>Löse Strebetöne auf: Der Leitton (7) strebt <b>nach oben</b> zur 1; die Septime eines Akkords strebt <b>nach unten</b> im Schritt.</li>\n<li>Vermeide <b>parallele Quinten und Oktaven</b> zwischen zwei Stimmen – sie lassen die Stimmen zu einer verschmelzen.</li>\n<li>Der Bass darf springen; die oberen Stimmen bevorzugen Schritte.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|41.60.65.69|43.59.62.67|48.60.64.67\">Geschmeidig: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Sprunghaft: dieselben Akkorde, alle in Grundstellung</button></div>\n<p class=\"learn-note\">Auf dem Klavier ist Stimmführung zugleich ein Spieltechnik-Tipp: Umkehrungen lassen die Hand ruhig an einem Ort verweilen. Vergleiche die beiden Demos oben – dieselben Akkorde, völlig anderer Kraftaufwand.</p>"
     },
     "form": {
       "t": "Formlehre: Motive, Phrasen & Abschnitte",
@@ -124,6 +124,9 @@ const payload: LearnPayload = {
         "q": "Spiele das mittlere C (C4).",
         "seq": [
           0
+        ],
+        "exactMidi": [
+          60
         ]
       },
       {
@@ -131,6 +134,9 @@ const payload: LearnPayload = {
         "seq": [
           4,
           5
+        ],
+        "stepDiff": [
+          1
         ]
       }
     ],
@@ -206,6 +212,9 @@ const payload: LearnPayload = {
         "q": "Spiele den Ton auf der zweiten Linie im Violinschlüssel (G4).",
         "seq": [
           7
+        ],
+        "exactMidi": [
+          67
         ]
       }
     ],
@@ -424,6 +433,9 @@ const payload: LearnPayload = {
         "seq": [
           2,
           9
+        ],
+        "stepDiff": [
+          7
         ]
       }
     ],

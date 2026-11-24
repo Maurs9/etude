@@ -123,7 +123,7 @@ export default [
         {
           patterns: [
             LEGACY_IMPORTS,
-            { group: ['../domain/views', '../domain/views.*'], message: 'Locale modules cannot depend on views.' },
+            { group: ['../domain/views', '../domain/views.*', '../domain/views-runtime', '../domain/views-runtime.*'], message: 'Locale modules cannot depend on views.' },
           ],
         },
       ],
@@ -138,7 +138,7 @@ export default [
         {
           patterns: [
             LEGACY_IMPORTS,
-            { group: ['./audio', './audio.*', './storage', './storage.*', './notation', './notation.*', './views', './views.*'], message: 'Pure domain modules must not depend on browser or view domains.' },
+            { group: ['./audio', './audio.*', './storage', './storage.*', './notation', './notation.*', './views', './views.*', './views-runtime', './views-runtime.*'], message: 'Pure domain modules must not depend on browser or view domains.' },
           ],
         },
       ],
@@ -170,7 +170,7 @@ export default [
         {
           patterns: [
             LEGACY_IMPORTS,
-            { group: ['./views', './views.*'], message: 'Infrastructure domains must not depend on the view runtime.' },
+            { group: ['./views', './views.*', './views-runtime', './views-runtime.*'], message: 'Infrastructure domains must not depend on the view runtime.' },
           ],
         },
       ],

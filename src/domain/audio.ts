@@ -28,6 +28,7 @@ export interface AudioVoice {
   stop(when?: number): void;
   setBend(): void;
   previewEnd?: number;
+  voiceKind?: 'sampled' | 'synth';
   oscs?: OscillatorNode[];
   g?: GainNode;
   inner?: AudioVoice | null;
@@ -330,6 +331,8 @@ function midiToFrequency(midi: number): number {
 export class AudioEngine {
   readonly pianoBank: PianoBank;
   readonly liveVoices = new Map<number, AudioVoice>();
+  readonly maxSampledVoices = 48;
+  readonly maxSynthVoices = 20;
   previewVoices: AudioVoice[] = [];
   tone: AudioTone = 'piano';
   localSynth = true;
@@ -556,6 +559,7 @@ export class AudioEngine {
     const voice: AudioVoice & { inner: AudioVoice | null; released: boolean } = {
       inner: null,
       released: false,
+      voiceKind: 'sampled',
       stop: (at?: number) => {
         voice.released = true;
         voice.inner?.stop(at);
@@ -671,6 +675,8 @@ export class AudioEngine {
         const buffer = this.pianoBank.touch(fallback);
         if (buffer) start(buffer, fallback);
       } else {
+        voice.voiceKind = 'synth';
+        this.enforcePolyphonyCap('synth', context.currentTime);
         voice.inner = hooks.fallbackVoice
           ? hooks.fallbackVoice(frequency, velocity, when, duration)
           : this.makePianoVoice(frequency, velocity, when, duration);
@@ -759,6 +765,7 @@ export class AudioEngine {
     const voice: AudioVoice = {
       oscs: oscillators,
       g: output,
+      voiceKind: 'synth',
       stop: (at?: number) => {
         const releaseAt = at ?? context.currentTime;
         try { hammer.stop(Math.min(startAt + .09, releaseAt)); } catch { /* already stopped */ }
@@ -840,6 +847,7 @@ export class AudioEngine {
     }
     return {
       g: gain,
+      voiceKind: 'synth',
       stop: (at?: number) => {
         const releaseAt = at ?? context.currentTime;
         gain.gain.cancelScheduledValues(releaseAt);
@@ -857,10 +865,51 @@ export class AudioEngine {
     };
   }
 
+  private enforcePolyphonyCap(kind: 'sampled' | 'synth', now: number): void {
+    this.previewVoices = this.previewVoices.filter(
+      voice => !voice.released && (voice.previewEnd ?? 0) > now,
+    );
+    const limit = kind === 'synth' ? this.maxSynthVoices : this.maxSampledVoices;
+    const isKind = (voice: AudioVoice): boolean => (voice.voiceKind ?? 'sampled') === kind;
+    const countMatching = (): number => {
+      let count = 0;
+      for (const voice of this.previewVoices) {
+        if (!voice.released && isKind(voice)) count += 1;
+      }
+      for (const voice of this.liveVoices.values()) {
+        if (!voice.released && isKind(voice)) count += 1;
+      }
+      return count;
+    };
+    while (countMatching() >= limit) {
+      const previewIndex = this.previewVoices.findIndex(voice => !voice.released && isKind(voice));
+      if (previewIndex >= 0) {
+        const [victim] = this.previewVoices.splice(previewIndex, 1);
+        victim.stop(now);
+        continue;
+      }
+      let stolen = false;
+      for (const [midi, voice] of this.liveVoices) {
+        if (!voice.released && isKind(voice)) {
+          this.liveVoices.delete(midi);
+          voice.stop(now);
+          stolen = true;
+          break;
+        }
+      }
+      if (!stolen) break;
+    }
+  }
+
   noteOn(midi: number, velocity = 100, hooks: PianoVoiceHooks = {}): void {
     if (!this.localSynth) return;
-    if (!this.ensureAudio()) return;
-    if (this.liveVoices.has(midi)) this.liveVoices.get(midi)?.stop();
+    const context = this.ensureAudio();
+    if (!context) return;
+    if (this.liveVoices.has(midi)) {
+      this.liveVoices.get(midi)?.stop();
+      this.liveVoices.delete(midi);
+    }
+    this.enforcePolyphonyCap(this.tone === 'piano' ? 'sampled' : 'synth', context.currentTime);
     this.liveVoices.set(midi, this.makeVoice(midiToFrequency(midi), velocity, undefined, undefined, hooks));
   }
 
@@ -884,7 +933,7 @@ export class AudioEngine {
   preview(note: number, when?: number, duration = 0.8, velocity = 96, options: PianoVoiceOptions = {}): void {
     const context = this.ensureAudio();
     if (!context) return;
-    this.previewVoices = this.previewVoices.filter(voice => (voice.previewEnd ?? 0) > context.currentTime);
+    this.enforcePolyphonyCap('sampled', context.currentTime);
     const voice = this.sampledPianoVoice(midiToFrequency(note), velocity, when, duration, options);
     voice.previewEnd = (when ?? context.currentTime) + duration + (options.hold ? 0.8 : 0.45);
     this.previewVoices.push(voice);
@@ -938,12 +987,12 @@ export class AudioEngine {
     this.master.gain.linearRampToValueAtTime(value, now + 0.02);
   }
 
-  startMetro(bpm: number): void {
+  startMetro(bpm: number, startAt?: number): void {
     const context = this.ensureAudio();
     if (!context) return;
     this.metroBpm = bpm;
     this.metroOn = true;
-    this.metroNext = context.currentTime + 0.12;
+    this.metroNext = startAt != null && Number.isFinite(startAt) ? startAt : context.currentTime + 0.12;
     this.metroBeat = 0;
     if (!this.metroTimer) this.metroTimer = setInterval(() => this.metroSchedule(), 25);
   }

@@ -68,7 +68,7 @@ const payload: LearnPayload = {
     },
     "cad": {
       "t": "Cadências: pontuação musical",
-      "b": "\n<p>Uma <b>cadência</b> é o movimento harmônico que encerra uma frase. Assim como sinais de pontuação, algumas concluem a frase e outras a deixam em suspenso:</p>\n<ul>\n<li><b>Autêntica perfeita (CAP)</b>: V(7) → I, ambos em estado fundamental com a melodia repousando na tônica. Um ponto final definitivo.</li>\n<li><b>Autêntica imperfeita (CAI)</b>: V → I, mas mais suave: com inversões, ou com a melodia terminando na 3ª ou 5ª. Um ponto e vírgula.</li>\n<li><b>Meia cadência (MC)</b>: qualquer acorde → V. Uma vírgula ou ponto de interrogação: a frase continua.</li>\n<li><b>Plagal (CP)</b>: IV → I, o tradicional fechamento «Amém» dos hinos.</li>\n<li><b>Deceptiva ou de engano (CD)</b>: V → vi. Você espera chegar em casa e recebe uma surpresa menor; a frase precisa prosseguir.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.60.67.72\">CAP: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">MC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Engano: V → vi</button></div>\n<h4>Encontre-as em obras reais</h4>\n<p>O Minueto em Sol encerra sua primeira metade com uma meia cadência e a segunda com uma cadência autêntica perfeita: abra Peças para ver os numerais romanos sob cada compasso.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Ver em Peças: Minueto em Sol →</button></div>\n<p class=\"learn-note\">Fique atento às cadências em qualquer canção: cantarole o último acorde de cada verso. Ele parece concluído (autêntica), em suspenso (meia cadência) ou surpreendente (engano)?</p>"
+      "b": "\n<p>Uma <b>cadência</b> é o movimento harmônico que encerra uma frase. Assim como sinais de pontuação, algumas concluem a frase e outras a deixam em suspenso:</p>\n<ul>\n<li><b>Autêntica perfeita (CAP)</b>: V(7) → I, ambos em estado fundamental com a melodia repousando na tônica. Um ponto final definitivo.</li>\n<li><b>Autêntica imperfeita (CAI)</b>: V → I, mas mais suave: com inversões, ou com a melodia terminando na 3ª ou 5ª. Um ponto e vírgula.</li>\n<li><b>Meia cadência (MC)</b>: qualquer acorde → V. Uma vírgula ou ponto de interrogação: a frase continua.</li>\n<li><b>Plagal (CP)</b>: IV → I, o tradicional fechamento «Amém» dos hinos.</li>\n<li><b>Deceptiva ou de engano (CD)</b>: V → vi. Você espera chegar em casa e recebe uma surpresa menor; a frase precisa prosseguir.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.64.67.72\">CAP: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">MC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Engano: V → vi</button></div>\n<h4>Encontre-as em obras reais</h4>\n<p>O Minueto em Sol encerra sua primeira metade com uma meia cadência e a segunda com uma cadência autêntica perfeita: abra Peças para ver os numerais romanos sob cada compasso.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Ver em Peças: Minueto em Sol →</button></div>\n<p class=\"learn-note\">Fique atento às cadências em qualquer canção: cantarole o último acorde de cada verso. Ele parece concluído (autêntica), em suspenso (meia cadência) ou surpreendente (engano)?</p>"
     },
     "minorh": {
       "t": "Harmonia em tonalidades menores",
@@ -80,7 +80,7 @@ const payload: LearnPayload = {
     },
     "secdom": {
       "t": "Dominantes secundárias, modulação e condução de vozes",
-      "b": "\n<p>Qualquer acorde maior ou menor de uma tonalidade pode receber sua <b>própria dominante</b>. Em Dó maior, o acorde V de Sol é Ré maior (D–F♯–A): escrevemos como <b>V/V</b>, «cinco do cinco». O Fá♯ emprestado atua como uma sensível passageira que puxa em direção a Sol: uma pincelada de cor sem sair da tonalidade.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulação</h4>\n<p>Quando o novo centro tonal se estabelece (confirmado por uma cadência na nova tonalidade), ocorreu uma <b>modulação</b>. A forma mais natural é através de um <b>acorde pivô</b> que pertence a ambas as tonalidades: Am é vi em Dó e ii em Sol, de modo que C – Am – D7 – G conduz perfeitamente até Sol maior. A maioria das peças clássicas modula para a dominante (em tom maior) ou para a relativa maior (em tom menor) e retorna no final.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G através do pivô Am</button></div>\n<h4>Condução de vozes</h4>\n<p>Pense em cada acorde como um coro de 3 a 4 cantores. Uma boa condução de vozes move cada cantor o mínimo possível:</p>\n<ul>\n<li>Mantenha as <b>notas comuns</b> na mesma voz; mova as outras por graus conjuntos.</li>\n<li>Resolva as notas de tendência: a sensível (7) sobe <b>para cima</b> para a tônica (1); a 7ª do acorde desce <b>para baixo</b> por grau conjunto.</li>\n<li>Evite <b>quintas e oitavas paralelas</b> consecutivas entre duas vozes: elas fazem as vozes se fundirem, perdendo independência.</li>\n<li>O baixo pode dar saltos; as vozes superiores preferem movimentos por graus conjuntos.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|48.60.65.69|47.59.62.67|48.60.64.67\">Fluido: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Áspero: mesmos acordes, todos em estado fundamental</button></div>\n<p class=\"learn-note\">No piano, a condução de vozes também é uma dica técnica valiosa: inversões mantêm sua mão numa posição estável. Compare os dois exemplos acima: mesmos acordes, esforço muscular bem diferente.</p>"
+      "b": "\n<p>Qualquer acorde maior ou menor de uma tonalidade pode receber sua <b>própria dominante</b>. Em Dó maior, o acorde V de Sol é Ré maior (D–F♯–A): escrevemos como <b>V/V</b>, «cinco do cinco». O Fá♯ emprestado atua como uma sensível passageira que puxa em direção a Sol: uma pincelada de cor sem sair da tonalidade.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulação</h4>\n<p>Quando o novo centro tonal se estabelece (confirmado por uma cadência na nova tonalidade), ocorreu uma <b>modulação</b>. A forma mais natural é através de um <b>acorde pivô</b> que pertence a ambas as tonalidades: Am é vi em Dó e ii em Sol, de modo que C – Am – D7 – G conduz perfeitamente até Sol maior. A maioria das peças clássicas modula para a dominante (em tom maior) ou para a relativa maior (em tom menor) e retorna no final.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G através do pivô Am</button></div>\n<h4>Condução de vozes</h4>\n<p>Pense em cada acorde como um coro de 3 a 4 cantores. Uma boa condução de vozes move cada cantor o mínimo possível:</p>\n<ul>\n<li>Mantenha as <b>notas comuns</b> na mesma voz; mova as outras por graus conjuntos.</li>\n<li>Resolva as notas de tendência: a sensível (7) sobe <b>para cima</b> para a tônica (1); a 7ª do acorde desce <b>para baixo</b> por grau conjunto.</li>\n<li>Evite <b>quintas e oitavas paralelas</b> consecutivas entre duas vozes: elas fazem as vozes se fundirem, perdendo independência.</li>\n<li>O baixo pode dar saltos; as vozes superiores preferem movimentos por graus conjuntos.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|41.60.65.69|43.59.62.67|48.60.64.67\">Fluido: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Áspero: mesmos acordes, todos em estado fundamental</button></div>\n<p class=\"learn-note\">No piano, a condução de vozes também é uma dica técnica valiosa: inversões mantêm sua mão numa posição estável. Compare os dois exemplos acima: mesmos acordes, esforço muscular bem diferente.</p>"
     },
     "form": {
       "t": "Forma: motivos, frases e seções",
@@ -124,6 +124,9 @@ const payload: LearnPayload = {
         "q": "Toque o dó central (C4).",
         "seq": [
           0
+        ],
+        "exactMidi": [
+          60
         ]
       },
       {
@@ -131,6 +134,9 @@ const payload: LearnPayload = {
         "seq": [
           4,
           5
+        ],
+        "stepDiff": [
+          1
         ]
       }
     ],
@@ -206,6 +212,9 @@ const payload: LearnPayload = {
         "q": "Toque a nota situada na segunda linha da clave de sol: Sol4 (G4).",
         "seq": [
           7
+        ],
+        "exactMidi": [
+          67
         ]
       }
     ],
@@ -424,6 +433,9 @@ const payload: LearnPayload = {
         "seq": [
           2,
           9
+        ],
+        "stepDiff": [
+          7
         ]
       }
     ],

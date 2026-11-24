@@ -1054,8 +1054,13 @@ export async function anReadXml(file: File, title: string, deps: { captureDiffic
         if (xml.length > AN_MAX_XML_CHARS)
             throw anError('mxlbig');
     }
-    else
+    else {
         xml = await file.text();
+        if (xml.length > AN_MAX_XML_CHARS)
+            throw anError('mxlbig');
+    }
+    if (/<!ENTITY\b/i.test(xml) || /<!DOCTYPE[^>]*\[/i.test(xml))
+        throw anError('xml');
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
     if (doc.querySelector('parsererror') || doc.documentElement.localName !== 'score-partwise' || doc.querySelector('script'))
         throw anError('xml');
@@ -1063,6 +1068,8 @@ export async function anReadXml(file: File, title: string, deps: { captureDiffic
     scoreXmlEngraving(doc);
     const clean = anXmlTidy(doc, title);
     xml = new XMLSerializer().serializeToString(doc);
+    if (xml.length > AN_MAX_XML_CHARS)
+        throw anError('mxlbig');
     const r = scoreXmlNotes(doc, deps.captureDifficulty);
     if (!r.notes.length)
         throw anError('nonotes');

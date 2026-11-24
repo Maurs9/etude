@@ -8,7 +8,7 @@
   body.kb-land:not(.kb-forced) header{position:static; background:none; backdrop-filter:none; border-bottom:0; padding-top:0}
   body.kb-land:not(.kb-forced) header > :not([role=status]){display:none}
   body.kb-land .bottomnav{display:none}
-  body.kb-land .dock .menu-btn{display:grid; height:28px}
+  body.kb-land .dock .menu-btn{display:grid; min-height:36px}
   body.kb-land .dock .mobilemenu{top:auto; bottom:100%; border-bottom:0; border-top:1px solid var(--line)}
   body[data-stage=immersive] .dock .menu-btn,
   body[data-stage=immersive] .dock .mobilemenu{display:none}

@@ -1800,6 +1800,38 @@ test('a malformed backup is rejected before it can replace local progress', asyn
     buffer: Buffer.from(JSON.stringify({ v: 3, data: [] })),
   });
   expect(await handleAppDialog(page, 'dismiss')).toEqual({ type: 'alert', message: 'That file doesn’t look like an Étude backup.' });
+
+  await page.evaluate(() => { window.__learnXss = false; });
+  await page.locator('#importFile').setInputFiles({
+    name: 'xss-learn-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({
+      v: 3,
+      data: {
+        learnDone: { keys: 19000 },
+        learnRev: { keys: { last: 19000, n: 0, rv: 19001, best: '<img src=x onerror="window.__learnXss=true">' } },
+      },
+    })),
+  });
+  expect(await handleAppDialog(page, 'dismiss')).toEqual({ type: 'alert', message: 'That file doesn’t look like an Étude backup.' });
+  await page.evaluate(() => window.__etude.show('learn'));
+  expect(await page.evaluate(() => window.__learnXss)).toBe(false);
+  expect(await page.locator('#lq img').count()).toBe(0);
+});
+
+test('MusicXML import blocks DTD entity declarations while keeping standard PUBLIC doctypes', async ({ app }) => {
+  const page = await app.open({ hash: 'analysis' });
+  const dtdBomb = '<?xml version="1.0"?><!DOCTYPE score-partwise [<!ENTITY xxe "boom">]><score-partwise version="4.0"><part-list><score-part id="P1"><part-name>P1</part-name></score-part></part-list><part id="P1"><measure number="1"><note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note></measure></part></score-partwise>';
+  const before = await page.evaluate(() => window.__etude.AN.loadToken);
+  await page.locator('#an-file').setInputFiles({ name: 'entity.xml', mimeType: 'application/xml', buffer: Buffer.from(dtdBomb) });
+  await page.waitForFunction(b => window.__etude.AN.loadToken > b && !window.__etude.AN.loading, before);
+  expect(await page.evaluate(() => window.__etude.AN.error?.k)).toBe('an_err_xml');
+
+  const validPublic = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd"><score-partwise version="3.1"><work><work-title>Public Doctype</work-title></work><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes><note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note></measure></part></score-partwise>';
+  const next = await page.evaluate(() => window.__etude.AN.loadToken);
+  await page.locator('#an-file').setInputFiles({ name: 'public.xml', mimeType: 'application/xml', buffer: Buffer.from(validPublic) });
+  await page.waitForFunction(b => window.__etude.AN.loadToken > b && !window.__etude.AN.loading, next);
+  expect(await page.evaluate(() => ({ err: window.__etude.AN.error, notes: window.__etude.AN.notes.length }))).toEqual({ err: null, notes: 1 });
 });
 
 test('a structurally valid backup still reaches explicit replacement confirmation', async ({ app }) => {
@@ -1810,6 +1842,9 @@ test('a structurally valid backup still reaches explicit replacement confirmatio
     buffer: Buffer.from(JSON.stringify({ v: 3, data: { srs: {}, settings: {} } })),
   });
   expect(await handleAppDialog(page, 'dismiss')).toEqual({ type: 'confirm', message: 'Replace your current progress with this backup?' });
+  if (new URL(page.url()).pathname.startsWith('/etude/')) {
+    await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1);
+  }
 });
 
 test('persisted settings are normalized to supported audio and session limits', async ({ app }) => {

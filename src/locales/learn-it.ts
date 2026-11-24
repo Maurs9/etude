@@ -68,7 +68,7 @@ const payload: LearnPayload = {
     },
     "cad": {
       "t": "Le cadenze: la punteggiatura musicale",
-      "b": "\n<p>Una  <b>cadenza</b>  è la successione di accordi che conclude una frase musicale. Come la punteggiatura nel testo, alcune chiudono il discorso e altre lo lasciano in sospeso:</p>\n<ul>\n<li><b>Perfetta autentica (PAC)</b>  — V(7) → I, entrambi allo stato fondamentale, melodia che termina sulla tonica. Un punto fermo.</li>\n<li><b>Imperfetta autentica (IAC)</b>  — V → I ma più debole: un rivolto, oppure la melodia termina sulla terza o sulla quinta. Un punto e virgola.</li>\n<li><b>Sospesa (semicadenza HC)</b>  — qualsiasi accordo → V. Una virgola o un punto interrogativo: «continua».</li>\n<li><b>Plagale (PC)</b>  — IV → I, la conclusione dell'«Amen» negli inni sacri.</li>\n<li><b>D'inganno (DC)</b>  — V → vi. Ti aspetti il ritorno a casa e ricevi una sorpresa; la frase deve proseguire.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.60.67.72\">PAC: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">HC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagale: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">D'inganno: V → vi</button></div>\n<h4>Trovale nella musica reale</h4>\n<p>Il Minuetto in Sol termina la prima metà con una semicadenza e la seconda con una cadenza perfetta — apri Brani per vedere i numeri romani sotto ogni battuta.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Guarda in Brani: Minuetto in Sol →</button></div>\n<p class=\"learn-note\">Ascolta le cadenze in qualsiasi brano: canticchia l'ultimo accordo di ogni verso. Suona concluso (autentica), in sospeso (semicadenza) o a sorpresa (d'inganno)?</p>"
+      "b": "\n<p>Una  <b>cadenza</b>  è la successione di accordi che conclude una frase musicale. Come la punteggiatura nel testo, alcune chiudono il discorso e altre lo lasciano in sospeso:</p>\n<ul>\n<li><b>Perfetta autentica (PAC)</b>  — V(7) → I, entrambi allo stato fondamentale, melodia che termina sulla tonica. Un punto fermo.</li>\n<li><b>Imperfetta autentica (IAC)</b>  — V → I ma più debole: un rivolto, oppure la melodia termina sulla terza o sulla quinta. Un punto e virgola.</li>\n<li><b>Sospesa (semicadenza HC)</b>  — qualsiasi accordo → V. Una virgola o un punto interrogativo: «continua».</li>\n<li><b>Plagale (PC)</b>  — IV → I, la conclusione dell'«Amen» negli inni sacri.</li>\n<li><b>D'inganno (DC)</b>  — V → vi. Ti aspetti il ritorno a casa e ricevi una sorpresa; la frase deve proseguire.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.64.67.72\">PAC: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">HC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagale: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">D'inganno: V → vi</button></div>\n<h4>Trovale nella musica reale</h4>\n<p>Il Minuetto in Sol termina la prima metà con una semicadenza e la seconda con una cadenza perfetta — apri Brani per vedere i numeri romani sotto ogni battuta.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Guarda in Brani: Minuetto in Sol →</button></div>\n<p class=\"learn-note\">Ascolta le cadenze in qualsiasi brano: canticchia l'ultimo accordo di ogni verso. Suona concluso (autentica), in sospeso (semicadenza) o a sorpresa (d'inganno)?</p>"
     },
     "minorh": {
       "t": "Armonia in tonalità minore",
@@ -80,7 +80,7 @@ const payload: LearnPayload = {
     },
     "secdom": {
       "t": "Dominanti secondarie, modulazione e condotta delle voci",
-      "b": "\n<p>Qualsiasi accordo maggiore o minore di una tonalità può ricevere la  <b>propria dominante</b>. In Do maggiore, la dominante di Sol è Re maggiore (D–F♯–A): la scriviamo  <b>V/V</b>, «cinque del cinque». Il Fa♯ preso in prestito funge da sensibile temporanea attirata verso Sol — un tocco di colore senza uscire dalla tonalità.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulazione</h4>\n<p>Quando la nuova tonica si stabilizza — confermata da una cadenza nella nuova tonalità — hai  <b>modulato</b>. La strada più fluida passa attraverso un  <b>accordo perno (pivot)</b>  che appartiene a entrambe le tonalità: Am è vi in Do e ii in Sol, quindi C – Am – D7 – G scivola naturalmente in Sol maggiore. La maggior parte dei brani classici modula alla dominante (maggiore) o alla relativa maggiore (minore) e torna alla tonica iniziale alla fine.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">Do → Sol via perno Am</button></div>\n<h4>Condotta delle voci</h4>\n<p>Pensa a ogni accordo come a 3–4 cantanti. Una buona condotta delle voci muove ciascun cantante il meno possibile:</p>\n<ul>\n<li>Tieni le  <b>note comuni</b>  nella stessa voce; muovi le altre per gradi congiunti.</li>\n<li>Risolvi le note con tendenza: la sensibile (7) sale  <b>in alto</b>  a 1; la settima dell'accordo scende  <b>in basso</b>  per grado congiunto.</li>\n<li>Evita  <b>quinte e ottave parallele</b>  tra due voci — fanno fondere le parti indipendenti in una sola.</li>\n<li>Il basso può saltare; le voci superiori preferiscono muoversi per gradi congiunti.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|48.60.65.69|47.59.62.67|48.60.64.67\">Fluido: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">A salti: stessi accordi, tutti allo stato fondamentale</button></div>\n<p class=\"learn-note\">Al pianoforte, la condotta delle voci è anche una questione tecnica: i rivolti mantengono la mano ferma nella stessa posizione. Confronta i due esempi sopra — stessi accordi, sforzo completamente diverso.</p>"
+      "b": "\n<p>Qualsiasi accordo maggiore o minore di una tonalità può ricevere la  <b>propria dominante</b>. In Do maggiore, la dominante di Sol è Re maggiore (D–F♯–A): la scriviamo  <b>V/V</b>, «cinque del cinque». Il Fa♯ preso in prestito funge da sensibile temporanea attirata verso Sol — un tocco di colore senza uscire dalla tonalità.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulazione</h4>\n<p>Quando la nuova tonica si stabilizza — confermata da una cadenza nella nuova tonalità — hai  <b>modulato</b>. La strada più fluida passa attraverso un  <b>accordo perno (pivot)</b>  che appartiene a entrambe le tonalità: Am è vi in Do e ii in Sol, quindi C – Am – D7 – G scivola naturalmente in Sol maggiore. La maggior parte dei brani classici modula alla dominante (maggiore) o alla relativa maggiore (minore) e torna alla tonica iniziale alla fine.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">Do → Sol via perno Am</button></div>\n<h4>Condotta delle voci</h4>\n<p>Pensa a ogni accordo come a 3–4 cantanti. Una buona condotta delle voci muove ciascun cantante il meno possibile:</p>\n<ul>\n<li>Tieni le  <b>note comuni</b>  nella stessa voce; muovi le altre per gradi congiunti.</li>\n<li>Risolvi le note con tendenza: la sensibile (7) sale  <b>in alto</b>  a 1; la settima dell'accordo scende  <b>in basso</b>  per grado congiunto.</li>\n<li>Evita  <b>quinte e ottave parallele</b>  tra due voci — fanno fondere le parti indipendenti in una sola.</li>\n<li>Il basso può saltare; le voci superiori preferiscono muoversi per gradi congiunti.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|41.60.65.69|43.59.62.67|48.60.64.67\">Fluido: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">A salti: stessi accordi, tutti allo stato fondamentale</button></div>\n<p class=\"learn-note\">Al pianoforte, la condotta delle voci è anche una questione tecnica: i rivolti mantengono la mano ferma nella stessa posizione. Confronta i due esempi sopra — stessi accordi, sforzo completamente diverso.</p>"
     },
     "form": {
       "t": "Forma musicale: motivi, frasi e sezioni",
@@ -124,6 +124,9 @@ const payload: LearnPayload = {
         "q": "Suona il do centrale (C4).",
         "seq": [
           0
+        ],
+        "exactMidi": [
+          60
         ]
       },
       {
@@ -131,6 +134,9 @@ const payload: LearnPayload = {
         "seq": [
           4,
           5
+        ],
+        "stepDiff": [
+          1
         ]
       }
     ],
@@ -206,6 +212,9 @@ const payload: LearnPayload = {
         "q": "Suona la nota sulla seconda linea in chiave di violino (Sol4).",
         "seq": [
           7
+        ],
+        "exactMidi": [
+          67
         ]
       }
     ],
@@ -424,6 +433,9 @@ const payload: LearnPayload = {
         "seq": [
           2,
           9
+        ],
+        "stepDiff": [
+          7
         ]
       }
     ],
@@ -1659,88 +1671,88 @@ const payload: LearnPayload = {
     {
       "l": "symbols",
       "en": [
-        "Corona (fermata)",
-        "Prolunga la nota o la pausa oltre il valore scritto a discrezione dell'esecutore."
+        "Segno di ritornello",
+        "Doppia stanghetta con punti: ripeti la sezione."
       ],
       "searchEnglish": "Repeat sign"
     },
     {
       "l": "symbols",
       "en": [
-        "Intervallo",
-        "La distanza tra due note misurata in semitoni e in gradi della scala."
+        "D.C. al Fine",
+        "Torna all'inizio (Da Capo) e fermati all'indicazione Fine."
       ],
       "searchEnglish": "D.C. al Fine"
     },
     {
       "l": "symbols",
       "en": [
-        "Semitoni per intervallo",
-        "2ª min = 1, 2ª magg = 2, 3ª min = 3, 3ª magg = 4, 4ª giusta = 5, Tritono = 6, 5ª giusta = 7, 6ª min = 8, 6ª magg = 9, 7ª min = 10, 7ª magg = 11, Ottava = 12."
+        "D.S. al Coda",
+        "Torna al segno 𝄋, poi salta alla coda 𝄌 quando indicato."
       ],
       "searchEnglish": "D.S. al Coda"
     },
     {
       "l": "symbols",
       "en": [
-        "Consonanza & Dissonanza",
-        "Consonanze = stabili, riposanti (3ª, 4ª, 5ª, 6ª, 8ª); Dissonanze = tese, che chiedono risoluzione (2ª, 7ª, Tritono)."
+        "Corona (fermata)",
+        "𝄐 Prolunga la nota più a lungo del valore scritto."
       ],
       "searchEnglish": "Fermata"
     },
     {
       "l": "symbols",
       "en": [
-        "Tonalità relativa",
-        "Una scala maggiore e una minore che condividono la stessa armatura di chiave (ad es. Do maggiore e La minore)."
+        "Pedale di risonanza",
+        "Ped. … ✱: abbassa il pedale destro, poi rilascialo."
       ],
       "searchEnglish": "Sustain pedal"
     },
     {
       "l": "symbols",
       "en": [
-        "Scala pentatonica",
-        "Scala a 5 note senza semitoni; molto usata nel folk, blues e rock."
+        "Abbellimento",
+        "Decorazione melodica come trillo (tr), mordente o appoggiatura."
       ],
       "searchEnglish": "Ornament"
     },
     {
       "l": "iv",
       "en": [
-        "Scala blues",
-        "Pentatonica minore con aggiunta della blue note (quinta diminuita)."
+        "Intervallo",
+        "Distanza tra due note, misurata in gradi e semitoni."
       ],
       "searchEnglish": "Interval"
     },
     {
       "l": "iv",
       "en": [
-        "Modi (greci)",
-        "Scale a 7 note ottenute iniziando sui diversi tasti bianchi: Ionico, Dorico, Frigio, Lidio, Misolidio, Eolio, Locrio."
+        "Quinta giusta",
+        "7 semitoni (Do–Sol); l'intervallo più stabile dopo l'ottava."
       ],
       "searchEnglish": "Perfect fifth"
     },
     {
       "l": "iv2",
       "en": [
-        "Accordo di settima",
-        "Triade con una settima aggiunta: maj7, 7, m7, m7♭5, dim7."
+        "Tritono",
+        "6 semitoni: quarta eccedente / quinta diminuita (Do–Fa♯)."
       ],
       "searchEnglish": "Tritone"
     },
     {
       "l": "iv2",
       "en": [
-        "Rivolto",
-        "Disposizione dell'accordo in cui una nota diversa dalla fondamentale è al basso."
+        "Rivolto (intervallo)",
+        "Porta la nota grave all'ottava superiore; i numeri sommano a 9, maggiore↔minore."
       ],
       "searchEnglish": "Inversion (interval)"
     },
     {
       "l": "iv2",
       "en": [
-        "Triade",
-        "Accordo di tre note formato sovrapponendo due terze: fondamentale, terza e quinta."
+        "Intervallo composto",
+        "Più ampio di un'ottava: nona = seconda + ottava."
       ],
       "searchEnglish": "Compound interval"
     },

@@ -4,8 +4,8 @@ import { test, expect, todayN } from '../helpers/fixtures.mjs';
 
 // Engraved bars per piece; an upbeat is bar 0 and counts as one.
 const BARS = { w5rh: 4, w5lh: 4, clair: 4, mary: 8, twinkle: 4, hotcross: 8, lightly: 16, rhody: 8, frere: 8, ode: 8, saints: 8, jingle: 8, susanna: 9, auralee: 8, brahms: 9,
-  london: 8, minuet: 8, elise: 6, greensleeves: 9, grace: 8, canon: 13, gymno: 8, prelude: 8 };
-const UPBEAT = ['susanna', 'brahms', 'greensleeves', 'grace'];
+  london: 8, minuet: 8, elise: 7, greensleeves: 9, grace: 8, canon: 13, gymno: 8, prelude: 8 };
+const UPBEAT = ['susanna', 'brahms', 'elise', 'greensleeves', 'grace'];
 const THREE_FOUR = ['brahms', 'minuet', 'elise', 'greensleeves', 'grace', 'gymno'];
 // Key signature (fifths) of each piece as engraved.
 const FIFTHS = { auralee: 1, brahms: -1, minuet: 1, canon: 2, gymno: 2 };

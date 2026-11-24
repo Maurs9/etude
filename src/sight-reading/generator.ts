@@ -178,7 +178,7 @@ function generatePolyphonic(profile: 'P3.a' | 'P3.b' | 'P3.c' | 'P3.d', seed: nu
       const durationTick = durations[index];
       const cadence = bar === 3 && index === durations.length - 1;
       const rest = !cadence && durationTick === 480 && onsetTick > 0 && random() < 0.18;
-      const maxDegree = profile === 'P3.d' ? 7 : 3;
+      const maxDegree = profile === 'P3.d' ? 7 : profile === 'P3.c' && key.keyN <= 4 ? 6 : 3;
       const degree = cadence ? 0 : Math.max(0, Math.min(maxDegree, previousDegree + (random() < 0.5 ? -1 : 1)));
       previousDegree = degree;
       if (profile === 'P3.c') {

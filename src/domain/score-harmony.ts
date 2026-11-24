@@ -189,8 +189,9 @@ export function anKeyFromMap(keyMap: readonly AnKeyPoint[] | undefined, beat: nu
 }
 
 export function anInv(seg: { ch: { c: AnChordTemplate; root: number }; bass: number | null }): number {
+  if (seg.bass == null) return 0;
   const c = seg.ch.c;
-  const iv = (((seg.bass ?? 0) - seg.ch.root) % 12 + 12) % 12;
+  const iv = (((seg.bass - seg.ch.root) % 12) + 12) % 12;
   return c.q === 'S' || c.q === 'P' ? 0 : iv === c.p[1] ? 1 : iv === c.p[2] ? 2 : c.x && iv === c.p[3] ? 3 : 0;
 }
 
@@ -876,10 +877,11 @@ export function anRoman(key: theory.KeySignature, seg: { ch: Pick<AnChordReading
   const fig = c.x ? (c.n9 && !inv ? '⁹' : ['⁷', '⁶₅', '⁴₃', '⁴₂'][inv]) : ['', '⁶', '⁶₄'][inv] || '';
   const mark = q === 'd' ? '°' : q === 'h' ? 'ø' : q === 'A' ? '+' : '';
   const sfx = c.rn || '';
-  const secondary = anDomQ(c) && (minor ? rel === 2 || (rel === 0 && c.x) : [2, 4, 9, 11].includes(rel) || (rel === 0 && c.x));
+  const secondary = anDomQ(c) && (minor ? [0, 2, 3, 5, 10].includes(rel) && (rel !== 0 || !!c.x) : [2, 4, 9, 11].includes(rel) || (rel === 0 && c.x));
   if (secondary) {
     const target = scale.indexOf((rel + 5) % 12);
-    if (target > 0) return 'V' + mark + fig + sfx + '/' + AN_DIA[minor ? 'min' : 'maj'][target].replace('°', '');
+    const targetLabel = minor && target === 6 ? 'VII' : AN_DIA[minor ? 'min' : 'maj'][target]?.replace('°', '');
+    if (target > 0 && targetLabel) return 'V' + mark + fig + sfx + '/' + targetLabel;
   }
   let deg: number;
   let acc = '';
@@ -924,7 +926,7 @@ export function anCadences(segs: AnHarmonySeg[], keyMap?: readonly AnKeyPoint[])
     const down = Math.abs(b.start - b.measure.start) < 1e-6;
     const isDom = (s: AnHarmonySeg | undefined) =>
       s && s.ch && ((s.ch.root - key.root) % 12 + 12) % 12 === 7 && anDomQ(s.ch.c);
-    if (a && down && isDom(a) && rb === 0 && (b.ch.c.q === 'M' || b.ch.c.q === 'm')) b.cad = 'auth';
+    if (a && down && isDom(a) && rb === 0 && anInv(b) === 0 && (b.ch.c.q === 'M' || b.ch.c.q === 'm')) b.cad = 'auth';
     else if (
       a &&
       down &&
@@ -943,11 +945,11 @@ export function anCadences(segs: AnHarmonySeg[], keyMap?: readonly AnKeyPoint[])
     ) {
       b.cad = 'decept';
     } else if (
-      i === segs.length - 1 &&
       segs.length >= 3 &&
       isDom(b) &&
       b.end - b.start >= b.unit - 1e-6 &&
-      Math.abs(b.end - b.measure.end) < 1e-6
+      Math.abs(b.end - b.measure.end) < 1e-6 &&
+      (i === segs.length - 1 || (Number(b.measure.number) > 0 && Number(b.measure.number) % 4 === 0 && segs[i + 1] && !isDom(segs[i + 1])))
     ) {
       b.cad = 'half';
     }

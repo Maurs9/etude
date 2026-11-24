@@ -9,7 +9,8 @@ const payload: UIPayload = {
     "categories": {},
     "inversions": {},
     "feels": {},
-    "songs": {}
+    "songs": {},
+    "progressions": {}
   },
   "STEP_LABELS": {
     "en": {

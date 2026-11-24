@@ -68,7 +68,7 @@ const payload: LearnPayload = {
     },
     "cad": {
       "t": "Cadences : la ponctuation musicale",
-      "b": "\n<p>Une <b>cadence</b> est l’enchaînement d’accords qui vient clore une phrase musicale. Telle une ponctuation, certaines finissent la phrase et d’autres la laissent en suspens :</p>\n<ul>\n<li><b>Cadence parfaite (authentique)</b> — V(7) → I, tous deux à l’état fondamental, la mélodie finissant sur la tonique. Un point final sans appel.</li>\n<li><b>Cadence imparfaite</b> — V → I mais affaiblie : par un renversement, ou une mélodie finissant sur la tierce ou la quinte. Un point-virgule.</li>\n<li><b>Demi-cadence</b> — n’importe quel accord → V. Une virgule ou un point d’interrogation : « à suivre ».</li>\n<li><b>Cadence plagale</b> — IV → I, la conclusion solennelle du « Amen » des hymnes.</li>\n<li><b>Cadence rompue (évitée)</b> — V → vi. On attend le repos en I et l’on est surpris par un accord mineur ; le discours doit repartir.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.60.67.72\">Cadence parfaite : V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">Demi-cadence : I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagale : IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Rompue : V → vi</button></div>\n<h4>Repérez-les dans des œuvres réelles</h4>\n<p>Le Menuet en sol conclut sa première partie par une demi-cadence et sa seconde par une cadence parfaite — ouvrez Morceaux pour observer les chiffres romains sous chaque mesure.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Voir dans Morceaux : Menuet en sol →</button></div>\n<p class=\"learn-note\">Écoutez les cadences dans vos chansons préférées : fredonnez l’accord final de chaque phrase. Donne-t-il une impression d’aboutissement (parfaite), d’attente (demi-cadence) ou de surprise (rompue) ?</p>"
+      "b": "\n<p>Une <b>cadence</b> est l’enchaînement d’accords qui vient clore une phrase musicale. Telle une ponctuation, certaines finissent la phrase et d’autres la laissent en suspens :</p>\n<ul>\n<li><b>Cadence parfaite (authentique)</b> — V(7) → I, tous deux à l’état fondamental, la mélodie finissant sur la tonique. Un point final sans appel.</li>\n<li><b>Cadence imparfaite</b> — V → I mais affaiblie : par un renversement, ou une mélodie finissant sur la tierce ou la quinte. Un point-virgule.</li>\n<li><b>Demi-cadence</b> — n’importe quel accord → V. Une virgule ou un point d’interrogation : « à suivre ».</li>\n<li><b>Cadence plagale</b> — IV → I, la conclusion solennelle du « Amen » des hymnes.</li>\n<li><b>Cadence rompue (évitée)</b> — V → vi. On attend le repos en I et l’on est surpris par un accord mineur ; le discours doit repartir.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.64.67.72\">Cadence parfaite : V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">Demi-cadence : I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagale : IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Rompue : V → vi</button></div>\n<h4>Repérez-les dans des œuvres réelles</h4>\n<p>Le Menuet en sol conclut sa première partie par une demi-cadence et sa seconde par une cadence parfaite — ouvrez Morceaux pour observer les chiffres romains sous chaque mesure.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Voir dans Morceaux : Menuet en sol →</button></div>\n<p class=\"learn-note\">Écoutez les cadences dans vos chansons préférées : fredonnez l’accord final de chaque phrase. Donne-t-il une impression d’aboutissement (parfaite), d’attente (demi-cadence) ou de surprise (rompue) ?</p>"
     },
     "minorh": {
       "t": "Harmonie en mode mineur",
@@ -80,7 +80,7 @@ const payload: LearnPayload = {
     },
     "secdom": {
       "t": "Dominantes secondaires, modulation et conduite des voix",
-      "b": "\n<p>N’importe quel accord majeur ou mineur d’une tonalité peut recevoir sa <b>propre dominante</b>. En do majeur, le V de sol est ré majeur (D–F♯–A) : on l’écrit <b>V/V</b>, « cinq de cinq ». Le fa♯ emprunté agit comme une sensible transitoire menant vers sol — une touche de couleur sans quitter la tonalité.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulation</h4>\n<p>Lorsque la nouvelle tonique s’installe durablement — confirmée par une cadence — vous avez <b>modulé</b>. La transition la plus fluide passe par un <b>accord pivot</b> commun aux deux tonalités : Am est vi en do et ii en sol, si bien que C – Am – D7 – G glisse naturellement vers sol majeur. La plupart des œuvres classiques modulent vers la dominante (en mode majeur) ou vers la relative majeure (en mode mineur) avant de revenir au port d’attache.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">Do → Sol par le pivot Am</button></div>\n<h4>Conduite des voix</h4>\n<p>Considérez chaque accord comme un chœur de 3 à 4 chanteurs. Une bonne conduite des voix déplace chaque voix le moins possible :</p>\n<ul>\n<li>Gardez les <b>notes communes</b> dans la même voix ; déplacez les autres par mouvements conjoints.</li>\n<li>Résolvez les notes à attraction forte : la sensible (7) monte <b>vers le haut</b> sur la tonique (1) ; la 7e d’un accord descend <b>vers le bas</b> par degré conjoint.</li>\n<li>Évitez les <b>quintes et octaves parallèles</b> consécutives entre deux voix — elles font fusionner l’indépendance des voix.</li>\n<li>La basse peut faire des sauts ; les voix supérieures préfèrent les petits pas.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|48.60.65.69|47.59.62.67|48.60.64.67\">Fluide : I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Haché : mêmes accords, tous à l’état fondamental</button></div>\n<p class=\"learn-note\">Au piano, la conduite des voix est aussi un conseil technique capital : les renversements maintiennent votre main au même endroit. Comparez les deux démonstrations ci-dessus : mêmes accords, mais un confort de jeu sans comparaison.</p>"
+      "b": "\n<p>N’importe quel accord majeur ou mineur d’une tonalité peut recevoir sa <b>propre dominante</b>. En do majeur, le V de sol est ré majeur (D–F♯–A) : on l’écrit <b>V/V</b>, « cinq de cinq ». Le fa♯ emprunté agit comme une sensible transitoire menant vers sol — une touche de couleur sans quitter la tonalité.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulation</h4>\n<p>Lorsque la nouvelle tonique s’installe durablement — confirmée par une cadence — vous avez <b>modulé</b>. La transition la plus fluide passe par un <b>accord pivot</b> commun aux deux tonalités : Am est vi en do et ii en sol, si bien que C – Am – D7 – G glisse naturellement vers sol majeur. La plupart des œuvres classiques modulent vers la dominante (en mode majeur) ou vers la relative majeure (en mode mineur) avant de revenir au port d’attache.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">Do → Sol par le pivot Am</button></div>\n<h4>Conduite des voix</h4>\n<p>Considérez chaque accord comme un chœur de 3 à 4 chanteurs. Une bonne conduite des voix déplace chaque voix le moins possible :</p>\n<ul>\n<li>Gardez les <b>notes communes</b> dans la même voix ; déplacez les autres par mouvements conjoints.</li>\n<li>Résolvez les notes à attraction forte : la sensible (7) monte <b>vers le haut</b> sur la tonique (1) ; la 7e d’un accord descend <b>vers le bas</b> par degré conjoint.</li>\n<li>Évitez les <b>quintes et octaves parallèles</b> consécutives entre deux voix — elles font fusionner l’indépendance des voix.</li>\n<li>La basse peut faire des sauts ; les voix supérieures préfèrent les petits pas.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|41.60.65.69|43.59.62.67|48.60.64.67\">Fluide : I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Haché : mêmes accords, tous à l’état fondamental</button></div>\n<p class=\"learn-note\">Au piano, la conduite des voix est aussi un conseil technique capital : les renversements maintiennent votre main au même endroit. Comparez les deux démonstrations ci-dessus : mêmes accords, mais un confort de jeu sans comparaison.</p>"
     },
     "form": {
       "t": "Forme : motifs, phrases et sections",
@@ -124,6 +124,9 @@ const payload: LearnPayload = {
         "q": "Jouez le do central (C4).",
         "seq": [
           0
+        ],
+        "exactMidi": [
+          60
         ]
       },
       {
@@ -131,6 +134,9 @@ const payload: LearnPayload = {
         "seq": [
           4,
           5
+        ],
+        "stepDiff": [
+          1
         ]
       }
     ],
@@ -206,6 +212,9 @@ const payload: LearnPayload = {
         "q": "Jouez la note située sur la deuxième ligne de la clé de sol (Sol4 / G4).",
         "seq": [
           7
+        ],
+        "exactMidi": [
+          67
         ]
       }
     ],
@@ -424,6 +433,9 @@ const payload: LearnPayload = {
         "seq": [
           2,
           9
+        ],
+        "stepDiff": [
+          7
         ]
       }
     ],

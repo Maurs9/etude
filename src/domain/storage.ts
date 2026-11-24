@@ -138,7 +138,7 @@ export function isImportableBackup(value: unknown): value is PttV3Payload {
       (entry.learned === undefined || typeof entry.learned === 'boolean')) &&
     mapOf(data.toolDay, numbers) &&
     mapOf(data.learnDone, numbers) &&
-    mapOf(data.learnRev, isRecord) &&
+    mapOf(data.learnRev, row => numericRecord(row, ['last', 'n', 'rv', 'best'])) &&
     mapOf(data.learnUnlock, numbers) &&
     (reading === undefined || (isRecord(reading) &&
       mapOf(reading.lv, row => numericRecord(row, ['s', 'acc', 't', 'n', 'rush', 'sv', 'ta', 'mn'])) &&

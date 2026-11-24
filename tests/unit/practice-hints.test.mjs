@@ -64,6 +64,7 @@ describe('Practice hint catalog', () => {
           const inverted = chordHintTones(template.symbol, tonic, inv);
           expect(inverted).toHaveLength(root.length);
           expect(inverted.map(note => ssMidiOf(note.li, note.oct, note.acc))).toEqual(inverted.map(note => note.midi));
+          expect(pitchClass(inverted[0].midi)).toBe(pitchClass(root[inv].midi));
           for (let i = 1; i < inverted.length; i++) expect(inverted[i].midi).toBeGreaterThan(inverted[i - 1].midi);
           expect(inverted.map(note => pitchClass(note.midi)).sort((a, b) => a - b))
             .toEqual(root.map(note => pitchClass(note.midi)).sort((a, b) => a - b));
@@ -131,6 +132,13 @@ describe('Practice hint catalog', () => {
     }
     const harmonic = scaleHintTones('Harmonic minor', 2);
     expect(harmonic[6]).toMatchObject({ li: 0, acc: 1, midi: 73 });
+    const locrianCs = scaleHintTones('Locrian', 1);
+    expect(locrianCs[0]).toMatchObject({ li: 0, acc: 1 });
+    expect(locrianCs.every(tone => Math.abs(tone.acc) <= 1)).toBe(true);
+    for (let tonic = 0; tonic < 12; tonic++) {
+      const wt = scaleHintTones('Whole tone', tonic);
+      expect(wt.every(tone => Math.abs(tone.acc) <= 1)).toBe(true);
+    }
   });
 
   it('follows the demonstrated bass and plays all twelve measures of blues', () => {

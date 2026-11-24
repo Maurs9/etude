@@ -1,6 +1,6 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { build, ROOT } from './build.mjs';
+import { build, injectCsp, ROOT } from './build.mjs';
 
 const testSurface = process.argv.includes('--test-surface');
 const standalone = join(ROOT, 'dist', 'etude-standalone.html');
@@ -38,6 +38,7 @@ try {
   html = html
     .replace(cssMatch[0], () => `<style>${standaloneCss}</style>`)
     .replace(moduleMatch[0], () => `<script type="application/x-etude-osmd" id="etude-osmd-source">${osmd}</script><script type="module">${app}</script>`);
+  html = injectCsp(html, { extraScripts: [osmd], standalone: true });
   await writeFile(standalone, html);
   console.log(`Built ${standalone} (${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MiB)`);
 } finally {

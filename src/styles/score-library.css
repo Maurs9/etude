@@ -253,7 +253,7 @@
 }
 #score-library .score-library-actions { position: relative; display: flex; gap: 6px; min-width: 0; }
 #score-library .score-library-secondary {
-  position: fixed; z-index: 10;
+  position: fixed; z-index: var(--z-pop);
   width: max-content; min-width: min(210px, calc(100vw - 16px)); max-width: min(280px, calc(100vw - 16px));
   overflow: auto; overscroll-behavior: contain; scroll-padding-block: 8px;
   display: flex; flex-direction: column; align-items: stretch; gap: 4px;

@@ -198,7 +198,7 @@ export function srtEvaluate(
   const invalidChordPairs = new Set<Pair>();
   for (const [onMs, chordPairs] of pairsByOnset) {
     const expectedAtOnset = expected.filter((note) => note.onMs === onMs);
-    if (expectedAtOnset.length < 2 || chordPairs.length !== expectedAtOnset.length) continue;
+    if (expectedAtOnset.length < 2 || chordPairs.length < 2) continue;
     const inputTimes = chordPairs.map((pair) => pair.input.onMs);
     if (Math.max(...inputTimes) - Math.min(...inputTimes) > chordWindow) chordPairs.forEach((pair) => invalidChordPairs.add(pair));
   }

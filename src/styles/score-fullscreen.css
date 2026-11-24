@@ -4,6 +4,9 @@
 body[data-score-focus=read] #rd-stage-top{flex:none;flex-wrap:wrap;gap:6px}
 body[data-score-focus=read] #rd-focus-tools{display:flex;flex:1 1 auto;flex-wrap:wrap;align-items:center;gap:4px;order:1}
 body[data-score-focus=read] #rd-focus-tools button{min-height:40px;padding:6px 10px}
+@media(pointer:coarse),(max-width:860px){
+  body[data-score-focus=read] #rd-focus-tools button{min-height:44px}
+}
 body[data-score-focus=read] #rd-staff{overflow:auto;max-width:100%;align-items:flex-start}
 body[data-score-focus=read] #rd-staff > svg{flex-shrink:0}
 body[data-score-focus=read] #rd-top-fs{margin-left:auto;min-width:44px;order:2}

@@ -263,9 +263,16 @@ export function chordHintTones(symbol: string, tonic: number, inversion = 0): Ch
   const tones = spellHintChord(symbol, root, spellMidi(root, keyFifths(tonic, false)));
   const inv = Math.max(0, Math.min(inversion, chordHintInversionCount(symbol) - 1));
   if (!inv) return tones;
-  const shifted = tones.map((tone, index) => (index < inv
-    ? { ...tone, midi: tone.midi + 12, oct: tone.oct + 1 }
-    : tone));
+  const bassMidi = tones[inv].midi;
+  const shifted = tones.map((tone, index) => {
+    if (index >= inv) return tone;
+    let { midi, oct } = tone;
+    while (midi <= bassMidi) {
+      midi += 12;
+      oct += 1;
+    }
+    return { ...tone, midi, oct };
+  });
   return shifted.sort((a, b) => a.midi - b.midi);
 }
 
@@ -384,15 +391,70 @@ const scaleLetterDegrees: Readonly<Partial<Record<string, readonly number[]>>> =
   'Whole tone': [1, 2, 3, 4, 5, 6],
 };
 
+const WHOLE_TONE_DEGREE_CANDIDATES: readonly (readonly number[])[] = [
+  [1, 2, 3, 4, 5, 6],
+  [1, 2, 3, 5, 6, 7],
+  [1, 2, 3, 4, 5, 7],
+  [1, 2, 3, 4, 6, 7],
+  [1, 2, 4, 5, 6, 7],
+  [1, 3, 4, 5, 6, 7],
+];
+
+const BLACK_KEY_TONIC_LETTERS: Partial<Record<number, readonly [number, number]>> = {
+  1: [0, 1],
+  3: [1, 2],
+  6: [3, 4],
+  8: [4, 5],
+  10: [5, 6],
+};
+
+function tonicSpellingsForScale(root: number, defaultFifths: number): SpelledMidi[] {
+  const pair = BLACK_KEY_TONIC_LETTERS[pitchClass(root)];
+  if (!pair) return [spellMidi(root, defaultFifths)];
+  const octave = Math.floor(root / 12) - 1;
+  const sharp: SpelledMidi = { li: pair[0], oct: octave, acc: 1 };
+  const flat: SpelledMidi = { li: pair[1], oct: octave, acc: -1 };
+  return defaultFifths < 0 ? [flat, sharp] : [sharp, flat];
+}
+
 export function scaleHintTones(name: string, tonic: number, hand?: TechniqueHand) {
   const offsets = SCALE_DEFINITIONS[name];
   const root = practiceTonicMidi(tonic, 'near-middle-c');
-  const fifths = keyFifths(tonic, false), spelling = spellMidi(root, fifths);
+  const fifths = keyFifths(tonic, false);
   const fingers = hand ? scaleHintFingering(name, tonic, hand) : null;
+  const candidates = name === 'Whole tone'
+    ? WHOLE_TONE_DEGREE_CANDIDATES
+    : [offsets.length === 7 ? [1, 2, 3, 4, 5, 6, 7] : scaleLetterDegrees[name]];
+
+  let bestNotes: SpelledMidi[] | null = null;
+  let bestScore: readonly [number, number, number] | null = null;
+  for (const tonicSpell of tonicSpellingsForScale(root, fifths)) {
+    for (const pattern of candidates) {
+      const notes = [...offsets, 12].map((offset, index) => {
+        const midi = root + offset;
+        const degree = offset === 12 ? 8 : pattern?.[index];
+        return degree === undefined ? spellMidi(midi, fifths) : spellDiatonicDegree(tonicSpell, midi, degree);
+      });
+      const maxAcc = Math.max(...notes.map(note => Math.abs(note.acc)));
+      const sumAcc = notes.reduce((acc, note) => acc + Math.abs(note.acc), 0);
+      const hasSharp = notes.some(note => note.acc > 0);
+      const hasFlat = notes.some(note => note.acc < 0);
+      const mixed = hasSharp && hasFlat ? 1 : 0;
+      const score: readonly [number, number, number] = [maxAcc, mixed, sumAcc];
+      if (
+        !bestScore ||
+        score[0] < bestScore[0] ||
+        (score[0] === bestScore[0] && (score[1] < bestScore[1] || (score[1] === bestScore[1] && score[2] < bestScore[2])))
+      ) {
+        bestScore = score;
+        bestNotes = notes;
+      }
+    }
+  }
+
   return [...offsets, 12].map((offset, index) => {
     const midi = root + offset;
-    const degree = offset === 12 ? 8 : offsets.length === 7 ? index + 1 : scaleLetterDegrees[name]?.[index];
-    const written = degree === undefined ? spellMidi(midi, fifths) : spellDiatonicDegree(spelling, midi, degree);
+    const written = bestNotes![index];
     return { ...written, midi, tonic: offset === 0 || offset === 12, ...(fingers ? { finger: fingers[index] } : {}) };
   });
 }

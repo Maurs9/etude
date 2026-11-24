@@ -39,7 +39,7 @@ describe('rhythm levels keep the earlier levels unchanged', () => {
       }
     }
     expect(fingerprints).toHaveLength(4800);
-    expect(fnv(fingerprints.join(','))).toBe('33d175b87a514212');
+    expect(fnv(fingerprints.join(','))).toBe('67d4cfad5b4568d4');
   });
 
   it('never ties a note on an earlier level', () => {

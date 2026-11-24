@@ -74,5 +74,13 @@ describe('pure theory helpers', () => {
     expect(readingSpelling(61, -1)).toMatchObject({ li: 1, acc: -1 });
     expect(analysisFunction({ root: 0, minor: false }, 7, 'V')).toBe('D');
     expect(scorePitchXml(61, -1, false)).toContain('<step>D</step><alter>-1</alter>');
+    expect(spellMidi(79, 5, true)).toMatchObject({ li: 3, acc: 2 });
+    expect(readingSpelling(65, 6)).toMatchObject({ li: 2, acc: 1, oct: 4 });
+    expect(readingSpelling(71, -6)).toMatchObject({ li: 0, acc: -1, oct: 5 });
+    expect(formatScaleFormula(SCALE_DEFINITIONS.Locrian)).toBe('1 ♭2 ♭3 4 ♭5 ♭6 ♭7');
+    expect(formatScaleFormula(SCALE_DEFINITIONS['Whole tone'])).toBe('1 2 3 ♯4 ♯5 ♯6');
+    expect(formatChordFormula([0, 3, 6, 9])).toBe('1 ♭3 ♭5 𝄫7');
+    expect(anIntervalName(0)).toBe('Unison');
+    expect(anIntervalName(-5)).toBe(anIntervalName(5));
   });
 });
