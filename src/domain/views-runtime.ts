@@ -41,7 +41,13 @@ import type {
   ViewEventName,
 } from './views.js';
 import type { AppLanguage, InterfaceLanguage } from '../types/architecture.js';
-import { BleClock, CALIBRATION_BPM, bleTimestamps, calibrationOffset, eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, readLatencyOffsets, useLatencyOffsets, withInputTime, type InputSource, type LatencyOffsets } from './midi-timing.js';
+import { eventTime, inputEventTime, inputLag, inputSource, inputTime, inputTimeForRelease, useLatencyOffsets, withInputTime } from './midi-timing.js';
+import { createTimingCalibration } from './midi-calibration.js';
+import { BLE_MIDI_CHR, BLE_MIDI_SVC, createBleMidi, type BleMidiDevice } from './ble-midi.js';
+import {
+  COF_COL, COF_FING, COF_MAJ, COF_MIN, COF_SCALE, COF_SOL,
+  createCircleOfFifths, isCofFlavor, isCofMode,
+} from './circle-of-fifths.js';
 import { pickArturia, selectMidiInput } from './midi-input-selection.js';
 import '../styles/calibration.css';
 import '../styles/landscape.css';
@@ -74,7 +80,7 @@ import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sig
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
 import '../styles/sight-rhythm.css';
-import { SCALE_FINGERINGS, type TechniqueKind } from './technique.js';
+import { type TechniqueKind } from './technique.js';
 import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, differentialIntervalCue, differentialToneCue, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
 import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueRefresh, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
@@ -133,26 +139,6 @@ function runtimeErrorMessage(value: unknown): string {
   return value instanceof Error ? value.message : String(value);
 }
 
-/** The parts of Web Bluetooth the BLE-MIDI link uses (not yet in TypeScript's DOM library). */
-interface BleValueEvent { readonly target: BleMidiCharacteristic; readonly timeStamp?: number }
-interface BleMidiCharacteristic {
-  readonly value?: DataView;
-  startNotifications(): Promise<unknown>;
-  stopNotifications(): Promise<unknown>;
-  addEventListener(type: 'characteristicvaluechanged', listener: (event: BleValueEvent) => void): void;
-  removeEventListener(type: 'characteristicvaluechanged', listener: (event: BleValueEvent) => void): void;
-}
-interface BleGattServer {
-  getPrimaryService(uuid: string): Promise<{ getCharacteristic(uuid: string): Promise<BleMidiCharacteristic> }>;
-}
-interface BleDisconnectEvent { readonly target: BleMidiDevice | null }
-interface BleMidiDevice {
-  readonly id: string;
-  readonly name?: string;
-  readonly gatt?: { readonly connected: boolean; connect(): Promise<BleGattServer>; disconnect(): void };
-  addEventListener(type: 'gattserverdisconnected', listener: (event: BleDisconnectEvent) => void): void;
-  removeEventListener(type: 'gattserverdisconnected', listener: (event: BleDisconnectEvent) => void): void;
-}
 /** Chromium's install prompt event (not in TypeScript's DOM library). */
 interface InstallPromptEvent extends Event {
   prompt(): Promise<unknown>;
@@ -2305,503 +2291,85 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
             audioEngine.setModulation((d2 / 127) * 35);
     }
 }
-/* ---------- TIMING CALIBRATION: tap with the click (Settings → MIDI keyboard → Timing) ----------
-   A bar of count-in, then twelve slow clicks so late taps still match their intended beat. Every key played on a MIDI or Bluetooth piano, every touch on the pad or the
-   on-screen keys, is paired with its nearest click by its own event time; the median lateness per source (touch, USB MIDI,
-   Bluetooth MIDI) becomes that source's offset. The judges subtract it through inputTime(). Notes played meanwhile only sound.
-   Stored in data.latency ({ touch, usb, ble } in ms, each optional): settings are rebuilt from known keys on load and sync, which
-   would drop it. Reset progress keeps it, as it keeps the settings. Read defensively: a finite number is clamped to 0–500 ms, anything else is 0. No schema migration: the key is optional. */
-const CAL_BEATS = 12, CAL_COUNT_IN = 4, CAL_SOURCES: readonly InputSource[] = ['touch', 'usb', 'ble'];
-interface TimingCalibration { on: boolean; generation: number; clicks: number[]; taps: { src: InputSource; t: number }[]; timers: number[]; nodes: OscillatorNode[] }
-const CAL: TimingCalibration = { on: false, generation: 0, clicks: [], taps: [], timers: [], nodes: [] };
+/* ---------- TIMING CALIBRATION: tap with the click (Settings → MIDI keyboard → Timing) ---------- */
 function calRecord(): Record<string, unknown> { return data; }
 useLatencyOffsets(() => calRecord().latency);
-function calLabel(src: InputSource) { return t('lat_' + src); }
-function initLatencyCalibration() {
-    const open = buttonById('set-lat'), panel = byId('lat-panel');
-    open.addEventListener('click', () => { panel.hidden = !panel.hidden; open.setAttribute('aria-expanded', String(!panel.hidden)); if (panel.hidden)
-        calStop(); });
-    buttonById('lat-go').addEventListener('click', () => { if (CAL.on)
-        calStop();
-    else
-        void calStart(); });
-    buttonById('lat-reset').addEventListener('click', calReset);
-    byId('lat-pad').addEventListener('pointerdown', (e) => { e.preventDefault(); touchInput(e, calTap); });
-    calUi();
-}
-function calUi() {
-    const o = readLatencyOffsets(calRecord().latency);
-    CAL_SOURCES.forEach((src) => { byId('lat-v-' + src).textContent = String(o[src]); });
-    const go = buttonById('lat-go');
-    go.dataset.i18n = CAL.on ? 'lat_stop' : 'lat_start';
-    go.textContent = t(go.dataset.i18n);
-    buttonById('lat-reset').disabled = CAL.on;
-    byId('lat-pad').classList.toggle('on', CAL.on);
-}
-// A run listens only while its panel shows in the open Settings drawer: closing either ends it, and input goes to the page again.
-function calListening() {
-    if (!CAL.on)
-        return false;
-    if (byId('drawer').classList.contains('on') && !byId('lat-panel').hidden)
-        return true;
-    calStop();
-    calSay('');
-    return false;
-}
-function calSay(text: string) { byId('lat-result').textContent = text; }
-async function calStart() {
-    const context = ensureAudio();
-    if (!context) return;
-    calStop();
-    const generation = CAL.generation;
-    CAL.on = true;
-    CAL.taps = [];
-    CAL.clicks = [];
-    calUi();
-    if (context.state !== 'running') {
-        const ready = await timedAudioReady(context);
-        if (generation !== CAL.generation) return;
-        if (!ready) {
-            calStop();
-            calSay(t('audio_locked'));
-            return;
+const calController = createTimingCalibration({
+    t: (key, ...args) => t(key, ...args),
+    ensureAudio,
+    timedAudioReady,
+    scheduleClick: (when, accent) => audioEngine.scheduleClick(when, accent),
+    touchInput,
+    getLatency: () => calRecord().latency,
+    setLatency: (next) => { calRecord().latency = next; },
+    clearLatency: () => { delete calRecord().latency; },
+    saveAll,
+});
+const CAL = calController.state;
+const calLabel = calController.label;
+const initLatencyCalibration = calController.init;
+const calUi = calController.ui;
+const calListening = calController.listening;
+const calSay = calController.say;
+const calStart = calController.start;
+const calBeat = calController.beat;
+const calTap = calController.tap;
+const calStop = calController.stop;
+const calFinish = calController.finish;
+const calReset = calController.reset;
+/* ---------- BLUETOOTH MIDI: BLE-MIDI straight from the piano over Web Bluetooth ---------- */
+const bleController = createBleMidi({
+    t: (key, ...args) => t(key, ...args),
+    midiChipSync,
+    ensureAudio,
+    saveAll,
+    panic,
+    srtEligibleFirstSightActive,
+    midiIn,
+    releaseBleChannels() {
+        midiChannels.delete('ble');
+        for (const [midi, owner] of midiSustainOwners) {
+            if (owner.source === 'ble') midiSustainOwners.delete(midi);
         }
-    }
-    const bs = 60 / CALIBRATION_BPM, lead = .3, act0 = context.currentTime + lead, perf0 = performance.now() + lead * 1000;
-    for (let b = 0; b < CAL_COUNT_IN + CAL_BEATS; b++) {
-        const click = audioEngine.scheduleClick(act0 + b * bs, b % 4 === 0);
-        if (click?.oscs)
-            CAL.nodes.push(...click.oscs);
-        if (b >= CAL_COUNT_IN)
-            CAL.clicks.push(perf0 + b * bs * 1000);
-        CAL.timers.push(window.setTimeout(() => calBeat(b), lead * 1000 + b * bs * 1000));
-    }
-    CAL.timers.push(window.setTimeout(calFinish, lead * 1000 + (CAL_COUNT_IN + CAL_BEATS) * bs * 1000));
-    calSay(t('lat_countin'));
-}
-function calBeat(b: number) {
-    const pad = byId('lat-pad');
-    pad.classList.remove('beat');
-    void pad.offsetWidth;
-    pad.classList.add('beat');
-    calSay(b < CAL_COUNT_IN ? t('lat_countin') : t('lat_beat', b - CAL_COUNT_IN + 1, CAL_BEATS));
-}
-function calTap() {
-    const src = inputSource();
-    if (CAL.on && CAL.clicks.length && src)
-        CAL.taps.push({ src, t: inputEventTime() });
-}
-function calStop() {
-    CAL.generation++;
-    CAL.timers.forEach(clearTimeout);
-    CAL.timers = [];
-    CAL.nodes.forEach((n) => { try {
-        n.stop();
-    }
-    catch (_) { } });
-    CAL.nodes = [];
-    CAL.on = false;
-    byId('lat-pad').classList.remove('beat');
-    calUi();
-}
-function calFinish() {
-    calStop(); // its timers and clicks are spent; this clears them and the running state
-    const bs = 60000 / CALIBRATION_BPM, next: LatencyOffsets = readLatencyOffsets(calRecord().latency), said: string[] = [];
-    let changed = false;
-    CAL_SOURCES.forEach((src) => {
-        const taps = CAL.taps.filter((x) => x.src === src).map((x) => x.t);
-        if (!taps.length)
-            return;
-        const r = calibrationOffset(taps, CAL.clicks, bs);
-        if (r.ok) {
-            next[src] = r.offset;
-            changed = true;
-            said.push(t('lat_set', calLabel(src), r.offset));
+        [...inputOwners.entries()].forEach(([m, o]) => {
+            if (o.has('ble')) handleNoteOff(m, 'ble', 'reset');
+        });
+    },
+    releaseSustainPedal() {
+        if (pedalDown) {
+            pedalDown = false;
+            pedalUp();
         }
-        else
-            said.push(t(r.reason === 'few' ? 'lat_few' : 'lat_uneven', calLabel(src)));
-    });
-    if (changed) {
-        calRecord().latency = next;
-        saveAll();
-    }
-    calSay(said.length ? said.join(' · ') : t('lat_none'));
-    calUi();
-}
-function calReset() {
-    calStop();
-    delete calRecord().latency;
-    saveAll();
-    calSay(t('lat_cleared'));
-    calUi();
-}
-/* ---------- BLUETOOTH MIDI: BLE-MIDI straight from the piano over Web Bluetooth ----------
-   Notifications are decoded and handed to midiIn() in the same event turn: no queue, timer or polling between the radio and the
-   sound. The chooser only opens from the Connect button; Reconnect (and the silent start-up reconnect) reuse a device the site was
-   already allowed to use, without a chooser. */
-const BLE_MIDI_SVC = '03b80e5a-ede8-4b33-a751-6ce34ec4c700', BLE_MIDI_CHR = '7772e5db-3868-4112-a1a9-f2669d106bf3';
-interface BleMidiState {
-    dev: BleMidiDevice|null; chr: BleMidiCharacteristic|null; busy: boolean; want: boolean; gen: number; tries: number; retryT: number; guardT: number;
-    msg: string|null; cls: string; arg: string|null; saved: { id: string; name: string; auto: boolean }|null;
-    run: number; need: number; n: number; d1: number; skip: number; sysex: boolean; pedal: boolean; bend: boolean; mod: boolean;
-    clock: BleClock; at: number; // the sender's clock mapped onto ours; the local time of the message being decoded
-}
-const BLE: BleMidiState = { dev: null, chr: null, busy: false, want: false, gen: 0, tries: 0, retryT: 0, guardT: 0, msg: null, cls: '', arg: null, saved: null,
-    run: 0, need: 0, n: 0, d1: 0, skip: 0, sysex: false, pedal: false, bend: false, mod: false, clock: new BleClock(), at: 0 };
-function bleCan() { return !!((navigator).bluetooth && (navigator).bluetooth.requestDevice); }
-function bleLive() { return !!(BLE.chr && BLE.dev && BLE.dev.gatt && BLE.dev.gatt.connected); }
-function bleName() { return (BLE.dev && BLE.dev.name) || (BLE.saved && BLE.saved.name) || t('ble_dev'); }
-function bleSet(key: string|null, cls?: string, arg?: string|null) { BLE.msg = key; BLE.cls = cls || ''; BLE.arg = arg == null ? null : arg; bleUi(); }
-function bleUi() {
-    midiChipSync();
-    const st = byId('set-ble-status'), b = buttonById('set-ble'), re = byId('set-ble-re');
-    if (!st || !b)
-        return;
-    const live = bleLive(), key = BLE.msg || (bleCan() ? (BLE.dev && !live ? 'ble_known' : 'ble_off') : 'ble_unsupported');
-    st.textContent = t(key, BLE.msg && BLE.arg != null ? BLE.arg : bleName());
-    st.dataset.s = live ? 'on' : (BLE.msg ? BLE.cls : (bleCan() ? '' : 'err'));
-    b.textContent = t(live ? 'ble_disconnect' : BLE.busy ? 'ble_cancel_btn' : 'ble_connect');
-    b.disabled = !bleCan();
-    re.hidden = !(BLE.dev && !live && !BLE.busy);
-}
-function bleClick() { if (bleLive() || BLE.busy) {
-    bleDisconnect();
-    return;
-} bleChoose(); }
-async function bleChoose()  {
-    const bluetooth = navigator.bluetooth;
-    if (!bleCan() || !bluetooth) {
-        bleSet('ble_unsupported', 'err');
-        return;
-    }
-    if (!window.isSecureContext) {
-        bleSet('ble_insecure', 'err');
-        return;
-    }
-    let req;
-    try {
-        req = bluetooth.requestDevice({ filters: [{ services: [BLE_MIDI_SVC] }, ...['ES120', 'ES110', 'ES520', 'ES920', 'KAWAI', 'Kawai'].map((namePrefix) => ({ namePrefix }))], optionalServices: [BLE_MIDI_SVC] });
-    }
-    catch (err) {
-        bleErr(err);
-        return;
-    }
-    ensureAudio();
-    bleSet('ble_choose');
-    let dev;
-    try {
-        dev = await req;
-    }
-    catch (err) {
-        bleErr(err);
-        return;
-    }
-    BLE.tries = 0;
-    bleOpen(dev, false);
-}
-function bleErr(err: unknown, quiet?: boolean) {
-    const n = runtimeErrorName(err), m = err instanceof Error ? err.message : '';
-    console.warn('Bluetooth MIDI:', err);
-    if (n === 'NotFoundError' && /cancel/i.test(m))
-        bleSet('ble_cancel');
-    else if (n === 'NotAllowedError' || /permission|denied/i.test(m))
-        bleSet('ble_denied', 'err');
-    else if (n === 'SecurityError' || /blocked/i.test(m))
-        bleSet('ble_blocked', 'err');
-    else if (n === 'NotSupportedError')
-        bleSet('ble_unsupported', 'err');
-    else if (/adapter|turned off|not available|unavailable/i.test(m))
-        bleSet('ble_adapter', 'err');
-    else if (n === 'NotFoundError' && /service|characteristic/i.test(m))
-        bleSet('ble_nomidi', 'err');
-    else if (quiet)
-        bleSet('ble_known');
-    else
-        bleSet('ble_failed', 'err', n || m || '?');
-}
-// A superseded attempt (user pressed Disconnect, or picked another piano) closes the link it opened unless it is wanted again.
-function bleStale(gen: number, dev: BleMidiDevice) { if (gen === BLE.gen)
-    return false; if (!BLE.want || BLE.dev !== dev) {
-    try {
-        dev.gatt?.disconnect();
-    }
-    catch (_) { }
-} return true; }
-// retrying: an automatic reconnect after the link dropped; quiet: the silent start-up attempt (no red errors if the piano is off).
-async function bleOpen(dev: BleMidiDevice, retrying: boolean, quiet?: boolean)  {
-    if (BLE.busy && BLE.dev === dev)
-        return;
-    if (BLE.dev && BLE.dev !== dev)
-        bleDisconnect(true); // switching pianos: drop the old link first
-    clearTimeout(BLE.retryT);
-    BLE.dev = dev;
-    BLE.want = true;
-    BLE.busy = true;
-    const gen = ++BLE.gen;
-    dev.removeEventListener('gattserverdisconnected', bleOnGone);
-    dev.addEventListener('gattserverdisconnected', bleOnGone);
-    if (!retrying)
-        bleSet('ble_connecting');
-    else
-        bleUi();
-    // gatt.connect() can wait a long time for a piano that is off; give up after 15 s so the button never hangs.
-    clearTimeout(BLE.guardT);
-    BLE.guardT = window.setTimeout(() => { if (BLE.busy && BLE.gen === gen) {
-        BLE.gen++;
-        BLE.busy = false;
-        bleUnhook();
-        try {
-            dev.gatt?.disconnect();
-        }
-        catch (_) { }
-        if (retrying && BLE.want) bleRetry();
-        else {
-            BLE.want = false;
-            bleSet(quiet ? 'ble_known' : 'ble_unreach', quiet ? '' : 'err');
-        }
-    } }, 15000);
-    try {
-        if (!dev.gatt)
-            throw new TypeError('Bluetooth device has no GATT server');
-        const server = await dev.gatt.connect();
-        if (bleStale(gen, dev))
-            return;
-        const svc = await server.getPrimaryService(BLE_MIDI_SVC), chr = await svc.getCharacteristic(BLE_MIDI_CHR);
-        if (bleStale(gen, dev))
-            return;
-        chr.removeEventListener('characteristicvaluechanged', bleOnValue);
-        chr.addEventListener('characteristicvaluechanged', bleOnValue);
-        bleParserReset();
-        BLE.chr = chr;
-        await chr.startNotifications();
-        if (bleStale(gen, dev)) {
-            chr.removeEventListener('characteristicvaluechanged', bleOnValue);
-            return;
-        }
-        clearTimeout(BLE.guardT);
-        BLE.busy = false;
-        BLE.tries = 0;
-        BLE.saved = { id: dev.id, name: dev.name || '', auto: true };
-        saveAll();
-        bleSet('ble_on', 'on');
-    }
-    catch (err) {
-        if (gen !== BLE.gen)
-            return;
-        clearTimeout(BLE.guardT);
-        BLE.busy = false;
-        bleUnhook();
-        if (runtimeErrorName(err) === 'NotFoundError' && /service|characteristic/i.test(runtimeErrorMessage(err))) {
-            BLE.want = false;
-            try {
-                dev.gatt?.disconnect();
-            }
-            catch (_) { }
-            bleSet('ble_nomidi', 'err');
-            return;
-        }
-        if (retrying && BLE.want) {
-            bleRetry();
-            return;
-        }
-        BLE.want = false;
-        bleErr(err, quiet);
-    }
-}
-function bleUnhook() { if (BLE.chr)
-    BLE.chr.removeEventListener('characteristicvaluechanged', bleOnValue); BLE.chr = null; }
-function bleOnGone(e: BleDisconnectEvent) {
-    if (e.target !== BLE.dev)
-        return;
-    const was = !!BLE.chr;
-    bleUnhook();
-    if (was && srtEligibleFirstSightActive())
-        panic();
-    bleReleaseInput();
-    if (BLE.busy)
-        return; // a connect in flight reports its own failure
-    if (BLE.want && was) {
-        BLE.tries = 0;
-        bleRetry();
-    }
-    else
-        bleUi();
-}
-// After an unexpected drop, try the same device again (no chooser needed), backing off for about a minute: long enough for a piano
-// that was switched off and on, or carried out of range and back. Then hand over to the Reconnect button.
-const BLE_RETRY_MS = [500, 1000, 2000, 4000, 8000, 15000, 30000];
-function bleRetry() {
-    const dev = BLE.dev;
-    if (!dev || !BLE.want)
-        return;
-    if (BLE.tries >= BLE_RETRY_MS.length) {
-        BLE.want = false;
-        bleSet('ble_gone', 'err');
-        return;
-    }
-    const wait = BLE_RETRY_MS[BLE.tries++];
-    bleSet('ble_lost', 'err');
-    clearTimeout(BLE.retryT);
-    BLE.retryT = window.setTimeout(() => { if (BLE.want && BLE.dev === dev && !bleLive())
-        bleOpen(dev, true); }, wait);
-}
-function bleReconnect() { const dev = BLE.dev; if (!dev || bleLive() || BLE.busy)
-    return; ensureAudio(); BLE.tries = 0; bleOpen(dev, false); }
-function bleDisconnect(keepMsg?: boolean) {
-    const chr = BLE.chr, dev = BLE.dev;
-    dev?.removeEventListener('gattserverdisconnected', bleOnGone);
-    if (chr && srtEligibleFirstSightActive())
-        panic();
-    BLE.want = false;
-    BLE.gen++;
-    BLE.busy = false;
-    clearTimeout(BLE.retryT);
-    clearTimeout(BLE.guardT);
-    bleUnhook();
-    bleReleaseInput();
-    if (BLE.saved) {
-        BLE.saved.auto = false;
-        saveAll();
-    }
-    if (chr)
-        chr.stopNotifications().catch(() => { });
-    if (dev && dev.gatt && dev.gatt.connected) {
-        try {
-            dev.gatt.disconnect();
-        }
-        catch (_) { }
-    }
-    if (!keepMsg)
-        bleSet('ble_off');
-}
-// Nothing may stay stuck when the link goes: keys held over Bluetooth, its sustain pedal, bend and mod wheel are let go.
-function bleReleaseInput() {
-    midiChannels.delete('ble');
-    for (const [midi, owner] of midiSustainOwners) {
-        if (owner.source === 'ble') midiSustainOwners.delete(midi);
-    }
-    [...inputOwners.entries()].forEach(([m, o]) => { if (o.has('ble'))
-        handleNoteOff(m, 'ble', 'reset'); });
-    if (BLE.pedal && pedalDown) {
-        pedalDown = false;
-        pedalUp();
-    }
-    if (BLE.bend)
-        setBendFromValue(0);
-    if (BLE.mod) audioEngine.setModulation(0);
-    BLE.pedal = BLE.bend = BLE.mod = false;
-    bleParserReset();
-}
-async function bleAutoReconnect()  {
-    const s = BLE.saved;
-    const bluetooth = navigator.bluetooth;
-    if (!s || !bleCan() || !window.isSecureContext || !bluetooth || !bluetooth.getDevices)
-        return;
-    try {
-        const dev = (await bluetooth.getDevices()).find((d) => d.id === s.id);
-        if (!dev || BLE.dev)
-            return;
-        BLE.dev = dev;
-        bleUi();
-        if (s.auto)
-            bleOpen(dev, false, true);
-    }
-    catch (err) {
-        console.warn('Bluetooth MIDI:', err);
-    }
-}
-function bleParserReset() { BLE.run = 0; BLE.need = 0; BLE.n = 0; BLE.skip = 0; BLE.sysex = false; BLE.clock.reset(); }
-function bleOnValue(e: BleValueEvent) { const v = e.target.value; if (v && v.byteLength > 1)
-    bleParse(new Uint8Array(v.buffer, v.byteOffset, v.byteLength), eventTime(e.timeStamp, performance.now())); }
-/* BLE-MIDI packet: [header 10hhhhhh] then messages, each normally led by a timestamp byte [1lllllll]. A byte with bit 7 set that
-   directly follows a timestamp is a status byte; any other byte with bit 7 set is the next timestamp. Within a packet a message may
-   drop its status (running status) and then also its timestamp, so several notes can share one notification. SysEx may span
-   packets (continuation packets carry only data after the header). Messages are dispatched (and sound) as soon as their last byte
-   is read. The timestamps tell the judges when each message was played: BLE.clock maps them onto the local clock, which takes the
-   radio's connection-interval jitter out of the judged time. */
-function bleParse(p: Uint8Array, arrival = performance.now()) {
-    if ((p[0] & 0xC0) !== 0x80)
-        return;
-    BLE.run = BLE.need = BLE.n = BLE.skip = 0;
-    const stamps = bleTimestamps(p);
-    stamps.forEach((ms) => BLE.clock.observe(ms, arrival));
-    BLE.at = arrival;
-    let ts = false;
-    for (let i = 1; i < p.length; i++) {
-        const b = p[i];
-        if (b & 0x80) {
-            if (!ts) {
-                ts = true;
-                const ms = stamps.get(i);
-                if (ms != null)
-                    BLE.at = BLE.clock.map(ms, arrival);
-                continue;
-            }
-            ts = false;
-            bleStatus(b);
-        }
-        else {
-            ts = false;
-            bleData(b);
-        }
-    }
-}
-function bleStatus(b: number) {
-    if (b >= 0xF8)
-        return; // real-time (clock, active sensing…): ignored, running status kept
-    if (b === 0xF0) {
-        BLE.sysex = true;
-        BLE.run = 0;
-        BLE.n = 0;
-        return;
-    }
-    if (b === 0xF7) {
-        BLE.sysex = false;
-        return;
-    }
-    BLE.sysex = false;
-    BLE.n = 0;
-    if (b > 0xF0) {
-        BLE.run = 0;
-        BLE.skip = b === 0xF2 ? 2 : (b === 0xF1 || b === 0xF3) ? 1 : 0;
-        return;
-    } // system common: skip its data, cancel running status
-    BLE.run = b;
-    BLE.skip = 0;
-    BLE.need = ((b & 0xF0) === 0xC0 || (b & 0xF0) === 0xD0) ? 1 : 2;
-}
-function bleData(b: number) {
-    if (BLE.sysex)
-        return;
-    if (!BLE.run) {
-        if (BLE.skip)
-            BLE.skip--;
-        return;
-    }
-    if (BLE.n === 0) {
-        if (BLE.need === 1) {
-            bleMsg(BLE.run, b, 0);
-            return;
-        }
-        BLE.d1 = b;
-        BLE.n = 1;
-        return;
-    }
-    BLE.n = 0;
-    bleMsg(BLE.run, BLE.d1, b);
-}
-function bleMsg(st: number, d1: number, d2: number) {
-    const cmd = st & 0xF0;
-    if (cmd === 0xB0) {
-        if (d1 === 64)
-            BLE.pedal = d2 >= 64;
-        else if (d1 === 1)
-            BLE.mod = d2 > 0;
-    }
-    else if (cmd === 0xE0)
-        BLE.bend = ((d2 << 7) | d1) !== 8192;
-    midiIn(st, d1, d2, 'ble', BLE.at);
-}
+    },
+    resetBend() { setBendFromValue(0); },
+    resetModulation() { audioEngine.setModulation(0); },
+    runtimeErrorName,
+    runtimeErrorMessage,
+});
+const BLE = bleController.state;
+const bleCan = bleController.can;
+const bleLive = bleController.live;
+const bleName = bleController.name;
+const bleSet = bleController.set;
+const bleUi = bleController.ui;
+const bleClick = bleController.click;
+const bleChoose = bleController.choose;
+const bleErr = bleController.err;
+const bleStale = bleController.stale;
+const bleOpen = bleController.open;
+const bleUnhook = bleController.unhook;
+const bleOnGone = bleController.onGone;
+const bleRetry = bleController.retry;
+const bleReconnect = bleController.reconnect;
+const bleDisconnect = bleController.disconnect;
+const bleReleaseInput = bleController.releaseInput;
+const bleAutoReconnect = bleController.autoReconnect;
+const bleParserReset = bleController.parserReset;
+const bleOnValue = bleController.onValue;
+const bleParse = bleController.parse;
+const bleStatus = bleController.status;
+const bleData = bleController.data;
+const bleMsg = bleController.msg;
 /* ---------- INSTALLED APP: offline copy, install prompt, full screen and screen wake lock ---------- */
 interface InstalledAppState { sw: string; err: string; prompt: InstallPromptEvent|null; installed: boolean }
 const PWA: InstalledAppState = { sw: '', err: '', prompt: null, installed: false };
@@ -5223,351 +4791,54 @@ function updateExplore() {
     cofNow(notes, chord);
 }
 /* ---------- CIRCLE OF FIFTHS (Explore: the key picker beside the staff) ---------- */
-// Standard one-octave fingerings, ascending, indexed by the tonic's pitch class (C=0 … B=11); the scale and arpeggio drill uses the same table.
-const COF_FING = SCALE_FINGERINGS;
-const COF_MAJ = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'], COF_MIN = ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'Bb', 'F', 'C', 'G', 'D'];
-const COF_COL = ['#e8c160', '#ecae4c', '#e79443', '#df7a3b', '#d2623a', '#bd4834', null, '#355895', '#3b6fa2', '#3f86a6', '#4b9ea6', '#62b3a6'];
-const COF_SCALE = { natural: 'Aeolian (Natural minor)', harmonic: 'Harmonic minor', melodic: 'Melodic minor' };
-type CofMode = 'scale' | 'chord';
-type CofFlavor = keyof typeof COF_SCALE;
-interface CofSelection {
-    i: number;
-    minor: boolean;
-    mode: CofMode;
-    flavor: CofFlavor;
-    picked: boolean;
-}
-interface CofSignature {
-    n: number;
-    sharp?: boolean;
-    list: string;
-}
-function isCofMode(v: string | undefined): v is CofMode { return v === 'scale' || v === 'chord'; }
-function isCofFlavor(v: string | undefined): v is CofFlavor { return v === 'natural' || v === 'harmonic' || v === 'melodic'; }
-const cof: CofSelection = { i: 0, minor: false, mode: 'scale', flavor: 'natural', picked: false };
-const COF_SOL = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
-function cofSpell(letter: string, acc: number) { return spelledName(notation, 'CDEFGAB'.indexOf(letter), acc); }
-function cofParse(s: string) { return { L: s[0], acc: s[1] === '#' ? 1 : s[1] === 'b' ? -1 : 0 }; }
-function cofName(s: string) { const p = cofParse(s); return cofSpell(p.L, p.acc); }
-// Spell each degree with consecutive letter names so keys read correctly (e.g. G harmonic minor → F♯, D♯ minor → C𝄪).
-function cofSpellDegrees(tonic: string, offs: readonly number[], degs: number[]) {
-    const LET = 'CDEFGAB', NAT = [0, 2, 4, 5, 7, 9, 11], p = cofParse(tonic), li = LET.indexOf(p.L), tp = NAT[li] + p.acc;
-    return offs.map((o, k) => { const L = (li + degs[k]) % 7, d = ((tp + o - NAT[L]) % 12 + 12) % 12; return cofSpell(LET[L], d > 6 ? d - 12 : d); });
-}
-function cofTonicPc() { return cof.minor ? (CIRCLE[cof.i] + 9) % 12 : CIRCLE[cof.i]; }
-function cofKeyLabel(i: number, minor: boolean) { if (i === 6)
-    return minor ? cofName('D#') + ' / ' + cofName('Eb') : cofName('F#') + ' / ' + cofName('Gb'); return cofName(minor ? COF_MIN[i] : COF_MAJ[i]); }
-function cofSigList(i: number): CofSignature { const sh = 'FCGDAEB', fl = 'BEADGCF'; if (i === 0)
-    return { n: 0, list: '' }; if (i <= 6)
-    return { n: i, sharp: true, list: [...sh.slice(0, i)].map((L) => cofSpell(L, 1)).join(', ') }; const n = 12 - i; return { n, sharp: false, list: [...fl.slice(0, n)].map((L) => cofSpell(L, -1)).join(', ') }; }
-function cofData() {
-    const tp = cofTonicPc(), tonic = (cof.minor ? COF_MIN : COF_MAJ)[cof.i], root = 60 + tp;
-    if (cof.mode === 'chord') {
-        const offs = [0, cof.minor ? 3 : 4, 7];
-        return { midis: offs.map((o) => root + o), names: cofSpellDegrees(tonic, offs, [0, 2, 4]), rh: [1, 3, 5], lh: [5, 3, 1] };
-    }
-    const tbl = cof.minor ? COF_FING[cof.flavor] : COF_FING.maj, offs = (cof.minor ? SCALES[COF_SCALE[cof.flavor]] : SCALES['Major (Ionian)']).concat([12]);
-    return { midis: offs.map((o) => root + o), names: cofSpellDegrees(tonic, offs, [0, 1, 2, 3, 4, 5, 6, 7]), rh: [...tbl.rh[tp]].map(Number), lh: [...tbl.lh[tp]].map(Number) };
-}
-const COF_CENTER = 350;
-function cofPt(r: number, deg: number) { const a = (deg - 90) * Math.PI / 180; return [(COF_CENTER + r * Math.cos(a)).toFixed(2), (COF_CENTER + r * Math.sin(a)).toFixed(2)]; }
-function cofSector(r0: number, r1: number, d0: number, d1: number) { const a = cofPt(r1, d0), b = cofPt(r1, d1), c = cofPt(r0, d1), d = cofPt(r0, d0); return 'M' + a + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + b + 'L' + c + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + d + 'Z'; }
-function cofTint(i: number, pct: string|number) { return 'fill:color-mix(in srgb, ' + (COF_COL[i] || '#6d4f7a') + ' ' + pct + '%, var(--card))'; }
-function cofText(x: string, y: string, cls: string, lines: string[], lh: number) { return '<text class="' + cls + '" x="' + x + '" y="' + y + '">' + lines.map((s, k) => '<tspan x="' + x + '" dy="' + (k ? lh : -(lines.length - 1) * lh / 2) + '">' + s.replace(/([♯♭𝄪𝄫])/gu, '<tspan class="cof-g">$1</tspan>') + '</tspan>').join('') + '</text>'; }
-// A circle drawn smaller than this leaves out the signature labels around the rim and zooms in on the rings, so the
-// key names stay legible; it follows the circle's own width, which beside the staff is far less than the window's.
-const COF_COMPACT_W = 460;
-const COF_R_MIN0 = 90, COF_R_MIN1 = 158, COF_R_CNT1 = 182, COF_R_MAJ1 = 256, COF_R_STAFF = 429;
-const COF_STAFF_WIDTH = 126;
-const COF_STAFF_ACCIDENTAL_SCALE = 1.4;
-let cofCompact: boolean | null = null;
-function cofIsCompact(box: HTMLElement) { const w = box.getBoundingClientRect().width; return w > 0 ? w < COF_COMPACT_W : matchMedia('(max-width:560px)').matches; }
-function cofStaffSector(i: number, d0: number, d1: number, id: string) {
-    const primary = lCofN(i), enharmonic = lCofN(i, true), paired = primary !== enharmonic;
-    const fifths = paired ? [Math.max(primary, enharmonic), Math.min(primary, enharmonic)] : [primary];
-    const [x, y] = cofPt((COF_R_MAJ1 + COF_R_STAFF) / 2, i * 30);
-    const scale = paired ? (i === 6 ? .88 : .80) : .96;
-    const staves = fifths.map((n, j) => {
-        // The lower staves sit closer to the vertical axis to fit the diagonal sectors.
-        const staffX = paired ? COF_CENTER + (6 - i) * (j === 0 ? 180 : 152) : x;
-        const staffY = paired ? COF_CENTER + (i === 6 ? [309, 384] : [273, 340])[j] : y;
-        const signature = srKeySigG('treble', n, 35, 0, COF_STAFF_ACCIDENTAL_SCALE).svg;
-        return `<g class="lw-cof-staff" data-fifths="${n}" transform="translate(${staffX} ${staffY}) scale(${scale}) translate(${-COF_STAFF_WIDTH / 2} -26)"><use href="#${id}Staff"/>${signature}</g>`;
-    }).join('');
-    return `<g aria-hidden="true"><path class="lw-cof-staff-sector" d="${cofSector(COF_R_MAJ1, COF_R_STAFF, d0, d1)}"/>${staves}</g>`;
-}
-function cofWheel(layout: 'compact' | 'wide' | 'staff') {
-    const compact = layout !== 'wide', withStaff = layout === 'staff';
-    const id = withStaff ? 'lw-cof' : 'cof';
-    const staffFrame = COF_R_STAFF + 6;
-    const viewBox = withStaff ? `${COF_CENTER - staffFrame} ${COF_CENTER - staffFrame} ${2 * staffFrame} ${2 * staffFrame}` :
-        compact ? '92 92 516 516' : '-12 20 724 650';
-    const staff = withStaff ? `<g id="${id}Staff">${Array.from({ length: 5 }, (_, i) =>
-        `<path class="ss-line" stroke-width="1.8" d="M0 ${i * 12}h${COF_STAFF_WIDTH}"/>`).join('')}${srClef('treble', 5, 0)}</g>` : '';
-    let s = '<svg class="cof-svg' + (compact ? ' compact' : '') + '" viewBox="' + viewBox + '" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="' + t('aria_circle') + '"><defs>' +
-        '<linearGradient id="' + id + 'Split" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="400" y2="0"><stop offset="0" stop-color="#314e8c"/><stop offset=".5" stop-color="#314e8c"/><stop offset=".5" stop-color="#a8392f"/><stop offset="1" stop-color="#a8392f"/></linearGradient>' +
-        '<marker id="' + id + 'AhUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#c96b3f"/></marker>' +
-        '<marker id="' + id + 'AhDn" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L9 5L1 9z" fill="#4a7fb0"/></marker>' +
-        (withStaff ? staff : '<path id="cofArcS" d="M' + cofPt(334, 18) + 'A334 334 0 0 1 ' + cofPt(334, 72) + '"/><path id="cofArcF" d="M' + cofPt(334, 288) + 'A334 334 0 0 1 ' + cofPt(334, 342) + '"/>') + '</defs>';
-    if (!compact)
-        s += '<text class="cof-arc sharp"><textPath href="#cofArcS" startOffset="50%" text-anchor="middle">' + t('cof_sharps') + ' ♯</textPath></text>';
-    if (!compact)
-        s += '<text class="cof-arc flat"><textPath href="#cofArcF" startOffset="50%" text-anchor="middle">♭ ' + t('cof_flats') + '</textPath></text>';
-    let maj = '', min = '', acc = '';
-    const rMajMid = (COF_R_CNT1 + COF_R_MAJ1) / 2, rCntMid = (COF_R_MIN1 + COF_R_CNT1) / 2, rMinMid = (COF_R_MIN0 + COF_R_MIN1) / 2;
-    CIRCLE.forEach((p, i) => {
-        const d0 = i * 30 - 15, d1 = i * 30 + 15, sig = cofSigList(i), light = i <= 4 || i >= 10;
-        const fill = i === 6 ? 'fill:url(#' + id + 'Split)' : 'fill:' + COF_COL[i], txt = light ? '#1a1714' : '#fffaf2';
-        const [mx, my] = cofPt(rMajMid, i * 30), [cx, cy] = cofPt(rCntMid, i * 30), [nx, ny] = cofPt(rMinMid, i * 30);
-        const majL = i === 6 ? [cofName('F#'), cofName('Gb')] : [cofName(COF_MAJ[i])], minL = i === 6 ? [cofName('D#') + 'm', cofName('Eb') + 'm'] : [cofName(COF_MIN[i]) + 'm'];
-        const cnt = i === 0 ? '0' : i < 6 ? i + '♯' : i === 6 ? '6♯ 6♭' : (12 - i) + '♭';
-        maj += '<g class="cof-k" data-i="' + i + '" data-ring="maj" tabindex="0" role="button" aria-pressed="false" aria-label="' + t('cof_aria_maj', cofKeyLabel(i, false)) + (sig.n ? ', ' + sig.n + (sig.sharp ? '♯' : '♭') : '') + '">' +
-            '<path class="cof-w" d="' + cofSector(COF_R_CNT1, COF_R_MAJ1, d0, d1) + '" style="' + fill + '"/><path class="cof-w" d="' + cofSector(COF_R_MIN1, COF_R_CNT1, d0, d1) + '" style="' + cofTint(i, 44) + '"/>' +
-            cofText(mx, my, 'cof-maj' + (i === 6 ? ' sm' : ''), majL, 28).replace('<text ', '<text style="fill:' + txt + '" ') +
-            '<text class="cof-cnt" x="' + cx + '" y="' + cy + '">' + cnt + '</text></g>';
-        min += '<g class="cof-k" data-i="' + i + '" data-ring="min" tabindex="0" role="button" aria-pressed="false" aria-label="' + t('cof_aria_min', cofKeyLabel(i, true)) + '">' +
-            '<path class="cof-w" d="' + cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) + '" style="' + cofTint(i, 24) + '"/>' + cofText(nx, ny, 'cof-min' + (i === 6 ? ' sm' : ''), minL, 17) + '</g>';
-        if (withStaff)
-            acc += cofStaffSector(i, d0, d1, id);
-        else if (sig.n && !compact) {
-            const items = sig.list.split(', '), lines: string[] = [];
-            for (let k = 0; k < items.length; k += 3)
-                lines.push(items.slice(k, k + 3).join(' '));
-            const a = i * 30, sx = Math.sin(a * Math.PI / 180), side = Math.abs(sx) > .35, [ax, ay] = cofPt(side ? 268 : 280, a);
-            acc += cofText(ax, (+ay + 6).toFixed(2), 'cof-acc', lines, 19).replace('<text ', '<text style="text-anchor:' + (side ? (sx > 0 ? 'start' : 'end') : 'middle') + '" ');
-        }
-    });
-    s += (withStaff ? acc + maj + min : maj + min + acc) +
-        `<path class="cof-ring-rel" id="${id}-rel" d=""/><path class="cof-ring-sel" id="${id}-sel" d=""/>`;
-    if (!withStaff)
-        s += '<g class="cof-now" id="cof-now"></g>';
-    s += '<circle class="cof-hub" cx="350" cy="350" r="89"/>' +
-        '<path class="cof-arrow up" marker-end="url(#' + id + 'AhUp)" d="M' + cofPt(78, -34) + 'A78 78 0 0 1 ' + cofPt(78, 34) + '"/>' +
-        '<path class="cof-arrow dn" marker-end="url(#' + id + 'AhDn)" d="M' + cofPt(78, 214) + 'A78 78 0 0 0 ' + cofPt(78, 146) + '"/>' +
-        '<text class="cof-iv up" x="350" y="311">' + t('cof_5th') + '</text><text class="cof-st" x="350" y="327">' + t('cof_7st') + '</text>' +
-        '<text class="cof-title" x="350" y="355">' + t('ex_tab_circle') + '</text>' +
-        '<text class="cof-iv dn" x="350" y="381">' + t('cof_4th') + '</text><text class="cof-st" x="350" y="397">' + t('cof_5st') + '</text></svg>';
-    return s;
-}
-function cofBindKeys(box: Element, onPick: (i: number, minor: boolean) => void) {
-    box.querySelectorAll<SVGElement>('.cof-k').forEach((g) => {
-        const pick = () => onPick(Number(g.dataset.i), g.dataset.ring === 'min');
-        g.addEventListener('click', pick);
-        g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            e.stopPropagation();
-            pick();
-        } });
-    });
-}
-function cofWheelSelect(box: Element, index: number, minor: boolean, picked: boolean) {
-    const svg = box.querySelector('.cof-svg');
-    if (!svg)
-        return;
-    svg.classList.toggle('has-sel', picked);
-    svg.querySelectorAll<SVGElement>('.cof-k').forEach((g) => {
-        const relativePair = picked && Number(g.dataset.i) === index;
-        const on = relativePair && (g.dataset.ring === 'min') === minor;
-        g.classList.toggle('on', on);
-        g.classList.toggle('rel', relativePair && !on);
-        g.setAttribute('aria-pressed', String(on));
-    });
-    const d0 = index * 30 - 15, d1 = index * 30 + 15;
-    const majD = picked ? cofSector(COF_R_MIN1, COF_R_MAJ1, d0, d1) : '';
-    const minD = picked ? cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) : '';
-    svg.querySelector('.cof-ring-sel')?.setAttribute('d', minor ? minD : majD);
-    svg.querySelector('.cof-ring-rel')?.setAttribute('d', minor ? majD : minD);
-}
-function renderCircle() {
-    const box = byId('circle');
-    if (!box)
-        return;
-    cofCompact = cofIsCompact(box);
-    box.innerHTML = cofWheel(cofCompact ? 'compact' : 'wide');
-    cofBindKeys(box, cofPick);
-    cofSel();
-    cofInfo();
-}
-// No key context, no ring: the key card still describes the last key looked at.
-function cofSel() {
-    cofWheelSelect(byId('circle'), cof.i, cof.minor, cof.picked);
-}
-// Keeps the circle in step with the "Key context" select; "none" clears the circle's pick.
-function circleSel() { const k = exKeyCtx(); if (k) {
-    cof.i = CIRCLE.indexOf(k.minor ? (k.pc + 3) % 12 : k.pc);
-    cof.minor = k.minor;
-    cof.picked = true;
-}
-else
-    cof.picked = false; cofSel(); cofInfo(); cofPaintDock(); }
-function cofPick(i: number, minor: boolean) {
-    cof.i = i;
-    cof.minor = minor;
-    cof.picked = true;
-    selectById('keyCtx').value = (minor ? 'm' : '') + cofTonicPc();
-    cofSyncRef();
-    cofSel();
-    cofInfo();
-    cofPaintDock();
-    updateExplore(); // the Roman numerals and the staff's signature follow the new key
-    cofRevealFingering();
-    cofPlay();
-}
-// One column (phones, narrow windows): the key card sits below the circle, so a pick brings its fingering into view.
-// Beside the staff, a pick leaves the page where it is.
-const EX_ONE_COLUMN = '(max-width:899px)';
-function cofRevealFingering() {
-    requestAnimationFrame(() => {
-        const fing = (document).querySelector('#cof-info .cof-fing');
-        if (!fing || !matchMedia(EX_ONE_COLUMN).matches)
-            return;
-        const header = (document).querySelector('header'), top = (header ? header.getBoundingClientRect().bottom : 0) + 16, bottom = fixedBottomTop() - 24;
-        const rect = fing.getBoundingClientRect(), available = Math.max(0, bottom - top);
-        const delta = rect.height > available || rect.top < top ? rect.top - top : rect.bottom > bottom ? rect.bottom - bottom : 0;
-        if (Math.abs(delta) > 1)
-            window.scrollBy({ top: delta, behavior: (matchMedia)('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-    });
-}
-function cofSyncRef() {
-    selectById('refType').value = cof.mode;
-    fillRefNames();
-    selectById('refRoot').value = String(cofTonicPc());
-    selectById('refName').value = cof.mode === 'chord' ? (cof.minor ? 'm' : 'maj') : (cof.minor ? COF_SCALE[cof.flavor] : 'Major (Ionian)');
-}
-function cofPlay() {
-    const tp = cofTonicPc(), d = cofData();
-    if (cof.mode === 'chord')
-        playChordMidis(d.midis, true);
-    else
-        playScaleNotes(60 + tp, (cof.minor ? SCALES[COF_SCALE[cof.flavor]] : SCALES['Major (Ionian)']), true);
-}
-function cofInfo() {
-    if (!byId('cof-key'))
-        return;
-    const i = cof.i, sig = cofSigList(i), rel = cofKeyLabel(i, !cof.minor);
-    byId('cof-key').textContent = t(cof.minor ? 'key_minor' : 'key_major', cofKeyLabel(i, cof.minor));
-    const sigTxt = (g: CofSignature) => g.n ? t(g.sharp ? 'cof_sig_s' : 'cof_sig_f', String(g.n), '<b>' + g.list + '</b>') : t('cof_sig0');
-    const enhSigOf = (letters: string, sharp: boolean): CofSignature => ({ n: letters.length, sharp, list: [...letters].map((L) => cofSpell(L, sharp ? 1 : -1)).join(', ') });
-    const enhSig = i === 6 ? enhSigOf('BEADGC', false) : i === 5 ? enhSigOf('BEADGCF', false) : i === 7 ? enhSigOf('FCGDAEB', true) : null;
-    const enhKey = i === 5 ? cofName(cof.minor ? 'Ab' : 'Cb') : i === 7 ? cofName(cof.minor ? 'A#' : 'C#') : '';
-    const enhTxt = enhSig ? ' / ' + (enhKey ? t(cof.minor ? 'key_minor' : 'key_major', enhKey) + ' (' + sigTxt(enhSig) + ')' : sigTxt(enhSig)) : '';
-    byId('cof-sig').innerHTML = sigTxt(sig) + enhTxt + ' · ' + t(cof.minor ? 'cof_rel_maj' : 'cof_rel_min', t(cof.minor ? 'key_major' : 'key_minor', rel));
-    queryAllHtml(document, '#cof-mode button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.mode ? 'true' : 'false'));
-    queryAllHtml(document, '#cof-flavor button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === cof.flavor ? 'true' : 'false'));
-    byId('cof-flavor').hidden = !(cof.minor && cof.mode === 'scale');
-    const ch = cof.mode === 'chord';
-    byId('cof-fing-t').textContent = t(ch ? 'cof_fing_chord' : 'cof_fing_scale');
-    byId('cof-fing-s').textContent = '· ' + t(ch ? 'cof_fing_chord_s' : 'cof_fing_scale_s');
-    byId('cof-note').textContent = t(ch ? 'cof_note_chord' : 'cof_note_scale') + (!ch && cof.minor && cof.flavor === 'melodic' ? ' ' + t('cof_note_mel') : '');
-    cofDiagram();
-    cofChords();
-}
-// The key card's seven diatonic triads (a minor key in natural minor), each with its Roman numeral, rising from the tonic
-// in the octave from G3 to F♯4. A pick plays the chord and lights it on the dock, as Show on keys does.
-interface CofChord {
-    roman: string;
-    name: string;
-    label: string;
-    midis: number[];
-}
-function cofChordList(): CofChord[] {
-    const tp = cofTonicPc(), minor = cof.minor, scale = SCALES[minor ? 'Aeolian (Natural minor)' : 'Major (Ionian)'];
-    const names = cofSpellDegrees((minor ? COF_MIN : COF_MAJ)[cof.i], scale, [0, 1, 2, 3, 4, 5, 6]), base = 60 + tp - (tp > 6 ? 12 : 0);
-    return anDiatonic({ root: tp, minor, fifths: keyFifths(tp, minor) }).slice(0, 7).flatMap((d, k) => {
-        const sym = d.p[1] === 4 ? 'maj' : d.p[2] === 6 ? 'dim' : 'm', tpl = CHORDS.find((c) => c.symbol === sym);
-        if (!tpl)
-            return [];
-        const root = base + scale[k];
-        return [{ roman: romanFor(tp, { rootPc: d.root, chord: tpl }, scale), name: names[k] + (sym === 'maj' ? '' : sym === 'm' ? 'm' : '°'),
-            label: names[k] + ' ' + chordDisp(tpl), midis: tpl.intervals.map((i) => root + i) }];
-    });
-}
-function cofChords() {
-    const box = maybeById('cof-chords');
-    if (!box)
-        return;
-    box.innerHTML = '';
-    cofChordList().forEach((c) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'cof-chip';
-        b.dataset.midis = c.midis.join(' ');
-        b.setAttribute('aria-label', c.roman + ' · ' + c.label);
-        b.innerHTML = '<span class="cof-chip-rn" aria-hidden="true">' + c.roman + '</span><b aria-hidden="true">' + c.name + '</b>';
-        box.appendChild(b);
-    });
-}
-function cofChordPlay(midis: number[]) {
-    kbClear('target');
-    midis.forEach((m) => kbState(m, 'target', true));
-    playChordMidis(midis, false);
-    // The readout and the staff show the chord as long as the keys do; this also clears an earlier pick's timers.
-    exploreSequence([{ at: 0, notes: midis }, { at: 2600, notes: [] }]);
-    exploreTimers.push(setTimeout(() => { kbClear('target'); cofPaintDock(); }, 2600));
-}
-function cofDiagram() {
-    const box = byId('cof-kb');
-    if (!box)
-        return;
-    const d = cofData(), WHITE = [0, 2, 4, 5, 7, 9, 11], isW = (m: number) => WHITE.includes(pc(m));
-    let lo = d.midis[0], hi = d.midis[d.midis.length - 1];
-    if (!isW(lo))
-        lo--;
-    if (!isW(hi))
-        hi++;
-    const WW = 44, WH = 124, BW = 26, BH = 78, X0 = 34, TOP = 58, whites: number[] = [];
-    for (let m = lo; m <= hi; m++)
-        if (isW(m))
-            whites.push(m);
-    const W = X0 + whites.length * WW + 4, H = TOP + WH + 60, xOf = (m: number) => isW(m) ? X0 + whites.indexOf(m) * WW + WW / 2 : X0 + whites.indexOf(m + 1) * WW;
-    const idx = new Map(d.midis.map((m, k) => [m, k] as const));
-    let s = '<svg class="cof-kb" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + t('cof_kb_aria', t('cof_rh_s') + ': ' + d.names.map((n, k) => n + ' ' + d.rh[k]).join(', ') + ' · ' + t('cof_lh_s') + ': ' + d.names.map((n, k) => n + ' ' + d.lh[k]).join(', ')) + '">';
-    s += '<text class="ck-hand" x="2" y="32">' + t('cof_rh_s') + '</text><text class="ck-hand" x="2" y="' + (TOP + WH + 36) + '">' + t('cof_lh_s') + '</text>';
-    whites.forEach((m, k) => {
-        const ni = idx.get(m), on = ni !== undefined;
-        s += '<rect class="ck-w' + (on ? ' on' : '') + '" data-m="' + m + '" x="' + (X0 + k * WW) + '" y="' + TOP + '" width="' + WW + '" height="' + WH + '" rx="5"/>';
-        if (on)
-            s += '<text class="ck-n" x="' + (X0 + k * WW + WW / 2) + '" y="' + (TOP + WH - 12) + '">' + d.names[ni] + '</text>';
-    });
-    for (let m = lo; m <= hi; m++) {
-        if (isW(m))
-            continue;
-        const ni = idx.get(m), on = ni !== undefined, x = xOf(m);
-        s += '<rect class="ck-b' + (on ? ' on' : '') + '" data-m="' + m + '" x="' + (x - BW / 2) + '" y="' + TOP + '" width="' + BW + '" height="' + BH + '" rx="3"/>';
-        if (on)
-            s += '<text class="ck-n b" x="' + x + '" y="' + (TOP + BH - 11) + '" style="font-size:9.5px">' + d.names[ni] + '</text>';
-    }
-    const badge = (cls: string, x: string|number, y: string|number, n: string|number) => '<g class="ck-f ' + cls + '"><circle cx="' + x + '" cy="' + y + '" r="11"/><text x="' + x + '" y="' + y + '">' + n + '</text></g>';
-    d.midis.forEach((m, k) => { const x = xOf(m), w = isW(m); s += badge('rh', x, w ? 40 : 14, d.rh[k]) + badge('lh', x, w ? TOP + WH + 18 : TOP + WH + 44, d.lh[k]); });
-    box.innerHTML = s + '</svg>';
-}
-// Lights the held notes on the fingering diagram, and marks on the circle where they sit: a named chord on its root's
-// wedge (inner ring for a minor or diminished chord, as its numeral is lower case), one or two notes on their major keys.
-function cofNow(notes: readonly number[], chord: ReturnType<typeof identifyChord> = null) {
-    const box = byId('cof-kb');
-    if (box) {
-        const set = new Set(notes);
-        box.querySelectorAll('[data-m]').forEach((r) => r.classList.toggle('now', set.has(Number(r.getAttribute('data-m')))));
-    }
-    const g = maybeById('cof-now');
-    if (!g)
-        return;
-    const at: string[] = [];
-    let s = '';
-    const wedge = (i: number, minor: boolean) => { const d0 = i * 30 - 15, d1 = i * 30 + 15; at.push((minor ? 'min' : 'maj') + i); s += '<path class="cof-ring-now" d="' + (minor ? cofSector(COF_R_MIN0, COF_R_MIN1, d0, d1) : cofSector(COF_R_MIN1, COF_R_MAJ1, d0, d1)) + '"/>'; };
-    if (chord) {
-        const minor = /^m(?!aj)/.test(chord.chord.symbol) || chord.chord.symbol.startsWith('dim');
-        wedge(CIRCLE.indexOf(minor ? (chord.rootPc + 3) % 12 : chord.rootPc), minor);
-    }
-    else if (notes.length && notes.length < 3)
-        [...new Set(notes.map(pc))].forEach((p) => wedge(CIRCLE.indexOf(p), false));
-    g.innerHTML = s;
-    g.setAttribute('data-at', at.join(' '));
-}
-// The chosen key's scale or chord shows on the dock while a key context is set.
-function cofPaintDock() { if (view0() !== 'explore')
-    return; kbClear('target'); if (!cof.picked)
-    return; cofData().midis.forEach((m) => kbState(m, 'target', true)); }
+const cofController = createCircleOfFifths({
+    t: (key, ...args) => t(key, ...args),
+    spellName: (letter, acc) => spelledName(notation, letter, acc),
+    chordDisp,
+    exKeyCtx,
+    fillRefNames,
+    updateExplore,
+    playChordMidis,
+    playScaleNotes,
+    exploreSequence,
+    pushExploreTimer: (timer) => exploreTimers.push(timer),
+    view0,
+    kbClear,
+    kbState,
+    fixedBottomTop,
+    lCofN,
+});
+const cof = cofController.state;
+const cofSpell = cofController.spell;
+const cofParse = cofController.parse;
+const cofName = cofController.name;
+const cofSpellDegrees = cofController.spellDegrees;
+const cofTonicPc = cofController.tonicPc;
+const cofKeyLabel = cofController.keyLabel;
+const cofSigList = cofController.sigList;
+const cofData = cofController.data;
+const cofPt = cofController.pt;
+const cofSector = cofController.sector;
+const cofTint = cofController.tint;
+const cofText = cofController.text;
+const cofIsCompact = cofController.isCompact;
+const cofWheel = cofController.wheel;
+const cofBindKeys = cofController.bindKeys;
+const cofWheelSelect = cofController.wheelSelect;
+const renderCircle = cofController.render;
+const cofSel = cofController.sel;
+const circleSel = cofController.syncFromKeyCtx;
+const cofPick = cofController.pick;
+const cofRevealFingering = cofController.revealFingering;
+const cofSyncRef = cofController.syncRef;
+const cofPlay = cofController.play;
+const cofInfo = cofController.info;
+const cofChordList = cofController.chordList;
+const cofChords = cofController.chords;
+const cofChordPlay = cofController.chordPlay;
+const cofDiagram = cofController.diagram;
+const cofNow = cofController.now;
+const cofPaintDock = cofController.paintDock;
 // Brings one part of Explore into view. Links written for the old tabs (data-extab="circle") still land here.
 function exTab(part: string | undefined) {
     const circle = part === 'circle', el = byId(circle ? 'exp-circle' : 'exp-free');
@@ -5586,7 +4857,7 @@ function initExploreControls() {
         return;
     // Redraw when the circle crosses the compact width (a window resize, the dock opening, the layout changing columns).
     if (typeof ResizeObserver === 'function')
-        new ResizeObserver(() => { if (circle.getBoundingClientRect().width > 0 && cofIsCompact(circle) !== cofCompact) {
+        new ResizeObserver(() => { if (circle.getBoundingClientRect().width > 0 && cofIsCompact(circle) !== cofController.compact) {
             renderCircle();
             updateExplore(); // repaints where the held notes sit on the new drawing
         } }).observe(circle);
