@@ -2012,7 +2012,9 @@ const payload: UIPayload = {
       "sym_rest_dotted": "punktierte %s",
       "sym_rest_dots": "%s mit %b Punkten",
       "sym_rest_body": "Für diesen Notenwert nicht spielen; andere Stimmen können weiterspielen.",
-      "sym_rest_measure_body": "In dieser Stimme den ganzen Takt lang nicht spielen; andere Stimmen können weiterspielen."
+      "sym_rest_measure_body": "In dieser Stimme den ganzen Takt lang nicht spielen; andere Stimmen können weiterspielen.",
+      "iv_plus_oct_one": " + 1 Oktave",
+      "iv_plus_oct_many": " + %s Oktaven"
     }
   },
   "I18N_MUSIC": {
@@ -2140,7 +2142,7 @@ const payload: UIPayload = {
         "1": {
           "asc": [
             "Der weiße Hai (Jaws-Thema)",
-            "Stormy Weather"
+            "Isn’t She Lovely"
           ],
           "desc": [
             "Für Elise"
@@ -2187,7 +2189,7 @@ const payload: UIPayload = {
             "Auld Lang Syne"
           ],
           "desc": [
-            "Born Free",
+            "Eine kleine Nachtmusik",
             "Herbei, o ihr Gläub’gen (Adeste Fideles)"
           ]
         },
@@ -2208,7 +2210,7 @@ const payload: UIPayload = {
           ],
           "desc": [
             "Familie Feuerstein (The Flintstones)",
-            "Feelings"
+            "Menuett G-Dur (Petzold)"
           ]
         },
         "8": {
@@ -2218,7 +2220,7 @@ const payload: UIPayload = {
             "We’ve Only Just Begun"
           ],
           "desc": [
-            "Music of the Night"
+            "Under the Bridge (Intro)"
           ]
         },
         "9": {
@@ -2227,7 +2229,7 @@ const payload: UIPayload = {
             "Kling, Glöckchen (Jingle Bells)"
           ],
           "desc": [
-            "Nobody Knows the Trouble I’ve Seen"
+            "The Music of the Night"
           ]
         },
         "10": {
@@ -2241,8 +2243,7 @@ const payload: UIPayload = {
         },
         "11": {
           "asc": [
-            "Take On Me (Refrain)",
-            "Bali Ha’i"
+            "Don’t Know Why"
           ],
           "desc": [
             "(sehr selten)"
@@ -2257,6 +2258,25 @@ const payload: UIPayload = {
             "Willow Weep for Me"
           ]
         }
+      }
+    },
+    "progressions": {
+      "de": {
+        "I–IV–V": "I–IV–V",
+        "I–V–vi–IV (pop)": "I–V–vi–IV (Pop)",
+        "ii–V–I (jazz)": "ii–V–I (Jazz)",
+        "I–vi–IV–V (50s)": "I–vi–IV–V (50er)",
+        "vi–IV–I–V": "vi–IV–I–V",
+        "I–♭VII–IV (rock)": "I–♭VII–IV (Rock)",
+        "minor ii–V–i": "Moll ii–V–i",
+        "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (episch)",
+        "12-bar blues": "12-Takt-Blues",
+        "Pachelbel’s Canon": "Pachelbels Kanon",
+        "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel-Pop)",
+        "Andalusian i–♭VII–♭VI–V": "Andalusische Kadenz i–♭VII–♭VI–V",
+        "Jazz turnaround I–vi–ii–V": "Jazz-Turnaround I–vi–ii–V",
+        "Circle of 5ths vi–ii–V–I": "Quintenzirkel vi–ii–V–I",
+        "Ballad I–iii–IV–V": "Ballade I–iii–IV–V"
       }
     }
   },

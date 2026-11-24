@@ -157,7 +157,7 @@ const ro: Copy = {
   rating_reading: "Notație",
   rating_info: "Ghidul axelor de dificultate",
   rating_motor_desc: "Deschideri ale mâinii, salturi, viteză și schimbări de poziție pe claviatură.",
-  rating_rhythm_desc: "Subdiviziuni, sincope, trioleti (diviziuni excepționale) și schimbări de măsură.",
+  rating_rhythm_desc: "Subdiviziuni, sincope, triolete (diviziuni excepționale) și schimbări de măsură.",
   rating_bimanual_desc: "Independența și coordonarea dintre mâna stângă și mâna dreaptă.",
   rating_texture_desc: "Numărul de voci simultane, acorduri dense și pasaje polifonice.",
   rating_reading_desc: "Alterații, linii suplimentare, ornamente și complexitatea citirii.",

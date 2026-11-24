@@ -1,7 +1,8 @@
 // Builds the Vite site that GitHub Pages publishes at https://maurs9.github.io/etude/ (see .github/workflows/test.yml).
 // Vite follows the module graph and emits hashed assets; the generated worker is written after the final output exists.
+import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
-import { readdir, rm, writeFile } from 'node:fs/promises';
+import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as viteBuild } from 'vite';
@@ -26,6 +27,46 @@ export const INDEX_HTML = `<!doctype html>
 </body>
 </html>
 `;
+
+const EXECUTABLE_SCRIPT_TYPES = new Set(['', 'text/javascript', 'application/javascript', 'module']);
+
+/** Inject a Content-Security-Policy meta tag covering the HTML's inline scripts and optional dynamic script bodies. */
+export function injectCsp(html, { extraScripts = [], standalone = false } = {}) {
+  const hashes = new Set();
+  const addHash = (body) => {
+    const normalized = body.replaceAll('\r\n', '\n');
+    hashes.add(`'sha256-${createHash('sha256').update(normalized, 'utf8').digest('base64')}'`);
+  };
+  const scriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  for (const match of html.matchAll(scriptPattern)) {
+    const attrs = match[1] ?? '';
+    if (/\bsrc\s*=/i.test(attrs)) continue;
+    const typeMatch = /\btype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs);
+    const type = (typeMatch?.[1] ?? typeMatch?.[2] ?? typeMatch?.[3] ?? '').trim().toLowerCase();
+    if (!EXECUTABLE_SCRIPT_TYPES.has(type)) continue;
+    addHash(match[2] ?? '');
+  }
+  for (const body of extraScripts) addHash(body);
+  const scriptSources = ["'self'", ...hashes].join(' ');
+  const connectSources = standalone ? "'self' data: blob:" : "'self'";
+  const csp = [
+    "default-src 'self'",
+    `script-src ${scriptSources}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "media-src 'self' blob: data:",
+    `connect-src ${connectSources}`,
+    "worker-src 'self'",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; ');
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${csp}" />`;
+  const replaced = html.replace(/(<meta\s+charset=["']utf-8["']\s*\/?>)/i, `$1\n${meta}`);
+  if (replaced === html) throw new Error('Could not inject CSP meta tag: missing <meta charset="utf-8">');
+  return replaced;
+}
 
 // The build empties only its own dist/etude/. Any other folder must be new or empty, so a mistyped path (the repo, a
 // home folder, or the repo under another letter case on macOS) is refused instead of deleted.
@@ -65,6 +106,10 @@ export async function build(outDir = OUT_DIR, { input = join(ROOT, 'etude.html')
       rolldownOptions: { input, ...chunkOutput },
     },
   });
+  if (!singleFile && resolve(input) === resolve(join(ROOT, 'etude.html'))) {
+    const builtHtmlPath = join(outDir, 'etude.html');
+    await writeFile(builtHtmlPath, injectCsp(await readFile(builtHtmlPath, 'utf8')));
+  }
   await writeFile(join(outDir, 'index.html'), INDEX_HTML);
   await generateWorker(outDir, join(outDir, 'sw.js'));
   return outDir;

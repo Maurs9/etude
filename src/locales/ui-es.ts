@@ -2012,7 +2012,9 @@ const payload: UIPayload = {
       "sym_rest_dotted": "%s con puntillo",
       "sym_rest_dots": "%s con %b puntillos",
       "sym_rest_body": "No toques durante esta figura; las demás voces pueden continuar.",
-      "sym_rest_measure_body": "No toques durante todo el compás en esta voz; las demás voces pueden continuar."
+      "sym_rest_measure_body": "No toques durante todo el compás en esta voz; las demás voces pueden continuar.",
+      "iv_plus_oct_one": " + 1 octava",
+      "iv_plus_oct_many": " + %s octavas"
     }
   },
   "I18N_MUSIC": {
@@ -2140,7 +2142,7 @@ const payload: UIPayload = {
         "1": {
           "asc": [
             "Tiburón (tema)",
-            "Stormy Weather"
+            "Isn’t She Lovely"
           ],
           "desc": [
             "Para Elisa (Für Elise)"
@@ -2187,7 +2189,7 @@ const payload: UIPayload = {
             "Auld Lang Syne"
           ],
           "desc": [
-            "Born Free",
+            "Eine kleine Nachtmusik",
             "Adeste Fideles"
           ]
         },
@@ -2208,7 +2210,7 @@ const payload: UIPayload = {
           ],
           "desc": [
             "Los Picapiedra",
-            "Feelings"
+            "Minueto en sol (Petzold)"
           ]
         },
         "8": {
@@ -2218,7 +2220,7 @@ const payload: UIPayload = {
             "We’ve Only Just Begun"
           ],
           "desc": [
-            "The Music of the Night"
+            "Under the Bridge (introducción)"
           ]
         },
         "9": {
@@ -2227,7 +2229,7 @@ const payload: UIPayload = {
             "Navidad, dulce Navidad (Jingle Bells)"
           ],
           "desc": [
-            "Nobody Knows the Trouble I’ve Seen"
+            "The Music of the Night"
           ]
         },
         "10": {
@@ -2241,8 +2243,7 @@ const payload: UIPayload = {
         },
         "11": {
           "asc": [
-            "Take On Me (estribillo)",
-            "Bali Ha’i"
+            "Don’t Know Why"
           ],
           "desc": [
             "(muy raro)"
@@ -2258,9 +2259,34 @@ const payload: UIPayload = {
           ]
         }
       }
+    },
+    "progressions": {
+      "es": {
+        "I–IV–V": "I–IV–V",
+        "I–V–vi–IV (pop)": "I–V–vi–IV (pop)",
+        "ii–V–I (jazz)": "ii–V–I (jazz)",
+        "I–vi–IV–V (50s)": "I–vi–IV–V (años 50)",
+        "vi–IV–I–V": "vi–IV–I–V",
+        "I–♭VII–IV (rock)": "I–♭VII–IV (rock)",
+        "minor ii–V–i": "ii–V–i menor",
+        "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (épica)",
+        "12-bar blues": "Blues de 12 compases",
+        "Pachelbel’s Canon": "Canon de Pachelbel",
+        "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel pop)",
+        "Andalusian i–♭VII–♭VI–V": "Cadencia andaluza i–♭VII–♭VI–V",
+        "Jazz turnaround I–vi–ii–V": "Turnaround de jazz I–vi–ii–V",
+        "Circle of 5ths vi–ii–V–I": "Círculo de quintas vi–ii–V–I",
+        "Ballad I–iii–IV–V": "Balada I–iii–IV–V"
+      }
     }
   },
-  "STEP_LABELS": {},
+  "STEP_LABELS": {
+    "es": {
+      "1": "S",
+      "2": "T",
+      "3": "T+S"
+    }
+  },
   "LOCALE_TAGS": {
     "es": "es-ES"
   },

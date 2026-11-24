@@ -61,11 +61,14 @@ describe('ptt-v3 storage reader', () => {
     expect(isImportableBackup(JSON.parse(await fixture('ptt-v3-legacy.json')))).toBe(true);
     expect(isImportableBackup({ v: 3, data: { sheet: { w5rh: { best: 82, learned: true } } } })).toBe(true);
     for (const data of [{ sheet: null }, { sheet: { w5rh: true } }, { sheet: { w5rh: { best: '82' } } },
+      { learnRev: { keys: { best: '<img src=x onerror=alert(1)>' } } },
+      { learnRev: { keys: { last: '19000' } } },
       { srs: { 'iv:1': null } }, { history: [] }, { reading: { lv: 'broken' } },
       { bestStreak: '7' }, { lastDrill: { n: '7' } }, { reading: { tot: { n: '7' } } },
       { reading: { nt: { 'iv:1': { ok: '7' } }, lv: {} } }, { reading: { lv: { x: { s: '7' } } } }]) {
       expect(isImportableBackup({ v: 3, data })).toBe(false);
     }
+    expect(isImportableBackup({ v: 3, data: { learnRev: { keys: { last: 19000, n: 1, rv: 19007, best: 100 } } } })).toBe(true);
   });
 
   it('filters reserved object keys at every depth while retaining ordinary fields', () => {

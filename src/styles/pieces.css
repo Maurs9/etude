@@ -72,7 +72,7 @@ body[data-stage=pieces] .bottomnav{display:none}
 body[data-stage=pieces] main{padding:0}
 body[data-stage=pieces] #view-analysis > .wrap{max-width:none; padding:0}
 body[data-stage=pieces] #an-panel{margin-top:0 !important; border-radius:0; border-left:0; border-right:0}
-@media (pointer:coarse){ .st-tg{min-height:28px; padding:3px 9px} }
+@media (pointer:coarse){ .st-tg{min-height:36px; padding:3px 9px; position:relative} .st-tg::after{content:""; position:absolute; inset:-4px} }
 
 /* Bound score noteheads: style via CSS rather than thousands of inline style writes during layout. */
 #an-roll .vf-notehead[data-i]{cursor:pointer; pointer-events:bounding-box}

@@ -4,6 +4,8 @@ import {
   analyzeScoreSelection,
   anCadences,
   anHarmony,
+  anInv,
+  anRoman,
   lassoAppendPoint,
   lassoPolygonArea,
   pointInLasso,
@@ -137,6 +139,43 @@ describe('score-harmony broken chords, pedal weighting, and bass selection', () 
     anCadences(segs, [{ ...C_MAJOR, beat: 0 }]);
     expect(segs).toHaveLength(2);
     expect(segs[1].cad).toBe('auth');
+  });
+
+  it('ignores null bass in anInv, labels minor secondary dominants, requires root-position tonic for authentic cadence, and detects 4-bar half cadences', () => {
+    const maj = AN_CHORDS.find((c) => c.s === '');
+    const dom7 = AN_CHORDS.find((c) => c.s === '7');
+    expect(anInv({ ch: { c: maj, root: 5 }, bass: null })).toBe(0);
+
+    const aMinor = { root: 9, minor: true };
+    expect(anRoman(aMinor, { ch: { c: dom7, root: 7 }, bass: 55 })).toBe('V⁷/III');
+    expect(anRoman(aMinor, { ch: { c: dom7, root: 0 }, bass: 48 })).toBe('V⁷/VI');
+    expect(anRoman(aMinor, { ch: { c: dom7, root: 2 }, bass: 50 })).toBe('V⁷/VII');
+    expect(anRoman(aMinor, { ch: { c: dom7, root: 9 }, bass: 45 })).toBe('V⁷/iv');
+
+    const g7ThenC6 = [
+      note(43, 0, 4), note(59, 0, 4), note(62, 0, 4), note(65, 0, 4),
+      note(52, 4, 8), note(60, 4, 8), note(64, 4, 8), note(67, 4, 8),
+    ];
+    const invSegs = anHarmony(g7ThenC6, false, { measures: [M1, M2], keyMap: [{ ...C_MAJOR, beat: 0 }] });
+    anCadences(invSegs, [{ ...C_MAJOR, beat: 0 }]);
+    expect(invSegs[1].cad).not.toBe('auth');
+
+    const m3 = { number: '3', start: 8, end: 12, num: 4, den: 4 };
+    const m4 = { number: '4', start: 12, end: 16, num: 4, den: 4 };
+    const m5 = { number: '5', start: 16, end: 20, num: 4, den: 4 };
+    const phrase = [
+      note(48, 0, 4), note(60, 0, 4), note(64, 0, 4), note(67, 0, 4),
+      note(41, 4, 8), note(60, 4, 8), note(65, 4, 8), note(69, 4, 8),
+      note(48, 8, 12), note(60, 8, 12), note(64, 8, 12), note(67, 8, 12),
+      note(43, 12, 16), note(59, 12, 16), note(62, 12, 16), note(67, 12, 16),
+      note(48, 16, 20), note(60, 16, 20), note(64, 16, 20), note(67, 16, 20),
+    ];
+    const phraseSegs = anHarmony(phrase, false, {
+      measures: [M1, M2, m3, m4, m5],
+      keyMap: [{ ...C_MAJOR, beat: 0 }],
+    });
+    anCadences(phraseSegs, [{ ...C_MAJOR, beat: 0 }]);
+    expect(phraseSegs[3].cad).toBe('half');
   });
 });
 

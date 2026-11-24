@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { scoreDetectPartHands } from '../../src/domain/score-xml-markings.ts';
+import { anReadXml } from '../../src/domain/score-import.ts';
+import { AN_MAX_XML_CHARS } from '../../src/domain/score-types.ts';
 
 class MockNode {
   constructor(localName, attrs = {}, text = '', children = []) {
@@ -216,5 +218,36 @@ describe('scoreDetectPartHands', () => {
     expect(result.hands.get(2)).toBe('lh');
     expect(result.sisters.get(1)).toBe(2);
     expect(result.sisters.get(2)).toBe(1);
+  });
+});
+
+describe('anReadXml entity and size hardening', () => {
+  it('rejects DTD entity expansion payloads and oversized plain XML before DOMParser', async () => {
+    const parseSpy = vi.fn(() => {
+      throw new Error('DOMParser should not be reached');
+    });
+    vi.stubGlobal('DOMParser', class {
+      parseFromString(...args) {
+        return parseSpy(...args);
+      }
+    });
+    try {
+      const entityPayload = '<?xml version="1.0"?><!DOCTYPE score-partwise [<!ENTITY lol "lol">]><score-partwise/>';
+      await expect(anReadXml(new File([entityPayload], 'bomb.xml', { type: 'application/xml' }), 'bomb', {
+        loadMxlToXml: async () => '',
+      })).rejects.toMatchObject({ code: 'xml' });
+      expect(parseSpy).not.toHaveBeenCalled();
+
+      const oversized = {
+        name: 'huge.xml',
+        text: async () => 'x'.repeat(AN_MAX_XML_CHARS + 1),
+      };
+      await expect(anReadXml(oversized, 'huge', {
+        loadMxlToXml: async () => '',
+      })).rejects.toMatchObject({ code: 'mxlbig' });
+      expect(parseSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

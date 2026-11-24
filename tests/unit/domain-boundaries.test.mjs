@@ -14,9 +14,11 @@ const execFileAsync = promisify(execFile);
 
 describe('domain boundaries', () => {
   it('keeps Web Audio node construction in the audio domain', async () => {
-    const runtime = await readFile(runtimePath, 'utf8');
-    expect(runtime).not.toMatch(/\bcreate(?:Oscillator|Gain|BiquadFilter|BufferSource)\s*\(/);
-    expect(runtime).not.toMatch(/\bnew\s+AudioContext\b/);
+    for (const targetPath of [runtimePath, runtimeImplementationPath]) {
+      const runtime = await readFile(targetPath, 'utf8');
+      expect(runtime).not.toMatch(/\bcreate(?:Oscillator|Gain|BiquadFilter|BufferSource)\s*\(/);
+      expect(runtime).not.toMatch(/\bnew\s+AudioContext\b/);
+    }
   });
 
   it('uses the audio boundary for scheduled rhythm clicks', async () => {
@@ -67,9 +69,11 @@ describe('domain boundaries', () => {
   });
 
   it('keeps the view runtime free of compiler-bypass comments', async () => {
-    const runtime = await readFile(runtimePath, 'utf8');
-    expect(runtime).not.toMatch(/@ts-(?:nocheck|ignore)\b/);
-    expect(runtime).not.toMatch(/@ts-expect-error\b/);
+    for (const targetPath of [runtimePath, runtimeImplementationPath]) {
+      const runtime = await readFile(targetPath, 'utf8');
+      expect(runtime).not.toMatch(/@ts-(?:nocheck|ignore)\b/);
+      expect(runtime).not.toMatch(/@ts-expect-error\b/);
+    }
   });
 
   it('keeps the typed view boundary free of explicit any', async () => {

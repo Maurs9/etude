@@ -441,3 +441,53 @@ it('builds reverb buffer with silent pre-delay and decaying stereo tail', async 
     vi.useRealTimers();
   }
 });
+
+it('caps active synth and sampled voices by stealing the oldest voice', () => {
+  const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+  engine.context = { state: 'running', currentTime: 10, resume: vi.fn(async () => {}) };
+  engine.master = {};
+
+  engine.tone = 'soft';
+  const stoppedSynth = [];
+  engine.makeVoice = (freq) => {
+    const voice = { stop: vi.fn(() => { voice.released = true; stoppedSynth.push(freq); }), setBend: vi.fn(), voiceKind: 'synth', released: false };
+    return voice;
+  };
+  for (let m = 40; m < 65; m += 1) engine.noteOn(m, 90);
+  expect(engine.liveVoices.size).toBe(engine.maxSynthVoices);
+  expect(engine.liveVoices.has(40)).toBe(false);
+  expect(engine.liveVoices.has(64)).toBe(true);
+  expect(stoppedSynth).toHaveLength(5);
+
+  engine.liveVoices.clear();
+  engine.tone = 'piano';
+  const stoppedSampled = [];
+  engine.sampledPianoVoice = (freq) => {
+    const voice = { stop: vi.fn(() => { voice.released = true; stoppedSampled.push(freq); }), setBend: vi.fn(), voiceKind: 'sampled', released: false };
+    return voice;
+  };
+  for (let i = 0; i < 52; i += 1) engine.preview(30 + i, 10 + i * 0.01, 2);
+  expect(engine.previewVoices.length).toBeLessThanOrEqual(engine.maxSampledVoices);
+  expect(stoppedSampled).toHaveLength(4);
+});
+
+it('anchors beat 0 of startMetro to explicit startAt time', () => {
+  vi.useFakeTimers();
+  try {
+    const engine = new AudioEngine({ pianoKeys: [], pianoUrls: {}, warmRange: [60, 60] });
+    let now = 5;
+    const clicks = [];
+    engine.context = { state: 'running', get currentTime() { return now; }, resume: vi.fn(async () => {}) };
+    engine.master = {};
+    engine.metroClick = vi.fn((when, accent) => clicks.push({ when, accent }));
+
+    engine.startMetro(120, 5.25);
+    now = 5.2;
+    vi.advanceTimersByTime(25);
+    expect(clicks).toHaveLength(1);
+    expect(clicks[0]).toEqual({ when: 5.25, accent: true });
+    engine.stopMetro();
+  } finally {
+    vi.useRealTimers();
+  }
+});

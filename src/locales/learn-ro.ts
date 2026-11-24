@@ -68,7 +68,7 @@ const payload: LearnPayload = {
     },
     "cad": {
       "t": "Cadențe — punctuația muzicală",
-      "b": "\n<p>O <b>cadență</b> e mișcarea de acorduri care încheie o frază. Ca punctuația, unele închid propoziția, altele o lasă suspendată:</p>\n<ul>\n<li><b>Autentică perfectă (CAP)</b> — V(7) → I, ambele în poziție directă, melodia pe tonică. Punct.</li>\n<li><b>Autentică imperfectă (CAI)</b> — V → I mai slab: o răsturnare, sau melodia se oprește pe 3 ori 5. Punct și virgulă.</li>\n<li><b>Semicadența (SC)</b> — orice acord → V. Virgulă sau semn de întrebare: „va urma”.</li>\n<li><b>Plagală (CP)</b> — IV → I, finalul „Amin” din imnuri.</li>\n<li><b>Evitată / întreruptă (CE)</b> — V → vi. Aștepți „acasă” și primești o surpriză; fraza trebuie să continue.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.60.67.72\">CAP: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">SC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagală: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Evitată: V → vi</button></div>\n<h4>Găsește-le în muzica reală</h4>\n<p>Menuetul în Sol își încheie prima jumătate cu o semicadență și a doua cu o cadență autentică perfectă — deschide Piese ca să vezi cifrajul roman sub fiecare măsură.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Vezi în Piese: Menuet în Sol →</button></div>\n<p class=\"learn-note\">Ascultă cadențele în orice cântec: fredonează ultimul acord al fiecărui vers. Sună încheiat (autentică), suspendat (semicadență) sau surprinzător (evitată)?</p>"
+      "b": "\n<p>O <b>cadență</b> e mișcarea de acorduri care încheie o frază. Ca punctuația, unele închid propoziția, altele o lasă suspendată:</p>\n<ul>\n<li><b>Autentică perfectă (CAP)</b> — V(7) → I, ambele în poziție directă, melodia pe tonică. Punct.</li>\n<li><b>Autentică imperfectă (CAI)</b> — V → I mai slab: o răsturnare, sau melodia se oprește pe 3 ori 5. Punct și virgulă.</li>\n<li><b>Semicadența (SC)</b> — orice acord → V. Virgulă sau semn de întrebare: „va urma”.</li>\n<li><b>Plagală (CP)</b> — IV → I, finalul „Amin” din imnuri.</li>\n<li><b>Evitată / întreruptă (CE)</b> — V → vi. Aștepți „acasă” și primești o surpriză; fraza trebuie să continue.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.64.67.72\">CAP: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">SC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagală: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Evitată: V → vi</button></div>\n<h4>Găsește-le în muzica reală</h4>\n<p>Menuetul în Sol își încheie prima jumătate cu o semicadență și a doua cu o cadență autentică perfectă — deschide Piese ca să vezi cifrajul roman sub fiecare măsură.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">Vezi în Piese: Menuet în Sol →</button></div>\n<p class=\"learn-note\">Ascultă cadențele în orice cântec: fredonează ultimul acord al fiecărui vers. Sună încheiat (autentică), suspendat (semicadență) sau surprinzător (evitată)?</p>"
     },
     "minorh": {
       "t": "Armonia în tonalitățile minore",
@@ -80,7 +80,7 @@ const payload: LearnPayload = {
     },
     "secdom": {
       "t": "Dominante secundare, modulație și conducerea vocilor",
-      "b": "\n<p>Orice acord major sau minor dintr-o tonalitate își poate primi <b>propria dominantă</b>. În Do major, V-ul lui Sol e Re major (Re–Fa♯–La): scriem <b>V/V</b>, „dominanta dominantei”. Fa♯ împrumutat devine o sensibilă temporară care trage spre Sol — un moment de culoare fără să părăsești tonalitatea.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulația</h4>\n<p>Când noua tonică se instalează — confirmată de o cadență în noua tonalitate — ai <b>modulat</b>. Drumul cel mai lin trece printr-un <b>acord-pivot</b> comun ambelor tonalități: Lam e vi în Do și ii în Sol, deci Do – Lam – Re7 – Sol alunecă în Sol major. Majoritatea pieselor clasice modulează la dominantă (în major) sau la relativa majoră (în minor) și revin acasă la final.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">Do → Sol prin pivotul Lam</button></div>\n<h4>Conducerea vocilor</h4>\n<p>Gândește fiecare acord ca pe 3–4 cântăreți. O conducere bună a vocilor mișcă fiecare voce cât mai puțin:</p>\n<ul>\n<li>Păstrează <b>notele comune</b> în aceeași voce; mută-le pe celelalte treptat.</li>\n<li>Rezolvă notele cu tendință: sensibila (7) urcă la 1; septima acordului coboară treptat.</li>\n<li>Evită <b>cvintele și octavele paralele</b> între două voci — fac vocile să se contopească.</li>\n<li>Basul poate sări; vocile de sus preferă treptele.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|48.60.65.69|47.59.62.67|48.60.64.67\">Lin: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Sărit: aceleași acorduri, toate în poziție directă</button></div>\n<p class=\"learn-note\">La pian, conducerea vocilor e și un sfat de tehnică: răsturnările îți țin mâna pe loc. Compară cele două demonstrații — aceleași acorduri, efort foarte diferit.</p>"
+      "b": "\n<p>Orice acord major sau minor dintr-o tonalitate își poate primi <b>propria dominantă</b>. În Do major, V-ul lui Sol e Re major (Re–Fa♯–La): scriem <b>V/V</b>, „dominanta dominantei”. Fa♯ împrumutat devine o sensibilă temporară care trage spre Sol — un moment de culoare fără să părăsești tonalitatea.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulația</h4>\n<p>Când noua tonică se instalează — confirmată de o cadență în noua tonalitate — ai <b>modulat</b>. Drumul cel mai lin trece printr-un <b>acord-pivot</b> comun ambelor tonalități: Lam e vi în Do și ii în Sol, deci Do – Lam – Re7 – Sol alunecă în Sol major. Majoritatea pieselor clasice modulează la dominantă (în major) sau la relativa majoră (în minor) și revin acasă la final.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">Do → Sol prin pivotul Lam</button></div>\n<h4>Conducerea vocilor</h4>\n<p>Gândește fiecare acord ca pe 3–4 cântăreți. O conducere bună a vocilor mișcă fiecare voce cât mai puțin:</p>\n<ul>\n<li>Păstrează <b>notele comune</b> în aceeași voce; mută-le pe celelalte treptat.</li>\n<li>Rezolvă notele cu tendință: sensibila (7) urcă la 1; septima acordului coboară treptat.</li>\n<li>Evită <b>cvintele și octavele paralele</b> între două voci — fac vocile să se contopească.</li>\n<li>Basul poate sări; vocile de sus preferă treptele.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|41.60.65.69|43.59.62.67|48.60.64.67\">Lin: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Sărit: aceleași acorduri, toate în poziție directă</button></div>\n<p class=\"learn-note\">La pian, conducerea vocilor e și un sfat de tehnică: răsturnările îți țin mâna pe loc. Compară cele două demonstrații — aceleași acorduri, efort foarte diferit.</p>"
     },
     "form": {
       "t": "Forma: motive, fraze și secțiuni",
@@ -124,6 +124,9 @@ const payload: LearnPayload = {
         "q": "Cântă Do central (Do4).",
         "seq": [
           0
+        ],
+        "exactMidi": [
+          60
         ]
       },
       {
@@ -131,6 +134,9 @@ const payload: LearnPayload = {
         "seq": [
           4,
           5
+        ],
+        "stepDiff": [
+          1
         ]
       }
     ],
@@ -206,6 +212,9 @@ const payload: LearnPayload = {
         "q": "Cântă nota de pe linia a doua a cheii Sol (Sol4).",
         "seq": [
           7
+        ],
+        "exactMidi": [
+          67
         ]
       }
     ],
@@ -424,6 +433,9 @@ const payload: LearnPayload = {
         "seq": [
           2,
           9
+        ],
+        "stepDiff": [
+          7
         ]
       }
     ],
@@ -742,7 +754,7 @@ const payload: LearnPayload = {
         ]
       },
       {
-        "q": "Dosus4 înlocuiește terța cu…",
+        "q": "Do sus4 înlocuiește terța cu…",
         "o": [
           "cvarta (Fa)",
           "secunda (Re)",

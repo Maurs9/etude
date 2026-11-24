@@ -203,7 +203,7 @@
   .pr-setup > #pr-mode-h,.pr-setup > #pr-mode,.pr-setup > #pr-mode-hint,.pr-setup > #pr-mode-note,.pr-setup > #pr-dir-row{grid-column:1}
   .pr-setup > #pr-mode{justify-self:start}
   .pr-setup > #pr-key-h{grid-column:2; grid-row:3}
-  .pr-setup > #pr-keys{grid-column:2; grid-row:4 / span 4; align-self:start; flex-wrap:nowrap; gap:4px; overflow-x:auto; scrollbar-width:thin}
+  .pr-setup > #pr-keys{grid-column:2; grid-row:4 / span 4; align-self:start; flex-wrap:wrap; gap:6px}
   .pr-setup > #pr-keys .pr-chip{min-width:34px; min-height:36px; padding:0 8px; font-size:13px; white-space:nowrap}
   /* Play along: every control on one line while it fits. */
   .pr-along{display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px; margin-top:20px; padding-top:16px; border-top:1px solid var(--line)}
@@ -213,6 +213,9 @@
   .pr-setup > #pr-start{justify-self:end; min-width:min(100%,320px); margin-top:20px}
   .pr-setup > #pr-along-out{margin-top:4px}
   .pr-songs-lede{max-width:80ch}
+}
+@media (pointer:coarse){
+  .pr-setup > #pr-keys .pr-chip{min-width:44px; min-height:44px}
 }
 /* Very wide: the six topic cards in one row instead of two half-empty ones. */
 @media (min-width:1600px){ .pr-topics{grid-template-columns:repeat(6,minmax(0,1fr))} }

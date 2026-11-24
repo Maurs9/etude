@@ -397,4 +397,33 @@ describe('sight-reading expected events', () => {
     expect(expected.length).toBeGreaterThan(0);
     expect(expected.at(-1)?.offMs).toBeLessThanOrEqual(16000);
   });
+
+  it('rejects partial chord hits whose onset spread exceeds chordWindow', () => {
+    const triad = [
+      { id: 'c', midi: 60, hand: 'rh', onMs: 0, offMs: 250, restBeforeMs: 0, restAfterMs: 0 },
+      { id: 'e', midi: 64, hand: 'rh', onMs: 0, offMs: 250, restBeforeMs: 0, restAfterMs: 0 },
+      { id: 'g', midi: 67, hand: 'rh', onMs: 0, offMs: 250, restBeforeMs: 0, restAfterMs: 0 },
+    ];
+    const res = srtEvaluate(triad, [
+      { id: 'i-c', midi: 60, onMs: 0 },
+      { id: 'i-e', midi: 64, onMs: 95 },
+    ], { chordWindow: 65 });
+    expect(res.TP).toBe(0);
+    expect(res.FN).toBe(3);
+  });
+
+  it('generates raised harmonic-minor leading tones in P3.c without unspellable accidentals', () => {
+    const letterPc = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    let sawLeadingTone = false;
+    for (let seed = 1; seed <= 120; seed += 1) {
+      const piece = srtGenerate('P3.c', seed);
+      expect(srtValidatePiece(piece, 'P3.c')).toBe(true);
+      if (piece.key.keyN <= 4) {
+        const tonicPc = (letterPc[piece.key.tonic[0]] + (piece.key.tonic[1] === '#' ? 1 : piece.key.tonic[1] === 'b' ? -1 : 0) + 12) % 12;
+        const leadingPc = (tonicPc + 11) % 12;
+        if (piece.events.some((ev) => ev.pitches.some((p) => p.midi % 12 === leadingPc))) sawLeadingTone = true;
+      }
+    }
+    expect(sawLeadingTone).toBe(true);
+  });
 });

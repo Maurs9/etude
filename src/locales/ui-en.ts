@@ -2012,7 +2012,9 @@ const payload: UIPayload = {
       "plan_lrev": "Review a chapter",
       "plan_lrev_d": "Review: %a (read %b days ago)",
       "plan_lrev_more": " · +%a more",
-      "plan_lrev_done": "Review done today — nice."
+      "plan_lrev_done": "Review done today — nice.",
+      "iv_plus_oct_one": " + 1 octave",
+      "iv_plus_oct_many": " + %s octaves"
     }
   },
   "I18N_MUSIC": {
@@ -2022,7 +2024,8 @@ const payload: UIPayload = {
     "categories": {},
     "inversions": {},
     "feels": {},
-    "songs": {}
+    "songs": {},
+    "progressions": {}
   },
   "STEP_LABELS": {
     "en": {

@@ -68,7 +68,7 @@ const payload: LearnPayload = {
     },
     "cad": {
       "t": "Cadences — musical punctuation",
-      "b": "\n<p>A <b>cadence</b> is the chord move that ends a phrase. Like punctuation, some end the sentence and some leave it hanging:</p>\n<ul>\n<li><b>Perfect authentic (PAC)</b> — V(7) → I, both in root position, melody ending on the tonic. A full stop.</li>\n<li><b>Imperfect authentic (IAC)</b> — V → I but weaker: an inversion, or the melody ends on 3 or 5. A semicolon.</li>\n<li><b>Half cadence (HC)</b> — any chord → V. A comma or question mark: “to be continued”.</li>\n<li><b>Plagal (PC)</b> — IV → I, the “Amen” ending of hymns.</li>\n<li><b>Deceptive (DC)</b> — V → vi. You expect home and get a surprise; the phrase must go on.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.60.67.72\">PAC: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">HC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Deceptive: V → vi</button></div>\n<h4>Find them in real music</h4>\n<p>The Minuet in G ends its first half with a half cadence and its second with a PAC — open Pieces to see the Roman numerals under each bar.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">See it in Pieces: Minuet in G →</button></div>\n<p class=\"learn-note\">Listen for cadences in any song: hum the last chord of each line. Does it feel finished (authentic), hanging (half) or surprised (deceptive)?</p>"
+      "b": "\n<p>A <b>cadence</b> is the chord move that ends a phrase. Like punctuation, some end the sentence and some leave it hanging:</p>\n<ul>\n<li><b>Perfect authentic (PAC)</b> — V(7) → I, both in root position, melody ending on the tonic. A full stop.</li>\n<li><b>Imperfect authentic (IAC)</b> — V → I but weaker: an inversion, or the melody ends on 3 or 5. A semicolon.</li>\n<li><b>Half cadence (HC)</b> — any chord → V. A comma or question mark: “to be continued”.</li>\n<li><b>Plagal (PC)</b> — IV → I, the “Amen” ending of hymns.</li>\n<li><b>Deceptive (DC)</b> — V → vi. You expect home and get a surprise; the phrase must go on.</li>\n</ul>\n<div data-staff=\"cad1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:43.62.67.71|48.64.67.72\">PAC: V → I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|43.62.67.71\">HC: I → V</button><button class=\"demo\" data-demo=\"vc:41.65.69.72|48.64.67.72\">Plagal: IV → I</button><button class=\"demo\" data-demo=\"vc:43.62.67.71|45.64.69.72\">Deceptive: V → vi</button></div>\n<h4>Find them in real music</h4>\n<p>The Minuet in G ends its first half with a half cadence and its second with a PAC — open Pieces to see the Roman numerals under each bar.</p>\n<div class=\"demo-row\"><button type=\"button\" class=\"btn ghost sm\" data-an=\"minuet\">See it in Pieces: Minuet in G →</button></div>\n<p class=\"learn-note\">Listen for cadences in any song: hum the last chord of each line. Does it feel finished (authentic), hanging (half) or surprised (deceptive)?</p>"
     },
     "minorh": {
       "t": "Harmony in minor keys",
@@ -80,7 +80,7 @@ const payload: LearnPayload = {
     },
     "secdom": {
       "t": "Secondary dominants, modulation & voice leading",
-      "b": "\n<p>Any major or minor chord in a key can get its <b>own dominant</b>. In C major, the V of G is D major (D–F♯–A): we write it <b>V/V</b>, “five of five”. The borrowed F♯ acts as a temporary leading tone pulling to G — a moment of colour without leaving the key.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulation</h4>\n<p>When the new tonic sticks — confirmed by a cadence in the new key — you’ve <b>modulated</b>. The smoothest route is through a <b>pivot chord</b> that belongs to both keys: Am is vi in C and ii in G, so C – Am – D7 – G slides into G major. Most classical pieces modulate to the dominant (major) or the relative major (minor) and come home at the end.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G via pivot Am</button></div>\n<h4>Voice leading</h4>\n<p>Think of each chord as 3–4 singers. Good voice leading moves each singer as little as possible:</p>\n<ul>\n<li>Keep <b>common tones</b> in the same voice; move the others by step.</li>\n<li>Resolve tendency tones: the leading tone (7) goes <b>up</b> to 1; the 7th of a chord goes <b>down</b> by step.</li>\n<li>Avoid <b>parallel 5ths and octaves</b> between two voices — they make the voices merge into one.</li>\n<li>The bass may leap; the upper voices prefer steps.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|48.60.65.69|47.59.62.67|48.60.64.67\">Smooth: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Jumpy: same chords, all root position</button></div>\n<p class=\"learn-note\">On the piano, voice leading is also a technique tip: inversions keep your hand in one place. Compare the two demos above — same chords, very different effort.</p>"
+      "b": "\n<p>Any major or minor chord in a key can get its <b>own dominant</b>. In C major, the V of G is D major (D–F♯–A): we write it <b>V/V</b>, “five of five”. The borrowed F♯ acts as a temporary leading tone pulling to G — a moment of colour without leaving the key.</p>\n<div data-staff=\"sd1\"></div>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|50.66.69.72|43.62.67.71|48.64.67.72\">I – V/V – V – I</button><button class=\"demo\" data-demo=\"vc:48.64.67.72|52.64.68.71|45.64.69.72|41.65.69.72\">I – V/vi – vi – IV</button></div>\n<h4>Modulation</h4>\n<p>When the new tonic sticks — confirmed by a cadence in the new key — you’ve <b>modulated</b>. The smoothest route is through a <b>pivot chord</b> that belongs to both keys: Am is vi in C and ii in G, so C – Am – D7 – G slides into G major. Most classical pieces modulate to the dominant (major) or the relative major (minor) and come home at the end.</p>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.64.67.72|45.64.69.72|50.66.69.72|43.62.67.71|38.66.69.72|43.62.67.71\">C → G via pivot Am</button></div>\n<h4>Voice leading</h4>\n<p>Think of each chord as 3–4 singers. Good voice leading moves each singer as little as possible:</p>\n<ul>\n<li>Keep <b>common tones</b> in the same voice; move the others by step.</li>\n<li>Resolve tendency tones: the leading tone (7) goes <b>up</b> to 1; the 7th of a chord goes <b>down</b> by step.</li>\n<li>Avoid <b>parallel 5ths and octaves</b> between two voices — they make the voices merge into one.</li>\n<li>The bass may leap; the upper voices prefer steps.</li>\n</ul>\n<div class=\"demo-row\"><button class=\"demo\" data-demo=\"vc:48.60.64.67|41.60.65.69|43.59.62.67|48.60.64.67\">Smooth: I–IV–V–I</button><button class=\"demo\" data-demo=\"vc:48.60.64.67|53.65.69.72|55.67.71.74|48.60.64.67\">Jumpy: same chords, all root position</button></div>\n<p class=\"learn-note\">On the piano, voice leading is also a technique tip: inversions keep your hand in one place. Compare the two demos above — same chords, very different effort.</p>"
     },
     "form": {
       "t": "Form: motifs, phrases & sections",
@@ -124,6 +124,9 @@ const payload: LearnPayload = {
         "q": "Play middle C (C4).",
         "seq": [
           0
+        ],
+        "exactMidi": [
+          60
         ]
       },
       {
@@ -131,6 +134,9 @@ const payload: LearnPayload = {
         "seq": [
           4,
           5
+        ],
+        "stepDiff": [
+          1
         ]
       }
     ],
@@ -206,6 +212,9 @@ const payload: LearnPayload = {
         "q": "Play the note on the treble-clef second line (G4).",
         "seq": [
           7
+        ],
+        "exactMidi": [
+          67
         ]
       }
     ],
@@ -424,6 +433,9 @@ const payload: LearnPayload = {
         "seq": [
           2,
           9
+        ],
+        "stepDiff": [
+          7
         ]
       }
     ],

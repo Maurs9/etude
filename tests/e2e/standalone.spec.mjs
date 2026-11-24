@@ -10,6 +10,7 @@ test('the single-file build boots over file://', async ({ page }) => {
   });
   page.on('requestfailed', request => external.push(`failed ${request.url()}`));
   await page.goto(pathToFileURL('dist/etude-standalone.html').href);
+  await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1);
   await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
   await expect(page.locator('#view-today')).toBeVisible();
   expect(await page.evaluate(() => typeof window.opensheetmusicdisplay)).toBe('undefined');
@@ -33,6 +34,7 @@ test('the single-file build loads every interface language and Learn payload wit
   });
   page.on('requestfailed', request => external.push(`failed ${request.url()}`));
   await page.goto(pathToFileURL('dist/etude-standalone.html').href);
+  await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1);
   await page.waitForFunction(() => typeof window.__etude?.show === 'function' && document.querySelector('#keys .key'));
   for (const language of ['en', 'ro', 'es', 'fr', 'de', 'it', 'pt-BR']) {
     await page.evaluate(async language => {

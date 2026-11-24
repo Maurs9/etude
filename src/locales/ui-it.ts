@@ -2012,7 +2012,9 @@ const payload: UIPayload = {
       "sym_rest_dotted": "%s col punto",
       "sym_rest_dots": "%s con %b punti",
       "sym_rest_body": "Non suonare per questa durata; le altre voci possono continuare.",
-      "sym_rest_measure_body": "Non suonare per l'intera battuta in questa voce; le altre voci possono continuare."
+      "sym_rest_measure_body": "Non suonare per l'intera battuta in questa voce; le altre voci possono continuare.",
+      "iv_plus_oct_one": " + 1 ottava",
+      "iv_plus_oct_many": " + %s ottave"
     }
   },
   "I18N_MUSIC": {
@@ -2140,7 +2142,7 @@ const payload: UIPayload = {
         "1": {
           "asc": [
             "Lo squalo (tema)",
-            "Stormy Weather"
+            "Isn’t She Lovely"
           ],
           "desc": [
             "Per Elisa"
@@ -2187,7 +2189,7 @@ const payload: UIPayload = {
             "Auld Lang Syne"
           ],
           "desc": [
-            "Born Free",
+            "Eine kleine Nachtmusik",
             "Adeste Fideles"
           ]
         },
@@ -2208,7 +2210,7 @@ const payload: UIPayload = {
           ],
           "desc": [
             "I Flintstones",
-            "Feelings"
+            "Minuetto in Sol (Petzold)"
           ]
         },
         "8": {
@@ -2218,7 +2220,7 @@ const payload: UIPayload = {
             "We’ve Only Just Begun"
           ],
           "desc": [
-            "Music of the Night"
+            "Under the Bridge (intro)"
           ]
         },
         "9": {
@@ -2227,7 +2229,7 @@ const payload: UIPayload = {
             "Jingle Bells (Dashing Through the Snow)"
           ],
           "desc": [
-            "Nobody Knows the Trouble I’ve Seen"
+            "The Music of the Night"
           ]
         },
         "10": {
@@ -2241,8 +2243,7 @@ const payload: UIPayload = {
         },
         "11": {
           "asc": [
-            "Take On Me (ritornello)",
-            "Bali Ha’i"
+            "Don’t Know Why"
           ],
           "desc": [
             "(raro)"
@@ -2258,9 +2259,34 @@ const payload: UIPayload = {
           ]
         }
       }
+    },
+    "progressions": {
+      "it": {
+        "I–IV–V": "I–IV–V",
+        "I–V–vi–IV (pop)": "I–V–vi–IV (pop)",
+        "ii–V–I (jazz)": "ii–V–I (jazz)",
+        "I–vi–IV–V (50s)": "I–vi–IV–V (anni ’50)",
+        "vi–IV–I–V": "vi–IV–I–V",
+        "I–♭VII–IV (rock)": "I–♭VII–IV (rock)",
+        "minor ii–V–i": "ii–V–i minore",
+        "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (epica)",
+        "12-bar blues": "Blues di 12 battute",
+        "Pachelbel’s Canon": "Canone di Pachelbel",
+        "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel pop)",
+        "Andalusian i–♭VII–♭VI–V": "Cadenza andalusa i–♭VII–♭VI–V",
+        "Jazz turnaround I–vi–ii–V": "Turnaround jazz I–vi–ii–V",
+        "Circle of 5ths vi–ii–V–I": "Circolo delle quinte vi–ii–V–I",
+        "Ballad I–iii–IV–V": "Ballata I–iii–IV–V"
+      }
     }
   },
-  "STEP_LABELS": {},
+  "STEP_LABELS": {
+    "it": {
+      "1": "S",
+      "2": "T",
+      "3": "T+S"
+    }
+  },
   "LOCALE_TAGS": {
     "it": "it-IT"
   },

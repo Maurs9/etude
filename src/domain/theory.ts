@@ -178,15 +178,30 @@ export function chordTargetPitches(root: PitchClass, intervals: readonly number[
   return chordPitches(root, intervals);
 }
 
+const MAJOR_SCALE_OFFSETS = [0, 2, 4, 5, 7, 9, 11] as const;
+
 export function formatChordFormula(intervals: readonly number[]): string {
+  const isDim7 = intervals.includes(3) && intervals.includes(6) && intervals.includes(9);
   return intervals.map(interval => {
+    if (isDim7 && interval === 9) return '𝄫7';
     const classValue = normalizeSemitones(interval);
     return CHORD_DEGREE_LABELS[interval] ?? CHORD_DEGREE_LABELS[classValue] ?? '?';
   }).join(' ');
 }
 
 export function formatScaleFormula(offsets: readonly number[]): string {
-  return offsets.map(offset => SCALE_DEGREE_LABELS[normalizeSemitones(offset)] ?? '?').join(' ');
+  if (offsets.length === 6 && offsets.every((offset, index) => normalizeSemitones(offset) === index * 2)) {
+    return '1 2 3 ♯4 ♯5 ♯6';
+  }
+  return offsets.map((offset, index) => {
+    const pc = normalizeSemitones(offset);
+    if (offsets.length === 7) {
+      const diff = pc - MAJOR_SCALE_OFFSETS[index];
+      const prefix = diff === -2 ? '𝄫' : diff === -1 ? '♭' : diff === 0 ? '' : diff === 1 ? '♯' : diff === 2 ? '𝄪' : null;
+      if (prefix !== null) return `${prefix}${index + 1}`;
+    }
+    return SCALE_DEGREE_LABELS[pc] ?? '?';
+  }).join(' ');
 }
 
 export function chordInversion(root: PitchClass, chord: ChordDefinition, bassMidi: number): number {
@@ -290,7 +305,7 @@ export function spellMidi(midi: number, fifths = 0, minor = false): SpelledMidi 
   if (degree != null) {
     const li = (tonicLetter + degree) % 7;
     const acc = ((pitch - LETTER_PITCH_CLASSES[li] + 18) % 12) - 6;
-    if (Math.abs(acc) <= 1) return make(li, acc);
+    if (Math.abs(acc) <= (minor && relative === 11 && degree === 6 ? 2 : 1)) return make(li, acc);
   }
   for (let li = 0; li < 7; li += 1) {
     if (LETTER_PITCH_CLASSES[li] === pitch) return make(li, 0);
@@ -389,10 +404,12 @@ const INTERVAL_NAMES: Readonly<Record<number, string>> = {
 };
 
 export function anIntervalName(semitones: number): string {
-  const direct = INTERVAL_NAMES[semitones];
+  const abs = Math.abs(semitones);
+  if (abs === 0) return 'Unison';
+  const direct = INTERVAL_NAMES[abs];
   if (direct) return direct;
-  const reduced = INTERVAL_NAMES[normalizeSemitones(semitones) || 12] ?? '?';
-  return `${reduced} (+${Math.floor((semitones - 1) / 12)} oct)`;
+  const reduced = INTERVAL_NAMES[normalizeSemitones(abs) || 12] ?? '?';
+  return `${reduced} (+${Math.floor((abs - 1) / 12)} oct)`;
 }
 
 export interface AnalysisChord {
@@ -496,8 +513,23 @@ export function circleKeyPitchClass(keyNumber: number): PitchClass {
     : normalizeSemitones(5 * -keyNumber);
 }
 
+const SHARP_KEY_ORDER = [3, 0, 4, 1, 5, 2, 6] as const;
+const FLAT_KEY_ORDER = [6, 2, 5, 1, 4, 0, 3] as const;
+
 export function readingSpelling(midi: number, keyNumber: number): SpelledMidi {
   const pitch = pitchClass(midi);
+  const clampedKey = Math.max(-7, Math.min(7, Math.trunc(keyNumber)));
+  for (let li = 0; li < 7; li += 1) {
+    const acc = clampedKey > 0
+      ? (SHARP_KEY_ORDER.slice(0, clampedKey).includes(li as (typeof SHARP_KEY_ORDER)[number]) ? 1 : 0)
+      : clampedKey < 0
+        ? (FLAT_KEY_ORDER.slice(0, -clampedKey).includes(li as (typeof FLAT_KEY_ORDER)[number]) ? -1 : 0)
+        : 0;
+    if (normalizeSemitones(LETTER_PITCH_CLASSES[li] + acc) === pitch) {
+      const oct = Math.round((midi - LETTER_PITCH_CLASSES[li] - acc) / 12) - 1;
+      return { li, oct, acc };
+    }
+  }
   const octave = Math.floor(midi / 12) - 1;
   const natural = (LETTER_PITCH_CLASSES as readonly number[]).indexOf(pitch);
   if (natural >= 0) return { li: natural, oct: octave, acc: 0 };

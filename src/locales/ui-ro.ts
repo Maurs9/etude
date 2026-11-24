@@ -73,7 +73,7 @@ const payload: UIPayload = {
       "lstaff_caption_n_clefs": "Cheia Sol pentru mâna dreaptă, cheia Fa pentru stânga. Do central stă pe o linie suplimentară între ele.",
       "lstaff_caption_n_steps": "Linie, spațiu, linie, spațiu: fiecare treaptă în sus pe portativ e nota următoare.",
       "lstaff_caption_n_acc": "Diezii urcă, bemolii coboară — Do, Do♯, Re, Mi♭, Mi, Fa♯.",
-      "lstaff_caption_dyn1": "p → crescendo → f → diminuendo → pp. Apasă play și ascultă cum volumul urmează semnele.",
+      "lstaff_caption_dyn1": "p → crescendo → f → diminuendo → pp. Apasă redare și ascultă cum volumul urmează semnele.",
       "lstaff_caption_dyn2": "Accent >, puncte de staccato, sfz, tenuto – și o coroană 𝄐 la final.",
       "lstaff_caption_rh1": "Notă întreagă, doimi, pătrimi, optimi — fiecare măsură are 4 timpi. Clicul marchează timpul.",
       "lstaff_caption_iv1": "Intervale de la Do. Atinge fiecare notă sau cântă tot rândul.",
@@ -250,7 +250,7 @@ const payload: UIPayload = {
       "si_dronelbl": "Bordun",
       "si_tempo": "Tempo",
       "si_new": "↺ Melodie nouă",
-      "si_hint_foot": "Sfat: apasă „Tonica\" ca să auzi acasă înainte să începi. Potrivirea de înălțime ignoră octava, așa că merge și pentru başi, și pentru soprane.",
+      "si_hint_foot": "Sfat: apasă „Tonica” ca să auzi nota de bază înainte să începi. Potrivirea de înălțime ignoră octava, așa că merge și pentru bași, și pentru soprane.",
       "si_count": "Pregătește-te…",
       "si_sing_now": "Cântă!",
       "si_hi_up": "Puțin mai sus ↑",
@@ -425,7 +425,7 @@ const payload: UIPayload = {
       "tq_even_steady": "constantă",
       "tq_even_fair": "destul de egală",
       "tq_even_uneven": "inegală",
-      "tq_res_gap": "Ritmul alunecă cel mai mult la %s (degetul %s). Exersează rar acel loc.",
+      "tq_res_gap": "Ritmul alunecă cel mai mult la %s (degetul %s). Exersează lent acel loc.",
       "tq_res_sync": "Ambele mâini: în medie la %s ms una de alta.",
       "ex_staff_hint": "Aceleași note în ambele chei — cheia Fa în stânga, cheia Sol în dreapta, ca pe claviatură. Notele prea înalte sau prea joase pentru un portativ sunt scrise lângă o săgeată.",
       "ex_staff_empty": "Apasă o notă sau un acord pentru a-l vedea aici.",
@@ -665,7 +665,7 @@ const payload: UIPayload = {
       "lg_right": "Corect",
       "lg_wrong": "Greșit",
       "lg_chord_deg": "Treaptă acord",
-      "lg_chord_deg_tip": "Treptele acordului: R = rădăcină, 3 = terță, 5 = cvintă etc. (indică structura acordului, nu digitația)",
+      "lg_chord_deg_tip": "Treptele acordului: R = fundamentală, 3 = terță, 5 = cvintă etc. (indică structura acordului, nu digitația)",
       "midi_off": "Neconectat",
       "all_keys": "Toate tonalitățile",
       "none_ctx": "niciuna",
@@ -1256,7 +1256,7 @@ const payload: UIPayload = {
       "an_key_auto": "Automat",
       "an_keys_major": "Tonalități majore",
       "an_keys_minor": "Tonalități minore",
-      "an_rn_hands_tracks": "Mâinile urmează %s piste MIDI; pista mai acută este mâna dreaptă.",
+      "an_rn_hands_tracks": "Mâinile urmează %s piste MIDI; pista cu registrul mai înalt este mâna dreaptă.",
       "an_rn_hands_fallback": "Pistele se suprapun ca registru, așa că mâinile sunt împărțite la %s.",
       "an_rn_hands_one": "Există o singură pistă, așa că mâinile sunt împărțite la %s.",
       "an_rn_hands_split": "Mâinile sunt împărțite la %s.",
@@ -1358,8 +1358,8 @@ const payload: UIPayload = {
       "sym_dyn_fz": "forzando — accent forțat, brusc, doar pe această notă",
       "sym_dyn_rfz": "rinforzando — întărire bruscă: nota sau grupul scurt devine dintr-odată mai tare",
       "sym_dyn_fp": "forte-piano — atac tare, apoi scazi imediat la încet",
-      "sym_cresc": "Crescendo (con <) — volumul crește treptat pe toată lungimea conului",
-      "sym_dim": "Diminuendo / decrescendo (con >) — volumul scade treptat pe toată lungimea conului",
+      "sym_cresc": "Crescendo (furculiță <) — volumul crește treptat pe toată lungimea furculiței",
+      "sym_dim": "Diminuendo / decrescendo (furculiță >) — volumul scade treptat pe toată lungimea furculiței",
       "sym_t_dolce": "dolce — dulce, blând, cu un ton cald și moale",
       "sym_t_dolcissimo": "dolcissimo — foarte dulce și tandru",
       "sym_t_espressivo": "espressivo — expresiv, cu sentiment",
@@ -1545,7 +1545,7 @@ const payload: UIPayload = {
       "an_iv_sim": "armonic",
       "an_iv_mel": "melodic",
       "kb_deg": "nota %s a acordului",
-      "kb_deg_r": "rădăcina acordului",
+      "kb_deg_r": "fundamentala acordului",
       "today_tools": "Alte moduri de exersare",
       "tool_analysis_d": "Cântă o piesă inclusă sau propriul fișier MIDI ori MusicXML urmărind partitura.",
       "tool_read_d": "Exerciții de citire și melodii noi de citit la prima vedere.",
@@ -2012,7 +2012,9 @@ const payload: UIPayload = {
       "plan_lrev": "Recapitulează un capitol",
       "plan_lrev_d": "Recapitulare: %a (citit acum %b zile)",
       "plan_lrev_more": " · încă %a",
-      "plan_lrev_done": "Recapitulare făcută azi — bravo."
+      "plan_lrev_done": "Recapitulare făcută azi — bravo.",
+      "iv_plus_oct_one": " + 1 octavă",
+      "iv_plus_oct_many": " + %s octave"
     }
   },
   "I18N_MUSIC": {
@@ -2140,7 +2142,7 @@ const payload: UIPayload = {
         "1": {
           "asc": [
             "Jaws / Fălci (temă)",
-            "Stormy Weather"
+            "Isn’t She Lovely"
           ],
           "desc": [
             "Für Elise"
@@ -2187,7 +2189,7 @@ const payload: UIPayload = {
             "Auld Lang Syne"
           ],
           "desc": [
-            "Born Free",
+            "Eine kleine Nachtmusik",
             "Adeste Fideles"
           ]
         },
@@ -2208,7 +2210,7 @@ const payload: UIPayload = {
           ],
           "desc": [
             "The Flintstones",
-            "Feelings"
+            "Menuet în Sol (Petzold)"
           ]
         },
         "8": {
@@ -2218,7 +2220,7 @@ const payload: UIPayload = {
             "We’ve Only Just Begun"
           ],
           "desc": [
-            "Music of the Night"
+            "Under the Bridge (introducere)"
           ]
         },
         "9": {
@@ -2227,7 +2229,7 @@ const payload: UIPayload = {
             "Clopoței (Jingle Bells)"
           ],
           "desc": [
-            "Nobody Knows the Trouble I’ve Seen"
+            "The Music of the Night"
           ]
         },
         "10": {
@@ -2241,8 +2243,7 @@ const payload: UIPayload = {
         },
         "11": {
           "asc": [
-            "Take On Me (refren)",
-            "Bali Ha’i"
+            "Don’t Know Why"
           ],
           "desc": [
             "(rar)"
@@ -2258,9 +2259,34 @@ const payload: UIPayload = {
           ]
         }
       }
+    },
+    "progressions": {
+      "ro": {
+        "I–IV–V": "I–IV–V",
+        "I–V–vi–IV (pop)": "I–V–vi–IV (pop)",
+        "ii–V–I (jazz)": "ii–V–I (jazz)",
+        "I–vi–IV–V (50s)": "I–vi–IV–V (anii ’50)",
+        "vi–IV–I–V": "vi–IV–I–V",
+        "I–♭VII–IV (rock)": "I–♭VII–IV (rock)",
+        "minor ii–V–i": "ii–V–i minor",
+        "i–♭VI–♭VII (epic)": "i–♭VI–♭VII (epic)",
+        "12-bar blues": "Blues de 12 măsuri",
+        "Pachelbel’s Canon": "Canonul lui Pachelbel",
+        "I–V–vi–iii–IV–I (Pachelbel pop)": "I–V–vi–iii–IV–I (Pachelbel pop)",
+        "Andalusian i–♭VII–♭VI–V": "Cadența andaluză i–♭VII–♭VI–V",
+        "Jazz turnaround I–vi–ii–V": "Turnaround jazz I–vi–ii–V",
+        "Circle of 5ths vi–ii–V–I": "Cercul cvintelor vi–ii–V–I",
+        "Ballad I–iii–IV–V": "Baladă I–iii–IV–V"
+      }
     }
   },
-  "STEP_LABELS": {},
+  "STEP_LABELS": {
+    "ro": {
+      "1": "S",
+      "2": "T",
+      "3": "T+S"
+    }
+  },
   "LOCALE_TAGS": {
     "ro": "ro-RO"
   },
@@ -2287,7 +2313,7 @@ const payload: UIPayload = {
       "rating_reading": "Notație",
       "rating_info": "Ghidul axelor de dificultate",
       "rating_motor_desc": "Deschideri ale mâinii, salturi, viteză și schimbări de poziție pe claviatură.",
-      "rating_rhythm_desc": "Subdiviziuni, sincope, trioleti (diviziuni excepționale) și schimbări de măsură.",
+      "rating_rhythm_desc": "Subdiviziuni, sincope, triolete (diviziuni excepționale) și schimbări de măsură.",
       "rating_bimanual_desc": "Independența și coordonarea dintre mâna stângă și mâna dreaptă.",
       "rating_texture_desc": "Numărul de voci simultane, acorduri dense și pasaje polifonice.",
       "rating_reading_desc": "Alterații, linii suplimentare, ornamente și complexitatea citirii.",

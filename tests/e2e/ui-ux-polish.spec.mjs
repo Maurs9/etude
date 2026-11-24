@@ -1,4 +1,4 @@
-import { test, expect } from '../helpers/fixtures.mjs';
+import { test, expect, todayN } from '../helpers/fixtures.mjs';
 
 test.describe('UI/UX polish, accessibility, and mobile ergonomics', () => {
   test('contrast tokens, SVG reading icons, Explore measure, and idle cursor will-change', async ({ app, page }) => {
@@ -198,5 +198,33 @@ test.describe('touch phone ergonomics & drawer close hit-area preservation', () 
     await expect(page.locator('#helpBox')).toHaveClass(/on/);
     await expect(page.locator('#helpBox .hk.ctx-kbd').first()).toBeHidden();
     await expect(page.locator('#helpBox .hk:not(.ctx-kbd)')).toHaveCount(3);
+  });
+
+  test('appDialog blocks keyboard piano input, visiting Read does not mark Today done, and Escape stops active Read focus', async ({ app, page }) => {
+    await app.open({ dock: true, hash: 'explore' });
+    await page.evaluate(() => {
+      document.getElementById('appDialog')?.classList.add('on');
+    });
+    await page.keyboard.press('a');
+    expect(await page.evaluate(() => window.__etude.held.size)).toBe(0);
+    await page.evaluate(() => {
+      document.getElementById('appDialog')?.classList.remove('on');
+    });
+
+    await page.evaluate(() => { window.__etude.show('read'); });
+    await expect(page.locator('#view-read')).toHaveClass(/active/);
+    const readDay = await page.evaluate(() => window.__etude.data.toolDay?.read ?? null);
+    expect(readDay).not.toBe(todayN());
+
+    await page.locator('#rdn-book-go').click();
+    await expect(page.locator('#rd-staff svg')).toBeVisible();
+    await page.locator('#rd-fs').click();
+    await expect(page.locator('body')).toHaveAttribute('data-score-focus', 'read');
+    await page.locator('#rd-go').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.active)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('body')).not.toHaveAttribute('data-score-focus');
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.active)).toBe(false);
+    await expect(page.locator('#rd-go')).toBeFocused();
   });
 });

@@ -24,6 +24,8 @@ export interface LearnQuizSpec {
   hear?: string;
   pcs?: number[];
   seq?: number[];
+  exactMidi?: number[];
+  stepDiff?: number[];
   why?: LearnText;
   i18n?: Partial<Record<InterfaceLanguage, LearnQuizCopy>>;
 }
@@ -43,6 +45,7 @@ export interface MusicTranslations {
   inversions: Translations<string[] | Record<number, string>>;
   feels: Translations<Record<string, string>>;
   songs: Translations<Record<string, Record<string, string[]>>>;
+  progressions?: Translations<Record<string, string>>;
 }
 
 /** Whole-step/half-step labels per language, keyed by semitone count (1, 2, 3). */
