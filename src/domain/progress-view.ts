@@ -1,4 +1,5 @@
 import { byId } from './dom.js';
+import type { StudioMilestoneSummary } from './progress-report.js';
 import type { StoredSrsEntry } from './storage.js';
 
 interface ProgressItem {
@@ -29,10 +30,11 @@ interface ProgressOptions<Item extends ProgressItem> {
     openDrill: (category: Item['cat']) => void;
     rdRenderStats: () => void;
     printSummaryHtml?: string;
+    milestones?: StudioMilestoneSummary;
 }
 
 export function renderProgress<Item extends ProgressItem>(options: ProgressOptions<Item>) {
-    const { data, items: allItems, categories, loc, t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, openDrill, rdRenderStats, printSummaryHtml } = options;
+    const { data, items: allItems, categories, loc, t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, openDrill, rdRenderStats, printSummaryHtml, milestones } = options;
     const tn = options.today;
     const acc = data.totalReviews ? Math.round(100 * data.totalCorrect / data.totalReviews) : 0;
     const printHead = document.getElementById('prog-print-head');
@@ -43,6 +45,35 @@ export function renderProgress<Item extends ProgressItem>(options: ProgressOptio
         statHTML(currentStreak(), t('st_streak')) + statHTML(data.bestStreak || 0, t('st_best')) +
             statHTML(masteredCount() + ' / ' + allItems.length, t('st_mastered')) +
             statHTML(data.totalReviews || 0, t('st_reviews')) + statHTML(acc + '%', t('st_acc'));
+    const standingEl = document.getElementById('prog-ms-standing');
+    const msEl = document.getElementById('progMilestones');
+    if (milestones && msEl) {
+        if (standingEl) {
+            const highest = milestones.highestId
+                ? milestones.milestones.find((m) => m.id === milestones.highestId)
+                : null;
+            standingEl.textContent = t('prog_ms_standing', highest ? t(highest.labelKey) : t('prog_ms_none'));
+        }
+        msEl.innerHTML = '';
+        milestones.milestones.forEach((m) => {
+            const card = document.createElement('div');
+            card.className = 'prog-ms' + (m.done ? ' done' : m.next ? ' next' : '');
+            card.dataset.ms = m.id;
+            const head = document.createElement('div');
+            head.className = 'prog-ms-head';
+            const title = document.createElement('span');
+            title.textContent = t(m.labelKey);
+            const badge = document.createElement('span');
+            badge.setAttribute('aria-hidden', 'true');
+            badge.textContent = m.done ? '✓' : m.next ? '→' : '·';
+            head.append(title, badge);
+            const req = document.createElement('div');
+            req.className = 'prog-ms-req';
+            req.textContent = t(m.reqKey);
+            card.append(head, req);
+            msEl.appendChild(card);
+        });
+    }
     const boxOf = (id: string) => data.srs[id]?.box ?? 0;
     // mastery rows + answer accuracy per topic (from each concept's review history)
     const mr = byId('masteryRows');

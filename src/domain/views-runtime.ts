@@ -74,7 +74,7 @@ import { SRT_INITIAL_STATE, srtTransition, type SightReadingState } from '../sig
 import { courtesyNatural, formatLead, ghostX, pacerLead, streamStart, streamVisible, systemBars, systemRows, systemWindow } from '../sight-reading/stream.js';
 import { srtNotationSegments } from '../sight-reading/notation.js';
 import '../styles/sight-rhythm.css';
-import { SCALE_FINGERINGS } from './technique.js';
+import { SCALE_FINGERINGS, type TechniqueKind } from './technique.js';
 import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, differentialIntervalCue, differentialToneCue, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
 import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueRefresh, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
@@ -3434,7 +3434,7 @@ interface TrainerQuestion { it: TrainerItem; mode: string; key: number; idx: num
 interface TrainerGiven { text: () => string; given: FeedbackSketch; expected: FeedbackSketch; pair?: string; }
 // dir: the Direction an Intervals by-ear drill plays its intervals in ('both' picks one per question).
 type IntervalDirection = 'asc' | 'desc' | 'both';
-interface TrainerSessionTarget { cat: string; mode: string; key: string; dir?: IntervalDirection; }
+interface TrainerSessionTarget { cat: string; mode: string; key: string; dir?: IntervalDirection; techKind?: TechniqueKind; techOctaves?: 1 | 2; }
 // contrast: a short drill on two items the last session mixed up (its question order, by item id).
 interface TrainerSessionState { active: boolean; queue: (TrainerQuestion | undefined)[]; idx: number; correct: number; total: number; q: TrainerQuestion | null; answered: boolean; targeted: TrainerSessionTarget | null; placement: boolean; promptT: ReturnType<typeof setTimeout> | 0; contrast: { a: string; b: string; order: string[] } | null; }
 const SES: TrainerSessionState = { active: false, queue: [], idx: 0, correct: 0, total: 0, q: null, answered: false, targeted: null, placement: false, promptT: 0, contrast: null };
@@ -3632,7 +3632,10 @@ function nextQuestion() {
         // The scale and arpeggio drill keeps its own runs; the placeholder question only keeps the keys open (Play it).
         SES.q = { it: TECHNIQUE_ITEM, mode: 'play', key: 0, idx: 0, anchor: null, missed: false, hinted: false };
         byId('ses-progress').style.width = '0%';
-        techniquePresent(techniqueHost, SES.targeted.key);
+        const { techKind, techOctaves } = SES.targeted;
+        SES.targeted.techKind = undefined;
+        SES.targeted.techOctaves = undefined;
+        techniquePresent(techniqueHost, SES.targeted.key, techKind, techOctaves);
         dockSync();
         return;
     }
@@ -6347,12 +6350,11 @@ function lqLabel(spec: LearnQuizSpec, index: number) {
     return spec.i18n?.[lang]?.o?.[index] ?? (option === undefined ? '' : LT(option));
 }
 function lqFeedback(q: LearnQuizRunQuestion, spec: LearnQuizSpec) {
-    if (!q.opts) {
-        return q.ok ? t('lu_q_ok') : t('lu_q_no', lqMidis(q).map(m => pcName(pc(m), false)).join(' – '));
-    }
-    const right = q.opts.find(option => option.ok);
-    const message = q.ok || !right ? t('lu_q_ok') : t('lu_q_no', lqLabel(spec, right.index));
     const why = spec.i18n?.[lang]?.why ?? (spec.why ? LT(spec.why) : '');
+    const right = q.opts ? q.opts.find(option => option.ok) : undefined;
+    const message = !q.opts
+        ? (q.ok ? t('lu_q_ok') : t('lu_q_no', lqMidis(q).map(m => pcName(pc(m), false)).join(' – ')))
+        : (q.ok || !right ? t('lu_q_ok') : t('lu_q_no', lqLabel(spec, right.index)));
     return why ? message + ' ' + why : message;
 }
 function lqStart(L: Lesson) {
@@ -7809,6 +7811,7 @@ function srStopAll(keep?: boolean, preserveSrt = false, reason: SrtStopReason = 
     const li = byId('rd-listen');
     if (li)
         li.textContent = t('rd_listen');
+    rdWarmButtonsSync();
     if (!preservePendingResult)
         srCoach();
 }
@@ -7828,6 +7831,7 @@ function srLearnStart() {
     SR.anyOctave = !!data.settings.anyOctave;
     srStartStage();
     rdnNavUi();
+    rdWarmButtonsSync();
     SR.results = {};
     SR.stepIdx = 0;
     SR.hit.clear();
@@ -8481,6 +8485,7 @@ async function srAssessStart(operation?: number) {
     }
     srStartStage();
     rdnNavUi();
+    rdWarmButtonsSync();
     SR.results = {};
     SR.wrongExtra = 0;
     SR.srtEvaluation = null;
@@ -8840,6 +8845,7 @@ function srListen() {
     const bs = 60 / SR.bpm, act0 = audioEngine.context.currentTime + 0.1, perf0 = performance.now() + 100;
     SR.listening = true;
     byId('rd-listen').textContent = t('rd_stop');
+    rdWarmButtonsSync();
     const follow = () => { if (!SR.listening)
         return; const b = (performance.now() - perf0) / 1000 / bs; if (b >= 0) {
         const at = srBeatPt(SR.beatX, Math.min(b, SR.totalBeats));
@@ -8908,8 +8914,74 @@ function srGo() {
     else
         void srAssessStart();
 }
+interface RdKeyInfo { tonicPc: number; minor: boolean; flat: boolean; keyN: number; }
+function rdCurrentKeyInfo(): RdKeyInfo | null {
+    if (SR.lvPiece) {
+        const rk = SR.lvPiece.key;
+        const majorPc = srKeyName(rk.keyN);
+        const minor = rk.mode === 'minor';
+        const tonicPc = minor ? (majorPc + 9) % 12 : majorPc;
+        return { tonicPc, minor, flat: rk.keyN < 0, keyN: rk.keyN };
+    }
+    if (SR.piece) {
+        const n = SR.piece.keyN || 0;
+        const majorPc = srKeyName(n);
+        const minor = !!SR.piece.minor;
+        const tonicPc = minor ? (majorPc + 9) % 12 : majorPc;
+        return { tonicPc, minor, flat: n < 0, keyN: n };
+    }
+    return null;
+}
+function rdWarmButtonsSync() {
+    const info = rdCurrentKeyInfo();
+    const show = !!info;
+    const busy = SR.active || SR.listening || srtPendingSaveProtected();
+    const keyLabel = info ? t(info.minor ? 'key_minor' : 'key_major', pcName(info.tonicPc, info.flat)) : '';
+    const tonicBtn = maybeById('rd-warm-tonic');
+    const scaleBtn = maybeById('rd-warm-scale');
+    if (tonicBtn) {
+        tonicBtn.hidden = !show;
+        if (tonicBtn instanceof HTMLButtonElement)
+            tonicBtn.disabled = !show || busy;
+        tonicBtn.title = keyLabel;
+        tonicBtn.setAttribute('aria-label', keyLabel ? `${t('rd_warm_tonic')} — ${keyLabel}` : t('rd_warm_tonic'));
+    }
+    if (scaleBtn) {
+        scaleBtn.hidden = !show;
+        if (scaleBtn instanceof HTMLButtonElement)
+            scaleBtn.disabled = !show || busy;
+        scaleBtn.title = keyLabel;
+        scaleBtn.setAttribute('aria-label', keyLabel ? `${t('rd_warm_scale')} — ${keyLabel}` : t('rd_warm_scale'));
+    }
+}
+function rdWarmPlayTonic() {
+    const info = rdCurrentKeyInfo();
+    if (!info || SR.active || SR.listening || srtPendingSaveProtected())
+        return;
+    ensureAudio();
+    if (!audioEngine.context)
+        return;
+    stopPreviews();
+    const base = info.tonicPc >= 7 ? 48 + info.tonicPc : 60 + info.tonicPc;
+    const t0 = audioEngine.context.currentTime + 0.04;
+    previewNote(base, t0, 0.34, 88);
+    previewNote(base + 7, t0 + 0.24, 0.34, 84);
+    previewNote(base + 12, t0 + 0.48, 0.56, 92);
+}
+function rdWarmPracticeScale() {
+    const info = rdCurrentKeyInfo();
+    if (!info || SR.active || SR.listening || srtPendingSaveProtected())
+        return;
+    const key = String(info.tonicPc);
+    const techKind: TechniqueKind = info.minor ? 'naturalMinor' : 'major';
+    prSetTopic(TECHNIQUE_TOPIC);
+    prSetKey(key);
+    show('practice');
+    startSession({ cat: TECHNIQUE_TOPIC, mode: 'play', key, techKind, techOctaves: 1 });
+}
 function srMeta() {
     const p = SR.piece, titleEl = maybeById('rd-gen-title');
+    rdWarmButtonsSync();
     if (!p) {
         byId('rd-meta').textContent = '';
         if (titleEl)
@@ -8938,6 +9010,7 @@ function srEmptyUi() {
     const none = !SR.piece;
     buttonById('rd-go').disabled = none;
     buttonById('rd-listen').disabled = none;
+    rdWarmButtonsSync();
     const empty = maybeById('rd-empty');
     if (empty)
         empty.hidden = !none;
@@ -11501,6 +11574,7 @@ function rdOnLocale() {
         SR.gen.t = { en: tl('en', 'rdx_sr_title', SR.gen.level), ro: tl('ro', 'rdx_sr_title', SR.gen.level) };
         srMeta();
     }
+    rdWarmButtonsSync();
     if (!byId('rdx-stage').hidden && RD.L) {
         byId('rdx-title').textContent = rdLvName(RD.L);
         byId('rdx-sub').textContent = rdLvDetail(RD.L);
@@ -12660,6 +12734,7 @@ function rdnForgetLevelPiece() {
     rdnChecklist();
     rdnHandsUi();
     rdnNavUi();
+    rdWarmButtonsSync();
     if (RDN.melodyMode !== null) {
         SR.modeSel = RDN.melodyMode;
         RDN.melodyMode = null;
@@ -19150,7 +19225,14 @@ function collectPracticeReport(libraryItems: readonly LibraryItem[] = []) {
             stars,
         },
         pieces,
+        lessonsDone: Object.keys(learnData().learnDone || {}).length,
     });
+}
+function standingLabelOf(report: ReturnType<typeof buildPracticeReport>): string {
+    const highest = report.milestones.highestId
+        ? report.milestones.milestones.find((m) => m.id === report.milestones.highestId)
+        : null;
+    return highest ? t(highest.labelKey) : t('prog_ms_none');
 }
 function renderPrintSummaryHtml(report: ReturnType<typeof buildPracticeReport>): string {
     const esc = xmlEsc;
@@ -19161,21 +19243,23 @@ function renderPrintSummaryHtml(report: ReturnType<typeof buildPracticeReport>):
         }).join(' · ')}</p>`
         : '';
     return `<h2>Étude — ${esc(t('prog_rep_title'))}</h2>`
-        + `<p class="prog-print-meta">${esc(report.generatedDateIso)} · ${esc(t('prog_rep_7d', report.reviews7d, report.activeDays7d))} · ${esc(t('prog_rep_30d', report.reviews30d, report.activeDays30d))}</p>`
+        + `<p class="prog-print-meta">${esc(report.generatedDateIso)} · ${esc(t('prog_ms_standing', standingLabelOf(report)))} · ${esc(t('prog_rep_7d', report.reviews7d, report.activeDays7d))} · ${esc(t('prog_rep_30d', report.reviews30d, report.activeDays30d))}</p>`
         + piecesLine;
 }
-function updatePrintSummaryHead(libraryItems: readonly LibraryItem[] = []): string {
-    const html = renderPrintSummaryHtml(collectPracticeReport(libraryItems));
+function updatePrintSummaryHead(libraryItems: readonly LibraryItem[] = []): { html: string; report: ReturnType<typeof buildPracticeReport> } {
+    const report = collectPracticeReport(libraryItems);
+    const html = renderPrintSummaryHtml(report);
     const head = maybeById('prog-print-head');
     if (head) head.innerHTML = html;
-    return html;
+    return { html, report };
 }
 function renderProgress() {
-    const printSummaryHtml = updatePrintSummaryHead();
+    const { html: printSummaryHtml, report } = updatePrintSummaryHead();
     progressView?.renderProgress({
         data, hasActivity: storeHasProgress(), items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
         t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, rdRenderStats,
         printSummaryHtml,
+        milestones: report.milestones,
         openDrill(category) {
             show('practice');
             prSetTopic(category);
@@ -21026,6 +21110,8 @@ function initControls() {
     byId('rd-coach').addEventListener('click', (e) => { if (eventClosest(e, '#rd-coach-act') && SR.next && SR.next.act)
         SR.next.act.run(); });
     byId('rd-listen').addEventListener('click', srListen);
+    maybeById('rd-warm-tonic')?.addEventListener('click', rdWarmPlayTonic);
+    maybeById('rd-warm-scale')?.addEventListener('click', rdWarmPracticeScale);
     // voice: the activity switch is a tab list (arrows, Home and End move along it and choose)
     byId('vo-switch').addEventListener('click', (e) => { const b = eventClosest(e, '[role=tab]'), a = VOICE_ACTS.find((x) => x === b?.dataset.act); if (a)
         voiceSetAct(a); });
@@ -21130,6 +21216,8 @@ function initControls() {
                 bestCol: t('prog_rep_best_col'),
                 yes: t('yes_word'),
                 no: t('no_word'),
+                standingLabel: t('prog_ms_head'),
+                standingValue: standingLabelOf(report),
             });
             trxDownload(`etude-practice-report-${report.generatedDateIso}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         })();

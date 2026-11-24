@@ -100,7 +100,8 @@ const payload: LearnPayload = {
           "F",
           "D",
           "B"
-        ]
+        ],
+        "why": "The pattern of 2 then 3 black keys repeats every octave, with C (Do) always just left of the 2 black keys."
       },
       {
         "q": "How many semitones are in an octave?",
@@ -109,7 +110,8 @@ const payload: LearnPayload = {
           "8",
           "7",
           "10"
-        ]
+        ],
+        "why": "An octave spans 7 white keys plus 5 black keys — 12 chromatic semitones in total."
       },
       {
         "q": "Which pair is a semitone with no black key between?",
@@ -118,7 +120,8 @@ const payload: LearnPayload = {
           "C–D",
           "F–G",
           "A–B"
-        ]
+        ],
+        "why": "Only E–F and B–C have no black key between them, making both natural semitones."
       },
       {
         "q": "Play middle C (C4).",
@@ -127,7 +130,8 @@ const payload: LearnPayload = {
         ],
         "exactMidi": [
           60
-        ]
+        ],
+        "why": "Middle C (C4, MIDI 60) sits near the center of the keyboard just left of the central two black keys."
       },
       {
         "q": "Play E then F — the natural semitone.",
@@ -137,7 +141,8 @@ const payload: LearnPayload = {
         ],
         "stepDiff": [
           1
-        ]
+        ],
+        "why": "E sits right after the two black keys and F sits right before the three black keys, a single semitone apart."
       }
     ],
     "how": [
@@ -148,7 +153,8 @@ const payload: LearnPayload = {
           "One long session a week",
           "Re-reading until it feels familiar",
           "Only listening"
-        ]
+        ],
+        "why": "Spaced review re-triggers recall just before forgetting, building durable memory with far less total time."
       },
       {
         "q": "Why mix different drill types in one session?",
@@ -157,7 +163,8 @@ const payload: LearnPayload = {
           "It is faster",
           "It avoids mistakes",
           "It has no effect"
-        ]
+        ],
+        "why": "Switching between topics forces your brain to diagnose each question rather than coasting on one habit."
       },
       {
         "q": "Getting an answer wrong, then seeing the fix, is…",
@@ -166,7 +173,8 @@ const payload: LearnPayload = {
           "a waste of time",
           "harmful to memory",
           "only for beginners"
-        ]
+        ],
+        "why": "Attempting retrieval and immediately hearing the correction rewires predictions faster than passive review."
       }
     ],
     "notation": [
@@ -197,7 +205,8 @@ const payload: LearnPayload = {
           "lowers it a semitone",
           "cancels a flat only",
           "makes it louder"
-        ]
+        ],
+        "why": "A sharp (♯) raises the written pitch by 1 semitone; a flat (♭) lowers it by 1 semitone."
       },
       {
         "q": "How long does an accidental last?",
@@ -206,7 +215,8 @@ const payload: LearnPayload = {
           "One note only",
           "The whole piece",
           "Until the next line"
-        ]
+        ],
+        "why": "An accidental applies to that pitch in the same octave until the next barline or a natural sign cancels it."
       },
       {
         "q": "Play the note on the treble-clef second line (G4).",
@@ -215,7 +225,8 @@ const payload: LearnPayload = {
         ],
         "exactMidi": [
           67
-        ]
+        ],
+        "why": "The treble (G) clef curls around the second line from the bottom, fixing that line on G4."
       }
     ],
     "symbols": [
@@ -226,7 +237,8 @@ const payload: LearnPayload = {
           "Jump to the coda",
           "Repeat the last bar",
           "Play louder to the end"
-        ]
+        ],
+        "why": "D.C. (Da Capo) returns to the start of the piece, and “al Fine” tells you to stop where Fine is marked."
       },
       {
         "q": "A curved line joining two notes of the same pitch is a…",
@@ -235,7 +247,8 @@ const payload: LearnPayload = {
           "slur",
           "crescendo",
           "fermata"
-        ]
+        ],
+        "why": "Unlike a phrase slur, a tie joins two adjacent notes of the same pitch into one combined duration."
       },
       {
         "q": "A dot above a note (staccato) means…",
@@ -244,7 +257,8 @@ const payload: LearnPayload = {
           "held longer",
           "louder",
           "play an octave higher"
-        ]
+        ],
+        "why": "Staccato shortens the written note so a crisp silence separates it from the next note."
       },
       {
         "q": "“Ped.” followed by ✱ marks…",
@@ -253,7 +267,8 @@ const payload: LearnPayload = {
           "a pause",
           "a repeat",
           "the finger to use"
-        ]
+        ],
+        "why": "“Ped.” depresses the right damper pedal to let strings ring together, and the asterisk (✱) marks the release."
       },
       {
         "q": "Finger number 1 is the…",
@@ -262,7 +277,8 @@ const payload: LearnPayload = {
           "index",
           "little finger",
           "middle finger"
-        ]
+        ],
+        "why": "In standard piano fingering for both hands, numbers count outward from 1 (thumb) to 5 (little finger)."
       }
     ],
     "dyn": [
@@ -273,7 +289,8 @@ const payload: LearnPayload = {
           "p · pp · mf · mp · f · ff",
           "mp · p · pp · f · mf · ff",
           "pp · mp · p · f · mf · ff"
-        ]
+        ],
+        "why": "Dynamic markings move softly up through p (piano) to m (mezzo) and loudly up through f (forte): pp < p < mp < mf < f < ff."
       },
       {
         "q": "“Crescendo” means…",
@@ -282,7 +299,8 @@ const payload: LearnPayload = {
           "gradually softer",
           "gradually faster",
           "suddenly loud"
-        ]
+        ],
+        "why": "Crescendo comes from the Italian “crescere” (to grow), meaning a steady rise in volume."
       },
       {
         "q": "“sfz” (sforzando) means…",
@@ -291,7 +309,8 @@ const payload: LearnPayload = {
           "very soft",
           "slow down",
           "hold the note"
-        ]
+        ],
+        "why": "Sforzando (sfz) marks one note or chord with a sharp, sudden burst of force."
       },
       {
         "q": "“mf” stands for…",
@@ -300,7 +319,8 @@ const payload: LearnPayload = {
           "molto forte — very loud",
           "meno forte — less loud",
           "moderately fast"
-        ]
+        ],
+        "why": "“Mezzo” means half or moderately, so mezzo forte (mf) sits just louder than mezzo piano and softer than forte."
       }
     ],
     "rh": [
@@ -311,7 +331,8 @@ const payload: LearnPayload = {
           "2",
           "3",
           "8"
-        ]
+        ],
+        "why": "In 4/4 time, the top 4 gives beats per bar and the bottom 4 sets the quarter note as one beat."
       },
       {
         "q": "A dotted half note lasts…",
@@ -320,7 +341,8 @@ const payload: LearnPayload = {
           "2 beats",
           "2½ beats",
           "4 beats"
-        ]
+        ],
+        "why": "A dot adds half of a note’s value: a half note (2 beats) + half of 2 (1) = 3 beats."
       },
       {
         "q": "Listen: which metre is this?",
@@ -330,7 +352,8 @@ const payload: LearnPayload = {
           "4/4",
           "2/4",
           "6/8"
-        ]
+        ],
+        "why": "3/4 groups beats into “ONE-two-three”, giving waltzes their asymmetric lilting sway."
       },
       {
         "q": "In 4/4, which beats are usually strongest?",
@@ -339,7 +362,8 @@ const payload: LearnPayload = {
           "2 and 4",
           "only 4",
           "all equal"
-        ]
+        ],
+        "why": "Beat 1 carries the primary metric weight and beat 3 carries a secondary stress, leaving beats 2 and 4 weaker."
       }
     ],
     "rh2": [
@@ -350,7 +374,8 @@ const payload: LearnPayload = {
           "four",
           "one dotted",
           "three"
-        ]
+        ],
+        "why": "A triplet divides a beat or two-note span equally into 3 instead of the usual 2."
       },
       {
         "q": "6/8 is usually felt in…",
@@ -359,7 +384,8 @@ const payload: LearnPayload = {
           "6 equal quarter beats",
           "3 beats",
           "4 beats"
-        ]
+        ],
+        "why": "6/8 is a compound duple metre: six eighths group into 2 main pulses of a dotted quarter note each."
       },
       {
         "q": "Syncopation means…",
@@ -368,7 +394,8 @@ const payload: LearnPayload = {
           "playing faster",
           "a long rest",
           "a key change"
-        ]
+        ],
+        "why": "Syncopation shifts stress away from the expected downbeat onto weak beats or between beats."
       },
       {
         "q": "Which tempo is slowest?",
@@ -377,7 +404,8 @@ const payload: LearnPayload = {
           "Andante",
           "Allegro",
           "Presto"
-        ]
+        ],
+        "why": "Largo (“broad”) marks a very slow tempo; Andante walks comfortably, and Allegro/Presto are fast."
       },
       {
         "q": "“Ritardando” means…",
@@ -386,7 +414,8 @@ const payload: LearnPayload = {
           "gradually faster",
           "back to the first tempo",
           "very fast"
-        ]
+        ],
+        "why": "Ritardando (rit.) signals a gradual slowing down, often before a cadence or ending."
       }
     ],
     "iv": [
@@ -398,7 +427,8 @@ const payload: LearnPayload = {
           "Major 3rd",
           "Perfect 4th",
           "Octave"
-        ]
+        ],
+        "why": "A perfect 5th spans 7 semitones and sounds wide, hollow, and rock-steady (think Star Wars opening)."
       },
       {
         "q": "How many semitones in a major 3rd?",
@@ -407,7 +437,8 @@ const payload: LearnPayload = {
           "3",
           "5",
           "2"
-        ]
+        ],
+        "why": "Count half steps from bottom to top: a minor 3rd is 3 semitones and a major 3rd is 4 semitones (C → E)."
       },
       {
         "q": "C up to A is a…",
@@ -416,7 +447,8 @@ const payload: LearnPayload = {
           "minor 6th",
           "perfect 5th",
           "major 7th"
-        ]
+        ],
+        "why": "Counting letters C–D–E–F–G–A gives a 6th, and 9 semitones confirms a major 6th."
       },
       {
         "q": "Listen: name the interval.",
@@ -426,7 +458,8 @@ const payload: LearnPayload = {
           "Major 3rd",
           "Major 2nd",
           "Perfect 4th"
-        ]
+        ],
+        "why": "At 3 semitones wide, a minor 3rd brings an immediate darker, lyrical color compared to a major 3rd."
       },
       {
         "q": "Play a perfect 5th up from D (D then A).",
@@ -436,7 +469,8 @@ const payload: LearnPayload = {
         ],
         "stepDiff": [
           7
-        ]
+        ],
+        "why": "D up to A covers 5 letters (D–E–F–G–A) and 7 semitones — a perfect 5th."
       }
     ],
     "iv2": [
@@ -447,7 +481,8 @@ const payload: LearnPayload = {
           "perfect 4th",
           "minor 6th",
           "major 3rd"
-        ]
+        ],
+        "why": "C–D–E–F is a 4th, and raising F to F♯ widens it by one semitone from perfect 4th (5) to augmented 4th (6)."
       },
       {
         "q": "Invert a major 3rd and you get a…",
@@ -466,7 +501,8 @@ const payload: LearnPayload = {
           "major 2nd",
           "minor 9th",
           "major 10th"
-        ]
+        ],
+        "why": "C4 to D4 is a major 2nd; adding an octave (7 scale steps + 2 = 9) turns it into a compound major 9th."
       },
       {
         "q": "C to E♭ vs C to D♯ — same keys, but they are…",
@@ -475,14 +511,16 @@ const payload: LearnPayload = {
           "the same interval",
           "major 3rd vs minor 3rd",
           "4th vs 5th"
-        ]
+        ],
+        "why": "Letter count decides the interval number: C–D–E is a 3rd (minor 3rd C–E♭), while C–D is a 2nd (augmented 2nd C–D♯)."
       },
       {
         "q": "Play a tritone: F then B.",
         "seq": [
           5,
           11
-        ]
+        ],
+        "why": "F to B spans three consecutive whole steps (F–G–A–B = 6 semitones), the signature sound of a tritone."
       }
     ],
     "sc": [
@@ -493,7 +531,8 @@ const payload: LearnPayload = {
           "W H W W H W W",
           "W W W H W W H",
           "H W W W H W W"
-        ]
+        ],
+        "why": "Major scales place half steps strictly between degrees 3–4 and 7–8, leaving whole steps everywhere else (W-W-H-W-W-W-H)."
       },
       {
         "q": "How many sharps in G major?",
@@ -502,7 +541,8 @@ const payload: LearnPayload = {
           "0",
           "2",
           "3"
-        ]
+        ],
+        "why": "Moving up a fifth from C major to G major adds the first sharp (F♯) so step 7–8 stays a half step."
       },
       {
         "q": "Which note is the leading tone in C major?",
@@ -511,7 +551,8 @@ const payload: LearnPayload = {
           "G",
           "F",
           "D"
-        ]
+        ],
+        "why": "Scale degree 7 (B in C major) sits just a semitone below the tonic C and pulls urgently upward to resolve."
       },
       {
         "q": "Listen: major or minor?",
@@ -519,7 +560,8 @@ const payload: LearnPayload = {
         "o": [
           "Minor",
           "Major"
-        ]
+        ],
+        "why": "Listen for the lowered 3rd degree right near the start — it immediately marks the minor mode."
       },
       {
         "q": "Play degrees 1, 3 and 5 of G major (G, B, D).",
@@ -527,7 +569,8 @@ const payload: LearnPayload = {
           7,
           11,
           2
-        ]
+        ],
+        "why": "In G major, degrees 1, 3, and 5 are G–B–D, the G major tonic triad."
       }
     ],
     "minor": [
@@ -538,7 +581,8 @@ const payload: LearnPayload = {
           "the 6th",
           "the 3rd",
           "the 2nd"
-        ]
+        ],
+        "why": "Raising the 7th degree creates a true leading tone (half step to the tonic) and makes V major."
       },
       {
         "q": "A melodic minor ascending is…",
@@ -547,7 +591,8 @@ const payload: LearnPayload = {
           "A B C D E F G A",
           "A B C D E F G♯ A",
           "A B C♯ D E F♯ G♯ A"
-        ]
+        ],
+        "why": "Ascending melodic minor raises both the 6th (F♯) and 7th (G♯) to smooth out the augmented 2nd leap."
       },
       {
         "q": "Scale degree 5 is called the…",
@@ -556,7 +601,8 @@ const payload: LearnPayload = {
           "subdominant",
           "mediant",
           "tonic"
-        ]
+        ],
+        "why": "Degree 5 is the dominant — the primary tension chord that pulls home toward degree 1 (tonic)."
       },
       {
         "q": "The order of sharps begins…",
@@ -565,7 +611,8 @@ const payload: LearnPayload = {
           "B E A D",
           "C G D A",
           "F B E A"
-        ]
+        ],
+        "why": "Key signatures add sharps in ascending fifths: F–C–G–D–A–E–B."
       },
       {
         "q": "Listen: which minor is it?",
@@ -574,7 +621,8 @@ const payload: LearnPayload = {
           "Harmonic minor",
           "Natural minor",
           "Melodic minor"
-        ]
+        ],
+        "why": "The wide 3-semitone gap between degrees 6 and 7 near the top is the unmistakable hallmark of harmonic minor."
       },
       {
         "q": "Play the A minor triad (A, C, E).",
@@ -582,7 +630,8 @@ const payload: LearnPayload = {
           9,
           0,
           4
-        ]
+        ],
+        "why": "A–C–E builds a minor 3rd (A–C) plus a major 3rd (C–E) — the tonic triad of A minor."
       }
     ],
     "cof": [
@@ -593,7 +642,8 @@ const payload: LearnPayload = {
           "flat",
           "octave",
           "beat"
-        ]
+        ],
+        "why": "Every clockwise step goes up a fifth, raising the 4th degree of the old key to add one more sharp."
       },
       {
         "q": "Which key has 3 flats?",
@@ -602,7 +652,8 @@ const payload: LearnPayload = {
           "A♭ major",
           "B♭ major",
           "A major"
-        ]
+        ],
+        "why": "Three flats in order are B♭, E♭, and A♭ — and the second-to-last flat (E♭) always names the major key."
       },
       {
         "q": "The relative minor of F major is…",
@@ -611,7 +662,8 @@ const payload: LearnPayload = {
           "A minor",
           "F minor",
           "G minor"
-        ]
+        ],
+        "why": "The relative minor shares the same key signature and starts 3 semitones (minor 3rd) below the major tonic (F → D)."
       },
       {
         "q": "The last sharp in a key signature is a semitone below…",
@@ -620,7 +672,8 @@ const payload: LearnPayload = {
           "the dominant",
           "the relative minor",
           "the 4th"
-        ]
+        ],
+        "why": "The last sharp in a signature is always the 7th degree (leading tone), just one half step under the major tonic."
       },
       {
         "q": "Play the tonic triad of D major (D, F♯, A).",
@@ -628,7 +681,8 @@ const payload: LearnPayload = {
           2,
           6,
           9
-        ]
+        ],
+        "why": "D major has two sharps (F♯ and C♯), so its tonic triad is D–F♯–A."
       }
     ],
     "modes": [
@@ -639,7 +693,8 @@ const payload: LearnPayload = {
           "7th",
           "2nd",
           "4th"
-        ]
+        ],
+        "why": "Compared with natural minor (1 2 ♭3 4 5 ♭6 ♭7), Dorian raises the 6th degree to major (♮6)."
       },
       {
         "q": "Which mode is a major scale with a ♭7?",
@@ -648,7 +703,8 @@ const payload: LearnPayload = {
           "Lydian",
           "Phrygian",
           "Locrian"
-        ]
+        ],
+        "why": "Mixolydian matches the major scale except for a lowered 7th (♭7), the sound of V–IV–I rock and blues."
       },
       {
         "q": "Lydian’s signature note is…",
@@ -657,7 +713,8 @@ const payload: LearnPayload = {
           "♭2",
           "♭7",
           "♭3"
-        ]
+        ],
+        "why": "Lydian keeps everything major while raising degree 4 by a semitone (♯4), giving it a bright lifted float."
       },
       {
         "q": "D Dorian uses the white keys from…",
@@ -666,7 +723,8 @@ const payload: LearnPayload = {
           "C to C",
           "E to E",
           "A to A"
-        ]
+        ],
+        "why": "Playing all white keys from D to D yields the steps W–H–W–W–W–H–W — the exact Dorian pattern."
       }
     ],
     "ch": [
@@ -677,7 +735,8 @@ const payload: LearnPayload = {
           "minor 3rd + major 3rd",
           "two major 3rds",
           "two minor 3rds"
-        ]
+        ],
+        "why": "In root position, a major triad stacks a major 3rd (4 semitones) on the bottom and a minor 3rd (3) on top."
       },
       {
         "q": "Listen: which chord quality?",
@@ -687,7 +746,8 @@ const payload: LearnPayload = {
           "Major",
           "Diminished",
           "Augmented"
-        ]
+        ],
+        "why": "A minor triad reverses the two 3rds (minor bottom + major top), softening the brightness into a darker warmth."
       },
       {
         "q": "E–G–C is C major in…",
@@ -696,7 +756,8 @@ const payload: LearnPayload = {
           "root position",
           "2nd inversion",
           "a different key"
-        ]
+        ],
+        "why": "Putting the chord’s 3rd (E) in the bass produces the 1st inversion (C/E, figured bass ⁶)."
       },
       {
         "q": "Play A minor (A, C, E) — any octave or inversion.",
@@ -704,7 +765,8 @@ const payload: LearnPayload = {
           9,
           0,
           4
-        ]
+        ],
+        "why": "A minor combines root A, minor 3rd C (+3 semitones), and perfect 5th E (+7 semitones)."
       },
       {
         "q": "Play F major (F, A, C).",
@@ -712,7 +774,8 @@ const payload: LearnPayload = {
           5,
           9,
           0
-        ]
+        ],
+        "why": "F major uses only white keys: root F, major 3rd A (+4 semitones), and perfect 5th C (+7 semitones)."
       }
     ],
     "ch7": [
@@ -723,7 +786,8 @@ const payload: LearnPayload = {
           "C E G B",
           "C E♭ G B♭",
           "C E♭ G♭ A"
-        ]
+        ],
+        "why": "A dominant 7th symbol like C7 adds a minor 7th (B♭, 10 semitones above root) to the major triad C–E–G."
       },
       {
         "q": "Listen: which seventh chord?",
@@ -733,7 +797,8 @@ const payload: LearnPayload = {
           "Dominant 7th (7)",
           "Minor 7th (m7)",
           "Diminished 7th (dim7)"
-        ]
+        ],
+        "why": "Major 7th (maj7) combines a major triad with a sweet, luminous major 7th (11 semitones above the root)."
       },
       {
         "q": "Bm7♭5 (half-diminished) is the chord on which degree of C major?",
@@ -742,7 +807,8 @@ const payload: LearnPayload = {
           "ii",
           "V",
           "iii"
-        ]
+        ],
+        "why": "Stacking C major white keys from the 7th note B gives B–D–F–A: diminished triad + minor 7th (half-diminished viiø7)."
       },
       {
         "q": "C/E means…",
@@ -751,7 +817,8 @@ const payload: LearnPayload = {
           "C then E",
           "C or E major",
           "C minor"
-        ]
+        ],
+        "why": "In slash chord notation X/Y, the note left of the slash is the chord and the note right of the slash is the bass."
       },
       {
         "q": "Csus4 replaces the 3rd with…",
@@ -760,7 +827,8 @@ const payload: LearnPayload = {
           "the 2nd (D)",
           "the 6th (A)",
           "the 7th (B♭)"
-        ]
+        ],
+        "why": "“Sus4” removes the 3rd (neither major nor minor) and suspends the 4th (F in C) waiting to resolve down to E."
       },
       {
         "q": "Play G7 (G, B, D, F).",
@@ -769,7 +837,8 @@ const payload: LearnPayload = {
           11,
           2,
           5
-        ]
+        ],
+        "why": "G7 builds the dominant 7th of C: G (root), B (major 3rd), D (5th), and F (minor 7th)."
       }
     ],
     "pr": [
@@ -780,7 +849,8 @@ const payload: LearnPayload = {
           "F major",
           "A minor",
           "E minor"
-        ]
+        ],
+        "why": "Count five letters up from C (C–D–E–F–G): degree 5 in C major builds the major triad G–B–D."
       },
       {
         "q": "Which chords are minor in a major key?",
@@ -789,7 +859,8 @@ const payload: LearnPayload = {
           "I, IV, V",
           "ii, V, vii°",
           "iii, IV, vi"
-        ]
+        ],
+        "why": "In any major key, I, IV, and V are major, vii° is diminished, and degrees ii, iii, and vi are minor."
       },
       {
         "q": "How many bars in a standard blues form?",
@@ -798,7 +869,8 @@ const payload: LearnPayload = {
           "8",
           "16",
           "4"
-        ]
+        ],
+        "why": "The standard chorus splits 12 bars into three 4-bar lines: 4 bars around I, 4 starting on IV → I, and 4 on V → IV → I."
       },
       {
         "q": "In a 12-bar blues, bar 5 goes to…",
@@ -807,7 +879,8 @@ const payload: LearnPayload = {
           "V",
           "I",
           "vi"
-        ]
+        ],
+        "why": "After four bars on the tonic I, bars 5–6 brighten the harmony by moving up to the subdominant IV."
       },
       {
         "q": "Play the IV chord in C (F, A, C).",
@@ -815,7 +888,8 @@ const payload: LearnPayload = {
           5,
           9,
           0
-        ]
+        ],
+        "why": "Degree 4 of C major is F, so the IV triad is F–A–C."
       }
     ],
     "cad": [
@@ -826,7 +900,8 @@ const payload: LearnPayload = {
           "plagal cadence",
           "half cadence",
           "deceptive cadence"
-        ]
+        ],
+        "why": "Moving from dominant V directly onto a root-position tonic I releases all leading-tone tension for a complete close."
       },
       {
         "q": "A phrase that ends on V is a…",
@@ -835,7 +910,8 @@ const payload: LearnPayload = {
           "perfect cadence",
           "plagal cadence",
           "deceptive cadence"
-        ]
+        ],
+        "why": "Stopping a phrase on V pauses mid-thought like a musical comma, asking for an answering phrase."
       },
       {
         "q": "Listen: which cadence?",
@@ -845,7 +921,8 @@ const payload: LearnPayload = {
           "Perfect (V → I)",
           "Plagal (IV → I)",
           "Half (I → V)"
-        ]
+        ],
+        "why": "A deceptive cadence sets up V expecting I, then surprises the ear by landing on submediant vi instead."
       },
       {
         "q": "The “Amen” cadence is…",
@@ -854,7 +931,8 @@ const payload: LearnPayload = {
           "V → I",
           "I → V",
           "V → vi"
-        ]
+        ],
+        "why": "The gentler IV → I cadence avoids the V leading tone and is traditionally sung on “Amen” at the close of hymns."
       }
     ],
     "minorh": [
@@ -865,7 +943,8 @@ const payload: LearnPayload = {
           "the raised 6th",
           "the lowered 3rd",
           "a key change"
-        ]
+        ],
+        "why": "Natural minor has G♮ (making Em, a weak dominant); raising the 7th to G♯ turns V into E major with strong pull to Am."
       },
       {
         "q": "In A minor, i – iv – V – i is…",
@@ -874,7 +953,8 @@ const payload: LearnPayload = {
           "Am – D – Em – Am",
           "A – D – E – A",
           "Am – F – G – Am"
-        ]
+        ],
+        "why": "In A minor, i is Am, iv is Dm, and V borrows the raised 7th (G♯) to form E major."
       },
       {
         "q": "Roman numerals in minor: lower case means…",
@@ -883,7 +963,8 @@ const payload: LearnPayload = {
           "a quiet chord",
           "an inversion",
           "a seventh chord"
-        ]
+        ],
+        "why": "Standard Roman-numeral analysis uses uppercase (I, IV, V) for major chords and lowercase (i, ii°, iv) for minor or diminished chords."
       },
       {
         "q": "Play E major — the V of A minor (E, G♯, B).",
@@ -891,7 +972,8 @@ const payload: LearnPayload = {
           4,
           8,
           11
-        ]
+        ],
+        "why": "E–G♯–B supplies the leading tone G♯ that resolves up by half step straight into the tonic A."
       }
     ],
     "nct": [
@@ -902,7 +984,8 @@ const payload: LearnPayload = {
           "by leap away from the chord",
           "and stays on one note",
           "only in the bass"
-        ]
+        ],
+        "why": "A passing tone fills in a 3rd melodically, walking stepwise in one direction between two chord tones."
       },
       {
         "q": "A neighbour tone…",
@@ -911,7 +994,8 @@ const payload: LearnPayload = {
           "leaps an octave",
           "is always a chord tone",
           "is a rest"
-        ]
+        ],
+        "why": "A neighbour tone leaves a chord tone by step (up or down) and returns by step to the same starting note."
       },
       {
         "q": "A suspension resolves…",
@@ -920,7 +1004,8 @@ const payload: LearnPayload = {
           "up by leap",
           "never",
           "to the bass note"
-        ]
+        ],
+        "why": "A suspension holds a tone from the previous harmony onto a new chord beat and then resolves downward by step."
       },
       {
         "q": "An appoggiatura is…",
@@ -929,7 +1014,8 @@ const payload: LearnPayload = {
           "a quiet chord tone",
           "a kind of rest",
           "a repeated note"
-        ]
+        ],
+        "why": "Unlike a suspension (prepared as a tie), an appoggiatura arrives unprepared via melodic leap before resolving by step."
       }
     ],
     "secdom": [
@@ -940,7 +1026,8 @@ const payload: LearnPayload = {
           "G major",
           "A minor",
           "F major"
-        ]
+        ],
+        "why": "In C major, V is G; a 5th above G is D, so V/V is D major (or D7, with F♯ acting as leading tone to G)."
       },
       {
         "q": "A secondary dominant is…",
@@ -949,7 +1036,8 @@ const payload: LearnPayload = {
           "any minor chord",
           "the second chord of a piece",
           "a chord with no 3rd"
-        ]
+        ],
+        "why": "Borrowing the dominant (V) of another diatonic chord temporarily turns that chord into a mini-tonic."
       },
       {
         "q": "C major → G major: the new key is the…",
@@ -958,7 +1046,8 @@ const payload: LearnPayload = {
           "relative minor",
           "subdominant key",
           "parallel minor"
-        ]
+        ],
+        "why": "Since G is the 5th degree of C, modulating from C to G moves to the dominant key (adding F♯)."
       },
       {
         "q": "Good voice leading prefers…",
@@ -967,7 +1056,8 @@ const payload: LearnPayload = {
           "all voices leaping",
           "parallel fifths",
           "doubling the leading tone"
-        ]
+        ],
+        "why": "Holding common tones and stepping each remaining voice smoothly connects chords without awkward leaps."
       },
       {
         "q": "Play A7 — V/ii in C (A, C♯, E, G).",
@@ -976,7 +1066,8 @@ const payload: LearnPayload = {
           1,
           4,
           7
-        ]
+        ],
+        "why": "Degree ii in C is Dm; a 5th above D is A, so A–C♯–E–G (A7) serves as V⁷/ii."
       }
     ],
     "form": [
@@ -987,7 +1078,8 @@ const payload: LearnPayload = {
           "cadence",
           "coda",
           "metre"
-        ]
+        ],
+        "why": "A motif is the smallest recognizable melodic/rhythmic cell used to build phrases and themes."
       },
       {
         "q": "A–B–A–C–A is…",
@@ -996,7 +1088,8 @@ const payload: LearnPayload = {
           "binary form",
           "ternary form",
           "a period"
-        ]
+        ],
+        "why": "In rondo form, a main refrain (A) keeps returning between contrasting episodes (B, C…)."
       },
       {
         "q": "A period is…",
@@ -1005,7 +1098,8 @@ const payload: LearnPayload = {
           "one bar",
           "a full sonata",
           "a repeat sign"
-        ]
+        ],
+        "why": "A classical period pairs an open-ended antecedent phrase with a stronger, resolving consequent phrase."
       },
       {
         "q": "The antecedent phrase usually ends with a…",
@@ -1014,7 +1108,8 @@ const payload: LearnPayload = {
           "perfect cadence",
           "modulation",
           "fermata"
-        ]
+        ],
+        "why": "Ending the antecedent phrase with a half cadence (on V) creates tension that only the consequent’s V → I resolves."
       }
     ],
     "accomp": [
@@ -1025,7 +1120,8 @@ const payload: LearnPayload = {
           "low – middle – high",
           "all together",
           "high – low"
-        ]
+        ],
+        "why": "Alberti bass breaks a 3-note chord into an even rolling wave: bottom – top – middle – top (1–5–3–5)."
       },
       {
         "q": "Listen: which pattern?",
@@ -1035,7 +1131,8 @@ const payload: LearnPayload = {
           "Alberti",
           "Block chords",
           "Ballad arpeggio"
-        ]
+        ],
+        "why": "In 3/4 waltz accompaniment, beat 1 lands on a low bass root followed by lighter upper chords on beats 2 and 3."
       },
       {
         "q": "A lead sheet gives you…",
@@ -1044,7 +1141,8 @@ const payload: LearnPayload = {
           "every note for both hands",
           "only lyrics",
           "only rhythm"
-        ]
+        ],
+        "why": "A lead sheet leaves out full piano notation, giving just the written melody above chord symbols for the player to voice."
       },
       {
         "q": "For a lead sheet, the left hand usually plays…",
@@ -1053,7 +1151,8 @@ const payload: LearnPayload = {
           "the melody",
           "nothing",
           "random notes"
-        ]
+        ],
+        "why": "While the right hand plays the tune, the left hand reads the chord symbol — anchoring the bass root or adding a rhythmic pattern."
       }
     ]
   },

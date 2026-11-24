@@ -1228,6 +1228,20 @@
   #ac-chain .sep{color:var(--faint); margin:0 6px}
   .prog-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
   .prog-print-head{display:none}
+  .prog-ms-wrap{margin:12px 0 4px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--card)}
+  .prog-ms-top{display:flex; gap:10px; align-items:baseline; justify-content:space-between; flex-wrap:wrap; margin-bottom:10px}
+  .prog-ms-h{font:700 12px var(--sans); letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin:0}
+  .prog-ms-standing{font:600 13px var(--sans); color:var(--ink)}
+  .prog-milestones{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px}
+  .prog-ms{padding:9px 11px; border:1px solid var(--line); border-radius:9px; background:var(--paper2); display:flex; flex-direction:column; gap:3px}
+  .prog-ms-head{display:flex; align-items:center; justify-content:space-between; gap:6px; font:600 13px var(--sans); color:var(--ink2)}
+  .prog-ms-req{font:500 11.5px/1.35 var(--sans); color:var(--ink2)}
+  .prog-ms.done{border-color:var(--good); background:var(--card)}
+  .prog-ms.done .prog-ms-head{color:var(--good)}
+  .prog-ms.next{border-color:var(--gold); background:var(--card)}
+  .prog-ms.next .prog-ms-head{color:var(--ink)}
+  @media (max-width:720px){.prog-milestones{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:440px){.prog-milestones{grid-template-columns:1fr}}
   .elab-diff{color:var(--ink2); font-size:13px}
   .prog-empty{margin:4px 0 18px; padding:16px 18px; border:1px dashed var(--line2); border-radius:12px; background:var(--paper2); display:flex; gap:14px; align-items:center; flex-wrap:wrap; justify-content:space-between}
   .prog-empty p{margin:0; color:var(--ink2); font-size:14.5px}
@@ -1710,8 +1724,11 @@
     font: 500 12.5px/1.45 var(--sans);
     color: #333;
   }
-  .prog-col, .rdx-stat-p, .ig-cat, .stat-row {
+  .prog-col, .rdx-stat-p, .ig-cat, .stat-row, .prog-ms-wrap, .prog-ms {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+  .prog-milestones {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

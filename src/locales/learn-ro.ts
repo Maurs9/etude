@@ -100,7 +100,8 @@ const payload: LearnPayload = {
           "Fa",
           "Re",
           "Si"
-        ]
+        ],
+        "why": "Gruparea de 2 și 3 clape negre se repetă la fiecare octavă, iar Do stă mereu imediat la stânga grupului de două."
       },
       {
         "q": "Câte semitonuri are o octavă?",
@@ -109,7 +110,8 @@ const payload: LearnPayload = {
           "8",
           "7",
           "10"
-        ]
+        ],
+        "why": "O octavă cuprinde 7 clape albe și 5 clape negre — 12 semitonuri cromatice în total."
       },
       {
         "q": "Care pereche e un semiton fără clapă neagră între ele?",
@@ -118,7 +120,8 @@ const payload: LearnPayload = {
           "Do–Re",
           "Fa–Sol",
           "La–Si"
-        ]
+        ],
+        "why": "Doar între Mi–Fa și Si–Do nu există clapă neagră, ambele formând semitonuri naturale."
       },
       {
         "q": "Cântă Do central (Do4).",
@@ -127,7 +130,8 @@ const payload: LearnPayload = {
         ],
         "exactMidi": [
           60
-        ]
+        ],
+        "why": "Do central (Do4, MIDI 60) se află în centrul claviaturii, imediat la stânga grupului central de două clape negre."
       },
       {
         "q": "Cântă Mi apoi Fa — semitonul natural.",
@@ -137,7 +141,8 @@ const payload: LearnPayload = {
         ],
         "stepDiff": [
           1
-        ]
+        ],
+        "why": "Mi stă imediat după cele două clape negre, iar Fa imediat înaintea celor trei clape negre, la un singur semiton."
       }
     ],
     "how": [
@@ -148,7 +153,8 @@ const payload: LearnPayload = {
           "O sesiune lungă pe săptămână",
           "Recitirea până pare cunoscut",
           "Doar ascultarea"
-        ]
+        ],
+        "why": "Recapitularea spațiată declanșează reactualizarea chiar înainte de uitare, fixând memoria pe termen lung în mai puțin timp."
       },
       {
         "q": "De ce amesteci tipuri diferite de exerciții într-o sesiune?",
@@ -157,7 +163,8 @@ const payload: LearnPayload = {
           "E mai rapid",
           "Evită greșelile",
           "Nu are niciun efect"
-        ]
+        ],
+        "why": "Alternarea subiectelor obligă creierul să identifice fiecare problemă în loc să răspundă mecanic din inerție."
       },
       {
         "q": "Să greșești un răspuns, apoi să vezi corectura, e…",
@@ -166,7 +173,8 @@ const payload: LearnPayload = {
           "timp pierdut",
           "dăunător memoriei",
           "doar pentru începători"
-        ]
+        ],
+        "why": "Încercarea de reamintire urmată imediat de corecție recalibrează mai rapid decât lectura pasivă."
       }
     ],
     "notation": [
@@ -197,7 +205,8 @@ const payload: LearnPayload = {
           "o coboară un semiton",
           "anulează doar un bemol",
           "o face mai tare"
-        ]
+        ],
+        "why": "Diezul (♯) urcă înălțimea notei cu un semiton; bemolul (♭) o coboară cu un semiton."
       },
       {
         "q": "Cât ține o alterație accidentală?",
@@ -206,7 +215,8 @@ const payload: LearnPayload = {
           "Doar o notă",
           "Toată piesa",
           "Până la rândul următor"
-        ]
+        ],
+        "why": "Alterația accidentală rămâne valabilă în aceeași octavă până la bara de măsură sau până la un becar (♮)."
       },
       {
         "q": "Cântă nota de pe linia a doua a cheii Sol (Sol4).",
@@ -215,7 +225,8 @@ const payload: LearnPayload = {
         ],
         "exactMidi": [
           67
-        ]
+        ],
+        "why": "Cheia Sol se înfășoară în jurul liniei a doua de jos, fixând nota Sol4 pe acea linie."
       }
     ],
     "symbols": [
@@ -226,7 +237,8 @@ const payload: LearnPayload = {
           "Sari la coda",
           "Repetă ultima măsură",
           "Cântă mai tare până la final"
-        ]
+        ],
+        "why": "D.C. (Da Capo) trimite la începutul piesei, iar „al Fine” indică oprirea la cuvântul Fine."
       },
       {
         "q": "O linie curbă care leagă două note de aceeași înălțime este un…",
@@ -235,7 +247,8 @@ const payload: LearnPayload = {
           "legato de frazare",
           "crescendo",
           "coroană (fermata)"
-        ]
+        ],
+        "why": "Spre deosebire de legătura de expresie, legătura de prelungire unește două note de aceeași înălțime într-o singură durată."
       },
       {
         "q": "Un punct deasupra notei (staccato) înseamnă…",
@@ -244,7 +257,8 @@ const payload: LearnPayload = {
           "ținut mai mult",
           "mai tare",
           "cântă cu o octavă mai sus"
-        ]
+        ],
+        "why": "Staccato scurtează sunetul scris lăsând o mică pauză de detașare până la nota următoare."
       },
       {
         "q": "„Ped.” urmat de ✱ marchează…",
@@ -253,7 +267,8 @@ const payload: LearnPayload = {
           "o pauză",
           "o repetiție",
           "degetul folosit"
-        ]
+        ],
+        "why": "„Ped.” indică apăsarea pedalei drepte (de rezonanță), iar asteriscul (✱) arată ridicarea ei."
       },
       {
         "q": "Degetul 1 este…",
@@ -262,7 +277,8 @@ const payload: LearnPayload = {
           "arătătorul",
           "degetul mic",
           "degetul mijlociu"
-        ]
+        ],
+        "why": "În digitația standard la ambele mâini, degetele se numerotează de la 1 (degetul mare) spre 5 (degetul mic)."
       }
     ],
     "dyn": [
@@ -273,7 +289,8 @@ const payload: LearnPayload = {
           "p · pp · mf · mp · f · ff",
           "mp · p · pp · f · mf · ff",
           "pp · mp · p · f · mf · ff"
-        ]
+        ],
+        "why": "Nuanțele cresc progresiv de la piano (încet) spre mezzo (moderat) și forte (tare): pp < p < mp < mf < f < ff."
       },
       {
         "q": "„Crescendo” înseamnă…",
@@ -282,7 +299,8 @@ const payload: LearnPayload = {
           "din ce în ce mai încet",
           "din ce în ce mai repede",
           "brusc tare"
-        ]
+        ],
+        "why": "Crescendo provine din italianul „crescere” (a crește) și cere o amplificare treptată a volumului."
       },
       {
         "q": "„sfz” (sforzando) înseamnă…",
@@ -291,7 +309,8 @@ const payload: LearnPayload = {
           "foarte încet",
           "încetinește",
           "ține nota"
-        ]
+        ],
+        "why": "Sforzando (sfz) cere un accent brusc și energic pe o singură notă sau pe un acord."
       },
       {
         "q": "„mf” înseamnă…",
@@ -300,7 +319,8 @@ const payload: LearnPayload = {
           "molto forte — foarte tare",
           "meno forte — mai puțin tare",
           "moderat de repede"
-        ]
+        ],
+        "why": "„Mezzo” înseamnă pe jumătate / moderat, deci mezzo forte (mf) este moderat de tare, sub forte."
       }
     ],
     "rh": [
@@ -311,7 +331,8 @@ const payload: LearnPayload = {
           "2",
           "3",
           "8"
-        ]
+        ],
+        "why": "În măsura 4/4, cifra de sus arată 4 timpi pe măsură, iar 4 de jos desemnează pătrimea ca unitate de timp."
       },
       {
         "q": "O doime cu punct durează…",
@@ -320,7 +341,8 @@ const payload: LearnPayload = {
           "2 timpi",
           "2½ timpi",
           "4 timpi"
-        ]
+        ],
+        "why": "Punctul mărește durata cu jumătate: doimea (2 timpi) + jumătatea ei (1 timp) = 3 timpi."
       },
       {
         "q": "Ascultă: ce măsură este?",
@@ -330,7 +352,8 @@ const payload: LearnPayload = {
           "4/4",
           "2/4",
           "6/8"
-        ]
+        ],
+        "why": "Măsura de 3/4 grupează timpii în „UNU-doi-trei”, creând balansul caracteristic de vals."
       },
       {
         "q": "În 4/4, care timpi sunt de obicei cei mai tari?",
@@ -339,7 +362,8 @@ const payload: LearnPayload = {
           "2 și 4",
           "doar 4",
           "toți la fel"
-        ]
+        ],
+        "why": "Timpul 1 poartă accentul principal, iar timpul 3 un accent secundar; timpii 2 și 4 rămân slabi."
       }
     ],
     "rh2": [
@@ -350,7 +374,8 @@ const payload: LearnPayload = {
           "patru",
           "una cu punct",
           "trei"
-        ]
+        ],
+        "why": "Trioletul împarte în 3 părți egale o durată care se divizează normal în 2."
       },
       {
         "q": "6/8 se simte de obicei în…",
@@ -359,7 +384,8 @@ const payload: LearnPayload = {
           "6 timpi de pătrime",
           "3 timpi",
           "4 timpi"
-        ]
+        ],
+        "why": "6/8 este o măsură compusă binară: șase optimi se grupează în 2 timpi principali de pătrime cu punct."
       },
       {
         "q": "Sincopa înseamnă…",
@@ -368,7 +394,8 @@ const payload: LearnPayload = {
           "a cânta mai repede",
           "o pauză lungă",
           "o schimbare de tonalitate"
-        ]
+        ],
+        "why": "Sincopa mută accentul ritmic de pe timpii tari pe timpi slabi sau contratimpi."
       },
       {
         "q": "Care tempo e cel mai lent?",
@@ -377,7 +404,8 @@ const payload: LearnPayload = {
           "Andante",
           "Allegro",
           "Presto"
-        ]
+        ],
+        "why": "Largo („larg”) indică un tempo foarte lent; Andante este moderat, iar Allegro și Presto sunt repezi."
       },
       {
         "q": "„Ritardando” înseamnă…",
@@ -386,7 +414,8 @@ const payload: LearnPayload = {
           "din ce în ce mai repede",
           "revino la tempoul inițial",
           "foarte repede"
-        ]
+        ],
+        "why": "Ritardando (rit.) cere o rărire treptată a tempoului, frecvent la sfârșit de frază sau cadență."
       }
     ],
     "iv": [
@@ -398,7 +427,8 @@ const payload: LearnPayload = {
           "Terță mare",
           "Cvartă perfectă",
           "Octavă"
-        ]
+        ],
+        "why": "Cvinta perfectă are 7 semitonuri și sună deschis, pur și stabil (ca începutul temei Star Wars)."
       },
       {
         "q": "Câte semitonuri are o terță mare?",
@@ -407,7 +437,8 @@ const payload: LearnPayload = {
           "3",
           "5",
           "2"
-        ]
+        ],
+        "why": "De la sunetul grav la cel acut sunt 4 semitonuri pentru terța mare (Do → Mi), față de 3 pentru terța mică."
       },
       {
         "q": "De la Do în sus la La este o…",
@@ -416,7 +447,8 @@ const payload: LearnPayload = {
           "sextă mică",
           "cvintă perfectă",
           "septimă mare"
-        ]
+        ],
+        "why": "Numărând treptele Do–Re–Mi–Fa–Sol–La obținem o sextă, iar cele 9 semitonuri confirmă sexta mare."
       },
       {
         "q": "Ascultă: numește intervalul.",
@@ -426,7 +458,8 @@ const payload: LearnPayload = {
           "Terță mare",
           "Secundă mare",
           "Cvartă perfectă"
-        ]
+        ],
+        "why": "Cu 3 semitonuri, terța mică are o culoare mai umbrită și lirică față de terța mare."
       },
       {
         "q": "Cântă o cvintă perfectă de la Re în sus (Re apoi La).",
@@ -436,7 +469,8 @@ const payload: LearnPayload = {
         ],
         "stepDiff": [
           7
-        ]
+        ],
+        "why": "De la Re la La sunt 5 trepte (Re–Mi–Fa–Sol–La) și 7 semitonuri — o cvintă perfectă."
       }
     ],
     "iv2": [
@@ -447,7 +481,8 @@ const payload: LearnPayload = {
           "cvartă perfectă",
           "sextă mică",
           "terță mare"
-        ]
+        ],
+        "why": "Do–Fa este o cvartă perfectă (5 semitonuri); ridicarea lui Fa la Fa♯ o lărgește la 6 semitonuri (cvartă mărită / triton)."
       },
       {
         "q": "Răstorni o terță mare și obții o…",
@@ -466,7 +501,8 @@ const payload: LearnPayload = {
           "secundă mare",
           "nonă mică",
           "decimă mare"
-        ]
+        ],
+        "why": "Do4–Re4 este o secundă mare; adăugarea unei octave o transformă în interval compus: nonă mare."
       },
       {
         "q": "Do–Mi♭ și Do–Re♯ — aceleași clape, dar sunt…",
@@ -475,14 +511,16 @@ const payload: LearnPayload = {
           "același interval",
           "terță mare vs terță mică",
           "cvartă vs cvintă"
-        ]
+        ],
+        "why": "Numele treptelor decide cifra intervalului: Do–Re–Mi♭ este terță mică, în timp ce Do–Re♯ numără doar două trepte (secundă mărită)."
       },
       {
         "q": "Cântă un triton: Fa apoi Si.",
         "seq": [
           5,
           11
-        ]
+        ],
+        "why": "Între Fa și Si sunt trei tonuri întregi consecutive (Fa–Sol–La–Si = 6 semitonuri), formând tritonul natural."
       }
     ],
     "sc": [
@@ -493,7 +531,8 @@ const payload: LearnPayload = {
           "T S T T S T T",
           "T T T S T T S",
           "S T T T S T T"
-        ]
+        ],
+        "why": "Gama majoră are semitonuri exclusiv între treptele III–IV și VII–VIII, restul fiind tonuri (T-T-S-T-T-T-S)."
       },
       {
         "q": "Câți diezi are Sol major?",
@@ -502,7 +541,8 @@ const payload: LearnPayload = {
           "0",
           "2",
           "3"
-        ]
+        ],
+        "why": "De la Do major la Sol major (o cvintă ascendentă) apare primul diez (Fa♯) pentru ca treapta VII să rămână sensibilă."
       },
       {
         "q": "Care e sensibila în Do major?",
@@ -511,7 +551,8 @@ const payload: LearnPayload = {
           "Sol",
           "Fa",
           "Re"
-        ]
+        ],
+        "why": "Treapta a VII-a (Si în Do major) stă la un semiton sub tonică și cere rezolvare ascendentă spre Do."
       },
       {
         "q": "Ascultă: major sau minor?",
@@ -519,7 +560,8 @@ const payload: LearnPayload = {
         "o": [
           "Minor",
           "Major"
-        ]
+        ],
+        "why": "Ascultă treapta a III-a coborâtă chiar la început — ea imprimă imediat caracterul minor."
       },
       {
         "q": "Cântă treptele 1, 3 și 5 din Sol major (Sol, Si, Re).",
@@ -527,7 +569,8 @@ const payload: LearnPayload = {
           7,
           11,
           2
-        ]
+        ],
+        "why": "În Sol major, treptele 1, 3 și 5 sunt Sol–Si–Re, adică acordul tonicii Sol major."
       }
     ],
     "minor": [
@@ -538,7 +581,8 @@ const payload: LearnPayload = {
           "treapta a 6-a",
           "treapta a 3-a",
           "treapta a 2-a"
-        ]
+        ],
+        "why": "Ridicarea treptei a VII-a creează sensibila la un semiton sub tonică și transformă dominanta V în acord major."
       },
       {
         "q": "La minor melodic ascendent este…",
@@ -547,7 +591,8 @@ const payload: LearnPayload = {
           "La Si Do Re Mi Fa Sol La",
           "La Si Do Re Mi Fa Sol♯ La",
           "La Si Do♯ Re Mi Fa♯ Sol♯ La"
-        ]
+        ],
+        "why": "Minora melodică ascendentă ridică atât treapta a VI-a (Fa♯), cât și a VII-a (Sol♯), eliminând secunda mărită."
       },
       {
         "q": "Treapta a 5-a se numește…",
@@ -556,7 +601,8 @@ const payload: LearnPayload = {
           "subdominantă",
           "medianta",
           "tonică"
-        ]
+        ],
+        "why": "Treapta a V-a se numește dominantă — polul principal de tensiune care cere rezolvare spre tonică."
       },
       {
         "q": "Ordinea diezilor începe cu…",
@@ -565,7 +611,8 @@ const payload: LearnPayload = {
           "Si Mi La Re",
           "Do Sol Re La",
           "Fa Si Mi La"
-        ]
+        ],
+        "why": "Ordinea diezilor la armură urcă din cvintă în cvintă: Fa–Do–Sol–Re–La–Mi–Si."
       },
       {
         "q": "Ascultă: ce fel de minor e?",
@@ -574,7 +621,8 @@ const payload: LearnPayload = {
           "Minor armonic",
           "Minor natural",
           "Minor melodic"
-        ]
+        ],
+        "why": "Saltul caracteristic de 3 semitonuri între treptele VI și VII spre vârf trădează imediat minora armonică."
       },
       {
         "q": "Cântă trisonul La minor (La, Do, Mi).",
@@ -582,7 +630,8 @@ const payload: LearnPayload = {
           9,
           0,
           4
-        ]
+        ],
+        "why": "La–Do–Mi combină o terță mică (La–Do) cu o terță mare (Do–Mi), formând acordul tonicii La minor."
       }
     ],
     "cof": [
@@ -593,7 +642,8 @@ const payload: LearnPayload = {
           "bemol",
           "octavă",
           "timp"
-        ]
+        ],
+        "why": "Fiecare pas în sensul acelor de ceasornic urcă o cvintă și adaugă încă un diez la armură."
       },
       {
         "q": "Ce tonalitate are 3 bemoli?",
@@ -602,7 +652,8 @@ const payload: LearnPayload = {
           "La♭ major",
           "Si♭ major",
           "La major"
-        ]
+        ],
+        "why": "Trei bemoli în ordine sunt Si♭, Mi♭, La♭, iar penultimul bemol (Mi♭) numește tonalitatea majoră."
       },
       {
         "q": "Relativa minoră a lui Fa major este…",
@@ -611,7 +662,8 @@ const payload: LearnPayload = {
           "La minor",
           "Fa minor",
           "Sol minor"
-        ]
+        ],
+        "why": "Minora relativă are aceeași armură și începe cu 3 semitonuri sub tonica majoră (Fa → Re minor)."
       },
       {
         "q": "Ultimul diez din armură e cu un semiton sub…",
@@ -620,7 +672,8 @@ const payload: LearnPayload = {
           "dominantă",
           "relativa minoră",
           "treapta a 4-a"
-        ]
+        ],
+        "why": "Ultimul diez de la armură este întotdeauna treapta a VII-a (sensibila), la un semiton sub tonica majoră."
       },
       {
         "q": "Cântă trisonul tonicii din Re major (Re, Fa♯, La).",
@@ -628,7 +681,8 @@ const payload: LearnPayload = {
           2,
           6,
           9
-        ]
+        ],
+        "why": "Re major are doi diezi (Fa♯ și Do♯), așadar acordul tonicii sale este Re–Fa♯–La."
       }
     ],
     "modes": [
@@ -639,7 +693,8 @@ const payload: LearnPayload = {
           "a 7-a",
           "a 2-a",
           "a 4-a"
-        ]
+        ],
+        "why": "Față de minora naturală (1 2 ♭3 4 5 ♭6 ♭7), modul doric urcă treapta a VI-a la sextă mare (6)."
       },
       {
         "q": "Ce mod e o gamă majoră cu ♭7?",
@@ -648,7 +703,8 @@ const payload: LearnPayload = {
           "Lidic",
           "Frigic",
           "Locric"
-        ]
+        ],
+        "why": "Mixolidianul este o gamă majoră cu treapta a VII-a coborâtă (♭7), specifică rock-ului și blues-ului."
       },
       {
         "q": "Nota caracteristică a modului lidic este…",
@@ -657,7 +713,8 @@ const payload: LearnPayload = {
           "♭2",
           "♭7",
           "♭3"
-        ]
+        ],
+        "why": "Lidianul păstrează structura majoră ridicând treapta a IV-a cu un semiton (♯4), cu o sonoritate luminoasă."
       },
       {
         "q": "Re doric folosește clapele albe de la…",
@@ -666,7 +723,8 @@ const payload: LearnPayload = {
           "Do la Do",
           "Mi la Mi",
           "La la La"
-        ]
+        ],
+        "why": "Clapele albe de la Re la Re produc exact structura T–S–T–T–T–S–T a modului doric."
       }
     ],
     "ch": [
@@ -677,7 +735,8 @@ const payload: LearnPayload = {
           "terță mică + terță mare",
           "două terțe mari",
           "două terțe mici"
-        ]
+        ],
+        "why": "În stare directă, trisonul major suprapune o terță mare (4 semitonuri) jos și o terță mică (3) sus."
       },
       {
         "q": "Ascultă: ce tip de acord?",
@@ -687,7 +746,8 @@ const payload: LearnPayload = {
           "Major",
           "Micșorat",
           "Mărit"
-        ]
+        ],
+        "why": "Trisonul minor inversează cele două terțe (mică jos + mare sus), aducând o culoare mai umbrită și caldă."
       },
       {
         "q": "Mi–Sol–Do este Do major în…",
@@ -696,7 +756,8 @@ const payload: LearnPayload = {
           "poziție fundamentală",
           "răsturnarea a II-a",
           "altă tonalitate"
-        ]
+        ],
+        "why": "Așezarea terței acordului (Mi) în bas formează răsturnarea întâi (acord de sextă, C/E)."
       },
       {
         "q": "Cântă La minor (La, Do, Mi) — orice octavă sau răsturnare.",
@@ -704,7 +765,8 @@ const payload: LearnPayload = {
           9,
           0,
           4
-        ]
+        ],
+        "why": "La minor reunește fundamentala La, terța mică Do (+3 semitonuri) și cvinta perfectă Mi (+7 semitonuri)."
       },
       {
         "q": "Cântă Fa major (Fa, La, Do).",
@@ -712,7 +774,8 @@ const payload: LearnPayload = {
           5,
           9,
           0
-        ]
+        ],
+        "why": "Fa major folosește doar clape albe: Fa (fundamentală), La (+4 semitonuri) și Do (+7 semitonuri)."
       }
     ],
     "ch7": [
@@ -723,7 +786,8 @@ const payload: LearnPayload = {
           "Do Mi Sol Si",
           "Do Mi♭ Sol Si♭",
           "Do Mi♭ Sol♭ La"
-        ]
+        ],
+        "why": "Notația C7 desemnează septima de dominantă: trison major Do–Mi–Sol plus septimă mică Si♭."
       },
       {
         "q": "Ascultă: ce acord de septimă?",
@@ -733,7 +797,8 @@ const payload: LearnPayload = {
           "Septimă de dominantă (7)",
           "Septimă mică (m7)",
           "Septimă micșorată (dim7)"
-        ]
+        ],
+        "why": "Acordul maj7 adaugă o septimă mare (11 semitonuri) peste trisonul major, dând un caracter cald și luminos."
       },
       {
         "q": "Sim7♭5 (semi-micșorat) e acordul de pe ce treaptă din Do major?",
@@ -742,7 +807,8 @@ const payload: LearnPayload = {
           "ii",
           "V",
           "iii"
-        ]
+        ],
+        "why": "Suprapunând notele albe din Do major de pe treapta a VII-a (Si) obținem Si–Re–Fa–La (acord semidiminuat viiø7)."
       },
       {
         "q": "Do/Mi înseamnă…",
@@ -751,7 +817,8 @@ const payload: LearnPayload = {
           "Do apoi Mi",
           "Do sau Mi major",
           "Do minor"
-        ]
+        ],
+        "why": "În notația X/Y, stânga indică acordul (Do major), iar dreapta notează nota din bas (Mi)."
       },
       {
         "q": "Do sus4 înlocuiește terța cu…",
@@ -760,7 +827,8 @@ const payload: LearnPayload = {
           "secunda (Re)",
           "sexta (La)",
           "septima (Si♭)"
-        ]
+        ],
+        "why": "„Sus4” înlocuiește terța (Mi) cu cvarta (Fa), creând o suspensie care tinde să rezolve descendent."
       },
       {
         "q": "Cântă Sol7 (Sol, Si, Re, Fa).",
@@ -769,7 +837,8 @@ const payload: LearnPayload = {
           11,
           2,
           5
-        ]
+        ],
+        "why": "Sol7 este dominanta cu septimă în Do major: Sol (fundamentală), Si (terță mare), Re (cvintă) și Fa (septimă mică)."
       }
     ],
     "pr": [
@@ -780,7 +849,8 @@ const payload: LearnPayload = {
           "Fa major",
           "La minor",
           "Mi minor"
-        ]
+        ],
+        "why": "Numărând 5 trepte de la Do (Do–Re–Mi–Fa–Sol), acordul de treapta a V-a este Sol major."
       },
       {
         "q": "Care acorduri sunt minore într-o tonalitate majoră?",
@@ -789,7 +859,8 @@ const payload: LearnPayload = {
           "I, IV, V",
           "ii, V, vii°",
           "iii, IV, vi"
-        ]
+        ],
+        "why": "În gama majoră, I, IV și V sunt majore, vii° este diminuat, iar treptele ii, iii și vi sunt minore."
       },
       {
         "q": "Câte măsuri are forma standard de blues?",
@@ -798,7 +869,8 @@ const payload: LearnPayload = {
           "8",
           "16",
           "4"
-        ]
+        ],
+        "why": "Forma clasică de blues are 12 măsuri împărțite în trei fraze de câte 4 măsuri (I / IV–I / V–IV–I)."
       },
       {
         "q": "Într-un blues pe 12 măsuri, măsura 5 merge pe…",
@@ -807,7 +879,8 @@ const payload: LearnPayload = {
           "V",
           "I",
           "vi"
-        ]
+        ],
+        "why": "După primele 4 măsuri pe tonică (I), măsura 5 urcă pe subdominantă (IV) pentru a deschide a doua frază."
       },
       {
         "q": "Cântă acordul IV din Do (Fa, La, Do).",
@@ -815,7 +888,8 @@ const payload: LearnPayload = {
           5,
           9,
           0
-        ]
+        ],
+        "why": "Treapta a IV-a în Do major este Fa, astfel că acordul IV este Fa–La–Do."
       }
     ],
     "cad": [
@@ -826,7 +900,8 @@ const payload: LearnPayload = {
           "cadență plagală",
           "semicadență",
           "cadență întreruptă"
-        ]
+        ],
+        "why": "Rezolvarea dominantei V direct pe tonica I în stare directă închide fraza cu senzație deplină de repaus."
       },
       {
         "q": "O frază care se termină pe V este o…",
@@ -835,7 +910,8 @@ const payload: LearnPayload = {
           "cadență perfectă",
           "cadență plagală",
           "cadență întreruptă"
-        ]
+        ],
+        "why": "Oprirea pe dominanta V lasă fraza suspendată ca o virgulă muzicală ce cere un răspuns."
       },
       {
         "q": "Ascultă: ce cadență?",
@@ -845,7 +921,8 @@ const payload: LearnPayload = {
           "Perfectă (V → I)",
           "Plagală (IV → I)",
           "Semicadență (I → V)"
-        ]
+        ],
+        "why": "Cadența întreruptă pregătește V → I, dar surprinde urechea rezolvând în schimb pe treapta a VI-a."
       },
       {
         "q": "Cadența „Amin” este…",
@@ -854,7 +931,8 @@ const payload: LearnPayload = {
           "V → I",
           "I → V",
           "V → vi"
-        ]
+        ],
+        "why": "Cadența plagală IV → I ocolește sensibila dominantei, dând o încheiere liniștită de tip „Amin”."
       }
     ],
     "minorh": [
@@ -865,7 +943,8 @@ const payload: LearnPayload = {
           "treptei a 6-a urcate",
           "terței coborâte",
           "unei modulații"
-        ]
+        ],
+        "why": "Minora naturală are Sol♮ (Mi minor, fără sensibilă); urcarea la Sol♯ transformă dominanta în Mi major spre La minor."
       },
       {
         "q": "În La minor, i – iv – V – i este…",
@@ -874,7 +953,8 @@ const payload: LearnPayload = {
           "Lam – Re – Mim – Lam",
           "La – Re – Mi – La",
           "Lam – Fa – Sol – Lam"
-        ]
+        ],
+        "why": "În La minor, i = Am, iv = Dm, iar V împrumută sensibila Sol♯ devenind E major."
       },
       {
         "q": "Cifre romane în minor: literele mici înseamnă…",
@@ -883,7 +963,8 @@ const payload: LearnPayload = {
           "un acord încet",
           "o răsturnare",
           "un acord de septimă"
-        ]
+        ],
+        "why": "Notația cu cifre romane folosește majuscule (I, V) pentru acorduri majore și minuscule (i, iv, ii°) pentru minore sau diminuate."
       },
       {
         "q": "Cântă Mi major — V din La minor (Mi, Sol♯, Si).",
@@ -891,7 +972,8 @@ const payload: LearnPayload = {
           4,
           8,
           11
-        ]
+        ],
+        "why": "Mi–Sol♯–Si conține sensibila Sol♯ care rezolvă cu un semiton ascendent direct în tonica La."
       }
     ],
     "nct": [
@@ -902,7 +984,8 @@ const payload: LearnPayload = {
           "prin salt departe de acord",
           "și rămâne pe o notă",
           "doar în bas"
-        ]
+        ],
+        "why": "Nota de trecere umple o terță printr-un mers treptat într-un singur sens între două note ale acordului."
       },
       {
         "q": "O broderie (notă vecină)…",
@@ -911,7 +994,8 @@ const payload: LearnPayload = {
           "sare o octavă",
           "e mereu notă a acordului",
           "e o pauză"
-        ]
+        ],
+        "why": "Broderia părăsește o notă a acordului prin pas treptat și revine imediat la aceeași notă."
       },
       {
         "q": "O întârziere se rezolvă…",
@@ -920,7 +1004,8 @@ const payload: LearnPayload = {
           "prin salt în sus",
           "niciodată",
           "pe nota din bas"
-        ]
+        ],
+        "why": "Întârzierea prelungește o notă din acordul anterior pe timpul noii armonii, rezolvându-se apoi descendent cu o treaptă."
       },
       {
         "q": "O apogiatură este…",
@@ -929,7 +1014,8 @@ const payload: LearnPayload = {
           "o notă a acordului cântată încet",
           "un fel de pauză",
           "o notă repetată"
-        ]
+        ],
+        "why": "Spre deosebire de întârziere, apogiatura este atacată direct prin salt pe timp accentuat și rezolvată treptat."
       }
     ],
     "secdom": [
@@ -940,7 +1026,8 @@ const payload: LearnPayload = {
           "Sol major",
           "La minor",
           "Fa major"
-        ]
+        ],
+        "why": "În Do major, V este Sol; cvinta lui Sol este Re, deci V/V este Re major / D7 (cu Fa♯ spre Sol)."
       },
       {
         "q": "O dominantă secundară este…",
@@ -949,7 +1036,8 @@ const payload: LearnPayload = {
           "orice acord minor",
           "al doilea acord dintr-o piesă",
           "un acord fără terță"
-        ]
+        ],
+        "why": "Împrumutarea dominantei unui alt acord diatonic transformă temporar acel acord într-o țintă tonală."
       },
       {
         "q": "Do major → Sol major: noua tonalitate este…",
@@ -958,7 +1046,8 @@ const payload: LearnPayload = {
           "relativa minoră",
           "tonalitatea subdominantei",
           "omonima minoră"
-        ]
+        ],
+        "why": "Întrucât Sol este treapta a V-a a lui Do, modulația de la Do la Sol trece în tonalitatea dominantei (cu un diez)."
       },
       {
         "q": "Conducerea bună a vocilor preferă…",
@@ -967,7 +1056,8 @@ const payload: LearnPayload = {
           "toate vocile prin salt",
           "cvinte paralele",
           "dublarea sensibilei"
-        ]
+        ],
+        "why": "Păstrarea sunetelor comune și mersul treptat al celorlalte voci leagă acordurile cursiv, fără salturi bruște."
       },
       {
         "q": "Cântă La7 — V/ii în Do (La, Do♯, Mi, Sol).",
@@ -976,7 +1066,8 @@ const payload: LearnPayload = {
           1,
           4,
           7
-        ]
+        ],
+        "why": "Treapta ii în Do este Dm; o cvintă deasupra lui Re stă La, deci La–Do♯–Mi–Sol (A7) este V⁷/ii."
       }
     ],
     "form": [
@@ -987,7 +1078,8 @@ const payload: LearnPayload = {
           "cadență",
           "coda",
           "măsură"
-        ]
+        ],
+        "why": "Motivul este cea mai mică celulă melodică sau ritmică recognoscibilă din care se construiesc frazele."
       },
       {
         "q": "A–B–A–C–A este…",
@@ -996,7 +1088,8 @@ const payload: LearnPayload = {
           "formă binară",
           "formă ternară",
           "o perioadă"
-        ]
+        ],
+        "why": "Forma de rondo alternează mereu refrenul principal (A) cu cuplete/episoade contrastante (B, C…)."
       },
       {
         "q": "O perioadă este…",
@@ -1005,7 +1098,8 @@ const payload: LearnPayload = {
           "o măsură",
           "o sonată întreagă",
           "un semn de repetiție"
-        ]
+        ],
+        "why": "Perioada clasică împerechează o frază antecedentă (întrebare) cu o frază consecventă (răspuns conclusiv)."
       },
       {
         "q": "Fraza antecedentă se termină de obicei cu o…",
@@ -1014,7 +1108,8 @@ const payload: LearnPayload = {
           "cadență perfectă",
           "modulație",
           "coroană"
-        ]
+        ],
+        "why": "Semicadența (oprire pe V) la finalul antecedentului creează suspansul pe care abia cadența finală a consecventului îl închide."
       }
     ],
     "accomp": [
@@ -1025,7 +1120,8 @@ const payload: LearnPayload = {
           "jos – mijloc – sus",
           "toate odată",
           "sus – jos"
-        ]
+        ],
+        "why": "Basul Alberti desface trisonul într-o figură fluidă jos – sus – mijloc – sus (1–5–3–5)."
       },
       {
         "q": "Ascultă: ce model?",
@@ -1035,7 +1131,8 @@ const payload: LearnPayload = {
           "Alberti",
           "Acorduri bloc",
           "Arpegiu de baladă"
-        ]
+        ],
+        "why": "În acompaniamentul de vals (3/4), timpul 1 atacă basul grav, urmat de două acorduri ușoare pe timpii 2 și 3."
       },
       {
         "q": "Un lead sheet îți oferă…",
@@ -1044,7 +1141,8 @@ const payload: LearnPayload = {
           "fiecare notă pentru ambele mâini",
           "doar versurile",
           "doar ritmul"
-        ]
+        ],
+        "why": "Un lead sheet conține doar linia melodică și simbolurile de acorduri, lăsând acompaniamentul la latitudinea pianistului."
       },
       {
         "q": "La un lead sheet, mâna stângă cântă de obicei…",
@@ -1053,7 +1151,8 @@ const payload: LearnPayload = {
           "melodia",
           "nimic",
           "note la întâmplare"
-        ]
+        ],
+        "why": "În timp ce mâna dreaptă cântă melodia, mâna stângă urmărește simbolul acordului pentru bas și ritm."
       }
     ]
   },
