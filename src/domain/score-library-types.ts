@@ -14,6 +14,7 @@ export interface LibraryResume {
   wait: boolean;
   metronome: boolean;
   view: 'fit' | 'page' | 'cont' | 'fall';
+  viewExplicit?: boolean;
   look: 'paper' | 'night';
   zoom: number;
 }

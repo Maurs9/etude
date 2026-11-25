@@ -690,6 +690,36 @@ test('Pieces deep-links directly into the player and handles missing library ids
   await expect(page).toHaveURL(/#analysis$/);
 });
 
+test('browser Back keeps the catalog open when a library deep link is still loading', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  const id = await page.evaluate(async (xml) => {
+    const { item } = await window.__etude.scoreLibraryStore.librarySave(new File([xml], 'delayed.xml'), { title: 'Delayed', composer: '' });
+    const get = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function (key) {
+      if (this.name === 'blobs' && key === item.id) {
+        IDBObjectStore.prototype.get = get;
+        const tx = this.transaction, complete = tx.oncomplete;
+        tx.oncomplete = (event) => {
+          window.releaseLibraryRead = () => complete.call(tx, event);
+        };
+      }
+      return get.call(this, key);
+    };
+    return item.id;
+  }, xmlScore('Delayed'));
+  await page.evaluate(id => { location.hash = '#analysis/lib/' + id; }, id);
+  await page.waitForFunction(() => typeof window.releaseLibraryRead === 'function');
+
+  await page.goBack();
+  await expect(page).toHaveURL(/#analysis$/);
+  await page.evaluate(() => window.releaseLibraryRead());
+  expect(await page.evaluate(() => window.__etude.AN.loading)).toBe(false);
+  await expect(page.locator('#an-catalog')).toBeVisible();
+  await expect(page.locator('#an-panel')).toBeHidden();
+  await page.goForward();
+  await expect(page.locator('#an-panel')).toBeVisible();
+});
+
 test('on a phone opening a built-in piece puts the score directly in the viewport without scrolling past the catalog', async ({ app, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await app.open({ hash: 'analysis' });
@@ -714,6 +744,10 @@ test('Continue card resumes the most recently opened piece at its saved measure 
   });
   await page.locator('#an-tools-btn').click();
   await page.locator('#score-speed').selectOption('70');
+  await page.locator('#an-tools-btn').click();
+  await page.locator('#score-play').click();
+  await page.waitForFunction(() => window.__etude.SCORE.playing);
+  await expect(page.locator('#st-bar')).toHaveText('Bar 3');
   await page.locator('#an-back').click();
 
   await expect(page.locator('#an-continue')).toBeVisible();
@@ -724,8 +758,21 @@ test('Continue card resumes the most recently opened piece at its saved measure 
   await page.locator('#an-continue-btn').click();
   await expect(page.locator('#an-panel')).toBeVisible();
   await expect(page).toHaveURL(/#analysis\/builtin\/clair$/);
+  await expect(page.locator('#st-bar')).toHaveText('Bar 3');
   await page.locator('#an-tools-btn').click();
   await expect(page.locator('#score-speed')).toHaveValue('70');
+});
+
+test('returning from Today keeps the built-in piece at the current bar', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'clair');
+  await page.evaluate(() => {
+    const E = window.__etude;
+    E.scoreSeekTo(E.scoreSeconds(E.SCORE.measures[2].start));
+  });
+  await page.locator('#nav [data-view="today"]').click();
+  await page.locator('#nav [data-view="analysis"]').click();
+  await expect(page.locator('#st-bar')).toHaveText('Bar 3');
 });
 
 test('desktop toolbar stays on one row, Tempo adjusts in 5% steps with click reset, and Practice status line updates', async ({ app, page }) => {
@@ -761,9 +808,9 @@ test('desktop toolbar stays on one row, Tempo adjusts in 5% steps with click res
   await expect(page.locator('#an-prac-line')).toBeHidden();
 });
 
-test('narrow mobile viewports default to Fit width layout with larger notes and switch cleanly to Page and back', async ({ app, page }) => {
+test('narrow mobile viewports upgrade legacy Page defaults and remember an explicit Page choice', async ({ app, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await app.open({ hash: 'analysis' });
+  await app.open({ hash: 'analysis', saved: { v: 3, lang: 'en', data: {}, scoreView: 'page' } });
   await openPiece(page, 'brahms');
 
   await expect(page.locator('#an-roll')).toHaveAttribute('data-layout', 'fit');
@@ -781,6 +828,10 @@ test('narrow mobile viewports default to Fit width layout with larger notes and 
   const pageZoom = await page.evaluate(() => window.__etude.SCORE.engine.getZoom());
   expect(fitMetrics.zoom).toBeGreaterThan(pageZoom * 1.3);
 
+  await page.reload();
+  await page.waitForFunction(() => !!window.__etude?.SCORE.geo && !window.__etude.AN.loading);
+  await expect(page.locator('#an-roll')).toHaveAttribute('data-layout', 'page');
+  await page.locator('#an-disp-btn').click();
   await page.locator('#an-mode button[data-score-mode="fit"]').click();
   await expect(page.locator('#an-roll')).toHaveAttribute('data-layout', 'fit');
   await page.locator('#an-disp-btn').click();
@@ -789,4 +840,20 @@ test('narrow mobile viewports default to Fit width layout with larger notes and 
     if (firstHead) firstHead.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
   await expect(page.locator('#st-bar')).not.toBeEmpty();
+});
+
+test('a legacy library checkpoint keeps its cursor and uses the mobile Fit width default', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  const id = await page.evaluate(async (xml) => {
+    const library = window.__etude.scoreLibraryStore;
+    const { item } = await library.librarySave(new File([xml], 'legacy.xml'), { title: 'Legacy', composer: '' });
+    await library.libraryUpdate(item.id, { resume: {
+      position: 1, measure: '1', speed: 100, hands: 'both', wait: false, metronome: false, view: 'page', look: 'paper', zoom: 1,
+    } });
+    return item.id;
+  }, xmlScore('Legacy'));
+  await page.evaluate(id => { location.hash = '#analysis/lib/' + id; }, id);
+  await expect.poll(() => page.evaluate(() => window.__etude.FALL.position)).toBe(1);
+  await expect(page.locator('#an-roll')).toHaveAttribute('data-layout', 'fit');
 });

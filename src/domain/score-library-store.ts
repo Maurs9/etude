@@ -201,7 +201,9 @@ export function validateLibraryResume(value: unknown): LibraryResume | null {
     ...(v.elapsed === undefined ? {} : { elapsed: number(v.elapsed) }),
     ...(recon && grid && key ? { recon: { hands: choice(recon.hands, ['auto', 'tracks', '59', '60', '64']), grid, key } } : {}),
     hands: choice(v.hands, ['both', 'rh', 'lh']), wait: boolean(v.wait), metronome: boolean(v.metronome),
-    view: choice(v.view, ['fit', 'page', 'cont', 'fall']), look: choice(v.look, ['paper', 'night']), zoom: number(v.zoom, .4, 2.5),
+    view: choice(v.view, ['fit', 'page', 'cont', 'fall']),
+    ...(v.viewExplicit === undefined ? {} : { viewExplicit: boolean(v.viewExplicit) }),
+    look: choice(v.look, ['paper', 'night']), zoom: number(v.zoom, .4, 2.5),
   };
 }
 function filename(value: unknown): string {

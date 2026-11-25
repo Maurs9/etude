@@ -4420,7 +4420,12 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         saveSoon();
     }
     if (prev === 'analysis' && v !== prev) {
+        anCancelOpening();
         anLibraryNavigationResume = anLibraryCapture();
+        if (anScreen === 'player') {
+            anRecordBuiltinProgress();
+            anRenderContinueCard();
+        }
         anLibrarySuspended = true;
         void anLibraryFlush(false).catch(() => {});
         if (scorePendingSignature || scoreLayoutPending) {
@@ -4429,12 +4434,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
             scoreLayoutPending = null;
             SCORE.stale = true;
         }
-        // An import has already paused playback. Keep the cursor for rollback,
-        // including while the current library checkpoint is suspended.
-        if (AN.loading)
-            scoreHalt();
-        else
-            scoreStop();
+        anStopAtCursor();
         anKeysClear();
         anSheet(false, true);
         pcStageSet(false, true);
@@ -4590,14 +4590,19 @@ window.addEventListener('popstate', (e) => {
     }
     else if (v === 'analysis') {
         const route = parseAnalysisHash(location.hash) ?? { kind: 'catalog' };
-        if (location.hash !== formatAnalysisHash(route))
-            history.replaceState(e.state, '', formatAnalysisHash(route));
-        if (route.kind === 'catalog') {
-            if (anScreen !== 'catalog')
-                anExitToCatalog(true);
+        if (!analysisModulesReady) {
+            void show(v, true, true, route);
         }
-        else if (anScreen !== 'player' || !anRouteMatches(anCurrentRoute(), route)) {
-            void anOpenRoute(route, true);
+        else {
+            if (location.hash !== formatAnalysisHash(route))
+                history.replaceState(e.state, '', formatAnalysisHash(route));
+            if (route.kind === 'catalog') {
+                if (anScreen !== 'catalog' || AN.loading)
+                    anExitToCatalog(true);
+            }
+            else if (anScreen !== 'player' || !anRouteMatches(anCurrentRoute(), route)) {
+                void anOpenRoute(route, true);
+            }
         }
     }
     else if (location.hash !== '#' + v) {
@@ -12923,6 +12928,7 @@ function anLibraryCapture(): LibraryResume | null {
         hands: PRAC.hands === 'rh' ? 'rh' : PRAC.hands === 'lh' ? 'lh' : 'both',
         wait: PRAC.wait, metronome: PRAC.metro,
         view: FALL.mode === 'fall' ? 'fall' : SCORE.layout,
+        viewExplicit: scoreLayoutExplicit,
         look: SCORE.look === 'night' ? 'night' : 'paper', zoom: anZoomNow(),
     };
     if (anLibraryDirty.has(active.id) || anLibrarySaved.get(active.id) !== JSON.stringify(resume))
@@ -13003,7 +13009,11 @@ function anLibraryRestoreResume(resume: LibraryResume) {
     pracSet('hands', resume.hands);
     pracSet('wait', resume.wait);
     pracSet('metro', resume.metronome);
-    scoreSetView(resume.view);
+    const view = savedScoreView(resume.view, resume.viewExplicit);
+    if (view) {
+        scoreLayoutExplicit = true;
+        scoreSetView(view);
+    }
     scoreSetLook(resume.look);
     scoreZoom(resume.zoom);
     FALL.position = Math.max(0, Math.min(fallEnd(), resume.position));
@@ -13208,7 +13218,7 @@ function anSetScreen(screen: AnScreen) {
     anLayoutVars();
 }
 function anSyncPlayerHistory(route: AnalysisRoute, fromHistory = false, forceReplace = false) {
-    if (fromHistory || view0() !== 'analysis') return;
+    if (fromHistory || view0() !== 'analysis' || anScreen !== 'player') return;
     const hash = formatAnalysisHash(route);
     if (location.hash === hash) return;
     try {
@@ -13223,14 +13233,18 @@ function anSyncPlayerHistory(route: AnalysisRoute, fromHistory = false, forceRep
     }
     catch (_) { }
 }
+function anCancelOpening() {
+    if (!AN.loading) return;
+    anRollbackOpening?.();
+    AN.loadToken++;
+    anSetLoading(false);
+}
 function anExitToCatalog(fromHistory = false) {
-    if (AN.loading) {
-        anRollbackOpening?.();
-        AN.loadToken++;
-        anSetLoading(false);
-    }
+    if (!fromHistory) ++featureNavigation;
+    anCancelOpening();
+    if (anScreen === 'player') anRecordBuiltinProgress();
     if (SCORE.playing)
-        scoreStop();
+        anStopAtCursor();
     else
         stopPreviews();
     anKeysClear();
@@ -13239,7 +13253,6 @@ function anExitToCatalog(fromHistory = false) {
     if (SCORE_FOCUS.owner === 'analysis') scoreFocusExit(true);
     else pcStageSet(false, true);
     anLibraryCapture();
-    anRecordBuiltinProgress();
     void anLibraryFlush(false).catch(() => {});
     const canPopBack = !fromHistory && anListContext?.fromList && anFromListDepth === 1;
     anSetScreen('catalog');
@@ -13283,8 +13296,9 @@ async function anOpenRoute(route: AnalysisRoute, fromHistory = false): Promise<v
         await anLoadExample(route.id, { fromHistory });
         return;
     }
-    await ensureAnalysisModules().catch(() => {});
+    const navigation = featureNavigation, hash = location.hash, opening = AN.loadToken;
     const stored = await scoreLibraryStore.libraryGet(route.id).catch(() => null);
+    if (navigation !== featureNavigation || hash !== location.hash || opening !== AN.loadToken) return;
     if (!stored) {
         anSetScreen('catalog');
         anCatalogStatus(t('an_piece_not_found'));
@@ -14740,6 +14754,13 @@ function anSelStart() {
     return AN.selected.size ? Math.min(...[...AN.selected].map((i) => scoreSeconds(AN.notes[i].start))) : 0;
 }
 function scoreStop() { scoreHalt(); SCORE.resume = null; FALL.position = AN.notes.length ? anSelStart() : 0; performanceSeekScore(FALL.position, true); scoreIdle(); }
+function anStopAtCursor() {
+    const position = fallTime();
+    scoreHalt();
+    SCORE.resume = null;
+    FALL.position = position;
+    scoreIdle();
+}
 function scorePause() { if (!SCORE.playing)
     return; const at = fallTime(), sel = SCORE.sel && !SCORE.loop, run = pracCarry(at); scoreHalt(); SCORE.paused = true; SCORE.resume = { sel, run }; FALL.position = at; scoreIdle(); }
 // Space / ▶: pause while playing, otherwise resume from the cursor (a paused selection resumes as a selection).
@@ -15999,7 +16020,13 @@ function scoreSetLook(v: string) { SCORE.look = v === 'night' ? 'night' : 'paper
     scoreLayout(); saveAll(); }
 // "Highlight sounding notes": off by default, so the notes stay black while the blue line plays through them.
 function scoreSetHl(on: boolean) { SCORE.hl = !!on; SCORE.heads.forEach((l) => l.forEach(scorePaintEl)); anUpdateControls(); saveAll(); }
-// Page | Continuous | Falling notes; the choice is remembered like the appearance.
+function savedScoreView(view: unknown, explicit: unknown): notationApi.ScoreLayoutMode | 'fall' | null {
+    if (explicit === false) return null;
+    // Older releases saved Page even when the default had never been changed.
+    if (view === 'page') return explicit === true ? view : null;
+    return view === 'fit' || view === 'cont' || view === 'fall' ? view : null;
+}
+// The display choice is remembered along with the appearance.
 function scoreSetView(v: string|undefined) {
     if (v === 'fall') {
         if (FALL.mode !== 'fall')
@@ -20169,7 +20196,7 @@ function syncRefresh() {
 let reloadingForRestore = false;
 function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
-function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone: audioEngine.tone, masterVol: audioEngine.masterVolume, muted: audioEngine.muted, localSynth: audioEngine.localSynth, reverb: audioEngine.reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, deviceName: savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
+function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone: audioEngine.tone, masterVol: audioEngine.masterVolume, muted: audioEngine.muted, localSynth: audioEngine.localSynth, reverb: audioEngine.reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, deviceName: savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, scoreViewExplicit: scoreLayoutExplicit, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
 function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
     if (reloadingForRestore || STORE.blocked) {
         if (replacement)
@@ -20593,13 +20620,10 @@ function applyTopLevelPrefs(raw: storage.PttV3Payload) {
         SCORE.look = raw.scoreLook;
     if (typeof raw.scoreHl === 'boolean')
         SCORE.hl = raw.scoreHl;
-    if (raw.scoreView === 'fit' || raw.scoreView === 'page' || raw.scoreView === 'cont') {
-        SCORE.layout = raw.scoreView;
-        scoreLayoutExplicit = true;
-        FALL.mode = 'score';
-    }
-    else if (raw.scoreView === 'fall')
-        FALL.mode = 'fall';
+    const scoreView = savedScoreView(raw.scoreView, raw.scoreViewExplicit);
+    scoreLayoutExplicit = scoreView !== null;
+    SCORE.layout = scoreView && scoreView !== 'fall' ? scoreView : defaultScoreLayoutForViewport(window.innerWidth);
+    FALL.mode = scoreView === 'fall' ? 'fall' : 'score';
     if (typeof raw.kbDock === 'boolean')
         DOCK.pref = raw.kbDock;
     else if (typeof raw.anKb === 'boolean')
