@@ -57,9 +57,12 @@ for (const { name, source, seek, next, skipped } of [
 ]) {
   test(`falling notes descend continuously through the ${name} at the audible boundary`, async ({ app, page }) => {
     await open(app, page, source);
+    await page.locator('#an-disp-btn').click();
     await page.locator('[data-score-mode="fall"]').click();
     await expect(page.locator('#fall-canvas')).toBeVisible();
+    await page.locator('#an-tools-btn').click();
     await page.locator('#score-speed').selectOption('70');
+    await page.locator('#an-tools-btn').click();
     if (seek) {
       await page.locator('#fall-seek').fill(String(seek));
       const preview = await page.evaluate(() => window.__etude.FALL.hits.map(h => window.__etude.AN.notes[h.i].midi));
@@ -78,7 +81,9 @@ for (const { name, source, seek, next, skipped } of [
 
 test('falling notes preview the next A–B pass and keep moving across the loop', async ({ app, page }) => {
   await open(app, page, distinctNotes);
+  await page.locator('#an-disp-btn').click();
   await page.locator('[data-score-mode="fall"]').click();
+  await page.locator('#an-disp-btn').click();
   await page.evaluate(async () => {
     const a = window.__etude;
     a.PRAC.A = 2;
@@ -167,15 +172,18 @@ test('seeking to the written bar after a repeat maps to its real performance occ
 
 test('a library bookmark survives reload on the second repeat', async ({ app, page }) => {
   await open(app, page);
-  await expect(page.locator('#library-status')).toHaveText('Saved to this device.');
+  await expect(page.locator('#an-msg')).toContainText('Saved to My Library.');
   await secondPass(page);
   await page.evaluate(() => window.__etude.anLibraryFlush());
   const saved = await page.evaluate(async () => (await window.__etude.scoreLibraryStore.libraryList())[0].resume);
   expect(saved.performance).toBeCloseTo(4.3, 1);
-  await page.reload(); await page.waitForFunction(() => !!window.__etude?.show && document.getElementById('score-library'));
+  await page.reload(); await page.waitForFunction(() => !!window.__etude?.show && !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.locator('#an-back').click();
+  await page.locator('#an-tab-library').click();
   await page.locator('#score-library').evaluate(el => { el.open = true; });
   await expect(page.locator('.score-library-info').first()).toContainText('0:04');
   await page.locator('[data-library-action=open]').first().click();
+  await expect(page.locator('#an-panel')).toBeVisible();
   await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
   await expect(page.locator('#fall-clock')).toHaveText('0:04');
   await play(page);
@@ -184,7 +192,9 @@ test('a library bookmark survives reload on the second repeat', async ({ app, pa
 
 test('half speed doubles duration; a live speed change keeps elapsed time and recomputes remaining time', async ({ app, page }) => {
   await open(app, page);
+  await page.locator('#an-tools-btn').click();
   await page.locator('#score-speed').selectOption('50');
+  await page.locator('#an-tools-btn').click();
   await expect(page.locator('#fall-total')).toHaveText('0:20');
   await play(page);
   await page.evaluate(() => {

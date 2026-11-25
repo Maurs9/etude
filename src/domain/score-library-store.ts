@@ -188,7 +188,9 @@ export function validateLibraryResume(value: unknown): LibraryResume | null {
   if (value === null) return null;
   const v = record(value);
   const speed = number(v.speed);
-  if (![40, 50, 60, 70, 75, 80, 90, 100, 110, 125].includes(speed)) invalid('Unsupported playback speed.');
+  if (!Number.isInteger(speed) || speed < 40 || speed > 125 || speed % 5 !== 0) {
+    invalid('Unsupported playback speed.');
+  }
   const recon = v.recon === undefined ? undefined : record(v.recon);
   const grid = recon && number(recon.grid);
   const key = recon && text(recon.key, 4);

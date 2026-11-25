@@ -26,14 +26,14 @@ describe('local library validation boundary', () => {
   });
   it.each([
     { position: -1 }, { position: NaN }, { position: Infinity }, { measure: 4 }, { measure: 'x'.repeat(129) },
-    { speed: .75 }, { speed: 3 }, { speed: '75' }, { hands: 'left' }, { wait: 1 }, { metronome: 'false' },
+    { speed: .75 }, { speed: 3 }, { speed: 73 }, { speed: 35 }, { speed: 130 }, { speed: '75' }, { hands: 'left' }, { wait: 1 }, { metronome: 'false' },
     { view: 'svg' }, { look: 'dark' }, { zoom: 0 }, { zoom: 100 },
     { recon: 'bad' }, { recon: { hands: 'split', grid: 4, key: 'auto' } }, { recon: { hands: 'auto', grid: 16, key: 'auto' } },
     { recon: { hands: 'auto', grid: 4, key: '9:0' } },
   ])('rejects malformed checkpoints %#', patch => {
     expect(() => validateLibraryResume({ ...resume, ...patch })).toThrow(LibraryError);
   });
-  it.each([40, 50, 60, 70, 75, 80, 90, 100, 110, 125])('stores speed as the supported percent %s', speed => {
+  it.each([40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125])('stores speed as the supported percent %s', speed => {
     expect(validateLibraryResume({ ...resume, speed }).speed).toBe(speed);
   });
   it('normalizes and validates optional level and tags', () => {

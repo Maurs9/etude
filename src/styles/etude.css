@@ -686,17 +686,28 @@
   .an-tbwrap.is-floating{position:fixed; top:var(--hdr-h); left:var(--an-pin-x); width:var(--an-pin-w); box-sizing:border-box; z-index:var(--z-dock); box-shadow:0 8px 18px rgba(34,28,21,.11)}
   .an-tbwrap.is-floating + #an-work{margin-top:var(--an-tb-h)}
   .an-tbwrap.is-floating + .an-work{margin-top:var(--an-tb-h)}
-  .an-tb{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:6px 10px}
-  .tb-g{display:inline-flex; align-items:center; gap:2px}
-  .tb-g.tb-sheet{gap:4px}
-  .tb-g.tb-sheet:not(:has(> :not([hidden]))){display:none}
+  .an-tb{display:flex; flex-wrap:nowrap; align-items:center; gap:6px 8px; padding:6px 10px; min-height:46px}
+  .tb-g{display:inline-flex; align-items:center; gap:2px; min-width:0}
+  .tb-tempo{gap:0; border:1px solid var(--line); border-radius:9px; background:var(--card); padding:0}
+  .tb-tempo .btn.tb-b{height:30px; min-width:28px; padding:0 6px; border:0; border-radius:0; background:none}
+  .tb-tempo .tb-tempo-val{padding:0 8px; font-variant-numeric:tabular-nums; font-size:12.5px; color:var(--ink); border-inline:1px solid var(--line)}
+  .tb-tempo .tb-tempo-step{font-size:15px; font-weight:700}
+  .an-study-mode button{font-size:12.5px; padding:0 9px}
+  .btn.tb-b.tb-prac-btn{display:none}
+  .an-prac-line{padding:4px 12px 6px; border-top:1px solid var(--line); background:color-mix(in srgb, var(--paper) 65%, transparent); font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .an-prac-line[hidden]{display:none}
+  .an-disp-pop,.an-tools-pop{width:min(380px, calc(100% - 16px))}
+  .an-disp-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+  .an-disp-lbl{font-size:12.5px; font-weight:600; color:var(--muted)}
+  .an-disp-sheet,.an-disp-fall{display:flex; flex-direction:column; gap:10px}
+  .an-disp-sheet[hidden],.an-disp-fall[hidden]{display:none}
+  .an-disp-fall{padding-top:8px; border-top:1px solid var(--line)}
   @media (min-width:861px) and (min-height:561px){
-    .an-tb > .tb-g{padding:2px; border-radius:9px; background:color-mix(in srgb, var(--paper) 62%, transparent)}
-    .an-tb > .tb-sep{display:none}
+    .an-tb > .tb-g:not(.tb-tempo):not(.tb-end){padding:2px; border-radius:9px; background:color-mix(in srgb, var(--paper) 62%, transparent)}
   }
   .tb-sep{width:1px; height:22px; background:var(--line)}
-  .tb-end{display:inline-flex; align-items:center; gap:6px; margin-left:auto}
-  .btn.tb-b{appearance:none; display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:32px; height:32px; padding:0 8px; border:1px solid transparent; border-radius:8px; background:none; color:var(--ink2); font:600 13px/1 var(--sans); cursor:pointer; white-space:nowrap; transition:background-color .12s, color .12s, border-color .12s}
+  .tb-end{display:inline-flex; align-items:center; gap:4px; margin-left:auto; flex-shrink:0}
+  .btn.tb-b{appearance:none; display:inline-flex; align-items:center; justify-content:center; gap:5px; min-width:32px; height:32px; padding:0 8px; border:1px solid transparent; border-radius:8px; background:none; color:var(--ink2); font:600 13px/1 var(--sans); cursor:pointer; white-space:nowrap; transition:background-color .12s, color .12s, border-color .12s}
   .tb-b svg{width:16px; height:16px; flex:none}
   .btn.tb-b:hover{border-color:transparent; color:var(--ink2)}
   .btn.tb-b:hover:not(:disabled){background:color-mix(in srgb, var(--ink) 8%, transparent); color:var(--ink)}
@@ -706,17 +717,15 @@
   .btn.tb-play:hover:not(:disabled){background:var(--accent); color:var(--accent-ink); filter:brightness(1.1)}
   .tb-play .i-pause,.tb-play[data-state="pause"] .i-play{display:none}
   .tb-play[data-state="pause"] .i-pause{display:block}
-  .tb-speed{display:inline-flex; align-items:center; gap:3px; margin-left:4px; color:var(--muted)}
-  .tb-speed svg{width:15px; height:15px; flex:none}
+  .tb-speed{display:flex; align-items:center; justify-content:space-between; gap:10px; color:var(--muted)}
   .tb-speed select{height:32px; padding:0 24px 0 8px; font-size:13px; border-radius:8px; background-position:calc(100% - 13px) 53%,calc(100% - 8px) 53%}
-  .tb-seg button{display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:32px; height:30px; padding:0 8px; font-size:13px}
+  .tb-seg button{display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:30px; height:30px; padding:0 8px; font-size:13px}
   .tb-seg button svg{width:16px; height:16px; flex:none}
   .tb-seg button:not([aria-pressed="true"]):hover:not(:disabled){color:var(--ink); background:color-mix(in srgb, var(--ink) 7%, transparent)}
   .tb-views button{position:relative}
   .tb-views button:not([aria-pressed="true"]) .lbl{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
   .tb-views button[aria-pressed="true"]{padding:0 11px 0 9px}
-  #an-kb .tb-kb-label{display:none}
-  #sc-hl .tb-hl-label{display:none}
+  .tb-caret{font-size:10px; opacity:.75}
   .seg button:disabled{opacity:.45; cursor:not-allowed}
   .an-zoom{display:inline-flex; align-items:center; height:32px; border:1px solid var(--line); border-radius:9px; background:var(--card); overflow:hidden}
   .an-zoom button{appearance:none; display:inline-flex; align-items:center; justify-content:center; height:100%; min-width:30px; padding:0 8px; border:none; background:none; color:var(--ink2); font:600 13px var(--sans); cursor:pointer}
@@ -1626,49 +1635,45 @@
   }
   body[data-stage=immersive] .bottomnav{display:none}
   @media (prefers-reduced-motion: reduce){ .bottomnav svg{transition:none} }
-/* ---------- score toolbar on phones: the essentials in one row, everything else behind More ----------
-   The groups flatten (display:contents) so each control can be ordered on its own, and nothing moves in the DOM, so
-   handlers, popovers and focus order stay as they are. The essentials carry data-core. More (.is-more on #an-toolbar)
-   shows the rest below a divider: plain toggles first, then the named controls (hands, zoom, look, view), one per row
-   with their own aria-label as the row's name above them and their buttons sharing the width. This replaces the sideways-scrolling row used up to now. */
-  .btn.tb-more{display:none}
+/* ---------- score toolbar on phones: essentials in one row (>= 44px), Display / Practice / Study tools in popovers ---------- */
+  @media (min-width:861px) and (max-width:1270px){
+    .an-tb{gap:4px 5px; padding:6px 8px}
+    .an-tb .tb-wait .lbl,.an-tb .tb-pop-lbl,.an-tb .tb-caret{display:none}
+    .an-tb #sc-stage span{display:none}
+  }
   @media (max-width:860px), (orientation: landscape) and (max-height: 560px) and (max-width: 1020px){
-    .an-tb{flex-wrap:wrap; overflow:visible; gap:0 2px; padding:5px 6px; -webkit-mask-image:none; mask-image:none}
-    .an-tb > .tb-g,.an-tb > .tb-end{display:contents}
-    .an-tb .tb-sep{display:none}
-    .an-tb [data-core]{order:1}
-    .an-tb .btn.tb-b[data-core]{height:44px; min-width:38px; padding:0 6px; position:relative}
-    .an-tb .btn.tb-b[data-core]::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:44px; width:100%; height:100%}
+    .an-tb{flex-wrap:nowrap; overflow:visible; gap:4px; padding:5px 6px}
+    .an-tb > .tb-g,.an-tb > .tb-end{display:inline-flex; align-items:center}
+    .an-tb .tb-transport #sc-start,.an-tb .tb-transport #score-stop,.an-tb .tb-transport #an-study-mode{display:none}
+    .an-tb .btn.tb-b{height:44px; min-width:44px; padding:0 6px; position:relative}
+    .an-tb .btn.tb-b::after{content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); min-width:44px; min-height:44px; width:100%; height:100%}
     .an-tb .btn.tb-play{min-width:44px}
-    .an-tb .tb-speed{margin:0}
-    .an-tb .tb-speed > svg{display:none}   /* the menu's 100% already reads as tempo; the row needs the room */
-    .an-tb .tb-speed select{height:44px; padding-left:8px}
-    .btn.tb-more{display:inline-flex; order:1; margin-left:auto}
-    .an-tb > :not([data-core]),.an-tb > .tb-g > :not([data-core]),.an-tb > .tb-end > :not([data-core]){order:4}
-    .an-tb:not(.is-more) > :not([data-core]):not(.tb-g):not(.tb-end),
-    .an-tb:not(.is-more) > .tb-g > :not([data-core]),
-    .an-tb:not(.is-more) > .tb-end > :not([data-core]){display:none}
-    /* the divider under the essentials, which also breaks the line */
-    .an-tb.is-more::after{content:""; order:3; flex:0 0 calc(100% + 12px); margin:5px -6px 4px; border-top:1px solid var(--line)}
-    body:has(.an-tb.is-more) .an-fab{display:none}   /* it would sit on the open controls */
-    .btn.tb-more[aria-expanded="true"]{color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent)}
-    .an-tb.is-more .btn.tb-b:not([data-core]){height:44px; min-width:44px; margin-bottom:4px}
-    .an-tb.is-more .tb-wait .lbl,.an-tb.is-more #sc-hl .tb-hl-label,.an-tb.is-more #fall-opt .lbl{display:inline}
-    /* named controls: a full row each, its name above, its buttons sharing the width (long labels wrap) */
-    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode){order:4; flex:1 0 100%; display:flex; flex-wrap:wrap; align-items:stretch; height:auto; margin:4px 0 2px; border:0; border-radius:0; background:none; overflow:visible}
-    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode)::before{content:attr(aria-label); flex:0 0 100%; padding:0 0 4px; color:var(--muted); font:600 12.5px/1.2 var(--sans)}
-    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button{flex:1 1 0; min-width:0; height:auto; min-height:40px; padding:4px 8px; white-space:normal; line-height:1.15; border:1px solid var(--line); margin-left:-1px}
-    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button:not([aria-pressed="true"]){background:var(--card)}
-    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button:first-of-type{border-radius:10px 0 0 10px; margin-left:0}
-    .an-tb.is-more :is(#pr-hands,.an-zoom,#sc-look,#an-mode) > button:last-of-type{border-radius:0 10px 10px 0}
-    .an-tb.is-more #an-mode .lbl{position:static; width:auto; height:auto; overflow:visible; clip:auto}
+    .an-tb .tb-tempo{height:44px}
+    .an-tb .tb-tempo .tb-tempo-step{min-width:34px; padding:0 4px}
+    .an-tb .tb-tempo .tb-tempo-val{font-size:12px; padding:0 6px}
+    .an-tb .btn.tb-b.tb-prac-btn{display:inline-flex}
+    .an-tb .tb-pop-lbl,.an-tb .tb-caret,.tb-prac-btn > span,#sc-stage > span{display:none}
+    .an-tb .tb-prac{display:none}
+    .an-tb .tb-prac.is-prac-open{display:flex; position:absolute; top:calc(100% + 6px); left:8px; right:8px; z-index:var(--z-pop); flex-wrap:wrap; gap:10px; padding:12px 14px; border:1px solid var(--line2); border-radius:12px; background:var(--paper2); box-shadow:0 22px 44px -18px rgba(0,0,0,.5)}
+    .an-tb .tb-prac.is-prac-open .tb-wait .lbl{display:inline}
+    .an-tb .tb-prac.is-prac-open .tb-hands > button,.an-tb .tb-prac.is-prac-open .btn.tb-b{min-height:44px; padding:0 10px}
+    .an-tb #an-side-btn{display:none}
+  }
+  @media (max-width:400px){
+    .an-tb{gap:2px; padding:4px}
+    .an-tb .btn.tb-b{min-width:40px; padding:0 4px}
+    .an-tb .btn.tb-play{min-width:42px}
+    .an-tb .tb-tempo .tb-tempo-step{min-width:30px; padding:0 2px}
+    .an-tb .tb-tempo .tb-tempo-val{font-size:11.5px; padding:0 4px}
   }
   @media (orientation: landscape) and (max-height: 560px){
     :has(#view-analysis.active) .keys{height:clamp(60px, 18dvh, 76px)}
-    .an-tb{padding:3px 6px}
-    .an-tb .btn.tb-b,.an-tb .btn.tb-b[data-core],.an-tb .tb-speed select{height:34px}
-    .an-tb .btn.tb-b,.an-tb .btn.tb-b[data-core]{min-width:34px}
+    .an-tb{padding:3px 6px; min-height:40px}
+    .an-tb .btn.tb-b,.an-tb .tb-tempo{height:36px}
+    .an-tb .btn.tb-b{min-width:36px}
     .an-tb .btn.tb-play{min-width:40px}
+    .an-tb .tb-tempo .tb-tempo-step{height:34px; min-width:30px}
+    .an-tb .tb-tempo .tb-tempo-val{height:34px}
     .an-tl{height:30px; padding:0 10px; gap:8px; font-size:11px}
     .tl-track{height:22px}
     .an-status{min-height:24px; padding:3px 10px; gap:2px 8px; font-size:11px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none}
@@ -1680,25 +1685,11 @@
     .an-fab{min-height:34px; padding:0 11px 0 9px; font-size:12px; right:max(10px, env(safe-area-inset-right, 0px)); bottom:calc(var(--dock-h) + var(--an-sb-h) + 34px)}
   }
 
-  .an-tools{display:inline-flex; gap:2px}
-  .btn.tb-b.an-tool{width:auto; gap:5px; padding-inline:8px}
+  .an-tools{display:inline-flex; gap:4px}
+  .an-tools-pop .an-tools{display:flex; flex:1 1 100%}
+  .an-tools-pop .an-tool{flex:1 1 0; min-height:40px}
+  .btn.tb-b.an-tool{width:auto; gap:5px; padding-inline:10px}
   .btn.tb-b.an-tool[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink)}
-  @media (max-width:860px), (orientation: landscape) and (max-height:560px) and (max-width:1020px){
-    .an-tb .an-tools{order:2; flex:0 0 100%; display:flex; gap:4px}
-    .an-tb .btn.tb-b.an-tool{flex:1 1 0; min-width:0; height:auto; min-height:44px; margin-top:4px; white-space:normal; line-height:1.25}
-  }
-  @media (min-width:861px), (orientation:landscape) and (max-height:560px){
-    .an-tool > span{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
-  }
-  @media (min-width:861px) and (max-width:1400px) and (min-height:561px){
-    #an-toolbar .btn.tb-b{min-width:30px; padding-inline:5px}
-    #an-toolbar .tb-views button[aria-pressed="true"]{padding-inline:6px}
-    #an-toolbar .tb-views .lbl{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
-  }
-  @media (orientation:landscape) and (max-height:560px){
-    .an-tb .an-tools{order:1; flex:0 0 auto; gap:2px}
-    .an-tb .btn.tb-b.an-tool{flex:none; height:34px; min-height:34px; min-width:34px; margin-top:0; padding:0 6px}
-  }
 
 .notation-reload {
   position: fixed;

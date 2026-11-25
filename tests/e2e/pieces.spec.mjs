@@ -343,9 +343,11 @@ test('Note names writes each note’s name beside it in the note-name setting, a
   const texts = () => names.evaluateAll(list => [...new Set(list.map(n => n.textContent))].sort());
   const heads = () => page.evaluate(() => [...window.__etude.SCORE.heads.values()].reduce((n, list) => n + list.length, 0));
   await expect(names).toHaveCount(0);
+  await page.locator('#an-disp-btn').click();
   await expect(btn).toHaveAttribute('aria-pressed', 'false');
   await btn.click();
   await expect(btn).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#an-disp-btn').click();
   await expect(names).toHaveCount(await heads());
   expect(await texts()).toEqual(['A', 'B♭', 'C', 'D', 'E', 'F', 'G']);
   // Each name sits just right of its notehead, level with it.
@@ -359,7 +361,9 @@ test('Note names writes each note’s name beside it in the note-name setting, a
   await page.reload();
   await page.waitForFunction(() => typeof window.__etude?.show === 'function');
   await openPiece(page, 'brahms');
+  await page.locator('#an-disp-btn').click();
   await expect(btn).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#an-disp-btn').click();
   await expect(names).toHaveCount(await heads());
 
   await page.evaluate(() => { window.__etude.notation = 'solfege'; window.__etude.applyNotation(); });
@@ -367,7 +371,9 @@ test('Note names writes each note’s name beside it in the note-name setting, a
   await page.evaluate(() => { window.__etude.notation = 'german'; window.__etude.applyNotation(); });
   await expect.poll(texts).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
 
+  await page.locator('#an-disp-btn').click();
   await btn.click();
+  await page.locator('#an-disp-btn').click();
   await expect(names).toHaveCount(0);
   expect(JSON.parse(await page.evaluate(() => localStorage.getItem('etude-practice-v3'))).names).toBe(false);
 });
@@ -379,7 +385,9 @@ test('falling note blocks follow the app notation and keep display overrides', a
     + '</measure></part></score-partwise>';
   await page.locator('#an-file').setInputFiles({ name: 'notation.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
   await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.locator('#an-disp-btn').click();
   await page.locator('[data-score-mode="fall"]').click();
+  await page.locator('#an-disp-btn').click();
   const canvas = page.locator('#fall-canvas');
   await expect(canvas).toBeVisible();
   const blockLabels = () => canvas.evaluate(el => {
@@ -410,7 +418,7 @@ test('falling note blocks follow the app notation and keep display overrides', a
   await setNotation('german');
   await expect.poll(blockLabels).toEqual(['C', 'D', 'F♯', 'H']);
 
-  await page.locator('#fall-opt').click();
+  await page.locator('#an-disp-btn').click();
   const labels = page.locator('#fall-labels');
   await expect(labels.locator('option:checked')).toHaveText('App notation');
   await labels.selectOption('solfege');
@@ -427,7 +435,9 @@ test('Note names spell a MusicXML note as the file writes it, not as the key wou
     + '</measure></part></score-partwise>';
   await page.locator('#an-file').setInputFiles({ name: 'flat.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
   await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'xml' && !!window.__etude.SCORE.geo);
+  await page.locator('#an-disp-btn').click();
   await page.locator('#sc-names').click();
+  await page.locator('#an-disp-btn').click();
   await expect(page.locator('#an-roll .sc-nn')).toHaveText(['C', 'G♭', 'E', 'C']);
 });
 
@@ -702,6 +712,7 @@ test('Continue card resumes the most recently opened piece at its saved measure 
     const E = window.__etude;
     E.scoreSeekTo(E.scoreSeconds(E.SCORE.measures[2].start));
   });
+  await page.locator('#an-tools-btn').click();
   await page.locator('#score-speed').selectOption('70');
   await page.locator('#an-back').click();
 
@@ -713,5 +724,39 @@ test('Continue card resumes the most recently opened piece at its saved measure 
   await page.locator('#an-continue-btn').click();
   await expect(page.locator('#an-panel')).toBeVisible();
   await expect(page).toHaveURL(/#analysis\/builtin\/clair$/);
+  await page.locator('#an-tools-btn').click();
   await expect(page.locator('#score-speed')).toHaveValue('70');
+});
+
+test('desktop toolbar stays on one row, Tempo adjusts in 5% steps with click reset, and Practice status line updates', async ({ app, page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'brahms');
+
+  const rowCheck = await page.evaluate(() => {
+    const tb = document.getElementById('an-toolbar').getBoundingClientRect();
+    const play = document.getElementById('score-play').getBoundingClientRect();
+    const stage = document.getElementById('sc-stage').getBoundingClientRect();
+    return { tbH: tb.height, playTop: Math.round(play.top), stageTop: Math.round(stage.top), stageRight: stage.right, tbRight: tb.right };
+  });
+  expect(rowCheck.tbH).toBeLessThan(60);
+  expect(Math.abs(rowCheck.stageTop - rowCheck.playTop)).toBeLessThanOrEqual(4);
+  expect(rowCheck.stageRight).toBeLessThanOrEqual(rowCheck.tbRight + 1);
+
+  const tempoReset = page.locator('#sc-speed-reset');
+  await expect(tempoReset).toContainText('· 100%');
+  await expect(tempoReset).toBeDisabled();
+  await page.locator('#sc-speed-down').click();
+  await expect(tempoReset).toContainText('BPM · 95%');
+  await expect(tempoReset).toBeEnabled();
+  await tempoReset.click();
+  await expect(tempoReset).toContainText('· 100%');
+
+  await expect(page.locator('#an-prac-line')).toBeHidden();
+  await page.locator('#an-study-mode button[data-study="practice"]').click();
+  await expect(page.locator('#an-prac-line')).toBeVisible();
+  await page.locator('#pr-hands button[data-h="rh"]').click();
+  await expect(page.locator('#an-prac-line')).toContainText(/right hand/i);
+  await page.locator('#an-study-mode button[data-study="listen"]').click();
+  await expect(page.locator('#an-prac-line')).toBeHidden();
 });

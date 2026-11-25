@@ -414,8 +414,8 @@ test.describe('bottom navigation on phones', () => {
 });
 
 test.describe('score toolbar on phones', () => {
-  const CORE = ['#sc-start', '#score-play', '#score-stop', '#an-loop', '#score-speed', '#an-kb', '#tb-more'];
-  const MORE = ['#an-metro', '#pr-hands', '#pr-wait', '#sc-zoom-in', '#sc-look', '#sc-hl', '#an-mode'];
+  const CORE = ['#score-play', '#sc-speed-down', '#sc-speed-reset', '#sc-speed-up', '#an-prac-btn', '#an-disp-btn', '#an-tools-btn', '#sc-stage'];
+  const POPPED = ['#pr-hands', '#pr-wait', '#sc-zoom-in', '#sc-look', '#an-mode', '#an-loop', '#an-metro'];
   const openScore = async (app, width, height) => {
     const page = app.page;
     await page.setViewportSize({ width, height });
@@ -426,85 +426,72 @@ test.describe('score toolbar on phones', () => {
   };
   const fitsAcross = page => page.locator('#an-toolbar').evaluate(tb => tb.scrollWidth <= tb.clientWidth + 1);
 
-  test('one row of essentials at thumb size, and nothing scrolled off the edge', async ({ app }) => {
+  test('one row of essentials at thumb size (44px targets), and nothing scrolled off the edge', async ({ app }) => {
     const page = await openScore(app, 390, 844);
     expect(await fitsAcross(page)).toBe(true);
     for (const sel of CORE) {
       await expect(page.locator(sel), sel).toBeVisible();
       const r = await page.locator(sel).evaluate(el => el.getBoundingClientRect());
-      expect(r.height, sel).toBeGreaterThanOrEqual(40);
+      expect(r.height, sel).toBeGreaterThanOrEqual(42);
       expect(r.right, sel).toBeLessThanOrEqual(390);
     }
-    for (const sel of MORE) await expect(page.locator(sel), sel).toBeHidden();
-    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'false');
+    for (const sel of POPPED) await expect(page.locator(sel), sel).toBeHidden();
+    await expect(page.locator('#an-prac-btn')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#an-disp-btn')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#an-tools-btn')).toHaveAttribute('aria-expanded', 'false');
   });
 
   for (const width of [360, 390]) {
-    test(`the essentials and More share one row at ${width}px`, async ({ app }) => {
+    test(`the essentials and popovers share one row at ${width}px`, async ({ app }) => {
       const page = await openScore(app, width, 800);
+      expect(await fitsAcross(page)).toBe(true);
       const tops = await page.evaluate(sels => sels.map(s => Math.round(document.querySelector(s).getBoundingClientRect().top)), CORE);
       expect(new Set(tops).size, `row tops ${tops}`).toBe(1);
     });
   }
 
-  test('the floating Analysis button steps aside while More is open', async ({ app }) => {
+  test('Practice opens in one tap with Hands and Wait for me, and Escape closes it back to the button', async ({ app }) => {
     const page = await openScore(app, 390, 844);
-    await expect(page.locator('.an-fab')).toBeVisible();
-    await page.locator('#tb-more').click();
-    await expect(page.locator('.an-fab')).toBeHidden();
-    await page.locator('#tb-more').click();
-    await expect(page.locator('.an-fab')).toBeVisible();
+    await page.locator('#an-prac-btn').click();
+    await expect(page.locator('#an-prac-btn')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#pr-hands')).toBeVisible();
+    await expect(page.locator('#pr-wait')).toBeVisible();
+    await page.locator('#pr-hands button[data-h="rh"]').click();
+    await page.locator('#pr-wait').click();
+    await expect.poll(() => page.evaluate(() => [window.__etude.PRAC.hands, window.__etude.PRAC.wait])).toEqual(['rh', true]);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#an-prac-btn')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#pr-hands')).toBeHidden();
+    await expect(page.locator('#an-prac-btn')).toBeFocused();
   });
 
-  test('More opens the other controls below the row, and they work from there', async ({ app }) => {
+  test('Display and Study tools popovers open cleanly and close with Escape', async ({ app }) => {
     const page = await openScore(app, 390, 844);
-    const before = await page.locator('#an-tbwrap').evaluate(el => el.getBoundingClientRect().height);
-    await page.locator('#tb-more').click();
-    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'true');
-    for (const sel of MORE) {
-      await expect(page.locator(sel), sel).toBeVisible();
-      expect(await page.locator(sel).evaluate(el => el.getBoundingClientRect().right), sel).toBeLessThanOrEqual(390);
-    }
-    expect(await fitsAcross(page)).toBe(true);
-    await expect.poll(() => page.locator('#an-tbwrap').evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThan(before + 40);
+    await page.locator('#an-disp-btn').click();
+    await expect(page.locator('#an-disp-pop')).toBeVisible();
     await page.locator('#sc-look button[data-v="night"]').click();
     await expect.poll(() => page.evaluate(() => window.__etude.SCORE.look)).toBe('night');
-    await page.locator('#tb-more').click();
-    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#sc-look')).toBeHidden();
-  });
-
-  test('Escape closes More and returns focus to it', async ({ app }) => {
-    const page = await openScore(app, 390, 844);
-    await page.locator('#tb-more').click();
-    await page.locator('#sc-hl').focus();
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#tb-more')).toBeFocused();
-  });
-
-  test('a popover opened from More closes with it, and Escape closes the popover first', async ({ app }) => {
-    const page = await openScore(app, 390, 844);
-    await page.locator('#tb-more').click();
     await page.locator('#an-mode button[data-score-mode="fall"]').click();
-    await expect(page.locator('#fall-opt')).toBeVisible();
-    await page.locator('#fall-opt').click();
     await expect(page.locator('#fall-pop')).toBeVisible();
-    await page.locator('#fall-opt').focus();
     await page.keyboard.press('Escape');
-    await expect(page.locator('#fall-pop')).toBeHidden();
-    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'true');
-    await page.locator('#fall-opt').click();
-    await expect(page.locator('#fall-pop')).toBeVisible();
-    await page.locator('#tb-more').click();
-    await expect(page.locator('#tb-more')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#fall-pop')).toBeHidden();
+    await expect(page.locator('#an-disp-pop')).toBeHidden();
+    await expect(page.locator('#an-disp-btn')).toBeFocused();
+
+    await page.locator('#an-tools-btn').click();
+    await expect(page.locator('#an-tools-pop')).toBeVisible();
+    await page.locator('#an-metro').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.PRAC.metro)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#an-tools-pop')).toBeHidden();
+    await expect(page.locator('#an-tools-btn')).toBeFocused();
   });
 
-  test('wide screens keep the full toolbar and no More button', async ({ app }) => {
+  test('wide screens keep Transport, Listen/Practice, Tempo, Hands, Wait for me, and Full window on one row', async ({ app }) => {
     const page = await openScore(app, 1280, 800);
-    await expect(page.locator('#tb-more')).toBeHidden();
-    for (const sel of ['#pr-hands', '#sc-look', '#an-mode']) await expect(page.locator(sel), sel).toBeVisible();
+    await expect(page.locator('#an-prac-btn')).toBeHidden();
+    for (const sel of ['#score-play', '#an-study-mode', '#sc-speed-reset', '#pr-hands', '#pr-wait', '#sc-stage']) {
+      await expect(page.locator(sel), sel).toBeVisible();
+    }
   });
 });
 

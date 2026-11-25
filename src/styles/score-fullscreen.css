@@ -1,11 +1,19 @@
 /* Shared score focus controls; native fullscreen is an enhancement to this layout. */
 .score-expand{display:inline-flex;align-items:center;justify-content:center;min-height:44px}
-#rd-focus-tools,#rd-stage-mode{display:none}
-body[data-score-focus=read] #rd-stage-top{flex:none;flex-wrap:wrap;gap:6px}
+#rd-focus-disp-btn,#rd-stage-mode{display:none}
+.an-fs-top{display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line);font-size:13px;min-height:44px}
+.an-fs-top[hidden]{display:none}
+.an-fs-title{font-family:var(--serif);font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.an-fs-bar{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap;font-weight:600}
+body[data-score-focus=read] #rd-stage-top{position:relative;flex:none;flex-wrap:wrap;gap:6px}
 body[data-score-focus=read] #rd-stage-mode{display:inline-flex}
-body[data-score-focus=read] #rd-focus-tools{display:flex;flex:1 1 auto;flex-wrap:wrap;align-items:center;gap:4px;order:1}
+body[data-score-focus=read] #rd-focus-disp-btn{display:inline-flex;order:1;min-height:40px}
+body[data-score-focus=read] #rd-focus-tools{position:absolute;top:calc(100% + 6px);right:12px;z-index:var(--z-pop);width:min(300px,calc(100vw - 24px));display:flex;flex-direction:column;gap:8px;padding:12px}
+body[data-score-focus=read] #rd-focus-tools[hidden]{display:none}
+body[data-score-focus=read] .rd-focus-zoom{display:inline-flex;gap:4px;align-items:center}
 body[data-score-focus=read] #rd-focus-tools button{min-height:40px;padding:6px 10px}
 @media(pointer:coarse),(max-width:860px){
+  body[data-score-focus=read] #rd-focus-disp-btn,
   body[data-score-focus=read] #rd-focus-tools button{min-height:44px}
 }
 body[data-score-focus=read] #rd-staff{overflow:auto;max-width:100%;align-items:flex-start}
@@ -20,33 +28,38 @@ body[data-score-focus=read] #rdp-pieces > .panel:has(> #rdn-result:not([hidden])
 body[data-score-focus=read] #rdn-result:not([hidden]) + #rd-play-controls{display:none}
 body[data-score-focus=read] #rd-fs,
 body[data-score-focus=read] #rd-coach{display:none}
-body[data-score-focus=analysis] #an-side,
-body[data-score-focus=analysis] #an-fab,
-body[data-score-focus=analysis] #an-side-resize,
-body[data-score-focus=analysis] #an-side-btn,
-body[data-score-focus=analysis] #an-recon-btn,
-body[data-score-focus=analysis] #an-mode,
-body[data-score-focus=analysis] #tb-prac,
-body[data-score-focus=analysis] #an-sel-mode,
-body[data-score-focus=analysis] #an-play,
-body[data-score-focus=analysis] #an-clear,
-body[data-score-focus=analysis] #tb-more{display:none!important}
-body[data-score-focus=analysis] #an-work{grid-template-columns:minmax(0,1fr)!important}
-body[data-score-focus=analysis] #an-toolbar{flex-wrap:wrap}
-body[data-score-focus=analysis] .an-zoom:not([hidden]){display:flex!important}
-body[data-score-focus=analysis] #an-kb:not([hidden]){display:inline-flex!important}
+body[data-stage=pieces] #an-panel,
+body[data-score-focus=analysis] #an-panel{display:flex;flex-direction:column;height:calc(100dvh - var(--dock-h));max-height:calc(100dvh - var(--dock-h));border-top:0;border-bottom:0;overflow:hidden}
+body[data-stage=pieces] #an-fs-top:not([hidden]),
+body[data-score-focus=analysis] #an-fs-top:not([hidden]){order:1;display:flex;flex:none}
+body[data-stage=pieces] #an-work,
+body[data-score-focus=analysis] #an-work{order:2;flex:1 1 0;height:auto;min-height:0;grid-template-columns:minmax(0,1fr)!important}
+body[data-stage=pieces] #an-work:not(.no-side),
+body[data-score-focus=analysis] #an-work:not(.no-side){grid-template-columns:minmax(0,1fr) var(--an-side-w,340px)!important}
+body[data-stage=pieces] #an-tbwrap,
+body[data-score-focus=analysis] #an-tbwrap{order:3;flex:none;position:static;border-top:1px solid var(--line);border-bottom:0}
+body[data-stage=pieces] #an-status,
+body[data-score-focus=analysis] #an-status{order:4;flex:none}
+body[data-score-focus=analysis] #an-tbwrap .an-pop,
+body[data-score-focus=analysis] #an-tbwrap .tb-prac.is-prac-open{top:auto;bottom:calc(100% + 6px)}
+body[data-score-focus=analysis] #an-study-mode,
+body[data-score-focus=analysis] #an-prac-btn,
+body[data-score-focus=analysis] #an-tools-btn,
+body[data-score-focus=analysis] #tb-prac:not(.is-prac-open),
+body[data-score-focus=analysis] #an-prac-line,
+body[data-score-focus=analysis] #an-fab{display:none!important}
+body[data-score-focus=analysis] #an-toolbar{flex-wrap:nowrap}
 body[data-score-focus=analysis] #sc-stage{margin-left:auto;min-width:44px}
-#sc-stage span{display:none}
 #sc-fit{white-space:nowrap}
 @media(min-width:901px) and (max-width:1450px){
   #an-toolbar{column-gap:5px}
   #an-toolbar .tb-wait .lbl{display:none}
 }
 @media(max-width:900px){
-  #sc-stage{min-width:40px;padding:8px}
+  #sc-stage{min-width:44px;padding:8px}
+  #sc-stage span{display:none}
   body[data-score-focus=read] #rd-stage-title{font-size:14px}
 }
 @media(max-width:600px){
-  #an-toolbar .btn.tb-b[data-core]{min-width:34px;padding-inline:4px}
-  #an-toolbar .tb-speed select{padding-left:6px}
+  #an-toolbar .btn.tb-b{min-width:36px;padding-inline:4px}
 }

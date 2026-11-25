@@ -151,6 +151,7 @@ test('applies expressive tempo, voicing, legato, ornaments, and respects toggle,
   await page.locator('#score-stop').click();
 
   // Metronome active with expressive playback keeps strict tempo & zero onset shifts.
+  await page.locator('#an-tools-btn').click();
   await page.locator('#an-metro').click();
   const metroState = await page.evaluate(() => ({
     tempos: window.__etude.SCORE.tempoList,
@@ -159,6 +160,7 @@ test('applies expressive tempo, voicing, legato, ornaments, and respects toggle,
   expect(metroState.tempos).toEqual([{ beat: 0, bpm: 200 }]);
   expect(metroState.shifts.every(s => s === 0)).toBe(true);
   await page.locator('#an-metro').click();
+  await page.locator('#an-tools-btn').click();
 
   // Unchecking Expressive playback restores strict tempo + raw velocities and persists across reload.
   await page.locator('#pr-expressive').uncheck();

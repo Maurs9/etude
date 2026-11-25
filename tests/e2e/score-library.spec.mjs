@@ -51,7 +51,9 @@ test('library multi-import is persistent, searchable, duplicate-safe, and resume
   await expect(rows(page).locator('h3')).toHaveText('Library Beta');
   await page.locator('#library-search').fill('');
   await openRow(page, 'Library Alpha');
+  await page.locator('#an-tools-btn').click();
   await page.locator('#score-speed').selectOption('75');
+  await page.locator('#an-tools-btn').click();
   await page.evaluate(async () => {
     const E = window.__etude;
     E.pracSet('hands', 'lh');
@@ -73,6 +75,7 @@ test('library multi-import is persistent, searchable, duplicate-safe, and resume
   await expect(rows(page)).toHaveCount(2);
   await expect(row(page, 'Library Alpha').locator('[data-library-action=favorite]')).toHaveAttribute('aria-pressed', 'true');
   await openRow(page, 'Library Alpha');
+  await page.locator('#an-tools-btn').click();
   await expect(page.locator('#score-speed')).toHaveValue('75');
   expect(await page.evaluate(() => ({ position: window.__etude.FALL.position, hands: window.__etude.PRAC.hands, wait: window.__etude.PRAC.wait, metro: window.__etude.PRAC.metro, look: window.__etude.SCORE.look }))).toEqual({ position: 3.25, hands: 'lh', wait: true, metro: true, look: 'night' });
   await library(page);
@@ -460,6 +463,7 @@ test('reopening a saved MIDI score via file input restores its saved reconstruct
   await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'midi');
   await expect(rows(page)).toHaveCount(1);
 
+  await page.locator('#an-tools-btn').click();
   await page.locator('#an-recon-btn').click();
   await expect(page.locator('#an-recon')).toBeVisible();
   await page.locator('#an-hands').selectOption('tracks');

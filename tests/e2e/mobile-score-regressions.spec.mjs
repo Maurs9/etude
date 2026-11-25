@@ -46,7 +46,9 @@ test.describe('mobile score color-scheme & landscape framing', () => {
       const rect = id => document.getElementById(id).getBoundingClientRect();
       const firstStaff = document.querySelector('#an-roll .vf-stave')?.getBoundingClientRect();
       return {
-        tbMoreVisible: getComputedStyle(document.getElementById('tb-more')).display !== 'none',
+        popupsVisible: getComputedStyle(document.getElementById('an-disp-btn')).display !== 'none'
+          && getComputedStyle(document.getElementById('an-prac-btn')).display !== 'none'
+          && getComputedStyle(document.getElementById('an-tools-btn')).display !== 'none',
         tb: rect('an-tbwrap').toJSON(),
         work: rect('an-work').toJSON(),
         roll: rect('an-roll').toJSON(),
@@ -57,7 +59,7 @@ test.describe('mobile score color-scheme & landscape framing', () => {
       };
     });
 
-    expect(metrics.tbMoreVisible).toBe(true);
+    expect(metrics.popupsVisible).toBe(true);
     expect(metrics.tb.height).toBeLessThanOrEqual(48);
     expect(metrics.work.top).toBeGreaterThanOrEqual(metrics.tb.bottom - 1);
     expect(metrics.roll.height).toBeGreaterThanOrEqual(160);
@@ -73,15 +75,17 @@ test.describe('mobile score color-scheme & landscape framing', () => {
     await openBuiltinScore(page, 'brahms');
 
     const beforeKb = await page.evaluate(() => ({
-      tbMoreVisible: getComputedStyle(document.getElementById('tb-more')).display !== 'none',
+      pracBtnVisible: getComputedStyle(document.getElementById('an-prac-btn')).display !== 'none',
       tbH: document.getElementById('an-tbwrap').getBoundingClientRect().height,
       rollH: document.getElementById('an-roll').getBoundingClientRect().height,
     }));
-    expect(beforeKb.tbMoreVisible).toBe(true);
+    expect(beforeKb.pracBtnVisible).toBe(true);
     expect(beforeKb.tbH).toBeLessThanOrEqual(48);
     expect(beforeKb.rollH).toBeGreaterThanOrEqual(180);
 
+    await page.locator('#an-disp-btn').click();
     await page.locator('#an-kb').click();
+    await page.locator('#an-disp-btn').click();
     await page.waitForFunction(() => document.body.classList.contains('kb-land'));
     await page.waitForTimeout(150);
 
@@ -137,7 +141,9 @@ test.describe('mobile score color-scheme & landscape framing', () => {
     // Rotate back to portrait, open keyboard, then rotate to short 800x360 landscape
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(150);
+    await page.locator('#an-disp-btn').click();
     await page.locator('#an-kb').click();
+    await page.locator('#an-disp-btn').click();
     await page.waitForTimeout(150);
     await page.setViewportSize({ width: 800, height: 360 });
     await page.waitForTimeout(250);

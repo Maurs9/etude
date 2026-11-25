@@ -2165,6 +2165,7 @@ function midiChipSync() {
         md.className = 'dot' + (midiMsg && midiMsg.cls ? ' ' + midiMsg.cls : '');
     }
     rdnReadySync();
+    anSyncPracticeLine();
     if (STAGE.on || SES.active)
         dockSync(); // a connected piano releases the keys a stage or drill opened
 }
@@ -2540,13 +2541,34 @@ function readScoreZoom(value = SCORE_FOCUS.zoom) {
     buttonById('rd-focus-out').disabled = SCORE_FOCUS.zoom <= .7;
     buttonById('rd-focus-in').disabled = SCORE_FOCUS.zoom >= 2;
 }
+function rdFocusDispSet(open: boolean, focusBack = false) {
+    const tools = maybeById('rd-focus-tools'), btn = maybeById('rd-focus-disp-btn');
+    if (!tools || !btn) return;
+    tools.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+        const first = queryHtml(tools, 'button:not(:disabled)');
+        first?.focus({ preventScroll: true });
+    } else if (focusBack) {
+        btn.focus({ preventScroll: true });
+    }
+}
+let scoreFocusPrevSide: boolean | null = null;
 function scoreFocusExit(quiet = false) {
     const owner = SCORE_FOCUS.owner;
     if (!owner) return;
+    rdFocusDispSet(false);
     const native = SCORE_FOCUS.native, target = SCORE_FOCUS.returnTo, scroll = SCORE_FOCUS.scroll;
     SCORE_FOCUS.owner = null; SCORE_FOCUS.native = false; SCORE_FOCUS.token++;
     delete document.body.dataset.scoreFocus;
-    if (owner === 'analysis') pcStageSet(false, true);
+    if (owner === 'analysis') {
+        pcStageSet(false, true);
+        if (scoreFocusPrevSide !== null) {
+            const restoreSide = scoreFocusPrevSide;
+            scoreFocusPrevSide = null;
+            anSideSet(restoreSide);
+        }
+    }
     else {
         SCORE_FOCUS.readOverride = false;
         rdnAutoCancel();
@@ -2574,7 +2596,12 @@ function scoreFocusEnter(owner: 'analysis' | 'read', target: HTMLElement, manual
     document.body.dataset.scoreFocus = owner;
     SCORE_FOCUS.owner = owner; SCORE_FOCUS.returnTo = target; SCORE_FOCUS.scroll = scrollY;
     const token = ++SCORE_FOCUS.token;
-    if (owner === 'analysis') { anSheet(false, true); pcStageSet(true); }
+    if (owner === 'analysis') {
+        scoreFocusPrevSide = SIDE.open;
+        anSideSet(false);
+        anSheet(false, true);
+        pcStageSet(true);
+    }
     else { SCORE_FOCUS.readOverride = true; stageSync(); }
     scoreFocusUi();
     if (manual && owner === 'read') byId('rd-top-fs').focus({ preventScroll: true });
@@ -10545,6 +10572,11 @@ function stageResize() { clearTimeout(STAGE.rz); STAGE.rz = window.setTimeout(()
 function stageKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && SCORE_FOCUS.owner && SCORE_FOCUS.owner !== 'analysis') {
         e.preventDefault();
+        const tools = maybeById('rd-focus-tools');
+        if (SCORE_FOCUS.owner === 'read' && tools && !tools.hidden) {
+            rdFocusDispSet(false, true);
+            return true;
+        }
         if (SCORE_FOCUS.owner === 'read' && SR.active) {
             srGo();
             SCORE_FOCUS.returnTo = byId('rd-go');
@@ -15813,7 +15845,8 @@ function anKeepPlace() {
 // The score viewport is sized in CSS from these: 100dvh − header − toolbar − status bar − dock (when shown).
 function anLayoutVars() {
     const st = document.documentElement.style, h = (el: HTMLElement|null) => el && !el.hidden ? Math.round(el.getBoundingClientRect().height) : 0, dock = byId('dock');
-    st.setProperty('--hdr-h', h((document).querySelector('header')) + 'px');
+    const topBarH = PC_STAGE.on ? h(maybeById('an-fs-top')) : h(document.querySelector('header'));
+    st.setProperty('--hdr-h', topBarH + 'px');
     const bnav = h(byId('bottomNav')); // 0 while the bar is not displayed (wide screens, short landscape, the practice stage)
     st.setProperty('--bnav-h', bnav + 'px');
     st.setProperty('--dock-h', ((document.body.classList.contains('kb') ? h(dock) : 0) + bnav) + 'px');
@@ -15862,6 +15895,8 @@ function pcStageSet(on: boolean, quiet = false) {
     if (want === PC_STAGE.on)
         return;
     PC_STAGE.on = want;
+    const fsTop = maybeById('an-fs-top');
+    if (fsTop) fsTop.hidden = !want;
     if (want)
         document.body.dataset.stage = 'pieces';
     else if (document.body.dataset.stage === 'pieces')
@@ -15916,6 +15951,41 @@ function anTempoAt(beat: number) { let bpm = SCORE.tempoList[0].bpm; for (const 
     else
         break;
 } return bpm; }
+function anTempoWidgetSync(beat?: number) {
+    const sel = selectById('score-speed');
+    const has = AN.notes.length > 0;
+    const pct = +(sel.value || 100);
+    const b = beat != null ? beat : (has ? scoreBeatAt(fallTime()) : 0);
+    const baseBpm = has ? anTempoAt(b) : 120;
+    const effBpm = Math.max(1, Math.round(baseBpm * pct / 100));
+    const reset = maybeById('sc-speed-reset') as HTMLButtonElement | null;
+    if (reset) {
+        reset.textContent = `${effBpm} BPM · ${pct}%`;
+        reset.disabled = !has || pct === 100;
+    }
+    const opts = [...sel.options].map((o) => +o.value);
+    const idx = opts.indexOf(pct);
+    const down = maybeById('sc-speed-down') as HTMLButtonElement | null;
+    const up = maybeById('sc-speed-up') as HTMLButtonElement | null;
+    if (down) down.disabled = !has || idx <= 0;
+    if (up) up.disabled = !has || idx < 0 || idx >= opts.length - 1;
+}
+function anSyncPracticeLine() {
+    const line = maybeById('an-prac-line');
+    const wait = pracWait();
+    queryAllHtml(document, '#an-study-mode button[data-study]').forEach((b) => {
+        b.setAttribute('aria-pressed', (b.dataset.study === (wait ? 'practice' : 'listen')) ? 'true' : 'false');
+    });
+    if (!line) return;
+    if (!AN.notes.length || !wait) {
+        line.hidden = true;
+        return;
+    }
+    const handsKey = PRAC.hands === 'rh' ? 'pr_rh_t' : PRAC.hands === 'lh' ? 'pr_lh_t' : 'pr_both_t';
+    const midiKey = midiLive() ? 'an_midi_on' : 'an_midi_off';
+    line.textContent = [t(handsKey), t('pr_wait'), t(midiKey)].join(' · ');
+    line.hidden = false;
+}
 function anStatusPos(time?: number | null) {
     if (!AN.notes.length)
         return;
@@ -15928,6 +15998,9 @@ function anStatusPos(time?: number | null) {
     const clock = performanceDisplay();
     set('st-time', anClock(clock.elapsed) + ' / ' + anClock(clock.total));
     set('st-tempo', '♩ = ' + Math.round(anTempoAt(beat)));
+    anTempoWidgetSync(beat);
+    const fsBar = maybeById('an-fs-bar');
+    if (fsBar) fsBar.textContent = t('st_bar', m.number);
     set('st-key', anKeyName(anKeyAt(beat)));
     set('st-meter', m.num + '/' + m.den);
     anRenderNow();
@@ -16159,6 +16232,10 @@ function anUpdateControls() {
     stg.title = t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage_t');
     const stageLabel = stg.querySelector('span');
     if (stageLabel) stageLabel.textContent = t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage');
+    const fsTitle = maybeById('an-fs-title');
+    if (fsTitle) fsTitle.textContent = byId('an-name').textContent || '';
+    const fsExit = maybeById('an-fs-exit');
+    if (fsExit) { fsExit.textContent = t('pc_stage_exit'); fsExit.setAttribute('aria-label', t('pc_stage_exit')); }
     // The toolbar toggle is named Keyboard and reports expanded or collapsed; the dock's own button names the action it takes.
     const open = sheet && dockOpen(), kb = buttonById('an-kb');
     kb.disabled = !sheet;
@@ -16170,13 +16247,11 @@ function anUpdateControls() {
         anReconOpen(false);
     byId('score-credit').hidden = anScreen !== 'player' || !has || fall;
     byId('st-hint').textContent = t(fall ? 'fall_hint' : 'an_hint');
-    // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to the falling-notes display options
-    queryAllHtml(document, '#an-toolbar .an-zoom,#sc-look,#sc-hl,#sc-names,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
-    byId('fall-opt').hidden = !(fall && has);
+    // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to falling-notes display options
+    byId('an-disp-sheet').hidden = fall && has;
+    byId('fall-pop').hidden = !(fall && has);
     if (fall && has)
         byId('an-kb').setAttribute('aria-expanded', 'false');
-    if (!(fall && has))
-        anPop('fall-pop', false);
     byId('an-tl').hidden = !has;
     byId('an-loop').title = byId('an-loop').getAttribute('aria-label') + (canLoopAB ? ' · A–B' : '');
     byId('an-metro').setAttribute('aria-pressed', String(pracMetro()));
@@ -16196,9 +16271,10 @@ function anUpdateControls() {
     inputById('pr-expressive').checked = PRAC.expressive;
     selectById('pt-speed').value = selectById('score-speed').value;
     selectById('pt-speed').disabled = !has;
+    anTempoWidgetSync();
+    anSyncPracticeLine();
     byId('pr-opt').title = t('pr_opt_t');
     byId('pr-opt').setAttribute('aria-label', t('pr_opt_t'));
-    byId('fall-opt').title = t('fall_disp_t');
     buttonById('pr-clrab').disabled = PRAC.A == null && PRAC.B == null;
     byId('fall-finger-note').textContent = t(has && !anHasFinger() ? 'fall_finger_none' : 'fall_finger_note');
     dockSync();
@@ -18414,6 +18490,12 @@ function anShortcut(e: KeyboardEvent) {
                 byId(b).focus();
                 return;
             }
+        if (byId('tb-prac').classList.contains('is-prac-open')) {
+            e.stopPropagation();
+            e.preventDefault();
+            anPracPopSet(false, true);
+            return;
+        }
         if (!byId('an-recon').hidden) {
             e.preventDefault();
             anReconOpen(false);
@@ -18539,19 +18621,21 @@ function scoreSeekBar(d: number) {
     scoreSeekTo(scoreSeconds(ms[i].start));
 }
 // Popovers under the toolbar: one open at a time, placed under their button, closed by Esc or a click outside.
-const AN_POPS = [['fall-pop', 'fall-opt'], ['an-keys-pop', 'an-keys-btn']];
-// Phones: More shows the toolbar controls that do not fit the one row of essentials (the layout is all CSS).
-function tbMoreSet(open: boolean, focusBack = false) {
-    const more = byId('tb-more'), tb = byId('an-toolbar');
-    if (!open) { // what a panel button opened goes with it, or it would be left without its button
-        AN_POPS.forEach(([p, b]) => { if (!byId(p).hidden && tb.contains(byId(b)))
-            anPop(p, false); });
+const AN_POPS = [['an-disp-pop', 'an-disp-btn'], ['an-tools-pop', 'an-tools-btn'], ['an-keys-pop', 'an-keys-btn']];
+function anPracPopSet(open: boolean, focusBack = false) {
+    const btn = byId('an-prac-btn'), prac = byId('tb-prac');
+    if (open) {
+        AN_POPS.forEach(([p]) => anPop(p, false));
         anReconOpen(false);
     }
-    tb.classList.toggle('is-more', open);
-    more.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (focusBack)
-        more.focus();
+    prac.classList.toggle('is-prac-open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+        const first = queryHtml(prac, 'button,select,input');
+        first?.focus({ preventScroll: true });
+    } else if (focusBack) {
+        btn.focus({ preventScroll: true });
+    }
 }
 function anPop(id: string, open: boolean) {
     const pair = AN_POPS.find((x) => x[0] === id) || [id, id];
@@ -18560,6 +18644,7 @@ function anPop(id: string, open: boolean) {
     if (open) {
         AN_POPS.forEach(([q] = []) => { if (q !== id)
             anPop(q, false); });
+        anPracPopSet(false);
         anReconOpen(false);
     }
     p.hidden = !open;
@@ -18668,6 +18753,7 @@ function anInitControls() {
     byId('an-recon-btn').addEventListener('click', () => {
         anReconOpen(!!byId('an-recon').hidden);
         AN_POPS.forEach(([p] = []) => anPop(p, false));
+        anPracPopSet(false);
     });
     document.addEventListener('pointerdown', (e) => {
         const el = eventElement(e);
@@ -18675,6 +18761,11 @@ function anInitControls() {
             return;
         if (!byId('an-recon').hidden && !el.closest('#an-recon,#an-recon-btn'))
             anReconOpen(false);
+        if (byId('tb-prac').classList.contains('is-prac-open') && !el.closest('#tb-prac,#an-prac-btn'))
+            anPracPopSet(false);
+        const rdTools = maybeById('rd-focus-tools');
+        if (rdTools && !rdTools.hidden && !el.closest('#rd-focus-tools,#rd-focus-disp-btn'))
+            rdFocusDispSet(false);
         AN_POPS.forEach(([p, b] = []) => { if (!byId(p).hidden && !el.closest('#' + p + ',#' + b))
             anPop(p, false); });
     });
@@ -18719,6 +18810,24 @@ function anInitControls() {
     else
         scorePlay(SCORE.sel, fallTime()); };
     byId('score-speed').addEventListener('change', speed);
+    const stepSpeed = (dir: -1 | 1) => {
+        const sel = selectById('score-speed');
+        const opts = [...sel.options].map((o) => +o.value);
+        const idx = opts.indexOf(+(sel.value || 100));
+        const next = opts[idx + dir];
+        if (next != null) { sel.value = String(next); speed(); }
+    };
+    byId('sc-speed-down').addEventListener('click', () => stepSpeed(-1));
+    byId('sc-speed-up').addEventListener('click', () => stepSpeed(1));
+    byId('sc-speed-reset').addEventListener('click', () => {
+        const sel = selectById('score-speed');
+        if (sel.value !== '100') { sel.value = '100'; speed(); }
+    });
+    byId('an-study-mode').addEventListener('click', (e) => {
+        const b = eventClosest(e, 'button[data-study]');
+        if (!b || !b.dataset.study) return;
+        pracSet('wait', b.dataset.study === 'practice');
+    });
     queryAllHtml(document, '[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!(b instanceof HTMLButtonElement && b.disabled))
         scoreSetView(b.dataset.scoreMode); }));
     byId('sc-zoom-out').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() - 0.1); });
@@ -18729,6 +18838,7 @@ function anInitControls() {
     byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
     byId('sc-names').addEventListener('click', () => pracSet('names', !PRAC.names));
     byId('sc-stage').addEventListener('click', () => scoreFocusToggle('analysis', byId('sc-stage')));
+    byId('an-fs-exit').addEventListener('click', () => scoreFocusToggle('analysis', byId('sc-stage')));
     byId('an-kb').addEventListener('click', () => dockSet(!dockOpen()));
     const seek = byId('fall-seek');
     seek.addEventListener('input', fallSeek);
@@ -18887,14 +18997,14 @@ function anInitControls() {
         return;
     } anSideSet(false); byId('an-side-btn').focus({ preventScroll: true }); });
     byId('an-fab').addEventListener('click', () => anSheet(true));
-    byId('pr-opt').addEventListener('click', () => anOpenTab('practice'));
-    byId('tb-more').addEventListener('click', () => tbMoreSet(!byId('an-toolbar').classList.contains('is-more')));
-    // Esc closes More, but only once nothing it opened is still showing: the score shortcuts close those first.
-    byId('an-toolbar').addEventListener('keydown', (e) => { if (e.key === 'Escape' && byId('an-toolbar').classList.contains('is-more')
-        && AN_POPS.every(([p]) => byId(p).hidden) && byId('an-recon').hidden) {
-        e.stopPropagation();
-        tbMoreSet(false, true);
-    } });
+    byId('pr-opt').addEventListener('click', () => { anPracPopSet(false); anOpenTab('practice'); });
+    byId('an-prac-btn').addEventListener('click', () => anPracPopSet(!byId('tb-prac').classList.contains('is-prac-open')));
+    byId('an-toolbar').addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && byId('tb-prac').classList.contains('is-prac-open')) {
+            e.stopPropagation();
+            anPracPopSet(false, true);
+        }
+    });
     byId('an-now').addEventListener('focusout', (e) => { if (SIDE.deferred && !byId('an-now-body').contains(e.relatedTarget instanceof Node ? e.relatedTarget : null))
         requestAnimationFrame(anRenderNow); });
     // Now: the passage actions
@@ -20648,6 +20758,7 @@ function initControls() {
     byId('set-full').addEventListener('click', fsToggle);
     queryAllHtml(document, '.stage-fs:not(.score-expand)').forEach((b) => b.addEventListener('click', fsToggle));
     for (const id of ['rd-fs', 'rd-top-fs']) byId(id).addEventListener('click', () => scoreFocusToggle('read', byId('rd-fs')));
+    byId('rd-focus-disp-btn').addEventListener('click', () => rdFocusDispSet(Boolean(byId('rd-focus-tools').hidden)));
     byId('rd-focus-out').addEventListener('click', () => readScoreZoom(SCORE_FOCUS.zoom - .1));
     byId('rd-focus-in').addEventListener('click', () => readScoreZoom(SCORE_FOCUS.zoom + .1));
     byId('rd-focus-fit').addEventListener('click', () => { readScoreZoom(1); srFit(); });
