@@ -1777,6 +1777,8 @@ const payload: UIPayload = {
       "rd_srt_symbol_bad": "Nota mancata o in ritardo",
       "rd_srt_symbol_extra": "Attacco extra",
       "rd_tempo": "Tempo",
+      "rd_tempo_down": "Riduci il tempo",
+      "rd_tempo_up": "Aumenta il tempo",
       "rd_level": "Livello",
       "rd_count": "Battuta d'aspetto…",
       "rd_play": "Suona!",

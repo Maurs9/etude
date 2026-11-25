@@ -285,6 +285,8 @@ const payload: UIPayload = {
       "rd_start": "● Iniciar",
       "rd_stop": "■ Parar",
       "rd_tempo": "Andamento",
+      "rd_tempo_down": "Diminuir o andamento",
+      "rd_tempo_up": "Aumentar o andamento",
       "rd_title": "Ler e tocar",
       "rdc_acc": "Leia o acidente antes da nota: ♯ é a próxima tecla acima, ♭ a próxima abaixo, ♮ cancela.",
       "rdc_ba": "Leia a partir de uma referência: o %a na linha da clave (4ª linha), o Dó central %b logo acima da pauta e o %c na primeira linha.",

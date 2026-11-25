@@ -285,6 +285,8 @@ const payload: UIPayload = {
       "rd_start": "● Démarrer",
       "rd_stop": "■ Arrêter",
       "rd_tempo": "Tempo",
+      "rd_tempo_down": "Diminuer le tempo",
+      "rd_tempo_up": "Augmenter le tempo",
       "rd_title": "Lire et jouer",
       "rdc_acc": "Lisez l’altération devant la note : ♯ est la touche suivante vers le haut, ♭ la touche suivante vers le bas, ♮ annule.",
       "rdc_ba": "Lisez à partir d’un repère : le %a sur la ligne de la clé (4e ligne), le Do central %b juste au-dessus de la portée et le %c sur la première ligne.",
