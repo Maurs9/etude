@@ -885,6 +885,8 @@ const payload: UIPayload = {
       "prog_reset_warn": "Removes saved review history, streaks and reading statistics on this device. An automatic backup is kept in Settings first.",
       "an_back_pieces": "← Back to pieces",
       "an_piece_not_found": "That piece could not be found in this device’s library.",
+      "pr_start_short": "Start",
+      "rd_start_short": "Start",
       "pr_extra_key": "Extra key: %s",
       "pr_sustain": "Sustain pedal",
       "pr_sustain_details": "Missed: %s · Extra: %s",

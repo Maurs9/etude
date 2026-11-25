@@ -239,6 +239,7 @@
   .pr-songs{padding:12px 14px}
   .pr-songs .songs,.pr-hint-grid,.pr-hint-grid.pr-family-grid{grid-template-columns:minmax(0,1fr)}
   .pr-hint-seg-btn,.pr-family-tab{min-height:44px; font-size:13px}
+  #pr-home.has-mobile-bar{padding-bottom:76px}
 }
 @media (prefers-reduced-motion:reduce){ .pr-chip, .pr-songs-sum::before, .pr-hint-card, .pr-hint-card .pr-hint-play, .pr-hint-seg-btn, .pr-family-tab, .pr-interval-card .songlist button{transition:none} }
 .pr-sum-sustain{margin:0 0 12px; padding:8px; border-block:1px solid var(--line); font-size:13px}

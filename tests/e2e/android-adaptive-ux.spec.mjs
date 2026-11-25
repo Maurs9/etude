@@ -507,3 +507,78 @@ test.describe('score toolbar on phones', () => {
     for (const sel of ['#pr-hands', '#sc-look', '#an-mode']) await expect(page.locator(sel), sel).toBeVisible();
   });
 });
+
+test.describe('mobile sticky start bars (Practice and Read)', () => {
+  test('Practice shows a sticky Start bar above bottomNav on phones, tracks choices live, and hides during a drill', async ({ app, page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open({ hash: 'practice' });
+
+    const bar = page.locator('#pr-mobile-bar');
+    const btn = page.locator('#pr-mobile-start');
+    await expect(bar).toBeVisible();
+    await expect(btn).toBeVisible();
+
+    const boxes = await page.evaluate(() => ({
+      bar: document.getElementById('pr-mobile-bar').getBoundingClientRect().toJSON(),
+      btn: document.getElementById('pr-mobile-start').getBoundingClientRect().toJSON(),
+      bnav: document.getElementById('bottomNav').getBoundingClientRect().toJSON(),
+    }));
+    expect(boxes.btn.height).toBeGreaterThanOrEqual(44);
+    expect(boxes.btn.width).toBeGreaterThanOrEqual(44);
+    expect(boxes.bar.bottom).toBeLessThanOrEqual(boxes.bnav.top + 1);
+    expect(boxes.bar.top).toBeGreaterThanOrEqual(0);
+
+    await expect(page.locator('#pr-mobile-summary')).toContainText('Intervals');
+    await page.locator('#pr-topics [data-v="chord"]').click();
+    await page.locator('#pr-mode [data-v="ear"]').click();
+    const keyChip = page.locator('#pr-keys [role=radio]').nth(2);
+    const keyLabel = (await keyChip.textContent())?.trim() ?? '';
+    await keyChip.click();
+    await expect(page.locator('#pr-mobile-summary')).toContainText('Chords');
+    await expect(page.locator('#pr-mobile-summary')).toContainText('By ear');
+    await expect(page.locator('#pr-mobile-summary')).toContainText(keyLabel);
+
+    await btn.click();
+    await expect(bar).toBeHidden();
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.evaluate(() => window.__etude.show('practice'));
+    await expect(bar).toBeHidden();
+  });
+
+  test('Read & Play shows a sticky Start bar above dock/bottomNav on phones, tracks mode and BPM, and hides when dock expands or session runs', async ({ app, page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open({ hash: 'read' });
+    await page.locator('#rdt-pieces').click();
+
+    const bar = page.locator('#rd-mobile-bar');
+    await expect(bar).toBeHidden();
+
+    await page.locator('#rd-gen').click();
+    await expect(bar).toBeVisible();
+
+    const boxes = await page.evaluate(() => ({
+      bar: document.getElementById('rd-mobile-bar').getBoundingClientRect().toJSON(),
+      btn: document.getElementById('rd-mobile-start').getBoundingClientRect().toJSON(),
+      dock: document.getElementById('dock').getBoundingClientRect().toJSON(),
+      bnav: document.getElementById('bottomNav').getBoundingClientRect().toJSON(),
+    }));
+    expect(boxes.btn.height).toBeGreaterThanOrEqual(44);
+    expect(boxes.bar.bottom).toBeLessThanOrEqual(boxes.dock.top + 1);
+    expect(boxes.bar.bottom).toBeLessThanOrEqual(boxes.bnav.top + 1);
+
+    await page.locator('#rd-mode button[data-v="assess"]').click();
+    await page.locator('#rd-bpm-up').click();
+    await expect(page.locator('#rd-mobile-summary')).toContainText('Assessment');
+    await expect(page.locator('#rd-mobile-summary')).toContainText('BPM');
+
+    await page.locator('#dock-kb-toggle').click();
+    await expect(bar).toBeHidden();
+    await page.locator('#dock-kb-toggle').click();
+    await expect(bar).toBeVisible();
+
+    await page.locator('#rd-mobile-start').click();
+    await expect.poll(() => page.evaluate(() => window.__etude.SR.active)).toBe(true);
+    await expect(bar).toBeHidden();
+  });
+});

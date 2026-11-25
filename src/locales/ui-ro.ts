@@ -885,6 +885,8 @@ const payload: UIPayload = {
       "prog_reset_warn": "Șterge istoricul de recapitulare, seria de zile și statisticile de citire de pe acest dispozitiv. O copie automată este păstrată mai întâi în Setări.",
       "an_back_pieces": "← Înapoi la piese",
       "an_piece_not_found": "Piesa nu a fost găsită pe acest dispozitiv.",
+      "pr_start_short": "Începe",
+      "rd_start_short": "Începe",
       "pr_extra_key": "Clapă în plus: %s",
       "pr_sustain": "Pedală de sustain",
       "pr_sustain_details": "Omise: %s · În plus: %s",

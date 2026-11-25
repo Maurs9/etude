@@ -77,3 +77,6 @@
    box takes the free height, and the paper hugs the staff inside it. */
 .rdx-q.rdx-rh .rdx-staff{align-self:stretch; --staffink:#1a1714; --gold:#8d6b26; background:none; border-color:transparent; box-shadow:none; padding:6px 0; overflow-x:auto}
 .rdx-rh .rdx-staff > svg{background:#fdfbf7; border-radius:10px; box-shadow:0 0 0 1px #dfd7c6, 0 2px 10px rgba(0,0,0,.08)}
+@media (max-width:680px){
+  #rdp-pieces.has-mobile-bar{padding-bottom:76px}
+}

@@ -1971,6 +1971,8 @@ const payload: UIPayload = {
       "prog_reset_warn": "Supprime l’historique de révision, les séries et les statistiques de lecture sur cet appareil. Une sauvegarde automatique est conservée d’abord dans Paramètres.",
       "an_back_pieces": "← Retour aux pièces",
       "an_piece_not_found": "Cette pièce est introuvable dans la bibliothèque de cet appareil.",
+      "pr_start_short": "Commencer",
+      "rd_start_short": "Commencer",
       "pr_extra_key": "Touche en trop : %s",
       "pr_sustain": "Pédale de sustain",
       "pr_sustain_details": "Manqués : %s · En trop : %s",

@@ -3135,6 +3135,7 @@ function openSessionUI() {
     ses.style.display = 'block';
     ses.classList.add('on');
     dockSync();
+    syncMobileStartBars();
     reflowKeys();
     requestAnimationFrame(() => { if (SES.active)
         ses.scrollIntoView({ block: 'start', behavior: 'instant' }); });
@@ -3168,6 +3169,7 @@ function endSession(toSummary: boolean) {
     byId('session').style.display = 'none';
     byId('session').classList.remove('on');
     dockSync(); // keys a drill opened fold back to the saved choice
+    syncMobileStartBars();
     kbClearAll();
     releaseLiveInput();
     stopMetro();
@@ -8325,6 +8327,7 @@ function srEmptyUi() {
     const empty = maybeById('rd-empty');
     if (empty)
         empty.hidden = !none;
+    syncMobileStartBars();
 }
 // Shows the generated sight-reading melody (`id` is its id); a result waiting to be saved keeps the current one.
 function srSelectPiece(id: string) {
@@ -10488,6 +10491,7 @@ function stageWanted() {
 function stageSync() {
     if (SCORE_FOCUS.owner === 'read' && (view0() !== 'read' || byId('rdp-pieces').hidden)) { scoreFocusExit(true); return; }
     scoreFocusUi();
+    syncMobileStartBars();
     const end = byId('rd-stage-end');
     end.hidden = SCORE_FOCUS.owner === 'read' && !SR.active;
     if (SCORE_FOCUS.owner === 'read')
@@ -10795,6 +10799,7 @@ function rdTab(tab: string|undefined, screen: 'melody' | 'player' = 'melody') {
     if (tab === 'drills' && byId('rdx-stage').hidden)
         rdRenderHome();
     stageSync();
+    syncMobileStartBars();
 }
 // Draws the Read tab's current screen. The home is the first screen each time the tab opens (see renderRead).
 function rdRender() {
@@ -12488,6 +12493,7 @@ function srModeUi() {
         for (const button of byId(id).querySelectorAll('button'))
             button.setAttribute('aria-pressed', String(button.dataset.v === SR.modeSel));
     }
+    syncMobileStartBars();
 }
 function srSetMode(v: string) {
     if (srtPendingSaveProtected())
@@ -12515,7 +12521,7 @@ function srSetMode(v: string) {
     byId('rd-go').focus();
 }
 function srSetBpm(v: number) { if (srtPendingSaveProtected() || SR.active || SR.listening)
-    return; const b = inputById('rd-bpm'); b.value = String(v); byId('rd-bpmLbl').textContent = String(v); SR.bpm = v; SR.next = null; srCoach(); byId('rd-go').focus(); }
+    return; const b = inputById('rd-bpm'); b.value = String(v); byId('rd-bpmLbl').textContent = String(v); SR.bpm = v; SR.next = null; srCoach(); syncMobileStartBars(); byId('rd-go').focus(); }
 // The HTML each coach box last showed.
 const srCoachShown = new WeakMap<HTMLElement, string>();
 // One line under the score; it is a polite live region, so it is only rewritten when the tip itself changes.
@@ -15708,6 +15714,36 @@ function anLayoutVars() {
     st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
     anPinToolbarLater();
     exStaffRefit(); // Explore's staff is sized from the room these leave
+    syncMobileStartBars();
+}
+function syncMobileStartBars() {
+    const v = view0(), dockExpanded = dockShown(), inFocus = !!SCORE_FOCUS.owner || STAGE.on;
+    const prBar = maybeById('pr-mobile-bar'), prSum = maybeById('pr-mobile-summary'), prBtn = maybeById('pr-mobile-start') as HTMLButtonElement | null;
+    const prHome = maybeById('pr-home'), prStartBtn = maybeById('pr-start') as HTMLButtonElement | null;
+    if (prBar && prSum && prBtn && prHome) {
+        const showPr = v === 'practice' && !SES.active && !dockExpanded && !inFocus && prHome.style.display !== 'none';
+        prBar.hidden = !showPr;
+        prHome.classList.toggle('has-mobile-bar', showPr);
+        if (showPr && maybeById('pr-cat') && maybeById('pr-mode')) {
+            const { cat, mode, key } = prChoice();
+            const parts = [prTopicLabel(cat), prModeLabel(mode), ...(prDirShown() ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)];
+            prSum.textContent = parts.join(' · ');
+            prBtn.textContent = mode === 'along' ? t(accomp.on ? 'ac_stop' : 'ac_play') : t('pr_start_short');
+            prBtn.disabled = !!prStartBtn?.disabled;
+        }
+    }
+    const rdBar = maybeById('rd-mobile-bar'), rdSum = maybeById('rd-mobile-summary'), rdBtn = maybeById('rd-mobile-start') as HTMLButtonElement | null;
+    const rdPieces = maybeById('rdp-pieces'), rdResult = maybeById('rdn-result'), rdGoBtn = maybeById('rd-go') as HTMLButtonElement | null;
+    if (rdBar && rdSum && rdBtn && rdPieces) {
+        const showRd = v === 'read' && !rdPieces.hidden && !!SR.piece && !SR.active && !SR.listening && (!rdResult || rdResult.hidden) && !dockExpanded && !inFocus;
+        rdBar.hidden = !showRd;
+        rdPieces.classList.toggle('has-mobile-bar', showRd);
+        if (showRd) {
+            const modeLabel = t(SR.modeSel === 'assess' ? 'rd_m_assess' : 'rd_m_learn');
+            rdSum.textContent = `${modeLabel} · ${SR.bpm} BPM`;
+            rdBtn.disabled = !!rdGoBtn?.disabled;
+        }
+    }
 }
 /* Pieces: the full window. The player fills the window while practising: the toolbar button turns it on and off, Esc and
    leaving Pieces turn it off. body[data-stage=pieces] (pieces.css) hides everything around the player, and the size
@@ -19175,6 +19211,7 @@ function updatePracticeModeHint() {
     start.textContent = along ? t(accomp.on ? 'ac_stop' : 'ac_play') : t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), ...(dirShown ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
     syncPracticeHintsPanel();
     dockSync(); // Play along brings the keys
+    syncMobileStartBars();
 }
 
 function syncPracticeCatAndMode() {
@@ -20610,6 +20647,7 @@ function initControls() {
     byId('pr-keys').addEventListener('click', (e) => { const r = eventClosest(e, '[role=radio]'); if (r?.dataset.v) prSetKey(r.dataset.v); });
     byId('pr-keys').addEventListener('keydown', (e) => prRadioKey(e, prSetKey));
     byId('pr-start').addEventListener('click', prStart);
+    maybeById('pr-mobile-start')?.addEventListener('click', () => { byId('pr-start').click(); });
     byId('pr-redo').addEventListener('click', prContinue);
     byId('pr-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetDir(b.dataset.v ?? ''); });
     // accompaniment
@@ -20716,6 +20754,7 @@ function initControls() {
         }
         SR.bpm = tempo.valueAsNumber;
         byId('rd-bpmLbl').textContent = tempo.value;
+        syncMobileStartBars();
     };
     tempo.addEventListener('input', syncTempo);
     byId('rd-bpm-down').addEventListener('click', () => {
@@ -20727,6 +20766,7 @@ function initControls() {
         syncTempo();
     });
     byId('rd-go').addEventListener('click', srGo);
+    maybeById('rd-mobile-start')?.addEventListener('click', () => { byId('rd-go').click(); });
     maybeById('rd-stage-end')?.addEventListener('click', () => {
         srGo();
         if (!SR.active)

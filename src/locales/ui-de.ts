@@ -414,6 +414,8 @@ const payload: UIPayload = {
       "prog_reset_warn": "Entfernt gespeicherten Wiederholungsverlauf, Serien und Lesestatistiken auf diesem Gerät. Vorher wird automatisch eine Sicherung in den Einstellungen gespeichert.",
       "an_back_pieces": "← Zurück zu den Stücken",
       "an_piece_not_found": "Dieses Stück wurde in der Bibliothek dieses Geräts nicht gefunden.",
+      "pr_start_short": "Start",
+      "rd_start_short": "Start",
       "pr_extra_key": "Zusätzliche Taste: %s",
       "pr_sustain": "Haltepedal",
       "pr_sustain_details": "Verpasst: %s · Zusätzlich: %s",

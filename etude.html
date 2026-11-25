@@ -295,6 +295,10 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <button class="btn ghost sm score-expand" id="rd-fs" type="button" aria-pressed="false" data-i18n="pc_stage">Full window</button>
         </div>
       </div>
+      <div class="mobile-start-bar" id="rd-mobile-bar" hidden>
+        <span class="mobile-start-summary" id="rd-mobile-summary"></span>
+        <button type="button" class="btn primary mobile-start-btn" id="rd-mobile-start" data-i18n="rd_start_short">Start</button>
+      </div>
       </div>
     </div>
   </section>
@@ -521,6 +525,10 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="pr-hint-grid" id="practiceHintsList" hidden></div>
       </details>
       <p class="lede" style="margin-top:14px; font-size:13px" data-i18n="pr_hint">The drill opens with the keyboard dock below. Answer by playing or by picking an option; press End to see your score.</p>
+      <div class="mobile-start-bar" id="pr-mobile-bar" hidden>
+        <span class="mobile-start-summary" id="pr-mobile-summary"></span>
+        <button type="button" class="btn primary mobile-start-btn" id="pr-mobile-start" data-i18n="pr_start_short">Start</button>
+      </div>
     </div>
   </section>
 
