@@ -37,7 +37,33 @@ export function isMergedView(view: string): view is MergedView {
   return Object.hasOwn(MERGED_VIEWS, view);
 }
 
+export type AnalysisRoute =
+  | { kind: 'catalog' }
+  | { kind: 'builtin'; id: string }
+  | { kind: 'lib'; id: string };
+
+export function parseAnalysisHash(hash: string): AnalysisRoute | null {
+  const clean = hash.replace(/^#/, '');
+  if (clean === 'analysis') return { kind: 'catalog' };
+  const match = /^analysis\/(builtin|lib)\/([^/]+)$/.exec(clean);
+  if (!match) return null;
+  try {
+    const id = decodeURIComponent(match[2]);
+    if (!id || id.includes('/')) return null;
+    return match[1] === 'builtin' ? { kind: 'builtin', id } : { kind: 'lib', id };
+  }
+  catch {
+    return null;
+  }
+}
+
+export function formatAnalysisHash(route: AnalysisRoute): string {
+  if (route.kind === 'catalog') return '#analysis';
+  return `#analysis/${route.kind}/${encodeURIComponent(route.id)}`;
+}
+
 export function viewFromHash(hash: string): AppView | MovedView | MergedView {
+  if (parseAnalysisHash(hash)) return 'analysis';
   const view = hash.replace(/^#/, '');
   return isAppView(view) || isMovedView(view) || isMergedView(view) ? view : 'today';
 }

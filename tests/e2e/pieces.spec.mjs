@@ -72,6 +72,8 @@ test('all built-in pieces open in Pieces with their bars, upbeats, meter, key an
   await expect(page.locator('#pc-list .pc-level-h')).toHaveText(['Level 1', 'Level 2', 'Level 3']);
   await expect(page.locator('#an-side')).toBeHidden(); // the harmony panel starts closed
   for (const [id, bars] of Object.entries(BARS)) {
+    if (await page.locator('#an-back').isVisible())
+      await page.locator('#an-back').click();
     if (!await page.locator('#pc-pick').evaluate(d => d.open))
       await page.locator('#pc-sum').click();
     await page.locator(`#pc-list .pc-item[data-piece="${id}"]`).click();
@@ -452,8 +454,11 @@ test('Full window fills the window with the player; Esc and leaving Pieces end i
   await page.keyboard.press('Escape');
   expect(await stage()).toBeNull();
   await expect(btn).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#an-back')).toBeVisible();
+  await page.locator('#an-back').click();
   await expect(page.locator('#pc-pick')).toBeVisible();
 
+  await openPiece(page, 'canon');
   await btn.click();
   expect(await stage()).toBe('pieces');
   await page.evaluate(() => window.__etude.show('today'));
@@ -476,17 +481,19 @@ test('on a phone the full window keeps its way out on screen', async ({ app, pag
   expect(await page.evaluate(() => document.body.dataset.stage ?? null)).toBeNull();
 });
 
-test('on a phone the Analysis button never covers the open built-in list', async ({ app, page }) => {
+test('on a phone the Analysis button stays in player and never overlaps catalog pieces', async ({ app, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await app.open({ hash: 'analysis' });
-  await openPiece(page, 'twinkle');
   const fab = page.locator('#an-fab'), pick = page.locator('#pc-pick');
+  await expect(fab).toBeHidden();
+  await openPiece(page, 'twinkle');
   await page.locator('#an-stage').scrollIntoViewIfNeeded();
   await expect(fab).toBeVisible();
+  await page.locator('#an-back').click();
+  await expect(fab).toBeHidden();
   if (!await pick.evaluate(d => d.open))
     await page.locator('#pc-sum').click();
   await pick.evaluate(d => d.scrollIntoView({ block: 'start' }));
-  await expect(fab).toBeHidden();
   // Every piece on screen can be tapped: what sits at its right end is the piece's own button.
   const covered = await page.evaluate(() => {
     const top = document.querySelector('header').getBoundingClientRect().bottom;
@@ -500,15 +507,17 @@ test('on a phone the Analysis button never covers the open built-in list', async
     }).map(b => b.dataset.piece);
   });
   expect(covered).toEqual([]);
-  // Closed again, the list no longer needs the room.
-  await page.locator('#pc-sum').click();
-  await page.locator('#an-stage').scrollIntoViewIfNeeded();
+  await openPiece(page, 'twinkle');
   await expect(fab).toBeVisible();
 });
 
 const xmlScore = (title) => `<?xml version="1.0"?><score-partwise version="4.0"><work><work-title>${title}</work-title></work><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">${Array.from({ length: 2 }, (_, bar) => `<measure number="${bar + 1}">${bar ? '' : '<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>'}${Array.from({ length: 4 }, () => '<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>').join('')}</measure>`).join('')}</part></score-partwise>`;
 const libraryRow = (page, title) => page.locator('#library-items > li').filter({ has: page.locator('h3', { hasText: title }) });
 async function openLibrary(page) {
+  if (await page.locator('#an-back').isVisible()) {
+    await page.locator('#an-back').click();
+    await expect(page.locator('#an-catalog')).toBeVisible();
+  }
   const details = page.locator('#score-library');
   if (!await details.evaluate(node => node.open))
     await details.locator('summary').click();
@@ -518,19 +527,22 @@ test('a library file keeps its best and last-played day and shows them in My Lib
   await app.open({ hash: 'analysis' });
   await page.locator('#an-file').setInputFiles({ name: 'progress.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xmlScore('Progress Etude')) });
   await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'xml' && !!window.__etude.SCORE.geo);
-  await openLibrary(page);
-  await expect(libraryRow(page, 'Progress Etude')).toHaveCount(1);
-  await expect(libraryRow(page, 'Progress Etude').locator('.score-library-progress')).toBeHidden();
 
   await startRun(page);
   await endRun(page, { perfect: 6, miss: 2 });
   await expect(page.locator('#pr-sum-best')).toHaveText('New best: 75%');
+  expect((await progress(page, 'none')).piece).toBe(todayN());
+  await page.locator('#pr-close').click();
+
+  await openLibrary(page);
+  await expect(libraryRow(page, 'Progress Etude')).toHaveCount(1);
   const shown = libraryRow(page, 'Progress Etude').locator('.score-library-progress');
   await expect(shown).toContainText('Best: 75%');
   await expect(shown).toContainText('Last played:');
-  expect((await progress(page, 'none')).piece).toBe(todayN());
 
-  await page.locator('#pr-close').click();
+  await libraryRow(page, 'Progress Etude').locator('[data-library-action=open]').click();
+  await expect(page.locator('#an-panel')).toBeVisible();
+  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'xml' && !!window.__etude.SCORE.geo);
   await startRun(page);
   await endRun(page, { perfect: 1, miss: 1 });
   await expect(page.locator('#pr-sum-best')).toHaveText('Best: 75%');
@@ -573,6 +585,8 @@ test('library records saved before practice progress existed still load, open an
   await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'xml' && !!window.__etude.SCORE.geo);
   await startRun(page);
   await endRun(page, { perfect: 8 });
+  await page.locator('#pr-close').click();
+  await openLibrary(page);
   await expect(row.locator('.score-library-progress')).toContainText('Best: 100%');
 });
 
@@ -604,4 +618,70 @@ test('the Read & Play tab holds only sight-reading and still runs a generated me
   await page.evaluate(() => window.__etude.srAssessFinish());
   await expect(page.locator('#rd-verdict')).toContainText(await page.evaluate(() => window.__etude.t('rd_score', '').replace('%', '').trim()));
   expect(await page.evaluate(() => Object.keys(window.__etude.data.sheet))).toEqual([]);
+});
+
+test('Pieces routes between catalog and dedicated player while preserving library search, scroll, focus and history', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  await openLibrary(page);
+  await page.locator('#library-files').setInputFiles([
+    { name: 'study-one.xml', mimeType: 'application/xml', buffer: Buffer.from(xmlScore('Alpha Study')) },
+    { name: 'study-two.xml', mimeType: 'application/xml', buffer: Buffer.from(xmlScore('Zeta Sonata')) },
+  ]);
+  await expect(page.locator('#library-items > li')).toHaveCount(2);
+  await page.locator('#library-search').fill('Zeta');
+  await expect(page.locator('#library-items > li')).toHaveCount(1);
+
+  const openBtn = libraryRow(page, 'Zeta Sonata').locator('[data-library-action=open]');
+  await openBtn.focus();
+  await openBtn.click();
+  await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await expect(page.locator('#an-panel')).toBeVisible();
+  await expect(page.locator('#an-catalog')).toBeHidden();
+  await expect(page).toHaveURL(/#analysis\/lib\//);
+
+  await page.goBack();
+  await expect(page.locator('#an-catalog')).toBeVisible();
+  await expect(page.locator('#an-panel')).toBeHidden();
+  await expect(page).toHaveURL(/#analysis$/);
+  await expect(page.locator('#library-search')).toHaveValue('Zeta');
+  await expect(page.locator('#library-items > li')).toHaveCount(1);
+  await expect(libraryRow(page, 'Zeta Sonata').locator('[data-library-action=open]')).toBeFocused();
+
+  await page.locator('#pc-list .pc-item[data-piece="canon"]').click();
+  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.id === 'canon');
+  await expect(page).toHaveURL(/#analysis\/builtin\/canon$/);
+  await page.locator('#an-back').click();
+  await expect(page.locator('#an-catalog')).toBeVisible();
+  await expect(page).toHaveURL(/#analysis$/);
+});
+
+test('Pieces deep-links directly into the player and handles missing library ids gracefully', async ({ app, page }) => {
+  await app.open({ hash: 'today' });
+  await page.goto(page.url().replace(/#.*$/, '#analysis/builtin/canon'));
+  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.id === 'canon' && !!window.__etude.SCORE.geo);
+  await expect(page.locator('#an-panel')).toBeVisible();
+  await expect(page.locator('#an-catalog')).toBeHidden();
+  await expect(page.locator('#an-back')).toBeVisible();
+  await page.locator('#an-back').click();
+  await expect(page.locator('#an-catalog')).toBeVisible();
+  await expect(page).toHaveURL(/#analysis$/);
+  await page.goBack();
+  await expect(page.locator('#an-panel')).toBeVisible();
+
+  await app.open({ hash: 'analysis/lib/does-not-exist' });
+  await expect(page.locator('#an-catalog')).toBeVisible();
+  await expect(page.locator('#an-catalog-status')).toBeVisible();
+  await expect(page).toHaveURL(/#analysis$/);
+});
+
+test('on a phone opening a built-in piece puts the score directly in the viewport without scrolling past the catalog', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  await page.locator('#pc-list .pc-item[data-piece="twinkle"]').click();
+  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.id === 'twinkle' && !!window.__etude.SCORE.geo);
+  await expect(page.locator('#an-catalog')).toBeHidden();
+  const box = await page.locator('#an-roll .vf-stave').first().boundingBox();
+  expect(box).not.toBeNull();
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
 });

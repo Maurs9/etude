@@ -107,6 +107,7 @@ test.describe('UI/UX polish, accessibility, and mobile ergonomics', () => {
     await page.locator('#an-file').setInputFiles({ name: 'minuet.xml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
     await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
 
+    await page.locator('#an-back').click();
     await page.locator('#score-library > summary').click();
     await expect(page.locator('#library-items > li')).toHaveCount(1);
 

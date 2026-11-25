@@ -1,3 +1,14 @@
+.an-catalog[hidden], .an-panel[hidden]{display:none}
+.an-empty-host{margin-top:14px}
+.an-empty-host[hidden]{display:none}
+.an-catalog-status{margin:10px 0 0; padding:10px 14px; border:1px solid color-mix(in srgb, var(--bad) 35%, var(--line)); border-radius:10px; background:color-mix(in srgb, var(--bad) 8%, var(--card)); color:var(--bad); font-size:13.5px; font-weight:600}
+.an-catalog-status[hidden]{display:none}
+.an-back-btn{flex:none; min-height:36px; white-space:nowrap}
+[data-an-screen="player"] .an-panel{margin-top:0 !important}
+@media (max-width:680px){
+  .an-back-btn{min-height:44px; padding-inline:12px}
+}
+
 /* ---------- Pieces (etude.html #view-analysis) and the Read & Play sight-reading tab ----------
    Loaded after etude.css. The built-in pieces sit above My Library in a disclosure like the library's own, one column per
    level; the open piece is marked. The Run complete card shows the saved best. Read & Play keeps only generated melodies:

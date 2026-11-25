@@ -115,6 +115,7 @@ test('the library automatically updates outdated stars and preserves piece metad
   expect((await get()).difficultyRating.assessment.estimatorVersion).toBe(2);
   await page.reload();
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
+  if (await page.locator('#an-back').isVisible()) await page.locator('#an-back').click();
   await page.locator('#score-library summary').click();
   await expect(page.getByRole('button', { name: 'Review difficulty stars', exact: true })).toHaveCount(0);
   await expect.poll(async () => (await get())?.difficultyRating).toEqual(originalRating);
@@ -335,6 +336,7 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
   }, { scoreId: id, oldProfile: profile })).toBe(1);
   await page.reload();
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
+  if (await page.locator('#an-back').isVisible()) await page.locator('#an-back').click();
   await page.locator('#score-library summary').click();
   await expect(page.locator('.score-library-transfer input[type=file]')).toHaveCount(1);
   await expect(page.locator('#library-restore')).toBeVisible();

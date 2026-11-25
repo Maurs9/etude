@@ -279,6 +279,8 @@ const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = th
 const AudioEngine = audio.AudioEngine;
 const createScoreRenderer = notationApi.createScoreRenderer, loadOsmd = notationApi.loadOsmd, mxlToXml = notationApi.mxlToXml, notationReloadMessage = notationApi.notationReloadMessage, scorePatchOsmd = notationApi.scorePatchOsmd;
 const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView, isMovedView = router.isMovedView;
+const parseAnalysisHash = router.parseAnalysisHash, formatAnalysisHash = router.formatAnalysisHash;
+type AnalysisRoute = router.AnalysisRoute;
 const isMergedView = router.isMergedView, MERGED_VIEWS = router.MERGED_VIEWS;
 function t(k: string, ...args: Array<string | number | null | undefined>): string { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
     return k; if (!args.length)
@@ -4225,18 +4227,22 @@ function setViewLoading(viewId: string, loading: boolean) {
     note.textContent = localize('loading', 'Loading…');
     host.prepend(note);
 }
-let show = function show(v: string|undefined, moveFocus = true, fromHistory = false): void | Promise<void> {
+let show = function show(v: string|undefined, moveFocus = true, fromHistory = false, analysisRoute?: AnalysisRoute | null): void | Promise<void> {
     const navigation = ++featureNavigation;
+    const requestedAnRoute = v === 'analysis'
+        ? (analysisRoute ?? (fromHistory || !_routed ? (parseAnalysisHash(location.hash) ?? { kind: 'catalog' }) : anCurrentRoute()))
+        : null;
     if (v === 'analysis' && !analysisModulesReady) {
         if (practiceHintPreview) stopPreviews();
         const prevView = _view;
         const showPendingView = !(prevView === 'read' && srtPendingSaveProtected());
         if (showPendingView) {
-            if (location.hash.slice(1) !== 'analysis') {
+            const wantHash = formatAnalysisHash(requestedAnRoute ?? { kind: 'catalog' });
+            if (location.hash !== wantHash) {
                 const viaModal = _modalStack.length > 0;
                 _modalStack.length = 0;
                 try {
-                    history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', '#analysis');
+                    history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', wantHash);
                 }
                 catch (_) { }
             }
@@ -4252,7 +4258,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         setViewLoading('view-analysis', true);
         return ensureAnalysisModules().then(() => {
             setViewLoading('view-analysis', false);
-            if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
+            if (navigation === featureNavigation) return show(v, moveFocus, fromHistory, requestedAnRoute);
         }).catch(() => {
             setViewLoading('view-analysis', false);
             if (navigation === featureNavigation && showPendingView) {
@@ -4307,11 +4313,12 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     if (SCORE_FOCUS.owner && v !== SCORE_FOCUS.owner) scoreFocusExit(true);
     if (v !== 'read') SCORE_FOCUS.readOverride = null;
     viewState.view = v;
-    if (location.hash.slice(1) !== v) {
+    const targetHash = v === 'analysis' ? formatAnalysisHash(requestedAnRoute ?? anCurrentRoute()) : '#' + v;
+    if (location.hash !== targetHash) {
         const viaModal = _modalStack.length > 0;
         _modalStack.length = 0; // the modal's history entry becomes the new view's entry
         try {
-            history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', '#' + v);
+            history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', targetHash);
         }
         catch (_) { }
     }
@@ -4387,20 +4394,37 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         updateExplore();
         cofPaintDock();
     }
+    let pendingViewLoad: Promise<void> | undefined;
     if (v === 'analysis') {
         void anLibraryEnsure().catch(() => {});
-        if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
-            anLibraryRestoreResume(anLibraryNavigationResume);
-        anLibraryNavigationResume = null;
-        anLibrarySuspended = false;
-        anDraw();
-        pcRender();
+        const targetRoute = requestedAnRoute ?? { kind: 'catalog' };
+        if (targetRoute.kind === 'catalog') {
+            anSetScreen('catalog');
+            anCatalogStatus('');
+            if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
+                anLibraryRestoreResume(anLibraryNavigationResume);
+            anLibraryNavigationResume = null;
+            anLibrarySuspended = false;
+            anDraw();
+            pcRender();
+        }
+        else if (!anRouteMatches(anCurrentRoute(), targetRoute)) {
+            pendingViewLoad = anOpenRoute(targetRoute, true);
+        }
+        else {
+            anSetScreen('player');
+            if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
+                anLibraryRestoreResume(anLibraryNavigationResume);
+            anLibraryNavigationResume = null;
+            anLibrarySuspended = false;
+            anDraw();
+            pcRender();
+        }
     }
     if (v === 'learn')
         renderLearn();
     if (v === 'read')
         renderRead();
-    let pendingViewLoad: Promise<void> | undefined;
     if (v === 'progress') {
         if (progressView) {
             setViewLoading('view-progress', false);
@@ -4474,7 +4498,19 @@ window.addEventListener('popstate', (e) => {
     const v = viewFromHash(location.hash);
     if (v !== _view) {
         _routed = false;
-        show(v, true, true);
+        show(v, true, true, v === 'analysis' ? (parseAnalysisHash(location.hash) ?? { kind: 'catalog' }) : undefined);
+    }
+    else if (v === 'analysis') {
+        const route = parseAnalysisHash(location.hash) ?? { kind: 'catalog' };
+        if (location.hash !== formatAnalysisHash(route))
+            history.replaceState(e.state, '', formatAnalysisHash(route));
+        if (route.kind === 'catalog') {
+            if (anScreen !== 'catalog')
+                anExitToCatalog(true);
+        }
+        else if (anScreen !== 'player' || !anRouteMatches(anCurrentRoute(), route)) {
+            void anOpenRoute(route, true);
+        }
     }
     else if (location.hash !== '#' + v) {
         history.replaceState(e.state, '', '#' + v);
@@ -12872,7 +12908,191 @@ function anLibraryRestoreResume(resume: LibraryResume) {
     }
     scoreIdle();
 }
+type AnScreen = 'catalog' | 'player';
+interface AnListContext {
+    fromList: boolean;
+    scrollY: number;
+    focusSelector: string | null;
+}
+let anScreen: AnScreen = 'catalog';
+let anListContext: AnListContext | null = null;
+let anFromListDepth = 0;
+
+function anCurrentRoute(): AnalysisRoute {
+    if (anScreen === 'player' && AN.source) {
+        if (AN.source.kind === 'example')
+            return { kind: 'builtin', id: AN.source.id };
+        if (anLibraryActive?.source === AN.source)
+            return { kind: 'lib', id: anLibraryActive.id };
+    }
+    return { kind: 'catalog' };
+}
+function anRouteMatches(a: AnalysisRoute, b: AnalysisRoute): boolean {
+    if (a.kind !== b.kind) return false;
+    return a.kind === 'catalog' || (b.kind !== 'catalog' && a.id === b.id);
+}
+function anCatalogStatus(msg?: string) {
+    const el = maybeById('an-catalog-status');
+    if (!el) return;
+    const text = msg?.trim() ?? '';
+    el.textContent = text;
+    el.hidden = !text;
+}
+function anCaptureListContext(focusSelector?: string | null) {
+    if (view0() !== 'analysis' || anScreen !== 'catalog') return;
+    let selector = focusSelector ?? null;
+    if (!selector && document.activeElement instanceof HTMLElement) {
+        const pieceBtn = document.activeElement.closest<HTMLElement>('#pc-list .pc-item[data-piece]');
+        if (pieceBtn?.dataset.piece) {
+            selector = `#pc-list .pc-item[data-piece="${CSS.escape(pieceBtn.dataset.piece)}"]`;
+        } else {
+            const libRow = document.activeElement.closest<HTMLElement>('#library-items [data-library-id]');
+            if (libRow?.dataset.libraryId)
+                selector = `#library-items [data-library-id="${CSS.escape(libRow.dataset.libraryId)}"] [data-library-action="open"]`;
+        }
+    }
+    anListContext = { fromList: true, scrollY: window.scrollY, focusSelector: selector };
+    anFromListDepth = 0;
+}
+function anRestoreListContext() {
+    const ctx = anListContext;
+    anListContext = null;
+    anFromListDepth = 0;
+    if (!ctx) return;
+    const focusTarget = (selector: string): 'focused' | 'disabled' | 'missing' => {
+        if (view0() !== 'analysis' || anScreen !== 'catalog') return 'missing';
+        const target = document.querySelector(selector);
+        if (!(target instanceof HTMLElement) || !target.isConnected || !target.getClientRects().length)
+            return 'missing';
+        if (target instanceof HTMLButtonElement && target.disabled)
+            return 'disabled';
+        target.focus({ preventScroll: true });
+        return document.activeElement === target ? 'focused' : 'missing';
+    };
+    requestAnimationFrame(() => {
+        if (view0() !== 'analysis' || anScreen !== 'catalog') return;
+        window.scrollTo({ top: Math.max(0, ctx.scrollY), behavior: 'auto' });
+        if (!ctx.focusSelector) return;
+        const selector = ctx.focusSelector;
+        if (focusTarget(selector) === 'disabled') {
+            const target = document.querySelector(selector);
+            if (target instanceof HTMLElement) {
+                const observer = new MutationObserver(() => {
+                    if (focusTarget(selector) !== 'disabled')
+                        observer.disconnect();
+                });
+                observer.observe(target, { attributes: true, attributeFilter: ['disabled'] });
+                setTimeout(() => observer.disconnect(), 2000);
+            }
+        }
+    });
+}
+function anSetScreen(screen: AnScreen) {
+    if (anScreen === screen && maybeById('view-analysis')?.dataset.anScreen === screen) {
+        const cat = maybeById('an-catalog'), panel = maybeById('an-panel');
+        if (cat) cat.hidden = screen !== 'catalog';
+        if (panel) panel.hidden = screen !== 'player';
+        return;
+    }
+    anScreen = screen;
+    const viewEl = maybeById('view-analysis');
+    if (viewEl) viewEl.dataset.anScreen = screen;
+    const cat = maybeById('an-catalog');
+    if (cat) cat.hidden = screen !== 'catalog';
+    const panel = maybeById('an-panel');
+    if (panel) panel.hidden = screen !== 'player';
+    anSideSync();
+    anUpdateControls();
+    anLayoutVars();
+}
+function anSyncPlayerHistory(route: AnalysisRoute, fromHistory = false, forceReplace = false) {
+    if (fromHistory || view0() !== 'analysis') return;
+    const hash = formatAnalysisHash(route);
+    if (location.hash === hash) return;
+    try {
+        if (forceReplace || anFromListDepth > 0) {
+            history.replaceState(history.state, '', hash);
+        }
+        else {
+            history.pushState(null, '', hash);
+            if (anListContext?.fromList)
+                anFromListDepth++;
+        }
+    }
+    catch (_) { }
+}
+function anExitToCatalog(fromHistory = false) {
+    if (AN.loading) {
+        anRollbackOpening?.();
+        AN.loadToken++;
+        anSetLoading(false);
+    }
+    if (SCORE.playing)
+        scoreStop();
+    else
+        stopPreviews();
+    anKeysClear();
+    AN_POPS.forEach(([p] = []) => anPop(p, false));
+    anReconOpen(false);
+    if (SCORE_FOCUS.owner === 'analysis') scoreFocusExit(true);
+    else pcStageSet(false, true);
+    anLibraryCapture();
+    void anLibraryFlush(false).catch(() => {});
+    const canPopBack = !fromHistory && anListContext?.fromList && anFromListDepth === 1;
+    anSetScreen('catalog');
+    pcRender();
+    anRestoreListContext();
+    if (!fromHistory) {
+        if (canPopBack) {
+            try {
+                history.back();
+                return;
+            }
+            catch (_) { }
+        }
+        if (location.hash !== '#analysis') {
+            try {
+                history.pushState(null, '', '#analysis');
+            }
+            catch (_) { }
+        }
+        anListContext = null;
+        anFromListDepth = 0;
+    }
+}
+async function anOpenRoute(route: AnalysisRoute, fromHistory = false): Promise<void> {
+    anCatalogStatus('');
+    if (route.kind === 'catalog') {
+        anExitToCatalog(fromHistory);
+        return;
+    }
+    if (route.kind === 'builtin') {
+        const exists = PIECES.some((p) => p.id === route.id);
+        if (!exists) {
+            anSetScreen('catalog');
+            anCatalogStatus(t('an_piece_not_found'));
+            if (location.hash !== '#analysis') {
+                try { history.replaceState(history.state, '', '#analysis'); } catch (_) { }
+            }
+            return;
+        }
+        await anLoadExample(route.id, { fromHistory });
+        return;
+    }
+    await ensureAnalysisModules().catch(() => {});
+    const stored = await scoreLibraryStore.libraryGet(route.id).catch(() => null);
+    if (!stored) {
+        anSetScreen('catalog');
+        anCatalogStatus(t('an_piece_not_found'));
+        if (location.hash !== '#analysis') {
+            try { history.replaceState(history.state, '', '#analysis'); } catch (_) { }
+        }
+        return;
+    }
+    await anOpenFile(stored.file, stored.item, { fromHistory });
+}
 async function anLibraryOpen(item: LibraryItem, file: File): Promise<boolean> {
+    anCaptureListContext(`#library-items [data-library-id="${CSS.escape(item.id)}"] [data-library-action="open"]`);
     return anOpenFile(file, item);
 }
 let scoreLibraryLoading: Promise<LibraryController> | null = null;
@@ -15535,14 +15755,15 @@ function anPinToolbarLater() { if (!AN.pinRaf)
 function anFocusStage(smooth = false) {
     if (view0() !== 'analysis' || !AN.notes.length)
         return;
+    byId('an-tbwrap').classList.remove('is-floating');
     anLayoutVars();
     const header = document.querySelector('header') || document.body;
     const y = byId('an-stage').getBoundingClientRect().top + window.scrollY - header.getBoundingClientRect().height - byId('an-tbwrap').getBoundingClientRect().height;
     if (Math.abs(window.scrollY - y) > 1) {
         window.scrollTo({ top: Math.max(0, Math.round(y)), behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
-        if (!smooth)
-            anPinToolbar();
     }
+    if (!smooth)
+        anPinToolbar();
 }
 /* status bar: the position text is not a live region (no announcements while playing); selection changes are announced once, debounced */
 function anTempoAt(beat: number) { let bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
@@ -15803,7 +16024,7 @@ function anUpdateControls() {
     byId('an-recon-btn').hidden = !ron;
     if (!ron)
         anReconOpen(false);
-    byId('score-credit').hidden = !has || fall;
+    byId('score-credit').hidden = anScreen !== 'player' || !has || fall;
     byId('st-hint').textContent = t(fall ? 'fall_hint' : 'an_hint');
     // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to the falling-notes display options
     queryAllHtml(document, '#an-toolbar .an-zoom,#sc-look,#sc-hl,#sc-names,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
@@ -15904,7 +16125,7 @@ function anSideSync() {
     btn.hidden = !has;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     btn.title = t(open ? 'an_side_hide' : 'an_side_show');
-    fab.hidden = !has || !narrow || SIDE.sheet || !byId('pr-sum').hidden;
+    fab.hidden = anScreen !== 'player' || !has || !narrow || SIDE.sheet || !byId('pr-sum').hidden;
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
     pcFabLater();
     const pt = byId('pr-opt');
@@ -16456,8 +16677,15 @@ function anLoadedText() {
     const tracks = new Set(src.parsed.notes.map((n: { track: number; }) => n.track)).size;
     return t('an_loaded_midi', tracks === 1 ? t('an_track1') : t('an_tracks', tracks), g);
 }
-function anShowError(k: string, a?: string|number) { AN.error = { k, a }; anStatus(a === undefined ? t(k) : t(k, a), true); if (!SCORE.xml)
-    anRenderEmpty(); }
+function anShowError(k: string, a?: string|number) {
+    AN.error = { k, a };
+    const msg = a === undefined ? t(k) : t(k, a);
+    anStatus(msg, true);
+    if (anScreen === 'catalog' || !SCORE.xml)
+        anCatalogStatus(msg);
+    if (!SCORE.xml || anScreen === 'catalog')
+        anRenderEmpty();
+}
 function anSetLoading(on: boolean, msg?: string) { AN.loading = on; if (on) {
     if (SCORE.playing)
         scorePause();
@@ -16482,8 +16710,16 @@ function anRenderEmpty() {
     box.setAttribute('aria-busy', 'false');
     box.hidden = FALL.mode !== 'score' && AN.notes.length > 0;
     const esc = xmlEsc;
-    box.innerHTML = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${anDropTitle()}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
+    const html = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${anDropTitle()}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
   <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div></div>`;
+    const host = maybeById('an-empty-host');
+    if (host) {
+        host.innerHTML = html;
+        box.replaceChildren();
+    }
+    else {
+        box.innerHTML = html;
+    }
     anUpdateControls();
 }
 /* Pieces: the built-in repertoire, by level, above My Library. Each piece opens in this player through anLoadExample. */
@@ -16506,9 +16742,12 @@ function pcRender() {
         queryHtml(list, `.pc-item[data-piece="${focused}"]`)?.focus({ preventScroll: true });
 }
 // Opens a built-in piece in Pieces from anywhere (Learn links, other screens).
-function pcOpen(id: string) {
-    if (view0() !== 'analysis')
-        show('analysis');
+async function pcOpen(id: string) {
+    if (view0() !== 'analysis') {
+        anListContext = null;
+        anFromListDepth = 0;
+        await show('analysis');
+    }
     return anLoadExample(id);
 }
 function anReconUI() {
@@ -16593,9 +16832,10 @@ async function anReadXml(file: File, title: string, captureDifficulty = false) {
     });
 }
 // The single entry point for the file input and drag & drop.
-async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolean> {
+async function anOpenFile(file: File, libraryItem?: LibraryItem, opts?: { fromHistory?: boolean }): Promise<boolean> {
     if (!file)
         return false;
+    anCatalogStatus('');
     anRollbackOpening?.();
     const token = ++AN.loadToken;
     const name = file.name || '';
@@ -16606,6 +16846,8 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
         anShowError(rejected, name);
         return false;
     }
+    if (!opts?.fromHistory && anScreen === 'catalog' && !anListContext)
+        anCaptureListContext(libraryItem ? `#library-items [data-library-id="${CSS.escape(libraryItem.id)}"] [data-library-action="open"]` : null);
     anLibraryCapture();
     const checkpoint = anLibraryFlush(false).catch(() => {});
     const title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
@@ -16627,7 +16869,10 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
     }
     if (token !== AN.loadToken)
         return false;
-    await anCommit(src, token, libraryItem?.resume?.recon);
+    await anCommit(src, token, libraryItem?.resume?.recon, {
+        fromHistory: opts?.fromHistory,
+        route: libraryItem ? { kind: 'lib', id: libraryItem.id } : null,
+    });
     if (token !== AN.loadToken || AN.source !== src || AN.error || !SCORE.engine)
         return false;
     await anLibraryEnsure().catch(() => null);
@@ -16647,13 +16892,15 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
                 && (item.resume.recon.hands !== AN.recon.hands
                     || item.resume.recon.grid !== AN.recon.grid
                     || item.resume.recon.key !== AN.recon.key)) {
-                await anCommit(src, token, item.resume.recon);
+                await anCommit(src, token, item.resume.recon, { fromHistory: true, route: { kind: 'lib', id: item.id } });
                 if (token !== AN.loadToken || AN.source !== src || AN.error || !SCORE.engine)
                     return false;
             }
             if (item.resume)
                 anLibraryRestoreResume(item.resume);
             anLibraryActive = { id: item.id, source: src };
+            if (!opts?.fromHistory)
+                anSyncPlayerHistory({ kind: 'lib', id: item.id }, false, true);
             if (item.resume)
                 anLibrarySaved.set(item.id, JSON.stringify(item.resume));
             if (!libraryItem)
@@ -16672,21 +16919,28 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
     }
     return token === AN.loadToken && AN.source === src && !AN.error;
 }
-async function anLoadExample(id: string)  {
+async function anLoadExample(id: string, opts?: { fromHistory?: boolean })  {
     await ensureAnalysisModules();
     const p = PIECES.find((x) => x.id === id);
     if (!p)
         return;
+    anCatalogStatus('');
+    if (!opts?.fromHistory && anScreen === 'catalog' && !anListContext)
+        anCaptureListContext(`#pc-list .pc-item[data-piece="${CSS.escape(id)}"]`);
     anRollbackOpening?.();
     anLibraryCapture();
     const token = ++AN.loadToken;
     anSetLoading(true, t('an_loading', srPieceTitle(p)));
-    await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
+    await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token, undefined, {
+        fromHistory: opts?.fromHistory,
+        route: { kind: 'builtin', id },
+    });
 }
 // Keep the old renderer and DOM available until the replacement finishes layout.
 // A newer open rolls this attempt back before reading its own file.
 let anRollbackOpening: (() => void) | null = null;
 function anStageOpening() {
+    const prevScreen = anScreen;
     const previous = { ...AN }, score = { ...SCORE }, performance = { ...PERFORMANCE };
     const position = FALL.position, a = PRAC.A, b = PRAC.B;
     const box = byId('an-roll'), children = [...box.childNodes];
@@ -16710,19 +16964,19 @@ function anStageOpening() {
         for (const attr of attributes) box.setAttribute(attr.name, attr.value);
         box.replaceChildren(...children);
         box.scrollTo(scrollLeft, scrollTop);
+        anSetScreen(prevScreen);
         anSetLoading(false);
         anReconUI();
         pcRender();
         scoreIdle();
     };
 }
-async function anCommit(src: AnSource, token: number, recon?: LibraryResume['recon'])  {
+async function anCommit(src: AnSource, token: number, recon?: LibraryResume['recon'], opts?: { fromHistory?: boolean; route?: AnalysisRoute | null })  {
     await ensureAnalysisModules();
     if (token !== AN.loadToken) return;
     anStageOpening();
-    const pcPick = maybeById('pc-pick');
-    if (pcPick instanceof HTMLDetailsElement)
-        pcPick.open = false;
+    const wasPlayer = anScreen === 'player';
+    anSetScreen('player');
     AN.source = src;
     AN.error = null;
     AN.selected = new Set();
@@ -16785,10 +17039,18 @@ async function anCommit(src: AnSource, token: number, recon?: LibraryResume['rec
     AN.kbCenter = true;
     if (anKeysShown())
         anKeysCenter(); // a collapsed keyboard is centred when it is first shown
-    // The open score takes the room; the built-in list folds to its summary line (one click shows it again).
-    const pick = maybeById('pc-pick');
-    if (pick instanceof HTMLDetailsElement)
-        pick.open = false;
+    anSetScreen('player');
+    const route = opts?.route ?? (src.kind === 'example' ? { kind: 'builtin', id: src.id } as const : null);
+    if (route)
+        anSyncPlayerHistory(route, opts?.fromHistory, wasPlayer && anFromListDepth === 0);
+    else if (!opts?.fromHistory && !wasPlayer && view0() === 'analysis') {
+        try {
+            history.pushState(null, '', '#analysis');
+            if (anListContext?.fromList)
+                anFromListDepth++;
+        }
+        catch (_) { }
+    }
     anFocusStage();
 }
 async function anReconChange()  {
@@ -18205,13 +18467,16 @@ function anInitControls() {
     byId('an-file').addEventListener('change', (e) => { if (!(e.target instanceof HTMLInputElement) || !e.target.files)
         return; const f = e.target.files[0]; e.target.value = ''; if (f)
         anOpenFile(f); });
-    byId('an-roll').addEventListener('click', (e) => { const el = eventElement(e); if (!el)
+    byId('view-analysis').addEventListener('click', (e) => { const el = eventElement(e); if (!el)
         return; if (el.closest('[data-an-open]')) {
         byId('an-file').click();
         return;
     } });
-    byId('pc-list').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-piece]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.piece)
-        void anLoadExample(b.dataset.piece); });
+    byId('an-back').addEventListener('click', () => { anExitToCatalog(false); });
+    byId('pc-list').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-piece]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.piece) {
+        anCaptureListContext(`#pc-list .pc-item[data-piece="${CSS.escape(b.dataset.piece)}"]`);
+        void anLoadExample(b.dataset.piece);
+    } });
     pcRender();
     ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => byId(id).addEventListener('change', anReconChange));
     byId('an-recon-btn').addEventListener('click', () => {
@@ -20728,7 +20993,7 @@ function initControls() {
                 // Keep that reading position, even if the score's lower edge is still visible.
                 const atScore = work.top >= 0 && work.top < dockTop;
                 const clipTop = work.top < topLimit - 2 && work.bottom > topLimit + 8;
-                if (AN.notes.length && !PC_STAGE.on && (clipDock || (atScore && (flipped || clipTop))))
+                if (AN.notes.length && !PC_STAGE.on && (clipDock || (anScreen === 'player' && flipped) || (atScore && clipTop)))
                     anFocusStage();
                 else if (PC_STAGE.on)
                     window.scrollTo(0, 0);

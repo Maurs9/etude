@@ -9,6 +9,10 @@ const file = (name, text = score()) => ({ name, mimeType: 'application/xml', buf
 const rows = page => page.locator('#library-items > li');
 const row = (page, title) => rows(page).filter({ has: page.locator('h3', { hasText: title }) });
 async function library(page) {
+  if (await page.locator('#an-back').isVisible()) {
+    await page.locator('#an-back').click();
+    await expect(page.locator('#an-catalog')).toBeVisible();
+  }
   const details = page.locator('#score-library');
   if (!await details.evaluate(node => node.open)) await details.locator('summary').click();
 }
@@ -68,6 +72,7 @@ test('library multi-import is persistent, searchable, duplicate-safe, and resume
   await openRow(page, 'Library Alpha');
   await expect(page.locator('#score-speed')).toHaveValue('75');
   expect(await page.evaluate(() => ({ position: window.__etude.FALL.position, hands: window.__etude.PRAC.hands, wait: window.__etude.PRAC.wait, metro: window.__etude.PRAC.metro, look: window.__etude.SCORE.look }))).toEqual({ position: 3.25, hands: 'lh', wait: true, metro: true, look: 'night' });
+  await library(page);
   await page.locator('[data-library-tab=recent]').click();
   await expect(rows(page)).toHaveCount(1);
 });
@@ -144,6 +149,7 @@ test('library backup transfers originals, favorites and resume state to a separa
   await settled(page);
   await openRow(page, 'Library Alpha');
   await page.evaluate(async () => { window.__etude.FALL.position = 2; await window.__etude.anLibraryFlush(); });
+  await library(page);
   const pending = page.waitForEvent('download');
   await page.locator('#library-backup').click();
   const backup = await pending;

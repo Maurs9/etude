@@ -1691,6 +1691,8 @@ const payload: UIPayload = {
       "prog_data_head": "Report e dati",
       "prog_danger_head": "Azzera progressi",
       "prog_reset_warn": "Rimuove cronologia di ripasso, serie e statistiche di lettura su questo dispositivo. Prima viene salvato un backup automatico nelle Impostazioni.",
+      "an_back_pieces": "← Torna ai brani",
+      "an_piece_not_found": "Questo brano non è stato trovato nella libreria di questo dispositivo.",
       "pr_extra_key": "Tasto in più: %s",
       "pr_sustain": "Pedale di sustain",
       "pr_sustain_details": "Mancati: %s · In più: %s",

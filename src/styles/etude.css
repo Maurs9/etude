@@ -665,7 +665,7 @@
   .an-lasso{position:fixed; inset:0; pointer-events:none; z-index:var(--z-dock); overflow:visible}
   .an-lasso-path{fill:color-mix(in srgb, var(--sel-ui) 12%, transparent); stroke:var(--sel-ui); stroke-width:1.75; stroke-dasharray:5 3; stroke-linejoin:round; stroke-linecap:round}
   .an-about{margin-top:18px; font-size:12.5px; color:var(--muted)} .an-about summary{cursor:pointer; font-weight:600; padding:6px 0}
-  label:has(+ #an-file:focus-visible){outline:2px solid var(--accent); outline-offset:2px}
+  #view-analysis:has(#an-file:focus-visible) label[for="an-file"]{outline:2px solid var(--accent); outline-offset:2px}
   .ss-beam{fill:var(--staffink)}
 
   /* ---------- score & analysis: MuseScore-like workspace ---------- */
@@ -684,6 +684,7 @@
   /* toolbar: sticky under the header while the score card is on screen */
   .an-tbwrap{position:sticky; top:var(--hdr-h); z-index:var(--z-tb); background:var(--card); border-block:1px solid var(--line)}
   .an-tbwrap.is-floating{position:fixed; top:var(--hdr-h); left:var(--an-pin-x); width:var(--an-pin-w); box-sizing:border-box; z-index:var(--z-dock); box-shadow:0 8px 18px rgba(34,28,21,.11)}
+  .an-tbwrap.is-floating + #an-work{margin-top:var(--an-tb-h)}
   .an-tbwrap.is-floating + .an-work{margin-top:var(--an-tb-h)}
   .an-tb{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:6px 10px}
   .tb-g{display:inline-flex; align-items:center; gap:2px}

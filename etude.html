@@ -299,16 +299,23 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     </div>
   </section>
 
-  <section class="view" id="view-analysis"><div class="wrap">
-    <div class="section-head"><div><div class="eyebrow" data-i18n="an_eyebrow">Score study</div><h1 data-i18n="an_title">Pieces</h1></div></div>
-    <p class="lede" data-i18n="an_desc">Pick a built-in piece or open your own MIDI or MusicXML file, then play it with the score. Select notes to study keys, chords and harmony. Everything stays on this device.</p>
-    <details class="pc-pick" id="pc-pick" open><summary id="pc-sum">Built-in pieces</summary><div class="pc-list" id="pc-list"></div></details>
-    <div id="score-library-root"></div>
-    <div class="panel an-panel" id="an-panel" style="margin-top:18px">
+  <section class="view" id="view-analysis" data-an-screen="catalog"><div class="wrap">
+    <input type="file" id="an-file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi" class="visually-hidden">
+    <div class="an-catalog" id="an-catalog">
+      <div class="section-head"><div><div class="eyebrow" data-i18n="an_eyebrow">Score study</div><h1 data-i18n="an_title">Pieces</h1></div></div>
+      <p class="lede" data-i18n="an_desc">Pick a built-in piece or open your own MIDI or MusicXML file, then play it with the score. Select notes to study keys, chords and harmony. Everything stays on this device.</p>
+      <p class="an-catalog-status" id="an-catalog-status" role="status" aria-live="polite" hidden></p>
+      <div id="an-empty-host" class="an-empty an-empty-host"></div>
+      <details class="pc-pick" id="pc-pick" open><summary id="pc-sum">Built-in pieces</summary><div class="pc-list" id="pc-list"></div></details>
+      <div id="score-library-root"></div>
+      <details class="an-about"><summary data-i18n="an_about">About import &amp; analysis</summary><p data-i18n="an_limits"></p><p data-i18n="an_tip"></p></details>
+    </div>
+    <div class="panel an-panel" id="an-panel" style="margin-top:18px" hidden>
       <div class="an-src" id="an-src">
+        <button type="button" class="btn ghost sm an-back-btn" id="an-back" data-i18n="an_back_pieces">← Back to pieces</button>
         <div class="an-src-text"><span id="an-name" class="an-name"></span><span id="an-msg" class="an-msg" role="status" aria-live="polite"></span></div>
         <div class="an-src-actions">
-          <label class="btn sm primary" for="an-file"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></label><input type="file" id="an-file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi" class="visually-hidden">
+          <label class="btn sm primary" for="an-file"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></label>
         </div>
       </div>
       <div class="an-tbwrap" id="an-tbwrap" hidden>
@@ -454,8 +461,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       </div>
     </div>
     <button type="button" class="an-fab" id="an-fab" aria-controls="an-side" aria-expanded="false" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="1.6" y="2.6" width="12.8" height="10.8" rx="1.6"/><path d="M1.6 9.4h12.8"/><path d="M4.4 11.4h4" stroke-linecap="round"/></svg><span data-i18n="an_side_btn">Analysis</span></button>
-    <details class="an-about"><summary data-i18n="an_about">About import &amp; analysis</summary><p data-i18n="an_limits"></p><p data-i18n="an_tip"></p></details>
-    <div id="score-credit" class="an-credit">Score: OpenSheetMusicDisplay · BSD-3-Clause</div>
+    <div id="score-credit" class="an-credit" hidden>Score: OpenSheetMusicDisplay · BSD-3-Clause</div>
   </div></section>
 
   <!-- ===================== PRACTICE ===================== -->

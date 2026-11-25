@@ -1969,6 +1969,8 @@ const payload: UIPayload = {
       "prog_data_head": "Informes y datos",
       "prog_danger_head": "Restablecer progreso",
       "prog_reset_warn": "Elimina el historial de repasos, las rachas y las estadísticas de lectura de este dispositivo. Antes se guarda una copia automática en Ajustes.",
+      "an_back_pieces": "← Volver a piezas",
+      "an_piece_not_found": "No se encontró esa pieza en la biblioteca de este dispositivo.",
       "pr_extra_key": "Tecla de más: %s",
       "pr_sustain": "Pedal de sustain",
       "pr_sustain_details": "Omitidos: %s · De más: %s",
