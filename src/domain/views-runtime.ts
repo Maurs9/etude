@@ -11,14 +11,14 @@ import { playControl } from './practice-hint-dom.js';
 import type { PracticeHintsTopic } from './practice-hints-view.js';
 import type { StudyHintState } from './practice-study-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
-import { gradePracticeSustain, practiceAccuracy as pracAcc, practicePercent, practiceSustainReference, type TimedSustain } from './practice-scoring.js';
-import { classifyUnmatchedKeyPress, extractSustainMistakes, groupPracticeMistakes, practicePassageBounds, type MeasureMistakeGroup, type PracticeMistakeEvent } from './practice-mistakes.js';
-import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
-import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
+import type { gradePracticeSustain as gradePracticeSustainFn, practiceAccuracy as pracAccFn, practicePercent as practicePercentFn, practiceSustainReference as practiceSustainReferenceFn, TimedSustain } from './practice-scoring.js';
+import type { classifyUnmatchedKeyPress as classifyUnmatchedKeyPressFn, extractSustainMistakes as extractSustainMistakesFn, groupPracticeMistakes as groupPracticeMistakesFn, practicePassageBounds as practicePassageBoundsFn, MeasureMistakeGroup, PracticeMistakeEvent } from './practice-mistakes.js';
+import type { createCursorCurves as createCursorCurvesFn, cursorCurveAt as cursorCurveAtFn } from './score-cursor.js';
+import type { bindScoreGestures as bindScoreGesturesFn, ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
-import { INTERVAL_SONGS, intervalSongNotes, intervalSongTitle, type IntervalSongDirection, type IntervalSongNote } from './interval-songs.js';
+import type { IntervalSongDirection, IntervalSongNote } from './interval-songs.js';
 import { detectVoicePitch as trxAutoCorrelate } from './voice-pitch.js';
-import * as notationApi from './notation.js';
+import type * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
 import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeight, AnNonChordTone, AnRatedChord, AnSpanChoice, AnSpanReading, AnUnit, ChordSelectionAnalysis, IsolatedNoteAnalysis, LassoPoint, ScoreSelectionAnalysis, SelectedNoteNeighbor, SelectionNeighborSummary, TwoNoteSelectionAnalysis } from './score-harmony.js';
@@ -115,16 +115,58 @@ let scoreBeams: typeof import('./score-midi.js').scoreBeams;
 let scoreMidiToXml: typeof import('./score-midi.js').scoreMidiToXml;
 let buildExpressiveTempos: typeof import('./score-expression.js').buildExpressiveTempos;
 let buildScoreExpression: typeof import('./score-expression.js').buildScoreExpression;
+let scorePatchOsmd: typeof notationApi.scorePatchOsmd | undefined;
+let computeFitWidthLayout: typeof notationApi.computeFitWidthLayout;
+let notationReloadMessage: typeof notationApi.notationReloadMessage | undefined;
+let gradePracticeSustain: typeof gradePracticeSustainFn;
+let pracAcc: typeof pracAccFn;
+let practicePercent: typeof practicePercentFn;
+let practiceSustainReference: typeof practiceSustainReferenceFn;
+let classifyUnmatchedKeyPress: typeof classifyUnmatchedKeyPressFn;
+let extractSustainMistakes: typeof extractSustainMistakesFn;
+let groupPracticeMistakes: typeof groupPracticeMistakesFn;
+let practicePassageBounds: typeof practicePassageBoundsFn;
+let createCursorCurves: typeof createCursorCurvesFn;
+let cursorCurveAt: typeof cursorCurveAtFn;
+let bindScoreGestures: typeof bindScoreGesturesFn;
 let analysisModulesReady = false;
 let analysisModulesLoading: Promise<void> | null = null;
 function ensureAnalysisModules(): Promise<void> {
     if (!analysisModulesLoading) {
-        analysisModulesLoading = Promise.all([import('./score-import.js'), import('./score-svg-post.js'), import('./score-midi.js'), import('./score-feature.js'), import('./score-expression.js')]).then(([scoreImport, scoreSvgPost, scoreMidi, feature, scoreExpression]) => {
+        analysisModulesLoading = Promise.all([
+            import('./score-import.js'),
+            import('./score-svg-post.js'),
+            import('./score-midi.js'),
+            import('./score-feature.js'),
+            import('./score-expression.js'),
+            import('./notation.js'),
+            import('./practice-scoring.js'),
+            import('./practice-mistakes.js'),
+            import('./score-cursor.js'),
+            import('./score-gestures.js'),
+        ]).then(([scoreImport, scoreSvgPost, scoreMidi, feature, scoreExpression, notationMod, scoringMod, mistakesMod, cursorMod, gesturesMod]) => {
         scoreFeature = feature;
         ({ AN_SMUFL_NOTES, SCORE_STEP, anMxlPreflight: importMxlPreflight, anParse, anReadXml: importReadXml, anXmlTidy, defaultInflatedSize, scoreXmlEndings, scoreXmlEngraving, scoreXmlLayout, scoreXmlNotes } = scoreImport);
         ({ isScoreOsmdSheet, scoreFixFingerings, scoreFixPedalsDefault, rememberScorePedalLayout, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreVendorField, scoreVendorList } = scoreSvgPost);
         ({ anAssignHands, scoreBeams, scoreMidiToXml } = scoreMidi);
         ({ buildExpressiveTempos, buildScoreExpression } = scoreExpression);
+        ({ scorePatchOsmd, computeFitWidthLayout, notationReloadMessage } = notationMod);
+        ({ gradePracticeSustain, practiceAccuracy: pracAcc, practicePercent, practiceSustainReference } = scoringMod);
+        ({ classifyUnmatchedKeyPress, extractSustainMistakes, groupPracticeMistakes, practicePassageBounds } = mistakesMod);
+        ({ createCursorCurves, cursorCurveAt } = cursorMod);
+        ({ bindScoreGestures } = gesturesMod);
+        if (!cancelScoreGesture) {
+            const roll = maybeById('an-roll');
+            if (roll) {
+                cancelScoreGesture = bindScoreGestures(roll, {
+                    selecting: (e) => AN.tool === 'select' || e.pointerType === 'pen',
+                    select: scorePointer,
+                    getZoom: () => SCORE.zoom,
+                    zoom: scoreZoomPreview,
+                    commitZoom: scoreZoomCommit,
+                });
+            }
+        }
         analysisModulesReady = true;
     }).catch((error: unknown) => { analysisModulesLoading = null; throw error; });
     }
@@ -278,7 +320,10 @@ async function bootLocale(): Promise<void> {
 const KEY = storage.PTT_KEY, isBackupPayload = storage.isBackupPayload, isRecord = storage.isRecord, legacySettings = storage.legacySettings, parsePttV3 = storage.parsePttV3, readPttV3 = storage.readPttV3, restoreSettings = storage.restoreSettings, writePttV3 = storage.writePttV3;
 const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = theory.SCALE_DEGREE_LABELS, anFnKey = theory.analysisFunction, anDiatonic = theory.anDiatonic, anIntervalName = theory.anIntervalName, anKeyRank = theory.anKeyRank, anPcWeights = theory.anPcWeights, anResolveKey = theory.anResolveKey, CHORD_TEMPLATES = theory.CHORD_TEMPLATES, chordDegreeMap = theory.chordDegreeMap, chordInversion = theory.chordInversion, chordPitches = theory.chordPitches, srKeyName = theory.circleKeyPitchClass, formatChordFormula = theory.formatChordFormula, formatScaleFormula = theory.formatScaleFormula, identifyChordDomain = theory.identifyChord, keyFifths = theory.keyFifths, keyFromFifths = theory.keyFromFifths, midiToFrequency = theory.midiToFrequency, pitchClass = theory.pitchClass, PROGRESSION_TEMPLATES = theory.PROGRESSION_TEMPLATES, rdSpellMidi = theory.readingSpelling, romanFor = theory.romanFor, SCALE_DEFINITIONS = theory.SCALE_DEFINITIONS, scorePitch = theory.scorePitchXml, spellMidi = theory.spellMidi;
 const AudioEngine = audio.AudioEngine;
-const createScoreRenderer = notationApi.createScoreRenderer, loadOsmd = notationApi.loadOsmd, mxlToXml = notationApi.mxlToXml, notationReloadMessage = notationApi.notationReloadMessage, scorePatchOsmd = notationApi.scorePatchOsmd;
+const loadOsmd = () => import('./notation.js').then((m) => m.loadOsmd());
+const createScoreRenderer = (container: Element, options: Record<string, unknown>) => import('./notation.js').then((m) => m.createScoreRenderer(container, options));
+const mxlToXml = (data: ArrayBuffer) => import('./notation.js').then((m) => m.mxlToXml(data));
+const defaultScoreLayoutForViewport = (viewportWidth: number): notationApi.ScoreLayoutMode => (viewportWidth <= 680 ? 'fit' : 'page');
 const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView, isMovedView = router.isMovedView;
 const parseAnalysisHash = router.parseAnalysisHash, formatAnalysisHash = router.formatAnalysisHash;
 type AnalysisRoute = router.AnalysisRoute;
@@ -5030,12 +5075,24 @@ async function previewIntervalSong(notes: readonly IntervalSongNote[], button?: 
 }
 // Builds the 12 cards while the panel is open (also while another topic hides it, so a language or note-name change
 // reaches them); opening it builds them (the panel's toggle event).
+let intervalSongsMod: typeof import('./interval-songs.js') | null = null;
+let intervalSongsGen = 0;
 function renderSongs() {
     const box = maybeById('songsList'), panel = maybeById('pr-songs');
     if (!box || !(panel instanceof HTMLDetailsElement) || !panel.open)
         return;
     clearIntervalHintPlay();
     clearIntervalSongPreview();
+    if (!intervalSongsMod) {
+        const gen = ++intervalSongsGen;
+        void import('./interval-songs.js').then((mod) => {
+            intervalSongsMod = mod;
+            if (gen === intervalSongsGen)
+                renderSongs();
+        }).catch(() => {});
+        return;
+    }
+    const { INTERVAL_SONGS, intervalSongNotes, intervalSongTitle } = intervalSongsMod;
     box.innerHTML = '';
     const root = 60 + parseInt(selectById('song-root').value || '0', 10);
     const hearLabel = t('ex_hear').replace(/^▶\s*/u, '');
@@ -13257,6 +13314,7 @@ function anLibraryEnsure(): Promise<LibraryController> {
             return scoreLibrary;
         }).catch((error: unknown) => {
             scoreLibraryLoading = null;
+            anSetCatalogTab('library');
             const root = byId('score-library-root'), message = document.createElement('p'), retry = document.createElement('button');
             message.setAttribute('role', 'status');
             message.textContent = libraryText(lang, 'unavailable');
@@ -13420,7 +13478,7 @@ interface ScoreState {
 }
 let scoreLayoutExplicit = false;
 const SCORE: ScoreState = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playing: false, sel: false, loop: null, tempos: [{ beat: 0, bpm: 120 }], tempoList: [{ beat: 0, bpm: 120 }], tempoFromFile: false,
-    measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: notationApi.defaultScoreLayoutForViewport(window.innerWidth), stale: false, layoutWidth: 0,
+    measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: defaultScoreLayoutForViewport(window.innerWidth), stale: false, layoutWidth: 0,
     geo: null, mrange: null, resume: null, paused: false, cursorEl: null, followSys: -1, followCheckedAt: -Infinity, panAt: 0, hl: false };
 // sel: a note picked by hand (blue, like the playback line); lit: a sounding note, gold, only with "Highlight sounding notes" on
 const SCORE_LOOK = { paper: { bg: '#fffefa', ink: '#000000', staff: undefined, sel: '#1a6fe0', lit: '#a47720', ok: '#1b8f4c', bad: '#d22f2f', dim: '#b9b2a6' }, night: { bg: '#1d1a17', ink: '#ece5d8', staff: '#a1988a', sel: '#7fb2ff', lit: '#e8bb5c', ok: '#6fdc9a', bad: '#ff7a7a', dim: '#5d574f' } }; // MuseScore-blue selection
@@ -13708,7 +13766,7 @@ function scoreLayout() {
     box.dataset.layout = SCORE.layout;
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const sourceLayout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
-    const fitParams = fit ? notationApi.computeFitWidthLayout(avail, SCORE.zoom, base) : null;
+    const fitParams = fit ? computeFitWidthLayout(avail, SCORE.zoom, base) : null;
     const sheetW = fitParams ? fitParams.sheetWidth : Math.max(240, Math.round(Math.min(pageW, avail) * SCORE.zoom));
     if (sheet instanceof HTMLElement) {
         if (pinchBaseZoom === null) {
@@ -14152,7 +14210,7 @@ function scoreNamesSync() {
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
     if (document.querySelector('.notation-reload')) return;
-    const copy = notationReloadMessage(lang), box = (document).createElement('div');
+    const copy = notationReloadMessage ? notationReloadMessage(lang) : { message: 'The score could not load. Reload the page.', button: 'Reload' }, box = (document).createElement('div');
     box.setAttribute('role', 'alert');
     box.className = 'notation-reload';
     box.innerHTML = '<p></p><button type="button"></button>';
@@ -17403,7 +17461,7 @@ async function anCommit(src: AnSource, token: number, recon?: LibraryResume['rec
     }
     anIndex();
     if (!scoreLayoutExplicit) {
-        SCORE.layout = notationApi.defaultScoreLayoutForViewport(window.innerWidth);
+        SCORE.layout = defaultScoreLayoutForViewport(window.innerWidth);
     }
     let ok = false;
     try {
@@ -18827,7 +18885,7 @@ function anStageFit() {
         return;
     }
     if (!scoreLayoutExplicit) {
-        const want = notationApi.defaultScoreLayoutForViewport(window.innerWidth);
+        const want = defaultScoreLayoutForViewport(window.innerWidth);
         if (want !== SCORE.layout) {
             SCORE.layout = want;
             byId('an-roll').dataset.layout = want;
@@ -19049,13 +19107,6 @@ function anInitControls() {
     const roll = byId('an-roll');
     roll.addEventListener('pointerenter', (e) => { roll.classList.toggle('is-pen', e.pointerType === 'pen'); });
     roll.addEventListener('pointerdown', (e) => { if (e.button === 0) blurInputField(); });
-    cancelScoreGesture = bindScoreGestures(roll, {
-        selecting: (e) => AN.tool === 'select' || e.pointerType === 'pen',
-        select: scorePointer,
-        getZoom: () => SCORE.zoom,
-        zoom: scoreZoomPreview,
-        commitZoom: scoreZoomCommit,
-    });
     for (const tool of ['hand', 'select'] as const) byId('an-tool-' + tool).addEventListener('click', () => {
         cancelScoreGesture?.();
         AN.tool = tool;
