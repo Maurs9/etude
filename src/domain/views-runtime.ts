@@ -15100,7 +15100,9 @@ function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '
     pracNextRender();
     byId('pr-sum-acc').textContent = acc == null ? '–' : practicePercent(acc) + '%';
     const pedal = R.sustain?.midi ? gradePracticeSustain(R.sustain.expected, R.sustain.played, R.segs[0].f) : null;
-    byId('pr-sum-sustain').hidden = pedal?.accuracy == null;
+    const sustainHidden = pedal?.accuracy == null;
+    byId('pr-sum-sustain').hidden = sustainHidden;
+    maybeById('pr-sum-scores')?.classList.toggle('has-sustain', !sustainHidden);
     if (pedal?.accuracy != null) {
         byId('pr-sum-sustain-acc').textContent = practicePercent(pedal.accuracy) + '%';
         byId('pr-sum-sustain-details').textContent = t('pr_sustain_details', pedal.missed, pedal.extra);

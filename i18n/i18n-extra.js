@@ -134,7 +134,7 @@
     ['pr_perfect','Perfecto','Parfait','Perfekt','Perfetto','Perfeito'],
     ['pr_good','Bien','Bien','Gut','Bene','Bom'],
     ['pr_miss','Omitidas','Manquées','Verpasst','Mancate','Perdidas'],
-    ['pr_wrong','Incorrectas','Incorrectes','Falsch','Sbagliate','Erradas'],
+    ['pr_wrong','Pulsaciones sin asociar','Touches non associées','Nicht zugeordnete Tasten','Tasti non associati','Toques não associados'],
     ['pr_again','Otra vez','Encore','Noch einmal','Di nuovo','Novamente'],
     ['pr_slower','Más lento','Plus lentement','Langsamer','Più lentamente','Mais devagar'],
     ['pr_close','Cerrar','Fermer','Schließen','Chiudi','Fechar']

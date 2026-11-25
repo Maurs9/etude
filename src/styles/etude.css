@@ -1058,12 +1058,15 @@
 
   /* ---------- V3: pages polish ---------- */
   .midi-chip{white-space:nowrap}
+  .goal-wrap{display:flex; flex-direction:column; align-items:flex-end}
   .goal-txt{display:block; font-size:11px; color:var(--muted); margin-top:5px; text-align:right; letter-spacing:.04em}
+  .goal-label{display:block; font-size:10.5px; color:var(--muted); text-align:right; letter-spacing:.02em}
   .plan{margin-top:22px; border:1px solid var(--line); border-radius:16px; background:var(--card); box-shadow:var(--shadow); padding:16px 20px 14px; display:flex; flex-direction:column}
   .plan-head{display:flex; justify-content:space-between; align-items:center; gap:8px 12px; flex-wrap:wrap; margin-bottom:9px}
   .plan-head h2{font-size:18px; margin:0}
   .plan-head .sub{font-size:12px; color:var(--muted)}
-  .plan-meta{display:flex; align-items:center; gap:8px; margin-top:2px; flex-wrap:wrap}
+  .plan-label{font-size:12px; color:var(--muted)}
+  .plan-meta{display:flex; align-items:center; gap:6px 8px; margin-top:2px; flex-wrap:wrap}
   .plan-segs{display:inline-flex; gap:3px; align-items:center}
   .plan-segs i{width:18px; height:4px; border-radius:99px; background:var(--line2); transition:background-color .2s}
   .plan-segs i[data-state="done"]{background:var(--good)}
@@ -1227,6 +1230,14 @@
   #ac-chain .ch.on{background:var(--accent); color:var(--accent-ink)}
   #ac-chain .sep{color:var(--faint); margin:0 6px}
   .prog-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .prog-data-section{margin-top:6px}
+  .prog-data-h{margin-bottom:10px}
+  .prog-danger{margin-top:22px; padding:14px 16px; border:1px solid color-mix(in srgb, var(--bad) 36%, var(--line)); border-radius:12px; background:color-mix(in srgb, var(--bad-bg) 42%, var(--card)); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px 18px}
+  .prog-danger-text{flex:1 1 260px; min-width:0}
+  .prog-danger-text h3{margin:0 0 2px; font-family:var(--sans); font-size:14px; font-weight:700; color:var(--bad)}
+  .prog-danger-desc{margin:0; font-size:12.5px; line-height:1.45; color:var(--ink2)}
+  .prog-reset-btn{border-color:color-mix(in srgb, var(--bad) 55%, var(--line)); color:var(--bad); background:var(--card)}
+  .prog-reset-btn:hover:not(:disabled){background:var(--bad); border-color:var(--bad); color:#fff}
   .prog-print-head{display:none}
   .prog-ms-wrap{margin:12px 0 4px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--card)}
   .prog-ms-top{display:flex; gap:10px; align-items:baseline; justify-content:space-between; flex-wrap:wrap; margin-bottom:10px}
@@ -1262,7 +1273,17 @@
   details.osmd-lic pre{text-align:left; white-space:pre-wrap; max-width:80ch; margin:10px auto}
   details.osmd-lic + footer{border-top:none}
   @media (max-width:680px){
-    .plan{padding:16px}
+    .today-head{gap:8px; align-items:flex-start}
+    .greet h1{font-size:28px; margin:0 0 2px}
+    .greet .lede{font-size:13.5px; margin:2px 0 0; line-height:1.4}
+    .today-overview{gap:12px; margin-top:12px}
+    .hero-top{padding:14px 16px 12px}
+    .counts{gap:16px; margin:6px 0 8px}
+    .hero-why{padding:8px 16px}
+    .plan{padding:14px 16px}
+    .plan-head #plan-continue{width:100%; justify-content:center; min-height:44px}
+    .prog-danger{flex-direction:column; align-items:stretch}
+    .prog-reset-btn{width:100%; justify-content:center; min-height:44px}
   }
   @media (max-width:680px), (pointer:coarse){
     .iconbtn:not(.drawer-close),.dock-tools .btn,.btn.dock-kb-toggle,.an-side-x{position:relative}
@@ -1693,7 +1714,7 @@
 
 @media print {
   header, .bottomnav, .dock, footer, .scrim, .drawer, .helpbox, .app-dialog, .app-dialog-scrim,
-  .prog-actions, #prog-start, #rdx-reset, #prog-empty, details.osmd-lic, #syncNote {
+  .prog-actions, .prog-data-section, .prog-danger, #prog-start, #rdx-reset, #prog-empty, details.osmd-lic, #syncNote {
     display: none !important;
   }
   body {

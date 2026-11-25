@@ -61,7 +61,11 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         </div>
         <div class="streak">
           <div><span class="big num" id="streakN">0</span><small class="streak-l" data-i18n="streak_label">day streak</small></div>
-          <div class="goaldots" id="goaldots" role="img" aria-label="Daily goal progress"></div><small class="goal-txt num" id="goal-txt"></small>
+          <div class="goal-wrap">
+            <div class="goaldots" id="goaldots" role="img" aria-label="Daily goal progress"></div>
+            <small class="goal-txt num" id="goal-txt"></small>
+            <small class="goal-label" id="goal-label" data-i18n="goal_reviews_label">Review answers</small>
+          </div>
         </div>
       </div>
 
@@ -86,7 +90,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       </div>
 
       <section class="plan" id="today-plan" aria-labelledby="plan-h">
-        <div class="plan-head"><div><h2 id="plan-h" data-i18n="plan_title">Today’s plan</h2><div class="plan-meta"><span class="sub" id="plan-sub"></span><div class="plan-segs" id="plan-segs" aria-hidden="true"></div></div></div><button type="button" class="btn sm" id="plan-continue" hidden></button></div>
+        <div class="plan-head"><div><h2 id="plan-h" data-i18n="plan_title">Today’s plan</h2><div class="plan-meta"><span class="sub" id="plan-sub"></span><span class="plan-label" id="plan-label" data-i18n="plan_tasks_label">Plan activities</span><div class="plan-segs" id="plan-segs" aria-hidden="true"></div></div></div><button type="button" class="btn sm" id="plan-continue" hidden></button></div>
         <ul class="plan-list" id="plan-list"></ul>
       </section>
       </div>
@@ -378,7 +382,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="an-tl" id="an-tl" hidden><span id="fall-clock" class="fall-time">0:00</span><div class="tl-track"><div class="tl-ticks" id="tl-ticks" aria-hidden="true"></div><div class="tl-loop" id="tl-loop" hidden></div><div class="tl-ab" id="tl-a" data-l="A" hidden></div><div class="tl-ab" id="tl-b" data-l="B" hidden></div><input id="fall-seek" type="range" min="0" max="1" step="0.05" value="0" aria-label="Playback position" data-i18n-aria="fall_pos"></div><span id="tl-bar" class="tl-bar"></span><span id="fall-total" class="fall-time">0:00</span></div>
         <div class="pr-hud" id="pr-hud" aria-hidden="true" hidden><span class="pr-judge" id="pr-judge"></span><span class="pr-k"><b id="pr-acc-v">–</b><span data-i18n="pr_accuracy">Accuracy</span></span><span class="pr-k"><b id="pr-streak">0</b><span data-i18n="pr_streak">Streak</span></span><span class="pr-k pr-k-x"><b id="pr-pass">1</b><span data-i18n="pr_pass">Pass</span></span><span class="pr-k pr-k-x"><b id="pr-tempo">100%</b><span data-i18n="sc_tempo">Tempo</span></span></div>
         <div class="pr-count" id="pr-count" aria-hidden="true" hidden></div>
-        <div class="pr-sum" id="pr-sum" role="dialog" aria-modal="false" aria-labelledby="pr-sum-h" aria-describedby="pr-sum-next" hidden><div class="pr-sum-card"><h2 id="pr-sum-h" data-i18n="pr_sum_h">Run complete</h2><div class="pr-sum-acc" id="pr-sum-acc">0%</div><p class="pr-sum-best" id="pr-sum-best" hidden></p><p class="pr-sum-why" id="pr-sum-why" hidden></p><div class="pr-sum-grid"><span><b id="pr-sum-perfect">0</b><span data-i18n="pr_perfect">Perfect</span></span><span><b id="pr-sum-good">0</b><span data-i18n="pr_good">Good</span></span><span><b id="pr-sum-miss">0</b><span data-i18n="pr_miss">Missed</span></span><span><b id="pr-sum-wrong">0</b><span data-i18n="pr_wrong">Wrong</span></span></div><p class="pop-note" id="pr-sum-extra" hidden></p><p class="pr-sum-sustain" id="pr-sum-sustain" hidden><span data-i18n="pr_sustain">Sustain pedal</span> <b id="pr-sum-sustain-acc"></b><small id="pr-sum-sustain-details"></small></p><p class="pop-note" id="pr-sum-note"></p><div class="coach" id="pr-sum-next" data-kind="next" hidden></div><div class="pr-sum-act"><button type="button" class="btn primary" id="pr-again" data-i18n="pr_again">Again</button><button type="button" class="btn" id="pr-slower" data-i18n="pr_slower">Slower</button><button type="button" class="btn" id="pr-close" data-i18n="pr_close">Close</button></div></div></div>
+        <div class="pr-sum" id="pr-sum" role="dialog" aria-modal="false" aria-labelledby="pr-sum-h" aria-describedby="pr-sum-next" hidden><div class="pr-sum-card"><h2 id="pr-sum-h" data-i18n="pr_sum_h">Run complete</h2><div class="pr-sum-scores" id="pr-sum-scores"><div class="pr-sum-score"><span class="pr-sum-score-lbl" data-i18n="pr_notes_score">Notes</span><div class="pr-sum-acc" id="pr-sum-acc">0%</div></div><div class="pr-sum-score pr-sum-sustain" id="pr-sum-sustain" hidden><span class="pr-sum-score-lbl" data-i18n="pr_sustain_short">Sustain</span><b class="pr-sum-acc pr-sum-sustain-val" id="pr-sum-sustain-acc"></b><small id="pr-sum-sustain-details"></small></div></div><p class="pr-sum-best" id="pr-sum-best" hidden></p><p class="pr-sum-why" id="pr-sum-why" hidden></p><div class="pr-sum-grid"><span><b id="pr-sum-perfect">0</b><span data-i18n="pr_perfect">Perfect</span></span><span><b id="pr-sum-good">0</b><span data-i18n="pr_good">Good</span></span><span><b id="pr-sum-miss">0</b><span data-i18n="pr_miss">Missed</span></span><span><b id="pr-sum-wrong">0</b><span data-i18n="pr_wrong">Unmatched presses</span></span></div><p class="pr-sum-good-hint" id="pr-sum-good-hint" data-i18n="pr_good_explain">Good: right note played slightly early or late.</p><p class="pop-note" id="pr-sum-extra" hidden></p><p class="pop-note" id="pr-sum-note"></p><div class="coach" id="pr-sum-next" data-kind="next" hidden></div><div class="pr-sum-act"><button type="button" class="btn primary" id="pr-again" data-i18n="pr_again">Again</button><button type="button" class="btn" id="pr-slower" data-i18n="pr_slower">Slower</button><button type="button" class="btn" id="pr-close" data-i18n="pr_close">Close</button></div></div></div>
         <div class="an-pop an-keys" id="an-keys-pop" role="group" aria-labelledby="an-keys-h" hidden style="top:auto; bottom:52px"><span class="an-pop-h" id="an-keys-h" data-i18n="ks_h">Keyboard shortcuts</span><dl>
           <dt><kbd>Space</kbd></dt><dd data-i18n="ks_space">Play / pause</dd>
           <dt><kbd>Home</kbd> <kbd>End</kbd></dt><dd data-i18n="ks_home">Start / end</dd>
@@ -661,13 +665,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     <div class="wrap">
       <div class="section-head">
         <div><div class="eyebrow" data-i18n="prog_eyebrow">Your learning</div><h1 data-i18n="prog_title">Progress</h1></div>
-        <div class="prog-actions">
-          <button class="btn sm ghost" id="prog-report-csv" data-i18n="prog_report_csv">CSV report</button>
-          <button class="btn sm ghost" id="prog-report-print" data-i18n="prog_report_print">Print / PDF</button>
-          <button class="btn sm ghost" id="prog-export" data-i18n="exp_btn">⬇ Export progress</button>
-          <button class="btn sm ghost" id="prog-import" data-i18n="imp_btn">⬆ Import</button>
-          <button class="btn sm ghost" id="resetBtn" data-i18n="reset">Reset progress</button>
-        </div>
       </div>
       <div class="prog-print-head" id="prog-print-head" aria-hidden="true"></div>
       <div class="prog-empty" id="prog-empty" hidden><p data-i18n="prog_empty">No reviews yet. Your stats, memory strength and practice calendar fill in as you answer questions.</p><button type="button" class="btn primary sm" id="prog-start" data-i18n="prog_empty_cta">Start today’s session →</button></div>
@@ -706,6 +703,23 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <hr class="rule" />
       <section aria-labelledby="prog-reading-h"><div class="eyebrow" style="margin-bottom:10px" id="prog-reading-h" data-i18n="prog_reading">Reading</div>
       <div id="rdx-stats"></div></section>
+      <hr class="rule" />
+      <section class="prog-data-section" id="prog-data-section" aria-labelledby="prog-data-h">
+        <div class="eyebrow prog-data-h" id="prog-data-h" data-i18n="prog_data_head">Reports &amp; data</div>
+        <div class="prog-actions">
+          <button class="btn sm ghost" id="prog-report-csv" data-i18n="prog_report_csv">CSV report</button>
+          <button class="btn sm ghost" id="prog-report-print" data-i18n="prog_report_print">Print / PDF</button>
+          <button class="btn sm ghost" id="prog-export" data-i18n="exp_btn">⬇ Export progress</button>
+          <button class="btn sm ghost" id="prog-import" data-i18n="imp_btn">⬆ Import</button>
+        </div>
+      </section>
+      <section class="prog-danger" id="prog-danger" aria-labelledby="prog-danger-h">
+        <div class="prog-danger-text">
+          <h3 id="prog-danger-h" data-i18n="prog_danger_head">Reset progress</h3>
+          <p class="prog-danger-desc" data-i18n="prog_reset_warn">Removes saved review history, streaks and reading statistics on this device. An automatic backup is kept in Settings first.</p>
+        </div>
+        <button class="btn sm prog-reset-btn" id="resetBtn" data-i18n="reset">Reset progress</button>
+      </section>
     </div>
   </section>
 

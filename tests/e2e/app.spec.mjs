@@ -3415,4 +3415,48 @@ test.describe('UI/UX polish, accessibility, contrast and runtime regressions', (
     ]);
     expect(ro).toEqual(['Unison', 'Două octave', 'Octavă + 2 octave']);
   });
+
+  test('Today labels both progress measures, Progress puts stats above reports & danger zone, and #pr-sum clarifies scores', async ({ app, page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await app.open({ hash: 'today' });
+    await expect(page.locator('#goal-label')).toHaveText('Review answers');
+    await expect(page.locator('#plan-label')).toHaveText('Plan activities');
+
+    await page.evaluate(() => window.__etude.show('progress'));
+    const order = await page.evaluate(() => ({
+      statsTop: document.getElementById('progStats').getBoundingClientRect().top,
+      msTop: document.getElementById('progMilestones').getBoundingClientRect().top,
+      dataTop: document.getElementById('prog-data-section').getBoundingClientRect().top,
+      dangerTop: document.getElementById('prog-danger').getBoundingClientRect().top,
+      dataContainsReset: document.getElementById('prog-data-section').contains(document.getElementById('resetBtn')),
+      dangerContainsReset: document.getElementById('prog-danger').contains(document.getElementById('resetBtn')),
+    }));
+    expect(order.statsTop).toBeLessThan(order.dataTop);
+    expect(order.msTop).toBeLessThan(order.dataTop);
+    expect(order.dataTop).toBeLessThan(order.dangerTop);
+    expect(order.dataContainsReset).toBe(false);
+    expect(order.dangerContainsReset).toBe(true);
+
+    await page.evaluate(() => window.__etude.setLang('ro'));
+    await expect(page.locator('#prog-data-h')).toHaveText('Rapoarte și date');
+    await expect(page.locator('#prog-danger-h')).toHaveText('Resetează progresul');
+
+    await page.evaluate(async () => {
+      await window.__etude.show('analysis');
+      await window.__etude.anLoadExample('w5rh');
+      await window.__etude.scorePlay(false, 0);
+    });
+    await expect.poll(() => page.evaluate(() => !!window.__etude.SCORE.run)).toBe(true);
+    await page.evaluate(() => {
+      const api = window.__etude, R = api.SCORE.run;
+      api.PRAC.active = true;
+      Object.assign(api.PRAC.stats, { perfect: 3, good: 1, miss: 0, wrong: 1 });
+      api.pracFinish(R);
+    });
+    await expect(page.locator('#pr-sum')).toBeVisible();
+    await expect(page.locator('#pr-sum .pr-sum-score-lbl').first()).toHaveText('Note');
+    await expect(page.locator('#pr-sum-acc')).toHaveText('70%');
+    await expect(page.locator('#pr-sum [data-i18n="pr_wrong"]')).toHaveText('Apăsări neasociate');
+    await expect(page.locator('#pr-sum-good-hint')).toContainText('Bine:');
+  });
 });
