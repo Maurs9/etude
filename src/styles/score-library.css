@@ -8,7 +8,7 @@
 #score-library summary {
   min-height: 48px; padding: 12px 16px; cursor: pointer; font-weight: 700;
 }
-#score-library summary::marker { color: var(--accent); }
+#score-library summary::marker { color: var(--muted); }
 #score-library .score-library-content { padding: 0 16px 16px; min-width: 0; }
 #score-library p { margin: 4px 0; }
 #score-library .score-library-note { color: var(--muted); font-size: .875rem; }
@@ -249,7 +249,7 @@
 }
 #score-library .score-library-user-note {
   margin: 2px 0 0; font-size: .82rem; line-height: 1.35;
-  color: var(--ink); opacity: .9; border-left: 2px solid var(--accent); padding-left: 8px;
+  color: var(--ink); border-left: 2px solid var(--line2); padding-left: 8px;
 }
 #score-library .score-library-actions { position: relative; display: flex; gap: 6px; min-width: 0; }
 #score-library .score-library-secondary {
@@ -272,7 +272,7 @@
 #score-library .score-library-rating {
   display: flex; min-height: 44px; align-items: center; font-size: .88rem; font-weight: 700; color: var(--muted);
 }
-#score-library .score-library-rating[data-rated=true] { color: var(--accent); }
+#score-library .score-library-rating[data-rated=true] { color: var(--gold-ink); }
 #score-library .score-library-rating[data-provisional=true] .score-library-rating-number {
   text-decoration: underline dotted; text-underline-offset: 3px;
 }
@@ -280,7 +280,7 @@
   display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-#score-library .score-library-star-graphic { display: inline-flex; color: var(--accent); font-size: .85rem; }
+#score-library .score-library-star-graphic { display: inline-flex; color: var(--gold-ink); font-size: .85rem; }
 #score-library .score-library-star { position: relative; display: inline-block; line-height: 1; }
 #score-library .score-library-star-fill { position: absolute; inset: 0; }
 #score-library .score-library-axis-summary {
@@ -293,7 +293,7 @@
   margin: 0; font-weight: 700; display: inline-flex; align-items: baseline; gap: 1px;
 }
 #score-library .score-library-axis-star {
-  font-size: .7rem; color: var(--accent); opacity: .82; font-weight: 400;
+  font-size: .7rem; color: var(--gold-ink); font-weight: 400;
 }
 #score-library .score-library-rating-details {
   grid-column: 2 / -1; margin-block: 4px; padding: 8px 10px; border-inline-start: 2px solid var(--line);

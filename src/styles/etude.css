@@ -766,10 +766,10 @@
   .sc-defs{position:absolute; width:0; height:0; overflow:hidden; pointer-events:none}
   .an-sheet{flex:none; position:relative; margin:0 auto}
   .an-score[data-layout="cont"] .an-sheet{width:max-content; margin:auto 0}
-  .an-sheet > div{position:relative; margin:0 auto 26px; background:#fffefa; box-shadow:0 1px 2px rgba(0,0,0,.16), 0 12px 30px -14px rgba(0,0,0,.5)}
+  .an-sheet > div{position:relative; margin:0 auto 22px; background:#fffefa; box-shadow:0 1px 2px rgba(26,23,20,.08), 0 6px 18px -10px rgba(26,23,20,.24)}
   .an-sheet > div:last-child{margin-bottom:0}
-  .an-score[data-look="night"] .an-sheet > div{background:#1d1a17; box-shadow:0 0 0 1px #2e2a25, 0 14px 32px -14px rgba(0,0,0,.9)}
-  .an-score.is-loading .an-sheet:empty{width:min(794px, 100%); aspect-ratio:210 / 297; background:#fffefa; box-shadow:0 1px 2px rgba(0,0,0,.16), 0 12px 30px -14px rgba(0,0,0,.5)}
+  .an-score[data-look="night"] .an-sheet > div{background:#1d1a17; box-shadow:0 0 0 1px #2e2a25, 0 8px 20px -12px rgba(0,0,0,.62)}
+  .an-score.is-loading .an-sheet:empty{width:min(794px, 100%); aspect-ratio:210 / 297; background:#fffefa; box-shadow:0 1px 2px rgba(26,23,20,.08), 0 6px 18px -10px rgba(26,23,20,.24)}
   .an-score[data-look="paper"],
   .an-score[data-look="paper"] .an-sheet,
   .an-score[data-look="paper"] .an-sheet > div,
@@ -837,7 +837,7 @@
   .pr-sum-act{display:flex; flex-wrap:wrap; justify-content:center; gap:8px}
   .pr-sum .coach{margin:0 0 14px; font-size:13px}
   /* popovers in the toolbar share the settings look */
-  .an-pop{position:absolute; top:calc(100% + 6px); z-index:var(--z-pop); width:min(360px, calc(100% - 24px)); display:flex; flex-direction:column; gap:10px; padding:14px 16px 12px; border:1px solid var(--line2); border-radius:12px; background:var(--paper2); box-shadow:0 22px 44px -18px rgba(0,0,0,.5); font-size:13px; color:var(--ink2)}
+  .an-pop{position:absolute; top:calc(100% + 6px); z-index:var(--z-pop); width:min(360px, calc(100% - 24px)); display:flex; flex-direction:column; gap:10px; padding:14px 16px 12px; border:1px solid var(--line2); border-radius:12px; background:var(--paper2); box-shadow:0 14px 30px -14px rgba(26,23,20,.32); font-size:13px; color:var(--ink2)}
   .an-pop-h{font-size:13px; font-weight:700; color:var(--ink)}
   .an-pop .field{justify-content:space-between; gap:12px}
   .an-pop .field select{min-width:140px}

@@ -275,4 +275,46 @@ test.describe('Wave 2A UX and localization regressions', () => {
     expect(labels.btns.some(txt => /-(Dur|Moll)/.test(txt))).toBe(true);
     expect(labels.btns.some(txt => /\s(Dur|Moll)/.test(txt))).toBe(false);
   });
+
+  test('light and dark themes meet AA text contrast (>= 4.5:1) and preserve subtle score shadows', async ({ app, page }) => {
+    await app.open({ hash: 'analysis' });
+    await page.locator('#pc-list .pc-item[data-piece="twinkle"]').click();
+    await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+
+    const measure = () => page.evaluate(() => {
+      const parseRgb = str => str.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+      const lum = ([r, g, b]) => [r, g, b].map(c => {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+      }).reduce((acc, v, i) => acc + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const contrast = (fg, bg) => {
+        const l1 = lum(parseRgb(fg)), l2 = lum(parseRgb(bg));
+        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      };
+      const panel = document.getElementById('an-panel');
+      const muted = document.getElementById('st-bar');
+      const primary = document.getElementById('score-play');
+      const sheetPage = document.querySelector('#an-roll .an-sheet > div');
+      const panelBg = getComputedStyle(panel).backgroundColor;
+      return {
+        inkRatio: contrast(getComputedStyle(panel).color, panelBg),
+        mutedRatio: contrast(getComputedStyle(muted).color, getComputedStyle(document.getElementById('an-status')).backgroundColor),
+        ctaRatio: contrast(getComputedStyle(primary).color, getComputedStyle(primary).backgroundColor),
+        shadow: sheetPage ? getComputedStyle(sheetPage).boxShadow : '',
+      };
+    });
+
+    await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+    const light = await measure();
+    expect(light.inkRatio).toBeGreaterThanOrEqual(4.5);
+    expect(light.mutedRatio).toBeGreaterThanOrEqual(4.5);
+    expect(light.ctaRatio).toBeGreaterThanOrEqual(4.5);
+    expect(light.shadow).not.toContain('rgba(0, 0, 0, 0.5)');
+
+    await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+    const dark = await measure();
+    expect(dark.inkRatio).toBeGreaterThanOrEqual(4.5);
+    expect(dark.mutedRatio).toBeGreaterThanOrEqual(4.5);
+    expect(dark.ctaRatio).toBeGreaterThanOrEqual(4.5);
+  });
 });
