@@ -90,6 +90,33 @@ export interface LayoutReader {
 
 export type AppLanguage = 'en' | 'ro' | 'de' | 'es' | 'fr' | 'it' | 'pt-BR';
 
+export type ScoreLayoutMode = 'fit' | 'page' | 'cont';
+
+export interface FitWidthLayoutParams {
+  readonly sheetWidth: number;
+  readonly zoom: number;
+  readonly pageFormat: 'Endless';
+  readonly renderSingleHorizontalStaffline: false;
+  readonly pageMargins: { readonly left: number; readonly right: number; readonly top: number };
+}
+
+export function defaultScoreLayoutForViewport(viewportWidth: number): ScoreLayoutMode {
+  return viewportWidth <= 680 ? 'fit' : 'page';
+}
+
+export function computeFitWidthLayout(containerWidth: number, userZoom: number, baseZoom: number): FitWidthLayoutParams {
+  const sheetWidth = Math.max(260, Math.floor(containerWidth));
+  const refScale = Math.max(0.78, Math.min(1.05, sheetWidth / 440));
+  const zoom = Math.round(Math.max(0.55, Math.min(1.6, baseZoom * refScale * userZoom)) * 1000) / 1000;
+  return {
+    sheetWidth,
+    zoom,
+    pageFormat: 'Endless',
+    renderSingleHorizontalStaffline: false,
+    pageMargins: { left: 1.5, right: 1.5, top: 1.5 },
+  };
+}
+
 let osmdPromise: Promise<OsmdModule> | null = null;
 
 export interface OsmdModule {

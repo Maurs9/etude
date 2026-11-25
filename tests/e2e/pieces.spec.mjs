@@ -760,3 +760,33 @@ test('desktop toolbar stays on one row, Tempo adjusts in 5% steps with click res
   await page.locator('#an-study-mode button[data-study="listen"]').click();
   await expect(page.locator('#an-prac-line')).toBeHidden();
 });
+
+test('narrow mobile viewports default to Fit width layout with larger notes and switch cleanly to Page and back', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  await openPiece(page, 'brahms');
+
+  await expect(page.locator('#an-roll')).toHaveAttribute('data-layout', 'fit');
+  const fitMetrics = await page.evaluate(() => ({
+    zoom: window.__etude.SCORE.engine.getZoom(),
+    sheetW: document.querySelector('#an-roll .an-sheet')?.getBoundingClientRect().width ?? 0,
+    rollW: document.getElementById('an-roll').clientWidth,
+  }));
+  expect(fitMetrics.sheetW).toBeGreaterThan(320);
+  expect(fitMetrics.sheetW).toBeLessThanOrEqual(fitMetrics.rollW);
+
+  await page.locator('#an-disp-btn').click();
+  await page.locator('#an-mode button[data-score-mode="page"]').click();
+  await expect(page.locator('#an-roll')).toHaveAttribute('data-layout', 'page');
+  const pageZoom = await page.evaluate(() => window.__etude.SCORE.engine.getZoom());
+  expect(fitMetrics.zoom).toBeGreaterThan(pageZoom * 1.3);
+
+  await page.locator('#an-mode button[data-score-mode="fit"]').click();
+  await expect(page.locator('#an-roll')).toHaveAttribute('data-layout', 'fit');
+  await page.locator('#an-disp-btn').click();
+  await page.evaluate(() => {
+    const firstHead = document.querySelector('#an-roll .vf-notehead[data-i]');
+    if (firstHead) firstHead.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  await expect(page.locator('#st-bar')).not.toBeEmpty();
+});

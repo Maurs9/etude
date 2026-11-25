@@ -1741,6 +1741,8 @@ const payload: UIPayload = {
       "sc_play_k": "Wiedergabe (Leertaste)",
       "sc_pause_k": "Pause (Leertaste)",
       "sc_stop_k": "Stoppen und zum Auswahlbeginn zurückkehren",
+      "sc_v_fit": "Anpassen",
+      "sc_v_fit_t": "Breitenanpassung: größere Noten passend zur Bildschirmbreite",
       "sc_v_page_t": "Seitenansicht: A4-Seiten, nach unten scrollen",
       "sc_v_cont_t": "Fortlaufende Ansicht: eine lange Zeile, seitlich scrollen",
       "fall_mode_t": "Herabfallende Noten über einer Klaviatur",

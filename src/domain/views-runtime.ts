@@ -12864,7 +12864,7 @@ function anLibraryCapture(): LibraryResume | null {
         speed: +(selectById('score-speed').value || 100),
         hands: PRAC.hands === 'rh' ? 'rh' : PRAC.hands === 'lh' ? 'lh' : 'both',
         wait: PRAC.wait, metronome: PRAC.metro,
-        view: FALL.mode === 'fall' ? 'fall' : SCORE.layout === 'cont' ? 'cont' : 'page',
+        view: FALL.mode === 'fall' ? 'fall' : SCORE.layout,
         look: SCORE.look === 'night' ? 'night' : 'paper', zoom: anZoomNow(),
     };
     if (anLibraryDirty.has(active.id) || anLibrarySaved.get(active.id) !== JSON.stringify(resume))
@@ -13412,13 +13412,14 @@ interface ScoreState {
     xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoopState | null;
     tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoTimes?: number[]; tempoTimesFor?: readonly { beat: number; bpm: number; }[] | null;
     tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
-    heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
+    heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: notationApi.ScoreLayoutMode; stale: boolean; layoutWidth: number;
     geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; run?: PracticeCarry | null; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
     followSys: number; followCheckedAt: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
     markGeo?: ScoreGeometry | null; markSig?: string; renderedSig?: string; pedalsOk?: boolean; hasPaint?: boolean; cursorStyle?: ScoreCursorStyleState | null;
 }
+let scoreLayoutExplicit = false;
 const SCORE: ScoreState = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playing: false, sel: false, loop: null, tempos: [{ beat: 0, bpm: 120 }], tempoList: [{ beat: 0, bpm: 120 }], tempoFromFile: false,
-    measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: 'page', stale: false, layoutWidth: 0,
+    measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: notationApi.defaultScoreLayoutForViewport(window.innerWidth), stale: false, layoutWidth: 0,
     geo: null, mrange: null, resume: null, paused: false, cursorEl: null, followSys: -1, followCheckedAt: -Infinity, panAt: 0, hl: false };
 // sel: a note picked by hand (blue, like the playback line); lit: a sounding note, gold, only with "Highlight sounding notes" on
 const SCORE_LOOK = { paper: { bg: '#fffefa', ink: '#000000', staff: undefined, sel: '#1a6fe0', lit: '#a47720', ok: '#1b8f4c', bad: '#d22f2f', dim: '#b9b2a6' }, night: { bg: '#1d1a17', ink: '#ece5d8', staff: '#a1988a', sel: '#7fb2ff', lit: '#e8bb5c', ok: '#6fdc9a', bad: '#ff7a7a', dim: '#5d574f' } }; // MuseScore-blue selection
@@ -13678,7 +13679,9 @@ async function scoreRender()  {
 let scoreLayoutGeneration = 0;
 let scorePendingSignature = '';
 let scoreLayoutPending: Promise<boolean> | null = null;
-const SCORE_BASE_MARGINS = new WeakMap<object, { top?: number; title?: number }>();
+const SCORE_BASE_MARGINS = new WeakMap<object, {
+    top?: number; title?: number; left?: number; right?: number;
+}>();
 function scoreLayout() {
     const engine = SCORE.engine, box = byId('an-roll');
     if (!engine)
@@ -13689,20 +13692,23 @@ function scoreLayout() {
         box.hidden = FALL.mode !== 'score';
         return;
     }
-    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R: ScoreEngravingRules = {}, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
+    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', fit = SCORE.layout === 'fit', R: ScoreEngravingRules = {}, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
     let baseMargins = SCORE_BASE_MARGINS.get(engine);
     if (!baseMargins) {
         const cur = engine.readRules();
         baseMargins = {
             top: typeof cur.PageTopMargin === 'number' ? cur.PageTopMargin : undefined,
             title: typeof cur.TitleTopDistance === 'number' ? cur.TitleTopDistance : undefined,
+            left: typeof cur.PageLeftMargin === 'number' ? cur.PageLeftMargin : undefined,
+            right: typeof cur.PageRightMargin === 'number' ? cur.PageRightMargin : undefined,
         };
         SCORE_BASE_MARGINS.set(engine, baseMargins);
     }
     box.dataset.layout = SCORE.layout;
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const sourceLayout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
-    const sheetW = Math.max(240, Math.round(Math.min(pageW, avail) * SCORE.zoom));
+    const fitParams = fit ? notationApi.computeFitWidthLayout(avail, SCORE.zoom, base) : null;
+    const sheetW = fitParams ? fitParams.sheetWidth : Math.max(240, Math.round(Math.min(pageW, avail) * SCORE.zoom));
     if (sheet instanceof HTMLElement) {
         if (pinchBaseZoom === null) {
             sheet.style.transform = '';
@@ -13710,8 +13716,8 @@ function scoreLayout() {
         }
         sheet.style.width = cont ? '' : sheetW + 'px';
     }
-    const landShort = !cont && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
-    const xmlBreaks = !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml);
+    const landShort = !cont && !fit && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
+    const xmlBreaks = !cont && !fit && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml);
     const renderSig = [SCORE.version, SCORE.layout, SCORE.look, SCORE.zoom, avail, landShort ? 1 : 0, xmlBreaks ? 1 : 0].join('|');
     if (scorePendingSignature === renderSig) return scoreLayoutPending ?? true;
     if (!SCORE.stale && SCORE.renderedSig === renderSig && box.querySelector('svg')) {
@@ -13723,26 +13729,37 @@ function scoreLayout() {
         scorePaint();
         return SCORE.pedalsOk ?? true;
     }
-    engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: cont ? 'Endless' : 'A4_P', renderSingleHorizontalStaffline: cont, drawTitle: !cont, drawSubtitle: !cont, drawComposer: !cont, drawLyricist: !cont });
-    if (!cont && sourceLayout)
-        engine.setCustomPageFormat(sourceLayout.pageWidth, sourceLayout.pageHeight);
-    if (landShort) {
-        R.PageTopMargin = Math.min(baseMargins.top ?? 6, 1.5);
-        R.TitleTopDistance = Math.min(baseMargins.title ?? 4, 1.2);
+    if (fitParams) {
+        engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: fitParams.pageFormat, renderSingleHorizontalStaffline: false, drawTitle: true, drawSubtitle: true, drawComposer: true, drawLyricist: true });
+        R.PageLeftMargin = fitParams.pageMargins.left;
+        R.PageRightMargin = fitParams.pageMargins.right;
+        R.PageTopMargin = fitParams.pageMargins.top;
+        if (baseMargins.title != null) R.TitleTopDistance = baseMargins.title;
     }
     else {
-        if (baseMargins.top != null)
-            R.PageTopMargin = baseMargins.top;
-        if (baseMargins.title != null)
-            R.TitleTopDistance = baseMargins.title;
+        engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: cont ? 'Endless' : 'A4_P', renderSingleHorizontalStaffline: cont, drawTitle: !cont, drawSubtitle: !cont, drawComposer: !cont, drawLyricist: !cont });
+        if (!cont && sourceLayout)
+            engine.setCustomPageFormat(sourceLayout.pageWidth, sourceLayout.pageHeight);
+        if (baseMargins.left != null) R.PageLeftMargin = baseMargins.left;
+        if (baseMargins.right != null) R.PageRightMargin = baseMargins.right;
+        if (landShort) {
+            R.PageTopMargin = Math.min(baseMargins.top ?? 6, 1.5);
+            R.TitleTopDistance = Math.min(baseMargins.title ?? 4, 1.2);
+        }
+        else {
+            if (baseMargins.top != null)
+                R.PageTopMargin = baseMargins.top;
+            if (baseMargins.title != null)
+                R.TitleTopDistance = baseMargins.title;
+        }
     }
     R.StaffLineColor = look.staff;
     R.RenderMeasureNumbersOnlyAtSystemStart = !cont;
     R.MeasureNumberLabelOffset = cont ? 1 : 2;
     engine.updateRules(R);
     // A page narrower than A4 × zoom is the same A4 page scaled down: the staff space shrinks with it, so every
-    // system keeps its bars and every page its systems whatever the panel width.
-    engine.setZoom(cont ? SCORE.zoom * base : sheetW / pageW * base);
+    // system keeps its bars and every page its systems whatever the panel width. Fit mode instead lets OSMD wrap cleanly.
+    engine.setZoom(fitParams ? fitParams.zoom : cont ? SCORE.zoom * base : sheetW / pageW * base);
     scoreRingFit(engine.getZoom());
     const finish = () => {
         if (!box.clientWidth) {
@@ -15796,7 +15813,7 @@ function scoreSetView(v: string|undefined) {
         saveAll();
         return;
     }
-    const lay = v === 'cont' ? 'cont' : 'page';
+    const lay: notationApi.ScoreLayoutMode = v === 'cont' ? 'cont' : v === 'fit' ? 'fit' : 'page';
     if (lay !== SCORE.layout) {
         SCORE.layout = lay;
         byId('an-roll').dataset.layout = lay;
@@ -17247,6 +17264,9 @@ async function anCommit(src: AnSource, token: number, recon?: LibraryResume['rec
         }
     }
     anIndex();
+    if (!scoreLayoutExplicit) {
+        SCORE.layout = notationApi.defaultScoreLayoutForViewport(window.innerWidth);
+    }
     let ok = false;
     try {
         ok = await scoreRender();
@@ -18668,6 +18688,18 @@ function anStageFit() {
         fallDraw();
         return;
     }
+    if (!scoreLayoutExplicit) {
+        const want = notationApi.defaultScoreLayoutForViewport(window.innerWidth);
+        if (want !== SCORE.layout) {
+            SCORE.layout = want;
+            byId('an-roll').dataset.layout = want;
+            SCORE.stale = !!SCORE.engine;
+            if (SCORE.engine)
+                scoreLayout();
+            anUpdateControls();
+            return;
+        }
+    }
     const box = byId('an-roll'), sheet = queryHtml(box, '.an-sheet');
     if (!SCORE.engine || !box.clientWidth || !sheet)
         return;
@@ -18677,7 +18709,8 @@ function anStageFit() {
         return;
     }
     const cs = getComputedStyle(box), avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    if (Math.abs(sheet.offsetWidth - Math.max(240, Math.round(Math.min(SC_PAGE_W * SCORE.zoom, avail)))) > 2)
+    const wantW = SCORE.layout === 'fit' ? Math.max(260, Math.floor(avail)) : Math.max(240, Math.round(Math.min(SC_PAGE_W * SCORE.zoom, avail)));
+    if (Math.abs(sheet.offsetWidth - wantW) > 2)
         scoreLayout();
 }
 // The panel's left edge resizes it: drag, or arrow keys on the focused separator (Home / End for the narrowest / widest).
@@ -18828,8 +18861,10 @@ function anInitControls() {
         if (!b || !b.dataset.study) return;
         pracSet('wait', b.dataset.study === 'practice');
     });
-    queryAllHtml(document, '[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!(b instanceof HTMLButtonElement && b.disabled))
-        scoreSetView(b.dataset.scoreMode); }));
+    queryAllHtml(document, '[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!(b instanceof HTMLButtonElement && b.disabled)) {
+        scoreLayoutExplicit = true;
+        scoreSetView(b.dataset.scoreMode);
+    } }));
     byId('sc-zoom-out').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() - 0.1); });
     byId('sc-zoom-in').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() + 0.1); });
     byId('sc-zoom-reset').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(1); });
@@ -20344,8 +20379,9 @@ function applyTopLevelPrefs(raw: storage.PttV3Payload) {
         SCORE.look = raw.scoreLook;
     if (typeof raw.scoreHl === 'boolean')
         SCORE.hl = raw.scoreHl;
-    if (raw.scoreView === 'page' || raw.scoreView === 'cont') {
+    if (raw.scoreView === 'fit' || raw.scoreView === 'page' || raw.scoreView === 'cont') {
         SCORE.layout = raw.scoreView;
+        scoreLayoutExplicit = true;
         FALL.mode = 'score';
     }
     else if (raw.scoreView === 'fall')

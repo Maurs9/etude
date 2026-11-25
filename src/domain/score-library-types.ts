@@ -13,7 +13,7 @@ export interface LibraryResume {
   hands: 'both' | 'rh' | 'lh';
   wait: boolean;
   metronome: boolean;
-  view: 'page' | 'cont' | 'fall';
+  view: 'fit' | 'page' | 'cont' | 'fall';
   look: 'paper' | 'night';
   zoom: number;
 }

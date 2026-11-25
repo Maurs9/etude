@@ -808,6 +808,8 @@ const payload: UIPayload = {
       "an_kb_fall": "Falling notes have their own keyboard",
       "sc_v_page": "Page",
       "sc_v_cont": "Continuous",
+      "sc_v_fit": "Fit width",
+      "sc_v_fit_t": "Fit width view: larger notes wrapped cleanly to your screen width",
       "sc_v_page_t": "Page view: A4 pages, scroll down",
       "sc_v_cont_t": "Continuous view: one long line, scroll sideways",
       "fall_mode_t": "Falling notes over a piano keyboard",

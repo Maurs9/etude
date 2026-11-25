@@ -1617,6 +1617,8 @@ const payload: UIPayload = {
       "sc_stop_k": "Ferma e torna all'inizio della selezione",
       "sc_v_page": "Pagina",
       "sc_v_cont": "Continua",
+      "sc_v_fit": "Adatta larghezza",
+      "sc_v_fit_t": "Adatta alla larghezza: note più grandi adattate allo schermo",
       "sc_v_page_t": "Vista a pagine: fogli A4, scorrimento verticale",
       "sc_v_cont_t": "Vista continua: un rigo continuo, scorrimento orizzontale",
       "fall_mode_t": "Note a cascata sopra una tastiera",

@@ -1401,6 +1401,8 @@ const payload: UIPayload = {
       "sc_v_cont": "Continu",
       "sc_v_cont_t": "Vue continue : une seule longue ligne, défilement horizontal",
       "sc_v_page": "Page",
+      "sc_v_fit": "Ajuster à la largeur",
+      "sc_v_fit_t": "Ajuster à la largeur : notes plus grandes adaptées à votre écran",
       "sc_v_page_t": "Vue page : pages A4, défilement vertical",
       "sc_zoom": "Zoom",
       "sc_zoom_in": "Zoom avant (+)",

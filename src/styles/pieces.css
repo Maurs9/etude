@@ -122,6 +122,9 @@ body[data-stage=pieces] #an-panel{margin-top:0 !important; border-radius:0; bord
 /* Bound score noteheads: style via CSS rather than thousands of inline style writes during layout. */
 #an-roll .vf-notehead[data-i]{cursor:pointer; pointer-events:bounding-box}
 
+.an-score[data-layout="fit"]{padding:10px 8px 18px}
+.an-score[data-layout="fit"] .an-sheet > div{margin-bottom:0}
+
 /* Reading: the generated melody's title, and the tab before the first melody */
 .rd-gen-title{margin:12px 0 0; font:600 19px/1.25 var(--serif); color:var(--ink)}
 .rd-gen-title:empty{display:none}

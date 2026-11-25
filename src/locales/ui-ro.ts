@@ -808,6 +808,8 @@ const payload: UIPayload = {
       "an_kb_fall": "Notele căzătoare au propria claviatură",
       "sc_v_page": "Pagină",
       "sc_v_cont": "Continuu",
+      "sc_v_fit": "Adaptat la lățime",
+      "sc_v_fit_t": "Adaptat la lățime: note mai mari, încadrate pe lățimea ecranului",
       "sc_v_page_t": "Vizualizare pe pagini: pagini A4, derulare în jos",
       "sc_v_cont_t": "Vizualizare continuă: un singur rând lung, derulare laterală",
       "fall_mode_t": "Note căzătoare deasupra unei claviaturi de pian",

@@ -33,6 +33,11 @@ describe('local library validation boundary', () => {
   ])('rejects malformed checkpoints %#', patch => {
     expect(() => validateLibraryResume({ ...resume, ...patch })).toThrow(LibraryError);
   });
+  it('allows fit, page, cont, and fall layout views in checkpoints', () => {
+    for (const view of ['fit', 'page', 'cont', 'fall']) {
+      expect(validateLibraryResume({ ...resume, view }).view).toBe(view);
+    }
+  });
   it.each([40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125])('stores speed as the supported percent %s', speed => {
     expect(validateLibraryResume({ ...resume, speed }).speed).toBe(speed);
   });

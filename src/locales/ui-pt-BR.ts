@@ -1401,6 +1401,8 @@ const payload: UIPayload = {
       "sc_v_cont": "Contínuo",
       "sc_v_cont_t": "Visualização contínua: uma única linha longa, rolagem lateral",
       "sc_v_page": "Página",
+      "sc_v_fit": "Ajustar à largura",
+      "sc_v_fit_t": "Ajustar à largura: notas maiores adaptadas à sua tela",
       "sc_v_page_t": "Visualização em página: páginas A4, rolagem vertical",
       "sc_zoom": "Zoom",
       "sc_zoom_in": "Aproximar (+)",
