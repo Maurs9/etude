@@ -357,6 +357,8 @@ const payload: UIPayload = {
       "rd_srt_symbol_bad": "Verfehlte oder verspätete Note",
       "rd_srt_symbol_extra": "Zusatzanschlag",
       "rd_tempo": "Tempo",
+      "rd_tempo_down": "Tempo senken",
+      "rd_tempo_up": "Tempo erhöhen",
       "an_eyebrow": "Partiturstudium",
       "an_file": "Datei öffnen",
       "tb_label": "Partitursteuerung",

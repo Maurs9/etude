@@ -972,6 +972,8 @@ const payload: UIPayload = {
       "rd_srt_symbol_bad": "Notă ratată sau întârziată",
       "rd_srt_symbol_extra": "Atac suplimentar",
       "rd_tempo": "Tempo",
+      "rd_tempo_down": "Scade tempo-ul",
+      "rd_tempo_up": "Crește tempo-ul",
       "rd_level": "Nivel",
       "rd_count": "Pregătește-te…",
       "rd_play": "Cântă!",

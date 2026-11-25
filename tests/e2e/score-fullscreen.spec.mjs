@@ -63,6 +63,75 @@ test('Read native Escape leaves expansion without stopping an active attempt or 
   expect(await page.evaluate(() => ({ id: window.__etude.SR.srtState.attemptId, active: window.__etude.SR.active, concealed: document.querySelector('#rd-staff').getAttribute('aria-hidden') }))).toEqual(before);
 });
 
+test('Read switches modes in both directions without leaving native fullscreen', async ({ app, page }) => {
+  await fullscreenBoundary(page, 'native');
+  await readPiece(app, page);
+  await page.locator('#rd-fs').click();
+  const mode = page.locator('#rd-stage-mode');
+  const learn = mode.getByRole('button', { name: 'Step by step' });
+  const assess = mode.getByRole('button', { name: 'Assessment' });
+  await expect(assess).toHaveAttribute('aria-pressed', 'true');
+  await learn.click();
+  await expect(learn).toHaveAttribute('aria-pressed', 'true');
+  await expect(assess).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#rd-go').click();
+  await page.evaluate(() => {
+    const api = window.__etude;
+    for (const step of api.SR.steps) {
+      for (const note of step.notes) {
+        api.handleNoteOn(note.midi, 100);
+        api.handleNoteOff(note.midi);
+      }
+    }
+  });
+  await expect(page.locator('#rdn-result')).toBeVisible();
+  await assess.click();
+  await expect(assess).toHaveAttribute('aria-pressed', 'true');
+  await expect(learn).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#rdn-result')).toBeHidden();
+  await page.locator('#rd-go').click();
+  await expect.poll(() => page.evaluate(() => window.__etude.SR.srtState.name)).toBe('countIn');
+
+  await learn.click();
+  await expect(learn).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => window.__etude.SR.active)).toBe(false);
+  expect(await page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
+  await expect(page.locator('body')).toHaveAttribute('data-score-focus', 'read');
+  await page.locator('#rd-top-fs').click();
+  await expect(page.locator('#rd-mode button[data-v=learn]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('Read tempo steps by one BPM within the slider limits in both layouts', async ({ app, page }) => {
+  await fullscreenBoundary(page);
+  await readPiece(app, page);
+  const tempo = page.getByRole('slider', { name: 'Tempo' });
+  const decrease = page.getByRole('button', { name: 'Decrease tempo' });
+  const increase = page.getByRole('button', { name: 'Increase tempo' });
+  const expectTempo = async (bpm) => {
+    await expect(tempo).toHaveValue(String(bpm));
+    await expect(page.locator('#rd-bpmLbl')).toHaveText(String(bpm));
+    expect(await page.evaluate(() => window.__etude.SR.bpm)).toBe(bpm);
+  };
+
+  await tempo.press('Home');
+  await decrease.click();
+  await expectTempo(40);
+  await increase.click();
+  await expectTempo(41);
+  await page.locator('#rd-fs').click();
+  await expectTempo(41);
+  await tempo.press('End');
+  await increase.click();
+  await expectTempo(160);
+  await decrease.click();
+  await expectTempo(159);
+
+  await page.locator('#rd-stage-mode button[data-v=learn]').click();
+  await page.locator('#rd-go').click();
+  await decrease.click();
+  await expectTempo(159);
+});
+
 test('Pieces keeps its run and selection when expanding; a rejected native request keeps the usable layout', async ({ app, page }) => {
   await fullscreenBoundary(page, 'rejected');
   await app.open({ hash: 'analysis' });
@@ -188,7 +257,7 @@ for (const size of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
     await fullscreenBoundary(page);
     await readPiece(app, page);
     await page.locator('#rd-fs').click();
-    for (const id of ['rd-top-fs', 'rd-focus-fit', 'rd-focus-kb', 'rd-go'])
+    for (const id of ['rd-top-fs', 'rd-focus-fit', 'rd-focus-kb', 'rd-stage-mode', 'rd-go', 'rd-bpm-down', 'rd-bpm-up'])
       await expect(page.locator('#' + id)).toBeInViewport();
     await expect.poll(() => page.evaluate(() => document.querySelector('#rd-focus-tools').getBoundingClientRect().bottom <= document.querySelector('#rd-staff').getBoundingClientRect().top)).toBe(true);
     await expect.poll(() => page.evaluate(() => document.querySelector('#rd-staff svg').getBoundingClientRect().width <= document.querySelector('#rd-staff').clientWidth)).toBe(true);

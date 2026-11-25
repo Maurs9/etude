@@ -10134,7 +10134,7 @@ function rdSightStart(mode: string, injectedSeed?: number) {
     RD.on = false;
     rdTab('pieces');
     SR.modeSel = mode === 'test' ? 'assess' : 'learn';
-    [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
+    srModeUi();
     srSelectPiece('gen');
     if (mode !== 'test')
         srtConsumeOnLearnReveal();
@@ -11918,7 +11918,7 @@ function rdnOpen(ctx: RdnCtx, focus: 'title' | 'keep' = 'title', startInFocus?: 
     srNoteStartHold();
     rdTab('pieces', 'player');
     SR.modeSel = RDN.playerMode;
-    [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
+    srModeUi();
     rdnResultHide();
     srShowPiece(SR.gen);
     rdnPlayerHead();
@@ -12009,7 +12009,7 @@ function rdnForgetLevelPiece() {
     if (RDN.melodyMode !== null) {
         SR.modeSel = RDN.melodyMode;
         RDN.melodyMode = null;
-        [...byId('rd-mode').children].forEach((b) => b.setAttribute('aria-pressed', b instanceof HTMLElement && b.dataset.v === SR.modeSel ? 'true' : 'false'));
+        srModeUi();
     }
 }
 /** Leaves the player: the attempt stops and the pieces panel is empty again, as before any melody. */
@@ -12442,14 +12442,24 @@ function srNextAssess(pct: number): CoachTip | null {
     }
     return { k: 'rn_a_good' };
 }
+const srModeControls = ['rd-mode', 'rd-stage-mode'] as const;
+function srModeUi() {
+    for (const id of srModeControls) {
+        for (const button of byId(id).querySelectorAll('button'))
+            button.setAttribute('aria-pressed', String(button.dataset.v === SR.modeSel));
+    }
+}
 function srSetMode(v: string) {
     if (srtPendingSaveProtected())
         return;
+    const changed = SR.modeSel !== v;
     SR.modeSel = v;
     if (SR.lvPiece)
         RDN.playerMode = v;
-    [...byId('rd-mode').children].forEach((x) => x.setAttribute('aria-pressed', x instanceof HTMLElement && x.dataset.v === v ? 'true' : 'false'));
+    srModeUi();
     srStopAll();
+    if (changed)
+        rdnResultHide();
     const practiceOnly = v === 'assess' && srtGeneratedSelected() &&
         (SR.srtState?.mode === 'practice' || SR.srtState?.name === 'abandoned' || SR.srtState?.name === 'interrupted');
     if (v === 'learn' && srtGeneratedSelected())
@@ -20304,12 +20314,13 @@ function initControls() {
     };
     byId('rd-hands').addEventListener('click', onHandsClick);
     maybeById('rd-stage-hands')?.addEventListener('click', onHandsClick);
-    byId('rd-mode').addEventListener('click', (e) => {
-        const b = eventClosest(e, 'button');
-        if (!b || srtPendingSaveProtected())
-            return;
-        srSetMode(b.dataset.v ?? SR.modeSel);
-    });
+    for (const id of srModeControls) {
+        byId(id).addEventListener('click', (e) => {
+            const mode = eventClosest(e, 'button')?.dataset.v;
+            if (mode === 'learn' || mode === 'assess')
+                srSetMode(mode);
+        });
+    }
     byId('rd-names').addEventListener('change', (e) => {
         if (srtPendingSaveProtected()) {
             wiringInput(e).checked = SR.names;
@@ -20361,13 +20372,24 @@ function initControls() {
         }
         saveAll();
     });
-    byId('rd-bpm').addEventListener('input', (e) => { if (srtPendingSaveProtected()) {
-        wiringField(e).value = String(SR.bpm);
-        return;
-    } if (SR.active || SR.listening) {
-        wiringField(e).value = String(SR.bpm);
-        return;
-    } byId('rd-bpmLbl').textContent = wiringField(e).value; SR.bpm = +wiringField(e).value; });
+    const tempo = inputById('rd-bpm');
+    const syncTempo = () => {
+        if (srtPendingSaveProtected() || SR.active || SR.listening) {
+            tempo.value = String(SR.bpm);
+            return;
+        }
+        SR.bpm = tempo.valueAsNumber;
+        byId('rd-bpmLbl').textContent = tempo.value;
+    };
+    tempo.addEventListener('input', syncTempo);
+    byId('rd-bpm-down').addEventListener('click', () => {
+        tempo.stepDown();
+        syncTempo();
+    });
+    byId('rd-bpm-up').addEventListener('click', () => {
+        tempo.stepUp();
+        syncTempo();
+    });
     byId('rd-go').addEventListener('click', srGo);
     maybeById('rd-stage-end')?.addEventListener('click', () => {
         srGo();
