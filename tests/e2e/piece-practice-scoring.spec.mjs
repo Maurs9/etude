@@ -118,3 +118,76 @@ for (const withPedal of [true, false]) {
     await expect(page.locator('#pr-sum-sustain')).toBeHidden();
   });
 }
+
+test('See mistakes lists measure-grouped errors, jumps to the measure with symbol+text, and Repeat passage sets clamped A-B loop', async ({ app, page }) => {
+  await app.open({ hash: 'analysis' });
+  const multiBarXml = `<score-partwise version="4.0">
+    <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+    <part id="P1">
+      <measure number="1"><attributes><divisions>1</divisions><time><beats>2</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes><direction><sound tempo="120"/></direction>${note('C')}${note('D')}</measure>
+      <measure number="2">${note('E')}${note('F')}</measure>
+      <measure number="3">${note('G')}${note('A')}</measure>
+      <measure number="4">${note('B')}${note('C')}</measure>
+    </part>
+  </score-partwise>`;
+  await page.locator('#an-file').setInputFiles({ name: 'four-bars.musicxml', mimeType: 'application/xml', buffer: Buffer.from(multiBarXml) });
+  await expect.poll(() => page.evaluate(() => window.__etude.SCORE.measures.length)).toBe(4);
+  await expect(page.locator('#an-roll svg').first()).toBeVisible();
+
+  await page.evaluate(async () => {
+    const api = window.__etude;
+    api.pracSet('wait', false);
+    await api.scorePlay(false, 0);
+    const run = api.SCORE.run;
+    const audio = api.actx;
+    let now = run.segs[0].a0;
+    Object.defineProperty(audio, 'currentTime', { configurable: true, get: () => now });
+    const seek = (beat, offset = 0) => {
+      const s = run.segs[0];
+      now = s.a0 + (api.scoreSeconds(beat) - s.t0) / s.f + offset;
+      api.pracTick();
+    };
+    try {
+      // Bar 1 clean (C4, D4)
+      seek(0); api.midiIn(0x90, 60, 100, 'midi'); api.midiIn(0x80, 60, 0, 'midi');
+      seek(1); api.midiIn(0x90, 62, 100, 'midi'); api.midiIn(0x80, 62, 0, 'midi');
+      // Bar 2 (beats 2-3): extra C#4 on beat 2, miss beat 3 F4
+      seek(2); api.midiIn(0x90, 64, 100, 'midi'); api.midiIn(0x80, 64, 0, 'midi');
+      seek(2, 0.05); api.midiIn(0x90, 61, 100, 'midi'); api.midiIn(0x80, 61, 0, 'midi');
+      // Bar 3 & 4 played cleanly
+      seek(4); api.midiIn(0x90, 67, 100, 'midi'); api.midiIn(0x80, 67, 0, 'midi');
+      seek(5); api.midiIn(0x90, 69, 100, 'midi'); api.midiIn(0x80, 69, 0, 'midi');
+      seek(6); api.midiIn(0x90, 71, 100, 'midi'); api.midiIn(0x80, 71, 0, 'midi');
+      seek(7); api.midiIn(0x90, 60, 100, 'midi'); api.midiIn(0x80, 60, 0, 'midi');
+      const s = run.segs[0];
+      now = s.a0 + (run.b - s.t0) / s.f + .301;
+      api.pracTick();
+    } finally {
+      Reflect.deleteProperty(audio, 'currentTime');
+    }
+  });
+
+  const seeBtn = page.locator('#pr-see-mistakes');
+  await expect(seeBtn).toBeVisible();
+  await seeBtn.click();
+  await expect(page.locator('#pr-mistakes-panel')).toBeVisible();
+  const bar2Row = page.locator('#pr-mistakes-list .pr-mistake-item').first();
+  await expect(bar2Row).toContainText('Bar 2');
+  await expect(bar2Row).toContainText(/Extra|Missed/);
+
+  await bar2Row.locator('[data-mistake-jump]').click();
+  await expect(page.locator('#pr-sum')).toBeHidden();
+  await expect(page.locator('#sc-mistake-bar')).toBeVisible();
+  await expect(page.locator('#sc-mistake-bar')).toContainText('⚠');
+  await expect(page.locator('#sc-mistake-txt')).toContainText('Bar 2');
+  expect(await page.evaluate(() => [window.__etude.SCORE.mrange?.a, window.__etude.SCORE.mrange?.b])).toEqual([1, 1]);
+
+  await page.locator('#sc-mistake-repeat').click();
+  const ab = await page.evaluate(() => {
+    const E = window.__etude;
+    return [E.PRAC.A, E.PRAC.B, E.scoreSeconds(E.SCORE.measures[0].start), E.scoreSeconds(E.SCORE.measures[2].end)];
+  });
+  // Bar 2 (index 1) passage with +-1 context -> Bars 1..3 (indices 0..2)
+  expect(ab[0]).toBeCloseTo(ab[2], 3);
+  expect(ab[1]).toBeCloseTo(ab[3], 3);
+});

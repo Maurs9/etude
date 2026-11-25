@@ -12,6 +12,7 @@ import type { PracticeHintsTopic } from './practice-hints-view.js';
 import type { StudyHintState } from './practice-study-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
 import { gradePracticeSustain, practiceAccuracy as pracAcc, practicePercent, practiceSustainReference, type TimedSustain } from './practice-scoring.js';
+import { classifyUnmatchedKeyPress, extractSustainMistakes, groupPracticeMistakes, practicePassageBounds, type MeasureMistakeGroup, type PracticeMistakeEvent } from './practice-mistakes.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
@@ -14736,7 +14737,7 @@ interface PracticeRun extends PracticeStartOptions {
     outputHistory?: PracticeSegment[];
     outputTime?: number;
     segs: PracticeSegment[]; ni: number; beats: PracticeBeat[]; bi: number; beat0: number; wt: number; pass: number; mine: PracticeTimedNote[]; mi: number;
-    judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean; origin?: number;
+    judged: Map<number, string>; mistakes: PracticeMistakeEvent[]; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean; origin?: number;
 }
 // A whole-piece run held over a pause: what Play needs to carry on with the same run (pracStart), if nothing else changed.
 interface PracticeCarry {
@@ -14745,7 +14746,7 @@ interface PracticeCarry {
     completed?: Set<number>;
     route?: { a: number; b: number }[];
     notes: AnNote[]; src: AnSource | null; at: number; origin: number; hands: string; wait: boolean; f: number;
-    judged: Map<number, string>; stats: PracticeStats; active: boolean; res: Map<number, string>;
+    judged: Map<number, string>; mistakes: PracticeMistakeEvent[]; stats: PracticeStats; active: boolean; res: Map<number, string>;
 }
 // The coaching tip shown after a run, with its optional one-click action.
 interface PracticeNextStep { k: string; args?: () => (string | number)[]; act?: { k: string; args?: () => (string | number)[]; run: () => void } | null }
@@ -14753,6 +14754,7 @@ interface PracticeState {
     hands: string; wait: boolean; metro: boolean; metroOnly: boolean; countIn: boolean; acc: boolean; hear: boolean; expressive: boolean; ramp: boolean; A: number | null; B: number | null;
     labels: string; pal: string; range: string; fx: boolean; bar: PracticeBarrier | null; active: boolean; stats: PracticeStats | null;
     res: Map<number, string>; judge: string; judgeT: number; next: PracticeNextStep | null;
+    lastMistakes?: MeasureMistakeGroup[];
     names: boolean; // note names on the engraved score (scoreNamesSync)
 }
 const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, metroOnly: false, countIn: false, acc: true, hear: true, expressive: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
@@ -14862,6 +14864,7 @@ function pracBeats() {
     return out;
 }
 function pracStatsReset() {
+    anHideMistakeBar();
     PRAC.stats = { perfect: 0, good: 0, miss: 0, wrong: 0, streak: 0, best: 0, passHit: 0, passAll: 0, lastPass: null };
     PRAC.active = pracWait();
     PRAC.judge = '';
@@ -14981,7 +14984,7 @@ async function pracStart(o: PracticeStartOptions)  {
             byPitch.set(note.n.midi, target);
         }
     }
-    const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
+    const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), mistakes: [], gen, ci, timer: 0 };
     if (o.loop) R.segs[0].p0 = 0;
     if (!o.loop && !o.sel) {
         const plan = performancePlan(), p = performanceRead(), at = performanceAt(plan, p.position);
@@ -14997,6 +15000,7 @@ async function pracStart(o: PracticeStartOptions)  {
         R.completed = c.completed ? new Set(c.completed) : undefined;
         R.origin = c.origin;
         R.judged = new Map(c.judged);
+        R.mistakes = [...(c.mistakes ?? [])];
         const earliest = R.pass === 1 ? c.origin : -Infinity;
         const next = mine.findIndex((d) => d.start >= earliest - 1e-6 && !R.judged.has(d.i));
         R.mi = next < 0 ? mine.length : next;
@@ -15045,7 +15049,7 @@ function pracCarry(at: number): PracticeCarry | null {
     if (!R || R.loop || R.sel || !st)
         return null;
     const index = Math.max(0, R.segs.indexOf(pracSegAt(R, audioEngine.context?.currentTime ?? 0)));
-    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: pracWait(), f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined, sustain: R.sustain };
+    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: pracWait(), f: R.segs[0].f, judged: new Map(R.judged), mistakes: [...R.mistakes], stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined, sustain: R.sustain };
 }
 function pracTick() {
     const R = SCORE.run;
@@ -15259,6 +15263,28 @@ function pracMisses(R: PracticeRun, time: number) {
             pracJudge(R, d, 'miss');
     }
 }
+function pracRecordMistake(
+    R: PracticeRun,
+    kind: PracticeMistakeEvent['kind'],
+    scoreTimeSec: number,
+    midi?: number,
+    noteIndex?: number,
+) {
+    const ms = anMeasures();
+    if (!ms.length) return;
+    const beat = scoreBeatAt(Math.max(0, scoreTimeSec));
+    const measureIndex = anMeasureIndex(ms, beat);
+    const m = ms[measureIndex];
+    R.mistakes.push({
+        measureIndex,
+        measureNumber: String(m?.number ?? measureIndex + 1),
+        pass: R.pass,
+        beat,
+        kind,
+        midi,
+        noteIndex,
+    });
+}
 function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | 'good' | 'miss' | 'wrong', extraMidi?: number) {
     const st = PRAC.stats;
     if (!st)
@@ -15274,6 +15300,8 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
         st.streak = 0;
     st.passAll++;
     if (d) {
+        if (j === 'miss')
+            pracRecordMistake(R, 'miss', d.start, d.n.midi, d.i);
         for (const index of [d.i, ...(d.unisons ?? [])]) {
             R.judged.set(index, j);
             PRAC.res.set(index, j === 'miss' ? 'miss' : 'hit');
@@ -15341,6 +15369,7 @@ function pracInput(kind: 'on' | 'off', midi: number, source: string) {
             }
             else {
                 if (waiting) {
+                    pracRecordMistake(R, 'extra', t, m);
                     pracJudge(R, null, 'wrong', m);
                     return;
                 }
@@ -15358,8 +15387,17 @@ function pracInput(kind: 'on' | 'off', midi: number, source: string) {
                 }
                 if (best)
                     pracJudge(R, best, Math.abs(best.start - time) < .09 * s.f ? 'perfect' : 'good');
-                else
+                else {
+                    const unmatchedKind = classifyUnmatchedKeyPress(
+                        m,
+                        time,
+                        R.mine.map((d) => ({ midi: d.n.midi, start: d.start, judged: R.judged.has(d.i) })),
+                        s.f,
+                        !!data.settings.anyOctave,
+                    );
+                    pracRecordMistake(R, unmatchedKind, time, m);
                     pracJudge(R, null, 'wrong', m);
+                }
             }
         }
     }
@@ -15470,6 +15508,90 @@ function pracSavedText(saved: PracticeSaved | null) {
     const best = saved.best == null ? '' : t(saved.newBest ? 'pc_best_new' : 'rd_best', saved.best);
     return [saved.learned ? '✓ ' + t('pc_learned') : '', best].filter(Boolean).join(' · ');
 }
+function anMistakeEventText(ev: PracticeMistakeEvent): string {
+    const label = ev.midi != null ? noteName(ev.midi, false) : '';
+    switch (ev.kind) {
+        case 'miss': return t('pr_mk_miss', label);
+        case 'extra': return t('pr_mk_extra', label);
+        case 'timing': return t('pr_mk_timing', label);
+        case 'pedal_miss': return t('pr_mk_pedal_miss');
+        case 'pedal_early': return t('pr_mk_pedal_early');
+        case 'pedal_late': return t('pr_mk_pedal_late');
+    }
+}
+function anMistakeGroupText(group: MeasureMistakeGroup, multiPass: boolean): string {
+    const head = t('st_bar', group.measureNumber) + (multiPass ? ' (' + t('pr_mk_pass', group.pass) + ')' : '');
+    const parts = [...new Set(group.events.map(anMistakeEventText))];
+    return `${head} · ${parts.join(', ')}`;
+}
+let scMistakeBarIdx: number | null = null;
+function anHideMistakeBar() {
+    scMistakeBarIdx = null;
+    const bar = maybeById('sc-mistake-bar');
+    if (bar) bar.hidden = true;
+}
+function anScrollMeasureIntoView(measureIndex: number) {
+    const g: ScoreGeometry | null = SCORE.geo, box = maybeById('an-roll');
+    const gm = g?.measures[measureIndex], sys = gm ? g?.systems[gm.sys] : null, page = sys ? g?.pages[sys.page] : null;
+    if (!g || !box || !gm || !sys || !page) return;
+    const b = box.getBoundingClientRect(), r = page.getBoundingClientRect();
+    if (SCORE.layout === 'cont') {
+        const x = r.left + gm.x0 * g.scale;
+        box.scrollTo({ left: Math.max(0, box.scrollLeft + (x - b.left) - b.width * 0.15), behavior: 'auto' });
+        return;
+    }
+    const top = r.top + (sys.top - 4) * g.scale;
+    box.scrollTo({ top: Math.max(0, box.scrollTop + (top - b.top) - Math.max(12, b.height * 0.12)), behavior: 'auto' });
+}
+function anJumpToMistake(group: MeasureMistakeGroup, multiPass: boolean) {
+    pracSumClose();
+    if (FALL.mode !== 'score') scoreSetView(SCORE.layout);
+    const ms = anMeasures();
+    const m = Math.max(0, Math.min(ms.length - 1, group.measureIndex));
+    if (!ms.length) return;
+    const targetSec = scoreSeconds(ms[m].start);
+    SCORE.mrange = { anchor: m, a: m, b: m, sig: '' };
+    scoreSeekTo(targetSec);
+    scoreMarks();
+    anScrollMeasureIntoView(m);
+    scMistakeBarIdx = m;
+    const bar = maybeById('sc-mistake-bar'), txt = maybeById('sc-mistake-txt');
+    if (bar && txt) {
+        txt.textContent = anMistakeGroupText(group, multiPass);
+        bar.hidden = false;
+    }
+}
+function anRepeatPassage(measureIndex: number) {
+    pracSumClose();
+    const ms = anMeasures();
+    if (!ms.length) return;
+    const { startIndex, endIndex } = practicePassageBounds(measureIndex, ms.length);
+    PRAC.A = scoreSeconds(ms[startIndex].start);
+    PRAC.B = scoreSeconds(ms[endIndex].end);
+    AN.selected.clear();
+    SCORE.mrange = null;
+    scoreSeekTo(PRAC.A);
+    anRenderPractice();
+    anUpdateControls();
+    scoreMarks();
+    anScrollMeasureIntoView(startIndex);
+    anHideMistakeBar();
+    maybeById('score-play')?.focus({ preventScroll: true });
+}
+function pracMistakesRender(groups: readonly MeasureMistakeGroup[]) {
+    const btn = maybeById('pr-see-mistakes') as HTMLButtonElement | null;
+    const panel = maybeById('pr-mistakes-panel'), list = maybeById('pr-mistakes-list');
+    if (!btn || !panel || !list) return;
+    panel.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    btn.hidden = groups.length === 0;
+    if (!groups.length) {
+        list.innerHTML = '';
+        return;
+    }
+    const multiPass = new Set(groups.map((g) => g.pass)).size > 1;
+    list.innerHTML = groups.map((g, idx) => `<li class="pr-mistake-item" data-m-idx="${idx}"><span class="pr-mistake-info">${xmlEsc(anMistakeGroupText(g, multiPass))}</span><span class="pr-mistake-actions"><button type="button" class="btn sm ghost" data-mistake-jump="${idx}">${xmlEsc(t('pr_mk_go'))}</button><button type="button" class="btn sm" data-mistake-repeat="${idx}">${xmlEsc(t('pr_repeat_passage'))}</button></span></li>`).join('');
+}
 let pracSumGen = 0;
 let pracSumReturn: Element | null = null;
 function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '') {
@@ -15490,6 +15612,20 @@ function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '
         byId('pr-sum-sustain-acc').textContent = practicePercent(pedal.accuracy) + '%';
         byId('pr-sum-sustain-details').textContent = t('pr_sustain_details', pedal.missed, pedal.extra);
     }
+    const sustainMistakes = R.sustain?.midi
+        ? extractSustainMistakes(R.sustain.expected, R.sustain.played, R.segs[0].f, (perfT) => {
+            const plan = performancePlan();
+            const pt = performanceAt(plan, perfT);
+            const beat = scoreBeatAt(pt.score);
+            const ms = anMeasures();
+            const measureIndex = anMeasureIndex(ms, beat);
+            const pass = 1 + plan.ranges.slice(1, pt.index + 1).filter((r, i) => r.a < plan.ranges[i].b - 1e-6).length;
+            return { measureIndex, measureNumber: String(ms[measureIndex]?.number ?? measureIndex + 1), pass, beat };
+        })
+        : [];
+    const groups = groupPracticeMistakes([...R.mistakes, ...sustainMistakes]);
+    PRAC.lastMistakes = groups;
+    pracMistakesRender(groups);
     const showSaved = (v: PracticeSaved | null) => { const txt = pracSavedText(v); bestEl.textContent = txt; bestEl.hidden = !txt; bestEl.classList.toggle('is-new', !!v && v.newBest); };
     showSaved(saved);
     if (saved && saved.pending)
@@ -17089,6 +17225,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem, opts?: { fromHi
     }
     if (!opts?.fromHistory && anScreen === 'catalog' && !anListContext)
         anCaptureListContext(libraryItem ? `#library-items [data-library-id="${CSS.escape(libraryItem.id)}"] [data-library-action="open"]` : null);
+    anHideMistakeBar();
     anLibraryCapture();
     const checkpoint = anLibraryFlush(false).catch(() => {});
     const title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
@@ -17163,6 +17300,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem, opts?: { fromHi
     return token === AN.loadToken && AN.source === src && !AN.error;
 }
 async function anLoadExample(id: string, opts?: { fromHistory?: boolean; speed?: number; measure?: string })  {
+    anHideMistakeBar();
     await ensureAnalysisModules();
     const p = PIECES.find((x) => x.id === id);
     if (!p)
@@ -18823,6 +18961,31 @@ function anInitControls() {
     byId('pr-slower').addEventListener('click', () => { const sel = selectById('score-speed'), o = [...sel.options].map((x) => +x.value), cur = +sel.value, v = o.filter((x) => x < cur).pop(); if (v)
         sel.value = String(v); pracHud(); pracReplay(); });
     byId('pr-close').addEventListener('click', pracSumClose);
+    byId('pr-see-mistakes').addEventListener('click', () => {
+        const panel = byId('pr-mistakes-panel'), btn = byId('pr-see-mistakes');
+        const nextOpen = panel.hidden;
+        panel.hidden = !nextOpen;
+        btn.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+    });
+    byId('pr-mistakes-list').addEventListener('click', (e) => {
+        const list = PRAC.lastMistakes || [];
+        const multiPass = new Set(list.map((g) => g.pass)).size > 1;
+        const jumpBtn = eventClosest(e, 'button[data-mistake-jump]');
+        if (jumpBtn instanceof HTMLButtonElement && jumpBtn.dataset.mistakeJump != null) {
+            const g = list[Number(jumpBtn.dataset.mistakeJump)];
+            if (g) anJumpToMistake(g, multiPass);
+            return;
+        }
+        const repBtn = eventClosest(e, 'button[data-mistake-repeat]');
+        if (repBtn instanceof HTMLButtonElement && repBtn.dataset.mistakeRepeat != null) {
+            const g = list[Number(repBtn.dataset.mistakeRepeat)];
+            if (g) anRepeatPassage(g.measureIndex);
+        }
+    });
+    byId('sc-mistake-repeat').addEventListener('click', () => {
+        if (scMistakeBarIdx != null) anRepeatPassage(scMistakeBarIdx);
+    });
+    byId('sc-mistake-close').addEventListener('click', anHideMistakeBar);
     byId('pr-sum-next').addEventListener('click', (e) => { if (eventClosest(e, '#pr-next-act') && PRAC.next && PRAC.next.act)
         PRAC.next.act.run(); });
     byId('pr-sum').addEventListener('pointerdown', (e) => { if (e.target === e.currentTarget)
