@@ -34,10 +34,21 @@ test('Read expands before Start without claiming an attempt; zoom, fit, keys and
   await expect(page.locator('#rd-stage-end')).toBeHidden();
   await expect(page.locator('#rd-top-fs')).toBeInViewport();
   await expect(page.locator('#rd-top-fs')).toBeFocused();
+  // Zoom stays tucked inside Display so only one −/+ pair (BPM) is visible by default.
+  await expect(page.locator('#rd-focus-tools')).toBeHidden();
+  await expect(page.locator('#rd-bpm-down')).toBeVisible();
+  await expect(page.locator('#rd-bpm-up')).toBeVisible();
+  await page.locator('#rd-focus-disp-btn').click();
+  await expect(page.locator('#rd-focus-tools')).toBeVisible();
   await page.locator('#rd-focus-in').click();
   await expect(page.locator('#rd-staff svg')).toHaveCSS('zoom', '1.1');
   await page.locator('#rd-focus-fit').click();
   await expect(page.locator('#rd-staff svg')).toHaveCSS('zoom', '1');
+  // Escape closes the Display popover before leaving fullscreen.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#rd-focus-tools')).toBeHidden();
+  await expect(page.locator('body')).toHaveAttribute('data-score-focus', 'read');
+  await page.locator('#rd-focus-disp-btn').click();
   await page.locator('#rd-focus-kb').click();
   await expect(page.locator('#rd-focus-kb')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#dock-keys')).toBeVisible();
@@ -147,10 +158,19 @@ test('Pieces keeps its run and selection when expanding; a rejected native reque
   });
   await page.locator('#sc-stage').click();
   await expect(page.locator('body')).toHaveAttribute('data-score-focus', 'analysis');
+  await expect(page.locator('#an-fs-top')).toBeVisible();
+  await expect(page.locator('#an-fs-exit')).toBeVisible();
   await expect(page.locator('#an-side')).toBeHidden();
   await expect(page.locator('#an-fab')).toBeHidden();
+  // Only Tempo −/+ is visible on screen until Display is opened.
+  await expect(page.locator('#sc-speed-down')).toBeVisible();
+  await expect(page.locator('#sc-zoom-out')).toBeHidden();
+  await page.locator('#an-disp-btn').click();
   await expect(page.locator('#sc-fit')).toBeVisible();
   await expect(page.locator('#an-kb')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#an-disp-pop')).toBeHidden();
+  await expect(page.locator('body')).toHaveAttribute('data-score-focus', 'analysis');
   expect(await page.evaluate(() => window.__fullscreenRun === window.__etude.SCORE.run)).toBe(true);
   expect(await page.evaluate(() => [...window.__etude.AN.selected])).toEqual([0, 1, 2, 3]);
   await page.keyboard.press('Escape');
@@ -257,9 +277,10 @@ for (const size of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
     await fullscreenBoundary(page);
     await readPiece(app, page);
     await page.locator('#rd-fs').click();
-    for (const id of ['rd-top-fs', 'rd-focus-fit', 'rd-focus-kb', 'rd-stage-mode', 'rd-go', 'rd-bpm-down', 'rd-bpm-up'])
+    for (const id of ['rd-top-fs', 'rd-focus-disp-btn', 'rd-stage-mode', 'rd-go', 'rd-bpm-down', 'rd-bpm-up'])
       await expect(page.locator('#' + id)).toBeInViewport();
-    await expect.poll(() => page.evaluate(() => document.querySelector('#rd-focus-tools').getBoundingClientRect().bottom <= document.querySelector('#rd-staff').getBoundingClientRect().top)).toBe(true);
+    await expect(page.locator('#rd-focus-tools')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => document.querySelector('#rd-stage-top').getBoundingClientRect().bottom <= document.querySelector('#rd-staff').getBoundingClientRect().top)).toBe(true);
     await expect.poll(() => page.evaluate(() => document.querySelector('#rd-staff svg').getBoundingClientRect().width <= document.querySelector('#rd-staff').clientWidth)).toBe(true);
     await expect.poll(() => page.evaluate(() => document.querySelector('#rd-verdict').getBoundingClientRect().bottom <= document.querySelector('#rd-go').parentElement.getBoundingClientRect().top)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

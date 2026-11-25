@@ -19,6 +19,15 @@ const xml = `<?xml version="1.0"?>
  </part>
 </score-partwise>`;
 
+async function openLib(page) {
+  if (await page.locator('#an-back').isVisible()) await page.locator('#an-back').click();
+  const libTab = page.locator('#an-tab-library');
+  if (await libTab.count() && await libTab.getAttribute('aria-selected') !== 'true')
+    await libTab.click();
+  const details = page.locator('#score-library');
+  if (!await details.evaluate(node => node.open))
+    await details.locator('summary').click();
+}
 async function openEditor(item) {
   await item.locator('[data-library-action=more]').click();
   await item.locator('[data-library-action=edit]').click();
@@ -26,7 +35,7 @@ async function openEditor(item) {
 
 test('the library editor shows a star estimate and preserves the imported repeat timing', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await page.locator('#library-files').setInputFiles({
     name: 'Repeated fixture.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml),
   });
@@ -43,7 +52,7 @@ test('the library editor shows a star estimate and preserves the imported repeat
 
 test('a verified starting tempo replaces a provisional star rating', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await page.locator('#library-files').setInputFiles({
     name: 'Unmarked fixture.musicxml', mimeType: 'application/xml',
     buffer: Buffer.from(xml.replace('<direction><sound tempo="120"/></direction>', '')),
@@ -64,7 +73,7 @@ test('a verified starting tempo replaces a provisional star rating', async ({ ap
   await save.click();
   await expect(item.locator('.score-library-rating')).toHaveAttribute('data-provisional', 'false');
   await page.reload();
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await expect(item.locator('.score-library-rating')).toHaveAttribute('data-provisional', 'false');
   const [saved] = await page.evaluate(() => window.__etude.scoreLibraryStore.libraryList());
   expect(saved.difficultyRating.startingBpm).toBe(84.5);
@@ -94,7 +103,7 @@ test('a fresh Read exercise opens with an independent result and leaves existing
 
 test('the library automatically updates outdated stars and preserves piece metadata', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await page.locator('#library-files').setInputFiles({
     name: 'Written.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml),
   });
@@ -115,7 +124,8 @@ test('the library automatically updates outdated stars and preserves piece metad
   expect((await get()).difficultyRating.assessment.estimatorVersion).toBe(2);
   await page.reload();
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
-  await page.locator('#score-library summary').click();
+  if (await page.locator('#an-back').isVisible()) await page.locator('#an-back').click();
+  await openLib(page);
   await expect(page.getByRole('button', { name: 'Review difficulty stars', exact: true })).toHaveCount(0);
   await expect.poll(async () => (await get())?.difficultyRating).toEqual(originalRating);
   expect(await get()).toMatchObject({ level: 'Level 1', notes: 'My notes', favorite: true });
@@ -124,7 +134,7 @@ test('the library automatically updates outdated stars and preserves piece metad
 test('library rows show five difficulty axes and automatically save stars without replacing levels', async ({ app, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await app.open({ hash: 'analysis' });
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await page.locator('#library-files').setInputFiles({
     name: 'Rated.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml),
   });
@@ -200,7 +210,7 @@ test('library rows show five difficulty axes and automatically save stars withou
   await page.reload();
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
   expect(await stored()).toEqual(saved);
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await expect(inline).toBeVisible();
   await expect(item.locator('h3 [data-library-action=open]')).toHaveText('Rated');
 });
@@ -216,7 +226,7 @@ test('the row menu stays clear of the sticky difficulty guide and remains usable
     }
     await window.__etude.show('analysis');
   });
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   const rows = page.locator('#library-items > li');
   await expect(rows).toHaveCount(24);
   const scroller = page.locator('.score-library-scroll');
@@ -275,7 +285,7 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
     }
     window.__etude.show('analysis');
   }, xml);
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   const infoToggle = page.locator('#library-axes-info-toggle');
   const infoPanel = page.locator('#library-axes-info-panel');
   await expect(infoPanel).toBeHidden();
@@ -307,7 +317,7 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
 
   const unmarked = xml.replace('<direction><sound tempo="120"/></direction>', '');
   const id = createHash('sha256').update(unmarked).digest('hex');
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await page.locator('#an-file').setInputFiles({ name: 'No tempo.musicxml', mimeType: 'application/xml', buffer: Buffer.from(unmarked) });
   const newItem = async () => (await stored()).find(item => item.id === id);
   await expect.poll(async () => (await newItem())?.difficultyRating?.assessment?.tempoFallback).toBe(true);
@@ -335,7 +345,8 @@ test('Difficulty orders older and newly opened scores by their automatic star ra
   }, { scoreId: id, oldProfile: profile })).toBe(1);
   await page.reload();
   await page.waitForFunction(() => window.__etude?.scoreLibraryStore);
-  await page.locator('#score-library summary').click();
+  if (await page.locator('#an-back').isVisible()) await page.locator('#an-back').click();
+  await openLib(page);
   await expect(page.locator('.score-library-transfer input[type=file]')).toHaveCount(1);
   await expect(page.locator('#library-restore')).toBeVisible();
   await expect.poll(async () => (await newItem())?.difficultyRating?.assessment).toEqual({
@@ -368,7 +379,7 @@ test('library combines overall and axis ranges and clears each filter independen
     }
     window.__etude.show('analysis');
   });
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await page.locator('#library-sort').selectOption('title');
   const titles = page.locator('#library-items h3');
   await expect(titles).toHaveCount(4);
@@ -420,7 +431,7 @@ test('difficulty details explain drivers, spans and provisional BPM, and v1 back
 </score-partwise>`;
   const unmarkedXml = xml.replace('<direction><sound tempo="120"/></direction>', '');
   await app.open({ hash: 'analysis' });
-  await page.locator('#score-library summary').click();
+  await openLib(page);
   await page.locator('#library-files').setInputFiles([
     { name: 'Octaves.musicxml', mimeType: 'application/xml', buffer: Buffer.from(octaveAndRunXml) },
     { name: 'Unmarked.musicxml', mimeType: 'application/xml', buffer: Buffer.from(unmarkedXml) },

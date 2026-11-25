@@ -149,7 +149,9 @@ test('at 70 percent the cursor reaches each note at its scheduled audio onset af
   await app.open({ hash: 'analysis' });
   await page.evaluate(() => window.__etude.pcOpen('brahms'));
   await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
+  await page.locator('#an-tools-btn').click();
   await page.locator('#score-speed').selectOption('70');
+  await page.locator('#an-tools-btn').click();
   await page.evaluate(async () => {
     const a = window.__etude, real = a.previewNote;
     window.cursorAudioChecks = [];

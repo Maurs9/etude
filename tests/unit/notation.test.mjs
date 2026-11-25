@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import { diffEngravingRules, inspectOsmdBundle } from '../../scripts/update-osmd.mjs';
-import { notationReloadMessage, patchOsmdPedals } from '../../src/domain/notation.ts';
+import { computeFitWidthLayout, defaultScoreLayoutForViewport, notationReloadMessage, patchOsmdPedals } from '../../src/domain/notation.ts';
 
 describe('OSMD notation adapter', () => {
   it('patches pedal drawing once and groups each pedal mark while preserving staffLine identity', () => {
@@ -103,5 +103,29 @@ describe('OSMD notation adapter', () => {
       expect(copy.button.trim().length, `${lang} button`).toBeGreaterThan(2);
       expect(copy.message, `${lang} differs from English fallback`).not.toBe(notationReloadMessage('en').message);
     }
+  });
+
+  it('picks fit-width layout by default on mobile widths and page layout on desktop widths', () => {
+    expect(defaultScoreLayoutForViewport(360)).toBe('fit');
+    expect(defaultScoreLayoutForViewport(390)).toBe('fit');
+    expect(defaultScoreLayoutForViewport(680)).toBe('fit');
+    expect(defaultScoreLayoutForViewport(681)).toBe('page');
+    expect(defaultScoreLayoutForViewport(1280)).toBe('page');
+  });
+
+  it('computes mobile fit-width parameters with larger staff zoom than scaled A4', () => {
+    const mobile = computeFitWidthLayout(374, 1, 0.75);
+    expect(mobile.pageFormat).toBe('Endless');
+    expect(mobile.renderSingleHorizontalStaffline).toBe(false);
+    expect(mobile.sheetWidth).toBe(374);
+    expect(mobile.zoom).toBeGreaterThan((374 / 794) * 0.75);
+    expect(mobile.zoom).toBeLessThanOrEqual(1.6);
+
+    const lowerClamped = computeFitWidthLayout(200, 0.5, 0.75);
+    expect(lowerClamped.sheetWidth).toBe(260);
+    expect(lowerClamped.zoom).toBeGreaterThanOrEqual(0.55);
+
+    const upperClamped = computeFitWidthLayout(900, 2, 1.0);
+    expect(upperClamped.zoom).toBe(1.6);
   });
 });

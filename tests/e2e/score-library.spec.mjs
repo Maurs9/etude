@@ -9,6 +9,13 @@ const file = (name, text = score()) => ({ name, mimeType: 'application/xml', buf
 const rows = page => page.locator('#library-items > li');
 const row = (page, title) => rows(page).filter({ has: page.locator('h3', { hasText: title }) });
 async function library(page) {
+  if (await page.locator('#an-back').isVisible()) {
+    await page.locator('#an-back').click();
+    await expect(page.locator('#an-catalog')).toBeVisible();
+  }
+  const libTab = page.locator('#an-tab-library');
+  if (await libTab.count() && await libTab.getAttribute('aria-selected') !== 'true')
+    await libTab.click();
   const details = page.locator('#score-library');
   if (!await details.evaluate(node => node.open)) await details.locator('summary').click();
 }
@@ -44,7 +51,9 @@ test('library multi-import is persistent, searchable, duplicate-safe, and resume
   await expect(rows(page).locator('h3')).toHaveText('Library Beta');
   await page.locator('#library-search').fill('');
   await openRow(page, 'Library Alpha');
+  await page.locator('#an-tools-btn').click();
   await page.locator('#score-speed').selectOption('75');
+  await page.locator('#an-tools-btn').click();
   await page.evaluate(async () => {
     const E = window.__etude;
     E.pracSet('hands', 'lh');
@@ -66,8 +75,10 @@ test('library multi-import is persistent, searchable, duplicate-safe, and resume
   await expect(rows(page)).toHaveCount(2);
   await expect(row(page, 'Library Alpha').locator('[data-library-action=favorite]')).toHaveAttribute('aria-pressed', 'true');
   await openRow(page, 'Library Alpha');
+  await page.locator('#an-tools-btn').click();
   await expect(page.locator('#score-speed')).toHaveValue('75');
   expect(await page.evaluate(() => ({ position: window.__etude.FALL.position, hands: window.__etude.PRAC.hands, wait: window.__etude.PRAC.wait, metro: window.__etude.PRAC.metro, look: window.__etude.SCORE.look }))).toEqual({ position: 3.25, hands: 'lh', wait: true, metro: true, look: 'night' });
+  await library(page);
   await page.locator('[data-library-tab=recent]').click();
   await expect(rows(page)).toHaveCount(1);
 });
@@ -144,6 +155,7 @@ test('library backup transfers originals, favorites and resume state to a separa
   await settled(page);
   await openRow(page, 'Library Alpha');
   await page.evaluate(async () => { window.__etude.FALL.position = 2; await window.__etude.anLibraryFlush(); });
+  await library(page);
   const pending = page.waitForEvent('download');
   await page.locator('#library-backup').click();
   const backup = await pending;
@@ -451,6 +463,7 @@ test('reopening a saved MIDI score via file input restores its saved reconstruct
   await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'midi');
   await expect(rows(page)).toHaveCount(1);
 
+  await page.locator('#an-tools-btn').click();
   await page.locator('#an-recon-btn').click();
   await expect(page.locator('#an-recon')).toBeVisible();
   await page.locator('#an-hands').selectOption('tracks');
@@ -471,4 +484,32 @@ test('reopening a saved MIDI score via file input restores its saved reconstruct
   await page.evaluate(() => window.__etude.anLibraryFlush());
   const savedRecon = await page.evaluate(async () => (await window.__etude.scoreLibraryStore.libraryList()).find(item => item.name === 'duet.mid')?.resume?.recon);
   expect(savedRecon).toMatchObject({ hands: 'tracks', grid: 8 });
+});
+
+test('row action menu (⋯) supports keyboard navigation, Escape return focus, and corrupt import retry', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  await expect(page.locator('#an-tab-builtin')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.an-open-cta')).toBeVisible();
+
+  await page.locator('#an-file').setInputFiles({ name: 'corrupt.xml', mimeType: 'application/xml', buffer: Buffer.from('not xml') });
+  await expect(page.locator('#an-import-banner')).toBeVisible();
+  await expect(page.locator('#an-import-retry')).toBeVisible();
+
+  await library(page);
+  await page.locator('#library-files').setInputFiles(file('menu-test.xml', score('Menu Study')));
+  await expect(rows(page)).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator('#an-tab-library')).toHaveAttribute('aria-selected', 'true');
+
+  const more = row(page, 'Menu Study').locator('[data-library-action=more]');
+  await more.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(row(page, 'Menu Study').locator('.score-library-secondary')).toBeVisible();
+  await expect(row(page, 'Menu Study').locator('[data-library-action=edit]')).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(row(page, 'Menu Study').locator('[data-library-action=delete]')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Menu Study').locator('.score-library-secondary')).toBeHidden();
+  await expect(more).toBeFocused();
 });

@@ -127,6 +127,7 @@ test('lasso shape is default, supports closed-loop free-shape circling and pen i
   }
 
   // Desktop (fine pointer) defaults to Select while Navigate stays available
+  await page.locator('#an-tools-btn').click();
   await expect(page.locator('#an-tool-select')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#an-tool-hand')).toHaveAttribute('aria-pressed', 'false');
 
@@ -134,6 +135,7 @@ test('lasso shape is default, supports closed-loop free-shape circling and pen i
   const modeBtn = page.locator('#an-sel-mode');
   await expect(modeBtn).toBeVisible();
   await expect(modeBtn).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#an-tools-btn').click();
 
   // Compute bounding boxes of three specific notes on beat 1 (C5 RH + E3 + G3 LH),
   // avoiding a 4th interior/adjacent note (C3 on beat 1.5) using a narrow diagonal polygon.
@@ -185,9 +187,11 @@ test('lasso shape is default, supports closed-loop free-shape circling and pen i
   await expect(page.locator('#an-now-body .an-note-card')).toContainText('Minor 3rd');
 
   // Switch to Navigate mode, clear selection, and verify stylus pen still selects directly via lasso
+  await page.locator('#an-tools-btn').click();
   await page.locator('#an-tool-hand').click();
   await expect(page.locator('#an-tool-hand')).toHaveAttribute('aria-pressed', 'true');
   await page.locator('#an-clear').click();
+  await page.locator('#an-tools-btn').click();
   await expect.poll(() => page.evaluate(() => window.__etude.AN.selected.size)).toBe(0);
 
   await page.locator('#an-roll').dispatchEvent('pointerenter', { pointerType: 'pen' });
@@ -211,9 +215,11 @@ test('lasso shape is default, supports closed-loop free-shape circling and pen i
   expect(penSelected).not.toContain(pts.c3Next.i);
 
   // Switch back to Select and toggle to rectangular marquee box mode
+  await page.locator('#an-tools-btn').click();
   await page.locator('#an-tool-select').click();
   await modeBtn.click();
   await expect(modeBtn).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#an-tools-btn').click();
 
   await page.mouse.move(x0, yTop);
   await page.mouse.down();
@@ -308,6 +314,7 @@ test.describe('touch score navigation', () => {
     await page.setViewportSize({ width: 320, height: 800 });
     await app.open({ hash: 'analysis', dock: false, lang });
     await loadImagineScore(page);
+    await page.locator('#an-tools-btn').click();
     const hand = page.locator('#an-tool-hand'), select = page.locator('#an-tool-select');
     await expect(hand).toBeVisible();
     await expect(select).toBeVisible();
@@ -324,9 +331,11 @@ test.describe('touch score navigation', () => {
   test('one finger follows the tool; two fingers cancel lasso, pan and zoom; selection resumes on the next gesture', async ({ app, page }) => {
     await app.open({ hash: 'analysis', dock: false });
     await loadImagineScore(page);
+    await page.locator('#an-tools-btn').click();
     await expect(page.locator('#an-tool-hand')).toBeVisible();
     await expect(page.locator('#an-tool-hand')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#an-tool-select')).toBeVisible();
+    await page.locator('#an-tools-btn').click();
     await page.addStyleTag({ content: '#an-roll{height:220px!important;flex:none!important}' });
     await page.locator('#an-roll').scrollIntoViewIfNeeded();
     const cdp = await page.context().newCDPSession(page);
@@ -340,7 +349,9 @@ test.describe('touch score navigation', () => {
     await send('touchEnd', []);
     await expect.poll(() => page.locator('#an-roll').evaluate(el => el.scrollTop)).toBeGreaterThan(20);
     expect(await page.evaluate(() => [...window.__etude.AN.selected])).toEqual([]);
+    await page.locator('#an-tools-btn').click();
     await page.locator('#an-tool-select').click();
+    await page.locator('#an-tools-btn').click();
     await page.locator('#an-roll').evaluate(el => { el.scrollTop = 0; });
 
     const circle = async () => {

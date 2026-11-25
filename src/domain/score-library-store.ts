@@ -188,7 +188,9 @@ export function validateLibraryResume(value: unknown): LibraryResume | null {
   if (value === null) return null;
   const v = record(value);
   const speed = number(v.speed);
-  if (![40, 50, 60, 70, 75, 80, 90, 100, 110, 125].includes(speed)) invalid('Unsupported playback speed.');
+  if (!Number.isInteger(speed) || speed < 40 || speed > 125 || speed % 5 !== 0) {
+    invalid('Unsupported playback speed.');
+  }
   const recon = v.recon === undefined ? undefined : record(v.recon);
   const grid = recon && number(recon.grid);
   const key = recon && text(recon.key, 4);
@@ -199,7 +201,9 @@ export function validateLibraryResume(value: unknown): LibraryResume | null {
     ...(v.elapsed === undefined ? {} : { elapsed: number(v.elapsed) }),
     ...(recon && grid && key ? { recon: { hands: choice(recon.hands, ['auto', 'tracks', '59', '60', '64']), grid, key } } : {}),
     hands: choice(v.hands, ['both', 'rh', 'lh']), wait: boolean(v.wait), metronome: boolean(v.metronome),
-    view: choice(v.view, ['page', 'cont', 'fall']), look: choice(v.look, ['paper', 'night']), zoom: number(v.zoom, .4, 2.5),
+    view: choice(v.view, ['fit', 'page', 'cont', 'fall']),
+    ...(v.viewExplicit === undefined ? {} : { viewExplicit: boolean(v.viewExplicit) }),
+    look: choice(v.look, ['paper', 'night']), zoom: number(v.zoom, .4, 2.5),
   };
 }
 function filename(value: unknown): string {

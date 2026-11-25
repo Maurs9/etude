@@ -122,6 +122,7 @@ export function isImportableBackup(value: unknown): value is PttV3Payload {
     isRecord(record) && optionalFields(record, keys, numbers);
   const reading = data.reading;
   const drill = data.lastDrill;
+  const builtin = data.lastBuiltinPiece;
   return optionalFields(data, [
       'streak', 'bestStreak', 'lastActive', 'todayDay', 'todayCount', 'newToday',
       'totalReviews', 'totalCorrect', 'earDay', 'earToday', 'learnSel',
@@ -130,6 +131,9 @@ export function isImportableBackup(value: unknown): value is PttV3Payload {
     (drill === undefined || (isRecord(drill) && optionalFields(drill, ['c', 'n', 'day'], numbers) &&
       optionalFields(drill, ['cat', 'mode', 'key', 'dir'], entry => typeof entry === 'string') &&
       optionalFields(drill, ['keys'], entry => typeof entry === 'boolean'))) &&
+    (builtin === undefined || (isRecord(builtin) && typeof builtin.id === 'string' && numbers(builtin.at) &&
+      optionalFields(builtin, ['measure'], entry => typeof entry === 'string') &&
+      optionalFields(builtin, ['speed', 'elapsed'], numbers))) &&
     mapOf(data.srs, isRecord) &&
     mapOf(data.history, numbers) &&
     mapOf(data.singCleared, entry => typeof entry === 'boolean') &&

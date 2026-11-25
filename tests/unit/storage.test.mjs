@@ -94,7 +94,9 @@ describe('ptt-v3 storage reader', () => {
   it('accepts legacy partial progress and rejects malformed maps before import', async () => {
     expect(isImportableBackup(JSON.parse(await fixture('ptt-v3-legacy.json')))).toBe(true);
     expect(isImportableBackup({ v: 3, data: { sheet: { w5rh: { best: 82, learned: true } } } })).toBe(true);
+    expect(isImportableBackup({ v: 3, data: { lastBuiltinPiece: { id: 'clair', at: 1700000000000, measure: '12', speed: 70, elapsed: 18 } } })).toBe(true);
     for (const data of [{ sheet: null }, { sheet: { w5rh: true } }, { sheet: { w5rh: { best: '82' } } },
+      { lastBuiltinPiece: null }, { lastBuiltinPiece: { id: 'clair', at: 'now' } }, { lastBuiltinPiece: { id: 12, at: 100 } }, { lastBuiltinPiece: { id: 'clair', at: 100, speed: '70' } },
       { learnRev: { keys: { best: '<img src=x onerror=alert(1)>' } } },
       { learnRev: { keys: { last: '19000' } } },
       { srs: { 'iv:1': null } }, { history: [] }, { reading: { lv: 'broken' } },

@@ -118,7 +118,9 @@ test('failed reconstruction and layout leave the current score and library check
   await page.keyboard.press('End');
   await page.keyboard.press('[');
   await page.keyboard.press(']');
+  await page.locator('#an-tools-btn').click();
   await expect(page.locator('#an-loop')).toBeEnabled();
+  await page.locator('#an-tools-btn').click();
   const readPosition = () => page.evaluate(() => [window.__etude.FALL.position, window.__etude.PRAC.A, window.__etude.PRAC.B]);
   const before = await readPosition();
 
@@ -143,11 +145,13 @@ test('failed reconstruction and layout leave the current score and library check
   await expect(page.locator('#an-roll svg').first()).toBeVisible();
   expect(await readPosition()).toEqual(before);
   expect(await page.evaluate(async () => (await window.__etude.scoreLibraryStore.libraryList()).length)).toBe(1);
+  await page.locator('#an-tools-btn').click();
   await expect(page.locator('#an-loop')).toBeEnabled();
   await page.locator('#an-loop').click();
   await expect(page.locator('#an-loop')).toHaveAttribute('aria-pressed', 'true');
 
   await openScore(page, 'short.musicxml', xmlScore(1));
+  await page.locator('#an-tools-btn').click();
   await expect(page.locator('#an-loop')).toBeDisabled();
   expect(await readPosition()).toEqual([0, null, null]);
 });
@@ -176,11 +180,14 @@ test('A–B Loop requires a note onset and allows a trailing rest in a playable 
   await seek(3);
   await page.keyboard.press('[');
   await page.keyboard.press(']');
+  await page.locator('#an-tools-btn').click();
   const loop = page.locator('#an-loop');
   await expect(loop).toBeDisabled();
+  await page.locator('#an-tools-btn').click();
   await seek(4.25);
   await page.keyboard.press('[');
   await page.keyboard.press(']');
+  await page.locator('#an-tools-btn').click();
   await expect(loop).toBeEnabled();
   await loop.click();
   await expect(loop).toHaveAttribute('aria-pressed', 'true');

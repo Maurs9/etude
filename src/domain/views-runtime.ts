@@ -11,13 +11,14 @@ import { playControl } from './practice-hint-dom.js';
 import type { PracticeHintsTopic } from './practice-hints-view.js';
 import type { StudyHintState } from './practice-study-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
-import { gradePracticeSustain, practiceAccuracy as pracAcc, practicePercent, practiceSustainReference, type TimedSustain } from './practice-scoring.js';
-import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
-import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
+import type { gradePracticeSustain as gradePracticeSustainFn, practiceAccuracy as pracAccFn, practicePercent as practicePercentFn, practiceSustainReference as practiceSustainReferenceFn, TimedSustain } from './practice-scoring.js';
+import type { classifyUnmatchedKeyPress as classifyUnmatchedKeyPressFn, extractSustainMistakes as extractSustainMistakesFn, groupPracticeMistakes as groupPracticeMistakesFn, practicePassageBounds as practicePassageBoundsFn, MeasureMistakeGroup, PracticeMistakeEvent } from './practice-mistakes.js';
+import type { createCursorCurves as createCursorCurvesFn, cursorCurveAt as cursorCurveAtFn } from './score-cursor.js';
+import type { bindScoreGestures as bindScoreGesturesFn, ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
-import { INTERVAL_SONGS, intervalSongNotes, intervalSongTitle, type IntervalSongDirection, type IntervalSongNote } from './interval-songs.js';
+import type { IntervalSongDirection, IntervalSongNote } from './interval-songs.js';
 import { detectVoicePitch as trxAutoCorrelate } from './voice-pitch.js';
-import * as notationApi from './notation.js';
+import type * as notationApi from './notation.js';
 import * as scoreLibraryStore from './score-library-store.js';
 import { AN_MAX_BYTES, AN_MAX_NOTES, AN_MAX_XML_CHARS, CLEF_F, CLEF_G, CLEF_SCALE, NOTE_SYS, PC_FLAT, PC_SHARP, ROOT_NAMES, SC_BASE, SC_PAGE_W, SR_LET, SR_SCALE_CAP, SS_FLAT_ORDER, SS_LETSEMI, SS_SHARP_ORDER, anError, rdPercClef, scoreHasKey, srPitch, ssAccGlyph, ssFlat, ssKeyAcc, ssMidiOf, ssNatural, ssNotehead, ssSharp, ssStepOf, xmlEsc, type AnHand, type AnHandAssignment, type AnMidiKeyMeta, type AnMidiMeta, type AnNote, type AnParsedMidi, type AnParsedNote, type AnSource, type LStaffMark, type LStaffSpec, type NotationSystem, type ScoreGraceNote, type ScoreMeasure, type ScoreNoteArticulation, type ScoreXmlKey, type ScoreXmlLayout, type ScoreXmlLink, type ScoreXmlNote, type SrBeatX, type SrHand, type SrLayout, type SrPiece, type SrPitch, type SrRenderResult, type SrScore, type SrStaffNote, type SrSystem, type SrToken } from './score-types.js';
 import type { AnChordReading, AnChordTemplate, AnHarmonySeg, AnMotif, AnNoteWeight, AnNonChordTone, AnRatedChord, AnSpanChoice, AnSpanReading, AnUnit, ChordSelectionAnalysis, IsolatedNoteAnalysis, LassoPoint, ScoreSelectionAnalysis, SelectedNoteNeighbor, SelectionNeighborSummary, TwoNoteSelectionAnalysis } from './score-harmony.js';
@@ -114,16 +115,58 @@ let scoreBeams: typeof import('./score-midi.js').scoreBeams;
 let scoreMidiToXml: typeof import('./score-midi.js').scoreMidiToXml;
 let buildExpressiveTempos: typeof import('./score-expression.js').buildExpressiveTempos;
 let buildScoreExpression: typeof import('./score-expression.js').buildScoreExpression;
+let scorePatchOsmd: typeof notationApi.scorePatchOsmd | undefined;
+let computeFitWidthLayout: typeof notationApi.computeFitWidthLayout;
+let notationReloadMessage: typeof notationApi.notationReloadMessage | undefined;
+let gradePracticeSustain: typeof gradePracticeSustainFn;
+let pracAcc: typeof pracAccFn;
+let practicePercent: typeof practicePercentFn;
+let practiceSustainReference: typeof practiceSustainReferenceFn;
+let classifyUnmatchedKeyPress: typeof classifyUnmatchedKeyPressFn;
+let extractSustainMistakes: typeof extractSustainMistakesFn;
+let groupPracticeMistakes: typeof groupPracticeMistakesFn;
+let practicePassageBounds: typeof practicePassageBoundsFn;
+let createCursorCurves: typeof createCursorCurvesFn;
+let cursorCurveAt: typeof cursorCurveAtFn;
+let bindScoreGestures: typeof bindScoreGesturesFn;
 let analysisModulesReady = false;
 let analysisModulesLoading: Promise<void> | null = null;
 function ensureAnalysisModules(): Promise<void> {
     if (!analysisModulesLoading) {
-        analysisModulesLoading = Promise.all([import('./score-import.js'), import('./score-svg-post.js'), import('./score-midi.js'), import('./score-feature.js'), import('./score-expression.js')]).then(([scoreImport, scoreSvgPost, scoreMidi, feature, scoreExpression]) => {
+        analysisModulesLoading = Promise.all([
+            import('./score-import.js'),
+            import('./score-svg-post.js'),
+            import('./score-midi.js'),
+            import('./score-feature.js'),
+            import('./score-expression.js'),
+            import('./notation.js'),
+            import('./practice-scoring.js'),
+            import('./practice-mistakes.js'),
+            import('./score-cursor.js'),
+            import('./score-gestures.js'),
+        ]).then(([scoreImport, scoreSvgPost, scoreMidi, feature, scoreExpression, notationMod, scoringMod, mistakesMod, cursorMod, gesturesMod]) => {
         scoreFeature = feature;
         ({ AN_SMUFL_NOTES, SCORE_STEP, anMxlPreflight: importMxlPreflight, anParse, anReadXml: importReadXml, anXmlTidy, defaultInflatedSize, scoreXmlEndings, scoreXmlEngraving, scoreXmlLayout, scoreXmlNotes } = scoreImport);
         ({ isScoreOsmdSheet, scoreFixFingerings, scoreFixPedalsDefault, rememberScorePedalLayout, scoreNightSweep, scoreRingFit, scoreShiftY, scoreStyleHeader, scoreVendorField, scoreVendorList } = scoreSvgPost);
         ({ anAssignHands, scoreBeams, scoreMidiToXml } = scoreMidi);
         ({ buildExpressiveTempos, buildScoreExpression } = scoreExpression);
+        ({ scorePatchOsmd, computeFitWidthLayout, notationReloadMessage } = notationMod);
+        ({ gradePracticeSustain, practiceAccuracy: pracAcc, practicePercent, practiceSustainReference } = scoringMod);
+        ({ classifyUnmatchedKeyPress, extractSustainMistakes, groupPracticeMistakes, practicePassageBounds } = mistakesMod);
+        ({ createCursorCurves, cursorCurveAt } = cursorMod);
+        ({ bindScoreGestures } = gesturesMod);
+        if (!cancelScoreGesture) {
+            const roll = maybeById('an-roll');
+            if (roll) {
+                cancelScoreGesture = bindScoreGestures(roll, {
+                    selecting: (e) => AN.tool === 'select' || e.pointerType === 'pen',
+                    select: scorePointer,
+                    getZoom: () => SCORE.zoom,
+                    zoom: scoreZoomPreview,
+                    commitZoom: scoreZoomCommit,
+                });
+            }
+        }
         analysisModulesReady = true;
     }).catch((error: unknown) => { analysisModulesLoading = null; throw error; });
     }
@@ -277,8 +320,13 @@ async function bootLocale(): Promise<void> {
 const KEY = storage.PTT_KEY, isBackupPayload = storage.isBackupPayload, isRecord = storage.isRecord, legacySettings = storage.legacySettings, parsePttV3 = storage.parsePttV3, readPttV3 = storage.readPttV3, restoreSettings = storage.restoreSettings, writePttV3 = storage.writePttV3;
 const CHORD_DEGREE_LABELS = theory.CHORD_DEGREE_LABELS, SCALE_DEGREE_LABELS = theory.SCALE_DEGREE_LABELS, anFnKey = theory.analysisFunction, anDiatonic = theory.anDiatonic, anIntervalName = theory.anIntervalName, anKeyRank = theory.anKeyRank, anPcWeights = theory.anPcWeights, anResolveKey = theory.anResolveKey, CHORD_TEMPLATES = theory.CHORD_TEMPLATES, chordDegreeMap = theory.chordDegreeMap, chordInversion = theory.chordInversion, chordPitches = theory.chordPitches, srKeyName = theory.circleKeyPitchClass, formatChordFormula = theory.formatChordFormula, formatScaleFormula = theory.formatScaleFormula, identifyChordDomain = theory.identifyChord, keyFifths = theory.keyFifths, keyFromFifths = theory.keyFromFifths, midiToFrequency = theory.midiToFrequency, pitchClass = theory.pitchClass, PROGRESSION_TEMPLATES = theory.PROGRESSION_TEMPLATES, rdSpellMidi = theory.readingSpelling, romanFor = theory.romanFor, SCALE_DEFINITIONS = theory.SCALE_DEFINITIONS, scorePitch = theory.scorePitchXml, spellMidi = theory.spellMidi;
 const AudioEngine = audio.AudioEngine;
-const createScoreRenderer = notationApi.createScoreRenderer, loadOsmd = notationApi.loadOsmd, mxlToXml = notationApi.mxlToXml, notationReloadMessage = notationApi.notationReloadMessage, scorePatchOsmd = notationApi.scorePatchOsmd;
+const loadOsmd = () => import('./notation.js').then((m) => m.loadOsmd());
+const createScoreRenderer = (container: Element, options: Record<string, unknown>) => import('./notation.js').then((m) => m.createScoreRenderer(container, options));
+const mxlToXml = (data: ArrayBuffer) => import('./notation.js').then((m) => m.mxlToXml(data));
+const defaultScoreLayoutForViewport = (viewportWidth: number): notationApi.ScoreLayoutMode => (viewportWidth <= 680 ? 'fit' : 'page');
 const NAV_GROUPS = router.NAV_GROUPS, navGroup = router.navGroup, viewFromHash = router.viewFromHash, isAppView = router.isAppView, isMovedView = router.isMovedView;
+const parseAnalysisHash = router.parseAnalysisHash, formatAnalysisHash = router.formatAnalysisHash;
+type AnalysisRoute = router.AnalysisRoute;
 const isMergedView = router.isMergedView, MERGED_VIEWS = router.MERGED_VIEWS;
 function t(k: string, ...args: Array<string | number | null | undefined>): string { const s = STRINGS[lang] || STRINGS.en; let v = (s[k] != null ? s[k] : (STRINGS.en ? STRINGS.en[k] : null)); if (v == null)
     return k; if (!args.length)
@@ -2163,6 +2211,7 @@ function midiChipSync() {
         md.className = 'dot' + (midiMsg && midiMsg.cls ? ' ' + midiMsg.cls : '');
     }
     rdnReadySync();
+    anSyncPracticeLine();
     if (STAGE.on || SES.active)
         dockSync(); // a connected piano releases the keys a stage or drill opened
 }
@@ -2538,13 +2587,34 @@ function readScoreZoom(value = SCORE_FOCUS.zoom) {
     buttonById('rd-focus-out').disabled = SCORE_FOCUS.zoom <= .7;
     buttonById('rd-focus-in').disabled = SCORE_FOCUS.zoom >= 2;
 }
+function rdFocusDispSet(open: boolean, focusBack = false) {
+    const tools = maybeById('rd-focus-tools'), btn = maybeById('rd-focus-disp-btn');
+    if (!tools || !btn) return;
+    tools.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+        const first = queryHtml(tools, 'button:not(:disabled)');
+        first?.focus({ preventScroll: true });
+    } else if (focusBack) {
+        btn.focus({ preventScroll: true });
+    }
+}
+let scoreFocusPrevSide: boolean | null = null;
 function scoreFocusExit(quiet = false) {
     const owner = SCORE_FOCUS.owner;
     if (!owner) return;
+    rdFocusDispSet(false);
     const native = SCORE_FOCUS.native, target = SCORE_FOCUS.returnTo, scroll = SCORE_FOCUS.scroll;
     SCORE_FOCUS.owner = null; SCORE_FOCUS.native = false; SCORE_FOCUS.token++;
     delete document.body.dataset.scoreFocus;
-    if (owner === 'analysis') pcStageSet(false, true);
+    if (owner === 'analysis') {
+        pcStageSet(false, true);
+        if (scoreFocusPrevSide !== null) {
+            const restoreSide = scoreFocusPrevSide;
+            scoreFocusPrevSide = null;
+            anSideSet(restoreSide);
+        }
+    }
     else {
         SCORE_FOCUS.readOverride = false;
         rdnAutoCancel();
@@ -2572,7 +2642,12 @@ function scoreFocusEnter(owner: 'analysis' | 'read', target: HTMLElement, manual
     document.body.dataset.scoreFocus = owner;
     SCORE_FOCUS.owner = owner; SCORE_FOCUS.returnTo = target; SCORE_FOCUS.scroll = scrollY;
     const token = ++SCORE_FOCUS.token;
-    if (owner === 'analysis') { anSheet(false, true); pcStageSet(true); }
+    if (owner === 'analysis') {
+        scoreFocusPrevSide = SIDE.open;
+        anSideSet(false);
+        anSheet(false, true);
+        pcStageSet(true);
+    }
     else { SCORE_FOCUS.readOverride = true; stageSync(); }
     scoreFocusUi();
     if (manual && owner === 'read') byId('rd-top-fs').focus({ preventScroll: true });
@@ -2893,6 +2968,7 @@ type StoredTrainerData = {
     earDay?: number;
     earToday?: number;
     lastDrill?: StoredLastDrill;
+    lastBuiltinPiece?: { id: string; at: number; measure?: string; speed?: number; elapsed?: number };
     learnDone?: Record<string, number>;
     learnRev?: Record<string, StoredLessonReview>;
     learnUnlock?: Record<string, number>;
@@ -2909,6 +2985,18 @@ function restoreTrainerData(saved: storage.PttV3Payload['data']): StoredTrainerD
         srs: storage.restoreSrs(srs),
     };
     if (!isRecord(restored.sheet)) restored.sheet = {};
+    const lb = restored.lastBuiltinPiece as unknown;
+    if (isRecord(lb) && typeof lb.id === 'string' && typeof lb.at === 'number' && Number.isFinite(lb.at)) {
+        restored.lastBuiltinPiece = {
+            id: lb.id,
+            at: lb.at,
+            ...(typeof lb.measure === 'string' ? { measure: lb.measure } : {}),
+            ...(typeof lb.speed === 'number' && Number.isFinite(lb.speed) ? { speed: lb.speed } : {}),
+            ...(typeof lb.elapsed === 'number' && Number.isFinite(lb.elapsed) ? { elapsed: lb.elapsed } : {}),
+        };
+    } else {
+        delete restored.lastBuiltinPiece;
+    }
     return restored;
 }
 let data = freshData();
@@ -3133,6 +3221,7 @@ function openSessionUI() {
     ses.style.display = 'block';
     ses.classList.add('on');
     dockSync();
+    syncMobileStartBars();
     reflowKeys();
     requestAnimationFrame(() => { if (SES.active)
         ses.scrollIntoView({ block: 'start', behavior: 'instant' }); });
@@ -3166,6 +3255,7 @@ function endSession(toSummary: boolean) {
     byId('session').style.display = 'none';
     byId('session').classList.remove('on');
     dockSync(); // keys a drill opened fold back to the saved choice
+    syncMobileStartBars();
     kbClearAll();
     releaseLiveInput();
     stopMetro();
@@ -4225,18 +4315,22 @@ function setViewLoading(viewId: string, loading: boolean) {
     note.textContent = localize('loading', 'Loading…');
     host.prepend(note);
 }
-let show = function show(v: string|undefined, moveFocus = true, fromHistory = false): void | Promise<void> {
+let show = function show(v: string|undefined, moveFocus = true, fromHistory = false, analysisRoute?: AnalysisRoute | null): void | Promise<void> {
     const navigation = ++featureNavigation;
+    const requestedAnRoute = v === 'analysis'
+        ? (analysisRoute ?? (fromHistory || !_routed ? (parseAnalysisHash(location.hash) ?? { kind: 'catalog' }) : anCurrentRoute()))
+        : null;
     if (v === 'analysis' && !analysisModulesReady) {
         if (practiceHintPreview) stopPreviews();
         const prevView = _view;
         const showPendingView = !(prevView === 'read' && srtPendingSaveProtected());
         if (showPendingView) {
-            if (location.hash.slice(1) !== 'analysis') {
+            const wantHash = formatAnalysisHash(requestedAnRoute ?? { kind: 'catalog' });
+            if (location.hash !== wantHash) {
                 const viaModal = _modalStack.length > 0;
                 _modalStack.length = 0;
                 try {
-                    history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', '#analysis');
+                    history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', wantHash);
                 }
                 catch (_) { }
             }
@@ -4252,7 +4346,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         setViewLoading('view-analysis', true);
         return ensureAnalysisModules().then(() => {
             setViewLoading('view-analysis', false);
-            if (navigation === featureNavigation) return show(v, moveFocus, fromHistory);
+            if (navigation === featureNavigation) return show(v, moveFocus, fromHistory, requestedAnRoute);
         }).catch(() => {
             setViewLoading('view-analysis', false);
             if (navigation === featureNavigation && showPendingView) {
@@ -4307,11 +4401,12 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
     if (SCORE_FOCUS.owner && v !== SCORE_FOCUS.owner) scoreFocusExit(true);
     if (v !== 'read') SCORE_FOCUS.readOverride = null;
     viewState.view = v;
-    if (location.hash.slice(1) !== v) {
+    const targetHash = v === 'analysis' ? formatAnalysisHash(requestedAnRoute ?? anCurrentRoute()) : '#' + v;
+    if (location.hash !== targetHash) {
         const viaModal = _modalStack.length > 0;
         _modalStack.length = 0; // the modal's history entry becomes the new view's entry
         try {
-            history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', '#' + v);
+            history[(_routed && !viaModal) ? 'pushState' : 'replaceState'](null, '', targetHash);
         }
         catch (_) { }
     }
@@ -4325,7 +4420,12 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         saveSoon();
     }
     if (prev === 'analysis' && v !== prev) {
+        anCancelOpening();
         anLibraryNavigationResume = anLibraryCapture();
+        if (anScreen === 'player') {
+            anRecordBuiltinProgress();
+            anRenderContinueCard();
+        }
         anLibrarySuspended = true;
         void anLibraryFlush(false).catch(() => {});
         if (scorePendingSignature || scoreLayoutPending) {
@@ -4334,12 +4434,7 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
             scoreLayoutPending = null;
             SCORE.stale = true;
         }
-        // An import has already paused playback. Keep the cursor for rollback,
-        // including while the current library checkpoint is suspended.
-        if (AN.loading)
-            scoreHalt();
-        else
-            scoreStop();
+        anStopAtCursor();
         anKeysClear();
         anSheet(false, true);
         pcStageSet(false, true);
@@ -4387,20 +4482,37 @@ let show = function show(v: string|undefined, moveFocus = true, fromHistory = fa
         updateExplore();
         cofPaintDock();
     }
+    let pendingViewLoad: Promise<void> | undefined;
     if (v === 'analysis') {
         void anLibraryEnsure().catch(() => {});
-        if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
-            anLibraryRestoreResume(anLibraryNavigationResume);
-        anLibraryNavigationResume = null;
-        anLibrarySuspended = false;
-        anDraw();
-        pcRender();
+        const targetRoute = requestedAnRoute ?? { kind: 'catalog' };
+        if (targetRoute.kind === 'catalog') {
+            anSetScreen('catalog');
+            anCatalogStatus('');
+            if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
+                anLibraryRestoreResume(anLibraryNavigationResume);
+            anLibraryNavigationResume = null;
+            anLibrarySuspended = false;
+            anDraw();
+            pcRender();
+        }
+        else if (!anRouteMatches(anCurrentRoute(), targetRoute)) {
+            pendingViewLoad = anOpenRoute(targetRoute, true);
+        }
+        else {
+            anSetScreen('player');
+            if (anLibraryNavigationResume && anLibraryActive?.source === AN.source)
+                anLibraryRestoreResume(anLibraryNavigationResume);
+            anLibraryNavigationResume = null;
+            anLibrarySuspended = false;
+            anDraw();
+            pcRender();
+        }
     }
     if (v === 'learn')
         renderLearn();
     if (v === 'read')
         renderRead();
-    let pendingViewLoad: Promise<void> | undefined;
     if (v === 'progress') {
         if (progressView) {
             setViewLoading('view-progress', false);
@@ -4474,7 +4586,24 @@ window.addEventListener('popstate', (e) => {
     const v = viewFromHash(location.hash);
     if (v !== _view) {
         _routed = false;
-        show(v, true, true);
+        show(v, true, true, v === 'analysis' ? (parseAnalysisHash(location.hash) ?? { kind: 'catalog' }) : undefined);
+    }
+    else if (v === 'analysis') {
+        const route = parseAnalysisHash(location.hash) ?? { kind: 'catalog' };
+        if (!analysisModulesReady) {
+            void show(v, true, true, route);
+        }
+        else {
+            if (location.hash !== formatAnalysisHash(route))
+                history.replaceState(e.state, '', formatAnalysisHash(route));
+            if (route.kind === 'catalog') {
+                if (anScreen !== 'catalog' || AN.loading)
+                    anExitToCatalog(true);
+            }
+            else if (anScreen !== 'player' || !anRouteMatches(anCurrentRoute(), route)) {
+                void anOpenRoute(route, true);
+            }
+        }
     }
     else if (location.hash !== '#' + v) {
         history.replaceState(e.state, '', '#' + v);
@@ -4951,12 +5080,24 @@ async function previewIntervalSong(notes: readonly IntervalSongNote[], button?: 
 }
 // Builds the 12 cards while the panel is open (also while another topic hides it, so a language or note-name change
 // reaches them); opening it builds them (the panel's toggle event).
+let intervalSongsMod: typeof import('./interval-songs.js') | null = null;
+let intervalSongsGen = 0;
 function renderSongs() {
     const box = maybeById('songsList'), panel = maybeById('pr-songs');
     if (!box || !(panel instanceof HTMLDetailsElement) || !panel.open)
         return;
     clearIntervalHintPlay();
     clearIntervalSongPreview();
+    if (!intervalSongsMod) {
+        const gen = ++intervalSongsGen;
+        void import('./interval-songs.js').then((mod) => {
+            intervalSongsMod = mod;
+            if (gen === intervalSongsGen)
+                renderSongs();
+        }).catch(() => {});
+        return;
+    }
+    const { INTERVAL_SONGS, intervalSongNotes, intervalSongTitle } = intervalSongsMod;
     box.innerHTML = '';
     const root = 60 + parseInt(selectById('song-root').value || '0', 10);
     const hearLabel = t('ex_hear').replace(/^▶\s*/u, '');
@@ -8289,6 +8430,7 @@ function srEmptyUi() {
     const empty = maybeById('rd-empty');
     if (empty)
         empty.hidden = !none;
+    syncMobileStartBars();
 }
 // Shows the generated sight-reading melody (`id` is its id); a result waiting to be saved keeps the current one.
 function srSelectPiece(id: string) {
@@ -10452,6 +10594,7 @@ function stageWanted() {
 function stageSync() {
     if (SCORE_FOCUS.owner === 'read' && (view0() !== 'read' || byId('rdp-pieces').hidden)) { scoreFocusExit(true); return; }
     scoreFocusUi();
+    syncMobileStartBars();
     const end = byId('rd-stage-end');
     end.hidden = SCORE_FOCUS.owner === 'read' && !SR.active;
     if (SCORE_FOCUS.owner === 'read')
@@ -10492,6 +10635,11 @@ function stageResize() { clearTimeout(STAGE.rz); STAGE.rz = window.setTimeout(()
 function stageKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && SCORE_FOCUS.owner && SCORE_FOCUS.owner !== 'analysis') {
         e.preventDefault();
+        const tools = maybeById('rd-focus-tools');
+        if (SCORE_FOCUS.owner === 'read' && tools && !tools.hidden) {
+            rdFocusDispSet(false, true);
+            return true;
+        }
         if (SCORE_FOCUS.owner === 'read' && SR.active) {
             srGo();
             SCORE_FOCUS.returnTo = byId('rd-go');
@@ -10759,6 +10907,7 @@ function rdTab(tab: string|undefined, screen: 'melody' | 'player' = 'melody') {
     if (tab === 'drills' && byId('rdx-stage').hidden)
         rdRenderHome();
     stageSync();
+    syncMobileStartBars();
 }
 // Draws the Read tab's current screen. The home is the first screen each time the tab opens (see renderRead).
 function rdRender() {
@@ -12452,6 +12601,7 @@ function srModeUi() {
         for (const button of byId(id).querySelectorAll('button'))
             button.setAttribute('aria-pressed', String(button.dataset.v === SR.modeSel));
     }
+    syncMobileStartBars();
 }
 function srSetMode(v: string) {
     if (srtPendingSaveProtected())
@@ -12479,7 +12629,7 @@ function srSetMode(v: string) {
     byId('rd-go').focus();
 }
 function srSetBpm(v: number) { if (srtPendingSaveProtected() || SR.active || SR.listening)
-    return; const b = inputById('rd-bpm'); b.value = String(v); byId('rd-bpmLbl').textContent = String(v); SR.bpm = v; SR.next = null; srCoach(); byId('rd-go').focus(); }
+    return; const b = inputById('rd-bpm'); b.value = String(v); byId('rd-bpmLbl').textContent = String(v); SR.bpm = v; SR.next = null; srCoach(); syncMobileStartBars(); byId('rd-go').focus(); }
 // The HTML each coach box last showed.
 const srCoachShown = new WeakMap<HTMLElement, string>();
 // One line under the score; it is a polite live region, so it is only rewritten when the tip itself changes.
@@ -12777,7 +12927,8 @@ function anLibraryCapture(): LibraryResume | null {
         speed: +(selectById('score-speed').value || 100),
         hands: PRAC.hands === 'rh' ? 'rh' : PRAC.hands === 'lh' ? 'lh' : 'both',
         wait: PRAC.wait, metronome: PRAC.metro,
-        view: FALL.mode === 'fall' ? 'fall' : SCORE.layout === 'cont' ? 'cont' : 'page',
+        view: FALL.mode === 'fall' ? 'fall' : SCORE.layout,
+        viewExplicit: scoreLayoutExplicit,
         look: SCORE.look === 'night' ? 'night' : 'paper', zoom: anZoomNow(),
     };
     if (anLibraryDirty.has(active.id) || anLibrarySaved.get(active.id) !== JSON.stringify(resume))
@@ -12858,7 +13009,11 @@ function anLibraryRestoreResume(resume: LibraryResume) {
     pracSet('hands', resume.hands);
     pracSet('wait', resume.wait);
     pracSet('metro', resume.metronome);
-    scoreSetView(resume.view);
+    const view = savedScoreView(resume.view, resume.viewExplicit);
+    if (view) {
+        scoreLayoutExplicit = true;
+        scoreSetView(view);
+    }
     scoreSetLook(resume.look);
     scoreZoom(resume.zoom);
     FALL.position = Math.max(0, Math.min(fallEnd(), resume.position));
@@ -12872,7 +13027,290 @@ function anLibraryRestoreResume(resume: LibraryResume) {
     }
     scoreIdle();
 }
+type AnScreen = 'catalog' | 'player';
+type AnCatalogTab = 'library' | 'builtin';
+interface AnListContext {
+    fromList: boolean;
+    scrollY: number;
+    focusSelector: string | null;
+    activeTab: AnCatalogTab;
+}
+let anScreen: AnScreen = 'catalog';
+let anCatalogTab: AnCatalogTab = 'builtin';
+let anCatalogTabManual = false;
+let anLibraryItems: readonly LibraryItem[] = [];
+let anContinueTarget: { kind: 'lib'; id: string } | { kind: 'builtin'; id: string; speed?: number; measure?: string; elapsed?: number } | null = null;
+let anListContext: AnListContext | null = null;
+let anFromListDepth = 0;
+
+function anSetCatalogTab(tab: AnCatalogTab, manual = false, focus = false) {
+    anCatalogTab = tab;
+    if (manual) anCatalogTabManual = true;
+    const tabs: [AnCatalogTab, string, string][] = [
+        ['library', 'an-tab-library', 'an-cat-panel-library'],
+        ['builtin', 'an-tab-builtin', 'an-cat-panel-builtin'],
+    ];
+    for (const [key, btnId, panelId] of tabs) {
+        const btn = maybeById(btnId), panel = maybeById(panelId), on = key === tab;
+        if (btn) {
+            btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            btn.tabIndex = on ? 0 : -1;
+            if (on && focus) btn.focus({ preventScroll: true });
+        }
+        if (panel) panel.hidden = !on;
+    }
+    if (tab === 'library') {
+        const details = maybeById('score-library');
+        if (details instanceof HTMLDetailsElement && !details.open) details.open = true;
+    } else {
+        const pick = maybeById('pc-pick');
+        if (pick instanceof HTMLDetailsElement && !pick.open) pick.open = true;
+    }
+}
+function anLibraryItemsChanged(items: readonly LibraryItem[]) {
+    anLibraryItems = items;
+    const countEl = maybeById('an-tab-library-count');
+    if (countEl) countEl.textContent = items.length ? `(${items.length})` : '';
+    if (!anCatalogTabManual)
+        anSetCatalogTab(items.length > 0 ? 'library' : 'builtin');
+    anRenderContinueCard();
+}
+function anRecordBuiltinProgress() {
+    if (AN.source?.kind !== 'example' || !AN.notes.length) return;
+    const pos = Math.max(0, Math.min(fallEnd(), fallTime()));
+    const beat = scoreBeatAt(pos);
+    const measure = String(anMeasureAt(beat).number);
+    const speed = +(selectById('score-speed').value || 100);
+    const elapsed = SCORE.loop || SCORE.sel ? performanceOf(performancePlan(), pos) / pracFactor() : performanceRead().elapsed;
+    data.lastBuiltinPiece = { id: AN.source.id, at: Date.now(), measure, speed, elapsed };
+    saveSoon();
+}
+function anRenderContinueCard() {
+    const card = maybeById('an-continue'), titleEl = maybeById('an-continue-title'), metaEl = maybeById('an-continue-meta');
+    if (!card || !titleEl || !metaEl) return;
+    let bestLib: LibraryItem | null = null;
+    for (const item of anLibraryItems) {
+        if (item.lastOpenedAt === null && !item.resume) continue;
+        const ts = item.lastOpenedAt ?? item.addedAt;
+        if (!bestLib || ts > (bestLib.lastOpenedAt ?? bestLib.addedAt)) bestLib = item;
+    }
+    const libAt = bestLib ? (bestLib.lastOpenedAt ?? bestLib.addedAt) : -1;
+    const bp = data.lastBuiltinPiece;
+    const builtinPiece = bp ? PIECES.find((p) => p.id === bp.id) : undefined;
+    const builtinAt = builtinPiece && bp ? bp.at : -1;
+    if (libAt < 0 && builtinAt < 0) {
+        anContinueTarget = null;
+        card.hidden = true;
+        return;
+    }
+    if (libAt >= builtinAt && bestLib) {
+        anContinueTarget = { kind: 'lib', id: bestLib.id };
+        titleEl.textContent = bestLib.title || bestLib.name;
+        const parts: string[] = [];
+        if (bestLib.resume?.measure) parts.push(t('an_continue_bar', bestLib.resume.measure));
+        if (bestLib.best !== undefined) parts.push(`${bestLib.best}%`);
+        else if (bestLib.resume?.speed) parts.push(`${bestLib.resume.speed}%`);
+        metaEl.textContent = parts.join(' · ');
+        card.hidden = false;
+        return;
+    }
+    if (builtinPiece && bp) {
+        anContinueTarget = { kind: 'builtin', id: builtinPiece.id, speed: bp.speed, measure: bp.measure, elapsed: bp.elapsed };
+        titleEl.textContent = srPieceTitle(builtinPiece);
+        const rec = data.sheet[builtinPiece.id];
+        const parts: string[] = [];
+        if (bp.measure) parts.push(t('an_continue_bar', bp.measure));
+        if (rec?.best) parts.push(`${rec.best}%`);
+        else if (bp.speed) parts.push(`${bp.speed}%`);
+        metaEl.textContent = parts.join(' · ');
+        card.hidden = false;
+    }
+}
+function anCurrentRoute(): AnalysisRoute {
+    if (anScreen === 'player' && AN.source) {
+        if (AN.source.kind === 'example')
+            return { kind: 'builtin', id: AN.source.id };
+        if (anLibraryActive?.source === AN.source)
+            return { kind: 'lib', id: anLibraryActive.id };
+    }
+    return { kind: 'catalog' };
+}
+function anRouteMatches(a: AnalysisRoute, b: AnalysisRoute): boolean {
+    if (a.kind !== b.kind) return false;
+    return a.kind === 'catalog' || (b.kind !== 'catalog' && a.id === b.id);
+}
+function anCatalogStatus(msg?: string, kind: 'info' | 'error' = 'error', allowRetry = false) {
+    const el = maybeById('an-catalog-status'), banner = maybeById('an-import-banner'), retry = maybeById('an-import-retry');
+    const text = msg?.trim() ?? '';
+    if (el) el.textContent = text;
+    if (banner) {
+        banner.hidden = !text;
+        banner.classList.toggle('is-error', Boolean(text && kind === 'error'));
+    }
+    if (retry) retry.hidden = !(text && kind === 'error' && allowRetry);
+}
+function anCaptureListContext(focusSelector?: string | null) {
+    if (view0() !== 'analysis' || anScreen !== 'catalog') return;
+    let selector = focusSelector ?? null;
+    if (!selector && document.activeElement instanceof HTMLElement) {
+        const pieceBtn = document.activeElement.closest<HTMLElement>('#pc-list .pc-item[data-piece]');
+        if (pieceBtn?.dataset.piece) {
+            selector = `#pc-list .pc-item[data-piece="${CSS.escape(pieceBtn.dataset.piece)}"]`;
+        } else {
+            const libRow = document.activeElement.closest<HTMLElement>('#library-items [data-library-id]');
+            if (libRow?.dataset.libraryId)
+                selector = `#library-items [data-library-id="${CSS.escape(libRow.dataset.libraryId)}"] [data-library-action="open"]`;
+        }
+    }
+    anListContext = { fromList: true, scrollY: window.scrollY, focusSelector: selector, activeTab: anCatalogTab };
+    anFromListDepth = 0;
+}
+function anRestoreListContext() {
+    const ctx = anListContext;
+    anListContext = null;
+    anFromListDepth = 0;
+    if (!ctx) return;
+    anSetCatalogTab(ctx.activeTab);
+    const focusTarget = (selector: string): 'focused' | 'disabled' | 'missing' => {
+        if (view0() !== 'analysis' || anScreen !== 'catalog') return 'missing';
+        const target = document.querySelector(selector);
+        if (!(target instanceof HTMLElement) || !target.isConnected || !target.getClientRects().length)
+            return 'missing';
+        if (target instanceof HTMLButtonElement && target.disabled)
+            return 'disabled';
+        target.focus({ preventScroll: true });
+        return document.activeElement === target ? 'focused' : 'missing';
+    };
+    requestAnimationFrame(() => {
+        if (view0() !== 'analysis' || anScreen !== 'catalog') return;
+        window.scrollTo({ top: Math.max(0, ctx.scrollY), behavior: 'auto' });
+        if (!ctx.focusSelector) return;
+        const selector = ctx.focusSelector;
+        if (focusTarget(selector) === 'disabled') {
+            const target = document.querySelector(selector);
+            if (target instanceof HTMLElement) {
+                const observer = new MutationObserver(() => {
+                    if (focusTarget(selector) !== 'disabled')
+                        observer.disconnect();
+                });
+                observer.observe(target, { attributes: true, attributeFilter: ['disabled'] });
+                setTimeout(() => observer.disconnect(), 2000);
+            }
+        }
+    });
+}
+function anSetScreen(screen: AnScreen) {
+    if (anScreen === screen && maybeById('view-analysis')?.dataset.anScreen === screen) {
+        const cat = maybeById('an-catalog'), panel = maybeById('an-panel');
+        if (cat) cat.hidden = screen !== 'catalog';
+        if (panel) panel.hidden = screen !== 'player';
+        return;
+    }
+    anScreen = screen;
+    const viewEl = maybeById('view-analysis');
+    if (viewEl) viewEl.dataset.anScreen = screen;
+    const cat = maybeById('an-catalog');
+    if (cat) cat.hidden = screen !== 'catalog';
+    const panel = maybeById('an-panel');
+    if (panel) panel.hidden = screen !== 'player';
+    anSideSync();
+    anUpdateControls();
+    anLayoutVars();
+}
+function anSyncPlayerHistory(route: AnalysisRoute, fromHistory = false, forceReplace = false) {
+    if (fromHistory || view0() !== 'analysis' || anScreen !== 'player') return;
+    const hash = formatAnalysisHash(route);
+    if (location.hash === hash) return;
+    try {
+        if (forceReplace || anFromListDepth > 0) {
+            history.replaceState(history.state, '', hash);
+        }
+        else {
+            history.pushState(null, '', hash);
+            if (anListContext?.fromList)
+                anFromListDepth++;
+        }
+    }
+    catch (_) { }
+}
+function anCancelOpening() {
+    if (!AN.loading) return;
+    anRollbackOpening?.();
+    AN.loadToken++;
+    anSetLoading(false);
+}
+function anExitToCatalog(fromHistory = false) {
+    if (!fromHistory) ++featureNavigation;
+    anCancelOpening();
+    if (anScreen === 'player') anRecordBuiltinProgress();
+    if (SCORE.playing)
+        anStopAtCursor();
+    else
+        stopPreviews();
+    anKeysClear();
+    AN_POPS.forEach(([p] = []) => anPop(p, false));
+    anReconOpen(false);
+    if (SCORE_FOCUS.owner === 'analysis') scoreFocusExit(true);
+    else pcStageSet(false, true);
+    anLibraryCapture();
+    void anLibraryFlush(false).catch(() => {});
+    const canPopBack = !fromHistory && anListContext?.fromList && anFromListDepth === 1;
+    anSetScreen('catalog');
+    pcRender();
+    anRenderContinueCard();
+    anRestoreListContext();
+    if (!fromHistory) {
+        if (canPopBack) {
+            try {
+                history.back();
+                return;
+            }
+            catch (_) { }
+        }
+        if (location.hash !== '#analysis') {
+            try {
+                history.pushState(null, '', '#analysis');
+            }
+            catch (_) { }
+        }
+        anListContext = null;
+        anFromListDepth = 0;
+    }
+}
+async function anOpenRoute(route: AnalysisRoute, fromHistory = false): Promise<void> {
+    anCatalogStatus('');
+    if (route.kind === 'catalog') {
+        anExitToCatalog(fromHistory);
+        return;
+    }
+    if (route.kind === 'builtin') {
+        const exists = PIECES.some((p) => p.id === route.id);
+        if (!exists) {
+            anSetScreen('catalog');
+            anCatalogStatus(t('an_piece_not_found'));
+            if (location.hash !== '#analysis') {
+                try { history.replaceState(history.state, '', '#analysis'); } catch (_) { }
+            }
+            return;
+        }
+        await anLoadExample(route.id, { fromHistory });
+        return;
+    }
+    const navigation = featureNavigation, hash = location.hash, opening = AN.loadToken;
+    const stored = await scoreLibraryStore.libraryGet(route.id).catch(() => null);
+    if (navigation !== featureNavigation || hash !== location.hash || opening !== AN.loadToken) return;
+    if (!stored) {
+        anSetScreen('catalog');
+        anCatalogStatus(t('an_piece_not_found'));
+        if (location.hash !== '#analysis') {
+            try { history.replaceState(history.state, '', '#analysis'); } catch (_) { }
+        }
+        return;
+    }
+    await anOpenFile(stored.file, stored.item, { fromHistory });
+}
 async function anLibraryOpen(item: LibraryItem, file: File): Promise<boolean> {
+    anCaptureListContext(`#library-items [data-library-id="${CSS.escape(item.id)}"] [data-library-action="open"]`);
     return anOpenFile(file, item);
 }
 let scoreLibraryLoading: Promise<LibraryController> | null = null;
@@ -12884,12 +13322,13 @@ function anLibraryEnsure(): Promise<LibraryController> {
             if (!scoreLibrary) {
                 byId('score-library-root').replaceChildren();
                 scoreLibrary = initScoreLibrary(byId('score-library-root'), {
-                    language: () => lang, inspect: anLibraryInspect, difficulty: anInspectDifficulty, open: anLibraryOpen, flush: () => anLibraryFlush(), confirm: appConfirm,
+                    language: () => lang, inspect: anLibraryInspect, difficulty: anInspectDifficulty, open: anLibraryOpen, flush: () => anLibraryFlush(), confirm: appConfirm, onItemsChanged: anLibraryItemsChanged,
                 });
             }
             return scoreLibrary;
         }).catch((error: unknown) => {
             scoreLibraryLoading = null;
+            anSetCatalogTab('library');
             const root = byId('score-library-root'), message = document.createElement('p'), retry = document.createElement('button');
             message.setAttribute('role', 'status');
             message.textContent = libraryText(lang, 'unavailable');
@@ -13046,13 +13485,14 @@ interface ScoreState {
     xml: string; engine: notationApi.ScoreRenderer | null; version: number; playGen: number; timers: ReturnType<typeof setTimeout>[]; playing: boolean; sel: boolean; loop: ScoreLoopState | null;
     tempos: { beat: number; bpm: number; }[]; tempoList: { beat: number; bpm: number; }[]; tempoTimes?: number[]; tempoTimesFor?: readonly { beat: number; bpm: number; }[] | null;
     tempoFromFile: boolean; measures: ScoreMeasure[]; midiGrid: number; lit: Set<number>;
-    heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: 'page' | 'cont'; stale: boolean; layoutWidth: number;
+    heads: Map<number, SVGElement[]>; followRaf: number; zoom: number; look: 'paper' | 'night'; layout: notationApi.ScoreLayoutMode; stale: boolean; layoutWidth: number;
     geo: ScoreGeometry | null; mrange: { anchor: number; a: number; b: number; sig: string; } | null; resume: { sel: boolean; run?: PracticeCarry | null; } | null; paused: boolean; cursorEl: HTMLDivElement | null;
     followSys: number; followCheckedAt: number; panAt: number; hl: boolean; run?: PracticeRun | null; syms?: ScoreSym[]; fixedWidth?: boolean; fit?: { key: string; step: number; on: boolean; } | null;
     markGeo?: ScoreGeometry | null; markSig?: string; renderedSig?: string; pedalsOk?: boolean; hasPaint?: boolean; cursorStyle?: ScoreCursorStyleState | null;
 }
+let scoreLayoutExplicit = false;
 const SCORE: ScoreState = { xml: '', engine: null, version: 0, playGen: 0, timers: [], playing: false, sel: false, loop: null, tempos: [{ beat: 0, bpm: 120 }], tempoList: [{ beat: 0, bpm: 120 }], tempoFromFile: false,
-    measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: 'page', stale: false, layoutWidth: 0,
+    measures: [], midiGrid: 0, lit: new Set(), heads: new Map(), followRaf: 0, zoom: window.innerWidth < 560 ? 0.9 : 1, look: 'paper', layout: defaultScoreLayoutForViewport(window.innerWidth), stale: false, layoutWidth: 0,
     geo: null, mrange: null, resume: null, paused: false, cursorEl: null, followSys: -1, followCheckedAt: -Infinity, panAt: 0, hl: false };
 // sel: a note picked by hand (blue, like the playback line); lit: a sounding note, gold, only with "Highlight sounding notes" on
 const SCORE_LOOK = { paper: { bg: '#fffefa', ink: '#000000', staff: undefined, sel: '#1a6fe0', lit: '#a47720', ok: '#1b8f4c', bad: '#d22f2f', dim: '#b9b2a6' }, night: { bg: '#1d1a17', ink: '#ece5d8', staff: '#a1988a', sel: '#7fb2ff', lit: '#e8bb5c', ok: '#6fdc9a', bad: '#ff7a7a', dim: '#5d574f' } }; // MuseScore-blue selection
@@ -13312,7 +13752,9 @@ async function scoreRender()  {
 let scoreLayoutGeneration = 0;
 let scorePendingSignature = '';
 let scoreLayoutPending: Promise<boolean> | null = null;
-const SCORE_BASE_MARGINS = new WeakMap<object, { top?: number; title?: number }>();
+const SCORE_BASE_MARGINS = new WeakMap<object, {
+    top?: number; title?: number; left?: number; right?: number;
+}>();
 function scoreLayout() {
     const engine = SCORE.engine, box = byId('an-roll');
     if (!engine)
@@ -13323,20 +13765,23 @@ function scoreLayout() {
         box.hidden = FALL.mode !== 'score';
         return;
     }
-    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', R: ScoreEngravingRules = {}, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
+    const look = SCORE_LOOK[SCORE.look], cont = SCORE.layout === 'cont', fit = SCORE.layout === 'fit', R: ScoreEngravingRules = {}, sheet = box.querySelector('.an-sheet'), cs = getComputedStyle(box);
     let baseMargins = SCORE_BASE_MARGINS.get(engine);
     if (!baseMargins) {
         const cur = engine.readRules();
         baseMargins = {
             top: typeof cur.PageTopMargin === 'number' ? cur.PageTopMargin : undefined,
             title: typeof cur.TitleTopDistance === 'number' ? cur.TitleTopDistance : undefined,
+            left: typeof cur.PageLeftMargin === 'number' ? cur.PageLeftMargin : undefined,
+            right: typeof cur.PageRightMargin === 'number' ? cur.PageRightMargin : undefined,
         };
         SCORE_BASE_MARGINS.set(engine, baseMargins);
     }
     box.dataset.layout = SCORE.layout;
     const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const sourceLayout = AN.source && AN.source.kind === 'xml' ? AN.source.layout : null, pageW = sourceLayout ? sourceLayout.width : SC_PAGE_W, base = sourceLayout ? sourceLayout.base : SC_BASE;
-    const sheetW = Math.max(240, Math.round(Math.min(pageW, avail) * SCORE.zoom));
+    const fitParams = fit ? computeFitWidthLayout(avail, SCORE.zoom, base) : null;
+    const sheetW = fitParams ? fitParams.sheetWidth : Math.max(240, Math.round(Math.min(pageW, avail) * SCORE.zoom));
     if (sheet instanceof HTMLElement) {
         if (pinchBaseZoom === null) {
             sheet.style.transform = '';
@@ -13344,8 +13789,8 @@ function scoreLayout() {
         }
         sheet.style.width = cont ? '' : sheetW + 'px';
     }
-    const landShort = !cont && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
-    const xmlBreaks = !cont && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml);
+    const landShort = !cont && !fit && window.innerWidth > window.innerHeight && window.innerHeight <= 560;
+    const xmlBreaks = !cont && !fit && !SCORE.fixedWidth && /new-(system|page)="yes"/.test(SCORE.xml);
     const renderSig = [SCORE.version, SCORE.layout, SCORE.look, SCORE.zoom, avail, landShort ? 1 : 0, xmlBreaks ? 1 : 0].join('|');
     if (scorePendingSignature === renderSig) return scoreLayoutPending ?? true;
     if (!SCORE.stale && SCORE.renderedSig === renderSig && box.querySelector('svg')) {
@@ -13357,26 +13802,37 @@ function scoreLayout() {
         scorePaint();
         return SCORE.pedalsOk ?? true;
     }
-    engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: cont ? 'Endless' : 'A4_P', renderSingleHorizontalStaffline: cont, drawTitle: !cont, drawSubtitle: !cont, drawComposer: !cont, drawLyricist: !cont });
-    if (!cont && sourceLayout)
-        engine.setCustomPageFormat(sourceLayout.pageWidth, sourceLayout.pageHeight);
-    if (landShort) {
-        R.PageTopMargin = Math.min(baseMargins.top ?? 6, 1.5);
-        R.TitleTopDistance = Math.min(baseMargins.title ?? 4, 1.2);
+    if (fitParams) {
+        engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: fitParams.pageFormat, renderSingleHorizontalStaffline: false, drawTitle: true, drawSubtitle: true, drawComposer: true, drawLyricist: true });
+        R.PageLeftMargin = fitParams.pageMargins.left;
+        R.PageRightMargin = fitParams.pageMargins.right;
+        R.PageTopMargin = fitParams.pageMargins.top;
+        if (baseMargins.title != null) R.TitleTopDistance = baseMargins.title;
     }
     else {
-        if (baseMargins.top != null)
-            R.PageTopMargin = baseMargins.top;
-        if (baseMargins.title != null)
-            R.TitleTopDistance = baseMargins.title;
+        engine.setOptions({ defaultColorMusic: look.ink, pageBackgroundColor: look.bg, pageFormat: cont ? 'Endless' : 'A4_P', renderSingleHorizontalStaffline: cont, drawTitle: !cont, drawSubtitle: !cont, drawComposer: !cont, drawLyricist: !cont });
+        if (!cont && sourceLayout)
+            engine.setCustomPageFormat(sourceLayout.pageWidth, sourceLayout.pageHeight);
+        if (baseMargins.left != null) R.PageLeftMargin = baseMargins.left;
+        if (baseMargins.right != null) R.PageRightMargin = baseMargins.right;
+        if (landShort) {
+            R.PageTopMargin = Math.min(baseMargins.top ?? 6, 1.5);
+            R.TitleTopDistance = Math.min(baseMargins.title ?? 4, 1.2);
+        }
+        else {
+            if (baseMargins.top != null)
+                R.PageTopMargin = baseMargins.top;
+            if (baseMargins.title != null)
+                R.TitleTopDistance = baseMargins.title;
+        }
     }
     R.StaffLineColor = look.staff;
     R.RenderMeasureNumbersOnlyAtSystemStart = !cont;
     R.MeasureNumberLabelOffset = cont ? 1 : 2;
     engine.updateRules(R);
     // A page narrower than A4 × zoom is the same A4 page scaled down: the staff space shrinks with it, so every
-    // system keeps its bars and every page its systems whatever the panel width.
-    engine.setZoom(cont ? SCORE.zoom * base : sheetW / pageW * base);
+    // system keeps its bars and every page its systems whatever the panel width. Fit mode instead lets OSMD wrap cleanly.
+    engine.setZoom(fitParams ? fitParams.zoom : cont ? SCORE.zoom * base : sheetW / pageW * base);
     scoreRingFit(engine.getZoom());
     const finish = () => {
         if (!box.clientWidth) {
@@ -13768,7 +14224,7 @@ function scoreNamesSync() {
 // OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
 function showNotationReloadPrompt() {
     if (document.querySelector('.notation-reload')) return;
-    const copy = notationReloadMessage(lang), box = (document).createElement('div');
+    const copy = notationReloadMessage ? notationReloadMessage(lang) : { message: 'The score could not load. Reload the page.', button: 'Reload' }, box = (document).createElement('div');
     box.setAttribute('role', 'alert');
     box.className = 'notation-reload';
     box.innerHTML = '<p></p><button type="button"></button>';
@@ -14298,6 +14754,13 @@ function anSelStart() {
     return AN.selected.size ? Math.min(...[...AN.selected].map((i) => scoreSeconds(AN.notes[i].start))) : 0;
 }
 function scoreStop() { scoreHalt(); SCORE.resume = null; FALL.position = AN.notes.length ? anSelStart() : 0; performanceSeekScore(FALL.position, true); scoreIdle(); }
+function anStopAtCursor() {
+    const position = fallTime();
+    scoreHalt();
+    SCORE.resume = null;
+    FALL.position = position;
+    scoreIdle();
+}
 function scorePause() { if (!SCORE.playing)
     return; const at = fallTime(), sel = SCORE.sel && !SCORE.loop, run = pracCarry(at); scoreHalt(); SCORE.paused = true; SCORE.resume = { sel, run }; FALL.position = at; scoreIdle(); }
 // Space / ▶: pause while playing, otherwise resume from the cursor (a paused selection resumes as a selection).
@@ -14353,7 +14816,7 @@ interface PracticeRun extends PracticeStartOptions {
     outputHistory?: PracticeSegment[];
     outputTime?: number;
     segs: PracticeSegment[]; ni: number; beats: PracticeBeat[]; bi: number; beat0: number; wt: number; pass: number; mine: PracticeTimedNote[]; mi: number;
-    judged: Map<number, string>; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean; origin?: number;
+    judged: Map<number, string>; mistakes: PracticeMistakeEvent[]; gen: number; ci: PracticeCountIn | null; timer: ReturnType<typeof setInterval> | 0; waitShown?: boolean; origin?: number;
 }
 // A whole-piece run held over a pause: what Play needs to carry on with the same run (pracStart), if nothing else changed.
 interface PracticeCarry {
@@ -14362,7 +14825,7 @@ interface PracticeCarry {
     completed?: Set<number>;
     route?: { a: number; b: number }[];
     notes: AnNote[]; src: AnSource | null; at: number; origin: number; hands: string; wait: boolean; f: number;
-    judged: Map<number, string>; stats: PracticeStats; active: boolean; res: Map<number, string>;
+    judged: Map<number, string>; mistakes: PracticeMistakeEvent[]; stats: PracticeStats; active: boolean; res: Map<number, string>;
 }
 // The coaching tip shown after a run, with its optional one-click action.
 interface PracticeNextStep { k: string; args?: () => (string | number)[]; act?: { k: string; args?: () => (string | number)[]; run: () => void } | null }
@@ -14370,6 +14833,7 @@ interface PracticeState {
     hands: string; wait: boolean; metro: boolean; metroOnly: boolean; countIn: boolean; acc: boolean; hear: boolean; expressive: boolean; ramp: boolean; A: number | null; B: number | null;
     labels: string; pal: string; range: string; fx: boolean; bar: PracticeBarrier | null; active: boolean; stats: PracticeStats | null;
     res: Map<number, string>; judge: string; judgeT: number; next: PracticeNextStep | null;
+    lastMistakes?: MeasureMistakeGroup[];
     names: boolean; // note names on the engraved score (scoreNamesSync)
 }
 const PRAC: PracticeState = { hands: 'both', wait: false, metro: false, metroOnly: false, countIn: false, acc: true, hear: true, expressive: true, ramp: false, A: null, B: null, labels: 'letter', pal: 'etude', range: 'fit', fx: true,
@@ -14479,6 +14943,7 @@ function pracBeats() {
     return out;
 }
 function pracStatsReset() {
+    anHideMistakeBar();
     PRAC.stats = { perfect: 0, good: 0, miss: 0, wrong: 0, streak: 0, best: 0, passHit: 0, passAll: 0, lastPass: null };
     PRAC.active = pracWait();
     PRAC.judge = '';
@@ -14598,7 +15063,7 @@ async function pracStart(o: PracticeStartOptions)  {
             byPitch.set(note.n.midi, target);
         }
     }
-    const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
+    const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), mistakes: [], gen, ci, timer: 0 };
     if (o.loop) R.segs[0].p0 = 0;
     if (!o.loop && !o.sel) {
         const plan = performancePlan(), p = performanceRead(), at = performanceAt(plan, p.position);
@@ -14614,6 +15079,7 @@ async function pracStart(o: PracticeStartOptions)  {
         R.completed = c.completed ? new Set(c.completed) : undefined;
         R.origin = c.origin;
         R.judged = new Map(c.judged);
+        R.mistakes = [...(c.mistakes ?? [])];
         const earliest = R.pass === 1 ? c.origin : -Infinity;
         const next = mine.findIndex((d) => d.start >= earliest - 1e-6 && !R.judged.has(d.i));
         R.mi = next < 0 ? mine.length : next;
@@ -14662,7 +15128,7 @@ function pracCarry(at: number): PracticeCarry | null {
     if (!R || R.loop || R.sel || !st)
         return null;
     const index = Math.max(0, R.segs.indexOf(pracSegAt(R, audioEngine.context?.currentTime ?? 0)));
-    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: pracWait(), f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined, sustain: R.sustain };
+    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: pracWait(), f: R.segs[0].f, judged: new Map(R.judged), mistakes: [...R.mistakes], stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined, sustain: R.sustain };
 }
 function pracTick() {
     const R = SCORE.run;
@@ -14876,6 +15342,28 @@ function pracMisses(R: PracticeRun, time: number) {
             pracJudge(R, d, 'miss');
     }
 }
+function pracRecordMistake(
+    R: PracticeRun,
+    kind: PracticeMistakeEvent['kind'],
+    scoreTimeSec: number,
+    midi?: number,
+    noteIndex?: number,
+) {
+    const ms = anMeasures();
+    if (!ms.length) return;
+    const beat = scoreBeatAt(Math.max(0, scoreTimeSec));
+    const measureIndex = anMeasureIndex(ms, beat);
+    const m = ms[measureIndex];
+    R.mistakes.push({
+        measureIndex,
+        measureNumber: String(m?.number ?? measureIndex + 1),
+        pass: R.pass,
+        beat,
+        kind,
+        midi,
+        noteIndex,
+    });
+}
 function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | 'good' | 'miss' | 'wrong', extraMidi?: number) {
     const st = PRAC.stats;
     if (!st)
@@ -14891,6 +15379,8 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
         st.streak = 0;
     st.passAll++;
     if (d) {
+        if (j === 'miss')
+            pracRecordMistake(R, 'miss', d.start, d.n.midi, d.i);
         for (const index of [d.i, ...(d.unisons ?? [])]) {
             R.judged.set(index, j);
             PRAC.res.set(index, j === 'miss' ? 'miss' : 'hit');
@@ -14958,6 +15448,7 @@ function pracInput(kind: 'on' | 'off', midi: number, source: string) {
             }
             else {
                 if (waiting) {
+                    pracRecordMistake(R, 'extra', t, m);
                     pracJudge(R, null, 'wrong', m);
                     return;
                 }
@@ -14975,8 +15466,17 @@ function pracInput(kind: 'on' | 'off', midi: number, source: string) {
                 }
                 if (best)
                     pracJudge(R, best, Math.abs(best.start - time) < .09 * s.f ? 'perfect' : 'good');
-                else
+                else {
+                    const unmatchedKind = classifyUnmatchedKeyPress(
+                        m,
+                        time,
+                        R.mine.map((d) => ({ midi: d.n.midi, start: d.start, judged: R.judged.has(d.i) })),
+                        s.f,
+                        !!data.settings.anyOctave,
+                    );
+                    pracRecordMistake(R, unmatchedKind, time, m);
                     pracJudge(R, null, 'wrong', m);
+                }
             }
         }
     }
@@ -15087,6 +15587,90 @@ function pracSavedText(saved: PracticeSaved | null) {
     const best = saved.best == null ? '' : t(saved.newBest ? 'pc_best_new' : 'rd_best', saved.best);
     return [saved.learned ? '✓ ' + t('pc_learned') : '', best].filter(Boolean).join(' · ');
 }
+function anMistakeEventText(ev: PracticeMistakeEvent): string {
+    const label = ev.midi != null ? noteName(ev.midi, false) : '';
+    switch (ev.kind) {
+        case 'miss': return t('pr_mk_miss', label);
+        case 'extra': return t('pr_mk_extra', label);
+        case 'timing': return t('pr_mk_timing', label);
+        case 'pedal_miss': return t('pr_mk_pedal_miss');
+        case 'pedal_early': return t('pr_mk_pedal_early');
+        case 'pedal_late': return t('pr_mk_pedal_late');
+    }
+}
+function anMistakeGroupText(group: MeasureMistakeGroup, multiPass: boolean): string {
+    const head = t('st_bar', group.measureNumber) + (multiPass ? ' (' + t('pr_mk_pass', group.pass) + ')' : '');
+    const parts = [...new Set(group.events.map(anMistakeEventText))];
+    return `${head} · ${parts.join(', ')}`;
+}
+let scMistakeBarIdx: number | null = null;
+function anHideMistakeBar() {
+    scMistakeBarIdx = null;
+    const bar = maybeById('sc-mistake-bar');
+    if (bar) bar.hidden = true;
+}
+function anScrollMeasureIntoView(measureIndex: number) {
+    const g: ScoreGeometry | null = SCORE.geo, box = maybeById('an-roll');
+    const gm = g?.measures[measureIndex], sys = gm ? g?.systems[gm.sys] : null, page = sys ? g?.pages[sys.page] : null;
+    if (!g || !box || !gm || !sys || !page) return;
+    const b = box.getBoundingClientRect(), r = page.getBoundingClientRect();
+    if (SCORE.layout === 'cont') {
+        const x = r.left + gm.x0 * g.scale;
+        box.scrollTo({ left: Math.max(0, box.scrollLeft + (x - b.left) - b.width * 0.15), behavior: 'auto' });
+        return;
+    }
+    const top = r.top + (sys.top - 4) * g.scale;
+    box.scrollTo({ top: Math.max(0, box.scrollTop + (top - b.top) - Math.max(12, b.height * 0.12)), behavior: 'auto' });
+}
+function anJumpToMistake(group: MeasureMistakeGroup, multiPass: boolean) {
+    pracSumClose();
+    if (FALL.mode !== 'score') scoreSetView(SCORE.layout);
+    const ms = anMeasures();
+    const m = Math.max(0, Math.min(ms.length - 1, group.measureIndex));
+    if (!ms.length) return;
+    const targetSec = scoreSeconds(ms[m].start);
+    SCORE.mrange = { anchor: m, a: m, b: m, sig: '' };
+    scoreSeekTo(targetSec);
+    scoreMarks();
+    anScrollMeasureIntoView(m);
+    scMistakeBarIdx = m;
+    const bar = maybeById('sc-mistake-bar'), txt = maybeById('sc-mistake-txt');
+    if (bar && txt) {
+        txt.textContent = anMistakeGroupText(group, multiPass);
+        bar.hidden = false;
+    }
+}
+function anRepeatPassage(measureIndex: number) {
+    pracSumClose();
+    const ms = anMeasures();
+    if (!ms.length) return;
+    const { startIndex, endIndex } = practicePassageBounds(measureIndex, ms.length);
+    PRAC.A = scoreSeconds(ms[startIndex].start);
+    PRAC.B = scoreSeconds(ms[endIndex].end);
+    AN.selected.clear();
+    SCORE.mrange = null;
+    scoreSeekTo(PRAC.A);
+    anRenderPractice();
+    anUpdateControls();
+    scoreMarks();
+    anScrollMeasureIntoView(startIndex);
+    anHideMistakeBar();
+    maybeById('score-play')?.focus({ preventScroll: true });
+}
+function pracMistakesRender(groups: readonly MeasureMistakeGroup[]) {
+    const btn = maybeById('pr-see-mistakes') as HTMLButtonElement | null;
+    const panel = maybeById('pr-mistakes-panel'), list = maybeById('pr-mistakes-list');
+    if (!btn || !panel || !list) return;
+    panel.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    btn.hidden = groups.length === 0;
+    if (!groups.length) {
+        list.innerHTML = '';
+        return;
+    }
+    const multiPass = new Set(groups.map((g) => g.pass)).size > 1;
+    list.innerHTML = groups.map((g, idx) => `<li class="pr-mistake-item" data-m-idx="${idx}"><span class="pr-mistake-info">${xmlEsc(anMistakeGroupText(g, multiPass))}</span><span class="pr-mistake-actions"><button type="button" class="btn sm ghost" data-mistake-jump="${idx}">${xmlEsc(t('pr_mk_go'))}</button><button type="button" class="btn sm" data-mistake-repeat="${idx}">${xmlEsc(t('pr_repeat_passage'))}</button></span></li>`).join('');
+}
 let pracSumGen = 0;
 let pracSumReturn: Element | null = null;
 function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '') {
@@ -15100,11 +15684,27 @@ function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '
     pracNextRender();
     byId('pr-sum-acc').textContent = acc == null ? '–' : practicePercent(acc) + '%';
     const pedal = R.sustain?.midi ? gradePracticeSustain(R.sustain.expected, R.sustain.played, R.segs[0].f) : null;
-    byId('pr-sum-sustain').hidden = pedal?.accuracy == null;
+    const sustainHidden = pedal?.accuracy == null;
+    byId('pr-sum-sustain').hidden = sustainHidden;
+    maybeById('pr-sum-scores')?.classList.toggle('has-sustain', !sustainHidden);
     if (pedal?.accuracy != null) {
         byId('pr-sum-sustain-acc').textContent = practicePercent(pedal.accuracy) + '%';
         byId('pr-sum-sustain-details').textContent = t('pr_sustain_details', pedal.missed, pedal.extra);
     }
+    const sustainMistakes = R.sustain?.midi
+        ? extractSustainMistakes(R.sustain.expected, R.sustain.played, R.segs[0].f, (perfT) => {
+            const plan = performancePlan();
+            const pt = performanceAt(plan, perfT);
+            const beat = scoreBeatAt(pt.score);
+            const ms = anMeasures();
+            const measureIndex = anMeasureIndex(ms, beat);
+            const pass = 1 + plan.ranges.slice(1, pt.index + 1).filter((r, i) => r.a < plan.ranges[i].b - 1e-6).length;
+            return { measureIndex, measureNumber: String(ms[measureIndex]?.number ?? measureIndex + 1), pass, beat };
+        })
+        : [];
+    const groups = groupPracticeMistakes([...R.mistakes, ...sustainMistakes]);
+    PRAC.lastMistakes = groups;
+    pracMistakesRender(groups);
     const showSaved = (v: PracticeSaved | null) => { const txt = pracSavedText(v); bestEl.textContent = txt; bestEl.hidden = !txt; bestEl.classList.toggle('is-new', !!v && v.newBest); };
     showSaved(saved);
     if (saved && saved.pending)
@@ -15420,7 +16020,13 @@ function scoreSetLook(v: string) { SCORE.look = v === 'night' ? 'night' : 'paper
     scoreLayout(); saveAll(); }
 // "Highlight sounding notes": off by default, so the notes stay black while the blue line plays through them.
 function scoreSetHl(on: boolean) { SCORE.hl = !!on; SCORE.heads.forEach((l) => l.forEach(scorePaintEl)); anUpdateControls(); saveAll(); }
-// Page | Continuous | Falling notes; the choice is remembered like the appearance.
+function savedScoreView(view: unknown, explicit: unknown): notationApi.ScoreLayoutMode | 'fall' | null {
+    if (explicit === false) return null;
+    // Older releases saved Page even when the default had never been changed.
+    if (view === 'page') return explicit === true ? view : null;
+    return view === 'fit' || view === 'cont' || view === 'fall' ? view : null;
+}
+// The display choice is remembered along with the appearance.
 function scoreSetView(v: string|undefined) {
     if (v === 'fall') {
         if (FALL.mode !== 'fall')
@@ -15428,7 +16034,7 @@ function scoreSetView(v: string|undefined) {
         saveAll();
         return;
     }
-    const lay = v === 'cont' ? 'cont' : 'page';
+    const lay: notationApi.ScoreLayoutMode = v === 'cont' ? 'cont' : v === 'fit' ? 'fit' : 'page';
     if (lay !== SCORE.layout) {
         SCORE.layout = lay;
         byId('an-roll').dataset.layout = lay;
@@ -15477,7 +16083,8 @@ function anKeepPlace() {
 // The score viewport is sized in CSS from these: 100dvh − header − toolbar − status bar − dock (when shown).
 function anLayoutVars() {
     const st = document.documentElement.style, h = (el: HTMLElement|null) => el && !el.hidden ? Math.round(el.getBoundingClientRect().height) : 0, dock = byId('dock');
-    st.setProperty('--hdr-h', h((document).querySelector('header')) + 'px');
+    const topBarH = PC_STAGE.on ? h(maybeById('an-fs-top')) : h(document.querySelector('header'));
+    st.setProperty('--hdr-h', topBarH + 'px');
     const bnav = h(byId('bottomNav')); // 0 while the bar is not displayed (wide screens, short landscape, the practice stage)
     st.setProperty('--bnav-h', bnav + 'px');
     st.setProperty('--dock-h', ((document.body.classList.contains('kb') ? h(dock) : 0) + bnav) + 'px');
@@ -15486,6 +16093,36 @@ function anLayoutVars() {
     st.setProperty('--an-low', h(SIDE.sheet && anNarrow() ? byId('an-side') : byId('an-status')) + 'px');
     anPinToolbarLater();
     exStaffRefit(); // Explore's staff is sized from the room these leave
+    syncMobileStartBars();
+}
+function syncMobileStartBars() {
+    const v = view0(), dockExpanded = dockShown(), inFocus = !!SCORE_FOCUS.owner || STAGE.on;
+    const prBar = maybeById('pr-mobile-bar'), prSum = maybeById('pr-mobile-summary'), prBtn = maybeById('pr-mobile-start') as HTMLButtonElement | null;
+    const prHome = maybeById('pr-home'), prStartBtn = maybeById('pr-start') as HTMLButtonElement | null;
+    if (prBar && prSum && prBtn && prHome) {
+        const showPr = v === 'practice' && !SES.active && !dockExpanded && !inFocus && prHome.style.display !== 'none';
+        prBar.hidden = !showPr;
+        prHome.classList.toggle('has-mobile-bar', showPr);
+        if (showPr && maybeById('pr-cat') && maybeById('pr-mode')) {
+            const { cat, mode, key } = prChoice();
+            const parts = [prTopicLabel(cat), prModeLabel(mode), ...(prDirShown() ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)];
+            prSum.textContent = parts.join(' · ');
+            prBtn.textContent = mode === 'along' ? t(accomp.on ? 'ac_stop' : 'ac_play') : t('pr_start_short');
+            prBtn.disabled = !!prStartBtn?.disabled;
+        }
+    }
+    const rdBar = maybeById('rd-mobile-bar'), rdSum = maybeById('rd-mobile-summary'), rdBtn = maybeById('rd-mobile-start') as HTMLButtonElement | null;
+    const rdPieces = maybeById('rdp-pieces'), rdResult = maybeById('rdn-result'), rdGoBtn = maybeById('rd-go') as HTMLButtonElement | null;
+    if (rdBar && rdSum && rdBtn && rdPieces) {
+        const showRd = v === 'read' && !rdPieces.hidden && !!SR.piece && !SR.active && !SR.listening && (!rdResult || rdResult.hidden) && !dockExpanded && !inFocus;
+        rdBar.hidden = !showRd;
+        rdPieces.classList.toggle('has-mobile-bar', showRd);
+        if (showRd) {
+            const modeLabel = t(SR.modeSel === 'assess' ? 'rd_m_assess' : 'rd_m_learn');
+            rdSum.textContent = `${modeLabel} · ${SR.bpm} BPM`;
+            rdBtn.disabled = !!rdGoBtn?.disabled;
+        }
+    }
 }
 /* Pieces: the full window. The player fills the window while practising: the toolbar button turns it on and off, Esc and
    leaving Pieces turn it off. body[data-stage=pieces] (pieces.css) hides everything around the player, and the size
@@ -15496,6 +16133,8 @@ function pcStageSet(on: boolean, quiet = false) {
     if (want === PC_STAGE.on)
         return;
     PC_STAGE.on = want;
+    const fsTop = maybeById('an-fs-top');
+    if (fsTop) fsTop.hidden = !want;
     if (want)
         document.body.dataset.stage = 'pieces';
     else if (document.body.dataset.stage === 'pieces')
@@ -15533,14 +16172,15 @@ function anPinToolbarLater() { if (!AN.pinRaf)
 function anFocusStage(smooth = false) {
     if (view0() !== 'analysis' || !AN.notes.length)
         return;
+    byId('an-tbwrap').classList.remove('is-floating');
     anLayoutVars();
     const header = document.querySelector('header') || document.body;
     const y = byId('an-stage').getBoundingClientRect().top + window.scrollY - header.getBoundingClientRect().height - byId('an-tbwrap').getBoundingClientRect().height;
     if (Math.abs(window.scrollY - y) > 1) {
         window.scrollTo({ top: Math.max(0, Math.round(y)), behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
-        if (!smooth)
-            anPinToolbar();
     }
+    if (!smooth)
+        anPinToolbar();
 }
 /* status bar: the position text is not a live region (no announcements while playing); selection changes are announced once, debounced */
 function anTempoAt(beat: number) { let bpm = SCORE.tempoList[0].bpm; for (const e of SCORE.tempoList) {
@@ -15549,6 +16189,41 @@ function anTempoAt(beat: number) { let bpm = SCORE.tempoList[0].bpm; for (const 
     else
         break;
 } return bpm; }
+function anTempoWidgetSync(beat?: number) {
+    const sel = selectById('score-speed');
+    const has = AN.notes.length > 0;
+    const pct = +(sel.value || 100);
+    const b = beat != null ? beat : (has ? scoreBeatAt(fallTime()) : 0);
+    const baseBpm = has ? anTempoAt(b) : 120;
+    const effBpm = Math.max(1, Math.round(baseBpm * pct / 100));
+    const reset = maybeById('sc-speed-reset') as HTMLButtonElement | null;
+    if (reset) {
+        reset.textContent = `${effBpm} BPM · ${pct}%`;
+        reset.disabled = !has || pct === 100;
+    }
+    const opts = [...sel.options].map((o) => +o.value);
+    const idx = opts.indexOf(pct);
+    const down = maybeById('sc-speed-down') as HTMLButtonElement | null;
+    const up = maybeById('sc-speed-up') as HTMLButtonElement | null;
+    if (down) down.disabled = !has || idx <= 0;
+    if (up) up.disabled = !has || idx < 0 || idx >= opts.length - 1;
+}
+function anSyncPracticeLine() {
+    const line = maybeById('an-prac-line');
+    const wait = pracWait();
+    queryAllHtml(document, '#an-study-mode button[data-study]').forEach((b) => {
+        b.setAttribute('aria-pressed', (b.dataset.study === (wait ? 'practice' : 'listen')) ? 'true' : 'false');
+    });
+    if (!line) return;
+    if (!AN.notes.length || !wait) {
+        line.hidden = true;
+        return;
+    }
+    const handsKey = PRAC.hands === 'rh' ? 'pr_rh_t' : PRAC.hands === 'lh' ? 'pr_lh_t' : 'pr_both_t';
+    const midiKey = midiLive() ? 'an_midi_on' : 'an_midi_off';
+    line.textContent = [t(handsKey), t('pr_wait'), t(midiKey)].join(' · ');
+    line.hidden = false;
+}
 function anStatusPos(time?: number | null) {
     if (!AN.notes.length)
         return;
@@ -15561,6 +16236,9 @@ function anStatusPos(time?: number | null) {
     const clock = performanceDisplay();
     set('st-time', anClock(clock.elapsed) + ' / ' + anClock(clock.total));
     set('st-tempo', '♩ = ' + Math.round(anTempoAt(beat)));
+    anTempoWidgetSync(beat);
+    const fsBar = maybeById('an-fs-bar');
+    if (fsBar) fsBar.textContent = t('st_bar', m.number);
     set('st-key', anKeyName(anKeyAt(beat)));
     set('st-meter', m.num + '/' + m.den);
     anRenderNow();
@@ -15792,6 +16470,10 @@ function anUpdateControls() {
     stg.title = t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage_t');
     const stageLabel = stg.querySelector('span');
     if (stageLabel) stageLabel.textContent = t(PC_STAGE.on ? 'pc_stage_exit' : 'pc_stage');
+    const fsTitle = maybeById('an-fs-title');
+    if (fsTitle) fsTitle.textContent = byId('an-name').textContent || '';
+    const fsExit = maybeById('an-fs-exit');
+    if (fsExit) { fsExit.textContent = t('pc_stage_exit'); fsExit.setAttribute('aria-label', t('pc_stage_exit')); }
     // The toolbar toggle is named Keyboard and reports expanded or collapsed; the dock's own button names the action it takes.
     const open = sheet && dockOpen(), kb = buttonById('an-kb');
     kb.disabled = !sheet;
@@ -15801,15 +16483,13 @@ function anUpdateControls() {
     byId('an-recon-btn').hidden = !ron;
     if (!ron)
         anReconOpen(false);
-    byId('score-credit').hidden = !has || fall;
+    byId('score-credit').hidden = anScreen !== 'player' || !has || fall;
     byId('st-hint').textContent = t(fall ? 'fall_hint' : 'an_hint');
-    // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to the falling-notes display options
-    queryAllHtml(document, '#an-toolbar .an-zoom,#sc-look,#sc-hl,#sc-names,#an-kb,.tb-sep-sheet').forEach((el) => { el.hidden = fall && has; });
-    byId('fall-opt').hidden = !(fall && has);
+    // toolbar per view: sheet-only controls (zoom, paper/night, docked keyboard) give way to falling-notes display options
+    byId('an-disp-sheet').hidden = fall && has;
+    byId('fall-pop').hidden = !(fall && has);
     if (fall && has)
         byId('an-kb').setAttribute('aria-expanded', 'false');
-    if (!(fall && has))
-        anPop('fall-pop', false);
     byId('an-tl').hidden = !has;
     byId('an-loop').title = byId('an-loop').getAttribute('aria-label') + (canLoopAB ? ' · A–B' : '');
     byId('an-metro').setAttribute('aria-pressed', String(pracMetro()));
@@ -15829,9 +16509,10 @@ function anUpdateControls() {
     inputById('pr-expressive').checked = PRAC.expressive;
     selectById('pt-speed').value = selectById('score-speed').value;
     selectById('pt-speed').disabled = !has;
+    anTempoWidgetSync();
+    anSyncPracticeLine();
     byId('pr-opt').title = t('pr_opt_t');
     byId('pr-opt').setAttribute('aria-label', t('pr_opt_t'));
-    byId('fall-opt').title = t('fall_disp_t');
     buttonById('pr-clrab').disabled = PRAC.A == null && PRAC.B == null;
     byId('fall-finger-note').textContent = t(has && !anHasFinger() ? 'fall_finger_none' : 'fall_finger_note');
     dockSync();
@@ -15902,7 +16583,7 @@ function anSideSync() {
     btn.hidden = !has;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     btn.title = t(open ? 'an_side_hide' : 'an_side_show');
-    fab.hidden = !has || !narrow || SIDE.sheet || !byId('pr-sum').hidden;
+    fab.hidden = anScreen !== 'player' || !has || !narrow || SIDE.sheet || !byId('pr-sum').hidden;
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
     pcFabLater();
     const pt = byId('pr-opt');
@@ -16454,8 +17135,17 @@ function anLoadedText() {
     const tracks = new Set(src.parsed.notes.map((n: { track: number; }) => n.track)).size;
     return t('an_loaded_midi', tracks === 1 ? t('an_track1') : t('an_tracks', tracks), g);
 }
-function anShowError(k: string, a?: string|number) { AN.error = { k, a }; anStatus(a === undefined ? t(k) : t(k, a), true); if (!SCORE.xml)
-    anRenderEmpty(); }
+function anShowError(k: string, a?: string|number) {
+    AN.error = { k, a };
+    const msg = a === undefined ? t(k) : t(k, a);
+    anStatus(msg, true);
+    const retryBtn = maybeById('an-msg-retry');
+    if (retryBtn) retryBtn.hidden = false;
+    if (anScreen === 'catalog' || !SCORE.xml)
+        anCatalogStatus(msg, 'error', true);
+    if (!SCORE.xml || anScreen === 'catalog')
+        anRenderEmpty();
+}
 function anSetLoading(on: boolean, msg?: string) { AN.loading = on; if (on) {
     if (SCORE.playing)
         scorePause();
@@ -16463,6 +17153,8 @@ function anSetLoading(on: boolean, msg?: string) { AN.loading = on; if (on) {
         stopPreviews();
     AN.error = null;
     anStatus(msg);
+    const retryBtn = maybeById('an-msg-retry');
+    if (retryBtn) retryBtn.hidden = true;
 } anUpdateControls(); }
 function anErrorKey(err: unknown, fallback: string) { const code: unknown = typeof err === 'object' && err !== null && 'code' in err ? err.code : undefined; if (!err || !code)
     console.error(err); return 'an_err_' + (code && (STRINGS[lang] || STRINGS.en)?.['an_err_' + String(code)] ? String(code) : fallback); }
@@ -16480,8 +17172,16 @@ function anRenderEmpty() {
     box.setAttribute('aria-busy', 'false');
     box.hidden = FALL.mode !== 'score' && AN.notes.length > 0;
     const esc = xmlEsc;
-    box.innerHTML = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${anDropTitle()}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
+    const html = `<div class="an-empty"><div class="an-drop" id="an-drop"><p class="an-drop-t" id="an-drop-t">${anDropTitle()}</p><p class="an-drop-s">${esc(t('an_drop_s'))}</p>
   <button type="button" class="btn primary" data-an-open>${esc(t('an_open'))}</button><p class="an-drop-err" role="alert">${esc(AN.error ? t((AN.error).k, (AN.error).a) : '')}</p></div></div>`;
+    const host = maybeById('an-empty-host');
+    if (host) {
+        host.innerHTML = html;
+        box.replaceChildren();
+    }
+    else {
+        box.innerHTML = html;
+    }
     anUpdateControls();
 }
 /* Pieces: the built-in repertoire, by level, above My Library. Each piece opens in this player through anLoadExample. */
@@ -16504,9 +17204,12 @@ function pcRender() {
         queryHtml(list, `.pc-item[data-piece="${focused}"]`)?.focus({ preventScroll: true });
 }
 // Opens a built-in piece in Pieces from anywhere (Learn links, other screens).
-function pcOpen(id: string) {
-    if (view0() !== 'analysis')
-        show('analysis');
+async function pcOpen(id: string) {
+    if (view0() !== 'analysis') {
+        anListContext = null;
+        anFromListDepth = 0;
+        await show('analysis');
+    }
     return anLoadExample(id);
 }
 function anReconUI() {
@@ -16591,9 +17294,10 @@ async function anReadXml(file: File, title: string, captureDifficulty = false) {
     });
 }
 // The single entry point for the file input and drag & drop.
-async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolean> {
+async function anOpenFile(file: File, libraryItem?: LibraryItem, opts?: { fromHistory?: boolean }): Promise<boolean> {
     if (!file)
         return false;
+    anCatalogStatus('');
     anRollbackOpening?.();
     const token = ++AN.loadToken;
     const name = file.name || '';
@@ -16604,9 +17308,13 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
         anShowError(rejected, name);
         return false;
     }
+    if (!opts?.fromHistory && anScreen === 'catalog' && !anListContext)
+        anCaptureListContext(libraryItem ? `#library-items [data-library-id="${CSS.escape(libraryItem.id)}"] [data-library-action="open"]` : null);
+    anHideMistakeBar();
     anLibraryCapture();
     const checkpoint = anLibraryFlush(false).catch(() => {});
     const title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
+    anCatalogStatus(t('an_status_opening'), 'info');
     anSetLoading(true, t('an_loading', name));
     await checkpoint;
     if (token !== AN.loadToken)
@@ -16625,7 +17333,10 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
     }
     if (token !== AN.loadToken)
         return false;
-    await anCommit(src, token, libraryItem?.resume?.recon);
+    await anCommit(src, token, libraryItem?.resume?.recon, {
+        fromHistory: opts?.fromHistory,
+        route: libraryItem ? { kind: 'lib', id: libraryItem.id } : null,
+    });
     if (token !== AN.loadToken || AN.source !== src || AN.error || !SCORE.engine)
         return false;
     await anLibraryEnsure().catch(() => null);
@@ -16645,19 +17356,22 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
                 && (item.resume.recon.hands !== AN.recon.hands
                     || item.resume.recon.grid !== AN.recon.grid
                     || item.resume.recon.key !== AN.recon.key)) {
-                await anCommit(src, token, item.resume.recon);
+                await anCommit(src, token, item.resume.recon, { fromHistory: true, route: { kind: 'lib', id: item.id } });
                 if (token !== AN.loadToken || AN.source !== src || AN.error || !SCORE.engine)
                     return false;
             }
             if (item.resume)
                 anLibraryRestoreResume(item.resume);
             anLibraryActive = { id: item.id, source: src };
+            if (!opts?.fromHistory)
+                anSyncPlayerHistory({ kind: 'lib', id: item.id }, false, true);
             if (item.resume)
                 anLibrarySaved.set(item.id, JSON.stringify(item.resume));
             if (!libraryItem)
                 await scoreLibraryStore.libraryUpdate(item.id, { lastOpenedAt: Date.now() });
             anLibrarySchedule();
             scoreLibrary?.notice('saved');
+            anStatus(`${anLoadedText()} · ${t('an_status_saved')}`);
         }
         await scoreLibrary?.refresh();
     }
@@ -16670,21 +17384,41 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem): Promise<boolea
     }
     return token === AN.loadToken && AN.source === src && !AN.error;
 }
-async function anLoadExample(id: string)  {
+async function anLoadExample(id: string, opts?: { fromHistory?: boolean; speed?: number; measure?: string })  {
+    anHideMistakeBar();
     await ensureAnalysisModules();
     const p = PIECES.find((x) => x.id === id);
     if (!p)
         return;
+    anCatalogStatus('');
+    if (!opts?.fromHistory && anScreen === 'catalog' && !anListContext)
+        anCaptureListContext(`#pc-list .pc-item[data-piece="${CSS.escape(id)}"]`);
     anRollbackOpening?.();
     anLibraryCapture();
     const token = ++AN.loadToken;
     anSetLoading(true, t('an_loading', srPieceTitle(p)));
-    await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token);
+    await anCommit({ kind: 'example', id, title: srPieceTitle(p), label: srPieceTitle(p), comp: p.comp, parsed: anPieceToParsed(p) }, token, undefined, {
+        fromHistory: opts?.fromHistory,
+        route: { kind: 'builtin', id },
+    });
+    if (token === AN.loadToken && AN.source?.kind === 'example' && AN.source.id === id) {
+        if (opts?.speed && [...selectById('score-speed').options].some((o) => +o.value === opts.speed)) {
+            selectById('score-speed').value = String(opts.speed);
+            anUpdateControls();
+        }
+        if (opts?.measure) {
+            const idx = SCORE.measures.findIndex((m) => String(m.number) === opts.measure);
+            if (idx > 0) scoreSeekTo(scoreSeconds(SCORE.measures[idx].start));
+        }
+        anRecordBuiltinProgress();
+        anRenderContinueCard();
+    }
 }
 // Keep the old renderer and DOM available until the replacement finishes layout.
 // A newer open rolls this attempt back before reading its own file.
 let anRollbackOpening: (() => void) | null = null;
 function anStageOpening() {
+    const prevScreen = anScreen;
     const previous = { ...AN }, score = { ...SCORE }, performance = { ...PERFORMANCE };
     const position = FALL.position, a = PRAC.A, b = PRAC.B;
     const box = byId('an-roll'), children = [...box.childNodes];
@@ -16708,19 +17442,19 @@ function anStageOpening() {
         for (const attr of attributes) box.setAttribute(attr.name, attr.value);
         box.replaceChildren(...children);
         box.scrollTo(scrollLeft, scrollTop);
+        anSetScreen(prevScreen);
         anSetLoading(false);
         anReconUI();
         pcRender();
         scoreIdle();
     };
 }
-async function anCommit(src: AnSource, token: number, recon?: LibraryResume['recon'])  {
+async function anCommit(src: AnSource, token: number, recon?: LibraryResume['recon'], opts?: { fromHistory?: boolean; route?: AnalysisRoute | null })  {
     await ensureAnalysisModules();
     if (token !== AN.loadToken) return;
     anStageOpening();
-    const pcPick = maybeById('pc-pick');
-    if (pcPick instanceof HTMLDetailsElement)
-        pcPick.open = false;
+    const wasPlayer = anScreen === 'player';
+    anSetScreen('player');
     AN.source = src;
     AN.error = null;
     AN.selected = new Set();
@@ -16753,6 +17487,9 @@ async function anCommit(src: AnSource, token: number, recon?: LibraryResume['rec
         }
     }
     anIndex();
+    if (!scoreLayoutExplicit) {
+        SCORE.layout = defaultScoreLayoutForViewport(window.innerWidth);
+    }
     let ok = false;
     try {
         ok = await scoreRender();
@@ -16779,14 +17516,25 @@ async function anCommit(src: AnSource, token: number, recon?: LibraryResume['rec
     pcRender();
     byId('an-name').textContent = src.label || src.title;
     anStatus(anLoadedText());
+    anCatalogStatus('');
+    const retryBtn = maybeById('an-msg-retry');
+    if (retryBtn) retryBtn.hidden = true;
     fallReset();
     AN.kbCenter = true;
     if (anKeysShown())
         anKeysCenter(); // a collapsed keyboard is centred when it is first shown
-    // The open score takes the room; the built-in list folds to its summary line (one click shows it again).
-    const pick = maybeById('pc-pick');
-    if (pick instanceof HTMLDetailsElement)
-        pick.open = false;
+    anSetScreen('player');
+    const route = opts?.route ?? (src.kind === 'example' ? { kind: 'builtin', id: src.id } as const : null);
+    if (route)
+        anSyncPlayerHistory(route, opts?.fromHistory, wasPlayer && anFromListDepth === 0);
+    else if (!opts?.fromHistory && !wasPlayer && view0() === 'analysis') {
+        try {
+            history.pushState(null, '', '#analysis');
+            if (anListContext?.fromList)
+                anFromListDepth++;
+        }
+        catch (_) { }
+    }
     anFocusStage();
 }
 async function anReconChange()  {
@@ -17985,6 +18733,12 @@ function anShortcut(e: KeyboardEvent) {
                 byId(b).focus();
                 return;
             }
+        if (byId('tb-prac').classList.contains('is-prac-open')) {
+            e.stopPropagation();
+            e.preventDefault();
+            anPracPopSet(false, true);
+            return;
+        }
         if (!byId('an-recon').hidden) {
             e.preventDefault();
             anReconOpen(false);
@@ -18110,19 +18864,21 @@ function scoreSeekBar(d: number) {
     scoreSeekTo(scoreSeconds(ms[i].start));
 }
 // Popovers under the toolbar: one open at a time, placed under their button, closed by Esc or a click outside.
-const AN_POPS = [['fall-pop', 'fall-opt'], ['an-keys-pop', 'an-keys-btn']];
-// Phones: More shows the toolbar controls that do not fit the one row of essentials (the layout is all CSS).
-function tbMoreSet(open: boolean, focusBack = false) {
-    const more = byId('tb-more'), tb = byId('an-toolbar');
-    if (!open) { // what a panel button opened goes with it, or it would be left without its button
-        AN_POPS.forEach(([p, b]) => { if (!byId(p).hidden && tb.contains(byId(b)))
-            anPop(p, false); });
+const AN_POPS = [['an-disp-pop', 'an-disp-btn'], ['an-tools-pop', 'an-tools-btn'], ['an-keys-pop', 'an-keys-btn']];
+function anPracPopSet(open: boolean, focusBack = false) {
+    const btn = byId('an-prac-btn'), prac = byId('tb-prac');
+    if (open) {
+        AN_POPS.forEach(([p]) => anPop(p, false));
         anReconOpen(false);
     }
-    tb.classList.toggle('is-more', open);
-    more.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (focusBack)
-        more.focus();
+    prac.classList.toggle('is-prac-open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+        const first = queryHtml(prac, 'button,select,input');
+        first?.focus({ preventScroll: true });
+    } else if (focusBack) {
+        btn.focus({ preventScroll: true });
+    }
 }
 function anPop(id: string, open: boolean) {
     const pair = AN_POPS.find((x) => x[0] === id) || [id, id];
@@ -18131,6 +18887,7 @@ function anPop(id: string, open: boolean) {
     if (open) {
         AN_POPS.forEach(([q] = []) => { if (q !== id)
             anPop(q, false); });
+        anPracPopSet(false);
         anReconOpen(false);
     }
     p.hidden = !open;
@@ -18154,6 +18911,18 @@ function anStageFit() {
         fallDraw();
         return;
     }
+    if (!scoreLayoutExplicit) {
+        const want = defaultScoreLayoutForViewport(window.innerWidth);
+        if (want !== SCORE.layout) {
+            SCORE.layout = want;
+            byId('an-roll').dataset.layout = want;
+            SCORE.stale = !!SCORE.engine;
+            if (SCORE.engine)
+                scoreLayout();
+            anUpdateControls();
+            return;
+        }
+    }
     const box = byId('an-roll'), sheet = queryHtml(box, '.an-sheet');
     if (!SCORE.engine || !box.clientWidth || !sheet)
         return;
@@ -18163,7 +18932,8 @@ function anStageFit() {
         return;
     }
     const cs = getComputedStyle(box), avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    if (Math.abs(sheet.offsetWidth - Math.max(240, Math.round(Math.min(SC_PAGE_W * SCORE.zoom, avail)))) > 2)
+    const wantW = SCORE.layout === 'fit' ? Math.max(260, Math.floor(avail)) : Math.max(240, Math.round(Math.min(SC_PAGE_W * SCORE.zoom, avail)));
+    if (Math.abs(sheet.offsetWidth - wantW) > 2)
         scoreLayout();
 }
 // The panel's left edge resizes it: drag, or arrow keys on the focused separator (Home / End for the narrowest / widest).
@@ -18203,18 +18973,43 @@ function anInitControls() {
     byId('an-file').addEventListener('change', (e) => { if (!(e.target instanceof HTMLInputElement) || !e.target.files)
         return; const f = e.target.files[0]; e.target.value = ''; if (f)
         anOpenFile(f); });
-    byId('an-roll').addEventListener('click', (e) => { const el = eventElement(e); if (!el)
+    byId('view-analysis').addEventListener('click', (e) => { const el = eventElement(e); if (!el)
         return; if (el.closest('[data-an-open]')) {
         byId('an-file').click();
         return;
     } });
-    byId('pc-list').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-piece]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.piece)
-        void anLoadExample(b.dataset.piece); });
+    byId('an-back').addEventListener('click', () => { anExitToCatalog(false); });
+    maybeById('an-continue-btn')?.addEventListener('click', () => {
+        if (!anContinueTarget) return;
+        anCaptureListContext('#an-continue-btn');
+        if (anContinueTarget.kind === 'lib')
+            void anOpenRoute({ kind: 'lib', id: anContinueTarget.id });
+        else
+            void anLoadExample(anContinueTarget.id, { speed: anContinueTarget.speed, measure: anContinueTarget.measure });
+    });
+    maybeById('an-cat-tabs')?.addEventListener('click', (e) => {
+        const b = eventClosest(e, '[role=tab]');
+        const tab = b?.dataset.catTab;
+        if (tab === 'library' || tab === 'builtin')
+            anSetCatalogTab(tab, true, false);
+    });
+    maybeById('an-cat-tabs')?.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+        e.preventDefault();
+        const next: AnCatalogTab = e.key === 'Home' ? 'library' : e.key === 'End' ? 'builtin' : (anCatalogTab === 'library' ? 'builtin' : 'library');
+        anSetCatalogTab(next, true, true);
+    });
+    anRenderContinueCard();
+    byId('pc-list').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-piece]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.piece) {
+        anCaptureListContext(`#pc-list .pc-item[data-piece="${CSS.escape(b.dataset.piece)}"]`);
+        void anLoadExample(b.dataset.piece);
+    } });
     pcRender();
     ['an-hands', 'an-grid', 'an-keysel'].forEach((id) => byId(id).addEventListener('change', anReconChange));
     byId('an-recon-btn').addEventListener('click', () => {
         anReconOpen(!!byId('an-recon').hidden);
         AN_POPS.forEach(([p] = []) => anPop(p, false));
+        anPracPopSet(false);
     });
     document.addEventListener('pointerdown', (e) => {
         const el = eventElement(e);
@@ -18222,6 +19017,11 @@ function anInitControls() {
             return;
         if (!byId('an-recon').hidden && !el.closest('#an-recon,#an-recon-btn'))
             anReconOpen(false);
+        if (byId('tb-prac').classList.contains('is-prac-open') && !el.closest('#tb-prac,#an-prac-btn'))
+            anPracPopSet(false);
+        const rdTools = maybeById('rd-focus-tools');
+        if (rdTools && !rdTools.hidden && !el.closest('#rd-focus-tools,#rd-focus-disp-btn'))
+            rdFocusDispSet(false);
         AN_POPS.forEach(([p, b] = []) => { if (!byId(p).hidden && !el.closest('#' + p + ',#' + b))
             anPop(p, false); });
     });
@@ -18246,6 +19046,31 @@ function anInitControls() {
     byId('pr-slower').addEventListener('click', () => { const sel = selectById('score-speed'), o = [...sel.options].map((x) => +x.value), cur = +sel.value, v = o.filter((x) => x < cur).pop(); if (v)
         sel.value = String(v); pracHud(); pracReplay(); });
     byId('pr-close').addEventListener('click', pracSumClose);
+    byId('pr-see-mistakes').addEventListener('click', () => {
+        const panel = byId('pr-mistakes-panel'), btn = byId('pr-see-mistakes');
+        const nextOpen = panel.hidden;
+        panel.hidden = !nextOpen;
+        btn.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+    });
+    byId('pr-mistakes-list').addEventListener('click', (e) => {
+        const list = PRAC.lastMistakes || [];
+        const multiPass = new Set(list.map((g) => g.pass)).size > 1;
+        const jumpBtn = eventClosest(e, 'button[data-mistake-jump]');
+        if (jumpBtn instanceof HTMLButtonElement && jumpBtn.dataset.mistakeJump != null) {
+            const g = list[Number(jumpBtn.dataset.mistakeJump)];
+            if (g) anJumpToMistake(g, multiPass);
+            return;
+        }
+        const repBtn = eventClosest(e, 'button[data-mistake-repeat]');
+        if (repBtn instanceof HTMLButtonElement && repBtn.dataset.mistakeRepeat != null) {
+            const g = list[Number(repBtn.dataset.mistakeRepeat)];
+            if (g) anRepeatPassage(g.measureIndex);
+        }
+    });
+    byId('sc-mistake-repeat').addEventListener('click', () => {
+        if (scMistakeBarIdx != null) anRepeatPassage(scMistakeBarIdx);
+    });
+    byId('sc-mistake-close').addEventListener('click', anHideMistakeBar);
     byId('pr-sum-next').addEventListener('click', (e) => { if (eventClosest(e, '#pr-next-act') && PRAC.next && PRAC.next.act)
         PRAC.next.act.run(); });
     byId('pr-sum').addEventListener('pointerdown', (e) => { if (e.target === e.currentTarget)
@@ -18266,8 +19091,28 @@ function anInitControls() {
     else
         scorePlay(SCORE.sel, fallTime()); };
     byId('score-speed').addEventListener('change', speed);
-    queryAllHtml(document, '[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!(b instanceof HTMLButtonElement && b.disabled))
-        scoreSetView(b.dataset.scoreMode); }));
+    const stepSpeed = (dir: -1 | 1) => {
+        const sel = selectById('score-speed');
+        const opts = [...sel.options].map((o) => +o.value);
+        const idx = opts.indexOf(+(sel.value || 100));
+        const next = opts[idx + dir];
+        if (next != null) { sel.value = String(next); speed(); }
+    };
+    byId('sc-speed-down').addEventListener('click', () => stepSpeed(-1));
+    byId('sc-speed-up').addEventListener('click', () => stepSpeed(1));
+    byId('sc-speed-reset').addEventListener('click', () => {
+        const sel = selectById('score-speed');
+        if (sel.value !== '100') { sel.value = '100'; speed(); }
+    });
+    byId('an-study-mode').addEventListener('click', (e) => {
+        const b = eventClosest(e, 'button[data-study]');
+        if (!b || !b.dataset.study) return;
+        pracSet('wait', b.dataset.study === 'practice');
+    });
+    queryAllHtml(document, '[data-score-mode]').forEach((b) => b.addEventListener('click', () => { if (!(b instanceof HTMLButtonElement && b.disabled)) {
+        scoreLayoutExplicit = true;
+        scoreSetView(b.dataset.scoreMode);
+    } }));
     byId('sc-zoom-out').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() - 0.1); });
     byId('sc-zoom-in').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(anZoomNow() + 0.1); });
     byId('sc-zoom-reset').addEventListener('click', () => { cancelScoreGesture?.(); scoreZoom(1); });
@@ -18276,6 +19121,7 @@ function anInitControls() {
     byId('sc-hl').addEventListener('click', () => scoreSetHl(!SCORE.hl));
     byId('sc-names').addEventListener('click', () => pracSet('names', !PRAC.names));
     byId('sc-stage').addEventListener('click', () => scoreFocusToggle('analysis', byId('sc-stage')));
+    byId('an-fs-exit').addEventListener('click', () => scoreFocusToggle('analysis', byId('sc-stage')));
     byId('an-kb').addEventListener('click', () => dockSet(!dockOpen()));
     const seek = byId('fall-seek');
     seek.addEventListener('input', fallSeek);
@@ -18288,13 +19134,6 @@ function anInitControls() {
     const roll = byId('an-roll');
     roll.addEventListener('pointerenter', (e) => { roll.classList.toggle('is-pen', e.pointerType === 'pen'); });
     roll.addEventListener('pointerdown', (e) => { if (e.button === 0) blurInputField(); });
-    cancelScoreGesture = bindScoreGestures(roll, {
-        selecting: (e) => AN.tool === 'select' || e.pointerType === 'pen',
-        select: scorePointer,
-        getZoom: () => SCORE.zoom,
-        zoom: scoreZoomPreview,
-        commitZoom: scoreZoomCommit,
-    });
     for (const tool of ['hand', 'select'] as const) byId('an-tool-' + tool).addEventListener('click', () => {
         cancelScoreGesture?.();
         AN.tool = tool;
@@ -18434,14 +19273,14 @@ function anInitControls() {
         return;
     } anSideSet(false); byId('an-side-btn').focus({ preventScroll: true }); });
     byId('an-fab').addEventListener('click', () => anSheet(true));
-    byId('pr-opt').addEventListener('click', () => anOpenTab('practice'));
-    byId('tb-more').addEventListener('click', () => tbMoreSet(!byId('an-toolbar').classList.contains('is-more')));
-    // Esc closes More, but only once nothing it opened is still showing: the score shortcuts close those first.
-    byId('an-toolbar').addEventListener('keydown', (e) => { if (e.key === 'Escape' && byId('an-toolbar').classList.contains('is-more')
-        && AN_POPS.every(([p]) => byId(p).hidden) && byId('an-recon').hidden) {
-        e.stopPropagation();
-        tbMoreSet(false, true);
-    } });
+    byId('pr-opt').addEventListener('click', () => { anPracPopSet(false); anOpenTab('practice'); });
+    byId('an-prac-btn').addEventListener('click', () => anPracPopSet(!byId('tb-prac').classList.contains('is-prac-open')));
+    byId('an-toolbar').addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && byId('tb-prac').classList.contains('is-prac-open')) {
+            e.stopPropagation();
+            anPracPopSet(false, true);
+        }
+    });
     byId('an-now').addEventListener('focusout', (e) => { if (SIDE.deferred && !byId('an-now-body').contains(e.relatedTarget instanceof Node ? e.relatedTarget : null))
         requestAnimationFrame(anRenderNow); });
     // Now: the passage actions
@@ -18908,6 +19747,7 @@ function updatePracticeModeHint() {
     start.textContent = along ? t(accomp.on ? 'ac_stop' : 'ac_play') : t('pr_start_sel', [prTopicLabel(cat), prModeLabel(mode), ...(dirShown ? [prDirLabel(prIvDir)] : []), prKeyLabel(key)].join(' · '));
     syncPracticeHintsPanel();
     dockSync(); // Play along brings the keys
+    syncMobileStartBars();
 }
 
 function syncPracticeCatAndMode() {
@@ -19356,7 +20196,7 @@ function syncRefresh() {
 let reloadingForRestore = false;
 function saveAll() { if (reloadingForRestore) return; const got = syncPull(); syncWrite(); if (got === 'merge' || got === 'merge-save' || got === 'swap')
     syncAfter(got); }
-function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone: audioEngine.tone, masterVol: audioEngine.masterVolume, muted: audioEngine.muted, localSynth: audioEngine.localSynth, reverb: audioEngine.reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, deviceName: savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
+function syncPayload(): storage.PttV3Payload { return { v: 3, schema: storage.PTT_SCHEMA, gen: SYNC.gen, syncId: syncGen(), syncParent: SYNC.id, ...SYNC.merge && SYNC.merge.into === SYNC.id ? { syncMerge: SYNC.merge.id } : {}, audioEngine: 'recorded-piano-v2', lang: syncPref('lang', lang), theme, data, notation: syncPref('notation', notation), tone: audioEngine.tone, masterVol: audioEngine.masterVolume, muted: audioEngine.muted, localSynth: audioEngine.localSynth, reverb: audioEngine.reverbWet, labels: syncPref('labels', labelMode), bpm: metro.bpm, drone: !!data.settings.drone, device: savedDevice, deviceName: savedDeviceName, scoreLook: SCORE.look, scoreHl: SCORE.hl, scoreView: FALL.mode === 'fall' ? 'fall' : SCORE.layout, scoreViewExplicit: scoreLayoutExplicit, kbDock: DOCK.pref, anSide: { open: SIDE.open, tab: SIDE.tab, w: SIDE.w }, wake: WAKE.want, ble: BLE.saved }; }
 function syncWrite(replacement?: { gen: string; data: StoredTrainerData }) {
     if (reloadingForRestore || STORE.blocked) {
         if (replacement)
@@ -19780,12 +20620,10 @@ function applyTopLevelPrefs(raw: storage.PttV3Payload) {
         SCORE.look = raw.scoreLook;
     if (typeof raw.scoreHl === 'boolean')
         SCORE.hl = raw.scoreHl;
-    if (raw.scoreView === 'page' || raw.scoreView === 'cont') {
-        SCORE.layout = raw.scoreView;
-        FALL.mode = 'score';
-    }
-    else if (raw.scoreView === 'fall')
-        FALL.mode = 'fall';
+    const scoreView = savedScoreView(raw.scoreView, raw.scoreViewExplicit);
+    scoreLayoutExplicit = scoreView !== null;
+    SCORE.layout = scoreView && scoreView !== 'fall' ? scoreView : defaultScoreLayoutForViewport(window.innerWidth);
+    FALL.mode = scoreView === 'fall' ? 'fall' : 'score';
     if (typeof raw.kbDock === 'boolean')
         DOCK.pref = raw.kbDock;
     else if (typeof raw.anKb === 'boolean')
@@ -20194,6 +21032,7 @@ function initControls() {
     byId('set-full').addEventListener('click', fsToggle);
     queryAllHtml(document, '.stage-fs:not(.score-expand)').forEach((b) => b.addEventListener('click', fsToggle));
     for (const id of ['rd-fs', 'rd-top-fs']) byId(id).addEventListener('click', () => scoreFocusToggle('read', byId('rd-fs')));
+    byId('rd-focus-disp-btn').addEventListener('click', () => rdFocusDispSet(Boolean(byId('rd-focus-tools').hidden)));
     byId('rd-focus-out').addEventListener('click', () => readScoreZoom(SCORE_FOCUS.zoom - .1));
     byId('rd-focus-in').addEventListener('click', () => readScoreZoom(SCORE_FOCUS.zoom + .1));
     byId('rd-focus-fit').addEventListener('click', () => { readScoreZoom(1); srFit(); });
@@ -20343,6 +21182,7 @@ function initControls() {
     byId('pr-keys').addEventListener('click', (e) => { const r = eventClosest(e, '[role=radio]'); if (r?.dataset.v) prSetKey(r.dataset.v); });
     byId('pr-keys').addEventListener('keydown', (e) => prRadioKey(e, prSetKey));
     byId('pr-start').addEventListener('click', prStart);
+    maybeById('pr-mobile-start')?.addEventListener('click', () => { byId('pr-start').click(); });
     byId('pr-redo').addEventListener('click', prContinue);
     byId('pr-dir').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-v]'); if (b) prSetDir(b.dataset.v ?? ''); });
     // accompaniment
@@ -20449,6 +21289,7 @@ function initControls() {
         }
         SR.bpm = tempo.valueAsNumber;
         byId('rd-bpmLbl').textContent = tempo.value;
+        syncMobileStartBars();
     };
     tempo.addEventListener('input', syncTempo);
     byId('rd-bpm-down').addEventListener('click', () => {
@@ -20460,6 +21301,7 @@ function initControls() {
         syncTempo();
     });
     byId('rd-go').addEventListener('click', srGo);
+    maybeById('rd-mobile-start')?.addEventListener('click', () => { byId('rd-go').click(); });
     maybeById('rd-stage-end')?.addEventListener('click', () => {
         srGo();
         if (!SR.active)
@@ -20726,7 +21568,7 @@ function initControls() {
                 // Keep that reading position, even if the score's lower edge is still visible.
                 const atScore = work.top >= 0 && work.top < dockTop;
                 const clipTop = work.top < topLimit - 2 && work.bottom > topLimit + 8;
-                if (AN.notes.length && !PC_STAGE.on && (clipDock || (atScore && (flipped || clipTop))))
+                if (AN.notes.length && !PC_STAGE.on && (clipDock || (anScreen === 'player' && flipped) || (atScore && clipTop)))
                     anFocusStage();
                 else if (PC_STAGE.on)
                     window.scrollTo(0, 0);
