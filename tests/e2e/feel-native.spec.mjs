@@ -86,7 +86,7 @@ test('Pieces shows one Open file button at a time, and the built-in list stays a
   await expect(playerOpen).toBeHidden();
   await expect(page.locator('#an-example')).toHaveCount(0);
   await twinkle.click();
-  await expect.poll(() => page.evaluate(() => window.__etude.AN.notes.length)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => !window.__etude.AN.loading && window.__etude.AN.notes.length > 0)).toBe(true);
   await expect(page.locator('#an-panel')).toBeVisible();
   await expect(playerOpen).toBeVisible();
   await page.locator('#an-back').click();
