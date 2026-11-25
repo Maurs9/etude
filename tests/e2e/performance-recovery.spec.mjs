@@ -39,8 +39,10 @@ test('a failed library module can be retried without reloading or losing the ope
   const retry = page.locator('#score-library-root > button');
   await expect(retry).toBeVisible();
   await retry.click();
-  await expect(page.locator('#score-library')).toBeVisible();
   await expect(retry).toHaveCount(0);
+  await expect(page).toHaveURL(/#analysis$/);
+  await page.locator('#an-tab-library').click();
+  await expect(page.locator('#score-library')).toBeVisible();
   expect(requests).toBe(2);
 });
 
