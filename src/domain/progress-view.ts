@@ -1,6 +1,7 @@
 import { byId } from './dom.js';
 import type { StudioMilestoneSummary } from './progress-report.js';
 import type { StoredSrsEntry } from './storage.js';
+export { buildPracticeReport, formatPracticeReportCsv } from './progress-report.js';
 
 interface ProgressItem {
     id: string;

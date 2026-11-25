@@ -11,6 +11,7 @@ import { playControl } from './practice-hint-dom.js';
 import type { PracticeHintsTopic } from './practice-hints-view.js';
 import type { StudyHintState } from './practice-study-view.js';
 import { evaluateWaitChord } from './wait-chord.js';
+import { gradePracticeSustain, practiceAccuracy as pracAcc, practicePercent, practiceSustainReference, type TimedSustain } from './practice-scoring.js';
 import { createCursorCurves, cursorCurveAt } from './score-cursor.js';
 import { bindScoreGestures, type ScoreSelectionGesture } from './score-gestures.js';
 import * as audio from './audio.js';
@@ -84,7 +85,7 @@ import { type TechniqueKind } from './technique.js';
 import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, differentialIntervalCue, differentialToneCue, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
 import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueRefresh, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
-import { buildPracticeReport, formatPracticeReportCsv, type PracticeReportPieceInput } from './progress-report.js';
+import type { buildPracticeReport, PracticeReportPieceInput } from './progress-report.js';
 
 let scoreFeature: typeof import('./score-feature.js');
 let AN_SMUFL_NOTES: typeof import('./score-import.js').AN_SMUFL_NOTES;
@@ -2089,7 +2090,7 @@ function onInputChange(kind: 'on'|'off', midi: number, source = 'midi', releaseK
             srInstantHandleNote(midi, relMs);
     }
     if (view0() === 'analysis') {
-        pracInput(kind, midi);
+        pracInput(kind, midi, source);
         return;
     }
     if (view0() === 'explore') {
@@ -2272,9 +2273,12 @@ function midiDispatch(st: number, d1: number, d2: number, src: string) {
     else if (cmd === 0xB0) {
         if (d1 === 64) {
             const dn = d2 >= 64;
+            const changed = pedalDown !== dn;
             if (pedalDown && !dn)
                 pedalUp();
             pedalDown = dn;
+            if (changed && view0() === 'analysis' && !calListening() && !overlaysOpen())
+                pracSustainInput(dn);
         }
         else if (d1 === 120 || d1 === 123) {
             for (const midi of midiChannels.get(src)?.get(channel) ?? []) midiNoteOff(src, channel, midi, d1);
@@ -14328,20 +14332,22 @@ function scoreHome() {
    A loop queues its next pass as a new segment ahead of time; "Wait for me" freezes the clock at a barrier (the next note of
    the practised hand) until those keys are played. Notes are scheduled ~0.3 s ahead by a 25 ms tick. */
 // Judgements counted in a practice run, and the share of notes hit in the current and the last loop pass.
-interface PracticeStats { perfect: number; good: number; miss: number; wrong: number; streak: number; best: number; passHit: number; passAll: number; lastPass: number | null }
+interface PracticeStats { perfect: number; good: number; miss: number; wrong: number; streak: number; best: number; passHit: number; passAll: number; lastPass: number | null; extraMidi?: number }
 // The parts of an analysed note that practice playback reads.
 // A note on the playback clock: its index i in AN.notes and its start, written end and sounding end in score seconds.
-interface PracticeTimedNote { n: AnNote; i: number; start: number; finish: number; sound?: number }
+interface PracticeTimedNote { n: AnNote; i: number; start: number; finish: number; sound?: number; unisons?: number[] }
 // One stretch of the audio clock: score time t = t0 + (now − a0)·f, until t1.
 interface PracticeSegment { a0: number; t0: number; t1: number; f: number; first: boolean; p0?: number; elapsed0?: number }
 // Wait barriers require fresh overlapping chord attacks; written arpeggios may be played successively.
-interface PracticeBarrier { allowed: Set<number>; attacks: Map<number, number>; rolled: Set<number>; t: number; need: Set<number>; got: Set<number>; group: PracticeTimedNote[]; seg: PracticeSegment; since: number }
+interface PracticeBarrier { allowed: Set<number>; attacks: Map<number, number>; attempts: number; rolled: Set<number>; t: number; need: Set<number>; got: Set<number>; group: PracticeTimedNote[]; seg: PracticeSegment; since: number }
 interface PracticeBeat { t: number; acc: boolean }
 interface PracticeCountIn { t: number; n: number; sec: number }
 interface PracticeStartOptions { notes: PracticeTimedNote[]; a: number; b: number; loop: boolean; sel: boolean; from: number; ab?: boolean; bars?: string; carry?: PracticeCarry | null }
+interface PracticeSustain { expected: TimedSustain[]; played: TimedSustain[]; midi: boolean }
 // A running practice: its clock segments, scheduling cursors (ni notes, bi beats, mi my next note), the judgements and the tick timer.
 // origin: where a run resumed after a pause first started (its from is where it resumed).
 interface PracticeRun extends PracticeStartOptions {
+    sustain?: PracticeSustain;
     completed?: Set<number>;
     route?: { a: number; b: number }[];
     outputHistory?: PracticeSegment[];
@@ -14351,6 +14357,7 @@ interface PracticeRun extends PracticeStartOptions {
 }
 // A whole-piece run held over a pause: what Play needs to carry on with the same run (pracStart), if nothing else changed.
 interface PracticeCarry {
+    sustain?: PracticeSustain;
     pass?: number;
     completed?: Set<number>;
     route?: { a: number; b: number }[];
@@ -14480,7 +14487,6 @@ function pracStatsReset() {
     old.forEach(scorePaintIdx);
     pracHud();
 }
-function pracAcc(st: PracticeStats) { const all = st.perfect + st.good + st.miss + st.wrong; return all ? (st.perfect + st.good) / all : null; }
 let cachedRepeatXml = '';
 let cachedRepeatMeasures: typeof SCORE.measures | undefined;
 let cachedRepeatBars: ReturnType<typeof scoreXmlRepeatBars> = [];
@@ -14578,7 +14584,20 @@ async function pracStart(o: PracticeStartOptions)  {
     // Resuming a paused whole run keeps it one run: the judgements so far, and my whole part, so a note skipped before the
     // pause still counts as missed. Anything changed meanwhile (cursor, hands, Wait for me, tempo, the score) starts a new run.
     const c = o.carry, resumed = !!c && !o.sel && !o.loop && c.notes === AN.notes && c.src === AN.source && c.hands === PRAC.hands && c.wait === pracWait() && c.f === f && Math.abs(c.at - o.from) < .01;
-    const mine = (resumed ? fallData().slice().sort((x, y) => x.start - y.start || x.n.midi - y.n.midi) : o.notes).filter((d) => pracMine(d.n));
+    const targets = resumed ? fallData().slice().sort((x, y) => x.start - y.start || x.n.midi - y.n.midi) : o.notes;
+    const mine: PracticeTimedNote[] = [];
+    const byPitch = new Map<number, PracticeTimedNote>();
+    for (const note of targets) {
+        if (!pracMine(note.n)) continue;
+        const unison = byPitch.get(note.n.midi);
+        if (unison && Math.abs(unison.start - note.start) < 1e-6) {
+            (unison.unisons ??= []).push(note.i);
+        } else {
+            const target = { ...note };
+            mine.push(target);
+            byPitch.set(note.n.midi, target);
+        }
+    }
     const R: PracticeRun = { ...o, carry: null, segs: [{ a0, t0: o.from, t1: o.b, f, first: true }], ni: 0, beats, bi: first(o.from), beat0: first(o.a), wt: o.from, pass: 1, mine, mi: Math.max(0, mine.findIndex((d) => d.start >= o.from - 1e-6)), judged: new Map(), gen, ci, timer: 0 };
     if (o.loop) R.segs[0].p0 = 0;
     if (!o.loop && !o.sel) {
@@ -14598,6 +14617,18 @@ async function pracStart(o: PracticeStartOptions)  {
         const earliest = R.pass === 1 ? c.origin : -Infinity;
         const next = mine.findIndex((d) => d.start >= earliest - 1e-6 && !R.judged.has(d.i));
         R.mi = next < 0 ? mine.length : next;
+    }
+    if (resumed && c)
+        R.sustain = c.sustain;
+    else if (!o.loop) {
+        const src = AN.source, events = src?.kind === 'xml' ? src.sustain : src?.parsed.sustain;
+        if (events?.length) {
+            const segment = R.segs[0];
+            const ranges = [{ a: segment.t0, b: segment.t1 }, ...(R.route ?? [])];
+            const expected = practiceSustainReference(events.map(e => ({ time: scoreSeconds(e.beat), down: e.down })), ranges, segment.p0 ?? 0);
+            if (expected.length)
+                R.sustain = { expected, played: [], midi: false };
+        }
     }
     SCORE.run = R;
     SCORE.playing = true;
@@ -14631,7 +14662,7 @@ function pracCarry(at: number): PracticeCarry | null {
     if (!R || R.loop || R.sel || !st)
         return null;
     const index = Math.max(0, R.segs.indexOf(pracSegAt(R, audioEngine.context?.currentTime ?? 0)));
-    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: pracWait(), f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined };
+    return { pass: R.pass + R.segs.slice(1, index + 1).filter((s, i) => s.t0 < R.segs[i].t1 - 1e-6).length, notes: AN.notes, src: AN.source, at, origin: R.origin ?? R.from, hands: PRAC.hands, wait: pracWait(), f: R.segs[0].f, judged: new Map(R.judged), stats: { ...st }, active: PRAC.active, res: new Map(PRAC.res), completed: R.completed ? new Set(R.completed) : undefined, route: R.route ? [{ a: at, b: R.segs[index].t1 }, ...R.segs.slice(index + 1).map(s => ({ a: s.t0, b: s.t1 })), ...R.route] : undefined, sustain: R.sustain };
 }
 function pracTick() {
     const R = SCORE.run;
@@ -14819,7 +14850,7 @@ function pracNextBar(R: PracticeRun, s: PracticeSegment) {
     const group = R.mine.filter((x) => Math.abs(x.start - d.start) < 1e-6 && !R.judged.has(x.i));
     const rolled = new Set(group.filter(x => group.some(y => (y.n.arpeggiate || (y.n.roll ?? 0) > 0) && x.n.part === y.n.part && x.n.staff === y.n.staff && x.n.voice === y.n.voice)).map(x => x.n.midi));
     const allowed = new Set(fallData().filter(x => x.start <= d.start + 1e-6 && (x.start < d.start - 1e-6 || !pracMine(x.n)) && x.finish > d.start + 1e-6).map(x => x.n.midi));
-    PRAC.bar = { allowed, attacks: new Map(), rolled, t: d.start, need: new Set(group.map((x) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
+    PRAC.bar = { allowed, attacks: new Map(), attempts: 0, rolled, t: d.start, need: new Set(group.map((x) => x.n.midi)), got: new Set(), group, seg: s, since: 0 };
 }
 function pracRelease(R: PracticeRun, B: PracticeBarrier, now: number) {
     const s = B.seg, t = s.t0 + Math.max(0, now - s.a0) * s.f;
@@ -14845,11 +14876,12 @@ function pracMisses(R: PracticeRun, time: number) {
             pracJudge(R, d, 'miss');
     }
 }
-function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | 'good' | 'miss' | 'wrong') {
+function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | 'good' | 'miss' | 'wrong', extraMidi?: number) {
     const st = PRAC.stats;
     if (!st)
         return;
     st[j]++;
+    if (extraMidi !== undefined) st.extraMidi = extraMidi;
     if (j === 'perfect' || j === 'good') {
         st.streak++;
         st.best = Math.max(st.best, st.streak);
@@ -14859,10 +14891,12 @@ function pracJudge(R: PracticeRun, d: PracticeTimedNote | null, j: 'perfect' | '
         st.streak = 0;
     st.passAll++;
     if (d) {
-        R.judged.set(d.i, j);
-        PRAC.res.set(d.i, j === 'miss' ? 'miss' : 'hit');
-        if (FALL.mode === 'score')
-            scorePaintIdx(d.i);
+        for (const index of [d.i, ...(d.unisons ?? [])]) {
+            R.judged.set(index, j);
+            PRAC.res.set(index, j === 'miss' ? 'miss' : 'hit');
+            if (FALL.mode === 'score')
+                scorePaintIdx(index);
+        }
     }
     PRAC.judge = j;
     PRAC.judgeT = performance.now();
@@ -14883,43 +14917,66 @@ function pracWaitUpdate(R: PracticeRun, B: PracticeBarrier, now: number) {
     const result = evaluateWaitChord(B.need, B.attacks, held, B.rolled, B.allowed, !!data.settings.anyOctave);
     B.got = result.got;
     if (!result.complete) return;
-    const late = Math.max(0, pracRaw(R, now).t - B.t) / B.seg.f;
-    B.group.filter(x => !R.judged.has(x.i)).forEach(x => pracJudge(R, x, late < .15 ? 'perfect' : 'good'));
+    for (let i = B.need.size; i < B.attempts; i++)
+        pracJudge(R, null, 'wrong');
+    B.group.filter(x => !R.judged.has(x.i)).forEach(x => pracJudge(R, x, 'perfect'));
     pracRelease(R, B, audioEngine.context?.currentTime ?? now);
 }
+function pracSustainInput(down: boolean) {
+    const R = SCORE.run, ctx = audioEngine.context;
+    if (!R?.sustain || !SCORE.playing || !ctx)
+        return;
+    const now = ctx.currentTime - Math.max(0, inputLag()) / 1000;
+    if (now < R.segs[0].a0 - .12)
+        return;
+    const { s, t } = pracRaw(R, now), B = PRAC.bar;
+    const position = Math.min(B?.seg === s ? B.t : Infinity, t);
+    R.sustain.played.push({ time: (s.p0 ?? 0) + position - s.t0, down });
+    R.sustain.midi = true;
+    PRAC.active = true;
+}
 // Live input in this view: the computer keyboard, on-screen keys, the falling-notes keyboard or a MIDI device.
-function pracInput(kind: string, midi?: number) {
+function pracInput(kind: 'on' | 'off', midi: number, source: string) {
     const R = SCORE.run;
-    if (kind === 'off' && R && SCORE.playing && PRAC.bar && audioEngine.context && midi !== undefined) {
+    if (kind === 'off' && R && SCORE.playing && PRAC.bar && audioEngine.context) {
         const B = PRAC.bar;
         pracWaitUpdate(R, B, audioEngine.context.currentTime);
     }
     if (kind === 'on' && R && SCORE.playing && audioEngine.context) {
         // The key's own time on the audio clock: the handler may run a frame or a radio interval after the note was played.
-        const m = heldOrder[heldOrder.length - 1], now = audioEngine.context.currentTime - Math.max(0, inputLag()) / 1000;
-        if (m != null && now >= R.segs[0].a0 - .05) {
+        const m = midi, now = audioEngine.context.currentTime - Math.max(0, inputLag()) / 1000;
+        const waiting = pracWait();
+        if (now >= R.segs[0].a0 - (waiting ? .05 : .22)) {
             PRAC.active = true;
+            if (R.sustain && (source === 'midi' || source === 'ble'))
+                R.sustain.midi = true;
             const { s, t } = pracRaw(R, now), B = PRAC.bar, key = B && B.seg === s && t >= B.t - .3 * s.f ? pracNeedKey(B, m) : null;
             if (B && key != null) {
+                B.attempts++;
                 B.attacks.set(m, now);
                 pracWaitUpdate(R, B, now);
             }
             else {
-                if (B && B.seg === s && t >= B.t - .3 * s.f) {
-                    pracJudge(R, null, 'wrong');
+                if (waiting) {
+                    pracJudge(R, null, 'wrong', m);
                     return;
                 }
-                const time = pracWait() ? fallTime(now) : t, tol = .22 * s.f;
+                const time = t + Math.min(0, now - s.a0) * s.f, tol = .22 * s.f;
+                const from = s.first ? R.origin ?? R.from : s.t0;
                 let best: PracticeTimedNote | null = null;
                 for (const d of R.mine) {
-                    if (d.start > time + tol)
+                    if (d.start > time + tol || d.start >= s.t1 - 1e-6)
                         break;
-                    if (!pracSame(d.n.midi, m) || R.judged.has(d.i) || d.start < time - tol)
+                    if (!pracSame(d.n.midi, m) || R.judged.has(d.i) || d.start < Math.max(from - 1e-6, time - tol))
                         continue;
-                    if (!best || Math.abs(d.start - time) < Math.abs(best.start - time))
+                    if (!best || Math.abs(d.start - time) < Math.abs(best.start - time) ||
+                        d.start === best.start && d.n.midi === m)
                         best = d;
                 }
-                pracJudge(R, best, best ? (Math.abs(best.start - time) < .09 * s.f ? 'perfect' : 'good') : 'wrong');
+                if (best)
+                    pracJudge(R, best, Math.abs(best.start - time) < .09 * s.f ? 'perfect' : 'good');
+                else
+                    pracJudge(R, null, 'wrong', m);
             }
         }
     }
@@ -14935,7 +14992,7 @@ function pracHud() {
     if (!show)
         return;
     const acc = st && pracAcc(st), R = SCORE.run;
-    byId('pr-acc-v').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
+    byId('pr-acc-v').textContent = acc == null ? '–' : practicePercent(acc) + '%';
     byId('pr-streak').textContent = String(st ? st.streak : 0);
     byId('pr-pass').textContent = String(R ? R.pass : 1);
     byId('pr-tempo').textContent = Math.round(((R && R.segs[0].f) || pracFactor()) * 100) + '%';
@@ -15000,7 +15057,7 @@ function pracRecord(R: PracticeRun): PracticeSaved | null {
     if (waited ? !complete : acc == null || (R.origin != null && !every))
         return null;
     // The accuracy of a timed run; a waiting run plays at your pace, so it sets no best.
-    const pct = !waited && acc != null ? Math.round(acc * 100) : null;
+    const pct = !waited && acc != null ? practicePercent(acc) : null;
     let saved: PracticeSaved = { best: null, newBest: false, learned: false };
     if (src.kind === 'example') {
         const rec = data.sheet[src.id] || (data.sheet[src.id] = {}), old = rec.best || 0, beaten = pct != null && pct > old;
@@ -15041,13 +15098,22 @@ function pracSummary(R: PracticeRun, saved: PracticeSaved | null = null, why = '
     whyEl.hidden = !why;
     PRAC.next = pracNextStep(R);
     pracNextRender();
-    byId('pr-sum-acc').textContent = acc == null ? '–' : Math.round(acc * 100) + '%';
+    byId('pr-sum-acc').textContent = acc == null ? '–' : practicePercent(acc) + '%';
+    const pedal = R.sustain?.midi ? gradePracticeSustain(R.sustain.expected, R.sustain.played, R.segs[0].f) : null;
+    byId('pr-sum-sustain').hidden = pedal?.accuracy == null;
+    if (pedal?.accuracy != null) {
+        byId('pr-sum-sustain-acc').textContent = practicePercent(pedal.accuracy) + '%';
+        byId('pr-sum-sustain-details').textContent = t('pr_sustain_details', pedal.missed, pedal.extra);
+    }
     const showSaved = (v: PracticeSaved | null) => { const txt = pracSavedText(v); bestEl.textContent = txt; bestEl.hidden = !txt; bestEl.classList.toggle('is-new', !!v && v.newBest); };
     showSaved(saved);
     if (saved && saved.pending)
         void saved.pending.then((v) => { if (gen === pracSumGen && !byId('pr-sum').hidden)
             showSaved(v); });
     (['perfect', 'good', 'miss', 'wrong'] as const).forEach((k) => { byId('pr-sum-' + k).textContent = String(st[k]); });
+    const extra = byId('pr-sum-extra');
+    extra.hidden = st.extraMidi === undefined;
+    extra.textContent = st.extraMidi === undefined ? '' : t('pr_extra_key', noteName(st.extraMidi, false));
     byId('pr-sum-note').textContent = t('pr_sum_note', st.best, Math.round(pracFactor() * 100) + '%');
     if (byId('pr-sum').hidden)
         pracSumReturn = document.activeElement;
@@ -17039,7 +17105,9 @@ function fallData() { if (FALL.source !== AN.notes || FALL.tempoSource !== SCORE
         return { n, i, start, finish, sound };
     });
     // A score ends at the final barline, including written rests after its last pitched note.
-    FALL.end = AN.source?.kind === 'xml' ? Math.max(maxEnd, ...SCORE.measures.map(m => scoreSeconds(m.end))) : maxEnd;
+    const src = AN.source;
+    const sustainEnd = (src?.kind === 'xml' ? src.sustain : src?.parsed.sustain)?.at(-1)?.beat ?? 0;
+    FALL.end = src?.kind === 'xml' ? Math.max(maxEnd, scoreSeconds(sustainEnd), ...SCORE.measures.map(m => scoreSeconds(m.end))) : Math.max(maxEnd, scoreSeconds(sustainEnd));
     FALL.maxDur = maxDur;
     FALL.sorted = sorted;
 } return FALL.notes; }
@@ -18449,7 +18517,7 @@ function anInitControls() {
 }
 /* ---------- PROGRESS ---------- */
 let progressView: typeof import('./progress-view.js') | null = null;
-function collectPracticeReport(libraryItems: readonly LibraryItem[] = []) {
+function collectPracticeReport(buildReport: typeof buildPracticeReport, libraryItems: readonly LibraryItem[] = []) {
     const tn = todayN();
     const book = rdnBook();
     const tally = srtBookTally(book, book.level);
@@ -18479,7 +18547,7 @@ function collectPracticeReport(libraryItems: readonly LibraryItem[] = []) {
             });
         }
     }
-    return buildPracticeReport({
+    return buildReport({
         today: tn,
         totalReviews: data.totalReviews || 0,
         totalCorrect: data.totalCorrect || 0,
@@ -18527,16 +18595,17 @@ function renderPrintSummaryHtml(report: ReturnType<typeof buildPracticeReport>):
         + `<p class="prog-print-meta">${esc(report.generatedDateIso)} · ${esc(t('prog_ms_standing', standingLabelOf(report)))} · ${esc(t('prog_rep_7d', report.reviews7d, report.activeDays7d))} · ${esc(t('prog_rep_30d', report.reviews30d, report.activeDays30d))}</p>`
         + piecesLine;
 }
-function updatePrintSummaryHead(libraryItems: readonly LibraryItem[] = []): { html: string; report: ReturnType<typeof buildPracticeReport> } {
-    const report = collectPracticeReport(libraryItems);
+function updatePrintSummaryHead(buildReport: typeof buildPracticeReport, libraryItems: readonly LibraryItem[] = []): { html: string; report: ReturnType<typeof buildPracticeReport> } {
+    const report = collectPracticeReport(buildReport, libraryItems);
     const html = renderPrintSummaryHtml(report);
     const head = maybeById('prog-print-head');
     if (head) head.innerHTML = html;
     return { html, report };
 }
 function renderProgress() {
-    const { html: printSummaryHtml, report } = updatePrintSummaryHead();
-    progressView?.renderProgress({
+    if (!progressView) return;
+    const { html: printSummaryHtml, report } = updatePrintSummaryHead(progressView.buildPracticeReport);
+    progressView.renderProgress({
         data, hasActivity: storeHasProgress(), items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
         t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, rdRenderStats,
         printSummaryHtml,
@@ -20475,9 +20544,11 @@ function initControls() {
     // progress
     byId('prog-report-csv').addEventListener('click', () => {
         void (async () => {
+            const reportModule = progressView;
+            if (!reportModule) return;
             const libraryItems = await scoreLibraryStore.libraryList().catch(() => []);
-            const report = collectPracticeReport(libraryItems);
-            const csv = formatPracticeReportCsv(report, {
+            const report = collectPracticeReport(reportModule.buildPracticeReport, libraryItems);
+            const csv = reportModule.formatPracticeReportCsv(report, {
                 title: t('prog_rep_title'),
                 secSummary: t('prog_rep_sec_summary'),
                 secTopics: t('prog_rep_sec_topics'),
@@ -20517,8 +20588,10 @@ function initControls() {
     });
     byId('prog-report-print').addEventListener('click', () => {
         void (async () => {
+            const reportModule = progressView;
+            if (!reportModule) return;
             const libraryItems = await scoreLibraryStore.libraryList().catch(() => []);
-            updatePrintSummaryHead(libraryItems);
+            updatePrintSummaryHead(reportModule.buildPracticeReport, libraryItems);
             if (typeof window.print === 'function')
                 window.print();
         })();
