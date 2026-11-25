@@ -26,6 +26,7 @@ describe('MIDI import timing', () => {
       { midi: 60, start: 0, end: 1, soundEnd: 4, vel: 64, channel: 0, track: 1 },
       { midi: 64, start: 0, end: 1, vel: 64, channel: 1, track: 1 },
     ]);
+    expect(parsed.sustain).toEqual([{ beat: 0, down: true }, { beat: 4, down: false }]);
   });
 
   it('honors MIDI event order when a key release and pedal press share a tick', () => {

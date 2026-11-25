@@ -7,13 +7,13 @@ import {
   anError,
   type AnHand,
   type AnMidiMeta,
-  type AnParsedMidi,
   type AnParsedNote,
   type ScoreFermata,
   type ScoreGraceNote,
   type ScoreMeasure,
   type ScoreOrnamentKind,
   type ScoreSlurSpan,
+  type ScoreSustainEvent,
   type ScoreTempoModifier,
   type ScoreTextDynamic,
   type ScoreXmlExpression,
@@ -25,7 +25,18 @@ import {
   type ScoreXmlRest,
 } from './score-types.js';
 
-interface MidiPedalEvent { beat: number; down: boolean; order: number; track: number; }
+interface MidiPedalEvent extends ScoreSustainEvent { order: number; track: number; }
+
+function sustainTransitions(events: readonly ScoreSustainEvent[]): ScoreSustainEvent[] {
+    const result: ScoreSustainEvent[] = [];
+    let down = false;
+    for (const event of events) {
+        if (event.down === down) continue;
+        down = event.down;
+        result.push({ beat: event.beat, down });
+    }
+    return result;
+}
 
 function applyMidiSustain(notes: AnParsedNote[], channels: Map<number, MidiPedalEvent[]>, releaseOrder: WeakMap<AnParsedNote, number>, end: number) {
     for (const [channel, events] of channels) {
@@ -192,7 +203,12 @@ export function anParse(buffer: ArrayBuffer) {
         throw anError('notes');
     notes.sort((x, y) => x.start - y.start || x.midi - y.midi);
     if (sustain.size) applyMidiSustain(notes, sustain, releaseOrder, lastTick / ppq);
-    return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes };
+    // One physical pedal can follow one lane. Use the pedal of the channel with the most notes.
+    const noteCounts = new Map<number, number>();
+    for (const note of notes) noteCounts.set(note.channel, (noteCounts.get(note.channel) ?? 0) + 1);
+    const pedal = [...sustain].filter(([channel, events]) => noteCounts.has(channel) && events.some(e => e.down))
+        .sort(([a], [b]) => (noteCounts.get(b) ?? 0) - (noteCounts.get(a) ?? 0) || a - b)[0]?.[1];
+    return { ppq, format, tracks, names, meta: meta.sort((a, b) => a.beat - b.beat), notes, sustain: sustainTransitions(pedal ?? []) };
 }
 
 export interface ScoreXmlLevel { part: number; staff: number; beat: number; value: number; sequence: number; }
@@ -764,7 +780,18 @@ export function scoreXmlNotes(doc: Document, captureDifficulty = false) {
             if (pedalCount) measure.pedalChanges = pedalCount;
         });
     }
-    return { notes: sorted, tempos: tempos.filter(e => Number.isFinite(e.beat)), measures, keys, harmonies, links, tempoWords, expression, ...(captureDifficulty ? { difficultyRests } : {}) };
+    const pedalMarks = new Map<number, { press: boolean; release: boolean }>();
+    for (const event of pedalEvents.sort(byTime)) {
+        const mark = pedalMarks.get(event.beat) ?? { press: false, release: false };
+        mark.press ||= event.type === 'start' || event.type === 'change';
+        mark.release ||= event.type === 'stop' || event.type === 'change';
+        pedalMarks.set(event.beat, mark);
+    }
+    const pedal = [...pedalMarks].flatMap(([beat, { press, release }]) => [
+        ...(release ? [{ beat, down: false }] : []),
+        ...(press ? [{ beat, down: true }] : []),
+    ]);
+    return { notes: sorted, tempos: tempos.filter(e => Number.isFinite(e.beat)), measures, keys, harmonies, links, tempoWords, expression, sustain: sustainTransitions(pedal), ...(captureDifficulty ? { difficultyRests } : {}) };
 }
 
 interface AnZipEntry { method: number; C: number; U: number; off: number; }
