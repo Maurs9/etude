@@ -541,7 +541,7 @@ async function openLibrary(page) {
 test('a library file keeps its best and last-played day and shows them in My Library', async ({ app, page }) => {
   await app.open({ hash: 'analysis' });
   await page.locator('#an-file').setInputFiles({ name: 'progress.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xmlScore('Progress Etude')) });
-  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'xml' && !!window.__etude.SCORE.geo);
+  await expect(page.locator('#an-msg:visible')).toContainText('Saved to My Library');
 
   await startRun(page);
   await endRun(page, { perfect: 6, miss: 2 });
@@ -556,8 +556,7 @@ test('a library file keeps its best and last-played day and shows them in My Lib
   await expect(shown).toContainText('Last played:');
 
   await libraryRow(page, 'Progress Etude').locator('[data-library-action=open]').click();
-  await expect(page.locator('#an-panel')).toBeVisible();
-  await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.kind === 'xml' && !!window.__etude.SCORE.geo);
+  await expect(page.locator('#an-msg:visible')).toContainText('Saved to My Library');
   await startRun(page);
   await endRun(page, { perfect: 1, miss: 1 });
   await expect(page.locator('#pr-sum-best')).toHaveText('Best: 75%');
