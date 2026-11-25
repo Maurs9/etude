@@ -13,6 +13,9 @@ async function library(page) {
     await page.locator('#an-back').click();
     await expect(page.locator('#an-catalog')).toBeVisible();
   }
+  const libTab = page.locator('#an-tab-library');
+  if (await libTab.count() && await libTab.getAttribute('aria-selected') !== 'true')
+    await libTab.click();
   const details = page.locator('#score-library');
   if (!await details.evaluate(node => node.open)) await details.locator('summary').click();
 }
@@ -477,4 +480,32 @@ test('reopening a saved MIDI score via file input restores its saved reconstruct
   await page.evaluate(() => window.__etude.anLibraryFlush());
   const savedRecon = await page.evaluate(async () => (await window.__etude.scoreLibraryStore.libraryList()).find(item => item.name === 'duet.mid')?.resume?.recon);
   expect(savedRecon).toMatchObject({ hands: 'tracks', grid: 8 });
+});
+
+test('row action menu (⋯) supports keyboard navigation, Escape return focus, and corrupt import retry', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  await expect(page.locator('#an-tab-builtin')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.an-open-cta')).toBeVisible();
+
+  await page.locator('#an-file').setInputFiles({ name: 'corrupt.xml', mimeType: 'application/xml', buffer: Buffer.from('not xml') });
+  await expect(page.locator('#an-import-banner')).toBeVisible();
+  await expect(page.locator('#an-import-retry')).toBeVisible();
+
+  await library(page);
+  await page.locator('#library-files').setInputFiles(file('menu-test.xml', score('Menu Study')));
+  await expect(rows(page)).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator('#an-tab-library')).toHaveAttribute('aria-selected', 'true');
+
+  const more = row(page, 'Menu Study').locator('[data-library-action=more]');
+  await more.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(row(page, 'Menu Study').locator('.score-library-secondary')).toBeVisible();
+  await expect(row(page, 'Menu Study').locator('[data-library-action=edit]')).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(row(page, 'Menu Study').locator('[data-library-action=delete]')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Menu Study').locator('.score-library-secondary')).toBeHidden();
+  await expect(more).toBeFocused();
 });

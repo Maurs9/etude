@@ -108,7 +108,10 @@ test.describe('UI/UX polish, accessibility, and mobile ergonomics', () => {
     await page.waitForFunction(() => !window.__etude.AN.loading && !!window.__etude.SCORE.geo);
 
     await page.locator('#an-back').click();
-    await page.locator('#score-library > summary').click();
+    if (await page.locator('#an-tab-library').getAttribute('aria-selected') !== 'true')
+      await page.locator('#an-tab-library').click();
+    if (!await page.locator('#score-library').evaluate(node => node.open))
+      await page.locator('#score-library > summary').click();
     await expect(page.locator('#library-items > li')).toHaveCount(1);
 
     // Filter with matching query -> single Reset filters button in toolbar bar actions.

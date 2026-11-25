@@ -1,12 +1,37 @@
 .an-catalog[hidden], .an-panel[hidden]{display:none}
+.an-head-actions{display:flex; align-items:center; gap:8px}
+.an-open-cta{min-height:44px; padding-inline:16px}
+.an-open-cta svg{width:16px; height:16px; flex:none}
 .an-empty-host{margin-top:14px}
 .an-empty-host[hidden]{display:none}
-.an-catalog-status{margin:10px 0 0; padding:10px 14px; border:1px solid color-mix(in srgb, var(--bad) 35%, var(--line)); border-radius:10px; background:color-mix(in srgb, var(--bad) 8%, var(--card)); color:var(--bad); font-size:13.5px; font-weight:600}
-.an-catalog-status[hidden]{display:none}
+.an-import-banner{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 14px; margin-top:12px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; background:var(--card)}
+.an-import-banner[hidden]{display:none}
+.an-import-banner.is-error{border-color:color-mix(in srgb, var(--bad) 38%, var(--line)); background:color-mix(in srgb, var(--bad) 8%, var(--card))}
+.an-catalog-status{margin:0; color:var(--ink2); font-size:13.5px; font-weight:600}
+.an-import-banner.is-error .an-catalog-status{color:var(--bad)}
+.an-msg-row{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px}
+.an-continue{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 16px; margin-top:14px; padding:12px 16px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:var(--rad, 12px); background:var(--card); box-shadow:var(--shadow)}
+.an-continue[hidden]{display:none}
+.an-continue-txt{display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 220px}
+.an-continue-eye{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent)}
+.an-continue-title{font-family:var(--serif); font-size:17px; font-weight:600; color:var(--ink); overflow-wrap:anywhere}
+.an-continue-meta{font-size:13px; color:var(--muted)}
+.an-continue-meta:empty{display:none}
+.an-continue-btn{flex:none; min-height:44px; padding-inline:16px}
+.an-cat-tabs{display:flex; gap:6px; margin-top:16px; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--paper2)}
+.an-cat-tabs [role=tab]{appearance:none; flex:1 1 0; min-height:44px; padding:8px 12px; border:0; border-radius:9px; background:none; color:var(--muted); font:600 14px/1.25 var(--sans); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px}
+.an-cat-tabs [role=tab][aria-selected=true]{background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.an-cat-tabs [role=tab]:focus-visible{outline:2.5px solid var(--accent); outline-offset:1px}
+.an-tab-count{font-size:12px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums}
+.an-tab-count:empty{display:none}
+.an-cat-panel{min-width:0}
+.an-cat-panel[hidden]{display:none}
 .an-back-btn{flex:none; min-height:36px; white-space:nowrap}
 [data-an-screen="player"] .an-panel{margin-top:0 !important}
 @media (max-width:680px){
   .an-back-btn{min-height:44px; padding-inline:12px}
+  .an-empty-host{display:none}
+  .an-continue-btn{width:100%; justify-content:center}
 }
 
 /* ---------- Pieces (etude.html #view-analysis) and the Read & Play sight-reading tab ----------

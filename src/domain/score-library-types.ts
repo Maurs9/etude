@@ -136,6 +136,8 @@ export interface LibraryHost {
   flush(): Promise<void>;
   /** Ask for user confirmation using the themed app dialog when available. */
   confirm?(message: string): Promise<boolean>;
+  /** Notifies the catalog wrapper when loaded/updated library items change. */
+  onItemsChanged?(items: readonly LibraryItem[]): void;
 }
 
 export interface LibraryController {

@@ -235,8 +235,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
   restore.type = 'file';
   restore.accept = '.json,application/json';
   restoreLabel.append(restoreText, restore);
-  transfer.append(transferNote, backup, restoreLabel);
-  content.append(privacy, toolbar, protection, status, corruptStatus, failures, scroll, emptyBox, transfer);
+  transfer.append(privacy, transferNote, backup, restoreLabel);
+  content.append(toolbar, protection, status, corruptStatus, failures, scroll, emptyBox, transfer);
   details.append(summary, content);
   root.append(details);
 
@@ -638,6 +638,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (editingId !== null && !items.some(item => item.id === editingId)) editingId = null;
       loaded = true;
       render();
+      host.onItemsChanged?.(items);
       queueAutomaticRatings();
     } catch {
       // Do not turn a storage failure into a false empty-library message.
@@ -934,6 +935,7 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const actions = element('div', 'score-library-actions');
     const secondary = element('div', 'score-library-secondary');
     secondary.id = 'score-actions-' + id;
+    secondary.setAttribute('role', 'menu');
     secondary.hidden = true;
     const fileDetails = element('div', 'score-library-original-info');
     fileDetails.append(name, last);
@@ -943,12 +945,14 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       button.type = 'button';
       button.dataset.libraryAction = action;
       button.disabled = busy;
+      if (group === secondary) button.setAttribute('role', 'menuitem');
       group.append(button);
       return button;
     };
     const open = makeButton('open', title);
     const favorite = makeButton('favorite');
     const more = makeButton('more');
+    more.setAttribute('aria-haspopup', 'menu');
     more.setAttribute('aria-controls', secondary.id);
     more.setAttribute('aria-expanded', 'false');
     const edit = makeButton('edit', secondary);
@@ -960,7 +964,8 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
     const remove = makeButton('delete', secondary);
     actions.append(secondary);
     node.append(groupHeading, selectLabel, info, rating, actions, ratingDetails);
-    const toggleMore = (open: boolean, restoreFocus = true) => {
+    const menuItems = () => Array.from(secondary.querySelectorAll<HTMLButtonElement>('[role=menuitem]')).filter(btn => !btn.disabled && !btn.hidden);
+    const toggleMore = (open: boolean, restoreFocus = true, focusMenu = false) => {
       if (open) closeOpenMore(id);
       secondary.hidden = !open;
       more.setAttribute('aria-expanded', String(open));
@@ -968,9 +973,36 @@ export function initScoreLibrary(root: HTMLElement, host: LibraryHost): LibraryC
       if (open) {
         secondary.scrollTop = 0;
         positionOpenMore();
+        if (focusMenu) menuItems()[0]?.focus();
       } else if (restoreFocus) more.focus();
     };
-    more.addEventListener('click', () => toggleMore(Boolean(secondary.hidden)));
+    more.addEventListener('click', event => toggleMore(Boolean(secondary.hidden), true, event.detail === 0));
+    more.addEventListener('keydown', event => {
+      if (event.key === 'ArrowDown' && secondary.hidden) {
+        event.preventDefault();
+        toggleMore(true, true, true);
+      }
+    });
+    secondary.addEventListener('keydown', event => {
+      const enabled = menuItems();
+      const index = enabled.indexOf(document.activeElement as HTMLButtonElement);
+      if (!enabled.length) return;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        enabled[(index + 1) % enabled.length].focus();
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        enabled[(index - 1 + enabled.length) % enabled.length].focus();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        enabled[0].focus();
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        enabled[enabled.length - 1].focus();
+      } else if (event.key === 'Tab') {
+        toggleMore(false, false);
+      }
+    });
     node.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
       if (!secondary.hidden && (event.target === more || secondary.contains(document.activeElement))) {

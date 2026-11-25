@@ -2895,6 +2895,7 @@ type StoredTrainerData = {
     earDay?: number;
     earToday?: number;
     lastDrill?: StoredLastDrill;
+    lastBuiltinPiece?: { id: string; at: number; measure?: string; speed?: number; elapsed?: number };
     learnDone?: Record<string, number>;
     learnRev?: Record<string, StoredLessonReview>;
     learnUnlock?: Record<string, number>;
@@ -2911,6 +2912,18 @@ function restoreTrainerData(saved: storage.PttV3Payload['data']): StoredTrainerD
         srs: storage.restoreSrs(srs),
     };
     if (!isRecord(restored.sheet)) restored.sheet = {};
+    const lb = restored.lastBuiltinPiece as unknown;
+    if (isRecord(lb) && typeof lb.id === 'string' && typeof lb.at === 'number' && Number.isFinite(lb.at)) {
+        restored.lastBuiltinPiece = {
+            id: lb.id,
+            at: lb.at,
+            ...(typeof lb.measure === 'string' ? { measure: lb.measure } : {}),
+            ...(typeof lb.speed === 'number' && Number.isFinite(lb.speed) ? { speed: lb.speed } : {}),
+            ...(typeof lb.elapsed === 'number' && Number.isFinite(lb.elapsed) ? { elapsed: lb.elapsed } : {}),
+        };
+    } else {
+        delete restored.lastBuiltinPiece;
+    }
     return restored;
 }
 let data = freshData();
@@ -12915,15 +12928,104 @@ function anLibraryRestoreResume(resume: LibraryResume) {
     scoreIdle();
 }
 type AnScreen = 'catalog' | 'player';
+type AnCatalogTab = 'library' | 'builtin';
 interface AnListContext {
     fromList: boolean;
     scrollY: number;
     focusSelector: string | null;
+    activeTab: AnCatalogTab;
 }
 let anScreen: AnScreen = 'catalog';
+let anCatalogTab: AnCatalogTab = 'builtin';
+let anCatalogTabManual = false;
+let anLibraryItems: readonly LibraryItem[] = [];
+let anContinueTarget: { kind: 'lib'; id: string } | { kind: 'builtin'; id: string; speed?: number; measure?: string; elapsed?: number } | null = null;
 let anListContext: AnListContext | null = null;
 let anFromListDepth = 0;
 
+function anSetCatalogTab(tab: AnCatalogTab, manual = false, focus = false) {
+    anCatalogTab = tab;
+    if (manual) anCatalogTabManual = true;
+    const tabs: [AnCatalogTab, string, string][] = [
+        ['library', 'an-tab-library', 'an-cat-panel-library'],
+        ['builtin', 'an-tab-builtin', 'an-cat-panel-builtin'],
+    ];
+    for (const [key, btnId, panelId] of tabs) {
+        const btn = maybeById(btnId), panel = maybeById(panelId), on = key === tab;
+        if (btn) {
+            btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            btn.tabIndex = on ? 0 : -1;
+            if (on && focus) btn.focus({ preventScroll: true });
+        }
+        if (panel) panel.hidden = !on;
+    }
+    if (tab === 'library') {
+        const details = maybeById('score-library');
+        if (details instanceof HTMLDetailsElement && !details.open) details.open = true;
+    } else {
+        const pick = maybeById('pc-pick');
+        if (pick instanceof HTMLDetailsElement && !pick.open) pick.open = true;
+    }
+}
+function anLibraryItemsChanged(items: readonly LibraryItem[]) {
+    anLibraryItems = items;
+    const countEl = maybeById('an-tab-library-count');
+    if (countEl) countEl.textContent = items.length ? `(${items.length})` : '';
+    if (!anCatalogTabManual)
+        anSetCatalogTab(items.length > 0 ? 'library' : 'builtin');
+    anRenderContinueCard();
+}
+function anRecordBuiltinProgress() {
+    if (AN.source?.kind !== 'example' || !AN.notes.length) return;
+    const pos = Math.max(0, Math.min(fallEnd(), fallTime()));
+    const beat = scoreBeatAt(pos);
+    const measure = String(anMeasureAt(beat).number);
+    const speed = +(selectById('score-speed').value || 100);
+    const elapsed = SCORE.loop || SCORE.sel ? performanceOf(performancePlan(), pos) / pracFactor() : performanceRead().elapsed;
+    data.lastBuiltinPiece = { id: AN.source.id, at: Date.now(), measure, speed, elapsed };
+    saveSoon();
+}
+function anRenderContinueCard() {
+    const card = maybeById('an-continue'), titleEl = maybeById('an-continue-title'), metaEl = maybeById('an-continue-meta');
+    if (!card || !titleEl || !metaEl) return;
+    let bestLib: LibraryItem | null = null;
+    for (const item of anLibraryItems) {
+        if (item.lastOpenedAt === null && !item.resume) continue;
+        const ts = item.lastOpenedAt ?? item.addedAt;
+        if (!bestLib || ts > (bestLib.lastOpenedAt ?? bestLib.addedAt)) bestLib = item;
+    }
+    const libAt = bestLib ? (bestLib.lastOpenedAt ?? bestLib.addedAt) : -1;
+    const bp = data.lastBuiltinPiece;
+    const builtinPiece = bp ? PIECES.find((p) => p.id === bp.id) : undefined;
+    const builtinAt = builtinPiece && bp ? bp.at : -1;
+    if (libAt < 0 && builtinAt < 0) {
+        anContinueTarget = null;
+        card.hidden = true;
+        return;
+    }
+    if (libAt >= builtinAt && bestLib) {
+        anContinueTarget = { kind: 'lib', id: bestLib.id };
+        titleEl.textContent = bestLib.title || bestLib.name;
+        const parts: string[] = [];
+        if (bestLib.resume?.measure) parts.push(t('an_continue_bar', bestLib.resume.measure));
+        if (bestLib.best !== undefined) parts.push(`${bestLib.best}%`);
+        else if (bestLib.resume?.speed) parts.push(`${bestLib.resume.speed}%`);
+        metaEl.textContent = parts.join(' · ');
+        card.hidden = false;
+        return;
+    }
+    if (builtinPiece && bp) {
+        anContinueTarget = { kind: 'builtin', id: builtinPiece.id, speed: bp.speed, measure: bp.measure, elapsed: bp.elapsed };
+        titleEl.textContent = srPieceTitle(builtinPiece);
+        const rec = data.sheet[builtinPiece.id];
+        const parts: string[] = [];
+        if (bp.measure) parts.push(t('an_continue_bar', bp.measure));
+        if (rec?.best) parts.push(`${rec.best}%`);
+        else if (bp.speed) parts.push(`${bp.speed}%`);
+        metaEl.textContent = parts.join(' · ');
+        card.hidden = false;
+    }
+}
 function anCurrentRoute(): AnalysisRoute {
     if (anScreen === 'player' && AN.source) {
         if (AN.source.kind === 'example')
@@ -12937,12 +13039,15 @@ function anRouteMatches(a: AnalysisRoute, b: AnalysisRoute): boolean {
     if (a.kind !== b.kind) return false;
     return a.kind === 'catalog' || (b.kind !== 'catalog' && a.id === b.id);
 }
-function anCatalogStatus(msg?: string) {
-    const el = maybeById('an-catalog-status');
-    if (!el) return;
+function anCatalogStatus(msg?: string, kind: 'info' | 'error' = 'error', allowRetry = false) {
+    const el = maybeById('an-catalog-status'), banner = maybeById('an-import-banner'), retry = maybeById('an-import-retry');
     const text = msg?.trim() ?? '';
-    el.textContent = text;
-    el.hidden = !text;
+    if (el) el.textContent = text;
+    if (banner) {
+        banner.hidden = !text;
+        banner.classList.toggle('is-error', Boolean(text && kind === 'error'));
+    }
+    if (retry) retry.hidden = !(text && kind === 'error' && allowRetry);
 }
 function anCaptureListContext(focusSelector?: string | null) {
     if (view0() !== 'analysis' || anScreen !== 'catalog') return;
@@ -12957,7 +13062,7 @@ function anCaptureListContext(focusSelector?: string | null) {
                 selector = `#library-items [data-library-id="${CSS.escape(libRow.dataset.libraryId)}"] [data-library-action="open"]`;
         }
     }
-    anListContext = { fromList: true, scrollY: window.scrollY, focusSelector: selector };
+    anListContext = { fromList: true, scrollY: window.scrollY, focusSelector: selector, activeTab: anCatalogTab };
     anFromListDepth = 0;
 }
 function anRestoreListContext() {
@@ -12965,6 +13070,7 @@ function anRestoreListContext() {
     anListContext = null;
     anFromListDepth = 0;
     if (!ctx) return;
+    anSetCatalogTab(ctx.activeTab);
     const focusTarget = (selector: string): 'focused' | 'disabled' | 'missing' => {
         if (view0() !== 'analysis' || anScreen !== 'catalog') return 'missing';
         const target = document.querySelector(selector);
@@ -13043,10 +13149,12 @@ function anExitToCatalog(fromHistory = false) {
     if (SCORE_FOCUS.owner === 'analysis') scoreFocusExit(true);
     else pcStageSet(false, true);
     anLibraryCapture();
+    anRecordBuiltinProgress();
     void anLibraryFlush(false).catch(() => {});
     const canPopBack = !fromHistory && anListContext?.fromList && anFromListDepth === 1;
     anSetScreen('catalog');
     pcRender();
+    anRenderContinueCard();
     anRestoreListContext();
     if (!fromHistory) {
         if (canPopBack) {
@@ -13110,7 +13218,7 @@ function anLibraryEnsure(): Promise<LibraryController> {
             if (!scoreLibrary) {
                 byId('score-library-root').replaceChildren();
                 scoreLibrary = initScoreLibrary(byId('score-library-root'), {
-                    language: () => lang, inspect: anLibraryInspect, difficulty: anInspectDifficulty, open: anLibraryOpen, flush: () => anLibraryFlush(), confirm: appConfirm,
+                    language: () => lang, inspect: anLibraryInspect, difficulty: anInspectDifficulty, open: anLibraryOpen, flush: () => anLibraryFlush(), confirm: appConfirm, onItemsChanged: anLibraryItemsChanged,
                 });
             }
             return scoreLibrary;
@@ -16717,8 +16825,10 @@ function anShowError(k: string, a?: string|number) {
     AN.error = { k, a };
     const msg = a === undefined ? t(k) : t(k, a);
     anStatus(msg, true);
+    const retryBtn = maybeById('an-msg-retry');
+    if (retryBtn) retryBtn.hidden = false;
     if (anScreen === 'catalog' || !SCORE.xml)
-        anCatalogStatus(msg);
+        anCatalogStatus(msg, 'error', true);
     if (!SCORE.xml || anScreen === 'catalog')
         anRenderEmpty();
 }
@@ -16729,6 +16839,8 @@ function anSetLoading(on: boolean, msg?: string) { AN.loading = on; if (on) {
         stopPreviews();
     AN.error = null;
     anStatus(msg);
+    const retryBtn = maybeById('an-msg-retry');
+    if (retryBtn) retryBtn.hidden = true;
 } anUpdateControls(); }
 function anErrorKey(err: unknown, fallback: string) { const code: unknown = typeof err === 'object' && err !== null && 'code' in err ? err.code : undefined; if (!err || !code)
     console.error(err); return 'an_err_' + (code && (STRINGS[lang] || STRINGS.en)?.['an_err_' + String(code)] ? String(code) : fallback); }
@@ -16887,6 +16999,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem, opts?: { fromHi
     anLibraryCapture();
     const checkpoint = anLibraryFlush(false).catch(() => {});
     const title = name.replace(/\.[^.]+$/, ''), kind = /\.mxl$/i.test(name) ? 'mxl' : /\.(xml|musicxml)$/i.test(name) ? 'xml' : 'midi';
+    anCatalogStatus(t('an_status_opening'), 'info');
     anSetLoading(true, t('an_loading', name));
     await checkpoint;
     if (token !== AN.loadToken)
@@ -16943,6 +17056,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem, opts?: { fromHi
                 await scoreLibraryStore.libraryUpdate(item.id, { lastOpenedAt: Date.now() });
             anLibrarySchedule();
             scoreLibrary?.notice('saved');
+            anStatus(`${anLoadedText()} · ${t('an_status_saved')}`);
         }
         await scoreLibrary?.refresh();
     }
@@ -16955,7 +17069,7 @@ async function anOpenFile(file: File, libraryItem?: LibraryItem, opts?: { fromHi
     }
     return token === AN.loadToken && AN.source === src && !AN.error;
 }
-async function anLoadExample(id: string, opts?: { fromHistory?: boolean })  {
+async function anLoadExample(id: string, opts?: { fromHistory?: boolean; speed?: number; measure?: string })  {
     await ensureAnalysisModules();
     const p = PIECES.find((x) => x.id === id);
     if (!p)
@@ -16971,6 +17085,18 @@ async function anLoadExample(id: string, opts?: { fromHistory?: boolean })  {
         fromHistory: opts?.fromHistory,
         route: { kind: 'builtin', id },
     });
+    if (token === AN.loadToken && AN.source?.kind === 'example' && AN.source.id === id) {
+        if (opts?.speed && [...selectById('score-speed').options].some((o) => +o.value === opts.speed)) {
+            selectById('score-speed').value = String(opts.speed);
+            anUpdateControls();
+        }
+        if (opts?.measure) {
+            const idx = SCORE.measures.findIndex((m) => String(m.number) === opts.measure);
+            if (idx > 0) scoreSeekTo(scoreSeconds(SCORE.measures[idx].start));
+        }
+        anRecordBuiltinProgress();
+        anRenderContinueCard();
+    }
 }
 // Keep the old renderer and DOM available until the replacement finishes layout.
 // A newer open rolls this attempt back before reading its own file.
@@ -17071,6 +17197,9 @@ async function anCommit(src: AnSource, token: number, recon?: LibraryResume['rec
     pcRender();
     byId('an-name').textContent = src.label || src.title;
     anStatus(anLoadedText());
+    anCatalogStatus('');
+    const retryBtn = maybeById('an-msg-retry');
+    if (retryBtn) retryBtn.hidden = true;
     fallReset();
     AN.kbCenter = true;
     if (anKeysShown())
@@ -18509,6 +18638,27 @@ function anInitControls() {
         return;
     } });
     byId('an-back').addEventListener('click', () => { anExitToCatalog(false); });
+    maybeById('an-continue-btn')?.addEventListener('click', () => {
+        if (!anContinueTarget) return;
+        anCaptureListContext('#an-continue-btn');
+        if (anContinueTarget.kind === 'lib')
+            void anOpenRoute({ kind: 'lib', id: anContinueTarget.id });
+        else
+            void anLoadExample(anContinueTarget.id, { speed: anContinueTarget.speed, measure: anContinueTarget.measure });
+    });
+    maybeById('an-cat-tabs')?.addEventListener('click', (e) => {
+        const b = eventClosest(e, '[role=tab]');
+        const tab = b?.dataset.catTab;
+        if (tab === 'library' || tab === 'builtin')
+            anSetCatalogTab(tab, true, false);
+    });
+    maybeById('an-cat-tabs')?.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+        e.preventDefault();
+        const next: AnCatalogTab = e.key === 'Home' ? 'library' : e.key === 'End' ? 'builtin' : (anCatalogTab === 'library' ? 'builtin' : 'library');
+        anSetCatalogTab(next, true, true);
+    });
+    anRenderContinueCard();
     byId('pc-list').addEventListener('click', (e) => { const b = eventClosest(e, 'button[data-piece]'); if (b instanceof HTMLButtonElement && !b.disabled && b.dataset.piece) {
         anCaptureListContext(`#pc-list .pc-item[data-piece="${CSS.escape(b.dataset.piece)}"]`);
         void anLoadExample(b.dataset.piece);

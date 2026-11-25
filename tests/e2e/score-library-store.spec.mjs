@@ -319,7 +319,10 @@ test('unreadable metadata does not hide readable scores or remove originals', as
   }, modulePath);
   expect(scan).toEqual({ titles: ['First'], exportedTitles: ['First'], corrupt: 1, readable: 'original', original: 'keep me' });
   await page.goto('/etude.html#analysis');
-  await page.locator('#score-library > summary').click();
+  if (await page.locator('#an-tab-library').getAttribute('aria-selected') !== 'true')
+    await page.locator('#an-tab-library').click();
+  if (!await page.locator('#score-library').evaluate(node => node.open))
+    await page.locator('#score-library > summary').click();
   await expect(page.getByText('Unreadable library entries: 1.')).toBeVisible();
 });
 

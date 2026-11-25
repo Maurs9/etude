@@ -505,9 +505,13 @@ test.describe('MusicXML rest explanations', () => {
 });
 
 test.describe('MusicXML pedal collision regression', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {});
+  });
   test('pedals search note-side slots without migrating from their musical owner', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     const result = await page.evaluate(() => {
+      window.__etude.$('an-panel').hidden = false;
       const box = window.__etude.$('an-roll');
       box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400"><rect class="vf-notehead" x="100" y="70" width="20" height="180"/><g class="vf-sc-pedal"><path d="M100 80 h20 v12 h-20 Z"/></g></svg>';
       const sys = { PositionAndShape: { AbsolutePosition: { x: 0, y: 2 } }, StaffLines: [] };
@@ -527,6 +531,7 @@ test.describe('MusicXML pedal collision regression', () => {
   test('a pedal remains near its source measure rather than taking a distant side slot', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     const x = await page.evaluate(() => {
+      window.__etude.$('an-panel').hidden = false;
       const box = window.__etude.$('an-roll');
       box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect class="vf-notehead" x="80" y="70" width="100" height="30"/><g class="vf-sc-pedal"><path d="M145 80 h20 v12 h-20 Z"/></g></svg>';
       const sys = { PositionAndShape: { AbsolutePosition: { x: 0, y: 2 } } }, line = { ParentMusicSystem: sys };
@@ -543,6 +548,7 @@ test.describe('MusicXML pedal collision regression', () => {
     const warnings = [];
     page.on('console', m => { if (m.type() === 'warning') warnings.push(m.text()); });
     const result = await page.evaluate(() => {
+      window.__etude.$('an-panel').hidden = false;
       const box = window.__etude.$('an-roll');
       box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect class="vf-notehead" width="200" height="100"/><g class="vf-sc-pedal"><path d="M100 90 h20 v12 h-20 Z"/></g></svg>';
       const status = window.__etude.scoreFixPedals(box);
@@ -554,6 +560,7 @@ test.describe('MusicXML pedal collision regression', () => {
   test('a last-system pedal below a flush page bottom expands the SVG bottom instead of failing', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     const result = await page.evaluate(() => {
+      window.__etude.$('an-panel').hidden = false;
       const box = window.__etude.$('an-roll');
       box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><g class="vf-sc-pedal"><path d="M80 106 h20 v12 h-20 Z"/></g></svg>';
       const group = box.querySelector('.vf-sc-pedal');
@@ -593,6 +600,7 @@ test.describe('MusicXML pedal collision regression', () => {
     const kinds = [];
     for (const fixture of ['beam', 'ledgers', 'page', 'system', 'missing']) {
       await page.evaluate(kind => {
+        window.__etude.$('an-panel').hidden = false;
         const box = window.__etude.$('an-roll');
         window.__etude.SCORE.xml = '<score-partwise><pedal type="start"/></score-partwise>';
         const ink = kind === 'beam' ? '<rect class="vf-beam" x="100" y="80" width="20" height="8"/>' : kind === 'ledgers' ? '<g class="vf-ledgers"><path d="M95 85 H125" stroke="black" stroke-width="1"/></g>' : '';
@@ -615,6 +623,7 @@ test.describe('MusicXML pedal collision regression', () => {
   test('pedal audit rejects in-system drift and a wrong source-measure fragment', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     await page.evaluate(() => {
+      window.__etude.$('an-panel').hidden = false;
       const box = window.__etude.$('an-roll');
       box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><g class="vf-sc-pedal"><path data-pedal-base-transform="" transform="translate(0 50)" d="M200 80 h20 v12 h-20 Z"/></g></svg>';
       const sys = { PositionAndShape: { AbsolutePosition: { x: 0, y: 2 } } }, line = { ParentMusicSystem: sys };
@@ -630,6 +639,7 @@ test.describe('MusicXML pedal collision regression', () => {
   test('a distant curved tie does not occupy its empty bounding-box interior', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     await page.evaluate(() => {
+      window.__etude.$('an-panel').hidden = false;
       const box = window.__etude.$('an-roll');
       window.__etude.SCORE.xml = '<score-partwise><pedal type="start"/></score-partwise>';
       box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="180"><path class="sc-xline" d="M0 0 Q100 320 200 0 Q100 310 0 0 Z"/><g class="vf-sc-pedal"><path d="M100 80 h20 v12 h-20 Z"/></g></svg>';
@@ -641,6 +651,7 @@ test.describe('MusicXML pedal collision regression', () => {
   test('pedal repair clears zero-height ledger strokes', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
     const dy = await page.evaluate(() => {
+      window.__etude.$('an-panel').hidden = false;
       const box = window.__etude.$('an-roll');
       box.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="160"><g class="vf-ledgers"><path d="M60 85 H160" stroke="black" stroke-width="1"/></g><g class="vf-sc-pedal"><path d="M100 80 h20 v12 h-20 Z"/></g></svg>';
       window.__etude.scoreFixPedals(box);
@@ -650,7 +661,7 @@ test.describe('MusicXML pedal collision regression', () => {
   });
   test('pedal collision repair stays inside the page using nearby side or upper free slots', async ({ app }) => {
     const page = await app.open({ hash: 'analysis' });
-    const result = await page.evaluate(() => [ [100, 20], [60, 100] ].map(([x, width]) => { const box = window.__etude.$('an-roll'); box.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><rect class="vf-notehead" x="${x}" y="75" width="${width}" height="20"/><g class="vf-sc-pedal"><path d="M100 76 h20 v12 h-20 Z"/></g></svg>`; window.__etude.scoreFixPedals(box); const svg = box.querySelector('svg').getBoundingClientRect(), pedal = box.querySelector('path').getBoundingClientRect(), note = box.querySelector('rect').getBoundingClientRect(); return { inside: pedal.bottom <= svg.bottom && pedal.top >= svg.top, overlap: Math.min(pedal.right, note.right) > Math.max(pedal.left, note.left) && Math.min(pedal.bottom, note.bottom) > Math.max(pedal.top, note.top) }; }));
+    const result = await page.evaluate(() => { window.__etude.$('an-panel').hidden = false; return [ [100, 20], [60, 100] ].map(([x, width]) => { const box = window.__etude.$('an-roll'); box.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><rect class="vf-notehead" x="${x}" y="75" width="${width}" height="20"/><g class="vf-sc-pedal"><path d="M100 76 h20 v12 h-20 Z"/></g></svg>`; window.__etude.scoreFixPedals(box); const svg = box.querySelector('svg').getBoundingClientRect(), pedal = box.querySelector('path').getBoundingClientRect(), note = box.querySelector('rect').getBoundingClientRect(); return { inside: pedal.bottom <= svg.bottom && pedal.top >= svg.top, overlap: Math.min(pedal.right, note.right) > Math.max(pedal.left, note.left) && Math.min(pedal.bottom, note.bottom) > Math.max(pedal.top, note.top) }; }); });
     expect(result).toEqual([{ inside: true, overlap: false }, { inside: true, overlap: false }]);
   });
   test('Moonlight overlapping text and line gestures retain all source events without collisions', async ({ app }) => {
@@ -3329,6 +3340,8 @@ test.describe('UI/UX polish, accessibility, contrast and runtime regressions', (
 
   test('score library selects retain chevron background-image and tabs expose an accessible name', async ({ app, page }) => {
     await app.open({ hash: 'analysis' });
+    const libTab = page.locator('#an-tab-library');
+    if (await libTab.getAttribute('aria-selected') !== 'true') await libTab.click();
     const details = page.locator('#score-library');
     if (!await details.evaluate(node => node.open)) await details.locator('summary').click();
     await expect(page.locator('#score-library .score-library-tabs')).toHaveAttribute('aria-label', /\S+/);

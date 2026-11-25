@@ -74,6 +74,8 @@ test('all built-in pieces open in Pieces with their bars, upbeats, meter, key an
   for (const [id, bars] of Object.entries(BARS)) {
     if (await page.locator('#an-back').isVisible())
       await page.locator('#an-back').click();
+    if (await page.locator('#an-tab-builtin').getAttribute('aria-selected') !== 'true')
+      await page.locator('#an-tab-builtin').click();
     if (!await page.locator('#pc-pick').evaluate(d => d.open))
       await page.locator('#pc-sum').click();
     await page.locator(`#pc-list .pc-item[data-piece="${id}"]`).click();
@@ -518,6 +520,9 @@ async function openLibrary(page) {
     await page.locator('#an-back').click();
     await expect(page.locator('#an-catalog')).toBeVisible();
   }
+  const libTab = page.locator('#an-tab-library');
+  if (await libTab.count() && await libTab.getAttribute('aria-selected') !== 'true')
+    await libTab.click();
   const details = page.locator('#score-library');
   if (!await details.evaluate(node => node.open))
     await details.locator('summary').click();
@@ -647,6 +652,7 @@ test('Pieces routes between catalog and dedicated player while preserving librar
   await expect(page.locator('#library-items > li')).toHaveCount(1);
   await expect(libraryRow(page, 'Zeta Sonata').locator('[data-library-action=open]')).toBeFocused();
 
+  await page.locator('#an-tab-builtin').click();
   await page.locator('#pc-list .pc-item[data-piece="canon"]').click();
   await page.waitForFunction(() => !window.__etude.AN.loading && window.__etude.AN.source?.id === 'canon');
   await expect(page).toHaveURL(/#analysis\/builtin\/canon$/);
@@ -684,4 +690,28 @@ test('on a phone opening a built-in piece puts the score directly in the viewpor
   expect(box).not.toBeNull();
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(844);
+});
+
+test('Continue card resumes the most recently opened piece at its saved measure and speed', async ({ app, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await app.open({ hash: 'analysis' });
+  await expect(page.locator('#an-continue')).toBeHidden();
+
+  await openPiece(page, 'clair');
+  await page.evaluate(() => {
+    const E = window.__etude;
+    E.scoreSeekTo(E.scoreSeconds(E.SCORE.measures[2].start));
+  });
+  await page.locator('#score-speed').selectOption('70');
+  await page.locator('#an-back').click();
+
+  await expect(page.locator('#an-continue')).toBeVisible();
+  await expect(page.locator('#an-continue-title')).toContainText(/clair/i);
+  await expect(page.locator('#an-continue-meta')).toContainText('3');
+  await expect(page.locator('#an-continue-meta')).toContainText('70%');
+
+  await page.locator('#an-continue-btn').click();
+  await expect(page.locator('#an-panel')).toBeVisible();
+  await expect(page).toHaveURL(/#analysis\/builtin\/clair$/);
+  await expect(page.locator('#score-speed')).toHaveValue('70');
 });

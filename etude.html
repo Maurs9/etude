@@ -306,18 +306,37 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <section class="view" id="view-analysis" data-an-screen="catalog"><div class="wrap">
     <input type="file" id="an-file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi" class="visually-hidden">
     <div class="an-catalog" id="an-catalog">
-      <div class="section-head"><div><div class="eyebrow" data-i18n="an_eyebrow">Score study</div><h1 data-i18n="an_title">Pieces</h1></div></div>
+      <div class="section-head">
+        <div><div class="eyebrow" data-i18n="an_eyebrow">Score study</div><h1 data-i18n="an_title">Pieces</h1></div>
+        <div class="an-head-actions"><label class="btn primary an-open-cta" for="an-file"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></label></div>
+      </div>
       <p class="lede" data-i18n="an_desc">Pick a built-in piece or open your own MIDI or MusicXML file, then play it with the score. Select notes to study keys, chords and harmony. Everything stays on this device.</p>
-      <p class="an-catalog-status" id="an-catalog-status" role="status" aria-live="polite" hidden></p>
+      <div class="an-import-banner" id="an-import-banner" hidden><span class="an-catalog-status" id="an-catalog-status" role="status" aria-live="polite"></span><button type="button" class="btn sm an-try-another" id="an-import-retry" data-an-open data-i18n="an_try_another" hidden>Try another file</button></div>
       <div id="an-empty-host" class="an-empty an-empty-host"></div>
-      <details class="pc-pick" id="pc-pick" open><summary id="pc-sum">Built-in pieces</summary><div class="pc-list" id="pc-list"></div></details>
-      <div id="score-library-root"></div>
+      <section class="an-continue" id="an-continue" hidden>
+        <div class="an-continue-txt">
+          <span class="an-continue-eye" data-i18n="an_continue_eye">Continue</span>
+          <strong class="an-continue-title" id="an-continue-title"></strong>
+          <span class="an-continue-meta" id="an-continue-meta"></span>
+        </div>
+        <button type="button" class="btn primary an-continue-btn" id="an-continue-btn" data-i18n="an_continue_cta">Resume</button>
+      </section>
+      <div class="an-cat-tabs" id="an-cat-tabs" role="tablist" aria-label="Piece collections" data-i18n-aria="an_cat_tabs_aria">
+        <button type="button" role="tab" id="an-tab-library" data-cat-tab="library" aria-selected="false" aria-controls="an-cat-panel-library" tabindex="-1"><span data-i18n="an_tab_library">My Library</span> <span class="an-tab-count" id="an-tab-library-count"></span></button>
+        <button type="button" role="tab" id="an-tab-builtin" data-cat-tab="builtin" aria-selected="true" aria-controls="an-cat-panel-builtin" tabindex="0"><span data-i18n="an_tab_builtin">Built-in pieces</span></button>
+      </div>
+      <div class="an-cat-panel" id="an-cat-panel-library" role="tabpanel" aria-labelledby="an-tab-library" hidden>
+        <div id="score-library-root"></div>
+      </div>
+      <div class="an-cat-panel" id="an-cat-panel-builtin" role="tabpanel" aria-labelledby="an-tab-builtin">
+        <details class="pc-pick" id="pc-pick" open><summary id="pc-sum">Built-in pieces</summary><div class="pc-list" id="pc-list"></div></details>
+      </div>
       <details class="an-about"><summary data-i18n="an_about">About import &amp; analysis</summary><p data-i18n="an_limits"></p><p data-i18n="an_tip"></p></details>
     </div>
     <div class="panel an-panel" id="an-panel" style="margin-top:18px" hidden>
       <div class="an-src" id="an-src">
         <button type="button" class="btn ghost sm an-back-btn" id="an-back" data-i18n="an_back_pieces">← Back to pieces</button>
-        <div class="an-src-text"><span id="an-name" class="an-name"></span><span id="an-msg" class="an-msg" role="status" aria-live="polite"></span></div>
+        <div class="an-src-text"><span id="an-name" class="an-name"></span><span class="an-msg-row"><span id="an-msg" class="an-msg" role="status" aria-live="polite"></span><button type="button" class="btn sm ghost an-msg-retry" id="an-msg-retry" data-an-open data-i18n="an_try_another" hidden>Try another file</button></span></div>
         <div class="an-src-actions">
           <label class="btn sm primary" for="an-file"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.5 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span data-i18n="an_file">Open file</span></label>
         </div>
