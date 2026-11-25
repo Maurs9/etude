@@ -85,7 +85,7 @@ import { type TechniqueKind } from './technique.js';
 import { CONTRAST_LENGTH, ConfusionLog, contrastOrder, differentialIntervalCue, differentialToneCue, feedbackBroken, feedbackChords, feedbackLine, feedbackSchedule, type ConfusionPair, type FeedbackSketch } from './feedback.js';
 import { TECHNIQUE_TOPIC, techniqueDrillActive, techniqueInput, techniquePresent, techniqueRefresh, techniqueStop, type TechniqueHost } from './technique-drill.js';
 import { ARCADE_LIVES, ARCADE_STREAK, MARATHON_NOTES_PER_BAR, TIME_ATTACK_MS, srtArcadeComplete, srtArcadeMultiplier, srtArcadeRecord, srtArcadeRemainingMs, srtArcadeStart, srtArcadeSummary, srtIsArcadeMode, srtIsMarathonBars, type SightReadingArcadeMode, type SightReadingArcadeState, type SightReadingMarathonBars } from '../sight-reading/arcade.js';
-import { buildPracticeReport, formatPracticeReportCsv, type PracticeReportPieceInput } from './progress-report.js';
+import type { buildPracticeReport, PracticeReportPieceInput } from './progress-report.js';
 
 let scoreFeature: typeof import('./score-feature.js');
 let AN_SMUFL_NOTES: typeof import('./score-import.js').AN_SMUFL_NOTES;
@@ -18517,7 +18517,7 @@ function anInitControls() {
 }
 /* ---------- PROGRESS ---------- */
 let progressView: typeof import('./progress-view.js') | null = null;
-function collectPracticeReport(libraryItems: readonly LibraryItem[] = []) {
+function collectPracticeReport(buildReport: typeof buildPracticeReport, libraryItems: readonly LibraryItem[] = []) {
     const tn = todayN();
     const book = rdnBook();
     const tally = srtBookTally(book, book.level);
@@ -18547,7 +18547,7 @@ function collectPracticeReport(libraryItems: readonly LibraryItem[] = []) {
             });
         }
     }
-    return buildPracticeReport({
+    return buildReport({
         today: tn,
         totalReviews: data.totalReviews || 0,
         totalCorrect: data.totalCorrect || 0,
@@ -18595,16 +18595,17 @@ function renderPrintSummaryHtml(report: ReturnType<typeof buildPracticeReport>):
         + `<p class="prog-print-meta">${esc(report.generatedDateIso)} · ${esc(t('prog_ms_standing', standingLabelOf(report)))} · ${esc(t('prog_rep_7d', report.reviews7d, report.activeDays7d))} · ${esc(t('prog_rep_30d', report.reviews30d, report.activeDays30d))}</p>`
         + piecesLine;
 }
-function updatePrintSummaryHead(libraryItems: readonly LibraryItem[] = []): { html: string; report: ReturnType<typeof buildPracticeReport> } {
-    const report = collectPracticeReport(libraryItems);
+function updatePrintSummaryHead(buildReport: typeof buildPracticeReport, libraryItems: readonly LibraryItem[] = []): { html: string; report: ReturnType<typeof buildPracticeReport> } {
+    const report = collectPracticeReport(buildReport, libraryItems);
     const html = renderPrintSummaryHtml(report);
     const head = maybeById('prog-print-head');
     if (head) head.innerHTML = html;
     return { html, report };
 }
 function renderProgress() {
-    const { html: printSummaryHtml, report } = updatePrintSummaryHead();
-    progressView?.renderProgress({
+    if (!progressView) return;
+    const { html: printSummaryHtml, report } = updatePrintSummaryHead(progressView.buildPracticeReport);
+    progressView.renderProgress({
         data, hasActivity: storeHasProgress(), items: ITEMS, categories: Object.keys(CATS), today: todayN(), loc: LOCALE_TAGS[lang] || lang,
         t, currentStreak, masteredCount, itemLabel, catLabel, statHTML, rdRenderStats,
         printSummaryHtml,
@@ -20543,9 +20544,11 @@ function initControls() {
     // progress
     byId('prog-report-csv').addEventListener('click', () => {
         void (async () => {
+            const reportModule = progressView;
+            if (!reportModule) return;
             const libraryItems = await scoreLibraryStore.libraryList().catch(() => []);
-            const report = collectPracticeReport(libraryItems);
-            const csv = formatPracticeReportCsv(report, {
+            const report = collectPracticeReport(reportModule.buildPracticeReport, libraryItems);
+            const csv = reportModule.formatPracticeReportCsv(report, {
                 title: t('prog_rep_title'),
                 secSummary: t('prog_rep_sec_summary'),
                 secTopics: t('prog_rep_sec_topics'),
@@ -20585,8 +20588,10 @@ function initControls() {
     });
     byId('prog-report-print').addEventListener('click', () => {
         void (async () => {
+            const reportModule = progressView;
+            if (!reportModule) return;
             const libraryItems = await scoreLibraryStore.libraryList().catch(() => []);
-            updatePrintSummaryHead(libraryItems);
+            updatePrintSummaryHead(reportModule.buildPracticeReport, libraryItems);
             if (typeof window.print === 'function')
                 window.print();
         })();
